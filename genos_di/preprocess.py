@@ -1042,6 +1042,7 @@ class DocumentProcessor:
             reference_path = artifacts_dir.parent
 
         document = document._with_pictures_refs(image_dir=artifacts_dir, reference_path=reference_path)
+<<<<<<< HEAD
 
         document = self.enrichment(document, **kwargs)
 
@@ -1089,6 +1090,22 @@ class DocumentProcessor:
         else:
             raise GenosServiceException(1, f"chunk length is 0")
 
+=======
+        # Extract Chunk from DoclingDocument
+        chunks: List[DocChunk] = self.split_documents(document, **kwargs)
+        # await assert_cancelled(request)
+
+        # vectors: list[dict] = self.compose_vectors(document, chunks, file_path, **kwargs)
+        # print(chunks)
+
+
+        vectors = []
+        if len(chunks) > 1:
+            vectors: list[dict] = self.compose_vectors(document, chunks, file_path, **kwargs)
+        else:
+            raise GenosServiceException(1, f"chunk length is 0")
+        
+>>>>>>> f53e801 (Test Code based on komipo for Genos DI)
         """
         # 미디어 파일 업로드 방법
         media_files = [
@@ -1125,3 +1142,4 @@ class GenosServiceException(Exception):
 async def assert_cancelled(request: Request):
     if await request.is_disconnected():
         raise GenosServiceException(1, f"Cancelled")
+
