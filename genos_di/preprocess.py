@@ -382,8 +382,7 @@ class HybridChunker(BaseChunker):
                 return []
             text = doc_chunk.text
             segments = sem_chunker.chunk(text)
-            chunks = [DocChunk(text=s, meta=doc_chunk.meta) for s in segments]
-            # 이거 어카노
+            chunks = [type(doc_chunk)(text=s, meta=doc_chunk.meta) for s in segments]
             return chunks
 
     def _merge_chunks_with_matching_metadata(self, chunks: list[DocChunk]):
@@ -449,10 +448,6 @@ class HybridChunker(BaseChunker):
         res = [x for c in res for x in self._split_by_doc_items(c)]
         res = [x for c in res for x in self._split_using_plain_text(c)]
 
-        # for doc_chunk in res:
-            # for i in range(len(doc_chunk.meta.doc_items)):
-            #     if isinstance(doc_chunk.meta.doc_items[i], PictureItem):
-            #         print(doc_chunk.meta.doc_items)
         if self.merge_peers:
             res = self._merge_chunks_with_matching_metadata(res)
         return iter(res)
@@ -547,7 +542,7 @@ class GenOSVectorMetaBuilder:
             page_no = item.prov[0].page_no
             bbox = item.prov[0].bbox
             bbox_data = {'l':bbox.l,'t':bbox.t,'r':bbox.r,'b':bbox.b}
-            self.chunk_bboxes.append({'page':page_no,'bbox':bbox_data,'type':type_})
+            self.chunk_bboxes.append({'page':page_no,'bbox':bbox_data,'type':type_,'ref': label})
         return self
 
     def set_media_files(self, doc_items: list) -> "GenOSVectorMetaBuilder":
@@ -556,7 +551,7 @@ class GenOSVectorMetaBuilder:
             if isinstance(item, PictureItem):
                 path = str(item.image.uri)
                 name = path.rsplit("/",1)[-1]
-                temp_list.append({'name': name, 'type': 'image' })
+                temp_list.append({'name': name, 'type': 'image', 'ref': item.self_ref})
         self.media_files = temp_list
         return self
 
