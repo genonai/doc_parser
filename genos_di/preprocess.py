@@ -467,7 +467,6 @@ class GenOSVectorMeta(BaseModel):
     n_chunk_of_doc: int = None
     n_page: int = None
     reg_date: str = None
-    bboxes: str = None
     chunk_bboxes: list = None
     media_files: list = None
 
@@ -485,7 +484,6 @@ class GenOSVectorMetaBuilder:
         self.n_chunk_of_doc: Optional[int] = None
         self.n_page: Optional[int] = None
         self.reg_date: Optional[str] = None
-        self.bboxes: str = None
         self.chunk_bboxes: list = None
         self.media_files: list = None
 
@@ -512,21 +510,6 @@ class GenOSVectorMetaBuilder:
         self.i_chunk_on_doc = i_chunk_on_doc
         return self
 
-    def set_bboxes(self, bbox: BoundingBox) -> "GenOSVectorMetaBuilder":
-        """Bounding Boxes 정보 설정"""
-        #         bboxes.append({
-        #             'p1': {'x': rect[0] / fitz_page.rect.width, 'y': rect[1] / fitz_page.rect.height},
-        #             'p2': {'x': rect[2] / fitz_page.rect.width, 'y': rect[3] / fitz_page.rect.height},
-        #         })
-        # NOTE: docling은 BOTTOMLEFT인데 해당 좌표 그대로 활용되는지 ?
-        conv = []
-        conv.append({
-            'p1': {'x': bbox.l, 'y': bbox.t},
-            'p2': {'x': bbox.r, 'y': bbox.b},
-        })
-        self.bboxes = json.dumps(conv)
-        return self
-
     def set_global_metadata(self, **global_metadata) -> "GenOSVectorMetaBuilder":
         """글로벌 메타데이터 병합"""
         for key, value in global_metadata.items():
@@ -541,8 +524,8 @@ class GenOSVectorMetaBuilder:
             type_ = item.label
             page_no = item.prov[0].page_no
             bbox = item.prov[0].bbox
-            bbox_data = {'l':bbox.l,'t':bbox.t,'r':bbox.r,'b':bbox.b}
-            self.chunk_bboxes.append({'page':page_no,'bbox':bbox_data,'type':type_,'ref': label})
+            bbox_data = {'l':bbox.l,'t':bbox.t,'r':bbox.r,'b':bbox.b,'coord_origin': bbox.coord_origin}
+            self.chunk_bboxes.append({'page':page_no,'bbox':bbox_data,'type':type_,'ref':label})
         return self
 
     def set_media_files(self, doc_items: list) -> "GenOSVectorMetaBuilder":
@@ -569,7 +552,6 @@ class GenOSVectorMetaBuilder:
             n_chunk_of_doc=self.n_chunk_of_doc,
             n_page=self.n_page,
             reg_date=self.reg_date,
-            bboxes=self.bboxes,
             chunk_bboxes=self.chunk_bboxes,
             media_files=self.media_files,
         )
@@ -675,7 +657,6 @@ class DocumentProcessor:
                       .set_text(content)
                       .set_page_info(chunk_page, chunk_index_on_page, self.page_chunk_counts[chunk_page])
                       .set_chunk_index(chunk_idx)
-                      .set_bboxes(chunk.meta.doc_items[0].prov[0].bbox)
                       .set_global_metadata(**global_metadata)
                       .set_chunk_bboxes(chunk.meta.doc_items)
                       .set_media_files(chunk.meta.doc_items)
