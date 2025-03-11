@@ -517,15 +517,21 @@ class GenOSVectorMetaBuilder:
                 setattr(self, key, value)
         return self
 
-    def set_chunk_bboxes(self, doc_items: list) -> "GenOSVectorMetaBuilder":
+    def set_chunk_bboxes(self, doc_items: list, document: DoclingDocument) -> "GenOSVectorMetaBuilder":
         self.chunk_bboxes = []
         for item in doc_items:
-            label = item.self_ref
-            type_ = item.label
-            page_no = item.prov[0].page_no
-            bbox = item.prov[0].bbox
-            bbox_data = {'l':bbox.l,'t':bbox.t,'r':bbox.r,'b':bbox.b,'coord_origin': bbox.coord_origin}
-            self.chunk_bboxes.append({'page':page_no,'bbox':bbox_data,'type':type_,'ref':label})
+            for prov in item.prov:
+                label = item.self_ref
+                type_ = item.label
+                size = document.pages.get(prov.page_no).size
+                page_no = prov.page_no
+                bbox = prov.bbox
+                bbox_data = {'l': bbox.l / size.width,
+                             't': bbox.t / size.height,
+                             'r': bbox.r / size.width,
+                             'b': bbox.b / size.height,
+                             'coord_origin': bbox.coord_origin.value}
+                self.chunk_bboxes.append({'page': page_no, 'bbox': bbox_data, 'type': type_, 'ref': label})
         return self
 
     def set_media_files(self, doc_items: list) -> "GenOSVectorMetaBuilder":
@@ -658,7 +664,7 @@ class DocumentProcessor:
                       .set_page_info(chunk_page, chunk_index_on_page, self.page_chunk_counts[chunk_page])
                       .set_chunk_index(chunk_idx)
                       .set_global_metadata(**global_metadata)
-                      .set_chunk_bboxes(chunk.meta.doc_items)
+                      .set_chunk_bboxes(chunk.meta.doc_items, document)
                       .set_media_files(chunk.meta.doc_items)
                       ).build()
             vectors.append(vector)
