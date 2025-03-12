@@ -24,6 +24,7 @@ from docling.datamodel.pipeline_options import (
     #PdfBackend,
     PdfPipelineOptions,
     TableFormerMode,
+    # TesseractOcrOptions,
 )
 
 from docling.document_converter import DocumentConverter, PdfFormatOption
@@ -146,6 +147,7 @@ class HierarchicalChunker(BaseChunker):
         list_items: list[TextItem] = []
         for item, level in dl_doc.iterate_items():
             captions = None
+            print(type(item))
             if isinstance(item, DocItem):
 
                 # first handle any merging needed
@@ -183,11 +185,23 @@ class HierarchicalChunker(BaseChunker):
                         else (0 if item.label == DocItemLabel.TITLE else 1)
                     )
                     heading_by_level[level] = item.text
+                    text = ''.join(str(value) for value in heading_by_level.values())
 
                     # remove headings of higher level as they just went out of scope
                     keys_to_del = [k for k in heading_by_level if k > level]
                     for k in keys_to_del:
                         heading_by_level.pop(k, None)
+                    c = DocChunk(
+                        text=text,
+                        meta=DocMeta(
+                            doc_items=[item],
+                            headings=[heading_by_level[k] for k in sorted(heading_by_level)]
+                            or None,
+                            captions=captions,
+                            origin=dl_doc.origin,
+                        ),
+                    )
+                    yield c
                     continue
 
                 if (
@@ -580,6 +594,10 @@ class DocumentProcessor:
         pipe_line_options.do_ocr = True
         pipe_line_options.ocr_options.lang = ["ko", 'en']
         pipe_line_options.ocr_options.model_storage_directory = "./.EasyOCR/model"
+        # ocr_options = TesseractOcrOptions()
+        # ocr_options.lang = ['kor', 'kor_vert', 'eng']
+        # ocr_options.path = './.tesseract/tessdata'
+        # pipe_line_options.ocr_options = ocr_options
         #pipe_line_options.artifacts_path = Path("/home/mnc/temp/.cache/huggingface/hub/models--ds4sd--docling-models/snapshots/36bebf56681740529abd09f5473a93a69373fbf0/")
         pipe_line_options.do_table_structure = True
         pipe_line_options.images_scale = 2
