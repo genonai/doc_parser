@@ -1,6 +1,7 @@
 from fastapi import Request
 
 from preprocess import DocumentProcessor
+# from origin_preprocess import DocumentProcessor
 
 # 파일 경로 및 요청 설정
 file_path = "./[타사업소 아차사고 사례]폐수오니 반출작업 관련 안전개선 대책(안)(환경관리부-20.pdf"
