@@ -95,6 +95,21 @@ from genos_utils import upload_files
 # SPDX-License-Identifier: MIT
 #
 
+# FormatToExtensions = {
+#     InputFormat.DOCX: ["docx", "dotx", "docm", "dotm"],
+#     InputFormat.PPTX: ["pptx", "potx", "ppsx", "pptm", "potm", "ppsm"],
+#     InputFormat.PDF: ["pdf"],
+#     InputFormat.MD: ["md"],
+#     InputFormat.HTML: ["html", "htm", "xhtml"],
+#     InputFormat.XML_JATS: ["xml", "nxml"],
+#     InputFormat.IMAGE: ["jpg", "jpeg", "png", "tif", "tiff", "bmp"],
+#     InputFormat.ASCIIDOC: ["adoc", "asciidoc", "asc"],
+#     InputFormat.CSV: ["csv"],
+#     InputFormat.XLSX: ["xlsx"],
+#     InputFormat.XML_USPTO: ["xml", "txt"],
+#     InputFormat.JSON_DOCLING: ["json"],
+# }
+
 """Chunker implementation leveraging the document structure."""
 
 
@@ -880,6 +895,9 @@ class DocumentProcessor:
         for chunk in chunks:
             self.page_chunk_counts[chunk.meta.doc_items[0].prov[0].page_no] += 1
         return chunks
+        # elif kwargs['format'] == InputFormat.XLSX:
+        #     chunks: List[DocChunk] = list(chunker.chunk(dl_doc=documents, **kwargs))
+        #     return chunks
 
     def safe_join(self, iterable):
         if not isinstance(iterable, (list, tuple, set)):
@@ -1001,13 +1019,13 @@ class DocumentProcessor:
                 chunk_index_on_page = 0
 
             vector = (GenOSVectorMetaBuilder()
-                      .set_text(content)
-                      .set_page_info(chunk_page, chunk_index_on_page, self.page_chunk_counts[chunk_page])
-                      .set_chunk_index(chunk_idx)
-                      .set_global_metadata(**global_metadata)
-                      .set_chunk_bboxes(chunk.meta.doc_items, document)
-                      .set_media_files(chunk.meta.doc_items)
-                      ).build()
+                    .set_text(content)
+                    .set_page_info(chunk_page, chunk_index_on_page, self.page_chunk_counts[chunk_page])
+                    .set_chunk_index(chunk_idx)
+                    .set_global_metadata(**global_metadata)
+                    .set_chunk_bboxes(chunk.meta.doc_items, document)
+                    .set_media_files(chunk.meta.doc_items)
+                    ).build()
             vectors.append(vector)
 
             chunk_index_on_page += 1
@@ -1029,7 +1047,6 @@ class DocumentProcessor:
                 name = path.rsplit("/", 1)[-1]
                 temp_list.append({'path': path, 'name': name})
         return temp_list
-
     async def __call__(self, request: Request, file_path: str, **kwargs: dict):
         document: DoclingDocument = self.load_documents(file_path, **kwargs)
 
@@ -1042,6 +1059,7 @@ class DocumentProcessor:
             reference_path = artifacts_dir.parent
 
         document = document._with_pictures_refs(image_dir=artifacts_dir, reference_path=reference_path)
+<<<<<<< HEAD
 <<<<<<< HEAD
 
         document = self.enrichment(document, **kwargs)
@@ -1091,6 +1109,15 @@ class DocumentProcessor:
             raise GenosServiceException(1, f"chunk length is 0")
 
 =======
+=======
+
+        # format = self.get_input_format(file_path)
+        # if isinstance(format, InputFormat):
+        #     kwargs["format"] = format
+        # else:
+        #     return None
+        # TODO: sheet 별로 후처리 하는 코드 추가
+>>>>>>> 7b1c724 (add XLSX preprocessor)
         # Extract Chunk from DoclingDocument
         chunks: List[DocChunk] = self.split_documents(document, **kwargs)
         # await assert_cancelled(request)
