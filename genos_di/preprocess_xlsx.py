@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
+import openpyxl
 
 from collections import defaultdict
 from datetime import datetime
@@ -11,46 +12,17 @@ from typing import Optional, Iterable, Any, List, Dict, Tuple
 from fastapi import Request
 
 #docling imports
-#from docling.backend.docling_parse_backend import DoclingParseDocumentBackend
-from docling.backend.docling_parse_v2_backend import DoclingParseV2DocumentBackend
 from docling.backend.msexcel_backend import MsExcelDocumentBackend
-from docling.backend.asciidoc_backend import AsciiDocBackend
-from docling.backend.csv_backend import CsvDocumentBackend
-from docling.backend.html_backend import HTMLDocumentBackend
-from docling.backend.json.docling_json_backend import DoclingJSONBackend
-from docling.backend.md_backend import MarkdownDocumentBackend
-from docling.backend.mspowerpoint_backend import MsPowerpointDocumentBackend
-from docling.backend.msword_backend import MsWordDocumentBackend
-from docling.backend.xml.jats_backend import JatsDocumentBackend
-from docling.backend.xml.uspto_backend import PatentUsptoDocumentBackend
-#from docling.backend.pypdfium2_backend import PyPdfiumDocumentBackend
 from docling.datamodel.base_models import InputFormat
-#from docling.datamodel.document import ConversionStatus
 from docling.datamodel.pipeline_options import (
     AcceleratorDevice,
     AcceleratorOptions,
-    #EasyOcrOptions,
-    #OcrEngine,
-    #PdfBackend,
-    PdfPipelineOptions,
-    TableFormerMode,
-    TesseractOcrOptions,
     PipelineOptions
 )
 
 from docling.document_converter import (
     DocumentConverter,
-    PdfFormatOption,
-    ExcelFormatOption,
-    WordFormatOption,
-    PowerpointFormatOption,
-    MarkdownFormatOption,
-    HTMLFormatOption,
-    ImageFormatOption,
-    CsvFormatOption,
-    XMLJatsFormatOption,
-    PatentUsptoFormatOption,
-    FormatOption
+    ExcelFormatOption
 )
 from docling.datamodel.document import ConversionResult
 from docling_core.transforms.chunker import (
@@ -122,21 +94,6 @@ except ImportError:
 # Copyright IBM Corp. 2024 - 2024
 # SPDX-License-Identifier: MIT
 #
-
-# FormatToExtensions = {
-#     InputFormat.DOCX: ["docx", "dotx", "docm", "dotm"],
-#     InputFormat.PPTX: ["pptx", "potx", "ppsx", "pptm", "potm", "ppsm"],
-#     InputFormat.PDF: ["pdf"],
-#     InputFormat.MD: ["md"],
-#     InputFormat.HTML: ["html", "htm", "xhtml"],
-#     InputFormat.XML_JATS: ["xml", "nxml"],
-#     InputFormat.IMAGE: ["jpg", "jpeg", "png", "tif", "tiff", "bmp"],
-#     InputFormat.ASCIIDOC: ["adoc", "asciidoc", "asc"],
-#     InputFormat.CSV: ["csv"],
-#     InputFormat.XLSX: ["xlsx"],
-#     InputFormat.XML_USPTO: ["xml", "txt"],
-#     InputFormat.JSON_DOCLING: ["json"],
-# }
 
 """Chunker implementation leveraging the document structure."""
 
@@ -624,73 +581,15 @@ class DocumentProcessor:
         device = AcceleratorDevice.AUTO
         num_threads = 4
         accelerator_options = AcceleratorOptions(num_threads=num_threads, device=device)
-        pipe_line_options = PdfPipelineOptions()
-        pipe_line_options.generate_page_images = True
-        pipe_line_options.generate_picture_images = True
-        pipe_line_options.do_ocr = True
-        # pipe_line_options.ocr_options.lang = ["ko", 'en']
-        # pipe_line_options.ocr_options.model_storage_directory = "./.EasyOCR/model"
-        ocr_options = TesseractOcrOptions()
-        ocr_options.lang = ['kor', 'kor_vert', 'eng', 'jpn', 'jpn_vert']
-        # ocr_options.path = './.tesseract/tessdata'
-        pipe_line_options.ocr_options = ocr_options
-        #pipe_line_options.artifacts_path = Path("/home/mnc/temp/.cache/huggingface/hub/models--ds4sd--docling-models/snapshots/36bebf56681740529abd09f5473a93a69373fbf0/")
-        pipe_line_options.do_table_structure = True
-        pipe_line_options.images_scale = 2
-        pipe_line_options.table_structure_options.do_cell_matching = True
-        pipe_line_options.table_structure_options.mode = TableFormerMode.ACCURATE
-        pipe_line_options.accelerator_options = accelerator_options
-
         simple_pipeline_options = PipelineOptions()
-
+        simple_pipeline_options.accelerator_options = accelerator_options
 
         self.converter = DocumentConverter(
             format_options={
-                InputFormat.PDF: PdfFormatOption(
-                    pipeline_options=pipe_line_options,
-                    backend=DoclingParseV2DocumentBackend
-                ),
                 InputFormat.XLSX: ExcelFormatOption(
                     pipeline_options=simple_pipeline_options,
                     backend=MsExcelDocumentBackend
-                ),
-                InputFormat.DOCX: WordFormatOption(
-                    pipeline_options=simple_pipeline_options,
-                    backend=MsWordDocumentBackend
-                ),
-                InputFormat.PPTX: PowerpointFormatOption(
-                    pipeline_options=simple_pipeline_options,
-                    backend=MsPowerpointDocumentBackend
-                ),
-                InputFormat.MD: MarkdownFormatOption(
-                    pipeline_options=simple_pipeline_options,
-                    backend=MarkdownDocumentBackend
-                ),
-                InputFormat.HTML: HTMLFormatOption(
-                    pipeline_options=simple_pipeline_options,
-                    backend=HTMLDocumentBackend
-                ),
-                InputFormat.IMAGE: ImageFormatOption(
-                    pipeline_options=pipe_line_options,
-                    backend=DoclingParseV2DocumentBackend
-                ),
-                InputFormat.CSV: CsvFormatOption(
-                    pipeline_options=simple_pipeline_options,
-                    backend=CsvDocumentBackend
-                ),
-                InputFormat.JSON_DOCLING: FormatOption,
-                InputFormat.XML_JATS: XMLJatsFormatOption(
-                    pipeline_options=simple_pipeline_options,
-                    backend=JatsDocumentBackend
-                ),
-                InputFormat.XML_USPTO: PatentUsptoFormatOption(
-                    pipeline_options=simple_pipeline_options,
-                    backend=PatentUsptoDocumentBackend
-                ),
-                InputFormat.ASCIIDOC: ExcelFormatOption(
-                    pipeline_options=simple_pipeline_options,
-                    backend=MsExcelDocumentBackend
-                ),
+                )
             }
         )
 
@@ -721,14 +620,8 @@ class DocumentProcessor:
         ## 관련 url : https://ds4sd.github.io/docling/examples/hybrid_chunking/
         chunker: HybridChunker = HybridChunker()
         
-        # if kwargs['format'] == InputFormat.PDF:
         chunks: List[DocChunk] = list(chunker.chunk(dl_doc=documents, **kwargs))
-        for chunk in chunks:
-            self.page_chunk_counts[chunk.meta.doc_items[0].prov[0].page_no] += 1
         return chunks
-        # elif kwargs['format'] == InputFormat.XLSX:
-        #     chunks: List[DocChunk] = list(chunker.chunk(dl_doc=documents, **kwargs))
-        #     return chunks
 
     def safe_join(self, iterable):
         if not isinstance(iterable, (list, tuple, set)):
@@ -743,38 +636,21 @@ class DocumentProcessor:
             reg_date=datetime.now().isoformat(timespec='seconds') + 'Z'
         )
 
-        current_page = None
         chunk_index_on_page = 0
         vectors = []
         for chunk_idx, chunk in enumerate(chunks):
-            ## NOTE: chunk가 두 페이지에 걸쳐 있는 경우 첫번째 아이템을 사용
-            ## NOTE: chunk가 두 페이지에 걸쳐서 있는 경우 bounding box 처리를 어떻게 해야하는 지...
-            ## NOTE: 현재 구조에서는 처리가 불가
-            ## NOTE: 임시로 페이지 넘어가는 경우 chunk를 분할해서 처리
-            chunk_page = chunk.meta.doc_items[0].prov[0].page_no
             content = self.safe_join(chunk.meta.headings) + chunk.text
             
             vector = (GenOSVectorMetaBuilder()
                     .set_text(content)
-                    .set_page_info(chunk_page, chunk_index_on_page, self.page_chunk_counts[chunk_page])
+                    .set_page_info(1, chunk_idx, len(chunks))
                     .set_chunk_index(chunk_idx)
                     .set_global_metadata(**global_metadata)
                     .set_chunk_bboxes(chunk.meta.doc_items, document)
                     .set_media_files(chunk.meta.doc_items)
                     ).build()
             vectors.append(vector)
-
-            # page = chunk_page
-            # text = chunk.page_content
-
-            if chunk_page != current_page:
-                current_page = chunk_page
-                chunk_index_on_page = 0
-
             chunk_index_on_page += 1
-
-            # file_list = self.get_media_files(chunk.meta.doc_items)
-            #await upload_files(file_list, request=request)
 
         return vectors
     """
@@ -787,18 +663,7 @@ class DocumentProcessor:
                 temp_list.append({ 'path': path, 'name': name})
         return temp_list
     """
-    # def get_input_format(self, file_path: str) -> Optional[InputFormat]:
-    #     extension = file_path.split("/")[-1].split(".")[-1].lower()
-
-    #     for fmt, extensions in FormatToExtensions.items():
-    #         if extension in extensions:
-    #             return fmt
-
-    #     return None
     async def __call__(self, request: Request, file_path: str, **kwargs: dict):
-        document: DoclingDocument = self.load_documents(file_path, **kwargs)
-        # await assert_cancelled(request)
-
         output_path, output_file = os.path.split(file_path)
         filename, _ = os.path.splitext(output_file)
         artifacts_dir = Path(f"{output_path}/{filename}")
@@ -807,17 +672,33 @@ class DocumentProcessor:
         else:
             reference_path = artifacts_dir.parent
 
-        document = document._with_pictures_refs(image_dir=artifacts_dir, reference_path=reference_path)
+        wb = openpyxl.load_workbook(file_path, data_only=True)
+        
+        # 시트명 반복
+        chunks: List[DocChunk] = []
+        for sheet_name in wb.sheetnames:
+            ws = wb[sheet_name]
+            # 새로운 워크북 생성
+            new_wb = openpyxl.Workbook()
+            new_ws = new_wb.active
+            new_ws.title = sheet_name
+            
+            # 기존 시트의 셀 내용을 새 워크북으로 복사
+            for row in ws.iter_rows(values_only=True):
+                new_ws.append(row)
+            # 각 시트별로 저장 (sheet_name을 파일명으로 활용)
+            sheet_path = f"{output_path}/{sheet_name}.xlsx"
+            new_wb.save(sheet_path)
 
-        # format = self.get_input_format(file_path)
-        # if isinstance(format, InputFormat):
-        #     kwargs["format"] = format
-        # else:
-        #     return None
-        # TODO: sheet 별로 후처리 하는 코드 추가
-        # Extract Chunk from DoclingDocument
-        chunks: List[DocChunk] = self.split_documents(document, **kwargs)
-        # await assert_cancelled(request)
+            document: DoclingDocument = self.load_documents(sheet_path, **kwargs)
+            os.remove(sheet_path)
+            # await assert_cancelled(request)
+            document = document._with_pictures_refs(image_dir=Path(f"{artifacts_dir}/{sheet_name}"), reference_path=Path(f"{reference_path}/{sheet_name}"))
+        
+            # Extract Chunk from DoclingDocument
+            chunk: List[DocChunk] = self.split_documents(document, **kwargs)
+            # await assert_cancelled(request)
+            chunks.extend(chunk)
 
         # vectors: list[dict] = self.compose_vectors(document, chunks, file_path, **kwargs)
         # print(chunks)
