@@ -74,11 +74,6 @@ dependencies = [
   "polyfactory>=2.22.2",
 ]
 
-[project.urls]
-homepage = "https://github.com/docling-project/docling"
-repository = "https://github.com/docling-project/docling"
-issues = "https://github.com/docling-project/docling/issues"
-changelog = "https://github.com/docling-project/docling/blob/main/CHANGELOG.md"
 transformers = [
   { markers = "sys_platform != 'darwin' or platform_machine != 'x86_64'", version = "^4.49.0", optional = true },
   { markers = "sys_platform == 'darwin' and platform_machine == 'x86_64'", version = "~4.42.0", optional = true },
