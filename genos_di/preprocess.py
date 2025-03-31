@@ -94,22 +94,7 @@ from genos_utils import upload_files
 # Copyright IBM Corp. 2024 - 2024
 # SPDX-License-Identifier: MIT
 #
-
-# FormatToExtensions = {
-#     InputFormat.DOCX: ["docx", "dotx", "docm", "dotm"],
-#     InputFormat.PPTX: ["pptx", "potx", "ppsx", "pptm", "potm", "ppsm"],
-#     InputFormat.PDF: ["pdf"],
-#     InputFormat.MD: ["md"],
-#     InputFormat.HTML: ["html", "htm", "xhtml"],
-#     InputFormat.XML_JATS: ["xml", "nxml"],
-#     InputFormat.IMAGE: ["jpg", "jpeg", "png", "tif", "tiff", "bmp"],
-#     InputFormat.ASCIIDOC: ["adoc", "asciidoc", "asc"],
-#     InputFormat.CSV: ["csv"],
-#     InputFormat.XLSX: ["xlsx"],
-#     InputFormat.XML_USPTO: ["xml", "txt"],
-#     InputFormat.JSON_DOCLING: ["json"],
-# }
-
+# ============================================
 """Chunker implementation leveraging the document structure."""
 
 
@@ -713,9 +698,9 @@ class GenOSVectorMetaBuilder:
     def __init__(self):
         """빌더 초기화"""
         self.text: Optional[str] = None
-        self.n_char: Optional[int] = None
-        self.n_word: Optional[int] = None
-        self.n_line: Optional[int] = None
+        self.n_chars: Optional[int] = None
+        self.n_words: Optional[int] = None
+        self.n_lines: Optional[int] = None
         self.i_page: Optional[int] = None
         self.e_page: Optional[int] = None
         self.i_chunk_on_page: Optional[int] = None
@@ -732,9 +717,9 @@ class GenOSVectorMetaBuilder:
     def set_text(self, text: str) -> "GenOSVectorMetaBuilder":
         """텍스트와 관련된 데이터를 설정"""
         self.text = text
-        self.n_char = len(text)
-        self.n_word = len(text.split())
-        self.n_line = len(text.splitlines())
+        self.n_chars = len(text)
+        self.n_words = len(text.split())
+        self.n_lines = len(text.splitlines())
         return self
 
     def set_page_info(
@@ -791,9 +776,9 @@ class GenOSVectorMetaBuilder:
         """설정된 데이터를 사용해 최종적으로 GenOSVectorMeta 객체 생성"""
         return GenOSVectorMeta(
             text=self.text,
-            n_char=self.n_char,
-            n_word=self.n_word,
-            n_line=self.n_line,
+            n_chars=self.n_chars,
+            n_words=self.n_words,
+            n_lines=self.n_lines,
             i_page=self.i_page,
             e_page=self.e_page,
             i_chunk_on_page=self.i_chunk_on_page,
@@ -895,9 +880,6 @@ class DocumentProcessor:
         for chunk in chunks:
             self.page_chunk_counts[chunk.meta.doc_items[0].prov[0].page_no] += 1
         return chunks
-        # elif kwargs['format'] == InputFormat.XLSX:
-        #     chunks: List[DocChunk] = list(chunker.chunk(dl_doc=documents, **kwargs))
-        #     return chunks
 
     def safe_join(self, iterable):
         if not isinstance(iterable, (list, tuple, set)):
@@ -1111,6 +1093,7 @@ class DocumentProcessor:
 =======
 =======
 
+<<<<<<< HEAD
         # format = self.get_input_format(file_path)
         # if isinstance(format, InputFormat):
         #     kwargs["format"] = format
@@ -1118,13 +1101,11 @@ class DocumentProcessor:
         #     return None
         # TODO: sheet 별로 후처리 하는 코드 추가
 >>>>>>> 7b1c724 (add XLSX preprocessor)
+=======
+>>>>>>> 44d753e (genos preprocess code for docling 2.28)
         # Extract Chunk from DoclingDocument
         chunks: List[DocChunk] = self.split_documents(document, **kwargs)
         # await assert_cancelled(request)
-
-        # vectors: list[dict] = self.compose_vectors(document, chunks, file_path, **kwargs)
-        # print(chunks)
-
 
         vectors = []
         if len(chunks) > 1:
