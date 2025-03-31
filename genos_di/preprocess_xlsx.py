@@ -186,17 +186,6 @@ class HierarchicalChunker(BaseChunker):
                     keys_to_del = [k for k in heading_by_level if k > level]
                     for k in keys_to_del:
                         heading_by_level.pop(k, None)
-                    # c = DocChunk(
-                    #     text=text,
-                    #     meta=DocMeta(
-                    #         doc_items=[item],
-                    #         headings=[heading_by_level[k] for k in sorted(heading_by_level)]
-                    #         or None,
-                    #         captions=captions,
-                    #         origin=dl_doc.origin,
-                    #     ),
-                    # )
-                    # yield c
                     continue
 
                 if (
@@ -206,12 +195,7 @@ class HierarchicalChunker(BaseChunker):
                 ):
                     text = item.text
                 elif isinstance(item, TableItem):
-                    text = item.export_to_markdown()
-                    # dataframe으로 추출할 때 사용되는 코드
-                    # if table_df.shape[0] < 1 or table_df.shape[1] < 2:
-                    #     # at least two cols needed, as first column contains row headers
-                    #     continue
-                    # text = self._triplet_serialize(table_df=table_df)
+                    text = item.export_to_markdown(dl_doc)
                     captions = [
                         c.text for c in [r.resolve(dl_doc) for r in item.captions]
                     ] or None
@@ -465,9 +449,9 @@ class GenOSVectorMeta(BaseModel):
         extra = 'allow'
 
     text: str = None
-    n_char: int = None
-    n_word: int = None
-    n_line: int = None
+    n_chars: int = None
+    n_words: int = None
+    n_lines: int = None
     i_page: int = None
     i_chunk_on_page: int = None
     n_chunk_of_page: int = None
@@ -482,9 +466,9 @@ class GenOSVectorMetaBuilder:
     def __init__(self):
         """빌더 초기화"""
         self.text: Optional[str] = None
-        self.n_char: Optional[int] = None
-        self.n_word: Optional[int] = None
-        self.n_line: Optional[int] = None
+        self.n_chars: Optional[int] = None
+        self.n_words: Optional[int] = None
+        self.n_lines: Optional[int] = None
         self.i_page: Optional[int] = None
         self.i_chunk_on_page: Optional[int] = None
         self.n_chunk_of_page: Optional[int] = None
@@ -499,9 +483,9 @@ class GenOSVectorMetaBuilder:
     def set_text(self, text: str) -> "GenOSVectorMetaBuilder":
         """텍스트와 관련된 데이터를 설정"""
         self.text = text
-        self.n_char = len(text)
-        self.n_word = len(text.split())
-        self.n_line = len(text.splitlines())
+        self.n_chars = len(text)
+        self.n_words = len(text.split())
+        self.n_lines = len(text.splitlines())
         return self
 
     def set_page_info(
@@ -556,9 +540,9 @@ class GenOSVectorMetaBuilder:
         """설정된 데이터를 사용해 최종적으로 GenOSVectorMeta 객체 생성"""
         return GenOSVectorMeta(
             text=self.text,
-            n_char=self.n_char,
-            n_word=self.n_word,
-            n_line=self.n_line,
+            n_chars=self.n_chars,
+            n_words=self.n_words,
+            n_lines=self.n_lines,
             i_page=self.i_page,
             i_chunk_on_page=self.i_chunk_on_page,
             n_chunk_of_page=self.n_chunk_of_page,
@@ -574,9 +558,6 @@ class GenOSVectorMetaBuilder:
 class DocumentProcessor:
 
     def __init__(self):
-        '''
-        initialize Document Converter
-        '''
         self.page_chunk_counts = defaultdict(int)
         device = AcceleratorDevice.AUTO
         num_threads = 4
@@ -594,30 +575,13 @@ class DocumentProcessor:
         )
 
     def load_documents_with_docling(self, file_path: str, **kwargs: dict) -> DoclingDocument:
-        # docling 설정
-        # 필요에 따라 사용자 지정 가능. 여기서는 genos_vanilla 와 비슷하게 PDF를 처리한다 가정.
-        # TODO: kwargs 와의 연결
-        # TODO: Langchain document 를 꼭 써야하나?
-        # 실제 변환 실행
-        # ConversionResult 리스트를 받는다.
-        #
-        # NOTE: 처리시 파일 하나를 병렬로 처리하는지?? 아니면 폴더 단위로 병렬 처리 하는지??
-        # NOTE: 파일 하나 처리 시 convert로 변경.
-        # conv_results = doc_converter.convert_all([file_path], raises_on_error=True)
         conv_result: ConversionResult = self.converter.convert(file_path, raises_on_error=False)
-        # return process_pdf(conv_result.document)
         return conv_result.document
 
     def load_documents(self, file_path: str, **kwargs: dict) -> DoclingDocument:
-        # ducling 방식으로 문서 로드
         return self.load_documents_with_docling(file_path, **kwargs)
-        # return documents
 
     def split_documents(self, documents: DoclingDocument, **kwargs: dict) -> List[DocChunk]:
-        ##FIXME: Hierarchical Chunker 로 수정
-        ## NOTE: HierarchicalChunker -> HybridChunker로 공식 문서 변경 됨.
-        ## 관련 url : https://ds4sd.github.io/docling/usage/#chunking
-        ## 관련 url : https://ds4sd.github.io/docling/examples/hybrid_chunking/
         chunker: HybridChunker = HybridChunker()
         
         chunks: List[DocChunk] = list(chunker.chunk(dl_doc=documents, **kwargs))
@@ -699,10 +663,6 @@ class DocumentProcessor:
             chunk: List[DocChunk] = self.split_documents(document, **kwargs)
             # await assert_cancelled(request)
             chunks.extend(chunk)
-
-        # vectors: list[dict] = self.compose_vectors(document, chunks, file_path, **kwargs)
-        # print(chunks)
-
 
         vectors = []
         if len(chunks) > 1:

@@ -11,8 +11,7 @@ from typing import Optional, Iterable, Any, List, Dict, Tuple
 from fastapi import Request
 
 #docling imports
-#from docling.backend.docling_parse_backend import DoclingParseDocumentBackend
-from docling.backend.docling_parse_v2_backend import DoclingParseV2DocumentBackend
+from docling.backend.docling_parse_v4_backend import DoclingParseV4DocumentBackend
 from docling.backend.msexcel_backend import MsExcelDocumentBackend
 from docling.backend.asciidoc_backend import AsciiDocBackend
 from docling.backend.csv_backend import CsvDocumentBackend
@@ -40,17 +39,7 @@ from docling.datamodel.pipeline_options import (
 
 from docling.document_converter import (
     DocumentConverter,
-    PdfFormatOption,
-    ExcelFormatOption,
-    WordFormatOption,
-    PowerpointFormatOption,
-    MarkdownFormatOption,
-    HTMLFormatOption,
-    ImageFormatOption,
-    CsvFormatOption,
-    XMLJatsFormatOption,
-    PatentUsptoFormatOption,
-    FormatOption
+    PdfFormatOption
 )
 from docling.datamodel.document import ConversionResult
 from docling_core.transforms.chunker import (
@@ -122,22 +111,7 @@ except ImportError:
 # Copyright IBM Corp. 2024 - 2024
 # SPDX-License-Identifier: MIT
 #
-
-# FormatToExtensions = {
-#     InputFormat.DOCX: ["docx", "dotx", "docm", "dotm"],
-#     InputFormat.PPTX: ["pptx", "potx", "ppsx", "pptm", "potm", "ppsm"],
-#     InputFormat.PDF: ["pdf"],
-#     InputFormat.MD: ["md"],
-#     InputFormat.HTML: ["html", "htm", "xhtml"],
-#     InputFormat.XML_JATS: ["xml", "nxml"],
-#     InputFormat.IMAGE: ["jpg", "jpeg", "png", "tif", "tiff", "bmp"],
-#     InputFormat.ASCIIDOC: ["adoc", "asciidoc", "asc"],
-#     InputFormat.CSV: ["csv"],
-#     InputFormat.XLSX: ["xlsx"],
-#     InputFormat.XML_USPTO: ["xml", "txt"],
-#     InputFormat.JSON_DOCLING: ["json"],
-# }
-
+# ============================================
 """Chunker implementation leveraging the document structure."""
 
 class HierarchicalChunker(BaseChunker):
@@ -229,17 +203,6 @@ class HierarchicalChunker(BaseChunker):
                     keys_to_del = [k for k in heading_by_level if k > level]
                     for k in keys_to_del:
                         heading_by_level.pop(k, None)
-                    # c = DocChunk(
-                    #     text=text,
-                    #     meta=DocMeta(
-                    #         doc_items=[item],
-                    #         headings=[heading_by_level[k] for k in sorted(heading_by_level)]
-                    #         or None,
-                    #         captions=captions,
-                    #         origin=dl_doc.origin,
-                    #     ),
-                    # )
-                    # yield c
                     continue
 
                 if (
@@ -249,12 +212,7 @@ class HierarchicalChunker(BaseChunker):
                 ):
                     text = item.text
                 elif isinstance(item, TableItem):
-                    text = item.export_to_markdown()
-                    # dataframe으로 추출할 때 사용되는 코드
-                    # if table_df.shape[0] < 1 or table_df.shape[1] < 2:
-                    #     # at least two cols needed, as first column contains row headers
-                    #     continue
-                    # text = self._triplet_serialize(table_df=table_df)
+                    text = item.export_to_markdown(dl_doc)
                     captions = [
                         c.text for c in [r.resolve(dl_doc) for r in item.captions]
                     ] or None
@@ -508,9 +466,9 @@ class GenOSVectorMeta(BaseModel):
         extra = 'allow'
 
     text: str = None
-    n_char: int = None
-    n_word: int = None
-    n_line: int = None
+    n_chars: int = None
+    n_words: int = None
+    n_lines: int = None
     i_page: int = None
     i_chunk_on_page: int = None
     n_chunk_of_page: int = None
@@ -525,9 +483,9 @@ class GenOSVectorMetaBuilder:
     def __init__(self):
         """빌더 초기화"""
         self.text: Optional[str] = None
-        self.n_char: Optional[int] = None
-        self.n_word: Optional[int] = None
-        self.n_line: Optional[int] = None
+        self.n_chars: Optional[int] = None
+        self.n_words: Optional[int] = None
+        self.n_lines: Optional[int] = None
         self.i_page: Optional[int] = None
         self.i_chunk_on_page: Optional[int] = None
         self.n_chunk_of_page: Optional[int] = None
@@ -542,9 +500,9 @@ class GenOSVectorMetaBuilder:
     def set_text(self, text: str) -> "GenOSVectorMetaBuilder":
         """텍스트와 관련된 데이터를 설정"""
         self.text = text
-        self.n_char = len(text)
-        self.n_word = len(text.split())
-        self.n_line = len(text.splitlines())
+        self.n_chars = len(text)
+        self.n_words = len(text.split())
+        self.n_lines = len(text.splitlines())
         return self
 
     def set_page_info(
@@ -599,9 +557,9 @@ class GenOSVectorMetaBuilder:
         """설정된 데이터를 사용해 최종적으로 GenOSVectorMeta 객체 생성"""
         return GenOSVectorMeta(
             text=self.text,
-            n_char=self.n_char,
-            n_word=self.n_word,
-            n_line=self.n_line,
+            n_chars=self.n_chars,
+            n_words=self.n_words,
+            n_lines=self.n_lines,
             i_page=self.i_page,
             i_chunk_on_page=self.i_chunk_on_page,
             n_chunk_of_page=self.n_chunk_of_page,
@@ -628,107 +586,38 @@ class DocumentProcessor:
         pipe_line_options.generate_page_images = True
         pipe_line_options.generate_picture_images = True
         pipe_line_options.do_ocr = True
-        # pipe_line_options.ocr_options.lang = ["ko", 'en']
-        # pipe_line_options.ocr_options.model_storage_directory = "./.EasyOCR/model"
         ocr_options = TesseractOcrOptions()
         ocr_options.lang = ['kor', 'kor_vert', 'eng', 'jpn', 'jpn_vert']
-        # ocr_options.path = './.tesseract/tessdata'
         pipe_line_options.ocr_options = ocr_options
-        #pipe_line_options.artifacts_path = Path("/home/mnc/temp/.cache/huggingface/hub/models--ds4sd--docling-models/snapshots/36bebf56681740529abd09f5473a93a69373fbf0/")
         pipe_line_options.do_table_structure = True
         pipe_line_options.images_scale = 2
         pipe_line_options.table_structure_options.do_cell_matching = True
         pipe_line_options.table_structure_options.mode = TableFormerMode.ACCURATE
         pipe_line_options.accelerator_options = accelerator_options
 
-        simple_pipeline_options = PipelineOptions()
-
-
         self.converter = DocumentConverter(
             format_options={
                 InputFormat.PDF: PdfFormatOption(
                     pipeline_options=pipe_line_options,
-                    backend=DoclingParseV2DocumentBackend
-                ),
-                InputFormat.XLSX: ExcelFormatOption(
-                    pipeline_options=simple_pipeline_options,
-                    backend=MsExcelDocumentBackend
-                ),
-                InputFormat.DOCX: WordFormatOption(
-                    pipeline_options=simple_pipeline_options,
-                    backend=MsWordDocumentBackend
-                ),
-                InputFormat.PPTX: PowerpointFormatOption(
-                    pipeline_options=simple_pipeline_options,
-                    backend=MsPowerpointDocumentBackend
-                ),
-                InputFormat.MD: MarkdownFormatOption(
-                    pipeline_options=simple_pipeline_options,
-                    backend=MarkdownDocumentBackend
-                ),
-                InputFormat.HTML: HTMLFormatOption(
-                    pipeline_options=simple_pipeline_options,
-                    backend=HTMLDocumentBackend
-                ),
-                InputFormat.IMAGE: ImageFormatOption(
-                    pipeline_options=pipe_line_options,
-                    backend=DoclingParseV2DocumentBackend
-                ),
-                InputFormat.CSV: CsvFormatOption(
-                    pipeline_options=simple_pipeline_options,
-                    backend=CsvDocumentBackend
-                ),
-                InputFormat.JSON_DOCLING: FormatOption,
-                InputFormat.XML_JATS: XMLJatsFormatOption(
-                    pipeline_options=simple_pipeline_options,
-                    backend=JatsDocumentBackend
-                ),
-                InputFormat.XML_USPTO: PatentUsptoFormatOption(
-                    pipeline_options=simple_pipeline_options,
-                    backend=PatentUsptoDocumentBackend
-                ),
-                InputFormat.ASCIIDOC: ExcelFormatOption(
-                    pipeline_options=simple_pipeline_options,
-                    backend=MsExcelDocumentBackend
-                ),
+                    backend=DoclingParseV4DocumentBackend
+                )
             }
         )
 
     def load_documents_with_docling(self, file_path: str, **kwargs: dict) -> DoclingDocument:
-        # docling 설정
-        # 필요에 따라 사용자 지정 가능. 여기서는 genos_vanilla 와 비슷하게 PDF를 처리한다 가정.
-        # TODO: kwargs 와의 연결
-        # TODO: Langchain document 를 꼭 써야하나?
-        # 실제 변환 실행
-        # ConversionResult 리스트를 받는다.
-        #
-        # NOTE: 처리시 파일 하나를 병렬로 처리하는지?? 아니면 폴더 단위로 병렬 처리 하는지??
-        # NOTE: 파일 하나 처리 시 convert로 변경.
-        # conv_results = doc_converter.convert_all([file_path], raises_on_error=True)
         conv_result: ConversionResult = self.converter.convert(file_path, raises_on_error=False)
-        # return process_pdf(conv_result.document)
         return conv_result.document
 
     def load_documents(self, file_path: str, **kwargs: dict) -> DoclingDocument:
-        # ducling 방식으로 문서 로드
         return self.load_documents_with_docling(file_path, **kwargs)
-        # return documents
 
     def split_documents(self, documents: DoclingDocument, **kwargs: dict) -> List[DocChunk]:
-        ##FIXME: Hierarchical Chunker 로 수정
-        ## NOTE: HierarchicalChunker -> HybridChunker로 공식 문서 변경 됨.
-        ## 관련 url : https://ds4sd.github.io/docling/usage/#chunking
-        ## 관련 url : https://ds4sd.github.io/docling/examples/hybrid_chunking/
         chunker: HybridChunker = HybridChunker()
         
-        # if kwargs['format'] == InputFormat.PDF:
         chunks: List[DocChunk] = list(chunker.chunk(dl_doc=documents, **kwargs))
         for chunk in chunks:
             self.page_chunk_counts[chunk.meta.doc_items[0].prov[0].page_no] += 1
         return chunks
-        # elif kwargs['format'] == InputFormat.XLSX:
-        #     chunks: List[DocChunk] = list(chunker.chunk(dl_doc=documents, **kwargs))
-        #     return chunks
 
     def safe_join(self, iterable):
         if not isinstance(iterable, (list, tuple, set)):
@@ -747,10 +636,6 @@ class DocumentProcessor:
         chunk_index_on_page = 0
         vectors = []
         for chunk_idx, chunk in enumerate(chunks):
-            ## NOTE: chunk가 두 페이지에 걸쳐 있는 경우 첫번째 아이템을 사용
-            ## NOTE: chunk가 두 페이지에 걸쳐서 있는 경우 bounding box 처리를 어떻게 해야하는 지...
-            ## NOTE: 현재 구조에서는 처리가 불가
-            ## NOTE: 임시로 페이지 넘어가는 경우 chunk를 분할해서 처리
             chunk_page = chunk.meta.doc_items[0].prov[0].page_no
             content = self.safe_join(chunk.meta.headings) + chunk.text
             
@@ -763,9 +648,6 @@ class DocumentProcessor:
                     .set_media_files(chunk.meta.doc_items)
                     ).build()
             vectors.append(vector)
-
-            # page = chunk_page
-            # text = chunk.page_content
 
             if chunk_page != current_page:
                 current_page = chunk_page
@@ -787,14 +669,6 @@ class DocumentProcessor:
                 temp_list.append({ 'path': path, 'name': name})
         return temp_list
     """
-    # def get_input_format(self, file_path: str) -> Optional[InputFormat]:
-    #     extension = file_path.split("/")[-1].split(".")[-1].lower()
-
-    #     for fmt, extensions in FormatToExtensions.items():
-    #         if extension in extensions:
-    #             return fmt
-
-    #     return None
     async def __call__(self, request: Request, file_path: str, **kwargs: dict):
         document: DoclingDocument = self.load_documents(file_path, **kwargs)
         # await assert_cancelled(request)
@@ -809,19 +683,9 @@ class DocumentProcessor:
 
         document = document._with_pictures_refs(image_dir=artifacts_dir, reference_path=reference_path)
 
-        # format = self.get_input_format(file_path)
-        # if isinstance(format, InputFormat):
-        #     kwargs["format"] = format
-        # else:
-        #     return None
-        # TODO: sheet 별로 후처리 하는 코드 추가
         # Extract Chunk from DoclingDocument
         chunks: List[DocChunk] = self.split_documents(document, **kwargs)
         # await assert_cancelled(request)
-
-        # vectors: list[dict] = self.compose_vectors(document, chunks, file_path, **kwargs)
-        # print(chunks)
-
 
         vectors = []
         if len(chunks) > 1:
