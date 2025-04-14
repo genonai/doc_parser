@@ -14,7 +14,6 @@ from utils import assert_cancelled
 from collections import namedtuple
 
 
-
 # law_info 또는 admrule_info의 Type. function parameter
 RuleInfo = namedtuple("RuleInfo", ["rule_id", "enforce_date", "enact_date", "is_effective"])
 
