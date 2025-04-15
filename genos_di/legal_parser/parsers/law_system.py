@@ -4,9 +4,17 @@ def parse_hierarchy_laws(data, parent_id="None"):
     """
     법령체계도에서 상하위법 정보를 추출하는 함수
 
+<<<<<<< HEAD
     Args:
         data (dict): 법령체계도 데이터
         parent_id (str, optional): 부모 법령 ID (DFS 탐색용)
+=======
+def parse_hierarchy_laws(data, parent_id="None"):
+    '''
+        법령체계도에서 상하위법 정보를 추출하는 함수 
+    '''
+    hierarchy_laws: list[HierarchyLaws] = []
+>>>>>>> 1d622be (fix: improve legal data parser)
 
     Returns:
         list[HierarchyLaws]: 상하위법 정보 객체 리스트
@@ -21,7 +29,11 @@ def parse_hierarchy_laws(data, parent_id="None"):
                 info = node["기본정보"]
                 law_id = info.get("법령일련번호") or info.get("행정규칙일련번호", "")
                 
+<<<<<<< HEAD
                 # 이미 추출된 법령은 중복 방지
+=======
+                # 만약 law_id가 hierarchy_laws 리스트 안에 있다면 건너뛰기
+>>>>>>> 1d622be (fix: improve legal data parser)
                 if any(law.law_id == law_id for law in hierarchy_laws):
                     return
                 
@@ -90,6 +102,7 @@ def parse_connected_laws(data):
         conlaw_type = conlaw.get("법종구분", {}).get("content", "")
 
         if conlaw_id:
+<<<<<<< HEAD
             connected_laws.append(
                 ConnectedLaws(
                     law_id=conlaw_id,
@@ -99,6 +112,9 @@ def parse_connected_laws(data):
                     law_name=conlaw_name
                 )
             )
+=======
+            connected_laws.append(ConnectedLaws(law_id=conlaw_id, law_num=conlaw_num, law_code=conlaw_code, law_type=conlaw_type, law_name=conlaw_name))
+>>>>>>> 1d622be (fix: improve legal data parser)
 
     return connected_laws
 
@@ -116,7 +132,10 @@ def categorize_law_ids(hier_laws: list[HierarchyLaws], connected_laws: list[Conn
     realted_law_ids = {"law": [], "admrule": []}
 
     for law in hier_laws + connected_laws:
+<<<<<<< HEAD
         # 법종구분코드가 'A'로 시작하면 법령, 'B'로 시작하면 행정규칙으로 분류
+=======
+>>>>>>> 1d622be (fix: improve legal data parser)
         if law.law_code.startswith("A") and law.law_id not in realted_law_ids["law"]:
             realted_law_ids["law"].append(law.law_id)
         elif law.law_code.startswith("B") and law.law_id not in realted_law_ids["admrule"]:
@@ -125,6 +144,7 @@ def categorize_law_ids(hier_laws: list[HierarchyLaws], connected_laws: list[Conn
     return realted_law_ids
 
 def parse_law_relationships(data):
+<<<<<<< HEAD
     """
     법령 체계도 데이터를 파싱하여 상하위법, 관련법, 법령 ID 목록을 반환
 
@@ -134,6 +154,9 @@ def parse_law_relationships(data):
     Returns:
         tuple: (상하위법 리스트, 관련법 리스트, 분류된 ID 딕셔너리)
     """
+=======
+    """법령 체계도 데이터를 파싱하여 상하위법, 관련법, 법령 ID 목록을 반환"""
+>>>>>>> 1d622be (fix: improve legal data parser)
     if not data:
         return None
     hier_laws = parse_hierarchy_laws(data)

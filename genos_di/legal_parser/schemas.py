@@ -4,16 +4,15 @@ import re
 
 from pydantic import BaseModel, Field
 
-from constants import CHAPTERINFO, SECTIONINFO
 
 # law_info 또는 admrule_info의 Type. function parameter
-RuleInfo = namedtuple("RuleInfo", ["id", "enforce_date", "enact_date", "is_effective"])
+RuleInfo = namedtuple("RuleInfo", ["rule_id", "enforce_date", "enact_date", "is_effective"])
 
 # 상하위법령 
-HierarchyLaws = namedtuple("HierarchyLaws", ["id", "num", "code", "type", "name", "parent"])
+HierarchyLaws = namedtuple("HierarchyLaws", ["law_id", "law_num", "law_code", "law_type", "law_name", "parent_id"])
 
 # 관련법령
-ConnectedLaws = namedtuple("ConnectedLaws", ["id", "num", "code", "type", "name"])
+ConnectedLaws = namedtuple("ConnectedLaws", ["law_id", "law_num", "law_code", "law_type", "law_name"])
 
 class ArticleChapter(BaseModel):
     '''
@@ -25,10 +24,13 @@ class ArticleChapter(BaseModel):
     section_title: str = Field("", description="조문의 절(section) 제목")
 
     def extract_text(self, text:str):
+        CHAPTERINFO = r"(제(\d+)장)\s*(.*?)(?:<|$)"
+        SECTIONINFO = r"(제(\d+)절)\s*(.*?)(?:<|$)"        
         chapter_match = re.search(CHAPTERINFO, text)
         if chapter_match:
             self.chapter_num=int(chapter_match.group(2))
             self.chapter_title=chapter_match.group(1) + " " + chapter_match.group(3).strip()
+        
         section_match = re.search(SECTIONINFO, text)
         if section_match:
             self.section_num=int(section_match.group(2))
@@ -68,9 +70,8 @@ class LawMetadata(BaseModel):
 
 class LawArticleMetadata(BaseModel):
     article_id: str = Field(..., description="조문 ID (법령ID + 조문번호)")
-    article_num: str = Field(
-        ..., description="조문번호 (4자리 조문번호 + 3자리 조가지번호)"
-    )
+    article_num: int = Field(..., description="조문번호")
+    article_sub_num: int = Field(..., description="조문 가지번호")
     is_preamble: bool = Field(..., description="전문여부 (T: 전문, F: 조문)")
     article_chapter: ArticleChapter = Field(default_factory=ArticleChapter, description="조문의 장, 절 정보")
     article_title: str = Field(..., description="조문 제목")
@@ -91,8 +92,10 @@ class LawArticleMetadata(BaseModel):
 
 
 class AppendixMetadata(BaseModel):
-    appendix_id: str = Field(..., description="(법령 ID)_(별표 번호(4자리) 별표 가지번호(2자리)")
-    appendix_num: str = Field(
+    appendix_id: str = Field(..., description="(법령 ID)(별표 번호(4자리) 별표 가지번호(2자리)")
+    appendix_num : int = Field(..., description="별표 번호")
+    appendix_sub_num: int = Field(..., description="별표 가지번호")
+    appendix_seq_num: str = Field(
         ..., description="별표 시퀀스 번호 (고유값))"
     )
     appendix_type: str = Field(
@@ -112,6 +115,7 @@ class AppendixMetadata(BaseModel):
     )
     law_id: str = Field(..., description="법령 ID")
     related_articles: list[str] = Field([], description="관련 조문 ID 리스트")
+    related_addenda : list[str] = Field([], description="관련 부칙 ID 리스트")
 
 
 
@@ -121,8 +125,9 @@ class AddendumMetadata(BaseModel):
     addendum_title: str = Field(..., description="부칙 제목")
     announce_date: str = Field(..., description="부칙 공포일자 (yyyymmdd 형식)")
     law_id: str = Field(..., description="법령 ID")
-    related_laws: list[str] = Field([], description="관련 법령명, 주로 타법 개정의 법령명") # 
+    related_laws: list[str] = Field([], description="관련 법령명, 주로 타법 개정의 법령명")
     related_articles: list[str] = Field([], description="관련 조문 ID")
+    related_appendices: list[str] = Field([], description="관련 별표 ID")
 
 
 # 행정규칙 첨부파일
@@ -149,10 +154,10 @@ class AdmRuleMetadata(BaseModel):
     connected_laws: list[ConnectedLaws] = Field(
         [], description="참조법, 관련 타 법령 정보"
     )
-    related_addenda: list[str] = Field(
+    related_addenda_admrule: list[str] = Field(
         [], description="부칙 (해당 법령의 부칙 키 리스트, 공포일자 최신순으로 정렬)"
     )
-    related_appendices: list[str] = Field([], description="별표 (관련 별표 ID 리스트)")
+    related_appendices_admrule: list[str] = Field([], description="별표 (관련 별표 ID 리스트)")
     dept: Union[str, None] = Field(None, description="소관부처 (기관명 + 관련 부서명)")
     enact_date: str = Field(..., description="제정일자 (첫 번째 부칙의 공포일자)")
     file_attached: list[FileAttached] = Field(
@@ -165,9 +170,10 @@ class AdmRuleMetadata(BaseModel):
 
 class AdmRuleArticleMetadata(BaseModel):
     article_id: str = Field(..., description="조문 ID (행정규칙ID + 조문번호)")
-    article_num: str = Field(
-        ..., description="조문번호 (4자리 조문번호 + 3자리 조가지번호)"
+    article_num: int = Field(
+        ..., description="조문번호"
     )
+    article_sub_num: int = Field(..., description="조문 가지번호")
     admrule_id: str = Field(..., description="행정규칙 ID")
     article_chapter: ArticleChapter = Field(default_factory=ArticleChapter, description="조문의 장, 절 정보")
     article_title: str = Field(..., description="조문 제목")
