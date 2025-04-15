@@ -1,6 +1,6 @@
 import re
 
-from constants import BLANCKET, BLANCKETDATE, CHAPTERINFO, CHEVRONDATE
+from constants import BLANCKET, BLANCKETDATE, CHAPTERINFO, CHEVRONDATE, SECTIONINFO
 
 from schemas import (
     AdmRuleArticleMetadata,
@@ -10,13 +10,15 @@ from schemas import (
     ParserContent,
     RuleInfo,
 )
-from utils import (
+from  extractor import (
     extract_addenda_id,
     extract_appendix_id,
     extract_article_num,
     extract_date_to_yyyymmdd,
     get_latest_date,
     replace_strip,
+    extract_related_appendices,
+    load_json
 )
 
 
@@ -42,14 +44,17 @@ def parse_admrule_info(admrule_id: str, admrule_data: dict, hierarchy_laws, conn
 
     ## 첨부파일 리스트
     attachments = admrule_data.get("첨부파일", {})
-    file_attached = [
-        FileAttached(
-            id=link.split("flSeq=")[-1],
-            filename=name,
-            filelink=link
-        )
-        for link, name in zip(attachments["첨부파일링크"], attachments["첨부파일명"])
-    ]
+    if attachments:
+        file_attached = [
+            FileAttached(
+                id=link.split("flSeq=")[-1],
+                filename=name,
+                filelink=link
+            )
+            for link, name in zip(attachments["첨부파일링크"], attachments["첨부파일명"])
+        ]
+    else:
+        file_attached = []
 
 
     metadata = AdmRuleMetadata(
@@ -64,8 +69,8 @@ def parse_admrule_info(admrule_id: str, admrule_data: dict, hierarchy_laws, conn
         is_effective=is_effective,
         hierarchy_laws=hierarchy_laws,
         connected_laws=connected_laws,
-        related_addenda=addenda,
-        related_appendices=appendices,
+        related_addenda_admrule=addenda,
+        related_appendices_admrule=appendices,
         dept=dept,
         enact_date=enact_date,
         file_attached=file_attached,
@@ -84,28 +89,36 @@ def parse_admrule_article_info(admrule_info: RuleInfo, article_list:list[str]) -
     '''
     admrule_articles = []
     
-    admrule_id = admrule_info.id
+    admrule_id = admrule_info.rule_id
     enfoce_date = admrule_info.enforce_date
     is_effective = admrule_info.is_effective
     enact_date = admrule_info.enact_date
 
     article_chapter = ArticleChapter()
+    current_chapter = None
+
     for article in article_list:
         
         article_chapter.extract_text(article)
-        is_preamble = bool(re.search(CHAPTERINFO, article))
+        is_preamble = bool(re.search(rf"{CHAPTERINFO}|{SECTIONINFO}", article))
         if is_preamble:
-            article_num = f"{article_chapter.chapter_num:04d}000"
+            article_num = article_chapter.chapter_num
+            article_sub_num = 0
+            article_id = f"{admrule_id}{article_num:04d}{article_sub_num:03d}"
+            current_chapter = ArticleChapter(
+                chapter_num=article_chapter.chapter_num,
+                chapter_title=article_chapter.chapter_title,
+                section_num=article_chapter.section_num,
+                section_title=article_chapter.section_title,
+            )
             title = article_chapter.chapter_title
         else :
-            article_num = extract_article_num(article) or "0000000"
+            article_id, article_num, article_sub_num = extract_article_num(admrule_id, article)
 
-        article_id = f"{admrule_id}{article_num}"
         
         # 3. 조문 제목 추출: () 안의 첫 번째 문자열
         title_match = re.search(BLANCKET, article)
         title = title_match.group(1) if title_match else ""
-
 
         # 4. 개정일자 추출: "(개정 yyyy. m. d.,  yyyy. m. d.)" 형식에 맞는 날짜 찾기
         matches = re.findall(BLANCKETDATE, article)
@@ -127,12 +140,16 @@ def parse_admrule_article_info(admrule_info: RuleInfo, article_list:list[str]) -
         # 조문 내용 처리
         content = replace_strip(article.split("\n"))
 
+        related_appendices = extract_related_appendices(admrule_id, content)
+
+
         # 메타데이터 생성
         metadata = AdmRuleArticleMetadata(
             article_id=article_id,
             article_num=article_num,
+            article_sub_num=article_sub_num,
             article_title=title,
-            article_chapter=article_chapter,
+            article_chapter=current_chapter or article_chapter,
             enforce_date=enfoce_date,
             announce_date=announce_date,
             admrule_id=admrule_id,
@@ -141,7 +158,7 @@ def parse_admrule_article_info(admrule_info: RuleInfo, article_list:list[str]) -
             related_laws=[],
             related_articles=[],
             related_addenda=[],
-            related_appendices=[],
+            related_appendices=related_appendices,
         )
         parsed_article = ParserContent(
             metadata=metadata,
@@ -150,3 +167,12 @@ def parse_admrule_article_info(admrule_info: RuleInfo, article_list:list[str]) -
         admrule_articles.append(parsed_article)
 
     return admrule_articles
+
+
+
+if __name__ == '__main__':
+    data = load_json("264627","response_1743555531884" )
+    admrule_info = RuleInfo("2100000237816", "20240517", "20000517", 0)
+    article_list = data.get("AdmRulService").get("조문내용")
+    res = parse_admrule_article_info(admrule_info, article_list)
+    print(res[6].metadata)

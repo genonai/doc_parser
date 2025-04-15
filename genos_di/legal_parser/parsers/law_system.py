@@ -1,11 +1,11 @@
 from schemas import ConnectedLaws, HierarchyLaws
 
 
-def parse_hierarchy_laws(data, parent_id=None):
+def parse_hierarchy_laws(data, parent_id="None"):
     '''
         법령체계도에서 상하위법 정보를 추출하는 함수 
     '''
-    hierarchy_laws = []
+    hierarchy_laws: list[HierarchyLaws] = []
 
     def extract_laws(node, parent_id):
         ''' DFS 기반'''
@@ -15,19 +15,19 @@ def parse_hierarchy_laws(data, parent_id=None):
                 law_id = info.get("법령일련번호") or info.get("행정규칙일련번호", "")
                 
                 # 만약 law_id가 hierarchy_laws 리스트 안에 있다면 건너뛰기
-                if any(law.id == law_id for law in hierarchy_laws):
+                if any(law.law_id == law_id for law in hierarchy_laws):
                     return
                 
                 law_name = info.get("법령ID") or info.get("행정규칙ID")
                 law_type = info.get("법종구분", {})
                 
                 law = HierarchyLaws(
-                    id=law_id,
-                    num=law_name,
-                    code=law_type.get("법종구분코드", ""),
-                    type=law_type.get("content", ""),
-                    name=info.get("법령명") or info.get("행정규칙명", ""),
-                    parent=parent_id
+                    law_id=law_id,
+                    law_num=law_name,
+                    law_code=law_type.get("법종구분코드", ""),
+                    law_type=law_type.get("content", ""),
+                    law_name=info.get("법령명") or info.get("행정규칙명", ""),
+                    parent_id=parent_id
                 )
                 hierarchy_laws.append(law)
                 parent_id = law_id
@@ -75,7 +75,7 @@ def parse_connected_laws(data):
         conlaw_type = conlaw.get("법종구분", {}).get("content", "")
 
         if conlaw_id:
-            connected_laws.append(ConnectedLaws(id=conlaw_id, num=conlaw_num, code=conlaw_code, type=conlaw_type, name=conlaw_name))
+            connected_laws.append(ConnectedLaws(law_id=conlaw_id, law_num=conlaw_num, law_code=conlaw_code, law_type=conlaw_type, law_name=conlaw_name))
 
     return connected_laws
 
@@ -84,15 +84,17 @@ def categorize_law_ids(hier_laws: list[HierarchyLaws], connected_laws:list[Conne
     realted_law_ids = {"law": [], "admrule": []}
 
     for law in hier_laws + connected_laws:
-        if law.code.startswith("A") and law.id not in realted_law_ids["law"]:
-            realted_law_ids["law"].append(law.id)
-        elif law.code.startswith("B") and law.id not in realted_law_ids["admrule"]:
-            realted_law_ids["admrule"].append(law.id)
+        if law.law_code.startswith("A") and law.law_id not in realted_law_ids["law"]:
+            realted_law_ids["law"].append(law.law_id)
+        elif law.law_code.startswith("B") and law.law_id not in realted_law_ids["admrule"]:
+            realted_law_ids["admrule"].append(law.law_id)
 
     return realted_law_ids
 
 def parse_law_relationships(data):
     """법령 체계도 데이터를 파싱하여 상하위법, 관련법, 법령 ID 목록을 반환"""
+    if not data:
+        return None
     hier_laws = parse_hierarchy_laws(data)
     connected_laws = parse_connected_laws(data)
     related_laws_id = categorize_law_ids(hier_laws, connected_laws)
