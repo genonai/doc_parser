@@ -12,10 +12,7 @@ from fastapi import Request
 from utils import assert_cancelled
 
 from collections import namedtuple
-from typing import Union
-import re
 
-from pydantic import BaseModel, Field
 
 
 # law_info 또는 admrule_info의 Type. function parameter
@@ -412,8 +409,8 @@ class DocumentProcessor:
     def process_law_document(self, input_path: Path, output_dir: Path):
         match = re.search(r"Document-(\d+)", input_path.name)
         if not match:
-            raise ValueError("Invalid file name format. Expected 'metadata_<id>_...'")
-        id_number = match.group(1) # output 파일명에 쓰려고 뽑음 
+            raise ValueError("Invalid file name format. Expected 'Docunebt-<id>_...'")
+        # id_number = match.group(1) # output 파일명에 쓰려고 뽑음 
 
         self.parser_result :ParserResult= self.load_json_as_model(str(input_path), ParserResult)
         law_metadata = self.parser_result.law.metadata
@@ -480,7 +477,6 @@ class DocumentProcessor:
             content = "\n".join(article.content)
             is_law = isinstance(meta, LawArticleMetadata)
             split_texts = splitter.split_text(content)
-            parent_memory = {}
 
             
             # 바뀐코드(parent 뒤로 미루기기)
