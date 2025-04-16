@@ -8,7 +8,15 @@ from parsers.extractor import (
 import re
 
 from constants import BLANCKET, BLANCKETDATE, CHAPTERINFO, CHEVRONDATE, SECTIONINFO
-
+from extractor import (
+    extract_addenda_id,
+    extract_appendix_id,
+    extract_article_num,
+    extract_date_to_yyyymmdd,
+    extract_related_appendices,
+    get_latest_date,
+    replace_strip,
+)
 from schemas import (
     AdmRuleArticleMetadata,
     AdmRuleMetadata,
@@ -280,9 +288,8 @@ def _create_admrule_metadata(
 
 # 행정규칙 조회 -> 행정규칙 조문
 def parse_admrule_article_info(admrule_info: RuleInfo, article_list:list[str]) -> list[ParserContent]:
-    '''
-        행정규칙 조문 처리
-    '''
+    """행정규칙 조문 처리
+    """
     admrule_articles = []
     
     admrule_id = admrule_info.rule_id
