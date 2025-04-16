@@ -1,8 +1,12 @@
+import asyncio
+import logging
+import time
 from typing import Union
 
 import aiohttp
-import logging
 
+from file_utils import export_json
+from mappers.mapper_data import processor_mapping
 from params import (
     AdmBylRequestParams,
     AdmRuleRequestParams,
@@ -22,13 +26,7 @@ from parsers.law import (
     parse_law_info,
 )
 from parsers.law_system import parse_law_relationships
-from mappers.mapper_data import (
-    map_article_addenda,
-    map_article_appendix,
-    map_addendum_appendix
-)
-from schemas import ParserContent, ParserResult, RuleInfo
-from extractor import export_json
+from schemas import ConnectedLaws, HierarchyLaws, ParserContent, ParserResult, RuleInfo
 
 logger = logging.getLogger(__name__)
 
@@ -41,12 +39,11 @@ async def fetch_api(url: str):
             if response.status == 200:
                 if "application/json" in content_type:
                     data = await response.json()
-                    logger.info(f"[fetch_api]API 요청 성공: {url}")
                 else:
                     data = await response.text()
-                    logger.warning(f"[fetch_api]예상치 못한 데이터 타입: {content_type} ({url})")
+                    logger.warning(f"[fetch_api] 예상치 못한 데이터 타입: {content_type} ({url})")
             else:
-                logger.error(f"[fetch_api]API 요청 실패: {url} (HTTP {response.status})")
+                logger.error(f"[fetch_api] API 요청 실패: {url} (HTTP {response.status})")
                 return {"error": f"Request failed with status {response.status}"}
         
             return data
@@ -64,83 +61,84 @@ async def get_api_response(
     api_url = APIEndpoints().get_full_url(query.get_query_params())
     logger.info(f"[get_api_response] API 요청 시작: {api_url}")
     response = await fetch_api(api_url)
+    logger.info(f"[get_api_response] API 요청 성공: {api_url}")
     return response
 
-async def get_relate_laws(KEY: str) -> tuple:
-    '''법령 체계도 내의 법령 정보 및 ID 리스트 조회 (상하위법, 관련법령)'''
+async def get_law_system(KEY: str) -> tuple:
+    """법령 체계도 내의 법령 정보 및 ID 리스트 조회 (상하위법, 관련법령)"""
+    logger.info("[get_law_system] 상하위법 및 관련법령 데이터 처리")
     system_response: dict = await get_api_response(
         LawSystemRequestParams(MST=KEY)
     )
-
     law_system = system_response.get("법령체계도")
     return parse_law_relationships(law_system)
 
+async def get_parsed_law(id, hierarchy_laws:list[HierarchyLaws], connected_laws:list[ConnectedLaws]) -> ParserResult:
+    """법률, 시행령, 시행규칙의 데이터 처리"""
+    hierarchy_laws = hierarchy_laws if isinstance(hierarchy_laws, list) else []
+    connected_laws = connected_laws if isinstance(connected_laws, list) else []
 
-async def get_parsed_law(id, hierarchy_laws=[], connected_laws=[]) -> ParserResult:
-    '''
-        법률, 시행령, 시행규칙의 모든 정보 조회
-        조문 - 별칙, 조문 - 부칙 연결 처리
-    '''
-    law_response: dict = await get_api_response(
-        LawItemRequestParams(MST=id)
-    )
+    law_response: dict = await get_api_response(LawItemRequestParams(MST=id))
 
     # 법령 데이터 처리
     logger.info(f"[parse_law_info] 법령 메타데이터 처리: id={id}")
     law_data: dict = law_response.get("법령")
     law_result: ParserContent = parse_law_info(id, law_data, hierarchy_laws, connected_laws)
 
-    # 부칙 데이터 처리
-    logger.info("[parse_addendum_law_info] 법령 부칙 메타데이터 처리")
-    addendum_list: list[ParserContent] = parse_addendum_info(
-        id, law_data.get("부칙"), False
-    )
+    is_admrule = False 
 
     law_info = RuleInfo(
         id, law_result.metadata.enforce_date, law_result.metadata.enact_date, law_result.metadata.is_effective
     )
 
-    # 별표 데이터 처리
-    logger.info("[parse_appendix_info] 법령 별표 메타데이터 처리")
-    appendix_list: list[ParserContent] = parse_appendix_info(
-        law_info, law_data.get("별표", {}), False
+    logger.info("[get_parsed_law] 법령 부칙, 별표, 조문 데이터 병렬 처리")
+    addendum_data = law_data.get("부칙")
+    appendix_data = law_data.get("별표", {})
+    article_data = law_data.get("조문")
+
+    addendum_task = asyncio.to_thread(parse_addendum_info, id, addendum_data, is_admrule)
+    appendix_task = asyncio.to_thread(parse_appendix_info, law_info, appendix_data, is_admrule)
+    article_task = asyncio.to_thread(parse_law_article_info, law_info, article_data)
+
+    addendum_list, appendix_list, article_list = await asyncio.gather(
+        addendum_task, appendix_task, article_task
     )
 
-    # 조문 데이터 처리
-    logger.info("[parse_law_article_info] 법령 조문 메타데이터 처리")
-    article_data: dict = law_data.get("조문")
-    article_list: list[ParserContent] = parse_law_article_info(
-        law_info, article_data
-    )
+    # #부칙 데이터 처리
+    # logger.info("[parse_addendum_law_info] 법령 부칙 메타데이터 처리")
+    # addendum_list: list[ParserContent] = parse_addendum_info(
+    #     id, addendum_data, is_admrule
+    # )
 
-    # 조문 - 부칙 연결
-    logger.info("[get_parsed_law] 조문 - 부칙 연결 처리")
-    mapped_articles, mapped_addendum = map_article_addenda(
-        article_list, addendum_list
-    )
+    # # 별표 데이터 처리
+    # logger.info("[parse_appendix_info] 법령 별표 메타데이터 처리")
+    # appendix_list: list[ParserContent] = parse_appendix_info(
+    #     law_info, appendix_data, is_admrule
+    # )
 
-    # 조문 - 별표 연결
-    logger.info("[get_parsed_law] 조문 - 별표 연결 처리")
-    article_result, mapped_appendices = map_article_appendix(mapped_articles, appendix_list)
+    # # 조문 데이터 처리
+    # logger.info("[parse_law_article_info] 법령 조문 메타데이터 처리")
+    # article_data: dict = law_data.get("조문")
+    # article_list: list[ParserContent] = parse_law_article_info(
+    #     law_info, article_data
+    # )
 
-    logger.info("[get_parsed_law] 부칙 - 별표 연결 처리")
-    addendum_result, appendix_result = map_addendum_appendix(mapped_addendum, mapped_appendices)
-
-
+    logger.info("[processor_mapping] 법령 조문 - 부칙 - 별표 연결 처리")
+    article_result, addendum_result, appendix_result = processor_mapping(article_list, addendum_list, appendix_list)
+    
     parse_result = ParserResult(
         law=law_result,
         addendum=addendum_result,
         appendix=appendix_result,
         article=article_result,
     )
-    logger.info("[get_parsed_law] 법령 데이터 파싱 완료")
     return parse_result
 
-async def get_parsed_admrule(id, hierarchy_laws=[], connected_laws=[]) -> ParserResult:
-    '''
-        행정규칙의 모든 정보 조회
-        조문 - 별칙, 조문 - 부칙 연결 처리
-    '''
+async def get_parsed_admrule(id, hierarchy_laws:list[HierarchyLaws], connected_laws:list[ConnectedLaws]) -> ParserResult:
+    """행정규칙의 모든 정보 처리"""
+    hierarchy_laws = hierarchy_laws if isinstance(hierarchy_laws, list) else []
+    connected_laws = connected_laws if isinstance(connected_laws, list) else []
+        
     admrule_response: dict = await get_api_response(AdmRuleRequestParams(ID=id))
     admrule_data = admrule_response.get("AdmRulService")
 
@@ -150,12 +148,6 @@ async def get_parsed_admrule(id, hierarchy_laws=[], connected_laws=[]) -> Parser
         id, admrule_data, hierarchy_laws, connected_laws
     )
 
-    # 부칙
-    logger.info("[parse_addendum_admrule_info] 행정규칙 부칙 메타데이터 처리")
-    addendum_list: list[ParserContent] = parse_addendum_info(
-        id, admrule_data.get("부칙"), True
-    )
-
     admrule_info = RuleInfo(
         id,
         admrule_result.metadata.enforce_date,
@@ -163,36 +155,44 @@ async def get_parsed_admrule(id, hierarchy_laws=[], connected_laws=[]) -> Parser
         admrule_result.metadata.is_effective,
     )
 
-    # 별표
+    is_admrule = True 
+
+    logger.info("[get_parsed_admrule] 행정규칙 부칙, 별표, 조문 데이터 병렬 처리")
+    addendum_data = admrule_data.get("부칙")
     appendix_data = admrule_data.get("별표", {})
-    logger.info("[parse_appendix_info] 행정규칙 별표 메타데이터 처리")
-    appendix_list: list[ParserContent] = (
-        parse_appendix_info(admrule_info, appendix_data, True)
-        if appendix_data
-        else []
-    )
-
-    # 행정규칙 조문
     article_data = admrule_data.get("조문내용", [])
-    logger.info("[parse_admrule_info] 행정규칙 조문 메타데이터 처리")
-    article_list: list[ParserContent] = parse_admrule_article_info(
-        admrule_info, article_data
+
+    addendum_task = asyncio.to_thread(parse_addendum_info, id, addendum_data, is_admrule)
+    appendix_task = asyncio.to_thread(parse_appendix_info, admrule_info, appendix_data, is_admrule)
+    article_task = asyncio.to_thread(parse_admrule_article_info, admrule_info, article_data)
+
+    addendum_list, appendix_list, article_list = await asyncio.gather(
+        addendum_task, appendix_task, article_task
     )
+
+    # # 부칙
+    # logger.info("[parse_addendum_info] 행정규칙 부칙 메타데이터 처리")
+    # addendum_list: list[ParserContent] = parse_addendum_info(
+    #     id, addendum_data, is_admrule
+    # )
+
+    # # 별표
+    # logger.info("[parse_appendix_info] 행정규칙 별표 메타데이터 처리")
+    # appendix_list: list[ParserContent] = (
+    #     parse_appendix_info(admrule_info, appendix_data, is_admrule)
+    #     if appendix_data
+    #     else []
+    # )
+
+    # # 행정규칙 조문
+    # logger.info("[parse_admrule_article_info] 행정규칙 조문 메타데이터 처리")
+    # article_list: list[ParserContent] = parse_admrule_article_info(
+    #     admrule_info, article_data
+    # )
     
-    # 조문 - 부칙 연결
-    logger.info("[get_parsed_law] 조문 - 부칙 연결 처리")
-    mapped_articles, mapped_addendum = map_article_addenda(
-        article_list, addendum_list
-    )
-
-    # 조문 - 별표 연결
-    logger.info("[get_parsed_law] 조문 - 별표 연결 처리")
-    article_result, mapped_appendices = map_article_appendix(mapped_articles, appendix_list)
-
-    # 조문 - 부칙 연결
-    logger.info("[get_parsed_law] 부칙 - 별표 연결 처리")
-    addendum_result, appendix_result = map_addendum_appendix(mapped_addendum, mapped_appendices)
-
+    logger.info("[processor_mapping] 행정규칙 조문 - 부칙 - 별표 연결 처리")
+    article_result, addendum_result, appendix_result = processor_mapping(article_list, addendum_list, appendix_list)
+   
     parse_result = ParserResult(
         law=admrule_result,
         article=article_result,
@@ -203,29 +203,73 @@ async def get_parsed_admrule(id, hierarchy_laws=[], connected_laws=[]) -> Parser
     logger.info("[get_parsed_admrule] 행정규칙 데이터 파싱 완료")
     return parse_result
 
-async def get_parse_result(KEY: str):
-    result = []
-    logger.info(f"[get_parse_result] 데이터 파싱 시작: KEY={KEY}\n")
+async def get_parse_result(law_ids_dict: dict[str, list[str]]) -> int:
+    # result = []
+    count = 0
+    seen_law_id = set()
+    seen_admrule_id = set()
 
-    ## 법령체계도의 상하위법, 관련법령 정보 조회
-    hierarchy_laws, connected_laws, related_law_ids = await get_relate_laws(KEY)
+    async def process_law(id: str, hierarchy_laws, connected_laws):
+        if id in seen_law_id:
+            return
+        seen_law_id.add(id)
 
-    print(related_law_ids)
-    # 법률, 시행령, 시행규칙 데이터 파싱
-    related_laws =  related_law_ids.get("law")
-    for id in related_laws:  ## 법률, 시행령, 시행규칙
-        logger.info("Current Law: ", id)
+        logger.info(f"[get_parse_result] 법령 데이터 파싱 시작: ID={id}")
+        start = time.perf_counter()
+        
         parse_result = await get_parsed_law(id, hierarchy_laws, connected_laws)
-        export_json(parse_result.model_dump(), KEY, id)
-        result.append(parse_result)
+        export_json(parse_result.model_dump(), parse_result.law.metadata.law_num)
+        
+        end = time.perf_counter()
+        duration = end - start
+        logger.info(f"[get_parse_result] 법령 파싱 완료 - ID={id}, 소요 시간: {duration:.2f}초\n")
+        
+        nonlocal count
+        count += 1
+        # result.append(parse_result)
 
-    # 행정규칙 데이터 파싱
-    related_admrule = related_law_ids.get("admrule")
-    for id in related_admrule:
-        logger.info("Current Admin Rule: ", id)
+    async def process_admrule(id: str, hierarchy_laws, connected_laws):
+        if id in seen_admrule_id:
+            return
+        seen_admrule_id.add(id)
+
+        logger.info(f"[get_parse_result] 행정규칙 데이터 파싱 시작: ID={id}")
+        start = time.perf_counter()
+        
         parse_result = await get_parsed_admrule(id, hierarchy_laws, connected_laws)
-        export_json(parse_result.model_dump(), KEY, id)
-        result.append(parse_result)
+        export_json(parse_result.model_dump(), parse_result.law.metadata.admrule_num)
+        
+        end = time.perf_counter()
+        duration = end - start
+        logger.info(f"[get_parse_result] 행정규칙 파싱 완료 - ID={id}, 소요 시간: {duration:.2f}초\n")
+        
+        nonlocal count
+        count += 1
+        # result.append(parse_result)
 
-    logger.info(f"[get_parse_result] 모든 법령 데이터 파싱 완료: KEY={KEY}, 총 개수={len(related_laws) + (len(related_admrule))}\n")
-    return result
+    law_ids = law_ids_dict.get("law_ids", [])
+    admrule_ids = law_ids_dict.get("admrule_ids", [])
+
+    for law_id in law_ids:
+        if law_id not in seen_law_id:
+            hierarchy_laws, connected_laws, related_law_ids = await get_law_system(law_id)
+            await process_law(law_id, hierarchy_laws, connected_laws)
+
+            for related_id in related_law_ids.get("law", []):
+                await process_law(related_id, hierarchy_laws, connected_laws)
+
+            for related_id in related_law_ids.get("admrule", []):
+                await process_admrule(related_id, hierarchy_laws, connected_laws)
+
+    for admrule_id in admrule_ids:
+        if admrule_id not in seen_admrule_id:
+            await process_admrule(admrule_id, [], [])
+
+    logger.info(f"\n[get_parse_result] 모든 법령 데이터 파싱 완료: 총 개수={count}")
+    return count
+
+
+async def download_data(query: Union[LawItemRequestParams, AdmRuleRequestParams]):
+    api_url = APIEndpoints().get_full_url(query.get_query_params())
+    result =  await fetch_api(api_url)
+    export_json(result, query.ID, is_result=False)

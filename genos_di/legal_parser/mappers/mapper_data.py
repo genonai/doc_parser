@@ -1,25 +1,48 @@
+import logging
 from collections import defaultdict
 
 from schemas import ParserContent
 
+logger = logging.getLogger(__name__)
 
-## 조문 내용에서 정규표현식으로 가져올 것
-'''
 
-2. 동법 내 별표 > def map_article_appendix
-3. 동법 내 부칙 > def map_article_addenda
+def processor_mapping(article_list:list[ParserContent], addendum_list:list[ParserContent], appendix_list:list[ParserContent]) \
+    -> tuple[list[ParserContent],list[ParserContent],list[ParserContent]]:
+    """조문, 부칙, 별표 리스트를 받아서 연결 처리를 수행하는 wrapper 함수
+    
+    Args:
+        article_list: 조문 리스트
+        addendum_list: 부칙 리스트
+        appendix_list: 별표 리스트
+        
+    Returns:
+        article_result: 조문-부칙, 조문-별표가 연결된 조문 리스트
+        addendum_result: 부칙-별표가 연결된 부칙 리스트
+        appendix_result: 모든 연결이 처리된 별표 리스트
 
-1. 동법 내 타 조항 > def map_article_article
-4. 타법법령명 및 조문번호 > 상하위법, 관련법인지 확인하고 아니면 텍스트로 가져오기
+    """
+    # 조문 - 부칙 연결
+    logger.info("[map_article_addenda] 조문 - 부칙 연결 처리")
+    mapped_articles, mapped_addendum = map_article_addenda(
+        article_list, addendum_list
+    )
 
-'''
+    # 조문 - 별표 연결
+    logger.info("[map_article_appendix] 조문 - 별표 연결 처리")
+    article_result, mapped_appendices = map_article_appendix(mapped_articles, appendix_list)
+
+    # 부칙 - 별표 연결
+    logger.info("[map_addendum_appendix] 부칙 - 별표 연결 처리")
+    addendum_result, appendix_result = map_addendum_appendix(mapped_addendum, mapped_appendices)
+
+    return article_result, addendum_result, appendix_result
+
 # 조문 <-> 부칙 연결  
 def map_article_addenda(article_list: list[ParserContent], addendum_list: list[ParserContent]) \
     -> tuple[list[ParserContent], list[ParserContent]]:
-    '''
-        공포일자를 기준으로 부칙 메타데이터에 관련 조문 ID를 추가
-        조문 메타데이터의 `related_addenda'와 부칙 메타데이터의 `related_articles` 양방향 연결
-    '''
+    """공포일자를 기준으로 부칙 메타데이터에 관련 조문 ID를 추가
+    조문 메타데이터의 `related_addenda'와 부칙 메타데이터의 `related_articles` 양방향 연결
+    """
     article_dict: dict[str, list[ParserContent]] = defaultdict(list)
     for article in article_list:
         article_dict[article.metadata.announce_date].append(article)
@@ -48,9 +71,8 @@ def map_article_addenda(article_list: list[ParserContent], addendum_list: list[P
 
 def map_article_appendix(article_list: list[ParserContent], appendix_list: list[ParserContent]) \
     -> tuple[list[ParserContent], list[ParserContent]]:
-    '''
-        별표의 related_articles와 조문의 related_appendices 양방향 연결
-    '''
+    """별표의 related_articles와 조문의 related_appendices 양방향 연결
+    """
     synchronize_relationships(
         article_list, appendix_list,
         list_a_related_attr="related_appendices", list_b_related_attr="related_articles",
@@ -61,9 +83,8 @@ def map_article_appendix(article_list: list[ParserContent], appendix_list: list[
 
 def map_addendum_appendix(addendum_list:list[ParserContent], appendix_list: list[ParserContent])\
     -> tuple[list[ParserContent], list[ParserContent]]:
-    '''
-        부칙의 related_appendices와 별표의 related_addenda 양방향 연결
-    '''
+    """부칙의 related_appendices와 별표의 related_addenda 양방향 연결
+    """
     synchronize_relationships(
         addendum_list, appendix_list,
         list_a_related_attr="related_appendices", list_b_related_attr="related_addenda",
@@ -77,8 +98,7 @@ def synchronize_relationships(
     list_a_related_attr: str, list_b_related_attr: str, 
     list_a_id_attr: str, list_b_id_attr: str
 ):
-    """
-    특정 관계 리스트가 존재하는 경우에만, 해당 ID를 반대쪽 리스트에 추가하는 함수.
+    """특정 관계 리스트가 존재하는 경우에만, 해당 ID를 반대쪽 리스트에 추가하는 함수.
     
     - list_a의 `list_a_related_attr`(related_*)에 값이 있을 때만 동기화 진행.
     - list_a의 관련 ID를 가진 list_b 항목의 `list_b_related_attr`에 ID를 추가.
