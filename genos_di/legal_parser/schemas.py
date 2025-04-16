@@ -1,9 +1,8 @@
+import re
 from collections import namedtuple
 from typing import Union
-import re
 
 from pydantic import BaseModel, Field
-
 
 # law_info 또는 admrule_info의 Type. function parameter
 RuleInfo = namedtuple("RuleInfo", ["rule_id", "enforce_date", "enact_date", "is_effective"])
@@ -15,9 +14,9 @@ HierarchyLaws = namedtuple("HierarchyLaws", ["law_id", "law_num", "law_code", "l
 ConnectedLaws = namedtuple("ConnectedLaws", ["law_id", "law_num", "law_code", "law_type", "law_name"])
 
 class ArticleChapter(BaseModel):
-    '''
-        법령/행정규칙 조문의 (편)장절(관) 정보
-    '''
+    """법령/행정규칙 조문의 (편)장절(관) 정보
+    """
+
     chapter_num: int = Field(1, description="조문의 장(chapter) 번호")
     chapter_title: str = Field("", description="조문의 장(chapter) 제목")
     section_num: int = Field(0, description="조문의 절(section) 번호")
@@ -208,9 +207,9 @@ class ParserContent(BaseModel):
 
 
 class ParserResult(BaseModel):
+    """최종 출력 형태
     """
-    최종 출력 형태
-    """
+
     law: ParserContent = Field(..., description="법령 또는 행정규칙")
     article: list[ParserContent] = Field(..., description="조문")
     addendum: list[ParserContent] = Field(..., description="부칙")

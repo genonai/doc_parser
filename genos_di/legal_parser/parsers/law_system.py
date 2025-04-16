@@ -2,13 +2,12 @@ from schemas import ConnectedLaws, HierarchyLaws
 
 
 def parse_hierarchy_laws(data, parent_id="None"):
-    '''
-        법령체계도에서 상하위법 정보를 추출하는 함수 
-    '''
+    """법령체계도에서 상하위법 정보를 추출하는 함수
+    """
     hierarchy_laws: list[HierarchyLaws] = []
 
     def extract_laws(node, parent_id):
-        ''' DFS 기반'''
+        """DFS 기반"""
         if isinstance(node, dict):
             if "기본정보" in node:
                 info = node["기본정보"]
@@ -52,9 +51,8 @@ def parse_hierarchy_laws(data, parent_id="None"):
     return hierarchy_laws
 
 def parse_connected_laws(data):
-    '''
-        법령체계도에서 관련법령 정보를 추출하는 함수
-    '''
+    """법령체계도에서 관련법령 정보를 추출하는 함수
+    """
     connected_laws: list[ConnectedLaws] = [] # 관련법 정보 리스트
     conlaw_dict = data.get("관련법령")
 

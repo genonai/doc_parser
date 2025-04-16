@@ -1,14 +1,19 @@
 from constants import LAWFIELD
-from schemas import ArticleChapter, LawArticleMetadata, LawMetadata, ParserContent, RuleInfo
-from  extractor import (
+from extractor import (
     extract_addenda_id,
     extract_appendix_id,
     extract_date_to_yyyymmdd,
-    get_latest_date,
     extract_related_appendices,
+    get_latest_date,
     replace_strip,
 )
-
+from schemas import (
+    ArticleChapter,
+    LawArticleMetadata,
+    LawMetadata,
+    ParserContent,
+    RuleInfo,
+)
 
 
 # 법령본문 조회 -> 법령
@@ -58,8 +63,7 @@ def parse_law_info(law_id: str, law_data: dict, hierarchy_laws, connected_laws) 
     )
 
 def extract_latest_announce(data: dict, enact_date:str) -> str:
-    """
-    조문 내용, 조문 참고자료, 항 내용, 호 내용에서 가장 최신의 개정 날짜를 추출하여 내용과 함께 반환합니다.
+    """조문 내용, 조문 참고자료, 항 내용, 호 내용에서 가장 최신의 개정 날짜를 추출하여 내용과 함께 반환합니다.
     """
     def extract_amendment_dates(data:dict) -> list[str] :
         dates = []
@@ -118,8 +122,7 @@ def extract_latest_announce(data: dict, enact_date:str) -> str:
 
 # 법령 조문 내용 처리
 def stringify_article_content(data: dict) -> list[str]:
-    """
-    법령 조문 데이터를 문자열 리스트로 변환하는 함수
+    """법령 조문 데이터를 문자열 리스트로 변환하는 함수
     """
     content = []
 

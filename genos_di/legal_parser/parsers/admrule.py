@@ -1,7 +1,15 @@
 import re
 
 from constants import BLANCKET, BLANCKETDATE, CHAPTERINFO, CHEVRONDATE, SECTIONINFO
-
+from extractor import (
+    extract_addenda_id,
+    extract_appendix_id,
+    extract_article_num,
+    extract_date_to_yyyymmdd,
+    extract_related_appendices,
+    get_latest_date,
+    replace_strip,
+)
 from schemas import (
     AdmRuleArticleMetadata,
     AdmRuleMetadata,
@@ -9,16 +17,6 @@ from schemas import (
     FileAttached,
     ParserContent,
     RuleInfo,
-)
-from  extractor import (
-    extract_addenda_id,
-    extract_appendix_id,
-    extract_article_num,
-    extract_date_to_yyyymmdd,
-    get_latest_date,
-    replace_strip,
-    extract_related_appendices,
-    load_json
 )
 
 
@@ -84,9 +82,8 @@ def parse_admrule_info(admrule_id: str, admrule_data: dict, hierarchy_laws, conn
 
 # 행정규칙 조회 -> 행정규칙 조문
 def parse_admrule_article_info(admrule_info: RuleInfo, article_list:list[str]) -> list[ParserContent]:
-    '''
-        행정규칙 조문 처리
-    '''
+    """행정규칙 조문 처리
+    """
     admrule_articles = []
     
     admrule_id = admrule_info.rule_id
@@ -168,11 +165,3 @@ def parse_admrule_article_info(admrule_info: RuleInfo, article_list:list[str]) -
 
     return admrule_articles
 
-
-
-if __name__ == '__main__':
-    data = load_json("264627","response_1743555531884" )
-    admrule_info = RuleInfo("2100000237816", "20240517", "20000517", 0)
-    article_list = data.get("AdmRulService").get("조문내용")
-    res = parse_admrule_article_info(admrule_info, article_list)
-    print(res[6].metadata)

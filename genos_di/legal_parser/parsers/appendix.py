@@ -1,19 +1,17 @@
 import re
 
 from constants import AMENDDATE, BLANCKETDATE
-from schemas import AppendixMetadata, ParserContent, RuleInfo
 from extractor import (
     extract_article_num,
     extract_date_to_yyyymmdd,
     get_latest_date,
     replace_strip,
 )
-
+from schemas import AppendixMetadata, ParserContent, RuleInfo
 
 
 def parse_appendix_info(rule_info: RuleInfo, appendix_data: dict, is_admrule: bool = False) -> list[ParserContent]:
-    """
-    법령 또는 행정규칙의 별표 정보를 파싱하여 구조화된 콘텐츠 리스트를 반환합니다.
+    """법령 또는 행정규칙의 별표 정보를 파싱하여 구조화된 콘텐츠 리스트를 반환합니다.
 
     이 함수는 입력된 별표 데이터에서 주요 메타데이터(별표번호, 제목, 링크 등)와 본문 내용을 추출하고,
     관련 조문 및 개정일, 시행일 등의 정보를 포함한 ParserContent 객체로 반환합니다.
@@ -26,8 +24,8 @@ def parse_appendix_info(rule_info: RuleInfo, appendix_data: dict, is_admrule: bo
 
     Returns:
         list[ParserContent]: 파싱된 별표 콘텐츠와 메타데이터가 포함된 ParserContent 객체의 리스트.
+
     """
-   
     appendix_list = []
     appendix_units = appendix_data.get("별표단위", [])
 

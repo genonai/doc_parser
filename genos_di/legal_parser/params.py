@@ -15,8 +15,7 @@ class APIEndpoints(BaseModel):
 
 
 class BaseRequestParams(BaseModel):
-    """
-    공통 Request Params Schema
+    """공통 Request Params Schema
     """
 
     OC: Literal["mer013"] = Field("mer013")
@@ -37,8 +36,7 @@ class BaseRequestParams(BaseModel):
 
 
 class LawItemRequestParams(BaseRequestParams):
-    """
-    현행 법령 본문 조회 API Request Params
+    """현행 법령 본문 조회 API Request Params
     """
 
     target: Literal["law"] = Field("law")
@@ -71,8 +69,7 @@ class LawItemRequestParams(BaseRequestParams):
 
 
 class LawSystemRequestParams(BaseRequestParams):
-    """
-    법령 체계도 본문 조회 API
+    """법령 체계도 본문 조회 API
     """
 
     target: Literal["lsStmd"] = "lsStmd"
@@ -93,8 +90,7 @@ class LawSystemRequestParams(BaseRequestParams):
 
 
 class AdmRuleRequestParams(BaseRequestParams):
-    """
-    행정규칙 본문 조회 API
+    """행정규칙 본문 조회 API
     """
 
     target: Literal["admrul"] = "admrul"
@@ -113,8 +109,7 @@ class AdmRuleRequestParams(BaseRequestParams):
 
 
 class LicBylRequestParams(BaseRequestParams):
-    """
-    법령 별표 서식 목록 조회
+    """법령 별표 서식 목록 조회
     """
 
     target: Literal["licbyl"] = "licbyl"
@@ -147,8 +142,7 @@ class LicBylRequestParams(BaseRequestParams):
 
 
 class AdmBylRequestParams(BaseRequestParams):
-    """
-    행정규칙 별표 서식 목록 조회
+    """행정규칙 별표 서식 목록 조회
     """
 
     target: Literal["admbyl"] = "admbyl"
