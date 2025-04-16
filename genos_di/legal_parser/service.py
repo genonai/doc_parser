@@ -104,25 +104,6 @@ async def get_parsed_law(id, hierarchy_laws:list[HierarchyLaws], connected_laws:
         addendum_task, appendix_task, article_task
     )
 
-    # #부칙 데이터 처리
-    # logger.info("[parse_addendum_law_info] 법령 부칙 메타데이터 처리")
-    # addendum_list: list[ParserContent] = parse_addendum_info(
-    #     id, addendum_data, is_admrule
-    # )
-
-    # # 별표 데이터 처리
-    # logger.info("[parse_appendix_info] 법령 별표 메타데이터 처리")
-    # appendix_list: list[ParserContent] = parse_appendix_info(
-    #     law_info, appendix_data, is_admrule
-    # )
-
-    # # 조문 데이터 처리
-    # logger.info("[parse_law_article_info] 법령 조문 메타데이터 처리")
-    # article_data: dict = law_data.get("조문")
-    # article_list: list[ParserContent] = parse_law_article_info(
-    #     law_info, article_data
-    # )
-
     logger.info("[processor_mapping] 법령 조문 - 부칙 - 별표 연결 처리")
     article_result, addendum_result, appendix_result = processor_mapping(article_list, addendum_list, appendix_list)
     
@@ -169,26 +150,6 @@ async def get_parsed_admrule(id, hierarchy_laws:list[HierarchyLaws], connected_l
     addendum_list, appendix_list, article_list = await asyncio.gather(
         addendum_task, appendix_task, article_task
     )
-
-    # # 부칙
-    # logger.info("[parse_addendum_info] 행정규칙 부칙 메타데이터 처리")
-    # addendum_list: list[ParserContent] = parse_addendum_info(
-    #     id, addendum_data, is_admrule
-    # )
-
-    # # 별표
-    # logger.info("[parse_appendix_info] 행정규칙 별표 메타데이터 처리")
-    # appendix_list: list[ParserContent] = (
-    #     parse_appendix_info(admrule_info, appendix_data, is_admrule)
-    #     if appendix_data
-    #     else []
-    # )
-
-    # # 행정규칙 조문
-    # logger.info("[parse_admrule_article_info] 행정규칙 조문 메타데이터 처리")
-    # article_list: list[ParserContent] = parse_admrule_article_info(
-    #     admrule_info, article_data
-    # )
     
     logger.info("[processor_mapping] 행정규칙 조문 - 부칙 - 별표 연결 처리")
     article_result, addendum_result, appendix_result = processor_mapping(article_list, addendum_list, appendix_list)
