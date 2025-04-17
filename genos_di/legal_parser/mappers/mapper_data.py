@@ -43,10 +43,21 @@ def map_article_addenda(article_list: list[ParserContent], addendum_list: list[P
     """공포일자를 기준으로 부칙 메타데이터에 관련 조문 ID를 추가
     조문 메타데이터의 `related_addenda'와 부칙 메타데이터의 `related_articles` 양방향 연결
     """
+
     article_dict: dict[str, list[ParserContent]] = defaultdict(list)
     for article in article_list:
         article_dict[article.metadata.announce_date].append(article)
- 
+
+    # 이 부칙이 가장 오래된 조문 개정일 이전에 제정되었는지 여부 판단
+    oldest_article_date = min(article_dict.keys())
+
+    for index, addendum in enumerate(addendum_list):
+        announce_date = addendum.metadata.announce_date
+        if index == 0 and oldest_article_date == addendum.metadata.announce_date:
+            break
+        if announce_date < oldest_article_date:
+            addendum.metadata.is_exit = True
+  
     # 부칙 데이터를 역순으로 순회하면서 관련 조문 ID 추가
     for addendum in reversed(addendum_list):
         announce_date = addendum.metadata.announce_date

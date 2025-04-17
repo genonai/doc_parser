@@ -9,7 +9,6 @@ def parse_addendum_info(law_id: str, addendum_data: dict, is_admrule: bool = Fal
     """법령 또는 행정규칙의 부칙을 파싱하여 구조화된 콘텐츠로 반환합니다.
     is_admrule이 True일 경우 행정규칙 부칙을 처리합니다.
     """
-    # TODO: 조문에서 가장 오래된 기준 날짜 받아와서 그 전의 부칙은 넣지 않기.
     # 공통: 부칙 본문을 조문 단위로 나누기 위한 내부 함수
     def split_addendum_content(title: str, text: list[str], is_admrule: bool=False) -> list[str]:
         contents = []
@@ -126,7 +125,8 @@ def parse_addendum_info(law_id: str, addendum_data: dict, is_admrule: bool = Fal
             law_id=law_id,
             related_laws=related_laws,
             related_articles=[],
-            related_appendices=related_appendices
+            related_appendices=related_appendices,
+            is_exit=False
         )
 
         addendum_result = ParserContent(
