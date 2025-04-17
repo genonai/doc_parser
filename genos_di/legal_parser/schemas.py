@@ -127,6 +127,7 @@ class AddendumMetadata(BaseModel):
     related_laws: list[str] = Field([], description="관련 법령명, 주로 타법 개정의 법령명")
     related_articles: list[str] = Field([], description="관련 조문 ID")
     related_appendices: list[str] = Field([], description="관련 별표 ID")
+    is_exit: bool = Field(False, description="이 부칙이 가장 오래된 조문 개정일 이전에 제정되었는지 여부")
 
 
 # 행정규칙 첨부파일
