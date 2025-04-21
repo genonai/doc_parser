@@ -1,23 +1,23 @@
 import json
 import logging
 from collections import defaultdict
-from datetime import datetime
 from pathlib import Path
 from typing import DefaultDict
 
 import pandas as pd
 from pydantic import BaseModel
-from pytz import timezone
 
 logger = logging.getLogger(__name__)
 
 
-def export_json(data, id, is_result=True):
-    nowstr = datetime.now(timezone('Asia/Seoul')).strftime('%Y-%m-%d %H:%M %Z')
-    output_file = f"resources/result/data_{id}_{nowstr}.json" if is_result else f"resources/inputs/response_{id}.json"
-
+def export_json(data, id, num, is_admrule=True, is_input=False):
+    if is_input: 
+        output_file = f"inputs/response_{id}.json"
+    else :
+        rule_type = 'admrule' if is_admrule else 'law'
+        output_file = f"result/{rule_type}_{id}_{num}.json"
     logger.info(f"JSON 데이터 저장: ID={id}, 파일 경로={output_file}")
-    with open(output_file, "w", encoding="utf-8") as f:
+    with open(f'resources/{output_file}', "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=4)
 
 
@@ -34,7 +34,7 @@ def load_json(key):
     with file_path.open("r", encoding="utf-8") as f:
         return json.load(f)
 
-def load_law_keys_from_csv() -> DefaultDict[str, list[str]]:
+def load_keys_from_csv() -> DefaultDict[str, list[str]]:
     """법령검색목록.csv 파일에서 '법령MST'를, 행정규칙검색목록.csv에서 '행정규칙ID' 리스트를 추출합니다.
 
     Returns:
@@ -63,7 +63,3 @@ def load_law_keys_from_csv() -> DefaultDict[str, list[str]]:
         raise ValueError(f"'행정규칙ID' 컬럼을 찾을 수 없습니다: {e}") from e
     
     return law_ids_dict
-
-
-if __name__ == '__main__' : 
-    result = load_law_keys_from_csv()
