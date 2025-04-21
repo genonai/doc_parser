@@ -1,6 +1,7 @@
 import re
 from collections import namedtuple
-from typing import Union
+from datetime import datetime, timezone
+from typing import Literal, Union
 
 from pydantic import BaseModel, Field
 
@@ -84,10 +85,8 @@ class LawArticleMetadata(BaseModel):
     is_effective: int = Field(
         0, title="현행여부", description="0: 현행, 1: 예정, -1:과거(연혁)"
     )
-    related_laws: list[str] = Field([], description="관련 법령명 리스트")
     related_appendices: list[str] = Field([], description="관련 별표 ID 리스트")
     related_addenda: list[str] = Field([], description="관련 부칙 ID 리스트")
-    related_articles: list[str] = Field([], description="관련 법조항 ID 리스트")
 
 
 class AppendixMetadata(BaseModel):
@@ -127,7 +126,7 @@ class AddendumMetadata(BaseModel):
     related_laws: list[str] = Field([], description="관련 법령명, 주로 타법 개정의 법령명")
     related_articles: list[str] = Field([], description="관련 조문 ID")
     related_appendices: list[str] = Field([], description="관련 별표 ID")
-    is_exit: bool = Field(False, description="이 부칙이 가장 오래된 조문 개정일 이전에 제정되었는지 여부")
+    is_exit: bool = Field(False, description="이 부칙이 가장 오래된 조문 개정일 이전에 제정되었는지 여부")  # NOTE preprocessor_genos 변경 사항 고지
 
 
 # 행정규칙 첨부파일
@@ -187,8 +186,6 @@ class AdmRuleArticleMetadata(BaseModel):
         ..., description="조문 최신 공포(개정)일자 (yyyymmdd 형식)"
     )
     is_preamble: bool = Field(..., description="전문여부 (T: 전문, F: 조문)")
-    related_laws: list[str] = Field([], description="관련 법령 ID 리스트")
-    related_articles: list[str] = Field([], description="관련 조문 ID 리스트")
     related_appendices: list[str] = Field([], description="관련 별표 ID 리스트")
     related_addenda: list[str] = Field([], description="관련 부칙 ID 리스트")
 
@@ -216,4 +213,34 @@ class ParserResult(BaseModel):
     addendum: list[ParserContent] = Field(..., description="부칙")
     appendix: list[ParserContent] = Field(..., description="별표")
 
+class ErrorResponse(BaseModel):
+    id: str
+    type: str = Literal["law", "admrule"]
+    error: str
+    timestamp: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
+class ParserResponse(BaseModel):
+    total_count: int
+    seen_count: int = 0
+    unseen_count: int = 0
+    success_count: int = 0
+    fail_count: int = 0 
+    seen_ids: dict[str, set[str]] = {}         # {"law": [...], "admrule": [...]}
+    unseen_ids: dict[str, set[str]] = {}       # {"law": [...], "admrule": [...]}
+
+    errors: list[ErrorResponse] = Field(default_factory=list)
+
+    def model_post_init(self, __context):
+            self.unseen_count = self.total_count
+
+    def increment_success(self):
+        self.success_count += 1
+
+    def increment_fail(self, id:str, error_summary:str, is_admrule:bool = True):
+        self.fail_count += 1
+        error = ErrorResponse(
+            id=id,
+            type="admrule" if is_admrule else "law",
+            error=error_summary
+        )
+        self.errors.append(error)

@@ -3,17 +3,12 @@ import logging
 import time
 from typing import Union
 
-import aiohttp
-
-from file_utils import export_json
 from mappers.mapper_data import processor_mapping
 from params import (
-    AdmBylRequestParams,
     AdmRuleRequestParams,
     APIEndpoints,
     LawItemRequestParams,
     LawSystemRequestParams,
-    LicBylRequestParams,
 )
 from parsers.addendum import parse_addendum_info
 from parsers.admrule import (
@@ -26,59 +21,34 @@ from parsers.law import (
     parse_law_info,
 )
 from parsers.law_system import parse_law_relationships
-from schemas import ConnectedLaws, HierarchyLaws, ParserContent, ParserResult, RuleInfo
+from schemas import (
+    ConnectedLaws,
+    HierarchyLaws,
+    ParserContent,
+    ParserResponse,
+    ParserResult,
+    RuleInfo,
+)
+from utils.exception_handler import get_error_summary
+from utils.fetcher import fetch_api, get_api_response
+from utils.file_utils import export_json
 
 logger = logging.getLogger(__name__)
 
-## API GET Request
-async def fetch_api(url: str):
-    async with aiohttp.ClientSession() as client:
-        async with client.get(url) as response:
-            content_type = response.headers.get("Content-Type", "")
-            
-            if response.status == 200:
-                if "application/json" in content_type:
-                    data = await response.json()
-                else:
-                    data = await response.text()
-                    logger.warning(f"[fetch_api] 예상치 못한 데이터 타입: {content_type} ({url})")
-            else:
-                logger.error(f"[fetch_api] API 요청 실패: {url} (HTTP {response.status})")
-                return {"error": f"Request failed with status {response.status}"}
-        
-            return data
-        
-# API 호출 
-async def get_api_response(
-    query: Union[
-        LawItemRequestParams,
-        LawSystemRequestParams,
-        LicBylRequestParams,
-        AdmBylRequestParams,
-        AdmRuleRequestParams,
-    ],
-):
-    api_url = APIEndpoints().get_full_url(query.get_query_params())
-    logger.info(f"[get_api_response] API 요청 시작: {api_url}")
-    response = await fetch_api(api_url)
-    logger.info(f"[get_api_response] API 요청 성공: {api_url}")
-    return response
-
-async def get_law_system(KEY: str) -> tuple:
+async def get_law_system(id: str) -> tuple[list[HierarchyLaws], list[ConnectedLaws], dict[str, list[str]]]:
     """법령 체계도 내의 법령 정보 및 ID 리스트 조회 (상하위법, 관련법령)"""
     logger.info("[get_law_system] 상하위법 및 관련법령 데이터 처리")
-    system_response: dict = await get_api_response(
-        LawSystemRequestParams(MST=KEY)
-    )
+    system_response: dict = await get_api_response(id, LawSystemRequestParams(MST=id))
     law_system = system_response.get("법령체계도")
     return parse_law_relationships(law_system)
+
 
 async def get_parsed_law(id, hierarchy_laws:list[HierarchyLaws], connected_laws:list[ConnectedLaws]) -> ParserResult:
     """법률, 시행령, 시행규칙의 데이터 처리"""
     hierarchy_laws = hierarchy_laws if isinstance(hierarchy_laws, list) else []
     connected_laws = connected_laws if isinstance(connected_laws, list) else []
 
-    law_response: dict = await get_api_response(LawItemRequestParams(MST=id))
+    law_response: dict = await get_api_response(id, LawItemRequestParams(MST=id))
 
     # 법령 데이터 처리
     logger.info(f"[parse_law_info] 법령 메타데이터 처리: id={id}")
@@ -120,7 +90,7 @@ async def get_parsed_admrule(id, hierarchy_laws:list[HierarchyLaws], connected_l
     hierarchy_laws = hierarchy_laws if isinstance(hierarchy_laws, list) else []
     connected_laws = connected_laws if isinstance(connected_laws, list) else []
         
-    admrule_response: dict = await get_api_response(AdmRuleRequestParams(ID=id))
+    admrule_response: dict = await get_api_response(id, AdmRuleRequestParams(ID=id))
     admrule_data = admrule_response.get("AdmRulService")
 
     # 행정규칙
@@ -164,9 +134,30 @@ async def get_parsed_admrule(id, hierarchy_laws:list[HierarchyLaws], connected_l
     logger.info("[get_parsed_admrule] 행정규칙 데이터 파싱 완료")
     return parse_result
 
-async def get_parse_result(law_ids_dict: dict[str, list[str]]) -> int:
+async def process_with_error_handling(
+        id: str,
+        process_func: callable,
+        hierarchy_laws: list[HierarchyLaws],
+        connected_laws: list[ConnectedLaws],
+        response : ParserResponse,
+        is_admrule: bool = True,
+    ) -> bool:
+    try:
+        await process_func(id, hierarchy_laws, connected_laws)
+    except Exception as e:
+        logger.error(f"[get_parse_result] 파싱 실패: ID={id}, 에러: {e}", exc_info=True)
+        error_summary = get_error_summary(e)
+        response.increment_fail(id, error_summary, is_admrule)
+        return False
+    else:
+        response.increment_success()
+        return True
+
+async def get_parse_result(law_ids_dict: dict[str, list[str]]) -> ParserResponse:
     # result = []
-    count = 0
+    law_consecutive_fail = 0
+    admrule_consecutive_fail = 0
+
     seen_law_id = set()
     seen_admrule_id = set()
 
@@ -174,63 +165,109 @@ async def get_parse_result(law_ids_dict: dict[str, list[str]]) -> int:
         if id in seen_law_id:
             return
         seen_law_id.add(id)
-
+        
         logger.info(f"[get_parse_result] 법령 데이터 파싱 시작: ID={id}")
-        start = time.perf_counter()
+        start = time.perf_counter()         
         
         parse_result = await get_parsed_law(id, hierarchy_laws, connected_laws)
-        export_json(parse_result.model_dump(), parse_result.law.metadata.law_num)
-        
+        export_json(parse_result.model_dump(), id, parse_result.law.metadata.law_num, is_admrule=False)
+    
         end = time.perf_counter()
         duration = end - start
         logger.info(f"[get_parse_result] 법령 파싱 완료 - ID={id}, 소요 시간: {duration:.2f}초\n")
-        
-        nonlocal count
-        count += 1
+
         # result.append(parse_result)
 
     async def process_admrule(id: str, hierarchy_laws, connected_laws):
         if id in seen_admrule_id:
             return
         seen_admrule_id.add(id)
-
+        
         logger.info(f"[get_parse_result] 행정규칙 데이터 파싱 시작: ID={id}")
         start = time.perf_counter()
-        
+
         parse_result = await get_parsed_admrule(id, hierarchy_laws, connected_laws)
-        export_json(parse_result.model_dump(), parse_result.law.metadata.admrule_num)
-        
+        export_json(parse_result.model_dump(), id, parse_result.law.metadata.admrule_num)
+    
         end = time.perf_counter()
         duration = end - start
         logger.info(f"[get_parse_result] 행정규칙 파싱 완료 - ID={id}, 소요 시간: {duration:.2f}초\n")
-        
-        nonlocal count
-        count += 1
+    
         # result.append(parse_result)
 
     law_ids = law_ids_dict.get("law_ids", [])
     admrule_ids = law_ids_dict.get("admrule_ids", [])
+    total = len(law_ids) + len(admrule_ids)
+
+    response = ParserResponse(total_count=total)
 
     for law_id in law_ids:
+        if law_consecutive_fail >= 10:
+            logger.critical("법령 - 연속된 에러 10회 초과로 Parser 실행 중단")
+            break
         if law_id not in seen_law_id:
-            hierarchy_laws, connected_laws, related_law_ids = await get_law_system(law_id)
-            await process_law(law_id, hierarchy_laws, connected_laws)
+            try:
+                hierarchy_laws, connected_laws, related_law_ids = await get_law_system(law_id)
+            except Exception as e:
+                error_summary = get_error_summary(e)
+                response.increment_fail(law_id, error_summary, False)
+                law_consecutive_fail += 1
+                continue
+            else:
+                law_consecutive_fail = 0
 
             for related_id in related_law_ids.get("law", []):
-                await process_law(related_id, hierarchy_laws, connected_laws)
-
+                if law_consecutive_fail >= 10:
+                    logger.critical("법령 - 연속된 에러 10회 초과로 Parser 실행 중단")
+                    break
+                success = await process_with_error_handling(related_id, process_law, hierarchy_laws, connected_laws, response)
+                if success:
+                    law_consecutive_fail = 0
+                else :
+                    law_consecutive_fail += 1
+                
             for related_id in related_law_ids.get("admrule", []):
-                await process_admrule(related_id, hierarchy_laws, connected_laws)
+                if admrule_consecutive_fail >= 10:
+                    logger.critical("행정규칙 - 연속된 에러 10회 초과로 Parser 실행 중단")
+                    break
+                success = await process_with_error_handling(related_id, process_admrule, hierarchy_laws, connected_laws, response)
+                if success:
+                    admrule_consecutive_fail = 0
+                else:
+                    admrule_consecutive_fail += 1
+                
+
 
     for admrule_id in admrule_ids:
+        if admrule_consecutive_fail >= 10:
+            logger.critical("행정규칙 - 연속된 에러 10회 초과로 Parser 실행 중단")
+            break
         if admrule_id not in seen_admrule_id:
-            await process_admrule(admrule_id, [], [])
+            success = await process_with_error_handling(admrule_id, process_admrule, [], [], response)
+            if success:
+                admrule_consecutive_fail = 0
+            else:
+                admrule_consecutive_fail += 1
 
-    logger.info(f"\n[get_parse_result] 모든 법령 데이터 파싱 완료: 총 개수={count}")
-    return count
+
+
+    response.seen_count = len(seen_law_id) + len(seen_admrule_id)
+    response.seen_ids = {
+        "law": seen_law_id,
+        "admrule": seen_admrule_id,
+    }
+    response.unseen_count = total - response.seen_count - response.fail_count
+    response.unseen_ids = {
+        "law": set(law_ids) - seen_law_id,
+        "admrule": set(admrule_ids) - seen_admrule_id,
+    }
+
+    logger.info(f"\n[get_parse_result] 데이터 파싱 완료: {response.model_dump()}")
+    return response
 
 
 async def download_data(query: Union[LawItemRequestParams, AdmRuleRequestParams]):
     api_url = APIEndpoints().get_full_url(query.get_query_params())
-    result =  await fetch_api(api_url)
-    export_json(result, query.ID, is_result=False)
+    id = query.MST if isinstance(query, LawItemRequestParams) else query.ID
+    result =  await fetch_api(id, api_url)
+    export_json(result, query.ID, is_input=True)
