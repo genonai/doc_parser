@@ -152,8 +152,6 @@ def parse_admrule_article_info(admrule_info: RuleInfo, article_list:list[str]) -
             admrule_id=admrule_id,
             is_effective=is_effective,
             is_preamble=is_preamble,
-            related_laws=[],
-            related_articles=[],
             related_addenda=[],
             related_appendices=related_appendices,
         )

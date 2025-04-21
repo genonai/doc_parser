@@ -232,10 +232,8 @@ def parse_law_article_info(law_info:RuleInfo, article_data:dict) -> list[ParserC
             announce_date=announce_date,
             law_id=law_id,
             is_effective=is_effective,
-            related_laws=[],
             related_appendices=related_appendices,
             related_addenda=[],
-            related_articles=[],
         )
 
         article_result = ParserContent(
