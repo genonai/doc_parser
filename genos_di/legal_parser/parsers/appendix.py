@@ -10,6 +10,15 @@ from extractor import (
 from schemas import AppendixMetadata, ParserContent, RuleInfo
 
 
+def normalize_raw_content(data):
+    if isinstance(data, str):
+        return [data]
+    elif isinstance(data, list):
+        if len(data) > 0 and isinstance(data[0], list):
+            return data[0]
+        return data
+    return []
+
 def parse_appendix_info(rule_info: RuleInfo, appendix_data: dict, is_admrule: bool = False) -> list[ParserContent]:
     """법령 또는 행정규칙의 별표 정보를 파싱하여 구조화된 콘텐츠 리스트를 반환합니다.
 
@@ -52,7 +61,9 @@ def parse_appendix_info(rule_info: RuleInfo, appendix_data: dict, is_admrule: bo
         appendix_link = f"https://www.law.go.kr{file_link}"
 
         appendix_title = item.get("별표제목", "")
-        appendix_content = replace_strip(item.get("별표내용")[0])
+
+        appendix_content = normalize_raw_content(item.get("별표내용"))
+        appendix_content = replace_strip(appendix_content)
 
         article_text = appendix_content[0] if is_admrule else appendix_title
         articles = extract_article_num(rule_id, article_text, lst=True)

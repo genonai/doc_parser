@@ -1,6 +1,7 @@
 import re
+from typing import Union
 
-from constants import ADDENDUMNUM, ADDENDUMTITLE, BLANCKET, DATE
+from constants import ADDENDUMTITLE, BLANCKET, DATE
 from extractor import extract_related_appendices
 from schemas import AddendumMetadata, ParserContent
 
@@ -84,12 +85,12 @@ def parse_addendum_info(law_id: str, addendum_data: dict, is_admrule: bool = Fal
 
 
     # 공통: 부칙 내용에서 제목, 부칙번호, 공포일자를 추출하는 함수
-    def extract_addendum_info(item: str):
+    def extract_addendum_info(item: Union[str, dict]):
         if is_admrule:
             # 행정규칙 부칙의 경우 제목, 번호, 공포일자를 정규식으로 추출
             title_match = re.search(ADDENDUMTITLE, item)
             title = title_match.group(0) if title_match else None
-            number_match = re.search(ADDENDUMNUM, item)
+            number_match = re.search(r"제(\d+(?:-\d+)?)(?:호)?", item)
             number = number_match.group(1) if number_match else None
             date_match = re.search(DATE, item)
             announce_date = f"{date_match.group(1)}{int(date_match.group(2)):02d}{int(date_match.group(3)):02d}" if date_match else None
@@ -102,8 +103,11 @@ def parse_addendum_info(law_id: str, addendum_data: dict, is_admrule: bool = Fal
         return title, number, announce_date
 
     addendum_list = []
-    addendum_units = addendum_data.get("부칙단위", []) if not is_admrule else addendum_data.get('부칙내용', [])
+    addendum_units = addendum_data.get("부칙단위") if not is_admrule else addendum_data.get('부칙내용', [])
     
+    if not isinstance(addendum_units, list):
+        addendum_units = [addendum_units]
+
     for item in addendum_units:
         title, number, announce_date = extract_addendum_info(item)
         if is_admrule:
