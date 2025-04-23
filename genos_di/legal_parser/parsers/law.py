@@ -5,7 +5,6 @@ from extractor import (
     extract_date_to_yyyymmdd,
     extract_related_appendices,
     get_latest_date,
-    replace_strip,
 )
 from schemas import (
     ArticleChapter,
@@ -14,7 +13,9 @@ from schemas import (
     ParserContent,
     RuleInfo,
 )
+from utils.type_converter import TypeConverter
 
+type_converter = TypeConverter()
 
 # 법령본문 조회 -> 법령
 def parse_law_info(law_id: str, law_data: dict, hierarchy_laws, connected_laws) -> ParserContent:
@@ -31,12 +32,19 @@ def parse_law_info(law_id: str, law_data: dict, hierarchy_laws, connected_laws) 
     law_field = LAWFIELD.get(int(law.get("편장절관")[:2]))
     
     ## 부칙 ID (법령 키 + 부칙 공포일자) 리스트
-    addenda_data: list[dict] = law_data.get("부칙").get("부칙단위", [])
-    addenda, enact_date = extract_addenda_id(law_id, addenda_data)
+    addenda  = []
+    enact_date = "00000000"
+    addenda_data = law_data.get("부칙")
+    if addenda_data and addenda_data.get("부칙단위"):
+        addenda_units = type_converter.converter(addenda_data.get("부칙단위"), list[dict])
+        addenda, enact_date = extract_addenda_id(law_id, addenda_units)
 
     ## 별표 ID 리스트
-    appendix_data = law_data.get("별표", {})
-    appendices = extract_appendix_id(law_id, appendix_data)
+    appendices = []
+    appendix_data = law_data.get("별표")
+    if appendix_data and appendix_data.get("별표단위"):
+        appendix_units = type_converter.converter(appendix_data.get("별표단위"), list[dict])
+        appendices = extract_appendix_id(law_id, appendix_units)
 
     metadata = LawMetadata(
         law_id=law_id,
@@ -70,7 +78,16 @@ def extract_latest_announce(data: dict, enact_date:str) -> str:
 
         # 조문내용에서 개정일 추출
         if "조문내용" in data and data["조문내용"]:
-            dates.extend(extract_date_to_yyyymmdd(data["조문내용"]))
+            raw_content = data["조문내용"]
+            text = type_converter.converter(raw_content, list[str])
+            if isinstance(raw_content, str):
+                text = raw_content
+            elif isinstance(raw_content, list):
+                if isinstance(raw_content[0], list):
+                    raw_content = [line.strip() for sublist in raw_content for line in sublist]
+                text = ''.join(raw_content)
+            
+            dates.extend(extract_date_to_yyyymmdd(text))
 
         # 조문참고자료에서 개정일 추출
         if "조문참고자료" in data and data["조문참고자료"]:
@@ -128,15 +145,14 @@ def stringify_article_content(data: dict) -> list[str]:
 
     # 조문 내용 추가
     if "조문내용" in data and data["조문내용"]:
-        content.append(data["조문내용"].strip())
+        text = type_converter.converter(data["조문내용"], str)
+        content.append(text.strip())
 
     # 항 내용 처리 함수
-    def process_paragraphs(paragraphs):
+    def process_paragraphs(paragraphs: list[dict]):
         for paragraph in paragraphs:
-            if "항내용" in paragraph:
-                text = paragraph["항내용"]
-                if isinstance(text, list):
-                    text = text[0][0] if text and isinstance(text[0], list) else text[0]
+            if "항내용" in paragraph and paragraph["항내용"]:
+                text = type_converter.converter(paragraph["항내용"], str)
                 content.append(text.strip())
 
             # 호(조항) 처리
@@ -144,12 +160,10 @@ def stringify_article_content(data: dict) -> list[str]:
                 process_subparagraphs(paragraph["호"])
 
     # 호 내용 처리 함수
-    def process_subparagraphs(subparagraphs):
+    def process_subparagraphs(subparagraphs:list[dict]):
         for subparagraph in subparagraphs:
-            if "호내용" in subparagraph:
-                text = subparagraph["호내용"]
-                if isinstance(text, list):
-                    text = text[0][0] if text and isinstance(text[0], list) else text[0]
+            if "호내용" in subparagraph and subparagraph["호내용"]:
+                text = type_converter.converter(subparagraph["호내용"], str)
                 content.append(text.strip())
 
             # 목(세부 조항) 처리
@@ -157,21 +171,17 @@ def stringify_article_content(data: dict) -> list[str]:
                 process_items(subparagraph["목"])
 
     # 목 내용 처리 함수
-    def process_items(items):
+    def process_items(items: list[dict]):
         for item in items:
-            if isinstance(item["목내용"], list):
-                text = replace_strip(item["목내용"][0])
-                content.extend(text)
-            else:
-                text = item["목내용"]
+            if "목내용" not in item or not item["목내용"]:
+                continue
+
+            texts = type_converter.converter(item["목내용"], list[str], use_default=True)
+            for text in texts:
                 content.append(text.strip())
 
-    # 항이 리스트 또는 딕셔너리인 경우 모두 처리
-    paragraphs = data.get("항", [])
-    if isinstance(paragraphs, dict):
-        paragraphs = [paragraphs]
-
-    if paragraphs:
+    if "항" in data:
+        paragraphs = type_converter.converter(data.get("항"), list[dict])
         process_paragraphs(paragraphs)
 
     return content
@@ -179,14 +189,18 @@ def stringify_article_content(data: dict) -> list[str]:
 # 법령본문 조회 -> 조문
 def parse_law_article_info(law_info:RuleInfo, article_data:dict) -> list[ParserContent]:
     
+    if not article_data:
+        return []
+    if article_data.get("조문단위"):
+        article_units = type_converter.converter(article_data.get("조문단위"), list[dict])
+    else :
+        return []
+    
     article_list = []
     
     law_id = law_info.rule_id
     enact_date = law_info.enact_date
     is_effective = law_info.is_effective
-
-    article_units = article_data.get("조문단위", [])
-
     article_chapter = ArticleChapter()
     current_chapter = None
 
@@ -194,16 +208,17 @@ def parse_law_article_info(law_info:RuleInfo, article_data:dict) -> list[ParserC
 
         article_num = item.get("조문번호")
         article_sub_num = item.get("조문가지번호") or 1
-        article_id = f"{law_id}{int(article_num):04d}{int(article_sub_num):03d}"
     
-        article_title = item.get("조문제목", "")
+        article_title = item.get("조문제목", "") ## 삭제의 경우 ""
         enforce_date = item.get("조문시행일자")
 
         is_preamble = True if item.get("조문여부") == "전문" else False
 
         # 전문인 경우 장 번호로 article_num 대체
         if is_preamble:
-            content = item.get("조문내용", "")
+            content = item.get("조문내용")
+            content = type_converter.converter(content, str)
+
             article_chapter.extract_text(content)
             current_chapter = ArticleChapter(
                 chapter_num=article_chapter.chapter_num,
@@ -213,7 +228,8 @@ def parse_law_article_info(law_info:RuleInfo, article_data:dict) -> list[ParserC
             )
             article_num = f"{article_chapter.chapter_num}"
             article_sub_num = 0
-        
+
+        article_id = f"{law_id}{int(article_num):04d}{int(article_sub_num):03d}"
         announce_date = extract_latest_announce(item, enact_date)
 
         article_content = stringify_article_content(item)
