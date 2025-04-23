@@ -44,18 +44,3 @@ LAWFIELD = {
     43: "정보통신",
     44: "외무",
 }
-
-CHAPTERINFO = r"(제(\d+)장)\s*(.*?)(?:<|$)"
-SECTIONINFO = r"(제(\d+)절)\s*(.*?)(?:<|$)"
-AMENDDATE = r"<개정 ([^<>]*)>" # <개정    > 안의 문자열
-BLANCKET = r"\(([^)]+)\)" # () 안의 첫 번째 문자열
-BLANCKETDATE = r"\(.*?개정.*?\)" # () 안의 개정일자
-SQUAREBLANCKET = r"\[(.*?)\]" # 대괄호 안의 문자열
-DATEKOR = r"(\d{4})년\s*(\d{1,2})월\s*(\d{1,2})일" # YYYY년 MM월 DD일
-ARTICLENUM = r"제(\d{1,4})조(?:의(\d))?" # 조문 번호
-CHEVRONDATE = r"<(\d{4})\.(\d{1,2})\.(\d{1,2})>" # <> 안의 개정일자
-ADDENDUMTITLE = r"부칙.*?>" # 부칙 제목
-ADDENDUMNUM = r"<제(\d+)호" # 부칙 번호
-DATE = r"(\d{4})[.\u00B7]\s*(\d{1,2})[.\u00B7]\s*(\d{1,2})" # 온점 또는 가운데 점으로 구분된 날짜 추출
-APPENDIX_REF = r"별표\s*(\d+)(?:\-(\d+))?" # 인용되는 별표 번호
-APPENDIX_FORM_REF = r"별지\s*제\s*(\d+)호서식(?:\-(\d+))?" # 인용되는 별지서식 번호
