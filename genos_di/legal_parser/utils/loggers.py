@@ -3,6 +3,20 @@ import traceback
 import sys
 import os
 from datetime import datetime
+import pytz
+
+class NewlineTracebackFormatter(logging.Formatter):
+    def formatException(self, exc_info):
+        result = super().formatException(exc_info)
+        return result + "\n"
+    
+    def format(self, record):
+        # 기본 format 메서드 호출
+        result = super().format(record)
+        # 예외 정보가 있는 경우에만 처리
+        if record.exc_info:
+            pass
+        return result
 
 class ErrorLogger:
     def __init__(self):
@@ -10,7 +24,8 @@ class ErrorLogger:
         log_dir = 'resources/errors'
         os.makedirs(log_dir, exist_ok=True)
 
-        created_at = datetime.now().strftime('%Y%m%d')
+        seoul_tz = pytz.timezone('Asia/Seoul')
+        created_at = datetime.now(seoul_tz).strftime('%Y%m%d')
         log_file = f"{log_dir}/error_log_{created_at}.txt"
 
         # 로거 설정
@@ -22,25 +37,34 @@ class ErrorLogger:
         self.file_handler.setLevel(logging.ERROR)
         
         # 포맷터 설정
-        formatter = logging.Formatter('%(levelname)s at %(filename)s:%(lineno)d in %(funcName)s() - %(message)s')
+        formatter = NewlineTracebackFormatter('%(message)s')
         self.file_handler.setFormatter(formatter)
+
+        # 콘솔 핸들러 설정
+        self.console_handler = logging.StreamHandler()
+        self.console_handler.setLevel(logging.ERROR)
+        self.console_handler.setFormatter(formatter)
         
         # 중복 핸들러 방지
         if not self.logger.handlers:
             self.logger.addHandler(self.file_handler)
+            self.logger.addHandler(self.console_handler)
         
         # 상위 로거로 전파 방지
         self.logger.propagate = False
     
-    def log_error(self, e: Exception):
+    def log_error(self, id:str, e: Exception):
         """예외 정보를 로그 파일에 기록"""
-        error_summary = self.get_error_summary(e)
-        self.logger.error(f"Exception occurred: {error_summary}", exc_info=True)
+        error_summary = self.get_error_summary(id, e)
+        self.logger.error(f"Exception occurred on {id}: {error_summary}", exc_info=True)
     
     def get_error_summary(self, e: Exception) -> str:
         """예외 정보를 요약하여 반환"""
         exc_type, _, exc_tb = sys.exc_info()
         tb = traceback.extract_tb(exc_tb)
+
+        seoul_tz = pytz.timezone('Asia/Seoul')
+        timestamp = datetime.now(seoul_tz).strftime('%Y-%m-%d %H:%M')
         
         if tb:
             last = tb[-1]  # 마지막 프레임 (가장 최근 호출)
@@ -49,10 +73,10 @@ class ErrorLogger:
             funcname = last.name
             err_type = exc_type.__name__
             err_msg = str(e)
-            return f"{err_type} at {filename}:{lineno} in {funcname}() - {err_msg}"
+            return f"[{timestamp}] {err_type} at {filename}:{lineno} in {funcname}() - {err_msg}"
         else:
             # traceback 정보가 없을 경우
-            return f"{type(e).__name__} - {str(e)}"
+            return f"[{timestamp}] {type(e).__name__} - {str(e)}"
 
 class MainLogger:
     def __init__(self, level=logging.INFO):
@@ -65,7 +89,7 @@ class MainLogger:
         console_handler.setLevel(level)
         
         # 포맷터 설정 - 파일명 포함
-        formatter = logging.Formatter('[%(name)s]-%(levelname)s: %(message)s')
+        formatter = logging.Formatter('%(levelname)s: %(message)s')
         console_handler.setFormatter(formatter)
         
         # 중복 핸들러 방지
