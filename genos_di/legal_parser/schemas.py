@@ -1,6 +1,5 @@
 import re
 from collections import namedtuple
-from datetime import datetime, timezone
 from typing import Union
 
 from pydantic import BaseModel, Field
@@ -209,15 +208,9 @@ class ParserResult(BaseModel):
     """
 
     law: ParserContent = Field(..., description="법령 또는 행정규칙")
-    article: list[ParserContent] = Field(..., description="조문")
-    addendum: list[ParserContent] = Field(..., description="부칙")
-    appendix: list[ParserContent] = Field(..., description="별표")
-
-class ErrorResponse(BaseModel):
-    id: str
-    type: str
-    error: str
-    timestamp: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    article: list[ParserContent] = Field(..., description="조문" , default_factory=list)
+    addendum: list[ParserContent] = Field(..., description="부칙", default_factory=list)
+    appendix: list[ParserContent] = Field(..., description="별표", default_factory=list)
 
 class ParserResponse(BaseModel):
     total_count: int
@@ -225,22 +218,19 @@ class ParserResponse(BaseModel):
     unseen_count: int = 0
     success_count: int = 0
     fail_count: int = 0 
-    seen_ids: dict[str, set[str]] = {}         # {"law": [...], "admrule": [...]}
-    unseen_ids: dict[str, set[str]] = {}       # {"law": [...], "admrule": [...]}
-
-    errors: list[ErrorResponse] = Field(default_factory=list)
+    seen_ids: dict[str, set[str]] = {}        # {"law": [...], "admrule": [...]}
+    unseen_ids: dict[str, set[str]] = {}     # {"law": [...], "admrule": [...]}
+    fail_ids: set[str] = set()     
 
     def model_post_init(self, __context):
-            self.unseen_count = self.total_count
+        self.unseen_count = self.total_count
 
+    def increment_total(self):
+        self.total_count += 1
+        
     def increment_success(self):
         self.success_count += 1
 
-    def increment_fail(self, id:str, error_summary:str, is_admrule:bool = True):
+    def increment_fail(self, id:str):
         self.fail_count += 1
-        error = ErrorResponse(
-            id=id,
-            type="admrule" if is_admrule else "law",
-            error=error_summary
-        )
-        self.errors.append(error)
+        self.fail_ids.add(id)
