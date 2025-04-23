@@ -1,4 +1,3 @@
-import logging
 from typing import Union
 
 import aiohttp
@@ -13,8 +12,9 @@ from params import (
     LicBylRequestParams,
 )
 from utils.exception_handler import ClientError
+from utils.loggers import MainLogger
 
-logger = logging.getLogger(__name__)
+main_logger = MainLogger()
 
 ## API GET Request
 async def fetch_api(id:str, url: str):
@@ -29,10 +29,10 @@ async def fetch_api(id:str, url: str):
                         raise ClientError(id=id, detail="해당되는 법령/행정데이터를 찾을 수 없음 : {url}")
                 else:
                     data = await response.text()
-                    logger.warning(f"[fetch_api] 예상치 못한 데이터 타입: {content_type} ({url})")
+                    main_logger.warning(f"[fetch_api] 예상치 못한 데이터 타입: {content_type} ({url})")
                     raise ClientError(id=id, detail=f"Unexpected content type: {url}: {content_type}", status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE)
             else:
-                logger.error(f"[fetch_api] API 요청 실패: {url} (HTTP {response.status})")
+                main_logger.error(f"[fetch_api] API 요청 실패: {url} (HTTP {response.status})")
                 raise ClientError(id=id, detail=f"Request {url} failed with status {response.status}", status_code=status.HTTP_400_BAD_REQUEST)
             
             return data
@@ -49,7 +49,7 @@ async def get_api_response(
     ],
 ):
     api_url = APIEndpoints().get_full_url(query.get_query_params())
-    logger.info(f"[get_api_response] API 요청 시작: {api_url}")
+    main_logger.info(f"[get_api_response] API 요청 시작: {api_url}")
     response = await fetch_api(id, api_url)
-    logger.info(f"[get_api_response] API 요청 성공: {api_url}")
+    main_logger.info(f"[get_api_response] API 요청 성공: {api_url}")
     return response

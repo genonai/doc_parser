@@ -1,10 +1,9 @@
-import logging
 from collections import defaultdict
 
 from schemas import ParserContent
+from utils.loggers import MainLogger
 
-logger = logging.getLogger(__name__)
-
+main_logger = MainLogger()
 
 def processor_mapping(article_list:list[ParserContent], addendum_list:list[ParserContent], appendix_list:list[ParserContent]) \
     -> tuple[list[ParserContent],list[ParserContent],list[ParserContent]]:
@@ -22,17 +21,17 @@ def processor_mapping(article_list:list[ParserContent], addendum_list:list[Parse
 
     """
     # 조문 - 부칙 연결
-    logger.info("[map_article_addenda] 조문 - 부칙 연결 처리")
+    main_logger.info("[map_article_addenda] 조문 - 부칙 연결 처리")
     mapped_articles, mapped_addendum = map_article_addenda(
         article_list, addendum_list
     )
 
     # 조문 - 별표 연결
-    logger.info("[map_article_appendix] 조문 - 별표 연결 처리")
+    main_logger.info("[map_article_appendix] 조문 - 별표 연결 처리")
     article_result, mapped_appendices = map_article_appendix(mapped_articles, appendix_list)
 
     # 부칙 - 별표 연결
-    logger.info("[map_addendum_appendix] 부칙 - 별표 연결 처리")
+    main_logger.info("[map_addendum_appendix] 부칙 - 별표 연결 처리")
     addendum_result, appendix_result = map_addendum_appendix(mapped_addendum, mapped_appendices)
 
     return article_result, addendum_result, appendix_result

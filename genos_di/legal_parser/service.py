@@ -1,5 +1,4 @@
 import asyncio
-import logging
 import time
 from typing import Union
 
@@ -29,15 +28,16 @@ from schemas import (
     ParserResult,
     RuleInfo,
 )
-from utils.exception_handler import get_error_summary
 from utils.fetcher import fetch_api, get_api_response
 from utils.file_utils import export_json
+from utils.loggers import MainLogger, ErrorLogger
 
-logger = logging.getLogger(__name__)
+error_logger = ErrorLogger()
+main_logger = MainLogger()
 
 async def get_law_system(id: str) -> tuple[list[HierarchyLaws], list[ConnectedLaws], dict[str, list[str]]]:
     """법령 체계도 내의 법령 정보 및 ID 리스트 조회 (상하위법, 관련법령)"""
-    logger.info("[get_law_system] 상하위법 및 관련법령 데이터 처리")
+    main_logger.info("[get_law_system] 상하위법 및 관련법령 데이터 처리")
     system_response: dict = await get_api_response(id, LawSystemRequestParams(MST=id))
     law_system = system_response.get("법령체계도")
     return parse_law_relationships(law_system)
@@ -51,7 +51,7 @@ async def get_parsed_law(id, hierarchy_laws:list[HierarchyLaws], connected_laws:
     law_response: dict = await get_api_response(id, LawItemRequestParams(MST=id))
 
     # 법령 데이터 처리
-    logger.info(f"[parse_law_info] 법령 메타데이터 처리: id={id}")
+    main_logger.info(f"[parse_law_info] 법령 메타데이터 처리: id={id}")
     law_data: dict = law_response.get("법령")
     law_result: ParserContent = parse_law_info(id, law_data, hierarchy_laws, connected_laws)
 
@@ -61,7 +61,7 @@ async def get_parsed_law(id, hierarchy_laws:list[HierarchyLaws], connected_laws:
         id, law_result.metadata.enforce_date, law_result.metadata.enact_date, law_result.metadata.is_effective
     )
 
-    logger.info("[get_parsed_law] 법령 부칙, 별표, 조문 데이터 병렬 처리")
+    main_logger.info("[get_parsed_law] 법령 부칙, 별표, 조문 데이터 병렬 처리")
     addendum_data = law_data.get("부칙")
     appendix_data = law_data.get("별표", {})
     article_data = law_data.get("조문")
@@ -74,7 +74,7 @@ async def get_parsed_law(id, hierarchy_laws:list[HierarchyLaws], connected_laws:
         addendum_task, appendix_task, article_task
     )
 
-    logger.info("[processor_mapping] 법령 조문 - 부칙 - 별표 연결 처리")
+    main_logger.info("[processor_mapping] 법령 조문 - 부칙 - 별표 연결 처리")
     article_result, addendum_result, appendix_result = processor_mapping(article_list, addendum_list, appendix_list)
     
     parse_result = ParserResult(
@@ -94,7 +94,7 @@ async def get_parsed_admrule(id, hierarchy_laws:list[HierarchyLaws], connected_l
     admrule_data = admrule_response.get("AdmRulService")
 
     # 행정규칙
-    logger.info(f"[parse_admrule_info] 행정규칙 메타데이터 처리: id={id}")
+    main_logger.info(f"[parse_admrule_info] 행정규칙 메타데이터 처리: id={id}")
     admrule_result: ParserContent = parse_admrule_info(
         id, admrule_data, hierarchy_laws, connected_laws
     )
@@ -108,7 +108,7 @@ async def get_parsed_admrule(id, hierarchy_laws:list[HierarchyLaws], connected_l
 
     is_admrule = True 
 
-    logger.info("[get_parsed_admrule] 행정규칙 부칙, 별표, 조문 데이터 병렬 처리")
+    main_logger.info("[get_parsed_admrule] 행정규칙 부칙, 별표, 조문 데이터 병렬 처리")
     addendum_data = admrule_data.get("부칙")
     appendix_data = admrule_data.get("별표", {})
     article_data = admrule_data.get("조문내용", [])
@@ -121,7 +121,7 @@ async def get_parsed_admrule(id, hierarchy_laws:list[HierarchyLaws], connected_l
         addendum_task, appendix_task, article_task
     )
     
-    logger.info("[processor_mapping] 행정규칙 조문 - 부칙 - 별표 연결 처리")
+    main_logger.info("[processor_mapping] 행정규칙 조문 - 부칙 - 별표 연결 처리")
     article_result, addendum_result, appendix_result = processor_mapping(article_list, addendum_list, appendix_list)
    
     parse_result = ParserResult(
@@ -131,7 +131,7 @@ async def get_parsed_admrule(id, hierarchy_laws:list[HierarchyLaws], connected_l
         appendix=appendix_result,
     )
     
-    logger.info("[get_parsed_admrule] 행정규칙 데이터 파싱 완료")
+    main_logger.info("[get_parsed_admrule] 행정규칙 데이터 파싱 완료")
     return parse_result
 
 async def process_with_error_handling(
@@ -145,9 +145,9 @@ async def process_with_error_handling(
     try:
         await process_func(id, hierarchy_laws, connected_laws)
     except Exception as e:
-        logger.error(f"[get_parse_result] 파싱 실패: ID={id}, 에러: {e}", exc_info=True)
-        error_summary = get_error_summary(e)
-        response.increment_fail(id, error_summary, is_admrule)
+        error_logger.log_error(e)
+        main_logger.error(f"[get_parse_result] 파싱 실패: ID={id} 자세한 내용은 로그 파일을 확인하세요.")
+        response.increment_fail()
         return False
     else:
         response.increment_success()
@@ -166,7 +166,7 @@ async def get_parse_result(law_ids_dict: dict[str, list[str]]) -> ParserResponse
             return
         seen_law_id.add(id)
         
-        logger.info(f"[get_parse_result] 법령 데이터 파싱 시작: ID={id}")
+        main_logger.info(f"[get_parse_result] 법령 데이터 파싱 시작: ID={id}")
         start = time.perf_counter()         
         
         parse_result = await get_parsed_law(id, hierarchy_laws, connected_laws)
@@ -174,7 +174,7 @@ async def get_parse_result(law_ids_dict: dict[str, list[str]]) -> ParserResponse
     
         end = time.perf_counter()
         duration = end - start
-        logger.info(f"[get_parse_result] 법령 파싱 완료 - ID={id}, 소요 시간: {duration:.2f}초\n")
+        main_logger.info(f"[get_parse_result] 법령 파싱 완료 - ID={id}, 소요 시간: {duration:.2f}초\n")
 
         # result.append(parse_result)
 
@@ -183,7 +183,7 @@ async def get_parse_result(law_ids_dict: dict[str, list[str]]) -> ParserResponse
             return
         seen_admrule_id.add(id)
         
-        logger.info(f"[get_parse_result] 행정규칙 데이터 파싱 시작: ID={id}")
+        main_logger.info(f"[get_parse_result] 행정규칙 데이터 파싱 시작: ID={id}")
         start = time.perf_counter()
 
         parse_result = await get_parsed_admrule(id, hierarchy_laws, connected_laws)
@@ -191,7 +191,7 @@ async def get_parse_result(law_ids_dict: dict[str, list[str]]) -> ParserResponse
     
         end = time.perf_counter()
         duration = end - start
-        logger.info(f"[get_parse_result] 행정규칙 파싱 완료 - ID={id}, 소요 시간: {duration:.2f}초\n")
+        main_logger.info(f"[get_parse_result] 행정규칙 파싱 완료 - ID={id}, 소요 시간: {duration:.2f}초\n")
     
         # result.append(parse_result)
 
@@ -203,14 +203,16 @@ async def get_parse_result(law_ids_dict: dict[str, list[str]]) -> ParserResponse
 
     for law_id in law_ids:
         if law_consecutive_fail >= 10:
-            logger.critical("법령 - 연속된 에러 10회 초과로 Parser 실행 중단")
+            main_logger.critical("법령 - 연속된 에러 10회 초과로 Parser 실행 중단")
             break
         if law_id not in seen_law_id:
             try:
                 hierarchy_laws, connected_laws, related_law_ids = await get_law_system(law_id)
             except Exception as e:
-                error_summary = get_error_summary(e)
-                response.increment_fail(law_id, error_summary, False)
+                error_logger.log_error(e)
+                main_logger.error(f"[get_law_system] 법령 관계도 파싱 실패: ID={law_id} 자세한 내용은 로그 파일을 확인하세요.")
+
+                response.increment_fail()
                 law_consecutive_fail += 1
                 continue
             else:
@@ -218,7 +220,7 @@ async def get_parse_result(law_ids_dict: dict[str, list[str]]) -> ParserResponse
 
             for related_id in related_law_ids.get("law", []):
                 if law_consecutive_fail >= 10:
-                    logger.critical("법령 - 연속된 에러 10회 초과로 Parser 실행 중단")
+                    main_logger.critical("법령 - 연속된 에러 10회 초과로 Parser 실행 중단")
                     break
                 success = await process_with_error_handling(related_id, process_law, hierarchy_laws, connected_laws, response, False)
                 if success:
@@ -228,7 +230,7 @@ async def get_parse_result(law_ids_dict: dict[str, list[str]]) -> ParserResponse
                 
             for related_id in related_law_ids.get("admrule", []):
                 if admrule_consecutive_fail >= 10:
-                    logger.critical("행정규칙 - 연속된 에러 10회 초과로 Parser 실행 중단")
+                    main_logger.critical("행정규칙 - 연속된 에러 10회 초과로 Parser 실행 중단")
                     break
                 success = await process_with_error_handling(related_id, process_admrule, hierarchy_laws, connected_laws, response)
                 if success:
@@ -240,7 +242,7 @@ async def get_parse_result(law_ids_dict: dict[str, list[str]]) -> ParserResponse
 
     for admrule_id in admrule_ids:
         if admrule_consecutive_fail >= 10:
-            logger.critical("행정규칙 - 연속된 에러 10회 초과로 Parser 실행 중단")
+            main_logger.critical("행정규칙 - 연속된 에러 10회 초과로 Parser 실행 중단")
             break
         if admrule_id not in seen_admrule_id:
             success = await process_with_error_handling(admrule_id, process_admrule, [], [], response)
@@ -266,7 +268,7 @@ async def get_parse_result(law_ids_dict: dict[str, list[str]]) -> ParserResponse
         "admrule": set(admrule_ids) - seen_admrule_id,
     }
 
-    logger.info(f"\n[get_parse_result] 데이터 파싱 완료: {response.model_dump()}")
+    main_logger.info(f"\n[get_parse_result] 데이터 파싱 완료: {response.model_dump()}")
     return response
 
 
