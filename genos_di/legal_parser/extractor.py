@@ -35,6 +35,9 @@ def extract_addenda_id(
 def extract_appendix_id(rule_id:str, appendix_units: list[dict]) -> list[str]:
     """법령/행정규칙 별표 ID를 추출하는 함수
     """
+    if not appendix_units:
+        return []
+    
     appendices = []
     for item in appendix_units:
         appendix_key = item.get('별표키', "")
