@@ -63,7 +63,7 @@ async def get_parsed_law(id, hierarchy_laws:list[HierarchyLaws], connected_laws:
 
     main_logger.info("[get_parsed_law] 법령 부칙, 별표, 조문 데이터 병렬 처리")
     addendum_data = law_data.get("부칙")
-    appendix_data = law_data.get("별표", {})
+    appendix_data = law_data.get("별표")
     article_data = law_data.get("조문")
 
     addendum_task = asyncio.to_thread(parse_addendum_info, id, addendum_data, is_admrule)
@@ -140,14 +140,15 @@ async def process_with_error_handling(
         hierarchy_laws: list[HierarchyLaws],
         connected_laws: list[ConnectedLaws],
         response : ParserResponse,
-        is_admrule: bool = True,
     ) -> bool:
     try:
+        response.increment_total()
         await process_func(id, hierarchy_laws, connected_laws)
     except Exception as e:
-        error_logger.log_error(e)
         main_logger.error(f"[get_parse_result] 파싱 실패: ID={id} 자세한 내용은 로그 파일을 확인하세요.")
-        response.increment_fail()
+        error_logger.log_error(id, e)
+
+        response.increment_fail(id)
         return False
     else:
         response.increment_success()
@@ -209,10 +210,10 @@ async def get_parse_result(law_ids_dict: dict[str, list[str]]) -> ParserResponse
             try:
                 hierarchy_laws, connected_laws, related_law_ids = await get_law_system(law_id)
             except Exception as e:
-                error_logger.log_error(e)
                 main_logger.error(f"[get_law_system] 법령 관계도 파싱 실패: ID={law_id} 자세한 내용은 로그 파일을 확인하세요.")
+                error_logger.log_error(law_id, e)
 
-                response.increment_fail()
+                response.increment_fail(law_id)
                 law_consecutive_fail += 1
                 continue
             else:
@@ -222,7 +223,7 @@ async def get_parse_result(law_ids_dict: dict[str, list[str]]) -> ParserResponse
                 if law_consecutive_fail >= 10:
                     main_logger.critical("법령 - 연속된 에러 10회 초과로 Parser 실행 중단")
                     break
-                success = await process_with_error_handling(related_id, process_law, hierarchy_laws, connected_laws, response, False)
+                success = await process_with_error_handling(related_id, process_law, hierarchy_laws, connected_laws, response)
                 if success:
                     law_consecutive_fail = 0
                 else :
@@ -251,16 +252,11 @@ async def get_parse_result(law_ids_dict: dict[str, list[str]]) -> ParserResponse
             else:
                 admrule_consecutive_fail += 1
 
-
-
     seen_count = len(seen_law_id) + len(seen_admrule_id)
     response.seen_ids = {
         "law": seen_law_id,
         "admrule": seen_admrule_id,
     }
-    if total < seen_count :
-        response.total_count = total + seen_count
-
     response.unseen_count = response.total_count - seen_count
     response.seen_count = seen_count
     response.unseen_ids = {
