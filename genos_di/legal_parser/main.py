@@ -1,18 +1,9 @@
-
-import logging
-
 from fastapi import Depends, FastAPI, Query
 
 from params import AdmRuleRequestParams, LawItemRequestParams
 from schemas import ParserResponse
 from service import download_data, get_parse_result
 from utils.file_utils import load_keys_from_csv
-
-logging.basicConfig(level=logging.INFO,
-                    format='[%(name)s]-%(levelname)s: %(message)s')
-  
-logger = logging.getLogger(__name__)
-
 
 app = FastAPI()
 

@@ -1,5 +1,5 @@
 import json
-import logging
+from utils.loggers import MainLogger
 from collections import defaultdict
 from pathlib import Path
 from typing import DefaultDict
@@ -7,16 +7,19 @@ from typing import DefaultDict
 import pandas as pd
 from pydantic import BaseModel
 
-logger = logging.getLogger(__name__)
+main_logger = MainLogger()
 
 
-def export_json(data, id, num, is_admrule=True, is_input=False):
-    if is_input: 
-        output_file = f"inputs/response_{id}.json"
-    else :
-        rule_type = 'admrule' if is_admrule else 'law'
-        output_file = f"result/{rule_type}_{id}_{num}.json"
-    logger.info(f"JSON 데이터 저장: ID={id}, 파일 경로={output_file}")
+def export_json(data, id, num, is_admrule=True):
+    rule_type = 'admrule' if is_admrule else 'law'
+    output_file = f"result/{rule_type}_{id}_{num}.json"
+    main_logger.info(f"JSON 데이터 저장: ID={id}, 파일 경로={output_file}")
+    with open(f'resources/{output_file}', "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=4)
+
+def export_json_input(data, id):
+    output_file = f"inputs/response_{id}.json"
+    main_logger.info(f"OPENAPI 데이터 다운로드: ID={id}, 파일 경로={output_file}")
     with open(f'resources/{output_file}', "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=4)
 
