@@ -1,7 +1,7 @@
 import re
 from collections import namedtuple
 from datetime import datetime, timezone
-from typing import Literal, Union
+from typing import Union
 
 from pydantic import BaseModel, Field
 
@@ -215,7 +215,7 @@ class ParserResult(BaseModel):
 
 class ErrorResponse(BaseModel):
     id: str
-    type: str = Literal["law", "admrule"]
+    type: str
     error: str
     timestamp: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
