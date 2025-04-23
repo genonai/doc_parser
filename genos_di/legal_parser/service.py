@@ -220,7 +220,7 @@ async def get_parse_result(law_ids_dict: dict[str, list[str]]) -> ParserResponse
                 if law_consecutive_fail >= 10:
                     logger.critical("법령 - 연속된 에러 10회 초과로 Parser 실행 중단")
                     break
-                success = await process_with_error_handling(related_id, process_law, hierarchy_laws, connected_laws, response)
+                success = await process_with_error_handling(related_id, process_law, hierarchy_laws, connected_laws, response, False)
                 if success:
                     law_consecutive_fail = 0
                 else :
@@ -251,12 +251,16 @@ async def get_parse_result(law_ids_dict: dict[str, list[str]]) -> ParserResponse
 
 
 
-    response.seen_count = len(seen_law_id) + len(seen_admrule_id)
+    seen_count = len(seen_law_id) + len(seen_admrule_id)
     response.seen_ids = {
         "law": seen_law_id,
         "admrule": seen_admrule_id,
     }
-    response.unseen_count = total - response.seen_count - response.fail_count
+    if total < seen_count :
+        response.total_count = total + seen_count
+
+    response.unseen_count = response.total_count - seen_count
+    response.seen_count = seen_count
     response.unseen_ids = {
         "law": set(law_ids) - seen_law_id,
         "admrule": set(admrule_ids) - seen_admrule_id,
@@ -269,5 +273,6 @@ async def get_parse_result(law_ids_dict: dict[str, list[str]]) -> ParserResponse
 async def download_data(query: Union[LawItemRequestParams, AdmRuleRequestParams]):
     api_url = APIEndpoints().get_full_url(query.get_query_params())
     id = query.MST if isinstance(query, LawItemRequestParams) else query.ID
+    num = query.ID if isinstance(query, LawItemRequestParams) else query.LID
     result =  await fetch_api(id, api_url)
-    export_json(result, query.ID, is_input=True)
+    export_json(result, id, num, is_input=True)
