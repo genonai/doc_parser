@@ -1,6 +1,4 @@
-import re
 
-from constants import BLANCKET, BLANCKETDATE, CHAPTERINFO, CHEVRONDATE, SECTIONINFO
 from extractor import (
     extract_addenda_id,
     extract_appendix_id,
@@ -8,7 +6,6 @@ from extractor import (
     extract_date_to_yyyymmdd,
     extract_related_appendices,
     get_latest_date,
-    replace_strip,
 )
 from schemas import (
     AdmRuleArticleMetadata,
@@ -18,6 +15,9 @@ from schemas import (
     ParserContent,
     RuleInfo,
 )
+
+from utils.helpers import replace_strip, format_date
+from utils.regex_handler import regex_processor
 
 
 # 행정규칙 조회 -> 행정규칙
@@ -37,8 +37,8 @@ def parse_admrule_info(admrule_id: str, admrule_data: dict, hierarchy_laws, conn
     dept = basic_info.get("담당부서기관명", "")
 
     ## 부칙, 별표 ID 리스트
-    appendices = extract_appendix_id(admrule_id, admrule_data.get("별표", {}))
-    addenda, enact_date = extract_addenda_id(admrule_id, admrule_data.get("부칙", {}))
+    appendices = extract_appendix_id(admrule_id, admrule_data.get("별표"))
+    addenda, enact_date = extract_addenda_id(admrule_id, admrule_data.get("부칙"))
 
     ## 첨부파일 리스트
     attachments = admrule_data.get("첨부파일", {})
@@ -84,6 +84,9 @@ def parse_admrule_info(admrule_id: str, admrule_data: dict, hierarchy_laws, conn
 def parse_admrule_article_info(admrule_info: RuleInfo, article_list:list[str]) -> list[ParserContent]:
     """행정규칙 조문 처리
     """
+    if not article_list:
+        return []
+    
     admrule_articles = []
     
     admrule_id = admrule_info.rule_id
@@ -94,10 +97,12 @@ def parse_admrule_article_info(admrule_info: RuleInfo, article_list:list[str]) -
     article_chapter = ArticleChapter()
     current_chapter = None
 
+    article_list = article_list if isinstance(article_list, list) else [article_list]
+
     for article in article_list:
         
         article_chapter.extract_text(article)
-        is_preamble = bool(re.search(rf"{CHAPTERINFO}|{SECTIONINFO}", article))
+        is_preamble = bool(regex_processor.search("IS_PREAMBLE", article))
         if is_preamble:
             article_num = article_chapter.chapter_num
             article_sub_num = 0
@@ -114,11 +119,11 @@ def parse_admrule_article_info(admrule_info: RuleInfo, article_list:list[str]) -
 
         
         # 3. 조문 제목 추출: () 안의 첫 번째 문자열
-        title_match = re.search(BLANCKET, article)
+        title_match = regex_processor.search("BLANKET", article)
         title = title_match.group(1) if title_match else ""
 
         # 4. 개정일자 추출: "(개정 yyyy. m. d.,  yyyy. m. d.)" 형식에 맞는 날짜 찾기
-        matches = re.findall(BLANCKETDATE, article)
+        matches = regex_processor.findall("BLANKET_DATE", article)
         date_matches = []
         for match in matches:
             # 쉼표로 구분된 모든 날짜를 찾기
@@ -128,10 +133,10 @@ def parse_admrule_article_info(admrule_info: RuleInfo, article_list:list[str]) -
 
         # 5. 삭제된 조문 처리
         if "삭제" in article:
-            announce_date_match = re.search(CHEVRONDATE, article)
+            announce_date_match = regex_processor.search("CHEVRON_DATE", article)
             if announce_date_match:
                 year, month, day = announce_date_match.groups()
-                announce_date = f"{year}{int(month):02d}{int(day):02d}"
+                announce_date = format_date(year, month, day)
             title = "삭제"
         
         # 조문 내용 처리
