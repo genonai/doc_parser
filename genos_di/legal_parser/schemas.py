@@ -204,9 +204,7 @@ class ParserContent(BaseModel):
 
 
 class ParserResult(BaseModel):
-    """최종 출력 형태
-    """
-
+    """최종 출력 형태"""
     law: ParserContent = Field(..., description="법령 또는 행정규칙")
     article: list[ParserContent] = Field(..., description="조문" , default_factory=list)
     addendum: list[ParserContent] = Field(..., description="부칙", default_factory=list)
@@ -234,3 +232,11 @@ class ParserResponse(BaseModel):
     def increment_fail(self, id:str):
         self.fail_count += 1
         self.fail_ids.add(id)
+
+
+class LawIdsInput(BaseModel):
+    law_ids: list[str] = []
+    admrule_ids: list[str] = []
+
+class ParserRequest(BaseModel):
+    law_ids_input: LawIdsInput = LawIdsInput()

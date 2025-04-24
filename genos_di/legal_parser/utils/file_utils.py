@@ -1,11 +1,11 @@
 import json
-from utils.loggers import MainLogger
-from collections import defaultdict
 from pathlib import Path
-from typing import DefaultDict
 
 import pandas as pd
 from pydantic import BaseModel
+
+from schemas import ParserRequest
+from utils.loggers import MainLogger
 
 main_logger = MainLogger()
 
@@ -37,7 +37,7 @@ def load_json(key):
     with file_path.open("r", encoding="utf-8") as f:
         return json.load(f)
 
-def load_keys_from_csv() -> DefaultDict[str, list[str]]:
+def load_keys_from_csv() -> ParserRequest:
     """법령검색목록.csv 파일에서 '법령MST'를, 행정규칙검색목록.csv에서 '행정규칙ID' 리스트를 추출합니다.
 
     Returns:
@@ -49,20 +49,20 @@ def load_keys_from_csv() -> DefaultDict[str, list[str]]:
     law_csv_path = Path("resources/inputs/법령검색목록.csv")
     admrule_csv_path = Path("resources/inputs/행정규칙검색목록.csv")
 
-    law_ids_dict: DefaultDict[str, list[str]] = defaultdict(list)
+    request = ParserRequest()
 
-    # 필요한 열만 읽기 (메모리와 속도 최적화)
+    # 법령MST, 행정규칙ID 열만 읽기
     try:
         law_id_series = pd.read_csv(law_csv_path, usecols=['법령MST'], dtype=str, header=1).squeeze('columns')
-        law_ids_dict['law_ids'] = law_id_series.dropna().values.tolist()
+        request.law_ids_input.law_ids = law_id_series.dropna().values.tolist()
     except ValueError as e:
         raise ValueError(f"'법령MST' 컬럼을 찾을 수 없습니다: {e}") from e
     
     try:
         admrule_id_series = pd.read_csv(admrule_csv_path, usecols=['행정규칙ID'], dtype=str, header=1).squeeze('columns')
-        law_ids_dict['admrule_ids'] = admrule_id_series.dropna().values.tolist()
+        request.law_ids_input.admrule_ids = admrule_id_series.dropna().values.tolist()
 
     except ValueError as e:
         raise ValueError(f"'행정규칙ID' 컬럼을 찾을 수 없습니다: {e}") from e
     
-    return law_ids_dict
+    return request
