@@ -1,7 +1,7 @@
 from fastapi import Depends, FastAPI, Query
 
 from params import AdmRuleRequestParams, LawItemRequestParams
-from schemas import ParserResponse
+from schemas import ParserRequest, ParserResponse
 from service import download_data, get_parse_result
 from utils.file_utils import load_keys_from_csv
 
@@ -19,17 +19,17 @@ async def test_parser(
     i_end:int = Query(default=5)
 ) -> ParserResponse:
     law_ids_dict = load_keys_from_csv()
-    law_ids_input = {
-        "law_ids": law_ids_dict.get('law_ids', [])[i_start:i_end],
-        "admrule_ids": law_ids_dict.get('admrule_ids', [])[i_start:i_end]
-    }
-    return await get_parse_result(law_ids_input)
 
-@app.get("/parser")
+    request = ParserRequest()
+    request.law_ids_input.law_ids = law_ids_dict.law_ids_input.law_ids[i_start:i_end]
+    request.law_ids_input.admrule_ids = law_ids_dict.law_ids_input.admrule_ids[i_start:i_end]
+
+    return await get_parse_result(request)
+
+@app.get("/parse/all")
 async def run_parser() -> ParserResponse:
-    law_ids_input = load_keys_from_csv()
-    return await get_parse_result(law_ids_input)
-
+    request = load_keys_from_csv()
+    return await get_parse_result(request)
 
 ### OPEN API 법령 정보 원본 (JSON) 다운로드
 @app.get("/law-download")

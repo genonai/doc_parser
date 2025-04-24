@@ -10,27 +10,24 @@ from params import (
     LawSystemRequestParams,
 )
 from parsers.addendum import parse_addendum_info
-from parsers.admrule import (
-    parse_admrule_article_info,
-    parse_admrule_info,
-)
+from parsers.admrule import parse_admrule_info
+from parsers.admrule_article import parse_admrule_article_info
 from parsers.appendix import parse_appendix_info
-from parsers.law import (
-    parse_law_article_info,
-    parse_law_info,
-)
+from parsers.law import parse_law_info
+from parsers.law_article import parse_law_article_info
 from parsers.law_system import parse_law_relationships
 from schemas import (
     ConnectedLaws,
     HierarchyLaws,
     ParserContent,
+    ParserRequest,
     ParserResponse,
     ParserResult,
     RuleInfo,
 )
 from utils.fetcher import fetch_api, get_api_response
-from utils.file_utils import export_json
-from utils.loggers import MainLogger, ErrorLogger
+from utils.file_utils import export_json, export_json_input
+from utils.loggers import ErrorLogger, MainLogger
 
 error_logger = ErrorLogger()
 main_logger = MainLogger()
@@ -154,7 +151,7 @@ async def process_with_error_handling(
         response.increment_success()
         return True
 
-async def get_parse_result(law_ids_dict: dict[str, list[str]]) -> ParserResponse:
+async def get_parse_result(request: ParserRequest) -> ParserResponse:
     # result = []
     law_consecutive_fail = 0
     admrule_consecutive_fail = 0
@@ -196,8 +193,9 @@ async def get_parse_result(law_ids_dict: dict[str, list[str]]) -> ParserResponse
     
         # result.append(parse_result)
 
-    law_ids = law_ids_dict.get("law_ids", [])
-    admrule_ids = law_ids_dict.get("admrule_ids", [])
+    law_ids = request.law_ids_input.law_ids 
+    admrule_ids = request.law_ids_input.admrule_ids
+    
     total = len(law_ids) + len(admrule_ids)
 
     response = ParserResponse(total_count=total)
@@ -271,6 +269,5 @@ async def get_parse_result(law_ids_dict: dict[str, list[str]]) -> ParserResponse
 async def download_data(query: Union[LawItemRequestParams, AdmRuleRequestParams]):
     api_url = APIEndpoints().get_full_url(query.get_query_params())
     id = query.MST if isinstance(query, LawItemRequestParams) else query.ID
-    num = query.ID if isinstance(query, LawItemRequestParams) else query.LID
     result =  await fetch_api(id, api_url)
-    export_json(result, id, num, is_input=True)
+    export_json_input(result, id)
