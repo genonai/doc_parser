@@ -1,13 +1,14 @@
 from typing import Union
 
-from utils.regex_handler import regex_processor
 from utils.helpers import format_date
+from utils.regex_handler import RegexProcessor
+
+regex_processor = RegexProcessor()
 
 def extract_addenda_id(
     rule_id: int, addenda_list: list[dict]
 ) -> tuple[list[str], str]:
     """법령/행정규칙 메타데이터에 필요한 부칙 ID를 추출하는 함수
-        # TODO input : list여야 함 원래 dict도 받았음
     """
     if not addenda_list:
         return [], "00000000"
@@ -68,7 +69,6 @@ def extract_article_num(law_id:str, text: str, lst=False) -> Union[tuple[str,str
     조문 번호가 없으면 []을 반환합니다.
     현재 행정규칙, 별표 데이터에서 사용
 
-    # TODO 호출하는 함수에서 LIST[STR] -> STR로 변환
     """
     article_ids = []
     main_num = 1
