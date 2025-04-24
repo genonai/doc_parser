@@ -1,7 +1,8 @@
-from pydantic import BaseModel, Field, PrivateAttr
-from typing import Pattern, Union, Iterator
-
 import re
+from typing import Iterator, Pattern, Union
+
+from pydantic import BaseModel, Field, PrivateAttr
+
 
 class InvalidRegexError(ValueError):
     pass
@@ -120,7 +121,3 @@ class RegexProcessor(BaseModel):
     def split(self, name: str, text: str, flags: int = 0) -> list[str]:
         return self._get_pattern_and_apply(name, text, method="split", flags=flags)
 
-
-
-
-regex_processor = RegexProcessor()

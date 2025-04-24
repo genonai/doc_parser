@@ -1,9 +1,11 @@
 import logging
-import traceback
-import sys
 import os
+import sys
+import traceback
 from datetime import datetime
+
 import pytz
+
 
 class NewlineTracebackFormatter(logging.Formatter):
     def formatException(self, exc_info):
@@ -55,7 +57,7 @@ class ErrorLogger:
     
     def log_error(self, id:str, e: Exception):
         """예외 정보를 로그 파일에 기록"""
-        error_summary = self.get_error_summary(id, e)
+        error_summary = self.get_error_summary(e)
         self.logger.error(f"Exception occurred on {id}: {error_summary}", exc_info=True)
     
     def get_error_summary(self, e: Exception) -> str:
