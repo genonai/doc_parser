@@ -2,7 +2,6 @@ import asyncio
 import time
 from typing import Union
 
-from mappers.mapper_data import processor_mapping
 from params import (
     AdmRuleRequestParams,
     APIEndpoints,
@@ -16,6 +15,7 @@ from parsers.appendix import parse_appendix_info
 from parsers.law import parse_law_info
 from parsers.law_article import parse_law_article_info
 from parsers.law_system import parse_law_relationships
+from parsers.mapper import processor_mapping
 from schemas import (
     ConnectedLaws,
     HierarchyLaws,
