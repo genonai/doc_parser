@@ -1,5 +1,6 @@
-from typeguard import check_type, TypeCheckError
-from typing import Any, Union, get_origin, get_args, Type, TypeVar
+from typing import Any, Type, TypeVar, Union, get_args, get_origin
+
+from typeguard import TypeCheckError, check_type
 
 T = TypeVar('T')
 
@@ -15,7 +16,7 @@ class TypeConversionError(TypeError):
     def __init__(self, src_type: type, dest_type: type):
         self.src_type = src_type
         self.dest_type = dest_type
-        super().__init__(f"변환 실패: {src_type.__name__} → {dest_type,__name__}")
+        super().__init__(f"변환 실패: {src_type.__name__} → {getattr(dest_type, '__name__', str(dest_type))}")
 
 
 class TypeConverter:
@@ -36,19 +37,21 @@ class TypeConverter:
     def register(self, tp, func):
         self._registry[type_key(tp)] = func
         
-    def converter(self, value: Any, target_type:Union[type, tuple[type, ...]], use_default: bool = False) -> Any:
-        
+    def converter(self, value: Any, target_type:Union[type, tuple[type, ...]], use_default: bool = False, use_strip: bool = False) -> Any:
         if self.validator(value, target_type):
             return value
         
         for t in self._expand_types(target_type):
-            if converter := self._registry.get(type_key(t)):
-                try:
-                    return converter(value)
-                except Exception:
-                    if use_default:
-                        return self.get_default_value(target_type)
-                    raise TypeConversionError(type(value), target_type)
+            try:
+                converter_fn = self._registry.get(type_key(t))
+                if not converter_fn:
+                    continue
+                # 해당 함수의 파라미터 이름 목록 use_strip 조회
+                return converter_fn(value, use_strip) if "use_strip" in converter_fn.__code__.co_varnames else converter_fn(value)
+            except Exception:
+                if use_default:
+                    return self.get_default_value(target_type)
+                raise TypeConversionError(type(value), target_type)
 
         # 적절한 converter를 찾지 못함함
         if use_default:
@@ -101,19 +104,25 @@ class TypeConverter:
             return int(value)
         raise TypeConversionError(type(value), int)
 
-    def _convert_to_str(self, value: Any) -> str:
+    def _convert_to_str(self, value: Any, use_strip: bool = False) -> str:
         if self.validator(value, list[list[str]]):
-            # if all(isinstance(i, str) for i in value):
-            #     return ''.join(value)
-            # if isinstance(value[0], list):
-            return ''.join(value[0])
+            if use_strip:
+                value = [line.strip() for sublist in value for line in sublist]
+            else:
+                value = [line for sublist in value for line in sublist]
+            return ''.join(value)
+        
         elif self.validator(value, list[str]):
+            if use_strip:
+                value = [line.strip() for line in value]
             return ''.join(value)
         raise TypeConversionError(type(value), str)
 
     def _convert_to_dict_list(self, value: Any) -> list[dict]:
         if self.validator(value, dict):
             return [value]
+        if self.validator(value, list[list[dict]]):
+            return [item for items in value for item in items]
         raise TypeConversionError(type(value), list[dict])
 
     def _convert_to_str_list(self, value: Any) -> list[str]:
