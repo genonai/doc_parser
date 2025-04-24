@@ -95,6 +95,30 @@ def map_addendum_appendix(addendum_list:list[ParserContent], appendix_list: list
     -> tuple[list[ParserContent], list[ParserContent]]:
     """부칙의 related_appendices와 별표의 related_addenda 양방향 연결
     """
+    # announce_date 기준으로 appendix를 그룹화
+    appendix_dict: dict[str, list[ParserContent]] = defaultdict(list)
+    for appendix in appendix_list:
+        appendix_dict[appendix.metadata.announce_date].append(appendix)
+    
+    # 부칙 데이터를 순회하면서 같은 날짜의 별표와 연결
+    for addendum in addendum_list:
+        announce_date = addendum.metadata.announce_date
+        
+        if announce_date in appendix_dict:
+            for appendix in appendix_dict[announce_date]:
+                appendix_id = appendix.metadata.appendix_id
+                
+                # 부칙에 관련 별표 ID 추가
+                addendum.metadata.related_appendices = addendum.metadata.related_appendices or []
+                if appendix_id not in addendum.metadata.related_appendices:
+                    addendum.metadata.related_appendices.append(appendix_id)
+                
+                # 별표에 관련 부칙 ID 추가
+                addendum_id = addendum.metadata.addendum_id
+                appendix.metadata.related_addenda = appendix.metadata.related_addenda or []
+                if addendum_id not in appendix.metadata.related_addenda:
+                    appendix.metadata.related_addenda.append(addendum_id)
+    
     synchronize_relationships(
         addendum_list, appendix_list,
         list_a_related_attr="related_appendices", list_b_related_attr="related_addenda",
