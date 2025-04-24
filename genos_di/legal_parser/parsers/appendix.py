@@ -301,31 +301,72 @@ def normalize_raw_content(data):
         return data
     return []
 
-def parse_appendix_info(rule_info: RuleInfo, appendix_data: dict, is_admrule: bool = False) -> list[ParserContent]:
+def parse_appendix_info(rule_info: RuleInfo, appendix_data: dict, is_admrule: bool = True) -> list[ParserContent]:
     """법령 또는 행정규칙의 별표 정보를 파싱하여 구조화된 콘텐츠 리스트를 반환합니다.
-
-    이 함수는 입력된 별표 데이터에서 주요 메타데이터(별표번호, 제목, 링크 등)와 본문 내용을 추출하고,
-    관련 조문 및 개정일, 시행일 등의 정보를 포함한 ParserContent 객체로 반환합니다.
-
+    
     Args:
-        rule_info (RuleInfo): 법령 또는 행정규칙에 대한 기본 정보 (rule_id, is_effective, enact_date 등 포함).
-        appendix_data (dict): 별표(raw JSON 형식) 데이터.
-        is_admrule (bool, optional): 행정규칙 여부를 나타내는 플래그. True이면 행정규칙 형식으로 파싱함. 
-                                     False이면 법령 형식으로 처리. 기본값은 False.
-
+        rule_info (RuleInfo): 법령 또는 행정규칙에 대한 기본 정보
+        appendix_data (dict): 별표(raw JSON 형식) 데이터
+        is_admrule (bool, optional): 행정규칙 여부를 나타내는 플래그. 기본값은 True
+        
     Returns:
-        list[ParserContent]: 파싱된 별표 콘텐츠와 메타데이터가 포함된 ParserContent 객체의 리스트.
+        list[ParserContent]: 파싱된 별표 콘텐츠와 메타데이터가 포함된 ParserContent 객체의 리스트
+    """
+    if not appendix_data:
+        return []
+    
+    appendix_units = type_converter.converter(appendix_data.get("별표단위"), list[dict])
+    
+    if is_admrule:
+        return parse_administrative_rule_appendix(rule_info, appendix_units)
+    else:
+        return parse_law_appendix(rule_info, appendix_units)
 
+def parse_administrative_rule_appendix(rule_info: RuleInfo, appendix_units: list[dict]) -> list[ParserContent]:
+    """행정규칙의 별표 정보를 파싱합니다.
+    
+    Args:
+        rule_info (RuleInfo): 행정규칙에 대한 기본 정보
+        appendix_units (list[dict]): 별표 단위 목록
+        
+    Returns:
+        list[ParserContent]: 파싱된 행정규칙 별표 콘텐츠 리스트
     """
     appendix_list = []
-    appendix_units = appendix_data.get("별표단위", [])
+    
+    for item in appendix_units:
+        # 행정규칙 별표 메타데이터 추출
+        metadata = _extract_admrule_appendix_metadata(item, rule_info)
+        
+        # 내용 추출 및 정제
+        content = _extract_appendix_content(item)
+        
+        # 행정규칙 별표의 날짜 정보 처리
+        date_info = _process_admrule_date(content, rule_info)
+        
+        # 관련 조문 추출 (행정규칙은 content[0]에서 추출)
+        articles = extract_article_num(rule_info.rule_id, content[0] if content else "", lst=True)
+        
+        # 최종 메타데이터 및 결과 객체 생성
+        appendix_metadata = _create_appendix_metadata(metadata, date_info, articles, rule_info)
+        appendix_result = ParserContent(content=content, metadata=appendix_metadata)
+        
+        appendix_list.append(appendix_result)
+    
+    return appendix_list
 
-    if isinstance(appendix_units, dict):
-        appendix_units = [appendix_units]
 
-    rule_id = rule_info.rule_id
-    is_effective = rule_info.is_effective
-    enact_date = rule_info.enact_date
+def parse_law_appendix(rule_info: RuleInfo, appendix_units: list[dict]) -> list[ParserContent]:
+    """법령의 별표 정보를 파싱합니다.
+    
+    Args:
+        rule_info (RuleInfo): 법령에 대한 기본 정보
+        appendix_units (list[dict]): 별표 단위 목록
+        
+    Returns:
+        list[ParserContent]: 파싱된 법령 별표 콘텐츠 리스트
+    """
+    appendix_list = []
     
     for item in appendix_units:
         appendix_key = item.get("별표키")

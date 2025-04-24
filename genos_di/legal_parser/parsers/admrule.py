@@ -10,18 +10,11 @@ import re
 from extractor import (
     extract_addenda_id,
     extract_appendix_id,
-    extract_article_num,
-    extract_date_to_yyyymmdd,
-    extract_related_appendices,
-    get_latest_date,
 )
 from schemas import (
-    AdmRuleArticleMetadata,
     AdmRuleMetadata,
-    ArticleChapter,
     FileAttached,
     ParserContent,
-    RuleInfo,
 )
 from  extractor import (
     extract_addenda_id,
@@ -273,7 +266,7 @@ def _create_admrule_metadata(
 =======
         related_addenda_admrule=addenda,
         related_appendices_admrule=appendices,
-        dept=dept,
+        dept=basic_info["dept"],
         enact_date=enact_date,
         file_attached=file_attached,
     )
