@@ -11,10 +11,15 @@ from params import (
     LawSystemRequestParams,
     LicBylRequestParams,
 )
-from utils.exception_handler import ClientError
 from utils.loggers import MainLogger
 
 main_logger = MainLogger()
+
+class ClientError(Exception):
+    def __init__(self, id:str, detail: str, status_code: int = status.HTTP_404_NOT_FOUND):
+        self.id = id 
+        self.detail = detail
+        self.status_code = status_code
 
 ## API GET Request
 async def fetch_api(id:str, url: str):
