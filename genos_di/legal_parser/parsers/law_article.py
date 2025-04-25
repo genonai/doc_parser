@@ -1,4 +1,4 @@
-from extractor import (
+from parsers.extractor import (
     extract_date_to_yyyymmdd,
     extract_related_appendices,
     get_latest_date,

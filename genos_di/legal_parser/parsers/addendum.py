@@ -1,4 +1,4 @@
-from extractor import extract_related_appendices
+from parsers.extractor import extract_related_appendices
 from schemas import AddendumMetadata, ParserContent
 from utils.helpers import format_date
 from utils.regex_handler import RegexProcessor

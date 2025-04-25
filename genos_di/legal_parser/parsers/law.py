@@ -1,5 +1,6 @@
 from constants import LAWFIELD
-from extractor import (
+from datetime import datetime
+from parsers.extractor import (
     extract_addenda_id,
     extract_appendix_id,
 )
@@ -47,6 +48,10 @@ def extract_appendix_info(law_id: str, law_data: dict) -> list[str]:
     
     return appendices
 
+def extract_is_effective_info(enforce_date:str) -> int:
+    "시행일자를 기준으로 현재 시행 예정인지(1) 혹은 현행(0)인지 추출하는 함수"
+    today = datetime.now().strftime("%Y%m%d")
+    return 1 if enforce_date > today else 0
 
 def create_law_metadata(
     law_id: str,
@@ -57,7 +62,8 @@ def create_law_metadata(
     addenda: list,
     appendices: list,
     dept: str,
-    enact_date: str
+    enact_date: str,
+    is_effective: int
 ) -> LawMetadata:
     return LawMetadata(
         law_id=law_id,
@@ -69,7 +75,7 @@ def create_law_metadata(
         law_short_name=law.get("법령명약칭"),
         law_type=law.get("법종구분", {}).get("content", ""),
         law_field=law_field,
-        is_effective=0, 
+        is_effective=is_effective, 
         hierarchy_laws=hierarchy_laws,
         connected_laws=connected_laws,  
         related_addenda_law=addenda,  
@@ -86,6 +92,9 @@ def parse_law_info(law_id: str, law_data: dict, hierarchy_laws, connected_laws) 
     # 소관부처 : 소관부처명 + 연락부서 부서명
     office = law.get("연락부서", {}).get("부서단위")
     dept = extract_department_info(office)
+
+    # 현행 여부
+    is_effective = extract_is_effective_info(law.get("시행일자"))
 
     ## 법 분야명
     law_field = extract_law_field(law)
@@ -105,7 +114,8 @@ def parse_law_info(law_id: str, law_data: dict, hierarchy_laws, connected_laws) 
         addenda=addenda,
         appendices=appendices,
         dept=dept,
-        enact_date=enact_date
+        enact_date=enact_date,
+        is_effective=is_effective
     )
 
     return ParserContent(metadata=metadata, content=[])

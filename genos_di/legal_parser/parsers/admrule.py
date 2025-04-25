@@ -1,5 +1,5 @@
 
-from extractor import (
+from parsers.extractor import (
     extract_addenda_id,
     extract_appendix_id,
 )
