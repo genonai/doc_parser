@@ -2,7 +2,7 @@ from fastapi import Depends, FastAPI, Query
 
 from params import AdmRuleRequestParams, LawItemRequestParams
 from schemas import ParserRequest, ParserResponse
-from service import download_data, get_parse_result
+from service import download_data, get_parse_result, get_updated_result
 from utils.file_utils import load_keys_from_csv
 
 app = FastAPI()
@@ -30,6 +30,10 @@ async def test_parser(
 async def run_parser() -> ParserResponse:
     request = load_keys_from_csv()
     return await get_parse_result(request)
+
+@app.get("/parse/updated")
+async def run_updator() -> ParserResponse:
+    return await get_updated_result()
 
 ### OPEN API 법령 정보 원본 (JSON) 다운로드
 @app.get("/law-download")
