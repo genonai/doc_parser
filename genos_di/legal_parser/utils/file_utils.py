@@ -1,4 +1,5 @@
 import json
+import os
 from pathlib import Path
 
 import pandas as pd
@@ -12,13 +13,17 @@ main_logger = MainLogger()
 
 def export_json(data, id, num, is_admrule=True):
     rule_type = 'admrule' if is_admrule else 'law'
-    output_file = f"result/{rule_type}_{id}_{num}.json"
+    result_dir = "resources/result"
+    os.makedirs(result_dir, exist_ok=True)
+
+    output_file = f"{result_dir}/{rule_type}_{id}_{num}.json"
     main_logger.info(f"JSON 데이터 저장: ID={id}, 파일 경로={output_file}")
     with open(f'resources/{output_file}', "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=4)
 
 def export_json_input(data, id):
-    output_file = f"inputs/response_{id}.json"
+    input_dir = "resources/inputs"
+    output_file = f"{input_dir}/response_{id}.json"
     main_logger.info(f"OPENAPI 데이터 다운로드: ID={id}, 파일 경로={output_file}")
     with open(f'resources/{output_file}', "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=4)
