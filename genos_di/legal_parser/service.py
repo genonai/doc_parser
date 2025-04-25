@@ -28,6 +28,8 @@ from schemas import (
 from utils.fetcher import fetch_api, get_api_response
 from utils.file_utils import export_json, export_json_input
 from utils.loggers import ErrorLogger, MainLogger
+from updator import get_updated_law
+
 
 error_logger = ErrorLogger()
 main_logger = MainLogger()
@@ -151,7 +153,7 @@ async def process_with_error_handling(
         response.increment_success()
         return True
 
-async def get_parse_result(request: ParserRequest) -> ParserResponse:
+async def get_parse_result(request: ParserRequest, is_updated:bool=False) -> ParserResponse:
     # result = []
     law_consecutive_fail = 0
     admrule_consecutive_fail = 0
@@ -168,7 +170,7 @@ async def get_parse_result(request: ParserRequest) -> ParserResponse:
         start = time.perf_counter()         
         
         parse_result = await get_parsed_law(id, hierarchy_laws, connected_laws)
-        export_json(parse_result.model_dump(), id, parse_result.law.metadata.law_num, is_admrule=False)
+        export_json(parse_result.model_dump(), id, parse_result.law.metadata.law_num, is_updated, is_admrule=False)
     
         end = time.perf_counter()
         duration = end - start
@@ -185,7 +187,7 @@ async def get_parse_result(request: ParserRequest) -> ParserResponse:
         start = time.perf_counter()
 
         parse_result = await get_parsed_admrule(id, hierarchy_laws, connected_laws)
-        export_json(parse_result.model_dump(), id, parse_result.law.metadata.admrule_num)
+        export_json(parse_result.model_dump(), id, parse_result.law.metadata.admrule_num, is_updated)
     
         end = time.perf_counter()
         duration = end - start
@@ -193,12 +195,10 @@ async def get_parse_result(request: ParserRequest) -> ParserResponse:
     
         # result.append(parse_result)
 
-    law_ids = request.law_ids_input.law_ids 
+    law_ids = request.law_ids_input.law_ids
     admrule_ids = request.law_ids_input.admrule_ids
-    
-    total = len(law_ids) + len(admrule_ids)
 
-    response = ParserResponse(total_count=total)
+    response = ParserResponse()
 
     for law_id in law_ids:
         if law_consecutive_fail >= 10:
@@ -265,6 +265,12 @@ async def get_parse_result(request: ParserRequest) -> ParserResponse:
     main_logger.info(f"\n[get_parse_result] 데이터 파싱 완료: {response.model_dump()}")
     return response
 
+async def get_updated_result():
+    request = await get_updated_law()
+    if request and isinstance(request, ParserRequest):
+        return await get_parse_result(request, True)
+    main_logger.error("[get_updated_result] 개정된 법령이 존재하지 않습니다.")
+    return ParserResponse()
 
 async def download_data(query: Union[LawItemRequestParams, AdmRuleRequestParams]):
     api_url = APIEndpoints().get_full_url(query.get_query_params())

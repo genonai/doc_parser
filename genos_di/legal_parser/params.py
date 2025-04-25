@@ -1,6 +1,6 @@
 from typing import Literal, Optional
 from urllib.parse import urlencode
-
+from datetime import datetime
 from pydantic import AnyHttpUrl, BaseModel, Field, field_validator, model_validator
 
 
@@ -166,4 +166,21 @@ class AdmBylRequestParams(BaseRequestParams):
     gana: Optional[str] = Field(None, description="사전식 검색 (ga, na, da 등)")
     popYn: Optional[str] = Field(
         None, description="상세화면 팝업창 여부 (Y일 경우 팝업창으로 표시)"
+    )
+
+class UpdatedLawRequestParams(BaseRequestParams):
+    """일자별 조문 개정 이력 목록 조회 API 요청 파라미터
+    
+    특정 날짜에 개정된 법령 정보를 조회하기 위한 파라미터 클래스
+    """
+    
+    target: Literal["lsHstInf"] = Field(
+        "lsHstInf", description="서비스 대상: 일자별 법령 개정 이력 목록 조회(필수)"
+    )
+    regDt: Optional[str] = Field(
+        description="법령 개정일, 8자리 (YYYYMMDD 형식)", default_factory=lambda: datetime.now().strftime("%Y%m%d")
+    )
+    display: Optional[int] = Field(30, description="검색 결과 개수", ge=100)
+    page: Optional[int] = Field(
+        1, description="검색 결과 페이지 (기본값=1)"
     )

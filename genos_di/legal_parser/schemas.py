@@ -144,7 +144,7 @@ class AdmRuleMetadata(BaseModel):
         description="조문형식여부 (True: 조문번호 있음, False: 조문 번호 없을 가능성 있음)",
     )
     is_effective: int = Field(
-        0, title="현행여부", description="0: 현행, 1: 예정, -1:과거(연혁)"
+        0, title="현행여부", description="0: 현행, 1: 예정, -1:과거(연혁)", le=1, ge=-1
     )
     hierarchy_laws: list[HierarchyLaws] = Field(
         [], description="상하위법 (법률, 시행령, 시행규칙, 행정규칙 정보)"
@@ -176,7 +176,7 @@ class AdmRuleArticleMetadata(BaseModel):
     article_chapter: ArticleChapter = Field(default_factory=ArticleChapter, description="조문의 장, 절 정보")
     article_title: str = Field(..., description="조문 제목")
     is_effective: int = Field(
-        ..., title="현행여부", description="0: 현행, 1: 예정, -1:과거(연혁)"
+        ..., title="현행여부", description="0: 현행, 1: 예정, -1:과거(연혁)", le=1, ge=-1
     )
     enforce_date: str = Field(
         ..., description="시행일자 (yyyymmdd 형식, 시행예정시 '00000000')"
@@ -211,7 +211,7 @@ class ParserResult(BaseModel):
     appendix: list[ParserContent] = Field(..., description="별표", default_factory=list)
 
 class ParserResponse(BaseModel):
-    total_count: int
+    total_count: int = 0
     seen_count: int = 0
     unseen_count: int = 0
     success_count: int = 0
