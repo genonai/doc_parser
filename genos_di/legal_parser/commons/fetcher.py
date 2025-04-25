@@ -13,7 +13,7 @@ from params import (
     LicBylRequestParams,
     UpdatedLawRequestParams
 )
-from utils.loggers import MainLogger
+from commons.loggers import MainLogger
 
 main_logger = MainLogger()
 

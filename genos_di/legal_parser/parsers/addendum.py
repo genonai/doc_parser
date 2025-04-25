@@ -312,9 +312,9 @@ from typing import Union
 from constants import ADDENDUMTITLE, BLANCKET, DATE
 from extractor import extract_related_appendices
 from schemas import AddendumMetadata, ParserContent
-from utils.helpers import format_date
-from utils.regex_handler import RegexProcessor
-from utils.type_converter import TypeConverter
+from commons.utils import format_date
+from commons.regex_handler import RegexProcessor
+from commons.type_converter import TypeConverter
 
 regex_processor = RegexProcessor()
 type_converter = TypeConverter()

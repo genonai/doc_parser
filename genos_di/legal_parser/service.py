@@ -25,9 +25,9 @@ from schemas import (
     ParserResult,
     RuleInfo,
 )
-from utils.fetcher import fetch_api, get_api_response
-from utils.file_utils import export_json, export_json_input
-from utils.loggers import ErrorLogger, MainLogger
+from commons.fetcher import fetch_api, get_api_response
+from commons.file_handler import export_json, export_json_input
+from commons.loggers import ErrorLogger, MainLogger
 from updator import get_updated_law
 
 

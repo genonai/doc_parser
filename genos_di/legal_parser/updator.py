@@ -1,7 +1,7 @@
-from utils.fetcher import get_api_response_updated
+from commons.fetcher import get_api_response_updated
 from params import UpdatedLawRequestParams
 from schemas import ParserRequest
-from utils.loggers import MainLogger
+from commons.loggers import MainLogger
 from typing import Optional
 
 main_logger = MainLogger()
