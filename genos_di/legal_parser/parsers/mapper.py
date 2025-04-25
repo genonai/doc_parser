@@ -1,7 +1,7 @@
 from collections import defaultdict
 
 from schemas import ParserContent
-from utils.loggers import MainLogger
+from commons.loggers import MainLogger
 
 main_logger = MainLogger()
 

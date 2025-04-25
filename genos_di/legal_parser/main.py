@@ -3,7 +3,7 @@ from fastapi import Depends, FastAPI, Query
 from params import AdmRuleRequestParams, LawItemRequestParams
 from schemas import ParserRequest, ParserResponse
 from service import download_data, get_parse_result, get_updated_result
-from utils.file_utils import load_keys_from_csv
+from commons.file_handler import load_keys_from_csv
 
 app = FastAPI()
 

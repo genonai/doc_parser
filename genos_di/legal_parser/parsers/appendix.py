@@ -4,9 +4,9 @@ from parsers.extractor import (
     get_latest_date,
 )
 from schemas import AppendixMetadata, ParserContent, RuleInfo
-from utils.helpers import replace_strip
-from utils.regex_handler import RegexProcessor
-from utils.type_converter import TypeConverter
+from commons.utils import replace_strip
+from commons.regex_handler import RegexProcessor
+from commons.type_converter import TypeConverter
 
 type_converter = TypeConverter()
 regex_processor = RegexProcessor()

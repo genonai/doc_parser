@@ -8,8 +8,8 @@ from schemas import (
     FileAttached,
     ParserContent,
 )
-from utils.regex_handler import RegexProcessor
-from utils.type_converter import TypeConverter
+from commons.regex_handler import RegexProcessor
+from commons.type_converter import TypeConverter
 
 type_converter = TypeConverter()
 regex_processor = RegexProcessor()

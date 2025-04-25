@@ -6,7 +6,7 @@ import pandas as pd
 from pydantic import BaseModel
 
 from schemas import ParserRequest
-from utils.loggers import MainLogger
+from commons.loggers import MainLogger
 
 main_logger = MainLogger()
 

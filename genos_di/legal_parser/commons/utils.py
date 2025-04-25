@@ -1,4 +1,4 @@
-from utils.type_converter import TypeConverter
+from commons.type_converter import TypeConverter
 
 type_converter = TypeConverter()
 
