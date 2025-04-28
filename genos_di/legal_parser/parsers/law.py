@@ -1,14 +1,15 @@
-from constants import LAWFIELD
 from datetime import datetime
+
+from commons.type_converter import TypeConverter
+from constants import LAWFIELD
 from parsers.extractor import (
     extract_addenda_id,
     extract_appendix_id,
 )
-from schemas import (
+from schemas.schema import (
     LawMetadata,
     ParserContent,
 )
-from commons.type_converter import TypeConverter
 
 type_converter = TypeConverter()
 

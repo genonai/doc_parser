@@ -1,18 +1,18 @@
 import asyncio
 
-from commons.fetcher import get_api_response
+from api.law_client import get_api_response
 from commons.loggers import ErrorLogger, MainLogger
-from params import (
-    LawItemRequestParams,
-    LawSystemRequestParams,
-)
 from parsers.addendum import parse_addendum_info
 from parsers.appendix import parse_appendix_info
 from parsers.law import parse_law_info
 from parsers.law_article import parse_law_article_info
 from parsers.law_system import parse_law_relationships
 from parsers.mapper import processor_mapping
-from schemas import (
+from schemas.params import (
+    LawItemRequestParams,
+    LawSystemRequestParams,
+)
+from schemas.schema import (
     ConnectedLaws,
     HierarchyLaws,
     ParserContent,

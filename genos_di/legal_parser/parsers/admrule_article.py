@@ -1,19 +1,19 @@
 
+from commons.regex_handler import RegexProcessor
+from commons.type_converter import TypeConverter
+from commons.utils import format_date, replace_strip
 from parsers.extractor import (
     extract_article_num,
     extract_date_to_yyyymmdd,
     extract_related_appendices,
     get_latest_date,
 )
-from schemas import (
+from schemas.schema import (
     AdmRuleArticleMetadata,
     ArticleChapter,
     ParserContent,
     RuleInfo,
 )
-from commons.utils import format_date, replace_strip
-from commons.regex_handler import RegexProcessor
-from commons.type_converter import TypeConverter
 
 type_converter = TypeConverter()
 regex_processor = RegexProcessor()

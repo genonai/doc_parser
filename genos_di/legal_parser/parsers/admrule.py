@@ -1,15 +1,11 @@
 
+from commons.regex_handler import RegexProcessor
+from commons.type_converter import TypeConverter
 from parsers.extractor import (
     extract_addenda_id,
     extract_appendix_id,
 )
-from schemas import (
-    AdmRuleMetadata,
-    FileAttached,
-    ParserContent,
-)
-from commons.regex_handler import RegexProcessor
-from commons.type_converter import TypeConverter
+from schemas.schema import AdmRuleMetadata, FileAttached, ParserContent
 
 type_converter = TypeConverter()
 regex_processor = RegexProcessor()

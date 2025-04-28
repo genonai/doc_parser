@@ -1,4 +1,4 @@
-from schemas import ConnectedLaws, HierarchyLaws
+from schemas.schema import ConnectedLaws, HierarchyLaws
 
 
 def parse_hierarchy_laws(data, parent_id="None"):

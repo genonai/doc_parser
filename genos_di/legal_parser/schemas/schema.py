@@ -115,7 +115,6 @@ class AppendixMetadata(BaseModel):
     related_addenda : list[str] = Field([], description="관련 부칙 ID 리스트")
 
 
-
 class AddendumMetadata(BaseModel):
     addendum_id: str = Field(..., description="부칙 ID (법령ID + 부칙 공포일자)")
     addendum_num: str = Field(..., description="부칙 공포번호")
@@ -126,7 +125,6 @@ class AddendumMetadata(BaseModel):
     related_articles: list[str] = Field([], description="관련 조문 ID")
     related_appendices: list[str] = Field([], description="관련 별표 ID")
     is_exit: bool = Field(False, description="이 부칙이 가장 오래된 조문 개정일 이전에 제정되었는지 여부")  # NOTE preprocessor_genos 변경 사항 고지
-
 
 # 행정규칙 첨부파일
 FileAttached = namedtuple("FileAttached", ["id", "filename", "filelink"])
@@ -201,6 +199,7 @@ class ParserContent(BaseModel):
     content: list[Union[dict, str]] = Field(
         ..., description="본문 텍스트 (law, appendix의 경우 빈 리스트일 수 있음)"
     )
+
 
 
 class ParserResult(BaseModel):

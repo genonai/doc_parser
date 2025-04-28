@@ -1,23 +1,22 @@
+from commons.regex_handler import RegexProcessor
+from commons.type_converter import TypeConverter
+from commons.utils import format_date
 from parsers.extractor import (
     extract_date_to_yyyymmdd,
     extract_related_appendices,
     get_latest_date,
 )
-from schemas import (
+from schemas.schema import (
     ArticleChapter,
     LawArticleMetadata,
     ParserContent,
     RuleInfo,
 )
-from commons.utils import format_date
-from commons.regex_handler import RegexProcessor
-from commons.type_converter import TypeConverter
 
 type_converter = TypeConverter()
 regex_processor = RegexProcessor()
 
-# =========================== 법령 조문 파싱 ====================================== 
-
+# ======================= 개정일자 추출 ===========================
 def extract_latest_announce(data:dict, enact_date: str) -> str:
     """조문 내용, 조문 참고자료, 항 내용, 호 내용에서 가장 최신의 개정 날짜를 추출하여 내용과 함께 반환합니다."""
     amendment_dates = extract_amendment_dates(data)
@@ -97,7 +96,7 @@ def extract_dates_from_subparagraphs(subparagraphs: list[dict]) -> list[str]:
             dates.extend(extract_date_to_yyyymmdd(text, True))
     return dates
 
-
+# ======================= 조문 내용[조, 항, 호, 목] 추출 ===========================
 def stringify_article_content(data: dict) -> list[str]:
     """법령 조문 데이터를 문자열 리스트로 변환하는 함수"""
     content = []
@@ -186,48 +185,7 @@ def process_items(items: list[dict]) -> list[str]:
     
     return content
 
-def parse_law_article_info(law_info: RuleInfo, article_data: dict) -> list[ParserContent]:
-    """법령 조문 정보를 파싱하여 ParserContent 객체 리스트로 반환하는 함수"""
-    if not article_data:
-        return []
-    
-    article_units = extract_article_units(article_data)
-    if not article_units:
-        return []
-    
-    article_list = []
-    law_id = law_info.rule_id
-    enact_date = law_info.enact_date
-    is_effective = law_info.is_effective
-    
-    article_chapter = ArticleChapter()
-    current_chapter = None
-    
-    for item in article_units:
-        article_result = process_article_unit(
-            item, 
-            law_id, 
-            enact_date, 
-            is_effective, 
-            article_chapter, 
-            current_chapter
-        )
-        
-        if article_result:
-            article_list.append(article_result)
-            # 전문인 경우 current_chapter 업데이트
-            if article_result.metadata.is_preamble:
-                current_chapter = article_result.metadata.article_chapter
-    
-    return article_list
-
-def extract_article_units(article_data: dict) -> list[dict]:
-    """조문단위를 추출하는 함수"""
-    if not article_data.get("조문단위"):
-        return []
-    
-    return type_converter.converter(article_data.get("조문단위"), list[dict])
-
+# =======================삭제 및 전문 메타데이터 처리===========================
 def extract_deleted_article_date(article: list[str], default_date: str) -> str:
     """삭제된 조문의 날짜를 추출하는 함수"""
     if not article:
@@ -264,36 +222,7 @@ def process_preamble(item: dict, article_chapter: ArticleChapter) -> tuple[str, 
     
     return article_num, article_sub_num, updated_chapter
 
-def create_article_metadata(
-    article_id: str, 
-    article_num: str, 
-    article_sub_num: int, 
-    is_preamble: bool, 
-    article_title: str, 
-    article_chapter: ArticleChapter, 
-    enforce_date: str, 
-    announce_date: str, 
-    law_id: str, 
-    is_effective: int, 
-    related_appendices: list
-) -> LawArticleMetadata:
-    """조문 메타데이터를 생성하는 함수"""
-    return LawArticleMetadata(
-        article_id=article_id,
-        article_num=article_num,
-        article_sub_num=article_sub_num,
-        is_preamble=is_preamble,
-        article_title=article_title,
-        article_chapter=article_chapter,
-        enforce_date=enforce_date,
-        announce_date=announce_date,
-        law_id=law_id,
-        is_effective=is_effective,
-        related_appendices=related_appendices,
-        related_addenda=[],
-    )
-
-
+# =========================== 법령 조문 파싱 ====================================== 
 def process_article_unit(
     item: dict, 
     law_id: str, 
@@ -302,7 +231,7 @@ def process_article_unit(
     article_chapter: ArticleChapter, 
     current_chapter: ArticleChapter = None
 ) -> ParserContent:
-    """조문 단위를 처리하여 ParserContent 객체를 생성하는 함수"""
+    """하나의 조문을 처리하여 ParserContent 객체를 생성하는 함수"""
     # 기본 정보 추출
     article_num = item.get("조문번호")
     article_sub_num = item.get("조문가지번호") or 1
@@ -338,18 +267,58 @@ def process_article_unit(
     related_appendices = extract_related_appendices(law_id, article_content)
     
     # 메타데이터 생성
-    article_meta = create_article_metadata(
-        article_id, 
-        article_num, 
-        article_sub_num, 
-        is_preamble, 
-        article_title, 
-        current_chapter or article_chapter, 
-        enforce_date, 
-        announce_date, 
-        law_id, 
-        is_effective, 
-        related_appendices
+    article_meta = LawArticleMetadata(
+        article_id=article_id,
+        article_num=article_num,
+        article_sub_num=article_sub_num,
+        is_preamble=is_preamble,
+        article_title=article_title,
+        article_chapter=current_chapter or article_chapter, 
+        enforce_date=enforce_date,
+        announce_date=announce_date,
+        law_id=law_id,
+        is_effective=is_effective,
+        related_appendices=related_appendices,
+        related_addenda=[],
     )
     
     return ParserContent(metadata=article_meta, content=article_content)
+
+
+def parse_law_article_info(law_info: RuleInfo, article_data: dict) -> list[ParserContent]:
+    """법령 조문 정보를 파싱하여 ParserContent 객체 리스트로 반환하는 함수"""
+    if not article_data:
+        return []
+    
+    if not article_data.get("조문단위"):
+        return []  
+      
+    article_units = type_converter.converter(article_data.get("조문단위"), list[dict])
+    if not article_units:
+        return []
+    
+    article_list = []
+    law_id = law_info.rule_id
+    enact_date = law_info.enact_date
+    is_effective = law_info.is_effective
+    
+    article_chapter = ArticleChapter()
+    current_chapter = None
+    
+    for item in article_units:
+        article_result = process_article_unit(
+            item, 
+            law_id, 
+            enact_date, 
+            is_effective, 
+            article_chapter, 
+            current_chapter
+        )
+        
+        if article_result:
+            article_list.append(article_result)
+            # 전문인 경우 current_chapter 업데이트
+            if article_result.metadata.is_preamble:
+                current_chapter = article_result.metadata.article_chapter
+    
+    return article_list

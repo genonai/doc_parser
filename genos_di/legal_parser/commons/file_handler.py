@@ -5,8 +5,8 @@ from pathlib import Path
 import pandas as pd
 from pydantic import BaseModel
 
-from schemas import ParserRequest
 from commons.loggers import MainLogger
+from schemas.schema import ParserRequest
 
 main_logger = MainLogger()
 
@@ -18,14 +18,14 @@ def export_json(data, id, num, is_admrule=True):
 
     output_file = f"{result_dir}/{rule_type}_{id}_{num}.json"
     main_logger.info(f"JSON 데이터 저장: ID={id}, 파일 경로={output_file}")
-    with open(f'resources/{output_file}', "w", encoding="utf-8") as f:
+    with open(f'{output_file}', "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=4)
 
 def export_json_input(data, id):
     input_dir = "resources/inputs"
     output_file = f"{input_dir}/response_{id}.json"
     main_logger.info(f"OPENAPI 데이터 다운로드: ID={id}, 파일 경로={output_file}")
-    with open(f'resources/{output_file}', "w", encoding="utf-8") as f:
+    with open(f'{output_file}', "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=4)
 
 

@@ -1,17 +1,17 @@
 
 import asyncio
 
-from commons.fetcher import get_api_response
+from api.law_client import get_api_response
 from commons.loggers import ErrorLogger, MainLogger
-from params import (
-    AdmRuleRequestParams,
-)
 from parsers.addendum import parse_addendum_info
 from parsers.admrule import parse_admrule_info
 from parsers.admrule_article import parse_admrule_article_info
 from parsers.appendix import parse_appendix_info
 from parsers.mapper import processor_mapping
-from schemas import (
+from schemas.params import (
+    AdmRuleRequestParams,
+)
+from schemas.schema import (
     ConnectedLaws,
     HierarchyLaws,
     ParserContent,

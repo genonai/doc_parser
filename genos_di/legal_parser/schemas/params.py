@@ -1,6 +1,7 @@
+from datetime import datetime
 from typing import Literal, Optional
 from urllib.parse import urlencode
-from datetime import datetime
+
 from pydantic import AnyHttpUrl, BaseModel, Field, field_validator, model_validator
 
 

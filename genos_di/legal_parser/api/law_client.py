@@ -1,25 +1,26 @@
-from typing import Union
 import copy
+import inspect
+from typing import Awaitable, Callable, TypeVar, Union
 
 import aiohttp
 from fastapi import status
-
-from params import (
+from schemas.params import (
     AdmBylRequestParams,
     AdmRuleRequestParams,
     APIEndpoints,
     LawItemRequestParams,
     LawSystemRequestParams,
     LicBylRequestParams,
-    UpdatedLawRequestParams
+    UpdatedLawRequestParams,
 )
+
 from commons.loggers import MainLogger
 
 main_logger = MainLogger()
+T = TypeVar('T')
 
 class ClientError(Exception):
-    def __init__(self, id:str, detail: str, status_code: int = status.HTTP_404_NOT_FOUND):
-        self.id = id 
+    def __init__(self, detail: str, status_code: int = status.HTTP_404_NOT_FOUND):
         self.detail = detail
         self.status_code = status_code
 
@@ -33,17 +34,34 @@ async def fetch_api(id:str, url: str):
                 if "application/json" in content_type:
                     data = await response.json()
                     if "Law" in data.keys():
-                        raise ClientError(id=id, detail="해당되는 법령/행정데이터를 찾을 수 없음 : {url}")
+                        raise ClientError(detail="해당되는 법령/행정데이터를 찾을 수 없음 : {url}")
                 else:
                     data = await response.text()
                     main_logger.warning(f"[fetch_api] 예상치 못한 데이터 타입: {content_type} ({url})")
-                    raise ClientError(id=id, detail=f"Unexpected content type: {url}: {content_type}", status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE)
+                    raise ClientError(detail=f"Unexpected content type: {url}: {content_type}", status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE)
             else:
                 main_logger.error(f"[fetch_api] API 요청 실패: {url} (HTTP {response.status})")
-                raise ClientError(id=id, detail=f"Request {url} failed with status {response.status}", status_code=status.HTTP_400_BAD_REQUEST)
+                raise ClientError(detail=f"Request {url} failed with status {response.status}", status_code=status.HTTP_400_BAD_REQUEST)
             
             return data
         
+async def fetch_api_amend(url: str):
+    async with aiohttp.ClientSession() as client:
+        async with client.get(url) as response:
+            content_type = response.headers.get("Content-Type", "")
+            if response.status == 200:
+                if "application/json" in content_type:
+                    data = await response.json()
+                    if data and data["LawSearch"]["totalCount"]  == 0: 
+                        raise ClientError(detail="해당일자에 개정된 법령을 찾을 수 없음 : {url}")
+                else:
+                    data = await response.text()
+                    main_logger.warning(f"[fetch_api] 예상치 못한 응답 데이터 타입: {content_type} ({url})")
+                    raise ClientError(detail=f"Unexpected content type: {url}: {content_type}", status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE)
+            else:
+                main_logger.error(f"[fetch_api] API 요청 실패: {url} (HTTP {response.status})")
+                raise ClientError(detail=f"Request {url} failed with status {response.status}", status_code=status.HTTP_400_BAD_REQUEST)
+                    
 # API 호출 
 async def get_api_response(
     id:str,
@@ -64,10 +82,19 @@ async def get_api_response(
     return response
 
 # API 호출 
-async def get_all_api_responses(query: UpdatedLawRequestParams):
+async def get_all_api_responses(query, api_func: Union[Callable, Awaitable[dict]], merge_func: Callable):
     """모든 페이지의 API 응답을 가져오는 함수"""
+
+    url  = APIEndpoints().get_full_url(query.get_query_params(), is_item=False)
+
+    # 함수가 비동기인지 확인
+    is_async = inspect.iscoroutinefunction(api_func)
     
-    first_response = await get_api_response_updated(query)
+    # 첫 번째 응답 가져오기
+    if is_async:
+        first_response = await api_func(url)
+    else:
+        first_response = api_func(url)
     total_count = int(first_response.get("LawSearch", {}).get("totalCnt", 0))
     
     # 결과를 저장할 리스트
@@ -82,16 +109,20 @@ async def get_all_api_responses(query: UpdatedLawRequestParams):
     for page in range(2, total_pages + 1):
         query.page = page
         main_logger.info(f"{page}/{total_pages} 페이지 요청 중...")
+
+        if is_async:
+            response = await api_func(query)
+        else:
+            response = api_func(query)
         
-        response = await get_api_response_updated(query)
         all_results.append(response)
     
     # 결과 병합
-    merged_result = merge_responses(all_results)
+    merged_result = merge_func(all_results)
     
     return merged_result
 
-def merge_responses(responses):
+def merge_amend_responses(responses) -> dict[dict[list[dict]]]:
     """여러 API 응답을 하나로 병합하는 함수"""
     if not responses:
         return {}
@@ -119,17 +150,13 @@ def merge_responses(responses):
     # 병합된 결과에 모든 항목 설정
     merged["LawSearch"]["law"] = all_items
     
-    # 총 개수 업데이트
-    merged["LawSearch"]["totalCnt"] = str(len(all_items))
-    
     return merged
 
 
-async def get_api_response_updated(
+async def get_api_amend(
     query:UpdatedLawRequestParams
 ):
-    api_url = APIEndpoints().get_full_url(query.get_query_params(), is_item=False)
-    main_logger.info(f"[get_api_response] API 요청 시작: {api_url}")
-    response = await fetch_api("", api_url)
-    main_logger.info(f"[get_api_response] API 요청 성공: {api_url}")
+    main_logger.info(f"[get_api_amend] API 요청 시작: {query.regDt}")
+    response = await get_all_api_responses(query, fetch_api_amend, merge_amend_responses)
+    main_logger.info(f"[get_api_amend] API 요청 성공: {query.regDt}")
     return response
