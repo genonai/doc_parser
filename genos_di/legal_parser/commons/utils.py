@@ -5,6 +5,8 @@ from typing import Union
 import pytz
 
 from commons.type_converter import TypeConverter
+from typing import Union
+import unicodedata
 
 type_converter = TypeConverter()
 
