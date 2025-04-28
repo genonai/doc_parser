@@ -8,7 +8,6 @@ from parsers.extractor import (
     extract_appendix_id,
 =======
 from constants import LAWFIELD
-from datetime import datetime
 from parsers.extractor import (
     extract_addenda_id,
     extract_appendix_id,
