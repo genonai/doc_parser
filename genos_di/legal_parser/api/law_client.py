@@ -64,14 +64,12 @@ async def fetch_api_amend(url: str):
                     
 # API 호출 
 async def get_api_response(
-    id:str,
     query: Union[
         LawItemRequestParams,
         LawSystemRequestParams,
         LicBylRequestParams,
         AdmBylRequestParams,
-        AdmRuleRequestParams,
-        UpdatedLawRequestParams
+        AdmRuleRequestParams
     ],
     is_item:bool = True
 ):

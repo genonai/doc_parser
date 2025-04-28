@@ -27,7 +27,7 @@ async def get_parsed_admrule(id, hierarchy_laws:list[HierarchyLaws], connected_l
     hierarchy_laws = hierarchy_laws if isinstance(hierarchy_laws, list) else []
     connected_laws = connected_laws if isinstance(connected_laws, list) else []
         
-    admrule_response: dict = await get_api_response(id, AdmRuleRequestParams(ID=id))
+    admrule_response: dict = await get_api_response(AdmRuleRequestParams(ID=id))
     admrule_data = admrule_response.get("AdmRulService")
 
     # 행정규칙
