@@ -25,7 +25,7 @@ class ClientError(Exception):
         self.status_code = status_code
 
 ## API GET Request
-async def fetch_api(id:str, url: str):
+async def fetch_api(url: str):
     async with aiohttp.ClientSession() as client:
         async with client.get(url) as response:
             content_type = response.headers.get("Content-Type", "")
@@ -77,7 +77,7 @@ async def get_api_response(
 ):
     api_url = APIEndpoints().get_full_url(query.get_query_params(), is_item)
     main_logger.info(f"[get_api_response] API 요청 시작: {api_url}")
-    response = await fetch_api(id, api_url)
+    response = await fetch_api(api_url)
     main_logger.info(f"[get_api_response] API 요청 성공: {api_url}")
     return response
 
