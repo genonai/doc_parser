@@ -18,6 +18,32 @@ class APIEndpoints(BaseModel):
         endpoint = self.item_endpoint if is_item else self.list_endpoint
         return f"{self.base_url}{endpoint}?{query}"
 
+class VectorAPIEndpoints(BaseModel):
+    upload_endpoint: str = "/data/vectordb/document/upload/token"
+    register_endpoint: str = "/data/vectordb/document/register/token"
+    login_endpoint: str = '/auth/login'
+    base_url: AnyHttpUrl = Field(default_factory=lambda: VectorAPIEndpoints.create_base_url())
+
+    @staticmethod
+    def create_base_url() -> str:
+        host = os.getenv("ADMIN_API_HOST")
+        port = os.getenv("ADMIN_API_PORT")
+        root_path = os.getenv("ADMIN_API_ROOT_PATH")
+
+        if not host or not port or not root_path:
+            raise ValueError("환경 변수 ADMIN_API_HOST, ADMIN_API_PORT, ADMIN_ROOT_PATH가 모두 필요합니다.")
+
+        return f"http://{host}:{port}{root_path}"
+
+    def get_upload_route(self) -> str:
+        return f"{self.base_url}{self.upload_endpoint}"
+    
+    def get_register_route(self, vdb_id:str) -> str:
+        return f"{self.base_url}{self.register_endpoint}/{vdb_id}"
+    
+    def get_login_route(self) -> str:
+        return f"{self.base_url}{self.login_endpoint}"
+
 
 class BaseRequestParams(BaseModel):
     """공통 Request Params Schema
