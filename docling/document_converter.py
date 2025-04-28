@@ -204,6 +204,7 @@ def _get_default_option(format: InputFormat) -> FormatOption:
         InputFormat.AUDIO: FormatOption(pipeline_cls=AsrPipeline, backend=NoOpBackend),
         InputFormat.VTT: FormatOption(
             pipeline_cls=SimplePipeline, backend=WebVTTDocumentBackend
+        ),
         # 한글 파일 추가
         InputFormat.HWP: FormatOption(
             pipeline_cls=SimplePipeline, backend=HwpDocumentBackend
@@ -361,14 +362,10 @@ class DocumentConverter:
             conv_input.docs(self.format_to_options),
             settings.perf.doc_batch_size,  # pass format_options
         ):
-<<<<<<< HEAD
             _log.info("Going to convert document batch...")
             process_func = partial(
                 self._process_document, raises_on_error=raises_on_error
             )
-=======
-            _log.info(f"Going to convert document batch...")
->>>>>>> 474ade5 (hwpx 백엔드 추가)
 
             if (
                 settings.perf.doc_batch_concurrency > 1
