@@ -4,7 +4,10 @@ from urllib.parse import urlencode
 
 import pytz
 from pydantic import AnyHttpUrl, BaseModel, Field, field_validator, model_validator
+from dotenv import load_dotenv
+import os
 
+load_dotenv()
 
 class APIEndpoints(BaseModel):
     base_url: AnyHttpUrl = "https://www.law.go.kr/DRF/"
@@ -19,8 +22,7 @@ class APIEndpoints(BaseModel):
 class BaseRequestParams(BaseModel):
     """공통 Request Params Schema
     """
-
-    OC: Literal["mer013"] = Field("mer013")
+    OC: str = Field(default_factory=lambda: os.getenv("OC"))
     type: Literal["HTML", "XML", "JSON"] = Field(
         "JSON", description="출력 형태: HTML/XML/JSON (필수)"
     )
