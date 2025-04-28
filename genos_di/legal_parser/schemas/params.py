@@ -4,6 +4,8 @@ from urllib.parse import urlencode
 
 import pytz
 from pydantic import AnyHttpUrl, BaseModel, Field, field_validator, model_validator
+from dotenv import load_dotenv
+import os
 
 from commons.settings import settings
 from commons.utils import get_kst_yesterday_str
