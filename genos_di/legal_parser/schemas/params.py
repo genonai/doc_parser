@@ -219,3 +219,24 @@ class VectorAPIEndpoints(BaseModel):
         """문서 등록 엔드포인트 URL 반환 (사용자 ID 포함)"""
         user_id = settings.genos_admin_user_id
         return f"{self.base_url}{self.register_endpoint}/{user_id}"
+
+    @field_validator('regDt')
+    @classmethod
+    def validate_reg_dt(cls, value: Optional[str]) -> Optional[str]:
+
+        kst_now = datetime.now(pytz.timezone('Asia/Seoul'))
+        kst_yesterday = kst_now - timedelta(days=1)
+        
+        if value is None:
+            return kst_yesterday.strftime("%Y%m%d")
+        
+        try:
+            reg_date = datetime.strptime(value, "%Y%m%d")
+        except ValueError:
+            return kst_yesterday.strftime("%Y%m%d")
+                
+        if reg_date > kst_yesterday:
+            # 미래 날짜면 어제 날짜로 변경
+            return kst_yesterday.strftime("%Y%m%d")
+        
+        return value
