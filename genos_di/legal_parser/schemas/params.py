@@ -1,7 +1,8 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Literal, Optional
 from urllib.parse import urlencode
 
+import pytz
 from pydantic import AnyHttpUrl, BaseModel, Field, field_validator, model_validator
 
 
@@ -179,9 +180,31 @@ class UpdatedLawRequestParams(BaseRequestParams):
         "lsHstInf", description="서비스 대상: 일자별 법령 개정 이력 목록 조회(필수)"
     )
     regDt: Optional[str] = Field(
-        description="법령 개정일, 8자리 (YYYYMMDD 형식)", default_factory=lambda: datetime.now().strftime("%Y%m%d")
+        default=None,
+        description="법령 개정일, 8자리 (YYYYMMDD 형식)"
     )
-    display: Optional[int] = Field(30, description="검색 결과 개수", ge=100)
+    display: Optional[int] = Field(30, description="검색 결과 개수", ge=1, le=100)
     page: Optional[int] = Field(
         1, description="검색 결과 페이지 (기본값=1)"
     )
+
+    @field_validator('regDt')
+    @classmethod
+    def validate_reg_dt(cls, value: Optional[str]) -> Optional[str]:
+
+        kst_now = datetime.now(pytz.timezone('Asia/Seoul'))
+        kst_yesterday = kst_now - timedelta(days=1)
+        
+        if value is None:
+            return kst_yesterday.strftime("%Y%m%d")
+        
+        try:
+            reg_date = datetime.strptime(value, "%Y%m%d")
+        except ValueError:
+            return kst_yesterday.strftime("%Y%m%d")
+                
+        if reg_date > kst_yesterday:
+            # 미래 날짜면 어제 날짜로 변경
+            return kst_yesterday.strftime("%Y%m%d")
+        
+        return value
