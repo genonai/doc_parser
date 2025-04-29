@@ -71,9 +71,8 @@ async def get_api_response(
         AdmBylRequestParams,
         AdmRuleRequestParams
     ],
-    is_item:bool = True
 ):
-    api_url = APIEndpoints().get_full_url(query.get_query_params(), is_item)
+    api_url = APIEndpoints().get_item_url(query.get_query_params())
     main_logger.info(f"[get_api_response] API 요청 시작: {api_url}")
     response = await fetch_api(api_url)
     main_logger.info(f"[get_api_response] API 요청 성공: {api_url}")
@@ -83,7 +82,7 @@ async def get_api_response(
 async def get_all_api_responses(query, api_func: Union[Callable, Awaitable[dict]], merge_func: Callable):
     """모든 페이지의 API 응답을 가져오는 함수"""
 
-    url  = APIEndpoints().get_full_url(query.get_query_params(), is_item=False)
+    url  = APIEndpoints().get_list_url(query.get_query_params())
 
     # 함수가 비동기인지 확인
     is_async = inspect.iscoroutinefunction(api_func)

@@ -14,9 +14,11 @@ class APIEndpoints(BaseModel):
     item_endpoint: str = "lawService.do"
     list_endpoint: str = "lawSearch.do"
 
-    def get_full_url(self, query: str, is_item: bool = True) -> str:
-        endpoint = self.item_endpoint if is_item else self.list_endpoint
-        return f"{self.base_url}{endpoint}?{query}"
+    def get_item_url(self, query: str) -> str:
+        return f"{self.base_url}{self.item_endpoint}?{query}"
+    
+    def get_list_url(self, query: str) -> str:
+        return f"{self.base_url}{self.list_endpoint}?{query}"
 
 class VectorAPIEndpoints(BaseModel):
     upload_endpoint: str = "/data/vectordb/document/upload/token"
