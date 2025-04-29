@@ -1,11 +1,11 @@
+import os
 from datetime import datetime, timedelta
 from typing import Literal, Optional
 from urllib.parse import urlencode
 
 import pytz
-from pydantic import AnyHttpUrl, BaseModel, Field, field_validator, model_validator
 from dotenv import load_dotenv
-import os
+from pydantic import AnyHttpUrl, BaseModel, Field, field_validator, model_validator
 
 load_dotenv()
 
@@ -40,7 +40,8 @@ class VectorAPIEndpoints(BaseModel):
     def get_upload_route(self) -> str:
         return f"{self.base_url}{self.upload_endpoint}"
     
-    def get_register_route(self, vdb_id:str) -> str:
+    def get_register_route(self) -> str:
+        vdb_id = os.getenv('GENOS_TEST_VDB_ID')
         return f"{self.base_url}{self.register_endpoint}/{vdb_id}"
     
     def get_login_route(self) -> str:

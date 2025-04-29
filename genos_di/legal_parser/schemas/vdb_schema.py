@@ -1,5 +1,7 @@
-from pydantic import BaseModel, Field, field_validator
 from typing import List, Optional, Union
+
+from pydantic import BaseModel, Field, field_validator
+
 from commons.utils import normalize_to_nfc
 
 #  From https://github.com/mindsandcompany/GenOS/blob/develop/admin-api/src/schema/data/vdb_schema.py

@@ -1,13 +1,12 @@
 from typing import Union
 
+from api.law_client import fetch_api
+from commons.file_handler import export_json_input
 from schemas.params import (
     AdmRuleRequestParams,
     APIEndpoints,
     LawItemRequestParams,
 )
-
-from api.law_client import fetch_api
-from commons.file_handler import export_json_input
 
 
 async def download_data(query: Union[LawItemRequestParams, AdmRuleRequestParams]):

@@ -1,7 +1,7 @@
 from datetime import datetime
 
-from commons.type_converter import TypeConverter
 from commons.constants import LAWFIELD
+from commons.type_converter import TypeConverter
 from parsers.extractor import (
     extract_addenda_id,
     extract_appendix_id,

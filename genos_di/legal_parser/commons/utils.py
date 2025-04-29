@@ -1,6 +1,7 @@
-from commons.type_converter import TypeConverter
-from typing import Union
 import unicodedata
+from typing import Union
+
+from commons.type_converter import TypeConverter
 
 type_converter = TypeConverter()
 
