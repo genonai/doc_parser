@@ -23,7 +23,7 @@ async def process_with_error_handling(
         await process_func(id, hierarchy_laws, connected_laws)
     except Exception as e:
         main_logger.error(f"[get_parse_result] 파싱 실패: ID={id} 자세한 내용은 로그 파일을 확인하세요.")
-        error_logger.log_error(id, e)
+        error_logger.law_error(id, e)
 
         response.increment_fail(id)
         return False
@@ -87,7 +87,7 @@ async def get_parse_result(request: ParserRequest) -> ParserResponse:
                 hierarchy_laws, connected_laws, related_law_ids = await get_parsed_law_system(law_id)
             except Exception as e:
                 main_logger.error(f"[get_law_system] 법령 관계도 파싱 실패: ID={law_id} 자세한 내용은 로그 파일을 확인하세요.")
-                error_logger.log_error(law_id, e)
+                error_logger.law_error(law_id, e)
 
                 response.increment_fail(law_id)
                 law_consecutive_fail += 1
@@ -161,6 +161,6 @@ async def get_amend_result() -> ParserResponse:
 
         return await get_parse_result(updated_law_ids)
     else:
-        main_logger.error("[get_updated_result] 개정된 법령이 존재하지 않습니다.")
+        main_logger.info("[get_updated_result] 개정된 법령이 존재하지 않습니다.")
         return ParserResponse()
 

@@ -55,7 +55,11 @@ class ErrorLogger:
         # 상위 로거로 전파 방지
         self.logger.propagate = False
     
-    def log_error(self, id:str, e: Exception):
+    def vdb_error(self, text:str, e:Exception):
+        error_summary = self.get_error_summary(e)
+        self.logger.error(f"Exception occurred : {text} {error_summary}", exc_info=True)
+
+    def law_error(self, id:str, e: Exception):
         """예외 정보를 로그 파일에 기록"""
         error_summary = self.get_error_summary(e)
         self.logger.error(f"Exception occurred on {id}: {error_summary}", exc_info=True)

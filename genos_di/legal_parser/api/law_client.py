@@ -4,6 +4,8 @@ from typing import Awaitable, Callable, TypeVar, Union
 
 import aiohttp
 from fastapi import status
+
+from commons.loggers import ErrorLogger, MainLogger
 from schemas.params import (
     AdmBylRequestParams,
     AdmRuleRequestParams,
@@ -14,9 +16,9 @@ from schemas.params import (
     UpdatedLawRequestParams,
 )
 
-from commons.loggers import MainLogger
-
 main_logger = MainLogger()
+error_logger = ErrorLogger()
+
 T = TypeVar('T')
 
 class ClientError(Exception):
@@ -37,10 +39,10 @@ async def fetch_api(url: str):
                         raise ClientError(detail="해당되는 법령/행정데이터를 찾을 수 없음 : {url}")
                 else:
                     data = await response.text()
-                    main_logger.warning(f"[fetch_api] 예상치 못한 데이터 타입: {content_type} ({url})")
+                    error_logger.law_error(f"[fetch_api] 예상치 못한 데이터 타입: {content_type} ({url})")
                     raise ClientError(detail=f"Unexpected content type: {url}: {content_type}", status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE)
             else:
-                main_logger.error(f"[fetch_api] API 요청 실패: {url} (HTTP {response.status})")
+                error_logger.law_error(f"[fetch_api] API 요청 실패: {url} (HTTP {response.status})")
                 raise ClientError(detail=f"Request {url} failed with status {response.status}", status_code=status.HTTP_400_BAD_REQUEST)
             
             return data
@@ -56,10 +58,10 @@ async def fetch_api_amend(url: str):
                         raise ClientError(detail="해당일자에 개정된 법령을 찾을 수 없음 : {url}")
                 else:
                     data = await response.text()
-                    main_logger.warning(f"[fetch_api] 예상치 못한 응답 데이터 타입: {content_type} ({url})")
+                    error_logger.law_error(f"[fetch_api] 예상치 못한 응답 데이터 타입: {content_type} ({url})")
                     raise ClientError(detail=f"Unexpected content type: {url}: {content_type}", status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE)
             else:
-                main_logger.error(f"[fetch_api] API 요청 실패: {url} (HTTP {response.status})")
+                error_logger.law_error(f"[fetch_api] API 요청 실패: {url} (HTTP {response.status})")
                 raise ClientError(detail=f"Request {url} failed with status {response.status}", status_code=status.HTTP_400_BAD_REQUEST)
                     
 # API 호출 
