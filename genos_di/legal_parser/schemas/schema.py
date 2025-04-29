@@ -233,9 +233,7 @@ class ParserResponse(BaseModel):
         self.fail_ids.add(id)
 
 
-class LawIdsInput(BaseModel):
+class ParserRequest(BaseModel):
     law_ids: list[str] = []
     admrule_ids: list[str] = []
 
-class ParserRequest(BaseModel):
-    law_ids_input: LawIdsInput = LawIdsInput()

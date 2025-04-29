@@ -73,8 +73,8 @@ async def get_parse_result(request: ParserRequest) -> ParserResponse:
     
         # result.append(parse_result)
 
-    law_ids = request.law_ids_input.law_ids
-    admrule_ids = request.law_ids_input.admrule_ids
+    law_ids = request.law_ids
+    admrule_ids = request.admrule_ids
 
     response = ParserResponse()
 
@@ -157,7 +157,7 @@ async def get_amend_result() -> ParserResponse:
         main_logger.info(f"[get_amend_result]: 개정된 법령 ID - {law_ids}. 개정된 법령의 파싱을 시작합니다.")
         
         updated_law_ids = ParserRequest()
-        updated_law_ids.law_ids_input.law_ids = law_ids
+        updated_law_ids.law_ids = law_ids
 
         return await get_parse_result(updated_law_ids)
     else:

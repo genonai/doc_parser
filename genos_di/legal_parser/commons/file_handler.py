@@ -59,13 +59,13 @@ def load_keys_from_csv() -> ParserRequest:
     # 법령MST, 행정규칙ID 열만 읽기
     try:
         law_id_series = pd.read_csv(law_csv_path, usecols=['법령MST'], dtype=str, header=1).squeeze('columns')
-        request.law_ids_input.law_ids = law_id_series.dropna().values.tolist()
+        request.law_ids = law_id_series.dropna().values.tolist()
     except ValueError as e:
         raise ValueError(f"'법령MST' 컬럼을 찾을 수 없습니다: {e}") from e
     
     try:
         admrule_id_series = pd.read_csv(admrule_csv_path, usecols=['행정규칙ID'], dtype=str, header=1).squeeze('columns')
-        request.law_ids_input.admrule_ids = admrule_id_series.dropna().values.tolist()
+        request.admrule_ids = admrule_id_series.dropna().values.tolist()
 
     except ValueError as e:
         raise ValueError(f"'행정규칙ID' 컬럼을 찾을 수 없습니다: {e}") from e

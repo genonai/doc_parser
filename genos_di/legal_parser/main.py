@@ -22,8 +22,8 @@ async def test_parser(
     law_ids_dict = load_keys_from_csv()
 
     request = ParserRequest()
-    request.law_ids_input.law_ids = law_ids_dict.law_ids_input.law_ids[i_start:i_end]
-    request.law_ids_input.admrule_ids = law_ids_dict.law_ids_input.admrule_ids[i_start:i_end]
+    request.law_ids = law_ids_dict.law_ids[i_start:i_end]
+    request.admrule_ids = law_ids_dict.admrule_ids[i_start:i_end]
 
     return await get_parse_result(request)
 
