@@ -1,4 +1,4 @@
-from typing import List, Optional, Union
+from typing import Optional
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -21,7 +21,7 @@ class DocumentFile(BaseModel):
     def validate_params(cls, value):
         return normalize_to_nfc(value)
 
-class VectorRegisterRequest(BaseModel):
+class VDBRegisterRequest(BaseModel):
     """
     벡터 문서를 등록하는 요청을 나타내는 스키마입니다.
     
@@ -44,7 +44,7 @@ class VectorRegisterRequest(BaseModel):
     preprocessor_id: int
     batch_size: int
     params: str         # ex) "{\"chunk_size\":1000,\"chunk_overlap\":100}",
-    files: List[DocumentFile]
+    files: list[DocumentFile]  # 하나씩 올리기를 권장
 
 class FileData(BaseModel):
     filename: str
@@ -52,8 +52,8 @@ class FileData(BaseModel):
     temporary_name: str
 
 class RegisterData(BaseModel):
-    doc_ids: List[int]
-    upsert_ids: List[int]
+    doc_ids: list[int]
+    upsert_ids: list[int]
 
 class LoginData(BaseModel):
     access_token: str
@@ -63,8 +63,36 @@ class LoginData(BaseModel):
     is_consent_required: bool
     user: dict
     
-class VectorAPIResponse(BaseModel):
+class VDBLoginResponse(BaseModel):
     code: int
     errMsg: str
-    data: Union[FileData, RegisterData, LoginData, None]
+    data: LoginData
+
+class VDBUploadResponse(BaseModel):
+    code: int
+    errMsg: str
+    data: FileData
+
+class VDBRegisterResponse(BaseModel):
+    code: int
+    errMsg: str
+    data: RegisterData
+
+class DocVectorMapping(BaseModel):
+    law_id: str
+    law_num: str
+    law_type: str  # 법령 / 행정규칙
+    file_name: str
+    doc_id: int
+    vdb_id: int
+    upsert_id: int
+
+class LawInfo(BaseModel):
+    law_type: str  # "law" or "admrule"
+    law_id: str
+    law_num: str
+    filename: str  # 파일명을 포함하여 추후 참조
+
+
+    
 

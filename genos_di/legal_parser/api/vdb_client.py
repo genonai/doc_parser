@@ -7,12 +7,16 @@ from fastapi import UploadFile
 from api.vdb_token import VDBTokenManager
 from commons.loggers import ErrorLogger, MainLogger
 from schemas.params import VectorAPIEndpoints
-from schemas.vdb_schema import VectorAPIResponse, VectorRegisterRequest
+from schemas.vdb_schema import (
+    VDBRegisterResponse,
+    VDBUploadResponse,
+    VDBRegisterRequest,
+)
 
 main_logger = MainLogger()
 error_logger = ErrorLogger()
 
-def get_headers(token: str) -> dict[str, str]:
+def get_headers(token:str) -> dict[str, str]:
     """
     토큰을 받아서 API 호출에 필요한 headers를 만들어주는 함수.
     """
@@ -32,7 +36,7 @@ async def request_post(url: str, payload: Any = None, headers:dict[str, str]=Non
             elif payload:
                 request_kwargs["data"] = payload
 
-            main_logger.debug(f"[request_post] POST {url} payload={payload} headers={headers}")
+            main_logger.info(f"[request_post] POST {url} payload={payload}")
 
             async with session.post(url, **request_kwargs) as response:
                 response.raise_for_status()
@@ -42,7 +46,7 @@ async def request_post(url: str, payload: Any = None, headers:dict[str, str]=Non
                 return response_json
 
     except aiohttp.ClientResponseError as e:
-        error_logger.vdb_error(f"[request_post] HTTP Error for {url}", e)
+        error_logger.vdb_error(f"[request_post] HTTP Error {e.status} {e.message} for {url}", e)
     except aiohttp.ClientError as e:
         error_logger.vdb_error(f"[request_post] Client Error for {url}", e)
     except Exception as e:
@@ -50,9 +54,11 @@ async def request_post(url: str, payload: Any = None, headers:dict[str, str]=Non
     main_logger.error("[request_post] VDB POST API ")
     return None  
 
-async def upload_file(request: list[UploadFile]) -> Union[VectorAPIResponse, None]:
+async def upload_file(request: list[UploadFile]) -> Union[VDBUploadResponse, None]:
     url = VectorAPIEndpoints().get_upload_route()
-    token = VDBTokenManager().get_token()
+
+    manager = await VDBTokenManager.get_instance()
+    token = manager.get_token()
     headers = get_headers(token)
 
     try:
@@ -75,16 +81,19 @@ async def upload_file(request: list[UploadFile]) -> Union[VectorAPIResponse, Non
         )
 
         if response_json:
-            return VectorAPIResponse(**response_json)
+            return VDBUploadResponse(**response_json)
     
     except Exception as e:
         error_logger.vdb_error("[upload_file] 파일 업로드 실패", e)
     return None
 
-async def register_vector(token:str, request: VectorRegisterRequest) -> Union[VectorAPIResponse, None]:
+async def register_vector(request: VDBRegisterRequest) -> Union[VDBRegisterResponse, None]:
     url = VectorAPIEndpoints().get_register_route()
-    headers = get_headers(token)
     payload = request.model_dump()
+
+    manager = await VDBTokenManager.get_instance()
+    token = manager.get_token()
+    headers = get_headers(token)
 
     try:
         response_json = await request(
@@ -95,7 +104,7 @@ async def register_vector(token:str, request: VectorRegisterRequest) -> Union[Ve
         )
 
         if response_json:
-            return VectorAPIResponse(**response_json)
+            return VDBRegisterResponse(**response_json)
 
     except Exception as e:
         error_logger.vdb_error("[register_vector] 벡터 등록 실패", e)
