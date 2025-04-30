@@ -51,13 +51,12 @@ async def request_post(url: str, payload: Any = None, headers:dict[str, str]=Non
         error_logger.vdb_error(f"[request_post] Client Error for {url}", e)
     except Exception as e:
         error_logger.vdb_error(f"[request_post] 알 수 없는 에러 for {url}", e)
-    main_logger.error("[request_post] VDB POST API ")
     return None  
 
 async def upload_file(request: list[UploadFile]) -> Union[VDBUploadResponse, None]:
     url = VectorAPIEndpoints().get_upload_route()
 
-    manager = await VDBTokenManager.get_instance()
+    manager = await VDBTokenManager.instance()
     token = manager.get_token()
     headers = get_headers(token)
 
@@ -81,17 +80,19 @@ async def upload_file(request: list[UploadFile]) -> Union[VDBUploadResponse, Non
         )
 
         if response_json:
-            return VDBUploadResponse(**response_json)
+            response = VDBUploadResponse(**response_json)
+            main_logger.debug(f"[upload_file] VDB 파일 업로드 성공: {response.data.filename}")
+            return response
     
     except Exception as e:
-        error_logger.vdb_error("[upload_file] 파일 업로드 실패", e)
+        error_logger.vdb_error(f"[upload_file] 파일 업로드 실패 {request[0].filename}", e)
     return None
 
 async def register_vector(request: VDBRegisterRequest) -> Union[VDBRegisterResponse, None]:
     url = VectorAPIEndpoints().get_register_route()
     payload = request.model_dump()
 
-    manager = await VDBTokenManager.get_instance()
+    manager = await VDBTokenManager.instance()
     token = manager.get_token()
     headers = get_headers(token)
 
@@ -104,9 +105,11 @@ async def register_vector(request: VDBRegisterRequest) -> Union[VDBRegisterRespo
         )
 
         if response_json:
-            return VDBRegisterResponse(**response_json)
+            response = VDBRegisterResponse(**response_json)
+            main_logger.debug(f"[upload_file] VDB 파일 업로드 성공: {response.data.doc_ids[0]}, {response.data.upsert_ids[0]}")
+            return response
 
     except Exception as e:
-        error_logger.vdb_error("[register_vector] 벡터 등록 실패", e)
+        error_logger.vdb_error(f"[register_vector] 벡터 등록 실패, {request.files}", e)
 
     return None

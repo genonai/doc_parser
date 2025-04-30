@@ -14,10 +14,13 @@ main_logger = MainLogger()
 error_logger = ErrorLogger()
 
 class VDBTokenManager:
-    _instance = Optional["VDBTokenManager"] = None
+    _instance : Optional["VDBTokenManager"] = None
     _lock : Lock = Lock() 
 
     def __init__(self, login_url:str):
+        if VDBTokenManager._instance is not None:
+            raise RuntimeWarning("Use VDBTokenManager.instance() instead of direct instantiation.")
+
         self.login_url = login_url,
         self.token : Optional[str] = None,
         self.refresh_token : Optional[str] = None,
@@ -25,7 +28,7 @@ class VDBTokenManager:
         self.password =  os.getenv('GENOS_ADMIN_PASSWORD')
 
     @classmethod
-    async def get_instance(cls) -> "VDBTokenManager":
+    async def instance(cls) -> "VDBTokenManager":
         if cls._instance is None:
             async with cls._lock:
                 if cls._instance is None:
