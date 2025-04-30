@@ -2,14 +2,16 @@ import json
 import os
 from pathlib import Path
 
+import aiofiles
 import pandas as pd
+from fastapi import UploadFile
 from pydantic import BaseModel
 
 from commons.loggers import MainLogger
 from schemas.schema import ParserRequest
+from schemas.vdb_schema import LawInfo
 
 main_logger = MainLogger()
-
 
 def export_json(data, id, num, is_admrule=True):
     rule_type = 'admrule' if is_admrule else 'law'
@@ -17,14 +19,14 @@ def export_json(data, id, num, is_admrule=True):
     os.makedirs(result_dir, exist_ok=True)
 
     output_file = f"{result_dir}/{rule_type}_{id}_{num}.json"
-    main_logger.info(f"JSON 데이터 저장: ID={id}, 파일 경로={output_file}")
+    main_logger.debug(f"JSON 데이터 저장: ID={id}, 파일 경로={output_file}")
     with open(f'{output_file}', "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=4)
 
 def export_json_input(data, id):
     input_dir = "resources/inputs"
     output_file = f"{input_dir}/response_{id}.json"
-    main_logger.info(f"OPENAPI 데이터 다운로드: ID={id}, 파일 경로={output_file}")
+    main_logger.debug(f"OPENAPI 데이터 다운로드: ID={id}, 파일 경로={output_file}")
     with open(f'{output_file}', "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=4)
 
@@ -71,3 +73,55 @@ def load_keys_from_csv() -> ParserRequest:
         raise ValueError(f"'행정규칙ID' 컬럼을 찾을 수 없습니다: {e}") from e
     
     return request
+
+async def extract_law_infos(dir_path: str) -> list[LawInfo]:
+    """
+    지정된 디렉토리의 파일명으로부터 법령 메타 정보를 추출합니다.
+
+    파일명 규칙: law_<id>_<num>.json or admrule_<id>_<num>.json
+
+    Returns:
+        List[LawInfo]: 파일별 법령 정보 리스트
+    """
+    law_infos: list[LawInfo] = []
+
+    for filename in sorted(os.listdir(dir_path)):
+        if not filename.endswith('.json'):
+            continue
+        try:
+            name, _ = os.path.splitext(filename)
+            law_type, law_id, law_num = name.split("_")
+        except ValueError as e:
+            main_logger.error(f"[extract_law_infos] 잘못된 형식의 파일명입니다. {filename}", e)
+            continue
+
+        law_infos.append(
+            LawInfo(
+                law_type=law_type,
+                law_id=law_id,
+                law_num=law_num,
+                filename=filename
+            )
+        )
+    return law_infos
+
+async def extract_local_files(dir_path: str) -> list[UploadFile]:
+    upload_files: list[UploadFile] = []
+
+    for filename in sorted(os.listdir(dir_path)):
+        if not filename.endswith(".json"):
+            continue
+
+        full_path = os.path.join(dir_path, filename)
+
+        async with aiofiles.open(full_path, "rb") as f:
+            content = await f.read()
+
+        upload_file = UploadFile(
+            filename=filename,
+            file=bytearray(content),
+            content_type="application/json"
+        )
+        upload_files.append(upload_file)
+
+    return upload_files

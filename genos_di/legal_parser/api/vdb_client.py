@@ -36,13 +36,13 @@ async def request_post(url: str, payload: Any = None, headers:dict[str, str]=Non
             elif payload:
                 request_kwargs["data"] = payload
 
-            main_logger.info(f"[request_post] POST {url} payload={payload}")
+            main_logger.debug(f"[request_post] POST {url} payload={payload}")
 
             async with session.post(url, **request_kwargs) as response:
                 response.raise_for_status()
                 response_json = await response.json()
 
-                main_logger.info(f"[request_post] POST 성공 {url} status={response.status}")
+                main_logger.debug(f"[request_post] POST 성공 {url} status={response.status}")
                 return response_json
 
     except aiohttp.ClientResponseError as e:

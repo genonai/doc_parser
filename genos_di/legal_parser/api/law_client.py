@@ -75,9 +75,9 @@ async def get_api_response(
     ],
 ):
     api_url = APIEndpoints().get_item_url(query.get_query_params())
-    main_logger.info(f"[get_api_response] API 요청 시작: {api_url}")
+    main_logger.debug(f"[get_api_response] API 요청 시작: {api_url}")
     response = await fetch_api(api_url)
-    main_logger.info(f"[get_api_response] API 요청 성공: {api_url}")
+    main_logger.debug(f"[get_api_response] API 요청 성공: {api_url}")
     return response
 
 # API 호출 
@@ -102,12 +102,12 @@ async def get_all_api_responses(query, api_func: Union[Callable, Awaitable[dict]
     # 필요한 총 페이지 수 계산
     total_pages = (total_count + query.display - 1) // query.display
     
-    main_logger.info(f"총 {total_count}개 항목, {total_pages}페이지 조회 필요")
+    main_logger.debug(f"총 {total_count}개 항목, {total_pages}페이지 조회 필요")
     
     # 2페이지부터 마지막 페이지까지 요청
     for page in range(2, total_pages + 1):
         query.page = page
-        main_logger.info(f"{page}/{total_pages} 페이지 요청 중...")
+        main_logger.debug(f"{page}/{total_pages} 페이지 요청 중...")
 
         if is_async:
             response = await api_func(query)
@@ -155,7 +155,7 @@ def merge_amend_responses(responses) -> dict[dict[list[dict]]]:
 async def get_api_amend(
     query:UpdatedLawRequestParams
 ):
-    main_logger.info(f"[get_api_amend] API 요청 시작: {query.regDt}")
+    main_logger.debug(f"[get_api_amend] API 요청 시작: {query.regDt}")
     response = await get_all_api_responses(query, fetch_api_amend, merge_amend_responses)
-    main_logger.info(f"[get_api_amend] API 요청 성공: {query.regDt}")
+    main_logger.debug(f"[get_api_amend] API 요청 성공: {query.regDt}")
     return response

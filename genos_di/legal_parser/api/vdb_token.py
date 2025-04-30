@@ -57,7 +57,7 @@ class VDBTokenManager:
         else:
             self.token = response.data.access_token
             self.refresh_token = response.data.refresh_token
-            main_logger.info("[VDBTokenManager] Genos Cluster Token 발급 성공 {self.token}")
+            main_logger.debug(f"[VDBTokenManager] Genos Cluster Token 발급 성공 {self.token}")
 
     async def get_token(self) -> str:
         if self.token is None:
