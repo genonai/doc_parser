@@ -10,8 +10,8 @@ from schemas.vdb_schema import VDBLoginResponse
 
 load_dotenv()
 
-main_logger = MainLogger()
-error_logger = ErrorLogger()
+main_logger = MainLogger.instance()
+error_logger = ErrorLogger.instance()
 
 class VDBTokenManager:
     _instance : Optional["VDBTokenManager"] = None

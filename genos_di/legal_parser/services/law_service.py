@@ -20,8 +20,9 @@ from schemas.schema import (
     RuleInfo,
 )
 
-error_logger = ErrorLogger()
-main_logger = MainLogger()
+error_logger = ErrorLogger.instance()
+main_logger = MainLogger.instance()
+
 async def get_parsed_law_system(id: str) -> tuple[list[HierarchyLaws], list[ConnectedLaws], dict[str, list[str]]]:
     """법령 체계도 내의 법령 정보 및 ID 리스트 조회 (상하위법, 관련법령)"""
     main_logger.info("[get_law_system] 상하위법 및 관련법령 데이터 처리")

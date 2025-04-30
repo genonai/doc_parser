@@ -3,7 +3,7 @@ from collections import defaultdict
 from commons.loggers import MainLogger
 from schemas.schema import ParserContent
 
-main_logger = MainLogger()
+main_logger = MainLogger.instance()
 
 def processor_mapping(article_list:list[ParserContent], addendum_list:list[ParserContent], appendix_list:list[ParserContent]) \
     -> tuple[list[ParserContent],list[ParserContent],list[ParserContent]]:

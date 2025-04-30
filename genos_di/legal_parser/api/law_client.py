@@ -16,8 +16,8 @@ from schemas.params import (
     UpdatedLawRequestParams,
 )
 
-main_logger = MainLogger()
-error_logger = ErrorLogger()
+main_logger = MainLogger.instance()
+error_logger = ErrorLogger.instance()
 
 T = TypeVar('T')
 

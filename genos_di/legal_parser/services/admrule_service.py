@@ -19,8 +19,8 @@ from schemas.schema import (
     RuleInfo,
 )
 
-error_logger = ErrorLogger()
-main_logger = MainLogger()
+error_logger = ErrorLogger.instance()
+main_logger = MainLogger.instance()
 
 async def get_parsed_admrule(id, hierarchy_laws:list[HierarchyLaws], connected_laws:list[ConnectedLaws]) -> ParserResult:
     """행정규칙의 모든 정보 처리"""

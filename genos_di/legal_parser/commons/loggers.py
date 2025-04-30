@@ -3,6 +3,7 @@ import os
 import sys
 import traceback
 from datetime import datetime
+from typing import Optional
 
 import pytz
 
@@ -21,7 +22,13 @@ class NewlineTracebackFormatter(logging.Formatter):
         return result
 
 class ErrorLogger:
+    _instance : Optional["ErrorLogger"] = None
+
     def __init__(self):
+
+        if ErrorLogger._instance is not None:
+            raise RuntimeWarning("Use ErrorLogger.instance() instead of direct instantiation.")
+
         # 로그 디렉토리가 없으면 생성
         log_dir = 'resources/errors'
         os.makedirs(log_dir, exist_ok=True)
@@ -54,6 +61,12 @@ class ErrorLogger:
         
         # 상위 로거로 전파 방지
         self.logger.propagate = False
+
+    @classmethod
+    def instance(cls) -> "ErrorLogger":
+        if cls._instance is None:
+            cls._instance = cls()
+        return cls._instance
     
     def vdb_error(self, text:str, e:Exception):
         error_summary = self.get_error_summary(e)
@@ -85,7 +98,13 @@ class ErrorLogger:
             return f"[{timestamp}] {type(e).__name__} - {str(e)}"
 
 class MainLogger:
+    _instance: Optional["MainLogger"] = None
+
     def __init__(self, level=logging.INFO):
+
+        if MainLogger._instance is not None:
+            raise RuntimeWarning("Use MainLogger.instance() instead of direct instantiation.")
+        
         # 로거 설정
         self.logger = logging.getLogger('main_logger')
         self.logger.setLevel(level)
@@ -104,6 +123,12 @@ class MainLogger:
         
         # 상위 로거로 전파 방지
         self.logger.propagate = False
+
+    @classmethod
+    def instance(cls) -> "MainLogger":
+        if cls._instance is None:
+            cls._instance = cls()
+        return cls._instance
     
     def debug(self, message):
         self.logger.debug(message)

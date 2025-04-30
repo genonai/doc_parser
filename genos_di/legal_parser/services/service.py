@@ -8,8 +8,8 @@ from schemas.schema import ConnectedLaws, HierarchyLaws, ParserRequest, ParserRe
 from services.admrule_service import get_parsed_admrule
 from services.law_service import get_parsed_law, get_parsed_law_system
 
-error_logger = ErrorLogger()
-main_logger = MainLogger()
+error_logger = ErrorLogger.instance()
+main_logger = MainLogger.instance()
 
 async def process_with_error_handling(
         id: str,

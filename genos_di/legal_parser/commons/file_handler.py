@@ -7,11 +7,12 @@ import pandas as pd
 from fastapi import UploadFile
 from pydantic import BaseModel
 
-from commons.loggers import MainLogger
+from commons.loggers import ErrorLogger, MainLogger
 from schemas.schema import ParserRequest
 from schemas.vdb_schema import LawInfo
 
-main_logger = MainLogger()
+main_logger = MainLogger.instance()
+error_logger = ErrorLogger.instance()
 
 def export_json(data, id, num, is_admrule=True):
     rule_type = 'admrule' if is_admrule else 'law'
@@ -92,7 +93,7 @@ async def extract_law_infos(dir_path: str) -> list[LawInfo]:
             name, _ = os.path.splitext(filename)
             law_type, law_id, law_num = name.split("_")
         except ValueError as e:
-            main_logger.error(f"[extract_law_infos] 잘못된 형식의 파일명입니다. {filename}", e)
+            error_logger.vdb_error(f"[extract_law_infos] 잘못된 형식의 파일명입니다. {filename}", e)
             continue
 
         law_infos.append(

@@ -8,13 +8,13 @@ from api.vdb_token import VDBTokenManager
 from commons.loggers import ErrorLogger, MainLogger
 from schemas.params import VectorAPIEndpoints
 from schemas.vdb_schema import (
+    VDBRegisterRequest,
     VDBRegisterResponse,
     VDBUploadResponse,
-    VDBRegisterRequest,
 )
 
-main_logger = MainLogger()
-error_logger = ErrorLogger()
+main_logger = MainLogger.instance()
+error_logger = ErrorLogger.instance()
 
 def get_headers(token:str) -> dict[str, str]:
     """
