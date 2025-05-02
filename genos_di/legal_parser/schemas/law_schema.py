@@ -4,6 +4,7 @@ from typing import Union
 from pydantic import BaseModel, Field
 
 # 법령 또는 행정규칙의 기본 정보 (ID, 시행일, 제정일, 현행여부)를 담는 구조
+# 함수 파라미터의 타입으로 사용
 RuleInfo = namedtuple("RuleInfo", ["rule_id", "enforce_date", "enact_date", "is_effective"])
 
 # 상하위 관계에 있는 법령 정보 구조

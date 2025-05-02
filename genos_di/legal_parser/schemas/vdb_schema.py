@@ -9,6 +9,7 @@ from commons.utils import normalize_to_nfc
 class VDBUploadFile(BaseModel):
     """
     VDB에 업로드할 파일을 나타내는 스키마입니다.
+    /document/upload/token API 호출 시 Request Body에 사용됩니다.
 
     속성:
         file_name (str): 파일 이름.
