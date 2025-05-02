@@ -1,14 +1,14 @@
-import os
 from datetime import datetime, timedelta
 from typing import Literal, Optional
 from urllib.parse import urlencode
 
 import pytz
-from dotenv import load_dotenv
 from pydantic import AnyHttpUrl, BaseModel, Field, field_validator, model_validator
 
-load_dotenv()
+from commons.settings import settings
 
+
+### ======================= 국가법령정보 공동활용 API Endpoint & Query Params ======
 class APIEndpoints(BaseModel):
     base_url: AnyHttpUrl = "https://www.law.go.kr/DRF/"
     item_endpoint: str = "lawService.do"
@@ -20,38 +20,11 @@ class APIEndpoints(BaseModel):
     def get_list_url(self, query: str) -> str:
         return f"{self.base_url}{self.list_endpoint}?{query}"
 
-class VectorAPIEndpoints(BaseModel):
-    upload_endpoint: str = "/data/vectordb/document/upload/token"
-    register_endpoint: str = "/data/vectordb/document/register/token"
-    login_endpoint: str = '/auth/login'
-    base_url: AnyHttpUrl = Field(default_factory=lambda: VectorAPIEndpoints.create_base_url())
-
-    @staticmethod
-    def create_base_url() -> str:
-        host = os.getenv("ADMIN_API_HOST")
-        port = os.getenv("ADMIN_API_PORT")
-        root_path = os.getenv("ADMIN_API_ROOT_PATH")
-
-        if not host or not port or not root_path:
-            raise ValueError("환경 변수 ADMIN_API_HOST, ADMIN_API_PORT, ADMIN_ROOT_PATH가 모두 필요합니다.")
-
-        return f"http://{host}:{port}{root_path}"
-
-    def get_upload_route(self) -> str:
-        return f"{self.base_url}{self.upload_endpoint}"
-    
-    def get_register_route(self) -> str:
-        vdb_id = os.getenv('GENOS_TEST_VDB_ID')
-        return f"{self.base_url}{self.register_endpoint}/{vdb_id}"
-    
-    def get_login_route(self) -> str:
-        return f"{self.base_url}{self.login_endpoint}"
-
 
 class BaseRequestParams(BaseModel):
     """공통 Request Params Schema
     """
-    OC: str = Field(default_factory=lambda: os.getenv("OC"))
+    OC: str = Field(settings.oc)
     type: Literal["HTML", "XML", "JSON"] = Field(
         "JSON", description="출력 형태: HTML/XML/JSON (필수)"
     )
@@ -239,3 +212,27 @@ class UpdatedLawRequestParams(BaseRequestParams):
             return kst_yesterday.strftime("%Y%m%d")
         
         return value
+
+### ==================== Genos VDB API Endpoint & Params =============
+class VectorAPIEndpoints(BaseModel):
+    upload_endpoint: str = "/document/upload/token"
+    register_endpoint: str = "/document/register/token"
+    base_url: AnyHttpUrl = Field(default_factory=lambda: VectorAPIEndpoints.create_base_url())
+
+    @staticmethod
+    def create_base_url() -> str:
+        host = settings.admin_api_host
+        port = settings.admin_api_port
+        root_path = settings.admin_api_root_path
+
+        if not host or not port or not root_path:
+            raise ValueError("환경 변수 ADMIN_API_HOST, ADMIN_API_PORT, ADMIN_ROOT_PATH가 모두 필요합니다.")
+
+        return f"http://{host}:{port}{root_path}/data/vectordb"
+
+    def get_upload_route(self) -> str:
+        return f"{self.base_url}{self.upload_endpoint}"
+    
+    def get_register_route(self) -> str:
+        user_id = settings.genos_admin_user_id
+        return f"{self.base_url}{self.register_endpoint}/{user_id}"

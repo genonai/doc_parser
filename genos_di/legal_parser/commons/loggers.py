@@ -7,6 +7,7 @@ from typing import Optional
 
 import pytz
 
+from commons.constants import DIR_PATH_ERROR_LOG
 
 class NewlineTracebackFormatter(logging.Formatter):
     def formatException(self, exc_info):
@@ -30,12 +31,11 @@ class ErrorLogger:
             raise RuntimeWarning("Use ErrorLogger.instance() instead of direct instantiation.")
 
         # 로그 디렉토리가 없으면 생성
-        log_dir = 'resources/errors'
-        os.makedirs(log_dir, exist_ok=True)
+        os.makedirs(DIR_PATH_ERROR_LOG, exist_ok=True)
 
         seoul_tz = pytz.timezone('Asia/Seoul')
         created_at = datetime.now(seoul_tz).strftime('%Y%m%d')
-        log_file = f"{log_dir}/error_log_{created_at}.txt"
+        log_file = f"{DIR_PATH_ERROR_LOG}/error_log_{created_at}.txt"
 
         # 로거 설정
         self.logger = logging.getLogger('error_logger')

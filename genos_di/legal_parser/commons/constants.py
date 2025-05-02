@@ -44,3 +44,11 @@ LAWFIELD = {
     43: "정보통신",
     44: "외무",
 }
+
+DIR_PATH_LAW_RESULT="resources/results/law"
+DIR_PATH_LAW_INPUT="resources/inputs"
+DIR_PATH_VDB_RESULT="resources/result/vdb"
+DIR_PATH_ERROR_LOG="resources/errors"
+
+FILE_PATH_LAW_CSV="resources/inputs/법령검색목록.csv"
+FILE_PATH_ADMRULE_CSV="resources/inputs/행정규칙검색목록.csv"
