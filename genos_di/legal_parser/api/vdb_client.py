@@ -73,7 +73,6 @@ async def upload_file(request: list[VDBUploadFile]) -> Union[VDBUploadResponse, 
             data=form,
             is_json=False
         )
-        main_logger.critical(f"upload !!! {response_json}")
 
         if response_json:
             response = VDBUploadResponse(**response_json)
@@ -86,14 +85,13 @@ async def upload_file(request: list[VDBUploadFile]) -> Union[VDBUploadResponse, 
 
 async def register_vector(request: VDBRegisterRequest) -> Union[VDBRegisterResponse, None]:
     url = VectorAPIEndpoints().get_register_route()
-    print(request.model_dump())
+
     try:
         response_json = await request_post(
             url=url,
             data=request,
             is_json=True
         )
-        main_logger.critical(f"register !!! {response_json}")
         if response_json:
             response = VDBRegisterResponse(**response_json)
             main_logger.debug(f"[upload_file] VDB 파일 업로드 성공: {response.data.doc_ids[0]}, {response.data.upsert_ids[0]}")

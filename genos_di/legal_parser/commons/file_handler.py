@@ -37,10 +37,11 @@ def export_mapping_json(data):
     seoul_tz = pytz.timezone('Asia/Seoul')
     created_at = datetime.now(seoul_tz).strftime('%Y%m%d')    
     output_file = f"{DIR_PATH_VDB_RESULT}/vdb_info_{created_at}.json"
-    main_logger.debug(f"JSON 데이터 저장 성공, 파일 경로={output_file}")
-
     with open(f'{output_file}', "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=4)
+
+    main_logger.debug(f"JSON 데이터 저장 성공, 파일 경로={output_file}")
+   
 
 def export_json_input(data, id):
     output_file = f"{DIR_PATH_LAW_INPUT}/response_{id}.json"
