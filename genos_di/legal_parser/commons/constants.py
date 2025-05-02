@@ -1,3 +1,4 @@
+# 법령 분야명 및 분야코드
 LAWFIELD = {
     1: "헌법",
     2: "국회",
@@ -45,9 +46,10 @@ LAWFIELD = {
     44: "외무",
 }
 
+# 데이터 파일이 저장되는 디렉토리 및 파일명
 DIR_PATH_LAW_RESULT="resources/results/law"
-DIR_PATH_LAW_INPUT="resources/inputs"
 DIR_PATH_VDB_RESULT="resources/results/vdb"
+DIR_PATH_LAW_INPUT="resources/inputs"
 DIR_PATH_ERROR_LOG="resources/errors"
 
 FILE_PATH_LAW_CSV="resources/inputs/법령검색목록.csv"

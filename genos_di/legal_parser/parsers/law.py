@@ -6,10 +6,8 @@ from parsers.extractor import (
     extract_addenda_id,
     extract_appendix_id,
 )
-from schemas.schema import (
-    LawMetadata,
-    ParserContent,
-)
+from schemas.law_schema import LawMetadata
+from schemas.schema import ParserContent
 
 type_converter = TypeConverter()
 

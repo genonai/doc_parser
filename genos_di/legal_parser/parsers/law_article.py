@@ -6,12 +6,12 @@ from parsers.extractor import (
     extract_related_appendices,
     get_latest_date,
 )
-from schemas.schema import (
+from schemas.law_schema import (
     ArticleChapter,
     LawArticleMetadata,
-    ParserContent,
     RuleInfo,
 )
+from schemas.schema import ParserContent
 
 type_converter = TypeConverter()
 regex_processor = RegexProcessor()
@@ -223,6 +223,7 @@ def process_preamble(item: dict, article_chapter: ArticleChapter) -> tuple[str, 
     return article_num, article_sub_num, updated_chapter
 
 # =========================== 법령 조문 파싱 ====================================== 
+
 def process_article_unit(
     item: dict, 
     law_id: str, 
@@ -231,7 +232,20 @@ def process_article_unit(
     article_chapter: ArticleChapter, 
     current_chapter: ArticleChapter = None
 ) -> ParserContent:
-    """하나의 조문을 처리하여 ParserContent 객체를 생성하는 함수"""
+    """
+    하나의 조문을 처리하여 ParserContent 객체를 생성하는 함수
+
+    Args:
+        item (dict): 조문 단위 정보
+        law_id (str): 법령 ID
+        enact_date (str): 법령 제정일자
+        is_effective (int): 현행 여부
+        article_chapter (ArticleChapter): 조문 챕터 정보
+        current_chapter (ArticleChapter, optional): 현재 챕터 정보
+
+    Returns:
+        ParserContent: 파싱된 조문 메타데이터와 내용을 담은 객체
+    """
     # 기본 정보 추출
     article_num = item.get("조문번호")
     article_sub_num = item.get("조문가지번호") or 1
@@ -239,21 +253,22 @@ def process_article_unit(
     enforce_date = item.get("조문시행일자")
     is_preamble = True if item.get("조문여부") == "전문" else False
     
-    # 전문인 경우 처리
+    # 전문(조문의 머리말)인 경우 별도 처리
     if is_preamble:
         article_num, article_sub_num, updated_chapter = process_preamble(item, article_chapter)
         current_chapter = updated_chapter
     
-    # 조문 ID 생성
+    # 조문 ID 생성 (법령ID + 조문번호 + 가지번호)
     article_id = f"{law_id}{int(article_num):04d}{int(article_sub_num):03d}"
     
-    # 개정일 및 조문 내용 추출
+    # 가장 최근의 공포일(개정일) 추출
     announce_date = extract_latest_announce(item, enact_date)
+    # 조문 내용 추출 및 문자열화
     article_content = stringify_article_content(item)
 
     # 삭제된 조문 처리
     if "삭제" in article_title or any("삭제" in content for content in article_content if isinstance(content, str)):
-        # 삭제된 조문의 날짜 추출 시도
+        # 삭제된 조문에서 날짜 추출 시도
         deleted_date = extract_deleted_article_date(article_content, announce_date)
         if deleted_date:
             announce_date = deleted_date
@@ -263,10 +278,10 @@ def process_article_unit(
         if not article_title:
             article_title = "삭제"
     
-    # 인용된 별표 ID 추출
+    # 조문 내 인용된 별표(appendix) ID 추출
     related_appendices = extract_related_appendices(law_id, article_content)
     
-    # 메타데이터 생성
+    # 조문 메타데이터 객체 생성
     article_meta = LawArticleMetadata(
         article_id=article_id,
         article_num=article_num,
@@ -282,17 +297,28 @@ def process_article_unit(
         related_addenda=[],
     )
     
+    # 최종 ParserContent 객체 반환
     return ParserContent(metadata=article_meta, content=article_content)
 
 
 def parse_law_article_info(law_info: RuleInfo, article_data: dict) -> list[ParserContent]:
-    """법령 조문 정보를 파싱하여 ParserContent 객체 리스트로 반환하는 함수"""
+    """
+    법령 조문 정보를 파싱하여 ParserContent 객체 리스트로 반환하는 함수
+
+    Args:
+        law_info (RuleInfo): 법령 기본 정보
+        article_data (dict): 조문 데이터
+
+    Returns:
+        list[ParserContent]: 파싱된 조문 객체 리스트
+    """
+    # 조문 데이터가 없거나 "조문단위" 키가 없으면 빈 리스트 반환
     if not article_data:
         return []
-    
     if not article_data.get("조문단위"):
         return []  
-      
+    
+    # 조문단위 데이터를 리스트[dict]로 변환
     article_units = type_converter.converter(article_data.get("조문단위"), list[dict])
     if not article_units:
         return []
@@ -302,9 +328,11 @@ def parse_law_article_info(law_info: RuleInfo, article_data: dict) -> list[Parse
     enact_date = law_info.enact_date
     is_effective = law_info.is_effective
     
+    # 챕터 정보 객체 생성
     article_chapter = ArticleChapter()
     current_chapter = None
     
+    # 각 조문 단위별로 파싱 수행
     for item in article_units:
         article_result = process_article_unit(
             item, 
@@ -317,7 +345,7 @@ def parse_law_article_info(law_info: RuleInfo, article_data: dict) -> list[Parse
         
         if article_result:
             article_list.append(article_result)
-            # 전문인 경우 current_chapter 업데이트
+            # 전문(머리말)인 경우, current_chapter를 업데이트하여 이후 조문에 반영
             if article_result.metadata.is_preamble:
                 current_chapter = article_result.metadata.article_chapter
     
