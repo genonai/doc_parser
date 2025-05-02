@@ -3,10 +3,10 @@ from fastapi import Depends, FastAPI, Query
 from commons.file_handler import load_keys_from_csv
 from schemas.params import AdmRuleRequestParams, LawItemRequestParams
 from schemas.schema import ParserRequest, ParserResponse, PipelineResponse
-from schemas.vdb_schema import LawVectorResult, VDBResponse
+from schemas.vdb_schema import VDBResponse
 from services.download_service import download_data
+from services.law_service import get_parse_result
 from services.service import (
-    get_parse_result,
     process_all_pipeline,
     process_updated_pipeline,
 )
@@ -19,8 +19,6 @@ async def read_root():
     return "Hello, Parser for Legal Data"
 
 # TODO 하루에 한 번 돌아가게 만들기
-
-# TODO 현재 Komipo vdb에서 json 확장자 지원안하는지 확인하기
 
 @app.get("/test/parser")
 async def test_parser(
@@ -37,7 +35,7 @@ async def test_parser(
 
 @app.get("/test/vdb")
 async def test_vdb(
-) -> tuple[VDBResponse, LawVectorResult]:
+) -> VDBResponse:
     return await process_law_vectorization()
 
 @app.get("/parse/all")
