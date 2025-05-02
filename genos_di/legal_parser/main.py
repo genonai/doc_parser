@@ -46,11 +46,14 @@ async def test_vdb(
 ) -> VDBResponse:
     """
     법령 데이터를 벡터화하는 테스트 엔드포인트.
+    
+    파일명 순으로 1~5번째 파일로 테스트
+    vdb_info_{timestamp}.json이 생성되지 않음. 
 
     Returns:
         VDBResponse: 벡터화 처리 결과.
     """
-    return await process_law_vectorization()
+    return await process_law_vectorization(is_test=True)
 
 @app.get("/parse/all")
 async def run_parser() -> PipelineResponse:

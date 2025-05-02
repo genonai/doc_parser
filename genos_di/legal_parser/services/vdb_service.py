@@ -99,6 +99,7 @@ async def process_law_vectorization(
     chunk_size: int = 1000,
     chunk_overlap: int = 100,
     description: str = "법령 벡터 등록",
+    is_test : bool = False
 ) -> VDBResponse:
     """
     법령 데이터를 벡터화하여 VDB에 등록하는 함수.
@@ -120,9 +121,6 @@ async def process_law_vectorization(
     data_files: List[VDBUploadFile] = await extract_local_files(DIR_PATH_LAW_RESULT)
     vdb_id = settings.genos_test_vdb_id
 
-    # 총 파일 수 설정
-    vdb_response.total_count = len(data_files)
-
     # 파일 수와 법령 정보 수가 일치하지 않을 경우 예외 처리
     try:
         if len(law_info_list) != len(data_files):
@@ -133,6 +131,14 @@ async def process_law_vectorization(
             e
         )
         raise
+    
+    # test의 경우 데이터 파일 개수 제한
+    if is_test:
+        data_files = data_files[:5]
+        law_info_list = law_info_list[:5]
+    
+    # 총 파일 수 설정
+    vdb_response.total_count = len(data_files)
 
     # 각 파일에 대해 벡터화 처리
     for idx, file in enumerate(data_files):
