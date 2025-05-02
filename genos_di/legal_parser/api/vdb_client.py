@@ -1,11 +1,8 @@
 from typing import Any, Union
-
-import aiofiles
 import aiohttp
-from fastapi import UploadFile
 
-from api.vdb_token import VDBTokenManager
 from commons.loggers import ErrorLogger, MainLogger
+from commons.settings import settings
 from schemas.params import VectorAPIEndpoints
 from schemas.vdb_schema import (
     VDBRegisterRequest,
@@ -16,29 +13,32 @@ from schemas.vdb_schema import (
 main_logger = MainLogger.instance()
 error_logger = ErrorLogger.instance()
 
-def get_headers(token:str) -> dict[str, str]:
+def get_headers() -> dict[str, str]:
     """
     토큰을 받아서 API 호출에 필요한 headers를 만들어주는 함수.
     """
-    header = {
+    headers = {
         "Accept": "application/json",
-        "Authorization": f"Bearer {token}"
+        "Authorization": f"Bearer {settings.genos_admin_token}"
     }
-    return header
+    return headers
 
-async def request_post(url: str, payload: Any = None, headers:dict[str, str]=None, is_json: bool = True):
+async def request_post(url: str, data: Any = None, is_json: bool = True):
+   
+    headers = get_headers()
+
     try:
         async with aiohttp.ClientSession() as session:
-            request_kwargs = {"headers": headers}
+            request_kwargs = {}
+            if data:
+                if is_json:
+                    request_kwargs["json"] = data.model_dump()
+                else:
+                    request_kwargs["data"] = data
 
-            if is_json and payload:
-                request_kwargs["json"] = payload
-            elif payload:
-                request_kwargs["data"] = payload
+            main_logger.debug(f"[request_post] POST {url} data={data}")
 
-            main_logger.debug(f"[request_post] POST {url} payload={payload}")
-
-            async with session.post(url, **request_kwargs) as response:
+            async with session.post(url, headers=headers, **request_kwargs) as response:
                 response.raise_for_status()
                 response_json = await response.json()
 
@@ -53,57 +53,45 @@ async def request_post(url: str, payload: Any = None, headers:dict[str, str]=Non
         error_logger.vdb_error(f"[request_post] 알 수 없는 에러 for {url}", e)
     return None  
 
-async def upload_file(request: list[UploadFile]) -> Union[VDBUploadResponse, None]:
+async def upload_file(request: list[tuple[str, bytes]]) -> Union[VDBUploadResponse, None]:
     url = VectorAPIEndpoints().get_upload_route()
-
-    manager = await VDBTokenManager.instance()
-    token = manager.get_token()
-    headers = get_headers(token)
 
     try:
         form = aiohttp.FormData()
-        for file in request:
-            async with aiofiles.open(file.file, 'rb') as f:
-                file_content = await f.read()
-                form.add_field(
-                    name="file",
-                    value=file_content,
-                    content_type=file.content_type,
-                    filename=file.filename
-                )
+        for filename, file_content in request:
+            form.add_field(
+                name="files",
+                value=file_content,
+                filename=filename,
+                content_type="application/json"
+            )
  
         response_json = await request_post(
             url=url,
-            payload=form,
-            headers=headers,
+            data=form,
             is_json=False
         )
+        main_logger.critical(f"upload !!! {response_json}")
 
         if response_json:
             response = VDBUploadResponse(**response_json)
-            main_logger.debug(f"[upload_file] VDB 파일 업로드 성공: {response.data.filename}")
+            main_logger.debug(f"[upload_file] VDB 파일 업로드 성공: {response.data.files}")
             return response
     
     except Exception as e:
-        error_logger.vdb_error(f"[upload_file] 파일 업로드 실패 {request[0].filename}", e)
+        error_logger.vdb_error(f"[upload_file] 파일 업로드 실패 {request[0]}", e)
     return None
 
 async def register_vector(request: VDBRegisterRequest) -> Union[VDBRegisterResponse, None]:
     url = VectorAPIEndpoints().get_register_route()
-    payload = request.model_dump()
-
-    manager = await VDBTokenManager.instance()
-    token = manager.get_token()
-    headers = get_headers(token)
-
+    print(request.model_dump())
     try:
-        response_json = await request(
+        response_json = await request_post(
             url=url,
-            payload=payload,
-            headers=headers,
+            data=request,
             is_json=True
         )
-
+        main_logger.critical(f"register !!! {response_json}")
         if response_json:
             response = VDBRegisterResponse(**response_json)
             main_logger.debug(f"[upload_file] VDB 파일 업로드 성공: {response.data.doc_ids[0]}, {response.data.upsert_ids[0]}")

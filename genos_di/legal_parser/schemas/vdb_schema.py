@@ -37,7 +37,7 @@ class VDBRegisterRequest(BaseModel):
 
     From DocumentCreateRequestV2(#L171)
     """
-    vdb_id: int
+    vdb_id: str
     description: Optional[str] = None
     serving_id: int
     serving_rev_id: int
@@ -46,39 +46,26 @@ class VDBRegisterRequest(BaseModel):
     params: str         # ex) "{\"chunk_size\":1000,\"chunk_overlap\":100}",
     files: list[DocumentFile]  # 하나씩 올리기를 권장
 
-class FileData(BaseModel):
-    filename: str
-    fullpath: str
-    temporary_name: str
 
-class RegisterData(BaseModel):
-    doc_ids: list[int]
-    upsert_ids: list[int]
 
-class LoginData(BaseModel):
-    access_token: str
-    refresh_token: str
-    is_password_change_required: bool
-    is_reset_required: bool
-    is_consent_required: bool
-    user: dict
-    
-class VDBLoginResponse(BaseModel):
-    code: int
-    errMsg: str
-    data: LoginData
+class DataModel(BaseModel):
+    files: list[DocumentFile]
 
 class VDBUploadResponse(BaseModel):
     code: int
     errMsg: str
-    data: FileData
+    data: Optional[DataModel]
+
+class RegisterData(BaseModel):
+    doc_ids: list[int]
+    upsert_ids: list[int]
 
 class VDBRegisterResponse(BaseModel):
     code: int
     errMsg: str
     data: RegisterData
 
-class DocVectorMapping(BaseModel):
+class LawVectorResult(BaseModel):
     law_id: str
     law_num: str
     law_type: str  # 법령 / 행정규칙
@@ -93,6 +80,18 @@ class LawInfo(BaseModel):
     law_num: str
     filename: str  # 파일명을 포함하여 추후 참조
 
+class VDBResponse(BaseModel):
+    total_count: int = 0
+    success_count: int = 0
+    fail_count: int = 0
+    fail_filenames: set[str] = set()
 
-    
+    def increment_total(self):
+        self.total_count += 1
 
+    def increment_success(self):
+        self.success_count += 1
+
+    def increment_fail(self, filename: str):
+        self.fail_count += 1
+        self.fail_filenames.add(filename)
