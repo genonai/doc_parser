@@ -69,7 +69,7 @@ class VDBRegisterResponse(BaseModel):
     errMsg: str
     data: RegisterData
 
-class LawVectorResult(BaseModel):
+class LawVectorMapping(BaseModel):
     law_id: str
     law_num: str
     law_type: str  # 법령 / 행정규칙
@@ -89,6 +89,7 @@ class VDBResponse(BaseModel):
     success_count: int = 0
     fail_count: int = 0
     fail_filenames: set[str] = set()
+    mappings: list[LawVectorMapping] = []
 
     def increment_total(self):
         self.total_count += 1

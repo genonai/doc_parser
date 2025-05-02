@@ -4,7 +4,7 @@ from typing import Union
 
 from pydantic import BaseModel, Field
 
-from schemas.vdb_schema import LawVectorResult, VDBResponse
+from schemas.vdb_schema import VDBResponse
 
 # law_info 또는 admrule_info의 Type. function parameter
 RuleInfo = namedtuple("RuleInfo", ["rule_id", "enforce_date", "enact_date", "is_effective"])
@@ -240,4 +240,3 @@ class ParserResponse(BaseModel):
 class PipelineResponse(BaseModel):
     parser: ParserResponse
     vdb: VDBResponse = VDBResponse()
-    mappings: list[LawVectorResult] = []

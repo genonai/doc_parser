@@ -8,7 +8,7 @@ from commons.loggers import ErrorLogger, MainLogger
 from commons.settings import settings
 from schemas.vdb_schema import (
     LawFileInfo,
-    LawVectorResult,
+    LawVectorMapping,
     VDBRegisterRequest,
     VDBRegisterResponse,
     VDBResponse,
@@ -80,14 +80,16 @@ async def process_law_vectorization(
     chunk_size: int = 1000,
     chunk_overlap: int = 100,
     description: str = "법령 벡터 등록",
-) -> tuple[VDBResponse, list[LawVectorResult]]:
+) -> VDBResponse:
     
     vdb_response = VDBResponse()
-    mappings: List[LawVectorResult] = []
-    
+    mappings = []
+
     law_info_list: List[LawFileInfo] = await extract_law_infos(DIR_PATH_LAW_RESULT)
     data_files: List[VDBUploadFile] = await extract_local_files(DIR_PATH_LAW_RESULT)
     vdb_id = settings.genos_test_vdb_id
+
+    vdb_response.total_count = len(data_files)
 
     try:
         if len(law_info_list) != len(data_files):
@@ -99,7 +101,7 @@ async def process_law_vectorization(
         )
         raise
 
-    for idx, file in enumerate(data_files[:2]):
+    for idx, file in enumerate(data_files):
         try:
             response = await vectorize_document(
                 files=[file],
@@ -111,8 +113,6 @@ async def process_law_vectorization(
             if response is None:
                 main_logger.error(f"VDB 업로드 및 등록 실패: {file.file_name}")
                 raise RuntimeError("VDB 응답이 None입니다.")
-
-        
             law_info = law_info_list[idx]
             doc_ids = response.data.doc_ids
             upsert_ids = response.data.upsert_ids
@@ -121,16 +121,18 @@ async def process_law_vectorization(
                 raise ValueError("doc_ids와 upsert_ids의 길이가 일치하지 않습니다")
                 
             for i in range(len(doc_ids)):
-                mapping = LawVectorResult(
+                mapping = LawVectorMapping(
                     law_id=law_info.law_id,
                     law_num=law_info.law_num,
                     law_type=law_info.law_type,
+                    file_name=file.file_name,
                     doc_id=doc_ids[i],
                     vdb_id=vdb_id,
                     upsert_id=upsert_ids[i]
                 )
                 mappings.append(mapping)
             
+            vdb_response.mappings = mappings
             vdb_response.increment_success()
 
         except Exception as e:
@@ -140,4 +142,4 @@ async def process_law_vectorization(
 
     main_logger.info(f"[run_vdb_service] 총 등록된 문서 수: {len(mappings)}")
 
-    return vdb_response, mappings
+    return vdb_response
