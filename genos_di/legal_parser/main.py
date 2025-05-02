@@ -2,9 +2,11 @@ from fastapi import Depends, FastAPI, Query
 
 from commons.file_handler import load_keys_from_csv
 from schemas.params import AdmRuleRequestParams, LawItemRequestParams
-from schemas.schema import ParserRequest, ParserResponse
+from schemas.schema import ParserRequest, PipelineResponse, ParserResponse
+from schemas.vdb_schema import LawVectorResult, VDBResponse
 from services.download_service import download_data
-from services.service import get_amend_result, get_parse_result
+from services.service import process_all_pipeline, process_updated_pipeline, get_parse_result
+from services.vdb_service import process_law_vectorization
 
 app = FastAPI()
 
@@ -14,7 +16,9 @@ async def read_root():
 
 # TODO 하루에 한 번 돌아가게 만들기
 
-@app.get("/test")
+# TODO 현재 Komipo vdb에서 json 확장자 지원안하는지 확인하기
+
+@app.get("/test/parser")
 async def test_parser(
     i_start:int = Query(default=0),
     i_end:int = Query(default=5)
@@ -27,15 +31,20 @@ async def test_parser(
 
     return await get_parse_result(request)
 
+@app.get("/test/vdb")
+async def test_vdb(
+) -> tuple[VDBResponse, LawVectorResult]:
+    return await process_law_vectorization()
+
 @app.get("/parse/all")
-async def run_parser() -> ParserResponse:
+async def run_parser() -> PipelineResponse:
     request = load_keys_from_csv()
-    return await get_parse_result(request)
+    return await process_all_pipeline(request)
 
 @app.get("/parse/updated")
-async def run_updator() -> ParserResponse:
-    return await get_amend_result()
-
+async def run_updator() -> PipelineResponse:
+    return await process_updated_pipeline()
+    
 ### OPEN API 법령 정보 원본 (JSON) 다운로드
 @app.get("/law-download")
 async def download_law(query: LawItemRequestParams = Depends()):
