@@ -1,42 +1,5 @@
-"""
-upload api response.data > class FileData(BaseModel):
-    filename: str
-    fullpath: str
-    temporary_name: str
-
-register api response.data > class RegisterData(BaseModel):
-    doc_ids: List[int]
-    upsert_ids: List[int]
-
-register api request > class VectorRegisterRequest(BaseModel):    
-    vdb_id: int
-    description: Optional[str] = None
-    serving_id: int
-    serving_rev_id: int
-    preprocessor_id: int
-    batch_size: int
-    params: str         # ex) "{\"chunk_size\":1000,\"chunk_overlap\":100}",
-    files: List[DocumentFile]
-
-    class DocumentFile(BaseModel):
-        name: str = Field(..., description="파일 경로. 사용자 선택한 위치의 상대 경로로 보내주세요")
-        path: str
-
-vdb_client으로 부터 import
-1-1. upload > request: UploadFile 임. 이 프로젝트 폴더 /resources/result에 있는 .json 파일을 list[UploadFile]로 변환
-    법령/행정규칙 id, num 저장.
-1-2. upload > response로 부터 각 파일의 fullpath를 받음
-2-1. register > request 구성(VectorRegisterRequest) 1-2의 upload로부터 받은 fullpath를 request(files[].path에 추가)
-
-2-2. register > reseponse를 받아 vdb_id(env), doc_ids, upsert_id와 법령_id 법령 numm, 법령 type(law/admrule) mapping
-    
-
-
-"""
 import json
 from typing import List, Union
-
-from fastapi import UploadFile
 
 from api.vdb_client import register_vector, upload_file
 from commons.constants import DIR_PATH_LAW_RESULT
@@ -44,11 +7,12 @@ from commons.file_handler import extract_law_infos, extract_local_files
 from commons.loggers import ErrorLogger, MainLogger
 from commons.settings import settings
 from schemas.vdb_schema import (
-    LawInfo,
+    LawFileInfo,
     LawVectorResult,
     VDBRegisterRequest,
     VDBRegisterResponse,
     VDBResponse,
+    VDBUploadFile,
     VDBUploadResponse,
 )
 
@@ -74,7 +38,7 @@ def set_register_request(upload_response:VDBUploadResponse, description:str, bat
     return register_request
 
 async def vectorize_document(
-    upload_files: List[UploadFile],
+    files: list[VDBUploadFile],
     batch_size: int,
     chunk_size: int,
     chunk_overlap: int,
@@ -83,7 +47,7 @@ async def vectorize_document(
     """
     단일 문서 업로드 및 벡터 등록 프로세스를 수행합니다.
     Args:
-        upload_files (List[UploadFile]): 업로드할 파일 리스트 (1개 파일만 처리)
+        upload_files (bytes): 업로드할 파일 리스트 (1개 파일만 처리)
         batch_size (int): 등록 요청의 배치 크기
         chunk_size (int): 문서 청크 크기
         chunk_overlap (int): 청크 겹침 크기
@@ -93,7 +57,7 @@ async def vectorize_document(
         Optional[VDBRegisterResponse]: 벡터 등록 결과 (성공 시)
     """
     # 업로드 처리
-    upload_response: VDBUploadResponse = await upload_file(upload_files)
+    upload_response: VDBUploadResponse = await upload_file(files)
 
     if not upload_response or not upload_response.data:
         main_logger.error("[process_single_document] VDB Upload 실패")
@@ -121,8 +85,8 @@ async def process_law_vectorization(
     vdb_response = VDBResponse()
     mappings: List[LawVectorResult] = []
     
-    law_info_list: List[LawInfo] = await extract_law_infos(DIR_PATH_LAW_RESULT)
-    data_files: List[tuple[str, bytes]] = await extract_local_files(DIR_PATH_LAW_RESULT)
+    law_info_list: List[LawFileInfo] = await extract_law_infos(DIR_PATH_LAW_RESULT)
+    data_files: List[VDBUploadFile] = await extract_local_files(DIR_PATH_LAW_RESULT)
     vdb_id = settings.genos_test_vdb_id
 
     try:
@@ -136,17 +100,16 @@ async def process_law_vectorization(
         raise
 
     for idx, file in enumerate(data_files[:2]):
-        filename, _ = file
         try:
             response = await vectorize_document(
-                upload_files=[file],
+                files=[file],
                 batch_size = batch_size,
                 chunk_size = chunk_size,
                 chunk_overlap = chunk_overlap,
                 description = description
             )
             if response is None:
-                main_logger.error(f"VDB 업로드 및 등록 실패: {filename}")
+                main_logger.error(f"VDB 업로드 및 등록 실패: {file.file_name}")
                 raise RuntimeError("VDB 응답이 None입니다.")
 
         
@@ -171,9 +134,9 @@ async def process_law_vectorization(
             vdb_response.increment_success()
 
         except Exception as e:
-            main_logger.error(f"[process_law_vectorization] 벡터화 실패: {filename}")
-            error_logger.vdb_error(f"[process_law_vectorization] 벡터화 중 오류 발생: {filename}", e)
-            vdb_response.increment_fail(filename)
+            main_logger.error(f"[process_law_vectorization] 벡터화 실패: {file.file_name}")
+            error_logger.vdb_error(f"[process_law_vectorization] 벡터화 중 오류 발생: {file.file_name}", e)
+            vdb_response.increment_fail(file.file_name)
 
     main_logger.info(f"[run_vdb_service] 총 등록된 문서 수: {len(mappings)}")
 
