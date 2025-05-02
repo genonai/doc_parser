@@ -1,5 +1,8 @@
 import unicodedata
+from datetime import datetime, timedelta
 from typing import Union
+
+import pytz
 
 from commons.type_converter import TypeConverter
 
@@ -28,3 +31,8 @@ def normalize_to_nfc(text: str) -> Union[str, None]:
 		return None
 
 	return unicodedata.normalize('NFC', text)
+
+def get_kst_yesterday_str() -> str:
+    kst_now = datetime.now(pytz.timezone('Asia/Seoul'))
+    kst_yesterday = kst_now - timedelta(days=1)
+    return kst_yesterday.strftime("%Y%m%d")
