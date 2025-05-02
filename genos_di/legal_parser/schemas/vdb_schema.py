@@ -6,6 +6,10 @@ from commons.utils import normalize_to_nfc
 
 #  From https://github.com/mindsandcompany/GenOS/blob/develop/admin-api/src/schema/data/vdb_schema.py
 
+class VDBUploadFile(BaseModel):
+    file_name: str
+    file_content: bytes
+
 class DocumentFile(BaseModel):
     """
     문서 파일을 나타내는 스키마입니다.
@@ -74,7 +78,7 @@ class LawVectorResult(BaseModel):
     vdb_id: int
     upsert_id: int
 
-class LawInfo(BaseModel):
+class LawFileInfo(BaseModel):
     law_type: str  # "law" or "admrule"
     law_id: str
     law_num: str

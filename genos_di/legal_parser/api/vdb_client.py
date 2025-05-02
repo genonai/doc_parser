@@ -8,6 +8,7 @@ from schemas.params import VectorAPIEndpoints
 from schemas.vdb_schema import (
     VDBRegisterRequest,
     VDBRegisterResponse,
+    VDBUploadFile,
     VDBUploadResponse,
 )
 
@@ -54,16 +55,16 @@ async def request_post(url: str, data: Any = None, is_json: bool = True):
         error_logger.vdb_error(f"[request_post] 알 수 없는 에러 for {url}", e)
     return None  
 
-async def upload_file(request: list[tuple[str, bytes]]) -> Union[VDBUploadResponse, None]:
+async def upload_file(request: list[VDBUploadFile]) -> Union[VDBUploadResponse, None]:
     url = VectorAPIEndpoints().get_upload_route()
 
     try:
         form = aiohttp.FormData()
-        for filename, file_content in request:
+        for file in request:
             form.add_field(
                 name="files",
-                value=file_content,
-                filename=filename,
+                value=file.file_content,
+                filename=file.file_name,
                 content_type="application/json"
             )
  

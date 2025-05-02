@@ -6,7 +6,6 @@ from pathlib import Path
 import aiofiles
 import pandas as pd
 import pytz
-from fastapi import UploadFile
 from pydantic import BaseModel
 
 from commons.constants import (
@@ -18,7 +17,7 @@ from commons.constants import (
 )
 from commons.loggers import ErrorLogger, MainLogger
 from schemas.schema import ParserRequest
-from schemas.vdb_schema import LawInfo
+from schemas.vdb_schema import LawFileInfo, VDBUploadFile
 
 main_logger = MainLogger.instance()
 error_logger = ErrorLogger.instance()
@@ -93,16 +92,16 @@ def load_keys_from_csv() -> ParserRequest:
     
     return request
 
-async def extract_law_infos(dir_path: str) -> list[LawInfo]:
+async def extract_law_infos(dir_path: str) -> list[LawFileInfo]:
     """
     지정된 디렉토리의 파일명으로부터 법령 메타 정보를 추출합니다.
 
     파일명 규칙: law_<id>_<num>.json or admrule_<id>_<num>.json
 
     Returns:
-        List[LawInfo]: 파일별 법령 정보 리스트
+        List[LawFileInfo]: 파일별 법령 정보 리스트
     """
-    law_infos: list[LawInfo] = []
+    law_infos: list[LawFileInfo] = []
 
     for filename in sorted(os.listdir(dir_path)):
         if not filename.endswith('.json'):
@@ -115,7 +114,7 @@ async def extract_law_infos(dir_path: str) -> list[LawInfo]:
             continue
 
         law_infos.append(
-            LawInfo(
+            LawFileInfo(
                 law_type=law_type,
                 law_id=law_id,
                 law_num=law_num,
@@ -124,8 +123,8 @@ async def extract_law_infos(dir_path: str) -> list[LawInfo]:
         )
     return law_infos
 
-async def extract_local_files(dir_path: str) -> list[tuple[str, bytes]]:
-    upload_files: list[UploadFile] = []
+async def extract_local_files(dir_path: str) -> list[VDBUploadFile]:
+    upload_files: list[VDBUploadFile] = []
 
     for filename in sorted(os.listdir(dir_path)):
         if not filename.endswith(".json"):
@@ -136,6 +135,7 @@ async def extract_local_files(dir_path: str) -> list[tuple[str, bytes]]:
         async with aiofiles.open(full_path, "rb") as f:
             content = await f.read()
 
-        upload_files.append((filename, content))
+        upload_files.append(
+            VDBUploadFile(file_name=filename, file_content=content))
 
     return upload_files
