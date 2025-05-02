@@ -1,12 +1,15 @@
 import time
 
 from api.law_client import get_api_amend
-from commons.file_handler import export_json
+from commons.file_handler import export_json, export_mapping_json
 from commons.loggers import ErrorLogger, MainLogger
 from schemas.params import UpdatedLawRequestParams
-from schemas.schema import ConnectedLaws, HierarchyLaws, ParserRequest, ParserResponse
+from schemas.schema import ConnectedLaws, HierarchyLaws, ParserRequest, ParserResponse, PipelineResponse
+from schemas.vdb_schema import VDBResponse
 from services.admrule_service import get_parsed_admrule
 from services.law_service import get_parsed_law, get_parsed_law_system
+from services.vdb_service import process_law_vectorization
+
 
 error_logger = ErrorLogger.instance()
 main_logger = MainLogger.instance()
@@ -164,3 +167,50 @@ async def get_amend_result() -> ParserResponse:
         main_logger.info("[get_updated_result] 개정된 법령이 존재하지 않습니다.")
         return ParserResponse()
 
+
+async def process_all_pipeline(request: ParserRequest) -> PipelineResponse:
+    vdb_response = VDBResponse()
+    mappings = []
+
+    try:
+        main_logger.info("[process_all_pipeline] 전체 파싱 시작")
+        parser_response: ParserResponse = await get_parse_result(request)
+
+        if parser_response.success_count == 0:
+            main_logger.warning("[process_all_pipeline] 파싱된 데이터가 없습니다. 벡터화 중단.")
+            return parser_response
+
+        main_logger.info("[process_all_pipeline] 파싱 완료. VDB 업로드 시작")
+
+        vdb_response, mappings = await process_law_vectorization()
+        export_mapping_json(mappings)
+
+
+    except Exception as e:
+        error_logger.vdb_error("[run_vdb_vectorization_pipeline] 전체 파이프라인 실패", e)
+
+    return PipelineResponse(parser=parser_response, vdb=vdb_response, mappings=mappings)
+
+async def process_updated_pipeline() -> PipelineResponse:
+    vdb_response = VDBResponse()
+    mappings = []
+
+    try:
+        
+        main_logger.info("[process_updated_pipeline] 개정 법령 파싱 시작")
+        parser_response: ParserResponse = await get_amend_result()
+
+        if parser_response.success_count == 0:
+            main_logger.warning("[process_updated_pipeline] 파싱된 데이터가 없습니다. 벡터화 중단.")
+            return PipelineResponse(parser=parser_response)
+            
+        main_logger.info("[process_updated_pipeline] 파싱 완료. VDB 업로드 시작")
+
+        vdb_response, mappings = await process_law_vectorization()
+        export_mapping_json(mappings)
+
+    except Exception as e:
+        error_logger.vdb_error("[process_updated_pipeline] 개정 파이프라인 실패", e)
+
+
+    return PipelineResponse(parser=parser_response, vdb=vdb_response, mappings=mappings)

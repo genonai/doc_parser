@@ -4,6 +4,8 @@ from typing import Union
 
 from pydantic import BaseModel, Field
 
+from schemas.vdb_schema import LawVectorResult, VDBResponse
+
 # law_info 또는 admrule_info의 Type. function parameter
 RuleInfo = namedtuple("RuleInfo", ["rule_id", "enforce_date", "enact_date", "is_effective"])
 
@@ -200,7 +202,9 @@ class ParserContent(BaseModel):
         ..., description="본문 텍스트 (law, appendix의 경우 빈 리스트일 수 있음)"
     )
 
-
+class ParserRequest(BaseModel):
+    law_ids: list[str] = []
+    admrule_ids: list[str] = []
 
 class ParserResult(BaseModel):
     """최종 출력 형태"""
@@ -233,7 +237,7 @@ class ParserResponse(BaseModel):
         self.fail_ids.add(id)
 
 
-class ParserRequest(BaseModel):
-    law_ids: list[str] = []
-    admrule_ids: list[str] = []
-
+class PipelineResponse(BaseModel):
+    parser: ParserResponse
+    vdb: VDBResponse = VDBResponse()
+    mappings: list[LawVectorResult] = []

@@ -1,12 +1,16 @@
 import json
 import os
+import pytz
+
 from pathlib import Path
+from datetime import datetime
 
 import aiofiles
 import pandas as pd
 from fastapi import UploadFile
 from pydantic import BaseModel
 
+from commons.constants import DIR_PATH_LAW_INPUT, DIR_PATH_LAW_RESULT, DIR_PATH_VDB_RESULT, FILE_PATH_ADMRULE_CSV, FILE_PATH_LAW_CSV
 from commons.loggers import ErrorLogger, MainLogger
 from schemas.schema import ParserRequest
 from schemas.vdb_schema import LawInfo
@@ -16,17 +20,26 @@ error_logger = ErrorLogger.instance()
 
 def export_json(data, id, num, is_admrule=True):
     rule_type = 'admrule' if is_admrule else 'law'
-    result_dir = "resources/result"
-    os.makedirs(result_dir, exist_ok=True)
+    os.makedirs(DIR_PATH_LAW_RESULT, exist_ok=True)
 
-    output_file = f"{result_dir}/{rule_type}_{id}_{num}.json"
+    output_file = f"{DIR_PATH_LAW_RESULT}/{rule_type}_{id}_{num}.json"
     main_logger.debug(f"JSON 데이터 저장: ID={id}, 파일 경로={output_file}")
     with open(f'{output_file}', "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=4)
 
+def export_mapping_json(data):
+    os.makedirs(DIR_PATH_VDB_RESULT, exist_ok=True)
+
+    seoul_tz = pytz.timezone('Asia/Seoul')
+    created_at = datetime.now(seoul_tz).strftime('%Y%m%d')    
+    output_file = f"{DIR_PATH_VDB_RESULT}/vdb_info_{created_at}.json"
+    main_logger.debug(f"JSON 데이터 저장 성공, 파일 경로={output_file}")
+
+    with open(f'{output_file}', "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=4)
+
 def export_json_input(data, id):
-    input_dir = "resources/inputs"
-    output_file = f"{input_dir}/response_{id}.json"
+    output_file = f"{DIR_PATH_LAW_INPUT}/response_{id}.json"
     main_logger.debug(f"OPENAPI 데이터 다운로드: ID={id}, 파일 경로={output_file}")
     with open(f'{output_file}', "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=4)
@@ -54,8 +67,8 @@ def load_keys_from_csv() -> ParserRequest:
             'admrule_ids' : 행정규칙ID 리스트
 
     """
-    law_csv_path = Path("resources/inputs/법령검색목록.csv")
-    admrule_csv_path = Path("resources/inputs/행정규칙검색목록.csv")
+    law_csv_path = Path(FILE_PATH_LAW_CSV)
+    admrule_csv_path = Path(FILE_PATH_ADMRULE_CSV)
 
     request = ParserRequest()
 
@@ -106,7 +119,7 @@ async def extract_law_infos(dir_path: str) -> list[LawInfo]:
         )
     return law_infos
 
-async def extract_local_files(dir_path: str) -> list[UploadFile]:
+async def extract_local_files(dir_path: str) -> list[tuple[str, bytes]]:
     upload_files: list[UploadFile] = []
 
     for filename in sorted(os.listdir(dir_path)):
@@ -118,11 +131,6 @@ async def extract_local_files(dir_path: str) -> list[UploadFile]:
         async with aiofiles.open(full_path, "rb") as f:
             content = await f.read()
 
-        upload_file = UploadFile(
-            filename=filename,
-            file=bytearray(content),
-            content_type="application/json"
-        )
-        upload_files.append(upload_file)
+        upload_files.append((filename, content))
 
     return upload_files
