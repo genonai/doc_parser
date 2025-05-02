@@ -2,10 +2,14 @@ from fastapi import Depends, FastAPI, Query
 
 from commons.file_handler import load_keys_from_csv
 from schemas.params import AdmRuleRequestParams, LawItemRequestParams
-from schemas.schema import ParserRequest, PipelineResponse, ParserResponse
+from schemas.schema import ParserRequest, ParserResponse, PipelineResponse
 from schemas.vdb_schema import LawVectorResult, VDBResponse
 from services.download_service import download_data
-from services.service import process_all_pipeline, process_updated_pipeline, get_parse_result
+from services.service import (
+    get_parse_result,
+    process_all_pipeline,
+    process_updated_pipeline,
+)
 from services.vdb_service import process_law_vectorization
 
 app = FastAPI()

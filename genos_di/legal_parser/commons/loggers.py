@@ -9,6 +9,7 @@ import pytz
 
 from commons.constants import DIR_PATH_ERROR_LOG
 
+
 class NewlineTracebackFormatter(logging.Formatter):
     def formatException(self, exc_info):
         result = super().formatException(exc_info)

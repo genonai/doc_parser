@@ -4,12 +4,17 @@ from api.law_client import get_api_amend
 from commons.file_handler import export_json, export_mapping_json
 from commons.loggers import ErrorLogger, MainLogger
 from schemas.params import UpdatedLawRequestParams
-from schemas.schema import ConnectedLaws, HierarchyLaws, ParserRequest, ParserResponse, PipelineResponse
+from schemas.schema import (
+    ConnectedLaws,
+    HierarchyLaws,
+    ParserRequest,
+    ParserResponse,
+    PipelineResponse,
+)
 from schemas.vdb_schema import VDBResponse
 from services.admrule_service import get_parsed_admrule
 from services.law_service import get_parsed_law, get_parsed_law_system
 from services.vdb_service import process_law_vectorization
-
 
 error_logger = ErrorLogger.instance()
 main_logger = MainLogger.instance()

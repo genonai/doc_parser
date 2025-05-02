@@ -44,12 +44,12 @@ from commons.file_handler import extract_law_infos, extract_local_files
 from commons.loggers import ErrorLogger, MainLogger
 from commons.settings import settings
 from schemas.vdb_schema import (
-    LawVectorResult,
     LawInfo,
+    LawVectorResult,
     VDBRegisterRequest,
     VDBRegisterResponse,
+    VDBResponse,
     VDBUploadResponse,
-    VDBResponse
 )
 
 main_logger = MainLogger.instance()
