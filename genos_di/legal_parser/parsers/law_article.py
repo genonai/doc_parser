@@ -17,21 +17,21 @@ type_converter = TypeConverter()
 regex_processor = RegexProcessor()
 
 # ======================= 개정일자 추출 ===========================
-def extract_latest_announce(data:dict, enact_date: str) -> str:
+def _extract_latest_announce(data:dict, enact_date: str) -> str:
     """조문 내용, 조문 참고자료, 항 내용, 호 내용에서 가장 최신의 개정 날짜를 추출하여 내용과 함께 반환합니다."""
-    amendment_dates = extract_amendment_dates(data)
+    amendment_dates = _extract_amendment_dates(data)
     return get_latest_date(amendment_dates, enact_date)
 
-def extract_amendment_dates(data: dict) -> list[str]:
+def _extract_amendment_dates(data: dict) -> list[str]:
     """법령 데이터에서 개정일자를 추출하는 함수"""
 
     dates = []
 
-    dates.extend(extract_dates_from_article_content(data))
-    dates.extend(extract_dates_from_reference(data))
-    dates.extend(extract_dates_from_paragraphs(data))
+    dates.extend(_extract_dates_from_article_content(data))
+    dates.extend(_extract_dates_from_reference(data))
+    dates.extend(_extract_dates_from_paragraphs(data))
 
-def extract_dates_from_article_content(data: dict) -> list[str]:
+def _extract_dates_from_article_content(data: dict) -> list[str]:
     """조문내용에서 개정일을 추출하는 함수"""
     dates = []
     if "조문내용" not in data or not data["조문내용"]:
@@ -43,7 +43,7 @@ def extract_dates_from_article_content(data: dict) -> list[str]:
     return dates
 
 
-def extract_dates_from_reference(data: dict) -> list[str]:
+def _extract_dates_from_reference(data: dict) -> list[str]:
     """조문참고자료에서 개정일을 추출하는 함수"""
     dates = []
     reference_data = data.get("조문참고자료")
@@ -63,7 +63,7 @@ def extract_dates_from_reference(data: dict) -> list[str]:
     
     return dates
 
-def extract_dates_from_paragraphs(data: dict) -> list[str]:
+def _extract_dates_from_paragraphs(data: dict) -> list[str]:
     """항 내용에서 개정일을 추출하는 함수"""
     dates = []
     paragraph = data.get("항")
@@ -72,7 +72,7 @@ def extract_dates_from_paragraphs(data: dict) -> list[str]:
     
     # 항이 리스트인 경우
     if isinstance(paragraph, dict) and "호" in paragraph:
-        dates.extend(extract_dates_from_subparagraphs(paragraph["호"]))
+        dates.extend(_extract_dates_from_subparagraphs(paragraph["호"]))
     # 항이 dict이고 호가 있는 경우
     elif type_converter.validator(paragraph, list[dict]):
         for item in paragraph:
@@ -83,88 +83,88 @@ def extract_dates_from_paragraphs(data: dict) -> list[str]:
             
             # 항내용에서 추출
             if "항내용" in item:
-                text = extract_paragraph_content(item)
+                text = _extract_paragraph_content(item)
                 dates.extend(extract_date_to_yyyymmdd(text))
     return dates
 
-def extract_dates_from_subparagraphs(subparagraphs: list[dict]) -> list[str]:
+def _extract_dates_from_subparagraphs(subparagraphs: list[dict]) -> list[str]:
     """호 내용에서 개정일을 추출하는 함수"""
     dates = []
     for item in subparagraphs:
         if "호내용" in item:
-            text = extract_subparagraph_content(item)
+            text = _extract_subparagraph_content(item)
             dates.extend(extract_date_to_yyyymmdd(text, True))
     return dates
 
 # ======================= 조문 내용[조, 항, 호, 목] 추출 ===========================
-def stringify_article_content(data: dict) -> list[str]:
+def _stringify_article_content(data: dict) -> list[str]:
     """법령 조문 데이터를 문자열 리스트로 변환하는 함수"""
     content = []
     
     # 조문 내용 추가
-    article_content = extract_article_content(data)
+    article_content = _extract_article_content(data)
     if article_content:
         content.append(article_content)
     
     # 항 내용 추가
     if data.get("항"):
         paragraphs = type_converter.converter(data.get("항"), list[dict])
-        paragraph_contents = process_paragraphs(paragraphs)
+        paragraph_contents = _process_paragraphs(paragraphs)
         content.extend(paragraph_contents)
 
     return content
 
-def extract_article_content(data: dict) -> str:
+def _extract_article_content(data: dict) -> str:
     """조문내용을 추출하는 함수"""
     if not data.get("조문내용"):
         return ""
     text = type_converter.converter(data.get("조문내용"), str)
     return text.strip()
 
-def process_paragraphs(paragraphs: list[dict]) -> list[str]:
+def _process_paragraphs(paragraphs: list[dict]) -> list[str]:
     """항 내용을 처리하는 함수"""
     content = []
     
     for paragraph in paragraphs:
         # 항내용 추가
-        paragraph_content = extract_paragraph_content(paragraph)
+        paragraph_content = _extract_paragraph_content(paragraph)
         if paragraph_content:
             content.append(paragraph_content)
         
         # 호 내용 추가
         if paragraph.get("호"):
             subparagraph = type_converter.converter(paragraph.get("호"), list[dict])
-            subparagraph_contents = process_subparagraphs(subparagraph)
+            subparagraph_contents = _process_subparagraphs(subparagraph)
             content.extend(subparagraph_contents)
     
     return content
 
-def extract_paragraph_content(paragraph: dict) -> str:
+def _extract_paragraph_content(paragraph: dict) -> str:
     """항내용을 추출하는 함수"""  
     if not paragraph.get("항내용"):
         return ""  
     text:str = type_converter.converter(paragraph.get("항내용"), str)
     return text.strip()
 
-def process_subparagraphs(subparagraphs: list[dict]) -> list[str]:
+def _process_subparagraphs(subparagraphs: list[dict]) -> list[str]:
     """호 내용을 처리하는 함수"""
     content = []
     
     for subparagraph in subparagraphs:
         # 호내용 추가
-        subparagraph_content = extract_subparagraph_content(subparagraph)
+        subparagraph_content = _extract_subparagraph_content(subparagraph)
         if subparagraph_content:
             content.append(subparagraph_content)
         
         # 목 내용 추가
         if subparagraph.get("목"):
             items = type_converter.converter(subparagraph.get("목"), list[dict])
-            item_contents = process_items(items)
+            item_contents = _process_items(items)
             content.extend(item_contents)
     
     return content
 
-def extract_subparagraph_content(subparagraph: dict) -> str:
+def _extract_subparagraph_content(subparagraph: dict) -> str:
     """호내용을 추출하는 함수"""
     if not subparagraph["호내용"]:
         return ""
@@ -172,7 +172,7 @@ def extract_subparagraph_content(subparagraph: dict) -> str:
     text = type_converter.converter(subparagraph["호내용"], str)
     return text.strip()
 
-def process_items(items: list[dict]) -> list[str]:
+def _process_items(items: list[dict]) -> list[str]:
     """목 내용을 처리하는 함수"""
     content = []
     
@@ -186,7 +186,7 @@ def process_items(items: list[dict]) -> list[str]:
     return content
 
 # =======================삭제 및 전문 메타데이터 처리===========================
-def extract_deleted_article_date(article: list[str], default_date: str) -> str:
+def _extract_deleted_article_date(article: list[str], default_date: str) -> str:
     """삭제된 조문의 날짜를 추출하는 함수"""
     if not article:
         return default_date
@@ -204,7 +204,7 @@ def extract_deleted_article_date(article: list[str], default_date: str) -> str:
     return default_date
 
 
-def process_preamble(item: dict, article_chapter: ArticleChapter) -> tuple[str, int, ArticleChapter]:
+def _process_preamble(item: dict, article_chapter: ArticleChapter) -> tuple[str, int, ArticleChapter]:
     """전문을 처리하는 함수"""
     content = item.get("조문내용")
     content = type_converter.converter(content, str)
@@ -255,21 +255,21 @@ def process_article_unit(
     
     # 전문(조문의 머리말)인 경우 별도 처리
     if is_preamble:
-        article_num, article_sub_num, updated_chapter = process_preamble(item, article_chapter)
+        article_num, article_sub_num, updated_chapter = _process_preamble(item, article_chapter)
         current_chapter = updated_chapter
     
     # 조문 ID 생성 (법령ID + 조문번호 + 가지번호)
     article_id = f"{law_id}{int(article_num):04d}{int(article_sub_num):03d}"
     
     # 가장 최근의 공포일(개정일) 추출
-    announce_date = extract_latest_announce(item, enact_date)
+    announce_date = _extract_latest_announce(item, enact_date)
     # 조문 내용 추출 및 문자열화
-    article_content = stringify_article_content(item)
+    article_content = _stringify_article_content(item)
 
     # 삭제된 조문 처리
     if "삭제" in article_title or any("삭제" in content for content in article_content if isinstance(content, str)):
         # 삭제된 조문에서 날짜 추출 시도
-        deleted_date = extract_deleted_article_date(article_content, announce_date)
+        deleted_date = _extract_deleted_article_date(article_content, announce_date)
         if deleted_date:
             announce_date = deleted_date
             enforce_date = deleted_date

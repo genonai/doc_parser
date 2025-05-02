@@ -95,20 +95,20 @@ def process_admrule_article(
     
     if is_preamble:
         # 전문인 경우 처리
-        article_num, article_sub_num, title, updated_chapter = process_preamble(article_chapter)
+        article_num, article_sub_num, title, updated_chapter = _process_preamble(article_chapter)
         article_id = f"{admrule_id}{article_num:04d}{article_sub_num:03d}"
         current_chapter = updated_chapter
     else:
         # 일반 조문인 경우 처리
         article_id, article_num, article_sub_num = extract_article_num(admrule_id, article)
-        title = extract_article_title(article)
+        title = _extract_article_title(article)
     
     # 개정일자 추출
-    announce_date = extract_article_announce_date(article, enact_date)
+    announce_date = _extract_article_announce_date(article, enact_date)
     
     # 삭제된 조문 처리
     if "삭제" in article:
-        announce_date = extract_deleted_article_date(article, announce_date)
+        announce_date = _extract_deleted_article_date(article, announce_date)
         enforce_date = announce_date
         title = "삭제"
     
@@ -119,7 +119,7 @@ def process_admrule_article(
     related_appendices = extract_related_appendices(admrule_id, content)
     
     # 메타데이터 생성
-    metadata = create_admrule_article_metadata(
+    metadata = _create_admrule_article_metadata(
         article_id, 
         article_num, 
         article_sub_num, 
@@ -135,7 +135,7 @@ def process_admrule_article(
     
     return ParserContent(metadata=metadata, content=content)
 
-def process_preamble(article_chapter: ArticleChapter) -> tuple[int, int, str, ArticleChapter]:
+def _process_preamble(article_chapter: ArticleChapter) -> tuple[int, int, str, ArticleChapter]:
     """
     전문을 처리하는 함수
 
@@ -158,7 +158,7 @@ def process_preamble(article_chapter: ArticleChapter) -> tuple[int, int, str, Ar
     
     return article_num, article_sub_num, title, updated_chapter
 
-def extract_article_title(article: str) -> str:
+def _extract_article_title(article: str) -> str:
     """
     조문 제목을 추출하는 함수
 
@@ -171,7 +171,7 @@ def extract_article_title(article: str) -> str:
     title_match = regex_processor.search("BLANKET", article)
     return title_match.group(1) if title_match else ""
 
-def extract_article_announce_date(article: str, enact_date: str) -> str:
+def _extract_article_announce_date(article: str, enact_date: str) -> str:
     """
     조문 개정일자를 추출하는 함수
 
@@ -190,7 +190,7 @@ def extract_article_announce_date(article: str, enact_date: str) -> str:
     
     return get_latest_date(date_matches, enact_date)
 
-def extract_deleted_article_date(article: str, default_date: str) -> str:
+def _extract_deleted_article_date(article: str, default_date: str) -> str:
     """
     삭제된 조문의 날짜를 추출하는 함수
 
@@ -209,7 +209,7 @@ def extract_deleted_article_date(article: str, default_date: str) -> str:
     
     return default_date
 
-def create_admrule_article_metadata(
+def _create_admrule_article_metadata(
     article_id: str, 
     article_num: int, 
     article_sub_num: int, 

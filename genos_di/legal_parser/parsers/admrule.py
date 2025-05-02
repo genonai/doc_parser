@@ -24,20 +24,20 @@ def parse_admrule_info(admrule_id: str, admrule_data: dict, hierarchy_laws, conn
     Returns:
         ParserContent: 메타데이터와 내용이 포함된 ParserContent 객체
     """
-    # 기본 정보 추출
-    basic_info = extract_basic_info(admrule_data)
+    # 행정규칙 기본 정보 추출
+    basic_info = _extract_basic_info(admrule_data)
     
     # 부칙 정보 및 시행일자 추출
-    addenda, enact_date = extract_addenda_info(admrule_id, admrule_data)
+    addenda, enact_date = _extract_addenda_info(admrule_id, admrule_data)
     
     # 별표(부속서류) 정보 추출
-    appendices = extract_appendix_info(admrule_id, admrule_data)
+    appendices = _extract_appendix_info(admrule_id, admrule_data)
     
     # 첨부파일 정보 추출
-    file_attached = extract_file_attachments(admrule_data)
+    file_attached = _extract_file_attachments(admrule_data)
     
     # 메타데이터 객체 생성
-    metadata = create_admrule_metadata(
+    metadata = _create_admrule_metadata(
         admrule_id=admrule_id,
         basic_info=basic_info,
         hierarchy_laws=hierarchy_laws,
@@ -51,7 +51,7 @@ def parse_admrule_info(admrule_id: str, admrule_data: dict, hierarchy_laws, conn
     # ParserContent 객체 반환 (content는 비어 있음)
     return ParserContent(metadata=metadata, content=[])
 
-def extract_basic_info(admrule_data: dict) -> dict:
+def _extract_basic_info(admrule_data: dict) -> dict:
     """
     행정규칙 기본 정보를 admrule_data에서 추출하는 함수
 
@@ -77,7 +77,7 @@ def extract_basic_info(admrule_data: dict) -> dict:
         "dept": basic_info.get("담당부서기관명", "")
     }
 
-def extract_addenda_info(admrule_id: str, admrule_data: dict) -> tuple[list, str]:
+def _extract_addenda_info(admrule_id: str, admrule_data: dict) -> tuple[list, str]:
     """
     부칙 정보를 admrule_data에서 추출하는 함수
 
@@ -104,7 +104,7 @@ def extract_addenda_info(admrule_id: str, admrule_data: dict) -> tuple[list, str
     
     return addenda, enact_date
 
-def extract_appendix_info(admrule_id: str, admrule_data: dict) -> list:
+def _extract_appendix_info(admrule_id: str, admrule_data: dict) -> list:
     """
     별표(부속서류) 정보를 admrule_data에서 추출하는 함수
 
@@ -131,7 +131,7 @@ def extract_appendix_info(admrule_id: str, admrule_data: dict) -> list:
     
     return appendices
 
-def extract_file_attachments(admrule_data: dict) -> list[FileAttached]:
+def _extract_file_attachments(admrule_data: dict) -> list[FileAttached]:
     """
     첨부파일 정보를 admrule_data에서 추출하는 함수
 
@@ -158,7 +158,7 @@ def extract_file_attachments(admrule_data: dict) -> list[FileAttached]:
     
     return file_attached
 
-def create_admrule_metadata(
+def _create_admrule_metadata(
     admrule_id: str,
     basic_info: dict,
     hierarchy_laws: list,

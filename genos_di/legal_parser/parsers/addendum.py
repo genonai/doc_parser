@@ -41,12 +41,12 @@ def parse_law_addendum_info(law_id: str, addendum_data: dict) -> list[ParserCont
     
     # 부칙 항목 처리
     for item in addendum_units:
-        title, number, announce_date = extract_law_addendum_info(item)
+        title, number, announce_date = _extract_law_addendum_info(item)
         content = type_converter.converter(item.get("부칙내용", []), list[str])
-        addendum_content = split_law_addendum_content(content)
+        addendum_content = _split_law_addendum_content(content)
         
         # 메타데이터 생성
-        metadata = create_addendum_metadata(
+        metadata = _create_addendum_metadata(
             law_id, title, number, announce_date, addendum_content
         )
         
@@ -59,7 +59,7 @@ def parse_law_addendum_info(law_id: str, addendum_data: dict) -> list[ParserCont
     
     return addendum_list
 
-def extract_law_addendum_info(item: dict) -> tuple[str, str, str]:
+def _extract_law_addendum_info(item: dict) -> tuple[str, str, str]:
     """
     법령 부칙에서 제목, 번호, 공포일자를 추출하는 함수.
     
@@ -87,7 +87,7 @@ def extract_law_addendum_info(item: dict) -> tuple[str, str, str]:
     
     return title, number, announce_date
 
-def split_law_addendum_content(text_data: list[str]) -> list[str]:
+def _split_law_addendum_content(text_data: list[str]) -> list[str]:
     """
     법령 부칙 본문을 조문 단위로 나누는 함수.
     
@@ -165,10 +165,10 @@ def parse_admrule_addendum_info(law_id: str, addendum_data: dict) -> list[Parser
     addendum_units = type_converter.converter(addendum_units, list[str], use_default=True)
     
     for item in addendum_units:
-        title, number, announce_date = extract_admrule_addendum_info(item)
-        addendum_content = split_admrule_addendum_content(title, item)
+        title, number, announce_date = _extract_admrule_addendum_info(item)
+        addendum_content = _split_admrule_addendum_content(title, item)
         
-        metadata = create_addendum_metadata(
+        metadata = _create_addendum_metadata(
             law_id, title, number, announce_date, addendum_content
         )
         
@@ -180,7 +180,7 @@ def parse_admrule_addendum_info(law_id: str, addendum_data: dict) -> list[Parser
     
     return addendum_list
 
-def extract_admrule_addendum_info(item: str) -> tuple[str, str, str]:
+def _extract_admrule_addendum_info(item: str) -> tuple[str, str, str]:
     """
     행정규칙 부칙에서 제목, 번호, 공포일자를 추출하는 함수.
     
@@ -211,7 +211,7 @@ def extract_admrule_addendum_info(item: str) -> tuple[str, str, str]:
     
     return title, number, announce_date
 
-def split_admrule_addendum_content(title: str, text: str) -> list[str]:
+def _split_admrule_addendum_content(title: str, text: str) -> list[str]:
     """
     행정규칙 부칙 본문을 조문 단위로 나누는 함수.
 
@@ -247,7 +247,7 @@ def split_admrule_addendum_content(title: str, text: str) -> list[str]:
     
     return [c for c in contents if c.strip()]
 
-def create_addendum_metadata(
+def _create_addendum_metadata(
     law_id: str,
     title: str,
     number: str,

@@ -13,7 +13,7 @@ def parse_hierarchy_laws(data, parent_id="None"):
     """
     hierarchy_laws: list[HierarchyLaws] = []
 
-    def extract_laws(node, parent_id):
+    def _extract_laws(node, parent_id):
         """DFS 기반으로 계층 구조를 순회하며 상하위법 추출"""
         if isinstance(node, dict):
             # '기본정보'가 있으면 법 정보 추출
@@ -49,15 +49,15 @@ def parse_hierarchy_laws(data, parent_id="None"):
                     if key not in ["고시", "예규", "훈령"]:
                         continue
 
-                extract_laws(value, parent_id)
+                _extract_laws(value, parent_id)
 
         elif isinstance(node, list):
             for item in node:
-                extract_laws(item, parent_id)
+                _extract_laws(item, parent_id)
 
     # 데이터가 있으면 "상하위법" 키부터 탐색 시작
     if data:
-        extract_laws(data["상하위법"], parent_id)
+        _extract_laws(data["상하위법"], parent_id)
     return hierarchy_laws
 
 def parse_connected_laws(data):

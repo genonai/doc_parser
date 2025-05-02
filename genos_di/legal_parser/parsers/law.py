@@ -11,7 +11,7 @@ from schemas.schema import ParserContent
 
 type_converter = TypeConverter()
 
-def extract_department_info(office: dict) -> str:
+def _extract_department_info(office: dict) -> str:
     """소관부처 정보를 추출하는 함수"""
     if type_converter.validator(office, dict):
         return f"{office['소관부처명']} {office['부서명']}"
@@ -20,11 +20,11 @@ def extract_department_info(office: dict) -> str:
     else :
         return ""
 
-def extract_law_field(law: dict) -> str:
+def _extract_law_field(law: dict) -> str:
     """법 분야명을 추출하는 함수"""
     return LAWFIELD.get(int(law.get("편장절관", "00")[:2]))
 
-def extract_addenda_info(law_id: str, law_data: dict) -> tuple[list[str], str]:
+def _extract_addenda_info(law_id: str, law_data: dict) -> tuple[list[str], str]:
     """부칙 정보를 추출하는 함수"""
     addenda = []
     enact_date = "00000000"
@@ -36,7 +36,7 @@ def extract_addenda_info(law_id: str, law_data: dict) -> tuple[list[str], str]:
     
     return addenda, enact_date
 
-def extract_appendix_info(law_id: str, law_data: dict) -> list[str]:
+def _extract_appendix_info(law_id: str, law_data: dict) -> list[str]:
     """별표 정보를 추출하는 함수"""
     appendices = []
     appendix_data = law_data.get("별표")
@@ -47,12 +47,12 @@ def extract_appendix_info(law_id: str, law_data: dict) -> list[str]:
     
     return appendices
 
-def extract_is_effective_info(enforce_date:str) -> int:
+def _extract_is_effective_info(enforce_date:str) -> int:
     "시행일자를 기준으로 현재 시행 예정인지(1) 혹은 현행(0)인지 추출하는 함수"
     today = datetime.now().strftime("%Y%m%d")
     return 1 if enforce_date > today else 0
 
-def create_law_metadata(
+def _create_law_metadata(
     law_id: str,
     law: dict,
     law_field: str,
@@ -90,21 +90,21 @@ def parse_law_info(law_id: str, law_data: dict, hierarchy_laws, connected_laws) 
 
     # 소관부처 : 소관부처명 + 연락부서 부서명
     office = law.get("연락부서", {}).get("부서단위")
-    dept = extract_department_info(office)
+    dept = _extract_department_info(office)
 
     # 현행 여부
-    is_effective = extract_is_effective_info(law.get("시행일자"))
+    is_effective = _extract_is_effective_info(law.get("시행일자"))
 
     ## 법 분야명
-    law_field = extract_law_field(law)
+    law_field = _extract_law_field(law)
     
     ## 부칙 ID 리스트
-    addenda, enact_date = extract_addenda_info(law_id, law_data)
+    addenda, enact_date = _extract_addenda_info(law_id, law_data)
 
     ## 별표 ID 리스트
-    appendices = extract_appendix_info(law_id, law_data)
+    appendices = _extract_appendix_info(law_id, law_data)
 
-    metadata = create_law_metadata(
+    metadata = _create_law_metadata(
         law_id=law_id,
         law=law,
         law_field=law_field,
