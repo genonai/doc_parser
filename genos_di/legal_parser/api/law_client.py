@@ -54,7 +54,7 @@ async def fetch_api_amend(url: str):
             if response.status == 200:
                 if "application/json" in content_type:
                     data = await response.json()
-                    if data and data["LawSearch"]["totalCount"]  == 0: 
+                    if data and data["LawSearch"]["totalCnt"]  == 0: 
                         raise ClientError(detail="해당일자에 개정된 법령을 찾을 수 없음 : {url}")
                 else:
                     data = await response.text()
@@ -63,7 +63,9 @@ async def fetch_api_amend(url: str):
             else:
                 error_logger.law_error(f"[fetch_api] API 요청 실패: {url} (HTTP {response.status})")
                 raise ClientError(detail=f"Request {url} failed with status {response.status}", status_code=status.HTTP_400_BAD_REQUEST)
-                    
+            
+            return data
+
 # API 호출 
 async def get_api_response(
     query: Union[
@@ -107,12 +109,14 @@ async def get_all_api_responses(query, api_func: Union[Callable, Awaitable[dict]
     # 2페이지부터 마지막 페이지까지 요청
     for page in range(2, total_pages + 1):
         query.page = page
-        main_logger.debug(f"{page}/{total_pages} 페이지 요청 중...")
+        
+        url = APIEndpoints().get_list_url(query.get_query_params())
+        main_logger.debug(f"{page}/{total_pages} 페이지 요청 중... / {url}")
 
         if is_async:
-            response = await api_func(query)
+            response = await api_func(url)
         else:
-            response = api_func(query)
+            response = api_func(url)
         
         all_results.append(response)
     

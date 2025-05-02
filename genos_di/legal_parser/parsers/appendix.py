@@ -161,7 +161,7 @@ def _extract_law_appendix_metadata(item: dict, rule_info: RuleInfo) -> dict:
 
 def _extract_appendix_content(item: dict) -> list[str]:
     """별표 항목에서 내용을 추출하고 정제합니다."""
-    appendix_content = type_converter.converter(item.get("별표내용"), list[str])
+    appendix_content = type_converter.converter(item.get("별표내용"), list[str], use_default=True)
     return replace_strip(appendix_content)
 
 

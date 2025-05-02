@@ -43,33 +43,37 @@ def map_article_addenda(article_list: list[ParserContent], addendum_list: list[P
     조문 메타데이터의 `related_addenda'와 부칙 메타데이터의 `related_articles` 양방향 연결
     """
 
+    if not article_list or not addendum_list:
+        return article_list, addendum_list
+    
     article_dict: dict[str, list[ParserContent]] = defaultdict(list)
     for article in article_list:
         article_dict[article.metadata.announce_date].append(article)
 
     # 이 부칙이 가장 오래된 조문 개정일 이전에 제정되었는지 여부 판단
-    oldest_article_date = min(article_dict.keys())
+    if article_dict.keys():
+        oldest_article_date = min(article_dict.keys())
 
-    for index, addendum in enumerate(addendum_list):
-        announce_date = addendum.metadata.announce_date
-        if index == 0 and oldest_article_date == addendum.metadata.announce_date:
-            break
-        if announce_date < oldest_article_date:
-            addendum.metadata.is_exit = True
-  
-    # 부칙 데이터를 역순으로 순회하면서 관련 조문 ID 추가
-    for addendum in reversed(addendum_list):
-        announce_date = addendum.metadata.announce_date
-
-        if announce_date in article_dict:
-            for article in article_dict[announce_date]:
-                article_id = article.metadata.article_id
-
-                # 부칙에 관련 조문 ID 추가
-                addendum.metadata.related_articles = addendum.metadata.related_articles or []
-                if article_id not in addendum.metadata.related_articles:
-                    addendum.metadata.related_articles.append(article_id)
+        for index, addendum in enumerate(addendum_list):
+            announce_date = addendum.metadata.announce_date
+            if index == 0 and oldest_article_date == addendum.metadata.announce_date:
+                break
+            if announce_date < oldest_article_date:
+                addendum.metadata.is_exit = True
     
+        # 부칙 데이터를 역순으로 순회하면서 관련 조문 ID 추가
+        for addendum in reversed(addendum_list):
+            announce_date = addendum.metadata.announce_date
+
+            if announce_date in article_dict:
+                for article in article_dict[announce_date]:
+                    article_id = article.metadata.article_id
+
+                    # 부칙에 관련 조문 ID 추가
+                    addendum.metadata.related_articles = addendum.metadata.related_articles or []
+                    if article_id not in addendum.metadata.related_articles:
+                        addendum.metadata.related_articles.append(article_id)
+        
     ## 양방향 연결 
     synchronize_relationships(
         article_list, addendum_list,
@@ -95,30 +99,34 @@ def map_addendum_appendix(addendum_list:list[ParserContent], appendix_list: list
     -> tuple[list[ParserContent], list[ParserContent]]:
     """부칙의 related_appendices와 별표의 related_addenda 양방향 연결
     """
+    if not appendix_list or not addendum_list:
+        return appendix_list, addendum_list
+    
     # announce_date 기준으로 appendix를 그룹화
     appendix_dict: dict[str, list[ParserContent]] = defaultdict(list)
     for appendix in appendix_list:
         appendix_dict[appendix.metadata.announce_date].append(appendix)
     
-    # 부칙 데이터를 순회하면서 같은 날짜의 별표와 연결
-    for addendum in addendum_list:
-        announce_date = addendum.metadata.announce_date
+    if appendix_dict.keys():
+        # 부칙 데이터를 순회하면서 같은 날짜의 별표와 연결
+        for addendum in addendum_list:
+            announce_date = addendum.metadata.announce_date
+            
+            if announce_date in appendix_dict:
+                for appendix in appendix_dict[announce_date]:
+                    appendix_id = appendix.metadata.appendix_id
+                    
+                    # 부칙에 관련 별표 ID 추가
+                    addendum.metadata.related_appendices = addendum.metadata.related_appendices or []
+                    if appendix_id not in addendum.metadata.related_appendices:
+                        addendum.metadata.related_appendices.append(appendix_id)
+                    
+                    # 별표에 관련 부칙 ID 추가
+                    addendum_id = addendum.metadata.addendum_id
+                    appendix.metadata.related_addenda = appendix.metadata.related_addenda or []
+                    if addendum_id not in appendix.metadata.related_addenda:
+                        appendix.metadata.related_addenda.append(addendum_id)
         
-        if announce_date in appendix_dict:
-            for appendix in appendix_dict[announce_date]:
-                appendix_id = appendix.metadata.appendix_id
-                
-                # 부칙에 관련 별표 ID 추가
-                addendum.metadata.related_appendices = addendum.metadata.related_appendices or []
-                if appendix_id not in addendum.metadata.related_appendices:
-                    addendum.metadata.related_appendices.append(appendix_id)
-                
-                # 별표에 관련 부칙 ID 추가
-                addendum_id = addendum.metadata.addendum_id
-                appendix.metadata.related_addenda = appendix.metadata.related_addenda or []
-                if addendum_id not in appendix.metadata.related_addenda:
-                    appendix.metadata.related_addenda.append(addendum_id)
-    
     synchronize_relationships(
         addendum_list, appendix_list,
         list_a_related_attr="related_appendices", list_b_related_attr="related_addenda",
