@@ -750,7 +750,7 @@ class DocumentProcessor:
             reg_date=datetime.now().isoformat(timespec='seconds') + 'Z'
         )
         
-        # 추출된 메타데이터가 있으면 global_metadata에 추가
+        # 추출된 작성자, 작성일 메타데이터가 있으면 global_metadata에 추가
         if metadata:
             global_metadata.update({
                 "write_date": metadata.get("write_date"),
@@ -813,7 +813,7 @@ class DocumentProcessor:
         for page_no in range(1, 3):
             merged_text += document.export_to_markdown(page_no=page_no)
         
-        # 메타데이터 추출 (client가 제공된 경우)
+        # 작성자, 작성일 메타데이터 추출 (client가 제공된 경우)
         metadata = {}
         if client:
             metadata = self.extract_document_metadata(merged_text, client)
