@@ -16,6 +16,7 @@ from typing import (
     Set,
     Type,
     Union,
+    Any,
 )
 
 import filetype
