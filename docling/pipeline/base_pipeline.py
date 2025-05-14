@@ -80,6 +80,7 @@ class BasePipeline(ABC):
                 raise e
         finally:
             self._unload(conv_res)
+
         return conv_res
 
     @abstractmethod

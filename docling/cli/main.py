@@ -5,7 +5,6 @@ import re
 import sys
 import tempfile
 import time
-import json
 import warnings
 from collections.abc import Iterable
 from pathlib import Path
@@ -198,7 +197,6 @@ def export_documents(
     export_txt: bool,
     export_doctags: bool,
     image_export_mode: ImageRefMode,
-    data_enrichment: bool = False,
 ):
     success_count = 0
     failure_count = 0
@@ -273,13 +271,6 @@ def export_documents(
                 fname = output_dir / f"{doc_filename}.doctags"
                 _log.info(f"writing Doc Tags output to {fname}")
                 conv_res.document.save_as_document_tokens(filename=fname)
-
-            # Export Metadata
-            if data_enrichment and hasattr(conv_res, 'metadata') and conv_res.metadata:
-                metadata_fname = output_dir / f"{doc_filename}_metadata.json"
-                _log.info(f"writing metadata to {metadata_fname}")
-                with open(metadata_fname, 'w', encoding='utf-8') as f:
-                    json.dump(conv_res.metadata, f, ensure_ascii=False, indent=2)
 
         else:
             _log.warning(f"Document {conv_res.input.file} failed to convert.")
@@ -407,10 +398,6 @@ def convert(  # noqa: C901
     enrich_picture_description: Annotated[
         bool,
         typer.Option(..., help="Enable the picture description model in the pipeline."),
-    ] = False,
-    data_enrichment: Annotated[
-        bool,
-        typer.Option(..., help="Extract metadata (date and author) from document content."),
     ] = False,
     artifacts_path: Annotated[
         Optional[Path],
@@ -609,7 +596,6 @@ def convert(  # noqa: C901
                 do_formula_enrichment=enrich_formula,
                 do_picture_description=enrich_picture_description,
                 do_picture_classification=enrich_picture_classes,
-                data_enrichment=data_enrichment,
                 document_timeout=document_timeout,
             )
             pipeline_options.table_structure_options.do_cell_matching = (
@@ -790,7 +776,6 @@ def convert(  # noqa: C901
             export_txt=export_txt,
             export_doctags=export_doctags,
             image_export_mode=image_export_mode,
-            data_enrichment=data_enrichment,
         )
 
         end_time = time.time() - start_time
