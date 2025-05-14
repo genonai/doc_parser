@@ -94,7 +94,22 @@ from genos_utils import upload_files
 # Copyright IBM Corp. 2024 - 2024
 # SPDX-License-Identifier: MIT
 #
-# ============================================
+
+# FormatToExtensions = {
+#     InputFormat.DOCX: ["docx", "dotx", "docm", "dotm"],
+#     InputFormat.PPTX: ["pptx", "potx", "ppsx", "pptm", "potm", "ppsm"],
+#     InputFormat.PDF: ["pdf"],
+#     InputFormat.MD: ["md"],
+#     InputFormat.HTML: ["html", "htm", "xhtml"],
+#     InputFormat.XML_JATS: ["xml", "nxml"],
+#     InputFormat.IMAGE: ["jpg", "jpeg", "png", "tif", "tiff", "bmp"],
+#     InputFormat.ASCIIDOC: ["adoc", "asciidoc", "asc"],
+#     InputFormat.CSV: ["csv"],
+#     InputFormat.XLSX: ["xlsx"],
+#     InputFormat.XML_USPTO: ["xml", "txt"],
+#     InputFormat.JSON_DOCLING: ["json"],
+# }
+
 """Chunker implementation leveraging the document structure."""
 
 
@@ -209,6 +224,7 @@ class HierarchicalChunker(BaseChunker):
         # 헤더 정보를 별도 속성으로 저장
         chunk._header_info_list = all_header_info
         yield chunk
+
 
 class HybridChunker(BaseChunker):
     """토큰 제한을 고려하여 섹션별 청크를 분할하고 병합하는 청커"""
@@ -651,6 +667,46 @@ class HybridChunker(BaseChunker):
         
         return merged_chunks
 
+    def _get_chunk_page(self, chunk: DocChunk):
+        """청크의 페이지 번호를 안전하게 추출합니다."""
+        try:
+            if chunk.meta and chunk.meta.doc_items:
+                for item in chunk.meta.doc_items:
+                    if hasattr(item, 'prov') and item.prov and len(item.prov) > 0:
+                        return item.prov[0].page_no
+        except (AttributeError, IndexError):
+            pass
+        return None
+
+    def _create_merged_chunk_simple(self, chunks_to_merge):
+        """여러 청크를 병합하되, 데이터 유실 없이 헤딩을 텍스트에 올바르게 포함시키고,
+        meta.headings에는 모든 유니크한 헤딩을 순서대로 유지합니다."""
+        if not chunks_to_merge:
+            return None
+        
+        if len(chunks_to_merge) == 1:
+            return chunks_to_merge[0]
+        
+        all_doc_items = []
+        processed_texts = []
+    
+        for idx, chunk in enumerate(chunks_to_merge):
+            all_doc_items.extend(chunk.meta.doc_items)
+            current_chunk_text = ""
+            current_chunk_text += chunk.text
+            processed_texts.append(current_chunk_text)
+            
+
+        merged_text = self.delim.join(processed_texts)
+
+        return DocChunk(
+            text=merged_text,
+            meta=DocMeta(
+                doc_items=all_doc_items,
+                origin=chunks_to_merge[0].meta.origin
+            )
+        )
+
     def chunk(self, dl_doc: DoclingDocument, **kwargs: Any) -> Iterator[BaseChunk]:
         """문서를 청킹하여 반환
         
@@ -698,9 +754,9 @@ class GenOSVectorMetaBuilder:
     def __init__(self):
         """빌더 초기화"""
         self.text: Optional[str] = None
-        self.n_chars: Optional[int] = None
-        self.n_words: Optional[int] = None
-        self.n_lines: Optional[int] = None
+        self.n_char: Optional[int] = None
+        self.n_word: Optional[int] = None
+        self.n_line: Optional[int] = None
         self.i_page: Optional[int] = None
         self.e_page: Optional[int] = None
         self.i_chunk_on_page: Optional[int] = None
@@ -717,9 +773,9 @@ class GenOSVectorMetaBuilder:
     def set_text(self, text: str) -> "GenOSVectorMetaBuilder":
         """텍스트와 관련된 데이터를 설정"""
         self.text = text
-        self.n_chars = len(text)
-        self.n_words = len(text.split())
-        self.n_lines = len(text.splitlines())
+        self.n_char = len(text)
+        self.n_word = len(text.split())
+        self.n_line = len(text.splitlines())
         return self
 
     def set_page_info(
@@ -776,9 +832,9 @@ class GenOSVectorMetaBuilder:
         """설정된 데이터를 사용해 최종적으로 GenOSVectorMeta 객체 생성"""
         return GenOSVectorMeta(
             text=self.text,
-            n_chars=self.n_chars,
-            n_words=self.n_words,
-            n_lines=self.n_lines,
+            n_char=self.n_char,
+            n_word=self.n_word,
+            n_line=self.n_line,
             i_page=self.i_page,
             e_page=self.e_page,
             i_chunk_on_page=self.i_chunk_on_page,
@@ -869,6 +925,7 @@ class DocumentProcessor:
 
     def load_documents(self, file_path: str, **kwargs) -> DoclingDocument:
         return self.load_documents_with_docling(file_path, **kwargs)
+        # return documents
 
     def split_documents(self, documents: DoclingDocument, **kwargs: dict) -> List[DocChunk]:
         chunker: HybridChunker = HybridChunker(
@@ -880,6 +937,9 @@ class DocumentProcessor:
         for chunk in chunks:
             self.page_chunk_counts[chunk.meta.doc_items[0].prov[0].page_no] += 1
         return chunks
+        # elif kwargs['format'] == InputFormat.XLSX:
+        #     chunks: List[DocChunk] = list(chunker.chunk(dl_doc=documents, **kwargs))
+        #     return chunks
 
     def safe_join(self, iterable):
         if not isinstance(iterable, (list, tuple, set)):
@@ -993,6 +1053,10 @@ class DocumentProcessor:
         vectors = []
         upload_tasks = []
         for chunk_idx, chunk in enumerate(chunks):
+            ## NOTE: chunk가 두 페이지에 걸쳐 있는 경우 첫번째 아이템을 사용
+            ## NOTE: chunk가 두 페이지에 걸쳐서 있는 경우 bounding box 처리를 어떻게 해야하는 지...
+            ## NOTE: 현재 구조에서는 처리가 불가
+            ## NOTE: 임시로 페이지 넘어가는 경우 chunk를 분할해서 처리
             chunk_page = chunk.meta.doc_items[0].prov[0].page_no
             content = self.safe_join(chunk.meta.headings) + chunk.text
 
@@ -1001,13 +1065,13 @@ class DocumentProcessor:
                 chunk_index_on_page = 0
 
             vector = (GenOSVectorMetaBuilder()
-                    .set_text(content)
-                    .set_page_info(chunk_page, chunk_index_on_page, self.page_chunk_counts[chunk_page])
-                    .set_chunk_index(chunk_idx)
-                    .set_global_metadata(**global_metadata)
-                    .set_chunk_bboxes(chunk.meta.doc_items, document)
-                    .set_media_files(chunk.meta.doc_items)
-                    ).build()
+                      .set_text(content)
+                      .set_page_info(chunk_page, chunk_index_on_page, self.page_chunk_counts[chunk_page])
+                      .set_chunk_index(chunk_idx)
+                      .set_global_metadata(**global_metadata)
+                      .set_chunk_bboxes(chunk.meta.doc_items, document)
+                      .set_media_files(chunk.meta.doc_items)
+                      ).build()
             vectors.append(vector)
 
             chunk_index_on_page += 1
@@ -1115,6 +1179,9 @@ class DocumentProcessor:
         # Extract Chunk from DoclingDocument
         chunks: List[DocChunk] = self.split_documents(document, **kwargs)
         # await assert_cancelled(request)
+
+        # vectors: list[dict] = self.compose_vectors(document, chunks, file_path, **kwargs)
+        # print(chunks)
 
         vectors = []
         if len(chunks) > 1:
