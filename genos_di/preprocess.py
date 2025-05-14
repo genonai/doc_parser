@@ -10,8 +10,6 @@ from typing import Optional, Iterable, Any, List, Dict, Tuple
 
 from fastapi import Request
 
-from openai import OpenAI
-
 #docling imports
 from docling.backend.docling_parse_v4_backend import DoclingParseV4DocumentBackend
 from docling.backend.msexcel_backend import MsExcelDocumentBackend
@@ -576,32 +574,6 @@ class GenOSVectorMetaBuilder:
 
 class DocumentProcessor:
 
-    CLIENT = OpenAI(
-    base_url="https://openrouter.ai/api/v1",
-    api_key="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",
-    )
-
-    # 클래스 상수 정의
-    METADATA_SYSTEM_PROMPT = (
-        "한국 금융 문서에서 메타데이터를 추출하는 전문가입니다. "
-        "요청된 출력 형식을 정확히 따라야 합니다. "
-        "정보가 없는 경우, 해당 필드는 null이나 빈 배열로 출력합니다. "
-        "문서에 명시적으로 나타나지 않은 정보는 추측하지 않습니다. "
-        "작성자로 표시된 사람만 포함하세요."
-    )
-    
-    METADATA_USER_PROMPT_TEMPLATE = (
-        "다음 문서에서 작성일과 작성자 정보를 추출해주세요:\n\n"
-        "---\n{content}\n---\n\n"
-        "JSON 형식으로 출력해주세요:\n"
-        "{{\n"
-        '  "작성일": "YYYY-MM-DD",\n'
-        '  "작성자": [\n'
-        '    {{"이름": "이름", "소속": "소속", "직책": "직책", "전화": "번호"}}\n'
-        "  ]\n"
-        "}}"
-    )
-
     def __init__(self):
         '''
         initialize Document Converter
@@ -632,97 +604,6 @@ class DocumentProcessor:
             }
         )
 
-    def extract_document_metadata(self, merged_text: str, client, model="google/gemma-3-12b-it", seed=3):
-        """
-        문서 내용에서 작성일과 작성자 정보를 추출하는 함수
-        
-        Args:
-            merged_text (str): DocumentProcessor에서 생성된 병합된 문서 내용 (첫 두 페이지)
-            client (OpenAI): API 클라이언트 객체
-            model (str): 사용할 모델 이름
-            seed (int): 재현성을 위한 시드값
-            
-        Returns:
-            dict: 추출된 메타데이터를 포함한 딕셔너리
-                - write_date: 작성일 (문자열 또는 None)
-                - writers: 작성자 정보 (문자열 또는 None)
-        """
-        # 사용자 프롬프트 정의
-        user_prompt = self.METADATA_USER_PROMPT_TEMPLATE.format(content=merged_text)
-        
-        # 메시지 구성
-        messages = [
-            {"role": "system", "content": self.METADATA_SYSTEM_PROMPT},
-            {"role": "user", "content": user_prompt}
-        ]
-        
-        # API 요청
-        completion = client.chat.completions.create(
-            model=model,
-            messages=messages,
-            seed=seed
-        )
-        
-        # 응답에서 JSON 추출
-        response = completion.choices[0].message.content
-        
-        # 메타데이터 파싱
-        metadata = self._parse_metadata_response(response)
-        
-        # 작성자 정보 형식화
-        writers_info = self._format_writers_info(metadata.get("작성자", []))
-        
-        return {
-            "write_date": metadata.get("작성일"),
-            "writers": writers_info
-        }
-
-    def _parse_metadata_response(self, response):
-        """메타데이터 응답 파싱 헬퍼 메서드"""
-        import re
-        import json
-        
-        # 기본 메타데이터
-        metadata = {"작성일": None, "작성자": []}
-        
-        # JSON 코드 블록 찾기
-        json_pattern = r'```json\s*([\s\S]*?)\s*```'
-        match = re.search(json_pattern, response)
-        
-        if match:
-            try:
-                metadata = json.loads(match.group(1))
-            except:
-                pass
-        else:
-            try:
-                # JSON 블록이 없는 경우 전체 응답을 JSON으로 파싱 시도
-                metadata = json.loads(response)
-            except:
-                pass
-            
-        return metadata
-
-    def _format_writers_info(self, writers):
-        """작성자 정보 형식화 헬퍼 메서드"""
-        writers_info = []
-        
-        for writer in writers:
-            writer_parts = []
-            if writer.get("이름"):
-                writer_parts.append(writer["이름"])
-            if writer.get("소속"):
-                writer_parts.append(writer["소속"])
-            if writer.get("직책"):
-                writer_parts.append(writer["직책"])
-            if writer.get("전화"):
-                writer_parts.append(f"(내선: {writer['전화']})")
-            
-            if writer_parts:
-                writers_info.append(" ".join(writer_parts))
-        
-        return ", ".join(writers_info) if writers_info else None
-
     def load_documents_with_docling(self, file_path: str, **kwargs: dict) -> DoclingDocument:
         conv_result: ConversionResult = self.converter.convert(file_path, raises_on_error=False)
         return conv_result.document
@@ -743,19 +624,13 @@ class DocumentProcessor:
             return ''
         return ''.join(map(str, iterable)) + '\n'
     
-    def compose_vectors(self, document: DoclingDocument, chunks: List[DocChunk], file_path: str, metadata=None, **kwargs: dict) -> list[dict]:
+    def compose_vectors(self, document: DoclingDocument, chunks: List[DocChunk], file_path: str, **kwargs: dict) -> \
+            list[dict]:
         global_metadata = dict(
             n_chunk_of_doc=len(chunks),
             n_page=document.num_pages(),
             reg_date=datetime.now().isoformat(timespec='seconds') + 'Z'
         )
-        
-        # 추출된 메타데이터가 있으면 global_metadata에 추가
-        if metadata:
-            global_metadata.update({
-                "write_date": metadata.get("write_date"),
-                "writers": metadata.get("writers")
-            })
 
         current_page = None
         chunk_index_on_page = 0
@@ -794,7 +669,7 @@ class DocumentProcessor:
                 temp_list.append({ 'path': path, 'name': name})
         return temp_list
     """
-    async def __call__(self, request: Request, file_path: str, client=CLIENT, **kwargs: dict):
+    async def __call__(self, request: Request, file_path: str, **kwargs: dict):
         document: DoclingDocument = self.load_documents(file_path, **kwargs)
         # await assert_cancelled(request)
 
@@ -808,24 +683,13 @@ class DocumentProcessor:
 
         document = document._with_pictures_refs(image_dir=artifacts_dir, reference_path=reference_path)
 
-        # 첫번쨰 두번쨰 페이지 텍스트 합치기
-        merged_text = ""
-        for page_no in range(1, 3):
-            merged_text += document.export_to_markdown(page_no=page_no)
-        
-        # 메타데이터 추출 (client가 제공된 경우)
-        metadata = {}
-        if client:
-            metadata = self.extract_document_metadata(merged_text, client)
-        
         # Extract Chunk from DoclingDocument
         chunks: List[DocChunk] = self.split_documents(document, **kwargs)
         # await assert_cancelled(request)
 
         vectors = []
         if len(chunks) > 1:
-            # 메타데이터를 compose_vectors에 전달
-            vectors: list[dict] = self.compose_vectors(document, chunks, file_path, metadata=metadata, **kwargs)
+            vectors: list[dict] = self.compose_vectors(document, chunks, file_path, **kwargs)
         else:
             raise GenosServiceException(1, f"chunk length is 0")
         
@@ -846,6 +710,7 @@ class DocumentProcessor:
         """
 
         return vectors
+
 
 class GenosServiceException(Exception):
     # GenOS 와의 의존성 부분 제거를 위해 추가
