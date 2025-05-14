@@ -288,7 +288,6 @@ class VlmPipelineOptions(PaginatedPipelineOptions):
     force_backend_text: bool = (
         False  # (To be used with vlms, or other generative models)
     )
-    data_enrichment: bool = False  # True: extract metadata from document content
     # If True, text from backend will be used instead of generated text
     vlm_options: Union[InlineVlmOptions, ApiVlmOptions] = (
         vlm_model_specs.GRANITEDOCLING_TRANSFORMERS
