@@ -215,7 +215,9 @@ class HierarchicalChunker(BaseChunker):
                         text=text,
                         meta=DocMeta(
                             doc_items=[item],
-                            heading=None,
+                            headings=[heading_by_level[k] for k in sorted(heading_by_level)]
+                            or None,
+                            captions=captions,
                             origin=dl_doc.origin,
                         ),
                     )
@@ -282,7 +284,7 @@ class HybridChunker(BaseChunker):
     tokenizer: Union[PreTrainedTokenizerBase, str] = (
         "sentence-transformers/all-MiniLM-L6-v2"
     )
-    max_tokens: int = 2048  # type: ignore[assignment]
+    max_tokens: int = 1024  # type: ignore[assignment]
     merge_peers: bool = True
 
     _inner_chunker: HierarchicalChunker = HierarchicalChunker()
@@ -419,97 +421,53 @@ class HybridChunker(BaseChunker):
             return chunks
 
     def _merge_chunks_with_matching_metadata(self, chunks: list[DocChunk]):
-        """페이지 정보를 기준으로 청크를 병합하되, 모든 텍스트를 있는 그대로 보존합니다."""
-        if not chunks:
-            return []
-        
         output_chunks = []
-        i = 0
-        
-        while i < len(chunks):
-            # 시작 청크
-            base_chunk = chunks[i]
-            merged_chunks = [base_chunk]
-            current_token_count = self._count_chunk_tokens(base_chunk)
-            base_page = self._get_chunk_page(base_chunk)
-            
-            j = i + 1
-            
-            # 병합 가능한 모든 후속 청크를 검사
-            while j < len(chunks):
-                next_chunk = chunks[j]
-                next_page = self._get_chunk_page(next_chunk)
-                
-                # 페이지 일치 여부 확인 (둘 다 None이면 일치로 간주)
-                page_match = (base_page == next_page) or (base_page is None and next_page is None)
-                
-                # 페이지가 일치하는 경우
-                if page_match:
-                    # 병합 시 토큰 수 예측
-                    candidate_chunks = merged_chunks + [next_chunk]
-                    candidate = self._create_merged_chunk_simple(candidate_chunks)
-                    candidate_tokens = self._count_chunk_tokens(candidate)
-                    
-                    # 토큰 제한 내에 들어오면 병합
-                    if candidate_tokens <= self.max_tokens:
-                        merged_chunks.append(next_chunk)
-                        current_token_count = candidate_tokens
-                        j += 1
-                        continue
-                
-                # 병합 조건 불만족 - 다음 청크로 이동
-                break
-            
-            # 병합된 청크 추가
-            if len(merged_chunks) == 1:
-                output_chunks.append(base_chunk)
+        window_start = 0
+        window_end = 0  # an inclusive index
+        num_chunks = len(chunks)
+        while window_end < num_chunks:
+            chunk = chunks[window_end]
+            headings_and_captions = (chunk.meta.headings, chunk.meta.captions)
+            ready_to_append = False
+            if window_start == window_end:
+                current_headings_and_captions = headings_and_captions
+                window_end += 1
+                first_chunk_of_window = chunk
             else:
-                output_chunks.append(self._create_merged_chunk_simple(merged_chunks))
-            
-            # 다음 시작점으로 이동
-            i = j
-        
+                chks = chunks[window_start : window_end + 1]
+                doc_items = [it for chk in chks for it in chk.meta.doc_items]
+                candidate = DocChunk(
+                    text=self.delim.join([chk.text for chk in chks]),
+                    meta=DocMeta(
+                        doc_items=doc_items,
+                        headings=current_headings_and_captions[0],
+                        captions=current_headings_and_captions[1],
+                        origin=chunk.meta.origin,
+                    ),
+                )
+                if (
+                    headings_and_captions == current_headings_and_captions
+                    and self._count_chunk_tokens(doc_chunk=candidate) <= self.max_tokens
+                ):
+                    # there is room to include the new chunk so add it to the window and
+                    # continue
+                    window_end += 1
+                    new_chunk = candidate
+                else:
+                    ready_to_append = True
+            if ready_to_append or window_end == num_chunks:
+                # no more room OR the start of new metadata.  Either way, end the block
+                # and use the current window_end as the start of a new block
+                if window_start + 1 == window_end:
+                    # just one chunk so use it as is
+                    output_chunks.append(first_chunk_of_window)
+                else:
+                    output_chunks.append(new_chunk)
+                # no need to reset window_text, etc. because that will be reset in the
+                # next iteration in the if window_start == window_end block
+                window_start = window_end
+
         return output_chunks
-
-    def _get_chunk_page(self, chunk: DocChunk):
-        """청크의 페이지 번호를 안전하게 추출합니다."""
-        try:
-            if chunk.meta and chunk.meta.doc_items:
-                for item in chunk.meta.doc_items:
-                    if hasattr(item, 'prov') and item.prov and len(item.prov) > 0:
-                        return item.prov[0].page_no
-        except (AttributeError, IndexError):
-            pass
-        return None
-
-    def _create_merged_chunk_simple(self, chunks_to_merge):
-        """여러 청크를 병합하되, 데이터 유실 없이 헤딩을 텍스트에 올바르게 포함시키고,
-        meta.headings에는 모든 유니크한 헤딩을 순서대로 유지합니다."""
-        if not chunks_to_merge:
-            return None
-        
-        if len(chunks_to_merge) == 1:
-            return chunks_to_merge[0]
-        
-        all_doc_items = []
-        processed_texts = []
-    
-        for idx, chunk in enumerate(chunks_to_merge):
-            all_doc_items.extend(chunk.meta.doc_items)
-            current_chunk_text = ""
-            current_chunk_text += chunk.text
-            processed_texts.append(current_chunk_text)
-            
-
-        merged_text = self.delim.join(processed_texts)
-
-        return DocChunk(
-            text=merged_text,
-            meta=DocMeta(
-                doc_items=all_doc_items,
-                origin=chunks_to_merge[0].meta.origin
-            )
-        )
 
     def chunk(self, dl_doc: DoclingDocument, **kwargs: Any) -> Iterator[BaseChunk]:
         r"""Chunk the provided document.
@@ -680,6 +638,15 @@ class DocumentProcessor:
                 ),
             }
         )
+        
+        self.second_converter = DocumentConverter(
+            format_options={
+                InputFormat.PDF: PdfFormatOption(
+                    pipeline_options=pipe_line_options,
+                    backend=PyPdfiumDocumentBackend
+                ),
+            },
+        )
 
     def load_documents_with_docling(self, file_path: str, **kwargs: dict) -> DoclingDocument:
         # docling 설정
@@ -692,7 +659,11 @@ class DocumentProcessor:
         # NOTE: 처리시 파일 하나를 병렬로 처리하는지?? 아니면 폴더 단위로 병렬 처리 하는지??
         # NOTE: 파일 하나 처리 시 convert로 변경.
         # conv_results = doc_converter.convert_all([file_path], raises_on_error=True)
-        conv_result: ConversionResult = self.converter.convert(file_path, raises_on_error=False)
+        try:
+            conv_result: ConversionResult = self.converter.convert(file_path, raises_on_error=True)
+        except Exception as e:
+            conv_result: ConversionResult = self.second_converter.convert(file_path, raises_on_error=True)
+        
         # return process_pdf(conv_result.document)
         return conv_result.document
 
@@ -701,27 +672,95 @@ class DocumentProcessor:
         return self.load_documents_with_docling(file_path, **kwargs)
         # return documents
 
-    def split_documents(self, documents: DoclingDocument, **kwargs: dict) -> List[DocChunk]:
-        ##FIXME: Hierarchical Chunker 로 수정
-        ## NOTE: HierarchicalChunker -> HybridChunker로 공식 문서 변경 됨.
-        ## 관련 url : https://ds4sd.github.io/docling/usage/#chunking
-        ## 관련 url : https://ds4sd.github.io/docling/examples/hybrid_chunking/
-        chunker: HybridChunker = HybridChunker()
+    def split_documents(self, documents: DoclingDocument, **kwargs: dict) -> list[DocChunk]:
+        """
+        1) HybridChunker로 기본 청크 생성
+        2) max_char_len 기준으로 그리디하게 병합
+        3) 병합 후, 각 청크의 마지막 doc_item이 SECTION_HEADER면 다음 청크로 이관
+           (마지막 청크의 SECTION_HEADER는 무시)
+        """
+        max_char_len = kwargs.get("max_char_len", 1024)
+        chunker = HybridChunker()
+        raw_chunks: list[DocChunk] = list(chunker.chunk(dl_doc=documents, **kwargs))
 
-        # if kwargs['format'] == InputFormat.PDF:
-        chunks: List[DocChunk] = list(chunker.chunk(dl_doc=documents, **kwargs))
-        for chunk in chunks:
-            self.page_chunk_counts[chunk.meta.doc_items[0].prov[0].page_no] += 1
-        return chunks
-        # elif kwargs['format'] == InputFormat.XLSX:
-        #     chunks: List[DocChunk] = list(chunker.chunk(dl_doc=documents, **kwargs))
-        #     return chunks
+        # 페이지별 청크 카운트 업데이트
+        for c in raw_chunks:
+            page_no = c.meta.doc_items[0].prov[0].page_no
+            self.page_chunk_counts[page_no] += 1
+
+        # 1) greedy merge by max_char_len
+        merged: list[DocChunk] = []
+        buf_text = ""
+        buf_items: list = []
+
+        def _flush():
+            nonlocal buf_text, buf_items
+            if not buf_items:
+                return
+            Meta = type(raw_chunks[0].meta)
+            new_meta = Meta(
+                doc_items=buf_items,
+                headings=None,
+                captions=None,
+                origin=documents.origin,
+            )
+            merged.append(DocChunk(text=buf_text.strip(), meta=new_meta))
+            buf_text = ""
+            buf_items = []
+
+        for chunk in raw_chunks:
+            # build segment
+            seg = ""
+            if chunk.meta.headings:
+                hs = [h.strip() for h in chunk.meta.headings if h and h.strip()]
+                if hs:
+                    seg += self.safe_join(hs) + " "
+            if chunk.text and chunk.text.strip():
+                seg += chunk.text.strip()
+            if not seg:
+                continue
+
+            # if adding seg would exceed length, flush first
+            projected = len(buf_text) + (1 if buf_text else 0) + len(seg)
+            if buf_text and projected > max_char_len:
+                _flush()
+
+            # accumulate
+            buf_text += (" " if buf_text else "") + seg
+            buf_items.extend(chunk.meta.doc_items)
+
+        # flush remainder
+        _flush()
+
+        # 2) move trailing SECTION_HEADER to next chunk (except last)
+        for i in range(len(merged) - 1):
+            items = merged[i].meta.doc_items
+            if items and items[-1].label == DocItemLabel.SECTION_HEADER:
+                header = items.pop()
+                # remove header text from chunk text
+                ht = header.text.strip()
+                txt = merged[i].text.rstrip()
+                
+                if txt.endswith(ht):
+                    merged[i].text = txt[:-len(ht)].rstrip()
+                # prepend header to next chunk
+                next_chunk = merged[i + 1]
+                next_items = next_chunk.meta.doc_items
+                next_items.insert(0, header)
+                # update next text
+                nt = header.text.strip()
+                if next_chunk.text:
+                    nt = nt + "\n" + next_chunk.text
+                next_chunk.text = nt
+        
+        chunk = [c for c in merged if c.meta.doc_items]
+        return chunk
 
     def safe_join(self, iterable):
         if not isinstance(iterable, (list, tuple, set)):
             return ''
         return ''.join(map(str, iterable)) + '\n'
-
+    
     def compose_vectors(self, document: DoclingDocument, chunks: List[DocChunk], file_path: str, **kwargs: dict) -> \
             list[dict]:
         global_metadata = dict(
@@ -729,7 +768,7 @@ class DocumentProcessor:
             n_page=document.num_pages(),
             reg_date=datetime.now().isoformat(timespec='seconds') + 'Z'
         )
-
+        
         current_page = None
         chunk_index_on_page = 0
         vectors = []
@@ -740,15 +779,15 @@ class DocumentProcessor:
             ## NOTE: 임시로 페이지 넘어가는 경우 chunk를 분할해서 처리
             chunk_page = chunk.meta.doc_items[0].prov[0].page_no
             content = self.safe_join(chunk.meta.headings) + chunk.text
-
+            
             vector = (GenOSVectorMetaBuilder()
-                      .set_text(content)
-                      .set_page_info(chunk_page, chunk_index_on_page, self.page_chunk_counts[chunk_page])
-                      .set_chunk_index(chunk_idx)
-                      .set_global_metadata(**global_metadata)
-                      .set_chunk_bboxes(chunk.meta.doc_items, document)
-                      .set_media_files(chunk.meta.doc_items)
-                      ).build()
+                    .set_text(content)
+                    .set_page_info(chunk_page, chunk_index_on_page, self.page_chunk_counts[chunk_page])
+                    .set_chunk_index(chunk_idx)
+                    .set_global_metadata(**global_metadata)
+                    .set_chunk_bboxes(chunk.meta.doc_items, document)
+                    .set_media_files(chunk.meta.doc_items)
+                    ).build()
             vectors.append(vector)
 
             # page = chunk_page
@@ -761,10 +800,10 @@ class DocumentProcessor:
             chunk_index_on_page += 1
 
             # file_list = self.get_media_files(chunk.meta.doc_items)
-            # await upload_files(file_list, request=request)
+            #await upload_files(file_list, request=request)
 
         return vectors
-
+    
     """
     def get_media_files(self, doc_items: list):
         temp_list = []
@@ -815,7 +854,7 @@ class DocumentProcessor:
         # print(chunks)
 
         vectors = []
-        if len(chunks) > 1:
+        if len(chunks) >= 1:
             vectors: list[dict] = self.compose_vectors(document, chunks, file_path, **kwargs)
         else:
             raise GenosServiceException(1, f"chunk length is 0")
