@@ -1047,7 +1047,7 @@ class DocumentProcessor:
             created_date=created_date,
             title=title
         )
-
+        
         current_page = None
         chunk_index_on_page = 0
         vectors = []
@@ -1065,13 +1065,13 @@ class DocumentProcessor:
                 chunk_index_on_page = 0
 
             vector = (GenOSVectorMetaBuilder()
-                      .set_text(content)
-                      .set_page_info(chunk_page, chunk_index_on_page, self.page_chunk_counts[chunk_page])
-                      .set_chunk_index(chunk_idx)
-                      .set_global_metadata(**global_metadata)
-                      .set_chunk_bboxes(chunk.meta.doc_items, document)
-                      .set_media_files(chunk.meta.doc_items)
-                      ).build()
+                    .set_text(content)
+                    .set_page_info(chunk_page, chunk_index_on_page, self.page_chunk_counts[chunk_page])
+                    .set_chunk_index(chunk_idx)
+                    .set_global_metadata(**global_metadata)
+                    .set_chunk_bboxes(chunk.meta.doc_items, document)
+                    .set_media_files(chunk.meta.doc_items)
+                    ).build()
             vectors.append(vector)
 
             chunk_index_on_page += 1
@@ -1184,7 +1184,7 @@ class DocumentProcessor:
         # print(chunks)
 
         vectors = []
-        if len(chunks) > 1:
+        if len(chunks) >= 1:
             vectors: list[dict] = self.compose_vectors(document, chunks, file_path, **kwargs)
         else:
             raise GenosServiceException(1, f"chunk length is 0")
