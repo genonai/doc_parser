@@ -67,14 +67,11 @@ class InputFormat(str, Enum):
     XML_JATS = "xml_jats"
     METS_GBS = "mets_gbs"
     JSON_DOCLING = "json_docling"
-<<<<<<< HEAD
     AUDIO = "audio"
     VTT = "vtt"
-=======
     # 한글 파일 추가
     HWP = "hwp"
     XML_HWPX  = "xml_hwpx"
->>>>>>> 474ade5 (hwpx 백엔드 추가)
 
 
 class OutputFormat(str, Enum):
@@ -100,14 +97,11 @@ FormatToExtensions: dict[InputFormat, list[str]] = {
     InputFormat.XML_USPTO: ["xml", "txt"],
     InputFormat.METS_GBS: ["tar.gz"],
     InputFormat.JSON_DOCLING: ["json"],
-<<<<<<< HEAD
     InputFormat.AUDIO: ["wav", "mp3"],
     InputFormat.VTT: ["vtt"],
-=======
     # 한글 파일 추가 
     InputFormat.HWP: ["hwp"],
     InputFormat.XML_HWPX: ["hwpx"]
->>>>>>> 474ade5 (hwpx 백엔드 추가)
 }
 
 FormatToMimeType: dict[InputFormat, list[str]] = {
@@ -140,10 +134,8 @@ FormatToMimeType: dict[InputFormat, list[str]] = {
     InputFormat.XML_USPTO: ["application/xml", "text/plain"],
     InputFormat.METS_GBS: ["application/mets+xml"],
     InputFormat.JSON_DOCLING: ["application/json"],
-<<<<<<< HEAD
     InputFormat.AUDIO: ["audio/x-wav", "audio/mpeg", "audio/wav", "audio/mp3"],
     InputFormat.VTT: ["text/vtt"],
-=======
     # 한글 파일 추가
     InputFormat.HWP: [
         "application/vnd.hancom.hwp",  # 공식 HWP MIME 타입
@@ -157,7 +149,6 @@ FormatToMimeType: dict[InputFormat, list[str]] = {
         "application/vnd.hancom.hwpx",
         'application/hwp+zip' # https://forum.developer.hancom.com/t/hwp-hwpx-mime-type-whitelist/1641/2
     ],
->>>>>>> 474ade5 (hwpx 백엔드 추가)
 }
 
 MimeTypeToFormat: dict[str, list[InputFormat]] = {
@@ -183,6 +174,12 @@ class ErrorItem(BaseModel):
     component_type: DoclingComponentType
     module_name: str
     error_message: str
+
+
+# class Cell(BaseModel):
+#    id: int
+#    text: str
+#    bbox: BoundingBox
 
 
 class Cluster(BaseModel):
@@ -218,8 +215,6 @@ class VlmPredictionToken(BaseModel):
 
 class VlmPrediction(BaseModel):
     text: str = ""
-    generated_tokens: list[VlmPredictionToken] = []
-    generation_time: float = -1
 
 
 class ContainerElement(
@@ -248,16 +243,6 @@ class FigureElement(BasePageElement):
     provenance: Optional[str] = None
     predicted_class: Optional[str] = None
     confidence: Optional[float] = None
-
-    @field_serializer("confidence")
-    def _serialize(
-        self, value: Optional[float], info: FieldSerializationInfo
-    ) -> Optional[float]:
-        return (
-            round_pydantic_float(value, info.context, PydanticSerCtxKey.CONFID_PREC)
-            if value is not None
-            else None
-        )
 
 
 class FigureClassificationPrediction(BaseModel):
@@ -300,6 +285,7 @@ class Page(BaseModel):
     page_no: int
     # page_hash: Optional[str] = None
     size: Optional[Size] = None
+    cells: List[TextCell] = []
     parsed_page: Optional[SegmentedPdfPage] = None
     predictions: PagePredictions = PagePredictions()
     assembled: Optional[AssembledUnit] = None
@@ -321,17 +307,10 @@ class Page(BaseModel):
             return []
 
     def get_image(
-        self,
-        scale: float = 1.0,
-        max_size: Optional[int] = None,
-        cropbox: Optional[BoundingBox] = None,
+        self, scale: float = 1.0, cropbox: Optional[BoundingBox] = None
     ) -> Optional[Image]:
         if self._backend is None:
             return self._image_cache.get(scale, None)
-
-        if max_size:
-            assert self.size is not None
-            scale = min(scale, max_size / max(self.size.as_tuple()))
 
         if scale not in self._image_cache:
             if cropbox is None:
@@ -366,7 +345,7 @@ class OpenAiChatMessage(BaseModel):
 class OpenAiResponseChoice(BaseModel):
     index: int
     message: OpenAiChatMessage
-    finish_reason: Optional[str]
+    finish_reason: str
 
 
 class OpenAiResponseUsage(BaseModel):

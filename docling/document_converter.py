@@ -57,7 +57,6 @@ from docling.datamodel.settings import (
     settings,
 )
 from docling.exceptions import ConversionError
-from docling.pipeline.asr_pipeline import AsrPipeline
 from docling.pipeline.base_pipeline import BasePipeline
 from docling.pipeline.simple_pipeline import SimplePipeline
 from docling.pipeline.standard_pdf_pipeline import StandardPdfPipeline
