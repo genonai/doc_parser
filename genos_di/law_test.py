@@ -3,7 +3,7 @@ from pathlib import Path
 import json
 from law_preprocess import DocumentProcessor  # 클래스 임포트
 from pydantic import BaseModel
-from schemas import ParserResult # 상대경로로 쓰는중 
+from schemas import ParserResult 
 # DocumentProcessor 클래스 인스턴스 생성
 processor = DocumentProcessor()
 
