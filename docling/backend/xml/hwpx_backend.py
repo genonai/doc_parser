@@ -66,8 +66,10 @@ class HwpxDocumentBackend(DeclarativeDocumentBackend):
             tag = etree.QName(inline).localname
             if tag in ("tab", "fwSpace","linesegarray"):
                 parts.append(" ")
+                # print(parts)
             if inline.tail:
                 parts.append(inline.tail)
+                # print("not tag:", tag, "tail:", inline.tail, parts)
         return "".join(parts).strip()
 
     def is_valid(self) -> bool:
@@ -1153,7 +1155,6 @@ class HwpxDocumentBackend(DeclarativeDocumentBackend):
         if len(full_text) <= 100:
             if not hasattr(self, "_seen_section_texts"):
                 self._seen_section_texts = set()
-
             self._seen_section_texts.add(norm_text)
             self._end_list()
             self._add_header(doc, 1, full_text)
