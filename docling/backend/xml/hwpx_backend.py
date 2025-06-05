@@ -66,10 +66,8 @@ class HwpxDocumentBackend(DeclarativeDocumentBackend):
             tag = etree.QName(inline).localname
             if tag in ("tab", "fwSpace","linesegarray"):
                 parts.append(" ")
-                # print(parts)
             if inline.tail:
                 parts.append(inline.tail)
-                # print("not tag:", tag, "tail:", inline.tail, parts)
         return "".join(parts).strip()
 
     def is_valid(self) -> bool:
