@@ -402,14 +402,14 @@ class HwpxDocumentBackend(DeclarativeDocumentBackend):
                 toc_candidate = True
                 break
 
-        if not toc_candidate and re.match(r'^(?:\d+\.\s+|[ⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩ]+\.\s*)', full_para.strip()):
-            norm = "".join(full_para.split())
-            if norm not in self._seen_section_texts:
-                self._seen_section_texts.add(norm)
-                self._end_list()
-                self._add_header(doc, 1, full_para)
-                self.current_section_group = self.parents[1]
-                return
+        # if not toc_candidate and re.match(r'^(?:\d+\.\s+|[ⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩ]+\.\s*)', full_para.strip()):
+        #     norm = "".join(full_para.split())
+        #     if norm not in self._seen_section_texts:
+        #         self._seen_section_texts.add(norm)
+        #         self._end_list()
+        #         self._add_header(doc, 1, full_para)
+        #         self.current_section_group = self.parents[1]
+        #         return
 
 
         # 문단이 <hp:rect> 내부에서 이미 헤더 처리되었으면 여기서 더 처리하지 않음
@@ -710,7 +710,6 @@ class HwpxDocumentBackend(DeclarativeDocumentBackend):
             parts    = [ self._extract_text(t0)
                          for t0 in tbl_elem.findall(".//hp:t", namespaces=tbl_elem.nsmap) ] # .//없애지말기
             txt      = " ".join(parts).strip()
-            # # print(parts)
             # (b) 이미지 존재 여부
             has_pic  = bool(tbl_elem.findall(".//hp:pic", namespaces=tbl_elem.nsmap))
             # (c) 중첩 tbl(헤더로 처리되지 않게 하기 위해) 없음 확인
@@ -718,9 +717,6 @@ class HwpxDocumentBackend(DeclarativeDocumentBackend):
 
             # 텍스트+이미지 둘 다 있고, 50자 이하, 중첩 tbl 없으면
             if txt and has_pic and (len(txt) <= 50) and not nested_tbl:
-                # → 헤더로 처리하지 않고, 이후 기본 분기로 넘어가고자 할 때는
-                # 그냥 return 하지 않고 'pass'만 해두면 다음 로직이 실행됩니다.
-                # pass
                 parent = self.current_section_group
                 self._process_paragraph(tbl_elem, doc)
                 return  
@@ -731,12 +727,9 @@ class HwpxDocumentBackend(DeclarativeDocumentBackend):
                 norm = "".join(txt.split()) 
                 if (txt 
                     and (len(txt) <= 200) 
-                    # and (txt not in self._seen_section_texts)
                     and norm != "여백"
                 ):
-                    print("section header found in 1x1 table in process_table", txt)
                     self._seen_section_texts.add(norm)
-                    # print(self._seen_section_texts, "section header 감지돼서 추가")
                     self._end_list()
                     self._add_header(doc, level, txt)
                     self.current_section_group = self.parents[level] 
