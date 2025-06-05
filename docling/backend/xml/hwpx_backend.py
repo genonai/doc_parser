@@ -323,14 +323,14 @@ class HwpxDocumentBackend(DeclarativeDocumentBackend):
                 toc_candidate = True
                 break
 
-        if not toc_candidate and re.match(r'^(?:\d+\.\s+|[ⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩ]+\.\s*)', full_para.strip()):
-            norm = "".join(full_para.split())
-            if norm not in self._seen_section_texts:
-                self._seen_section_texts.add(norm)
-                self._end_list()
-                self._add_header(doc, 1, full_para)
-                self.current_section_group = self.parents[1]
-                return
+        # if not toc_candidate and re.match(r'^(?:\d+\.\s+|[ⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩ]+\.\s*)', full_para.strip()):
+        #     norm = "".join(full_para.split())
+        #     if norm not in self._seen_section_texts:
+        #         self._seen_section_texts.add(norm)
+        #         self._end_list()
+        #         self._add_header(doc, 1, full_para)
+        #         self.current_section_group = self.parents[1]
+        #         return
 
 
         # 문단이 <hp:rect> 내부에서 이미 헤더 처리되었으면 여기서 더 처리하지 않음
@@ -579,43 +579,13 @@ class HwpxDocumentBackend(DeclarativeDocumentBackend):
             num_rows = len(trs)
             num_cols = len(trs[0].findall("hp:tc", namespaces=tbl_elem.nsmap)) if trs else 0
         parent = self.current_list_item or self.current_section_group    
+        
         # ── 특수 1×1 케이스: txt+pic 섞여있으면 헤더가 아니라 일반 테이블 분기 타기 ──
-        # if (num_rows, num_cols) in [[(1,1), (1,2), (1,3)]]:
-        #     # (a) 셀 안의 텍스트 추출
-        #     parts    = [ self._extract_text(t0)
-        #                  for t0 in tbl_elem.findall(".//hp:t", namespaces=tbl_elem.nsmap) ] 
-        #     txt      = " ".join(parts).strip()
-        #     # (b) 이미지 존재 여부
-        #     has_pic  = bool(tbl_elem.findall(".//hp:pic", namespaces=tbl_elem.nsmap))
-        #     # (c) 중첩 tbl(헤더로 처리되지 않게 하기 위해) 없음 확인
-        #     nested_tbl = len(tbl_elem.findall(".//hp:tbl", namespaces=tbl_elem.nsmap)) > 1
-
-        #     # 텍스트+이미지 둘 다 있고, 50자 이하, 중첩 tbl 없으면
-        #     if txt and has_pic and (len(txt) <= 50) and not nested_tbl:
-        #         parent = self.current_section_group
-        #         self._process_paragraph(tbl_elem, doc)
-        #         return  
-        #     else:
-        #         # 그 외의 경우엔 기존 헤더 분기 그대로 수행
-        #         # ── 1a) 작거나 단순한 표를 헤더로 간주 ──
-        #         level = 1  
-        #         norm = "".join(txt.split()) 
-        #         if (txt 
-        #             and (len(txt) <= 200) 
-        #             and norm != "여백"
-        #         ):
-        #             self._seen_section_texts.add(norm)
-        #             self._end_list()
-        #             self._add_header(doc, level, txt)
-        #             self.current_section_group = self.parents[level] 
-        #             return      
-# ── 특수 1×1 케이스: txt+pic 섞여있으면 헤더가 아니라 일반 테이블 분기 타기 ──
         if (num_rows, num_cols) == (1, 1):
             # (a) 셀 안의 텍스트 추출
             parts    = [ self._extract_text(t0)
                          for t0 in tbl_elem.findall(".//hp:t", namespaces=tbl_elem.nsmap) ] # .//없애지말기
             txt      = " ".join(parts).strip()
-            # # print(parts)
             # (b) 이미지 존재 여부
             has_pic  = bool(tbl_elem.findall(".//hp:pic", namespaces=tbl_elem.nsmap))
             # (c) 중첩 tbl(헤더로 처리되지 않게 하기 위해) 없음 확인
@@ -623,9 +593,6 @@ class HwpxDocumentBackend(DeclarativeDocumentBackend):
 
             # 텍스트+이미지 둘 다 있고, 50자 이하, 중첩 tbl 없으면
             if txt and has_pic and (len(txt) <= 50) and not nested_tbl:
-                # → 헤더로 처리하지 않고, 이후 기본 분기로 넘어가고자 할 때는
-                # 그냥 return 하지 않고 'pass'만 해두면 다음 로직이 실행됩니다.
-                # pass
                 parent = self.current_section_group
                 self._process_paragraph(tbl_elem, doc)
                 return  
@@ -636,18 +603,15 @@ class HwpxDocumentBackend(DeclarativeDocumentBackend):
                 norm = "".join(txt.split()) 
                 if (txt 
                     and (len(txt) <= 200) 
-                    # and (txt not in self._seen_section_texts)
                     and norm != "여백"
                 ):
-                    print("section header found in 1x1 table in process_table", txt)
                     self._seen_section_texts.add(norm)
-                    # print(self._seen_section_texts, "section header 감지돼서 추가")
                     self._end_list()
                     self._add_header(doc, level, txt)
                     self.current_section_group = self.parents[level] 
                     return      
         # ── 1a) 작거나 단순한 표를 헤더로 간주 ──
-        # if (num_rows, num_cols) in [(1,1), (1,2), (3,1)]:
+
         if (num_rows, num_cols) in [(1,2), (1,3)]:
             # 표 내부의 모든 텍스트 조합
             parts = [
@@ -661,17 +625,14 @@ class HwpxDocumentBackend(DeclarativeDocumentBackend):
                 for e in tbl_elem.iter()
             ) 
                         
-            if txt and (len(txt) <= 200): #and (txt not in self._seen_section_texts):
-                # 헤더로 처리
-                # # # print("process_table: txt=", txt[:30], "…")
+            if txt and (len(txt) <= 200): 
                 self._seen_section_texts.add(norm)
                 self._end_list()
-                # 1행짜리는 level=1, 3행짜리는 level=2 로 예시
-                level = 1 if num_rows == 1 else 2
+                level = 1 
                 self._add_header(doc, level, txt)
                 self.current_section_group = self.parents[level]
-                return
-                # continue                        
+                return         
+                          
         data = TableData(num_rows=num_rows, num_cols=num_cols)
         occupied = [[False]*num_cols for _ in range(num_rows)]
 
