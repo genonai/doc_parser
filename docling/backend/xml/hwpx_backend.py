@@ -5,7 +5,7 @@ from typing import Optional, Union, List
 from xml.etree.ElementTree import Element
 from lxml import etree
 from PIL import Image, UnidentifiedImageError
-from docling_core.types.doc import DocItemLabel, DoclingDocument, DocumentOrigin, GroupLabel, ImageRef, TableCell, TableData, NodeItem
+from docling_core.types.doc import DocItemLabel, DoclingDocument, DocumentOrigin, GroupLabel, ImageRef, TableCell, TableData, NodeItem, ProvenanceItem, BoundingBox, Size
 from docling.backend.abstract_backend import DeclarativeDocumentBackend
 from docling.datamodel.base_models import InputFormat
 from docling.datamodel.document import InputDocument
@@ -137,9 +137,44 @@ class HwpxDocumentBackend(DeclarativeDocumentBackend):
         doc.add_text(
             label=DocItemLabel.PARAGRAPH,
             text=txt,
-            parent=new_group
+            parent=new_group,
+            prov=ProvenanceItem(
+                page_no=1,
+                bbox=BoundingBox(l=0, t=0, r=1, b=1),
+                charspan=(0, len(txt))
+            )
         )
         return True
+
+    def _extract_page_size(self) -> tuple[float, float]:
+        """Extract page size from section0.xml hp:pagePr element."""
+        try:
+            # Read section0.xml to get page properties
+            section_xml = self.zip.read("Contents/section0.xml")
+            section_root = etree.fromstring(section_xml)
+            
+            # Find hp:pagePr element
+            page_pr = section_root.find(".//hp:pagePr", namespaces=section_root.nsmap)
+            if page_pr is not None:
+                # Get width and height attributes
+                width_str = page_pr.get("width", "59528")  # Default HWPX width
+                height_str = page_pr.get("height", "84188")  # Default HWPX height
+                
+                # Convert HWPUNIT to points (1 HWPUNIT ≈ 0.0178 mm ≈ 0.0506 points)
+                hwp_to_points = 0.0178 * 2.83465  # HWPUNIT to points conversion
+                
+                width = float(width_str) * hwp_to_points
+                height = float(height_str) * hwp_to_points
+                
+                return width, height
+            else:
+                # Fallback to A4 size if hp:pagePr not found
+                return 595.0, 842.0
+                
+        except Exception as e:
+            # Fallback to A4 size on any error
+            logging.warning(f"Failed to extract page size from HWPX: {e}")
+            return 595.0, 842.0
 
     def _get_image_ref(self, pic_elem: etree._Element) -> Optional[ImageRef]:
         """ hc:img 태그에서 binaryItemIDRef 읽기 """
@@ -175,6 +210,12 @@ class HwpxDocumentBackend(DeclarativeDocumentBackend):
             binary_hash=self.document_hash
         )
         doc = DoclingDocument(name=self.file.stem or "file", origin=origin)
+        
+        # Extract page size from section0.xml
+        page_width, page_height = self._extract_page_size()
+        # Add page for prov values using actual page size from XML
+        doc.pages[1] = doc.add_page(page_no=1, size=Size(width=page_width, height=page_height))
+        
         # Create a root group as the top-level parent for all content
         root_group = doc.add_group(parent=None, label=GroupLabel.SECTION, name="root")
         self.parents[0] = root_group
@@ -237,7 +278,7 @@ class HwpxDocumentBackend(DeclarativeDocumentBackend):
         any_header_added = False
         header_runs: set[int] = set()
 
-        # 2) valid_runs 순회하며 “런별로 헤더를 감지 → add_header”
+        # 2) valid_runs 순회하며 "런별로 헤더를 감지 → add_header"
         for idx, run in enumerate(valid_runs):
             header_text  = None
             header_level = None
@@ -316,7 +357,7 @@ class HwpxDocumentBackend(DeclarativeDocumentBackend):
             for t   in run.findall("hp:t", namespaces=p_elem.nsmap)
         )
 
-        # ── “문단 어딘가에 탭+숫자”면 TOC로 간주 ──
+        # ── "문단 어딘가에 탭+숫자"면 TOC로 간주 ──
         toc_candidate = False
         for tab_elem in p_elem.findall(".//hp:tab", namespaces=p_elem.nsmap):
             if re.search(r"\d+\s*$", full_para):
@@ -392,7 +433,12 @@ class HwpxDocumentBackend(DeclarativeDocumentBackend):
                             doc.add_text(
                                 label=DocItemLabel.PARAGRAPH,
                                 text=txt,
-                                parent=self.current_section_group
+                                parent=self.current_section_group,
+                                prov=ProvenanceItem(
+                                    page_no=1,
+                                    bbox=BoundingBox(l=0, t=0, r=1, b=1),
+                                    charspan=(0, len(txt))
+                                )
                             )
                         if self._handle_list_symbol(full_text, doc):
                             return
@@ -401,7 +447,12 @@ class HwpxDocumentBackend(DeclarativeDocumentBackend):
                             doc.add_text(
                                 label=DocItemLabel.PARAGRAPH,
                                 text=txt,
-                                parent=parent_node
+                                parent=parent_node,
+                                prov=ProvenanceItem(
+                                    page_no=1,
+                                    bbox=BoundingBox(l=0, t=0, r=1, b=1),
+                                    charspan=(0, len(txt))
+                                )
                             )
                     elif tag == "pic":
                         self._process_picture(elem, doc)
@@ -423,7 +474,12 @@ class HwpxDocumentBackend(DeclarativeDocumentBackend):
                             doc.add_text(
                                 label=DocItemLabel.PARAGRAPH,
                                 text=txt,
-                                parent=parent_node
+                                parent=parent_node,
+                                prov=ProvenanceItem(
+                                    page_no=1,
+                                    bbox=BoundingBox(l=0, t=0, r=1, b=1),
+                                    charspan=(0, len(txt))
+                                )
                             )
                     elif tag == "pic":
                         self._process_picture(elem, doc)
@@ -475,7 +531,12 @@ class HwpxDocumentBackend(DeclarativeDocumentBackend):
                     doc.add_text(
                         label=DocItemLabel.PARAGRAPH,
                         text=text_buffer.rstrip(),
-                        parent=parent_node
+                        parent=parent_node,
+                        prov=ProvenanceItem(
+                            page_no=1,
+                            bbox=BoundingBox(l=0, t=0, r=1, b=1),
+                            charspan=(0, len(text_buffer.rstrip()))
+                        )
                     )
                     text_buffer = ""
                 self._process_table(child, doc)
@@ -489,7 +550,12 @@ class HwpxDocumentBackend(DeclarativeDocumentBackend):
                     doc.add_text(
                         label=DocItemLabel.PARAGRAPH,
                         text=text_buffer.rstrip(),
-                        parent=parent_node
+                        parent=parent_node,
+                        prov=ProvenanceItem(
+                            page_no=1,
+                            bbox=BoundingBox(l=0, t=0, r=1, b=1),
+                            charspan=(0, len(text_buffer.rstrip()))
+                        )
                     )
                     text_buffer = ""
                 self._process_rect(child, doc)
@@ -501,7 +567,12 @@ class HwpxDocumentBackend(DeclarativeDocumentBackend):
                     doc.add_text(
                         label=DocItemLabel.PARAGRAPH,
                         text=text_buffer.rstrip(),
-                        parent=parent_node
+                        parent=parent_node,
+                        prov=ProvenanceItem(
+                            page_no=1,
+                            bbox=BoundingBox(l=0, t=0, r=1, b=1),
+                            charspan=(0, len(text_buffer.rstrip()))
+                        )
                     )
                     text_buffer = ""
                 self._process_picture(child, doc)
@@ -521,7 +592,12 @@ class HwpxDocumentBackend(DeclarativeDocumentBackend):
             doc.add_text(
                 label=DocItemLabel.PARAGRAPH,
                 text=full_text,
-                parent=self.current_section_group
+                parent=self.current_section_group,
+                prov=ProvenanceItem(
+                    page_no=1,
+                    bbox=BoundingBox(l=0, t=0, r=1, b=1),
+                    charspan=(0, len(full_text))
+                )
             )
             return 
 
@@ -541,7 +617,12 @@ class HwpxDocumentBackend(DeclarativeDocumentBackend):
                 label=DocItemLabel.PARAGRAPH,
                 text=final_text,
                 # parent=parent_node
-                parent=self.current_section_group
+                parent=self.current_section_group,
+                prov=ProvenanceItem(
+                    page_no=1,
+                    bbox=BoundingBox(l=0, t=0, r=1, b=1),
+                    charspan=(0, len(final_text))
+                )
             )
 
 
@@ -564,8 +645,13 @@ class HwpxDocumentBackend(DeclarativeDocumentBackend):
                         doc.add_text(
                             label=DocItemLabel.PARAGRAPH,
                             text=full,
-                            parent=self.current_section_group
-                        )                    
+                            parent=self.current_section_group,
+                            prov=ProvenanceItem(
+                                page_no=1,
+                                bbox=BoundingBox(l=0, t=0, r=1, b=1),
+                                charspan=(0, len(full))
+                            )
+                        )
                 return
     
         # parent = self.current_list_item or self.current_section_group or None
@@ -691,7 +777,7 @@ class HwpxDocumentBackend(DeclarativeDocumentBackend):
                             if cap_text and norm_cap not in self._seen_section_texts:
                                 self._seen_section_texts.add(norm_cap)
 
-                                # “다음 행의 각 tc” 위치에 동일한 caption을 붙여준다
+                                # "다음 행의 각 tc" 위치에 동일한 caption을 붙여준다
                                 for tc2 in next_row_tcs:
                                     addr2 = tc2.find("hp:cellAddr", namespaces=tc2.nsmap)
                                     if addr2 is None:
@@ -711,7 +797,7 @@ class HwpxDocumentBackend(DeclarativeDocumentBackend):
                 next_nested = False
                 next_pic    = False
                 if r_idx + rs < len(rows):
-                   # 다음 행에서 “지금 tc와 같은 열(colAddr==c)”인 <hp:tc>만 검색
+                   # 다음 행에서 "지금 tc와 같은 열(colAddr==c)"인 <hp:tc>만 검색
                    for tc2 in rows[r_idx + rs].findall("hp:tc", namespaces=tbl_elem.nsmap):
                        addr2 = tc2.find("hp:cellAddr", namespaces=tc2.nsmap)
                        if addr2 is None:
@@ -745,7 +831,7 @@ class HwpxDocumentBackend(DeclarativeDocumentBackend):
                                     has_top_title = True
                             
                     title = "".join(self._extract_text(t) for t in tc.findall(".//hp:t", namespaces=tc.nsmap)).strip()
-                    # ─────────────── colSpan ≥ 2일 때 “같은 행에 붙여넣기” ───────────────
+                    # ─────────────── colSpan ≥ 2일 때 "같은 행에 붙여넣기" ───────────────
                     # cs = int(span.get("colSpan"))
                     # if cs > 1:
                     #     # 현재 셀(r, c)에 title이 있으면, 오른쪽으로 colSpan만큼 복제
@@ -798,7 +884,7 @@ class HwpxDocumentBackend(DeclarativeDocumentBackend):
                     for p in tc.findall(".//hp:p", namespaces=tc.nsmap)
                 ]
                 txt = " ".join(filter(None, texts)).strip()
-                # “주:”, “자료:”, 또는 “*” 로 시작하는 패턴 (양쪽 공백 허용)
+                # "주:", "자료:", 또는 "*" 로 시작하는 패턴 (양쪽 공백 허용)
                 if re.match(r"^\s*(?:(?:주|자료)\s*[:：]|\*)", txt):
                     # 1) 현재 행에 tc가 딱 1개인지 (num_tcs_curr_row == 1) 확인
                     # 2) 바로 위(prev) 행에 셀이 2개 이상인 경우만 복제 로직 시도
@@ -815,7 +901,7 @@ class HwpxDocumentBackend(DeclarativeDocumentBackend):
                         )
 
                         if prev_has_pic:
-                            # (A) 이 comment가 들어 있는 “현재 셀(tc)”의 주소 정보
+                            # (A) 이 comment가 들어 있는 "현재 셀(tc)"의 주소 정보
                             addr   = tc.find("hp:cellAddr",  namespaces=tc.nsmap)
                             span   = tc.find("hp:cellSpan",  namespaces=tc.nsmap)
                             r_cur  = int(addr.get("rowAddr"))
@@ -832,7 +918,7 @@ class HwpxDocumentBackend(DeclarativeDocumentBackend):
                             cell_items.setdefault((r_cur, c_cur), []).append(('comment', txt))
                             continue
 
-                    # 4) 위 조건이 하나라도 만족되지 않으면, “현재 셀(r,c)”에만 comment 저장
+                    # 4) 위 조건이 하나라도 만족되지 않으면, "현재 셀(r,c)"에만 comment 저장
                     cell_items.setdefault((r, c), []).append(('comment', txt))
                     continue
 
@@ -893,7 +979,12 @@ class HwpxDocumentBackend(DeclarativeDocumentBackend):
                 copied_cells = deepcopy(data.table_cells)
                 temp_data = TableData(num_rows=data.num_rows, num_cols=data.num_cols)
                 temp_data.table_cells = copied_cells
-                doc.add_table(data=temp_data, parent=parent)
+                doc.add_table(data=temp_data, parent=parent,
+                             prov=ProvenanceItem(
+                                 page_no=1,
+                                 bbox=BoundingBox(l=0, t=0, r=1, b=1),
+                                 charspan=(0, 0)
+                             ))
                 data.table_cells.clear()
  
                 # comment 출력
@@ -903,7 +994,12 @@ class HwpxDocumentBackend(DeclarativeDocumentBackend):
                             doc.add_text(
                                 label=DocItemLabel.CAPTION,
                                 text=txt,
-                                parent=parent
+                                parent=parent,
+                                prov=ProvenanceItem(
+                                    page_no=1,
+                                    bbox=BoundingBox(l=0, t=0, r=1, b=1),
+                                    charspan=(0, len(txt))
+                                )
                             )
                             
                         
@@ -931,7 +1027,12 @@ class HwpxDocumentBackend(DeclarativeDocumentBackend):
                     doc.add_text(
                         label=DocItemLabel.PARAGRAPH,
                         text=payload,
-                        parent=self.current_section_group
+                        parent=self.current_section_group,
+                        prov=ProvenanceItem(
+                            page_no=1,
+                            bbox=BoundingBox(l=0, t=0, r=1, b=1),
+                            charspan=(0, len(payload))
+                        )
                     )
                 elif typ == 'caption':                    
                     parent = self.current_section_group
@@ -946,7 +1047,12 @@ class HwpxDocumentBackend(DeclarativeDocumentBackend):
                     doc.add_text(
                         label=DocItemLabel.PARAGRAPH,
                         text=payload,
-                        parent=parent
+                        parent=parent,
+                        prov=ProvenanceItem(
+                            page_no=1,
+                            bbox=BoundingBox(l=0, t=0, r=1, b=1),
+                            charspan=(0, len(payload))
+                        )
                     )                    
                 elif typ == 'paragraph':
                     self._process_paragraph(payload, doc)
@@ -956,11 +1062,21 @@ class HwpxDocumentBackend(DeclarativeDocumentBackend):
                     img, cap = payload
                     doc.add_picture(parent=parent,
                                     image=img,
-                                    caption=cap)
+                                    caption=cap,
+                                    prov=ProvenanceItem(
+                                        page_no=1,
+                                        bbox=BoundingBox(l=0, t=0, r=1, b=1),
+                                        charspan=(0, 0)
+                                    ))
                 elif typ == 'comment':
                     doc.add_text(label=DocItemLabel.CAPTION,
                                 text=payload,
-                                parent=parent)
+                                parent=parent,
+                                prov=ProvenanceItem(
+                                    page_no=1,
+                                    bbox=BoundingBox(l=0, t=0, r=1, b=1),
+                                    charspan=(0, len(payload))
+                                ))
 
         # 빈 테이블은 추가하지 않음
         # 모든 셀에 텍스트가 없으면 빈 테이블로 간주
@@ -974,7 +1090,12 @@ class HwpxDocumentBackend(DeclarativeDocumentBackend):
         
         parent = self.current_section_group
         # 마지막에 순수 테이블 한 번만 추가 
-        doc.add_table(data=data, parent=parent)
+        doc.add_table(data=data, parent=parent,
+                     prov=ProvenanceItem(
+                         page_no=1,
+                         bbox=BoundingBox(l=0, t=0, r=1, b=1),
+                         charspan=(0, 0)
+                     ))
 
     def _process_rect(self, rect_elem: etree._Element, doc: DoclingDocument) -> None:
         """Process a top-level <hp:rect> element (text box)."""
@@ -1012,7 +1133,7 @@ class HwpxDocumentBackend(DeclarativeDocumentBackend):
         if img_ref is not None:
             bin_id = img_ref.get("binaryItemIDRef")
             if bin_id:
-                for ext in (".bmp", ".png", ".jpg", ".jpeg", ".wmf"):
+                for ext in (".bmp", ".png", ".jpg", ".jpeg"):
                     try:
                         image_bytes = self.zip.read(f"BinData/{bin_id}{ext}")
                         break
@@ -1021,7 +1142,12 @@ class HwpxDocumentBackend(DeclarativeDocumentBackend):
 
         # 2) 이미지 유무에 따라 노드 추가
         if image_bytes is None:
-            doc.add_picture(parent=parent_node, image=None, caption=None)
+            doc.add_picture(parent=parent_node, image=None, caption=None,
+                          prov=ProvenanceItem(
+                              page_no=1,
+                              bbox=BoundingBox(l=0, t=0, r=1, b=1),
+                              charspan=(0, 0)
+                          ))
         else:
             try:
                 pil_image = Image.open(BytesIO(image_bytes))
@@ -1032,16 +1158,31 @@ class HwpxDocumentBackend(DeclarativeDocumentBackend):
                 img_ref_obj = ImageRef.from_pil(image=pil_image, dpi=72)
                 # Markdown에서도 data URI로 인라인 표시
                 img_ref_obj.mode = ImageRefMode.EMBEDDED
-                doc.add_picture(parent=parent_node, image=img_ref_obj, caption=None)
+                doc.add_picture(parent=parent_node, image=img_ref_obj, caption=None,
+                              prov=ProvenanceItem(
+                                  page_no=1,
+                                  bbox=BoundingBox(l=0, t=0, r=1, b=1),
+                                  charspan=(0, 0)
+                              ))
             else:
-                doc.add_picture(parent=parent_node, image=None, caption=None)
+                doc.add_picture(parent=parent_node, image=None, caption=None,
+                              prov=ProvenanceItem(
+                                  page_no=1,
+                                  bbox=BoundingBox(l=0, t=0, r=1, b=1),
+                                  charspan=(0, 0)
+                              ))
 
     
     def _process_equation(self, eq_elem: etree._Element, doc: DoclingDocument) -> None:
         """Process an equation <hp:equation> element by adding its text content."""
         parent_node = self.current_list_item or self.current_section_group or None
         formula_text = "".join(eq_elem.itertext()).strip()
-        doc.add_text(label=DocItemLabel.FORMULA, text=formula_text, parent=parent_node)
+        doc.add_text(label=DocItemLabel.FORMULA, text=formula_text, parent=parent_node,
+                    prov=ProvenanceItem(
+                        page_no=1,
+                        bbox=BoundingBox(l=0, t=0, r=1, b=1),
+                        charspan=(0, len(formula_text))
+                    ))
     
     def _add_header(self, doc: DoclingDocument, level: int, text: str) -> None:
         """Add a heading node of the given level with the specified text."""
@@ -1064,7 +1205,12 @@ class HwpxDocumentBackend(DeclarativeDocumentBackend):
         for lvl in range(curr_level, self.max_levels):
             self.parents[lvl] = None
         parent_node = self.parents[curr_level-1] if curr_level - 1 >= 0 else None
-        self.parents[curr_level] = doc.add_heading(parent=parent_node, text=text, level=curr_level)
+        self.parents[curr_level] = doc.add_heading(parent=parent_node, text=text, level=curr_level,
+                                                  prov=ProvenanceItem(
+                                                      page_no=1,
+                                                      bbox=BoundingBox(l=0, t=0, r=1, b=1),
+                                                      charspan=(0, len(text))
+                                                  ))
     
     def _end_list(self) -> None:
         """End the current list grouping (if any)."""
