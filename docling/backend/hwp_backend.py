@@ -17,9 +17,8 @@ class HwpDocumentBackend(DeclarativeDocumentBackend):
         super().__init__(in_doc, path_or_stream)
         self.hwpx_backend = None
         self.valid = False
-        print(isinstance(path_or_stream, Path))
         # HWP 파일인지 확인
-        if isinstance(path_or_stream, Path) and str(path_or_stream).lower().endswith('.hwp'):
+        if str(path_or_stream).lower().endswith('.hwp'):
             try:
                 # HWP를 HWPX로 변환
                 hwpx_path = self._convert_hwp_to_hwpx(path_or_stream)
