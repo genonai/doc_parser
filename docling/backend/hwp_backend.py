@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Union
 from io import BytesIO
 import tempfile
+import random
 
 import docling.backend.xml.hwpx_backend as hwpx_backend
 from docling.backend.abstract_backend import DeclarativeDocumentBackend
@@ -23,9 +24,10 @@ class HwpDocumentBackend(DeclarativeDocumentBackend):
             try:
                 if isinstance(path_or_stream, BytesIO):
                     # BytesIO를 임시 파일로 저장
-                    with tempfile.NamedTemporaryFile(delete=False, suffix='.hwp') as temp_file:
+                    random_int = random.randint(1000, 9999)
+                    temp_hwp_path = Path(f'/tmp/temp_{random_int}.hwp')
+                    with open(temp_hwp_path, 'wb') as temp_file:
                         temp_file.write(path_or_stream.getbuffer())
-                        temp_hwp_path = Path(temp_file.name)
                     path_or_stream = temp_hwp_path
 
                 # HWP를 HWPX로 변환
@@ -39,7 +41,7 @@ class HwpDocumentBackend(DeclarativeDocumentBackend):
                 raise RuntimeError(f"Failed to process HWP file: {e}")
             finally:
                 # 임시 파일 삭제
-                if isinstance(path_or_stream, Path) and path_or_stream.name.startswith('tmp'):
+                if isinstance(path_or_stream, Path) and path_or_stream.name.startswith('temp_'):
                     os.remove(path_or_stream)
         else:
             raise RuntimeError("HwpDocumentBackend only supports .hwp files")
