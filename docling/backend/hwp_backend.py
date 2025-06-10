@@ -46,7 +46,7 @@ class HwpDocumentBackend(DeclarativeDocumentBackend):
                 if isinstance(path_or_stream, Path) and path_or_stream.name.startswith('temp_'):
                     os.remove(path_or_stream)
         else:
-            raise RuntimeError("HwpDocumentBackend only supports .hwp files")
+            raise RuntimeError(path_or_stream)#"HwpDocumentBackend only supports .hwp files")
 
     def _convert_hwp_to_hwpx(self, hwp_path: Path) -> Path:
         """Convert HWP file to HWPX using hwp2hwpx.sh script."""
