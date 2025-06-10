@@ -369,6 +369,16 @@ class _DocumentConversionInput(BaseModel):
             # 바이너리 파일이거나 다른 인코딩인 경우, 첫 번째 포맷 반환
             return formats[0] if formats else None
 
+        # HWP/HWPX 파일은 바이너리이므로 UTF-8 디코딩 시도하지 않음
+        if any(fmt in formats for fmt in [InputFormat.HWP, InputFormat.XML_HWPX]):
+            return formats[0] if formats else None
+
+        try:
+            content_str = content.decode("utf-8")
+        except UnicodeDecodeError:
+            # 바이너리 파일이거나 다른 인코딩인 경우, 첫 번째 포맷 반환
+            return formats[0] if formats else None
+
         if mime == "application/xml":
             content_str = content.decode("utf-8")
             match_doctype = re.search(r"<!DOCTYPE [^>]+>", content_str)
@@ -392,7 +402,6 @@ class _DocumentConversionInput(BaseModel):
                     input_format = InputFormat.XML_JATS
 
         elif mime == "text/plain":
-            content_str = content.decode("utf-8")
             if InputFormat.XML_USPTO in formats and content_str.startswith("PATN\r\n"):
                 input_format = InputFormat.XML_USPTO
 

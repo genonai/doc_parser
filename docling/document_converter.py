@@ -69,6 +69,10 @@ _PIPELINE_CACHE_LOCK = threading.Lock()
 import docling.datamodel.document as D
 print(">>> docling.datamodel.document loaded from:", D.__file__)
 
+# document_converter.py 맨 위에 추가
+import docling.datamodel.document as D
+print(">>> docling.datamodel.document loaded from:", D.__file__)
+
 
 class FormatOption(BaseFormatOption):
     pipeline_cls: Type[BasePipeline]
