@@ -20,7 +20,6 @@ class HwpDocumentBackend(DeclarativeDocumentBackend):
         super().__init__(in_doc, path_or_stream)
         self.hwpx_backend = None
         self.valid = False
-        print(isinstance(path_or_stream, Path))
         # HWP 파일인지 확인
         if isinstance(path_or_stream, (Path, BytesIO)):
             try:
