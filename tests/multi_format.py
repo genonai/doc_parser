@@ -26,13 +26,13 @@ def main():
         # Path("/workspaces/hwpx/외환표지.hwpx"),
         # Path("/workspaces/hwpx/글로벌금리.hwpx"),
         # Path("/workspaces/hwpx/외국금 차례.hwpx"), 
-        # Path("/workspaces/hwpx/달러화에미치는영향.hwpx"),
-        Path("/workspaces/hwpx/외환국제금융동향(2018.10.18)_최종(송부본).hwpx"),
+        Path("/workspaces/hwpx/★(통화정책국)의결문(안) 및 참고자료(1810)_의결문제외.hwp"),
+        # Path("/workspaces/hwpx/외환국제금융동향(2018.10.18)_최종(송부본).hwpx"),
         # Path("/workspaces/hwpx/투자회사주식자금.hwpx")
-        Path("/workspaces/hwpx/외환국제금융동향(2018.4.12)_최종(송부본).hwpx"),
+        # Path("/workspaces/hwpx/외환국제금융동향(2018.4.12)_최종(송부본).hwpx"),
         # Path("/workspaces/hwpx/미국국채.hwpx"), 
         # Path("/workspaces/hwpx/rect배경.hwpx"),
-        Path("/workspaces/hwpx/★(통화정책국)의결문(안) 및 참고자료(1810)_의결문제외.hwpx"),
+        # Path("/workspaces/hwpx/★(통화정책국)의결문(안) 및 참고자료(1810)_의결문제외.hwpx"),
         # Path("/workspaces/hwpx/(통화정책국)통화정책 여건점검(1810)_송부.hwpx"),
         # Path("/workspaces/hwpx/(통화정책국)의결문(안) 및 참고자료(1804)_송부용.hwpx"),
         # Path("/workspaces/hwpx/(1810) 통화정책방향 여건점검 메모_F.hwpx"),
@@ -45,6 +45,7 @@ def main():
         # Path("/workspaces/hwpx/아파트.hwpx"),
         # Path("/workspaces/hwpx/금융동향시장자른버전.hwpx"),
         # Path("/workspaces/hwpx/201810_금융시장동향_FF.hwpx"),
+        # Path("/workspaces/hwpx/새 한글.hwpx"),
         # Path("/workspaces/hwpx/평가및전망.hwpx")
         # Path("/workspaces/hwpx/비은행수신.hwpx")
         # Path("/workspaces/hwpx/사라진다.hwpx"),
@@ -72,6 +73,7 @@ def main():
                 InputFormat.ASCIIDOC,
                 InputFormat.CSV,
                 InputFormat.MD,
+                InputFormat.HWP,
                 InputFormat.XML_HWPX
             ],  # whitelist formats, non-matching files are ignored.
             format_options={
