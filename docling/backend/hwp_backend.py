@@ -20,7 +20,7 @@ class HwpDocumentBackend(DeclarativeDocumentBackend):
         self.hwpx_backend = None
         self.valid = False
         # HWP 파일인지 확인
-        if isinstance(path_or_stream, (Path, BytesIO)) and str(path_or_stream).lower().endswith('.hwp'):
+        if isinstance(path_or_stream, (Path, BytesIO)):
             try:
                 if isinstance(path_or_stream, BytesIO):
                     # BytesIO를 임시 파일로 저장
