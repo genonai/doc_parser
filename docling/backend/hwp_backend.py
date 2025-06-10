@@ -3,6 +3,7 @@ import os
 from pathlib import Path
 from typing import Union
 from io import BytesIO
+import tempfile
 
 import docling.backend.xml.hwpx_backend as hwpx_backend
 from docling.backend.abstract_backend import DeclarativeDocumentBackend
@@ -18,8 +19,15 @@ class HwpDocumentBackend(DeclarativeDocumentBackend):
         self.hwpx_backend = None
         self.valid = False
         # HWP 파일인지 확인
-        if str(path_or_stream).lower().endswith('.hwp'):
+        if isinstance(path_or_stream, (Path, BytesIO)) and str(path_or_stream).lower().endswith('.hwp'):
             try:
+                if isinstance(path_or_stream, BytesIO):
+                    # BytesIO를 임시 파일로 저장
+                    with tempfile.NamedTemporaryFile(delete=False, suffix='.hwp') as temp_file:
+                        temp_file.write(path_or_stream.getbuffer())
+                        temp_hwp_path = Path(temp_file.name)
+                    path_or_stream = temp_hwp_path
+
                 # HWP를 HWPX로 변환
                 hwpx_path = self._convert_hwp_to_hwpx(path_or_stream)
                 
@@ -29,8 +37,12 @@ class HwpDocumentBackend(DeclarativeDocumentBackend):
             except Exception as e:
                 self.valid = False
                 raise RuntimeError(f"Failed to process HWP file: {e}")
+            finally:
+                # 임시 파일 삭제
+                if isinstance(path_or_stream, Path) and path_or_stream.name.startswith('tmp'):
+                    os.remove(path_or_stream)
         else:
-            raise RuntimeError(path_or_stream)#"HwpDocumentBackend only supports .hwp files")
+            raise RuntimeError("HwpDocumentBackend only supports .hwp files")
 
     def _convert_hwp_to_hwpx(self, hwp_path: Path) -> Path:
         """Convert HWP file to HWPX using hwp2hwpx.sh script."""
