@@ -1,16 +1,9 @@
 import logging
 from io import BytesIO
 from pathlib import Path
-from typing import Union, Set
+from typing import Optional, Union, Set
 import fitz  # PyMuPDF
-from docling_core.types.doc import (
-    DoclingDocument,
-    DocumentOrigin,
-    DocItemLabel,
-    ProvenanceItem,
-    BoundingBox,
-    Size,
-)
+from docling_core.types.doc import DoclingDocument, DocumentOrigin, DocItemLabel, ProvenanceItem, BoundingBox, Size
 from docling.backend.abstract_backend import DeclarativeDocumentBackend
 from docling.datamodel.base_models import InputFormat
 from docling.datamodel.document import InputDocument
