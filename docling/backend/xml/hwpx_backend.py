@@ -1133,7 +1133,7 @@ class HwpxDocumentBackend(DeclarativeDocumentBackend):
         if img_ref is not None:
             bin_id = img_ref.get("binaryItemIDRef")
             if bin_id:
-                for ext in (".bmp", ".png", ".jpg", ".jpeg"):
+                for ext in (".bmp", ".png", ".jpg", ".jpeg", ".wmf"):
                     try:
                         image_bytes = self.zip.read(f"BinData/{bin_id}{ext}")
                         break
@@ -1142,6 +1142,7 @@ class HwpxDocumentBackend(DeclarativeDocumentBackend):
 
         # 2) 이미지 유무에 따라 노드 추가
         if image_bytes is None:
+            return None
             doc.add_picture(parent=parent_node, image=None, caption=None,
                           prov=ProvenanceItem(
                               page_no=1,
@@ -1165,6 +1166,7 @@ class HwpxDocumentBackend(DeclarativeDocumentBackend):
                                   charspan=(0, 0)
                               ))
             else:
+                return None
                 doc.add_picture(parent=parent_node, image=None, caption=None,
                               prov=ProvenanceItem(
                                   page_no=1,
