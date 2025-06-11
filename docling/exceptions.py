@@ -2,7 +2,13 @@ class BaseError(RuntimeError):
     pass
 
 
-class ConversionError(BaseError):
+class ConversionError(Exception):
+    """Custom exception for conversion errors."""
+    pass
+
+
+class HwpConversionError(ConversionError):
+    """Custom exception for HWP conversion errors."""
     pass
 
 
