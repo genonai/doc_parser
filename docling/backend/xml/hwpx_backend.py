@@ -1065,6 +1065,8 @@ class HwpxDocumentBackend(DeclarativeDocumentBackend):
                     self._process_table(payload, doc)
                 elif typ == 'picture':
                     img, cap = payload
+                    if img is None:
+                        continue
                     doc.add_picture(parent=parent,
                                     image=img,
                                     caption=cap,
@@ -1147,12 +1149,8 @@ class HwpxDocumentBackend(DeclarativeDocumentBackend):
 
         # 2) 이미지 유무에 따라 노드 추가
         if image_bytes is None:
-            doc.add_picture(parent=parent_node, image=None, caption=None,
-                          prov=ProvenanceItem(
-                              page_no=1,
-                              bbox=BoundingBox(l=0, t=0, r=1, b=1),
-                              charspan=(0, 0)
-                          ))
+            return
+
         else:
             try:
                 pil_image = Image.open(BytesIO(image_bytes))
@@ -1170,13 +1168,7 @@ class HwpxDocumentBackend(DeclarativeDocumentBackend):
                                   charspan=(0, 0)
                               ))
             else:
-                doc.add_picture(parent=parent_node, image=None, caption=None,
-                              prov=ProvenanceItem(
-                                  page_no=1,
-                                  bbox=BoundingBox(l=0, t=0, r=1, b=1),
-                                  charspan=(0, 0)
-                              ))
-
+                return
     
     def _process_equation(self, eq_elem: etree._Element, doc: DoclingDocument) -> None:
         """Process an equation <hp:equation> element by adding its text content."""
