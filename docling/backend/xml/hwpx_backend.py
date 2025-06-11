@@ -343,7 +343,12 @@ class HwpxDocumentBackend(DeclarativeDocumentBackend):
                     doc.add_text(
                         label=DocItemLabel.PARAGRAPH,
                         text=text,
-                        parent=self.current_section_group
+                        parent=self.current_section_group,
+                        prov=ProvenanceItem(
+                            page_no=1,
+                            bbox=BoundingBox(l=0, t=0, r=1, b=1),
+                            charspan=(0, len(txt))
+                        )
                     )
             return
 
