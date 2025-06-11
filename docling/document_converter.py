@@ -156,11 +156,6 @@ class BOKJsonFormatOption(FormatOption):
     backend: Type[AbstractDocumentBackend] = BOKJsonDocumentBackend
 
 
-class AudioFormatOption(FormatOption):
-    pipeline_cls: Type = AsrPipeline
-    backend: Type[AbstractDocumentBackend] = NoOpBackend
-
-
 def _get_default_option(format: InputFormat) -> FormatOption:
     format_to_default_options = {
         InputFormat.CSV: FormatOption(
@@ -248,11 +243,6 @@ class DocumentConverter:
         self.initialized_pipelines: Dict[
             Tuple[Type[BasePipeline], str], BasePipeline
         ] = {}
-
-    def _get_initialized_pipelines(
-        self,
-    ) -> dict[tuple[Type[BasePipeline], str], BasePipeline]:
-        return self.initialized_pipelines
 
     def _get_pipeline_options_hash(self, pipeline_options: PipelineOptions) -> str:
         """Generate a hash of pipeline options to use as part of the cache key."""
