@@ -47,7 +47,7 @@ class HwpDocumentBackend(DeclarativeDocumentBackend):
                 if isinstance(path_or_stream, Path) and path_or_stream.name.startswith('temp_'):
                     os.remove(path_or_stream)
         else:
-            raise HwpConversionError("HwpDocumentBackend only supports .hwp files")
+            raise RuntimeError("HwpDocumentBackend only supports .hwp files")
 
     def _convert_hwp_to_hwpx(self, hwp_path: Path) -> Path:
         """Convert HWP file to HWPX using hwp2hwpx.sh script."""
@@ -64,7 +64,7 @@ class HwpDocumentBackend(DeclarativeDocumentBackend):
             ], capture_output=True, text=True, cwd=str(hwp_path.parent))
             
             if result.returncode != 0:
-                raise HwpConversionError(f"HWP 파일을 변환하는 중에 오류가 발생했습니다. HWPX로 직접 변환하신 후 다시 첨부해 주시기 바랍니다. 번거롭게 해드려 죄송합니다. \n {result.stderr}")
+                raise RuntimeError(f"HWP to HWPX conversion failed: {result.stderr}")
             
             if not os.path.exists(output_hwpx):
                 raise RuntimeError(f"HWPX file was not created: {output_hwpx}")
