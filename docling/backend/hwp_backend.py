@@ -11,7 +11,11 @@ from docling.backend.abstract_backend import DeclarativeDocumentBackend
 from docling.datamodel.base_models import InputFormat
 from docling.datamodel.document import InputDocument
 from docling_core.types.doc import DoclingDocument
-from docling.exceptions import ConversionError
+
+
+class HwpConversionError(Exception):
+    """HWP 파일 변환 중 발생하는 특별한 예외"""
+    pass
 
 
 class HwpDocumentBackend(DeclarativeDocumentBackend):
@@ -20,6 +24,7 @@ class HwpDocumentBackend(DeclarativeDocumentBackend):
         super().__init__(in_doc, path_or_stream)
         self.hwpx_backend = None
         self.valid = False
+        
         # HWP 파일인지 확인
         if isinstance(path_or_stream, (Path, BytesIO)):
             try:
@@ -39,13 +44,14 @@ class HwpDocumentBackend(DeclarativeDocumentBackend):
                 self.valid = self.hwpx_backend.is_valid()
             except Exception as e:
                 self.valid = False
-                raise RuntimeError(f"Failed to process HWP file: {e}")
+                # HWP 변환 실패 시 구체적인 메시지와 함께 커스텀 예외 발생
+                raise HwpConversionError(f"HWP 파일을 변환하는 중에 오류가 발생했습니다. HWPX로 직접 변환하신 후 다시 첨부해 주시기 바랍니다. 번거롭게 해드려 죄송합니다. \n오류 내용: {e}")
             finally:
                 # 임시 파일 삭제
                 if isinstance(path_or_stream, Path) and path_or_stream.name.startswith('temp_'):
                     os.remove(path_or_stream)
         else:
-            raise RuntimeError("HwpDocumentBackend only supports .hwp files")
+            raise HwpConversionError("HwpDocumentBackend only supports .hwp files")
 
     def _convert_hwp_to_hwpx(self, hwp_path: Path) -> Path:
         """Convert HWP file to HWPX using hwp2hwpx.sh script."""
@@ -62,7 +68,7 @@ class HwpDocumentBackend(DeclarativeDocumentBackend):
             ], capture_output=True, text=True, cwd=str(hwp_path.parent))
             
             if result.returncode != 0:
-                raise ConversionError(f"HWP 파일을 변환하는 중에 오류가 발생했습니다. HWPX로 직접 변환하신 후 다시 첨부해 주시기 바랍니다. 번거롭게 해드려 죄송합니다. \n {result.stderr}")
+                raise HwpConversionError(f"HWP 파일을 변환하는 중에 오류가 발생했습니다. HWPX로 직접 변환하신 후 다시 첨부해 주시기 바랍니다. 번거롭게 해드려 죄송합니다. \n {result.stderr}")
                 raise RuntimeError(f"HWP to HWPX conversion failed: {result.stderr}")
             
             if not os.path.exists(output_hwpx):

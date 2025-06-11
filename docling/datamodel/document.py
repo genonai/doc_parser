@@ -71,6 +71,7 @@ from docling.datamodel.base_models import (
 from docling.datamodel.settings import DocumentLimits
 from docling.utils.profiling import ProfilingItem
 from docling.utils.utils import create_file_hash
+from docling.backend.hwp_backend import HwpConversionError
 
 if TYPE_CHECKING:
     from docling.datamodel.base_models import BaseFormatOption
@@ -172,6 +173,10 @@ class InputDocument(BaseModel):
                 f"File {self.file.name} not found or cannot be opened.", exc_info=e
             )
             # raise
+        except HwpConversionError as e:
+            self.valid = False
+            # HWP 변환 오류는 구체적인 메시지와 함께 다시 발생시킴
+            raise e
         except RuntimeError as e:
             self.valid = False
             _log.exception(

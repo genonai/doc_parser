@@ -30,7 +30,7 @@ from docling.backend.webvtt_backend import WebVTTDocumentBackend
 from docling.backend.xml.jats_backend import JatsDocumentBackend
 from docling.backend.xml.uspto_backend import PatentUsptoDocumentBackend
 # 한글 추가 
-from docling.backend.hwp_backend import HwpDocumentBackend
+from docling.backend.hwp_backend import HwpDocumentBackend, HwpConversionError
 from docling.backend.xml.hwpx_backend import HwpxDocumentBackend
 from docling.backend.json.bok_json_backend import BOKJsonDocumentBackend
 from docling.datamodel.base_models import (
@@ -443,29 +443,38 @@ class DocumentConverter:
     def _execute_pipeline(
         self, in_doc: InputDocument, raises_on_error: bool
     ) -> ConversionResult:
-        if in_doc.valid:
-            pipeline = self._get_pipeline(in_doc.format)
-            if pipeline is not None:
-                conv_res = pipeline.execute(in_doc, raises_on_error=raises_on_error)
+        try:
+            if in_doc.valid:
+                pipeline = self._get_pipeline(in_doc.format)
+                if pipeline is not None:
+                    conv_res = pipeline.execute(in_doc, raises_on_error=raises_on_error)
+                else:
+                    if raises_on_error:
+                        raise ConversionError(
+                            f"No pipeline could be initialized for {in_doc.file}."
+                        )
+                    else:
+                        conv_res = ConversionResult(
+                            input=in_doc,
+                            status=ConversionStatus.FAILURE,
+                        )
             else:
                 if raises_on_error:
-                    raise ConversionError(
-                        f"No pipeline could be initialized for {in_doc.file}."
-                    )
+                    raise ConversionError(f"Input document {in_doc.file} is not valid.")
                 else:
+                    # invalid doc or not of desired format
                     conv_res = ConversionResult(
                         input=in_doc,
                         status=ConversionStatus.FAILURE,
                     )
-        else:
+                    # TODO add error log why it failed.
+        except HwpConversionError as e:
             if raises_on_error:
-                raise ConversionError(f"Input document {in_doc.file} is not valid.")
+                raise ConversionError(str(e))
             else:
-                # invalid doc or not of desired format
                 conv_res = ConversionResult(
                     input=in_doc,
                     status=ConversionStatus.FAILURE,
                 )
-                # TODO add error log why it failed.
 
         return conv_res
