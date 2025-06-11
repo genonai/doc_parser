@@ -1,9 +1,7 @@
 import json
 from pathlib import Path
 from typing import Optional, Union, cast
-from PIL import Image
-from PIL.UnidentifiedImageError import UnidentifiedImageError
-from PIL.OSError import OSError
+from PIL import Image, UnidentifiedImageError
 
 from docling_core.types.doc import (
     DocItemLabel,
