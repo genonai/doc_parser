@@ -1,6 +1,9 @@
 import json
 from pathlib import Path
 from typing import Optional, Union, cast
+from PIL import Image
+from PIL.UnidentifiedImageError import UnidentifiedImageError
+from PIL.OSError import OSError
 
 from docling_core.types.doc import (
     DocItemLabel,
@@ -126,22 +129,24 @@ class BOKJsonDocumentBackend(DeclarativeDocumentBackend):
             elif content_type == "image":
                 image_path = block.get("content")
                 if image_path:
-                    doc.add_picture(
-                        image=ImageRef(
-                            mode=ImageRefMode.REFERENCED, 
-                            ref=image_path,
-                            mimetype="image/png",
-                            dpi=72,
-                            size=Size(width=100, height=100),
-                            uri=image_path
-                        ),
-                        content_layer=ContentLayer.BODY,
-                        prov=ProvenanceItem(
-                            page_no=page_no,
-                            bbox=BoundingBox(l=0, t=0, r=1, b=1),
-                            charspan=(0, 0)
-                        ),
-                    )
+                    # 이미지 경로를 사용하여 이미지 로드
+                    try:
+                        pil_image = Image.open(image_path)
+                    except (UnidentifiedImageError, OSError):
+                        pil_image = None
+
+                    if pil_image:
+                        img_ref_obj = ImageRef.from_pil(image=pil_image, dpi=72)
+                        img_ref_obj.mode = ImageRefMode.EMBEDDED
+                        doc.add_picture(
+                            image=img_ref_obj,
+                            content_layer=ContentLayer.BODY,
+                            prov=ProvenanceItem(
+                                page_no=page_no,
+                                bbox=BoundingBox(l=0, t=0, r=1, b=1),
+                                charspan=(0, 0)
+                            ),
+                        )
                     
             elif content_type == "table":
                 table_content = block.get("content", [])
@@ -393,22 +398,24 @@ class BOKJsonDocumentBackend(DeclarativeDocumentBackend):
                                     elif content_type == "image":
                                         image_path = content_block.get("content", "")
                                         if image_path:
-                                            doc.add_picture(
-                                                image=ImageRef(
-                                                    mode=ImageRefMode.REFERENCED, 
-                                                    ref=image_path,
-                                                    mimetype="image/png", # 예시 mimetype
-                                                    dpi=72, # 예시 dpi
-                                                    size=Size(width=100, height=100), # 예시 크기
-                                                    uri=image_path
-                                                ),
-                                                content_layer=ContentLayer.BODY,
-                                                prov=ProvenanceItem(
-                                                    page_no=page_no,
-                                                    bbox=BoundingBox(l=0, t=0, r=1, b=1), # Bbox는 예시입니다.
-                                                    charspan=(0, 0)
-                                                ),
-                                            )
+                                            # 이미지 경로를 사용하여 이미지 로드
+                                            try:
+                                                pil_image = Image.open(image_path)
+                                            except (UnidentifiedImageError, OSError):
+                                                pil_image = None
+
+                                            if pil_image:
+                                                img_ref_obj = ImageRef.from_pil(image=pil_image, dpi=72)
+                                                img_ref_obj.mode = ImageRefMode.EMBEDDED
+                                                doc.add_picture(
+                                                    image=img_ref_obj,
+                                                    content_layer=ContentLayer.BODY,
+                                                    prov=ProvenanceItem(
+                                                        page_no=page_no,
+                                                        bbox=BoundingBox(l=0, t=0, r=1, b=1),
+                                                        charspan=(0, 0)
+                                                    ),
+                                                )
     
     def _add_table_elements_in_column_order(self, doc: DoclingDocument, page_no: int, table_content: list, processed_content: set):
         """테이블을 컬럼별 reading order로 개별 요소들을 순서대로 DoclingDocument에 추가하고, 중복을 방지한다."""
@@ -512,23 +519,25 @@ class BOKJsonDocumentBackend(DeclarativeDocumentBackend):
                 elif content_type == "image":
                     image_path = content_block.get("content", "")
                     if image_path:
-                        doc.add_picture(
-                            image=ImageRef(
-                                mode=ImageRefMode.REFERENCED, 
-                                ref=image_path,
-                                mimetype="image/png", # 예시
-                                dpi=72, # 예시
-                                size=Size(width=100, height=100), # 예시
-                                uri=image_path
-                            ),
-                            content_layer=ContentLayer.BODY,
-                            parent=parent,
-                            prov=ProvenanceItem(
-                                page_no=page_no,
-                                bbox=BoundingBox(l=0, t=0, r=1, b=1), # Bbox는 예시
-                                charspan=(0, 0)
-                            ),
-                        )
+                        # 이미지 경로를 사용하여 이미지 로드
+                        try:
+                            pil_image = Image.open(image_path)
+                        except (UnidentifiedImageError, OSError):
+                            pil_image = None
+
+                        if pil_image:
+                            img_ref_obj = ImageRef.from_pil(image=pil_image, dpi=72)
+                            img_ref_obj.mode = ImageRefMode.EMBEDDED
+                            doc.add_picture(
+                                image=img_ref_obj,
+                                content_layer=ContentLayer.BODY,
+                                parent=parent,
+                                prov=ProvenanceItem(
+                                    page_no=page_no,
+                                    bbox=BoundingBox(l=0, t=0, r=1, b=1),
+                                    charspan=(0, 0)
+                                ),
+                            )
                 
                 elif content_type == "table":
                     nested_table_content = content_block.get("content", [])
@@ -610,23 +619,25 @@ class BOKJsonDocumentBackend(DeclarativeDocumentBackend):
                 elif content_type == "image":
                     image_path = content_block.get("content", "")
                     if image_path:
-                        doc.add_picture(
-                            image=ImageRef(
-                                mode=ImageRefMode.REFERENCED, 
-                                ref=image_path,
-                                mimetype="image/png",
-                                dpi=72,
-                                size=Size(width=100, height=100),
-                                uri=image_path
-                            ),
-                            content_layer=ContentLayer.BODY,
-                            parent=parent,
-                            prov=ProvenanceItem(
-                                page_no=page_no,
-                                bbox=BoundingBox(l=0, t=0, r=1, b=1),
-                                charspan=(0, 0)
-                            ),
-                        )
+                        # 이미지 경로를 사용하여 이미지 로드
+                        try:
+                            pil_image = Image.open(image_path)
+                        except (UnidentifiedImageError, OSError):
+                            pil_image = None
+
+                        if pil_image:
+                            img_ref_obj = ImageRef.from_pil(image=pil_image, dpi=72)
+                            img_ref_obj.mode = ImageRefMode.EMBEDDED
+                            doc.add_picture(
+                                image=img_ref_obj,
+                                content_layer=ContentLayer.BODY,
+                                parent=parent,
+                                prov=ProvenanceItem(
+                                    page_no=page_no,
+                                    bbox=BoundingBox(l=0, t=0, r=1, b=1),
+                                    charspan=(0, 0)
+                                ),
+                            )
                                 
                 elif content_type == "table":
                     nested_table_content = content_block.get("content", [])
