@@ -283,11 +283,46 @@ class PaginatedPipelineOptions(ConvertPipelineOptions):
     generate_picture_images: bool = False
 
 
+class DataEnrichmentOptions(BaseModel):
+    """Data enrichment options for metadata extraction and other enrichment features."""
+    
+    enabled: bool = False  # True: enable data enrichment features
+    
+    # TOC enrichment options
+    do_toc_enrichment: bool = False
+    toc_system_prompt: Optional[str] = None
+    toc_user_prompt: Optional[str] = None
+    # TOC API configuration options
+    toc_api_provider: Optional[str] = None  # e.g., "openrouter", "openai", "custom"
+    toc_api_key: Optional[str] = None
+    toc_api_base_url: Optional[str] = None
+    toc_model: Optional[str] = None
+    toc_temperature: Optional[float] = None
+    toc_top_p: Optional[float] = None
+    toc_seed: Optional[int] = None
+    toc_max_tokens: Optional[int] = None
+    
+    # Metadata extraction options  
+    extract_metadata: bool = False
+    metadata_system_prompt: Optional[str] = None
+    metadata_user_prompt: Optional[str] = None
+    # Metadata API configuration options
+    metadata_api_provider: Optional[str] = None  # e.g., "openrouter", "openai", "custom"
+    metadata_api_key: Optional[str] = None
+    metadata_api_base_url: Optional[str] = None
+    metadata_model: Optional[str] = None
+    metadata_temperature: Optional[float] = None
+    metadata_top_p: Optional[float] = None
+    metadata_seed: Optional[int] = None
+    metadata_max_tokens: Optional[int] = None
+
+
 class VlmPipelineOptions(PaginatedPipelineOptions):
     generate_page_images: bool = True
     force_backend_text: bool = (
         False  # (To be used with vlms, or other generative models)
     )
+    data_enrichment_options: DataEnrichmentOptions = DataEnrichmentOptions()
     # If True, text from backend will be used instead of generated text
     vlm_options: Union[InlineVlmOptions, ApiVlmOptions] = (
         vlm_model_specs.GRANITEDOCLING_TRANSFORMERS
@@ -324,6 +359,9 @@ class PdfPipelineOptions(PaginatedPipelineOptions):
     do_ocr: bool = True  # True: perform OCR, replace programmatic PDF text
     do_code_enrichment: bool = False  # True: perform code OCR
     do_formula_enrichment: bool = False  # True: perform formula OCR, return Latex code
+    do_picture_classification: bool = False  # True: classify pictures in documents
+    do_picture_description: bool = False  # True: run describe pictures in documents
+    data_enrichment_options: DataEnrichmentOptions = DataEnrichmentOptions()
     force_backend_text: bool = (
         False  # (To be used with vlms, or other generative models)
     )
