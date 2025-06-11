@@ -65,7 +65,6 @@ class HwpDocumentBackend(DeclarativeDocumentBackend):
             
             if result.returncode != 0:
                 raise HwpConversionError(f"HWP 파일을 변환하는 중에 오류가 발생했습니다. HWPX로 직접 변환하신 후 다시 첨부해 주시기 바랍니다. 번거롭게 해드려 죄송합니다. \n {result.stderr}")
-                raise RuntimeError(f"HWP to HWPX conversion failed: {result.stderr}")
             
             if not os.path.exists(output_hwpx):
                 raise RuntimeError(f"HWPX file was not created: {output_hwpx}")
