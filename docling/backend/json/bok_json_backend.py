@@ -271,25 +271,25 @@ class BOKJsonDocumentBackend(DeclarativeDocumentBackend):
         
         added_content_ids_in_current_table_processing = set()
 
-        # 컬럼별로 그룹을 생성하여 같은 컬럼의 요소들이 chunking 시 하나의 chunk로 묶이도록 함
+        # 컬럼 순서를 유지하면서 셀별로 개별 그룹 생성
         for col in range(max_cols):
-            # 각 컬럼별로 별도의 그룹 생성
-            column_group = doc.add_group(
-                name=f"flattened_table_page_{page_no}_col_{col}",
-                label=GroupLabel.UNSPECIFIED,
-                content_layer=ContentLayer.BODY
-            )
-            
             for row in range(max_rows):
                 if (row, col) in cell_matrix:
                     cell_info = cell_matrix[(row, col)]
                     if cell_info['is_origin']:
                         cell_pos = f"r{cell_info['origin_pos'][0]}_c{cell_info['origin_pos'][1]}"
                         
-                        # 컬럼별 그룹을 parent로 전달하여 같은 컬럼의 요소들이 같은 그룹에 속하도록 함
+                        # 셀별 개별 그룹 생성
+                        cell_group = doc.add_group(
+                            name=f"cell_page_{page_no}_{cell_pos}",
+                            label=GroupLabel.UNSPECIFIED,
+                            content_layer=ContentLayer.BODY
+                        )
+                        
+                        # 셀별 그룹을 parent로 전달
                         self._add_cell_contents_to_doc_with_map(doc, page_no, cell_info['cell_data'], 
                                                        processed_content, added_content_ids_in_current_table_processing,
-                                                       cell_pos, column_group, table_map)
+                                                       cell_pos, cell_group, table_map)
     
     def _extract_nested_data_tables(self, table_content: list):
         """중첩된 테이블 중에서 실제 데이터 테이블만 추출"""
@@ -453,24 +453,25 @@ class BOKJsonDocumentBackend(DeclarativeDocumentBackend):
         
         added_content_ids_in_current_table_processing = set()
 
-        # 컬럼별로 그룹을 생성하여 같은 컬럼의 요소들이 chunking 시 하나의 chunk로 묶이도록 함
+        # 컬럼 순서를 유지하면서 셀별로 개별 그룹 생성
         for col in range(max_cols):
-            # 각 컬럼별로 별도의 그룹 생성
-            column_group = doc.add_group(
-                name=f"flattened_table_page_{page_no}_col_{col}",
-                label=GroupLabel.UNSPECIFIED,
-                content_layer=ContentLayer.BODY
-            )
-            
             for row in range(max_rows):
                 if (row, col) in cell_matrix:
                     cell_info = cell_matrix[(row, col)]
                     if cell_info['is_origin']:
                         cell_pos = f"r{cell_info['origin_pos'][0]}_c{cell_info['origin_pos'][1]}"
-                        # 컬럼별 그룹을 parent로 전달하여 같은 컬럼의 요소들이 같은 그룹에 속하도록 함
+                        
+                        # 셀별 개별 그룹 생성
+                        cell_group = doc.add_group(
+                            name=f"cell_page_{page_no}_{cell_pos}",
+                            label=GroupLabel.UNSPECIFIED,
+                            content_layer=ContentLayer.BODY
+                        )
+                        
+                        # 셀별 그룹을 parent로 전달
                         self._add_cell_contents_to_doc(doc, page_no, cell_info['cell_data'], 
                                                        processed_content, added_content_ids_in_current_table_processing,
-                                                       cell_pos, column_group)
+                                                       cell_pos, cell_group)
 
     def _add_cell_contents_to_doc(self, doc: DoclingDocument, page_no: int, cell_data, 
                                   global_processed_content: set, table_internal_processed_ids: set, cell_base_id: str, parent=None):
