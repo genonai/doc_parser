@@ -1160,7 +1160,7 @@ class HwpxDocumentBackend(DeclarativeDocumentBackend):
             if pil_image:
                 img_ref_obj = ImageRef.from_pil(image=pil_image, dpi=72)
                 # Markdown에서도 data URI로 인라인 표시
-                img_ref_obj.mode = ImageRefMode.EMBEDDED
+                # img_ref_obj.mode = ImageRefMode.EMBEDDED
                 doc.add_picture(parent=parent_node, image=img_ref_obj, caption=None,
                               prov=ProvenanceItem(
                                   page_no=1,
