@@ -1,40 +1,40 @@
 {
-    "api_config": {
-        "openrouter": {
-          "base_url": "https://openrouter.ai/api/v1",
-          "api_key": "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"
-        }
-      },
-    "metadata_extraction": {
-      "korean_financial": {
-        "system": "You are a professional document extraction assistant. Your job is to carefully extract metadata from semi-structured or unstructured Korean financial documents. Always follow the requested output format exactly.",
-        "user": "다음은 한국어로 작성된 금융 보고서 문서의 일부입니다. 이 문서에서 아래 정보를 정확히 추출해주세요:\n\n1. 최초 작성일 (날짜가 여러 개 있으면 '보고자료' 또는 '회의자료'에 가까운 날짜 사용)\n2. 작성자 이름과 소속 또는 직책 (예: 채권시장팀 조용범 과장)\n3. 작성자 전화번호 (내선번호 포함 시 함께 출력)\n\n문서:\n---\n{document_content}\n---\n\n출력 형식은 반드시 아래와 같이 맞춰주세요 (JSON 형식):\n\n{{\n  \"작성일\": \"YYYY-MM-DD\",\n  \"작성자\": [\n    {{\"이름\": \"조용범\", \"소속\": \"채권시장팀\", \"직책\": \"과장\", \"전화\": \"4751\"}},\n    {{\"이름\": \"임인혁\", \"소속\": \"주식시장팀\", \"직책\": \"과장\", \"전화\": \"4672\"}}\n  ]\n}}",
-        "description": "한국 금융 문서에서 작성일과 작성자 정보를 추출하는 프롬프트",
-        "model": "google/gemma-3-27b-it:free",
-        "seed": 3,
-        "api_provider": "openrouter"
+  "api_config": {
+      "openrouter": {
+        "base_url": "https://openrouter.ai/api/v1",
+        "api_key": "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"
       }
     },
-    "toc_extraction": {
-      "korean_document": {
-        "system": "You are a professional assistant trained to generate structured, hierarchical tables of contents from Korean policy or research documents. Your job is to extract section titles and subtitles, and organize them using Arabic numerals (e.g., 1, 1.1, 1.2). Do not include page numbers. Do not add explanations or comments. Only output a clean list of the table of contents using information from the document.",
-        "user": "다음은 PDF 문서에서 추출한 텍스트입니다. 이 문서의 구조에 맞게 목차를 생성해주세요. 불필요한 설명 없이 순번과 제목만 출력해 주세요. 페이지 번호는 생략하고, 계층 구조는 숫자로 표현해 주세요.\n\n문서 텍스트:\n\n{raw_text}",
-        "description": "한국 문서에서 계층적 목차를 추출하는 프롬프트",
-        "model": "google/gemma-3-27b-it:free",
-        "seed": 33,
-        "temperature": 0.0,
-        "top_p": 0,
-        "api_provider": "openrouter"
-      },
-      "general_document": {
-        "system": "You are a professional assistant trained to generate structured, hierarchical tables of contents from documents. Your job is to extract section titles and subtitles, and organize them using Arabic numerals (e.g., 1, 1.1, 1.2). Do not include page numbers. Do not add explanations or comments. Only output a clean list of the table of contents using information from the document.",
-        "user": "다음은 PDF 문서에서 추출한 텍스트입니다. 이 문서의 구조에 맞게 목차를 생성해주세요. 불필요한 설명 없이 순번과 제목만 출력해 주세요. 페이지 번호는 생략하고, 계층 구조는 숫자로 표현해 주세요.\n\n문서 텍스트:\n\n{raw_text}",
-        "description": "일반 문서에서 계층적 목차를 추출하는 프롬프트",
-        "model": "google/gemma-3-27b-it:free",
-        "seed": 33,
-        "temperature": 0.0,
-        "top_p": 0,
-        "api_provider": "openrouter"
-      }
+  "metadata_extraction": {
+    "korean_financial": {
+      "system": "You are a professional document extraction assistant. Your job is to carefully extract metadata from semi-structured or unstructured Korean financial documents. Always follow the requested output format exactly.",
+      "user": "다음은 한국어로 작성된 금융 보고서 문서의 일부입니다. 이 문서에서 아래 정보를 정확히 추출해주세요:\n\n1. 최초 작성일 (날짜가 여러 개 있으면 '보고자료' 또는 '회의자료'에 가까운 날짜 사용)\n2. 작성자 이름과 소속 또는 직책 (예: 채권시장팀 조용범 과장)\n3. 작성자 전화번호 (내선번호 포함 시 함께 출력)\n\n문서:\n---\n{document_content}\n---\n\n출력 형식은 반드시 아래와 같이 맞춰주세요 (JSON 형식):\n\n{{\n  \"작성일\": \"YYYY-MM-DD\",\n  \"작성자\": [\n    {{\"이름\": \"조용범\", \"소속\": \"채권시장팀\", \"직책\": \"과장\", \"전화\": \"4751\"}},\n    {{\"이름\": \"임인혁\", \"소속\": \"주식시장팀\", \"직책\": \"과장\", \"전화\": \"4672\"}}\n  ]\n}}",
+      "description": "한국 금융 문서에서 작성일과 작성자 정보를 추출하는 프롬프트",
+      "model": "google/gemma-3-27b-it:free",
+      "seed": 3,
+      "api_provider": "openrouter"
+    }
+  },
+  "toc_extraction": {
+    "korean_document": {
+      "system": "You are a professional assistant trained to generate structured, hierarchical tables of contents from Korean policy or research documents. Your job is to extract the document title and section titles/subtitles, and organize them using Arabic numerals (e.g., 1, 1.1, 1.2). Do not include page numbers. Do not add explanations or comments. Only output a clean list starting with the document title followed by the table of contents using information from the document.",
+      "user": "다음은 PDF 문서에서 추출한 텍스트입니다. 이 문서의 제목과 구조에 맞게 목차를 생성해주세요.\n\n출력 형식:\n1. 첫 번째 줄에 'TITLE: [문서제목]' 형태로 문서 제목을 출력\n2. 그 다음 줄부터 계층적 목차를 출력 (순번과 제목만, 페이지 번호 생략)\n3. 계층 구조는 숫자로 표현 (1, 1.1, 1.1.1 등)\n\n예시:\nTITLE: 2024년 채권시장 동향 분석 보고서\n1. 개요\n1.1. 연구 목적\n1.2. 연구 범위\n2. 시장 현황\n2.1. 국내 채권시장\n2.2. 해외 채권시장\n\n문서 텍스트:\n\n{raw_text}",
+      "description": "한국 문서에서 문서 제목과 계층적 목차를 추출하는 프롬프트",
+      "model": "google/gemma-3-27b-it:free",
+      "seed": 33,
+      "temperature": 0.0,
+      "top_p": 0,
+      "api_provider": "openrouter"
+    },
+    "general_document": {
+      "system": "You are a professional assistant trained to generate structured, hierarchical tables of contents from documents. Your job is to extract the document title and section titles/subtitles, and organize them using Arabic numerals (e.g., 1, 1.1, 1.2). Do not include page numbers. Do not add explanations or comments. Only output a clean list starting with the document title followed by the table of contents using information from the document.",
+      "user": "다음은 PDF 문서에서 추출한 텍스트입니다. 이 문서의 제목과 구조에 맞게 목차를 생성해주세요.\n\n출력 형식:\n1. 첫 번째 줄에 'TITLE: [문서제목]' 형태로 문서 제목을 출력\n2. 그 다음 줄부터 계층적 목차를 출력 (순번과 제목만, 페이지 번호 생략)\n3. 계층 구조는 숫자로 표현 (1, 1.1, 1.1.1 등)\n\n예시:\nTITLE: 2024년 채권시장 동향 분석 보고서\n1. 개요\n1.1. 연구 목적\n1.2. 연구 범위\n2. 시장 현황\n2.1. 국내 채권시장\n2.2. 해외 채권시장\n\n문서 텍스트:\n\n{raw_text}",
+      "description": "일반 문서에서 문서 제목과 계층적 목차를 추출하는 프롬프트",
+      "model": "google/gemma-3-27b-it:free",
+      "seed": 33,
+      "temperature": 0.0,
+      "top_p": 0,
+      "api_provider": "openrouter"
     }
   }
+}

@@ -3,7 +3,6 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
-
 from collections import defaultdict
 from datetime import datetime
 from typing import Optional, Iterable, Any, List, Dict, Tuple
@@ -31,8 +30,10 @@ from docling.datamodel.pipeline_options import (
 from docling.document_converter import (
     DocumentConverter,
     PdfFormatOption,
-    FormatOption
+    HwpxFormatOption,
 )
+from docling.datamodel.pipeline_options import DataEnrichmentOptions
+from docling.utils.document_enrichment import enrich_document
 from docling.datamodel.document import ConversionResult
 from docling_core.transforms.chunker import (
     BaseChunk,
@@ -40,37 +41,24 @@ from docling_core.transforms.chunker import (
     DocChunk,
     DocMeta,
 )
+
 from docling_core.types import DoclingDocument
 
 from pandas import DataFrame
 
-# from docling_core.transforms.chunker import BaseChunk, BaseChunker, BaseMeta
 from docling_core.types import DoclingDocument as DLDocument
 from docling_core.types.doc.document import (
-    # DocItem,
     DocumentOrigin,
     LevelNumber,
     ListItem,
     CodeItem,
-    # SectionHeaderItem,
-    # TableItem,
-    # TextItem,
 )
 from docling_core.types.doc.labels import DocItemLabel
 from docling_core.types.doc import (
     BoundingBox,
-    # CoordOrigin,
     DocItemLabel,
     DoclingDocument,
     DocumentOrigin,
-    # GroupLabel,
-    # ImageRef,
-    # ProvenanceItem,
-    # Size,
-    # TableCell,
-    # TableData,
-    # GroupItem,
-
     DocItem,
     PictureItem,
     SectionHeaderItem,
@@ -80,8 +68,9 @@ from docling_core.types.doc import (
 )
 from collections import Counter
 import re
-
 import warnings
+import asyncio
+
 from typing import Iterable, Iterator, Optional, Union
 
 from pydantic import BaseModel, ConfigDict, PositiveInt, TypeAdapter, model_validator
@@ -103,21 +92,6 @@ from genos_utils import upload_files
 # Copyright IBM Corp. 2024 - 2024
 # SPDX-License-Identifier: MIT
 #
-
-# FormatToExtensions = {
-#     InputFormat.DOCX: ["docx", "dotx", "docm", "dotm"],
-#     InputFormat.PPTX: ["pptx", "potx", "ppsx", "pptm", "potm", "ppsm"],
-#     InputFormat.PDF: ["pdf"],
-#     InputFormat.MD: ["md"],
-#     InputFormat.HTML: ["html", "htm", "xhtml"],
-#     InputFormat.XML_JATS: ["xml", "nxml"],
-#     InputFormat.IMAGE: ["jpg", "jpeg", "png", "tif", "tiff", "bmp"],
-#     InputFormat.ASCIIDOC: ["adoc", "asciidoc", "asc"],
-#     InputFormat.CSV: ["csv"],
-#     InputFormat.XLSX: ["xlsx"],
-#     InputFormat.XML_USPTO: ["xml", "txt"],
-#     InputFormat.JSON_DOCLING: ["json"],
-# }
 
 """Chunker implementation leveraging the document structure."""
 
@@ -186,10 +160,10 @@ class HierarchicalChunker(BaseChunker):
                             meta=DocMeta(
                                 doc_items=list_items,
                                 headings=[
-                                             heading_by_level[k]
-                                             for k in sorted(heading_by_level)
-                                         ]
-                                         or None,
+                                            heading_by_level[k]
+                                            for k in sorted(heading_by_level)
+                                        ]
+                                        or None,
                                 origin=dl_doc.origin,
                             ),
                         )
@@ -211,17 +185,17 @@ class HierarchicalChunker(BaseChunker):
                     keys_to_del = [k for k in heading_by_level if k > level]
                     for k in keys_to_del:
                         heading_by_level.pop(k, None)
-                    c = DocChunk(
-                        text=text,
-                        meta=DocMeta(
-                            doc_items=[item],
-                            headings=[heading_by_level[k] for k in sorted(heading_by_level)]
-                            or None,
-                            captions=captions,
-                            origin=dl_doc.origin,
-                        ),
-                    )
-                    yield c
+                    # c = DocChunk(
+                    #     text=text,
+                    #     meta=DocMeta(
+                    #         doc_items=[item],
+                    #         headings=[heading_by_level[k] for k in sorted(heading_by_level)]
+                    #         or None,
+                    #         captions=captions,
+                    #         origin=dl_doc.origin,
+                    #     ),
+                    # )
+                    # yield c
                     continue
 
                 if (
@@ -238,8 +212,8 @@ class HierarchicalChunker(BaseChunker):
                     #     continue
                     # text = self._triplet_serialize(table_df=table_df)
                     captions = [
-                                   c.text for c in [r.resolve(dl_doc) for r in item.captions]
-                               ] or None
+                                  c.text for c in [r.resolve(dl_doc) for r in item.captions]
+                              ] or None
                 elif isinstance(item, PictureItem):
                     text = ''.join(str(value) for value in heading_by_level.values())
                 else:
@@ -249,7 +223,7 @@ class HierarchicalChunker(BaseChunker):
                     meta=DocMeta(
                         doc_items=[item],
                         headings=[heading_by_level[k] for k in sorted(heading_by_level)]
-                                 or None,
+                                or None,
                         captions=captions,
                         origin=dl_doc.origin,
                     ),
@@ -262,7 +236,7 @@ class HierarchicalChunker(BaseChunker):
                 meta=DocMeta(
                     doc_items=list_items,
                     headings=[heading_by_level[k] for k in sorted(heading_by_level)]
-                             or None,
+                            or None,
                     origin=dl_doc.origin,
                 ),
             )
@@ -284,7 +258,7 @@ class HybridChunker(BaseChunker):
     tokenizer: Union[PreTrainedTokenizerBase, str] = (
         "sentence-transformers/all-MiniLM-L6-v2"
     )
-    max_tokens: int = 1024  # type: ignore[assignment]
+    max_tokens: int = 2048  # type: ignore[assignment]
     merge_peers: bool = True
 
     _inner_chunker: HierarchicalChunker = HierarchicalChunker()
@@ -434,7 +408,7 @@ class HybridChunker(BaseChunker):
                 window_end += 1
                 first_chunk_of_window = chunk
             else:
-                chks = chunks[window_start : window_end + 1]
+                chks = chunks[window_start: window_end + 1]
                 doc_items = [it for chk in chks for it in chk.meta.doc_items]
                 candidate = DocChunk(
                     text=self.delim.join([chk.text for chk in chks]),
@@ -446,8 +420,8 @@ class HybridChunker(BaseChunker):
                     ),
                 )
                 if (
-                    headings_and_captions == current_headings_and_captions
-                    and self._count_chunk_tokens(doc_chunk=candidate) <= self.max_tokens
+                        headings_and_captions == current_headings_and_captions
+                        and self._count_chunk_tokens(doc_chunk=candidate) <= self.max_tokens
                 ):
                     # there is room to include the new chunk so add it to the window and
                     # continue
@@ -505,6 +479,7 @@ class GenOSVectorMeta(BaseModel):
     reg_date: str = None
     chunk_bboxes: list = None
     media_files: list = None
+    created_date: int = None  # YYYYMMDD 형식의 정수
 
 
 class GenOSVectorMetaBuilder:
@@ -523,6 +498,7 @@ class GenOSVectorMetaBuilder:
         self.reg_date: Optional[str] = None
         self.chunk_bboxes: list = None
         self.media_files: list = None
+        self.created_date: Optional[int] = None
 
     def set_text(self, text: str) -> "GenOSVectorMetaBuilder":
         """텍스트와 관련된 데이터를 설정"""
@@ -596,6 +572,7 @@ class GenOSVectorMetaBuilder:
             reg_date=self.reg_date,
             chunk_bboxes=self.chunk_bboxes,
             media_files=self.media_files,
+            created_date=self.created_date,
         )
 
 
@@ -628,7 +605,7 @@ class DocumentProcessor:
         pipe_line_options.accelerator_options = accelerator_options
 
         simple_pipeline_options = PipelineOptions()
-
+        
         self.converter = DocumentConverter(
             format_options={
                 InputFormat.PDF: PdfFormatOption(
@@ -636,6 +613,10 @@ class DocumentProcessor:
                     backend=DoclingParseV4DocumentBackend
                     # backend=PyPdfiumDocumentBackend
                 ),
+                InputFormat.XML_HWPX: HwpxFormatOption(
+                    pipeline_options=simple_pipeline_options,
+                ),
+                
             }
         )
         
@@ -649,149 +630,140 @@ class DocumentProcessor:
         )
 
     def load_documents_with_docling(self, file_path: str, **kwargs: dict) -> DoclingDocument:
-        # docling 설정
-        # 필요에 따라 사용자 지정 가능. 여기서는 genos_vanilla 와 비슷하게 PDF를 처리한다 가정.
-        # TODO: kwargs 와의 연결
-        # TODO: Langchain document 를 꼭 써야하나?
-        # 실제 변환 실행
-        # ConversionResult 리스트를 받는다.
-        #
-        # NOTE: 처리시 파일 하나를 병렬로 처리하는지?? 아니면 폴더 단위로 병렬 처리 하는지??
-        # NOTE: 파일 하나 처리 시 convert로 변경.
-        # conv_results = doc_converter.convert_all([file_path], raises_on_error=True)
         try:
             conv_result: ConversionResult = self.converter.convert(file_path, raises_on_error=True)
         except Exception as e:
             conv_result: ConversionResult = self.second_converter.convert(file_path, raises_on_error=True)
-        
-        # return process_pdf(conv_result.document)
         return conv_result.document
 
     def load_documents(self, file_path: str, **kwargs: dict) -> DoclingDocument:
-        # ducling 방식으로 문서 로드
         return self.load_documents_with_docling(file_path, **kwargs)
-        # return documents
 
-    def split_documents(self, documents: DoclingDocument, **kwargs: dict) -> list[DocChunk]:
-        """
-        1) HybridChunker로 기본 청크 생성
-        2) max_char_len 기준으로 그리디하게 병합
-        3) 병합 후, 각 청크의 마지막 doc_item이 SECTION_HEADER면 다음 청크로 이관
-           (마지막 청크의 SECTION_HEADER는 무시)
-        """
-        max_char_len = kwargs.get("max_char_len", 1024)
-        chunker = HybridChunker()
-        raw_chunks: list[DocChunk] = list(chunker.chunk(dl_doc=documents, **kwargs))
-
-        # 페이지별 청크 카운트 업데이트
-        for c in raw_chunks:
-            page_no = c.meta.doc_items[0].prov[0].page_no
-            self.page_chunk_counts[page_no] += 1
-
-        # 1) greedy merge by max_char_len
-        merged: list[DocChunk] = []
-        buf_text = ""
-        buf_items: list = []
-
-        def _flush():
-            nonlocal buf_text, buf_items
-            if not buf_items:
-                return
-            Meta = type(raw_chunks[0].meta)
-            new_meta = Meta(
-                doc_items=buf_items,
-                headings=None,
-                captions=None,
-                origin=documents.origin,
-            )
-            merged.append(DocChunk(text=buf_text.strip(), meta=new_meta))
-            buf_text = ""
-            buf_items = []
-
-        for chunk in raw_chunks:
-            # build segment
-            seg = ""
-            if chunk.meta.headings:
-                hs = [h.strip() for h in chunk.meta.headings if h and h.strip()]
-                if hs:
-                    seg += self.safe_join(hs) + " "
-            if chunk.text and chunk.text.strip():
-                seg += chunk.text.strip()
-            if not seg:
-                continue
-
-            # if adding seg would exceed length, flush first
-            projected = len(buf_text) + (1 if buf_text else 0) + len(seg)
-            if buf_text and projected > max_char_len:
-                _flush()
-
-            # accumulate
-            buf_text += (" " if buf_text else "") + seg
-            buf_items.extend(chunk.meta.doc_items)
-
-        # flush remainder
-        _flush()
-
-        # 2) move trailing SECTION_HEADER to next chunk (except last)
-        for i in range(len(merged) - 1):
-            items = merged[i].meta.doc_items
-            if items and items[-1].label == DocItemLabel.SECTION_HEADER:
-                header = items.pop()
-                # remove header text from chunk text
-                ht = header.text.strip()
-                txt = merged[i].text.rstrip()
-                
-                if txt.endswith(ht):
-                    merged[i].text = txt[:-len(ht)].rstrip()
-                # prepend header to next chunk
-                next_chunk = merged[i + 1]
-                next_items = next_chunk.meta.doc_items
-                next_items.insert(0, header)
-                # update next text
-                nt = header.text.strip()
-                if next_chunk.text:
-                    nt = nt + "\n" + next_chunk.text
-                next_chunk.text = nt
-        
-        chunk = [c for c in merged if c.meta.doc_items]
-        return chunk
+    def split_documents(self, documents: DoclingDocument, **kwargs: dict) -> List[DocChunk]:
+        chunker: HybridChunker = HybridChunker()
+        chunks: List[DocChunk] = list(chunker.chunk(dl_doc=documents, **kwargs))
+        for chunk in chunks:
+            self.page_chunk_counts[chunk.meta.doc_items[0].prov[0].page_no] += 1
+        return chunks
 
     def safe_join(self, iterable):
         if not isinstance(iterable, (list, tuple, set)):
             return ''
         return ''.join(map(str, iterable)) + '\n'
-    
-    def compose_vectors(self, document: DoclingDocument, chunks: List[DocChunk], file_path: str, **kwargs: dict) -> \
+
+    def parse_created_date(self, date_text: str) -> Optional[int]:
+        """
+        작성일 텍스트를 파싱하여 YYYYMMDD 형식의 정수로 변환
+        
+        Args:
+            date_text: 작성일 텍스트 (YYYY-MM 또는 YYYY-MM-DD 형식)
+            
+        Returns:
+            YYYYMMDD 형식의 정수, 파싱 실패시 None
+        """
+        if not date_text or not isinstance(date_text, str) or date_text == "None":
+            return 0
+            
+        # 공백 제거 및 정리
+        date_text = date_text.strip()
+        
+        # YYYY-MM-DD 형식 매칭
+        match_full = re.match(r'^(\d{4})-(\d{1,2})-(\d{1,2})$', date_text)
+        if match_full:
+            year, month, day = match_full.groups()
+            try:
+                # 유효한 날짜인지 검증
+                datetime(int(year), int(month), int(day))
+                return int(f"{year}{month.zfill(2)}{day.zfill(2)}")
+            except ValueError:
+                pass
+        
+        # YYYY-MM 형식 매칭 (일자는 01로 설정)
+        match_month = re.match(r'^(\d{4})-(\d{1,2})$', date_text)
+        if match_month:
+            year, month = match_month.groups()
+            try:
+                # 유효한 월인지 검증
+                datetime(int(year), int(month), 1)
+                return int(f"{year}{month.zfill(2)}01")
+            except ValueError:
+                pass
+        
+        # YYYY 형식 매칭 (월일은 0101로 설정)
+        match_year = re.match(r'^(\d{4})$', date_text)
+        if match_year:
+            year = match_year.group(1)
+            try:
+                datetime(int(year), 1, 1)
+                return int(f"{year}0101")
+            except ValueError:
+                pass
+        
+        return 0
+
+    def enrichment(self, document: DoclingDocument, **kwargs: dict) -> DoclingDocument:
+        # enrichment 옵션 설정
+        enrichment_options = DataEnrichmentOptions(
+            do_toc_enrichment=True,
+            extract_metadata=True,
+            toc_api_provider="custom",
+            toc_api_base_url="https://genos.mnc.ai:3443/api/gateway/rep/serving/364/v1/chat/completions",
+            metadata_api_base_url="https://genos.mnc.ai:3443/api/gateway/rep/serving/364/v1/chat/completions",
+            toc_api_key="a2ffe48f40ab4cf9a0699deac1c0cb76",
+            metadata_api_key="a2ffe48f40ab4cf9a0699deac1c0cb76",
+            toc_model="/model/snapshots/9eb2daaa8597bf192a8b0e73f848f3a102794df5",
+            metadata_model="/model/snapshots/9eb2daaa8597bf192a8b0e73f848f3a102794df5",
+            toc_temperature=0.0,
+            toc_top_p=0,
+            toc_seed=33,
+            toc_max_tokens=1000
+        )
+
+        # 새로운 enriched result 받기
+        document = enrich_document(document, enrichment_options)
+        return document
+        
+    async def compose_vectors(self, document: DoclingDocument, chunks: List[DocChunk], file_path: str, request: Request, **kwargs: dict) -> \
             list[dict]:
+        created_date = 0
+        
+        try:
+            if (document.key_value_items and 
+                len(document.key_value_items) > 0 and 
+                hasattr(document.key_value_items[0], 'graph') and
+                hasattr(document.key_value_items[0].graph, 'cells') and
+                len(document.key_value_items[0].graph.cells) > 1):
+                
+                # 작성일 추출 (cells[1])
+                date_text = document.key_value_items[0].graph.cells[1].text
+                created_date = self.parse_created_date(date_text)
+                
+        except (AttributeError, IndexError) as e:
+            pass
+        
         global_metadata = dict(
             n_chunk_of_doc=len(chunks),
             n_page=document.num_pages(),
-            reg_date=datetime.now().isoformat(timespec='seconds') + 'Z'
-        )
-        
+            reg_date=datetime.now().isoformat(timespec='seconds') + 'Z',
+            created_date=created_date,
+        )      
+
         current_page = None
         chunk_index_on_page = 0
         vectors = []
         for chunk_idx, chunk in enumerate(chunks):
-            ## NOTE: chunk가 두 페이지에 걸쳐 있는 경우 첫번째 아이템을 사용
-            ## NOTE: chunk가 두 페이지에 걸쳐서 있는 경우 bounding box 처리를 어떻게 해야하는 지...
-            ## NOTE: 현재 구조에서는 처리가 불가
-            ## NOTE: 임시로 페이지 넘어가는 경우 chunk를 분할해서 처리
             chunk_page = chunk.meta.doc_items[0].prov[0].page_no
             content = self.safe_join(chunk.meta.headings) + chunk.text
-            
-            vector = (GenOSVectorMetaBuilder()
-                    .set_text(content)
-                    .set_page_info(chunk_page, chunk_index_on_page, self.page_chunk_counts[chunk_page])
-                    .set_chunk_index(chunk_idx)
-                    .set_global_metadata(**global_metadata)
-                    .set_chunk_bboxes(chunk.meta.doc_items, document)
-                    .set_media_files(chunk.meta.doc_items)
-                    ).build()
-            vectors.append(vector)
 
-            # page = chunk_page
-            # text = chunk.page_content
+            vector = (GenOSVectorMetaBuilder()
+                      .set_text(content)
+                      .set_page_info(chunk_page, chunk_index_on_page, self.page_chunk_counts[chunk_page])
+                      .set_chunk_index(chunk_idx)
+                      .set_global_metadata(**global_metadata)
+                      .set_chunk_bboxes(chunk.meta.doc_items, document)
+                      .set_media_files(chunk.meta.doc_items)
+                      ).build()
+            vectors.append(vector)
 
             if chunk_page != current_page:
                 current_page = chunk_page
@@ -799,12 +771,12 @@ class DocumentProcessor:
 
             chunk_index_on_page += 1
 
-            # file_list = self.get_media_files(chunk.meta.doc_items)
-            #await upload_files(file_list, request=request)
+            file_list = self.get_media_files(chunk.meta.doc_items)
+            await upload_files(file_list, request=request)
 
         return vectors
+
     
-    """
     def get_media_files(self, doc_items: list):
         temp_list = []
         for item in doc_items:
@@ -813,23 +785,10 @@ class DocumentProcessor:
                 name = path.rsplit("/",1)[-1]
                 temp_list.append({ 'path': path, 'name': name})
         return temp_list
-    """
 
-    # def get_input_format(self, file_path: str) -> Optional[InputFormat]:
-    #     extension = file_path.split("/")[-1].split(".")[-1].lower()
-
-    #     for fmt, extensions in FormatToExtensions.items():
-    #         if extension in extensions:
-    #             return fmt
-
-    #     return None
     async def __call__(self, request: Request, file_path: str, **kwargs: dict):
         document: DoclingDocument = self.load_documents(file_path, **kwargs)
-        # print(document)
-        # return document.export_to_markdown()
-        # return document
-        # await assert_cancelled(request)
-
+          
         output_path, output_file = os.path.split(file_path)
         filename, _ = os.path.splitext(output_file)
         artifacts_dir = Path(f"{output_path}/{filename}")
@@ -839,23 +798,16 @@ class DocumentProcessor:
             reference_path = artifacts_dir.parent
 
         document = document._with_pictures_refs(image_dir=artifacts_dir, reference_path=reference_path)
+        
+        document = self.enrichment(document, **kwargs)
 
-        # format = self.get_input_format(file_path)
-        # if isinstance(format, InputFormat):
-        #     kwargs["format"] = format
-        # else:
-        #     return None
-        # TODO: sheet 별로 후처리 하는 코드 추가
         # Extract Chunk from DoclingDocument
         chunks: List[DocChunk] = self.split_documents(document, **kwargs)
         # await assert_cancelled(request)
 
-        # vectors: list[dict] = self.compose_vectors(document, chunks, file_path, **kwargs)
-        # print(chunks)
-
         vectors = []
         if len(chunks) >= 1:
-            vectors: list[dict] = self.compose_vectors(document, chunks, file_path, **kwargs)
+            vectors: list[dict] = await self.compose_vectors(document, chunks, file_path, request, **kwargs)
         else:
             raise GenosServiceException(1, f"chunk length is 0")
 

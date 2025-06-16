@@ -168,7 +168,7 @@ class DocumentEnrichmentUtils:
                 custom_user=custom_user,
                 raw_text=raw_text
             )
-            
+
             if toc_content:
                 # 목차를 기반으로 SectionHeader 적용
                 matched_count = self._apply_toc_to_document(document, toc_content)
@@ -278,13 +278,19 @@ class DocumentEnrichmentUtils:
         return raw_texts
     
     def _parse_toc_content(self, toc_content: str):
-        """목차 내용을 파싱해서 구조화된 데이터로 변환"""
+        """목차 내용을 파싱해서 구조화된 데이터로 변환 (문서 제목 포함)"""
         toc_items = []
+        document_title = None
         lines = toc_content.split('\n')
         
         for line in lines:
             cleaned_line = line.strip()
             if not cleaned_line:
+                continue
+            
+            # 문서 제목 추출
+            if cleaned_line.startswith('TITLE:'):
+                document_title = cleaned_line[6:].strip()  # 'TITLE: ' 제거
                 continue
             
             # 숫자 패턴들 (레벨별 매칭)
@@ -321,12 +327,14 @@ class DocumentEnrichmentUtils:
                     'full_text': cleaned_line
                 })
         
-        return toc_items
+        return {'title': document_title, 'toc_items': toc_items}
     
     def _apply_toc_to_document(self, document, toc_content: str, threshold: float = 0.7):
-        """생성된 목차를 기반으로 문서에 SectionHeader 적용"""
-        # 목차 파싱
-        toc_items = self._parse_toc_content(toc_content)
+        """생성된 목차를 기반으로 문서에 SectionHeader 적용 (문서 제목 포함)"""
+        # 목차 파싱 (제목과 목차 항목 분리)
+        parsed_data = self._parse_toc_content(toc_content)
+        document_title = parsed_data['title']
+        toc_items = parsed_data['toc_items']
         
         converted_indices = set()
         
@@ -341,7 +349,37 @@ class DocumentEnrichmentUtils:
         
         matched_count = 0
         
-        # 각 목차 항목을 문서의 텍스트와 매칭
+        # 문서 제목 처리 - 첫 번째 텍스트 항목을 TITLE로 변환
+        if document_title and text_items:
+            title_clean = document_title.strip()
+            
+            # 문서 제목과 가장 유사한 텍스트 찾기
+            text_only = [text for _, text in text_items]
+            close_matches = difflib.get_close_matches(
+                title_clean, text_only, n=3, cutoff=0.3
+            )
+            
+            if close_matches:
+                best_match_text = close_matches[0]
+                best_match_idx = next(
+                    (idx for idx, text in text_items if text == best_match_text), 
+                    None
+                )
+                
+                if best_match_idx is not None and best_match_idx not in converted_indices:
+                    similarity = difflib.SequenceMatcher(
+                        None, title_clean.lower(), best_match_text.lower()
+                    ).ratio()
+                    
+                    if similarity >= 0.5:  # 제목은 조금 더 관대한 임계값 사용
+                        # TextItem을 TITLE로 변환
+                        original_item = document.texts[best_match_idx]
+                        original_item.label = DocItemLabel.TITLE
+                        converted_indices.add(best_match_idx)
+                        matched_count += 1
+                        _log.info(f"문서 제목 설정: {title_clean}")
+        
+        # 각 목차 항목을 문서의 텍스트와 매칭 (기존 코드와 동일)
         for toc_item in toc_items:
             toc_clean = toc_item['title']
             target_level = toc_item['level']
@@ -470,7 +508,7 @@ def enrich_document(document: DoclingDocument, enrichment_options: DataEnrichmen
         
         if enrichment_options.extract_metadata:
             metadata_extracted = enricher.apply_metadata_enrichment(enriched_doc)
-        
+        print(metadata_extracted)
         _log.info(f"Document enrichment 완료: TOC {toc_count}개, 메타데이터 {metadata_extracted}")
         
         return enriched_doc
