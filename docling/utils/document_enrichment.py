@@ -508,7 +508,6 @@ def enrich_document(document: DoclingDocument, enrichment_options: DataEnrichmen
         
         if enrichment_options.extract_metadata:
             metadata_extracted = enricher.apply_metadata_enrichment(enriched_doc)
-        print(metadata_extracted)
         _log.info(f"Document enrichment 완료: TOC {toc_count}개, 메타데이터 {metadata_extracted}")
         
         return enriched_doc
