@@ -3,7 +3,6 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
-
 from collections import defaultdict
 from datetime import datetime
 from typing import Optional, Iterable, Any, List, Dict, Tuple
@@ -45,6 +44,7 @@ from docling_core.transforms.chunker import (
     DocChunk,
     DocMeta,
 )
+
 from docling_core.types import DoclingDocument
 
 from pandas import DataFrame
@@ -73,6 +73,8 @@ from collections import Counter
 import re
 import json
 import warnings
+import asyncio
+
 from typing import Iterable, Iterator, Optional, Union
 
 from pydantic import BaseModel, ConfigDict, PositiveInt, TypeAdapter, model_validator
@@ -94,21 +96,6 @@ from genos_utils import upload_files
 # Copyright IBM Corp. 2024 - 2024
 # SPDX-License-Identifier: MIT
 #
-
-# FormatToExtensions = {
-#     InputFormat.DOCX: ["docx", "dotx", "docm", "dotm"],
-#     InputFormat.PPTX: ["pptx", "potx", "ppsx", "pptm", "potm", "ppsm"],
-#     InputFormat.PDF: ["pdf"],
-#     InputFormat.MD: ["md"],
-#     InputFormat.HTML: ["html", "htm", "xhtml"],
-#     InputFormat.XML_JATS: ["xml", "nxml"],
-#     InputFormat.IMAGE: ["jpg", "jpeg", "png", "tif", "tiff", "bmp"],
-#     InputFormat.ASCIIDOC: ["adoc", "asciidoc", "asc"],
-#     InputFormat.CSV: ["csv"],
-#     InputFormat.XLSX: ["xlsx"],
-#     InputFormat.XML_USPTO: ["xml", "txt"],
-#     InputFormat.JSON_DOCLING: ["json"],
-# }
 
 """Chunker implementation leveraging the document structure."""
 
@@ -925,7 +912,6 @@ class DocumentProcessor:
 
     def load_documents(self, file_path: str, **kwargs) -> DoclingDocument:
         return self.load_documents_with_docling(file_path, **kwargs)
-        # return documents
 
     def split_documents(self, documents: DoclingDocument, **kwargs: dict) -> List[DocChunk]:
         chunker: HybridChunker = HybridChunker(
@@ -1053,10 +1039,6 @@ class DocumentProcessor:
         vectors = []
         upload_tasks = []
         for chunk_idx, chunk in enumerate(chunks):
-            ## NOTE: chunk가 두 페이지에 걸쳐 있는 경우 첫번째 아이템을 사용
-            ## NOTE: chunk가 두 페이지에 걸쳐서 있는 경우 bounding box 처리를 어떻게 해야하는 지...
-            ## NOTE: 현재 구조에서는 처리가 불가
-            ## NOTE: 임시로 페이지 넘어가는 경우 chunk를 분할해서 처리
             chunk_page = chunk.meta.doc_items[0].prov[0].page_no
             content = self.safe_join(chunk.meta.headings) + chunk.text
 
@@ -1065,13 +1047,13 @@ class DocumentProcessor:
                 chunk_index_on_page = 0
 
             vector = (GenOSVectorMetaBuilder()
-                    .set_text(content)
-                    .set_page_info(chunk_page, chunk_index_on_page, self.page_chunk_counts[chunk_page])
-                    .set_chunk_index(chunk_idx)
-                    .set_global_metadata(**global_metadata)
-                    .set_chunk_bboxes(chunk.meta.doc_items, document)
-                    .set_media_files(chunk.meta.doc_items)
-                    ).build()
+                      .set_text(content)
+                      .set_page_info(chunk_page, chunk_index_on_page, self.page_chunk_counts[chunk_page])
+                      .set_chunk_index(chunk_idx)
+                      .set_global_metadata(**global_metadata)
+                      .set_chunk_bboxes(chunk.meta.doc_items, document)
+                      .set_media_files(chunk.meta.doc_items)
+                      ).build()
             vectors.append(vector)
 
             chunk_index_on_page += 1
@@ -1180,12 +1162,9 @@ class DocumentProcessor:
         chunks: List[DocChunk] = self.split_documents(document, **kwargs)
         # await assert_cancelled(request)
 
-        # vectors: list[dict] = self.compose_vectors(document, chunks, file_path, **kwargs)
-        # print(chunks)
-
         vectors = []
         if len(chunks) >= 1:
-            vectors: list[dict] = self.compose_vectors(document, chunks, file_path, **kwargs)
+            vectors: list[dict] = await self.compose_vectors(document, chunks, file_path, request, **kwargs)
         else:
             raise GenosServiceException(1, f"chunk length is 0")
         
