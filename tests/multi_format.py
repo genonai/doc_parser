@@ -5,6 +5,7 @@ from pathlib import Path
 import yaml
 
 from docling.backend.pypdfium2_backend import PyPdfiumDocumentBackend
+from docling.backend.genos_msword_backend import GenosMsWordDocumentBackend
 from docling.datamodel.base_models import InputFormat
 from docling.document_converter import (
     DocumentConverter,
@@ -20,41 +21,23 @@ from docling.document_converter import DocumentConverter
 def main():
     input_paths = [
         # Path("README.md"),
-        # Path("/workspaces/hwpx/그림뺀_금융시장동향_FF.hwpx"),
-        # Path("/workspaces/doc_parser/tests/data/docx/word_sample.docx"),
-        # Path("/workspaces/hwpx/주거.hwpx")
-        # Path("/workspaces/hwpx/외환표지.hwpx"),
-        # Path("/workspaces/hwpx/글로벌금리.hwpx"),
-        # Path("/workspaces/hwpx/외국금 차례.hwpx"), 
-        Path("/workspaces/hwpx/★(통화정책국)의결문(안) 및 참고자료(1810)_의결문제외.hwp"),
+        # Path("/workspaces/삼증리서치_리포트반출_일부/hd한국조선해양/original/2025042414165512K_01.docx"),
+        Path("/workspaces/삼증리서치_리포트반출_일부/비상장기업/original/2025042510145245K_01.docx"),
+        # BOK HWPX
+        # Path("/workspaces/hwpx/★(통화정책국)의결문(안) 및 참고자료(1810)_의결문제외.hwp"),
         # Path("/workspaces/hwpx/외환국제금융동향(2018.10.18)_최종(송부본).hwpx"),
-        # Path("/workspaces/hwpx/투자회사주식자금.hwpx")
         # Path("/workspaces/hwpx/외환국제금융동향(2018.4.12)_최종(송부본).hwpx"),
-        # Path("/workspaces/hwpx/미국국채.hwpx"), 
-        # Path("/workspaces/hwpx/rect배경.hwpx"),
         # Path("/workspaces/hwpx/★(통화정책국)의결문(안) 및 참고자료(1810)_의결문제외.hwpx"),
         # Path("/workspaces/hwpx/(통화정책국)통화정책 여건점검(1810)_송부.hwpx"),
         # Path("/workspaces/hwpx/(통화정책국)의결문(안) 및 참고자료(1804)_송부용.hwpx"),
         # Path("/workspaces/hwpx/(1810) 통화정책방향 여건점검 메모_F.hwpx"),
         # Path("/workspaces/hwpx/2021.01.29_주간 글로벌 펀드자금 유출입 동향(20210121-20210127)_210129_주간 글로벌 펀드자금 유출입 동향(210121~210127)_F.hwpx"),
         # Path("/workspaces/hwpx/2016.11.21_주중 금융시장 동향_주중_금융시장동향(20161121)_MI.hwpx"),
-        # Path("/workspaces/hwpx/실증분석 결과.hwpx")
         # Path("/workspaces/hwpx/2017.09.01_Market View(81호_170901) 미 증시 거품설 열흘 붉은 꽃은 없다_제81호_MV_미 증시 거품설, 열흘 붉은 꽃은 없다_170901.hwpx"),
         # Path("/workspaces/hwpx/2022.11.07_위원협의회 국제금융 외환시장 동향 및 전망(2022.10.31~11.4)_f.hwpx"),
         # Path("/workspaces/hwpx/2023.05.03_MI-NET_2023.05.02_위원협의회 국제금융 외환시장 동향 및 전망(2023.04.25~05.01)_f.hwpx"),
-        # Path("/workspaces/hwpx/아파트.hwpx"),
-        # Path("/workspaces/hwpx/금융동향시장자른버전.hwpx"),
         # Path("/workspaces/hwpx/201810_금융시장동향_FF.hwpx"),
-        # Path("/workspaces/hwpx/새 한글.hwpx"),
-        # Path("/workspaces/hwpx/평가및전망.hwpx")
-        # Path("/workspaces/hwpx/비은행수신.hwpx")
-        # Path("/workspaces/hwpx/사라진다.hwpx"),
-        # Path("/workspaces/hwpx/금융시장동향_최근외국인.hwpx"),
-        # Path("/workspaces/hwpx/금융시장동향_테이블.hwpx"),
         # Path("/workspaces/hwpx/(1810) 통화정책방향 여건점검 메모_F.hwpx"),
-        # Path("/workspaces/hwpx/회사채3년금리.hwpx"),
-        # Path("/workspaces/myenv/hwp/(1810) 통화정책방향 여건점검 메모_F.md")
-        # Path("/workspaces/hwpx/외화자금시장.hwpx")
     ]
 
     ## for defaults use:
@@ -81,7 +64,7 @@ def main():
                     pipeline_cls=StandardPdfPipeline, backend=PyPdfiumDocumentBackend
                 ),
                 InputFormat.DOCX: WordFormatOption(
-                    pipeline_cls=SimplePipeline  # , backend=MsWordDocumentBackend
+                    pipeline_cls=SimplePipeline, backend=GenosMsWordDocumentBackend  # , backend=MsWordDocumentBackend 
                 ),
             },
         )

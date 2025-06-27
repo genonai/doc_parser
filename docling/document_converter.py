@@ -33,6 +33,8 @@ from docling.backend.xml.uspto_backend import PatentUsptoDocumentBackend
 from docling.backend.hwp_backend import HwpDocumentBackend
 from docling.backend.xml.hwpx_backend import HwpxDocumentBackend
 from docling.backend.json.bok_json_backend import BOKJsonDocumentBackend
+# genos_msword_backend 추가
+from docling.backend.genos_msword_backend import GenosMsWordDocumentBackend
 from docling.exceptions import HwpConversionError
 from docling.datamodel.base_models import (
     BaseFormatOption,
@@ -92,6 +94,8 @@ class ExcelFormatOption(FormatOption):
 class WordFormatOption(FormatOption):
     pipeline_cls: Type = SimplePipeline
     backend: Type[AbstractDocumentBackend] = MsWordDocumentBackend
+    # GenosMsWordDocumentBackend 사용
+    # backend: Type[AbstractDocumentBackend] = GenosMsWordDocumentBackend
 
 
 class PowerpointFormatOption(FormatOption):
@@ -164,6 +168,8 @@ def _get_default_option(format: InputFormat) -> FormatOption:
         ),
         InputFormat.DOCX: FormatOption(
             pipeline_cls=SimplePipeline, backend=MsWordDocumentBackend
+            # GenosMsWordDocumentBackend 사용
+            # pipeline_cls=SimplePipeline, backend=GenosMsWordDocumentBackend
         ),
         InputFormat.PPTX: FormatOption(
             pipeline_cls=SimplePipeline, backend=MsPowerpointDocumentBackend
