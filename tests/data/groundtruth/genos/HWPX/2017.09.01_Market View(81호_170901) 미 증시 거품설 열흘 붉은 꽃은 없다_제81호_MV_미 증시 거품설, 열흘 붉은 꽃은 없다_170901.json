@@ -1,0 +1,360 @@
+{
+  "schema_name": "DoclingDocument",
+  "version": "1.3.0",
+  "name": "2017.09.01_Market View(81호_170901) 미 증시 거품설 열흘 붉은 꽃은 없다_제81호_MV_미 증시 거품설, 열흘 붉은 꽃은 없다_170901",
+  "origin": {
+    "mimetype": "application/zip",
+    "binary_hash": 11752962552171217900,
+    "filename": "2017.09.01_Market View(81호_170901) 미 증시 거품설 열흘 붉은 꽃은 없다_제81호_MV_미 증시 거품설, 열흘 붉은 꽃은 없다_170901.hwpx"
+  },
+  "furniture": {
+    "self_ref": "#/furniture",
+    "children": [],
+    "content_layer": "furniture",
+    "name": "_root_",
+    "label": "unspecified"
+  },
+  "body": {
+    "self_ref": "#/body",
+    "children": [
+      {
+        "$ref": "#/groups/0"
+      }
+    ],
+    "content_layer": "body",
+    "name": "_root_",
+    "label": "unspecified"
+  },
+  "groups": [
+    {
+      "self_ref": "#/groups/0",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [
+        {
+          "$ref": "#/texts/0"
+        },
+        {
+          "$ref": "#/texts/8"
+        }
+      ],
+      "content_layer": "body",
+      "name": "root",
+      "label": "section"
+    }
+  ],
+  "texts": [
+    {
+      "self_ref": "#/texts/0",
+      "parent": {
+        "$ref": "#/groups/0"
+      },
+      "children": [
+        {
+          "$ref": "#/texts/1"
+        },
+        {
+          "$ref": "#/texts/2"
+        },
+        {
+          "$ref": "#/texts/3"
+        },
+        {
+          "$ref": "#/texts/4"
+        },
+        {
+          "$ref": "#/texts/5"
+        },
+        {
+          "$ref": "#/texts/6"
+        },
+        {
+          "$ref": "#/texts/7"
+        }
+      ],
+      "content_layer": "body",
+      "label": "section_header",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 0.0,
+            "t": 0.0,
+            "r": 1.0,
+            "b": 1.0,
+            "coord_origin": "TOPLEFT"
+          },
+          "charspan": [
+            0,
+            49
+          ]
+        }
+      ],
+      "orig": "미 증시 거품설: 열흘 붉은 꽃은 없다? Market View (제81호, 17.9.1)",
+      "text": "미 증시 거품설: 열흘 붉은 꽃은 없다? Market View (제81호, 17.9.1)",
+      "level": 1
+    },
+    {
+      "self_ref": "#/texts/1",
+      "parent": {
+        "$ref": "#/texts/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "paragraph",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 0.0,
+            "t": 0.0,
+            "r": 1.0,
+            "b": 1.0,
+            "coord_origin": "TOPLEFT"
+          },
+          "charspan": [
+            0,
+            232
+          ]
+        }
+      ],
+      "orig": "  지난해 11월 트럼프 정부 출범 이후 미 주가가 큰 조정 없이 연일 사상 최고치를 경신하며 가파르게 상승(S&P500 +15.5%, 8월말 기준)하자 증시 거품을 우려하는 목소리가 점점 커지고 있다. 특히 옐런 의장이 “증시 밸류에이션이 어떤 기준에서는 높아 보인다”라고 발언한 것을 비롯해, 닷컴버블 붕괴를 예견한 실러 교수도 ‘뉴욕증시는 대폭락 전 거품 상태’라고 주장하며 증시 거품논란에 불을 지핀바 있다.",
+      "text": "  지난해 11월 트럼프 정부 출범 이후 미 주가가 큰 조정 없이 연일 사상 최고치를 경신하며 가파르게 상승(S&P500 +15.5%, 8월말 기준)하자 증시 거품을 우려하는 목소리가 점점 커지고 있다. 특히 옐런 의장이 “증시 밸류에이션이 어떤 기준에서는 높아 보인다”라고 발언한 것을 비롯해, 닷컴버블 붕괴를 예견한 실러 교수도 ‘뉴욕증시는 대폭락 전 거품 상태’라고 주장하며 증시 거품논란에 불을 지핀바 있다."
+    },
+    {
+      "self_ref": "#/texts/2",
+      "parent": {
+        "$ref": "#/texts/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "paragraph",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 0.0,
+            "t": 0.0,
+            "r": 1.0,
+            "b": 1.0,
+            "coord_origin": "TOPLEFT"
+          },
+          "charspan": [
+            0,
+            341
+          ]
+        }
+      ],
+      "orig": "  먼저 거품설의 가장 큰 논거는 실적대비 높은 밸류에이션 수준이다. 이번 증시 강세가 주로 기업 실적개선에 기인한 것은 사실이나 이를 감안해도 주가 상승이 지나치다는 것이다. 대표적으로 S&P500의 CAPE 비율(Cyclically Adjusted Price-to-Earnings Ratio, 경기조정주가수익비율)이 8월중 30(장기평균 18)을 넘어섰는데, 이는 과거 대공황과 닷컴버블 시기에만 있었던 일이다. CAPE 비율은 현재 주가가 기업의 과거 10년 평균 수익의 몇 배 수준인가를 보여주는 지표로, 과거 1년간의 수익만을 사용하는 PER보다 장기적인 관점에서 주가 수준을 평가할 수 있다고 한다.",
+      "text": "  먼저 거품설의 가장 큰 논거는 실적대비 높은 밸류에이션 수준이다. 이번 증시 강세가 주로 기업 실적개선에 기인한 것은 사실이나 이를 감안해도 주가 상승이 지나치다는 것이다. 대표적으로 S&P500의 CAPE 비율(Cyclically Adjusted Price-to-Earnings Ratio, 경기조정주가수익비율)이 8월중 30(장기평균 18)을 넘어섰는데, 이는 과거 대공황과 닷컴버블 시기에만 있었던 일이다. CAPE 비율은 현재 주가가 기업의 과거 10년 평균 수익의 몇 배 수준인가를 보여주는 지표로, 과거 1년간의 수익만을 사용하는 PER보다 장기적인 관점에서 주가 수준을 평가할 수 있다고 한다."
+    },
+    {
+      "self_ref": "#/texts/3",
+      "parent": {
+        "$ref": "#/texts/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "paragraph",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 0.0,
+            "t": 0.0,
+            "r": 1.0,
+            "b": 1.0,
+            "coord_origin": "TOPLEFT"
+          },
+          "charspan": [
+            0,
+            258
+          ]
+        }
+      ],
+      "orig": "  또한 미 주가에 ‘트럼프 팩터’의 변화가 제대로 반영되었는지에 대한 의문이 제기되고 있다. 이번 증시 강세에는 재정확대, 감세 등 트럼프노믹스에 대한 기대감도 상당한 역할을 했다. 그러나 트럼프케어 불발 등 주요 경제정책들의 추진력이 점차 약화되고, 러시아 스캔들 등 정치적 리스크가 부각되었음에도 증시는 일부 조정 이외에는 상승 기조를 이어가고 있다. 미 주가가 ‘기대감’에는 민감하게 반응하였지만 ‘기대감의 약화’는 적절히 반영하고 있지 않다는 주장이다.",
+      "text": "  또한 미 주가에 ‘트럼프 팩터’의 변화가 제대로 반영되었는지에 대한 의문이 제기되고 있다. 이번 증시 강세에는 재정확대, 감세 등 트럼프노믹스에 대한 기대감도 상당한 역할을 했다. 그러나 트럼프케어 불발 등 주요 경제정책들의 추진력이 점차 약화되고, 러시아 스캔들 등 정치적 리스크가 부각되었음에도 증시는 일부 조정 이외에는 상승 기조를 이어가고 있다. 미 주가가 ‘기대감’에는 민감하게 반응하였지만 ‘기대감의 약화’는 적절히 반영하고 있지 않다는 주장이다."
+    },
+    {
+      "self_ref": "#/texts/4",
+      "parent": {
+        "$ref": "#/texts/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "paragraph",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 0.0,
+            "t": 0.0,
+            "r": 1.0,
+            "b": 1.0,
+            "coord_origin": "TOPLEFT"
+          },
+          "charspan": [
+            0,
+            20
+          ]
+        }
+      ],
+      "orig": "S&P500 지수와 CAPE 비율1)",
+      "text": "S&P500 지수와 CAPE 비율1)"
+    },
+    {
+      "self_ref": "#/texts/5",
+      "parent": {
+        "$ref": "#/texts/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "caption",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 0.0,
+            "t": 0.0,
+            "r": 1.0,
+            "b": 1.0,
+            "coord_origin": "TOPLEFT"
+          },
+          "charspan": [
+            0,
+            20
+          ]
+        }
+      ],
+      "orig": "주: 1) 자료 : Bloomberg",
+      "text": "주: 1) 자료 : Bloomberg"
+    },
+    {
+      "self_ref": "#/texts/6",
+      "parent": {
+        "$ref": "#/texts/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "paragraph",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 0.0,
+            "t": 0.0,
+            "r": 1.0,
+            "b": 1.0,
+            "coord_origin": "TOPLEFT"
+          },
+          "charspan": [
+            0,
+            22
+          ]
+        }
+      ],
+      "orig": "트럼프 정책 추진현황과 S&P500 지수",
+      "text": "트럼프 정책 추진현황과 S&P500 지수"
+    },
+    {
+      "self_ref": "#/texts/7",
+      "parent": {
+        "$ref": "#/texts/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "caption",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 0.0,
+            "t": 0.0,
+            "r": 1.0,
+            "b": 1.0,
+            "coord_origin": "TOPLEFT"
+          },
+          "charspan": [
+            0,
+            14
+          ]
+        }
+      ],
+      "orig": "자료 : Bloomberg",
+      "text": "자료 : Bloomberg"
+    },
+    {
+      "self_ref": "#/texts/8",
+      "parent": {
+        "$ref": "#/groups/0"
+      },
+      "children": [
+        {
+          "$ref": "#/texts/9"
+        }
+      ],
+      "content_layer": "body",
+      "label": "section_header",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 0.0,
+            "t": 0.0,
+            "r": 1.0,
+            "b": 1.0,
+            "coord_origin": "TOPLEFT"
+          },
+          "charspan": [
+            0,
+            118
+          ]
+        }
+      ],
+      "orig": "Viewer : 금융시장국 주식시장팀 조사역 권순성(4775)※ 본 자료의 내용은 한국은행의 공식견해가 아니라 집필자 개인의 견해라는 점을 밝힙니다.아울러 자료가 외부로 유출되지 않도록 유의하여 주시기 바랍니다.",
+      "text": "Viewer : 금융시장국 주식시장팀 조사역 권순성(4775)※ 본 자료의 내용은 한국은행의 공식견해가 아니라 집필자 개인의 견해라는 점을 밝힙니다.아울러 자료가 외부로 유출되지 않도록 유의하여 주시기 바랍니다.",
+      "level": 1
+    },
+    {
+      "self_ref": "#/texts/9",
+      "parent": {
+        "$ref": "#/texts/8"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "paragraph",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 0.0,
+            "t": 0.0,
+            "r": 1.0,
+            "b": 1.0,
+            "coord_origin": "TOPLEFT"
+          },
+          "charspan": [
+            0,
+            240
+          ]
+        }
+      ],
+      "orig": "  물론 거품설은 과도한 우려라는 견해도 만만치 않다. 4차 산업혁명의 진행으로  IT주 등의 실적호조가 지속될 것이기 때문에 과거 버블시기와 비교해서는 안된다는 등의 의견들도 제기되고 있다. 그러나 향후 미 연준의 통화정책 정상화 과정에서 시장이 예상보다 크게 반응하거나 지정학적·정치적 불확실성이 확대되는 등 미 증시 하락을 촉발할 수 있는 요인들이 상존하고 있다. 이제는 우리가 미 증시 거품설에 귀를 기울여야하는 시점이다.",
+      "text": "  물론 거품설은 과도한 우려라는 견해도 만만치 않다. 4차 산업혁명의 진행으로  IT주 등의 실적호조가 지속될 것이기 때문에 과거 버블시기와 비교해서는 안된다는 등의 의견들도 제기되고 있다. 그러나 향후 미 연준의 통화정책 정상화 과정에서 시장이 예상보다 크게 반응하거나 지정학적·정치적 불확실성이 확대되는 등 미 증시 하락을 촉발할 수 있는 요인들이 상존하고 있다. 이제는 우리가 미 증시 거품설에 귀를 기울여야하는 시점이다."
+    }
+  ],
+  "pictures": [],
+  "tables": [],
+  "key_value_items": [],
+  "form_items": [],
+  "pages": {
+    "1": {
+      "size": {
+        "width": 3003.59060456,
+        "height": 4247.85455276
+      },
+      "page_no": 1
+    }
+  }
+}
