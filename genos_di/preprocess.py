@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
+
 from collections import defaultdict
 from datetime import datetime
 from typing import Optional, Iterable, Any, List, Dict, Tuple
@@ -11,9 +12,11 @@ from fastapi import Request
 
 # docling imports
 
+from docling.backend.xml.hwpx_backend import HwpxDocumentBackend
 from docling.backend.docling_parse_v4_backend import DoclingParseV4DocumentBackend
 from docling.backend.pypdfium2_backend import PyPdfiumDocumentBackend
 from docling.datamodel.base_models import InputFormat
+from docling.pipeline.simple_pipeline import SimplePipeline
 # from docling.datamodel.document import ConversionStatus
 from docling.datamodel.pipeline_options import (
     AcceleratorDevice,
@@ -30,7 +33,7 @@ from docling.datamodel.pipeline_options import (
 from docling.document_converter import (
     DocumentConverter,
     PdfFormatOption,
-    HwpxFormatOption,
+    FormatOption
 )
 from docling.datamodel.pipeline_options import DataEnrichmentOptions
 from docling.utils.document_enrichment import enrich_document
@@ -41,11 +44,10 @@ from docling_core.transforms.chunker import (
     DocChunk,
     DocMeta,
 )
-
 from docling_core.types import DoclingDocument
 
 from pandas import DataFrame
-
+import asyncio
 from docling_core.types import DoclingDocument as DLDocument
 from docling_core.types.doc.document import (
     DocumentOrigin,
@@ -68,9 +70,8 @@ from docling_core.types.doc import (
 )
 from collections import Counter
 import re
+import json
 import warnings
-import asyncio
-
 from typing import Iterable, Iterator, Optional, Union
 
 from pydantic import BaseModel, ConfigDict, PositiveInt, TypeAdapter, model_validator
@@ -94,7 +95,6 @@ from genos_utils import upload_files
 #
 
 """Chunker implementation leveraging the document structure."""
-
 
 class HierarchicalChunker(BaseChunker):
     r"""Chunker implementation leveraging the document layout.
@@ -185,17 +185,17 @@ class HierarchicalChunker(BaseChunker):
                     keys_to_del = [k for k in heading_by_level if k > level]
                     for k in keys_to_del:
                         heading_by_level.pop(k, None)
-                    # c = DocChunk(
-                    #     text=text,
-                    #     meta=DocMeta(
-                    #         doc_items=[item],
-                    #         headings=[heading_by_level[k] for k in sorted(heading_by_level)]
-                    #         or None,
-                    #         captions=captions,
-                    #         origin=dl_doc.origin,
-                    #     ),
-                    # )
-                    # yield c
+                    c = DocChunk(
+                        text=text,
+                        meta=DocMeta(
+                            doc_items=[item],
+                            headings=[heading_by_level[k] for k in sorted(heading_by_level)]
+                            or None,
+                            captions=captions,
+                            origin=dl_doc.origin,
+                        ),
+                    )
+                    yield c
                     continue
 
                 if (
@@ -258,7 +258,7 @@ class HybridChunker(BaseChunker):
     tokenizer: Union[PreTrainedTokenizerBase, str] = (
         "sentence-transformers/all-MiniLM-L6-v2"
     )
-    max_tokens: int = 2048  # type: ignore[assignment]
+    max_tokens: int = 1024  # type: ignore[assignment]
     merge_peers: bool = True
 
     _inner_chunker: HierarchicalChunker = HierarchicalChunker()
@@ -408,7 +408,7 @@ class HybridChunker(BaseChunker):
                 window_end += 1
                 first_chunk_of_window = chunk
             else:
-                chks = chunks[window_start: window_end + 1]
+                chks = chunks[window_start : window_end + 1]
                 doc_items = [it for chk in chks for it in chk.meta.doc_items]
                 candidate = DocChunk(
                     text=self.delim.join([chk.text for chk in chks]),
@@ -420,8 +420,8 @@ class HybridChunker(BaseChunker):
                     ),
                 )
                 if (
-                        headings_and_captions == current_headings_and_captions
-                        and self._count_chunk_tokens(doc_chunk=candidate) <= self.max_tokens
+                    headings_and_captions == current_headings_and_captions
+                    and self._count_chunk_tokens(doc_chunk=candidate) <= self.max_tokens
                 ):
                     # there is room to include the new chunk so add it to the window and
                     # continue
@@ -461,7 +461,6 @@ class HybridChunker(BaseChunker):
             res = self._merge_chunks_with_matching_metadata(res)
         return iter(res)
 
-
 class GenOSVectorMeta(BaseModel):
     class Config:
         extra = 'allow'
@@ -477,9 +476,10 @@ class GenOSVectorMeta(BaseModel):
     n_chunk_of_doc: int = None
     n_page: int = None
     reg_date: str = None
-    chunk_bboxes: list = None
-    media_files: list = None
-    created_date: int = None  # YYYYMMDD 형식의 정수
+    chunk_bboxes: str = None
+    media_files: str = None
+    title: str = None
+    created_date:int = None
 
 
 class GenOSVectorMetaBuilder:
@@ -496,8 +496,9 @@ class GenOSVectorMetaBuilder:
         self.n_chunk_of_doc: Optional[int] = None
         self.n_page: Optional[int] = None
         self.reg_date: Optional[str] = None
-        self.chunk_bboxes: list = None
-        self.media_files: list = None
+        self.chunk_bboxes: Optional[str] = None
+        self.media_files: Optional[str] = None
+        self.title: Optional[str] = None
         self.created_date: Optional[int] = None
 
     def set_text(self, text: str) -> "GenOSVectorMetaBuilder":
@@ -512,7 +513,7 @@ class GenOSVectorMetaBuilder:
             self, i_page: int, i_chunk_on_page: int, n_chunk_of_page: int
     ) -> "GenOSVectorMetaBuilder":
         """페이지 정보 설정"""
-        self.i_page = i_page
+        self.i_page = i_page - 1
         self.i_chunk_on_page = i_chunk_on_page
         self.n_chunk_of_page = n_chunk_of_page
         return self
@@ -530,7 +531,7 @@ class GenOSVectorMetaBuilder:
         return self
 
     def set_chunk_bboxes(self, doc_items: list, document: DoclingDocument) -> "GenOSVectorMetaBuilder":
-        self.chunk_bboxes = []
+        chunk_bboxes = []
         for item in doc_items:
             for prov in item.prov:
                 label = item.self_ref
@@ -543,7 +544,8 @@ class GenOSVectorMetaBuilder:
                              'r': bbox.r / size.width,
                              'b': bbox.b / size.height,
                              'coord_origin': bbox.coord_origin.value}
-                self.chunk_bboxes.append({'page': page_no, 'bbox': bbox_data, 'type': type_, 'ref': label})
+                chunk_bboxes.append({'page': page_no, 'bbox': bbox_data, 'type': type_, 'ref': label})
+        self.chunk_bboxes = json.dumps(chunk_bboxes)
         return self
 
     def set_media_files(self, doc_items: list) -> "GenOSVectorMetaBuilder":
@@ -553,7 +555,7 @@ class GenOSVectorMetaBuilder:
                 path = str(item.image.uri)
                 name = path.rsplit("/", 1)[-1]
                 temp_list.append({'name': name, 'type': 'image', 'ref': item.self_ref})
-        self.media_files = temp_list
+        self.media_files = json.dumps(temp_list)
         return self
 
     def build(self) -> GenOSVectorMeta:
@@ -572,6 +574,7 @@ class GenOSVectorMetaBuilder:
             reg_date=self.reg_date,
             chunk_bboxes=self.chunk_bboxes,
             media_files=self.media_files,
+            title=self.title,
             created_date=self.created_date,
         )
 
@@ -597,29 +600,27 @@ class DocumentProcessor:
         # ocr_options.lang = ['kor', 'kor_vert', 'eng', 'jpn', 'jpn_vert']
         # ocr_options.path = './.tesseract/tessdata'
         # pipe_line_options.ocr_options = ocr_options
-        pipe_line_options.artifacts_path = Path("/nfs-root/aiModel/.cache/huggingface/hub/models--ds4sd--docling-models/snapshots/4659a7d29247f9f7a94102e1f313dad8e8c8f2f6/")
+        pipe_line_options.artifacts_path = Path("/nfs-root/models/223/760")  # Path("/nfs-root/aiModel/.cache/huggingface/hub/models--ds4sd--docling-models/snapshots/4659a7d29247f9f7a94102e1f313dad8e8c8f2f6/")
         pipe_line_options.do_table_structure = True
         pipe_line_options.images_scale = 2
         pipe_line_options.table_structure_options.do_cell_matching = True
         pipe_line_options.table_structure_options.mode = TableFormerMode.ACCURATE
         pipe_line_options.accelerator_options = accelerator_options
 
-        simple_pipeline_options = PipelineOptions()
-        
+        # simple_pipeline_options = PipelineOptions()
+
+        # HWP와 HWPX 모두 지원하는 통합 컨버터
         self.converter = DocumentConverter(
-            format_options={
-                InputFormat.PDF: PdfFormatOption(
-                    pipeline_options=pipe_line_options,
+                format_options={
+                    InputFormat.XML_HWPX: FormatOption(
+                        pipeline_cls=SimplePipeline, backend=HwpxDocumentBackend
+                    ),
+                    InputFormat.PDF: PdfFormatOption(
+                    pipeline_options=pipe_line_options, 
                     backend=DoclingParseV4DocumentBackend
-                    # backend=PyPdfiumDocumentBackend
-                ),
-                InputFormat.XML_HWPX: HwpxFormatOption(
-                    pipeline_options=simple_pipeline_options,
-                ),
-                
-            }
-        )
-        
+                    ),
+                }
+            )
         self.second_converter = DocumentConverter(
             format_options={
                 InputFormat.PDF: PdfFormatOption(
@@ -635,22 +636,26 @@ class DocumentProcessor:
         except Exception as e:
             conv_result: ConversionResult = self.second_converter.convert(file_path, raises_on_error=True)
         return conv_result.document
-
-    def load_documents(self, file_path: str, **kwargs: dict) -> DoclingDocument:
+    
+    def load_documents(self, file_path: str, **kwargs) -> DoclingDocument:
         return self.load_documents_with_docling(file_path, **kwargs)
-
+    
     def split_documents(self, documents: DoclingDocument, **kwargs: dict) -> List[DocChunk]:
-        chunker: HybridChunker = HybridChunker()
+        chunker: HybridChunker = HybridChunker(
+              max_tokens=2000,
+              merge_peers=True
+            )
+
         chunks: List[DocChunk] = list(chunker.chunk(dl_doc=documents, **kwargs))
         for chunk in chunks:
             self.page_chunk_counts[chunk.meta.doc_items[0].prov[0].page_no] += 1
         return chunks
-
+    
     def safe_join(self, iterable):
         if not isinstance(iterable, (list, tuple, set)):
             return ''
         return ''.join(map(str, iterable)) + '\n'
-
+        
     def parse_created_date(self, date_text: str) -> Optional[int]:
         """
         작성일 텍스트를 파싱하여 YYYYMMDD 형식의 정수로 변환
@@ -700,15 +705,14 @@ class DocumentProcessor:
                 pass
         
         return 0
-
     def enrichment(self, document: DoclingDocument, **kwargs: dict) -> DoclingDocument:
         # enrichment 옵션 설정
         enrichment_options = DataEnrichmentOptions(
             do_toc_enrichment=True,
             extract_metadata=True,
             toc_api_provider="custom",
-            toc_api_base_url="https://genos.mnc.ai:3443/api/gateway/rep/serving/364/v1/chat/completions",
-            metadata_api_base_url="https://genos.mnc.ai:3443/api/gateway/rep/serving/364/v1/chat/completions",
+            toc_api_base_url="http://llmops-gateway-api-service:8080/serving/364/799/v1/chat/completions",
+            metadata_api_base_url="http://llmops-gateway-api-service:8080/serving/364/799/v1/chat/completions",
             toc_api_key="a2ffe48f40ab4cf9a0699deac1c0cb76",
             metadata_api_key="a2ffe48f40ab4cf9a0699deac1c0cb76",
             toc_model="/model/snapshots/9eb2daaa8597bf192a8b0e73f848f3a102794df5",
@@ -724,58 +728,69 @@ class DocumentProcessor:
         return document
         
     async def compose_vectors(self, document: DoclingDocument, chunks: List[DocChunk], file_path: str, request: Request, **kwargs: dict) -> \
-            list[dict]:
-        created_date = 0
-        
-        try:
-            if (document.key_value_items and 
-                len(document.key_value_items) > 0 and 
-                hasattr(document.key_value_items[0], 'graph') and
-                hasattr(document.key_value_items[0].graph, 'cells') and
-                len(document.key_value_items[0].graph.cells) > 1):
+                list[dict]:
+            title = ""
+            created_date = 0
+            try:
+                if (document.key_value_items and 
+                    len(document.key_value_items) > 0 and 
+                    hasattr(document.key_value_items[0], 'graph') and
+                    hasattr(document.key_value_items[0].graph, 'cells') and
+                    len(document.key_value_items[0].graph.cells) > 1):
+                    
+                    # 작성일 추출 (cells[1])
+                    date_text = document.key_value_items[0].graph.cells[1].text
+                    created_date = self.parse_created_date(date_text)
+            except (AttributeError, IndexError) as e:
+                pass
+            
+            for item, _ in document.iterate_items():
+              if hasattr(item, 'label'):
+                  if item.label == DocItemLabel.TITLE:
+                      title = item.text.strip() if item.text else ""
+                      break 
+            global_metadata = dict(
+                n_chunk_of_doc=len(chunks),
+                n_page=document.num_pages(),
+                reg_date=datetime.now().isoformat(timespec='seconds') + 'Z',
+                created_date=created_date,
+                title=title
+            )
+
+            current_page = None
+            chunk_index_on_page = 0
+            vectors = []
+            upload_tasks = []
+            for chunk_idx, chunk in enumerate(chunks):
+                chunk_page = chunk.meta.doc_items[0].prov[0].page_no
+                content = self.safe_join(chunk.meta.headings) + chunk.text
                 
-                # 작성일 추출 (cells[1])
-                date_text = document.key_value_items[0].graph.cells[1].text
-                created_date = self.parse_created_date(date_text)
-                
-        except (AttributeError, IndexError) as e:
-            pass
+                if chunk_page != current_page:
+                    current_page = chunk_page
+                    chunk_index_on_page = 0
+
+                vector = (GenOSVectorMetaBuilder()
+                        .set_text(content)
+                        .set_page_info(chunk_page, chunk_index_on_page, self.page_chunk_counts[chunk_page])
+                        .set_chunk_index(chunk_idx)
+                        .set_global_metadata(**global_metadata)
+                        .set_chunk_bboxes(chunk.meta.doc_items, document)
+                        .set_media_files(chunk.meta.doc_items)
+                        ).build()
+                vectors.append(vector)
+
+
+                chunk_index_on_page += 1
+                file_list = self.get_media_files(chunk.meta.doc_items)
+                upload_tasks.append(asyncio.create_task(
+                    upload_files(file_list, request=request)
+                ))
         
-        global_metadata = dict(
-            n_chunk_of_doc=len(chunks),
-            n_page=document.num_pages(),
-            reg_date=datetime.now().isoformat(timespec='seconds') + 'Z',
-            created_date=created_date,
-        )      
+            if upload_tasks:
+                await asyncio.gather(*upload_tasks)
 
-        current_page = None
-        chunk_index_on_page = 0
-        vectors = []
-        for chunk_idx, chunk in enumerate(chunks):
-            chunk_page = chunk.meta.doc_items[0].prov[0].page_no
-            content = self.safe_join(chunk.meta.headings) + chunk.text
-
-            vector = (GenOSVectorMetaBuilder()
-                      .set_text(content)
-                      .set_page_info(chunk_page, chunk_index_on_page, self.page_chunk_counts[chunk_page])
-                      .set_chunk_index(chunk_idx)
-                      .set_global_metadata(**global_metadata)
-                      .set_chunk_bboxes(chunk.meta.doc_items, document)
-                      .set_media_files(chunk.meta.doc_items)
-                      ).build()
-            vectors.append(vector)
-
-            if chunk_page != current_page:
-                current_page = chunk_page
-                chunk_index_on_page = 0
-
-            chunk_index_on_page += 1
-
-            file_list = self.get_media_files(chunk.meta.doc_items)
-            await upload_files(file_list, request=request)
-
-        return vectors
-
+            return vectors
+    
     
     def get_media_files(self, doc_items: list):
         temp_list = []
@@ -788,7 +803,7 @@ class DocumentProcessor:
 
     async def __call__(self, request: Request, file_path: str, **kwargs: dict):
         document: DoclingDocument = self.load_documents(file_path, **kwargs)
-          
+
         output_path, output_file = os.path.split(file_path)
         filename, _ = os.path.splitext(output_file)
         artifacts_dir = Path(f"{output_path}/{filename}")
@@ -796,13 +811,13 @@ class DocumentProcessor:
             reference_path = None
         else:
             reference_path = artifacts_dir.parent
-
+        
         document = document._with_pictures_refs(image_dir=artifacts_dir, reference_path=reference_path)
         
         document = self.enrichment(document, **kwargs)
 
         # Extract Chunk from DoclingDocument
-        chunks: List[DocChunk] = self.split_documents(document, **kwargs)
+        chunks: list[DocChunk] = self.split_documents(document, **kwargs)
         # await assert_cancelled(request)
 
         vectors = []
