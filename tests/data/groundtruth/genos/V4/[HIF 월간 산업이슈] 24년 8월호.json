@@ -1,0 +1,3964 @@
+{
+  "schema_name": "DoclingDocument",
+  "version": "1.3.0",
+  "name": "[HIF 월간 산업이슈] 24년 8월호",
+  "origin": {
+    "mimetype": "application/pdf",
+    "binary_hash": 8550393167475566785,
+    "filename": "[HIF 월간 산업이슈] 24년 8월호.pdf"
+  },
+  "furniture": {
+    "self_ref": "#/furniture",
+    "children": [],
+    "content_layer": "furniture",
+    "name": "_root_",
+    "label": "unspecified"
+  },
+  "body": {
+    "self_ref": "#/body",
+    "children": [
+      {
+        "$ref": "#/texts/0"
+      },
+      {
+        "$ref": "#/texts/1"
+      },
+      {
+        "$ref": "#/texts/2"
+      },
+      {
+        "$ref": "#/texts/3"
+      },
+      {
+        "$ref": "#/groups/0"
+      },
+      {
+        "$ref": "#/texts/5"
+      },
+      {
+        "$ref": "#/groups/1"
+      },
+      {
+        "$ref": "#/texts/11"
+      },
+      {
+        "$ref": "#/texts/12"
+      },
+      {
+        "$ref": "#/texts/13"
+      },
+      {
+        "$ref": "#/texts/14"
+      },
+      {
+        "$ref": "#/texts/15"
+      },
+      {
+        "$ref": "#/texts/16"
+      },
+      {
+        "$ref": "#/texts/17"
+      },
+      {
+        "$ref": "#/texts/18"
+      },
+      {
+        "$ref": "#/texts/19"
+      },
+      {
+        "$ref": "#/texts/20"
+      },
+      {
+        "$ref": "#/texts/21"
+      },
+      {
+        "$ref": "#/tables/0"
+      },
+      {
+        "$ref": "#/texts/22"
+      },
+      {
+        "$ref": "#/pictures/0"
+      },
+      {
+        "$ref": "#/texts/24"
+      }
+    ],
+    "content_layer": "body",
+    "name": "_root_",
+    "label": "unspecified"
+  },
+  "groups": [
+    {
+      "self_ref": "#/groups/0",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [
+        {
+          "$ref": "#/texts/4"
+        }
+      ],
+      "content_layer": "body",
+      "name": "list",
+      "label": "list"
+    },
+    {
+      "self_ref": "#/groups/1",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [
+        {
+          "$ref": "#/texts/6"
+        },
+        {
+          "$ref": "#/texts/7"
+        },
+        {
+          "$ref": "#/texts/8"
+        },
+        {
+          "$ref": "#/texts/9"
+        },
+        {
+          "$ref": "#/texts/10"
+        }
+      ],
+      "content_layer": "body",
+      "name": "list",
+      "label": "list"
+    }
+  ],
+  "texts": [
+    {
+      "self_ref": "#/texts/0",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "furniture",
+      "label": "page_header",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 56.04,
+            "t": 805.432,
+            "r": 123.485,
+            "b": 794.443,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            14
+          ]
+        }
+      ],
+      "orig": "월간  산업  이슈 HIF",
+      "text": "월간  산업  이슈 HIF"
+    },
+    {
+      "self_ref": "#/texts/1",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "furniture",
+      "label": "page_header",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 56.04,
+            "t": 792.832,
+            "r": 152.412,
+            "b": 781.843,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            27
+          ]
+        }
+      ],
+      "orig": "Monthly  Industrial  Issue.",
+      "text": "Monthly  Industrial  Issue."
+    },
+    {
+      "self_ref": "#/texts/2",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "section_header",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 100.44,
+            "t": 747.273,
+            "r": 449.14,
+            "b": 687.381,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            45
+          ]
+        }
+      ],
+      "orig": "유통 G. 티메프사태 중소커머스  폐업  및  상위권  업체로의  쏠림  야기 ,",
+      "text": "유통 G. 티메프사태 중소커머스  폐업  및  상위권  업체로의  쏠림  야기 ,",
+      "level": 1
+    },
+    {
+      "self_ref": "#/texts/3",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 468.601,
+            "t": 695.894,
+            "r": 530.843,
+            "b": 668.006,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            9
+          ]
+        }
+      ],
+      "orig": "연구위원  김남훈",
+      "text": "연구위원  김남훈"
+    },
+    {
+      "self_ref": "#/texts/4",
+      "parent": {
+        "$ref": "#/groups/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "list_item",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 94.56,
+            "t": 665.025,
+            "r": 533.389,
+            "b": 536.493,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            374
+          ]
+        }
+      ],
+      "orig": "Summary : ※ 티메프 사태로 인해 피해액이 조원에 이르며 정부의 정산기한 단축, 1.3 이커머스업체의  PG기능  분리,  에스크로  의무화  등  관련  규제가  대폭  강화될  전망.  규제  강화에도 온라인  셀러의  오픈마켓  신뢰성에  대한  보수적  접근이  이어지며  유통사  및  대형  플랫폼  위주로  입점 쏠림  현상이  확대되고  경쟁  구조에  변화가  예상.  특히  소비심리  위축과  겹쳐  최근  사태에  따른  소비자 및  판매자  이탈  등으로  업력이  오래된  오픈마켓형  중소  이커머스업체들도  폐업과  서비스  중단이  늘고 있어  상위업체  중심의  소비자  락인효과가  커지고  승자독식  구조가  고착화될  가능성",
+      "text": "Summary : ※ 티메프 사태로 인해 피해액이 조원에 이르며 정부의 정산기한 단축, 1.3 이커머스업체의  PG기능  분리,  에스크로  의무화  등  관련  규제가  대폭  강화될  전망.  규제  강화에도 온라인  셀러의  오픈마켓  신뢰성에  대한  보수적  접근이  이어지며  유통사  및  대형  플랫폼  위주로  입점 쏠림  현상이  확대되고  경쟁  구조에  변화가  예상.  특히  소비심리  위축과  겹쳐  최근  사태에  따른  소비자 및  판매자  이탈  등으로  업력이  오래된  오픈마켓형  중소  이커머스업체들도  폐업과  서비스  중단이  늘고 있어  상위업체  중심의  소비자  락인효과가  커지고  승자독식  구조가  고착화될  가능성",
+      "enumerated": false,
+      "marker": "-"
+    },
+    {
+      "self_ref": "#/texts/5",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "section_header",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 77.64,
+            "t": 518.097,
+            "r": 486.877,
+            "b": 479.465,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            77
+          ]
+        }
+      ],
+      "orig": " 티메프  사태 피해액  1.3조원에  이르며  정부의  대응책  마련과  관련  규제  강화  예상 GLYPH<129>GLYPH<10>",
+      "text": " 티메프  사태 피해액  1.3조원에  이르며  정부의  대응책  마련과  관련  규제  강화  예상 GLYPH<129>GLYPH<10>",
+      "level": 1
+    },
+    {
+      "self_ref": "#/texts/6",
+      "parent": {
+        "$ref": "#/groups/1"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "list_item",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 108.48,
+            "t": 446.46,
+            "r": 464.238,
+            "b": 415.846,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            62
+          ]
+        }
+      ],
+      "orig": "㎽ 미정산액이  백만원  이하인  업체들이  69.3㚜,  1천만원  이하가  90.4㚜로  대부분을  차지 1",
+      "text": "㎽ 미정산액이  백만원  이하인  업체들이  69.3㚜,  1천만원  이하가  90.4㚜로  대부분을  차지 1",
+      "enumerated": false,
+      "marker": "-"
+    },
+    {
+      "self_ref": "#/texts/7",
+      "parent": {
+        "$ref": "#/groups/1"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "list_item",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 92.64,
+            "t": 486.105,
+            "r": 525.516,
+            "b": 433.629,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            115
+          ]
+        }
+      ],
+      "orig": " 금감원에  따르면  집계된  미정산  피해액은  1.3조원 피해업체는 4.8만개에  이르고  피해 , 규모 억원 이상 가  큰  소수가  피해액의  대부분㏖88.1㚜㏗를  차지한  것으로  파악 ㏖1 ㏗",
+      "text": " 금감원에  따르면  집계된  미정산  피해액은  1.3조원 피해업체는 4.8만개에  이르고  피해 , 규모 억원 이상 가  큰  소수가  피해액의  대부분㏖88.1㚜㏗를  차지한  것으로  파악 ㏖1 ㏗",
+      "enumerated": false,
+      "marker": "-"
+    },
+    {
+      "self_ref": "#/texts/8",
+      "parent": {
+        "$ref": "#/groups/1"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "list_item",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 92.64,
+            "t": 422.145,
+            "r": 525.515,
+            "b": 351.886,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            188
+          ]
+        }
+      ],
+      "orig": " 정부는  이커머스  업체들의  PG업무결제대행 분리  및  정산기한  단축,  PG사의  인적물적 ㏖ ㏗ · 요건  강화  및  에스크로  의무화  등  전자금융  및  전자상거래  관련  규제를  대폭  강화할  예정 ㎽ 부재하던  정산주기를  40일로  제한하고 이커머스업체들의  PG등록 제 자  위탁  의무화  예정 , , 3",
+      "text": " 정부는  이커머스  업체들의  PG업무결제대행 분리  및  정산기한  단축,  PG사의  인적물적 ㏖ ㏗ · 요건  강화  및  에스크로  의무화  등  전자금융  및  전자상거래  관련  규제를  대폭  강화할  예정 ㎽ 부재하던  정산주기를  40일로  제한하고 이커머스업체들의  PG등록 제 자  위탁  의무화  예정 , , 3",
+      "enumerated": false,
+      "marker": "-"
+    },
+    {
+      "self_ref": "#/texts/9",
+      "parent": {
+        "$ref": "#/groups/1"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "list_item",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 108.48,
+            "t": 319.02,
+            "r": 505.371,
+            "b": 288.40599999999995,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            62
+          ]
+        }
+      ],
+      "orig": "㎽ 알레츠는  티메프와  유사한  오픈마켓으로서  㐰23년  영업손실액이  104억원이며  자본잠식이였던  상황",
+      "text": "㎽ 알레츠는  티메프와  유사한  오픈마켓으로서  㐰23년  영업손실액이  104억원이며  자본잠식이였던  상황",
+      "enumerated": false,
+      "marker": "-"
+    },
+    {
+      "self_ref": "#/texts/10",
+      "parent": {
+        "$ref": "#/groups/1"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "list_item",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 92.64,
+            "t": 358.665,
+            "r": 525.513,
+            "b": 306.1890000000001,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            110
+          ]
+        }
+      ],
+      "orig": " 소수  업체를  제외하면  판매자  피해  부담은  크지  않은  편이나  유사  사업모델을  갖던 커머스업체  알레츠를 포함 다수가 폐업하며 이커머스업체에 대한 신뢰 리스크가 커진 상황 㐰 㐱",
+      "text": " 소수  업체를  제외하면  판매자  피해  부담은  크지  않은  편이나  유사  사업모델을  갖던 커머스업체  알레츠를 포함 다수가 폐업하며 이커머스업체에 대한 신뢰 리스크가 커진 상황 㐰 㐱",
+      "enumerated": false,
+      "marker": "-"
+    },
+    {
+      "self_ref": "#/texts/11",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 61.92,
+            "t": 282.351,
+            "r": 209.497,
+            "b": 256.485,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            22
+          ]
+        }
+      ],
+      "orig": "표1  㖐  금액대별  미정산금액  분포",
+      "text": "표1  㖐  금액대별  미정산금액  분포"
+    },
+    {
+      "self_ref": "#/texts/12",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 215.04,
+            "t": 281.82899999999995,
+            "r": 285.071,
+            "b": 256.87200000000007,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            12
+          ]
+        }
+      ],
+      "orig": "단위 개 억원,  㚜㏗",
+      "text": "단위 개 억원,  㚜㏗"
+    },
+    {
+      "self_ref": "#/texts/13",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 212.04,
+            "t": 281.82899999999995,
+            "r": 215.107,
+            "b": 256.87200000000007,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            1
+          ]
+        }
+      ],
+      "orig": "㏖",
+      "text": "㏖"
+    },
+    {
+      "self_ref": "#/texts/14",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 230.642,
+            "t": 281.82899999999995,
+            "r": 235.18,
+            "b": 256.87200000000007,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            1
+          ]
+        }
+      ],
+      "orig": ":",
+      "text": ":"
+    },
+    {
+      "self_ref": "#/texts/15",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 245.163,
+            "t": 281.82899999999995,
+            "r": 249.702,
+            "b": 256.87200000000007,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            1
+          ]
+        }
+      ],
+      "orig": ",",
+      "text": ","
+    },
+    {
+      "self_ref": "#/texts/16",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 297.481,
+            "t": 282.351,
+            "r": 452.029,
+            "b": 256.485,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            23
+          ]
+        }
+      ],
+      "orig": "표2  㖐  업종별  미정산  금액  분포",
+      "text": "표2  㖐  업종별  미정산  금액  분포"
+    },
+    {
+      "self_ref": "#/texts/17",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 457.561,
+            "t": 281.82899999999995,
+            "r": 527.592,
+            "b": 256.87200000000007,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            12
+          ]
+        }
+      ],
+      "orig": "단위 개 억원,  㚜㏗",
+      "text": "단위 개 억원,  㚜㏗"
+    },
+    {
+      "self_ref": "#/texts/18",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 454.441,
+            "t": 281.82899999999995,
+            "r": 457.508,
+            "b": 256.87200000000007,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            1
+          ]
+        }
+      ],
+      "orig": "㏖",
+      "text": "㏖"
+    },
+    {
+      "self_ref": "#/texts/19",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 473.043,
+            "t": 281.82899999999995,
+            "r": 477.581,
+            "b": 256.87200000000007,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            1
+          ]
+        }
+      ],
+      "orig": ":",
+      "text": ":"
+    },
+    {
+      "self_ref": "#/texts/20",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 487.564,
+            "t": 281.82899999999995,
+            "r": 492.223,
+            "b": 256.87200000000007,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            1
+          ]
+        }
+      ],
+      "orig": ",",
+      "text": ","
+    },
+    {
+      "self_ref": "#/texts/21",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 61.92,
+            "t": 95.25599999999997,
+            "r": 109.144,
+            "b": 77.64300000000003,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            12
+          ]
+        }
+      ],
+      "orig": "자료  :  기획재정부",
+      "text": "자료  :  기획재정부"
+    },
+    {
+      "self_ref": "#/texts/22",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 297.481,
+            "t": 95.25599999999997,
+            "r": 344.705,
+            "b": 77.64300000000003,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            12
+          ]
+        }
+      ],
+      "orig": "자료  :  기획재정부",
+      "text": "자료  :  기획재정부"
+    },
+    {
+      "self_ref": "#/texts/23",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "page_footer",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 61.92,
+            "t": 55.67100000000005,
+            "r": 66.418,
+            "b": 44.75300000000004,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            1
+          ]
+        }
+      ],
+      "orig": "7",
+      "text": "7"
+    },
+    {
+      "self_ref": "#/texts/24",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "furniture",
+      "label": "page_footer",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 77.66666666666667,
+            "t": 54.66666666666663,
+            "r": 191.0,
+            "b": 44.38101553940987,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            35
+          ]
+        }
+      ],
+      "orig": "Hana Bank Institute of Finance Hana",
+      "text": "Hana Bank Institute of Finance Hana"
+    }
+  ],
+  "pictures": [
+    {
+      "self_ref": "#/pictures/0",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [
+        {
+          "$ref": "#/texts/23"
+        }
+      ],
+      "content_layer": "body",
+      "label": "picture",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 55.5865364074707,
+            "t": 58.44677734375,
+            "r": 71.64366149902344,
+            "b": 41.666748046875,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            0
+          ]
+        }
+      ],
+      "captions": [],
+      "references": [],
+      "footnotes": [],
+      "annotations": []
+    }
+  ],
+  "tables": [
+    {
+      "self_ref": "#/tables/0",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "table",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 61.08576965332031,
+            "t": 275.0386962890625,
+            "r": 530.6480712890625,
+            "b": 84.73504638671875,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            0
+          ]
+        }
+      ],
+      "captions": [],
+      "references": [],
+      "footnotes": [],
+      "data": {
+        "table_cells": [
+          {
+            "bbox": {
+              "l": 83.76,
+              "t": 578.633,
+              "r": 98.849,
+              "b": 604.266,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 0,
+            "end_row_offset_idx": 1,
+            "start_col_offset_idx": 0,
+            "end_col_offset_idx": 1,
+            "text": "구분",
+            "column_header": true,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 124.68,
+              "t": 578.633,
+              "r": 158.841,
+              "b": 604.266,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 0,
+            "end_row_offset_idx": 1,
+            "start_col_offset_idx": 1,
+            "end_col_offset_idx": 2,
+            "text": "판매점 수",
+            "column_header": true,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 176.4,
+              "t": 578.633,
+              "r": 191.49,
+              "b": 604.266,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 0,
+            "end_row_offset_idx": 1,
+            "start_col_offset_idx": 2,
+            "end_col_offset_idx": 3,
+            "text": "비중",
+            "column_header": true,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 218.52,
+              "t": 578.633,
+              "r": 233.61,
+              "b": 604.266,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 0,
+            "end_row_offset_idx": 1,
+            "start_col_offset_idx": 3,
+            "end_col_offset_idx": 4,
+            "text": "금액",
+            "column_header": true,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 260.641,
+              "t": 578.633,
+              "r": 275.85,
+              "b": 604.266,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 0,
+            "end_row_offset_idx": 1,
+            "start_col_offset_idx": 4,
+            "end_col_offset_idx": 5,
+            "text": "비중",
+            "column_header": true,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 313.201,
+              "t": 578.633,
+              "r": 328.29,
+              "b": 604.266,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 0,
+            "end_row_offset_idx": 1,
+            "start_col_offset_idx": 5,
+            "end_col_offset_idx": 6,
+            "text": "구분",
+            "column_header": true,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 350.401,
+              "t": 578.633,
+              "r": 384.441,
+              "b": 604.266,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 0,
+            "end_row_offset_idx": 1,
+            "start_col_offset_idx": 6,
+            "end_col_offset_idx": 7,
+            "text": "판매점 수",
+            "column_header": true,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 406.441,
+              "t": 578.633,
+              "r": 421.53,
+              "b": 604.266,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 0,
+            "end_row_offset_idx": 1,
+            "start_col_offset_idx": 7,
+            "end_col_offset_idx": 8,
+            "text": "비중",
+            "column_header": true,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 453.121,
+              "t": 578.633,
+              "r": 468.21,
+              "b": 604.266,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 0,
+            "end_row_offset_idx": 1,
+            "start_col_offset_idx": 8,
+            "end_col_offset_idx": 9,
+            "text": "금액",
+            "column_header": true,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 499.681,
+              "t": 578.633,
+              "r": 514.77,
+              "b": 604.266,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 0,
+            "end_row_offset_idx": 1,
+            "start_col_offset_idx": 9,
+            "end_col_offset_idx": 10,
+            "text": "비중",
+            "column_header": true,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 68.64,
+              "t": 598.332,
+              "r": 114.087,
+              "b": 623.289,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 1,
+            "end_row_offset_idx": 2,
+            "start_col_offset_idx": 0,
+            "end_col_offset_idx": 1,
+            "text": "백만원 㚑 㚌 1",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 127.557,
+              "t": 598.332,
+              "r": 155.958,
+              "b": 623.289,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 1,
+            "end_row_offset_idx": 2,
+            "start_col_offset_idx": 1,
+            "end_col_offset_idx": 2,
+            "text": "33,350",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 174.84,
+              "t": 598.332,
+              "r": 198.663,
+              "b": 623.289,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 1,
+            "end_row_offset_idx": 2,
+            "start_col_offset_idx": 2,
+            "end_col_offset_idx": 3,
+            "text": "㏖69.3㏗",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 220.917,
+              "t": 598.332,
+              "r": 231.233,
+              "b": 623.289,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 1,
+            "end_row_offset_idx": 2,
+            "start_col_offset_idx": 3,
+            "end_col_offset_idx": 4,
+            "text": "76",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 261.837,
+              "t": 598.332,
+              "r": 280.267,
+              "b": 623.289,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 1,
+            "end_row_offset_idx": 2,
+            "start_col_offset_idx": 4,
+            "end_col_offset_idx": 5,
+            "text": "㏖0.6㏗",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 301.08,
+              "t": 596.052,
+              "r": 340.403,
+              "b": 621.009,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 1,
+            "end_row_offset_idx": 2,
+            "start_col_offset_idx": 5,
+            "end_col_offset_idx": 6,
+            "text": "디지털가전 ‧",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 356.028,
+              "t": 596.052,
+              "r": 378.875,
+              "b": 621.009,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 1,
+            "end_row_offset_idx": 2,
+            "start_col_offset_idx": 6,
+            "end_col_offset_idx": 7,
+            "text": "4,607",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 406.792,
+              "t": 596.052,
+              "r": 425.458,
+              "b": 621.009,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 1,
+            "end_row_offset_idx": 2,
+            "start_col_offset_idx": 7,
+            "end_col_offset_idx": 8,
+            "text": "㏖9,6㏗",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 449.272,
+              "t": 596.052,
+              "r": 472.008,
+              "b": 621.009,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 1,
+            "end_row_offset_idx": 2,
+            "start_col_offset_idx": 8,
+            "end_col_offset_idx": 9,
+            "text": "3,708",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 497.633,
+              "t": 596.052,
+              "r": 521.104,
+              "b": 621.009,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 1,
+            "end_row_offset_idx": 2,
+            "start_col_offset_idx": 9,
+            "end_col_offset_idx": 10,
+            "text": "㏖29.0㏗",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 309.48,
+              "t": 612.612,
+              "r": 332.007,
+              "b": 654.249,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 2,
+            "end_row_offset_idx": 3,
+            "start_col_offset_idx": 5,
+            "end_col_offset_idx": 6,
+            "text": "상품권 식품",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 362.154,
+              "t": 612.612,
+              "r": 372.645,
+              "b": 637.569,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 2,
+            "end_row_offset_idx": 3,
+            "start_col_offset_idx": 6,
+            "end_col_offset_idx": 7,
+            "text": "28",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 407.631,
+              "t": 612.612,
+              "r": 424.619,
+              "b": 637.569,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 2,
+            "end_row_offset_idx": 3,
+            "start_col_offset_idx": 7,
+            "end_col_offset_idx": 8,
+            "text": "㏖0.1㏗",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 449.153,
+              "t": 612.612,
+              "r": 472.126,
+              "b": 637.569,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 2,
+            "end_row_offset_idx": 3,
+            "start_col_offset_idx": 8,
+            "end_col_offset_idx": 9,
+            "text": "3,228",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 497.751,
+              "t": 612.612,
+              "r": 520.985,
+              "b": 654.249,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 2,
+            "end_row_offset_idx": 3,
+            "start_col_offset_idx": 9,
+            "end_col_offset_idx": 10,
+            "text": "㏖25.2㏗ ㏖10.0㏗",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 70.68,
+              "t": 619.692,
+              "r": 111.927,
+              "b": 644.649,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 2,
+            "end_row_offset_idx": 3,
+            "start_col_offset_idx": 0,
+            "end_col_offset_idx": 1,
+            "text": "천만원 㚑㚌 1",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 128.877,
+              "t": 619.692,
+              "r": 154.583,
+              "b": 644.649,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 2,
+            "end_row_offset_idx": 3,
+            "start_col_offset_idx": 1,
+            "end_col_offset_idx": 2,
+            "text": "10,143",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 176.391,
+              "t": 619.692,
+              "r": 197.093,
+              "b": 644.649,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 2,
+            "end_row_offset_idx": 3,
+            "start_col_offset_idx": 2,
+            "end_col_offset_idx": 3,
+            "text": "㏖21.1㏗",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 218.028,
+              "t": 619.692,
+              "r": 234.035,
+              "b": 644.649,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 2,
+            "end_row_offset_idx": 3,
+            "start_col_offset_idx": 3,
+            "end_col_offset_idx": 4,
+            "text": "338",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 261.82,
+              "t": 619.692,
+              "r": 280.248,
+              "b": 644.649,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 2,
+            "end_row_offset_idx": 3,
+            "start_col_offset_idx": 4,
+            "end_col_offset_idx": 5,
+            "text": "㏖2.6㏗",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 353.99,
+              "t": 629.292,
+              "r": 380.868,
+              "b": 670.809,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 3,
+            "end_row_offset_idx": 4,
+            "start_col_offset_idx": 6,
+            "end_col_offset_idx": 7,
+            "text": "8,479 14,422",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 404.269,
+              "t": 629.292,
+              "r": 427.862,
+              "b": 670.809,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 3,
+            "end_row_offset_idx": 4,
+            "start_col_offset_idx": 7,
+            "end_col_offset_idx": 8,
+            "text": "㏖17.7㏗ ㏖30.0㏗",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 450.118,
+              "t": 629.292,
+              "r": 471.088,
+              "b": 670.809,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 3,
+            "end_row_offset_idx": 4,
+            "start_col_offset_idx": 8,
+            "end_col_offset_idx": 9,
+            "text": "1,275 1,129",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 72.24,
+              "t": 641.052,
+              "r": 110.369,
+              "b": 666.009,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 3,
+            "end_row_offset_idx": 4,
+            "start_col_offset_idx": 0,
+            "end_col_offset_idx": 1,
+            "text": "억원 㚑 㚌 1",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 130.197,
+              "t": 641.052,
+              "r": 153.319,
+              "b": 666.009,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 3,
+            "end_row_offset_idx": 4,
+            "start_col_offset_idx": 1,
+            "end_col_offset_idx": 2,
+            "text": "3,650",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 177.72,
+              "t": 641.052,
+              "r": 195.79,
+              "b": 666.009,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 3,
+            "end_row_offset_idx": 4,
+            "start_col_offset_idx": 2,
+            "end_col_offset_idx": 3,
+            "text": "㏖7.6㏗",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 216.484,
+              "t": 641.052,
+              "r": 235.646,
+              "b": 666.009,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 3,
+            "end_row_offset_idx": 4,
+            "start_col_offset_idx": 3,
+            "end_col_offset_idx": 4,
+            "text": "1,114",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 262.073,
+              "t": 641.052,
+              "r": 280.021,
+              "b": 666.009,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 3,
+            "end_row_offset_idx": 4,
+            "start_col_offset_idx": 4,
+            "end_col_offset_idx": 5,
+            "text": "㏖8.7㏗",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 304.8,
+              "t": 645.852,
+              "r": 336.685,
+              "b": 670.809,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 3,
+            "end_row_offset_idx": 4,
+            "start_col_offset_idx": 5,
+            "end_col_offset_idx": 6,
+            "text": "생활문화 ‧",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 500.148,
+              "t": 645.852,
+              "r": 518.57,
+              "b": 670.809,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 3,
+            "end_row_offset_idx": 4,
+            "start_col_offset_idx": 9,
+            "end_col_offset_idx": 10,
+            "text": "㏖8.8㏗",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 69.719,
+              "t": 662.412,
+              "r": 112.889,
+              "b": 687.369,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 4,
+            "end_row_offset_idx": 5,
+            "start_col_offset_idx": 0,
+            "end_col_offset_idx": 1,
+            "text": "억원 㚑 㚌 10",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 134.279,
+              "t": 662.412,
+              "r": 149.313,
+              "b": 687.369,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 4,
+            "end_row_offset_idx": 5,
+            "start_col_offset_idx": 1,
+            "end_col_offset_idx": 2,
+            "text": "773",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 178.202,
+              "t": 662.412,
+              "r": 195.305,
+              "b": 687.369,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 4,
+            "end_row_offset_idx": 5,
+            "start_col_offset_idx": 2,
+            "end_col_offset_idx": 3,
+            "text": "㏖1.6㏗",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 214.68,
+              "t": 662.412,
+              "r": 237.516,
+              "b": 687.369,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 4,
+            "end_row_offset_idx": 5,
+            "start_col_offset_idx": 3,
+            "end_col_offset_idx": 4,
+            "text": "2,253",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 260.164,
+              "t": 662.412,
+              "r": 281.949,
+              "b": 687.369,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 4,
+            "end_row_offset_idx": 5,
+            "start_col_offset_idx": 4,
+            "end_col_offset_idx": 5,
+            "text": "㏖17.6㏗",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 304.8,
+              "t": 662.532,
+              "r": 336.685,
+              "b": 687.489,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 4,
+            "end_row_offset_idx": 5,
+            "start_col_offset_idx": 5,
+            "end_col_offset_idx": 6,
+            "text": "패션잡화 ‧",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 356.03,
+              "t": 662.532,
+              "r": 378.708,
+              "b": 687.489,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 4,
+            "end_row_offset_idx": 5,
+            "start_col_offset_idx": 6,
+            "end_col_offset_idx": 7,
+            "text": "6,759",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 404.992,
+              "t": 662.532,
+              "r": 427.26,
+              "b": 687.489,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 4,
+            "end_row_offset_idx": 5,
+            "start_col_offset_idx": 7,
+            "end_col_offset_idx": 8,
+            "text": "㏖14.0㏗",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 453.594,
+              "t": 662.532,
+              "r": 467.733,
+              "b": 687.489,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 4,
+            "end_row_offset_idx": 5,
+            "start_col_offset_idx": 8,
+            "end_col_offset_idx": 9,
+            "text": "801",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 500.029,
+              "t": 662.532,
+              "r": 518.695,
+              "b": 687.489,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 4,
+            "end_row_offset_idx": 5,
+            "start_col_offset_idx": 9,
+            "end_col_offset_idx": 10,
+            "text": "㏖6.3㏗",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 313.2,
+              "t": 679.092,
+              "r": 328.289,
+              "b": 704.049,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 5,
+            "end_row_offset_idx": 6,
+            "start_col_offset_idx": 5,
+            "end_col_offset_idx": 6,
+            "text": "여행",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 359.876,
+              "t": 679.092,
+              "r": 374.918,
+              "b": 704.049,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 5,
+            "end_row_offset_idx": 6,
+            "start_col_offset_idx": 6,
+            "end_col_offset_idx": 7,
+            "text": "287",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 406.915,
+              "t": 679.092,
+              "r": 425.345,
+              "b": 704.049,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 5,
+            "end_row_offset_idx": 6,
+            "start_col_offset_idx": 7,
+            "end_col_offset_idx": 8,
+            "text": "㏖0.6㏗",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 452.999,
+              "t": 679.092,
+              "r": 468.209,
+              "b": 704.049,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 5,
+            "end_row_offset_idx": 6,
+            "start_col_offset_idx": 8,
+            "end_col_offset_idx": 9,
+            "text": "795",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 500.162,
+              "t": 679.092,
+              "r": 518.59,
+              "b": 704.049,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 5,
+            "end_row_offset_idx": 6,
+            "start_col_offset_idx": 9,
+            "end_col_offset_idx": 10,
+            "text": "㏖6.2㏗",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 69.0,
+              "t": 683.7719999999999,
+              "r": 113.609,
+              "b": 708.729,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 5,
+            "end_row_offset_idx": 6,
+            "start_col_offset_idx": 0,
+            "end_col_offset_idx": 1,
+            "text": "억원 㚑 㚌 30",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 134.402,
+              "t": 683.7719999999999,
+              "r": 149.129,
+              "b": 708.729,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 5,
+            "end_row_offset_idx": 6,
+            "start_col_offset_idx": 1,
+            "end_col_offset_idx": 2,
+            "text": "134",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 177.476,
+              "t": 683.7719999999999,
+              "r": 196.027,
+              "b": 708.729,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 5,
+            "end_row_offset_idx": 6,
+            "start_col_offset_idx": 2,
+            "end_col_offset_idx": 3,
+            "text": "㏖0.3㏗",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 214.561,
+              "t": 683.7719999999999,
+              "r": 237.598,
+              "b": 708.729,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 5,
+            "end_row_offset_idx": 6,
+            "start_col_offset_idx": 3,
+            "end_col_offset_idx": 4,
+            "text": "2,249",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 260.162,
+              "t": 683.7719999999999,
+              "r": 281.947,
+              "b": 708.729,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 5,
+            "end_row_offset_idx": 6,
+            "start_col_offset_idx": 4,
+            "end_col_offset_idx": 5,
+            "text": "㏖17.6㏗",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 304.8,
+              "t": 695.7719999999999,
+              "r": 336.685,
+              "b": 720.729,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 6,
+            "end_row_offset_idx": 7,
+            "start_col_offset_idx": 5,
+            "end_col_offset_idx": 6,
+            "text": "뷰티헬스 ‧",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 356.03,
+              "t": 695.7719999999999,
+              "r": 378.756,
+              "b": 720.729,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 6,
+            "end_row_offset_idx": 7,
+            "start_col_offset_idx": 6,
+            "end_col_offset_idx": 7,
+            "text": "3,097",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 406.793,
+              "t": 695.7719999999999,
+              "r": 425.46,
+              "b": 720.729,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 6,
+            "end_row_offset_idx": 7,
+            "start_col_offset_idx": 7,
+            "end_col_offset_idx": 8,
+            "text": "㏖6.4㏗",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 453.354,
+              "t": 695.7719999999999,
+              "r": 467.85,
+              "b": 720.729,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 6,
+            "end_row_offset_idx": 7,
+            "start_col_offset_idx": 8,
+            "end_col_offset_idx": 9,
+            "text": "481",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 500.026,
+              "t": 695.7719999999999,
+              "r": 518.69,
+              "b": 720.729,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 6,
+            "end_row_offset_idx": 7,
+            "start_col_offset_idx": 9,
+            "end_col_offset_idx": 10,
+            "text": "㏖3.8㏗",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 71.039,
+              "t": 705.1320000000001,
+              "r": 111.568,
+              "b": 730.0889999999999,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 6,
+            "end_row_offset_idx": 7,
+            "start_col_offset_idx": 0,
+            "end_col_offset_idx": 1,
+            "text": "억원 㚑 㚋30",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 136.561,
+              "t": 705.1320000000001,
+              "r": 146.856,
+              "b": 730.0889999999999,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 6,
+            "end_row_offset_idx": 7,
+            "start_col_offset_idx": 1,
+            "end_col_offset_idx": 2,
+            "text": "74",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 177.603,
+              "t": 705.1320000000001,
+              "r": 195.917,
+              "b": 730.0889999999999,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 6,
+            "end_row_offset_idx": 7,
+            "start_col_offset_idx": 2,
+            "end_col_offset_idx": 3,
+            "text": "㏖0.2㏗",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 214.691,
+              "t": 705.1320000000001,
+              "r": 237.489,
+              "b": 730.0889999999999,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 6,
+            "end_row_offset_idx": 7,
+            "start_col_offset_idx": 3,
+            "end_col_offset_idx": 4,
+            "text": "6,759",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 259.333,
+              "t": 705.1320000000001,
+              "r": 282.804,
+              "b": 730.0889999999999,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 6,
+            "end_row_offset_idx": 7,
+            "start_col_offset_idx": 4,
+            "end_col_offset_idx": 5,
+            "text": "㏖52.9㏗",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 301.081,
+              "t": 712.332,
+              "r": 340.403,
+              "b": 753.969,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 7,
+            "end_row_offset_idx": 8,
+            "start_col_offset_idx": 5,
+            "end_col_offset_idx": 6,
+            "text": "전자상거래 스포츠레저 ‧",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 355.908,
+              "t": 712.332,
+              "r": 378.946,
+              "b": 753.969,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 7,
+            "end_row_offset_idx": 8,
+            "start_col_offset_idx": 6,
+            "end_col_offset_idx": 7,
+            "text": "14 3,209",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 406.904,
+              "t": 712.332,
+              "r": 425.219,
+              "b": 753.969,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 7,
+            "end_row_offset_idx": 8,
+            "start_col_offset_idx": 7,
+            "end_col_offset_idx": 8,
+            "text": "㏖0.0㏗ ㏖6.7㏗",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 452.753,
+              "t": 712.332,
+              "r": 468.45,
+              "b": 753.969,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 7,
+            "end_row_offset_idx": 8,
+            "start_col_offset_idx": 8,
+            "end_col_offset_idx": 9,
+            "text": "415 254",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 500.152,
+              "t": 712.332,
+              "r": 518.581,
+              "b": 753.969,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 7,
+            "end_row_offset_idx": 8,
+            "start_col_offset_idx": 9,
+            "end_col_offset_idx": 10,
+            "text": "㏖3.2㏗ ㏖2.0㏗",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 87.48,
+              "t": 726.612,
+              "r": 95.251,
+              "b": 751.569,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 7,
+            "end_row_offset_idx": 8,
+            "start_col_offset_idx": 0,
+            "end_col_offset_idx": 1,
+            "text": "계",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 128.277,
+              "t": 726.612,
+              "r": 155.244,
+              "b": 751.569,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 7,
+            "end_row_offset_idx": 8,
+            "start_col_offset_idx": 1,
+            "end_col_offset_idx": 2,
+            "text": "48,124",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 173.151,
+              "t": 726.612,
+              "r": 200.345,
+              "b": 751.569,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 7,
+            "end_row_offset_idx": 8,
+            "start_col_offset_idx": 2,
+            "end_col_offset_idx": 3,
+            "text": "㏖100.0㏗",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 212.879,
+              "t": 726.612,
+              "r": 239.27,
+              "b": 751.569,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 7,
+            "end_row_offset_idx": 8,
+            "start_col_offset_idx": 3,
+            "end_col_offset_idx": 4,
+            "text": "12,789",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 257.513,
+              "t": 726.612,
+              "r": 284.587,
+              "b": 751.569,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 7,
+            "end_row_offset_idx": 8,
+            "start_col_offset_idx": 4,
+            "end_col_offset_idx": 5,
+            "text": "㏖100.0㏗",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          }
+        ],
+        "num_rows": 8,
+        "num_cols": 10,
+        "grid": [
+          [
+            {
+              "bbox": {
+                "l": 83.76,
+                "t": 578.633,
+                "r": 98.849,
+                "b": 604.266,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 0,
+              "end_row_offset_idx": 1,
+              "start_col_offset_idx": 0,
+              "end_col_offset_idx": 1,
+              "text": "구분",
+              "column_header": true,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 124.68,
+                "t": 578.633,
+                "r": 158.841,
+                "b": 604.266,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 0,
+              "end_row_offset_idx": 1,
+              "start_col_offset_idx": 1,
+              "end_col_offset_idx": 2,
+              "text": "판매점 수",
+              "column_header": true,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 176.4,
+                "t": 578.633,
+                "r": 191.49,
+                "b": 604.266,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 0,
+              "end_row_offset_idx": 1,
+              "start_col_offset_idx": 2,
+              "end_col_offset_idx": 3,
+              "text": "비중",
+              "column_header": true,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 218.52,
+                "t": 578.633,
+                "r": 233.61,
+                "b": 604.266,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 0,
+              "end_row_offset_idx": 1,
+              "start_col_offset_idx": 3,
+              "end_col_offset_idx": 4,
+              "text": "금액",
+              "column_header": true,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 260.641,
+                "t": 578.633,
+                "r": 275.85,
+                "b": 604.266,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 0,
+              "end_row_offset_idx": 1,
+              "start_col_offset_idx": 4,
+              "end_col_offset_idx": 5,
+              "text": "비중",
+              "column_header": true,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 313.201,
+                "t": 578.633,
+                "r": 328.29,
+                "b": 604.266,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 0,
+              "end_row_offset_idx": 1,
+              "start_col_offset_idx": 5,
+              "end_col_offset_idx": 6,
+              "text": "구분",
+              "column_header": true,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 350.401,
+                "t": 578.633,
+                "r": 384.441,
+                "b": 604.266,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 0,
+              "end_row_offset_idx": 1,
+              "start_col_offset_idx": 6,
+              "end_col_offset_idx": 7,
+              "text": "판매점 수",
+              "column_header": true,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 406.441,
+                "t": 578.633,
+                "r": 421.53,
+                "b": 604.266,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 0,
+              "end_row_offset_idx": 1,
+              "start_col_offset_idx": 7,
+              "end_col_offset_idx": 8,
+              "text": "비중",
+              "column_header": true,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 453.121,
+                "t": 578.633,
+                "r": 468.21,
+                "b": 604.266,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 0,
+              "end_row_offset_idx": 1,
+              "start_col_offset_idx": 8,
+              "end_col_offset_idx": 9,
+              "text": "금액",
+              "column_header": true,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 499.681,
+                "t": 578.633,
+                "r": 514.77,
+                "b": 604.266,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 0,
+              "end_row_offset_idx": 1,
+              "start_col_offset_idx": 9,
+              "end_col_offset_idx": 10,
+              "text": "비중",
+              "column_header": true,
+              "row_header": false,
+              "row_section": false
+            }
+          ],
+          [
+            {
+              "bbox": {
+                "l": 68.64,
+                "t": 598.332,
+                "r": 114.087,
+                "b": 623.289,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 1,
+              "end_row_offset_idx": 2,
+              "start_col_offset_idx": 0,
+              "end_col_offset_idx": 1,
+              "text": "백만원 㚑 㚌 1",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 127.557,
+                "t": 598.332,
+                "r": 155.958,
+                "b": 623.289,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 1,
+              "end_row_offset_idx": 2,
+              "start_col_offset_idx": 1,
+              "end_col_offset_idx": 2,
+              "text": "33,350",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 174.84,
+                "t": 598.332,
+                "r": 198.663,
+                "b": 623.289,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 1,
+              "end_row_offset_idx": 2,
+              "start_col_offset_idx": 2,
+              "end_col_offset_idx": 3,
+              "text": "㏖69.3㏗",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 220.917,
+                "t": 598.332,
+                "r": 231.233,
+                "b": 623.289,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 1,
+              "end_row_offset_idx": 2,
+              "start_col_offset_idx": 3,
+              "end_col_offset_idx": 4,
+              "text": "76",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 261.837,
+                "t": 598.332,
+                "r": 280.267,
+                "b": 623.289,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 1,
+              "end_row_offset_idx": 2,
+              "start_col_offset_idx": 4,
+              "end_col_offset_idx": 5,
+              "text": "㏖0.6㏗",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 301.08,
+                "t": 596.052,
+                "r": 340.403,
+                "b": 621.009,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 1,
+              "end_row_offset_idx": 2,
+              "start_col_offset_idx": 5,
+              "end_col_offset_idx": 6,
+              "text": "디지털가전 ‧",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 356.028,
+                "t": 596.052,
+                "r": 378.875,
+                "b": 621.009,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 1,
+              "end_row_offset_idx": 2,
+              "start_col_offset_idx": 6,
+              "end_col_offset_idx": 7,
+              "text": "4,607",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 406.792,
+                "t": 596.052,
+                "r": 425.458,
+                "b": 621.009,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 1,
+              "end_row_offset_idx": 2,
+              "start_col_offset_idx": 7,
+              "end_col_offset_idx": 8,
+              "text": "㏖9,6㏗",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 449.272,
+                "t": 596.052,
+                "r": 472.008,
+                "b": 621.009,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 1,
+              "end_row_offset_idx": 2,
+              "start_col_offset_idx": 8,
+              "end_col_offset_idx": 9,
+              "text": "3,708",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 497.633,
+                "t": 596.052,
+                "r": 521.104,
+                "b": 621.009,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 1,
+              "end_row_offset_idx": 2,
+              "start_col_offset_idx": 9,
+              "end_col_offset_idx": 10,
+              "text": "㏖29.0㏗",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            }
+          ],
+          [
+            {
+              "bbox": {
+                "l": 70.68,
+                "t": 619.692,
+                "r": 111.927,
+                "b": 644.649,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 2,
+              "end_row_offset_idx": 3,
+              "start_col_offset_idx": 0,
+              "end_col_offset_idx": 1,
+              "text": "천만원 㚑㚌 1",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 128.877,
+                "t": 619.692,
+                "r": 154.583,
+                "b": 644.649,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 2,
+              "end_row_offset_idx": 3,
+              "start_col_offset_idx": 1,
+              "end_col_offset_idx": 2,
+              "text": "10,143",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 176.391,
+                "t": 619.692,
+                "r": 197.093,
+                "b": 644.649,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 2,
+              "end_row_offset_idx": 3,
+              "start_col_offset_idx": 2,
+              "end_col_offset_idx": 3,
+              "text": "㏖21.1㏗",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 218.028,
+                "t": 619.692,
+                "r": 234.035,
+                "b": 644.649,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 2,
+              "end_row_offset_idx": 3,
+              "start_col_offset_idx": 3,
+              "end_col_offset_idx": 4,
+              "text": "338",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 261.82,
+                "t": 619.692,
+                "r": 280.248,
+                "b": 644.649,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 2,
+              "end_row_offset_idx": 3,
+              "start_col_offset_idx": 4,
+              "end_col_offset_idx": 5,
+              "text": "㏖2.6㏗",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 309.48,
+                "t": 612.612,
+                "r": 332.007,
+                "b": 654.249,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 2,
+              "end_row_offset_idx": 3,
+              "start_col_offset_idx": 5,
+              "end_col_offset_idx": 6,
+              "text": "상품권 식품",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 362.154,
+                "t": 612.612,
+                "r": 372.645,
+                "b": 637.569,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 2,
+              "end_row_offset_idx": 3,
+              "start_col_offset_idx": 6,
+              "end_col_offset_idx": 7,
+              "text": "28",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 407.631,
+                "t": 612.612,
+                "r": 424.619,
+                "b": 637.569,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 2,
+              "end_row_offset_idx": 3,
+              "start_col_offset_idx": 7,
+              "end_col_offset_idx": 8,
+              "text": "㏖0.1㏗",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 449.153,
+                "t": 612.612,
+                "r": 472.126,
+                "b": 637.569,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 2,
+              "end_row_offset_idx": 3,
+              "start_col_offset_idx": 8,
+              "end_col_offset_idx": 9,
+              "text": "3,228",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 497.751,
+                "t": 612.612,
+                "r": 520.985,
+                "b": 654.249,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 2,
+              "end_row_offset_idx": 3,
+              "start_col_offset_idx": 9,
+              "end_col_offset_idx": 10,
+              "text": "㏖25.2㏗ ㏖10.0㏗",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            }
+          ],
+          [
+            {
+              "bbox": {
+                "l": 72.24,
+                "t": 641.052,
+                "r": 110.369,
+                "b": 666.009,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 3,
+              "end_row_offset_idx": 4,
+              "start_col_offset_idx": 0,
+              "end_col_offset_idx": 1,
+              "text": "억원 㚑 㚌 1",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 130.197,
+                "t": 641.052,
+                "r": 153.319,
+                "b": 666.009,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 3,
+              "end_row_offset_idx": 4,
+              "start_col_offset_idx": 1,
+              "end_col_offset_idx": 2,
+              "text": "3,650",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 177.72,
+                "t": 641.052,
+                "r": 195.79,
+                "b": 666.009,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 3,
+              "end_row_offset_idx": 4,
+              "start_col_offset_idx": 2,
+              "end_col_offset_idx": 3,
+              "text": "㏖7.6㏗",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 216.484,
+                "t": 641.052,
+                "r": 235.646,
+                "b": 666.009,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 3,
+              "end_row_offset_idx": 4,
+              "start_col_offset_idx": 3,
+              "end_col_offset_idx": 4,
+              "text": "1,114",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 262.073,
+                "t": 641.052,
+                "r": 280.021,
+                "b": 666.009,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 3,
+              "end_row_offset_idx": 4,
+              "start_col_offset_idx": 4,
+              "end_col_offset_idx": 5,
+              "text": "㏖8.7㏗",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 304.8,
+                "t": 645.852,
+                "r": 336.685,
+                "b": 670.809,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 3,
+              "end_row_offset_idx": 4,
+              "start_col_offset_idx": 5,
+              "end_col_offset_idx": 6,
+              "text": "생활문화 ‧",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 353.99,
+                "t": 629.292,
+                "r": 380.868,
+                "b": 670.809,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 3,
+              "end_row_offset_idx": 4,
+              "start_col_offset_idx": 6,
+              "end_col_offset_idx": 7,
+              "text": "8,479 14,422",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 404.269,
+                "t": 629.292,
+                "r": 427.862,
+                "b": 670.809,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 3,
+              "end_row_offset_idx": 4,
+              "start_col_offset_idx": 7,
+              "end_col_offset_idx": 8,
+              "text": "㏖17.7㏗ ㏖30.0㏗",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 450.118,
+                "t": 629.292,
+                "r": 471.088,
+                "b": 670.809,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 3,
+              "end_row_offset_idx": 4,
+              "start_col_offset_idx": 8,
+              "end_col_offset_idx": 9,
+              "text": "1,275 1,129",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 500.148,
+                "t": 645.852,
+                "r": 518.57,
+                "b": 670.809,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 3,
+              "end_row_offset_idx": 4,
+              "start_col_offset_idx": 9,
+              "end_col_offset_idx": 10,
+              "text": "㏖8.8㏗",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            }
+          ],
+          [
+            {
+              "bbox": {
+                "l": 69.719,
+                "t": 662.412,
+                "r": 112.889,
+                "b": 687.369,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 4,
+              "end_row_offset_idx": 5,
+              "start_col_offset_idx": 0,
+              "end_col_offset_idx": 1,
+              "text": "억원 㚑 㚌 10",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 134.279,
+                "t": 662.412,
+                "r": 149.313,
+                "b": 687.369,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 4,
+              "end_row_offset_idx": 5,
+              "start_col_offset_idx": 1,
+              "end_col_offset_idx": 2,
+              "text": "773",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 178.202,
+                "t": 662.412,
+                "r": 195.305,
+                "b": 687.369,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 4,
+              "end_row_offset_idx": 5,
+              "start_col_offset_idx": 2,
+              "end_col_offset_idx": 3,
+              "text": "㏖1.6㏗",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 214.68,
+                "t": 662.412,
+                "r": 237.516,
+                "b": 687.369,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 4,
+              "end_row_offset_idx": 5,
+              "start_col_offset_idx": 3,
+              "end_col_offset_idx": 4,
+              "text": "2,253",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 260.164,
+                "t": 662.412,
+                "r": 281.949,
+                "b": 687.369,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 4,
+              "end_row_offset_idx": 5,
+              "start_col_offset_idx": 4,
+              "end_col_offset_idx": 5,
+              "text": "㏖17.6㏗",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 304.8,
+                "t": 662.532,
+                "r": 336.685,
+                "b": 687.489,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 4,
+              "end_row_offset_idx": 5,
+              "start_col_offset_idx": 5,
+              "end_col_offset_idx": 6,
+              "text": "패션잡화 ‧",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 356.03,
+                "t": 662.532,
+                "r": 378.708,
+                "b": 687.489,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 4,
+              "end_row_offset_idx": 5,
+              "start_col_offset_idx": 6,
+              "end_col_offset_idx": 7,
+              "text": "6,759",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 404.992,
+                "t": 662.532,
+                "r": 427.26,
+                "b": 687.489,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 4,
+              "end_row_offset_idx": 5,
+              "start_col_offset_idx": 7,
+              "end_col_offset_idx": 8,
+              "text": "㏖14.0㏗",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 453.594,
+                "t": 662.532,
+                "r": 467.733,
+                "b": 687.489,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 4,
+              "end_row_offset_idx": 5,
+              "start_col_offset_idx": 8,
+              "end_col_offset_idx": 9,
+              "text": "801",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 500.029,
+                "t": 662.532,
+                "r": 518.695,
+                "b": 687.489,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 4,
+              "end_row_offset_idx": 5,
+              "start_col_offset_idx": 9,
+              "end_col_offset_idx": 10,
+              "text": "㏖6.3㏗",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            }
+          ],
+          [
+            {
+              "bbox": {
+                "l": 69.0,
+                "t": 683.7719999999999,
+                "r": 113.609,
+                "b": 708.729,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 5,
+              "end_row_offset_idx": 6,
+              "start_col_offset_idx": 0,
+              "end_col_offset_idx": 1,
+              "text": "억원 㚑 㚌 30",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 134.402,
+                "t": 683.7719999999999,
+                "r": 149.129,
+                "b": 708.729,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 5,
+              "end_row_offset_idx": 6,
+              "start_col_offset_idx": 1,
+              "end_col_offset_idx": 2,
+              "text": "134",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 177.476,
+                "t": 683.7719999999999,
+                "r": 196.027,
+                "b": 708.729,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 5,
+              "end_row_offset_idx": 6,
+              "start_col_offset_idx": 2,
+              "end_col_offset_idx": 3,
+              "text": "㏖0.3㏗",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 214.561,
+                "t": 683.7719999999999,
+                "r": 237.598,
+                "b": 708.729,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 5,
+              "end_row_offset_idx": 6,
+              "start_col_offset_idx": 3,
+              "end_col_offset_idx": 4,
+              "text": "2,249",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 260.162,
+                "t": 683.7719999999999,
+                "r": 281.947,
+                "b": 708.729,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 5,
+              "end_row_offset_idx": 6,
+              "start_col_offset_idx": 4,
+              "end_col_offset_idx": 5,
+              "text": "㏖17.6㏗",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 313.2,
+                "t": 679.092,
+                "r": 328.289,
+                "b": 704.049,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 5,
+              "end_row_offset_idx": 6,
+              "start_col_offset_idx": 5,
+              "end_col_offset_idx": 6,
+              "text": "여행",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 359.876,
+                "t": 679.092,
+                "r": 374.918,
+                "b": 704.049,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 5,
+              "end_row_offset_idx": 6,
+              "start_col_offset_idx": 6,
+              "end_col_offset_idx": 7,
+              "text": "287",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 406.915,
+                "t": 679.092,
+                "r": 425.345,
+                "b": 704.049,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 5,
+              "end_row_offset_idx": 6,
+              "start_col_offset_idx": 7,
+              "end_col_offset_idx": 8,
+              "text": "㏖0.6㏗",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 452.999,
+                "t": 679.092,
+                "r": 468.209,
+                "b": 704.049,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 5,
+              "end_row_offset_idx": 6,
+              "start_col_offset_idx": 8,
+              "end_col_offset_idx": 9,
+              "text": "795",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 500.162,
+                "t": 679.092,
+                "r": 518.59,
+                "b": 704.049,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 5,
+              "end_row_offset_idx": 6,
+              "start_col_offset_idx": 9,
+              "end_col_offset_idx": 10,
+              "text": "㏖6.2㏗",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            }
+          ],
+          [
+            {
+              "bbox": {
+                "l": 71.039,
+                "t": 705.1320000000001,
+                "r": 111.568,
+                "b": 730.0889999999999,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 6,
+              "end_row_offset_idx": 7,
+              "start_col_offset_idx": 0,
+              "end_col_offset_idx": 1,
+              "text": "억원 㚑 㚋30",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 136.561,
+                "t": 705.1320000000001,
+                "r": 146.856,
+                "b": 730.0889999999999,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 6,
+              "end_row_offset_idx": 7,
+              "start_col_offset_idx": 1,
+              "end_col_offset_idx": 2,
+              "text": "74",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 177.603,
+                "t": 705.1320000000001,
+                "r": 195.917,
+                "b": 730.0889999999999,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 6,
+              "end_row_offset_idx": 7,
+              "start_col_offset_idx": 2,
+              "end_col_offset_idx": 3,
+              "text": "㏖0.2㏗",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 214.691,
+                "t": 705.1320000000001,
+                "r": 237.489,
+                "b": 730.0889999999999,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 6,
+              "end_row_offset_idx": 7,
+              "start_col_offset_idx": 3,
+              "end_col_offset_idx": 4,
+              "text": "6,759",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 259.333,
+                "t": 705.1320000000001,
+                "r": 282.804,
+                "b": 730.0889999999999,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 6,
+              "end_row_offset_idx": 7,
+              "start_col_offset_idx": 4,
+              "end_col_offset_idx": 5,
+              "text": "㏖52.9㏗",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 304.8,
+                "t": 695.7719999999999,
+                "r": 336.685,
+                "b": 720.729,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 6,
+              "end_row_offset_idx": 7,
+              "start_col_offset_idx": 5,
+              "end_col_offset_idx": 6,
+              "text": "뷰티헬스 ‧",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 356.03,
+                "t": 695.7719999999999,
+                "r": 378.756,
+                "b": 720.729,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 6,
+              "end_row_offset_idx": 7,
+              "start_col_offset_idx": 6,
+              "end_col_offset_idx": 7,
+              "text": "3,097",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 406.793,
+                "t": 695.7719999999999,
+                "r": 425.46,
+                "b": 720.729,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 6,
+              "end_row_offset_idx": 7,
+              "start_col_offset_idx": 7,
+              "end_col_offset_idx": 8,
+              "text": "㏖6.4㏗",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 453.354,
+                "t": 695.7719999999999,
+                "r": 467.85,
+                "b": 720.729,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 6,
+              "end_row_offset_idx": 7,
+              "start_col_offset_idx": 8,
+              "end_col_offset_idx": 9,
+              "text": "481",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 500.026,
+                "t": 695.7719999999999,
+                "r": 518.69,
+                "b": 720.729,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 6,
+              "end_row_offset_idx": 7,
+              "start_col_offset_idx": 9,
+              "end_col_offset_idx": 10,
+              "text": "㏖3.8㏗",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            }
+          ],
+          [
+            {
+              "bbox": {
+                "l": 87.48,
+                "t": 726.612,
+                "r": 95.251,
+                "b": 751.569,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 7,
+              "end_row_offset_idx": 8,
+              "start_col_offset_idx": 0,
+              "end_col_offset_idx": 1,
+              "text": "계",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 128.277,
+                "t": 726.612,
+                "r": 155.244,
+                "b": 751.569,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 7,
+              "end_row_offset_idx": 8,
+              "start_col_offset_idx": 1,
+              "end_col_offset_idx": 2,
+              "text": "48,124",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 173.151,
+                "t": 726.612,
+                "r": 200.345,
+                "b": 751.569,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 7,
+              "end_row_offset_idx": 8,
+              "start_col_offset_idx": 2,
+              "end_col_offset_idx": 3,
+              "text": "㏖100.0㏗",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 212.879,
+                "t": 726.612,
+                "r": 239.27,
+                "b": 751.569,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 7,
+              "end_row_offset_idx": 8,
+              "start_col_offset_idx": 3,
+              "end_col_offset_idx": 4,
+              "text": "12,789",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 257.513,
+                "t": 726.612,
+                "r": 284.587,
+                "b": 751.569,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 7,
+              "end_row_offset_idx": 8,
+              "start_col_offset_idx": 4,
+              "end_col_offset_idx": 5,
+              "text": "㏖100.0㏗",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 301.081,
+                "t": 712.332,
+                "r": 340.403,
+                "b": 753.969,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 7,
+              "end_row_offset_idx": 8,
+              "start_col_offset_idx": 5,
+              "end_col_offset_idx": 6,
+              "text": "전자상거래 스포츠레저 ‧",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 355.908,
+                "t": 712.332,
+                "r": 378.946,
+                "b": 753.969,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 7,
+              "end_row_offset_idx": 8,
+              "start_col_offset_idx": 6,
+              "end_col_offset_idx": 7,
+              "text": "14 3,209",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 406.904,
+                "t": 712.332,
+                "r": 425.219,
+                "b": 753.969,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 7,
+              "end_row_offset_idx": 8,
+              "start_col_offset_idx": 7,
+              "end_col_offset_idx": 8,
+              "text": "㏖0.0㏗ ㏖6.7㏗",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 452.753,
+                "t": 712.332,
+                "r": 468.45,
+                "b": 753.969,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 7,
+              "end_row_offset_idx": 8,
+              "start_col_offset_idx": 8,
+              "end_col_offset_idx": 9,
+              "text": "415 254",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 500.152,
+                "t": 712.332,
+                "r": 518.581,
+                "b": 753.969,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 7,
+              "end_row_offset_idx": 8,
+              "start_col_offset_idx": 9,
+              "end_col_offset_idx": 10,
+              "text": "㏖3.2㏗ ㏖2.0㏗",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            }
+          ]
+        ]
+      }
+    }
+  ],
+  "key_value_items": [],
+  "form_items": [],
+  "pages": {
+    "1": {
+      "size": {
+        "width": 595.0,
+        "height": 842.0
+      },
+      "page_no": 1
+    }
+  }
+}

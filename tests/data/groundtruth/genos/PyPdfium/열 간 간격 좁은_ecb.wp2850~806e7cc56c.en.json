@@ -1,0 +1,1606 @@
+{
+  "schema_name": "DoclingDocument",
+  "version": "1.3.0",
+  "name": "열 간 간격 좁은_ecb.wp2850~806e7cc56c.en",
+  "origin": {
+    "mimetype": "application/pdf",
+    "binary_hash": 734303921431466988,
+    "filename": "열 간 간격 좁은_ecb.wp2850~806e7cc56c.en.pdf"
+  },
+  "furniture": {
+    "self_ref": "#/furniture",
+    "children": [],
+    "content_layer": "furniture",
+    "name": "_root_",
+    "label": "unspecified"
+  },
+  "body": {
+    "self_ref": "#/body",
+    "children": [
+      {
+        "$ref": "#/pictures/0"
+      },
+      {
+        "$ref": "#/texts/17"
+      },
+      {
+        "$ref": "#/tables/0"
+      },
+      {
+        "$ref": "#/texts/19"
+      },
+      {
+        "$ref": "#/texts/20"
+      },
+      {
+        "$ref": "#/texts/21"
+      }
+    ],
+    "content_layer": "body",
+    "name": "_root_",
+    "label": "unspecified"
+  },
+  "groups": [],
+  "texts": [
+    {
+      "self_ref": "#/texts/0",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "caption",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 160.27301025390625,
+            "t": 733.9812622070312,
+            "r": 435.17828369140625,
+            "b": 721.9066772460938,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            49
+          ]
+        }
+      ],
+      "orig": "Figure 2: Net hires from persistent nonemployment",
+      "text": "Figure 2: Net hires from persistent nonemployment"
+    },
+    {
+      "self_ref": "#/texts/1",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 131.33338928222656,
+            "t": 516.1737060546875,
+            "r": 138.7676239013672,
+            "b": 499.6921081542969,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            4
+          ]
+        }
+      ],
+      "orig": "-.03",
+      "text": "-.03"
+    },
+    {
+      "self_ref": "#/texts/2",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 131.33338928222656,
+            "t": 562.76611328125,
+            "r": 138.7576141357422,
+            "b": 546.3646850585938,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            4
+          ]
+        }
+      ],
+      "orig": "-.02",
+      "text": "-.02"
+    },
+    {
+      "self_ref": "#/texts/3",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 131.33338928222656,
+            "t": 608.13623046875,
+            "r": 138.7576141357422,
+            "b": 593.0372924804688,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            4
+          ]
+        }
+      ],
+      "orig": "-.01",
+      "text": "-.01"
+    },
+    {
+      "self_ref": "#/texts/4",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 131.33338928222656,
+            "t": 650.310791015625,
+            "r": 138.7576141357422,
+            "b": 645.6417846679688,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            1
+          ]
+        }
+      ],
+      "orig": "0",
+      "text": "0"
+    },
+    {
+      "self_ref": "#/texts/5",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 131.33338928222656,
+            "t": 699.798095703125,
+            "r": 138.7576141357422,
+            "b": 688.626708984375,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            3
+          ]
+        }
+      ],
+      "orig": ".01",
+      "text": ".01"
+    },
+    {
+      "self_ref": "#/texts/6",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 111.29161071777344,
+            "t": 670.2220458984375,
+            "r": 120.67960357666016,
+            "b": 532.427978515625,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            30
+          ]
+        }
+      ],
+      "orig": "Hires less Separations to NonE",
+      "text": "Hires less Separations to NonE"
+    },
+    {
+      "self_ref": "#/texts/7",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 137.57925415039062,
+            "t": 495.9481201171875,
+            "r": 168.87924194335938,
+            "b": 486.6502990722656,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            6
+          ]
+        }
+      ],
+      "orig": "2000q1",
+      "text": "2000q1"
+    },
+    {
+      "self_ref": "#/texts/8",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 218.92825317382812,
+            "t": 495.9481201171875,
+            "r": 251.6108856201172,
+            "b": 486.6502990722656,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            6
+          ]
+        }
+      ],
+      "orig": "2004q3",
+      "text": "2004q3"
+    },
+    {
+      "self_ref": "#/texts/9",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 300.2772521972656,
+            "t": 495.9481201171875,
+            "r": 331.5772399902344,
+            "b": 486.6502990722656,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            6
+          ]
+        }
+      ],
+      "orig": "2009q1",
+      "text": "2009q1"
+    },
+    {
+      "self_ref": "#/texts/10",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 381.6262512207031,
+            "t": 495.9481201171875,
+            "r": 414.3088684082031,
+            "b": 486.6502990722656,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            6
+          ]
+        }
+      ],
+      "orig": "2013q3",
+      "text": "2013q3"
+    },
+    {
+      "self_ref": "#/texts/11",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 462.9628601074219,
+            "t": 495.9481201171875,
+            "r": 494.2628479003906,
+            "b": 486.6502990722656,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            6
+          ]
+        }
+      ],
+      "orig": "2018q1",
+      "text": "2018q1"
+    },
+    {
+      "self_ref": "#/texts/12",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 307.0329284667969,
+            "t": 484.89447021484375,
+            "r": 325.7688293457031,
+            "b": 477.50030517578125,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            4
+          ]
+        }
+      ],
+      "orig": "date",
+      "text": "date"
+    },
+    {
+      "self_ref": "#/texts/13",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 184.08485412597656,
+            "t": 462.8763427734375,
+            "r": 260.3839111328125,
+            "b": 455.3786315917969,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            21
+          ]
+        }
+      ],
+      "orig": "Less than high school",
+      "text": "Less than high school"
+    },
+    {
+      "self_ref": "#/texts/14",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 348.9245300292969,
+            "t": 462.8763427734375,
+            "r": 478.797119140625,
+            "b": 455.3786315917969,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            37
+          ]
+        }
+      ],
+      "orig": "High school or equivalent, no college",
+      "text": "High school or equivalent, no college"
+    },
+    {
+      "self_ref": "#/texts/15",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 183.86056518554688,
+            "t": 448.9480895996094,
+            "r": 305.10595703125,
+            "b": 441.354248046875,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            32
+          ]
+        }
+      ],
+      "orig": "Some college or Associate degree",
+      "text": "Some college or Associate degree"
+    },
+    {
+      "self_ref": "#/texts/16",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 348.8684387207031,
+            "t": 448.9080505371094,
+            "r": 458.7871398925781,
+            "b": 441.354248046875,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            29
+          ]
+        }
+      ],
+      "orig": "Bachelor’s or advanced degree",
+      "text": "Bachelor’s or advanced degree"
+    },
+    {
+      "self_ref": "#/texts/17",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 51.183406829833984,
+            "t": 405.32904052734375,
+            "r": 544.061279296875,
+            "b": 373.9767150878906,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            233
+          ]
+        }
+      ],
+      "orig": "Notes: Net hires is calculated as the difference between hires from and separations to persistent nonemployment, and it is expressed as a share of an average employment within the education group. Shaded areas denote NBER recessions.",
+      "text": "Notes: Net hires is calculated as the difference between hires from and separations to persistent nonemployment, and it is expressed as a share of an average employment within the education group. Shaded areas denote NBER recessions."
+    },
+    {
+      "self_ref": "#/texts/18",
+      "parent": {
+        "$ref": "#/tables/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "caption",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 223.3481903076172,
+            "t": 262.99835205078125,
+            "r": 371.74560546875,
+            "b": 250.9477081298828,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            27
+          ]
+        }
+      ],
+      "orig": "Table 7: Summary statistics",
+      "text": "Table 7: Summary statistics"
+    },
+    {
+      "self_ref": "#/texts/19",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 51.28303527832031,
+            "t": 128.51705932617188,
+            "r": 543.9569091796875,
+            "b": 106.49943542480469,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            126
+          ]
+        }
+      ],
+      "orig": "Notes: (Net) hires and separations are rates and are expressed as a share of an average employment within the education group.",
+      "text": "Notes: (Net) hires and separations are rates and are expressed as a share of an average employment within the education group."
+    },
+    {
+      "self_ref": "#/texts/20",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "furniture",
+      "label": "page_footer",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 51.03178024291992,
+            "t": 34.707950592041016,
+            "r": 178.9597930908203,
+            "b": 27.211950302124023,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            32
+          ]
+        }
+      ],
+      "orig": "ECB Working Paper Series No 2850",
+      "text": "ECB Working Paper Series No 2850"
+    },
+    {
+      "self_ref": "#/texts/21",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "furniture",
+      "label": "page_footer",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 536.8511962890625,
+            "t": 34.63595199584961,
+            "r": 544.5072021484375,
+            "b": 28.79595184326172,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            2
+          ]
+        }
+      ],
+      "orig": "16",
+      "text": "16"
+    }
+  ],
+  "pictures": [
+    {
+      "self_ref": "#/pictures/0",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [
+        {
+          "$ref": "#/texts/0"
+        },
+        {
+          "$ref": "#/texts/1"
+        },
+        {
+          "$ref": "#/texts/2"
+        },
+        {
+          "$ref": "#/texts/3"
+        },
+        {
+          "$ref": "#/texts/4"
+        },
+        {
+          "$ref": "#/texts/5"
+        },
+        {
+          "$ref": "#/texts/6"
+        },
+        {
+          "$ref": "#/texts/7"
+        },
+        {
+          "$ref": "#/texts/8"
+        },
+        {
+          "$ref": "#/texts/9"
+        },
+        {
+          "$ref": "#/texts/10"
+        },
+        {
+          "$ref": "#/texts/11"
+        },
+        {
+          "$ref": "#/texts/12"
+        },
+        {
+          "$ref": "#/texts/13"
+        },
+        {
+          "$ref": "#/texts/14"
+        },
+        {
+          "$ref": "#/texts/15"
+        },
+        {
+          "$ref": "#/texts/16"
+        }
+      ],
+      "content_layer": "body",
+      "label": "picture",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 99.38939666748047,
+            "t": 711.9552917480469,
+            "r": 495.94140625,
+            "b": 422.7093505859375,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            0
+          ]
+        }
+      ],
+      "captions": [
+        {
+          "$ref": "#/texts/0"
+        }
+      ],
+      "references": [],
+      "footnotes": [],
+      "annotations": []
+    }
+  ],
+  "tables": [
+    {
+      "self_ref": "#/tables/0",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [
+        {
+          "$ref": "#/texts/18"
+        }
+      ],
+      "content_layer": "body",
+      "label": "table",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 50.02081298828125,
+            "t": 240.17236328125,
+            "r": 543.8369140625,
+            "b": 142.23291015625,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            0
+          ]
+        }
+      ],
+      "captions": [
+        {
+          "$ref": "#/texts/18"
+        }
+      ],
+      "references": [],
+      "footnotes": [],
+      "data": {
+        "table_cells": [
+          {
+            "bbox": {
+              "l": 161.29649353027344,
+              "t": 606.4999847412109,
+              "r": 531.3644409179688,
+              "b": 628.0154418945312,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 2,
+            "start_row_offset_idx": 0,
+            "end_row_offset_idx": 1,
+            "start_col_offset_idx": 2,
+            "end_col_offset_idx": 4,
+            "text": "High school or  Less than high school equivalent, no college Associate degree advanced degree",
+            "column_header": true,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 370.5380859375,
+              "t": 606.5001678466797,
+              "r": 539.2050170898438,
+              "b": 616.2852935791016,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 2,
+            "start_row_offset_idx": 0,
+            "end_row_offset_idx": 1,
+            "start_col_offset_idx": 4,
+            "end_col_offset_idx": 6,
+            "text": "Some college or Bachelor’s degree or",
+            "column_header": true,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 164.33441162109375,
+              "t": 637.1352233886719,
+              "r": 187.8070526123047,
+              "b": 641.8724670410156,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 1,
+            "end_row_offset_idx": 2,
+            "start_col_offset_idx": 1,
+            "end_col_offset_idx": 2,
+            "text": "mean",
+            "column_header": true,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 222.98385620117188,
+              "t": 634.6347045898438,
+              "r": 291.1495056152344,
+              "b": 641.8667755126953,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 1,
+            "end_row_offset_idx": 2,
+            "start_col_offset_idx": 2,
+            "end_col_offset_idx": 3,
+            "text": "sd mean",
+            "column_header": true,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 326.5333251953125,
+              "t": 634.6347045898438,
+              "r": 335.9786682128906,
+              "b": 641.8667755126953,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 1,
+            "end_row_offset_idx": 2,
+            "start_col_offset_idx": 3,
+            "end_col_offset_idx": 4,
+            "text": "sd",
+            "column_header": true,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 371.44964599609375,
+              "t": 634.6343383789062,
+              "r": 519.5757446289062,
+              "b": 641.8664093017578,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 1,
+            "end_row_offset_idx": 2,
+            "start_col_offset_idx": 4,
+            "end_col_offset_idx": 5,
+            "text": "mean sd mean sd",
+            "column_header": true,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 56.093666076660156,
+              "t": 651.5638580322266,
+              "r": 79.0146713256836,
+              "b": 658.4601745605469,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 2,
+            "end_row_offset_idx": 3,
+            "start_col_offset_idx": 0,
+            "end_col_offset_idx": 1,
+            "text": "Hires",
+            "column_header": false,
+            "row_header": true,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 165.40321350097656,
+              "t": 651.5387420654297,
+              "r": 240.7916259765625,
+              "b": 658.4601745605469,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 2,
+            "end_row_offset_idx": 3,
+            "start_col_offset_idx": 1,
+            "end_col_offset_idx": 2,
+            "text": "0.066 0.0084",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 268.7391357421875,
+              "t": 651.5387420654297,
+              "r": 289.98876953125,
+              "b": 658.4601745605469,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 2,
+            "end_row_offset_idx": 3,
+            "start_col_offset_idx": 2,
+            "end_col_offset_idx": 3,
+            "text": "0.046",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 318.19903564453125,
+              "t": 651.5390167236328,
+              "r": 527.8994750976562,
+              "b": 658.46044921875,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 2,
+            "end_row_offset_idx": 3,
+            "start_col_offset_idx": 3,
+            "end_col_offset_idx": 4,
+            "text": "0.0043 0.041 0.0038 0.035 0.0032",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 56.11482620239258,
+              "t": 663.1227416992188,
+              "r": 105.98207092285156,
+              "b": 672.7234191894531,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 3,
+            "end_row_offset_idx": 4,
+            "start_col_offset_idx": 0,
+            "end_col_offset_idx": 1,
+            "text": "Separations",
+            "column_header": false,
+            "row_header": true,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 165.40333557128906,
+              "t": 663.2683410644531,
+              "r": 527.81201171875,
+              "b": 670.1897735595703,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 3,
+            "end_row_offset_idx": 4,
+            "start_col_offset_idx": 3,
+            "end_col_offset_idx": 4,
+            "text": "0.069 0.011 0.051 0.0056 0.045 0.0045 0.038 0.0035",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 56.09541320800781,
+              "t": 674.6878509521484,
+              "r": 527.8682861328125,
+              "b": 684.4535675048828,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 4,
+            "end_row_offset_idx": 5,
+            "start_col_offset_idx": 0,
+            "end_col_offset_idx": 1,
+            "text": "Hires less Separations -0.0025 0.0062 -0.0042 0.0045 -0.0035 0.0037 -0.0029 0.0030",
+            "column_header": false,
+            "row_header": true,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 55.745941162109375,
+              "t": 686.3986053466797,
+              "r": 525.4413452148438,
+              "b": 696.2031402587891,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 5,
+            "end_row_offset_idx": 6,
+            "start_col_offset_idx": 0,
+            "end_col_offset_idx": 1,
+            "text": "Job finding rate proxy 0.782 0.218 0.614 0.187 0.714 0.294 0.776 0.350",
+            "column_header": false,
+            "row_header": true,
+            "row_section": false
+          }
+        ],
+        "num_rows": 6,
+        "num_cols": 6,
+        "grid": [
+          [
+            {
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 0,
+              "end_row_offset_idx": 1,
+              "start_col_offset_idx": 0,
+              "end_col_offset_idx": 1,
+              "text": "",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 0,
+              "end_row_offset_idx": 1,
+              "start_col_offset_idx": 1,
+              "end_col_offset_idx": 2,
+              "text": "",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 161.29649353027344,
+                "t": 606.4999847412109,
+                "r": 531.3644409179688,
+                "b": 628.0154418945312,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 2,
+              "start_row_offset_idx": 0,
+              "end_row_offset_idx": 1,
+              "start_col_offset_idx": 2,
+              "end_col_offset_idx": 4,
+              "text": "High school or  Less than high school equivalent, no college Associate degree advanced degree",
+              "column_header": true,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 161.29649353027344,
+                "t": 606.4999847412109,
+                "r": 531.3644409179688,
+                "b": 628.0154418945312,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 2,
+              "start_row_offset_idx": 0,
+              "end_row_offset_idx": 1,
+              "start_col_offset_idx": 2,
+              "end_col_offset_idx": 4,
+              "text": "High school or  Less than high school equivalent, no college Associate degree advanced degree",
+              "column_header": true,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 370.5380859375,
+                "t": 606.5001678466797,
+                "r": 539.2050170898438,
+                "b": 616.2852935791016,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 2,
+              "start_row_offset_idx": 0,
+              "end_row_offset_idx": 1,
+              "start_col_offset_idx": 4,
+              "end_col_offset_idx": 6,
+              "text": "Some college or Bachelor’s degree or",
+              "column_header": true,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 370.5380859375,
+                "t": 606.5001678466797,
+                "r": 539.2050170898438,
+                "b": 616.2852935791016,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 2,
+              "start_row_offset_idx": 0,
+              "end_row_offset_idx": 1,
+              "start_col_offset_idx": 4,
+              "end_col_offset_idx": 6,
+              "text": "Some college or Bachelor’s degree or",
+              "column_header": true,
+              "row_header": false,
+              "row_section": false
+            }
+          ],
+          [
+            {
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 1,
+              "end_row_offset_idx": 2,
+              "start_col_offset_idx": 0,
+              "end_col_offset_idx": 1,
+              "text": "",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 164.33441162109375,
+                "t": 637.1352233886719,
+                "r": 187.8070526123047,
+                "b": 641.8724670410156,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 1,
+              "end_row_offset_idx": 2,
+              "start_col_offset_idx": 1,
+              "end_col_offset_idx": 2,
+              "text": "mean",
+              "column_header": true,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 222.98385620117188,
+                "t": 634.6347045898438,
+                "r": 291.1495056152344,
+                "b": 641.8667755126953,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 1,
+              "end_row_offset_idx": 2,
+              "start_col_offset_idx": 2,
+              "end_col_offset_idx": 3,
+              "text": "sd mean",
+              "column_header": true,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 326.5333251953125,
+                "t": 634.6347045898438,
+                "r": 335.9786682128906,
+                "b": 641.8667755126953,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 1,
+              "end_row_offset_idx": 2,
+              "start_col_offset_idx": 3,
+              "end_col_offset_idx": 4,
+              "text": "sd",
+              "column_header": true,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 371.44964599609375,
+                "t": 634.6343383789062,
+                "r": 519.5757446289062,
+                "b": 641.8664093017578,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 1,
+              "end_row_offset_idx": 2,
+              "start_col_offset_idx": 4,
+              "end_col_offset_idx": 5,
+              "text": "mean sd mean sd",
+              "column_header": true,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 1,
+              "end_row_offset_idx": 2,
+              "start_col_offset_idx": 5,
+              "end_col_offset_idx": 6,
+              "text": "",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            }
+          ],
+          [
+            {
+              "bbox": {
+                "l": 56.093666076660156,
+                "t": 651.5638580322266,
+                "r": 79.0146713256836,
+                "b": 658.4601745605469,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 2,
+              "end_row_offset_idx": 3,
+              "start_col_offset_idx": 0,
+              "end_col_offset_idx": 1,
+              "text": "Hires",
+              "column_header": false,
+              "row_header": true,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 165.40321350097656,
+                "t": 651.5387420654297,
+                "r": 240.7916259765625,
+                "b": 658.4601745605469,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 2,
+              "end_row_offset_idx": 3,
+              "start_col_offset_idx": 1,
+              "end_col_offset_idx": 2,
+              "text": "0.066 0.0084",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 268.7391357421875,
+                "t": 651.5387420654297,
+                "r": 289.98876953125,
+                "b": 658.4601745605469,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 2,
+              "end_row_offset_idx": 3,
+              "start_col_offset_idx": 2,
+              "end_col_offset_idx": 3,
+              "text": "0.046",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 318.19903564453125,
+                "t": 651.5390167236328,
+                "r": 527.8994750976562,
+                "b": 658.46044921875,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 2,
+              "end_row_offset_idx": 3,
+              "start_col_offset_idx": 3,
+              "end_col_offset_idx": 4,
+              "text": "0.0043 0.041 0.0038 0.035 0.0032",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 2,
+              "end_row_offset_idx": 3,
+              "start_col_offset_idx": 4,
+              "end_col_offset_idx": 5,
+              "text": "",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 2,
+              "end_row_offset_idx": 3,
+              "start_col_offset_idx": 5,
+              "end_col_offset_idx": 6,
+              "text": "",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            }
+          ],
+          [
+            {
+              "bbox": {
+                "l": 56.11482620239258,
+                "t": 663.1227416992188,
+                "r": 105.98207092285156,
+                "b": 672.7234191894531,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 3,
+              "end_row_offset_idx": 4,
+              "start_col_offset_idx": 0,
+              "end_col_offset_idx": 1,
+              "text": "Separations",
+              "column_header": false,
+              "row_header": true,
+              "row_section": false
+            },
+            {
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 3,
+              "end_row_offset_idx": 4,
+              "start_col_offset_idx": 1,
+              "end_col_offset_idx": 2,
+              "text": "",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 3,
+              "end_row_offset_idx": 4,
+              "start_col_offset_idx": 2,
+              "end_col_offset_idx": 3,
+              "text": "",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 165.40333557128906,
+                "t": 663.2683410644531,
+                "r": 527.81201171875,
+                "b": 670.1897735595703,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 3,
+              "end_row_offset_idx": 4,
+              "start_col_offset_idx": 3,
+              "end_col_offset_idx": 4,
+              "text": "0.069 0.011 0.051 0.0056 0.045 0.0045 0.038 0.0035",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 3,
+              "end_row_offset_idx": 4,
+              "start_col_offset_idx": 4,
+              "end_col_offset_idx": 5,
+              "text": "",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 3,
+              "end_row_offset_idx": 4,
+              "start_col_offset_idx": 5,
+              "end_col_offset_idx": 6,
+              "text": "",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            }
+          ],
+          [
+            {
+              "bbox": {
+                "l": 56.09541320800781,
+                "t": 674.6878509521484,
+                "r": 527.8682861328125,
+                "b": 684.4535675048828,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 4,
+              "end_row_offset_idx": 5,
+              "start_col_offset_idx": 0,
+              "end_col_offset_idx": 1,
+              "text": "Hires less Separations -0.0025 0.0062 -0.0042 0.0045 -0.0035 0.0037 -0.0029 0.0030",
+              "column_header": false,
+              "row_header": true,
+              "row_section": false
+            },
+            {
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 4,
+              "end_row_offset_idx": 5,
+              "start_col_offset_idx": 1,
+              "end_col_offset_idx": 2,
+              "text": "",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 4,
+              "end_row_offset_idx": 5,
+              "start_col_offset_idx": 2,
+              "end_col_offset_idx": 3,
+              "text": "",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 4,
+              "end_row_offset_idx": 5,
+              "start_col_offset_idx": 3,
+              "end_col_offset_idx": 4,
+              "text": "",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 4,
+              "end_row_offset_idx": 5,
+              "start_col_offset_idx": 4,
+              "end_col_offset_idx": 5,
+              "text": "",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 4,
+              "end_row_offset_idx": 5,
+              "start_col_offset_idx": 5,
+              "end_col_offset_idx": 6,
+              "text": "",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            }
+          ],
+          [
+            {
+              "bbox": {
+                "l": 55.745941162109375,
+                "t": 686.3986053466797,
+                "r": 525.4413452148438,
+                "b": 696.2031402587891,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 5,
+              "end_row_offset_idx": 6,
+              "start_col_offset_idx": 0,
+              "end_col_offset_idx": 1,
+              "text": "Job finding rate proxy 0.782 0.218 0.614 0.187 0.714 0.294 0.776 0.350",
+              "column_header": false,
+              "row_header": true,
+              "row_section": false
+            },
+            {
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 5,
+              "end_row_offset_idx": 6,
+              "start_col_offset_idx": 1,
+              "end_col_offset_idx": 2,
+              "text": "",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 5,
+              "end_row_offset_idx": 6,
+              "start_col_offset_idx": 2,
+              "end_col_offset_idx": 3,
+              "text": "",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 5,
+              "end_row_offset_idx": 6,
+              "start_col_offset_idx": 3,
+              "end_col_offset_idx": 4,
+              "text": "",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 5,
+              "end_row_offset_idx": 6,
+              "start_col_offset_idx": 4,
+              "end_col_offset_idx": 5,
+              "text": "",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 5,
+              "end_row_offset_idx": 6,
+              "start_col_offset_idx": 5,
+              "end_col_offset_idx": 6,
+              "text": "",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            }
+          ]
+        ]
+      }
+    }
+  ],
+  "key_value_items": [],
+  "form_items": [],
+  "pages": {
+    "1": {
+      "size": {
+        "width": 595.2760009765625,
+        "height": 841.8900146484375
+      },
+      "page_no": 1
+    }
+  }
+}

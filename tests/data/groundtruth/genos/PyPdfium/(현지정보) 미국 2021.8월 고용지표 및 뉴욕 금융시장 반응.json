@@ -1,0 +1,4055 @@
+{
+  "schema_name": "DoclingDocument",
+  "version": "1.3.0",
+  "name": "(현지정보) 미국 2021.8월 고용지표 및 뉴욕 금융시장 반응",
+  "origin": {
+    "mimetype": "application/pdf",
+    "binary_hash": 7818406150042431011,
+    "filename": "(현지정보) 미국 2021.8월 고용지표 및 뉴욕 금융시장 반응.pdf"
+  },
+  "furniture": {
+    "self_ref": "#/furniture",
+    "children": [],
+    "content_layer": "furniture",
+    "name": "_root_",
+    "label": "unspecified"
+  },
+  "body": {
+    "self_ref": "#/body",
+    "children": [
+      {
+        "$ref": "#/texts/0"
+      },
+      {
+        "$ref": "#/texts/1"
+      },
+      {
+        "$ref": "#/texts/2"
+      },
+      {
+        "$ref": "#/texts/3"
+      },
+      {
+        "$ref": "#/texts/4"
+      },
+      {
+        "$ref": "#/groups/0"
+      },
+      {
+        "$ref": "#/texts/15"
+      },
+      {
+        "$ref": "#/texts/16"
+      },
+      {
+        "$ref": "#/texts/17"
+      },
+      {
+        "$ref": "#/pictures/0"
+      },
+      {
+        "$ref": "#/tables/0"
+      },
+      {
+        "$ref": "#/texts/75"
+      }
+    ],
+    "content_layer": "body",
+    "name": "_root_",
+    "label": "unspecified"
+  },
+  "groups": [
+    {
+      "self_ref": "#/groups/0",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [
+        {
+          "$ref": "#/texts/5"
+        },
+        {
+          "$ref": "#/texts/6"
+        },
+        {
+          "$ref": "#/texts/7"
+        },
+        {
+          "$ref": "#/texts/8"
+        },
+        {
+          "$ref": "#/texts/9"
+        },
+        {
+          "$ref": "#/texts/10"
+        },
+        {
+          "$ref": "#/texts/11"
+        },
+        {
+          "$ref": "#/texts/12"
+        },
+        {
+          "$ref": "#/texts/13"
+        },
+        {
+          "$ref": "#/texts/14"
+        }
+      ],
+      "content_layer": "body",
+      "name": "list",
+      "label": "list"
+    }
+  ],
+  "texts": [
+    {
+      "self_ref": "#/texts/0",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "furniture",
+      "label": "page_header",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 74.7195053100586,
+            "t": 772.1951904296875,
+            "r": 172.70639038085938,
+            "b": 755.379638671875,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            14
+          ]
+        }
+      ],
+      "orig": "2021. 9. 3(금 )",
+      "text": "2021. 9. 3(금 )"
+    },
+    {
+      "self_ref": "#/texts/1",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "furniture",
+      "label": "page_header",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 437.1630554199219,
+            "t": 772.1951904296875,
+            "r": 511.164306640625,
+            "b": 755.379638671875,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            5
+          ]
+        }
+      ],
+      "orig": "뉴욕사무소",
+      "text": "뉴욕사무소"
+    },
+    {
+      "self_ref": "#/texts/2",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "section_header",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 234.1208038330078,
+            "t": 775.4527587890625,
+            "r": 357.6457824707031,
+            "b": 750.9688110351562,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            7
+          ]
+        }
+      ],
+      "orig": "현 지 정 보",
+      "text": "현 지 정 보",
+      "level": 1
+    },
+    {
+      "self_ref": "#/texts/3",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "section_header",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 107.34002685546875,
+            "t": 730.079345703125,
+            "r": 487.05902099609375,
+            "b": 714.4077758789062,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            31
+          ]
+        }
+      ],
+      "orig": "美 2021. 8월 고용지표 내용 및 뉴욕 금융시장 반응",
+      "text": "美 2021. 8월 고용지표 내용 및 뉴욕 금융시장 반응",
+      "level": 1
+    },
+    {
+      "self_ref": "#/texts/4",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "section_header",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 65.9984359741211,
+            "t": 694.8915405273438,
+            "r": 172.4661102294922,
+            "b": 681.1052856445312,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            10
+          ]
+        }
+      ],
+      "orig": "1. 고용지표 내용",
+      "text": "1. 고용지표 내용",
+      "level": 1
+    },
+    {
+      "self_ref": "#/texts/5",
+      "parent": {
+        "$ref": "#/groups/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "list_item",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 64.52503204345703,
+            "t": 668.8681030273438,
+            "r": 529.633544921875,
+            "b": 635.1259155273438,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            78
+          ]
+        }
+      ],
+      "orig": "□ '21.8월중 비농업부문 취업자수(Non-farm Payrolls)는 전월대비 23.5만명 증가 하여 시장 예상치(+73.3만명)를 하회",
+      "text": "□ '21.8월중 비농업부문 취업자수(Non-farm Payrolls)는 전월대비 23.5만명 증가 하여 시장 예상치(+73.3만명)를 하회",
+      "enumerated": false,
+      "marker": "-"
+    },
+    {
+      "self_ref": "#/texts/6",
+      "parent": {
+        "$ref": "#/groups/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "list_item",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 83.95449829101562,
+            "t": 622.1192016601562,
+            "r": 530.233154296875,
+            "b": 589.6956176757812,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            70
+          ]
+        }
+      ],
+      "orig": "o 민간부문 취업자수는 24.3만명 증가(+61.0만명 예상)하였고 정부부문 취업 자수는 0.8만명 감소(+12.3만명 예상)",
+      "text": "o 민간부문 취업자수는 24.3만명 증가(+61.0만명 예상)하였고 정부부문 취업 자수는 0.8만명 감소(+12.3만명 예상)",
+      "enumerated": false,
+      "marker": "-"
+    },
+    {
+      "self_ref": "#/texts/7",
+      "parent": {
+        "$ref": "#/groups/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "list_item",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 90.43099212646484,
+            "t": 580.524658203125,
+            "r": 530.2320556640625,
+            "b": 548.0880737304688,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            73
+          ]
+        }
+      ],
+      "orig": "－ 업종별로는 여가·호텔·식당 부문이 전월 수준에 머무르고 도·소매 부문은 감소로 돌아섰으며 교육·의료, 제조 부문은 증가세가 둔화",
+      "text": "－ 업종별로는 여가·호텔·식당 부문이 전월 수준에 머무르고 도·소매 부문은 감소로 돌아섰으며 교육·의료, 제조 부문은 증가세가 둔화",
+      "enumerated": false,
+      "marker": "-"
+    },
+    {
+      "self_ref": "#/texts/8",
+      "parent": {
+        "$ref": "#/groups/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "list_item",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 83.95449829101562,
+            "t": 535.4539184570312,
+            "r": 537.7885131835938,
+            "b": 503.0303039550781,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            106
+          ]
+        }
+      ],
+      "orig": "o 이는 팬데믹 직전에 비해 여가·호텔·식당(-1.7백만명) 및 교육·의료(-0.9백만명) 를 중심으로 5.3백만명 감소('20.2월 152.5백만명 → '21.8월 147.2백만명)한 수준",
+      "text": "o 이는 팬데믹 직전에 비해 여가·호텔·식당(-1.7백만명) 및 교육·의료(-0.9백만명) 를 중심으로 5.3백만명 감소('20.2월 152.5백만명 → '21.8월 147.2백만명)한 수준",
+      "enumerated": false,
+      "marker": "-"
+    },
+    {
+      "self_ref": "#/texts/9",
+      "parent": {
+        "$ref": "#/groups/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "list_item",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 83.95449829101562,
+            "t": 491.3421325683594,
+            "r": 538.7479858398438,
+            "b": 460.9783630371094,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            63
+          ]
+        }
+      ],
+      "orig": "o 직전 2개월치(6~7월중) 취업자수는 총 13.4만명 상향 조정(민간부문 +13.4만명, 정부부문 0.0만명)",
+      "text": "o 직전 2개월치(6~7월중) 취업자수는 총 13.4만명 상향 조정(민간부문 +13.4만명, 정부부문 0.0만명)",
+      "enumerated": false,
+      "marker": "-"
+    },
+    {
+      "self_ref": "#/texts/10",
+      "parent": {
+        "$ref": "#/groups/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "list_item",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 64.52503204345703,
+            "t": 443.15478515625,
+            "r": 529.6329956054688,
+            "b": 409.532470703125,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            81
+          ]
+        }
+      ],
+      "orig": "□ 경제활동참가율이 전월과 같은 수준(61.7% → 61.7%, 예상 61.8%)이었으며 실업률 은 하락(5.4% → 5.2%*, 예상 5.2%)",
+      "text": "□ 경제활동참가율이 전월과 같은 수준(61.7% → 61.7%, 예상 61.8%)이었으며 실업률 은 하락(5.4% → 5.2%*, 예상 5.2%)",
+      "enumerated": false,
+      "marker": "-"
+    },
+    {
+      "self_ref": "#/texts/11",
+      "parent": {
+        "$ref": "#/groups/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "list_item",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 86.47313690185547,
+            "t": 401.44036865234375,
+            "r": 530.352783203125,
+            "b": 375.03228759765625,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            171
+          ]
+        }
+      ],
+      "orig": "* 美 노동부는 휴직자(employed but not at work)를 일시적 실업자로 분류할 경우의 실업률\r\n조정폭은 약 +0.3%p 수준으로 추정된다고 발표 * 美 노동부는 휴직자를 일시적 실업자로 분류할 경우의 \r\n조정폭은 약 +0.3%p 수준으로 추정된다고 발표(전월에도 +0.3%p 수준으로 추정)",
+      "text": "* 美 노동부는 휴직자(employed but not at work)를 일시적 실업자로 분류할 경우의 실업률\r\n조정폭은 약 +0.3%p 수준으로 추정된다고 발표 * 美 노동부는 휴직자를 일시적 실업자로 분류할 경우의 \r\n조정폭은 약 +0.3%p 수준으로 추정된다고 발표(전월에도 +0.3%p 수준으로 추정)",
+      "enumerated": false,
+      "marker": "-"
+    },
+    {
+      "self_ref": "#/texts/12",
+      "parent": {
+        "$ref": "#/groups/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "list_item",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 83.95449829101562,
+            "t": 364.8803405761719,
+            "r": 516.0804443359375,
+            "b": 349.3582458496094,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            50
+          ]
+        }
+      ],
+      "orig": "o U-6 실업률(비자발적 파트타임 근로자를 실업자로 간주)도 하락(9.2% → 8.8%)",
+      "text": "o U-6 실업률(비자발적 파트타임 근로자를 실업자로 간주)도 하락(9.2% → 8.8%)",
+      "enumerated": false,
+      "marker": "-"
+    },
+    {
+      "self_ref": "#/texts/13",
+      "parent": {
+        "$ref": "#/groups/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "list_item",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 64.52503204345703,
+            "t": 331.0772705078125,
+            "r": 527.5940551757812,
+            "b": 297.3350830078125,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            86
+          ]
+        }
+      ],
+      "orig": "□ 시간당 평균임금은 전월대비(0.4% → 0.6%, 예상 0.3%) 및 전년동월대비(4.1% → 4.3%, 예상 3.9%) 모두 상승하여 시장예상을 상회",
+      "text": "□ 시간당 평균임금은 전월대비(0.4% → 0.6%, 예상 0.3%) 및 전년동월대비(4.1% → 4.3%, 예상 3.9%) 모두 상승하여 시장예상을 상회",
+      "enumerated": false,
+      "marker": "-"
+    },
+    {
+      "self_ref": "#/texts/14",
+      "parent": {
+        "$ref": "#/groups/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "list_item",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 83.95449829101562,
+            "t": 286.96551513671875,
+            "r": 521.4773559570312,
+            "b": 271.44342041015625,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            50
+          ]
+        }
+      ],
+      "orig": "o 주당 평균노동시간은 전월 수준을 유지(34.7시간 → 34.7시간, 예상 34.8시간)",
+      "text": "o 주당 평균노동시간은 전월 수준을 유지(34.7시간 → 34.7시간, 예상 34.8시간)",
+      "enumerated": false,
+      "marker": "-"
+    },
+    {
+      "self_ref": "#/texts/15",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "section_header",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 98.51652526855469,
+            "t": 254.99830627441406,
+            "r": 257.64501953125,
+            "b": 244.41148376464844,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            17
+          ]
+        }
+      ],
+      "orig": "非농업 취업자수 증감 및 실업률",
+      "text": "非농업 취업자수 증감 및 실업률",
+      "level": 1
+    },
+    {
+      "self_ref": "#/texts/16",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "section_header",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 320.561767578125,
+            "t": 254.99830627441406,
+            "r": 490.5078430175781,
+            "b": 244.41148376464844,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            18
+          ]
+        }
+      ],
+      "orig": "주요 부문별 非농업 취업자수 증감",
+      "text": "주요 부문별 非농업 취업자수 증감",
+      "level": 1
+    },
+    {
+      "self_ref": "#/texts/17",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 486.93609619140625,
+            "t": 238.05892944335938,
+            "r": 520.1580810546875,
+            "b": 226.1299285888672,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            12
+          ]
+        }
+      ],
+      "orig": "(천명)\r\n‘20.3~",
+      "text": "(천명)\r\n‘20.3~"
+    },
+    {
+      "self_ref": "#/texts/18",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "caption",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 62.6060676574707,
+            "t": 72.63973236083984,
+            "r": 173.5459442138672,
+            "b": 58.26744079589844,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            12
+          ]
+        }
+      ],
+      "orig": "작성자 : 김 연 과장",
+      "text": "작성자 : 김 연 과장"
+    },
+    {
+      "self_ref": "#/texts/19",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 373.95733642578125,
+            "t": 221.63685607910156,
+            "r": 469.785400390625,
+            "b": 208.98922729492188,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            16
+          ]
+        }
+      ],
+      "orig": "'20.8월 '21.7월 8월",
+      "text": "'20.8월 '21.7월 8월"
+    },
+    {
+      "self_ref": "#/texts/20",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 483.5779113769531,
+            "t": 226.31178283691406,
+            "r": 515.2396850585938,
+            "b": 213.66415405273438,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            19
+          ]
+        }
+      ],
+      "orig": "(천명)\r\n‘20.3~ ’21.8월",
+      "text": "(천명)\r\n‘20.3~ ’21.8월"
+    },
+    {
+      "self_ref": "#/texts/21",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 481.4190979003906,
+            "t": 216.8421173095703,
+            "r": 513.0819091796875,
+            "b": 204.19448852539062,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            21
+          ]
+        }
+      ],
+      "orig": "‘20.3~ ’21.8월\r\n-5,333",
+      "text": "‘20.3~ ’21.8월\r\n-5,333"
+    },
+    {
+      "self_ref": "#/texts/22",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 300.05816650390625,
+            "t": 200.35487365722656,
+            "r": 304.1215515136719,
+            "b": 196.1460418701172,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            1
+          ]
+        }
+      ],
+      "orig": "▪",
+      "text": "▪"
+    },
+    {
+      "self_ref": "#/texts/23",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 309.3248291015625,
+            "t": 204.97511291503906,
+            "r": 363.5227966308594,
+            "b": 192.32748413085938,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            13
+          ]
+        }
+      ],
+      "orig": "非농업 전체 \r\n민간부문",
+      "text": "非농업 전체 \r\n민간부문"
+    },
+    {
+      "self_ref": "#/texts/24",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 376.83575439453125,
+            "t": 205.334716796875,
+            "r": 443.7591857910156,
+            "b": 192.11219787597656,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            23
+          ]
+        }
+      ],
+      "orig": "1,583 1,053 \r\n1,066 798",
+      "text": "1,583 1,053 \r\n1,066 798"
+    },
+    {
+      "self_ref": "#/texts/25",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 457.19219970703125,
+            "t": 205.334716796875,
+            "r": 516.43994140625,
+            "b": 192.11219787597656,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            31
+          ]
+        }
+      ],
+      "orig": "’21.8월\r\n235 -5,333 \r\n243 -4,543",
+      "text": "’21.8월\r\n235 -5,333 \r\n243 -4,543"
+    },
+    {
+      "self_ref": "#/texts/26",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 303.42498779296875,
+            "t": 186.48646545410156,
+            "r": 314.3856201171875,
+            "b": 182.31982421875,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            1
+          ]
+        }
+      ],
+      "orig": "-",
+      "text": "-"
+    },
+    {
+      "self_ref": "#/texts/27",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 316.0287170410156,
+            "t": 192.86830139160156,
+            "r": 358.00518798828125,
+            "b": 180.22067260742188,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            18
+          ]
+        }
+      ],
+      "orig": "농업 전체 \r\n민간부문 \r\n건 설",
+      "text": "농업 전체 \r\n민간부문 \r\n건 설"
+    },
+    {
+      "self_ref": "#/texts/28",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 376.83575439453125,
+            "t": 193.2279052734375,
+            "r": 406.93878173828125,
+            "b": 180.00538635253906,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            18
+          ]
+        }
+      ],
+      "orig": "1,583 \r\n1,066 \r\n26",
+      "text": "1,583 \r\n1,066 \r\n26"
+    },
+    {
+      "self_ref": "#/texts/29",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 421.8114013671875,
+            "t": 193.2279052734375,
+            "r": 443.7591552734375,
+            "b": 180.00538635253906,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            15
+          ]
+        }
+      ],
+      "orig": "1,053 \r\n798 \r\n6",
+      "text": "1,053 \r\n798 \r\n6"
+    },
+    {
+      "self_ref": "#/texts/30",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 457.19219970703125,
+            "t": 193.2279052734375,
+            "r": 516.43994140625,
+            "b": 180.00538635253906,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            32
+          ]
+        }
+      ],
+      "orig": "235 -5,333 \r\n243 -4,543\r\n-3 -232",
+      "text": "235 -5,333 \r\n243 -4,543\r\n-3 -232"
+    },
+    {
+      "self_ref": "#/texts/31",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 309.3123474121094,
+            "t": 180.7615509033203,
+            "r": 348.5310974121094,
+            "b": 168.11392211914062,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            18
+          ]
+        }
+      ],
+      "orig": "민간부문 \r\n(건 설) \r\n제 조",
+      "text": "민간부문 \r\n(건 설) \r\n제 조"
+    },
+    {
+      "self_ref": "#/texts/32",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 390.50836181640625,
+            "t": 181.12115478515625,
+            "r": 406.9391174316406,
+            "b": 167.8986358642578,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            14
+          ]
+        }
+      ],
+      "orig": ",066 \r\n26 \r\n31",
+      "text": ",066 \r\n26 \r\n31"
+    },
+    {
+      "self_ref": "#/texts/33",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 432.7254638671875,
+            "t": 181.12115478515625,
+            "r": 443.7594909667969,
+            "b": 167.8986358642578,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            12
+          ]
+        }
+      ],
+      "orig": "798 \r\n6 \r\n52",
+      "text": "798 \r\n6 \r\n52"
+    },
+    {
+      "self_ref": "#/texts/34",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 464.50823974609375,
+            "t": 181.12115478515625,
+            "r": 516.43994140625,
+            "b": 167.8986358642578,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            28
+          ]
+        }
+      ],
+      "orig": "243 -4,543\r\n-3 -232\r\n37 -378",
+      "text": "243 -4,543\r\n-3 -232\r\n37 -378"
+    },
+    {
+      "self_ref": "#/texts/35",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 309.3123474121094,
+            "t": 168.65480041503906,
+            "r": 348.5310974121094,
+            "b": 156.00717163085938,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            16
+          ]
+        }
+      ],
+      "orig": "건 설\r\n(제 조) \r\n도소매",
+      "text": "건 설\r\n(제 조) \r\n도소매"
+    },
+    {
+      "self_ref": "#/texts/36",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 390.50836181640625,
+            "t": 169.014404296875,
+            "r": 406.9391174316406,
+            "b": 155.79188537597656,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            13
+          ]
+        }
+      ],
+      "orig": "26 \r\n31 \r\n260",
+      "text": "26 \r\n31 \r\n260"
+    },
+    {
+      "self_ref": "#/texts/37",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 427.2084655761719,
+            "t": 169.014404296875,
+            "r": 443.7594909667969,
+            "b": 155.79188537597656,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            10
+          ]
+        }
+      ],
+      "orig": "6 \r\n52 \r\n6",
+      "text": "6 \r\n52 \r\n6"
+    },
+    {
+      "self_ref": "#/texts/38",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 462.58929443359375,
+            "t": 169.014404296875,
+            "r": 516.43994140625,
+            "b": 155.79188537597656,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            26
+          ]
+        }
+      ],
+      "orig": "-3 -232\r\n37 -378\r\n-27 -458",
+      "text": "-3 -232\r\n37 -378\r\n-27 -458"
+    },
+    {
+      "self_ref": "#/texts/39",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 309.3123474121094,
+            "t": 156.54798889160156,
+            "r": 323.7045593261719,
+            "b": 143.90036010742188,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            9
+          ]
+        }
+      ],
+      "orig": "제 \r\n(도\r\n운",
+      "text": "제 \r\n(도\r\n운"
+    },
+    {
+      "self_ref": "#/texts/40",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 323.9684143066406,
+            "t": 149.8391571044922,
+            "r": 325.25604248046875,
+            "b": 148.5100555419922,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            1
+          ]
+        }
+      ],
+      "orig": "․",
+      "text": "․"
+    },
+    {
+      "self_ref": "#/texts/41",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 325.5035705566406,
+            "t": 156.54798889160156,
+            "r": 350.4500732421875,
+            "b": 143.90036010742188,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            12
+          ]
+        }
+      ],
+      "orig": "조\r\n소매) \r\n송창고",
+      "text": "조\r\n소매) \r\n송창고"
+    },
+    {
+      "self_ref": "#/texts/42",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 384.9913330078125,
+            "t": 156.9075927734375,
+            "r": 406.9390869140625,
+            "b": 143.68507385253906,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            13
+          ]
+        }
+      ],
+      "orig": "31 \r\n260 \r\n87",
+      "text": "31 \r\n260 \r\n87"
+    },
+    {
+      "self_ref": "#/texts/43",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 432.7254638671875,
+            "t": 156.9075927734375,
+            "r": 443.7594909667969,
+            "b": 143.68507385253906,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            11
+          ]
+        }
+      ],
+      "orig": "52 \r\n6 \r\n55",
+      "text": "52 \r\n6 \r\n55"
+    },
+    {
+      "self_ref": "#/texts/44",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 458.9912414550781,
+            "t": 156.9075927734375,
+            "r": 516.43994140625,
+            "b": 143.68507385253906,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            24
+          ]
+        }
+      ],
+      "orig": "37 -378\r\n-27 -458\r\n53 22",
+      "text": "37 -378\r\n-27 -458\r\n53 22"
+    },
+    {
+      "self_ref": "#/texts/45",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 309.3123474121094,
+            "t": 144.4412384033203,
+            "r": 334.2588195800781,
+            "b": 131.79360961914062,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            11
+          ]
+        }
+      ],
+      "orig": "도소\r\n(운송\r\n교육",
+      "text": "도소\r\n(운송\r\n교육"
+    },
+    {
+      "self_ref": "#/texts/46",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 334.40277099609375,
+            "t": 137.73240661621094,
+            "r": 335.6903991699219,
+            "b": 136.40330505371094,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            1
+          ]
+        }
+      ],
+      "orig": "․",
+      "text": "․"
+    },
+    {
+      "self_ref": "#/texts/47",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 335.93792724609375,
+            "t": 144.4412384033203,
+            "r": 360.8843994140625,
+            "b": 131.79360961914062,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            12
+          ]
+        }
+      ],
+      "orig": "소매\r\n창고) \r\n의료",
+      "text": "소매\r\n창고) \r\n의료"
+    },
+    {
+      "self_ref": "#/texts/48",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 390.50836181640625,
+            "t": 144.80084228515625,
+            "r": 406.9391174316406,
+            "b": 131.5783233642578,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            14
+          ]
+        }
+      ],
+      "orig": "260 \r\n87 \r\n199",
+      "text": "260 \r\n87 \r\n199"
+    },
+    {
+      "self_ref": "#/texts/49",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 427.2084655761719,
+            "t": 144.80084228515625,
+            "r": 443.7594909667969,
+            "b": 131.5783233642578,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            11
+          ]
+        }
+      ],
+      "orig": "6 \r\n55 \r\n88",
+      "text": "6 \r\n55 \r\n88"
+    },
+    {
+      "self_ref": "#/texts/50",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 462.58929443359375,
+            "t": 144.80084228515625,
+            "r": 479.14031982421875,
+            "b": 131.5783233642578,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            13
+          ]
+        }
+      ],
+      "orig": "-27 \r\n53 \r\n35",
+      "text": "-27 \r\n53 \r\n35"
+    },
+    {
+      "self_ref": "#/texts/51",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 500.0090026855469,
+            "t": 144.80084228515625,
+            "r": 516.4397583007812,
+            "b": 131.5783233642578,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            14
+          ]
+        }
+      ],
+      "orig": "-458\r\n22\r\n-905",
+      "text": "-458\r\n22\r\n-905"
+    },
+    {
+      "self_ref": "#/texts/52",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 309.3123474121094,
+            "t": 132.33448791503906,
+            "r": 334.2588195800781,
+            "b": 119.6868667602539,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            12
+          ]
+        }
+      ],
+      "orig": "운송\r\n(교육\r\n여가호",
+      "text": "운송\r\n(교육\r\n여가호"
+    },
+    {
+      "self_ref": "#/texts/53",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 334.40277099609375,
+            "t": 125.62565612792969,
+            "r": 335.6903991699219,
+            "b": 124.29654693603516,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            1
+          ]
+        }
+      ],
+      "orig": "․",
+      "text": "․"
+    },
+    {
+      "self_ref": "#/texts/54",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 335.93792724609375,
+            "t": 132.33448791503906,
+            "r": 360.8843994140625,
+            "b": 119.6868667602539,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            14
+          ]
+        }
+      ],
+      "orig": "창고\r\n의료) \r\n호텔식당",
+      "text": "창고\r\n의료) \r\n호텔식당"
+    },
+    {
+      "self_ref": "#/texts/55",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 384.9913330078125,
+            "t": 132.694091796875,
+            "r": 406.9390869140625,
+            "b": 119.47157287597656,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            14
+          ]
+        }
+      ],
+      "orig": "87 \r\n199 \r\n139",
+      "text": "87 \r\n199 \r\n139"
+    },
+    {
+      "self_ref": "#/texts/56",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 427.2084655761719,
+            "t": 132.694091796875,
+            "r": 443.7594909667969,
+            "b": 119.47157287597656,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            13
+          ]
+        }
+      ],
+      "orig": "55 \r\n88 \r\n415",
+      "text": "55 \r\n88 \r\n415"
+    },
+    {
+      "self_ref": "#/texts/57",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 462.58929443359375,
+            "t": 132.694091796875,
+            "r": 516.43994140625,
+            "b": 119.47157287597656,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            24
+          ]
+        }
+      ],
+      "orig": "53 22\r\n35 -905\r\n0 -1,699",
+      "text": "53 22\r\n35 -905\r\n0 -1,699"
+    },
+    {
+      "self_ref": "#/texts/58",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 309.4322814941406,
+            "t": 120.22766876220703,
+            "r": 330.0614013671875,
+            "b": 107.5800552368164,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            12
+          ]
+        }
+      ],
+      "orig": "교육\r\n(여가․\r\n임시",
+      "text": "교육\r\n(여가․\r\n임시"
+    },
+    {
+      "self_ref": "#/texts/59",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 329.365478515625,
+            "t": 113.51884460449219,
+            "r": 330.6531066894531,
+            "b": 112.18973541259766,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            3
+          ]
+        }
+      ],
+      "orig": "가․호",
+      "text": "가․호"
+    },
+    {
+      "self_ref": "#/texts/60",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 330.3009948730469,
+            "t": 120.22766876220703,
+            "r": 348.5314025878906,
+            "b": 107.5800552368164,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            13
+          ]
+        }
+      ],
+      "orig": "육의료\r\n․호텔․\r\n시직",
+      "text": "육의료\r\n․호텔․\r\n시직"
+    },
+    {
+      "self_ref": "#/texts/61",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 347.8354797363281,
+            "t": 113.51884460449219,
+            "r": 349.12310791015625,
+            "b": 112.18973541259766,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            3
+          ]
+        }
+      ],
+      "orig": "텔․식",
+      "text": "텔․식"
+    },
+    {
+      "self_ref": "#/texts/62",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 348.6510314941406,
+            "t": 120.22766876220703,
+            "r": 368.08050537109375,
+            "b": 107.5800552368164,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            7
+          ]
+        }
+      ],
+      "orig": "료\r\n․식당)",
+      "text": "료\r\n․식당)"
+    },
+    {
+      "self_ref": "#/texts/63",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 384.9913330078125,
+            "t": 120.58727264404297,
+            "r": 406.9390869140625,
+            "b": 107.36476135253906,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            14
+          ]
+        }
+      ],
+      "orig": "199 \r\n139 \r\n99",
+      "text": "199 \r\n139 \r\n99"
+    },
+    {
+      "self_ref": "#/texts/64",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 421.8114013671875,
+            "t": 120.58727264404297,
+            "r": 443.7591552734375,
+            "b": 107.36476135253906,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            13
+          ]
+        }
+      ],
+      "orig": "88 \r\n415 \r\n10",
+      "text": "88 \r\n415 \r\n10"
+    },
+    {
+      "self_ref": "#/texts/65",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 468.1062927246094,
+            "t": 120.58727264404297,
+            "r": 516.43994140625,
+            "b": 107.36476135253906,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            26
+          ]
+        }
+      ],
+      "orig": "35 -905\r\n0 -1,699\r\n-6 -262",
+      "text": "35 -905\r\n0 -1,699\r\n-6 -262"
+    },
+    {
+      "self_ref": "#/texts/66",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 309.3123474121094,
+            "t": 108.12091827392578,
+            "r": 348.5310974121094,
+            "b": 95.47330474853516,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            18
+          ]
+        }
+      ],
+      "orig": "여가호텔\r\n(임시직) \r\n정부부문",
+      "text": "여가호텔\r\n(임시직) \r\n정부부문"
+    },
+    {
+      "self_ref": "#/texts/67",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 390.50836181640625,
+            "t": 108.48052215576172,
+            "r": 406.9391174316406,
+            "b": 95.25801086425781,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            14
+          ]
+        }
+      ],
+      "orig": "139 \r\n99 \r\n517",
+      "text": "139 \r\n99 \r\n517"
+    },
+    {
+      "self_ref": "#/texts/68",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 427.2084655761719,
+            "t": 108.48052215576172,
+            "r": 443.7594909667969,
+            "b": 95.25801086425781,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            14
+          ]
+        }
+      ],
+      "orig": "415 \r\n10 \r\n255",
+      "text": "415 \r\n10 \r\n255"
+    },
+    {
+      "self_ref": "#/texts/69",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 464.50823974609375,
+            "t": 108.48052215576172,
+            "r": 516.43994140625,
+            "b": 95.25801086425781,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            27
+          ]
+        }
+      ],
+      "orig": "0 -1,699\r\n-6 -262 \r\n-8 -790",
+      "text": "0 -1,699\r\n-6 -262 \r\n-8 -790"
+    },
+    {
+      "self_ref": "#/texts/70",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 303.42498779296875,
+            "t": 89.6323471069336,
+            "r": 314.3856201171875,
+            "b": 85.4656982421875,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            1
+          ]
+        }
+      ],
+      "orig": "-",
+      "text": "-"
+    },
+    {
+      "self_ref": "#/texts/71",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 316.0287170410156,
+            "t": 96.01416778564453,
+            "r": 358.00518798828125,
+            "b": 83.3665542602539,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            9
+          ]
+        }
+      ],
+      "orig": "임시직\r\n정부부문",
+      "text": "임시직\r\n정부부문"
+    },
+    {
+      "self_ref": "#/texts/72",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 384.9913330078125,
+            "t": 96.37377166748047,
+            "r": 406.9390869140625,
+            "b": 83.15126037597656,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            8
+          ]
+        }
+      ],
+      "orig": "99 \r\n517",
+      "text": "99 \r\n517"
+    },
+    {
+      "self_ref": "#/texts/73",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 421.8114013671875,
+            "t": 96.37377166748047,
+            "r": 443.7591552734375,
+            "b": 83.15126037597656,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            8
+          ]
+        }
+      ],
+      "orig": "10 \r\n255",
+      "text": "10 \r\n255"
+    },
+    {
+      "self_ref": "#/texts/74",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 464.50823974609375,
+            "t": 96.37377166748047,
+            "r": 516.43994140625,
+            "b": 83.15126037597656,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            17
+          ]
+        }
+      ],
+      "orig": "-6 -262 \r\n-8 -790",
+      "text": "-6 -262 \r\n-8 -790"
+    },
+    {
+      "self_ref": "#/texts/75",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "furniture",
+      "label": "page_footer",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 291.6219482421875,
+            "t": 37.05361557006836,
+            "r": 303.8789978027344,
+            "b": 28.953468322753906,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            3
+          ]
+        }
+      ],
+      "orig": "1/2",
+      "text": "1/2"
+    }
+  ],
+  "pictures": [
+    {
+      "self_ref": "#/pictures/0",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [
+        {
+          "$ref": "#/texts/18"
+        },
+        {
+          "$ref": "#/texts/19"
+        },
+        {
+          "$ref": "#/texts/20"
+        },
+        {
+          "$ref": "#/texts/21"
+        },
+        {
+          "$ref": "#/texts/22"
+        },
+        {
+          "$ref": "#/texts/23"
+        },
+        {
+          "$ref": "#/texts/24"
+        },
+        {
+          "$ref": "#/texts/25"
+        },
+        {
+          "$ref": "#/texts/26"
+        },
+        {
+          "$ref": "#/texts/27"
+        },
+        {
+          "$ref": "#/texts/28"
+        },
+        {
+          "$ref": "#/texts/29"
+        },
+        {
+          "$ref": "#/texts/30"
+        },
+        {
+          "$ref": "#/texts/31"
+        },
+        {
+          "$ref": "#/texts/32"
+        },
+        {
+          "$ref": "#/texts/33"
+        },
+        {
+          "$ref": "#/texts/34"
+        },
+        {
+          "$ref": "#/texts/35"
+        },
+        {
+          "$ref": "#/texts/36"
+        },
+        {
+          "$ref": "#/texts/37"
+        },
+        {
+          "$ref": "#/texts/38"
+        },
+        {
+          "$ref": "#/texts/39"
+        },
+        {
+          "$ref": "#/texts/40"
+        },
+        {
+          "$ref": "#/texts/41"
+        },
+        {
+          "$ref": "#/texts/42"
+        },
+        {
+          "$ref": "#/texts/43"
+        },
+        {
+          "$ref": "#/texts/44"
+        },
+        {
+          "$ref": "#/texts/45"
+        },
+        {
+          "$ref": "#/texts/46"
+        },
+        {
+          "$ref": "#/texts/47"
+        },
+        {
+          "$ref": "#/texts/48"
+        },
+        {
+          "$ref": "#/texts/49"
+        },
+        {
+          "$ref": "#/texts/50"
+        },
+        {
+          "$ref": "#/texts/51"
+        },
+        {
+          "$ref": "#/texts/52"
+        },
+        {
+          "$ref": "#/texts/53"
+        },
+        {
+          "$ref": "#/texts/54"
+        },
+        {
+          "$ref": "#/texts/55"
+        },
+        {
+          "$ref": "#/texts/56"
+        },
+        {
+          "$ref": "#/texts/57"
+        },
+        {
+          "$ref": "#/texts/58"
+        },
+        {
+          "$ref": "#/texts/59"
+        },
+        {
+          "$ref": "#/texts/60"
+        },
+        {
+          "$ref": "#/texts/61"
+        },
+        {
+          "$ref": "#/texts/62"
+        },
+        {
+          "$ref": "#/texts/63"
+        },
+        {
+          "$ref": "#/texts/64"
+        },
+        {
+          "$ref": "#/texts/65"
+        },
+        {
+          "$ref": "#/texts/66"
+        },
+        {
+          "$ref": "#/texts/67"
+        },
+        {
+          "$ref": "#/texts/68"
+        },
+        {
+          "$ref": "#/texts/69"
+        },
+        {
+          "$ref": "#/texts/70"
+        },
+        {
+          "$ref": "#/texts/71"
+        },
+        {
+          "$ref": "#/texts/72"
+        },
+        {
+          "$ref": "#/texts/73"
+        },
+        {
+          "$ref": "#/texts/74"
+        }
+      ],
+      "content_layer": "body",
+      "label": "picture",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 60.227752685546875,
+            "t": 235.47198486328125,
+            "r": 518.6067504882812,
+            "b": 76.19671630859375,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            0
+          ]
+        }
+      ],
+      "captions": [
+        {
+          "$ref": "#/texts/18"
+        }
+      ],
+      "references": [],
+      "footnotes": [],
+      "annotations": []
+    }
+  ],
+  "tables": [
+    {
+      "self_ref": "#/tables/0",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "table",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 293.7891845703125,
+            "t": 228.94830322265625,
+            "r": 515.9393310546875,
+            "b": 80.4169921875,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            0
+          ]
+        }
+      ],
+      "captions": [],
+      "references": [],
+      "footnotes": [],
+      "data": {
+        "table_cells": [
+          {
+            "bbox": {
+              "l": 373.95733642578125,
+              "t": 619.3631439208984,
+              "r": 469.785400390625,
+              "b": 632.0107727050781,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 0,
+            "end_row_offset_idx": 1,
+            "start_col_offset_idx": 2,
+            "end_col_offset_idx": 3,
+            "text": "'20.8월 '21.7월 8월",
+            "column_header": true,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 481.4190979003906,
+              "t": 614.6882171630859,
+              "r": 515.2396850585938,
+              "b": 636.8055114746094,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 0,
+            "end_row_offset_idx": 1,
+            "start_col_offset_idx": 3,
+            "end_col_offset_idx": 4,
+            "text": "(천명)\r\n‘20.3~ ’21.8월 ‘20.3~ ’21.8월\r\n-5,333",
+            "column_header": true,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 300.05816650390625,
+              "t": 636.0248870849609,
+              "r": 363.5227966308594,
+              "b": 648.6725158691406,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 1,
+            "end_row_offset_idx": 2,
+            "start_col_offset_idx": 0,
+            "end_col_offset_idx": 1,
+            "text": "▪ 非농업 전체 \r\n민간부문",
+            "column_header": false,
+            "row_header": true,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 376.83575439453125,
+              "t": 635.665283203125,
+              "r": 443.7591857910156,
+              "b": 648.8878021240234,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 1,
+            "end_row_offset_idx": 2,
+            "start_col_offset_idx": 2,
+            "end_col_offset_idx": 3,
+            "text": "1,583 1,053 \r\n1,066 798",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 457.19219970703125,
+              "t": 635.665283203125,
+              "r": 516.43994140625,
+              "b": 648.8878021240234,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 1,
+            "end_row_offset_idx": 2,
+            "start_col_offset_idx": 3,
+            "end_col_offset_idx": 4,
+            "text": "’21.8월\r\n235 -5,333 \r\n243 -4,543",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 303.42498779296875,
+              "t": 648.1316986083984,
+              "r": 358.00518798828125,
+              "b": 660.7793273925781,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 2,
+            "end_row_offset_idx": 3,
+            "start_col_offset_idx": 0,
+            "end_col_offset_idx": 1,
+            "text": "-  농업 전체 \r\n민간부문 \r\n건 설",
+            "column_header": false,
+            "row_header": true,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 376.83575439453125,
+              "t": 647.7720947265625,
+              "r": 406.93878173828125,
+              "b": 660.9946136474609,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 2,
+            "end_row_offset_idx": 3,
+            "start_col_offset_idx": 1,
+            "end_col_offset_idx": 2,
+            "text": "1,583 \r\n1,066 \r\n26",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 421.8114013671875,
+              "t": 647.7720947265625,
+              "r": 443.7591552734375,
+              "b": 660.9946136474609,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 2,
+            "end_row_offset_idx": 3,
+            "start_col_offset_idx": 2,
+            "end_col_offset_idx": 3,
+            "text": "1,053 \r\n798 \r\n6",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 457.19219970703125,
+              "t": 647.7720947265625,
+              "r": 516.43994140625,
+              "b": 660.9946136474609,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 2,
+            "end_row_offset_idx": 3,
+            "start_col_offset_idx": 3,
+            "end_col_offset_idx": 4,
+            "text": "235 -5,333 \r\n243 -4,543\r\n-3 -232",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 309.3123474121094,
+              "t": 660.2384490966797,
+              "r": 348.5310974121094,
+              "b": 672.8860778808594,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 3,
+            "end_row_offset_idx": 4,
+            "start_col_offset_idx": 0,
+            "end_col_offset_idx": 1,
+            "text": "민간부문 \r\n(건 설) \r\n제 조",
+            "column_header": false,
+            "row_header": true,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 390.50836181640625,
+              "t": 659.8788452148438,
+              "r": 406.9391174316406,
+              "b": 673.1013641357422,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 3,
+            "end_row_offset_idx": 4,
+            "start_col_offset_idx": 1,
+            "end_col_offset_idx": 2,
+            "text": ",066 \r\n26 \r\n31",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 432.7254638671875,
+              "t": 659.8788452148438,
+              "r": 443.7594909667969,
+              "b": 673.1013641357422,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 3,
+            "end_row_offset_idx": 4,
+            "start_col_offset_idx": 2,
+            "end_col_offset_idx": 3,
+            "text": "798 \r\n6 \r\n52",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 464.50823974609375,
+              "t": 659.8788452148438,
+              "r": 516.43994140625,
+              "b": 673.1013641357422,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 3,
+            "end_row_offset_idx": 4,
+            "start_col_offset_idx": 3,
+            "end_col_offset_idx": 4,
+            "text": "243 -4,543\r\n-3 -232\r\n37 -378",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 309.3123474121094,
+              "t": 672.3451995849609,
+              "r": 348.5310974121094,
+              "b": 684.9928283691406,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 4,
+            "end_row_offset_idx": 5,
+            "start_col_offset_idx": 0,
+            "end_col_offset_idx": 1,
+            "text": "건 설\r\n(제 조) \r\n도소매",
+            "column_header": false,
+            "row_header": true,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 390.50836181640625,
+              "t": 671.985595703125,
+              "r": 406.9391174316406,
+              "b": 685.2081146240234,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 4,
+            "end_row_offset_idx": 5,
+            "start_col_offset_idx": 1,
+            "end_col_offset_idx": 2,
+            "text": "26 \r\n31 \r\n260",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 427.2084655761719,
+              "t": 671.985595703125,
+              "r": 443.7594909667969,
+              "b": 685.2081146240234,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 4,
+            "end_row_offset_idx": 5,
+            "start_col_offset_idx": 2,
+            "end_col_offset_idx": 3,
+            "text": "6 \r\n52 \r\n6",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 462.58929443359375,
+              "t": 671.985595703125,
+              "r": 516.43994140625,
+              "b": 685.2081146240234,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 4,
+            "end_row_offset_idx": 5,
+            "start_col_offset_idx": 3,
+            "end_col_offset_idx": 4,
+            "text": "-3 -232\r\n37 -378\r\n-27 -458",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 309.3123474121094,
+              "t": 684.4520111083984,
+              "r": 350.4500732421875,
+              "b": 697.0996398925781,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 5,
+            "end_row_offset_idx": 6,
+            "start_col_offset_idx": 0,
+            "end_col_offset_idx": 1,
+            "text": "제 \r\n(도\r\n운 ․ 조\r\n소매) \r\n송창고",
+            "column_header": false,
+            "row_header": true,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 384.9913330078125,
+              "t": 684.0924072265625,
+              "r": 406.9390869140625,
+              "b": 697.3149261474609,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 5,
+            "end_row_offset_idx": 6,
+            "start_col_offset_idx": 1,
+            "end_col_offset_idx": 2,
+            "text": "31 \r\n260 \r\n87",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 432.7254638671875,
+              "t": 684.0924072265625,
+              "r": 443.7594909667969,
+              "b": 697.3149261474609,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 5,
+            "end_row_offset_idx": 6,
+            "start_col_offset_idx": 2,
+            "end_col_offset_idx": 3,
+            "text": "52 \r\n6 \r\n55",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 458.9912414550781,
+              "t": 684.0924072265625,
+              "r": 516.43994140625,
+              "b": 697.3149261474609,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 5,
+            "end_row_offset_idx": 6,
+            "start_col_offset_idx": 3,
+            "end_col_offset_idx": 4,
+            "text": "37 -378\r\n-27 -458\r\n53 22",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 309.3123474121094,
+              "t": 696.5587615966797,
+              "r": 360.8843994140625,
+              "b": 709.2063903808594,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 6,
+            "end_row_offset_idx": 7,
+            "start_col_offset_idx": 0,
+            "end_col_offset_idx": 1,
+            "text": "도소\r\n(운송\r\n교육 ․ 소매\r\n창고) \r\n의료",
+            "column_header": false,
+            "row_header": true,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 390.50836181640625,
+              "t": 696.1991577148438,
+              "r": 406.9391174316406,
+              "b": 709.4216766357422,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 6,
+            "end_row_offset_idx": 7,
+            "start_col_offset_idx": 1,
+            "end_col_offset_idx": 2,
+            "text": "260 \r\n87 \r\n199",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 427.2084655761719,
+              "t": 696.1991577148438,
+              "r": 443.7594909667969,
+              "b": 709.4216766357422,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 6,
+            "end_row_offset_idx": 7,
+            "start_col_offset_idx": 2,
+            "end_col_offset_idx": 3,
+            "text": "6 \r\n55 \r\n88",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 462.58929443359375,
+              "t": 696.1991577148438,
+              "r": 516.4397583007812,
+              "b": 709.4216766357422,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 6,
+            "end_row_offset_idx": 7,
+            "start_col_offset_idx": 3,
+            "end_col_offset_idx": 4,
+            "text": "-27 \r\n53 \r\n35  -458\r\n22\r\n-905",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 309.3123474121094,
+              "t": 708.6655120849609,
+              "r": 360.8843994140625,
+              "b": 721.3131332397461,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 7,
+            "end_row_offset_idx": 8,
+            "start_col_offset_idx": 0,
+            "end_col_offset_idx": 1,
+            "text": "운송\r\n(교육\r\n여가호 ․ 창고\r\n의료) \r\n호텔식당",
+            "column_header": false,
+            "row_header": true,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 384.9913330078125,
+              "t": 708.305908203125,
+              "r": 406.9390869140625,
+              "b": 721.5284271240234,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 7,
+            "end_row_offset_idx": 8,
+            "start_col_offset_idx": 1,
+            "end_col_offset_idx": 2,
+            "text": "87 \r\n199 \r\n139",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 427.2084655761719,
+              "t": 708.305908203125,
+              "r": 443.7594909667969,
+              "b": 721.5284271240234,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 7,
+            "end_row_offset_idx": 8,
+            "start_col_offset_idx": 2,
+            "end_col_offset_idx": 3,
+            "text": "55 \r\n88 \r\n415",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 462.58929443359375,
+              "t": 708.305908203125,
+              "r": 516.43994140625,
+              "b": 721.5284271240234,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 7,
+            "end_row_offset_idx": 8,
+            "start_col_offset_idx": 3,
+            "end_col_offset_idx": 4,
+            "text": "53 22\r\n35 -905\r\n0 -1,699",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 309.4322814941406,
+              "t": 720.772331237793,
+              "r": 368.08050537109375,
+              "b": 733.4199447631836,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 8,
+            "end_row_offset_idx": 9,
+            "start_col_offset_idx": 0,
+            "end_col_offset_idx": 1,
+            "text": "교육\r\n(여가․\r\n임시 가․호 육의료\r\n․호텔․\r\n시직 텔․식 료\r\n․식당)",
+            "column_header": false,
+            "row_header": true,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 384.9913330078125,
+              "t": 720.412727355957,
+              "r": 406.9390869140625,
+              "b": 733.6352386474609,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 8,
+            "end_row_offset_idx": 9,
+            "start_col_offset_idx": 1,
+            "end_col_offset_idx": 2,
+            "text": "199 \r\n139 \r\n99",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 421.8114013671875,
+              "t": 720.412727355957,
+              "r": 443.7591552734375,
+              "b": 733.6352386474609,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 8,
+            "end_row_offset_idx": 9,
+            "start_col_offset_idx": 2,
+            "end_col_offset_idx": 3,
+            "text": "88 \r\n415 \r\n10",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 468.1062927246094,
+              "t": 720.412727355957,
+              "r": 516.43994140625,
+              "b": 733.6352386474609,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 8,
+            "end_row_offset_idx": 9,
+            "start_col_offset_idx": 3,
+            "end_col_offset_idx": 4,
+            "text": "35 -905\r\n0 -1,699\r\n-6 -262",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 309.3123474121094,
+              "t": 732.8790817260742,
+              "r": 348.5310974121094,
+              "b": 745.5266952514648,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 9,
+            "end_row_offset_idx": 10,
+            "start_col_offset_idx": 0,
+            "end_col_offset_idx": 1,
+            "text": "여가호텔\r\n(임시직) \r\n정부부문",
+            "column_header": false,
+            "row_header": true,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 390.50836181640625,
+              "t": 732.5194778442383,
+              "r": 406.9391174316406,
+              "b": 745.7419891357422,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 9,
+            "end_row_offset_idx": 10,
+            "start_col_offset_idx": 1,
+            "end_col_offset_idx": 2,
+            "text": "139 \r\n99 \r\n517",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 427.2084655761719,
+              "t": 732.5194778442383,
+              "r": 443.7594909667969,
+              "b": 745.7419891357422,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 9,
+            "end_row_offset_idx": 10,
+            "start_col_offset_idx": 2,
+            "end_col_offset_idx": 3,
+            "text": "415 \r\n10 \r\n255",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 464.50823974609375,
+              "t": 732.5194778442383,
+              "r": 516.43994140625,
+              "b": 745.7419891357422,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 9,
+            "end_row_offset_idx": 10,
+            "start_col_offset_idx": 3,
+            "end_col_offset_idx": 4,
+            "text": "0 -1,699\r\n-6 -262 \r\n-8 -790",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 303.42498779296875,
+              "t": 744.9858322143555,
+              "r": 358.00518798828125,
+              "b": 757.6334457397461,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 10,
+            "end_row_offset_idx": 11,
+            "start_col_offset_idx": 0,
+            "end_col_offset_idx": 1,
+            "text": "-  임시직\r\n정부부문",
+            "column_header": false,
+            "row_header": true,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 384.9913330078125,
+              "t": 744.6262283325195,
+              "r": 406.9390869140625,
+              "b": 757.8487396240234,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 10,
+            "end_row_offset_idx": 11,
+            "start_col_offset_idx": 1,
+            "end_col_offset_idx": 2,
+            "text": "99 \r\n517",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 421.8114013671875,
+              "t": 744.6262283325195,
+              "r": 443.7591552734375,
+              "b": 757.8487396240234,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 10,
+            "end_row_offset_idx": 11,
+            "start_col_offset_idx": 2,
+            "end_col_offset_idx": 3,
+            "text": "10 \r\n255",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 464.50823974609375,
+              "t": 744.6262283325195,
+              "r": 516.43994140625,
+              "b": 757.8487396240234,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 10,
+            "end_row_offset_idx": 11,
+            "start_col_offset_idx": 3,
+            "end_col_offset_idx": 4,
+            "text": "-6 -262 \r\n-8 -790",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          }
+        ],
+        "num_rows": 11,
+        "num_cols": 4,
+        "grid": [
+          [
+            {
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 0,
+              "end_row_offset_idx": 1,
+              "start_col_offset_idx": 0,
+              "end_col_offset_idx": 1,
+              "text": "",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 0,
+              "end_row_offset_idx": 1,
+              "start_col_offset_idx": 1,
+              "end_col_offset_idx": 2,
+              "text": "",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 373.95733642578125,
+                "t": 619.3631439208984,
+                "r": 469.785400390625,
+                "b": 632.0107727050781,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 0,
+              "end_row_offset_idx": 1,
+              "start_col_offset_idx": 2,
+              "end_col_offset_idx": 3,
+              "text": "'20.8월 '21.7월 8월",
+              "column_header": true,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 481.4190979003906,
+                "t": 614.6882171630859,
+                "r": 515.2396850585938,
+                "b": 636.8055114746094,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 0,
+              "end_row_offset_idx": 1,
+              "start_col_offset_idx": 3,
+              "end_col_offset_idx": 4,
+              "text": "(천명)\r\n‘20.3~ ’21.8월 ‘20.3~ ’21.8월\r\n-5,333",
+              "column_header": true,
+              "row_header": false,
+              "row_section": false
+            }
+          ],
+          [
+            {
+              "bbox": {
+                "l": 300.05816650390625,
+                "t": 636.0248870849609,
+                "r": 363.5227966308594,
+                "b": 648.6725158691406,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 1,
+              "end_row_offset_idx": 2,
+              "start_col_offset_idx": 0,
+              "end_col_offset_idx": 1,
+              "text": "▪ 非농업 전체 \r\n민간부문",
+              "column_header": false,
+              "row_header": true,
+              "row_section": false
+            },
+            {
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 1,
+              "end_row_offset_idx": 2,
+              "start_col_offset_idx": 1,
+              "end_col_offset_idx": 2,
+              "text": "",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 376.83575439453125,
+                "t": 635.665283203125,
+                "r": 443.7591857910156,
+                "b": 648.8878021240234,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 1,
+              "end_row_offset_idx": 2,
+              "start_col_offset_idx": 2,
+              "end_col_offset_idx": 3,
+              "text": "1,583 1,053 \r\n1,066 798",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 457.19219970703125,
+                "t": 635.665283203125,
+                "r": 516.43994140625,
+                "b": 648.8878021240234,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 1,
+              "end_row_offset_idx": 2,
+              "start_col_offset_idx": 3,
+              "end_col_offset_idx": 4,
+              "text": "’21.8월\r\n235 -5,333 \r\n243 -4,543",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            }
+          ],
+          [
+            {
+              "bbox": {
+                "l": 303.42498779296875,
+                "t": 648.1316986083984,
+                "r": 358.00518798828125,
+                "b": 660.7793273925781,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 2,
+              "end_row_offset_idx": 3,
+              "start_col_offset_idx": 0,
+              "end_col_offset_idx": 1,
+              "text": "-  농업 전체 \r\n민간부문 \r\n건 설",
+              "column_header": false,
+              "row_header": true,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 376.83575439453125,
+                "t": 647.7720947265625,
+                "r": 406.93878173828125,
+                "b": 660.9946136474609,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 2,
+              "end_row_offset_idx": 3,
+              "start_col_offset_idx": 1,
+              "end_col_offset_idx": 2,
+              "text": "1,583 \r\n1,066 \r\n26",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 421.8114013671875,
+                "t": 647.7720947265625,
+                "r": 443.7591552734375,
+                "b": 660.9946136474609,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 2,
+              "end_row_offset_idx": 3,
+              "start_col_offset_idx": 2,
+              "end_col_offset_idx": 3,
+              "text": "1,053 \r\n798 \r\n6",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 457.19219970703125,
+                "t": 647.7720947265625,
+                "r": 516.43994140625,
+                "b": 660.9946136474609,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 2,
+              "end_row_offset_idx": 3,
+              "start_col_offset_idx": 3,
+              "end_col_offset_idx": 4,
+              "text": "235 -5,333 \r\n243 -4,543\r\n-3 -232",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            }
+          ],
+          [
+            {
+              "bbox": {
+                "l": 309.3123474121094,
+                "t": 660.2384490966797,
+                "r": 348.5310974121094,
+                "b": 672.8860778808594,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 3,
+              "end_row_offset_idx": 4,
+              "start_col_offset_idx": 0,
+              "end_col_offset_idx": 1,
+              "text": "민간부문 \r\n(건 설) \r\n제 조",
+              "column_header": false,
+              "row_header": true,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 390.50836181640625,
+                "t": 659.8788452148438,
+                "r": 406.9391174316406,
+                "b": 673.1013641357422,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 3,
+              "end_row_offset_idx": 4,
+              "start_col_offset_idx": 1,
+              "end_col_offset_idx": 2,
+              "text": ",066 \r\n26 \r\n31",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 432.7254638671875,
+                "t": 659.8788452148438,
+                "r": 443.7594909667969,
+                "b": 673.1013641357422,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 3,
+              "end_row_offset_idx": 4,
+              "start_col_offset_idx": 2,
+              "end_col_offset_idx": 3,
+              "text": "798 \r\n6 \r\n52",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 464.50823974609375,
+                "t": 659.8788452148438,
+                "r": 516.43994140625,
+                "b": 673.1013641357422,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 3,
+              "end_row_offset_idx": 4,
+              "start_col_offset_idx": 3,
+              "end_col_offset_idx": 4,
+              "text": "243 -4,543\r\n-3 -232\r\n37 -378",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            }
+          ],
+          [
+            {
+              "bbox": {
+                "l": 309.3123474121094,
+                "t": 672.3451995849609,
+                "r": 348.5310974121094,
+                "b": 684.9928283691406,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 4,
+              "end_row_offset_idx": 5,
+              "start_col_offset_idx": 0,
+              "end_col_offset_idx": 1,
+              "text": "건 설\r\n(제 조) \r\n도소매",
+              "column_header": false,
+              "row_header": true,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 390.50836181640625,
+                "t": 671.985595703125,
+                "r": 406.9391174316406,
+                "b": 685.2081146240234,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 4,
+              "end_row_offset_idx": 5,
+              "start_col_offset_idx": 1,
+              "end_col_offset_idx": 2,
+              "text": "26 \r\n31 \r\n260",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 427.2084655761719,
+                "t": 671.985595703125,
+                "r": 443.7594909667969,
+                "b": 685.2081146240234,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 4,
+              "end_row_offset_idx": 5,
+              "start_col_offset_idx": 2,
+              "end_col_offset_idx": 3,
+              "text": "6 \r\n52 \r\n6",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 462.58929443359375,
+                "t": 671.985595703125,
+                "r": 516.43994140625,
+                "b": 685.2081146240234,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 4,
+              "end_row_offset_idx": 5,
+              "start_col_offset_idx": 3,
+              "end_col_offset_idx": 4,
+              "text": "-3 -232\r\n37 -378\r\n-27 -458",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            }
+          ],
+          [
+            {
+              "bbox": {
+                "l": 309.3123474121094,
+                "t": 684.4520111083984,
+                "r": 350.4500732421875,
+                "b": 697.0996398925781,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 5,
+              "end_row_offset_idx": 6,
+              "start_col_offset_idx": 0,
+              "end_col_offset_idx": 1,
+              "text": "제 \r\n(도\r\n운 ․ 조\r\n소매) \r\n송창고",
+              "column_header": false,
+              "row_header": true,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 384.9913330078125,
+                "t": 684.0924072265625,
+                "r": 406.9390869140625,
+                "b": 697.3149261474609,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 5,
+              "end_row_offset_idx": 6,
+              "start_col_offset_idx": 1,
+              "end_col_offset_idx": 2,
+              "text": "31 \r\n260 \r\n87",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 432.7254638671875,
+                "t": 684.0924072265625,
+                "r": 443.7594909667969,
+                "b": 697.3149261474609,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 5,
+              "end_row_offset_idx": 6,
+              "start_col_offset_idx": 2,
+              "end_col_offset_idx": 3,
+              "text": "52 \r\n6 \r\n55",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 458.9912414550781,
+                "t": 684.0924072265625,
+                "r": 516.43994140625,
+                "b": 697.3149261474609,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 5,
+              "end_row_offset_idx": 6,
+              "start_col_offset_idx": 3,
+              "end_col_offset_idx": 4,
+              "text": "37 -378\r\n-27 -458\r\n53 22",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            }
+          ],
+          [
+            {
+              "bbox": {
+                "l": 309.3123474121094,
+                "t": 696.5587615966797,
+                "r": 360.8843994140625,
+                "b": 709.2063903808594,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 6,
+              "end_row_offset_idx": 7,
+              "start_col_offset_idx": 0,
+              "end_col_offset_idx": 1,
+              "text": "도소\r\n(운송\r\n교육 ․ 소매\r\n창고) \r\n의료",
+              "column_header": false,
+              "row_header": true,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 390.50836181640625,
+                "t": 696.1991577148438,
+                "r": 406.9391174316406,
+                "b": 709.4216766357422,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 6,
+              "end_row_offset_idx": 7,
+              "start_col_offset_idx": 1,
+              "end_col_offset_idx": 2,
+              "text": "260 \r\n87 \r\n199",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 427.2084655761719,
+                "t": 696.1991577148438,
+                "r": 443.7594909667969,
+                "b": 709.4216766357422,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 6,
+              "end_row_offset_idx": 7,
+              "start_col_offset_idx": 2,
+              "end_col_offset_idx": 3,
+              "text": "6 \r\n55 \r\n88",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 462.58929443359375,
+                "t": 696.1991577148438,
+                "r": 516.4397583007812,
+                "b": 709.4216766357422,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 6,
+              "end_row_offset_idx": 7,
+              "start_col_offset_idx": 3,
+              "end_col_offset_idx": 4,
+              "text": "-27 \r\n53 \r\n35  -458\r\n22\r\n-905",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            }
+          ],
+          [
+            {
+              "bbox": {
+                "l": 309.3123474121094,
+                "t": 708.6655120849609,
+                "r": 360.8843994140625,
+                "b": 721.3131332397461,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 7,
+              "end_row_offset_idx": 8,
+              "start_col_offset_idx": 0,
+              "end_col_offset_idx": 1,
+              "text": "운송\r\n(교육\r\n여가호 ․ 창고\r\n의료) \r\n호텔식당",
+              "column_header": false,
+              "row_header": true,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 384.9913330078125,
+                "t": 708.305908203125,
+                "r": 406.9390869140625,
+                "b": 721.5284271240234,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 7,
+              "end_row_offset_idx": 8,
+              "start_col_offset_idx": 1,
+              "end_col_offset_idx": 2,
+              "text": "87 \r\n199 \r\n139",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 427.2084655761719,
+                "t": 708.305908203125,
+                "r": 443.7594909667969,
+                "b": 721.5284271240234,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 7,
+              "end_row_offset_idx": 8,
+              "start_col_offset_idx": 2,
+              "end_col_offset_idx": 3,
+              "text": "55 \r\n88 \r\n415",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 462.58929443359375,
+                "t": 708.305908203125,
+                "r": 516.43994140625,
+                "b": 721.5284271240234,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 7,
+              "end_row_offset_idx": 8,
+              "start_col_offset_idx": 3,
+              "end_col_offset_idx": 4,
+              "text": "53 22\r\n35 -905\r\n0 -1,699",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            }
+          ],
+          [
+            {
+              "bbox": {
+                "l": 309.4322814941406,
+                "t": 720.772331237793,
+                "r": 368.08050537109375,
+                "b": 733.4199447631836,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 8,
+              "end_row_offset_idx": 9,
+              "start_col_offset_idx": 0,
+              "end_col_offset_idx": 1,
+              "text": "교육\r\n(여가․\r\n임시 가․호 육의료\r\n․호텔․\r\n시직 텔․식 료\r\n․식당)",
+              "column_header": false,
+              "row_header": true,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 384.9913330078125,
+                "t": 720.412727355957,
+                "r": 406.9390869140625,
+                "b": 733.6352386474609,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 8,
+              "end_row_offset_idx": 9,
+              "start_col_offset_idx": 1,
+              "end_col_offset_idx": 2,
+              "text": "199 \r\n139 \r\n99",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 421.8114013671875,
+                "t": 720.412727355957,
+                "r": 443.7591552734375,
+                "b": 733.6352386474609,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 8,
+              "end_row_offset_idx": 9,
+              "start_col_offset_idx": 2,
+              "end_col_offset_idx": 3,
+              "text": "88 \r\n415 \r\n10",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 468.1062927246094,
+                "t": 720.412727355957,
+                "r": 516.43994140625,
+                "b": 733.6352386474609,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 8,
+              "end_row_offset_idx": 9,
+              "start_col_offset_idx": 3,
+              "end_col_offset_idx": 4,
+              "text": "35 -905\r\n0 -1,699\r\n-6 -262",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            }
+          ],
+          [
+            {
+              "bbox": {
+                "l": 309.3123474121094,
+                "t": 732.8790817260742,
+                "r": 348.5310974121094,
+                "b": 745.5266952514648,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 9,
+              "end_row_offset_idx": 10,
+              "start_col_offset_idx": 0,
+              "end_col_offset_idx": 1,
+              "text": "여가호텔\r\n(임시직) \r\n정부부문",
+              "column_header": false,
+              "row_header": true,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 390.50836181640625,
+                "t": 732.5194778442383,
+                "r": 406.9391174316406,
+                "b": 745.7419891357422,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 9,
+              "end_row_offset_idx": 10,
+              "start_col_offset_idx": 1,
+              "end_col_offset_idx": 2,
+              "text": "139 \r\n99 \r\n517",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 427.2084655761719,
+                "t": 732.5194778442383,
+                "r": 443.7594909667969,
+                "b": 745.7419891357422,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 9,
+              "end_row_offset_idx": 10,
+              "start_col_offset_idx": 2,
+              "end_col_offset_idx": 3,
+              "text": "415 \r\n10 \r\n255",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 464.50823974609375,
+                "t": 732.5194778442383,
+                "r": 516.43994140625,
+                "b": 745.7419891357422,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 9,
+              "end_row_offset_idx": 10,
+              "start_col_offset_idx": 3,
+              "end_col_offset_idx": 4,
+              "text": "0 -1,699\r\n-6 -262 \r\n-8 -790",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            }
+          ],
+          [
+            {
+              "bbox": {
+                "l": 303.42498779296875,
+                "t": 744.9858322143555,
+                "r": 358.00518798828125,
+                "b": 757.6334457397461,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 10,
+              "end_row_offset_idx": 11,
+              "start_col_offset_idx": 0,
+              "end_col_offset_idx": 1,
+              "text": "-  임시직\r\n정부부문",
+              "column_header": false,
+              "row_header": true,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 384.9913330078125,
+                "t": 744.6262283325195,
+                "r": 406.9390869140625,
+                "b": 757.8487396240234,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 10,
+              "end_row_offset_idx": 11,
+              "start_col_offset_idx": 1,
+              "end_col_offset_idx": 2,
+              "text": "99 \r\n517",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 421.8114013671875,
+                "t": 744.6262283325195,
+                "r": 443.7591552734375,
+                "b": 757.8487396240234,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 10,
+              "end_row_offset_idx": 11,
+              "start_col_offset_idx": 2,
+              "end_col_offset_idx": 3,
+              "text": "10 \r\n255",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 464.50823974609375,
+                "t": 744.6262283325195,
+                "r": 516.43994140625,
+                "b": 757.8487396240234,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 10,
+              "end_row_offset_idx": 11,
+              "start_col_offset_idx": 3,
+              "end_col_offset_idx": 4,
+              "text": "-6 -262 \r\n-8 -790",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            }
+          ]
+        ]
+      }
+    }
+  ],
+  "key_value_items": [],
+  "form_items": [],
+  "pages": {
+    "1": {
+      "size": {
+        "width": 595.0,
+        "height": 841.0
+      },
+      "page_no": 1
+    }
+  }
+}

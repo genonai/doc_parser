@@ -1,0 +1,541 @@
+{
+  "schema_name": "DoclingDocument",
+  "version": "1.3.0",
+  "name": "리스트_20210524_[현지정보]_연준_CBDC추진관련_움직임및시사점_f_게시",
+  "origin": {
+    "mimetype": "application/pdf",
+    "binary_hash": 6936373260774615268,
+    "filename": "리스트_20210524_[현지정보]_연준_CBDC추진관련_움직임및시사점_f_게시.pdf"
+  },
+  "furniture": {
+    "self_ref": "#/furniture",
+    "children": [],
+    "content_layer": "furniture",
+    "name": "_root_",
+    "label": "unspecified"
+  },
+  "body": {
+    "self_ref": "#/body",
+    "children": [
+      {
+        "$ref": "#/groups/0"
+      },
+      {
+        "$ref": "#/texts/2"
+      },
+      {
+        "$ref": "#/groups/1"
+      },
+      {
+        "$ref": "#/texts/5"
+      },
+      {
+        "$ref": "#/groups/2"
+      },
+      {
+        "$ref": "#/texts/10"
+      },
+      {
+        "$ref": "#/groups/3"
+      },
+      {
+        "$ref": "#/texts/13"
+      }
+    ],
+    "content_layer": "body",
+    "name": "_root_",
+    "label": "unspecified"
+  },
+  "groups": [
+    {
+      "self_ref": "#/groups/0",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [
+        {
+          "$ref": "#/texts/0"
+        },
+        {
+          "$ref": "#/texts/1"
+        }
+      ],
+      "content_layer": "body",
+      "name": "list",
+      "label": "list"
+    },
+    {
+      "self_ref": "#/groups/1",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [
+        {
+          "$ref": "#/texts/3"
+        },
+        {
+          "$ref": "#/texts/4"
+        }
+      ],
+      "content_layer": "body",
+      "name": "list",
+      "label": "list"
+    },
+    {
+      "self_ref": "#/groups/2",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [
+        {
+          "$ref": "#/texts/6"
+        },
+        {
+          "$ref": "#/texts/7"
+        },
+        {
+          "$ref": "#/texts/8"
+        },
+        {
+          "$ref": "#/texts/9"
+        }
+      ],
+      "content_layer": "body",
+      "name": "list",
+      "label": "list"
+    },
+    {
+      "self_ref": "#/groups/3",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [
+        {
+          "$ref": "#/texts/11"
+        },
+        {
+          "$ref": "#/texts/12"
+        }
+      ],
+      "content_layer": "body",
+      "name": "list",
+      "label": "list"
+    }
+  ],
+  "texts": [
+    {
+      "self_ref": "#/texts/0",
+      "parent": {
+        "$ref": "#/groups/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "list_item",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 83.43997955322266,
+            "t": 755.8594360351562,
+            "r": 523.1612548828125,
+            "b": 725.1336669921875,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            86
+          ]
+        }
+      ],
+      "orig": "o CBDC 도입이 일부 해결책이 될 수 있지만 , 비용 , 적시성 및 투명성을 실질 적으로 개선하려면 표준 설정 및 불법 활동에 대한 국제적 협력이 필요",
+      "text": "o CBDC 도입이 일부 해결책이 될 수 있지만 , 비용 , 적시성 및 투명성을 실질 적으로 개선하려면 표준 설정 및 불법 활동에 대한 국제적 협력이 필요",
+      "enumerated": false,
+      "marker": "-"
+    },
+    {
+      "self_ref": "#/texts/1",
+      "parent": {
+        "$ref": "#/groups/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "list_item",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 83.43997955322266,
+            "t": 701.3190307617188,
+            "r": 521.9476928710938,
+            "b": 670.6968383789062,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            66
+          ]
+        }
+      ],
+      "orig": "o 달러의 기축 통화로서의 역할을 고려할 때 CBDC에 적용될 수 있는 국제 표준의 개발에 처음부터 참여하는 것이 중요",
+      "text": "o 달러의 기축 통화로서의 역할을 고려할 때 CBDC에 적용될 수 있는 국제 표준의 개발에 처음부터 참여하는 것이 중요",
+      "enumerated": false,
+      "marker": "-"
+    },
+    {
+      "self_ref": "#/texts/2",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "section_header",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 77.41017150878906,
+            "t": 646.7528076171875,
+            "r": 223.44566345214844,
+            "b": 634.3506469726562,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            14
+          ]
+        }
+      ],
+      "orig": "⑤ 통화 및 은행예금 보완",
+      "text": "⑤ 통화 및 은행예금 보완",
+      "level": 1
+    },
+    {
+      "self_ref": "#/texts/3",
+      "parent": {
+        "$ref": "#/groups/1"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "list_item",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 83.43997955322266,
+            "t": 610.4583740234375,
+            "r": 521.947998046875,
+            "b": 561.357177734375,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            112
+          ]
+        }
+      ],
+      "orig": "o 지급결제 혁신의 기본 원칙은 기존 시스템을 개선해야 한다는 것이며 , 소비 자는 현재 소매 지급결제시스템의 토대를 형성하는 신뢰할 수 있는 돈의 형 태로써 은행 계좌 및 화폐(중앙은행 발행)를 사용",
+      "text": "o 지급결제 혁신의 기본 원칙은 기존 시스템을 개선해야 한다는 것이며 , 소비 자는 현재 소매 지급결제시스템의 토대를 형성하는 신뢰할 수 있는 돈의 형 태로써 은행 계좌 및 화폐(중앙은행 발행)를 사용",
+      "enumerated": false,
+      "marker": "-"
+    },
+    {
+      "self_ref": "#/texts/4",
+      "parent": {
+        "$ref": "#/groups/1"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "list_item",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 83.43997955322266,
+            "t": 537.6978759765625,
+            "r": 519.316162109375,
+            "b": 525.036865234375,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            46
+          ]
+        }
+      ],
+      "orig": "o CBDC 설계는 이러한 화폐 및 은행 계좌 시스템을 보완해야지 대체해서는 안 됨",
+      "text": "o CBDC 설계는 이러한 화폐 및 은행 계좌 시스템을 보완해야지 대체해서는 안 됨",
+      "enumerated": false,
+      "marker": "-"
+    },
+    {
+      "self_ref": "#/texts/5",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "section_header",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 77.41017150878906,
+            "t": 501.3516845703125,
+            "r": 276.61102294921875,
+            "b": 489.0013427734375,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            19
+          ]
+        }
+      ],
+      "orig": "⑥ 금융안정 및 통화정책 체계 유지",
+      "text": "⑥ 금융안정 및 통화정책 체계 유지",
+      "level": 1
+    },
+    {
+      "self_ref": "#/texts/6",
+      "parent": {
+        "$ref": "#/groups/2"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "list_item",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 83.43997955322266,
+            "t": 464.9373779296875,
+            "r": 522.4439086914062,
+            "b": 434.4350280761719,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            85
+          ]
+        }
+      ],
+      "orig": "o CBDC 도입은 광범위한 영향을 미칠 수 있으며 CBDC가 금융안정과 통화정책 파급경로에 어떻게 영향을 미칠 수 있는지 * 에 대해 확인할 것이 많음",
+      "text": "o CBDC 도입은 광범위한 영향을 미칠 수 있으며 CBDC가 금융안정과 통화정책 파급경로에 어떻게 영향을 미칠 수 있는지 * 에 대해 확인할 것이 많음",
+      "enumerated": false,
+      "marker": "-"
+    },
+    {
+      "self_ref": "#/texts/7",
+      "parent": {
+        "$ref": "#/groups/2"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "list_item",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 97.20587921142578,
+            "t": 420.249267578125,
+            "r": 437.5768737792969,
+            "b": 409.7286071777344,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            40
+          ]
+        }
+      ],
+      "orig": "* 금융위기시 CBDC로의 자금 이동이 촉진될 수 있다는 연구 등이 있음",
+      "text": "* 금융위기시 CBDC로의 자금 이동이 촉진될 수 있다는 연구 등이 있음",
+      "enumerated": false,
+      "marker": "-"
+    },
+    {
+      "self_ref": "#/texts/8",
+      "parent": {
+        "$ref": "#/groups/2"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "list_item",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 83.43997955322266,
+            "t": 386.66290283203125,
+            "r": 530.59375,
+            "b": 337.91461181640625,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            107
+          ]
+        }
+      ],
+      "orig": "o 은행은 신용 중개 , 통화정책 파급 및 지급결제에서 중요한 역할을 담당하기 때문에 CBDC 설계시 은행의 탈중개화를 방지하고 통화정책 전달 체계가 잘 작동하기 위한 보호장치가 마련되어야 함",
+      "text": "o 은행은 신용 중개 , 통화정책 파급 및 지급결제에서 중요한 역할을 담당하기 때문에 CBDC 설계시 은행의 탈중개화를 방지하고 통화정책 전달 체계가 잘 작동하기 위한 보호장치가 마련되어야 함",
+      "enumerated": false,
+      "marker": "-"
+    },
+    {
+      "self_ref": "#/texts/9",
+      "parent": {
+        "$ref": "#/groups/2"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "list_item",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 83.43997955322266,
+            "t": 313.90240478515625,
+            "r": 530.5933227539062,
+            "b": 265.2059326171875,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            96
+          ]
+        }
+      ],
+      "orig": "o CBDC 도입이 지급결제시스템에 초래할 위험을 살피는 것이 중요할텐데 , 상 대적으로 민간 자금이 많이 사용되는 지급결제시스템에 비해 복원력을 높일 수 있을 것으로 보임",
+      "text": "o CBDC 도입이 지급결제시스템에 초래할 위험을 살피는 것이 중요할텐데 , 상 대적으로 민간 자금이 많이 사용되는 지급결제시스템에 비해 복원력을 높일 수 있을 것으로 보임",
+      "enumerated": false,
+      "marker": "-"
+    },
+    {
+      "self_ref": "#/texts/10",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "section_header",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 77.41017150878906,
+            "t": 241.2359619140625,
+            "r": 407.1410217285156,
+            "b": 227.87583923339844,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            43
+          ]
+        }
+      ],
+      "orig": "⑦ 개인 정보 보호 및 금융 무결성(financial integrity) 보장",
+      "text": "⑦ 개인 정보 보호 및 금융 무결성(financial integrity) 보장",
+      "level": 1
+    },
+    {
+      "self_ref": "#/texts/11",
+      "parent": {
+        "$ref": "#/groups/3"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "list_item",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 83.43997955322266,
+            "t": 204.74398803710938,
+            "r": 524.0130004882812,
+            "b": 155.48741149902344,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            123
+          ]
+        }
+      ],
+      "orig": "o CBDC의 설계는 지급 거래의 프라이버시를 보호하고 금융 시스템의 무결성 을 유지하기 위해 불법 활동을 방지 , 추적해야하므로 디지털 신원 검증 (digital verification of identities)이 필요",
+      "text": "o CBDC의 설계는 지급 거래의 프라이버시를 보호하고 금융 시스템의 무결성 을 유지하기 위해 불법 활동을 방지 , 추적해야하므로 디지털 신원 검증 (digital verification of identities)이 필요",
+      "enumerated": false,
+      "marker": "-"
+    },
+    {
+      "self_ref": "#/texts/12",
+      "parent": {
+        "$ref": "#/groups/3"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "list_item",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 83.43997955322266,
+            "t": 131.98684692382812,
+            "r": 530.473876953125,
+            "b": 101.45524597167969,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            76
+          ]
+        }
+      ],
+      "orig": "o 이러한 목표를 달성하려면 관련 정부 당국간에 불법 거래 방지 및 소비자 금융 데이터 보호 관련 역할과 책임을 명확히 하는 협력이 필요",
+      "text": "o 이러한 목표를 달성하려면 관련 정부 당국간에 불법 거래 방지 및 소비자 금융 데이터 보호 관련 역할과 책임을 명확히 하는 협력이 필요",
+      "enumerated": false,
+      "marker": "-"
+    },
+    {
+      "self_ref": "#/texts/13",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "furniture",
+      "label": "page_footer",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 282.3269958496094,
+            "t": 53.940155029296875,
+            "r": 316.9873046875,
+            "b": 42.00120162963867,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            6
+          ]
+        }
+      ],
+      "orig": "-7/10-",
+      "text": "-7/10-"
+    }
+  ],
+  "pictures": [],
+  "tables": [],
+  "key_value_items": [],
+  "form_items": [],
+  "pages": {
+    "1": {
+      "size": {
+        "width": 595.0,
+        "height": 841.0
+      },
+      "page_no": 1
+    }
+  }
+}

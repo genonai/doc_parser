@@ -1,0 +1,2001 @@
+{
+  "schema_name": "DoclingDocument",
+  "version": "1.3.0",
+  "name": "간격 작은 표_ecb.wp2850~806e7cc56c.en",
+  "origin": {
+    "mimetype": "application/pdf",
+    "binary_hash": 11881688508883417412,
+    "filename": "간격 작은 표_ecb.wp2850~806e7cc56c.en.pdf"
+  },
+  "furniture": {
+    "self_ref": "#/furniture",
+    "children": [],
+    "content_layer": "furniture",
+    "name": "_root_",
+    "label": "unspecified"
+  },
+  "body": {
+    "self_ref": "#/body",
+    "children": [
+      {
+        "$ref": "#/texts/0"
+      },
+      {
+        "$ref": "#/texts/1"
+      },
+      {
+        "$ref": "#/texts/2"
+      },
+      {
+        "$ref": "#/tables/0"
+      },
+      {
+        "$ref": "#/groups/0"
+      },
+      {
+        "$ref": "#/texts/6"
+      },
+      {
+        "$ref": "#/texts/7"
+      },
+      {
+        "$ref": "#/texts/8"
+      },
+      {
+        "$ref": "#/texts/9"
+      },
+      {
+        "$ref": "#/texts/10"
+      },
+      {
+        "$ref": "#/texts/11"
+      }
+    ],
+    "content_layer": "body",
+    "name": "_root_",
+    "label": "unspecified"
+  },
+  "groups": [
+    {
+      "self_ref": "#/groups/0",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [
+        {
+          "$ref": "#/texts/4"
+        },
+        {
+          "$ref": "#/texts/5"
+        }
+      ],
+      "content_layer": "body",
+      "name": "group",
+      "label": "key_value_area"
+    }
+  ],
+  "texts": [
+    {
+      "self_ref": "#/texts/0",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 51.024,
+            "t": 781.371,
+            "r": 417.361,
+            "b": 770.036,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            67
+          ]
+        }
+      ],
+      "orig": "countercyclical employment risk, we estimate the following equation",
+      "text": "countercyclical employment risk, we estimate the following equation"
+    },
+    {
+      "self_ref": "#/texts/1",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "formula",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 189.215,
+            "t": 748.986,
+            "r": 544.254,
+            "b": 735.806,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            58
+          ]
+        }
+      ],
+      "orig": "Yi t , = γ t + β 1 educi + β 2 educi × Xt + ϵ i , t , (11)",
+      "text": ""
+    },
+    {
+      "self_ref": "#/texts/2",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 51.024,
+            "t": 718.151,
+            "r": 544.247,
+            "b": 614.872,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            494
+          ]
+        }
+      ],
+      "orig": "where Yi t , is either the (net) hire or separation rate, Xt is the cyclical component of GDP, 14 educi is workers' educational attainment, γ t are time dummies to control for common shocks, and ϵ i , t is the residual term. What we are interested in is the coefficient on the interaction term, which measures the differential responsiveness - across education groups - of net hiring rate to a business cycle. Note that results have to be interpreted relative to the highest education group. 15",
+      "text": "where Yi t , is either the (net) hire or separation rate, Xt is the cyclical component of GDP, 14 educi is workers' educational attainment, γ t are time dummies to control for common shocks, and ϵ i , t is the residual term. What we are interested in is the coefficient on the interaction term, which measures the differential responsiveness - across education groups - of net hiring rate to a business cycle. Note that results have to be interpreted relative to the highest education group. 15"
+    },
+    {
+      "self_ref": "#/texts/3",
+      "parent": {
+        "$ref": "#/tables/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "caption",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 177.285,
+            "t": 598.949,
+            "r": 417.987,
+            "b": 587.614,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            45
+          ]
+        }
+      ],
+      "orig": "Table 8: Worker flows over the business cycle",
+      "text": "Table 8: Worker flows over the business cycle"
+    },
+    {
+      "self_ref": "#/texts/4",
+      "parent": {
+        "$ref": "#/groups/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 212.459,
+            "t": 328.423,
+            "r": 382.834,
+            "b": 318.89599999999996,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            37
+          ]
+        }
+      ],
+      "orig": "Robust standard errors in parentheses",
+      "text": "Robust standard errors in parentheses"
+    },
+    {
+      "self_ref": "#/texts/5",
+      "parent": {
+        "$ref": "#/groups/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 230.709,
+            "t": 316.619,
+            "r": 364.6,
+            "b": 306.789,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            36
+          ]
+        }
+      ],
+      "orig": "*** p < 0.01, ** p < 0.05, * p < 0.1",
+      "text": "*** p < 0.01, ** p < 0.05, * p < 0.1"
+    },
+    {
+      "self_ref": "#/texts/6",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 51.024,
+            "t": 291.399,
+            "r": 544.272,
+            "b": 269.99700000000007,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            127
+          ]
+        }
+      ],
+      "orig": "Notes: (Net) hires, and separations are rates and are expressed as a share of an average employment within the education group.",
+      "text": "Notes: (Net) hires, and separations are rates and are expressed as a share of an average employment within the education group."
+    },
+    {
+      "self_ref": "#/texts/7",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 51.025,
+            "t": 249.65700000000004,
+            "r": 544.248,
+            "b": 112.83100000000002,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            739
+          ]
+        }
+      ],
+      "orig": "Table 8 reports the results from estimating Equation 11. Column 1 shows that the net hiring rate of less educated workers is more sensitive to business cycles than the net hiring rate of workers with the highest level of educational attainment. This implies that (countercyclical) employment risk is the largest for the least educated workers, and it falls with increasing educational attainment. Results are in line with Haltiwanger et al. (2018), who find that during recessions, workers with lower education are more likely to exit to nonemployment. They also find that conditional on firm productivity groups, hires and separations are more cyclically sensitive for less educated workers. In columns 2 and 3, we separate the net hiring",
+      "text": "Table 8 reports the results from estimating Equation 11. Column 1 shows that the net hiring rate of less educated workers is more sensitive to business cycles than the net hiring rate of workers with the highest level of educational attainment. This implies that (countercyclical) employment risk is the largest for the least educated workers, and it falls with increasing educational attainment. Results are in line with Haltiwanger et al. (2018), who find that during recessions, workers with lower education are more likely to exit to nonemployment. They also find that conditional on firm productivity groups, hires and separations are more cyclically sensitive for less educated workers. In columns 2 and 3, we separate the net hiring"
+    },
+    {
+      "self_ref": "#/texts/8",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "footnote",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 51.024,
+            "t": 101.85699999999997,
+            "r": 544.272,
+            "b": 66.50900000000001,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            295
+          ]
+        }
+      ],
+      "orig": "14 We obtain it after applying the Hodrick-Prescott filter to a logarithm of seasonally adjusted real GDP. In Appendix B.2, we also consider other business cycle measures, i.e. NBER recession episodes and the cyclical component of the level of unemployment. The results do not materially change.",
+      "text": "14 We obtain it after applying the Hodrick-Prescott filter to a logarithm of seasonally adjusted real GDP. In Appendix B.2, we also consider other business cycle measures, i.e. NBER recession episodes and the cyclical component of the level of unemployment. The results do not materially change."
+    },
+    {
+      "self_ref": "#/texts/9",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "footnote",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 60.887,
+            "t": 65.45799999999997,
+            "r": 406.084,
+            "b": 54.02099999999996,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            79
+          ]
+        }
+      ],
+      "orig": "15 That is, relative to workers with a bachelor's degree or an advanced degree.",
+      "text": "15 That is, relative to workers with a bachelor's degree or an advanced degree."
+    },
+    {
+      "self_ref": "#/texts/10",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "furniture",
+      "label": "page_footer",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 50.4,
+            "t": 34.611999999999966,
+            "r": 179.344,
+            "b": 27.09400000000005,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            32
+          ]
+        }
+      ],
+      "orig": "ECB Working Paper Series No 2850",
+      "text": "ECB Working Paper Series No 2850"
+    },
+    {
+      "self_ref": "#/texts/11",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "furniture",
+      "label": "page_footer",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 535.979,
+            "t": 34.611999999999966,
+            "r": 544.875,
+            "b": 27.09400000000005,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            2
+          ]
+        }
+      ],
+      "orig": "17",
+      "text": "17"
+    }
+  ],
+  "pictures": [],
+  "tables": [
+    {
+      "self_ref": "#/tables/0",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [
+        {
+          "$ref": "#/texts/3"
+        }
+      ],
+      "content_layer": "body",
+      "label": "table",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 99.7458724975586,
+            "t": 575.8762817382812,
+            "r": 495.7215576171875,
+            "b": 329.57647705078125,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            0
+          ]
+        }
+      ],
+      "captions": [
+        {
+          "$ref": "#/texts/3"
+        }
+      ],
+      "references": [],
+      "footnotes": [],
+      "data": {
+        "table_cells": [
+          {
+            "bbox": {
+              "l": 342.441,
+              "t": 270.6230099999999,
+              "r": 383.499,
+              "b": 292.22700999999995,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 0,
+            "end_row_offset_idx": 1,
+            "start_col_offset_idx": 1,
+            "end_col_offset_idx": 2,
+            "text": "(1) Net hires",
+            "column_header": true,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 398.547,
+              "t": 270.59300999999994,
+              "r": 422.783,
+              "b": 292.22700999999995,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 0,
+            "end_row_offset_idx": 1,
+            "start_col_offset_idx": 2,
+            "end_col_offset_idx": 3,
+            "text": "(2) Hires",
+            "column_header": true,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 437.84,
+              "t": 270.59300999999994,
+              "r": 489.943,
+              "b": 292.22700999999995,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 0,
+            "end_row_offset_idx": 1,
+            "start_col_offset_idx": 3,
+            "end_col_offset_idx": 4,
+            "text": "(3) Separations",
+            "column_header": true,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 105.364,
+              "t": 282.71501,
+              "r": 160.838,
+              "b": 292.22700999999995,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 0,
+            "end_row_offset_idx": 1,
+            "start_col_offset_idx": 0,
+            "end_col_offset_idx": 1,
+            "text": "VARIABLES",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 105.359,
+              "t": 311.98401,
+              "r": 202.117,
+              "b": 321.52301,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 1,
+            "end_row_offset_idx": 2,
+            "start_col_offset_idx": 0,
+            "end_col_offset_idx": 1,
+            "text": "Less than high school",
+            "column_header": false,
+            "row_header": true,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 348.344,
+              "t": 311.98401,
+              "r": 377.596,
+              "b": 333.61700999999994,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 1,
+            "end_row_offset_idx": 2,
+            "start_col_offset_idx": 1,
+            "end_col_offset_idx": 2,
+            "text": "0.000 (0.000)",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 393.531,
+              "t": 311.98401,
+              "r": 427.809,
+              "b": 333.61700999999994,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 1,
+            "end_row_offset_idx": 2,
+            "start_col_offset_idx": 2,
+            "end_col_offset_idx": 3,
+            "text": "0.030*** (0.001)",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 446.748,
+              "t": 311.98401,
+              "r": 481.025,
+              "b": 333.61700999999994,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 1,
+            "end_row_offset_idx": 2,
+            "start_col_offset_idx": 3,
+            "end_col_offset_idx": 4,
+            "text": "0.030*** (0.001)",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 105.364,
+              "t": 336.22700999999995,
+              "r": 271.866,
+              "b": 345.73900999999995,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 2,
+            "end_row_offset_idx": 3,
+            "start_col_offset_idx": 0,
+            "end_col_offset_idx": 1,
+            "text": "High school or equivalent, no college",
+            "column_header": false,
+            "row_header": true,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 344.157,
+              "t": 336.22700999999995,
+              "r": 381.775,
+              "b": 357.86001,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 2,
+            "end_row_offset_idx": 3,
+            "start_col_offset_idx": 1,
+            "end_col_offset_idx": 2,
+            "text": "-0.001*** (0.000)",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 393.532,
+              "t": 336.22700999999995,
+              "r": 427.809,
+              "b": 357.86001,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 2,
+            "end_row_offset_idx": 3,
+            "start_col_offset_idx": 2,
+            "end_col_offset_idx": 3,
+            "text": "0.011*** (0.000)",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 446.748,
+              "t": 336.22700999999995,
+              "r": 481.026,
+              "b": 357.86001,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 2,
+            "end_row_offset_idx": 3,
+            "start_col_offset_idx": 3,
+            "end_col_offset_idx": 4,
+            "text": "0.012*** (0.000)",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 105.364,
+              "t": 360.47000999999995,
+              "r": 254.331,
+              "b": 369.98200999999995,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 3,
+            "end_row_offset_idx": 4,
+            "start_col_offset_idx": 0,
+            "end_col_offset_idx": 1,
+            "text": "Some college or Associate degree",
+            "column_header": false,
+            "row_header": true,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 346.113,
+              "t": 360.47000999999995,
+              "r": 379.829,
+              "b": 382.10301,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 3,
+            "end_row_offset_idx": 4,
+            "start_col_offset_idx": 1,
+            "end_col_offset_idx": 2,
+            "text": "-0.001** (0.000)",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 393.531,
+              "t": 360.47000999999995,
+              "r": 427.809,
+              "b": 382.10301,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 3,
+            "end_row_offset_idx": 4,
+            "start_col_offset_idx": 2,
+            "end_col_offset_idx": 3,
+            "text": "0.006*** (0.000)",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 446.748,
+              "t": 360.47000999999995,
+              "r": 481.026,
+              "b": 382.10301,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 3,
+            "end_row_offset_idx": 4,
+            "start_col_offset_idx": 3,
+            "end_col_offset_idx": 4,
+            "text": "0.007*** (0.000)",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 105.364,
+              "t": 396.51600999999994,
+              "r": 262.659,
+              "b": 406.34601,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 4,
+            "end_row_offset_idx": 5,
+            "start_col_offset_idx": 0,
+            "end_col_offset_idx": 1,
+            "text": "Less than high school × GDP cycle",
+            "column_header": false,
+            "row_header": true,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 345.832,
+              "t": 396.83401,
+              "r": 380.109,
+              "b": 418.46800999999994,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 4,
+            "end_row_offset_idx": 5,
+            "start_col_offset_idx": 1,
+            "end_col_offset_idx": 2,
+            "text": "0.123*** (0.036)",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 395.477,
+              "t": 396.83401,
+              "r": 425.853,
+              "b": 418.46800999999994,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 4,
+            "end_row_offset_idx": 5,
+            "start_col_offset_idx": 2,
+            "end_col_offset_idx": 3,
+            "text": "0.079** (0.037)",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 449.26,
+              "t": 396.83401,
+              "r": 478.512,
+              "b": 418.46800999999994,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 4,
+            "end_row_offset_idx": 5,
+            "start_col_offset_idx": 3,
+            "end_col_offset_idx": 4,
+            "text": "-0.018 (0.056)",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 105.364,
+              "t": 420.76000999999997,
+              "r": 332.408,
+              "b": 430.58901,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 5,
+            "end_row_offset_idx": 6,
+            "start_col_offset_idx": 0,
+            "end_col_offset_idx": 1,
+            "text": "High school or equivalent, no college × GDP cycle",
+            "column_header": false,
+            "row_header": true,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 345.83,
+              "t": 421.07701,
+              "r": 380.108,
+              "b": 442.71101,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 5,
+            "end_row_offset_idx": 6,
+            "start_col_offset_idx": 1,
+            "end_col_offset_idx": 2,
+            "text": "0.070*** (0.024)",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 396.043,
+              "t": 421.07701,
+              "r": 425.295,
+              "b": 442.71101,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 5,
+            "end_row_offset_idx": 6,
+            "start_col_offset_idx": 2,
+            "end_col_offset_idx": 3,
+            "text": "0.018 (0.019)",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 449.26,
+              "t": 421.07701,
+              "r": 478.512,
+              "b": 442.71101,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 5,
+            "end_row_offset_idx": 6,
+            "start_col_offset_idx": 3,
+            "end_col_offset_idx": 4,
+            "text": "-0.044 (0.029)",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 105.364,
+              "t": 445.00201,
+              "r": 314.873,
+              "b": 454.83200999999997,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 6,
+            "end_row_offset_idx": 7,
+            "start_col_offset_idx": 0,
+            "end_col_offset_idx": 1,
+            "text": "Some college or Associate degree × GDP cycle",
+            "column_header": false,
+            "row_header": true,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 348.344,
+              "t": 445.32000999999997,
+              "r": 377.596,
+              "b": 466.95300999999995,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 6,
+            "end_row_offset_idx": 7,
+            "start_col_offset_idx": 1,
+            "end_col_offset_idx": 2,
+            "text": "0.037 (0.025)",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 396.043,
+              "t": 445.32000999999997,
+              "r": 425.295,
+              "b": 466.95300999999995,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 6,
+            "end_row_offset_idx": 7,
+            "start_col_offset_idx": 2,
+            "end_col_offset_idx": 3,
+            "text": "0.003 (0.020)",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 449.26,
+              "t": 445.32000999999997,
+              "r": 478.512,
+              "b": 466.95300999999995,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 6,
+            "end_row_offset_idx": 7,
+            "start_col_offset_idx": 3,
+            "end_col_offset_idx": 4,
+            "text": "-0.031 (0.032)",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 105.359,
+              "t": 474.58901,
+              "r": 142.17,
+              "b": 484.11800999999997,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 7,
+            "end_row_offset_idx": 8,
+            "start_col_offset_idx": 0,
+            "end_col_offset_idx": 1,
+            "text": "Time FE",
+            "column_header": false,
+            "row_header": true,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 359.625,
+              "t": 474.58901,
+              "r": 366.316,
+              "b": 484.10101,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 7,
+            "end_row_offset_idx": 8,
+            "start_col_offset_idx": 1,
+            "end_col_offset_idx": 2,
+            "text": "X",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 407.325,
+              "t": 474.58901,
+              "r": 414.016,
+              "b": 484.10101,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 7,
+            "end_row_offset_idx": 8,
+            "start_col_offset_idx": 2,
+            "end_col_offset_idx": 3,
+            "text": "X",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 460.542,
+              "t": 474.58901,
+              "r": 467.233,
+              "b": 484.10101,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 7,
+            "end_row_offset_idx": 8,
+            "start_col_offset_idx": 3,
+            "end_col_offset_idx": 4,
+            "text": "X",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 105.364,
+              "t": 486.71101,
+              "r": 164.118,
+              "b": 496.22301,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 8,
+            "end_row_offset_idx": 9,
+            "start_col_offset_idx": 0,
+            "end_col_offset_idx": 1,
+            "text": "Observations",
+            "column_header": false,
+            "row_header": true,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 355.442,
+              "t": 486.71101,
+              "r": 370.489,
+              "b": 496.22301,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 8,
+            "end_row_offset_idx": 9,
+            "start_col_offset_idx": 1,
+            "end_col_offset_idx": 2,
+            "text": "272",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 403.142,
+              "t": 486.71101,
+              "r": 418.189,
+              "b": 496.22301,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 8,
+            "end_row_offset_idx": 9,
+            "start_col_offset_idx": 2,
+            "end_col_offset_idx": 3,
+            "text": "276",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 456.368,
+              "t": 486.71101,
+              "r": 471.415,
+              "b": 496.22301,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 8,
+            "end_row_offset_idx": 9,
+            "start_col_offset_idx": 3,
+            "end_col_offset_idx": 4,
+            "text": "276",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 105.364,
+              "t": 498.83300999999994,
+              "r": 151.188,
+              "b": 508.34400999999997,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 9,
+            "end_row_offset_idx": 10,
+            "start_col_offset_idx": 0,
+            "end_col_offset_idx": 1,
+            "text": "R-squared",
+            "column_header": false,
+            "row_header": true,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 349.172,
+              "t": 498.83300999999994,
+              "r": 376.759,
+              "b": 508.34400999999997,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 9,
+            "end_row_offset_idx": 10,
+            "start_col_offset_idx": 1,
+            "end_col_offset_idx": 2,
+            "text": "0.9028",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 396.872,
+              "t": 498.83300999999994,
+              "r": 424.458,
+              "b": 508.34400999999997,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 9,
+            "end_row_offset_idx": 10,
+            "start_col_offset_idx": 2,
+            "end_col_offset_idx": 3,
+            "text": "0.9713",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 450.099,
+              "t": 498.83300999999994,
+              "r": 477.685,
+              "b": 508.34400999999997,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 9,
+            "end_row_offset_idx": 10,
+            "start_col_offset_idx": 3,
+            "end_col_offset_idx": 4,
+            "text": "0.9468",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          }
+        ],
+        "num_rows": 10,
+        "num_cols": 4,
+        "grid": [
+          [
+            {
+              "bbox": {
+                "l": 105.364,
+                "t": 282.71501,
+                "r": 160.838,
+                "b": 292.22700999999995,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 0,
+              "end_row_offset_idx": 1,
+              "start_col_offset_idx": 0,
+              "end_col_offset_idx": 1,
+              "text": "VARIABLES",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 342.441,
+                "t": 270.6230099999999,
+                "r": 383.499,
+                "b": 292.22700999999995,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 0,
+              "end_row_offset_idx": 1,
+              "start_col_offset_idx": 1,
+              "end_col_offset_idx": 2,
+              "text": "(1) Net hires",
+              "column_header": true,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 398.547,
+                "t": 270.59300999999994,
+                "r": 422.783,
+                "b": 292.22700999999995,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 0,
+              "end_row_offset_idx": 1,
+              "start_col_offset_idx": 2,
+              "end_col_offset_idx": 3,
+              "text": "(2) Hires",
+              "column_header": true,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 437.84,
+                "t": 270.59300999999994,
+                "r": 489.943,
+                "b": 292.22700999999995,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 0,
+              "end_row_offset_idx": 1,
+              "start_col_offset_idx": 3,
+              "end_col_offset_idx": 4,
+              "text": "(3) Separations",
+              "column_header": true,
+              "row_header": false,
+              "row_section": false
+            }
+          ],
+          [
+            {
+              "bbox": {
+                "l": 105.359,
+                "t": 311.98401,
+                "r": 202.117,
+                "b": 321.52301,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 1,
+              "end_row_offset_idx": 2,
+              "start_col_offset_idx": 0,
+              "end_col_offset_idx": 1,
+              "text": "Less than high school",
+              "column_header": false,
+              "row_header": true,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 348.344,
+                "t": 311.98401,
+                "r": 377.596,
+                "b": 333.61700999999994,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 1,
+              "end_row_offset_idx": 2,
+              "start_col_offset_idx": 1,
+              "end_col_offset_idx": 2,
+              "text": "0.000 (0.000)",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 393.531,
+                "t": 311.98401,
+                "r": 427.809,
+                "b": 333.61700999999994,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 1,
+              "end_row_offset_idx": 2,
+              "start_col_offset_idx": 2,
+              "end_col_offset_idx": 3,
+              "text": "0.030*** (0.001)",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 446.748,
+                "t": 311.98401,
+                "r": 481.025,
+                "b": 333.61700999999994,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 1,
+              "end_row_offset_idx": 2,
+              "start_col_offset_idx": 3,
+              "end_col_offset_idx": 4,
+              "text": "0.030*** (0.001)",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            }
+          ],
+          [
+            {
+              "bbox": {
+                "l": 105.364,
+                "t": 336.22700999999995,
+                "r": 271.866,
+                "b": 345.73900999999995,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 2,
+              "end_row_offset_idx": 3,
+              "start_col_offset_idx": 0,
+              "end_col_offset_idx": 1,
+              "text": "High school or equivalent, no college",
+              "column_header": false,
+              "row_header": true,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 344.157,
+                "t": 336.22700999999995,
+                "r": 381.775,
+                "b": 357.86001,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 2,
+              "end_row_offset_idx": 3,
+              "start_col_offset_idx": 1,
+              "end_col_offset_idx": 2,
+              "text": "-0.001*** (0.000)",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 393.532,
+                "t": 336.22700999999995,
+                "r": 427.809,
+                "b": 357.86001,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 2,
+              "end_row_offset_idx": 3,
+              "start_col_offset_idx": 2,
+              "end_col_offset_idx": 3,
+              "text": "0.011*** (0.000)",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 446.748,
+                "t": 336.22700999999995,
+                "r": 481.026,
+                "b": 357.86001,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 2,
+              "end_row_offset_idx": 3,
+              "start_col_offset_idx": 3,
+              "end_col_offset_idx": 4,
+              "text": "0.012*** (0.000)",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            }
+          ],
+          [
+            {
+              "bbox": {
+                "l": 105.364,
+                "t": 360.47000999999995,
+                "r": 254.331,
+                "b": 369.98200999999995,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 3,
+              "end_row_offset_idx": 4,
+              "start_col_offset_idx": 0,
+              "end_col_offset_idx": 1,
+              "text": "Some college or Associate degree",
+              "column_header": false,
+              "row_header": true,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 346.113,
+                "t": 360.47000999999995,
+                "r": 379.829,
+                "b": 382.10301,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 3,
+              "end_row_offset_idx": 4,
+              "start_col_offset_idx": 1,
+              "end_col_offset_idx": 2,
+              "text": "-0.001** (0.000)",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 393.531,
+                "t": 360.47000999999995,
+                "r": 427.809,
+                "b": 382.10301,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 3,
+              "end_row_offset_idx": 4,
+              "start_col_offset_idx": 2,
+              "end_col_offset_idx": 3,
+              "text": "0.006*** (0.000)",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 446.748,
+                "t": 360.47000999999995,
+                "r": 481.026,
+                "b": 382.10301,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 3,
+              "end_row_offset_idx": 4,
+              "start_col_offset_idx": 3,
+              "end_col_offset_idx": 4,
+              "text": "0.007*** (0.000)",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            }
+          ],
+          [
+            {
+              "bbox": {
+                "l": 105.364,
+                "t": 396.51600999999994,
+                "r": 262.659,
+                "b": 406.34601,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 4,
+              "end_row_offset_idx": 5,
+              "start_col_offset_idx": 0,
+              "end_col_offset_idx": 1,
+              "text": "Less than high school × GDP cycle",
+              "column_header": false,
+              "row_header": true,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 345.832,
+                "t": 396.83401,
+                "r": 380.109,
+                "b": 418.46800999999994,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 4,
+              "end_row_offset_idx": 5,
+              "start_col_offset_idx": 1,
+              "end_col_offset_idx": 2,
+              "text": "0.123*** (0.036)",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 395.477,
+                "t": 396.83401,
+                "r": 425.853,
+                "b": 418.46800999999994,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 4,
+              "end_row_offset_idx": 5,
+              "start_col_offset_idx": 2,
+              "end_col_offset_idx": 3,
+              "text": "0.079** (0.037)",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 449.26,
+                "t": 396.83401,
+                "r": 478.512,
+                "b": 418.46800999999994,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 4,
+              "end_row_offset_idx": 5,
+              "start_col_offset_idx": 3,
+              "end_col_offset_idx": 4,
+              "text": "-0.018 (0.056)",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            }
+          ],
+          [
+            {
+              "bbox": {
+                "l": 105.364,
+                "t": 420.76000999999997,
+                "r": 332.408,
+                "b": 430.58901,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 5,
+              "end_row_offset_idx": 6,
+              "start_col_offset_idx": 0,
+              "end_col_offset_idx": 1,
+              "text": "High school or equivalent, no college × GDP cycle",
+              "column_header": false,
+              "row_header": true,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 345.83,
+                "t": 421.07701,
+                "r": 380.108,
+                "b": 442.71101,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 5,
+              "end_row_offset_idx": 6,
+              "start_col_offset_idx": 1,
+              "end_col_offset_idx": 2,
+              "text": "0.070*** (0.024)",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 396.043,
+                "t": 421.07701,
+                "r": 425.295,
+                "b": 442.71101,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 5,
+              "end_row_offset_idx": 6,
+              "start_col_offset_idx": 2,
+              "end_col_offset_idx": 3,
+              "text": "0.018 (0.019)",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 449.26,
+                "t": 421.07701,
+                "r": 478.512,
+                "b": 442.71101,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 5,
+              "end_row_offset_idx": 6,
+              "start_col_offset_idx": 3,
+              "end_col_offset_idx": 4,
+              "text": "-0.044 (0.029)",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            }
+          ],
+          [
+            {
+              "bbox": {
+                "l": 105.364,
+                "t": 445.00201,
+                "r": 314.873,
+                "b": 454.83200999999997,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 6,
+              "end_row_offset_idx": 7,
+              "start_col_offset_idx": 0,
+              "end_col_offset_idx": 1,
+              "text": "Some college or Associate degree × GDP cycle",
+              "column_header": false,
+              "row_header": true,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 348.344,
+                "t": 445.32000999999997,
+                "r": 377.596,
+                "b": 466.95300999999995,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 6,
+              "end_row_offset_idx": 7,
+              "start_col_offset_idx": 1,
+              "end_col_offset_idx": 2,
+              "text": "0.037 (0.025)",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 396.043,
+                "t": 445.32000999999997,
+                "r": 425.295,
+                "b": 466.95300999999995,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 6,
+              "end_row_offset_idx": 7,
+              "start_col_offset_idx": 2,
+              "end_col_offset_idx": 3,
+              "text": "0.003 (0.020)",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 449.26,
+                "t": 445.32000999999997,
+                "r": 478.512,
+                "b": 466.95300999999995,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 6,
+              "end_row_offset_idx": 7,
+              "start_col_offset_idx": 3,
+              "end_col_offset_idx": 4,
+              "text": "-0.031 (0.032)",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            }
+          ],
+          [
+            {
+              "bbox": {
+                "l": 105.359,
+                "t": 474.58901,
+                "r": 142.17,
+                "b": 484.11800999999997,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 7,
+              "end_row_offset_idx": 8,
+              "start_col_offset_idx": 0,
+              "end_col_offset_idx": 1,
+              "text": "Time FE",
+              "column_header": false,
+              "row_header": true,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 359.625,
+                "t": 474.58901,
+                "r": 366.316,
+                "b": 484.10101,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 7,
+              "end_row_offset_idx": 8,
+              "start_col_offset_idx": 1,
+              "end_col_offset_idx": 2,
+              "text": "X",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 407.325,
+                "t": 474.58901,
+                "r": 414.016,
+                "b": 484.10101,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 7,
+              "end_row_offset_idx": 8,
+              "start_col_offset_idx": 2,
+              "end_col_offset_idx": 3,
+              "text": "X",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 460.542,
+                "t": 474.58901,
+                "r": 467.233,
+                "b": 484.10101,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 7,
+              "end_row_offset_idx": 8,
+              "start_col_offset_idx": 3,
+              "end_col_offset_idx": 4,
+              "text": "X",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            }
+          ],
+          [
+            {
+              "bbox": {
+                "l": 105.364,
+                "t": 486.71101,
+                "r": 164.118,
+                "b": 496.22301,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 8,
+              "end_row_offset_idx": 9,
+              "start_col_offset_idx": 0,
+              "end_col_offset_idx": 1,
+              "text": "Observations",
+              "column_header": false,
+              "row_header": true,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 355.442,
+                "t": 486.71101,
+                "r": 370.489,
+                "b": 496.22301,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 8,
+              "end_row_offset_idx": 9,
+              "start_col_offset_idx": 1,
+              "end_col_offset_idx": 2,
+              "text": "272",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 403.142,
+                "t": 486.71101,
+                "r": 418.189,
+                "b": 496.22301,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 8,
+              "end_row_offset_idx": 9,
+              "start_col_offset_idx": 2,
+              "end_col_offset_idx": 3,
+              "text": "276",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 456.368,
+                "t": 486.71101,
+                "r": 471.415,
+                "b": 496.22301,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 8,
+              "end_row_offset_idx": 9,
+              "start_col_offset_idx": 3,
+              "end_col_offset_idx": 4,
+              "text": "276",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            }
+          ],
+          [
+            {
+              "bbox": {
+                "l": 105.364,
+                "t": 498.83300999999994,
+                "r": 151.188,
+                "b": 508.34400999999997,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 9,
+              "end_row_offset_idx": 10,
+              "start_col_offset_idx": 0,
+              "end_col_offset_idx": 1,
+              "text": "R-squared",
+              "column_header": false,
+              "row_header": true,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 349.172,
+                "t": 498.83300999999994,
+                "r": 376.759,
+                "b": 508.34400999999997,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 9,
+              "end_row_offset_idx": 10,
+              "start_col_offset_idx": 1,
+              "end_col_offset_idx": 2,
+              "text": "0.9028",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 396.872,
+                "t": 498.83300999999994,
+                "r": 424.458,
+                "b": 508.34400999999997,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 9,
+              "end_row_offset_idx": 10,
+              "start_col_offset_idx": 2,
+              "end_col_offset_idx": 3,
+              "text": "0.9713",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 450.099,
+                "t": 498.83300999999994,
+                "r": 477.685,
+                "b": 508.34400999999997,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 9,
+              "end_row_offset_idx": 10,
+              "start_col_offset_idx": 3,
+              "end_col_offset_idx": 4,
+              "text": "0.9468",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            }
+          ]
+        ]
+      }
+    }
+  ],
+  "key_value_items": [],
+  "form_items": [],
+  "pages": {
+    "1": {
+      "size": {
+        "width": 595.2760009765625,
+        "height": 841.8900146484375
+      },
+      "page_no": 1
+    }
+  }
+}

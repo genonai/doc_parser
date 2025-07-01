@@ -1,0 +1,964 @@
+{
+  "schema_name": "DoclingDocument",
+  "version": "1.3.0",
+  "name": "[HIF 월간 산업이슈] 24년 8월호",
+  "origin": {
+    "mimetype": "application/pdf",
+    "binary_hash": 8550393167475566785,
+    "filename": "[HIF 월간 산업이슈] 24년 8월호.pdf"
+  },
+  "furniture": {
+    "self_ref": "#/furniture",
+    "children": [],
+    "content_layer": "furniture",
+    "name": "_root_",
+    "label": "unspecified"
+  },
+  "body": {
+    "self_ref": "#/body",
+    "children": [
+      {
+        "$ref": "#/texts/0"
+      },
+      {
+        "$ref": "#/texts/1"
+      },
+      {
+        "$ref": "#/texts/2"
+      },
+      {
+        "$ref": "#/groups/0"
+      },
+      {
+        "$ref": "#/texts/4"
+      },
+      {
+        "$ref": "#/texts/5"
+      },
+      {
+        "$ref": "#/groups/1"
+      },
+      {
+        "$ref": "#/tables/0"
+      },
+      {
+        "$ref": "#/texts/9"
+      },
+      {
+        "$ref": "#/texts/10"
+      },
+      {
+        "$ref": "#/texts/11"
+      },
+      {
+        "$ref": "#/pictures/0"
+      },
+      {
+        "$ref": "#/texts/13"
+      }
+    ],
+    "content_layer": "body",
+    "name": "_root_",
+    "label": "unspecified"
+  },
+  "groups": [
+    {
+      "self_ref": "#/groups/0",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [
+        {
+          "$ref": "#/texts/3"
+        }
+      ],
+      "content_layer": "body",
+      "name": "list",
+      "label": "list"
+    },
+    {
+      "self_ref": "#/groups/1",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [
+        {
+          "$ref": "#/texts/6"
+        },
+        {
+          "$ref": "#/texts/7"
+        },
+        {
+          "$ref": "#/texts/8"
+        }
+      ],
+      "content_layer": "body",
+      "name": "list",
+      "label": "list"
+    }
+  ],
+  "texts": [
+    {
+      "self_ref": "#/texts/0",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "furniture",
+      "label": "page_header",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 56.55851745605469,
+            "t": 803.6495971679688,
+            "r": 123.22587585449219,
+            "b": 795.090576171875,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            12
+          ]
+        }
+      ],
+      "orig": "HIF 월간 산업 이슈",
+      "text": "HIF 월간 산업 이슈"
+    },
+    {
+      "self_ref": "#/texts/1",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "furniture",
+      "label": "page_header",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 56.55851745605469,
+            "t": 790.6085815429688,
+            "r": 151.73793029785156,
+            "b": 782.1305541992188,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            25
+          ]
+        }
+      ],
+      "orig": "Monthly Industrial Issue.",
+      "text": "Monthly Industrial Issue."
+    },
+    {
+      "self_ref": "#/texts/2",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "section_header",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 102.70919799804688,
+            "t": 760.4020385742188,
+            "r": 482.2615661621094,
+            "b": 684.2763671875,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            56
+          ]
+        }
+      ],
+      "orig": "G. 유통 티메프사태 중소커머스  폐업  및  상위권  업체로의  쏠림  야기 ,  연구 프사태 중,",
+      "text": "G. 유통 티메프사태 중소커머스  폐업  및  상위권  업체로의  쏠림  야기 ,  연구 프사태 중,",
+      "level": 1
+    },
+    {
+      "self_ref": "#/texts/3",
+      "parent": {
+        "$ref": "#/groups/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "list_item",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 95.89372253417969,
+            "t": 677.8701782226562,
+            "r": 560.2799682617188,
+            "b": 539.4532470703125,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            1157
+          ]
+        }
+      ],
+      "orig": "연구위원  김남훈 ※ 티메프 사태로 인해 피해액이 조원에 이르며 정부의 정산기한 단축 Summary : 1.3 , 이커머스업체의 기능 분리 에스크로 의무화 등 관련 규제가 대폭 강화될 전망 규제 강화에도 PG \r\n온라인 셀러의 오픈마켓 신뢰성에 대한 보수적 접근이 이어지며 유통사 및 대형 플랫폼 위주로 입점 연구위원김남훈 ※ 티메프 사태로 인해 피해액이 조원에 이르며 정부의 정산기한 단축 Summary : 1.3 , 이커머스업체의 기능 분리 에스크로 의무화 등 관련 규제가 대폭 강화될 전망 규제 강화에도 PG , . 온라인 셀러의 오픈마켓 신뢰성에 대한 보수적 접근이 이어지며 유통사 및 대형 플랫폼 위주로 입점 쏠림 현상이 확대되고 경쟁 구조에 변화가 예상 특히 소비심리 위축과 겹쳐 최근 사태에 따른 소 \r\n비자 전망 . \r\n형 플랫폼 \r\n사태에 티메 사태 인해 피해액이 원에 이며 정부의 정산기한 단축 Summary : 1.3 , 이커머스업체의 기능 분리 에스크로 의무화 등 관련 규제가 대폭 강화될 전망 규제 강화에도 PG , . 온라인 셀러의 오픈마켓 신뢰성에 대한 보수적 접근이 이어지며 유통사 및 대형 플랫폼 위주로 입점 쏠림 현상이 확대되고 경쟁 구조에 변화가 예상 특히 소비심리 위축과 겹쳐 최근 사태에 따른 소 . 비자 및 판매자 이탈 등으로 업력이 오래된 오픈마켓형 중소 이커머스업체들도 폐업과 서비스 중단이 늘고 있어 상위업체 중심의 소비자 락인효과가 커지\r\n승자독식 구조가 착화될 가능성 가 예상 특. \r\n오픈마켓형 \r\n커지 이커머업체의 기능 분리 에의무화 등 관련 규제가 대폭 강화될 전망 규제 강화에G , . 온라인 셀러의 오픈마켓 신뢰성에 대한 보수적 접근이 이어지며 유통사 및 대형 플랫폼 위주로 입점 쏠림 현상이 확대되고 경쟁 구조에 변화가 예상 특히 소비심리 위축과 겹쳐 최근 사태에 따른 소 . 비자 및 판매자 이탈 등으로 업력이 오래된 오픈마켓형 중소 이커머스업체들도 폐업과 서비스 중단이 늘고 있어 상위업체 중심의 소비자 락인효과가 커지고 승자독식 구조가 고착화될 가능성 쏠림 현상이 확대되경쟁 구에 변화가 예상 특히 비심리 위축과 겹쳐 최근 사태에 . \r\n및 판매자 이탈 등으로 업력이 오래된 오픈마켓형 중소 이커머스업체들도 폐업과 서비스 \r\n있어 상위업체 중심의 소비자 락인효과가 커지고 승자독식 구조가 고착화될 가능성",
+      "text": "연구위원  김남훈 ※ 티메프 사태로 인해 피해액이 조원에 이르며 정부의 정산기한 단축 Summary : 1.3 , 이커머스업체의 기능 분리 에스크로 의무화 등 관련 규제가 대폭 강화될 전망 규제 강화에도 PG \r\n온라인 셀러의 오픈마켓 신뢰성에 대한 보수적 접근이 이어지며 유통사 및 대형 플랫폼 위주로 입점 연구위원김남훈 ※ 티메프 사태로 인해 피해액이 조원에 이르며 정부의 정산기한 단축 Summary : 1.3 , 이커머스업체의 기능 분리 에스크로 의무화 등 관련 규제가 대폭 강화될 전망 규제 강화에도 PG , . 온라인 셀러의 오픈마켓 신뢰성에 대한 보수적 접근이 이어지며 유통사 및 대형 플랫폼 위주로 입점 쏠림 현상이 확대되고 경쟁 구조에 변화가 예상 특히 소비심리 위축과 겹쳐 최근 사태에 따른 소 \r\n비자 전망 . \r\n형 플랫폼 \r\n사태에 티메 사태 인해 피해액이 원에 이며 정부의 정산기한 단축 Summary : 1.3 , 이커머스업체의 기능 분리 에스크로 의무화 등 관련 규제가 대폭 강화될 전망 규제 강화에도 PG , . 온라인 셀러의 오픈마켓 신뢰성에 대한 보수적 접근이 이어지며 유통사 및 대형 플랫폼 위주로 입점 쏠림 현상이 확대되고 경쟁 구조에 변화가 예상 특히 소비심리 위축과 겹쳐 최근 사태에 따른 소 . 비자 및 판매자 이탈 등으로 업력이 오래된 오픈마켓형 중소 이커머스업체들도 폐업과 서비스 중단이 늘고 있어 상위업체 중심의 소비자 락인효과가 커지\r\n승자독식 구조가 착화될 가능성 가 예상 특. \r\n오픈마켓형 \r\n커지 이커머업체의 기능 분리 에의무화 등 관련 규제가 대폭 강화될 전망 규제 강화에G , . 온라인 셀러의 오픈마켓 신뢰성에 대한 보수적 접근이 이어지며 유통사 및 대형 플랫폼 위주로 입점 쏠림 현상이 확대되고 경쟁 구조에 변화가 예상 특히 소비심리 위축과 겹쳐 최근 사태에 따른 소 . 비자 및 판매자 이탈 등으로 업력이 오래된 오픈마켓형 중소 이커머스업체들도 폐업과 서비스 중단이 늘고 있어 상위업체 중심의 소비자 락인효과가 커지고 승자독식 구조가 고착화될 가능성 쏠림 현상이 확대되경쟁 구에 변화가 예상 특히 비심리 위축과 겹쳐 최근 사태에 . \r\n및 판매자 이탈 등으로 업력이 오래된 오픈마켓형 중소 이커머스업체들도 폐업과 서비스 \r\n있어 상위업체 중심의 소비자 락인효과가 커지고 승자독식 구조가 고착화될 가능성",
+      "enumerated": false,
+      "marker": "-"
+    },
+    {
+      "self_ref": "#/texts/4",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 470.3404541015625,
+            "t": 707.2981567382812,
+            "r": 555.0814208984375,
+            "b": 670.705078125,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            27
+          ]
+        }
+      ],
+      "orig": "야기 \r\n연구위원  김남훈 \r\n부의 정산기한 단축",
+      "text": "야기 \r\n연구위원  김남훈 \r\n부의 정산기한 단축"
+    },
+    {
+      "self_ref": "#/texts/5",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "section_header",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 78.47628784179688,
+            "t": 533.2818603515625,
+            "r": 519.3115234375,
+            "b": 483.08984375,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            136
+          ]
+        }
+      ],
+      "orig": " 티메프 사태 피해액 조원에 이르며 정부의 대응책 마련과 관련 규제 강화 예상 脊 1.3\r\n금감원에 따르면 집계된 미정산 피해액은 조원 피해업체는 만개에 이르고 피해 13 48 프 사태 脊 \r\n감원에 따 피해액 조원에 1.3\r\n르면 집계된 미",
+      "text": " 티메프 사태 피해액 조원에 이르며 정부의 대응책 마련과 관련 규제 강화 예상 脊 1.3\r\n금감원에 따르면 집계된 미정산 피해액은 조원 피해업체는 만개에 이르고 피해 13 48 프 사태 脊 \r\n감원에 따 피해액 조원에 1.3\r\n르면 집계된 미",
+      "level": 1
+    },
+    {
+      "self_ref": "#/texts/6",
+      "parent": {
+        "$ref": "#/groups/1"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "list_item",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 93.476318359375,
+            "t": 435.6568603515625,
+            "r": 549.2703857421875,
+            "b": 350.75909423828125,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            485
+          ]
+        }
+      ],
+      "orig": " ㏖㏗ ㏖㏗\r\n㎽ 미정산액이  백만원  이하인  업체들이  천만원  이하가  로  대부분을  차지 1 69.3㚜,  1 90.4㚜\r\n정부는 이커머스 업체들의 업무 결제대행 분리 및 정산기한 단축 사의 인적 물적 PG ㏖ ㏗ , PG · 요건 강화 및 에스크로 의무화 등 전자금융 및 전자상거래 관련 규제를 대폭 강화할 예정 \r\n㎽ 부재하던정산주기를일로제한하고 이커머스업체들의등록 제 자위탁의무화예정 40 PG 3 건 \r\n㎽ 부 정부이커머업체들의 업무 결제대행 리 및 정기축 사의 적 물㏖ ㏗ , \r\n요건 강화 및 에스크로 의무화 등 전자금융 및 전자상거래 관련 규제를 대폭 강화할 예\r\n㎽ 부재하던  정산주기를  일로  제한하고 이커머스업체들의  등록 제 자  위탁  의무화  예정 40 ,  PG ,  3\r\n소수 업체를 제외하면 판매자 피해 부담은 크지 않은 편이나 유사 사업모델을 갖\r\n커머업체 알레츠 를 함 다수가 폐업하며 이커머업체에 대한 신뢰 리가 커진 상",
+      "text": " ㏖㏗ ㏖㏗\r\n㎽ 미정산액이  백만원  이하인  업체들이  천만원  이하가  로  대부분을  차지 1 69.3㚜,  1 90.4㚜\r\n정부는 이커머스 업체들의 업무 결제대행 분리 및 정산기한 단축 사의 인적 물적 PG ㏖ ㏗ , PG · 요건 강화 및 에스크로 의무화 등 전자금융 및 전자상거래 관련 규제를 대폭 강화할 예정 \r\n㎽ 부재하던정산주기를일로제한하고 이커머스업체들의등록 제 자위탁의무화예정 40 PG 3 건 \r\n㎽ 부 정부이커머업체들의 업무 결제대행 리 및 정기축 사의 적 물㏖ ㏗ , \r\n요건 강화 및 에스크로 의무화 등 전자금융 및 전자상거래 관련 규제를 대폭 강화할 예\r\n㎽ 부재하던  정산주기를  일로  제한하고 이커머스업체들의  등록 제 자  위탁  의무화  예정 40 ,  PG ,  3\r\n소수 업체를 제외하면 판매자 피해 부담은 크지 않은 편이나 유사 사업모델을 갖\r\n커머업체 알레츠 를 함 다수가 폐업하며 이커머업체에 대한 신뢰 리가 커진 상",
+      "enumerated": false,
+      "marker": "-"
+    },
+    {
+      "self_ref": "#/texts/7",
+      "parent": {
+        "$ref": "#/groups/1"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "list_item",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 93.476318359375,
+            "t": 499.4730224609375,
+            "r": 550.2300415039062,
+            "b": 414.71923828125,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            493
+          ]
+        }
+      ],
+      "orig": " 티메프 사태 피해액 조원에 이르며 정부의 대응책 마련과 관련 규제 강화 예상 脊 1.3\r\n금감원에 따르면 집계된 미정산 피해액은 조원 피해업체는 만개에 이르고 피해 1.3 , 4.8 규모 억원 이상 가 큰 소수가 피해액의 대부분 를 차지한 것으로 파악 ㏖1 ㏗ ㏖88.1㚜㏗\r\n㎽ 미정산액이백만원이하인업체들이천만원이하가로대부분을차지 1 693㚜1 904㚜\r\n정부는 이커머스 업체들의 업무 결제대행 분리 및 정산기한 단축 사의 인적 물적 PG ㏖ ㏗ PG 규\r\n㎽ 미\r\n정 금감에 따집계미정피해액피해업체개에 이, \r\n규모 억원 이상 가 큰 소수가 피해액의 대부분 를 차지한 것으로 파악 ㏖1 ㏗ ㏖88.1㚜㏗\r\n㎽ 미정산액이  백만원  이하인  업체들이  천만원  이하가  로  대부분을  차지 1 69.3㚜,  1 90.4㚜\r\n정부는 이커머스 업체들의 업무 결제대행 분리 및 정산기한 단축 사의 인PG ㏖ ㏗ PG \r\n건 강화 및 에의화 전자융 및 전자상거래 관련 제를 대강화할",
+      "text": " 티메프 사태 피해액 조원에 이르며 정부의 대응책 마련과 관련 규제 강화 예상 脊 1.3\r\n금감원에 따르면 집계된 미정산 피해액은 조원 피해업체는 만개에 이르고 피해 1.3 , 4.8 규모 억원 이상 가 큰 소수가 피해액의 대부분 를 차지한 것으로 파악 ㏖1 ㏗ ㏖88.1㚜㏗\r\n㎽ 미정산액이백만원이하인업체들이천만원이하가로대부분을차지 1 693㚜1 904㚜\r\n정부는 이커머스 업체들의 업무 결제대행 분리 및 정산기한 단축 사의 인적 물적 PG ㏖ ㏗ PG 규\r\n㎽ 미\r\n정 금감에 따집계미정피해액피해업체개에 이, \r\n규모 억원 이상 가 큰 소수가 피해액의 대부분 를 차지한 것으로 파악 ㏖1 ㏗ ㏖88.1㚜㏗\r\n㎽ 미정산액이  백만원  이하인  업체들이  천만원  이하가  로  대부분을  차지 1 69.3㚜,  1 90.4㚜\r\n정부는 이커머스 업체들의 업무 결제대행 분리 및 정산기한 단축 사의 인PG ㏖ ㏗ PG \r\n건 강화 및 에의화 전자융 및 전자상거래 관련 제를 대강화할",
+      "enumerated": false,
+      "marker": "-"
+    },
+    {
+      "self_ref": "#/texts/8",
+      "parent": {
+        "$ref": "#/groups/1"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "list_item",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 93.476318359375,
+            "t": 372.0327453613281,
+            "r": 553.4535522460938,
+            "b": 291.9676513671875,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            393
+          ]
+        }
+      ],
+      "orig": " ㎽ 부재하던  정산주기를  일로  제한하고 이커머스업체들의  등록 제 자  위탁  의무화  예정 40 ,  PG ,  3\r\n소수 업체를 제외하면 판매자 피해 부담은 크지 않은 편이나 유사 사업모델을 갖던 커머스업체 알레츠 를 포함 다수가 폐업하며 이커머스업체에 대한 신뢰 리스크가 커진 상황 㐰 㐱\r\n㎽ 알레츠는티메프와유사한오픈마켓으로서년영업손실액이억원이며자본잠식이였던상황 㐰23 104 커머\r\n㎽ 알 수 업체를 제외하매자 피해 부담지 않이나 유사 사업델을 갖던 커머스업체 알레츠 를 포함 다수가 폐업하며 이커머스업체에 대한 신뢰 리스크가 커진 상황 \r\n㎽ 알레츠는  티메프와  유사한  오픈마켓으로서  년  영업손실액이  억원이며  자본잠식이였던  상황 㐰23 104\r\n액대별미정산액㖐 업별미정산액",
+      "text": " ㎽ 부재하던  정산주기를  일로  제한하고 이커머스업체들의  등록 제 자  위탁  의무화  예정 40 ,  PG ,  3\r\n소수 업체를 제외하면 판매자 피해 부담은 크지 않은 편이나 유사 사업모델을 갖던 커머스업체 알레츠 를 포함 다수가 폐업하며 이커머스업체에 대한 신뢰 리스크가 커진 상황 㐰 㐱\r\n㎽ 알레츠는티메프와유사한오픈마켓으로서년영업손실액이억원이며자본잠식이였던상황 㐰23 104 커머\r\n㎽ 알 수 업체를 제외하매자 피해 부담지 않이나 유사 사업델을 갖던 커머스업체 알레츠 를 포함 다수가 폐업하며 이커머스업체에 대한 신뢰 리스크가 커진 상황 \r\n㎽ 알레츠는  티메프와  유사한  오픈마켓으로서  년  영업손실액이  억원이며  자본잠식이였던  상황 㐰23 104\r\n액대별미정산액㖐 업별미정산액",
+      "enumerated": false,
+      "marker": "-"
+    },
+    {
+      "self_ref": "#/texts/9",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 62.78363037109375,
+            "t": 292.4755859375,
+            "r": 545.7632446289062,
+            "b": 254.9095001220703,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            181
+          ]
+        }
+      ],
+      "orig": "레티메와유사마켓서영액이억이며자식이였상황 \r\n표1  㖐 금액대별  미정산금액  분포              ㏖ : , , 㚜㏗ 단위 개 억원 표2  㖐 업종별  미정산  금액  분포                  ㏖ : , , 㚜㏗ 단위 개 억원 구분 판매점\r\n수 비중 금액 비중 구분 판매점수 비중 금액 비중 \r\n디지털 가전",
+      "text": "레티메와유사마켓서영액이억이며자식이였상황 \r\n표1  㖐 금액대별  미정산금액  분포              ㏖ : , , 㚜㏗ 단위 개 억원 표2  㖐 업종별  미정산  금액  분포                  ㏖ : , , 㚜㏗ 단위 개 억원 구분 판매점\r\n수 비중 금액 비중 구분 판매점수 비중 금액 비중 \r\n디지털 가전"
+    },
+    {
+      "self_ref": "#/texts/10",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 62.593658447265625,
+            "t": 102.75981140136719,
+            "r": 125.43878173828125,
+            "b": 79.42528533935547,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            15
+          ]
+        }
+      ],
+      "orig": "계 \r\n자료  기획재정부 :",
+      "text": "계 \r\n자료  기획재정부 :"
+    },
+    {
+      "self_ref": "#/texts/11",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 298.1541442871094,
+            "t": 102.75981140136719,
+            "r": 360.9992370605469,
+            "b": 79.42528533935547,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            22
+          ]
+        }
+      ],
+      "orig": "스포츠 레저‧ 3\r\n자료  기획재정부 :",
+      "text": "스포츠 레저‧ 3\r\n자료  기획재정부 :"
+    },
+    {
+      "self_ref": "#/texts/12",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "page_footer",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 62.3159065246582,
+            "t": 53.159507751464844,
+            "r": 66.0307846069336,
+            "b": 46.760494232177734,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            1
+          ]
+        }
+      ],
+      "orig": "7",
+      "text": "7"
+    },
+    {
+      "self_ref": "#/texts/13",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "furniture",
+      "label": "page_footer",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 77.66666666666667,
+            "t": 54.33333333333337,
+            "r": 191.0,
+            "b": 45.0,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            35
+          ]
+        }
+      ],
+      "orig": "Hana Bank Hana Institute of Finance",
+      "text": "Hana Bank Hana Institute of Finance"
+    }
+  ],
+  "pictures": [
+    {
+      "self_ref": "#/pictures/0",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [
+        {
+          "$ref": "#/texts/12"
+        }
+      ],
+      "content_layer": "body",
+      "label": "picture",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 55.5865364074707,
+            "t": 58.44677734375,
+            "r": 71.64366149902344,
+            "b": 41.666748046875,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            0
+          ]
+        }
+      ],
+      "captions": [],
+      "references": [],
+      "footnotes": [],
+      "annotations": []
+    }
+  ],
+  "tables": [
+    {
+      "self_ref": "#/tables/0",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "table",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 61.08576965332031,
+            "t": 275.0386962890625,
+            "r": 530.6480712890625,
+            "b": 84.73504638671875,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            0
+          ]
+        }
+      ],
+      "captions": [],
+      "references": [],
+      "footnotes": [],
+      "data": {
+        "table_cells": [
+          {
+            "bbox": {
+              "l": 84.73161315917969,
+              "t": 568.6524353027344,
+              "r": 537.8330688476562,
+              "b": 601.9345092773438,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 0,
+            "end_row_offset_idx": 1,
+            "start_col_offset_idx": 1,
+            "end_col_offset_idx": 2,
+            "text": "표㖐 금액대별  미정산금액  분포              ㏖ : , , 㚜㏗ 단위 개 억원 표2  㖐 업종별  미정산  금액  분포                  ㏖ : , , 㚜㏗ 단위 개 억원 구분 판매점  수 비중 금액 비중 구분 판매점  수 비중 금액 비중 \r\n㚌 1 33350 ㏖693㏗ 76 ㏖06㏗ 백만원 디지털 가전\r\n4607 ㏖96㏗ 3708 ㏖290㏗",
+            "column_header": true,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 72.13015747070312,
+              "t": 588.3414916992188,
+              "r": 292.6224365234375,
+              "b": 625.2505645751953,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 1,
+            "end_row_offset_idx": 2,
+            "start_col_offset_idx": 0,
+            "end_col_offset_idx": 1,
+            "text": "구분 판매점  수 비중 금액 비중 \r\n㚑 㚌 1 33,350 ㏖69.3㏗ 76 ㏖0.6㏗ 백만원 \r\n㚌 1 10143 ㏖211㏗ 338 ㏖26㏗ 천만원",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 74.17008209228516,
+              "t": 586.0614776611328,
+              "r": 533.0704345703125,
+              "b": 646.610595703125,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 1,
+            "end_row_offset_idx": 2,
+            "start_col_offset_idx": 1,
+            "end_col_offset_idx": 2,
+            "text": "㏖ , , ㏗ ㏖ , , ㏗ \r\n구분 판매점  수 비중 금액 비중 구분 판매점  수 비중 금액 비중 㚑 㚌 1 33,350 ㏖69.3㏗ 76 ㏖0.6㏗ 백만원 디지털 가전‧ 4,607 ㏖9,6㏗ 3,708 ㏖29.0㏗ 상품권 28 ㏖0.1㏗ 3,228 ㏖25.2㏗ 㚑㚌 1 10,143 ㏖21.1㏗ 338 ㏖2.6㏗ 천만원 식품 8,479 ㏖17.7㏗ 1,275 ㏖10.0㏗ \r\n㚌 1 3650 ㏖76㏗ 1114 ㏖87㏗ 억원 생활 문화\r\n14422 ㏖300㏗ 1129 ㏖88㏗",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 75.72998809814453,
+              "t": 619.3015441894531,
+              "r": 532.3585205078125,
+              "b": 667.9706573486328,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 2,
+            "end_row_offset_idx": 3,
+            "start_col_offset_idx": 0,
+            "end_col_offset_idx": 1,
+            "text": ",㏖㏗ ㏖㏗ 백만원 \r\n,㏖,㏗ ,㏖㏗ 상품권 28 ㏖0.1㏗ 3,228 ㏖25.2㏗ 㚑㚌 1 10,143 ㏖21.1㏗ 338 ㏖2.6㏗ 천만원 식품 8,479 ㏖17.7㏗ 1,275 ㏖10.0㏗ 㚑 㚌 1 3,650 ㏖7.6㏗ 1,114 ㏖8.7㏗ 억원 생활 문화‧ 14,422 ㏖30.0㏗ 1,129 ㏖8.8㏗ \r\n㚌 10 773 ㏖16㏗ 2253 ㏖176㏗ 억원 패션 잡화\r\n6759 ㏖140㏗ 801 ㏖63㏗",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 306.13134765625,
+              "t": 635.5645751953125,
+              "r": 530.903076171875,
+              "b": 672.7706604003906,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 3,
+            "end_row_offset_idx": 4,
+            "start_col_offset_idx": 1,
+            "end_col_offset_idx": 2,
+            "text": "㏖㏗ ,㏖㏗ \r\n식품 8,479 ㏖17.7㏗ 1,275 ㏖10.0㏗ \r\n생활 문화‧ 14,422 ㏖30.0㏗ 1,129 ㏖8.8㏗ \r\n패션 잡화‧ 6759 ㏖140㏗ 801 ㏖63㏗ 여행 287 ㏖0\r\n6㏗ 795 ㏖62㏗",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 73.2093276977539,
+              "t": 652.4216156005859,
+              "r": 294.30474853515625,
+              "b": 689.3306884765625,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 4,
+            "end_row_offset_idx": 5,
+            "start_col_offset_idx": 0,
+            "end_col_offset_idx": 1,
+            "text": "㚑 㚌 1 3,650 ㏖7.6㏗ 1,114 ㏖8.7㏗ 억원 \r\n㚑 㚌 10 773 ㏖1.6㏗ 2,253 ㏖17.6㏗ 억원 \r\n㚌 30 134 ㏖03㏗ 2249 ㏖176㏗ 억원",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 72.48965454101562,
+              "t": 652.5416259765625,
+              "r": 530.90283203125,
+              "b": 732.05078125,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 5,
+            "end_row_offset_idx": 6,
+            "start_col_offset_idx": 0,
+            "end_col_offset_idx": 1,
+            "text": ",㏖㏗ ,㏖㏗ 㚑 㚌 1 3,650 ㏖7.6㏗ 1,114 ㏖8.7㏗ 억원 생활 문화‧ 14,422 ㏖30.0㏗ 1,129 ㏖8.8㏗ 㚑 㚌 10 773 ㏖1.6㏗ 2,253 ㏖17.6㏗ 억원 패션 잡화‧ 6,759 ㏖14.0㏗ 801 ㏖6.3㏗ 여행 287 ㏖0.6㏗ 795 ㏖6.2㏗ 㚑 㚌 30 134 ㏖0.3㏗ 2,249 ㏖17.6㏗ 억원 뷰티 헬스‧ 3\r\n097 ㏖64㏗ 481 ㏖38㏗ \r\n㚋30 74 ㏖02㏗ 6759 ㏖529㏗ 억원 전자상거래 14 ㏖0\r\n0㏗ 415 ㏖32㏗  ㏖㏗ ,㏖㏗ \r\n,㏖㏗ ㏖㏗ 여행 287 ㏖0.6㏗ 795 ㏖6.2㏗ 㚑 㚌 30 134 ㏖0.3㏗ 2,249 ㏖17.6㏗ 억원 뷰티 헬스‧ 3,097 ㏖6.4㏗ 481 ㏖3.8㏗ 㚑 㚋30 74 ㏖0.2㏗ 6,759 ㏖52.9㏗ 억원 전자상거래 14 ㏖0.0㏗ 415 ㏖3.2㏗ 계 48\r\n124 ㏖1000㏗ 12789 ㏖1000㏗ 스포츠 레저\r\n3209 ㏖67㏗ 254 ㏖20㏗",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 88.73888397216797,
+              "t": 702.3417205810547,
+              "r": 530.436767578125,
+              "b": 755.9308242797852,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 6,
+            "end_row_offset_idx": 7,
+            "start_col_offset_idx": 1,
+            "end_col_offset_idx": 2,
+            "text": "㏖㏗ ㏖㏗ \r\n뷰티 헬스‧ 3,097 ㏖6.4㏗ 481 ㏖3.8㏗ \r\n전자상거래 14 ㏖0.0㏗ 415 ㏖3.2㏗ \r\n스포츠 레저‧ 3209 ㏖67㏗ 254 ㏖20㏗  뷰티 헬,㏖㏗ ㏖㏗ 㚑 㚋30 74 ㏖0.2㏗ 6,759 ㏖52.9㏗ 억원 전자상거래 14 ㏖0.0㏗ 415 ㏖3.2㏗ 계 48,124 ㏖100.0㏗ 12,789 ㏖100.0㏗ 스포츠 레저‧ 3,209 ㏖6.7㏗ 254 ㏖2.0㏗ \r\n료기획재정부 자료기획재정부 :",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          }
+        ],
+        "num_rows": 7,
+        "num_cols": 2,
+        "grid": [
+          [
+            {
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 0,
+              "end_row_offset_idx": 1,
+              "start_col_offset_idx": 0,
+              "end_col_offset_idx": 1,
+              "text": "",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 84.73161315917969,
+                "t": 568.6524353027344,
+                "r": 537.8330688476562,
+                "b": 601.9345092773438,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 0,
+              "end_row_offset_idx": 1,
+              "start_col_offset_idx": 1,
+              "end_col_offset_idx": 2,
+              "text": "표㖐 금액대별  미정산금액  분포              ㏖ : , , 㚜㏗ 단위 개 억원 표2  㖐 업종별  미정산  금액  분포                  ㏖ : , , 㚜㏗ 단위 개 억원 구분 판매점  수 비중 금액 비중 구분 판매점  수 비중 금액 비중 \r\n㚌 1 33350 ㏖693㏗ 76 ㏖06㏗ 백만원 디지털 가전\r\n4607 ㏖96㏗ 3708 ㏖290㏗",
+              "column_header": true,
+              "row_header": false,
+              "row_section": false
+            }
+          ],
+          [
+            {
+              "bbox": {
+                "l": 72.13015747070312,
+                "t": 588.3414916992188,
+                "r": 292.6224365234375,
+                "b": 625.2505645751953,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 1,
+              "end_row_offset_idx": 2,
+              "start_col_offset_idx": 0,
+              "end_col_offset_idx": 1,
+              "text": "구분 판매점  수 비중 금액 비중 \r\n㚑 㚌 1 33,350 ㏖69.3㏗ 76 ㏖0.6㏗ 백만원 \r\n㚌 1 10143 ㏖211㏗ 338 ㏖26㏗ 천만원",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 74.17008209228516,
+                "t": 586.0614776611328,
+                "r": 533.0704345703125,
+                "b": 646.610595703125,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 1,
+              "end_row_offset_idx": 2,
+              "start_col_offset_idx": 1,
+              "end_col_offset_idx": 2,
+              "text": "㏖ , , ㏗ ㏖ , , ㏗ \r\n구분 판매점  수 비중 금액 비중 구분 판매점  수 비중 금액 비중 㚑 㚌 1 33,350 ㏖69.3㏗ 76 ㏖0.6㏗ 백만원 디지털 가전‧ 4,607 ㏖9,6㏗ 3,708 ㏖29.0㏗ 상품권 28 ㏖0.1㏗ 3,228 ㏖25.2㏗ 㚑㚌 1 10,143 ㏖21.1㏗ 338 ㏖2.6㏗ 천만원 식품 8,479 ㏖17.7㏗ 1,275 ㏖10.0㏗ \r\n㚌 1 3650 ㏖76㏗ 1114 ㏖87㏗ 억원 생활 문화\r\n14422 ㏖300㏗ 1129 ㏖88㏗",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            }
+          ],
+          [
+            {
+              "bbox": {
+                "l": 75.72998809814453,
+                "t": 619.3015441894531,
+                "r": 532.3585205078125,
+                "b": 667.9706573486328,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 2,
+              "end_row_offset_idx": 3,
+              "start_col_offset_idx": 0,
+              "end_col_offset_idx": 1,
+              "text": ",㏖㏗ ㏖㏗ 백만원 \r\n,㏖,㏗ ,㏖㏗ 상품권 28 ㏖0.1㏗ 3,228 ㏖25.2㏗ 㚑㚌 1 10,143 ㏖21.1㏗ 338 ㏖2.6㏗ 천만원 식품 8,479 ㏖17.7㏗ 1,275 ㏖10.0㏗ 㚑 㚌 1 3,650 ㏖7.6㏗ 1,114 ㏖8.7㏗ 억원 생활 문화‧ 14,422 ㏖30.0㏗ 1,129 ㏖8.8㏗ \r\n㚌 10 773 ㏖16㏗ 2253 ㏖176㏗ 억원 패션 잡화\r\n6759 ㏖140㏗ 801 ㏖63㏗",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 2,
+              "end_row_offset_idx": 3,
+              "start_col_offset_idx": 1,
+              "end_col_offset_idx": 2,
+              "text": "",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            }
+          ],
+          [
+            {
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 3,
+              "end_row_offset_idx": 4,
+              "start_col_offset_idx": 0,
+              "end_col_offset_idx": 1,
+              "text": "",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 306.13134765625,
+                "t": 635.5645751953125,
+                "r": 530.903076171875,
+                "b": 672.7706604003906,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 3,
+              "end_row_offset_idx": 4,
+              "start_col_offset_idx": 1,
+              "end_col_offset_idx": 2,
+              "text": "㏖㏗ ,㏖㏗ \r\n식품 8,479 ㏖17.7㏗ 1,275 ㏖10.0㏗ \r\n생활 문화‧ 14,422 ㏖30.0㏗ 1,129 ㏖8.8㏗ \r\n패션 잡화‧ 6759 ㏖140㏗ 801 ㏖63㏗ 여행 287 ㏖0\r\n6㏗ 795 ㏖62㏗",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            }
+          ],
+          [
+            {
+              "bbox": {
+                "l": 73.2093276977539,
+                "t": 652.4216156005859,
+                "r": 294.30474853515625,
+                "b": 689.3306884765625,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 4,
+              "end_row_offset_idx": 5,
+              "start_col_offset_idx": 0,
+              "end_col_offset_idx": 1,
+              "text": "㚑 㚌 1 3,650 ㏖7.6㏗ 1,114 ㏖8.7㏗ 억원 \r\n㚑 㚌 10 773 ㏖1.6㏗ 2,253 ㏖17.6㏗ 억원 \r\n㚌 30 134 ㏖03㏗ 2249 ㏖176㏗ 억원",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 4,
+              "end_row_offset_idx": 5,
+              "start_col_offset_idx": 1,
+              "end_col_offset_idx": 2,
+              "text": "",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            }
+          ],
+          [
+            {
+              "bbox": {
+                "l": 72.48965454101562,
+                "t": 652.5416259765625,
+                "r": 530.90283203125,
+                "b": 732.05078125,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 5,
+              "end_row_offset_idx": 6,
+              "start_col_offset_idx": 0,
+              "end_col_offset_idx": 1,
+              "text": ",㏖㏗ ,㏖㏗ 㚑 㚌 1 3,650 ㏖7.6㏗ 1,114 ㏖8.7㏗ 억원 생활 문화‧ 14,422 ㏖30.0㏗ 1,129 ㏖8.8㏗ 㚑 㚌 10 773 ㏖1.6㏗ 2,253 ㏖17.6㏗ 억원 패션 잡화‧ 6,759 ㏖14.0㏗ 801 ㏖6.3㏗ 여행 287 ㏖0.6㏗ 795 ㏖6.2㏗ 㚑 㚌 30 134 ㏖0.3㏗ 2,249 ㏖17.6㏗ 억원 뷰티 헬스‧ 3\r\n097 ㏖64㏗ 481 ㏖38㏗ \r\n㚋30 74 ㏖02㏗ 6759 ㏖529㏗ 억원 전자상거래 14 ㏖0\r\n0㏗ 415 ㏖32㏗  ㏖㏗ ,㏖㏗ \r\n,㏖㏗ ㏖㏗ 여행 287 ㏖0.6㏗ 795 ㏖6.2㏗ 㚑 㚌 30 134 ㏖0.3㏗ 2,249 ㏖17.6㏗ 억원 뷰티 헬스‧ 3,097 ㏖6.4㏗ 481 ㏖3.8㏗ 㚑 㚋30 74 ㏖0.2㏗ 6,759 ㏖52.9㏗ 억원 전자상거래 14 ㏖0.0㏗ 415 ㏖3.2㏗ 계 48\r\n124 ㏖1000㏗ 12789 ㏖1000㏗ 스포츠 레저\r\n3209 ㏖67㏗ 254 ㏖20㏗",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 5,
+              "end_row_offset_idx": 6,
+              "start_col_offset_idx": 1,
+              "end_col_offset_idx": 2,
+              "text": "",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            }
+          ],
+          [
+            {
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 6,
+              "end_row_offset_idx": 7,
+              "start_col_offset_idx": 0,
+              "end_col_offset_idx": 1,
+              "text": "",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 88.73888397216797,
+                "t": 702.3417205810547,
+                "r": 530.436767578125,
+                "b": 755.9308242797852,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 6,
+              "end_row_offset_idx": 7,
+              "start_col_offset_idx": 1,
+              "end_col_offset_idx": 2,
+              "text": "㏖㏗ ㏖㏗ \r\n뷰티 헬스‧ 3,097 ㏖6.4㏗ 481 ㏖3.8㏗ \r\n전자상거래 14 ㏖0.0㏗ 415 ㏖3.2㏗ \r\n스포츠 레저‧ 3209 ㏖67㏗ 254 ㏖20㏗  뷰티 헬,㏖㏗ ㏖㏗ 㚑 㚋30 74 ㏖0.2㏗ 6,759 ㏖52.9㏗ 억원 전자상거래 14 ㏖0.0㏗ 415 ㏖3.2㏗ 계 48,124 ㏖100.0㏗ 12,789 ㏖100.0㏗ 스포츠 레저‧ 3,209 ㏖6.7㏗ 254 ㏖2.0㏗ \r\n료기획재정부 자료기획재정부 :",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            }
+          ]
+        ]
+      }
+    }
+  ],
+  "key_value_items": [],
+  "form_items": [],
+  "pages": {
+    "1": {
+      "size": {
+        "width": 595.0,
+        "height": 842.0
+      },
+      "page_no": 1
+    }
+  }
+}

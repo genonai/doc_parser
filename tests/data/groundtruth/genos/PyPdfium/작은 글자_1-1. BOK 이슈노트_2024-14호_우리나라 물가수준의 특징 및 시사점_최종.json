@@ -1,0 +1,5694 @@
+{
+  "schema_name": "DoclingDocument",
+  "version": "1.3.0",
+  "name": "작은 글자_1-1. BOK 이슈노트_2024-14호_우리나라 물가수준의 특징 및 시사점_최종",
+  "origin": {
+    "mimetype": "application/pdf",
+    "binary_hash": 2720552779115972280,
+    "filename": "작은 글자_1-1. BOK 이슈노트_2024-14호_우리나라 물가수준의 특징 및 시사점_최종.pdf"
+  },
+  "furniture": {
+    "self_ref": "#/furniture",
+    "children": [],
+    "content_layer": "furniture",
+    "name": "_root_",
+    "label": "unspecified"
+  },
+  "body": {
+    "self_ref": "#/body",
+    "children": [
+      {
+        "$ref": "#/texts/0"
+      },
+      {
+        "$ref": "#/pictures/0"
+      },
+      {
+        "$ref": "#/texts/185"
+      },
+      {
+        "$ref": "#/texts/186"
+      }
+    ],
+    "content_layer": "body",
+    "name": "_root_",
+    "label": "unspecified"
+  },
+  "groups": [],
+  "texts": [
+    {
+      "self_ref": "#/texts/0",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "furniture",
+      "label": "page_header",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 42.68689727783203,
+            "t": 767.796875,
+            "r": 90.01969909667969,
+            "b": 760.6768798828125,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            10
+          ]
+        }
+      ],
+      "orig": "제 2024-14호",
+      "text": "제 2024-14호"
+    },
+    {
+      "self_ref": "#/texts/1",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "section_header",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 195.91444396972656,
+            "t": 708.4083862304688,
+            "r": 230.60845947265625,
+            "b": 698.068359375,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            6
+          ]
+        }
+      ],
+      "orig": "〈참고 3〉",
+      "text": "〈참고 3〉",
+      "level": 1
+    },
+    {
+      "self_ref": "#/texts/2",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "section_header",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 248.37109375,
+            "t": 685.1712646484375,
+            "r": 485.99688720703125,
+            "b": 671.152099609375,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            39
+          ]
+        }
+      ],
+      "orig": "EIU 세부품목별 48) 가격수준(주요국4 국49) 비교, 2023년)",
+      "text": "EIU 세부품목별 48) 가격수준(주요국4 국49) 비교, 2023년)",
+      "level": 1
+    },
+    {
+      "self_ref": "#/texts/3",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 196.8165740966797,
+            "t": 650.68798828125,
+            "r": 531.9708251953125,
+            "b": 630.47998046875,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            82
+          ]
+        }
+      ],
+      "orig": "※ EIU생활비(cost of living) 데이터로 조사 시점, 규격, 방식, 범위 등에 따라 여타 통계·서베이 결과와 다소 차이가 있을 수 있음",
+      "text": "※ EIU생활비(cost of living) 데이터로 조사 시점, 규격, 방식, 범위 등에 따라 여타 통계·서베이 결과와 다소 차이가 있을 수 있음"
+    },
+    {
+      "self_ref": "#/texts/4",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "section_header",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 377.79388427734375,
+            "t": 624.7999877929688,
+            "r": 537.8474731445312,
+            "b": 616.3519897460938,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            33
+          ]
+        }
+      ],
+      "orig": "[● OECD국가(국별 주요 1개 도시), ◆ 한국(서울)]",
+      "text": "[● OECD국가(국별 주요 1개 도시), ◆ 한국(서울)]",
+      "level": 1
+    },
+    {
+      "self_ref": "#/texts/5",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "list_item",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 195.97962951660156,
+            "t": 142.90260314941406,
+            "r": 538.0106811523438,
+            "b": 127.23109436035156,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            162
+          ]
+        }
+      ],
+      "orig": "48) EIU생활비 자료의 340개 아이템을 품목성질(type of product)에 따라 분류하여 가격수준을 OECD평균(100) 대비와 OECD국가중 백 분위로 제시하였다. 비교대상에서 통계가 없거나 시계열이 짧은 에스토니아, 라트비아, 리투아니아, 슬로베니아, 코스타리카는 제외되었다.",
+      "text": "48) EIU생활비 자료의 340개 아이템을 품목성질(type of product)에 따라 분류하여 가격수준을 OECD평균(100) 대비와 OECD국가중 백 분위로 제시하였다. 비교대상에서 통계가 없거나 시계열이 짧은 에스토니아, 라트비아, 리투아니아, 슬로베니아, 코스타리카는 제외되었다.",
+      "enumerated": false,
+      "marker": "-"
+    },
+    {
+      "self_ref": "#/texts/6",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "list_item",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 195.97962951660156,
+            "t": 123.7666015625,
+            "r": 538.4612426757812,
+            "b": 99.78810119628906,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            203
+          ]
+        }
+      ],
+      "orig": "49) 국가별 가격수준은 수도(capital) 기준으로 집계하였으며, 수도보다 생활비가 더 높은 도시가 있는 경우 해당 도시로 대체하였다. 예를 들어 미국, 호주, 캐나다 등은 각각 뉴욕, 시드니, 토론토의 가격조사 데이터를 활용하였다. 품목별 상대가격은 해당 품목에 속하는 상품들 의 미달러 환산가격을 지수화(OECD=100)한 후 단순평균한 지수를 사용하였다.",
+      "text": "49) 국가별 가격수준은 수도(capital) 기준으로 집계하였으며, 수도보다 생활비가 더 높은 도시가 있는 경우 해당 도시로 대체하였다. 예를 들어 미국, 호주, 캐나다 등은 각각 뉴욕, 시드니, 토론토의 가격조사 데이터를 활용하였다. 품목별 상대가격은 해당 품목에 속하는 상품들 의 미달러 환산가격을 지수화(OECD=100)한 후 단순평균한 지수를 사용하였다.",
+      "enumerated": false,
+      "marker": "-"
+    },
+    {
+      "self_ref": "#/texts/7",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "section_header",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 261.6452941894531,
+            "t": 609.2568359375,
+            "r": 293.8921203613281,
+            "b": 601.8168334960938,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            6
+          ]
+        }
+      ],
+      "orig": "<물가수준>",
+      "text": "<물가수준>",
+      "level": 1
+    },
+    {
+      "self_ref": "#/texts/8",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "section_header",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 443.4980773925781,
+            "t": 609.2568359375,
+            "r": 469.2088928222656,
+            "b": 601.8168334960938,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            5
+          ]
+        }
+      ],
+      "orig": "<백분위>",
+      "text": "<백분위>",
+      "level": 1
+    },
+    {
+      "self_ref": "#/texts/9",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 207.20150756835938,
+            "t": 593.214111328125,
+            "r": 252.02630615234375,
+            "b": 586.0861206054688,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            8
+          ]
+        }
+      ],
+      "orig": "식료품 및 주류",
+      "text": "식료품 및 주류"
+    },
+    {
+      "self_ref": "#/texts/10",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 202.93800354003906,
+            "t": 283.5295104980469,
+            "r": 256.54840087890625,
+            "b": 276.3135070800781,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            10
+          ]
+        }
+      ],
+      "orig": "의류 및 기타 상품",
+      "text": "의류 및 기타 상품"
+    },
+    {
+      "self_ref": "#/texts/11",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 277.115478515625,
+            "t": 300.202880859375,
+            "r": 314.2756652832031,
+            "b": 295.2143859863281,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            11
+          ]
+        }
+      ],
+      "orig": "OECD 평균=100",
+      "text": "OECD 평균=100"
+    },
+    {
+      "self_ref": "#/texts/12",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 467.7600402832031,
+            "t": 300.202880859375,
+            "r": 480.6501159667969,
+            "b": 295.3078918457031,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            3
+          ]
+        }
+      ],
+      "orig": "백분위",
+      "text": "백분위"
+    },
+    {
+      "self_ref": "#/texts/13",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 277.115478515625,
+            "t": 166.97459411621094,
+            "r": 314.2756652832031,
+            "b": 161.98609924316406,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            11
+          ]
+        }
+      ],
+      "orig": "OECD 평균=100",
+      "text": "OECD 평균=100"
+    },
+    {
+      "self_ref": "#/texts/14",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 467.7600402832031,
+            "t": 166.97459411621094,
+            "r": 480.6501159667969,
+            "b": 162.07960510253906,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            3
+          ]
+        }
+      ],
+      "orig": "백분위",
+      "text": "백분위"
+    },
+    {
+      "self_ref": "#/texts/15",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 220.59288024902344,
+            "t": 572.3289184570312,
+            "r": 229.4839630126953,
+            "b": 567.4338989257812,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            2
+          ]
+        }
+      ],
+      "orig": "사과",
+      "text": "사과"
+    },
+    {
+      "self_ref": "#/texts/16",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 225.1521759033203,
+            "t": 566.0588989257812,
+            "r": 229.51785278320312,
+            "b": 561.1638793945312,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            1
+          ]
+        }
+      ],
+      "orig": "차",
+      "text": "차"
+    },
+    {
+      "self_ref": "#/texts/17",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 220.6751708984375,
+            "t": 559.7889404296875,
+            "r": 229.45492553710938,
+            "b": 554.8004760742188,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            2
+          ]
+        }
+      ],
+      "orig": "식빵",
+      "text": "식빵"
+    },
+    {
+      "self_ref": "#/texts/18",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 211.75021362304688,
+            "t": 553.5409545898438,
+            "r": 229.36781311035156,
+            "b": 548.678955078125,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            4
+          ]
+        }
+      ],
+      "orig": "초코음료",
+      "text": "초코음료"
+    },
+    {
+      "self_ref": "#/texts/19",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 211.91961669921875,
+            "t": 547.2489013671875,
+            "r": 229.00965881347656,
+            "b": 542.3538818359375,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            4
+          ]
+        }
+      ],
+      "orig": "돼지고기",
+      "text": "돼지고기"
+    },
+    {
+      "self_ref": "#/texts/20",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 220.7574462890625,
+            "t": 540.9789428710938,
+            "r": 229.51785278320312,
+            "b": 536.0839233398438,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            2
+          ]
+        }
+      ],
+      "orig": "감자",
+      "text": "감자"
+    },
+    {
+      "self_ref": "#/texts/21",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 196.01051330566406,
+            "t": 534.7089233398438,
+            "r": 228.9273681640625,
+            "b": 529.5884399414062,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            9
+          ]
+        }
+      ],
+      "orig": "치즈,요거트,버터",
+      "text": "치즈,요거트,버터"
+    },
+    {
+      "self_ref": "#/texts/22",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 220.9704132080078,
+            "t": 528.4389038085938,
+            "r": 229.36781311035156,
+            "b": 523.4448852539062,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            2
+          ]
+        }
+      ],
+      "orig": "당근",
+      "text": "당근"
+    },
+    {
+      "self_ref": "#/texts/23",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 216.2223663330078,
+            "t": 522.1909790039062,
+            "r": 229.3677978515625,
+            "b": 517.1749267578125,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            3
+          ]
+        }
+      ],
+      "orig": "식용유",
+      "text": "식용유"
+    },
+    {
+      "self_ref": "#/texts/24",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 216.2030029296875,
+            "t": 515.89892578125,
+            "r": 229.0725555419922,
+            "b": 511.0039367675781,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            3
+          ]
+        }
+      ],
+      "orig": "오렌지",
+      "text": "오렌지"
+    },
+    {
+      "self_ref": "#/texts/25",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 216.4014434814453,
+            "t": 509.62890625,
+            "r": 229.0096435546875,
+            "b": 504.7339172363281,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            3
+          ]
+        }
+      ],
+      "orig": "쇠고기",
+      "text": "쇠고기"
+    },
+    {
+      "self_ref": "#/texts/26",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 220.71388244628906,
+            "t": 503.3589172363281,
+            "r": 229.1209716796875,
+            "b": 498.46392822265625,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            2
+          ]
+        }
+      ],
+      "orig": "와인",
+      "text": "와인"
+    },
+    {
+      "self_ref": "#/texts/27",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 220.9704132080078,
+            "t": 497.08892822265625,
+            "r": 229.36781311035156,
+            "b": 492.1939392089844,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            2
+          ]
+        }
+      ],
+      "orig": "레몬",
+      "text": "레몬"
+    },
+    {
+      "self_ref": "#/texts/28",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 216.27560424804688,
+            "t": 490.81890869140625,
+            "r": 229.15000915527344,
+            "b": 485.9239196777344,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            3
+          ]
+        }
+      ],
+      "orig": "과일잼",
+      "text": "과일잼"
+    },
+    {
+      "self_ref": "#/texts/29",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 199.91641235351562,
+            "t": 484.5708923339844,
+            "r": 229.36781311035156,
+            "b": 479.42840576171875,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            8
+          ]
+        }
+      ],
+      "orig": "콜라, 탄산음료",
+      "text": "콜라, 탄산음료"
+    },
+    {
+      "self_ref": "#/texts/30",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 216.53695678710938,
+            "t": 478.2789001464844,
+            "r": 229.3677978515625,
+            "b": 473.284912109375,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            3
+          ]
+        }
+      ],
+      "orig": "냉동콩",
+      "text": "냉동콩"
+    },
+    {
+      "self_ref": "#/texts/31",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 220.6558074951172,
+            "t": 472.0089111328125,
+            "r": 228.97576904296875,
+            "b": 467.1139221191406,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            2
+          ]
+        }
+      ],
+      "orig": "오이",
+      "text": "오이"
+    },
+    {
+      "self_ref": "#/texts/32",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 220.6461181640625,
+            "t": 465.7389221191406,
+            "r": 229.36781311035156,
+            "b": 460.75042724609375,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            2
+          ]
+        }
+      ],
+      "orig": "상추",
+      "text": "상추"
+    },
+    {
+      "self_ref": "#/texts/33",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 216.2030029296875,
+            "t": 459.46893310546875,
+            "r": 229.3677978515625,
+            "b": 454.5739440917969,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            3
+          ]
+        }
+      ],
+      "orig": "요거트",
+      "text": "요거트"
+    },
+    {
+      "self_ref": "#/texts/34",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 216.2030029296875,
+            "t": 453.19891357421875,
+            "r": 229.3677978515625,
+            "b": 448.3039245605469,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            3
+          ]
+        }
+      ],
+      "orig": "토마토",
+      "text": "토마토"
+    },
+    {
+      "self_ref": "#/texts/35",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 216.51760864257812,
+            "t": 446.9289245605469,
+            "r": 229.43072509765625,
+            "b": 442.033935546875,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            3
+          ]
+        }
+      ],
+      "orig": "바나나",
+      "text": "바나나"
+    },
+    {
+      "self_ref": "#/texts/36",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 220.8736114501953,
+            "t": 440.658935546875,
+            "r": 228.99513244628906,
+            "b": 435.7639465332031,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            2
+          ]
+        }
+      ],
+      "orig": "커피",
+      "text": "커피"
+    },
+    {
+      "self_ref": "#/texts/37",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 220.68968200683594,
+            "t": 434.388916015625,
+            "r": 229.36781311035156,
+            "b": 429.4004211425781,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            2
+          ]
+        }
+      ],
+      "orig": "생수",
+      "text": "생수"
+    },
+    {
+      "self_ref": "#/texts/38",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 216.5659942626953,
+            "t": 428.1189270019531,
+            "r": 229.3677978515625,
+            "b": 423.22393798828125,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            3
+          ]
+        }
+      ],
+      "orig": "밀가루",
+      "text": "밀가루"
+    },
+    {
+      "self_ref": "#/texts/39",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 209.01560974121094,
+            "t": 421.84893798828125,
+            "r": 229.16452026367188,
+            "b": 416.72845458984375,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            6
+          ]
+        }
+      ],
+      "orig": "햄, 베이컨",
+      "text": "햄, 베이컨"
+    },
+    {
+      "self_ref": "#/texts/40",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 220.68968200683594,
+            "t": 415.57891845703125,
+            "r": 229.13548278808594,
+            "b": 410.5904235839844,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            2
+          ]
+        }
+      ],
+      "orig": "생선",
+      "text": "생선"
+    },
+    {
+      "self_ref": "#/texts/41",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 220.6558074951172,
+            "t": 409.2264709472656,
+            "r": 229.36781311035156,
+            "b": 404.4139709472656,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            2
+          ]
+        }
+      ],
+      "orig": "우유",
+      "text": "우유"
+    },
+    {
+      "self_ref": "#/texts/42",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 221.04299926757812,
+            "t": 403.0389404296875,
+            "r": 229.2226104736328,
+            "b": 398.1329345703125,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            2
+          ]
+        }
+      ],
+      "orig": "버섯",
+      "text": "버섯"
+    },
+    {
+      "self_ref": "#/texts/43",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 220.9510498046875,
+            "t": 396.7689514160156,
+            "r": 229.36781311035156,
+            "b": 391.87396240234375,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            2
+          ]
+        }
+      ],
+      "orig": "맥주",
+      "text": "맥주"
+    },
+    {
+      "self_ref": "#/texts/44",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 220.77197265625,
+            "t": 390.49896240234375,
+            "r": 229.36781311035156,
+            "b": 385.521484375,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            2
+          ]
+        }
+      ],
+      "orig": "양주",
+      "text": "양주"
+    },
+    {
+      "self_ref": "#/texts/45",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 220.77197265625,
+            "t": 384.22894287109375,
+            "r": 229.43556213378906,
+            "b": 379.25146484375,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            2
+          ]
+        }
+      ],
+      "orig": "양파",
+      "text": "양파"
+    },
+    {
+      "self_ref": "#/texts/46",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 207.2974090576172,
+            "t": 377.9589538574219,
+            "r": 229.06289672851562,
+            "b": 373.06396484375,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            5
+          ]
+        }
+      ],
+      "orig": "스파게티면",
+      "text": "스파게티면"
+    },
+    {
+      "self_ref": "#/texts/47",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 220.73324584960938,
+            "t": 371.68896484375,
+            "r": 229.41136169433594,
+            "b": 366.7004699707031,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            2
+          ]
+        }
+      ],
+      "orig": "설탕",
+      "text": "설탕"
+    },
+    {
+      "self_ref": "#/texts/48",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 216.2030029296875,
+            "t": 365.4189453125,
+            "r": 228.93704223632812,
+            "b": 360.4304504394531,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            3
+          ]
+        }
+      ],
+      "orig": "통조림",
+      "text": "통조림"
+    },
+    {
+      "self_ref": "#/texts/49",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 206.0825653076172,
+            "t": 359.14898681640625,
+            "r": 229.51783752441406,
+            "b": 354.02850341796875,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            6
+          ]
+        }
+      ],
+      "orig": "시리얼,과자",
+      "text": "시리얼,과자"
+    },
+    {
+      "self_ref": "#/texts/50",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 225.0989227294922,
+            "t": 352.87896728515625,
+            "r": 229.52752685546875,
+            "b": 348.0389709472656,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            1
+          ]
+        }
+      ],
+      "orig": "쌀",
+      "text": "쌀"
+    },
+    {
+      "self_ref": "#/texts/51",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 203.17855834960938,
+            "t": 346.6089782714844,
+            "r": 229.03384399414062,
+            "b": 341.614990234375,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            6
+          ]
+        }
+      ],
+      "orig": "냉동생선튀김",
+      "text": "냉동생선튀김"
+    },
+    {
+      "self_ref": "#/texts/52",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 220.8203582763672,
+            "t": 340.3389892578125,
+            "r": 229.38232421875,
+            "b": 335.4440002441406,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            2
+          ]
+        }
+      ],
+      "orig": "계란",
+      "text": "계란"
+    },
+    {
+      "self_ref": "#/texts/53",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 216.51760864257812,
+            "t": 334.0689697265625,
+            "r": 229.0096435546875,
+            "b": 329.1739807128906,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            3
+          ]
+        }
+      ],
+      "orig": "닭고기",
+      "text": "닭고기"
+    },
+    {
+      "self_ref": "#/texts/54",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 220.6558074951172,
+            "t": 327.5625,
+            "r": 229.36781311035156,
+            "b": 322.90399169921875,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            2
+          ]
+        }
+      ],
+      "orig": "주스",
+      "text": "주스"
+    },
+    {
+      "self_ref": "#/texts/55",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 216.2030029296875,
+            "t": 321.5564880371094,
+            "r": 229.3677978515625,
+            "b": 316.6340026855469,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            3
+          ]
+        }
+      ],
+      "orig": "올리브",
+      "text": "올리브"
+    },
+    {
+      "self_ref": "#/texts/56",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 233.995361328125,
+            "t": 564.7651977539062,
+            "r": 236.64967346191406,
+            "b": 560.6456909179688,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            1
+          ]
+        }
+      ],
+      "orig": "0",
+      "text": "0"
+    },
+    {
+      "self_ref": "#/texts/57",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 271.3018493652344,
+            "t": 564.7651977539062,
+            "r": 279.2961120605469,
+            "b": 560.6456909179688,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            3
+          ]
+        }
+      ],
+      "orig": "100",
+      "text": "100"
+    },
+    {
+      "self_ref": "#/texts/58",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 310.9021301269531,
+            "t": 564.7871704101562,
+            "r": 319.2934875488281,
+            "b": 560.6456909179688,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            3
+          ]
+        }
+      ],
+      "orig": "200",
+      "text": "200"
+    },
+    {
+      "self_ref": "#/texts/59",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 351.8034362792969,
+            "t": 564.7871704101562,
+            "r": 360.2940673828125,
+            "b": 560.6181640625,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            3
+          ]
+        }
+      ],
+      "orig": "300",
+      "text": "300"
+    },
+    {
+      "self_ref": "#/texts/60",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 233.995361328125,
+            "t": 580.7647094726562,
+            "r": 236.64967346191406,
+            "b": 576.6452026367188,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            1
+          ]
+        }
+      ],
+      "orig": "0",
+      "text": "0"
+    },
+    {
+      "self_ref": "#/texts/61",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 271.3018493652344,
+            "t": 580.7647094726562,
+            "r": 279.2961120605469,
+            "b": 576.6452026367188,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            3
+          ]
+        }
+      ],
+      "orig": "100",
+      "text": "100"
+    },
+    {
+      "self_ref": "#/texts/62",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 310.9021301269531,
+            "t": 580.7866821289062,
+            "r": 319.2934875488281,
+            "b": 576.6452026367188,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            3
+          ]
+        }
+      ],
+      "orig": "200",
+      "text": "200"
+    },
+    {
+      "self_ref": "#/texts/63",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 351.8034362792969,
+            "t": 580.7866821289062,
+            "r": 360.2940673828125,
+            "b": 576.61767578125,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            3
+          ]
+        }
+      ],
+      "orig": "300",
+      "text": "300"
+    },
+    {
+      "self_ref": "#/texts/64",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 233.995361328125,
+            "t": 308.93798828125,
+            "r": 236.64967346191406,
+            "b": 304.8184814453125,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            1
+          ]
+        }
+      ],
+      "orig": "0",
+      "text": "0"
+    },
+    {
+      "self_ref": "#/texts/65",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 271.3018493652344,
+            "t": 308.93798828125,
+            "r": 279.2961120605469,
+            "b": 304.8184814453125,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            3
+          ]
+        }
+      ],
+      "orig": "100",
+      "text": "100"
+    },
+    {
+      "self_ref": "#/texts/66",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 310.9021301269531,
+            "t": 308.9599914550781,
+            "r": 319.2934875488281,
+            "b": 304.8184814453125,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            3
+          ]
+        }
+      ],
+      "orig": "200",
+      "text": "200"
+    },
+    {
+      "self_ref": "#/texts/67",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 351.8034362792969,
+            "t": 308.9599914550781,
+            "r": 360.2940673828125,
+            "b": 304.7909851074219,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            3
+          ]
+        }
+      ],
+      "orig": "300",
+      "text": "300"
+    },
+    {
+      "self_ref": "#/texts/68",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 233.995361328125,
+            "t": 324.9375,
+            "r": 236.64967346191406,
+            "b": 320.8179931640625,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            1
+          ]
+        }
+      ],
+      "orig": "0",
+      "text": "0"
+    },
+    {
+      "self_ref": "#/texts/69",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 271.3018493652344,
+            "t": 324.9375,
+            "r": 279.2961120605469,
+            "b": 320.8179931640625,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            3
+          ]
+        }
+      ],
+      "orig": "100",
+      "text": "100"
+    },
+    {
+      "self_ref": "#/texts/70",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 310.9021301269531,
+            "t": 324.9595031738281,
+            "r": 319.2934875488281,
+            "b": 320.8179931640625,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            3
+          ]
+        }
+      ],
+      "orig": "200",
+      "text": "200"
+    },
+    {
+      "self_ref": "#/texts/71",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 351.8034362792969,
+            "t": 324.9595031738281,
+            "r": 360.2940673828125,
+            "b": 320.7904968261719,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            3
+          ]
+        }
+      ],
+      "orig": "300",
+      "text": "300"
+    },
+    {
+      "self_ref": "#/texts/72",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 399.1755676269531,
+            "t": 572.3289184570312,
+            "r": 408.066650390625,
+            "b": 567.4338989257812,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            2
+          ]
+        }
+      ],
+      "orig": "사과",
+      "text": "사과"
+    },
+    {
+      "self_ref": "#/texts/73",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 403.7348327636719,
+            "t": 566.0588989257812,
+            "r": 408.10052490234375,
+            "b": 561.1638793945312,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            1
+          ]
+        }
+      ],
+      "orig": "차",
+      "text": "차"
+    },
+    {
+      "self_ref": "#/texts/74",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 399.2578430175781,
+            "t": 559.7889404296875,
+            "r": 408.0376281738281,
+            "b": 554.8004760742188,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            2
+          ]
+        }
+      ],
+      "orig": "식빵",
+      "text": "식빵"
+    },
+    {
+      "self_ref": "#/texts/75",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 390.3328857421875,
+            "t": 553.5409545898438,
+            "r": 407.95050048828125,
+            "b": 548.678955078125,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            4
+          ]
+        }
+      ],
+      "orig": "초코음료",
+      "text": "초코음료"
+    },
+    {
+      "self_ref": "#/texts/76",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 390.5022888183594,
+            "t": 547.2489013671875,
+            "r": 407.5923156738281,
+            "b": 542.3538818359375,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            4
+          ]
+        }
+      ],
+      "orig": "돼지고기",
+      "text": "돼지고기"
+    },
+    {
+      "self_ref": "#/texts/77",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 399.3401184082031,
+            "t": 540.9789428710938,
+            "r": 408.10052490234375,
+            "b": 536.0839233398438,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            2
+          ]
+        }
+      ],
+      "orig": "감자",
+      "text": "감자"
+    },
+    {
+      "self_ref": "#/texts/78",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 374.5932312011719,
+            "t": 534.7089233398438,
+            "r": 407.51007080078125,
+            "b": 529.5884399414062,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            9
+          ]
+        }
+      ],
+      "orig": "치즈,요거트,버터",
+      "text": "치즈,요거트,버터"
+    },
+    {
+      "self_ref": "#/texts/79",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 399.5531005859375,
+            "t": 528.4389038085938,
+            "r": 407.95050048828125,
+            "b": 523.4448852539062,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            2
+          ]
+        }
+      ],
+      "orig": "당근",
+      "text": "당근"
+    },
+    {
+      "self_ref": "#/texts/80",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 394.8050537109375,
+            "t": 522.1909790039062,
+            "r": 407.95050048828125,
+            "b": 517.1749267578125,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            3
+          ]
+        }
+      ],
+      "orig": "식용유",
+      "text": "식용유"
+    },
+    {
+      "self_ref": "#/texts/81",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 394.78570556640625,
+            "t": 515.89892578125,
+            "r": 407.6552734375,
+            "b": 511.0039367675781,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            3
+          ]
+        }
+      ],
+      "orig": "오렌지",
+      "text": "오렌지"
+    },
+    {
+      "self_ref": "#/texts/82",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 394.984130859375,
+            "t": 509.62890625,
+            "r": 407.59234619140625,
+            "b": 504.7339172363281,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            3
+          ]
+        }
+      ],
+      "orig": "쇠고기",
+      "text": "쇠고기"
+    },
+    {
+      "self_ref": "#/texts/83",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 399.29656982421875,
+            "t": 503.3589172363281,
+            "r": 407.7036437988281,
+            "b": 498.46392822265625,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            2
+          ]
+        }
+      ],
+      "orig": "와인",
+      "text": "와인"
+    },
+    {
+      "self_ref": "#/texts/84",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 399.5531005859375,
+            "t": 497.08892822265625,
+            "r": 407.95050048828125,
+            "b": 492.1939392089844,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            2
+          ]
+        }
+      ],
+      "orig": "레몬",
+      "text": "레몬"
+    },
+    {
+      "self_ref": "#/texts/85",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 394.8583068847656,
+            "t": 490.81890869140625,
+            "r": 407.7326965332031,
+            "b": 485.9239196777344,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            3
+          ]
+        }
+      ],
+      "orig": "과일잼",
+      "text": "과일잼"
+    },
+    {
+      "self_ref": "#/texts/86",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 378.49908447265625,
+            "t": 484.5708923339844,
+            "r": 407.9504699707031,
+            "b": 479.42840576171875,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            8
+          ]
+        }
+      ],
+      "orig": "콜라, 탄산음료",
+      "text": "콜라, 탄산음료"
+    },
+    {
+      "self_ref": "#/texts/87",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 395.1196594238281,
+            "t": 478.2789001464844,
+            "r": 407.95050048828125,
+            "b": 473.284912109375,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            3
+          ]
+        }
+      ],
+      "orig": "냉동콩",
+      "text": "냉동콩"
+    },
+    {
+      "self_ref": "#/texts/88",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 399.2384948730469,
+            "t": 472.0089111328125,
+            "r": 407.5584411621094,
+            "b": 467.1139221191406,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            2
+          ]
+        }
+      ],
+      "orig": "오이",
+      "text": "오이"
+    },
+    {
+      "self_ref": "#/texts/89",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 399.22882080078125,
+            "t": 465.7389221191406,
+            "r": 407.95050048828125,
+            "b": 460.75042724609375,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            2
+          ]
+        }
+      ],
+      "orig": "상추",
+      "text": "상추"
+    },
+    {
+      "self_ref": "#/texts/90",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 394.78570556640625,
+            "t": 459.46893310546875,
+            "r": 407.95050048828125,
+            "b": 454.5739440917969,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            3
+          ]
+        }
+      ],
+      "orig": "요거트",
+      "text": "요거트"
+    },
+    {
+      "self_ref": "#/texts/91",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 394.78570556640625,
+            "t": 453.19891357421875,
+            "r": 407.95050048828125,
+            "b": 448.3039245605469,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            3
+          ]
+        }
+      ],
+      "orig": "토마토",
+      "text": "토마토"
+    },
+    {
+      "self_ref": "#/texts/92",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 395.1003112792969,
+            "t": 446.9289245605469,
+            "r": 408.013427734375,
+            "b": 442.033935546875,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            3
+          ]
+        }
+      ],
+      "orig": "바나나",
+      "text": "바나나"
+    },
+    {
+      "self_ref": "#/texts/93",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 399.456298828125,
+            "t": 440.658935546875,
+            "r": 407.57781982421875,
+            "b": 435.7639465332031,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            2
+          ]
+        }
+      ],
+      "orig": "커피",
+      "text": "커피"
+    },
+    {
+      "self_ref": "#/texts/94",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 399.2723693847656,
+            "t": 434.388916015625,
+            "r": 407.95050048828125,
+            "b": 429.4004211425781,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            2
+          ]
+        }
+      ],
+      "orig": "생수",
+      "text": "생수"
+    },
+    {
+      "self_ref": "#/texts/95",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 395.1487121582031,
+            "t": 428.1189270019531,
+            "r": 407.95050048828125,
+            "b": 423.22393798828125,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            3
+          ]
+        }
+      ],
+      "orig": "밀가루",
+      "text": "밀가루"
+    },
+    {
+      "self_ref": "#/texts/96",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 387.5982971191406,
+            "t": 421.84893798828125,
+            "r": 407.7472229003906,
+            "b": 416.72845458984375,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            6
+          ]
+        }
+      ],
+      "orig": "햄, 베이컨",
+      "text": "햄, 베이컨"
+    },
+    {
+      "self_ref": "#/texts/97",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 399.2723693847656,
+            "t": 415.57891845703125,
+            "r": 407.7181701660156,
+            "b": 410.5904235839844,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            2
+          ]
+        }
+      ],
+      "orig": "생선",
+      "text": "생선"
+    },
+    {
+      "self_ref": "#/texts/98",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 399.2384948730469,
+            "t": 409.2264709472656,
+            "r": 407.95050048828125,
+            "b": 404.4139709472656,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            2
+          ]
+        }
+      ],
+      "orig": "우유",
+      "text": "우유"
+    },
+    {
+      "self_ref": "#/texts/99",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 399.6257019042969,
+            "t": 403.0389404296875,
+            "r": 407.8052978515625,
+            "b": 398.1329345703125,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            2
+          ]
+        }
+      ],
+      "orig": "버섯",
+      "text": "버섯"
+    },
+    {
+      "self_ref": "#/texts/100",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 399.5337219238281,
+            "t": 396.7689514160156,
+            "r": 407.95050048828125,
+            "b": 391.87396240234375,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            2
+          ]
+        }
+      ],
+      "orig": "맥주",
+      "text": "맥주"
+    },
+    {
+      "self_ref": "#/texts/101",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 399.3546447753906,
+            "t": 390.49896240234375,
+            "r": 407.95050048828125,
+            "b": 385.521484375,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            2
+          ]
+        }
+      ],
+      "orig": "양주",
+      "text": "양주"
+    },
+    {
+      "self_ref": "#/texts/102",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 399.3546447753906,
+            "t": 384.22894287109375,
+            "r": 408.01824951171875,
+            "b": 379.25146484375,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            2
+          ]
+        }
+      ],
+      "orig": "양파",
+      "text": "양파"
+    },
+    {
+      "self_ref": "#/texts/103",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 385.8800964355469,
+            "t": 377.9589538574219,
+            "r": 407.64556884765625,
+            "b": 373.06396484375,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            5
+          ]
+        }
+      ],
+      "orig": "스파게티면",
+      "text": "스파게티면"
+    },
+    {
+      "self_ref": "#/texts/104",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 399.31591796875,
+            "t": 371.68896484375,
+            "r": 407.9940490722656,
+            "b": 366.7004699707031,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            2
+          ]
+        }
+      ],
+      "orig": "설탕",
+      "text": "설탕"
+    },
+    {
+      "self_ref": "#/texts/105",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 394.78570556640625,
+            "t": 365.4189453125,
+            "r": 407.5197448730469,
+            "b": 360.4304504394531,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            3
+          ]
+        }
+      ],
+      "orig": "통조림",
+      "text": "통조림"
+    },
+    {
+      "self_ref": "#/texts/106",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 384.6652526855469,
+            "t": 359.14898681640625,
+            "r": 408.1005554199219,
+            "b": 354.02850341796875,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            6
+          ]
+        }
+      ],
+      "orig": "시리얼,과자",
+      "text": "시리얼,과자"
+    },
+    {
+      "self_ref": "#/texts/107",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 403.6816101074219,
+            "t": 352.87896728515625,
+            "r": 408.1101989746094,
+            "b": 348.0389709472656,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            1
+          ]
+        }
+      ],
+      "orig": "쌀",
+      "text": "쌀"
+    },
+    {
+      "self_ref": "#/texts/108",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 381.7612609863281,
+            "t": 346.6089782714844,
+            "r": 407.6165466308594,
+            "b": 341.614990234375,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            6
+          ]
+        }
+      ],
+      "orig": "냉동생선튀김",
+      "text": "냉동생선튀김"
+    },
+    {
+      "self_ref": "#/texts/109",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 399.4030456542969,
+            "t": 340.3389892578125,
+            "r": 407.96502685546875,
+            "b": 335.4440002441406,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            2
+          ]
+        }
+      ],
+      "orig": "계란",
+      "text": "계란"
+    },
+    {
+      "self_ref": "#/texts/110",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 395.1003112792969,
+            "t": 334.0689697265625,
+            "r": 407.59234619140625,
+            "b": 329.1739807128906,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            3
+          ]
+        }
+      ],
+      "orig": "닭고기",
+      "text": "닭고기"
+    },
+    {
+      "self_ref": "#/texts/111",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 399.2384948730469,
+            "t": 327.5625,
+            "r": 407.95050048828125,
+            "b": 322.90399169921875,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            2
+          ]
+        }
+      ],
+      "orig": "주스",
+      "text": "주스"
+    },
+    {
+      "self_ref": "#/texts/112",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 394.78570556640625,
+            "t": 321.5564880371094,
+            "r": 407.95050048828125,
+            "b": 316.6340026855469,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            3
+          ]
+        }
+      ],
+      "orig": "올리브",
+      "text": "올리브"
+    },
+    {
+      "self_ref": "#/texts/113",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 412.5832824707031,
+            "t": 564.7642211914062,
+            "r": 415.2375793457031,
+            "b": 560.6447143554688,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            1
+          ]
+        }
+      ],
+      "orig": "0",
+      "text": "0"
+    },
+    {
+      "self_ref": "#/texts/114",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 435.0298767089844,
+            "t": 564.7861938476562,
+            "r": 440.4847717285156,
+            "b": 560.6447143554688,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            2
+          ]
+        }
+      ],
+      "orig": "20",
+      "text": "20"
+    },
+    {
+      "self_ref": "#/texts/115",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 458.9551696777344,
+            "t": 564.7642211914062,
+            "r": 464.48321533203125,
+            "b": 560.6447143554688,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            2
+          ]
+        }
+      ],
+      "orig": "40",
+      "text": "40"
+    },
+    {
+      "self_ref": "#/texts/116",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 482.93267822265625,
+            "t": 564.7861938476562,
+            "r": 488.48162841796875,
+            "b": 560.6227416992188,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            2
+          ]
+        }
+      ],
+      "orig": "60",
+      "text": "60"
+    },
+    {
+      "self_ref": "#/texts/117",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 507.0356140136719,
+            "t": 564.7972412109375,
+            "r": 512.6472778320312,
+            "b": 560.606201171875,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            2
+          ]
+        }
+      ],
+      "orig": "80",
+      "text": "80"
+    },
+    {
+      "self_ref": "#/texts/118",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 530.8825073242188,
+            "t": 564.7642211914062,
+            "r": 538.8767700195312,
+            "b": 560.6447143554688,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            3
+          ]
+        }
+      ],
+      "orig": "100",
+      "text": "100"
+    },
+    {
+      "self_ref": "#/texts/119",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 412.5769348144531,
+            "t": 580.7651977539062,
+            "r": 415.2312316894531,
+            "b": 576.6456909179688,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            1
+          ]
+        }
+      ],
+      "orig": "0",
+      "text": "0"
+    },
+    {
+      "self_ref": "#/texts/120",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 435.0235290527344,
+            "t": 580.7871704101562,
+            "r": 440.4784240722656,
+            "b": 576.6456909179688,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            2
+          ]
+        }
+      ],
+      "orig": "20",
+      "text": "20"
+    },
+    {
+      "self_ref": "#/texts/121",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 458.95086669921875,
+            "t": 580.7651977539062,
+            "r": 464.4789123535156,
+            "b": 576.6456909179688,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            2
+          ]
+        }
+      ],
+      "orig": "40",
+      "text": "40"
+    },
+    {
+      "self_ref": "#/texts/122",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 482.943115234375,
+            "t": 580.7857055664062,
+            "r": 488.4920654296875,
+            "b": 576.6222534179688,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            2
+          ]
+        }
+      ],
+      "orig": "60",
+      "text": "60"
+    },
+    {
+      "self_ref": "#/texts/123",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 507.04608154296875,
+            "t": 580.7967529296875,
+            "r": 512.65771484375,
+            "b": 576.605712890625,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            2
+          ]
+        }
+      ],
+      "orig": "80",
+      "text": "80"
+    },
+    {
+      "self_ref": "#/texts/124",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 530.8929443359375,
+            "t": 580.7637329101562,
+            "r": 538.88720703125,
+            "b": 576.6442260742188,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            3
+          ]
+        }
+      ],
+      "orig": "100",
+      "text": "100"
+    },
+    {
+      "self_ref": "#/texts/125",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 413.2919006347656,
+            "t": 308.9371032714844,
+            "r": 415.9461975097656,
+            "b": 304.8175964355469,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            1
+          ]
+        }
+      ],
+      "orig": "0",
+      "text": "0"
+    },
+    {
+      "self_ref": "#/texts/126",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 435.7384948730469,
+            "t": 308.9591064453125,
+            "r": 441.1933898925781,
+            "b": 304.8175964355469,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            2
+          ]
+        }
+      ],
+      "orig": "20",
+      "text": "20"
+    },
+    {
+      "self_ref": "#/texts/127",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 459.6637878417969,
+            "t": 308.9371032714844,
+            "r": 465.19183349609375,
+            "b": 304.8175964355469,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            2
+          ]
+        }
+      ],
+      "orig": "40",
+      "text": "40"
+    },
+    {
+      "self_ref": "#/texts/128",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 483.64129638671875,
+            "t": 308.9591064453125,
+            "r": 489.19024658203125,
+            "b": 304.79559326171875,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            2
+          ]
+        }
+      ],
+      "orig": "60",
+      "text": "60"
+    },
+    {
+      "self_ref": "#/texts/129",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 507.7442321777344,
+            "t": 308.9700927734375,
+            "r": 513.3558959960938,
+            "b": 304.77911376953125,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            2
+          ]
+        }
+      ],
+      "orig": "80",
+      "text": "80"
+    },
+    {
+      "self_ref": "#/texts/130",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 531.5911254882812,
+            "t": 308.9371032714844,
+            "r": 539.5853881835938,
+            "b": 304.8175964355469,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            3
+          ]
+        }
+      ],
+      "orig": "100",
+      "text": "100"
+    },
+    {
+      "self_ref": "#/texts/131",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 413.2855224609375,
+            "t": 324.93798828125,
+            "r": 415.9398193359375,
+            "b": 320.8184814453125,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            1
+          ]
+        }
+      ],
+      "orig": "0",
+      "text": "0"
+    },
+    {
+      "self_ref": "#/texts/132",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 435.73211669921875,
+            "t": 324.9599914550781,
+            "r": 441.18701171875,
+            "b": 320.8184814453125,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            2
+          ]
+        }
+      ],
+      "orig": "20",
+      "text": "20"
+    },
+    {
+      "self_ref": "#/texts/133",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 459.6594543457031,
+            "t": 324.93798828125,
+            "r": 465.1875,
+            "b": 320.8184814453125,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            2
+          ]
+        }
+      ],
+      "orig": "40",
+      "text": "40"
+    },
+    {
+      "self_ref": "#/texts/134",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 483.6517333984375,
+            "t": 324.9586181640625,
+            "r": 489.20068359375,
+            "b": 320.79510498046875,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            2
+          ]
+        }
+      ],
+      "orig": "60",
+      "text": "60"
+    },
+    {
+      "self_ref": "#/texts/135",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 507.75469970703125,
+            "t": 324.9696044921875,
+            "r": 513.3663330078125,
+            "b": 320.77862548828125,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            2
+          ]
+        }
+      ],
+      "orig": "80",
+      "text": "80"
+    },
+    {
+      "self_ref": "#/texts/136",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 531.6015625,
+            "t": 324.9366149902344,
+            "r": 539.5958251953125,
+            "b": 320.8171081542969,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            3
+          ]
+        }
+      ],
+      "orig": "100",
+      "text": "100"
+    },
+    {
+      "self_ref": "#/texts/137",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 211.21661376953125,
+            "t": 260.71240234375,
+            "r": 228.21954345703125,
+            "b": 255.81741333007812,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            4
+          ]
+        }
+      ],
+      "orig": "남자외의",
+      "text": "남자외의"
+    },
+    {
+      "self_ref": "#/texts/138",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 215.78558349609375,
+            "t": 254.90989685058594,
+            "r": 228.529296875,
+            "b": 250.01490783691406,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            3
+          ]
+        }
+      ],
+      "orig": "티셔츠",
+      "text": "티셔츠"
+    },
+    {
+      "self_ref": "#/texts/139",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 211.21661376953125,
+            "t": 249.10740661621094,
+            "r": 228.67933654785156,
+            "b": 244.11891174316406,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            4
+          ]
+        }
+      ],
+      "orig": "남자정장",
+      "text": "남자정장"
+    },
+    {
+      "self_ref": "#/texts/140",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 215.51937866210938,
+            "t": 243.33241271972656,
+            "r": 228.529296875,
+            "b": 238.409912109375,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            3
+          ]
+        }
+      ],
+      "orig": "원피스",
+      "text": "원피스"
+    },
+    {
+      "self_ref": "#/texts/141",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 210.9116973876953,
+            "t": 237.50241088867188,
+            "r": 228.529296875,
+            "b": 232.5084228515625,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            4
+          ]
+        }
+      ],
+      "orig": "유아동복",
+      "text": "유아동복"
+    },
+    {
+      "self_ref": "#/texts/142",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 211.21661376953125,
+            "t": 231.6999053955078,
+            "r": 228.21954345703125,
+            "b": 226.71141052246094,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            4
+          ]
+        }
+      ],
+      "orig": "남자상의",
+      "text": "남자상의"
+    },
+    {
+      "self_ref": "#/texts/143",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 215.364501953125,
+            "t": 225.78741455078125,
+            "r": 228.529296875,
+            "b": 221.00241088867188,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            3
+          ]
+        }
+      ],
+      "orig": "노트북",
+      "text": "노트북"
+    },
+    {
+      "self_ref": "#/texts/144",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 219.81729125976562,
+            "t": 220.09490966796875,
+            "r": 228.31149291992188,
+            "b": 215.30992126464844,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            2
+          ]
+        }
+      ],
+      "orig": "로션",
+      "text": "로션"
+    },
+    {
+      "self_ref": "#/texts/145",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 219.8947296142578,
+            "t": 214.2924041748047,
+            "r": 228.2340545654297,
+            "b": 209.3974151611328,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            2
+          ]
+        }
+      ],
+      "orig": "잡지",
+      "text": "잡지"
+    },
+    {
+      "self_ref": "#/texts/146",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 206.4589080810547,
+            "t": 208.489990234375,
+            "r": 228.5438232421875,
+            "b": 203.59500122070312,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            5
+          ]
+        }
+      ],
+      "orig": "구두및신발",
+      "text": "구두및신발"
+    },
+    {
+      "self_ref": "#/texts/147",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 209.92919921875,
+            "t": 202.6875,
+            "r": 228.63096618652344,
+            "b": 197.79251098632812,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            5
+          ]
+        }
+      ],
+      "orig": "디지털TV",
+      "text": "디지털TV"
+    },
+    {
+      "self_ref": "#/texts/148",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 211.20697021484375,
+            "t": 196.88499450683594,
+            "r": 228.21957397460938,
+            "b": 191.99000549316406,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            4
+          ]
+        }
+      ],
+      "orig": "여자하의",
+      "text": "여자하의"
+    },
+    {
+      "self_ref": "#/texts/149",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 219.80279541015625,
+            "t": 191.08250427246094,
+            "r": 228.52932739257812,
+            "b": 186.18751525878906,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            2
+          ]
+        }
+      ],
+      "orig": "샴푸",
+      "text": "샴푸"
+    },
+    {
+      "self_ref": "#/texts/150",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 220.19000244140625,
+            "t": 185.27999877929688,
+            "r": 228.52932739257812,
+            "b": 180.385009765625,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            2
+          ]
+        }
+      ],
+      "orig": "비누",
+      "text": "비누"
+    },
+    {
+      "self_ref": "#/texts/151",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 233.60775756835938,
+            "t": 270.0884094238281,
+            "r": 236.26206970214844,
+            "b": 265.9689025878906,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            1
+          ]
+        }
+      ],
+      "orig": "0",
+      "text": "0"
+    },
+    {
+      "self_ref": "#/texts/152",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 270.91424560546875,
+            "t": 270.0884094238281,
+            "r": 278.90850830078125,
+            "b": 265.9689025878906,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            3
+          ]
+        }
+      ],
+      "orig": "100",
+      "text": "100"
+    },
+    {
+      "self_ref": "#/texts/153",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 310.5145263671875,
+            "t": 270.11041259765625,
+            "r": 318.9058837890625,
+            "b": 265.9689025878906,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            3
+          ]
+        }
+      ],
+      "orig": "200",
+      "text": "200"
+    },
+    {
+      "self_ref": "#/texts/154",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 351.41583251953125,
+            "t": 270.11041259765625,
+            "r": 359.9064636230469,
+            "b": 265.94140625,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            3
+          ]
+        }
+      ],
+      "orig": "300",
+      "text": "300"
+    },
+    {
+      "self_ref": "#/texts/155",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 233.60775756835938,
+            "t": 176.08840942382812,
+            "r": 236.26206970214844,
+            "b": 171.96890258789062,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            1
+          ]
+        }
+      ],
+      "orig": "0",
+      "text": "0"
+    },
+    {
+      "self_ref": "#/texts/156",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 270.91424560546875,
+            "t": 176.08840942382812,
+            "r": 278.90850830078125,
+            "b": 171.96890258789062,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            3
+          ]
+        }
+      ],
+      "orig": "100",
+      "text": "100"
+    },
+    {
+      "self_ref": "#/texts/157",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 310.5145263671875,
+            "t": 176.11041259765625,
+            "r": 318.9058837890625,
+            "b": 171.96890258789062,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            3
+          ]
+        }
+      ],
+      "orig": "200",
+      "text": "200"
+    },
+    {
+      "self_ref": "#/texts/158",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 351.41583251953125,
+            "t": 176.11041259765625,
+            "r": 359.9064636230469,
+            "b": 171.94140625,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            3
+          ]
+        }
+      ],
+      "orig": "300",
+      "text": "300"
+    },
+    {
+      "self_ref": "#/texts/159",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 391.2165222167969,
+            "t": 260.71337890625,
+            "r": 408.21942138671875,
+            "b": 255.81838989257812,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            4
+          ]
+        }
+      ],
+      "orig": "남자외의",
+      "text": "남자외의"
+    },
+    {
+      "self_ref": "#/texts/160",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 395.78546142578125,
+            "t": 254.91087341308594,
+            "r": 408.5291748046875,
+            "b": 250.01588439941406,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            3
+          ]
+        }
+      ],
+      "orig": "티셔츠",
+      "text": "티셔츠"
+    },
+    {
+      "self_ref": "#/texts/161",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 391.2165222167969,
+            "t": 249.10838317871094,
+            "r": 408.6792297363281,
+            "b": 244.11988830566406,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            4
+          ]
+        }
+      ],
+      "orig": "남자정장",
+      "text": "남자정장"
+    },
+    {
+      "self_ref": "#/texts/162",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 395.5192565917969,
+            "t": 243.33338928222656,
+            "r": 408.5291748046875,
+            "b": 238.410888671875,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            3
+          ]
+        }
+      ],
+      "orig": "원피스",
+      "text": "원피스"
+    },
+    {
+      "self_ref": "#/texts/163",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 390.9115905761719,
+            "t": 237.50338745117188,
+            "r": 408.5291748046875,
+            "b": 232.5093994140625,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            4
+          ]
+        }
+      ],
+      "orig": "유아동복",
+      "text": "유아동복"
+    },
+    {
+      "self_ref": "#/texts/164",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 391.2165222167969,
+            "t": 231.7008819580078,
+            "r": 408.21942138671875,
+            "b": 226.71238708496094,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            4
+          ]
+        }
+      ],
+      "orig": "남자상의",
+      "text": "남자상의"
+    },
+    {
+      "self_ref": "#/texts/165",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 395.3643798828125,
+            "t": 225.78839111328125,
+            "r": 408.5291748046875,
+            "b": 221.00338745117188,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            3
+          ]
+        }
+      ],
+      "orig": "노트북",
+      "text": "노트북"
+    },
+    {
+      "self_ref": "#/texts/166",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 399.81719970703125,
+            "t": 220.09588623046875,
+            "r": 408.3114013671875,
+            "b": 215.31089782714844,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            2
+          ]
+        }
+      ],
+      "orig": "로션",
+      "text": "로션"
+    },
+    {
+      "self_ref": "#/texts/167",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 399.8946228027344,
+            "t": 214.2933807373047,
+            "r": 408.23394775390625,
+            "b": 209.3983917236328,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            2
+          ]
+        }
+      ],
+      "orig": "잡지",
+      "text": "잡지"
+    },
+    {
+      "self_ref": "#/texts/168",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 386.4588928222656,
+            "t": 208.49099731445312,
+            "r": 408.5438232421875,
+            "b": 203.59600830078125,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            5
+          ]
+        }
+      ],
+      "orig": "구두및신발",
+      "text": "구두및신발"
+    },
+    {
+      "self_ref": "#/texts/169",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 389.9291076660156,
+            "t": 202.68849182128906,
+            "r": 408.630859375,
+            "b": 197.7935028076172,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            5
+          ]
+        }
+      ],
+      "orig": "디지털TV",
+      "text": "디지털TV"
+    },
+    {
+      "self_ref": "#/texts/170",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 391.20684814453125,
+            "t": 196.885986328125,
+            "r": 408.2194519042969,
+            "b": 191.99099731445312,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            4
+          ]
+        }
+      ],
+      "orig": "여자하의",
+      "text": "여자하의"
+    },
+    {
+      "self_ref": "#/texts/171",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 399.8027038574219,
+            "t": 191.08349609375,
+            "r": 408.52923583984375,
+            "b": 186.18850708007812,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            2
+          ]
+        }
+      ],
+      "orig": "샴푸",
+      "text": "샴푸"
+    },
+    {
+      "self_ref": "#/texts/172",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 400.1899108886719,
+            "t": 185.28099060058594,
+            "r": 408.52923583984375,
+            "b": 180.38600158691406,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            2
+          ]
+        }
+      ],
+      "orig": "비누",
+      "text": "비누"
+    },
+    {
+      "self_ref": "#/texts/173",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 413.613037109375,
+            "t": 270.0884094238281,
+            "r": 416.267333984375,
+            "b": 265.9689025878906,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            1
+          ]
+        }
+      ],
+      "orig": "0",
+      "text": "0"
+    },
+    {
+      "self_ref": "#/texts/174",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 435.9551086425781,
+            "t": 270.11041259765625,
+            "r": 441.4100036621094,
+            "b": 265.9689025878906,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            2
+          ]
+        }
+      ],
+      "orig": "20",
+      "text": "20"
+    },
+    {
+      "self_ref": "#/texts/175",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 460.0214538574219,
+            "t": 270.0884094238281,
+            "r": 465.54949951171875,
+            "b": 265.9689025878906,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            2
+          ]
+        }
+      ],
+      "orig": "40",
+      "text": "40"
+    },
+    {
+      "self_ref": "#/texts/176",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 484.14007568359375,
+            "t": 270.11041259765625,
+            "r": 489.68902587890625,
+            "b": 265.9468994140625,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            2
+          ]
+        }
+      ],
+      "orig": "60",
+      "text": "60"
+    },
+    {
+      "self_ref": "#/texts/177",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 508.2168884277344,
+            "t": 270.12139892578125,
+            "r": 513.8285522460938,
+            "b": 265.930419921875,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            2
+          ]
+        }
+      ],
+      "orig": "80",
+      "text": "80"
+    },
+    {
+      "self_ref": "#/texts/178",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 531.9122314453125,
+            "t": 270.0884094238281,
+            "r": 539.906494140625,
+            "b": 265.9689025878906,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            3
+          ]
+        }
+      ],
+      "orig": "100",
+      "text": "100"
+    },
+    {
+      "self_ref": "#/texts/179",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 413.613037109375,
+            "t": 176.0894012451172,
+            "r": 416.267333984375,
+            "b": 171.9698944091797,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            1
+          ]
+        }
+      ],
+      "orig": "0",
+      "text": "0"
+    },
+    {
+      "self_ref": "#/texts/180",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 435.9551086425781,
+            "t": 176.1114044189453,
+            "r": 441.4100036621094,
+            "b": 171.9698944091797,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            2
+          ]
+        }
+      ],
+      "orig": "20",
+      "text": "20"
+    },
+    {
+      "self_ref": "#/texts/181",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 460.0214538574219,
+            "t": 176.0894012451172,
+            "r": 465.54949951171875,
+            "b": 171.9698944091797,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            2
+          ]
+        }
+      ],
+      "orig": "40",
+      "text": "40"
+    },
+    {
+      "self_ref": "#/texts/182",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 484.14007568359375,
+            "t": 176.1114044189453,
+            "r": 489.68902587890625,
+            "b": 171.94789123535156,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            2
+          ]
+        }
+      ],
+      "orig": "60",
+      "text": "60"
+    },
+    {
+      "self_ref": "#/texts/183",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 508.2168884277344,
+            "t": 176.1223907470703,
+            "r": 513.8285522460938,
+            "b": 171.931396484375,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            2
+          ]
+        }
+      ],
+      "orig": "80",
+      "text": "80"
+    },
+    {
+      "self_ref": "#/texts/184",
+      "parent": {
+        "$ref": "#/pictures/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 531.9122314453125,
+            "t": 176.0894012451172,
+            "r": 539.906494140625,
+            "b": 171.9698944091797,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            3
+          ]
+        }
+      ],
+      "orig": "100",
+      "text": "100"
+    },
+    {
+      "self_ref": "#/texts/185",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "furniture",
+      "label": "page_footer",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 42.76289749145508,
+            "t": 40.92770004272461,
+            "r": 49.62569808959961,
+            "b": 35.78369903564453,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            2
+          ]
+        }
+      ],
+      "orig": "20",
+      "text": "20"
+    },
+    {
+      "self_ref": "#/texts/186",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "furniture",
+      "label": "page_footer",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 59.85240173339844,
+            "t": 42.249698638916016,
+            "r": 79.2437973022461,
+            "b": 36.7776985168457,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            4
+          ]
+        }
+      ],
+      "orig": "한국은행",
+      "text": "한국은행"
+    }
+  ],
+  "pictures": [
+    {
+      "self_ref": "#/pictures/0",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [
+        {
+          "$ref": "#/texts/1"
+        },
+        {
+          "$ref": "#/texts/2"
+        },
+        {
+          "$ref": "#/texts/3"
+        },
+        {
+          "$ref": "#/texts/4"
+        },
+        {
+          "$ref": "#/texts/5"
+        },
+        {
+          "$ref": "#/texts/6"
+        },
+        {
+          "$ref": "#/texts/7"
+        },
+        {
+          "$ref": "#/texts/8"
+        },
+        {
+          "$ref": "#/texts/9"
+        },
+        {
+          "$ref": "#/texts/10"
+        },
+        {
+          "$ref": "#/texts/11"
+        },
+        {
+          "$ref": "#/texts/12"
+        },
+        {
+          "$ref": "#/texts/13"
+        },
+        {
+          "$ref": "#/texts/14"
+        },
+        {
+          "$ref": "#/texts/15"
+        },
+        {
+          "$ref": "#/texts/16"
+        },
+        {
+          "$ref": "#/texts/17"
+        },
+        {
+          "$ref": "#/texts/18"
+        },
+        {
+          "$ref": "#/texts/19"
+        },
+        {
+          "$ref": "#/texts/20"
+        },
+        {
+          "$ref": "#/texts/21"
+        },
+        {
+          "$ref": "#/texts/22"
+        },
+        {
+          "$ref": "#/texts/23"
+        },
+        {
+          "$ref": "#/texts/24"
+        },
+        {
+          "$ref": "#/texts/25"
+        },
+        {
+          "$ref": "#/texts/26"
+        },
+        {
+          "$ref": "#/texts/27"
+        },
+        {
+          "$ref": "#/texts/28"
+        },
+        {
+          "$ref": "#/texts/29"
+        },
+        {
+          "$ref": "#/texts/30"
+        },
+        {
+          "$ref": "#/texts/31"
+        },
+        {
+          "$ref": "#/texts/32"
+        },
+        {
+          "$ref": "#/texts/33"
+        },
+        {
+          "$ref": "#/texts/34"
+        },
+        {
+          "$ref": "#/texts/35"
+        },
+        {
+          "$ref": "#/texts/36"
+        },
+        {
+          "$ref": "#/texts/37"
+        },
+        {
+          "$ref": "#/texts/38"
+        },
+        {
+          "$ref": "#/texts/39"
+        },
+        {
+          "$ref": "#/texts/40"
+        },
+        {
+          "$ref": "#/texts/41"
+        },
+        {
+          "$ref": "#/texts/42"
+        },
+        {
+          "$ref": "#/texts/43"
+        },
+        {
+          "$ref": "#/texts/44"
+        },
+        {
+          "$ref": "#/texts/45"
+        },
+        {
+          "$ref": "#/texts/46"
+        },
+        {
+          "$ref": "#/texts/47"
+        },
+        {
+          "$ref": "#/texts/48"
+        },
+        {
+          "$ref": "#/texts/49"
+        },
+        {
+          "$ref": "#/texts/50"
+        },
+        {
+          "$ref": "#/texts/51"
+        },
+        {
+          "$ref": "#/texts/52"
+        },
+        {
+          "$ref": "#/texts/53"
+        },
+        {
+          "$ref": "#/texts/54"
+        },
+        {
+          "$ref": "#/texts/55"
+        },
+        {
+          "$ref": "#/texts/56"
+        },
+        {
+          "$ref": "#/texts/57"
+        },
+        {
+          "$ref": "#/texts/58"
+        },
+        {
+          "$ref": "#/texts/59"
+        },
+        {
+          "$ref": "#/texts/60"
+        },
+        {
+          "$ref": "#/texts/61"
+        },
+        {
+          "$ref": "#/texts/62"
+        },
+        {
+          "$ref": "#/texts/63"
+        },
+        {
+          "$ref": "#/texts/64"
+        },
+        {
+          "$ref": "#/texts/65"
+        },
+        {
+          "$ref": "#/texts/66"
+        },
+        {
+          "$ref": "#/texts/67"
+        },
+        {
+          "$ref": "#/texts/68"
+        },
+        {
+          "$ref": "#/texts/69"
+        },
+        {
+          "$ref": "#/texts/70"
+        },
+        {
+          "$ref": "#/texts/71"
+        },
+        {
+          "$ref": "#/texts/72"
+        },
+        {
+          "$ref": "#/texts/73"
+        },
+        {
+          "$ref": "#/texts/74"
+        },
+        {
+          "$ref": "#/texts/75"
+        },
+        {
+          "$ref": "#/texts/76"
+        },
+        {
+          "$ref": "#/texts/77"
+        },
+        {
+          "$ref": "#/texts/78"
+        },
+        {
+          "$ref": "#/texts/79"
+        },
+        {
+          "$ref": "#/texts/80"
+        },
+        {
+          "$ref": "#/texts/81"
+        },
+        {
+          "$ref": "#/texts/82"
+        },
+        {
+          "$ref": "#/texts/83"
+        },
+        {
+          "$ref": "#/texts/84"
+        },
+        {
+          "$ref": "#/texts/85"
+        },
+        {
+          "$ref": "#/texts/86"
+        },
+        {
+          "$ref": "#/texts/87"
+        },
+        {
+          "$ref": "#/texts/88"
+        },
+        {
+          "$ref": "#/texts/89"
+        },
+        {
+          "$ref": "#/texts/90"
+        },
+        {
+          "$ref": "#/texts/91"
+        },
+        {
+          "$ref": "#/texts/92"
+        },
+        {
+          "$ref": "#/texts/93"
+        },
+        {
+          "$ref": "#/texts/94"
+        },
+        {
+          "$ref": "#/texts/95"
+        },
+        {
+          "$ref": "#/texts/96"
+        },
+        {
+          "$ref": "#/texts/97"
+        },
+        {
+          "$ref": "#/texts/98"
+        },
+        {
+          "$ref": "#/texts/99"
+        },
+        {
+          "$ref": "#/texts/100"
+        },
+        {
+          "$ref": "#/texts/101"
+        },
+        {
+          "$ref": "#/texts/102"
+        },
+        {
+          "$ref": "#/texts/103"
+        },
+        {
+          "$ref": "#/texts/104"
+        },
+        {
+          "$ref": "#/texts/105"
+        },
+        {
+          "$ref": "#/texts/106"
+        },
+        {
+          "$ref": "#/texts/107"
+        },
+        {
+          "$ref": "#/texts/108"
+        },
+        {
+          "$ref": "#/texts/109"
+        },
+        {
+          "$ref": "#/texts/110"
+        },
+        {
+          "$ref": "#/texts/111"
+        },
+        {
+          "$ref": "#/texts/112"
+        },
+        {
+          "$ref": "#/texts/113"
+        },
+        {
+          "$ref": "#/texts/114"
+        },
+        {
+          "$ref": "#/texts/115"
+        },
+        {
+          "$ref": "#/texts/116"
+        },
+        {
+          "$ref": "#/texts/117"
+        },
+        {
+          "$ref": "#/texts/118"
+        },
+        {
+          "$ref": "#/texts/119"
+        },
+        {
+          "$ref": "#/texts/120"
+        },
+        {
+          "$ref": "#/texts/121"
+        },
+        {
+          "$ref": "#/texts/122"
+        },
+        {
+          "$ref": "#/texts/123"
+        },
+        {
+          "$ref": "#/texts/124"
+        },
+        {
+          "$ref": "#/texts/125"
+        },
+        {
+          "$ref": "#/texts/126"
+        },
+        {
+          "$ref": "#/texts/127"
+        },
+        {
+          "$ref": "#/texts/128"
+        },
+        {
+          "$ref": "#/texts/129"
+        },
+        {
+          "$ref": "#/texts/130"
+        },
+        {
+          "$ref": "#/texts/131"
+        },
+        {
+          "$ref": "#/texts/132"
+        },
+        {
+          "$ref": "#/texts/133"
+        },
+        {
+          "$ref": "#/texts/134"
+        },
+        {
+          "$ref": "#/texts/135"
+        },
+        {
+          "$ref": "#/texts/136"
+        },
+        {
+          "$ref": "#/texts/137"
+        },
+        {
+          "$ref": "#/texts/138"
+        },
+        {
+          "$ref": "#/texts/139"
+        },
+        {
+          "$ref": "#/texts/140"
+        },
+        {
+          "$ref": "#/texts/141"
+        },
+        {
+          "$ref": "#/texts/142"
+        },
+        {
+          "$ref": "#/texts/143"
+        },
+        {
+          "$ref": "#/texts/144"
+        },
+        {
+          "$ref": "#/texts/145"
+        },
+        {
+          "$ref": "#/texts/146"
+        },
+        {
+          "$ref": "#/texts/147"
+        },
+        {
+          "$ref": "#/texts/148"
+        },
+        {
+          "$ref": "#/texts/149"
+        },
+        {
+          "$ref": "#/texts/150"
+        },
+        {
+          "$ref": "#/texts/151"
+        },
+        {
+          "$ref": "#/texts/152"
+        },
+        {
+          "$ref": "#/texts/153"
+        },
+        {
+          "$ref": "#/texts/154"
+        },
+        {
+          "$ref": "#/texts/155"
+        },
+        {
+          "$ref": "#/texts/156"
+        },
+        {
+          "$ref": "#/texts/157"
+        },
+        {
+          "$ref": "#/texts/158"
+        },
+        {
+          "$ref": "#/texts/159"
+        },
+        {
+          "$ref": "#/texts/160"
+        },
+        {
+          "$ref": "#/texts/161"
+        },
+        {
+          "$ref": "#/texts/162"
+        },
+        {
+          "$ref": "#/texts/163"
+        },
+        {
+          "$ref": "#/texts/164"
+        },
+        {
+          "$ref": "#/texts/165"
+        },
+        {
+          "$ref": "#/texts/166"
+        },
+        {
+          "$ref": "#/texts/167"
+        },
+        {
+          "$ref": "#/texts/168"
+        },
+        {
+          "$ref": "#/texts/169"
+        },
+        {
+          "$ref": "#/texts/170"
+        },
+        {
+          "$ref": "#/texts/171"
+        },
+        {
+          "$ref": "#/texts/172"
+        },
+        {
+          "$ref": "#/texts/173"
+        },
+        {
+          "$ref": "#/texts/174"
+        },
+        {
+          "$ref": "#/texts/175"
+        },
+        {
+          "$ref": "#/texts/176"
+        },
+        {
+          "$ref": "#/texts/177"
+        },
+        {
+          "$ref": "#/texts/178"
+        },
+        {
+          "$ref": "#/texts/179"
+        },
+        {
+          "$ref": "#/texts/180"
+        },
+        {
+          "$ref": "#/texts/181"
+        },
+        {
+          "$ref": "#/texts/182"
+        },
+        {
+          "$ref": "#/texts/183"
+        },
+        {
+          "$ref": "#/texts/184"
+        }
+      ],
+      "content_layer": "body",
+      "label": "picture",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 181.24603271484375,
+            "t": 719.0598678588867,
+            "r": 551.14990234375,
+            "b": 87.176025390625,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            0
+          ]
+        }
+      ],
+      "captions": [],
+      "references": [],
+      "footnotes": [],
+      "annotations": []
+    }
+  ],
+  "tables": [],
+  "key_value_items": [],
+  "form_items": [],
+  "pages": {
+    "1": {
+      "size": {
+        "width": 595.2760009765625,
+        "height": 841.8900146484375
+      },
+      "page_no": 1
+    }
+  }
+}

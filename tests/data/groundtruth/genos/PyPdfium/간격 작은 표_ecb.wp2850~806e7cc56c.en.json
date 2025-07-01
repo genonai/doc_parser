@@ -1,0 +1,1465 @@
+{
+  "schema_name": "DoclingDocument",
+  "version": "1.3.0",
+  "name": "간격 작은 표_ecb.wp2850~806e7cc56c.en",
+  "origin": {
+    "mimetype": "application/pdf",
+    "binary_hash": 11881688508883417412,
+    "filename": "간격 작은 표_ecb.wp2850~806e7cc56c.en.pdf"
+  },
+  "furniture": {
+    "self_ref": "#/furniture",
+    "children": [],
+    "content_layer": "furniture",
+    "name": "_root_",
+    "label": "unspecified"
+  },
+  "body": {
+    "self_ref": "#/body",
+    "children": [
+      {
+        "$ref": "#/texts/0"
+      },
+      {
+        "$ref": "#/texts/1"
+      },
+      {
+        "$ref": "#/texts/2"
+      },
+      {
+        "$ref": "#/tables/0"
+      },
+      {
+        "$ref": "#/groups/0"
+      },
+      {
+        "$ref": "#/texts/6"
+      },
+      {
+        "$ref": "#/texts/7"
+      },
+      {
+        "$ref": "#/texts/8"
+      },
+      {
+        "$ref": "#/texts/9"
+      },
+      {
+        "$ref": "#/texts/10"
+      },
+      {
+        "$ref": "#/texts/11"
+      }
+    ],
+    "content_layer": "body",
+    "name": "_root_",
+    "label": "unspecified"
+  },
+  "groups": [
+    {
+      "self_ref": "#/groups/0",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [
+        {
+          "$ref": "#/texts/4"
+        },
+        {
+          "$ref": "#/texts/5"
+        }
+      ],
+      "content_layer": "body",
+      "name": "group",
+      "label": "key_value_area"
+    }
+  ],
+  "texts": [
+    {
+      "self_ref": "#/texts/0",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 51.3348274230957,
+            "t": 781.9452514648438,
+            "r": 417.2416076660156,
+            "b": 769.8706665039062,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            67
+          ]
+        }
+      ],
+      "orig": "countercyclical employment risk, we estimate the following equation",
+      "text": "countercyclical employment risk, we estimate the following equation"
+    },
+    {
+      "self_ref": "#/texts/1",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "formula",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 189.83665466308594,
+            "t": 749.2410278320312,
+            "r": 543.5369873046875,
+            "b": 736.8302612304688,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            57
+          ]
+        }
+      ],
+      "orig": "Yi Yi , t = γt + β1 educi + β2 educi × Xt + ϵi , t , (11)",
+      "text": ""
+    },
+    {
+      "self_ref": "#/texts/2",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 51.09574890136719,
+            "t": 718.2764892578125,
+            "r": 544.1559448242188,
+            "b": 614.7067260742188,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            496
+          ]
+        }
+      ],
+      "orig": "where Yi Yi , t is either the (net) hire or separation rate, Xtis the cyclical component of GDP, 14 educ i is workers' educational attainment, γt are time dummies to control for common shocks, and ϵ i , t is the residual term. What we are interested in is the coefficient on the interaction term, which measures the differential responsiveness - across education groups - of net hiring rate to a business cycle. Note that results have to be interpreted relative to the highest education group. 15",
+      "text": "where Yi Yi , t is either the (net) hire or separation rate, Xtis the cyclical component of GDP, 14 educ i is workers' educational attainment, γt are time dummies to control for common shocks, and ϵ i , t is the residual term. What we are interested in is the coefficient on the interaction term, which measures the differential responsiveness - across education groups - of net hiring rate to a business cycle. Note that results have to be interpreted relative to the highest education group. 15"
+    },
+    {
+      "self_ref": "#/texts/3",
+      "parent": {
+        "$ref": "#/tables/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "caption",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 177.50022888183594,
+            "t": 599.5233154296875,
+            "r": 417.6164245605469,
+            "b": 587.44873046875,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            45
+          ]
+        }
+      ],
+      "orig": "Table 8: Worker flows over the business cycle",
+      "text": "Table 8: Worker flows over the business cycle"
+    },
+    {
+      "self_ref": "#/texts/4",
+      "parent": {
+        "$ref": "#/groups/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 212.68008422851562,
+            "t": 328.8842468261719,
+            "r": 382.50335693359375,
+            "b": 318.79248046875,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            37
+          ]
+        }
+      ],
+      "orig": "Robust standard errors in parentheses",
+      "text": "Robust standard errors in parentheses"
+    },
+    {
+      "self_ref": "#/texts/5",
+      "parent": {
+        "$ref": "#/groups/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 231.02992248535156,
+            "t": 316.4414367675781,
+            "r": 363.77716064453125,
+            "b": 306.6708068847656,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            30
+          ]
+        }
+      ],
+      "orig": "*** p<0.01, ** p<0.05, * p<0.1",
+      "text": "*** p<0.01, ** p<0.05, * p<0.1"
+    },
+    {
+      "self_ref": "#/texts/6",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 51.28303909301758,
+            "t": 291.8770446777344,
+            "r": 543.962646484375,
+            "b": 269.85943603515625,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            127
+          ]
+        }
+      ],
+      "orig": "Notes: (Net) hires, and separations are rates and are expressed as a share of an average employment within the education group.",
+      "text": "Notes: (Net) hires, and separations are rates and are expressed as a share of an average employment within the education group."
+    },
+    {
+      "self_ref": "#/texts/7",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 51.2402458190918,
+            "t": 250.23123168945312,
+            "r": 544.1631469726562,
+            "b": 112.66568756103516,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            739
+          ]
+        }
+      ],
+      "orig": "Table 8 reports the results from estimating Equation 11. Column 1 shows that the net hiring rate of less educated workers is more sensitive to business cycles than the net hiring rate of workers with the highest level of educational attainment. This implies that (countercyclical) employment risk is the largest for the least educated workers, and it falls with increasing educational attainment. Results are in line with Haltiwanger et al. (2018), who find that during recessions, workers with lower education are more likely to exit to nonemployment. They also find that conditional on firm productivity groups, hires and separations are more cyclically sensitive for less educated workers. In columns 2 and 3, we separate the net hiring",
+      "text": "Table 8 reports the results from estimating Equation 11. Column 1 shows that the net hiring rate of less educated workers is more sensitive to business cycles than the net hiring rate of workers with the highest level of educational attainment. This implies that (countercyclical) employment risk is the largest for the least educated workers, and it falls with increasing educational attainment. Results are in line with Haltiwanger et al. (2018), who find that during recessions, workers with lower education are more likely to exit to nonemployment. They also find that conditional on firm productivity groups, hires and separations are more cyclically sensitive for less educated workers. In columns 2 and 3, we separate the net hiring"
+    },
+    {
+      "self_ref": "#/texts/8",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "footnote",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 51.17344665527344,
+            "t": 101.96296691894531,
+            "r": 544.171142578125,
+            "b": 66.3714370727539,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            295
+          ]
+        }
+      ],
+      "orig": "14 We obtain it after applying the Hodrick-Prescott filter to a logarithm of seasonally adjusted real GDP. In Appendix B.2, we also consider other business cycle measures, i.e. NBER recession episodes and the cyclical component of the level of unemployment. The results do not materially change.",
+      "text": "14 We obtain it after applying the Hodrick-Prescott filter to a logarithm of seasonally adjusted real GDP. In Appendix B.2, we also consider other business cycle measures, i.e. NBER recession episodes and the cyclical component of the level of unemployment. The results do not materially change."
+    },
+    {
+      "self_ref": "#/texts/9",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "footnote",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 61.3413200378418,
+            "t": 65.56396484375,
+            "r": 405.4164733886719,
+            "b": 53.88343048095703,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            79
+          ]
+        }
+      ],
+      "orig": "15 That is, relative to workers with a bachelor's degree or an advanced degree.",
+      "text": "15 That is, relative to workers with a bachelor's degree or an advanced degree."
+    },
+    {
+      "self_ref": "#/texts/10",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "furniture",
+      "label": "page_footer",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 51.03178024291992,
+            "t": 34.707950592041016,
+            "r": 178.9597930908203,
+            "b": 27.211950302124023,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            32
+          ]
+        }
+      ],
+      "orig": "ECB Working Paper Series No 2850",
+      "text": "ECB Working Paper Series No 2850"
+    },
+    {
+      "self_ref": "#/texts/11",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "furniture",
+      "label": "page_footer",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 536.8511962890625,
+            "t": 34.63595199584961,
+            "r": 544.5151977539062,
+            "b": 28.88395118713379,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            2
+          ]
+        }
+      ],
+      "orig": "17",
+      "text": "17"
+    }
+  ],
+  "pictures": [],
+  "tables": [
+    {
+      "self_ref": "#/tables/0",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [
+        {
+          "$ref": "#/texts/3"
+        }
+      ],
+      "content_layer": "body",
+      "label": "table",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 99.7458724975586,
+            "t": 575.8762817382812,
+            "r": 495.7215576171875,
+            "b": 329.57647705078125,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            0
+          ]
+        }
+      ],
+      "captions": [
+        {
+          "$ref": "#/texts/3"
+        }
+      ],
+      "references": [],
+      "footnotes": [],
+      "data": {
+        "table_cells": [
+          {
+            "bbox": {
+              "l": 357.7033996582031,
+              "t": 270.16119384765625,
+              "r": 368.1962890625,
+              "b": 279.59075927734375,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 0,
+            "end_row_offset_idx": 1,
+            "start_col_offset_idx": 1,
+            "end_col_offset_idx": 2,
+            "text": "(1)",
+            "column_header": true,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 342.61126708984375,
+              "t": 270.1318359375,
+              "r": 489.6120910644531,
+              "b": 292.34503173828125,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 0,
+            "end_row_offset_idx": 1,
+            "start_col_offset_idx": 2,
+            "end_col_offset_idx": 3,
+            "text": "(2) (3) Net hires Hires Separations",
+            "column_header": true,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 105.44420623779297,
+              "t": 282.42401123046875,
+              "r": 160.6177215576172,
+              "b": 289.7269287109375,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 0,
+            "end_row_offset_idx": 1,
+            "start_col_offset_idx": 0,
+            "end_col_offset_idx": 1,
+            "text": "VARIABLES",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 105.57949829101562,
+              "t": 311.52301025390625,
+              "r": 201.91607666015625,
+              "b": 321.63470458984375,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 1,
+            "end_row_offset_idx": 2,
+            "start_col_offset_idx": 0,
+            "end_col_offset_idx": 1,
+            "text": "Less than high school",
+            "column_header": false,
+            "row_header": true,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 351.97088623046875,
+              "t": 311.8941650390625,
+              "r": 373.89959716796875,
+              "b": 318.9964599609375,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 1,
+            "end_row_offset_idx": 2,
+            "start_col_offset_idx": 1,
+            "end_col_offset_idx": 2,
+            "text": "0.000",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 348.9459228515625,
+              "t": 311.89404296875,
+              "r": 480.7244567871094,
+              "b": 333.0732727050781,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 1,
+            "end_row_offset_idx": 2,
+            "start_col_offset_idx": 2,
+            "end_col_offset_idx": 3,
+            "text": "0.030*** 0.030*** (0.000) (0.001) (0.001)",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 105.58485412597656,
+              "t": 335.765380859375,
+              "r": 271.55511474609375,
+              "b": 345.8770751953125,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 2,
+            "end_row_offset_idx": 3,
+            "start_col_offset_idx": 0,
+            "end_col_offset_idx": 1,
+            "text": "High school or equivalent, no college",
+            "column_header": false,
+            "row_header": true,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 344.32745361328125,
+              "t": 336.0863952636719,
+              "r": 480.72491455078125,
+              "b": 343.2388000488281,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 2,
+            "end_row_offset_idx": 3,
+            "start_col_offset_idx": 1,
+            "end_col_offset_idx": 2,
+            "text": "-0.001*** 0.011*** 0.012***",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 348.9459228515625,
+              "t": 347.88702392578125,
+              "r": 477.91015625,
+              "b": 357.31658935546875,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 2,
+            "end_row_offset_idx": 3,
+            "start_col_offset_idx": 2,
+            "end_col_offset_idx": 3,
+            "text": "(0.000) (0.000) (0.000)",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 105.60491943359375,
+              "t": 360.0086669921875,
+              "r": 254.02012634277344,
+              "b": 370.120361328125,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 3,
+            "end_row_offset_idx": 4,
+            "start_col_offset_idx": 0,
+            "end_col_offset_idx": 1,
+            "text": "Some college or Associate degree",
+            "column_header": false,
+            "row_header": true,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 346.28338623046875,
+              "t": 360.3296813964844,
+              "r": 480.72479248046875,
+              "b": 381.55987548828125,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 3,
+            "end_row_offset_idx": 4,
+            "start_col_offset_idx": 2,
+            "end_col_offset_idx": 3,
+            "text": "-0.001** 0.006*** 0.007*** (0.000) (0.000) (0.000)",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 105.58485412597656,
+              "t": 396.37274169921875,
+              "r": 262.3476257324219,
+              "b": 406.48443603515625,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 4,
+            "end_row_offset_idx": 5,
+            "start_col_offset_idx": 0,
+            "end_col_offset_idx": 1,
+            "text": "Less than high school × GDP cycle",
+            "column_header": false,
+            "row_header": true,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 346.1227111816406,
+              "t": 396.6937561035156,
+              "r": 477.91015625,
+              "b": 417.9239807128906,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 4,
+            "end_row_offset_idx": 5,
+            "start_col_offset_idx": 1,
+            "end_col_offset_idx": 2,
+            "text": "0.123*** 0.079** -0.018 (0.036) (0.037) (0.056)",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 105.58485412597656,
+              "t": 420.6160583496094,
+              "r": 476.5597839355469,
+              "b": 430.7277526855469,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 5,
+            "end_row_offset_idx": 6,
+            "start_col_offset_idx": 0,
+            "end_col_offset_idx": 1,
+            "text": "High school or equivalent, no college × GDP cycle 0.070*** 0.018 -0.044",
+            "column_header": false,
+            "row_header": true,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 348.9459228515625,
+              "t": 432.7377014160156,
+              "r": 477.91015625,
+              "b": 442.1672668457031,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 5,
+            "end_row_offset_idx": 6,
+            "start_col_offset_idx": 2,
+            "end_col_offset_idx": 3,
+            "text": "(0.024) (0.019) (0.029)",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 105.60491943359375,
+              "t": 444.8585205078125,
+              "r": 476.0184326171875,
+              "b": 454.97021484375,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 6,
+            "end_row_offset_idx": 7,
+            "start_col_offset_idx": 0,
+            "end_col_offset_idx": 1,
+            "text": "Some college or Associate degree × GDP cycle 0.037 0.003 -0.031",
+            "column_header": false,
+            "row_header": true,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 348.9459228515625,
+              "t": 456.98016357421875,
+              "r": 477.91015625,
+              "b": 466.40972900390625,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 6,
+            "end_row_offset_idx": 7,
+            "start_col_offset_idx": 2,
+            "end_col_offset_idx": 3,
+            "text": "(0.025) (0.020) (0.032)",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 105.53936767578125,
+              "t": 474.4686584472656,
+              "r": 141.77847290039062,
+              "b": 481.6009826660156,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 7,
+            "end_row_offset_idx": 8,
+            "start_col_offset_idx": 0,
+            "end_col_offset_idx": 1,
+            "text": "Time FE",
+            "column_header": false,
+            "row_header": true,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 359.7658386230469,
+              "t": 474.3883972167969,
+              "r": 413.82525634765625,
+              "b": 481.4304504394531,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 7,
+            "end_row_offset_idx": 8,
+            "start_col_offset_idx": 1,
+            "end_col_offset_idx": 2,
+            "text": "X  X",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 460.68218994140625,
+              "t": 474.38873291015625,
+              "r": 467.0421142578125,
+              "b": 481.4307861328125,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 7,
+            "end_row_offset_idx": 8,
+            "start_col_offset_idx": 2,
+            "end_col_offset_idx": 3,
+            "text": "X",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 105.58482360839844,
+              "t": 486.24957275390625,
+              "r": 163.7872314453125,
+              "b": 493.7229919433594,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 8,
+            "end_row_offset_idx": 9,
+            "start_col_offset_idx": 0,
+            "end_col_offset_idx": 1,
+            "text": "Observations",
+            "column_header": false,
+            "row_header": true,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 355.6024475097656,
+              "t": 486.6207580566406,
+              "r": 471.0944519042969,
+              "b": 493.7229919433594,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 8,
+            "end_row_offset_idx": 9,
+            "start_col_offset_idx": 2,
+            "end_col_offset_idx": 3,
+            "text": "272 276 276",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 105.58482360839844,
+              "t": 498.3712158203125,
+              "r": 150.86672973632812,
+              "b": 508.4628601074219,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 9,
+            "end_row_offset_idx": 10,
+            "start_col_offset_idx": 0,
+            "end_col_offset_idx": 1,
+            "text": "R-squared",
+            "column_header": false,
+            "row_header": true,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 349.4631042480469,
+              "t": 498.6922302246094,
+              "r": 477.3238525390625,
+              "b": 505.8446350097656,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 9,
+            "end_row_offset_idx": 10,
+            "start_col_offset_idx": 2,
+            "end_col_offset_idx": 3,
+            "text": "0.9028 0.9713 0.9468",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          }
+        ],
+        "num_rows": 10,
+        "num_cols": 3,
+        "grid": [
+          [
+            {
+              "bbox": {
+                "l": 105.44420623779297,
+                "t": 282.42401123046875,
+                "r": 160.6177215576172,
+                "b": 289.7269287109375,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 0,
+              "end_row_offset_idx": 1,
+              "start_col_offset_idx": 0,
+              "end_col_offset_idx": 1,
+              "text": "VARIABLES",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 357.7033996582031,
+                "t": 270.16119384765625,
+                "r": 368.1962890625,
+                "b": 279.59075927734375,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 0,
+              "end_row_offset_idx": 1,
+              "start_col_offset_idx": 1,
+              "end_col_offset_idx": 2,
+              "text": "(1)",
+              "column_header": true,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 342.61126708984375,
+                "t": 270.1318359375,
+                "r": 489.6120910644531,
+                "b": 292.34503173828125,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 0,
+              "end_row_offset_idx": 1,
+              "start_col_offset_idx": 2,
+              "end_col_offset_idx": 3,
+              "text": "(2) (3) Net hires Hires Separations",
+              "column_header": true,
+              "row_header": false,
+              "row_section": false
+            }
+          ],
+          [
+            {
+              "bbox": {
+                "l": 105.57949829101562,
+                "t": 311.52301025390625,
+                "r": 201.91607666015625,
+                "b": 321.63470458984375,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 1,
+              "end_row_offset_idx": 2,
+              "start_col_offset_idx": 0,
+              "end_col_offset_idx": 1,
+              "text": "Less than high school",
+              "column_header": false,
+              "row_header": true,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 351.97088623046875,
+                "t": 311.8941650390625,
+                "r": 373.89959716796875,
+                "b": 318.9964599609375,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 1,
+              "end_row_offset_idx": 2,
+              "start_col_offset_idx": 1,
+              "end_col_offset_idx": 2,
+              "text": "0.000",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 348.9459228515625,
+                "t": 311.89404296875,
+                "r": 480.7244567871094,
+                "b": 333.0732727050781,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 1,
+              "end_row_offset_idx": 2,
+              "start_col_offset_idx": 2,
+              "end_col_offset_idx": 3,
+              "text": "0.030*** 0.030*** (0.000) (0.001) (0.001)",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            }
+          ],
+          [
+            {
+              "bbox": {
+                "l": 105.58485412597656,
+                "t": 335.765380859375,
+                "r": 271.55511474609375,
+                "b": 345.8770751953125,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 2,
+              "end_row_offset_idx": 3,
+              "start_col_offset_idx": 0,
+              "end_col_offset_idx": 1,
+              "text": "High school or equivalent, no college",
+              "column_header": false,
+              "row_header": true,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 344.32745361328125,
+                "t": 336.0863952636719,
+                "r": 480.72491455078125,
+                "b": 343.2388000488281,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 2,
+              "end_row_offset_idx": 3,
+              "start_col_offset_idx": 1,
+              "end_col_offset_idx": 2,
+              "text": "-0.001*** 0.011*** 0.012***",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 348.9459228515625,
+                "t": 347.88702392578125,
+                "r": 477.91015625,
+                "b": 357.31658935546875,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 2,
+              "end_row_offset_idx": 3,
+              "start_col_offset_idx": 2,
+              "end_col_offset_idx": 3,
+              "text": "(0.000) (0.000) (0.000)",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            }
+          ],
+          [
+            {
+              "bbox": {
+                "l": 105.60491943359375,
+                "t": 360.0086669921875,
+                "r": 254.02012634277344,
+                "b": 370.120361328125,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 3,
+              "end_row_offset_idx": 4,
+              "start_col_offset_idx": 0,
+              "end_col_offset_idx": 1,
+              "text": "Some college or Associate degree",
+              "column_header": false,
+              "row_header": true,
+              "row_section": false
+            },
+            {
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 3,
+              "end_row_offset_idx": 4,
+              "start_col_offset_idx": 1,
+              "end_col_offset_idx": 2,
+              "text": "",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 346.28338623046875,
+                "t": 360.3296813964844,
+                "r": 480.72479248046875,
+                "b": 381.55987548828125,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 3,
+              "end_row_offset_idx": 4,
+              "start_col_offset_idx": 2,
+              "end_col_offset_idx": 3,
+              "text": "-0.001** 0.006*** 0.007*** (0.000) (0.000) (0.000)",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            }
+          ],
+          [
+            {
+              "bbox": {
+                "l": 105.58485412597656,
+                "t": 396.37274169921875,
+                "r": 262.3476257324219,
+                "b": 406.48443603515625,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 4,
+              "end_row_offset_idx": 5,
+              "start_col_offset_idx": 0,
+              "end_col_offset_idx": 1,
+              "text": "Less than high school × GDP cycle",
+              "column_header": false,
+              "row_header": true,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 346.1227111816406,
+                "t": 396.6937561035156,
+                "r": 477.91015625,
+                "b": 417.9239807128906,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 4,
+              "end_row_offset_idx": 5,
+              "start_col_offset_idx": 1,
+              "end_col_offset_idx": 2,
+              "text": "0.123*** 0.079** -0.018 (0.036) (0.037) (0.056)",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 4,
+              "end_row_offset_idx": 5,
+              "start_col_offset_idx": 2,
+              "end_col_offset_idx": 3,
+              "text": "",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            }
+          ],
+          [
+            {
+              "bbox": {
+                "l": 105.58485412597656,
+                "t": 420.6160583496094,
+                "r": 476.5597839355469,
+                "b": 430.7277526855469,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 5,
+              "end_row_offset_idx": 6,
+              "start_col_offset_idx": 0,
+              "end_col_offset_idx": 1,
+              "text": "High school or equivalent, no college × GDP cycle 0.070*** 0.018 -0.044",
+              "column_header": false,
+              "row_header": true,
+              "row_section": false
+            },
+            {
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 5,
+              "end_row_offset_idx": 6,
+              "start_col_offset_idx": 1,
+              "end_col_offset_idx": 2,
+              "text": "",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 348.9459228515625,
+                "t": 432.7377014160156,
+                "r": 477.91015625,
+                "b": 442.1672668457031,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 5,
+              "end_row_offset_idx": 6,
+              "start_col_offset_idx": 2,
+              "end_col_offset_idx": 3,
+              "text": "(0.024) (0.019) (0.029)",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            }
+          ],
+          [
+            {
+              "bbox": {
+                "l": 105.60491943359375,
+                "t": 444.8585205078125,
+                "r": 476.0184326171875,
+                "b": 454.97021484375,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 6,
+              "end_row_offset_idx": 7,
+              "start_col_offset_idx": 0,
+              "end_col_offset_idx": 1,
+              "text": "Some college or Associate degree × GDP cycle 0.037 0.003 -0.031",
+              "column_header": false,
+              "row_header": true,
+              "row_section": false
+            },
+            {
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 6,
+              "end_row_offset_idx": 7,
+              "start_col_offset_idx": 1,
+              "end_col_offset_idx": 2,
+              "text": "",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 348.9459228515625,
+                "t": 456.98016357421875,
+                "r": 477.91015625,
+                "b": 466.40972900390625,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 6,
+              "end_row_offset_idx": 7,
+              "start_col_offset_idx": 2,
+              "end_col_offset_idx": 3,
+              "text": "(0.025) (0.020) (0.032)",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            }
+          ],
+          [
+            {
+              "bbox": {
+                "l": 105.53936767578125,
+                "t": 474.4686584472656,
+                "r": 141.77847290039062,
+                "b": 481.6009826660156,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 7,
+              "end_row_offset_idx": 8,
+              "start_col_offset_idx": 0,
+              "end_col_offset_idx": 1,
+              "text": "Time FE",
+              "column_header": false,
+              "row_header": true,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 359.7658386230469,
+                "t": 474.3883972167969,
+                "r": 413.82525634765625,
+                "b": 481.4304504394531,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 7,
+              "end_row_offset_idx": 8,
+              "start_col_offset_idx": 1,
+              "end_col_offset_idx": 2,
+              "text": "X  X",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 460.68218994140625,
+                "t": 474.38873291015625,
+                "r": 467.0421142578125,
+                "b": 481.4307861328125,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 7,
+              "end_row_offset_idx": 8,
+              "start_col_offset_idx": 2,
+              "end_col_offset_idx": 3,
+              "text": "X",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            }
+          ],
+          [
+            {
+              "bbox": {
+                "l": 105.58482360839844,
+                "t": 486.24957275390625,
+                "r": 163.7872314453125,
+                "b": 493.7229919433594,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 8,
+              "end_row_offset_idx": 9,
+              "start_col_offset_idx": 0,
+              "end_col_offset_idx": 1,
+              "text": "Observations",
+              "column_header": false,
+              "row_header": true,
+              "row_section": false
+            },
+            {
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 8,
+              "end_row_offset_idx": 9,
+              "start_col_offset_idx": 1,
+              "end_col_offset_idx": 2,
+              "text": "",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 355.6024475097656,
+                "t": 486.6207580566406,
+                "r": 471.0944519042969,
+                "b": 493.7229919433594,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 8,
+              "end_row_offset_idx": 9,
+              "start_col_offset_idx": 2,
+              "end_col_offset_idx": 3,
+              "text": "272 276 276",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            }
+          ],
+          [
+            {
+              "bbox": {
+                "l": 105.58482360839844,
+                "t": 498.3712158203125,
+                "r": 150.86672973632812,
+                "b": 508.4628601074219,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 9,
+              "end_row_offset_idx": 10,
+              "start_col_offset_idx": 0,
+              "end_col_offset_idx": 1,
+              "text": "R-squared",
+              "column_header": false,
+              "row_header": true,
+              "row_section": false
+            },
+            {
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 9,
+              "end_row_offset_idx": 10,
+              "start_col_offset_idx": 1,
+              "end_col_offset_idx": 2,
+              "text": "",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 349.4631042480469,
+                "t": 498.6922302246094,
+                "r": 477.3238525390625,
+                "b": 505.8446350097656,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 9,
+              "end_row_offset_idx": 10,
+              "start_col_offset_idx": 2,
+              "end_col_offset_idx": 3,
+              "text": "0.9028 0.9713 0.9468",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            }
+          ]
+        ]
+      }
+    }
+  ],
+  "key_value_items": [],
+  "form_items": [],
+  "pages": {
+    "1": {
+      "size": {
+        "width": 595.2760009765625,
+        "height": 841.8900146484375
+      },
+      "page_no": 1
+    }
+  }
+}

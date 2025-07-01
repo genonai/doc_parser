@@ -1,0 +1,670 @@
+{
+  "schema_name": "DoclingDocument",
+  "version": "1.3.0",
+  "name": "1-1. BOK 이슈노트_2024-14호_우리나라 물가수준의 특징 및 시사점_최종",
+  "origin": {
+    "mimetype": "application/pdf",
+    "binary_hash": 15050297918181102960,
+    "filename": "1-1. BOK 이슈노트_2024-14호_우리나라 물가수준의 특징 및 시사점_최종.pdf"
+  },
+  "furniture": {
+    "self_ref": "#/furniture",
+    "children": [],
+    "content_layer": "furniture",
+    "name": "_root_",
+    "label": "unspecified"
+  },
+  "body": {
+    "self_ref": "#/body",
+    "children": [
+      {
+        "$ref": "#/texts/0"
+      },
+      {
+        "$ref": "#/texts/1"
+      },
+      {
+        "$ref": "#/texts/2"
+      },
+      {
+        "$ref": "#/texts/3"
+      },
+      {
+        "$ref": "#/groups/0"
+      },
+      {
+        "$ref": "#/texts/7"
+      },
+      {
+        "$ref": "#/texts/8"
+      },
+      {
+        "$ref": "#/groups/1"
+      },
+      {
+        "$ref": "#/texts/10"
+      },
+      {
+        "$ref": "#/groups/2"
+      },
+      {
+        "$ref": "#/texts/12"
+      },
+      {
+        "$ref": "#/texts/13"
+      },
+      {
+        "$ref": "#/texts/14"
+      },
+      {
+        "$ref": "#/texts/15"
+      },
+      {
+        "$ref": "#/texts/16"
+      },
+      {
+        "$ref": "#/texts/17"
+      },
+      {
+        "$ref": "#/texts/18"
+      }
+    ],
+    "content_layer": "body",
+    "name": "_root_",
+    "label": "unspecified"
+  },
+  "groups": [
+    {
+      "self_ref": "#/groups/0",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [
+        {
+          "$ref": "#/texts/4"
+        },
+        {
+          "$ref": "#/texts/5"
+        },
+        {
+          "$ref": "#/texts/6"
+        }
+      ],
+      "content_layer": "body",
+      "name": "list",
+      "label": "list"
+    },
+    {
+      "self_ref": "#/groups/1",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [
+        {
+          "$ref": "#/texts/9"
+        }
+      ],
+      "content_layer": "body",
+      "name": "list",
+      "label": "list"
+    },
+    {
+      "self_ref": "#/groups/2",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [
+        {
+          "$ref": "#/texts/11"
+        }
+      ],
+      "content_layer": "body",
+      "name": "list",
+      "label": "list"
+    }
+  ],
+  "texts": [
+    {
+      "self_ref": "#/texts/0",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "furniture",
+      "label": "page_header",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 42.68689727783203,
+            "t": 767.796875,
+            "r": 90.01969909667969,
+            "b": 760.6768798828125,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            10
+          ]
+        }
+      ],
+      "orig": "제 2024-14호",
+      "text": "제 2024-14호"
+    },
+    {
+      "self_ref": "#/texts/1",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "section_header",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 195.91444396972656,
+            "t": 708.4083862304688,
+            "r": 230.60845947265625,
+            "b": 698.068359375,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            6
+          ]
+        }
+      ],
+      "orig": "〈참고 4〉",
+      "text": "〈참고 4〉",
+      "level": 1
+    },
+    {
+      "self_ref": "#/texts/2",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "section_header",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 302.551513671875,
+            "t": 683.4520874023438,
+            "r": 431.3031005859375,
+            "b": 672.5921020507812,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            15
+          ]
+        }
+      ],
+      "orig": "가격격차(상대가격) 결정요인",
+      "text": "가격격차(상대가격) 결정요인",
+      "level": 1
+    },
+    {
+      "self_ref": "#/texts/3",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "section_header",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 196.44740295410156,
+            "t": 645.4970092773438,
+            "r": 247.4956512451172,
+            "b": 635.5640258789062,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            8
+          ]
+        }
+      ],
+      "orig": "(1) 비교역재",
+      "text": "(1) 비교역재",
+      "level": 1
+    },
+    {
+      "self_ref": "#/texts/4",
+      "parent": {
+        "$ref": "#/groups/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "list_item",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 196.635498046875,
+            "t": 621.7355346679688,
+            "r": 337.9385070800781,
+            "b": 612.7864990234375,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            22
+          ]
+        }
+      ],
+      "orig": "-국내 비교역재 산업 i의 생산물 가격:",
+      "text": "-국내 비교역재 산업 i의 생산물 가격:",
+      "enumerated": false,
+      "marker": "-"
+    },
+    {
+      "self_ref": "#/texts/5",
+      "parent": {
+        "$ref": "#/groups/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "list_item",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 206.3572998046875,
+            "t": 606.7355346679688,
+            "r": 511.64141845703125,
+            "b": 581.988037109375,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            59
+          ]
+        }
+      ],
+      "orig": "여기서 는 명목임금, 는 노동생산성을 나타냄 (모든 소문자는 로그변수로 변환, . 대문자 level 변수)",
+      "text": "여기서 는 명목임금, 는 노동생산성을 나타냄 (모든 소문자는 로그변수로 변환, . 대문자 level 변수)",
+      "enumerated": false,
+      "marker": "-"
+    },
+    {
+      "self_ref": "#/texts/6",
+      "parent": {
+        "$ref": "#/groups/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "list_item",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 196.6309051513672,
+            "t": 573.258056640625,
+            "r": 456.4749450683594,
+            "b": 547.9364013671875,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            76
+          ]
+        }
+      ],
+      "orig": "-해외(Rest of the World) 비교역재 산업 i의 생산물 가격(해외가격): 여기서 는 해외의 임금수준, 는 노동생산성을 나타냄",
+      "text": "-해외(Rest of the World) 비교역재 산업 i의 생산물 가격(해외가격): 여기서 는 해외의 임금수준, 는 노동생산성을 나타냄",
+      "enumerated": false,
+      "marker": "-"
+    },
+    {
+      "self_ref": "#/texts/7",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "section_header",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 196.6402130126953,
+            "t": 538.2559204101562,
+            "r": 325.4032287597656,
+            "b": 529.4208984375,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            18
+          ]
+        }
+      ],
+      "orig": "-비교역재의 가격격차(상대가격)은",
+      "text": "-비교역재의 가격격차(상대가격)은",
+      "level": 1
+    },
+    {
+      "self_ref": "#/texts/8",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 206.3572998046875,
+            "t": 496.2315979003906,
+            "r": 494.7393798828125,
+            "b": 487.2825927734375,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            42
+          ]
+        }
+      ],
+      "orig": "여기서 e는 명목환율을 나타냄(해외가격을 환율을 반영하여 국내가격으로 표시)",
+      "text": "여기서 e는 명목환율을 나타냄(해외가격을 환율을 반영하여 국내가격으로 표시)"
+    },
+    {
+      "self_ref": "#/texts/9",
+      "parent": {
+        "$ref": "#/groups/1"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "list_item",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 205.5117950439453,
+            "t": 474.2296142578125,
+            "r": 537.26611328125,
+            "b": 435.27960205078125,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            113
+          ]
+        }
+      ],
+      "orig": "⇒ 비교역재의 상대가격은 생산성에 대비한 국내 상대임금이 해외의 상대임금(해외생산성 대비)에 비해 높을수록 더 높다. 즉, 임금이 상대적으로 높을수록 혹은 생산성이 상대적 으로 낮을수록 상대가격이 높다.",
+      "text": "⇒ 비교역재의 상대가격은 생산성에 대비한 국내 상대임금이 해외의 상대임금(해외생산성 대비)에 비해 높을수록 더 높다. 즉, 임금이 상대적으로 높을수록 혹은 생산성이 상대적 으로 낮을수록 상대가격이 높다.",
+      "enumerated": false,
+      "marker": "-"
+    },
+    {
+      "self_ref": "#/texts/10",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "section_header",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 196.44740295410156,
+            "t": 415.99310302734375,
+            "r": 239.58604431152344,
+            "b": 406.06011962890625,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            7
+          ]
+        }
+      ],
+      "orig": "(2) 교역재",
+      "text": "(2) 교역재",
+      "level": 1
+    },
+    {
+      "self_ref": "#/texts/11",
+      "parent": {
+        "$ref": "#/groups/2"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "list_item",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 196.635498046875,
+            "t": 393.5158386230469,
+            "r": 510.364501953125,
+            "b": 383.2825927734375,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            54
+          ]
+        }
+      ],
+      "orig": "-국내와 해외의 교역재 산업 i의 생산물의 가격은 각각 다음과 같이 나타낼 수 있음5 음50) :",
+      "text": "-국내와 해외의 교역재 산업 i의 생산물의 가격은 각각 다음과 같이 나타낼 수 있음5 음50) :",
+      "enumerated": false,
+      "marker": "-"
+    },
+    {
+      "self_ref": "#/texts/12",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 205.90769958496094,
+            "t": 351.8485107421875,
+            "r": 537.3579711914062,
+            "b": 294.5325927734375,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            177
+          ]
+        }
+      ],
+      "orig": "Cobb-Douglas 선호를 가정함. 여기서 s D 는 국산제품에 대한 소비지출 비율, s M은 M은 수입 제품에 대한 소비지출 비중임. 위 식에서 국내에서 생산된 가격은 , 수입제품의 가격은 이며, 해외의 교역재에 대해서도 유사하게 정의할 수 있음. 는 관세와 같은 거래장벽과 운송비 등 교역비용을 반영하는 변수.",
+      "text": "Cobb-Douglas 선호를 가정함. 여기서 s D 는 국산제품에 대한 소비지출 비율, s M은 M은 수입 제품에 대한 소비지출 비중임. 위 식에서 국내에서 생산된 가격은 , 수입제품의 가격은 이며, 해외의 교역재에 대해서도 유사하게 정의할 수 있음. 는 관세와 같은 거래장벽과 운송비 등 교역비용을 반영하는 변수."
+    },
+    {
+      "self_ref": "#/texts/13",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "section_header",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 196.6324005126953,
+            "t": 284.2630920410156,
+            "r": 317.4154052734375,
+            "b": 275.4280700683594,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            17
+          ]
+        }
+      ],
+      "orig": "-교역재의 가격격차(상대가격)은",
+      "text": "-교역재의 가격격차(상대가격)은",
+      "level": 1
+    },
+    {
+      "self_ref": "#/texts/14",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 205.51361083984375,
+            "t": 242.2359161376953,
+            "r": 538.6152954101562,
+            "b": 173.2821044921875,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            214
+          ]
+        }
+      ],
+      "orig": "⇒ 교역재의 상대가격은 먼저 국가간 상대임금의 차에 의해 영향을 받으며, 국내의 생산성 대비 상대임금이 높을수록, 혹은 상대 생산성이 낮을수록 교역재의 상대가격은 높아진 다. 이처럼 생산요소의 상대비용이 상대가격에 미치는 영향은 수입대비 국내재화의 시 장점유율(s D -s M) M)이 높을수록 크게 나타난다. 즉, 수입품의 비중이 올라갈 경우 상대가 격 격차는 어느 정도 줄어든다.",
+      "text": "⇒ 교역재의 상대가격은 먼저 국가간 상대임금의 차에 의해 영향을 받으며, 국내의 생산성 대비 상대임금이 높을수록, 혹은 상대 생산성이 낮을수록 교역재의 상대가격은 높아진 다. 이처럼 생산요소의 상대비용이 상대가격에 미치는 영향은 수입대비 국내재화의 시 장점유율(s D -s M) M)이 높을수록 크게 나타난다. 즉, 수입품의 비중이 올라갈 경우 상대가 격 격차는 어느 정도 줄어든다."
+    },
+    {
+      "self_ref": "#/texts/15",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 216.64122009277344,
+            "t": 164.3996124267578,
+            "r": 538.650390625,
+            "b": 140.447998046875,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            80
+          ]
+        }
+      ],
+      "orig": "다음으로, 관세 및 수입 물류와 유통비용이 높을수록 상대가격은 높아지며, 이러한 효과 는 수입품의 비중(s M) M)이 높을수록 크게 나타난다.",
+      "text": "다음으로, 관세 및 수입 물류와 유통비용이 높을수록 상대가격은 높아지며, 이러한 효과 는 수입품의 비중(s M) M)이 높을수록 크게 나타난다."
+    },
+    {
+      "self_ref": "#/texts/16",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 196.0660858154297,
+            "t": 114.55610656738281,
+            "r": 536.038818359375,
+            "b": 98.88459777832031,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            126
+          ]
+        }
+      ],
+      "orig": "50) 수입제품의 가격이 국내제품 대비 저렴할 경우 가격이 일치하는 수준까지 수입이 되어야 하지만 현실에서는 거래장벽(무역장벽, 수송·저장· 정보 비용 등), 가격차별, 소비자의 선호 등으로 일정 비중만이 수입되는 현실을 반영",
+      "text": "50) 수입제품의 가격이 국내제품 대비 저렴할 경우 가격이 일치하는 수준까지 수입이 되어야 하지만 현실에서는 거래장벽(무역장벽, 수송·저장· 정보 비용 등), 가격차별, 소비자의 선호 등으로 일정 비중만이 수입되는 현실을 반영"
+    },
+    {
+      "self_ref": "#/texts/17",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "furniture",
+      "label": "page_footer",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 42.76289749145508,
+            "t": 40.92770004272461,
+            "r": 49.75489807128906,
+            "b": 35.8557014465332,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            2
+          ]
+        }
+      ],
+      "orig": "22",
+      "text": "22"
+    },
+    {
+      "self_ref": "#/texts/18",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "furniture",
+      "label": "page_footer",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 59.85240173339844,
+            "t": 42.249698638916016,
+            "r": 79.2437973022461,
+            "b": 36.7776985168457,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            4
+          ]
+        }
+      ],
+      "orig": "한국은행",
+      "text": "한국은행"
+    }
+  ],
+  "pictures": [],
+  "tables": [],
+  "key_value_items": [],
+  "form_items": [],
+  "pages": {
+    "1": {
+      "size": {
+        "width": 595.2760009765625,
+        "height": 841.8900146484375
+      },
+      "page_no": 1
+    }
+  }
+}

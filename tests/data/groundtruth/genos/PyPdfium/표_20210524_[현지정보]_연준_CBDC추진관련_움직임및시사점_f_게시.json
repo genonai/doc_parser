@@ -1,0 +1,484 @@
+{
+  "schema_name": "DoclingDocument",
+  "version": "1.3.0",
+  "name": "표_20210524_[현지정보]_연준_CBDC추진관련_움직임및시사점_f_게시",
+  "origin": {
+    "mimetype": "application/pdf",
+    "binary_hash": 12993971425534533107,
+    "filename": "표_20210524_[현지정보]_연준_CBDC추진관련_움직임및시사점_f_게시.pdf"
+  },
+  "furniture": {
+    "self_ref": "#/furniture",
+    "children": [],
+    "content_layer": "furniture",
+    "name": "_root_",
+    "label": "unspecified"
+  },
+  "body": {
+    "self_ref": "#/body",
+    "children": [
+      {
+        "$ref": "#/texts/0"
+      },
+      {
+        "$ref": "#/texts/1"
+      },
+      {
+        "$ref": "#/tables/0"
+      },
+      {
+        "$ref": "#/texts/2"
+      }
+    ],
+    "content_layer": "body",
+    "name": "_root_",
+    "label": "unspecified"
+  },
+  "groups": [],
+  "texts": [
+    {
+      "self_ref": "#/texts/0",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 78.79729461669922,
+            "t": 737.1934814453125,
+            "r": 115.97714233398438,
+            "b": 725.2545166015625,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            4
+          ]
+        }
+      ],
+      "orig": "<참고>",
+      "text": "<참고>"
+    },
+    {
+      "self_ref": "#/texts/1",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "section_header",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 86.59307098388672,
+            "t": 721.6104736328125,
+            "r": 507.9247131347656,
+            "b": 707.2261962890625,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            40
+          ]
+        }
+      ],
+      "orig": "“중앙은행 디지털화폐(CBDC)” 발행관련 파월 연준의장의 최근까지 견해",
+      "text": "“중앙은행 디지털화폐(CBDC)” 발행관련 파월 연준의장의 최근까지 견해",
+      "level": 1
+    },
+    {
+      "self_ref": "#/texts/2",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "furniture",
+      "label": "page_footer",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 282.3269958496094,
+            "t": 53.940155029296875,
+            "r": 316.9873046875,
+            "b": 42.00120162963867,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            6
+          ]
+        }
+      ],
+      "orig": "-2/10-",
+      "text": "-2/10-"
+    }
+  ],
+  "pictures": [],
+  "tables": [
+    {
+      "self_ref": "#/tables/0",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "table",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 88.90581512451172,
+            "t": 687.4024505615234,
+            "r": 505.21258544921875,
+            "b": 207.664794921875,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            0
+          ]
+        }
+      ],
+      "captions": [],
+      "references": [],
+      "footnotes": [],
+      "data": {
+        "table_cells": [
+          {
+            "bbox": {
+              "l": 129.29747009277344,
+              "t": 160.54669189453125,
+              "r": 148.29086303710938,
+              "b": 169.6103515625,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 0,
+            "end_row_offset_idx": 1,
+            "start_col_offset_idx": 0,
+            "end_col_offset_idx": 1,
+            "text": "구분",
+            "column_header": true,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 324.1122131347656,
+              "t": 160.2581787109375,
+              "r": 368.25164794921875,
+              "b": 169.7894287109375,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 0,
+            "end_row_offset_idx": 1,
+            "start_col_offset_idx": 1,
+            "end_col_offset_idx": 2,
+            "text": "주요 내용",
+            "column_header": true,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 95.7161636352539,
+              "t": 227.234619140625,
+              "r": 169.64266967773438,
+              "b": 245.88916015625,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 1,
+            "end_row_offset_idx": 2,
+            "start_col_offset_idx": 0,
+            "end_col_offset_idx": 1,
+            "text": "의회보고 2021.2.23.~2.24일",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 193.03273010253906,
+              "t": 188.27716064453125,
+              "r": 499.6798095703125,
+              "b": 285.5032958984375,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 1,
+            "end_row_offset_idx": 2,
+            "start_col_offset_idx": 1,
+            "end_col_offset_idx": 2,
+            "text": "■ CBDC  도입 형태 * *  연준이 CBDC를 직접 개발할 것인지? 이 경우 금융기관에 의해 중재 되지 않고 개인과 기업들이 직접 보유하는 형태를 염두에 두고 있는지?  -  동 사항들을 결정하기 위해 기술 및 정책적으로 해결해야 할 문제가  많으며 ,  이를 위해 관련 정책당국 ,  다른 중앙은행들과 협의하고 있음 .  연준이 첫 주자가 될 필요는 없다고 생각함 .  CBDC가 금융포용에  도움이 될 수 있는 반면 금융시스템의 불안정 또는 자금유출을  야기할 수 있다는 점을 유의할 필요",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 95.7161636352539,
+              "t": 349.7406921386719,
+              "r": 167.00408935546875,
+              "b": 368.39532470703125,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 2,
+            "end_row_offset_idx": 3,
+            "start_col_offset_idx": 0,
+            "end_col_offset_idx": 1,
+            "text": "의회보고 2021.3.23~3.24일",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 193.03273010253906,
+              "t": 309.8243408203125,
+              "r": 499.581787109375,
+              "b": 409.0882263183594,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 2,
+            "end_row_offset_idx": 3,
+            "start_col_offset_idx": 1,
+            "end_col_offset_idx": 2,
+            "text": "■ CBDC 도입 여부 및 견해 -  (검토단계) 현재 CBDC의 기술 및 설계 이슈 등에 대해 검토하고  있는 단계 -  (발행형태) 완전한 익명성을 부여하는 형태는 실현되기  어려울  것으로 보이며(would not be viable)  -  (추진시기) 보안 ,  투명성 등을 고려한 균형잡힌 접근이 필요하며 고려할 요인이 많으므로 시간을 두고 주의깊게 살필 것임",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 95.34783935546875,
+              "t": 517.1777648925781,
+              "r": 175.47161865234375,
+              "b": 535.8523254394531,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 3,
+            "end_row_offset_idx": 4,
+            "start_col_offset_idx": 0,
+            "end_col_offset_idx": 1,
+            "text": "FOMC 기자간담회 2021.4.28일",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          },
+          {
+            "bbox": {
+              "l": 193.03273010253906,
+              "t": 432.14093017578125,
+              "r": 499.5799865722656,
+              "b": 621.3762054443359,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 3,
+            "end_row_offset_idx": 4,
+            "start_col_offset_idx": 1,
+            "end_col_offset_idx": 2,
+            "text": "■ 중국의 CBDC 추진 등 글로벌 경쟁에 대한 견해 -  (글로벌 도입경쟁) 미국 달러가 글로벌 거래에서 통용되는 준비 통화인 이유는 우리의 법 ,  민주주의 ,  경제 등 미국을 미국으로  만드는 모든 것들 때문임 .  다른 나라가 먼저 디지털화폐를 도입하 더라도 글로벌 시장에서 경제주체들은 여전히 모든 사람이 사용 하는 달러를 이용하려할 것이기 때문에 이에 대해 우려하지 않 고 있음  -  (중국 CBDC) 중국이 추진하고 있는 CBDC는 미국에서 통용될 통 화가 아니며 ,  중국정부가 모든 지급거래를 실시간 모니터링하기 위한 것이므로 이는 글로벌 경쟁의 문제라기보다는 중국 금융시 스템 내의 문제와 더 관련됨 -  (추진시기) 우리는 FedNow시스템 등 이미 고도로 발전된 지급결 제시스템을 가지고 있고 머지않아 모든 사람들이 휴대전화를 이 용해 언제든 즉시 결제할 수 있는 체계를 갖추게 될 것임 .  이런  환경에서 중앙은행 디지털화폐의 역할은 빨리하는 것보다 제대 로 하는 것이 훨씬 더 중요하다고 생각함",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false
+          }
+        ],
+        "num_rows": 4,
+        "num_cols": 2,
+        "grid": [
+          [
+            {
+              "bbox": {
+                "l": 129.29747009277344,
+                "t": 160.54669189453125,
+                "r": 148.29086303710938,
+                "b": 169.6103515625,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 0,
+              "end_row_offset_idx": 1,
+              "start_col_offset_idx": 0,
+              "end_col_offset_idx": 1,
+              "text": "구분",
+              "column_header": true,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 324.1122131347656,
+                "t": 160.2581787109375,
+                "r": 368.25164794921875,
+                "b": 169.7894287109375,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 0,
+              "end_row_offset_idx": 1,
+              "start_col_offset_idx": 1,
+              "end_col_offset_idx": 2,
+              "text": "주요 내용",
+              "column_header": true,
+              "row_header": false,
+              "row_section": false
+            }
+          ],
+          [
+            {
+              "bbox": {
+                "l": 95.7161636352539,
+                "t": 227.234619140625,
+                "r": 169.64266967773438,
+                "b": 245.88916015625,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 1,
+              "end_row_offset_idx": 2,
+              "start_col_offset_idx": 0,
+              "end_col_offset_idx": 1,
+              "text": "의회보고 2021.2.23.~2.24일",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 193.03273010253906,
+                "t": 188.27716064453125,
+                "r": 499.6798095703125,
+                "b": 285.5032958984375,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 1,
+              "end_row_offset_idx": 2,
+              "start_col_offset_idx": 1,
+              "end_col_offset_idx": 2,
+              "text": "■ CBDC  도입 형태 * *  연준이 CBDC를 직접 개발할 것인지? 이 경우 금융기관에 의해 중재 되지 않고 개인과 기업들이 직접 보유하는 형태를 염두에 두고 있는지?  -  동 사항들을 결정하기 위해 기술 및 정책적으로 해결해야 할 문제가  많으며 ,  이를 위해 관련 정책당국 ,  다른 중앙은행들과 협의하고 있음 .  연준이 첫 주자가 될 필요는 없다고 생각함 .  CBDC가 금융포용에  도움이 될 수 있는 반면 금융시스템의 불안정 또는 자금유출을  야기할 수 있다는 점을 유의할 필요",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            }
+          ],
+          [
+            {
+              "bbox": {
+                "l": 95.7161636352539,
+                "t": 349.7406921386719,
+                "r": 167.00408935546875,
+                "b": 368.39532470703125,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 2,
+              "end_row_offset_idx": 3,
+              "start_col_offset_idx": 0,
+              "end_col_offset_idx": 1,
+              "text": "의회보고 2021.3.23~3.24일",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 193.03273010253906,
+                "t": 309.8243408203125,
+                "r": 499.581787109375,
+                "b": 409.0882263183594,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 2,
+              "end_row_offset_idx": 3,
+              "start_col_offset_idx": 1,
+              "end_col_offset_idx": 2,
+              "text": "■ CBDC 도입 여부 및 견해 -  (검토단계) 현재 CBDC의 기술 및 설계 이슈 등에 대해 검토하고  있는 단계 -  (발행형태) 완전한 익명성을 부여하는 형태는 실현되기  어려울  것으로 보이며(would not be viable)  -  (추진시기) 보안 ,  투명성 등을 고려한 균형잡힌 접근이 필요하며 고려할 요인이 많으므로 시간을 두고 주의깊게 살필 것임",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            }
+          ],
+          [
+            {
+              "bbox": {
+                "l": 95.34783935546875,
+                "t": 517.1777648925781,
+                "r": 175.47161865234375,
+                "b": 535.8523254394531,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 3,
+              "end_row_offset_idx": 4,
+              "start_col_offset_idx": 0,
+              "end_col_offset_idx": 1,
+              "text": "FOMC 기자간담회 2021.4.28일",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            },
+            {
+              "bbox": {
+                "l": 193.03273010253906,
+                "t": 432.14093017578125,
+                "r": 499.5799865722656,
+                "b": 621.3762054443359,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 3,
+              "end_row_offset_idx": 4,
+              "start_col_offset_idx": 1,
+              "end_col_offset_idx": 2,
+              "text": "■ 중국의 CBDC 추진 등 글로벌 경쟁에 대한 견해 -  (글로벌 도입경쟁) 미국 달러가 글로벌 거래에서 통용되는 준비 통화인 이유는 우리의 법 ,  민주주의 ,  경제 등 미국을 미국으로  만드는 모든 것들 때문임 .  다른 나라가 먼저 디지털화폐를 도입하 더라도 글로벌 시장에서 경제주체들은 여전히 모든 사람이 사용 하는 달러를 이용하려할 것이기 때문에 이에 대해 우려하지 않 고 있음  -  (중국 CBDC) 중국이 추진하고 있는 CBDC는 미국에서 통용될 통 화가 아니며 ,  중국정부가 모든 지급거래를 실시간 모니터링하기 위한 것이므로 이는 글로벌 경쟁의 문제라기보다는 중국 금융시 스템 내의 문제와 더 관련됨 -  (추진시기) 우리는 FedNow시스템 등 이미 고도로 발전된 지급결 제시스템을 가지고 있고 머지않아 모든 사람들이 휴대전화를 이 용해 언제든 즉시 결제할 수 있는 체계를 갖추게 될 것임 .  이런  환경에서 중앙은행 디지털화폐의 역할은 빨리하는 것보다 제대 로 하는 것이 훨씬 더 중요하다고 생각함",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false
+            }
+          ]
+        ]
+      }
+    }
+  ],
+  "key_value_items": [],
+  "form_items": [],
+  "pages": {
+    "1": {
+      "size": {
+        "width": 595.0,
+        "height": 841.0
+      },
+      "page_no": 1
+    }
+  }
+}

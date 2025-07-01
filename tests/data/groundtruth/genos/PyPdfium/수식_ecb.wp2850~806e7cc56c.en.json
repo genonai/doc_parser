@@ -1,0 +1,492 @@
+{
+  "schema_name": "DoclingDocument",
+  "version": "1.3.0",
+  "name": "수식_ecb.wp2850~806e7cc56c.en",
+  "origin": {
+    "mimetype": "application/pdf",
+    "binary_hash": 12591184133873574729,
+    "filename": "수식_ecb.wp2850~806e7cc56c.en.pdf"
+  },
+  "furniture": {
+    "self_ref": "#/furniture",
+    "children": [],
+    "content_layer": "furniture",
+    "name": "_root_",
+    "label": "unspecified"
+  },
+  "body": {
+    "self_ref": "#/body",
+    "children": [
+      {
+        "$ref": "#/texts/0"
+      },
+      {
+        "$ref": "#/texts/1"
+      },
+      {
+        "$ref": "#/texts/2"
+      },
+      {
+        "$ref": "#/texts/3"
+      },
+      {
+        "$ref": "#/texts/4"
+      },
+      {
+        "$ref": "#/texts/5"
+      },
+      {
+        "$ref": "#/texts/6"
+      },
+      {
+        "$ref": "#/texts/7"
+      },
+      {
+        "$ref": "#/texts/8"
+      },
+      {
+        "$ref": "#/texts/9"
+      },
+      {
+        "$ref": "#/texts/10"
+      },
+      {
+        "$ref": "#/texts/11"
+      },
+      {
+        "$ref": "#/texts/12"
+      },
+      {
+        "$ref": "#/texts/13"
+      },
+      {
+        "$ref": "#/texts/14"
+      }
+    ],
+    "content_layer": "body",
+    "name": "_root_",
+    "label": "unspecified"
+  },
+  "groups": [],
+  "texts": [
+    {
+      "self_ref": "#/texts/0",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "formula",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 245.2675323486328,
+            "t": 763.9933471679688,
+            "r": 543.530029296875,
+            "b": 751.4732055664062,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            39
+          ]
+        }
+      ],
+      "orig": "Jz Jzh , t = ωtzh , t − w zh , t , (32)",
+      "text": ""
+    },
+    {
+      "self_ref": "#/texts/1",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "formula",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 217.18081665039062,
+            "t": 729.2247924804688,
+            "r": 543.5338745117188,
+            "b": 695.4482421875,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            74
+          ]
+        }
+      ],
+      "orig": "W\r\nz E W\r\nzh , t = w zh , t − η1 (lh , t + uh , t )\r\nη2 c − γ h , t , (33)",
+      "text": ""
+    },
+    {
+      "self_ref": "#/texts/2",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "formula",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 224.8698272705078,
+            "t": 685.333740234375,
+            "r": 543.531982421875,
+            "b": 651.5582275390625,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            67
+          ]
+        }
+      ],
+      "orig": "W\r\nz U W\r\nzh , t = B − η1 (lh , t + uh , t )\r\nη2 c − γ h , t . (34)",
+      "text": ""
+    },
+    {
+      "self_ref": "#/texts/3",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 51.23920822143555,
+            "t": 642.4953002929688,
+            "r": 465.9222717285156,
+            "b": 630.4446411132812,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            81
+          ]
+        }
+      ],
+      "orig": "To get the wage equation, one substitutes (32), (33), and (34) into (31) yielding",
+      "text": "To get the wage equation, one substitutes (32), (33), and (34) into (31) yielding"
+    },
+    {
+      "self_ref": "#/texts/4",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "formula",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 226.2470703125,
+            "t": 607.3037109375,
+            "r": 543.5294189453125,
+            "b": 594.1201782226562,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            40
+          ]
+        }
+      ],
+      "orig": "w zh , t = χz h (ωtzh , t − B) + B, (35)",
+      "text": ""
+    },
+    {
+      "self_ref": "#/texts/5",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 51.00569534301758,
+            "t": 580.67724609375,
+            "r": 544.1199951171875,
+            "b": 496.4471435546875,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            412
+          ]
+        }
+      ],
+      "orig": "which means that the bargained wage a worker receives is equal to the outside option (in our case unemployment benefits) and a fraction (χ zh ) of the surplus from a successful match. Note that the larger the χ zh , i.e. the larger the bargaining power of the worker, less \"sticky\" is the real wage. If we set B = 0, so that there are no unemployment benefits, and define χz h ≡ (1 − α zh ), we get exactly (29).",
+      "text": "which means that the bargained wage a worker receives is equal to the outside option (in our case unemployment benefits) and a fraction (χ zh ) of the surplus from a successful match. Note that the larger the χ zh , i.e. the larger the bargaining power of the worker, less \"sticky\" is the real wage. If we set B = 0, so that there are no unemployment benefits, and define χz h ≡ (1 − α zh ), we get exactly (29)."
+    },
+    {
+      "self_ref": "#/texts/6",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 51.38170623779297,
+            "t": 491.041259765625,
+            "r": 543.8727416992188,
+            "b": 461.0626220703125,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            158
+          ]
+        }
+      ],
+      "orig": "Finally, in order to see how the wage depends on the labour market developments, we substitute (28) and (25), together with (33), and (34) into (31) to obtain",
+      "text": "Finally, in order to see how the wage depends on the labour market developments, we substitute (28) and (25), together with (33), and (34) into (31) to obtain"
+    },
+    {
+      "self_ref": "#/texts/7",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "formula",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 204.00111389160156,
+            "t": 445.92120361328125,
+            "r": 543.527099609375,
+            "b": 416.5372009277344,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            68
+          ]
+        }
+      ],
+      "orig": "w zh , t = χz h 1 − χz h \u0012 ψz h ϕz h (θ zh , t )\r\nµ z h \u0013\r\n+ B, (36)",
+      "text": ""
+    },
+    {
+      "self_ref": "#/texts/8",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 51.09571838378906,
+            "t": 407.4881896972656,
+            "r": 544.1068115234375,
+            "b": 359.0891418457031,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            203
+          ]
+        }
+      ],
+      "orig": "which states that the negotiated wage is increasing in bargaining power of the worker χ zh\r\n, vacancy posting cost (ψ zh ), labour market tightness θ zh , t , and decreasing in matching efficiency ϕz h .",
+      "text": "which states that the negotiated wage is increasing in bargaining power of the worker χ zh\r\n, vacancy posting cost (ψ zh ), labour market tightness θ zh , t , and decreasing in matching efficiency ϕz h ."
+    },
+    {
+      "self_ref": "#/texts/9",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "section_header",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 51.339622497558594,
+            "t": 332.7820739746094,
+            "r": 157.85867309570312,
+            "b": 322.2234191894531,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            15
+          ]
+        }
+      ],
+      "orig": "3.2 Calibration",
+      "text": "3.2 Calibration",
+      "level": 1
+    },
+    {
+      "self_ref": "#/texts/10",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 51.11964797973633,
+            "t": 304.8191833496094,
+            "r": 544.1201171875,
+            "b": 221.03561401367188,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            457
+          ]
+        }
+      ],
+      "orig": "The model is quite stylised and we largely rely on standard values from the literature to calibrate it. However, for the labour market, we do match some of the properties reported in the empirical section of the paper. In particular, we calibrate the model to match job finding probabilities by educational attainment and their relative volatility. We also perform several experiments illustrating how the model properties depend on the calibration choices.",
+      "text": "The model is quite stylised and we largely rely on standard values from the literature to calibrate it. However, for the labour market, we do match some of the properties reported in the empirical section of the paper. In particular, we calibrate the model to match job finding probabilities by educational attainment and their relative volatility. We also perform several experiments illustrating how the model properties depend on the calibration choices."
+    },
+    {
+      "self_ref": "#/texts/11",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 51.27507400512695,
+            "t": 215.18215942382812,
+            "r": 543.8551025390625,
+            "b": 185.20452880859375,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            109
+          ]
+        }
+      ],
+      "orig": "The calibration of production and utility functions follows McKay et al. (2016), and is reported in Table 9 .",
+      "text": "The calibration of production and utility functions follows McKay et al. (2016), and is reported in Table 9 ."
+    },
+    {
+      "self_ref": "#/texts/12",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 51.09574890136719,
+            "t": 179.32815551757812,
+            "r": 544.33935546875,
+            "b": 116.61578369140625,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            299
+          ]
+        }
+      ],
+      "orig": "Idiosyncratic risk of transiting from one labour market segment to the other is calibrated using the transition matrix from McKay et al. (2016) who use the persistent component of wage process from Floden and Linde´ ´ (2001), approximated using a 3-state Markov process with the transition matrix P:",
+      "text": "Idiosyncratic risk of transiting from one labour market segment to the other is calibrated using the transition matrix from McKay et al. (2016) who use the persistent component of wage process from Floden and Linde´ ´ (2001), approximated using a 3-state Markov process with the transition matrix P:"
+    },
+    {
+      "self_ref": "#/texts/13",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "furniture",
+      "label": "page_footer",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 51.03178024291992,
+            "t": 34.707950592041016,
+            "r": 178.9597930908203,
+            "b": 27.211950302124023,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            32
+          ]
+        }
+      ],
+      "orig": "ECB Working Paper Series No 2850",
+      "text": "ECB Working Paper Series No 2850"
+    },
+    {
+      "self_ref": "#/texts/14",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "furniture",
+      "label": "page_footer",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 536.211181640625,
+            "t": 34.63595199584961,
+            "r": 544.4912109375,
+            "b": 28.88395118713379,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            2
+          ]
+        }
+      ],
+      "orig": "24",
+      "text": "24"
+    }
+  ],
+  "pictures": [],
+  "tables": [],
+  "key_value_items": [],
+  "form_items": [],
+  "pages": {
+    "1": {
+      "size": {
+        "width": 595.2760009765625,
+        "height": 841.8900146484375
+      },
+      "page_no": 1
+    }
+  }
+}

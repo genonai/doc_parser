@@ -1,0 +1,728 @@
+{
+  "schema_name": "DoclingDocument",
+  "version": "1.3.0",
+  "name": "영어 다단_Asian Politics and Policy - 2023 - Chung - Recalibrating South Korea s role and regional network in the Indo‐Pacific An",
+  "origin": {
+    "mimetype": "application/pdf",
+    "binary_hash": 12638872943862148765,
+    "filename": "영어 다단_Asian Politics and Policy - 2023 - Chung - Recalibrating South Korea s role and regional network in the Indo‐Pacific An.pdf"
+  },
+  "furniture": {
+    "self_ref": "#/furniture",
+    "children": [],
+    "content_layer": "furniture",
+    "name": "_root_",
+    "label": "unspecified"
+  },
+  "body": {
+    "self_ref": "#/body",
+    "children": [
+      {
+        "$ref": "#/texts/0"
+      },
+      {
+        "$ref": "#/texts/1"
+      },
+      {
+        "$ref": "#/texts/2"
+      },
+      {
+        "$ref": "#/texts/3"
+      },
+      {
+        "$ref": "#/pictures/0"
+      },
+      {
+        "$ref": "#/texts/4"
+      },
+      {
+        "$ref": "#/texts/5"
+      },
+      {
+        "$ref": "#/texts/6"
+      },
+      {
+        "$ref": "#/texts/7"
+      },
+      {
+        "$ref": "#/texts/8"
+      },
+      {
+        "$ref": "#/groups/0"
+      },
+      {
+        "$ref": "#/texts/10"
+      },
+      {
+        "$ref": "#/texts/11"
+      },
+      {
+        "$ref": "#/texts/12"
+      },
+      {
+        "$ref": "#/texts/13"
+      },
+      {
+        "$ref": "#/texts/14"
+      },
+      {
+        "$ref": "#/texts/15"
+      },
+      {
+        "$ref": "#/texts/16"
+      },
+      {
+        "$ref": "#/pictures/1"
+      },
+      {
+        "$ref": "#/texts/17"
+      },
+      {
+        "$ref": "#/texts/18"
+      },
+      {
+        "$ref": "#/texts/19"
+      }
+    ],
+    "content_layer": "body",
+    "name": "_root_",
+    "label": "unspecified"
+  },
+  "groups": [
+    {
+      "self_ref": "#/groups/0",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [
+        {
+          "$ref": "#/texts/9"
+        }
+      ],
+      "content_layer": "body",
+      "name": "group",
+      "label": "key_value_area"
+    }
+  ],
+  "texts": [
+    {
+      "self_ref": "#/texts/0",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "furniture",
+      "label": "page_header",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 40.836395263671875,
+            "t": 674.2583618164062,
+            "r": 120.17045593261719,
+            "b": 669.2393798828125,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            25
+          ]
+        }
+      ],
+      "orig": "Received: 20 October 2022",
+      "text": "Received: 20 October 2022"
+    },
+    {
+      "self_ref": "#/texts/1",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "furniture",
+      "label": "page_header",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 127.05519104003906,
+            "t": 676.7799072265625,
+            "r": 317.97216796875,
+            "b": 664.5728759765625,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            56
+          ]
+        }
+      ],
+      "orig": "| Revised: 10 December 2022 | Accepted: 13 December 2022",
+      "text": "| Revised: 10 December 2022 | Accepted: 13 December 2022"
+    },
+    {
+      "self_ref": "#/texts/2",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 40.77961730957031,
+            "t": 660.2760620117188,
+            "r": 115.20745086669922,
+            "b": 653.7801513671875,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            23
+          ]
+        }
+      ],
+      "orig": "DOI: 10.1111/aspp.12670",
+      "text": "DOI: 10.1111/aspp.12670"
+    },
+    {
+      "self_ref": "#/texts/3",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "section_header",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 40.940399169921875,
+            "t": 634.8585815429688,
+            "r": 156.03329467773438,
+            "b": 628.7205810546875,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            16
+          ]
+        }
+      ],
+      "orig": "ORIGINAL ARTICLE",
+      "text": "ORIGINAL ARTICLE",
+      "level": 1
+    },
+    {
+      "self_ref": "#/texts/4",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "section_header",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 40.98540115356445,
+            "t": 594.6011962890625,
+            "r": 425.86322021484375,
+            "b": 531.8639526367188,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            123
+          ]
+        }
+      ],
+      "orig": "Recalibrating South Korea's role and regional network in the Indo ‐ Pacific: An analysis from a network ‐ centered approach",
+      "text": "Recalibrating South Korea's role and regional network in the Indo ‐ Pacific: An analysis from a network ‐ centered approach",
+      "level": 1
+    },
+    {
+      "self_ref": "#/texts/5",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "section_header",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 40.95539855957031,
+            "t": 505.3285217285156,
+            "r": 127.28987121582031,
+            "b": 493.95263671875,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            12
+          ]
+        }
+      ],
+      "orig": "Kuyoun Chung",
+      "text": "Kuyoun Chung",
+      "level": 1
+    },
+    {
+      "self_ref": "#/texts/6",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 40.807395935058594,
+            "t": 467.8077087402344,
+            "r": 155.21636962890625,
+            "b": 438.23529052734375,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            90
+          ]
+        }
+      ],
+      "orig": "Department of Political Science, Kangwon National University, Chuncheon, Gangwon‐Do, Korea",
+      "text": "Department of Political Science, Kangwon National University, Chuncheon, Gangwon‐Do, Korea"
+    },
+    {
+      "self_ref": "#/texts/7",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "section_header",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 40.89540481567383,
+            "t": 423.7586669921875,
+            "r": 101.358642578125,
+            "b": 416.3587646484375,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            14
+          ]
+        }
+      ],
+      "orig": "Correspondence",
+      "text": "Correspondence",
+      "level": 1
+    },
+    {
+      "self_ref": "#/texts/8",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 40.807403564453125,
+            "t": 412.81640625,
+            "r": 178.52566528320312,
+            "b": 372.2457275390625,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            132
+          ]
+        }
+      ],
+      "orig": "Kuyoun Chung, Department of Political Science, Kangwon National University, 1 Ganwondaehakgil, Chuncheon, Gangwon ‐ Do 24341, Korea.",
+      "text": "Kuyoun Chung, Department of Political Science, Kangwon National University, 1 Ganwondaehakgil, Chuncheon, Gangwon ‐ Do 24341, Korea."
+    },
+    {
+      "self_ref": "#/texts/9",
+      "parent": {
+        "$ref": "#/groups/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 40.82340621948242,
+            "t": 368.7673645019531,
+            "r": 137.6790008544922,
+            "b": 361.2474670410156,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            24
+          ]
+        }
+      ],
+      "orig": "Email: ckuyoun@gmail.com",
+      "text": "Email: ckuyoun@gmail.com"
+    },
+    {
+      "self_ref": "#/texts/10",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "section_header",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 203.09400939941406,
+            "t": 459.9229736328125,
+            "r": 243.03440856933594,
+            "b": 452.73291015625,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            8
+          ]
+        }
+      ],
+      "orig": "Abstract",
+      "text": "Abstract",
+      "level": 1
+    },
+    {
+      "self_ref": "#/texts/11",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 203.2550048828125,
+            "t": 444.955810546875,
+            "r": 437.24334716796875,
+            "b": 182.74818420410156,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            985
+          ]
+        }
+      ],
+      "orig": "Despite China, Russia, and North Korea's attempts to change the status quo in East Asia, South Korea has remained disconnected from the network of regional countries working together to cope with these revisionists. This article adopts a network‐centered approach to reveal how South Korea's regional network has narrowly focused on the bilateral ROK – US alliance to counter the North Korean threat. Although South Korea has expanded its role from junior partner to balancer and has often forged regional networks to respond to the changing balance of power, South Korea has ultimately utilized this role and network as leverage against North Korea to improve inter‐Korean relations. Now, the Yoon Suk ‐ yeol administration is attempting to reconfigure both its self‐ f‐ identified role, describing itself as a \" global pivotal state, \" and its regional strategy in the Indo‐Pacific beyond the Korean Peninsula to align itself with the United States and other like ‐ minded countries.",
+      "text": "Despite China, Russia, and North Korea's attempts to change the status quo in East Asia, South Korea has remained disconnected from the network of regional countries working together to cope with these revisionists. This article adopts a network‐centered approach to reveal how South Korea's regional network has narrowly focused on the bilateral ROK – US alliance to counter the North Korean threat. Although South Korea has expanded its role from junior partner to balancer and has often forged regional networks to respond to the changing balance of power, South Korea has ultimately utilized this role and network as leverage against North Korea to improve inter‐Korean relations. Now, the Yoon Suk ‐ yeol administration is attempting to reconfigure both its self‐ f‐ identified role, describing itself as a \" global pivotal state, \" and its regional strategy in the Indo‐Pacific beyond the Korean Peninsula to align itself with the United States and other like ‐ minded countries."
+    },
+    {
+      "self_ref": "#/texts/12",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "section_header",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 203.35400390625,
+            "t": 164.3755340576172,
+            "r": 261.5492858886719,
+            "b": 158.9196014404297,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            8
+          ]
+        }
+      ],
+      "orig": "KEYWORDS",
+      "text": "KEYWORDS",
+      "level": 1
+    },
+    {
+      "self_ref": "#/texts/13",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 203.24400329589844,
+            "t": 152.04470825195312,
+            "r": 433.39337158203125,
+            "b": 134.356201171875,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            78
+          ]
+        }
+      ],
+      "orig": "global pivotal state, Indo‐Pacific region, network, South Korea, United States",
+      "text": "global pivotal state, Indo‐Pacific region, network, South Korea, United States"
+    },
+    {
+      "self_ref": "#/texts/14",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "section_header",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 40.95539855957031,
+            "t": 99.07672882080078,
+            "r": 138.63458251953125,
+            "b": 90.8927993774414,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            12
+          ]
+        }
+      ],
+      "orig": "INTRODUCTION",
+      "text": "INTRODUCTION",
+      "level": 1
+    },
+    {
+      "self_ref": "#/texts/15",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 40.75536346435547,
+            "t": 72.15687561035156,
+            "r": 443.9764099121094,
+            "b": 36.66451644897461,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            261
+          ]
+        }
+      ],
+      "orig": "South Korea is currently contemplating its Indo‐Pacific strategy. President Yoon Suk‐yeol pledged that South Korea would take a more expansive and proactive role during his 2022 presidential campaign. Not only does he recognize the importance of a free and open",
+      "text": "South Korea is currently contemplating its Indo‐Pacific strategy. President Yoon Suk‐yeol pledged that South Korea would take a more expansive and proactive role during his 2022 presidential campaign. Not only does he recognize the importance of a free and open"
+    },
+    {
+      "self_ref": "#/texts/16",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 423.4457092285156,
+            "t": 31.174922943115234,
+            "r": 423.9356994628906,
+            "b": 19.437517166137695,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            1
+          ]
+        }
+      ],
+      "orig": "|",
+      "text": "|"
+    },
+    {
+      "self_ref": "#/texts/17",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "furniture",
+      "label": "page_footer",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 40.10840606689453,
+            "t": 26.81842803955078,
+            "r": 154.58547973632812,
+            "b": 20.476518630981445,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            39
+          ]
+        }
+      ],
+      "orig": "Asian Politics & Policy. 2023;15:21–36.",
+      "text": "Asian Politics & Policy. 2023;15:21–36."
+    },
+    {
+      "self_ref": "#/texts/18",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "furniture",
+      "label": "page_footer",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 187.59909057617188,
+            "t": 26.84642791748047,
+            "r": 416.0835266113281,
+            "b": 20.245521545410156,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            71
+          ]
+        }
+      ],
+      "orig": "wileyonlinelibrary.com/journal/aspp © 2023 Policy Studies Organization.",
+      "text": "wileyonlinelibrary.com/journal/aspp © 2023 Policy Studies Organization."
+    },
+    {
+      "self_ref": "#/texts/19",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "furniture",
+      "label": "page_footer",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 437.3345947265625,
+            "t": 26.699430465698242,
+            "r": 443.8025207519531,
+            "b": 21.883499145507812,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            2
+          ]
+        }
+      ],
+      "orig": "21",
+      "text": "21"
+    }
+  ],
+  "pictures": [
+    {
+      "self_ref": "#/pictures/0",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "picture",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 268.64605712890625,
+            "t": 643.418270111084,
+            "r": 444.8678283691406,
+            "b": 627.2571640014648,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            0
+          ]
+        }
+      ],
+      "captions": [],
+      "references": [],
+      "footnotes": [],
+      "annotations": []
+    },
+    {
+      "self_ref": "#/pictures/1",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "picture",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 408.1001892089844,
+            "t": 697.322998046875,
+            "r": 483.8205261230469,
+            "b": 682.0792169570923,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            0
+          ]
+        }
+      ],
+      "captions": [],
+      "references": [],
+      "footnotes": [],
+      "annotations": []
+    }
+  ],
+  "tables": [],
+  "key_value_items": [],
+  "form_items": [],
+  "pages": {
+    "1": {
+      "size": {
+        "width": 484.7239990234375,
+        "height": 697.322998046875
+      },
+      "page_no": 1
+    }
+  }
+}
