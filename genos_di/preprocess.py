@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
+
 from collections import defaultdict
 from datetime import datetime
 from typing import Optional, Iterable, Any, List, Dict, Tuple
@@ -44,7 +45,6 @@ from docling_core.transforms.chunker import (
     DocChunk,
     DocMeta,
 )
-
 from docling_core.types import DoclingDocument
 
 from pandas import DataFrame
@@ -73,8 +73,6 @@ from collections import Counter
 import re
 import json
 import warnings
-import asyncio
-
 from typing import Iterable, Iterator, Optional, Union
 
 from pydantic import BaseModel, ConfigDict, PositiveInt, TypeAdapter, model_validator
@@ -98,7 +96,6 @@ from genos_utils import upload_files
 #
 
 """Chunker implementation leveraging the document structure."""
-
 
 class HierarchicalChunker(BaseChunker):
     """문서 구조와 헤더 계층을 유지하면서 아이템을 순차적으로 처리하는 청커"""
@@ -769,7 +766,7 @@ class GenOSVectorMetaBuilder:
             self, i_page: int, i_chunk_on_page: int, n_chunk_of_page: int
     ) -> "GenOSVectorMetaBuilder":
         """페이지 정보 설정"""
-        self.i_page = i_page
+        self.i_page = i_page - 1
         self.i_chunk_on_page = i_chunk_on_page
         self.n_chunk_of_page = n_chunk_of_page
         return self
@@ -912,7 +909,7 @@ class DocumentProcessor:
 
     def load_documents(self, file_path: str, **kwargs) -> DoclingDocument:
         return self.load_documents_with_docling(file_path, **kwargs)
-
+    
     def split_documents(self, documents: DoclingDocument, **kwargs: dict) -> List[DocChunk]:
         chunker: HybridChunker = HybridChunker(
             max_tokens=2000,
@@ -931,7 +928,7 @@ class DocumentProcessor:
         if not isinstance(iterable, (list, tuple, set)):
             return ''
         return ''.join(map(str, iterable)) + '\n'
-
+        
     def parse_created_date(self, date_text: str) -> Optional[int]:
         """
         작성일 텍스트를 파싱하여 YYYYMMDD 형식의 정수로 변환
@@ -981,7 +978,6 @@ class DocumentProcessor:
                 pass
 
         return 0
-
     def enrichment(self, document: DoclingDocument, **kwargs: dict) -> DoclingDocument:
         # enrichment 옵션 설정
         enrichment_options = DataEnrichmentOptions(
@@ -1085,7 +1081,7 @@ class DocumentProcessor:
             reference_path = None
         else:
             reference_path = artifacts_dir.parent
-
+        
         document = document._with_pictures_refs(image_dir=artifacts_dir, reference_path=reference_path)
 
 <<<<<<< HEAD
