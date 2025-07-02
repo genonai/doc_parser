@@ -33,6 +33,7 @@ from docling.datamodel.pipeline_options import (
 from docling.document_converter import (
     DocumentConverter,
     PdfFormatOption,
+    HwpxFormatOption, 
     FormatOption
 )
 from docling.datamodel.pipeline_options import DataEnrichmentOptions
@@ -86,7 +87,7 @@ except ImportError:
         "`pip install 'docling-core[chunking]'`"
     )
 
-from genos_utils import upload_files
+# from genos_utils import upload_files
 
 # ============================================
 #
@@ -829,9 +830,8 @@ class DocumentProcessor:
         # HWP와 HWPX 모두 지원하는 통합 컨버터
         self.converter = DocumentConverter(
                 format_options={
-                    InputFormat.XML_HWPX: FormatOption(
+                    InputFormat.XML_HWPX: HwpxFormatOption(
                         pipeline_options=self.simple_pipeline_options,
-                        backend=HwpxDocumentBackend
                     ),
                     InputFormat.PDF: PdfFormatOption(
                         pipeline_options=self.pipe_line_options, 
@@ -850,7 +850,7 @@ class DocumentProcessor:
 
     def load_documents_with_docling(self, file_path: str, **kwargs: dict) -> DoclingDocument:
         # kwargs에서 save_images 값을 가져와서 옵션 업데이트
-        save_images = kwargs.get('save_images', False)
+        save_images = True #kwargs.get('save_images', False)
         
         # save_images 옵션이 현재 설정과 다르면 컨버터 재생성
         if self.simple_pipeline_options.save_images != save_images:

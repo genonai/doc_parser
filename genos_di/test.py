@@ -4,7 +4,7 @@ from preprocess import DocumentProcessor
 # from origin_preprocess import DocumentProcessor
 
 # 파일 경로 및 요청 설정
-file_path = "./[타사업소 아차사고 사례]폐수오니 반출작업 관련 안전개선 대책(안)(환경관리부-20.pdf"
+file_path = "/workspaces/hwpx/외환국제금융동향(2018.4.12)_최종(송부본).hwpx"
 
 # DocumentProcessor 인스턴스 생성
 doc_processor = DocumentProcessor()
