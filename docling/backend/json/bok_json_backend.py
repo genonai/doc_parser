@@ -24,9 +24,10 @@ from docling.datamodel.document import InputDocument
 
 
 class BOKJsonDocumentBackend(DeclarativeDocumentBackend):
-    def __init__(self, in_doc: InputDocument, path_or_stream: Union[str, Path]):
+    def __init__(self, in_doc: InputDocument, path_or_stream: Union[str, Path], save_images: bool = False):
         super().__init__(in_doc, path_or_stream)
         self.json_data = None
+        self.save_images = save_images
         
         # path_or_stream이 Path 객체이거나 string 경로인 경우
         if isinstance(path_or_stream, (Path, str)):
@@ -79,6 +80,10 @@ class BOKJsonDocumentBackend(DeclarativeDocumentBackend):
         이미지를 처리하여 DoclingDocument의 pictures에 추가합니다.
         여러 확장자를 시도하고 경로 처리를 개선합니다.
         """
+
+        if not self.save_images:
+            return False
+        
         if not image_path:
             return False
             
@@ -884,6 +889,9 @@ class BOKJsonDocumentBackend(DeclarativeDocumentBackend):
     def _add_pictures_from_table(self, doc: DoclingDocument, page_no: int, table_content):
         """테이블 내 모든 이미지를 Picture로 DoclingDocument에 추가"""
         images = self._extract_images_from_table(table_content)
+
+        if not self.save_images:
+            return
         
         for image_info in images:
             image_path = image_info['path']
