@@ -26,9 +26,10 @@ from copy import deepcopy
 
 
 class HwpxDocumentBackend(DeclarativeDocumentBackend):
-    def __init__(self, in_doc: InputDocument, path_or_stream: Union[Path, BytesIO]) -> None:
+    def __init__(self, in_doc: InputDocument, path_or_stream: Union[Path, BytesIO], save_images: bool = False) -> None:
         """Initialize the HWPX backend by loading the .hwpx file (zip archive)."""
         super().__init__(in_doc, path_or_stream)
+        self.save_images = save_images
         self.zip = None
         self.valid = False
         # Hierarchy tracking for section (heading) groups and list items
@@ -1096,6 +1097,8 @@ class HwpxDocumentBackend(DeclarativeDocumentBackend):
                 elif typ == 'table':
                     self._process_table(payload, doc)
                 elif typ == 'picture':
+                    if not self.save_images:
+                        continue
                     img, cap = payload
                     if img is None:
                         continue
@@ -1198,6 +1201,8 @@ class HwpxDocumentBackend(DeclarativeDocumentBackend):
         caption: Optional[str] = None,
     ) -> None:
         """Process a picture <hp:pic> element and add an image node."""
+        if not self.save_images:
+            return
         parent_node = self.current_list_item or self.current_section_group
         # 1) Extract binaryItemIDRef
         img_ref = pic_elem.find("hc:img", namespaces=pic_elem.nsmap)
