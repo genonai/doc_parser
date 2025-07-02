@@ -797,36 +797,44 @@ class DocumentProcessor:
         device = AcceleratorDevice.AUTO
         num_threads = 8
         accelerator_options = AcceleratorOptions(num_threads=num_threads, device=device)
-        pipe_line_options = PdfPipelineOptions()
-        pipe_line_options.generate_page_images = True
-        pipe_line_options.generate_picture_images = True
-        pipe_line_options.do_ocr = False
-        # pipe_line_options.ocr_options.lang = ["ko", 'en']
-        # pipe_line_options.ocr_options.model_storage_directory = "./.EasyOCR/model"
-        # pipe_line_options.ocr_options.force_full_page_ocr = True
+        
+        # PDF 파이프라인 옵션 설정
+        self.pipe_line_options = PdfPipelineOptions()
+        self.pipe_line_options.generate_page_images = True
+        self.pipe_line_options.generate_picture_images = True
+        self.pipe_line_options.do_ocr = False
+        # self.pipe_line_options.ocr_options.lang = ["ko", 'en']
+        # self.pipe_line_options.ocr_options.model_storage_directory = "./.EasyOCR/model"
+        # self.pipe_line_options.ocr_options.force_full_page_ocr = True
         # ocr_options = TesseractOcrOptions()
         # ocr_options.lang = ['kor', 'kor_vert', 'eng', 'jpn', 'jpn_vert']
         # ocr_options.path = './.tesseract/tessdata'
-        # pipe_line_options.ocr_options = ocr_options
-        pipe_line_options.artifacts_path = Path("/nfs-root/models/223/760")  # Path("/nfs-root/aiModel/.cache/huggingface/hub/models--ds4sd--docling-models/snapshots/4659a7d29247f9f7a94102e1f313dad8e8c8f2f6/")
-        pipe_line_options.do_table_structure = True
-        pipe_line_options.images_scale = 2
-        pipe_line_options.table_structure_options.do_cell_matching = True
-        pipe_line_options.table_structure_options.mode = TableFormerMode.ACCURATE
-        pipe_line_options.accelerator_options = accelerator_options
+        # self.pipe_line_options.ocr_options = ocr_options
+        self.pipe_line_options.artifacts_path = Path("/nfs-root/models/223/760")  # Path("/nfs-root/aiModel/.cache/huggingface/hub/models--ds4sd--docling-models/snapshots/4659a7d29247f9f7a94102e1f313dad8e8c8f2f6/")
+        self.pipe_line_options.do_table_structure = True
+        self.pipe_line_options.images_scale = 2
+        self.pipe_line_options.table_structure_options.do_cell_matching = True
+        self.pipe_line_options.table_structure_options.mode = TableFormerMode.ACCURATE
+        self.pipe_line_options.accelerator_options = accelerator_options
 
-        simple_pipeline_options = PipelineOptions()
-        simple_pipeline_options.save_images = False
+        # Simple 파이프라인 옵션을 인스턴스 변수로 저장
+        self.simple_pipeline_options = PipelineOptions()
+        self.simple_pipeline_options.save_images = False
 
+        # 기본 컨버터들 생성
+        self._create_converters()
+
+    def _create_converters(self):
+        """컨버터들을 생성하는 헬퍼 메서드"""
         # HWP와 HWPX 모두 지원하는 통합 컨버터
         self.converter = DocumentConverter(
                 format_options={
                     InputFormat.XML_HWPX: FormatOption(
-                        pipeline_options=simple_pipeline_options,
+                        pipeline_options=self.simple_pipeline_options,
                         backend=HwpxDocumentBackend
                     ),
                     InputFormat.PDF: PdfFormatOption(
-                        pipeline_options=pipe_line_options, 
+                        pipeline_options=self.pipe_line_options, 
                         backend=DoclingParseV4DocumentBackend
                     ),
                 }
@@ -834,14 +842,21 @@ class DocumentProcessor:
         self.second_converter = DocumentConverter(
             format_options={
                 InputFormat.PDF: PdfFormatOption(
-                    pipeline_options=pipe_line_options,
+                    pipeline_options=self.pipe_line_options,
                     backend=PyPdfiumDocumentBackend
                 ),
             },
         )
 
     def load_documents_with_docling(self, file_path: str, **kwargs: dict) -> DoclingDocument:
-        self.converter.pipeline_options.save_images = kwargs.get('save_images', False)
+        # kwargs에서 save_images 값을 가져와서 옵션 업데이트
+        save_images = kwargs.get('save_images', False)
+        
+        # save_images 옵션이 현재 설정과 다르면 컨버터 재생성
+        if self.simple_pipeline_options.save_images != save_images:
+            self.simple_pipeline_options.save_images = save_images
+            self._create_converters()
+        
         try:
             conv_result: ConversionResult = self.converter.convert(file_path, raises_on_error=True)
         except Exception as e:
