@@ -74,6 +74,69 @@ class BOKJsonDocumentBackend(DeclarativeDocumentBackend):
     def unload(self):
         self.path_or_stream = None
 
+    def _process_image(self, image_path: str, doc: DoclingDocument, page_no: int) -> bool:
+        """
+        이미지를 처리하여 DoclingDocument의 pictures에 추가합니다.
+        여러 확장자를 시도하고 경로 처리를 개선합니다.
+        """
+        if not image_path:
+            return False
+            
+        # 이미지 경로 처리 - 상대/절대 경로 고려
+        image_path_obj = Path(image_path)
+        
+        # 이미지 로드 시도할 경로들 생성
+        paths_to_try = [image_path]
+        
+        # 확장자가 없는 경우 여러 확장자 시도
+        if not image_path_obj.suffix:
+            base_path = str(image_path_obj)
+            for ext in (".png", ".jpg", ".jpeg", ".bmp", ".gif", ".webp", ".wmf", ".tif"):
+                paths_to_try.append(f"{base_path}{ext}")
+        
+        # 상대 경로인 경우 JSON 파일 디렉토리 기준으로도 시도
+        if not image_path_obj.is_absolute() and self.file and self.file.parent:
+            json_dir = self.file.parent
+            relative_to_json = json_dir / image_path_obj
+            paths_to_try.append(str(relative_to_json))
+            
+            if not image_path_obj.suffix:
+                for ext in (".png", ".jpg", ".jpeg", ".bmp", ".gif", ".webp", ".wmf", ".tif"):
+                    paths_to_try.append(str(relative_to_json.with_suffix(ext)))
+
+        # 이미지 로드 시도
+        pil_image = None
+        successful_path = None
+        
+        for path in paths_to_try:
+            try:
+                pil_image = Image.open(path)
+                successful_path = path
+                break
+            except (UnidentifiedImageError, OSError, FileNotFoundError):
+                continue
+        
+        # 이미지 로드 실패 시 처리 중단
+        if pil_image is None:
+            return False
+        
+        try:
+            img_ref_obj = ImageRef.from_pil(image=pil_image, dpi=72)
+            img_ref_obj.mode = ImageRefMode.EMBEDDED
+            
+            doc.add_picture(
+                image=img_ref_obj,
+                content_layer=ContentLayer.BODY,
+                prov=ProvenanceItem(
+                    page_no=page_no,
+                    bbox=BoundingBox(l=0, t=0, r=1, b=1),
+                    charspan=(0, 0)
+                ),
+            )
+            return True
+        except Exception:
+            return False
+
     def convert(self) -> DoclingDocument:
         origin = DocumentOrigin(
             filename=self.file.name if self.file else "from_json",
@@ -87,7 +150,7 @@ class BOKJsonDocumentBackend(DeclarativeDocumentBackend):
         processed_content = set()
 
         for page in self.json_data.get("body", []):
-            page_no = page.get("page", 0)
+            page_no = page.get("page", 1)  # 기본값을 1로 변경
             
             # 페이지가 없으면 생성
             if page_no not in doc.pages:
@@ -124,27 +187,11 @@ class BOKJsonDocumentBackend(DeclarativeDocumentBackend):
                         ),
                     )
                     
-            elif content_type == "image":
+            elif content_type == "image" or content_type == "picture":
                 image_path = block.get("content")
                 if image_path:
-                    # 이미지 경로를 사용하여 이미지 로드
-                    try:
-                        pil_image = Image.open(image_path)
-                    except (UnidentifiedImageError, OSError):
-                        pil_image = None
-
-                    if pil_image:
-                        img_ref_obj = ImageRef.from_pil(image=pil_image, dpi=72)
-                        img_ref_obj.mode = ImageRefMode.EMBEDDED
-                        doc.add_picture(
-                            image=img_ref_obj,
-                            content_layer=ContentLayer.BODY,
-                            prov=ProvenanceItem(
-                                page_no=page_no,
-                                bbox=BoundingBox(l=0, t=0, r=1, b=1),
-                                charspan=(0, 0)
-                            ),
-                        )
+                    # 이미지 처리
+                    self._process_image(image_path, doc, page_no)
                     
             elif content_type == "table":
                 table_content = block.get("content", [])
@@ -161,24 +208,20 @@ class BOKJsonDocumentBackend(DeclarativeDocumentBackend):
         # 2. 테이블이 풀어져야 하는 상황인지 확인 (테이블 맵 정보 활용)
         should_flatten = self._should_flatten_table_with_map(table_content, table_map)
         
-
-        
         if should_flatten:
             # 테이블을 컬럼별 reading order로 개별 요소들을 순서대로 DoclingDocument에 추가
             # 테이블 맵을 활용하여 중첩된 테이블들도 올바른 순서로 처리
             self._add_table_elements_in_column_order_with_map(doc, page_no, table_content, processed_content, table_map)
         else:
-            # 기존 방식: 먼저 중첩된 실제 데이터 테이블들을 찾아서 독립적으로 처리
-            extracted_table_ids = set()
-            
-            # 테이블 맵에서 데이터 테이블만 추출
-            for table_info in table_map.values():
-                if table_info['is_data_table']:
-                    table_data = self._convert_to_table_data(table_info['content'])
-                    if table_data:
-                        # 추출된 테이블의 고유 ID 생성
-                        table_id = self._get_table_fingerprint(table_info['content'])
-                        extracted_table_ids.add(table_id)
+            # 풀어지지 않는 경우 - 현재 테이블 자체가 leaf 테이블
+            # 이 경우 전체 테이블을 하나의 테이블로 처리
+            if self._is_data_table(table_content):
+                table_data = self._convert_to_table_data(table_content)
+                if table_data:
+                    # 테이블의 고유 ID 생성
+                    table_id = self._get_table_fingerprint(table_content)
+                    if table_id not in processed_content:
+                        processed_content.add(table_id)
                         
                         doc.add_table(
                             data=table_data,
@@ -189,9 +232,9 @@ class BOKJsonDocumentBackend(DeclarativeDocumentBackend):
                                 charspan=(0, 0)
                             ),
                         )
-            
-            # 원래 테이블에서 중첩 테이블을 제외한 나머지 콘텐츠 처리
-            self._process_table_remaining_content_with_order(doc, page_no, table_content, processed_content, extracted_table_ids)
+            else:
+                # 데이터 테이블이 아닌 경우 개별 텍스트로 처리
+                self._add_table_elements_in_column_order(doc, page_no, table_content, processed_content)
     
     def _create_table_map(self, table_content: list) -> dict:
         """테이블 내의 모든 중첩 테이블의 위치와 정보를 매핑"""
@@ -227,20 +270,39 @@ class BOKJsonDocumentBackend(DeclarativeDocumentBackend):
     
     def _should_flatten_table_with_map(self, table_content: list, table_map: dict) -> bool:
         """테이블 맵을 활용하여 테이블을 풀어야 하는지 판단"""
-        # 1. 중첩 테이블이나 이미지가 있는 경우
-        if self._has_images_in_table(table_content) or len(table_map) > 0:
+        # 1. 이미지가 있는 경우 - 무조건 풀어야 함
+        if self._has_images_in_table(table_content):
             return True
         
-        # 2. 테이블이 leaf 테이블이 아닌 경우
-        if not self._is_leaf_table(table_content):
-            return True
+        # 2. 중첩 테이블이 있는 경우만 처리
+        if len(table_map) > 0:
+            # 모든 중첩 테이블이 leaf 테이블인지 확인
+            all_nested_are_leaf = True
+            for table_info in table_map.values():
+                nested_content = table_info['content']
+                # 중첩된 테이블이 또 다른 테이블을 포함하거나 데이터 테이블이 아니면
+                if self._has_nested_tables(nested_content) or not self._is_data_table(nested_content):
+                    all_nested_are_leaf = False
+                    break
             
+            # 모든 중첩 테이블이 leaf면 외부 테이블만 풀어야 함
+            if all_nested_are_leaf:
+                return True
+            else:
+                # 일부 중첩 테이블이 복잡하면 전체를 풀어야 함
+                return True
+        
+        # 3. 중첩 테이블이나 이미지가 없는 단순한 테이블은 보존
         return False
     
     def _add_table_elements_in_column_order_with_map(self, doc: DoclingDocument, page_no: int, table_content: list, processed_content: set, table_map: dict):
         """테이블 맵을 활용하여 컬럼별 reading order로 요소들을 순서대로 DoclingDocument에 추가"""
         if not table_content:
             return
+
+        # 이미지 때문에 테이블을 풀어내는 경우, 먼저 모든 이미지를 Picture로 추가
+        if self._has_images_in_table(table_content):
+            self._add_pictures_from_table(doc, page_no, table_content)
 
         cell_matrix = {}
         max_rows = len(table_content)
@@ -320,9 +382,8 @@ class BOKJsonDocumentBackend(DeclarativeDocumentBackend):
         return data_tables
     
     def _is_data_table(self, table_content: list):
-        """테이블이 실제 데이터 테이블인지 판단 (간단한 기준)"""
-        if not table_content or len(table_content) < 2:  # 최소 2행은 있어야 함
-
+        """테이블이 실제 데이터 테이블인지 판단 (완화된 기준)"""
+        if not table_content:
             return False
         
         # 구조적 특징 확인
@@ -333,10 +394,8 @@ class BOKJsonDocumentBackend(DeclarativeDocumentBackend):
                 max_cols = max(max_cols, len(row["cells"]))
         
         # 테이블 태그가 있으면 기본적으로 테이블로 인정
-        # 최소 구조 조건: 2행 이상, 2열 이상
-        result = num_rows >= 2 and max_cols >= 2
-        
-
+        # 최소 구조 조건: 1행 이상, 1열 이상 (완화된 조건)
+        result = num_rows >= 1 and max_cols >= 1
         
         return result
     
@@ -393,32 +452,20 @@ class BOKJsonDocumentBackend(DeclarativeDocumentBackend):
                                                 ),
                                             )
                                     
-                                    elif content_type == "image":
+                                    elif content_type == "image" or content_type == "picture":
                                         image_path = content_block.get("content", "")
                                         if image_path:
-                                            # 이미지 경로를 사용하여 이미지 로드
-                                            try:
-                                                pil_image = Image.open(image_path)
-                                            except (UnidentifiedImageError, OSError):
-                                                pil_image = None
-
-                                            if pil_image:
-                                                img_ref_obj = ImageRef.from_pil(image=pil_image, dpi=72)
-                                                img_ref_obj.mode = ImageRefMode.EMBEDDED
-                                                doc.add_picture(
-                                                    image=img_ref_obj,
-                                                    content_layer=ContentLayer.BODY,
-                                                    prov=ProvenanceItem(
-                                                        page_no=page_no,
-                                                        bbox=BoundingBox(l=0, t=0, r=1, b=1),
-                                                        charspan=(0, 0)
-                                                    ),
-                                                )
+                                            # hwpx_backend 스타일의 이미지 처리 사용
+                                            self._process_image(image_path, doc, page_no)
     
     def _add_table_elements_in_column_order(self, doc: DoclingDocument, page_no: int, table_content: list, processed_content: set):
         """테이블을 컬럼별 reading order로 개별 요소들을 순서대로 DoclingDocument에 추가하고, 중복을 방지한다."""
         if not table_content:
             return
+        
+        # 이미지 때문에 테이블을 풀어내는 경우, 먼저 모든 이미지를 Picture로 추가
+        if self._has_images_in_table(table_content):
+            self._add_pictures_from_table(doc, page_no, table_content)
         
         cell_matrix = {}
         max_rows = len(table_content)
@@ -515,28 +562,11 @@ class BOKJsonDocumentBackend(DeclarativeDocumentBackend):
                                 ),
                             )
                 
-                elif content_type == "image":
+                elif content_type == "image" or content_type == "picture":
                     image_path = content_block.get("content", "")
                     if image_path:
-                        # 이미지 경로를 사용하여 이미지 로드
-                        try:
-                            pil_image = Image.open(image_path)
-                        except (UnidentifiedImageError, OSError):
-                            pil_image = None
-
-                        if pil_image:
-                            img_ref_obj = ImageRef.from_pil(image=pil_image, dpi=72)
-                            img_ref_obj.mode = ImageRefMode.EMBEDDED
-                            doc.add_picture(
-                                image=img_ref_obj,
-                                content_layer=ContentLayer.BODY,
-                                parent=parent,
-                                prov=ProvenanceItem(
-                                    page_no=page_no,
-                                    bbox=BoundingBox(l=0, t=0, r=1, b=1),
-                                    charspan=(0, 0)
-                                ),
-                            )
+                        # 이미지 처리
+                        self._process_image(image_path, doc, page_no)
                 
                 elif content_type == "table":
                     nested_table_content = content_block.get("content", [])
@@ -546,11 +576,14 @@ class BOKJsonDocumentBackend(DeclarativeDocumentBackend):
                         if table_id in global_processed_content:
                             continue  # 이미 처리된 테이블이므로 건너뜀
                         
-                        if self._is_data_table(nested_table_content):
+                        # 데이터 테이블인지 확인 (중첩 테이블이면서 데이터가 있으면 보존)
+                        is_data = self._is_data_table(nested_table_content)
+                        has_nested = self._has_nested_tables(nested_table_content)
+                        
+                        if is_data and not has_nested:
+                            # 데이터 테이블이면서 더 이상 중첩이 없는 경우 - 테이블로 보존
                             table_data = self._convert_to_table_data(nested_table_content)
                             if table_data:
-
-                                
                                 # 새로 추가하는 테이블도 global_processed_content에 추가
                                 global_processed_content.add(table_id)
                                 doc.add_table(
@@ -564,7 +597,7 @@ class BOKJsonDocumentBackend(DeclarativeDocumentBackend):
                                     ),
                                 )
                         else:
-                            # 데이터 테이블이 아니면 재귀적으로 풀어서 처리
+                            # 데이터 테이블이 아니거나 더 중첩된 테이블이 있는 경우 - 재귀적으로 풀어서 처리
                             # 재귀 호출 시 processed_content 세트를 전달하여 전역 중복 방지
                             self._add_table_elements_in_column_order(doc, page_no, nested_table_content, global_processed_content)
     
@@ -615,28 +648,11 @@ class BOKJsonDocumentBackend(DeclarativeDocumentBackend):
                                 ),
                             )
                 
-                elif content_type == "image":
+                elif content_type == "image" or content_type == "picture":
                     image_path = content_block.get("content", "")
                     if image_path:
-                        # 이미지 경로를 사용하여 이미지 로드
-                        try:
-                            pil_image = Image.open(image_path)
-                        except (UnidentifiedImageError, OSError):
-                            pil_image = None
-
-                        if pil_image:
-                            img_ref_obj = ImageRef.from_pil(image=pil_image, dpi=72)
-                            img_ref_obj.mode = ImageRefMode.EMBEDDED
-                            doc.add_picture(
-                                image=img_ref_obj,
-                                content_layer=ContentLayer.BODY,
-                                parent=parent,
-                                prov=ProvenanceItem(
-                                    page_no=page_no,
-                                    bbox=BoundingBox(l=0, t=0, r=1, b=1),
-                                    charspan=(0, 0)
-                                ),
-                            )
+                        # 이미지 처리
+                        self._process_image(image_path, doc, page_no)
                                 
                 elif content_type == "table":
                     nested_table_content = content_block.get("content", [])
@@ -645,14 +661,17 @@ class BOKJsonDocumentBackend(DeclarativeDocumentBackend):
                         table_id = content_block.get("id")
                         table_info = table_map.get(table_id) if table_map and table_id else None
                         
-
-                        
                         # 테이블 fingerprint 확인하여 이미 추출된 테이블인지 체크
                         fingerprint = self._get_table_fingerprint(nested_table_content)
                         if fingerprint in global_processed_content:
                             continue  # 이미 처리된 테이블이므로 건너뜀
                         
-                        if self._is_data_table(nested_table_content):
+                        # 데이터 테이블인지 확인 (중첩 테이블이면서 데이터가 있으면 보존)
+                        is_data = self._is_data_table(nested_table_content)
+                        has_nested = self._has_nested_tables(nested_table_content)
+                        
+                        if is_data and not has_nested:
+                            # 데이터 테이블이면서 더 이상 중첩이 없는 경우 - 테이블로 보존
                             table_data = self._convert_to_table_data(nested_table_content)
                             if table_data:
                                 # 새로 추가하는 테이블도 global_processed_content에 추가
@@ -668,9 +687,9 @@ class BOKJsonDocumentBackend(DeclarativeDocumentBackend):
                                     ),
                                 )
                         else:
-                            # 데이터 테이블이 아니면 재귀적으로 풀어서 처리
+                            # 데이터 테이블이 아니거나 더 중첩된 테이블이 있는 경우 - 재귀적으로 풀어서 처리
                             # 재귀 호출 시 processed_content 세트를 전달하여 전역 중복 방지
-                            self._add_table_elements_in_column_order(doc, page_no, nested_table_content, global_processed_content)
+                            self._add_table_elements_in_column_order_with_map(doc, page_no, nested_table_content, global_processed_content, table_map)
 
     def _get_content_block_fingerprint(self, block_data) -> str:
         """블록 데이터로부터 간단한 fingerprint 생성 (해시 충돌 가능성 있음, 예시용)"""
@@ -678,7 +697,7 @@ class BOKJsonDocumentBackend(DeclarativeDocumentBackend):
         content = block_data.get("content")
         if content_type == "text":
             return f"txt_{hash(str(content)[:50])}" # 첫 50자로 fingerprint
-        elif content_type == "image":
+        elif content_type == "image" or content_type == "picture":
             return f"img_{hash(str(content))}"
         elif content_type == "table":
             # 테이블의 경우 내용이 복잡하므로, 간단히 첫 번째 셀의 텍스트나 타입으로 구분
@@ -693,17 +712,26 @@ class BOKJsonDocumentBackend(DeclarativeDocumentBackend):
         return "unknown"
 
     def _should_flatten_table(self, table_content: list) -> bool:
-        """테이블을 풀어야 하는지 판단하는 기준"""
-        # 1. 중첩 테이블이나 이미지가 있는 경우
-        if self._has_images_in_table(table_content) or self._has_nested_tables(table_content):
+        """테이블을 풀어야 하는지 판단하는 기준 (원래 로직)"""
+        # 1. 이미지가 있는 경우만 풀어냄
+        if self._has_images_in_table(table_content):
             return True
         
-        # 2. 테이블이 leaf 테이블이 아닌 경우 (큰 셀이 있거나 복잡한 구조)
-        # _is_leaf_table은 셀 내 텍스트 길이도 체크하지만, 여기서는 주로 구조적 중첩을 본다.
-        # leaf 테이블 판단 기준은 프로젝트 요구사항에 따라 조정될 수 있다.
-        if not self._is_leaf_table(table_content): # _is_leaf_table은 중첩 테이블도 확인
-            return True
-            
+        # 2. 중첩 테이블이 있고 그 중첩 테이블이 복잡한 경우만 풀어냄
+        if self._has_nested_tables(table_content):
+            # 중첩 테이블들을 확인하여 데이터 테이블이 아닌 것이 있으면 풀어냄
+            for row in table_content:
+                if isinstance(row, dict) and "cells" in row:
+                    for cell in row["cells"]:
+                        if isinstance(cell, dict):
+                            contents = cell.get("contents", [])
+                            for content_item in contents:
+                                if isinstance(content_item, dict) and content_item.get("type") == "table":
+                                    nested_content = content_item.get("content", [])
+                                    if nested_content and not self._is_data_table(nested_content):
+                                        return True
+        
+        # 3. 단순한 테이블은 보존
         return False
     
     def _has_nested_tables(self, table_content: list) -> bool:
@@ -748,8 +776,6 @@ class BOKJsonDocumentBackend(DeclarativeDocumentBackend):
         if not table_content:
             return None
         
-
-            
         # 행과 열의 수 계산
         num_rows = len(table_content)
         num_cols = 0
@@ -765,7 +791,6 @@ class BOKJsonDocumentBackend(DeclarativeDocumentBackend):
                 num_cols = max(num_cols, cols_in_row)
         
         if num_rows == 0 or num_cols == 0:
-
             return None
             
         table_cells = []
@@ -785,7 +810,7 @@ class BOKJsonDocumentBackend(DeclarativeDocumentBackend):
                                     if text is not None:  # None이 아닌 모든 텍스트 포함
                                         text = str(text)
                                         text_parts.append(text)
-                                elif content.get("type") == "image":
+                                elif content.get("type") == "image" or content.get("type") == "picture":
                                     image_path = content.get("content", "")
                                     if image_path:
                                         text_parts.append(f"[이미지: {image_path}]")
@@ -831,9 +856,94 @@ class BOKJsonDocumentBackend(DeclarativeDocumentBackend):
                         contents = cell.get("contents", [])
                         for content in contents:
                             if isinstance(content, dict):
-                                if content.get("type") == "image":
+                                if content.get("type") == "image" or content.get("type") == "picture":
                                     return True
         return False
+    
+    def _extract_images_from_table(self, table_content):
+        """테이블에서 모든 이미지를 추출하여 위치 정보와 함께 반환"""
+        images = []
+        
+        for row_idx, row in enumerate(table_content):
+            if isinstance(row, dict) and "cells" in row:
+                for cell_idx, cell in enumerate(row["cells"]):
+                    if isinstance(cell, dict):
+                        contents = cell.get("contents", [])
+                        for content_idx, content in enumerate(contents):
+                            if isinstance(content, dict) and (content.get("type") == "image" or content.get("type") == "picture"):
+                                image_path = content.get("content", "")
+                                if image_path:
+                                    images.append({
+                                        'path': image_path,
+                                        'position': (row_idx, cell_idx, content_idx),
+                                        'bbox': content.get("bbox", [0, 0, 1, 1])  # 기본 bbox
+                                    })
+        
+        return images
+    
+    def _add_pictures_from_table(self, doc: DoclingDocument, page_no: int, table_content):
+        """테이블 내 모든 이미지를 Picture로 DoclingDocument에 추가"""
+        images = self._extract_images_from_table(table_content)
+        
+        for image_info in images:
+            image_path = image_info['path']
+            position = image_info['position']
+            bbox = image_info['bbox']
+            
+            # 여러 확장자 시도하여 이미지 로드
+            image_path_obj = Path(image_path)
+            
+            # 이미지 로드 시도할 경로들 생성
+            paths_to_try = [image_path]
+            
+            # 확장자가 없는 경우 여러 확장자 시도
+            if not image_path_obj.suffix:
+                base_path = str(image_path_obj)
+                for ext in (".png", ".jpg", ".jpeg", ".bmp", ".gif", ".webp", ".wmf", ".tif"):
+                    paths_to_try.append(f"{base_path}{ext}")
+            
+            # 상대 경로인 경우 JSON 파일 디렉토리 기준으로도 시도
+            if not image_path_obj.is_absolute() and self.file and self.file.parent:
+                json_dir = self.file.parent
+                relative_to_json = json_dir / image_path_obj
+                paths_to_try.append(str(relative_to_json))
+                
+                if not image_path_obj.suffix:
+                    for ext in (".png", ".jpg", ".jpeg", ".bmp", ".gif", ".webp", ".wmf", ".tif"):
+                        paths_to_try.append(str(relative_to_json.with_suffix(ext)))
+            
+            # 이미지 로드 시도
+            pil_image = None
+            for path in paths_to_try:
+                try:
+                    pil_image = Image.open(path)
+                    break
+                except (UnidentifiedImageError, OSError, FileNotFoundError):
+                    continue
+            
+            if pil_image is None:
+                # 이미지 로드 실패 시 스킵
+                continue
+
+            if pil_image:
+                img_ref_obj = ImageRef.from_pil(image=pil_image, dpi=72)
+                img_ref_obj.mode = ImageRefMode.EMBEDDED
+                
+                # bbox 설정 (리스트에서 BoundingBox 객체로 변환)
+                if isinstance(bbox, list) and len(bbox) >= 4:
+                    bbox_obj = BoundingBox(l=bbox[0], t=bbox[1], r=bbox[2], b=bbox[3])
+                else:
+                    bbox_obj = BoundingBox(l=0, t=0, r=1, b=1)
+                
+                doc.add_picture(
+                    image=img_ref_obj,
+                    content_layer=ContentLayer.BODY,
+                    prov=ProvenanceItem(
+                        page_no=page_no,
+                        bbox=bbox_obj,
+                        charspan=(0, 0)
+                    ),
+                )
     
     def _contains_text(self, table_content: list, text: str) -> bool:
         """테이블에 특정 텍스트가 포함되어 있는지 확인"""
@@ -850,36 +960,29 @@ class BOKJsonDocumentBackend(DeclarativeDocumentBackend):
         return False
 
     def _get_content_id(self, block, page_no: int, idx: int):
-        """컨텐츠의 고유 식별자 생성"""
+        """컨텐츠의 고유 식별자 생성 (개선된 버전)"""
         content_type = block.get("type")
         if content_type == "text":
             text = block.get("content", "")[:50]  # 처음 50자
             return f"text_{page_no}_{idx}_{hash(text)}"
-        elif content_type == "image":
+        elif content_type == "image" or content_type == "picture":
             image_path = block.get("content", "")
             return f"image_{page_no}_{idx}_{hash(image_path)}"
         elif content_type == "table":
-            # 테이블의 첫 번째 셀 내용으로 식별
+            # 테이블의 경우 page_no와 idx를 활용한 고유 ID 생성
+            # fingerprint 방식 대신 위치 기반 고유 ID 사용
             table_content = block.get("content", [])
-            if table_content and isinstance(table_content[0], dict):
-                first_row = table_content[0].get("cells", [])
-                if first_row and isinstance(first_row[0], dict):
-                    first_cell_contents = first_row[0].get("contents", [])
-                    if first_cell_contents:
-                        for cell_content in first_cell_contents:
-                            if isinstance(cell_content, dict) and cell_content.get("type") == "text":
-                                first_text = cell_content.get("content", "")[:30]
-                                return f"table_{page_no}_{idx}_{hash(first_text)}"
-            return f"table_{page_no}_{idx}_empty"
+            table_id = block.get("id", f"table_{idx}")
+            return f"table_{page_no}_{idx}_{table_id}_{id(table_content)}"
         else:
             return f"{content_type}_{page_no}_{idx}"
 
     def _get_table_fingerprint(self, table_content: list) -> str:
-        """테이블의 고유 fingerprint 생성"""
+        """테이블의 고유 fingerprint 생성 (강화된 버전)"""
         if not table_content:
             return "empty_table"
         
-        # 테이블의 첫 번째 행의 첫 번째 셀 내용으로 fingerprint 생성
+        # 테이블의 전체 구조를 기반으로 fingerprint 생성
         fingerprint_parts = []
         
         # 테이블 크기 정보
@@ -891,16 +994,58 @@ class BOKJsonDocumentBackend(DeclarativeDocumentBackend):
         
         fingerprint_parts.append(f"size_{num_rows}x{max_cols}")
         
-        # 첫 번째 셀의 내용
-        if isinstance(table_content[0], dict) and "cells" in table_content[0]:
-            first_row = table_content[0]["cells"]
-            if first_row and isinstance(first_row[0], dict):
-                first_cell_contents = first_row[0].get("contents", [])
-                for content in first_cell_contents:
-                    if isinstance(content, dict) and content.get("type") == "text":
-                        text = content.get("content", "")
-                        if text:
-                            fingerprint_parts.append(f"first_text_{str(text)[:30]}")
-                            break
+        # 더 많은 셀 샘플링으로 고유성 확보
+        text_samples = []
+        
+        # 첫 번째 행 전체 샘플링 (헤더 구분용)
+        if len(table_content) > 0:
+            first_row = table_content[0]
+            if isinstance(first_row, dict) and "cells" in first_row:
+                for cell_idx, cell in enumerate(first_row["cells"]):
+                    if isinstance(cell, dict):
+                        contents = cell.get("contents", [])
+                        for content in contents:
+                            if isinstance(content, dict) and content.get("type") == "text":
+                                text = content.get("content", "")
+                                if text and str(text).strip():
+                                    text_samples.append(f"h_{cell_idx}_{str(text).strip()[:15]}")
+                                    break
+        
+        # 각 행의 첫 번째 셀 샘플링 (행 헤더 구분용)
+        for row_idx in range(min(len(table_content), 5)):  # 최대 5행까지
+            row = table_content[row_idx]
+            if isinstance(row, dict) and "cells" in row and len(row["cells"]) > 0:
+                first_cell = row["cells"][0]
+                if isinstance(first_cell, dict):
+                    contents = first_cell.get("contents", [])
+                    for content in contents:
+                        if isinstance(content, dict) and content.get("type") == "text":
+                            text = content.get("content", "")
+                            if text and str(text).strip():
+                                text_samples.append(f"r{row_idx}_0_{str(text).strip()[:15]}")
+                                break
+        
+        # 대각선 셀들 추가 샘플링
+        diagonal_positions = [(1, 1), (2, 2), (1, 2), (2, 1)]
+        for row_idx, col_idx in diagonal_positions:
+            if row_idx < len(table_content):
+                row = table_content[row_idx]
+                if isinstance(row, dict) and "cells" in row and col_idx < len(row["cells"]):
+                    cell = row["cells"][col_idx]
+                    if isinstance(cell, dict):
+                        contents = cell.get("contents", [])
+                        for content in contents:
+                            if isinstance(content, dict) and content.get("type") == "text":
+                                text = content.get("content", "")
+                                if text and str(text).strip():
+                                    text_samples.append(f"d{row_idx}_{col_idx}_{str(text).strip()[:15]}")
+                                    break
+        
+        # 텍스트 샘플이 있으면 추가
+        if text_samples:
+            fingerprint_parts.extend(text_samples)
+        
+        # 메모리 주소를 항상 포함하여 최종 고유성 확보
+        fingerprint_parts.append(f"addr_{id(table_content)}")
         
         return f"table_{hash('_'.join(fingerprint_parts))}"
