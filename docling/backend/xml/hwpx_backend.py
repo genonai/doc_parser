@@ -1,3 +1,5 @@
+import logging
+
 import zipfile
 from io import BytesIO
 from pathlib import Path
@@ -5,6 +7,13 @@ from typing import Optional, Union, List
 from xml.etree.ElementTree import Element
 from lxml import etree
 from PIL import Image, UnidentifiedImageError
+
+try:
+    from wand.image import Image as WandImage
+    from wand.exceptions import WandException
+    WAND_AVAILABLE = True
+except ImportError:
+    WAND_AVAILABLE = False
 from docling_core.types.doc import DocItemLabel, DoclingDocument, DocumentOrigin, GroupLabel, ImageRef, TableCell, TableData, NodeItem, ProvenanceItem, BoundingBox, Size
 from docling.backend.abstract_backend import DeclarativeDocumentBackend
 from docling.datamodel.base_models import InputFormat
@@ -173,7 +182,7 @@ class HwpxDocumentBackend(DeclarativeDocumentBackend):
                 
         except Exception as e:
             # Fallback to A4 size on any error
-            logging.warning(f"Failed to extract page size from HWPX: {e}")
+            # logging.warning(f"Failed to extract page size from HWPX: {e}")
             return 595.0, 842.0
 
     def _get_image_ref(self, pic_elem: etree._Element) -> Optional[ImageRef]:
@@ -199,7 +208,30 @@ class HwpxDocumentBackend(DeclarativeDocumentBackend):
             # ImageRef.from_pil로 포장해 리턴
             return ImageRef.from_pil(image=pil_img, dpi=72)
         return None
+    def _get_image_ref(self, pic_elem: etree._Element) -> Optional[ImageRef]:
+        """Extract binaryItemIDRef, read bytes, and wrap as ImageRef."""
+        img_node = pic_elem.find("hc:img", namespaces=pic_elem.nsmap)
+        if img_node is None:
+            return None
+        bin_id = img_node.get("binaryItemIDRef")
+        if not bin_id:
+            return None
 
+        img_bytes = self._read_image_bytes(bin_id)
+        if not img_bytes:
+            return None
+
+        try:
+            pil_img = Image.open(BytesIO(img_bytes))
+        except (UnidentifiedImageError, OSError) as e:
+            logging.debug(f"PIL failed to open image: {e}")
+            return None
+
+        try:
+            return ImageRef.from_pil(image=pil_img, dpi=72)
+        except (UnidentifiedImageError, OSError) as e:
+            logging.debug(f"Failed to create ImageRef: {e}")
+            return None
     def convert(self) -> DoclingDocument:
         """Parses the HWPX file into a DoclingDocument structure."""
         if not self.is_valid():
@@ -1130,45 +1162,81 @@ class HwpxDocumentBackend(DeclarativeDocumentBackend):
                 # p 안의 모든 run/t/pic/equation은 _process_paragraph에서 다시 분기 처리 
                 self._process_paragraph(p, doc)
     
-    def _process_picture(self, pic_elem: etree._Element, doc: DoclingDocument, caption: Optional[str] = None,) -> None:
+    def _convert_wmf_to_png(self, wmf_bytes: bytes) -> Optional[bytes]:
+        """Convert WMF bytes to PNG using Wand, if available."""
+        if not WAND_AVAILABLE:
+            return None
+        try:
+            with WandImage(blob=wmf_bytes) as wand_img:
+                wand_img.format = 'png'
+                return wand_img.make_blob()
+        except Exception as e:
+            logging.debug(f"Wand conversion failed: {e}")
+            return None
+
+    def _read_image_bytes(self, bin_id: str) -> Optional[bytes]:
+        """Read image bytes from BinData, converting WMF if necessary."""
+        for ext in (".bmp", ".png", ".jpg", ".jpeg", ".wmf", ".tif"):
+            try:
+                data = self.zip.read(f"BinData/{bin_id}{ext}")
+            except KeyError:
+                continue
+            # If WMF, try converting to PNG
+            if ext == ".wmf":
+                converted = self._convert_wmf_to_png(data)
+                if converted:
+                    return converted
+                else:
+                    return None
+            return data
+        return None
+
+    def _process_picture(
+        self,
+        pic_elem: etree._Element,
+        doc: DoclingDocument,
+        caption: Optional[str] = None,
+    ) -> None:
         """Process a picture <hp:pic> element and add an image node."""
-        parent_node = self.current_list_item or self.current_section_group or None
-        image_bytes = None
-
-        # 1) hc:img에서 binaryItemIDRef 꺼내기
+        parent_node = self.current_list_item or self.current_section_group
+        # 1) Extract binaryItemIDRef
         img_ref = pic_elem.find("hc:img", namespaces=pic_elem.nsmap)
-        if img_ref is not None:
-            bin_id = img_ref.get("binaryItemIDRef")
-            if bin_id:
-                for ext in (".bmp", ".png", ".jpg", ".jpeg", ".wmf"):
-                    try:
-                        image_bytes = self.zip.read(f"BinData/{bin_id}{ext}")
-                        break
-                    except KeyError:
-                        continue
-
-        # 2) 이미지 유무에 따라 노드 추가
-        if image_bytes is None:
+        if img_ref is None:
+            return
+        bin_id = img_ref.get("binaryItemIDRef")
+        if not bin_id:
             return
 
-        else:
-            try:
-                pil_image = Image.open(BytesIO(image_bytes))
-            except (UnidentifiedImageError, OSError):
-                pil_image = None
+        # 2) Read (and convert) image bytes
+        image_bytes = self._read_image_bytes(bin_id)
+        if not image_bytes:
+            return
 
-            if pil_image:
-                img_ref_obj = ImageRef.from_pil(image=pil_image, dpi=72)
-                # Markdown에서도 data URI로 인라인 표시
-                # img_ref_obj.mode = ImageRefMode.EMBEDDED
-                doc.add_picture(parent=parent_node, image=img_ref_obj, caption=None,
-                              prov=ProvenanceItem(
-                                  page_no=1,
-                                  bbox=BoundingBox(l=0, t=0, r=1, b=1),
-                                  charspan=(0, 0)
-                              ))
-            else:
-                return
+        # 3) Open with PIL
+        try:
+            pil_image = Image.open(BytesIO(image_bytes))
+        except (UnidentifiedImageError, OSError) as e:
+            logging.debug(f"PIL failed to open image: {e}")
+            return
+
+        # 4) Create ImageRef
+        try:
+            img_ref_obj = ImageRef.from_pil(image=pil_image, dpi=72)
+        except (UnidentifiedImageError, OSError) as e:
+            logging.debug(f"Failed to create ImageRef: {e}")
+            return
+
+        # 5) Add picture node
+        doc.add_picture(
+            parent=parent_node,
+            image=img_ref_obj,
+            caption=caption,
+            prov=ProvenanceItem(
+                page_no=1,
+                bbox=BoundingBox(l=0, t=0, r=1, b=1),
+                charspan=(0, 0),
+            ),
+        )
     
     def _process_equation(self, eq_elem: etree._Element, doc: DoclingDocument) -> None:
         """Process an equation <hp:equation> element by adding its text content."""
