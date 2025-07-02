@@ -815,17 +815,19 @@ class DocumentProcessor:
         pipe_line_options.table_structure_options.mode = TableFormerMode.ACCURATE
         pipe_line_options.accelerator_options = accelerator_options
 
-        # simple_pipeline_options = PipelineOptions()
+        simple_pipeline_options = PipelineOptions()
+        simple_pipeline_options.save_images = False
 
         # HWP와 HWPX 모두 지원하는 통합 컨버터
         self.converter = DocumentConverter(
                 format_options={
                     InputFormat.XML_HWPX: FormatOption(
-                        pipeline_cls=SimplePipeline, backend=HwpxDocumentBackend
+                        pipeline_options=simple_pipeline_options,
+                        backend=HwpxDocumentBackend
                     ),
                     InputFormat.PDF: PdfFormatOption(
-                    pipeline_options=pipe_line_options, 
-                    backend=DoclingParseV4DocumentBackend
+                        pipeline_options=pipe_line_options, 
+                        backend=DoclingParseV4DocumentBackend
                     ),
                 }
             )
@@ -839,6 +841,7 @@ class DocumentProcessor:
         )
 
     def load_documents_with_docling(self, file_path: str, **kwargs: dict) -> DoclingDocument:
+        self.converter.pipeline_options.save_images = kwargs.get('save_images', False)
         try:
             conv_result: ConversionResult = self.converter.convert(file_path, raises_on_error=True)
         except Exception as e:
