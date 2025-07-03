@@ -150,9 +150,6 @@ class DocumentEnrichmentUtils:
         try:
             _log.info("TOC 추출 시작...")
             
-            # 모든 SectionHeaderItem을 TextItem으로 변환
-            self._convert_section_headers_to_text(document)
-            
             # 원시 텍스트 추출
             raw_text = self._extract_raw_text_for_toc(document)
             
@@ -170,6 +167,8 @@ class DocumentEnrichmentUtils:
             )
 
             if toc_content:
+                # 모든 SectionHeaderItem을 TextItem으로 변환
+                self._convert_section_headers_to_text(document)
                 # 목차를 기반으로 SectionHeader 적용
                 matched_count = self._apply_toc_to_document(document, toc_content)
                 _log.info(f"TOC 추출 완료 - {matched_count}개 섹션 헤더 생성")
