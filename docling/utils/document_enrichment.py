@@ -1,3 +1,4 @@
+# 0708 매칭 수정된 코드 
 import json
 import logging
 import re
@@ -13,6 +14,8 @@ from docling_core.types.doc.document import (
 )
 from docling.prompts import PromptManager
 from docling.datamodel.pipeline_options import DataEnrichmentOptions
+
+from collections import Counter
 
 _log = logging.getLogger(__name__)
 
@@ -325,104 +328,91 @@ class DocumentEnrichmentUtils:
                     'level': 1,
                     'full_text': cleaned_line
                 })
-        
         return {'title': document_title, 'toc_items': toc_items}
-    
-    def _apply_toc_to_document(self, document, toc_content: str, threshold: float = 0.7):
-        """생성된 목차를 기반으로 문서에 SectionHeader 적용 (문서 제목 포함)"""
-        # 목차 파싱 (제목과 목차 항목 분리)
+
+    def _apply_toc_to_document(self, document, toc_content: str, threshold: float = 0.5):
         parsed_data = self._parse_toc_content(toc_content)
         document_title = parsed_data['title']
         toc_items = parsed_data['toc_items']
-        
+
         converted_indices = set()
-        
-        # 텍스트 아이템들 준비
         text_items = [
-            (i, item.text.strip()) 
+            (i, item.text.strip())
             for i, item in enumerate(document.texts)
-            if (isinstance(item, TextItem) and 
-                item.label == DocItemLabel.TEXT and 
-                len(item.text.strip()) >= 2)
+            if isinstance(item, TextItem)
+            and item.label == DocItemLabel.TEXT
+            and len(item.text.strip()) >= 2
         ]
-        
+        text_items_reversed = text_items[::-1]
         matched_count = 0
-        
-        # 문서 제목 처리 - 첫 번째 텍스트 항목을 TITLE로 변환
+        section_matched = []
+
+        # 제목 매칭 (앞에서부터)
         if document_title and text_items:
             title_clean = document_title.strip()
-            
-            # 문서 제목과 가장 유사한 텍스트 찾기
             text_only = [text for _, text in text_items]
-            close_matches = difflib.get_close_matches(
-                title_clean, text_only, n=3, cutoff=0.3
-            )
-            
+            close_matches = difflib.get_close_matches(title_clean, text_only, n=3, cutoff=0.3)
             if close_matches:
                 best_match_text = close_matches[0]
-                best_match_idx = next(
-                    (idx for idx, text in text_items if text == best_match_text), 
-                    None
-                )
-                
+                best_match_idx = next((idx for idx, text in text_items if text == best_match_text), None)
                 if best_match_idx is not None and best_match_idx not in converted_indices:
-                    similarity = difflib.SequenceMatcher(
-                        None, title_clean.lower(), best_match_text.lower()
-                    ).ratio()
-                    
-                    if similarity >= 0.5:  # 제목은 조금 더 관대한 임계값 사용
-                        # TextItem을 TITLE로 변환
+                    similarity = difflib.SequenceMatcher(None, title_clean.lower(), best_match_text.lower()).ratio()
+                    if similarity >= 0.5:
                         original_item = document.texts[best_match_idx]
                         original_item.label = DocItemLabel.TITLE
                         converted_indices.add(best_match_idx)
                         matched_count += 1
                         _log.info(f"문서 제목 설정: {title_clean}")
-        
-        # 각 목차 항목을 문서의 텍스트와 매칭 (기존 코드와 동일)
+
+        # SectionHeader 매칭 (뒤에서부터)
         for toc_item in toc_items:
-            toc_clean = toc_item['title']
+            toc_full = toc_item['full_text']
+            toc_title = toc_item['title']
             target_level = toc_item['level']
-            
-            if len(toc_clean) < 2:
+            if len(toc_full) < 2:
                 continue
-            
-            # difflib을 사용한 유사 텍스트 찾기
-            text_only = [text for _, text in text_items]
-            close_matches = difflib.get_close_matches(
-                toc_clean, text_only, n=3, cutoff=0.3
-            )
-            
-            if close_matches:
-                best_match_text = close_matches[0]
-                best_match_idx = next(
-                    (idx for idx, text in text_items if text == best_match_text), 
-                    None
+
+            # 1. 후보 텍스트에 대해 유사도 평가 (단, 이미 변환된 인덱스는 제외)
+            scored_candidates = []
+            for idx, text in text_items_reversed:
+                if idx in converted_indices:
+                    continue
+
+                sim_full = difflib.SequenceMatcher(None, toc_full.lower(), text.lower()).ratio()
+                sim_title = difflib.SequenceMatcher(None, toc_title.lower(), text.lower()).ratio()
+                similarity = max(sim_full, sim_title)
+                source = "full_text" if sim_full >= sim_title else "title"
+
+                if similarity >= threshold:
+                    scored_candidates.append((
+                        idx, similarity, text, source, sim_full, sim_title
+                    ))
+
+            # 2. 유사도 기준으로 정렬 → top n개 추출
+            scored_candidates.sort(key=lambda x: x[1], reverse=True)
+            top_matches = scored_candidates[:5]
+
+            # 3. 매칭 가능한 가장 첫 번째 후보 선택
+            if top_matches:
+                best_match_idx, best_similarity, best_match_text, best_match_source, sim_full, sim_title = top_matches[0]
+                original_item = document.texts[best_match_idx]
+                section_matched.append(best_match_idx)
+                section_header = SectionHeaderItem(
+                    self_ref=original_item.self_ref,
+                    parent=original_item.parent,
+                    children=original_item.children,
+                    content_layer=original_item.content_layer,
+                    prov=original_item.prov,
+                    orig=original_item.orig,
+                    text=original_item.text,
+                    formatting=original_item.formatting,
+                    hyperlink=getattr(original_item, 'hyperlink', None),
+                    level=target_level
                 )
-                
-                if best_match_idx is not None and best_match_idx not in converted_indices:
-                    similarity = difflib.SequenceMatcher(
-                        None, toc_clean.lower(), best_match_text.lower()
-                    ).ratio()
-                    
-                    if similarity >= threshold:
-                        # TextItem을 SectionHeaderItem으로 변환
-                        original_item = document.texts[best_match_idx]
-                        section_header = SectionHeaderItem(
-                            self_ref=original_item.self_ref,
-                            parent=original_item.parent,
-                            children=original_item.children,
-                            content_layer=original_item.content_layer,
-                            prov=original_item.prov,
-                            orig=original_item.orig,
-                            text=original_item.text,
-                            formatting=original_item.formatting,
-                            hyperlink=getattr(original_item, 'hyperlink', None),
-                            level=target_level
-                        )
-                        document.texts[best_match_idx] = section_header
-                        converted_indices.add(best_match_idx)
-                        matched_count += 1
-        
+                document.texts[best_match_idx] = section_header
+                converted_indices.add(best_match_idx)
+                matched_count += 1
+
         return matched_count
     
     def _extract_document_metadata(self, document_content):
