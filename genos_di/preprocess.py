@@ -1047,7 +1047,11 @@ class DocumentProcessor:
 
         has_text_items = False
         for item, _ in document.iterate_items():
+<<<<<<< HEAD
             if isinstance(item, (TextItem, TableItem, ListItem, CodeItem, SectionHeaderItem)) and item.text and item.text.strip():
+=======
+            if (isinstance(item, (TextItem, ListItem, CodeItem, SectionHeaderItem)) and item.text and item.text.strip()) or (isinstance(item, TableItem) and item.data and len(item.data.table_cells) == 0):
+>>>>>>> 71dbbd5 (:sparkles: update: e_page)
                 has_text_items = True
                 break
         
