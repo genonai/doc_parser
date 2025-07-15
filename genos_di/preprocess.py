@@ -174,12 +174,15 @@ class HierarchicalChunker(BaseChunker):
                 header_info = {k: v for k, v in current_heading_by_level.items()}
                 all_header_info.append(header_info)
                 continue
-
-            # 일반 아이템들 추가
-            all_items.append(item)
-            # 현재 아이템의 헤더 정보 저장 (title 제외)
-            header_info = {k: v for k, v in current_heading_by_level.items()}
-            all_header_info.append(header_info)
+            
+            if (isinstance(item, TextItem) or 
+                isinstance(item, ListItem) or 
+                isinstance(item, CodeItem) or
+                isinstance(item, TableItem) or
+                isinstance(item, PictureItem)):
+                all_items.append(item)
+                # 현재 아이템의 헤더 정보 저장
+                all_header_info.append({k: v for k, v in current_heading_by_level.items()})
 
         # 마지막 리스트 아이템들 처리
         if list_items:
