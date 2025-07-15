@@ -57,6 +57,7 @@ from docling.datamodel.settings import (
     settings,
 )
 from docling.exceptions import ConversionError
+from docling.pipeline.asr_pipeline import AsrPipeline
 from docling.pipeline.base_pipeline import BasePipeline
 from docling.pipeline.simple_pipeline import SimplePipeline
 from docling.pipeline.standard_pdf_pipeline import StandardPdfPipeline
@@ -69,9 +70,13 @@ _PIPELINE_CACHE_LOCK = threading.Lock()
 import docling.datamodel.document as D
 print(">>> docling.datamodel.document loaded from:", D.__file__)
 
-# document_converter.py 맨 위에 추가
-import docling.datamodel.document as D
-print(">>> docling.datamodel.document loaded from:", D.__file__)
+# CUSTOM IMPORT
+from docling.backend.hwp_backend import HwpDocumentBackend
+from docling.backend.xml.hwpx_backend import HwpxDocumentBackend
+from docling.backend.json.bok_json_backend import BOKJsonDocumentBackend
+# genos_msword_backend 추가
+from docling.backend.genos_msword_backend import GenosMsWordDocumentBackend
+from docling.exceptions import HwpConversionError
 
 
 class FormatOption(BaseFormatOption):
@@ -139,6 +144,12 @@ class ImageFormatOption(FormatOption):
 class PdfFormatOption(FormatOption):
     pipeline_cls: Type = StandardPdfPipeline
     backend: Type[AbstractDocumentBackend] = DoclingParseV4DocumentBackend
+
+
+class AudioFormatOption(FormatOption):
+    pipeline_cls: Type = AsrPipeline
+    backend: Type[AbstractDocumentBackend] = NoOpBackend
+
 
 # 한글추가
 class HwpFormatOption(FormatOption):
@@ -244,10 +255,14 @@ class DocumentConverter:
             Tuple[Type[BasePipeline], str], BasePipeline
         ] = {}
 
+    def _get_initialized_pipelines(
+        self,
+    ) -> dict[tuple[Type[BasePipeline], str], BasePipeline]:
+        return self.initialized_pipelines
+
     def _get_pipeline_options_hash(self, pipeline_options: PipelineOptions) -> str:
         """Generate a hash of pipeline options to use as part of the cache key."""
         options_str = str(pipeline_options.model_dump())
-        # return hashlib.md5(options_str.encode("utf-8")).hexdigest()
         return hashlib.md5(
             options_str.encode("utf-8"), usedforsecurity=False
         ).hexdigest()
@@ -315,7 +330,7 @@ class DocumentConverter:
 
         if not had_result and raises_on_error:
             raise ConversionError(
-                f"Conversion failed because the provided file has no recognizable format or it wasn't in the list of allowed formats."
+                "Conversion failed because the provided file has no recognizable format or it wasn't in the list of allowed formats."
             )
 
     @validate_call(config=ConfigDict(strict=True))

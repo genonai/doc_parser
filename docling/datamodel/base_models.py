@@ -176,12 +176,6 @@ class ErrorItem(BaseModel):
     error_message: str
 
 
-# class Cell(BaseModel):
-#    id: int
-#    text: str
-#    bbox: BoundingBox
-
-
 class Cluster(BaseModel):
     id: int
     label: DocItemLabel
@@ -189,6 +183,10 @@ class Cluster(BaseModel):
     confidence: float = 1.0
     cells: list[TextCell] = []
     children: list["Cluster"] = []  # Add child cluster support
+
+    @field_serializer("confidence")
+    def _serialize(self, value: float, info: FieldSerializationInfo) -> float:
+        return round_pydantic_float(value, info.context, PydanticSerCtxKey.CONFID_PREC)
 
     @field_serializer("confidence")
     def _serialize(self, value: float, info: FieldSerializationInfo) -> float:
@@ -213,8 +211,16 @@ class VlmPredictionToken(BaseModel):
     logprob: float = -1
 
 
+class VlmPredictionToken(BaseModel):
+    text: str = ""
+    token: int = -1
+    logprob: float = -1
+
+
 class VlmPrediction(BaseModel):
     text: str = ""
+    generated_tokens: list[VlmPredictionToken] = []
+    generation_time: float = -1
 
 
 class ContainerElement(
@@ -243,6 +249,16 @@ class FigureElement(BasePageElement):
     provenance: Optional[str] = None
     predicted_class: Optional[str] = None
     confidence: Optional[float] = None
+
+    @field_serializer("confidence")
+    def _serialize(
+        self, value: Optional[float], info: FieldSerializationInfo
+    ) -> Optional[float]:
+        return (
+            round_pydantic_float(value, info.context, PydanticSerCtxKey.CONFID_PREC)
+            if value is not None
+            else None
+        )
 
 
 class FigureClassificationPrediction(BaseModel):
@@ -285,7 +301,6 @@ class Page(BaseModel):
     page_no: int
     # page_hash: Optional[str] = None
     size: Optional[Size] = None
-    cells: List[TextCell] = []
     parsed_page: Optional[SegmentedPdfPage] = None
     predictions: PagePredictions = PagePredictions()
     assembled: Optional[AssembledUnit] = None
@@ -307,10 +322,17 @@ class Page(BaseModel):
             return []
 
     def get_image(
-        self, scale: float = 1.0, cropbox: Optional[BoundingBox] = None
+        self,
+        scale: float = 1.0,
+        max_size: Optional[int] = None,
+        cropbox: Optional[BoundingBox] = None,
     ) -> Optional[Image]:
         if self._backend is None:
             return self._image_cache.get(scale, None)
+
+        if max_size:
+            assert self.size is not None
+            scale = min(scale, max_size / max(self.size.as_tuple()))
 
         if scale not in self._image_cache:
             if cropbox is None:
@@ -345,7 +367,7 @@ class OpenAiChatMessage(BaseModel):
 class OpenAiResponseChoice(BaseModel):
     index: int
     message: OpenAiChatMessage
-    finish_reason: str
+    finish_reason: Optional[str]
 
 
 class OpenAiResponseUsage(BaseModel):
