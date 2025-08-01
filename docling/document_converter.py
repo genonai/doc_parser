@@ -152,9 +152,17 @@ class AudioFormatOption(FormatOption):
 
 
 # 한글추가
-class HwpFormatOption(FormatOption):
+# HwpxFormatOption 클래스 추가
+class HwpxFormatOption(FormatOption):
     pipeline_cls: Type = SimplePipeline
-    backend: Type[AbstractDocumentBackend] = HwpDocumentBackend
+    backend: Type[AbstractDocumentBackend] = HwpxDocumentBackend
+    
+    def __init__(self, pipeline_options: Optional[PipelineOptions] = None):
+        super().__init__(
+            pipeline_cls=SimplePipeline,
+            pipeline_options=pipeline_options,
+            backend=HwpxDocumentBackend
+        )
 
 
 class HwpxFormatOption(FormatOption):

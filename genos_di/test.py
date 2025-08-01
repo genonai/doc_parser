@@ -1,10 +1,13 @@
 from fastapi import Request
+import logging
+
 
 from preprocess import DocumentProcessor
 # from origin_preprocess import DocumentProcessor
+# from 첨부용 import DocumentProcessor
 
 # 파일 경로 및 요청 설정
-file_path = "/workspaces/hwpx/외환국제금융동향(2018.4.12)_최종(송부본).hwpx"
+file_path = "/workspaces/kgscode_pdf2025FP112_250116.pdf"
 
 # DocumentProcessor 인스턴스 생성
 doc_processor = DocumentProcessor()
@@ -17,8 +20,10 @@ import asyncio
 
 
 async def process_document():
-    print(file_path)
+    # print(file_path)  # 파일 경로 출력 숨김
     vectors = await doc_processor(mock_request, file_path)
+    # WMF 변환 여부는 include_wmf 파라미터 전달: 현재 한글만 지원 
+    # vectors = await doc_processor(mock_request, file_path, save_images=True, include_wmf=False)
     return vectors
 
 

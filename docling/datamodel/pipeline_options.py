@@ -263,7 +263,8 @@ class PipelineOptions(BaseOptions):
     accelerator_options: AcceleratorOptions = AcceleratorOptions()
     enable_remote_services: bool = False
     allow_external_plugins: bool = False
-    save_images: bool = False
+    save_images: bool = True
+    include_wmf: bool = False
 
     artifacts_path: Optional[Union[Path, str]] = None
 

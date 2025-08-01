@@ -122,6 +122,8 @@ class InputDocument(BaseModel):
         backend: Type[AbstractDocumentBackend],
         filename: Optional[str] = None,
         limits: Optional[DocumentLimits] = None,
+        save_images: bool = False,
+        include_wmf: bool = False
     ):
         super().__init__(
             file="", document_hash="", format=InputFormat.PDF
@@ -138,7 +140,7 @@ class InputDocument(BaseModel):
                     self.valid = False
                 else:
                     self.document_hash = create_file_hash(path_or_stream)
-                    self._init_doc(backend, path_or_stream)
+                    self._init_doc(backend, path_or_stream, save_images, include_wmf)
 
             elif isinstance(path_or_stream, BytesIO):
                 assert filename is not None, (
@@ -151,7 +153,7 @@ class InputDocument(BaseModel):
                     self.valid = False
                 else:
                     self.document_hash = create_file_hash(path_or_stream)
-                    self._init_doc(backend, path_or_stream)
+                    self._init_doc(backend, path_or_stream, save_images, include_wmf)
             else:
                 raise RuntimeError(
                     f"Unexpected type path_or_stream: {type(path_or_stream)}"
@@ -190,8 +192,18 @@ class InputDocument(BaseModel):
         self,
         backend: Type[AbstractDocumentBackend],
         path_or_stream: Union[BytesIO, Path],
+        save_images: bool = False,
+        include_wmf: bool = False,
     ) -> None:
-        self._backend = backend(self, path_or_stream=path_or_stream)
+        # HwpxDocumentBackend에 대해서만 save_images 파라미터를 전달
+        if backend.__name__ == 'HwpxDocumentBackend':
+            # include_wmf가 True이면 save_images도 자동으로 True
+            final_save_images = save_images or include_wmf
+            self._backend = backend(self, path_or_stream=path_or_stream, 
+                                   save_images=final_save_images, 
+                                   include_wmf=include_wmf)
+        else:
+            self._backend = backend(self, path_or_stream=path_or_stream)
         if not self._backend.is_valid():
             self.valid = False
 
@@ -270,20 +282,30 @@ class _DocumentConversionInput(BaseModel):
                 backend = format_options[format].backend
 
             if isinstance(obj, Path):
+                format_opt = format_options.get(format)
+                save_images = getattr(format_opt.pipeline_options, 'save_images', False) if format_opt and format_opt.pipeline_options else False
+                include_wmf = getattr(format_opt.pipeline_options, 'include_wmf', False) if format_opt and format_opt.pipeline_options else False
                 yield InputDocument(
                     path_or_stream=obj,
                     format=format,  # type: ignore[arg-type]
                     filename=obj.name,
                     limits=self.limits,
                     backend=backend,
+                    save_images=save_images,
+                    include_wmf=include_wmf,
                 )
             elif isinstance(obj, DocumentStream):
+                format_opt = format_options.get(format)
+                save_images = getattr(format_opt.pipeline_options, 'save_images', False) if format_opt and format_opt.pipeline_options else False
+                include_wmf = getattr(format_opt.pipeline_options, 'include_wmf', False) if format_opt and format_opt.pipeline_options else False
                 yield InputDocument(
                     path_or_stream=obj.stream,
                     format=format,  # type: ignore[arg-type]
                     filename=obj.name,
                     limits=self.limits,
                     backend=backend,
+                    save_images=save_images,
+                    include_wmf=include_wmf,
                 )
             else:
                 raise RuntimeError(f"Unexpected obj type in iterator: {type(obj)}")

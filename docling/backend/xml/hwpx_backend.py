@@ -26,10 +26,15 @@ from copy import deepcopy
 
 
 class HwpxDocumentBackend(DeclarativeDocumentBackend):
-    def __init__(self, in_doc: InputDocument, path_or_stream: Union[Path, BytesIO], save_images: bool = True) -> None:
+    def __init__(self, in_doc: InputDocument, path_or_stream: Union[Path, BytesIO], save_images: bool = True, include_wmf: bool = False) -> None:
         """Initialize the HWPX backend by loading the .hwpx file (zip archive)."""
         super().__init__(in_doc, path_or_stream)
-        self.save_images = save_images
+        
+        # include_wmf가 True이면 save_images도 자동으로 True
+        self.save_images = save_images or include_wmf 
+        self.include_wmf = include_wmf
+        
+        # print(f'save_images: {self.save_images}, include_wmf: {self.include_wmf}')
         self.zip = None
         self.valid = False
         # Hierarchy tracking for section (heading) groups and list items
@@ -1169,32 +1174,47 @@ class HwpxDocumentBackend(DeclarativeDocumentBackend):
         if not WAND_AVAILABLE:
             return None
         try:
-            with WandImage(blob=wmf_bytes) as wand_img:
-                wand_img.format = 'png'
-                return wand_img.make_blob()
+            import os
+            import sys
+            
+            # ImageMagick의 stderr 경고 메시지를 임시로 억제
+            original_stderr = sys.stderr
+            with open(os.devnull, 'w') as devnull:
+                sys.stderr = devnull
+                try:
+                    with WandImage(blob=wmf_bytes) as wand_img:
+                        wand_img.format = 'png'
+                        png_bytes = wand_img.make_blob()
+                    sys.stderr = original_stderr
+                    return png_bytes
+                except Exception as wand_e:
+                    sys.stderr = original_stderr
+                    raise wand_e
         except Exception as e:
-            logging.debug(f"Wand conversion failed: {e}")
+            logging.warning(f"WMF 변환 실패 (변환은 시도됨): {e}")
             return None
 
     def _read_image_bytes(self, bin_id: str) -> Optional[bytes]:
         """Read image bytes from BinData, converting WMF if necessary."""
-        for ext in (".bmp", ".png", ".jpg", ".jpeg", ".wmf", ".tif"):
+        # include_wmf 옵션에 따라 확장자 리스트 결정
+        if self.include_wmf:
+            extensions = (".bmp", ".png", ".jpg", ".jpeg", ".wmf", ".tif")
+        else:
+            extensions = (".bmp", ".png", ".jpg", ".jpeg", ".tif")  # wmf 제외
+            
+        for ext in extensions:
             try:
                 data = self.zip.read(f"BinData/{bin_id}{ext}")
             except KeyError:
                 continue
-            
-            # If WMF, try converting to PNG
-            # if ext == ".wmf":
-            #     converted = self._convert_wmf_to_png(data)
-            #     if converted:
-            #         return converted
-            #     else:
-            #         return None
-            
-            if ext != ".wmf": # WMF는 변환하지 않도록 설정함 
-                # print('wmf not converted')
-                return data
+            # If WMF, try converting to PNG (include_wmf=True인 경우에만 도달)
+            if ext == ".wmf":
+                converted = self._convert_wmf_to_png(data)
+                if converted:
+                    return converted
+                else:
+                    return None
+            return data
         return None
 
     def _process_picture(
@@ -1206,7 +1226,9 @@ class HwpxDocumentBackend(DeclarativeDocumentBackend):
         """Process a picture <hp:pic> element and add an image node."""
         if not self.save_images:
             return
+            
         parent_node = self.current_list_item or self.current_section_group
+        
         # 1) Extract binaryItemIDRef
         img_ref = pic_elem.find("hc:img", namespaces=pic_elem.nsmap)
         if img_ref is None:

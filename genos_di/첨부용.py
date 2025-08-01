@@ -6,7 +6,7 @@ from pathlib import Path
 
 from collections import defaultdict
 from datetime import datetime
-from typing import Optional, Iterable, Any, List, Dict, Tuple
+from typing import Optional, Iterable, Any, List, Dict, Tuple, Type
 
 from fastapi import Request
 
@@ -25,6 +25,7 @@ from docling.datamodel.pipeline_options import (
     PipelineOptions
 )
 
+from docling.backend.abstract_backend import AbstractDocumentBackend
 from docling.document_converter import (
     DocumentConverter,
     PdfFormatOption,
@@ -811,8 +812,10 @@ class DocumentProcessor:
         # pipe_line_options.accelerator_options = accelerator_options
         self.simple_pipeline_options = PipelineOptions()
         self.simple_pipeline_options.save_images = False
+        self._create_converters()
 
         # HWP와 HWPX 모두 지원하는 통합 컨버터
+    def _create_converters(self):
         self.converter = DocumentConverter(
                 format_options={
                     InputFormat.HWP: FormatOption(
@@ -829,10 +832,13 @@ class DocumentProcessor:
             )
         
     def load_documents_with_docling(self, file_path: str, **kwargs: dict) -> DoclingDocument:
-        save_images = kwargs.get('save_images', False)
+        save_images = kwargs.get('save_images', True)
+        include_wmf = kwargs.get('include_wmf', False)
         
-        if self.simple_pipeline_options.save_images != save_images:
+        if (self.simple_pipeline_options.save_images != save_images or
+            getattr(self.simple_pipeline_options, 'include_wmf', False) != include_wmf):
             self.simple_pipeline_options.save_images = save_images
+            self.simple_pipeline_options.include_wmf = include_wmf
             self._create_converters()
             
         conv_result: ConversionResult = self.converter.convert(file_path, raises_on_error=True)

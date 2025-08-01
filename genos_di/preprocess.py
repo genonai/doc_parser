@@ -1020,11 +1020,14 @@ class DocumentProcessor:
 
     def load_documents_with_docling(self, file_path: str, **kwargs: dict) -> DoclingDocument:
         # kwargs에서 save_images 값을 가져와서 옵션 업데이트
-        save_images = kwargs.get('save_images', False)
+        save_images = kwargs.get('save_images', True)
+        include_wmf = kwargs.get('include_wmf', False)
 
         # save_images 옵션이 현재 설정과 다르면 컨버터 재생성
-        if self.simple_pipeline_options.save_images != save_images:
+        if (self.simple_pipeline_options.save_images != save_images or
+            getattr(self.simple_pipeline_options, 'include_wmf', False) != include_wmf):
             self.simple_pipeline_options.save_images = save_images
+            self.simple_pipeline_options.include_wmf = include_wmf
             self._create_converters()
 
         try:
@@ -1199,6 +1202,8 @@ class DocumentProcessor:
                 temp_list.append({'path': path, 'name': name})
         return temp_list
     async def __call__(self, request: Request, file_path: str, **kwargs: dict):
+        # kwargs['save_images'] = True    # 이미지 처리
+        # kwargs['include_wmf'] = True   # wmf 처리         
         document: DoclingDocument = self.load_documents(file_path, **kwargs)
 
         output_path, output_file = os.path.split(file_path)
