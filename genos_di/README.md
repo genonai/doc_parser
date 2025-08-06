@@ -17,12 +17,8 @@ genos_di/
 │   └── utils.py                       # 비동기 처리 유틸리티
 │
 ├── 설정 파일
-│   └── processor_config.json          # 확장자별 처리 모드 및 기본값 설정
-│
-└── 레거시/참조 파일
-    ├── preprocess.py                  # 원본 Docling 기반 (참조용)
-    ├── 서부발전전처리기.py              # 원본 LangChain 기반 (참조용)
-    └── 기타...
+    └── processor_config.json          # 확장자별 처리 모드 및 기본값 설정
+
 ```
 
 ### Facade 패턴 구조 (docling/facade/)
@@ -182,7 +178,7 @@ processor.set_processor_option('pdf', 'chunking.max_tokens', 1536)
 
 | 모드 | 프로세서 | 장점 | 단점 | 사용 시기 |
 |------|----------|------|------|-----------|
-| **지능형** | Docling | • AI 기반 구조 분석<br>• 테이블/이미지 처리<br>• Enrichment 지원 | • 처리 시간 길음<br>• 리소스 많이 사용 | 고품질 처리 필요시 |
+| **지능형** | Docling | • AI 기반 구조 분석<br>• 테이블/이미지 처리<br>• Enrichment 지원 | • 처리 시간 김<br>• 리소스 많이 사용 | 고품질 처리 필요시 |
 | **기본형** | LangChain | • 빠른 처리<br>• 다양한 형식 지원<br>• 안정적 | • 단순 텍스트 추출<br>• 구조 정보 제한적 | 대량 처리시 |
 
 ## 🔧 processor_config.json 완전한 기본값 구조
@@ -326,29 +322,6 @@ processor.enable_ocr(['pdf'])  # OCR 활성화
 processor.save_config('project_config.json')
 ```
 
-## ⚙️ 고급 기능
-
-### 모드 토글
-```python
-# PDF 모드 전환 (intelligent ↔ basic)
-new_mode = processor.toggle_mode('pdf')
-print(f"PDF mode: {new_mode}")
-```
-
-### 설정 상태 확인
-```python
-# 현재 설정 출력 (기본값 포함)
-processor.print_status()
-
-# 설정 정보 가져오기
-config = processor.get_configuration()
-
-# 특정 파일의 프로세서 정보
-info = processor.get_processor_info('document.pdf')
-print(f"Processor: {info['processor']}, Mode: {info['mode']}")
-print(f"Options: {info['options']}")  # 모든 기본값 포함
-```
-
 ## 🔄 처리 흐름
 
 ```mermaid
@@ -399,20 +372,6 @@ graph TD
 | chunk_bboxes | str | "[]" | 바운딩 박스 (JSON) |
 | media_files | str | "[]" | 미디어 파일 (JSON) |
 
-## 📈 성능 고려사항
-
-### 지능형 모드 (기본값 기준)
-- **처리 시간**: PDF 1페이지당 약 2-5초
-- **메모리 사용**: 문서당 200-500MB
-- **CPU 사용**: 높음 (AI 모델 실행)
-- **청킹**: 최대 2000 토큰
-
-### 기본형 모드 (기본값 기준)
-- **처리 시간**: PDF 1페이지당 약 0.1-0.5초
-- **메모리 사용**: 문서당 50-100MB
-- **CPU 사용**: 낮음 (텍스트 추출만)
-- **청킹**: 1000자 단위, 200자 중첩
-
 ## 🚨 주의사항
 
 1. **Whisper 서버**: 오디오 처리를 위해 Whisper 서버가 실행 중이어야 함
@@ -421,34 +380,3 @@ graph TD
 3. **파일 권한**: 임시 파일 생성을 위한 쓰기 권한 필요
 4. **의존성**: Docling, LangChain, Pandas 등 필수 패키지 설치 필요
 5. **기본값 변경**: processor_config.json을 직접 수정하거나 API 사용
-
-## 📦 설치
-
-```bash
-# 필수 패키지
-pip install docling langchain pydub pandas transformers
-
-# 오디오 처리 (선택)
-pip install openai-whisper
-
-# PDF 처리 개선 (선택)
-pip install pymupdf unstructured
-```
-
-## ✅ Facade 패턴 장점
-
-1. **유지보수성**: 각 processor 독립적 수정 가능
-2. **테스트 용이**: 컴포넌트별 단위 테스트
-3. **코드 가독성**: 명확한 책임 분리
-4. **확장성**: 새 파일 타입 = 새 processor 추가만
-5. **유연한 설정**: 확장자별 처리 방식 동적 변경
-6. **성능 최적화**: 필요시에만 고급 처리 사용
-7. **설정 관리**: JSON 파일로 설정 저장/공유
-8. **기본값 보장**: 모든 옵션에 안전한 기본값 제공
-
-## 📞 문의
-
-문제 발생 시 다음 파일을 확인하세요:
-- 설정 문제: `processor_config.json` (모든 기본값 포함)
-- 처리 로직: `new_preprocess_configurable.py`
-- Facade 구조: `docling/facade/document_facade.py`
