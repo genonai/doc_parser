@@ -443,7 +443,7 @@ class HybridChunker(BaseChunker):
         if self.merge_peers:
             res = self._merge_chunks_with_matching_metadata(res)
         return iter(res)
-    
+
 class GenOSVectorMeta(BaseModel):
     class Config:
         extra = 'allow'
@@ -583,7 +583,7 @@ class DocumentProcessor:
 
     def split_documents(self, documents: DoclingDocument, **kwargs: dict) -> List[DocChunk]:
         chunker: HybridChunker = HybridChunker()
-        
+
         chunks: List[DocChunk] = list(chunker.chunk(dl_doc=documents, **kwargs))
         return chunks
 
@@ -591,7 +591,7 @@ class DocumentProcessor:
         if not isinstance(iterable, (list, tuple, set)):
             return ''
         return ''.join(map(str, iterable)) + '\n'
-    
+
     def compose_vectors(self, document: DoclingDocument, chunks: List[DocChunk], file_path: str, **kwargs: dict) -> \
             list[dict]:
         global_metadata = dict(
@@ -604,7 +604,7 @@ class DocumentProcessor:
         vectors = []
         for chunk_idx, chunk in enumerate(chunks):
             content = self.safe_join(chunk.meta.headings) + chunk.text
-            
+
             vector = (GenOSVectorMetaBuilder()
                     .set_text(content)
                     .set_page_info(1, chunk_idx, len(chunks))
@@ -637,7 +637,7 @@ class DocumentProcessor:
             reference_path = artifacts_dir.parent
 
         wb = openpyxl.load_workbook(file_path, data_only=True)
-        
+
         # 시트명 반복
         chunks: List[DocChunk] = []
         for sheet_name in wb.sheetnames:
@@ -646,7 +646,7 @@ class DocumentProcessor:
             new_wb = openpyxl.Workbook()
             new_ws = new_wb.active
             new_ws.title = sheet_name
-            
+
             # 기존 시트의 셀 내용을 새 워크북으로 복사
             for row in ws.iter_rows(values_only=True):
                 new_ws.append(row)
@@ -658,7 +658,7 @@ class DocumentProcessor:
             os.remove(sheet_path)
             # await assert_cancelled(request)
             document = document._with_pictures_refs(image_dir=Path(f"{artifacts_dir}/{sheet_name}"), reference_path=Path(f"{reference_path}/{sheet_name}"))
-        
+
             # Extract Chunk from DoclingDocument
             chunk: List[DocChunk] = self.split_documents(document, **kwargs)
             # await assert_cancelled(request)
@@ -669,7 +669,7 @@ class DocumentProcessor:
             vectors: list[dict] = self.compose_vectors(document, chunks, file_path, **kwargs)
         else:
             raise GenosServiceException(1, f"chunk length is 0")
-        
+
         """
         # 미디어 파일 업로드 방법
         media_files = [

@@ -174,9 +174,9 @@ class HierarchicalChunker(BaseChunker):
                 header_info = {k: v for k, v in current_heading_by_level.items()}
                 all_header_info.append(header_info)
                 continue
-            
-            if (isinstance(item, TextItem) or 
-                isinstance(item, ListItem) or 
+
+            if (isinstance(item, TextItem) or
+                isinstance(item, ListItem) or
                 isinstance(item, CodeItem) or
                 isinstance(item, TableItem) or
                 isinstance(item, PictureItem)):
@@ -1203,7 +1203,7 @@ class DocumentProcessor:
         return temp_list
     async def __call__(self, request: Request, file_path: str, **kwargs: dict):
         # kwargs['save_images'] = True    # 이미지 처리
-        # kwargs['include_wmf'] = True   # wmf 처리         
+        # kwargs['include_wmf'] = True   # wmf 처리
         document: DoclingDocument = self.load_documents(file_path, **kwargs)
 
         output_path, output_file = os.path.split(file_path)

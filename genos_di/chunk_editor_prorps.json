@@ -28,7 +28,7 @@
   },
   {
     "dataType": ["text"],
-    "description": "타입(법령, 행정규칙 등)", 
+    "description": "타입(법령, 행정규칙 등)",
     "indexFilterable": true,
     "indexRangeFilters": false,
     "indexSearchable": true,

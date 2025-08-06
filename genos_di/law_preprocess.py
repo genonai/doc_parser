@@ -20,11 +20,11 @@ class DocumentChunk(BaseModel):
     hierarchy_path: Optional[str] = None
     #parent: Optional[Dict[str, str]] = None
     reg_date: Optional[str] = None
-    
+
     # 조문 관련
     article_id: Optional[str] = None
     article_num: Optional[int] = None
-    article_sub_num: Optional[int] = None 
+    article_sub_num: Optional[int] = None
     article_title: Optional[str] = None
     chapter_number: Optional[int] = None
     chapter_title: Optional[str] = None
@@ -45,7 +45,7 @@ class DocumentChunk(BaseModel):
     appendix_id: Optional[str] = None
     appendix_num: Optional[int] = None
     appendix_sub_num: Optional[int] = None
-    appendix_seq_num: Optional[str] = None 
+    appendix_seq_num: Optional[str] = None
     appendix_title: Optional[str] = None
     file_link: Optional[str] = None
     appendix_type: Optional[str] = None
@@ -62,7 +62,7 @@ class DocumentChunk(BaseModel):
     article_form: Optional[bool] = None
     is_effective: Optional[str] = None  # "현행", "예정", "연혁"
     announce_date: Optional[str] = None
-    enforce_date: Optional[str] = None 
+    enforce_date: Optional[str] = None
     enact_date: Optional[str] = None
     dept: Optional[str] = None
     file_attached: Optional[List[List[str]]] = None # 행정규칙 첨부파일 (ID, 파일명, 파일링크)
@@ -97,7 +97,7 @@ class DocumentProcessor:
         circled_number_map = {'①': '1', '②': '2', '③': '3', '④': '4', '⑤': '5',
                             '⑥': '6', '⑦': '7', '⑧': '8', '⑨': '9', '⑩': '10'}
         lines = text.splitlines()
-        LEVELS = ["조문", "항", "호", "목", "세목", "세세목"] 
+        LEVELS = ["조문", "항", "호", "목", "세목", "세세목"]
         for line in lines:
             detected = {}
 
@@ -194,7 +194,7 @@ class DocumentProcessor:
         # match = re.search(r"metadata_(\d+)_", input_path.name)
         if not match:
             raise ValueError("Invalid file name format. Expected 'metadata_<id>_...'")
-        id_number = match.group(1) # output 파일명에 쓰려고 뽑음 
+        id_number = match.group(1) # output 파일명에 쓰려고 뽑음
 
         self.parser_result :ParserResult= self.load_json_as_model(str(input_path), ParserResult)
         law_metadata = self.parser_result.law.metadata
@@ -207,7 +207,7 @@ class DocumentProcessor:
 
         # 메타데이터 공통 처리
         base = base_fields.copy()
-        if isinstance(law_metadata, LawMetadata): # LawMetadata 클래스의 인스턴스면 법령이라고 판단 
+        if isinstance(law_metadata, LawMetadata): # LawMetadata 클래스의 인스턴스면 법령이라고 판단
             base.update({
                 "law_name": law_metadata.law_name,
                 "law_id": law_metadata.law_id,
@@ -229,7 +229,7 @@ class DocumentProcessor:
                 "text":law_metadata.law_name,
                 "reg_date": datetime.now().isoformat(timespec='seconds') + 'Z'
             })
-        elif isinstance(law_metadata, AdmRuleMetadata): # AdmRuleMetadata 클래스의 인스턴스면 행정규칙이라고 판단 
+        elif isinstance(law_metadata, AdmRuleMetadata): # AdmRuleMetadata 클래스의 인스턴스면 행정규칙이라고 판단
             base.update({
                 "admrule_id": law_metadata.admrule_id,
                 "admrule_num": law_metadata.admrule_num,
@@ -261,7 +261,7 @@ class DocumentProcessor:
             content = "\n".join(article.content)
             is_law = isinstance(meta, LawArticleMetadata)
             split_texts = splitter.split_text(content)
-            
+
             # 바뀐코드(parent 뒤로 미루기기)
             parent_prev = {}
             parent_curr = {}
@@ -318,8 +318,8 @@ class DocumentProcessor:
                 detected = self.extract_parent_from_text(chunk_text)
                 parent_curr = self.update_hierarchy_memory(parent_prev, detected)
                 parent_prev = parent_curr.copy()
-        
-        # tab 처리된 부칙 처리가 가능한 코드  
+
+        # tab 처리된 부칙 처리가 가능한 코드
         for addendum in self.parser_result.addendum:
             meta = addendum.metadata
             content_lines = addendum.content
@@ -330,7 +330,7 @@ class DocumentProcessor:
             global_chunk_idx = 0  # 부칙 내 청크 인덱스
 
             for article in article_blocks:
-                raw_text = "\n".join([article["title"]] + article["body"]) # title은 path로 넣으면 됨 
+                raw_text = "\n".join([article["title"]] + article["body"]) # title은 path로 넣으면 됨
                 split_chunks = splitter.split_text(raw_text)
 
                 parent_prev = {}
@@ -357,7 +357,7 @@ class DocumentProcessor:
                         "announce_date": meta.announce_date,
                         "related_laws": meta.related_laws,
                         "related_articles": meta.related_articles,
-                        "i_chunk_on_addendum": global_chunk_idx, 
+                        "i_chunk_on_addendum": global_chunk_idx,
                         # n_chunk_of_addendum은 아래에서 일괄 할당
                     })
                     addendum_chunks.append(DocumentChunk(**d).model_dump())
@@ -393,7 +393,7 @@ class DocumentProcessor:
                 "related_articles": meta.related_articles
             })
             documents.append(DocumentChunk(**d).model_dump())
-            
+
             # test_type = DocumentChunk(**chunk_data)
 
             # 모델 인스턴스를 딕셔너리로 변환 (model_dump 사용)

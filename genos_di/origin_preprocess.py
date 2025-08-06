@@ -139,7 +139,7 @@ class DocumentProcessor:
         chunks = [chunk for chunk in chunks if chunk.page_content]
         if not chunks:
             raise Exception('Empty document')
-        
+
         for chunk in chunks:
             self.page_chunk_counts[chunk.metadata['page']] += 1
         return chunks

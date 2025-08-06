@@ -22,7 +22,7 @@ import asyncio
 async def process_document():
     # print(file_path)  # 파일 경로 출력 숨김
     vectors = await doc_processor(mock_request, file_path)
-    # WMF 변환 여부는 include_wmf 파라미터 전달: 현재 한글만 지원 
+    # WMF 변환 여부는 include_wmf 파라미터 전달: 현재 한글만 지원
     # vectors = await doc_processor(mock_request, file_path, save_images=True, include_wmf=False)
     return vectors
 
