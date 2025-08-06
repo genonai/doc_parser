@@ -430,21 +430,21 @@ class HybridChunker(BaseChunker):
                 table_header_infos = []
 
                 # 앞 아이템 추가 (가능한 경우)
-                if i > 0 and len(result_chunks) == 0:  # 첫 번째 테이블이고 앞에 아이템이 있는 경우
-                    table_items.append(items[i - 1])
-                    prev_header_info = header_info_list[i - 1] if i - 1 < len(header_info_list) else {}
-                    table_header_infos.append(prev_header_info)
+                # if i > 0 and len(result_chunks) == 0:  # 첫 번째 테이블이고 앞에 아이템이 있는 경우
+                #     table_items.append(items[i - 1])
+                #     prev_header_info = header_info_list[i - 1] if i - 1 < len(header_info_list) else {}
+                #     table_header_infos.append(prev_header_info)
 
                 # 테이블 추가
                 table_items.append(item)
                 table_header_infos.append(header_info)
 
                 # 뒤 아이템 추가 (가능한 경우)
-                if i + 1 < len(items):
-                    table_items.append(items[i + 1])
-                    next_header_info = header_info_list[i + 1] if i + 1 < len(header_info_list) else {}
-                    table_header_infos.append(next_header_info)
-                    i += 1  # 다음 아이템은 이미 처리했으므로 스킵
+                # if i + 1 < len(items):
+                #     table_items.append(items[i + 1])
+                #     next_header_info = header_info_list[i + 1] if i + 1 < len(header_info_list) else {}
+                #     table_header_infos.append(next_header_info)
+                #     i += 1  # 다음 아이템은 이미 처리했으므로 스킵
 
                 # 테이블 청크 생성 (토큰 제한 확인)
                 table_text = self._generate_text_from_items_with_headers(
