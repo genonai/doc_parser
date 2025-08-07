@@ -59,7 +59,6 @@ except ImportError:
     print("Warning: WeasyPrint could not be imported. PDF conversion features will be disabled.")
     HTML = None
 
-# Genos Packages #
 from docling.datamodel.base_models import InputFormat
 from docling.datamodel.pipeline_options import PipelineOptions
 from docling.datamodel.document import ConversionResult
@@ -204,8 +203,6 @@ class GenOSVectorMetaBuilder:
             reg_date=self.reg_date,
             chunk_bboxes=self.chunk_bboxes,
             media_files=self.media_files,
-            # title=self.title,
-            # created_date=self.created_date,
         )
 
 
@@ -723,24 +720,17 @@ class HybridChunker(BaseChunker):
             if self._count_chunk_tokens(doc_chunk=new_chunk) <= self.max_tokens:
                 if window_end < num_items - 1:
                     window_end += 1
-                    # Still room left to add more to this chunk AND still at least one
-                    # item left
+                    # 아직 청크에 여유가 있고, 남은 아이템도 있으므로 계속 추가 시도
                     continue
                 else:
-                    # All the items in the window fit into the chunk and there are no
-                    # other items left
+                    # 현재 윈도우의 모든 아이템이 청크에 들어갔고, 더 이상 아이템이 없음
                     window_end = num_items  # signalizing the last loop
             elif window_start == window_end:
-                # Only one item in the window and it doesn't fit into the chunk. So
-                # we'll just make it a chunk for now and it will get split in the
-                # plain text splitter.
+                # 아이템 1개도 청크에 안 들어감 → 단독 청크로 처리, 이후 재분할
                 window_end += 1
                 window_start = window_end
             else:
-                # Multiple items in the window but they don't fit into the chunk.
-                # However, the existing items must have fit or we wouldn't have
-                # gotten here. So we put everything but the last item into the chunk
-                # and then start a new window INCLUDING the current window end.
+                # 마지막 아이템 빼고 청크 생성 → 남은 아이템으로 새 윈도우 시작
                 new_chunk = self._make_chunk_from_doc_items(
                     doc_chunk=doc_chunk,
                     window_start=window_start,
@@ -755,8 +745,7 @@ class HybridChunker(BaseChunker):
         if lengths.total_len <= self.max_tokens:
             return [doc_chunk]
         else:
-            # How much room is there for text after subtracting out the headers and
-            # captions:
+            # 헤더/캡션을 제외하고 본문 텍스트에 할당 가능한 토큰 수 계산
             available_length = self.max_tokens - lengths.other_len
             sem_chunker = semchunk.chunkerify(
                 self._tokenizer, chunk_size=available_length
@@ -804,23 +793,18 @@ class HybridChunker(BaseChunker):
                 if (headings_and_captions == current_headings_and_captions 
                     and self._count_chunk_tokens(doc_chunk=candidate) <= self.max_tokens
                     ):
-                    # there is room to include the new chunk so add it to the window and
-                    # continue
+                    # 토큰 수 여유 있음 → 청크 확장 계속
                     window_end += 1
                     new_chunk = candidate
                 else:
                     ready_to_append = True
 
             if ready_to_append or window_end == num_chunks:
-                # no more room OR the start of new metadata.  Either way, end the block
-                # and use the current window_end as the start of a new block
+                # no more room OR the start of new metadata. 
                 if window_start + 1 == window_end:
-                    # just one chunk so use it as is
                     output_chunks.append(first_chunk_of_window)
                 else:
                     output_chunks.append(new_chunk)
-                # no need to reset window_text, etc. because that will be reset in the
-                # next iteration in the if window_start == window_end block
                 window_start = window_end
 
         return output_chunks
