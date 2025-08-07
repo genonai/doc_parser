@@ -204,7 +204,7 @@ class DocumentEnrichmentUtils:
             for page in range(1, min(3, total_pages + 1)):
                 temp_content += document.export_to_markdown(page_no=page)
 
-            metadata = self._extract_document_metadata(temp_content)
+            metadata = self._extract_document_metadata_date(temp_content)
             if metadata:
                 _log.info(f"추출된 메타데이터: {json.dumps(metadata, ensure_ascii=False, indent=2)}")
 
@@ -450,6 +450,53 @@ class DocumentEnrichmentUtils:
                 try:
                     metadata = json.loads(match.group(1))
                     return metadata
+                except:
+                    return {"작성일": None, "작성자": []}
+            else:
+                try:
+                    # JSON 블록이 없는 경우 전체 응답을 JSON으로 파싱 시도
+                    return json.loads(response)
+                except:
+                    return {"작성일": None, "작성자": []}
+
+        except Exception as e:
+            _log.error(f"메타데이터 추출 중 오류 발생: {str(e)}")
+            return {"작성일": None, "작성자": []}
+
+
+    def _extract_document_metadata_date(self, document_content):
+        """
+        문서 내용에서 메타데이터 정보를 추출하는 함수
+
+        Args:
+            document_content (str): 문서 내용
+
+        Returns:
+            dict: 추출된 메타데이터 딕셔너리
+        """
+        try:
+            # 사용자 정의 프롬프트 가져오기
+            custom_system = self.enrichment_options.metadata_system_prompt
+            custom_user = self.enrichment_options.metadata_user_prompt
+
+            # 프롬프트 매니저를 사용하여 AI 모델 호출
+            response = self.prompt_manager.call_ai_model(
+                category="metadata_extraction",
+                prompt_type="korean_financial_date",
+                custom_system=custom_system,
+                custom_user=custom_user,
+                document_content=document_content
+            )
+
+            if not response:
+                return {"작성일": None, "작성자": []}
+
+            # date 찾기
+            match = re.search(r"<date>(.*?)</date>", response)
+
+            if match:
+                try:
+                    return {"작성일": match.group(1), "작성자": []}
                 except:
                     return {"작성일": None, "작성자": []}
             else:
