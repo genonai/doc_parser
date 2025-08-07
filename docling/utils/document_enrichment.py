@@ -134,6 +134,7 @@ class DocumentEnrichmentUtils:
                 metadata_config["max_tokens"] = self.enrichment_options.metadata_max_tokens
 
             custom_api_configs["metadata_extraction"] = metadata_config
+            custom_api_configs["document_checking"] = metadata_config # 문서 품질 검사도 같은 설정 사용
 
         return custom_api_configs
 
@@ -245,6 +246,65 @@ class DocumentEnrichmentUtils:
 
         except Exception as e:
             _log.error(f"메타데이터 추출 중 오류 발생: {str(e)}")
+            return False
+
+    def check_document_with_good_text(self, document: DoclingDocument) -> bool:
+        """
+        문서의 텍스트 품질을 검사하여 OCR이 필요한지 판단
+
+        Args:
+            document: DoclingDocument 객체
+
+        Returns:
+            bool: OCR이 필요하지 않으면 True, 필요하면 False
+        """
+        if not self.prompt_manager:
+            return 0
+
+        def get_text_by_page(doc: DoclingDocument, last_page_no: int = 0):
+            page_texts = ""
+
+            for item, level in doc.iterate_items():
+                if isinstance(item, TextItem) and hasattr(item, 'prov') and item.prov:
+                    page_no = item.prov[0].page_no
+                    if last_page_no != 0 and page_no <= last_page_no:
+                        page_texts += item.text
+
+            return page_texts
+
+        try:
+            _log.info("문서 품질 검사 시작...")
+
+            page_texts = get_text_by_page(document, last_page_no=10)
+
+            text  = page_texts
+            if len(text) > 500:
+                text = text[:500] + "..."
+            if len(text) == 0:
+                return False  # 텍스트가 없으면 OCR 필요
+
+            text_len = len(text)
+            non_ascii_ratio = sum(1 for c in text if ord(c) > 127) / text_len if text_len > 0 else 0
+            space_ratio = text.count(' ') / text_len if text_len > 0 else 1.0
+
+            response = self.prompt_manager.call_ai_model(
+                category="document_checking",
+                prompt_type="text_checking",
+                content=text,
+                text_len=text_len,
+                non_ascii_ratio=non_ascii_ratio,
+                space_ratio=space_ratio
+            )
+            if response:
+                decision_match = re.search(r'<decision>\s*(YES|NO)\s*</decision>', response, re.IGNORECASE)
+                decision = decision_match.group(1).strip()
+            else:
+                decision = "YES"
+
+            return False if decision == "YES" else True # OCR이 필요하지 않으면 True, 필요하면 False
+
+        except Exception as e:
+            _log.error(f"문서 품질 검사 중 오류 발생: {str(e)}")
             return False
 
     def _convert_section_headers_to_text(self, document):
@@ -615,3 +675,26 @@ def add_metadata(document: DoclingDocument, enrichment_options: DataEnrichmentOp
     )
 
     return enrich_document(document, metadata_options)
+
+
+def check_document(document: DoclingDocument, enrichment_options: DataEnrichmentOptions) -> bool:
+    """
+    문서의 텍스트 품질을 검사하여 OCR이 필요한지 판단하고, 필요시 OCR 적용
+
+    Args:
+        document: 원본 DoclingDocument 객체
+        enrichment_options: 데이터 enrichment 옵션
+
+    Returns:
+        bool: OCR이 필요하지 않으면 True, 필요하면 False
+    """
+    if not document:
+        return False
+
+    try:
+        enricher = DocumentEnrichmentUtils(enrichment_options)
+        return enricher.check_document_with_good_text(document)
+
+    except Exception as e:
+        _log.error(f"문서 품질 검사 중 오류 발생: {str(e)}")
+        return False
