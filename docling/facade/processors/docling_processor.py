@@ -1,7 +1,6 @@
 """Docling Processor for PDF and HWPX files with enrichment"""
 
 import os
-import sys
 import asyncio
 from pathlib import Path
 from datetime import datetime
@@ -17,10 +16,7 @@ from docling_core.types.doc import PictureItem
 
 from docling.facade.models import GenOSVectorMetaBuilder
 from docling.facade.utils.base import BaseProcessor
-
-# Add path for chunkers import
-sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))))
-from genos_di.new_preprocess import HybridChunker
+from docling.facade.chunkers import HybridChunker
 
 
 class DoclingProcessor(BaseProcessor):
@@ -142,11 +138,20 @@ class DoclingProcessor(BaseProcessor):
                         media_files.append({'path': path, 'name': name})
                 
                 if media_files:
-                    # Import from genos_di
-                    from genos_di.genos_utils import upload_files
-                    upload_tasks.append(asyncio.create_task(
-                        upload_files(media_files, request=request)
-                    ))
+                    # Try to import upload_files if available
+                    try:
+                        import sys
+                        import os
+                        parent_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
+                        if parent_dir not in sys.path:
+                            sys.path.append(parent_dir)
+                        from genos_di.genos_utils import upload_files
+                        upload_tasks.append(asyncio.create_task(
+                            upload_files(media_files, request=request)
+                        ))
+                    except ImportError:
+                        # If genos_utils is not available, skip upload
+                        pass
         
         if upload_tasks:
             await asyncio.gather(*upload_tasks)
