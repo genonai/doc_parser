@@ -278,13 +278,14 @@ class DocumentEnrichmentUtils:
             page_texts = get_text_by_page(document, last_page_no=10)
 
             text  = page_texts
-            if len(text) > 500:
-                text = text[:500] + "..."
+            if len(text) > 3000:
+                # text = text[:3000] + "..."
+                text = self._extract_substrings(text, length=1000)
             if len(text) == 0:
                 return False  # 텍스트가 없으면 OCR 필요
 
             text_len = len(text)
-            non_ascii_ratio = sum(1 for c in text if ord(c) > 127) / text_len if text_len > 0 else 0
+            non_ascii_ratio = sum(1 for c in text if self._is_non_meaningful_char(c)) / text_len if text_len > 0 else 0
             space_ratio = text.count(' ') / text_len if text_len > 0 else 1.0
 
             response = self.prompt_manager.call_ai_model(
@@ -306,6 +307,100 @@ class DocumentEnrichmentUtils:
         except Exception as e:
             _log.error(f"문서 품질 검사 중 오류 발생: {str(e)}")
             return False
+
+    def _is_non_meaningful_char(self, c):
+        # 공백은 제외
+        if c.isspace():
+            return False
+        # 한글 (가-힣, ㄱ-ㅎ, ㅏ-ㅣ)
+        if '가' <= c <= '힣' or 'ㄱ' <= c <= 'ㅎ' or 'ㅏ' <= c <= 'ㅣ':
+            return False
+        # 한자 (CJK Unified Ideographs)
+        if '\u4e00' <= c <= '\u9fff':
+            return False
+        # 일본어 (가타카나, 히라가나)
+        if '\u3040' <= c <= '\u30ff':
+            return False
+        # 숫자, 알파벳, 기본 문장 부호
+        if c.isascii():
+            return False
+        # 위 조건에 해당하지 않는 문자는 비의미(non-meaningful)로 처리
+        return True
+
+    def _extract_substrings(self, text, length=1000):
+        """
+        원본 문자열에서 20%, 50%, 80% 위치의 부분 문자열을 추출
+
+        Args:
+            text (str): 원본 문자열
+            length (int): 각 부분 문자열의 길이 (기본값: 1000)
+
+        Returns:
+            dict: 각 위치별 부분 문자열을 담은 딕셔너리
+        """
+        text_len = len(text)
+
+        # 최소 길이 체크
+        if text_len < length * 3:
+            return text
+
+        # 20%, 50%, 80% 위치 계산
+        pos_20 = int(text_len * 0.2)
+        pos_50 = int(text_len * 0.5)
+        pos_80 = int(text_len * 0.8)
+
+        # 각 위치를 중심으로 하는 구간의 시작점과 끝점 계산
+        half_length = length // 2
+        ranges = [
+            (max(0, pos_20 - half_length), min(text_len, pos_20 + half_length)),     # 20% 중심
+            (max(0, pos_50 - half_length), min(text_len, pos_50 + half_length)),     # 50% 중심
+            (max(0, pos_80 - half_length), min(text_len, pos_80 + half_length))      # 80% 중심
+        ]
+
+        # 실제 길이가 요청된 길이와 다를 수 있으므로 조정
+        for i in range(len(ranges)):
+            start, end = ranges[i]
+            actual_length = end - start
+
+            # 길이가 부족한 경우 조정
+            if actual_length < length:
+                shortage = length - actual_length
+
+                # 앞쪽으로 확장 가능한지 확인
+                if start > 0:
+                    extend_front = min(shortage, start)
+                    start -= extend_front
+                    shortage -= extend_front
+
+                # 뒤쪽으로 확장 가능한지 확인
+                if shortage > 0 and end < text_len:
+                    extend_back = min(shortage, text_len - end)
+                    end += extend_back
+
+                ranges[i] = (start, end)
+
+        # 중복 체크 및 조정
+        for i in range(len(ranges)):
+            for j in range(i + 1, len(ranges)):
+                start1, end1 = ranges[i]
+                start2, end2 = ranges[j]
+
+                # 겹치는 경우 뒤의 구간을 뒤로 이동
+                if start2 < end1:
+                    shift = end1 - start2
+                    ranges[j] = (start2 + shift, end2 + shift)
+
+        # 마지막 구간이 텍스트 길이를 초과하는지 체크
+        if ranges[-1][1] > text_len:
+            ranges[-1] = (ranges[-1][0], text_len)
+
+        # 텍스트 추출
+        result = ""
+
+        for start, end in ranges:
+            result += text[start:end] + "\n"
+
+        return result
 
     def _convert_section_headers_to_text(self, document):
         """문서의 모든 SectionHeaderItem을 TextItem으로 변환"""
