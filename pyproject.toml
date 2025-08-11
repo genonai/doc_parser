@@ -116,26 +116,6 @@ asr = [
     "openai-whisper>=20250625",
 ]
 
-[[tool.uv.index]]
-name = "paddle-cpu"
-url = "https://www.paddlepaddle.org.cn/packages/stable/cpu/"
-explicit = true
-
-[[tool.uv.index]]
-name = "paddle-cu118"
-url = "https://www.paddlepaddle.org.cn/packages/stable/cu118/"
-explicit = true
-
-[[tool.uv.index]]
-name = "paddle-cu126"
-url = "https://www.paddlepaddle.org.cn/packages/stable/cu126/"
-explicit = true
-
-[[tool.uv.index]]
-name = "paddle-cu129"
-url = "https://www.paddlepaddle.org.cn/packages/stable/cu129/"
-explicit = true
-
 [dependency-groups]
 dev = [
     "pre-commit~=3.7",
@@ -157,7 +137,6 @@ dev = [
     "nbqa~=1.9",
     "python-semantic-release~=7.32",
 ]
-gpu = ["paddlepaddle-gpu>=3.1.0"]
 docs = [
     "mkdocs-material~=9.5",
     "mkdocs-jupyter~=0.25",
