@@ -108,15 +108,15 @@ class GenOSVectorMetaBuilder:
         """빌더 초기화"""
         self.text: Optional[str] = None
         self.n_char: Optional[int] = None
-        self.n_words: Optional[int] = None
-        self.n_lines: Optional[int] = None
+        self.n_word: Optional[int] = None
+        self.n_line: Optional[int] = None
         self.i_page: Optional[int] = None
         self.e_page: Optional[int] = None
         self.i_chunk_on_page: Optional[int] = None
-        self.n_chunk_of_pages: Optional[int] = None
+        self.n_chunk_of_page: Optional[int] = None
         self.i_chunk_on_doc: Optional[int] = None
         self.n_chunk_of_doc: Optional[int] = None
-        self.n_pages: Optional[int] = None
+        self.n_page: Optional[int] = None
         self.reg_date: Optional[str] = None
         self.chunk_bboxes: Optional[str] = None
         self.media_files: Optional[str] = None
@@ -127,15 +127,15 @@ class GenOSVectorMetaBuilder:
         """텍스트와 관련된 데이터를 설정"""
         self.text = text
         self.n_char = len(text)
-        self.n_words = len(text.split())
-        self.n_lines = len(text.splitlines())
+        self.n_word = len(text.split())
+        self.n_line = len(text.splitlines())
         return self
 
     def set_page_info(self, i_page: int, i_chunk_on_page: int, n_chunk_of_page: int) -> "GenOSVectorMetaBuilder":
         """페이지 정보 설정"""
         self.i_page = i_page
         self.i_chunk_on_page = i_chunk_on_page
-        self.n_chunk_of_pages = n_chunk_of_page
+        self.n_chunk_of_page = n_chunk_of_page
         return self
 
     def set_chunk_index(self, i_chunk_on_doc: int) -> "GenOSVectorMetaBuilder":
@@ -191,15 +191,15 @@ class GenOSVectorMetaBuilder:
         return GenOSVectorMeta(
             text=self.text,
             n_char=self.n_char,
-            n_words=self.n_words,
-            n_lines=self.n_lines,
+            n_word=self.n_word,
+            n_line=self.n_line,
             i_page=self.i_page,
             e_page=self.e_page,
             i_chunk_on_page=self.i_chunk_on_page,
-            n_chunk_of_pages=self.n_chunk_of_pages,
+            n_chunk_of_page=self.n_chunk_of_page,
             i_chunk_on_doc=self.i_chunk_on_doc,
             n_chunk_of_doc=self.n_chunk_of_doc,
-            n_pages=self.n_pages,
+            n_page=self.n_page,
             reg_date=self.reg_date,
             chunk_bboxes=self.chunk_bboxes,
             media_files=self.media_files,
@@ -1070,8 +1070,8 @@ class DocumentProcessor:
             vectors.append(GenOSVectorMeta.model_validate({
                 'text': text,
                 'n_char': len(text),
-                'n_words': len(text.split()),
-                'n_lines': len(text.splitlines()),
+                'n_word': len(text.split()),
+                'n_line': len(text.splitlines()),
                 'i_page': page,
                 'i_chunk_on_page': chunk_index_on_page,
                 'n_chunk_of_page': self.page_chunk_counts[page],
