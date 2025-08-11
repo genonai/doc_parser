@@ -1027,6 +1027,14 @@ class DocumentProcessor:
                     ),
                 }
             )
+        self.ocr_second_converter = DocumentConverter(
+            format_options={
+                InputFormat.PDF: PdfFormatOption(
+                    pipeline_options=self.ocr_pipe_line_options,
+                    backend=PyPdfiumDocumentBackend
+                ),
+            },
+        )
 
     def load_documents_with_docling(self, file_path: str, **kwargs: dict) -> DoclingDocument:
         # kwargs에서 save_images 값을 가져와서 옵션 업데이트
@@ -1044,6 +1052,24 @@ class DocumentProcessor:
             conv_result: ConversionResult = self.converter.convert(file_path, raises_on_error=True)
         except Exception as e:
             conv_result: ConversionResult = self.second_converter.convert(file_path, raises_on_error=True)
+        return conv_result.document
+
+    def load_documents_with_docling_ocr(self, file_path: str, **kwargs: dict) -> DoclingDocument:
+        # kwargs에서 save_images 값을 가져와서 옵션 업데이트
+        save_images = kwargs.get('save_images', True)
+        include_wmf = kwargs.get('include_wmf', False)
+
+        # save_images 옵션이 현재 설정과 다르면 컨버터 재생성
+        if (self.simple_pipeline_options.save_images != save_images or
+            getattr(self.simple_pipeline_options, 'include_wmf', False) != include_wmf):
+            self.simple_pipeline_options.save_images = save_images
+            self.simple_pipeline_options.include_wmf = include_wmf
+            self._create_converters()
+
+        try:
+            conv_result: ConversionResult = self.ocr_converter.convert(file_path, raises_on_error=True)
+        except Exception as e:
+            conv_result: ConversionResult = self.ocr_second_converter.convert(file_path, raises_on_error=True)
         return conv_result.document
 
     def load_documents(self, file_path: str, **kwargs) -> DoclingDocument:
@@ -1200,7 +1226,7 @@ class DocumentProcessor:
 
         if not check_document(document, self.enrichment_options):
             # OCR이 필요하다고 판단되면 OCR 수행
-            document: DoclingDocument = self.ocr_converter.convert(file_path, raises_on_error=True).document
+            document: DoclingDocument = self.load_documents_with_docling_ocr(file_path, **kwargs)
 
         output_path, output_file = os.path.split(file_path)
         filename, _ = os.path.splitext(output_file)

@@ -821,6 +821,15 @@ class DocumentProcessor:
         '''
         initialize Document Converter
         '''
+        ocr_options = PaddleOcrOptions(
+            force_full_page_ocr=True,
+            lang=['korean'],
+            # det_model_dir="/paddleocr_model/PP-OCRv5_server_det",
+            # rec_model_dir="/paddleocr_model/korean_PP-OCRv5_mobile_rec",
+            # det_model_name="PP-OCRv5_server_det",
+            # rec_model_name="korean_PP-OCRv5_mobile_rec",
+            text_score=0.3)
+
         self.page_chunk_counts = defaultdict(int)
         device = AcceleratorDevice.AUTO
         num_threads = 8
@@ -828,7 +837,8 @@ class DocumentProcessor:
         pipe_line_options = PdfPipelineOptions()
         pipe_line_options.generate_page_images = True
         pipe_line_options.generate_picture_images = True
-        pipe_line_options.do_ocr = False
+        pipe_line_options.do_ocr = True
+        pipe_line_options.ocr_options = ocr_options
         # pipe_line_options.ocr_options.lang = ["ko", 'en']
         # pipe_line_options.ocr_options.model_storage_directory = "./.EasyOCR/model"
         # pipe_line_options.ocr_options.force_full_page_ocr = True
@@ -865,14 +875,11 @@ class DocumentProcessor:
         )
 
         # ocr 파이프라인 옵션
-        ocr_options = PaddleOcrOptions(
-            force_full_page_ocr=True,
-            lang=['korean'],
-            text_score=0.3)
         self.ocr_pipe_line_options = PdfPipelineOptions()
         self.ocr_pipe_line_options = self.pipe_line_options.model_copy(deep=True)
         self.ocr_pipe_line_options.do_ocr = True
-        self.ocr_pipe_line_options.ocr_options = ocr_options
+        self.ocr_pipe_line_options.ocr_options = ocr_options.model_copy(deep=True)
+        self.ocr_pipe_line_options.ocr_options.force_full_page_ocr = True
 
         self.ocr_converter = DocumentConverter(
                 format_options={
@@ -882,6 +889,15 @@ class DocumentProcessor:
                     ),
                 }
             )
+
+        self.ocr_second_converter = DocumentConverter(
+            format_options={
+                InputFormat.PDF: PdfFormatOption(
+                    pipeline_options=self.ocr_pipe_line_options,
+                    backend=PyPdfiumDocumentBackend
+                ),
+            },
+        )
 
         # enrichment 옵션 설정
         self.enrichment_options = DataEnrichmentOptions(
@@ -906,6 +922,13 @@ class DocumentProcessor:
         except Exception as e:
             conv_result: ConversionResult = self.second_converter.convert(file_path, raises_on_error=True)
 
+        return conv_result.document
+
+    def load_documents_with_docling_ocr(self, file_path: str, **kwargs: dict) -> DoclingDocument:
+        try:
+            conv_result: ConversionResult = self.ocr_converter.convert(file_path, raises_on_error=True)
+        except Exception as e:
+            conv_result: ConversionResult = self.ocr_second_converter.convert(file_path, raises_on_error=True)
         return conv_result.document
 
     def load_documents(self, file_path: str, **kwargs: dict) -> DoclingDocument:
@@ -1121,7 +1144,7 @@ class DocumentProcessor:
 
         if not check_document(document, self.enrichment_options):
             # OCR이 필요하다고 판단되면 OCR 수행
-            document: DoclingDocument = self.ocr_converter.convert(file_path, raises_on_error=True).document
+            document: DoclingDocument = self.load_documents_with_docling_ocr(file_path, **kwargs)
 
         output_path, output_file = os.path.split(file_path)
         filename, _ = os.path.splitext(output_file)
