@@ -1,45 +1,42 @@
 from __future__ import annotations
 
-import os
-import sys
-import subprocess
-import warnings
-import shutil
+from collections import defaultdict
+
 import asyncio
+import fitz
 import json
 import math
-import uuid
-import fitz
-from collections import defaultdict
-from datetime import datetime
-from markdown2 import markdown
-
-import pydub
+import os
 import pandas as pd
-from pandas import DataFrame
-from glob import glob
-
-from fastapi import Request
+import pydub
 import requests
+import shutil
+import subprocess
+import sys
 import threading
-
-from pydantic import BaseModel, ConfigDict, PositiveInt, TypeAdapter, model_validator
-from pathlib import Path
-from typing import Any, Iterable, Iterator, List, Optional, Union
-from typing_extensions import Self
-
+import uuid
+import warnings
+from datetime import datetime
+from fastapi import Request
+from glob import glob
 from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain_core.documents import Document
 from langchain_community.document_loaders import (
     # TextLoader,                       # TXT
-    PyMuPDFLoader,                    # PDF
-    DataFrameLoader,                  # DataFrame
-    UnstructuredWordDocumentLoader,   # DOC and DOCX
-    UnstructuredPowerPointLoader,     # PPT and PPTX
-    UnstructuredImageLoader,          # JPG, PNG
-    UnstructuredMarkdownLoader,       # Markdown
-    UnstructuredFileLoader,           # Generic fallback
+    PyMuPDFLoader,  # PDF
+    DataFrameLoader,  # DataFrame
+    UnstructuredWordDocumentLoader,  # DOC and DOCX
+    UnstructuredPowerPointLoader,  # PPT and PPTX
+    UnstructuredImageLoader,  # JPG, PNG
+    UnstructuredMarkdownLoader,  # Markdown
+    UnstructuredFileLoader,  # Generic fallback
 )
+from langchain_core.documents import Document
+from markdown2 import markdown
+from pandas import DataFrame
+from pathlib import Path
+from pydantic import BaseModel, ConfigDict, PositiveInt, TypeAdapter, model_validator
+from typing import Any, Iterable, Iterator, List, Optional, Union
+from typing_extensions import Self
 
 try:
     import semchunk
@@ -72,6 +69,8 @@ from docling_core.types.doc import (
 from docling_core.types.doc.document import LevelNumber, ListItem, CodeItem
 from utils import assert_cancelled
 from genos_utils import upload_files, merge_overlapping_bboxes
+
+
 # import platform
 
 
@@ -80,13 +79,14 @@ def install_packages(packages):
         try:
             __import__(package)
         except ImportError:
-            print(f"[!] {package} 패키지가 없습니다. 설치를 시도합니다.")                
+            print(f"[!] {package} 패키지가 없습니다. 설치를 시도합니다.")
             subprocess.run([sys.executable, "-m", "pip", "install", package], check=True)
 
 
 class GenOSVectorMeta(BaseModel):
     class Config:
         extra = 'allow'
+
     text: str | None = None
     n_char: int | None = None
     n_word: int | None = None
@@ -167,9 +167,9 @@ class GenOSVectorMetaBuilder:
                     'coord_origin': bbox.coord_origin.value
                 }
                 chunk_bboxes.append({
-                    'page': page_no, 
-                    'bbox': bbox_data, 
-                    'type': type_, 
+                    'page': page_no,
+                    'bbox': bbox_data,
+                    'type': type_,
                     'ref': label
                 })
         self.e_page = max([bbox['page'] for bbox in chunk_bboxes]) if chunk_bboxes else None
@@ -226,7 +226,7 @@ class HwpLoader:
         finally:
             if os.path.exists(self.output_dir):
                 shutil.rmtree(self.output_dir)
-                
+
 
 class TextLoader:
     def __init__(self, file_path: str):
@@ -239,8 +239,17 @@ class TextLoader:
             with open(self.file_path, 'rb') as f:
                 raw_file = f.read(100)
             enc_type = chardet.detect(raw_file)['encoding']
-            with open(self.file_path, 'r', encoding=enc_type) as f:
-                content = f.read()
+            # 인코딩 검증 및 기본값 적용
+            if not enc_type or enc_type.lower() in ('ascii', 'unknown'):
+                enc_type = 'utf-8'
+
+            try:
+                with open(self.file_path, 'r', encoding=enc_type, errors='strict') as f:
+                    content = f.read()
+            except UnicodeDecodeError:
+                # utf-8 실패 시 CP949로 재시도
+                with open(self.file_path, 'r', encoding='cp949', errors='replace') as f:
+                    content = f.read()
             html_content = f"<html><body><pre>{content}</pre></body></html>"
             html_file_path = os.path.join(self.output_dir, 'temp.html')
             with open(html_file_path, 'w', encoding='utf-8') as f:
@@ -258,7 +267,7 @@ class TextLoader:
 
 
 class TabularLoader:
-    def __init__(self, file_path: str, ext: str): 
+    def __init__(self, file_path: str, ext: str):
         packages = ['openpyxl', 'chardet']
         install_packages(packages)
 
@@ -270,14 +279,14 @@ class TabularLoader:
         else:
             print(f"[!] Inadequate extension for TabularLoader: {ext}")
             return
-        
+
     def check_sql_dtypes(self, df):
         df = df.convert_dtypes()
         res = []
         for col in df.columns:
             # col_name = col.strip().replace(' ', '_')
             dtype = str(df.dtypes[col]).lower()
-    
+
             if 'int' in dtype:
                 if '64' in dtype:
                     sql_dtype = 'BIGINT'
@@ -296,14 +305,14 @@ class TabularLoader:
             else:
                 max_len = df[col].str.len().max().item() + 10
                 sql_dtype = f'VARCHAR({max_len})'
-            
+
             res.append([col, sql_dtype])
-            
+
         return df, res
-        
+
     def process_data_rows(self, data: dict):
         """Arg: data (keys: 'sheet_name', 'page_column', 'page_column_type', 'documents')"""
-    
+
         rows = []
         for doc in data["documents"]:
             row = {}
@@ -320,23 +329,23 @@ class TabularLoader:
                     raise ValueError(f"Invalid boolean string: {doc.page_content}")
             else:
                 row[data["page_column"]] = doc.page_content
-    
+
             row.update(doc.metadata)
             rows.append(row)
-    
+
         processed_data = {"sheet_name": data["sheet_name"], "data_rows": rows, "data_types": data["dtypes"]}
         return processed_data
-        
+
     def load_csv_documents(self, file_path: str, **kwargs: dict):
         import chardet
-        
+
         with open(file_path, "rb") as f:
             raw_file = f.read(10000)
         enc_type = chardet.detect(raw_file)['encoding']
         df = pd.read_csv(file_path, encoding=enc_type, index_col=False)
-        
+
         df, dtypes_str = self.check_sql_dtypes(df)
-        
+
         for i in range(len(df.columns)):
             try:
                 col = df.columns[0]
@@ -344,29 +353,30 @@ class TabularLoader:
                 df = df.astype({col: 'str'})
                 break
             except:
-                raise ValueError(f"Any columns cannot be converted into the string type so that can't load LangChain Documents: {dtypes_str}")
-        
+                raise ValueError(
+                    f"Any columns cannot be converted into the string type so that can't load LangChain Documents: {dtypes_str}")
+
         loader = DataFrameLoader(df, page_content_column=col)
         documents = loader.load()
-        
+
         data = {
-            "sheet_name": "table_1", 
-            "page_column": col, 
-            "page_column_type": col_type, 
-            "documents": documents, 
+            "sheet_name": "table_1",
+            "page_column": col,
+            "page_column_type": col_type,
+            "documents": documents,
             "dtypes": dtypes_str
         }
         data = self.process_data_rows(data)  # including only one sheet as it's a csv file
         data_dict = {"data": [data]}
         return data_dict
-    
+
     def load_xlsx_documents(self, file_path: str, **kwargs: dict):
         dfs = pd.read_excel(file_path, sheet_name=None)
         sheets = []
         for sheet_name, df in dfs.items():
             df = df.fillna('null')
             df, dtypes_str = self.check_sql_dtypes(df)
-            
+
             for i in range(len(df.columns)):
                 try:
                     col = df.columns[0]
@@ -374,16 +384,17 @@ class TabularLoader:
                     df = df.astype({col: 'str'})
                     break
                 except:
-                    raise ValueError(f"Any columns cannot be converted into string type so that can't load LangChain Documents: {dtypes_str}")
+                    raise ValueError(
+                        f"Any columns cannot be converted into string type so that can't load LangChain Documents: {dtypes_str}")
 
             loader = DataFrameLoader(df, page_content_column=col)
             documents = loader.load()
-            
+
             sheet = {
-                "sheet_name": sheet_name, 
-                "page_column": col, 
-                "page_column_type": col_type, 
-                "documents": documents, 
+                "sheet_name": sheet_name,
+                "page_column": col,
+                "page_column_type": col_type,
+                "documents": documents,
                 "dtypes": dtypes_str
             }
             sheets.append(sheet)
@@ -392,37 +403,39 @@ class TabularLoader:
         for sheet in sheets:
             data = self.process_data_rows(sheet)
             data_dict["data"].append(data)
-    
+
         return data_dict
-        
+
     def return_vectormeta_format(self):
         if not self.data_dict:
             return None
-            
+
         text = "[DA] " + str(self.data_dict)  # Add a token to indicate this string is for data analysis
         vectors = [GenOSVectorMeta.model_validate({
             'text': text,
-            'n_char': 1,
-            'n_word': 1,
-            'n_line': 1,
+            'n_chars': 1,
+            'n_words': 1,
+            'n_lines': 1,
             'i_page': 1,
+            'e_page': 1,
+            'n_page': 1,
             'i_chunk_on_page': 1,
             'n_chunk_of_page': 1,
             'i_chunk_on_doc': 1,
             'reg_date': datetime.now().isoformat(timespec='seconds') + 'Z',
             'chunk_bboxes': ".",
             'media_files': "."
-          })]
+        })]
         return vectors
 
 
 class AudioLoader:
-    def __init__(self, 
+    def __init__(self,
                  file_path: str,
                  req_url: str,
-                 req_data: dict, 
-                 chunk_sec: int=29, 
-                 tmp_path: str='.',
+                 req_data: dict,
+                 chunk_sec: int = 29,
+                 tmp_path: str = '.',
                  ):
         self.file_path = file_path
         self.tmp_path = tmp_path
@@ -433,12 +446,12 @@ class AudioLoader:
     def split_file_as_chunks(self) -> list:
         audio = pydub.AudioSegment.from_file(self.file_path)
         chunk_len = self.chunk_sec * 1000
-        n_chunks = math.ceil(len(audio)/chunk_len)
-        
+        n_chunks = math.ceil(len(audio) / chunk_len)
+
         for i in range(n_chunks):
-            start_ms = i*chunk_len
-            overlap_start_ms = start_ms-300 if start_ms > 0 else start_ms
-            end_ms = start_ms+chunk_len
+            start_ms = i * chunk_len
+            overlap_start_ms = start_ms - 300 if start_ms > 0 else start_ms
+            end_ms = start_ms + chunk_len
             audio_chunk = audio[overlap_start_ms:end_ms]
             audio_chunk.export(os.path.join(self.tmp_path, "tmp_{}.wav".format(str(i))), format="wav")
         tmp_files = glob(os.path.join(self.tmp_path, "*.wav"))
@@ -456,29 +469,31 @@ class AudioLoader:
             response = requests.post(self.req_url, data=self.req_data, files=files)
             text = response.json().get('text', ', ')
             transcribed_text_chunks.append({
-                'file_name': os.path.basename(filepath), 
+                'file_name': os.path.basename(filepath),
                 'text': text
             })
-        
+
         # Send parallel requests
         threads = [threading.Thread(target=_send_request, args=(f,)) for f in file_path_lst]
         for t in threads: t.start()
         for t in threads: t.join()
-        
+
         # Merge transcribed text snippets in order
         transcribed_text_chunks.sort(key=lambda x: x['file_name'])
         transcribed_text = "[AUDIO]" + ' '.join([t['text'] for t in transcribed_text_chunks])
         return transcribed_text
-    
+
     def return_vectormeta_format(self):
         audio_chunks = self.split_file_as_chunks()
         transcribed_text = self.transcribe_audio(audio_chunks)
         res = [GenOSVectorMeta.model_validate({
             'text': transcribed_text,
-            'n_char': 1,
-            'n_word': 1,
-            'n_line': 1,
+            'n_chars': 1,
+            'n_words': 1,
+            'n_lines': 1,
             'i_page': 1,
+            'e_page': 1,
+            'n_page': 1,
             'i_chunk_on_page': 1,
             'n_chunk_of_page': 1,
             'i_chunk_on_doc': 1,
@@ -560,7 +575,8 @@ class HierarchicalChunker(BaseChunker):
                         )
                         list_items = []  # reset
 
-                if isinstance(item, SectionHeaderItem) or (isinstance(item, TextItem) and item.label in [DocItemLabel.SECTION_HEADER, DocItemLabel.TITLE]):
+                if isinstance(item, SectionHeaderItem) or (
+                        isinstance(item, TextItem) and item.label in [DocItemLabel.SECTION_HEADER, DocItemLabel.TITLE]):
                     level = (
                         item.level
                         if isinstance(item, SectionHeaderItem)
@@ -580,12 +596,13 @@ class HierarchicalChunker(BaseChunker):
                             headings=[heading_by_level[k] for k in sorted(heading_by_level)] or None,
                             captions=captions,
                             origin=dl_doc.origin
-                            ),
-                        )
+                        ),
+                    )
                     yield c
                     continue
 
-                if isinstance(item, TextItem) or ((not self.merge_list_items) and isinstance(item, ListItem)) or isinstance(item, CodeItem):
+                if isinstance(item, TextItem) or (
+                        (not self.merge_list_items) and isinstance(item, ListItem)) or isinstance(item, CodeItem):
                     text = item.text
 
                 elif isinstance(item, TableItem):
@@ -596,7 +613,7 @@ class HierarchicalChunker(BaseChunker):
                     #     continue
                     # text = self._triplet_serialize(table_df=table_df)
                     captions = [c.text for c in [r.resolve(dl_doc) for r in item.captions]] or None
-                
+
                 elif isinstance(item, PictureItem):
                     text = ''.join(str(value) for value in heading_by_level.values())
                 else:
@@ -790,9 +807,9 @@ class HybridChunker(BaseChunker):
                     ),
                 )
 
-                if (headings_and_captions == current_headings_and_captions 
-                    and self._count_chunk_tokens(doc_chunk=candidate) <= self.max_tokens
-                    ):
+                if (headings_and_captions == current_headings_and_captions
+                        and self._count_chunk_tokens(doc_chunk=candidate) <= self.max_tokens
+                ):
                     # 토큰 수 여유 있음 → 청크 확장 계속
                     window_end += 1
                     new_chunk = candidate
@@ -800,7 +817,7 @@ class HybridChunker(BaseChunker):
                     ready_to_append = True
 
             if ready_to_append or window_end == num_chunks:
-                # no more room OR the start of new metadata. 
+                # no more room OR the start of new metadata.
                 if window_start + 1 == window_end:
                     output_chunks.append(first_chunk_of_window)
                 else:
@@ -824,7 +841,7 @@ class HybridChunker(BaseChunker):
         if self.merge_peers:
             res = self._merge_chunks_with_matching_metadata(res)
         return iter(res)
-    
+
 
 class HwpxProcessor:
     def __init__(self):
@@ -834,7 +851,7 @@ class HwpxProcessor:
         self.converter = DocumentConverter(
             format_options={
                 InputFormat.XML_HWPX: HwpxFormatOption(
-                        pipeline_options=self.pipeline_options
+                    pipeline_options=self.pipeline_options
                 )
             }
         )
@@ -848,7 +865,7 @@ class HwpxProcessor:
         else:
             reference_path = artifacts_dir.parent
         return artifacts_dir, reference_path
-    
+
     def get_media_files(self, doc_items: list):
         temp_list = []
         for item in doc_items:
@@ -857,12 +874,12 @@ class HwpxProcessor:
                 name = path.rsplit("/", 1)[-1]
                 temp_list.append({'path': path, 'name': name})
         return temp_list
-    
+
     def safe_join(self, iterable):
         if not isinstance(iterable, (list, tuple, set)):
             return ''
         return ''.join(map(str, iterable)) + '\n'
-    
+
     def load_documents(self, file_path: str, **kwargs: dict) -> DoclingDocument:
         save_images = kwargs.get('save_images', False)
 
@@ -879,8 +896,9 @@ class HwpxProcessor:
         for chunk in chunks:
             self.page_chunk_counts[chunk.meta.doc_items[0].prov[0].page_no] += 1
         return chunks
-    
-    async def compose_vectors(self, document: DoclingDocument, chunks: List[DocChunk], file_path: str, request: Request, **kwargs: dict) -> list[dict]:
+
+    async def compose_vectors(self, document: DoclingDocument, chunks: List[DocChunk], file_path: str, request: Request,
+                              **kwargs: dict) -> list[dict]:
         global_metadata = dict(
             n_chunk_of_doc=len(chunks),
             n_page=document.num_pages(),
@@ -936,6 +954,7 @@ class HwpxProcessor:
 
 class GenosServiceException(Exception):
     """GenOS 와의 의존성 부분 제거를 위해 추가"""
+
     def __init__(self, error_code: str, error_msg: Optional[str] = None, msg_params: Optional[dict] = None) -> None:
         self.code = 1
         self.error_code = error_code
@@ -951,13 +970,13 @@ async def assert_cancelled(request: Request):
     """GenOS 와의 의존성 제거를 위해 추가"""
     if await request.is_disconnected():
         raise GenosServiceException(1, f"Cancelled")
-    
+
 
 class DocumentProcessor:
     def __init__(self):
         self.page_chunk_counts = defaultdict(int)
         self.hwpx_processor = HwpxProcessor()
-   
+
     def get_loader(self, file_path: str):
         ext = os.path.splitext(file_path)[-1].lower()
         if ext == '.pdf':
@@ -976,17 +995,18 @@ class DocumentProcessor:
             return UnstructuredMarkdownLoader(file_path)
         else:
             return UnstructuredFileLoader(file_path)
-        
+
     def convert_to_pdf(self, file_path: str):
         out_path = "."
         try:
-            subprocess.run(['soffice', '--headless', '--convert-to', 'pdf', '--outdir', out_path, file_path], check=True)
+            subprocess.run(['soffice', '--headless', '--convert-to', 'pdf', '--outdir', out_path, file_path],
+                           check=True)
             pdf_path = os.path.basename(file_path).replace(file_path.split('.')[-1], 'pdf')
             return pdf_path
         except subprocess.CalledProcessError as e:
             print(f"Error converting PPT to PDF: {e}")
             return False
-        
+
     def convert_md_to_pdf(self, md_path):
         """Markdown 파일을 PDF로 변환"""
         install_packages(['chardet'])
@@ -1019,7 +1039,7 @@ class DocumentProcessor:
             page = chunk.metadata.get('page', 0)
             self.page_chunk_counts[page] += 1
         return chunks
-    
+
     def compose_vectors(self, file_path: str, chunks: list[Document], **kwargs: dict) -> list[dict]:
         if file_path.endswith('.md'):
             pdf_path = self.convert_md_to_pdf(file_path)
@@ -1069,10 +1089,11 @@ class DocumentProcessor:
 
             vectors.append(GenOSVectorMeta.model_validate({
                 'text': text,
-                'n_char': len(text),
-                'n_word': len(text.split()),
-                'n_line': len(text.splitlines()),
+                'n_chars': len(text),
+                'n_words': len(text.split()),
+                'n_lines': len(text.splitlines()),
                 'i_page': page,
+                'e_page': page,
                 'i_chunk_on_page': chunk_index_on_page,
                 'n_chunk_of_page': self.page_chunk_counts[page],
                 'i_chunk_on_doc': chunk_idx,
@@ -1083,7 +1104,7 @@ class DocumentProcessor:
         return vectors
 
     async def __call__(self, request: Request, file_path: str, **kwargs: dict):
-        ext = os.path.splitext(file_path)[-1].lower()    
+        ext = os.path.splitext(file_path)[-1].lower()
         if ext in ('.wav', '.mp3', '.m4a'):
             # Generate a temporal path saving audio chunks: the audio file is supposed to be splited to several chunks due to limitted length by the model
             tmp_path = "./tmp_audios_{}".format(os.path.basename(file_path).split('.')[0])
@@ -1096,13 +1117,13 @@ class DocumentProcessor:
                 file_path=file_path,
                 req_url="http://192.168.74.164:30100/v1/audio/transcriptions",
                 req_data={
-                    'model': 'model', 
+                    'model': 'model',
                     'language': 'ko',
                     'response_format': 'json',
                     'temperature': '0',
                     'stream': 'false',
                     'timestamp_granularities[]': 'word'
-                    },
+                },
                 chunk_sec=29,  # length(sec) of a chunk from the uploaded audio
                 tmp_path=tmp_path
             )
@@ -1116,16 +1137,16 @@ class DocumentProcessor:
                 pass
             await assert_cancelled(request)
             return vectors
-        
+
         elif ext in ('.csv', '.xlsx'):
             loader = TabularLoader(file_path, ext)
             vectors = loader.return_vectormeta_format()
             await assert_cancelled(request)
             return vectors
-        
+
         elif ext in ('.hwpx'):
             return await self.hwpx_processor(request, file_path, **kwargs)
-        
+
         else:
             documents: list[Document] = self.load_documents(file_path, **kwargs)
             await assert_cancelled(request)
