@@ -190,7 +190,7 @@ class GenOSVectorMetaBuilder:
         """설정된 데이터를 사용해 최종적으로 GenOSVectorMeta 객체 생성"""
         return GenOSVectorMeta(
             text=self.text,
-            n_chars=self.n_chars,
+            n_char=self.n_char,
             n_words=self.n_words,
             n_lines=self.n_lines,
             i_page=self.i_page,
@@ -1069,7 +1069,7 @@ class DocumentProcessor:
 
             vectors.append(GenOSVectorMeta.model_validate({
                 'text': text,
-                'n_chars': len(text),
+                'n_char': len(text),
                 'n_words': len(text.split()),
                 'n_lines': len(text.splitlines()),
                 'i_page': page,
