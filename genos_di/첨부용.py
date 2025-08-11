@@ -107,7 +107,7 @@ class GenOSVectorMetaBuilder:
     def __init__(self):
         """빌더 초기화"""
         self.text: Optional[str] = None
-        self.n_chars: Optional[int] = None
+        self.n_char: Optional[int] = None
         self.n_words: Optional[int] = None
         self.n_lines: Optional[int] = None
         self.i_page: Optional[int] = None
@@ -126,7 +126,7 @@ class GenOSVectorMetaBuilder:
     def set_text(self, text: str) -> "GenOSVectorMetaBuilder":
         """텍스트와 관련된 데이터를 설정"""
         self.text = text
-        self.n_chars = len(text)
+        self.n_char = len(text)
         self.n_words = len(text.split())
         self.n_lines = len(text.splitlines())
         return self
