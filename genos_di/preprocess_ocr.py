@@ -933,6 +933,14 @@ class DocumentProcessor:
         #     rec_keys_path="/Users/shkim/_shkim/01.source/doc_parser_develop/genos_di/model/korean_dict.txt",
         #     text_score=0.1)
 
+        ocr_options = PaddleOcrOptions(
+            force_full_page_ocr=False,
+            lang=['korean'],
+            # det_model_dir="/paddleocr_model/PP-OCRv5_server_det",
+            # rec_model_dir="/paddleocr_model/korean_PP-OCRv5_mobile_rec",
+            # det_model_name="PP-OCRv5_server_det",
+            # rec_model_name="korean_PP-OCRv5_mobile_rec",
+            text_score=0.3)
 
         self.page_chunk_counts = defaultdict(int)
         device = AcceleratorDevice.AUTO
@@ -942,8 +950,8 @@ class DocumentProcessor:
         self.pipe_line_options = PdfPipelineOptions()
         self.pipe_line_options.generate_page_images = True
         self.pipe_line_options.generate_picture_images = True
-        self.pipe_line_options.do_ocr = False
-        # self.pipe_line_options.ocr_options = ocr_options
+        self.pipe_line_options.do_ocr = True
+        self.pipe_line_options.ocr_options = ocr_options
         # self.pipe_line_options.ocr_options.lang = ["ko", 'en']
         # self.pipe_line_options.ocr_options.model_storage_directory = "./.EasyOCR/model"
         # self.pipe_line_options.ocr_options.force_full_page_ocr = True
@@ -963,14 +971,11 @@ class DocumentProcessor:
         self.simple_pipeline_options.save_images = False
 
         # ocr 파이프라인 옵션
-        ocr_options = PaddleOcrOptions(
-            force_full_page_ocr=True,
-            lang=['korean'],
-            text_score=0.3)
         self.ocr_pipe_line_options = PdfPipelineOptions()
         self.ocr_pipe_line_options = self.pipe_line_options.model_copy(deep=True)
         self.ocr_pipe_line_options.do_ocr = True
-        self.ocr_pipe_line_options.ocr_options = ocr_options
+        self.ocr_pipe_line_options.ocr_options = ocr_options.model_copy(deep=True)
+        self.ocr_pipe_line_options.ocr_options.force_full_page_ocr = True
 
         # 기본 컨버터들 생성
         self._create_converters()
