@@ -3,7 +3,7 @@
 import grpc
 import warnings
 
-import docling.datamodel.ocr_pb2 as ocr__pb2
+import docling.models.ocr_pb2 as ocr__pb2
 
 GRPC_GENERATED_VERSION = '1.74.0'
 GRPC_VERSION = grpc.__version__

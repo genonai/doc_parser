@@ -23,8 +23,8 @@ _log = logging.getLogger(__name__)
 
 import itertools, io
 import grpc
-import docling.datamodel.ocr_pb2 as ocr_pb2
-import docling.datamodel.ocr_pb2_grpc as ocr_pb2_grpc
+import docling.models.ocr_pb2 as ocr_pb2
+import docling.models.ocr_pb2_grpc as ocr_pb2_grpc
 import io
 from PIL import Image
 
