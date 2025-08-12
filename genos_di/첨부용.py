@@ -178,6 +178,9 @@ class GenOSVectorMetaBuilder:
 
     def set_media_files(self, doc_items: list) -> "GenOSVectorMetaBuilder":
         temp_list = []
+        if not doc_items:
+            self.media_files = ""
+            return self
         for item in doc_items:
             if isinstance(item, PictureItem):
                 path = str(item.image.uri)
