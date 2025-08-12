@@ -1,4 +1,4 @@
-# GenOS Document Intelligence 전처리 시스템
+# GenOS Document Intelligence 전처리 시스템 (개발중인 Facade 포맷)
 
 ## 📋 개요
 
