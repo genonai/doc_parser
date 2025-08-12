@@ -14,6 +14,14 @@ parser = argparse.ArgumentParser(description="")
 parser.add_argument("-c", "--server_count", type=int, default=4, help="Number of gRPC servers to start.")
 args = parser.parse_args()
 
+import paddle
+
+print("[init] compiled_with_cuda:", paddle.is_compiled_with_cuda())
+print("[init] device:", paddle.get_device())
+try:
+    print("[init] cuda_devices:", paddle.device.cuda.device_count())
+except Exception as e:
+    print("[init] cuda_count_err:", e)
 
 class OCRServiceServicer(ocr_pb2_grpc.OCRServiceServicer):
     def __init__(self, port):
