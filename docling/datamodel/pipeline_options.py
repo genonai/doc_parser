@@ -130,20 +130,22 @@ class PaddleOcrOptions(OcrOptions):
 
     kind: ClassVar[Literal["paddleocr"]] = "paddleocr"
 
-    lang: List[str] = [
-        "korean"
-    ]
+    grpc_server_count: int = 4  # Number of gRPC servers to use
+
+    # lang: List[str] = [
+    #     "korean"
+    # ]
 
     text_score: float = 0.5
 
-    use_doc_orientation_classify: Optional[bool]=False
-    use_doc_unwarping: Optional[bool]=False
-    use_textline_orientation: Optional[bool]=False
+    # use_doc_orientation_classify: Optional[bool]=False
+    # use_doc_unwarping: Optional[bool]=False
+    # use_textline_orientation: Optional[bool]=False
 
-    det_model_dir: Optional[str] = None
-    det_model_name: Optional[str] = None
-    rec_model_dir: Optional[str] = None
-    rec_model_name: Optional[str] = None
+    # det_model_dir: Optional[str] = None
+    # det_model_name: Optional[str] = None
+    # rec_model_dir: Optional[str] = None
+    # rec_model_name: Optional[str] = None
 
     model_config = ConfigDict(
         extra="forbid",

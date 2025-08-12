@@ -824,10 +824,6 @@ class DocumentProcessor:
         ocr_options = PaddleOcrOptions(
             force_full_page_ocr=True,
             lang=['korean'],
-            # det_model_dir="/paddleocr_model/PP-OCRv5_server_det",
-            # rec_model_dir="/paddleocr_model/korean_PP-OCRv5_mobile_rec",
-            # det_model_name="PP-OCRv5_server_det",
-            # rec_model_name="korean_PP-OCRv5_mobile_rec",
             text_score=0.3)
 
         self.page_chunk_counts = defaultdict(int)
