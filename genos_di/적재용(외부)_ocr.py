@@ -822,7 +822,7 @@ class DocumentProcessor:
         initialize Document Converter
         '''
         ocr_options = PaddleOcrOptions(
-            force_full_page_ocr=True,
+            force_full_page_ocr=False,
             lang=['korean'],
             text_score=0.3)
 
