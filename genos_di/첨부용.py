@@ -305,8 +305,13 @@ class TabularLoader:
             elif 'datetime' in dtype:
                 sql_dtype = 'DATETIME'
                 df[col] = df[col].astype(str)
+            # else:
+            #     max_len = df[col].str.len().max().item() + 10
+            #     sql_dtype = f'VARCHAR({max_len})'
             else:
-                max_len = df[col].str.len().max().item() + 10
+                lens = df[col].astype(str).str.len()
+                max_len_val = lens.max()
+                max_len = int(0 if pd.isna(max_len_val) else max_len_val) + 10
                 sql_dtype = f'VARCHAR({max_len})'
 
             res.append([col, sql_dtype])
@@ -346,13 +351,14 @@ class TabularLoader:
             raw_file = f.read(10000)
         enc_type = chardet.detect(raw_file)['encoding']
         df = pd.read_csv(file_path, encoding=enc_type, index_col=False)
-
+        df = df.fillna('null') # csv 파일에서도 xlsx 파일과 동일하게 null로 채움
         df, dtypes_str = self.check_sql_dtypes(df)
 
         for i in range(len(df.columns)):
             try:
                 col = df.columns[0]
-                col_type = str(type(col))
+                # col_type = str(type(col))
+                col_type = str(df[col].dtype)
                 df = df.astype({col: 'str'})
                 break
             except:
@@ -1092,9 +1098,9 @@ class DocumentProcessor:
 
             vectors.append(GenOSVectorMeta.model_validate({
                 'text': text,
-                'n_chars': len(text),
-                'n_words': len(text.split()),
-                'n_lines': len(text.splitlines()),
+                'n_char': len(text),
+                'n_word': len(text.split()),
+                'n_line': len(text.splitlines()),
                 'i_page': page,
                 'e_page': page,
                 'i_chunk_on_page': chunk_index_on_page,
