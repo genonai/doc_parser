@@ -1080,14 +1080,144 @@ class DocumentProcessor:
                 temp_list.append({'path': path, 'name': name})
         return temp_list
 
+    def check_glyph_text(self, text: str, threshold: int = 1) -> bool:
+        """텍스트에 GLYPH 항목이 있는지 확인하는 메서드"""
+        if not text:
+            return False
+
+        # GLYPH 항목이 있는지 정규식으로 확인
+        matches = re.findall(r'GLYPH\w*', text)
+        if len(matches) >= threshold:
+            # print(f"Text has glyphs. len(matches): {len(matches)}. ")
+            return True
+
+        return False
+
+    def check_glyphs(self, document: DoclingDocument) -> bool:
+        """문서에 글리프가 있는지 확인하는 메서드"""
+        for item, level in document.iterate_items():
+            if isinstance(item, TextItem) and hasattr(item, 'prov') and item.prov:
+                page_no = item.prov[0].page_no
+                # page_texts += item.text
+
+                # GLYPH 항목이 있는지 확인. 정규식사용
+                matches = re.findall(r'GLYPH\w*', item.text)
+                if len(matches) > 10:
+                    # print(f"Document has glyphs on page {page_no}. len(matches): {len(matches)}. ")
+                    return True
+
+        return False
+
+    def ocr_all_table_cells(self, document: DoclingDocument, pdf_path) -> List[Dict[str, Any]]:
+        """
+        글리프 깨진 텍스트가 있는 테이블에 대해서만 OCR을 수행합니다.
+        Args:
+            document: DoclingDocument 객체
+            pdf_path: PDF 파일 경로
+        Returns:
+            OCR이 완료된 문서의 DoclingDocument 객체
+        """
+        try:
+            import fitz
+            import grpc
+            import docling.models.ocr_pb2 as ocr_pb2
+            import docling.models.ocr_pb2_grpc as ocr_pb2_grpc
+            import itertools
+
+            grpc_server_count = self.ocr_pipe_line_options.ocr_options.grpc_server_count
+
+            PORTS = [50051 + i for i in range(grpc_server_count)]
+            channels = [grpc.insecure_channel(f"localhost:{p}") for p in PORTS]
+            stubs = [(ocr_pb2_grpc.OCRServiceStub(ch), p) for ch, p in zip(channels, PORTS)]
+            rr = itertools.cycle(stubs)
+
+            doc = fitz.open(pdf_path)
+
+            for table_idx, table_item in enumerate(document.tables):
+                if not table_item.data or not table_item.data.table_cells:
+                    continue
+
+                b_ocr = False
+                for cell_idx, cell in enumerate(table_item.data.table_cells):
+                    if self.check_glyph_text(cell.text, threshold=1):
+                        b_ocr = True
+                        break
+
+                if b_ocr is False:
+                    # 글리프 깨진 텍스트가 없는 경우, OCR을 수행하지 않음
+                    continue
+
+                for cell_idx, cell in enumerate(table_item.data.table_cells):
+
+                    # # Provenance 정보에서 위치 정보 추출
+                    if not table_item.prov:
+                        continue
+
+                    page_no = table_item.prov[0].page_no - 1
+                    bbox = cell.bbox
+
+                    page = doc.load_page(page_no)
+
+                    # 셀의 바운딩 박스를 사용하여 이미지에서 해당 영역을 잘라냄
+                    cell_bbox = fitz.Rect(
+                        bbox.l, min(bbox.t, bbox.b),
+                        bbox.r, max(bbox.t, bbox.b)
+                    )
+
+                    # bbox 높이 계산 (PDF 좌표계 단위)
+                    bbox_height = cell_bbox.height
+
+                    # 목표 픽셀 높이
+                    target_height = 20
+
+                    # zoom factor 계산
+                    # (너무 작은 bbox일 경우 0으로 나누는 걸 방지)
+                    zoom_factor = target_height / bbox_height if bbox_height > 0 else 1.0
+                    zoom_factor = min(zoom_factor, 4.0)  # 최대 확대 비율 제한
+                    zoom_factor = max(zoom_factor, 1)  # 최소 확대 비율 제한
+
+                    # 페이지를 이미지로 렌더링
+                    mat = fitz.Matrix(zoom_factor, zoom_factor)
+                    pix = page.get_pixmap(matrix=mat, clip=cell_bbox)
+                    img_data = pix.tobytes("png")
+
+                    # 이미지를 파일로 저장
+                    img_path = f"./tmp/table_{table_idx}_cell_{cell_idx}.png"
+                    with open(img_path, "wb") as img_file:
+                        img_file.write(img_data)
+
+                    # gRPC 서버와 연결
+                    # channel = grpc.insecure_channel('localhost:50051')
+                    # stub = ocr_pb2_grpc.OCRServiceStub(channel)
+
+                    # # OCR 요청: 이미지 데이터를 바이너리로 전송
+                    # response = stub.PerformOCR(ocr_pb2.OCRRequest(image_data=img_data))
+
+                    req = ocr_pb2.OCRRequest(image_data=img_data)
+                    stub, port = next(rr)  # 라운드 로빈 방식으로 스텁 선택
+                    response = stub.PerformOCR(req)
+
+                    cell.text = ""
+                    for result in response.results:
+                        if len(cell.text) > 0:
+                            cell.text += " "
+                        cell.text += result.text if result else ""
+        except grpc.RpcError as e:
+            pass
+
+        return document
+
     async def __call__(self, request: Request, file_path: str, **kwargs: dict):
         # kwargs['save_images'] = True    # 이미지 처리
         # kwargs['include_wmf'] = True   # wmf 처리
         document: DoclingDocument = self.load_documents(file_path, **kwargs)
 
-        if not check_document(document, self.enrichment_options):
+        if not check_document(document, self.enrichment_options) or self.check_glyphs(document):
             # OCR이 필요하다고 판단되면 OCR 수행
             document: DoclingDocument = self.load_documents_with_docling_ocr(file_path, **kwargs)
+
+        # 글리프 깨진 텍스트가 있는 테이블에 대해서만 OCR 수행 (청크토큰 8k이상 발생 방지)
+        document: DoclingDocument = self.ocr_all_table_cells(document, file_path)
 
         output_path, output_file = os.path.split(file_path)
         filename, _ = os.path.splitext(output_file)

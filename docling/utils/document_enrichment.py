@@ -298,7 +298,10 @@ class DocumentEnrichmentUtils:
             )
             if response:
                 decision_match = re.search(r'<decision>\s*(YES|NO)\s*</decision>', response, re.IGNORECASE)
-                decision = decision_match.group(1).strip()
+                if decision_match:
+                    decision = decision_match.group(1).strip()
+                else:
+                    decision = "YES"
             else:
                 decision = "YES"
 
