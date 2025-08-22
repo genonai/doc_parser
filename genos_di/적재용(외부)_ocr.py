@@ -847,7 +847,7 @@ class DocumentProcessor:
 
         # enrichment 옵션 설정
         self.enrichment_options = DataEnrichmentOptions(
-            do_toc_enrichment=True,
+            do_toc_enrichment=False,
             extract_metadata=True,
             toc_api_provider="custom",
             toc_api_base_url="http://llmops-gateway-api-service:8080/serving/13/23/v1/chat/completions",
@@ -1180,11 +1180,6 @@ class DocumentProcessor:
                     mat = fitz.Matrix(zoom_factor, zoom_factor)
                     pix = page.get_pixmap(matrix=mat, clip=cell_bbox)
                     img_data = pix.tobytes("png")
-
-                    # 이미지를 파일로 저장
-                    img_path = f"./tmp/table_{table_idx}_cell_{cell_idx}.png"
-                    with open(img_path, "wb") as img_file:
-                        img_file.write(img_data)
 
                     # gRPC 서버와 연결
                     # channel = grpc.insecure_channel('localhost:50051')

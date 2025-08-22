@@ -406,6 +406,7 @@ class DataEnrichmentOptions(BaseModel):
 
     # TOC enrichment options
     do_toc_enrichment: bool = False
+    toc_doc_type: Optional[str] = None # e.g., "normal"(default), "law"
     toc_system_prompt: Optional[str] = None
     toc_user_prompt: Optional[str] = None
     # TOC API configuration options

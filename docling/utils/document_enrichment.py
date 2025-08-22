@@ -185,6 +185,53 @@ class DocumentEnrichmentUtils:
             _log.error(f"TOC 추출 중 오류 발생: {str(e)}")
             return 0
 
+    def apply_law_toc_enrichment(self, document: DoclingDocument) -> int:
+        """
+        문서에 TOC enrichment 적용
+
+        Args:
+            document: DoclingDocument 객체
+
+        Returns:
+            int: 생성된 섹션 헤더 개수
+        """
+        if not self.enrichment_options.do_toc_enrichment or not self.prompt_manager:
+            return 0
+
+        try:
+            _log.info("TOC 추출 시작...")
+
+            # 원시 텍스트 추출
+            raw_text = self._extract_raw_text_for_toc(document)
+
+            # 사용자 정의 프롬프트 가져오기
+            custom_system = self.enrichment_options.toc_system_prompt
+            custom_user = self.enrichment_options.toc_user_prompt
+
+            # AI로 목차 생성
+            toc_content = self.prompt_manager.call_ai_model(
+                category="toc_extraction",
+                prompt_type="law_document",
+                custom_system=custom_system,
+                custom_user=custom_user,
+                raw_text=raw_text
+            )
+
+            if toc_content:
+                # 모든 SectionHeaderItem을 TextItem으로 변환
+                self._convert_section_headers_to_text(document)
+                # 목차를 기반으로 SectionHeader 적용
+                matched_count = self._apply_toc_to_law_document(document, toc_content)
+                _log.info(f"TOC 추출 완료 - {matched_count}개 섹션 헤더 생성")
+                return matched_count
+            else:
+                _log.warning("TOC 생성 실패")
+                return 0
+
+        except Exception as e:
+            _log.error(f"TOC 추출 중 오류 발생: {str(e)}")
+            return 0
+
     def apply_metadata_enrichment(self, document: DoclingDocument) -> bool:
         """
         문서에 메타데이터 enrichment 적용
@@ -573,6 +620,99 @@ class DocumentEnrichmentUtils:
 
         return matched_count
 
+    def _apply_toc_to_law_document(self, document, toc_content: str, threshold: float = 0.5):
+        """규정문서의 목차(TOC)를 적용합니다.
+
+        Args:
+            document (_type_): TOC가 적용될 문서입니다.
+            toc_content (str): TOC의 내용입니다.
+            threshold (float, optional): 섹션 헤더 매칭을 위한 유사도 기준입니다. 기본값은 0.5입니다.
+        """
+        parsed_data = self._parse_toc_content(toc_content)
+        document_title = parsed_data['title']
+        toc_items = parsed_data['toc_items']
+
+        converted_indices = set()
+        text_items = [
+            (i, item.text.strip())
+            for i, item in enumerate(document.texts)
+            if (isinstance(item, TextItem) or isinstance(item, ListItem))
+            and (item.label == DocItemLabel.TEXT or item.label == DocItemLabel.LIST_ITEM)
+            and len(item.text.strip()) >= 2
+        ]
+        text_items_reversed = text_items[::-1]
+        matched_count = 0
+        section_matched = []
+
+        # 제목 매칭 (앞에서부터)
+        if document_title and text_items:
+            title_clean = document_title.strip()
+            text_only = [text for _, text in text_items]
+            close_matches = difflib.get_close_matches(title_clean, text_only, n=3, cutoff=0.3)
+            if close_matches:
+                best_match_text = close_matches[0]
+                best_match_idx = next((idx for idx, text in text_items if text == best_match_text), None)
+                if best_match_idx is not None and best_match_idx not in converted_indices:
+                    similarity = difflib.SequenceMatcher(None, title_clean.lower(), best_match_text.lower()).ratio()
+                    if similarity >= 0.5:
+                        original_item = document.texts[best_match_idx]
+                        original_item.label = DocItemLabel.TITLE
+                        converted_indices.add(best_match_idx)
+                        matched_count += 1
+                        _log.info(f"문서 제목 설정: {title_clean}")
+
+        # SectionHeader 매칭 (뒤에서부터)
+        for toc_item in toc_items:
+            toc_full = toc_item['full_text']
+            toc_title = toc_item['title']
+            target_level = toc_item['level']
+            if len(toc_full) < 2:
+                continue
+
+            # 1. 후보 텍스트에 대해 유사도 평가 (단, 이미 변환된 인덱스는 제외)
+            scored_candidates = []
+            for idx, text in text_items_reversed:
+                if idx in converted_indices:
+                    continue
+
+                sim_full = difflib.SequenceMatcher(None, toc_full.lower(), text.lower()[:len(toc_full)]).ratio()
+                sim_title = difflib.SequenceMatcher(None, toc_title.lower(), text.lower()[:len(toc_title)]).ratio()
+                similarity = max(sim_full, sim_title)
+                source = "full_text" if sim_full >= sim_title else "title"
+
+                if similarity >= threshold:
+                    scored_candidates.append((
+                        idx, similarity, text, source, sim_full, sim_title
+                    ))
+
+            # 2. 유사도 기준으로 정렬 → top n개 추출
+            scored_candidates.sort(key=lambda x: x[1], reverse=True)
+            top_matches = scored_candidates[:5]
+
+            # 3. 매칭 가능한 가장 첫 번째 후보 선택
+            if top_matches:
+                best_match_idx, best_similarity, best_match_text, best_match_source, sim_full, sim_title = top_matches[0]
+                original_item = document.texts[best_match_idx]
+                section_matched.append(best_match_idx)
+                section_header = SectionHeaderItem(
+                    self_ref=original_item.self_ref,
+                    parent=original_item.parent,
+                    children=original_item.children,
+                    content_layer=original_item.content_layer,
+                    prov=original_item.prov,
+                    # orig=original_item.orig,
+                    orig=toc_title, # 짧은 제목을 orig에 저장
+                    text=original_item.text,
+                    formatting=original_item.formatting,
+                    hyperlink=getattr(original_item, 'hyperlink', None),
+                    level=target_level
+                )
+                document.texts[best_match_idx] = section_header
+                converted_indices.add(best_match_idx)
+                matched_count += 1
+
+        return matched_count
+
     def _extract_document_metadata(self, document_content):
         """
         문서 내용에서 메타데이터 정보를 추출하는 함수
@@ -698,7 +838,10 @@ def enrich_document(document: DoclingDocument, enrichment_options: DataEnrichmen
         metadata_extracted = False
 
         if enrichment_options.do_toc_enrichment:
-            toc_count = enricher.apply_toc_enrichment(enriched_doc)
+            if enrichment_options.toc_doc_type is None or enrichment_options.toc_doc_type == 'normal':
+                toc_count = enricher.apply_toc_enrichment(enriched_doc)
+            elif enrichment_options.toc_doc_type == 'law':
+                toc_count = enricher.apply_law_toc_enrichment(enriched_doc)
 
         if enrichment_options.extract_metadata:
             metadata_extracted = enricher.apply_metadata_enrichment(enriched_doc)
