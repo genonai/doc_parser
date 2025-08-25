@@ -889,7 +889,7 @@ class DocumentProcessor:
             toc_temperature=0.0,
             toc_top_p=0,
             toc_seed=33,
-            toc_max_tokens=1000
+            toc_max_tokens=10000
         )
 
     def _create_converters(self):
