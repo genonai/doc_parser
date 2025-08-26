@@ -239,31 +239,53 @@ class TextLoader:
 
     def load(self):
         try:
+            # 1) 샘플로 인코딩 추정(150바이트)
             with open(self.file_path, 'rb') as f:
-                raw_file = f.read(100)
-            enc_type = chardet.detect(raw_file)['encoding']
-            # 인코딩 검증 및 기본값 적용
-            if not enc_type or enc_type.lower() in ('ascii', 'unknown'):
-                enc_type = 'utf-8'
+                sample = f.read(150)
+            enc = chardet.detect(sample).get('encoding') or ''
+            encodings = [enc] if enc and enc.lower() not in ('ascii','unknown') else []
+            encodings += ['utf-8', 'cp949', 'euc-kr', 'iso-8859-1', 'latin-1']
+            # 2) 전체 파일 바이트/텍스트 확보
+            with open(self.file_path, 'rb') as f:
+                raw = f.read()
 
-            try:
-                with open(self.file_path, 'r', encoding=enc_type, errors='strict') as f:
-                    content = f.read()
-            except UnicodeDecodeError:
-                # utf-8 실패 시 CP949로 재시도
-                with open(self.file_path, 'r', encoding='cp949', errors='replace') as f:
-                    content = f.read()
-            html_content = f"<html><body><pre>{content}</pre></body></html>"
-            html_file_path = os.path.join(self.output_dir, 'temp.html')
-            with open(html_file_path, 'w', encoding='utf-8') as f:
-                f.write(html_content)
-            pdf_save_path = self.file_path.replace('.txt', '.pdf').replace('.json', '.pdf')
-            HTML(html_file_path).write_pdf(pdf_save_path)
-            loader = PyMuPDFLoader(pdf_save_path)
-            return loader.load()
-        except Exception as e:
-            print(f"Failed to convert {self.file_path} to XHTML")
-            raise e
+            content = None
+            for e in encodings:
+                try:
+                    content = raw.decode(e)  # 전체 파일로 디코딩
+                    break
+                except UnicodeDecodeError:
+                    continue
+            if content is None:
+                content = raw.decode('utf-8', errors='replace')
+
+            # 4) PDF 변환 유지
+            html = f"<html><meta charset='utf-8'><body><pre>{content}</pre></body></html>"
+            html_path = os.path.join(self.output_dir, 'temp.html')
+            with open(html_path, 'w', encoding='utf-8') as f:
+                f.write(html)
+            pdf_path = (self.file_path
+                        .replace('.txt', '.pdf')
+                        .replace('.json', '.pdf'))
+            if HTML:
+                HTML(html_path).write_pdf(pdf_path)
+                loader = PyMuPDFLoader(pdf_path)
+                return loader.load()
+            # PDF가 불가하면 Document 직접 반환 (원형 스키마 유지)
+            return [Document(page_content=content, metadata={'source': self.file_path, 'page': 0})]
+
+        except Exception:
+            # 실패 시에도 스키마는 그대로 유지해 반환
+            for e in ['utf-8', 'cp949', 'euc-kr', 'iso-8859-1']:
+                try:
+                    with open(self.file_path, 'r', encoding=e) as f:
+                        content = f.read()
+                    return [Document(page_content=content, metadata={'source': self.file_path, 'page': 0})]
+                except UnicodeDecodeError:
+                    continue
+            with open(self.file_path, 'r', encoding='utf-8', errors='replace') as f:
+                content = f.read()
+            return [Document(page_content=content, metadata={'source': self.file_path, 'page': 0})]
         finally:
             if os.path.exists(self.output_dir):
                 shutil.rmtree(self.output_dir)
@@ -894,7 +916,7 @@ class HwpxProcessor:
 
         if self.pipeline_options.save_images != save_images:
             self.pipeline_options.save_images = save_images
-            self._create_converters()
+            # self._create_converters()
 
         conv_result: ConversionResult = self.converter.convert(file_path, raises_on_error=True)
         return conv_result.document
@@ -988,7 +1010,15 @@ class DocumentProcessor:
 
     def get_loader(self, file_path: str):
         ext = os.path.splitext(file_path)[-1].lower()
-        if ext == '.pdf':
+        real_type = self.get_real_file_type(file_path)
+        
+        # 확장자와 실제 파일 타입이 다를 때만 real_type 사용
+        if ext != real_type and real_type == 'pdf':
+            return PyMuPDFLoader(file_path)
+        elif ext != real_type and real_type in ['txt', 'json', 'md']:
+            return TextLoader(file_path)
+        # 원래 확장자 기반 로직
+        elif ext == '.pdf':
             return PyMuPDFLoader(file_path)
         elif ext in ['.doc', '.docx']:
             return UnstructuredWordDocumentLoader(file_path)
@@ -1004,6 +1034,21 @@ class DocumentProcessor:
             return UnstructuredMarkdownLoader(file_path)
         else:
             return UnstructuredFileLoader(file_path)
+
+    def get_real_file_type(self, file_path: str) -> str:
+        """파일 확장자가 아닌 실제 내용으로 파일 타입 판단"""
+        with open(file_path, 'rb') as f:
+            header = f.read(8)
+        
+        if header.startswith(b'%PDF-'):
+            return 'pdf'
+        elif header.startswith(b'\x89PNG'):
+            return 'png'
+        elif header.startswith(b'\xff\xd8\xff'):
+            return 'jpg'
+        
+        # 매직 헤더로 판단할 수 없으면 확장자 사용
+        return os.path.splitext(file_path)[-1].lower()
 
     def convert_to_pdf(self, file_path: str):
         out_path = "."
@@ -1050,7 +1095,17 @@ class DocumentProcessor:
         return chunks
 
     def compose_vectors(self, file_path: str, chunks: list[Document], **kwargs: dict) -> list[dict]:
-        if file_path.endswith('.md'):
+        ext = os.path.splitext(file_path)[-1].lower()
+        real_type = self.get_real_file_type(file_path)
+        
+        # 확장자와 실제 파일 타입이 다를 때만 real_type 사용
+        if ext != real_type and real_type == 'pdf':
+            pdf_path = file_path
+        elif ext != real_type and real_type in ['txt', 'json', 'md']:
+            # pdf_path = None  # PDF 변환 없이 직접 처리
+            pdf_path = file_path.replace('.hwp', '.pdf').replace('.txt', '.pdf').replace('.json', '.pdf')
+        # 원래 확장자 기반 로직
+        elif file_path.endswith('.md'):
             pdf_path = self.convert_md_to_pdf(file_path)
         elif file_path.endswith('.ppt'):
             pdf_path = self.convert_to_pdf(file_path)
@@ -1059,7 +1114,7 @@ class DocumentProcessor:
         else:
             pdf_path = file_path.replace('.hwp', '.pdf').replace('.txt', '.pdf').replace('.json', '.pdf')
 
-        doc = fitz.open(pdf_path) if os.path.exists(pdf_path) else None
+        doc = fitz.open(pdf_path) if (pdf_path and os.path.exists(pdf_path)) else None
 
         if file_path.endswith('.ppt'):
             if os.path.exists(pdf_path):
