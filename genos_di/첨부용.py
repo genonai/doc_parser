@@ -1208,6 +1208,14 @@ class DocumentProcessor:
             await assert_cancelled(request)
             return vectors
 
+        elif ext == '.hwp':
+            documents: list[Document] = self.load_documents(file_path, **kwargs)
+            await assert_cancelled(request)
+            chunks: list[Document] = self.split_documents(documents, **kwargs)
+            await assert_cancelled(request)
+            vectors: list[dict] = self.compose_vectors(file_path, chunks, **kwargs)
+            return vectors
+
         elif ext in ('.hwpx'):
             return await self.hwpx_processor(request, file_path, **kwargs)
 
