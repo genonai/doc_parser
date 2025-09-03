@@ -835,7 +835,7 @@ class DocumentProcessor:
         # ocr_options.lang = ['kor', 'kor_vert', 'eng', 'jpn', 'jpn_vert']
         # ocr_options.path = './.tesseract/tessdata'
         # pipe_line_options.ocr_options = ocr_options
-        pipe_line_options.artifacts_path = Path("/nfs-root/models/8/12")
+        # pipe_line_options.artifacts_path = Path("/nfs-root/models/8/12")
         pipe_line_options.do_table_structure = True
         pipe_line_options.images_scale = 2
         pipe_line_options.table_structure_options.do_cell_matching = True
