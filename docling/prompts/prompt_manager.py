@@ -257,7 +257,7 @@ class PromptManager:
                 api_url,
                 headers=headers,
                 json=payload,
-                timeout=60
+                timeout=120
             )
 
             # 응답 상태 확인
