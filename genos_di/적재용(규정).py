@@ -316,7 +316,8 @@ class HybridChunker(BaseChunker):
                 # 헤더가 있으면 추가
                 if headers_to_add:
                     header_text = "\n".join(headers_to_add)
-                    text_parts.append(header_text)
+                    if header_text not in text_parts:
+                        text_parts.append(header_text)
 
                 current_section_headers = item_headers.copy()
 
@@ -334,7 +335,9 @@ class HybridChunker(BaseChunker):
                 )
 
                 # 타이틀은 항상 포함, 섹션 헤더는 중복 방지를 위해 스킵
-                if not is_section_header:
+                # if not is_section_header:
+                # 20250909, shkim, text_parts에 없는 경우만 추가. 섹션헤더가 반복해서 추가되는 것 방지
+                if item.text not in text_parts:
                     text_parts.append(item.text)
             elif isinstance(item, PictureItem):
                 text_parts.append("")  # 이미지는 빈 텍스트
@@ -412,8 +415,7 @@ class HybridChunker(BaseChunker):
         current_header_infos = []
         current_header_short_infos = []
 
-        i = 0
-        while i < len(items):
+        for i in range(len(items)):
             item = items[i]
             header_info = header_info_list[i] if i < len(header_info_list) else {}
             header_short_info = header_short_info_list[i] if i < len(header_short_info_list) else {}
@@ -499,26 +501,27 @@ class HybridChunker(BaseChunker):
                         )
                     ))
 
-                i += 1
+                # i += 1
                 continue
 
             # 일반 아이템 처리 - 토큰 제한 확인
-            test_items = current_items + [item]
+            test_items = current_items + [items[i]]
             test_header_infos = current_header_infos + [header_info]
+            test_header_short_infos = current_header_short_infos + [header_short_info]
             test_text = self._generate_text_from_items_with_headers(
-                test_items, test_header_infos, dl_doc
+                test_items, test_header_short_infos, dl_doc
             )
             test_tokens = self._count_tokens(test_text)
 
             if test_tokens <= self.max_tokens:
-                current_items.append(item)
+                current_items.append(items[i])
                 current_header_infos.append(header_info)
                 current_header_short_infos.append(header_short_info)
             else:
                 # 토큰 제한 초과 - 현재까지의 아이템들로 청크 생성
-                if current_items:
+                if len(current_items) > 0:
                     chunk_text = self._generate_text_from_items_with_headers(
-                        current_items, current_header_infos, dl_doc
+                        current_items, current_header_short_infos, dl_doc
                     )
                     chunk_tokens = self._count_tokens(chunk_text)
 
@@ -533,13 +536,13 @@ class HybridChunker(BaseChunker):
                         )
                     ))
                     # 새로운 청크 시작
-                    current_items = [item]
+                    current_items = [items[i]]
                     current_header_infos = [header_info]
                     current_header_short_infos = [header_short_info]
                 else:
                     # 단일 아이템이 토큰 제한을 초과하는 경우
                     single_text = self._generate_text_from_items_with_headers(
-                        [item], [header_info], dl_doc
+                        [items[i]], [header_short_info], dl_doc
                     )
                     single_tokens = self._count_tokens(single_text)
 
@@ -547,19 +550,19 @@ class HybridChunker(BaseChunker):
                     result_chunks.append(DocChunk(
                         text=single_text,
                         meta=DocMeta(
-                            doc_items=[item],
+                            doc_items=[items[i]],
                             headings=used_headers,
                             captions=None,
                             origin=doc_chunk.meta.origin,
                         )
                     ))
 
-            i += 1
+            # i += 1
 
         # 마지막 남은 아이템들 처리
-        if current_items:
+        if len(current_items) > 0:
             chunk_text = self._generate_text_from_items_with_headers(
-                current_items, current_header_infos, dl_doc
+                current_items, current_header_short_infos, dl_doc
             )
             chunk_tokens = self._count_tokens(chunk_text)
 
@@ -927,6 +930,15 @@ class DocumentProcessor:
             },
         )
 
+    def set_content_layer_to_body(self, document: DoclingDocument):
+        """
+        content_layer가 furniture인 아이템들을 body로 변경하는 메서드
+        body로 변경하여 화면에 표시되도록 함
+        """
+        for item, level in document.iterate_items(included_content_layers=["furniture"]):
+            if hasattr(item, 'content_layer') and item.content_layer == "furniture":
+                item.content_layer = "body"  # body로 변경하여 화면에 표시되도록 함
+
     def load_documents_with_docling(self, file_path: str, **kwargs: dict) -> DoclingDocument:
         # kwargs에서 save_images 값을 가져와서 옵션 업데이트
         save_images = kwargs.get('save_images', True)
@@ -943,6 +955,7 @@ class DocumentProcessor:
             conv_result: ConversionResult = self.converter.convert(file_path, raises_on_error=True)
         except Exception as e:
             conv_result: ConversionResult = self.second_converter.convert(file_path, raises_on_error=True)
+        self.set_content_layer_to_body(conv_result.document)
         return conv_result.document
 
     def load_documents_with_docling_ocr(self, file_path: str, **kwargs: dict) -> DoclingDocument:
@@ -961,6 +974,7 @@ class DocumentProcessor:
             conv_result: ConversionResult = self.ocr_converter.convert(file_path, raises_on_error=True)
         except Exception as e:
             conv_result: ConversionResult = self.ocr_second_converter.convert(file_path, raises_on_error=True)
+        self.set_content_layer_to_body(conv_result.document)
         return conv_result.document
 
     def load_documents(self, file_path: str, **kwargs) -> DoclingDocument:

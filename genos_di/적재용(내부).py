@@ -840,6 +840,15 @@ class DocumentProcessor:
               }
             )
 
+    def set_content_layer_to_body(self, document: DoclingDocument):
+        """
+        content_layer가 furniture인 아이템들을 body로 변경하는 메서드
+        body로 변경하여 화면에 표시되도록 함
+        """
+        for item, level in document.iterate_items(included_content_layers=["furniture"]):
+            if hasattr(item, 'content_layer') and item.content_layer == "furniture":
+                item.content_layer = "body"  # body로 변경하여 화면에 표시되도록 함
+
     def load_documents_with_docling(self, file_path: str, **kwargs: dict) -> DoclingDocument:
         save_images = kwargs.get('save_images', False)
 
@@ -849,6 +858,7 @@ class DocumentProcessor:
             self._create_converters()
 
         conv_result: ConversionResult = self.converter.convert(file_path, raises_on_error=True)
+        self.set_content_layer_to_body(conv_result.document)
         return conv_result.document
 
     def load_documents(self, file_path: str, **kwargs: dict) -> DoclingDocument:
