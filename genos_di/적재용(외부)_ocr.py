@@ -333,14 +333,14 @@ class HybridChunker(BaseChunker):
     def _extract_table_text(self, table_item: TableItem, dl_doc: DoclingDocument) -> str:
         """테이블에서 텍스트를 추출하는 일반화된 메서드"""
         try:
-            # 먼저 export_to_markdown 시도
-            table_text = table_item.export_to_markdown(dl_doc)
+            # 먼저 export_to_html 시도
+            table_text = table_item.export_to_html(dl_doc)
             if table_text and table_text.strip():
                 return table_text
         except Exception:
             pass
 
-        # export_to_markdown 실패 시 테이블 셀 데이터에서 직접 텍스트 추출
+        # export_to_html 실패 시 테이블 셀 데이터에서 직접 텍스트 추출
         try:
             if hasattr(table_item, 'data') and table_item.data:
                 cell_texts = []
@@ -385,6 +385,21 @@ class HybridChunker(BaseChunker):
                         all_headers.add(header_text)
 
         return list(all_headers) if all_headers else None
+
+    def _split_table_text(self, table_text: str, max_tokens: int) -> list[str]:
+        """테이블 텍스트를 토큰 제한에 맞게 분할 (단순 토큰 수 기준)"""
+        if not table_text:
+            return [table_text]
+
+        # 전체 테이블이 토큰 제한 내인지 확인
+        if self._count_tokens(table_text) <= max_tokens:
+            return [table_text]
+
+        # 단순히 토큰 수 기준으로 텍스트 분할
+        # semchunk 사용하여 토큰 제한에 맞게 분할
+        chunker = semchunk.chunkerify(self._tokenizer, chunk_size=max_tokens)
+        chunks = chunker(table_text)
+        return chunks if chunks else [table_text]
 
     def _split_document_by_tokens(self, doc_chunk: DocChunk, dl_doc: DoclingDocument) -> list[DocChunk]:
         """문서를 토큰 제한에 맞게 분할 (여러 섹션이 하나의 청크에 포함 가능)"""
@@ -453,22 +468,32 @@ class HybridChunker(BaseChunker):
                 )
                 table_tokens = self._count_tokens(table_text)
 
-                # 테이블이 max_tokens를 초과하는 경우, 테이블만 포함
+                # 테이블이 max_tokens를 초과하는 경우, 테이블을 분할
                 if table_tokens > self.max_tokens:
-                    # 테이블만 포함하는 청크 생성
-                    table_only_text = self._generate_text_from_items_with_headers(
-                        [item], [header_info], dl_doc
-                    )
-                    used_headers = self._extract_used_headers([header_info])
-                    result_chunks.append(DocChunk(
-                        text=table_only_text,
-                        meta=DocMeta(
-                            doc_items=[item],
-                            headings=used_headers,
-                            captions=None,
-                            origin=doc_chunk.meta.origin,
+                    # 테이블 텍스트만 추출하여 분할
+                    table_only_text = self._extract_table_text(item, dl_doc)
+                    split_tables = self._split_table_text(table_only_text, 4096)
+
+                    # 분할된 각 테이블에 대해 청크 생성
+                    for split_table in split_tables:
+                        # 기존 _generate_text_from_items_with_headers 함수 활용
+                        full_text = self._generate_text_from_items_with_headers(
+                            [item], [header_info], dl_doc
                         )
-                    ))
+                        # 원본 테이블 텍스트를 분할된 테이블로 교체
+                        full_text = full_text.replace(table_only_text, split_table)
+
+                        # 원래 tableitem에 들어갔어야 할 heading 값 유지
+                        used_headers = self._extract_used_headers([header_info])
+                        result_chunks.append(DocChunk(
+                            text=full_text,
+                            meta=DocMeta(
+                                doc_items=[item],
+                                headings=used_headers,
+                                captions=None,
+                                origin=doc_chunk.meta.origin,
+                            )
+                        ))
                 else:
                     used_headers = self._extract_used_headers(table_header_infos)
                     result_chunks.append(DocChunk(
