@@ -405,11 +405,11 @@ class HybridChunker(BaseChunker):
         """테이블 텍스트를 토큰 제한에 맞게 분할 (단순 토큰 수 기준)"""
         if not table_text:
             return [table_text]
-        
+
         # 전체 테이블이 토큰 제한 내인지 확인
         if self._count_tokens(table_text) <= max_tokens:
             return [table_text]
-        
+
         # 단순히 토큰 수 기준으로 텍스트 분할
         # semchunk 사용하여 토큰 제한에 맞게 분할
         chunker = semchunk.chunkerify(self._tokenizer, chunk_size=max_tokens)
@@ -490,7 +490,7 @@ class HybridChunker(BaseChunker):
                     # 테이블 텍스트만 추출하여 분할
                     table_only_text = self._extract_table_text(item, dl_doc)
                     split_tables = self._split_table_text(table_only_text, 4096)
-                    
+
                     # 분할된 각 테이블에 대해 청크 생성
                     for split_table in split_tables:
                         # 기존 _generate_text_from_items_with_headers 함수 활용
@@ -499,7 +499,7 @@ class HybridChunker(BaseChunker):
                         )
                         # 원본 테이블 텍스트를 분할된 테이블로 교체
                         full_text = full_text.replace(table_only_text, split_table)
-                        
+
                         # 원래 tableitem에 들어갔어야 할 heading 값 유지
                         used_headers = self._extract_used_headers([header_info])
                         result_chunks.append(DocChunk(
@@ -523,7 +523,7 @@ class HybridChunker(BaseChunker):
                         )
                     ))
 
-                i += 1
+                # i += 1
                 continue
 
             # 일반 아이템 처리 - 토큰 제한 확인
