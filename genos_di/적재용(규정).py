@@ -348,14 +348,14 @@ class HybridChunker(BaseChunker):
     def _extract_table_text(self, table_item: TableItem, dl_doc: DoclingDocument) -> str:
         """테이블에서 텍스트를 추출하는 일반화된 메서드"""
         try:
-            # 먼저 export_to_html 시도
-            table_text = table_item.export_to_html(dl_doc)
+            # 먼저 export_to_markdown 시도
+            table_text = table_item.export_to_markdown(dl_doc)
             if table_text and table_text.strip():
                 return table_text
         except Exception:
             pass
 
-        # export_to_html 실패 시 테이블 셀 데이터에서 직접 텍스트 추출
+        # export_to_markdown 실패 시 테이블 셀 데이터에서 직접 텍스트 추출
         try:
             if hasattr(table_item, 'data') and table_item.data:
                 cell_texts = []
