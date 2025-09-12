@@ -1,0 +1,47 @@
+# 개발 브랜치(develop) 대상 PR에서 빌드/기본 테스트를 수행하는 워크플로우
+name: CI (develop PR)
+
+# 트리거: develop 브랜치로의 PR, 수동 실행 지원
+on:
+  pull_request:
+    branches: [refactor-structure]
+  # workflow_dispatch:  # 수동 실행이 필요 없으면 비활성화
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    # job 실행 전략. 3.12, 3.13 버전으로 2회 실행
+    strategy:
+      matrix:
+        python-version: ['3.12', '3.13']
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Pin Python in uv
+        run: uv python pin ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Compile all (syntax check)
+        # 전체 파이썬 파일 문법 오류 확인
+        run: uv run python -m compileall -q .
+
+      - name: Import smoke
+        # 모듈 임포트가 가능한지 빠르게 확인
+        run: uv run python -c "import importlib; importlib.import_module('doc_preprocessors.basic_processor')"
+
+      - name: Build package
+        # 패키징(빌드)까지 성공하는지 확인
+        run: uv build
+
+
