@@ -2,9 +2,9 @@ from fastapi import Request
 import logging
 
 
-from preprocess import DocumentProcessor
+# from preprocess import DocumentProcessor
 # from origin_preprocess import DocumentProcessor
-# from 첨부용 import DocumentProcessor
+from 첨부용 import DocumentProcessor
 
 # 파일 경로 및 요청 설정
 import os

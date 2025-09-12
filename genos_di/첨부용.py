@@ -67,8 +67,8 @@ from docling_core.types.doc import (
     PictureItem, SectionHeaderItem, TableItem, TextItem
 )
 from docling_core.types.doc.document import LevelNumber, ListItem, CodeItem
-from utils import assert_cancelled
-from genos_utils import upload_files, merge_overlapping_bboxes
+# from utils import assert_cancelled
+# from genos_utils import upload_files, merge_overlapping_bboxes
 
 
 # import platform
@@ -1047,10 +1047,10 @@ class HwpxProcessor:
             vectors.append(vector)
 
             chunk_index_on_page += 1
-            file_list = self.get_media_files(chunk.meta.doc_items)
-            upload_tasks.append(asyncio.create_task(
-                upload_files(file_list, request=request)
-            ))
+            # file_list = self.get_media_files(chunk.meta.doc_items)
+            # upload_tasks.append(asyncio.create_task(
+            #     upload_files(file_list, request=request)
+            # ))
 
         if upload_tasks:
             await asyncio.gather(*upload_tasks)
@@ -1085,10 +1085,10 @@ class GenosServiceException(Exception):
         return f"{class_name}(code={self.code!r}, errMsg={self.error_msg!r})"
 
 
-async def assert_cancelled(request: Request):
-    """GenOS 와의 의존성 제거를 위해 추가"""
-    if await request.is_disconnected():
-        raise GenosServiceException(1, f"Cancelled")
+# async def assert_cancelled(request: Request):
+#     """GenOS 와의 의존성 제거를 위해 추가"""
+#     if await request.is_disconnected():
+#         raise GenosServiceException(1, f"Cancelled")
 
 
 class DocumentProcessor:
@@ -1218,17 +1218,17 @@ class DocumentProcessor:
 
             if doc:
                 fitz_page = doc.load_page(page)
-                global_metadata['chunk_bboxes'] = json.dumps(merge_overlapping_bboxes([{
-                    'page': page + 1,
-                    'type': 'text',
-                    'bbox': {
-                        'l': rect[0] / fitz_page.rect.width,
-                        't': rect[1] / fitz_page.rect.height,
-                        'r': rect[2] / fitz_page.rect.width,
-                        'b': rect[3] / fitz_page.rect.height,
-                    }
-                } for rect in fitz_page.search_for(text)], x_tolerance=1 / fitz_page.rect.width,
-                    y_tolerance=1 / fitz_page.rect.height))
+                # global_metadata['chunk_bboxes'] = json.dumps(merge_overlapping_bboxes([{
+                #     'page': page + 1,
+                #     'type': 'text',
+                #     'bbox': {
+                #         'l': rect[0] / fitz_page.rect.width,
+                #         't': rect[1] / fitz_page.rect.height,
+                #         'r': rect[2] / fitz_page.rect.width,
+                #         'b': rect[3] / fitz_page.rect.height,
+                #     }
+                # } for rect in fitz_page.search_for(text)], x_tolerance=1 / fitz_page.rect.width,
+                #     y_tolerance=1 / fitz_page.rect.height))
 
             vectors.append(GenOSVectorMeta.model_validate({
                 'text': text,
@@ -1271,27 +1271,27 @@ class DocumentProcessor:
                 tmp_path=tmp_path
             )
             vectors = loader.return_vectormeta_format()
-            await assert_cancelled(request)
+            # await assert_cancelled(request)
 
             # Remove the temporal chunks
             try:
                 subprocess.run(['rm', '-r', tmp_path], check=True)
             except:
                 pass
-            await assert_cancelled(request)
+            # await assert_cancelled(request)
             return vectors
 
         elif ext in ('.csv', '.xlsx'):
             loader = TabularLoader(file_path, ext)
             vectors = loader.return_vectormeta_format()
-            await assert_cancelled(request)
+            # await assert_cancelled(request)
             return vectors
 
         elif ext == '.hwp':
             documents: list[Document] = self.load_documents(file_path, **kwargs)
-            await assert_cancelled(request)
+            # await assert_cancelled(request)
             chunks: list[Document] = self.split_documents(documents, **kwargs)
-            await assert_cancelled(request)
+            # await assert_cancelled(request)
             vectors: list[dict] = self.compose_vectors(file_path, chunks, **kwargs)
             return vectors
 
@@ -1300,13 +1300,13 @@ class DocumentProcessor:
 
         else:
             documents: list[Document] = self.load_documents(file_path, **kwargs)
-            await assert_cancelled(request)
+            # await assert_cancelled(request)
 
             chunks: list[Document] = self.split_documents(documents, **kwargs)
-            await assert_cancelled(request)
+            # await assert_cancelled(request)
 
             pdf_path = _get_pdf_path(file_path)
-            await assert_cancelled(request)
+            # await assert_cancelled(request)
             
             vectors: list[dict] = self.compose_vectors(file_path, chunks, **kwargs)
             return vectors

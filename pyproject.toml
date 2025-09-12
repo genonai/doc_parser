@@ -77,6 +77,13 @@ dependencies = [
     'grpcio',
     'grpcio-tools',
     "fastapi>=0.116.0",
+    "pymupdf>=1.26.4",
+    "pydub>=0.25.1",
+    "langchain>=0.3.27",
+    "langchain-community>=0.3.29",
+    "markdown2>=2.5.4",
+    "chardet>=5.2.0",
+    "audioop-lts; python_version >= '3.13'",
 ]
 
 transformers = [
