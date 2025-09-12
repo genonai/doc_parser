@@ -2,12 +2,19 @@ from fastapi import Request
 import logging
 
 
-# from preprocess import DocumentProcessor
+from preprocess import DocumentProcessor
 # from origin_preprocess import DocumentProcessor
-from 첨부용 import DocumentProcessor
+# from 첨부용 import DocumentProcessor
 
 # 파일 경로 및 요청 설정
-file_path = "/workspaces/hwpx/★(통화정책국)의결문(안) 및 참고자료(1810)_의결문제외.hwp"
+import os
+file_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "sample_files", "sample.pdf")
+
+# 파일 존재 여부 확인
+if not os.path.exists(file_path):
+    print(f"Sample file not found: {file_path}")
+    print("Please add a PDF file to the sample_files folder.")
+    exit(1)
 
 # DocumentProcessor 인스턴스 생성
 doc_processor = DocumentProcessor()

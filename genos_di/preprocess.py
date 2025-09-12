@@ -87,7 +87,7 @@ except ImportError:
         "`pip install 'docling-core[chunking]'`"
     )
 
-from genos_utils import upload_files
+# from genos_utils import upload_files
 
 # ============================================
 #
@@ -968,7 +968,7 @@ class DocumentProcessor:
         # ocr_options.lang = ['kor', 'kor_vert', 'eng', 'jpn', 'jpn_vert']
         # ocr_options.path = './.tesseract/tessdata'
         # self.pipe_line_options.ocr_options = ocr_options
-        self.pipe_line_options.artifacts_path = Path("/nfs-root/models/223/760")  # Path("/nfs-root/aiModel/.cache/huggingface/hub/models--ds4sd--docling-models/snapshots/4659a7d29247f9f7a94102e1f313dad8e8c8f2f6/")
+        # self.pipe_line_options.artifacts_path = Path("/nfs-root/models/223/760")  # Path("/nfs-root/aiModel/.cache/huggingface/hub/models--ds4sd--docling-models/snapshots/4659a7d29247f9f7a94102e1f313dad8e8c8f2f6/")
         self.pipe_line_options.do_table_structure = True
         self.pipe_line_options.images_scale = 2
         self.pipe_line_options.table_structure_options.do_cell_matching = True
@@ -1169,10 +1169,10 @@ class DocumentProcessor:
             vectors.append(vector)
 
             chunk_index_on_page += 1
-            file_list = self.get_media_files(chunk.meta.doc_items)
-            upload_tasks.append(asyncio.create_task(
-                upload_files(file_list, request=request)
-            ))
+            # file_list = self.get_media_files(chunk.meta.doc_items)
+            # upload_tasks.append(asyncio.create_task(
+            #     upload_files(file_list, request=request)
+            # ))
 
         if upload_tasks:
             await asyncio.gather(*upload_tasks)
@@ -1201,9 +1201,7 @@ class DocumentProcessor:
             reference_path = artifacts_dir.parent
 
         document = document._with_pictures_refs(image_dir=artifacts_dir, reference_path=reference_path)
-
-<<<<<<< HEAD
-        document = self.enrichment(document, **kwargs)
+        # document = self.enrichment(document, **kwargs)
 
         has_text_items = False
         for item, _ in document.iterate_items():
@@ -1244,45 +1242,6 @@ class DocumentProcessor:
             vectors: list[dict] = await self.compose_vectors(document, chunks, file_path, request, **kwargs)
         else:
             raise GenosServiceException(1, f"chunk length is 0")
-
-=======
-=======
-
-<<<<<<< HEAD
-        # format = self.get_input_format(file_path)
-        # if isinstance(format, InputFormat):
-        #     kwargs["format"] = format
-        # else:
-        #     return None
-        # TODO: sheet 별로 후처리 하는 코드 추가
->>>>>>> 7b1c724 (add XLSX preprocessor)
-=======
->>>>>>> 44d753e (genos preprocess code for docling 2.28)
-=======
-        # 첫번쨰 두번쨰 페이지 텍스트 합치기
-        merged_text = ""
-        for page_no in range(1, 3):
-            merged_text += document.export_to_markdown(page_no=page_no)
-        
-        # 메타데이터 추출 (client가 제공된 경우)
-        metadata = {}
-        if client:
-            metadata = self.extract_document_metadata(merged_text, client)
-        
->>>>>>> 4b2cbf8 (작성자, 작성일 메타데이터 추가)
-=======
->>>>>>> 066d74a (Revert "작성자, 작성일 메타데이터 추가")
-        # Extract Chunk from DoclingDocument
-        chunks: List[DocChunk] = self.split_documents(document, **kwargs)
-        # await assert_cancelled(request)
-
-        vectors = []
-        if len(chunks) >= 1:
-            vectors: list[dict] = await self.compose_vectors(document, chunks, file_path, request, **kwargs)
-        else:
-            raise GenosServiceException(1, f"chunk length is 0")
-        
->>>>>>> f53e801 (Test Code based on komipo for Genos DI)
         """
         # 미디어 파일 업로드 방법
         media_files = [
