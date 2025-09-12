@@ -4,7 +4,7 @@ name: CI (develop PR)
 # 트리거: develop 브랜치로의 PR, 수동 실행 지원
 on:
   pull_request:
-    branches: [refactor-structure]
+    branches: [feature/refactor-structure]
   # workflow_dispatch:  # 수동 실행이 필요 없으면 비활성화
 
 jobs:
