@@ -48,9 +48,9 @@ jobs:
         # 모듈 임포트가 가능한지 빠르게 확인
         run: uv run python -c "import importlib; importlib.import_module('doc_preprocessors.basic_processor')"
 
-      - name: Smoke tests (basic_processor)
-        # 항상 실행. 샘플이 없으면 테스트 내부에서 자동 skip
-        run: uv run pytest -q tests_our/test_basic_processor.py -k "test_pdf_smoke or test_hwpx_smoke"
+      - name: Run all tests (tests_our)
+        # 모든 tests_our 테스트 실행. 샘플 없으면 개별 테스트에서 자동 skip
+        run: uv run pytest -q tests_our
 
       - name: Build package
         # 패키징(빌드)까지 성공하는지 확인
