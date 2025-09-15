@@ -1,10 +1,14 @@
 # 개발 브랜치(develop) 대상 PR에서 빌드/기본 테스트를 수행하는 워크플로우
-name: CI (develop PR)
+name: DOC PARSER CI (develop PR)
 
 # 트리거: develop 브랜치로의 PR, 수동 실행 지원
 on:
   pull_request:
-    branches: [feature/refactor-structure]
+    branches: [develop, feature/refactor-structure]
+  push:
+    # 현재 작업 중인 feature 브랜치 푸시 시에도 CI 실행
+    branches:
+      - 'feature/refactor-structure'
   # workflow_dispatch:  # 수동 실행이 필요 없으면 비활성화
 
 jobs:
@@ -14,6 +18,9 @@ jobs:
     strategy:
       matrix:
         python-version: ['3.12', '3.13']
+    # 리포지토리 Variables에 RUN_DL_CONTRACT=1 설정 시 계약 스모크 실행
+    env:
+      RUN_DL_CONTRACT: ${{ vars.RUN_DL_CONTRACT }}
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -39,6 +46,11 @@ jobs:
       - name: Import smoke
         # 모듈 임포트가 가능한지 빠르게 확인
         run: uv run python -c "import importlib; importlib.import_module('doc_preprocessors.basic_processor')"
+
+      - name: Smoke tests (basic_processor)
+        # develop 대상 PR이거나 RUN_DL_CONTRACT=1일 때 PDF/HWPX 스모크 실행
+        if: ${{ (github.event_name == 'pull_request' && github.base_ref == 'develop') || env.RUN_DL_CONTRACT == '1' }}
+        run: uv run pytest -q tests_our/test_basic_processor.py -k "test_pdf_smoke or test_hwpx_smoke"
 
       - name: Build package
         # 패키징(빌드)까지 성공하는지 확인
