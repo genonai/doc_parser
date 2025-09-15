@@ -18,6 +18,9 @@ jobs:
     strategy:
       matrix:
         python-version: ['3.12', '3.13']
+    env:
+      # 레포 내 로컬 모듈(doc_preprocessors 등) 임포트 가능하도록 설정
+      PYTHONPATH: ${{ github.workspace }}
 
     steps:
       - name: Checkout
