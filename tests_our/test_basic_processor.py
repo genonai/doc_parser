@@ -52,6 +52,70 @@ def test_hwpx_smoke():
     assert isinstance(chunks, list) and len(chunks) >= 1
 
 
+# 결과 스키마: vectors의 필수 키/타입 확인 (PDF)
+@pytest.mark.skipif(
+    not (Path(__file__).resolve().parents[1] / "sample_files" / "sample.pdf").exists(),
+    reason="sample.pdf not found",
+)
+def test_vector_schema_pdf():
+    import asyncio
+    from doc_preprocessors.basic_processor import DocumentProcessor
+    dp = DocumentProcessor()
+    sample = Path(__file__).resolve().parents[1] / "sample_files" / "sample.pdf"
+
+    vectors = asyncio.run(dp(None, str(sample)))
+    assert isinstance(vectors, list) and len(vectors) >= 1
+    v = vectors[0]
+    # dict 또는 pydantic 모델 모두 허용
+    if hasattr(v, "model_dump"):
+        v = v.model_dump()
+    required = [
+        "text",
+        "n_char",
+        "n_word",
+        "n_line",
+        "i_page",
+        "i_chunk_on_page",
+        "i_chunk_on_doc",
+    ]
+    for k in required:
+        assert k in v
+    assert isinstance(v["text"], str)
+    for k in [x for x in required if x != "text"]:
+        assert isinstance(v[k], int)
+
+
+# 결과 스키마: vectors의 필수 키/타입 확인 (HWPX)
+@pytest.mark.skipif(
+    not (Path(__file__).resolve().parents[1] / "sample_files" / "sample.hwpx").exists(),
+    reason="sample.hwpx not found",
+)
+def test_vector_schema_hwpx():
+    import asyncio
+    from doc_preprocessors.basic_processor import DocumentProcessor
+    dp = DocumentProcessor()
+    sample = Path(__file__).resolve().parents[1] / "sample_files" / "sample.hwpx"
+
+    vectors = asyncio.run(dp(None, str(sample)))
+    assert isinstance(vectors, list) and len(vectors) >= 1
+    v = vectors[0]
+    if hasattr(v, "model_dump"):
+        v = v.model_dump()
+    required = [
+        "text",
+        "n_char",
+        "n_word",
+        "n_line",
+        "i_page",
+        "i_chunk_on_page",
+        "i_chunk_on_doc",
+    ]
+    for k in required:
+        assert k in v
+    assert isinstance(v["text"], str)
+    for k in [x for x in required if x != "text"]:
+        assert isinstance(v[k], int)
+
 # 가벼운 유닛 테스트: 날짜 파서와 문자열 합치기 유틸의 기본 동작을 확인
 def test_unit_helpers():
     from doc_preprocessors.basic_processor import DocumentProcessor
