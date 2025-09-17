@@ -16,7 +16,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-python@v6
-        with: { python-version: ${{ matrix.python-version }} }
+        with: { python-version: ${{ matrix.python-version }}
       - uses: astral-sh/setup-uv@v6
       - run: uv python pin ${{ matrix.python-version }}
       - run: uv sync
