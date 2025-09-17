@@ -60,6 +60,7 @@ from docling_core.types.doc.document import (
     LevelNumber,
     ListItem,
     CodeItem,
+    ContentLayer
     # SectionHeaderItem,
     # TableItem,
     # TextItem,
@@ -140,7 +141,7 @@ class HierarchicalChunker(BaseChunker):
         processed_refs = set()
 
         # 모든 아이템 순회
-        for item, level in dl_doc.iterate_items():
+        for item, level in dl_doc.iterate_items(included_content_layers={ContentLayer.BODY, ContentLayer.FURNITURE}):
             if hasattr(item, 'self_ref'):
                 processed_refs.add(item.self_ref)
 
@@ -189,6 +190,8 @@ class HierarchicalChunker(BaseChunker):
                     isinstance(item, CodeItem) or
                     isinstance(item, TableItem) or
                     isinstance(item, PictureItem)):
+                if item.label in [DocItemLabel.PAGE_HEADER, DocItemLabel.PAGE_FOOTER]:
+                    item.text = ""
                 all_items.append(item)
                 # 현재 아이템의 헤더 정보 저장
                 all_header_info.append({k: v for k, v in current_heading_by_level.items()})

@@ -52,6 +52,7 @@ from docling_core.types.doc.document import (
     LevelNumber,
     ListItem,
     CodeItem,
+    ContentLayer,
 )
 from docling_core.types.doc.labels import DocItemLabel
 from docling_core.types.doc import (
@@ -119,7 +120,7 @@ class HierarchicalChunker(BaseChunker):
         processed_refs = set()
 
         # 모든 아이템 순회
-        for item, level in dl_doc.iterate_items():
+        for item, level in dl_doc.iterate_items(included_content_layers={ContentLayer.BODY, ContentLayer.FURNITURE}):
             if hasattr(item, 'self_ref'):
                 processed_refs.add(item.self_ref)
 
@@ -168,6 +169,8 @@ class HierarchicalChunker(BaseChunker):
                 isinstance(item, CodeItem) or
                 isinstance(item, TableItem) or
                 isinstance(item, PictureItem)):
+                if item.label in [DocItemLabel.PAGE_HEADER, DocItemLabel.PAGE_FOOTER]:
+                    item.text = ""
                 all_items.append(item)
                 # 현재 아이템의 헤더 정보 저장
                 all_header_info.append({k: v for k, v in current_heading_by_level.items()})
@@ -922,15 +925,6 @@ class DocumentProcessor:
             },
         )
 
-    def set_content_layer_to_body(self, document: DoclingDocument):
-        """
-        content_layer가 furniture인 아이템들을 body로 변경하는 메서드
-        body로 변경하여 화면에 표시되도록 함
-        """
-        for item, level in document.iterate_items(included_content_layers=["furniture"]):
-            if hasattr(item, 'content_layer') and item.content_layer == "furniture":
-                item.content_layer = "body"  # body로 변경하여 화면에 표시되도록 함
-
     def load_documents_with_docling(self, file_path: str, **kwargs: dict) -> DoclingDocument:
         # kwargs에서 save_images 값을 가져와서 옵션 업데이트
         save_images = kwargs.get('save_images', True)
@@ -947,7 +941,6 @@ class DocumentProcessor:
             conv_result: ConversionResult = self.converter.convert(file_path, raises_on_error=True)
         except Exception as e:
             conv_result: ConversionResult = self.second_converter.convert(file_path, raises_on_error=True)
-        self.set_content_layer_to_body(conv_result.document)
         return conv_result.document
 
     def load_documents_with_docling_ocr(self, file_path: str, **kwargs: dict) -> DoclingDocument:
@@ -966,7 +959,6 @@ class DocumentProcessor:
             conv_result: ConversionResult = self.ocr_converter.convert(file_path, raises_on_error=True)
         except Exception as e:
             conv_result: ConversionResult = self.ocr_second_converter.convert(file_path, raises_on_error=True)
-        self.set_content_layer_to_body(conv_result.document)
         return conv_result.document
 
     def load_documents(self, file_path: str, **kwargs) -> DoclingDocument:
