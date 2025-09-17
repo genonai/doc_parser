@@ -8,7 +8,6 @@ jobs:
   smoke:
     runs-on: ubuntu-latest
     env:
-      PYTEST_DISABLE_PLUGIN_AUTOLOAD: "1"
       PYTHONPATH: ${{ github.workspace }}
     steps:
       - uses: actions/checkout@v5
@@ -16,7 +15,7 @@ jobs:
         with: { python-version: '3.12' }
       - uses: astral-sh/setup-uv@v6
       - run: uv python pin 3.12
-      - run: uv sync
+      - run: uv sync --dev
       - name: Import smoke
         run: uv run python -c "import importlib; importlib.import_module('doc_preprocessors.basic_processor')"
       - name: Pytest (smoke only)
