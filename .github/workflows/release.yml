@@ -1,0 +1,25 @@
+name: Release checks (release/*)
+on:
+  push:
+    branches: ['release/**']
+  workflow_dispatch: {}
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    env:
+      PYTEST_DISABLE_PLUGIN_AUTOLOAD: "1"
+      PYTHONPATH: ${{ github.workspace }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with: { python-version: '3.12' }
+      - uses: astral-sh/setup-uv@v6
+      - run: uv python pin 3.12
+      - run: uv sync
+      - name: Import smoke
+        run: uv run python -c "import importlib; importlib.import_module('doc_preprocessors.basic_processor')"
+      - name: Pytest (smoke only)
+        run: uv run pytest -m "smoke" -v -ra --durations=5
+      - name: Build package (optional)
+        run: uv build

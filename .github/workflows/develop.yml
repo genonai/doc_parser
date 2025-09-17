@@ -1,0 +1,29 @@
+name: CI (PR → develop)
+on:
+  pull_request:
+    branches: [develop]
+  workflow_dispatch: {}
+
+jobs:
+  pr-tests:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ['3.12', '3.13']
+    env:
+      PYTEST_DISABLE_PLUGIN_AUTOLOAD: "1"
+      PYTHONPATH: ${{ github.workspace }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with: { python-version: ${{ matrix.python-version }} }
+      - uses: astral-sh/setup-uv@v6
+      - run: uv python pin ${{ matrix.python-version }}
+      - run: uv sync
+      - run: uv run python -m compileall -q .
+      - name: Import smoke
+        run: uv run python -c "import importlib; importlib.import_module('doc_preprocessors.basic_processor')"
+      - name: Pytest (unit+smoke)
+        run: uv run pytest -m "unit or smoke" -v -ra --durations=5
+      - name: Build package
+        run: uv build
