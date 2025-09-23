@@ -81,6 +81,9 @@ dependencies = [
     "markdown2>=2.5.4",
     "chardet>=5.2.0",
     "audioop-lts; python_version >= '3.13'",
+    "uvicorn>=0.35.0",
+    "nltk>=3.9.1",
+    "gunicorn>=23.0.0",
 ]
 
 [project.urls]
@@ -161,7 +164,7 @@ package = true
 default-groups = "all"
 
 [tool.setuptools.packages.find]
-include = ["docling*"]
+include = ["docling*", "doc_preprocessors*", "web_service*"]
 
 [tool.setuptools.package-data]
 "docling.prompts" = ["*.json"]
