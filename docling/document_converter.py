@@ -101,9 +101,9 @@ class ExcelFormatOption(FormatOption):
 
 class WordFormatOption(FormatOption):
     pipeline_cls: Type = SimplePipeline
-    backend: Type[AbstractDocumentBackend] = MsWordDocumentBackend
+    # backend: Type[AbstractDocumentBackend] = MsWordDocumentBackend
     # GenosMsWordDocumentBackend 사용
-    # backend: Type[AbstractDocumentBackend] = GenosMsWordDocumentBackend
+    backend: Type[AbstractDocumentBackend] = GenosMsWordDocumentBackend
 
 
 class PowerpointFormatOption(FormatOption):
@@ -184,9 +184,9 @@ def _get_default_option(format: InputFormat) -> FormatOption:
             pipeline_cls=SimplePipeline, backend=MsExcelDocumentBackend
         ),
         InputFormat.DOCX: FormatOption(
-            pipeline_cls=SimplePipeline, backend=MsWordDocumentBackend
+            # pipeline_cls=SimplePipeline, backend=MsWordDocumentBackend
             # GenosMsWordDocumentBackend 사용
-            # pipeline_cls=SimplePipeline, backend=GenosMsWordDocumentBackend
+            pipeline_cls=SimplePipeline, backend=GenosMsWordDocumentBackend
         ),
         InputFormat.PPTX: FormatOption(
             pipeline_cls=SimplePipeline, backend=MsPowerpointDocumentBackend
