@@ -20,7 +20,10 @@ from docling_core.types.doc import (
     TableCell,
     TableData,
     TextItem,
+    ProvenanceItem,
+    BoundingBox,
 )
+from docling_core.types.doc.base import Size
 from docling_core.types.doc.document import Formatting
 from marko import Markdown
 from pydantic import AnyUrl, BaseModel, Field, TypeAdapter
@@ -181,7 +184,13 @@ class MarkdownDocumentBackend(DeclarativeDocumentBackend):
             for tcell in tcells:
                 table_data.table_cells.append(tcell)
             if len(tcells) > 0:
-                doc.add_table(data=table_data)
+                doc.add_table(data=table_data,
+                              prov=ProvenanceItem(
+                                 page_no=1,
+                                 bbox=BoundingBox(l=0, t=0, r=1, b=1),
+                                 charspan=(0, 0)
+                                )
+                            )
         return
 
     def _create_list_item(
@@ -199,6 +208,11 @@ class MarkdownDocumentBackend(DeclarativeDocumentBackend):
             parent=parent_item,
             formatting=formatting,
             hyperlink=hyperlink,
+            prov=ProvenanceItem(
+                    page_no=1,
+                    bbox=BoundingBox(l=0, t=0, r=1, b=1),
+                    charspan=(0, 0)
+                )
         )
         return item
 
@@ -217,6 +231,11 @@ class MarkdownDocumentBackend(DeclarativeDocumentBackend):
                 parent=parent_item,
                 formatting=formatting,
                 hyperlink=hyperlink,
+                prov=ProvenanceItem(
+                    page_no=1,
+                    bbox=BoundingBox(l=0, t=0, r=1, b=1),
+                    charspan=(0, 0)
+                )
             )
         else:
             item = doc.add_heading(
@@ -225,6 +244,11 @@ class MarkdownDocumentBackend(DeclarativeDocumentBackend):
                 parent=parent_item,
                 formatting=formatting,
                 hyperlink=hyperlink,
+                prov=ProvenanceItem(
+                    page_no=1,
+                    bbox=BoundingBox(l=0, t=0, r=1, b=1),
+                    charspan=(0, 0)
+                )
             )
         return item
 
@@ -328,9 +352,19 @@ class MarkdownDocumentBackend(DeclarativeDocumentBackend):
                     text=title,
                     formatting=formatting,
                     hyperlink=hyperlink,
+                    prov=ProvenanceItem(
+                        page_no=1,
+                        bbox=BoundingBox(l=0, t=0, r=1, b=1),
+                        charspan=(0, 0)
+                    )
                 )
 
-            doc.add_picture(parent=parent_item, caption=fig_caption)
+            doc.add_picture(parent=parent_item, caption=fig_caption,
+                            prov=ProvenanceItem(
+                                 page_no=1,
+                                 bbox=BoundingBox(l=0, t=0, r=1, b=1),
+                                 charspan=(0, 0)
+                             ))
 
         elif isinstance(element, marko.inline.Emphasis):
             _log.debug(f" - Emphasis: {element.children}")
@@ -409,6 +443,11 @@ class MarkdownDocumentBackend(DeclarativeDocumentBackend):
                         text=snippet_text,
                         formatting=formatting,
                         hyperlink=hyperlink,
+                        prov=ProvenanceItem(
+                            page_no=1,
+                            bbox=BoundingBox(l=0, t=0, r=1, b=1),
+                            charspan=(0, 0)
+                        )
                     )
 
         elif isinstance(element, marko.inline.CodeSpan):
@@ -420,6 +459,11 @@ class MarkdownDocumentBackend(DeclarativeDocumentBackend):
                 text=snippet_text,
                 formatting=formatting,
                 hyperlink=hyperlink,
+                prov=ProvenanceItem(
+                    page_no=1,
+                    bbox=BoundingBox(l=0, t=0, r=1, b=1),
+                    charspan=(0, 0)
+                )
             )
 
         elif (
@@ -435,6 +479,11 @@ class MarkdownDocumentBackend(DeclarativeDocumentBackend):
                 text=snippet_text,
                 formatting=formatting,
                 hyperlink=hyperlink,
+                prov=ProvenanceItem(
+                    page_no=1,
+                    bbox=BoundingBox(l=0, t=0, r=1, b=1),
+                    charspan=(0, 0)
+                )
             )
 
         elif isinstance(element, marko.inline.LineBreak):
@@ -457,7 +506,12 @@ class MarkdownDocumentBackend(DeclarativeDocumentBackend):
                     parent=parent_item,
                     text=text_to_add,
                     formatting=formatting,
-                    hyperlink=hyperlink,
+                    hyperlink=hyperlink,   
+                    prov=ProvenanceItem(
+                        page_no=1,
+                        bbox=BoundingBox(l=0, t=0, r=1, b=1),
+                        charspan=(0, 0)
+                    )
                 )
         else:
             if not isinstance(element, str):
@@ -531,6 +585,9 @@ class MarkdownDocumentBackend(DeclarativeDocumentBackend):
         )
 
         doc = DoclingDocument(name=self.file.stem or "file", origin=origin)
+
+        # Ensure at least one page exists for downstream bbox/page-size logic
+        doc.pages[1]=doc.add_page(page_no=1, size=Size(width=1, height=1))
 
         if self.is_valid():
             # Parse the markdown into an abstract syntax tree (AST)

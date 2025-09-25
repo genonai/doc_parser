@@ -836,6 +836,11 @@ class HTMLDocumentBackend(DeclarativeDocumentBackend):
             name=name,
             parent=self.parents[self.level],
             content_layer=self.content_layer,
+            prov=ProvenanceItem(
+                page_no=1,
+                bbox=BoundingBox(l=0, t=0, r=1, b=1),
+                charspan=(0, 0)
+            )
         )
         self.parents[self.level + 1] = list_group
         self.ctx.list_ordered_flag_by_ref[list_group.self_ref] = is_ordered
