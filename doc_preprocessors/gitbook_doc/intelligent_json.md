@@ -500,7 +500,7 @@ Python
     Process:
     1. Extract and list all date expressions (2024.05.10, 24.05.10, 2024년 5월 10일, 5.10(금), etc.)
     2. Analyze the context, paying attention to:
-       - Dates with "작성일", "작성일자", "작성", "게제 확정일"
+       - Dates with "작성일", "작성일자", "작성", "게재 확정일"
        - Dates near "보고자료", "회의자료"
        - Dates at the top or beginning of document
     3. Apply selection criteria:
