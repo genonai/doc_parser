@@ -34,7 +34,8 @@ from docling.document_converter import (
     DocumentConverter,
     PdfFormatOption,
     HwpxFormatOption,
-    FormatOption
+    FormatOption,
+    WordFormatOption
 )
 from docling.datamodel.pipeline_options import DataEnrichmentOptions
 from docling.utils.document_enrichment import enrich_document
