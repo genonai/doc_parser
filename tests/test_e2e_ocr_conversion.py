@@ -31,7 +31,8 @@ def get_pdf_paths():
     directory = Path("./tests/data_scanned")
 
     # List all PDF files in the directory and its subdirectories
-    pdf_files = sorted(directory.rglob("*.pdf"))
+    pdf_files = sorted(directory.rglob("ocr_test*.pdf"))
+
     return pdf_files
 
 
@@ -73,6 +74,16 @@ def test_e2e_conversions():
     if sys.version_info < (3, 13):
         engines.append((RapidOcrOptions(), False))
         engines.append((RapidOcrOptions(force_full_page_ocr=True), False))
+        engines.append(
+            (
+                RapidOcrOptions(
+                    force_full_page_ocr=True,
+                    rec_font_path="test",
+                    rapidocr_params={"Rec.font_path": None},  # overwrites rec_font_path
+                ),
+                False,
+            )
+        )
 
     # only works on mac
     if "darwin" == sys.platform:

@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Optional, Type, Union
 
 from PIL import Image
+from transformers import AutoModelForImageTextToText
 
 from docling.datamodel.accelerator_options import AcceleratorOptions
 from docling.datamodel.pipeline_options import (
@@ -63,16 +64,18 @@ class PictureDescriptionVlmModel(
             # Initialize processor and model
             with _model_init_lock:
                 self.processor = AutoProcessor.from_pretrained(artifacts_path)
-                self.model = AutoModelForVision2Seq.from_pretrained(
+                self.model = AutoModelForImageTextToText.from_pretrained(
                     artifacts_path,
-                    torch_dtype=torch.bfloat16,
+                    device_map=self.device,
+                    dtype=torch.bfloat16,
                     _attn_implementation=(
                         "flash_attention_2"
                         if self.device.startswith("cuda")
                         and accelerator_options.cuda_use_flash_attention2
-                        else "eager"
+                        else "sdpa"
                     ),
-                ).to(self.device)
+                )
+                self.model = torch.compile(self.model)  # type: ignore
 
             self.provenance = f"{self.options.repo_id}"
 
