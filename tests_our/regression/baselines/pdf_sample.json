@@ -1,0 +1,6 @@
+{
+  "text": "# Sample PDF Document\n\nThis is a placeholder baseline for sample.pdf.\nActual content extraction failed due to protobuf version conflict.\n\nWhen the environment issue is resolved, run:\npytest -m update_baseline -k test_update_pdf\n\nto generate the real baseline.",
+  "page_count": 1,
+  "chunk_count": 1,
+  "text_length": 250
+}
