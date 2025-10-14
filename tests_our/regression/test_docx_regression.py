@@ -127,7 +127,7 @@ async def create_docx_baseline(docx_path, baseline_path, basic_processor):
 @pytest.mark.asyncio
 async def test_docx_regression(docx_file, basic_processor):
     """DOCX 문서 처리 결과를 baseline과 비교합니다."""
-    baseline_path = Path(__file__).parent / "baselines" / f"docx_{docx_file.stem}.json"
+    baseline_path = Path(__file__).parent / "baselines" / f"{docx_file.stem}.json"
     await run_docx_test(docx_file, baseline_path, basic_processor)
 
 @pytest.mark.update_baseline
@@ -138,7 +138,7 @@ async def test_update_docx_baselines(basic_processor):
     baseline_dir.mkdir(parents=True, exist_ok=True)
 
     for docx_file in DOCX_FILES:
-        baseline_path = baseline_dir / f"docx_{docx_file.stem}.json"
+        baseline_path = baseline_dir / f"{docx_file.stem}.json"
         await create_docx_baseline(docx_file, baseline_path, basic_processor)
 
     if not DOCX_FILES:

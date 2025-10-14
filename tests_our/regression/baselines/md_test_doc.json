@@ -1,5 +1,0 @@
-{
-  "text": "# Test Document for Regression Testing\n\n## Overview\n\nThis is a sample document for regression testing.\n\n## Content\n\n### Section 1\n\nThis section contains MODIFIED text content that should be consistently processed.\n\n- Item 1\n- Item 2\n- Item 3\n- Item 4 (NEW)\n\n### Section 2\n\nAnother section with different content.\n\n| Column 1   | Column 2   | Column 3   |\n|------------|------------|------------|\n| Data 1     | Data 2     | Data 3     |\n| Data 4     | Data 5     | Data 6     |\n\n### Section 3\n\nFinal section with additional information.\n\n```\ndef test_function():\n    return \"Hello, World!\"\n```\n\n## Conclusion\n\nThis document is used for testing purposes only.",
-  "chunk_count": 1,
-  "text_length": 658
-}

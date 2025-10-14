@@ -127,7 +127,7 @@ async def create_pdf_baseline(pdf_path, baseline_path, basic_processor):
 @pytest.mark.asyncio
 async def test_pdf_regression(pdf_file, basic_processor):
     """PDF 문서 처리 결과를 baseline과 비교합니다."""
-    baseline_path = Path(__file__).parent / "baselines" / f"pdf_{pdf_file.stem}.json"
+    baseline_path = Path(__file__).parent / "baselines" / f"{pdf_file.stem}.json"
     await run_pdf_test(pdf_file, baseline_path, basic_processor)
 
 @pytest.mark.update_baseline
@@ -138,7 +138,7 @@ async def test_update_pdf_baselines(basic_processor):
     baseline_dir.mkdir(parents=True, exist_ok=True)
 
     for pdf_file in PDF_FILES:
-        baseline_path = baseline_dir / f"pdf_{pdf_file.stem}.json"
+        baseline_path = baseline_dir / f"{pdf_file.stem}.json"
         await create_pdf_baseline(pdf_file, baseline_path, basic_processor)
 
     if not PDF_FILES:

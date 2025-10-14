@@ -142,7 +142,7 @@ async def create_pptx_baseline(pptx_path, baseline_path, basic_processor):
 @pytest.mark.asyncio
 async def test_pptx_regression(pptx_file, basic_processor):
     """PPTX 문서 처리 결과를 baseline과 비교합니다."""
-    baseline_path = Path(__file__).parent / "baselines" / f"pptx_{pptx_file.stem}.json"
+    baseline_path = Path(__file__).parent / "baselines" / f"{pptx_file.stem}.json"
     await run_pptx_test(pptx_file, baseline_path, basic_processor)
 
 @pytest.mark.update_baseline
@@ -153,7 +153,7 @@ async def test_update_pptx_baselines(basic_processor):
     baseline_dir.mkdir(parents=True, exist_ok=True)
 
     for pptx_file in PPTX_FILES:
-        baseline_path = baseline_dir / f"pptx_{pptx_file.stem}.json"
+        baseline_path = baseline_dir / f"{pptx_file.stem}.json"
         await create_pptx_baseline(pptx_file, baseline_path, basic_processor)
 
     if not PPTX_FILES:

@@ -127,7 +127,7 @@ async def create_md_baseline(md_path, baseline_path, basic_processor):
 @pytest.mark.asyncio
 async def test_md_regression(md_file, basic_processor):
     """Markdown 문서 처리 결과를 baseline과 비교합니다."""
-    baseline_path = Path(__file__).parent / "baselines" / f"md_{md_file.stem}.json"
+    baseline_path = Path(__file__).parent / "baselines" / f"{md_file.stem}.json"
     await run_md_test(md_file, baseline_path, basic_processor)
 
 @pytest.mark.update_baseline
@@ -138,7 +138,7 @@ async def test_update_md_baselines(basic_processor):
     baseline_dir.mkdir(parents=True, exist_ok=True)
 
     for md_file in MD_FILES:
-        baseline_path = baseline_dir / f"md_{md_file.stem}.json"
+        baseline_path = baseline_dir / f"{md_file.stem}.json"
         await create_md_baseline(md_file, baseline_path, basic_processor)
 
     if not MD_FILES:
