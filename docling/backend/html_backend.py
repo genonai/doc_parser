@@ -1175,6 +1175,7 @@ class HTMLDocumentBackend(DeclarativeDocumentBackend):
             text_clean = HTMLDocumentBackend._clean_unicode(
                 caption_anno_text.text.strip()
             )
+            # caption만 doc에 추가
             caption_item = doc.add_text(
                 label=DocItemLabel.CAPTION,
                 text="[img caption]" + text_clean,
