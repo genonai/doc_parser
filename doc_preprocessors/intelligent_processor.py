@@ -1208,10 +1208,10 @@ class DocumentProcessor:
 
     async def __call__(self, request: Request, file_path: str, **kwargs: dict):
         document: DoclingDocument = self.load_documents(file_path, **kwargs)
-        ext = Path(file_path).suffix.lower()
-        if ext in ['.pptx', '.docx', '.md']: # pdf 저장 원하는 확장자 추가(pptx, docx, md, xlsx, csv 제공가능)
-            convert_to_pdf(file_path)
-            pdf_path = _get_pdf_path(file_path)
+        # ext = Path(file_path).suffix.lower()
+        # if ext in ['.pptx', '.docx', '.md']: # pdf 저장 원하는 확장자 추가(pptx, docx, md, xlsx, csv 제공가능)
+        #     convert_to_pdf(file_path)
+        #     pdf_path = _get_pdf_path(file_path)
 
         output_path, output_file = os.path.split(file_path)
         filename, _ = os.path.splitext(output_file)

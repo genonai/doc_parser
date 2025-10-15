@@ -1,99 +1,231 @@
-# Regression 테스트
+# Regression 테스트 가이드
 
-문서 처리 결과(vectors)를 baseline과 비교하여 의도하지 않은 변경을 감지합니다.
+## 📋 개요
 
-## 테스트 실행
+Regression 테스트는 코드 변경 후 기존 기능이 제대로 동작하는지 확인하는 테스트입니다.
+현재 코드의 출력 결과를 baseline과 비교하여 예상치 못한 변경사항을 감지합니다.
 
-### 환경 활성화
-```bash
-source .venv/bin/activate
+## 📁 디렉토리 구조
+
+```
+tests_our/regression/
+├── baselines/          # 기준이 되는 baseline 데이터
+│   ├── md_sample.json
+│   ├── pdf_sample.json
+│   └── ...
+├── rebase/            # pytest -m rebase로 생성된 현재 코드 결과
+│   ├── md_sample.json
+│   ├── pdf_sample.json
+│   └── ...
+├── test_md_regression.py
+├── test_pdf_regression.py
+├── test_docx_regression.py
+├── test_pptx_regression.py
+├── test_hwpx_regression.py
+└── README.md
 ```
 
-### Regression 테스트 실행
+## 🚀 사용법
+
+### 1. 기본 Regression 테스트 실행
+
 ```bash
-source .venv/bin/activate && pytest -m regression
+# 모든 regression 테스트 실행
+poetry run pytest tests_our/regression/ -v
+
+# 특정 파일 형식만 테스트
+poetry run pytest tests_our/regression/test_md_regression.py -v
+poetry run pytest tests_our/regression/test_pdf_regression.py -v
+
+# 특정 파일만 테스트
+poetry run pytest tests_our/regression/test_md_regression.py::test_md_regression[md_sample] -v
 ```
 
-### Baseline 업데이트
+### 2. Baseline 업데이트
+
+코드 변경이 의도된 것이고, baseline을 업데이트하고 싶을 때:
+
 ```bash
-source .venv/bin/activate && pytest -m update_baseline
+# 모든 baseline 업데이트
+poetry run pytest -m update_baseline tests_our/regression/ -v
+
+# 특정 형식만 업데이트
+poetry run pytest -m update_baseline tests_our/regression/test_md_regression.py -v
 ```
 
-### 모든 테스트 실행 (regression, smoke, unit)
+### 3. **Rebase: 현재 코드 결과 저장** ✨
+
+**`pytest -m rebase` 명령어를 사용하면 현재 코드의 출력 결과를 `rebase/` 폴더에 저장합니다.**
+
+이를 통해 baseline과 현재 코드의 차이를 쉽게 비교할 수 있습니다.
+
 ```bash
-source .venv/bin/activate && pytest
-# update_baseline은 자동으로 제외됨 (pytest.ini 설정)
+# 현재 코드 결과를 rebase 폴더에 저장
+poetry run pytest -m rebase tests_our/regression/ -v
+
+# MD 파일만 rebase 생성
+poetry run pytest -m rebase tests_our/regression/test_md_regression.py -v
+
+# 특정 형식 조합
+poetry run pytest -m rebase tests_our/regression/test_md_regression.py tests_our/regression/test_pdf_regression.py -v
 ```
 
-## 테스트 구조
+**생성된 파일 위치:**
+- `tests_our/regression/rebase/md_sample.json`
+- `tests_our/regression/rebase/pdf_sample.json`
+- 등등...
 
-### 지원하는 파일 형식
-- `test_pdf_regression.py`: PDF 파일 regression 테스트
-- `test_docx_regression.py`: DOCX 파일 regression 테스트
-- `test_md_regression.py`: Markdown 파일 regression 테스트
-- `test_hwpx_regression.py`: HWPX 파일 regression 테스트
-- `test_pptx_regression.py`: PPTX 파일 regression 테스트
-- `baselines/`: 각 테스트 파일의 baseline 데이터 (JSON 형식)
+**활용 방법:**
 
-### 파일 자동 검색
-각 테스트는 `sample_files/` 디렉토리에서 해당 확장자의 모든 파일을 자동으로 검색하여 테스트합니다.
-- 새 파일 추가 시 코드 수정 없이 자동으로 테스트 대상에 포함됨
-- Baseline 파일명: `{확장자}_{파일명}.json` (예: `docx_FinalPaperTemplate.json`)
+```bash
+# baseline과 rebase 비교
+diff tests_our/regression/baselines/md_sample.json tests_our/regression/rebase/md_sample.json
 
-## 체크 항목
+# VSCode에서 비교
+code --diff tests_our/regression/baselines/md_sample.json tests_our/regression/rebase/md_sample.json
 
-각 테스트는 다음 항목들을 검증합니다:
+# jq로 label_distribution만 비교
+echo "Baseline:"
+cat tests_our/regression/baselines/md_sample.json | jq '.label_distribution'
+echo ""
+echo "Rebase:"
+cat tests_our/regression/rebase/md_sample.json | jq '.label_distribution'
+```
 
-1. **Vector 개수** (`num_vectors`)
-   - 문서 처리 결과(vectors)의 개수 일관성 확인
-   - 현재값 == baseline값
+## 📊 테스트 항목
 
-2. **Label 분포** (`label_distribution`)
-   - 문서 구조 분석 결과의 일관성
-   - `chunk_bboxes` 내부의 각 bbox `type` 필드에서 추출
-   - Label 종류 예시:
-     - DOCX: `list_item`, `paragraph`, `table`
-     - PDF: `picture`, `section_header`, `text`, `page_footer`, `list_item`, `checkbox_unselected`, `table`
-     - MD: `title`, `text`, `section_header`, `list_item`, `code`
-   - 현재값 == baseline값 (각 label별 개수 완전 일치)
+각 regression 테스트는 다음 항목들을 검증합니다:
 
-3. **전체 텍스트 글자 수** (`total_characters`)
-   - 전체 텍스트 길이 변화 감지
-   - 허용 범위: baseline 대비 ±5% 이내
+1. **Vector Count**: 생성된 벡터 개수
+2. **Label Distribution**: 각 라벨 타입의 개수 분포
+3. **Character Count**: 전체 문자 수 (5% 이내 허용)
+4. **Text Similarity**: 각 벡터의 텍스트 유사도 (85% 이상)
 
-4. **텍스트 유사도** (각 vector별)
-   - 각 vector의 텍스트 내용 유사도 확인
-   - 최소 유사도: 85% 이상 (difflib.SequenceMatcher 사용)
-   - ⚠️ HWPX는 비결정적 처리로 인해 텍스트 유사도 검사 비활성화됨
+## 🔍 테스트 실패 시 대응 방법
 
-## 새로운 파일 형식 추가
+### 1. 의도된 변경인 경우
 
-### 기존 형식에 파일 추가
-1. `sample_files/`에 테스트할 파일 추가
-2. `pytest -m update_baseline`로 baseline 생성
-3. Baseline 검토 후 git commit
+```bash
+# baseline 업데이트
+poetry run pytest -m update_baseline tests_our/regression/ -v
+```
 
-### 새로운 확장자 추가 (예: CSV)
-1. `test_csv_regression.py` 생성 (다른 파일 참고하여 작성)
-2. `sample_files/`에 CSV 파일 추가
-3. `pytest -m update_baseline`로 baseline 생성
-4. Baseline 검토 후 git commit
+### 2. 의도되지 않은 변경인 경우
 
-## 주의사항
+```bash
+# 1. rebase 파일 생성하여 차이 확인
+poetry run pytest -m rebase tests_our/regression/ -v
 
-### Baseline 관리
-- ⚠️ **Baseline은 자동 생성되지 않음** - 명시적으로 `pytest -m update_baseline` 실행 필요
-- ✅ **pytest 실행 시 update_baseline은 자동 제외됨** (`pytest.ini` 설정)
-- 📝 Baseline 파일들은 git에 commit하여 버전 관리
-- 🔍 Baseline 변경 시 git diff로 변경사항을 반드시 검토할 것
+# 2. baseline과 rebase 비교
+diff tests_our/regression/baselines/md_sample.json \
+     tests_our/regression/rebase/md_sample.json
 
-### 테스트 실패 시
-테스트 실패 시 다음 정보가 출력됩니다:
-- 어느 항목에서 차이가 발생했는지
-- 현재값과 baseline값의 구체적인 차이
-- 파일명 (예: `[FinalPaperTemplate.docx]`)
+# 3. 코드 수정 후 다시 테스트
+poetry run pytest tests_our/regression/ -v
+```
 
-### 개발 워크플로우
-1. 코드 수정 후 `source .venv/bin/activate && pytest -m regression` 실행
-2. 의도한 변경이면: `source .venv/bin/activate && pytest -m update_baseline`로 baseline 업데이트
-3. 의도하지 않은 변경이면: 코드 수정 후 다시 테스트
+## 📝 워크플로우 예시
+
+### 코드 수정 후 검증
+
+```bash
+# 1. 코드 수정
+vim doc_preprocessors/basic_processor.py
+
+# 2. regression 테스트 실행
+poetry run pytest tests_our/regression/ -v
+
+# 3. 실패한 경우, rebase 생성하여 차이 확인
+poetry run pytest -m rebase tests_our/regression/ -v
+
+# 4. baseline과 rebase 비교
+diff tests_our/regression/baselines/md_sample.json \
+     tests_our/regression/rebase/md_sample.json
+
+# 5-A. 의도된 변경: baseline 업데이트
+poetry run pytest -m update_baseline tests_our/regression/ -v
+
+# 5-B. 의도되지 않은 변경: 코드 수정 후 2번부터 반복
+```
+
+## ⚙️ pytest 마커 (Markers)
+
+| 마커 | 설명 | 사용 예 |
+|------|------|---------|
+| `regression` | 일반 regression 테스트 | `pytest -m regression` |
+| `update_baseline` | baseline 업데이트 | `pytest -m update_baseline` |
+| `rebase` | 현재 코드 결과를 rebase 폴더에 저장 | `pytest -m rebase` |
+
+## 🎯 비교 예시
+
+### label_distribution만 비교
+
+```bash
+# MD 파일 label 비교
+poetry run pytest -m rebase tests_our/regression/test_md_regression.py -v
+
+echo "=== Baseline ==="
+cat tests_our/regression/baselines/md_sample.json | jq '.label_distribution'
+
+echo ""
+echo "=== Rebase ==="
+cat tests_our/regression/rebase/md_sample.json | jq '.label_distribution'
+```
+
+### 모든 baseline과 rebase 비교
+
+```bash
+# rebase 생성
+poetry run pytest -m rebase tests_our/regression/ -v
+
+# 각 파일별 diff
+for file in tests_our/regression/baselines/*.json; do
+    basename=$(basename $file)
+    echo "=== $basename ==="
+    diff <(cat $file | jq -S '.label_distribution') \
+         <(cat tests_our/regression/rebase/$basename | jq -S '.label_distribution') || true
+    echo ""
+done
+```
+
+## 🛠️ 문제 해결
+
+### Q: baseline이 없다는 오류가 나옵니다
+
+```bash
+# baseline 생성
+poetry run pytest -m update_baseline tests_our/regression/ -v
+```
+
+### Q: 테스트가 실패하는데 어떤 부분이 틀렸는지 모르겠습니다
+
+```bash
+# 1. rebase 파일 생성
+poetry run pytest -m rebase tests_our/regression/ -v
+
+# 2. JSON diff로 상세 비교
+diff -u tests_our/regression/baselines/md_sample.json \
+        tests_our/regression/rebase/md_sample.json
+
+# 3. label_distribution만 비교
+diff <(cat tests_our/regression/baselines/md_sample.json | jq '.label_distribution') \
+     <(cat tests_our/regression/rebase/md_sample.json | jq '.label_distribution')
+```
+
+### Q: baseline과 rebase를 시각적으로 비교하고 싶습니다
+
+```bash
+# VSCode에서 비교
+code --diff tests_our/regression/baselines/md_sample.json \
+             tests_our/regression/rebase/md_sample.json
+
+# 또는 git diff 사용
+git diff --no-index tests_our/regression/baselines/md_sample.json \
+                    tests_our/regression/rebase/md_sample.json
+```
+
+## 💡 팁
+
+1. **rebase는 테스트를 실패시키지 않습니다**: `pytest -m rebase`는 단순히 현재 결과를 저장만 하므로 항상 성공합니다.
+2. **baseline과 rebase를 같이 사용**: 코드 수정 후 `pytest -m rebase`로 결과를 저장하고, 차이를 확인한 뒤 의도된 변경이면 `pytest -m update_baseline`으로 업데이트합니다.
+3. **여러 마커 조합**: `pytest -m "regression and not pdf"` 등으로 특정 테스트만 실행할 수 있습니다.

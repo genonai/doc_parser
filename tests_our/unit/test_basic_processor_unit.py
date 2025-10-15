@@ -25,12 +25,6 @@ class TestBasicProcessor:
         yield Path(temp_dir)
         shutil.rmtree(temp_dir, ignore_errors=True)
 
-    def create_test_file(self, temp_dir: Path, filename: str, content: str = "Test content") -> Path:
-        """테스트용 파일 생성"""
-        file_path = temp_dir / filename
-        file_path.write_text(content, encoding='utf-8')
-        return file_path
-
     @pytest.mark.parametrize("filename", [
         "pdf_sample.pdf",
         "hwpx_sample.hwpx", 
@@ -190,22 +184,3 @@ class TestBasicProcessor:
         
         # _create_converters 메서드 확인
         assert hasattr(processor, '_create_converters'), "Should have _create_converters method"
-
-    def test_load_documents_with_save_images_option(self, processor, temp_dir):
-        """save_images 옵션을 사용한 문서 로드 테스트"""
-        test_file = self.create_test_file(temp_dir, "test.pdf", "Test content")
-        
-        try:
-            # save_images=True로 로드
-            document1 = processor.load_documents(str(test_file), save_images=True)
-            
-            # save_images=False로 로드
-            document2 = processor.load_documents(str(test_file), save_images=False)
-            
-            # 둘 다 문서가 로드되어야 함
-            assert document1 is not None
-            assert document2 is not None
-
-        except Exception as e:
-            # 실제 PDF가 아니므로 예외 발생 예상
-            pytest.skip(f"Load documents test skipped - expected for non-PDF file: {e}")

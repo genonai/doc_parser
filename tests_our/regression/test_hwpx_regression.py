@@ -159,3 +159,17 @@ async def test_update_hwpx_baselines(basic_processor):
 
     if not HWPX_FILES:
         print("⚠ No HWPX files found in sample_files directory")
+
+@pytest.mark.rebase
+@pytest.mark.asyncio
+async def test_create_hwpx_rebase(basic_processor):
+    """현재 코드의 HWPX 처리 결과를 rebase 폴더에 저장합니다."""
+    rebase_dir = Path(__file__).parent / "rebase"
+    rebase_dir.mkdir(parents=True, exist_ok=True)
+
+    for hwpx_file in HWPX_FILES:
+        rebase_path = rebase_dir / f"{hwpx_file.stem}.json"
+        await create_hwpx_baseline(hwpx_file, rebase_path, basic_processor)
+
+    if not HWPX_FILES:
+        print("⚠ No HWPX files found in sample_files directory")

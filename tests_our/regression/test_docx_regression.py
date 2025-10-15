@@ -143,3 +143,17 @@ async def test_update_docx_baselines(basic_processor):
 
     if not DOCX_FILES:
         print("⚠ No DOCX files found in sample_files directory")
+
+@pytest.mark.rebase
+@pytest.mark.asyncio
+async def test_create_docx_rebase(basic_processor):
+    """현재 코드의 DOCX 처리 결과를 rebase 폴더에 저장합니다."""
+    rebase_dir = Path(__file__).parent / "rebase"
+    rebase_dir.mkdir(parents=True, exist_ok=True)
+
+    for docx_file in DOCX_FILES:
+        rebase_path = rebase_dir / f"{docx_file.stem}.json"
+        await create_docx_baseline(docx_file, rebase_path, basic_processor)
+
+    if not DOCX_FILES:
+        print("⚠ No DOCX files found in sample_files directory")

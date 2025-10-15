@@ -143,3 +143,17 @@ async def test_update_pdf_baselines(basic_processor):
 
     if not PDF_FILES:
         print("⚠ No PDF files found in sample_files directory")
+
+@pytest.mark.rebase
+@pytest.mark.asyncio
+async def test_create_pdf_rebase(basic_processor):
+    """현재 코드의 PDF 처리 결과를 rebase 폴더에 저장합니다."""
+    rebase_dir = Path(__file__).parent / "rebase"
+    rebase_dir.mkdir(parents=True, exist_ok=True)
+
+    for pdf_file in PDF_FILES:
+        rebase_path = rebase_dir / f"{pdf_file.stem}.json"
+        await create_pdf_baseline(pdf_file, rebase_path, basic_processor)
+
+    if not PDF_FILES:
+        print("⚠ No PDF files found in sample_files directory")

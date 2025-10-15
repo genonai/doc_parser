@@ -158,3 +158,17 @@ async def test_update_pptx_baselines(basic_processor):
 
     if not PPTX_FILES:
         print("⚠ No PPTX files found in sample_files directory")
+
+@pytest.mark.rebase
+@pytest.mark.asyncio
+async def test_create_pptx_rebase(basic_processor):
+    """현재 코드의 PPTX 처리 결과를 rebase 폴더에 저장합니다."""
+    rebase_dir = Path(__file__).parent / "rebase"
+    rebase_dir.mkdir(parents=True, exist_ok=True)
+
+    for pptx_file in PPTX_FILES:
+        rebase_path = rebase_dir / f"{pptx_file.stem}.json"
+        await create_pptx_baseline(pptx_file, rebase_path, basic_processor)
+
+    if not PPTX_FILES:
+        print("⚠ No PPTX files found in sample_files directory")

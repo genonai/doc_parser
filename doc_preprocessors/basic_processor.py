@@ -1153,10 +1153,10 @@ class DocumentProcessor:
         # kwargs['save_images'] = True    # 이미지 처리
         # kwargs['include_wmf'] = True   # wmf 처리
         document: DoclingDocument = self.load_documents(file_path, **kwargs)
-        ext = Path(file_path).suffix.lower()
-        if ext in ['.pptx', '.docx', '.md']: # pdf 저장 원하는 확장자 추가(pptx, docx, md, xlsx, csv 제공가능)
-            convert_to_pdf(file_path)
-            pdf_path = _get_pdf_path(file_path)
+        # ext = Path(file_path).suffix.lower()
+        # if ext in ['.pptx', '.docx', '.md']: # pdf 저장 원하는 확장자 추가(pptx, docx, md, xlsx, csv 제공가능)
+        #     convert_to_pdf(file_path)
+        #     pdf_path = _get_pdf_path(file_path)
             
         output_path, output_file = os.path.split(file_path)
         filename, _ = os.path.splitext(output_file)
