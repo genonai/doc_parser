@@ -53,18 +53,33 @@ async def run_md_test(md_path, baseline_path, basic_processor):
     with open(baseline_path, "r", encoding="utf-8") as f:
         baseline = json.load(f)
 
-    # 체크 항목들
-    assert current_result["num_vectors"] == baseline["num_vectors"], \
-        f"[{md_path.name}] Vector count mismatch: {current_result['num_vectors']} != {baseline['num_vectors']}"
+    # 모든 assertion 실패를 수집
+    errors = []
 
-    assert current_result["label_distribution"] == baseline["label_distribution"], \
-        f"[{md_path.name}] Label distribution mismatch:\nCurrent: {current_result['label_distribution']}\nBaseline: {baseline['label_distribution']}"
+    # 1. Vector count 체크
+    if current_result["num_vectors"] != baseline["num_vectors"]:
+        errors.append(
+            f"[Vector Count] {current_result['num_vectors']} != {baseline['num_vectors']}"
+        )
 
+    # 2. Label distribution 체크
+    if current_result["label_distribution"] != baseline["label_distribution"]:
+        errors.append(
+            f"[Label Distribution]\n"
+            f"  Current:  {current_result['label_distribution']}\n"
+            f"  Baseline: {baseline['label_distribution']}"
+        )
+
+    # 3. Character count 체크
     char_diff = abs(current_result["total_characters"] - baseline["total_characters"])
     char_ratio = char_diff / max(baseline["total_characters"], 1)
-    assert char_ratio < 0.05, \
-        f"[{md_path.name}] Character count difference too large: {char_diff} chars ({char_ratio:.1%} change)"
+    if char_ratio >= 0.05:
+        errors.append(
+            f"[Character Count] Difference too large: {char_diff} chars ({char_ratio:.1%} change)"
+        )
 
+    # 4. Text similarity 체크 (처음 5개만 체크하여 너무 길어지지 않도록)
+    similarity_errors = []
     for i, (current_vector, baseline_vector) in enumerate(zip(current_result["vectors"], baseline["vectors"])):
         current_text = current_vector.get("text", "")
         baseline_text = baseline_vector.get("text", "")
@@ -73,8 +88,21 @@ async def run_md_test(md_path, baseline_path, basic_processor):
             current_text,
             baseline_text
         ).ratio()
-        assert similarity > 0.85, \
-            f"[{md_path.name}] Vector {i} text similarity too low: {similarity:.2%}"
+        if similarity <= 0.85:
+            similarity_errors.append(f"  Vector {i}: {similarity:.2%}")
+            if len(similarity_errors) >= 5:  # 처음 5개만 표시
+                similarity_errors.append(f"  ... (and {len(current_result['vectors']) - i - 1} more)")
+                break
+
+    if similarity_errors:
+        errors.append("[Text Similarity] Low similarity detected:\n" + "\n".join(similarity_errors))
+
+    # 모든 에러를 한번에 보고
+    if errors:
+        error_message = f"\n{'=' * 80}\n[{md_path.name}] Regression test failed with {len(errors)} error(s):\n{'=' * 80}\n\n"
+        error_message += "\n\n".join(f"{i+1}. {error}" for i, error in enumerate(errors))
+        error_message += f"\n\n{'=' * 80}\n"
+        pytest.fail(error_message)
 
 async def create_md_baseline(md_path, baseline_path, basic_processor):
     """MD 파일에 대한 baseline 생성"""
