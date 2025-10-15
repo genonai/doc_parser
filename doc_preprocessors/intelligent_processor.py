@@ -1223,7 +1223,7 @@ class DocumentProcessor:
 
         document = document._with_pictures_refs(image_dir=artifacts_dir, page_no=None, reference_path=reference_path)
 
-        document = self.enrichment(document, **kwargs)
+        # document = self.enrichment(document, **kwargs)
 
         # Extract Chunk from DoclingDocument
         chunks: List[DocChunk] = self.split_documents(document, **kwargs)
