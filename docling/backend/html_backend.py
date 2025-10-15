@@ -1,4 +1,5 @@
 import logging
+logging.getLogger('docling_core').setLevel(logging.WARNING)
 import re
 import traceback
 from contextlib import contextmanager
@@ -23,6 +24,9 @@ from docling_core.types.doc import (
     TableData,
     TableItem,
     TextItem,
+    ProvenanceItem,
+    BoundingBox,
+    Size,
 )
 from docling_core.types.doc.document import ContentLayer, Formatting, Script
 from pydantic import AnyUrl, BaseModel, ValidationError
@@ -248,7 +252,8 @@ class HTMLDocumentBackend(DeclarativeDocumentBackend):
             binary_hash=self.document_hash,
         )
         doc = DoclingDocument(name=self.file.stem or "file", origin=origin)
-
+        doc.pages[1]=doc.add_page(page_no=1, size=Size(width=1, height=1))
+        
         assert self.soup is not None
         # set the title as furniture, since it is part of the document metadata
         title = self.soup.title
@@ -259,6 +264,11 @@ class HTMLDocumentBackend(DeclarativeDocumentBackend):
                 text=title_clean,
                 orig=title_text,
                 content_layer=ContentLayer.FURNITURE,
+                prov=ProvenanceItem(
+                    page_no=1,
+                    bbox=BoundingBox(l=0, t=0, r=1, b=1),
+                    charspan=(0, 0)
+                )
             )
         # remove script and style tags
         for tag in self.soup(["script", "style"]):
@@ -392,7 +402,7 @@ class HTMLDocumentBackend(DeclarativeDocumentBackend):
                 provs_in_cell: list[RefItem] = []
                 # Parse table cell sub-tree for Rich Cells content:
                 provs_in_cell = self._walk(html_cell, doc)
-
+                
                 rich_table_cell = False
                 ref_for_rich_cell = None
                 if len(provs_in_cell) > 0:
@@ -484,6 +494,11 @@ class HTMLDocumentBackend(DeclarativeDocumentBackend):
                                     content_layer=self.content_layer,
                                     formatting=annotated_text.formatting,
                                     hyperlink=annotated_text.hyperlink,
+                                    prov=ProvenanceItem(
+                                        page_no=1,
+                                        bbox=BoundingBox(l=0, t=0, r=1, b=1),
+                                        charspan=(0, 0)
+                                    )
                                 )
                                 added_refs.append(docling_code2.get_ref())
                             else:
@@ -494,6 +509,11 @@ class HTMLDocumentBackend(DeclarativeDocumentBackend):
                                     content_layer=self.content_layer,
                                     formatting=annotated_text.formatting,
                                     hyperlink=annotated_text.hyperlink,
+                                    prov=ProvenanceItem(
+                                        page_no=1,
+                                        bbox=BoundingBox(l=0, t=0, r=1, b=1),
+                                        charspan=(0, 0)
+                                    )
                                 )
                                 added_refs.append(docling_text2.get_ref())
 
@@ -503,7 +523,8 @@ class HTMLDocumentBackend(DeclarativeDocumentBackend):
                 if name == "img":
                     flush_buffer()
                     im_ref3 = self._emit_image(node, doc)
-                    added_refs.append(im_ref3)
+                    if im_ref3 is not None: # image 정보가 없을 시 None 값이 발생하여 추가
+                        added_refs.append(im_ref3)
                 elif name in _FORMAT_TAG_MAP:
                     with self._use_format([name]):
                         wk = self._walk(node, doc)
@@ -779,6 +800,11 @@ class HTMLDocumentBackend(DeclarativeDocumentBackend):
                 content_layer=self.content_layer,
                 formatting=annotated_text.formatting,
                 hyperlink=annotated_text.hyperlink,
+                prov=ProvenanceItem(
+                    page_no=1,
+                    bbox=BoundingBox(l=0, t=0, r=1, b=1),
+                    charspan=(0, 0)
+                )
             )
             added_ref = [docling_title.get_ref()]
         # the other levels need to be lowered by 1 if a title was set
@@ -810,6 +836,11 @@ class HTMLDocumentBackend(DeclarativeDocumentBackend):
                 content_layer=self.content_layer,
                 formatting=annotated_text.formatting,
                 hyperlink=annotated_text.hyperlink,
+                prov=ProvenanceItem(
+                    page_no=1,
+                    bbox=BoundingBox(l=0, t=0, r=1, b=1),
+                    charspan=(0, 0)
+                )
             )
             added_ref = [docling_heading.get_ref()]
         self.level += 1
@@ -879,6 +910,11 @@ class HTMLDocumentBackend(DeclarativeDocumentBackend):
                             marker=marker,
                             parent=list_group,
                             content_layer=self.content_layer,
+                            prov=ProvenanceItem(
+                                page_no=1,
+                                bbox=BoundingBox(l=0, t=0, r=1, b=1),
+                                charspan=(0, 0)
+                            )
                         )
                         self.level += 1
                         with self._use_inline_group(min_parts, doc):
@@ -894,6 +930,11 @@ class HTMLDocumentBackend(DeclarativeDocumentBackend):
                                         content_layer=self.content_layer,
                                         formatting=annotated_text.formatting,
                                         hyperlink=annotated_text.hyperlink,
+                                        prov=ProvenanceItem(
+                                            page_no=1,
+                                            bbox=BoundingBox(l=0, t=0, r=1, b=1),
+                                            charspan=(0, 0)
+                                        )
                                     )
                                 else:
                                     doc.add_text(
@@ -903,6 +944,11 @@ class HTMLDocumentBackend(DeclarativeDocumentBackend):
                                         content_layer=self.content_layer,
                                         formatting=annotated_text.formatting,
                                         hyperlink=annotated_text.hyperlink,
+                                        prov=ProvenanceItem(
+                                            page_no=1,
+                                            bbox=BoundingBox(l=0, t=0, r=1, b=1),
+                                            charspan=(0, 0)
+                                        )
                                     )
 
                         # 4) recurse into any nested lists, attaching them to this <li> item
@@ -926,6 +972,11 @@ class HTMLDocumentBackend(DeclarativeDocumentBackend):
                             content_layer=self.content_layer,
                             formatting=annotated_text.formatting,
                             hyperlink=annotated_text.hyperlink,
+                            prov=ProvenanceItem(
+                                page_no=1,
+                                bbox=BoundingBox(l=0, t=0, r=1, b=1),
+                                charspan=(0, 0)
+                            )
                         )
 
                         # 4) recurse into any nested lists, attaching them to this <li> item
@@ -1009,6 +1060,11 @@ class HTMLDocumentBackend(DeclarativeDocumentBackend):
                                     content_layer=self.content_layer,
                                     formatting=annotated_text.formatting,
                                     hyperlink=annotated_text.hyperlink,
+                                    prov=ProvenanceItem(
+                                        page_no=1,
+                                        bbox=BoundingBox(l=0, t=0, r=1, b=1),
+                                        charspan=(0, 0)
+                                    )
                                 )
                                 added_refs.append(docling_code.get_ref())
                             else:
@@ -1019,6 +1075,11 @@ class HTMLDocumentBackend(DeclarativeDocumentBackend):
                                     content_layer=self.content_layer,
                                     formatting=annotated_text.formatting,
                                     hyperlink=annotated_text.hyperlink,
+                                    prov=ProvenanceItem(
+                                        page_no=1,
+                                        bbox=BoundingBox(l=0, t=0, r=1, b=1),
+                                        charspan=(0, 0)
+                                    )
                                 )
                                 added_refs.append(docling_text.get_ref())
 
@@ -1033,6 +1094,11 @@ class HTMLDocumentBackend(DeclarativeDocumentBackend):
                 data=data_e,
                 parent=self.parents[self.level],
                 content_layer=self.content_layer,
+                prov = ProvenanceItem(
+                    page_no=1,
+                    bbox=BoundingBox(l=0, t=0, r=1, b=1),
+                    charspan=(0, 0)
+                )
             )
             added_refs.append(docling_table.get_ref())
             self.parse_table_data(tag, doc, docling_table, num_rows, num_cols)
@@ -1059,6 +1125,11 @@ class HTMLDocumentBackend(DeclarativeDocumentBackend):
                         content_layer=self.content_layer,
                         formatting=annotated_text.formatting,
                         hyperlink=annotated_text.hyperlink,
+                        prov=ProvenanceItem(
+                            page_no=1,
+                            bbox=BoundingBox(l=0, t=0, r=1, b=1),
+                            charspan=(0, 0)
+                        )
                     )
                     added_refs.append(docling_code2.get_ref())
 
@@ -1099,7 +1170,6 @@ class HTMLDocumentBackend(DeclarativeDocumentBackend):
             caption = AnnotatedTextList([AnnotatedText(text=img_tag.get("alt"))])
 
         caption_anno_text = caption.to_single_text_element()
-
         caption_item: Optional[TextItem] = None
         if caption_anno_text.text:
             text_clean = HTMLDocumentBackend._clean_unicode(
@@ -1107,19 +1177,34 @@ class HTMLDocumentBackend(DeclarativeDocumentBackend):
             )
             caption_item = doc.add_text(
                 label=DocItemLabel.CAPTION,
-                text=text_clean,
+                text="[img caption]" + text_clean,
                 orig=caption_anno_text.text,
                 content_layer=self.content_layer,
                 formatting=caption_anno_text.formatting,
                 hyperlink=caption_anno_text.hyperlink,
+                prov=ProvenanceItem(
+                    page_no=1,
+                    bbox=BoundingBox(l=0, t=0, r=1, b=1),
+                    charspan=(0, 0)
+                )
             )
-
-        docling_pic = doc.add_picture(
-            caption=caption_item,
-            parent=self.parents[self.level],
-            content_layer=self.content_layer,
-        )
-        return docling_pic.get_ref()
+            
+        if caption_item is None:
+            return None
+        return caption_item.get_ref()
+    
+        # TODO: Image 정보를 전달해주지 않아 전처리기 코드에서 오류 발생하여 임시로 주석 처리
+        # docling_pic = doc.add_picture(
+        #     caption=caption_item,
+        #     parent=self.parents[self.level],
+        #     content_layer=self.content_layer,
+        #     prov=ProvenanceItem(
+        #         page_no=1,
+        #         bbox=BoundingBox(l=0, t=0, r=1, b=1),
+        #         charspan=(0, 0)
+        #     )
+        # )
+        # return docling_pic.get_ref()
 
     @staticmethod
     def get_text(item: PageElement) -> str:

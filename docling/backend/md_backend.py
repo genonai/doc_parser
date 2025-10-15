@@ -351,11 +351,12 @@ class MarkdownDocumentBackend(DeclarativeDocumentBackend):
             # _log.debug(f" - Image with alt: {element.title}, url: {element.dest}")
 
             fig_caption: Optional[TextItem] = None
+            # caption만 doc에 추가 
             if element.title is not None and element.title != "":
                 title = unescape(element.title)
-                fig_caption = doc.add_text(
+                doc.add_text(
                     label=DocItemLabel.CAPTION,
-                    text=title,
+                    text="[img caption]" + title,
                     formatting=formatting,
                     hyperlink=hyperlink,
                     prov=ProvenanceItem(
@@ -364,13 +365,13 @@ class MarkdownDocumentBackend(DeclarativeDocumentBackend):
                         charspan=(0, 0)
                     )
                 )
-
-            doc.add_picture(parent=parent_item, caption=fig_caption,
-                            prov=ProvenanceItem(
-                                 page_no=1,
-                                 bbox=BoundingBox(l=0, t=0, r=1, b=1),
-                                 charspan=(0, 0)
-                             ))
+            # TODO: Image 정보를 전달해주지 않아 전처리기 코드에서 오류 발생하여 임시로 주석 처리 
+            # doc.add_picture(parent=parent_item, caption=fig_caption,
+            #                 prov=ProvenanceItem(
+            #                      page_no=1,
+            #                      bbox=BoundingBox(l=0, t=0, r=1, b=1),
+            #                      charspan=(0, 0)
+            #                  ))
 
         elif isinstance(element, marko.inline.Emphasis):
             # _log.debug(f" - Emphasis: {element.children}")
