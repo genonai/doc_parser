@@ -1,0 +1,20 @@
+[
+  {
+    "text": "[이미지 파일: png2_sample.png]\nDATA SCIEN\nPython                             PARICHAY\nHow to Fix?\nValueError: substring not found",
+    "n_char": 124,
+    "n_word": 14,
+    "n_line": 5,
+    "i_page": 1,
+    "e_page": 1,
+    "i_chunk_on_page": 0,
+    "n_chunk_of_page": 1,
+    "i_chunk_on_doc": 0,
+    "n_chunk_of_doc": 1,
+    "n_page": 1,
+    "reg_date": "2025-10-15T07:33:58Z",
+    "chunk_bboxes": "[{\"page\": 1, \"bbox\": {\"l\": 0.0, \"t\": 0.0, \"r\": 0.0009765625, \"b\": 0.0018587360594795538, \"coord_origin\": \"TOPLEFT\"}, \"type\": \"text\", \"ref\": \"#/texts/3\"}]",
+    "media_files": "[]",
+    "title": "이미지 파일: png2_sample.png",
+    "created_date": 0
+  }
+]
