@@ -521,7 +521,7 @@ class GenosMsWordDocumentBackend(DeclarativeDocumentBackend):
         if not owner_part or not rId:
             return None
         rel = owner_part.rels.get(rId)
-        print(rel,"rel")
+        # print(rel,"rel")
         return getattr(rel, "target_part", None) if rel else None
     def _is_owner_header_footer(self, owner_part) -> bool:
         try:
@@ -548,16 +548,16 @@ class GenosMsWordDocumentBackend(DeclarativeDocumentBackend):
             if lname in ("headerReference", "footerReference"):
                 # print(child,"child")
                 rid = child.get("{%s}id" % ns["r"])  # r:id
-                print(rid,"rid")
+                # print(rid,"rid")
                 target_part = self._resolve_part_by_rid(owner_part, rid)
-                print(target_part,"target_part")
+                # print(target_part,"target_part")
                 if not target_part:
                     continue
 
                 root_el = getattr(target_part, "_element", None)  # headerX.xml / footerY.xml 루트
                 if root_el is None:
                     continue
-                print(root_el,"root_el")
+                # print(root_el,"root_el")
                 # ⏩ header/footer의 내부도 "그 자리에서" 순차 파싱
                 self._walk_linear(
                     body=root_el,
@@ -755,7 +755,7 @@ class GenosMsWordDocumentBackend(DeclarativeDocumentBackend):
                                 parts.append(f"[fld] {','.join([c for c in fldchars if c])}")
                             joined = " | ".join(parts)
                             preview = (joined[:80] + ("…" if len(joined) > 80 else "")) if joined else ""
-                            print(f"[HF] handle paragraph after image text='{preview}'")
+                            # print(f"[HF] handle paragraph after image text='{preview}'")
                         except Exception:
                             pass
                     self._handle_text_elements(element, docx_obj, doc)    
@@ -789,7 +789,7 @@ class GenosMsWordDocumentBackend(DeclarativeDocumentBackend):
                             parts.append(f"[fld] {','.join([c for c in fldchars if c])}")
                         joined = " | ".join(parts)
                         preview = (joined[:80] + ("…" if len(joined) > 80 else "")) if joined else ""
-                        print(f"[HF] handle paragraph text='{preview}'")
+                        # print(f"[HF] handle paragraph text='{preview}'")
                     except Exception:
                         pass
                 self._handle_text_elements(element, docx_obj, doc)
@@ -983,7 +983,7 @@ class GenosMsWordDocumentBackend(DeclarativeDocumentBackend):
                                     if hf_only:
                                         try:
                                             preview = (" ".join(texts))[:80]
-                                            print(f"[HF][tbl] cell({r_idx},{c_idx}) -> text '{preview}{'…' if len(' '.join(texts))>80 else ''}'")
+                                            # print(f"[HF][tbl] cell({r_idx},{c_idx}) -> text '{preview}{'…' if len(' '.join(texts))>80 else ''}'")
                                         except Exception:
                                             pass
                                 continue
