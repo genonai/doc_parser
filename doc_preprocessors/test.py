@@ -8,7 +8,7 @@ from attachment_processor import DocumentProcessor
 
 # 파일 경로 및 요청 설정
 import os
-file_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "sample_files", "/workspaces/삼증리서치_리포트반출_일부/hd한국조선해양/original/2025042414165512K_01.docx")
+file_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "sample_files", "/workspaces/change_attach/doc_parser/sample_files/FinalPaperTemplate.docx")
 
 # 파일 존재 여부 확인
 if not os.path.exists(file_path):
