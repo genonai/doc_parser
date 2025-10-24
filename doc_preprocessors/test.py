@@ -1,17 +1,16 @@
 from fastapi import Request
 import logging
 
-# from basic_processor import DocumentProcessor
-
+from basic_processor import DocumentProcessor
 # from attachment_processor import DocumentProcessor
-from intelligent_processor import DocumentProcessor
+# from intelligent_processor import DocumentProcessor
 
 # 파일 경로 및 요청 설정
 import os
 
 # file_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "sample_files", "/workspaces/md_attach_preprocess/doc_parser/sample_files/xlsx_sample.xlsx")
 # file_path = "/workspace/pdfs/1.pdf"
-file_path = "/workspace/pdfs/연수규정(20250113)_일부개정.pdf"
+file_path = "/workspaces/pptx-docling/doc_parser/sample_files/pptx_sample.pptx"
 
 # 파일 존재 여부 확인
 if not os.path.exists(file_path):
