@@ -56,7 +56,7 @@ class DotsOCRLayoutModel(BasePageModel):
     CONTAINER_LABELS = [DocItemLabel.FORM, DocItemLabel.KEY_VALUE_REGION]
 
     def __init__(self, pipeline_options: PdfPipelineOptions) -> None:
-        self.request = "http://127.0.0.1:8000/api/get_reading_order/"
+        self.request = "http://192.168.73.176:8888/api/get_reading_order/"
         self.pipeline_options = pipeline_options
         self.options = pipeline_options.layout_options
 
