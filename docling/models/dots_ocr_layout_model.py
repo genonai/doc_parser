@@ -7,6 +7,7 @@ import warnings
 from collections.abc import Iterable
 from pathlib import Path
 from typing import Optional
+import json
 
 import numpy as np
 from docling_core.types.doc import DocItemLabel
@@ -27,11 +28,14 @@ from docling.utils.dotsocr_postprocessor import LayoutPostprocessor
 from docling.utils.profiling import TimeRecorder
 from docling.utils.visualization import draw_clusters
 from docling.datamodel.pipeline_options import PdfPipelineOptions
+from docling.utils.api_image_request import api_image_request
 
 
 import requests
 
 _log = logging.getLogger(__name__)
+
+TOKEN = ""
 
 
 class DotsOCRLayoutModel(BasePageModel):
@@ -56,7 +60,8 @@ class DotsOCRLayoutModel(BasePageModel):
     CONTAINER_LABELS = [DocItemLabel.FORM, DocItemLabel.KEY_VALUE_REGION]
 
     def __init__(self, pipeline_options: PdfPipelineOptions) -> None:
-        self.request = "http://192.168.73.176:8888/api/get_reading_order/"
+        self.request = "http://192.168.74.172:30908/api/gateway/rep/serving/607/v1/chat/completions"
+        self.prompt = """Please output the layout information from this PDF image, including each layout's bbox and its category. The bbox should be in the format [x1, y1, x2, y2]. The layout categories for the PDF document include ['Caption', 'Footnote', 'Formula', 'List-item', 'Page-footer', 'Page-header', 'Picture', 'Section-header', 'Table', 'Text', 'Title']. Do not output the corresponding text. The layout result should be in JSON format."""
         self.pipeline_options = pipeline_options
         self.options = pipeline_options.layout_options
 
@@ -126,19 +131,21 @@ class DotsOCRLayoutModel(BasePageModel):
                     )
                     assert page_image is not None
 
-                    buffer = io.BytesIO()
-                    page_image.save(
-                        buffer, format="PNG"
-                    )  # PNG 형식으로 저장 (필요에 따라 JPEG 등 변경 가능)
-                    buffer.seek(0)
+                    headers = {
+                        "model": "955",
+                        "Content-Type": "application/json",
+                        "Authorization": TOKEN,
+                    }
 
-                    # 바이트 스트림을 base64로 인코딩
-                    base64_image = base64.b64encode(buffer.getvalue()).decode("utf-8")
-                    response = requests.post(
-                        url=self.request, json={"img": base64_image}
+                    result = api_image_request(
+                        page_image,
+                        self.prompt,
+                        self.request,
+                        timeout=60,
+                        headers=headers,
                     )
-                    response = response.json()
-                    result = response["result"]
+
+                    result = json.loads(result)
 
                     clusters = []
                     for idx, pred_item in enumerate(result):
