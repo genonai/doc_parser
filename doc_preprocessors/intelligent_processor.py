@@ -32,8 +32,6 @@ from docling.datamodel.pipeline_options import (
     PipelineOptions,
 )
 
-from docling.datamodel.layout_model_specs import MNCAI_CUSTOM_LAYOUT
-
 from docling.document_converter import (
     DocumentConverter,
     PdfFormatOption,
@@ -198,20 +196,20 @@ def convert_to_pdf(file_path: str) -> str | None:
         return None
 
 
-# def _get_pdf_path(file_path: str) -> str:
-#     """
-#     다양한 파일 확장자를 PDF 확장자로 변경하는 공통 함수
+def _get_pdf_path(file_path: str) -> str:
+    """
+    다양한 파일 확장자를 PDF 확장자로 변경하는 공통 함수
 
-#     Args:
-#         file_path (str): 원본 파일 경로
+    Args:
+        file_path (str): 원본 파일 경로
 
-#     Returns:
-#         str: PDF 확장자로 변경된 파일 경로
-#     """
-#     pdf_path = file_path
-#     for ext in CONVERTIBLE_EXTENSIONS:
-#         pdf_path = pdf_path.replace(ext, '.pdf')
-#     return pdf_path
+    Returns:
+        str: PDF 확장자로 변경된 파일 경로
+    """
+    pdf_path = file_path
+    for ext in CONVERTIBLE_EXTENSIONS:
+        pdf_path = pdf_path.replace(ext, ".pdf")
+    return pdf_path
 
 
 class HierarchicalChunker(BaseChunker):
@@ -528,14 +526,18 @@ class HybridChunker(BaseChunker):
             return None
 
         # 모든 헤더 정보를 종합하여 사용되는 헤더들 추출
-        all_headers = set()
+        all_headers = []
+        seen_headers = set()
+
         for header_info in header_info_list:
             if header_info:  # dict가 비어있지 않은 경우
-                for level, header_text in header_info.items():
-                    if header_text:  # 헤더 텍스트가 비어있지 않은 경우
-                        all_headers.add(header_text)
+                for level in sorted(header_info.keys()):
+                    header_text = header_info[level]
+                    if header_text and header_text not in seen_headers:
+                        all_headers.append(header_text)
+                        seen_headers.add(header_text)
 
-        return list(all_headers) if all_headers else None
+        return all_headers if all_headers else None
 
     def _split_table_text(self, table_text: str, max_tokens: int) -> list[str]:
         """테이블 텍스트를 토큰 제한에 맞게 분할 (단순 토큰 수 기준)"""
@@ -960,8 +962,6 @@ class GenOSVectorMetaBuilder:
                 size = document.pages.get(prov.page_no).size
                 page_no = prov.page_no
                 bbox = prov.bbox
-
-                # 왜 나누는거여???????????
                 bbox_data = {
                     "l": bbox.l / size.width,
                     "t": bbox.t / size.height,
@@ -969,15 +969,6 @@ class GenOSVectorMetaBuilder:
                     "b": bbox.b / size.height,
                     "coord_origin": bbox.coord_origin.value,
                 }
-
-                # bbox_data = {
-                #     "l": bbox.l,
-                #     "t": bbox.t,
-                #     "r": bbox.r,
-                #     "b": bbox.b,
-                #     "coord_origin": bbox.coord_origin.value,
-                # }
-
                 chunk_bboxes.append(
                     {"page": page_no, "bbox": bbox_data, "type": type_, "ref": label}
                 )
@@ -1026,9 +1017,7 @@ class DocumentProcessor:
         device = AcceleratorDevice.AUTO
         num_threads = 8
         accelerator_options = AcceleratorOptions(num_threads=num_threads, device=device)
-        # pipe_line_options = PdfPipelineOptions()
-        # pipe_line_options = PdfPipelineOptions(images_scale=2.777777777) # 200 dpi
-        pipe_line_options = PdfPipelineOptions(images_scale=1.0)  # 72 dpi
+        pipe_line_options = PdfPipelineOptions()
         pipe_line_options.generate_page_images = True
         pipe_line_options.generate_picture_images = True
         pipe_line_options.do_ocr = False
@@ -1043,19 +1032,19 @@ class DocumentProcessor:
         # 커스텀 layout detection 모델 사용 (artifacts_path 설정하지 않음 - tableformer는 기본 경로 사용)
         pipe_line_options.layout_options.model_spec = MNCAI_CUSTOM_LAYOUT
         pipe_line_options.do_table_structure = True
-        # pipe_line_options.images_scale = 2
+        pipe_line_options.images_scale = 2
         pipe_line_options.table_structure_options.do_cell_matching = True
         pipe_line_options.table_structure_options.mode = TableFormerMode.ACCURATE
         pipe_line_options.accelerator_options = accelerator_options
 
         simple_pipeline_options = PipelineOptions()
 
-        pipe_line_options.do_vlm_layout_and_readingorder = True
         self.converter = DocumentConverter(
             format_options={
                 InputFormat.PDF: PdfFormatOption(
                     pipeline_options=pipe_line_options,
                     backend=DoclingParseV4DocumentBackend,
+                    # backend=PyPdfiumDocumentBackend
                 ),
             }
         )
@@ -1079,8 +1068,6 @@ class DocumentProcessor:
             conv_result: ConversionResult = self.second_converter.convert(
                 file_path, raises_on_error=True
             )
-
-        # conv_result.document -> document -> chunks -> vectors -> result_list_as_dict[0]['text']
 
         return conv_result.document
 
@@ -1278,7 +1265,13 @@ class DocumentProcessor:
         upload_tasks = []
         for chunk_idx, chunk in enumerate(chunks):
             chunk_page = chunk.meta.doc_items[0].prov[0].page_no
-            content = self.safe_join(chunk.meta.headings) + chunk.text
+            # header 앞에 헤더 마커 추가 (HEADER: )
+            headers_text = (
+                "HEADER: " + ", ".join(chunk.meta.headings) + "\n"
+                if chunk.meta.headings
+                else ""
+            )
+            content = headers_text + chunk.text
             if chunk_page != current_page:
                 current_page = chunk_page
                 chunk_index_on_page = 0
@@ -1305,9 +1298,6 @@ class DocumentProcessor:
         if upload_tasks:
             await asyncio.gather(*upload_tasks)
 
-        # vectors[0].text -> 이게 암것도 없어
-        # vectors[0].chunk_bboxes -> 이게 이상해
-
         return vectors
 
     def get_media_files(self, doc_items: list):
@@ -1321,10 +1311,6 @@ class DocumentProcessor:
 
     async def __call__(self, request: Request, file_path: str, **kwargs: dict):
         document: DoclingDocument = self.load_documents(file_path, **kwargs)
-        # convresult.document. 결국 마지막에 ㅆ느는 내용은 이거.
-        # document.texts[0] 이거 bbox 좌표는 별 이상 없는데???
-        # document -> chunks -> vectors -> result_list_as_dict[0]['text']
-
         ext = Path(file_path).suffix.lower()
         if ext in [
             ".pptx",
@@ -1345,12 +1331,8 @@ class DocumentProcessor:
         document = document._with_pictures_refs(
             image_dir=artifacts_dir, reference_path=reference_path
         )
-        # document -> chunks -> vectors -> result_list_as_dict[0]['text']
-        # [text.text for text in document.texts] 이게 다 비어있음
-        # document.dict()['tables'] 여기에 있는 텍스트만 결과로 나온듯
 
-        # document = self.enrichment(document, **kwargs)
-        # 일단 끄고 나중에 켜야 할것
+        document = self.enrichment(document, **kwargs)
 
         # Extract Chunk from DoclingDocument
         chunks: List[DocChunk] = self.split_documents(document, **kwargs)
@@ -1363,8 +1345,6 @@ class DocumentProcessor:
             )
         else:
             raise GenosServiceException(1, f"chunk length is 0")
-
-        # chunks -> vectors -> result_list_as_dict[0]['text']
 
         """
         # 미디어 파일 업로드 방법

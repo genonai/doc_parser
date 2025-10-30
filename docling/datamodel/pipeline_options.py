@@ -325,8 +325,6 @@ class PdfPipelineOptions(PaginatedPipelineOptions):
     do_formula_enrichment: bool = False  # True: perform formula OCR, return Latex code
     do_picture_classification: bool = False  # True: classify pictures in documents
     do_picture_description: bool = False  # True: run describe pictures in documents
-    do_vlm_layout_and_readingorder: bool = False
-    # TODO str로 바꿔야 할듯. dots_ocr, paddleVL etc...
     force_backend_text: bool = (
         False  # (To be used with vlms, or other generative models)
     )
