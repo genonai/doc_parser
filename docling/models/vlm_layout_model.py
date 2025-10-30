@@ -24,7 +24,7 @@ from docling.models.utils.hf_model_download import download_hf_model
 from docling.utils.accelerator_utils import decide_device
 
 # from docling.utils.layout_postprocessor import LayoutPostprocessor
-from docling.utils.dotsocr_postprocessor import LayoutPostprocessor
+from docling.utils.vlmlayout_postprocessor import LayoutPostprocessor
 from docling.utils.profiling import TimeRecorder
 from docling.utils.visualization import draw_clusters
 from docling.datamodel.pipeline_options import PdfPipelineOptions
@@ -35,10 +35,10 @@ import requests
 
 _log = logging.getLogger(__name__)
 
-TOKEN = ""
+TOKEN = "Bearer 2300957bb6174a56905f3c7d46d008e3"
 
 
-class DotsOCRLayoutModel(BasePageModel):
+class VLMLayoutModel(BasePageModel):
     TEXT_ELEM_LABELS = [
         DocItemLabel.TEXT,
         DocItemLabel.FOOTNOTE,

@@ -46,6 +46,7 @@ from docling.pipeline.asr_pipeline import AsrPipeline
 from docling.pipeline.base_pipeline import BasePipeline
 from docling.pipeline.simple_pipeline import SimplePipeline
 from docling.pipeline.standard_pdf_pipeline import StandardPdfPipeline
+from docling.pipeline.vlm_layout_pipeline import VLMLayoutPipeline
 from docling.utils.utils import chunkify
 
 _log = logging.getLogger(__name__)
@@ -54,6 +55,7 @@ _log = logging.getLogger(__name__)
 from docling.backend.hwp_backend import HwpDocumentBackend
 from docling.backend.xml.hwpx_backend import HwpxDocumentBackend
 from docling.backend.json.bok_json_backend import BOKJsonDocumentBackend
+
 # genos_msword_backend 추가
 from docling.backend.genos_msword_backend import GenosMsWordDocumentBackend
 from docling.exceptions import HwpConversionError
@@ -130,6 +132,11 @@ class PdfFormatOption(FormatOption):
     backend: Type[AbstractDocumentBackend] = DoclingParseV4DocumentBackend
 
 
+class VLMLayoutPdfFormatOption(FormatOption):
+    pipeline_cls: Type = VLMLayoutPipeline
+    backend: Type[AbstractDocumentBackend] = DoclingParseV4DocumentBackend
+
+
 class AudioFormatOption(FormatOption):
     pipeline_cls: Type = AsrPipeline
     backend: Type[AbstractDocumentBackend] = NoOpBackend
@@ -140,18 +147,19 @@ class AudioFormatOption(FormatOption):
 class HwpxFormatOption(FormatOption):
     pipeline_cls: Type = SimplePipeline
     backend: Type[AbstractDocumentBackend] = HwpxDocumentBackend
-    
+
     def __init__(self, pipeline_options: Optional[PipelineOptions] = None):
         super().__init__(
             pipeline_cls=SimplePipeline,
             pipeline_options=pipeline_options,
-            backend=HwpxDocumentBackend
+            backend=HwpxDocumentBackend,
         )
 
 
 class HwpxFormatOption(FormatOption):
     pipeline_cls: Type = SimplePipeline
     backend: Type[AbstractDocumentBackend] = HwpxDocumentBackend
+
 
 # 한국은행
 class BOKJsonFormatOption(FormatOption):
@@ -170,7 +178,8 @@ def _get_default_option(format: InputFormat) -> FormatOption:
         InputFormat.DOCX: FormatOption(
             # pipeline_cls=SimplePipeline, backend=MsWordDocumentBackend
             # GenosMsWordDocumentBackend 사용
-            pipeline_cls=SimplePipeline, backend=GenosMsWordDocumentBackend
+            pipeline_cls=SimplePipeline,
+            backend=GenosMsWordDocumentBackend,
         ),
         InputFormat.PPTX: FormatOption(
             pipeline_cls=SimplePipeline, backend=MsPowerpointDocumentBackend
