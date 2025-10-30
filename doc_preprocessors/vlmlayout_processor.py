@@ -1019,15 +1019,14 @@ class DocumentProcessor:
         device = AcceleratorDevice.AUTO
         num_threads = 8
         accelerator_options = AcceleratorOptions(num_threads=num_threads, device=device)
-        # pipe_line_options = PdfPipelineOptions()
-        # pipe_line_options = PdfPipelineOptions(images_scale=2.777777777) # 200 dpi
         pipe_line_options = PdfPipelineOptions(images_scale=1.0)  # 72 dpi
+
         pipe_line_options.generate_page_images = True
         pipe_line_options.generate_picture_images = True
-        pipe_line_options.do_ocr = False
+        # pipe_line_options.ocr_options
+        # pipe_line_options.ocr_options =?????????? -> 여기서 모델 선택할 수 있는듯
         # pipe_line_options.ocr_options.lang = ["ko", 'en']
         # pipe_line_options.ocr_options.model_storage_directory = "./.EasyOCR/model"
-        # pipe_line_options.ocr_options.force_full_page_ocr = True
         # ocr_options = TesseractOcrOptions()
         # ocr_options.lang = ['kor', 'kor_vert', 'eng', 'jpn', 'jpn_vert']
         # ocr_options.path = './.tesseract/tessdata'
@@ -1040,6 +1039,10 @@ class DocumentProcessor:
         pipe_line_options.table_structure_options.do_cell_matching = True
         pipe_line_options.table_structure_options.mode = TableFormerMode.ACCURATE
         pipe_line_options.accelerator_options = accelerator_options
+
+        # ocr 키면 bbox가 이상해짐
+        # pipe_line_options.do_ocr = False
+        # pipe_line_options.ocr_options.force_full_page_ocr = False
 
         simple_pipeline_options = PipelineOptions()
 
