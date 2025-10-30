@@ -35,8 +35,6 @@ import requests
 
 _log = logging.getLogger(__name__)
 
-TOKEN = ""
-
 
 class VLMLayoutModel(BasePageModel):
     TEXT_ELEM_LABELS = [
@@ -60,10 +58,11 @@ class VLMLayoutModel(BasePageModel):
     CONTAINER_LABELS = [DocItemLabel.FORM, DocItemLabel.KEY_VALUE_REGION]
 
     def __init__(self, pipeline_options: PdfPipelineOptions) -> None:
-        self.request = "http://192.168.74.172:30908/api/gateway/rep/serving/607/v1/chat/completions"
-        self.prompt = """Please output the layout information from this PDF image, including each layout's bbox and its category. The bbox should be in the format [x1, y1, x2, y2]. The layout categories for the PDF document include ['Caption', 'Footnote', 'Formula', 'List-item', 'Page-footer', 'Page-header', 'Picture', 'Section-header', 'Table', 'Text', 'Title']. Do not output the corresponding text. The layout result should be in JSON format."""
         self.pipeline_options = pipeline_options
         self.options = pipeline_options.layout_options
+        self.url = pipeline_options.vlm_layout_url
+        self.prompt = pipeline_options.vlm_layout_prompt
+        self.token = pipeline_options.vlm_layout_token
 
     def draw_clusters_and_cells_side_by_side(
         self, conv_res, page, clusters, mode_prefix: str, show: bool = False
@@ -134,13 +133,13 @@ class VLMLayoutModel(BasePageModel):
                     headers = {
                         "model": "955",
                         "Content-Type": "application/json",
-                        "Authorization": TOKEN,
+                        "Authorization": self.token,
                     }
 
                     result = api_image_request(
                         page_image,
                         self.prompt,
-                        self.request,
+                        self.url,
                         timeout=60,
                         headers=headers,
                         do_sample=False,

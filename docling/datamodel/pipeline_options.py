@@ -353,6 +353,10 @@ class PdfPipelineOptions(PaginatedPipelineOptions):
         True  # Always True since parsed_page is now mandatory
     )
 
+    vlm_layout_url: str = None
+    vlm_layout_token: str = None
+    vlm_layout_prompt: str = None
+
 
 class ProcessingPipeline(str, Enum):
     STANDARD = "standard"
