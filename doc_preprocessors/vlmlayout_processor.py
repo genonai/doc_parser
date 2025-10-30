@@ -1044,6 +1044,10 @@ class DocumentProcessor:
         # pipe_line_options.do_ocr = False
         # pipe_line_options.ocr_options.force_full_page_ocr = False
 
+        pipe_line_options.vlm_layout_prompt = """"""
+        pipe_line_options.vlm_layout_token = ""
+        pipe_line_options.vlm_layout_url = ""
+
         simple_pipeline_options = PipelineOptions()
 
         self.converter = DocumentConverter(
