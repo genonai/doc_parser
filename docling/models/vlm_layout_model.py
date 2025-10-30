@@ -35,7 +35,7 @@ import requests
 
 _log = logging.getLogger(__name__)
 
-TOKEN = "Bearer 2300957bb6174a56905f3c7d46d008e3"
+TOKEN = ""
 
 
 class VLMLayoutModel(BasePageModel):
