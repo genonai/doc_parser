@@ -143,6 +143,8 @@ class VLMLayoutModel(BasePageModel):
                         self.request,
                         timeout=60,
                         headers=headers,
+                        do_sample=False,
+                        temperature=0.0,
                     )
 
                     result = json.loads(result)
