@@ -107,8 +107,13 @@ RUN uv venv ${APP_VENV}
 
 # ✅ 그 venv에 설치
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen || \
-    uv sync
+    uv sync --frozen --no-editable --link-mode=copy || \
+    uv sync --no-editable --link-mode=copy
+
+# ✅ docling 설치
+RUN --mount=type=cache,target=/root/.cache/uv-docling \
+    uv pip install ../.. --link-mode=copy
+
 
 ############################
 # 4) 모델 아티팩트

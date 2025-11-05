@@ -79,7 +79,7 @@ dev = [
 
 [tool.uv.sources]
 docling = [
-    { path = "../.." }
+    { path = "../..", editable=true }
 ]
 
 [tool.hatch.build.targets.sdist]
