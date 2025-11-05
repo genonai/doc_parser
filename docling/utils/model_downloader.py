@@ -2,7 +2,8 @@ import logging
 from pathlib import Path
 from typing import Optional
 
-from docling.datamodel.layout_model_specs import DOCLING_LAYOUT_V2, DOCLING_LAYOUT_HERON_101
+from docling.datamodel.layout_model_specs import DOCLING_LAYOUT_V2, DOCLING_LAYOUT_HERON_101, MNCAI_CUSTOM_LAYOUT, \
+    DOCLING_LAYOUT_EGRET_XLARGE, DOCLING_LAYOUT_EGRET_LARGE, DOCLING_LAYOUT_EGRET_MEDIUM, DOCLING_LAYOUT_HERON
 from docling.datamodel.pipeline_options import (
     granite_picture_description,
     smolvlm_picture_description,
@@ -21,7 +22,32 @@ from docling.models.table_structure_model import TableStructureModel
 from docling.models.utils.hf_model_download import download_hf_model
 
 _log = logging.getLogger(__name__)
-
+def download_all_layout_models(output_dir,force, progress):
+    LayoutModel.download_models(
+        local_dir=output_dir / MNCAI_CUSTOM_LAYOUT.model_repo_folder,
+        force=force,
+        progress=progress,
+    )
+    LayoutModel.download_models(
+        local_dir=output_dir / DOCLING_LAYOUT_EGRET_XLARGE.model_repo_folder,
+        force=force,
+        progress=progress,
+    )
+    LayoutModel.download_models(
+        local_dir=output_dir / DOCLING_LAYOUT_EGRET_LARGE.model_repo_folder,
+        force=force,
+        progress=progress,
+    )
+    LayoutModel.download_models(
+        local_dir=output_dir / DOCLING_LAYOUT_EGRET_MEDIUM.model_repo_folder,
+        force=force,
+        progress=progress,
+    )
+    LayoutModel.download_models(
+        local_dir=output_dir / DOCLING_LAYOUT_HERON.model_repo_folder,
+        force=force,
+        progress=progress,
+    )
 
 def download_models(
     output_dir: Optional[Path] = None,
@@ -51,6 +77,7 @@ def download_models(
             force=force,
             progress=progress,
         )
+        download_all_layout_models(output_dir,force, progress)
 
     if with_tableformer:
         _log.info("Downloading tableformer model...")
