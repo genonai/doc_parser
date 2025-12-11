@@ -1,6 +1,12 @@
 To use Docling, simply install `docling` from your Python package manager, e.g. pip:
 ```bash
 pip install docling
+
+To verify that Docling was installed successfully, you can check the version:
+
+```bash
+python -c "import docling; print(docling.__version__)"
+```
 ```
 
 Works on macOS, Linux, and Windows, with support for both x86_64 and arm64 architectures.
