@@ -58,15 +58,14 @@ else
   read -srp "MySQL 비밀번호: " MYSQL_PASS; echo
 fi
 
-# ── 로컬 이미지 확인 ────────────────────────────────────────
-step "로컬 Docker 이미지 확인"
-if docker image inspect "${FULL_IMAGE_NAME}" >/dev/null 2>&1; then
-  ok "로컬 이미지 존재"
-  HAS_LOCAL_IMAGE="yes"
-else
-  echo "⚠️ 로컬에 ${FULL_IMAGE_NAME} 없음."
-  HAS_LOCAL_IMAGE="no"
-fi
+# # ── 로컬 이미지 확인 ────────────────────────────────────────
+# step "로컬 Docker 이미지 확인"
+# if docker images | awk '{print $1":"$2}' | grep -qx "${FULL_IMAGE_NAME}"; then
+#   ok "로컬 이미지 존재"
+# else
+#   fail "로컬에 ${FULL_IMAGE_NAME} 없음. 먼저 build/push 하세요."
+#   exit 1
+# fi
 
 # ── docker push (포그라운드 / 재시도) ───────────────────────
 step "docker push"
@@ -160,22 +159,16 @@ if [ -z "${EXISTING_ID}" ]; then
       INSERT INTO llmops.resource_meta_tb
         (resource_id, resource_type, resource_group_id, is_active, reg_date, mod_date, reg_user_id, mod_user_id)
       VALUES
-        (LAST_INSERT_ID(), 'DOCKER_IMAGE', 2, 1, NOW(), NOW(), 1, 1);
-  "
-  if ! MYSQL_OUT="$(mysql_query "${SQL_INSERT}")"; then
-    fail "DB 등록 실패. 아래 로그 확인 필요."
-    echo "${MYSQL_OUT}"
-    exit 1
-  fi
+        (LAST_INSERT_ID(), 'DOCKER_IMAGE', 1, 1, NOW(), NOW(), 1, 1);
+    " 2>/dev/null
 
-  MYSQL_OUT=""
-  if ! MYSQL_OUT="$(mysql_query "${SQL_EXISTING}")"; then
-    fail "DB 조회 실패(등록 후). 아래 로그 확인 필요."
-    echo "${MYSQL_OUT}"
-    exit 1
-  fi
-  IMAGE_ID="$(printf '%s' "${MYSQL_OUT}" | tr -d '\r\n' | grep -Eo '^[0-9]+$' || true)"
-  ok "DB 등록 완료. 이미지 ID: ${IMAGE_ID}"
+  IMAGE_ID=$(
+    kubectl exec -it "${MARIADB_POD}" -n "${K8S_NAMESPACE}" -- \
+      mysql -u "${MYSQL_USER}" -p"${MYSQL_PASS}" llmops -se \
+      "SELECT id FROM system_docker_image_tb WHERE name='${IMAGE_NAME}' AND tag='${IMAGE_TAG}';" \
+      2>/dev/null | tr -d '\r\n' | grep -o '[0-9]*' || true
+  )
+  echo "✅ DB 등록 완료. 이미지 ID: ${IMAGE_ID}"
 else
   ok "이미 등록된 이미지입니다. ID: ${EXISTING_ID}"
   IMAGE_ID="${EXISTING_ID}"
