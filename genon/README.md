@@ -60,7 +60,7 @@
 6. 사이트 배포 시
 ```shell
 1. 이미지 저장
-docker save mncregistry:30500/mnc/doc-parser-preprocessor:latest | gzip > doc-parser-preprocessor.tar.gz
+docker save mncregistry:30500/mnc/doc-parser-preprocessor:1.3.3-komipo | gzip > doc-parser-preprocessor.tar.gz
 2. 사이트에서 이미지 복원
 gunzip -c doc-parser-preprocessor.tar.gz | docker load
 3. register_image.sh 파일 실행
@@ -76,3 +76,9 @@ gunzip -c doc-parser-preprocessor.tar.gz | docker load
 kubectl apply -f doc-parser-ocr-deployment.yaml
 ```
 5. 노드 포트로 배포시는 [doc-parser-ocr-deployment-node-port.yaml](serving/paddle/k8s-manifest/doc-parser-ocr-deployment-node-port.yaml)
+
+사이트에서
+```
+docker save mncregistry:30500/doc-parser-ocr:1.3.3-komipo | gzip > doc-parser-ocr.tar.gz
+gunzip -c doc-parser-ocr.tar.gz | docker load
+```
