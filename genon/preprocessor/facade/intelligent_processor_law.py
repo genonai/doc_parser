@@ -523,8 +523,6 @@ class GenosBucketChunker(BaseChunker):
             return ""
 
         def split_items_evenly_by_tokens(item_token_counts, max_tokens):
-            import math, bisect
-
             n = len(item_token_counts)
             total = sum(item_token_counts)
             if n == 0:

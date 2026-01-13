@@ -1085,8 +1085,8 @@ class DocumentProcessor:
             # metadata_api_key="9e32423947fd4a5da07a28962fe88487",
 
             # Gemma-3 27B docling, 운영망
-            toc_api_base_url="http://llmops-gateway-api-service:8080/serving/364/799/v1/chat/completions",
-            metadata_api_base_url="http://llmops-gateway-api-service:8080/serving/364/799/v1/chat/completions",
+            toc_api_base_url="http://llmops-gateway-api-service:8080/serving/364/1073/v1/chat/completions",
+            metadata_api_base_url="http://llmops-gateway-api-service:8080/serving/364/1073/v1/chat/completions",
             toc_api_key="a2ffe48f40ab4cf9a0699deac1c0cb76",
             metadata_api_key="a2ffe48f40ab4cf9a0699deac1c0cb76",
 
