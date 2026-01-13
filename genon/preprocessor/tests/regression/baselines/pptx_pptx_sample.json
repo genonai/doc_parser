@@ -165,12 +165,14 @@
     }
   ],
   "label_distribution": {
-    "text": 185,
+    "text": 184,
     "list_item": 23,
     "caption": 40,
     "chart": 24,
     "table": 8,
-    "picture": 5
+    "picture": 5,
+    "section_header": 37,
+    "title": 1
   },
   "total_characters": 10174
 }

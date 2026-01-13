@@ -40,8 +40,10 @@
   ],
   "label_distribution": {
     "paragraph": 136,
-    "section_header": 19,
-    "formula": 12
+    "section_header": 17,
+    "formula": 12,
+    "text": 1,
+    "title": 1
   },
   "total_characters": 15801
 }
