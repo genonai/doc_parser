@@ -349,8 +349,10 @@ class HybridChunker(BaseChunker):
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
+    # 해당 경로에 all-MiniLM-L6-v2 위치 시키기
+    # https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2
     tokenizer: Union[PreTrainedTokenizerBase, str] = (
-        "sentence-transformers/all-MiniLM-L6-v2"
+        "/nfs-root/all-MiniLM-L6-v2"
     )
     max_tokens: int = 1024
     merge_peers: bool = True
