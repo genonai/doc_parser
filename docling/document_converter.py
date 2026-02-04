@@ -202,7 +202,7 @@ def _get_default_option(format: InputFormat) -> FormatOption:
         InputFormat.AUDIO: FormatOption(pipeline_cls=AsrPipeline, backend=NoOpBackend),
         # 한글 파일 추가
         InputFormat.HWP: FormatOption(
-            pipeline_cls=SimplePipeline, backend=HwpDocumentBackend
+            pipeline_cls=StandardPdfPipeline, backend=DoclingParseV4DocumentBackend
         ),
         InputFormat.XML_HWPX: FormatOption(
             pipeline_cls=SimplePipeline, backend=HwpxDocumentBackend

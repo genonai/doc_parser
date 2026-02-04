@@ -76,6 +76,12 @@ from typing import Iterable, Iterator, Optional, Union
 from pydantic import BaseModel, ConfigDict, PositiveInt, TypeAdapter, model_validator
 from typing_extensions import Self
 
+
+import os
+os.environ["DYLD_LIBRARY_PATH"] = "/opt/homebrew/lib"
+os.environ["PKG_CONFIG_PATH"] = "/opt/homebrew/lib/pkgconfig:/opt/homebrew/share/pkgconfig"
+from weasyprint import HTML
+
 try:
     import semchunk
     from transformers import AutoTokenizer, PreTrainedTokenizerBase
@@ -106,6 +112,24 @@ except ImportError:
 #
 
 """Chunker implementation leveraging the document structure."""
+
+CONVERTIBLE_EXTENSIONS = ['.hwp', '.txt', '.json', '.md', '.ppt', '.pptx', '.docx']
+
+def _get_pdf_path(file_path: str) -> str:
+    """
+    다양한 파일 확장자를 PDF 확장자로 변경하는 공통 함수
+
+    Args:
+        file_path (str): 원본 파일 경로
+
+    Returns:
+        str: PDF 확장자로 변경된 파일 경로
+    """
+    pdf_path = file_path
+    for ext in CONVERTIBLE_EXTENSIONS:
+        pdf_path = pdf_path.replace(ext, '.pdf')
+    return pdf_path
+
 
 class HwpLoader:
     def __init__(self, file_path: str):
@@ -317,157 +341,13 @@ class HwpLoader:
                     
             # OLE 형식 확인 (d0 cf 11 e0 a1 b1 1a e1)
             elif header[:8] == bytes([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1]):
-                # OLE 형식: 기존 hwp5html 방식 사용
+                    
                 subprocess.run(['hwp5html', self.file_path, '--output', self.output_dir], check=True, timeout=600)
+
                 converted_file_path = os.path.join(self.output_dir, 'index.xhtml')
-                
-                # XHTML에서 텍스트 추출
-                try:
-                    from bs4 import BeautifulSoup
-                    with open(converted_file_path, 'r', encoding='utf-8') as f:
-                        soup = BeautifulSoup(f.read(), 'html.parser')
-                    text_content = soup.get_text(separator='\n', strip=True)
-                except ImportError:
-                    # BeautifulSoup이 없으면 간단한 텍스트 추출
-                    import re
-                    with open(converted_file_path, 'r', encoding='utf-8') as f:
-                        content = f.read()
-                    # HTML 태그 제거
-                    text_content = re.sub(r'<[^>]+>', '', content)
-                
-                # fitz로 PDF 생성 (한글 폰트 포함)
-                import fitz
-                import platform
-                
-                doc = fitz.open()
-                page = doc.new_page()
-                
-                # 한글 폰트 파일 찾기 (HWPML과 동일한 로직)
-                system = platform.system()
-                font_file = None
-                font_name = "helv"  # 기본값
-                
-                if system == "Darwin":  # macOS
-                    font_paths = [
-                        "/System/Library/Fonts/AppleSDGothicNeo.ttc",
-                        "/System/Library/Fonts/Supplemental/AppleSDGothicNeo.ttc",
-                        "/Library/Fonts/AppleGothic.ttf",
-                        "/System/Library/Fonts/AppleGothic.ttf",
-                    ]
-                    for path in font_paths:
-                        if os.path.exists(path):
-                            font_file = path
-                            font_name = "korean"
-                            break
-                elif system == "Windows":
-                    font_paths = [
-                        "C:/Windows/Fonts/malgun.ttf",
-                        "C:/Windows/Fonts/gulim.ttc",
-                    ]
-                    for path in font_paths:
-                        if os.path.exists(path):
-                            font_file = path
-                            font_name = "korean"
-                            break
-                else:  # Linux
-                    font_paths = [
-                        "/usr/share/fonts/truetype/nanum/NanumGothic.ttf",
-                        "/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc",
-                    ]
-                    for path in font_paths:
-                        if os.path.exists(path):
-                            font_file = path
-                            font_name = "korean"
-                            break
-                
-                # 폰트 파일이 있으면 로드
-                if font_file:
-                    try:
-                        # 페이지에 폰트 추가
-                        page.insert_font(fontname=font_name, fontfile=font_file)
-                    except Exception as e:
-                        print(f"폰트 로드 실패: {e}, 기본 폰트 사용")
-                        font_name = "helv"
-                def _wrap_line_to_width(
-                    line: str, max_width: float, fontname: str, fontsize: int
-                ) -> list[str]:
-                    line = (line or "").rstrip("\n")
-                    if not line:
-                        return [""]
 
-                    try:
-                        if fitz.get_text_length(line, fontname=fontname, fontsize=fontsize) <= max_width:
-                            return [line]
-                    except Exception:
-                        if len(line) <= 80:
-                            return [line]
-
-                    out: list[str] = []
-                    tokens = line.split(" ")
-                    if len(tokens) > 1:
-                        cur = ""
-                        for tok in tokens:
-                            cand = f"{cur} {tok}".strip() if cur else tok
-                            try:
-                                ok = fitz.get_text_length(cand, fontname=fontname, fontsize=fontsize) <= max_width
-                            except Exception:
-                                ok = len(cand) <= 80
-                            if ok:
-                                cur = cand
-                            else:
-                                if cur:
-                                    out.append(cur)
-                                cur = tok
-                        if cur:
-                            out.append(cur)
-                        return out
-
-                    cur = ""
-                    for ch in line:
-                        cand = cur + ch
-                        try:
-                            ok = fitz.get_text_length(cand, fontname=fontname, fontsize=fontsize) <= max_width
-                        except Exception:
-                            ok = len(cand) <= 80
-                        if ok:
-                            cur = cand
-                        else:
-                            if cur:
-                                out.append(cur)
-                            cur = ch
-                    if cur:
-                        out.append(cur)
-                    return out
-
-                fontsize = 11
-                margin = 50
-                line_height = int(fontsize * 1.4)
-                max_width = page.rect.width - margin * 2
-                y_position = 50
-
-                for raw_line in text_content.split("\n"):
-                    for line in _wrap_line_to_width(raw_line, max_width, font_name, fontsize):
-                        if y_position > page.rect.height - 50:
-                            page = doc.new_page()
-                            # 새 페이지에도 폰트 추가
-                            if font_file:
-                                try:
-                                    page.insert_font(fontname=font_name, fontfile=font_file)
-                                except Exception:
-                                    pass
-                            y_position = 50
-
-                        if line.strip():
-                            try:
-                                page.insert_text((margin, y_position), line, fontsize=fontsize, fontname=font_name)
-                            except Exception:
-                                page.insert_text((margin, y_position), line, fontsize=fontsize)
-                        y_position += line_height
-                
-                # PDF 경로 생성 (.hwp -> .pdf)
-                pdf_save_path = self.file_path.replace('.hwp', '.pdf')
-                doc.save(pdf_save_path)
-                doc.close()
+                pdf_save_path = _get_pdf_path(self.file_path)
+                HTML(converted_file_path).write_pdf(pdf_save_path)
                 self.pdf_path = pdf_save_path  # PDF 경로 저장
             else:
                 # 알 수 없는 형식
@@ -2120,19 +2000,21 @@ class DocumentProcessor:
         # kwargs에서 save_images 값을 가져와서 옵션 업데이트
         save_images = kwargs.get('save_images', True)
         include_wmf = kwargs.get('include_wmf', False)
-
+        print("123123")
         self._create_converters()
-
+        print("1231234")
         try:
             conv_result: ConversionResult = self.converter.convert(file_path, raises_on_error=True)
-            print('PyPdfiumDocumentBackend로 컨버트합니다.')
+            print(f"PyPdfiumDocumentBackend로 컨버트합니다. {file_path}")
         except Exception as e:
             print('PyPdfiumDocumentBackend에서 오류가 발생했습니다:', e)
             print('DoclingParseV4DocumentBackend로 재시도합니다.')
             conv_result: ConversionResult = self.second_converter.convert(file_path, raises_on_error=True)
             print('DoclingParseV4DocumentBackend로 컨버트 성공')
         if self.toc_on != 1:
+            print("12312345")
             self.set_content_layer_to_body(conv_result.document)
+            print("12312346")
         return conv_result.document
 
     def load_documents_with_docling_ocr(self, file_path: str, **kwargs: dict) -> DoclingDocument:
@@ -2161,6 +2043,8 @@ class DocumentProcessor:
             hwp_loader = HwpLoader(file_path)
             hwp_loader.load()  # PDF 변환 수행
             file_path = hwp_loader.pdf_path  # PDF 경로 사용
+
+            print("#########")
         return self.load_documents_with_docling(file_path, **kwargs)
 
     def split_documents(self, documents: DoclingDocument, subject, legal_option, image_option, **kwargs: dict) -> List[
@@ -2607,22 +2491,14 @@ class DocumentProcessor:
         # ---------------------------------------------------------------------------
 
         document: DoclingDocument = self.load_documents(file_path, **kwargs)
-
+        print("12312347")
         self.test = document
 
-        if image_description_on != 1:
-
-            if not check_document(document, self.enrichment_options) or self.check_glyphs(document):
-                # OCR이 필요하다고 판단되면 OCR 수행
-                document: DoclingDocument = self.load_documents_with_docling_ocr(file_path, **kwargs)
-
-            # 글리프 깨진 텍스트가 있는 테이블에 대해서만 OCR 수행 (청크토큰 8k이상 발생 방지)
-            # document: DoclingDocument = self.ocr_all_table_cells(document, file_path)
-
+        print("12312351")
         for i, item in enumerate(document.texts):
             if item.label == DocItemLabel.PARAGRAPH:
                 document.texts[i].label = DocItemLabel.TEXT
-
+        print("12312352")
         output_path, output_file = os.path.split(file_path)
         filename, _ = os.path.splitext(output_file)
         artifacts_dir = Path(f"{output_path}/{filename}")
@@ -2632,9 +2508,9 @@ class DocumentProcessor:
             reference_path = artifacts_dir.parent
 
         document = document._with_pictures_refs(image_dir=artifacts_dir, reference_path=reference_path, page_no=None)
-
+        print("12312353")
         document = self.enrichment(document, enrich_on, **kwargs)
-
+        print("12312354")
         has_text_items = False
         for item, _ in document.iterate_items():
             if (isinstance(item,
