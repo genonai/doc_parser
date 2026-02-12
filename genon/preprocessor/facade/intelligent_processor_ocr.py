@@ -1288,8 +1288,11 @@ class DocumentProcessor:
             # OCR이 필요하다고 판단되면 OCR 수행
             document: DoclingDocument = self.load_documents_with_docling_ocr(file_path, **kwargs)
 
-        # 글리프 깨진 텍스트가 있는 테이블에 대해서만 OCR 수행 (청크토큰 8k이상 발생 방지)
-        document: DoclingDocument = self.ocr_all_table_cells(document, file_path)
+        if document.origin.mimetype == "text/html":
+            pass
+        else:
+            # 글리프 깨진 텍스트가 있는 테이블에 대해서만 OCR 수행 (청크토큰 8k이상 발생 방지)
+            document: DoclingDocument = self.ocr_all_table_cells(document, file_path)
 
         output_path, output_file = os.path.split(file_path)
         filename, _ = os.path.splitext(output_file)
