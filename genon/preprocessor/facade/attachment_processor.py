@@ -99,6 +99,41 @@ for n in ("fontTools", "fontTools.ttLib", "fontTools.ttLib.ttFont"):
 # pdf 변환 대상 확장자
 CONVERTIBLE_EXTENSIONS = ['.hwp', '.txt', '.json', '.md', '.ppt', '.pptx', '.docx']
 
+## 보안컨설팅 조치로 인한 가드레일 추가
+
+import requests
+import re
+import json
+
+GUARDRAIL_WORKFLOW_ID = 694
+GUARDRAIL_BEARER_TOKEN = ""
+GENOS_URL = ""
+
+from functools import wraps
+
+def guardrail(func):
+    @wraps(func)
+    async def wrapper(*args, **kwargs):
+        result = await func(*args, **kwargs)
+
+        for r in result:
+            url = f"{GENOS_URL}/api/gateway/workflow/{GUARDRAIL_WORKFLOW_ID}"
+            headers = dict(Authorization=f"Bearer {GUARDRAIL_BEARER_TOKEN}")
+
+            if hasattr(r, "text"):
+                body = {"question": r.text}
+
+                res = requests.post(f"{url}/run/v2", json=body, headers=headers)
+
+                answer = res.json()["data"]["text"]
+
+                if answer.startswith("[UNSAFE]"):
+                    r.text = "부적절한 텍스트가 포함되어 있으므로 해당 청크를 제거합니다."
+        
+        return result
+    
+    return wrapper
+
 
 def convert_to_pdf(file_path: str) -> str | None:
     """
@@ -1432,6 +1467,7 @@ class DocumentProcessor:
         # root logger level 적용
         logging.getLogger().setLevel(level)
 
+    @guardrail
     async def __call__(self, request: Request, file_path: str, **kwargs: dict):
         self.setup_logging(kwargs.get('log_level', 4))
 
