@@ -1139,8 +1139,9 @@ class DocumentProcessor:
         return self.load_documents_with_docling(file_path, **kwargs)
 
     def split_documents(self, documents: DoclingDocument, **kwargs: dict) -> List[DocChunk]:
+        max_tokens = kwargs.pop('chunk_size', 0)
         chunker: GenosBucketChunker = GenosBucketChunker(
-            max_tokens=0,
+            max_tokens=max_tokens,
             merge_peers=True
         )
 
