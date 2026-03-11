@@ -835,6 +835,33 @@ class GenosBucketChunker(BaseChunker):
         if cur_chunk:
             result_chunks.append(cur_chunk)
 
+        # ================================================================
+        # 5단계: max_tokens 초과 청크를 텍스트 레벨로 분할
+        # ================================================================
+        if self.max_tokens > 0:
+            final_chunks = []
+            for chunk in result_chunks:
+                if self._count_tokens(chunk.text) <= self.max_tokens:
+                    final_chunks.append(chunk)
+                else:
+                    # semchunk로 텍스트 레벨 분할
+                    sem_chunker = semchunk.chunkerify(self._tokenizer, chunk_size=self.max_tokens)
+                    segments = sem_chunker(chunk.text)
+                    if segments and len(segments) > 1:
+                        for seg in segments:
+                            final_chunks.append(DocChunk(
+                                text=seg,
+                                meta=DocMeta(
+                                    doc_items=chunk.meta.doc_items,
+                                    headings=chunk.meta.headings,
+                                    captions=chunk.meta.captions,
+                                    origin=chunk.meta.origin,
+                                )
+                            ))
+                    else:
+                        final_chunks.append(chunk)
+            result_chunks = final_chunks
+
         return result_chunks
 
     def chunk(self, dl_doc: DoclingDocument, **kwargs: Any) -> Iterator[BaseChunk]:
