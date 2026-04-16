@@ -1,0 +1,59 @@
+import os
+from fastapi import Request
+import logging
+import asyncio
+import json
+import time
+
+import sys
+
+sys.path.insert(0, "../../../")  # 현재 doc_parser의 docling 폴더 참조
+
+# 테스트할 전처리기 임포트
+# from attachment_processor import DocumentProcessor # 첨부용
+# from convert_processor import DocumentProcessor # 변환형
+# from intelligent_processor import DocumentProcessor  # 지능형
+from test_processor import DocumentProcessor
+
+# 파일 경로
+file_path = "../sample_files/pdf_sample.pdf"
+# file_path = "/home/gamy0315/doc_parser/삼성전자_재무제표.pdf"
+# file_path = "/home/gamy0315/doc_parser/genon/preprocessor/sample_files/docx_sample.docx"
+
+# 파일 존재 여부 확인
+if not os.path.exists(file_path):
+    print(f"Sample file not found: {file_path}")
+    print("Please add a file to the sample_files folder.")
+    exit(1)
+
+# DocumentProcessor 인스턴스 생성
+doc_processor = DocumentProcessor()
+
+# FastAPI 요청 예제
+mock_request = Request(scope={"type": "http"})
+
+
+# 비동기 메서드 실행
+async def process_document():
+    # print(file_path)
+    kwargs = {}
+    kwargs["org_filename"] = os.path.basename(file_path)
+    vectors = await doc_processor(mock_request, file_path, **kwargs)
+    return vectors
+
+
+begin = time.time()
+# 메인 루프 실행
+result = asyncio.run(process_document())
+
+result_list_as_dict = [item.model_dump() for item in result]
+
+# 최종적으로 이 리스트를 JSON으로 저장
+with open("result.json", "w", encoding="utf-8") as f:
+    json.dump(result_list_as_dict, f, ensure_ascii=False, indent=4)
+
+end = time.time()
+print(f"Processing time: {end - begin:.2f} seconds")
+
+
+breakpoint()
