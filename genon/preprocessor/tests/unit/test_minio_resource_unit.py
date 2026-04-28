@@ -13,7 +13,12 @@ import pytest
 
 @pytest.fixture(autouse=True)
 def _stub_minio_env(monkeypatch):
-    """`common.settings.minio_config` import 시점의 env 검증을 우회."""
+    """
+    Set environment variables required by common.settings.minio_config and MQ at import time so import-time validation is bypassed.
+    
+    Parameters:
+        monkeypatch (pytest.MonkeyPatch): The monkeypatch fixture used to set environment variables for the test process.
+    """
     monkeypatch.setenv("MINIO_ENDPOINT", "test-endpoint:9000")
     monkeypatch.setenv("MINIO_ACCESS_KEY", "test-access")
     monkeypatch.setenv("MINIO_SECRET_KEY", "test-secret")
@@ -31,6 +36,16 @@ def _stub_minio_env(monkeypatch):
 
 
 def _make_obj(object_name: str, is_dir: bool = False):
+    """
+    Create a SimpleNamespace representing a Minio object entry.
+    
+    Parameters:
+        object_name (str): The object's full name or path as returned by Minio.
+        is_dir (bool): Whether the entry represents a directory placeholder.
+    
+    Returns:
+        SimpleNamespace: An object with attributes `object_name` and `is_dir`.
+    """
     return SimpleNamespace(object_name=object_name, is_dir=is_dir)
 
 
@@ -81,6 +96,11 @@ def test_file_lock_blocks_concurrent_acquire(tmp_path: Path):
     order: list[str] = []
 
     def first():
+        """
+        Acquire the file lock, record entry and exit markers in `order`, and hold the lock for a short period.
+        
+        While the lock is held, appends "first-enter" to the shared `order` list, sleeps for 0.3 seconds, then appends "first-exit".
+        """
         with FileLock(str(lock_file), timeout_sec=5, poll_interval=0.05):
             order.append("first-enter")
             time.sleep(0.3)
@@ -106,7 +126,17 @@ def test_file_lock_blocks_concurrent_acquire(tmp_path: Path):
 # ---------------------------------------------------------------------------
 
 def _patch_minio(monkeypatch, objects):
-    """`util.minio_resource.Minio`를 MagicMock으로 치환하고 반환."""
+    """
+    Replace util.minio_resource.Minio with a MagicMock that lists the provided objects.
+    
+    Parameters:
+        objects (Iterable): Iterable of objects to be returned by the mock's `list_objects`.
+    
+    Returns:
+        (minio_mock, client_factory): `minio_mock` is the MagicMock representing the Minio client (its
+        `list_objects` yields the given objects); `client_factory` is the MagicMock factory patched in
+        place of `util.minio_resource.Minio`.
+    """
     import util.minio_resource as mr
 
     minio_mock = MagicMock()

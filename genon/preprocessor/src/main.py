@@ -43,6 +43,12 @@ async def exception_handler(request, exc: Exception):
 
 @app.get('/healthcheck')
 async def healthcheck() -> object:
+    """
+    Report the service's health status.
+    
+    Returns:
+        dict: A dictionary containing {'status': 'ok'} indicating the service is healthy.
+    """
     return {'status': 'ok'}
 
 
