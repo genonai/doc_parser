@@ -2,7 +2,14 @@ from typing import Any, List
 
 from fastapi import Request
 from langchain_core.documents import Document
-from docling.document_converter import DocumentConverter, PdfFormatOption, HwpxFormatOption, WordFormatOption
+from docling.document_converter import (
+    DocumentConverter,
+    PdfFormatOption,
+    HwpxFormatOption,
+    WordFormatOption,
+    MarkdownFormatOption,
+    HTMLFormatOption,
+)
 from docling.datamodel.document import ConversionResult
 from docling.datamodel.pipeline_options import (
     AcceleratorDevice,
@@ -15,18 +22,19 @@ from docling.datamodel.pipeline_options import (
 from docling.datamodel.base_models import InputFormat
 from docling.backend.pypdfium2_backend import PyPdfiumDocumentBackend
 from docling.backend.pymupdf_backend import PyMuPDFDocumentBackend
-from docling.backend.msword_backend import MsWordDocumentBackend
 from docling.backend.genos_msword_backend import GenosMsWordDocumentBackend
+from docling.backend.html_backend import HTMLDocumentBackend
+from docling.backend.md_backend import MarkdownDocumentBackend
+
 from docling_core.transforms.chunker import BaseChunker, DocChunk
 from docling_core.types import DoclingDocument
 from docling.pipeline.standard_pdf_pipeline import StandardPdfPipeline
 from docling.pipeline.simple_pipeline import SimplePipeline
 
 
-from genon.preprocessor.module.chunkers import CHUNKERS
-from genon.preprocessor.module.metadata import GenOSVectorMetaBuilder
-from genon.preprocessor.module.utils.logging_utils import setup_logging
-
+from genon.preprocessor.facade.chunkers import CHUNKERS
+from genon.preprocessor.facade.metadata import GenOSVectorMetaBuilder
+from genon.preprocessor.facade.utils.logging_utils import setup_logging
 
 # TODO all ext
 FORMAT_MAP = {
@@ -39,9 +47,9 @@ FORMAT_MAP = {
     # "pptx": InputFormat.PPTX,
     # "xlsx": InputFormat.XLSX,
     # "csv": InputFormat.CSV,
-    # "md": InputFormat.MD,
+    "md": InputFormat.MD,
     # "json": InputFormat.JSON,
-    # "html": InputFormat.HTML,
+    "html": InputFormat.HTML,
 }
 
 
@@ -52,13 +60,13 @@ FORMAT_OPTION_MAP = {
     # "hwpx":InputFormat.HWPX,# TODO
     # "doc":InputFormat.DOC, # TODO
     InputFormat.DOCX: WordFormatOption,
+    InputFormat.MD: MarkdownFormatOption,
     # "ppt": InputFormat.PPT, #TODO
     # InputFormat.PPTX,
     # InputFormat.XLSX,
     # InputFormat.CSV,
-    # InputFormat.MD,
     # InputFormat.JSON,
-    # InputFormat.HTML,
+    InputFormat.HTML: HTMLFormatOption,
 }
 
 PIPELINE_MAP = {
@@ -70,6 +78,8 @@ BACKEND_MAP = {
     "pypdf": PyPdfiumDocumentBackend,
     "pymu": PyMuPDFDocumentBackend,
     "msword": GenosMsWordDocumentBackend,
+    "html": HTMLDocumentBackend,
+    "md": MarkdownDocumentBackend,
 }
 
 
@@ -123,6 +133,9 @@ class BaseProcessor:
 
             if "generate_picture_images" in option and option["generate_picture_images"] == True:
                 format_options[format].pipeline_options.generate_picture_images = True
+
+            if "save_images" in option and option["save_images"] == True:
+                format_options[format].pipeline_options.save_images = True
 
         return format_options
 

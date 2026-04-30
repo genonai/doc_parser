@@ -13,10 +13,10 @@ sys.path.insert(0, "../../../")  # 현재 doc_parser의 docling 폴더 참조
 # from attachment_processor import DocumentProcessor # 첨부용
 # from convert_processor import DocumentProcessor # 변환형
 # from intelligent_processor import DocumentProcessor  # 지능형
-from test_processor import DocumentProcessor
+from genon.preprocessor.facade.test_processor import DocumentProcessor
 
 # 파일 경로
-file_path = "../sample_files/pdf_sample.pdf"
+file_path = "/home/gamy0315/doc_parser_branch/doc_parser/tests/data/pdf/picture_classification.pdf"
 # file_path = "/home/gamy0315/doc_parser/삼성전자_재무제표.pdf"
 # file_path = "/home/gamy0315/doc_parser/genon/preprocessor/sample_files/docx_sample.docx"
 
