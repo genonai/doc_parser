@@ -153,6 +153,13 @@ class BaseProcessor:
         chunks = list(self.chunker.chunk(documents, **kwargs))
         return chunks
 
+    def postprocessing(self, chunks: list[Document], documents: list[Document], **kwargs: dict) -> list[dict]:
+        """
+        test_processor에서 오버라이드
+        """
+
+        return chunks
+
     async def compose_vectors(
         self, request: Request, file_path: str, document: DoclingDocument, chunks: List[DocChunk], **kwargs: dict
     ) -> list[dict]:
@@ -166,6 +173,8 @@ class BaseProcessor:
         chunks = self.split_documents(documents, **kwargs)
         if self.return_level == "chunk":
             return self.chunks
+
+        chunks = self.postprocessing(chunks, documents, **kwargs)
 
         vectors = await self.compose_vectors(request, file_path, documents, chunks, **kwargs)
         return vectors
