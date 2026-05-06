@@ -272,11 +272,14 @@ facade/
 ├── base_processor.py       # 파이프라인 오케스트레이터 (유지·수정)
 ├── test_processor.py       # 사용자 config 예시 (유지)
 ├── loaders/
-│   ├── docling_loader.py
+│   ├── docling_loader.py       # PDF/DOCX/MD/HTML → DoclingDocument (intelligent_processor 로직)
+│   ├── tabular_loader.py       # CSV/XLSX → Document (attachment_processor 로직)
+│   ├── audio_loader.py         # MP3/WAV → Document (attachment_processor 로직)
+│   ├── registry.py             # 확장자 → Loader 매핑 (format_options config로 선택)
 │   └── converters/
-│       ├── libreoffice.py
-│       ├── image.py
-│       └── registry.py
+│       ├── libreoffice.py      # HWP/HWPX/PPTX/DOCX → PDF (convert_processor 로직)
+│       ├── image.py            # PNG/JPG → PDF
+│       └── registry.py        # 확장자 → Converter 매핑
 ├── chunkers/
 │   ├── GenosBucketChunker.py   (VT5 옵션 추가)
 │   ├── HierarchicalChunker.py
