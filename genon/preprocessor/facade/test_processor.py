@@ -1,17 +1,12 @@
 from genon.preprocessor.facade.base_processor import BaseProcessor
 
-# TODO: ["hwp", "hwpx", "doc", "docx", "xlsx", "csv", "ppt", "pptx", "md", "json", "html"], + image
-config = {
+# Config A: docling 직접 로드 (PDF/DOCX/MD/HTML)
+config_docling = {
     "format_options": {
         "pdf": {
-            "pipeline_options": "pdf",  # simple | pdf
-            "backend": "pypdf",  # pypdf | pymu
-            "generate_picture_images": True,  # backend가 pypdf일때만 가능, 반드시 True로 해놔야 함.
-            # "save_images": True,
-            # table : None | tableformer | dots_ocr
-            # toc: None | {"endpoint": "~~~~", "prompt": "~~~~~"}
-            # ocr: None | {"model": "easy | paddle", "endpoint" "~~~", "token": "~~~~"}
-            # image_description
+            "pipeline_options": "pdf",
+            "backend": "pypdf",
+            "generate_picture_images": True,
         },
         "docx": {
             "pipeline_options": "simple",
@@ -26,14 +21,61 @@ config = {
             "backend": "html",
         },
     },
-    "chunker": "char_bucket",  # simple | char_bucket | bucket
-    "return_level": "vector",  # document | chunk | vector
+    "chunker": "bucket",
+    "return_level": "vector",
     "log_level": 4,
-    # generate_picture_images: 모든 확장자에 대해서 갖고 있어야 하지 않나?
-    # metadata..?
+}
+
+# Config B: converter 포함 (HWPX/PPTX → LibreOffice, PNG → image)
+config_with_converters = {
+    "format_options": {
+        "pdf": {
+            "pipeline_options": "pdf",
+            "backend": "pypdf",
+            "generate_picture_images": True,
+        },
+        "hwpx": {"converter": "libreoffice"},
+        "pptx": {"converter": "libreoffice"},
+        "png":  {"converter": "image"},
+    },
+    "chunker": "bucket",
+    "return_level": "vector",
+    "log_level": 4,
+}
+
+# Config C: attachment (CSV/XLSX + 오디오) — attachment_processor와 동일 동작
+config_attachment = {
+    "format_options": {
+        "csv":  {"loader": "tabular"},
+        "xlsx": {"loader": "tabular"},
+        "wav":  {"loader": "audio", "req_url": "http://whisper-service/api", "req_data": {"language": "ko"}},
+        "mp3":  {"loader": "audio", "req_url": "http://whisper-service/api", "req_data": {"language": "ko"}},
+    },
+    "chunker": "bucket",
+    "return_level": "vector",
+    "log_level": 4,
 }
 
 
 class DocumentProcessor(BaseProcessor):
-    def __init__(self):
+    def __init__(self, config=config_docling):
         super().__init__(config)
+
+
+if __name__ == "__main__":
+    from genon.preprocessor.facade.loaders import DoclingLoader, TabularLoader, AudioLoader
+
+    configs = [
+        ("Config A: docling only",     config_docling),
+        ("Config B: with converters",  config_with_converters),
+        ("Config C: attachment",        config_attachment),
+    ]
+
+    for label, cfg in configs:
+        print(f"=== {label} ===")
+        proc = DocumentProcessor(cfg)
+        for ext, loader in proc._ext_loaders.items():
+            print(f"  .{ext:6s} → {type(loader).__name__}")
+        print()
+
+    print("OK: 세 config 모두 정상 초기화")

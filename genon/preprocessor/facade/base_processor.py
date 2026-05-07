@@ -1,98 +1,20 @@
+from pathlib import Path
 from typing import Any, List
 
 from fastapi import Request
-from langchain_core.documents import Document
-from docling.document_converter import (
-    DocumentConverter,
-    PdfFormatOption,
-    HwpxFormatOption,
-    WordFormatOption,
-    MarkdownFormatOption,
-    HTMLFormatOption,
-)
-from docling.datamodel.document import ConversionResult
-from docling.datamodel.pipeline_options import (
-    AcceleratorDevice,
-    AcceleratorOptions,
-    PdfPipelineOptions,
-    TableFormerMode,
-    PipelineOptions,
-    PaddleOcrOptions,
-)
-from docling.datamodel.base_models import InputFormat
-from docling.backend.pypdfium2_backend import PyPdfiumDocumentBackend
-from docling.backend.pymupdf_backend import PyMuPDFDocumentBackend
-from docling.backend.genos_msword_backend import GenosMsWordDocumentBackend
-from docling.backend.html_backend import HTMLDocumentBackend
-from docling.backend.md_backend import MarkdownDocumentBackend
-
 from docling_core.transforms.chunker import BaseChunker, DocChunk
 from docling_core.types import DoclingDocument
-from docling.pipeline.standard_pdf_pipeline import StandardPdfPipeline
-from docling.pipeline.simple_pipeline import SimplePipeline
 
-
+from genon.preprocessor.facade.loaders import DoclingLoader, TabularLoader, AudioLoader
 from genon.preprocessor.facade.chunkers import CHUNKERS
 from genon.preprocessor.facade.metadata import GenOSVectorMetaBuilder
 from genon.preprocessor.facade.utils.logging_utils import setup_logging
 
-# TODO all ext
-FORMAT_MAP = {
-    "pdf": InputFormat.PDF,
-    # "hwp": InputFormat.HWP,
-    # "hwpx":InputFormat.HWPX,# TODO
-    # "doc":InputFormat.DOC, # TODO
-    "docx": InputFormat.DOCX,
-    # "ppt": InputFormat.PPT, #TODO
-    # "pptx": InputFormat.PPTX,
-    # "xlsx": InputFormat.XLSX,
-    # "csv": InputFormat.CSV,
-    "md": InputFormat.MD,
-    # "json": InputFormat.JSON,
-    "html": InputFormat.HTML,
-}
-
-
-# TODO all ext
-FORMAT_OPTION_MAP = {
-    InputFormat.PDF: PdfFormatOption,
-    # InputFormat.HWP: HwpFormatOption # TODO 왜 HwpFormatOption..?
-    # "hwpx":InputFormat.HWPX,# TODO
-    # "doc":InputFormat.DOC, # TODO
-    InputFormat.DOCX: WordFormatOption,
-    InputFormat.MD: MarkdownFormatOption,
-    # "ppt": InputFormat.PPT, #TODO
-    # InputFormat.PPTX,
-    # InputFormat.XLSX,
-    # InputFormat.CSV,
-    # InputFormat.JSON,
-    InputFormat.HTML: HTMLFormatOption,
-}
-
-PIPELINE_MAP = {
-    "pdf": StandardPdfPipeline,
-    "simple": SimplePipeline,
-}
-
-BACKEND_MAP = {
-    "pypdf": PyPdfiumDocumentBackend,
-    "pymu": PyMuPDFDocumentBackend,
-    "msword": GenosMsWordDocumentBackend,
-    "html": HTMLDocumentBackend,
-    "md": MarkdownDocumentBackend,
-}
-
 
 class BaseProcessor:
-    pipeline: list[str] = None
-    format_options: None
-    chunker: BaseChunker = None
-    loaders: list = None
-    converter: DocumentConverter = None
     config: dict = None
 
     def __init__(self, config: dict) -> None:
-
         self.config = config
         setup_logging(int(config.get("log_level", 0)))
         self.return_level = config.get("return_level", "vector")
@@ -103,76 +25,79 @@ class BaseProcessor:
             "vector",
         ], f"다음 리턴 레벨 중에서 골라주세요: document | chunk | vector, 현재 리턴 레벨: {self.return_level}"
 
-        self.allowed_formats = self._build_allowed_formats()
-        self.format_options = self._build_format_options()
-        self.converter = DocumentConverter(
-            allowed_formats=self.allowed_formats,
-            format_options=self.format_options,
-        )
-
-        self.chunker = CHUNKERS[self.config["chunker"]]()
+        self._ext_loaders = self._build_ext_loaders(config["format_options"])
+        self.chunker = CHUNKERS[config["chunker"]]()
+        self.enrichers = []
         self.genos_meta_builder = GenOSVectorMetaBuilder()
 
-    def _build_allowed_formats(self):
-        allowed_formats = []
-        for _format in self.config["format_options"].keys():
-            format = FORMAT_MAP.get(_format, None)
-            assert format is not None, f"@@@@ 잘못된 확장자입니다. {_format}, 가능한 확장자: {list(FORMAT_MAP.keys())}"
-            allowed_formats.append(format)
-        return allowed_formats
+    def _build_ext_loaders(self, format_options: dict) -> dict:
+        """확장자 → loader 인스턴스 매핑 빌드.
 
-    def _build_format_options(self):
-        format_options = {}
-        for _format, option in self.config["format_options"].items():
-            format = FORMAT_MAP.get(_format, None)
-
-            format_options[format] = FORMAT_OPTION_MAP[format](
-                pipeline_cls=PIPELINE_MAP[option["pipeline_options"]],
-                backend=BACKEND_MAP[option["backend"]],
-            )
-
-            if "generate_picture_images" in option and option["generate_picture_images"] == True:
-                format_options[format].pipeline_options.generate_picture_images = True
-
-            if "save_images" in option and option["save_images"] == True:
-                format_options[format].pipeline_options.save_images = True
-
-        return format_options
-
-    def load_documents(self, file_path: str, **kwargs: dict) -> list[Document]:
+        format_options의 각 확장자 옵션에서:
+          - "loader": "tabular"  → TabularLoader
+          - "loader": "audio"    → AudioLoader(opt)
+          - 나머지 (native or "converter" key) → 공유 DoclingLoader 인스턴스
         """
-        설명: 확장자에 해당하는 DocumentConverter를 사용하여 ConversionResult 리턴
-        """
-        # TODO: OneAgent 호출인지 판단.
+        docling_formats = {}
+        ext_loaders = {}
 
-        conv_result: ConversionResult = self.converter.convert(file_path, raises_on_error=True)
+        for ext, opt in format_options.items():
+            loader_key = opt.get("loader")
+            if loader_key == "tabular":
+                ext_loaders[ext] = TabularLoader()
+            elif loader_key == "audio":
+                ext_loaders[ext] = AudioLoader(opt)
+            else:
+                docling_formats[ext] = opt
 
-        return conv_result.document
+        if docling_formats:
+            docling_loader = DoclingLoader(docling_formats)
+            for ext in docling_formats:
+                ext_loaders[ext] = docling_loader
+            # converter 키가 있는 확장자도 DoclingLoader가 내부에서 처리
+            for ext, opt in format_options.items():
+                if "converter" in opt and ext not in ext_loaders:
+                    ext_loaders[ext] = docling_loader
 
-    def split_documents(self, documents: list[Document], **kwargs: dict) -> list[Document]:
-        chunks = list(self.chunker.chunk(documents, **kwargs))
-        return chunks
+        return ext_loaders
 
-    def postprocessing(self, chunks: list[Document], documents: list[Document], **kwargs: dict) -> list[dict]:
-        """
-        test_processor에서 오버라이드
-        """
+    def load_documents(self, file_path: str, **kwargs) -> Any:
+        ext = Path(file_path).suffix.lstrip(".").lower()
+        loader = self._ext_loaders.get(ext)
+        assert loader is not None, (
+            f"지원하지 않는 확장자: .{ext}. "
+            f"format_options에 추가하세요. 현재 등록된 확장자: {list(self._ext_loaders.keys())}"
+        )
+        return loader.load(file_path)
 
+    def split_documents(self, documents: DoclingDocument, **kwargs) -> list[DocChunk]:
+        return list(self.chunker.chunk(documents, **kwargs))
+
+    def postprocessing(self, chunks: list[DocChunk], documents: DoclingDocument, **kwargs) -> list[DocChunk]:
         return chunks
 
     async def compose_vectors(
-        self, request: Request, file_path: str, document: DoclingDocument, chunks: List[DocChunk], **kwargs: dict
+        self, request: Request, file_path: str, document: DoclingDocument, chunks: List[DocChunk], **kwargs
     ) -> list[dict]:
         return await self.genos_meta_builder(document, chunks, file_path, request, **kwargs)
 
-    async def __call__(self, request: Request, file_path: str, **kwargs: dict) -> Any:
-        documents = self.load_documents(file_path, **kwargs)
+    async def __call__(self, request: Request, file_path: str, **kwargs) -> Any:
+        result = self.load_documents(file_path, **kwargs)
+
+        # tabular/audio: DoclingDocument가 아니면 chunking/enrichment 건너뜀
+        if not isinstance(result, DoclingDocument):
+            return result
+
+        documents = result
         if self.return_level == "document":
             return documents
 
         chunks = self.split_documents(documents, **kwargs)
         if self.return_level == "chunk":
-            return self.chunks
+            return chunks
+
+        for enricher in self.enrichers:
+            chunks = await enricher.enrich(chunks, documents, **kwargs)
 
         chunks = self.postprocessing(chunks, documents, **kwargs)
 
