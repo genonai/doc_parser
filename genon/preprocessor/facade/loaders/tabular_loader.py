@@ -38,6 +38,9 @@ class TabularLoader(BaseLoader):
         }
     """
 
+    def __init__(self, config: dict) -> None:
+        self.config = config
+
     def load(self, file_path: str) -> dict:
         assert pd is not None, "TabularLoader requires pandas and langchain-community: pip install pandas langchain-community openpyxl"
         assert chardet is not None, "TabularLoader requires chardet: pip install chardet"

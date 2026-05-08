@@ -43,11 +43,25 @@ config_with_converters = {
     "log_level": 4,
 }
 
-# Config C: attachment (CSV/XLSX + 오디오) — attachment_processor와 동일 동작
+# Config C: attachment — attachment_processor와 동일 동작
+# (문서 포맷 + 표형식 + 오디오 전부 포함)
 config_attachment = {
     "format_options": {
+        # 문서 포맷 (docling 직접 로드)
+        "pdf":  {"pipeline_options": "pdf", "backend": "pypdf", "generate_picture_images": True},
+        "docx": {"pipeline_options": "simple", "backend": "msword"},
+        # 문서 포맷 (LibreOffice → PDF → docling)
+        "hwp":  {"converter": "libreoffice"},   # or {"loader": "genos_hwp"}
+        "hwpx": {"converter": "libreoffice"},   # or {"loader": "genos_hwp"}
+        "pptx": {"converter": "libreoffice"},
+        # 이미지 포맷 (image → PDF → docling)
+        "png":  {"converter": "image"},
+        "jpg":  {"converter": "image"},
+        "jpeg": {"converter": "image"},
+        # 표형식
         "csv":  {"loader": "tabular"},
         "xlsx": {"loader": "tabular"},
+        # 오디오
         "wav":  {"loader": "audio", "req_url": "http://whisper-service/api", "req_data": {"language": "ko"}},
         "mp3":  {"loader": "audio", "req_url": "http://whisper-service/api", "req_data": {"language": "ko"}},
     },

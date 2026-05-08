@@ -2,11 +2,13 @@ from .base_loader import BaseLoader
 from .docling_loader import DoclingLoader
 from .tabular_loader import TabularLoader
 from .audio_loader import AudioLoader
+from .genos_hwp_loader import GenosHwpLoader
 
 LOADERS: dict[str, type[BaseLoader]] = {
     "docling": DoclingLoader,
     "tabular": TabularLoader,
     "audio": AudioLoader,
+    "genos_hwp": GenosHwpLoader,
 }
 
 

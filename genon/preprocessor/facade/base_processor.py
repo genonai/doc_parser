@@ -5,7 +5,7 @@ from fastapi import Request
 from docling_core.transforms.chunker import BaseChunker, DocChunk
 from docling_core.types import DoclingDocument
 
-from genon.preprocessor.facade.loaders import DoclingLoader, TabularLoader, AudioLoader
+from genon.preprocessor.facade.loaders import DoclingLoader, TabularLoader, AudioLoader, LOADERS
 from genon.preprocessor.facade.chunkers import CHUNKERS
 from genon.preprocessor.facade.metadata import GenOSVectorMetaBuilder
 from genon.preprocessor.facade.utils.logging_utils import setup_logging
@@ -43,10 +43,12 @@ class BaseProcessor:
 
         for ext, opt in format_options.items():
             loader_key = opt.get("loader")
-            if loader_key == "tabular":
-                ext_loaders[ext] = TabularLoader()
-            elif loader_key == "audio":
-                ext_loaders[ext] = AudioLoader(opt)
+            if loader_key is not None:
+                loader_cls = LOADERS.get(loader_key)
+                assert loader_cls is not None, (
+                    f"알 수 없는 loader: {loader_key}. 가능한 값: {list(LOADERS.keys())}"
+                )
+                ext_loaders[ext] = loader_cls(opt)
             else:
                 docling_formats[ext] = opt
 
