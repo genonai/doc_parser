@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections import defaultdict
 
 import asyncio
+import warnings
 import fitz
 import json
 import math
@@ -1234,6 +1235,12 @@ class GenosServiceException(Exception):
 
 class DocumentProcessor:
     def __init__(self):
+        warnings.warn(
+            "attachment_processor.DocumentProcessor is deprecated. "
+            "Use facade.base_processor.BaseProcessor instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         self.page_chunk_counts = defaultdict(int)
         self.hwp_processor = HwpProcessor()
         self.docx_processor = DocxProcessor()

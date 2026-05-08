@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import logging
+import warnings
 import math, bisect
 from pathlib import Path
 
@@ -999,6 +1000,12 @@ class DocumentProcessor:
         '''
         initialize Document Converter
         '''
+        warnings.warn(
+            "intelligent_processor.DocumentProcessor is deprecated. "
+            "Use facade.base_processor.BaseProcessor instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         self.ocr_endpoint = "http://192.168.73.172:48080/ocr"
         ocr_options = PaddleOcrOptions(
             force_full_page_ocr=False,
