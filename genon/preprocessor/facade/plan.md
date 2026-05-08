@@ -29,20 +29,24 @@
      ▼
 DocumentProcessor(config)   ← BaseProcessor 상속, 코드 수정 불필요
      │
-     ├─ load          ← loaders/
+     ├─ load               ← loaders/
      │   ├─ FormatConverter (비PDF → PDF)
      │   └─ DoclingLoader  (PDF/DOCX/MD/HTML → DoclingDocument)
      │
-     ├─ chunking      ← chunkers/
+     ├─ enrichment     ← enrichment/   ← 청킹 전 (document 레벨)
+     │   ├─ TocExtractor        (TOC 추출 → chunking 시 활용)
+     │   └─ ...
+     │
+     ├─ chunking           ← chunkers/
      │   └─ GenosBucketChunker (image_option, legal_option 지원)
      │
-     ├─ 후처리         ← enrichment/   ← 이 단계만 수정하면 됨
+     ├─ 후처리    ← enrichment/   ← 청킹 후 (chunk 레벨)
      │   ├─ TableRefiner     (VT5)
      │   ├─ SubjectExtractor (VT5)
      │   ├─ ImageDescriber   (VT5)
      │   └─ ChunkMerger      (VT5 _merge_small_chunks)
      │
-     └─ metadata      ← metadata/
+     └─ metadata           ← metadata/
          └─ GenOSVectorMetaBuilder
 ```
 
@@ -174,23 +178,30 @@ ocr/
 
 ```python
 class BaseProcessor:
-    async def __call__(self, request, file_path, **kwargs):
-        # 1. load
-        raw_doc = self.loader.load(file_path)          # 포맷 변환 포함
+    async def __call__(self, request: Request, file_path: str, **kwargs) -> Any:
+        result = self.load_documents(file_path, **kwargs)
 
-        if return_level == "document": return raw_doc
+        # tabular/audio: DoclingDocument가 아니면 이후 단계 건너뜀
+        # 추후 해당 확장자도 DoclingDocument로 나와야 함
+        if not isinstance(result, DoclingDocument):
+            return result
 
-        # 2. chunking
-        chunks = self.chunker.chunk(raw_doc, **chunk_kwargs)
+        # 청킹 전 enrichment (TOC, 작성일 등 document 레벨)
+        for enricher in self.enrichers:
+            documents = await enricher.enrich(documents, **kwargs)
 
-        if return_level == "chunk": return chunks
+        documents = result
+        if self.return_level == "document":
+            return documents
 
-        # 3. 후처리 (enrichment)
-        for enricher in self.enrichers:                # config 순서대로 실행
-            chunks = await enricher.enrich(chunks, raw_doc, **kwargs)
+        chunks = self.split_documents(documents, **kwargs)
+        if self.return_level == "chunk":
+            return chunks
 
-        # 4. metadata
-        vectors = await self.meta_builder(raw_doc, chunks, file_path, request, **kwargs)
+        # 청킹 후 enrichment (테이블 정제, 이미지 설명 등 chunk 레벨)
+        chunks = self.postprocessing(chunks, documents, **kwargs)
+
+        vectors = await self.compose_vectors(request, file_path, documents, chunks, **kwargs)
         return vectors
 ```
 

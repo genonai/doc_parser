@@ -27,7 +27,7 @@ class BaseProcessor:
 
         self._ext_loaders = self._build_ext_loaders(config["format_options"])
         self.chunker = CHUNKERS[config["chunker"]]()
-        self.enrichers = []
+        self.enrichers = []  # 청킹 전: TOC, 작성일 등 document 레벨 enrichment
         self.genos_meta_builder = GenOSVectorMetaBuilder()
 
     def _build_ext_loaders(self, format_options: dict) -> dict:
@@ -45,9 +45,7 @@ class BaseProcessor:
             loader_key = opt.get("loader")
             if loader_key is not None:
                 loader_cls = LOADERS.get(loader_key)
-                assert loader_cls is not None, (
-                    f"알 수 없는 loader: {loader_key}. 가능한 값: {list(LOADERS.keys())}"
-                )
+                assert loader_cls is not None, f"알 수 없는 loader: {loader_key}. 가능한 값: {list(LOADERS.keys())}"
                 ext_loaders[ext] = loader_cls(opt)
             else:
                 docling_formats[ext] = opt
@@ -76,6 +74,7 @@ class BaseProcessor:
         return list(self.chunker.chunk(documents, **kwargs))
 
     def postprocessing(self, chunks: list[DocChunk], documents: DoclingDocument, **kwargs) -> list[DocChunk]:
+        # 오버라이드 하여 구현
         return chunks
 
     async def compose_vectors(
@@ -86,9 +85,14 @@ class BaseProcessor:
     async def __call__(self, request: Request, file_path: str, **kwargs) -> Any:
         result = self.load_documents(file_path, **kwargs)
 
-        # tabular/audio: DoclingDocument가 아니면 chunking/enrichment 건너뜀
+        # tabular/audio: DoclingDocument가 아니면 이후 단계 건너뜀
+        # 추후 해당 확장자도 DoclingDocument로 나와야 함
         if not isinstance(result, DoclingDocument):
             return result
+
+        # 청킹 전 enrichment (TOC, 작성일 등 document 레벨)
+        for enricher in self.enrichers:
+            documents = await enricher.enrich(documents, **kwargs)
 
         documents = result
         if self.return_level == "document":
@@ -98,9 +102,7 @@ class BaseProcessor:
         if self.return_level == "chunk":
             return chunks
 
-        for enricher in self.enrichers:
-            chunks = await enricher.enrich(chunks, documents, **kwargs)
-
+        # 청킹 후 enrichment (테이블 정제, 이미지 설명 등 chunk 레벨)
         chunks = self.postprocessing(chunks, documents, **kwargs)
 
         vectors = await self.compose_vectors(request, file_path, documents, chunks, **kwargs)
