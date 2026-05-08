@@ -15,7 +15,7 @@ import semchunk
 from transformers import AutoTokenizer, PreTrainedTokenizerBase
 
 
-class GenosBucketChunker(BaseChunker):
+class GenosSmartChunker(BaseChunker):
     """토큰 제한을 고려하여 섹션별 청크를 분할하고 병합하는 청커 (v2)"""
 
     """각 item의 경우 의미 보존을 위해서 chunk_size를 넘더라도 분할하지 않음"""

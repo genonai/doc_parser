@@ -1,11 +1,11 @@
-from .GenosBucketChunker import GenosBucketChunker
+from .GenosSmartChunker import GenosSmartChunker
 from .HierarchicalChunker import HierarchicalChunker
 from .HybridChunker import HybridChunker
 
 CHUNKERS = {
-    "bucket": GenosBucketChunker,
+    "smart": GenosSmartChunker,
     "hierarchical": HierarchicalChunker,
     "hybrid": HybridChunker,
 }
 
-__all__ = ["GenosBucketChunker", "HierarchicalChunker", "HybridChunker"]
+__all__ = ["GenosSmartChunker", "HierarchicalChunker", "HybridChunker"]
