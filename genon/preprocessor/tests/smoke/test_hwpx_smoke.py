@@ -14,10 +14,13 @@ def test_hwpx_load_and_chunk(basic_processor):
     """HWPX 파일 로드 → 청크 분할이 에러 없이 완료되는지 확인."""
     dp = basic_processor()
 
-    # HWPX는 DocumentProcessor.load_documents가 아닌
-    # hwp_processor.load_documents로 라우팅된다.
-    doc = dp.hwp_processor.load_documents(str(SAMPLE))
-    assert doc is not None
+    if hasattr(dp, "hwp_processor"):
+        doc = dp.hwp_processor.load_documents(str(SAMPLE))
+        assert doc is not None
+        chunks, _ = dp.hwp_processor.split_documents(doc)
+    else:
+        doc = dp.load_documents(str(SAMPLE))
+        assert doc is not None
+        chunks = dp.split_documents(doc)
 
-    chunks, page_chunk_counts = dp.hwp_processor.split_documents(doc)
     assert isinstance(chunks, list) and len(chunks) >= 1

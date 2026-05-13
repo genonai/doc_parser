@@ -9,12 +9,14 @@ from docling.document_converter import (
     HTMLFormatOption,
 )
 from docling.datamodel.base_models import InputFormat
-from docling.datamodel.pipeline_options import PdfPipelineOptions, PipelineOptions
+from docling.datamodel.pipeline_options import PdfPipelineOptions
 from docling.backend.pypdfium2_backend import PyPdfiumDocumentBackend
 from docling.backend.pymupdf_backend import PyMuPDFDocumentBackend
 from docling.backend.genos_msword_backend import GenosMsWordDocumentBackend
 from docling.backend.html_backend import HTMLDocumentBackend
 from docling.backend.md_backend import MarkdownDocumentBackend
+from docling.backend.hwp_backend import HwpDocumentBackend
+from docling.backend.xml.hwpx_backend import HwpxDocumentBackend
 from docling.pipeline.standard_pdf_pipeline import StandardPdfPipeline
 from docling.pipeline.simple_pipeline import SimplePipeline
 from docling_core.types import DoclingDocument
@@ -53,6 +55,8 @@ BACKEND_MAP = {
     "msword": GenosMsWordDocumentBackend,
     "html": HTMLDocumentBackend,
     "md": MarkdownDocumentBackend,
+    "hwp": HwpDocumentBackend,
+    "hwpx": HwpxDocumentBackend,
 }
 
 
@@ -102,9 +106,7 @@ class DoclingLoader(BaseLoader):
 
         for ext, opt in native_formats.items():
             input_format = FORMAT_MAP.get(ext)
-            assert input_format is not None, (
-                f"지원하지 않는 확장자: {ext}. 가능한 값: {list(FORMAT_MAP.keys())}"
-            )
+            assert input_format is not None, f"지원하지 않는 확장자: {ext}. 가능한 값: {list(FORMAT_MAP.keys())}"
             allowed_formats.append(input_format)
 
             fmt_opt_cls = FORMAT_OPTION_MAP.get(input_format)

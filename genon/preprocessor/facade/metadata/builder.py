@@ -174,6 +174,17 @@ class GenOSVectorMetaBuilder:
         self.media_files = json.dumps(temp_list)
         return self
 
+    def get_media_files(self, doc_items: list) -> list:
+        result = []
+        for item in doc_items:
+            if isinstance(item, PictureItem):
+                if item.image is None:
+                    continue
+                path = str(item.image.uri)
+                name = path.rsplit("/", 1)[-1]
+                result.append({"name": name, "type": "image", "ref": item.self_ref})
+        return result
+
     def get_title(self, document):
         title = ""
         for item, _ in document.iterate_items():

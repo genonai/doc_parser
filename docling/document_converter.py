@@ -52,6 +52,7 @@ _log = logging.getLogger(__name__)
 
 # CUSTOM IMPORT
 from docling.backend.json.bok_json_backend import BOKJsonDocumentBackend
+
 # genos_msword_backend 추가
 from docling.backend.genos_msword_backend import GenosMsWordDocumentBackend
 from docling.exceptions import HwpConversionError
@@ -140,14 +141,16 @@ class HwpxFormatOption(FormatOption):
     pipeline_cls: Type = SimplePipeline
     # 구형 HwpxDocumentBackend 대신 GenosHwpDocumentBackend로 기본값 변경
     backend: Type[AbstractDocumentBackend] = GenosHwpDocumentBackend
-    
-    def __init__(self, pipeline_options: Optional[PipelineOptions] = None, backend: Optional[Type[AbstractDocumentBackend]] = None):
-        super().__init__(
-            pipeline_cls=SimplePipeline,
-            pipeline_options=pipeline_options,
-            # 인자로 들어온 backend가 없으면 GenosHwpDocumentBackend 사용
-            backend=backend or GenosHwpDocumentBackend 
-        )
+
+    # @@@@ 기존 포맷 옵션과 통일성을 위해 주석 처리
+    # def __init__(self, pipeline_options: Optional[PipelineOptions] = None, backend: Optional[Type[AbstractDocumentBackend]] = None):
+    #     super().__init__(
+    #         pipeline_cls=SimplePipeline,
+    #         pipeline_options=pipeline_options,
+    #         # 인자로 들어온 backend가 없으면 GenosHwpDocumentBackend 사용
+    #         backend=backend or GenosHwpDocumentBackend
+    #     )
+
 
 # 한국은행
 class BOKJsonFormatOption(FormatOption):
@@ -157,57 +160,29 @@ class BOKJsonFormatOption(FormatOption):
 
 def _get_default_option(format: InputFormat) -> FormatOption:
     format_to_default_options = {
-        InputFormat.CSV: FormatOption(
-            pipeline_cls=SimplePipeline, backend=CsvDocumentBackend
-        ),
-        InputFormat.XLSX: FormatOption(
-            pipeline_cls=SimplePipeline, backend=MsExcelDocumentBackend
-        ),
+        InputFormat.CSV: FormatOption(pipeline_cls=SimplePipeline, backend=CsvDocumentBackend),
+        InputFormat.XLSX: FormatOption(pipeline_cls=SimplePipeline, backend=MsExcelDocumentBackend),
         InputFormat.DOCX: FormatOption(
             # GenosMsWordDocumentBackend 사용
-            pipeline_cls=SimplePipeline, backend=GenosMsWordDocumentBackend
+            pipeline_cls=SimplePipeline,
+            backend=GenosMsWordDocumentBackend,
         ),
-        InputFormat.PPTX: FormatOption(
-            pipeline_cls=SimplePipeline, backend=MsPowerpointDocumentBackend
-        ),
-        InputFormat.MD: FormatOption(
-            pipeline_cls=SimplePipeline, backend=MarkdownDocumentBackend
-        ),
-        InputFormat.ASCIIDOC: FormatOption(
-            pipeline_cls=SimplePipeline, backend=AsciiDocBackend
-        ),
-        InputFormat.HTML: FormatOption(
-            pipeline_cls=SimplePipeline, backend=HTMLDocumentBackend
-        ),
-        InputFormat.XML_USPTO: FormatOption(
-            pipeline_cls=SimplePipeline, backend=PatentUsptoDocumentBackend
-        ),
-        InputFormat.XML_JATS: FormatOption(
-            pipeline_cls=SimplePipeline, backend=JatsDocumentBackend
-        ),
-        InputFormat.IMAGE: FormatOption(
-            pipeline_cls=StandardPdfPipeline, backend=DoclingParseV4DocumentBackend
-        ),
-        InputFormat.PDF: FormatOption(
-            pipeline_cls=StandardPdfPipeline, backend=DoclingParseV4DocumentBackend
-        ),
-        InputFormat.JSON_DOCLING: FormatOption(
-            pipeline_cls=SimplePipeline, backend=DoclingJSONBackend
-        ),
+        InputFormat.PPTX: FormatOption(pipeline_cls=SimplePipeline, backend=MsPowerpointDocumentBackend),
+        InputFormat.MD: FormatOption(pipeline_cls=SimplePipeline, backend=MarkdownDocumentBackend),
+        InputFormat.ASCIIDOC: FormatOption(pipeline_cls=SimplePipeline, backend=AsciiDocBackend),
+        InputFormat.HTML: FormatOption(pipeline_cls=SimplePipeline, backend=HTMLDocumentBackend),
+        InputFormat.XML_USPTO: FormatOption(pipeline_cls=SimplePipeline, backend=PatentUsptoDocumentBackend),
+        InputFormat.XML_JATS: FormatOption(pipeline_cls=SimplePipeline, backend=JatsDocumentBackend),
+        InputFormat.IMAGE: FormatOption(pipeline_cls=StandardPdfPipeline, backend=DoclingParseV4DocumentBackend),
+        InputFormat.PDF: FormatOption(pipeline_cls=StandardPdfPipeline, backend=DoclingParseV4DocumentBackend),
+        InputFormat.JSON_DOCLING: FormatOption(pipeline_cls=SimplePipeline, backend=DoclingJSONBackend),
         InputFormat.AUDIO: FormatOption(pipeline_cls=AsrPipeline, backend=NoOpBackend),
         # [HWP 통합 수정] 구형 HwpDocumentBackend 삭제 후 교체
-        InputFormat.HWP: FormatOption(
-            pipeline_cls=SimplePipeline, backend=GenosHwpDocumentBackend
-        ),
-        
+        InputFormat.HWP: FormatOption(pipeline_cls=SimplePipeline, backend=GenosHwpDocumentBackend),
         # [HWPX 통합 수정] 구형 HwpxDocumentBackend 삭제 후 교체
-        InputFormat.XML_HWPX: FormatOption(
-            pipeline_cls=SimplePipeline, backend=GenosHwpDocumentBackend
-        ),
+        InputFormat.XML_HWPX: FormatOption(pipeline_cls=SimplePipeline, backend=GenosHwpDocumentBackend),
         # 한국은행
-        InputFormat.JSON_DOCLING: FormatOption(
-            pipeline_cls=SimplePipeline, backend=BOKJsonDocumentBackend
-        ),
+        InputFormat.JSON_DOCLING: FormatOption(pipeline_cls=SimplePipeline, backend=BOKJsonDocumentBackend),
     }
     if (options := format_to_default_options.get(format)) is not None:
         return options
@@ -223,9 +198,7 @@ class DocumentConverter:
         allowed_formats: Optional[List[InputFormat]] = None,
         format_options: Optional[Dict[InputFormat, FormatOption]] = None,
     ):
-        self.allowed_formats = (
-            allowed_formats if allowed_formats is not None else list(InputFormat)
-        )
+        self.allowed_formats = allowed_formats if allowed_formats is not None else list(InputFormat)
         self.format_to_options = {
             format: (
                 _get_default_option(format=format)
@@ -234,9 +207,7 @@ class DocumentConverter:
             )
             for format in self.allowed_formats
         }
-        self.initialized_pipelines: Dict[
-            Tuple[Type[BasePipeline], str], BasePipeline
-        ] = {}
+        self.initialized_pipelines: Dict[Tuple[Type[BasePipeline], str], BasePipeline] = {}
 
     def _get_initialized_pipelines(
         self,
@@ -246,17 +217,13 @@ class DocumentConverter:
     def _get_pipeline_options_hash(self, pipeline_options: PipelineOptions) -> str:
         """Generate a hash of pipeline options to use as part of the cache key."""
         options_str = str(pipeline_options.model_dump())
-        return hashlib.md5(
-            options_str.encode("utf-8"), usedforsecurity=False
-        ).hexdigest()
+        return hashlib.md5(options_str.encode("utf-8"), usedforsecurity=False).hexdigest()
 
     def initialize_pipeline(self, format: InputFormat):
         """Initialize the conversion pipeline for the selected format."""
         pipeline = self._get_pipeline(doc_format=format)
         if pipeline is None:
-            raise ConversionError(
-                f"No pipeline could be initialized for format {format}"
-            )
+            raise ConversionError(f"No pipeline could be initialized for format {format}")
 
     @validate_call(config=ConfigDict(strict=True))
     def convert(
@@ -293,9 +260,7 @@ class DocumentConverter:
             max_file_size=max_file_size,
             page_range=page_range,
         )
-        conv_input = _DocumentConversionInput(
-            path_or_stream_iterator=source, limits=limits, headers=headers
-        )
+        conv_input = _DocumentConversionInput(path_or_stream_iterator=source, limits=limits, headers=headers)
         conv_res_iter = self._convert(conv_input, raises_on_error=raises_on_error)
 
         had_result = False
@@ -305,9 +270,7 @@ class DocumentConverter:
                 ConversionStatus.SUCCESS,
                 ConversionStatus.PARTIAL_SUCCESS,
             }:
-                raise ConversionError(
-                    f"Conversion failed for: {conv_res.input.file} with status: {conv_res.status}"
-                )
+                raise ConversionError(f"Conversion failed for: {conv_res.input.file} with status: {conv_res.status}")
             else:
                 yield conv_res
 
@@ -316,9 +279,7 @@ class DocumentConverter:
                 "Conversion failed because the provided file has no recognizable format or it wasn't in the list of allowed formats."
             )
 
-    def _convert(
-        self, conv_input: _DocumentConversionInput, raises_on_error: bool
-    ) -> Iterator[ConversionResult]:
+    def _convert(self, conv_input: _DocumentConversionInput, raises_on_error: bool) -> Iterator[ConversionResult]:
         start_time = time.monotonic()
 
         for input_batch in chunkify(
@@ -336,9 +297,7 @@ class DocumentConverter:
             ):
                 elapsed = time.monotonic() - start_time
                 start_time = time.monotonic()
-                _log.info(
-                    f"Finished converting document {item.input.file.name} in {elapsed:.2f} sec."
-                )
+                _log.info(f"Finished converting document {item.input.file.name} in {elapsed:.2f} sec.")
                 yield item
 
     def _get_pipeline(self, doc_format: InputFormat) -> Optional[BasePipeline]:
@@ -356,25 +315,15 @@ class DocumentConverter:
         cache_key = (pipeline_class, options_hash)
 
         if cache_key not in self.initialized_pipelines:
-            _log.info(
-                f"Initializing pipeline for {pipeline_class.__name__} with options hash {options_hash}"
-            )
-            self.initialized_pipelines[cache_key] = pipeline_class(
-                pipeline_options=pipeline_options
-            )
+            _log.info(f"Initializing pipeline for {pipeline_class.__name__} with options hash {options_hash}")
+            self.initialized_pipelines[cache_key] = pipeline_class(pipeline_options=pipeline_options)
         else:
-            _log.debug(
-                f"Reusing cached pipeline for {pipeline_class.__name__} with options hash {options_hash}"
-            )
+            _log.debug(f"Reusing cached pipeline for {pipeline_class.__name__} with options hash {options_hash}")
 
         return self.initialized_pipelines[cache_key]
 
-    def _process_document(
-        self, in_doc: InputDocument, raises_on_error: bool
-    ) -> ConversionResult:
-        valid = (
-            self.allowed_formats is not None and in_doc.format in self.allowed_formats
-        )
+    def _process_document(self, in_doc: InputDocument, raises_on_error: bool) -> ConversionResult:
+        valid = self.allowed_formats is not None and in_doc.format in self.allowed_formats
         if valid:
             conv_res = self._execute_pipeline(in_doc, raises_on_error=raises_on_error)
         else:
@@ -387,15 +336,11 @@ class DocumentConverter:
                     module_name="",
                     error_message=error_message,
                 )
-                conv_res = ConversionResult(
-                    input=in_doc, status=ConversionStatus.SKIPPED, errors=[error_item]
-                )
+                conv_res = ConversionResult(input=in_doc, status=ConversionStatus.SKIPPED, errors=[error_item])
 
         return conv_res
 
-    def _execute_pipeline(
-        self, in_doc: InputDocument, raises_on_error: bool
-    ) -> ConversionResult:
+    def _execute_pipeline(self, in_doc: InputDocument, raises_on_error: bool) -> ConversionResult:
         try:
             if in_doc.valid:
                 pipeline = self._get_pipeline(in_doc.format)
@@ -403,9 +348,7 @@ class DocumentConverter:
                     conv_res = pipeline.execute(in_doc, raises_on_error=raises_on_error)
                 else:
                     if raises_on_error:
-                        raise ConversionError(
-                            f"No pipeline could be initialized for {in_doc.file}."
-                        )
+                        raise ConversionError(f"No pipeline could be initialized for {in_doc.file}.")
                     else:
                         conv_res = ConversionResult(
                             input=in_doc,

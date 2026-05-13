@@ -1087,7 +1087,7 @@ class HwpProcessor:
         pipeline_options = PipelineOptions()
         pipeline_options.save_images = kwargs.get('save_images', True)
 
-        use_hwp_sdk = kwargs.get('use_hwp_sdk', True)
+        use_hwp_sdk = kwargs.get('use_hwp_sdk', False)
         pipeline_options.dump_sdk_output = kwargs.get('dump_sdk_output', False) if use_hwp_sdk else False
 
         if use_hwp_sdk:

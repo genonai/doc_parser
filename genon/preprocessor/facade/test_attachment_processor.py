@@ -1,12 +1,16 @@
 from genon.preprocessor.facade.base_processor import BaseProcessor
 
+# attachment_processor는 pipeline_options가 안필요함.
+# converter보다는 loaders가 필요해보임.
+
 config = {
     "format_options": {
-        "pdf": {"pipeline_options": "pdf", "backend": "pypdf", "generate_picture_images": True},
+        "pdf": {"pipeline_options": "simple", "backend": "pymu"},
         "docx": {"pipeline_options": "simple", "backend": "msword"},
         "hwp": {"converter": "libreoffice"},
-        "hwpx": {"converter": "libreoffice"},
+        "hwpx": {"pipeline_options": "simple", "backend": "hwpx"},
         "pptx": {"converter": "libreoffice"},
+        "md": {"pipeline_options": "simple", "backend": "md"},
         "png": {"converter": "image"},
         "jpg": {"converter": "image"},
         "jpeg": {"converter": "image"},
@@ -15,7 +19,7 @@ config = {
         "wav": {"loader": "audio", "req_url": "http://whisper-service/api", "req_data": {"language": "ko"}},
         "mp3": {"loader": "audio", "req_url": "http://whisper-service/api", "req_data": {"language": "ko"}},
     },
-    "chunker": "smart",
+    "chunker": "hybrid",
     "return_level": "vector",
     "log_level": 4,
 }
@@ -24,10 +28,3 @@ config = {
 class DocumentProcessor(BaseProcessor):
     def __init__(self, config=config):
         super().__init__(config)
-
-
-if __name__ == "__main__":
-    proc = DocumentProcessor()
-    for ext, loader in proc._ext_loaders.items():
-        print(f"  .{ext:6s} → {type(loader).__name__}")
-    print("OK")

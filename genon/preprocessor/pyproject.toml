@@ -97,7 +97,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.pytest.ini_options]
-pythonpath = ["src"]
+pythonpath = ["src", ".", "../.."]
 testpaths = ["tests"]
 addopts = "-p no:cacheprovider -m \"not update_baseline\""
 markers = [
