@@ -16,8 +16,16 @@ config = {
         "jpeg": {"converter": "image"},
         "csv": {"loader": "tabular"},
         "xlsx": {"loader": "tabular"},
-        "wav": {"loader": "audio", "req_url": "http://whisper-service/api", "req_data": {"language": "ko"}},
-        "mp3": {"loader": "audio", "req_url": "http://whisper-service/api", "req_data": {"language": "ko"}},
+        "wav": {
+            "loader": "audio",
+            "req_url": "https://genos.genon.ai/audio/transcriptions",
+            "req_data": {"language": "ko"},
+        },
+        "mp3": {
+            "loader": "audio",
+            "req_url": "https://genos.genon.ai/audio/transcriptions",
+            "req_data": {"language": "ko"},
+        },
     },
     "chunker": "hybrid",
     "return_level": "vector",
