@@ -52,9 +52,22 @@ else
   echo "[INFO] HF_TOKEN이 감지되었습니다. Secret 마운트를 사용하여 빌드합니다."
 fi
 
+# SDK 아티팩트 캐시 무력화 옵션 처리
+# SDK_NO_CACHE=true 면 sdk_artifacts / pdf_sdk_artifacts 스테이지만 캐시 무시 → SDK 항상 최신.
+# (전역 캐시는 건드리지 않으므로 다른 스테이지/다른 빌드 캐시에는 영향 없음)
+NO_CACHE_ARGS=()
+if [[ "${SDK_NO_CACHE:-true}" == "true" ]]; then
+  echo "[INFO] SDK_NO_CACHE=true → sdk_artifacts, pdf_sdk_artifacts 스테이지 캐시 무시하고 재빌드"
+  NO_CACHE_ARGS=(--no-cache-filter sdk_artifacts,pdf_sdk_artifacts)
+else
+  echo "[INFO] SDK_NO_CACHE=false → SDK 스테이지도 Docker 레이어 캐시 사용"
+fi
+
 # BuildKit plain 로그로 보기 + 루트(.)를 컨텍스트로 빌드
+# NO_CACHE_ARGS 가 비어있을 때도 set -u 에서 안전하도록 ${arr[@]+...} 패턴 사용
 DOCKER_BUILDKIT=1 docker build \
   --platform linux/amd64 \
+  ${NO_CACHE_ARGS[@]+"${NO_CACHE_ARGS[@]}"} \
   -f "${ROOT_DIR}/${DOCKERFILE_PATH}" \
   -t "${IMAGE_TAG}" \
   --secret id=HF_TOKEN,env=HF_TOKEN \
