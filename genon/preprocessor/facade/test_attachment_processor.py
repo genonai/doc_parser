@@ -1,31 +1,13 @@
 from genon.preprocessor.facade.base_processor import BaseProcessor
 
-# attachment_processor는 pipeline_options가 안필요함.
-# converter보다는 loaders가 필요해보임.
 
 config = {
     "format_options": {
-        "pdf": {"pipeline_options": "simple", "backend": "pymu"},
+        "pdf":  {"backend": "langchain_pdf",  "chunker": "recursive"},
         "docx": {"pipeline_options": "simple", "backend": "msword"},
-        "hwp": {"converter": "libreoffice"},
         "hwpx": {"pipeline_options": "simple", "backend": "hwpx"},
-        "pptx": {"converter": "libreoffice"},
-        "md": {"pipeline_options": "simple", "backend": "md"},
-        "png": {"converter": "image"},
-        "jpg": {"converter": "image"},
-        "jpeg": {"converter": "image"},
-        "csv": {"loader": "tabular"},
-        "xlsx": {"loader": "tabular"},
-        "wav": {
-            "loader": "audio",
-            "req_url": "https://genos.genon.ai/audio/transcriptions",
-            "req_data": {"language": "ko"},
-        },
-        "mp3": {
-            "loader": "audio",
-            "req_url": "https://genos.genon.ai/audio/transcriptions",
-            "req_data": {"language": "ko"},
-        },
+        "pptx": {"backend": "langchain_pptx", "chunker": "recursive"},
+        "md":   {"backend": "langchain_md", "chunker": "recursive"},
     },
     "chunker": "hybrid",
     "return_level": "vector",
