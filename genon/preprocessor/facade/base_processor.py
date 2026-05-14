@@ -26,13 +26,20 @@ class BaseProcessor:
         ], f"다음 리턴 레벨 중에서 골라주세요: document | chunk | vector, 현재 리턴 레벨: {self.return_level}"
 
         self._ext_loaders = self._build_ext_loaders(config["format_options"])
-        self.chunker = CHUNKERS[config["chunker"]]()
+        self._default_chunker = CHUNKERS[config["chunker"]]()
+        self._ext_chunkers = self._build_ext_chunkers(config["format_options"], config["chunker"])
         self.enrichers = []  # 청킹 전: TOC, 작성일 등 document 레벨 enrichment
         self.genos_meta_builder = GenOSVectorMetaBuilder()
 
     def _build_ext_loaders(self, format_options: dict) -> dict:
         docling_loader = DoclingLoader(format_options)
         return {ext: docling_loader for ext in format_options}
+
+    def _build_ext_chunkers(self, format_options: dict, default_chunker: str) -> dict:
+        return {
+            ext: CHUNKERS[opt.get("chunker", default_chunker)]()
+            for ext, opt in format_options.items()
+        }
 
     def load_documents(self, file_path: str, **kwargs) -> Any:
         ext = Path(file_path).suffix.lstrip(".").lower()
@@ -43,8 +50,10 @@ class BaseProcessor:
         )
         return loader.load(file_path)
 
-    def split_documents(self, documents: DoclingDocument, **kwargs) -> list[DocChunk]:
-        return list(self.chunker.chunk(documents, **kwargs))
+    def split_documents(self, documents: DoclingDocument, file_path: str = "", **kwargs) -> list[DocChunk]:
+        ext = Path(file_path).suffix.lstrip(".").lower() if file_path else ""
+        chunker = self._ext_chunkers.get(ext, self._default_chunker)
+        return list(chunker.chunk(documents, **kwargs))
 
     def postprocessing(self, chunks: list[DocChunk], documents: DoclingDocument, **kwargs) -> list[DocChunk]:
         # 오버라이드 하여 구현
@@ -64,7 +73,7 @@ class BaseProcessor:
         if self.return_level == "document":
             return documents
 
-        chunks = self.split_documents(documents, **kwargs)
+        chunks = self.split_documents(documents, file_path=file_path, **kwargs)
         if self.return_level == "chunk":
             return chunks
 
