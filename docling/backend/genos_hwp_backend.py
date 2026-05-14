@@ -6,6 +6,8 @@ import tempfile
 import hashlib
 import re
 import uuid
+import base64
+import binascii
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 from typing_extensions import override  # 상단 임포트에 추가
@@ -34,9 +36,9 @@ _log = logging.getLogger(__name__)
 
 # --- [1. HWP용 MIME 타입 패치] ---
 _HWP_MIMETYPES = [
-    "application/vnd.hancom.hwp", 
+    "application/vnd.hancom.hwp",
     "application/x-hwp",
-    "application/vnd.hancom.hwpx", 
+    "application/vnd.hancom.hwpx",
     "application/hwp+zip"
 ]
 
@@ -55,7 +57,7 @@ if SDK_DIR.exists():
     # PATH 등록
     if SDK_PATH_STR not in os.environ.get("PATH", ""):
         os.environ["PATH"] = f"{SDK_PATH_STR}:{os.environ.get('PATH', '')}"
-    
+
     # LD_LIBRARY_PATH 등록
     if SDK_PATH_STR not in os.environ.get("LD_LIBRARY_PATH", ""):
         os.environ["LD_LIBRARY_PATH"] = f"{SDK_PATH_STR}:{os.environ.get('LD_LIBRARY_PATH', '')}"
@@ -78,17 +80,17 @@ class GenosHwpDocumentBackend(DeclarativeDocumentBackend):
         self.dump_sdk_output = kwargs.get("dump_sdk_output", False)
 
         self._processed_hashes = set()  # 중복 텍스트(머리말/꼬리말) 필터링용
-        
-        # 1. 환경 설정      
+
+        # 1. 환경 설정
         self.valid = False
-        
+
         # 2. 계층 및 상태 관리 (GenosMsWord 방식 이식)
         self.max_levels = 10
         self.parents: Dict[int, Optional[NodeItem]] = {i: None for i in range(-1, self.max_levels)}
         self.history: Dict[str, List[Any]] = {
             "names": [None], "levels": [None], "page_nos": [1]
         }
-        
+
         # 3. 소스 파일 준비
         self.original_path = Path(in_doc.file) if in_doc.file else None
         self.temp_input_path = None
@@ -143,17 +145,17 @@ class GenosHwpDocumentBackend(DeclarativeDocumentBackend):
     def supports_pagination(cls) -> bool:
         """추상 메서드 구현: 페이지 단위 처리를 지원하는지 여부 (HWP는 대개 False이나, hwp_sdk는 true)"""
         return True
-    
+
     def _get_label_and_level_hwp(self, text, size, is_bold):
         """폰트와 텍스트 패턴으로 p_style_id와 p_level을 결정합니다."""
         # 명시적 헤더 패턴 (1. , 가. , Ⅰ. 등)
         is_explicit_pattern = bool(re.match(r'^(?:\d+\.|\*|[-•]|[ⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩ]+\.)\s+', text))
-        
+
         if is_explicit_pattern or size >= 18 or is_bold:
             # 폰트 크기에 따라 계층(Level) 세분화
             level = 1 if size >= 20 else 2
             return "Heading", level
-            
+
         return "Normal", 0
 
     # --- 핵심 변환 로직 ---
@@ -171,8 +173,8 @@ class GenosHwpDocumentBackend(DeclarativeDocumentBackend):
             mimetype = "application/x-hwp"
         else:
             mimetype = "application/octet-stream" # 알 수 없는 경우 기본값
-        
-        # b) binary_hash는 보통 정수형(int)을 기대하므로, 
+
+        # b) binary_hash는 보통 정수형(int)을 기대하므로,
         # 만약 문자열 해시라면 정수로 변환하거나 적절히 처리해야.
         try:
             bin_hash = int(self.document_hash, 16) & ((1 << 64) - 1) if hasattr(self, "document_hash") else 0
@@ -220,13 +222,13 @@ class GenosHwpDocumentBackend(DeclarativeDocumentBackend):
 
             # 4-a) SDK 실행 명령어 구성
             cmd = [
-                "convtext", 
-                str(self.source_path.resolve()), 
-                str(json_out.resolve()), 
-                str(info_out.resolve()), 
+                "convtext",
+                str(self.source_path.resolve()),
+                str(json_out.resolve()),
+                str(info_out.resolve()),
                 img_path_str
             ]
-            
+
             # 4-b) 실제 SDK 실행
             try:
                 subprocess.run(
@@ -290,13 +292,13 @@ class GenosHwpDocumentBackend(DeclarativeDocumentBackend):
     def _walk_hwp_data(self, data: List[List[Dict]], doc: DoclingDocument):
         """페이지 그룹화를 제거하고 모든 아이템을 body에 직접 나열하여 DOCX 스타일로 구성합니다."""
         self._processed_hashes = set()
-        root_parent = doc.body 
+        root_parent = doc.body
         self.active_main_parent = root_parent
 
         for paragraph_items in data:
             if not paragraph_items:
                 continue
-            
+
             # 1. 페이지 번호 추출 (Provenance/메타데이터용으로만 사용)
             page_no = 1
             for item in paragraph_items:
@@ -309,16 +311,17 @@ class GenosHwpDocumentBackend(DeclarativeDocumentBackend):
             for item in paragraph_items:
                 i_type = str(item.get("item", "")).lower()
                 i_value = item.get("value", "")
-                
+                i_value_str = i_value if isinstance(i_value, str) else str(i_value)
+
                 # 2-1. 표 처리
-                if i_type == "table" or "<table>" in i_value.lower():
+                if i_type == "table" or "<table>" in i_value_str.lower():
                     if texts_in_batch:
                         # 쌓인 텍스트 본문을 처리할 때 parent를 doc.body로 지정
                         self._handle_paragraph(texts_in_batch, doc, page_no, parent=self.active_main_parent)
                         texts_in_batch = []
                     # 표를 처리할 때 parent를 doc.body로 지정
-                    self._handle_table(i_value, doc, page_no, parent=self.active_main_parent)
-                
+                    self._handle_table(i_value_str, doc, page_no, parent=self.active_main_parent)
+
                 # 2. [Step 3] 이미지(Picture) 처리 추가
                 elif i_type == "image":
                     if texts_in_batch:
@@ -327,10 +330,18 @@ class GenosHwpDocumentBackend(DeclarativeDocumentBackend):
                     # 이미지 핸들러 호출
                     self._handle_image(item, doc, page_no, parent=self.active_main_parent)
 
+                # 2-3. 수식 처리 (SDK 신규 포맷: item=latex, value=base64(latex))
+                elif i_type in {"latex", "formula", "equation"}:
+                    if texts_in_batch:
+                        self._handle_paragraph(texts_in_batch, doc, page_no, parent=self.active_main_parent)
+                        texts_in_batch = []
+                    formula_text = self._decode_latex_value(i_value) if i_type == "latex" else i_value_str
+                    self._handle_formula(formula_text, doc, page_no, parent=self.active_main_parent)
+
                 # 2-3. 텍스트 수집
                 elif i_type == "text":
                     texts_in_batch.append(item)
-            
+
             # 3. 루프 종료 후 남은 텍스트들 처리
             if texts_in_batch:
                 self._handle_paragraph(texts_in_batch, doc, page_no, parent=self.active_main_parent)
@@ -352,11 +363,11 @@ class GenosHwpDocumentBackend(DeclarativeDocumentBackend):
                 # 점유된 칸 건너뛰기
                 while (r_idx, c_idx) in occupied:
                     c_idx += 1
-                
+
                 row_span = int(td.get("rowspan", 1))
                 col_span = int(td.get("colspan", 1))
                 text = td.get_text(strip=True)
-                
+
                 # TableCell 생성 (기존 로직 유지)
                 cell = TableCell(
                     text=text,
@@ -369,19 +380,19 @@ class GenosHwpDocumentBackend(DeclarativeDocumentBackend):
                     column_header=True if td.name == "th" else False
                 )
                 cells.append(cell)
-                
+
                 # 점유 표시 (기존 로직 유지)
                 for r in range(r_idx, r_idx + row_span):
                     for c in range(c_idx, c_idx + col_span):
                         occupied.add((r, c))
-                
+
                 c_idx += col_span
-                
+
         if cells:
             # 전체 크기 계산
             max_row = max(c.end_row_offset_idx for c in cells)
             max_col = max(c.end_col_offset_idx for c in cells)
-            
+
             # 위치 정보 (Provenance) 생성
             prov = ProvenanceItem(
                 page_no=page_no,
@@ -392,8 +403,8 @@ class GenosHwpDocumentBackend(DeclarativeDocumentBackend):
             # --- [수정 포인트]: 넘겨받은 parent(doc.body)를 사용합니다 ---
             doc.add_table(
                 data=TableData(
-                    num_rows=max_row, 
-                    num_cols=max_col, 
+                    num_rows=max_row,
+                    num_cols=max_col,
                     table_cells=cells # 필드명 table_cells 확인!
                 ),
                 parent=parent, # <--- self.parents[1] 대신 인자로 받은 parent 사용
@@ -435,7 +446,7 @@ class GenosHwpDocumentBackend(DeclarativeDocumentBackend):
             return
 
         pil_image = None
-        
+
         # [Salvaged 2] Pillow -> Wand 단계별 시도 (WMF/EMF 구제)
         try:
             # 1단계: 표준 포맷 시도
@@ -475,12 +486,43 @@ class GenosHwpDocumentBackend(DeclarativeDocumentBackend):
                 prov=prov,
             )
 
+    def _decode_latex_value(self, value: Any) -> str:
+        """SDK의 latex 값을 디코딩합니다. base64가 아니면 원문을 그대로 반환합니다."""
+        text = value if isinstance(value, str) else str(value)
+        text = text.strip()
+        if not text:
+            return ""
+
+        try:
+            decoded = base64.b64decode(text, validate=True)
+            return decoded.decode("utf-8").strip()
+        except (binascii.Error, UnicodeDecodeError, ValueError):
+            return text
+
+    def _handle_formula(self, formula_text: str, doc: DoclingDocument, page_no: int, parent: Any):
+        """라텍스 수식을 FORMULA 라벨로 문서에 추가합니다."""
+        text = (formula_text or "").strip()
+        if not text:
+            return
+
+        prov = ProvenanceItem(
+            page_no=page_no,
+            bbox=BoundingBox(l=0, t=0, r=1, b=1, coord_origin=CoordOrigin.BOTTOMLEFT),
+            charspan=(0, len(text)),
+        )
+        doc.add_text(
+            label=DocItemLabel.FORMULA,
+            text=text,
+            parent=parent,
+            prov=prov,
+        )
+
     def _handle_paragraph(self, paragraph_items: List[Dict], doc: DoclingDocument, page_no: int, parent: Any):
         """TOC(목차) 감지 로직이 추가된 버전입니다. 넘겨받은 parent에 텍스트를 추가합니다."""
-        
+
         # 1. 텍스트 병합 및 기본 검사
-        full_text = "".join([item.get("value", "") for item in paragraph_items]).strip()
-        if not full_text: 
+        full_text = "".join([str(item.get("value", "")) for item in paragraph_items]).strip()
+        if not full_text:
             return
 
         # 2. 폰트/스타일 정보 추출
@@ -493,10 +535,10 @@ class GenosHwpDocumentBackend(DeclarativeDocumentBackend):
         # 3. 패턴 감지 (TOC 및 헤더)
         # [추가]: TOC 패턴 감지 (점 2개 이상, 탭, 또는 긴 공백 뒤에 숫자로 끝나는 경우)
         is_toc = bool(re.search(r'(\.{2,}|…|\t|\s{4,})\s*\d+$', full_text))
-        
+
         # 명시적 헤더 패턴 (1., 가., * 등)
         is_explicit_pattern = bool(re.match(r'^(?:\d+\.|\*|[-•]|[ⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩ]+\.)\s+', full_text))
-        
+
         # 4. 강등 로직
         if p_style_id == "Heading":
             if not is_explicit_pattern and len(full_text) > 80:
@@ -514,9 +556,9 @@ class GenosHwpDocumentBackend(DeclarativeDocumentBackend):
         if is_toc:
             # 목차로 판별된 경우
             doc.add_text(
-                label=DocItemLabel.DOCUMENT_INDEX, 
-                text=full_text, 
-                parent=parent, 
+                label=DocItemLabel.DOCUMENT_INDEX,
+                text=full_text,
+                parent=parent,
                 prov=prov
             )
         elif p_style_id == "Heading":
@@ -533,7 +575,7 @@ class GenosHwpDocumentBackend(DeclarativeDocumentBackend):
 
     def _add_header(self, doc: DoclingDocument, level: int, text: str, prov: ProvenanceItem, parent: Any):
         """DOCX 표준 명칭(header-N)을 사용하여 논리적 섹션 마디를 만듭니다."""
-        
+
         # 1. 하위 계층 부모 초기화 (기존 로직 유지)
         for i in range(level, 10):
             if i in self.parents:
@@ -541,19 +583,19 @@ class GenosHwpDocumentBackend(DeclarativeDocumentBackend):
 
         # 2. [명칭 변경]: level 1 -> header-0, level 2 -> header-1 방식으로 명명
         header_name = f"header-{level - 1}"
-        
+
         # 3. 새로운 섹션 그룹 생성
         # parent는 doc.body 또는 상위 헤더 그룹이 됩니다.
         new_section = doc.add_group(
-            label=GroupLabel.SECTION, 
+            label=GroupLabel.SECTION,
             name=header_name, # "header-0", "header-1" 등으로 박힘
             parent=parent
         )
-        
+
         # 4. 헤더 텍스트 추가 (이 그룹의 자식으로 등록)
         header_item = doc.add_heading(
-            text=text, 
-            level=level, 
+            text=text,
+            level=level,
             parent=new_section,
             prov=prov
         )
@@ -561,22 +603,22 @@ class GenosHwpDocumentBackend(DeclarativeDocumentBackend):
         # 5. 현재 활성 그룹 상태 업데이트
         # 이후에 나오는 paragraph들이 이 'header-N' 그룹 안으로 들어오게 됩니다.
         self.parents[level] = new_section
-        
+
         # _walk_hwp_data에서 문단들이 참고할 최신 부모 노드
         self.active_main_parent = new_section
 
     def _setup_pages(self, doc: DoclingDocument, info_path: Path):
         """ .info 파일을 읽어 DoclingDocument에 페이지 정보를 설정합니다. """
-        
+
         # 단위 변환 상수: 1cm = 28.3465pt (72 DPI 기준)
         CM_TO_PT = 28.3465
-        
+
         try:
             with open(info_path, "r", encoding="utf-8") as f:
                 info_data = json.load(f)
-            
+
             page_info_list = info_data.get("page_info", [])
-            
+
             if page_info_list:
                 # 1. 실제 페이지 정보가 있는 경우
                 for p in page_info_list:
@@ -584,9 +626,9 @@ class GenosHwpDocumentBackend(DeclarativeDocumentBackend):
                     # cm를 pt로 변환 (정수형으로 변환하는 것이 일반적입니다)
                     w_pt = round(float(p.get("width", 21.00)) * CM_TO_PT)
                     h_pt = round(float(p.get("height", 29.70)) * CM_TO_PT)
-                    
+
                     doc.pages[p_no] = doc.add_page(
-                        page_no=p_no, 
+                        page_no=p_no,
                         size=Size(width=w_pt, height=h_pt)
                     )
             else:
@@ -596,7 +638,7 @@ class GenosHwpDocumentBackend(DeclarativeDocumentBackend):
             # 2. 오류가 나거나 정보가 없는 경우 (Fallback)
             _log.warning(f"페이지 정보 로드 실패({e}). 기본 1페이지로 설정합니다.")
             doc.pages[1] = doc.add_page(
-                page_no=1, 
+                page_no=1,
                 size=Size(width=595, height=842) # 표준 A4 pt
             )
 

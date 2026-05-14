@@ -4,6 +4,8 @@ import json
 import os
 import logging
 import math, bisect
+from dataclasses import dataclass
+from difflib import SequenceMatcher
 from pathlib import Path
 
 from collections import defaultdict
@@ -224,10 +226,14 @@ from docling.datamodel.pipeline_options import (
 from docling.document_converter import (
     DocumentConverter,
     PdfFormatOption,
-    FormatOption
+    FormatOption,
+    HwpxFormatOption,
 )
+from docling.backend.genos_hwp_backend import GenosHwpDocumentBackend
+from docling.backend.hwp_backend import HwpDocumentBackend
+from docling.backend.xml.hwpx_backend import HwpxDocumentBackend
 from docling.datamodel.pipeline_options import DataEnrichmentOptions
-from docling.utils.document_enrichment import enrich_document, check_document
+from docling.utils.document_enrichment import enrich_document, check_document, DocumentEnrichmentUtils
 from docling.datamodel.document import ConversionResult
 from docling_core.transforms.chunker import (
     BaseChunk,
@@ -235,10 +241,6 @@ from docling_core.transforms.chunker import (
     DocChunk,
     DocMeta,
 )
-from docling_core.types import DoclingDocument
-
-from pandas import DataFrame
-import asyncio
 from docling_core.types import DoclingDocument as DLDocument
 from docling_core.types.doc.document import (
     DocumentOrigin,
@@ -247,12 +249,10 @@ from docling_core.types.doc.document import (
     CodeItem,
     ContentLayer,
 )
-from docling_core.types.doc.labels import DocItemLabel
 from docling_core.types.doc import (
     BoundingBox,
     DocItemLabel,
     DoclingDocument,
-    DocumentOrigin,
     DocItem,
     PictureItem,
     SectionHeaderItem,
@@ -261,13 +261,15 @@ from docling_core.types.doc import (
     PageItem,
     ProvenanceItem
 )
+
+from pandas import DataFrame
+import asyncio
 from docling.datamodel.settings import settings
 
 from collections import Counter
 import re
-import json
 import warnings
-from typing import Iterable, Iterator, Optional, Union
+from typing import Iterator, Union
 
 from pydantic import BaseModel, ConfigDict, PositiveInt, TypeAdapter, model_validator
 from typing_extensions import Self
@@ -1183,6 +1185,325 @@ class GenOSVectorMetaBuilder:
         )
 
 
+class HwpProcessor:
+    def __init__(self):
+        pass
+
+    def get_paths(self, file_path: str):
+        """이미지 등 리소스가 저장될 경로 계산 (기존 로직 유지)"""
+        output_path, output_file = os.path.split(file_path)
+        filename, _ = os.path.splitext(output_file)
+        artifacts_dir = Path(f"{output_path}/{filename}")
+        reference_path = None if artifacts_dir.is_absolute() else artifacts_dir.parent
+        return artifacts_dir, reference_path
+
+    def safe_join(self, iterable):
+        """청크 내 헤딩들을 텍스트로 합침"""
+        if not isinstance(iterable, (list, tuple, set)):
+            return ''
+        return ' '.join(map(str, iterable)) + '\n'
+
+    def load_documents(self, file_path: str, **kwargs: dict) -> DoclingDocument:
+        """SDK 백엔드를 통해 문서를 로드"""
+        # 요청마다 독립적인 pipeline_options 생성 (공유 상태 변이 방지) --> save_images, dump_sdk_output
+        pipeline_options = PipelineOptions()
+        pipeline_options.save_images = kwargs.get('save_images', True)
+
+        use_hwp_sdk = kwargs.get('use_hwp_sdk', True)
+        pipeline_options.dump_sdk_output = kwargs.get('dump_sdk_output', False) if use_hwp_sdk else False
+
+        if use_hwp_sdk:
+            converter = DocumentConverter(
+                format_options={
+                    InputFormat.HWP: HwpxFormatOption(
+                        pipeline_options=pipeline_options,
+                        backend=GenosHwpDocumentBackend
+                    ),
+                    InputFormat.XML_HWPX: HwpxFormatOption(
+                        pipeline_options=pipeline_options,
+                        backend=GenosHwpDocumentBackend
+                    ),
+                }
+            )
+        else:
+            converter = DocumentConverter(
+                format_options={
+                    InputFormat.HWP: HwpxFormatOption(
+                        pipeline_options=pipeline_options,
+                        backend=HwpDocumentBackend
+                    ),
+                    InputFormat.XML_HWPX: HwpxFormatOption(
+                        pipeline_options=pipeline_options,
+                        backend=HwpxDocumentBackend
+                    ),
+                }
+            )
+
+        conv_result: ConversionResult = converter.convert(Path(file_path).resolve(), raises_on_error=True)
+        return conv_result.document
+
+
+# =============================================================================
+# 수식 매칭 유틸리티 (merge_04_claude.py 인라인)
+# =============================================================================
+
+_FORMULA_MIN_TEXT_LEN: int = 3
+_FORMULA_EMBED_RATIO: float = 0.6
+_MAX_COMPARE_LEN: int = 2000
+_MATCH_THRESHOLD: float = 0.30
+_ENRICH_THRESHOLD: float = 0.30
+
+_dp_utils = DocumentEnrichmentUtils(DataEnrichmentOptions())
+
+_LATEX_CMD_RE = re.compile(r"\\[a-zA-Z]+\*?")
+_KOR_RE = re.compile(r"[가-힣ㄱ-ㅎㅏ-ㅣ]+")
+
+
+@dataclass
+class _HwpFormula:
+    text: str
+    norm: str
+    page_no: int
+
+
+def _normalize_text(text: str) -> str:
+    """매칭용 텍스트 정규화: GLYPH 토큰 제거, LaTeX 구분자 제거, 소문자, 공백 정리."""
+    text = re.sub(r"GLYPH\w*", "", text or "")
+    text = re.sub(r"\$\$", "", text)
+    return re.sub(r"\s+", " ", text).strip().lower()
+
+
+def _text_similarity(a: str, b: str) -> float:
+    if not a or not b:
+        return 0.0
+    return SequenceMatcher(None, a[:_MAX_COMPARE_LEN], b[:_MAX_COMPARE_LEN]).ratio()
+
+
+def _formula_coverage_score(pdf_text: str, hwp_text: str) -> float:
+    if not pdf_text or not hwp_text:
+        return 0.0
+    sm = SequenceMatcher(None, pdf_text, hwp_text)
+    matched = sum(b.size for b in sm.get_matching_blocks())
+    return matched / len(hwp_text)
+
+
+def _normalize_and_map(text: str) -> Tuple[str, List[int]]:
+    chars: List[str] = []
+    positions: List[int] = []
+
+    i = 0
+    while i < len(text):
+        glyph_match = re.match(r"GLYPH\w*", text[i:])
+        if glyph_match:
+            i += glyph_match.end()
+            continue
+        if text[i : i + 2] == "$$":
+            i += 2
+            continue
+        chars.append(text[i].lower())
+        positions.append(i)
+        i += 1
+
+    norm_chars: List[str] = []
+    norm_positions: List[int] = []
+    prev_space = False
+    for ch, pos in zip(chars, positions):
+        is_space = ch in (" ", "\t", "\n", "\r")
+        if is_space:
+            if not prev_space:
+                norm_chars.append(" ")
+                norm_positions.append(pos)
+            prev_space = True
+        else:
+            norm_chars.append(ch)
+            norm_positions.append(pos)
+            prev_space = False
+
+    while norm_chars and norm_chars[0] == " ":
+        norm_chars.pop(0)
+        norm_positions.pop(0)
+    while norm_chars and norm_chars[-1] == " ":
+        norm_chars.pop()
+        norm_positions.pop()
+
+    return "".join(norm_chars), norm_positions
+
+
+def _find_formula_span_in_text(
+    pdf_text: str,
+    hwp_formula: str,
+    min_score: float = 0.5,
+) -> Optional[Tuple[int, int]]:
+    norm_hwp = _normalize_text(hwp_formula)
+    if not norm_hwp or not pdf_text:
+        return None
+
+    norm_pdf, pos_map = _normalize_and_map(pdf_text)
+    if not norm_pdf or not pos_map:
+        return None
+
+    sm = SequenceMatcher(None, norm_pdf, norm_hwp)
+    blocks = [b for b in sm.get_matching_blocks() if b.size > 0]
+    if not blocks:
+        return None
+
+    total_matched = sum(b.size for b in blocks)
+    if total_matched / len(norm_hwp) < min_score:
+        return None
+
+    norm_start = min(b.a for b in blocks)
+    norm_end_inclusive = max(b.a + b.size - 1 for b in blocks)
+
+    if norm_start >= len(pos_map) or norm_end_inclusive >= len(pos_map):
+        return None
+
+    orig_start = pos_map[norm_start]
+    orig_end = pos_map[norm_end_inclusive] + 1
+    return (orig_start, orig_end)
+
+
+def _strip_latex(text: str) -> str:
+    """LaTeX 마크업 제거 → bare content."""
+    text = _LATEX_CMD_RE.sub(" ", text)
+    text = re.sub(r"[{}]", "", text)
+    text = re.sub(r"[_^]", "", text)
+    return re.sub(r"\s+", " ", text).strip().lower()
+
+
+def _latex_coverage_score(pdf_norm: str, hwp_norm: str) -> float:
+    hwp_stripped = _strip_latex(hwp_norm)
+    if not hwp_stripped:
+        return 0.0
+    sm = SequenceMatcher(None, pdf_norm, hwp_stripped)
+    matched = sum(b.size for b in sm.get_matching_blocks())
+    return matched / len(hwp_stripped)
+
+
+def _korean_coverage_score(pdf_norm: str, hwp_norm: str) -> float:
+    hwp_kor = "".join(_KOR_RE.findall(hwp_norm))
+    if not hwp_kor:
+        return 0.0
+    pdf_kor = "".join(_KOR_RE.findall(pdf_norm))
+    if not pdf_kor:
+        return 0.0
+    sm = SequenceMatcher(None, pdf_kor, hwp_kor)
+    matched = sum(b.size for b in sm.get_matching_blocks())
+    return matched / len(hwp_kor)
+
+
+def _collect_hwp_formulas(hwp_doc: DoclingDocument) -> List[_HwpFormula]:
+    """HWP 문서에서 formula 레이블 아이템을 리딩오더로 수집."""
+    formulas: List[_HwpFormula] = []
+    for item, _ in hwp_doc.iterate_items(
+        included_content_layers={ContentLayer.BODY}
+    ):
+        if not isinstance(item, TextItem):
+            continue
+        label = getattr(item, "label", None)
+        is_formula = (
+            label == DocItemLabel.FORMULA
+            or (isinstance(label, str) and label == "formula")
+        )
+        if not is_formula:
+            continue
+        text = item.text or ""
+        if len(text.strip()) < _FORMULA_MIN_TEXT_LEN:
+            continue
+        page_no = item.prov[0].page_no if item.prov else 0
+        formulas.append(_HwpFormula(
+            text=text,
+            norm=_normalize_text(text),
+            page_no=page_no,
+        ))
+    return formulas
+
+
+# =============================================================================
+# 벡터 레벨 수식 처리 (신규)
+# =============================================================================
+
+def _match_formulas_to_vectors(
+    vectors: List[GenOSVectorMeta],
+    hwp_formulas: List[_HwpFormula],
+    match_threshold: float = _MATCH_THRESHOLD,
+) -> List[dict]:
+    """DP 순서보존 최적 매칭: 벡터 텍스트 ↔ HWP 수식."""
+    candidate_matches = []
+    for v_idx, vec in enumerate(vectors):
+        norm = _normalize_text(vec.text or "")
+        candidates = []
+        for h_idx, hwp in enumerate(hwp_formulas):
+            if not hwp.norm:
+                continue
+            ratio     = _text_similarity(norm, hwp.norm)
+            cov       = _formula_coverage_score(norm, hwp.norm)
+            latex_cov = _latex_coverage_score(norm, hwp.norm)
+            kor_cov   = _korean_coverage_score(norm, hwp.norm)
+            score = max(ratio, cov * 0.85, latex_cov * 0.80, kor_cov * 0.75)
+            if score >= match_threshold:
+                candidates.append((h_idx, score, hwp))
+        candidate_matches.append((v_idx, candidates))
+    return _dp_utils._select_best_toc_text_matching(candidate_matches)
+
+
+def _enrich_vectors_with_hwp_formulas(
+    vectors: List[GenOSVectorMeta],
+    hwp_doc: DoclingDocument,
+    match_threshold: float = _MATCH_THRESHOLD,
+    enrich_threshold: float = _ENRICH_THRESHOLD,
+) -> List[GenOSVectorMeta]:
+    """벡터 텍스트에 HWP 수식을 반영.
+
+    bbox/페이지 메타를 보존하면서 text/n_char만 갱신.
+    HWP 수식이 없으면 vectors를 그대로 반환.
+    """
+    hwp_formulas = _collect_hwp_formulas(hwp_doc)
+    if not hwp_formulas:
+        _log.debug("[수식 후처리] HWP 수식 없음, 원본 벡터 반환")
+        return vectors
+
+    matches = _match_formulas_to_vectors(vectors, hwp_formulas, match_threshold)
+    vectors = list(vectors)  # shallow copy — 변경 전 원본 보존
+    applied = 0
+
+    for match in matches:
+        if match["score"] < enrich_threshold:
+            continue
+        v_idx = match["toc_idx"]
+        hwp   = hwp_formulas[match["text_idx"]]
+        vec   = vectors[v_idx]
+        text  = vec.text or ""
+        norm  = _normalize_text(text)
+        length_ratio = len(hwp.norm) / max(len(norm), 1)
+
+        # 벡터 자체가 이미 수식 블록이면 인라인 임베딩 금지 (블록 교체만)
+        is_formula_block = text.strip().startswith("$$")
+
+        new_text = None
+        if not is_formula_block and length_ratio < _FORMULA_EMBED_RATIO:
+            # 인라인: 스팬 탐색 후 $...$ 삽입 (LaTeX stripped fallback 포함)
+            span = _find_formula_span_in_text(text, hwp.text)
+            if span is None:
+                stripped = _strip_latex(hwp.text)
+                if len(stripped) >= 3:
+                    span = _find_formula_span_in_text(text, stripped)
+            if span:
+                s, e = span
+                new_text = text[:s] + f"${hwp.text}$" + text[e:]
+        elif length_ratio >= _FORMULA_EMBED_RATIO:
+            # 블록 전체: $$\n...\n$$ 교체 (수식이 블록 대비 충분히 큰 경우)
+            new_text = f"$$\n{hwp.text}\n$$"
+        # is_formula_block=True이고 length_ratio < _FORMULA_EMBED_RATIO: 건너뜀
+        # (HWP 수식이 너무 짧아서 전체 수식 블록을 대체하는 것은 부적절)
+
+        if new_text is not None:
+            vectors[v_idx] = vec.model_copy(update={"text": new_text, "n_char": len(new_text)})
+            applied += 1
+
+    _log.debug(f"[수식 후처리] 적용={applied}/{len(matches)} 후보, 벡터={len(vectors)}")
+    return vectors
+
+
 class DocumentProcessor:
 
     def __init__(self):
@@ -1760,6 +2081,11 @@ class DocumentProcessor:
         _log.info(f"file_path: {file_path}")
         _log.info(f"kwargs: {kwargs}")
 
+        # HWP 수식 후처리에 사용할 원본 입력 경로를 보존한다.
+        # 아래 변환 블록에서 file_path 는 변환된 PDF 경로로 덮어쓰이므로,
+        # 변환 후에는 ext 검사가 항상 .pdf 가 되어 후처리 조건이 영구히 False 가 된다.
+        original_input_path = file_path
+
         # 입력이 PDF가 아닐 때 동작:
         # - auto_convert_to_pdf=True (default): PDF SDK/LibreOffice 로 자동 변환 후 진입
         # - auto_convert_to_pdf=False: 변환 없이 그대로 진행 (변경 전 동작; PDF 가정)
@@ -1866,6 +2192,19 @@ class DocumentProcessor:
         meta = [{k: v for k, v in file.items() if k != 'path'} for file in media_files]
         vectors[0].media_files = meta
         """
+
+        # 수식 후처리: 원본 파일이 HWP/HWPX 인 경우에만 수행 (file_path 는 이미 변환된 PDF 경로일 수 있음)
+        postprocess_hwp_formulas = kwargs.get('postprocess_hwp_formulas', False)
+        ext = os.path.splitext(original_input_path)[-1].lower()
+        if postprocess_hwp_formulas and ext in ('.hwp', '.hwpx'):
+            _log.info(f"Processing Korean Document ({ext}) with Unified HwpProcessor")
+            try:
+                hwp_processor = HwpProcessor()
+                hwp_doc = hwp_processor.load_documents(original_input_path, **kwargs)
+                vectors = _enrich_vectors_with_hwp_formulas(vectors, hwp_doc)
+            except Exception as hwp_err:
+                _log.warning(f"[HwpProcessor] HWP 직접 파싱 실패 → 수식 후처리 건너뜀: {hwp_err}")
+                return vectors
 
         return vectors
 
