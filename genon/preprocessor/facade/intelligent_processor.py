@@ -2081,10 +2081,8 @@ class DocumentProcessor:
         _log.info(f"file_path: {file_path}")
         _log.info(f"kwargs: {kwargs}")
 
-        # HWP 수식 후처리에 사용할 원본 입력 경로를 보존한다.
-        # 아래 변환 블록에서 file_path 는 변환된 PDF 경로로 덮어쓰이므로,
-        # 변환 후에는 ext 검사가 항상 .pdf 가 되어 후처리 조건이 영구히 False 가 된다.
-        original_input_path = file_path
+        source_file_path = file_path
+        source_ext = os.path.splitext(source_file_path)[-1].lower()
 
         # 입력이 PDF가 아닐 때 동작:
         # - auto_convert_to_pdf=True (default): PDF SDK/LibreOffice 로 자동 변환 후 진입
@@ -2193,14 +2191,13 @@ class DocumentProcessor:
         vectors[0].media_files = meta
         """
 
-        # 수식 후처리: 원본 파일이 HWP/HWPX 인 경우에만 수행 (file_path 는 이미 변환된 PDF 경로일 수 있음)
+        # 수식 후처리
         postprocess_hwp_formulas = kwargs.get('postprocess_hwp_formulas', False)
-        ext = os.path.splitext(original_input_path)[-1].lower()
-        if postprocess_hwp_formulas and ext in ('.hwp', '.hwpx'):
-            _log.info(f"Processing Korean Document ({ext}) with Unified HwpProcessor")
+        if postprocess_hwp_formulas and source_ext in ('.hwp', '.hwpx'):
+            _log.info(f"Processing Korean Document ({source_ext}) with Unified HwpProcessor")
             try:
                 hwp_processor = HwpProcessor()
-                hwp_doc = hwp_processor.load_documents(original_input_path, **kwargs)
+                hwp_doc = hwp_processor.load_documents(source_file_path, **kwargs)
                 vectors = _enrich_vectors_with_hwp_formulas(vectors, hwp_doc)
             except Exception as hwp_err:
                 _log.warning(f"[HwpProcessor] HWP 직접 파싱 실패 → 수식 후처리 건너뜀: {hwp_err}")
