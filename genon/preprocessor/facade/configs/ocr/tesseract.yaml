@@ -1,0 +1,20 @@
+# TesseractOCR 설정
+# tesserocr 바인딩 방식 (kind: tesserocr) 또는 CLI 방식 (kind: tesseract) 선택
+
+# ── 공통 옵션 (모든 엔진) ────────────────────────────────────────────────────
+force_full_page_ocr: false
+
+# lang: Tesseract 언어 코드 목록 (tessdata 기준)
+# https://tesseract-ocr.github.io/tessdoc/Data-Files-in-different-versions.html
+lang:
+  - kor
+  - eng
+
+bitmap_area_threshold: 0.05
+
+# ── Tesseract 전용 옵션 ───────────────────────────────────────────────────────
+# path: tessdata 디렉토리 경로 (null이면 시스템 기본 경로)
+path: null
+
+# [CLI 방식 전용] tesseract_cmd: tesseract 실행 파일 경로 (기본 "tesseract")
+# tesseract_cmd: tesseract

@@ -1,5 +1,6 @@
 from pathlib import Path
 
+import yaml
 from docling.document_converter import (
     DocumentConverter,
     PdfFormatOption,
@@ -9,7 +10,14 @@ from docling.document_converter import (
     HTMLFormatOption,
 )
 from docling.datamodel.base_models import InputFormat
-from docling.datamodel.pipeline_options import PdfPipelineOptions
+from docling.datamodel.pipeline_options import (
+    PdfPipelineOptions,
+    EasyOcrOptions,
+    PaddleOcrOptions,
+    TesseractOcrOptions,
+    TesseractCliOcrOptions,
+    RapidOcrOptions,
+)
 from docling.backend.pypdfium2_backend import PyPdfiumDocumentBackend
 from docling.backend.pymupdf_backend import PyMuPDFDocumentBackend
 from docling.backend.genos_msword_backend import GenosMsWordDocumentBackend
@@ -23,6 +31,46 @@ from docling_core.types import DoclingDocument
 
 from .base_loader import BaseLoader
 from .langchain_loaders import LangChainPdfLoader, LangChainDocxLoader, LangChainPptxLoader, LangChainMdLoader
+
+_OCR_YAML_DIR = Path(__file__).parent.parent / "configs" / "ocr"
+
+OCR_ENGINE_MAP = {
+    "easy":       EasyOcrOptions,
+    "paddle":     PaddleOcrOptions,
+    "tesseract":  TesseractOcrOptions,
+    "tesseractcli": TesseractCliOcrOptions,
+    "rapid":      RapidOcrOptions,
+}
+
+
+def _load_ocr_options(do_ocr_cfg: dict | str):
+    """
+    do_ocr 설정을 OcrOptions 인스턴스로 변환.
+
+    형식 1 — 인라인 dict:
+        {"Easy": {"force_full_page_ocr": True, "lang": ["ko", "en"]}}
+
+    형식 2 — YAML 파일명(확장자 제외):
+        "easy"  →  configs/ocr/easy.yaml 로드
+    """
+    if isinstance(do_ocr_cfg, str):
+        yaml_path = _OCR_YAML_DIR / f"{do_ocr_cfg.lower()}.yaml"
+        assert yaml_path.exists(), f"OCR YAML 없음: {yaml_path}"
+        with open(yaml_path) as f:
+            raw = yaml.safe_load(f)
+        engine_key = do_ocr_cfg.lower()
+        options_dict = {k: v for k, v in raw.items() if v is not None}
+    else:
+        assert len(do_ocr_cfg) == 1, "do_ocr dict는 엔진 이름 키 하나만 허용"
+        engine_key, options_dict = next(iter(do_ocr_cfg.items()))
+        engine_key = engine_key.lower()
+
+    ocr_cls = OCR_ENGINE_MAP.get(engine_key)
+    assert ocr_cls is not None, (
+        f"지원하지 않는 OCR 엔진: {engine_key}. 가능한 값: {list(OCR_ENGINE_MAP.keys())}"
+    )
+    return ocr_cls(**options_dict)
+
 
 FORMAT_MAP = {
     "pdf": InputFormat.PDF,
@@ -128,7 +176,10 @@ class DoclingLoader(BaseLoader):
             if opt.get("save_images"):
                 fmt_opt.pipeline_options.save_images = True
             if "do_ocr" in opt:
-                fmt_opt.pipeline_options.do_ocr = opt["do_ocr"]
+                fmt_opt.pipeline_options.do_ocr = True
+                fmt_opt.pipeline_options.ocr_options = _load_ocr_options(opt["do_ocr"])
+            else:
+                fmt_opt.pipeline_options.do_ocr = False
 
             format_options[input_format] = fmt_opt
 

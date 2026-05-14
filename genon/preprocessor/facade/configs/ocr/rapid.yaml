@@ -1,0 +1,30 @@
+# RapidOCR 설정 (ONNX 기반, 경량)
+# https://rapidai.github.io/RapidOCRDocs/
+
+# ── 공통 옵션 (모든 엔진) ────────────────────────────────────────────────────
+force_full_page_ocr: false
+
+# lang: 현재 RapidOCR에서 lang 파라미터는 미지원 (설정해도 동작에 영향 없음)
+lang:
+  - english
+  - chinese
+
+bitmap_area_threshold: 0.05
+
+# ── RapidOCR 전용 옵션 ────────────────────────────────────────────────────────
+# text_score: 인식 결과 신뢰도 임계값, 미만은 버림 (기본 0.5)
+text_score: 0.5
+
+# use_det / use_cls / use_rec: 각 단계 활성화 여부 (null이면 RapidOCR 기본값)
+use_det: null
+use_cls: null
+use_rec: null
+
+# 모델 경로 (null이면 기본 캐시 경로)
+det_model_path: null
+cls_model_path: null
+rec_model_path: null
+rec_keys_path: null
+
+# print_verbose: 디버그 출력 여부 (기본 false)
+print_verbose: false
