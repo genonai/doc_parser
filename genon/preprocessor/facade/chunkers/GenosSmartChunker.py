@@ -28,7 +28,7 @@ class GenosSmartChunker(BaseChunker):
         if Path("/models/doc_parser_models/sentence-transformers-all-MiniLM-L6-v2").exists()
         else "sentence-transformers/all-MiniLM-L6-v2"
     )
-    max_tokens: int = 1024
+    max_tokens: int = 0
     merge_peers: bool = True
 
     # _inner_chunker: BaseChunker = None
