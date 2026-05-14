@@ -2083,6 +2083,10 @@ class DocumentProcessor:
 
         source_file_path = file_path
         source_ext = os.path.splitext(source_file_path)[-1].lower()
+        _log.info(
+            f"[intelligent] source_file_path={source_file_path} source_ext={source_ext} "
+            f"upload_files_imported={upload_files is not None}"
+        )
 
         # 입력이 PDF가 아닐 때 동작:
         # - auto_convert_to_pdf=True (default): PDF SDK/LibreOffice 로 자동 변환 후 진입
@@ -2167,12 +2171,30 @@ class DocumentProcessor:
         # 변환된 PDF 를 minio 에 업로드. object key 는 원본 파일명의 stem + ".pdf".
         # (예: 원본 file_name='sample.hwp' → minio key='<doc_id>/sample.pdf')
         # upload_files 가 업로드 후 로컬 파일을 os.remove 하므로 파싱이 모두 끝난 이 시점에 호출.
+        _log.info(
+            f"[intelligent] pre-upload check: converted_pdf_path={converted_pdf_path} "
+            f"upload_files_callable={upload_files is not None}"
+        )
         if converted_pdf_path and upload_files:
             original_name = kwargs.get('file_name') or os.path.basename(converted_pdf_path)
             pdf_object_name = os.path.splitext(original_name)[0] + '.pdf'
-            await upload_files(
-                [{'path': converted_pdf_path, 'name': pdf_object_name}],
-                request=request,
+            _log.info(
+                f"[intelligent] uploading PDF → minio key='{pdf_object_name}' "
+                f"from local='{converted_pdf_path}'"
+            )
+            try:
+                await upload_files(
+                    [{'path': converted_pdf_path, 'name': pdf_object_name}],
+                    request=request,
+                )
+                _log.info(f"[intelligent] PDF upload completed: {pdf_object_name}")
+            except Exception as up_err:
+                _log.exception(f"[intelligent] PDF upload failed: {up_err}")
+                raise
+        else:
+            _log.warning(
+                f"[intelligent] PDF upload SKIPPED — "
+                f"converted_pdf_path={converted_pdf_path} upload_files={upload_files}"
             )
 
         """
@@ -2191,8 +2213,12 @@ class DocumentProcessor:
         vectors[0].media_files = meta
         """
 
-        # 수식 후처리
-        postprocess_hwp_formulas = kwargs.get('postprocess_hwp_formulas', False)
+        # 수식 후처리 — kwargs 미지정 시 기본 True (테스트 활성화)
+        postprocess_hwp_formulas = kwargs.get('postprocess_hwp_formulas', True)
+        _log.info(
+            f"[intelligent] postprocess check: flag={postprocess_hwp_formulas} "
+            f"source_ext={source_ext} eligible={source_ext in ('.hwp', '.hwpx')}"
+        )
         if postprocess_hwp_formulas and source_ext in ('.hwp', '.hwpx'):
             _log.info(f"Processing Korean Document ({source_ext}) with Unified HwpProcessor")
             try:
