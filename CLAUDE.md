@@ -38,7 +38,7 @@
   - 업스테이지(pending)
 
 - Enrichment Refactoring
-  - image description
+  - image description ✅
   - ToC
 
 - Chunkers
