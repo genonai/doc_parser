@@ -20,7 +20,7 @@ bitmap_area_threshold: 0.05
 
 # ── EasyOCR 전용 옵션 ─────────────────────────────────────────────────────────
 # use_gpu: GPU 사용 여부 (null이면 환경에 따라 자동 감지)
-use_gpu: null
+use_gpu: false
 
 # confidence_threshold: 인식 결과 신뢰도 임계값, 미만은 버림 (기본 0.5)
 confidence_threshold: 0.5
