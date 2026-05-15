@@ -8,6 +8,8 @@ config = {
         "hwpx": {"pipeline_options": "simple", "backend": "hwpx"},
         "pptx": {"backend": "langchain_pptx", "chunker": "recursive"},
         "md":   {"backend": "langchain_md", "chunker": "recursive"},
+        "csv":  {"backend": "tabular"},
+        "xlsx": {"backend": "tabular"},
     },
     "chunker": "hybrid",
     "return_level": "vector",

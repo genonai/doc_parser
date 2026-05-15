@@ -1,6 +1,9 @@
 import logging
 from pathlib import Path
-from typing import Any
+
+from docling_core.types import DoclingDocument
+from docling_core.types.doc import DocItemLabel
+from docling_core.types.doc.document import MiscAnnotation, TableCell, TableData
 
 from .base_loader import BaseLoader
 
@@ -13,45 +16,40 @@ except ImportError:
 
 try:
     import pandas as pd
-    from langchain_community.document_loaders import DataFrameLoader
 except ImportError:
     pd = None
-    DataFrameLoader = None
 
 SUPPORTED_EXTENSIONS = {".csv", ".xlsx"}
 
 
 class TabularLoader(BaseLoader):
     """
-    CSV/XLSX 파일을 로드하여 data_dict 구조로 반환.
+    CSV/XLSX 파일을 로드하여 DoclingDocument로 반환.
 
-    반환 형식:
-        {
-            "data": [
-                {
-                    "sheet_name": str,
-                    "data_rows": [{"col": val, ...}, ...],
-                    "data_types": [[col_name, sql_dtype], ...]
-                },
-                ...  # XLSX 멀티시트 시 여러 항목
-            ]
-        }
+    시트당 TableItem 하나 생성.
+    - caption: 시트명
+    - annotation(MiscAnnotation): SQL dtype 정보 JSON
     """
 
     def __init__(self, config: dict) -> None:
         self.config = config
 
-    def load(self, file_path: str) -> dict:
-        assert pd is not None, "TabularLoader requires pandas and langchain-community: pip install pandas langchain-community openpyxl"
+    def load(self, file_path: str) -> DoclingDocument:
+        assert pd is not None, "TabularLoader requires pandas: pip install pandas openpyxl"
         assert chardet is not None, "TabularLoader requires chardet: pip install chardet"
 
         ext = Path(file_path).suffix.lower()
         assert ext in SUPPORTED_EXTENSIONS, f"TabularLoader가 지원하지 않는 확장자: {ext}"
 
+        doc = DoclingDocument(name=Path(file_path).name)
+        doc.add_text(label=DocItemLabel.PARAGRAPH, text="[DA]")
+
         if ext == ".csv":
-            return self._load_csv(file_path)
+            self._add_csv(doc, file_path)
         else:
-            return self._load_xlsx(file_path)
+            self._add_xlsx(doc, file_path)
+
+        return doc
 
     def _check_sql_dtypes(self, df) -> tuple:
         df = df.convert_dtypes()
@@ -64,11 +62,11 @@ class TabularLoader(BaseLoader):
                 sql_dtype = "FLOAT"
             elif "bool" in dtype:
                 sql_dtype = "BOOLEAN"
-            elif "date" in dtype:
-                sql_dtype = "DATE"
-                df[col] = df[col].astype(str)
             elif "datetime" in dtype:
                 sql_dtype = "DATETIME"
+                df[col] = df[col].astype(str)
+            elif "date" in dtype:
+                sql_dtype = "DATE"
                 df[col] = df[col].astype(str)
             else:
                 max_len_val = df[col].astype(str).str.len().max()
@@ -77,28 +75,38 @@ class TabularLoader(BaseLoader):
             res.append([col, sql_dtype])
         return df, res
 
-    def _process_data_rows(self, sheet_name: str, col: str, col_type: str, documents: list, dtypes: list) -> dict:
-        rows = []
-        for doc in documents:
-            row = {}
-            if "int" in col_type:
-                row[col] = int(doc.page_content)
-            elif "float" in col_type:
-                row[col] = float(doc.page_content)
-            elif "bool" in col_type:
-                if doc.page_content.lower() == "true":
-                    row[col] = True
-                elif doc.page_content.lower() == "false":
-                    row[col] = False
-                else:
-                    raise ValueError(f"Invalid boolean string: {doc.page_content}")
-            else:
-                row[col] = doc.page_content
-            row.update(doc.metadata)
-            rows.append(row)
-        return {"sheet_name": sheet_name, "data_rows": rows, "data_types": dtypes}
+    def _df_to_table_data(self, df) -> TableData:
+        cols = list(df.columns)
+        num_cols = len(cols)
+        cells = []
 
-    def _load_csv(self, file_path: str) -> dict:
+        for c, col in enumerate(cols):
+            cells.append(TableCell(
+                row_span=1, col_span=1,
+                start_row_offset_idx=0, end_row_offset_idx=1,
+                start_col_offset_idx=c, end_col_offset_idx=c + 1,
+                text=str(col), column_header=True,
+            ))
+
+        for r, (_, row) in enumerate(df.iterrows(), start=1):
+            for c, col in enumerate(cols):
+                cells.append(TableCell(
+                    row_span=1, col_span=1,
+                    start_row_offset_idx=r, end_row_offset_idx=r + 1,
+                    start_col_offset_idx=c, end_col_offset_idx=c + 1,
+                    text=str(row[col]),
+                ))
+
+        return TableData(table_cells=cells, num_rows=len(df) + 1, num_cols=num_cols)
+
+    def _add_sheet(self, doc: DoclingDocument, sheet_name: str, df, dtypes: list) -> None:
+        table_data = self._df_to_table_data(df)
+        annotations = [
+            MiscAnnotation(content={"sheet_name": sheet_name, "data_types": dtypes})
+        ]
+        doc.add_table(data=table_data, annotations=annotations)
+
+    def _add_csv(self, doc: DoclingDocument, file_path: str) -> None:
         with open(file_path, "rb") as f:
             raw = f.read(10000)
         enc = chardet.detect(raw)["encoding"] or "utf-8"
@@ -106,28 +114,11 @@ class TabularLoader(BaseLoader):
         df = pd.read_csv(file_path, encoding=enc, index_col=False)
         df = df.fillna("null")
         df, dtypes = self._check_sql_dtypes(df)
+        self._add_sheet(doc, "table_1", df, dtypes)
 
-        col = df.columns[0]
-        col_type = str(df[col].dtype)
-        df = df.astype({col: "str"})
-
-        documents = DataFrameLoader(df, page_content_column=col).load()
-        sheet = self._process_data_rows("table_1", col, col_type, documents, dtypes)
-        return {"data": [sheet]}
-
-    def _load_xlsx(self, file_path: str) -> dict:
+    def _add_xlsx(self, doc: DoclingDocument, file_path: str) -> None:
         dfs = pd.read_excel(file_path, sheet_name=None)
-        sheets = []
         for sheet_name, df in dfs.items():
             df = df.fillna("null")
             df, dtypes = self._check_sql_dtypes(df)
-
-            col = df.columns[0]
-            col_type = str(type(col))
-            df = df.astype({col: "str"})
-
-            documents = DataFrameLoader(df, page_content_column=col).load()
-            sheet = self._process_data_rows(sheet_name, col, col_type, documents, dtypes)
-            sheets.append(sheet)
-
-        return {"data": sheets}
+            self._add_sheet(doc, sheet_name, df, dtypes)

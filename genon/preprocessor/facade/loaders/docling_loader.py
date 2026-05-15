@@ -30,6 +30,7 @@ from docling.pipeline.simple_pipeline import SimplePipeline
 from docling_core.types import DoclingDocument
 
 from .base_loader import BaseLoader
+from .tabular_loader import TabularLoader
 from .langchain_loaders import LangChainPdfLoader, LangChainDocxLoader, LangChainPptxLoader, LangChainMdLoader
 
 _OCR_YAML_DIR = Path(__file__).parent.parent / "configs" / "ocr"
@@ -107,12 +108,13 @@ BACKEND_MAP = {
     "hwpx": HwpxDocumentBackend,
 }
 
-# backend 값이 langchain_* 이름이면 LangChain 기반 래퍼로 처리 (Docling 파이프라인 우회)
-LANGCHAIN_BACKEND_MAP: dict[str, type[BaseLoader]] = {
+# backend 값이 아래 키 중 하나이면 Docling 파이프라인 우회, 전용 로더로 처리
+BYPASS_BACKEND_MAP: dict[str, type[BaseLoader]] = {
     "langchain_pdf": LangChainPdfLoader,
     "langchain_docx": LangChainDocxLoader,
     "langchain_pptx": LangChainPptxLoader,
     "langchain_md": LangChainMdLoader,
+    "tabular": TabularLoader,
 }
 
 
@@ -136,7 +138,7 @@ class DoclingLoader(BaseLoader):
 
     def __init__(self, format_options: dict) -> None:
         self._format_options_cfg = format_options
-        self._langchain_ext_loaders: dict[str, BaseLoader] = {}
+        self._bypass_loaders: dict[str, BaseLoader] = {}
         self._converter: DocumentConverter | None = None
         self._setup()
 
@@ -144,8 +146,9 @@ class DoclingLoader(BaseLoader):
         docling_formats: dict = {}
         for ext, opt in self._format_options_cfg.items():
             backend = opt.get("backend", "")
-            if backend in LANGCHAIN_BACKEND_MAP:
-                self._langchain_ext_loaders[ext] = LANGCHAIN_BACKEND_MAP[backend]()
+            if backend in BYPASS_BACKEND_MAP:
+                cls = BYPASS_BACKEND_MAP[backend]
+                self._bypass_loaders[ext] = cls(config=opt) if backend == "tabular" else cls()
             else:
                 docling_formats[ext] = opt
         if docling_formats:
@@ -175,11 +178,12 @@ class DoclingLoader(BaseLoader):
                 fmt_opt.pipeline_options.generate_picture_images = True
             if opt.get("save_images"):
                 fmt_opt.pipeline_options.save_images = True
-            if "do_ocr" in opt:
-                fmt_opt.pipeline_options.do_ocr = True
-                fmt_opt.pipeline_options.ocr_options = _load_ocr_options(opt["do_ocr"])
-            else:
-                fmt_opt.pipeline_options.do_ocr = False
+            if hasattr(fmt_opt.pipeline_options, "do_ocr"):
+                if "do_ocr" in opt:
+                    fmt_opt.pipeline_options.do_ocr = True
+                    fmt_opt.pipeline_options.ocr_options = _load_ocr_options(opt["do_ocr"])
+                else:
+                    fmt_opt.pipeline_options.do_ocr = False
 
             format_options[input_format] = fmt_opt
 
@@ -187,7 +191,7 @@ class DoclingLoader(BaseLoader):
 
     def load(self, file_path: str) -> DoclingDocument:
         ext = Path(file_path).suffix.lstrip(".").lower()
-        if ext in self._langchain_ext_loaders:
-            return self._langchain_ext_loaders[ext].load(file_path)
+        if ext in self._bypass_loaders:
+            return self._bypass_loaders[ext].load(file_path)
         conv_result = self._converter.convert(file_path, raises_on_error=True)
         return conv_result.document
