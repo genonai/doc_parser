@@ -7,6 +7,7 @@ from docling_core.types import DoclingDocument
 
 from genon.preprocessor.facade.loaders import DoclingLoader
 from genon.preprocessor.facade.chunkers import CHUNKERS
+from genon.preprocessor.facade.enrichment import ENRICHERS
 from genon.preprocessor.facade.metadata import GenOSVectorMetaBuilder
 from genon.preprocessor.facade.utils.logging_utils import setup_logging
 
@@ -26,18 +27,34 @@ class BaseProcessor:
         ], f"다음 리턴 레벨 중에서 골라주세요: document | chunk | vector, 현재 리턴 레벨: {self.return_level}"
 
         self._ext_loaders = self._build_ext_loaders(config["format_options"])
-        self._default_chunker = CHUNKERS[config["chunker"]]()
+        self._default_chunker = self._build_chunker(config["chunker"])
         self._ext_chunkers = self._build_ext_chunkers(config["format_options"], config["chunker"])
-        self.enrichers = []  # 청킹 전: TOC, 작성일 등 document 레벨 enrichment
+        self.enrichers = self._build_enrichers(config.get("enrichers", []))
         self.genos_meta_builder = GenOSVectorMetaBuilder()
+
+    def _build_enrichers(self, enrichers_cfg: list) -> list:
+        result = []
+        for cfg in enrichers_cfg:
+            name = cfg["name"]
+            options = {k: v for k, v in cfg.items() if k != "name"}
+            result.append(ENRICHERS[name](**options))
+        return result
+
+    def _build_chunker(self, chunker_cfg: dict | str):
+        if isinstance(chunker_cfg, dict):
+            name = chunker_cfg["name"]
+            options = {k: v for k, v in chunker_cfg.items() if k != "name"}
+        else:
+            name, options = chunker_cfg, {}
+        return CHUNKERS[name](**options)
 
     def _build_ext_loaders(self, format_options: dict) -> dict:
         docling_loader = DoclingLoader(format_options)
         return {ext: docling_loader for ext in format_options}
 
-    def _build_ext_chunkers(self, format_options: dict, default_chunker: str) -> dict:
+    def _build_ext_chunkers(self, format_options: dict, default_chunker: dict | str) -> dict:
         return {
-            ext: CHUNKERS[opt.get("chunker", default_chunker)]()
+            ext: self._build_chunker(opt.get("chunker", default_chunker))
             for ext, opt in format_options.items()
         }
 
