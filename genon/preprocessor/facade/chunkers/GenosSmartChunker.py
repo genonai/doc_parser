@@ -30,6 +30,7 @@ class GenosSmartChunker(BaseChunker):
     )
     max_tokens: int = 0
     merge_peers: bool = True
+    merge_small_chunks: bool = False
 
     # _inner_chunker: BaseChunker = None
     _tokenizer: PreTrainedTokenizerBase = None
@@ -752,6 +753,92 @@ class GenosSmartChunker(BaseChunker):
 
         return result_chunks
 
+    def _apply_merge_small(self, chunks: list[DocChunk], dl_doc: DoclingDocument) -> list[DocChunk]:
+        """max_tokens // 3 미만 청크를 인접 청크에 병합 (헤더 컨텍스트 유지)"""
+        if not chunks or self.max_tokens == 0:
+            return chunks
+
+        min_chunk_size = self.max_tokens // 3
+        merged_chunks: list[DocChunk] = []
+        current_merge_candidate: Optional[DocChunk] = None
+
+        for chunk in chunks:
+            chunk_tokens = self._count_tokens(chunk.text)
+
+            if chunk_tokens > self.max_tokens:
+                if current_merge_candidate:
+                    merged_chunks.append(current_merge_candidate)
+                    current_merge_candidate = None
+                merged_chunks.append(chunk)
+                continue
+
+            if chunk_tokens < min_chunk_size:
+                if current_merge_candidate is None:
+                    current_merge_candidate = chunk
+                else:
+                    merged_items = (current_merge_candidate.meta.doc_items or []) + (chunk.meta.doc_items or [])
+                    merged_header_infos = getattr(current_merge_candidate, "_header_info_list", []) + getattr(chunk, "_header_info_list", [])
+                    merged_text = self._generate_text_from_items_with_headers(merged_items, merged_header_infos, dl_doc)
+                    if self._count_tokens(merged_text) <= self.max_tokens:
+                        new_chunk = DocChunk(
+                            text=merged_text,
+                            meta=DocMeta(
+                                doc_items=merged_items,
+                                headings=self._extract_used_headers(merged_header_infos),
+                                captions=None,
+                                origin=chunk.meta.origin,
+                            ),
+                        )
+                        new_chunk._header_info_list = merged_header_infos
+                        current_merge_candidate = new_chunk
+                    else:
+                        merged_chunks.append(current_merge_candidate)
+                        current_merge_candidate = chunk
+            else:
+                if current_merge_candidate:
+                    merged_items = (current_merge_candidate.meta.doc_items or []) + (chunk.meta.doc_items or [])
+                    merged_header_infos = getattr(current_merge_candidate, "_header_info_list", []) + getattr(chunk, "_header_info_list", [])
+                    merged_text = self._generate_text_from_items_with_headers(merged_items, merged_header_infos, dl_doc)
+                    if self._count_tokens(merged_text) <= self.max_tokens:
+                        new_chunk = DocChunk(
+                            text=merged_text,
+                            meta=DocMeta(
+                                doc_items=merged_items,
+                                headings=self._extract_used_headers(merged_header_infos),
+                                captions=None,
+                                origin=chunk.meta.origin,
+                            ),
+                        )
+                        merged_chunks.append(new_chunk)
+                        current_merge_candidate = None
+                        continue
+                    merged_chunks.append(current_merge_candidate)
+                    current_merge_candidate = None
+                merged_chunks.append(chunk)
+
+        if current_merge_candidate:
+            if merged_chunks:
+                merged_items = (merged_chunks[-1].meta.doc_items or []) + (current_merge_candidate.meta.doc_items or [])
+                merged_header_infos = getattr(merged_chunks[-1], "_header_info_list", []) + getattr(current_merge_candidate, "_header_info_list", [])
+                merged_text = self._generate_text_from_items_with_headers(merged_items, merged_header_infos, dl_doc)
+                if self._count_tokens(merged_text) <= self.max_tokens:
+                    new_chunk = DocChunk(
+                        text=merged_text,
+                        meta=DocMeta(
+                            doc_items=merged_items,
+                            headings=self._extract_used_headers(merged_header_infos),
+                            captions=None,
+                            origin=current_merge_candidate.meta.origin,
+                        ),
+                    )
+                    merged_chunks[-1] = new_chunk
+                else:
+                    merged_chunks.append(current_merge_candidate)
+            else:
+                merged_chunks.append(current_merge_candidate)
+
+        return merged_chunks
+
     def chunk(self, dl_doc: DoclingDocument, **kwargs: Any) -> Iterator[BaseChunk]:
         """문서를 청킹하여 반환
 
@@ -769,5 +856,8 @@ class GenosSmartChunker(BaseChunker):
         doc_chunk = doc_chunks[0]  # preprocess는 하나의 청크만 반환
 
         final_chunks = self._split_document_by_tokens(doc_chunk, dl_doc, **kwargs)
+
+        if self.merge_small_chunks:
+            final_chunks = self._apply_merge_small(final_chunks, dl_doc)
 
         return iter(final_chunks)
