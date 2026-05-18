@@ -43,13 +43,14 @@ class TOCEnricher(BaseEnricher):
         max_tokens: int = 10000,
         system_prompt: str = "",
         user_prompt: str = "",
+        extract_metadata: bool = True,
     ):
         cfg = self._load_config(config_file)
 
         self._options = DataEnrichmentOptions(
             do_toc_enrichment=True,
             toc_doc_type=doc_type,
-            extract_metadata=False,
+            extract_metadata=extract_metadata,
             toc_api_provider="openrouter",
             toc_api_base_url=url or cfg.get("url", ""),
             metadata_api_base_url=url or cfg.get("url", ""),
