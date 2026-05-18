@@ -6,7 +6,7 @@ config = {
             "pipeline_options": "pdf",
             "backend": "pypdf",
             "generate_picture_images": True,
-            "do_ocr": False,
+            "do_ocr": "easy",  # configs/ocr/easy.yaml
         },
         "docx": {
             "pipeline_options": "simple",
@@ -26,10 +26,11 @@ config = {
         },
         "pptx": {
             "pipeline_options": "simple",
-            "backend": "mspowerpoint",  # MsPowerpointDocumentBackend (docling 기본값, FORMAT_OPTION_MAP 미등록으로 DoclingLoader에서 무시됨)
+            "backend": "mspowerpoint",
         },
     },
-    "chunker": "smart",
+    "chunker": {"name": "smart", "max_tokens": 1024},
+    "enrichers": [],
     "return_level": "vector",
     "log_level": 4,
 }
