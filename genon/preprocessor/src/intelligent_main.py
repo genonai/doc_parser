@@ -84,18 +84,13 @@ async def exception_handler(request, exc: Exception):
 _processor = None
 
 def get_processor():
-    """DocumentProcessor를 지연 로드"""
+    """parser_processor.DocumentProcessor를 지연 로드"""
     global _processor
     if _processor is None:
-        try:
-            from intelligent_processor import DocumentProcessor
-            _processor = DocumentProcessor()
-            logger.info("DocumentProcessor (intelligent) initialized successfully")
-        except Exception as e:
-            logger.warning(f"Failed to load intelligent processor: {e}, using simple processor")
-            from simple_processor import SimpleDocumentProcessor
-            _processor = SimpleDocumentProcessor()
-            logger.info("SimpleDocumentProcessor initialized as fallback")
+        # from intelligent_processor import DocumentProcessor
+        from parser_processor import DocumentProcessor # --- IGNORE -
+        _processor = DocumentProcessor()
+        logger.info("DocumentProcessor (parser) initialized successfully")
     return _processor
 
 
@@ -159,9 +154,10 @@ async def run(
         logger.info(f'[intelligent] Start: "{file_path}"')
         data = await get_processor()(request, file_path, **params)
         logger.info(f'[intelligent] Success: "{file_path}"')
-
-        # GenOSVectorMeta 모델 -> dict 변환
-        result = [item.model_dump() if hasattr(item, 'model_dump') else item for item in data]
+        
+        result = data
+        # result = [item.model_dump() if hasattr(item, 'model_dump') else item for item in data]
+        
 
     except GenosServiceException as e:
         logger.error(f'[intelligent] Error: "{file_path}"\n{traceback.format_exc()}\n')
@@ -180,6 +176,38 @@ async def run(
         return make_failure_response(str(e))
     finally:
         logger.info(f'[intelligent] End: "{file_path}" ({time.time() - pt:.2f} seconds)')
+
+    return make_success_response(data=result)
+
+
+
+@app.post('/parser', tags=["Document Processing"])
+async def parse(
+        request: Request,
+        file_path: str = Body(..., embed=True, description="처리할 문서의 파일 경로"),
+        params: dict = Body(default_factory=dict, description="처리 옵션 (save_images, appendix, log_level 등)")
+):
+    """파일 경로 기반 문서 파싱 (/run과 동일하며 파서 호환 엔드포인트로 제공)"""
+    pt = time.time()
+    try:
+        logger.info(f'[parser] Start: "{file_path}"')
+        data = await get_processor()(request, file_path, **params)
+        logger.info(f'[parser] Success: "{file_path}"')
+
+        # result = [item.model_dump() if hasattr(item, 'model_dump') else item for item in data]
+        result = data
+    except GenosServiceException as e:
+        logger.error(f'[parser] Error: "{file_path}"\n{traceback.format_exc()}\n')
+        return JSONResponse(
+            {'code': 1, 'errMsg': e.error_msg, 'data': None,
+             'error_code': e.error_code, 'error_msg': e.error_msg},
+            status_code=200
+        )
+    except Exception as e:
+        logger.error(f'[parser] Error: "{file_path}"\n{traceback.format_exc()}\n')
+        return make_failure_response(str(e))
+    finally:
+        logger.info(f'[parser] End: "{file_path}" ({time.time() - pt:.2f} seconds)')
 
     return make_success_response(data=result)
 
@@ -255,9 +283,8 @@ async def upload_and_run(
         # DocumentProcessor 호출
         data = await get_processor()(request, tmp_file_path, **params)
         logger.info(f'[intelligent] Upload success: "{original_filename}"')
-
-        # GenOSVectorMeta 모델 -> dict 변환
-        result = [item.model_dump() if hasattr(item, 'model_dump') else item for item in data]
+        result = data
+        # result = [item.model_dump() if hasattr(item, 'model_dump') else item for item in data]
 
     except GenosServiceException as e:
         logger.error(f'[intelligent] Upload error: "{file.filename}"\n{traceback.format_exc()}\n')

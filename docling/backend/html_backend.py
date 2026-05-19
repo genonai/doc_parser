@@ -33,7 +33,6 @@ from docling_core.types.doc import (
     GroupLabel,
     PictureClassificationLabel,
     PictureClassificationMetaField,
-    PictureClassificationPrediction,
     PictureItem,
     PictureMeta,
     ProvenanceItem,
@@ -45,7 +44,7 @@ from docling_core.types.doc import (
     TableItem,
     TextItem,
 )
-from docling_core.types.doc.document import ContentLayer, Formatting, ImageRef, Script
+from docling_core.types.doc.document import ContentLayer, Formatting, ImageRef, PictureClassificationPrediction, Script
 from PIL import Image, UnidentifiedImageError
 from pydantic import AnyUrl, BaseModel, ValidationError
 from typing_extensions import override
