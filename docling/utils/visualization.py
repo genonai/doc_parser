@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from docling_core.types.doc import DocItemLabel
 from PIL import Image, ImageDraw, ImageFont
 from PIL.ImageFont import FreeTypeFont

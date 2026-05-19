@@ -195,7 +195,7 @@ class XBRLBackendOptions(BaseBackendOptions):
 
     kind: Annotated[Literal["xbrl"], Field("xbrl", exclude=True, repr=False)] = "xbrl"
     taxonomy: Annotated[
-        Path | None,
+        Optional[Path],
         Field(
             description=(
                 "Path to a folder with the taxonomy required by the XBRL instance"

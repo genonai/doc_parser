@@ -1,0 +1,135 @@
+version: '3.9'
+
+services:
+  ############################
+  # 지능형 전처리기 FastAPI 서버
+  ############################
+  intelligent-preprocessor:
+    build:
+      context: .
+      dockerfile: genon/preprocessor/docker/Dockerfile.intelligent
+      args:
+        PY_VER: "3.12"
+
+    container_name: intelligent-preprocessor
+
+    image: intelligent-preprocessor:latest
+
+    ports:
+      - "${API_PORT:-7085}:7085"
+
+    environment:
+      # HuggingFace Token (비-PDF 변환용, 부록 SDK)
+      HF_TOKEN: ${HF_TOKEN:-}
+
+      # 로깅
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+
+      # 캐시 경로
+      HF_HOME: /app/.cache/huggingface
+      PYTHONUNBUFFERED: 1
+
+    volumes:
+      # 입력 샘플 파일
+      - ./genon/preprocessor/sample_files:/workspace/input:ro
+
+      # 처리 결과 저장
+      - ./output:/workspace/output
+
+      # 캐시 (모델, HuggingFace)
+      - intelligent-cache:/app/.cache
+      - intelligent-config:/app/.config
+
+    # 리소스 제한
+    deploy:
+      resources:
+        limits:
+          cpus: '${CPU_LIMIT:-4}'
+          memory: '${MEMORY_LIMIT:-16G}'
+        reservations:
+          cpus: '${CPU_RESERVE:-2}'
+          memory: '${MEMORY_RESERVE:-8G}'
+
+    # 자동 재시작
+    restart: unless-stopped
+
+    # 헬스체크
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:7085/healthcheck"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+    # 로깅
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "10"
+        labels: "service=intelligent-preprocessor"
+
+  ############################
+  # OCR 서버 (선택사항)
+  ############################
+  ocr-server:
+    image: paddlepaddle/paddleocr:latest-cpu
+
+    container_name: ocr-server
+
+    ports:
+      - "${OCR_PORT:-48080}:8080"
+
+    environment:
+      LANG: C.UTF-8
+      LC_ALL: C.UTF-8
+
+    volumes:
+      - ocr-cache:/root/.paddleocr
+
+    restart: unless-stopped
+
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: '4G'
+        reservations:
+          cpus: '1'
+          memory: '2G'
+
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "5"
+        labels: "service=ocr-server"
+
+    # 기본값으로 비활성화 (필요시 활성화)
+    profiles: ["with-ocr"]
+
+############################
+# Volumes
+############################
+volumes:
+  intelligent-cache:
+    driver: local
+  intelligent-config:
+    driver: local
+  ocr-cache:
+    driver: local
+
+############################
+# Networks
+############################
+networks:
+  default:
+    name: intelligent-network
+    driver: bridge
