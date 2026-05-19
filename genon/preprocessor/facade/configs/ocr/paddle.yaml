@@ -10,7 +10,7 @@ bitmap_area_threshold: 0.05
 
 # ── PaddleOCR 전용 옵션 ───────────────────────────────────────────────────────
 # ocr_endpoint: PaddleOCR 서버 주소 (필수)
-ocr_endpoint: "http://192.168.73.172:48080/ocr"
+ocr_endpoint: "http://doc-parser-ocr-deployment:8080/ocr"
 
 # text_score: 인식 결과 신뢰도 임계값, 미만은 버림 (기본 0.5)
 text_score: 0.3
