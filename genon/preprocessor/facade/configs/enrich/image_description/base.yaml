@@ -1,8 +1,10 @@
 # ImageDescriptionEnricher 설정 — google/gemini-2.0-flash-001 (OpenRouter)
 
 api_key: null
-url: https://openrouter.ai/api/v1/chat/completions
-model: google/gemini-2.0-flash-001
+url: null
+genos_url: null
+serving_id: null
+model: model
 max_tokens: 1000
 temperature: 0.1
 timeout: 90

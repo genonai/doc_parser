@@ -48,7 +48,7 @@ class MetadataEnricher(BaseEnricher):
             do_toc_enrichment=False,
             extract_metadata=True,
             metadata_api_provider="openrouter",
-            metadata_api_base_url=url or cfg.get("url", ""),
+            metadata_api_base_url=self._resolve_url(url, cfg),
             metadata_api_key=api_key or cfg.get("api_key", ""),
             metadata_model=model or cfg.get("model", ""),
             metadata_temperature=temperature if temperature != 0.0 else cfg.get("temperature", temperature),

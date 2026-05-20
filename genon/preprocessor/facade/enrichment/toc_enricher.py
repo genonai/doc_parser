@@ -51,7 +51,7 @@ class TOCEnricher(BaseEnricher):
             toc_doc_type=doc_type,
             extract_metadata=False,
             toc_api_provider="openrouter",
-            toc_api_base_url=url or cfg.get("url", ""),
+            toc_api_base_url=self._resolve_url(url, cfg),
             toc_api_key=api_key or cfg.get("api_key", ""),
             toc_model=model or cfg.get("model", ""),
             toc_temperature=temperature if temperature != 0.0 else cfg.get("temperature", temperature),

@@ -1,8 +1,10 @@
 # MetadataEnricher 설정 — mistralai/mistral-small-3.1-24b-instruct (OpenRouter)
 
 api_key: null
-url: https://openrouter.ai/api/v1/chat/completions
-model: mistralai/mistral-small-3.1-24b-instruct
+url: null
+genos_url: null
+serving_id: null
+model: model
 temperature: 0.0
 top_p: 0.00001
 seed: 33

@@ -47,7 +47,7 @@ class ImageDescriptionEnricher(BaseEnricher):
         prompt: str = "",
     ):
         cfg = self._load_config(config_file)
-        self._url = url or cfg.get("url", "")
+        self._url = self._resolve_url(url, cfg)
         self._model = model if model != "gpt-4o" else cfg.get("model", model)
         self._max_tokens = max_tokens if max_tokens != 1000 else cfg.get("max_tokens", max_tokens)
         self._temperature = temperature if temperature != 0.1 else cfg.get("temperature", temperature)
