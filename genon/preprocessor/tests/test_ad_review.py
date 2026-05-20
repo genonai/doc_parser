@@ -25,8 +25,10 @@ ad_review 데이터셋 파싱 테스트 스크립트.
 
 import argparse
 import json
+import re
 import sys
 import time
+from datetime import datetime, timezone, timedelta
 from pathlib import Path
 
 import requests
@@ -35,8 +37,6 @@ import requests
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 DATASET_DIR = REPO_ROOT / "dataset_ad_review"
 DEFAULT_FILE = DATASET_DIR / "test_guide.pdf"
-DEFAULT_FILE2 = DATASET_DIR / "(5-1) 회사홈페이지(자동차)_검토용.pdf"
-DEFAULT_FILE3 = DATASET_DIR / "(3-1) 배너1_다렉트장기AI보험(주택화재플랜)_검토용.pdf"
 DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 7085
 
@@ -54,6 +54,11 @@ def check_server(host: str, port: int, timeout: int = 5) -> bool:
         return False
 
 
+def extract_file_num(file_path: Path) -> str | None:
+    m = re.match(r'^\((\d+-\d+)\)', file_path.stem)
+    return m.group(1) if m else None
+
+
 def call_api(url: str, file_path: Path, params: dict, timeout: int) -> dict:
     payload = {
         "file_path": str(file_path.resolve()),
@@ -63,12 +68,29 @@ def call_api(url: str, file_path: Path, params: dict, timeout: int) -> dict:
     response.raise_for_status()
     return response.json()
 
-def save_result(result: dict, file_path: Path, output_dir: Path) -> Path:
+def save_result(result: dict, file_path: Path, output_dir: Path, elapsed: float = 0.0) -> Path:
     output_dir.mkdir(parents=True, exist_ok=True)
-    out_file = output_dir / (file_path.stem + ".json")
+    kst = timezone(timedelta(hours=9))
+    now = datetime.now(tz=kst)
+    ts = now.strftime("%Y%m%d_%H%M%S")
+    metadata = {
+        "file_num": extract_file_num(file_path),
+        "file_name": file_path.name,
+        "created_at": now.strftime("%Y-%m-%d %H:%M:%S"),
+        "elapsed_sec": round(elapsed, 2),
+    }
+    ordered = {}
+    for k, v in result.items():
+        if k == "data":
+            ordered["metadata"] = metadata
+        ordered[k] = v
+    if "metadata" not in ordered:
+        ordered["metadata"] = metadata
+    out_file = output_dir / f"{file_path.stem}_{ts}.json"
     with open(out_file, "w", encoding="utf-8") as f:
-        json.dump(result, f, indent=2, ensure_ascii=False)
+        json.dump(ordered, f, indent=2, ensure_ascii=False)
     return out_file
+
 
 
 def print_summary(result: dict, file_path: Path, elapsed: float):
@@ -77,7 +99,6 @@ def print_summary(result: dict, file_path: Path, elapsed: float):
     if code != 0:
         print(f"  [FAIL] {result.get('errMsg', 'unknown error')}")
         return
-    print(data)
     elements = data.get("elements", [])
     usage = data.get("usage", {})
     pages = usage.get("pages", "?")
@@ -90,6 +111,7 @@ def print_summary(result: dict, file_path: Path, elapsed: float):
             cats[c] = cats.get(c, 0) + 1
         cat_str = ", ".join(f"{k}={v}" for k, v in sorted(cats.items()))
         print(f"  categories: {cat_str}")
+
     print(f"  elapsed : {elapsed:.2f}s")
 
 
@@ -110,10 +132,23 @@ def process_file(url: str, file_path: Path, output_dir: Path, params: dict, time
         return False
 
     elapsed = time.time() - t0
-    out_file = save_result(result, file_path, output_dir)
+    out_file = save_result(result, file_path, output_dir, elapsed=elapsed)
     print(f"  저장   : {out_file}")
     print_summary(result, file_path, elapsed)
     return result.get("code", -1) == 0
+
+
+def resolve_file(file_arg: str | None) -> Path:
+    if file_arg is None:
+        return DEFAULT_FILE
+    if file_arg.isdigit():
+        pattern = f"({file_arg}-1) *.pdf"
+        matches = sorted(DATASET_DIR.glob(pattern))
+        if not matches:
+            print(f"[ERROR] ({file_arg}-1) 패턴에 매칭되는 파일 없음: {DATASET_DIR}")
+            sys.exit(1)
+        return matches[0]
+    return Path(file_arg)
 
 
 def main():
@@ -159,15 +194,15 @@ def main():
     parser.add_argument(
         "--timeout",
         type=int,
-        default=3000,
-        help="요청 타임아웃(초) (기본값: 3000)",
+        default=500,
+        help="요청 타임아웃(초) (기본값: 500)",
     )
     parser.add_argument(
         "--log-level",
         type=int,
-        default=4,
+        default=5,
         choices=[0, 1, 2, 3, 4, 5],
-        help="서버 로그 레벨 (0=NOLOG ~ 5=DEBUG, 기본값: 4=INFO)",
+        help="서버 로그 레벨 (0=NOLOG ~ 5=DEBUG, 기본값: 5=DEBUG)",
     )
     args = parser.parse_args()
 
@@ -195,7 +230,7 @@ def main():
             sys.exit(1)
         print(f"\n{len(files)}개 PDF 발견 (/{args.api} API, 출력: {output_dir})")
     else:
-        target = Path(args.file) if args.file else DEFAULT_FILE
+        target = resolve_file(args.file)
         files = [target]
         print(f"\n파일: {files[0].name} (/{args.api} API, 출력: {output_dir})")
 

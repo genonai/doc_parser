@@ -16,6 +16,7 @@ intelligent_processor.py 와 attachment_processor.py 에서 파싱에 필요한 
 from __future__ import annotations
 
 import base64
+import io
 import json
 import logging
 import math
@@ -592,7 +593,8 @@ class IntelligentDocumentProcessor:
             force_full_page_ocr=False,
             lang=['korean'],
             ocr_endpoint=ocr_ep,
-            text_score=0.3)
+            text_score=0.5)  # 0.3 → 0.5: 저신뢰도 오인식 억제 (예: "납입"→"납업")
+        self.ocr_options = ocr_options
 
         self.page_chunk_counts = defaultdict(int)
         device = AcceleratorDevice.AUTO
@@ -625,6 +627,7 @@ class IntelligentDocumentProcessor:
         self.ocr_pipe_line_options.do_ocr = True
         self.ocr_pipe_line_options.ocr_options = ocr_options.model_copy(deep=True)
         self.ocr_pipe_line_options.ocr_options.force_full_page_ocr = True
+        self.ocr_pipe_line_options.images_scale = 3  # 2 → 3: OCR 경로 전용 해상도 상향 (144→216 DPI). PDF 내 저해상도 임베디드 이미지 OCR 품질 개선. 비OCR 경로는 2 유지.
 
         self._create_converters()
 
@@ -800,7 +803,7 @@ class IntelligentDocumentProcessor:
                     target_height = 20
                     zoom_factor = target_height / bbox_height if bbox_height > 0 else 1.0
                     zoom_factor = min(zoom_factor, 4.0)
-                    zoom_factor = max(zoom_factor, 1)
+                    zoom_factor = max(zoom_factor, 3)  # 1 → 3: 테이블셀 최소 216 DPI 보장. 기존 max=1이면 일반 셀(>20pt)은 72 DPI로 렌더링되어 OCR 오인식 발생.
 
                     mat = _fitz.Matrix(zoom_factor, zoom_factor)
                     pix = page.get_pixmap(matrix=mat, clip=cell_bbox)
@@ -809,14 +812,82 @@ class IntelligentDocumentProcessor:
                     result = post_ocr_bytes(img_data, timeout=60)
                     rec_texts, rec_scores, rec_boxes = extract_ocr_fields(result)
 
+                    # rec_scores 필터 추가: ocr_all_picture_items와 동일하게 text_score 기준 적용.
+                    # 기존에는 rec_scores를 수집만 하고 필터링 없이 모든 rec_texts를 사용했음.
                     cell.text = ""
-                    for t in rec_texts:
+                    for t, s in zip(rec_texts, rec_scores):
+                        if s < self.ocr_options.text_score:
+                            continue
                         if len(cell.text) > 0:
                             cell.text += " "
                         cell.text += t if t else ""
         except Exception as e:
             print(f"OCR processing failed: {e}")
             pass
+
+        return document
+
+    def ocr_all_picture_items(self, document: DoclingDocument, pdf_path: str) -> DoclingDocument:
+        """이미지(PictureItem) 영역에 OCR을 수행하여 텍스트를 meta.description에 저장합니다."""
+        import fitz as _fitz
+        import base64 as _base64
+        from docling_core.types.doc.document import PictureMeta, DescriptionMetaField
+
+        def post_ocr_bytes(img_bytes: bytes, timeout=60) -> dict:
+            HEADERS = {"Accept": "application/json", "Content-Type": "application/json"}
+            payload = {"file": _base64.b64encode(img_bytes).decode("ascii"), "fileType": 1, "visualize": False}
+            r = requests.post(self.ocr_endpoint, json=payload, headers=HEADERS, timeout=timeout)
+            if not r.ok:
+                raise RuntimeError(f"OCR HTTP {r.status_code}: {r.text[:500]}")
+            return r.json()
+
+        def extract_text_from_ocr(resp: dict) -> str:
+            if resp is None:
+                return ""
+            if resp.get("errorCode") not in (0, None):
+                return ""
+            ocr_results = resp.get("result", {}).get("ocrResults", [])
+            if not ocr_results:
+                return ""
+            pruned = ocr_results[0].get("prunedResult", {})
+            if not pruned:
+                return ""
+            rec_texts = pruned.get("rec_texts", [])
+            rec_scores = pruned.get("rec_scores", [])
+            n = min(len(rec_texts), len(rec_scores))
+            parts = [rec_texts[i] for i in range(n) if rec_texts[i] and rec_scores[i] >= self.ocr_options.text_score]
+            return " ".join(parts)
+
+        try:
+            doc = _fitz.open(pdf_path)
+
+            for picture_item in document.pictures:
+                if not picture_item.prov:
+                    continue
+
+                page_no = picture_item.prov[0].page_no - 1
+                bbox = picture_item.prov[0].bbox
+
+                page = doc.load_page(page_no)
+                pic_rect = _fitz.Rect(
+                    bbox.l, min(bbox.t, bbox.b),
+                    bbox.r, max(bbox.t, bbox.b)
+                )
+
+                mat = _fitz.Matrix(3.0, 3.0)  # 2.0 → 3.0: 이미지 OCR 해상도 상향 (144→216 DPI). 테이블셀 zoom과 동일 기준 적용.
+                pix = page.get_pixmap(matrix=mat, clip=pic_rect)
+                img_data = pix.tobytes("png")
+
+                result = post_ocr_bytes(img_data, timeout=60)
+                ocr_text = extract_text_from_ocr(result)
+
+                if ocr_text.strip():
+                    if picture_item.meta is None:
+                        picture_item.meta = PictureMeta()
+                    picture_item.meta.description = DescriptionMetaField(text=ocr_text.strip())
+
+        except Exception as e:
+            _log.warning(f"[ocr_all_picture_items] failed: {e}")
 
         return document
 
@@ -1098,6 +1169,7 @@ class DocumentProcessor:
 
         if ocr_mode != "disable" and self._intel.ocr_endpoint:
             document = self._intel.ocr_all_table_cells(document, file_path)
+            document = self._intel.ocr_all_picture_items(document, file_path)
 
         # output_path, output_file = os.path.split(file_path)
         # filename, _ = os.path.splitext(output_file)
@@ -1238,7 +1310,47 @@ class DocumentProcessor:
         return getattr(item, "text", "") or ""
 
     @staticmethod
-    def _docling_to_parse_format(doc: DoclingDocument, table_format: str = "html") -> dict:
+    def _picture_to_base64_url(item: PictureItem, doc: DoclingDocument) -> str:
+        """PictureItem 이미지를 data URI (base64 PNG) 문자열로 변환."""
+        # 1) item.image.uri가 data: URI면 바로 반환 (가장 효율적)
+        if item.image is not None:
+            try:
+                uri_str = str(item.image.uri)
+                if uri_str.startswith("data:image"):
+                    return uri_str
+            except Exception as e:
+                _log.warning(f"[_picture_to_base64_url] step1 uri failed: {e}")
+
+            # 2) uri가 file: 또는 Path인 경우 pil_image 경유
+            try:
+                pil = item.image.pil_image
+                if pil is not None:
+                    buf = io.BytesIO()
+                    pil.save(buf, format="PNG")
+                    b64 = base64.b64encode(buf.getvalue()).decode("utf-8")
+                    return f"data:image/png;base64,{b64}"
+            except Exception as e:
+                _log.warning(f"[_picture_to_base64_url] step2 pil_image failed: {e}")
+        else:
+            _log.warning("[_picture_to_base64_url] item.image is None — generate_picture_images may not have run")
+
+        # 3) page 이미지에서 bbox crop (page.image가 있을 때만 동작)
+        try:
+            pil = item.get_image(doc=doc)
+            if pil is not None:
+                buf = io.BytesIO()
+                pil.save(buf, format="PNG")
+                b64 = base64.b64encode(buf.getvalue()).decode("utf-8")
+                return f"data:image/png;base64,{b64}"
+            else:
+                _log.warning("[_picture_to_base64_url] step3 get_image returned None")
+        except Exception as e:
+            _log.warning(f"[_picture_to_base64_url] step3 get_image failed: {e}")
+
+        return ""
+
+    @staticmethod
+    def _docling_to_parse_format(doc: DoclingDocument, table_format: str = "html", save_images: bool = True) -> dict:
         """DoclingDocument → sample_result.json 호환 출력 포맷."""
         elements = []
         element_id = 0
@@ -1277,23 +1389,35 @@ class DocumentProcessor:
             #     category = f"heading{level}"
 
             # html = DocumentProcessor._item_to_html(item, element_id, doc)
+            image_url = None
             if isinstance(item, TableItem):
                 text = DocumentProcessor._export_table_content(
                     item=item,
                     doc=doc,
                     table_format=table_format,
                 )
+            elif isinstance(item, PictureItem):
+                text = (
+                    item.meta.description.text
+                    if item.meta is not None and item.meta.description is not None
+                    else ""
+                )
+                if save_images:
+                    image_url = DocumentProcessor._picture_to_base64_url(item, doc)
             else:
                 text = getattr(item, "text", "") or ""
 
-            elements.append({
+            element = {
                 "category": label_value,
                 # "content": {"html": html, "markdown": "", "text": text},
                 "content": text,
                 "coordinates": coordinates,
                 "id": element_id,
                 "page": page_no,
-            })
+            }
+            if image_url:
+                element["image_url"] = image_url
+            elements.append(element)
             element_id += 1
 
         # full_html = "\n".join(e["content"]["html"] for e in elements)
@@ -1390,13 +1514,13 @@ class DocumentProcessor:
             "content": content,
         }
 
-    def _build_docling_response(self, doc: DoclingDocument, clear_coordinates: bool = False) -> dict:
+    def _build_docling_response(self, doc: DoclingDocument, clear_coordinates: bool = False, save_images: bool = True) -> dict:
         """Docling 경로의 최종 응답 생성."""
         output_format = getattr(self, "_output_format", "json")
         table_format = getattr(self, "_table_format", "html")
 
         if output_format == "json":
-            result = self._docling_to_parse_format(doc, table_format=table_format)
+            result = self._docling_to_parse_format(doc, table_format=table_format, save_images=save_images)
             if clear_coordinates:
                 for element in result.get("elements", []):
                     element["coordinates"] = []
@@ -1502,7 +1626,7 @@ class DocumentProcessor:
     # ------------------------------------------------------------------
 
     async def __call__(self, request: Request, file_path: str, **kwargs) -> dict:
-        self.setup_logging(kwargs.get('log_level', 4))
+        self.setup_logging(kwargs.get('log_level', 5))
 
         ext = os.path.splitext(file_path)[-1].lower()
         _log.info(f"[DocumentProcessor] file_path={file_path}, ext={ext}")
@@ -1515,18 +1639,20 @@ class DocumentProcessor:
             data_dict = self._parse_tabular(file_path)
             return self._normalize_response(self._tabular_to_parse_format(data_dict))
 
+        save_images = kwargs.get("save_images", True)
+
         if ext in (".hwp", ".hwpx"):
             doc = self._parse_hwp_hwpx(file_path, **kwargs)
-            return self._normalize_response(self._build_docling_response(doc))
+            return self._normalize_response(self._build_docling_response(doc, save_images=save_images))
 
         if ext == ".docx":
             doc = self._parse_docx(file_path, **kwargs)
-            return self._normalize_response(self._build_docling_response(doc, clear_coordinates=True))
+            return self._normalize_response(self._build_docling_response(doc, clear_coordinates=True, save_images=save_images))
 
         if ext in (".pdf", ".html", ".htm"):
             doc = self._parse_docling(file_path, **kwargs)
             # result["docling_document"] = self._serialize_docling_document(doc)
-            return self._normalize_response(self._build_docling_response(doc))
+            return self._normalize_response(self._build_docling_response(doc, save_images=save_images))
 
         # 기타 포맷: doc, ppt, pptx, txt, json, md, jpg, jpeg, png 등
         docs = self._parse_other(file_path, **kwargs)

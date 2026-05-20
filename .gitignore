@@ -52,7 +52,13 @@ logs/
 # Environment
 .env
 .env.local
+*.env
 
 # OS
 Thumbs.db
 .cache
+
+# other
+dataset_ad_review/*
+!dataset_ad_review/test_guide.pdf
+!dataset_ad_review/*_검토용.pdf
