@@ -40,6 +40,7 @@ class ImageDescriptionEnricher(BaseEnricher):
         api_key: str = "",
         config_file: str = "",
         url: str = "",
+        genos_url: str = "",
         model: str = "gpt-4o",
         max_tokens: int = 1000,
         temperature: float = 0.1,
@@ -47,7 +48,7 @@ class ImageDescriptionEnricher(BaseEnricher):
         prompt: str = "",
     ):
         cfg = self._load_config(config_file)
-        self._url = self._resolve_url(url, cfg)
+        self._url = self._resolve_url(url, cfg, genos_url)
         self._model = model if model != "gpt-4o" else cfg.get("model", model)
         self._max_tokens = max_tokens if max_tokens != 1000 else cfg.get("max_tokens", max_tokens)
         self._temperature = temperature if temperature != 0.1 else cfg.get("temperature", temperature)

@@ -29,15 +29,24 @@ class BaseProcessor:
         self._ext_loaders = self._build_ext_loaders(config["format_options"], config.get("resource_path"))
         self._default_chunker = self._build_chunker(config["chunker"])
         self._ext_chunkers = self._build_ext_chunkers(config["format_options"], config["chunker"])
-        self.enrichers = self._build_enrichers(config.get("enrichers", []))
+        self.enrichers = self._build_enrichers(
+            config.get("enrichers", []),
+            resource_path=config.get("resource_path"),
+            genos_url=config.get("genos_url", ""),
+        )
         self.genos_meta_builder = GenOSVectorMetaBuilder()
 
-    def _build_enrichers(self, enrichers_cfg: list) -> list:
+    def _build_enrichers(self, enrichers_cfg: list, resource_path: str | None = None, genos_url: str = "") -> list:
+        if not resource_path or not enrichers_cfg:
+            return []
         result = []
-        for cfg in enrichers_cfg:
-            name = cfg["name"]
-            options = {k: v for k, v in cfg.items() if k != "name"}
-            result.append(ENRICHERS[name](**options))
+        for name in enrichers_cfg:
+            cls = ENRICHERS.get(name)
+            assert cls is not None, f"지원하지 않는 enricher: {name}. 가능한 값: {list(ENRICHERS.keys())}"
+            yaml_path = Path(resource_path) / f"{name}.yaml"
+            assert yaml_path.exists(), f"enricher config 없음: {yaml_path}"
+            result.append(cls(config_file=str(yaml_path), genos_url=genos_url))
+        return result
         return result
 
     def _build_chunker(self, chunker_cfg: dict | str):
