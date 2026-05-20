@@ -1,0 +1,30 @@
+format_options:
+  pdf:
+    pipeline_options: pdf
+    backend: pypdf
+    generate_picture_images: true
+    do_ocr: easy
+  docx:
+    pipeline_options: simple
+    backend: msword
+  md:
+    pipeline_options: simple
+    backend: md
+  html:
+    pipeline_options: simple
+    backend: html
+  hwpx:
+    pipeline_options: simple
+    backend: hwpx
+  pptx:
+    pipeline_options: simple
+    backend: mspowerpoint
+
+chunker:
+  name: smart
+  max_tokens: 1024
+
+enrichers: []
+
+return_level: vector
+log_level: 4
