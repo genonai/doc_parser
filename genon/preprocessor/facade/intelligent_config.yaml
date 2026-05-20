@@ -26,5 +26,7 @@ chunker:
 
 enrichers: []
 
+genos_url: genos.genon.ai
+resource_path: /app/resource
 return_level: vector
 log_level: 4
