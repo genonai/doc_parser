@@ -39,7 +39,8 @@
 
 - Enrichment Refactoring
   - image description ✅
-  - ToC
+  - ToC ✅
+  - metadata (`extract_metadata`) ✅ → `MetadataEnricher` (`genon/preprocessor/facade/enrichment/metadata_enricher.py`)
 
 - Chunkers
   - GenosSmartChunker ✅
@@ -115,20 +116,7 @@
 - attachment_processor vs test_attachment_processor 비교: ✅ **완료** (12/12 통과, hwpx 제외)
 - test_intelligent_processor vs intelligent_processor 비교: ✅ **완료**
 - intelligent_processor OCR 테스트
-  - **EasyOCR 청커 설정 주의**: OLD `intelligent_processor.split_documents()`는 `max_chunk_size` kwarg로 토큰 제한 설정 (`default=0 → 병합 없음`). 비교 시 반드시 `split_documents(doc, max_chunk_size=1024)` 명시해야 NEW(GenosSmartChunker, max_tokens=1024)와 공정 비교 가능
-  - **EasyOCR (CPU 모드)**: pdf_sample.pdf 기준 — `max_tokens=1024` 동일 조건, OLD 5청크 vs NEW 4청크, 3/6 페이지 일치. page 7↔8 미스매치는 페이지 경계 걸친 청크의 귀속 차이(내용 소실 아님), page 11 병합 경계 차이 1건. 실질적 동등 ✅
-  - Paddle / Tesseract / Rapid: 추후
-- intelligent_processor ImageDescriptionEnricher 테스트
-  - **picture_area_threshold=0.001 필수**: 기본값 0.05면 작은 이미지 전부 필터링됨 (레거시 OKDS_pdf.py 참고)
-  - **OLD (PictureDescriptionApiOptions)**: "다음은 이미지에 대한 설명입니다." 전치 문장이 자동 추가됨 (docling pipeline 동작)
-  - **NEW (ImageDescriptionEnricher)**: 설명만 깔끔하게 출력
-  - **결과**: OLD 13/13 ✅, NEW 13/13 ✅ — 동등
-  - **config 구조**: `configs/enrich/image_description/gemini-2.0-flash.yaml` (url + model + prompt 통합)
-  - **enricher 사용법**: `{"name": "image_description", "api_key": "...", "config_file": "gemini-2.0-flash"}`
 
 
 ## unit test
 
-
-이거 구조 변경좀 하자
-configs/enrich/image_description/모델 이름.yaml 뭐 이런 식으로 두고 프롬프트도 여기에 두자
