@@ -26,7 +26,7 @@ class BaseProcessor:
             "vector",
         ], f"다음 리턴 레벨 중에서 골라주세요: document | chunk | vector, 현재 리턴 레벨: {self.return_level}"
 
-        self._ext_loaders = self._build_ext_loaders(config["format_options"])
+        self._ext_loaders = self._build_ext_loaders(config["format_options"], config.get("resource_path"))
         self._default_chunker = self._build_chunker(config["chunker"])
         self._ext_chunkers = self._build_ext_chunkers(config["format_options"], config["chunker"])
         self.enrichers = self._build_enrichers(config.get("enrichers", []))
@@ -48,8 +48,8 @@ class BaseProcessor:
             name, options = chunker_cfg, {}
         return CHUNKERS[name](**options)
 
-    def _build_ext_loaders(self, format_options: dict) -> dict:
-        docling_loader = DoclingLoader(format_options)
+    def _build_ext_loaders(self, format_options: dict, resource_path: str | None = None) -> dict:
+        docling_loader = DoclingLoader(format_options, resource_path=resource_path)
         return {ext: docling_loader for ext in format_options}
 
     def _build_ext_chunkers(self, format_options: dict, default_chunker: dict | str) -> dict:

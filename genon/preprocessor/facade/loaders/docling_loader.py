@@ -44,7 +44,7 @@ OCR_ENGINE_MAP = {
 }
 
 
-def _load_ocr_options(do_ocr_cfg: dict | str):
+def _load_ocr_options(do_ocr_cfg: dict | str, resource_path: Path | None = None):
     """
     do_ocr 설정을 OcrOptions 인스턴스로 변환.
 
@@ -52,14 +52,16 @@ def _load_ocr_options(do_ocr_cfg: dict | str):
         {"Easy": {"force_full_page_ocr": True, "lang": ["ko", "en"]}}
 
     형식 2 — YAML 파일명(확장자 제외):
-        "easy"  →  configs/ocr/easy.yaml 로드
+        "easy"  →  resource_path/easy.yaml 로드 (resource_path 필수)
+        configs/ocr/*.yaml 은 참고용 샘플이며 런타임에 사용되지 않음
     """
     if isinstance(do_ocr_cfg, str):
-        yaml_path = _OCR_YAML_DIR / f"{do_ocr_cfg.lower()}.yaml"
+        engine_key = do_ocr_cfg.lower()
+        yaml_name = f"{engine_key}.yaml"
+        yaml_path = (resource_path / yaml_name) if resource_path else (_OCR_YAML_DIR / yaml_name)
         assert yaml_path.exists(), f"OCR YAML 없음: {yaml_path}"
         with open(yaml_path) as f:
             raw = yaml.safe_load(f)
-        engine_key = do_ocr_cfg.lower()
         options_dict = {k: v for k, v in raw.items() if v is not None}
     else:
         assert len(do_ocr_cfg) == 1, "do_ocr dict는 엔진 이름 키 하나만 허용"
@@ -136,8 +138,9 @@ class DoclingLoader(BaseLoader):
         }
     """
 
-    def __init__(self, format_options: dict) -> None:
+    def __init__(self, format_options: dict, resource_path: str | None = None) -> None:
         self._format_options_cfg = format_options
+        self._resource_path = Path(resource_path) if resource_path else None
         self._bypass_loaders: dict[str, BaseLoader] = {}
         self._converter: DocumentConverter | None = None
         self._setup()
@@ -181,7 +184,7 @@ class DoclingLoader(BaseLoader):
             if hasattr(fmt_opt.pipeline_options, "do_ocr"):
                 if "do_ocr" in opt:
                     fmt_opt.pipeline_options.do_ocr = True
-                    fmt_opt.pipeline_options.ocr_options = _load_ocr_options(opt["do_ocr"])
+                    fmt_opt.pipeline_options.ocr_options = _load_ocr_options(opt["do_ocr"], self._resource_path)
                 else:
                     fmt_opt.pipeline_options.do_ocr = False
 
