@@ -21,6 +21,9 @@ ad_review 데이터셋 파싱 테스트 스크립트.
 
     # 서버 주소 및 출력 디렉토리 지정
     python genon/preprocessor/tests/test_ad_review.py --all --host 127.0.0.1 --port 7085 --output results/
+
+    # picture 요소의 image_url 생성 비활성화 (기본값: 활성화)
+    python genon/preprocessor/tests/test_ad_review.py --no-save-images
 """
 
 import argparse
@@ -148,7 +151,13 @@ def resolve_file(file_arg: str | None) -> Path:
             print(f"[ERROR] ({file_arg}-1) 패턴에 매칭되는 파일 없음: {DATASET_DIR}")
             sys.exit(1)
         return matches[0]
-    return Path(file_arg)
+    p = Path(file_arg)
+    # 파일명만 넘겼을 때 DATASET_DIR에서 찾기
+    if not p.is_absolute() and "/" not in file_arg and "\\" not in file_arg:
+        candidate = DATASET_DIR / p
+        if candidate.exists():
+            return candidate
+    return p
 
 
 def main():
@@ -204,6 +213,13 @@ def main():
         choices=[0, 1, 2, 3, 4, 5],
         help="서버 로그 레벨 (0=NOLOG ~ 5=DEBUG, 기본값: 5=DEBUG)",
     )
+    parser.add_argument(
+        "--no-save-images",
+        dest="save_images",
+        action="store_false",
+        default=True,
+        help="picture 요소의 image_url 생성 비활성화 (기본값: 활성화)",
+    )
     args = parser.parse_args()
 
     # 서버 상태 확인
@@ -220,15 +236,16 @@ def main():
 
     url = build_url(args.host, args.port, args.api)
     output_dir = Path(args.output) if args.output else DATASET_DIR / "results" / args.api
-    params = {"log_level": args.log_level}
+    params = {"log_level": args.log_level, "save_images": args.save_images}
 
     # 처리할 파일 목록 결정
     if args.all:
-        files = sorted(DATASET_DIR.glob("*.pdf"))
+        files = sorted(DATASET_DIR.glob("*.pdf")) + sorted(DATASET_DIR.glob("*.pptx"))
+        files = sorted(files)
         if not files:
-            print(f"[ERROR] PDF 파일 없음: {DATASET_DIR}")
+            print(f"[ERROR] PDF/PPTX 파일 없음: {DATASET_DIR}")
             sys.exit(1)
-        print(f"\n{len(files)}개 PDF 발견 (/{args.api} API, 출력: {output_dir})")
+        print(f"\n{len(files)}개 파일 발견 (/{args.api} API, 출력: {output_dir})")
     else:
         target = resolve_file(args.file)
         files = [target]

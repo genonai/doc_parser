@@ -228,11 +228,39 @@ class PyPdfiumPageBackend(PdfPageBackend):
                     b=max(cell.rect.to_bounding_box().b for cell in group),
                 )
 
-                assert self._ppage is not None
-                self.text_page = self._ppage.get_textpage()
-                bbox = merged_bbox.to_bottom_left_origin(page_size.height)
-                merged_text = self.text_page.get_text_bounded(*bbox.as_tuple())
+                # [수정 이유]
+                # 기존 방식: 여러 셀의 bbox를 하나로 합친 뒤 get_text_bounded()를 재호출하여 텍스트 추출.
+                # 문제: PDF 내부에서 단어 사이 "공백"은 실제 공백 문자가 아닌 글리프 간 좌표 간격으로만
+                #       표현되는 경우가 많음. 합쳐진 bbox로 재추출하면 공백 문자 자체가 없어 텍스트가
+                #       모두 붙어서 나오는 현상 발생 (예: "보험계약" → "보험계약" 이 "보험 계약" 처럼
+                #       단어 경계가 있어야 할 위치에서도 공백 없이 출력됨).
+                #
+                # [수정 내용]
+                # 개별 셀이 이미 올바른 텍스트를 갖고 있으므로, get_text_bounded() 재호출 대신
+                # 각 셀의 텍스트를 직접 이어 붙임. 이때 인접 셀 간 좌표 간격이 평균 셀 높이의
+                # SPACE_THRESHOLD_FACTOR(15%) 이상이면 단어 경계로 판단하여 공백을 삽입.
+                # 일반적인 워드 스페이스 너비는 폰트 크기의 25~35% 수준이므로,
+                # 15%는 획 내부 간격은 무시하면서 단어 간 공백은 안정적으로 검출하는 기준값.
+                #
+                # [기존 코드 (참고용)]
+                # assert self._ppage is not None
+                # self.text_page = self._ppage.get_textpage()
+                # bbox = merged_bbox.to_bottom_left_origin(page_size.height)
+                # merged_text = self.text_page.get_text_bounded(*bbox.as_tuple())
 
+                SPACE_THRESHOLD_FACTOR = 0.15
+                parts = []
+                for i, cell in enumerate(group):
+                    parts.append(cell.text)
+                    if i < len(group) - 1:
+                        next_cell = group[i + 1]
+                        gap = next_cell.rect.to_bounding_box().l - cell.rect.to_bounding_box().r
+                        avg_height = (cell.rect.height + next_cell.rect.height) / 2
+                        if gap > avg_height * SPACE_THRESHOLD_FACTOR:
+                            parts.append(" ")
+                merged_text = "".join(parts)
+                # ================================================
+                
                 return TextCell(
                     index=group[0].index,
                     text=merged_text,

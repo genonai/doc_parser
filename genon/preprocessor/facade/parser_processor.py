@@ -463,6 +463,42 @@ class AudioLoader:
 _toc_system_prompt = """You are an expert at generating table of contents (목차) from Korean documents. You specialize in regulatory documents, terms of service, contracts, and mixed-format documents that combine formal regulatory structures with general section headers.
 """.strip()
 
+# ============================================================
+# 보험 도메인 OCR 교정 (domain knowledge injection)
+# ============================================================
+
+def _load_correction_dict(resource_dir: Path, filename: str = "insurance_correction_dict.yaml") -> dict[str, str]:
+    """config에서 지정한 교정 사전 파일을 로드한다.
+
+    resource_dir(예: resource_dev/)에 파일이 없으면 동급의 resource/ 폴더를 fallback으로 탐색한다.
+    """
+    candidates = [resource_dir / filename]
+    # resource_dev/ 같은 _dev 변형에서 파일이 없을 경우 resource/ 를 fallback
+    if not candidates[0].exists():
+        fallback = resource_dir.parent / "resource" / filename
+        if fallback != candidates[0]:
+            candidates.append(fallback)
+
+    for dict_path in candidates:
+        if not dict_path.exists():
+            continue
+        try:
+            with open(dict_path, "r", encoding="utf-8") as f:
+                data = yaml.safe_load(f) or {}
+            corrections = data.get("corrections", {})
+            if not isinstance(corrections, dict):
+                return {}
+            return {str(k): str(v) for k, v in corrections.items()}
+        except Exception as e:
+            _log.warning(f"[domain_correction] 교정 사전 로드 실패: {dict_path}: {e}")
+            return {}
+
+    _log.warning(f"[domain_correction] 교정 사전 파일 없음: {candidates[0]}")
+    return {}
+
+
+
+
 _toc_user_prompt = """
 Here is the Korean document you need to analyze:
 
@@ -1131,6 +1167,13 @@ class DocumentProcessor:
         self._output_format = self._normalize_output_format(output_cfg.get("format", "json"))
         self._table_format = self._normalize_table_format(output_cfg.get("table_format", "html"))
 
+        # 도메인 지식 주입: 보험 광고 OCR 교정 설정
+        domain_cfg = _as_dict(cfg.get("domain_correction"))
+        self._domain_correction_enabled = bool(domain_cfg.get("enabled", False))
+        resource_dir = Path(config_path).resolve().parent
+        dict_filename = str(domain_cfg.get("correction_dict") or "insurance_correction_dict.yaml")
+        self._domain_correction_dict: dict[str, str] = _load_correction_dict(resource_dir, dict_filename)
+
     @staticmethod
     def _normalize_output_format(value: Any) -> str:
         fmt = str(value).strip().lower()
@@ -1151,10 +1194,12 @@ class DocumentProcessor:
     # 포맷별 파싱 메서드
     # ------------------------------------------------------------------
 
-    def _parse_docling(self, file_path: str, **kwargs) -> DoclingDocument:
+    def _parse_docling(self, file_path: str, **kwargs) -> tuple[DoclingDocument, list[dict]]:
         """
         intelligent_processor.__call__ 흐름 중 enrichment 까지만 실행.
         load → OCR 검사 → ocr_all_table_cells → enrichment
+
+        Returns: (document, correction_details)
         """
         ocr_mode = getattr(self._intel, "ocr_mode", "auto")
 
@@ -1171,16 +1216,21 @@ class DocumentProcessor:
             document = self._intel.ocr_all_table_cells(document, file_path)
             document = self._intel.ocr_all_picture_items(document, file_path)
 
-        # output_path, output_file = os.path.split(file_path)
-        # filename, _ = os.path.splitext(output_file)
-        # artifacts_dir = Path(f"{output_path}/{filename}")
-        # reference_path = None if artifacts_dir.is_absolute() else artifacts_dir.parent
+        # 보험 도메인 OCR 교정: 사전 치환
+        document, correction_details = self._apply_domain_correction(document)
 
-        # document = document._with_pictures_refs(
-        #     image_dir=artifacts_dir, page_no=None, reference_path=reference_path
-        # )
+        if correction_details:
+            total_fixes = sum(
+                sum(f["count"] for f in d["fixes"])
+                for d in correction_details
+            )
+            _log.info(
+                f"[domain_correction] {Path(file_path).name}: "
+                f"{len(correction_details)}개 요소, {total_fixes}개 오탈자 교정"
+            )
+
         document = self._intel.enrichment(document, **kwargs)
-        return document
+        return document, correction_details
 
     def _parse_hwp_hwpx(self, file_path: str, **kwargs) -> DoclingDocument:
         """HwpDocumentLoader.load_documents() 만 실행. 실패 시 폴백 적용."""
@@ -1198,7 +1248,8 @@ class DocumentProcessor:
                     # 모든 백엔드 실패 시 LibreOffice → PDF → intelligent 경로
                     converted = convert_to_pdf(file_path)
                     if converted:
-                        return self._parse_docling(converted, **kwargs)
+                        doc, _ = self._parse_docling(converted, **kwargs)
+                        return doc
                     raise sdk_err
             raise
 
@@ -1499,10 +1550,11 @@ class DocumentProcessor:
 
     @staticmethod
     def _normalize_response(result: dict) -> dict:
-        """응답에 content / elements / usage 키가 항상 존재하도록 보장."""
+        """응답에 content / elements / usage / correction_summary 키가 항상 존재하도록 보장."""
         result.setdefault("content", "")
         result.setdefault("elements", [])
         result.setdefault("usage", {"pages": 0})
+        result.setdefault("correction_summary", {"elements_corrected": 0, "total_errors_corrected": 0, "details": []})
         return result
 
     @staticmethod
@@ -1604,6 +1656,92 @@ class DocumentProcessor:
         }
 
 
+    # ------------------------------------------------------------------
+    # 도메인 지식 주입: OCR 교정
+    # ------------------------------------------------------------------
+
+    def _dict_correct(self, text: str) -> tuple[str, list[dict]]:
+        """사전 기반 교정. (corrected_text, fixes) 반환.
+        fixes: [{"wrong": str, "right": str, "count": int}, ...]
+        """
+        fixes = []
+        for wrong, right in self._domain_correction_dict.items():
+            if wrong in text:
+                count = text.count(wrong)
+                text = text.replace(wrong, right)
+                fixes.append({"wrong": wrong, "right": right, "count": count})
+        return text, fixes
+
+    def _apply_domain_correction(self, document: DoclingDocument) -> tuple[DoclingDocument, list[dict]]:
+        """보험 도메인 사전을 사용한 OCR 텍스트 교정.
+        Returns: (document, correction_details)
+        correction_details: 교정이 발생한 요소 목록
+        """
+        if not self._domain_correction_enabled:
+            return document, []
+
+        correction_details = []
+
+        for item, _ in document.iterate_items():
+            if isinstance(item, TextItem) and item.text:
+                original = item.text
+                corrected, fixes = self._dict_correct(item.text)
+                if fixes:
+                    item.text = corrected
+                    prov = item.prov[0] if item.prov else None
+                    correction_details.append({
+                        "element_id": str(item.self_ref),
+                        "page": getattr(prov, "page_no", None),
+                        "category": item.label.value if hasattr(item.label, "value") else str(item.label),
+                        "original": original,
+                        "corrected": corrected,
+                        "fixes": fixes,
+                    })
+            elif isinstance(item, TableItem) and item.data and item.data.table_cells:
+                table_ref = str(item.self_ref)
+                for cell in item.data.table_cells:
+                    if cell.text:
+                        original = cell.text
+                        corrected, fixes = self._dict_correct(cell.text)
+                        if fixes:
+                            cell.text = corrected
+                            prov = item.prov[0] if item.prov else None
+                            correction_details.append({
+                                "element_id": table_ref,
+                                "page": getattr(prov, "page_no", None),
+                                "category": "table_cell",
+                                "original": original,
+                                "corrected": corrected,
+                                "fixes": fixes,
+                            })
+
+        return document, correction_details
+
+    @staticmethod
+    def _build_self_ref_to_id_map(doc: DoclingDocument) -> dict[str, int]:
+        """self_ref 문자열 → elements 배열의 순차 id 매핑 생성 (_docling_to_parse_format과 동일한 순서로 순회)."""
+        ref_map: dict[str, int] = {}
+        element_id = 0
+        for item, _ in doc.iterate_items(
+            included_content_layers={ContentLayer.BODY, ContentLayer.FURNITURE}
+        ):
+            ref_map[str(item.self_ref)] = element_id
+            element_id += 1
+        return ref_map
+
+    @staticmethod
+    def _build_correction_summary(correction_details: list[dict]) -> dict:
+        """교정 상세 내역 → 요약 구조."""
+        total_errors = sum(
+            sum(f["count"] for f in d["fixes"])
+            for d in correction_details
+        )
+        return {
+            "elements_corrected": len(correction_details),
+            "total_errors_corrected": total_errors,
+            "details": correction_details,
+        }
+
     def setup_logging(self, level_num: int):
         def get_level_name(level_num: int) -> str:
             level_map = {5: "DEBUG", 4: "INFO", 3: "WARNING", 2: "ERROR", 1: "CRITICAL", 0: "NOLOG"}
@@ -1650,9 +1788,16 @@ class DocumentProcessor:
             return self._normalize_response(self._build_docling_response(doc, clear_coordinates=True, save_images=save_images))
 
         if ext in (".pdf", ".html", ".htm"):
-            doc = self._parse_docling(file_path, **kwargs)
+            doc, correction_details = self._parse_docling(file_path, **kwargs)
             # result["docling_document"] = self._serialize_docling_document(doc)
-            return self._normalize_response(self._build_docling_response(doc, save_images=save_images))
+            result = self._normalize_response(self._build_docling_response(doc, save_images=save_images))
+            if correction_details:
+                ref_map = self._build_self_ref_to_id_map(doc)
+                for detail in correction_details:
+                    ref = detail.get("element_id", "")
+                    detail["element_id"] = ref_map.get(ref, ref)
+                result["correction_summary"] = self._build_correction_summary(correction_details)
+            return result
 
         # 기타 포맷: doc, ppt, pptx, txt, json, md, jpg, jpeg, png 등
         docs = self._parse_other(file_path, **kwargs)

@@ -25,6 +25,13 @@ output:
   format: "json" # "json" (default), "html", "markdown"
   table_format: "markdown" # "html" (default), "markdown"
 
+# 보험 도메인 OCR 교정 설정
+# - correction_dict: 교정 사전 파일명 (resource_dev/ 폴더 기준, 기본값: insurance_correction_dict.yaml)
+# - llm.enabled: enrichment LLM을 재사용한 문맥 기반 교정 (지연 증가 주의)
+domain_correction:
+  enabled: true
+  correction_dict: "insurance_correction_dict.yaml"
+
 # whisper 설정, 음성인식 모델이 필요한 경우 설정.
 whisper:
   url: ""
