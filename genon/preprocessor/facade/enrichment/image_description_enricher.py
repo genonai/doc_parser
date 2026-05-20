@@ -22,7 +22,7 @@ class ImageDescriptionEnricher(BaseEnricher):
         {
             "name": "image_description",
             "api_key": "...",
-            "config_file": "gemini-2.0-flash",  # configs/enrich/image_description/<name>.yaml
+            "config_file": "base",  # configs/enrich/image_description/<name>.yaml
         }
 
     config 예시 (인라인):
@@ -53,7 +53,7 @@ class ImageDescriptionEnricher(BaseEnricher):
         self._temperature = temperature if temperature != 0.1 else cfg.get("temperature", temperature)
         self._timeout = timeout if timeout != 90 else cfg.get("timeout", timeout)
         self._prompt = prompt or cfg.get("prompt", "").strip()
-        self._headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
+        self._headers = {"Authorization": f"Bearer {api_key or cfg.get('api_key', '')}", "Content-Type": "application/json"}
 
     def _load_config(self, config_file: str) -> dict:
         if not config_file:

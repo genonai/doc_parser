@@ -1,6 +1,6 @@
 # TOCEnricher 설정 — mistralai/mistral-small-3.1-24b-instruct (OpenRouter)
-# api_key는 코드에서 주입
 
+api_key: null
 url: https://openrouter.ai/api/v1/chat/completions
 model: mistralai/mistral-small-3.1-24b-instruct
 temperature: 0.0
