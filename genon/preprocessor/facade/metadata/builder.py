@@ -182,7 +182,7 @@ class GenOSVectorMetaBuilder:
                     continue
                 path = str(item.image.uri)
                 name = path.rsplit("/", 1)[-1]
-                result.append({"name": name, "type": "image", "ref": item.self_ref})
+                result.append({"path": path, "name": name, "type": "image", "ref": item.self_ref})
         return result
 
     def get_title(self, document):
