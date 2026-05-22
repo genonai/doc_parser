@@ -19,7 +19,7 @@
   - `.venv/bin`이 PATH 우선순위가 높아서 activate만으로는 .venv가 사용됨
 
 
-# TODO
+# 로컬 테스트
 - attachment_processor loaders -> docling output 으로 래핑
   - audio (mp3, wav)
   - tabuler (csv, xlsx) ✅
@@ -97,12 +97,6 @@
   - 기존 attachment_processor는 `dict` 반환값을 직접 vector 변환에 사용
   - 새 TabularLoader는 DoclingDocument 반환 → chunker/vectorizer가 테이블을 어떻게 처리할지 확인 필요
 
-## Enrichment 설계 원칙
-- load_documents 이후, 동작
-- 입력: load_documents 전체 혹은 일부 + 프롬프트
-- 출력: structured_llm output
-- Image_description 기능도 이곳으로 옮겨져야 함
-- ToC 도
 
 # 주요 테스트
 
@@ -120,3 +114,21 @@
 
 ## unit test
 
+- pending
+
+
+
+# 클러스터 테스트
+
+- 첨부용 전처리기(구)
+- 적재용 전처리기(구)
+- 첨부용 전처리기
+- 적재용 전처리기
+  - ocr
+    - easy
+    - padddle
+  - enrich
+    - toc
+    - image_description
+    - extract_metadata
+  - dots-ocr
