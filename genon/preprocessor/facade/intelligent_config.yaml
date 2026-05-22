@@ -3,6 +3,18 @@ format_options:
     pipeline_options: pdf
     backend: pypdf
     generate_picture_images: true
+
+    # do_picture_description: Docling 파이프라인 내에서 이미지 설명 생성 (로드 중 처리)
+    # 결과는 item.meta.description.text 에 저장됨
+    do_picture_description:
+      api:
+        url: "~~~~" # url test 필요
+        headers:
+          Authorization: "Bearer your-token"
+        prompt: "이미지를 간결하고 정확하게 설명하세요. 텍스트가 포함된 경우 그대로 인용하고, 도표·그래프는 수치와 항목을 포함해 설명하세요."
+        timeout: 60
+        concurrency: 2
+
     do_ocr:
       paddle:
         # PaddleOCR 설정 (원격 서버 방식)

@@ -195,6 +195,7 @@ class DoclingLoader(BaseLoader):
                 opts = {k: v for k, v in (opts or {}).items() if v is not None}
                 if kind == "api":
                     fmt_opt.pipeline_options.picture_description_options = PictureDescriptionApiOptions(**opts)
+                    fmt_opt.pipeline_options.enable_remote_services = True
                 elif kind == "vlm":
                     fmt_opt.pipeline_options.picture_description_options = PictureDescriptionVlmOptions(**opts)
                 else:
