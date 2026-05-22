@@ -18,6 +18,8 @@ from docling.datamodel.pipeline_options import (
     TesseractOcrOptions,
     TesseractCliOcrOptions,
     RapidOcrOptions,
+    PictureDescriptionApiOptions,
+    PictureDescriptionVlmOptions,
 )
 from docling.backend.pypdfium2_backend import PyPdfiumDocumentBackend
 from docling.backend.pymupdf_backend import PyMuPDFDocumentBackend
@@ -32,6 +34,7 @@ from docling_core.types import DoclingDocument
 
 from .base_loader import BaseLoader
 from .tabular_loader import TabularLoader
+from .audio_loader import AudioLoader
 from .langchain_loaders import LangChainPdfLoader, LangChainDocxLoader, LangChainPptxLoader, LangChainMdLoader
 
 _OCR_YAML_DIR = Path(__file__).parent.parent / "configs" / "ocr"
@@ -113,6 +116,7 @@ BYPASS_BACKEND_MAP: dict[str, type[BaseLoader]] = {
     "langchain_pptx": LangChainPptxLoader,
     "langchain_md": LangChainMdLoader,
     "tabular": TabularLoader,
+    "audio": AudioLoader,
 }
 
 
@@ -147,7 +151,7 @@ class DoclingLoader(BaseLoader):
             backend = opt.get("backend", "")
             if backend in BYPASS_BACKEND_MAP:
                 cls = BYPASS_BACKEND_MAP[backend]
-                self._bypass_loaders[ext] = cls(config=opt) if backend == "tabular" else cls()
+                self._bypass_loaders[ext] = cls(config=opt) if backend in ("tabular", "audio") else cls()
             else:
                 docling_formats[ext] = opt
         if docling_formats:
@@ -183,6 +187,18 @@ class DoclingLoader(BaseLoader):
                     fmt_opt.pipeline_options.ocr_options = _load_ocr_options(opt["do_ocr"])
                 else:
                     fmt_opt.pipeline_options.do_ocr = False
+            if "do_picture_description" in opt:
+                fmt_opt.pipeline_options.do_picture_description = True
+                raw = opt["do_picture_description"]
+                assert len(raw) == 1, "do_picture_description dict는 kind 키 하나만 허용 (api | vlm)"
+                kind, opts = next(iter(raw.items()))
+                opts = {k: v for k, v in (opts or {}).items() if v is not None}
+                if kind == "api":
+                    fmt_opt.pipeline_options.picture_description_options = PictureDescriptionApiOptions(**opts)
+                elif kind == "vlm":
+                    fmt_opt.pipeline_options.picture_description_options = PictureDescriptionVlmOptions(**opts)
+                else:
+                    raise ValueError(f"지원하지 않는 picture_description kind: {kind}. 가능한 값: api | vlm")
 
             format_options[input_format] = fmt_opt
 

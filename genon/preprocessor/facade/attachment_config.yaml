@@ -18,6 +18,19 @@ format_options:
     backend: tabular
   xlsx:
     backend: tabular
+  # audio loader 테스트 필요
+  mp3:
+    backend: audio
+    req_url: "http://whisper-service/api"
+    req_data:
+      language: ko
+    chunk_sec: 29
+  wav:
+    backend: audio
+    req_url: "http://whisper-service/api"
+    req_data:
+      language: ko
+    chunk_sec: 29
 
 chunker:
   name: hybrid
