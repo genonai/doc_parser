@@ -1,6 +1,7 @@
 from pathlib import Path
 from typing import Any, List
 
+import yaml
 from fastapi import Request
 from docling_core.transforms.chunker import DocChunk
 from docling_core.types import DoclingDocument
@@ -11,9 +12,11 @@ from genon.preprocessor.facade.enrichment import ENRICHERS
 from genon.preprocessor.facade.metadata import GenOSVectorMetaBuilder
 from genon.preprocessor.facade.utils.logging_utils import setup_logging
 
+config = yaml.safe_load(Path("/app/resource/config.yaml").read_text(encoding="utf-8"))
 
-class BaseProcessor:
-    config: dict = None
+
+class DocumentProcessor:
+    config: dict = config
 
     def __init__(self, config: dict) -> None:
         self.config = config
@@ -31,22 +34,25 @@ class BaseProcessor:
         self._ext_chunkers = self._build_ext_chunkers(config["format_options"], config["chunker"])
         self.enrichers = self._build_enrichers(
             config.get("enrichers", []),
-            resource_path=config.get("resource_path"),
             genos_url=config.get("genos_url", ""),
         )
         self.genos_meta_builder = GenOSVectorMetaBuilder()
 
-    def _build_enrichers(self, enrichers_cfg: list, resource_path: str | None = None, genos_url: str = "") -> list:
-        if not resource_path or not enrichers_cfg:
+    def _build_enrichers(self, enrichers_cfg: list, genos_url: str = "") -> list:
+        if not enrichers_cfg:
             return []
         result = []
-        for name in enrichers_cfg:
+        for item in enrichers_cfg:
+            if isinstance(item, dict):
+                name, options = next(iter(item.items()))
+                options = {k: v for k, v in (options or {}).items() if v is not None}
+            else:
+                name, options = item, {}
             cls = ENRICHERS.get(name)
             assert cls is not None, f"지원하지 않는 enricher: {name}. 가능한 값: {list(ENRICHERS.keys())}"
-            yaml_path = Path(resource_path) / f"{name}.yaml"
-            assert yaml_path.exists(), f"enricher config 없음: {yaml_path}"
-            result.append(cls(config_file=str(yaml_path), genos_url=genos_url))
-        return result
+            if "genos_url" not in options and genos_url:
+                options["genos_url"] = genos_url
+            result.append(cls(**options))
         return result
 
     def _build_chunker(self, chunker_cfg: dict | str):
