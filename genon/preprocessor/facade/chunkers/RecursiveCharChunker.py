@@ -15,14 +15,14 @@ from docling_core.types.doc.document import DoclingDocument
 class RecursiveCharChunker(BaseChunker):
     """RecursiveCharacterTextSplitter(chunk_size, chunk_overlap)를 DoclingDocument에 적용."""
 
-    chunk_size: int = 1000
+    max_tokens: int = 1000
     chunk_overlap: int = 100
 
     def chunk(self, dl_doc: DoclingDocument, **kwargs: Any) -> Iterator[DocChunk]:
         from langchain_text_splitters import RecursiveCharacterTextSplitter
 
         splitter = RecursiveCharacterTextSplitter(
-            chunk_size=self.chunk_size,
+            chunk_size=self.max_tokens,
             chunk_overlap=self.chunk_overlap,
         )
 

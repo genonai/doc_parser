@@ -21,6 +21,7 @@ class HierarchicalChunker(BaseChunker):
         delim (str): Delimiter to use for merging text. Defaults to "\n".
     """
     merge_list_items: bool = True
+    max_tokens: int = 1024
 
     @classmethod
     def _triplet_serialize(cls, table_df: DataFrame) -> str:
