@@ -62,10 +62,7 @@ class BaseProcessor:
         return {ext: docling_loader for ext in format_options}
 
     def _build_ext_chunkers(self, format_options: dict, default_chunker: dict | str) -> dict:
-        return {
-            ext: self._build_chunker(opt.get("chunker", default_chunker))
-            for ext, opt in format_options.items()
-        }
+        return {ext: self._build_chunker(opt.get("chunker", default_chunker)) for ext, opt in format_options.items()}
 
     def load_documents(self, file_path: str, **kwargs) -> Any:
         ext = Path(file_path).suffix.lstrip(".").lower()
@@ -91,16 +88,19 @@ class BaseProcessor:
         return await self.genos_meta_builder(document, chunks, file_path, request, **kwargs)
 
     async def __call__(self, request: Request, file_path: str, **kwargs) -> Any:
+
+        return_level = kwargs.get("return_level", self.return_level)
+
         documents = self.load_documents(file_path, **kwargs)
 
         # 청킹 전 enrichment (TOC, 작성일 등 document 레벨)
         for enricher in self.enrichers:
             documents = await enricher.enrich(documents, **kwargs)
-        if self.return_level == "document":
+        if return_level == "document":
             return documents
 
         chunks = self.split_documents(documents, file_path=file_path, **kwargs)
-        if self.return_level == "chunk":
+        if return_level == "chunk":
             return chunks
 
         # 청킹 후 enrichment (테이블 정제, 이미지 설명 등 chunk 레벨)
