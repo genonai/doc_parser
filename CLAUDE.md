@@ -19,7 +19,7 @@
   - `.venv/bin`이 PATH 우선순위가 높아서 activate만으로는 .venv가 사용됨
 
 
-# 로컬 테스트
+# 기능구현 리스트
 - attachment_processor loaders -> docling output 으로 래핑
   - audio (mp3, wav)
   - tabuler (csv, xlsx) ✅
@@ -68,6 +68,7 @@
   - **image_description** (image_description_on=1): 이미지를 한 줄 자연어로 요약 (vT5:2897)
   - **enhanced_image_description** (enhanced_image_description_on=1): 요약 + 차트/표를 마크다운 테이블로 변환까지 (vT5:2918)
   - TOC 런타임 오버라이드: kwargs로 `toc_system_prompt`, `toc_user_prompt` 주입 가능하도록 (vT5:2537). 현재 intelligent_processor는 전역변수만 사용, 런타임 교체 불가
+  - 프롬프트 참고: https://gongbuhow.com/posts/anthropic-prompt-generator-guide/
 
 - VLM: dots ocr
 
@@ -76,6 +77,9 @@
 - CI/CD 스크립트 수정
 
 - 기존 전처리기 deprecated warning ✅
+
+- python docs 처럼 어떻게 import 해고 이런거 정리하기
+  - import test 하기
 
 ## 메모
 
@@ -122,6 +126,8 @@
 
 - 첨부용 전처리기(구)
 - 적재용 전처리기(구)
+- data:image/png;base64,{img_str} 문제. 구 vs 신
+    - 로컬에서는 문제 없었다.
 - 첨부용 전처리기
 - 적재용 전처리기
   - ocr
@@ -132,3 +138,9 @@
     - image_description
     - extract_metadata
   - dots-ocr
+
+
+# yaml
+  - 첨부용
+  - 적재용
+  - 옵션 다 주석 달기
