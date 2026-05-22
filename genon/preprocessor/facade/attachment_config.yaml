@@ -19,7 +19,11 @@ format_options:
   xlsx:
     backend: tabular
 
-chunker: hybrid
+chunker:
+  name: hybrid
+  tokenizer: char
+  # miniLM | char
+  max_tokens: 1024
 
 genos_url: genos.genon.ai
 resource_path: /app/resource
