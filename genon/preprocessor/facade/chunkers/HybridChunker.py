@@ -13,6 +13,7 @@ from docling_core.transforms.chunker import BaseChunk, BaseChunker, DocChunk, Do
 from docling_core.types.doc import DoclingDocument, TextItem
 
 from .HierarchicalChunker import HierarchicalChunker
+from .tokenizer import CharTokenizer, resolve_tokenizer, DEFAULT_TOKENIZER
 
 
 class HybridChunker(BaseChunker):
@@ -26,22 +27,14 @@ class HybridChunker(BaseChunker):
     """
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
-    tokenizer: Union[PreTrainedTokenizerBase, str, Path] = (
-            Path("/models/doc_parser_models/sentence-transformers-all-MiniLM-L6-v2")
-            if Path("/models/doc_parser_models/sentence-transformers-all-MiniLM-L6-v2").exists()
-            else "sentence-transformers/all-MiniLM-L6-v2"
-        )
+    tokenizer: Union[PreTrainedTokenizerBase, str, Path] = DEFAULT_TOKENIZER
     max_tokens: int = int(1e30)  # type: ignore[assignment]
     merge_peers: bool = True
     _inner_chunker: HierarchicalChunker = HierarchicalChunker()
 
     @model_validator(mode="after")
     def _patch_tokenizer_and_max_tokens(self) -> Self:
-        self._tokenizer = (
-            self.tokenizer
-            if isinstance(self.tokenizer, PreTrainedTokenizerBase)
-            else AutoTokenizer.from_pretrained(self.tokenizer)
-        )
+        self._tokenizer = resolve_tokenizer(self.tokenizer)
         if self.max_tokens is None:
             self.max_tokens = TypeAdapter(PositiveInt).validate_python(
                 self._tokenizer.model_max_length

@@ -22,6 +22,7 @@ class HierarchicalChunker(BaseChunker):
     """
     merge_list_items: bool = True
     max_tokens: int = 1024
+    tokenizer: str = "miniLM"
 
     @classmethod
     def _triplet_serialize(cls, table_df: DataFrame) -> str:

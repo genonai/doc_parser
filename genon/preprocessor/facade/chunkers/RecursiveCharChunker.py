@@ -17,6 +17,7 @@ class RecursiveCharChunker(BaseChunker):
 
     max_tokens: int = 1000
     chunk_overlap: int = 100
+    tokenizer: str = "char"
 
     def chunk(self, dl_doc: DoclingDocument, **kwargs: Any) -> Iterator[DocChunk]:
         from langchain_text_splitters import RecursiveCharacterTextSplitter

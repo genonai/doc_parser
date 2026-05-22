@@ -13,6 +13,7 @@ from docling_core.types.doc.labels import DocItemLabel
 
 import semchunk
 from transformers import AutoTokenizer, PreTrainedTokenizerBase
+from .tokenizer import CharTokenizer, resolve_tokenizer, DEFAULT_TOKENIZER
 
 
 class GenosSmartChunker(BaseChunker):
@@ -23,11 +24,7 @@ class GenosSmartChunker(BaseChunker):
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    tokenizer: Union[PreTrainedTokenizerBase, str, Path] = (
-        Path("/models/doc_parser_models/sentence-transformers-all-MiniLM-L6-v2")
-        if Path("/models/doc_parser_models/sentence-transformers-all-MiniLM-L6-v2").exists()
-        else "sentence-transformers/all-MiniLM-L6-v2"
-    )
+    tokenizer: Union[PreTrainedTokenizerBase, str, Path] = DEFAULT_TOKENIZER
     max_tokens: int = 0
     merge_peers: bool = True
     merge_small_chunks: bool = False
@@ -38,12 +35,7 @@ class GenosSmartChunker(BaseChunker):
 
     @model_validator(mode="after")
     def _initialize_components(self) -> Self:
-        # 토크나이저 초기화
-        self._tokenizer = (
-            self.tokenizer
-            if isinstance(self.tokenizer, PreTrainedTokenizerBase)
-            else AutoTokenizer.from_pretrained(self.tokenizer)
-        )
+        self._tokenizer = resolve_tokenizer(self.tokenizer)
         return self
 
     def preprocess(self, dl_doc: DoclingDocument, **kwargs: Any) -> Iterator[BaseChunk]:

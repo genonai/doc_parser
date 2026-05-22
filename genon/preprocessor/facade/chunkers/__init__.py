@@ -1,3 +1,4 @@
+from .tokenizer import CharTokenizer, resolve_tokenizer
 from .GenosSmartChunker import GenosSmartChunker
 from .HierarchicalChunker import HierarchicalChunker
 from .HybridChunker import HybridChunker
