@@ -45,29 +45,24 @@ OCR_ENGINE_MAP = {
 }
 
 
-def _load_ocr_options(do_ocr_cfg: dict | str, resource_path: Path | None = None):
+def _load_ocr_options(do_ocr_cfg: dict | str):
     """
     do_ocr 설정을 OcrOptions 인스턴스로 변환.
 
     형식 1 — 인라인 dict:
-        {"Easy": {"force_full_page_ocr": True, "lang": ["ko", "en"]}}
+        {"paddle": {"force_full_page_ocr": True, "lang": ["korean"]}}
 
-    형식 2 — YAML 파일명(확장자 제외):
-        "easy"  →  resource_path/easy.yaml 로드 (resource_path 필수)
-        configs/ocr/*.yaml 은 참고용 샘플이며 런타임에 사용되지 않음
+    형식 2 — 엔진 이름 문자열 (기본값 사용):
+        "easy"
     """
     if isinstance(do_ocr_cfg, str):
         engine_key = do_ocr_cfg.lower()
-        yaml_name = f"{engine_key}.yaml"
-        yaml_path = (resource_path / yaml_name) if resource_path else (_OCR_YAML_DIR / yaml_name)
-        assert yaml_path.exists(), f"OCR YAML 없음: {yaml_path}"
-        with open(yaml_path) as f:
-            raw = yaml.safe_load(f)
-        options_dict = {k: v for k, v in raw.items() if v is not None}
+        options_dict = {}
     else:
         assert len(do_ocr_cfg) == 1, "do_ocr dict는 엔진 이름 키 하나만 허용"
-        engine_key, options_dict = next(iter(do_ocr_cfg.items()))
+        engine_key, raw_options = next(iter(do_ocr_cfg.items()))
         engine_key = engine_key.lower()
+        options_dict = {k: v for k, v in (raw_options or {}).items() if v is not None}
 
     ocr_cls = OCR_ENGINE_MAP.get(engine_key)
     assert ocr_cls is not None, (
@@ -185,7 +180,7 @@ class DoclingLoader(BaseLoader):
             if hasattr(fmt_opt.pipeline_options, "do_ocr"):
                 if "do_ocr" in opt:
                     fmt_opt.pipeline_options.do_ocr = True
-                    fmt_opt.pipeline_options.ocr_options = _load_ocr_options(opt["do_ocr"], self._resource_path)
+                    fmt_opt.pipeline_options.ocr_options = _load_ocr_options(opt["do_ocr"])
                 else:
                     fmt_opt.pipeline_options.do_ocr = False
 
