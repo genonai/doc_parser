@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 
 import yaml
@@ -197,4 +198,12 @@ class DoclingLoader(BaseLoader):
         if ext in self._bypass_loaders:
             return self._bypass_loaders[ext].load(file_path)
         conv_result = self._converter.convert(file_path, raises_on_error=True)
-        return conv_result.document
+        document = conv_result.document
+
+        output_path, output_file = os.path.split(file_path)
+        filename, _ = os.path.splitext(output_file)
+        artifacts_dir = Path(f"{output_path}/{filename}")
+        reference_path = None if artifacts_dir.is_absolute() else artifacts_dir.parent
+        document = document._with_pictures_refs(image_dir=artifacts_dir, page_no=None, reference_path=reference_path)
+
+        return document
