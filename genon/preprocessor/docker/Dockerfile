@@ -224,6 +224,7 @@ WORKDIR /app
 COPY ./genon/preprocessor/configs /app/configs
 COPY ./genon/preprocessor/env /app/env
 COPY ./genon/preprocessor/src /app/src
+COPY ./genon/preprocessor/facade /app/src/genon/preprocessor/facade
 
 # ✅ 공통 venv 위치만 복사
 COPY --from=builder ${APP_VENV} ${APP_VENV}
