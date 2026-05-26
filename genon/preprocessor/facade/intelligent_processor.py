@@ -3,7 +3,6 @@ import logging
 from pathlib import Path
 from typing import Any, List
 
-import yaml
 from fastapi import Request
 from docling_core.transforms.chunker import DocChunk
 from docling_core.types import DoclingDocument
@@ -13,6 +12,7 @@ from genon.preprocessor.facade.chunkers import CHUNKERS
 from genon.preprocessor.facade.enrichment import ENRICHERS
 from genon.preprocessor.facade.metadata import GenOSVectorMetaBuilder
 from genon.preprocessor.facade.postprocessing import POSTPROCESSORS
+from genon.preprocessor.facade.utils.config_util import load_yaml_config
 from genon.preprocessor.facade.utils.logging_utils import setup_logging
 from genon.preprocessor.facade.utils.parse_serializer import (
     normalize_output_format,
@@ -21,44 +21,33 @@ from genon.preprocessor.facade.utils.parse_serializer import (
     build_docling_response,
 )
 
-config_filename = "intelligent_config.yaml"
-
-
-def _resolve_default_parser_config_path(config_filename) -> str:
-    base_dir = Path(__file__).resolve().parent
-    local_config = (base_dir / f"../resource_dev/{config_filename}").resolve()
-    default_config = (base_dir / f"../resource/{config_filename}").resolve()
-
-    if local_config.exists():
-        return str(local_config)
-    return str(default_config)
-
-
-config = yaml.safe_load(Path(_resolve_default_parser_config_path(config_filename)).read_text(encoding="utf-8"))
+CONFIG_FILENAME = "intelligent_config.yaml"
 
 _log = logging.getLogger(__name__)
 
 
 class DocumentProcessor:
-    config: dict = config
 
-    def __init__(self, config: dict) -> None:
-        self.config = config
-        setup_logging(int(config.get("log_level", 0)))
+    def __init__(self) -> None:
+        self.config = load_yaml_config(
+            filename=CONFIG_FILENAME,
+            caller_file=__file__
+        )
+        setup_logging(int(self.config.get("log_level", 0)))
 
-        self._ext_loaders = self._build_ext_loaders(config["format_options"], config.get("resource_path"))
-        self._chunker = self._build_chunker(config["chunker"])
+        self._ext_loaders = self._build_ext_loaders(self.config["format_options"], self.config.get("resource_path"))
+        self._chunker = self._build_chunker(self.config["chunker"])
         self.enrichers = self._build_enrichers(
-            config.get("enrichers", []),
-            genos_url=config.get("genos_url", ""),
-            resource_path=config.get("resource_path"),
+            self.config.get("enrichers", []),
+            genos_url=self.config.get("genos_url", ""),
+            resource_path=self.config.get("resource_path"),
         )
         self.genos_meta_builder = GenOSVectorMetaBuilder()
         self.postprocessors = self._build_postprocessors(
-            config.get("postprocessors", []),
-            genos_url=config.get("genos_url", ""),
+            self.config.get("postprocessors", []),
+            genos_url=self.config.get("genos_url", ""),
         )
-        output_cfg = config.get("output", {})
+        output_cfg = self.config.get("output", {})
         self._output_format = normalize_output_format(output_cfg.get("format", "json"))
         self._table_format = normalize_table_format(output_cfg.get("table_format", "html"))
 

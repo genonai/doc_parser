@@ -1,29 +1,17 @@
 from pathlib import Path
 from typing import Any, List
 
-import yaml
 from fastapi import Request
 from docling_core.transforms.chunker import DocChunk
 from docling_core.types import DoclingDocument
 
 from genon.preprocessor.facade.loaders import DoclingLoader
 from genon.preprocessor.facade.chunkers import CHUNKERS
+from genon.preprocessor.facade.metadata import GenOSVectorMetaBuilder
+from genon.preprocessor.facade.utils.config_util import load_yaml_config
 from genon.preprocessor.facade.utils.logging_utils import setup_logging
 
-config_filename = "attachment_config.yaml"
-
-
-def _resolve_default_parser_config_path(config_filename) -> str:
-    base_dir = Path(__file__).resolve().parent
-    local_config = (base_dir / f"../resource_dev/{config_filename}").resolve()
-    default_config = (base_dir / f"../resource/{config_filename}").resolve()
-
-    if local_config.exists():
-        return str(local_config)
-    return str(default_config)
-
-
-config = yaml.safe_load(Path(_resolve_default_parser_config_path(config_filename)).read_text(encoding="utf-8"))
+CONFIG_FILENAME = "attachment_config.yaml"
 
 DEFAULT_FORMAT_OPTIONS = {
     "pdf": {"backend": "langchain_pdf"},
@@ -49,15 +37,18 @@ DEFAULT_FORMAT_OPTIONS = {
 
 
 class DocumentProcessor:
-    config: dict = config
 
-    def __init__(self, config: dict) -> None:
-        self.config = config
-        setup_logging(int(config.get("log_level", 0)))
+    def __init__(self) -> None:
+        self.config = load_yaml_config(
+            filename=CONFIG_FILENAME,
+            caller_file=__file__
+        )
+        setup_logging(int(self.config.get("log_level", 0)))
 
-        format_options = {**DEFAULT_FORMAT_OPTIONS, **config.get("format_options", {})}
-        self._ext_loaders = self._build_ext_loaders(format_options, config.get("resource_path"))
-        self._chunker = self._build_chunker(config["chunker"])
+        format_options = {**DEFAULT_FORMAT_OPTIONS, **self.config.get("format_options", {})}
+        self._ext_loaders = self._build_ext_loaders(format_options, self.config.get("resource_path"))
+        self._chunker = self._build_chunker(self.config["chunker"])
+        self.genos_meta_builder = GenOSVectorMetaBuilder()
 
     def _build_chunker(self, chunker_cfg: dict | str):
         if isinstance(chunker_cfg, dict):
