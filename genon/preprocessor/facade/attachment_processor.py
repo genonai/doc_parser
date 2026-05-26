@@ -41,8 +41,7 @@ class DocumentProcessor:
 
         format_options = {**DEFAULT_FORMAT_OPTIONS, **config.get("format_options", {})}
         self._ext_loaders = self._build_ext_loaders(format_options, config.get("resource_path"))
-        self._default_chunker = self._build_chunker(config["chunker"])
-        self._ext_chunkers = self._build_ext_chunkers(format_options, config["chunker"])
+        self._chunker = self._build_chunker(config["chunker"])
 
     def _build_chunker(self, chunker_cfg: dict | str):
         if isinstance(chunker_cfg, dict):
@@ -56,9 +55,6 @@ class DocumentProcessor:
         docling_loader = DoclingLoader(format_options, resource_path=resource_path)
         return {ext: docling_loader for ext in format_options}
 
-    def _build_ext_chunkers(self, format_options: dict, default_chunker: dict | str) -> dict:
-        return {ext: self._build_chunker(opt.get("chunker", default_chunker)) for ext, opt in format_options.items()}
-
     def load_documents(self, file_path: str, **kwargs) -> Any:
         ext = Path(file_path).suffix.lstrip(".").lower()
         loader = self._ext_loaders.get(ext)
@@ -68,10 +64,8 @@ class DocumentProcessor:
         )
         return loader.load(file_path)
 
-    def split_documents(self, documents: DoclingDocument, file_path: str = "", **kwargs) -> list[DocChunk]:
-        ext = Path(file_path).suffix.lstrip(".").lower() if file_path else ""
-        chunker = self._ext_chunkers.get(ext, self._default_chunker)
-        return list(chunker.chunk(documents, **kwargs))
+    def split_documents(self, documents: DoclingDocument, **kwargs) -> list[DocChunk]:
+        return list(self._chunker.chunk(documents, **kwargs))
 
     async def compose_vectors(
         self, request: Request, file_path: str, document: DoclingDocument, chunks: List[DocChunk], **kwargs
@@ -86,7 +80,7 @@ class DocumentProcessor:
         if return_level == "document":
             return documents
 
-        chunks = self.split_documents(documents, file_path=file_path, **kwargs)
+        chunks = self.split_documents(documents, **kwargs)
         if return_level == "chunk":
             return chunks
 

@@ -28,7 +28,6 @@ class ImageDescriptionEnricher(BaseEnricher):
     config 예시 (인라인):
         {
             "name": "image_description",
-            "url": "https://api.openai.com/v1/chat/completions",
             "api_key": "...",
             "model": "gpt-4o",
             "prompt": "이미지를 설명하세요.",
@@ -39,6 +38,7 @@ class ImageDescriptionEnricher(BaseEnricher):
         self,
         api_key: str = "",
         config_file: str = "",
+        genos_url: str = "",
         serving_id: str = "",
         max_tokens: int = 1000,
         temperature: float = 0.1,
@@ -46,7 +46,7 @@ class ImageDescriptionEnricher(BaseEnricher):
         prompt: str = "",
     ):
         cfg = self._load_config(config_file)
-        self._url = self._resolve_url("", cfg, "", serving_id)
+        self._url = self._resolve_url(cfg, genos_url, serving_id)
         self._model = cfg.get("model", "")
         self._max_tokens = max_tokens if max_tokens != 1000 else cfg.get("max_tokens", max_tokens)
         self._temperature = temperature if temperature != 0.1 else cfg.get("temperature", temperature)

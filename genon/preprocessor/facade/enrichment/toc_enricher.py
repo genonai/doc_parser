@@ -24,7 +24,6 @@ class TOCEnricher(BaseEnricher):
         {
             "name": "toc",
             "api_key": "...",
-            "url": "https://...",
             "model": "mistralai/mistral-small-3.1-24b-instruct",
             "doc_type": "law",
         }
@@ -34,7 +33,6 @@ class TOCEnricher(BaseEnricher):
         self,
         api_key: str = "",
         config_file: str = "",
-        url: str = "",
         genos_url: str = "",
         serving_id: str = "",
         model: str = "",
@@ -49,7 +47,7 @@ class TOCEnricher(BaseEnricher):
     ):
         cfg = self._load_config(config_file)
 
-        resolved_url = self._resolve_url(url, cfg, genos_url, serving_id)
+        resolved_url = self._resolve_url(cfg, genos_url, serving_id)
         resolved_key = api_key or cfg.get("api_key", "")
         resolved_model = model or cfg.get("model", "")
         resolved_temperature = temperature if temperature != 0.0 else cfg.get("temperature", temperature)

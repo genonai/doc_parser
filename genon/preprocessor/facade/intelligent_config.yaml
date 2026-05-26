@@ -181,6 +181,7 @@ enrichers:
         - Handle both formal regulatory structures and general section headers
         - Wrap the entire table of contents in `<toc></toc>` tags
 
+genos_url: genos.genon.ai
 resource_path: /app/resource
 
 
