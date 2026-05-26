@@ -33,6 +33,8 @@ class TOCEnricher(BaseEnricher):
         self,
         api_key: str = "",
         config_file: str = "",
+        resource_path: str | None = None,
+        url: str = "",
         genos_url: str = "",
         serving_id: str = "",
         model: str = "",
@@ -45,9 +47,9 @@ class TOCEnricher(BaseEnricher):
         system_prompt: str = "",
         user_prompt: str = "",
     ):
-        cfg = self._load_config(config_file)
+        cfg = self._load_config(config_file, resource_path)
 
-        resolved_url = self._resolve_url(cfg, genos_url, serving_id)
+        resolved_url = self._resolve_url(cfg, genos_url, serving_id, url=url)
         resolved_key = api_key or cfg.get("api_key", "")
         resolved_model = model or cfg.get("model", "")
         resolved_temperature = temperature if temperature != 0.0 else cfg.get("temperature", temperature)
@@ -83,10 +85,26 @@ class TOCEnricher(BaseEnricher):
             )
         self._options = DataEnrichmentOptions(**opts)
 
-    def _load_config(self, config_file: str) -> dict:
+    def _load_config(self, config_file: str, resource_path: str | None = None) -> dict:
         if not config_file:
             return {}
-        path = Path(config_file) if Path(config_file).is_absolute() else _CONFIG_DIR / f"{config_file}.yaml"
+        cfg_path = Path(config_file)
+        if cfg_path.is_absolute():
+            path = cfg_path
+        elif cfg_path.suffix in {".yaml", ".yml"} or len(cfg_path.parts) > 1:
+            if resource_path:
+                path = (Path(resource_path) / cfg_path).resolve()
+            else:
+                path = cfg_path
+        else:
+            if resource_path:
+                candidate = (Path(resource_path) / f"{config_file}.yaml").resolve()
+                if candidate.exists():
+                    path = candidate
+                else:
+                    path = _CONFIG_DIR / f"{config_file}.yaml"
+            else:
+                path = _CONFIG_DIR / f"{config_file}.yaml"
         if not path.exists():
             raise FileNotFoundError(f"toc config 없음: {path}")
         return yaml.safe_load(path.read_text(encoding="utf-8")) or {}

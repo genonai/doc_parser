@@ -38,6 +38,8 @@ class ImageDescriptionEnricher(BaseEnricher):
         self,
         api_key: str = "",
         config_file: str = "",
+        resource_path: str | None = None,
+        url: str = "",
         genos_url: str = "",
         serving_id: str = "",
         max_tokens: int = 1000,
@@ -45,8 +47,8 @@ class ImageDescriptionEnricher(BaseEnricher):
         timeout: int = 90,
         prompt: str = "",
     ):
-        cfg = self._load_config(config_file)
-        self._url = self._resolve_url(cfg, genos_url, serving_id)
+        cfg = self._load_config(config_file, resource_path)
+        self._url = self._resolve_url(cfg, genos_url, serving_id, url=url)
         self._model = cfg.get("model", "")
         self._max_tokens = max_tokens if max_tokens != 1000 else cfg.get("max_tokens", max_tokens)
         self._temperature = temperature if temperature != 0.1 else cfg.get("temperature", temperature)
@@ -54,10 +56,26 @@ class ImageDescriptionEnricher(BaseEnricher):
         self._prompt = prompt or cfg.get("prompt", "").strip()
         self._headers = {"Authorization": f"Bearer {api_key or cfg.get('api_key', '')}", "Content-Type": "application/json"}
 
-    def _load_config(self, config_file: str) -> dict:
+    def _load_config(self, config_file: str, resource_path: str | None = None) -> dict:
         if not config_file:
             return {}
-        path = Path(config_file) if Path(config_file).is_absolute() else _CONFIG_DIR / f"{config_file}.yaml"
+        cfg_path = Path(config_file)
+        if cfg_path.is_absolute():
+            path = cfg_path
+        elif cfg_path.suffix in {".yaml", ".yml"} or len(cfg_path.parts) > 1:
+            if resource_path:
+                path = (Path(resource_path) / cfg_path).resolve()
+            else:
+                path = cfg_path
+        else:
+            if resource_path:
+                candidate = (Path(resource_path) / f"{config_file}.yaml").resolve()
+                if candidate.exists():
+                    path = candidate
+                else:
+                    path = _CONFIG_DIR / f"{config_file}.yaml"
+            else:
+                path = _CONFIG_DIR / f"{config_file}.yaml"
         if not path.exists():
             raise FileNotFoundError(f"image_description config 없음: {path}")
         return yaml.safe_load(path.read_text(encoding="utf-8")) or {}

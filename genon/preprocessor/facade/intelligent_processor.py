@@ -55,13 +55,23 @@ class DocumentProcessor:
         self.enrichers = self._build_enrichers(
             config.get("enrichers", []),
             genos_url=config.get("genos_url", ""),
+            resource_path=config.get("resource_path"),
         )
         self.genos_meta_builder = GenOSVectorMetaBuilder()
         output_cfg = config.get("output", {})
         self._output_format = normalize_output_format(output_cfg.get("format", "json"))
         self._table_format = normalize_table_format(output_cfg.get("table_format", "html"))
 
-    def _build_enrichers(self, enrichers_cfg: list, genos_url: str = "") -> list:
+    @staticmethod
+    def _normalize_enricher_name(name: str) -> str:
+        return name[:-9] if name.endswith("_enricher") else name
+
+    def _build_enrichers(
+        self,
+        enrichers_cfg: list,
+        genos_url: str = "",
+        resource_path: str | None = None,
+    ) -> list:
         if not enrichers_cfg:
             return []
         result = []
@@ -71,11 +81,14 @@ class DocumentProcessor:
                 options = {k: v for k, v in (options or {}).items() if v is not None}
             else:
                 name, options = item, {}
+            name = self._normalize_enricher_name(name)
             cls = ENRICHERS.get(name)
             assert cls is not None, f"지원하지 않는 enricher: {name}. 가능한 값: {list(ENRICHERS.keys())}"
             accepts = inspect.signature(cls.__init__).parameters
             if "genos_url" not in options and genos_url and "genos_url" in accepts:
                 options["genos_url"] = genos_url
+            if "resource_path" not in options and resource_path and "resource_path" in accepts:
+                options["resource_path"] = resource_path
             result.append(cls(**options))
         return result
 
@@ -126,12 +139,20 @@ class DocumentProcessor:
     async def __call__(self, request: Request, file_path: str, **kwargs) -> Any:
 
         return_level = kwargs.get("return_level", self.return_level)
+        enrichment_context = kwargs.get("_enrichment_context", {})
+        if not isinstance(enrichment_context, dict):
+            enrichment_context = {}
+        enrichment_context.setdefault("custom_metadata", {})
 
         documents = self.load_documents(file_path, **kwargs)
 
         # 청킹 전 enrichment (TOC, 작성일 등 document 레벨)
         for enricher in self.enrichers:
-            documents = await enricher.enrich(documents, **kwargs)
+            documents = await enricher.enrich(
+                documents,
+                _enrichment_context=enrichment_context,
+                **kwargs,
+            )
         if return_level == "document":
             return normalize_response(build_docling_response(documents, self._output_format, self._table_format))
 
@@ -142,5 +163,12 @@ class DocumentProcessor:
         # 청킹 후 postprocessing (테이블 정제 등 chunk 레벨)
         chunks = await self.postprocessing(chunks, documents, file_path=file_path, **kwargs)
 
-        vectors = await self.compose_vectors(request, file_path, documents, chunks, **kwargs)
+        vectors = await self.compose_vectors(
+            request,
+            file_path,
+            documents,
+            chunks,
+            _enrichment_context=enrichment_context,
+            **kwargs,
+        )
         return vectors

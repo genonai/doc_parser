@@ -1,7 +1,7 @@
 import re
 from collections import defaultdict
 from pydantic import BaseModel
-from typing import Optional, List
+from typing import Optional, List, Any
 from datetime import datetime
 import json
 
@@ -62,6 +62,7 @@ class GenOSVectorMetaBuilder:
         self.title: Optional[str] = None
         self.created_date: Optional[int] = None
         self.appendix: Optional[str] = None  # !! appendix feature (2025-09-30, geonhee kim) !!
+        self._extra_metadata: dict[str, Any] = {}
 
     def parse_created_date(self, date_text: str) -> Optional[int]:
         """
@@ -138,6 +139,8 @@ class GenOSVectorMetaBuilder:
         for key, value in global_metadata.items():
             if hasattr(self, key):
                 setattr(self, key, value)
+            else:
+                self._extra_metadata[key] = value
         return self
 
     def set_chunk_bboxes(self, doc_items: list, document: DoclingDocument) -> "GenOSVectorMetaBuilder":
@@ -273,7 +276,7 @@ class GenOSVectorMetaBuilder:
 
     def build(self) -> GenOSVectorMeta:
         """설정된 데이터를 사용해 최종적으로 GenOSVectorMeta 객체 생성"""
-        return GenOSVectorMeta(
+        meta = GenOSVectorMeta(
             text=self.text,
             n_char=self.n_char,
             n_word=self.n_word,
@@ -292,6 +295,9 @@ class GenOSVectorMetaBuilder:
             created_date=self.created_date,
             appendix=self.appendix or "",  # !! appendix feature (2025-09-30, geonhee kim) !!
         )
+        for key, value in self._extra_metadata.items():
+            setattr(meta, key, value)
+        return meta
 
     async def __call__(
         self, document: DoclingDocument, chunks: List[DocChunk], file_path: str, request: Request, **kwargs: dict
@@ -319,6 +325,20 @@ class GenOSVectorMetaBuilder:
             created_date=created_date,
             title=title,
         )
+        enrichment_context = kwargs.get("_enrichment_context", {})
+        custom_metadata = {}
+        if isinstance(enrichment_context, dict):
+            raw_custom_metadata = enrichment_context.get("custom_metadata", {})
+            if isinstance(raw_custom_metadata, dict):
+                if hasattr(GenOSVectorMeta, "model_fields"):
+                    reserved_keys = set(GenOSVectorMeta.model_fields.keys())
+                else:
+                    reserved_keys = set(GenOSVectorMeta.__fields__.keys())  # type: ignore[attr-defined]
+                for key, value in raw_custom_metadata.items():
+                    key_str = str(key)
+                    safe_key = f"custom_{key_str}" if key_str in reserved_keys else key_str
+                    custom_metadata[safe_key] = value
+        global_metadata.update(custom_metadata)
 
         current_page = None
         chunk_index_on_page = 0

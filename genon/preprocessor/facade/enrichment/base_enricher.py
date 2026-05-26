@@ -8,7 +8,11 @@ class BaseEnricher(ABC):
         ...
 
     @staticmethod
-    def _resolve_url(cfg: dict, genos_url: str = "", serving_id: str = "") -> str:
+    def _resolve_url(cfg: dict, genos_url: str = "", serving_id: str = "", url: str = "") -> str:
+        if url:
+            return url
+        if cfg.get("url"):
+            return cfg["url"]
         resolved_genos_url = genos_url or cfg.get("genos_url", "")
         resolved_serving_id = serving_id or cfg.get("serving_id", "")
         if resolved_genos_url and resolved_serving_id:
