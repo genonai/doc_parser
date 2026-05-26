@@ -10,7 +10,18 @@ from genon.preprocessor.facade.loaders import DoclingLoader
 from genon.preprocessor.facade.chunkers import CHUNKERS
 from genon.preprocessor.facade.utils.logging_utils import setup_logging
 
-config = yaml.safe_load(Path("/app/resource/config.yaml").read_text(encoding="utf-8"))
+config_filename = "attachment_config.yaml"
+
+def _resolve_default_parser_config_path(config_filename) -> str:
+    base_dir = Path(__file__).resolve().parent
+    local_config = (base_dir / f"../resource_dev/{config_filename}").resolve()
+    default_config = (base_dir / f"../resource/{config_filename}").resolve()
+
+    if local_config.exists():
+        return str(local_config)
+    return str(default_config)
+
+config = yaml.safe_load(Path(_resolve_default_parser_config_path(config_filename)).read_text(encoding="utf-8"))
 
 DEFAULT_FORMAT_OPTIONS = {
     "pdf":  {"backend": "langchain_pdf"},
