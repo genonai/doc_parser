@@ -45,12 +45,6 @@ class DocumentProcessor:
     def __init__(self, config: dict) -> None:
         self.config = config
         setup_logging(int(config.get("log_level", 0)))
-        self.return_level = config.get("return_level", "vector")
-
-        assert self.return_level in [
-            "document",
-            "vector",
-        ], f"다음 리턴 레벨 중에서 골라주세요: document | vector, 현재 리턴 레벨: {self.return_level}"
 
         self._ext_loaders = self._build_ext_loaders(config["format_options"], config.get("resource_path"))
         self.enrichers = self._build_enrichers(
@@ -110,7 +104,6 @@ class DocumentProcessor:
 
     async def __call__(self, request: Request, file_path: str, **kwargs) -> Any:
 
-        return_level = kwargs.get("return_level", self.return_level)
         enrichment_context = kwargs.get("_enrichment_context", {})
         if not isinstance(enrichment_context, dict):
             enrichment_context = {}

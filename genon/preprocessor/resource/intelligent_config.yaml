@@ -171,19 +171,7 @@ enrichers:
         - Handle both formal regulatory structures and general section headers
         - Wrap the entire table of contents in `<toc></toc>` tags
 
-postprocessors:
-  # - table_refiner:
-  #     serving_id: "729"
-  #     bearer_token: ""
-  #     batch_size: 5
-
 genos_url: genos.genon.ai
 resource_path: /app/resource
-
-
-return_level: vector
-# document | vector
-# document - load_document(+enrich) 후 리턴 (parse_processor 와 비슷)
-# vector - Genos 벡터 구성 후 리턴
 
 log_level: 4

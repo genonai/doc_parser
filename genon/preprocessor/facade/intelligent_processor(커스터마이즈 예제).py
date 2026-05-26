@@ -32,6 +32,7 @@ _SUBJECT_SYSTEM_PROMPT = """당신은 문서 분석 전문가입니다.
   "title": "문서 제목"
 }"""
 
+
 def _resolve_default_parser_config_path(config_filename) -> str:
     base_dir = Path(__file__).resolve().parent
     local_config = (base_dir / f"../resource_dev/{config_filename}").resolve()
@@ -40,6 +41,7 @@ def _resolve_default_parser_config_path(config_filename) -> str:
     if local_config.exists():
         return str(local_config)
     return str(default_config)
+
 
 config = yaml.safe_load(Path(_resolve_default_parser_config_path(config_filename)).read_text(encoding="utf-8"))
 
@@ -52,12 +54,6 @@ class DocumentProcessor:
     def __init__(self, config: dict) -> None:
         self.config = config
         setup_logging(int(config.get("log_level", 0)))
-        self.return_level = config.get("return_level", "vector")
-
-        assert self.return_level in [
-            "document",
-            "vector",
-        ], f"다음 리턴 레벨 중에서 골라주세요: document | vector, 현재 리턴 레벨: {self.return_level}"
 
         self._ext_loaders = self._build_ext_loaders(config["format_options"], config.get("resource_path"))
         self._chunker = self._build_chunker(config["chunker"])
@@ -119,7 +115,9 @@ class DocumentProcessor:
         return CHUNKERS[name](**options)
 
     def _build_ext_loaders(self, format_options: dict, resource_path: str | None = None) -> dict:
-        docling_loader = DoclingLoader(format_options, resource_path=resource_path, genos_url=self.config.get("genos_url", ""))
+        docling_loader = DoclingLoader(
+            format_options, resource_path=resource_path, genos_url=self.config.get("genos_url", "")
+        )
         return {ext: docling_loader for ext in format_options}
 
     def load_documents(self, file_path: str, **kwargs) -> Any:
@@ -206,19 +204,13 @@ class DocumentProcessor:
 
     async def __call__(self, request: Request, file_path: str, **kwargs) -> Any:
 
-        return_level = kwargs.get("return_level", self.return_level)
-
         documents = self.load_documents(file_path, **kwargs)
 
         # 청킹 전 enrichment (TOC, 작성일 등 document 레벨)
         for enricher in self.enrichers:
             documents = await enricher.enrich(documents, **kwargs)
-        if return_level == "document":
-            return normalize_response(build_docling_response(documents, self._output_format, self._table_format))
 
         chunks = self.split_documents(documents, **kwargs)
-        if return_level == "chunk":
-            return chunks
 
         # 청킹 후 postprocessing (테이블 정제 등 chunk 레벨)
         chunks = await self.postprocessing(chunks, documents, file_path=file_path, **kwargs)

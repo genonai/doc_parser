@@ -12,6 +12,7 @@ from genon.preprocessor.facade.utils.logging_utils import setup_logging
 
 config_filename = "attachment_config.yaml"
 
+
 def _resolve_default_parser_config_path(config_filename) -> str:
     base_dir = Path(__file__).resolve().parent
     local_config = (base_dir / f"../resource_dev/{config_filename}").resolve()
@@ -21,18 +22,29 @@ def _resolve_default_parser_config_path(config_filename) -> str:
         return str(local_config)
     return str(default_config)
 
+
 config = yaml.safe_load(Path(_resolve_default_parser_config_path(config_filename)).read_text(encoding="utf-8"))
 
 DEFAULT_FORMAT_OPTIONS = {
-    "pdf":  {"backend": "langchain_pdf"},
+    "pdf": {"backend": "langchain_pdf"},
     "docx": {"pipeline_options": "simple", "backend": "msword"},
     "hwpx": {"pipeline_options": "simple", "backend": "hwpx"},
     "pptx": {"backend": "langchain_pptx"},
-    "md":   {"pipeline_options": "simple", "backend": "langchain_md"},
-    "csv":  {"backend": "tabular"},
+    "md": {"pipeline_options": "simple", "backend": "langchain_md"},
+    "csv": {"backend": "tabular"},
     "xlsx": {"backend": "tabular"},
-    "mp3":  {"backend": "audio", "req_url": "http://whisper-service/api", "req_data": {"language": "ko"}, "chunk_sec": 29},
-    "wav":  {"backend": "audio", "req_url": "http://whisper-service/api", "req_data": {"language": "ko"}, "chunk_sec": 29},
+    "mp3": {
+        "backend": "audio",
+        "req_url": "http://whisper-service/api",
+        "req_data": {"language": "ko"},
+        "chunk_sec": 29,
+    },
+    "wav": {
+        "backend": "audio",
+        "req_url": "http://whisper-service/api",
+        "req_data": {"language": "ko"},
+        "chunk_sec": 29,
+    },
 }
 
 
@@ -42,13 +54,6 @@ class DocumentProcessor:
     def __init__(self, config: dict) -> None:
         self.config = config
         setup_logging(int(config.get("log_level", 0)))
-        self.return_level = config.get("return_level", "vector")
-
-        assert self.return_level in [
-            "document",
-            "chunk",
-            "vector",
-        ], f"다음 리턴 레벨 중에서 골라주세요: document | chunk | vector, 현재 리턴 레벨: {self.return_level}"
 
         format_options = {**DEFAULT_FORMAT_OPTIONS, **config.get("format_options", {})}
         self._ext_loaders = self._build_ext_loaders(format_options, config.get("resource_path"))
@@ -85,15 +90,9 @@ class DocumentProcessor:
 
     async def __call__(self, request: Request, file_path: str, **kwargs) -> Any:
 
-        return_level = kwargs.get("return_level", self.return_level)
-
         documents = self.load_documents(file_path, **kwargs)
-        if return_level == "document":
-            return documents
 
         chunks = self.split_documents(documents, **kwargs)
-        if return_level == "chunk":
-            return chunks
 
         vectors = await self.compose_vectors(request, file_path, documents, chunks, **kwargs)
         return vectors
