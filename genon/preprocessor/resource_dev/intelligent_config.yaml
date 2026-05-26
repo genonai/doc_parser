@@ -1,0 +1,193 @@
+format_options:
+  pdf:
+    pipeline_options: pdf
+    backend: pypdf
+    generate_picture_images: true
+
+    # do_picture_description: Docling 파이프라인 내에서 이미지 설명 생성 (로드 중 처리)
+    # 결과는 item.meta.description.text 에 저장됨
+    do_picture_description:
+      api:
+        url: "~~~~" # url test 필요
+        headers:
+          Authorization: "Bearer your-token"
+        prompt: "이미지를 간결하고 정확하게 설명하세요. 텍스트가 포함된 경우 그대로 인용하고, 도표·그래프는 수치와 항목을 포함해 설명하세요."
+        timeout: 60
+        concurrency: 2
+
+    do_ocr:
+      paddle:
+        # PaddleOCR 설정 (원격 서버 방식)
+
+        # ── 공통 옵션 (모든 엔진) ────────────────────────────────────────────────────
+        force_full_page_ocr: true
+
+        lang:
+          - korean
+
+        bitmap_area_threshold: 0.05
+
+        # ── PaddleOCR 전용 옵션 ───────────────────────────────────────────────────────
+        # ocr_endpoint: PaddleOCR 서버 주소 (필수)
+        ocr_endpoint: "http://doc-parser-ocr-deployment:8080/ocr"
+
+        # text_score: 인식 결과 신뢰도 임계값, 미만은 버림 (기본 0.5)
+        text_score: 0.3
+
+        # timeout: 서버 응답 대기 시간 (초, 기본 60)
+        timeout: 60
+      # easy:
+      #   # EasyOCR 설정
+      #     # https://www.jaided.ai/easyocr/
+
+      #     # ── 공통 옵션 (모든 엔진) ────────────────────────────────────────────────────
+      #     # force_full_page_ocr
+      #     #   true  : 텍스트 레이어 유무와 무관하게 전체 페이지를 이미지로 취급해서 OCR
+      #     #   false : Docling이 bitmap으로 판단한 영역만 OCR
+      #     #           (비트맵이 페이지의 75% 이상이면 자동으로 전체 페이지 OCR로 전환)
+      #     force_full_page_ocr: true
+
+      #     # lang: EasyOCR 언어 코드 목록
+      #     # https://www.jaided.ai/easyocr/ 에서 지원 언어 확인
+      #     lang:
+      #       - ko
+      #       - en
+
+      #     # bitmap_area_threshold: OCR 대상으로 판단할 최소 비트맵 면적 비율 (기본 0.05 = 5%)
+      #     # 이 비율 미만의 비트맵은 OCR 대상에서 제외됨
+      #     bitmap_area_threshold: 0.05
+
+      #     # ── EasyOCR 전용 옵션 ─────────────────────────────────────────────────────────
+      #     # use_gpu: GPU 사용 여부 (null이면 환경에 따라 자동 감지)
+      #     use_gpu: false
+
+      #     # confidence_threshold: 인식 결과 신뢰도 임계값, 미만은 버림 (기본 0.5)
+      #     confidence_threshold: 0.5
+
+      #     # model_storage_directory: 모델 파일 저장 경로 (null이면 기본 캐시 경로)
+      #     model_storage_directory: null
+
+      #     # recog_network: 인식 네트워크 종류 (기본 "standard")
+      #     recog_network: standard
+
+      #     # download_enabled: 모델 자동 다운로드 허용 여부 (기본 true)
+      #     download_enabled: true
+  docx:
+    pipeline_options: simple
+    backend: msword
+  md:
+    pipeline_options: simple
+    backend: md
+  html:
+    pipeline_options: simple
+    backend: html
+  hwpx:
+    pipeline_options: simple
+    backend: hwpx
+    # TODO: 사이냅스, hwp sdk, rhwp, libreoffice, 자유소프트, 한컴데이터로더
+  pptx:
+    pipeline_options: simple
+    backend: mspowerpoint
+
+chunker:
+  name: smart
+  tokenizer: char
+  # miniLM | char
+  max_tokens: 1024
+
+enrichers: 
+  # toc에다가 metadata를 옵션으로
+  - image_description_enricher:
+      serving_id: null
+      max_tokens: 1000
+      temperature: 0.1
+      timeout: 90
+
+      prompt: |
+        이미지를 간결하고 정확하게 설명하세요. 이미지에 텍스트가 포함된 경우 그대로 인용하고, 도표·그래프는 수치와 항목을 포함해 설명하세요.
+  - toc_enricher:
+      serving_id: null
+      model: model
+      extract_metadata: true
+      temperature: 0.0
+      top_p: 0.00001
+      seed: 33
+      max_tokens: 10000
+
+      system_prompt: |
+        You are an expert at generating table of contents (목차) from Korean documents. You specialize in regulatory documents, terms of service, contracts, and mixed-format documents that combine formal regulatory structures with general section headers.
+
+      user_prompt: |
+        Here is the Korean document you need to analyze:
+
+        <document>
+        {raw_text}
+        </document>
+
+        Your task is to extract and organize all structural elements from this document into a hierarchical table of contents. Korean documents often have mixed structures where some sections follow formal regulatory patterns (제x장/절/관/조) while others use general section numbering and headers.
+
+        ## Analysis Process
+
+        Before generating the final table of contents, work through the document systematically in `<analysis>` tags. It's OK for this section to be quite long. Follow these steps:
+
+        1. **Document Title Extraction**: Quote the main document title exactly as it appears at the beginning of the document.
+
+        2. **Structural Marker Identification**: Scan through the document and quote all the key structural markers you find, such as:
+          - Formal regulatory patterns: 제x장, 제x절, 제x관, 제x조
+          - General section patterns: numbered headers (1., 2., etc.), lettered headers (가., 나., etc.)
+          - Special sections: 부칙, 별지, 별표, etc.
+
+        3. **Systematic Section Extraction**: Work through the document from beginning to end, extracting each structural element in order:
+          - For each main section, quote the exact title as it appears
+          - For each subsection, quote the exact title and note which main section it belongs under
+          - For each article/item, quote the exact title and note its parent section
+          - Include any appendices, attachments, and addenda
+
+        4. **Hierarchy Building**: For each extracted element, explicitly note:
+          - What level it should be at (main section, subsection, sub-subsection, etc.)
+          - What its parent section is (if any)
+          - What numbering it should receive in the final TOC (1., 1.1., 1.1.1., etc.)
+
+        5. **Structure Verification**: Review your extracted elements to ensure:
+          - All structural elements are captured in document order
+          - The hierarchy makes logical sense
+          - No elements are duplicated or missed
+
+        ## Output Requirements
+
+        After your analysis, generate the table of contents with this exact format:
+
+        ```
+        <toc>
+        TITLE:<document title>
+        1. <first main section title>
+        1.1. <first subsection title>
+        1.1.1. <first sub-subsection title>
+        1.2. <second subsection title>
+        2. <second main section title>
+        2.1. <subsection under second main section>
+        3. <third main section title>
+        </toc>
+        ```
+
+        ## Formatting Guidelines
+
+        - Start with `TITLE:` followed by the document title
+        - Use hierarchical decimal numbering (1, 1.1, 1.1.1, etc.)
+        - Follow each number with a space and the original title exactly as it appears
+        - Maintain the document's logical hierarchy
+        - Include appendices, attachments, and addenda as separate top-level items
+        - Extract titles exactly as they appear - do not include explanatory content
+        - Handle both formal regulatory structures and general section headers
+        - Wrap the entire table of contents in `<toc></toc>` tags
+
+genos_url: genos.genon.ai
+resource_path: /app/resource
+
+
+return_level: vector
+# document | vector
+# document - load_document(+enrich) 후 리턴 (parse_processor 와 비슷)
+# vector - Genos 벡터 구성 후 리턴
+
+log_level: 4
