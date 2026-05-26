@@ -401,3 +401,9 @@ class TableRefiner:
             )
         lines += ["  </tbody>", "</table>"]
         return "\n".join(lines)
+
+    async def process(self, chunks: list[DocChunk], documents: DoclingDocument, **kwargs) -> list[DocChunk]:
+        file_path = kwargs.get("file_path", "")
+        if not file_path.lower().endswith(".pdf"):
+            return chunks
+        return await self.refine_chunks(chunks, documents, file_path)

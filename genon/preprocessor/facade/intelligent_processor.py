@@ -12,7 +12,7 @@ from genon.preprocessor.facade.loaders import DoclingLoader
 from genon.preprocessor.facade.chunkers import CHUNKERS
 from genon.preprocessor.facade.enrichment import ENRICHERS
 from genon.preprocessor.facade.metadata import GenOSVectorMetaBuilder
-from genon.preprocessor.facade.postprocessing import TableRefiner
+from genon.preprocessor.facade.postprocessing import POSTPROCESSORS
 from genon.preprocessor.facade.utils.logging_utils import setup_logging
 from genon.preprocessor.facade.utils.parse_serializer import (
     normalize_output_format,
@@ -57,9 +57,31 @@ class DocumentProcessor:
             genos_url=config.get("genos_url", ""),
         )
         self.genos_meta_builder = GenOSVectorMetaBuilder()
+        self.postprocessors = self._build_postprocessors(
+            config.get("postprocessors", []),
+            genos_url=config.get("genos_url", ""),
+        )
         output_cfg = config.get("output", {})
         self._output_format = normalize_output_format(output_cfg.get("format", "json"))
         self._table_format = normalize_table_format(output_cfg.get("table_format", "html"))
+
+    def _build_postprocessors(self, postprocessors_cfg: list, genos_url: str = "") -> list:
+        if not postprocessors_cfg:
+            return []
+        result = []
+        for item in postprocessors_cfg:
+            if isinstance(item, dict):
+                name, options = next(iter(item.items()))
+                options = {k: v for k, v in (options or {}).items() if v is not None}
+            else:
+                name, options = item, {}
+            cls = POSTPROCESSORS.get(name)
+            assert cls is not None, f"지원하지 않는 postprocessor: {name}. 가능한 값: {list(POSTPROCESSORS.keys())}"
+            accepts = inspect.signature(cls.__init__).parameters
+            if "genos_url" not in options and genos_url and "genos_url" in accepts:
+                options["genos_url"] = genos_url
+            result.append(cls(**options))
+        return result
 
     def _build_enrichers(self, enrichers_cfg: list, genos_url: str = "") -> list:
         if not enrichers_cfg:
@@ -104,18 +126,8 @@ class DocumentProcessor:
         return list(self._chunker.chunk(documents, **kwargs))
 
     async def postprocessing(self, chunks: list[DocChunk], documents: DoclingDocument, **kwargs) -> list[DocChunk]:
-        file_path = kwargs.get("file_path", "")
-        refiner_cfg = self.config.get("table_refiner", {})
-
-        if refiner_cfg.get("serving_id") and file_path.lower().endswith(".pdf"):
-            refiner = TableRefiner(
-                serving_id=str(refiner_cfg["serving_id"]),
-                genos_url=self.config.get("genos_url", ""),
-                bearer_token=refiner_cfg.get("bearer_token", ""),
-                batch_size=int(refiner_cfg.get("batch_size", 5)),
-            )
-            chunks = await refiner.refine_chunks(chunks, documents, file_path)
-
+        for postprocessor in self.postprocessors:
+            chunks = await postprocessor.process(chunks, documents, **kwargs)
         return chunks
 
     async def compose_vectors(

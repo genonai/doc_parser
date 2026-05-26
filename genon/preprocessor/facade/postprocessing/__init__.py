@@ -1,3 +1,7 @@
 from .table_refiner import TableRefiner
 
-__all__ = ["TableRefiner"]
+POSTPROCESSORS = {
+    "table_refiner": TableRefiner,
+}
+
+__all__ = ["TableRefiner", "POSTPROCESSORS"]
