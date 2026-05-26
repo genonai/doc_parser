@@ -93,16 +93,8 @@ chunker:
   # miniLM | char
   max_tokens: 1024
 
-enrichers: 
+enrichers:
   # toc에다가 metadata를 옵션으로
-  - image_description_enricher:
-      serving_id: null
-      max_tokens: 1000
-      temperature: 0.1
-      timeout: 90
-
-      prompt: |
-        이미지를 간결하고 정확하게 설명하세요. 이미지에 텍스트가 포함된 경우 그대로 인용하고, 도표·그래프는 수치와 항목을 포함해 설명하세요.
   - toc_enricher:
       serving_id: null
       model: model
