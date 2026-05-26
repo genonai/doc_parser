@@ -1,3 +1,4 @@
+import inspect
 from pathlib import Path
 from typing import Any, List
 
@@ -50,7 +51,8 @@ class DocumentProcessor:
                 name, options = item, {}
             cls = ENRICHERS.get(name)
             assert cls is not None, f"지원하지 않는 enricher: {name}. 가능한 값: {list(ENRICHERS.keys())}"
-            if "genos_url" not in options and genos_url:
+            accepts = inspect.signature(cls.__init__).parameters
+            if "genos_url" not in options and genos_url and "genos_url" in accepts:
                 options["genos_url"] = genos_url
             result.append(cls(**options))
         return result
