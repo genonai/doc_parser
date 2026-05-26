@@ -8,9 +8,7 @@ format_options:
     # 결과는 item.meta.description.text 에 저장됨
     do_picture_description:
       api:
-        url: "~~~~" # url test 필요
-        headers:
-          Authorization: "Bearer your-token"
+        serving_id: "~~~~" 
         prompt: "이미지를 간결하고 정확하게 설명하세요. 텍스트가 포함된 경우 그대로 인용하고, 도표·그래프는 수치와 항목을 포함해 설명하세요."
         timeout: 60
         concurrency: 2

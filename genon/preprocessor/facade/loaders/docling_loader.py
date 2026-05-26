@@ -138,9 +138,10 @@ class DoclingLoader(BaseLoader):
         }
     """
 
-    def __init__(self, format_options: dict, resource_path: str | None = None) -> None:
+    def __init__(self, format_options: dict, resource_path: str | None = None, genos_url: str = "") -> None:
         self._format_options_cfg = format_options
         self._resource_path = Path(resource_path) if resource_path else None
+        self._genos_url = genos_url
         self._bypass_loaders: dict[str, BaseLoader] = {}
         self._converter: DocumentConverter | None = None
         self._setup()
@@ -194,6 +195,9 @@ class DoclingLoader(BaseLoader):
                 kind, opts = next(iter(raw.items()))
                 opts = {k: v for k, v in (opts or {}).items() if v is not None}
                 if kind == "api":
+                    if "serving_id" in opts and self._genos_url:
+                        sid = opts.pop("serving_id")
+                        opts["url"] = f"{self._genos_url}/api/gateway/rep/serving/{sid}/v1/chat/completions"
                     fmt_opt.pipeline_options.picture_description_options = PictureDescriptionApiOptions(**opts)
                     fmt_opt.pipeline_options.enable_remote_services = True
                 elif kind == "vlm":

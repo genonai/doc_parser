@@ -183,7 +183,7 @@ genos_url: genos.genon.ai
 resource_path: /app/resource
 
 
-return_level: vector
+return_level: document
 # document | vector
 # document - load_document(+enrich) 후 리턴 (parse_processor 와 비슷)
 # vector - Genos 벡터 구성 후 리턴
