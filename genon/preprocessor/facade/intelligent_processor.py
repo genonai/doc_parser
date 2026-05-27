@@ -36,7 +36,7 @@ class DocumentProcessor:
         setup_logging(int(self.config.get("log_level", 0)))
 
         self._ext_loaders = self._build_ext_loaders(self.config["format_options"], self.config.get("resource_path"))
-        self._chunker = self._build_chunker(self.config["chunker"])
+        self._chunker = self._build_chunker(self.config["chunker"], self.config)
         self.enrichers = self._build_enrichers(
             self.config.get("enrichers", []),
             resource_path=self.config.get("resource_path"),
@@ -91,12 +91,24 @@ class DocumentProcessor:
             result.append(cls(**options))
         return result
 
-    def _build_chunker(self, chunker_cfg: dict | str):
+    def _build_chunker(self, chunker_cfg: dict | str, full_config: dict | None = None):
         if isinstance(chunker_cfg, dict):
             name = chunker_cfg["name"]
             options = {k: v for k, v in chunker_cfg.items() if k != "name"}
         else:
             name, options = chunker_cfg, {}
+
+        # image_option 자동 감지:
+        # enhanced_image_description / table_description postprocessor가 있으면 image_option=1
+        if "image_option" not in options and full_config:
+            postprocessor_names = [
+                next(iter(p)) if isinstance(p, dict) else p
+                for p in full_config.get("postprocessors", [])
+            ]
+            _image_pp = {"enhanced_image_description", "table_description"}
+            if any(n in _image_pp for n in postprocessor_names):
+                options["image_option"] = 1
+
         return CHUNKERS[name](**options)
 
     def _build_ext_loaders(self, format_options: dict, resource_path: str | None = None) -> dict:

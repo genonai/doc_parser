@@ -28,6 +28,7 @@ class GenosSmartChunker(BaseChunker):
     max_tokens: int = 0
     merge_peers: bool = True
     merge_small_chunks: bool = False
+    image_option: int = 0  # 1이면 TableItem을 독립 청크로 분리 (_split_document_by_tokens_image 경로)
 
     # _inner_chunker: BaseChunker = None
     _tokenizer: PreTrainedTokenizerBase = None
@@ -831,6 +832,99 @@ class GenosSmartChunker(BaseChunker):
 
         return merged_chunks
 
+    def _items_to_text(self, items: list[DocItem], dl_doc: DoclingDocument, **kwargs) -> str:
+        """DocItem 리스트를 텍스트로 변환"""
+        parts = []
+        for item in items:
+            if isinstance(item, TableItem):
+                t = self._extract_table_text(item, dl_doc, **kwargs)
+            elif isinstance(item, PictureItem):
+                t = "".join(
+                    getattr(ann, "text", "")
+                    for ann in getattr(item, "annotations", [])
+                )
+            elif hasattr(item, "text"):
+                t = item.text or ""
+            else:
+                t = ""
+            if t:
+                parts.append(t)
+        return self.delim.join(parts)
+
+    def _split_document_by_tokens_image(
+        self, doc_chunk: DocChunk, dl_doc: DoclingDocument, **kwargs
+    ) -> list[DocChunk]:
+        """image_option=1 전용: 기본 청킹 후 TableItem을 독립 청크로 분리.
+
+        TableDescriptionPostprocessor가 각 TableItem 청크에 LLM 설명을 부착한다.
+        """
+        base_chunks = self._split_document_by_tokens(doc_chunk, dl_doc, **kwargs)
+        result: list[DocChunk] = []
+
+        for chunk in base_chunks:
+            doc_items = chunk.meta.doc_items or []
+
+            # TableItem 없으면 그대로 유지
+            if not any(isinstance(it, TableItem) for it in doc_items):
+                result.append(chunk)
+                continue
+
+            # TableItem 발견 시 순서를 유지하며 독립 청크로 분리
+            buf: list[DocItem] = []
+
+            for item in doc_items:
+                if isinstance(item, TableItem):
+                    # 누적된 비-TableItem flush
+                    if buf:
+                        text = self._items_to_text(buf, dl_doc, **kwargs)
+                        if text.strip():
+                            result.append(
+                                DocChunk(
+                                    text=text,
+                                    meta=DocMeta(
+                                        doc_items=list(buf),
+                                        headings=chunk.meta.headings,
+                                        captions=None,
+                                        origin=chunk.meta.origin,
+                                    ),
+                                )
+                            )
+                        buf = []
+
+                    # TableItem → 독립 청크
+                    table_text = self._extract_table_text(item, dl_doc, **kwargs)
+                    result.append(
+                        DocChunk(
+                            text=table_text,
+                            meta=DocMeta(
+                                doc_items=[item],
+                                headings=chunk.meta.headings,
+                                captions=None,
+                                origin=chunk.meta.origin,
+                            ),
+                        )
+                    )
+                else:
+                    buf.append(item)
+
+            # 마지막 비-TableItem flush
+            if buf:
+                text = self._items_to_text(buf, dl_doc, **kwargs)
+                if text.strip():
+                    result.append(
+                        DocChunk(
+                            text=text,
+                            meta=DocMeta(
+                                doc_items=list(buf),
+                                headings=chunk.meta.headings,
+                                captions=None,
+                                origin=chunk.meta.origin,
+                            ),
+                        )
+                    )
+
+        return result
+
     def chunk(self, dl_doc: DoclingDocument, **kwargs: Any) -> Iterator[BaseChunk]:
         """문서를 청킹하여 반환
 
@@ -847,7 +941,10 @@ class GenosSmartChunker(BaseChunker):
 
         doc_chunk = doc_chunks[0]  # preprocess는 하나의 청크만 반환
 
-        final_chunks = self._split_document_by_tokens(doc_chunk, dl_doc, **kwargs)
+        if self.image_option == 1:
+            final_chunks = self._split_document_by_tokens_image(doc_chunk, dl_doc, **kwargs)
+        else:
+            final_chunks = self._split_document_by_tokens(doc_chunk, dl_doc, **kwargs)
 
         if self.merge_small_chunks:
             final_chunks = self._apply_merge_small(final_chunks, dl_doc)
