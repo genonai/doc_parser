@@ -140,9 +140,8 @@ class DoclingLoader(BaseLoader):
         }
     """
 
-    def __init__(self, format_options: dict, resource_path: str | None = None, genos_url: str = "") -> None:
+    def __init__(self, format_options: dict, genos_url: str = "") -> None:
         self._format_options_cfg = format_options
-        self._resource_path = Path(resource_path) if resource_path else None
         self._genos_url = genos_url
         self._bypass_loaders: dict[str, BaseLoader] = {}
         self._converter: DocumentConverter | None = None

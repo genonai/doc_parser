@@ -50,7 +50,6 @@ output:            # 출력 형식 (파싱용만)
   format: json
   table_format: html
 
-resource_path: /app/resource
 log_level: 4
 ```
 
@@ -394,10 +393,11 @@ result = await processor(request, "document.pdf")
 | 운영 | `genon/preprocessor/resource/` |
 | 개발 | `genon/preprocessor/resource_dev/` |
 
-`resource_path` 키로 오버라이드 가능:
-```yaml
-resource_path: /app/resource
+컨테이너 환경에서는 `DOC_PROCESSOR_CONFIG_PATH` 환경변수로 config 파일 경로를 지정:
 ```
+DOC_PROCESSOR_CONFIG_PATH=/app/resource/config.yaml
+```
+파일 경로를 지정하면 세 전처리기 모두 해당 파일 하나를 사용함.
 
 ---
 

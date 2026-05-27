@@ -317,7 +317,6 @@ postprocessors:
         | 데이터 1 | 100 | ... |
         | 데이터 2 | 200 | ... |
 
-resource_path: /app/resource
 
 
 

@@ -34,14 +34,8 @@ class DocumentProcessor:
         )
         setup_logging(int(self.config.get("log_level", 0)))
 
-        self._ext_loaders = self._build_ext_loaders(
-            self.config["format_options"],
-            self.config.get("resource_path"),
-        )
-        self.enrichers = self._build_enrichers(
-            self.config.get("enrichers", []),
-            resource_path=self.config.get("resource_path"),
-        )
+        self._ext_loaders = self._build_ext_loaders(self.config["format_options"])
+        self.enrichers = self._build_enrichers(self.config.get("enrichers", []))
 
         output_cfg = self.config.get("output", {})
         self._output_format = normalize_output_format(output_cfg.get("format", "json"))
@@ -51,11 +45,7 @@ class DocumentProcessor:
     def _normalize_enricher_name(name: str) -> str:
         return name[:-9] if name.endswith("_enricher") else name
 
-    def _build_enrichers(
-        self,
-        enrichers_cfg: list,
-        resource_path: str | None = None,
-    ) -> list:
+    def _build_enrichers(self, enrichers_cfg: list) -> list:
         if not enrichers_cfg:
             return []
         result = []
@@ -68,14 +58,11 @@ class DocumentProcessor:
             name = self._normalize_enricher_name(name)
             cls = ENRICHERS.get(name)
             assert cls is not None, f"지원하지 않는 enricher: {name}. 가능한 값: {list(ENRICHERS.keys())}"
-            accepts = inspect.signature(cls.__init__).parameters
-            if "resource_path" not in options and resource_path and "resource_path" in accepts:
-                options["resource_path"] = resource_path
             result.append(cls(**options))
         return result
 
-    def _build_ext_loaders(self, format_options: dict, resource_path: str | None = None) -> dict:
-        docling_loader = DoclingLoader(format_options, resource_path=resource_path)
+    def _build_ext_loaders(self, format_options: dict) -> dict:
+        docling_loader = DoclingLoader(format_options)
         return {ext: docling_loader for ext in format_options}
 
     def load_documents(self, file_path: str, **kwargs) -> Any:

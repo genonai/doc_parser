@@ -4,5 +4,4 @@ chunker:
   # miniLM | char
   max_tokens: 1024
 
-resource_path: /app/resource
 log_level: 4

@@ -46,7 +46,7 @@ class DocumentProcessor:
         setup_logging(int(self.config.get("log_level", 0)))
 
         format_options = {**DEFAULT_FORMAT_OPTIONS, **self.config.get("format_options", {})}
-        self._ext_loaders = self._build_ext_loaders(format_options, self.config.get("resource_path"))
+        self._ext_loaders = self._build_ext_loaders(format_options)
         self._chunker = self._build_chunker(self.config["chunker"])
         self.genos_meta_builder = GenOSVectorMetaBuilder()
 
@@ -58,8 +58,8 @@ class DocumentProcessor:
             name, options = chunker_cfg, {}
         return CHUNKERS[name](**options)
 
-    def _build_ext_loaders(self, format_options: dict, resource_path: str | None = None) -> dict:
-        docling_loader = DoclingLoader(format_options, resource_path=resource_path)
+    def _build_ext_loaders(self, format_options: dict) -> dict:
+        docling_loader = DoclingLoader(format_options)
         return {ext: docling_loader for ext in format_options}
 
     def load_documents(self, file_path: str, **kwargs) -> Any:
