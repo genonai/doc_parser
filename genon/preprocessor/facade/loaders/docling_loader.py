@@ -186,12 +186,13 @@ class DoclingLoader(BaseLoader):
             if opt.get("save_images"):
                 fmt_opt.pipeline_options.save_images = True
             if hasattr(fmt_opt.pipeline_options, "do_ocr"):
-                if "do_ocr" in opt:
+                do_ocr_val = opt.get("do_ocr")
+                if do_ocr_val is not None and do_ocr_val is not False:
                     fmt_opt.pipeline_options.do_ocr = True
-                    fmt_opt.pipeline_options.ocr_options = _load_ocr_options(opt["do_ocr"])
+                    fmt_opt.pipeline_options.ocr_options = _load_ocr_options(do_ocr_val)
                 else:
                     fmt_opt.pipeline_options.do_ocr = False
-            if "do_picture_description" in opt:
+            if opt.get("do_picture_description") not in (None, False):
                 fmt_opt.pipeline_options.do_picture_description = True
                 raw = opt["do_picture_description"]
                 assert len(raw) == 1, "do_picture_description dict는 kind 키 하나만 허용 (api | vlm)"

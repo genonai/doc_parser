@@ -99,11 +99,16 @@ format_options:
 
 ### do_ocr — OCR 설정
 
-PDF에서 텍스트 레이어가 없거나 이미지 기반인 경우 OCR 적용.
+PDF에서 텍스트 레이어가 없거나 이미지 기반인 경우 OCR 적용.  
+`false`로 명시하면 비활성화 (키를 통째로 주석 처리해도 동일).
 
 ```yaml
+# 비활성화
+do_ocr: false
+
+# 활성화
 do_ocr:
-  paddle:                         # 엔진 선택: paddle | easy | rapid | tesseract | tesseractcli
+  paddle:                         # 엔진 선택: paddle | easy | rapid | tesseract | tesseractcli | upstage
     force_full_page_ocr: true     # 전체 페이지 OCR 강제 (기본 false)
     lang:
       - korean
@@ -159,9 +164,14 @@ genos_layout:
 
 Docling이 문서를 로드하는 시점에 이미지를 VLM으로 설명 생성.  
 결과는 `item.meta.description.text`에 저장됨.  
-(Postprocessor의 `enhanced_image_description`과 별개)
+(Postprocessor의 `enhanced_image_description`과 별개)  
+`false`로 명시하면 비활성화 (키를 통째로 주석 처리해도 동일).
 
 ```yaml
+# 비활성화
+do_picture_description: false
+
+# 활성화
 do_picture_description:
   api:                          # 종류: api | vlm
     url: "http://..."           # LLM API 엔드포인트
