@@ -246,6 +246,22 @@ postprocessors:
         6. 셀의 텍스트는 생략하거나 요약하지 말고 그대로 재현합니다.
         7. 내용이 비어 있는 셀이 있다면 빈 `<td></td>` 또는 `<td>-</td>`로 유지하세요.
         8. 결과에는 원본에 없는 `하위1`, `하위2`, `구분 1`, `구분 2` 같은 임시 컬럼명을 만들지 않습니다.
+  - table_description:
+      url: null
+      api_key: null
+      model: null
+      max_tokens: 500
+      temperature: 0.0
+      timeout: 60
+      batch_size: 5
+      max_table_chars: 3000
+      system_prompt: |
+        당신은 문서 이해 전문가입니다. 주어진 표를 분석하여 핵심 내용을 한국어로 한 줄(50자 이내)로 설명하세요. 설명 문장만 출력하고 다른 내용은 출력하지 마세요.
+      prompt: |
+        다음 표의 핵심 내용을 한국어로 한 줄(50자 이내)로 설명하세요.
+        문서 주제: {subject}
+
+        {table_text}
   - enhanced_image_description:
       url: null
       api_key: null
