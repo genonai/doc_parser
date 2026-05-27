@@ -67,7 +67,6 @@
   - **subject 추출**: fitz로 PDF 전체 텍스트 추출 → LLM → 300자 이내 문서 주제. 이후 image_description 프롬프트·vector.subject에 주입 (vT5:2475)
   - **image_description** (image_description_on=1): 이미지를 한 줄 자연어로 요약 (vT5:2897)
   - **enhanced_image_description** (enhanced_image_description_on=1): 요약 + 차트/표를 마크다운 테이블로 변환까지 (vT5:2918)
-  - TOC 런타임 오버라이드: kwargs로 `toc_system_prompt`, `toc_user_prompt` 주입 가능하도록 (vT5:2537). 현재 intelligent_processor는 전역변수만 사용, 런타임 교체 불가
   - 프롬프트 참고: https://gongbuhow.com/posts/anthropic-prompt-generator-guide/
 
 - VLM: dots ocr
@@ -144,3 +143,7 @@
   - 첨부용
   - 적재용
   - 옵션 다 주석 달기
+
+
+
+
