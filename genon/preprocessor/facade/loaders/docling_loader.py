@@ -20,7 +20,9 @@ from docling.datamodel.pipeline_options import (
     RapidOcrOptions,
     PictureDescriptionApiOptions,
     PictureDescriptionVlmOptions,
+    LayoutModelType,
 )
+from docling.datamodel.settings import settings as _docling_settings
 from docling.backend.pypdfium2_backend import PyPdfiumDocumentBackend
 from docling.backend.pymupdf_backend import PyMuPDFDocumentBackend
 from docling.backend.genos_msword_backend import GenosMsWordDocumentBackend
@@ -204,6 +206,20 @@ class DoclingLoader(BaseLoader):
                     fmt_opt.pipeline_options.picture_description_options = PictureDescriptionVlmOptions(**opts)
                 else:
                     raise ValueError(f"지원하지 않는 picture_description kind: {kind}. 가능한 값: api | vlm")
+
+            if "genos_layout" in opt:
+                # dots OCR (GENOS_LAYOUT) 레이아웃 모델 설정
+                genos_cfg = {k: v for k, v in (opt["genos_layout"] or {}).items() if v is not None}
+                page_batch_size = genos_cfg.pop("page_batch_size", None)
+
+                fmt_opt.pipeline_options.layout_options.layout_model_type = LayoutModelType.GENOS_LAYOUT
+                for k, v in genos_cfg.items():
+                    setattr(fmt_opt.pipeline_options.layout_options.genos_layout_options, k, v)
+
+                if page_batch_size is not None:
+                    _docling_settings.perf.page_batch_size = int(page_batch_size)
+
+                fmt_opt.pipeline_options.enable_remote_services = True
 
             format_options[input_format] = fmt_opt
 

@@ -4,6 +4,17 @@ format_options:
     backend: pypdf
     generate_picture_images: true
 
+    # genos_layout: dots-OCR (GENOS_LAYOUT) 레이아웃 모델 설정
+    # 기본값(DOCLING_LAYOUT) 대신 dots-mocr VLM으로 PDF 레이아웃 분석
+    # genos_layout:
+    #   endpoint: "http://192.168.75.174:26001/v1/chat/completions"
+    #   api_key: ""                  # API 키 (없으면 빈 문자열)
+    #   model: "dots-mocr"           # 기본값, 변경 불필요
+    #   max_completion_tokens: 6000  # 기본값
+    #   timeout: 3600                # 기본값 (초)
+    #   retry_count: 2               # 기본값
+    #   page_batch_size: 32          # 한 번에 처리할 페이지 수
+
     # do_picture_description: Docling 파이프라인 내에서 이미지 설명 생성 (로드 중 처리)
     # 결과는 item.meta.description.text 에 저장됨
     do_picture_description:
