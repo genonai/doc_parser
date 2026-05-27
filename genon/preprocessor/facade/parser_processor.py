@@ -40,7 +40,6 @@ class DocumentProcessor:
         )
         self.enrichers = self._build_enrichers(
             self.config.get("enrichers", []),
-            genos_url=self.config.get("genos_url", ""),
             resource_path=self.config.get("resource_path"),
         )
 
@@ -55,7 +54,6 @@ class DocumentProcessor:
     def _build_enrichers(
         self,
         enrichers_cfg: list,
-        genos_url: str = "",
         resource_path: str | None = None,
     ) -> list:
         if not enrichers_cfg:
@@ -71,17 +69,13 @@ class DocumentProcessor:
             cls = ENRICHERS.get(name)
             assert cls is not None, f"지원하지 않는 enricher: {name}. 가능한 값: {list(ENRICHERS.keys())}"
             accepts = inspect.signature(cls.__init__).parameters
-            if "genos_url" not in options and genos_url and "genos_url" in accepts:
-                options["genos_url"] = genos_url
             if "resource_path" not in options and resource_path and "resource_path" in accepts:
                 options["resource_path"] = resource_path
             result.append(cls(**options))
         return result
 
     def _build_ext_loaders(self, format_options: dict, resource_path: str | None = None) -> dict:
-        docling_loader = DoclingLoader(
-            format_options, resource_path=resource_path, genos_url=self.config.get("genos_url", "")
-        )
+        docling_loader = DoclingLoader(format_options, resource_path=resource_path)
         return {ext: docling_loader for ext in format_options}
 
     def load_documents(self, file_path: str, **kwargs) -> Any:

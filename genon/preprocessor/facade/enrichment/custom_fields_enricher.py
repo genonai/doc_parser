@@ -29,8 +29,6 @@ class CustomFieldsEnricher(BaseEnricher):
         config_file: str = "",
         resource_path: str | None = None,
         url: str = "",
-        genos_url: str = "",
-        serving_id: str = "",
         model: str = "",
         max_tokens: int = 1000,
         temperature: float = 0.0,
@@ -43,7 +41,7 @@ class CustomFieldsEnricher(BaseEnricher):
         cfg = self._load_config(config_file, resource_path)
         prompt_cfg = cfg.get("prompt", {}) if isinstance(cfg.get("prompt"), dict) else {}
 
-        self._url = self._resolve_url(cfg, genos_url, serving_id, url=url)
+        self._url = url or cfg.get("url", "")
         self._model = model or cfg.get("model", "")
         self._max_tokens = max_tokens if max_tokens != 1000 else cfg.get("max_tokens", max_tokens)
         self._temperature = temperature if temperature != 0.0 else cfg.get("temperature", temperature)
@@ -59,10 +57,10 @@ class CustomFieldsEnricher(BaseEnricher):
             or str(prompt_cfg.get("user", "")).strip()
         )
         self._output_fields = list(output_fields or cfg.get("output_fields", []))
-        self._headers = {
-            "Authorization": f"Bearer {api_key or cfg.get('api_key', '')}",
-            "Content-Type": "application/json",
-        }
+        self._headers: dict[str, str] = {"Content-Type": "application/json"}
+        resolved_key = api_key or cfg.get("api_key", "")
+        if resolved_key:
+            self._headers["Authorization"] = f"Bearer {resolved_key}"
 
         self._parser_cfg = parser or cfg.get("parser", {}) or {}
         self._parser_base_dir = self._resolve_parser_base_dir(config_file, resource_path)

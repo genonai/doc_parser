@@ -8,7 +8,7 @@ format_options:
     # 결과는 item.meta.description.text 에 저장됨
     do_picture_description:
       api:
-        serving_id: "~~~~" 
+        url: null
         prompt: "이미지를 간결하고 정확하게 설명하세요. 텍스트가 포함된 경우 그대로 인용하고, 도표·그래프는 수치와 항목을 포함해 설명하세요."
         timeout: 60
         concurrency: 2
@@ -94,11 +94,10 @@ chunker:
   max_tokens: 1024
 
 enrichers:
-  # toc에다가 metadata를 옵션으로
   - toc_enricher:
-      serving_id: null
+      url: null
+      api_key: null
       model: model
-      extract_metadata: true
       temperature: 0.0
       top_p: 0.00001
       seed: 33
@@ -171,7 +170,21 @@ enrichers:
         - Handle both formal regulatory structures and general section headers
         - Wrap the entire table of contents in `<toc></toc>` tags
 
-genos_url: genos.genon.ai
+  - extract_metadata_enricher:
+      url: null
+      api_key: null
+      model: model
+      temperature: 0.0
+      top_p: 0.00001
+      seed: 33
+      max_tokens: 10000
+
+postprocessors:
+  # - table_refiner:
+  #     url: null
+  #     api_key: null
+  #     batch_size: 5
+
 resource_path: /app/resource
 
 log_level: 4

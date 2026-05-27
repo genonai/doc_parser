@@ -37,8 +37,6 @@ class TOCEnricher(BaseEnricher):
         config_file: str = "",
         resource_path: str | None = None,
         url: str = "",
-        genos_url: str = "",
-        serving_id: str = "",
         model: str = "",
         doc_type: str = "law",
         temperature: float = 0.0,
@@ -50,7 +48,7 @@ class TOCEnricher(BaseEnricher):
     ):
         cfg = self._load_config(config_file, resource_path)
 
-        resolved_url = self._resolve_url(cfg, genos_url, serving_id, url=url)
+        resolved_url = url or cfg.get("url", "")
         resolved_key = api_key or cfg.get("api_key", "")
         resolved_model = model or cfg.get("model", "")
         resolved_temperature = temperature if temperature != 0.0 else cfg.get("temperature", temperature)

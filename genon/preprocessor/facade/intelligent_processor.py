@@ -39,13 +39,11 @@ class DocumentProcessor:
         self._chunker = self._build_chunker(self.config["chunker"])
         self.enrichers = self._build_enrichers(
             self.config.get("enrichers", []),
-            genos_url=self.config.get("genos_url", ""),
             resource_path=self.config.get("resource_path"),
         )
         self.genos_meta_builder = GenOSVectorMetaBuilder()
         self.postprocessors = self._build_postprocessors(
             self.config.get("postprocessors", []),
-            genos_url=self.config.get("genos_url", ""),
         )
         output_cfg = self.config.get("output", {})
         self._output_format = normalize_output_format(output_cfg.get("format", "json"))
@@ -55,7 +53,7 @@ class DocumentProcessor:
     def _normalize_enricher_name(name: str) -> str:
         return name[:-9] if name.endswith("_enricher") else name
 
-    def _build_postprocessors(self, postprocessors_cfg: list, genos_url: str = "") -> list:
+    def _build_postprocessors(self, postprocessors_cfg: list) -> list:
         if not postprocessors_cfg:
             return []
         result = []
@@ -67,16 +65,12 @@ class DocumentProcessor:
                 name, options = item, {}
             cls = POSTPROCESSORS.get(name)
             assert cls is not None, f"지원하지 않는 postprocessor: {name}. 가능한 값: {list(POSTPROCESSORS.keys())}"
-            accepts = inspect.signature(cls.__init__).parameters
-            if "genos_url" not in options and genos_url and "genos_url" in accepts:
-                options["genos_url"] = genos_url
             result.append(cls(**options))
         return result
 
     def _build_enrichers(
         self,
         enrichers_cfg: list,
-        genos_url: str = "",
         resource_path: str | None = None,
     ) -> list:
         if not enrichers_cfg:
@@ -92,8 +86,6 @@ class DocumentProcessor:
             cls = ENRICHERS.get(name)
             assert cls is not None, f"지원하지 않는 enricher: {name}. 가능한 값: {list(ENRICHERS.keys())}"
             accepts = inspect.signature(cls.__init__).parameters
-            if "genos_url" not in options and genos_url and "genos_url" in accepts:
-                options["genos_url"] = genos_url
             if "resource_path" not in options and resource_path and "resource_path" in accepts:
                 options["resource_path"] = resource_path
             result.append(cls(**options))
@@ -108,9 +100,7 @@ class DocumentProcessor:
         return CHUNKERS[name](**options)
 
     def _build_ext_loaders(self, format_options: dict, resource_path: str | None = None) -> dict:
-        docling_loader = DoclingLoader(
-            format_options, resource_path=resource_path, genos_url=self.config.get("genos_url", "")
-        )
+        docling_loader = DoclingLoader(format_options, resource_path=resource_path)
         return {ext: docling_loader for ext in format_options}
 
     def load_documents(self, file_path: str, **kwargs) -> Any:

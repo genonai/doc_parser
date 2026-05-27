@@ -27,16 +27,16 @@ class TableRefiner:
     """
     config 예시 (parsing_config.yaml):
         table_refiner:
-          serving_id: "729"
-          bearer_token: ""     # 없으면 GENOS_BEARER_TOKEN 환경변수 사용
+          url: "https://..."
+          api_key: ""
           batch_size: 5
     """
 
-    def __init__(self, serving_id: str = "", genos_url: str = "", bearer_token: str = "", batch_size: int = 5):
-        self._url = f"{genos_url}/api/gateway/rep/serving/{serving_id}/v1/chat/completions"
+    def __init__(self, url: str = "", api_key: str = "", batch_size: int = 5):
+        self._url = url
         self._headers: dict[str, str] = {"Content-Type": "application/json"}
-        if bearer_token:
-            self._headers["Authorization"] = f"Bearer {bearer_token}"
+        if api_key:
+            self._headers["Authorization"] = f"Bearer {api_key}"
         self._batch_size = batch_size
         self._pdf: fitz.Document | None = None
 

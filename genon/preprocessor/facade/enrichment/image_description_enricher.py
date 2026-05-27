@@ -40,21 +40,22 @@ class ImageDescriptionEnricher(BaseEnricher):
         config_file: str = "",
         resource_path: str | None = None,
         url: str = "",
-        genos_url: str = "",
-        serving_id: str = "",
         max_tokens: int = 1000,
         temperature: float = 0.1,
         timeout: int = 90,
         prompt: str = "",
     ):
         cfg = self._load_config(config_file, resource_path)
-        self._url = self._resolve_url(cfg, genos_url, serving_id, url=url)
+        self._url = url or cfg.get("url", "")
         self._model = cfg.get("model", "")
         self._max_tokens = max_tokens if max_tokens != 1000 else cfg.get("max_tokens", max_tokens)
         self._temperature = temperature if temperature != 0.1 else cfg.get("temperature", temperature)
         self._timeout = timeout if timeout != 90 else cfg.get("timeout", timeout)
         self._prompt = prompt or cfg.get("prompt", "").strip()
-        self._headers = {"Authorization": f"Bearer {api_key or cfg.get('api_key', '')}", "Content-Type": "application/json"}
+        self._headers: dict[str, str] = {"Content-Type": "application/json"}
+        resolved_key = api_key or cfg.get("api_key", "")
+        if resolved_key:
+            self._headers["Authorization"] = f"Bearer {resolved_key}"
 
     def _load_config(self, config_file: str, resource_path: str | None = None) -> dict:
         if not config_file:
