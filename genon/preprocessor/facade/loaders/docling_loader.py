@@ -18,6 +18,7 @@ from docling.datamodel.pipeline_options import (
     TesseractOcrOptions,
     TesseractCliOcrOptions,
     RapidOcrOptions,
+    UpstageOcrOptions,
     PictureDescriptionApiOptions,
     PictureDescriptionVlmOptions,
     LayoutModelType,
@@ -47,6 +48,7 @@ OCR_ENGINE_MAP = {
     "tesseract":  TesseractOcrOptions,
     "tesseractcli": TesseractCliOcrOptions,
     "rapid":      RapidOcrOptions,
+    "upstage":    UpstageOcrOptions,
 }
 
 

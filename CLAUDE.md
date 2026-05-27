@@ -40,7 +40,7 @@
 - paddle ✅
 - rapid ✅
 - tesseract ✅ (tesseract / tesseractcli)
-- 업스테이지 (pending)
+- 업스테이지 ✅ → `UpstageOcrModel` (`UPSTAGE_API_KEY` 또는 `api_key` 옵션)
 
 ## Enrichment
 - image description ✅ → `ImageDescriptionEnricher`

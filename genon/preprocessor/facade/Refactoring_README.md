@@ -120,6 +120,20 @@ do_ocr:
 | `rapid` | 로컬 실행 |
 | `tesseract` | 로컬 Tesseract 설치 필요 |
 | `tesseractcli` | CLI 방식 Tesseract |
+| `upstage` | Upstage Document Digitization API, `api_key` 또는 `UPSTAGE_API_KEY` 환경변수 필수 |
+
+#### upstage OCR 상세
+
+```yaml
+do_ocr:
+  upstage:
+    api_key: "up_..."              # 또는 UPSTAGE_API_KEY 환경변수로 전달
+    api_endpoint: "https://api.upstage.ai/v1/document-digitization"  # 기본값
+    model: "ocr"                   # 기본값
+    lang: [ko, en]                 # 기본값 (현재 API에서 실질 필터 미적용)
+    text_score: 0.5                # 단어 confidence 임계값 (기본 0.5)
+    timeout: 60                    # 초 단위 (기본 60)
+```
 
 ---
 
