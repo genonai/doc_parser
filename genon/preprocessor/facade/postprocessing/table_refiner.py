@@ -32,12 +32,13 @@ class TableRefiner:
           batch_size: 5
     """
 
-    def __init__(self, url: str = "", api_key: str = "", batch_size: int = 5):
+    def __init__(self, url: str = "", api_key: str = "", batch_size: int = 5, system_prompt: str = ""):
         self._url = url
         self._headers: dict[str, str] = {"Content-Type": "application/json"}
         if api_key:
             self._headers["Authorization"] = f"Bearer {api_key}"
         self._batch_size = batch_size
+        self._system_prompt = system_prompt.strip()
         self._pdf: fitz.Document | None = None
 
     # ------------------------------------------------------------------
@@ -94,28 +95,6 @@ class TableRefiner:
     # ------------------------------------------------------------------
 
     async def _refine_table(self, b64: str, original_table_text: str = None) -> str | None:
-        system_prompt = """
-당신은 'HTML 테이블 복원 전문가(Table Reconstruction Expert)'입니다.
-입력으로 제공되는 테이블 이미지를 검색/RAG에 적합한 **읽기 쉬운 HTML fragment**로 변환하는 것이 역할입니다.
-
-### 출력 형식 (절대 규칙)
-1. 결과는 반드시 HTML fragment여야 합니다. Markdown table, 코드블록, ```html fence, 설명 문장은 절대 출력하지 않습니다.
-2. 사용할 수 있는 태그는 `<p>`, `<h4>`, `<table>`, `<thead>`, `<tbody>`, `<tr>`, `<th>`, `<td>`, `<br>`입니다. 필요한 경우 `<th>`/`<td>`에는 `rowspan`, `colspan` 속성을 사용할 수 있습니다.
-3. 표 데이터는 반드시 `<table>`로 출력합니다.
-4. 셀 안 줄바꿈은 `<br>`로 표현합니다.
-5. 셀 텍스트에 원본 파이프 기호(`|`)가 있으면 HTML에서는 그대로 두지 말고 가운뎃점(`·`)으로 치환합니다.
-
-### 구조 복원 규칙
-1. 표가 단순하면 하나의 HTML `<table>`로 출력합니다.
-2. 표 안에 표가 들어간 중첩 표, 다단 헤더, 큰 rowspan/colspan, 페이지 이어짐 표라면 **하나의 큰 격자로 억지 변환하지 말고**, 문맥 `<p>` + 여러 개의 작은 `<table>`로 분해합니다.
-3. 왼쪽/상단의 큰 병합셀은 반복 컬럼으로 만들지 말고 문맥 `<p>`로 분리합니다.
-4. 내부 표의 실제 컬럼명이 보이면 그 컬럼명을 사용합니다.
-5. `[1] 기본형`, `[2] 확장형`처럼 표 내부의 섹션 구분자는 `<h4>`로 분리합니다.
-6. 셀의 텍스트는 생략하거나 요약하지 말고 그대로 재현합니다.
-7. 내용이 비어 있는 셀이 있다면 빈 `<td></td>` 또는 `<td>-</td>`로 유지하세요.
-8. 결과에는 원본에 없는 `하위1`, `하위2`, `구분 1`, `구분 2` 같은 임시 컬럼명을 만들지 않습니다.
-""".strip()
-
         reference_text = ""
         if original_table_text:
             reference_text = f"""
@@ -128,7 +107,7 @@ class TableRefiner:
 """
         body = {
             "messages": [
-                {"role": "system", "content": system_prompt},
+                {"role": "system", "content": self._system_prompt},
                 {
                     "role": "user",
                     "content": [

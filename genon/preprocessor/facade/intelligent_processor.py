@@ -145,7 +145,7 @@ class DocumentProcessor:
         chunks = self.split_documents(documents, **kwargs)
 
         # 청킹 후 postprocessing (테이블 정제 등 chunk 레벨)
-        chunks = await self.postprocessing(chunks, documents, file_path=file_path, **kwargs)
+        chunks = await self.postprocessing(chunks, documents, file_path=file_path, _enrichment_context=enrichment_context, **kwargs)
 
         vectors = await self.compose_vectors(
             request,

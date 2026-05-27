@@ -153,7 +153,12 @@ class EnhancedImageDescriptionPostprocessor:
             _log.warning("enhanced_image_description 비활성: url/model 설정이 비어있습니다.")
             return chunks
 
-        subject: str = kwargs.get("subject") or kwargs.get("external_subject") or ""
+        ctx = kwargs.get("_enrichment_context") or {}
+        subject: str = (
+            kwargs.get("subject")
+            or kwargs.get("external_subject")
+            or ctx.get("subject", "")
+        )
 
         tasks: list = []
         task_chunk_idxs: list[int] = []
