@@ -26,9 +26,9 @@ format_options:
         timeout: 60
         concurrency: 2
 
-    # ── do_ocr: OCR 엔진 설정 (하나만 활성화) ────────────────────────────────
+    # ── ocr: OCR 엔진 설정 (하나만 활성화) ────────────────────────────────
 
-    do_ocr:
+    ocr:
       paddle:
         # PaddleOCR (원격 서버 방식)
         force_full_page_ocr: true

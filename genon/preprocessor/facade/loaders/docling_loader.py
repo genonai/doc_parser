@@ -52,9 +52,9 @@ OCR_ENGINE_MAP = {
 }
 
 
-def _load_ocr_options(do_ocr_cfg: dict | str):
+def _load_ocr_options(ocr_cfg: dict | str):
     """
-    do_ocr 설정을 OcrOptions 인스턴스로 변환.
+    ocr 설정을 OcrOptions 인스턴스로 변환.
 
     형식 1 — 인라인 dict:
         {"paddle": {"force_full_page_ocr": True, "lang": ["korean"]}}
@@ -62,12 +62,12 @@ def _load_ocr_options(do_ocr_cfg: dict | str):
     형식 2 — 엔진 이름 문자열 (기본값 사용):
         "easy"
     """
-    if isinstance(do_ocr_cfg, str):
-        engine_key = do_ocr_cfg.lower()
+    if isinstance(ocr_cfg, str):
+        engine_key = ocr_cfg.lower()
         options_dict = {}
     else:
-        assert len(do_ocr_cfg) == 1, "do_ocr dict는 엔진 이름 키 하나만 허용"
-        engine_key, raw_options = next(iter(do_ocr_cfg.items()))
+        assert len(ocr_cfg) == 1, "ocr dict는 엔진 이름 키 하나만 허용"
+        engine_key, raw_options = next(iter(ocr_cfg.items()))
         engine_key = engine_key.lower()
         options_dict = {k: v for k, v in (raw_options or {}).items() if v is not None}
 
@@ -186,10 +186,10 @@ class DoclingLoader(BaseLoader):
             if opt.get("save_images"):
                 fmt_opt.pipeline_options.save_images = True
             if hasattr(fmt_opt.pipeline_options, "do_ocr"):
-                do_ocr_val = opt.get("do_ocr")
-                if do_ocr_val is not None and do_ocr_val is not False:
+                ocr_val = opt.get("ocr")
+                if ocr_val is not None and ocr_val is not False:
                     fmt_opt.pipeline_options.do_ocr = True
-                    fmt_opt.pipeline_options.ocr_options = _load_ocr_options(do_ocr_val)
+                    fmt_opt.pipeline_options.ocr_options = _load_ocr_options(ocr_val)
                 else:
                     fmt_opt.pipeline_options.do_ocr = False
             if opt.get("do_picture_description") not in (None, False):

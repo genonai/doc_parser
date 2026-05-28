@@ -4,8 +4,8 @@ format_options:
     backend: pypdf
     generate_picture_images: true
     do_picture_description: false      
-    # ── do_ocr: OCR 엔진 설정 (하나만 활성화) ────────────────────────────────
-    do_ocr: false
+    # ── ocr: OCR 엔진 설정 (하나만 활성화) ────────────────────────────────
+    ocr: false
   docx:
     pipeline_options: simple
     backend: msword

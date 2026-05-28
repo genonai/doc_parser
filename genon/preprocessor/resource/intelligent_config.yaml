@@ -24,7 +24,7 @@ format_options:
         timeout: 60
         concurrency: 2
 
-    do_ocr:
+    ocr:
       paddle:
         # PaddleOCR 설정 (원격 서버 방식)
 
