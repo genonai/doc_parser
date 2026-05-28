@@ -15,9 +15,9 @@ format_options:
     #   retry_count: 2               # 기본값
     #   page_batch_size: 32          # 한 번에 처리할 페이지 수
 
-    # ── do_picture_description: 로드 중 이미지 설명 생성 ────────────────────
+    # ── picture_description: 로드 중 이미지 설명 생성 ────────────────────
     # 결과는 item.meta.description.text 에 저장됨
-    do_picture_description:
+    picture_description:
       api:
         url: null
         api_key: null

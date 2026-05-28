@@ -384,10 +384,10 @@ class DoclingLoader(BaseLoader):
                     fmt_opt.pipeline_options.ocr_options = _load_ocr_options(ocr_val)
                 else:
                     fmt_opt.pipeline_options.do_ocr = False
-            if opt.get("do_picture_description") not in (None, False):
-                fmt_opt.pipeline_options.do_picture_description = True
-                raw = opt["do_picture_description"]
-                assert len(raw) == 1, "do_picture_description dict는 kind 키 하나만 허용 (api | vlm)"
+            if opt.get("picture_description") not in (None, False):
+                fmt_opt.pipeline_options.picture_description = True
+                raw = opt["picture_description"]
+                assert len(raw) == 1, "picture_description dict는 kind 키 하나만 허용 (api | vlm)"
                 kind, opts = next(iter(raw.items()))
                 opts = {k: v for k, v in (opts or {}).items() if v is not None}
                 if kind == "api":

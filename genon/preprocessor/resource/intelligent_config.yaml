@@ -15,9 +15,9 @@ format_options:
     #   retry_count: 2               # 기본값
     #   page_batch_size: 32          # 한 번에 처리할 페이지 수
 
-    # do_picture_description: Docling 파이프라인 내에서 이미지 설명 생성 (로드 중 처리)
+    # picture_description: Docling 파이프라인 내에서 이미지 설명 생성 (로드 중 처리)
     # 결과는 item.meta.description.text 에 저장됨
-    do_picture_description:
+    picture_description:
       api:
         url: null
         prompt: "이미지를 간결하고 정확하게 설명하세요. 텍스트가 포함된 경우 그대로 인용하고, 도표·그래프는 수치와 항목을 포함해 설명하세요."

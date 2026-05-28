@@ -3,7 +3,7 @@ format_options:
     pipeline_options: pdf
     backend: pypdf
     generate_picture_images: true
-    do_picture_description: false      
+    picture_description: false      
     # ── ocr: OCR 엔진 설정 (하나만 활성화) ────────────────────────────────
     ocr: false
   docx:
