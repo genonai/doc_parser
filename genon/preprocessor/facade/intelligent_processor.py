@@ -11,7 +11,7 @@ from genon.preprocessor.facade.chunkers import CHUNKERS
 from genon.preprocessor.facade.enrichment import ENRICHERS
 from genon.preprocessor.facade.metadata import GenOSVectorMetaBuilder
 from genon.preprocessor.facade.postprocessing import POSTPROCESSORS
-from genon.preprocessor.facade.utils.config_util import load_yaml_config
+from genon.preprocessor.facade.utils.config_util import load_yaml_config, resolve_default_config_path
 from genon.preprocessor.facade.utils.logging_utils import setup_logging
 from genon.preprocessor.facade.utils.parse_serializer import (
     normalize_output_format,
@@ -32,6 +32,7 @@ class DocumentProcessor:
             filename=CONFIG_FILENAME,
             caller_file=__file__
         )
+        self._config_dir = resolve_default_config_path(CONFIG_FILENAME, __file__).parent
         setup_logging(int(self.config.get("log_level", 0)))
 
         self._ext_loaders = self._build_ext_loaders(self.config["format_options"])
@@ -76,6 +77,8 @@ class DocumentProcessor:
                 options = {k: v for k, v in (options or {}).items() if v is not None}
             else:
                 name, options = item, {}
+            if "config_file" in options and "resource_path" not in options:
+                options["resource_path"] = str(self._config_dir)
             name = self._normalize_enricher_name(name)
             cls = ENRICHERS.get(name)
             assert cls is not None, f"지원하지 않는 enricher: {name}. 가능한 값: {list(ENRICHERS.keys())}"

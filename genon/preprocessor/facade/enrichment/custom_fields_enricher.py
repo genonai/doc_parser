@@ -1,6 +1,7 @@
 import importlib.util
 import json
 import logging
+import re
 from pathlib import Path
 from typing import Any, Callable
 
@@ -37,6 +38,7 @@ class CustomFieldsEnricher(BaseEnricher):
         user_prompt: str = "",
         output_fields: list[str] | None = None,
         parser: dict | None = None,
+        pages: list[int] | None = None,
     ):
         cfg = self._load_config(config_file, resource_path)
         prompt_cfg = cfg.get("prompt", {}) if isinstance(cfg.get("prompt"), dict) else {}
@@ -65,6 +67,10 @@ class CustomFieldsEnricher(BaseEnricher):
         self._parser_cfg = parser or cfg.get("parser", {}) or {}
         self._parser_base_dir = self._resolve_parser_base_dir(config_file, resource_path)
         self._parser_callable = self._build_parser_callable()
+        self._extract_pattern: str = self._parser_cfg.get("extract_pattern", "")
+
+        cfg_pages = cfg.get("pages")
+        self._pages: list[int] | None = pages or (cfg_pages if isinstance(cfg_pages, list) and cfg_pages else None)
 
     def _load_config(self, config_file: str, resource_path: str | None = None) -> dict:
         if not config_file:
@@ -139,16 +145,59 @@ class CustomFieldsEnricher(BaseEnricher):
             raise TypeError(f"parser callable을 찾을 수 없거나 호출 불가: {parser_callable}")
         return fn
 
+    def _extract_text_for_json(self, text: str) -> str:
+        if not self._extract_pattern:
+            return text
+        m = re.search(self._extract_pattern, text, re.DOTALL)
+        if not m:
+            return text
+        return m.group(1) if m.lastindex else m.group(0)
+
     def _default_parse(self, llm_output: str, **kwargs) -> dict:
         if isinstance(llm_output, dict):
             return llm_output
         if not isinstance(llm_output, str):
             return {}
+
+        # extract_pattern 지정 시 먼저 적용
+        if self._extract_pattern:
+            candidate = self._extract_text_for_json(llm_output)
+            try:
+                parsed = json.loads(candidate)
+                return parsed if isinstance(parsed, dict) else {}
+            except json.JSONDecodeError:
+                pass
+            return {}
+
+        # 자동 fallback — 3단계
+        # 1단계: 직접 파싱
         try:
             parsed = json.loads(llm_output)
             return parsed if isinstance(parsed, dict) else {}
         except json.JSONDecodeError:
-            return {}
+            pass
+
+        # 2단계: 마크다운 코드블록
+        for block in re.findall(r"```(?:json)?\s*([\s\S]*?)```", llm_output):
+            try:
+                parsed = json.loads(block.strip())
+                if isinstance(parsed, dict):
+                    return parsed
+            except json.JSONDecodeError:
+                continue
+
+        # 3단계: raw_decode 스캔 — 설명문구 앞뒤에 JSON이 섞인 경우
+        decoder = json.JSONDecoder()
+        for i, ch in enumerate(llm_output):
+            if ch in "{[":
+                try:
+                    parsed, _ = decoder.raw_decode(llm_output, i)
+                    if isinstance(parsed, dict):
+                        return parsed
+                except json.JSONDecodeError:
+                    continue
+
+        return {}
 
     @staticmethod
     def _normalize_message_content(content: Any) -> str:
@@ -166,7 +215,11 @@ class CustomFieldsEnricher(BaseEnricher):
         return str(content)
 
     async def _call_llm(self, raw_text: str) -> str:
-        prompt = self._user_prompt.replace("{raw_text}", raw_text) if self._user_prompt else raw_text
+        prompt = (
+            self._user_prompt
+            .replace("{{raw_text}}", raw_text)
+            .replace("{raw_text}", raw_text)
+        ) if self._user_prompt else raw_text
         messages = []
         if self._system_prompt:
             messages.append({"role": "system", "content": self._system_prompt})
@@ -204,12 +257,22 @@ class CustomFieldsEnricher(BaseEnricher):
             return parsed
         return {key: parsed.get(key) for key in self._output_fields}
 
+    def _extract_raw_text(self, document: DoclingDocument) -> str:
+        if not self._pages:
+            return document.export_to_text()
+        from docling_core.transforms.serializer.markdown import MarkdownDocSerializer, MarkdownParams
+        serializer = MarkdownDocSerializer(
+            doc=document,
+            params=MarkdownParams(pages=set(self._pages)),
+        )
+        return serializer.serialize().text
+
     async def enrich(self, document: DoclingDocument, **kwargs) -> DoclingDocument:
         if not self._url or not self._model:
             _log.warning("custom_fields enricher 비활성: url/model 설정이 비어있습니다.")
             return document
 
-        raw_text = document.export_to_text()
+        raw_text = self._extract_raw_text(document)
         try:
             llm_output = await self._call_llm(raw_text)
             parsed = self._parse_with_custom_parser(llm_output, document, **kwargs)
