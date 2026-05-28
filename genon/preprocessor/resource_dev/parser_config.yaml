@@ -4,41 +4,59 @@ format_options:
     backend: pypdf
     generate_picture_images: true
 
-    # genos_layout: dots-OCR (GENOS_LAYOUT) 레이아웃 모델 설정
-    # 기본값(DOCLING_LAYOUT) 대신 dots-mocr VLM으로 PDF 레이아웃 분석
-    # genos_layout:
-    #   endpoint: "http://192.168.75.174:26001/v1/chat/completions"
-    #   api_key: ""                  # API 키 (없으면 빈 문자열)
-    #   model: "dots-mocr"           # 기본값, 변경 불필요
-    #   max_completion_tokens: 6000  # 기본값
-    #   timeout: 3600                # 기본값 (초)
-    #   retry_count: 2               # 기본값
-    #   page_batch_size: 32          # 한 번에 처리할 페이지 수
+    layout:
+      layout_model_type: "genos_layout" # "genos_layout"(default) or "docling_layout"
+      # ── genos_layout: dots-OCR (GENOS_LAYOUT) VLM 레이아웃 분석 ──────────────
+      # 기본값(DOCLING_LAYOUT) 대신 dots-mocr VLM으로 PDF 레이아웃 분석
+      genos_layout:
+        # <SERVING_ID>: genos 상의 dots_mocr 서빙 아이디
+        endpoint: "http://llmops-gateway-api-service:8080/rep/serving/<SERVING_ID>/v1/chat/completions"
+        # 쿠버네티스 내부 파드끼리 통신하므로 api키 불필요
+        api_key: ""                  # API 키 (없으면 빈 문자열)
+        model: "dots-mocr"           # 기본값, 변경 불필요
+        max_completion_tokens: 6000  # 기본값
+        timeout: 3600                # 기본값 (초)
+        retry_count: 2               # 기본값
+        page_batch_size: 32          # 한 번에 처리할 페이지 수
 
-    # picture_description: Docling 파이프라인 내에서 이미지 설명 생성 (로드 중 처리)
-    # 결과는 item.meta.description.text 에 저장됨
+    # ── picture_description: 로드 중 이미지 설명 생성 ────────────────────
     picture_description:
+      enable: true # true, false
       api:
-        url: null
+        # <SERVING_ID>: genos 상의 VLM(Vision Language Model) 서빙 아이디
+        url: "http://llmops-gateway-api-service:8080/rep/serving/<SERVING_ID>/v1/chat/completions"
+        # 쿠버네티스 내부 파드끼리 통신하므로 api키 불필요
+        api_key: null
+        model: null
         prompt: "이미지를 간결하고 정확하게 설명하세요. 텍스트가 포함된 경우 그대로 인용하고, 도표·그래프는 수치와 항목을 포함해 설명하세요."
         timeout: 60
         concurrency: 2
 
+    # ── ocr: OCR 엔진 설정 ────────────────────────────────────────────────
     ocr:
+      enable: true # true, false
+      # force:   무조건 OCR로 로드. 텍스트 레이어 있어도 무시하고 이미지 → OCR
+      # disable: OCR 절대 안 함. 텍스트 레이어만 추출
+      # auto:    텍스트 레이어로 먼저 로드 → 품질 체크 → 불량이면 OCR 재시도
       ocr_mode: "auto"  # "auto" | "force" | "disable"
-      engine: "paddle"  # "paddle" | "upstage"
+      # ocr_mode가 auto일때 Genos 서빙 LLM을 호출하여 문서 품질 체크
+      auto_ocr_check_endpoint: "http://llmops-gateway-api-service:8080/rep/serving/<ENRICHMENT_SERVING_ID>/v1/chat/completions"
+      engine: "paddle"  # "paddle(default)" | "upstage"
 
       # engine: "paddle" 일 때만 사용
       # <OCR_ENDPOINT>: PaddleOCR 서버 주소로 변경 필요
-      ocr_endpoint: "http://doc-parser-ocr-deployment:8080/ocr"
+      # 대다수 사이트에서는 PaddleOCR endpoint로 http://doc-parser-ocr-deployment:8080/ocr
+      ocr_endpoint: "http://<OCR_ENDPOINT>/ocr"
 
       # engine: "upstage" 일 때만 사용
-      # upstage:
-      #   api_endpoint: "https://api.upstage.ai/v1/document-digitization"
-      #   api_key: ""                  # 또는 환경변수 UPSTAGE_API_KEY
-      #   model: "ocr"
-      #   timeout: 60
-      #   text_score: 0.5
+      upstage:
+        api_endpoint: "https://api.upstage.ai/v1/document-digitization"
+        # api_key 가 비어있으면 UPSTAGE_API_KEY 환경변수에서 fallback (시크릿 운영용)
+        api_key: ""
+        model: "ocr"
+        timeout: 60
+        text_score: 0.5
+  # pdf 이외의 확장자의 경우 backend를 통해 DoclingDocument 타입으로 변환
   docx:
     pipeline_options: simple
     backend: msword
@@ -56,25 +74,45 @@ format_options:
     pipeline_options: simple
     backend: mspowerpoint
 
+
+# ── chunker ────────────────────────────────────────────────────────────────────
+
 chunker:
-  name: smart
-  tokenizer: char
-  # miniLM | char
+  # smart:        Genos 커스텀. 섹션 헤더 기반 분할 + 토큰 병합. 가장 정교
+  # hybrid:       docling 기본 레이아웃 청킹 + 토크나이저 정제
+  # hierarchical: 문서 레이아웃 item별로 자름. max_tokens 미적용 (선언만 있고 실제 미사용)
+  # recursive:    TextItem만 처리 (테이블/이미지 무시). langchain RecursiveCharacterTextSplitter 래핑, 구버전 호환
+  name: smart        # smart | hybrid | hierarchical | recursive
+
+
+  # merge_peers:        같은 섹션 헤더 아래 청크들을 max_tokens 안에서 병합 (smart, hybrid)
+  # merge_small_chunks: max_tokens//3 미만 청크를 인접 청크에 병합 (smart 전용)
+  merge_peers: true
+  merge_small_chunks: true
+
+  # 청커 내부에서 토큰 수를 계산하기 위한 토크나이저
+  # char: 글자수
+  # miniLM: miniLM 토크나이저
+  tokenizer: char    # char | miniLM
+
   max_tokens: 1024
 
+# ── enrichers ─────────────────────────────────────────────────────────────────
 enrichers:
+  # 계층형 목차 추출
   - toc_enricher:
-      url: null
+      enable: true # true, false
+      # <SERVING_ID>: genos 상의 서빙 아이디
+      url: "http://llmops-gateway-api-service:8080/rep/serving/<SERVING_ID>/v1/chat/completions"
+      # 쿠버네티스 내부 파드끼리 통신하므로 api키 불필요
       api_key: null
       model: model
       temperature: 0.0
       top_p: 0.00001
       seed: 33
       max_tokens: 10000
-
       system_prompt: |
         You are an expert at generating table of contents (목차) from Korean documents. You specialize in regulatory documents, terms of service, contracts, and mixed-format documents that combine formal regulatory structures with general section headers.
-
       user_prompt: |
         Here is the Korean document you need to analyze:
 
@@ -140,142 +178,45 @@ enrichers:
         - Wrap the entire table of contents in `<toc></toc>` tags
 
   - extract_metadata_enricher:
-      url: null
-      api_key: null
+      enable: true # true, false
+      # <SERVING_ID>: genos 상의 서빙 아이디
+      url: "http://llmops-gateway-api-service:8080/rep/serving/<SERVING_ID>/v1/chat/completions"
+      # 쿠버네티스 내부 파드끼리 통신하므로 api키 불필요
       model: model
       temperature: 0.0
       top_p: 0.00001
       seed: 33
       max_tokens: 10000
-
-postprocessors:
-  - subject_extractor:
-      url: null
-      api_key: null
-      model: null
-      max_chars: 12000
-      max_tokens: 2000
-      temperature: 0.0
-      timeout: 60
       system_prompt: |
-        # 역할
-        당신은 제공된 문서의 핵심 내용을 정확히 파악하고 지정된 기준에 따라 분류하는 '문서 분석 및 분류 전문가'입니다.
+        You are a professional document extraction assistant. Your job is to carefully extract metadata from semi-structured or unstructured Korean financial documents. Always follow the requested output format exactly.
+      user_prompt: |
+        다음은 한국어로 작성된 금융 보고서 문서의 일부입니다. 이 문서에서 아래 정보를 정확히 추출해주세요:
 
-        # 목표
-        입력된 문서를 분석하여, 전체 내용을 포괄하는 요약된 주제(subject)와 문서의 유형(category), 그리고 문서 제목(title)을 JSON 형식으로 추출하십시오.
+        1. 최초 작성일 (날짜가 여러 개 있으면 '보고자료' 또는 '회의자료'에 가까운 날짜 사용)
+        2. 작성자 이름과 소속 또는 직책 (예: 채권시장팀 조용범 과장)
+        3. 작성자 전화번호 (내선번호 포함 시 함께 출력)
 
-        # 요구사항 (규칙)
-        1. 주제(subject) 작성 규칙
-        핵심 내용 추출: 문서 전체를 분석하여 핵심 목적과 주요 내용을 300자 이내의 완성된 문장형으로 작성하십시오.
-        제작처 명시 (필수): 문구 서두에 해당 문서의 제작 주체(예: 금융사, 보험사명 등)를 반드시 포함하십시오.
-        작성 패턴: "이 문서는 [제작처]에서 작성된 문서로, [주요 내용]을 설명하고 있습니다."
-        식별 불가 시 처리: 로고, 하단 저작권 표기, 문맥상 발행처 등을 확인했음에도 제작처를 특정할 수 없는 경우에만 "제작처 미상" 또는 "제작처 확인 불가" 문구를 포함하십시오.
+        문서:
+        ---
+        {document_content}
+        ---
 
-        2. 카테고리(category) 분류 규칙
-        분류 기준: 다음 3가지 중 문서의 성격에 가장 부합하는 값 하나만 정확히 출력하십시오.
-        산출방법서: 보험료, 책임준비금, 해약환급금 등의 수식, 산출 기초지수, 계산 로직이 포함된 경우.
-        약관: 보험계약의 권리/의무, 보장 내용, 지급 제한 사유 등 법률적/계약적 조항이 중심인 경우.
-        기타: 위 두 항목의 특성이 명확하지 않거나 안내서, 상품설명서, 홍보물 등에 해당하는 경우.
+        출력 형식은 반드시 아래와 같이 맞춰주세요 (JSON 형식):
 
-        3. 문서 제목(title) 작성 규칙
-        추출 및 정제: 표지나 최상단에서 확인되는 공식 명칭을 추출하되, 줄바꿈/특수문자/불필요한 공백은 제거하십시오.
-        구체성 확보: "보험약관", "안내서" 같은 일반 명사 대신, 상품명과 버전(무배당, 갱신형 등)을 반드시 포함하여 구체적으로 작성하십시오.
-        카테고리명 제외 로직 (중요): 앞서 선택한 [category] 값이 제목에 포함되어 있다면 이를 삭제하고 상품명 중심으로 작성하십시오.
-        제목 생성: 문서 내 명확한 제목이 없는 경우, 핵심 상품명과 문서 성격을 조합하여 30자 이내의 직관적인 제목을 직접 생성하십시오.
-
-        # 출력 형식 (Strict JSON)
-        - 마크다운 코드 블록 등 다른 설명은 일절 포함하지 말고, 오직 아래의 JSON 객체 포맷만 출력하십시오.
-
-        {
-          "subject": "제작처가 포함된 300자 이내의 주제 요약 내용",
-          "category": "산출방법서" or "약관" or "기타",
-          "title": "추출 또는 생성된 해당 문서의 제목"
-        }
-  - table_refiner:
-      url: null
-      api_key: null
-      batch_size: 5
-      system_prompt: |
-        당신은 'HTML 테이블 복원 전문가(Table Reconstruction Expert)'입니다.
-        입력으로 제공되는 테이블 이미지를 검색/RAG에 적합한 **읽기 쉬운 HTML fragment**로 변환하는 것이 역할입니다.
-
-        ### 출력 형식 (절대 규칙)
-        1. 결과는 반드시 HTML fragment여야 합니다. Markdown table, 코드블록, ```html fence, 설명 문장은 절대 출력하지 않습니다.
-        2. 사용할 수 있는 태그는 `<p>`, `<h4>`, `<table>`, `<thead>`, `<tbody>`, `<tr>`, `<th>`, `<td>`, `<br>`입니다. 필요한 경우 `<th>`/`<td>`에는 `rowspan`, `colspan` 속성을 사용할 수 있습니다.
-        3. 표 데이터는 반드시 `<table>`로 출력합니다.
-        4. 셀 안 줄바꿈은 `<br>`로 표현합니다.
-        5. 셀 텍스트에 원본 파이프 기호(`|`)가 있으면 HTML에서는 그대로 두지 말고 가운뎃점(`·`)으로 치환합니다.
-
-        ### 구조 복원 규칙
-        1. 표가 단순하면 하나의 HTML `<table>`로 출력합니다.
-        2. 표 안에 표가 들어간 중첩 표, 다단 헤더, 큰 rowspan/colspan, 페이지 이어짐 표라면 **하나의 큰 격자로 억지 변환하지 말고**, 문맥 `<p>` + 여러 개의 작은 `<table>`로 분해합니다.
-        3. 왼쪽/상단의 큰 병합셀은 반복 컬럼으로 만들지 말고 문맥 `<p>`로 분리합니다.
-        4. 내부 표의 실제 컬럼명이 보이면 그 컬럼명을 사용합니다.
-        5. `[1] 기본형`, `[2] 확장형`처럼 표 내부의 섹션 구분자는 `<h4>`로 분리합니다.
-        6. 셀의 텍스트는 생략하거나 요약하지 말고 그대로 재현합니다.
-        7. 내용이 비어 있는 셀이 있다면 빈 `<td></td>` 또는 `<td>-</td>`로 유지하세요.
-        8. 결과에는 원본에 없는 `하위1`, `하위2`, `구분 1`, `구분 2` 같은 임시 컬럼명을 만들지 않습니다.
-  - table_description:
-      url: null
-      api_key: null
-      model: null
-      max_tokens: 500
-      temperature: 0.0
-      timeout: 60
-      batch_size: 5
-      max_table_chars: 3000
-      system_prompt: |
-        당신은 문서 이해 전문가입니다. 주어진 표를 분석하여 핵심 내용을 한국어로 한 줄(50자 이내)로 설명하세요. 설명 문장만 출력하고 다른 내용은 출력하지 마세요.
-      prompt: |
-        다음 표의 핵심 내용을 한국어로 한 줄(50자 이내)로 설명하세요.
-        문서 주제: {subject}
-
-        {table_text}
-  - enhanced_image_description:
-      url: null
-      api_key: null
-      model: null
-      max_tokens: 5000
-      temperature: 0.1
-      timeout: 120
-      batch_size: 3
-      prompt: |
-        당신은 RAG(검색 증강 생성) 시스템을 위한 **전문 데이터 분석가이자 이미지 설명 전문가**입니다.
-        당신의 목표는 주어진 문서의 주제를 참고하여 이미지를 보지 못한 사람(혹은 검색 알고리즘)이 이미지의 모든 정보를 완벽하게 이해하고 검색할 수 있도록 구조화된 텍스트를 생성하는 것입니다.
-
-        제공된 이미지를 분석하여 아래의 [지침]에 따라 핵심 설명만을 작성해 주세요.
-
-        문서의 주제 : {subject}
-
-        # [지침]
-        ### [작성 규칙]
-
-        1. **한 문장 요약**: 이미지의 종류(도표, 사진, UI 등)와 핵심 주제를 한 줄로 서술.
-        2. **핵심 요소 (Bullet Point)**: 이미지 내의 주요 객체, 텍스트, 상태 정보를 3~5개 이내로 요약.
-        3. **원문 보존**: 이미지 안에 보이는 제목, 축/열 이름, 라벨, 수치, 단위, 범례, 주석은 가능한 한 원문 그대로 적습니다.
-        4. **불확실성 표시**: 흐리거나 잘린 글자는 추정하지 말고 "판독 불가" 또는 "일부 판독 불가"로 표시합니다.
-        5. **불필요한 수식어 금지**: "이미지는 ~를 보여줍니다" 같은 문구 없이 팩트 위주로 기술.
-
-        6. **차트/테이블 데이터 변환 (Chart to Markdown)**:
-           - 이미지에 차트(막대, 선, 파이 등)나 표가 포함되어 있다면, 이를 **반드시 마크다운 테이블(Markdown Table)** 형식으로 변환하세요.
-           - 수치가 명시되어 있지 않은 경우에만 축 눈금을 보고 근사치를 추정하고, 비고에 "추정"이라고 표시하세요.
-           - 단위, 기준시점, 주석이 보이면 데이터와 함께 보존하세요.
-           - 데이터 테이블 작성 후, 확인 가능한 범위에서 추세, 최고/최저점, 주요 차이만 간략히 덧붙이세요.
-
-        ### [출력 형식]
-
-        # 이미지 설명
-        (이미지 전체 요약 내용)
-
-        # 데이터 구조화 (차트/표)
-        (차트가 있을 경우만 작성, 없을 경우 '해당 없음' 표기)
-
-        | 항목 (X축) | 값 (Y축) | 비고 |
-        | :--- | :--- | :--- |
-        | 데이터 1 | 100 | ... |
-        | 데이터 2 | 200 | ... |
+        {{
+          "작성일": "YYYY-MM-DD",
+          "작성자": [
+            {{"이름": "조용범", "소속": "채권시장팀", "직책": "과장", "전화": "4751"}},
+            {{"이름": "임인혁", "소속": "주식시장팀", "직책": "과장", "전화": "4672"}}
+          ]
+        }}
 
 
-
+# ── output ────────────────────────────────────────────────────────────────────
+output:
+  # 전체 응답 포맷
+  format: "json"        # "json(default)" | "html" | "markdown"
+  # 표 렌더링 방식
+  table_format: "html"  # "html(default)" | "markdown"
 
 log_level: 4
