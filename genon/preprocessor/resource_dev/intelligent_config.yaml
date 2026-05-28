@@ -27,6 +27,11 @@ format_options:
         concurrency: 2
 
     # ── ocr: OCR 엔진 설정 ────────────────────────────────────────────────
+    
+    # ocr 사용 안할 경우
+    # ocr: false
+
+    # ocr 사용
     ocr:
       # force:   무조건 OCR로 로드. 텍스트 레이어 있어도 무시하고 이미지 → OCR
       # disable: OCR 절대 안 함. 텍스트 레이어만 추출
