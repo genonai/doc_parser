@@ -25,62 +25,20 @@ format_options:
         concurrency: 2
 
     ocr:
-      paddle:
-        # PaddleOCR 설정 (원격 서버 방식)
+      ocr_mode: "auto"  # "auto" | "force" | "disable"
+      engine: "paddle"  # "paddle" | "upstage"
 
-        # ── 공통 옵션 (모든 엔진) ────────────────────────────────────────────────────
-        force_full_page_ocr: true
+      # engine: "paddle" 일 때만 사용
+      # <OCR_ENDPOINT>: PaddleOCR 서버 주소로 변경 필요
+      ocr_endpoint: "http://doc-parser-ocr-deployment:8080/ocr"
 
-        lang:
-          - korean
-
-        bitmap_area_threshold: 0.05
-
-        # ── PaddleOCR 전용 옵션 ───────────────────────────────────────────────────────
-        # ocr_endpoint: PaddleOCR 서버 주소 (필수)
-        ocr_endpoint: "http://doc-parser-ocr-deployment:8080/ocr"
-
-        # text_score: 인식 결과 신뢰도 임계값, 미만은 버림 (기본 0.5)
-        text_score: 0.3
-
-        # timeout: 서버 응답 대기 시간 (초, 기본 60)
-        timeout: 60
-      # easy:
-      #   # EasyOCR 설정
-      #     # https://www.jaided.ai/easyocr/
-
-      #     # ── 공통 옵션 (모든 엔진) ────────────────────────────────────────────────────
-      #     # force_full_page_ocr
-      #     #   true  : 텍스트 레이어 유무와 무관하게 전체 페이지를 이미지로 취급해서 OCR
-      #     #   false : Docling이 bitmap으로 판단한 영역만 OCR
-      #     #           (비트맵이 페이지의 75% 이상이면 자동으로 전체 페이지 OCR로 전환)
-      #     force_full_page_ocr: true
-
-      #     # lang: EasyOCR 언어 코드 목록
-      #     # https://www.jaided.ai/easyocr/ 에서 지원 언어 확인
-      #     lang:
-      #       - ko
-      #       - en
-
-      #     # bitmap_area_threshold: OCR 대상으로 판단할 최소 비트맵 면적 비율 (기본 0.05 = 5%)
-      #     # 이 비율 미만의 비트맵은 OCR 대상에서 제외됨
-      #     bitmap_area_threshold: 0.05
-
-      #     # ── EasyOCR 전용 옵션 ─────────────────────────────────────────────────────────
-      #     # use_gpu: GPU 사용 여부 (null이면 환경에 따라 자동 감지)
-      #     use_gpu: false
-
-      #     # confidence_threshold: 인식 결과 신뢰도 임계값, 미만은 버림 (기본 0.5)
-      #     confidence_threshold: 0.5
-
-      #     # model_storage_directory: 모델 파일 저장 경로 (null이면 기본 캐시 경로)
-      #     model_storage_directory: null
-
-      #     # recog_network: 인식 네트워크 종류 (기본 "standard")
-      #     recog_network: standard
-
-      #     # download_enabled: 모델 자동 다운로드 허용 여부 (기본 true)
-      #     download_enabled: true
+      # engine: "upstage" 일 때만 사용
+      # upstage:
+      #   api_endpoint: "https://api.upstage.ai/v1/document-digitization"
+      #   api_key: ""                  # 또는 환경변수 UPSTAGE_API_KEY
+      #   model: "ocr"
+      #   timeout: 60
+      #   text_score: 0.5
   docx:
     pipeline_options: simple
     backend: msword

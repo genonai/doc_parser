@@ -26,80 +26,29 @@ format_options:
         timeout: 60
         concurrency: 2
 
-    # ── ocr: OCR 엔진 설정 (하나만 활성화) ────────────────────────────────
-
+    # ── ocr: OCR 엔진 설정 ────────────────────────────────────────────────
     ocr:
-      paddle:
-        # PaddleOCR (원격 서버 방식)
-        force_full_page_ocr: true
-        lang:
-          - korean
-        bitmap_area_threshold: 0.05
-        ocr_endpoint: "http://doc-parser-ocr-deployment:8080/ocr"
-        text_score: 0.3
+      # force:   무조건 OCR로 로드. 텍스트 레이어 있어도 무시하고 이미지 → OCR
+      # disable: OCR 절대 안 함. 텍스트 레이어만 추출
+      # auto:    텍스트 레이어로 먼저 로드 → 품질 체크 → 불량이면 OCR 재시도
+      ocr_mode: "auto"  # "auto" | "force" | "disable"
+      # ocr_mode가 auto일때 Genos 서빙 LLM을 호출하여 문서 품질 체크
+      auto_ocr_check_endpoint: "http://llmops-gateway-api-service:8080/rep/serving/<ENRICHMENT_SERVING_ID>/v1/chat/completions"
+      engine: "paddle"  # "paddle(default)" | "upstage"
+
+      # engine: "paddle" 일 때만 사용
+      # <OCR_ENDPOINT>: PaddleOCR 서버 주소로 변경 필요
+      # 대다수 사이트에서는 PaddleOCR endpoint로 http://doc-parser-ocr-deployment:8080/ocr
+      ocr_endpoint: "http://<OCR_ENDPOINT>/ocr"
+
+      # engine: "upstage" 일 때만 사용
+      upstage:
+        api_endpoint: "https://api.upstage.ai/v1/document-digitization"
+        # api_key 가 비어있으면 UPSTAGE_API_KEY 환경변수에서 fallback (시크릿 운영용)
+        api_key: ""
+        model: "ocr"
         timeout: 60
-
-      # easy:
-      #   # EasyOCR (로컬)
-      #   force_full_page_ocr: true
-      #   lang:
-      #     - ko
-      #     - en
-      #   bitmap_area_threshold: 0.05
-      #   use_gpu: false
-      #   confidence_threshold: 0.5
-      #   model_storage_directory: null  # null이면 기본 캐시 경로
-      #   recog_network: standard
-      #   download_enabled: true
-
-      # upstage:
-      #   # Upstage Document Digitization API
-      #   force_full_page_ocr: true
-      #   lang:
-      #     - ko
-      #     - en
-      #   api_endpoint: "https://api.upstage.ai/v1/document-digitization"
-      #   api_key: ""                  # 또는 환경변수 UPSTAGE_API_KEY
-      #   model: "ocr"
-      #   text_score: 0.5
-      #   timeout: 60
-
-      # tesseract:
-      #   # Tesseract CLI (tesseract 바이너리 필요)
-      #   force_full_page_ocr: true
-      #   lang:
-      #     - kor
-      #     - eng
-      #   bitmap_area_threshold: 0.05
-      #   tesseract_cmd: tesseract
-      #   path: null
-
-      # tesserocr:
-      #   # Tesseract Python 바인딩 (tesserocr 패키지 필요)
-      #   force_full_page_ocr: true
-      #   lang:
-      #     - kor
-      #     - eng
-      #   bitmap_area_threshold: 0.05
-      #   path: null
-
-      # rapidocr:
-      #   # RapidOCR (로컬)
-      #   force_full_page_ocr: true
-      #   lang:
-      #     - english
-      #     - chinese
-      #   bitmap_area_threshold: 0.05
-      #   text_score: 0.5
-      #   use_det: null
-      #   use_cls: null
-      #   use_rec: null
-      #   print_verbose: false
-      #   det_model_path: null
-      #   cls_model_path: null
-      #   rec_model_path: null
-      #   rec_keys_path: null
-
+        text_score: 0.5
   docx:
     pipeline_options: simple
     backend: msword

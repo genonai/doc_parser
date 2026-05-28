@@ -1,4 +1,7 @@
 import os
+import re
+import logging
+import requests
 from pathlib import Path
 
 import yaml
@@ -34,11 +37,14 @@ from docling.backend.xml.hwpx_backend import HwpxDocumentBackend
 from docling.pipeline.standard_pdf_pipeline import StandardPdfPipeline
 from docling.pipeline.simple_pipeline import SimplePipeline
 from docling_core.types import DoclingDocument
+from docling_core.types.doc import TextItem
 
 from .base_loader import BaseLoader
 from .tabular_loader import TabularLoader
 from .audio_loader import AudioLoader
 from .langchain_loaders import LangChainPdfLoader, LangChainDocxLoader, LangChainPptxLoader, LangChainMdLoader
+
+_log = logging.getLogger(__name__)
 
 _OCR_YAML_DIR = Path(__file__).parent.parent / "configs" / "ocr"
 
@@ -52,24 +58,180 @@ OCR_ENGINE_MAP = {
 }
 
 
+def _is_non_meaningful_char(c: str) -> bool:
+    if c.isspace():
+        return False
+    if '가' <= c <= '힣' or 'ㄱ' <= c <= 'ㅎ' or 'ㅏ' <= c <= 'ㅣ':
+        return False
+    if '一' <= c <= '鿿':
+        return False
+    if '぀' <= c <= 'ヿ':
+        return False
+    if c.isascii():
+        return False
+    return True
+
+
+def _has_good_text(
+    document: DoclingDocument,
+    glyph_threshold: int = 10,
+    non_meaningful_ratio_threshold: float = 0.3,
+) -> bool:
+    """
+    문서 텍스트 품질 검사. True = OCR 불필요, False = OCR 권장.
+
+    - 텍스트가 없으면 False
+    - GLYPH 패턴이 glyph_threshold 초과하면 False
+    - non-meaningful 문자 비율이 non_meaningful_ratio_threshold 초과하면 False
+    """
+    texts = []
+    glyph_count = 0
+    for item, _ in document.iterate_items():
+        if isinstance(item, TextItem) and item.text:
+            texts.append(item.text)
+            glyph_count += len(re.findall(r'GLYPH\w*', item.text))
+
+    text = " ".join(texts)
+    if not text.strip():
+        return False
+    if glyph_count > glyph_threshold:
+        return False
+
+    text_len = len(text)
+    non_meaningful = sum(1 for c in text if _is_non_meaningful_char(c))
+    return (non_meaningful / text_len) < non_meaningful_ratio_threshold
+
+
+_OCR_CHECK_SYSTEM_PROMPT = "당신은 PDF에서 추출된 텍스트의 품질을 분석하여 OCR 수행이 필요한지를 판단하는 전문가입니다."
+_OCR_CHECK_USER_PROMPT = (
+    "다음과 같은 기준을 참고하여 판단하세요:\n\n"
+    "- 텍스트가 거의 없는 경우 (문자 수가 너무 적거나 10자 이하)\n"
+    "- 대부분의 문자가 의미 없는 기호 또는 외계어처럼 보이는 경우 (예: \"Ê¾²¯Í­Å\" 등)\n"
+    "- 전체의 70% 이상이 비ASCII 문자이거나 공백 비율이 과도하게 높을 경우\n"
+    "- 텍스트가 존재하지만 문맥이 완전히 무의미하거나 손상된 경우\n"
+    "- `GLYPH<c=4,font=/DDPDDH+HaansoftBatang>` 와 같은 인코딩 오류가 전체의 50% 이상인 경우\n\n"
+    "판단은 다음 두 단계로 진행하세요:\n"
+    "1. 추출된 텍스트의 품질을 분석합니다.\n"
+    "2. OCR이 필요한지 여부를 `YES` 또는 `NO`로 명확하게 판단합니다.\n\n"
+    "출력 형식:\n"
+    "<analysis>\n... 분석 내용 ...\n</analysis>\n"
+    "<decision>\nYES 또는 NO\n</decision>\n\n"
+    "[INPUT]\n"
+    "<text>\n{content}\n</text>\n"
+    "<metadata>\n문자 수: {text_len}, 비ASCII 비율: {non_ascii_ratio:.2f}, 공백 비율: {space_ratio:.2f}\n</metadata>"
+)
+
+
+def _extract_text_sample(text: str, sample_len: int = 1000) -> str:
+    """20%/50%/80% 위치에서 샘플링. 짧으면 그대로 반환."""
+    n = len(text)
+    if n <= sample_len * 3:
+        return text[:3000]
+    half = sample_len // 2
+    parts = [text[max(0, int(n * r) - half): int(n * r) + half] for r in (0.2, 0.5, 0.8)]
+    return " ".join(parts)
+
+
+def _check_text_quality_llm(document: DoclingDocument, endpoint: str, timeout: int = 60) -> bool:
+    """
+    LLM을 호출해 텍스트 품질 판단. True = OCR 불필요, False = OCR 권장.
+    호출 실패 시 _has_good_text 휴리스틱으로 폴백.
+    """
+    texts = []
+    for item, _ in document.iterate_items():
+        if isinstance(item, TextItem) and item.text:
+            texts.append(item.text)
+
+    text = " ".join(texts)
+    if not text.strip():
+        return False
+
+    sample = _extract_text_sample(text)
+    text_len = len(sample)
+    non_ascii_ratio = sum(1 for c in sample if _is_non_meaningful_char(c)) / text_len if text_len else 0
+    space_ratio = sample.count(" ") / text_len if text_len else 1.0
+
+    user_msg = _OCR_CHECK_USER_PROMPT.format(
+        content=sample,
+        text_len=text_len,
+        non_ascii_ratio=non_ascii_ratio,
+        space_ratio=space_ratio,
+    )
+
+    try:
+        payload = {
+            "model": "model",
+            "temperature": 0.0,
+            "max_tokens": 4000,
+            "messages": [
+                {"role": "system", "content": _OCR_CHECK_SYSTEM_PROMPT},
+                {"role": "user", "content": user_msg},
+            ],
+        }
+        resp = requests.post(endpoint, json=payload, timeout=timeout)
+        resp.raise_for_status()
+        content = resp.json()["choices"][0]["message"]["content"]
+        match = re.search(r"<decision>\s*(YES|NO)\s*</decision>", content, re.IGNORECASE)
+        if match:
+            return match.group(1).upper() == "NO"  # NO = OCR 불필요
+        _log.warning("[DoclingLoader] LLM 응답에서 <decision> 파싱 실패, 휴리스틱으로 폴백")
+    except Exception as e:
+        _log.warning(f"[DoclingLoader] LLM 품질 체크 실패 ({e}), 휴리스틱으로 폴백")
+
+    return _has_good_text(document)
+
+
+_OCR_META_KEYS = {"ocr_mode", "auto_ocr_check_endpoint", "engine"}
+
+# lang 기본값: config에 없을 때 주입
+_ENGINE_LANG_DEFAULTS = {
+    "paddle":       ["korean"],
+    "easy":         ["ko", "en"],
+    "tesseract":    ["kor", "eng"],
+    "tesseractcli": ["kor", "eng"],
+}
+
+
 def _load_ocr_options(ocr_cfg: dict | str):
     """
     ocr 설정을 OcrOptions 인스턴스로 변환.
 
-    형식 1 — 인라인 dict:
-        {"paddle": {"force_full_page_ocr": True, "lang": ["korean"]}}
+    현재 구조 (engine 명시 + paddle은 flat, upstage는 sub-dict):
+        {"engine": "paddle", "ocr_endpoint": "...", "upstage": {...}}
+        {"engine": "upstage", "upstage": {"api_key": "..."}}
 
-    형식 2 — 엔진 이름 문자열 (기본값 사용):
+    레거시 구조 (엔진 이름 단일 키):
+        {"paddle": {"ocr_endpoint": "..."}}
+
+    문자열 (기본값):
         "easy"
     """
     if isinstance(ocr_cfg, str):
         engine_key = ocr_cfg.lower()
         options_dict = {}
     else:
-        assert len(ocr_cfg) == 1, "ocr dict는 엔진 이름 키 하나만 허용"
-        engine_key, raw_options = next(iter(ocr_cfg.items()))
-        engine_key = engine_key.lower()
-        options_dict = {k: v for k, v in (raw_options or {}).items() if v is not None}
+        explicit_engine = ocr_cfg.get("engine", "").lower().strip()
+        if explicit_engine:
+            engine_key = explicit_engine
+            if engine_key == "upstage":
+                raw = ocr_cfg.get("upstage") or {}
+                options_dict = {k: v for k, v in raw.items() if v is not None}
+            else:
+                # paddle 등: meta키·dict값 제외한 flat 키가 옵션
+                options_dict = {
+                    k: v for k, v in ocr_cfg.items()
+                    if k not in _OCR_META_KEYS and not isinstance(v, dict) and v is not None
+                }
+        else:
+            # 레거시: 단일 엔진 키
+            engine_entries = {k: v for k, v in ocr_cfg.items() if k not in _OCR_META_KEYS}
+            assert len(engine_entries) == 1, "ocr.engine 미지정 시 엔진 키 하나만 허용"
+            engine_key, raw_options = next(iter(engine_entries.items()))
+            engine_key = engine_key.lower()
+            options_dict = {k: v for k, v in (raw_options or {}).items() if v is not None}
+
+    if "lang" not in options_dict and engine_key in _ENGINE_LANG_DEFAULTS:
+        options_dict["lang"] = _ENGINE_LANG_DEFAULTS[engine_key]
 
     ocr_cls = OCR_ENGINE_MAP.get(engine_key)
     assert ocr_cls is not None, (
@@ -147,6 +309,9 @@ class DoclingLoader(BaseLoader):
         self._genos_url = genos_url
         self._bypass_loaders: dict[str, BaseLoader] = {}
         self._converter: DocumentConverter | None = None
+        self._converter_ocr: DocumentConverter | None = None
+        self._ocr_modes: dict[str, str] = {}
+        self._ocr_check_endpoints: dict[str, str] = {}
         self._setup()
 
     def _setup(self) -> None:
@@ -158,10 +323,36 @@ class DoclingLoader(BaseLoader):
                 self._bypass_loaders[ext] = cls(config=opt) if backend in ("tabular", "audio") else cls()
             else:
                 docling_formats[ext] = opt
-        if docling_formats:
-            self._converter = self._build_document_converter(docling_formats)
 
-    def _build_document_converter(self, native_formats: dict) -> DocumentConverter:
+        if not docling_formats:
+            return
+
+        for ext, opt in docling_formats.items():
+            ocr_val = opt.get("ocr")
+            if ocr_val is not None and ocr_val is not False:
+                mode = str(ocr_val.get("ocr_mode", "force") if isinstance(ocr_val, dict) else "force").lower().strip()
+                if mode not in {"auto", "force", "disable"}:
+                    _log.warning(f"[DoclingLoader] 알 수 없는 ocr_mode '{mode}' ({ext}), force로 대체")
+                    mode = "force"
+                if isinstance(ocr_val, dict):
+                    endpoint = ocr_val.get("auto_ocr_check_endpoint", "")
+                    if endpoint:
+                        self._ocr_check_endpoints[ext] = endpoint
+            else:
+                mode = "disable"
+            self._ocr_modes[ext] = mode
+
+        auto_exts = {ext for ext, m in self._ocr_modes.items() if m == "auto"}
+        disable_exts = {ext for ext, m in self._ocr_modes.items() if m == "disable"}
+
+        # _converter: auto → OCR OFF, force → OCR ON, disable → OCR OFF
+        self._converter = self._build_document_converter(docling_formats, ocr_off=auto_exts | disable_exts)
+
+        # _converter_ocr: auto → OCR ON (force/disable는 _converter와 동일하므로 무관)
+        if auto_exts:
+            self._converter_ocr = self._build_document_converter(docling_formats, ocr_off=disable_exts)
+
+    def _build_document_converter(self, native_formats: dict, ocr_off: set | None = None) -> DocumentConverter:
         allowed_formats = []
         format_options = {}
 
@@ -187,7 +378,8 @@ class DoclingLoader(BaseLoader):
                 fmt_opt.pipeline_options.save_images = True
             if hasattr(fmt_opt.pipeline_options, "do_ocr"):
                 ocr_val = opt.get("ocr")
-                if ocr_val is not None and ocr_val is not False:
+                force_off = ocr_off is not None and ext in ocr_off
+                if not force_off and ocr_val is not None and ocr_val is not False:
                     fmt_opt.pipeline_options.do_ocr = True
                     fmt_opt.pipeline_options.ocr_options = _load_ocr_options(ocr_val)
                 else:
@@ -227,17 +419,30 @@ class DoclingLoader(BaseLoader):
 
         return DocumentConverter(allowed_formats=allowed_formats, format_options=format_options)
 
-    def load(self, file_path: str) -> DoclingDocument:
-        ext = Path(file_path).suffix.lstrip(".").lower()
-        if ext in self._bypass_loaders:
-            return self._bypass_loaders[ext].load(file_path)
-        conv_result = self._converter.convert(file_path, raises_on_error=True)
+    def _convert(self, file_path: str, converter: DocumentConverter) -> DoclingDocument:
+        conv_result = converter.convert(file_path, raises_on_error=True)
         document = conv_result.document
-
         output_path, output_file = os.path.split(file_path)
         filename, _ = os.path.splitext(output_file)
         artifacts_dir = Path(f"{output_path}/{filename}")
         reference_path = None if artifacts_dir.is_absolute() else artifacts_dir.parent
-        document = document._with_pictures_refs(image_dir=artifacts_dir, page_no=None, reference_path=reference_path)
+        return document._with_pictures_refs(image_dir=artifacts_dir, page_no=None, reference_path=reference_path)
 
-        return document
+    def load(self, file_path: str) -> DoclingDocument:
+        ext = Path(file_path).suffix.lstrip(".").lower()
+        if ext in self._bypass_loaders:
+            return self._bypass_loaders[ext].load(file_path)
+
+        if self._ocr_modes.get(ext) == "auto" and self._converter_ocr is not None:
+            document = self._convert(file_path, self._converter)
+            endpoint = self._ocr_check_endpoints.get(ext, "")
+            if endpoint:
+                good = _check_text_quality_llm(document, endpoint)
+            else:
+                good = _has_good_text(document)
+            if not good:
+                _log.info(f"[DoclingLoader] 텍스트 품질 불량, OCR 재시도: {file_path}")
+                document = self._convert(file_path, self._converter_ocr)
+            return document
+
+        return self._convert(file_path, self._converter)
