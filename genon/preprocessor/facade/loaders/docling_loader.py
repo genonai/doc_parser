@@ -330,14 +330,17 @@ class DoclingLoader(BaseLoader):
         for ext, opt in docling_formats.items():
             ocr_val = opt.get("ocr")
             if ocr_val is not None and ocr_val is not False:
-                mode = str(ocr_val.get("ocr_mode", "force") if isinstance(ocr_val, dict) else "force").lower().strip()
-                if mode not in {"auto", "force", "disable"}:
-                    _log.warning(f"[DoclingLoader] 알 수 없는 ocr_mode '{mode}' ({ext}), force로 대체")
-                    mode = "force"
-                if isinstance(ocr_val, dict):
-                    endpoint = ocr_val.get("auto_ocr_check_endpoint", "")
-                    if endpoint:
-                        self._ocr_check_endpoints[ext] = endpoint
+                if isinstance(ocr_val, dict) and not ocr_val.get("enable", True):
+                    mode = "disable"
+                else:
+                    mode = str(ocr_val.get("ocr_mode", "force") if isinstance(ocr_val, dict) else "force").lower().strip()
+                    if mode not in {"auto", "force", "disable"}:
+                        _log.warning(f"[DoclingLoader] 알 수 없는 ocr_mode '{mode}' ({ext}), force로 대체")
+                        mode = "force"
+                    if isinstance(ocr_val, dict):
+                        endpoint = ocr_val.get("auto_ocr_check_endpoint", "")
+                        if endpoint:
+                            self._ocr_check_endpoints[ext] = endpoint
             else:
                 mode = "disable"
             self._ocr_modes[ext] = mode
@@ -379,15 +382,18 @@ class DoclingLoader(BaseLoader):
             if hasattr(fmt_opt.pipeline_options, "do_ocr"):
                 ocr_val = opt.get("ocr")
                 force_off = ocr_off is not None and ext in ocr_off
-                if not force_off and ocr_val is not None and ocr_val is not False:
+                ocr_enabled = not (isinstance(ocr_val, dict) and not ocr_val.get("enable", True))
+                if not force_off and ocr_val is not None and ocr_val is not False and ocr_enabled:
                     fmt_opt.pipeline_options.do_ocr = True
                     fmt_opt.pipeline_options.ocr_options = _load_ocr_options(ocr_val)
                 else:
                     fmt_opt.pipeline_options.do_ocr = False
-            if opt.get("picture_description") not in (None, False):
+            pic_cfg = opt.get("picture_description")
+            if pic_cfg not in (None, False) and (not isinstance(pic_cfg, dict) or pic_cfg.get("enable", True)):
                 fmt_opt.pipeline_options.picture_description = True
-                raw = opt["picture_description"]
-                assert len(raw) == 1, "picture_description dict는 kind 키 하나만 허용 (api | vlm)"
+                raw = pic_cfg if isinstance(pic_cfg, dict) else {}
+                raw = {k: v for k, v in raw.items() if k != "enable"}
+                assert len(raw) == 1, "picture_description dict는 enable 외에 kind 키 하나만 허용 (api | vlm)"
                 kind, opts = next(iter(raw.items()))
                 opts = {k: v for k, v in (opts or {}).items() if v is not None}
                 if kind == "api":

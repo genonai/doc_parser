@@ -20,13 +20,12 @@ format_options:
         page_batch_size: 32          # 한 번에 처리할 페이지 수
 
     # ── picture_description: 로드 중 이미지 설명 생성 ────────────────────
-    # picture_description 사용 안할 경우
-    # picture_description: false
-
-    # picture_description 사용
     picture_description:
+      enable: true # true, false
       api:
-        url: null
+        # <SERVING_ID>: genos 상의 VLM(Vision Language Model) 서빙 아이디
+        url: "http://llmops-gateway-api-service:8080/rep/serving/<SERVING_ID>/v1/chat/completions"
+        # 쿠버네티스 내부 파드끼리 통신하므로 api키 불필요
         api_key: null
         model: null
         prompt: "이미지를 간결하고 정확하게 설명하세요. 텍스트가 포함된 경우 그대로 인용하고, 도표·그래프는 수치와 항목을 포함해 설명하세요."
@@ -34,12 +33,8 @@ format_options:
         concurrency: 2
 
     # ── ocr: OCR 엔진 설정 ────────────────────────────────────────────────
-    
-    # ocr 사용 안할 경우
-    # ocr: false
-
-    # ocr 사용
     ocr:
+      enable: true # true, false
       # force:   무조건 OCR로 로드. 텍스트 레이어 있어도 무시하고 이미지 → OCR
       # disable: OCR 절대 안 함. 텍스트 레이어만 추출
       # auto:    텍스트 레이어로 먼저 로드 → 품질 체크 → 불량이면 OCR 재시도
