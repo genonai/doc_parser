@@ -215,6 +215,9 @@ enrichers:
 
 # ── postprocessors ────────────────────────────────────────────────────────────
 postprocessors:
+  # ── subject_extractor: 문서 주제·분류·제목 추출 ──────────────────────────────
+  # 청킹 완료 후 문서 전체 텍스트(max_chars 이내)를 LLM에 넘겨 subject(요약), category(산출방법서/약관/기타), title(문서 제목) 세 필드를 추출
+  # 추출 결과는 각 청크의 메타데이터(_enrichment_context)에 주입되어 table_description, enhanced_image_description 등 다음 postprocessor가 사용
   - subject_extractor:
       enable: true # true, false
       # <SERVING_ID>: genos 상의 서빙 아이디
@@ -222,7 +225,7 @@ postprocessors:
       # 쿠버네티스 내부 파드끼리 통신하므로 api키 불필요
       api_key: null
       model: null
-      max_chars: 12000
+      max_chars: 12000   # LLM에 넘길 문서 텍스트 최대 글자 수
       max_tokens: 2000
       temperature: 0.0
       timeout: 60
@@ -261,9 +264,11 @@ postprocessors:
           "title": "추출 또는 생성된 해당 문서의 제목"
         }
 
+  # ── table_refiner: 표 이미지 → HTML 복원 ────────────────────────────────────
+  # docling이 추출한 TableItem의 크롭 이미지를 VLM에 넘겨 병합 셀·다단 헤더·중첩 표를 포함한 복잡한 표 구조를 RAG에 적합한 HTML 형식으로 복원
   - table_refiner:
       enable: true # true, false
-      # <SERVING_ID>: genos 상의 서빙 아이디
+      # <SERVING_ID>: genos 상의 VLM(Vision Language Model) 서빙 아이디
       url: "http://llmops-gateway-api-service:8080/rep/serving/<SERVING_ID>/v1/chat/completions"
       # 쿠버네티스 내부 파드끼리 통신하므로 api키 불필요
       api_key: null
@@ -289,6 +294,10 @@ postprocessors:
         7. 내용이 비어 있는 셀이 있다면 빈 `<td></td>` 또는 `<td>-</td>`로 유지하세요.
         8. 결과에는 원본에 없는 `하위1`, `하위2`, `구분 1`, `구분 2` 같은 임시 컬럼명을 만들지 않습니다.
 
+  # ── table_description: 표 한 줄 설명 생성 ──────────────────────────────────
+  # 각 TableItem 청크의 HTML 텍스트를 LLM에 넘겨 50자 이내 한 줄 설명을 생성한다.
+  # 생성된 설명은 청크 텍스트 앞에 추가
+  # subject_extractor가 먼저 실행되어야 {subject} 변수 사용 가능
   - table_description:
       enable: true # true, false
       # <SERVING_ID>: genos 상의 서빙 아이디
@@ -300,6 +309,7 @@ postprocessors:
       temperature: 0.0
       timeout: 60
       batch_size: 5
+      # max_table_chars: LLM에 넘길 표 텍스트 최대 글자 수
       max_table_chars: 3000
       system_prompt: |
         당신은 문서 이해 전문가입니다. 주어진 표를 분석하여 핵심 내용을 한국어로 한 줄(50자 이내)로 설명하세요. 설명 문장만 출력하고 다른 내용은 출력하지 마세요.
@@ -309,9 +319,14 @@ postprocessors:
 
         {table_text}
 
+  # ── enhanced_image_description: 이미지 청크 상세 설명 생성 ─────────────────
+  # PictureItem 청크의 이미지를 VLM에 넘겨 RAG에 적합한 구조화된 설명을 생성한다.
+  # picture_description(로드 중 간단 설명)보다 상세하며, 차트/표는 마크다운 테이블로 변환한다.
+  # 생성된 설명은 청크 텍스트를 대체한다.
+  # subject_extractor가 먼저 실행되어야 {subject} 변수 사용 가능
   - enhanced_image_description:
       enable: true # true, false
-      # <SERVING_ID>: genos 상의 서빙 아이디
+      # <SERVING_ID>: genos 상의 VLM(Vision Language Model) 서빙 아이디
       url: "http://llmops-gateway-api-service:8080/rep/serving/<SERVING_ID>/v1/chat/completions"
       # 쿠버네티스 내부 파드끼리 통신하므로 api키 불필요
       api_key: null

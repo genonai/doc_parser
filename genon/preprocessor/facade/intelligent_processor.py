@@ -58,7 +58,10 @@ class DocumentProcessor:
         for item in postprocessors_cfg:
             if isinstance(item, dict):
                 name, options = next(iter(item.items()))
-                options = {k: v for k, v in (options or {}).items() if v is not None}
+                options = options or {}
+                if not options.pop("enable", True):
+                    continue
+                options = {k: v for k, v in options.items() if v is not None}
             else:
                 name, options = item, {}
             cls = POSTPROCESSORS.get(name)
