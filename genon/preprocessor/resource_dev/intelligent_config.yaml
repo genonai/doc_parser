@@ -16,7 +16,10 @@ format_options:
     #   page_batch_size: 32          # 한 번에 처리할 페이지 수
 
     # ── picture_description: 로드 중 이미지 설명 생성 ────────────────────
-    # 결과는 item.meta.description.text 에 저장됨
+    # picture_description 사용 안할 경우
+    # picture_description: false
+
+    # picture_description 사용
     picture_description:
       api:
         url: null
@@ -78,8 +81,8 @@ format_options:
 chunker:
   # smart:        Genos 커스텀. 섹션 헤더 기반 분할 + 토큰 병합. 가장 정교
   # hybrid:       docling 기본 레이아웃 청킹 + 토크나이저 정제
-  # hierarchical: 문서 레이아웃 구조만 보고 자름
-  # recursive:    텍스트 길이 기준 단순 분할 (langchain RecursiveCharacterTextSplitter 래핑, 구버전 호환)
+  # hierarchical: 문서 레이아웃 item별로 자름. max_tokens 미적용 (선언만 있고 실제 미사용)
+  # recursive:    TextItem만 처리 (테이블/이미지 무시). langchain RecursiveCharacterTextSplitter 래핑, 구버전 호환
   name: smart        # smart | hybrid | hierarchical | recursive
 
 
@@ -92,7 +95,7 @@ chunker:
   # char: 글자수
   # miniLM: miniLM 토크나이저
   tokenizer: char    # char | miniLM
-  
+
   max_tokens: 1024
   
 # ── enrichers ─────────────────────────────────────────────────────────────────
