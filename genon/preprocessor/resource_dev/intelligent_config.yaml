@@ -4,16 +4,20 @@ format_options:
     backend: pypdf
     generate_picture_images: true
 
-    # ── genos_layout: dots-OCR (GENOS_LAYOUT) VLM 레이아웃 분석 ──────────────
-    # 기본값(DOCLING_LAYOUT) 대신 dots-mocr VLM으로 PDF 레이아웃 분석
-    # genos_layout:
-    #   endpoint: "http://192.168.75.174:26001/v1/chat/completions"
-    #   api_key: ""                  # API 키 (없으면 빈 문자열)
-    #   model: "dots-mocr"           # 기본값, 변경 불필요
-    #   max_completion_tokens: 6000  # 기본값
-    #   timeout: 3600                # 기본값 (초)
-    #   retry_count: 2               # 기본값
-    #   page_batch_size: 32          # 한 번에 처리할 페이지 수
+    layout:
+      layout_model_type: "genos_layout" # "genos_layout"(default) or "docling_layout"
+      # ── genos_layout: dots-OCR (GENOS_LAYOUT) VLM 레이아웃 분석 ──────────────
+      # 기본값(DOCLING_LAYOUT) 대신 dots-mocr VLM으로 PDF 레이아웃 분석
+      genos_layout:
+        # <SERVING_ID>: genos 상의 dots_mocr 서빙 아이디
+        endpoint: "http://llmops-gateway-api-service:8080/rep/serving/<SERVING_ID>/v1/chat/completions"
+        # 쿠버네티스 내부 파드끼리 통신하므로 api키 불필요
+        api_key: ""                  # API 키 (없으면 빈 문자열)
+        model: "dots-mocr"           # 기본값, 변경 불필요
+        max_completion_tokens: 6000  # 기본값
+        timeout: 3600                # 기본값 (초)
+        retry_count: 2               # 기본값
+        page_batch_size: 32          # 한 번에 처리할 페이지 수
 
     # ── picture_description: 로드 중 이미지 설명 생성 ────────────────────
     # picture_description 사용 안할 경우

@@ -401,9 +401,10 @@ class DoclingLoader(BaseLoader):
                 else:
                     raise ValueError(f"지원하지 않는 picture_description kind: {kind}. 가능한 값: api | vlm")
 
-            if "genos_layout" in opt:
-                # dots OCR (GENOS_LAYOUT) 레이아웃 모델 설정
-                genos_cfg = {k: v for k, v in (opt["genos_layout"] or {}).items() if v is not None}
+            layout_cfg = opt.get("layout") or {}
+            layout_model_type = str(layout_cfg.get("layout_model_type", "")).lower().strip()
+            if layout_model_type == "genos_layout" or (not layout_model_type and "genos_layout" in layout_cfg):
+                genos_cfg = {k: v for k, v in (layout_cfg.get("genos_layout") or {}).items() if v is not None}
                 page_batch_size = genos_cfg.pop("page_batch_size", None)
 
                 fmt_opt.pipeline_options.layout_options.layout_model_type = LayoutModelType.GENOS_LAYOUT
@@ -412,6 +413,8 @@ class DoclingLoader(BaseLoader):
 
                 if page_batch_size is not None:
                     _docling_settings.perf.page_batch_size = int(page_batch_size)
+
+                fmt_opt.pipeline_options.enable_remote_services = True
 
                 fmt_opt.pipeline_options.enable_remote_services = True
 
