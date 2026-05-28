@@ -1019,7 +1019,8 @@ class DocxProcessor:
         upload_tasks = []
         for chunk_idx, chunk in enumerate(chunks):
             chunk_page = chunk.meta.doc_items[0].prov[0].page_no
-            content = self.safe_join(chunk.meta.headings) + chunk.text
+            headers_text = "HEADER: " + ", ".join(chunk.meta.headings) + "\n" if chunk.meta.headings else ""
+            content = headers_text + chunk.text
 
             if chunk_page != current_page:
                 current_page = chunk_page
@@ -1149,7 +1150,8 @@ class HwpProcessor:
 
         for chunk_idx, chunk in enumerate(chunks):
             chunk_page = chunk.meta.doc_items[0].prov[0].page_no
-            content = self.safe_join(chunk.meta.headings) + chunk.text
+            headers_text = "HEADER: " + ", ".join(chunk.meta.headings) + "\n" if chunk.meta.headings else ""
+            content = headers_text + chunk.text
 
             if chunk_page != current_page:
                 current_page = chunk_page
