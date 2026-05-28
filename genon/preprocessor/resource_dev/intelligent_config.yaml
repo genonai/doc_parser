@@ -54,6 +54,7 @@ format_options:
         model: "ocr"
         timeout: 60
         text_score: 0.5
+  # pdf 이외의 확장자의 경우 backend를 통해 DoclingDocument 타입으로 변환
   docx:
     pipeline_options: simple
     backend: msword
