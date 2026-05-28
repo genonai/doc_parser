@@ -1,0 +1,39 @@
+format_options:
+  pdf:
+    pipeline_options: pdf
+    backend: pypdf
+    generate_picture_images: true
+    do_picture_description: false      
+    # ── do_ocr: OCR 엔진 설정 (하나만 활성화) ────────────────────────────────
+    do_ocr: false
+  docx:
+    pipeline_options: simple
+    backend: msword
+  md:
+    pipeline_options: simple
+    backend: md
+  html:
+    pipeline_options: simple
+    backend: html
+  hwpx:
+    pipeline_options: simple
+    backend: hwpx
+    # TODO: 사이냅스, hwp sdk, rhwp, libreoffice, 자유소프트, 한컴데이터로더
+  pptx:
+    pipeline_options: simple
+    backend: mspowerpoint
+
+# ── chunker ────────────────────────────────────────────────────────────────────
+chunker:
+  name: smart        # smart | hybrid | hierarchical | recursive
+  tokenizer: char    # char | miniLM
+  max_tokens: 1024
+
+# ── enrichers ─────────────────────────────────────────────────────────────────
+enrichers: []
+
+
+# ── postprocessors ────────────────────────────────────────────────────────────
+postprocessors: []
+
+log_level: 4

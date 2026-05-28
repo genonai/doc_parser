@@ -4,7 +4,7 @@ format_options:
     backend: pypdf
     generate_picture_images: true
 
-    # genos_layout: dots-OCR (GENOS_LAYOUT) 레이아웃 모델 설정
+    # ── genos_layout: dots-OCR (GENOS_LAYOUT) VLM 레이아웃 분석 ──────────────
     # 기본값(DOCLING_LAYOUT) 대신 dots-mocr VLM으로 PDF 레이아웃 분석
     # genos_layout:
     #   endpoint: "http://192.168.75.174:26001/v1/chat/completions"
@@ -15,72 +15,91 @@ format_options:
     #   retry_count: 2               # 기본값
     #   page_batch_size: 32          # 한 번에 처리할 페이지 수
 
-    # do_picture_description: Docling 파이프라인 내에서 이미지 설명 생성 (로드 중 처리)
+    # ── do_picture_description: 로드 중 이미지 설명 생성 ────────────────────
     # 결과는 item.meta.description.text 에 저장됨
     do_picture_description:
       api:
         url: null
+        api_key: null
+        model: null
         prompt: "이미지를 간결하고 정확하게 설명하세요. 텍스트가 포함된 경우 그대로 인용하고, 도표·그래프는 수치와 항목을 포함해 설명하세요."
         timeout: 60
         concurrency: 2
 
+    # ── do_ocr: OCR 엔진 설정 (하나만 활성화) ────────────────────────────────
+
     do_ocr:
       paddle:
-        # PaddleOCR 설정 (원격 서버 방식)
-
-        # ── 공통 옵션 (모든 엔진) ────────────────────────────────────────────────────
+        # PaddleOCR (원격 서버 방식)
         force_full_page_ocr: true
-
         lang:
           - korean
-
         bitmap_area_threshold: 0.05
-
-        # ── PaddleOCR 전용 옵션 ───────────────────────────────────────────────────────
-        # ocr_endpoint: PaddleOCR 서버 주소 (필수)
         ocr_endpoint: "http://doc-parser-ocr-deployment:8080/ocr"
-
-        # text_score: 인식 결과 신뢰도 임계값, 미만은 버림 (기본 0.5)
         text_score: 0.3
-
-        # timeout: 서버 응답 대기 시간 (초, 기본 60)
         timeout: 60
+
       # easy:
-      #   # EasyOCR 설정
-      #     # https://www.jaided.ai/easyocr/
+      #   # EasyOCR (로컬)
+      #   force_full_page_ocr: true
+      #   lang:
+      #     - ko
+      #     - en
+      #   bitmap_area_threshold: 0.05
+      #   use_gpu: false
+      #   confidence_threshold: 0.5
+      #   model_storage_directory: null  # null이면 기본 캐시 경로
+      #   recog_network: standard
+      #   download_enabled: true
 
-      #     # ── 공통 옵션 (모든 엔진) ────────────────────────────────────────────────────
-      #     # force_full_page_ocr
-      #     #   true  : 텍스트 레이어 유무와 무관하게 전체 페이지를 이미지로 취급해서 OCR
-      #     #   false : Docling이 bitmap으로 판단한 영역만 OCR
-      #     #           (비트맵이 페이지의 75% 이상이면 자동으로 전체 페이지 OCR로 전환)
-      #     force_full_page_ocr: true
+      # upstage:
+      #   # Upstage Document Digitization API
+      #   force_full_page_ocr: true
+      #   lang:
+      #     - ko
+      #     - en
+      #   api_endpoint: "https://api.upstage.ai/v1/document-digitization"
+      #   api_key: ""                  # 또는 환경변수 UPSTAGE_API_KEY
+      #   model: "ocr"
+      #   text_score: 0.5
+      #   timeout: 60
 
-      #     # lang: EasyOCR 언어 코드 목록
-      #     # https://www.jaided.ai/easyocr/ 에서 지원 언어 확인
-      #     lang:
-      #       - ko
-      #       - en
+      # tesseract:
+      #   # Tesseract CLI (tesseract 바이너리 필요)
+      #   force_full_page_ocr: true
+      #   lang:
+      #     - kor
+      #     - eng
+      #   bitmap_area_threshold: 0.05
+      #   tesseract_cmd: tesseract
+      #   path: null
 
-      #     # bitmap_area_threshold: OCR 대상으로 판단할 최소 비트맵 면적 비율 (기본 0.05 = 5%)
-      #     # 이 비율 미만의 비트맵은 OCR 대상에서 제외됨
-      #     bitmap_area_threshold: 0.05
+      # tesserocr:
+      #   # Tesseract Python 바인딩 (tesserocr 패키지 필요)
+      #   force_full_page_ocr: true
+      #   lang:
+      #     - kor
+      #     - eng
+      #   bitmap_area_threshold: 0.05
+      #   path: null
 
-      #     # ── EasyOCR 전용 옵션 ─────────────────────────────────────────────────────────
-      #     # use_gpu: GPU 사용 여부 (null이면 환경에 따라 자동 감지)
-      #     use_gpu: false
+      # rapidocr:
+      #   # RapidOCR (로컬)
+      #   force_full_page_ocr: true
+      #   lang:
+      #     - english
+      #     - chinese
+      #   bitmap_area_threshold: 0.05
+      #   text_score: 0.5
+      #   use_det: null
+      #   use_cls: null
+      #   use_rec: null
+      #   print_verbose: false
+      #   det_model_path: null
+      #   cls_model_path: null
+      #   rec_model_path: null
+      #   rec_keys_path: null
 
-      #     # confidence_threshold: 인식 결과 신뢰도 임계값, 미만은 버림 (기본 0.5)
-      #     confidence_threshold: 0.5
-
-      #     # model_storage_directory: 모델 파일 저장 경로 (null이면 기본 캐시 경로)
-      #     model_storage_directory: null
-
-      #     # recog_network: 인식 네트워크 종류 (기본 "standard")
-      #     recog_network: standard
-
-      #     # download_enabled: 모델 자동 다운로드 허용 여부 (기본 true)
-      #     download_enabled: true
   docx:
     pipeline_options: simple
     backend: msword
@@ -98,12 +117,28 @@ format_options:
     pipeline_options: simple
     backend: mspowerpoint
 
+
+# ── chunker ────────────────────────────────────────────────────────────────────
 chunker:
-  name: smart
-  tokenizer: char
-  # miniLM | char
+  name: smart        # smart | hybrid | hierarchical | recursive
+  tokenizer: char    # char | miniLM
   max_tokens: 1024
 
+  # name: hybrid
+  # tokenizer: char
+  # max_tokens: 1024
+  # merge_peers: true
+
+  # name: hierarchical
+  # tokenizer: char
+  # max_tokens: 1024
+
+  # name: recursive
+  # tokenizer: char
+  # max_tokens: 1024
+
+
+# ── enrichers ─────────────────────────────────────────────────────────────────
 enrichers:
   - toc_enricher:
       url: null
@@ -113,10 +148,8 @@ enrichers:
       top_p: 0.00001
       seed: 33
       max_tokens: 10000
-
       system_prompt: |
         You are an expert at generating table of contents (목차) from Korean documents. You specialize in regulatory documents, terms of service, contracts, and mixed-format documents that combine formal regulatory structures with general section headers.
-
       user_prompt: |
         Here is the Korean document you need to analyze:
 
@@ -190,6 +223,8 @@ enrichers:
       seed: 33
       max_tokens: 10000
 
+
+# ── postprocessors ────────────────────────────────────────────────────────────
 postprocessors:
   - subject_extractor:
       url: null
@@ -233,6 +268,7 @@ postprocessors:
           "category": "산출방법서" or "약관" or "기타",
           "title": "추출 또는 생성된 해당 문서의 제목"
         }
+
   - table_refiner:
       url: null
       api_key: null
@@ -257,6 +293,7 @@ postprocessors:
         6. 셀의 텍스트는 생략하거나 요약하지 말고 그대로 재현합니다.
         7. 내용이 비어 있는 셀이 있다면 빈 `<td></td>` 또는 `<td>-</td>`로 유지하세요.
         8. 결과에는 원본에 없는 `하위1`, `하위2`, `구분 1`, `구분 2` 같은 임시 컬럼명을 만들지 않습니다.
+
   - table_description:
       url: null
       api_key: null
@@ -273,6 +310,7 @@ postprocessors:
         문서 주제: {subject}
 
         {table_text}
+
   - enhanced_image_description:
       url: null
       api_key: null
