@@ -23,6 +23,7 @@
 7. [청킹(Chunking) 클래스들](#7-청킹chunking-클래스들)
    - 7.1 [`HierarchicalChunker`](#71-hierarchicalchunker)
    - 7.2 [`HybridChunker`](#72-hybridchunker)
+   - 7.3 [`_split_with_recursive_chunker` (Recursive 분기)](#73-_split_with_recursive_chunker-recursive-분기)
 8. [문서 프로세서 (Processor) 클래스들](#8-문서-프로세서-processor-클래스들)
    - 8.1 [`DocxProcessor`](#81-docxprocessor)
    - 8.2 [`HwpProcessor`](#82-hwpprocessor)
@@ -70,15 +71,18 @@
         │
         ├── .csv/.xlsx ──────────► TabularLoader ──► DataFrame 파싱 ──► GenOSVectorMeta
         │
-        ├── .hwp/.hwpx ─────────► HwpProcessor ──────────────────────► HybridChunker
-        │                         (폴백 체인은 아래 2-1 참고)               │
+        ├── .hwp/.hwpx ─────────► HwpProcessor ──┬──► RecursiveCharacterTextSplitter  (chunker_type='recursive', 기본)
+        │                         (폴백 체인은       │
+        │                          아래 2-1 참고)    └──► HybridChunker                  (chunker_type='hybrid')
         │
-        ├── .docx ───────────────► DocxProcessor ──► Docling 파싱 ──► HybridChunker
-        │                                                               │
-        └── 기타 (.pdf, .ppt,    ► get_loader() ──► LangChain Loader     │
-            .doc, .jpg, .txt,                          │                │
-            .json, .md, .html 등)                      ▼                ▼
-                                              RecursiveTextSplitter  HybridChunker
+        ├── .docx ───────────────► DocxProcessor ──┬──► RecursiveCharacterTextSplitter  (chunker_type='recursive', 기본)
+        │                                          │
+        │                                          └──► HybridChunker                   (chunker_type='hybrid')
+        │
+        └── 기타 (.pdf, .ppt,    ► get_loader() ──► LangChain Loader
+            .doc, .jpg, .txt,                          │
+            .json, .md, .html 등)                      ▼
+                                              RecursiveCharacterTextSplitter
                                                        │                │
                                                        ▼                ▼
                                                 compose_vectors()   compose_vectors()
@@ -106,7 +110,7 @@ HWP/HWPX 파일은 변환 실패 시 단계적으로 폴백을 시도합니다.
                                    .hwpx → HwpxDocumentBackend
                                            │ 실패
                                            ▼
-                                ③ PDF 변환 (PDF SDK / LibreOffice) ── 성공 ──► compose_vectors()
+                                ③ PDF 변환 (HWP: PDF SDK→LibreOffice→rhwp) ─ 성공 ──► compose_vectors()
                                            │ 실패
                                            ▼
                                         에러 반환
@@ -175,62 +179,29 @@ CONVERTIBLE_EXTENSIONS = ['.hwp', '.txt', '.json', '.md', '.ppt', '.pptx', '.doc
 def convert_to_pdf(file_path: str, use_pdf_sdk: bool = True) -> str | None:
 ```
 
-**목적**: 다양한 문서 포맷(PPT, DOCX, 이미지 등)을 PDF로 변환합니다. **두 엔진 중 선택 가능**:
+**목적**: 다양한 문서 포맷(PPT, DOCX, 이미지 등)을 PDF로 변환합니다. 시그니처와 동작 정책(실패 시 예외 없이 `None` 반환)은 보존하면서, 실제 변환 로직은 `genon.preprocessor.converters.hwp_to_pdf` 모듈로 일원화되어 있습니다 (이슈 #199).
 
-| `use_pdf_sdk` | 내부 호출 | 비고 |
+**변환 chain** (입력 확장자 + `use_pdf_sdk` 로 결정. 앞 backend 실패 시 다음으로 자동 fallback):
+
+| 입력 | `use_pdf_sdk=True` (엔터프라이즈) | `use_pdf_sdk=False` (오픈소스) |
 |---|---|---|
-| `True` (기본값) | `_convert_to_pdf_sdk()` | PDF 변환 SDK (Linux 전용 바이너리, `pdf_sdk/pdfConverter`). HF private dataset에서 도커 빌드 시 자동 설치, 또는 `repo_root/pdf_sdk` 에 직접 다운로드. |
-| `False` | `_convert_to_pdf_libreoffice()` | LibreOffice (`soffice --headless`) 사용. SDK 미사용/장애 시 fallback 용도. |
+| `.hwp` / `.hwpx` | `pdf_sdk → libreoffice → rhwp` | `libreoffice → rhwp` |
+| 그 외 (`.docx`/`.pptx`/이미지 등) | `pdf_sdk → libreoffice` | `libreoffice` |
 
-**SDK 경로 결정 우선순위** (`_convert_to_pdf_sdk` 내부):
-1. `PDF_SDK_HOME` 환경변수 (도커: `/app/pdf_sdk` 로 박혀있음)
-2. fallback: `<repo_root>/pdf_sdk` (로컬 실행 시)
+- 내부적으로 `convert_hwp_to_pdf(file_path, order=[...])` 로 위임되며, chain 의 backend 가 순서대로 시도되다 첫 성공에서 종료됩니다.
+- `rhwp` 는 HWP/HWPX 전용이라 비-HWP 입력 chain 에는 포함되지 않습니다. 또한 도입 초기 단계라 안정성 검증 전까지는 **최후순위 fallback** 으로만 둡니다 (검증 후 우선순위 상향 검토).
 
-**동작 흐름 (use_pdf_sdk=True)**:
+**Backend 경로/가용성 결정**:
+- `pdf_sdk`: `PDF_SDK_HOME` (도커 `/app/pdf_sdk`) → fallback `<repo_root>/pdf_sdk`. 바이너리 실행권한 있을 때만 활성. 엔터프라이즈 빌드에만 자산 포함.
+- `libreoffice`: `shutil.which("soffice")` 로 판정.
+- `rhwp`: `RHWP_BIN` (기본 `/usr/local/bin/rhwp`) 바이너리 존재 + 실행권한으로 판정.
 
-```
-입력 파일 (HWP/PPT/DOCX/이미지 등)
-        │
-        ▼
- SDK 경로 / 폰트 디렉토리 / moduledata 결정
-        │
-        ▼
- fontconfig conf 임시 패치 (현재 SDK 경로 기준 <dir>/<cachedir> 치환)
-        │
-        ▼
- 환경변수 세팅 (LD_LIBRARY_PATH, FONTCONFIG_FILE/PATH, LANG=C.UTF-8)
-        │
-        ▼
- pdfConverter -i <in> -o <out_dir> -t <tmp> -f <fonts> -e -1 -p 1 실행
-        │
-        ├── returncode==0 + PDF 존재 → 경로 반환
-        └── 그 외 → 경고 로그 후 None 반환
-```
-
-**동작 흐름 (use_pdf_sdk=False)**:
-
-```
-입력 파일
-        │
-        ▼
- 확장자 판별 → 적절한 LibreOffice 필터 선택
-        │  .ppt/.pptx → "pdf:impress_pdf_Export"
-        │  .doc/.docx → "pdf:writer_pdf_Export"
-        │  .xls/.xlsx/.csv → "pdf:calc_pdf_Export"
-        │  기타 → "pdf"
-        ▼
- 비ASCII 파일명 체크 (필요 시 ASCII 복사본 생성)
-        ▼
- soffice --headless --convert-to ... 실행
-        │
-        ├── 성공 → PDF 경로 반환
-        └── 실패 → None 반환
-```
+자세한 backend별 동작 흐름(fontconfig 패치, subprocess 인자, 한글 파일명 ASCII 복사 등)은 `genon/preprocessor/converters/hwp_to_pdf/{pdf_sdk,libreoffice,rhwp}.py` 본체를 참고합니다.
 
 **핵심 포인트**:
-- 실패해도 **예외를 던지지 않고** `None` 반환 (방어적 설계, 양 엔진 동일)
-- 호출부는 `kwargs.get('use_pdf_sdk', True)` 패턴으로 엔진 선택 가능 (Genos 측 config로 제어)
-- `LANG=C.UTF-8` / `LC_ALL=C.UTF-8` 환경 변수로 한글 파일명 / 컨텐츠 처리 보장
+- 실패해도 **예외를 던지지 않고** `None` 반환 (방어적 설계, 모든 backend 동일).
+- 호출부는 `kwargs.get('use_pdf_sdk', True)` 패턴 그대로 사용 가능 (Genos 측 config로 제어).
+- `LANG=C.UTF-8` / `LC_ALL=C.UTF-8` 환경 변수로 한글 파일명 / 컨텐츠 처리 보장.
 
 ---
 
@@ -748,6 +719,72 @@ chunker = HybridChunker(max_tokens=int(1e30), merge_peers=True)
 
 ---
 
+### 7.3 `_split_with_recursive_chunker` (Recursive 분기)
+
+```python
+def _split_with_recursive_chunker(document, chunk_size=None, chunk_overlap=None, tokenizer_id=None) -> List[dict]:
+```
+
+**목적**: HWP/HWPX/DOCX 분기에서 `chunker_type='recursive'`(기본값)일 때 사용되는 헬퍼. `DoclingDocument`를 markdown으로 export한 뒤 `RecursiveCharacterTextSplitter`로 분할하고, 청크별 페이지 정보를 복원합니다 (이슈 #183 / #80).
+
+**왜 도입했나**:
+
+`HybridChunker`로 청크를 만들면 `chunk.text`가 노드 단위 raw text라 줄바꿈(`\n\n`/`\n`)이 충분히 들어가지 않습니다. 이 결과를 일반 `RecursiveCharacterTextSplitter`에 넣으면 separator 우선순위(`["\n\n", "\n", " ", ""]`)가 깨져, **문장 중간/조사 사이에서 잘리는 현상**이 발생합니다. `document.export_to_markdown()`은 단락마다 `\n\n`, 헤딩/리스트/표 사이에 명확한 줄바꿈을 자동으로 삽입해 이 문제를 해결합니다.
+
+**처리 흐름**:
+
+```
+DoclingDocument
+    │
+    ▼
+document.export_to_markdown(page_break_placeholder="<!-- PB -->")
+    │  → 단일 markdown 문자열. 페이지 경계마다 placeholder 삽입
+    │
+    ▼
+RecursiveCharacterTextSplitter (char 단위)
+    │  → chunk_size 8192자 / chunk_overlap 100자 (기본)
+    │
+    ▼
+60K 토큰 절대 상한 후처리
+    │  → 각 청크 토큰 수 측정 (MiniLM 토크나이저)
+    │  → 60,000 토큰 초과 청크만 token splitter로 재분할
+    │
+    ▼
+청크별 페이지 매핑 복원
+    │  → 원본 markdown에서 chunk의 위치를 찾고, 그 전까지의 placeholder 수로 page_no 계산
+    │  → 청크 텍스트에서는 placeholder 제거
+    │
+    ▼
+list[dict] {text, page_no, pages, doc_items}
+```
+
+**chunk_size 정책**:
+
+| 호출 형태 | chunk_size 단위 | chunk_size 기본 | chunk_overlap 기본 |
+|---|---|---|---|
+| `dp(..., chunker_type="recursive")` | **char** | 8192 | 100 |
+| `dp(..., chunker_type="recursive", chunk_size=2000)` | **char** | 2000 | 100 |
+
+단위는 `DocumentProcessor.split_documents`(PDF/MD/TXT 등)의 char 기반 흐름과 동일. 기본값은 RAG 컨텍스트에 적합한 8192자(한국어 기준 약 12K~16K 토큰)로 설정했다.
+
+**60K 토큰 절대 상한**: 어떤 `chunk_size`가 와도 한 청크가 60,000 토큰(임베딩 입력 한도의 절반 안전 마진)을 초과하면 자동으로 토큰 단위 splitter로 재분할됩니다. 기본 8192자 청크에서는 한국어 기준 약 12K~16K 토큰 정도라 트리거되지 않지만, 사용자가 더 큰 `chunk_size`를 명시했을 때의 안전망 역할입니다.
+
+**페이지 정보 복원**:
+
+```python
+PB = "<!-- PB -->"
+md_full = document.export_to_markdown(page_break_placeholder=PB)
+# md_full = "page1 content...<!-- PB -->page2 content...<!-- PB -->page3 content..."
+
+# 청크를 만든 후, 원본에서의 위치로 페이지 번호 역산
+pos = md_full.find(raw_chunk, ...)
+start_page = md_full[:pos].count(PB) + 1
+```
+
+> 한 청크가 여러 페이지에 걸칠 수 있으며, `doc_items`는 그 청크가 걸친 모든 페이지의 doc_item들을 합쳐 부착합니다. 이는 페이지 단위 정확도 (HybridChunker는 청크 단위 정확도) — bbox/media는 약간 거칠지만 페이지 수준에서는 정확합니다.
+
+---
+
 ## 8. 문서 프로세서 (Processor) 클래스들
 
 ### 8.1 `DocxProcessor`
@@ -784,52 +821,73 @@ async def __call__(self, request: Request, file_path: str, **kwargs: dict):
     artifacts_dir, reference_path = self.get_paths(file_path)
     document = document._with_pictures_refs(...)
 
-    # 3단계: HybridChunker로 청킹
-    chunks: list[DocChunk] = self.split_documents(document)
+    # 3단계: 청킹 (chunker_type kwargs로 분기: 'recursive' 기본 / 'hybrid')
+    chunks = self.split_documents(document, **kwargs)
 
-    # 4단계: GenOSVectorMeta로 조립
-    vectors: list[dict] = await self.compose_vectors(document, chunks, file_path, request)
-
-    return vectors
+    # 4단계: GenOSVectorMeta로 조립 (동일한 chunker_type 분기로 처리)
+    return await self.compose_vectors(document, chunks, file_path, request, **kwargs)
 ```
 
-**`compose_vectors()` 상세**:
+**`split_documents()` chunker_type 분기**:
 
 ```python
-async def compose_vectors(self, document, chunks, file_path, request, **kwargs):
-    # 전역 메타데이터 (모든 청크에 공통으로 적용)
-    global_metadata = dict(
-        n_chunk_of_doc=len(chunks),     # 총 청크 수
-        n_page=document.num_pages(),     # 총 페이지 수
-        reg_date=datetime.now().isoformat(timespec='seconds') + 'Z',
-    )
+def split_documents(self, document, **kwargs):
+    chunker_type = kwargs.get("chunker_type", "recursive")
+    if chunker_type == "recursive":
+        # 이슈 #183 / #80: markdown export + RecursiveCharacterTextSplitter
+        chunks = _split_with_recursive_chunker(
+            document,
+            chunk_size=kwargs.get("chunk_size"),
+            chunk_overlap=kwargs.get("chunk_overlap"),
+        )
+        # → List[dict] {text, page_no, pages, doc_items}
+        return chunks
+    # hybrid (기존)
+    chunker = HybridChunker(max_tokens=int(1e30), merge_peers=True)
+    chunks: List[DocChunk] = list(chunker.chunk(dl_doc=document, **kwargs))
+    return chunks
+```
+
+**`compose_vectors()` 상세** (DocxProcessor / HwpProcessor 공통 구조):
+
+```python
+async def compose_vectors(self, document, chunks, [page_chunk_counts,] file_path, request, **kwargs):
+    chunker_type = kwargs.get("chunker_type", "recursive")
+    # 전역 메타데이터 (모든 청크에 공통)
+    global_metadata = dict(n_chunk_of_doc=len(chunks), n_page=document.num_pages(), ...)
 
     for chunk_idx, chunk in enumerate(chunks):
-        # 청크의 텍스트 = 제목(heading) + 본문
-        content = self.safe_join(chunk.meta.headings) + chunk.text
+        # ── chunker_type별 데이터 추출 ──
+        if chunker_type == "recursive":
+            chunk_page = chunk["page_no"]
+            content = chunk["text"]                              # markdown 이미 포함
+            doc_items = chunk["doc_items"]                       # 페이지 단위 doc_items
+        else:  # hybrid
+            chunk_page = chunk.meta.doc_items[0].prov[0].page_no
+            content = self.safe_join(chunk.meta.headings) + chunk.text  # heading prepend
+            doc_items = chunk.meta.doc_items                            # 청크 단위 doc_items
 
         # 빌더 패턴으로 GenOSVectorMeta 조립
         vector = (GenOSVectorMetaBuilder()
                   .set_text(content)
-                  .set_page_info(...)
+                  .set_page_info(chunk_page, ...)
                   .set_chunk_index(chunk_idx)
                   .set_global_metadata(**global_metadata)
-                  .set_chunk_bboxes(chunk.meta.doc_items, document)
-                  .set_media_files(chunk.meta.doc_items)
+                  .set_chunk_bboxes(doc_items, document)
+                  .set_media_files(doc_items)
                   ).build()
         vectors.append(vector)
 
-        # 이미지 파일이 있으면 비동기로 업로드
+        # 이미지 파일이 있으면 비동기로 업로드 (DocxProcessor 한정)
         if upload_files:
-            file_list = self.get_media_files(chunk.meta.doc_items)
-            upload_tasks.append(asyncio.create_task(
-                upload_files(file_list, request=request)
-            ))
+            file_list = self.get_media_files(doc_items)
+            upload_tasks.append(asyncio.create_task(upload_files(file_list, request=request)))
 
-    # 모든 이미지 업로드 완료 대기
     if upload_tasks:
         await asyncio.gather(*upload_tasks)
 ```
+
+> 두 분기에서 청크의 데이터 표현이 다르기 때문에 (`dict` vs `DocChunk`) for 루프 안에서 분기합니다. recursive 분기에서는 markdown export 결과가 이미 heading/단락 구조를 가지므로 heading prepend가 필요 없습니다.
 
 **`safe_join()` 헬퍼**:
 
@@ -877,29 +935,46 @@ self.converter = DocumentConverter(
 
 ```python
 async def __call__(self, request, file_path, **kwargs):
-    # 1단계: SDK 백엔드로 문서 변환 (.hwp / .hwpx 모두 동일 경로)
+    # 1단계: SDK 백엔드로 문서 변환 (.hwp / .hwpx 모두 동일 경로, 실패 시 폴백)
     document: DoclingDocument = self.load_documents(file_path, **kwargs)
 
     # 2단계: 이미지 참조 경로 설정
     artifacts_dir, reference_path = self.get_paths(file_path)
     document = document._with_pictures_refs(...)
 
-    # 3단계: HybridChunker로 청킹
-    chunks: list[DocChunk] = self.split_documents(document, **kwargs)
+    # 3단계: 청킹 (chunker_type kwargs로 분기: 'recursive' 기본 / 'hybrid')
+    chunks, page_chunk_counts = self.split_documents(document, **kwargs)
 
-    # 4단계: GenOSVectorMetaBuilder로 벡터 조립
-    vectors = await self.compose_vectors(document, chunks, request, **kwargs)
-
-    return vectors
+    # 4단계: GenOSVectorMetaBuilder로 벡터 조립 (동일한 chunker_type 분기로 처리)
+    return await self.compose_vectors(document, chunks, page_chunk_counts, request, **kwargs)
 ```
+
+> `split_documents` / `compose_vectors`는 `kwargs.get("chunker_type", "recursive")`을 보고 내부에서 분기합니다. recursive 분기는 [7.3 `_split_with_recursive_chunker`](#73-_split_with_recursive_chunker-recursive-분기)를, hybrid 분기는 [7.2 `HybridChunker`](#72-hybridchunker)를 사용합니다.
 
 | 비교 항목 | DocxProcessor | HwpProcessor |
 |-----------|--------------|--------------|
 | 입력 포맷 | `InputFormat.DOCX` | `InputFormat.HWP` + `InputFormat.XML_HWPX` |
 | 포맷 옵션 | `WordFormatOption` | `HwpxFormatOption` |
 | 백엔드 | `GenosMsWordDocumentBackend` | `GenosHwpDocumentBackend` (hwp_sdk) |
-| 청킹 | `HybridChunker(merge_peers=True)` | `HybridChunker(merge_peers=True, include_headings=False)` |
+| 청킹 (기본: recursive) | `_split_with_recursive_chunker` | `_split_with_recursive_chunker` |
+| 청킹 (옵션: hybrid) | `HybridChunker(merge_peers=True)` | `HybridChunker(merge_peers=True, include_headings=False)` |
+| 페이지 카운트 관리 | `self.page_chunk_counts` (인스턴스 상태) | `page_chunk_counts` (요청 단위 로컬 변수) |
 | 나머지 로직 | 동일 | 동일 |
+
+#### 수식(LaTeX) 추출 (이슈 #195)
+
+신규 HWP SDK가 수식 추출 기능을 지원하면서, `GenosHwpDocumentBackend`도 SDK가 emit하는 수식을 docling의 `DocItemLabel.FORMULA` 노드로 변환하도록 확장되었습니다. 사용자 입장에서는 별도 옵션 없이 기본 동작으로 활성화되며, 청크 출력에서는 docling 표준 직렬화 규칙에 따라 block 수식은 `$$...$$`로, 표 셀 내부의 inline 수식은 `<math>...</math>`로 나타납니다. (인라인 표기는 chandra OCR prompt의 수식 컨벤션과 정합 — KaTeX-compatible LaTeX 본문을 `<math>` 태그로 wrap.)
+
+SDK는 두 가지 형태로 수식을 emit하며, 백엔드는 각각을 다음과 같이 처리합니다:
+
+| SDK 출력 형태 | 등장 위치 | 백엔드 처리 |
+|---------------|----------|-------------|
+| `{"item": "latex", "value": "<base64>", ...}` 단독 batch | 본문/리스트 등 paragraph 흐름 | base64 디코드 후 `DoclingDocument`에 `DocItemLabel.FORMULA` 노드로 추가 |
+| `<latex value="<base64>"/>` HTML 태그 | 표 셀 HTML(`{"item":"table"}`) 내부 | `TableCell.text`가 단순 문자열이라 별도 노드로 못 박기에, BeautifulSoup로 태그를 찾아 디코드 후 `<math>{decoded}</math>`로 셀 텍스트에 치환 (chandra 컨벤션 정합) |
+
+SDK 출력에는 두 가지 비정상 패턴이 있어 백엔드가 정규화/stream 파싱으로 대응합니다 (이 두 가지를 처리하지 않으면 record 일부가 손실됨):
+- **base64 줄바꿈**: 긴 latex value를 SDK가 RFC 4648 line-wrap으로 출력하여 한 record가 여러 물리 줄에 걸침 → `JSONDecoder.raw_decode` 기반 stream 파싱으로 처리
+- **표 셀 내 임베드 `<latex value="..."/>`의 inner `"` 미escape**: outer JSON 문자열이 그 지점에서 조기 종료되어 파싱 실패 → 정규식 정규화로 inner `"`를 `\"`로 escape
 
 ---
 
@@ -1166,8 +1241,8 @@ __call__()
 | 카테고리 | 확장자 | 처리 경로 | 핵심 도구 |
 |----------|--------|-----------|-----------|
 | **PDF** | `.pdf` | 직접 텍스트 추출 | PyMuPDF |
-| **한글** | `.hwp`, `.hwpx` | HWP/HWPX 변환 → Docling 구조 파싱 | HwpProcessor + HybridChunker |
-| **Word** | `.docx` | Docling 구조 파싱 | Docling + HybridChunker |
+| **한글** | `.hwp`, `.hwpx` | HWP/HWPX 변환 → Docling 구조 파싱 | HwpProcessor + RecursiveCharacterTextSplitter(기본) / HybridChunker(옵션) |
+| **Word** | `.docx` | Docling 구조 파싱 | Docling + RecursiveCharacterTextSplitter(기본) / HybridChunker(옵션) |
 | **Word 레거시** | `.doc` | PDF 변환(SDK 기본 / LibreOffice fallback) | LangChain Unstructured |
 | **프레젠테이션** | `.ppt`, `.pptx` | PDF 변환(SDK 기본 / LibreOffice fallback) | LangChain Unstructured |
 | **스프레드시트** | `.csv` | pandas DataFrame 파싱 | pandas + DataFrameLoader |

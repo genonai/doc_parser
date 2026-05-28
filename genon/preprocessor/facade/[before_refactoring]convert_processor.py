@@ -1,3 +1,4 @@
+# 변환용 전처리기 v.2.1.5 (2026-05-21 Release)
 from __future__ import annotations
 
 import json
@@ -62,6 +63,7 @@ from docling.document_converter import (
     WordFormatOption
 )
 from docling.datamodel.pipeline_options import DataEnrichmentOptions
+from docling.prompts.prompt_manager import LLMApiError
 from docling.utils.document_enrichment import enrich_document, check_document
 from docling.datamodel.document import ConversionResult
 from docling_core.transforms.chunker import (
@@ -136,126 +138,28 @@ CONVERTIBLE_EXTENSIONS = ['.txt', '.json', '.md', '.docx', '.ppt', '.pptx']
 
 def convert_to_pdf(file_path: str, use_pdf_sdk: bool = True) -> str | None:
     """
-    PDF 변환을 시도한다. use_pdf_sdk=True면 PDF SDK, False면 LibreOffice.
-    실패해도 예외를 던지지 않고 None을 반환한다.
+    PDF 변환을 시도한다. 실패해도 예외를 던지지 않고 None을 반환한다.
+
+    chain (HWP/HWPX 입력):
+      use_pdf_sdk=True  → pdf_sdk → libreoffice → rhwp
+      use_pdf_sdk=False → libreoffice → rhwp
+    chain (그 외 입력, 예: docx/pptx):
+      use_pdf_sdk=True  → pdf_sdk → libreoffice
+      use_pdf_sdk=False → libreoffice
+
+    rhwp 는 HWP/HWPX 전용이라 비-HWP 입력에는 chain 에 들어가지 않는다. 또한 도입
+    초기 단계라 안정성 검증 전까지는 최후순위 fallback 으로만 두며, 검증 후
+    우선순위 상향을 검토한다.
+    내부 구현은 `genon.preprocessor.converters.hwp_to_pdf` 모듈에 통합되어 있다.
     """
+    from genon.preprocessor.converters.hwp_to_pdf import convert_hwp_to_pdf
+    ext = os.path.splitext(file_path)[1].lower()
+    is_hwp = ext in (".hwp", ".hwpx")
     if use_pdf_sdk:
-        return _convert_to_pdf_sdk(file_path)
-    return _convert_to_pdf_libreoffice(file_path)
-
-
-def _convert_to_pdf_sdk(file_path: str) -> str | None:
-    try:
-        # 1. PDF_SDK_HOME 환경변수 (도커 환경) → 2. repo_root/pdf_sdk (로컬 실행)
-        pdf_sdk_home = os.environ.get(
-            "PDF_SDK_HOME",
-            str(Path(__file__).resolve().parent.parent.parent.parent / "pdf_sdk"),
-        )
-        binary = os.path.join(pdf_sdk_home, "pdfConverter")
-        fonts_dir = os.path.join(pdf_sdk_home, "fonts")
-        moduledata = os.path.join(pdf_sdk_home, "moduledata")
-        font_cache = os.path.join(pdf_sdk_home, "font_cache")
-        os.makedirs(font_cache, exist_ok=True)
-
-        in_path = Path(file_path).resolve()
-        out_dir = in_path.parent
-        pdf_path = in_path.with_suffix('.pdf')
-
-        with tempfile.TemporaryDirectory() as tmp:
-            # fontconfig conf 파일을 현재 SDK 경로 기준으로 패치 (원본은 건드리지 않음)
-            patched_conf = _patch_fontconfig(fonts_dir, font_cache, tmp)
-
-            env = os.environ.copy()
-            env["LD_LIBRARY_PATH"] = f"{moduledata}:{env.get('LD_LIBRARY_PATH', '')}"
-            env["FONTCONFIG_FILE"] = patched_conf
-            env["FONTCONFIG_PATH"] = fonts_dir
-            env.setdefault("LANG", "C.UTF-8")
-            env.setdefault("LC_ALL", "C.UTF-8")
-
-            cmd = [
-                binary,
-                "-i", str(in_path),
-                "-o", str(out_dir),
-                "-t", tmp,
-                "-f", fonts_dir,
-                "-e", "-1",
-                "-p", "1",
-            ]
-            proc = subprocess.run(cmd, env=env, capture_output=True, text=True)
-            if proc.returncode == 0 and pdf_path.exists():
-                return str(pdf_path)
-            _log.warning(f"[convert_to_pdf:sdk] stderr: {proc.stderr.strip()}")
-            return None
-    except Exception as e:
-        _log.error(f"[convert_to_pdf:sdk] error: {e}")
-        return None
-
-
-def _patch_fontconfig(fonts_dir: str, font_cache: str, tmp_dir: str) -> str:
-    """원본 fonts_gen.conf의 <dir>/<cachedir> 경로를 현재 SDK 위치 기준으로 치환한 임시 파일 경로 반환."""
-    import re
-    src = os.path.join(fonts_dir, "fonts_gen.conf")
-    dst = os.path.join(tmp_dir, "fonts.conf")
-    with open(src, "r", encoding="utf-8") as f:
-        conf = f.read()
-    conf = re.sub(r"<dir>[^<]*</dir>", f"<dir>{fonts_dir}</dir>", conf, count=1)
-    conf = re.sub(r"<cachedir>[^<]*</cachedir>", f"<cachedir>{font_cache}</cachedir>", conf, count=1)
-    with open(dst, "w", encoding="utf-8") as f:
-        f.write(conf)
-    return dst
-
-
-def _convert_to_pdf_libreoffice(file_path: str) -> str | None:
-    try:
-        in_path = Path(file_path).resolve()
-        out_dir = in_path.parent
-        pdf_path = in_path.with_suffix('.pdf')
-
-        env = os.environ.copy()
-        env.setdefault("LANG", "C.UTF-8")
-        env.setdefault("LC_ALL", "C.UTF-8")
-
-        ext = in_path.suffix.lower()
-        if ext in ('.ppt', '.pptx'):
-            convert_arg = "pdf:impress_pdf_Export"
-        elif ext in ('.doc', '.docx'):
-            convert_arg = "pdf:writer_pdf_Export"
-        elif ext in ('.xls', '.xlsx', '.csv'):
-            convert_arg = "pdf:calc_pdf_Export"
-        else:
-            convert_arg = "pdf"
-
-        try:
-            in_path.name.encode('ascii')
-            candidates = [in_path]
-            tmp_dir = None
-        except UnicodeEncodeError:
-            tmp_dir = Path(tempfile.mkdtemp())
-            ascii_name = unicodedata.normalize('NFKD', in_path.stem).encode('ascii', 'ignore').decode('ascii') or "file"
-            ascii_copy = tmp_dir / f"{ascii_name}{in_path.suffix}"
-            shutil.copy2(in_path, ascii_copy)
-            candidates = [ascii_copy, in_path]
-
-        for cand in candidates:
-            cmd = [
-                "soffice", "--headless",
-                "--convert-to", convert_arg,
-                "--outdir", str(out_dir),
-                str(cand)
-            ]
-            proc = subprocess.run(cmd, env=env, capture_output=True, text=True)
-            if proc.returncode == 0 and pdf_path.exists():
-                if tmp_dir:
-                    shutil.rmtree(tmp_dir, ignore_errors=True)
-                return str(pdf_path)
-            _log.warning(f"[convert_to_pdf:libreoffice] stderr: {proc.stderr.strip()}")
-
-        if tmp_dir:
-            shutil.rmtree(tmp_dir, ignore_errors=True)
-        return None
-    except Exception as e:
-        _log.error(f"[convert_to_pdf:libreoffice] error: {e}")
-        return None
+        order = ["pdf_sdk", "libreoffice", "rhwp"] if is_hwp else ["pdf_sdk", "libreoffice"]
+    else:
+        order = ["libreoffice", "rhwp"] if is_hwp else ["libreoffice"]
+    return convert_hwp_to_pdf(file_path, order=order)
 
 def _get_pdf_path(file_path: str) -> str:
     """
@@ -1252,6 +1156,12 @@ class DocumentProcessor:
             toc_top_p=0.00001,
             toc_seed=33,
             toc_max_tokens=10000,
+            toc_precheck_enabled=False,
+            toc_max_context_tokens=128000,
+            toc_completion_reserved_tokens=12000,
+            metadata_precheck_enabled=False,
+            metadata_max_context_tokens=128000,
+            metadata_completion_reserved_tokens=12000,
 
             toc_system_prompt=toc_system_prompt,
             toc_user_prompt=toc_user_prompt,
@@ -1480,10 +1390,13 @@ class DocumentProcessor:
         return []
 
     def enrichment(self, document: DoclingDocument, **kwargs: dict) -> DoclingDocument:
-
-        # 새로운 enriched result 받기
-        document = enrich_document(document, self.enrichment_options, **kwargs)
-        return document
+        try:
+            # 새로운 enriched result 받기
+            document = enrich_document(document, self.enrichment_options, **kwargs)
+            return document
+        except LLMApiError as e:
+            # Preserve provider error payload as-is for load status error message.
+            raise GenosServiceException("1", e.raw_error_message) from e
 
     async def compose_vectors(self, document: DoclingDocument, chunks: List[DocChunk], file_path: str, request: Request, **kwargs: dict) -> \
             list[dict]:

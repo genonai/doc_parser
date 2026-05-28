@@ -175,18 +175,20 @@ CONVERTIBLE_EXTENSIONS = ['.txt', '.json', '.md', '.docx', '.ppt', '.pptx']
 def convert_to_pdf(file_path: str, use_pdf_sdk: bool = True) -> str | None:
 ```
 
-**목적**: 다양한 문서 포맷을 PDF로 변환. `attachment_processor.convert_to_pdf()` 와 **동일한 시그니처/동작 정책으로 자체 정의**.
+**목적**: 다양한 문서 포맷을 PDF로 변환. 시그니처는 `attachment_processor.convert_to_pdf()` / `intelligent_processor.convert_to_pdf()` 와 **동일**하며, 셋 모두 동일한 한 줄 wrapper로 `genon.preprocessor.converters.hwp_to_pdf.convert_hwp_to_pdf()` 에 위임 (이슈 #199).
 
-> **왜 자체 정의?** Genos 웹 UI 환경은 facade 코드를 단일 파일(`preprocessor.py`)로 다루기 때문에, 다른 facade 모듈에서 `import` 하면 깨짐. `attachment_processor` / `convert_processor` / `intelligent_processor` 모두 같은 `convert_to_pdf` + 헬퍼 4종을 자체 정의.
+> **왜 세 모듈에 같은 wrapper가 있나?** Genos 웹 UI 환경은 facade 코드를 단일 파일로 다루기 때문에, 다른 facade 모듈에서 `import` 하면 깨짐. 그래서 세 facade 모두 같은 시그니처의 wrapper 함수를 자체적으로 둠. 실제 변환 로직은 `converters/hwp_to_pdf/` 모듈 한 곳에만 존재.
 
-| `use_pdf_sdk` | 내부 호출 | 비고 |
+**변환 chain** (입력 확장자 + `use_pdf_sdk` 로 결정. 앞 backend 실패 시 다음으로 자동 fallback):
+
+| 입력 | `use_pdf_sdk=True` (엔터프라이즈) | `use_pdf_sdk=False` (오픈소스) |
 |---|---|---|
-| `True` (기본값) | `_convert_to_pdf_sdk()` | PDF 변환 SDK (Linux 전용 바이너리). HF private dataset(`HeechanKim-Genon/pdf_sdk`)에서 도커 빌드 시 자동 설치, 또는 `repo_root/pdf_sdk` 에 직접 다운로드. |
-| `False` | `_convert_to_pdf_libreoffice()` | LibreOffice (`soffice --headless`) 사용. SDK 미사용/장애 시 fallback. |
+| `.hwp` / `.hwpx` | `pdf_sdk → libreoffice → rhwp` | `libreoffice → rhwp` |
+| 그 외 (`.docx`/`.pptx` 등) | `pdf_sdk → libreoffice` | `libreoffice` |
 
-**SDK 경로 결정**: `PDF_SDK_HOME` 환경변수 → fallback `<repo_root>/pdf_sdk`.
+`convert_hwp_to_pdf(file_path, order=[...])` 로 위임되며, chain 의 backend 를 순서대로 시도하다 첫 성공에서 종료합니다. `rhwp` 는 HWP/HWPX 전용이며 도입 초기 단계라 현재는 최후순위 fallback.
 
-> 자세한 동작 흐름(SDK / LibreOffice 두 분기 다이어그램)은 [attachment_processor.md §4.1](attachment_processor.md#41-convert_to_pdf) 참고. 셋 모두 동일.
+> 자세한 backend별 동작 흐름은 [attachment_processor.md §4.1](attachment_processor.md#41-convert_to_pdf) 참고. 그리고 `genon/preprocessor/converters/hwp_to_pdf/{pdf_sdk,libreoffice,rhwp}.py` 본체에 실제 구현.
 
 ---
 
@@ -1061,8 +1063,11 @@ def post_ocr_bytes(img_bytes: bytes, timeout=60) -> dict:
 
 ```python
 def enrichment(self, document: DoclingDocument, **kwargs) -> DoclingDocument:
-    document = enrich_document(document, self.enrichment_options, **kwargs)
-    return document
+    try:
+        document = enrich_document(document, self.enrichment_options, **kwargs)
+        return document
+    except LLMApiError as e:
+        raise GenosServiceException("1", e.raw_error_message) from e
 ```
 
 **목적**: LLM을 활용하여 문서에 추가 정보를 덧붙입니다.
@@ -1094,6 +1099,8 @@ DoclingDocument (보강됨)
 ```
 
 > **`check_document()` 함수**: enrichment 전에 문서의 품질을 검사합니다. 텍스트가 너무 적거나 GLYPH가 많으면 OCR을 먼저 수행하도록 트리거합니다.
+
+> **토큰 초과 예외**: `toc_precheck_enabled=True`이고 입력 토큰 추정치가 `toc_max_context_tokens - toc_completion_reserved_tokens`를 초과하면 `LLMApiError`가 발생하며, `GenosServiceException("1", <JSON 페이로드>)`로 변환되어 상위로 전파됩니다.
 
 #### 메타데이터 파싱 헬퍼들
 
@@ -1322,6 +1329,7 @@ else:
         ▼
 ⑥ enrichment()
         │  LLM으로 TOC 생성 + 메타데이터 추출
+        │  (토큰 초과 시 GenosServiceException 발생)
         │
         ▼
 ⑦ split_documents()
@@ -1347,6 +1355,20 @@ class GenosServiceException(Exception):
 ```
 
 `attachment_processor`와 동일합니다. GenOS 플랫폼과의 의존성을 제거하기 위한 독립적 예외 클래스입니다.
+
+### Enrichment 토큰 초과 (`LLMApiError`)
+
+`toc_precheck_enabled=True` 상태에서 입력 토큰 추정치가 한도를 초과하면 `LLMApiError`가 `GenosServiceException`으로 변환됩니다. `errMsg` 필드에 담기는 JSON:
+
+| 필드 | 값 |
+|------|-----|
+| `object` | `"error"` |
+| `type` | `"BadRequestError"` |
+| `param` | `"prompt"` |
+| `code` | `400` |
+| `message` | `"프롬프트 입력 토큰 (N) 초과 하였습니다. (128000 - reserved 12000)."` |
+
+조치: 문서 크기를 줄이거나 `toc_precheck_enabled=False`로 비활성화.
 
 ### `assert_cancelled()`
 

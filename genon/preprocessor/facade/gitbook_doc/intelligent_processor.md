@@ -63,6 +63,18 @@
 
 지능형 전처리기는 이러한 문제를 **레이아웃 분석 + 구조적 청킹**으로 해결합니다.
 
+### GPU 필요 여부 (운영 노트)
+
+기본 config 에서는 **layout 분석 / OCR 을 외부 API endpoint 로 호출**하기 때문에 preprocessor 컨테이너의 GPU 의존도가 낮습니다.
+
+- **layout** — `LayoutModelType.GENOS_LAYOUT` + `genos_layout_options.endpoint` 로 별도 vLLM 서빙(DotsOCR) 호출. 내재 layout 모델 미사용.
+- **OCR** — `ocr_endpoint` 로 별도 OCR 서빙(PaddleOCR) 호출. 내재 OCR 모델 미사용.
+- **TableFormer** (`do_table_structure=True`) — 내재 모델이지만 `AcceleratorDevice` 가 cuda 미발견 시 CPU 로 fallback.
+
+즉 이 기본 config 그대로면 GenOS UI 의 GPU 할당량을 **0** 으로 두어도 정상 동작합니다 (TableFormer 는 CPU fallback, 임베딩 같은 가벼운 로컬 모델도 CPU).
+
+반대로 코드에서 `LayoutModelType` / `ocr_options` 등을 수정해 **내재 layout · OCR 모델을 직접 쓰거나, TableFormer 추론을 GPU 로 가속하려면 GPU 할당이 필요**합니다 (docling 의 `AcceleratorDevice.AUTO` 가 cuda 를 잡습니다). 이 경우 GenOS UI 에서 GPU 할당량을 **1 이상**으로 지정해 주세요.
+
 ---
 
 ## 2. 전체 아키텍처
@@ -636,6 +648,7 @@ class GenOSVectorMeta(BaseModel):
     title: str = None              # 문서 제목
     created_date: int = None       # 작성일 (YYYYMMDD 정수)
     appendix: str = None           # ◄── 고유 필드: 매칭된 부록 파일명
+    file_path: Optional[str] = None  # ◄── 비-PDF 변환 시 변환된 PDF 의 로컬 경로
 ```
 
 **세 전처리기의 필드 비교**:
@@ -674,14 +687,16 @@ class GenOSVectorMetaBuilder:
         # ... (기본 필드들)
         self.title: Optional[str] = None
         self.created_date: Optional[int] = None
-        self.appendix: Optional[str] = None  # ◄── intelligent 전용
+        self.appendix: Optional[str] = None    # ◄── intelligent 전용
+        self.file_path: Optional[str] = None   # ◄── 변환된 PDF 경로 (비-PDF 입력 시)
 
     def build(self) -> GenOSVectorMeta:
         return GenOSVectorMeta(
             # ... (기본 필드들)
             title=self.title,
             created_date=self.created_date,
-            appendix=self.appendix or ""      # None이면 빈 문자열로 변환
+            appendix=self.appendix or "",     # None이면 빈 문자열로 변환
+            file_path=self.file_path,
         )
 ```
 
@@ -921,13 +936,18 @@ def check_glyphs(self, document: DoclingDocument) -> bool:
 
 ```python
 def enrichment(self, document: DoclingDocument, **kwargs) -> DoclingDocument:
-    document = enrich_document(document, self.enrichment_options, **kwargs)
-    return document
+    try:
+        document = enrich_document(document, self.enrichment_options, **kwargs)
+        return document
+    except LLMApiError as e:
+        raise GenosServiceException("1", e.raw_error_message) from e
 ```
 
 `convert_processor`와 동일합니다. LLM(Mistral-Small-3.1-24B)을 활용하여:
 - **계층적 목차(TOC)** 자동 생성
 - **작성일** 등 문서 메타데이터 추출
+
+> **토큰 초과 예외**: `toc_precheck_enabled=True`이고 입력 토큰 추정치가 `toc_max_context_tokens - toc_completion_reserved_tokens`를 초과하면 `LLMApiError`가 발생하며, `GenosServiceException("1", <JSON 페이로드>)`로 변환되어 상위로 전파됩니다.
 
 ---
 
@@ -1027,8 +1047,11 @@ standalone_patterns = re.findall(
 ### 7.7 벡터 조립 — `compose_vectors()`
 
 ```python
-async def compose_vectors(self, document, chunks, file_path, request, **kwargs):
+async def compose_vectors(self, document, chunks, file_path, request,
+                          converted_pdf_path: Optional[str] = None, **kwargs):
 ```
+
+> **`converted_pdf_path`** : `__call__` 진입부에서 비-PDF 입력이 PDF 로 변환된 경우, 변환된 PDF 의 로컬 경로가 전달됨. 전달되면 각 vector 의 `file_path` 필드에 이 경로를 set 함 (변환 안 일어난 경우 None → `file_path` 미설정).
 
 `convert_processor`의 `compose_vectors()`와 유사하지만, **부록 매칭** 로직이 추가되고 **`authors` 추출이 없습니다**.
 
@@ -1195,11 +1218,24 @@ async def __call__(self, request: Request, file_path: str, **kwargs: dict):
         document.add_text(label=DocItemLabel.TEXT, text=".", prov=prov)
         chunks = self.split_documents(document, **kwargs)
 
-    # ⑥ 벡터 조립
+    # ⑥ 벡터 조립 (변환된 경우 converted_pdf_path 전달 → vector 메타의 file_path 에 반영)
     if len(chunks) >= 1:
-        vectors = await self.compose_vectors(document, chunks, file_path, request, **kwargs)
+        vectors = await self.compose_vectors(
+            document, chunks, file_path, request,
+            converted_pdf_path=converted_pdf_path, **kwargs,
+        )
     else:
         raise GenosServiceException(1, f"chunk length is 0")
+
+    # ⑦ 변환된 PDF 를 minio 에 업로드 (시각화 fetch 대상).
+    #    object key 는 원본 file_name 의 stem + ".pdf" (예: 'sample.hwp' → '<doc_id>/sample.pdf')
+    if converted_pdf_path and upload_files:
+        original_name = kwargs.get('file_name') or os.path.basename(converted_pdf_path)
+        pdf_object_name = os.path.splitext(original_name)[0] + '.pdf'
+        await upload_files(
+            [{'path': converted_pdf_path, 'name': pdf_object_name}],
+            request=request,
+        )
 
     return vectors
 ```
@@ -1246,6 +1282,20 @@ class GenosServiceException(Exception):
 ```
 
 세 전처리기 모두 동일합니다.
+
+### Enrichment 토큰 초과 (`LLMApiError`)
+
+`toc_precheck_enabled=True` 상태에서 입력 토큰 추정치가 한도를 초과하면 `LLMApiError`가 `GenosServiceException`으로 변환됩니다. `errMsg` 필드에 담기는 JSON:
+
+| 필드 | 값 |
+|------|-----|
+| `object` | `"error"` |
+| `type` | `"BadRequestError"` |
+| `param` | `"prompt"` |
+| `code` | `400` |
+| `message` | `"프롬프트 입력 토큰 (N) 초과 하였습니다. (128000 - reserved 12000)."` |
+
+조치: 문서 크기를 줄이거나 `toc_precheck_enabled=False`로 비활성화.
 
 ### `assert_cancelled()`
 

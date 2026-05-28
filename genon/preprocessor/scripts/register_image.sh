@@ -30,6 +30,21 @@ ok "설정 로드 완료"
 : "${K8S_NAMESPACE:?}"
 : "${MARIADB_POD:?}"
 
+# ── IMAGE_TAG 조합 (register.config 의 세 값 기반) ──────────────────────────
+#    IMAGE_TAG = ${IMAGE_VERSION}-${BUILD_VARIANT}-${HW_VARIANT}
+#    build-script/doc-parser-build.sh 와 동일한 태그 컨벤션.
+: "${IMAGE_VERSION:?IMAGE_VERSION 가 register.config 에 설정되지 않았습니다}"
+case "${BUILD_VARIANT:-}" in
+  opensource|enterprise) ;;
+  *) fail "BUILD_VARIANT 가 register.config 에 잘못 지정되었습니다 (opensource | enterprise 만 허용). 현재: '${BUILD_VARIANT:-}'"; exit 1 ;;
+esac
+case "${HW_VARIANT:-}" in
+  gpu|cpu) ;;
+  *) fail "HW_VARIANT 가 register.config 에 잘못 지정되었습니다 (gpu | cpu 만 허용). 현재: '${HW_VARIANT:-}'"; exit 1 ;;
+esac
+IMAGE_TAG="${IMAGE_VERSION}-${BUILD_VARIANT}-${HW_VARIANT}"
+echo "[INFO] IMAGE_TAG = ${IMAGE_VERSION}-${BUILD_VARIANT}-${HW_VARIANT} → ${IMAGE_TAG}"
+
 # ── 기본값 + 사용자 입력 (Enter=기본값 유지) ────────────────
 echo ""
 echo "※ Enter 를 누르면 config 기본값을 사용합니다."

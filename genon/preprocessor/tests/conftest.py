@@ -3,8 +3,20 @@ pytest에서 자동 로드되는 공통 설정 파일.
 여기 정의된 픽스처들은 다른 테스트에서 import 없이 바로 사용 가능.
 """
 
+import sys
 from pathlib import Path
 import pytest
+
+# 이슈 #199 — pytest sys.path 보강.
+# pyproject.toml(rootdir=genon/preprocessor) 의 pythonpath 가 "src" 만이라
+# 로컬/일부 CI 환경에서 다음 두 가지 절대 import 가 깨질 수 있어 두 경로를 prepend:
+#   - `genon.preprocessor.converters.hwp_to_pdf.*` (신규 모듈, src/ 밖)  → repo root 필요
+#   - `facade.*`                                        (기존 facade 모듈) → genon/preprocessor 필요
+_PREPROC = Path(__file__).resolve().parents[1]   # genon/preprocessor
+_REPO_ROOT = Path(__file__).resolve().parents[3]  # repo root
+for _p in (_PREPROC, _REPO_ROOT):
+    if str(_p) not in sys.path:
+        sys.path.insert(0, str(_p))
 
 
 # 프로젝트 루트 경로 반환
@@ -56,3 +68,27 @@ def test_intelligent_processor():
 def test_attachment_processor():
     from genon.preprocessor.facade.test_processor import AttachmentProcessor
     return AttachmentProcessor
+
+@pytest.fixture(scope="session")
+def parser_processor():
+    mod = pytest.importorskip("facade.parser_processor")
+    return mod.DocumentProcessor
+
+
+@pytest.fixture(autouse=True)
+def _stub_vlm_for_unit_tests(request, monkeypatch):
+    """unit 테스트에서는 외부 VLM 호출을 기본 차단한다."""
+    if request.node.get_closest_marker("unit") is None:
+        return
+
+    try:
+        import facade.parser_processor as parser_mod
+    except Exception:
+        return
+
+    monkeypatch.setattr(
+        parser_mod,
+        "api_image_request",
+        lambda *args, **kwargs: "",
+        raising=False,
+    )
