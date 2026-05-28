@@ -14,6 +14,9 @@ class CharTokenizer:
     def tokenize(self, text: str) -> list:
         return list(text)
 
+    def __call__(self, text: str) -> int:
+        return len(text)
+
     @property
     def model_max_length(self) -> int:
         return int(1e30)
