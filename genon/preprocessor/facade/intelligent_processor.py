@@ -73,7 +73,10 @@ class DocumentProcessor:
         for item in enrichers_cfg:
             if isinstance(item, dict):
                 name, options = next(iter(item.items()))
-                options = {k: v for k, v in (options or {}).items() if v is not None}
+                options = options or {}
+                if not options.pop("enable", True):
+                    continue
+                options = {k: v for k, v in options.items() if v is not None}
             else:
                 name, options = item, {}
             if "config_file" in options and "resource_path" not in options:

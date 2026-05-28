@@ -88,7 +88,7 @@ chunker:
   # merge_peers:        같은 섹션 헤더 아래 청크들을 max_tokens 안에서 병합 (smart, hybrid)
   # merge_small_chunks: max_tokens//3 미만 청크를 인접 청크에 병합 (smart 전용)
   merge_peers: true
-  merge_small_chunks: false
+  merge_small_chunks: true
 
   # 청커 내부에서 토큰 수를 계산하기 위한 토크나이저
   # char: 글자수
@@ -99,8 +99,12 @@ chunker:
   
 # ── enrichers ─────────────────────────────────────────────────────────────────
 enrichers:
+  # 계층형 목차 추출
   - toc_enricher:
-      url: null
+      enable: true # true, false
+      # <SERVING_ID>: genos 상의 서빙 아이디
+      url: "http://llmops-gateway-api-service:8080/rep/serving/<SERVING_ID>/v1/chat/completions"
+      # 쿠버네티스 내부 파드끼리 통신하므로 api키 불필요
       api_key: null
       model: model
       temperature: 0.0
@@ -173,20 +177,49 @@ enrichers:
         - Handle both formal regulatory structures and general section headers
         - Wrap the entire table of contents in `<toc></toc>` tags
 
+  # 
   - extract_metadata_enricher:
-      url: null
-      api_key: null
+      enable: true # true, false
+      # <SERVING_ID>: genos 상의 서빙 아이디
+      url: "http://llmops-gateway-api-service:8080/rep/serving/<SERVING_ID>/v1/chat/completions"
+      # 쿠버네티스 내부 파드끼리 통신하므로 api키 불필요
       model: model
       temperature: 0.0
       top_p: 0.00001
       seed: 33
       max_tokens: 10000
+      system_prompt: |
+        You are a professional document extraction assistant. Your job is to carefully extract metadata from semi-structured or unstructured Korean financial documents. Always follow the requested output format exactly.
+      user_prompt: |
+        다음은 한국어로 작성된 금융 보고서 문서의 일부입니다. 이 문서에서 아래 정보를 정확히 추출해주세요:
+
+        1. 최초 작성일 (날짜가 여러 개 있으면 '보고자료' 또는 '회의자료'에 가까운 날짜 사용)
+        2. 작성자 이름과 소속 또는 직책 (예: 채권시장팀 조용범 과장)
+        3. 작성자 전화번호 (내선번호 포함 시 함께 출력)
+
+        문서:
+        ---
+        {document_content}
+        ---
+
+        출력 형식은 반드시 아래와 같이 맞춰주세요 (JSON 형식):
+
+        {{
+          "작성일": "YYYY-MM-DD",
+          "작성자": [
+            {{"이름": "조용범", "소속": "채권시장팀", "직책": "과장", "전화": "4751"}},
+            {{"이름": "임인혁", "소속": "주식시장팀", "직책": "과장", "전화": "4672"}}
+          ]
+        }}
 
 
 # ── postprocessors ────────────────────────────────────────────────────────────
 postprocessors:
   - subject_extractor:
-      url: null
+      enable: true # true, false
+      # <SERVING_ID>: genos 상의 서빙 아이디
+      url: "http://llmops-gateway-api-service:8080/rep/serving/<SERVING_ID>/v1/chat/completions"
+      # 쿠버네티스 내부 파드끼리 통신하므로 api키 불필요
       api_key: null
       model: null
       max_chars: 12000
@@ -229,7 +262,10 @@ postprocessors:
         }
 
   - table_refiner:
-      url: null
+      enable: true # true, false
+      # <SERVING_ID>: genos 상의 서빙 아이디
+      url: "http://llmops-gateway-api-service:8080/rep/serving/<SERVING_ID>/v1/chat/completions"
+      # 쿠버네티스 내부 파드끼리 통신하므로 api키 불필요
       api_key: null
       batch_size: 5
       system_prompt: |
@@ -254,7 +290,10 @@ postprocessors:
         8. 결과에는 원본에 없는 `하위1`, `하위2`, `구분 1`, `구분 2` 같은 임시 컬럼명을 만들지 않습니다.
 
   - table_description:
-      url: null
+      enable: true # true, false
+      # <SERVING_ID>: genos 상의 서빙 아이디
+      url: "http://llmops-gateway-api-service:8080/rep/serving/<SERVING_ID>/v1/chat/completions"
+      # 쿠버네티스 내부 파드끼리 통신하므로 api키 불필요
       api_key: null
       model: null
       max_tokens: 500
@@ -271,7 +310,10 @@ postprocessors:
         {table_text}
 
   - enhanced_image_description:
-      url: null
+      enable: true # true, false
+      # <SERVING_ID>: genos 상의 서빙 아이디
+      url: "http://llmops-gateway-api-service:8080/rep/serving/<SERVING_ID>/v1/chat/completions"
+      # 쿠버네티스 내부 파드끼리 통신하므로 api키 불필요
       api_key: null
       model: null
       max_tokens: 5000
