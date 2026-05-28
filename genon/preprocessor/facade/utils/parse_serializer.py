@@ -6,9 +6,9 @@ import json
 import logging
 
 from docling_core.types import DoclingDocument
-from docling_core.types.doc import PictureItem, TableItem
+from docling_core.types.doc import DescriptionAnnotation, PictureItem, TableItem
 from docling_core.types.doc.base import CoordOrigin
-from docling_core.types.doc.document import ContentLayer
+from docling_core.types.doc.document import ContentLayer, PictureDescriptionData
 
 _log = logging.getLogger(__name__)
 
@@ -27,6 +27,24 @@ def normalize_table_format(value) -> str:
         _log.warning(f"[DocumentProcessor] Invalid output.table_format '{value}', fallback to 'html'")
         return "html"
     return fmt
+
+
+def _extract_picture_description(item: PictureItem) -> str:
+    """PictureItem annotations에서 설명 텍스트를 추출한다.
+
+    DescriptionAnnotation (ContextualImageDescriptionEnricher) → PictureDescriptionData (ImageDescriptionEnricher) 순으로 탐색.
+    """
+    for annotation in getattr(item, "annotations", []) or []:
+        if isinstance(annotation, DescriptionAnnotation):
+            text = str(getattr(annotation, "text", "") or "").strip()
+            if text:
+                return text
+    for annotation in getattr(item, "annotations", []) or []:
+        if isinstance(annotation, PictureDescriptionData):
+            text = str(getattr(annotation, "text", "") or "").strip()
+            if text:
+                return text
+    return ""
 
 
 def get_normalized_coords(bbox, page_w: float, page_h: float) -> list:
@@ -99,7 +117,12 @@ def docling_to_parse_format(doc: DoclingDocument, table_format: str = "html") ->
                 coordinates = []
 
         label_value = item.label.value if hasattr(item.label, "value") else str(item.label)
-        text = export_table_content(item, doc, table_format) if isinstance(item, TableItem) else (getattr(item, "text", "") or "")
+        if isinstance(item, TableItem):
+            text = export_table_content(item, doc, table_format)
+        elif isinstance(item, PictureItem):
+            text = _extract_picture_description(item)
+        else:
+            text = getattr(item, "text", "") or ""
 
         elements.append({"category": label_value, "content": text, "coordinates": coordinates, "id": element_id, "page": page_no})
         element_id += 1

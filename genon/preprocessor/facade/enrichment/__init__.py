@@ -3,6 +3,11 @@ from .toc_enricher import TOCEnricher
 from .metadata_enricher import MetadataEnricher
 from .image_description_enricher import ImageDescriptionEnricher
 from .custom_fields_enricher import CustomFieldsEnricher
+from .contextual_image_description_enricher import (
+    ContextualImageDescriptionEnricher,
+    ImageDescriptionOptions,
+    PictureDescriptionExtractor,
+)
 
 ENRICHERS = {
     "toc": TOCEnricher,
@@ -10,6 +15,17 @@ ENRICHERS = {
     "metadata_enricher": MetadataEnricher,
     "image_description": ImageDescriptionEnricher,
     "custom_fields": CustomFieldsEnricher,
+    "contextual_image_description": ContextualImageDescriptionEnricher,
 }
 
-__all__ = ["BaseEnricher", "TOCEnricher", "MetadataEnricher", "ImageDescriptionEnricher", "CustomFieldsEnricher", "ENRICHERS"]
+__all__ = [
+    "BaseEnricher",
+    "TOCEnricher",
+    "MetadataEnricher",
+    "ImageDescriptionEnricher",
+    "CustomFieldsEnricher",
+    "ContextualImageDescriptionEnricher",
+    "ImageDescriptionOptions",
+    "PictureDescriptionExtractor",
+    "ENRICHERS",
+]
