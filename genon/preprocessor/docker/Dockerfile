@@ -137,7 +137,62 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync
 
 ############################
-# 4-2) 모델 아티팩트
+# 4-1) HWP SDK 아티팩트
+############################
+FROM builder AS sdk_artifacts
+ARG APP_VENV
+
+RUN --mount=type=cache,target=${HF_HOME} \
+    --mount=type=secret,id=HF_TOKEN \
+    echo "[INFO] Downloading HWP SDK from Private HF Repo..."; \
+    # /run/secrets/HF_TOKEN 경로에서 값을 읽어옴
+    HF_TOKEN_VAL=$(cat /run/secrets/HF_TOKEN) && \
+    mkdir -p /app/hwp_sdk && \
+    huggingface-cli download HeechanKim-Genon/hwp_sdk \
+      --repo-type dataset \
+      --local-dir /app/hwp_sdk \
+      --local-dir-use-symlinks False \
+      --token "${HF_TOKEN_VAL}" && \
+    chmod +x /app/hwp_sdk/convtext
+
+############################
+# 4-1b) PDF SDK 아티팩트
+############################
+FROM builder AS pdf_sdk_artifacts
+ARG APP_VENV
+
+RUN --mount=type=cache,target=${HF_HOME} \
+    --mount=type=secret,id=HF_TOKEN \
+    echo "[INFO] Downloading PDF SDK from Private HF Repo..."; \
+    HF_TOKEN_VAL=$(cat /run/secrets/HF_TOKEN) && \
+    mkdir -p /app/pdf_sdk && \
+    huggingface-cli download HeechanKim-Genon/pdf_sdk \
+      --repo-type dataset \
+      --local-dir /app/pdf_sdk \
+      --local-dir-use-symlinks False \
+      --token "${HF_TOKEN_VAL}" && \
+    chmod +x /app/pdf_sdk/pdfConverter && \
+    # fontconfig conf 파일 안의 경로를 컨테이너 경로로 치환 (HF에 어떤 경로로 올렸든 보정)
+    sed -i 's|<dir>[^<]*</dir>|<dir>/app/pdf_sdk/fonts</dir>|' /app/pdf_sdk/fonts/fonts_gen.conf && \
+    sed -i 's|<cachedir>[^<]*</cachedir>|<cachedir>/app/pdf_sdk/font_cache</cachedir>|' /app/pdf_sdk/fonts/fonts_gen.conf && \
+    echo "/app/pdf_sdk/fonts" > /app/pdf_sdk/fonts/_fonts_path && \
+    mkdir -p /app/pdf_sdk/font_cache
+
+############################
+# 4-2) 추가 폰트 아티팩트
+############################
+FROM builder AS font_artifacts
+
+RUN --mount=type=cache,target=${HF_HOME} \
+    echo "[INFO] Downloading extra fonts from HF (public)..." && \
+    mkdir -p /app/extra_fonts && \
+    huggingface-cli download HeechanKim-Genon/additional_fonts \
+      --repo-type dataset \
+      --local-dir /app/extra_fonts \
+      --local-dir-use-symlinks False
+
+############################
+# 4-3) 모델 아티팩트
 ############################
 FROM builder AS models_artifacts
 ARG APP_VENV
@@ -218,13 +273,21 @@ ENV UV_PROJECT_ENVIRONMENT=${APP_VENV} \
     LANG=ko_KR.UTF-8 \
     LC_ALL=ko_KR.UTF-8 \
     LC_CTYPE=ko_KR.UTF-8 \
-    DOCLING_ARTIFACTS_PATH=/models
+    DOCLING_ARTIFACTS_PATH=/models \
+    PDF_SDK_HOME=/app/pdf_sdk
 
 WORKDIR /app
 COPY ./genon/preprocessor/configs /app/configs
 COPY ./genon/preprocessor/env /app/env
 COPY ./genon/preprocessor/src /app/src
 COPY ./genon/preprocessor/facade /app/src/genon/preprocessor/facade
+
+# 🔴 PDF SDK 다운로드
+COPY --from=pdf_sdk_artifacts /app/pdf_sdk /app/pdf_sdk
+
+# 추가 폰트 설치
+COPY --from=font_artifacts /app/extra_fonts /usr/share/fonts/additional
+RUN fc-cache -f -v
 
 # ✅ 공통 venv 위치만 복사
 COPY --from=builder ${APP_VENV} ${APP_VENV}

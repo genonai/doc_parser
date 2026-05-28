@@ -448,9 +448,14 @@ doc_preprocessors/result.json
 
 # SDKs (용량이 크거나 외부 라이브러리인 경우)
 hwp_sdk/
+pdf_sdk/
 
 # Test outputs
 test_results/
 
 # 로컬 빌드 설정 (HF_TOKEN 등 민감 정보 포함, 절대 커밋 금지)
 build-script/hf_private_token.env
+
+# debug
+debug/
+samples/

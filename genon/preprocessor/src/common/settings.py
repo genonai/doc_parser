@@ -32,7 +32,10 @@ class Settings(BaseSettings):
 
     PREPROCESSOR_ID: Optional[str] = _ID
     POD_ID: str = _POD_ID
-    LOG_PATH: list[str] = ["/var/log/supervisor/gunicorn_stderr.log", "/var/log/supervisor/gunicorn_stdout.log"]
+    LOG_PATH: list[str] = [
+        "/var/log/supervisor/gunicorn_stderr.log",
+        "/var/log/supervisor/gunicorn_stdout.log"
+    ]
 
 
 class MsgQueueConfig(BaseSettings):
