@@ -107,7 +107,12 @@ async def upload_files(file_list: list[dict], request: Request, concurrency: int
                 except Exception as e:
                     print(f"Error on Upload file from {org_path}: {e}")
                 finally:
-                    await asyncio.to_thread(os.remove, org_path)
+                    # 이미 지워진 경우(중복 task 등) FileNotFoundError 가 finally 밖으로
+                    # 전파되면 gather→ClientSession 이 닫혀 'Session is closed' 연쇄가 남.
+                    try:
+                        await asyncio.to_thread(os.remove, org_path)
+                    except FileNotFoundError:
+                        pass
 
         tasks = [_upload_single(item['path'], item['name']) for item in file_list]
         results = await asyncio.gather(*tasks)

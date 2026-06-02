@@ -1197,7 +1197,10 @@ class DocxProcessor:
         current_page = None
         chunk_index_on_page = 0
         vectors = []
-        upload_tasks = []
+        # 같은 이미지가 여러 청크에 걸쳐 참조되면 청크마다 업로드돼 동일 파일이
+        # 중복 업로드/삭제되며 'No such file' / 'Session is closed' 가 발생함.
+        # 경로 기준으로 dedupe 해 루프 밖에서 1회만 업로드한다.
+        media_files_to_upload: dict[str, dict] = {}
         for chunk_idx, chunk in enumerate(chunks):
             if chunker_type == "recursive":
                 chunk_page = chunk["page_no"]
@@ -1224,13 +1227,11 @@ class DocxProcessor:
 
             chunk_index_on_page += 1
             if upload_files:
-                file_list = self.get_media_files(doc_items)
-                upload_tasks.append(asyncio.create_task(
-                    upload_files(file_list, request=request)
-                ))
+                for media in self.get_media_files(doc_items):
+                    media_files_to_upload.setdefault(media['path'], media)
 
-        if upload_tasks:
-            await asyncio.gather(*upload_tasks)
+        if upload_files and media_files_to_upload:
+            await upload_files(list(media_files_to_upload.values()), request=request)
         return vectors
 
     async def __call__(self, request: Request, file_path: str, **kwargs: dict):
