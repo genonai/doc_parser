@@ -384,6 +384,17 @@ COPY ./genon/preprocessor/src /app/src
 # (facade 의 `from genon.preprocessor.converters.hwp_to_pdf import ...` 가 풀림).
 COPY ./genon/preprocessor/converters /app/genon/preprocessor/converters
 
+# facade 처리기 본체. 웹 UI 에서 src/preprocessor.py 를 대체하는 엔트리
+# (attachment/intelligent/convert/parser_processor) 와 enrichment 서브패키지가
+# PYTHONPATH=/app 기준 genon.preprocessor.facade.* 로 import 됨.
+# 이게 없으면 워커 부팅 시 ModuleNotFoundError: genon.preprocessor.facade 로 죽음.
+COPY ./genon/preprocessor/facade /app/genon/preprocessor/facade
+# 런타임 미사용 자산 제거: 평가 픽스처/문서 이미지 (이미지 경량화).
+# 코드 디렉토리(legacy/legal_parser/enrichment)는 유지.
+RUN rm -rf /app/genon/preprocessor/facade/evaluation \
+           /app/genon/preprocessor/facade/gitbook_doc \
+    && find /app/genon/preprocessor/facade -type d -name __pycache__ -prune -exec rm -rf {} +
+
 # 🔴 HWP sdk
 COPY --from=sdk_artifacts /app/hwp_sdk /app/hwp_sdk
 
