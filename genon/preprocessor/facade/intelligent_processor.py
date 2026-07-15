@@ -38,13 +38,15 @@ def convert_to_pdf(file_path: str, use_pdf_sdk: bool = True) -> str | None:
       use_pdf_sdk=True  → pdf_sdk → libreoffice
       use_pdf_sdk=False → libreoffice
 
-    rhwp 는 HWP/HWPX 전용이라 비-HWP 입력에는 chain 에 들어가지 않는다. HWP/HWPX
+    rhwp 는 HWP 계열(HWP/HWPX/HML) 전용이라 그 외 입력에는 chain 에 들어가지 않는다. HWP 계열
     변환은 rhwp 를 libreoffice 보다 우선한다 (pdf_sdk 가 있으면 그 다음 순위).
     내부 구현은 `genon.preprocessor.converters.hwp_to_pdf` 모듈에 통합되어 있다.
     """
     from genon.preprocessor.converters.hwp_to_pdf import convert_hwp_to_pdf
     ext = os.path.splitext(file_path)[1].lower()
-    is_hwp = ext in (".hwp", ".hwpx")
+    # .hml(HWPML)도 rhwp가 지원(genos-rhwp 260614+)하므로 HWP 계열로 취급 (이슈 #323).
+    # LibreOffice는 hml을 XML 원문 텍스트로 찍은 PDF를 만들어(쓰레기) rhwp 우선이 필수.
+    is_hwp = ext in (".hwp", ".hwpx", ".hml")
     if use_pdf_sdk:
         order = ["pdf_sdk", "rhwp", "libreoffice"] if is_hwp else ["pdf_sdk", "libreoffice"]
     else:

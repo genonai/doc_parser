@@ -4,6 +4,8 @@ HWP/HWPX 라우팅 및 백엔드 선택 로직에 대한 단위 테스트.
 """
 from __future__ import annotations
 
+import contextlib
+
 import pytest
 from unittest.mock import patch, AsyncMock, MagicMock
 
@@ -189,3 +191,38 @@ def test_infer_suffix_from_stream_magic(header, expected):
     in_doc.file = None
     in_doc.format = None
     assert GenosHwpDocumentBackend._infer_suffix(BytesIO(header), in_doc) == expected
+
+
+# ---------------------------------------------------------------------------
+# 4. convert_to_pdf: .hml 도 HWP 계열로 취급해 rhwp 가 체인에 들어가는지
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+@pytest.mark.parametrize("module_name", [
+    "facade.attachment_processor",
+    "facade.convert_processor",
+    "facade.intelligent_processor",
+    "facade.chunking_processor",
+])
+@pytest.mark.parametrize("ext, expect_rhwp", [
+    (".hml", True),   # genos-rhwp(260614+)가 HWPML 지원 — rhwp 우선 (이슈 #323)
+    (".hwp", True),
+    (".docx", False),  # 비-HWP 계열엔 rhwp 미포함 (기존 동작 유지)
+])
+def test_convert_to_pdf_order_includes_rhwp_for_hml(module_name, ext, expect_rhwp):
+    """LibreOffice 는 hml 을 XML 원문 텍스트 PDF 로 만들므로(내용 쓰레기)
+    .hml 은 rhwp 가 반드시 체인에 먼저 들어가야 한다."""
+    import importlib
+
+    mod = importlib.import_module(module_name)
+    ctx = (
+        patch.object(mod, "_has_any_pdf_converter", return_value=True)
+        if hasattr(mod, "_has_any_pdf_converter")
+        else contextlib.nullcontext()
+    )
+    with ctx, patch("genon.preprocessor.converters.hwp_to_pdf.convert_hwp_to_pdf") as m:
+        m.return_value = None
+        mod.convert_to_pdf(f"/tmp/sample{ext}", use_pdf_sdk=False)
+    order = m.call_args.kwargs.get("order") or m.call_args.args[1]
+    assert ("rhwp" in order) == expect_rhwp
+    assert order[-1] == "libreoffice"
