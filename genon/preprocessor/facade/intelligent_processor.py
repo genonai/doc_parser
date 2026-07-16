@@ -41,6 +41,7 @@ def convert_to_pdf(file_path: str, use_pdf_sdk: bool = True) -> str | None:
     내부 구현은 `genon.preprocessor.converters.hwp_to_pdf` 모듈에 통합되어 있다.
     """
     from genon.preprocessor.converters.hwp_to_pdf import convert_hwp_to_pdf
+
     ext = os.path.splitext(file_path)[1].lower()
     is_hwp = ext in (".hwp", ".hwpx")
     if use_pdf_sdk:
@@ -48,6 +49,7 @@ def convert_to_pdf(file_path: str, use_pdf_sdk: bool = True) -> str | None:
     else:
         order = ["rhwp", "libreoffice"] if is_hwp else ["libreoffice"]
     return convert_hwp_to_pdf(file_path, order=order)
+
 
 def _is_pdf(file_path: str) -> bool:
     """파일이 PDF 매직 헤더로 시작하는지 확인 (확장자 무관)."""
@@ -72,6 +74,7 @@ def _has_any_pdf_converter() -> bool:
             pdf_sdk_available,
             rhwp_available,
         )
+
         return bool(pdf_sdk_available() or rhwp_available() or libreoffice_available())
     except ImportError:
         # facade 단일 파일 실행 등으로 모듈 import 가 안 되는 경우 → 기존 동작 유지(가용 가정)
@@ -92,22 +95,26 @@ def _has_any_pdf_converter() -> bool:
 #     ZIP=PKWARE APPNOTE(local file header 0x04034b50), OLE2/CFB=[MS-CFB] §2.2 Header(D0CF11E0A1B11AE1).
 # zip(PK)=docx/xlsx/pptx/hwpx, OLE2(d0cf..)=hwp/doc/ppt/xls(레거시).
 _KNOWN_MAGIC_PREFIXES = (
-    b"%PDF-",                                # pdf
-    b"\x89PNG\r\n\x1a\n",                    # png
-    b"\xff\xd8\xff",                         # jpeg/jpg
-    b"GIF87a", b"GIF89a",                    # gif
-    b"BM",                                    # bmp
-    b"II*\x00", b"MM\x00*",                  # tiff
-    b"PK\x03\x04", b"PK\x05\x06", b"PK\x07\x08",  # zip 계열(ooxml/hwpx)
-    b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1",     # OLE2/CFB(hwp5/doc/ppt/xls)
-    b"ID3",                                   # mp3(id3v2)
-    b"RIFF",                                  # wav/avi/webp
-    b"OggS",                                  # ogg
-    b"fLaC",                                  # flac
-    b"\x1f\x8b",                             # gzip
-    b"7z\xbc\xaf\x27\x1c",                  # 7z
-    b"Rar!\x1a\x07",                        # rar
-    b"<?xml",                                 # xml
+    b"%PDF-",  # pdf
+    b"\x89PNG\r\n\x1a\n",  # png
+    b"\xff\xd8\xff",  # jpeg/jpg
+    b"GIF87a",
+    b"GIF89a",  # gif
+    b"BM",  # bmp
+    b"II*\x00",
+    b"MM\x00*",  # tiff
+    b"PK\x03\x04",
+    b"PK\x05\x06",
+    b"PK\x07\x08",  # zip 계열(ooxml/hwpx)
+    b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1",  # OLE2/CFB(hwp5/doc/ppt/xls)
+    b"ID3",  # mp3(id3v2)
+    b"RIFF",  # wav/avi/webp
+    b"OggS",  # ogg
+    b"fLaC",  # flac
+    b"\x1f\x8b",  # gzip
+    b"7z\xbc\xaf\x27\x1c",  # 7z
+    b"Rar!\x1a\x07",  # rar
+    b"<?xml",  # xml
 )
 
 # 텍스트로 봐줄 수 없는 제어 바이트(탭/개행/CR/FF 제외). 텍스트 파일엔 거의 없음.
@@ -124,9 +131,7 @@ def _looks_like_text(head: bytes) -> bool:
         return True
     if b"\x00" in head:
         return False
-    ctrl = sum(
-        1 for c in head if (c < 0x20 and c not in _TEXT_ALLOWED_CTRL) or c == 0x7F
-    )
+    ctrl = sum(1 for c in head if (c < 0x20 and c not in _TEXT_ALLOWED_CTRL) or c == 0x7F)
     return (ctrl / len(head)) < 0.05
 
 
@@ -233,6 +238,7 @@ from docling.backend.docling_parse_v4_backend import DoclingParseV4DocumentBacke
 from docling.backend.pypdfium2_backend import PyPdfiumDocumentBackend
 from docling.datamodel.base_models import InputFormat
 from docling.pipeline.simple_pipeline import SimplePipeline
+
 # from docling.datamodel.document import ConversionStatus
 from docling.datamodel.pipeline_options import (
     AcceleratorDevice,
@@ -248,11 +254,7 @@ from docling.datamodel.pipeline_options import (
     UpstageOcrOptions,
 )
 
-from docling.document_converter import (
-    DocumentConverter,
-    PdfFormatOption,
-    FormatOption
-)
+from docling.document_converter import DocumentConverter, PdfFormatOption, FormatOption
 from docling.datamodel.pipeline_options import DataEnrichmentOptions
 from docling.prompts.prompt_manager import LLMApiError
 from docling.utils.document_enrichment import enrich_document, check_document
@@ -289,7 +291,7 @@ from docling_core.types.doc import (
     TableItem,
     TextItem,
     PageItem,
-    ProvenanceItem
+    ProvenanceItem,
 )
 from docling_core.types.doc.utils import relative_path
 from docling.datamodel.settings import settings
@@ -309,7 +311,9 @@ from pydantic import BaseModel, ConfigDict, PositiveInt, TypeAdapter, model_vali
 from typing_extensions import Self
 
 try:
-    from genon.preprocessor.facade.enrichment.custom_fields_enricher import CustomFieldsEnricher as _CustomFieldsEnricher
+    from genon.preprocessor.facade.enrichment.custom_fields_enricher import (
+        CustomFieldsEnricher as _CustomFieldsEnricher,
+    )
 except ImportError:
     _CustomFieldsEnricher = None  # type: ignore[assignment,misc]
 try:
@@ -331,10 +335,7 @@ try:
     import semchunk
     from transformers import AutoTokenizer, PreTrainedTokenizerBase
 except ImportError:
-    raise RuntimeError(
-        "Module requires 'chunking' extra; to install, run: "
-        "`pip install 'docling-core[chunking]'`"
-    )
+    raise RuntimeError("Module requires 'chunking' extra; to install, run: " "`pip install 'docling-core[chunking]'`")
 
 try:
     from genos_utils import upload_files
@@ -345,6 +346,7 @@ except ImportError:
 # ============================================================
 # 설정 로딩 헬퍼 (from parser_processor.py)
 # ============================================================
+
 
 def _warn_unresolved_placeholders(cfg: dict, config_path: str) -> None:
     """config 에 남아있는 미치환 플레이스홀더(<UPPER_SNAKE>)를 탐지해 경고한다.
@@ -491,8 +493,11 @@ class ImageDescriptionOptions:
         img_variables = image_desc_cfg.get("variables")
         img_variables = dict(img_variables) if isinstance(img_variables, dict) else {}
         _tmpl_cfg = image_desc_cfg.get("template")
-        img_mode = (_tmpl_cfg.get("mode") if isinstance(_tmpl_cfg, dict) else None) \
-            or image_desc_cfg.get("template_mode") or "strict"
+        img_mode = (
+            (_tmpl_cfg.get("mode") if isinstance(_tmpl_cfg, dict) else None)
+            or image_desc_cfg.get("template_mode")
+            or "strict"
+        )
 
         def _parse_optional_float(value: Any, key: str) -> Optional[float]:
             if value is None or value == "":
@@ -510,9 +515,7 @@ class ImageDescriptionOptions:
         concurrency = _parse_optional_int(image_desc_cfg.get("concurrency"), "concurrency")
         before_items = _parse_optional_int(image_desc_cfg.get("before_items"), "before_items")
         after_items = _parse_optional_int(image_desc_cfg.get("after_items"), "after_items")
-        max_context_chars = _parse_optional_int(
-            image_desc_cfg.get("max_context_chars"), "max_context_chars"
-        )
+        max_context_chars = _parse_optional_int(image_desc_cfg.get("max_context_chars"), "max_context_chars")
         include_caption = _parse_optional_bool(image_desc_cfg.get("include_caption"), "include_caption")
         include_section_header = _parse_optional_bool(
             image_desc_cfg.get("include_section_header"), "include_section_header"
@@ -542,9 +545,7 @@ class ImageDescriptionOptions:
             include_caption=True if include_caption is None else include_caption,
             include_section_header=True if include_section_header is None else include_section_header,
             same_page_first=True if same_page_first is None else same_page_first,
-            provenance=str(
-                image_desc_cfg.get("provenance", "facade_image_description")
-            ).strip()
+            provenance=str(image_desc_cfg.get("provenance", "facade_image_description")).strip()
             or "facade_image_description",
             prompt_template=prompt_template,
             template_mode=str(img_mode).strip().lower(),
@@ -578,13 +579,9 @@ class ImageDescriptionOptions:
             concurrency=_safe_int(getattr(processor, "image_description_concurrency", 4), 4, 1),
             before_items=_safe_int(getattr(processor, "image_description_before_items", 3), 3, 0),
             after_items=_safe_int(getattr(processor, "image_description_after_items", 2), 2, 0),
-            max_context_chars=_safe_int(
-                getattr(processor, "image_description_max_context_chars", 1500), 1500, 1
-            ),
+            max_context_chars=_safe_int(getattr(processor, "image_description_max_context_chars", 1500), 1500, 1),
             include_caption=bool(getattr(processor, "image_description_include_caption", True)),
-            include_section_header=bool(
-                getattr(processor, "image_description_include_section_header", True)
-            ),
+            include_section_header=bool(getattr(processor, "image_description_include_section_header", True)),
             same_page_first=bool(getattr(processor, "image_description_same_page_first", True)),
             provenance=str(
                 getattr(processor, "image_description_provenance", "facade_image_description")
@@ -673,9 +670,7 @@ class FacadeImageDescriptionEnricher:
                     break
                 continue
 
-            candidate_page_no = self._get_item_page_no(
-                candidate, default_page_no=picture_page_no
-            )
+            candidate_page_no = self._get_item_page_no(candidate, default_page_no=picture_page_no)
             if candidate_page_no == picture_page_no:
                 same_page.append(text)
             else:
@@ -737,9 +732,7 @@ class FacadeImageDescriptionEnricher:
                 **(self.options.variables or {}),
             )
         except Exception as exc:
-            _log.warning(
-                f"[FacadeImageDescriptionEnricher] Invalid prompt_template, fallback to default: {exc}"
-            )
+            _log.warning(f"[FacadeImageDescriptionEnricher] Invalid prompt_template, fallback to default: {exc}")
             prompt = (
                 "문맥을 참고해서 이미지를 설명해줘.\n\n"
                 f"[앞 문맥]\n{safe_before}\n\n"
@@ -789,16 +782,12 @@ class FacadeImageDescriptionEnricher:
         stage_started_at = time.perf_counter()
 
         if not self.options.api_url:
-            _log.warning(
-                "[FacadeImageDescriptionEnricher] enabled=true but api_url is empty; skip"
-            )
+            _log.warning("[FacadeImageDescriptionEnricher] enabled=true but api_url is empty; skip")
             return document
 
         items: list[DocItem] = [
             item
-            for item, _ in document.iterate_items(
-                included_content_layers={ContentLayer.BODY, ContentLayer.FURNITURE}
-            )
+            for item, _ in document.iterate_items(included_content_layers={ContentLayer.BODY, ContentLayer.FURNITURE})
         ]
         if not items:
             return document
@@ -826,9 +815,7 @@ class FacadeImageDescriptionEnricher:
 
             section_header = ""
             if self.options.include_section_header:
-                section_header = self._collect_section_header_context(
-                    items=items, picture_index=idx
-                )
+                section_header = self._collect_section_header_context(items=items, picture_index=idx)
                 if section_header:
                     before_context_items = [section_header] + before_context_items
 
@@ -853,8 +840,7 @@ class FacadeImageDescriptionEnricher:
         if not targets:
             elapsed = time.perf_counter() - stage_started_at
             _log.info(
-                f"[FacadeImageDescriptionEnricher] no picture target for image description; "
-                f"elapsed={elapsed:.3f}s"
+                f"[FacadeImageDescriptionEnricher] no picture target for image description; " f"elapsed={elapsed:.3f}s"
             )
             return document
 
@@ -898,8 +884,7 @@ class FacadeImageDescriptionEnricher:
                 ann
                 for ann in pic.annotations
                 if not (
-                    isinstance(ann, DescriptionAnnotation)
-                    and getattr(ann, "provenance", "") == self.options.provenance
+                    isinstance(ann, DescriptionAnnotation) and getattr(ann, "provenance", "") == self.options.provenance
                 )
             ]
             pic.annotations.append(annotation)
@@ -977,16 +962,15 @@ def _resolve_tokenizer(chunking_cfg: dict):
 
 """Chunker implementation leveraging the document structure."""
 
+
 class GenosSmartChunker(BaseChunker):
     """토큰 제한을 고려하여 섹션별 청크를 분할하고 병합하는 청커 (v2)"""
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     tokenizer: Union[PreTrainedTokenizerBase, str, Path] = (
-            Path(_DEFAULT_TOKENIZER_LOCAL_PATH)
-            if Path(_DEFAULT_TOKENIZER_LOCAL_PATH).exists()
-            else _DEFAULT_TOKENIZER_ID
-        )
+        Path(_DEFAULT_TOKENIZER_LOCAL_PATH) if Path(_DEFAULT_TOKENIZER_LOCAL_PATH).exists() else _DEFAULT_TOKENIZER_ID
+    )
     max_tokens: int = 1024
     merge_peers: bool = True
     # 토큰 수 계산 방식. "char"(default)=문자 수 기준 | "huggingface"=HF 토크나이저 기준
@@ -1036,8 +1020,10 @@ class GenosSmartChunker(BaseChunker):
         processed_refs = set()
 
         # 모든 아이템 순회
-        for item, level in dl_doc.iterate_items(included_content_layers={ContentLayer.BODY, ContentLayer.FURNITURE}, traverse_pictures=True):
-            if hasattr(item, 'self_ref'):
+        for item, level in dl_doc.iterate_items(
+            included_content_layers={ContentLayer.BODY, ContentLayer.FURNITURE}, traverse_pictures=True
+        ):
+            if hasattr(item, "self_ref"):
                 processed_refs.add(item.self_ref)
 
             if not isinstance(item, DocItem):
@@ -1045,9 +1031,7 @@ class GenosSmartChunker(BaseChunker):
 
             # 리스트 아이템 병합 처리
             if self.merge_list_items:
-                if isinstance(item, ListItem) or (
-                    isinstance(item, TextItem) and item.label == DocItemLabel.LIST_ITEM
-                ):
+                if isinstance(item, ListItem) or (isinstance(item, TextItem) and item.label == DocItemLabel.LIST_ITEM):
                     list_items.append(item)
                     continue
                 elif list_items:
@@ -1061,12 +1045,12 @@ class GenosSmartChunker(BaseChunker):
 
             # 섹션 헤더 처리
             if isinstance(item, SectionHeaderItem) or (
-                isinstance(item, TextItem) and
-                item.label in [DocItemLabel.SECTION_HEADER, DocItemLabel.TITLE]
+                isinstance(item, TextItem) and item.label in [DocItemLabel.SECTION_HEADER, DocItemLabel.TITLE]
             ):
                 # 새로운 헤더 레벨 설정
                 header_level = (
-                    item.level if isinstance(item, SectionHeaderItem)
+                    item.level
+                    if isinstance(item, SectionHeaderItem)
                     else (0 if item.label == DocItemLabel.TITLE else 1)
                 )
                 current_heading_by_level[header_level] = item.text
@@ -1086,11 +1070,13 @@ class GenosSmartChunker(BaseChunker):
                 all_header_short_info.append({k: v for k, v in current_heading_short_by_level.items()})
                 continue
 
-            if (isinstance(item, TextItem) or
-                isinstance(item, ListItem) or
-                isinstance(item, CodeItem) or
-                isinstance(item, TableItem) or
-                isinstance(item, PictureItem)):
+            if (
+                isinstance(item, TextItem)
+                or isinstance(item, ListItem)
+                or isinstance(item, CodeItem)
+                or isinstance(item, TableItem)
+                or isinstance(item, PictureItem)
+            ):
                 # if item.label in [DocItemLabel.PAGE_HEADER, DocItemLabel.PAGE_FOOTER]:
                 #     item.text = ""
                 all_items.append(item)
@@ -1108,7 +1094,7 @@ class GenosSmartChunker(BaseChunker):
         # iterate_items()에서 누락된 테이블들을 별도로 추가
         missing_tables = []
         for table in dl_doc.tables:
-            table_ref = getattr(table, 'self_ref', None)
+            table_ref = getattr(table, "self_ref", None)
             if table_ref not in processed_refs:
                 missing_tables.append(table)
 
@@ -1145,7 +1131,7 @@ class GenosSmartChunker(BaseChunker):
         if not text:
             return 0
 
-        if self._tokenizer is None:   # 문자 수 기반
+        if self._tokenizer is None:  # 문자 수 기반
             return len(text)
 
         # 텍스트를 더 작은 단위로 분할하여 계산
@@ -1153,12 +1139,12 @@ class GenosSmartChunker(BaseChunker):
         total_tokens = 0
 
         # 텍스트를 줄 단위로 먼저 분할
-        lines = text.split('\n')
+        lines = text.split("\n")
         current_chunk = ""
 
         for line in lines:
             # 현재 청크에 줄을 추가했을 때 길이 확인
-            temp_chunk = current_chunk + '\n' + line if current_chunk else line
+            temp_chunk = current_chunk + "\n" + line if current_chunk else line
 
             if len(temp_chunk) <= max_chunk_length:
                 current_chunk = temp_chunk
@@ -1182,10 +1168,9 @@ class GenosSmartChunker(BaseChunker):
 
         return total_tokens
 
-    def _generate_text_from_items_with_headers(self, items: list[DocItem],
-                                              header_info_list: list[dict],
-                                              dl_doc: DoclingDocument,
-                                              **kwargs) -> str:
+    def _generate_text_from_items_with_headers(
+        self, items: list[DocItem], header_info_list: list[dict], dl_doc: DoclingDocument, **kwargs
+    ) -> str:
         """DocItem 리스트로부터 헤더 정보를 포함한 텍스트 생성"""
         text_parts = []
         current_section_headers = {}  # 현재 섹션의 헤더 정보
@@ -1199,14 +1184,13 @@ class GenosSmartChunker(BaseChunker):
                 headers_to_add = []
                 for level in sorted(item_headers.keys()):
                     # 이전 섹션과 다른 헤더만 추가
-                    if (level not in current_section_headers or
-                        current_section_headers[level] != item_headers[level]):
+                    if level not in current_section_headers or current_section_headers[level] != item_headers[level]:
                         # 해당 레벨까지의 모든 상위 헤더 포함
                         for l in sorted(item_headers.keys()):
                             if l < level:
                                 headers_to_add.append(item_headers[l])
                             elif l == level:
-                                headers_to_add.append('')
+                                headers_to_add.append("")
 
                         break
 
@@ -1223,7 +1207,7 @@ class GenosSmartChunker(BaseChunker):
                 table_text = self._extract_table_text(item, dl_doc, **kwargs)
                 if table_text:
                     text_parts.append(table_text)
-            elif hasattr(item, 'text') and item.text:
+            elif hasattr(item, "text") and item.text:
                 # 타이틀과 섹션 헤더 처리 개선
                 # is_section_header = (
                 #     isinstance(item, SectionHeaderItem) or
@@ -1280,31 +1264,31 @@ class GenosSmartChunker(BaseChunker):
 
         # export_to_markdown 실패 시 테이블 셀 데이터에서 직접 텍스트 추출
         try:
-            if hasattr(table_item, 'data') and table_item.data:
+            if hasattr(table_item, "data") and table_item.data:
                 cell_texts = []
 
                 # table_cells에서 텍스트 추출
-                if hasattr(table_item.data, 'table_cells'):
+                if hasattr(table_item.data, "table_cells"):
                     for cell in table_item.data.table_cells:
-                        if hasattr(cell, 'text') and cell.text and cell.text.strip():
+                        if hasattr(cell, "text") and cell.text and cell.text.strip():
                             cell_texts.append(cell.text.strip())
 
                 # grid에서 텍스트 추출 (table_cells가 없는 경우)
-                elif hasattr(table_item.data, 'grid') and table_item.data.grid:
+                elif hasattr(table_item.data, "grid") and table_item.data.grid:
                     for row in table_item.data.grid:
                         if isinstance(row, list):
                             for cell in row:
-                                if hasattr(cell, 'text') and cell.text and cell.text.strip():
+                                if hasattr(cell, "text") and cell.text and cell.text.strip():
                                     cell_texts.append(cell.text.strip())
 
                 # 추출된 셀 텍스트들을 결합
                 if cell_texts:
-                    return ' '.join(cell_texts)
+                    return " ".join(cell_texts)
         except Exception:
             pass
 
         # 모든 방법 실패 시 item.text 사용 (있는 경우)
-        if hasattr(table_item, 'text') and table_item.text:
+        if hasattr(table_item, "text") and table_item.text:
             return table_item.text
 
         return ""
@@ -1316,6 +1300,7 @@ class GenosSmartChunker(BaseChunker):
         (row_span==1 전제 — 호출부에서 세로 병합 표는 분할하지 않음)
         """
         import html as _html
+
         cells = []
         for j in range(num_cols):
             cell = row[j]
@@ -1353,12 +1338,13 @@ class GenosSmartChunker(BaseChunker):
         if not name:
             return ""
         if name.startswith("sheet: "):
-            name = name[len("sheet: "):]
+            name = name[len("sheet: ") :]
         name = name.strip()
         return f"시트명: {name}\n" if name else ""
 
-    def _table_item_to_texts(self, table_item: TableItem, dl_doc: DoclingDocument,
-                             h_short: dict, **kwargs) -> list[str]:
+    def _table_item_to_texts(
+        self, table_item: TableItem, dl_doc: DoclingDocument, h_short: dict, **kwargs
+    ) -> list[str]:
         """표를 청크 텍스트 목록으로 변환. chunk_size(max_tokens) 초과 시 row 단위로 분할하고
         각 분할 청크에 헤더 행(선두 column_header 행 + 다음 컬럼명 행)을 반복 포함한다.
 
@@ -1384,8 +1370,12 @@ class GenosSmartChunker(BaseChunker):
         # 헤더 행 수: 선두의 연속된 헤더 플래그 행 + 바로 다음 행(컬럼명 추정)
         flag_n = 0
         for row in grid:
-            if any(getattr(c, "column_header", False) or getattr(c, "row_header", False)
-                   or getattr(c, "row_section", False) for c in row):
+            if any(
+                getattr(c, "column_header", False)
+                or getattr(c, "row_header", False)
+                or getattr(c, "row_section", False)
+                for c in row
+            ):
                 flag_n += 1
             else:
                 break
@@ -1414,12 +1404,20 @@ class GenosSmartChunker(BaseChunker):
 
             def wrap(data_rendered: list) -> str:
                 return sheet_prefix + prefix + "\n".join(header_block + data_rendered)
+
         else:
             render_row = self._render_table_row_html
             header_inner = "".join(render_row(r, num_cols) for r in header_rows)
 
             def wrap(data_rendered: list) -> str:
-                return sheet_prefix + prefix + "<table><tbody>" + header_inner + "".join(data_rendered) + "</tbody></table>"
+                return (
+                    sheet_prefix
+                    + prefix
+                    + "<table><tbody>"
+                    + header_inner
+                    + "".join(data_rendered)
+                    + "</tbody></table>"
+                )
 
         texts: list[str] = []
         cur: list[str] = []
@@ -1439,7 +1437,7 @@ class GenosSmartChunker(BaseChunker):
         if not header_info_list:
             return None
 
-        all_headers = [] # header 순서대로 추가
+        all_headers = []  # header 순서대로 추가
         seen_headers = set()  # 중복 방지용
 
         for header_info in header_info_list:
@@ -1470,9 +1468,9 @@ class GenosSmartChunker(BaseChunker):
 
     def _is_section_header(self, item: DocItem) -> bool:
         """아이템이 section header인지 확인"""
-        return (isinstance(item, SectionHeaderItem) or
-                (isinstance(item, TextItem) and
-                 item.label in [DocItemLabel.SECTION_HEADER, DocItemLabel.TITLE]))
+        return isinstance(item, SectionHeaderItem) or (
+            isinstance(item, TextItem) and item.label in [DocItemLabel.SECTION_HEADER, DocItemLabel.TITLE]
+        )
 
     def _get_section_header_level(self, item: DocItem) -> Optional[int]:
         """Section header의 level을 반환"""
@@ -1485,10 +1483,9 @@ class GenosSmartChunker(BaseChunker):
                 return 1
         return None
 
-    def _generate_section_text_with_heading(self, section_items: list[DocItem],
-                                            section_header_infos: list[dict],
-                                            dl_doc: DoclingDocument,
-                                            **kwargs) -> str:
+    def _generate_section_text_with_heading(
+        self, section_items: list[DocItem], section_header_infos: list[dict], dl_doc: DoclingDocument, **kwargs
+    ) -> str:
         """섹션의 텍스트를 생성하되, 앞에 heading을 붙임"""
         # 첫 번째 item의 header_info에서 heading 추출
         if section_header_infos and section_header_infos[0]:
@@ -1501,7 +1498,7 @@ class GenosSmartChunker(BaseChunker):
             if merged_headers:
                 sorted_levels = sorted(merged_headers.keys())
                 headers = [merged_headers[level] for level in sorted_levels]
-                heading_text = ', '.join(headers)
+                heading_text = ", ".join(headers)
             else:
                 heading_text = ""
         else:
@@ -1521,8 +1518,8 @@ class GenosSmartChunker(BaseChunker):
     def _split_document_by_tokens(self, doc_chunk: DocChunk, dl_doc: DoclingDocument, **kwargs) -> list[DocChunk]:
         """문서를 토큰 제한에 맞게 분할 (v2: 섹션 헤더 기준으로 분할 후 max_tokens로 병합)"""
         items = doc_chunk.meta.doc_items
-        header_info_list = getattr(doc_chunk, '_header_info_list', [])
-        header_short_info_list = getattr(doc_chunk, '_header_short_info_list', [])
+        header_info_list = getattr(doc_chunk, "_header_info_list", [])
+        header_short_info_list = getattr(doc_chunk, "_header_short_info_list", [])
 
         if not items:
             return []
@@ -1538,7 +1535,12 @@ class GenosSmartChunker(BaseChunker):
             info = header_infos[0] if first else header_infos[-1]
             return max(info.keys(), default=default)
 
-        def get_current_chunk(doc_chunk: DocChunk, merged_texts: list[str], merged_header_short_infos: list[dict], merged_items: list[DocItem]):
+        def get_current_chunk(
+            doc_chunk: DocChunk,
+            merged_texts: list[str],
+            merged_header_short_infos: list[dict],
+            merged_items: list[DocItem],
+        ):
             """현재까지 병합된 내용으로 DocChunk 생성"""
             if not merged_texts:
                 return None
@@ -1546,25 +1548,25 @@ class GenosSmartChunker(BaseChunker):
             used_headers = self._extract_used_headers(merged_header_short_infos)
 
             return DocChunk(
-                    text=chunk_text,
-                    meta=DocMeta(
-                        doc_items=merged_items,
-                        headings=used_headers,
-                        captions=None,
-                        origin=doc_chunk.meta.origin,
-                    )
-                )
+                text=chunk_text,
+                meta=DocMeta(
+                    doc_items=merged_items,
+                    headings=used_headers,
+                    captions=None,
+                    origin=doc_chunk.meta.origin,
+                ),
+            )
 
         def get_text_from_item(item: DocItem) -> str:
             """DocItem에서 텍스트 추출"""
             if isinstance(item, TableItem):
                 return self._extract_table_text(item, dl_doc, **kwargs)
-            elif hasattr(item, 'text') and item.text:
+            elif hasattr(item, "text") and item.text:
                 return item.text
             elif isinstance(item, PictureItem):
                 text = ""
                 for annotation in item.annotations:
-                    if hasattr(annotation, 'text'):
+                    if hasattr(annotation, "text"):
                         text += annotation.text
                 return text
             return ""
@@ -1575,7 +1577,7 @@ class GenosSmartChunker(BaseChunker):
             if n == 0:
                 return []
             if total <= max_tokens:
-                return [(0, n)]   # ✅ 항상 (a,b)
+                return [(0, n)]  # ✅ 항상 (a,b)
 
             k = math.ceil(total / max_tokens)
             target = total / k
@@ -1591,8 +1593,10 @@ class GenosSmartChunker(BaseChunker):
                 j = bisect.bisect_left(P, goal)
 
                 cand = []
-                if 0 < j < len(P): cand.append(j)
-                if 0 <= j-1 < len(P): cand.append(j-1)
+                if 0 < j < len(P):
+                    cand.append(j)
+                if 0 <= j - 1 < len(P):
+                    cand.append(j - 1)
 
                 best = None
                 best_dist = float("inf")
@@ -1601,7 +1605,7 @@ class GenosSmartChunker(BaseChunker):
                         continue
                     if x <= cuts[-1]:
                         continue
-                    if x >= len(P)-1:  # n
+                    if x >= len(P) - 1:  # n
                         continue
                     dist = abs(P[x] - goal)
                     if dist < best_dist:
@@ -1609,7 +1613,7 @@ class GenosSmartChunker(BaseChunker):
                         best = x
 
                 if best is None:
-                    best = min(max(cuts[-1] + 1, 1), len(P)-2)
+                    best = min(max(cuts[-1] + 1, 1), len(P) - 2)
 
                 cuts.append(best)
                 used.add(best)
@@ -1626,14 +1630,14 @@ class GenosSmartChunker(BaseChunker):
                     continue
                 item = group[0][0]
                 ref_idx_list = []
-                if hasattr(item, 'captions') and item.captions:
+                if hasattr(item, "captions") and item.captions:
                     for cap in item.captions:
                         cap_ref = cap.cref
                         cap_idx = -1
                         for j, it in enumerate(items_group):
                             if it is None:
                                 continue
-                            if getattr(it[0][0], 'self_ref', None) == cap_ref:
+                            if getattr(it[0][0], "self_ref", None) == cap_ref:
                                 cap_idx = j
                                 break
                         if cap_idx != -1:
@@ -1774,15 +1778,8 @@ class GenosSmartChunker(BaseChunker):
 
         sections_with_text = []
         for items, header_infos, header_short_infos in sections:
-            text = self._generate_section_text_with_heading(
-                items, header_short_infos, dl_doc, **kwargs
-            )
-            sections_with_text.append((
-                text,
-                items,
-                header_infos,
-                header_short_infos
-            ))
+            text = self._generate_section_text_with_heading(items, header_short_infos, dl_doc, **kwargs)
+            sections_with_text.append((text, items, header_infos, header_short_infos))
 
         # ================================================================
         # 2.5단계: 너무 긴 청크는 분할
@@ -1795,7 +1792,7 @@ class GenosSmartChunker(BaseChunker):
                     continue
 
                 # caption 및 table 내 그림은 같은 섹션에 있도록 조정
-                items_group=[[(item, info, short)] for item, info, short in zip(items, h_infos, h_short)]
+                items_group = [[(item, info, short)] for item, info, short in zip(items, h_infos, h_short)]
                 items_group = adjust_captions(items_group)
                 items_group = adjust_pictures_in_tables(items_group)
 
@@ -1813,7 +1810,7 @@ class GenosSmartChunker(BaseChunker):
 
                 # item_groups를 섹션으로 다시 구성
                 new_sections = []
-                for (a, b) in split_info:
+                for a, b in split_info:
 
                     # 각 그룹에서 items, h_infos, h_short로 분리
                     group_items = []
@@ -1825,9 +1822,7 @@ class GenosSmartChunker(BaseChunker):
                             group_h_infos.append(g[1])
                             group_h_short.append(g[2])
 
-                    new_text = self._generate_section_text_with_heading(
-                        group_items, group_h_short, dl_doc, **kwargs
-                    )
+                    new_text = self._generate_section_text_with_heading(group_items, group_h_short, dl_doc, **kwargs)
                     new_sections.append((new_text, group_items, group_h_infos, group_h_short))
 
                 # 원래 섹션을 새로 분할된 섹션들로 교체
@@ -1859,7 +1854,7 @@ class GenosSmartChunker(BaseChunker):
                 continue
 
             # 다음 섹션과 병합
-            sections_with_text[i] = (text + '\n' + n_text, items + n_items, h_infos + n_h_infos, h_short + n_h_short)
+            sections_with_text[i] = (text + "\n" + n_text, items + n_items, h_infos + n_h_infos, h_short + n_h_short)
             sections_with_text.pop(i + 1)
 
         # ================================================================
@@ -1872,18 +1867,20 @@ class GenosSmartChunker(BaseChunker):
 
         def flush_group():
             if merged_texts:
-                groups.append({
-                    "texts": list(merged_texts),
-                    "items": list(merged_items),
-                    "h_infos": list(merged_header_infos),
-                    "h_short": list(merged_header_short_infos),
-                })
+                groups.append(
+                    {
+                        "texts": list(merged_texts),
+                        "items": list(merged_items),
+                        "h_infos": list(merged_header_infos),
+                        "h_short": list(merged_header_short_infos),
+                    }
+                )
 
         for text, items, header_infos, header_short_infos in sections_with_text:
 
             b_new_chunk = False
 
-            #----------------------------------
+            # ----------------------------------
             # 병합 가능 여부 판단
 
             # 병합 가능 토큰 수 계산
@@ -1899,7 +1896,7 @@ class GenosSmartChunker(BaseChunker):
             # 현재 섹션헤더 레벨이 더 높으면 새로운 청크 생성
             elif 0 <= section_level < merged_level:
                 b_new_chunk = True
-            #----------------------------------
+            # ----------------------------------
 
             # 새로운 청크 생성
             if b_new_chunk:
@@ -1926,6 +1923,7 @@ class GenosSmartChunker(BaseChunker):
         #   인접 그룹끼리 결합한다. (크기는 HEADER 라인 포함 최종 텍스트 기준)
         # ================================================================
         if self.max_tokens > 0 and groups:
+
             def _size(g):
                 text = "\n".join(g["texts"])
                 headings = self._extract_used_headers(g["h_short"]) or []
@@ -1955,6 +1953,11 @@ class GenosSmartChunker(BaseChunker):
         # ================================================================
         result_chunks = []
         for g in groups:
+
+            # @@@@ 성민: 방어 코드
+            if g["items"] == []:
+                continue
+
             cur_chunk = get_current_chunk(doc_chunk, g["texts"], g["h_short"], g["items"])
             if cur_chunk:
                 result_chunks.append(cur_chunk)
@@ -1984,7 +1987,7 @@ class GenosSmartChunker(BaseChunker):
 
 class GenOSVectorMeta(BaseModel):
     class Config:
-        extra = 'allow'
+        extra = "allow"
 
     text: str = None
     n_char: int = None
@@ -2002,7 +2005,7 @@ class GenOSVectorMeta(BaseModel):
     media_files: str = None
     title: str = None
     created_date: int = None
-    appendix: str = None ## !! appendix feature (2025-09-30, geonhee kim) !!
+    appendix: str = None  ## !! appendix feature (2025-09-30, geonhee kim) !!
     file_path: Optional[str] = None
 
 
@@ -2025,7 +2028,7 @@ class GenOSVectorMetaBuilder:
         self.media_files: Optional[str] = None
         self.title: Optional[str] = None
         self.created_date: Optional[int] = None
-        self.appendix: Optional[str] = None # !! appendix feature (2025-09-30, geonhee kim) !!
+        self.appendix: Optional[str] = None  # !! appendix feature (2025-09-30, geonhee kim) !!
         self.file_path: Optional[str] = None
         self.extra_metadata: dict[str, Any] = {}
 
@@ -2037,9 +2040,7 @@ class GenOSVectorMetaBuilder:
         self.n_line = len(text.splitlines())
         return self
 
-    def set_page_info(
-            self, i_page: int, i_chunk_on_page: int, n_chunk_of_page: int
-    ) -> "GenOSVectorMetaBuilder":
+    def set_page_info(self, i_page: int, i_chunk_on_page: int, n_chunk_of_page: int) -> "GenOSVectorMetaBuilder":
         """페이지 정보 설정"""
         self.i_page = i_page
         self.i_chunk_on_page = i_chunk_on_page
@@ -2069,13 +2070,15 @@ class GenOSVectorMetaBuilder:
                 size = document.pages.get(prov.page_no).size
                 page_no = prov.page_no
                 bbox = prov.bbox
-                bbox_data = {'l': bbox.l / size.width,
-                             't': bbox.t / size.height,
-                             'r': bbox.r / size.width,
-                             'b': bbox.b / size.height,
-                             'coord_origin': bbox.coord_origin.value}
-                chunk_bboxes.append({'page': page_no, 'bbox': bbox_data, 'type': type_, 'ref': label})
-        self.e_page = max([bbox['page'] for bbox in chunk_bboxes]) if chunk_bboxes else 0
+                bbox_data = {
+                    "l": bbox.l / size.width,
+                    "t": bbox.t / size.height,
+                    "r": bbox.r / size.width,
+                    "b": bbox.b / size.height,
+                    "coord_origin": bbox.coord_origin.value,
+                }
+                chunk_bboxes.append({"page": page_no, "bbox": bbox_data, "type": type_, "ref": label})
+        self.e_page = max([bbox["page"] for bbox in chunk_bboxes]) if chunk_bboxes else 0
         self.chunk_bboxes = json.dumps(chunk_bboxes)
         return self
 
@@ -2085,13 +2088,13 @@ class GenOSVectorMetaBuilder:
             if isinstance(item, PictureItem) and item.image:
                 path = str(item.image.uri)
                 name = path.rsplit("/", 1)[-1]
-                temp_list.append({'name': name, 'type': 'image', 'ref': item.self_ref})
+                temp_list.append({"name": name, "type": "image", "ref": item.self_ref})
             elif include_tables and isinstance(item, TableItem) and item.image:
                 # 표 이미지는 picture 와 구분되도록 type='table_image' 로 기록한다.
                 # ref(self_ref)는 chunk_bboxes 의 table 엔트리 ref 와 동일 → 조인 가능.
                 path = str(item.image.uri)
                 name = path.rsplit("/", 1)[-1]
-                temp_list.append({'name': name, 'type': 'table_image', 'ref': item.self_ref})
+                temp_list.append({"name": name, "type": "table_image", "ref": item.self_ref})
         self.media_files = json.dumps(temp_list)
         return self
 
@@ -2114,7 +2117,7 @@ class GenOSVectorMetaBuilder:
             "media_files": self.media_files,
             "title": self.title,
             "created_date": self.created_date,
-            "appendix": self.appendix or "", # !! appendix feature (2025-09-30, geonhee kim) !!
+            "appendix": self.appendix or "",  # !! appendix feature (2025-09-30, geonhee kim) !!
             "file_path": self.file_path,
             **self.extra_metadata,
         }
@@ -2124,13 +2127,13 @@ class GenOSVectorMetaBuilder:
 class DocumentProcessor:
 
     def __init__(self, config_path: str | None = None):
-        '''
+        """
         initialize Document Converter (config 기반)
 
         config_path 가 None 이면 resource_dev/intelligent_processor_config.yaml
         (없으면 resource/intelligent_processor_config.yaml) 을 사용한다.
         GenOS 는 DocumentProcessor() 무인자로 호출하므로 기본 경로 resolve 필수.
-        '''
+        """
         if config_path is None:
             config_path = _resolve_default_intelligent_config_path()
 
@@ -2180,16 +2183,16 @@ class DocumentProcessor:
         self._xlsx_cfg = {
             "processing_mode": xlsx_mode,
             "header_row": _parse_optional_int(tabular_cfg.get("header_row"), "formats.xlsx.tabular.header_row") or 0,
-            "multi_table": bool(_parse_optional_bool(tabular_cfg.get("multi_table"), "formats.xlsx.tabular.multi_table")),
+            "multi_table": bool(
+                _parse_optional_bool(tabular_cfg.get("multi_table"), "formats.xlsx.tabular.multi_table")
+            ),
         }
 
         # 표 텍스트 직렬화 형식(청크 text 내 docling 표 표현). "html"(default) | "markdown".
         output_cfg = _as_dict(cfg.get("output"))
         table_format = str(output_cfg.get("table_format", "html")).strip().lower()
         if table_format not in {"html", "markdown"}:
-            _log.warning(
-                f"[DocumentProcessor] Unknown output.table_format '{table_format}', fallback to 'html'."
-            )
+            _log.warning(f"[DocumentProcessor] Unknown output.table_format '{table_format}', fallback to 'html'.")
             table_format = "html"
         self._table_format = table_format
 
@@ -2262,9 +2265,7 @@ class DocumentProcessor:
         # media_files 에 type='table_image' 로 기록한다(검색=청크 텍스트 / 답변=표 이미지).
         # 기본 False 라 미설정 시 기존 동작과 동일(하위 호환).
         table_image_cfg = _as_dict(cfg.get("table_image"))
-        self.table_image_enabled = bool(
-            _parse_optional_bool(table_image_cfg.get("enable"), "table_image.enable")
-        )
+        self.table_image_enabled = bool(_parse_optional_bool(table_image_cfg.get("enable"), "table_image.enable"))
 
         table_mode_str = str(pdf_cfg.get("table_structure_mode", "accurate")).lower().strip()
         table_structure_mode = _TABLE_FORMER_MODE_MAP.get(table_mode_str)
@@ -2276,9 +2277,7 @@ class DocumentProcessor:
 
         # PDF 파이프라인 옵션 설정
         self.pipe_line_options = PdfPipelineOptions()
-        self.pipe_line_options.generate_page_images = (
-            True if generate_page_images is None else generate_page_images
-        )
+        self.pipe_line_options.generate_page_images = True if generate_page_images is None else generate_page_images
         self.pipe_line_options.generate_picture_images = (
             True if generate_picture_images is None else generate_picture_images
         )
@@ -2291,9 +2290,9 @@ class DocumentProcessor:
         self.pipe_line_options.images_scale = images_scale
 
         # layout 모델 선택. "genos_layout"(default) / "docling_layout". 잘못된 값은 경고 후 폴백.
-        layout_model_type_str = str(
-            layout_cfg.get("layout_model_type", cfg.get("layout_model_type", "genos_layout"))
-        ).lower().strip()
+        layout_model_type_str = (
+            str(layout_cfg.get("layout_model_type", cfg.get("layout_model_type", "genos_layout"))).lower().strip()
+        )
         if layout_model_type_str == LayoutModelType.DOCLING_LAYOUT.value:
             layout_model_type = LayoutModelType.DOCLING_LAYOUT
         else:
@@ -2330,14 +2329,10 @@ class DocumentProcessor:
         # DotsOCR VLM 호출/생성 파라미터 (yaml 누락·무효 시 기본값 폴백)
         genos_layout_cfg = _as_dict(layout_cfg.get("genos_layout"))
         layout_model = genos_layout_cfg.get("model") or "dots-mocr"
-        layout_timeout = _parse_optional_int(
-            genos_layout_cfg.get("timeout"), "layout.genos_layout.timeout"
-        )
+        layout_timeout = _parse_optional_int(genos_layout_cfg.get("timeout"), "layout.genos_layout.timeout")
         if layout_timeout is None or layout_timeout <= 0:
             layout_timeout = 1200
-        layout_retry_count = _parse_optional_int(
-            genos_layout_cfg.get("retry_count"), "layout.genos_layout.retry_count"
-        )
+        layout_retry_count = _parse_optional_int(genos_layout_cfg.get("retry_count"), "layout.genos_layout.retry_count")
         if layout_retry_count is None or layout_retry_count < 0:
             layout_retry_count = 2
         layout_temperature = _parse_optional_float(
@@ -2345,9 +2340,7 @@ class DocumentProcessor:
         )
         if layout_temperature is None or layout_temperature < 0:
             layout_temperature = 0.1
-        layout_top_p = _parse_optional_float(
-            genos_layout_cfg.get("top_p"), "layout.genos_layout.top_p"
-        )
+        layout_top_p = _parse_optional_float(genos_layout_cfg.get("top_p"), "layout.genos_layout.top_p")
         if layout_top_p is None or not (0 < layout_top_p <= 1):
             layout_top_p = 0.9
         layout_repetition_penalty = _parse_optional_float(
@@ -2416,13 +2409,9 @@ class DocumentProcessor:
             fallback_model=ec.model,
             config_dir=self._config_dir,
         )
-        self.image_description_enricher = FacadeImageDescriptionEnricher(
-            self.image_description_options
-        )
+        self.image_description_enricher = FacadeImageDescriptionEnricher(self.image_description_options)
         self.custom_fields_enrichers: list = (
-            [_CustomFieldsEnricher(**c) for c in ec.custom_fields_cfgs]
-            if _CustomFieldsEnricher is not None
-            else []
+            [_CustomFieldsEnricher(**c) for c in ec.custom_fields_cfgs] if _CustomFieldsEnricher is not None else []
         )
         self.metadata_enricher = (
             _MetadataEnricher(
@@ -2448,9 +2437,7 @@ class DocumentProcessor:
         )
         # 추출 메타데이터 → typed 벡터 필드 매핑(설정 기반). 설정이 비어있으면
         # 기존 created_date 동작을 그대로 재현한다(하위 호환).
-        self._metadata_field_transforms = (
-            ec.metadata.field_transforms or DEFAULT_METADATA_FIELD_TRANSFORMS
-        )
+        self._metadata_field_transforms = ec.metadata.field_transforms or DEFAULT_METADATA_FIELD_TRANSFORMS
 
         # enrichment 옵션 설정 (yaml 의 enrichment 섹션을 EnrichmentConfig 로 파싱)
         self.enrichment_options = DataEnrichmentOptions(
@@ -2563,46 +2550,44 @@ class DocumentProcessor:
     def _create_converters(self):
         """컨버터들을 생성하는 헬퍼 메서드"""
         self.converter = DocumentConverter(
-                format_options={
-                    InputFormat.PDF: PdfFormatOption(
-                        pipeline_options=self.pipe_line_options,
-                        backend=PyPdfiumDocumentBackend
-                    ),
-                }
-            )
+            format_options={
+                InputFormat.PDF: PdfFormatOption(
+                    pipeline_options=self.pipe_line_options, backend=PyPdfiumDocumentBackend
+                ),
+            }
+        )
         self.second_converter = DocumentConverter(
             format_options={
                 InputFormat.PDF: PdfFormatOption(
-                    pipeline_options=self.pipe_line_options,
-                    backend=PyPdfiumDocumentBackend
+                    pipeline_options=self.pipe_line_options, backend=PyPdfiumDocumentBackend
                 ),
             },
         )
         self.ocr_converter = DocumentConverter(
-                format_options={
-                    InputFormat.PDF: PdfFormatOption(
-                        pipeline_options=self.ocr_pipe_line_options,
-                        backend=DoclingParseV4DocumentBackend
-                    ),
-                }
-            )
+            format_options={
+                InputFormat.PDF: PdfFormatOption(
+                    pipeline_options=self.ocr_pipe_line_options, backend=DoclingParseV4DocumentBackend
+                ),
+            }
+        )
         self.ocr_second_converter = DocumentConverter(
             format_options={
                 InputFormat.PDF: PdfFormatOption(
-                    pipeline_options=self.ocr_pipe_line_options,
-                    backend=PyPdfiumDocumentBackend
+                    pipeline_options=self.ocr_pipe_line_options, backend=PyPdfiumDocumentBackend
                 ),
             },
         )
 
     def load_documents_with_docling(self, file_path: str, **kwargs: dict) -> DoclingDocument:
         # kwargs에서 save_images 값을 가져와서 옵션 업데이트
-        save_images = kwargs.get('save_images', True)
-        include_wmf = kwargs.get('include_wmf', False)
+        save_images = kwargs.get("save_images", True)
+        include_wmf = kwargs.get("include_wmf", False)
 
         # save_images 옵션이 현재 설정과 다르면 컨버터 재생성
-        if (self.simple_pipeline_options.save_images != save_images or
-            getattr(self.simple_pipeline_options, 'include_wmf', False) != include_wmf):
+        if (
+            self.simple_pipeline_options.save_images != save_images
+            or getattr(self.simple_pipeline_options, "include_wmf", False) != include_wmf
+        ):
             self.simple_pipeline_options.save_images = save_images
             self.simple_pipeline_options.include_wmf = include_wmf
             self._create_converters()
@@ -2615,12 +2600,14 @@ class DocumentProcessor:
 
     def load_documents_with_docling_ocr(self, file_path: str, **kwargs: dict) -> DoclingDocument:
         # kwargs에서 save_images 값을 가져와서 옵션 업데이트
-        save_images = kwargs.get('save_images', True)
-        include_wmf = kwargs.get('include_wmf', False)
+        save_images = kwargs.get("save_images", True)
+        include_wmf = kwargs.get("include_wmf", False)
 
         # save_images 옵션이 현재 설정과 다르면 컨버터 재생성
-        if (self.simple_pipeline_options.save_images != save_images or
-            getattr(self.simple_pipeline_options, 'include_wmf', False) != include_wmf):
+        if (
+            self.simple_pipeline_options.save_images != save_images
+            or getattr(self.simple_pipeline_options, "include_wmf", False) != include_wmf
+        ):
             self.simple_pipeline_options.save_images = save_images
             self.simple_pipeline_options.include_wmf = include_wmf
             self._create_converters()
@@ -2636,14 +2623,14 @@ class DocumentProcessor:
 
     def split_documents(self, documents: DoclingDocument, **kwargs: dict) -> List[DocChunk]:
         # chunk_size 우선순위: kwargs > yaml(chunking.chunk_size) > 0
-        chunk_size = _parse_optional_int(kwargs.get('chunk_size'), 'chunk_size')
+        chunk_size = _parse_optional_int(kwargs.get("chunk_size"), "chunk_size")
         if chunk_size is None:
             chunk_size = self._chunk_size
         chunker: GenosSmartChunker = GenosSmartChunker(
-            max_tokens = chunk_size if chunk_size is not None else 0,
-            merge_peers = True,
-            tokenizer = self._tokenizer,
-            tokenizer_type = self._tokenizer_type,
+            max_tokens=chunk_size if chunk_size is not None else 0,
+            merge_peers=True,
+            tokenizer=self._tokenizer,
+            tokenizer_type=self._tokenizer_type,
         )
 
         # 표 직렬화 형식(html|markdown)을 청커로 전달(런타임 kwarg 가 있으면 우선).
@@ -2656,8 +2643,8 @@ class DocumentProcessor:
 
     def safe_join(self, iterable):
         if not isinstance(iterable, (list, tuple, set)):
-            return ''
-        return ''.join(map(str, iterable)) + '\n'
+            return ""
+        return "".join(map(str, iterable)) + "\n"
 
     def enrichment(self, document: DoclingDocument, **kwargs: dict) -> DoclingDocument:
         try:
@@ -2694,8 +2681,15 @@ class DocumentProcessor:
             document = await enricher.enrich(document, **kwargs)
         return document
 
-    async def compose_vectors(self, document: DoclingDocument, chunks: List[DocChunk], file_path: str, request: Request, converted_pdf_path: Optional[str] = None, **kwargs: dict) -> \
-            list[dict]:
+    async def compose_vectors(
+        self,
+        document: DoclingDocument,
+        chunks: List[DocChunk],
+        file_path: str,
+        request: Request,
+        converted_pdf_path: Optional[str] = None,
+        **kwargs: dict,
+    ) -> list[dict]:
         title = ""
         enrichment_context = kwargs.get("_enrichment_context")
         context_metadata = (
@@ -2707,17 +2701,16 @@ class DocumentProcessor:
         merged_metadata = dict(document_metadata)
         merged_metadata.update(context_metadata)
         # 설정 기반 typed 필드 변환 (created_date 등). source/target 키는 passthrough 에서 제외.
-        typed_values, consumed_keys = apply_field_transforms(
-            self._metadata_field_transforms, merged_metadata, document)
+        typed_values, consumed_keys = apply_field_transforms(self._metadata_field_transforms, merged_metadata, document)
 
         for item, _ in document.iterate_items():
-            if hasattr(item, 'label'):
+            if hasattr(item, "label"):
                 if item.label == DocItemLabel.TITLE:
                     title = item.text.strip() if item.text else ""
                     break
 
         # kwargs에서 부록 정보 추출 !! appendix feature (2025-09-30, geonhee kim) !!
-        appendix_info = kwargs.get('appendix', '')
+        appendix_info = kwargs.get("appendix", "")
         appendix_list = []
         if isinstance(appendix_info, str):
             if appendix_info:
@@ -2741,29 +2734,43 @@ class DocumentProcessor:
         passthrough_metadata = dict(merged_metadata)
         # GenOSVectorMeta 스키마 예약 필드 + transform 이 소비한 source/target 키는 passthrough 제외.
         reserved_keys = {
-            "text", "n_char", "n_word", "n_line", "e_page", "i_page",
-            "i_chunk_on_page", "n_chunk_of_page", "i_chunk_on_doc", "n_chunk_of_doc",
-            "n_page", "reg_date", "chunk_bboxes", "media_files", "title",
-            "created_date", "appendix", "file_path", "metadata",
+            "text",
+            "n_char",
+            "n_word",
+            "n_line",
+            "e_page",
+            "i_page",
+            "i_chunk_on_page",
+            "n_chunk_of_page",
+            "i_chunk_on_doc",
+            "n_chunk_of_doc",
+            "n_page",
+            "reg_date",
+            "chunk_bboxes",
+            "media_files",
+            "title",
+            "created_date",
+            "appendix",
+            "file_path",
+            "metadata",
         } | consumed_keys
         for reserved_key in reserved_keys:
             passthrough_metadata.pop(reserved_key, None)
         passthrough_metadata = {
-            key: serialize_metadata_value_for_output(value)
-            for key, value in passthrough_metadata.items()
+            key: serialize_metadata_value_for_output(value) for key, value in passthrough_metadata.items()
         }
 
         global_metadata = dict(
             n_chunk_of_doc=len(chunks),
             n_page=document.num_pages(),
-            reg_date=datetime.now().isoformat(timespec='seconds') + 'Z',
+            reg_date=datetime.now().isoformat(timespec="seconds") + "Z",
             title=title,
         )
         global_metadata.update(typed_values)  # 설정 기반 typed 필드 (created_date 등)
         global_metadata.update(passthrough_metadata)
         # 비-PDF 입력이 변환된 경우 vector 의 file_path 를 변환 PDF 경로로 set.
         if converted_pdf_path:
-            global_metadata['file_path'] = converted_pdf_path
+            global_metadata["file_path"] = converted_pdf_path
 
         current_page = None
         chunk_index_on_page = 0
@@ -2772,36 +2779,35 @@ class DocumentProcessor:
         for chunk_idx, chunk in enumerate(chunks):
             chunk_page = chunk.meta.doc_items[0].prov[0].page_no if chunk.meta.doc_items[0].prov else 0
             # header 앞에 헤더 마커 추가 (HEADER: )
-            headers_text = "HEADER: " + ", ".join(chunk.meta.headings) + '\n' if chunk.meta.headings else ''
+            headers_text = "HEADER: " + ", ".join(chunk.meta.headings) + "\n" if chunk.meta.headings else ""
             content = headers_text + chunk.text
 
             # appendix 추출 !! appendix feature (2025-09-30, geonhee kim) !!
             matched_appendices = self.check_appendix_keywords(content, appendix_list)
             # print(appendix_list, matched_appendices)
             chunk_global_metadata = global_metadata.copy()
-            chunk_global_metadata['appendix'] = matched_appendices  # Only matched ones
+            chunk_global_metadata["appendix"] = matched_appendices  # Only matched ones
             ###
 
             if chunk_page != current_page:
                 current_page = chunk_page
                 chunk_index_on_page = 0
 
-            vector = (GenOSVectorMetaBuilder()
-                      .set_text(content)
-                      .set_page_info(chunk_page, chunk_index_on_page, self.page_chunk_counts[chunk_page])
-                      .set_chunk_index(chunk_idx)
-                      .set_global_metadata(**chunk_global_metadata) #!! appendix feature (2025-09-30, geonhee kim) !!
-                      .set_chunk_bboxes(chunk.meta.doc_items, document)
-                      .set_media_files(chunk.meta.doc_items, include_tables=self.table_image_enabled)
-                      ).build()
+            vector = (
+                GenOSVectorMetaBuilder()
+                .set_text(content)
+                .set_page_info(chunk_page, chunk_index_on_page, self.page_chunk_counts[chunk_page])
+                .set_chunk_index(chunk_idx)
+                .set_global_metadata(**chunk_global_metadata)  #!! appendix feature (2025-09-30, geonhee kim) !!
+                .set_chunk_bboxes(chunk.meta.doc_items, document)
+                .set_media_files(chunk.meta.doc_items, include_tables=self.table_image_enabled)
+            ).build()
             vectors.append(vector)
 
             chunk_index_on_page += 1
             if upload_files:
                 file_list = self.get_media_files(chunk.meta.doc_items, include_tables=self.table_image_enabled)
-                upload_tasks.append(asyncio.create_task(
-                    upload_files(file_list, request=request)
-                ))
+                upload_tasks.append(asyncio.create_task(upload_files(file_list, request=request)))
 
         if upload_tasks:
             await asyncio.gather(*upload_tasks)
@@ -2856,11 +2862,11 @@ class DocumentProcessor:
             if isinstance(item, PictureItem) and item.image:
                 path = str(item.image.uri)
                 name = path.rsplit("/", 1)[-1]
-                temp_list.append({'path': path, 'name': name})
+                temp_list.append({"path": path, "name": name})
             elif include_tables and isinstance(item, TableItem) and item.image:
                 path = str(item.image.uri)
                 name = path.rsplit("/", 1)[-1]
-                temp_list.append({'path': path, 'name': name})
+                temp_list.append({"path": path, "name": name})
         return temp_list
 
     def check_glyph_text(self, text: str, threshold: int = 1) -> bool:
@@ -2869,7 +2875,7 @@ class DocumentProcessor:
             return False
 
         # GLYPH 항목이 있는지 정규식으로 확인
-        matches = re.findall(r'GLYPH\w*', text)
+        matches = re.findall(r"GLYPH\w*", text)
         if len(matches) >= threshold:
             # print(f"Text has glyphs. len(matches): {len(matches)}. ")
             return True
@@ -2879,12 +2885,12 @@ class DocumentProcessor:
     def check_glyphs(self, document: DoclingDocument) -> bool:
         """문서에 글리프가 있는지 확인하는 메서드"""
         for item, level in document.iterate_items():
-            if isinstance(item, TextItem) and hasattr(item, 'prov') and item.prov:
+            if isinstance(item, TextItem) and hasattr(item, "prov") and item.prov:
                 page_no = item.prov[0].page_no
                 # page_texts += item.text
 
                 # GLYPH 항목이 있는지 확인. 정규식사용
-                matches = re.findall(r'GLYPH\w*', item.text)
+                matches = re.findall(r"GLYPH\w*", item.text)
                 if len(matches) > self._glyph_document_threshold:
                     # print(f"Document has glyphs on page {page_no}. len(matches): {len(matches)}. ")
                     return True
@@ -2898,10 +2904,11 @@ class DocumentProcessor:
         안 채워진 페이지를 잡아 강제 OCR 로 보낸다(이슈 #278 B-2).
         """
         from collections import defaultdict
+
         page_item_count: dict = defaultdict(int)
         page_text_len: dict = defaultdict(int)
         for item, _level in document.iterate_items():
-            if isinstance(item, TextItem) and hasattr(item, 'prov') and item.prov:
+            if isinstance(item, TextItem) and hasattr(item, "prov") and item.prov:
                 page_no = item.prov[0].page_no
                 page_item_count[page_no] += 1
                 page_text_len[page_no] += len((item.text or "").strip())
@@ -2912,7 +2919,9 @@ class DocumentProcessor:
                 return True
         return False
 
-    def check_appendix_keywords(self, content: str, appendix_list: list) -> str: # !! appendix feature (2025-09-30, geonhee kim) !!
+    def check_appendix_keywords(
+        self, content: str, appendix_list: list
+    ) -> str:  # !! appendix feature (2025-09-30, geonhee kim) !!
         if not content or not appendix_list:
             return ""
 
@@ -2924,29 +2933,33 @@ class DocumentProcessor:
         # Complex patterns: 별지/별표/장부 + numbers (with hyphens, Roman numerals)
         # Updated regex to capture full patterns like "별지 제 Ⅰ -1 호 서식" by matching until closing delimiters
         content = re.sub(r"\s+", "", content)
-        complex_patterns = re.findall(r'(별지|별표|장부)(?:제)?([^<>()\[\]]+?)(?=(?:호|서식)|[<>\)\]]|$)', content)
+        complex_patterns = re.findall(r"(별지|별표|장부)(?:제)?([^<>()\[\]]+?)(?=(?:호|서식)|[<>\)\]]|$)", content)
         for pattern_type, number in complex_patterns:
-            found_patterns.extend([
-                f"{pattern_type} {number}",
-                f"{pattern_type} 제{number}호",
-                f"{pattern_type}{number}",
-                f"{pattern_type}제{number}호"
-            ])
+            found_patterns.extend(
+                [
+                    f"{pattern_type} {number}",
+                    f"{pattern_type} 제{number}호",
+                    f"{pattern_type}{number}",
+                    f"{pattern_type}제{number}호",
+                ]
+            )
 
         # Standalone patterns: (별표), (별지), (장부)
-        standalone_patterns = re.findall(r'[\(\[]+(별지|별표|장부)[\)\]]+', content)
+        standalone_patterns = re.findall(r"[\(\[]+(별지|별표|장부)[\)\]]+", content)
         for pattern_type in set(standalone_patterns):
-            found_patterns.extend([
-                pattern_type,
-                f"{pattern_type}",
-            ])
+            found_patterns.extend(
+                [
+                    pattern_type,
+                    f"{pattern_type}",
+                ]
+            )
 
         # 2. Check if found patterns match any appendix in the list
         for appendix in appendix_list:
             if not appendix or not isinstance(appendix, str):
                 continue
 
-            appendix_clean = appendix.replace('.pdf', '').lower().strip()
+            appendix_clean = appendix.replace(".pdf", "").lower().strip()
             appendix_clean_no_space = re.sub(r"\s+", "", appendix_clean)
 
             # If any found pattern exists in appendix filename, it's a match
@@ -2956,7 +2969,7 @@ class DocumentProcessor:
                     matched_appendices.append(appendix)
                     break  # Prevent duplicates
 
-        return ', '.join(matched_appendices) if matched_appendices else ""
+        return ", ".join(matched_appendices) if matched_appendices else ""
 
     def ocr_all_table_cells(self, document: DoclingDocument, pdf_path) -> List[Dict[str, Any]]:
         """
@@ -2993,23 +3006,17 @@ class DocumentProcessor:
             if resp.get("errorCode") not in (0, None):
                 return [], [], []
 
-            ocr_results = (
-                resp.get("result", {})
-                    .get("ocrResults", [])
-            )
+            ocr_results = resp.get("result", {}).get("ocrResults", [])
             if not ocr_results:
                 return [], [], []
 
-            pruned = (
-                ocr_results[0]
-                .get("prunedResult", {})
-            )
+            pruned = ocr_results[0].get("prunedResult", {})
             if not pruned:
                 return [], [], []
 
-            rec_texts  = pruned.get("rec_texts", [])   # list[str]
+            rec_texts = pruned.get("rec_texts", [])  # list[str]
             rec_scores = pruned.get("rec_scores", [])  # list[float]
-            rec_boxes  = pruned.get("rec_boxes", [])   # list[[x1,y1,x2,y2]]
+            rec_boxes = pruned.get("rec_boxes", [])  # list[[x1,y1,x2,y2]]
 
             # 길이 불일치 방어: 최소 길이에 맞춰 자르기
             n = min(len(rec_texts), len(rec_scores), len(rec_boxes))
@@ -3050,17 +3057,17 @@ class DocumentProcessor:
                             continue
 
                         # docling 셀 bbox(BOTTOMLEFT) → 페이지 이미지 픽셀 좌표(TOPLEFT)
-                        crop = (
-                            cell.bbox
-                            .to_top_left_origin(page_height=page.size.height)
-                            .scale_to_size(old_size=page.size, new_size=page.image.size)
+                        crop = cell.bbox.to_top_left_origin(page_height=page.size.height).scale_to_size(
+                            old_size=page.size, new_size=page.image.size
                         )
                         x0, y0, x1, y1 = crop.as_tuple()
                         # 정규화 + 페이지 경계 클램프 + degenerate skip
                         x0, x1 = sorted((x0, x1))
                         y0, y1 = sorted((y0, y1))
-                        x0 = max(0, min(x0, W)); x1 = max(0, min(x1, W))
-                        y0 = max(0, min(y0, H)); y1 = max(0, min(y1, H))
+                        x0 = max(0, min(x0, W))
+                        x1 = max(0, min(x1, W))
+                        y0 = max(0, min(y0, H))
+                        y1 = max(0, min(y1, H))
                         if (x1 - x0) < 1 or (y1 - y0) < 1:
                             continue
 
@@ -3099,18 +3106,13 @@ class DocumentProcessor:
 
     def setup_logging(self, level_num: int):
         """
-            5"DEBUG", 4"INFO", 3"WARNING", 2"ERROR", 1"CRITICAL", 0"NOLOG" 중 하나를 받아서 로깅 레벨을 설정하는 메서드
+        5"DEBUG", 4"INFO", 3"WARNING", 2"ERROR", 1"CRITICAL", 0"NOLOG" 중 하나를 받아서 로깅 레벨을 설정하는 메서드
         """
+
         def get_level_name(level_num: int) -> str:
-            level_map = {
-                5: "DEBUG",
-                4: "INFO",
-                3: "WARNING",
-                2: "ERROR",
-                1: "CRITICAL",
-                0: "NOLOG"
-            }
+            level_map = {5: "DEBUG", 4: "INFO", 3: "WARNING", 2: "ERROR", 1: "CRITICAL", 0: "NOLOG"}
             return level_map.get(level_num, "INFO")
+
         level_name = get_level_name(level_num)
         print(f"Setting log level to: {level_name}")
 
@@ -3124,7 +3126,7 @@ class DocumentProcessor:
         logging.basicConfig(
             level=level,
             format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-            handlers=[logging.StreamHandler()]   # 콘솔 출력
+            handlers=[logging.StreamHandler()],  # 콘솔 출력
         )
 
         # root logger level 적용
@@ -3143,7 +3145,7 @@ class DocumentProcessor:
                 f"빌드하세요 (genon/README.md 참고).",
             )
         _log.info(f"[intelligent] Non-PDF input — auto-converting to PDF: {file_path}")
-        use_sdk = kwargs.get('use_pdf_sdk', True)
+        use_sdk = kwargs.get("use_pdf_sdk", True)
         converted = convert_to_pdf(file_path, use_pdf_sdk=use_sdk)
         if (not converted or not os.path.exists(converted)) and use_sdk:
             _log.warning(f"[intelligent] SDK conversion failed → fallback to LibreOffice")
@@ -3155,13 +3157,14 @@ class DocumentProcessor:
 
     async def _process_xlsx(self, request: Request, file_path: str, **kwargs: dict):
         """xlsx/csv 직접 처리(이슈 #288): PDF 변환 없이 처리해 행 분할 버그 방지.
-          - tabular: 데이터 행마다 1청크(벡터)로 만들어 즉시 반환
-          - docling(기본): MsExcel 백엔드로 DoclingDocument 생성 후 공유 파이프라인으로 합류
+        - tabular: 데이터 행마다 1청크(벡터)로 만들어 즉시 반환
+        - docling(기본): MsExcel 백엔드로 DoclingDocument 생성 후 공유 파이프라인으로 합류
         """
         from genon.preprocessor.converters.xlsx_processor import (
             build_docling_document,
             build_tabular_vectors,
         )
+
         if self._xlsx_cfg["processing_mode"] == "tabular":
             _log.info(f"[intelligent] xlsx tabular 직접 처리: {file_path}")
             vectors = build_tabular_vectors(
@@ -3175,27 +3178,20 @@ class DocumentProcessor:
 
         _log.info(f"[intelligent] xlsx docling 직접 처리(PDF 변환 생략): {file_path}")
         try:
-            document = build_docling_document(
-                file_path, save_images=kwargs.get('save_images', False)
-            )
+            document = build_docling_document(file_path, save_images=kwargs.get("save_images", False))
         except Exception as e:
-            raise GenosServiceException(
-                1, f"xlsx 처리 실패: {os.path.basename(file_path)} ({e})"
-            )
+            raise GenosServiceException(1, f"xlsx 처리 실패: {os.path.basename(file_path)} ({e})")
         # openpyxl 텍스트라 글리프 깨짐이 없고 렌더 PDF 도 없으므로 테이블셀 재OCR 은 생략.
         # table_as_chunk=True: 시트/표마다 별도 청크로 분리(엑셀은 표 단위가 논리 단위).
         return await self._document_to_vectors(
-            document, file_path, request,
-            converted_pdf_path=None, ocr_table_cells=False, table_as_chunk=True, **kwargs
+            document, file_path, request, converted_pdf_path=None, ocr_table_cells=False, table_as_chunk=True, **kwargs
         )
 
-    async def _process_pdf(self, request: Request, file_path: str,
-                           converted_pdf_path: Optional[str], **kwargs: dict):
+    async def _process_pdf(self, request: Request, file_path: str, converted_pdf_path: Optional[str], **kwargs: dict):
         """PDF(또는 PDF 로 변환된) 입력을 docling 으로 로딩 후 공유 파이프라인으로 처리."""
         document = self._load_document(file_path, **kwargs)
         return await self._document_to_vectors(
-            document, file_path, request,
-            converted_pdf_path=converted_pdf_path, ocr_table_cells=True, **kwargs
+            document, file_path, request, converted_pdf_path=converted_pdf_path, ocr_table_cells=True, **kwargs
         )
 
     def _load_document(self, file_path: str, **kwargs: dict) -> DoclingDocument:
@@ -3206,14 +3202,25 @@ class DocumentProcessor:
             return self.load_documents_with_docling_ocr(file_path, **kwargs)
         document: DoclingDocument = self.load_documents(file_path, **kwargs)
         if self.ocr_mode == "auto":
-            if not check_document(document, self.enrichment_options) or self.check_glyphs(document) or self.check_empty_text(document):
+            if (
+                not check_document(document, self.enrichment_options)
+                or self.check_glyphs(document)
+                or self.check_empty_text(document)
+            ):
                 # OCR이 필요하다고 판단되면 OCR 수행
                 document = self.load_documents_with_docling_ocr(file_path, **kwargs)
         return document
 
-    async def _document_to_vectors(self, document: DoclingDocument, file_path: str,
-                                   request: Request, *, converted_pdf_path: Optional[str],
-                                   ocr_table_cells: bool, **kwargs: dict) -> list:
+    async def _document_to_vectors(
+        self,
+        document: DoclingDocument,
+        file_path: str,
+        request: Request,
+        *,
+        converted_pdf_path: Optional[str],
+        ocr_table_cells: bool,
+        **kwargs: dict,
+    ) -> list:
         """DoclingDocument → enrichment → 청킹 → 벡터 생성(공유 파이프라인).
 
         ocr_table_cells: 글리프 깨진 테이블 셀 재OCR 수행 여부(xlsx 직접 처리는 False).
@@ -3259,7 +3266,9 @@ class DocumentProcessor:
 
         has_text_items = False
         for item, _ in document.iterate_items():
-            if (isinstance(item, (TextItem, ListItem, CodeItem, SectionHeaderItem)) and item.text and item.text.strip()) or (isinstance(item, TableItem) and item.data and len(item.data.table_cells) == 0):
+            if (
+                isinstance(item, (TextItem, ListItem, CodeItem, SectionHeaderItem)) and item.text and item.text.strip()
+            ) or (isinstance(item, TableItem) and item.data and len(item.data.table_cells) == 0):
                 has_text_items = True
                 break
 
@@ -3272,18 +3281,10 @@ class DocumentProcessor:
             page_no = 1
 
             # ProvenanceItem 생성
-            prov = ProvenanceItem(
-                page_no=page_no,
-                bbox=BoundingBox(l=0, t=0, r=1, b=1),  # 최소 bbox
-                charspan=(0, 1)
-            )
+            prov = ProvenanceItem(page_no=page_no, bbox=BoundingBox(l=0, t=0, r=1, b=1), charspan=(0, 1))  # 최소 bbox
 
             # document에 temp text item 추가
-            document.add_text(
-                label=DocItemLabel.TEXT,
-                text=".",
-                prov=prov
-            )
+            document.add_text(label=DocItemLabel.TEXT, text=".", prov=prov)
 
             # split_documents 호출
             chunks: List[DocChunk] = self.split_documents(document, **kwargs)
@@ -3292,7 +3293,10 @@ class DocumentProcessor:
         vectors = []
         if len(chunks) >= 1:
             vectors: list[dict] = await self.compose_vectors(
-                document, chunks, file_path, request,
+                document,
+                chunks,
+                file_path,
+                request,
                 converted_pdf_path=converted_pdf_path,
                 **enrichment_kwargs,
             )
@@ -3305,13 +3309,13 @@ class DocumentProcessor:
         # NFS 원본은 GenOS UI 의 PDF preview 가 직접 참조하므로 보존 필요.
         # → 임시 사본을 만들어 그것만 업로드시키고 NFS 원본은 그대로 둔다.
         if converted_pdf_path and upload_files:
-            original_name = kwargs.get('file_name') or os.path.basename(converted_pdf_path)
-            pdf_object_name = os.path.splitext(original_name)[0] + '.pdf'
-            with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as _tmp:
+            original_name = kwargs.get("file_name") or os.path.basename(converted_pdf_path)
+            pdf_object_name = os.path.splitext(original_name)[0] + ".pdf"
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as _tmp:
                 shutil.copy(converted_pdf_path, _tmp.name)
                 _tmp_upload_path = _tmp.name
             await upload_files(
-                [{'path': _tmp_upload_path, 'name': pdf_object_name}],
+                [{"path": _tmp_upload_path, "name": pdf_object_name}],
                 request=request,
             )
 
@@ -3334,7 +3338,7 @@ class DocumentProcessor:
         return vectors
 
     async def __call__(self, request: Request, file_path: str, **kwargs: dict):
-        runtime_level = kwargs.get('log_level')
+        runtime_level = kwargs.get("log_level")
         self.setup_logging(runtime_level if runtime_level is not None else self._log_level)
 
         _log.info(f"file_path: {file_path}")
@@ -3345,9 +3349,7 @@ class DocumentProcessor:
         # 유발하므로 변환 전에 컷한다. 확장자와 무관하게 실제 헤더로 판정.
         bad_reason = _detect_unsupported_file(file_path)
         if bad_reason:
-            _log.warning(
-                f"[intelligent] 비정상 파일 감지({bad_reason}) — 처리 중단: {file_path}"
-            )
+            _log.warning(f"[intelligent] 비정상 파일 감지({bad_reason}) — 처리 중단: {file_path}")
             raise GenosServiceException(
                 "1", f"{bad_reason} 입니다. 정상 문서로 다시 업로드하세요: {os.path.basename(file_path)}"
             )
@@ -3364,7 +3366,7 @@ class DocumentProcessor:
         # - auto_convert_to_pdf=True (default): PDF SDK/LibreOffice 로 자동 변환 후 진입
         # - auto_convert_to_pdf=False: 변환 없이 그대로 진행 (변경 전 동작; PDF 가정)
         converted_pdf_path: Optional[str] = None
-        if ext not in _XLSX_DIRECT_EXTS and kwargs.get('auto_convert_to_pdf', True) and not _is_pdf(file_path):
+        if ext not in _XLSX_DIRECT_EXTS and kwargs.get("auto_convert_to_pdf", True) and not _is_pdf(file_path):
             file_path, converted_pdf_path = self._convert_to_pdf(file_path, **kwargs)
 
         # 포맷별 처리: 직접 처리 가능 포맷은 xlsx 핸들러, 그 외는 PDF(docling) 처리.
