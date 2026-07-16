@@ -1,0 +1,175 @@
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
+
+<html>
+<head>
+<style type="text/css">
+.lawbon {text-align: center; font-family: 나눔고딕, NanumGothic, sans-serif;float:left; line-height: 30px; overflow-y:scroll;}
+.slawbon {text-align: center; font-family: 나눔고딕, NanumGothic, sans-serif;float:left; line-height: 30px; overflow-y:scroll;width:250px;}
+.blawbon {text-align: center; font-family: 나눔고딕, NanumGothic, sans-serif;float:left; line-height: 30px; overflow-y:scroll;width:250px;}
+.title_index {
+	text-align : left;
+	margin-bottom:2px;
+	margin-left:0px;
+	margin-top:-3px;
+	font-weight:bold;
+	font-size:12px;
+	color:#003b59;
+	padding-left:22px;
+	padding-top:8px;
+	background:url(../../../images/common/icon_index.gif) no-repeat left center;	
+	border-bottom:#ccc solid 1px;
+}
+.title_attach {
+	text-align : left;
+	margin-bottom:3px;
+	margin-left:0px;
+	font-weight:bold;
+	font-size:12px;
+	color:#003b59;
+	padding-left:22px;
+	background:url(../../../images/common/icon_file2.gif) no-repeat left center;	
+	border-bottom:#ccc solid 1px;
+	padding-top:8px;
+	margin-top:-3px;
+}
+a:visited { color : #06f; text-decoration : none; }
+</style>
+<meta content="text/html; charset=utf-8" http-equiv="Content-Type"/>
+<title>::: KOMIPO 규정관리시스템 :::</title>
+<link href="/komipolaw/jsp/lkms3/css/common.css" rel="stylesheet" type="text/css"/>
+<script src="/komipolaw/js/jquery/js/jquery-1.8.3.js" type="text/javascript"></script>
+<script src="commom.js" type="text/javascript"></script>
+<script src="/komipolaw/dwr/engine.js" type="text/javascript"></script>
+<script src="/komipolaw/dwr/util.js" type="text/javascript"></script>
+<script src="/komipolaw/js/mm_findtext.js"></script>
+<script type="text/javascript">
+	function goList(){
+		frm=document.forms[0];
+		frm.action="list.jsp";
+		frm.submit();
+	}
+	
+	$(document).ready(function(){
+		var height = window.innerHeight;
+		var width =  window.innerWidth;
+		var box = $('.lawbon');
+		box.css('width',width-290);
+		box.css('height',height-40);
+		
+		var box2 = $('.slawbon');
+		box2.css('height',(height-40)*0.7);
+		
+		var box3 = $('.blawbon');
+		box3.css('height',(height-40)*0.3);
+		
+		var box4 = $('#tbon');
+		box4.css('width',width);
+		
+		$(window).resize(function() {
+			var height = window.innerHeight;
+			var width =  window.innerWidth;
+			var box = $('.lawbon');
+			box.css('width',width-290);
+			box.css('height',height-40);
+			
+			var box2 = $('.slawbon');
+			box2.css('height',(height-40)*0.7);
+			
+			var box3 = $('.blawbon');
+			box3.css('height',(height-40)*0.3);
+			
+			var box4 = $('#tbon');
+			box4.css('width',width);
+		})
+	});
+	function goTwoView(key){
+		var url;
+		 url = "toView.jsp";
+		 cw=1000;
+	     ch=668;
+		 sw=screen.availWidth;
+		 sh=screen.availHeight;
+		 px=(sw-cw)/2;
+		 py=(sh-ch)/2;
+		 property="left="+px+",top="+py+",width="+cw+",height="+ch+",scrollbars=no,resizable=no,status=no,toolbar=no";
+		 newWin = window.open(url+"?key="+key+"&menuType=BYLAW", "Bookid", property); 
+		 window.newWin.focus();
+	}
+	function print(key){
+		var url;
+		 url = "bylawPrint.jsp";
+		 cw=700;
+	     ch=668;
+		 sw=screen.availWidth;
+		 sh=screen.availHeight;
+		 px=(sw-cw)/2;
+		 py=(sh-ch)/2;
+		 property="left="+px+",top="+py+",width="+cw+",height="+ch+",scrollbars=no,resizable=yes,status=no,toolbar=no";
+		 newWin = window.open(url+"?key="+key+"&menuType=LAW", "Bookid", property); 
+		 window.newWin.focus();
+	}
+	function goDownLoad(keyval,gbn){
+		frm = document.dd;
+		frm.gbn.value = gbn;
+		frm.keyval.value = keyval;
+		frm.action = "/komipolaw/DownloadLaw";
+		frm.submit();
+	}
+</script>
+</head>
+<body><p id="url">http://law.komipo.net:8000/komipolaw/jsp/lkms3/jsp/law/popup/bylawviewPop.jsp?lawsid=45143&amp;key2=2100000265446</p>
+<form action="" method="post" name="lawSch">
+<input name="pageSize" type="hidden"/>
+<input name="pageno" type="hidden"/>
+<input name="lawsid" type="hidden"/>
+</form>
+<form action="" method="post" name="dd">
+<input name="gbn" type="hidden"/>
+<input name="keyval" type="hidden"/>
+<input name="folder" type="hidden" value="BLAW"/>
+<input name="tkeyval" type="hidden" value="45143"/>
+<input name="tkeyval2" type="hidden" value="2100000265446"/>
+</form>
+<table border="0" cellpadding="0" cellspacing="0" id="tbon" style="margin:0px;padding:0px;border-top:2px solid #98addc; border-bottom:1px solid #9eaccc;" width="100%">
+<tr>
+<td>
+<table border="0" cellspacing="0" width="100%">
+<tr style="background:#e5f1ff;">
+<td class="td_regulFontSize">
+</td>
+<td align="right" class="td_regulButHolder" colspan="2">
+<img alt="동시보기" border="0" height="18" onclick="goTwoView('45143');" src="/komipolaw/jsp/lkms3/images/button/regul/btn_36.gif" style="cursor:hand;vertical-align: middle;"/>
+<img alt="본문내 찾기" border="0" height="18" onclick="MM_openBrWindow()" onfocus="this.blur()" src="/komipolaw/jsp/lkms3/images/button/regul/btn_35.gif" style="cursor:hand;vertical-align: middle;"/>
+<img alt="인쇄" height="18" onclick="print('45143');" src="/komipolaw/jsp/lkms3/images/button/regul/btn_20.gif" style="cursor:hand;vertical-align: middle;"/>
+</td>
+</tr>
+<tr style="background:#fcfdfe;">
+<td class="td_regulTextNavi" colspan="2" style="width:30%;">
+</td>
+<td class="td_regulTextNavi" style="text-align:right">
+</td>
+</tr>
+</table></td>
+</tr>
+</table>
+<div class="lawbon">
+<p style="font-size:18px;font-weight:bold;">환경영향평가기술자의 교육훈련 수수료 고시</p>
+<br/>
+[시행2025.10.01.]
+[기후에너지환경부고시 2025-165, 2025.10.01. ,일부개정]
+<br/>
+<br/>
+<pre style="white-space:pre-wrap;text-align:left;padding:15px"><p style="font-size: 15px;color:#06C;font-weight:bold;"><a name="제1조(목적)">제1조(목적)</a></p> 이 고시는 「환경영향평가법」 제62조의2에 따른 환경영향평가기술자에 대한 교육ㆍ훈련 수수료를 정함을 목적으로 한다.
+</pre>
+<pre style="white-space:pre-wrap;text-align:left;padding:15px"><p style="font-size: 15px;color:#06C;font-weight:bold;"><a name="제2조(수수료)">제2조(수수료)</a></p> 「환경영향평가법 시행령」 제69조의3에 따른 환경영향평가기술자의 교육훈련 수수료는 다음과 같다.
+<img id="161767833"/>
+
+</pre>
+<pre style="white-space:pre-wrap;text-align:left;padding:15px"><p style="font-size: 15px;color:#06C;font-weight:bold;"><a name="제3조(재검토기한)">제3조(재검토기한)</a></p> 기후에너지환경부장관은 「훈령ㆍ예규 등의 발령 및 관리에 관한 규정」에 따라 2018년 1월 1일을 기준으로 매3년이 되는 시점(매 3년째의 12월 31일까지를 말한다)마다 그 타당성을 검토하여 개선 등의 조치를 하여야 한다.
+</pre>
+<pre style="white-space:pre-wrap;text-align:left;padding:15px">부칙 &lt;제2018-3호,2018.1.8.&gt;
+이 고시는 고시한 날부터 시행한다.</pre>
+</div>
+</body>
+</html>

@@ -1,0 +1,922 @@
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
+
+<html>
+<head>
+<style type="text/css">
+.lawbon {text-align: center; font-family: 나눔고딕, NanumGothic, sans-serif;float:left; line-height: 30px; overflow-y:scroll;}
+.slawbon {text-align: center; font-family: 나눔고딕, NanumGothic, sans-serif;float:left; line-height: 30px; overflow-y:scroll;width:250px;}
+.blawbon {text-align: center; font-family: 나눔고딕, NanumGothic, sans-serif;float:left; line-height: 30px; overflow-y:scroll;width:250px;}
+.title_index {
+	text-align : left;
+	margin-bottom:2px;
+	margin-left:0px;
+	margin-top:-3px;
+	font-weight:bold;
+	font-size:12px;
+	color:#003b59;
+	padding-left:22px;
+	padding-top:8px;
+	background:url(../../../images/common/icon_index.gif) no-repeat left center;	
+	border-bottom:#ccc solid 1px;
+}
+.title_attach {
+	text-align : left;
+	margin-bottom:3px;
+	margin-left:0px;
+	font-weight:bold;
+	font-size:12px;
+	color:#003b59;
+	padding-left:22px;
+	background:url(../../../images/common/icon_file2.gif) no-repeat left center;	
+	border-bottom:#ccc solid 1px;
+	padding-top:8px;
+	margin-top:-3px;
+}
+a:visited { color : #06f; text-decoration : none; }
+</style>
+<meta content="text/html; charset=utf-8" http-equiv="Content-Type"/>
+<title>::: KOMIPO 규정관리시스템 :::</title>
+<link href="/komipolaw/jsp/lkms3/css/common.css" rel="stylesheet" type="text/css"/>
+<script src="/komipolaw/js/jquery/js/jquery-1.8.3.js" type="text/javascript"></script>
+<script src="commom.js" type="text/javascript"></script>
+<script src="/komipolaw/dwr/engine.js" type="text/javascript"></script>
+<script src="/komipolaw/dwr/util.js" type="text/javascript"></script>
+<script src="/komipolaw/js/mm_findtext.js"></script>
+<script type="text/javascript">
+	function goList(){
+		frm=document.forms[0];
+		frm.action="list.jsp";
+		frm.submit();
+	}
+	
+	$(document).ready(function(){
+		var height = window.innerHeight;
+		var width =  window.innerWidth;
+		var box = $('.lawbon');
+		box.css('width',width-290);
+		box.css('height',height-40);
+		
+		var box2 = $('.slawbon');
+		box2.css('height',(height-40)*0.7);
+		
+		var box3 = $('.blawbon');
+		box3.css('height',(height-40)*0.3);
+		
+		var box4 = $('#tbon');
+		box4.css('width',width);
+		
+		$(window).resize(function() {
+			var height = window.innerHeight;
+			var width =  window.innerWidth;
+			var box = $('.lawbon');
+			box.css('width',width-290);
+			box.css('height',height-40);
+			
+			var box2 = $('.slawbon');
+			box2.css('height',(height-40)*0.7);
+			
+			var box3 = $('.blawbon');
+			box3.css('height',(height-40)*0.3);
+			
+			var box4 = $('#tbon');
+			box4.css('width',width);
+		})
+	});
+	function goTwoView(key){
+		var url;
+		 url = "toView.jsp";
+		 cw=1000;
+	     ch=668;
+		 sw=screen.availWidth;
+		 sh=screen.availHeight;
+		 px=(sw-cw)/2;
+		 py=(sh-ch)/2;
+		 property="left="+px+",top="+py+",width="+cw+",height="+ch+",scrollbars=no,resizable=no,status=no,toolbar=no";
+		 newWin = window.open(url+"?key="+key+"&menuType=BYLAW", "Bookid", property); 
+		 window.newWin.focus();
+	}
+	function print(key){
+		var url;
+		 url = "bylawPrint.jsp";
+		 cw=700;
+	     ch=668;
+		 sw=screen.availWidth;
+		 sh=screen.availHeight;
+		 px=(sw-cw)/2;
+		 py=(sh-ch)/2;
+		 property="left="+px+",top="+py+",width="+cw+",height="+ch+",scrollbars=no,resizable=yes,status=no,toolbar=no";
+		 newWin = window.open(url+"?key="+key+"&menuType=LAW", "Bookid", property); 
+		 window.newWin.focus();
+	}
+	function goDownLoad(keyval,gbn){
+		frm = document.dd;
+		frm.gbn.value = gbn;
+		frm.keyval.value = keyval;
+		frm.action = "/komipolaw/DownloadLaw";
+		frm.submit();
+	}
+</script>
+</head>
+<body><p id="url">http://law.komipo.net:8000/komipolaw/jsp/lkms3/jsp/law/popup/bylawviewPop.jsp?lawsid=56819&amp;key2=2100000280172</p>
+<form action="" method="post" name="lawSch">
+<input name="pageSize" type="hidden"/>
+<input name="pageno" type="hidden"/>
+<input name="lawsid" type="hidden"/>
+</form>
+<form action="" method="post" name="dd">
+<input name="gbn" type="hidden"/>
+<input name="keyval" type="hidden"/>
+<input name="folder" type="hidden" value="BLAW"/>
+<input name="tkeyval" type="hidden" value="56819"/>
+<input name="tkeyval2" type="hidden" value="2100000280172"/>
+</form>
+<table border="0" cellpadding="0" cellspacing="0" id="tbon" style="margin:0px;padding:0px;border-top:2px solid #98addc; border-bottom:1px solid #9eaccc;" width="100%">
+<tr>
+<td>
+<table border="0" cellspacing="0" width="100%">
+<tr style="background:#e5f1ff;">
+<td class="td_regulFontSize">
+</td>
+<td align="right" class="td_regulButHolder" colspan="2">
+<img alt="동시보기" border="0" height="18" onclick="goTwoView('56819');" src="/komipolaw/jsp/lkms3/images/button/regul/btn_36.gif" style="cursor:hand;vertical-align: middle;"/>
+<img alt="본문내 찾기" border="0" height="18" onclick="MM_openBrWindow()" onfocus="this.blur()" src="/komipolaw/jsp/lkms3/images/button/regul/btn_35.gif" style="cursor:hand;vertical-align: middle;"/>
+<img alt="인쇄" height="18" onclick="print('56819');" src="/komipolaw/jsp/lkms3/images/button/regul/btn_20.gif" style="cursor:hand;vertical-align: middle;"/>
+</td>
+</tr>
+<tr style="background:#fcfdfe;">
+<td class="td_regulTextNavi" colspan="2" style="width:30%;">
+</td>
+<td class="td_regulTextNavi" style="text-align:right">
+</td>
+</tr>
+</table></td>
+</tr>
+</table>
+<div class="lawbon">
+<p style="font-size:18px;font-weight:bold;">예비타당성조사 수행 총괄지침</p>
+<br/>
+[시행2026.05.29.]
+[기획예산처훈령 63, 2026.05.29. ,일부개정]
+<br/>
+<br/>
+<pre style="white-space:pre-wrap;text-align:center;padding:15px"><p style="font-size:18px;font-weight:bold;"><a name="제1장 총칙
+">제1장 총칙
+</a></p></pre>
+<pre style="white-space:pre-wrap;text-align:left;padding:15px"><p style="font-size: 15px;color:#06C;font-weight:bold;"><a name="제1조(목적)">제1조(목적)</a></p> 이 지침은 「국가재정법」 제38조 및 「예비타당성조사 운용지침」 제40조에 따른 예비타당성조사를 수행함에 있어 조사의 일관성 제고를 위해 필요한 예비타당성조사 수행절차, 분석방법 및 기준 등에 관한 사항을 명확히 규정함을 목적으로 한다.
+</pre>
+<pre style="white-space:pre-wrap;text-align:left;padding:15px"><p style="font-size: 15px;color:#06C;font-weight:bold;"><a name="제2조(적용대상)">제2조(적용대상)</a></p> 이 지침의 적용대상은 「국가재정법」 제38조 제1항에 따라 실시하는 예비타당성조사 사업을 대상으로 한다.
+</pre>
+<pre style="white-space:pre-wrap;text-align:left;padding:15px"><p style="font-size: 15px;color:#06C;font-weight:bold;"><a name="제3조(역할 및 세부지침 등과의 관계)">제3조(역할 및 세부지침 등과의 관계)</a></p> ① 이 지침은 예비타당성조사를 수행하는데 있어서 공통적으로 적용되는 기준으로서 도로ㆍ철도ㆍ공항ㆍ항만ㆍ수자원ㆍ정보화ㆍ기타 재정 등 각 부문별로 예비타당성조사의 수행방법 및 기준 등에 관한 세부사항을 규정하는 세부지침(이하 ‘세부지침’이라 한다)의 기본 지침 역할을 한다.
+  ② 이 지침에서 규정하지 않은 세부적인 기준 및 조사방법 등에 대해서는 각 부문별 세부지침을 따르는 것을 원칙으로 한다. 다만, 필요할 경우 기획예산처장관과 사전협의를 거쳐 세부지침에 대한 보완 및 수정사항이 반영된 업무가이드라인 및 예비타당성조사 착수회의 자료를 우선 적용할 수 있다.
+</pre>
+<pre style="white-space:pre-wrap;text-align:left;padding:15px"><p style="font-size: 15px;color:#06C;font-weight:bold;"><a name="제4조(예비타당성조사 수행의 원칙)">제4조(예비타당성조사 수행의 원칙)</a></p> ① 예비타당성조사 수행기관(이하 ‘수행기관’이라 한다)은 예비타당성조사를 수행함에 있어 공정성과 투명성이 확보되도록 하여야 한다.
+  ② 수행기관은 이 지침에서 정하는 절차와 방법에 따라 신규사업의 타당성을 객관적이고 중립적인 관점에서 평가하여야 한다.
+</pre>
+<pre style="white-space:pre-wrap;text-align:left;padding:15px"><p style="font-size: 15px;color:#06C;font-weight:bold;"><a name="제5조(예비타당성조사의 분석 내용)">제5조(예비타당성조사의 분석 내용)</a></p> 예비타당성조사는 향후 사업추진 여부 및 적정 사업시기와 사업규모 등에 대한 합리적인 의사결정이 이루어질 수 있도록 각 부처가 수립한 사업계획에 대한 타당성 및 대안의 검토, 사업 추진과정에서 고려할 점 등을 분석한다.
+</pre>
+<pre style="white-space:pre-wrap;text-align:center;padding:15px"><p style="font-size:18px;font-weight:bold;"><a name="제2장 수행절차 및 분석방법
+">제2장 수행절차 및 분석방법
+</a></p></pre>
+<pre style="white-space:pre-wrap;text-align:left;padding:15px"><p style="font-size: 15px;color:#06C;font-weight:bold;"><a name="제6조(기본 수행절차)">제6조(기본 수행절차)</a></p> ① 예비타당성조사를 수행하는 기본적인 수행절차는 다음 각 호의 순서와 같다.
+  1. 사업의 개요 및 기초자료 분석 등을 통한 사업의 쟁점 파악
+  2. 경제성 분석 : 수요ㆍ편익ㆍ비용 추정 등
+  3. 정책성 분석 : 해당 사업과 관련된 사업추진 여건, 정책 효과, 별도평가항목(선택) 등
+  4. 지역균형성장 분석 : 지역낙후도, 균형성장효과 등
+  5. 종합평가 : 평가항목별 분석결과를 토대로 계층화분석법(이하 "AHP : Analytic Hierarchy Process"라 한다)을 활용하여 도출한 결과 등
+  6. 정책제언 : 예비타당성조사 운용지침 제11조에 따른 분과위원회(이하 "분과위원회"라 한다) 논의 내용을 포함한 기타 정책적 고려사항 등
+  ② 제1항의 규정에도 불구하고, 기타 재정사업 중 복지 및 소득이전 사업의 예비타당성조사 수행절차는 다음 각 호의 순서와 같다.
+  1. 사업의 개요 및 기초자료 분석 등을 통한 사업의 쟁점 파악
+  2. 경제사회 환경 분석 : 경제사회 여건분석, 경제사회 영향분석 및 재정의 지속가능성 등
+  3. 사업설계의 적정성 분석 : 사업목표 설정의 적절성 및 시급성, 수혜대상의 적정성, 추진방법의 적정성, 전달체계의 적절성 등
+  4. 비용-효과성 분석 : 기대효과(성과)의 적정성, 비용추정의 적정성, 비용 대비 효과의 적정성 등
+  5. 종합평가 : 각 분석영역별로 100점 평가를 시행하고, 제75조제6항에서 정한 기준에 따라 평가결과를 도출
+  6. 정책제언 : 분과위원회 논의 내용을 포함한 기타 정책적 고려사항 등
+  ③ 제1항의 규정에도 불구하고, 국가연구개발사업의 예비타당성조사 수행절차는 다음 각 호의 순서와 같다. 다만, 연구개발의 수행에 필수적인 시설물의 건설공사를 포함하지 않은 경우에는 제1항의 규정을 적용할 수 있다.
+  1. 사업의 개요 및 기초자료 분석 등을 통한 사업의 쟁점 파악 
+  2. 과학기술성 분석: 문제/이슈 도출의 적절성, 사업목표의 적절성, 세부활동 및 추진전략의 적절성 등을 분석
+  3. 정책성 분석: 해당 사업과 관련된 정책의 일관성 및 추진체제, 사업 추진상의 위험요인, 사업별 특수평가 항목 등의 평가항목들을 정량적 또는 정성적으로 분석 
+  4. 경제성 분석: 국민경제적 파급효과와 투자의 적합성을 파악하기 위해 편익ㆍ비용 추정 등 
+  5. 종합평가: 분석적 계층화법(AHP: Analytic Hierarchy Process)을 활용하여 사업설계의 적정성, 사업추진여건 및 경제성 분석의 내용을 계량화된 수치로 도출하는 종합평가 
+  6. 「예비타당성조사 운용지침」 제11조에 따른 분과위원회 논의 내용을 포함한 기타 정책적 고려사항 등을 제시하는 정책제언
+  ④ 제1항의 규정에도 불구하고, 정보화 사업의 예비타당성조사 수행절차는 다음 각 호의 순서와 같다.
+  1. 사업의 개요 및 기초자료 분석 등을 통한 사업의 쟁점 파악 
+  2. 기술사회 환경 분석 : 기술사회 여건분석, 기술사회 영향분석, 재정 및 운영 지속가능성 등
+  3. 사업설계의 적정성 분석 : 사업목표 설정의 적절성 및 시급성, 업무요구 부합성, 추진방법 및 적용기술의 적합성, 구현ㆍ운영계획 적정성 등
+  4. 비용-효과성 분석 : 기대효과(성과)의 적정성, 비용추정의 적정성, 비용 대비 효과의 적정성 등
+  5. 종합평가 : 각 분석영역별로 100점 평가를 시행하고, 제75조제7항에서 정한 기준에 따라 평가결과를 도출
+  6. 정책제언 : 분과위원회 논의 내용을 포함한 기타 정책적 고려사항 등
+</pre>
+<pre style="white-space:pre-wrap;text-align:left;padding:15px"><p style="font-size: 15px;color:#06C;font-weight:bold;"><a name="제7조(사업의 개요 분석)">제7조(사업의 개요 분석)</a></p> ① 수행기관은 각 중앙관서의 장이 기획예산처장관에게 예비타당성조사를 요구하면서 제출하는 사업계획서를 기본적인 평가자료로 이용한다.
+  ② 예비타당성조사 대상 사업의 개요에 포함되어야 할 주요 내용은 다음 각 호와 같다.
+  1. 사업의 배경 및 목적
+  2. 사업의 추진경위 및 추진주체
+  3. 사업의 내용
+  ③ 수행기관은 중앙관서의 장이 기획예산처장관에게 제출한 사업계획서와 관련 문헌 및 현장방문 조사과정에서 얻은 정보를 종합하여 사업의 개요를 파악하고 이를 보고서에 기술하여야 한다.
+</pre>
+<pre style="white-space:pre-wrap;text-align:left;padding:15px"><p style="font-size: 15px;color:#06C;font-weight:bold;"><a name="제8조(사업계획서의 보완요구)">제8조(사업계획서의 보완요구)</a></p> ① 수행기관은 동 지침 제7조 제1항에 따른 사업계획서가 구체화되지 못하여 조사수행이 어렵다고 판단되는 경우에는 가능한 한 조사 초기단계에서 해당 중앙관서의 장에게 사업계획서의 보완을 요구할 수 있다.
+  ② 사업계획서의 보완 요청을 받은 중앙관서의 장은 신속히 사업계획을 보완하여 효율적인 조사가 진행될 수 있도록 협조하여야 한다.
+</pre>
+<pre style="white-space:pre-wrap;text-align:left;padding:15px"><p style="font-size: 15px;color:#06C;font-weight:bold;"><a name="제9조(기초자료의 분석)">제9조(기초자료의 분석)</a></p> ① 기초자료는 다음 각 호와 같이 분류되며 수행기관은 조사 초기단계에 사업지역을 직접 방문하고 그 지역의 기초자료를 수집하여 분석한 후 대상사업의 성격에 따라 분석한 주요 내용을 보고서에 기술하여야 한다.
+  1. 자연환경 관련 자료 : 기상, 지질, 표고, 경사 분석 등 자연환경과 관련된 자료를 말한다.
+  2. 생활환경 관련 자료 : 수질오염, 토지오염, 공사소음 등 생활환경과 관련된 자료를 말한다.
+  3. 사회ㆍ경제적 환경자료 : 인구구조 및 산업별 취업구조, 지역총생산, 토지이용 현황, 교통시설현황, 상위계획 및 관련 계획 등의 자료를 말한다.
+  4. 기술환경 자료 : 사업별 특성에 따라 기술의 개념, 개요, 연구개발 동향 등 사업의 이해도를 높일 수 있는 자료를 말한다.
+  ② 수행기관은 기초자료 분석시 단순히 지역 현황에 대한 정형화된 자료를 나열하기보다는 조사 사업과 관련된 해당 지역의 현황이나 정보시스템 환경 현황 등을 충분히 기술하여야 한다.
+  ③ 수행기관은 해당 사업이 국가 차원의 계획방향과 일치하는지 여부 및 체계적으로 검토되었는지 여부, 상위계획에 제시되어 있는 투자우선순위와 조사대상 사업의 위상 등을 확인하기 위해 관련 법령 또는 국토이용계획ㆍ도시계획 등 상위 및 관련 계획을 분석하여야 한다.
+</pre>
+<pre style="white-space:pre-wrap;text-align:left;padding:15px"><p style="font-size: 15px;color:#06C;font-weight:bold;"><a name="제10조(조사의 쟁점검토)">제10조(조사의 쟁점검토)</a></p> 수행기관은 사업의 개요 및 기초자료를 정밀하게 분석하여 사업추진과정에서 제기될 수 있는 기술적 타당성, 재원 마련 가능성, 지역갈등 등의 중요한 쟁점을 파악한 후 그 해결방안을 검토하여야 한다.
+</pre>
+<pre style="white-space:pre-wrap;text-align:left;padding:15px"><p style="font-size: 15px;color:#06C;font-weight:bold;"><a name="제11조(대안 및 시나리오의 검토)">제11조(대안 및 시나리오의 검토)</a></p> ① 수행기관은 필요시 제안된 사업계획 이외의 사업규모의 축소, 입체교차의 평면교차 대체 등의 대안에 대해서도 검토할 수 있다.
+  ② 수행기관은 사업 타당성에 영향을 미치는 중요한 요소를 예비타당성조사 수행단계에서 확정하기 어려운 경우에는 시나리오를 설정하여 분석할 수 있다.
+</pre>
+<pre style="white-space:pre-wrap;text-align:left;padding:15px"><p style="font-size: 15px;color:#06C;font-weight:bold;"><a name="제12조(예비타당성조사의 분석 방법)">제12조(예비타당성조사의 분석 방법)</a></p> ① 예비타당성조사 결과는 경제성 분석, 정책성 분석, 지역균형성장 분석에 대한 분석결과를 종합적으로 고려하여 제시한다.
+  ② 해당 사업이 특정지역으로 정해져 있지 않거나 사업효과가 특정지역에 국한되지 않는 사업은 제1항의 규정에도 불구하고 지역균형성장 분석을 생략할 수 있다.
+  ③ 해당 사업의 시행지역이 수도권 지역과 비수도권 지역을 모두 포함하고 있는 경우에는 사업목적, 지역별 사업규모 및 사업비, 사업효과 등을 종합적으로 고려하여 분석방법을 결정한다.
+  ④ 제3항의 수도권 지역은 「수도권정비계획법」 상 수도권을 의미하나, 다음 각 호의 어느 하나에 해당하는 지역에서 시행하는 사업은 비수도권 유형으로 본다.
+  1. 「지방자치분권 및 지역균형발전에 관한 특별법」 상의 "특수상황지역". 다만, 「수도권정비계획법」 상 "과밀억제권역"에서 추진하는 「수도권정비계획법 시행령」 제3조의 인구집중유발시설사업은 제외한다.
+  2. 「지방자치분권 및 지역균형발전에 관한 특별법」 상의 "농산어촌"만으로 이루어진 지역
+  ⑤ 비수도권 지역 중 인구감소지역은 「지방자치분권 및 지역균형발전에 관한 특별법」에 따라 행정안전부장관이 지정ㆍ고시하는 지역을 의미한다.
+  ⑥ 제1항의 규정에도 불구하고, 국가연구개발사업은 과학기술성 분석, 정책성 분석, 경제성 분석에 대한 평가결과를 종합적으로 고려하여 제시한다. 다만, 연구개발의 수행에 필수적인 시설물의 건설공사를 포함하지 않은 경우에는 제1항의 규정을 적용할 수 있다.
+</pre>
+<pre style="white-space:pre-wrap;text-align:center;padding:15px"><p style="font-size:18px;font-weight:bold;"><a name="제3장 경제성 분석
+">제3장 경제성 분석
+</a></p></pre>
+<pre style="white-space:pre-wrap;text-align:center;padding:15px"><p style="font-size:18px;font-weight:bold;"><a name="제1절 수요의 추정
+">제1절 수요의 추정
+</a></p></pre>
+<pre style="white-space:pre-wrap;text-align:center;padding:15px"><p style="font-size:18px;font-weight:bold;"><a name="제1관 수요 추정의 방법 및 개발계획 반영기준
+">제1관 수요 추정의 방법 및 개발계획 반영기준
+</a></p></pre>
+<pre style="white-space:pre-wrap;text-align:left;padding:15px"><p style="font-size: 15px;color:#06C;font-weight:bold;"><a name="제13조(수요 추정 방법)">제13조(수요 추정 방법)</a></p> 수요추정의 방법은 원칙적으로 이 지침에서 정하는 바에 따른다. 다만, 사업별 특성을 반영한 특별한 수요추정방법이 요구되는 경우에는 해당 부문별 세부지침에 따른 수요 추정방법론 등을 사용할 수 있다.
+</pre>
+<pre style="white-space:pre-wrap;text-align:left;padding:15px"><p style="font-size: 15px;color:#06C;font-weight:bold;"><a name="제14조(개발계획의 반영기준)">제14조(개발계획의 반영기준)</a></p> ① 수행기관은 사업의 타당성 분석에 중요한 요소로 작용하는 장래 개발계획의 경우 실현가능성 등을 감안하여 신중히 검토하여야 한다.
+  ② 장래 개발계획의 반영기준은 실시계획 승인에 준하는 단계 이상인 경우를 원칙으로 하되 개발계획의 반영기준은 다음 각 호와 같다. 다만 수자원 관련 사업의 경우에는 개발계획 반영기준을 개발계획 승인으로 한다.
+  1. 택지개발계획 - 실시계획 승인 및 이후 단계
+  2. 산업단지개발계획 - 개발계획이나 실시계획 승인 및 그 이후 단계
+  3. 관광지 및 관광단지개발사업 - 조성계획 승인 및 그 이후 단계
+  4. 기타 개발계획 - 실시계획 승인에 준하는 단계 및 그 이후 단계
+  ③ 제2항의 규정에도 불구하고 중앙정부 주도로 계획되어 실현가능성이 높은 행정중심복합도시, 혁신도시, 택지개발계획, 그리고 도청 이전 등의 경우 실시계획 승인 이전 단계라도 시나리오 분석 등을 통해 반영할 수 있으며 그 근거를 보고서에 명확히 기술하여야 한다.
+</pre>
+<pre style="white-space:pre-wrap;text-align:center;padding:15px"><p style="font-size:18px;font-weight:bold;"><a name="제2관 교통시설 사업
+">제2관 교통시설 사업
+</a></p></pre>
+<pre style="white-space:pre-wrap;text-align:left;padding:15px"><p style="font-size: 15px;color:#06C;font-weight:bold;"><a name="제15조(도로ㆍ철도사업의 수요추정)">제15조(도로ㆍ철도사업의 수요추정)</a></p> ① 교통수요는 통행발생, 통행분포, 수단선택, 통행배정 등 4단계로 나누어 순차적으로 교통존(traffic zone)을 기반으로 추정한다.
+  ② 교통수요 추정을 위한 기본자료는 국가교통DB와 같이 공신력 있는 자료를 사용하여야 한다. 다만 해당자료가 제공되지 않을 경우에는 공신력 있는 기관의 자료를 사용하고 이를 보고서에 명시하여야 한다.
+  ③ 수행기관은 예비타당성조사에서 요구되는 수준 및 내용을 분석할 수 있고 가급적 범용적인 교통계획 소프트웨어를 활용하여야 한다. 다만 특정 소프트웨어의 활용으로 인해 중요사항에 대해 논란이 발생하는 경우에는 분석의 객관성을 높이기 위해 제78조에 따른 실무조정회의 및 실무조정위원회의 논의를 거쳐 다른 소프트웨어를 활용한 재분석 등을 실시할 수 있다.
+  ④ 사업 시행 전과 후의 총통행량은 동일한 것을 원칙으로 한다. 다만, 연도교 및 연륙교 사업과 같이 사업시행으로 인하여 총통행량에 현저한 변화가 예상되는 경우에는 유발되는 교통량을 반영하여 총통행량을 변화시킬 수 있다.
+  ⑤ 도로 및 철도사업의 수요를 추정함에 있어 주말이나 관광 수요가 현저하게 차이나는 사업지역의 경우 이를 반영하여 교통수요를 추정할 수 있다.
+</pre>
+<pre style="white-space:pre-wrap;text-align:left;padding:15px"><p style="font-size: 15px;color:#06C;font-weight:bold;"><a name="제16조(항만사업의 수요추정)">제16조(항만사업의 수요추정)</a></p> ① 항만수요의 추정은 개별 항만별의 기능과 역할에 따른 배후세력권을 설정한 후 세력권 내에서 창출될 수요 중에서 해당 항만에서 처리하게 될 수요를 예측하는 개별 항만별 접근방법(Bottom-up)을 원칙으로 한다. 다만 컨테이너, 해상 여객 등 배후세력권이 광범위하거나 설정하기 어려운 수요인 경우에는 개별 항만별 접근방법과 다른 방법을 사용하여 추정할 수 있다.
+  ② 개별 항만수요를 추정하기 위해 필요한 사회ㆍ경제 지표의 전망치는 기본적으로 정부 또는 공신력을 인정받고 있는 관련 전문연구기관의 공식자료를 활용하는 것을 원칙으로 한다.
+</pre>
+<pre style="white-space:pre-wrap;text-align:left;padding:15px"><p style="font-size: 15px;color:#06C;font-weight:bold;"><a name="제17조(공항사업의 수요추정)">제17조(공항사업의 수요추정)</a></p> ① 항공수요의 추정 항목은 연간 여객수요와 연간 화물수요로 구분하며, 항공 여객수요는 특성에 따라 국내선 내륙노선, 국내선 제주노선, 국제선 등으로 구분하여 추정한다.
+  ② 공항부문의 수요 추정을 위한 기초자료는 국가교통DB와 「공항개발 중장기 종합계획」의 수요예측치를 이용하는 것을 원칙으로 하되, 분석대상 사업의 기초수요에서 사용된 항공산업의 현황, 항공정책, 장래 경제성장 전망 등을 검토하고 필요시 수요를 재추정하여야 한다.
+</pre>
+<pre style="white-space:pre-wrap;text-align:center;padding:15px"><p style="font-size:18px;font-weight:bold;"><a name="제3관 수자원 및 기타 사업
+">제3관 수자원 및 기타 사업
+</a></p></pre>
+<pre style="white-space:pre-wrap;text-align:left;padding:15px"><p style="font-size: 15px;color:#06C;font-weight:bold;"><a name="제18조(수자원사업의 수요추정)">제18조(수자원사업의 수요추정)</a></p> ① 수자원사업의 용수수요는 다음 각 호와 같이 생활용수, 공업용수, 농업용수, 하천유지용수 및 환경개선용수 등으로 구분하여 추정한다.
+  1. 생활용수 : 사업대상지역 내 장래 총인구, 급수보급률, 1인 1일 평균급수량과 기타용수 수요를 추정하여 산정한다.
+  2. 공업용수 : 기존공단과 계획공단으로 구분하여 산정하며, 가동률과 입주율, 계획 유수율을 고려하여야 한다. 기존공단은 과거 사용량 실적을 검토하여 반영하고, 계획공단은 유사 사례의 부지면적 원단위법을 적용하거나 관련 문헌 또는 연구 자료를 참고하여 적용한다.
+  3. 농업용수 : 논용수, 밭용수만을 고려하며 수요량 추정은 예비타당성조사의 성격과 자료의 한계를 반영하여 증발산량을 정립된 이론 및 공식을 통해 추정하는 방법을 사용하되, 사업대상지역의 상위계획에서 제시한 단위용수량을 경지종류별 관개면적 전망치에 곱하여 산정한다.
+  4. 하천유지용수 : 하천유지유량을 직접 산정하기에는 무리가 있으므로 국토교통부에서 현재 고시된 하천유지유량을 기준으로 하천유지유량을 추정한다.
+  5. 환경개선용수 : 수혜대상자에 의해 기 산정된 환경개선용수 수요 자료를 검토한다.
+  ② 용수공급능력의 추정절차는 다음 각 호의 순서에 따라 순차적으로 수행한다.
+  1. 기존 수자원시설물의 공급규모 현황 파악
+  2. 계획시점 이전까지의 향후 광역상수도 및 공업용수도 개발계획, 광역배분 조정에 따른 공급변동 규모 파악
+  3. 추가 수자원 확보를 위한 신규 댐의 공급규모 산출
+</pre>
+<pre style="white-space:pre-wrap;text-align:left;padding:15px"><p style="font-size: 15px;color:#06C;font-weight:bold;"><a name="제19조(의료시설사업의 수요추정)">제19조(의료시설사업의 수요추정)</a></p> ① 의료서비스 수요의 지표로 병상수요(요구되는 병상수)를 사용하며, 보완적으로 해당 지역의 보건의료지표를 활용하되, 이때 적용하는 의료진료권은 특정 지역 내 거주하고 있는 환자들이 어떤 지역의 의료시설들을 이용하는지를 측정하는 지역친화도 지표를 사용할 수 있다.
+  ② 의료수요는 입원과 외래환자 각각에 대해 추정하며, 입원 환자수를 통해 요구 병상수를 제시한다.
+</pre>
+<pre style="white-space:pre-wrap;text-align:left;padding:15px"><p style="font-size: 15px;color:#06C;font-weight:bold;"><a name="제20조(문화ㆍ관광사업의 수요추정)">제20조(문화ㆍ관광사업의 수요추정)</a></p> 문화관광사업의 수요는 해당 시설을 이용하기 위해 방문하는 사람의 수를 의미하며, 유사시설의 수요 추이나 매력도(중력모형 등을 통해 추정)를 고려하여 수요량을 예측한다.
+</pre>
+<pre style="white-space:pre-wrap;text-align:left;padding:15px"><p style="font-size: 15px;color:#06C;font-weight:bold;"><a name="제21조(정보화사업의 수요추정)">제21조(정보화사업의 수요추정)</a></p> 정보화사업은 개별사업의 성격에 따라 산출물과 목표들이 다양하므로, 수행기관의 판단 하에 개별 사업별 편익 추정방법에 따라 필요시 경제성 분석의 대상이 되는 수요를 별도로 추정할 수 있다.
+</pre>
+<pre style="white-space:pre-wrap;text-align:center;padding:15px"><p style="font-size:18px;font-weight:bold;"><a name="제2절 편익의 추정
+">제2절 편익의 추정
+</a></p></pre>
+<pre style="white-space:pre-wrap;text-align:center;padding:15px"><p style="font-size:18px;font-weight:bold;"><a name="제1관 편익 항목의 식별 및 조정
+">제1관 편익 항목의 식별 및 조정
+</a></p></pre>
+<pre style="white-space:pre-wrap;text-align:left;padding:15px"><p style="font-size: 15px;color:#06C;font-weight:bold;"><a name="제22조(편익항목의 식별)">제22조(편익항목의 식별)</a></p> 수행기관은 편익 추정을 위해 우선 편익항목을 식별하는 작업을 다음 각 호에 따라 시행하여야 한다.
+  1. 편익은 사업의 성격과 유형에 적합하게 선정한다.
+  2. 편익은 사업의 목적과 직접적인 연관성을 가진 항목을 고려한다.
+</pre>
+<pre style="white-space:pre-wrap;text-align:left;padding:15px"><p style="font-size: 15px;color:#06C;font-weight:bold;"><a name="제23조(편익항목의 조정)">제23조(편익항목의 조정)</a></p> ① 수행기관은 사업의 특성상 이 지침에서 원칙으로 정하는 편익항목을 제외하거나 특별히 고려할 필요가 있는 편익항목을 추가할 수 있다. 다만 편익항목의 조정으로 인해 사업타당성에 큰 영향을 미치는 등 소관부처와 중요사항에 대해 이견이 있을 경우에는 실무조정위원회를 통해 해당 편익의 제외 또는 추가를 결정할 수 있다.
+  ② 수행기관은 편익을 산정함에 있어 해당 사업의 영향권 내에서 발생하는 모든 편익이 반영될 수 있도록 검토하여야 한다.
+  ③ 수행기관은 계량화의 어려움 등으로 인해 편익산정에 반영하지 못하는 편익은 중장기적으로 지속적인 검토를 통해 편익으로 반영할 수 있도록 노력해야 한다.
+</pre>
+<pre style="white-space:pre-wrap;text-align:center;padding:15px"><p style="font-size:18px;font-weight:bold;"><a name="제2관 교통시설 사업
+">제2관 교통시설 사업
+</a></p></pre>
+<pre style="white-space:pre-wrap;text-align:left;padding:15px"><p style="font-size: 15px;color:#06C;font-weight:bold;"><a name="제24조(도로ㆍ철도사업의 편익)">제24조(도로ㆍ철도사업의 편익)</a></p> 도로 및 철도사업의 편익항목은 다음 각 호의 공통편익(모든 도로 및 철도 부문 사업에 해당)과 사업특수편익(특정 사업의 평가에 한정하여 산정)을 고려하여야 하며, 편익을 반영함에 있어 사업특성을 감안하고 관련된 편익항목이 누락되지 않도록 하여야 한다.
+  1. 차량운행비용 절감편익(공통편익)
+  2. 통행시간 절감편익(공통편익)
+  3. 교통사고 감소편익(공통편익)
+  4. 환경비용(대기오염, 소음, 수질오염) 절감편익(공통편익)
+  5. 주차수요 감소로 인한 주차공간 기회비용 절감편익(사업특수편익)
+  6. 공사 중 교통혼잡으로 인한 부(-)의 편익(사업특수편익)
+  7. 철도사업으로 인한 도로공간 축소에 따른 부(-)의 편익(사업특수편익)
+  8. 전철화사업에 따른 환경오염비용 절감편익 등(사업특수편익)
+  9. 통행 쾌적성 향상 편익(사업특수편익)
+  10. 통행 신뢰성(정시성 등) 향상 편익
+</pre>
+<pre style="white-space:pre-wrap;text-align:left;padding:15px"><p style="font-size: 15px;color:#06C;font-weight:bold;"><a name="제25조(공항사업의 편익)">제25조(공항사업의 편익)</a></p> 공항사업의 편익항목은 다음 각 호와 같으며 수행기관은 사업특성을 감안하여 선택적으로 반영할 수 있으나 편익항목이 누락되지 않도록 유의하여야 한다.
+  1. 항공기 운항비용 절감편익
+  2. 항공기 탑승객 및 화물 통행시간 절감편익
+  3. 청사 내 여객 및 화물 통행시간 절감편익
+  4. 전환수요로 인한 편익
+  5. 초과수요로 인한 편익 등
+</pre>
+<pre style="white-space:pre-wrap;text-align:left;padding:15px"><p style="font-size: 15px;color:#06C;font-weight:bold;"><a name="제26조(항만사업의 편익)">제26조(항만사업의 편익)</a></p> 항만사업의 편익항목은 다음 각 호와 같으며 수행기관은 사업특성을 감안하여 선택적으로 반영할 수 있으나 편익항목이 누락되지 않도록 유의하여야 한다.
+  1. 선박대기비용 절감편익
+  2. 선박재항비용 절감편익
+  3. 하역비용 절감편익
+  4. 내륙운송비용 절감편익
+  5. 화물운송시간가치 절감편익
+  6. 환적화물 유치편익
+  7. 토지조성편익
+  8. 이용객 지체감소편익
+  9. 선박 대형화 편익
+  10. 선박운항비용 절감편익
+  11. 국제여객 유치효과
+  12. 외해투기비용 절감편익
+  13. 어항건설 편익
+  14. 항만배후단지 조성 편익
+</pre>
+<pre style="white-space:pre-wrap;text-align:center;padding:15px"><p style="font-size:18px;font-weight:bold;"><a name="제3관 수자원 및 기타 사업
+">제3관 수자원 및 기타 사업
+</a></p></pre>
+<pre style="white-space:pre-wrap;text-align:left;padding:15px"><p style="font-size: 15px;color:#06C;font-weight:bold;"><a name="제27조(수자원사업의 편익)">제27조(수자원사업의 편익)</a></p> 수자원사업의 편익항목은 다음 각 호와 같으며, 수행기관은 편익을 반영함에 있어 사업특성을 감안하여 선택적으로 반영할 수 있으나 편익항목이 누락되지 않도록 유의하여야 한다.
+  1. 생활ㆍ공업ㆍ농업 용수 공급편익
+  2. 홍수피해 경감편익
+  3. 수력발전편익
+  4. 환경개선용수편익
+  5. 용수공급 신뢰성 개선 편익
+</pre>
+<pre style="white-space:pre-wrap;text-align:left;padding:15px"><p style="font-size: 15px;color:#06C;font-weight:bold;"><a name="제28조(의료시설사업의 편익)">제28조(의료시설사업의 편익)</a></p> 의료시설사업의 편익항목은 사업유형에 따라 다음 각 호와 같으며 수행기관은 사업특성을 감안하여 다음 각 호의 편익 발생여부를 검토하여 적절히 반영하여야 한다.
+  1. 원거리 의료시설 이용시간 절감편익
+  2. 원거리 의료시설 이용 교통비 절감편익
+  3. 응급사망 감소편익
+  4. 대기시간 단축편익 등
+  5. 대규모 감염병 관리효과
+  6. 초기 집중재활치료를 통한 재원일수 감소효과
+  7. 지역사회 보건사업 추진효과
+  8. 특수질환군 전문치료센터 운영에 따른 환자의 사회복귀 개선효과
+  9. 의료인력 대상 첨단시뮬레이션 중심 맞춤형 교육효과
+</pre>
+<pre style="white-space:pre-wrap;text-align:left;padding:15px"><p style="font-size: 15px;color:#06C;font-weight:bold;"><a name="제29조(문화사업의 편익 및 추정방법)">제29조(문화사업의 편익 및 추정방법)</a></p> ① 문화ㆍ관광시설 사업 등의 편익은 본 시설의 입장수입 및 각종 부대시설의 매출액 등 객단가 개념으로 접근할 수 있다.
+  ② 수행기관은 문화ㆍ관광 시설 등의 편익 추정 시 비시장재화 등과 같이 객단가를 통해 표현할 시장가치가 없는 경우 ‘조건부 가치추정법’을 통하여 추정할 수 있다. 다만, 해당 사업의 시행에 따른 효과와 편익유형 등을 고려할 때 조건부 가치추정법 적용의 불가피성이 인정될 경우에 한한다.
+</pre>
+<pre style="white-space:pre-wrap;text-align:left;padding:15px"><p style="font-size: 15px;color:#06C;font-weight:bold;"><a name="제30조(정보화사업의 편익 및 추정방법)">제30조(정보화사업의 편익 및 추정방법)</a></p> ① 정보화 부문의 편익은 사업으로 해결하고자 하는 바를 통해 정하며, 다음 각 호 편익의 범주와 시스템의 성격을 고려하여 적합한 편익항목을 구체화한 후, 이에 대한 화폐가치화를 통해 편익을 추정한다.
+  1. 고객 측면(조직 외부) : 고객만족, 서비스 수준, 서비스 범위
+  2. 프로세스 측면(조직 내부) : 재무(비용), 생산성, 업무품질
+  ② 기술이 구현되기 어렵거나 업무에서 수용되지 못할 가능성이 존재하는 경우 등을 충분히 경제성 분석에 반영해야 한다.
+</pre>
+<pre style="white-space:pre-wrap;text-align:left;padding:15px"><p style="font-size: 15px;color:#06C;font-weight:bold;"><a name="제31조(기타 재정사업의 편익)">제31조(기타 재정사업의 편익)</a></p> ① 기타 재정사업의 경우 건설사업의 예비타당성조사와 달리 사업의 편익을 금전적인 형태로 표현하기 어려운 경우가 많으므로, 비용편익 분석이 아닌 비용효과성 분석을 사용할 수 있다.
+  ② 비용효과성 분석을 수행할 때, 어떤 정책수단이 바람직한가에 대해서는 개별 정책수단의 효과성, 정부와 민간의 비용부담, 형평성에 미치는 영향 등을 종합적으로 고려하여 판단한다.
+</pre>
+<pre style="white-space:pre-wrap;text-align:center;padding:15px"><p style="font-size:18px;font-weight:bold;"><a name="제3절 비용의 추정
+">제3절 비용의 추정
+</a></p></pre>
+<pre style="white-space:pre-wrap;text-align:center;padding:15px"><p style="font-size:18px;font-weight:bold;"><a name="제1관 비용추정의 기본방향 및 비목별 총사업비 산정원칙
+">제1관 비용추정의 기본방향 및 비목별 총사업비 산정원칙
+</a></p></pre>
+<pre style="white-space:pre-wrap;text-align:left;padding:15px"><p style="font-size: 15px;color:#06C;font-weight:bold;"><a name="제32조(비용추정의 기본방향)">제32조(비용추정의 기본방향)</a></p> ① 초기 투자비인 총사업비와 완공이후 투입되는 유지관리비 및 운영비 등 필요한 모든 비용을 가능한 가장 현실적으로 산정하여야 한다.
+  ② 건설사업과 정보화사업의 총사업비의 산정은 「예비타당성조사 운용지침」 제16조에 맞추어 산정하여야 하며, 기타 재정사업의 경우에도 총사업비가 중복적으로 계상되어 과다한 비용이 산정되지 않도록 유의하여야 한다.
+  ③ 수행기관은 이 지침 또는 각 부문별 세부지침에서 규정하지 않은 비용을 추정하는 경우 과거 유사사례, 국내외 공공기관의 자료 등 공신력 있는 자료를 활용하여야 하며, 사업의 타당성에 큰 영향을 줄 수 있는 비용의 추가로 인해 소관부처와 중요사항에 대해 이견이 있을 경우에는 실무조정회의 및 실무조정위원회를 통해 해당 비용의 반영여부를 결정할 수 있다.
+</pre>
+<pre style="white-space:pre-wrap;text-align:left;padding:15px"><p style="font-size: 15px;color:#06C;font-weight:bold;"><a name="제33조(총사업비의 검토)">제33조(총사업비의 검토)</a></p> ① 수행기관은 해당 사업의 사업계획서 상 총사업비를 검토하여 그 결과를 제시하여야 하며, 대안 또는 시나리오를 설정한 경우에는 대안 또는 시나리오에 대한 총사업비 검토결과도 함께 제시하여야 한다.
+  ② 총사업비 검토안은 사업계획서의 규모를 준용하되, 설계오류 수정 및 적정 단가 등을 적용하여 검토한다.
+  ③ 대안의 총사업비 검토는 제시된 사업계획서 내용과 비교하여 동등 이상의 기능을 수행하면서 설계기준에 부합하는 최적화된 시설규모 및 사업비를 검토한다.
+</pre>
+<pre style="white-space:pre-wrap;text-align:left;padding:15px"><p style="font-size: 15px;color:#06C;font-weight:bold;"><a name="제34조(비목별 총사업비 산정원칙)">제34조(비목별 총사업비 산정원칙)</a></p> ① 공사비(정보화사업의 경우 ‘구축비’라 한다)라 함은 총사업비 중 보상비와 시설부대경비(정보화사업의 경우 ‘부대경비’라 한다)를 제외한 일체의 경비로서 「총사업비 관리지침」 제61조에 따른다.
+  ② 공사비는 사업유형에 따라 예비타당성조사 단계에서 산출 가능한 수준에서 주요 공종별로 물량과 단가를 구하여 추정하는 것을 원칙으로 한다. 다만 건물 신축사업 등과 같이 공종별 물량집계가 어렵거나 실익이 없는 경우에는 유사사업의 사례, 한국부동산원의 「건물신축단가표」의 단가, 전문업체의 자문 등을 통해 추정할 수 있다.
+  ③ 보상비는 용지구입비와 지장물보상비로 구분하여 산정하며 예비타당성조사 단계에서는 사업대상지 실사를 통한 엄밀한 보상비 추정이 용이하지 않으므로 조사시점에서 확인이 가능한 선에서 다음 각 호의 방법 중 적용 가능한 방법을 선택하여 적용한다.
+  1. (감정평가에 의한 방법) 감정평가 자료를 사용하며, 필요한 경우 표본감정 적용을 통해 추정한다.
+  2. (주변 보상사례 가격 활용) 보상전례가 있을 경우 이 보상자료를 분석하여 해당 지역에 적용할 보상배율을 추출하여 전체 보상비를 산정한다.
+  3. (보상배율 적용방법) 공시지가에 [별표 1]의 지역별ㆍ지목별 보상배율을 적용하여 산출하되, 사업현장 여건에 따라 지장물보상비를 추가하여 전체 보상비를 산정한다.
+  ④ 시설부대경비는 설계비, 감리비, 시설부대비로 구성되며, 「총사업비 관리지침」에 따라 공사비에 대한 ‘예산안 편성 및 기금운용계획안 작성지침’의 요율을 적용하여 각각 산출한다.
+  ⑤ 예비비는 사업추진과정에서 예기치 못한 불확실성에 대응하기 위하여 비용으로 부가세가 포함된 공사비와 보상비 및 시설부대경비 합계의 10%를 적용하는 것을 원칙으로 하되 사업추진단계에 따라 달리 적용할 수 있다.
+</pre>
+<pre style="white-space:pre-wrap;text-align:left;padding:15px"><p style="font-size: 15px;color:#06C;font-weight:bold;"><a name="제35조(운영비)">제35조(운영비)</a></p> 시설 및 장비의 관리 및 운영에 필요한 비용으로 수행기관은 다음 각 호 및 사업 유형별 특성을 고려하여 운영비를 추정한다.
+  1. 토지ㆍ건물ㆍ설비ㆍ장비 등의 고정자산 기능을 유지하고 생애주기비용(Life Cycle Cost)을 고려한 운영비를 산정한다.
+  2. 단순 이전에 해당하는 비용은 제외한다.
+</pre>
+<pre style="white-space:pre-wrap;text-align:left;padding:15px"><p style="font-size: 15px;color:#06C;font-weight:bold;"><a name="제36조(기타 비용)">제36조(기타 비용)</a></p> 수행기관은 예비타당성조사 분석기간 중 발생하는 재투자비, 잔존가치 등을 다음 각 호에 따라 산정한다.
+  1. 재투자비는 시설물별ㆍ장비별 내용연수를 고려하여 초기 투자비용의 전체 또는 일부를 반영한다.
+  2. 잔존가치는 용지구입비와 재투자된 시설물ㆍ장비의 내구연한을 기준으로 잔존가치를 고려하여 산정한다.
+  3. 총사업비에는 포함되지 않더라도 사업 추진과정에서 추가적인 소요가 예측되는 비용은 추가로 반영할 수 있다.
+</pre>
+<pre style="white-space:pre-wrap;text-align:center;padding:15px"><p style="font-size:18px;font-weight:bold;"><a name="제2관 교통시설 사업
+">제2관 교통시설 사업
+</a></p></pre>
+<pre style="white-space:pre-wrap;text-align:left;padding:15px"><p style="font-size: 15px;color:#06C;font-weight:bold;"><a name="제37조(도로사업의 비용추정)">제37조(도로사업의 비용추정)</a></p> ① 도로부문 사업의 비용은 크게 총사업비와 유지관리비로 구분되며, 총사업비는 다시 공사비, 시설부대경비, 보상비 및 예비비로 구분되며, 다음 각 호의 단계에 따라 산출한다.
+  1. 사업계획의 적정성을 검토하기 위해 기초자료조사(현황조사 및 현지조사)를 수행하고, 관련 계획 및 관련 법규 등을 검토한다.
+  2. 노선계획 및 시설규모의 적정성을 검토하고 필요에 따라 이를 보완한다.
+  3. 사업계획의 공종별 표준단면도를 검토하고 필요에 따라 이를 보완한다.
+  4. 사업계획의 공종별 수량 및 단위 공사비 산출을 검토하고 필요에 따라 이를 보완하여 공종별 공사비를 추정한다.
+  5. 추정된 공사비를 바탕으로 설계비, 감리비 등 필요한 시설부대경비를 추정한다.
+  6. 해당 사업을 수행하기 위해 필요한 보상비 항목을 설정하고 비용을 추정한다.
+  7. 추정된 공사비, 시설부대경비, 보상비를 바탕으로 예비비를 추정한다.
+  ② 이 지침에서 규정하지 않은 도로사업 비용추정에 필요한 세부사항은 「도로ㆍ철도부문 사업 예비타당성조사 수행 세부지침」에 따른다.
+</pre>
+<pre style="white-space:pre-wrap;text-align:left;padding:15px"><p style="font-size: 15px;color:#06C;font-weight:bold;"><a name="제38조(철도사업의 비용추정)">제38조(철도사업의 비용추정)</a></p> ① 철도부문 사업의 비용은 크게 총사업비와 운영비로 구분되며, 총사업비는 다시 공사비, 시설부대경비, 보상비, 차량구입비 및 예비비로 구분되며, 다음 각 호의 단계에 따라 산출한다.
+  1. 사업계획의 적정성을 검토하기 위해 기초자료조사(현황조사 및 현지조사)를 수행하고, 관련 계획 및 관련 법규 등을 검토한다.
+  2. 노선계획 및 시설규모의 적정성을 검토하고 필요에 따라 이를 보완한다.
+  3. 사업계획의 공종별 표준단면도를 검토하고 필요에 따라 이를 보완한다.
+  4. 사업계획의 공종별 수량 및 단위 공사비 산출을 검토하고 필요에 따라 이를 보완하여 공종별 공사비를 추정한다.
+  5. 추정된 공사비를 바탕으로 설계비, 감리비 등 필요한 시설부대경비를 추정한다.
+  6. 해당 사업을 수행하기 위해 필요한 보상비 항목을 설정하고 비용을 추정한다.
+  7. 열차운영계획에 따라 차량구입비를 추정한다.
+  8. 추정된 공사비, 시설부대경비, 보상비를 바탕으로 예비비를 추정한다.
+  ② 이 지침에서 규정하지 않은 철도사업 비용추정에 필요한 세부사항은 「도로ㆍ철도부문 사업 예비타당성조사 수행 세부지침」에 따른다.
+</pre>
+<pre style="white-space:pre-wrap;text-align:left;padding:15px"><p style="font-size: 15px;color:#06C;font-weight:bold;"><a name="제39조(항만사업의 비용추정)">제39조(항만사업의 비용추정)</a></p> ① 항만사업의 총사업비는 공사비, 시설부대경비, 보상비, 운영설비비, 예비비 등의 항목으로 구분되며, 다음 각 호의 단계에 따라 산출한다.
+  1. 사업계획의 적정성을 검토하기 위해 기초자료조사(현황조사 및 현지조사)를 수행하고, 관련 계획 및 관련 법규 등을 검토한다.
+  2. 사업계획의 평면배치계획 및 공종별 표준단면도를 검토하여 시설규모의 적정성을 검토하고 필요에 따라 이를 보완한다.
+  3. 사업계획의 공종별 수량 및 단위 공사비 산출을 검토하고 필요에 따라 이를 보완하여 공종별 공사비를 추정한다. 추정된 공사비를 바탕으로 설계비, 감리비 등 필요한 시설부대경비를 추정한다.
+  4. 해당 사업을 수행하기 위해 필요한 보상비(어업권 보상비 등 포함) 항목을 설정하고 비용을 추정한다.
+  5. 사업계획에 제시된 하역장비 설치비 등 운영설비에 소요되는 비용을 추정한다.
+  6. 추정된 공사비, 시설부대경비, 보상비, 운영설비비를 바탕으로 예비비를 추정한다.
+  ② 이 지침에서 규정하지 않은 항만사업 비용추정에 필요한 세부사항은 「항만부문 사업 예비타당성조사 수행 세부지침」에 따른다.
+</pre>
+<pre style="white-space:pre-wrap;text-align:left;padding:15px"><p style="font-size: 15px;color:#06C;font-weight:bold;"><a name="제40조(공항사업의 비용추정)">제40조(공항사업의 비용추정)</a></p> ① 공항사업의 총사업비는 공사비, 시설부대경비, 보상비, 장비ㆍ차량구입비, 예비비 등의 항목으로 구분되며, 다음 각 호의 단계에 따라 산출한다.
+  1. 국내선 전용공항은 국내 기준(항공법, 비행장시설 설치기준, 비행장 시설 설계 매뉴얼 등)에 부합하도록 설계하며, 국제공항의 경우 각 국제 기준을 비교 검토하여 적용한다.
+  2. 사업대상지의 부지조성, 활주로의 신설 및 연장, 터미널 등의 신ㆍ증축, 기계시설, 전기시설, 항행안전시설 및 정보통신시설 등을 고려하여 공사비를 추정한다.
+  3. 장비ㆍ차량구입비는 공항의 운영 및 유지관리에 필요한 비용으로 공항의 규모 및 운영계획을 고려하여 산정한다.
+  ② 이 지침에서 규정하지 않은 비용추정에 필요한 세부사항은 「공항부문 사업 예비타당성조사 수행 세부지침」에 따른다.
+</pre>
+<pre style="white-space:pre-wrap;text-align:center;padding:15px"><p style="font-size:18px;font-weight:bold;"><a name="제3관 수자원 및 기타 사업
+">제3관 수자원 및 기타 사업
+</a></p></pre>
+<pre style="white-space:pre-wrap;text-align:left;padding:15px"><p style="font-size: 15px;color:#06C;font-weight:bold;"><a name="제41조(수자원사업의 비용추정)">제41조(수자원사업의 비용추정)</a></p> ① 수자원사업의 비용은 크게 총사업비와 유지관리비로 구분되며, 총사업비는 다시 공사비, 시설부대경비, 보상비, 및 예비비로 구분된다.
+  ② 수자원사업의 총사업비는 다음 각 호와 같이 댐ㆍ하천ㆍ수도 사업 등으로 구분하여 산출한다.
+  1. 댐 사업비 추정은 댐 설계기준에서 정한 기준을 이용하여 구조물계획을 실시하고 가급적 세부 공종별로 산출한다.
+  2. 하천 사업비 추정은 하천설계기준에서 정한 기준을 이용하여 시설물계획을 실시하고 가급적 세부 공종별로 산출한다.
+  3. 수도 사업비 추정은 상수도시설기준에서 정한 기준을 이용하여 시설물계획을 실시하고 가급적 세부 공종별로 산출한다.
+  ③ 이 지침에서 규정하지 않은 수자원사업 비용추정에 필요한 세부사항은 「수자원부문 사업 예비타당성조사 수행 세부지침」에 따른다.
+</pre>
+<pre style="white-space:pre-wrap;text-align:left;padding:15px"><p style="font-size: 15px;color:#06C;font-weight:bold;"><a name="제42조(건축사업의 비용추정)">제42조(건축사업의 비용추정)</a></p> ① 건축사업의 총사업비는 보상비 및 조성비, 건축공사비, 부대비용, 기타투자비, 예비비 항목 등을 포함한다.
+  1. 보상비 및 조성비에는 용지보상비 등 부지에 관련된 소요비용이 포함된다.
+  2. 건축공사비용은 시설 공사비와 주차장공사비, 부속시설 건축공사비를 포함한다.
+  3. 부대비용은 건축공사에 필요한 설계비용 및 감리비, 측량 및 지질조사비, 각종 영향평가를 진행하는 경우 그에 따른 용역비 등이 포함된다.
+  4. 기타투자비용에는 건축을 위한 공사비 외 해당 시설의 기능을 수행하기 위해 필요한 장비비와 집기비품비, 전산시스템 비용(정보화사업에는 해당하지 않음), 개원전 운영비, 유물구입비 등을 포함한다.
+  ② 건축사업의 운영비는 해당 시설이 본래의 기능을 수행하는 운영과정에 필요한 다양한 비용들을 포함한다. 단, 의료사업에서 의료진 인건비는 포함하지 않는다.
+  ③ 건축사업의 총사업비나 운영비에는 포함되지 않지만, 편익이 발생하기 위하여 추가적인 비용이 필요한 경우 이를 추정하여 비용-편익분석에 반영한다.
+</pre>
+<pre style="white-space:pre-wrap;text-align:left;padding:15px"><p style="font-size: 15px;color:#06C;font-weight:bold;"><a name="제43조(정보화사업의 비용추정)">제43조(정보화사업의 비용추정)</a></p> ① 정보화 부문의 비용은 시스템 구축비와 보상비, 부대경비 등으로 구성되는 총사업비와 운영 및 유지ㆍ보수비로 구분되며 비용항목 중 관련 기준 및 지침이 제정되어 있는 비용항목은 해당 기준에 따라 비용을 산정하되 별도의 기준이나 지침이 없는 비용항목은 다음 각 호의 지침에 참고하여 산정한다.
+  1. 「정보시스템 하드웨어 규모산정 지침」(한국정보통신기술협회)
+  2. 「SW 사업대가 산정 가이드」(한국소프트웨어산업협회)
+  3. 「엔지니어링 사업대가의 기준」(산업통상부 고시)
+  4. 「정보시스템 감리기준」(행정안전부)
+  5. 「국가정보통신서비스 이용지침서」(행정안전부)
+  6. 「내용연수」(조달청 고시)
+  ② 하드웨어와 소프트웨어의 유지ㆍ보수비용은 벤더 지원여건, 부품의 평균수명, 운영여건 등을 종합적으로 감안하고 구매가격 대비 유지ㆍ보수비 비율로 산정한다.
+  ③ 하드웨어와 소프트웨어 유지보수 비율은 예비타당성조사 단계에는 투입공수 방식을 주로 사용한다.
+</pre>
+<pre style="white-space:pre-wrap;text-align:left;padding:15px"><p style="font-size: 15px;color:#06C;font-weight:bold;"><a name="제44조(기타 재정사업의 비용추정)">제44조(기타 재정사업의 비용추정)</a></p> 기타 재정 사업의 비용은 다음 각 호에 따라 추정한다.
+  1. 기타 재정사업의 비용추계방법은 사업의 특성에 따라 적용하되, 추계에 사용되는 기본 자료는 기획예산처가 정부합동으로 추진하고 있는 장기재정전망 작업 등을 참고하여 통일한다.
+  2. 재정 추계시 사용되는 모수의 구체적인 값으로는 최근연도의 값을 활용하거나 전문적인 판단에 따라 장래의 값을 가정하여 시나리오 형태로 설정할 수 있다.
+  3. 재정추계 시 여러 가지 불확실성을 고려하여 민감도 분석을 실시하여 결과의 강건성을 검토하는 작업을 수행할 수 있다.
+</pre>
+<pre style="white-space:pre-wrap;text-align:center;padding:15px"><p style="font-size:18px;font-weight:bold;"><a name="제4절 경제적 타당성 평가
+">제4절 경제적 타당성 평가
+</a></p></pre>
+<pre style="white-space:pre-wrap;text-align:left;padding:15px"><p style="font-size: 15px;color:#06C;font-weight:bold;"><a name="제45조(경제적 타당성 평가의 전제)">제45조(경제적 타당성 평가의 전제)</a></p> ① 경제적 타당성은 사업추진을 위해 소요되는 비용과 그로 인한 효과(편익)를 사회 전반의 관점에서 평가한다.
+  ② 사업추진 전과 후(Before-After)가 아닌 사업의 시행과 미시행시(With-Without)의 관점에서 사업추진에 의한 비용과 편익을 분석한다.
+  ③ 편익을 발생시키기 위해 소요되는 모든 비용을 포함하여 분석하고, 비용이 반영되었다면 그로 인해 발생하는 모든 편익을 반영하여 비용과 편익의 논리적 인과성을 확보하여야 한다.
+  ④ 사업을 위해 소요되는 가시적인 비용뿐만 아니라 암묵적인 비용 즉, 기회비용을 반영한다. 그러나 이미 발생하여 추가적인 편익창출에 영향을 미치지 못하는 매몰비용은 반영하지 않는다.
+  ⑤ 세금 등은 한 곳에서 다른 곳으로 이전하는 지출로 순수한 경제적 비용으로 간주할 수 없기 때문에 가능한 범위까지는 배제하고 분석하여야 하며, 원칙적으로 총사업비 가운데 부가가치세를 제외한 사업비를 경제적 비용으로 간주하여 경제성 분석의 비용으로 반영한다.
+</pre>
+<pre style="white-space:pre-wrap;text-align:left;padding:15px"><p style="font-size: 15px;color:#06C;font-weight:bold;"><a name="제46조(경제적 타당성 평가의 방법)">제46조(경제적 타당성 평가의 방법)</a></p> 예비타당성조사에서 경제적 타당성 평가는 기본적으로 비용-편익 분석기법(Cost-Benefit Analysis)을 이용한다. 다만 편익을 화폐가치로 계량화하기 어려운 사업의 경우 등 다음 각 호와 같은 경우에는 비용-효과(Cost-Effectiveness) 분석 등의 대체 분석기법을 이용할 수 있다.
+  1. (정보화사업) 비용-효과 분석을 원칙으로 하고, 사업의 특성을 고려하여 비용-편익 분석을 수행할 수 있다.
+  2. (기타 재정사업) 사업 특성상 사업효과를 화폐가치화 할 수 있을 경우 비용-편익 분석을 수행하고, 이외의 경우에는 비용-효과 분석을 수행할 수 있다.
+  3. 객관적 근거를 제시할 수 있는 경우에는 총괄지침에서 제시되지 않은 방법론의 적용이 가능하다.
+</pre>
+<pre style="white-space:pre-wrap;text-align:left;padding:15px"><p style="font-size: 15px;color:#06C;font-weight:bold;"><a name="제47조(비용-편익 분석)">제47조(비용-편익 분석)</a></p> 수행기관은 경제적 타당성이 있는지를 판단하기 위해 원칙적으로 비용-편익 분석을 수행하여야 하며 이때 편익/비용 비율(Benefit Cost Ratio : B/C Ratio), 순현재가치(Net Present Value : NPV), 내부수익률(Internal Rate of Return : IRR)등의 지표를 구하여야 하며 각 지표가 갖는 의미는 다음과 같다.
+  1. (B/C 비율) 예비타당성조사에서는 편익/비용 비율이 1.0이상(B/C ≥ 1.0)이면 경제성이 있다고 판단한다.
+  2. (순현재가치) 사업에 수반된 모든 비용과 편익을 기준연도의 현재가치로 할인하여 총편익에서 총비용을 제한 값이며 순현재가치가 0이상(NPV ≥ 0)이면 경제성이 있다고 판단한다.
+  3. (내부수익률) 편익과 비용의 현재가치로 환산된 값이 같아지는 할인율 R을 구하는 방법으로 사업의 시행으로 인한 순현재가치를 0으로 만드는 할인율이다. 내부수익률이 사회적 할인율보다 크면 경제성이 있다고 판단한다.
+</pre>
+<pre style="white-space:pre-wrap;text-align:left;padding:15px"><p style="font-size: 15px;color:#06C;font-weight:bold;"><a name="제48조(비용-효과 분석)">제48조(비용-효과 분석)</a></p> 수행기관은 편익의 계량화 등의 문제로 비용-편익 분석이 어려울 경우 대체 분석기법으로서 비용-효과 비율(효과 한 단위 당 비용) 또는 효과-비용 비율(비용 한 단위 당 효과)을 측정하여 사업의 경제성을 분석하는 비용-효과 분석을 시행할 수 있다.
+</pre>
+<pre style="white-space:pre-wrap;text-align:left;padding:15px"><p style="font-size: 15px;color:#06C;font-weight:bold;"><a name="제49조(분석기준일 및 분석기간)">제49조(분석기준일 및 분석기간)</a></p> ① 할인되는 분석의 기준일은 해당 사업의 분석이 착수된 전년도 말로 하며 기타 사항은 다음 각 호를 따른다.
+  1. 부득이 자료 구득의 한계 등으로 인해 수요ㆍ편익ㆍ비용 추정을 위해 적용한 수치의 기준연도가 경제성 분석을 위한 기준연도와 상이할 경우 이를 보정하여 경제성 분석을 수행한다.
+  2. 비용 보정 지수는 건설투자 GDP Deflator(국내총생산에 대한 지출 Deflator 중 건설투자 항목), 편익 보정 지수는 소비자물가지수를 적용하는 것을 원칙으로 하되, 항목별 특성에 따라 별도의 보정 지수를 사용할 경우에는 그 근거를 명확히 서술하여야 한다.
+  ② 경제성 분석기간은 사업 유형에 따라 다음 각 호의 기준을 적용한다.
+  1. 도로ㆍ공항ㆍ항만ㆍ의료시설 부문 및 기타 대규모 건설사업은 사업기간과 운영개시 후 30년을 합한 기간을 적용한다.
+  2. 철도사업은 사업기간과 운영개시 후 40년을 합한 기간을 적용한다.
+  3. 수자원사업은 사업기간과 운영개시 후 50년을 합한 기간을 적용하되, 광역상수도 사업 등 일부 사업은 해당 시설물의 내용연수 등을 고려하여 적용한다.
+  4. 정보화사업은 기술의 발전 속도나 내구성 등에 의한 산출물의 수명이 짧고, 사업에 소요되는 장비의 유형과 내구연한이 다양한 정보시스템의 특성을 반영하여 개별 사업별로 적용한다.
+  5. 기타 재정사업은 중기사업계획서에 제시된 사업기간과 예상되는 사업 효과의 발생기간을 고려하여 사업별로 적용한다.
+  ③ 분석기간 동안 사업비의 연차별 지출비율은 각 부문별 세부지침에 따른다.
+</pre>
+<pre style="white-space:pre-wrap;text-align:left;padding:15px"><p style="font-size: 15px;color:#06C;font-weight:bold;"><a name="제50조(사회적 할인율)">제50조(사회적 할인율)</a></p> ① 예비타당성조사에서 사회적 할인율은 4.5%를 적용한다. 다만 분석기간이 30년 이상인 철도와 수자원 사업은 운영 30년 동안은 4.5%를 적용하고 이후는 3.5%의 할인율을 적용한다.
+  ② 사회적 할인율은 경제 및 사회여건 변화 등을 고려하여 매3년마다 조정을 검토한다. 단, 중대한 경제ㆍ사회적 상황 변화가 발생하거나 긴급한 국가정책적 필요가 있는 경우에는 3년 이내에 사회적 할인율을 조정할 수 있다.
+</pre>
+<pre style="white-space:pre-wrap;text-align:left;padding:15px"><p style="font-size: 15px;color:#06C;font-weight:bold;"><a name="제51조(민감도 분석)">제51조(민감도 분석)</a></p> 수행기관은 경제성 분석 시 내재된 불확실성에 대처하기 위해 경제성에 영향을 미칠 수 있는 사업비, 운영비, 교통수요, 할인율 등의 주요 변수가 일정량만큼 변화되었을 때 경제성이 어떻게 변화하는지를 파악하기 위하여 민감도 분석(sensitivity analysis)을 시행하여야 한다.
+</pre>
+<pre style="white-space:pre-wrap;text-align:center;padding:15px"><p style="font-size:18px;font-weight:bold;"><a name="제5절 민간투자 연계 가능성 검토
+">제5절 민간투자 연계 가능성 검토
+</a></p></pre>
+<pre style="white-space:pre-wrap;text-align:left;padding:15px"><p style="font-size: 15px;color:#06C;font-weight:bold;"><a name="제52조(필수민자검토시설의 민자적격성 판단)">제52조(필수민자검토시설의 민자적격성 판단)</a></p> ① 수행기관은 「예비타당성조사 운용지침」 제55조의2에 따라 민자적격성 판단을 실시하기로 결정한 사업에 대하여 민자적격성 판단을 수행하여야 한다.
+  ② 민자적격성 판단은 [별표 2]의 절차에 따라 정부실행대안과 민간투자대안을 비교분석하여 재정사업으로 추진하는 것보다 민간투자사업으로 적격한지 여부를 분석하는 방법으로 시행한다.
+</pre>
+<pre style="white-space:pre-wrap;text-align:left;padding:15px"><p style="font-size: 15px;color:#06C;font-weight:bold;"><a name="제53조(민간투자가능성 검토)">제53조(민간투자가능성 검토)</a></p> ① 제52조제1항에 따른 민자적격성 판단을 수행하지 아니하는 사업의 경우 민간투자가능성 검토를 수행하며, 민간투자가능성 검토는 종합판단에서 사업추진의 타당성을 확보한 사업(AHP≥0.5)에 대해 실시한다.
+  ② 민간투자가능성 검토를 수행할 경우에는 (민간투자)법적 타당성, (민간투자)정책적 타당성, 민자가능유형 판단 순으로 항목별 검토를 수행한다.
+</pre>
+<pre style="white-space:pre-wrap;text-align:center;padding:15px"><p style="font-size:18px;font-weight:bold;"><a name="제6절 재무성 분석
+">제6절 재무성 분석
+</a></p></pre>
+<pre style="white-space:pre-wrap;text-align:left;padding:15px"><p style="font-size: 15px;color:#06C;font-weight:bold;"><a name="제54조(재무성 분석)">제54조(재무성 분석)</a></p> ① 재무성 분석은 사회 전체의 입장이 아닌 개별 사업주체의 입장에서 사업에 의해 발생하는 비용(현금유출)과 수입(현금유입)을 비교하여 사업의 타당성을 검토하는 방법을 말한다.
+  ② 예비타당성조사에서는 사업 이후 지속적인 운영가능성을 검토하기 위해 사업종료 이후 소요되는 유지ㆍ운영비용과 수입을 비교하는 재무성 분석이 이루어질 수 있다. 이 경우 재무성 분석의 결과는 초기투자비용을 포함한 전기간 분석결과, 초기투자비용을 제외한 운영기간 분석결과, 국고지원금 고려 후 분석결과를 제시한다.
+</pre>
+<pre style="white-space:pre-wrap;text-align:left;padding:15px"><p style="font-size: 15px;color:#06C;font-weight:bold;"><a name="제55조(재무성 분석의 기준)">제55조(재무성 분석의 기준)</a></p> ① 재무성 분석에서 비용은 실제 투입가격을 적용하며, 세금ㆍ이자비용 등을 비용에 포함하여 분석한다. 또한 수입은 수요추정 결과와 사업을 통해 제공하는 서비스에 대한 사용료를 통해 추정한다.
+  ② 재무적 할인율은 시장이자율과 사업위험 등을 고려하여 신중하게 결정하여야 하며, 예비타당성조사에서는 4.5%를 실질 재무적 할인율로 사용한다.
+  ③ 재무성 분석에서의 분석 기준연도와 분석기간은 경제성분석과 동일하게 적용한다.
+</pre>
+<pre style="white-space:pre-wrap;text-align:left;padding:15px"><p style="font-size: 15px;color:#06C;font-weight:bold;"><a name="제56조(재무성 분석기법)">제56조(재무성 분석기법)</a></p> 수행기관은 재무성 분석을 위해 다음 각 호의 현금흐름할인법을 수행하여야 한다.
+  1. 재무적 순현재가치 : 예상되는 현금의 유입과 유출을 가중평균자본비용으로 할인한 값들의 합으로 재무적 순현재가치(FNPV)가 0보다 크면 사업의 재무적 타당성이 있는 것으로 판단한다.
+  2. 내부수익률 : 사업시행에 따라 기대되는 현금 유입과 현금 유출의 현재가치를 일치시키는 할인율로서 내부수익률이 자본비용보다 높을 경우 재무적 타당성이 있다고 판단한다.
+  3. 수익성지수 : 투자로 인하여 발생하는 현금유입의 현가를 현금유출의 현가로 나눈 비율로, 수익성지수가 1보다 크면 재무적 타당성이 있는 것으로 판단한다.
+</pre>
+<pre style="white-space:pre-wrap;text-align:center;padding:15px"><p style="font-size:18px;font-weight:bold;"><a name="제4장 정책성 분석
+">제4장 정책성 분석
+</a></p></pre>
+<pre style="white-space:pre-wrap;text-align:left;padding:15px"><p style="font-size: 15px;color:#06C;font-weight:bold;"><a name="제57조(정책성 분석체계)">제57조(정책성 분석체계)</a></p> ① 정책성 분석은 사업시행에 따른 비용 및 편익 중 계량화가 곤란하지만 사업의 시행 여부를 판단하는 데 있어서 고려하여야 할 평가요소들에 대한 분석을 포함한다.
+  ② 정책성 분석 평가항목은 [별표 3]에서 정하는 바와 같이 사업추진 여건, 정책효과, 사업 별도평가항목(선택)으로 한다. 다만 수행기관은 개별사업의 특성을 반영할 필요가 있다고 인정되는 경우 기획예산처장관과 협의를 거쳐 분석 항목을 조정할 수 있다.
+  ③ 국가연구개발사업의 정책성 분석은 해당사업과 관련된 정책의 일관성 및 추진체제, 사업 추진상의 위험요인, 사업 별도평가항목(선택) 등의 평가항목들을 정량적 또는 정성적으로 분석한다. 다만, 연구개발의 수행에 필수적인 시설물의 건설공사를 포함하지 않은 경우에는 제1항 내지 제2항의 규정을 적용할 수 있다.
+</pre>
+<pre style="white-space:pre-wrap;text-align:left;padding:15px"><p style="font-size: 15px;color:#06C;font-weight:bold;"><a name="제58조(사업추진 여건)">제58조(사업추진 여건)</a></p> 수행기관은 사업추진 여건 평가항목으로 다음 각 호의 내용을 검토해야 한다.
+  1. 내부 및 외부여건 : 내부여건으로 상위계획 반영여부, 정책 방향과의 일치성 등, 외부여건으로 지역주민, 이해당사자 등 해당 사업의 영향을 받는 대상의 사업에 대한 태도나 갈등여부 등
+  2. 사업계획의 적절성 : 운영계획의 적절성, 사업주체의 재원조달 가능성 등
+  3. 그 밖에 사업추진 여건과 관련하여 별도로 고려할 필요가 있는 사항
+</pre>
+<pre style="white-space:pre-wrap;text-align:left;padding:15px"><p style="font-size: 15px;color:#06C;font-weight:bold;"><a name="제59조(정책효과)">제59조(정책효과)</a></p> 수행기관은 소관부처가 제출한 자료의 내용을 기초로 하여 정책효과 평가항목으로 각 호의 내용을 검토해야 한다. 이 경우 긍정적인 효과와 부정적인 효과를 종합적으로 검토한다.
+  1. 경제적 파급효과 : 생산성 제고, 산업 부문, 일자리 분야, 지역경제 파급효과(한국은행에서 제시하는 지역간산업연관표에 기초한 지역산업연관모형(IRIO)을 이용하는 것을 원칙으로 한다) 등 경제 정책적 파급효과
+  2. 사회적 파급효과 : 사회적 형평성 제고, 삶의 질 개선, 지속 가능한 환경 조성 등 공공의 이익과 사회 전체의 발전에 기여하는 사회 정책적 파급효과
+  3. 환경적 파급효과 : 사업 시행으로 예상되는 환경에 미치는 부정적 영향, 환경오염 저감대책 등 부정적 영향에 대한 대책
+</pre>
+<pre style="white-space:pre-wrap;text-align:left;padding:15px"><p style="font-size: 15px;color:#06C;font-weight:bold;">제60조</p> 삭제
+</pre>
+<pre style="white-space:pre-wrap;text-align:left;padding:15px"><p style="font-size: 15px;color:#06C;font-weight:bold;"><a name="제61조(별도평가항목)">제61조(별도평가항목)</a></p> 정책성 분석을 수행함에 있어 각 호의 경우에는 별도평가항목으로 반영할 수 있다.
+  1. 재원조달 위험성 : 운영비 조달 위험성이 있는 사업에 대해 위험정도를 평가하여 평가점수 부여, 원인자부담 등으로 해당 사업에 대한 재원이 기 확보된 사업에 대해 총사업비 대비 기 확보된 재원 규모를 고려하여 [별표 7]과 같이 평가점수 부여
+  2. 국가유산가치 : 국가ㆍ시도 지정유산이 다수 분포하는 유적지 등 고려가 필요한 사업에 대해 국가유산가치를 고려하여 평가점수 부여
+  3. 국가연구개발사업의 지역균형성장
+</pre>
+<pre style="white-space:pre-wrap;text-align:center;padding:15px"><p style="font-size:18px;font-weight:bold;"><a name="제5장 지역균형발전 및 과학기술성 분석
+">제5장 지역균형발전 및 과학기술성 분석
+</a></p></pre>
+<pre style="white-space:pre-wrap;text-align:left;padding:15px"><p style="font-size: 15px;color:#06C;font-weight:bold;"><a name="제62조(지역균형성장 분석항목)">제62조(지역균형성장 분석항목)</a></p> ① 지역균형성장분석은 지역낙후도 지수에 의한 지역낙후도, 균형성장효과를 기본적인 세부 평가항목으로 한다. 다만 지역균형성장 차원에서 특별히 고려할 필요가 있을 경우에는 추가 평가항목을 반영할 수 있다.
+  ② 해당 사업이 특정지역으로 정해져 있지 않거나 사업효과가 특정지역에 국한되지 않는 사업은 제1항의 규정에도 불구하고 지역균형성장 분석을 생략할 수 있다.
+  1. 삭제
+  2. 삭제
+  ③ 해당 사업의 시행지역이 수도권 지역과 비수도권 지역을 모두 포함하고 있는 경우에는 사업 목적, 지역별 사업규모 및 사업비, 사업효과 등을 종합적으로 고려하여 분석방법을 결정한다.
+  ④ 제3항의 수도권 지역은 「수도권정비계획법」 상 수도권을 의미하나, 다음 각 호의 어느 하나에 해당하는 지역에서 시행하는 사업은 비수도권 유형으로 본다.
+  1. 「지방자치분권 및 지역균형발전에 관한 특별법」 상의 "특수상황지역". 다만, 「수도권정비계획법」 상 "과밀억제권역"에서 추진하는 「수도권정비계획법 시행령」 제3조의 인구집중유발시설사업은 제외한다.
+  2. 「지방자치분권 및 지역균형발전에 관한 특별법」 상의 "농산어촌"만으로 이루어진 지역
+  ⑤ 비수도권 지역 중 인구감소지역은 「지방자치분권 및 지역균형발전에 관한 특별법」에 따라 행정안전부장관이 지정ㆍ고시하는 지역을 의미한다.
+</pre>
+<pre style="white-space:pre-wrap;text-align:left;padding:15px"><p style="font-size: 15px;color:#06C;font-weight:bold;"><a name="제63조(지역낙후도 평가)">제63조(지역낙후도 평가)</a></p> ① 지역균형성장을 위한 지역낙후도는 지역낙후도 지수에 따라 산정한다. 지역낙후도 지수는 경제 및 지역 여건 변화 등을 고려하여 매 3년마다 조정을 검토한다.
+  ② 지역낙후도는 사업이 시행되는 지역의 낙후정도에 따라 1점에서 9점 범위내에서 평가하여야 한다.
+</pre>
+<pre style="white-space:pre-wrap;text-align:left;padding:15px"><p style="font-size: 15px;color:#06C;font-weight:bold;"><a name="제64조(균형성장효과 분석)">제64조(균형성장효과 분석)</a></p> ① 지역균형성장을 위한 균형성장효과는 지역낙후도 개선효과(해당사업이나 지역에 관련된 균형발전지표 등을 활용한다)와 지역특수성 및 미래 성장잠재력 등 사업의 시행으로 인하여 해당 지역의 성장을 유발하는 지역의 고유성 및 차별성과 중ㆍ장기 성장가능성을 종합적으로 분석하여야 한다.
+  ② 제1항제1호의 지역낙후도 개선효과는 소관부처가 제출한 자료의 내용을 기초로 하여 긍정적인 효과와 부정적인 효과를 종합적으로 검토한다.
+  ③ 삭제
+</pre>
+<pre style="white-space:pre-wrap;text-align:left;padding:15px"><p style="font-size: 15px;color:#06C;font-weight:bold;"><a name="제65조(과학기술성 분석)">제65조(과학기술성 분석)</a></p> 과학기술성 분석은 다음 각 호의 사항을 분석한다.
+  1. 문제/이슈 도출의 적절성: 국가적 차원에서 연구개발사업으로 해결해야 할 문제/이슈의 식별 과정, 별도 연구개발 사업의 추진 필요성 및 시급성 등
+  2. 사업목표의 적절성: 사업목표와 문제/이슈와의 연관관계, 사업목표 달성효과의 구체성, 성과지표 및 수혜자 표적화의 적절성 등
+  3. 세부활동 및 추진전략의 적절성: 세부활동과 사업목표의 논리적 연계, 적절한 수준의 세부활동 도출 및 세부활동의 성과지표, 기간 추정과 시간적 선후관계, 추진전략의 적절성 등
+</pre>
+<pre style="white-space:pre-wrap;text-align:center;padding:15px"><p style="font-size:18px;font-weight:bold;"><a name="제6장 기타재정 복지 분야 및 소득이전사업 분석방법
+">제6장 기타재정 복지 분야 및 소득이전사업 분석방법
+</a></p></pre>
+<pre style="white-space:pre-wrap;text-align:left;padding:15px"><p style="font-size: 15px;color:#06C;font-weight:bold;"><a name="제66조(기타 재정사업 중 복지 및 소득이전 사업 분석방법)">제66조(기타 재정사업 중 복지 및 소득이전 사업 분석방법)</a></p> 제12조 제1항의 규정에도 불구하고, 기타 재정사업 중 복지 및 소득이전 사업은 경제사회 환경분석, 사업설계의 적정성 및 비용-효과성 분석에 대한 평가결과를 종합적으로 고려하여 제시한다. 복지 및 소득이전 사업 영역별 세부 평가내용 예시는 [별표 4]와 같다.
+</pre>
+<pre style="white-space:pre-wrap;text-align:left;padding:15px"><p style="font-size: 15px;color:#06C;font-weight:bold;"><a name="제67조(경제사회 환경분석)">제67조(경제사회 환경분석)</a></p> 수행기관은 경제사회 환경분석 평가항목으로 다음 각 호의 내용을 검토해야 한다.
+  1. 경제사회 여건분석 : 경제규모, 복지제도 발전단계 등을 감안한 사업추진 적정성, 해외사례 분석 등을 통한 국제비교 등
+  2. 경제사회 영향분석 : 사업 추진을 통한 양극화 해소, 저출산ㆍ고령화, 일자리 등 경제사회 문제 해결 가능성 등
+  3. 재정의 지속가능성 : 과도한 재정부담으로 미래 재정위험 초래 가능성 등
+  4. 그 밖에 경제사회 환경과 관련하여 별도로 고려할 필요가 있는 사항
+</pre>
+<pre style="white-space:pre-wrap;text-align:left;padding:15px"><p style="font-size: 15px;color:#06C;font-weight:bold;"><a name="제68조(사업설계의 적정성)">제68조(사업설계의 적정성)</a></p> 수행기관은 사업설계의 적정성분석 평가항목으로 다음 각 호의 내용을 검토해야 한다.
+  1. 사업목표의 적절성과 시급성 : 문제인식과 정책목표 명확성, 정책우선순위 등
+  2. 수혜대상의 적정성 : 사업대상의 명확성, 사업목표와의 부합성, 사업수요 등
+  3. 추진방법의 적정성 : 급여 등의 형태ㆍ수준, 국가ㆍ지자체ㆍ민간의 역할분담, 기존정책과의 정책조합 등
+  4. 전달체계 적정성 : 전달체계 명확성 및 효율성, 수요자 접근 용이성, 집행기구의 자율성과 책임성 확보 가능성 등
+  5. 그 밖에 사업설계의 적정성과 관련하여 별도로 고려할 필요가 있는 사항
+</pre>
+<pre style="white-space:pre-wrap;text-align:left;padding:15px"><p style="font-size: 15px;color:#06C;font-weight:bold;"><a name="제69조(비용-효과성)">제69조(비용-효과성)</a></p> 수행기관은 비용-효과성 분석 평가항목으로 다음 각 호의 내용을 검토해야 한다.
+  1. 기대효과의 적정성 : 사업시행 효과의 구체성, 현실성, 명확성 등
+  2. 비용추정의 적정성 : 비용 산정의 적정성, 추가적 비용발생 가능성, 수요변동에 따른 비용변동 가능성 등
+  3. 비용대비 효과의 적정성 : 비용 대비 성과 추정의 적정성, 비용효과 측면에서의 대안 검토 등
+  4. 그 밖에 비용-효과성과 관련하여 별도로 고려할 필요가 있는 사항
+</pre>
+<pre style="white-space:pre-wrap;text-align:center;padding:15px"><p style="font-size:18px;font-weight:bold;"><a name="제7장 정보화 사업 분석방법
+">제7장 정보화 사업 분석방법
+</a></p></pre>
+<pre style="white-space:pre-wrap;text-align:left;padding:15px"><p style="font-size: 15px;color:#06C;font-weight:bold;"><a name="제70조(정보화 사업 분석방법)">제70조(정보화 사업 분석방법)</a></p> 제12조제1항의 규정에도 불구하고, 정보화 사업은 기술사회 환경분석, 사업설계의 적정성 및 비용-효과성 분석에 대한 평가결과를 종합적으로 고려하여 제시한다. 정보화 사업 영역별 세부 평가내용 예시는 [별표 4]와 같다.
+</pre>
+<pre style="white-space:pre-wrap;text-align:left;padding:15px"><p style="font-size: 15px;color:#06C;font-weight:bold;"><a name="제71조(기술사회 환경분석)">제71조(기술사회 환경분석)</a></p> 수행기관은 기술사회 환경분석 평가항목으로 다음 각 호의 내용을 검토해야 한다.
+  1. 기술사회 여건분석 : 관련 기술 성숙도 및 표준화 정도, 기존 시스템 노후도 등 개편 필요성, 정보화 관련 국가 계획 및 정책 등
+  2. 기술사회 영향분석 : 디지털 전환 가속화, 정보격차 해소, 데이터 활용 활성화를 통한 기술사회 문제 해결 가능성 등
+  3. 재정 및 운영 지속가능성 : 시스템 유지관리비 및 내용연수와 교체주기를 고려한 미래 재정소요 등
+  4. 그 밖에 기술사회 환경과 관련하여 별도로 고려할 필요가 있는 사항
+</pre>
+<pre style="white-space:pre-wrap;text-align:left;padding:15px"><p style="font-size: 15px;color:#06C;font-weight:bold;"><a name="제72조(사업설계의 적정성)">제72조(사업설계의 적정성)</a></p> 수행기관은 사업설계의 적정성분석 평가항목으로 다음 각 호의 내용을 검토해야 한다.
+  1. 사업목표의 적절성 및 시급성 : 상위계획과의 연계성, 추진 시점의 적시성, 정책우선순위 등
+  2. 업무 요구 부합성 : 사업목표 달성 적합도, 성능 및 신뢰성, 호환성 및 사용성 요구 적합성, 시스템 용량 등 수요예측 적정성 등
+  3. 추진방법 및 적용기술의 적합성 : 기술 사양 등 성숙도 및 기술 추세 적합성, 기술표준 준수성, 타 사업과 유사ㆍ중복성 및 연계성 등
+  4. 구현ㆍ운영계획 적정성 : 사업 추진 및 구현방안 실효성, 운영 및 유지관리 체계, 위험관리 등 안정적 운영방안, 데이터 관리 적정성 등
+  5. 그 밖에 사업설계의 적정성과 관련하여 별도로 고려할 필요가 있는 사항
+</pre>
+<pre style="white-space:pre-wrap;text-align:left;padding:15px"><p style="font-size: 15px;color:#06C;font-weight:bold;"><a name="제73조(비용-효과성)">제73조(비용-효과성)</a></p> 수행기관은 비용-효과성 분석 평가항목으로 다음 각 호의 내용을 검토해야 한다.
+  1. 기대효과의 적정성 : 사업시행 효과의 구체성, 현실성, 명확성 등
+  2. 비용추정의 적정성 : 비용 산정의 적정성, 추가적 비용발생 가능성, 수요변동에 따른 비용변동 가능성 등
+  3. 비용대비 효과의 적정성 : 비용 대비 성과 추정의 적정성, 비용효과 측면에서의 대안 검토 등
+  4. 그 밖에 비용-효과성과 관련하여 별도로 고려할 필요가 있는 사항
+</pre>
+<pre style="white-space:pre-wrap;text-align:center;padding:15px"><p style="font-size:18px;font-weight:bold;"><a name="제8장 종합평가 및 정책제언
+">제8장 종합평가 및 정책제언
+</a></p></pre>
+<pre style="white-space:pre-wrap;text-align:left;padding:15px"><p style="font-size: 15px;color:#06C;font-weight:bold;"><a name="제74조(종합평가의 실시)">제74조(종합평가의 실시)</a></p> 수행기관의 분석 종료 시 분과위원회를 통해 사업의 타당성을 종합적으로 평가하여야 한다.
+</pre>
+<pre style="white-space:pre-wrap;text-align:left;padding:15px"><p style="font-size: 15px;color:#06C;font-weight:bold;"><a name="제75조(종합평가의 방법)">제75조(종합평가의 방법)</a></p> ① 종합평가는 평가항목별 분석결과를 토대로 [별표 5]와 같은 구조에 따라 AHP를 활용하여 계량화된 수치로 도출한다.
+  ② 제1항의 규정에 의한 AHP 수행시 경제성, 정책성, 지역균형성장, 과학기술성 등에 대한 평가 가중치는 특별한 사유가 없는 한 사업유형별로 다음 각 호의 범위 내에서 적용한다. 단, 별도평가항목이 적용되는 경우, 경제성 및 정책성 평가 가중치를 5%p(수도권 유형은 10%p) 각각 하향 및 상향하여 적용할 수 있다.
+  1. 건설사업(비수도권 유형 중 인구감소지역) : 경제성 25~40%, 정책성 25~40%, 지역균형성장 35~45% / 건설사업(비수도권 유형 중 일반지역) : 경제성 30~45%, 정책성 25~40%, 지역균형성장 30~40% / 건설사업(수도권 유형) : 경제성 55~70%, 정책성 30~40%, 지역균형성장(지역낙후도 평가 제외) 0~5%
+  2. 기타 재정사업
+    ㆍB/C 분석시 : 경제성 25~50%, 정책성 50~75%
+    ㆍE/C 분석시 : 경제성 20~40%, 정책성 60~80%
+  3. 국가연구개발사업 : 과학기술성 40~50%, 정책성 30~50%, 경제성 10~20%. 다만, 연구개발의 수행에 필수적인 시설물 공사가 포함된 건설공사를 제외한 단순건설사업은 제1호와 동일 기준 적용
+  ③ 정책성 평가 항목 중 사업추진 여건, 정책효과, 사업별도평가항목의 평가 가중치는 특별한 사유가 없는 한 다음 각 호의 범위내에서 적용한다.
+  1. 사업별도평가항목이 없는 경우 : 사업추진 여건 30~40%, 정책효과 60~70%
+  2. 사업별도평가항목이 있는 경우 : 사업추진 여건 20~30%, 정책효과 50~60%, 사업별도평가항목 20~30%
+  ④ 평가기준별 가중치와 각 기준에 대한 대안들의 평점을 곱해서 대안별 종합평점을 구한다. 대안별 종합평점 산정시 최댓값과 최솟값을 부여한 평가자 2명씩을 제외한 응답결과를 활용한다. 평가항목별 평점은 [별표 6]와 같이 부여한다.
+  ⑤ AHP 분석의 유용성을 높이기 위해 다음 각 호 중 어느 하나 이상의 사유가 발생할 경우에는 ‘환류과정(feedback)’을 거칠 수 있다.
+  1. 평가자의 응답설문 결과가 일관성을 확보하지 못한 경우(비일관성 비율(Consistency Ratio)이 0.15를 초과하는 경우)
+  2. 평가자가 재설문에 대한 의사를 밝힌 경우
+  3. 그 밖에 종합평가에 참여한 분과위원의 과반수 이상이 종합평가의 공정성과 객관성이 현저하게 훼손되었다고 인정하는 경우
+  ⑥ 제1항에도 불구하고 기타 재정사업 중 복지 및 소득이전 사업은 경제사회 환경분석, 사업설계의 적정성, 비용-효과성 등 각 분석영역별로 100점 평가를 시행하여 영역별 평점 및 종합평점을 산출하고, 다음 각 호에서 정한 기준에 따라 평가결과를 도출한다. 이 경우 각 평가자의 점수를 영역별로 취합하여 최댓값과 최솟값을 부여한 평가자 2명씩을 제외한 응답결과(평균)를 영역별 평점으로 활용한다. 종합평점의 경우 각 영역별 평점에 경제사회 환경분석 0.9, 사업설계의 적정성 1.2, 비용-효과성 0.9 가중치를 곱한 값의 합을 이용한다.
+  1. 3개 평가영역 모두 85점 이상이거나 종합평점이 255점 이상인 경우 : 사업시행 적정
+  2. 3개 평가영역 중 2개 이상 영역이 75점 미만이거나 종합평점이 225점 미만인 경우 : 사업 재기획 후 예타 재요구
+  3. 제1호 및 제2호 이외의 경우 : 사업계획 보완을 조건으로 사업시행(이 경우 사업계획 보완이 필요한 사항과 보완방안 등을 구체적으로 제시해야 한다)
+  ⑦ 제1항에도 불구하고 정보화 사업은 기술사회 환경분석, 사업설계의 적정성, 비용-효과성 등 각 분석영역별로 100점 평가를 시행하여 영역별 평점 및 종합평점을 산출하고, 다음 각 호에서 정한 기준에 따라 평가결과를 도출한다. 이 경우 각 평가자의 점수를 영역별로 취합하여 최댓값과 최솟값을 부여한 평가자 2명씩을 제외한 응답결과(평균)를 영역별 평점으로 활용한다. 종합평점의 경우 각 영역별 평점에 기술사회 환경분석 0.9, 사업설계의 적정성 1.2, 비용-효과성 0.9 가중치를 곱한 값의 합을 이용한다.
+  1. 3개 평가영역 모두 85점 이상이거나 종합평점이 255점 이상인 경우 : 사업시행 적정
+  2. 3개 평가영역 중 2개 이상 영역이 75점 미만이거나 종합평점이 225점 미만인 경우 : 사업 재기획 후 예타 재요구
+  3. 제1호 및 제2호 이외의 경우 : 사업계획 보완을 조건으로 사업시행(이 경우 사업계획 보완이 필요한 사항과 보완방안 등을 구체적으로 제시해야 한다)
+</pre>
+<pre style="white-space:pre-wrap;text-align:left;padding:15px"><p style="font-size: 15px;color:#06C;font-weight:bold;"><a name="제76조(종합결론 및 정책제언)">제76조(종합결론 및 정책제언)</a></p> 종합결론 및 정책제언은 예비타당성조사 보고서를 종합하는 부분으로서 다음 각 호의 내용을 포함한다.
+  1. 조사결과 종합 : 경제성 분석 및 정책성 분석 등의 주요 내용과 AHP 분석 결과 또는 종합평가(복지 및 소득이전사업, 정보화사업) 평가 결과
+  2. 정책제언 : 분과위원회 논의 내용을 포함한 기타 정책적 고려사항
+</pre>
+<pre style="white-space:pre-wrap;text-align:center;padding:15px"><p style="font-size:18px;font-weight:bold;"><a name="제9장 행정사항
+">제9장 행정사항
+</a></p></pre>
+<pre style="white-space:pre-wrap;text-align:left;padding:15px"><p style="font-size: 15px;color:#06C;font-weight:bold;"><a name="제77조(예비타당성조사 수행기관의 관리ㆍ감독)">제77조(예비타당성조사 수행기관의 관리ㆍ감독)</a></p> ① 기획예산처장관은 예비타당성조사 수행과정에서 주기적인 점검회의 등을 통해 수행기관에게 분석의 세부내용에 대한 협의를 요청할 수 있다.
+  ② 기획예산처장관은 예비타당성조사 수행기관의 「예비타당성조사 운용지침」, 「예비타당성조사 수행 총괄지침」, 「부문별 세부지침」 준수 여부에 대해 점검을 실시하고 필요한 지시를 하거나 조치를 할 수 있다.
+</pre>
+<pre style="white-space:pre-wrap;text-align:left;padding:15px"><p style="font-size: 15px;color:#06C;font-weight:bold;"><a name="제78조(실무조정위원회 및 실무조정회의 운영)">제78조(실무조정위원회 및 실무조정회의 운영)</a></p> ① 기획예산처장관은 예비타당성조사 과정에서 발생한 이견을 조율하기 위하여 필요한 경우 실무조정회의를 개최할 수 있다.
+  ② 기획예산처장관은 제1항의 실무조정회의에도 불구하고 이견이 조정되지 않는 사항에 대해서는 실무조정위원회를 개최하여 조정할 수 있다.
+</pre>
+<pre style="white-space:pre-wrap;text-align:left;padding:15px"><p style="font-size: 15px;color:#06C;font-weight:bold;"><a name="제79조(보고서의 작성 및 공개)">제79조(보고서의 작성 및 공개)</a></p> ① 수행기관은 다음 각 호의 사항을 보고서에 수록하여야 한다.
+  1. 사업의 개요
+  2. 기초자료 분석 및 조사의 주요 쟁점
+  3. 경제성 분석 결과
+  4. 정책성 분석 결과
+  5. 지역균형성장(또는 과학기술성) 분석 결과
+  6. AHP 분석 결과
+  7. 종합결론 및 정책제언
+  ② 제1항의 규정에도 불구하고 기타 재정사업 중 복지 및 소득이전 사업은 다음 각 호의 사항을 보고서에 수록하여야 한다.
+  1. 사업의 개요
+  2. 기초자료 분석 및 조사의 주요 쟁점
+  3. 경제사회 환경분석 결과
+  4. 사업설계의 적정성분석 결과
+  5. 비용-효과성분석 결과
+  6. 종합평가 결과
+  7. 종합 결론 및 정책제언
+  ③ 제1항의 규정에도 불구하고 정보화 사업은 다음 각 호의 사항을 보고서에 수록하여야 한다.
+  1. 사업의 개요
+  2. 기초자료 분석 및 조사의 주요 쟁점
+  3. 기술사회 환경분석 결과
+  4. 사업설계의 적정성분석 결과
+  5. 비용-효과성분석 결과
+  6. 종합평가 결과
+  7. 종합 결론 및 정책제언
+  ④ 수행기관은 특별한 사유가 없는 한 「국가재정법」 제38조의2 및 「예비타당성조사 운용지침」 제57조에 따라 예비타당성조사 결과 등을 공개하여야 한다.
+</pre>
+<pre style="white-space:pre-wrap;text-align:left;padding:15px"><p style="font-size: 15px;color:#06C;font-weight:bold;"><a name="제80조(지침 위반사항에 대한 제재)">제80조(지침 위반사항에 대한 제재)</a></p> 기획예산처장관은 수행기관이 지침을 위반하여 예비타당성조사를 수행하거나 조사의 공정성, 투명성, 신뢰성을 크게 훼손한 경우에는 「예비타당성조사 운용지침」 제37조를 준용하여 예비타당성조사 수행기관의 장에게 관련자 제재 등의 조치를 요구할 수 있다.
+</pre>
+<pre style="white-space:pre-wrap;text-align:left;padding:15px"><p style="font-size: 15px;color:#06C;font-weight:bold;"><a name="제81조(지침 개정의 절차)">제81조(지침 개정의 절차)</a></p> ① 기획예산처장관은 사회ㆍ경제적인 여건의 변동, 관련 기준 등의 변경 등으로 인해 지침의 개정이 필요할 경우에는 관계부처, 수행기관 및 해당 분야 전문연구기관 의견 등을 충분히 수렴하여 지침 개정안을 마련하여야 한다.
+  ② 관련 기관의 의견수렴을 거친 개정안은 「예비타당성조사 운용지침」 제5조에 따른 재정투자평가위원회의 심의을 거쳐 확정한다.
+</pre>
+<pre style="white-space:pre-wrap;text-align:left;padding:15px"><p style="font-size: 15px;color:#06C;font-weight:bold;"><a name="제82조(재검토기한)">제82조(재검토기한)</a></p> 기획예산처장관은 이 훈령에 대하여 「훈령ㆍ예규 등의 발령 및 관리에 관한 규정」 에 따라 2022년 1월 1일 기준으로 매 3년이 되는 시점(매 3년째의 12월 31일까지를 말한다)마다 그 타당성을 검토하여 개선 등의 조치를 하여야 한다.
+</pre>
+<pre style="white-space:pre-wrap;text-align:left;padding:15px">부칙 &lt;제436호,2019. 4. 25.&gt;
+제1조(시행일) 이 지침은 2019년 5월 1일부터 시행한다.
+제2조(적용례) ① 제6조 제2항 제1호 내지 제5호, 제12조 제3항 내지 제4항, 제62조, 제63조, 제66조 내지 제69조, 제71조 제2항, 제71조 제6항, 제75조 제2항 개정규정은 이 지침 시행 당시 예비타당성 조사 중인 사업부터 적용한다.
+② 제6조 제1항 제3호, 제57조 제2항, 제58조 내지 제59조, 제61조, 제71조 제3항, 개정규정은 2019년 제1차 예비타당성조사 대상 선정사업부터 적용한다.
+③ 제6조 제1항 제6호, 제2항 제6호, 제70조, 제72조, 제77조 제2항 개정규정은 2019년 7월 1일부터 적용한다.</pre>
+<pre style="white-space:pre-wrap;text-align:left;padding:15px">부칙 (재검토기한 설정을 위한 「혁신제품 지정 및 구매촉진 등에 관한 규정」 등 4개 행정규칙의 일부개정에 관한 훈령)&lt;제587호, 2021. 12. 29.&gt;
+제1조(시행일) 이 지침은 2022년 1월 1일부터 시행한다.</pre>
+<pre style="white-space:pre-wrap;text-align:left;padding:15px">부칙 &lt;제621호, 2022. 12. 20.&gt;
+제1조(시행일) 이 지침은 발령한 날부터 시행한다.
+제2조(적용례) ① 제24조, 제26조, 제28조, 제59조의 개정규정은 이 지침 시행 당시 예비타당성조사 대상 선정 및 면제 여부를 검토하고 있는 사업부터 적용한다.
+  ② 제6조 제1항, 제62조 제1항, 제64조의 개정규정은 이 지침 시행 후 최초로 예비타당성조사 대상 선정 및 면제를 요구하는 사업부터 적용한다.
+  ③ 제68조, 제71조 제4항, 제71조 제6항, 제74조의 개정규정은 이 지침 시행 당시 예비타당성 조사가 진행중인 사업부터 적용한다.</pre>
+<pre style="white-space:pre-wrap;text-align:left;padding:15px">부칙 &lt;제678호, 2023. 12. 27.&gt;
+제1조(시행일) 이 지침은 발령한 날부터 시행한다.
+제2조(적용례) 이 지침은 시행 당시 예비타당성조사를 진행 중인 사업, 2023년 제3차 예비타당성조사 대상사업 및 면제사업으로 신청한 사업부터 적용한다.</pre>
+<pre style="white-space:pre-wrap;text-align:left;padding:15px">부칙 &lt;제781호, 2025. 4. 16.&gt;
+제1조(시행일) 이 지침은 발령한 날부터 시행한다.
+제2조(적용례) 제12조 제3항 제1호 내지 제2호, 제62조 제2항 제1호 내지 제2호의 개정규정은 이 지침 시행 당시 예비타당성조사 중인 사업부터 적용한다.</pre>
+<pre style="white-space:pre-wrap;text-align:left;padding:15px">부칙 &lt;제790호, 2025. 7. 30.&gt;
+제1조(시행일) 이 지침은 발령한 날부터 시행한다.
+제2조(적용례) 제59조, 제71조 제2항의 개정규정은 이 지침 시행 당시 예비타당성조사가 진행중인 사업부터 적용한다.</pre>
+<pre style="white-space:pre-wrap;text-align:left;padding:15px">부칙 (정부조직 개편 반영을 위한 14개 훈령의 일부개정에 관한 기획예산처훈령)&lt;제1호, 2026. 1. 2.&gt;
+이 훈령은 2026년 1월 2일부터 시행한다.</pre>
+<pre style="white-space:pre-wrap;text-align:left;padding:15px">부칙 &lt;제63호, 2026. 5. 29.&gt;
+제1조(시행일) 이 영은 발령한 날부터 시행한다.
+제2조(적용례) 제6조, 제12조, 제46조, 제58조, 제59조, 제61조 내지 제65조, 제70조 내지 제76조, 제79조의 개정규정은 2025년 제3차 예비타당성조사 대상 선정사업부터 적용한다.</pre>
+</div>
+<div class="slawbon">
+<p class="title_index">조별목록</p>
+<div style="text-align:left;"><p style="font-size:13px;font-weight:bold;text-decoration:none;"><a href="#제1장 총칙
+" style="text-decoration:none;color:#000000;">제1장 총칙
+</a></p></div>
+<div style="text-align:left;"><p style="font-size: 12px;font-weight:bold;text-decoration:none;"><a href="#제1조(목적)" style="text-decoration:none;color:#06f;">제1조(목적)</a></p></div>
+<div style="text-align:left;"><p style="font-size: 12px;font-weight:bold;text-decoration:none;"><a href="#제2조(적용대상)" style="text-decoration:none;color:#06f;">제2조(적용대상)</a></p></div>
+<div style="text-align:left;"><p style="font-size: 12px;font-weight:bold;text-decoration:none;"><a href="#제3조(역할 및 세부지침 등과의 관계)" style="text-decoration:none;color:#06f;">제3조(역할 및 세부지침 등과의 ...</a></p></div>
+<div style="text-align:left;"><p style="font-size: 12px;font-weight:bold;text-decoration:none;"><a href="#제4조(예비타당성조사 수행의 원칙)" style="text-decoration:none;color:#06f;">제4조(예비타당성조사 수행의 원칙...</a></p></div>
+<div style="text-align:left;"><p style="font-size: 12px;font-weight:bold;text-decoration:none;"><a href="#제5조(예비타당성조사의 분석 내용)" style="text-decoration:none;color:#06f;">제5조(예비타당성조사의 분석 내용...</a></p></div>
+<div style="text-align:left;"><p style="font-size:13px;font-weight:bold;text-decoration:none;"><a href="#제2장 수행절차 및 분석방법
+" style="text-decoration:none;color:#000000;">제2장 수행절차 및 분석방법
+</a></p></div>
+<div style="text-align:left;"><p style="font-size: 12px;font-weight:bold;text-decoration:none;"><a href="#제6조(기본 수행절차)" style="text-decoration:none;color:#06f;">제6조(기본 수행절차)</a></p></div>
+<div style="text-align:left;"><p style="font-size: 12px;font-weight:bold;text-decoration:none;"><a href="#제7조(사업의 개요 분석)" style="text-decoration:none;color:#06f;">제7조(사업의 개요 분석)</a></p></div>
+<div style="text-align:left;"><p style="font-size: 12px;font-weight:bold;text-decoration:none;"><a href="#제8조(사업계획서의 보완요구)" style="text-decoration:none;color:#06f;">제8조(사업계획서의 보완요구)</a></p></div>
+<div style="text-align:left;"><p style="font-size: 12px;font-weight:bold;text-decoration:none;"><a href="#제9조(기초자료의 분석)" style="text-decoration:none;color:#06f;">제9조(기초자료의 분석)</a></p></div>
+<div style="text-align:left;"><p style="font-size: 12px;font-weight:bold;text-decoration:none;"><a href="#제10조(조사의 쟁점검토)" style="text-decoration:none;color:#06f;">제10조(조사의 쟁점검토)</a></p></div>
+<div style="text-align:left;"><p style="font-size: 12px;font-weight:bold;text-decoration:none;"><a href="#제11조(대안 및 시나리오의 검토)" style="text-decoration:none;color:#06f;">제11조(대안 및 시나리오의 검토...</a></p></div>
+<div style="text-align:left;"><p style="font-size: 12px;font-weight:bold;text-decoration:none;"><a href="#제12조(예비타당성조사의 분석 방법)" style="text-decoration:none;color:#06f;">제12조(예비타당성조사의 분석 방...</a></p></div>
+<div style="text-align:left;"><p style="font-size:13px;font-weight:bold;text-decoration:none;"><a href="#제3장 경제성 분석
+" style="text-decoration:none;color:#000000;">제3장 경제성 분석
+</a></p></div>
+<div style="text-align:left;"><p style="font-size:13px;font-weight:bold;text-decoration:none;"><a href="#제1절 수요의 추정
+" style="text-decoration:none;color:#000000;">제1절 수요의 추정
+</a></p></div>
+<div style="text-align:left;"><p style="font-size:13px;font-weight:bold;text-decoration:none;"><a href="#제1관 수요 추정의 방법 및 개발계획 반영기준
+" style="text-decoration:none;color:#000000;">제1관 수요 추정의 방법 및 개발계획 반영기준
+</a></p></div>
+<div style="text-align:left;"><p style="font-size: 12px;font-weight:bold;text-decoration:none;"><a href="#제13조(수요 추정 방법)" style="text-decoration:none;color:#06f;">제13조(수요 추정 방법)</a></p></div>
+<div style="text-align:left;"><p style="font-size: 12px;font-weight:bold;text-decoration:none;"><a href="#제14조(개발계획의 반영기준)" style="text-decoration:none;color:#06f;">제14조(개발계획의 반영기준)</a></p></div>
+<div style="text-align:left;"><p style="font-size:13px;font-weight:bold;text-decoration:none;"><a href="#제2관 교통시설 사업
+" style="text-decoration:none;color:#000000;">제2관 교통시설 사업
+</a></p></div>
+<div style="text-align:left;"><p style="font-size: 12px;font-weight:bold;text-decoration:none;"><a href="#제15조(도로ㆍ철도사업의 수요추정)" style="text-decoration:none;color:#06f;">제15조(도로ㆍ철도사업의 수요추정...</a></p></div>
+<div style="text-align:left;"><p style="font-size: 12px;font-weight:bold;text-decoration:none;"><a href="#제16조(항만사업의 수요추정)" style="text-decoration:none;color:#06f;">제16조(항만사업의 수요추정)</a></p></div>
+<div style="text-align:left;"><p style="font-size: 12px;font-weight:bold;text-decoration:none;"><a href="#제17조(공항사업의 수요추정)" style="text-decoration:none;color:#06f;">제17조(공항사업의 수요추정)</a></p></div>
+<div style="text-align:left;"><p style="font-size:13px;font-weight:bold;text-decoration:none;"><a href="#제3관 수자원 및 기타 사업
+" style="text-decoration:none;color:#000000;">제3관 수자원 및 기타 사업
+</a></p></div>
+<div style="text-align:left;"><p style="font-size: 12px;font-weight:bold;text-decoration:none;"><a href="#제18조(수자원사업의 수요추정)" style="text-decoration:none;color:#06f;">제18조(수자원사업의 수요추정)</a></p></div>
+<div style="text-align:left;"><p style="font-size: 12px;font-weight:bold;text-decoration:none;"><a href="#제19조(의료시설사업의 수요추정)" style="text-decoration:none;color:#06f;">제19조(의료시설사업의 수요추정)</a></p></div>
+<div style="text-align:left;"><p style="font-size: 12px;font-weight:bold;text-decoration:none;"><a href="#제20조(문화ㆍ관광사업의 수요추정)" style="text-decoration:none;color:#06f;">제20조(문화ㆍ관광사업의 수요추정...</a></p></div>
+<div style="text-align:left;"><p style="font-size: 12px;font-weight:bold;text-decoration:none;"><a href="#제21조(정보화사업의 수요추정)" style="text-decoration:none;color:#06f;">제21조(정보화사업의 수요추정)</a></p></div>
+<div style="text-align:left;"><p style="font-size:13px;font-weight:bold;text-decoration:none;"><a href="#제2절 편익의 추정
+" style="text-decoration:none;color:#000000;">제2절 편익의 추정
+</a></p></div>
+<div style="text-align:left;"><p style="font-size:13px;font-weight:bold;text-decoration:none;"><a href="#제1관 편익 항목의 식별 및 조정
+" style="text-decoration:none;color:#000000;">제1관 편익 항목의 식별 및 조정
+</a></p></div>
+<div style="text-align:left;"><p style="font-size: 12px;font-weight:bold;text-decoration:none;"><a href="#제22조(편익항목의 식별)" style="text-decoration:none;color:#06f;">제22조(편익항목의 식별)</a></p></div>
+<div style="text-align:left;"><p style="font-size: 12px;font-weight:bold;text-decoration:none;"><a href="#제23조(편익항목의 조정)" style="text-decoration:none;color:#06f;">제23조(편익항목의 조정)</a></p></div>
+<div style="text-align:left;"><p style="font-size:13px;font-weight:bold;text-decoration:none;"><a href="#제2관 교통시설 사업
+" style="text-decoration:none;color:#000000;">제2관 교통시설 사업
+</a></p></div>
+<div style="text-align:left;"><p style="font-size: 12px;font-weight:bold;text-decoration:none;"><a href="#제24조(도로ㆍ철도사업의 편익)" style="text-decoration:none;color:#06f;">제24조(도로ㆍ철도사업의 편익)</a></p></div>
+<div style="text-align:left;"><p style="font-size: 12px;font-weight:bold;text-decoration:none;"><a href="#제25조(공항사업의 편익)" style="text-decoration:none;color:#06f;">제25조(공항사업의 편익)</a></p></div>
+<div style="text-align:left;"><p style="font-size: 12px;font-weight:bold;text-decoration:none;"><a href="#제26조(항만사업의 편익)" style="text-decoration:none;color:#06f;">제26조(항만사업의 편익)</a></p></div>
+<div style="text-align:left;"><p style="font-size:13px;font-weight:bold;text-decoration:none;"><a href="#제3관 수자원 및 기타 사업
+" style="text-decoration:none;color:#000000;">제3관 수자원 및 기타 사업
+</a></p></div>
+<div style="text-align:left;"><p style="font-size: 12px;font-weight:bold;text-decoration:none;"><a href="#제27조(수자원사업의 편익)" style="text-decoration:none;color:#06f;">제27조(수자원사업의 편익)</a></p></div>
+<div style="text-align:left;"><p style="font-size: 12px;font-weight:bold;text-decoration:none;"><a href="#제28조(의료시설사업의 편익)" style="text-decoration:none;color:#06f;">제28조(의료시설사업의 편익)</a></p></div>
+<div style="text-align:left;"><p style="font-size: 12px;font-weight:bold;text-decoration:none;"><a href="#제29조(문화사업의 편익 및 추정방법)" style="text-decoration:none;color:#06f;">제29조(문화사업의 편익 및 추정...</a></p></div>
+<div style="text-align:left;"><p style="font-size: 12px;font-weight:bold;text-decoration:none;"><a href="#제30조(정보화사업의 편익 및 추정방법)" style="text-decoration:none;color:#06f;">제30조(정보화사업의 편익 및 추...</a></p></div>
+<div style="text-align:left;"><p style="font-size: 12px;font-weight:bold;text-decoration:none;"><a href="#제31조(기타 재정사업의 편익)" style="text-decoration:none;color:#06f;">제31조(기타 재정사업의 편익)</a></p></div>
+<div style="text-align:left;"><p style="font-size:13px;font-weight:bold;text-decoration:none;"><a href="#제3절 비용의 추정
+" style="text-decoration:none;color:#000000;">제3절 비용의 추정
+</a></p></div>
+<div style="text-align:left;"><p style="font-size:13px;font-weight:bold;text-decoration:none;"><a href="#제1관 비용추정의 기본방향 및 비목별 총사업비 산정원칙
+" style="text-decoration:none;color:#000000;">제1관 비용추정의 기본방향 및 비목별 총사업비 산정원칙
+</a></p></div>
+<div style="text-align:left;"><p style="font-size: 12px;font-weight:bold;text-decoration:none;"><a href="#제32조(비용추정의 기본방향)" style="text-decoration:none;color:#06f;">제32조(비용추정의 기본방향)</a></p></div>
+<div style="text-align:left;"><p style="font-size: 12px;font-weight:bold;text-decoration:none;"><a href="#제33조(총사업비의 검토)" style="text-decoration:none;color:#06f;">제33조(총사업비의 검토)</a></p></div>
+<div style="text-align:left;"><p style="font-size: 12px;font-weight:bold;text-decoration:none;"><a href="#제34조(비목별 총사업비 산정원칙)" style="text-decoration:none;color:#06f;">제34조(비목별 총사업비 산정원칙...</a></p></div>
+<div style="text-align:left;"><p style="font-size: 12px;font-weight:bold;text-decoration:none;"><a href="#제35조(운영비)" style="text-decoration:none;color:#06f;">제35조(운영비)</a></p></div>
+<div style="text-align:left;"><p style="font-size: 12px;font-weight:bold;text-decoration:none;"><a href="#제36조(기타 비용)" style="text-decoration:none;color:#06f;">제36조(기타 비용)</a></p></div>
+<div style="text-align:left;"><p style="font-size:13px;font-weight:bold;text-decoration:none;"><a href="#제2관 교통시설 사업
+" style="text-decoration:none;color:#000000;">제2관 교통시설 사업
+</a></p></div>
+<div style="text-align:left;"><p style="font-size: 12px;font-weight:bold;text-decoration:none;"><a href="#제37조(도로사업의 비용추정)" style="text-decoration:none;color:#06f;">제37조(도로사업의 비용추정)</a></p></div>
+<div style="text-align:left;"><p style="font-size: 12px;font-weight:bold;text-decoration:none;"><a href="#제38조(철도사업의 비용추정)" style="text-decoration:none;color:#06f;">제38조(철도사업의 비용추정)</a></p></div>
+<div style="text-align:left;"><p style="font-size: 12px;font-weight:bold;text-decoration:none;"><a href="#제39조(항만사업의 비용추정)" style="text-decoration:none;color:#06f;">제39조(항만사업의 비용추정)</a></p></div>
+<div style="text-align:left;"><p style="font-size: 12px;font-weight:bold;text-decoration:none;"><a href="#제40조(공항사업의 비용추정)" style="text-decoration:none;color:#06f;">제40조(공항사업의 비용추정)</a></p></div>
+<div style="text-align:left;"><p style="font-size:13px;font-weight:bold;text-decoration:none;"><a href="#제3관 수자원 및 기타 사업
+" style="text-decoration:none;color:#000000;">제3관 수자원 및 기타 사업
+</a></p></div>
+<div style="text-align:left;"><p style="font-size: 12px;font-weight:bold;text-decoration:none;"><a href="#제41조(수자원사업의 비용추정)" style="text-decoration:none;color:#06f;">제41조(수자원사업의 비용추정)</a></p></div>
+<div style="text-align:left;"><p style="font-size: 12px;font-weight:bold;text-decoration:none;"><a href="#제42조(건축사업의 비용추정)" style="text-decoration:none;color:#06f;">제42조(건축사업의 비용추정)</a></p></div>
+<div style="text-align:left;"><p style="font-size: 12px;font-weight:bold;text-decoration:none;"><a href="#제43조(정보화사업의 비용추정)" style="text-decoration:none;color:#06f;">제43조(정보화사업의 비용추정)</a></p></div>
+<div style="text-align:left;"><p style="font-size: 12px;font-weight:bold;text-decoration:none;"><a href="#제44조(기타 재정사업의 비용추정)" style="text-decoration:none;color:#06f;">제44조(기타 재정사업의 비용추정...</a></p></div>
+<div style="text-align:left;"><p style="font-size:13px;font-weight:bold;text-decoration:none;"><a href="#제4절 경제적 타당성 평가
+" style="text-decoration:none;color:#000000;">제4절 경제적 타당성 평가
+</a></p></div>
+<div style="text-align:left;"><p style="font-size: 12px;font-weight:bold;text-decoration:none;"><a href="#제45조(경제적 타당성 평가의 전제)" style="text-decoration:none;color:#06f;">제45조(경제적 타당성 평가의 전...</a></p></div>
+<div style="text-align:left;"><p style="font-size: 12px;font-weight:bold;text-decoration:none;"><a href="#제46조(경제적 타당성 평가의 방법)" style="text-decoration:none;color:#06f;">제46조(경제적 타당성 평가의 방...</a></p></div>
+<div style="text-align:left;"><p style="font-size: 12px;font-weight:bold;text-decoration:none;"><a href="#제47조(비용-편익 분석)" style="text-decoration:none;color:#06f;">제47조(비용-편익 분석)</a></p></div>
+<div style="text-align:left;"><p style="font-size: 12px;font-weight:bold;text-decoration:none;"><a href="#제48조(비용-효과 분석)" style="text-decoration:none;color:#06f;">제48조(비용-효과 분석)</a></p></div>
+<div style="text-align:left;"><p style="font-size: 12px;font-weight:bold;text-decoration:none;"><a href="#제49조(분석기준일 및 분석기간)" style="text-decoration:none;color:#06f;">제49조(분석기준일 및 분석기간)</a></p></div>
+<div style="text-align:left;"><p style="font-size: 12px;font-weight:bold;text-decoration:none;"><a href="#제50조(사회적 할인율)" style="text-decoration:none;color:#06f;">제50조(사회적 할인율)</a></p></div>
+<div style="text-align:left;"><p style="font-size: 12px;font-weight:bold;text-decoration:none;"><a href="#제51조(민감도 분석)" style="text-decoration:none;color:#06f;">제51조(민감도 분석)</a></p></div>
+<div style="text-align:left;"><p style="font-size:13px;font-weight:bold;text-decoration:none;"><a href="#제5절 민간투자 연계 가능성 검토
+" style="text-decoration:none;color:#000000;">제5절 민간투자 연계 가능성 검토
+</a></p></div>
+<div style="text-align:left;"><p style="font-size: 12px;font-weight:bold;text-decoration:none;"><a href="#제52조(필수민자검토시설의 민자적격성 판단)" style="text-decoration:none;color:#06f;">제52조(필수민자검토시설의 민자적...</a></p></div>
+<div style="text-align:left;"><p style="font-size: 12px;font-weight:bold;text-decoration:none;"><a href="#제53조(민간투자가능성 검토)" style="text-decoration:none;color:#06f;">제53조(민간투자가능성 검토)</a></p></div>
+<div style="text-align:left;"><p style="font-size:13px;font-weight:bold;text-decoration:none;"><a href="#제6절 재무성 분석
+" style="text-decoration:none;color:#000000;">제6절 재무성 분석
+</a></p></div>
+<div style="text-align:left;"><p style="font-size: 12px;font-weight:bold;text-decoration:none;"><a href="#제54조(재무성 분석)" style="text-decoration:none;color:#06f;">제54조(재무성 분석)</a></p></div>
+<div style="text-align:left;"><p style="font-size: 12px;font-weight:bold;text-decoration:none;"><a href="#제55조(재무성 분석의 기준)" style="text-decoration:none;color:#06f;">제55조(재무성 분석의 기준)</a></p></div>
+<div style="text-align:left;"><p style="font-size: 12px;font-weight:bold;text-decoration:none;"><a href="#제56조(재무성 분석기법)" style="text-decoration:none;color:#06f;">제56조(재무성 분석기법)</a></p></div>
+<div style="text-align:left;"><p style="font-size:13px;font-weight:bold;text-decoration:none;"><a href="#제4장 정책성 분석
+" style="text-decoration:none;color:#000000;">제4장 정책성 분석
+</a></p></div>
+<div style="text-align:left;"><p style="font-size: 12px;font-weight:bold;text-decoration:none;"><a href="#제57조(정책성 분석체계)" style="text-decoration:none;color:#06f;">제57조(정책성 분석체계)</a></p></div>
+<div style="text-align:left;"><p style="font-size: 12px;font-weight:bold;text-decoration:none;"><a href="#제58조(사업추진 여건)" style="text-decoration:none;color:#06f;">제58조(사업추진 여건)</a></p></div>
+<div style="text-align:left;"><p style="font-size: 12px;font-weight:bold;text-decoration:none;"><a href="#제59조(정책효과)" style="text-decoration:none;color:#06f;">제59조(정책효과)</a></p></div>
+<div style="text-align:left;"><p style="font-size: 12px;color:#06f;text-decoration:none;">제60조</p> 삭제
+</div>
+<div style="text-align:left;"><p style="font-size: 12px;font-weight:bold;text-decoration:none;"><a href="#제61조(별도평가항목)" style="text-decoration:none;color:#06f;">제61조(별도평가항목)</a></p></div>
+<div style="text-align:left;"><p style="font-size:13px;font-weight:bold;text-decoration:none;"><a href="#제5장 지역균형발전 및 과학기술성 분석
+" style="text-decoration:none;color:#000000;">제5장 지역균형발전 및 과학기술성 분석
+</a></p></div>
+<div style="text-align:left;"><p style="font-size: 12px;font-weight:bold;text-decoration:none;"><a href="#제62조(지역균형성장 분석항목)" style="text-decoration:none;color:#06f;">제62조(지역균형성장 분석항목)</a></p></div>
+<div style="text-align:left;"><p style="font-size: 12px;font-weight:bold;text-decoration:none;"><a href="#제63조(지역낙후도 평가)" style="text-decoration:none;color:#06f;">제63조(지역낙후도 평가)</a></p></div>
+<div style="text-align:left;"><p style="font-size: 12px;font-weight:bold;text-decoration:none;"><a href="#제64조(균형성장효과 분석)" style="text-decoration:none;color:#06f;">제64조(균형성장효과 분석)</a></p></div>
+<div style="text-align:left;"><p style="font-size: 12px;font-weight:bold;text-decoration:none;"><a href="#제65조(과학기술성 분석)" style="text-decoration:none;color:#06f;">제65조(과학기술성 분석)</a></p></div>
+<div style="text-align:left;"><p style="font-size:13px;font-weight:bold;text-decoration:none;"><a href="#제6장 기타재정 복지 분야 및 소득이전사업 분석방법
+" style="text-decoration:none;color:#000000;">제6장 기타재정 복지 분야 및 소득이전사업 분석방법
+</a></p></div>
+<div style="text-align:left;"><p style="font-size: 12px;font-weight:bold;text-decoration:none;"><a href="#제66조(기타 재정사업 중 복지 및 소득이전 사업 분석방법)" style="text-decoration:none;color:#06f;">제66조(기타 재정사업 중 복지 ...</a></p></div>
+<div style="text-align:left;"><p style="font-size: 12px;font-weight:bold;text-decoration:none;"><a href="#제67조(경제사회 환경분석)" style="text-decoration:none;color:#06f;">제67조(경제사회 환경분석)</a></p></div>
+<div style="text-align:left;"><p style="font-size: 12px;font-weight:bold;text-decoration:none;"><a href="#제68조(사업설계의 적정성)" style="text-decoration:none;color:#06f;">제68조(사업설계의 적정성)</a></p></div>
+<div style="text-align:left;"><p style="font-size: 12px;font-weight:bold;text-decoration:none;"><a href="#제69조(비용-효과성)" style="text-decoration:none;color:#06f;">제69조(비용-효과성)</a></p></div>
+<div style="text-align:left;"><p style="font-size:13px;font-weight:bold;text-decoration:none;"><a href="#제7장 정보화 사업 분석방법
+" style="text-decoration:none;color:#000000;">제7장 정보화 사업 분석방법
+</a></p></div>
+<div style="text-align:left;"><p style="font-size: 12px;font-weight:bold;text-decoration:none;"><a href="#제70조(정보화 사업 분석방법)" style="text-decoration:none;color:#06f;">제70조(정보화 사업 분석방법)</a></p></div>
+<div style="text-align:left;"><p style="font-size: 12px;font-weight:bold;text-decoration:none;"><a href="#제71조(기술사회 환경분석)" style="text-decoration:none;color:#06f;">제71조(기술사회 환경분석)</a></p></div>
+<div style="text-align:left;"><p style="font-size: 12px;font-weight:bold;text-decoration:none;"><a href="#제72조(사업설계의 적정성)" style="text-decoration:none;color:#06f;">제72조(사업설계의 적정성)</a></p></div>
+<div style="text-align:left;"><p style="font-size: 12px;font-weight:bold;text-decoration:none;"><a href="#제73조(비용-효과성)" style="text-decoration:none;color:#06f;">제73조(비용-효과성)</a></p></div>
+<div style="text-align:left;"><p style="font-size:13px;font-weight:bold;text-decoration:none;"><a href="#제8장 종합평가 및 정책제언
+" style="text-decoration:none;color:#000000;">제8장 종합평가 및 정책제언
+</a></p></div>
+<div style="text-align:left;"><p style="font-size: 12px;font-weight:bold;text-decoration:none;"><a href="#제74조(종합평가의 실시)" style="text-decoration:none;color:#06f;">제74조(종합평가의 실시)</a></p></div>
+<div style="text-align:left;"><p style="font-size: 12px;font-weight:bold;text-decoration:none;"><a href="#제75조(종합평가의 방법)" style="text-decoration:none;color:#06f;">제75조(종합평가의 방법)</a></p></div>
+<div style="text-align:left;"><p style="font-size: 12px;font-weight:bold;text-decoration:none;"><a href="#제76조(종합결론 및 정책제언)" style="text-decoration:none;color:#06f;">제76조(종합결론 및 정책제언)</a></p></div>
+<div style="text-align:left;"><p style="font-size:13px;font-weight:bold;text-decoration:none;"><a href="#제9장 행정사항
+" style="text-decoration:none;color:#000000;">제9장 행정사항
+</a></p></div>
+<div style="text-align:left;"><p style="font-size: 12px;font-weight:bold;text-decoration:none;"><a href="#제77조(예비타당성조사 수행기관의 관리ㆍ감독)" style="text-decoration:none;color:#06f;">제77조(예비타당성조사 수행기관의...</a></p></div>
+<div style="text-align:left;"><p style="font-size: 12px;font-weight:bold;text-decoration:none;"><a href="#제78조(실무조정위원회 및 실무조정회의 운영)" style="text-decoration:none;color:#06f;">제78조(실무조정위원회 및 실무조...</a></p></div>
+<div style="text-align:left;"><p style="font-size: 12px;font-weight:bold;text-decoration:none;"><a href="#제79조(보고서의 작성 및 공개)" style="text-decoration:none;color:#06f;">제79조(보고서의 작성 및 공개)</a></p></div>
+<div style="text-align:left;"><p style="font-size: 12px;font-weight:bold;text-decoration:none;"><a href="#제80조(지침 위반사항에 대한 제재)" style="text-decoration:none;color:#06f;">제80조(지침 위반사항에 대한 제...</a></p></div>
+<div style="text-align:left;"><p style="font-size: 12px;font-weight:bold;text-decoration:none;"><a href="#제81조(지침 개정의 절차)" style="text-decoration:none;color:#06f;">제81조(지침 개정의 절차)</a></p></div>
+<div style="text-align:left;"><p style="font-size: 12px;font-weight:bold;text-decoration:none;"><a href="#제82조(재검토기한)" style="text-decoration:none;color:#06f;">제82조(재검토기한)</a></p></div>
+<div style="text-align:left;"><p style="font-size: 12px;font-weight:bold;text-decoration:none;">부칙 &lt;제436호,2019. 4. 2...</p></div>
+<div style="text-align:left;"><p style="font-size: 12px;font-weight:bold;text-decoration:none;">부칙 (재검토기한 설정을 위한 「혁신...</p></div>
+<div style="text-align:left;"><p style="font-size: 12px;font-weight:bold;text-decoration:none;">부칙 &lt;제621호, 2022. 12....</p></div>
+<div style="text-align:left;"><p style="font-size: 12px;font-weight:bold;text-decoration:none;">부칙 &lt;제678호, 2023. 12....</p></div>
+<div style="text-align:left;"><p style="font-size: 12px;font-weight:bold;text-decoration:none;">부칙 &lt;제781호, 2025. 4. ...</p></div>
+<div style="text-align:left;"><p style="font-size: 12px;font-weight:bold;text-decoration:none;">부칙 &lt;제790호, 2025. 7. ...</p></div>
+<div style="text-align:left;"><p style="font-size: 12px;font-weight:bold;text-decoration:none;">부칙 (정부조직 개편 반영을 위한 1...</p></div>
+<div style="text-align:left;"><p style="font-size: 12px;font-weight:bold;text-decoration:none;">부칙 &lt;제63호, 2026. 5. 2...</p></div>
+</div>
+<div class="blawbon">
+<p class="title_attach">별표 및 서식</p>
+<div onclick="goDownLoad('000100','별표')" style="text-align:left;font-size: 12px;color:#06f;cursor:pointer;">[별표 1] 지역별·지목별 보상배율(제34조제3항제3호 관련)</div>
+<div onclick="goDownLoad('000200','별표')" style="text-align:left;font-size: 12px;color:#06f;cursor:pointer;">[별표 2] 재정추진사업의 민자적격성 판단 (제52조제2항 관련)</div>
+<div onclick="goDownLoad('000300','별표')" style="text-align:left;font-size: 12px;color:#06f;cursor:pointer;">[별표 3] 정책성 분석 항목의 세부 평가항목</div>
+<div onclick="goDownLoad('000400','별표')" style="text-align:left;font-size: 12px;color:#06f;cursor:pointer;">[별표 4] 복지 및 소득이전사업, 정보화사업 평가 예시</div>
+<div onclick="goDownLoad('000500','별표')" style="text-align:left;font-size: 12px;color:#06f;cursor:pointer;">[별표 5] 종합평가항목(AHP)</div>
+<div onclick="goDownLoad('000600','별표')" style="text-align:left;font-size: 12px;color:#06f;cursor:pointer;">[별표 6] 평가항목별 평점 부여</div>
+<div onclick="goDownLoad('000700','별표')" style="text-align:left;font-size: 12px;color:#06f;cursor:pointer;">[별표 7] 재원분담 비율에 따른 평가구조</div>
+</div>
+</body>
+</html>
