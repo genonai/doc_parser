@@ -1822,6 +1822,17 @@ class GenosSmartChunker(BaseChunker):
                             group_h_infos.append(g[1])
                             group_h_short.append(g[2])
 
+                    # 단일 표 아이템은 아이템 경계 분할로는 더 못 줄어드므로(n=1),
+                    # 자체가 max_tokens 를 넘으면 row 단위로 서브 분할한다.
+                    if len(group_items) == 1 and isinstance(group_items[0], TableItem):
+                        table_texts = self._table_item_to_texts(
+                            group_items[0], dl_doc, group_h_short[0], **kwargs
+                        )
+                        if len(table_texts) > 1:
+                            for table_text in table_texts:
+                                new_sections.append((table_text, group_items, group_h_infos, group_h_short))
+                            continue
+
                     new_text = self._generate_section_text_with_heading(group_items, group_h_short, dl_doc, **kwargs)
                     new_sections.append((new_text, group_items, group_h_infos, group_h_short))
 
@@ -1961,6 +1972,26 @@ class GenosSmartChunker(BaseChunker):
             cur_chunk = get_current_chunk(doc_chunk, g["texts"], g["h_short"], g["items"])
             if cur_chunk:
                 result_chunks.append(cur_chunk)
+
+        # 최종 안전망: 위 단계들을 다 거치고도 표가 여러 개 섞여 max_tokens 를 넘는 청크가
+        # 남아있으면, 표 태그(<table) 등장 위치 기준으로 텍스트를 강제로 쪼갠다.
+        if self.max_tokens > 0:
+            safe_chunks = []
+            for chunk in result_chunks:
+                if self._count_tokens(chunk.text) > self.max_tokens and chunk.text.count("<table") >= 2:
+                    positions = [m.start() for m in re.finditer(r"<table", chunk.text)]
+                    start = 0
+                    for pos in positions[1:]:
+                        piece = chunk.text[start:pos]
+                        if piece.strip():
+                            safe_chunks.append(DocChunk(text=piece, meta=chunk.meta))
+                        start = pos
+                    piece = chunk.text[start:]
+                    if piece.strip():
+                        safe_chunks.append(DocChunk(text=piece, meta=chunk.meta))
+                else:
+                    safe_chunks.append(chunk)
+            result_chunks = safe_chunks
 
         return result_chunks
 
