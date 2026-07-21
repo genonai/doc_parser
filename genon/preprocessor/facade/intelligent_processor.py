@@ -136,11 +136,19 @@ def _looks_like_text(head: bytes) -> bool:
 
 
 def _is_encrypted_pdf(file_path: str) -> bool:
-    """PDF /Encrypt(비밀번호/DRM 암호화) 여부. ISO 32000 기준, pypdf is_encrypted 사용."""
-    try:
-        from pypdf import PdfReader
+    """PDF /Encrypt(비밀번호/DRM 암호화) 여부. ISO 32000 기준, pypdf 사용.
 
-        return bool(PdfReader(file_path).is_encrypted)
+    is_encrypted 플래그만 보면 owner-password-only(빈 user password) PDF까지
+    "암호화됨"으로 오판한다. 빈 문자열 복호화를 시도해, 실제로 콘텐츠 접근이
+    불가한 경우(NOT_DECRYPTED)만 True로 판정한다.
+    """
+    try:
+        from pypdf import PdfReader, PasswordType
+
+        reader = PdfReader(file_path)
+        if not reader.is_encrypted:
+            return False
+        return reader.decrypt("") == PasswordType.NOT_DECRYPTED
     except Exception:
         return False  # 파싱 실패는 여기서 단정 안 함(후속 단계에서 처리)
 
