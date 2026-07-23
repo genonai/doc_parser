@@ -502,6 +502,10 @@ def _resolve_chunk_mode(kwargs: dict, yaml_default: str) -> str:
     """
     raw = kwargs.get("chunk_mode")
     if raw is not None:
+        # 숫자 0/0.0/1/1.0 은 문자열 파싱 전에 정규화(JSON number 로 오는 경우 대응).
+        # bool 은 제외 — 아래 문자열 분기의 "true"/"false" 로 처리한다(True==1 오분류 방지).
+        if isinstance(raw, (int, float)) and not isinstance(raw, bool) and raw in (0, 1):
+            return "resize_all" if raw == 1 else "split_only"
         s = str(raw).strip().lower()
         if s in {"split_only", "resize_all"}:
             return s
