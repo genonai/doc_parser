@@ -84,6 +84,7 @@ RAG 지식베이스 구축을 위한 **품질 최우선** 전처리기입니다.
 | **LLM Enrichment** | 목차(TOC) 자동 생성·메타데이터 추출·이미지 설명·커스텀 필드 (`enrichment` 섹션) |
 | **부록 자동 연결** | 본문의 '별지/별표' 참조를 실제 부록 파일과 자동 매칭 (intelligent 고유) |
 | **섹션 기반 순수 분할** | 토큰 제한 없이 문서 구조(섹션 헤더)를 100% 존중하는 청킹 (`max_tokens=0`) |
+| **HWP/HWPX 품질 복구** | HWP→PDF 변환이 내용을 잃으면(추출 텍스트 점수 낮음) rhwp 재변환·네이티브 HWPX 추출로 **자동 복구** (별도 설정 불필요, `converters/hwp_recovery`) |
 
 ### 세 전처리기 비교
 
@@ -215,6 +216,7 @@ chunking:
   # 청킹 모드. split_only(기본) = 구조 기반 청크를 유지하고 chunk_size 를 초과하는 청크만 분할(작은 청크는 병합하지 않음).
   #            resize_all = 모든 청크를 chunk_size 에 맞게 병합/분할(작은 청크도 인접 청크와 합쳐 채움).
   # 우선순위: 호출 kwargs 의 chunk_mode > 아래 chunk_mode.
+  # 런타임 kwarg 는 문자열('split_only'/'resize_all') 외에 0/1 플래그도 수용한다(0=split_only, 1=resize_all).
   chunk_mode: split_only
   # 토큰 수 계산 방식. "char"(default)=문자 수 기준 | "huggingface"=HF 토크나이저 기준
   tokenizer_type: "char"
@@ -462,6 +464,8 @@ formats:
 - 표가 `chunking.chunk_size` 를 초과하면 **행(row) 단위로 분할**하고, 분할된 각 청크에 **헤더 행을 반복 포함**합니다(제목행 + 컬럼명행 자동 판정).
 - 각 청크 텍스트 앞에 **`시트명: <시트명>`** 접두를 붙입니다.
 
+> 이 "표마다 별도 청크" 동작은 내부적으로 `table_as_chunk` kwarg 로 제어되며 **xlsx docling 모드에서 자동 적용**됩니다(`chunk_size` 와 무관). 일반 문서에도 요청 kwarg(`table_as_chunk`)로 강제할 수 있으나 통상 지정할 필요는 없습니다.
+
 **tabular 모드** — 데이터 **행마다 1벡터**를 만들고, 각 컬럼 값을 **최상단 스칼라 property** 로 부여해 벡터 DB 에서 컬럼 단위 `where` 필터가 가능하게 합니다.
 - 병합셀은 openpyxl 로 **unmerge + forward-fill** 하여 병합 헤더 유실을 방지합니다.
 - **멀티헤더 자동 판정**: 전열 병합 제목행은 컨텍스트로만(키 제외), 부분 병합 계층 헤더는 `상위_하위` 로 flatten, 그 아래 컬럼명행을 헤더로 사용합니다.
@@ -664,12 +668,13 @@ field_transforms:
 > `pdf_pipeline.generate_picture_images: false` 면 이 항목은 enable 이어도 동작하지 않습니다.
 > 프롬프트의 `{{doc_summary}}` 컨텍스트는 이제 **독립 `doc_summary` enricher**(위 참조)가 채웁니다(과거 `image_description.doc_summary.*` 중첩 설정은 표준 `- doc_summary:` 항목으로 이동). `chart.enable: true` 면 변환 단계에서 docling 그림 분류(`do_picture_classification`)가 자동 활성화됩니다(모델 `ds4sd--DocumentFigureClassifier` 는 빌드 시 `/models` 에 포함). `chart` 는 별도 LLM 호출을 유발하므로 기본 off 입니다.
 
-**런타임 kwargs 오버라이드 (이미지·차트 description)**
+**런타임 kwargs 오버라이드 (Enrichment 토글)**
 
 호출 시 `params`(kwargs)로 아래 0/1 플래그를 주면 해당 호출에 한해 config 기본값을 덮어씁니다(미지정 시 config 값 유지).
 
 | kwargs | 대응 config | 의미 |
 |--------|-------------|------|
+| `toc` | `enrichment.toc.enable` | 목차(TOC) enrichment 사용유무 (별칭 `toc_on`). `0`=이번 요청만 off / `1`=on(단 config 에 TOC endpoint 가 구성돼 있어야 활성화, 미구성 시 무시·경고) |
 | `img_desc` | `image_description.enable` | 이미지 description 사용유무 |
 | `chart_desc` | `image_description.chart.enable` | 차트 description 사용유무 (레거시 별칭 `chart_convert`) |
 | `chart_detection` | `image_description.chart.detection` | `1`=auto(docling 자동판별) / `0`=all(모든 이미지를 차트로) |
@@ -861,6 +866,15 @@ chunking:
 | `1024` | 중간 병합 | 일반 RAG |
 | `2000` | 큰 단위 병합 | 문맥 연속성 중시 |
 
+**청킹 모드 (`chunk_mode`)** — `chunk_size` 초과 청크의 처리 방식을 고릅니다. yaml `chunking.chunk_mode` 또는 호출 kwargs `chunk_mode` 로 지정합니다(우선순위 kwargs > yaml > `split_only`). 런타임 kwarg 는 문자열 또는 `0`/`1` 플래그를 받습니다.
+
+| `chunk_mode` | kwarg 값 | 동작 |
+|----|----|------|
+| `split_only`(기본) | `"split_only"` 또는 `0` | 구조 기반 청크를 유지하고 `chunk_size` 초과 청크만 분할(작은 청크는 병합하지 않음) |
+| `resize_all` | `"resize_all"` 또는 `1` | 모든 청크를 `chunk_size` 에 맞게 병합/분할(작은 청크도 인접 청크와 합쳐 채움) |
+
+> `chunk_mode` 는 `chunk_size > 0` 일 때만 의미가 있습니다. `chunk_size=0`(순수 섹션 분할)이면 병합·초과분할이 모두 스킵되어 두 모드가 동일하게 동작합니다.
+
 ### 3.8 사이트 적용 시 필수 수정 항목
 
 운영 환경에 맞춰 아래 placeholder 를 실제 값으로 치환합니다. (IP/키 하드코딩 금지 — 서빙 ID 형식 권장)
@@ -1011,6 +1025,9 @@ skip 합니다. 문서 적재 자체가 막히는 것보다 낫다는 판단입�
 ① load_documents (Docling)         ← layout, pdf_pipeline 섹션
   ├─ Layout Detection (genos_layout / docling_layout)
   └─ TableFormer (accurate/fast)
+  ▼
+①' HWP/HWPX 품질 복구 (자동)        ← HWP/HWPX 원본 & 추출 점수<20 일 때만
+  └─ rhwp 재변환 재시도 / 네이티브 HWPX 추출 폴백 (converters/hwp_recovery)
   ▼
 ② 품질 검사 / GLYPH 감지            ← ocr 섹션 (ocr_mode, glyph_detection)
   └─ 필요 시 전체 페이지 OCR 재처리
@@ -1251,6 +1268,21 @@ async def __call__(self, request, file_path, **kwargs):
 
 - `auto_convert_to_pdf` (기본 `True`): 비-PDF 입력 자동 변환. `False` 면 변환 생략(PDF 가정, 변경 전 동작).
 - `use_pdf_sdk` (기본 `True`): 변환 엔진 — `True`=PDF SDK, `False`=LibreOffice. `convert_to_pdf()` 는 세 facade 공통 wrapper 로 `converters/hwp_to_pdf/` 에 위임.
+
+#### HWP/HWPX 품질 복구 (자동)
+
+HWP/HWPX 원본을 PDF 로 변환·로딩한 결과가 내용을 잃는 경우가 있어, `_process_pdf` 는 로딩
+직후 `HwpQualityRecovery.recover()`(`converters/hwp_recovery.py`)로 품질을 자동 점검·복구합니다.
+
+- **판정**: 추출 텍스트 품질 점수(표 셀 포함 alnum 문자 수)가 `20` 미만이면 "저품질"로 간주.
+- **복구 1 — rhwp 재변환**: `convert_hwp_to_pdf(order=["rhwp"])` 로 재변환 후 재로딩, 점수가
+  개선되면(≥20 & 기존 초과) 해당 문서/경로로 교체(실패 시 원본 PDF 복원).
+- **복구 2 — 네이티브 HWPX(.hwpx 한정)**: 여전히 저품질이면 HWPX XML 을 직접 파싱해 교체.
+- **적용 조건**: 원본이 `.hwp`/`.hwpx` 이고 저품질일 때만 진입. **정상 문서(점수≥20)·비-HWP 는
+  미진입** → 기존 동작과 동일(회귀 없음). 모듈 미탑재 환경에서는 자동으로 비활성(기존 동작).
+- **별도 설정/kwarg 없음** — 자동 동작이며, 변환 백엔드 순서는 `convert_to_pdf` 내부 기본값을 따릅니다.
+- **참고**: `convert`/`parser` 전처리기는 HWP 를 네이티브 docling 백엔드로 우선 처리하므로 이 복구
+  경로를 사용하지 않습니다(intelligent 전용).
 
 ### A.6 호출 예시
 

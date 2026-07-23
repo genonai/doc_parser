@@ -370,6 +370,12 @@ try:
 except ImportError:
     upload_files = None
 
+# HWP/HWPX 품질 복구(선택적). 모듈 로드 실패 시 None → 복구 미적용(기존 동작 유지).
+try:
+    from genon.preprocessor.converters.hwp_recovery import HwpQualityRecovery
+except ImportError:
+    HwpQualityRecovery = None
+
 
 # ============================================================
 # 설정 로딩 헬퍼 (from parser_processor.py)
@@ -484,6 +490,43 @@ def _as_int_flag(value: Any, default: int = 0) -> int:
         if normalized in {"0", "false", "no", "n", "off"}:
             return 0
     return default
+
+
+def _resolve_chunk_mode(kwargs: dict, yaml_default: str) -> str:
+    """청킹 병합 모드 결정. 우선순위: 요청 chunk_mode > yaml > 'split_only'.
+
+    chunk_mode 는 문자열('split_only'|'resize_all') 또는 0/1 플래그를 받는다.
+    0(false/no/off) → 'split_only'(구조 경계 보존, 초과 그룹만 분할),
+    1(true/yes/on)  → 'resize_all'(인접 섹션을 chunk_size 한도까지 greedy 병합).
+    (chunk_mode=0 은 falsy 라 `x or default` 로는 무시되므로 `is not None` 으로 판별한다.)
+    """
+    raw = kwargs.get("chunk_mode")
+    if raw is not None:
+        # 숫자 0/0.0/1/1.0 은 문자열 파싱 전에 정규화(JSON number 로 오는 경우 대응).
+        # bool 은 제외 — 아래 문자열 분기의 "true"/"false" 로 처리한다(True==1 오분류 방지).
+        if isinstance(raw, (int, float)) and not isinstance(raw, bool) and raw in (0, 1):
+            return "resize_all" if raw == 1 else "split_only"
+        s = str(raw).strip().lower()
+        if s in {"split_only", "resize_all"}:
+            return s
+        if s in {"1", "true", "yes", "on"}:
+            return "resize_all"
+        if s in {"0", "false", "no", "off"}:
+            return "split_only"
+    mode = str(yaml_default or "").strip().lower()
+    return mode if mode in {"split_only", "resize_all"} else "split_only"
+
+
+def _copy_enrichment_options(options, **updates):
+    """DataEnrichmentOptions 를 얕게 복제하며 지정 필드를 override(원본 불변)."""
+    try:
+        return options.model_copy(update=updates)
+    except AttributeError:
+        import copy as _copy
+        cloned = _copy.copy(options)
+        for key, value in updates.items():
+            setattr(cloned, key, value)
+        return cloned
 
 
 # #329: LLM 캐시 / error_policy 컨텍스트 해석은 docling.utils.llm_cache.resolve_context
@@ -2151,6 +2194,11 @@ class DocumentProcessor:
         # 기본 컨버터들 생성
         self._create_converters()
 
+        # HWP/HWPX 품질 복구(선택적). 모듈 미로드 시 None → 복구 미적용(기존 동작).
+        self._hwp_recovery = (
+            HwpQualityRecovery(reload_fn=self._load_document) if HwpQualityRecovery else None
+        )
+
         self.image_description_enricher = ImageDescriptionEnricher(
             self.image_description_options
         )
@@ -2380,9 +2428,8 @@ class DocumentProcessor:
             chunk_size = self._chunk_size
         chunk_size = _clamp_chunk_size(chunk_size)
         # chunk_mode 우선순위: kwargs > yaml(chunking.chunk_mode) > "split_only"
-        chunk_mode = str(kwargs.get('chunk_mode') or self._chunk_mode).strip().lower()
-        if chunk_mode not in {"split_only", "resize_all"}:
-            chunk_mode = "split_only"
+        # chunk_mode(0/1 또는 'split_only'/'resize_all') > yaml > "split_only"
+        chunk_mode = _resolve_chunk_mode(kwargs, self._chunk_mode)
         chunker: GenosSmartChunker = GenosSmartChunker(
             max_tokens = chunk_size if chunk_size is not None else 0,
             merge_peers = True,
@@ -2411,9 +2458,8 @@ class DocumentProcessor:
         if chunk_size is None:
             chunk_size = self._chunk_size
         chunk_size = _clamp_chunk_size(chunk_size)
-        chunk_mode = str(kwargs.get('chunk_mode') or self._chunk_mode).strip().lower()
-        if chunk_mode not in {"split_only", "resize_all"}:
-            chunk_mode = "split_only"
+        # chunk_mode(0/1 또는 'split_only'/'resize_all') > yaml > "split_only"
+        chunk_mode = _resolve_chunk_mode(kwargs, self._chunk_mode)
         chunker: GenosSmartChunker = GenosSmartChunker(
             max_tokens=chunk_size if chunk_size is not None else 0,
             merge_peers=True,
@@ -2487,14 +2533,19 @@ class DocumentProcessor:
 
     def enrichment(self, document: DoclingDocument, is_ppt: bool = False, **kwargs: dict) -> DoclingDocument:
         options = self.enrichment_options
+        # 런타임 toc(0/1) — config 기본값(do_toc_enrichment)을 요청별로 켜고/끈다.
+        # 활성화(0→1)는 TOC endpoint 가 config 에 구성된 경우에만 유효(미구성 시 무시).
+        cur_toc = bool(getattr(options, "do_toc_enrichment", False))
+        want_toc = bool(_as_int_flag(kwargs.get("toc"), 1 if cur_toc else 0))
+        if want_toc != cur_toc:
+            if want_toc and not str(getattr(options, "toc_api_base_url", "") or ""):
+                _log.warning("[intelligent] toc=1 요청이지만 TOC endpoint 미구성 → 무시")
+            else:
+                options = _copy_enrichment_options(options, do_toc_enrichment=want_toc)
+                _log.info("[intelligent] runtime toc override → %s", want_toc)
         # PPT 는 페이지 기반 1chunk 라 목차 계층이 무의미 → TOC 만 비활성(다른 enrichment 는 유지).
         if is_ppt and getattr(options, "do_toc_enrichment", False):
-            try:
-                options = options.model_copy(update={"do_toc_enrichment": False})
-            except AttributeError:
-                import copy as _copy
-                options = _copy.copy(options)
-                options.do_toc_enrichment = False
+            options = _copy_enrichment_options(options, do_toc_enrichment=False)
             _log.info("[intelligent] PPT — TOC enrichment skip")
         try:
             # 새로운 enriched result 받기
@@ -2558,6 +2609,17 @@ class DocumentProcessor:
         )
         normalized["table_desc"] = _as_int_flag(normalized.get("table_desc"), table_default)
         normalized["table_refine"] = _as_int_flag(normalized.get("table_refine"), refine_default)
+
+        # TOC 런타임 토글(toc/toc_on alias) — 기본값은 config 의 do_toc_enrichment.
+        toc_default = _as_int_flag(
+            runtime.get("toc", runtime.get("toc_on")),
+            1 if getattr(self.enrichment_options, "do_toc_enrichment", False) else 0,
+        )
+        normalized["toc"] = _as_int_flag(
+            normalized.get("toc", normalized.get("toc_on")), toc_default
+        )
+        # merge_sections 별칭은 도입하지 않는다 — 기존 chunk_mode kwarg 가 동일 기능이며
+        # split_documents 의 _resolve_chunk_mode() 가 chunk_mode 0/1/문자열을 직접 해석한다.
         return normalized
 
     def _configure_runtime_image_mode(self, kwargs: dict):
@@ -3208,9 +3270,22 @@ class DocumentProcessor:
         )
 
     async def _process_pdf(self, request: Request, file_path: str,
-                           converted_pdf_path: Optional[str], is_ppt: bool = False, **kwargs: dict):
+                           converted_pdf_path: Optional[str], is_ppt: bool = False,
+                           source_file_path: Optional[str] = None, **kwargs: dict):
         """PDF(또는 PDF 로 변환된) 입력을 docling 으로 로딩 후 공유 파이프라인으로 처리."""
         document = self._load_document(file_path, **kwargs)
+
+        # HWP/HWPX 품질 복구(선택적): PDF 변환이 내용을 잃으면(text score 낮음) rhwp 재변환
+        # 재시도 → 개선되면 교체. HWPX 는 네이티브 XML 추출로 추가 폴백. hwp_recovery 모듈이
+        # 로드된 경우에만 적용하고, 없으면 로딩된 document 를 그대로 통과(기존 동작).
+        # source_file_path 는 변환 전 원본(.hwp/.hwpx). 정상 문서는 score≥임계값 이라 미진입.
+        if source_file_path is None:
+            source_file_path = file_path
+        if self._hwp_recovery is not None:
+            file_path, converted_pdf_path, document = self._hwp_recovery.recover(
+                document, source_file_path, file_path, converted_pdf_path, **kwargs
+            )
+
         return await self._document_to_vectors(
             document, file_path, request,
             converted_pdf_path=converted_pdf_path, ocr_table_cells=True, is_ppt=is_ppt, **kwargs
@@ -3424,6 +3499,8 @@ class DocumentProcessor:
             # - auto_convert_to_pdf=True (default): PDF SDK/LibreOffice 로 자동 변환 후 진입
             # - auto_convert_to_pdf=False: 변환 없이 그대로 진행 (변경 전 동작; PDF 가정)
             converted_pdf_path: Optional[str] = None
+            # HWP/HWPX 품질 복구가 참조할 변환 전 원본 경로(rhwp 재변환/네이티브 추출용).
+            source_file_path = file_path
             if ext not in _XLSX_DIRECT_EXTS and kwargs.get('auto_convert_to_pdf', True) and not _is_pdf(file_path):
                 file_path, converted_pdf_path = self._convert_to_pdf(file_path, **kwargs)
 
@@ -3433,7 +3510,8 @@ class DocumentProcessor:
             # 원본이 PPT 였는지(변환 전 ext)를 명시 전달 — 페이지 기반 청킹/page description 게이팅용.
             is_ppt = ext in ('.ppt', '.pptx')
             return await self._process_pdf(
-                request, file_path, converted_pdf_path, is_ppt=is_ppt, **kwargs
+                request, file_path, converted_pdf_path, is_ppt=is_ppt,
+                source_file_path=source_file_path, **kwargs
             )
         finally:
             _log_cache_summary()

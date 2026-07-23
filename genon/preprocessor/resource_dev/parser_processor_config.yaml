@@ -21,8 +21,8 @@ formats:
   ppt:
     page_description:
       enable: true
-      url: "https://genos.genon.ai/api/gateway/rep/serving/776/v1/chat/completions"
-      api_key: "30241fdbb58d42e48a36495da34a6de7"
+      url: "https://genos.genon.ai/api/gateway/rep/serving/752/v1/chat/completions"
+      api_key: "d1a9e0acab6243019008a96cd8af868e"
       model: "model"
       timeout: 360
       concurrency: 16          # 페이지 설명 요청 병렬 수
@@ -91,8 +91,8 @@ pdf_pipeline:
 enrichment:
   - toc:
       enable: true
-      url: "https://genos.genon.ai/api/gateway/rep/serving/776/v1/chat/completions"
-      api_key: "30241fdbb58d42e48a36495da34a6de7"
+      url: "https://genos.genon.ai/api/gateway/rep/serving/752/v1/chat/completions"
+      api_key: "d1a9e0acab6243019008a96cd8af868e"
       model: "model"
       temperature: 0.0
       top_p: 0.00001
@@ -120,8 +120,8 @@ enrichment:
 
   - metadata:
       enable: true
-      url: "https://genos.genon.ai/api/gateway/rep/serving/776/v1/chat/completions"
-      api_key: "30241fdbb58d42e48a36495da34a6de7"
+      url: "https://genos.genon.ai/api/gateway/rep/serving/752/v1/chat/completions"
+      api_key: "d1a9e0acab6243019008a96cd8af868e"
       model: "model"
       max_tokens: 10000
       temperature: 0.0
@@ -148,16 +148,16 @@ enrichment:
 
   - doc_summary:
       enable: false          # 기본 off. true 또는 런타임 doc_summary=1 로 활성화. image/table 이 공유
-      url: "https://genos.genon.ai/api/gateway/rep/serving/776/v1/chat/completions"
-      api_key: "30241fdbb58d42e48a36495da34a6de7"
+      url: "https://genos.genon.ai/api/gateway/rep/serving/752/v1/chat/completions"
+      api_key: "d1a9e0acab6243019008a96cd8af868e"
       model: "model"
       prompt_file: prompt_doc_summary.md   # {{full_text}} 기반 문서 본문요약
       max_chars: 6000
 
   - image_description:
       enable: true
-      url: "https://genos.genon.ai/api/gateway/rep/serving/776/v1/chat/completions"
-      api_key: "30241fdbb58d42e48a36495da34a6de7"
+      url: "https://genos.genon.ai/api/gateway/rep/serving/752/v1/chat/completions"
+      api_key: "d1a9e0acab6243019008a96cd8af868e"
       model: "model"
       # 이미지 설명 요청 병렬 수 (기본 16, 문서 내 이미지가 많을 때 처리속도에 영향)
       concurrency: 16
@@ -173,8 +173,8 @@ enrichment:
 
   - table_description:
       enable: false          # 기본 off(회귀 없음). true 또는 런타임 table_desc=1 로 활성화
-      url: "https://genos.genon.ai/api/gateway/rep/serving/776/v1/chat/completions"
-      api_key: "30241fdbb58d42e48a36495da34a6de7"
+      url: "https://genos.genon.ai/api/gateway/rep/serving/752/v1/chat/completions"
+      api_key: "d1a9e0acab6243019008a96cd8af868e"
       model: "model"
       concurrency: 8         # 표 설명 요청 병렬 수
       before_items: 3
@@ -190,8 +190,8 @@ enrichment:
   # 복수 항목 허용: 각각 독립 LLM 호출, 결과는 metadata 병합
   - custom_fields:
       enable: true
-      url: "https://genos.genon.ai/api/gateway/rep/serving/776/v1/chat/completions"
-      api_key: "30241fdbb58d42e48a36495da34a6de7"
+      url: "https://genos.genon.ai/api/gateway/rep/serving/752/v1/chat/completions"
+      api_key: "d1a9e0acab6243019008a96cd8af868e"
       model: "model"
       max_tokens: 1000
       temperature: 0.0
