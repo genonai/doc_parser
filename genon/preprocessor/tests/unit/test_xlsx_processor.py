@@ -142,6 +142,185 @@ def test_tabular_auto_title_skip(tmp_path):
 
 
 @pytest.mark.unit
+def test_tabular_unmerged_banner_title_skipped(tmp_path):
+    """[이슈 #331] 병합 안 된 성긴 제목행(배너)은 헤더가 아니라 제목(컨텍스트)으로 스킵된다.
+
+    SIF 아카이브형 구조: 1칸만 채운 제목행 → 빈 행 → 실제 컬럼명행 → 데이터.
+    이전 로직은 '병합 없는 첫 행'인 제목행을 헤더로 오인했다(연번… 이 데이터로 밀림).
+    """
+    xp = _xp()
+    path = _make_xlsx(
+        tmp_path / "banner.xlsx",
+        rows=[
+            ["□ 제조업 등(건설업 외 업종)", None, None, None],  # 비병합 단일셀 제목행
+            [None, None, None, None],                          # 빈 행
+            ["연번", "기인물", "고위험작업·상황", "위험성 감소대책"],  # 실제 헤더행(leaf)
+            ["1", "지게차", "적재/하역", "유도자 배치"],
+            ["2", "컨베이어", "점검/청소", "전원 차단(LOTO)"],
+        ],
+    )
+    tables = xp.load_tables(str(path))
+    assert len(tables) == 1
+    t = tables[0]
+    # 제목행은 title(컨텍스트)로, 실제 컬럼명행이 헤더로 잡힌다
+    assert t["title"] == "□ 제조업 등(건설업 외 업종)"
+    assert t["headers"] == ["연번", "기인물", "고위험작업·상황", "위험성 감소대책"]
+    assert t["data_rows"][0] == ["1", "지게차", "적재/하역", "유도자 배치"]
+    assert len(t["data_rows"]) == 2
+
+    # 벡터 레벨: column_map 에 실제 컬럼명이 전부 보존된다(제목행이 아님)
+    v0 = xp.build_tabular_vectors(str(path))[0].model_dump()
+    column_map = json.loads(v0["column_map"])
+    names = set(column_map.values())
+    assert {"연번", "기인물", "고위험작업·상황", "위험성 감소대책"} <= names
+    assert "□ 제조업 등(건설업 외 업종)" not in names  # 제목행은 키가 아님
+    # 안정 키에 실제 헤더 값이 매핑된다
+    key = xp._stable_key("기인물")
+    assert v0[key] == "지게차"
+
+
+@pytest.mark.unit
+def test_tabular_fully_filled_row_is_header(tmp_path):
+    """[이슈 #331] 빈 칸이 하나라도 있으면 헤더로 보지 않고, 모든 칸이 찬 행만 헤더로 잡는다(담당자 방침).
+
+    제목행(1칸)·부분행(3/4)은 모두 스킵되고, 처음으로 전부 채워진 행이 컬럼명행이 된다.
+    """
+    xp = _xp()
+    t = xp.load_tables(str(_make_xlsx(
+        tmp_path / "full.xlsx",
+        rows=[
+            ["□ 보고서", None, None, None],        # 1/4 → 스킵
+            ["연번", "설비", None, "대책"],          # 3/4 (빈 칸 있음) → 스킵
+            ["연번", "설비", "위험", "대책"],         # 4/4 → 헤더(leaf)
+            ["1", "프레스", "협착", "덮개"],
+        ],
+    )))[0]
+    assert t["headers"] == ["연번", "설비", "위험", "대책"]
+    assert t["data_rows"] == [["1", "프레스", "협착", "덮개"]]
+
+
+@pytest.mark.unit
+def test_tabular_narrow_multi_cell_banner_skipped(tmp_path):
+    """[이슈 #331] 좁은 표에서 일부 칸만 찬 제목행(배너)은 헤더로 오인하지 않는다.
+
+    '모든 칸이 찬 행만 헤더' 기준이라 4열 중 2칸만 찬 제목행은 스킵된다.
+    """
+    xp = _xp()
+    t = xp.load_tables(str(_make_xlsx(
+        tmp_path / "narrow_banner.xlsx",
+        rows=[
+            ["2026 보고서", "제조업", None, None],   # 2/4 채움(절반) → 배너
+            ["연번", "설비", "위험", "대책"],          # 실제 헤더
+            ["1", "프레스", "협착", "덮개"],
+        ],
+    )))[0]
+    assert t["title"] == "2026 보고서"
+    assert t["headers"] == ["연번", "설비", "위험", "대책"]
+    assert t["data_rows"] == [["1", "프레스", "협착", "덮개"]]
+
+
+@pytest.mark.unit
+def test_tabular_multiple_banner_rows_skipped(tmp_path):
+    """[이슈 #331] 성긴 제목행이 여러 줄이어도 모두 컨텍스트로 스킵되고 헤더는 올바르게 잡힌다."""
+    xp = _xp()
+    path = _make_xlsx(
+        tmp_path / "multi_banner.xlsx",
+        rows=[
+            ["2026년 안전관리 대장", None, None, None],   # 배너 1
+            ["□ 제조업", None, None, None],               # 배너 2
+            ["연번", "설비", "위험", "대책"],              # 실제 헤더
+            ["1", "프레스", "협착", "방호덮개"],
+        ],
+    )
+    t = xp.load_tables(str(path))[0]
+    assert t["title"] == "2026년 안전관리 대장 / □ 제조업"
+    assert t["headers"] == ["연번", "설비", "위험", "대책"]
+    assert t["data_rows"] == [["1", "프레스", "협착", "방호덮개"]]
+
+
+@pytest.mark.unit
+def test_tabular_banner_over_hierarchical_header(tmp_path):
+    """[이슈 #331] 배너 제목행 + 계층(가로병합) 헤더 조합에서도 계층 flatten 이 유지된다(건설업 시트형).
+
+    배너는 스킵, 가로병합 그룹행은 group 으로, 하위 leaf 는 컬럼명행으로 판정되어야 한다.
+    """
+    xp = _xp()
+    path = _make_xlsx(
+        tmp_path / "banner_hier.xlsx",
+        rows=[
+            ["□ 건설업", None, None],                 # 배너 제목행(스킵)
+            ["고위험작업", "고위험작업", "대책"],       # 상위: A2:B2 병합(C2=대책은 병합 밖) → group
+            ["공종", "작업명", "내용"],                # leaf(하위 컬럼명)
+            ["철근", "배근", "안전대 착용"],
+        ],
+        merges=["A2:B2"],
+    )
+    t = xp.load_tables(str(path))[0]
+    assert t["title"] == "□ 건설업"
+    # 계층 flatten: 상위_하위 (병합 그룹은 상위, leaf 는 하위)
+    assert t["headers"] == ["고위험작업_공종", "고위험작업_작업명", "대책_내용"]
+    assert t["data_rows"] == [["철근", "배근", "안전대 착용"]]
+
+
+@pytest.mark.unit
+def test_tabular_vertical_merge_header_dedup(tmp_path):
+    """[이슈 #331] 세로병합으로 상위행·leaf행이 같은 라벨인 컬럼은 '연번_연번' 대신 '연번' 으로 접힌다.
+
+    건설업 시트형: 대부분 컬럼은 2행에 걸쳐 세로병합(연번/재해종류…)이라 ffill 로 상·하위가 동일,
+    '고위험작업' 만 3개 하위로 가로병합. 중복 라벨은 접히고 계층 라벨만 상위_하위로 남아야 한다.
+    """
+    xp = _xp()
+    path = _make_xlsx(
+        tmp_path / "vmerge.xlsx",
+        rows=[
+            ["연번", "고위험작업", "고위험작업", "재해종류"],  # 상위행(B1:C1 가로병합, 나머지는 세로병합 상단)
+            ["연번", "공종", "작업명", "재해종류"],           # leaf(세로병합 ffill 로 연번/재해종류 동일)
+            ["1", "토공사", "굴착", "추락"],
+        ],
+        merges=["B1:C1", "A1:A2", "D1:D2"],
+    )
+    t = xp.load_tables(str(path))[0]
+    # 연번_연번/재해종류_재해종류 로 중복되지 않고, 가로병합 계층만 상위_하위로 남는다
+    assert t["headers"] == ["연번", "고위험작업_공종", "고위험작업_작업명", "재해종류"]
+    assert t["data_rows"] == [["1", "토공사", "굴착", "추락"]]
+
+
+@pytest.mark.unit
+def test_tabular_two_column_banner_preserves_legacy(tmp_path):
+    """[이슈 #331] 2열 이하 표는 배너 스킵 기준을 적용하지 않고 기존 동작(첫 비병합 행=헤더)을 유지한다."""
+    xp = _xp()
+    path = _make_xlsx(
+        tmp_path / "twocol.xlsx",
+        rows=[
+            ["부서", "인원"],   # 2열 → 첫 행이 그대로 헤더
+            ["안전팀", "5"],
+        ],
+    )
+    t = xp.load_tables(str(path))[0]
+    assert t["title"] == ""
+    assert t["headers"] == ["부서", "인원"]
+    assert t["data_rows"] == [["안전팀", "5"]]
+
+
+@pytest.mark.unit
+def test_tabular_header_row_override_beats_banner(tmp_path):
+    """[이슈 #331] header_row 를 명시하면 배너 자동판정보다 우선한다(override 유지)."""
+    xp = _xp()
+    path = _make_xlsx(
+        tmp_path / "override.xlsx",
+        rows=[
+            ["□ 제조업 등", None, None],   # 배너처럼 보이지만
+            ["연번", "설비", "대책"],       # header_row=1 로 강제
+            ["1", "프레스", "덮개"],
+        ],
+    )
+    # override(1) → 배너 자동스킵을 무시하고 index 1 을 leaf 로 강제
+    t = xp.load_tables(str(path), header_row=1)[0]
+    assert t["headers"] == ["연번", "설비", "대책"]
+    assert t["data_rows"] == [["1", "프레스", "덮개"]]
+
+
+@pytest.mark.unit
 def test_tabular_multi_header_flatten(tmp_path):
     """부분 병합 계층 헤더는 '상위_하위' 로 flatten 되어 메타 키가 된다."""
     xp = _xp()

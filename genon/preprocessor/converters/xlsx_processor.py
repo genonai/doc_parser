@@ -285,9 +285,10 @@ def _detect_header(
     """블록의 헤더 구조를 자동 판정한다(병합 기반).
 
     반환: (title_rows, group_rows, leaf_idx, data_start)
-      - title_rows: 단일 수평 병합만으로 구성된 제목행(키 제외, 컨텍스트).
+      - title_rows: 제목행(키 제외, 컨텍스트). 단일 수평 병합으로 전체를 덮는 행 +
+        병합 없이 성기게 채워진 배너행(예: '□ 제조업 등')을 포함한다.
       - group_rows: 수평 병합이 있는 계층 헤더행(상위 레벨).
-      - leaf_idx: 컬럼명행(수평 병합 없는 첫 행).
+      - leaf_idx: 컬럼명행(수평 병합 없이 '대부분' 채워진 첫 행).
     header_row_override>0 이면 자동판정 대신 그 인덱스를 leaf 로 강제(레거시 단일헤더).
     """
     n = len(brows)
@@ -322,7 +323,17 @@ def _detect_header(
             group_rows.append(i)
             i += 1
             continue
-        leaf_idx = i  # 병합 없는 첫 행 → 컬럼명행
+        # 병합 없는 행: '모든 칸이 채워진' 행만 컬럼명행(leaf)으로 본다(담당자 방침).
+        # 한 칸이라도 비면 헤더로 보지 않고 제목/배너행으로 스킵한다.
+        #   ne=값 있는 칸, used_cols=표가 쓰는 칸 → 둘이 같아야(전부 채움) 헤더.
+        # 병합으로 채워진 상위행(계층 헤더)은 위 hms 분기에서 이미 group/title 로 빠지므로
+        # 여기 도달하는 건 '병합 없는 행'뿐 → 계층헤더는 안 깨진다.
+        # (2열 이하 표는 이 기준이 불안정하므로 기존 동작 유지: 병합 없는 첫 행 = leaf.)
+        if len(used_cols) >= 3 and len(ne) < len(used_cols):
+            title_rows.append(i)  # 빈 칸 있음(제목/배너행) → 스킵하고 다음 행 탐색
+            i += 1
+            continue
+        leaf_idx = i  # 병합 없는 첫 '모든 칸이 찬' 행 → 컬럼명행
         break
 
     if leaf_idx is None:
@@ -380,15 +391,17 @@ def load_tables(
                 continue
 
             # 컬럼별 헤더명(계층 flatten). title 은 제외.
+            # 세로병합(forward-fill)으로 상위행·leaf행이 같은 라벨을 가지는 컬럼은
+            # '연번_연번' 처럼 중복되므로 연속 중복 라벨은 하나로 접는다.
             headers: list[str] = []
             for c in used_cols:
-                parts = []
+                parts: list[str] = []
                 for g in group_rows:
                     v = brows[g][c].strip() if c < len(brows[g]) else ""
-                    if v:
+                    if v and (not parts or parts[-1] != v):
                         parts.append(v)
                 lv = brows[leaf_idx][c].strip() if leaf_idx < len(brows) and c < len(brows[leaf_idx]) else ""
-                if lv:
+                if lv and (not parts or parts[-1] != lv):
                     parts.append(lv)
                 headers.append("_".join(parts))
 
