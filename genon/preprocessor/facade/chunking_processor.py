@@ -894,7 +894,9 @@ class GenosSmartChunker(BaseChunker):
 
         def get_current_chunk(doc_chunk: DocChunk, merged_texts: list[str], merged_header_short_infos: list[dict], merged_items: list[DocItem]):
             """현재까지 병합된 내용으로 DocChunk 생성"""
-            if not merged_texts:
+            # doc_items 가 비면 DocMeta(min_length=1) 검증에서 크래시하므로 스킵한다.
+            # (chunk_size 분할 시 헤더만 남고 items 가 빈 무의미 그룹이 생길 수 있음)
+            if not merged_texts or not merged_items:
                 return None
             chunk_text = "\n".join(merged_texts)
             used_headers = self._extract_used_headers(merged_header_short_infos)
@@ -970,7 +972,8 @@ class GenosSmartChunker(BaseChunker):
 
             cuts.append(n)
 
-            return [(a, b) for a, b in zip(cuts[:-1], cuts[1:])]
+            # 폭 0 범위(a==b)는 빈 items 그룹을 만들어 하위에서 무의미 청크가 되므로 제외.
+            return [(a, b) for a, b in zip(cuts[:-1], cuts[1:]) if a < b]
 
         def adjust_captions(items_group):
 
@@ -1629,13 +1632,11 @@ class DocumentProcessor:
         # parser 가 넘긴 sensitive_infos 를 청크에 적용만 하며, 치환 여부는 masking_enabled 로 결정.
         self._gr_cfg = gr.GuardrailConfig.from_cfg(cfg)
 
-        # parse-format(비-docling) 일반 텍스트 splitter 기본값 (attachment_processor 와 동일).
-        # docling 경로(GenosSmartChunker)와 무관. _chunk_text_elements 의 폴백으로 사용된다.
-        generic_cfg = _as_dict(chunking_cfg.get("generic"))
-        gcs = _parse_optional_int(generic_cfg.get("chunk_size"), "chunking.generic.chunk_size")
-        self._generic_chunk_size = gcs if gcs and gcs > 0 else 1000
-        gco = _parse_optional_int(generic_cfg.get("chunk_overlap"), "chunking.generic.chunk_overlap")
-        self._generic_chunk_overlap = gco if gco is not None and gco >= 0 else 100
+        # parse-format(비-docling) 문자 splitter overlap 기본값 (docling 무관, parse-format 전용).
+        # 크기는 공통 chunking.chunk_size(self._chunk_size)를 사용한다(_chunk_text_elements).
+        recursive_cfg = _as_dict(chunking_cfg.get("recursive"))
+        rco = _parse_optional_int(recursive_cfg.get("chunk_overlap"), "chunking.recursive.chunk_overlap")
+        self._recursive_chunk_overlap = rco if rco is not None and rco >= 0 else 100
 
         # OCR 엔드포인트는 ocr.paddle.ocr_endpoint 가 정식 위치.
         # 구버전 호환: ocr.ocr_endpoint(상위) / 최상위 ocr_endpoint 도 폴백으로 인식.
@@ -2582,22 +2583,23 @@ class DocumentProcessor:
         from langchain_text_splitters import RecursiveCharacterTextSplitter
         from langchain_core.documents import Document
 
-        # chunk_size/overlap: 호출 kwargs 우선, 없으면 config(generic) 기본값(attachment 동일).
-        # chunk_size 가 None/0/음수(docling 경로의 '분할 안 함' 관례)이면 char splitter 가
-        # 글자 단위로 폭발하므로 generic 기본값으로 대체한다.
-        generic_size_default = getattr(self, "_generic_chunk_size", 1000)
-        generic_overlap_default = getattr(self, "_generic_chunk_overlap", 100)
+        # chunk_size: 호출 kwargs > 공통 chunking.chunk_size(self._chunk_size). 0/None(docling '분할 안 함'
+        #   관례)이면 char splitter 가 글자 단위로 폭발하므로 큰 기본값(1000000, 사실상 미분할)으로 대체한다.
+        # chunk_overlap: 호출 kwargs(chunk_overlap/recursive_chunk_overlap) > config(recursive.chunk_overlap).
+        common_size = getattr(self, "_chunk_size", None)
+        overlap_default = getattr(self, "_recursive_chunk_overlap", 100)
         try:
             chunk_size = int(kwargs.get('chunk_size'))
         except (TypeError, ValueError):
             chunk_size = None
         if not chunk_size or chunk_size <= 0:
-            chunk_size = int(kwargs.get('generic_chunk_size', generic_size_default))
+            chunk_size = common_size if (common_size and common_size > 0) else 1000000
         chunk_overlap = kwargs.get('chunk_overlap')
         if chunk_overlap is None:
-            chunk_overlap = kwargs.get('generic_chunk_overlap', generic_overlap_default)
+            chunk_overlap = kwargs.get('recursive_chunk_overlap', overlap_default)
         chunk_size = max(int(chunk_size), 1)
-        chunk_overlap = max(int(chunk_overlap), 0)
+        # overlap >= size 면 RecursiveCharacterTextSplitter 가 ValueError 로 크래시하므로 size-1 이하로 클램프.
+        chunk_overlap = min(max(int(chunk_overlap), 0), chunk_size - 1)
 
         # #315 민감정보 분류: __call__ 에서 문서 전체 1회 분류한 결과를 청크별 quote 매칭에 사용.
         _sensitive_infos: list = kwargs.get("_sensitive_infos") or []
