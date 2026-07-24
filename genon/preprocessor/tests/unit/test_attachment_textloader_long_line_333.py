@@ -7,9 +7,12 @@
   하지 않아, A4 폭을 넘는 긴 줄이 렌더 단계에서 잘려(discard) PDF·청킹에서 누락됐다.
   수정: <pre> 에 white-space: pre-wrap; overflow-wrap: anywhere 적용 + content html.escape.
 
-검증 경로:
-  TextLoader.load() 는 weasyprint(HTML) 가 있어야 PDF 경로를 탄다. 없으면 원문을 그대로
-  Document 로 반환(잘림 없음)하므로 이 회귀를 재현하지 못한다 → weasyprint 없으면 skip.
+주의:
+  - 콘텐츠는 ASCII 로 구성한다. weasyprint→PDF→PyMuPDF round-trip 은 CJK 글리프에
+    대응 폰트가 필요한데 CI 러너엔 한글 폰트가 없어(.notdef) 추출 텍스트가 깨진다.
+    잘림/escape 버그는 언어 무관이므로 ASCII 로도 동일하게 재현·검증된다.
+  - TextLoader.load() 는 weasyprint(HTML) 가 있어야 PDF 경로를 탄다. 없으면 원문을
+    그대로 Document 로 반환(잘림 없음)해 회귀를 재현 못하므로 → weasyprint 없으면 skip.
 """
 from __future__ import annotations
 
@@ -59,14 +62,12 @@ requires_weasyprint = pytest.mark.skipif(
 @pytest.mark.unit
 @requires_weasyprint
 def test_long_single_line_txt_not_truncated(tmp_path: Path):
-    """줄바꿈 없는 긴 한 줄의 끝 텍스트가 청킹 결과에서 누락되지 않아야 한다(이슈 #333)."""
+    """공백은 있지만 개행 없는 긴 한 줄의 끝 토큰이 누락되지 않아야 한다(white-space: pre-wrap)."""
     _get_pdf_path, TextLoader = _import_processor()
 
-    # A4 폭을 확실히 넘기는 긴 한 줄 + 문장 끝 고유 토큰.
-    # 수정 전에는 끝 토큰이 페이지 밖으로 밀려 렌더/추출에서 누락됨.
-    head = "교정시설 수용관리 업무 안내 " + ("가나다라마바사아자차카타파하 " * 40)
-    tail_token = "문장끝고유표식TAIL333"
-    content = head + tail_token  # 개행 없는 단일 라인
+    # A4 폭을 확실히 넘기는 긴 한 줄(개행 없음) + 문장 끝 고유 토큰.
+    # 수정 전(white-space: pre)에는 끝 토큰이 페이지 밖으로 밀려 렌더/추출에서 누락됨.
+    content = "HEADSTART " + ("longword " * 200) + "ENDSENTINEL333"
 
     txt = tmp_path / "long_line.txt"
     txt.write_text(content, encoding="utf-8")
@@ -75,8 +76,26 @@ def test_long_single_line_txt_not_truncated(tmp_path: Path):
 
     # PDF 가 실제로 생성됐는지도 확인(경로가 폴백으로 새지 않았음을 보증)
     assert Path(_get_pdf_path(str(txt))).exists()
-    assert _norm(tail_token) in _norm(extracted), (
-        "긴 한 줄의 끝 토큰이 추출 텍스트에서 누락됨 — <pre> wrap 미적용 회귀"
+    assert "ENDSENTINEL333" in _norm(extracted), (
+        "긴 한 줄의 끝 토큰이 추출 텍스트에서 누락됨 — white-space: pre-wrap 미적용 회귀"
+    )
+
+
+@pytest.mark.unit
+@requires_weasyprint
+def test_no_space_long_token_not_truncated(tmp_path: Path):
+    """공백 없는 초장문(URL·연속 문자열 등)의 끝 토큰이 누락되지 않아야 한다(overflow-wrap: anywhere)."""
+    _get_pdf_path, TextLoader = _import_processor()
+
+    # 공백이 전혀 없는 한 덩어리 → pre-wrap 만으로는 안 쪼개짐, overflow-wrap: anywhere 필요.
+    content = "P" + ("A" * 2000) + "NOSPACETAIL333"
+
+    txt = tmp_path / "no_space.txt"
+    txt.write_text(content, encoding="utf-8")
+
+    extracted = _extract_text(TextLoader(str(txt)))
+    assert "NOSPACETAIL333" in _norm(extracted), (
+        "공백 없는 초장문의 끝 토큰이 누락됨 — overflow-wrap: anywhere 미적용 회귀"
     )
 
 
@@ -86,16 +105,16 @@ def test_html_special_chars_preserved(tmp_path: Path):
     """<, & 등 HTML 특수문자가 태그로 해석돼 뒤 텍스트가 유실되지 않아야 한다(html.escape)."""
     _get_pdf_path, TextLoader = _import_processor()
 
-    # escape 없으면 '<b>' 이후 '중요' 는 태그로 먹히고, 'a<b 그리고 ... ' 도 유실됨.
-    content = "머리말 <b>중요구절</b> 그리고 조건 a<b 이고 기호 & 앰퍼샌드 끝토큰ESCAPE333"
+    # escape 없으면 'a<b' 이 열린 태그로 해석돼 그 뒤 토큰이 통째로 유실됨.
+    content = "PREFIXTOKEN a<b MIDDLEWORD AMPERSANDWORD & END TAILESCAPE333"
 
     txt = tmp_path / "special_chars.txt"
     txt.write_text(content, encoding="utf-8")
 
     norm = _norm(_extract_text(TextLoader(str(txt))))
 
-    for token in ("중요구절", "앰퍼샌드", "끝토큰ESCAPE333"):
-        assert _norm(token) in norm, f"escape 누락으로 '{token}' 이 유실됨"
+    for token in ("AMPERSANDWORD", "TAILESCAPE333"):
+        assert token in norm, f"escape 누락으로 '{token}' 이 유실됨"
 
 
 @pytest.mark.unit
@@ -104,12 +123,10 @@ def test_long_single_line_json_not_truncated(tmp_path: Path):
     """json 도 TextLoader 경로를 타므로 동일하게 끝 텍스트가 보존돼야 한다."""
     _get_pdf_path, TextLoader = _import_processor()
 
-    long_val = ("동일한긴문자열반복 " * 50).strip()
-    tail_token = "제이슨끝표식JSON333"
-    content = '{"field": "' + long_val + " " + tail_token + '"}'  # 한 줄 json
+    content = '{"field": "' + ("wordval " * 200) + 'JSONTAIL333"}'  # 한 줄 json
 
     jf = tmp_path / "long_line.json"
     jf.write_text(content, encoding="utf-8")
 
     extracted = _extract_text(TextLoader(str(jf)))
-    assert _norm(tail_token) in _norm(extracted)
+    assert "JSONTAIL333" in _norm(extracted)
