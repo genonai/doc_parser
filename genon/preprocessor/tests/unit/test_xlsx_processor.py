@@ -180,61 +180,30 @@ def test_tabular_unmerged_banner_title_skipped(tmp_path):
 
 
 @pytest.mark.unit
-def test_tabular_header_with_gap_not_skipped(tmp_path):
-    """[이슈 #331] 헤더에 빈 칸이 있어도 과반이 채워졌으면 헤더로 인정한다(데이터행 승격 방지).
+def test_tabular_fully_filled_row_is_header(tmp_path):
+    """[이슈 #331] 빈 칸이 하나라도 있으면 헤더로 보지 않고, 모든 칸이 찬 행만 헤더로 잡는다(담당자 방침).
 
-    순수 '전부 채움'만 인정하면 이 헤더가 스킵되고 데이터행이 헤더로 올라가 한 행이 유실된다.
-    과반(절반 초과) 기준이므로 4열 중 3칸/5열 중 3칸처럼 빈 칸이 있어도 헤더가 된다.
-    """
-    xp = _xp()
-    # 4열 중 1칸 빔(3/4)
-    t1 = xp.load_tables(str(_make_xlsx(
-        tmp_path / "gap1.xlsx",
-        rows=[["id", "name", None, "value"], ["1", "a", "x", "10"], ["2", "b", "y", "20"]],
-    )))[0]
-    assert t1["title"] == ""                    # 스킵된 제목행 없음
-    assert t1["headers"] == ["id", "name", "", "value"]
-    assert t1["data_rows"] == [["1", "a", "x", "10"], ["2", "b", "y", "20"]]
-
-    # 5열 중 2칸 빔(3/5) — 채워진 칸(3)이 빈 칸(2)보다 많으므로 헤더
-    t2 = xp.load_tables(str(_make_xlsx(
-        tmp_path / "gap2.xlsx",
-        rows=[["a", "b", None, "d", None], ["1", "2", "3", "4", "5"]],
-    )))[0]
-    assert t2["title"] == ""
-    assert t2["headers"] == ["a", "b", "", "d", ""]
-    assert t2["data_rows"] == [["1", "2", "3", "4", "5"]]
-
-
-@pytest.mark.unit
-def test_tabular_wide_header_with_blank_delta_columns(tmp_path):
-    """[이슈 #331] 넓은 표에서 헤더 빈 칸이 여러 개여도(과반이면) 헤더로 인정한다.
-
-    실무 통계표 패턴: 연도 뒤 '증감' 열의 헤더를 비워두는 표(8열 중 3열이 빈 헤더).
-    절대 '빈 칸 N개 이하' 기준이면 이 헤더가 스킵되고 첫 데이터행(서울)이 헤더로
-    승격되어 유실된다. 과반(5/8) 기준이라 헤더로 유지되고 데이터 3행이 모두 보존된다.
+    제목행(1칸)·부분행(3/4)은 모두 스킵되고, 처음으로 전부 채워진 행이 컬럼명행이 된다.
     """
     xp = _xp()
     t = xp.load_tables(str(_make_xlsx(
-        tmp_path / "delta.xlsx",
+        tmp_path / "full.xlsx",
         rows=[
-            ["구분", "2022", None, "2023", None, "2024", None, "합계"],   # 증감 열(2·4·6) 빈 헤더
-            ["서울", "100", "-", "120", "+20", "150", "+30", "370"],
-            ["부산", "80", "-", "70", "-10", "90", "+20", "240"],
-            ["대구", "50", "-", "55", "+5", "60", "+5", "165"],
+            ["□ 보고서", None, None, None],        # 1/4 → 스킵
+            ["연번", "설비", None, "대책"],          # 3/4 (빈 칸 있음) → 스킵
+            ["연번", "설비", "위험", "대책"],         # 4/4 → 헤더(leaf)
+            ["1", "프레스", "협착", "덮개"],
         ],
     )))[0]
-    assert t["title"] == ""                                  # 헤더가 데이터로 밀리지 않음
-    assert t["headers"] == ["구분", "2022", "", "2023", "", "2024", "", "합계"]
-    assert len(t["data_rows"]) == 3                          # 서울 행이 유실되지 않음
-    assert t["data_rows"][0] == ["서울", "100", "-", "120", "+20", "150", "+30", "370"]
+    assert t["headers"] == ["연번", "설비", "위험", "대책"]
+    assert t["data_rows"] == [["1", "프레스", "협착", "덮개"]]
 
 
 @pytest.mark.unit
 def test_tabular_narrow_multi_cell_banner_skipped(tmp_path):
-    """[이슈 #331] 좁은 표에서 2칸만 찬 제목행(배너)도 헤더로 오인하지 않는다.
+    """[이슈 #331] 좁은 표에서 일부 칸만 찬 제목행(배너)은 헤더로 오인하지 않는다.
 
-    과반(절반 초과) 기준이 배너를 배제한다(4열 중 2칸=딱 절반은 과반 미달 → 헤더 아님).
+    '모든 칸이 찬 행만 헤더' 기준이라 4열 중 2칸만 찬 제목행은 스킵된다.
     """
     xp = _xp()
     t = xp.load_tables(str(_make_xlsx(
