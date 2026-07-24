@@ -323,19 +323,22 @@ def _detect_header(
             group_rows.append(i)
             i += 1
             continue
-        # 병합 없는 행: '대부분 채워진' 행을 컬럼명행(leaf)으로 본다.
-        # 담당자 의도는 "모든 칸이 찬 첫 행 = 헤더"였으나, 순수 '전부 채움' 규칙은
-        #   (a) 병합 forward-fill 로 그룹행도 전부 채워져 계층헤더가 깨지고
-        #   (b) 헤더에 빈 칸이 하나쯤 있는 표를 오탐한다.
-        # 그래서 병합 기반 title/group 판정은 그대로 두고, 여기서는 '성긴 배너행'
-        # (예: '□ 제조업 등' — 한 칸만 채운 제목행)만 제목행으로 스킵한다.
-        # 판정: 3열 이상이면서 채워진 칸이 전체 컬럼의 절반 미만이면 배너로 본다.
+        # 병합 없는 행: '거의 다 채워진' 행을 컬럼명행(leaf)으로 본다.
+        # 담당자 의도는 "모든 칸이 찬 첫 행 = 헤더"였다. 병합으로 채워진 행(계층 상위)은
+        # 위 hms 분기에서 이미 group/title 로 빠지므로 여기 도달하는 건 '병합 없는 행'뿐이다.
+        # 순수 '전부 채움'만 인정하면 헤더에 빈 칸이 하나라도 있을 때 그 아래 데이터행이
+        # 헤더로 승격되어 한 행이 유실되므로, 빈 칸 두 개까지는 헤더로 봐준다.
+        # 반대로 '□ 제조업 등' 같은 제목/배너행(대부분 빈 행)은 헤더로 잡지 않는다.
+        #   ne=값 있는 칸, used_cols=표가 쓰는 칸, n_gap=빈 칸 수
+        #   헤더 조건: 빈 칸 2개 이하 AND 채워진 칸이 빈 칸보다 많음(배너 배제)
         # (2열 이하 표는 이 기준이 불안정하므로 기존 동작 유지: 병합 없는 첫 행 = leaf.)
-        if len(used_cols) >= 3 and len(ne) * 2 < len(used_cols):
-            title_rows.append(i)
-            i += 1
-            continue
-        leaf_idx = i  # 병합 없는 첫 '충분히 채워진' 행 → 컬럼명행
+        if len(used_cols) >= 3:
+            n_gap = len(used_cols) - len(ne)
+            if not (n_gap <= 2 and len(ne) > n_gap):
+                title_rows.append(i)
+                i += 1
+                continue
+        leaf_idx = i  # 병합 없는 첫 '거의 다 채워진' 행 → 컬럼명행
         break
 
     if leaf_idx is None:

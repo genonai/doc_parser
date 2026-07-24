@@ -180,28 +180,50 @@ def test_tabular_unmerged_banner_title_skipped(tmp_path):
 
 
 @pytest.mark.unit
-def test_tabular_header_with_single_gap_not_skipped(tmp_path):
-    """[이슈 #331] 헤더에 빈 칸이 하나 있어도(밀도 높음) 배너로 오인하지 않는다.
+def test_tabular_header_with_gap_not_skipped(tmp_path):
+    """[이슈 #331] 헤더에 빈 칸이 한두 개 있어도 헤더로 인정한다(데이터행 승격 방지).
 
-    성긴 배너(절반 미만)만 스킵하므로, 4열 중 3칸 찬 헤더행은 그대로 컬럼명행이 된다.
+    순수 '전부 채움'만 인정하면 이 헤더가 스킵되고 데이터행이 헤더로 올라가 한 행이 유실된다.
+    빈 칸 2개까지는 봐주므로(채워진 칸이 빈 칸보다 많으면) 4열 중 2칸 비어도 헤더가 된다.
     """
     xp = _xp()
-    path = _make_xlsx(
-        tmp_path / "gap.xlsx",
+    # 4열 중 1칸 빔(3/4)
+    t1 = xp.load_tables(str(_make_xlsx(
+        tmp_path / "gap1.xlsx",
+        rows=[["id", "name", None, "value"], ["1", "a", "x", "10"], ["2", "b", "y", "20"]],
+    )))[0]
+    assert t1["title"] == ""                    # 스킵된 제목행 없음
+    assert t1["headers"] == ["id", "name", "", "value"]
+    assert t1["data_rows"] == [["1", "a", "x", "10"], ["2", "b", "y", "20"]]
+
+    # 5열 중 2칸 빔(3/5) — 채워진 칸(3)이 빈 칸(2)보다 많으므로 헤더
+    t2 = xp.load_tables(str(_make_xlsx(
+        tmp_path / "gap2.xlsx",
+        rows=[["a", "b", None, "d", None], ["1", "2", "3", "4", "5"]],
+    )))[0]
+    assert t2["title"] == ""
+    assert t2["headers"] == ["a", "b", "", "d", ""]
+    assert t2["data_rows"] == [["1", "2", "3", "4", "5"]]
+
+
+@pytest.mark.unit
+def test_tabular_narrow_multi_cell_banner_skipped(tmp_path):
+    """[이슈 #331] 좁은 표에서 2칸만 찬 제목행(배너)도 헤더로 오인하지 않는다.
+
+    '채워진 칸 > 빈 칸' 조건이 배너를 배제한다(4열 중 2칸=절반은 헤더 아님).
+    """
+    xp = _xp()
+    t = xp.load_tables(str(_make_xlsx(
+        tmp_path / "narrow_banner.xlsx",
         rows=[
-            ["id", "name", None, "value"],   # 3/4 채움 → 헤더행(배너 아님)
-            ["1", "a", "x", "10"],
-            ["2", "b", "y", "20"],
+            ["2026 보고서", "제조업", None, None],   # 2/4 채움(절반) → 배너
+            ["연번", "설비", "위험", "대책"],          # 실제 헤더
+            ["1", "프레스", "협착", "덮개"],
         ],
-    )
-    tables = xp.load_tables(str(path))
-    assert len(tables) == 1
-    t = tables[0]
-    assert t["title"] == ""                         # 스킵된 제목행 없음
-    assert t["headers"][0] == "id" and t["headers"][1] == "name"
-    assert t["headers"][3] == "value"
-    assert t["data_rows"][0] == ["1", "a", "x", "10"]
-    assert len(t["data_rows"]) == 2
+    )))[0]
+    assert t["title"] == "2026 보고서"
+    assert t["headers"] == ["연번", "설비", "위험", "대책"]
+    assert t["data_rows"] == [["1", "프레스", "협착", "덮개"]]
 
 
 @pytest.mark.unit
