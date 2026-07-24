@@ -207,6 +207,30 @@ def test_tabular_header_with_gap_not_skipped(tmp_path):
 
 
 @pytest.mark.unit
+def test_tabular_wide_header_with_blank_delta_columns(tmp_path):
+    """[이슈 #331] 넓은 표에서 헤더 빈 칸이 여러 개여도(과반이면) 헤더로 인정한다.
+
+    실무 통계표 패턴: 연도 뒤 '증감' 열의 헤더를 비워두는 표(8열 중 3열이 빈 헤더).
+    절대 '빈 칸 N개 이하' 기준이면 이 헤더가 스킵되고 첫 데이터행(서울)이 헤더로
+    승격되어 유실된다. 과반(5/8) 기준이라 헤더로 유지되고 데이터 3행이 모두 보존된다.
+    """
+    xp = _xp()
+    t = xp.load_tables(str(_make_xlsx(
+        tmp_path / "delta.xlsx",
+        rows=[
+            ["구분", "2022", None, "2023", None, "2024", None, "합계"],   # 증감 열(2·4·6) 빈 헤더
+            ["서울", "100", "-", "120", "+20", "150", "+30", "370"],
+            ["부산", "80", "-", "70", "-10", "90", "+20", "240"],
+            ["대구", "50", "-", "55", "+5", "60", "+5", "165"],
+        ],
+    )))[0]
+    assert t["title"] == ""                                  # 헤더가 데이터로 밀리지 않음
+    assert t["headers"] == ["구분", "2022", "", "2023", "", "2024", "", "합계"]
+    assert len(t["data_rows"]) == 3                          # 서울 행이 유실되지 않음
+    assert t["data_rows"][0] == ["서울", "100", "-", "120", "+20", "150", "+30", "370"]
+
+
+@pytest.mark.unit
 def test_tabular_narrow_multi_cell_banner_skipped(tmp_path):
     """[이슈 #331] 좁은 표에서 2칸만 찬 제목행(배너)도 헤더로 오인하지 않는다.
 
