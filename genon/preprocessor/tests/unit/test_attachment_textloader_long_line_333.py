@@ -33,10 +33,13 @@ def _import_processor():
 
 
 def _has_weasyprint() -> bool:
+    # ImportError = 패키지 미설치, OSError = 네이티브 라이브러리(pango/gobject 등) 로드 실패.
+    # 프로덕션(attachment_processor)도 두 경우 모두 HTML=None 폴백을 타므로 skip 이 맞다.
+    # 그 외 예기치 않은 예외는 표면화되도록 좁게 잡는다(Ruff BLE001).
     try:
         import weasyprint  # noqa: F401
         return True
-    except Exception:
+    except (ImportError, OSError):
         return False
 
 
