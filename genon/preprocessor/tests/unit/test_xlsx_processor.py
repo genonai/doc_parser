@@ -181,10 +181,10 @@ def test_tabular_unmerged_banner_title_skipped(tmp_path):
 
 @pytest.mark.unit
 def test_tabular_header_with_gap_not_skipped(tmp_path):
-    """[이슈 #331] 헤더에 빈 칸이 한두 개 있어도 헤더로 인정한다(데이터행 승격 방지).
+    """[이슈 #331] 헤더에 빈 칸이 있어도 과반이 채워졌으면 헤더로 인정한다(데이터행 승격 방지).
 
     순수 '전부 채움'만 인정하면 이 헤더가 스킵되고 데이터행이 헤더로 올라가 한 행이 유실된다.
-    빈 칸 2개까지는 봐주므로(채워진 칸이 빈 칸보다 많으면) 4열 중 2칸 비어도 헤더가 된다.
+    과반(절반 초과) 기준이므로 4열 중 3칸/5열 중 3칸처럼 빈 칸이 있어도 헤더가 된다.
     """
     xp = _xp()
     # 4열 중 1칸 빔(3/4)
@@ -210,7 +210,7 @@ def test_tabular_header_with_gap_not_skipped(tmp_path):
 def test_tabular_narrow_multi_cell_banner_skipped(tmp_path):
     """[이슈 #331] 좁은 표에서 2칸만 찬 제목행(배너)도 헤더로 오인하지 않는다.
 
-    '채워진 칸 > 빈 칸' 조건이 배너를 배제한다(4열 중 2칸=절반은 헤더 아님).
+    과반(절반 초과) 기준이 배너를 배제한다(4열 중 2칸=딱 절반은 과반 미달 → 헤더 아님).
     """
     xp = _xp()
     t = xp.load_tables(str(_make_xlsx(
