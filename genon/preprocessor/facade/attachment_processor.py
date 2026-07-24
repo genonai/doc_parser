@@ -5,6 +5,7 @@ from collections import defaultdict
 
 import asyncio
 import fitz
+import html
 import json
 import math
 import os
@@ -617,10 +618,19 @@ class TextLoader:
                 content = raw.decode('utf-8', errors='replace')
 
             # 4) PDF 변환 유지
-            html = f"<html><meta charset='utf-8'><body><pre>{content}</pre></body></html>"
+            # <pre> 기본값(white-space: pre)은 자동 줄바꿈을 하지 않아, A4 폭을 넘는 긴 줄이
+            # weasyprint 렌더 단계에서 잘려(discard) PDF·청킹에서 누락됨(이슈 #333).
+            #  - white-space: pre-wrap  → 원문 줄바꿈/공백 유지 + 폭 초과 시 자동 줄바꿈
+            #  - overflow-wrap: anywhere → 공백 없는 초장문(URL 등)도 강제 개행
+            #  - html.escape           → <, & 등이 태그로 해석돼 뒤 텍스트가 유실되는 것 방지
+            html_doc = (
+                "<html><meta charset='utf-8'><body>"
+                "<pre style='white-space: pre-wrap; overflow-wrap: anywhere;'>"
+                f"{html.escape(content)}</pre></body></html>"
+            )
             html_path = os.path.join(self.output_dir, 'temp.html')
             with open(html_path, 'w', encoding='utf-8') as f:
-                f.write(html)
+                f.write(html_doc)
             # pdf_path = (self.file_path
             #             .replace('.txt', '.pdf')
             #             .replace('.json', '.pdf'))
