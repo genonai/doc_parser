@@ -2583,23 +2583,34 @@ class DocumentProcessor:
         from langchain_text_splitters import RecursiveCharacterTextSplitter
         from langchain_core.documents import Document
 
-        # chunk_size: 호출 kwargs > 공통 chunking.chunk_size(self._chunk_size). 0/None(docling '분할 안 함'
-        #   관례)이면 char splitter 가 글자 단위로 폭발하므로 큰 기본값(1000000, 사실상 미분할)으로 대체한다.
+        # chunk_size: 명시 kwargs(0 포함) 우선. 0/음수는 docling '분할 안 함' 관례에 맞춰 char splitter
+        #   에서 사실상 미분할(1000000)로 해석. 키가 없거나 파싱 불가면 공통 chunking.chunk_size 사용.
         # chunk_overlap: 호출 kwargs(chunk_overlap/recursive_chunk_overlap) > config(recursive.chunk_overlap).
+        #   명시적 null 도 default 로 폴백해 int(None) 크래시를 막는다.
+        _NO_SPLIT = 1000000
         common_size = getattr(self, "_chunk_size", None)
         overlap_default = getattr(self, "_recursive_chunk_overlap", 100)
-        try:
-            chunk_size = int(kwargs.get('chunk_size'))
-        except (TypeError, ValueError):
-            chunk_size = None
-        if not chunk_size or chunk_size <= 0:
-            chunk_size = common_size if (common_size and common_size > 0) else 1000000
-        chunk_overlap = kwargs.get('chunk_overlap')
-        if chunk_overlap is None:
-            chunk_overlap = kwargs.get('recursive_chunk_overlap', overlap_default)
+
+        raw_size = kwargs.get('chunk_size')
+        if raw_size is None:                       # 키 없음/명시 null → 공통 config
+            chunk_size = common_size
+        else:
+            try:
+                chunk_size = int(raw_size)         # 명시값(0 포함) 보존
+            except (TypeError, ValueError):
+                chunk_size = common_size           # 파싱 불가 → 공통 config (기존 동작 유지)
+        if not chunk_size or chunk_size <= 0:      # 명시적 0/음수 또는 공통값 부재 → 미분할
+            chunk_size = _NO_SPLIT
+
+        overlap = kwargs.get('chunk_overlap')
+        if overlap is None:
+            overlap = kwargs.get('recursive_chunk_overlap')
+        if overlap is None:                        # 부재 또는 명시 null 모두 default 로
+            overlap = overlap_default
+
         chunk_size = max(int(chunk_size), 1)
         # overlap >= size 면 RecursiveCharacterTextSplitter 가 ValueError 로 크래시하므로 size-1 이하로 클램프.
-        chunk_overlap = min(max(int(chunk_overlap), 0), chunk_size - 1)
+        chunk_overlap = min(max(int(overlap), 0), chunk_size - 1)
 
         # #315 민감정보 분류: __call__ 에서 문서 전체 1회 분류한 결과를 청크별 quote 매칭에 사용.
         _sensitive_infos: list = kwargs.get("_sensitive_infos") or []
