@@ -1288,6 +1288,8 @@ def _char_split_text(text: str, chunk_size=None, chunk_overlap=None) -> list[str
     co = max(int(chunk_overlap), 0) if chunk_overlap is not None else 100
 
     if cs > 0:
+        # overlap >= size 면 RecursiveCharacterTextSplitter 가 ValueError 로 크래시하므로 size-1 이하로 클램프.
+        co = min(co, cs - 1)
         raw_chunks = RecursiveCharacterTextSplitter(
             chunk_size=cs, chunk_overlap=co,
         ).split_text(text)

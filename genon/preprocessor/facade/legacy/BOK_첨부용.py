@@ -1090,6 +1090,8 @@ def _split_with_recursive_chunker(
         if token_chunk_size_cap is not None
         else _RECURSIVE_CHUNK_SIZE_CAP
     )
+    # overlap >= size 면 RecursiveCharacterTextSplitter 가 ValueError 로 크래시하므로 size-1 이하로 클램프.
+    co = min(co, cs - 1)
     splitter = RecursiveCharacterTextSplitter(
         chunk_size=cs,
         chunk_overlap=co,
@@ -1679,7 +1681,8 @@ class DocumentProcessor:
             chunk_overlap = kwargs.get('generic_chunk_overlap', 100)
 
         chunk_size = max(int(chunk_size), 1)
-        chunk_overlap = max(int(chunk_overlap), 0)
+        # overlap >= size 면 RecursiveCharacterTextSplitter 가 ValueError 로 크래시하므로 size-1 이하로 클램프.
+        chunk_overlap = min(max(int(chunk_overlap), 0), chunk_size - 1)
         text_splitter = RecursiveCharacterTextSplitter(chunk_size=chunk_size,
                                                        chunk_overlap=chunk_overlap,)
         chunks = text_splitter.split_documents(documents)

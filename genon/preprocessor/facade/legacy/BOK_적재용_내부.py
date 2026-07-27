@@ -635,7 +635,9 @@ class GenosSmartChunker(BaseChunker):
 
         def get_current_chunk(doc_chunk: DocChunk, merged_texts: list[str], merged_header_short_infos: list[dict], merged_items: list[DocItem]):
             """현재까지 병합된 내용으로 DocChunk 생성"""
-            if not merged_texts:
+            # doc_items 가 비면 DocMeta(min_length=1) 검증에서 크래시하므로 스킵한다.
+            # (chunk_size 분할 시 헤더만 남고 items 가 빈 무의미 그룹이 생길 수 있음)
+            if not merged_texts or not merged_items:
                 return None
             chunk_text = "\n".join(merged_texts)
             used_headers = self._extract_used_headers(merged_header_short_infos)
@@ -711,7 +713,8 @@ class GenosSmartChunker(BaseChunker):
 
             cuts.append(n)
 
-            return [(a, b) for a, b in zip(cuts[:-1], cuts[1:])]
+            # 폭 0 범위(a==b)는 빈 items 그룹을 만들어 하위에서 무의미 청크가 되므로 제외.
+            return [(a, b) for a, b in zip(cuts[:-1], cuts[1:]) if a < b]
 
         def adjust_captions(items_group):
 
