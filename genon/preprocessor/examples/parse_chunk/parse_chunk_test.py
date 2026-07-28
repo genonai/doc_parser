@@ -7,10 +7,13 @@ facade 의 DocumentProcessor 를 직접 import 해 호출하므로 uvicorn/게�
     # 풀 E2E (PDF/문서 → 파싱(docling) → 청킹).  파싱은 layout/OCR 모델서빙 필요.
     python parse_chunk_test.py <input.pdf|dir> <output_dir> [--chunk-size N]
 
-    # docling JSON 입력 → 청킹만 (모델서버 불필요)
+    # .json 입력 → 두 가지로 자동 판별
     python parse_chunk_test.py <doc.json> <output_dir> [--chunk-size N]
-      - doc.json 은 parser(output.format=docling) 의 data.document, 또는 그 응답 전체({"document": ...}),
-        또는 DoclingDocument.model_dump(mode="json") 결과 어느 쪽이든 허용.
+      1) 파서 출력물 JSON → 청킹만 (모델서버 불필요)
+         - parser(output.format=docling) 의 data.document, 또는 그 응답 전체({"document": ...}),
+           DoclingDocument.model_dump(mode="json"), 또는 parse-format({"elements":[...]}) 어느 쪽이든 허용.
+      2) 원본 소스 문서 JSON(위 형태가 아닌 임의 데이터 JSON) → 파서로 파싱(raw text)→청킹
+         - 프로덕션 파서와 동일하게 TextLoader 로 파싱. 모델서버 불필요.
 
     # 비-docling 포맷(csv/xlsx/txt/md/ppt/pptx/이미지/오디오 등) → 파싱(parse-format)→공통 청킹
     python parse_chunk_test.py <input.csv|dir> <output_dir> [--chunk-size N]
@@ -36,7 +39,11 @@ for path in (PREPROCESSOR_SRC, PROJECT_ROOT):
 
 # in-process 테스트라 코드서빙 단일 마운트 제약과 무관 → 두 facade 동시 import 가능.
 from genon.preprocessor.facade.parser_processor import DocumentProcessor as ParserProcessor
-from genon.preprocessor.facade.chunking_processor import DocumentProcessor as ChunkerProcessor
+from genon.preprocessor.facade.chunking_processor import (
+    DocumentProcessor as ChunkerProcessor,
+    _classify_payload,
+    GenosServiceException,
+)
 
 mock_request = Request(scope={"type": "http"})
 
@@ -127,6 +134,20 @@ def collect_files(input_path: Path) -> list[Path]:
     raise SystemExit(1)
 
 
+async def parse_and_save(file_path: Path, out_base: Path, cache_kwargs: dict) -> dict:
+    """파일을 파서로 파싱하고 산출물(docling/parse-format)을 저장 후 payload 반환."""
+    # #329 스코프를 parse kwargs 에 병합(캐시는 parse 단계 LLM 호출에서 동작).
+    kwargs = {"org_filename": file_path.name, "log_level": 5, **cache_kwargs}
+    payload = await parse_document(file_path, kwargs)
+    if isinstance(payload, dict) and isinstance(payload.get("document"), dict):
+        save_json(out_base.with_suffix(".docling.json"), payload["document"])
+    else:
+        n_elems = len(payload.get("elements", []) or []) if isinstance(payload, dict) else 0
+        save_json(out_base.with_suffix(".parse.json"), payload)
+        print(f"  [parse] parse-format ({n_elems} elements) → 공통 청킹")
+    return payload
+
+
 async def process_one(file_path: Path, out_base: Path, chunk_size: int, chunk_mode: str,
                       cache_kwargs: dict | None = None) -> None:
     """파일 1개: (파싱→)청킹 수행 후 결과 저장."""
@@ -134,21 +155,20 @@ async def process_one(file_path: Path, out_base: Path, chunk_size: int, chunk_mo
     is_json = file_path.suffix.lower() == ".json"
 
     if is_json:
-        # .json 입력은 docling JSON(청킹만) 으로 해석.
-        payload = load_docling_json(file_path)
-        print("  [parse] skip (docling JSON 입력)")
+        # .json 은 두 의미 중 하나: (1) 파서 출력물(docling/parse-format) → 청킹만,
+        # (2) 원본 소스 문서(예: 임의 데이터 JSON) → 파서로 파싱 후 청킹.
+        # 청커가 실제 받아들이는 형태와 일치시키려 _classify_payload 로 (1) 여부 판별.
+        raw = load_docling_json(file_path)
+        try:
+            _classify_payload(raw)  # 통과 → 파서 출력물(청킹만)
+            payload = raw
+            print("  [parse] skip (파서 출력 JSON 입력 → 청킹만)")
+        except GenosServiceException:
+            # 원본 소스 문서 JSON → 파서 실행(raw text 파싱, 모델서버 불필요).
+            print("  [parse] JSON 원본 소스 문서 → 파서 실행")
+            payload = await parse_and_save(file_path, out_base, cache_kwargs)
     else:
-        # #329 스코프를 parse kwargs 에 병합(캐시는 parse 단계 LLM 호출에서 동작).
-        kwargs = {"org_filename": file_path.name, "log_level": 5, **cache_kwargs}
-        payload = await parse_document(file_path, kwargs)
-        if isinstance(payload, dict) and isinstance(payload.get("document"), dict):
-            kind = "docling"
-            save_json(out_base.with_suffix(".docling.json"), payload["document"])
-        else:
-            kind = "parse"
-            n_elems = len(payload.get("elements", []) or []) if isinstance(payload, dict) else 0
-            save_json(out_base.with_suffix(".parse.json"), payload)
-            print(f"  [parse] parse-format ({n_elems} elements) → 공통 청킹")
+        payload = await parse_and_save(file_path, out_base, cache_kwargs)
 
     vectors = await chunk_payload(file_path, payload, chunk_size, chunk_mode, cache_kwargs)
     save_json(out_base.with_suffix(".chunks.json"), vectors)
@@ -159,8 +179,9 @@ def parse_args():
     ap = argparse.ArgumentParser(description="in-process 파싱→청킹 테스트(docling + parse-format 공통)")
     ap.add_argument(
         "input_path",
-        help="입력 파일/디렉터리 (docling: PDF/DOCX/HWP/HWPX/HTML 또는 docling .json | "
-             "parse-format: CSV/XLSX/TXT/MD/PPT/PPTX/이미지/오디오)",
+        help="입력 파일/디렉터리 (docling: PDF/DOCX/HWP/HWPX/HTML | "
+             "parse-format: CSV/XLSX/TXT/MD/PPT/PPTX/이미지/오디오 | "
+             ".json: 파서 출력물이면 청킹만, 원본 소스 문서면 파싱→청킹 자동 판별)",
     )
     ap.add_argument("output_dir", help="결과 저장 디렉터리")
     ap.add_argument("--chunk-size", type=int, default=10000, help="청크 최대 크기 (0=토큰/문자 분할 안 함, 0 초과 시 최소 1024)")
