@@ -179,7 +179,7 @@ GenOS **코드서빙** 기능으로 띄우는 경로이며, 동작 방식이 전
 
 **동작 개요**
 
-- 시스템이 이 **base 이미지**를 띄운 뒤, 런타임에 git 소스를 `/app/src/service` 로 clone 하고
+- 코드서빙 시스템이 이 **base 이미지**를 띄운 뒤, 런타임에 git 소스를 `/app/src/service` 로 clone 하고
   `main.py`(facade) 를 실행한다.
 - facade 의 무거운 deps 와 다운로드 아티팩트(모델/HWP SDK/rhwp/H2Orestart/폰트/NLTK/EasyOCR)는
   콜드스타트 단축 + 에어갭(오프라인) 동작을 위해 **base 이미지에 빌드 시점에 pre-bake** 한다
@@ -189,6 +189,15 @@ GenOS **코드서빙** 기능으로 띄우는 경로이며, 동작 방식이 전
 
 > 빌드 방식·pre-bake 아티팩트 목록·의존성 동기화 주의사항 등 상세는
 > [`build-script/code-serving-doc-parser/README.md`](../build-script/code-serving-doc-parser/README.md) 참고.
+
+> **미리 코드서빙용 도커이미지를 보유하고 있다면 아래의 A, B 단계는 수행하지 않아도 된다.**
+> - 사내 도커레지스트리에 이미지가 존재하며 아래의 명령어로 확인가능하다.
+> - `curl http://192.168.74.164:30500/v2/mnc/template-code-serving-doc-parser/tags/list`
+> - 코드서빙용 이미지는 `mnc/template-code-serving-doc-parser` 이름으로 배포된다.
+
+> **사내 운영망 코드서빙 전처리기 경로 (참고용)**
+> - 코드서빙: https://genos.genon.ai/serving/code/detail/139/
+> - 코드스페이스: https://genos.genon.ai/dev/codespace/detail/150/
 
 ### A. 토큰 설정 (1회, Git 미추적)
 
@@ -203,8 +212,8 @@ echo "HWP_SDK_TOKEN=hf_xxx" >> build-script/hf_private_token.env
 
 1. [`build-script/code-serving-doc-parser/build.config`](../build-script/code-serving-doc-parser/build.config) 설정:
    ```bash
-   HW_VARIANT=cpu      # cpu(python:3.12-slim) 또는 gpu(nvidia/cuda 12.4.1). 비우면 즉시 에러
-   IMAGE_VERSION=0.1.0 # 이미지 버전
+   HW_VARIANT=cpu      # cpu 또는 gpu. 비우면 즉시 에러. 일반적으로 cpu를 지정
+   IMAGE_VERSION=2.2.3 # 이미지 버전
    PUSH_IMAGE=false    # 먼저 로컬 검증 후 true 로 push
    ```
 2. 빌드 실행:
@@ -224,11 +233,57 @@ echo "HWP_SDK_TOKEN=hf_xxx" >> build-script/hf_private_token.env
   - 코드 서빙 생성 옵션 중 저장소 유형은 **Gitea** 를 선택한다.
 - 코드서빙에 적용할 코드를 코드서빙 생성시 함께 생성된 gitea 레포지터리에 등록한다.
   - 우선 **코드 스페이스**를 생성한다. [genos docs - 코드스페이스](https://genos-docs.gitbook.io/default/v1.8.6/basic-tutorials/guides/development/code_space) 문서를 참조한다.
+  - 코드 스페이스의 vscode를 클릭해서 vscode ide를 띄운다.
   - 생성된 코드 스페이스 내에서 gitea 레포지터리를 clone 한다.
+
+    ```bash
+    # gitea id 는 코드서빙 생성 후 해당 코드서빙 페이지에서 확인가능
+    git clone http://llmops-gitea-service:3000/llmops/<코드서빙 gitea id>.git
+    ```
+
   - doc_parser github debelop 브랜치 전체 코드를 gitea 레포지터리에 복사 후 gitea 레포지터리에서 commit/push 를 수행한다.
-  - 이 때 `genon/preprocessor/resource`의 yaml 파일을 실행환경에 맞게 수정한후 commit/push를 해야 한다.
-- 매뉴얼을 참고하여 GenOS **코드서빙** 의 리비전을 생성/배포하면, doc-parser가 등록된 gitea의  git 소스(레포 URL/commit)가 런타임에 `/app/src/service` 로 clone 되고 `main.py` 가 실행된다.
+    - 이 때 `genon/preprocessor/resource`의 yaml 파일을 기반으로 전처리기가 동작하므로 실행환경에 맞게 수정한후 commit/push를 해야 한다. [매뉴얼 참조](https://github.com/genonai/doc_parser/tree/develop/genon/preprocessor/facade/gitbook_doc)
+    - 코드서빙으로 서빙할 전처리기의 config yaml은 아래와 같다.
+      - parser/chunking 만 사용하는 경우: parser_processor_config.yaml, chunking_processor_config.yaml 수정
+      - 적재용 전처리기 사용하는 경우: intelligent_processor_config.yaml
+      - 첨부용 전처리기 사용하는 경우: attachment_processor_config.yaml
+      - 변환용 전처리기 사용하는 경우: convert_processor_config.yaml
+    - 각 yaml에서 반드시 수정해야 하는 부분은 전처리기에서 사용하는 llm 모델 주소를 설치환경에 맞게 수정해야한다. (매뉴얼 참조바람)
+
+    ```bash
+    # doc parser 코드를 clone 하고 develop 브랜치로 변경
+    git clone https://github.com/genonai/doc_parser.git
+    cd doc_parser
+    git checkout develop
+
+    # doc parser 코드를 gitea 레포 디렉토리로 복사 (.git 디렉토리 제외)
+    tar --exclude=.git -cf - . | (cd <gitea dir> && tar -xf -)
+
+    # 복사된 gitea 레포 디렉토리에서 config yaml 수정
+    # vscode를 이용해서 genon/preprocessor/resource 의 config yaml을 수정해 준다.
+    # 수정 대상 파일.
+    # - parser_processor_config.yaml
+    # - chunking_processor_config.yaml
+    # - intelligent_processor_config.yaml
+    # - attachment_processor_config.yaml
+    # - convert_processor_config.yaml
+
+    # gitea 레포 디렉토리에서 복사된 doc parser 코드를 commit/push
+    cd <gitea dir>
+    git add .
+    git commit -m "<커밋 메세지>"
+    git push
+    # push 할 때 Genos id, pass 를 임력해야 함
+    ```
+
+- 코드서빙 매뉴얼을 참고하여 GenOS **코드서빙** 의 리비전을 생성/배포하면, doc-parser가 등록된 gitea의  git 소스(레포 URL/commit)가 런타임에 `/app/src/service` 로 clone 되고 `main.py` 가 실행된다.
+
+  - 리비전 생성시 이미지는 `mnc/template-code-serving-doc-parser` 를 선택한다
+  - 리비전 생성시 gpu 할당은 하지 않고, medium (1 CPU Core, 16 Gb Memory) 수준의 인스턴스를 생성하면 된다.
+
 - 호출(게이트웨이 URL·엔드포인트·예시)은 [`preprocessor/facade/gitbook_doc/code_serving.md`](preprocessor/facade/gitbook_doc/code_serving.md) 참고.
+
+  - 기본 테스트는 [테스트 코드](https://github.com/genonai/doc_parser/blob/develop/genon/preprocessor/examples/code_serving/serving_gateway_test.py) 를 참고해서 테스트 가능
 
 ## 로컬 테스트 (도커 빌드 없이 test.py 실행)
 
