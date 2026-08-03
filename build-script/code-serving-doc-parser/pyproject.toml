@@ -6,8 +6,9 @@ readme = "README.md"
 requires-python = ">=3.11,<4.0"
 
 # 의존성은 genon/preprocessor 의 uv 정보를 기반으로 한다.
-#   - preprocessor 의 직접 deps (단, vendored `docling` 패키지 자체는 제외 —
-#     런타임에 clone 된 repo 가 /app/src/service 에서 제공하므로 pip 설치 대상 아님).
+#   - preprocessor 의 직접 deps (단, `docling` 패키지 자체는 제외 —
+#     코드서빙 복사본(sync-serving-repo.sh)에는 docling 소스 대신 packages/ 의 wheel 을 동봉하고,
+#     런타임에 requirements.txt 경로 참조로 genon-docling(import name: docling) 을 설치한다. build-docling-wheel.sh 참고).
 #   - vendored docling(repo 루트 pyproject) 의 직접 deps — docling import 에 필요한
 #     easyocr/rtree/tree-sitter*/scipy/pandas/openpyxl/marko/lxml/pylatexenc 등.
 #   - 코드서빙 harness 필수 deps — pydantic-settings(settings), python-dotenv(env_loader).
