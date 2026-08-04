@@ -4,7 +4,8 @@ set -euo pipefail
 # sync-serving-repo.sh — 코드서빙 배포본을 별도 Private repo(서브모듈)로 생성/갱신한다.
 #
 # 동작: 배포에 필요한 것만(whitelist: genon/ + main.py + requirements.txt) 서브모듈 폴더 `code-serving/`에
-#       재생성하고, docling wheel 을 packages/ 로 동봉 + requirements.txt 에 wheel 경로를 append 한 뒤,
+#       재생성하고, docling wheel 을 packages/ 로 동봉 + requirements.txt 에 wheel 경로 append +
+#       배포본 root README.md(코드서빙 사용 가이드, build-script/code-serving-README.md) 복사 후,
 #       서브모듈(=배포본 repo genonai/doc_parser_code_serving) 안에서 commit/push 한다.
 #
 # 왜: 코드서빙은 GenOS 가 런타임에 배포본 repo 를 /app/src/service 로 clone 해 main.py 를 띄우고,
@@ -31,6 +32,7 @@ SERVING_BRANCH="${SERVING_BRANCH:-main}"
 GENON_BUILD="${GENON_BUILD:-0}"                      # docling wheel local segment N (build-docling-wheel.sh 로 전달)
 OUT_DIR="${OUT_DIR:-}"                               # dry-run 조립 위치 지정용(비우면 mktemp 임시폴더). gitignored 경로 권장.
 PUSH="${PUSH:-false}"
+SERVING_README="${SERVING_README:-${ROOT_DIR}/build-script/code-serving-README.md}"  # 배포본 root 로 복사할 README 소스
 
 # 배포본에 담을 것 (whitelist, repo 루트 기준 추적 경로). 나머지는 애초에 복사 안 함.
 WHITELIST=("genon" "main.py" "requirements.txt")
@@ -112,6 +114,14 @@ rm -rf "${WHEEL_OUT}"
   echo "./packages/${WHEEL_NAME}"
 } >> "${DEST}/requirements.txt"
 
+# ── 2b) 배포본 root README.md 복사 (코드서빙 사용 가이드) ─────────────────────
+if [[ -f "${SERVING_README}" ]]; then
+  cp "${SERVING_README}" "${DEST}/README.md"
+  echo "[INFO] README.md 복사: ${SERVING_README} → ${DEST}/README.md"
+else
+  echo "[WARN] README 소스가 없어 건너뜀: ${SERVING_README}"
+fi
+
 # ── 3) 검증: docling 패키지 소스 부재 + wheel 동봉 + 핵심 파일 존재 ───────────
 if find "${DEST}" -type f -path '*/docling/__init__.py' | grep -q .; then
   echo "[ERROR] 배포본에 docling 패키지 소스가 남아 있습니다:" >&2
@@ -124,6 +134,10 @@ for f in "main.py" "genon" "packages/${WHEEL_NAME}"; do
     exit 1
   fi
 done
+if [[ -f "${SERVING_README}" && ! -f "${DEST}/README.md" ]]; then
+  echo "[ERROR] README 소스는 있으나 배포본에 복사되지 않았습니다." >&2
+  exit 1
+fi
 echo "[SMOKE] 배포본 청결성 OK — docling 소스 없음, genon/+main.py 존재, packages/${WHEEL_NAME} 동봉됨"
 echo "[INFO] 배포본 조립 위치: ${DEST}  (원본 커밋 ${SOURCE_COMMIT})"
 
