@@ -12,6 +12,7 @@ from docling_core.types import DoclingDocument
 from docling.utils.llm_cache import async_cached_call, remaining_timeout
 
 from .base_enricher import BaseEnricher
+from .field_transforms import store_metadata_in_document
 from .prompt_files import read_prompt_file
 from .prompt_template import PromptTemplate
 from .thinking import resolve_thinking_kwargs, strip_reasoning
@@ -24,6 +25,59 @@ _CONFIG_DIR = Path(__file__).parent.parent / "configs" / "enrich" / "custom_fiel
 _DEFAULT_CUSTOM_FIELDS_SYSTEM_PROMPT = (
     "너는 문서 정보추출 전문가다. 주어진 문서에서 요청한 필드를 정확하게 추출하라."
 )
+
+
+DOCUMENT_CUSTOM_FIELD_EXTRACTORS = {"llm", "document_llm"}
+TABULAR_CUSTOM_FIELD_EXTRACTORS = {"tabular", "tabular_mapping", "column_mapping"}
+SUPPORTED_CUSTOM_FIELD_EXTRACTORS = (
+    DOCUMENT_CUSTOM_FIELD_EXTRACTORS | TABULAR_CUSTOM_FIELD_EXTRACTORS
+)
+
+
+def normalize_doc_type(value: Any) -> str:
+    """런타임/config 문서유형을 비교 가능한 canonical 문자열로 정규화한다."""
+    return str(value or "").strip().lower()
+
+
+def normalize_doc_types(value: Any) -> tuple[str, ...]:
+    """doc_type 설정의 단일 문자열/문자열 목록을 정규화한다."""
+    values = value if isinstance(value, (list, tuple, set)) else [value]
+    normalized = []
+    for item in values:
+        doc_type = normalize_doc_type(item)
+        if doc_type and doc_type not in normalized:
+            normalized.append(doc_type)
+    return tuple(normalized)
+
+
+def matches_doc_type(configured: Any, runtime: Any) -> bool:
+    """설정 doc_type이 없으면 wildcard, 있으면 런타임 doc_type과 정확히 매칭한다."""
+    configured_types = normalize_doc_types(configured)
+    if not configured_types:
+        return True
+    return normalize_doc_type(runtime) in configured_types
+
+
+def custom_fields_extractor(config: dict) -> str:
+    """custom_fields 추출기 종류. 기존 설정은 llm으로 하위 호환한다."""
+    return str((config or {}).get("extractor") or "llm").strip().lower()
+
+
+def build_document_custom_fields_enrichers(configs: list[dict]) -> list["CustomFieldsEnricher"]:
+    """document/LLM custom_fields 설정만 실제 Docling enricher로 생성한다.
+
+    tabular_mapping 설정은 parser의 Excel 조기 분기에서 별도 handler가 소비한다. 이를
+    여기서 제외해야 intelligent/convert/chunking 프로세서 초기화 시 LLM enricher 생성자로
+    잘못 전달되지 않는다.
+    """
+    enrichers = []
+    for config in configs or []:
+        extractor = custom_fields_extractor(config)
+        if extractor not in SUPPORTED_CUSTOM_FIELD_EXTRACTORS:
+            raise ValueError(f"지원하지 않는 custom_fields extractor: {extractor}")
+        if extractor in DOCUMENT_CUSTOM_FIELD_EXTRACTORS:
+            enrichers.append(CustomFieldsEnricher(**dict(config)))
+    return enrichers
 
 
 class CustomFieldsEnricher(BaseEnricher):
@@ -56,6 +110,8 @@ class CustomFieldsEnricher(BaseEnricher):
         template_mode: str = "strict",
         thinking: str | None = "off",
         thinking_dialect: str = "standard",
+        doc_type: str | list[str] | None = None,
+        extractor: str = "llm",
     ):
         cfg = self._load_config(config_file, resource_path)
         prompt_cfg = cfg.get("prompt", {}) if isinstance(cfg.get("prompt"), dict) else {}
@@ -98,6 +154,8 @@ class CustomFieldsEnricher(BaseEnricher):
         self._thinking_dialect = str(
             thinking_dialect or cfg.get("thinking_dialect") or "standard"
         ).strip().lower()
+        self._doc_types = normalize_doc_types(doc_type)
+        self._extractor = str(extractor or "llm").strip().lower()
 
         cfg_pages = cfg.get("pages")
         self._pages: list[int] | None = pages or (cfg_pages if isinstance(cfg_pages, list) and cfg_pages else None)
@@ -330,6 +388,8 @@ class CustomFieldsEnricher(BaseEnricher):
         return serializer.serialize().text
 
     async def enrich(self, document: DoclingDocument, **kwargs) -> DoclingDocument:
+        if not matches_doc_type(self._doc_types, kwargs.get("doc_type")):
+            return document
         if not self._url or not self._model:
             _log.warning("custom_fields enricher 비활성: url/model 설정이 비어있습니다.")
             return document
@@ -342,6 +402,10 @@ class CustomFieldsEnricher(BaseEnricher):
         except Exception as e:
             _log.warning(f"custom_fields 추출 실패: {e}")
             normalized = {key: None for key in self._output_fields}
+
+        # 문서에 저장 → 별도 chunk API 경계를 넘어 청커 passthrough 가 각 청크에 부착
+        # (created_date/MetadataEnricher 와 동일 경로). None 필드는 헬퍼가 skip.
+        store_metadata_in_document(document, normalized)
 
         context = kwargs.get("_enrichment_context")
         if isinstance(context, dict):

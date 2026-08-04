@@ -197,6 +197,20 @@ enrichment:
         enable: false
         prompt_file: prompt_table_refine_combined.md   # 재구성 HTML + 요약 통합 프롬프트
 
+  # ── 문서유형별 custom_fields 추출 ──────────────────────────────────────────
+  # extractor=llm 은 문서 단위 LLM 추출, tabular_mapping 은 Excel/CSV 행별 직접 매핑.
+  # doc_type(요청 kwargs)과 일치하는 설정만 동작. 배포 시 enable/serving ID 설정 후 사용.
+  - custom_fields:
+      enable: false
+      doc_type: card
+      extractor: llm
+      config_file: custom_field_card.yaml   # resource_path 자동 = 이 yaml 파일 디렉토리
+  - custom_fields:
+      enable: false
+      doc_type: faq
+      extractor: tabular_mapping
+      config_file: custom_field_faq.yaml   # resource_path 자동 = 이 yaml 파일 디렉토리
+
 # 청킹(GenosSmartChunker) 설정
 chunking:
   # 청크 최대 크기(max_tokens). char 모드면 "최대 문자 수", huggingface 모드면 "최대 토큰 수".

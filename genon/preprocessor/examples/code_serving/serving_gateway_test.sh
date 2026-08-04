@@ -3,6 +3,19 @@
 # python serving_gateway_test.py --mode parser_upload --upload-file "../../../../shkim_labs/20260609_convert_test/10.여비규정_20240129_인사경영국_20240129.pdf" --out-doc result_serving_gateway_test/doc.json
 python serving_gateway_test.py --mode parser --file-path "/app/src/service/genon/preprocessor/sample_files/pdf_sample.pdf" --out-doc result_serving_gateway_test/doc.json
 python serving_gateway_test.py --mode chunker --doc-json result_serving_gateway_test/doc.json --out result_serving_gateway_test/chunks.json
+# ── 문서유형(doc_type) 지정: FAQ 엑셀(행별 custom_fields) / 카드(문서 metadata 스탬프) ──────────
+# --doc-type 으로 전달(= --param doc_type=.. 와 동일, 둘 다 주면 --param 우선).
+# FAQ xlsx: parser 가 doc_type=faq 로 행별 custom_fields_row 파싱 → chunker 가 행마다 1청크.
+# python serving_gateway_test.py --mode parser --file-path "/app/src/service/genon/preprocessor/sample_files/생명FAQ_260712.xlsx" \
+#   --doc-type faq --out-doc result_serving_gateway_test/faq_doc.json --serving-id 334 --auth-key ea3b39642645451a971806f7cc9a7bbe
+# python serving_gateway_test.py --mode chunker --doc-json result_serving_gateway_test/faq_doc.json \
+#   --out result_serving_gateway_test/faq_chunks.json --serving-id 334 --auth-key ea3b39642645451a971806f7cc9a7bbe
+# 또는 단일콜(run: intelligent/convert facade, 파싱+청킹 일괄):
+# python serving_gateway_test.py --mode run --file-path "/app/src/service/genon/preprocessor/sample_files/생명FAQ_260712.xlsx" \
+#   --doc-type faq --out result_serving_gateway_test/faq_run.json --serving-id <RUN_SERVING_ID> --auth-key <KEY>
+# 카드 HTML(flatten 후): 모든 청크에 doc_type=card + 카드 12필드.
+# python serving_gateway_test.py --mode run --file-path "/app/src/service/genon/preprocessor/sample_files/card.flat.html" \
+#   --doc-type card --out result_serving_gateway_test/card_run.json --serving-id <RUN_SERVING_ID> --auth-key <KEY>
 
 
 # ── #329: LLM 캐시 테스트 ──────────────────────────────────────────────────────

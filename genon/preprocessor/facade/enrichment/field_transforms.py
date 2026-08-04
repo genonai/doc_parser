@@ -263,3 +263,43 @@ def serialize_metadata_value_for_output(value: Any) -> Any:
     if isinstance(value, (dict, list)):
         return json.dumps(value, ensure_ascii=False)
     return value
+
+
+def store_metadata_in_document(document: "DoclingDocument", metadata: dict) -> None:
+    """추출한 key→value 메타데이터를 문서의 KeyValueItem 으로 저장한다.
+
+    extract_metadata_from_document 의 쓰기측 대칭 함수. 문서에 실리면 청커의
+    passthrough(chunking_processor.compose_vectors)가 각 청크에 자동 부착한다
+    — created_date(MetadataEnricher 가 이미 add_key_values 로 저장)와 동일 경로.
+    parse↔chunk 가 별도 API 여도 DoclingDocument 에 실려 경계를 넘는다.
+
+    None 값 필드는 저장하지 않는다: 값 셀 text 가 비면 extract 측이 셀을 건너뛰어
+    (extract_metadata_from_document 의 빈 텍스트 skip) key/value 페어링이 깨지므로,
+    null 은 애초에 emit 하지 않는다.
+    """
+    try:
+        from docling_core.types.doc.document import GraphData, GraphCell, GraphCellLabel
+    except ImportError:
+        _log.warning("GraphData/GraphCell import 실패 — 문서 메타데이터 저장 생략")
+        return
+
+    graph_cells = []
+    cell_id = 0
+    for key, value in (metadata or {}).items():
+        if value is None:
+            continue  # null 필드는 저장하지 않음(빈 value 셀 skip → 페어링 붕괴 방지)
+        value_str = (
+            json.dumps(value, ensure_ascii=False)
+            if isinstance(value, (dict, list))
+            else str(value)
+        )
+        graph_cells.append(GraphCell(label=GraphCellLabel.KEY, cell_id=cell_id, text=str(key), orig=str(key)))
+        cell_id += 1
+        graph_cells.append(GraphCell(label=GraphCellLabel.VALUE, cell_id=cell_id, text=value_str, orig=value_str))
+        cell_id += 1
+
+    if not graph_cells:
+        return  # 저장할 값이 없으면 빈 KeyValueItem 을 만들지 않음
+
+    graph_data = GraphData(cells=graph_cells, links=[])
+    document.add_key_values(graph=graph_data, prov=None, parent=None)

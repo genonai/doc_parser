@@ -318,9 +318,19 @@ from pydantic import BaseModel, ConfigDict, PositiveInt, TypeAdapter, model_vali
 from typing_extensions import Self
 
 try:
-    from genon.preprocessor.facade.enrichment.custom_fields_enricher import CustomFieldsEnricher as _CustomFieldsEnricher
+    from genon.preprocessor.facade.enrichment.custom_fields_enricher import (
+        build_document_custom_fields_enrichers as _build_document_custom_fields_enrichers,
+        normalize_doc_type,
+    )
+    from genon.preprocessor.facade.enrichment.tabular_custom_fields import (
+        build_tabular_custom_fields_mappers as _build_tabular_custom_fields_mappers,
+    )
 except ImportError:
-    _CustomFieldsEnricher = None  # type: ignore[assignment,misc]
+    _build_document_custom_fields_enrichers = None  # type: ignore[assignment]
+    _build_tabular_custom_fields_mappers = None  # type: ignore[assignment]
+
+    def normalize_doc_type(value):  # type: ignore[no-redef]
+        return str(value or "").strip().lower()
 try:
     from genon.preprocessor.facade.enrichment.metadata_enricher import MetadataEnricher as _MetadataEnricher
 except ImportError:
@@ -354,6 +364,7 @@ from genon.preprocessor.facade.enrichment.field_transforms import (
     apply_field_transforms,
     extract_metadata_from_document,
     serialize_metadata_value_for_output,
+    store_metadata_in_document,
 )
 
 try:
@@ -2214,8 +2225,15 @@ class DocumentProcessor:
         )
         self.doc_summary_enricher = DocSummaryEnricher(self.doc_summary_options)
         self.custom_fields_enrichers: list = (
-            [_CustomFieldsEnricher(**c) for c in ec.custom_fields_cfgs]
-            if _CustomFieldsEnricher is not None
+            _build_document_custom_fields_enrichers(ec.custom_fields_cfgs)
+            if _build_document_custom_fields_enrichers is not None
+            else []
+        )
+        # enrichment.custom_fields 중 tabular_mapping handler(요청 doc_type=faq 등 xlsx 행별 매핑).
+        # LLM enricher 와 달리 파싱 조기 분기(_process_xlsx)에서 소비한다.
+        self._tabular_custom_fields_mappers: list = (
+            _build_tabular_custom_fields_mappers(ec.custom_fields_cfgs)
+            if _build_tabular_custom_fields_mappers is not None
             else []
         )
         self.metadata_enricher = (
@@ -3247,8 +3265,33 @@ class DocumentProcessor:
         """
         from genon.preprocessor.converters.xlsx_processor import (
             build_docling_document,
+            build_tabular_custom_fields_vectors,
             build_tabular_vectors,
         )
+        # enrichment.custom_fields 의 tabular_mapping handler 가 요청 doc_type 과 일치하면 행별 custom_fields
+        # 벡터로 처리(LLM 미호출). processing_mode 와 무관하게 우선한다(행별 매핑이 목적).
+        runtime_doc_type = normalize_doc_type(kwargs.get("doc_type"))
+        matching_mappers = [
+            m for m in self._tabular_custom_fields_mappers if m.matches(runtime_doc_type)
+        ]
+        if len(matching_mappers) > 1:
+            raise GenosServiceException(
+                1, f"동일 doc_type 에 tabular custom_fields 설정이 여러 개입니다: {runtime_doc_type}"
+            )
+        if matching_mappers:
+            _log.info(f"[intelligent] xlsx tabular custom_fields 처리(doc_type={runtime_doc_type}): {file_path}")
+            try:
+                vectors = build_tabular_custom_fields_vectors(
+                    file_path, matching_mappers[0], runtime_doc_type,
+                    header_row=self._xlsx_cfg["header_row"],
+                    multi_table=self._xlsx_cfg["multi_table"],
+                )
+            except (FileNotFoundError, TypeError, ValueError) as exc:
+                raise GenosServiceException(1, str(exc))
+            if not vectors:
+                raise GenosServiceException(1, "chunk length is 0")
+            return vectors
+
         if self._xlsx_cfg["processing_mode"] == "tabular":
             _log.info(f"[intelligent] xlsx tabular 직접 처리: {file_path}")
             vectors = build_tabular_vectors(
@@ -3372,6 +3415,16 @@ class DocumentProcessor:
             document = await self.enrich_custom_fields(document, **enrichment_kwargs)
         except Exception as exc:
             _handle_stage_error(exc, "custom_fields")
+        # doc_type 스탬프(예: card): 요청 kwargs 로 doc_type 이 오면 문서 메타에 저장 → compose_vectors 가
+        # 모든 청크에 broadcast(+ context metadata 노출). (faq 는 xlsx tabular 경로에서 별도 처리)
+        doc_type = normalize_doc_type(kwargs.get("doc_type"))
+        if doc_type:
+            try:
+                store_metadata_in_document(document, {"doc_type": doc_type})
+                if isinstance(enrichment_context, dict):
+                    enrichment_context.setdefault("metadata", {})["doc_type"] = doc_type
+            except Exception as exc:
+                _handle_stage_error(exc, "doc_type_stamp")
 
         # 민감정보 분류(#315): 청킹 전, 문서 전체를 분류 워크플로우에 1회 호출 → sensitive_infos.
         # 실제 라벨 부착/마스킹 치환은 청킹 후 compose 에서 quote 매칭으로 수행.

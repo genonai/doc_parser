@@ -1,0 +1,51 @@
+# CustomFieldsEnricher 외부 config — 카드 상품 메타데이터(12필드) 추출
+#
+# 사용 (parser_processor_config.yaml):
+#   - custom_fields:
+#       enable: true
+#       doc_type: card
+#       extractor: llm
+#       config_file: custom_field_card.yaml   # resource_path 자동 = 이 yaml 디렉토리
+#
+# 이 파일은 parser_processor_config.yaml 과 동일 폴더(resource/)에 위치.
+# 인라인 블록에서 null 이 아닌 값을 지정하면 이 파일 값보다 우선한다.
+
+# ── LLM 연결 ────────────────────────────────────────────────────────────────
+# <ENRICHMENT_SERVING_ID>: Genos에 등록한 모델서빙 ID로 변경 필요. api_key 도 배포 시 설정.
+url: "http://llmops-gateway-api-service:8080/rep/serving/<ENRICHMENT_SERVING_ID>/v1/chat/completions"
+api_key: ""
+model: model
+
+# ── LLM 생성 파라미터 ────────────────────────────────────────────────────────
+# _text(원문) 필드가 길 수 있어 max_tokens 를 넉넉히 잡는다.
+max_tokens: 4000
+temperature: 0.0
+timeout: 300
+
+# ── 입력 페이지 범위 ─────────────────────────────────────────────────────────
+# 미지정(null) → CustomFieldsEnricher 가 document.export_to_text() 로 문서 전체를 읽는다.
+# (카드 페이지는 13개 섹션에 정보가 흩어져 있어 전체를 대상으로 함)
+pages: null
+
+# ── 파서 ─────────────────────────────────────────────────────────────────────
+parser:
+  type: json
+
+# ── 프롬프트 ─────────────────────────────────────────────────────────────────
+system_prompt_file: prompt_custom_fields_card_system.md
+user_prompt_file: prompt_custom_fields_card_user.md
+
+# ── 출력 필드 (프롬프트의 JSON 키와 일치해야 함) ──────────────────────────────
+output_fields:
+  - issuer_name
+  - product_name_norm
+  - annual_fee_amount
+  - family_annual_fee_amount
+  - overseas_payment_yn
+  - transit_card_yn
+  - joinable_yn
+  - product_name
+  - benefit_text
+  - join_condition_text
+  - family_annual_fee_text
+  - annual_fee_text

@@ -145,6 +145,9 @@ async def parse_and_save(file_path: Path, out_base: Path, cache_kwargs: dict) ->
         n_elems = len(payload.get("elements", []) or []) if isinstance(payload, dict) else 0
         save_json(out_base.with_suffix(".parse.json"), payload)
         print(f"  [parse] parse-format ({n_elems} elements) → 공통 청킹")
+    # enrichment(metadata/custom_fields) 결과는 응답의 "metadata" 로만 노출됨. 파일 저장 없이 콘솔로만 확인.
+    if isinstance(payload, dict) and payload.get("metadata"):
+        print(f"  [metadata] {json.dumps(payload['metadata'], ensure_ascii=False)}")
     return payload
 
 
@@ -184,6 +187,12 @@ def parse_args():
              ".json: 파서 출력물이면 청킹만, 원본 소스 문서면 파싱→청킹 자동 판별)",
     )
     ap.add_argument("output_dir", help="결과 저장 디렉터리")
+    ap.add_argument(
+        "--doc_type",
+        default=None,
+        help="문서 구분(kwargs). 'faq'=xlsx 를 행마다 1청크로 컬럼→목표필드 매핑, "
+             "'card'=문서 메타에 doc_type 스탬프. 미지정 시 기존 동작.",
+    )
     ap.add_argument("--chunk-size", type=int, default=10000, help="청크 최대 크기 (0=토큰/문자 분할 안 함, 0 초과 시 최소 1024)")
     ap.add_argument(
         "--chunk-mode",
@@ -241,7 +250,11 @@ def main():
     files = collect_files(input_path)
     is_dir = input_path.is_dir()
     output_dir.mkdir(parents=True, exist_ok=True)
+    # cache_kwargs 는 parse/chunk 양쪽에 동일 전달되는 kwargs. doc_type 도 여기에 실어 보낸다
+    # (parser 가 custom_fields doc_type 라우팅·스탬프에 사용; 행 metadata는 payload 자체에 보존).
     cache_kwargs = build_cache_kwargs(args)
+    if getattr(args, "doc_type", None):
+        cache_kwargs["doc_type"] = args.doc_type
 
     for idx, file_path in enumerate(files, start=1):
         print(f"[{idx}/{len(files)}] {file_path}")

@@ -1,0 +1,48 @@
+# FAQ tabular 행 → 목표 필드 컬럼 직접 매핑 (LLM 없음, monimo FAQ 데모)
+#
+# 사용 (parser_processor_config.yaml):
+#   enrichment:
+#     - custom_fields:
+#         doc_type: faq
+#         extractor: tabular_mapping
+#         config_file: custom_field_faq.yaml
+#
+# 이 파일은 parser_processor_config.yaml 과 동일 폴더(resource_dev/)에 위치.
+# 카드(custom_field_card.yaml)와 달리 LLM 을 호출하지 않고, 엑셀 컬럼을 목표 필드로 직접 매핑한다.
+# 요청 kwargs 로 doc_type=faq 가 전달될 때만 이 매핑을 적용한다(그 외 xlsx 는 기존 tabular 경로 유지).
+
+# ── 컬럼 직접 매핑 (목표필드: 허용 소스 컬럼 별칭 목록) ───────────────────────
+# 목표필드명 자체도 자동 별칭으로 포함된다. 비교 시 Unicode/BOM/공백/대소문자/_, -, . 차이를 정규화한다.
+column_map:
+  question: [대표질문, 질문, depth4]                    # 대표질문 (NOT NULL)
+  answer_text: [답변, 답변내용, description]            # 답변 (NOT NULL)
+  category_code: [분류, 카테고리, depth3]               # 분류
+  question_variant_text: [유사질문, 질문변형]
+  doc_type_code: [문서유형분류, 문서유형코드]
+  needs_realtime_yn: [실시간보완필요, 실시간보완여부]
+  deep_link_url: [딥링크URL, 딥링크, deep_link]
+  dev_url: [개발계URL, 개발URL]
+  source_url: [출처URI, 출처URL, url]
+  source_reference_text: [출처표기, 출처명]
+
+# ── 필수 목표필드. 대응 컬럼/값이 없으면 조용히 null 처리하지 않고 입력 오류로 종료 ──
+required:
+  - question
+  - answer_text
+  - needs_realtime_yn
+
+# ── 대응 컬럼이 없을 때 채울 기본값 (NOT NULL 필드용) ─────────────────────────
+defaults:
+  needs_realtime_yn: "N"           # 실시간보완필요 (NOT NULL, 엑셀 미대응)
+
+# ── 대응 소스가 없어 null 로 명시 출력할 필드 (스키마 고정) ───────────────────
+nulls:
+  - question_variant_text          # 유사질문
+  - doc_type_code                  # 문서유형분류
+  - deep_link_url                  # 딥링크 URL
+  - source_reference_text          # 출처표기
+
+# ── 청크 text 본문 구성 순서 (개행 결합) ──────────────────────────────────────
+text_fields:
+  - question
+  - answer_text

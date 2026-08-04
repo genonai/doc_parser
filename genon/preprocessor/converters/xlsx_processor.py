@@ -505,3 +505,95 @@ def build_tabular_vectors(
             chunk_doc_idx += 1
 
     return vectors
+
+
+def build_tabular_data_dict(
+    file_path: str,
+    *,
+    header_row: int = 0,
+    multi_table: bool = False,
+) -> dict:
+    """xlsx/csv → {"data":[{"sheet_name","title","data_rows":[{col:val}]}]} (중립 표현).
+
+    표 감지(멀티헤더 자동 + 1시트 복수표)는 load_tables 에 위임하고, 각 행을 헤더명 key 의 dict 로
+    만든다. parser 의 _parse_tabular 와 동일 산출물(단일 소스). TabularCustomFieldsMapper.to_parse_format
+    입력 형태.
+    """
+    tables = load_tables(file_path, header_row=header_row, multi_table=multi_table)
+    data: list[dict] = []
+    for t in tables:
+        headers = t["headers"]
+        data_rows = [dict(zip(headers, values)) for values in t["data_rows"]]
+        data.append({
+            "sheet_name": t["sheet_name"],
+            "title": t["title"],
+            "data_rows": data_rows,
+        })
+    return {"data": data}
+
+
+def build_tabular_custom_fields_vectors(
+    file_path: str,
+    mapper,
+    runtime_doc_type,
+    *,
+    header_row: int = 0,
+    multi_table: bool = False,
+    reg_date: Optional[str] = None,
+) -> list[GenOSVectorMeta]:
+    """xlsx/csv 를 tabular custom_fields 매핑으로 행별 벡터(GenOSVectorMeta)로 변환한다.
+
+    단일콜 facade(convert/intelligent)가 compose_vectors 를 거치지 않고 직접 벡터를 반환하는
+    경로용. mapper(TabularCustomFieldsMapper)는 주입받아(순환 import 회피) to_parse_format 으로
+    행별 custom_fields element 를 만들고, 여기서 표준 청크 필드(text/인덱스/reg_date)를 채워
+    각 행 metadata(목표필드 + doc_type)를 벡터에 부착한다. 청커 _chunk_custom_fields_rows 와
+    동일한 "행=청크" 인덱스 계산(단, #315 guardrail 은 이 직접 경로에선 미적용 — build_tabular_vectors
+    와 동일).
+    """
+    reg_date = reg_date or (datetime.now().isoformat(timespec="seconds") + "Z")
+    data_dict = build_tabular_data_dict(file_path, header_row=header_row, multi_table=multi_table)
+    result = mapper.to_parse_format(data_dict, runtime_doc_type)
+    elements = [el for el in (result.get("elements") or []) if isinstance(el, dict)]
+    if not elements:
+        _log.warning(f"[xlsx] tabular custom_fields 청크 없음: {file_path}")
+        return []
+
+    n_chunk_of_doc = len(elements)
+    n_page = max((int(el.get("page", 1) or 1) for el in elements), default=1)
+    page_chunk_counts: dict = {}
+    for el in elements:
+        p = int(el.get("page", 1) or 1)
+        page_chunk_counts[p] = page_chunk_counts.get(p, 0) + 1
+
+    vectors: list[GenOSVectorMeta] = []
+    current_page = None
+    chunk_index_on_page = 0
+    for idx, el in enumerate(elements):
+        page = int(el.get("page", 1) or 1)
+        if page != current_page:
+            current_page = page
+            chunk_index_on_page = 0
+        text = str(el.get("content", "") or "")
+        row_meta = el.get("metadata") or {}
+        vectors.append(
+            GenOSVectorMeta.model_validate({
+                **row_meta,  # 목표 필드(question/answer_text/...) + doc_type. extra=allow 로 보존.
+                "text": text,
+                "n_char": len(text),
+                "n_word": len(text.split()),
+                "n_line": len(text.splitlines()),
+                "i_page": page,
+                "e_page": page,
+                "i_chunk_on_page": chunk_index_on_page,
+                "n_chunk_of_page": page_chunk_counts[page],
+                "i_chunk_on_doc": idx,
+                "n_chunk_of_doc": n_chunk_of_doc,
+                "n_page": n_page,
+                "reg_date": reg_date,
+                "chunk_bboxes": ".",
+                "media_files": ".",
+            })
+        )
+        chunk_index_on_page += 1
+
+    return vectors

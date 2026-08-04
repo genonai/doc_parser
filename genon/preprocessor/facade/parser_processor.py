@@ -102,9 +102,19 @@ from docling_core.transforms.serializer.markdown import (
 )
 
 try:
-    from genon.preprocessor.facade.enrichment.custom_fields_enricher import CustomFieldsEnricher
+    from genon.preprocessor.facade.enrichment.custom_fields_enricher import (
+        build_document_custom_fields_enrichers,
+        normalize_doc_type,
+    )
+    from genon.preprocessor.facade.enrichment.tabular_custom_fields import (
+        build_tabular_custom_fields_mappers,
+    )
 except ImportError:
-    CustomFieldsEnricher = None  # type: ignore[assignment,misc]
+    build_document_custom_fields_enrichers = None  # type: ignore[assignment]
+    build_tabular_custom_fields_mappers = None  # type: ignore[assignment]
+
+    def normalize_doc_type(value):  # type: ignore[no-redef]
+        return str(value or "").strip().lower()
 
 try:
     from genon.preprocessor.facade.enrichment.metadata_enricher import MetadataEnricher
@@ -1086,9 +1096,10 @@ class IntelligentDocumentProcessor:
             self.table_description_options
         )
         self.doc_summary_enricher = DocSummaryEnricher(self.doc_summary_options)
-        self.custom_fields_enrichers: "list[CustomFieldsEnricher]" = (
-            [CustomFieldsEnricher(**c) for c in ec.custom_fields_cfgs]
-            if CustomFieldsEnricher is not None else []
+        self.custom_fields_cfgs = list(ec.custom_fields_cfgs)
+        self.custom_fields_enrichers: list = (
+            build_document_custom_fields_enrichers(self.custom_fields_cfgs)
+            if build_document_custom_fields_enrichers is not None else []
         )
 
         # 사용자가 커스텀 metadata 신호(prompt/파일/output_fields/parser)를 하나라도 지정한 경우
@@ -1858,6 +1869,12 @@ class DocumentProcessor:
 
         # xlsx/csv 처리 설정은 intel 프로세서가 동일 config에서 이미 파싱함 → 재사용
         self._xlsx_cfg = self._intel._xlsx_cfg
+        # enrichment.custom_fields 중 tabular_mapping handler를 시작 시 1회 로드한다.
+        self._config_dir = self._intel._config_dir
+        self._tabular_custom_fields_mappers = (
+            build_tabular_custom_fields_mappers(self._intel.custom_fields_cfgs)
+            if build_tabular_custom_fields_mappers is not None else []
+        )
 
         defaults_cfg = _as_dict(cfg.get("defaults"))
         log_level = _parse_optional_int(defaults_cfg.get("log_level"), "defaults.log_level")
@@ -2053,23 +2070,13 @@ class DocumentProcessor:
         - multi_table=True 면 빈 행 기준 복수 표를 표별로 분리.
         헤더명(원본, 한글 가능)을 그대로 key 로 쓴다(HTML 셀 내용 — Weaviate 키 제약 무관).
         """
-        from genon.preprocessor.converters.xlsx_processor import load_tables
+        from genon.preprocessor.converters.xlsx_processor import build_tabular_data_dict
 
-        tables = load_tables(
+        return build_tabular_data_dict(
             file_path,
             header_row=self._xlsx_cfg["header_row"],
             multi_table=self._xlsx_cfg["multi_table"],
         )
-        data: list[dict] = []
-        for t in tables:
-            headers = t["headers"]
-            data_rows = [dict(zip(headers, values)) for values in t["data_rows"]]
-            data.append({
-                "sheet_name": t["sheet_name"],
-                "title": t["title"],
-                "data_rows": data_rows,
-            })
-        return {"data": data}
 
     def _parse_other(self, file_path: str, **kwargs) -> list:
         return self._generic.load_documents(file_path, **kwargs)
@@ -2153,6 +2160,20 @@ class DocumentProcessor:
             document = await self._intel.enrich_custom_fields(document, **kwargs)
         except Exception as exc:
             _handle_stage_error(exc, "custom_fields")
+        # doc_type 스탬프(예: card): 요청 kwargs 로 doc_type 이 오면 문서 메타에 저장 → compose_vectors 가
+        # 모든 청크에 broadcast + result["metadata"] 에도 노출. (faq 는 tabular 경로에서 별도 처리)
+        doc_type = normalize_doc_type(kwargs.get("doc_type"))
+        if doc_type:
+            try:
+                from genon.preprocessor.facade.enrichment.field_transforms import (
+                    store_metadata_in_document,
+                )
+                store_metadata_in_document(document, {"doc_type": doc_type})
+                ctx = kwargs.get("_enrichment_context")
+                if isinstance(ctx, dict):
+                    ctx.setdefault("metadata", {})["doc_type"] = doc_type
+            except Exception as exc:
+                _handle_stage_error(exc, "doc_type_stamp")
         return document
 
     # ------------------------------------------------------------------
@@ -2601,6 +2622,25 @@ class DocumentProcessor:
                 return self._normalize_response(self._audio_to_parse_format(text))
 
             if ext in (".csv", ".xlsx", ".xlsm"):
+                # enrichment.custom_fields의 tabular_mapping handler가 doc_type과 일치하면
+                # 행별 custom_fields element로 변환한다. LLM 호출은 없다.
+                runtime_doc_type = normalize_doc_type(kwargs.get("doc_type"))
+                matching_mappers = [
+                    mapper for mapper in self._tabular_custom_fields_mappers
+                    if mapper.matches(runtime_doc_type)
+                ]
+                if len(matching_mappers) > 1:
+                    raise GenosServiceException(
+                        "1",
+                        f"동일 doc_type에 tabular custom_fields 설정이 여러 개입니다: {runtime_doc_type}",
+                    )
+                if matching_mappers:
+                    data_dict = self._parse_tabular(file_path)
+                    try:
+                        result = matching_mappers[0].to_parse_format(data_dict, runtime_doc_type)
+                    except (FileNotFoundError, TypeError, ValueError) as exc:
+                        raise GenosServiceException("1", str(exc), stage="custom_fields") from exc
+                    return self._normalize_response(result)
                 # docling 모드: MsExcel/Csv 백엔드로 DoclingDocument 생성 후 parse-JSON 직렬화.
                 if self._xlsx_cfg["processing_mode"] == "docling":
                     from genon.preprocessor.converters.xlsx_processor import build_docling_document
