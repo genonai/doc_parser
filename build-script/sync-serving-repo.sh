@@ -1,92 +1,94 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# sync-serving-repo.sh — 코드서빙용 git repo(복사본)를 생성한다.
+# sync-serving-repo.sh — 코드서빙 배포본을 별도 Private repo(서브모듈)로 생성/갱신한다.
 #
-# 동작: 현재 repo(doc_parser)의 추적 파일을 복사하되 **docling/ 소스(+부속 파일·build-script)를 제외**하고,
-#       그 자리에 docling wheel 을 packages/ 로 동봉 + requirements.txt 에 그 wheel 경로를 기입한 뒤
-#       별도 serving repo 로 push 한다.
+# 동작: 배포에 필요한 것만(whitelist: genon/ + main.py + requirements.txt) 서브모듈 폴더 `code-serving/`에
+#       재생성하고, docling wheel 을 packages/ 로 동봉 + requirements.txt 에 wheel 경로를 append 한 뒤,
+#       서브모듈(=배포본 repo genonai/doc_parser_code_serving) 안에서 commit/push 한다.
 #
-# 왜: 코드서빙은 GenOS 가 런타임에 serving repo 를 /app/src/service 로 clone 해 main.py 를 띄우고,
-#     그 전에 requirements.txt 를 pip install 한다. docling(fork) 소스를 복사본에서 빼고 wheel 로만
+# 왜: 코드서빙은 GenOS 가 런타임에 배포본 repo 를 /app/src/service 로 clone 해 main.py 를 띄우고,
+#     그 전에 requirements.txt 를 pip install 한다. docling(fork) 소스는 배포본에 넣지 않고 wheel 로만
 #     동봉하면(소스 폴더 비노출), pip 이 requirements.txt 의 wheel 경로를 그대로 설치한다. index 불필요.
 #     (wheel 빌드는 build-docling-wheel.sh)
 #
+# 사전 준비(1회): 배포본 repo(Private) 생성 후 서브모듈 등록
+#   git submodule add git@github.com:genonai/doc_parser_code_serving.git code-serving
+#
 # 사용:
-#   # 복사본만 로컬 생성(검증용, push 안 함)
+#   # 서브모듈 없이 로컬 조립만(검증용) — 임시폴더에 생성, push 안 함
 #   bash build-script/sync-serving-repo.sh
-#   # serving repo 로 push
-#   PUSH=true SERVING_REPO_URL=git@github.com:genonai/doc-parser-serving.git \
-#     GENON_BUILD=0 bash build-script/sync-serving-repo.sh
+#   # 서브모듈에 재생성 + 배포본 repo 로 push
+#   PUSH=true GENON_BUILD=0 bash build-script/sync-serving-repo.sh
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
 # ── 설정 (env 로 오버라이드) ────────────────────────────────────────────────
-SOURCE_REF="${SOURCE_REF:-HEAD}"                 # 복사 원본 커밋
-SERVING_REPO_URL="${SERVING_REPO_URL:-}"         # push 대상 (PUSH=true 시 필수)
+SOURCE_REF="${SOURCE_REF:-HEAD}"                     # 복사 원본 커밋
+SERVING_DIR="${SERVING_DIR:-${ROOT_DIR}/code-serving}"  # 배포본 서브모듈 경로(= 빌드 출력)
 SERVING_BRANCH="${SERVING_BRANCH:-main}"
-GENON_BUILD="${GENON_BUILD:-0}"                  # docling wheel local segment N (build-docling-wheel.sh 로 전달)
-OUT_DIR="${OUT_DIR:-${ROOT_DIR}/dist-serving}"   # 복사본이 만들어지는 로컬 경로
+GENON_BUILD="${GENON_BUILD:-0}"                      # docling wheel local segment N (build-docling-wheel.sh 로 전달)
+OUT_DIR="${OUT_DIR:-}"                               # dry-run 조립 위치 지정용(비우면 mktemp 임시폴더). gitignored 경로 권장.
 PUSH="${PUSH:-false}"
 
-# 복사본에서 제외할 경로 (repo 루트 기준).
-#   - docling/ : fork 소스 (런타임에 private index 에서 genon-docling 으로 설치)
-#   - docling 프로젝트 부속 파일/디렉토리 : 이 repo 가 docling fork 임을 드러내고 docling 의
-#     메타데이터/의존성 목록/문서/테스트를 노출하므로 함께 제외. genon 자산은 main.py + genon/ 뿐.
-# ※ 여기에 없는 최상위 항목(main.py, genon/, build-script/, requirements.txt 등)은 복사본에 유지된다.
-EXCLUDE_PATHS=(
-  # fork 소스 (대신 packages/ 에 wheel 로 동봉)
-  "docling"
-  # genon 빌드 도구 (런타임 불필요 — 하니스는 베이스 이미지에 이미 포함).
-  #   build-docling-wheel.sh / sync-serving-repo.sh / code-serving Dockerfile·build.config 등
-  #   genon 빌드 방식이 노출되므로 복사본에서 제외.
-  "build-script"
-  # docling 패키징/락 (name=docling, IBM 저자, 전체 의존성 트리 노출)
-  "pyproject.toml"
-  "uv.lock"
-  # docling 프로젝트 문서/설정 (fork 정체 노출)
-  "README.md"
-  "Dockerfile"
-  "CHANGELOG.md"
-  "CITATION.cff"
-  "CODE_OF_CONDUCT.md"
-  "CONTRIBUTING.md"
-  "MAINTAINERS.md"
-  "LICENSE"
-  "mkdocs.yml"
-  "pytest.ini"
-  ".env.example"
-  ".gitattributes"
-  ".pre-commit-config.yaml"
-  # docling 문서/테스트/CI/부가 디렉토리
-  "docs"
-  "tests"
-  ".actor"
-  ".github"
-)
+# 배포본에 담을 것 (whitelist, repo 루트 기준 추적 경로). 나머지는 애초에 복사 안 함.
+WHITELIST=("genon" "main.py" "requirements.txt")
 
-echo "[INFO] ROOT_DIR         = ${ROOT_DIR}"
-echo "[INFO] SOURCE_REF       = ${SOURCE_REF}"
-echo "[INFO] OUT_DIR          = ${OUT_DIR}"
-echo "[INFO] EXCLUDE          = ${EXCLUDE_PATHS[*]}"
-echo "[INFO] GENON_BUILD      = ${GENON_BUILD}"
-echo "[INFO] PUSH             = ${PUSH}"
+# whitelist 로 가져온 뒤 배포본에서 제거할 하위 폴더 (dev/legacy/build — 서빙 런타임 무의존).
+#   main.py 는 production resource/ 를 config_path 로 고정하므로 resource_dev 제외해도 무영향.
+EXCLUDE_PATHS=(
+  "genon/preprocessor/resource_dev"
+  "genon/preprocessor/docker"
+  "genon/preprocessor/facade/legacy"
+  "genon/serving"
+  "genon/train"
+  # 2차 검토 추가 (활성 facade/main.py 무의존 검증됨)
+  "genon/preprocessor/facade/legal_parser"   # 미사용 독립 파서
+  "genon/tools"                              # CLI 도구(런타임 무관)
+  "genon/preprocessor/resources"             # 폰트·tessdata tar (베이스 이미지에 이미 포함)
+  "genon/preprocessor/scripts"               # 이미지 등록 스크립트
+)
 
 SOURCE_COMMIT="$(git -C "${ROOT_DIR}" rev-parse "${SOURCE_REF}")"
 
-# ── 1) 추적 파일 export → docling/ 제외 ─────────────────────────────────────
-rm -rf "${OUT_DIR}"
-mkdir -p "${OUT_DIR}"
-git -C "${ROOT_DIR}" archive "${SOURCE_REF}" | tar -x -C "${OUT_DIR}"
+# ── 대상 결정: 서브모듈 있으면 거기, 없으면 dry-run(임시폴더) ────────────────
+IS_SUBMODULE=false
+DRYRUN_TMP=""
+if git -C "${SERVING_DIR}" rev-parse --git-dir >/dev/null 2>&1; then
+  IS_SUBMODULE=true
+  DEST="${SERVING_DIR}"
+else
+  # 서브모듈 없음: OUT_DIR 지정 시 그 경로, 아니면 mktemp 임시폴더(검증 후 정리).
+  # ※ SERVING_DIR(code-serving/)에 직접 조립하면 doc_parser 오염 + 이후 git submodule add 경로 충돌 → 회피.
+  if [[ -n "${OUT_DIR}" ]]; then
+    DEST="${OUT_DIR}"; rm -rf "${DEST}"; mkdir -p "${DEST}"
+  else
+    DEST="$(mktemp -d)"; DRYRUN_TMP="${DEST}"
+  fi
+  echo "[WARN] 서브모듈이 없습니다(${SERVING_DIR}). dry-run 으로 ${DEST} 에 조립만 합니다(push 불가)."
+  echo "       배포하려면 먼저: git submodule add git@github.com:genonai/doc_parser_code_serving.git code-serving"
+fi
 
+echo "[INFO] ROOT_DIR      = ${ROOT_DIR}"
+echo "[INFO] SOURCE_REF    = ${SOURCE_REF} (${SOURCE_COMMIT})"
+echo "[INFO] DEST          = ${DEST}  (submodule=${IS_SUBMODULE})"
+echo "[INFO] WHITELIST     = ${WHITELIST[*]}"
+echo "[INFO] EXCLUDE       = ${EXCLUDE_PATHS[*]}"
+echo "[INFO] GENON_BUILD   = ${GENON_BUILD}"
+echo "[INFO] PUSH          = ${PUSH}"
+
+# ── 1) DEST 재생성 (.git 보존) — whitelist 만 clean 추적본으로 export ─────────
+mkdir -p "${DEST}"
+find "${DEST}" -mindepth 1 -maxdepth 1 ! -name '.git' -exec rm -rf {} +
+git -C "${ROOT_DIR}" archive "${SOURCE_REF}" "${WHITELIST[@]}" | tar -x -C "${DEST}"
+
+# 제외 하위 폴더 제거 (dev/legacy/build)
 for p in "${EXCLUDE_PATHS[@]}"; do
-  rm -rf "${OUT_DIR:?}/${p}"
+  rm -rf "${DEST:?}/${p}"
 done
 
-# ── 2) docling wheel 빌드 → packages/ 동봉 + requirements.txt 에 경로 기입 ───
-# 런타임에 플랫폼이 requirements.txt 를 pip install 하면, pip 이 아래 경로의 wheel 을 그대로 설치한다.
-# (index·find-links 불필요 — requirements.txt 의 wheel 경로 한 줄로 성립)
+# ── 2) docling wheel 빌드 → packages/ 동봉 + requirements.txt 에 경로 append ─
 echo "[INFO] docling wheel 빌드 (build-docling-wheel.sh, GENON_BUILD=${GENON_BUILD}) ..."
 WHEEL_OUT="$(mktemp -d)"
 WHEEL_LINE="$(GENON_BUILD="${GENON_BUILD}" SOURCE_REF="${SOURCE_REF}" OUT_DIR="${WHEEL_OUT}" \
@@ -97,65 +99,54 @@ if [[ -z "${WHEEL_LINE}" || ! -f "${WHEEL_LINE}" ]]; then
 fi
 WHEEL_NAME="$(basename "${WHEEL_LINE}")"
 
-mkdir -p "${OUT_DIR}/packages"
-cp "${WHEEL_LINE}" "${OUT_DIR}/packages/${WHEEL_NAME}"
+mkdir -p "${DEST}/packages"
+cp "${WHEEL_LINE}" "${DEST}/packages/${WHEEL_NAME}"
 rm -rf "${WHEEL_OUT}"
 
-# requirements.txt: 복사본에 포함된 원본(doc_parser 루트 requirements.txt, 현재 빈 파일) 내용을 보존하고,
-# 그 뒤에 docling wheel 경로 줄을 append 한다. (루트에 서빙용 deps 가 생겨도 유실 안 되게)
-# OUT_DIR 은 매 실행 git archive 로 새로 추출되므로 누적/중복 걱정 없음.
-REQ_FILE="${OUT_DIR}/requirements.txt"
+# requirements.txt: whitelist 로 가져온 원본(현재 빈 파일) 내용 보존 + wheel 경로 줄 append.
+# DEST 는 매 실행 새로 재생성되므로 누적/중복 없음.
 {
   echo ""
   echo "# ---- sync-serving-repo.sh 가 추가: docling wheel (직접 편집 금지) ----"
   echo "# docling(fork) 은 소스 대신 packages/ 의 wheel 로 동봉된다. pip 이 이 경로의 wheel 을 직접 설치한다."
   echo "./packages/${WHEEL_NAME}"
-} >> "${REQ_FILE}"
+} >> "${DEST}/requirements.txt"
 
-# ── 3) 검증: 복사본에 docling 소스가 없고 wheel 이 동봉돼야 한다 ─────────────
-if [[ -e "${OUT_DIR}/docling" ]]; then
-  echo "[ERROR] 복사본에 docling/ 이 남아 있습니다." >&2
+# ── 3) 검증: docling 패키지 소스 부재 + wheel 동봉 + 핵심 파일 존재 ───────────
+if find "${DEST}" -type f -path '*/docling/__init__.py' | grep -q .; then
+  echo "[ERROR] 배포본에 docling 패키지 소스가 남아 있습니다:" >&2
+  find "${DEST}" -type f -path '*/docling/__init__.py' >&2
   exit 1
 fi
-# genon 자체 파일(genon/tools/.../docling_viewer.py 등)은 제외하고, docling 패키지 소스만 검사
-if find "${OUT_DIR}" -type f -path '*/docling/__init__.py' | grep -q .; then
-  echo "[ERROR] 복사본에 docling 패키지 소스가 남아 있습니다:" >&2
-  find "${OUT_DIR}" -type f -path '*/docling/__init__.py' >&2
-  exit 1
-fi
-if [[ ! -f "${OUT_DIR}/packages/${WHEEL_NAME}" ]]; then
-  echo "[ERROR] packages/ 에 wheel 이 없습니다: ${WHEEL_NAME}" >&2
-  exit 1
-fi
-echo "[SMOKE] 복사본 청결성 OK — docling 소스 없음, packages/${WHEEL_NAME} 동봉됨"
-echo "[INFO] 복사본 생성 위치: ${OUT_DIR}  (원본 커밋 ${SOURCE_COMMIT})"
-
-# ── 4) serving repo 로 push ─────────────────────────────────────────────────
-if [[ "${PUSH}" == "true" ]]; then
-  if [[ -z "${SERVING_REPO_URL}" ]]; then
-    echo "[ERROR] PUSH=true 인데 SERVING_REPO_URL 이 비어 있습니다." >&2
+for f in "main.py" "genon" "packages/${WHEEL_NAME}"; do
+  if [[ ! -e "${DEST}/${f}" ]]; then
+    echo "[ERROR] 배포본에 ${f} 가 없습니다." >&2
     exit 1
   fi
-  CLONE_DIR="$(mktemp -d)"
-  trap 'rm -rf "${CLONE_DIR}"' EXIT
-  echo "[INFO] serving repo clone: ${SERVING_REPO_URL} (branch ${SERVING_BRANCH})"
-  if git clone --branch "${SERVING_BRANCH}" "${SERVING_REPO_URL}" "${CLONE_DIR}" 2>/dev/null; then
-    :
-  else
-    echo "[INFO] 브랜치가 없어 새로 초기화합니다."
-    git clone "${SERVING_REPO_URL}" "${CLONE_DIR}" || { mkdir -p "${CLONE_DIR}" && git -C "${CLONE_DIR}" init -q; }
-    git -C "${CLONE_DIR}" checkout -q -B "${SERVING_BRANCH}"
-  fi
-  # .git 은 보존, 나머지는 복사본으로 미러(삭제 포함)
-  rsync -a --delete --exclude='.git' "${OUT_DIR}/" "${CLONE_DIR}/"
-  git -C "${CLONE_DIR}" add -A
-  if git -C "${CLONE_DIR}" diff --cached --quiet; then
-    echo "[INFO] 변경 없음 — push 생략."
-  else
-    git -C "${CLONE_DIR}" commit -q -m "sync from doc_parser ${SOURCE_COMMIT} (docling excluded)"
-    git -C "${CLONE_DIR}" push origin "${SERVING_BRANCH}"
-    echo "[INFO] push 완료 → ${SERVING_REPO_URL} (${SERVING_BRANCH})"
-  fi
+done
+echo "[SMOKE] 배포본 청결성 OK — docling 소스 없음, genon/+main.py 존재, packages/${WHEEL_NAME} 동봉됨"
+echo "[INFO] 배포본 조립 위치: ${DEST}  (원본 커밋 ${SOURCE_COMMIT})"
+
+# ── 4) 서브모듈이면 commit/push ─────────────────────────────────────────────
+if [[ "${IS_SUBMODULE}" != "true" ]]; then
+  echo "[INFO] 서브모듈 아님 — 조립만 완료(dry-run). 서브모듈 등록 후 다시 실행하면 commit/push 가능."
+  # mktemp 로 만든 임시 조립본은 검증 끝났으니 정리 (OUT_DIR 지정 시엔 남겨둠)
+  [[ -n "${DRYRUN_TMP}" ]] && rm -rf "${DRYRUN_TMP}"
+  exit 0
+fi
+
+git -C "${DEST}" add -A
+if git -C "${DEST}" diff --cached --quiet; then
+  echo "[INFO] 변경 없음 — commit/push 생략."
+  exit 0
+fi
+git -C "${DEST}" commit -q -m "sync from doc_parser ${SOURCE_COMMIT} (docling→wheel)"
+echo "[INFO] 서브모듈 commit 완료."
+
+if [[ "${PUSH}" == "true" ]]; then
+  git -C "${DEST}" push origin "HEAD:${SERVING_BRANCH}"
+  echo "[INFO] push 완료 → 배포본 repo (${SERVING_BRANCH})"
+  echo "[INFO] doc_parser 에서 gitlink 를 고정하려면: git add code-serving && git commit"
 else
-  echo "[INFO] PUSH=false — 로컬 복사본만 생성. push 하려면 PUSH=true + SERVING_REPO_URL 설정."
+  echo "[INFO] PUSH=false — 서브모듈에 commit 만 함. push 하려면 PUSH=true 로 재실행."
 fi
