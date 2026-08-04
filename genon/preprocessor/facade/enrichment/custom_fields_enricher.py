@@ -404,8 +404,9 @@ class CustomFieldsEnricher(BaseEnricher):
             normalized = {key: None for key in self._output_fields}
 
         # 문서에 저장 → 별도 chunk API 경계를 넘어 청커 passthrough 가 각 청크에 부착
-        # (created_date/MetadataEnricher 와 동일 경로). None 필드는 헬퍼가 skip.
-        store_metadata_in_document(document, normalized)
+        # (created_date/MetadataEnricher 와 동일 경로). 선언된 output_fields 는 값이 null 이어도
+        # 결과에 모두 남겨야 하므로 preserve_nulls=True(sentinel 왕복)로 저장한다.
+        store_metadata_in_document(document, normalized, preserve_nulls=True)
 
         context = kwargs.get("_enrichment_context")
         if isinstance(context, dict):

@@ -22,6 +22,11 @@ if TYPE_CHECKING:
 _log = logging.getLogger(__name__)
 
 
+# null 값을 KeyValueItem 으로 왕복하기 위한 sentinel. 빈 값 셀은 extract 에서 skip 되어
+# key/value 페어링을 깨므로, None 을 비지 않는 이 토큰으로 저장하고 읽을 때 다시 None 으로 복원한다.
+NULL_SENTINEL = "\x00__CF_NULL__\x00"
+
+
 # 추출 메타데이터 → typed 벡터 필드 변환의 기본값.
 # yaml metadata.field_transforms 가 비어있을 때 적용되어 기존 created_date 동작을 보존한다.
 # 각 항목: source(후보 키, str 또는 list) → target(벡터 필드) → type(값 변환기) / fallback(보조 추출).
@@ -246,14 +251,18 @@ def extract_metadata_from_document(document: "DoclingDocument") -> dict[str, Any
                 pending_key = text
                 continue
             if label == "value" and pending_key:
-                metadata[pending_key] = normalize_metadata_value(text)
+                metadata[pending_key] = (
+                    None if text == NULL_SENTINEL else normalize_metadata_value(text)
+                )
                 pending_key = None
                 continue
             # fallback: label 정보가 없거나 예외적인 순서인 경우 순차 pair 처리
             if pending_key is None:
                 pending_key = text
             else:
-                metadata[pending_key] = normalize_metadata_value(text)
+                metadata[pending_key] = (
+                    None if text == NULL_SENTINEL else normalize_metadata_value(text)
+                )
                 pending_key = None
     return metadata
 
@@ -265,7 +274,9 @@ def serialize_metadata_value_for_output(value: Any) -> Any:
     return value
 
 
-def store_metadata_in_document(document: "DoclingDocument", metadata: dict) -> None:
+def store_metadata_in_document(
+    document: "DoclingDocument", metadata: dict, preserve_nulls: bool = False
+) -> None:
     """추출한 key→value 메타데이터를 문서의 KeyValueItem 으로 저장한다.
 
     extract_metadata_from_document 의 쓰기측 대칭 함수. 문서에 실리면 청커의
@@ -273,9 +284,12 @@ def store_metadata_in_document(document: "DoclingDocument", metadata: dict) -> N
     — created_date(MetadataEnricher 가 이미 add_key_values 로 저장)와 동일 경로.
     parse↔chunk 가 별도 API 여도 DoclingDocument 에 실려 경계를 넘는다.
 
-    None 값 필드는 저장하지 않는다: 값 셀 text 가 비면 extract 측이 셀을 건너뛰어
-    (extract_metadata_from_document 의 빈 텍스트 skip) key/value 페어링이 깨지므로,
-    null 은 애초에 emit 하지 않는다.
+    None 값 필드 처리:
+    - preserve_nulls=False(기본): 저장하지 않는다. 값 셀 text 가 비면 extract 측이 셀을
+      건너뛰어(extract_metadata_from_document 의 빈 텍스트 skip) key/value 페어링이 깨지므로,
+      null 은 애초에 emit 하지 않는다.
+    - preserve_nulls=True(custom_fields): 선언된 output_fields 를 값이 null 이어도 결과에
+      모두 남기기 위해, None 을 비지 않는 NULL_SENTINEL 로 저장한다(읽을 때 다시 None 으로 복원).
     """
     try:
         from docling_core.types.doc.document import GraphData, GraphCell, GraphCellLabel
@@ -287,12 +301,15 @@ def store_metadata_in_document(document: "DoclingDocument", metadata: dict) -> N
     cell_id = 0
     for key, value in (metadata or {}).items():
         if value is None:
-            continue  # null 필드는 저장하지 않음(빈 value 셀 skip → 페어링 붕괴 방지)
-        value_str = (
-            json.dumps(value, ensure_ascii=False)
-            if isinstance(value, (dict, list))
-            else str(value)
-        )
+            if not preserve_nulls:
+                continue  # null 필드는 저장하지 않음(빈 value 셀 skip → 페어링 붕괴 방지)
+            value_str = NULL_SENTINEL  # 페어링을 깨지 않는 sentinel 로 왕복
+        else:
+            value_str = (
+                json.dumps(value, ensure_ascii=False)
+                if isinstance(value, (dict, list))
+                else str(value)
+            )
         graph_cells.append(GraphCell(label=GraphCellLabel.KEY, cell_id=cell_id, text=str(key), orig=str(key)))
         cell_id += 1
         graph_cells.append(GraphCell(label=GraphCellLabel.VALUE, cell_id=cell_id, text=value_str, orig=value_str))
