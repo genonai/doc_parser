@@ -1,0 +1,13 @@
+resource_product/
+
+# sample_files temporary output
+doc_sample.pdf
+docx_sample.pdf
+FinalPaperTemplate.pdf
+md_sample.pdf
+pptx_sample.pdf
+tablecell.pdf
+txt_sample.pdf
+
+docx_sample/
+pdf_sample/

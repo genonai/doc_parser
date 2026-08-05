@@ -207,8 +207,24 @@ enrichment:
         enable: false
         prompt_file: prompt_table_refine_combined.md   # 재구성 HTML + 요약 통합 프롬프트
 
-  # ── 커스텀 LLM enricher ────────────────────────────────────────────────────
-  # 복수 항목 허용: 각각 독립 LLM 호출, 결과는 metadata 병합
+  # ── 문서유형별 custom_fields 추출 ──────────────────────────────────────────
+  # extractor=llm은 문서 단위 LLM 추출, tabular_mapping은 Excel/CSV 행별 직접 매핑.
+  # doc_type(요청 kwargs)과 일치하는 설정만 동작. config_file 은 resource_dev 공유본.
+  # 카드 상품 메타데이터(12필드) 추출 — monimo 카드 HTML(flatten 후) 대상
+  - custom_fields:
+      enable: true
+      doc_type: card
+      extractor: llm
+      config_file: custom_field_card.yaml   # resource_path 자동 = 이 yaml 파일 디렉토리
+
+  # FAQ Excel/CSV 행별 메타데이터 매핑 — LLM 호출 없음
+  - custom_fields:
+      enable: true
+      doc_type: faq
+      extractor: tabular_mapping
+      config_file: custom_field_faq.yaml   # resource_path 자동 = 이 yaml 파일 디렉토리
+
+  # ── authors 데모(기존) ──
   - custom_fields:
       enable: false
       url: "https://genos.genon.ai/api/gateway/rep/serving/776/v1/chat/completions"

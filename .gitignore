@@ -41,6 +41,10 @@ tramp
 .cask/
 dist/
 
+# 코드서빙 산출물 (build-docling-wheel.sh 임시 wheel 출력)
+# ※ code-serving/ 은 추적 서브모듈이므로 여기에 넣지 말 것.
+dist-docling/
+
 # Flycheck
 flycheck_*.el
 
@@ -459,6 +463,8 @@ build-script/hf_private_token.env
 # debug
 debug/
 samples/
+
+*tmp*/
 
 # Local settings for Claude
 .claude/settings.local.json

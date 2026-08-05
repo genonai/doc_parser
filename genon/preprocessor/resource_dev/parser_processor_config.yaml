@@ -186,10 +186,25 @@ enrichment:
         enable: false
         prompt_file: prompt_table_refine_combined.md   # 재구성 HTML + 요약 통합 프롬프트
 
-  # ── 커스텀 LLM enricher ────────────────────────────────────────────────────
-  # 복수 항목 허용: 각각 독립 LLM 호출, 결과는 metadata 병합
+  # ── 문서유형별 custom_fields 추출 ──────────────────────────────────────────
+  # extractor=llm은 문서 단위 LLM 추출, tabular_mapping은 Excel/CSV 행별 직접 매핑.
+  # 카드 상품 메타데이터(12필드) 추출 — monimo 카드 HTML(flatten 후) 대상
   - custom_fields:
       enable: true
+      doc_type: card
+      extractor: llm
+      config_file: custom_field_card.yaml   # resource_path 자동 = 이 yaml 파일 디렉토리
+
+  # FAQ Excel/CSV 행별 메타데이터 매핑 — LLM 호출 없음
+  - custom_fields:
+      enable: true
+      doc_type: faq
+      extractor: tabular_mapping
+      config_file: custom_field_faq.yaml   # resource_path 자동 = 이 yaml 파일 디렉토리
+
+  # ── authors 데모(기존) — 카드 추출 데모용 임시 off ──
+  - custom_fields:
+      enable: false
       url: "https://genos.genon.ai/api/gateway/rep/serving/752/v1/chat/completions"
       api_key: "d1a9e0acab6243019008a96cd8af868e"
       model: "model"
@@ -204,11 +219,11 @@ enrichment:
       user_prompt_file: prompt_custom_fields_authors_user.md
 
   - custom_fields:
-      enable: true
+      enable: false
       config_file: custom_field_authors.yaml   # resource_path 자동 = 이 yaml 파일 디렉토리
 
 output:
-  format: "json" # "json" (default), "html", "markdown", "docling"
+  format: "docling" # "json" (default), "html", "markdown", "docling"
   # "docling": 복원 가능한 DoclingDocument 원본 JSON 을 data.document 로 반환(Chunk API 입력용)
   # 민감정보 분류(#315): parser 가 guardrail 워크플로우를 호출해 sensitive_infos 를 출력에 실어 보내고,
   # chunking API 가 그 결과로 청크별 라벨/마스킹을 적용한다(아래 guardrail 섹션 참고).

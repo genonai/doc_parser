@@ -179,12 +179,27 @@ enrichment:
         enable: false
         prompt_file: prompt_table_refine_combined.md   # 재구성 HTML + 요약 통합 프롬프트
 
+  # ── 문서유형별 custom_fields 추출 ──────────────────────────────────────────
+  # extractor=llm 은 문서 단위 LLM 추출, tabular_mapping 은 Excel/CSV 행별 직접 매핑.
+  # doc_type(요청 kwargs)과 일치하는 설정만 동작. 배포 시 enable/serving ID 설정 후 사용.
+  - custom_fields:
+      enable: false
+      doc_type: card
+      extractor: llm
+      config_file: custom_field_card.yaml   # resource_path 자동 = 이 yaml 파일 디렉토리
+  - custom_fields:
+      enable: false
+      doc_type: faq
+      extractor: tabular_mapping
+      config_file: custom_field_faq.yaml   # resource_path 자동 = 이 yaml 파일 디렉토리
+
 output:
-  format: "json" # "json" (default), "html", "markdown", "docling"
+  format: "docling" # "json" (default), "html", "markdown", "docling"
   # "docling": 복원 가능한 DoclingDocument 원본 JSON 을 data.document 로 반환(Chunk API 입력용)
   # 민감정보 분류(#315): parser 가 guardrail 워크플로우를 호출해 sensitive_infos 를 출력에 실어 보내고,
   # chunking API 가 그 결과로 청크별 라벨/마스킹을 적용한다(아래 guardrail 섹션 참고).
   table_format: "html" # "html" (default), "markdown"  ("docling" 포맷에서는 무시)
+  compact_tables: true # markdown 표 컬럼 정렬 패딩 제거(대형 표 축소). html/docling 포맷엔 무관.
 
 # whisper 설정. 음성(.wav/.mp3/.m4a) 처리 시에만 필요(선택).
 # <WHISPER_ENDPOINT>: 음성인식 모델 서버 주소로 변경 필요 (음성 미사용 시 무시)

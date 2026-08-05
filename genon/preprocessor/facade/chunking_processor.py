@@ -153,9 +153,11 @@ from pydantic import BaseModel, ConfigDict, PositiveInt, TypeAdapter, model_vali
 from typing_extensions import Self
 
 try:
-    from genon.preprocessor.facade.enrichment.custom_fields_enricher import CustomFieldsEnricher as _CustomFieldsEnricher
+    from genon.preprocessor.facade.enrichment.custom_fields_enricher import (
+        build_document_custom_fields_enrichers as _build_document_custom_fields_enrichers,
+    )
 except ImportError:
-    _CustomFieldsEnricher = None  # type: ignore[assignment,misc]
+    _build_document_custom_fields_enrichers = None  # type: ignore[assignment]
 try:
     from genon.preprocessor.facade.enrichment.metadata_enricher import MetadataEnricher as _MetadataEnricher
 except ImportError:
@@ -1023,6 +1025,8 @@ class GenosSmartChunker(BaseChunker):
                 item = group[0][0]
                 pic_idx_list = []
                 if isinstance(item, TableItem):
+                    if not item.prov:  # HTML 등 좌표(prov) 없는 표는 bbox 매칭 불가 → 건너뜀
+                        continue
                     table_bbox = item.prov[0].bbox
                     table_page_no = item.prov[0].page_no
 
@@ -1032,6 +1036,8 @@ class GenosSmartChunker(BaseChunker):
                         pic_item = items_group[j][0][0]
                         if isinstance(pic_item, PictureItem):
                             # table 안의 picture인지 확인. iou 사용
+                            if not pic_item.prov:  # 좌표 없는 그림은 매칭 불가 → 건너뜀
+                                continue
                             pic_bbox = pic_item.prov[0].bbox
                             pic_page_no = pic_item.prov[0].page_no
                             if pic_page_no != table_page_no:
@@ -1849,8 +1855,8 @@ class DocumentProcessor:
             self.image_description_options
         )
         self.custom_fields_enrichers: list = (
-            [_CustomFieldsEnricher(**c) for c in ec.custom_fields_cfgs]
-            if _CustomFieldsEnricher is not None
+            _build_document_custom_fields_enrichers(ec.custom_fields_cfgs)
+            if _build_document_custom_fields_enrichers is not None
             else []
         )
         self.metadata_enricher = (
@@ -2677,6 +2683,71 @@ class DocumentProcessor:
             chunk_index_on_page += 1
         return vectors
 
+    def _chunk_custom_fields_rows(self, elements: list, **kwargs: dict) -> list:
+        """행별 custom_fields element → 행마다 청크 1개.
+
+        각 element 는 parser 가 실어 보낸 self-describing metadata(목표필드 + doc_type)를 가진다.
+        그 metadata 를 청크 extra 필드로 부착하고(GenOSVectorMeta.extra=allow), text/인덱스/reg_date 등
+        표준 필드를 채운다. intelligent 의 tabular(build_tabular_vectors)와 동일한 "행=청크" 의미.
+        """
+        # faq_row는 기존 parser 산출물 JSON을 다시 청킹할 수 있도록 계속 허용한다.
+        row_categories = {"custom_fields_row", "faq_row"}
+        rows = [el for el in elements if el.get("category") in row_categories]
+        if not rows:
+            raise GenosServiceException(1, "chunk length is 0")
+
+        # #315 민감정보 분류 결과(있으면 text 에 quote 매칭·라벨·마스킹 적용).
+        _sensitive_infos: list = kwargs.get("_sensitive_infos") or []
+        _gr_masking: bool = bool(kwargs.get("_guardrail_masking", False))
+
+        def _page_of(el: dict) -> int:
+            # /chunk 는 호출자 인라인 payload 를 받으므로 손상/외부 JSON 의 비숫자 page 가 도달 가능.
+            # _chunk_text_elements 와 동일하게 실패 시 1 로 폴백한다.
+            try:
+                return int(el.get("page", 1) or 1)
+            except (TypeError, ValueError):
+                return 1
+
+        reg_date = datetime.now().isoformat(timespec='seconds') + 'Z'
+        n_chunk_of_doc = len(rows)
+        n_page = max((_page_of(el) for el in rows), default=1)
+
+        page_chunk_counts: dict = defaultdict(int)
+        for el in rows:
+            page_chunk_counts[_page_of(el)] += 1
+
+        vectors: list = []
+        current_page = None
+        chunk_index_on_page = 0
+        for idx, el in enumerate(rows):
+            page = _page_of(el)
+            if page != current_page:
+                current_page = page
+                chunk_index_on_page = 0
+            text = str(el.get("content", "") or "")
+            text, chunk_cats = gr.apply_to_text(text, _sensitive_infos, _gr_masking)
+            row_meta = el.get("metadata") or {}
+            vectors.append(GenOSVectorMeta.model_validate({
+                **row_meta,  # 목표 필드(question/answer_text/...) + doc_type. extra=allow 로 보존.
+                'text': text,
+                'n_char': len(text),
+                'n_word': len(text.split()),
+                'n_line': len(text.splitlines()),
+                'i_page': page,
+                'e_page': page,
+                'i_chunk_on_page': chunk_index_on_page,
+                'n_chunk_of_page': page_chunk_counts[page],
+                'i_chunk_on_doc': idx,
+                'n_chunk_of_doc': n_chunk_of_doc,
+                'n_page': n_page,
+                'reg_date': reg_date,
+                'chunk_bboxes': ".",
+                'media_files': ".",
+                'guardrail_categories': sorted(chunk_cats) if chunk_cats else None,
+            }))
+            chunk_index_on_page += 1
+        return vectors
+
     def _chunk_parse_format(self, elements: list, **kwargs: dict) -> list:
         """parse-format( {"elements":[...]} ) 출력을 legacy 동작으로 청킹한다.
 
@@ -2686,6 +2757,12 @@ class DocumentProcessor:
           3) 그 외: RecursiveCharacterTextSplitter 로 텍스트 청킹.
         """
         elements = elements or []
+
+        # 0) 행 기반 custom_fields 가드. faq_row는 이전 산출물 하위 호환용이다.
+        non_empty_all = [el for el in elements if isinstance(el, dict)]
+        row_categories = {"custom_fields_row", "faq_row"}
+        if non_empty_all and any(el.get("category") in row_categories for el in non_empty_all):
+            return self._chunk_custom_fields_rows(non_empty_all, **kwargs)
 
         # 1) audio 가드 — parser 전사 결과는 content 가 "[AUDIO]" 접두사로 시작한다.
         for el in elements:

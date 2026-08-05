@@ -257,6 +257,10 @@ def _extra_params(args) -> dict:
             params[key] = int(value)
         except ValueError:
             params[key] = value
+    # 전용 --doc-type 인자 → doc_type kwarg. --param doc_type=.. 를 함께 주면 그쪽이 우선(setdefault).
+    doc_type = getattr(args, "doc_type", None)
+    if doc_type:
+        params.setdefault("doc_type", doc_type)
     return params
 
 
@@ -375,6 +379,9 @@ def build_parser() -> argparse.ArgumentParser:
                         "예: --param img_desc=1 --param chart_desc=1 --param chart_detection=1 --param doc_summary=1. "
                         "TOC/청킹 토글(task 296): --param toc=0 (목차 off) / --param chunk_mode=1 (인접 섹션 병합, 0=구조 보존). "
                         "LLM 캐시(#329)도 이걸로: --param llm_cache=1 --param interim_root=.. --param workflow_id=.. --param run_id=..")
+    p.add_argument("--doc-type", default=None,
+                   help="문서유형 kwarg (예: faq, card). parser/parser_upload/run/e2e 에 doc_type 으로 전달. "
+                        "--param doc_type=.. 로도 가능(둘 다 주면 --param 우선)")
     p.add_argument("--doc-json", default=None, help="chunker 모드: 입력 docling JSON 파일 경로")
     p.add_argument("--out", default=None, help="청크 결과 JSON 저장 경로 또는 디렉터리(옵션)")
     p.add_argument("--out-doc", default=None, help="parser 모드: docling JSON 저장 경로 또는 디렉터리(옵션)")

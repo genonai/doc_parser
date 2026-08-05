@@ -819,6 +819,8 @@ class GenosSmartChunker(BaseChunker):
                 item = group[0][0]
                 pic_idx_list = []
                 if isinstance(item, TableItem):
+                    if not item.prov:  # HTML 등 좌표(prov) 없는 표는 bbox 매칭 불가 → 건너뜀
+                        continue
                     table_bbox = item.prov[0].bbox
                     table_page_no = item.prov[0].page_no
 
@@ -828,6 +830,8 @@ class GenosSmartChunker(BaseChunker):
                         pic_item = items_group[j][0][0]
                         if isinstance(pic_item, PictureItem):
                             # table 안의 picture인지 확인. iou 사용
+                            if not pic_item.prov:  # 좌표 없는 그림은 매칭 불가 → 건너뜀
+                                continue
                             pic_bbox = pic_item.prov[0].bbox
                             pic_page_no = pic_item.prov[0].page_no
                             if pic_page_no != table_page_no:
