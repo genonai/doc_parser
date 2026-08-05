@@ -292,12 +292,12 @@ else
     echo "[INFO] 태그 ${VERSION} 가 이미 HEAD 를 가리킴 — 태깅 생략(idempotent)."
   else
     TAG_FORCE=(); [[ "${FORCE_TAG}" == "true" ]] && TAG_FORCE=(-f)
-    git -C "${DEST}" tag "${TAG_FORCE[@]}" -a "${VERSION}" -m "code-serving for doc_parser ${VERSION} (${SOURCE_COMMIT})"
+    git -C "${DEST}" tag ${TAG_FORCE[@]+"${TAG_FORCE[@]}"} -a "${VERSION}" -m "code-serving for doc_parser ${VERSION} (${SOURCE_COMMIT})"
     echo "[INFO] 미러 태그 부여: ${VERSION} → ${HEAD_SHA:0:9}"
   fi
   if [[ "${PUSH}" == "true" ]]; then
     PUSH_FORCE=(); [[ "${FORCE_TAG}" == "true" ]] && PUSH_FORCE=(-f)
-    git -C "${DEST}" push "${PUSH_FORCE[@]}" origin "refs/tags/${VERSION}"
+    git -C "${DEST}" push ${PUSH_FORCE[@]+"${PUSH_FORCE[@]}"} origin "refs/tags/${VERSION}"
     echo "[INFO] 미러 태그 push 완료 → 배포본 repo (${VERSION})"
   else
     echo "[INFO] PUSH=false — 미러 태그는 로컬에만 부여. push 하려면 PUSH=true 로 재실행."
