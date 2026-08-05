@@ -23,6 +23,18 @@
 > 무거운 처리(OCR·레이아웃·enrichment)는 파싱에서 끝나므로 청킹은 가볍게 호출할 수 있습니다.
 > docling 포맷(pdf/html/htm/docx/hwp/hwpx)은 구조 인식 청킹, 그 외 포맷은 parse-format 공통 청킹입니다.
 
+## 버전 정합
+
+이 배포본은 **손편집 금지 산출물**입니다 — 원본 repo(`genonai/doc_parser`)에서 `sync-serving-repo.sh` 로만 생성/갱신됩니다.
+
+- **버전 소스**: 원본의 git 릴리스 태그(예: `2.2.5`)가 버전의 단일 진실 소스입니다.
+  배포본 repo에도 **동일한 미러 태그**가 붙으므로, 배포본 태그 = 원본 릴리스 태그입니다.
+- **`VERSION` 파일**: 배포본 루트의 `VERSION`(JSON)이 이 산출물이 어느 원본에서 나왔는지 새깁니다.
+  - `source_version` — 원본 릴리스 태그
+  - `source_commit` / `source_commit_date` — 원본 커밋 SHA·날짜
+  - `docling_wheel` — 동봉된 docling wheel 파일명(`packages/`)
+- 특정 배포 인스턴스가 어느 버전인지 확인하려면 배포본의 `VERSION` 또는 태그를 보면 됩니다.
+
 ## 배포 / GenOS 코드서빙 등록
 
 이 배포본을 GenOS 코드서빙으로 올리는 절차입니다. (배포본은 원본 repo에서 `sync-serving-repo.sh`로

@@ -14,36 +14,59 @@ set -euo pipefail
 #     동봉하면(소스 폴더 비노출), pip 이 requirements.txt 의 wheel 경로를 그대로 설치한다. index 불필요.
 #     (wheel 빌드는 build-docling-wheel.sh)
 #
-# 사전 준비(1회): 배포본 repo(Private) 생성 후 서브모듈 등록
-#   git submodule add git@github.com:genonai/doc_parser_code_serving.git code-serving
+# 사전 준비(1회): 배포본 repo(Private) 를 로컬 클론 (doc_parser 는 이 폴더를 추적하지 않음 — .gitignore)
+#   git clone git@github.com:genonai/doc_parser_code_serving.git code-serving
+#   → push 는 SERVING_DIR 의 origin 이 배포본 repo 와 일치하는 클론일 때만 허용된다(무관 repo 보호).
+#     서브모듈로 등록할 필요 없음.
 #
 # 사용:
-#   # 서브모듈 없이 로컬 조립만(검증용) — 임시폴더에 생성, push 안 함
+#   # 클론 없이 로컬 조립만(검증용) — 임시폴더에 생성, push 안 함
 #   bash build-script/sync-serving-repo.sh
-#   # 서브모듈에 재생성 + 배포본 repo 로 push
+#   # 배포본 클론에 재생성 + 배포본 repo 로 push
 #   PUSH=true GENON_BUILD=0 bash build-script/sync-serving-repo.sh
 #
+# ── 버전 정합 ────────────────────────────────────────────────────────────────
+#   원본(doc_parser)의 git 릴리스 태그가 버전의 단일 진실 소스다. 이 스크립트는
+#   배포본에 (1) 같은 이름의 미러 태그를 push 하고 (2) VERSION 스탬프 파일을 동봉해
+#   배포본 커밋 ↔ 원본 릴리스를 1급으로 연결한다. VERSION 은 SOURCE_REF 에서 자동
+#   파생(git describe)되며, 릴리스 태그 커밋이 아니면 dev 빌드로 태깅된다.
+#
 # ── 릴리스 순서 / 운영 캐비앳 ────────────────────────────────────────────────
-#   1) docling/ 또는 genon/ 변경을 doc_parser 에 커밋.
-#   2) 배포본 재생성 + push (docling 패치가 바뀌었으면 GENON_BUILD=N 을 올림):
-#        PUSH=true GENON_BUILD=N bash build-script/sync-serving-repo.sh
-#   3) (원하면) doc_parser 에서 gitlink 고정: git add code-serving && git commit -m "chore: bump code-serving submodule"
-#   4) 배포처(gitea) 를 새 배포본으로 갱신 후 리비전 재배포 (배포 절차는 code-serving-README.md 참고).
+#   1) docling/ 또는 genon/ 변경을 doc_parser 에 커밋하고 릴리스 태그(예: 2.2.5) 부여.
+#   2) 배포본 재생성 + push + 미러 태그 (docling 패치가 바뀌었으면 GENON_BUILD=N 을 올림):
+#        PUSH=true VERSION=2.2.5 GENON_BUILD=N bash build-script/sync-serving-repo.sh
+#        → 배포본 push + 미러 태그 2.2.5 push + VERSION 스탬프 동봉
+#        (VERSION 을 생략하면 git describe 로 자동 파생. 태그 커밋에서 실행하면 정확히 그 태그.)
+#        원본↔배포본 연결은 배포본 커밋 메시지의 SOURCE_COMMIT + 미러 태그 + VERSION 스탬프로 기록된다
+#        (doc_parser 는 code-serving 을 추적하지 않으므로 gitlink 고정 단계는 없다).
+#   3) 배포처(gitea) 를 새 배포본으로 갱신 후 리비전 재배포 (배포 절차는 code-serving-README.md 참고).
 #
 #   - wheel 히스토리 누적: 매 릴리스 wheel(~5MB)이 배포본 repo 에 커밋되어 쌓인다. 비대해지면 LFS/릴리스 자산 전환 고려.
 #   - genon/ 디스크 중복: doc_parser/genon 과 code-serving/genon(복사 산출물)이 공존한다("복사" 특성상 불가피).
+#   - 재태깅: 이미 존재하는 태그를 다른 커밋으로 옮기려 하면 에러로 중단된다. 의도적일 때만 FORCE_TAG=true.
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
 # ── 설정 (env 로 오버라이드) ────────────────────────────────────────────────
 SOURCE_REF="${SOURCE_REF:-HEAD}"                     # 복사 원본 커밋
-SERVING_DIR="${SERVING_DIR:-${ROOT_DIR}/code-serving}"  # 배포본 서브모듈 경로(= 빌드 출력)
+SERVING_DIR="${SERVING_DIR:-${ROOT_DIR}/code-serving}"  # 배포본 repo 의 로컬 클론(= 빌드 출력). doc_parser 는 추적 안 함(.gitignore).
 SERVING_BRANCH="${SERVING_BRANCH:-main}"
+# push 허용 판정용: SERVING_DIR 의 origin 이 이 repo 와 일치할 때만 commit/push(무관 repo 보호).
+SERVING_REMOTE="${SERVING_REMOTE:-git@github.com:genonai/doc_parser_code_serving.git}"
 GENON_BUILD="${GENON_BUILD:-0}"                      # docling wheel local segment N (build-docling-wheel.sh 로 전달)
 OUT_DIR="${OUT_DIR:-}"                               # dry-run 조립 위치 지정용(비우면 mktemp 임시폴더). gitignored 경로 권장.
 PUSH="${PUSH:-false}"
 SERVING_README="${SERVING_README:-${ROOT_DIR}/build-script/code-serving-README.md}"  # 배포본 root 로 복사할 README 소스
+
+# 미러 태그로 쓸 버전. 비우면 SOURCE_REF 에서 자동 파생(태그 커밋이면 정확히 그 태그, 아니면 2.2.4-14-gSHA).
+VERSION="${VERSION:-$(git -C "${ROOT_DIR}" describe --tags "${SOURCE_REF}" 2>/dev/null || true)}"
+FORCE_TAG="${FORCE_TAG:-false}"                      # true 일 때만 기존 태그를 다른 커밋으로 강제 이동(-f)
+
+# 릴리스 위생: SOURCE_REF 가 정확히 릴리스 태그 커밋이 아니면 경고(dev 빌드로 태깅됨).
+if ! git -C "${ROOT_DIR}" describe --exact-match --tags "${SOURCE_REF}" >/dev/null 2>&1; then
+  echo "[WARN] SOURCE_REF(${SOURCE_REF}) 가 릴리스 태그 커밋이 아닙니다 — dev 빌드로 태깅됩니다(VERSION=${VERSION:-<없음>})."
+fi
 
 # 배포본에 담을 것 (whitelist, repo 루트 기준 추적 경로). 나머지는 애초에 복사 안 함.
 WHITELIST=("genon" "main.py" "requirements.txt")
@@ -65,36 +88,52 @@ EXCLUDE_PATHS=(
 
 SOURCE_COMMIT="$(git -C "${ROOT_DIR}" rev-parse "${SOURCE_REF}")"
 
-# ── 대상 결정: "루트 repo 에 등록된 서브모듈" 일 때만 거기, 아니면 dry-run(임시폴더) ──
+# ── 대상 결정: "배포본 repo 의 로컬 클론" 일 때만 거기, 아니면 dry-run(임시폴더) ──
 # ※ git dir 존재만으로 판단하면 SERVING_DIR 오버라이드로 무관한 repo 를 가리킬 때
-#   그 repo 의 파일이 삭제(96행)·commit·push(184~193행) 될 수 있다. 루트 인덱스에서
-#   gitlink(mode 160000)로 추적되는 경로 = 등록된 서브모듈일 때만 대상으로 삼는다.
-is_registered_submodule() {
-  local dir="$1"
-  local mode="$(git -C "${ROOT_DIR}" ls-files --stage -- "${dir}" 2>/dev/null | awk '{print $1; exit}')"
-  [[ "${mode}" == "160000" ]]
+#   그 repo 의 파일이 삭제·commit·push 될 수 있다. 그래서 SERVING_DIR 의 origin 원격이
+#   배포본 repo(SERVING_REMOTE)와 같은 repo 를 가리킬 때만 대상으로 삼는다.
+#   (doc_parser 는 code-serving 을 서브모듈로 추적하지 않음 — 로컬 클론일 뿐, .gitignore 처리.)
+
+# github 원격 URL 을 "owner/repo" 로 환원(ssh/https·.git 유무·트레일링슬래시 무시).
+normalize_remote() {
+  local url="$1"
+  url="${url%.git}"; url="${url%/}"
+  url="${url#git@github.com:}"
+  url="${url#https://github.com/}"
+  url="${url#ssh://git@github.com/}"
+  printf '%s' "${url}"
 }
 
-IS_SUBMODULE=false
+# SERVING_DIR 이 배포본 repo 의 클론인가(origin 이 SERVING_REMOTE 와 동일 repo).
+is_serving_clone() {
+  local dir="$1"
+  git -C "${dir}" rev-parse --git-dir >/dev/null 2>&1 || return 1
+  local origin; origin="$(git -C "${dir}" remote get-url origin 2>/dev/null || true)"
+  [[ -n "${origin}" ]] || return 1
+  [[ "$(normalize_remote "${origin}")" == "$(normalize_remote "${SERVING_REMOTE}")" ]]
+}
+
+PUSH_TARGET_OK=false
 DRYRUN_TMP=""
-if git -C "${SERVING_DIR}" rev-parse --git-dir >/dev/null 2>&1 && is_registered_submodule "${SERVING_DIR}"; then
-  IS_SUBMODULE=true
+if is_serving_clone "${SERVING_DIR}"; then
+  PUSH_TARGET_OK=true
   DEST="${SERVING_DIR}"
 else
-  # 서브모듈 없음: OUT_DIR 지정 시 그 경로, 아니면 mktemp 임시폴더(검증 후 정리).
-  # ※ SERVING_DIR(code-serving/)에 직접 조립하면 doc_parser 오염 + 이후 git submodule add 경로 충돌 → 회피.
+  # 배포본 클론 아님: OUT_DIR 지정 시 그 경로, 아니면 mktemp 임시폴더(검증 후 정리).
   if [[ -n "${OUT_DIR}" ]]; then
     DEST="${OUT_DIR}"; rm -rf "${DEST}"; mkdir -p "${DEST}"
   else
     DEST="$(mktemp -d)"; DRYRUN_TMP="${DEST}"
   fi
-  echo "[WARN] 등록된 서브모듈이 아닙니다(${SERVING_DIR}). dry-run 으로 ${DEST} 에 조립만 합니다(push 불가)."
-  echo "       배포하려면 먼저: git submodule add git@github.com:genonai/doc_parser_code_serving.git code-serving"
+  echo "[WARN] SERVING_DIR(${SERVING_DIR}) 이 배포본 repo 의 클론이 아닙니다. dry-run 으로 ${DEST} 에 조립만 합니다(push 불가)."
+  echo "       배포하려면:  git clone ${SERVING_REMOTE} code-serving"
+  echo "       (code-serving/ 은 .gitignore 로 doc_parser 가 추적하지 않습니다. 서브모듈 등록 불필요.)"
 fi
 
 echo "[INFO] ROOT_DIR      = ${ROOT_DIR}"
 echo "[INFO] SOURCE_REF    = ${SOURCE_REF} (${SOURCE_COMMIT})"
-echo "[INFO] DEST          = ${DEST}  (submodule=${IS_SUBMODULE})"
+echo "[INFO] DEST          = ${DEST}  (push_target_ok=${PUSH_TARGET_OK})"
+echo "[INFO] VERSION       = ${VERSION:-<없음>}  (force_tag=${FORCE_TAG})"
 echo "[INFO] WHITELIST     = ${WHITELIST[*]}"
 echo "[INFO] EXCLUDE       = ${EXCLUDE_PATHS[*]}"
 echo "[INFO] GENON_BUILD   = ${GENON_BUILD}"
@@ -159,6 +198,21 @@ fi
 } > "${DEST}/requirements-dev.txt"
 echo "[INFO] requirements-dev.txt 생성: ${DEST}/requirements-dev.txt"
 
+# ── 2d) VERSION 스탬프 생성 (배포본 ↔ 원본 릴리스 연결 + 산출물 자가 식별) ──────
+# 원본 릴리스 태그·SHA·wheel 을 배포본에 새긴다. 배포된 산출물이 자기 버전을 식별 가능.
+# ⚠️ 결정적 값(원본에서 파생)만 사용 — now() 타임스탬프 금지. 넣으면 매 실행 diff 가 생겨
+#    아래 4) 의 "변경 없음 스킵"이 깨진다. 날짜는 원본 커밋 날짜(고정값)만 쓴다.
+SOURCE_COMMIT_DATE="$(git -C "${ROOT_DIR}" show -s --format=%cI "${SOURCE_COMMIT}")"
+{
+  echo "{"
+  echo "  \"source_version\": \"${VERSION}\","
+  echo "  \"source_commit\": \"${SOURCE_COMMIT}\","
+  echo "  \"source_commit_date\": \"${SOURCE_COMMIT_DATE}\","
+  echo "  \"docling_wheel\": \"${WHEEL_NAME}\""
+  echo "}"
+} > "${DEST}/VERSION"
+echo "[INFO] VERSION 스탬프 생성: ${DEST}/VERSION (source_version=${VERSION:-<없음>})"
+
 # ── 3) 검증: docling 패키지 소스 부재 + wheel 동봉 + 핵심 파일 존재 ───────────
 if find "${DEST}" -type f -path '*/docling/__init__.py' | grep -q .; then
   echo "[ERROR] 배포본에 docling 패키지 소스가 남아 있습니다:" >&2
@@ -179,12 +233,16 @@ if [[ ! -f "${DEST}/requirements-dev.txt" ]]; then
   echo "[ERROR] requirements-dev.txt 가 생성되지 않았습니다." >&2
   exit 1
 fi
-echo "[SMOKE] 배포본 청결성 OK — docling 소스 없음, genon/+main.py 존재, packages/${WHEEL_NAME} 동봉됨, requirements-dev.txt 생성됨"
+if [[ ! -f "${DEST}/VERSION" ]]; then
+  echo "[ERROR] VERSION 스탬프가 생성되지 않았습니다." >&2
+  exit 1
+fi
+echo "[SMOKE] 배포본 청결성 OK — docling 소스 없음, genon/+main.py 존재, packages/${WHEEL_NAME} 동봉됨, requirements-dev.txt·VERSION 생성됨"
 echo "[INFO] 배포본 조립 위치: ${DEST}  (원본 커밋 ${SOURCE_COMMIT})"
 
-# ── 4) 서브모듈이면 commit/push ─────────────────────────────────────────────
-if [[ "${IS_SUBMODULE}" != "true" ]]; then
-  echo "[INFO] 서브모듈 아님 — 조립만 완료(dry-run). 서브모듈 등록 후 다시 실행하면 commit/push 가능."
+# ── 4) 배포본 클론이면 commit/push ──────────────────────────────────────────
+if [[ "${PUSH_TARGET_OK}" != "true" ]]; then
+  echo "[INFO] 배포본 클론 아님 — 조립만 완료(dry-run). 배포본 repo 를 code-serving/ 로 clone 후 다시 실행하면 commit/push 가능."
   # mktemp 로 만든 임시 조립본은 검증 끝났으니 정리 (OUT_DIR 지정 시엔 남겨둠)
   [[ -n "${DRYRUN_TMP}" ]] && rm -rf "${DRYRUN_TMP}"
   exit 0
@@ -192,16 +250,46 @@ fi
 
 git -C "${DEST}" add -A
 if git -C "${DEST}" diff --cached --quiet; then
-  echo "[INFO] 변경 없음 — commit/push 생략."
-  exit 0
+  # 내용 동일 — 새 커밋은 없지만, 기존 HEAD 가 이 VERSION 에 해당하므로 태깅은 계속 진행한다.
+  echo "[INFO] 변경 없음 — commit 생략(기존 HEAD 에 태그만 부여)."
+else
+  git -C "${DEST}" commit -q -m "sync from doc_parser ${SOURCE_COMMIT} (docling→wheel)"
+  echo "[INFO] 서브모듈 commit 완료."
+  if [[ "${PUSH}" == "true" ]]; then
+    git -C "${DEST}" push origin "HEAD:${SERVING_BRANCH}"
+    echo "[INFO] push 완료 → 배포본 repo (${SERVING_BRANCH})"
+  else
+    echo "[INFO] PUSH=false — 서브모듈에 commit 만 함. push 하려면 PUSH=true 로 재실행."
+  fi
 fi
-git -C "${DEST}" commit -q -m "sync from doc_parser ${SOURCE_COMMIT} (docling→wheel)"
-echo "[INFO] 서브모듈 commit 완료."
+
+# ── 5) 미러 태그: 원본 릴리스 태그를 배포본 HEAD 에 부여(+PUSH 시 push) ────────
+if [[ -z "${VERSION}" ]]; then
+  echo "[WARN] VERSION 이 비어 미러 태그를 생략합니다(원본이 태그 커밋이 아니거나 태그가 없음)."
+else
+  HEAD_SHA="$(git -C "${DEST}" rev-parse HEAD)"
+  EXIST_SHA="$(git -C "${DEST}" rev-list -n1 "${VERSION}" 2>/dev/null || true)"
+  if [[ -n "${EXIST_SHA}" && "${EXIST_SHA}" != "${HEAD_SHA}" && "${FORCE_TAG}" != "true" ]]; then
+    echo "[ERROR] 태그 ${VERSION} 가 이미 다른 커밋(${EXIST_SHA:0:9})을 가리킵니다. 배포본 HEAD 는 ${HEAD_SHA:0:9}." >&2
+    echo "        릴리스된 태그를 옮기는 것은 사고 위험이 큽니다. 의도적이면 FORCE_TAG=true 로 재실행하세요." >&2
+    exit 1
+  fi
+  if [[ "${EXIST_SHA}" == "${HEAD_SHA}" ]]; then
+    echo "[INFO] 태그 ${VERSION} 가 이미 HEAD 를 가리킴 — 태깅 생략(idempotent)."
+  else
+    TAG_FORCE=(); [[ "${FORCE_TAG}" == "true" ]] && TAG_FORCE=(-f)
+    git -C "${DEST}" tag "${TAG_FORCE[@]}" -a "${VERSION}" -m "code-serving for doc_parser ${VERSION} (${SOURCE_COMMIT})"
+    echo "[INFO] 미러 태그 부여: ${VERSION} → ${HEAD_SHA:0:9}"
+  fi
+  if [[ "${PUSH}" == "true" ]]; then
+    PUSH_FORCE=(); [[ "${FORCE_TAG}" == "true" ]] && PUSH_FORCE=(-f)
+    git -C "${DEST}" push "${PUSH_FORCE[@]}" origin "refs/tags/${VERSION}"
+    echo "[INFO] 미러 태그 push 완료 → 배포본 repo (${VERSION})"
+  else
+    echo "[INFO] PUSH=false — 미러 태그는 로컬에만 부여. push 하려면 PUSH=true 로 재실행."
+  fi
+fi
 
 if [[ "${PUSH}" == "true" ]]; then
-  git -C "${DEST}" push origin "HEAD:${SERVING_BRANCH}"
-  echo "[INFO] push 완료 → 배포본 repo (${SERVING_BRANCH})"
-  echo "[INFO] doc_parser 에서 gitlink 를 고정하려면: git add code-serving && git commit"
-else
-  echo "[INFO] PUSH=false — 서브모듈에 commit 만 함. push 하려면 PUSH=true 로 재실행."
+  echo "[INFO] 배포본 repo 에 커밋+태그(${VERSION:-<없음>}) push 완료. doc_parser 는 code-serving 을 추적하지 않으므로 별도 gitlink 고정 불필요."
 fi
