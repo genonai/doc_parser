@@ -47,6 +47,8 @@ def dp():
     proc._log_level = 4  # __call__ 이 setup_logging 에서 참조 (정상 __init__ 우회 보강)
     # __init__ 이 self._intel._xlsx_cfg 를 alias 하는 속성(이슈 #288). 우회 시 tabular 기본값으로 보강.
     proc._xlsx_cfg = {"processing_mode": "tabular", "header_row": 0, "multi_table": False}
+    # __call__ 의 tabular custom_fields 라우팅(#75bb9ec1)이 참조. 우회 시 빈 목록으로 보강.
+    proc._tabular_custom_fields_mappers = []
     return proc
 
 

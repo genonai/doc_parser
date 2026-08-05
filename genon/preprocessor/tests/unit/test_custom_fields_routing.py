@@ -101,7 +101,7 @@ def test_llm_custom_fields_runs_only_for_matching_doc_type(monkeypatch):
     enricher._extract_raw_text = MagicMock(return_value="raw")
     enricher._call_llm = AsyncMock(return_value='{"product_name":"Card A"}')
     stored = []
-    monkeypatch.setattr(cfe, "store_metadata_in_document", lambda document, metadata: stored.append(metadata))
+    monkeypatch.setattr(cfe, "store_metadata_in_document", lambda document, metadata, **kwargs: stored.append(metadata))
 
     # faq 요청에서는 card LLM을 호출하지 않는다.
     assert asyncio.run(enricher.enrich(doc, doc_type="faq")) is doc

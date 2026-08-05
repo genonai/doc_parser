@@ -2700,19 +2700,27 @@ class DocumentProcessor:
         _sensitive_infos: list = kwargs.get("_sensitive_infos") or []
         _gr_masking: bool = bool(kwargs.get("_guardrail_masking", False))
 
+        def _page_of(el: dict) -> int:
+            # /chunk 는 호출자 인라인 payload 를 받으므로 손상/외부 JSON 의 비숫자 page 가 도달 가능.
+            # _chunk_text_elements 와 동일하게 실패 시 1 로 폴백한다.
+            try:
+                return int(el.get("page", 1) or 1)
+            except (TypeError, ValueError):
+                return 1
+
         reg_date = datetime.now().isoformat(timespec='seconds') + 'Z'
         n_chunk_of_doc = len(rows)
-        n_page = max((int(el.get("page", 1) or 1) for el in rows), default=1)
+        n_page = max((_page_of(el) for el in rows), default=1)
 
         page_chunk_counts: dict = defaultdict(int)
         for el in rows:
-            page_chunk_counts[int(el.get("page", 1) or 1)] += 1
+            page_chunk_counts[_page_of(el)] += 1
 
         vectors: list = []
         current_page = None
         chunk_index_on_page = 0
         for idx, el in enumerate(rows):
-            page = int(el.get("page", 1) or 1)
+            page = _page_of(el)
             if page != current_page:
                 current_page = page
                 chunk_index_on_page = 0

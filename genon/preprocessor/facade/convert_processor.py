@@ -3399,7 +3399,7 @@ class DocumentProcessor:
                     multi_table=self._xlsx_cfg["multi_table"],
                 )
             except (FileNotFoundError, TypeError, ValueError) as exc:
-                raise GenosServiceException("1", str(exc))
+                raise GenosServiceException("1", str(exc)) from exc
             if not vectors:
                 raise GenosServiceException("1", "chunk length is 0")
             return vectors

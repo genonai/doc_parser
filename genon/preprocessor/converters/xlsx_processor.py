@@ -19,12 +19,21 @@ import json
 import logging
 import os
 import re
-from datetime import datetime
+from collections import Counter
+from datetime import datetime, timezone
 from typing import Any, Optional
 
 from pydantic import BaseModel
 
 _log = logging.getLogger(__name__)
+
+
+def _page_or_default(el: dict, default: int = 1) -> int:
+    """el["page"] 를 int 로 안전 변환(비숫자/누락 시 default). chunking_processor 와 동일 규약."""
+    try:
+        return int(el.get("page", default) or default)
+    except (TypeError, ValueError):
+        return default
 
 XLSX_EXTS = {".xlsx", ".xlsm"}
 CSV_EXTS = {".csv"}
@@ -435,7 +444,7 @@ def build_tabular_vectors(
     각 컬럼 값을 최상단 스칼라 property 로 부여(Weaviate where 필터 가능). Weaviate 키 규칙에 안 맞는
     헤더(한글 등)는 `_stable_key` 로 `field_<hash>` alias, 원본명은 `column_map`(JSON) 에 보존한다.
     """
-    reg_date = reg_date or (datetime.now().isoformat(timespec="seconds") + "Z")
+    reg_date = reg_date or datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     tables = load_tables(file_path, header_row=header_row, multi_table=multi_table)
 
     n_chunk_of_doc = sum(len(t["data_rows"]) for t in tables)
@@ -523,7 +532,12 @@ def build_tabular_data_dict(
     data: list[dict] = []
     for t in tables:
         headers = t["headers"]
-        data_rows = [dict(zip(headers, values)) for values in t["data_rows"]]
+        # 정확히 동일한 헤더명이 있으면 dict(zip) 이 앞 컬럼을 조용히 덮어써 데이터가 소실된다
+        # (이후 _header_index 는 정규화 후 충돌만 감지 → 원본 중복은 못 잡음). 여기서 명확히 거부한다.
+        dup_headers = [h for h, cnt in Counter(headers).items() if h and cnt > 1]
+        if dup_headers:
+            raise ValueError(f"중복되는 Excel 컬럼(헤더)이 있습니다: {dup_headers}")
+        data_rows = [dict(zip(headers, values, strict=False)) for values in t["data_rows"]]
         data.append({
             "sheet_name": t["sheet_name"],
             "title": t["title"],
@@ -550,7 +564,7 @@ def build_tabular_custom_fields_vectors(
     동일한 "행=청크" 인덱스 계산(단, #315 guardrail 은 이 직접 경로에선 미적용 — build_tabular_vectors
     와 동일).
     """
-    reg_date = reg_date or (datetime.now().isoformat(timespec="seconds") + "Z")
+    reg_date = reg_date or datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     data_dict = build_tabular_data_dict(file_path, header_row=header_row, multi_table=multi_table)
     result = mapper.to_parse_format(data_dict, runtime_doc_type)
     elements = [el for el in (result.get("elements") or []) if isinstance(el, dict)]
@@ -559,17 +573,17 @@ def build_tabular_custom_fields_vectors(
         return []
 
     n_chunk_of_doc = len(elements)
-    n_page = max((int(el.get("page", 1) or 1) for el in elements), default=1)
+    n_page = max((_page_or_default(el) for el in elements), default=1)
     page_chunk_counts: dict = {}
     for el in elements:
-        p = int(el.get("page", 1) or 1)
+        p = _page_or_default(el)
         page_chunk_counts[p] = page_chunk_counts.get(p, 0) + 1
 
     vectors: list[GenOSVectorMeta] = []
     current_page = None
     chunk_index_on_page = 0
     for idx, el in enumerate(elements):
-        page = int(el.get("page", 1) or 1)
+        page = _page_or_default(el)
         if page != current_page:
             current_page = page
             chunk_index_on_page = 0

@@ -65,10 +65,19 @@ EXCLUDE_PATHS=(
 
 SOURCE_COMMIT="$(git -C "${ROOT_DIR}" rev-parse "${SOURCE_REF}")"
 
-# ── 대상 결정: 서브모듈 있으면 거기, 없으면 dry-run(임시폴더) ────────────────
+# ── 대상 결정: "루트 repo 에 등록된 서브모듈" 일 때만 거기, 아니면 dry-run(임시폴더) ──
+# ※ git dir 존재만으로 판단하면 SERVING_DIR 오버라이드로 무관한 repo 를 가리킬 때
+#   그 repo 의 파일이 삭제(96행)·commit·push(184~193행) 될 수 있다. 루트 인덱스에서
+#   gitlink(mode 160000)로 추적되는 경로 = 등록된 서브모듈일 때만 대상으로 삼는다.
+is_registered_submodule() {
+  local dir="$1"
+  local mode="$(git -C "${ROOT_DIR}" ls-files --stage -- "${dir}" 2>/dev/null | awk '{print $1; exit}')"
+  [[ "${mode}" == "160000" ]]
+}
+
 IS_SUBMODULE=false
 DRYRUN_TMP=""
-if git -C "${SERVING_DIR}" rev-parse --git-dir >/dev/null 2>&1; then
+if git -C "${SERVING_DIR}" rev-parse --git-dir >/dev/null 2>&1 && is_registered_submodule "${SERVING_DIR}"; then
   IS_SUBMODULE=true
   DEST="${SERVING_DIR}"
 else
@@ -79,7 +88,7 @@ else
   else
     DEST="$(mktemp -d)"; DRYRUN_TMP="${DEST}"
   fi
-  echo "[WARN] 서브모듈이 없습니다(${SERVING_DIR}). dry-run 으로 ${DEST} 에 조립만 합니다(push 불가)."
+  echo "[WARN] 등록된 서브모듈이 아닙니다(${SERVING_DIR}). dry-run 으로 ${DEST} 에 조립만 합니다(push 불가)."
   echo "       배포하려면 먼저: git submodule add git@github.com:genonai/doc_parser_code_serving.git code-serving"
 fi
 

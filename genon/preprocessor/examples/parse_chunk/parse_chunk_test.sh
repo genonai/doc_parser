@@ -61,8 +61,6 @@ RUN="run-1"
 # 결과 확인: 행마다 1청크 + 목표 메타 부착
 #   ls "${OUT}"/생명FAQ_260712.chunks.json
 #   "${PYTHON}" -c "import json;d=json.load(open('${OUT}/생명FAQ_260712.chunks.json'));print(len(d));print(d[0])"
-# 2) 2회차(HIT=캐시 재사용): 로그에서 페이지별 "HIT" 및 요약 "[llm_cache] hit=.. miss=.." 확인
-# "${PYTHON}" parse_chunk_test.py --llm_cache --interim_root "${INTERIM}" --workflow_id "${WF}" --run_id "${RUN}" "${FILE}" "${OUT}/"
 
 # 캐시 파일 확인: ls -R "${INTERIM}/${WF}/${RUN}/llm_cache/"
 

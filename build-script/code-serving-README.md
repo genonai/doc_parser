@@ -44,9 +44,9 @@
    git clone http://llmops-gitea-service:3000/llmops/<코드서빙 gitea id>.git <gitea_dir>
 
    # 빌드된 배포본 clone
-   # id와 pass는 github id와 토큰을 입력합니다.
-   # 토큰 발급방법은 아래의 발급방법을 참고바랍니다.
-   git clone git@github.com:genonai/doc_parser_code_serving.git
+   # HTTPS clone 시 GitHub id와 personal access token(pass 자리에 토큰)을 입력합니다.
+   # 토큰을 URL 에 직접 포함하지 마십시오. 토큰 발급방법은 아래의 발급방법을 참고바랍니다.
+   git clone https://github.com/genonai/doc_parser_code_serving.git
    cd doc_parser_code_serving
 
    # 배포본 내용을 gitea repo 로 복사 (.git 제외)
