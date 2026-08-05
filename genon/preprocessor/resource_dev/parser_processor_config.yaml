@@ -219,7 +219,7 @@ enrichment:
       user_prompt_file: prompt_custom_fields_authors_user.md
 
   - custom_fields:
-      enable: true
+      enable: false
       config_file: custom_field_authors.yaml   # resource_path 자동 = 이 yaml 파일 디렉토리
 
 output:
