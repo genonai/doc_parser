@@ -210,14 +210,21 @@ echo "[INFO] requirements-dev.txt 생성: ${DEST}/requirements-dev.txt"
 # ⚠️ 결정적 값(원본에서 파생)만 사용 — now() 타임스탬프 금지. 넣으면 매 실행 diff 가 생겨
 #    아래 4) 의 "변경 없음 스킵"이 깨진다. 날짜는 원본 커밋 날짜(고정값)만 쓴다.
 SOURCE_COMMIT_DATE="$(git -C "${ROOT_DIR}" show -s --format=%cI "${SOURCE_COMMIT}")"
-{
-  echo "{"
-  echo "  \"source_version\": \"${VERSION}\","
-  echo "  \"source_commit\": \"${SOURCE_COMMIT}\","
-  echo "  \"source_commit_date\": \"${SOURCE_COMMIT_DATE}\","
-  echo "  \"docling_wheel\": \"${WHEEL_NAME}\""
-  echo "}"
-} > "${DEST}/VERSION"
+# 값은 셸 보간이 아니라 env 로 넘겨 python 이 인코딩한다(따옴표 escaping + 셸 주입 여지 제거).
+VERSION="${VERSION}" SOURCE_COMMIT="${SOURCE_COMMIT}" \
+SOURCE_COMMIT_DATE="${SOURCE_COMMIT_DATE}" WHEEL_NAME="${WHEEL_NAME}" \
+DEST_VERSION="${DEST}/VERSION" \
+python3 -c '
+import json, os
+with open(os.environ["DEST_VERSION"], "w") as f:
+    json.dump({
+        "source_version": os.environ["VERSION"],
+        "source_commit": os.environ["SOURCE_COMMIT"],
+        "source_commit_date": os.environ["SOURCE_COMMIT_DATE"],
+        "docling_wheel": os.environ["WHEEL_NAME"],
+    }, f, indent=2, ensure_ascii=False)
+    f.write("\n")
+'
 echo "[INFO] VERSION 스탬프 생성: ${DEST}/VERSION (source_version=${VERSION:-<없음>})"
 
 # ── 3) 검증: docling 패키지 소스 부재 + wheel 동봉 + 핵심 파일 존재 ───────────
