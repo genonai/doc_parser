@@ -22,6 +22,16 @@ set -euo pipefail
 #   bash build-script/sync-serving-repo.sh
 #   # 서브모듈에 재생성 + 배포본 repo 로 push
 #   PUSH=true GENON_BUILD=0 bash build-script/sync-serving-repo.sh
+#
+# ── 릴리스 순서 / 운영 캐비앳 ────────────────────────────────────────────────
+#   1) docling/ 또는 genon/ 변경을 doc_parser 에 커밋.
+#   2) 배포본 재생성 + push (docling 패치가 바뀌었으면 GENON_BUILD=N 을 올림):
+#        PUSH=true GENON_BUILD=N bash build-script/sync-serving-repo.sh
+#   3) (원하면) doc_parser 에서 gitlink 고정: git add code-serving && git commit -m "chore: bump code-serving submodule"
+#   4) 배포처(gitea) 를 새 배포본으로 갱신 후 리비전 재배포 (배포 절차는 code-serving-README.md 참고).
+#
+#   - wheel 히스토리 누적: 매 릴리스 wheel(~5MB)이 배포본 repo 에 커밋되어 쌓인다. 비대해지면 LFS/릴리스 자산 전환 고려.
+#   - genon/ 디스크 중복: doc_parser/genon 과 code-serving/genon(복사 산출물)이 공존한다("복사" 특성상 불가피).
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
