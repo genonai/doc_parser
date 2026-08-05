@@ -192,5 +192,42 @@ python serving_gateway_test.py --mode chunker --doc-json /tmp/doc.json
   전체 상세는 **전체 매뉴얼**을 참고하세요:
   → [`genon/preprocessor/facade/gitbook_doc/code_serving.md`](genon/preprocessor/facade/gitbook_doc/code_serving.md)
 
+## 부록: 로컬에서 `facade/test.py` 직접 실행 (개발·디버깅용)
+
+게이트웨이 HTTP 테스트(`serving_gateway_test.py`, 위 [사용 예시](#사용-예시))와 달리, **서빙 배포 없이 이
+repo를 clone한 로컬에서 전처리기를 직접 호출**해 보는 개발용 절차입니다. 대상은
+`genon/preprocessor/facade/test.py`(지능형 프로세서, PDF).
+
+> `uv sync` 는 이 배포본에서 **실패**합니다 — 동봉된 `genon/preprocessor/pyproject.toml` 의 docling 의존성
+> source 가 소스가 없는(wheel만 있는) 이 repo 루트를 가리켜 docling 을 소스빌드하려다 깨집니다. 그래서 아래처럼
+> **동봉 wheel 을 직접 설치**합니다.
+
+**① 동작환경 설정 (uv)** — repo 루트에서:
+```bash
+uv venv --python 3.11 && source .venv/bin/activate
+uv pip install -r requirements.txt        # docling(fork) wheel + docling 계열 deps
+uv pip install -r requirements-dev.txt     # 로컬 실행 전용 추가 deps (fastapi httpx grpcio protobuf)
+```
+> `requirements-dev.txt` 는 `sync-serving-repo.sh` 가 생성합니다. 여기 담긴 deps 는 **운영 base 이미지엔 이미
+> 포함**되어 있어 운영 런타임은 `requirements.txt`(docling wheel)만 설치합니다 — 로컬 bare-metal 실행 시에만
+> 필요합니다.
+
+**② config 수정** — `genon/preprocessor/resource/intelligent_processor_config.yaml` 을 직접 편집:
+- `layout.layout_model_type:` → **`docling_layout`** (외부 layout VLM 없이 로컬 모델 사용)
+- `enrichment` 의 `toc.enable`·`metadata.enable` → **`false`** (외부 LLM 호출 차단)
+- (권장) `ocr.ocr_mode:` → **`disable`**, `formats.ppt.page_description.enable:` → **`false`**
+
+> ↔ 사내망에서 실제 모델서빙이 닿는 환경이면, 위 대신 config 의 placeholder(`<LAYOUT_SERVING_ID>`,
+> `<ENRICHMENT_SERVING_ID>`, `<OCR_ENDPOINT>` …)를 실제 주소로 채우면 원 설정 그대로 동작합니다.
+
+**③ 실행** — 반드시 `facade/` 디렉토리에서 (test.py 의 `sys.path` 처리가 `genon.*` 절대 import 를 해결):
+```bash
+cd genon/preprocessor/facade && python test.py    # 입력: ../sample_files/pdf_sample.pdf → 결과: result.json
+```
+- 최초 1회 docling layout/TableFormer 모델을 HuggingFace 에서 다운로드합니다(네트워크 필요, 이후 캐시).
+
+> ⚠️ config(`resource/*.yaml`) 편집분과 `.venv`·`result.json`·`__pycache__` 등 로컬 산출물은 **개발용**입니다.
+> 실제 배포 gitea repo 로는 push 하지 마세요(`resource/` 는 배포 시 실제 서빙 주소로 채워야 함).
+
 ---
 ※ 이 README는 원본 repo의 `build-script/code-serving-README.md`에서 `sync-serving-repo.sh` 실행 시 복사됩니다(직접 편집 금지).

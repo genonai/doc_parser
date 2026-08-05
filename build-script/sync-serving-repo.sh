@@ -5,7 +5,8 @@ set -euo pipefail
 #
 # 동작: 배포에 필요한 것만(whitelist: genon/ + main.py + requirements.txt) 서브모듈 폴더 `code-serving/`에
 #       재생성하고, docling wheel 을 packages/ 로 동봉 + requirements.txt 에 wheel 경로 append +
-#       배포본 root README.md(코드서빙 사용 가이드, build-script/code-serving-README.md) 복사 후,
+#       배포본 root README.md(코드서빙 사용 가이드, build-script/code-serving-README.md) 복사 +
+#       requirements-dev.txt(로컬 facade/test.py 실행 전용 deps) 생성 후,
 #       서브모듈(=배포본 repo genonai/doc_parser_code_serving) 안에서 commit/push 한다.
 #
 # 왜: 코드서빙은 GenOS 가 런타임에 배포본 repo 를 /app/src/service 로 clone 해 main.py 를 띄우고,
@@ -122,6 +123,23 @@ else
   echo "[WARN] README 소스가 없어 건너뜀: ${SERVING_README}"
 fi
 
+# ── 2c) requirements-dev.txt 생성 (로컬 bare-metal 에서 facade/test.py 실행용) ──
+# 운영(코드서빙)은 base 이미지에 이 deps 가 이미 포함되어 런타임은 requirements.txt(docling wheel)만
+# 설치한다. 로컬에서 서빙 없이 전처리기를 직접 돌릴 때만 이 파일이 추가로 필요하다(README 부록 참고).
+# DEST 는 매 실행 새로 재생성(1) 단계)되므로 누적/중복 없음.
+{
+  echo "# ---- sync-serving-repo.sh 가 생성: 로컬 실행 전용 (직접 편집 금지) ----"
+  echo "# 로컬 bare-metal 에서 genon/preprocessor/facade/test.py(지능형/PDF) 실행 시에만 필요."
+  echo "# 운영 코드서빙 base 이미지엔 이미 포함 → 런타임은 requirements.txt(docling wheel)만 설치한다."
+  echo "# 사용:  uv pip install -r requirements.txt      # docling wheel"
+  echo "#       uv pip install -r requirements-dev.txt   # 아래 4개"
+  echo "fastapi"
+  echo "httpx"
+  echo "grpcio"
+  echo "protobuf"
+} > "${DEST}/requirements-dev.txt"
+echo "[INFO] requirements-dev.txt 생성: ${DEST}/requirements-dev.txt"
+
 # ── 3) 검증: docling 패키지 소스 부재 + wheel 동봉 + 핵심 파일 존재 ───────────
 if find "${DEST}" -type f -path '*/docling/__init__.py' | grep -q .; then
   echo "[ERROR] 배포본에 docling 패키지 소스가 남아 있습니다:" >&2
@@ -138,7 +156,11 @@ if [[ -f "${SERVING_README}" && ! -f "${DEST}/README.md" ]]; then
   echo "[ERROR] README 소스는 있으나 배포본에 복사되지 않았습니다." >&2
   exit 1
 fi
-echo "[SMOKE] 배포본 청결성 OK — docling 소스 없음, genon/+main.py 존재, packages/${WHEEL_NAME} 동봉됨"
+if [[ ! -f "${DEST}/requirements-dev.txt" ]]; then
+  echo "[ERROR] requirements-dev.txt 가 생성되지 않았습니다." >&2
+  exit 1
+fi
+echo "[SMOKE] 배포본 청결성 OK — docling 소스 없음, genon/+main.py 존재, packages/${WHEEL_NAME} 동봉됨, requirements-dev.txt 생성됨"
 echo "[INFO] 배포본 조립 위치: ${DEST}  (원본 커밋 ${SOURCE_COMMIT})"
 
 # ── 4) 서브모듈이면 commit/push ─────────────────────────────────────────────
