@@ -42,8 +42,10 @@ tramp
 dist/
 
 # 코드서빙 산출물 (build-docling-wheel.sh 임시 wheel 출력)
-# ※ code-serving/ 은 추적 서브모듈이므로 여기에 넣지 말 것.
 dist-docling/
+# code-serving/ 은 배포본 repo(doc_parser_code_serving)의 로컬 클론(sync-serving-repo.sh 작업 대상)일 뿐,
+# doc_parser 는 추적하지 않는다. push 는 origin URL 검증으로 허용된다(서브모듈 등록 불필요).
+/code-serving/
 
 # Flycheck
 flycheck_*.el
@@ -468,3 +470,6 @@ samples/
 
 # Local settings for Claude
 .claude/settings.local.json
+
+reference/
+shkim_labs/
