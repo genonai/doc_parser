@@ -14,31 +14,29 @@ set -euo pipefail
 #   - 버전 = <base>+genon.<N> (PEP440 local segment).
 #
 # 사용:
-#   bash build-script/build-docling-wheel.sh                 # dist-docling/ 에 wheel 생성
+#   bash build-script/build-docling-wheel.sh                 # 로컬 작업 트리의 docling/ 을 dist-docling/ 에 wheel 로 생성
 #   OUT_DIR=/tmp/w GENON_BUILD=1 bash build-script/build-docling-wheel.sh
 #
+# 항상 로컬 작업 트리(현재 docling/ 폴더)를 빌드한다 — 커밋 여부 무관.
 # 출력: 생성된 wheel 경로를 마지막 줄에 "WHEEL=<path>" 로 출력.
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
 # ── 설정 (env 로 오버라이드) ────────────────────────────────────────────────
-SOURCE_REF="${SOURCE_REF:-HEAD}"            # 어느 커밋의 docling/ 을 패키징할지
 DIST_NAME="${DIST_NAME:-genon-docling}"     # 배포명 (import 은 docling 유지)
 GENON_BUILD="${GENON_BUILD:-0}"             # local segment N: <base>+genon.<N>
 OUT_DIR="${OUT_DIR:-${ROOT_DIR}/dist-docling}"
 
-# base version 은 루트 pyproject 에서 읽는다 (예: 2.41.0)
-BASE_VERSION="$(git -C "${ROOT_DIR}" show "${SOURCE_REF}:pyproject.toml" \
-  | sed -n 's/^version = "\([0-9][^"]*\)".*/\1/p' | head -1)"
+# base version 은 로컬 루트 pyproject 에서 읽는다 (예: 2.41.0)
+BASE_VERSION="$(sed -n 's/^version = "\([0-9][^"]*\)".*/\1/p' "${ROOT_DIR}/pyproject.toml" | head -1)"
 if [[ -z "${BASE_VERSION}" ]]; then
   echo "[ERROR] 루트 pyproject.toml 에서 base version 을 읽지 못했습니다." >&2
   exit 1
 fi
 FULL_VERSION="${BASE_VERSION}+genon.${GENON_BUILD}"
 
-echo "[INFO] ROOT_DIR   = ${ROOT_DIR}"
-echo "[INFO] SOURCE_REF = ${SOURCE_REF}"
+echo "[INFO] ROOT_DIR   = ${ROOT_DIR}  (local working tree)"
 echo "[INFO] DIST_NAME  = ${DIST_NAME}"
 echo "[INFO] VERSION    = ${FULL_VERSION}  (import namespace: docling)"
 echo "[INFO] OUT_DIR    = ${OUT_DIR}"
@@ -47,13 +45,17 @@ echo "[INFO] OUT_DIR    = ${OUT_DIR}"
 BUILD_DIR="$(mktemp -d)"
 trap 'rm -rf "${BUILD_DIR}"' EXIT
 
-# 추적본(clean) 의 docling/ + README.md 를 임시 트리로 export
-git -C "${ROOT_DIR}" archive "${SOURCE_REF}" docling README.md | tar -x -C "${BUILD_DIR}"
+# 로컬 작업 트리의 docling/ + README.md 를 임시 트리로 복사한다(커밋 여부 무관).
+#   git ls-files (cached+others, exclude-standard) 로 추적/미추적 파일을 모으되
+#   .gitignore 대상(__pycache__/, .DS_Store 등)은 자동 제외해 wheel 오염을 막는다.
+( cd "${ROOT_DIR}" \
+    && git ls-files --cached --others --exclude-standard docling README.md \
+    | tar -cf - -T - ) | tar -xf - -C "${BUILD_DIR}"
 
-# 오버라이드된 pyproject 생성: name/version 만 바꾸고 build-system 명시
-git -C "${ROOT_DIR}" show "${SOURCE_REF}:pyproject.toml" \
-  | sed -e "s/^name = \"docling\"/name = \"${DIST_NAME}\"/" \
-        -e "s/^version = .*/version = \"${FULL_VERSION}\"/" \
+# 오버라이드된 pyproject 생성: 로컬 루트 pyproject 에서 name/version 만 바꾸고 build-system 명시
+sed -e "s/^name = \"docling\"/name = \"${DIST_NAME}\"/" \
+    -e "s/^version = .*/version = \"${FULL_VERSION}\"/" \
+    "${ROOT_DIR}/pyproject.toml" \
   > "${BUILD_DIR}/pyproject.toml"
 
 # build-system 이 없으면 (루트엔 없음) setuptools 백엔드 명시적으로 추가

@@ -150,9 +150,16 @@ for p in "${EXCLUDE_PATHS[@]}"; do
 done
 
 # ── 2) docling wheel 빌드 → packages/ 동봉 + requirements.txt 에 경로 append ─
-echo "[INFO] docling wheel 빌드 (build-docling-wheel.sh, GENON_BUILD=${GENON_BUILD}) ..."
+# docling wheel 은 항상 로컬 작업 트리(현재 docling/ 폴더) 기준으로 빌드된다(SOURCE_REF 무관).
+# 릴리스 위생: 로컬 docling 이 SOURCE_REF(genon/미러 태그 기준 커밋)와 다르면, 동봉될 wheel 이
+# 미러 태그가 가리키는 커밋과 불일치할 수 있어 경고한다(기존 [WARN] 톤과 동일).
+if ! git -C "${ROOT_DIR}" diff --quiet "${SOURCE_REF}" -- docling \
+   || [[ -n "$(git -C "${ROOT_DIR}" ls-files --others --exclude-standard docling)" ]]; then
+  echo "[WARN] 로컬 docling/ 이 ${SOURCE_REF} 와 다릅니다 — wheel 은 로컬 작업 트리 기준으로 빌드됩니다(미러 태그 커밋과 불일치 가능)."
+fi
+echo "[INFO] docling wheel 빌드 (build-docling-wheel.sh, GENON_BUILD=${GENON_BUILD}, 로컬 작업 트리) ..."
 WHEEL_OUT="$(mktemp -d)"
-WHEEL_LINE="$(GENON_BUILD="${GENON_BUILD}" SOURCE_REF="${SOURCE_REF}" OUT_DIR="${WHEEL_OUT}" \
+WHEEL_LINE="$(GENON_BUILD="${GENON_BUILD}" OUT_DIR="${WHEEL_OUT}" \
   bash "${SCRIPT_DIR}/build-docling-wheel.sh" | tee /dev/stderr | sed -n 's/^WHEEL=//p' | tail -1)"
 if [[ -z "${WHEEL_LINE}" || ! -f "${WHEEL_LINE}" ]]; then
   echo "[ERROR] docling wheel 빌드 실패 (WHEEL 경로를 얻지 못함)." >&2
