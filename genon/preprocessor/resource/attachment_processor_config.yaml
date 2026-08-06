@@ -64,6 +64,11 @@ chunking:
   tokenizer_path: "/models/doc_parser_models/sentence-transformers-all-MiniLM-L6-v2"
   tokenizer_id: "sentence-transformers/all-MiniLM-L6-v2"
 
+# 출력 표현 옵션
+output:
+  # markdown 표 컬럼 정렬 패딩 제거(대형 표 축소). 기본 true
+  compact_tables: true
+
 loaders:
   image:
     # 이미지 OCR 언어

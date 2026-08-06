@@ -222,6 +222,10 @@ from genon.preprocessor.facade.enrichment.page_description import (
     describe_pages,
 )
 from docling_core.transforms.chunker import BaseChunk, BaseChunker, DocChunk, DocMeta
+from docling_core.transforms.serializer.markdown import (
+    MarkdownDocSerializer,
+    MarkdownParams,
+)
 from docling_core.types import DoclingDocument as DLDocument
 from docling_core.types.doc import (
     DocItem, DocItemLabel, DoclingDocument,
@@ -1010,7 +1014,18 @@ class HierarchicalChunker(BaseChunker):
                     text = item.text
 
                 elif isinstance(item, TableItem):
-                    text = item.export_to_markdown(dl_doc)
+                    if bool(kwargs.get("compact_tables", True)):
+                        # TableItem.export_to_markdown() 은 compact 옵션이 없어 직접 serializer 구성
+                        # (컬럼 정렬 패딩 제거 → 대형 표 markdown 크기 대폭 축소)
+                        try:
+                            text = MarkdownDocSerializer(
+                                doc=dl_doc,
+                                params=MarkdownParams(compact_tables=True),
+                            ).serialize(item=item).text
+                        except Exception:
+                            text = item.export_to_markdown(dl_doc)
+                    else:
+                        text = item.export_to_markdown(dl_doc)
                     # dataframe으로 추출할 때 사용되는 코드
                     # if table_df.shape[0] < 1 or table_df.shape[1] < 2:
                     #     # at least two cols needed, as first column contains row headers
@@ -1303,14 +1318,19 @@ def _split_with_recursive_chunker(
     document: DoclingDocument,
     chunk_size=None,
     chunk_overlap=None,
+    compact_tables: bool = True,
 ) -> List[dict]:
     """Markdown export + 문자수 기반 청킹(_char_split_text)으로 docling 문서를 분할.
 
     chunk_size 로 문자 분할 (0 이하이면 분할 안 함 = 전체 1청크).
+    compact_tables=True 면 markdown 표의 컬럼 정렬 패딩을 제거한다(대형 표 축소).
 
     Returns: list of dict {text, page_no, pages, doc_items}
     """
-    md_full = document.export_to_markdown(page_break_placeholder=_RECURSIVE_PAGE_BREAK)
+    md_full = document.export_to_markdown(
+        page_break_placeholder=_RECURSIVE_PAGE_BREAK,
+        compact_tables=compact_tables,
+    )
     if not md_full:
         return []
 
@@ -1432,6 +1452,7 @@ class DocxProcessor:
                 document,
                 chunk_size=recursive_chunk_size,
                 chunk_overlap=recursive_chunk_overlap,
+                compact_tables=bool(kwargs.get("compact_tables", True)),
             )
             for ch in chunks:
                 self.page_chunk_counts[ch["page_no"]] += 1
@@ -1637,6 +1658,7 @@ class HwpProcessor:
                 document,
                 chunk_size=recursive_chunk_size,
                 chunk_overlap=recursive_chunk_overlap,
+                compact_tables=bool(kwargs.get("compact_tables", True)),
             )
             for ch in chunks:
                 page_chunk_counts[ch["page_no"]] += 1
@@ -1843,6 +1865,14 @@ class DocumentProcessor:
             )
             chunker_type = "recursive"
 
+        # markdown 표 compact(컬럼 정렬 패딩 제거) 여부. 기본 True.
+        output_cfg = _as_dict(cfg.get("output"))
+        compact_tables = _parse_optional_bool(
+            output_cfg.get("compact_tables"), "output.compact_tables"
+        )
+        if compact_tables is None:
+            compact_tables = True
+
         use_pdf_sdk = _parse_optional_bool(defaults_cfg.get("use_pdf_sdk"), "defaults.use_pdf_sdk")
 
         # HWP/HWPX 전용 옵션은 formats.hwp 에서 읽는다(구버전 호환: 없으면 defaults 폴백).
@@ -1938,6 +1968,7 @@ class DocumentProcessor:
         self._default_kwargs = {
             "log_level": log_level,
             "chunker_type": chunker_type,
+            "compact_tables": compact_tables,
             "use_pdf_sdk": True if use_pdf_sdk is None else use_pdf_sdk,
             "use_hwp_sdk": True if use_hwp_sdk is None else use_hwp_sdk,
             "dump_sdk_output": False if dump_sdk_output is None else dump_sdk_output,
