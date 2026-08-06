@@ -58,7 +58,7 @@ _WS = re.compile(r"\s+")
 
 def _norm(text: str) -> str:
     """공백류(개행 포함)를 단일 스페이스로 축약."""
-    return _WS.sub(" ", (text or "").replace(" ", " ").replace("　", " ")).strip()
+    return _WS.sub(" ", (text or "").replace("\u00a0", " ").replace("\u3000", " ")).strip()
 
 
 def _squash(text: str) -> str:
@@ -68,7 +68,7 @@ def _squash(text: str) -> str:
     이어붙는 경우가 있고(예: '말레이시아브루나이태국, 필리핀'), markdown 직렬화
     단계에서는 '\\n' 이 공백으로 치환된다. 공백을 모두 제거해 두 경우를 동일하게 본다.
     """
-    return _WS.sub("", (text or "").replace(" ", " ").replace("　", " "))
+    return _WS.sub("", (text or "").replace("\u00a0", " ").replace("\u3000", " "))
 
 
 # ---------------------------------------------------------------------------

@@ -18,6 +18,7 @@ attachment = pytest.importorskip("facade.attachment_processor")
 _split_with_recursive_chunker = attachment._split_with_recursive_chunker
 HierarchicalChunker = attachment.HierarchicalChunker
 DocumentProcessor = attachment.DocumentProcessor
+_resolve_compact_tables = attachment._resolve_compact_tables
 
 
 def _build_table_doc():
@@ -182,6 +183,81 @@ class TestConfigWiring:
         assert dp._merge_runtime_kwargs({"compact_tables": None})["compact_tables"] is True
         assert dp._merge_runtime_kwargs({})["compact_tables"] is True
 
+    def test_merge_passes_runtime_value_through_unvalidated(self, tmp_path):
+        """_merge_runtime_kwargs 는 타입 검증을 하지 않는다 — 검증은 소비 지점(_resolve_compact_tables) 책임.
+
+        이 성질 때문에 소비 지점에서 bool() 을 쓰면 문자열 "false" 가 True 가 된다.
+        """
+        dp = self._processor_with(tmp_path, "output:\n  compact_tables: true\n")
+        assert dp._merge_runtime_kwargs({"compact_tables": "false"})["compact_tables"] == "false"
+
+
+@pytest.mark.unit
+class TestRuntimeValueParsing:
+    """런타임 kwarg 는 검증 없이 전달되므로 문자열/정수도 올바르게 해석돼야 한다.
+
+    문서(gitbook)가 `compact_tables=false` 를 off 스위치로 안내하는데,
+    bool("false") 는 True 라서 파싱 없이는 off 가 조용히 무시된다.
+    """
+
+    @pytest.mark.parametrize("value", [False, "false", "False", " off ", "0", "no", "n", 0])
+    def test_falsy_runtime_values_disable_compact(self, value):
+        assert _resolve_compact_tables({"compact_tables": value}) is False
+
+    @pytest.mark.parametrize("value", [True, "true", "TRUE", "on", "1", "yes", "y", 1])
+    def test_truthy_runtime_values_enable_compact(self, value):
+        assert _resolve_compact_tables({"compact_tables": value}) is True
+
+    @pytest.mark.parametrize("value", ["bogus", "", "  ", [], {}, object()])
+    def test_invalid_runtime_values_fall_back_to_true(self, value):
+        assert _resolve_compact_tables({"compact_tables": value}) is True
+
+    def test_missing_and_none_fall_back_to_true(self):
+        assert _resolve_compact_tables({}) is True
+        assert _resolve_compact_tables({"compact_tables": None}) is True
+
+    def test_invalid_value_warns_once_per_call(self, caplog):
+        """표 개수와 무관하게 경고는 해석 시점에 한 번만 찍힌다."""
+        import logging
+
+        with caplog.at_level(logging.WARNING):
+            _resolve_compact_tables({"compact_tables": "bogus"})
+        assert sum(1 for r in caplog.records if "compact_tables" in r.getMessage()) == 1
+
+
+@pytest.mark.unit
+class TestStringRuntimeValueReachesOutput:
+    """소비 지점 검증: 문자열 런타임 값이 실제 markdown 출력까지 반영되는지."""
+
+    def test_string_false_keeps_padding_in_hybrid_path(self):
+        """HierarchicalChunker.chunk 는 런타임 kwargs 를 그대로 받는다(L1475/1681 경로)."""
+        chunks = list(HierarchicalChunker().chunk(dl_doc=_build_table_doc(), compact_tables="false"))
+        assert "|--------|" in chunks[0].text
+        assert _separator_line(chunks[0].text) != "| - | - | - |"
+
+    def test_string_true_removes_padding_in_hybrid_path(self):
+        chunks = list(HierarchicalChunker().chunk(dl_doc=_build_table_doc(), compact_tables="true"))
+        assert _separator_line(chunks[0].text) == "| - | - | - |"
+
+    def test_invalid_string_stays_compact_in_hybrid_path(self):
+        chunks = list(HierarchicalChunker().chunk(dl_doc=_build_table_doc(), compact_tables="bogus"))
+        assert _separator_line(chunks[0].text) == "| - | - | - |"
+
+    def test_recursive_path_receives_parsed_bool(self):
+        """DocxProcessor/HwpProcessor 가 넘기는 값과 동일하게 파싱된 bool 로 분기되는지."""
+        doc = _build_table_doc()
+        off = _split_with_recursive_chunker(
+            doc, chunk_size=0, compact_tables=_resolve_compact_tables({"compact_tables": "false"})
+        )[0]["text"]
+        on = _split_with_recursive_chunker(
+            doc, chunk_size=0, compact_tables=_resolve_compact_tables({"compact_tables": "true"})
+        )[0]["text"]
+        assert "|--------|" in off
+        assert _separator_line(on) == "| - | - | - |"
+
+
+@pytest.mark.unit
+class TestShippedConfigs:
     def test_shipped_configs_enable_compact(self):
         """배포 config 3종(resource/resource_dev/resource_product) 모두 compact 가 켜져 있다."""
         from pathlib import Path

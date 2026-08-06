@@ -337,6 +337,16 @@ def _parse_optional_bool(value: Any, key: str = "") -> Optional[bool]:
     return None
 
 
+def _resolve_compact_tables(kwargs: dict) -> bool:
+    """런타임 kwargs 의 compact_tables 를 bool 로 해석. 기본/오류 시 True.
+
+    런타임 kwarg 는 검증 없이 전달되므로(`_merge_runtime_kwargs`) 문자열 "false" 가 올 수 있다.
+    bool("false") 는 True 라서 문서화된 off 스위치가 무시되므로 반드시 파싱한다.
+    """
+    parsed = _parse_optional_bool(kwargs.get("compact_tables"), "compact_tables")
+    return True if parsed is None else parsed
+
+
 def _parse_optional_int(value: Any, key: str = "") -> Optional[int]:
     if value is None or value == "":
         return None
@@ -959,6 +969,8 @@ class HierarchicalChunker(BaseChunker):
         """
         heading_by_level: dict[LevelNumber, str] = {}
         list_items: list[TextItem] = []
+        # 표마다 반복 파싱/경고하지 않도록 루프 진입 전에 한 번만 해석한다.
+        compact_tables = _resolve_compact_tables(kwargs)
         for item, level in dl_doc.iterate_items():
             captions = None
             if isinstance(item, DocItem):
@@ -1014,7 +1026,7 @@ class HierarchicalChunker(BaseChunker):
                     text = item.text
 
                 elif isinstance(item, TableItem):
-                    if bool(kwargs.get("compact_tables", True)):
+                    if compact_tables:
                         # TableItem.export_to_markdown() 은 compact 옵션이 없어 직접 serializer 구성
                         # (컬럼 정렬 패딩 제거 → 대형 표 markdown 크기 대폭 축소)
                         try:
@@ -1452,7 +1464,7 @@ class DocxProcessor:
                 document,
                 chunk_size=recursive_chunk_size,
                 chunk_overlap=recursive_chunk_overlap,
-                compact_tables=bool(kwargs.get("compact_tables", True)),
+                compact_tables=_resolve_compact_tables(kwargs),
             )
             for ch in chunks:
                 self.page_chunk_counts[ch["page_no"]] += 1
@@ -1658,7 +1670,7 @@ class HwpProcessor:
                 document,
                 chunk_size=recursive_chunk_size,
                 chunk_overlap=recursive_chunk_overlap,
-                compact_tables=bool(kwargs.get("compact_tables", True)),
+                compact_tables=_resolve_compact_tables(kwargs),
             )
             for ch in chunks:
                 page_chunk_counts[ch["page_no"]] += 1
