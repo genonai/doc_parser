@@ -136,6 +136,11 @@ chunking:
   tokenizer_path: "/models/doc_parser_models/sentence-transformers-all-MiniLM-L6-v2"
   tokenizer_id: "sentence-transformers/all-MiniLM-L6-v2"
 
+# 출력 표현 옵션
+output:
+  # markdown 표 컬럼 정렬 패딩 제거(대형 표 축소). 기본 true
+  compact_tables: true
+
 loaders:
   image:
     # 이미지 OCR 언어
@@ -209,6 +214,14 @@ whisper:
 | `merge_peers` | `true` | 같은 제목/캡션을 가진 작은 청크를 크기 제한 내에서 병합 |
 
 > hybrid 의 청크 크기(토큰 수)도 공통 `chunking.chunk_size` 로 지정합니다. 기본 `1000000`은 사실상 제한이 없어 hybrid를 레이아웃 기반 병합 도구로만 쓰게 됩니다. `huggingface` 모드 토크나이저는 위 `chunking.tokenizer_path/tokenizer_id` 를 공용으로 사용합니다.
+
+#### output
+
+| 키 | 기본값 | 설명 |
+|----|--------|------|
+| `compact_tables` | `true` | markdown 표 컬럼 정렬 패딩(공백) 제거 → 대형 표 청크 축소. 셀 내용은 그대로이고 정렬용 공백만 사라지며, 구분선이 `\|--------\|` → `\| - \|` 형태가 됩니다. `recursive`/`hybrid` 두 청킹 모드 모두에 적용 |
+
+> `compact_tables` 는 다른 facade(지능형/변환형/파싱형)와 동일한 기본값(`true`)입니다. 기존 출력 형식을 그대로 유지해야 하면 `false` 로 두거나 런타임 kwarg 로 `compact_tables=false` 를 주십시오.
 
 #### loaders.image
 
@@ -294,6 +307,7 @@ config yaml의 기본값은 `DocumentProcessor.__init__`에서 `self._default_kw
 |--------|-------------|------|
 | `log_level` | `defaults.log_level` | |
 | `chunker_type` | `chunking.chunker_type` | |
+| `compact_tables` | `output.compact_tables` | markdown 표 패딩 제거 on/off |
 | `use_pdf_sdk` | `defaults.use_pdf_sdk` | |
 | `use_hwp_sdk` | `formats.hwp.use_hwp_sdk` | |
 | `chunk_size` | `chunking.chunk_size` (공통) | 활성 모드 단위(recursive=문자 수 / hybrid=토큰 수). 미지정 시 config 기본값 사용 |
