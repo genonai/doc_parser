@@ -35,6 +35,8 @@ ARG RHWP_GIT_REF=genos/main
 # (HWP/HWPX 는 rhwp 가 빠지면 PDF SDK 만으로 처리).
 ARG INSTALL_LIBREOFFICE=true
 ARG INSTALL_RHWP=true
+# uv 버전 핀 (builder 의 uv_bin 스테이지에서 사용). FROM 에서 쓰려면 첫 FROM 앞에 선언해야 한다.
+ARG UV_VERSION=0.8.0
 
 ############################
 # 1) Base (APT + LibreOffice)
@@ -58,6 +60,10 @@ ENV DEBIAN_FRONTEND=noninteractive \
 #   제대로 읽히는 .pref 파일로 sudo·systemd 만 trixie(우선순위 1001)로 강제한다.
 # 추가로 sudo 의 `systemd | systemd-standalone-tmpfiles | systemd-tmpfiles` 의존은
 # 풀 systemd 대신 컨테이너 친화적 systemd-standalone-tmpfiles 로 충족시킨다.
+# NOTE: /var/cache/apt 와 /var/lib/apt/lists 는 cache mount 라 **이미지 레이어에 포함되지 않는다.**
+#   예전에는 이 RUN 끝에서 `rm -rf /var/lib/apt/lists/*` 를 했는데, 이미지 크기에는 아무 이득이 없고
+#   다음 빌드가 재사용할 apt 인덱스 캐시만 파괴했다(매 빌드 인덱스 재다운로드). 그래서 제거했다.
+#   ⚠️ cache mount 가 없는 다른 apt RUN(rhwp 빌더 등)의 rm 은 실제로 레이어를 줄이므로 유지해야 한다.
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
     echo "deb http://deb.debian.org/debian sid main" > /etc/apt/sources.list.d/sid.list && \
@@ -111,7 +117,6 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
       imagemagick-7.q16 \
       libmagickcore-7.q16-10 \
       libmagickwand-7.q16-10 \
-    && rm -rf /var/lib/apt/lists/* \
     && mkdir -p /app/.cache/huggingface /app/.cache/fontconfig /app/.config /app/.local/share /app/.fontconfig /app/nltk_data /app/tmp /tmp/xdg
 RUN sed -i 's/# \(ko_KR.UTF-8\)/\1/' /etc/locale.gen \
     && locale-gen \
@@ -123,7 +128,11 @@ RUN sed -i 's/# \(ko_KR.UTF-8\)/\1/' /etc/locale.gen \
 FROM base AS loext
 ARG H2ORESTART_URL
 ARG INSTALL_LIBREOFFICE
-COPY ./genon/preprocessor/resources /app
+# NOTE: 예전에는 `COPY ./genon/preprocessor/resources /app` 로 resources 를 통째 복사했지만,
+#   (1) 필요한 건 HCRBatang 폰트뿐인데 tessedata.tar.gz(35MB, 레포 전역 참조 0건 —
+#       한국어 tessdata 는 apt tesseract-ocr-kor 로 이미 들어온다)까지 이미지에 남았고,
+#   (2) 폰트 tarball 을 다음 레이어에서 rm 해도 COPY 레이어(48MB)는 회수되지 않았다.
+#   → 아래 폰트 설치 RUN 에서 bind mount 로 필요한 파일만 읽어 레이어에 아무것도 남기지 않는다.
 # H2Orestart 는 LibreOffice 확장이라 LibreOffice 미설치 시 단계 자체를 건너뛴다 (이슈 #286)
 RUN --mount=type=cache,target=/opt/h2o_cache \
     set -eux; \
@@ -138,17 +147,23 @@ RUN --mount=type=cache,target=/opt/h2o_cache \
     else \
       echo "[INFO] INSTALL_LIBREOFFICE=false — skipping H2Orestart extension (이슈 #286)"; \
     fi
-RUN set -eux; \
+RUN --mount=type=bind,source=genon/preprocessor/resources/HCRBatang.ttf.tar.gz,target=/tmp/HCRBatang.ttf.tar.gz \
+    set -eux; \
     mkdir -p /usr/share/fonts && \
-    tar zxf /app/HCRBatang.ttf.tar.gz -C /usr/share/fonts/ && \
-    fc-cache -f -v && rm /app/HCRBatang.ttf.tar.gz
+    tar zxf /tmp/HCRBatang.ttf.tar.gz -C /usr/share/fonts/ && \
+    fc-cache -f -v
 
 ############################
 # 3) Builder (앱 venv만)
 ############################
+# uv 버전을 핀한다. 아래 uv sync 가 `--no-install-package` 에 의존하므로 uv 버전이 빌드 동작에
+# 직접 영향을 준다(0.8.0 에 존재함을 확인). `:latest` 는 어느 날 조용히 동작이 바뀔 수 있다.
+# ⚠️ `COPY --from=<이미지>` 는 ARG 를 확장하지 않는다(FROM 만 확장). 그래서 명명된 스테이지를 둔다.
+FROM ghcr.io/astral-sh/uv:${UV_VERSION} AS uv_bin
+
 FROM loext AS builder
 ARG APP_VENV
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
+COPY --from=uv_bin /uv /uvx /bin/
 ENV UV_VIRTUALENVS_CREATE=1 \
     UV_VIRTUALENVS_IN_PROJECT=0 \
     UV_NO_INTERACTION=1 \
@@ -177,40 +192,101 @@ WORKDIR /app/genon/preprocessor
 RUN uv venv ${APP_VENV}
 
 # ✅ 그 venv에 설치
+# --no-dev: dev 그룹(pytest/mypy/debugpy/ipykernel/pre-commit …)은 런타임 이미지에 불필요.
+# 붙이지 않으면 uv 가 dev 그룹까지 기본 설치해 약 100MB(debugpy 18M, mypy+mypyc .so 47M 등)가 들어온다.
+#
+# CPU 빌드에서는 torch/torchvision/nvidia-*/triton 을 애초에 설치하지 않는다.
+#   uv.lock 의 torch 는 PyPI 기본(CUDA) 휠이라 nvidia 15종 + triton 이 딸려 오는데(약 4GB),
+#   바로 다음 단계에서 CPU 휠로 갈아끼우며 전부 버려진다. 콜드 빌드에서 이 다운로드가
+#   uv sync 시간의 대부분(6GB 중 4GB)을 차지했다.
+# ⚠️ 제외 목록을 하드코딩하지 말 것 — uv.lock 에서 뽑는다.
+#    하드코딩하면 `-cu12` → `-cu13` 같은 개명을 놓친다(code-serving 에서 그 방식 때문에
+#    CUDA 2.7GB 가 CPU 이미지에 그대로 남았던 전례).
+#    uv sync 에는 --torch-backend 옵션이 없어서 --no-install-package 를 쓴다
+#    (uv pip install 에는 있다 — code-serving 쪽은 그쪽을 사용).
+ARG HW_VARIANT
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen || \
-    uv sync
+    set -eu; \
+    if [ "${HW_VARIANT}" = "cpu" ]; then \
+      EXCL=$(grep -oE '^name = "(nvidia-[A-Za-z0-9._-]*|triton)"' uv.lock \
+             | sed 's/^name = "//; s/"$//' \
+             | sed 's/^/--no-install-package /' | tr '\n' ' '); \
+      echo "[INFO] HW_VARIANT=cpu — 설치 제외: torch torchvision ${EXCL}"; \
+      uv sync --frozen --no-dev --no-install-package torch --no-install-package torchvision ${EXCL}; \
+    else \
+      uv sync --frozen --no-dev; \
+    fi
 
 # 이슈 #210 — CPU 빌드 시 GPU 용 torch / nvidia / triton 을 제거하고 CPU wheel 재설치
+#
+# ⚠️ 제거 목록을 하드코딩하지 말 것. 예전에는 `nvidia-cublas-cu12` 처럼 `-cu12` 접미사 목록을
+#    박아두었는데, torch 가 CUDA 13 휠로 넘어가면 패키지명이 바뀐다
+#    (`nvidia_cublas` 접미사 없음, `nvidia_cudnn_cu13`, `nvidia_nccl_cu13` …).
+#    이름이 하나도 일치하지 않으면 uninstall 이 전부 실패하는데 끝의 `|| true` 가 그 실패를
+#    삼켜서 CPU 이미지에 CUDA 라이브러리가 조용히 실려 나간다
+#    (code-serving 쪽 Dockerfile 이 torch 핀 없이 2.13 을 받아 실제로 2.7GB 가 남아 있었다).
+#    → 설치된 목록에서 이름을 뽑아 지우고, `|| true` 로 실패를 감추지 않는다.
+#    (지울 게 없으면 xargs -r 이 uv 를 호출하지 않으므로 그대로 성공한다.)
 ARG HW_VARIANT
 ARG TORCH_CPU_INDEX_URL
 RUN --mount=type=cache,target=/root/.cache/uv \
+    set -eu; \
     if [ "${HW_VARIANT}" = "cpu" ]; then \
-      echo "[INFO] HW_VARIANT=cpu — reinstalling torch/torchvision as CPU wheels" && \
+      echo "[INFO] HW_VARIANT=cpu — reinstalling torch/torchvision as CPU wheels"; \
       uv pip install --python /app/.venv/bin/python \
         --reinstall-package torch --reinstall-package torchvision \
         --index-url "${TORCH_CPU_INDEX_URL}" \
-        torch==2.9.0 torchvision==0.24.0 && \
-      uv pip uninstall --python /app/.venv/bin/python \
-        nvidia-cublas-cu12 \
-        nvidia-cuda-cupti-cu12 \
-        nvidia-cuda-nvrtc-cu12 \
-        nvidia-cuda-runtime-cu12 \
-        nvidia-cudnn-cu12 \
-        nvidia-cufft-cu12 \
-        nvidia-cufile-cu12 \
-        nvidia-curand-cu12 \
-        nvidia-cusolver-cu12 \
-        nvidia-cusparse-cu12 \
-        nvidia-cusparselt-cu12 \
-        nvidia-nccl-cu12 \
-        nvidia-nvjitlink-cu12 \
-        nvidia-nvshmem-cu12 \
-        nvidia-nvtx-cu12 \
-        triton \
-      || true; \
+        torch==2.9.0 torchvision==0.24.0; \
+      uv pip list --python /app/.venv/bin/python --format=freeze \
+        | sed -n 's/^\(nvidia[A-Za-z0-9._-]*\|triton\)==.*/\1/p' \
+        | tee /tmp/cuda_pkgs.txt; \
+      xargs -r uv pip uninstall --python /app/.venv/bin/python < /tmp/cuda_pkgs.txt; \
+      rm -f /tmp/cuda_pkgs.txt; \
+      echo "[INFO] 남은 nvidia/triton 패키지 확인:"; \
+      uv pip list --python /app/.venv/bin/python --format=freeze \
+        | grep -iE '^(nvidia|triton)' && { echo "[ERROR] nvidia/triton 잔존"; exit 1; } || true; \
     else \
       echo "[INFO] HW_VARIANT=${HW_VARIANT} — keeping GPU torch as-is"; \
+    fi
+
+# torch 의 런타임 미사용 자산 제거 (약 141MB: test 81M + include 60M).
+# C++ 헤더와 테스트 픽스처로, 추론 경로에서는 쓰이지 않는다.
+# ⚠️ torch/bin(50MB)은 지우면 안 된다. torch/__init__.py 가 import 시점에 _manager_path() 로
+#    torch/bin/torch_shm_manager 존재를 무조건 확인하고, 없으면 RuntimeError 로 죽는다
+#    (DataLoader 를 쓰지 않아도 발생 — 실제로 제거했다가 import torch 부터 실패했다).
+RUN rm -rf ${APP_VENV}/lib/python3*/site-packages/torch/test \
+           ${APP_VENV}/lib/python3*/site-packages/torch/include
+
+# opencv 를 headless 로 통일한다.
+#   opencv-python(non-headless)과 opencv-python-headless 가 둘 다 해석돼 들어오는데
+#   (전자는 unstructured-inference + 자체 pyproject, 후자는 docling-ibm-models/easyocr),
+#   같은 `cv2` 모듈을 제공하므로 `opencv_python.libs`(약 116MB)가 순수 중복이다.
+#   첫 파티 코드에는 `import cv2` 가 한 건도 없고, cv2 를 쓰는 패키지들은 headless 로 충분하다.
+#   실측 절감: 약 116MB.
+#
+# ⚠️ 여기서 apt 의 `libgl1` 을 빼려는 시도는 하지 말 것 — 이미 해봤고 **0바이트** 절감이었다.
+#    Mesa 스택(약 208MB)은 opencv 가 아니라 **ffmpeg** 가 끌어온다:
+#      ffmpeg → libsdl2-2.0-0 → libsdl3-0 → libgbm1 → mesa-libgallium → libllvm21 → libz3-4
+#    ffmpeg 는 pydub 오디오 파싱에 필요해 뺄 수 없다.
+#   (Dockerfile.gpu 의 models_artifacts 가 이미 같은 방식을 쓴다.)
+# ⚠️ 순서 중요: opencv-python 을 지우면 공유되는 cv2/ 파일까지 함께 사라지므로
+#    반드시 그 뒤에 headless 를 --reinstall 해야 한다.
+# ⚠️ 버전을 반드시 uv.lock 에 맞춰 핀한다. `uv pip install` 은 lock 을 참조하지 않으므로
+#    버전을 안 주면 최신(현재 5.0.x)을 가져와 lock 의 4.11 에서 **메이저 점프**가 일어난다.
+#    핵심 이미징 의존성이 이미지 경량화의 부작용으로 바뀌면 안 된다. 하드코딩 대신 lock 에서 뽑는다.
+RUN --mount=type=cache,target=/root/.cache/uv \
+    set -eu; \
+    OCV=$(grep -A1 '^name = "opencv-python-headless"' uv.lock | awk -F'"' '/^version/{print $2}'); \
+    if [ -z "${OCV}" ]; then echo "[ERROR] uv.lock 에서 opencv-python-headless 버전을 못 찾음"; exit 1; fi; \
+    echo "[INFO] opencv-python-headless==${OCV} (uv.lock 기준)"; \
+    if uv pip list --python ${APP_VENV}/bin/python --format=freeze | grep -q '^opencv-python=='; then \
+      uv pip uninstall --python ${APP_VENV}/bin/python opencv-python; \
+    fi; \
+    uv pip install --python ${APP_VENV}/bin/python --reinstall "opencv-python-headless==${OCV}"; \
+    ${APP_VENV}/bin/python -c "import cv2; print('[INFO] cv2', cv2.__version__)"; \
+    ${APP_VENV}/bin/python -c "import unstructured_inference; print('[INFO] unstructured_inference ok')"; \
+    if ls -d ${APP_VENV}/lib/python3*/site-packages/opencv_python.libs >/dev/null 2>&1; then \
+      echo "[ERROR] opencv_python.libs 잔존"; exit 1; \
     fi
 
 ############################
@@ -278,9 +354,16 @@ RUN --mount=type=cache,target=${HF_HOME} \
 # runtime 은 그 "내용"을 /usr/local/bin/ 로 복사하므로 off 일 때는 아무것도 안 들어간다
 # (→ rhwp_available() == False → chain 에서 자동 제외).
 ############################
-FROM rust:latest AS rhwp_builder_true
+FROM rust:1-slim AS rhwp_builder_true
 ARG RHWP_GIT_URL
 ARG RHWP_GIT_REF
+# rust:latest(약 1.5GB)는 buildpack-deps 기반이라 git 이 들어 있지만 rust:slim 에는 없다.
+# 산출물이 바이너리 하나뿐이라 slim 으로 낮추고 git 만 따로 설치한다 — 최종 이미지 크기는 그대로이고
+# 빌드 중 다운로드/디스크만 줄어든다.
+# ⚠️ genos-rhwp 가 pkg-config / libssl-dev / cmake 같은 시스템 의존을 요구하면 cargo build 에서
+#    깨진다. 그때는 아래 목록에 추가하거나 rust:latest 로 되돌린다.
+RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
 WORKDIR /src
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/usr/local/cargo/git \
@@ -308,6 +391,26 @@ ARG NLTK_PACKAGES
 ARG DOCLING_MODELS_VER=2.41
 ARG HF_MODELS_VER=2.41
 ARG EASYOCR_VER=2.41
+# 받을 docling 모델 목록. 인자 없이 `docling-tools models download` 를 호출하면 기본 세트
+# (layout, tableformer, code_formula, picture_classifier)를 전부 받는데, 그중
+# code_formula(ds4sd--CodeFormula, 506MB)는 이 레포에서 절대 로드되지 않는다:
+#   do_code_enrichment / do_formula_enrichment 기본값 False(pipeline_options.py)이고
+#   이를 켜는 config 키·코드가 없어 CodeFormulaModel 은 enabled=False 로만 생성된다.
+#   ⚠️ 이 판단은 "현재 제품 기능 기준"이다. docling CLI 자체에는 code/formula enrichment 를 켜는
+#      옵션이 있으므로, 향후 facade 가 이를 노출하거나(코드서빙이라면 런타임에 clone 되는 서비스
+#      코드가 켜면) **오프라인 환경에서 모델이 없어 실패**한다. 그때는 DOCLING_MODELS 에
+#      code_formula 를 다시 넣어야 한다.
+# 나머지는 유지한다 (docling/utils/model_downloader.py 의 with_* 플래그와 1:1 대응):
+#   layout            → ds4sd--docling-layout-old. 이름이 old 지만 layout_model_specs.py 의
+#                       "Default Docling Layout Model"(DOCLING_LAYOUT_V2)이다. PDF 는
+#                       genos_layout(dotsocr)을 쓰지만, PPT/PPTX 경량 파이프라인이 bare
+#                       PdfPipelineOptions() 로 LayoutModel 을 만들어 실제 로드하므로 필수.
+#   tableformer       → ds4sd--docling-models. layout_model_type: docling_layout 배포에서 필요.
+#   picture_classifier→ ds4sd--DocumentFigureClassifier. chart.enable opt-in (16MB).
+#   easyocr           → /models/EasyOcr 의 craft_mlt_25k(83MB)/english_g2/latin_g2.
+#                       ⚠️ with_easyocr 도 기본 True 라, 목록에서 빼면 아래 korean_g2.zip
+#                       단계만 남아 CRAFT 검출기가 사라진다(EasyOCR 사용 시 필수).
+ARG DOCLING_MODELS="layout tableformer picture_classifier easyocr"
 
 ENV PATH="${APP_VENV}/bin:${PATH}" \
     HOME=/app \
@@ -319,19 +422,30 @@ ENV PATH="${APP_VENV}/bin:${PATH}" \
     HF_HOME=/app/.cache/huggingface \
     NLTK_DATA=/app/nltk_data
 
-RUN --mount=type=cache,target=/root/.cache/models \
-    echo "Docling models ver: ${DOCLING_MODELS_VER}"; \
+# NOTE: 예전에는 `--mount=type=cache,target=/root/.cache/models` 가 붙어 있었지만 아무도 그 경로를
+#   쓰지 않았다. docling-tools 는 `-o /models`(이미지 레이어)와 HF_HOME 을 쓴다. 실제로 그 캐시는
+#   4KB 로 비어 있었다. 오해를 남기지 않도록 제거했다.
+#   (재빌드 시 모델 다운로드를 건너뛰려면 HF_HOME 을 캐시 마운트해야 한다 — 아래 HF 단계 참고.)
+RUN echo "Docling models ver: ${DOCLING_MODELS_VER}"; \
     if [ ! -d /models ] || [ -z "$(ls -A /models)" ]; then \
-        docling-tools models download -o /models; \
+        docling-tools models download -o /models ${DOCLING_MODELS}; \
     else \
         echo "[INFO] /models already present, skip"; \
     fi
 
+# mncai/doc_parser_models 에서 실제로 쓰는 것은 MiniLM 토크나이저 폴더 하나뿐이다.
+# 예전에는 repo 전체(846MB)를 받았는데 나머지는 모두 사용되지 않았다:
+#   docling-models(506MB)    → 참조 0건. TableFormer 는 ds4sd--docling-models 를 쓴다.
+#   docling-layout-old(164MB)→ MNCAI_CUSTOM_LAYOUT 전용 경로이나 model_spec 을 그 값으로
+#                              바꾸는 코드가 없다 (기본은 ds4sd--docling-layout-old).
+# 또한 두 번째 download 의 --local-dir 이 이미 받은 폴더를 다시 가리켜 동명 하위 디렉토리가
+# 중첩 생성됐다(88MB 중복). 코드는 바깥쪽 경로만 사용하므로 그 줄을 없앤다.
 RUN --mount=type=cache,target=${HF_HOME} \
     echo "HF models ver: ${HF_MODELS_VER}"; \
     mkdir -p /models/doc_parser_models; \
-    huggingface-cli download mncai/doc_parser_models --local-dir /models/doc_parser_models && \
-    huggingface-cli download mncai/doc_parser_models --include "sentence-transformers-all-MiniLM-L6-v2/*" --local-dir /models/doc_parser_models/sentence-transformers-all-MiniLM-L6-v2
+    huggingface-cli download mncai/doc_parser_models \
+      --include "sentence-transformers-all-MiniLM-L6-v2/*" \
+      --local-dir /models/doc_parser_models
 
 RUN --mount=type=cache,target=/root/.cache/nltk \
     python - <<'PY'
@@ -349,13 +463,18 @@ else:
         nltk.download(pkg, download_dir=target)
 PY
 
+# ⚠️ 조건은 **캐시 경로**의 zip 을 봐야 한다. 예전에는 `/models/EasyOcr/korean_g2.zip` 을
+#    검사했는데 zip 은 캐시 마운트(`/root/.cache/easyocr_korean/`)에 저장되므로 그 경로에는
+#    zip 이 절대 생기지 않았다 → 조건이 항상 참 → 캐시가 있어도 매번 재다운로드했다.
+#    (code-serving Dockerfile 은 처음부터 캐시 경로를 검사해 올바르게 동작한다.)
+#    unzip 은 조건 밖에 둔다 — 캐시에 zip 이 있어도 /models/EasyOcr 는 새 레이어라 매번 풀어야 한다.
 RUN --mount=type=cache,target=/root/.cache/easyocr_korean \
     echo "EasyOCR ver: ${EASYOCR_VER}"; \
     mkdir -p /models/EasyOcr && \
-    if [ ! -f /models/EasyOcr/korean_g2.zip ]; then \
+    if [ ! -f /root/.cache/easyocr_korean/korean_g2.zip ]; then \
       curl -L -o /root/.cache/easyocr_korean/korean_g2.zip "https://github.com/JaidedAI/EasyOCR/releases/download/v1.3/korean_g2.zip"; \
-      unzip -q -o /root/.cache/easyocr_korean/korean_g2.zip -d /models/EasyOcr; \
-    fi
+    fi; \
+    unzip -q -o /root/.cache/easyocr_korean/korean_g2.zip -d /models/EasyOcr
 
 ############################
 # 5) Runtime (엔터프라이즈)
@@ -393,26 +512,40 @@ LABEL ai.genon.install.libreoffice="${INSTALL_LIBREOFFICE}" \
       ai.genon.install.rhwp="${INSTALL_RHWP}"
 
 WORKDIR /app
-COPY ./genon/preprocessor/configs /app/configs
-COPY ./genon/preprocessor/env /app/env
-COPY ./genon/preprocessor/src /app/src
+
+# 🔴 사용자/그룹 생성을 큰 COPY 보다 "먼저" 수행한다.
+# 예전에는 모든 COPY 뒤에서 `chown -R … /app … /models /app/nltk_data` 를 한 번에 돌렸는데,
+# 이미 복사된 .venv(2.6GB) + /models(2.2GB) + nltk_data + hwp_sdk 의 소유권만 바꾸는 것도
+# overlayfs 에서는 전 파일 copy-up 이라, 같은 데이터를 담은 5.2GB 레이어가 하나 더 생겼다
+# (이미지 내용은 6.8GB인데 레이어 합이 12.5GB가 된 주된 이유).
+#   → 각 COPY 에 --chown 을 주어 처음부터 올바른 소유자로 복사하고,
+#     마지막 RUN 은 작은 디렉토리만 chown 한다.
+RUN getent group "${GID}" || groupadd -g "${GID}" "${GNAME}" && \
+    getent passwd "${UID}" || useradd -m -u "${UID}" -g "${GID}" -s /bin/bash "${UNAME}" && \
+    UNAME_ACTUAL="$(getent passwd "${UID}" | cut -d: -f1)" && \
+    usermod -aG sudo "${UNAME_ACTUAL}" && \
+    echo "${UNAME_ACTUAL} ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
+
+COPY --chown=${UID}:${GID} ./genon/preprocessor/configs /app/configs
+COPY --chown=${UID}:${GID} ./genon/preprocessor/env /app/env
+COPY --chown=${UID}:${GID} ./genon/preprocessor/src /app/src
 # HWP → PDF chain 모듈 (이슈 #199). PYTHONPATH=/app 기준 namespace package 로
 # import 되도록 genon/preprocessor 트리 그대로 복사
 # (facade 의 `from genon.preprocessor.converters.hwp_to_pdf import ...` 가 풀림).
-COPY ./genon/preprocessor/converters /app/genon/preprocessor/converters
+COPY --chown=${UID}:${GID} ./genon/preprocessor/converters /app/genon/preprocessor/converters
 # enrichment 패키지를 namespace tree 로 복사 — facade 의
 # `from genon.preprocessor.facade.enrichment.* import ...` (intelligent_processor.py:151-152)
 # 가 /app 기준 namespace package 로 풀리도록. (converters 와 동일 패턴)
-COPY ./genon/preprocessor/facade/enrichment /app/genon/preprocessor/facade/enrichment
+COPY --chown=${UID}:${GID} ./genon/preprocessor/facade/enrichment /app/genon/preprocessor/facade/enrichment
 # guardrail 패키지를 namespace tree 로 복사 — facade 의
 # `from genon.preprocessor.facade import guardrail as gr` (#315) 가 /app 기준으로 풀리도록.
-COPY ./genon/preprocessor/facade/guardrail /app/genon/preprocessor/facade/guardrail
+COPY --chown=${UID}:${GID} ./genon/preprocessor/facade/guardrail /app/genon/preprocessor/facade/guardrail
 
 # 🔴 HWP sdk
-COPY --from=sdk_artifacts /app/hwp_sdk /app/hwp_sdk
+COPY --chown=${UID}:${GID} --from=sdk_artifacts /app/hwp_sdk /app/hwp_sdk
 
 # 🔴 PDF SDK (엔터프라이즈 전용)
-COPY --from=pdf_sdk_artifacts /app/pdf_sdk /app/pdf_sdk
+COPY --chown=${UID}:${GID} --from=pdf_sdk_artifacts /app/pdf_sdk /app/pdf_sdk
 
 # 🔴 rhwp 바이너리 (이슈 #199 후속 — 컨테이너 내 바이너리, subprocess 호출)
 # 이슈 #286 — /rhwp_out/ 내용을 복사. INSTALL_RHWP=false 면 빈 디렉토리라 아무것도 안 들어감.
@@ -423,22 +556,25 @@ COPY --from=font_artifacts /app/extra_fonts /usr/share/fonts/additional
 RUN fc-cache -f -v
 
 # ✅ 공통 venv 위치만 복사
-COPY --from=builder ${APP_VENV} ${APP_VENV}
+COPY --chown=${UID}:${GID} --from=builder ${APP_VENV} ${APP_VENV}
 
 # 🔴 [매우 중요] 경로 문제 해결을 위한 링크 (USER 설정 이전에 수행)
 RUN ln -s /app/hwp_sdk /app/.venv/lib/python3.12/site-packages/hwp_sdk
 
 # ✅ 모델/자료
-COPY --from=models_artifacts /app/nltk_data /app/nltk_data
-COPY --from=models_artifacts /models /models
+COPY --chown=${UID}:${GID} --from=models_artifacts /app/nltk_data /app/nltk_data
+COPY --chown=${UID}:${GID} --from=models_artifacts /models /models
 
 RUN ln -sf /app/configs/supervisor.conf /etc/supervisor/conf.d/supervisor.conf
-RUN getent group "${GID}" || groupadd -g "${GID}" "${GNAME}" && \
-    getent passwd "${UID}" || useradd -m -u "${UID}" -g "${GID}" -s /bin/bash "${UNAME}" && \
-    UNAME_ACTUAL="$(getent passwd "${UID}" | cut -d: -f1)" && \
-    usermod -aG sudo "${UNAME_ACTUAL}" && \
-    echo "${UNAME_ACTUAL} ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers && \
-    mkdir -p /app/.cache/huggingface /app/.config/libreoffice /app/.cache/libreoffice /app/.local/share /app/tmp /tmp/xdg && \
-    chown -R "${UID}:${GID}" /app /run /var/log /etc/supervisor /models /app/nltk_data /app/.cache /app/.config /app/.local /tmp/xdg
+# 위 COPY 들이 이미 ${UID}:${GID} 로 복사했으므로, 여기서는 작은 경로만 정리한다.
+#   - /app, /app/nltk_data : base 단계에서 root 로 미리 만들어진 디렉토리라
+#     COPY --chown 이 디렉토리 자체의 소유권은 바꾸지 않는다 → 비재귀 chown 으로 보정.
+#   - site-packages/hwp_sdk : 위 RUN 이 만든 심볼릭 링크 자체의 소유권(-h).
+#   - 나머지는 모두 KB 단위의 작은 트리라 -R 로 돌려도 레이어가 커지지 않는다.
+RUN mkdir -p /app/.cache/huggingface /app/.config/libreoffice /app/.cache/libreoffice /app/.local/share /app/tmp /tmp/xdg && \
+    chown "${UID}:${GID}" /app /app/nltk_data && \
+    chown -h "${UID}:${GID}" /app/.venv/lib/python3.12/site-packages/hwp_sdk && \
+    find /app -maxdepth 1 -user 0 -exec chown "${UID}:${GID}" {} + && \
+    chown -R "${UID}:${GID}" /run /var/log /etc/supervisor /app/.cache /app/.config /app/.local /app/.fontconfig /app/tmp /tmp/xdg
 USER ${UID}:${GID}
 CMD ["supervisord", "-n"]

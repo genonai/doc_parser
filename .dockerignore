@@ -1,0 +1,46 @@
+# docker build context 에서 제외할 항목.
+#
+# ⚠️ 이 레포에는 Dockerfile 이 9개 있고(루트 ./Dockerfile, .actor/, genon/serving/paddle/,
+#    genon/preprocessor/docker/, build-script/code-serving-doc-parser/) 모두 **레포 루트를
+#    컨텍스트**로 쓴다. 그래서 whitelist(`*` 로 전부 막고 `!경로` 로 되살리는 방식) 대신
+#    blacklist 를 쓴다 — whitelist 는 경로 하나만 빠뜨려도 다른 빌드를 조용히 깨뜨린다.
+#
+# 아래 항목이 어떤 Dockerfile 에서도 참조되지 않는 것을 확인하고 작성했다.
+
+# ── 비밀 값 (가장 중요) ─────────────────────────────────────────────
+# .gitignore 로 git 에서는 빠지지만 docker build context 에는 그대로 들어간다.
+# 지금은 어떤 Dockerfile 도 `COPY . .` 를 하지 않아 이미지에 실리지 않지만,
+# 누군가 광범위한 COPY 를 추가하는 순간 토큰이 이미지에 들어간다.
+# (빌드는 --secret 으로 토큰을 주입하므로 이 파일이 컨텍스트에 없어도 정상 동작한다.)
+build-script/hf_private_token.env
+**/*.pem
+**/*.key
+
+# ── 로컬 개발 환경 / 버전 관리 ──────────────────────────────────────
+.git
+.gitignore
+.dockerignore
+.venv
+**/.venv
+**/__pycache__
+**/*.py[cod]
+**/.pytest_cache
+**/.mypy_cache
+**/.ruff_cache
+**/*.egg-info
+
+# ── 개인 작업 공간 (약 4.9GB) ───────────────────────────────────────
+shkim_labs
+
+# ── 참조용 사본 (gitignore 대상, 빌드에 불필요) ─────────────────────
+reference
+
+# ── 에디터 / OS ─────────────────────────────────────────────────────
+.idea
+.vscode
+**/.DS_Store
+
+# ── 빌드 산출물 ─────────────────────────────────────────────────────
+dist
+build
+**/node_modules
