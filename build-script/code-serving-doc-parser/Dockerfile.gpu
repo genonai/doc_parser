@@ -28,6 +28,10 @@ ARG GNAME=genos
 ARG RHWP_GIT_URL=https://github.com/genonai/genos-rhwp.git
 ARG RHWP_GIT_REF=genos/main
 ARG DOCLING_PKG_VER=2.41.0
+# NOTE: 현재 미사용. torch 설치를 `uv pip install . --torch-backend=cu124` 한 번으로 합치면서
+#   이 인덱스 URL 을 직접 넘기지 않게 됐다(uv 가 cu124 인덱스를 내장으로 안다).
+#   ⚠️ 사내 미러를 써야 한다면 --torch-backend 로는 지정할 수 없다. 그때는 pyproject 에
+#   `[[tool.uv.index]]` 로 미러를 등록하고 --torch-backend 를 빼는 방식으로 바꿔야 한다.
 ARG TORCH_CU_INDEX_URL=https://download.pytorch.org/whl/cu124
 
 ############################
@@ -54,7 +58,11 @@ ENV DEBIAN_FRONTEND=noninteractive \
 RUN apt-get update && apt-get install -y --no-install-recommends \
       ca-certificates curl git \
     && rm -rf /var/lib/apt/lists/*
-RUN curl -LsSf https://astral.sh/uv/install.sh | env UV_INSTALL_DIR=/usr/local/bin sh
+# uv 버전을 핀한다. 아래 `uv pip install . --torch-backend=cu124` 가 --torch-backend 에 의존하므로
+# uv 버전이 빌드 동작에 직접 영향을 준다(0.8.0 에 존재함을 확인).
+# astral 설치 스크립트는 URL 에 버전을 넣는 방식으로 특정 버전을 설치한다.
+ARG UV_VERSION=0.8.0
+RUN curl -LsSf https://astral.sh/uv/${UV_VERSION}/install.sh | env UV_INSTALL_DIR=/usr/local/bin sh
 ENV UV_PYTHON_INSTALL_DIR=/opt/uv/python
 RUN uv python install 3.12
 
@@ -64,17 +72,26 @@ COPY build-script/code-serving-doc-parser/pyproject.toml build-script/code-servi
 # genon/code-serving 와 동일: uv venv --seed + uv pip install . → /app/.venv
 # (uv 관리형 python3.12 를 명시. venv 의 bin/python 은 /opt/uv/python/... 를 가리키며,
 #  runtime 에 동일 경로로 COPY 되므로 심링크가 해소된다.)
+# --torch-backend=cu124: 처음부터 cu124 인덱스에서 받는다.
+#   예전에는 `uv pip install .` 로 PyPI 기본 CUDA torch + nvidia 휠(약 4GB)을 받은 뒤,
+#   곧바로 --index-url cu124 로 **다시 약 4GB** 를 받아 덮어썼다(총 약 8GB, 절반은 폐기).
+#   한 번에 받도록 바꿔 재설치 단계를 없앴다.
 RUN --mount=type=cache,target=/root/.cache/uv \
     rm -rf /app/tmp /app/nltk_data && \
     uv venv --python 3.12 --seed && \
-    uv pip install .
+    uv pip install . --torch-backend=cu124
 
-# GPU torch(cu124) 재고정 (pyproject deps 가 끌어온 기본 torch 를 cu124 wheel 로 override)
-RUN --mount=type=cache,target=/root/.cache/uv \
-    uv pip install --python ${APP_VENV}/bin/python \
-      --reinstall-package torch --reinstall-package torchvision \
-      --index-url "${TORCH_CU_INDEX_URL}" \
-      torch torchvision
+# torch 의 런타임 미사용 자산 제거 (약 141MB: test 81M + include 60M).
+# C++ 헤더와 테스트 픽스처로, 추론 경로에서는 쓰이지 않는다.
+# ⚠️ torch/bin(50MB)은 지우면 안 된다. torch/__init__.py 가 import 시점에 _manager_path() 로
+#    torch/bin/torch_shm_manager 존재를 무조건 확인하고, 없으면 RuntimeError 로 죽는다
+#    (DataLoader 를 쓰지 않아도 발생).
+# ⚠️ 코드서빙 특유의 위험: 런타임에 git clone 되는 **외부 서비스 코드**가
+#    `torch.utils.cpp_extension`(JIT C++ 확장 컴파일)을 쓰면 torch/include 가 없어 실패한다.
+#    현재 이 레포에는 사용처가 없지만, 서비스 코드는 이 이미지 밖에서 오므로 보장할 수 없다.
+#    그런 서비스를 붙이려면 이 RUN 에서 include 제거를 빼야 한다.
+RUN rm -rf ${APP_VENV}/lib/python3*/site-packages/torch/test \
+           ${APP_VENV}/lib/python3*/site-packages/torch/include
 
 # models_artifacts(FROM builder) 에서 필요한 시스템 라이브러리 설치.
 # curl/unzip: EasyOCR 한국어 모델 다운로드/압축해제용.
@@ -85,6 +102,32 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       curl unzip \
       libgl1 libglib2.0-0 libxcb1 libsm6 libxext6 libxrender1 \
     && rm -rf /var/lib/apt/lists/*
+
+# opencv 를 headless 로 통일한다 (Dockerfile.standard 와 동일 조치).
+#   opencv-python(non-headless)과 opencv-python-headless 가 둘 다 들어와 `opencv_python.libs`
+#   (약 116MB)가 중복이고, non-headless 가 libGL.so.1 에 링크해 runtime apt 의 `libgl1`
+#   → Mesa 소프트웨어 GL 스택(약 208MB)까지 끌어온다. 헤드리스라 불필요해 runtime apt 에서
+#   libgl1 을 뺐다(위 builder apt 의 libgl1 은 models_artifacts 용이라 유지).
+# ⚠️ 순서 두 가지가 모두 중요하다.
+#   1) 이 블록은 반드시 **위 apt RUN 뒤**에 와야 한다. builder 베이스가 ubuntu:22.04 최소
+#      구성이라 그 전에는 libglib2.0-0 이 없어 아래 `import cv2` 가 ImportError 로 죽는다.
+#   2) opencv-python 을 지우면 공유되는 cv2/ 파일까지 사라지므로 뒤에 --reinstall 필수.
+# ⚠️ 버전을 uv.lock 에 맞춰 핀한다. `uv pip install` 은 lock 을 참조하지 않으므로 버전을 안 주면
+#    최신(현재 5.0.x)을 가져온다. 최소한 opencv 만이라도 결정적으로 고정한다.
+RUN --mount=type=cache,target=/root/.cache/uv \
+    set -eu; \
+    OCV=$(grep -A1 '^name = "opencv-python-headless"' uv.lock | awk -F'"' '/^version/{print $2}'); \
+    if [ -z "${OCV}" ]; then echo "[ERROR] uv.lock 에서 opencv-python-headless 버전을 못 찾음"; exit 1; fi; \
+    echo "[INFO] opencv-python-headless==${OCV} (uv.lock 기준)"; \
+    if uv pip list --python ${APP_VENV}/bin/python --format=freeze | grep -q '^opencv-python=='; then \
+      uv pip uninstall --python ${APP_VENV}/bin/python opencv-python; \
+    fi; \
+    uv pip install --python ${APP_VENV}/bin/python --reinstall "opencv-python-headless==${OCV}"; \
+    ${APP_VENV}/bin/python -c "import cv2; print('[INFO] cv2', cv2.__version__)"; \
+    ${APP_VENV}/bin/python -c "import unstructured_inference; print('[INFO] unstructured_inference ok')"; \
+    if ls -d ${APP_VENV}/lib/python3*/site-packages/opencv_python.libs >/dev/null 2>&1; then \
+      echo "[ERROR] opencv_python.libs 잔존"; exit 1; \
+    fi
 
 ############################
 # 2-1) HWP SDK / 2-2) 폰트 / 2-3) 모델 (CPU Dockerfile 과 동일)
@@ -105,9 +148,16 @@ RUN --mount=type=cache,target=${HF_HOME} \
     huggingface-cli download genon-search/additional_fonts \
       --repo-type dataset --local-dir /app/extra_fonts --local-dir-use-symlinks False
 
-FROM rust:latest AS rhwp_builder
+FROM rust:1-slim AS rhwp_builder
 ARG RHWP_GIT_URL
 ARG RHWP_GIT_REF
+# rust:latest(약 1.5GB)는 buildpack-deps 기반이라 git 이 들어 있지만 rust:slim 에는 없다.
+# 산출물이 바이너리 하나뿐이라 slim 으로 낮추고 git 만 따로 설치한다 — 최종 이미지 크기는 그대로이고
+# 빌드 중 다운로드/디스크만 줄어든다.
+# ⚠️ genos-rhwp 가 pkg-config / libssl-dev / cmake 같은 시스템 의존을 요구하면 cargo build 에서
+#    깨진다. 그때는 아래 목록에 추가하거나 rust:latest 로 되돌린다.
+RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
 WORKDIR /src
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/usr/local/cargo/git \
@@ -122,6 +172,26 @@ FROM builder AS models_artifacts
 ARG APP_VENV
 ARG NLTK_PACKAGES
 ARG DOCLING_PKG_VER
+# 받을 docling 모델 목록. 인자 없이 `docling-tools models download` 를 호출하면 기본 세트
+# (layout, tableformer, code_formula, picture_classifier, easyocr)를 전부 받는데, 그중
+# code_formula(ds4sd--CodeFormula, 506MB)는 이 레포에서 절대 로드되지 않는다:
+#   do_code_enrichment / do_formula_enrichment 기본값 False(pipeline_options.py)이고
+#   이를 켜는 config 키·코드가 없어 CodeFormulaModel 은 enabled=False 로만 생성된다.
+#   ⚠️ 이 판단은 "현재 제품 기능 기준"이다. docling CLI 자체에는 code/formula enrichment 를 켜는
+#      옵션이 있으므로, 향후 facade 가 이를 노출하거나(코드서빙이라면 런타임에 clone 되는 서비스
+#      코드가 켜면) **오프라인 환경에서 모델이 없어 실패**한다. 그때는 DOCLING_MODELS 에
+#      code_formula 를 다시 넣어야 한다.
+# 나머지는 유지한다 (docling/utils/model_downloader.py 의 with_* 플래그와 1:1 대응):
+#   layout            → ds4sd--docling-layout-old. 이름이 old 지만 layout_model_specs.py 의
+#                       "Default Docling Layout Model"(DOCLING_LAYOUT_V2)이다. PDF 는
+#                       genos_layout(dotsocr)을 쓰지만, PPT/PPTX 경량 파이프라인이 bare
+#                       PdfPipelineOptions() 로 LayoutModel 을 만들어 실제 로드하므로 필수.
+#   tableformer       → ds4sd--docling-models. layout_model_type: docling_layout 배포에서 필요.
+#   picture_classifier→ ds4sd--DocumentFigureClassifier. chart.enable opt-in (16MB).
+#   easyocr           → /models/EasyOcr 의 craft_mlt_25k(83MB)/english_g2/latin_g2.
+#                       ⚠️ with_easyocr 도 기본 True 라, 목록에서 빼면 아래 korean_g2.zip
+#                       단계만 남아 CRAFT 검출기가 사라진다(EasyOCR 사용 시 필수).
+ARG DOCLING_MODELS="layout tableformer picture_classifier easyocr"
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv pip install --python ${APP_VENV}/bin/python "docling==${DOCLING_PKG_VER}" \
  && (uv pip uninstall --python ${APP_VENV}/bin/python opencv-python || true) \
@@ -130,13 +200,20 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 #   헤드리스 ubuntu 빌더에는 Qt/xcb 런타임 라이브러리가 없어 easyocr→cv2 import 시
 #   ImportError(libQt5Core...so) 가 발생하기 때문. 이 stage venv 는 runtime 에 COPY 되지 않으므로
 #   영향 범위는 모델 다운로드 단계에 한정된다(런타임 OCR venv 는 builder 의 것 그대로).
-RUN --mount=type=cache,target=/root/.cache/models \
-    if [ ! -d /models ] || [ -z "$(ls -A /models)" ]; then docling-tools models download -o /models; fi
+# NOTE: 예전에는 `--mount=type=cache,target=/root/.cache/models` 가 붙어 있었지만 아무도 그 경로를
+#   쓰지 않았다. docling-tools 는 `-o /models`(이미지 레이어)와 HF_HOME 을 쓴다. 오해를 남기지
+#   않도록 제거했다.
+RUN if [ ! -d /models ] || [ -z "$(ls -A /models)" ]; then docling-tools models download -o /models ${DOCLING_MODELS}; fi
+# mncai/doc_parser_models 에서 실제로 쓰는 것은 MiniLM 토크나이저 폴더 하나뿐이다.
+# repo 전체(846MB)를 받으면 docling-models(506MB)/docling-layout-old(164MB)가 함께 오는데
+# 둘 다 코드에서 로드되지 않는다(TableFormer 는 ds4sd--docling-models, layout 기본값은
+# ds4sd--docling-layout-old 를 쓴다). 또 두 번째 download 의 --local-dir 이 이미 받은 폴더를
+# 다시 가리켜 동명 하위 디렉토리가 중첩 생성됐다(88MB 중복) — 코드는 바깥쪽만 사용한다.
 RUN --mount=type=cache,target=${HF_HOME} \
     mkdir -p /models/doc_parser_models && \
-    huggingface-cli download mncai/doc_parser_models --local-dir /models/doc_parser_models && \
-    huggingface-cli download mncai/doc_parser_models --include "sentence-transformers-all-MiniLM-L6-v2/*" \
-      --local-dir /models/doc_parser_models/sentence-transformers-all-MiniLM-L6-v2
+    huggingface-cli download mncai/doc_parser_models \
+      --include "sentence-transformers-all-MiniLM-L6-v2/*" \
+      --local-dir /models/doc_parser_models
 RUN --mount=type=cache,target=/root/.cache/nltk \
     python - <<'PY'
 import os, nltk
@@ -160,7 +237,15 @@ RUN --mount=type=cache,target=/root/.cache/easyocr_korean \
 ############################
 # 3) Runtime — nvidia/cuda + 문서 apt + H2Orestart + 아티팩트 + harness
 ############################
-FROM nvidia/cuda:12.4.1-cudnn-runtime-ubuntu22.04 AS runtime
+# 베이스는 -cudnn-runtime 이 아니라 -base 를 쓴다.
+#   torch 는 pip nvidia 휠(uv.lock 에 15개, nvidia-cudnn-cu13 포함)에 링크되므로 베이스가 주는
+#   시스템 CUDA/cuDNN 은 쓰이지 않는다. -cudnn-runtime 에는 /usr/local/cuda-12.4 만 1.9GB 가 들어
+#   있어 CUDA 를 사실상 두 번 싣는 셈이었다(실측: /usr 4.7GB).
+#   CUDA 를 쓰는 다른 패키지도 없다 — onnxruntime 은 CPU 빌드다.
+#   같은 스택인 genon/preprocessor 의 GPU 빌드는 python:slim(시스템 CUDA 없음) 위에서 정상 동작한다.
+# ⚠️ ubuntu:22.04 까지 낮추지 말 것. -base 가 포함하는 cuda-compat 이 호스트 드라이버가 CUDA 12.4
+#    보다 구버전일 때 호환성을 메워 준다. 추가 절감(약 250MB)에 비해 위험이 크다.
+FROM nvidia/cuda:12.4.1-base-ubuntu22.04 AS runtime
 ARG APP_VENV
 ARG H2ORESTART_URL
 ARG UID
@@ -211,16 +296,20 @@ RUN mkdir -p /app/tmp /tmp/xdg \
     && mkdir -p /app/.cache/huggingface /app/nltk_data /app/tmp /tmp/xdg
 
 # LibreOffice H2Orestart 확장 + HCRBatang 폰트
-COPY ./genon/preprocessor/resources /tmp/resources
-RUN set -eux; \
+# NOTE: 예전에는 `COPY ./genon/preprocessor/resources /tmp/resources` 로 디렉토리를 통째 복사했다.
+#   (1) 필요한 건 HCRBatang 폰트뿐인데 참조가 전혀 없는 tessedata.tar.gz(35MB)까지 들어왔고
+#       (한국어 tessdata 는 apt tesseract-ocr-kor 로 이미 들어온다),
+#   (2) 마지막 `rm -rf /tmp/resources` 는 상위 레이어라 COPY 레이어(48MB)를 회수하지 못했다.
+#   → bind mount 로 필요한 파일만 읽어 레이어에 아무것도 남기지 않는다.
+RUN --mount=type=bind,source=genon/preprocessor/resources/HCRBatang.ttf.tar.gz,target=/tmp/HCRBatang.ttf.tar.gz \
+    set -eux; \
     mkdir -p /opt/h2orestart /usr/lib/libreoffice/share/extensions/h2orestart; \
     wget -O /opt/h2orestart/H2Orestart.oxt "${H2ORESTART_URL}"; \
     unzip -q -o /opt/h2orestart/H2Orestart.oxt -d /usr/lib/libreoffice/share/extensions/h2orestart; \
     soffice --headless --nologo --nodefault --nofirststartwizard --terminate_after_init || true; \
     mkdir -p /usr/share/fonts; \
-    tar zxf /tmp/resources/HCRBatang.ttf.tar.gz -C /usr/share/fonts/; \
-    fc-cache -f -v; \
-    rm -rf /tmp/resources
+    tar zxf /tmp/HCRBatang.ttf.tar.gz -C /usr/share/fonts/; \
+    fc-cache -f -v
 
 # 사용자 생성 + 디렉토리
 RUN groupadd -g $GID $GNAME && \
@@ -231,15 +320,21 @@ RUN groupadd -g $GID $GNAME && \
 WORKDIR /app
 
 # uv 관리형 python3.12 (venv 의 bin/python 심링크 대상) — venv 보다 먼저 COPY.
+# (/app 밖이라 root 소유로 둔다)
 COPY --from=builder /opt/uv/python /opt/uv/python
 # venv (패치된 docling_parse + cu124 torch 포함) + 아티팩트
-COPY --from=builder ${APP_VENV} ${APP_VENV}
-COPY --from=sdk_artifacts /app/hwp_sdk /app/hwp_sdk
+# 🔴 --chown 으로 처음부터 올바른 소유자로 복사한다. 예전에는 아래에서
+#    `chown -R $UID:$GID /app … /models /app/nltk_data` 를 한 번에 돌렸는데, 이미 복사된
+#    .venv + /models + nltk_data + hwp_sdk 의 소유권만 바꾸는 것도 overlayfs 에서는
+#    전 파일 copy-up 이라 같은 데이터를 담은 수 GB 레이어가 하나 더 생겼다
+#    (GPU 는 cu124 torch + nvidia-* 로 venv 가 커서 CPU 보다 손해가 크다).
+COPY --chown=${UID}:${GID} --from=builder ${APP_VENV} ${APP_VENV}
+COPY --chown=${UID}:${GID} --from=sdk_artifacts /app/hwp_sdk /app/hwp_sdk
 COPY --from=rhwp_builder /usr/local/bin/rhwp /usr/local/bin/rhwp
 COPY --from=font_artifacts /app/extra_fonts /usr/share/fonts/additional
 RUN fc-cache -f -v
-COPY --from=models_artifacts /models /models
-COPY --from=models_artifacts /app/nltk_data /app/nltk_data
+COPY --chown=${UID}:${GID} --from=models_artifacts /models /models
+COPY --chown=${UID}:${GID} --from=models_artifacts /app/nltk_data /app/nltk_data
 
 # hwp_sdk import 경로 (venv site-packages 심링크, 표준 빌드 파리티용). python3.12 고정.
 # ⚠️ docling 은 런타임에 clone 된 복사본 packages/ 의 wheel(genon-docling, import name: docling)을
@@ -248,14 +343,24 @@ COPY --from=models_artifacts /app/nltk_data /app/nltk_data
 RUN ln -s /app/hwp_sdk ${APP_VENV}/lib/python3.12/site-packages/hwp_sdk
 
 # 코드서빙 harness
-COPY build-script/code-serving-doc-parser/supervisor/non-root-base.conf /etc/supervisor/supervisord.conf
-COPY build-script/code-serving-doc-parser/supervisor/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
-COPY build-script/code-serving-doc-parser/scripts /app/scripts
-COPY build-script/code-serving-doc-parser/src /app/src
-COPY build-script/code-serving-doc-parser/gunicorn /app/gunicorn
+COPY --chown=${UID}:${GID} build-script/code-serving-doc-parser/supervisor/non-root-base.conf /etc/supervisor/supervisord.conf
+COPY --chown=${UID}:${GID} build-script/code-serving-doc-parser/supervisor/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
+COPY --chown=${UID}:${GID} build-script/code-serving-doc-parser/scripts /app/scripts
+COPY --chown=${UID}:${GID} build-script/code-serving-doc-parser/src /app/src
+COPY --chown=${UID}:${GID} build-script/code-serving-doc-parser/gunicorn /app/gunicorn
 
+# (root 가 3000 소유 파일을 chmod 하는 것은 문제없고 소유권도 유지된다)
 RUN rm -rf /app/src/service && chmod +x /app/scripts/*.sh
-RUN chown -R $UID:$GID /app /run /var/log /etc/supervisor /models /app/nltk_data
+
+# 위 COPY 들이 이미 ${UID}:${GID} 로 복사했으므로 여기서는 작은 경로만 정리한다.
+#   - /app, /app/nltk_data : 위 apt RUN 에서 root 로 미리 만들어진 디렉토리라
+#     COPY --chown 이 디렉토리 자체의 소유권은 바꾸지 않는다 → 비재귀 chown 으로 보정.
+#   - site-packages/hwp_sdk : 위 RUN 이 만든 심볼릭 링크 자체의 소유권(-h).
+#   - /var/log/supervisor, /var/run/supervisor 는 /var/log, /run 에 포함된다.
+RUN chown "${UID}:${GID}" /app /app/nltk_data && \
+    chown -h "${UID}:${GID}" ${APP_VENV}/lib/python3.12/site-packages/hwp_sdk && \
+    find /app -maxdepth 1 -user 0 -exec chown "${UID}:${GID}" {} + && \
+    chown -R "${UID}:${GID}" /run /var/log /etc/supervisor /app/.cache /app/.config /app/.local /app/tmp /tmp/xdg
 
 USER $UID
 CMD ["supervisord", "-n", "-c", "/etc/supervisor/supervisord.conf"]
