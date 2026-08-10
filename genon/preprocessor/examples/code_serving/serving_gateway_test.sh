@@ -5,17 +5,9 @@
 
 
 # python serving_gateway_test.py --mode e2e --file-path "/app/src/service/genon/preprocessor/sample_files/pdf_sample.pdf" --out result_serving_gateway_test/
-# python serving_gateway_test.py --mode parser_upload --upload-file "../../../../shkim_labs/20260609_convert_test/10.여비규정_20240129_인사경영국_20240129.pdf" --out-doc result_serving_gateway_test/doc.json --serving-id "$GENOS_SERVING_ID" --auth-key "$GENOS_AUTH_KEY"
-python serving_gateway_test.py --mode parser_upload --upload-file "../sample_files/hwp_sample_table.hwp" --out-doc result_serving_gateway_test/doc.json --serving-id "$GENOS_SERVING_ID" --auth-key "$GENOS_AUTH_KEY"
-# python serving_gateway_test.py --mode parser --file-path "/app/src/service/genon/preprocessor/sample_files/pdf_sample.pdf" --out-doc result_serving_gateway_test/doc.json --serving-id "$GENOS_SERVING_ID" --auth-key "$GENOS_AUTH_KEY"
+# python serving_gateway_test.py --mode parser_upload --upload-file "../sample_files/hwp_sample_table.hwp" --out-doc result_serving_gateway_test/doc.json --serving-id "$GENOS_SERVING_ID" --auth-key "$GENOS_AUTH_KEY"
+python serving_gateway_test.py --mode parser --file-path "/app/src/service/genon/preprocessor/sample_files/pdf_sample.pdf" --out-doc result_serving_gateway_test/doc.json --serving-id "$GENOS_SERVING_ID" --auth-key "$GENOS_AUTH_KEY"
 python serving_gateway_test.py --mode chunker --doc-json result_serving_gateway_test/doc.json --out result_serving_gateway_test/chunks.json --serving-id "$GENOS_SERVING_ID" --auth-key "$GENOS_AUTH_KEY"
-
-# python serving_gateway_test.py --mode parser_upload --upload-file "../../../../shkim_labs/20260803_monimo/01_card/card01.flat.html" --out-doc result_serving_gateway_test/doc.json --doc-type card --serving-id "$GENOS_SERVING_ID" --auth-key "$GENOS_AUTH_KEY"
-# python serving_gateway_test.py --mode parser_upload --upload-file "../../../../shkim_labs/20260803_monimo/02_faq/생명FAQ_260712.xlsx" --out-doc result_serving_gateway_test/doc.json --doc-type faq --serving-id "$GENOS_SERVING_ID" --auth-key "$GENOS_AUTH_KEY"
-# python serving_gateway_test.py --mode chunker --doc-json result_serving_gateway_test/doc.json --out result_serving_gateway_test/chunks.json --doc-type card --serving-id "$GENOS_SERVING_ID" --auth-key "$GENOS_AUTH_KEY"
-# python serving_gateway_test.py --mode parser_upload --upload-file "../../../../shkim_labs/20260803_monimo/01_card/card01.flat.html" --out-doc result_serving_gateway_test/doc.json --doc-type card
-# python serving_gateway_test.py --mode chunker --doc-json result_serving_gateway_test/doc.json --out result_serving_gateway_test/chunks.json --doc-type faq
-
 
 # ── 문서유형(doc_type) 지정: FAQ 엑셀(행별 custom_fields) / 카드(문서 metadata 스탬프) ──────────
 # --doc-type 으로 전달(= --param doc_type=.. 와 동일, 둘 다 주면 --param 우선).

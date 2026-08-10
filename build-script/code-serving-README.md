@@ -48,7 +48,7 @@
 1. **base 이미지 준비/등록**
    - 코드서빙 base 이미지 `mnc/template-code-serving-doc-parser` 를 GenOS 도커 이미지에 등록하고 이미지 타입은 **`Code_Serving`** 으로 지정합니다.
    - base 이미지는 사내 도커레지스트리에 있습니다.
-     확인: `curl http://<DOCKER_REGISTRY>/v2/mnc/template-code-serving-doc-parser/tags/list`
+     확인: `curl http://192.168.74.164:30500/v2/mnc/template-code-serving-doc-parser/tags/list`
      (없으면 원본 repo의 `build-script/code-serving-doc-parser/README.md` 로 빌드/푸시.)
 
 2. **GenOS 코드서빙 생성** — [genos docs · 코드서빙](https://genos-docs.gitbook.io/default/v1.8.6/basic-tutorials/guides/development/code_serving)
