@@ -2163,6 +2163,41 @@ class GenOSVectorMetaBuilder:
         return GenOSVectorMeta.model_validate(payload)
 
 
+# 매뉴얼류 파일명 규칙: "{발전소명}-{분야}-{번호}_{제목}_{문서번호}.pdf"
+# 화이트리스트에 없는 토큰이면 패턴 불일치 파일로 보고 None 처리한다. (issue_files/패턴_불일치_파일_리스트.txt 참고)
+_MANUAL_PLANT_NAMES = {
+    "건공절차", "건본절차", "건사지침", "발공절차", "발전소공용절차", "발전소공용지침",
+    "보령2발절차", "보령2발지침", "보령2절차", "보령3발절차", "보령3발지침", "보령3지침",
+    "보령공용절차", "보령공용지침", "보령공절차", "보령공지침", "보령매뉴얼", "보령복절차",
+    "보령복지침", "보령복합지침", "보령삼지침", "보령신복지침", "보령이지침", "보령친환경절차",
+    "본공지침", "서울건절차", "서울매뉴얼", "서울복절차", "서울복지침", "서울복합", "서울원절차",
+    "서울절차", "서울지침", "서천절차", "서천지침", "세종절차", "세종지침", "신보령건지침",
+    "신보령매뉴얼", "신보령절차", "신보령지침", "신서천절차", "신서천지침", "원주절차", "인력절차",
+    "인천공용절차", "인천공용지침", "인천복절차", "인천복지침", "인천연료전지", "인천절차",
+    "인천지침", "전사공용절차", "전사공용지침", "전사매뉴얼", "전사절차", "전사지침", "제주1발절차",
+    "제주1발지침", "제주2발절차", "제주2발지침", "제주공용절차", "제주공용지침", "제주절차",
+    "제주지침", "함안건절차", "함안건지침",
+}
+
+_MANUAL_FIELDS = {
+    "PSM", "개발", "건설", "경영", "관리", "기술", "기타", "내부통제", "녹색", "물자", "배출권",
+    "설비", "시운전", "안전", "안전보건", "업무", "운영", "운전", "인사", "자재", "작업", "재무",
+    "전산", "정보", "정비", "총무", "토건", "품질", "해사", "화학", "환경", "환경화학", "회로",
+}
+
+
+def extract_manual_metadata_from_filename(file_name: str) -> dict[str, Optional[str]]:
+    """원본 파일명 앞 두 토큰(발전소명-분야)을 화이트리스트와 대조해 메타데이터로 추출한다.
+
+    운영망에서는 file_path 가 해시로 치환되므로 반드시 원본 file_name(kwargs["file_name"])을 넘겨야 한다.
+    패턴이 안 맞으면(발전소명/분야 화이트리스트 밖) 해당 필드는 None.
+    """
+    tokens = Path(file_name).stem.split("-")
+    plant_name = tokens[0] if tokens and tokens[0] in _MANUAL_PLANT_NAMES else None
+    field = tokens[1] if len(tokens) > 1 and tokens[1] in _MANUAL_FIELDS else None
+    return {"발전소명": plant_name, "분야": field}
+
+
 class DocumentProcessor:
 
     def __init__(self, config_path: str | None = None):
@@ -2807,6 +2842,9 @@ class DocumentProcessor:
         )
         global_metadata.update(typed_values)  # 설정 기반 typed 필드 (created_date 등)
         global_metadata.update(passthrough_metadata)
+        # 운영망은 file_path 가 해시로 치환되므로 원본 파일명(kwargs["file_name"])을 우선 사용.
+        manual_source_name = kwargs.get("file_name") or file_path
+        global_metadata.update(extract_manual_metadata_from_filename(manual_source_name))  # 발전소명/분야
         # 비-PDF 입력이 변환된 경우 vector 의 file_path 를 변환 PDF 경로로 set.
         if converted_pdf_path:
             global_metadata["file_path"] = converted_pdf_path
