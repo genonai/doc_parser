@@ -8,6 +8,11 @@
 
 문서는 **① GenOS 배포·등록 → ② 호출(사전 준비·엔드포인트·사용 예시)** 순서로 구성됩니다.
 
+> **전처리기 코드를 직접 수정하려면** 아래 요약 대신
+> [`genon/preprocessor/facade/gitbook_doc/code_serving_dev_manual.md`](genon/preprocessor/facade/gitbook_doc/code_serving_dev_manual.md)
+> 를 보세요 — Genos 개념부터 로컬 개발환경 세팅, parser/chunker 코드 이해·수정, 재배포까지 한 문서로
+> 안내합니다. 이 저장소(공개 배포본)만으로 따라갈 수 있게 쓰여 있습니다.
+
 ## 개요
 
 - 엔드포인트: `/health`, `/preprocess*`(적재/첨부/변환), `/parser`(파싱), `/chunker`(청킹).
@@ -43,7 +48,7 @@
 1. **base 이미지 준비/등록**
    - 코드서빙 base 이미지 `mnc/template-code-serving-doc-parser` 를 GenOS 도커 이미지에 등록하고 이미지 타입은 **`Code_Serving`** 으로 지정합니다.
    - base 이미지는 사내 도커레지스트리에 있습니다.
-     확인: `curl http://192.168.74.164:30500/v2/mnc/template-code-serving-doc-parser/tags/list`
+     확인: `curl http://<DOCKER_REGISTRY>/v2/mnc/template-code-serving-doc-parser/tags/list`
      (없으면 원본 repo의 `build-script/code-serving-doc-parser/README.md` 로 빌드/푸시.)
 
 2. **GenOS 코드서빙 생성** — [genos docs · 코드서빙](https://genos-docs.gitbook.io/default/v1.8.6/basic-tutorials/guides/development/code_serving)
@@ -100,9 +105,9 @@
 
 | 항목 | 설명 | 예시 |
 | --- | --- | --- |
-| `base URL` | 게이트웨이 base URL | `https://genos.genon.ai` |
-| `serving_id` | 배포된 코드 서빙 ID | `139` |
-| `auth_key` | 게이트웨이 인증 토큰(Bearer) | `b8c0b48f...` |
+| `base URL` | 게이트웨이 base URL | `https://<GENOS_HOST>` |
+| `serving_id` | 배포된 코드 서빙 ID | `<SERVING_ID>` |
+| `auth_key` | 게이트웨이 인증 토큰(Bearer) | `<AUTH_KEY>` |
 
 - **`/parser`의 `file_path`는 서빙 컨테이너 내부의 로컬 경로**입니다(MinIO 키 아님). 서버가 접근 가능한 경로를 넣으세요.
 - docling 포맷은 파싱 서빙의 `parser_processor_config.yaml`이 `output.format: "docling"`이어야 응답에 `data.document`가 생성됩니다.
@@ -167,7 +172,7 @@ Authorization: Bearer {auth_key}
 
 ### curl
 ```bash
-BASE="https://genos.genon.ai"; SERVING_ID="139"; AUTH="b8c0b48f..."
+BASE="https://<GENOS_HOST>"; SERVING_ID="<SERVING_ID>"; AUTH="<AUTH_KEY>"
 GW="${BASE}/api/gateway/code_serving/${SERVING_ID}"
 FILE_PATH="/app/src/service/genon/preprocessor/sample_files/pdf_sample.pdf"
 

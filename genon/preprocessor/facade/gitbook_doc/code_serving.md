@@ -2,7 +2,11 @@
 
 doc_parser 전처리기를 GenOS **코드 서빙** 플랫폼에 배포하면, 게이트웨이를 통해
 문서 **파싱(`/parser`)** 과 **청킹(`/chunker`)** 기능을 HTTP API로 호출할 수 있습니다.
-이 문서는 배포된 코드 서빙을 호출하는 방법을 설명합니다.
+이 문서는 배포된 코드 서빙을 **호출**하는 방법을 설명합니다.
+
+> **개발환경 세팅 · 코드 이해 · 수정 · 재배포**는 별도 문서인
+> [Genos 코드서빙 전처리기 개발 매뉴얼](code_serving_dev_manual.md)에 있습니다
+> (Genos 를 처음 접하는 개발자용. parser·chunker 코드 수정 중심).
 
 ## 목차
 
@@ -45,9 +49,9 @@ doc_parser 전처리기를 GenOS **코드 서빙** 플랫폼에 배포하면, �
 
 | 항목 | 설명 | 예시 |
 | --- | --- | --- |
-| `base URL` | 게이트웨이 base URL | `https://genos.genon.ai` |
-| `serving_id` | 배포된 코드 서빙 ID | `139` |
-| `auth_key` | 게이트웨이 인증 토큰(Bearer) | `b8c0b48f7b4d410699ed1aa8f2c0da8a` |
+| `base URL` | 게이트웨이 base URL | `https://<GENOS_HOST>` |
+| `serving_id` | 배포된 코드 서빙 ID | `<SERVING_ID>` |
+| `auth_key` | 게이트웨이 인증 토큰(Bearer) | `<AUTH_KEY>` (코드서빙 상세 페이지에서 확인) |
 
 전제 조건:
 
@@ -243,9 +247,9 @@ chunker 가 형태를 자동 판별). `IS_CHUNKER` 를 지원하는 전처리기
 공통 변수:
 
 ```bash
-BASE="https://genos.genon.ai"
-SERVING_ID="139"
-AUTH="b8c0b48f7b4d410699ed1aa8f2c0da8a"
+BASE="https://<GENOS_HOST>"
+SERVING_ID="<SERVING_ID>"
+AUTH="<AUTH_KEY>"
 GW="${BASE}/api/gateway/code_serving/${SERVING_ID}"
 FILE_PATH="/app/src/service/genon/preprocessor/sample_files/pdf_sample.pdf"
 ```
@@ -319,7 +323,7 @@ python serving_gateway_test.py --mode parser --file-path /data/documents/report.
 | 인자 | 기본값 | 설명 |
 | --- | --- | --- |
 | `--mode` | `e2e` | `health` / `parser` / `parser_upload` / `chunker` / `e2e` |
-| `--base-url` | `https://genos.genon.ai` | 게이트웨이 base URL |
+| `--base-url` | `https://<GENOS_HOST>` | 게이트웨이 base URL |
 | `--serving-id` | `139` | 코드 서빙 ID |
 | `--auth-key` | (스크립트 기본값) | `Authorization: Bearer <key>` |
 | `--file-path` | `""` | 파싱할 문서 경로(서버 기준). `parser`/`e2e` 에 필요 |

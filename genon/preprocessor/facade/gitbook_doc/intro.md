@@ -12,6 +12,7 @@
   | 적재용 지능형 (RAG 고품질) | `preprocessor/facade/intelligent_processor.py` |
 
 - 설치(이미지 빌드·배포) 및 Facade·config 구성 절차는 [GenOS v2 Doc Parser 설치 및 Facade 구성 매뉴얼](installation.md)을 참고하세요.
+- **코드 서빙(Code Serving)** 으로 배포된 전처리기의 개발환경 세팅·코드 수정·재배포는 [Genos 코드서빙 전처리기 개발 매뉴얼](code_serving_dev_manual.md)을 참고하세요. (Genos 를 처음 접하는 개발자용. parser·chunker 코드 수정 중심)
 
 ## 1. 첨부용 전처리기 (Attachment Processor)
 사용자가 채팅 중 첨부로 업로드하는 파일을 실시간으로 분석하기 위한 경량화 전처리기입니다. 복잡한 구조 분석 과정을 생략하고, **텍스트 추출(Text Extraction)**에 집중하여 즉각적인 응답 속도를 보장합니다.

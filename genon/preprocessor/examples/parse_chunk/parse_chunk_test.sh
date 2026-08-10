@@ -3,10 +3,16 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PREPROCESSOR_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/../../../.." && pwd)"
 
+# venv 탐색 순서: genon/preprocessor/.venv (원본 repo 의 uv sync 위치)
+#              → 저장소 루트 .venv (코드서빙 배포본의 로컬 개발환경 위치)
+#              → 시스템 python
 if [ -z "${PYTHON:-}" ]; then
   if [ -x "${PREPROCESSOR_DIR}/.venv/bin/python" ]; then
     PYTHON="${PREPROCESSOR_DIR}/.venv/bin/python"
+  elif [ -x "${REPO_ROOT}/.venv/bin/python" ]; then
+    PYTHON="${REPO_ROOT}/.venv/bin/python"
   else
     PYTHON="python"
   fi

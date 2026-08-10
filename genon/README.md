@@ -190,6 +190,12 @@ GenOS **코드서빙** 기능으로 띄우는 경로이며, 동작 방식이 전
 > 빌드 방식·pre-bake 아티팩트 목록·의존성 동기화 주의사항 등 상세는
 > [`build-script/code-serving-doc-parser/README.md`](../build-script/code-serving-doc-parser/README.md) 참고.
 
+> **타사(외부) 개발자에게 전처리기 코드 수정을 넘길 때는**
+> [`preprocessor/facade/gitbook_doc/code_serving_dev_manual.md`](preprocessor/facade/gitbook_doc/code_serving_dev_manual.md)
+> 를 안내한다 — 공개 배포본 repo 만으로 개발환경 세팅 → parser/chunker 코드 이해·수정 → gitea push →
+> 리비전 재배포까지 할 수 있게 쓴 매뉴얼이다(이미지 빌드·원본 repo 접근은 전제하지 않음).
+> **아래 A~C(이미지 빌드·최초 등록)는 사내 담당자 몫**이며 그 매뉴얼에는 포함되지 않는다.
+
 > **미리 코드서빙용 도커이미지를 보유하고 있다면 아래의 A, B 단계는 수행하지 않아도 된다.**
 > - 사내 도커레지스트리에 이미지가 존재하며 아래의 명령어로 확인가능하다.
 > - `curl http://192.168.74.164:30500/v2/mnc/template-code-serving-doc-parser/tags/list`

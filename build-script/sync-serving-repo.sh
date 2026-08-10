@@ -188,20 +188,34 @@ else
   echo "[WARN] README 소스가 없어 건너뜀: ${SERVING_README}"
 fi
 
-# ── 2c) requirements-dev.txt 생성 (로컬 bare-metal 에서 facade/test.py 실행용) ──
+# ── 2c) requirements-dev.txt 생성 (로컬 bare-metal 에서 facade 직접 실행용) ──
 # 운영(코드서빙)은 base 이미지에 이 deps 가 이미 포함되어 런타임은 requirements.txt(docling wheel)만
 # 설치한다. 로컬에서 서빙 없이 전처리기를 직접 돌릴 때만 이 파일이 추가로 필요하다(README 부록 참고).
+# ⚠️ intelligent facade 는 fastapi/httpx 만으로 import 되지만, parser·chunking·attachment·convert 는
+#    모듈 최상위에서 fitz(pymupdf)/langchain*/markdown2/pydub 를 import 한다. 이들이 없으면 로컬에서
+#    facade import 자체가 실패하므로 함께 담는다 (외부 개발자의 주 작업 대상이 parser/chunker).
 # DEST 는 매 실행 새로 재생성(1) 단계)되므로 누적/중복 없음.
 {
   echo "# ---- sync-serving-repo.sh 가 생성: 로컬 실행 전용 (직접 편집 금지) ----"
-  echo "# 로컬 bare-metal 에서 genon/preprocessor/facade/test.py(지능형/PDF) 실행 시에만 필요."
+  echo "# 로컬 bare-metal 에서 genon/preprocessor/facade/*_processor.py 를 직접 실행할 때만 필요."
   echo "# 운영 코드서빙 base 이미지엔 이미 포함 → 런타임은 requirements.txt(docling wheel)만 설치한다."
   echo "# 사용:  uv pip install -r requirements.txt      # docling wheel"
-  echo "#       uv pip install -r requirements-dev.txt   # 아래 4개"
+  echo "#       uv pip install -r requirements-dev.txt   # 아래 목록"
+  echo ""
+  echo "# 공통(모든 facade)"
   echo "fastapi"
   echo "httpx"
   echo "grpcio"
   echo "protobuf"
+  echo ""
+  echo "# parser / chunking / attachment / convert facade 의 모듈 최상위 import"
+  echo "pymupdf"                  # import fitz
+  echo "langchain-community"
+  echo "langchain-core"
+  echo "langchain-text-splitters"
+  echo "markdown2"
+  echo "pydub"
+  echo "chardet"                  # parser/attachment 의 인코딩 감지 (없으면 import 시 RuntimeError)
 } > "${DEST}/requirements-dev.txt"
 echo "[INFO] requirements-dev.txt 생성: ${DEST}/requirements-dev.txt"
 

@@ -1,11 +1,19 @@
+# 실행 전 접속 정보를 환경변수로 지정하세요 (스크립트에 키를 넣지 않습니다):
+#   export GENOS_BASE_URL=https://<GENOS_HOST>
+#   export GENOS_SERVING_ID=<SERVING_ID>
+#   export GENOS_AUTH_KEY=<AUTH_KEY>
+
 
 # python serving_gateway_test.py --mode e2e --file-path "/app/src/service/genon/preprocessor/sample_files/pdf_sample.pdf" --out result_serving_gateway_test/
-# python serving_gateway_test.py --mode parser_upload --upload-file "../../../../shkim_labs/20260609_convert_test/10.여비규정_20240129_인사경영국_20240129.pdf" --out-doc result_serving_gateway_test/doc.json
-python serving_gateway_test.py --mode parser --file-path "/app/src/service/genon/preprocessor/sample_files/pdf_sample.pdf" --out-doc result_serving_gateway_test/doc.json
-python serving_gateway_test.py --mode chunker --doc-json result_serving_gateway_test/doc.json --out result_serving_gateway_test/chunks.json
+# python serving_gateway_test.py --mode parser_upload --upload-file "../../../../shkim_labs/20260609_convert_test/10.여비규정_20240129_인사경영국_20240129.pdf" --out-doc result_serving_gateway_test/doc.json --serving-id "$GENOS_SERVING_ID" --auth-key "$GENOS_AUTH_KEY"
+python serving_gateway_test.py --mode parser_upload --upload-file "../sample_files/hwp_sample_table.hwp" --out-doc result_serving_gateway_test/doc.json --serving-id "$GENOS_SERVING_ID" --auth-key "$GENOS_AUTH_KEY"
+# python serving_gateway_test.py --mode parser --file-path "/app/src/service/genon/preprocessor/sample_files/pdf_sample.pdf" --out-doc result_serving_gateway_test/doc.json --serving-id "$GENOS_SERVING_ID" --auth-key "$GENOS_AUTH_KEY"
+python serving_gateway_test.py --mode chunker --doc-json result_serving_gateway_test/doc.json --out result_serving_gateway_test/chunks.json --serving-id "$GENOS_SERVING_ID" --auth-key "$GENOS_AUTH_KEY"
 
+# python serving_gateway_test.py --mode parser_upload --upload-file "../../../../shkim_labs/20260803_monimo/01_card/card01.flat.html" --out-doc result_serving_gateway_test/doc.json --doc-type card --serving-id "$GENOS_SERVING_ID" --auth-key "$GENOS_AUTH_KEY"
+# python serving_gateway_test.py --mode parser_upload --upload-file "../../../../shkim_labs/20260803_monimo/02_faq/생명FAQ_260712.xlsx" --out-doc result_serving_gateway_test/doc.json --doc-type faq --serving-id "$GENOS_SERVING_ID" --auth-key "$GENOS_AUTH_KEY"
+# python serving_gateway_test.py --mode chunker --doc-json result_serving_gateway_test/doc.json --out result_serving_gateway_test/chunks.json --doc-type card --serving-id "$GENOS_SERVING_ID" --auth-key "$GENOS_AUTH_KEY"
 # python serving_gateway_test.py --mode parser_upload --upload-file "../../../../shkim_labs/20260803_monimo/01_card/card01.flat.html" --out-doc result_serving_gateway_test/doc.json --doc-type card
-# python serving_gateway_test.py --mode parser_upload --upload-file "../../../../shkim_labs/20260803_monimo/02_faq/생명FAQ_260712.xlsx" --out-doc result_serving_gateway_test/doc.json --doc-type faq
 # python serving_gateway_test.py --mode chunker --doc-json result_serving_gateway_test/doc.json --out result_serving_gateway_test/chunks.json --doc-type faq
 
 
