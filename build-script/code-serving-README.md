@@ -3,12 +3,20 @@
 이 저장소는 **doc_parser 전처리기의 코드 서빙 배포본**입니다. GenOS 코드 서빙이 이 repo를 clone해
 `main.py`(FastAPI)를 기동하며, 단일 서빙이 적재/첨부/변환·파싱·청킹·헬스체크 엔드포인트를 제공합니다.
 
-> 이 repo는 **빌드 산출물**입니다(원본·빌드 도구는 별개의 비공개 repo). docling은 소스 대신
-> `packages/`의 wheel로 동봉되어 런타임에 설치됩니다.
+> 이 repo는 코드서빙용 **배포 산출물**입니다. docling은 소스 대신 `packages/`의 wheel로 동봉되어
+> 런타임에 설치됩니다.
 
 문서는 **① GenOS 배포·등록 → ② 호출(사전 준비·엔드포인트·사용 예시)** 순서로 구성됩니다.
 
-> **전처리기 코드를 직접 수정하려면** 아래 요약 대신
+**독자별로 읽는 곳이 다릅니다.**
+
+| 독자 | 읽을 곳 |
+|---|---|
+| **코드서빙을 설치·배포하는 엔지니어** | [배포 / GenOS 코드서빙 등록](#배포--genos-코드서빙-등록) 1~5번 (최초 설치는 1번부터) → [사용 예시](#사용-예시) 로 동작 확인 |
+| **전처리기를 호출하는 개발자** | [사전 준비](#사전-준비) → [엔드포인트](#엔드포인트) → [사용 예시](#사용-예시) |
+| **전처리기 코드를 수정하는 개발자** | 아래 개발 매뉴얼 |
+
+> **전처리기 코드를 직접 수정하려면** 이 문서 대신
 > [`genon/preprocessor/facade/gitbook_doc/code_serving_dev_manual.md`](genon/preprocessor/facade/gitbook_doc/code_serving_dev_manual.md)
 > 를 보세요 — Genos 개념부터 로컬 개발환경 세팅, parser/chunker 코드 이해·수정, 재배포까지 한 문서로
 > 안내합니다. 이 저장소(공개 배포본)만으로 따라갈 수 있게 쓰여 있습니다.
@@ -30,7 +38,11 @@
 
 ## 버전 정합
 
-이 배포본은 **손편집 금지 산출물**입니다 — 원본 repo(`genonai/doc_parser`)에서 `sync-serving-repo.sh` 로만 생성/갱신됩니다.
+이 공개 배포본의 릴리스는 배포 스크립트로 생성됩니다. Genos 코드서빙용 gitea 복사본에서는 facade 코드와
+config를 업무 요구사항에 맞게 수정할 수 있습니다.
+
+> ⚠️ **이 공개 배포본의 파일은 릴리스마다 배포 스크립트가 다시 생성합니다.** 여기에서 직접 고친 내용은
+> 다음 릴리스에 덮어써집니다. **수정은 항상 gitea 복사본(배포처)에서** 하세요.
 
 - **버전 소스**: 원본의 git 릴리스 태그(예: `2.2.5`)가 버전의 단일 진실 소스입니다.
   배포본 repo에도 **동일한 미러 태그**가 붙으므로, 배포본 태그 = 원본 릴리스 태그입니다.
@@ -42,14 +54,22 @@
 
 ## 배포 / GenOS 코드서빙 등록
 
-이 배포본을 GenOS 코드서빙으로 올리는 절차입니다. (배포본은 원본 repo에서 `sync-serving-repo.sh`로
-빌드됩니다 — genon 코드 + `main.py` + docling wheel(`packages/`)만 담기며 docling 소스·dev/legacy 폴더는 제외됩니다.)
+이 배포본을 GenOS 코드서빙으로 올리는 절차입니다.
 
-1. **base 이미지 준비/등록**
-   - 코드서빙 base 이미지 `mnc/template-code-serving-doc-parser` 를 GenOS 도커 이미지에 등록하고 이미지 타입은 **`Code_Serving`** 으로 지정합니다.
-   - base 이미지는 사내 도커레지스트리에 있습니다.
-     확인: `curl http://192.168.74.164:30500/v2/mnc/template-code-serving-doc-parser/tags/list`
-     (없으면 원본 repo의 `build-script/code-serving-doc-parser/README.md` 로 빌드/푸시.)
+- **사이트에 코드서빙을 처음 올리는 경우** — 1번부터 순서대로 진행합니다.
+- **이미 코드서빙이 배포되어 동작 중인 경우** — 1·2번은 건너뛰고 3번(소스 갱신)부터 진행합니다.
+
+1. **base 이미지 확보 · GenOS 등록** — *설치 담당 엔지니어용(사이트당 1회). 이미지가 이미 등록되어
+   있다면 건너뜁니다.*
+   - 이미 코드서빙 리비전이 돌고 있으면 **그 리비전이 쓰는 이미지를 그대로** 사용합니다.
+   - 레지스트리에 이미지가 있는지 확인:
+     ```bash
+     curl http://192.168.74.164:30500/v2/mnc/template-code-serving-doc-parser/tags/list
+     ```
+   - GenOS **도커 이미지**에 등록하고, 이미지 타입은 반드시 **`Code_Serving`** 으로 지정합니다.
+     (이 타입이 아니면 4번 리비전 생성 화면의 이미지 목록에 나타나지 않습니다.)
+   - 레지스트리에 없으면 **사내 원본 저장소의 `build-script/code-serving-doc-parser/README.md`** 절차로
+     빌드·푸시합니다. 공개 배포본에는 빌드 도구가 포함되지 않습니다.
 
 2. **GenOS 코드서빙 생성** — [genos docs · 코드서빙](https://genos-docs.gitbook.io/default/v1.8.6/basic-tutorials/guides/development/code_serving)
    참고. 저장소 유형은 **Gitea** 를 선택합니다(생성 시 gitea repo가 함께 만들어짐).
@@ -60,9 +80,7 @@
    # id와 pass는 GenOS의 id와 pass를 입력해줍니다.
    git clone http://llmops-gitea-service:3000/llmops/<코드서빙 gitea id>.git <gitea_dir>
 
-   # 빌드된 배포본 clone
-   # HTTPS clone 시 GitHub id와 personal access token(pass 자리에 토큰)을 입력합니다.
-   # 토큰을 URL 에 직접 포함하지 마십시오. 토큰 발급방법은 아래의 발급방법을 참고바랍니다.
+   # 공개 배포본 clone — 인증 불필요
    git clone https://github.com/genonai/doc_parser_code_serving.git
    cd doc_parser_code_serving
 
@@ -80,15 +98,6 @@
    # commit/push (push 시 GenOS id/pass 입력)
    cd <gitea_dir> && git add . && git commit -m "deploy doc_parser code-serving" && git push
    ```
-   - github token 발급방법
-     - github에서 다음 경로로 이동
-       - Settings → Developer settings → Personal access tokens → Fine-grained tokens
-     - 토큰 생성시 설정
-       - Resource owner: genonai
-       - Repository access:
-         - Selected repositories → doc_parser_code_serving
-       - Repository permissions:
-         - Contents: Read-only
    - ⚠️ config는 이 gitea repo(배포처)에서 수정합니다.
 
 4. **리비전 생성/배포** — 코드서빙 매뉴얼대로 리비전을 생성하면 gitea 소스(레포 URL/commit)가 런타임에 `/app/src/service`로 clone되고 `main.py`가 실행됩니다.
@@ -187,13 +196,21 @@ curl --location "${GW}/parser" -H 'Content-Type: application/json' -H "Authoriza
 ### Python (표준 라이브러리만 사용)
 동봉된 `genon/preprocessor/examples/code_serving/serving_gateway_test.py`로 동일 호출:
 ```bash
+# 접속 정보는 환경변수 또는 인자로 전달합니다(스크립트에 기본값이 없어 없으면 실행을 거부합니다).
+export GENOS_BASE_URL="https://<GENOS_HOST>"
+export GENOS_SERVING_ID="<SERVING_ID>"
+export GENOS_AUTH_KEY="<AUTH_KEY>"
+
 python serving_gateway_test.py --mode health
-python serving_gateway_test.py --mode e2e --file-path /data/documents/report.pdf --out /tmp/chunks.json
-python serving_gateway_test.py --mode parser --file-path /data/documents/report.pdf --out-doc /tmp/doc.json
-python serving_gateway_test.py --mode chunker --doc-json /tmp/doc.json
+python serving_gateway_test.py --mode e2e     --file-path /data/documents/report.pdf --out /tmp/chunks.json --chunk-size 10000
+python serving_gateway_test.py --mode parser  --file-path /data/documents/report.pdf --out-doc /tmp/doc.json
+python serving_gateway_test.py --mode chunker --doc-json /tmp/doc.json --chunk-size 10000
 ```
 주요 인자: `--mode`(health/parser/parser_upload/chunker/e2e), `--base-url`, `--serving-id`, `--auth-key`,
 `--file-path`, `--chunk-size`, `--param KEY=VALUE`(임의 `params` 오버라이드, 반복 가능).
+
+> `--chunk-size` 를 생략하면 `0`(분할 안 함)이 전송되어 청크가 1개만 나옵니다. config 값을 쓰려면
+> 값을 명시하세요.
 
 ## 에러 응답
 
@@ -223,28 +240,33 @@ repo를 clone한 로컬에서 전처리기를 직접 호출**해 보는 개발�
 ```bash
 uv venv --python 3.11 && source .venv/bin/activate
 uv pip install -r requirements.txt        # docling(fork) wheel + docling 계열 deps
-uv pip install -r requirements-dev.txt     # 로컬 실행 전용 추가 deps (fastapi httpx grpcio protobuf)
+uv pip install -r requirements-dev.txt     # 로컬 실행 전용 추가 deps
 ```
-> `requirements-dev.txt` 는 `sync-serving-repo.sh` 가 생성합니다. 여기 담긴 deps 는 **운영 base 이미지엔 이미
+> `requirements-dev.txt` 는 `sync-serving-repo.sh` 가 생성합니다. 공통 deps(fastapi·httpx·grpcio·protobuf)와
+> **parser·chunker facade 실행에 필요한 deps**(pymupdf·langchain-community·langchain-core·
+> langchain-text-splitters·markdown2·pydub·chardet)가 함께 담깁니다. 이 deps 는 **운영 base 이미지엔 이미
 > 포함**되어 있어 운영 런타임은 `requirements.txt`(docling wheel)만 설치합니다 — 로컬 bare-metal 실행 시에만
 > 필요합니다.
 
-**② config 수정** — `genon/preprocessor/resource/intelligent_processor_config.yaml` 을 직접 편집:
-- `layout.layout_model_type:` → **`docling_layout`** (외부 layout VLM 없이 로컬 모델 사용)
-- `enrichment` 의 `toc.enable`·`metadata.enable` → **`false`** (외부 LLM 호출 차단)
-- (권장) `ocr.ocr_mode:` → **`disable`**, `formats.ppt.page_description.enable:` → **`false`**
+**② 모델 서빙 연결** — 별도 로컬 config는 만들지 않습니다. 같은
+`genon/preprocessor/resource/intelligent_processor_config.yaml`에서 모델 URL을 외부 게이트웨이 형태로
+설정하고, 모델 서빙 상세 화면에서 확인한 API 키를 각 `api_key`에 넣습니다.
 
-> ↔ 사내망에서 실제 모델서빙이 닿는 환경이면, 위 대신 config 의 placeholder(`<LAYOUT_SERVING_ID>`,
-> `<ENRICHMENT_SERVING_ID>`, `<OCR_ENDPOINT>` …)를 실제 주소로 채우면 원 설정 그대로 동작합니다.
+```yaml
+url: "https://<GENOS_HOST>/api/gateway/rep/serving/<MODEL_SERVING_ID>/v1/chat/completions"
+api_key: "<MODEL_SERVING_API_KEY>"
+```
+
+자세한 위치와 인터넷 단절 환경 준비는
+[`code_serving_dev_manual.md`](genon/preprocessor/facade/gitbook_doc/code_serving_dev_manual.md)의 4장을
+참고하세요.
 
 **③ 실행** — 반드시 `facade/` 디렉토리에서 (test.py 의 `sys.path` 처리가 `genon.*` 절대 import 를 해결):
 ```bash
 cd genon/preprocessor/facade && python test.py    # 입력: ../sample_files/pdf_sample.pdf → 결과: result.json
 ```
-- 최초 1회 docling layout/TableFormer 모델을 HuggingFace 에서 다운로드합니다(네트워크 필요, 이후 캐시).
-
-> ⚠️ config(`resource/*.yaml`) 편집분과 `.venv`·`result.json`·`__pycache__` 등 로컬 산출물은 **개발용**입니다.
-> 실제 배포 gitea repo 로는 push 하지 마세요(`resource/` 는 배포 시 실제 서빙 주소로 채워야 함).
+> 로컬 외부 게이트웨이 URL·API 키가 들어간 config와 `.venv`·`result.json`·`__pycache__` 등 로컬
+> 산출물이 코드 변경 패치에 포함되지 않도록 확인하세요. 배포본에는 기본 `.gitignore`가 포함됩니다.
 
 ---
-※ 이 README는 원본 repo의 `build-script/code-serving-README.md`에서 `sync-serving-repo.sh` 실행 시 복사됩니다(직접 편집 금지).
+※ 이 README는 배포 스크립트가 생성하는 파일입니다. 공개 배포본에서는 직접 편집하지 않습니다.

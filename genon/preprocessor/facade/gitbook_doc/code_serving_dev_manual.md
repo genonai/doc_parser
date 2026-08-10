@@ -9,11 +9,11 @@ Genos 를 처음 접하는 외부 개발자를 대상으로 합니다.
 - [1. Genos 기본 이해](#1-genos-기본-이해) — 모델 서빙 · 게이트웨이 · 리비전 · 코드스페이스
 - [2. 코드서빙 기본 이해](#2-코드서빙-기본-이해) — 동작 모델 · 컨테이너 흐름 · 경로 제약
 - [3. 전처리기 이해](#3-전처리기-이해) — 전처리기 5종 · 처리 흐름 · 저장소 2종 · 엔드포인트
-- [4. 개발환경 준비](#4-개발환경-준비) — 로컬 · 코드스페이스 · 로컬에서 되는 것과 안 되는 것
+- [4. 개발환경 준비](#4-개발환경-준비) — 인터넷 연결 환경 · 오프라인 환경 · 코드스페이스 · 모델 서빙 연결
 - [5. 코드 이해](#5-코드-이해) — 코드 지도 · `main.py` 처리 순서 · parser 읽기 · chunker 읽기 · 출력 스키마
 - [6. config yaml 옵션 설정](#6-config-yaml-옵션-설정) — 채워야 할 값 · 자주 바꾸는 옵션 · `params` 오버라이드
 - [7. 코드 수정 가이드](#7-코드-수정-가이드) — 개발 루프 · 수정 레시피 · 알아둘 제약
-- [8. 재배포](#8-재배포) — gitea push → 리비전 배포 → 호출 검증 → 로그
+- [8. 재배포](#8-재배포) — gitea push → 리비전 배포 → 호출 검증
 - [9. 퀵 가이드](#9-퀵-가이드) — 시나리오 A/B · 자주 쓰는 명령어
 - 부록 [A 용어집](#부록-a-용어집) · [B 환경값 확인 목록](#부록-b-환경값-확인-목록) · [C 컨테이너 경로·환경변수](#부록-c-컨테이너-경로환경변수) · [D 참고 문서](#부록-d-참고-문서) · [E 코드서빙·코드스페이스 신규 생성](#부록-e-코드서빙코드스페이스-신규-생성)
 
@@ -69,7 +69,8 @@ Genos 를 처음 접하는 외부 개발자를 대상으로 합니다.
 | 내 코드서빙의 **gitea 저장소 id** | 코드서빙 상세 페이지 | 8장 |
 | 내 코드서빙의 **serving_id** · **인증키** | 코드서빙 상세 페이지 | 8장 |
 | 모델 서빙 ID (layout / LLM / OCR 주소) | 웹 UI 서빙 목록, 또는 이미 config 에 채워져 있음 | 6장 |
-| Python 3.11 + [uv](https://docs.astral.sh/uv/) (로컬 개발 시) | `python3 --version` / `uv --version` | 4장 |
+| Python 3.11 + [uv](https://docs.astral.sh/uv/) (인터넷 연결 로컬 개발 시) | `python3 --version` / `uv --version` | 4장 |
+| 모델 서빙 외부 URL · API 키 (로컬 파싱 시) | 모델 서빙 상세의 인증키 탭 | 4장 · 6장 |
 
 `<GENOS_HOST>` 처럼 **꺾쇠로 감싼 값**은 "환경마다 다름 — 직접 채워 넣으세요"를 뜻합니다.
 무엇을 어디서 확인하는지는 [부록 B](#부록-b-환경값-확인-목록)에 정리했습니다.
@@ -101,7 +102,7 @@ Genos 는 **LLM/RAG 애플리케이션 플랫폼**입니다. 모델을 올리고
 Genos 웹 UI
 ├─ 서빙 ── 모델 서빙        ← 1.3 layout/LLM 모델의 serving_id 확인
 │        └ 코드 서빙        ← 8장 여기서 리비전을 만들어 재배포
-└─ 개발 ── 코드 스페이스    ← 4.2 브라우저 VSCode (gitea 저장소 작업용)
+└─ 개발 ── 코드 스페이스    ← 4.3 브라우저 VSCode (gitea 저장소 작업용)
 ```
 
 > 메뉴 이름·위치는 Genos 버전에 따라 다를 수 있습니다. 못 찾으면 공식 문서의
@@ -112,10 +113,14 @@ Genos 웹 UI
 ### 1.3 모델 서빙과 `serving_id`
 
 Genos 에서 **모델 서빙(model serving)** 은 LLM·OCR·레이아웃 분석 모델을 HTTP API 로 띄워 둔 것입니다.
-각 서빙에는 숫자 ID(`serving_id`)가 붙고, 이 ID 로 호출 주소가 결정됩니다.
+각 서빙에는 숫자 ID(`serving_id`)가 붙고, 이 ID 와 실행 위치에 따라 호출 주소가 결정됩니다.
 
 ```
+# 코드서빙 컨테이너에서 호출
 http://llmops-gateway-api-service:8080/rep/serving/<SERVING_ID>/v1/chat/completions
+
+# 로컬 PC에서 외부 게이트웨이를 통해 호출
+https://<GENOS_HOST>/api/gateway/rep/serving/<SERVING_ID>/v1/chat/completions
 ```
 
 전처리기는 문서를 처리하면서 이 주소들을 호출합니다. ID 는 웹 UI **서빙 > 모델 서빙** 목록에서 확인합니다.
@@ -126,12 +131,15 @@ http://llmops-gateway-api-service:8080/rep/serving/<SERVING_ID>/v1/chat/completi
 
 | 용도 | config 안의 이름 | 비고 |
 |---|---|---|
-| 문서 레이아웃 분석 | `<LAYOUT_SERVING_ID>` | vision 모델. GPU 필요 |
+| 문서 레이아웃 분석 | `<LAYOUT_SERVING_ID>` | dots mocr 모델 |
 | Enrichment (목차·메타데이터·이미지/표 설명) | `<ENRICHMENT_SERVING_ID>`, `<IMAGE_DESCRIPTION_SERVING_ID>`, `<PAGE_DESCRIPTION_SERVING_ID>` | LLM. 이미지 설명은 vision 필요 |
 | OCR | `<OCR_ENDPOINT>` | 서빙 ID 가 아니라 **주소**를 씁니다 |
 
 > **이미 배포된 코드서빙은 이 값들이 채워져 있습니다.** 값을 바꿀 일이 없다면 6장을 건너뛰어도 됩니다.
 > enrichment 계열 3개는 같은 서빙 하나로 겸할 수 있습니다(이미지·페이지 설명은 vision 지원 모델이어야 함).
+>
+> 로컬 PC에서는 두 번째 외부 URL과 모델 서빙 API 키를 사용합니다. 별도의 로컬용 config 파일을 만들 필요는
+> 없으며, 같은 `resource/*.yaml`에서 URL과 `api_key`만 로컬 접근값으로 설정하면 됩니다(4.4절).
 
 ### 1.4 게이트웨이와 인증키
 
@@ -162,7 +170,7 @@ Genos 의 서빙은 **리비전** 단위로 배포됩니다. 리비전 하나가
 ### 1.6 코드스페이스(Code Space)
 
 브라우저에서 열리는 **VSCode 개발 환경**입니다. Genos 내부에 있으므로 gitea 저장소에 바로 접근할 수
-있습니다. 이 문서에서는 "소스를 gitea 저장소에 올리는 작업대"로 사용합니다(4.2절).
+있습니다. 이 문서에서는 "소스를 gitea 저장소에 올리는 작업대"로 사용합니다(4.3절).
 
 ### 1.7 용어 대응표
 
@@ -303,7 +311,7 @@ clone** 한 뒤 그 안의 `main.py` 를 실행합니다.
   | 구분 | 확장자 |
   |---|---|
   | docling (`data.document`) | `pdf` `html` `htm` `docx` `hwp` `hwpx` `hml` `ppt` `pptx`, 그리고 `formats.xlsx.processing_mode: docling` 인 `xlsx`/`xlsm` |
-  | parse-format (`data.elements`) | `csv` `txt` `md` `json` `doc` 이미지(`jpg`/`png` …) 오디오(`mp3`/`wav`/`m4a`), `tabular` 모드의 `xlsx`/`xlsm` |
+  | parse-format (`data.elements`) | `csv` `txt` `md` `json` `doc` 이미지(`jpg`/`png` …), `tabular` 모드의 `xlsx`/`xlsm` |
 
   > `ppt`/`pptx` 는 PDF 로 변환한 뒤 docling 으로 파싱합니다. **변환에 실패하면 parse-format 으로
   > 폴백**되므로 같은 파일이 환경에 따라 다른 형태로 나올 수 있습니다.
@@ -398,15 +406,15 @@ clone** 한 뒤 그 안의 `main.py` 를 실행합니다.
 
 ## 4. 개발환경 준비
 
-코드를 고칠 때마다 배포해서 확인하면 너무 느립니다. **로컬에서 파싱·청킹을 직접 돌려 보는 환경**을
-먼저 만들어 두세요.
+코드를 고칠 때마다 배포해서 확인하면 시간이 오래 걸립니다. **로컬에서 파싱·청킹을 직접 실행할 수 있는
+환경**을 먼저 준비하세요. 인터넷 연결이 가능한 경우는 4.1, 완전히 차단된 환경은 4.2를 따릅니다.
 
-> 아래 4.1~4.5 절차는 공개 배포본을 그대로 받아 **실제로 실행해 확인한 것**입니다
-> (Python 3.11 + macOS/CPU 기준). 다른 OS·파이썬 버전에서는 세부가 다를 수 있습니다.
+> 아래 명령은 Python 3.11 기준입니다. 의존성에는 OS·CPU 아키텍처별 바이너리가 있으므로 오프라인 키트는
+> 실제 개발 PC와 같은 OS·아키텍처용으로 준비해야 합니다.
 
-### 4.1 로컬 개발환경 (권장)
+### 4.1 인터넷 연결 환경
 
-**필요한 것**: Python 3.11, [uv](https://docs.astral.sh/uv/), 인터넷 연결(최초 1회 모델 다운로드)
+**필요한 것**: Python 3.11, [uv](https://docs.astral.sh/uv/), 인터넷 연결
 
 ```bash
 # 실행 위치: 내 PC 의 작업 폴더
@@ -417,26 +425,149 @@ cd doc_parser_code_serving
 # ② 가상환경 + 의존성 설치
 uv venv --python 3.11
 source .venv/bin/activate                 # Windows: .venv\Scripts\activate
-uv pip install -r requirements.txt        # 동봉된 docling wheel
-uv pip install -r requirements-dev.txt    # 로컬 실행용 deps
-
-# ③ parser / chunker 를 다루려면 아래도 필요합니다
-#    (requirements-dev.txt 에 이미 들어 있으면 그냥 넘어갑니다)
-uv pip install pymupdf langchain-community langchain-core langchain-text-splitters \
-               markdown2 pydub chardet
+uv pip install -r requirements.txt        # 동봉된 docling wheel + 의존성
+uv pip install -r requirements-dev.txt    # 로컬 실행용 의존성
 ```
 
-> ⚠️ **`uv sync` 를 쓰지 마세요.** 동봉된 `genon/preprocessor/pyproject.toml` 의 docling 의존성이
-> 소스가 없는 저장소 루트를 가리켜 실패합니다. 위처럼 `uv pip install -r ...` 로 설치하세요.
->
-> ③이 왜 필요한가: `parser_processor.py` 가 모듈 최상위에서 `fitz`(pymupdf)·`langchain_*`·`markdown2`·
-> `pydub` 를 import 하고, `attachment_processor.py` 는 `langchain_text_splitters`·`chardet` 을 씁니다.
-> 이들이 없으면 **파일을 열어 보기 전에 import 부터 실패**합니다.
-> (`intelligent_processor.py` 만 쓸 때는 ②까지로 충분합니다.)
+> **`uv sync` 는 사용하지 않습니다.** 배포본에는 docling 소스 대신 `packages/*.whl`만 있으므로,
+> 위처럼 `uv pip install -r ...`로 설치합니다.
 
-**설치 확인** — 5개 facade 가 모두 import 되면 성공입니다.
+### 4.2 인터넷 단절 환경
+
+**여기서 말하는 "단절"은 외부 인터넷(PyPI·GitHub·HuggingFace 등)이 막힌 상태입니다.**
+고객사 **Genos 게이트웨이**(`https://<GENOS_HOST>/api/gateway/...`)는 접근 가능한 것을 전제로 합니다.
+
+| | 이 환경에서 |
+|---|---|
+| Python 패키지 설치 | ❌ 인터넷 필요 → **아래 오프라인 키트로 해결** |
+| 파싱·청킹 실행 | ✅ 가능. 모델 추론은 Genos 게이트웨이 호출이라 로컬 모델 다운로드가 없습니다(4.4절) |
+
+> 게이트웨이조차 닿지 않는 완전 격리 환경이라면 **청킹만** 로컬에서 검증할 수 있고(저장해 둔 파싱 결과
+> JSON 입력), 파싱은 재배포 후 게이트웨이로 확인해야 합니다(8.7절). 환경을 받았을 때
+> **게이트웨이 접근 가능 여부를 먼저 확인**하세요.
+
+인터넷이 되는 PC에서 **소스 bundle + Python wheelhouse**를 먼저 만들고, 회사의 승인된 반입 절차로
+개발 PC에 전달합니다. 준비 PC는 가능하면 개발 PC와 같은 OS·CPU 아키텍처를 사용합니다.
+
+> 4.1 은 `uv`, 아래는 표준 `python -m venv` + `pip` 를 씁니다. 오프라인 PC 에는 `uv` 가 없을 수 있어
+> **파이썬에 기본 포함된 도구만으로** 진행하도록 한 것입니다(`uv` 가 있으면 `uv pip` 로 바꿔도 됩니다).
 
 ```bash
+# 실행 위치: 인터넷 연결 PC
+git clone https://github.com/genonai/doc_parser_code_serving.git
+cd doc_parser_code_serving
+
+# Git 이력과 태그를 하나의 파일로 묶음
+git bundle create ../doc_parser_code_serving.bundle --all
+
+# Python 3.11용 의존성을 로컬 설치 파일로 수집
+python3.11 -m pip download --only-binary=:all: \
+  --dest ../offline-dev-kit/wheelhouse \
+  -r requirements.txt -r requirements-dev.txt
+
+# 전달 전 실제 용량과 파일 목록 확인
+du -sh ../offline-dev-kit
+find ../offline-dev-kit/wheelhouse -maxdepth 1 -type f | sort
+```
+
+**용량 참고(실측)** — macOS/arm64 · Python 3.11 기준으로 wheel **136개, 약 316MB** 였습니다. 설치 후
+`.venv` 는 약 1.5GB 가 됩니다(torch·OpenCV·SciPy 등이 큽니다). OS·아키텍처에 따라 달라지므로 위
+`du -sh` 로 실제 값을 확인해 반입 계획을 세우세요.
+
+동봉된 docling wheel(`packages/*.whl`)도 이 과정에서 wheelhouse 에 함께 수집됩니다 — 별도로 챙길 필요는
+없습니다.
+
+Python 3.11이 개발 PC에 없다면 [Python 공식 다운로드](https://www.python.org/downloads/)에서 해당 OS용
+설치 파일도 함께 준비합니다. `--only-binary=:all:`에서 실패하면 대상 OS·아키텍처에 맞는 wheel이 없는
+패키지가 있다는 뜻이므로, **다른 OS에서 받은 파일을 그대로 사용하지 말고** 대상과 같은 환경에서 다시
+준비합니다.
+
+개발 PC에서는 네트워크를 사용하지 않도록 `--no-index`를 지정합니다.
+
+```bash
+# 실행 위치: 인터넷 단절 개발 PC, 전달받은 파일이 있는 폴더
+git clone doc_parser_code_serving.bundle doc_parser_code_serving
+cd doc_parser_code_serving
+
+python3.11 -m venv .venv
+source .venv/bin/activate                 # Windows: .venv\Scripts\activate
+python -m pip install --no-index \
+  --find-links ../offline-dev-kit/wheelhouse \
+  -r requirements.txt -r requirements-dev.txt
+```
+
+설치가 끝나면 4.5 의 facade import 확인으로 정상 여부를 점검합니다.
+
+의존성에는 플랫폼별 대형 바이너리가 포함될 수 있습니다. 따라서 `offline-dev-kit/`을 일반 Git 파일로
+커밋하지 말고, OS·아키텍처별 압축 파일이나 승인된 파일 전달 시스템으로 관리하는 것을 권장합니다. 배포본의
+`.gitignore`도 `offline-dev-kit/`과 `wheelhouse/`을 제외합니다. 모델 추론은 Genos 모델 서빙을 호출하므로
+표준 로컬 개발 절차에서는 별도의 레이아웃 모델 파일을 내려받지 않습니다.
+
+### 4.3 코드스페이스 개발환경
+
+gitea 저장소 작업은 Genos 코드스페이스에서 진행할 수 있습니다.
+
+1. 웹 UI **개발 > 코드 스페이스**에서 코드스페이스를 생성합니다.
+2. **VSCode** 버튼을 눌러 브라우저 IDE를 엽니다.
+3. 터미널(`Terminal > New Terminal`)에서 gitea 저장소를 clone 합니다(8.3절).
+
+> 코드스페이스는 **코드 수정과 gitea push**에 사용합니다. 파이썬 실행 환경은 코드스페이스 이미지에 따라
+> 다르므로, 동작 검증은 **로컬(4.1 또는 4.2)** 또는 **재배포 후 호출**(8.7)로 진행합니다.
+>
+> 볼륨 용량이 부족하면 clone 이 실패합니다. 소스는 수백 MB 수준이므로 **최소 5GB** 이상 잡으세요.
+> 참고: [코드스페이스 볼륨 쿼터](https://genos-docs.gitbook.io/default/basic-tutorials/guides/development/code_space/create_volume_quota)
+
+### 4.4 로컬 검증 범위와 모델 서빙 연결
+
+로컬 PC에서도 Genos 모델 서빙의 외부 게이트웨이에 접근할 수 있습니다. 코드서빙과 같은
+`genon/preprocessor/resource/*.yaml`을 사용하되, **모델 서빙 URL과 API 키만 실행 위치에 맞춥니다.**
+
+| 실행 위치 | 모델 서빙 URL | `api_key` |
+|---|---|---|
+| 코드서빙 컨테이너 | `http://llmops-gateway-api-service:8080/rep/serving/<MODEL_SERVING_ID>/v1/chat/completions` | 내부 호출이면 빈 값 가능 |
+| 로컬 PC | `https://<GENOS_HOST>/api/gateway/rep/serving/<MODEL_SERVING_ID>/v1/chat/completions` | **필수** |
+
+`parser_processor_config.yaml`의 `layout.genos_layout.endpoint`, 활성화된 enrichment의 `url`,
+PPT 페이지 설명을 사용한다면 `formats.ppt.page_description.url`에 외부 URL을 넣고, 각 항목의
+`api_key`에 해당 **모델 서빙 인증키**를 설정합니다.
+
+```yaml
+layout:
+  layout_model_type: "genos_layout"
+  genos_layout:
+    endpoint: "https://<GENOS_HOST>/api/gateway/rep/serving/<MODEL_SERVING_ID>/v1/chat/completions"
+    api_key: "<MODEL_SERVING_API_KEY>"
+
+enrichment:
+  - toc:
+      enable: true
+      url: "https://<GENOS_HOST>/api/gateway/rep/serving/<MODEL_SERVING_ID>/v1/chat/completions"
+      api_key: "<MODEL_SERVING_API_KEY>"
+```
+
+모델 서빙 상세 화면의 **인증키** 탭에서 키를 확인합니다. 자세한 위치는
+[Genos 공식 문서: 서빙 API 키 확인](https://genos-docs.gitbook.io/default/advanced-tutorials/guides/serving/api-log)을
+참고하세요. 이 키는 코드서빙 자체를 호출할 때 쓰는 `auth_key`와 다른 값입니다.
+
+> API 키는 비밀번호처럼 취급합니다. 문서·이슈·채팅에 실제 값을 넣지 말고, 개발이 끝난 뒤 gitea에 반영할
+> 때는 기존 배포 config와 비교해 실행 환경에 맞는 URL·키만 남겼는지 확인하세요.
+
+| 검증 항목 | 로컬 | 비고 |
+|---|---|---|
+| 청킹만 테스트 | 가능 | 저장해 둔 파싱 결과 JSON을 사용하면 모델 호출 없음 |
+| 파싱(PDF/DOCX/HTML) | 가능 | 외부 모델 서빙 URL·API 키 필요 |
+| 파싱 → 청킹 E2E | 가능 | 4.5절 |
+| 배포된 코드서빙 호출 | 가능 | `serving_gateway_test.py` 사용(8.7절) |
+| HWP/HWPX 파싱 | 제한적 | 로컬에 전용 바이너리가 없으면 LibreOffice 폴백을 사용하거나 실패할 수 있음 |
+| `python main.py`로 API 서버 실행 | 지원 범위 아님 | 엔드포인트 검증은 재배포 후 게이트웨이로 호출 |
+| `pytest` 전체 실행 | 제한적 | 배포본에 없는 개발용 설정을 참조하는 테스트는 제외하고 필요한 테스트만 실행 |
+
+### 4.5 로컬에서 파싱·청킹 돌려 보기
+
+먼저 설치가 정상인지 5개 facade import로 확인합니다.
+
+```bash
+# 실행 위치: 저장소 루트
 python -c "
 import sys; sys.path.insert(0,'.')
 for m in ('parser','chunking','intelligent','attachment','convert'):
@@ -444,67 +575,7 @@ for m in ('parser','chunking','intelligent','attachment','convert'):
 "
 ```
 
-> `ModuleNotFoundError: No module named 'fitz'` 등이 나면 위 ③을 건너뛴 것입니다.
-
-> `HWP SDK 경로를 찾을 수 없습니다` · `WeasyPrint could not be imported` ·
-> `fitz API is deprecated` 경고는 **정상**입니다. 로컬에 해당 바이너리가 없어서 나는 것이고
-> 파싱·청킹 자체에는 영향이 없습니다(4.3절).
-
-> **로컬 산출물이 git 변경으로 잡힙니다.** 저장소 루트에 `.gitignore` 가 없어 `.venv/` 와
-> `__pycache__/` 가 미추적 파일로 보입니다(테스트 결과 폴더는 이미 무시됩니다).
-> **gitea 로 push 하지 마세요.**
-
-### 4.2 코드스페이스 개발환경
-
-gitea 저장소에 접근하려면 Genos 내부망에서 git 을 실행해야 합니다. 그 작업대가 코드스페이스입니다.
-
-1. 웹 UI **개발 > 코드 스페이스**에서 코드스페이스를 생성합니다.
-2. **VSCode** 버튼을 눌러 브라우저 IDE 를 엽니다.
-3. 터미널(`Terminal > New Terminal`)에서 gitea 저장소를 clone 합니다(8.3절).
-
-> 코드스페이스는 **코드 수정과 push 용도**로 쓰세요. 파이썬 실행 환경은 코드스페이스 이미지에 따라
-> 다르므로, 동작 검증은 **로컬(4.1)** 또는 **재배포 후 호출**(8.7)로 하는 것이 확실합니다.
->
-> 볼륨 용량이 부족하면 clone 이 실패합니다. 소스는 수백 MB 수준이므로 **최소 5GB** 이상 잡으세요.
-> 참고: [코드스페이스 볼륨 쿼터](https://genos-docs.gitbook.io/default/basic-tutorials/guides/development/code_space/create_volume_quota)
-
-### 4.3 로컬에서 되는 것 / 안 되는 것
-
-| | 로컬 | 비고 |
-|---|---|---|
-| 청킹만 테스트 (파싱 결과 JSON 입력) | ✅ | **모델 서빙 없이 즉시 가능.** 청킹 로직 수정에 가장 유용 |
-| 파싱 (PDF/DOCX/HTML) | ✅ | `layout_model_type: docling_layout` 로 바꿔야 합니다(4.4절). 최초 1회 모델 다운로드 필요 |
-| 파싱 → 청킹 E2E | ✅ | 위 두 개를 이어서 |
-| 배포된 서빙 호출 테스트 | ✅ | `examples/code_serving/serving_gateway_test.py` (8.7절) |
-| 레이아웃 분석 VLM · OCR · enrichment LLM | ❌ | Genos 모델 서빙 주소가 필요. 로컬에서는 끄고 씁니다(4.4절) |
-| HWP/HWPX 파싱 | △ | 전용 바이너리가 로컬에 없어 LibreOffice 폴백만 동작(품질 낮음). LibreOffice 도 없으면 실패 |
-| 음성(Whisper) 처리 | ❌ | 음성인식 서버 주소 필요 |
-| `python main.py` 로 API 서버 띄우기 | ❌ | uvicorn 등 추가 의존성과 런타임 환경변수(로그·메시지큐 설정)가 필요합니다. **엔드포인트 검증은 재배포 후 게이트웨이 호출로 하세요**(8.7절) |
-| `pytest` 전체 실행 | △ | 일부 테스트가 배포본에 없는 개발용 설정 폴더를 참조해 실패합니다. 특정 파일만 골라 실행하세요 |
-
-### 4.4 로컬 검증용 config 조정
-
-로컬에서는 외부 모델 서빙에 닿지 않으므로, 파싱을 돌려 보려면 `genon/preprocessor/resource/` 의
-config 를 아래처럼 바꿉니다.
-
-| 파일 | 키 | 로컬 값 |
-|---|---|---|
-| `parser_processor_config.yaml` | `layout.layout_model_type` | `docling_layout` |
-| | `ocr.ocr_mode` | `disable` |
-| | `enrichment` 각 항목의 `enable` | `false` |
-| | `formats.ppt.page_description.enable` | `false` |
-
-> `docling_layout` 은 GPU 가 없어도 CPU 로 동작합니다(느립니다). 최초 1회 레이아웃/표 모델을
-> HuggingFace 에서 내려받으므로 네트워크가 필요하고, 이후에는 캐시를 씁니다.
->
-> ⚠️ **이렇게 고친 config 는 gitea 로 push 하지 마세요.** 운영에서는 모델 서빙을 써야 합니다.
-
-**실측 참고** — 위 설정으로 동봉 샘플(`pdf_sample.pdf`, 11페이지) 파싱에 약 20초, 이어서 청킹 25개
-생성까지 수 초가 걸렸습니다(Apple Silicon, CPU/MPS 기준). 최초 실행은 모델 다운로드로 더 걸립니다.
-
-### 4.5 로컬에서 파싱·청킹 돌려 보기
-
-**① 먼저 파싱 → 청킹 E2E 를 한 번 돌립니다** (4.4 config 조정이 되어 있어야 합니다)
+**① 파싱 → 청킹 E2E를 한 번 실행합니다.** 파싱을 포함하므로 4.4의 모델 서빙 URL·API 키가 필요합니다.
 
 ```bash
 # 실행 위치: genon/preprocessor/examples/parse_chunk
@@ -631,7 +702,7 @@ class DocumentProcessor:          # ← 클래스 이름 고정. main.py 가 이
 | 193–336 | **입력 파일 사전 검증** — 매직헤더·암호화·DRM 감지 | 포맷을 늘릴 때 |
 | 340–486 | 설정 로딩 헬퍼 (`_load_config`, `_parse_optional_*` 등) | 옵션 추가 시 |
 | 488–597 | PDF 변환 헬퍼 (`convert_to_pdf` 등) | 참고 |
-| 603–1826 | 로더들 (`TextLoader`, `AudioLoader`, `HwpDocumentLoader`, `DocxDocumentLoader`, `GenericDocumentLoader`) | 포맷별 수정 시 |
+| 603–1826 | 로더들 (`TextLoader`, `HwpDocumentLoader`, `DocxDocumentLoader`, `GenericDocumentLoader`) | 포맷별 수정 시 |
 | **827–1658** | **`IntelligentDocumentProcessor`(경량 사본)** — docling 파이프라인과 enrichment 실체 | OCR/layout/enrichment 수정 시 |
 | 1833–1846 | `GenosServiceException` | 예외 처리 시 |
 | **1853–2704** | **`DocumentProcessor`** — `/parser` 진입점 | **여기부터 읽으세요** |
@@ -639,7 +710,7 @@ class DocumentProcessor:          # ← 클래스 이름 고정. main.py 가 이
 #### `__init__` (1863–1938) 이 하는 일
 
 1. config yaml 로드 → 2. **`IntelligentDocumentProcessor` 생성**(파싱·enrichment 전부 위임) →
-3. 확장자별 로더 생성 → 4. whisper·output·guardrail·PPT 페이지설명 설정 정규화
+3. 확장자별 로더 생성 → 4. output·guardrail·PPT 페이지설명 설정 정규화
 
 주요 `self` 속성:
 
@@ -663,13 +734,15 @@ class DocumentProcessor:          # ← 클래스 이름 고정. main.py 가 이
 
 | 확장자 | 줄 | 파싱 메서드 | 파싱 결과 | 최종 조립 |
 |---|---|---|---|---|
-| `.wav .mp3 .m4a` | 2619 | `_parse_audio` | 문자열(전사 텍스트) | `_audio_to_parse_format` |
 | `.csv .xlsx .xlsm` | 2624–2654 | 3분기: custom_fields 매칭 / `docling` 모드 / `tabular` 모드 | dict 또는 DoclingDocument | 각각 다름 |
 | `.hwp .hwpx .hml` | 2657 | `_parse_hwp_hwpx` | DoclingDocument | `_build_docling_response` |
 | `.docx` | 2665 | `_parse_docx` | DoclingDocument | `_build_docling_response` |
 | `.pdf .html .htm` | 2673 | `_parse_docling` | DoclingDocument | `_build_docling_response` |
 | `.ppt .pptx` | 2683 | `_parse_ppt_docling` | DoclingDocument 또는 None | 실패 시 parse-format 폴백 |
 | 그 외 | 2700 | `_parse_other` | langchain Document 리스트 | `_langchain_to_parse_format` |
+
+> 코드에는 위 표 외에 오디오(`.wav`/`.mp3`/`.m4a`) 분기도 있습니다. 이 문서의 범위 밖이므로 표에서
+> 생략했습니다.
 
 **docling 계열 4단 패턴** — 세 경로(hwp/docx/pdf)가 모두 동일합니다. 새 포맷을 추가할 때 그대로 따르세요.
 
@@ -691,7 +764,6 @@ return self._normalize_response(result)
 | `_normalize_response` | 2439 | `content`/`elements`/`usage` 키 존재 보장. **모든 반환 경로가 통과** |
 | `_tabular_to_parse_format` | 2533 | 시트 1개 = element 1개 (`category="table"`) |
 | `_langchain_to_parse_format` | 2551 | Document 1개 = element 1개 (`category="paragraph"`) |
-| `_audio_to_parse_format` | 2498 | element 1개 |
 
 #### enrichment 연결
 
@@ -807,8 +879,8 @@ return self._normalize_response(result)
 | 좌표·미디어 | 실제 값 | `"."` 고정값 |
 | 문서 metadata | 부착됨 | 없음 (단, 행 단위 custom_fields 는 예외) |
 
-`_chunk_parse_format`(2751)은 4가지로 다시 갈립니다 — 행 단위 custom_fields / `[AUDIO]` 단일 청크 /
-전부 표이면 `[DA]` 단일 청크 / 그 외 문자 분할.
+`_chunk_parse_format`(2751)은 입력 형식에 따라 행 단위 custom_fields 처리, 전체 표의 단일 청크 처리,
+그 외 텍스트의 문자 단위 분할 경로로 나뉩니다.
 
 #### 토크나이저
 
@@ -829,7 +901,7 @@ return self._normalize_response(result)
 | 청크 메타데이터 필드 추가 | 가장 안전: `set_global_metadata` 경유 (스키마는 `extra` 허용) | 정식 필드로 올리려면 스키마·빌더·조립부 3곳 + parse-format 경로 3곳을 함께 |
 | 병합 기준 변경 | 4단계 조건 (1258–1268), 5단계 (1290–1318) | 1260 을 완화하면 조 단위가 장 단위로 뭉쳐집니다 |
 | 분할 기준 변경 | `split_items_evenly_by_tokens` (930–978) | 반환 구간은 **폭이 0 이 아니어야** 합니다. 0 이면 그 청크가 에러 없이 사라집니다 |
-| parse-format 청킹 방식 | `_chunk_text_elements` (2583), 라우팅은 `_chunk_parse_format` (2751) | `chunk_size: 0`(미분할) 계약과 `[AUDIO]`/`[DA]` 하위호환 가드를 유지 |
+| parse-format 청킹 방식 | `_chunk_text_elements` (2583), 라우팅은 `_chunk_parse_format` (2751) | `chunk_size: 0`(미분할) 계약과 표 입력의 하위호환 가드를 유지 |
 | 표 직렬화 형식 | `_extract_table_text` (624), 큰 표는 `_table_item_to_texts` (726) | 요청 `params` 의 `export_to_html: 0` 으로도 markdown 전환 가능(코드 수정 불필요). 다만 큰 표 분할 경로는 HTML 전제 |
 | `HEADER:` 접두 형식 | `compose_vectors` (2211) + `_generate_section_text_with_heading` (844) | 헤더 문자열이 **두 군데서 두 번** 붙습니다. 한쪽만 고치면 중복 또는 누락 |
 
@@ -918,12 +990,11 @@ grep -rn "<함수명 또는 클래스명>" genon/preprocessor/facade/
 
 | 플레이스홀더 | 무엇으로 바꾸나 | 나타나는 파일 |
 |---|---|---|
-| `<LAYOUT_SERVING_ID>` | 레이아웃 분석 모델의 **모델 서빙 ID** | parser, intelligent, convert |
+| `<LAYOUT_SERVING_ID>` | 레이아웃 분석 모델의 **모델 서빙 ID** (dots mocr) | parser, intelligent, convert |
 | `<ENRICHMENT_SERVING_ID>` | 목차·메타데이터·표설명용 **LLM 서빙 ID** | parser, intelligent, convert, `custom_field_card.yaml` |
 | `<IMAGE_DESCRIPTION_SERVING_ID>` | 이미지 설명용 **vision LLM 서빙 ID** | parser, intelligent, convert |
 | `<PAGE_DESCRIPTION_SERVING_ID>` | PPT 페이지 설명용 **vision LLM 서빙 ID** | parser, attachment, convert |
-| `<OCR_ENDPOINT>` | OCR 서버 **주소**(호스트:포트) | parser, intelligent, convert |
-| `<WHISPER_ENDPOINT>` | 음성인식 서버 **주소**. 음성을 안 쓰면 무시 | parser, attachment |
+| `<OCR_ENDPOINT>` | OCR 서버 **주소**(호스트:포트) (paddle ocr) | parser, intelligent, convert |
 
 미치환 값이 남아 있으면 기동 시 아래 경고가 남습니다(기동 자체는 됩니다).
 
@@ -943,9 +1014,12 @@ grep -rn "<[A-Z_]*>" genon/preprocessor/resource/ | grep -vE ':[0-9]+: *#'
 >
 > **주석은 지우지 마세요.** config 파일에는 `# <OCR_ENDPOINT>: OCR 서버 주소로 변경 필요` 같은
 > 안내 주석이 여러 군데 있어, 값을 올바르게 채워도 grep 에 계속 잡힙니다. 위처럼 주석을 걸러야 합니다.
+>
+> 위 표에 없는 플레이스홀더(예: 음성인식 서버 주소)가 잡힐 수도 있습니다. 이 문서가 다루지 않는 기능이며,
+> 해당 기능을 쓰지 않으면 **그대로 두어도 됩니다.**
 
-`api_key` 는 **클러스터 내부 주소로 호출할 때는 비워 두어도** 됩니다. 외부 게이트웨이 주소로
-호출하는 구성이라면 모델 서빙의 인증키를 넣으세요.
+`api_key` 는 **코드서빙 컨테이너가 내부 주소로 호출할 때는 비워 두어도** 됩니다. 로컬 PC에서 외부
+게이트웨이 주소로 호출할 때는 모델 서빙의 인증키가 필수입니다(4.4절).
 
 > **쓰지 않는 기능은 채우는 대신 끄면 됩니다.** OCR 을 안 쓰면 `ocr.ocr_mode: disable`,
 > enrichment 를 안 쓰면 각 항목의 `enable: false`. 잘못된 주소로 호출해 실패하는 것보다 낫습니다.
@@ -961,7 +1035,7 @@ grep -rn "<[A-Z_]*>" genon/preprocessor/resource/ | grep -vE ':[0-9]+: *#'
 | `output.format` | **parser 전용** (다른 파일엔 이 키가 없음) | `docling` | `json` / `html` / `markdown` / `docling` | **`/chunker` 에 넘기려면 `docling`** 이어야 `data.document` 가 생김 |
 | `layout.layout_model_type` | parser · intelligent · convert | `genos_layout` | `genos_layout` / `docling_layout` | 레이아웃 모델 서빙이 없으면 `docling_layout` (아래 비교표) |
 | `ocr.ocr_mode` | parser · intelligent · convert | `auto` | `auto` / `force` / `disable` | 스캔 문서가 많으면 `force`, OCR 서버가 없으면 `disable` |
-| `chunking.chunk_size` | chunking · intelligent · convert (**attachment 는 `1000000`**) | `10000` | 정수 | 청크 길이. **`0` = 분할 안 함.** `0` 초과 `1024` 미만은 `1024` 로 보정 |
+| `chunking.chunk_size` | chunking · intelligent · convert (**attachment 는 `1000000`**) | `10000` | 정수 | 청크 길이. **`0` = 자동분할** `0` 초과 `1024` 미만은 `1024` 로 보정 |
 
 > **`layout_model_type` 선택 기준** — 무거운 레이아웃/표 구조 분석을 **어디서 돌릴지**의 선택입니다.
 >
@@ -971,7 +1045,8 @@ grep -rn "<[A-Z_]*>" genon/preprocessor/resource/ | grep -vE ':[0-9]+: *#'
 > | GPU | 코드서빙 인스턴스는 불필요 | CPU 로도 되지만 느림 → 운영이라면 GPU 인스턴스 + GPU 이미지 권장 |
 > | 필요한 것 | `<LAYOUT_SERVING_ID>` | 없음 |
 >
-> 로컬 검증에는 `docling_layout` 이 편하고(4.4절), 운영은 `genos_layout` 이 기본입니다.
+> 이 매뉴얼의 로컬 검증은 외부 Genos 모델 서빙을 사용하는 `genos_layout`을 기본으로 합니다(4.4절).
+> `docling_layout`은 별도 모델 파일과 충분한 로컬 자원이 준비된 경우에만 선택합니다.
 
 #### (나) 그 밖에 자주 쓰는 것
 
@@ -1023,7 +1098,7 @@ facade 별로 받는 키가 다릅니다. 자주 쓰는 것만:
 | parser | `toc`, `img_desc`, `chart_desc`, `table_desc`, `table_refine`, `doc_summary`, `doc_type`, `save_images`, `use_hwp_sdk`, `log_level` |
 | chunking | `document`(`file_path` 가 서버 안의 `.json` 이면 생략 가능), `chunk_size`, `chunk_mode`, `chunk_overlap`, `table_as_chunk`, `export_to_html`, `log_level` |
 | intelligent / convert | 위 parser 키 + `chunk_size`, `chunk_mode`, `use_pdf_sdk`, `table_format`, `export_to_html` |
-| attachment | `chunker_type`, `chunk_size`, `chunk_overlap`, `use_pdf_sdk`, `use_hwp_sdk`, `whisper_*` |
+| attachment | `chunker_type`, `chunk_size`, `chunk_overlap`, `use_pdf_sdk`, `use_hwp_sdk` |
 | **공통** | `llm_cache`, `interim_root`, `workflow_id`, `run_id`, `error_policy`(`strict`/`lenient`), `request_deadline`(초), `guardrail_call` |
 
 > 0/1 플래그 형태의 키(`toc`, `img_desc` 등)는 `0`/`1` 또는 `true`/`false` 둘 다 받습니다.
@@ -1177,15 +1252,18 @@ docling 은 소스가 아니라 `packages/*.whl` 로 들어옵니다. docling �
 레벨에서 후처리하거나, 필요하면 배포를 지원한 담당자에게 요청하세요.
 
 **⑤ 개발 산출물을 push 하지 마세요.**
-`.venv/`, `__pycache__/`, `result.json`, 로컬 검증용으로 고친 `resource/*.yaml`(4.4절).
+`.venv/`, `__pycache__/`, `result.json`, `offline-dev-kit/` 등은 `.gitignore` 대상입니다. 로컬 모델 서빙
+접속용 URL·API 키가 들어간 `resource/*.yaml`도 코드 변경 패치에 섞지 마세요(4.4절).
 
 **⑥ facade 인스턴스는 프로세스 전역에서 1개입니다.**
 `self` 에 요청별 상태를 담으면 동시 요청 간에 섞일 수 있습니다(5.3절).
 
 **⑦ 새 파이썬 패키지가 필요하면 `requirements.txt` 에 추가해야 합니다.**
-운영 런타임은 이 파일만 설치합니다. 다만 외부 인터넷이 막힌 환경에서는 패키지를 받지 못해 설치가 실패하고,
-**설치가 실패해도 컨테이너는 정상 기동됩니다**(2.2절 경고). 패키지를 추가한 뒤에는 배포 로그에서
-설치 성공을 반드시 확인하세요.
+운영 런타임은 이 파일만 설치합니다. 코드서빙 런타임이 인터넷에 접근할 수 없다면 인터넷 연결 PC에서 대상
+환경용 wheel을 미리 받은 뒤 `packages/`에 넣고, `requirements.txt`에는 `./packages/<파일명>.whl`처럼
+로컬 경로를 추가합니다. wheel이 매우 크거나 대상 환경용 바이너리를 준비할 수 없다면 저장소에 억지로 넣지
+말고, 배포를 지원한 담당자에게 베이스 이미지 의존성 추가를 요청하세요. 설치 실패가 기동 실패로 이어지지
+않을 수 있으므로(2.2절), 재배포 후 해당 import와 기능을 실제로 호출해 확인합니다.
 
 ---
 
@@ -1205,8 +1283,6 @@ docling 은 소스가 아니라 `packages/*.whl` 로 들어옵니다. docling �
 [8.6] 리비전 생성 / 배포          웹 UI
    │
 [8.7] 호출 검증                  /health → /parser → /chunker
-   │
-[8.8] 문제가 있으면 로그 확인
 ```
 
 ### 8.2 내 코드서빙 정보 확인
@@ -1221,7 +1297,7 @@ docling 은 소스가 아니라 `packages/*.whl` 로 들어옵니다. docling �
 
 ### 8.3 gitea 저장소 clone
 
-코드스페이스 VSCode 터미널에서 진행합니다(4.2절).
+코드스페이스 VSCode 터미널에서 진행합니다(4.3절).
 
 ```bash
 # 실행 위치: 코드스페이스 VSCode 터미널, 작업 폴더
@@ -1306,6 +1382,14 @@ git rev-parse HEAD      # 8.6 리비전에 넣을 커밋 해시
 
 > 소스 clone 과 pip install 때문에 몇 분 걸릴 수 있습니다. `할당 대기 중` 에서 멈춰 있으면
 > 클러스터 자원이 부족한 것이니 인스턴스 타입을 낮추거나 담당자에게 문의하세요.
+
+**반영이 안 될 때 먼저 확인할 두 가지**
+
+1. **리비전이 새 커밋을 가리키는지.** 코드를 고쳐 push 해도, 리비전이 이전 커밋을 가리키면 반영되지
+   않습니다. 8.5 의 `git rev-parse HEAD` 값과 리비전의 커밋이 같은지 확인하세요.
+2. **`requirements.txt` 만 고쳤다면 커밋을 새로 만들어야 합니다.** 의존성 설치는 커밋 해시당 1회만
+   실행되고 **실패해도 재기동으로 다시 시도하지 않습니다**(2.2절). 같은 커밋으로 재배포하면 설치 단계를
+   건너뛰므로, 반드시 새 커밋으로 리비전을 다시 만드세요.
 
 ### 8.7 호출 검증
 
@@ -1401,35 +1485,14 @@ python serving_gateway_test.py --mode e2e $AUTHARGS \
 | `--out` / `--out-doc` | 결과 저장 경로 |
 | `--timeout` | 요청 타임아웃(초). 기본 3600 |
 
-### 8.8 로그 확인 & 트러블슈팅
+#### 응답이 예상과 다를 때
 
-#### 로그 보는 법
-
-**웹 UI 컨테이너 로그** — 코드서빙 상세 → **컨테이너 상태** 탭 → **컨테이너 로그**.
-`[parser] Start: "..."` / `Success` / `End: "... (NN.NN seconds)"` 라인과 에러 트레이스백이 나옵니다.
-대부분의 문제는 여기서 원인이 보입니다.
-
-![컨테이너 상태 탭의 컨테이너 로그](./images/install_log_container.jpg)
-
-더 자세한 로그가 필요하면 config 의 `defaults.log_level` 을 `5`(DEBUG)로 올려 재배포하거나,
-재배포 없이 보려면 요청에 `"params": {"log_level": 5}` 를 넣으세요.
-
-#### 증상별 대처
-
-| 증상 | 원인 | 대처 |
+| 응답 | 원인 | 확인할 것 |
 |---|---|---|
-| 배포 후 컨테이너가 계속 재시작 | `main.py` import 실패 (문법 오류·의존성 누락) | 로그의 traceback 확인. 로컬(4.1)에서 facade import 로 먼저 재현 |
-| 로그에 `git clone` 실패 | 저장소 URL/권한 문제, 커밋 해시 오류 | 리비전의 저장소·커밋 설정 재확인 |
-| 로그에 `pip install failed` | `requirements.txt` 의 패키지를 받지 못함 | 추가한 패키지가 설치 가능한지 확인. **재기동해도 재설치되지 않으므로**(2.2절) 새 커밋으로 리비전 재생성 |
-| `code:1` + 연결 오류 메시지 | config 의 모델 서빙 주소가 잘못됨 | 6.2 의 값이 올바른지 확인 |
-| 로그에 `Site 배포 시 실제 값으로 변경하세요` 경고 | 플레이스홀더 미치환 | 위와 동일 |
-| `/parser` 는 되는데 `data.document` 가 없음 | `output.format` 이 `docling` 이 아님 | `parser_processor_config.yaml` 의 `output.format: "docling"` |
-| `…지원하지 않습니다` 응답 | facade 에 `IS_PARSER`/`IS_CHUNKER` 마커가 없음 | 5.3 계약 확인. 클래스명·마커를 바꿨는지 |
-| 코드를 고쳤는데 반영이 안 됨 | 리비전이 이전 커밋을 가리킴 | 새 커밋으로 리비전을 다시 생성 |
-| 커밋은 그대로인데 `requirements.txt` 만 고쳤다 | init 은 커밋 해시당 1회만 실행 | 커밋을 새로 만들어 리비전 재배포 |
-| 청크가 1개만 나옴 | `chunk_size` 가 `0` 으로 전달됨 | 8.7 ③·④의 `chunk_size` 주의 참고 |
-| 배포는 성공했는데 **품질이 갑자기 나빠짐**(표·이미지 설명·목차가 사라짐) | 로컬 검증용으로 고친 `resource/*.yaml`(4.4절)이 함께 배포됨 | gitea 저장소의 `layout.layout_model_type`·`ocr.ocr_mode`·`enrichment.*.enable` 을 확인. 9.2 ④ 의 경로 한정 패치 참고 |
-| 호출이 응답 없이 오래 걸림 | 무거운 문서 + enrichment | `params.request_deadline` 로 상한을 걸어 원인 파악 |
+| `…지원하지 않습니다` (`code:1`) | facade 에 `IS_PARSER`/`IS_CHUNKER` 마커가 없어 요청이 facade 에 도달하지 못함 | 클래스명(`DocumentProcessor`)과 마커를 바꾸지 않았는지 — [5.3 계약](#53-documentprocessor-계약) |
+| 청크가 1개만 나옴 | `chunk_size` 가 `0`(분할 안 함)으로 전달됨 | 위 `--chunk-size` 주의. curl 이면 `params.chunk_size` |
+| `code:1` + 연결 오류 | config 의 모델 서빙 주소·키가 실행 환경과 맞지 않음 | [4.4](#44-로컬-검증-범위와-모델-서빙-연결)의 URL·키 표, [6.2](#62-채워야-하는-값-플레이스홀더) |
+| `/parser` 는 되는데 `data.document` 가 없음 | `output.format` 이 `docling` 이 아님 | `parser_processor_config.yaml` 의 `output.format` |
 
 ---
 
@@ -1483,13 +1546,13 @@ curl --location "${GW}/parser" \
 > |---|---|
 > | `output.format` | 응답에 `data.document` 가 있는지 |
 > | `chunk_size` · `chunk_mode` | `/chunker` 결과의 청크 개수·길이 변화 |
-> | `defaults.log_level` | 컨테이너 로그의 상세도 (8.8) |
+> | `defaults.log_level` | 요청 시 출력되는 로그의 상세도 |
 > | 플레이스홀더 치환 | 로그에서 `미치환 placeholder` 경고가 사라졌는지 |
 > | enrichment `enable` | 응답의 해당 항목 유무, 처리 시간 변화 |
 
 ### 9.2 시나리오 B — parser/chunker 코드 수정 후 재배포
 
-① **로컬**(4.1)에서 코드 수정 — 어디를 고칠지는 [5장](#5-코드-이해), 방법은 [7.2](#72-수정-레시피)
+① **로컬**(4.1 또는 4.2)에서 코드 수정 — 어디를 고칠지는 [5장](#5-코드-이해), 방법은 [7.2](#72-수정-레시피)
 ② **로컬 검증** — in-process 호출로 결과 확인 (4.5)
 ③ **복제본 확인** — 같은 로직이 다른 facade 에도 있는지 ([5.8](#58-수정-전-반드시-확인할-복제-범위))
 ④ 수정분을 **gitea 저장소로 옮기기** (아래 참고)
@@ -1502,9 +1565,8 @@ curl --location "${GW}/parser" \
 >
 > **(가) 패치 파일로 옮기기 (권장 — 수정량이 적을 때)**
 >
-> ⚠️ `git diff` 를 인자 없이 쓰면 **4.4 에서 로컬 검증용으로 고친 `resource/*.yaml` 까지 패치에
-> 들어갑니다.** 그대로 배포되면 운영에서 레이아웃 모델·OCR·enrichment 가 꺼진 채 동작하는데,
-> `/health` 와 `/parser` 는 정상 응답하므로 **눈치채기 어렵습니다.** 반드시 경로를 한정하세요.
+> `git diff`를 인자 없이 쓰면 **4.4에서 로컬 외부 게이트웨이 URL·API 키를 넣은 `resource/*.yaml`까지
+> 패치에 들어갑니다.** 실행 환경 값과 인증정보가 섞이지 않도록 반드시 경로를 한정하세요.
 >
 > ```bash
 > # 실행 위치: 내 PC, 로컬 클론
@@ -1541,8 +1603,6 @@ curl --location "${GW}/parser" \
 # 로컬 환경 설치 (4.1)
 uv venv --python 3.11 && source .venv/bin/activate
 uv pip install -r requirements.txt && uv pip install -r requirements-dev.txt
-uv pip install pymupdf langchain-community langchain-core langchain-text-splitters \
-               markdown2 pydub chardet
 
 # 로컬 파싱 → 청킹 (처음)
 python parse_chunk_test.py ../../sample_files/pdf_sample.pdf result_parse_chunk/
@@ -1591,7 +1651,7 @@ grep -rn "<함수명>" genon/preprocessor/facade/
 | **facade** | 전처리기 한 종류를 구현한 단일 파일 (`*_processor.py`). 진입 클래스는 `DocumentProcessor` |
 | **docling** | 문서 파싱 엔진. 파싱 결과는 `DoclingDocument` JSON |
 | **docling 포맷** | 구조 인식 파싱이 되는 포맷 — pdf/html/htm/docx/hwp/hwpx/hml/ppt/pptx (+ `docling` 모드의 xlsx). 응답은 `data.document` |
-| **parse-format** | 구조 인식이 안 되는 포맷(csv/txt/md/이미지/오디오 등)의 공통 파싱 결과 형태. 응답은 `data.elements` |
+| **parse-format** | 구조 인식이 안 되는 포맷(csv/txt/md/이미지 등)의 공통 파싱 결과 형태. 응답은 `data.elements` |
 | **element** | parse-format 결과의 한 조각. `{category, content, coordinates, id, page}` |
 | **청크(chunk)** | 벡터 DB 에 넣을 텍스트 조각 |
 | **enrichment** | 목차·메타데이터·이미지/표 설명 등을 LLM 으로 덧붙이는 단계 |
@@ -1619,7 +1679,8 @@ grep -rn "<함수명>" genon/preprocessor/facade/
 | `<AUTH_KEY>` | 같은 페이지의 인증키 항목 |
 | gitea 저장소 id | 같은 페이지 |
 | `<LAYOUT_SERVING_ID>` 등 모델 서빙 ID | 웹 UI 서빙 > 모델 서빙 목록. 또는 이미 config 에 채워져 있음 |
-| `<OCR_ENDPOINT>` · `<WHISPER_ENDPOINT>` | 배포를 지원한 담당자에게 확인 |
+| `<MODEL_SERVING_API_KEY>` | 웹 UI 서빙 > 모델 서빙 > 해당 서빙 상세 > 인증키 |
+| `<OCR_ENDPOINT>` | 배포를 지원한 담당자에게 확인 |
 
 **막혔을 때** — 아래는 여러분이 직접 해결할 수 없는 항목입니다. 배포를 지원한 담당자에게 요청하세요.
 
@@ -1694,10 +1755,9 @@ grep -rn "<함수명>" genon/preprocessor/facade/
 | # | 화면 | 들어갈 절 |
 |---|---|---|
 | 1 | 코드서빙 상세 — gitea id / serving_id / 인증키가 보이는 화면 | 8.2 |
-| 2 | 개발 > 코드 스페이스 생성 + VSCode 진입 버튼 | 4.2 |
+| 2 | 개발 > 코드 스페이스 생성 + VSCode 진입 버튼 | 4.3 |
 | 3 | 리비전 생성 화면 (이미지·커밋·인스턴스 설정) | 8.6 |
 | 4 | 배포 상태 전이 (`배포중` → `배포 완료`) | 8.6 |
-| 5 | 코드서빙 컨테이너 로그 화면 | 8.8 |
 
 ## 부록 E. 코드서빙·코드스페이스 신규 생성
 
@@ -1715,7 +1775,7 @@ grep -rn "<함수명>" genon/preprocessor/facade/
 새로 만든 gitea 저장소는 비어 있으므로, 공개 배포본을 복사해 넣고(8.3절) config 를 채운 뒤(6.2절)
 리비전을 만들어 배포합니다(8.6절).
 
-**코드스페이스 생성** — 웹 UI **개발 > 코드 스페이스**에서 생성하고 VSCode 로 접속합니다(4.2절).
+**코드스페이스 생성** — 웹 UI **개발 > 코드 스페이스**에서 생성하고 VSCode 로 접속합니다(4.3절).
 
 자세한 화면은 [부록 D](#부록-d-참고-문서)의 공식 문서 링크를 참고하세요.
 
