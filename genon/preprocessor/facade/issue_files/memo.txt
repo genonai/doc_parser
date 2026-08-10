@@ -1,2 +1,3 @@
 [기록물 전처리기 에러]긴급구조지원기관 종사자 교육대상자 명단
 503, message='Attempt to decode JSON with unexpected mimetype: text/plain', url='http://preprocessor-511:8080/run'
+=> 메모리 크게 주니까 에러 없음
