@@ -781,6 +781,9 @@ return self._normalize_response(result)
 ① doc_summary → ② image_description → ③ table_description → ④ metadata → ⑤ custom_fields → ⑥ doc_type 스탬프
 ```
 
+> ⑤·⑥ 은 요청 `params` 의 `doc_type` 으로 켜집니다. 새 문서유형을 추가하는 방법은
+> [7.2 (g)](#g-새-doc_type-추가하기) 를 보세요.
+
 > **목차(TOC)와 docling 내장 metadata 는 이 훅이 아닙니다.** `_parse_docling` 내부(2004)에서
 > docling 파이프라인의 일부로 처리됩니다. TOC 동작을 바꾸려면 그쪽을 보세요.
 
@@ -1110,7 +1113,7 @@ facade 별로 받는 키가 다릅니다. 자주 쓰는 것만:
 
 | facade | 자주 쓰는 `params` 키 |
 |---|---|
-| parser | `toc`, `img_desc`, `chart_desc`, `table_desc`, `table_refine`, `doc_summary`, `doc_type`, `save_images`, `use_hwp_sdk`, `log_level` |
+| parser | `toc`, `img_desc`, `chart_desc`, `table_desc`, `table_refine`, `doc_summary`, [`doc_type`](#g-새-doc_type-추가하기), `save_images`, `use_hwp_sdk`, `log_level` |
 | chunking | `document`(`file_path` 가 서버 안의 `.json` 이면 생략 가능), `chunk_size`, `chunk_mode`, `chunk_overlap`, `table_as_chunk`, `export_to_html`, `log_level` |
 | intelligent / convert | 위 parser 키 + `chunk_size`, `chunk_mode`, `use_pdf_sdk`, `table_format`, `export_to_html` |
 | attachment | `chunker_type`, `chunk_size`, `chunk_overlap`, `use_pdf_sdk`, `use_hwp_sdk` |
@@ -1245,6 +1248,195 @@ raise GenosServiceException(
 
 `stage` 와 `error_type` 을 주면 응답에 `stage`·`error_kind` 로 실려, 호출 측이 재시도 여부를
 판단할 수 있습니다. 로깅은 facade 안의 로거를 쓰고, 레벨은 `log_level`(yaml 또는 `params`)로 조절합니다.
+
+#### (g) 새 doc_type 추가하기
+
+`doc_type` 은 요청 `params` 로 넘기는 **문서유형 키**입니다. "이 문서는 계약서다 / FAQ 엑셀이다" 를
+알려 주면 전처리기가 그 유형 전용 필드 추출을 켭니다. 출고 상태에는 `card`(카드 상품) 와
+`faq`(FAQ 엑셀) 두 종류가 예시로 들어 있고, **둘 다 `enable: false`** 입니다.
+
+**doc_type 이 하는 일은 세 가지입니다.**
+
+1. `enrichment.custom_fields` 항목 중 **doc_type 이 일치하는 것만** 동작시킵니다.
+2. csv/xlsx 는 일치하는 **행 매핑 설정이 있으면 행별로 파싱**합니다
+   (element `category="custom_fields_row"` → 청커에서 행 1개 = 청크 1개).
+3. 문서 metadata 에 `doc_type` 을 **스탬프**해 그 문서에서 나온 **모든 청크**에 실어 보냅니다
+   (docling 계열 포맷 — pdf/docx/hwp/html/ppt. 행 매핑 경로에서는 각 행 metadata 에 들어갑니다).
+
+> **정상적인 doc_type 추가에는 파이썬 코드 수정이 필요 없습니다.** config yaml 과 프롬프트 md 만
+> 추가하면 됩니다. 코드가 필요한 예외 상황은 이 절 마지막에 정리했습니다.
+
+**extractor 2종** — `custom_fields` 블록의 `extractor` 값이 처리 방식을 정합니다.
+
+| | `llm` (문서형) | `tabular_mapping` (행 매핑형) |
+|---|---|---|
+| 별칭 | `document_llm` | `tabular`, `column_mapping` |
+| 대상 | 문서 전체 (pdf/html/docx …) | csv / xlsx / xlsm |
+| LLM 호출 | **함** (항목당 1회) | **안 함** |
+| 실행 시점 | 파싱 후 enrichment 단계 | 파싱 **이전**, 확장자 분기에서 조기 반환 |
+| 설정 파일 키 | `url`·`model`·프롬프트 파일·`output_fields` | `column_map`·`required`·`defaults`·`nulls`·`text_fields` |
+| 결과 | 문서 metadata → 모든 청크에 부착 | 행별 `custom_fields_row` element → 행마다 청크 1개 |
+| 복사할 원본 | `resource/custom_field_card.yaml` | `resource/custom_field_faq.yaml` |
+
+> `extractor` 를 생략하면 `llm` 로 간주합니다. 표에 없는 값을 쓰면 기동 시
+> `지원하지 않는 custom_fields extractor: …` 로 실패합니다.
+
+##### 경로 A — 문서형 (`extractor: llm`)
+
+예: 계약서에서 계약기간·당사자 같은 필드를 뽑는 `contract` 유형을 만든다고 합시다.
+
+**① `resource/custom_field_contract.yaml` 작성** — `custom_field_card.yaml` 을 복사해 고칩니다.
+
+| 키 | 뜻 |
+|---|---|
+| `url` · `api_key` · `model` | enrichment LLM 모델 서빙 (1.3절·4.4절) |
+| `max_tokens` · `temperature` · `timeout` | LLM 생성 파라미터 |
+| `pages` | 입력 페이지 범위. `null` 이면 문서 전체 |
+| `parser.type` | LLM 응답 파싱 방식 (`json`) |
+| `system_prompt_file` · `user_prompt_file` | 프롬프트 md 파일명 |
+| `output_fields` | 뽑아낼 필드 이름 목록 |
+
+**② 프롬프트 작성** — `resource/prompt_custom_fields_contract_{system,user}.md`.
+user 프롬프트 안의 `{{raw_text}}` 가 문서 본문으로 치환됩니다(6.4절).
+
+> `output_fields` 는 **프롬프트가 내놓는 JSON 키와 이름이 같아야** 합니다. 어긋나면 에러 없이
+> 값이 비어서 나옵니다.
+
+**③ `parser_processor_config.yaml` 의 `enrichment` 에 블록 추가**
+
+```yaml
+enrichment:
+  # … 기존 항목 …
+  - custom_fields:
+      enable: true
+      doc_type: contract
+      extractor: llm
+      config_file: custom_field_contract.yaml   # 경로는 이 yaml 과 같은 폴더 기준
+```
+
+**④ 호출** — `params` 에 `doc_type` 을 넣습니다.
+
+```json
+{ "file_path": "/app/src/service/.../contract.pdf", "params": { "doc_type": "contract" } }
+```
+
+**⑤ 확인** — 응답 `data.metadata` 에 추출 필드가 있고, `/chunker` 를 태우면 **모든 청크**에
+그 필드와 `doc_type` 이 실립니다.
+
+##### 경로 B — 행 매핑형 (`extractor: tabular_mapping`)
+
+예: 공지사항 엑셀을 행마다 청크 1개로 만드는 `notice` 유형. LLM 을 쓰지 않고 **엑셀 컬럼을 목표
+필드에 직접 매핑**합니다.
+
+**① `resource/custom_field_notice.yaml` 작성** — `custom_field_faq.yaml` 을 복사해 고칩니다.
+
+| 키 | 뜻 |
+|---|---|
+| `column_map` | `목표필드: [허용 소스 컬럼 별칭 …]`. **목표필드명 자체도 자동 별칭**이고, 비교 시 BOM·공백·대소문자·`_`·`-`·`.` 차이를 정규화합니다 |
+| `required` | 필수 목표필드 (동작은 아래 주의 참고) |
+| `defaults` | 대응 컬럼이 없거나 값이 비었을 때 채울 기본값 |
+| `nulls` | 대응 소스가 없어 `null` 로 **명시 출력**할 필드 (스키마 고정용) |
+| `constants` | 모든 행에 같은 값으로 넣을 필드 (선택) |
+| `text_fields` | 청크 `text` 본문을 구성할 필드와 그 순서 (개행으로 이어붙임). 생략하면 행의 모든 값 |
+
+> **`required` 는 두 가지로 다르게 동작합니다.**
+> - 시트에 **대응 컬럼 자체가 없으면**(그리고 `defaults` 도 없으면) → **파싱 전체가 입력 오류로 종료**
+> - 컬럼은 있는데 **특정 행의 값만 비었으면** → **그 행만 건너뛰고** WARN 로그에 몇 행을 건너뛰었는지 남김
+>
+> 청크 수가 예상보다 적으면 로그에서 `skipped N/M rows (missing required)` 를 찾아 보세요.
+
+**② config 블록 추가**
+
+```yaml
+enrichment:
+  - custom_fields:
+      enable: true
+      doc_type: notice
+      extractor: tabular_mapping
+      config_file: custom_field_notice.yaml
+```
+
+**③ 결과** — 각 데이터 행이 아래 element 하나가 됩니다.
+
+```json
+{ "category": "custom_fields_row", "content": "<text_fields 를 개행으로 이어붙인 값>",
+  "coordinates": [], "id": 0, "page": 1,
+  "metadata": { "title": "…", "body": "…", "doc_type": "notice" } }
+```
+
+`/chunker` 는 이 `category` 를 보고 **행 1개 = 청크 1개**로 만들고, `metadata` 를 청크 property 로
+승격합니다([5.5절](#55-chunking_processorpy-읽기)의 행 기반 경로). 청크 스키마는 추가 필드를 허용하므로
+스키마를 고칠 필요가 없습니다.
+
+> **행 매핑이 매칭되면 `formats.xlsx.processing_mode` 보다 우선합니다.** `processing_mode` 는
+> "행으로 나눌지"만 정하고, `doc_type` 은 "행의 컬럼을 어떤 목표필드로 매핑할지"를 정합니다.
+> 매칭되는 매핑이 있으면 목적이 행별 매핑이므로 mode 와 무관하게 이 경로를 탑니다.
+
+##### 검증
+
+로컬에서(4.5절) 먼저 돌려 봅니다.
+
+```bash
+# 실행 위치: genon/preprocessor/examples/parse_chunk
+python parse_chunk_test.py --doc_type notice ../../sample_files/<파일>.xlsx result_parse_chunk/
+```
+
+재배포한 뒤에는 게이트웨이로 확인합니다(8.7 ④). `--doc-type` 대신 `--param doc_type=notice` 도 됩니다.
+
+```bash
+# 실행 위치: genon/preprocessor/examples/code_serving
+python serving_gateway_test.py --mode e2e $AUTHARGS \
+  --file-path "$FILE_PATH" --doc-type notice --out /tmp/chunks.json --chunk-size 10000
+```
+
+##### 복제 범위
+
+**facade 는 config 를 공유하지 않습니다.** `/preprocess`(적재용)·`/preprocess_convert` 에서도 같은
+doc_type 이 동작해야 한다면 아래 파일에 **같은 블록을 각각** 추가하세요([5.8절](#58-수정-전-반드시-확인할-복제-범위)).
+
+| 엔드포인트 | 추가할 config |
+|---|---|
+| `/parser` | `parser_processor_config.yaml` |
+| `/preprocess`, `/preprocess_intelligent` | `intelligent_processor_config.yaml` |
+| `/preprocess_convert` | `convert_processor_config.yaml` |
+| `/chunker` | **수정 불필요** — parser 결과를 그대로 승격합니다 |
+
+`custom_field_*.yaml` 과 프롬프트 md 는 `resource/` 에 한 벌만 두고 세 config 가 함께 참조하면 됩니다.
+
+##### 안 될 때
+
+| 증상 | 원인 |
+|---|---|
+| doc_type 을 줬는데 아무 일도 안 일어남 | 블록이 `enable: false` 이거나(그러면 아예 구성되지 않습니다), doc_type 문자열 불일치. **오타는 에러 없이 무시**됩니다 |
+| doc_type 을 안 줬는데 custom_fields 가 동작함 | 블록에 `doc_type` 키가 없으면 **wildcard** — 모든 요청에 매칭됩니다 |
+| `동일 doc_type에 tabular custom_fields 설정이 여러 개입니다` | 같은 doc_type 에 `tabular_mapping` 블록이 2개 |
+| `tabular custom_fields config 없음: …` | `config_file` 경로는 **config yaml 과 같은 폴더** 기준. 파일명만 적으세요 |
+| `지원하지 않는 custom_fields extractor: …` | `extractor` 값 오타 — 허용 값은 위 2종 표 |
+| `필수 Excel 컬럼 매핑 실패` | `required` 목표필드에 대응 컬럼이 없음. `column_map` 별칭을 늘리거나 `defaults` 를 주세요 |
+| `정규화 후 중복되는 Excel 컬럼이 있습니다` | 대소문자·공백만 다른 컬럼이 한 시트에 둘 이상 |
+| xlsx 가 행별로 안 나뉨 | 매칭되는 매핑이 없으면 `formats.xlsx.processing_mode` 가 결정합니다 (`tabular` 인지 확인) |
+| 필드는 안 붙는데 `doc_type` 만 모든 청크에 붙음 | 매칭되는 블록이 없는 상태. 스탬프(위 3번)는 docling 계열 포맷이면 매칭 여부와 무관하게 동작합니다 |
+| csv/xlsx 인데 `doc_type` 조차 안 붙음 | 정상입니다. csv/xlsx 는 **매칭되는 행 매핑이 있을 때만** `doc_type` 이 실립니다 |
+
+> **`doc_type` 비교는 `양끝 공백 제거 + 소문자화` 후 정확 일치**입니다. `"Contract "` 와 `contract`
+> 는 같지만, `contracts` 는 다릅니다. yaml 에는 리스트도 쓸 수 있습니다 — `doc_type: [notice, notice_v2]`.
+
+> ⚠️ **`enrichment.toc.doc_type` 은 완전히 다른 값입니다.** 그쪽은 목차(TOC) 추출 알고리즘을 고르는
+> 옵션이라 `normal` / `law` 만 받습니다(출고 기본값 `law`). 요청 `params.doc_type` 과는 아무 관계가
+> 없으니 섞지 마세요.
+
+##### 코드를 고쳐야 하는 경우
+
+드물지만 아래 두 경우는 파이썬 수정이 필요합니다. [7.3 알아둘 제약](#73-알아둘-제약)의 ①·② 가 그대로 적용됩니다.
+
+| 하고 싶은 것 | 고칠 곳 |
+|---|---|
+| 새 **extractor 종류** 추가 (예: 정규식 기반 추출기) | `facade/enrichment/custom_fields_enricher.py` 의 `DOCUMENT_CUSTOM_FIELD_EXTRACTORS` / `TABULAR_CUSTOM_FIELD_EXTRACTORS` 집합 + 해당 빌더 함수 |
+| 새 **element category** 추가 | `chunking_processor.py` 의 `row_categories` 리터럴이 **두 군데**에 있습니다(`_chunk_custom_fields_rows` 와 `_chunk_parse_format`). **둘 다** 고쳐야 합니다 |
+
+> 새 category 를 만들기보다 **`custom_fields_row` 를 그대로 재사용**하는 쪽이 안전합니다.
+> 청커는 `doc_type` 을 전혀 보지 않고 `category` 로만 분기하므로, 기존 category 를 쓰면 청킹 쪽은
+> 손댈 일이 없습니다.
 
 ### 7.3 알아둘 제약
 
@@ -1693,6 +1885,7 @@ grep -rn "<함수명>" genon/preprocessor/facade/
 | **element** | parse-format 결과의 한 조각. `{category, content, coordinates, id, page}` (행 기반 `tabular_row`/`custom_fields_row` 는 `metadata` 추가) |
 | **청크(chunk)** | 벡터 DB 에 넣을 텍스트 조각 |
 | **enrichment** | 목차·메타데이터·이미지/표 설명 등을 LLM 으로 덧붙이는 단계 |
+| **doc_type(문서유형)** | 요청 `params` 로 넘기는 문서유형 키. 일치하는 `custom_fields` 설정만 켜고, 그 문서의 모든 청크에 스탬프된다([7.2 (g)](#g-새-doc_type-추가하기)). `enrichment.toc.doc_type` 과는 다른 값 |
 | **가드레일(guardrail)** | 개인정보 탐지·마스킹 기능 |
 
 **인프라 · 개발 도구**
