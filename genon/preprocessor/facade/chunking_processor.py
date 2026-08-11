@@ -2684,17 +2684,25 @@ class DocumentProcessor:
         return vectors
 
     def _chunk_custom_fields_rows(self, elements: list, **kwargs: dict) -> list:
-        """행별 custom_fields element → 행마다 청크 1개.
+        """행별 tabular/custom_fields element → 행마다 청크 1개.
 
-        각 element 는 parser 가 실어 보낸 self-describing metadata(목표필드 + doc_type)를 가진다.
-        그 metadata 를 청크 extra 필드로 부착하고(GenOSVectorMeta.extra=allow), text/인덱스/reg_date 등
-        표준 필드를 채운다. intelligent 의 tabular(build_tabular_vectors)와 동일한 "행=청크" 의미.
+        일반 tabular_row는 원본 컬럼 metadata를, custom_fields_row는 목표필드 + doc_type metadata를
+        가진다. 이를 청크 extra 필드로 부착하고 text/인덱스/reg_date 등 표준 필드를 채운다.
+        intelligent 의 tabular(build_tabular_vectors)와 동일한 "행=청크" 의미다.
         """
         # faq_row는 기존 parser 산출물 JSON을 다시 청킹할 수 있도록 계속 허용한다.
-        row_categories = {"custom_fields_row", "faq_row"}
+        row_categories = {"tabular_row", "custom_fields_row", "faq_row"}
         rows = [el for el in elements if el.get("category") in row_categories]
         if not rows:
             raise GenosServiceException(1, "chunk length is 0")
+        # 행 element 가 하나라도 있으면 이 경로로 오므로, 섞여 온 비-행 element 는 버려진다.
+        # tabular_row 는 외부 파서도 만들 수 있는 일반 이름이라 조용한 축소를 로그로 드러낸다.
+        dropped = len(elements) - len(rows)
+        if dropped:
+            _log.warning(
+                f"[chunker] 행 기반 청킹 경로에서 비-행 element {dropped}개를 버렸습니다 "
+                f"(rows={len(rows)}, total={len(elements)})"
+            )
 
         # #315 민감정보 분류 결과(있으면 text 에 quote 매칭·라벨·마스킹 적용).
         _sensitive_infos: list = kwargs.get("_sensitive_infos") or []
@@ -2752,15 +2760,16 @@ class DocumentProcessor:
         """parse-format( {"elements":[...]} ) 출력을 legacy 동작으로 청킹한다.
 
         포맷은 element 내용으로 식별(파일 확장자 불필요):
+          0) tabular_row/custom_fields_row: 행마다 벡터 1개.
           1) audio: content 가 "[AUDIO]" 로 시작하는 element 가 있으면 → 단일 벡터.
-          2) tabular([DA]): 비어있지 않은 element 가 전부 category=="table" 이면 → 단일 [DA] 벡터.
+          2) legacy tabular([DA]): 비어있지 않은 element가 전부 category=="table"이면 → 단일 벡터.
           3) 그 외: RecursiveCharacterTextSplitter 로 텍스트 청킹.
         """
         elements = elements or []
 
-        # 0) 행 기반 custom_fields 가드. faq_row는 이전 산출물 하위 호환용이다.
+        # 0) 행 기반 tabular/custom_fields 가드. faq_row는 이전 산출물 하위 호환용이다.
         non_empty_all = [el for el in elements if isinstance(el, dict)]
-        row_categories = {"custom_fields_row", "faq_row"}
+        row_categories = {"tabular_row", "custom_fields_row", "faq_row"}
         if non_empty_all and any(el.get("category") in row_categories for el in non_empty_all):
             return self._chunk_custom_fields_rows(non_empty_all, **kwargs)
 
@@ -2770,7 +2779,7 @@ class DocumentProcessor:
             if content.startswith("[AUDIO]"):
                 return [self._single_marker_vector(content)]
 
-        # 2) tabular([DA]) 가드 — csv/xlsx 는 시트별 category=="table" element 로 온다.
+        # 2) legacy tabular([DA]) 가드 — 이전 csv/xlsx parse payload 호환용.
         non_empty = [
             el for el in elements
             if str((el or {}).get("content", "") or "").strip()

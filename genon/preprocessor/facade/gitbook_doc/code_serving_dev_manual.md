@@ -741,12 +741,12 @@ class DocumentProcessor:          # ← 클래스 이름 고정. main.py 가 이
 
 | 확장자 | 줄 | 파싱 메서드 | 파싱 결과 | 최종 조립 |
 |---|---|---|---|---|
-| `.csv .xlsx .xlsm` | 2624–2654 | 3분기: custom_fields 매칭 / `docling` 모드 / `tabular` 모드 | dict 또는 DoclingDocument | 각각 다름 |
-| `.hwp .hwpx .hml` | 2657 | `_parse_hwp_hwpx` | DoclingDocument | `_build_docling_response` |
-| `.docx` | 2665 | `_parse_docx` | DoclingDocument | `_build_docling_response` |
-| `.pdf .html .htm` | 2673 | `_parse_docling` | DoclingDocument | `_build_docling_response` |
-| `.ppt .pptx` | 2683 | `_parse_ppt_docling` | DoclingDocument 또는 None | 실패 시 parse-format 폴백 |
-| 그 외 | 2700 | `_parse_other` | langchain Document 리스트 | `_langchain_to_parse_format` |
+| `.csv .xlsx .xlsm` | 2594–2625 | 3분기: custom_fields 매칭(우선) / `docling` 모드 / `tabular` 모드 | dict 또는 DoclingDocument | 각각 다름 |
+| `.hwp .hwpx .hml` | 2630 | `_parse_hwp_hwpx` | DoclingDocument | `_build_docling_response` |
+| `.docx` | 2638 | `_parse_docx` | DoclingDocument | `_build_docling_response` |
+| `.pdf .html .htm` | 2646 | `_parse_docling` | DoclingDocument | `_build_docling_response` |
+| `.ppt .pptx` | 2656 | `_parse_ppt_docling` | DoclingDocument 또는 None | 실패 시 parse-format 폴백 |
+| 그 외 | 2673 | `_parse_other` | langchain Document 리스트 | `_langchain_to_parse_format` |
 
 > 코드에는 위 표 외에 오디오(`.wav`/`.mp3`/`.m4a`) 분기도 있습니다. 이 문서의 범위 밖이므로 표에서
 > 생략했습니다.
@@ -769,8 +769,8 @@ return self._normalize_response(result)
 | `_docling_to_parse_format` | 2281 | **element 배열 생성기.** 문서를 순회해 `{category, content, coordinates, id, page}` 5키 dict 리스트 + `usage.pages` |
 | `_build_docling_response` | 2455 | **`output.format` 분기 지점.** `docling`→`{"document": …}`(무손실 JSON), `json`→element 배열, `html`/`markdown`→문자열 |
 | `_normalize_response` | 2439 | `content`/`elements`/`usage` 키 존재 보장. **모든 반환 경로가 통과** |
-| `_tabular_to_parse_format` | 2533 | 시트 1개 = element 1개 (`category="table"`) |
-| `_langchain_to_parse_format` | 2551 | Document 1개 = element 1개 (`category="paragraph"`) |
+| `_tabular_to_parse_format` | 2514 | 데이터 행 1개 = element 1개 (`category="tabular_row"`, `metadata` 에 컬럼 값 + `column_map`). 실제 변환은 `converters/xlsx_processor.tabular_data_to_parse_format` |
+| `_langchain_to_parse_format` | 2521 | Document 1개 = element 1개 (`category="paragraph"`) |
 
 #### enrichment 연결
 
@@ -884,10 +884,18 @@ return self._normalize_response(result)
 | 크기 단위 | `char` / `huggingface` 선택 | **항상 문자 수** |
 | overlap | 없음 | `chunking.recursive.chunk_overlap` (기본 100) |
 | 좌표·미디어 | 실제 값 | `"."` 고정값 |
-| 문서 metadata | 부착됨 | 없음 (단, 행 단위 custom_fields 는 예외) |
+| 문서 metadata | 부착됨 | 없음 (단, 행 단위 element 는 예외 — 아래) |
 
-`_chunk_parse_format`(2751)은 입력 형식에 따라 행 단위 custom_fields 처리, 전체 표의 단일 청크 처리,
-그 외 텍스트의 문자 단위 분할 경로로 나뉩니다.
+`_chunk_parse_format`(2759)은 입력 형식에 따라 네 경로로 나뉩니다.
+
+| 판별 | 경로 | 결과 |
+|---|---|---|
+| `category` 가 `tabular_row`/`custom_fields_row`/`faq_row` 인 element 가 있음 | `_chunk_custom_fields_rows`(2686) | **행 1개 = 청크 1개.** element `metadata` 를 청크 property 로 승격 |
+| `content` 이 `[AUDIO]` 로 시작 | `_single_marker_vector` | 전사 전체가 단일 청크 |
+| 비어있지 않은 element 가 전부 `category=="table"` | `_single_marker_vector` | `[DA]` 단일 청크 (**예전 csv/xlsx parse 결과 하위호환**) |
+| 그 외 | `_chunk_text_elements`(2583) | 문자 단위 분할 |
+
+> 행 기반 경로는 행 element 만 청킹하고 섞여 온 다른 element 는 버립니다(버린 개수는 WARN 로그).
 
 #### 토크나이저
 
@@ -908,7 +916,7 @@ return self._normalize_response(result)
 | 청크 메타데이터 필드 추가 | 가장 안전: `set_global_metadata` 경유 (스키마는 `extra` 허용) | 정식 필드로 올리려면 스키마·빌더·조립부 3곳 + parse-format 경로 3곳을 함께 |
 | 병합 기준 변경 | 4단계 조건 (1258–1268), 5단계 (1290–1318) | 1260 을 완화하면 조 단위가 장 단위로 뭉쳐집니다 |
 | 분할 기준 변경 | `split_items_evenly_by_tokens` (930–978) | 반환 구간은 **폭이 0 이 아니어야** 합니다. 0 이면 그 청크가 에러 없이 사라집니다 |
-| parse-format 청킹 방식 | `_chunk_text_elements` (2583), 라우팅은 `_chunk_parse_format` (2751) | `chunk_size: 0`(미분할) 계약과 표 입력의 하위호환 가드를 유지 |
+| parse-format 청킹 방식 | `_chunk_text_elements` (2583), 라우팅은 `_chunk_parse_format` (2759) | `chunk_size: 0`(미분할) 계약과 표 입력의 하위호환 가드를 유지 |
 | 표 직렬화 형식 | `_extract_table_text` (624), 큰 표는 `_table_item_to_texts` (726) | 요청 `params` 의 `export_to_html: 0` 으로도 markdown 전환 가능(코드 수정 불필요). 다만 큰 표 분할 경로는 HTML 전제 |
 | `HEADER:` 접두 형식 | `compose_vectors` (2211) + `_generate_section_text_with_heading` (844) | 헤더 문자열이 **두 군데서 두 번** 붙습니다. 한쪽만 고치면 중복 또는 누락 |
 
@@ -1208,7 +1216,8 @@ facade 별로 받는 키가 다릅니다. 자주 쓰는 것만:
 
 #### (d) 파싱 결과에 필드 추가하기
 
-파싱 결과의 element 는 `{category, content, coordinates, id, page}` 5키입니다. 필드를 추가하려면
+파싱 결과의 element 는 `{category, content, coordinates, id, page}` 5키입니다(행 기반 element —
+`tabular_row`/`custom_fields_row` — 는 행 metadata 를 담은 `metadata` 를 더해 6키). 필드를 추가하려면
 `_docling_to_parse_format`(2281)에서 dict 를 만드는 부분을 고칩니다.
 
 - **추가는 안전**하지만, 기존 키를 삭제·개명하면 `/chunker` 와 다운스트림이 깨집니다.
@@ -1681,7 +1690,7 @@ grep -rn "<함수명>" genon/preprocessor/facade/
 | **docling** | 문서 파싱 엔진. 파싱 결과는 `DoclingDocument` JSON |
 | **docling 포맷** | 구조 인식 파싱이 되는 포맷 — pdf/html/htm/docx/hwp/hwpx/hml/ppt/pptx (+ `docling` 모드의 xlsx). 응답은 `data.document` |
 | **parse-format** | 구조 인식이 안 되는 포맷(csv/txt/md/이미지 등)의 공통 파싱 결과 형태. 응답은 `data.elements` |
-| **element** | parse-format 결과의 한 조각. `{category, content, coordinates, id, page}` |
+| **element** | parse-format 결과의 한 조각. `{category, content, coordinates, id, page}` (행 기반 `tabular_row`/`custom_fields_row` 는 `metadata` 추가) |
 | **청크(chunk)** | 벡터 DB 에 넣을 텍스트 조각 |
 | **enrichment** | 목차·메타데이터·이미지/표 설명 등을 LLM 으로 덧붙이는 단계 |
 | **가드레일(guardrail)** | 개인정보 탐지·마스킹 기능 |

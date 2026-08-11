@@ -759,8 +759,10 @@ guardrail:
 > **청킹(Chunk API) 연계**: docling 경로(`.pdf/.html/.htm/.docx/.hwp/.hwpx`, `.ppt/.pptx`)는 `output.format: docling`
 > 일 때 `data.document` 를 만들어 구조 인식 청킹(GenosSmartChunker)에 쓰인다. 그 외 포맷은 항상
 > parse-format(`data.elements`)으로 반환되며, chunker 가 이를 공통 청킹한다 — 오디오는 `[AUDIO]`
-> 단일 벡터, csv/xlsx(`table`)는 `[DA]` 단일 벡터, 그 외 텍스트(`paragraph`)는 문자 기반 splitter
-> (`chunking.generic`). 즉 비-docling 포맷도 추가 변환 없이 그대로 청킹 가능하다.
+> 단일 벡터, csv/xlsx(`tabular_row` / `custom_fields_row`)는 **행마다 벡터 1개**, 그 외 텍스트
+> (`paragraph`)는 문자 기반 splitter(`chunking.generic`). 즉 비-docling 포맷도 추가 변환 없이 그대로
+> 청킹 가능하다. (`category="table"` 만으로 이루어진 예전 csv/xlsx parse 결과를 다시 청킹하면 종전대로
+> `[DA]` 단일 벡터가 된다 — 하위 호환용 경로.)
 
 ---
 
@@ -821,23 +823,29 @@ GenosHwpDocumentBackend  →  HwpDocumentBackend/HwpxDocumentBackend  →  Libre
 
 ### CSV / XLSX
 
-**처리 함수:** `xlsx_processor.load_tables` (converters) — 출력은 시트/표별 HTML `table` element (parse-JSON).
+**처리 함수:** `xlsx_processor.load_tables` (converters) — 출력은 **데이터 행마다 element 1개**(`category="tabular_row"`, parse-JSON).
 
 `.xlsx`/`.xlsm`/`.csv` 는 PDF 변환 없이 직접 처리하며, `formats.xlsx.processing_mode` 로 방식을 선택합니다.
 
-- **tabular (기본)** — openpyxl 로 병합셀을 **unmerge + forward-fill** 하여 병합 헤더 유실을 방지하고, 시트(또는 표)별로 HTML `table` element 를 생성합니다.
-  - **멀티헤더 자동 판정**: 전열 병합 제목행은 표 상단 컨텍스트로만 두고, 부분 병합 계층 헤더는 `상위_하위` 로 flatten 하여 컬럼 헤더(`<th>`)로 사용합니다.
-  - **시트명·제목 컨텍스트**: 각 표 `content` 앞에 `시트명: <시트명>`(+ 제목행이 있으면 제목)을 붙입니다.
-  - `formats.xlsx.tabular.multi_table: true` 면 한 시트의 복수 표(빈 행 분리)를 표별 element 로 분리합니다. `header_row`(0=자동/>0=단일헤더 강제)로 헤더 판정을 제어합니다.
+- **tabular (기본)** — openpyxl 로 병합셀을 **unmerge + forward-fill** 하여 병합 헤더 유실을 방지하고, **데이터 행마다 `tabular_row` element 하나**를 생성합니다(= 청커에서 행 1개 = 청크 1개). `doc_type` 없이도 적용됩니다.
+  - **멀티헤더 자동 판정**: 전열 병합 제목행은 표 상단 컨텍스트로만 두고, 부분 병합 계층 헤더는 `상위_하위` 로 flatten 하여 컬럼 헤더로 사용합니다.
+  - **시트명·제목 컨텍스트**: 각 행 `content` 는 `시트명: <시트명>` → (제목행) → 헤더 라인 → 값 라인 순의 파이프(`|`) 텍스트입니다.
+  - **행 metadata**: `metadata` 에 컬럼별 stable-key(비-ASCII 헤더는 `field_<hash>`) → 셀 값과, 원본 헤더명을 보존한 `column_map`(JSON 문자열)이 실립니다. 청커가 이를 그대로 벡터 property 로 승격해 컬럼 단위 필터가 가능합니다.
+  - `formats.xlsx.tabular.multi_table: true` 면 한 시트의 복수 표(빈 행 분리)를 표별로 감지합니다(`page` 는 시트 번호로 동일). `header_row`(0=자동/>0=단일헤더 강제)로 헤더 판정을 제어합니다.
 - **docling** — docling MsExcel/Csv 백엔드로 `DoclingDocument` 를 만든 뒤 parse-JSON 으로 직렬화합니다(`output.format: docling` 이면 원본 DoclingDocument JSON 반환).
+
+**doc_type 과의 관계** — 행 분할 여부는 **`processing_mode` 만** 결정합니다. `doc_type` 은 `enrichment.custom_fields` 의 tabular 매핑(컬럼 → 목표필드)에만 쓰입니다. 단, 요청 `doc_type` 과 매칭되는 tabular 매핑이 있으면 행별 매핑이 목적이므로 `processing_mode` 와 무관하게 그 경로가 우선하며, element `category` 는 `custom_fields_row` 가 됩니다(적재용 `intelligent` 와 동일 규칙). 매칭되는 매핑이 없는 `doc_type`(예: `card`)은 csv/xlsx 경로에서 문서 metadata 스탬프 대상이 아닙니다.
 
 **전제조건:**
 - **Python 패키지:** `openpyxl`(xlsx 병합셀 처리), `chardet`(csv 인코딩 자동 감지)
 - CSV 는 chardet 로 인코딩 자동 감지 후 utf-8 폴백
-- XLSX 는 시트(및 `multi_table` 시 표) 단위로 element 생성
+- XLSX 는 데이터 행 단위로 element 생성(`page` 는 시트 순번)
 
-> 참고: parser 출력은 parse-JSON(HTML 표)이라 벡터 메타가 없습니다. 컬럼 단위 필터용 stable-key/`column_map`
-> 는 적재용(intelligent/convert)의 tabular 벡터에만 적용됩니다. parser 의 HTML `<th>` 는 원본 헤더명(한글 포함)을 그대로 사용합니다.
+> 참고: 컬럼 헤더가 벡터 표준 필드명(`text`, `title`, `created_date`, `file_path`, `reg_date`, `column_map` 등)과
+> 겹치면 메타 KEY 로 쓰지 않고 `field_<hash>` alias 로 회피합니다(원본명은 `column_map` 에 보존). 표준 필드를
+> 셀 값이 덮어쓰거나 타입 검증에 걸려 청킹이 실패하는 것을 막기 위함입니다.
+>
+> 정확히 같은 이름의 컬럼(중복 헤더)이 있으면 parser 는 명시적으로 오류를 냅니다(적재용 직접처리 경로는 `_2` suffix 로 통과 — 경로별 차이).
 
 ---
 
@@ -932,6 +940,7 @@ GenosHwpDocumentBackend  →  HwpDocumentBackend/HwpxDocumentBackend  →  Libre
 | `category` | `str` | element의 의미적 분류. 아래 [category 값 목록](#category-값-목록) 참고 |
 | `content` | `str` | element의 실제 내용. category에 따라 형식이 다름 (아래 표 참고) |
 | `coordinates` | `array` | 페이지 내 위치. 정규화된 4-꼭짓점 좌표 (0.0~1.0). 좌표를 제공하지 않는 포맷은 `[]` |
+| `metadata` | `object` | **행 기반 element(`tabular_row` / `custom_fields_row`)에만 존재.** 그 행의 컬럼 값(+`column_map`) 또는 custom_fields 목표필드. 청커가 벡터 property 로 승격한다 |
 
 #### `content` 필드의 형식 (category별)
 
@@ -942,6 +951,8 @@ GenosHwpDocumentBackend  →  HwpDocumentBackend/HwpxDocumentBackend  →  Libre
 | `paragraph` | 본문 텍스트 문자열 | `"이 문서는 ..."` |
 | `list_item` | 목록 항목 텍스트 문자열 | `"• 항목 내용"` |
 | `table` | HTML 또는 Markdown 형식의 표 (`output.table_format` 설정에 따라 결정) | `"<table>...</table>"` |
+| `tabular_row` | CSV/XLSX 데이터 행 1개. `시트명 → (제목) → 헤더 라인 → 값 라인` 파이프 텍스트 | `"시트명: Sheet1\n\| name \| age \|\n\| Alice \| 30 \|"` |
+| `custom_fields_row` | CSV/XLSX 데이터 행 1개(`doc_type` 매핑 적용). `text_fields` 로 지정한 목표필드 값을 줄바꿈으로 이어붙임 | `"카드 발급은 어떻게 하나요?\n앱에서 신청 가능합니다."` |
 | `picture` | 기본은 빈 문자열 `""` (이미지 자체는 별도 파일로 저장). 이미지 설명 활성화 시 `content`에 설명 텍스트가 포함됨 | `"이미지 설명 텍스트"` |
 | `caption` | 그림/표 캡션 텍스트 | `"그림 1. 시스템 구조도"` |
 | `footnote` | 각주 텍스트 | `"1) 출처: ..."` |
@@ -993,7 +1004,7 @@ Docling 경로(PDF, HTML, HWP, HWPX, DOCX)에서 `parser_processor_config.yaml`�
 `params.document` 에는 docling JSON(`data.document`)뿐 아니라 비-docling 포맷의 parse-format
 응답(`{"elements":[...]}` = `data` 전체)도 그대로 넣을 수 있습니다. chunker 가 입력 형태를 자동
 판별해, docling 은 구조 인식 청킹(GenosSmartChunker)을, parse-format 은 공통 청킹(audio→`[AUDIO]`
-단일, csv/xlsx→`[DA]` 단일, 그 외 텍스트→`chunking.generic` splitter)을 수행합니다.
+단일, csv/xlsx→행마다 청크 1개, 그 외 텍스트→`chunking.generic` splitter)을 수행합니다.
 
 E2E 흐름:
 - docling 포맷: `POST /parser (output.format=docling)` → `data.document` → `POST /chunker (params.document=…)` → 청크 목록.
@@ -1024,7 +1035,9 @@ Docling 파이프라인(PDF/HTML/HWP/HWPX/DOCX) 출력 기준:
 | category 값 | 의미 |
 |-------------|------|
 | `paragraph` | 전사 텍스트 또는 일반 텍스트 |
-| `table` | CSV/XLSX 시트 데이터 (HTML 형식) |
+| `tabular_row` | CSV/XLSX 데이터 행 1개 (`processing_mode: tabular`). `metadata` 에 컬럼 값 + `column_map` |
+| `custom_fields_row` | CSV/XLSX 데이터 행 1개 (`doc_type` 매칭 tabular 매핑 적용). `metadata` 에 목표필드 + `doc_type` |
+| `table` | 예전 CSV/XLSX 시트 데이터(HTML 형식). 현재 파서는 생성하지 않으며, 기존 산출물 재청킹 시에만 나타납니다 |
 
 ---
 
@@ -1048,16 +1061,33 @@ Docling 파이프라인(PDF/HTML/HWP/HWPX/DOCX) 출력 기준:
 
 ### CSV/XLSX `content` 형식
 
-시트(또는 표) 데이터가 **시트명 접두 + HTML 테이블** 형태로 `content`에 저장됩니다. 병합셀은 unmerge + forward-fill 되어 병합 헤더가 보존됩니다.
+데이터 행 하나가 element 하나(`category="tabular_row"`)이며, `content` 는 **시트명 접두 + (제목) + 헤더 라인 + 값 라인** 파이프 텍스트입니다. 병합셀은 unmerge + forward-fill 되어 병합 헤더가 보존됩니다.
 
 ```text
 시트명: Sheet1
-<table><tr><th>컬럼1</th><th>컬럼2</th></tr><tr><td>값1</td><td>값2</td></tr></table>
+| 컬럼1 | 컬럼2 |
+| 값1 | 값2 |
+```
+
+```json
+{
+  "id": 0,
+  "page": 1,
+  "category": "tabular_row",
+  "content": "시트명: Sheet1\n| 컬럼1 | 컬럼2 |\n| 값1 | 값2 |",
+  "coordinates": [],
+  "metadata": {
+    "field_1a2b3c4d": "값1",
+    "field_5e6f7a8b": "값2",
+    "column_map": "{\"field_1a2b3c4d\": \"컬럼1\", \"field_5e6f7a8b\": \"컬럼2\"}"
+  }
+}
 ```
 
 - 상단에 제목행(전열 병합)이 있으면 시트명 다음 줄에 제목이 컨텍스트로 함께 포함됩니다.
-- 계층(부분 병합) 헤더는 `상위_하위` 로 flatten 되어 `<th>` 로 렌더됩니다.
-- 기본은 시트 단위로 element 가 생성되며 `page` 는 element 순번(1-based). `formats.xlsx.tabular.multi_table: true` 면 **한 시트에서 표별로 여러 element** 가 생성됩니다.
+- 계층(부분 병합) 헤더는 `상위_하위` 로 flatten 되어 헤더 라인에 들어갑니다.
+- `page` 는 시트 순번(1-based)이며, `formats.xlsx.tabular.multi_table: true` 로 한 시트에서 복수 표를 감지해도 같은 시트면 `page` 는 같습니다.
+- `metadata` 의 컬럼 KEY 는 헤더 텍스트에서 결정론적으로 생성됩니다 — ASCII 헤더는 그대로, 그 외(한글 등)와 예약어 충돌은 `field_<hash>`. 원본 헤더명은 `column_map` 에 보존됩니다.
 
 ---
 

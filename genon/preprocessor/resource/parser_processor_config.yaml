@@ -5,7 +5,7 @@ defaults:
 formats:
   # 엑셀(xlsx/xlsm), csv는 PDF 변환 없이 처리
   xlsx:
-    # tabular(기본): openpyxl 로 병합셀 unmerge+forward-fill 후 시트→HTML 표(병합 헤더 보존).
+    # tabular(기본): openpyxl 로 병합셀 unmerge+forward-fill 후 데이터 행마다 parse element/청크 생성.
     # docling: docling MsExcel/Csv 백엔드로 DoclingDocument 생성 후 parse-JSON 직렬화.
     processing_mode: "tabular"
     # tabular 모드 전용 옵션

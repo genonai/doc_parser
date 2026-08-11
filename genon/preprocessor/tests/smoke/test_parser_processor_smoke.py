@@ -78,7 +78,7 @@ async def test_hwpx_smoke(dp, sample):
 async def test_csv_smoke(dp, sample):
     result = await dp(None, str(sample))
     _validate_result(result)
-    assert all(e["category"] == "table" for e in result["elements"])
+    assert all(e["category"] == "tabular_row" for e in result["elements"])
 
 
 # ─── XLSX ─────────────────────────────────────────────────────────────────────
@@ -89,7 +89,7 @@ async def test_csv_smoke(dp, sample):
 async def test_xlsx_smoke(dp, sample):
     result = await dp(None, str(sample))
     _validate_result(result)
-    assert all(e["category"] == "table" for e in result["elements"])
+    assert all(e["category"] == "tabular_row" for e in result["elements"])
 
 
 # ─── PDF ──────────────────────────────────────────────────────────────────────

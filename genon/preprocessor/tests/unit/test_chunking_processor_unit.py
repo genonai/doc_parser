@@ -7,6 +7,7 @@
 - #284: chunking_processor 가 그 docling JSON 을 입력받아 GenOSVectorMeta 리스트를 반환하는지.
 """
 import asyncio
+import logging
 
 import pytest
 
@@ -127,6 +128,63 @@ def test_chunker_parse_format_tabular_da_vector():
 
     assert len(vectors) == 1
     assert vectors[0].text.startswith("[DA] ")
+
+
+def test_chunker_parse_format_tabular_rows_are_one_chunk_per_row():
+    """신규 tabular_row parse-format은 doc_type 없이도 행마다 청크 하나를 만든다."""
+    cp = pytest.importorskip("facade.chunking_processor")
+
+    elements = [
+        {
+            "category": "tabular_row",
+            "content": "| name |\n| Alice |",
+            "page": 1,
+            "id": 0,
+            "metadata": {"name": "Alice", "column_map": '{"name": "name"}'},
+        },
+        {
+            "category": "tabular_row",
+            "content": "| name |\n| Bob |",
+            "page": 1,
+            "id": 1,
+            "metadata": {"name": "Bob", "column_map": '{"name": "name"}'},
+        },
+    ]
+
+    chunker = cp.DocumentProcessor()
+    vectors = asyncio.run(
+        chunker(request=None, file_path="/data/sheet.json", document={"elements": elements})
+    )
+
+    assert len(vectors) == 2
+    assert [v.name for v in vectors] == ["Alice", "Bob"]
+    assert [v.i_chunk_on_doc for v in vectors] == [0, 1]
+    assert all(v.n_chunk_of_doc == 2 for v in vectors)
+
+
+def test_chunker_parse_format_rows_mixed_with_text_warns_on_drop(caplog):
+    """행 element 가 섞여 오면 비-행 element 는 버려지되, 축소 사실이 로그로 드러난다."""
+    cp = pytest.importorskip("facade.chunking_processor")
+
+    elements = [
+        {"category": "paragraph", "content": "머리말 문단", "page": 1, "id": 0},
+        {
+            "category": "tabular_row",
+            "content": "| name |\n| Alice |",
+            "page": 1,
+            "id": 1,
+            "metadata": {"name": "Alice"},
+        },
+    ]
+
+    chunker = cp.DocumentProcessor()
+    with caplog.at_level(logging.WARNING):
+        vectors = asyncio.run(
+            chunker(request=None, file_path="/data/sheet.json", document={"elements": elements})
+        )
+
+    assert len(vectors) == 1
+    assert "비-행 element 1개" in caplog.text
 
 
 def test_chunker_parse_format_text_multi_chunk():

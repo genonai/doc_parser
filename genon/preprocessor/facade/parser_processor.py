@@ -1012,8 +1012,8 @@ class IntelligentDocumentProcessor:
         if artifacts_path:
             self.pipe_line_options.artifacts_path = Path(artifacts_path)
 
-        # xlsx(엑셀) 처리 설정(이슈 #288). formats.xlsx 아래에 둔다. 출력은 parse-JSON(시트당 HTML 표).
-        #   tabular(기본): openpyxl 로 병합셀 unmerge+forward-fill 후 시트→HTML 표(병합 헤더 보존).
+        # xlsx(엑셀) 처리 설정(이슈 #288). formats.xlsx 아래에 둔다.
+        #   tabular(기본): openpyxl 로 병합셀 unmerge+forward-fill 후 데이터 행마다 parse element 생성.
         #   docling: docling MsExcel 백엔드로 DoclingDocument 생성 후 parse-JSON 직렬화.
         #   tabular.{header_row, multi_table}: tabular 모드 전용 세부 옵션
         formats_cfg = _as_dict(cfg.get("formats"))
@@ -2511,41 +2511,11 @@ class DocumentProcessor:
         }
 
     @staticmethod
-    def _sheet_to_html(sheet: dict) -> str:
-        """시트(표) dict → HTML table 문자열(시트명 + 제목 컨텍스트 접두 포함)."""
-        name = str(sheet.get("sheet_name", "") or "").strip()
-        title = str(sheet.get("title", "") or "").strip()
-        prefix = f"시트명: {name}\n" if name else ""
-        if title:
-            prefix += f"{title}\n"
-        data_rows = sheet.get("data_rows", [])
-        if not data_rows:
-            return f"{prefix}<table></table>"
-        cols = list(data_rows[0].keys())
-        header = "".join(f"<th>{c}</th>" for c in cols)
-        rows_html = "".join(
-            "<tr>" + "".join(f"<td>{row.get(c, '')}</td>" for c in cols) + "</tr>"
-            for row in data_rows
-        )
-        return f"{prefix}<table><tr>{header}</tr>{rows_html}</table>"
-
-    @staticmethod
     def _tabular_to_parse_format(data_dict: dict) -> dict:
-        """TabularLoader.data_dict → parse format. 시트 하나당 element 하나."""
-        elements = []
-        sheets = data_dict.get("data", [])
-        for idx, sheet in enumerate(sheets):
-            elements.append({
-                "category": "table",
-                "content": DocumentProcessor._sheet_to_html(sheet),
-                "coordinates": [],
-                "id": idx,
-                "page": idx + 1,
-            })
-        return {
-            "elements": elements,
-            "usage": {"pages": len(sheets)},
-        }
+        """TabularLoader.data_dict → 행별 parse format."""
+        from genon.preprocessor.converters.xlsx_processor import tabular_data_to_parse_format
+
+        return tabular_data_to_parse_format(data_dict)
 
     @staticmethod
     def _langchain_to_parse_format(docs: list) -> dict:
@@ -2622,8 +2592,10 @@ class DocumentProcessor:
                 return self._normalize_response(self._audio_to_parse_format(text))
 
             if ext in (".csv", ".xlsx", ".xlsm"):
-                # enrichment.custom_fields의 tabular_mapping handler가 doc_type과 일치하면
-                # 행별 custom_fields element로 변환한다. LLM 호출은 없다.
+                # doc_type 은 "행을 어떻게 나눌지"가 아니라 "행 컬럼을 어떤 목표필드로 매핑할지"에만
+                # 쓴다. 행 분할 여부는 formats.xlsx.processing_mode 가 결정한다.
+                # 단, enrichment.custom_fields 의 tabular_mapping 이 doc_type 과 매칭되면 행별 매핑이
+                # 목적이므로 processing_mode 와 무관하게 우선한다(intelligent._process_xlsx 와 동일).
                 runtime_doc_type = normalize_doc_type(kwargs.get("doc_type"))
                 matching_mappers = [
                     mapper for mapper in self._tabular_custom_fields_mappers
@@ -2646,10 +2618,11 @@ class DocumentProcessor:
                     from genon.preprocessor.converters.xlsx_processor import build_docling_document
                     doc = build_docling_document(file_path)
                     return self._normalize_response(self._build_docling_response(doc, **kwargs))
-                # tabular 모드(기본): openpyxl 병합셀 처리 → 시트당 HTML 표.
+                # tabular 모드(기본): openpyxl 병합셀 처리 → 데이터 행마다 element 하나.
                 # TODO(#315): PII 마스킹 미적용(보류) — tabular 산출은 별도 논의 후 적용.
-                data_dict = self._parse_tabular(file_path)
-                return self._normalize_response(self._tabular_to_parse_format(data_dict))
+                return self._normalize_response(
+                    self._tabular_to_parse_format(self._parse_tabular(file_path))
+                )
 
             enrichment_context: dict = {}
 
