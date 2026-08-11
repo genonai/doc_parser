@@ -180,7 +180,7 @@ def test_tabular_mapping_rejects_missing_required_column(tmp_path):
 
 
 @pytest.mark.unit
-@pytest.mark.parametrize("category", ["custom_fields_row", "faq_row"])
+@pytest.mark.parametrize("category", ["tabular_row", "custom_fields_row", "faq_row"])
 def test_chunker_accepts_generic_and_legacy_row_categories(category):
     processor = object.__new__(ChunkProcessor)
     vectors = processor._chunk_parse_format([{

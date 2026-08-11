@@ -334,7 +334,7 @@ Python 단계에 붙여 넣으세요).
 
    ![config 설정](images/guardrail_setup_06b_config.jpg)
    - 워크플로우의 ID값, 인증키를 전처리기 YAML의 `guardrail:` 부분에 넣습니다.
-     - 전처리기 YAML이란, [attachment_processor_config.yaml](../../resource_dev/attachment_processor_config.yaml) , [intelligent_processor_config.yaml](../../resource_dev/intelligent_processor_config.yaml) 등의 각 전처리기별 YAML 파일입니다.
+     - 전처리기 YAML이란, `attachment_processor_config.yaml` · `intelligent_processor_config.yaml`(`genon/preprocessor/resource/`) 등의 각 전처리기별 YAML 파일입니다.
      - ID값과 인증키는 각각 `workflow_id`/`api_key`에 해당됩니다. 
 
 ### 6. 간단한 워크플로우 검증

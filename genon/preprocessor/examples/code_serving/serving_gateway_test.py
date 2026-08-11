@@ -89,16 +89,22 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 import urllib.request
 import urllib.error
 import uuid
 from pathlib import Path
 
-# health curl 에서 가져온 기본값. 필요 시 CLI 인자로 덮어쓴다.
-DEFAULT_BASE_URL = "https://genos.genon.ai"
-DEFAULT_SERVING_ID = "139"
-DEFAULT_AUTH_KEY = "b8c0b48f7b4d410699ed1aa8f2c0da8a"
+# 접속 정보는 코드에 넣지 않는다(공개 저장소). 환경변수 또는 CLI 인자로 받는다.
+#   export GENOS_BASE_URL=https://<GENOS_HOST>
+#   export GENOS_SERVING_ID=<SERVING_ID>
+#   export GENOS_AUTH_KEY=<AUTH_KEY>
+# 또는  --base-url / --serving-id / --auth-key
+# ⚠️ 인증키는 argparse default 로 두지 않는다 — ArgumentDefaultsHelpFormatter 가 --help 에
+#    "(default: <토큰>)" 으로 값을 찍어버린다. GENOS_AUTH_KEY 는 파싱 후에 해소한다(main 참고).
+DEFAULT_BASE_URL = os.environ.get("GENOS_BASE_URL", "")
+DEFAULT_SERVING_ID = os.environ.get("GENOS_SERVING_ID", "")
 
 
 def _url(args, route: str) -> str:
@@ -366,14 +372,17 @@ def build_parser() -> argparse.ArgumentParser:
                    default="e2e", help="실행 모드")
     p.add_argument("--base-url", default=DEFAULT_BASE_URL, help="게이트웨이 base URL")
     p.add_argument("--serving-id", default=DEFAULT_SERVING_ID, help="코드서빙 id")
-    p.add_argument("--auth-key", default=DEFAULT_AUTH_KEY, help="Authorization: Bearer <key>")
+    # default 를 비워 두고 env 는 파싱 후 해소 — --help 에 토큰이 노출되지 않게 한다.
+    p.add_argument("--auth-key", default="",
+                   help="Authorization: Bearer <key> (생략 시 환경변수 GENOS_AUTH_KEY)")
     p.add_argument("--file-path", default="",
                    help="파싱할 문서 경로(서버 기준). parser/e2e 에 필요")
     p.add_argument("--upload-file", default="",
                    help="업로드할 로컬 파일 경로(스크립트 실행 호스트 기준). parser_upload 에 필요. "
                         "e2e 에 지정하면 업로드 파싱을 사용")
-    p.add_argument("--chunk-size", type=int, default=0,
-                   help="청크 최대 크기(0=토큰/문자 기반 분할 안 함). 청킹 config 기본값을 덮어씀")
+    p.add_argument("--chunk-size", type=int, default=None,
+                   help="청크 최대 크기. 생략하면 전송하지 않아 서버의 chunking.chunk_size 가 쓰인다. "
+                        "값을 주면 config 를 덮어쓴다(0=크기 기반 병합·분할 끄기 — 구조 청크는 유지)")
     p.add_argument("--param", action="append", default=[], metavar="KEY=VALUE",
                    help="파싱 kwargs 오버라이드(반복 가능). "
                         "예: --param img_desc=1 --param chart_desc=1 --param chart_detection=1 --param doc_summary=1. "
@@ -391,6 +400,16 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv=None) -> int:
     args = build_parser().parse_args(argv)
+    # 인증키는 --help 노출을 피하려고 argparse default 를 비워 뒀으므로 여기서 env 로 해소한다.
+    args.auth_key = args.auth_key or os.environ.get("GENOS_AUTH_KEY", "")
+    # 접속 정보 필수 — 코드에 기본값을 두지 않으므로 여기서 안내한다.
+    missing = [n for n, v in (("--base-url (GENOS_BASE_URL)", args.base_url),
+                              ("--serving-id (GENOS_SERVING_ID)", args.serving_id),
+                              ("--auth-key (GENOS_AUTH_KEY)", args.auth_key)) if not v]
+    if missing:
+        print("접속 정보가 없습니다. 아래를 인자나 환경변수로 지정하세요:\n  - "
+              + "\n  - ".join(missing), file=sys.stderr)
+        return 2
     if args.mode == "health":
         return do_health(args)
     if args.mode == "run":

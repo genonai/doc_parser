@@ -14,9 +14,13 @@
 
 set -euo pipefail
 
-BASE="https://genos.genon.ai"
-SERVING_ID="139"
-AUTH="b8c0b48f7b4d410699ed1aa8f2c0da8a"
+# 접속 정보는 스크립트에 넣지 않는다(공개 저장소). 실행 전 환경변수로 지정:
+#   export GENOS_BASE_URL=https://<GENOS_HOST>
+#   export GENOS_SERVING_ID=<SERVING_ID>
+#   export GENOS_AUTH_KEY=<AUTH_KEY>
+BASE="${GENOS_BASE_URL:?GENOS_BASE_URL 을 지정하세요}"
+SERVING_ID="${GENOS_SERVING_ID:?GENOS_SERVING_ID 을 지정하세요}"
+AUTH="${GENOS_AUTH_KEY:?GENOS_AUTH_KEY 을 지정하세요}"
 GW="${BASE}/api/gateway/code_serving/${SERVING_ID}"
 
 # 전처리할 문서(서버 기준 경로)

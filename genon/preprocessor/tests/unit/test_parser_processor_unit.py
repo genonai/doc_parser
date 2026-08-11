@@ -164,29 +164,6 @@ class TestAudioToParseFormat:
         assert result["elements"][0]["coordinates"] == []
 
 
-# ─── _sheet_to_html ───────────────────────────────────────────────────────────
-
-@pytest.mark.unit
-class TestSheetToHtml:
-    def test_empty_data_rows_returns_empty_table_tag(self):
-        assert DocumentProcessor._sheet_to_html({"data_rows": []}) == "<table></table>"
-
-    def test_column_headers_rendered(self):
-        sheet = {"data_rows": [{"name": "Alice", "age": 30}]}
-        html = DocumentProcessor._sheet_to_html(sheet)
-        assert "<th>name</th>" in html
-        assert "<th>age</th>" in html
-
-    def test_cell_value_rendered(self):
-        sheet = {"data_rows": [{"col": "value"}]}
-        assert "<td>value</td>" in DocumentProcessor._sheet_to_html(sheet)
-
-    def test_all_data_rows_rendered(self):
-        sheet = {"data_rows": [{"x": 1}, {"x": 2}, {"x": 3}]}
-        html = DocumentProcessor._sheet_to_html(sheet)
-        assert html.count("<tr>") == 4  # 1 header + 3 data rows
-
-
 # ─── _tabular_to_parse_format ─────────────────────────────────────────────────
 
 @pytest.mark.unit
@@ -204,11 +181,24 @@ class TestTabularToParseFormat:
         assert result["elements"] == []
         assert result["usage"]["pages"] == 0
 
-    def test_one_sheet_produces_one_element(self):
+    def test_one_data_row_produces_one_tabular_row_element(self):
         result = DocumentProcessor._tabular_to_parse_format(self._make_data_dict(1))
         assert len(result["elements"]) == 1
-        assert result["elements"][0]["category"] == "table"
+        assert result["elements"][0]["category"] == "tabular_row"
         assert result["elements"][0]["page"] == 1
+
+    def test_each_data_row_produces_one_element(self):
+        data = {
+            "data": [{
+                "sheet_name": "Sheet1",
+                "sheet_index": 1,
+                "data_rows": [{"name": "Alice"}, {"name": "Bob"}],
+            }]
+        }
+        result = DocumentProcessor._tabular_to_parse_format(data)
+        assert len(result["elements"]) == 2
+        assert [e["category"] for e in result["elements"]] == ["tabular_row", "tabular_row"]
+        assert [e["metadata"]["name"] for e in result["elements"]] == ["Alice", "Bob"]
 
     def test_two_sheets_use_sequential_pages(self):
         result = DocumentProcessor._tabular_to_parse_format(self._make_data_dict(2))
@@ -221,7 +211,7 @@ class TestTabularToParseFormat:
 
     def test_element_has_required_keys(self):
         element = DocumentProcessor._tabular_to_parse_format(self._make_data_dict(1))["elements"][0]
-        for key in ("category", "content", "coordinates", "id", "page"):
+        for key in ("category", "content", "coordinates", "id", "page", "metadata"):
             assert key in element
 
 

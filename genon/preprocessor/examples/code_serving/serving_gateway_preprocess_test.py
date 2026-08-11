@@ -57,15 +57,20 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 import urllib.request
 import urllib.error
 from pathlib import Path
 
-# serving_gateway_test.py 와 동일한 기본값. 필요 시 CLI 인자로 덮어쓴다.
-DEFAULT_BASE_URL = "https://genos.genon.ai"
-DEFAULT_SERVING_ID = "139"
-DEFAULT_AUTH_KEY = "b8c0b48f7b4d410699ed1aa8f2c0da8a"
+# 접속 정보는 코드에 넣지 않는다(공개 저장소). 환경변수 또는 CLI 인자로 받는다.
+#   export GENOS_BASE_URL=https://<GENOS_HOST>
+#   export GENOS_SERVING_ID=<SERVING_ID>
+#   export GENOS_AUTH_KEY=<AUTH_KEY>
+# ⚠️ 인증키는 argparse default 로 두지 않는다 — ArgumentDefaultsHelpFormatter 가 --help 에
+#    "(default: <토큰>)" 으로 값을 찍어버린다. GENOS_AUTH_KEY 는 파싱 후에 해소한다(main 참고).
+DEFAULT_BASE_URL = os.environ.get("GENOS_BASE_URL", "")
+DEFAULT_SERVING_ID = os.environ.get("GENOS_SERVING_ID", "")
 
 # --mode → 게이트웨이 route 매핑. health 는 별도 처리.
 # 게이트웨이는 route 를 단일 세그먼트로만 포워딩하므로 평탄 경로(preprocess_*)를 쓴다.
@@ -209,7 +214,9 @@ def build_parser() -> argparse.ArgumentParser:
                    default="all", help="실행 모드(엔드포인트). all=attachment·intelligent·convert 순차")
     p.add_argument("--base-url", default=DEFAULT_BASE_URL, help="게이트웨이 base URL")
     p.add_argument("--serving-id", default=DEFAULT_SERVING_ID, help="코드서빙 id")
-    p.add_argument("--auth-key", default=DEFAULT_AUTH_KEY, help="Authorization: Bearer <key>")
+    # default 를 비워 두고 env 는 파싱 후 해소 — --help 에 토큰이 노출되지 않게 한다.
+    p.add_argument("--auth-key", default="",
+                   help="Authorization: Bearer <key> (생략 시 환경변수 GENOS_AUTH_KEY)")
     p.add_argument("--file-path", default="",
                    help="전처리할 문서 경로(서버 기준). health 외 모든 모드에 필요")
     p.add_argument("--chunk-size", type=int, default=None,
@@ -225,6 +232,16 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv=None) -> int:
     args = build_parser().parse_args(argv)
+    # 인증키는 --help 노출을 피하려고 argparse default 를 비워 뒀으므로 여기서 env 로 해소한다.
+    args.auth_key = args.auth_key or os.environ.get("GENOS_AUTH_KEY", "")
+    # 접속 정보 필수 — 코드에 기본값을 두지 않으므로 여기서 안내한다.
+    missing = [n for n, v in (("--base-url (GENOS_BASE_URL)", args.base_url),
+                              ("--serving-id (GENOS_SERVING_ID)", args.serving_id),
+                              ("--auth-key (GENOS_AUTH_KEY)", args.auth_key)) if not v]
+    if missing:
+        print("접속 정보가 없습니다. 아래를 인자나 환경변수로 지정하세요:\n  - "
+              + "\n  - ".join(missing), file=sys.stderr)
+        return 2
     if args.mode == "health":
         return do_health(args)
     if args.mode == "all":

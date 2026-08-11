@@ -42,11 +42,21 @@ CSV_EXTS = {".csv"}
 # 한글 등 비-ASCII 헤더를 메타데이터 KEY 로 쓰면 grpc 에러가 나므로 키 후보에서 제외한다.
 _VALID_KEY_RE = re.compile(r"^[_A-Za-z][_0-9A-Za-z]*$")
 
-# 예약 필드(컬럼 헤더가 이 이름과 충돌하면 메타 키로 쓰지 않는다)
+# 예약 필드(컬럼 헤더가 이 이름과 충돌하면 메타 키로 쓰지 않는다 → field_<hash> 로 회피).
+# 행 metadata 는 두 벡터 모델로 흘러가므로 둘의 선언 필드를 모두 덮어야 한다.
+#   - 직접처리: 아래 GenOSVectorMeta
+#   - parse→chunk 분리: facade/chunking_processor.py 의 GenOSVectorMeta (title/created_date/
+#     appendix/file_path/guardrail_categories 를 더 가짐)
+# 후자는 import 하지 않으므로(converters → facade 단방향 금지) lockstep 으로 유지한다.
+# 드리프트는 tests/unit/test_xlsx_processor.py::test_reserved_fields_cover_chunker_vector_meta 가 잡는다.
 _RESERVED_FIELDS = {
     "text", "n_char", "n_word", "n_line", "i_page", "e_page",
     "i_chunk_on_page", "n_chunk_of_page", "i_chunk_on_doc", "n_chunk_of_doc",
     "n_page", "reg_date", "chunk_bboxes", "media_files", "column_map",
+    # chunking_processor.GenOSVectorMeta 전용 필드. 컬럼 헤더가 이 이름이면
+    # 청커에서 문서 필드를 덮어쓰거나(title/file_path/appendix) 타입 검증에
+    # 걸려 요청 전체가 실패한다(created_date: int).
+    "title", "created_date", "appendix", "file_path", "guardrail_categories",
 }
 
 
@@ -431,6 +441,24 @@ def load_tables(
     return tables
 
 
+def _build_column_keys(headers: list[str]) -> tuple[list[str], dict[str, str]]:
+    """헤더 목록을 안정적인 vector property key와 원본명 map으로 변환한다."""
+    keys: list[str] = []
+    column_map: dict[str, str] = {}
+    used_keys: set[str] = set()
+    for i, name in enumerate(headers):
+        key = _stable_key(name) or f"col_{i + 1}"
+        base, k = key, 2
+        while key in used_keys:
+            key = f"{base}_{k}"
+            k += 1
+        used_keys.add(key)
+        keys.append(key)
+        if name:
+            column_map[key] = name
+    return keys, column_map
+
+
 def build_tabular_vectors(
     file_path: str,
     *,
@@ -464,19 +492,7 @@ def build_tabular_vectors(
         data_rows = table["data_rows"]
 
         # 헤더 기반 안정 키(같은 헤더=같은 키) + column_map(원본명 보존). 표 내 충돌만 suffix.
-        keys: list[str] = []
-        column_map: dict[str, str] = {}
-        used_keys: set[str] = set()
-        for i, name in enumerate(headers):
-            key = _stable_key(name) or f"col_{i + 1}"
-            base, k = key, 2
-            while key in used_keys:
-                key = f"{base}_{k}"
-                k += 1
-            used_keys.add(key)
-            keys.append(key)
-            if name:
-                column_map[key] = name
+        keys, column_map = _build_column_keys(headers)
         column_map_json = json.dumps(column_map, ensure_ascii=False)
         header_line = _row_to_pipe(headers)
 
@@ -522,7 +538,7 @@ def build_tabular_data_dict(
     header_row: int = 0,
     multi_table: bool = False,
 ) -> dict:
-    """xlsx/csv → {"data":[{"sheet_name","title","data_rows":[{col:val}]}]} (중립 표현).
+    """xlsx/csv → {"data":[{"sheet_name","sheet_index","title","data_rows":[...]}]} 중립 표현.
 
     표 감지(멀티헤더 자동 + 1시트 복수표)는 load_tables 에 위임하고, 각 행을 헤더명 key 의 dict 로
     만든다. parser 의 _parse_tabular 와 동일 산출물(단일 소스). TabularCustomFieldsMapper.to_parse_format
@@ -531,7 +547,10 @@ def build_tabular_data_dict(
     tables = load_tables(file_path, header_row=header_row, multi_table=multi_table)
     data: list[dict] = []
     for t in tables:
-        headers = t["headers"]
+        # 헤더가 빈 컬럼(이름 없이 값만 있는 열)은 위치 기반 이름으로 채운다. 빈 이름이 둘 이상이면
+        # 아래 dict(zip) 이 같은 key("")로 뭉개져 컬럼이 조용히 사라진다. 이름 규칙은 직접처리 경로
+        # _build_column_keys 의 fallback(col_{i+1})과 동일해 두 경로의 key 가 일치한다.
+        headers = [h or f"col_{i + 1}" for i, h in enumerate(t["headers"])]
         # 정확히 동일한 헤더명이 있으면 dict(zip) 이 앞 컬럼을 조용히 덮어써 데이터가 소실된다
         # (이후 _header_index 는 정규화 후 충돌만 감지 → 원본 중복은 못 잡음). 여기서 명확히 거부한다.
         dup_headers = [h for h, cnt in Counter(headers).items() if h and cnt > 1]
@@ -540,10 +559,65 @@ def build_tabular_data_dict(
         data_rows = [dict(zip(headers, values, strict=False)) for values in t["data_rows"]]
         data.append({
             "sheet_name": t["sheet_name"],
+            "sheet_index": t["sheet_index"],
             "title": t["title"],
             "data_rows": data_rows,
         })
     return {"data": data}
+
+
+def tabular_data_to_parse_format(data_dict: dict) -> dict:
+    """tabular 중립 표현을 행별 parse-format element로 변환한다.
+
+    ``formats.xlsx.processing_mode=tabular``의 parser/chunker 분리 경로에서도 직접처리 facade의
+    :func:`build_tabular_vectors`와 동일하게 데이터 행 하나가 청크 하나가 되도록 한다. 각 element의
+    metadata에는 안정적인 컬럼 key와 원본 헤더를 보존하는 ``column_map``을 넣는다.
+    """
+    elements: list[dict] = []
+    sheets = data_dict.get("data", []) or []
+
+    for fallback_page, sheet in enumerate(sheets, start=1):
+        page = sheet.get("sheet_index", fallback_page)
+        try:
+            page = int(page or fallback_page)
+        except (TypeError, ValueError):
+            page = fallback_page
+
+        sheet_name = str(sheet.get("sheet_name") or f"sheet_{page}")
+        title_text = str(sheet.get("title") or "").strip()
+        rows = [row for row in (sheet.get("data_rows") or []) if isinstance(row, dict)]
+        if not rows:
+            continue
+
+        headers = list(rows[0].keys())
+        keys, column_map = _build_column_keys(headers)
+        column_map_json = json.dumps(column_map, ensure_ascii=False)
+        header_line = _row_to_pipe(headers)
+
+        for row in rows:
+            values = [_cell_str(row.get(header)) for header in headers]
+            text_parts = [f"시트명: {sheet_name}"]
+            if title_text:
+                text_parts.append(title_text)
+            text_parts.append(header_line)
+            text_parts.append(_row_to_pipe(values))
+            row_fields = {keys[i]: values[i] for i in range(len(keys))}
+            elements.append({
+                "category": "tabular_row",
+                "content": "\n".join(text_parts),
+                "coordinates": [],
+                "id": len(elements),
+                "page": page,
+                "metadata": {
+                    **row_fields,
+                    "column_map": column_map_json,
+                },
+            })
+
+    return {
+        "elements": elements,
+        "usage": {"pages": len(sheets)},
+    }
 
 
 def build_tabular_custom_fields_vectors(

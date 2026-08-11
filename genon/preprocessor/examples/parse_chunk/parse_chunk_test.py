@@ -190,10 +190,12 @@ def parse_args():
     ap.add_argument(
         "--doc_type",
         default=None,
-        help="문서 구분(kwargs). 'faq'=xlsx 를 행마다 1청크로 컬럼→목표필드 매핑, "
-             "'card'=문서 메타에 doc_type 스탬프. 미지정 시 기존 동작.",
+        help="문서 구분(kwargs). 'faq'=tabular 행의 컬럼을 목표 custom field로 매핑, "
+             "'card'=문서 메타에 doc_type 스탬프. 행별 청크 여부는 processing_mode가 결정.",
     )
-    ap.add_argument("--chunk-size", type=int, default=10000, help="청크 최대 크기 (0=토큰/문자 분할 안 함, 0 초과 시 최소 1024)")
+    ap.add_argument("--chunk-size", type=int, default=10000,
+                    help="청크 최대 크기 (0=크기 기반 병합·분할 끄기 — docling 입력은 구조 청크가 그대로 "
+                         "남아 여러 개, parse-format 입력은 요소당 1개. 0 초과 시 최소 1024)")
     ap.add_argument(
         "--chunk-mode",
         choices=["split_only", "resize_all"],

@@ -65,7 +65,10 @@ def _error_response(tag: str, file_path: str, exc: Exception, error_code=None, s
     etype = type(exc).__name__
     raw_msg = getattr(exc, 'error_msg', None) or str(exc) or etype
     if error_code is None:
-        error_code = _classify_error(exc)
+        # facade 는 GenosServiceException 로컬 사본을 던지므로 전용 핸들러가 아니라 이 경로로 온다.
+        # stage/error_type 과 같이 속성 이름으로 error_code 를 살려, facade 가 부여한 코드가
+        # INTERNAL_ERROR 로 뭉개지지 않게 한다. 속성이 없거나 비면 타입 기반 자동 분류.
+        error_code = getattr(exc, 'error_code', None) or _classify_error(exc)
     # errMsg: 사람이 보는 메시지에 컨텍스트(엔드포인트·예외타입) 보강
     err_msg = f'[{tag}] {etype}: {raw_msg}'
     tb = traceback.format_exc()

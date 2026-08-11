@@ -1,20 +1,20 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# sync-serving-repo.sh — 코드서빙 배포본을 별도 Private repo(서브모듈)로 생성/갱신한다.
+# sync-serving-repo.sh — 코드서빙 배포본을 별도 공개 repo로 생성/갱신한다.
 #
 # 동작: 배포에 필요한 것만(whitelist: genon/ + main.py + requirements.txt) 서브모듈 폴더 `code-serving/`에
 #       재생성하고, docling wheel 을 packages/ 로 동봉 + requirements.txt 에 wheel 경로 append +
 #       배포본 root README.md(코드서빙 사용 가이드, build-script/code-serving-README.md) 복사 +
-#       requirements-dev.txt(로컬 facade/test.py 실행 전용 deps) 생성 후,
-#       서브모듈(=배포본 repo genonai/doc_parser_code_serving) 안에서 commit/push 한다.
+#       requirements-dev.txt(로컬 facade/test.py 실행 전용 deps)와 .gitignore 생성 후,
+#       배포본 repo(genonai/doc_parser_code_serving) 안에서 commit/push 한다.
 #
 # 왜: 코드서빙은 GenOS 가 런타임에 배포본 repo 를 /app/src/service 로 clone 해 main.py 를 띄우고,
 #     그 전에 requirements.txt 를 pip install 한다. docling(fork) 소스는 배포본에 넣지 않고 wheel 로만
 #     동봉하면(소스 폴더 비노출), pip 이 requirements.txt 의 wheel 경로를 그대로 설치한다. index 불필요.
 #     (wheel 빌드는 build-docling-wheel.sh)
 #
-# 사전 준비(1회): 배포본 repo(Private) 를 로컬 클론 (doc_parser 는 이 폴더를 추적하지 않음 — .gitignore)
+# 사전 준비(1회): 공개 배포본 repo 를 로컬 클론 (doc_parser 는 이 폴더를 추적하지 않음 — .gitignore)
 #   git clone git@github.com:genonai/doc_parser_code_serving.git code-serving
 #   → push 는 SERVING_DIR 의 origin 이 배포본 repo 와 일치하는 클론일 때만 허용된다(무관 repo 보호).
 #     서브모듈로 등록할 필요 없음.
@@ -84,6 +84,12 @@ EXCLUDE_PATHS=(
   "genon/tools"                              # CLI 도구(런타임 무관)
   "genon/preprocessor/resources"             # 폰트·tessdata tar (베이스 이미지에 이미 포함)
   "genon/preprocessor/scripts"               # 이미지 등록 스크립트
+  # 사내 전용 문서 — 공개 배포본에 나갈 필요가 없고, 배포본에 없는 폴더(build-script/·docling/·docs/)를
+  # 안내해 오히려 혼란을 준다. 코드서빙 사용/설치 안내는 배포본 root README.md 가 담당한다.
+  "genon/README.md"                          # 사내 개발 문서(이미지 빌드·paddle·vllm)
+  "genon/MAINTAINERS.md"                     # docling 원본 메인테이너 잔존물
+  "genon/dotsocr_vllm_max_num_seqs.md"       # 사내 모델 서빙 튜닝 메모
+  "genon/preprocessor/facade/README.md"      # 구버전 facade 문서(현재 트리와 불일치). 대체: gitbook_doc/
 )
 
 SOURCE_COMMIT="$(git -C "${ROOT_DIR}" rev-parse "${SOURCE_REF}")"
@@ -188,24 +194,67 @@ else
   echo "[WARN] README 소스가 없어 건너뜀: ${SERVING_README}"
 fi
 
-# ── 2c) requirements-dev.txt 생성 (로컬 bare-metal 에서 facade/test.py 실행용) ──
+# ── 2c) requirements-dev.txt 생성 (로컬 bare-metal 에서 facade 직접 실행용) ──
 # 운영(코드서빙)은 base 이미지에 이 deps 가 이미 포함되어 런타임은 requirements.txt(docling wheel)만
 # 설치한다. 로컬에서 서빙 없이 전처리기를 직접 돌릴 때만 이 파일이 추가로 필요하다(README 부록 참고).
+# ⚠️ intelligent facade 는 fastapi/httpx 만으로 import 되지만, parser·chunking·attachment·convert 는
+#    모듈 최상위에서 fitz(pymupdf)/langchain*/markdown2/pydub 를 import 한다. 이들이 없으면 로컬에서
+#    facade import 자체가 실패하므로 함께 담는다 (외부 개발자의 주 작업 대상이 parser/chunker).
 # DEST 는 매 실행 새로 재생성(1) 단계)되므로 누적/중복 없음.
 {
   echo "# ---- sync-serving-repo.sh 가 생성: 로컬 실행 전용 (직접 편집 금지) ----"
-  echo "# 로컬 bare-metal 에서 genon/preprocessor/facade/test.py(지능형/PDF) 실행 시에만 필요."
+  echo "# 로컬 bare-metal 에서 genon/preprocessor/facade/*_processor.py 를 직접 실행할 때만 필요."
   echo "# 운영 코드서빙 base 이미지엔 이미 포함 → 런타임은 requirements.txt(docling wheel)만 설치한다."
   echo "# 사용:  uv pip install -r requirements.txt      # docling wheel"
-  echo "#       uv pip install -r requirements-dev.txt   # 아래 4개"
+  echo "#       uv pip install -r requirements-dev.txt   # 아래 목록"
+  echo ""
+  echo "# 공통(모든 facade)"
   echo "fastapi"
   echo "httpx"
   echo "grpcio"
   echo "protobuf"
+  echo ""
+  echo "# parser / chunking / attachment / convert facade 의 모듈 최상위 import"
+  echo "pymupdf"                  # import fitz
+  echo "langchain-community"
+  echo "langchain-core"
+  echo "langchain-text-splitters"
+  echo "markdown2"
+  echo "pydub"
+  echo "chardet"                  # parser/attachment 의 인코딩 감지 (없으면 import 시 RuntimeError)
 } > "${DEST}/requirements-dev.txt"
 echo "[INFO] requirements-dev.txt 생성: ${DEST}/requirements-dev.txt"
 
-# ── 2d) VERSION 스탬프 생성 (배포본 ↔ 원본 릴리스 연결 + 산출물 자가 식별) ──────
+# ── 2d) 배포본 root .gitignore 생성 ─────────────────────────────────────────
+# 로컬 개발 산출물과 오프라인 설치 키트가 실수로 gitea 배포 저장소에 커밋되지 않도록 한다.
+# DEST 는 매 실행 새로 재생성되므로 이 파일도 배포 스크립트가 단일 정본으로 관리한다.
+cat > "${DEST}/.gitignore" <<'EOF'
+# Python virtual environments and caches
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# IDE / OS files
+.DS_Store
+.idea/
+
+# Local test outputs
+genon/preprocessor/facade/result.json
+genon/preprocessor/examples/parse_chunk/result_parse_chunk/
+genon/preprocessor/examples/code_serving/result_serving_gateway_test/
+
+# Platform-specific offline development kits (distribute separately; do not commit)
+offline-dev-kit/
+wheelhouse/
+EOF
+echo "[INFO] .gitignore 생성: ${DEST}/.gitignore"
+
+# ── 2e) VERSION 스탬프 생성 (배포본 ↔ 원본 릴리스 연결 + 산출물 자가 식별) ──────
 # 원본 릴리스 태그·SHA·wheel 을 배포본에 새긴다. 배포된 산출물이 자기 버전을 식별 가능.
 # ⚠️ 결정적 값(원본에서 파생)만 사용 — now() 타임스탬프 금지. 넣으면 매 실행 diff 가 생겨
 #    아래 4) 의 "변경 없음 스킵"이 깨진다. 날짜는 원본 커밋 날짜(고정값)만 쓴다.
@@ -247,11 +296,15 @@ if [[ ! -f "${DEST}/requirements-dev.txt" ]]; then
   echo "[ERROR] requirements-dev.txt 가 생성되지 않았습니다." >&2
   exit 1
 fi
+if [[ ! -f "${DEST}/.gitignore" ]]; then
+  echo "[ERROR] .gitignore 가 생성되지 않았습니다." >&2
+  exit 1
+fi
 if [[ ! -f "${DEST}/VERSION" ]]; then
   echo "[ERROR] VERSION 스탬프가 생성되지 않았습니다." >&2
   exit 1
 fi
-echo "[SMOKE] 배포본 청결성 OK — docling 소스 없음, genon/+main.py 존재, packages/${WHEEL_NAME} 동봉됨, requirements-dev.txt·VERSION 생성됨"
+echo "[SMOKE] 배포본 청결성 OK — docling 소스 없음, genon/+main.py 존재, packages/${WHEEL_NAME} 동봉됨, requirements-dev.txt·.gitignore·VERSION 생성됨"
 echo "[INFO] 배포본 조립 위치: ${DEST}  (원본 커밋 ${SOURCE_COMMIT})"
 
 # ── 4) 배포본 클론이면 commit/push ──────────────────────────────────────────

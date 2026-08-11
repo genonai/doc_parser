@@ -73,6 +73,141 @@ def test_tabular_merged_title_and_ascii_keys(tmp_path):
 
 
 @pytest.mark.unit
+def test_tabular_parse_format_is_one_element_per_row_without_doc_type(tmp_path):
+    """parser/chunker 분리 경로도 doc_type 없이 직접처리 facade와 동일한 행 단위를 유지한다."""
+    xp = _xp()
+    path = _make_xlsx(
+        tmp_path / "rows.xlsx",
+        rows=[
+            ["name", "age"],
+            ["Alice", "30"],
+            ["Bob", "25"],
+        ],
+    )
+
+    data = xp.build_tabular_data_dict(str(path))
+    result = xp.tabular_data_to_parse_format(data)
+    vectors = xp.build_tabular_vectors(str(path))
+
+    assert len(result["elements"]) == len(vectors) == 2
+    assert all(e["category"] == "tabular_row" for e in result["elements"])
+    assert [e["content"] for e in result["elements"]] == [v.text for v in vectors]
+    assert [e["metadata"]["name"] for e in result["elements"]] == ["Alice", "Bob"]
+    assert result["elements"][0]["metadata"]["column_map"] == vectors[0].column_map
+
+
+@pytest.mark.unit
+def test_tabular_parse_format_multi_table_keeps_row_parity(tmp_path):
+    """1시트 복수표에서도 행 수·text·page(=i_page) 가 직접처리와 일치한다."""
+    xp = _xp()
+    path = _make_xlsx(
+        tmp_path / "multi.xlsx",
+        rows=[
+            ["name", "age"],
+            ["Alice", "30"],
+            [None, None],          # 빈 행 → 표 분리
+            ["item", "qty"],
+            ["pen", "2"],
+        ],
+    )
+
+    data = xp.build_tabular_data_dict(str(path), multi_table=True)
+    result = xp.tabular_data_to_parse_format(data)
+    vectors = xp.build_tabular_vectors(str(path), multi_table=True)
+
+    assert len(result["elements"]) == len(vectors) == 2
+    assert [e["content"] for e in result["elements"]] == [v.text for v in vectors]
+    # 같은 시트의 복수 표는 같은 page 로 나간다(직접처리 i_page 와 동일 규약).
+    # 단 i_chunk_on_page/n_chunk_of_page 는 직접처리가 '표 단위', 청커가 'page 단위'라 다르다.
+    assert [e["page"] for e in result["elements"]] == [v.i_page for v in vectors] == [1, 1]
+
+
+@pytest.mark.unit
+def test_tabular_reserved_header_is_aliased(tmp_path):
+    """벡터 모델 선언 필드와 같은 이름의 컬럼은 메타 KEY 로 쓰지 않고 alias 로 회피한다."""
+    xp = _xp()
+    path = _make_xlsx(
+        tmp_path / "reserved.xlsx",
+        rows=[
+            ["name", "created_date", "title"],
+            ["Alice", "2024-01-01", "보고서"],
+            ["Bob", "2024-02-01", "공지"],
+        ],
+    )
+
+    element = xp.tabular_data_to_parse_format(
+        xp.build_tabular_data_dict(str(path))
+    )["elements"][0]
+    meta = element["metadata"]
+
+    # 청커 GenOSVectorMeta 의 created_date(int)/title(str) 을 셀 값이 침범하면 안 된다.
+    assert "created_date" not in meta and "title" not in meta
+    assert set(json.loads(meta["column_map"]).values()) == {"name", "created_date", "title"}
+    # 값 자체는 alias 키와 text 에 그대로 보존된다.
+    assert "2024-01-01" in meta.values()
+    assert "2024-01-01" in element["content"]
+    # 직접처리 경로도 동일하게 회피한다.
+    assert "created_date" not in xp.build_tabular_vectors(str(path))[0].model_dump()
+
+
+@pytest.mark.unit
+def test_reserved_fields_cover_chunker_vector_meta():
+    """_RESERVED_FIELDS 는 행 metadata 가 흘러가는 청커 모델의 선언 필드를 모두 덮어야 한다."""
+    xp = _xp()
+    cp = pytest.importorskip("facade.chunking_processor")
+
+    missing = set(cp.GenOSVectorMeta.model_fields) - xp._RESERVED_FIELDS
+    assert not missing, f"_RESERVED_FIELDS 에 누락된 청커 벡터 필드: {sorted(missing)}"
+
+
+@pytest.mark.unit
+def test_duplicate_headers_rejected_only_in_split_path(tmp_path):
+    """중복 헤더: 직접처리는 suffix 로 통과, parse→chunk 분리 경로는 명시적으로 거부(기존 동작)."""
+    xp = _xp()
+    path = _make_xlsx(
+        tmp_path / "dup.xlsx",
+        rows=[
+            ["name", "name", "age"],
+            ["A", "B", "1"],
+            ["C", "D", "2"],
+        ],
+    )
+
+    assert len(xp.build_tabular_vectors(str(path))) == 2
+    with pytest.raises(ValueError, match="중복되는 Excel 컬럼"):
+        xp.build_tabular_data_dict(str(path))
+
+
+@pytest.mark.unit
+def test_blank_headers_keep_distinct_columns(tmp_path):
+    """헤더가 빈 컬럼이 둘 이상이어도 값이 소실되지 않는다(빈 이름 → col_N 으로 구분).
+
+    빈 이름을 그대로 두면 dict(zip) 이 같은 key("")로 뭉개져 마지막 컬럼만 남는다.
+    """
+    xp = _xp()
+    path = _make_xlsx(
+        tmp_path / "blank_headers.xlsx",
+        rows=[
+            ["표 제목", "", ""],
+            ["name", "", ""],       # 2·3번째 컬럼은 헤더 없이 값만 있다
+            ["A", "b1", "c1"],
+            ["B", "b2", "c2"],
+        ],
+    )
+
+    rows = xp.build_tabular_data_dict(str(path), header_row=1)["data"][0]["data_rows"]
+    assert [sorted(r) for r in rows] == [["col_2", "col_3", "name"]] * 2
+    assert (rows[0]["name"], rows[0]["col_2"], rows[0]["col_3"]) == ("A", "b1", "c1")
+
+    # parse-format(행별 element)까지 살아남는지 — 세 컬럼 값이 metadata 에 모두 실린다.
+    data_dict = xp.build_tabular_data_dict(str(path), header_row=1)
+    elements = xp.tabular_data_to_parse_format(data_dict)["elements"]
+    assert len(elements) == 2
+    meta = elements[0]["metadata"]
+    assert (meta["name"], meta["col_2"], meta["col_3"]) == ("A", "b1", "c1")
+
+
+@pytest.mark.unit
 def test_tabular_merged_body_forward_fill(tmp_path):
     """본문 병합셀(그룹 컬럼)이 unmerge 후 forward-fill 되어 모든 행에 값이 채워진다."""
     xp = _xp()

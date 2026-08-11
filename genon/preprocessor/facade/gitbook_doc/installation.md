@@ -49,7 +49,7 @@ GenOS 웹 UI에서 등록을 시작하기 전에 사이트에 가져와야 할 �
 
 **엔지니어들은 사이트에서 Doc Parser 이미지를 직접 빌드하지 않고,** 사내 GenOS 도커 레지스트리에 이미 빌드되어 올라와 있는 이미지를 받아 사이트로 운반합니다.
 
-> **예외 — rhwp / LibreOffice 를 빼야 하는 사이트:** 사이트 정책상 `rhwp` · `LibreOffice` 패키지를 이미지에 넣을 수 없는 경우에는, **운영계에 올라온 이미지를 그대로 쓸 수 없고 전처리기 이미지를 새로 빌드해야 합니다** (운영 이미지에는 두 패키지가 포함돼 있음). 빌드 시 `INSTALL_LIBREOFFICE=false` / `INSTALL_RHWP=false` 로 끄고 빌드하며, 절차는 [`genon/README.md` "A-2. (선택) rhwp / LibreOffice 제외 빌드"](../../../README.md#a-2-선택-rhwp--libreoffice-제외-빌드-이슈-286) 를 참고하세요. <br> 이렇게 빌드한 이미지에는 타 확장자(HWP·docx·ppt 등) → PDF 변환 로직이 없습니다. 영향은 전처리기 종류에 따라 다릅니다. <br> · **적재형(지능형)** — PDF 가 아닌 입력을 내부적으로 PDF 로 변환한 뒤 파싱하므로, 변환기가 없으면 HWP·docx·ppt 등 **PDF 가 아닌 문서는 처리하지 못합니다**(명확한 안내 메시지와 함께 실패). 따라서 이 사이트에서는 **이미 PDF 로 변환된 문서를 업로드**해야 합니다. <br> · **첨부형 / 변환형 / 파싱형** — HWP·HWPX 는 이미지에 항상 포함되는 **HWP SDK** 로, docx·ppt 는 원본을 직접 파싱하므로 변환 backend 없이도 동작합니다(영향이 적음). 다만 변환형(`convert_processor`)의 PDF 표준화 산출물 등 일부 부가 기능은 제한됩니다.
+> **예외 — rhwp / LibreOffice 를 빼야 하는 사이트:** 사이트 정책상 `rhwp` · `LibreOffice` 패키지를 이미지에 넣을 수 없는 경우에는, **운영계에 올라온 이미지를 그대로 쓸 수 없고 전처리기 이미지를 새로 빌드해야 합니다** (운영 이미지에는 두 패키지가 포함돼 있음). 빌드 시 `INSTALL_LIBREOFFICE=false` / `INSTALL_RHWP=false` 로 끄고 빌드하며, 절차는 사내 원본 저장소 `genon/README.md` 의 "A-2. (선택) rhwp / LibreOffice 제외 빌드" 를 참고하세요. <br> 이렇게 빌드한 이미지에는 타 확장자(HWP·docx·ppt 등) → PDF 변환 로직이 없습니다. 영향은 전처리기 종류에 따라 다릅니다. <br> · **적재형(지능형)** — PDF 가 아닌 입력을 내부적으로 PDF 로 변환한 뒤 파싱하므로, 변환기가 없으면 HWP·docx·ppt 등 **PDF 가 아닌 문서는 처리하지 못합니다**(명확한 안내 메시지와 함께 실패). 따라서 이 사이트에서는 **이미 PDF 로 변환된 문서를 업로드**해야 합니다. <br> · **첨부형 / 변환형 / 파싱형** — HWP·HWPX 는 이미지에 항상 포함되는 **HWP SDK** 로, docx·ppt 는 원본을 직접 파싱하므로 변환 backend 없이도 동작합니다(영향이 적음). 다만 변환형(`convert_processor`)의 PDF 표준화 산출물 등 일부 부가 기능은 제한됩니다.
 
 - 이미지는 `BUILD_VARIANT` (`standard` / `synap`) × `HW_VARIANT` (`cpu` / `gpu`) 의 조합으로 **4가지 태그**가 있습니다.
 
@@ -83,10 +83,10 @@ docker save mncregistry:30500/mnc/doc-parser-preprocessor:2.2.0 \
 gunzip -c doc-parser-preprocessor-2.2.0.tar.gz | docker load
 ```
 
-- 사이트 GenOS 레지스트리·DB에 등록은 [`genon/preprocessor/scripts/register_image.sh`](../../scripts/register_image.sh) 로 처리합니다. 
+- 사이트 GenOS 레지스트리·DB에 등록은 사내 원본 저장소의 `genon/preprocessor/scripts/register_image.sh` 로 처리합니다. 
   - 동일 디렉토리의 `register.config` 에 받아온 이미지와 같은 `IMAGE_VERSION` / `BUILD_VARIANT` / `HW_VARIANT` 를 입력한 뒤 실행하세요.
-  - 단계별 상세 절차(레지스트리 push·DB 등록, 폐쇄망 사이트에서 `docker save → load → register_image.sh` 운반 흐름)는 [`genon/README.md` "C. 레지스트리 등록 (6~7번)"](../../../README.md#c-레지스트리-등록-67번) 과 [`"D. 사이트 배포 (8번)"`](../../../README.md#d-사이트-배포-8번) 참고.
-- 빌드 정책·variant 의미·태그 규칙 등 빌드 측 상세는 [`genon/README.md` "전처리기 빌드 및 등록"](../../../README.md) 참고.
+  - 단계별 상세 절차(레지스트리 push·DB 등록, 폐쇄망 사이트에서 `docker save → load → register_image.sh` 운반 흐름)는 사내 원본 저장소 `genon/README.md` 의 "C. 레지스트리 등록 (6~7번)" 과 "D. 사이트 배포 (8번)" 참고.
+- 빌드 정책·variant 의미·태그 규칙 등 빌드 측 상세는 사내 원본 저장소 `genon/README.md` 의 "전처리기 빌드 및 등록" 참고.
 
 ### 2.2 PaddleOCR · dots.ocr vllm 서빙 (직접 빌드 후 사이트 운반)
 
@@ -96,12 +96,12 @@ OCR 엔진(Paddle)과 Layout 모델 서빙(dots.ocr vllm)은 **사내 운영계 
 
 **PaddleOCR**
 
-- 빌드/배포 가이드: [`genon/README.md#paddle-ocr-빌드-및-배포`](../../../README.md#paddle-ocr-빌드-및-배포)
+- 빌드/배포 가이드: 사내 원본 저장소 `genon/README.md` 의 "paddle-ocr 빌드 및 배포"
 - 빌드 후 PaddleOCR 서버가 클러스터 내부에서 접근 가능한 주소(예: `http://paddle-ocr-service:8080/ocr` 형태)를 메모해 두세요. <br> 5단계 YAML 의 `ocr.paddle.ocr_endpoint` 에 해당 주소를 입력해야 합니다.
 
 **dots.ocr vllm 서빙 (Layout 모델)**
 
-- 모델 다운로드 + vllm 서빙 명령어 옵션 안내: [`genon/README.md#dots-mocr-vllm-서빙`](../../../README.md#dots-mocr-vllm-서빙)
+- 모델 다운로드 + vllm 서빙 명령어 옵션 안내: 사내 원본 저장소 `genon/README.md` 의 "dots mocr vllm 서빙"
 - GenOS 모델서빙으로 등록하는 일반 절차(vllm 사용): [Multi-Modal Serving 가이드 (GitBook)](https://genos-docs.gitbook.io/default/advanced-tutorials/guides/serving/multi-modal-serving)
 - 위 안내를 따라 빌드·실행한 vllm 서버를 GenOS 모델서빙으로 등록한 뒤, 그 **서빙 ID**를 메모해 두세요. 다음 2.3 절의 `<LAYOUT_SERVING_ID>` 자리에 들어갑니다.
 
@@ -371,4 +371,4 @@ python test.py
 
 - 전처리기 개념 및 4종 facade 비교: [intro.md](intro.md)
 - 각 facade 동작 상세: [attachment](attachment_processor.md) / [convert](convert_processor.md) / [parser](parser_processor.md) / [intelligent](intelligent_processor.md)
-- 이미지 빌드·등록 측 상세: [`genon/README.md`](../../../README.md)
+- 이미지 빌드·등록 측 상세: 사내 원본 저장소 `genon/README.md`

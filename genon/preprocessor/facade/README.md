@@ -202,9 +202,9 @@ processor.set_processor_option('pdf', 'chunking.max_tokens', 1536)
         "toc_api_provider": "custom",
         "toc_api_base_url": "http://llmops-gateway-api-service:8080/serving/364/1073/v1/chat/completions",
         "metadata_api_base_url": "http://llmops-gateway-api-service:8080/serving/364/1073/v1/chat/completions",
-        "toc_api_key": "a2ffe48f40ab4cf9a0699deac1c0cb76",
-        "metadata_api_key": "a2ffe48f40ab4cf9a0699deac1c0cb76",
-        "toc_model": "/model/snapshots/9eb2daaa8597bf192a8b0e73f848f3a102794df5"
+        "toc_api_key": "<API_KEY>",
+        "metadata_api_key": "<API_KEY>",
+        "toc_model": "<MODEL_NAME_OR_PATH>"
       },
       "pipeline": {
         "do_ocr": false,

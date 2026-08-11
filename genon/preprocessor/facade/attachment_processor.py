@@ -206,7 +206,9 @@ except ImportError:
     raise RuntimeError("Module 'chardet' not imported. Run `pip install chardet`.")
 try:
     from weasyprint import HTML
-except ImportError:
+except (ImportError, OSError):
+    # OSError: weasyprint 는 설치돼 있으나 네이티브 라이브러리(libgobject-2.0 등)가 없는 환경.
+    # parser_processor.py 의 동일 블록과 같은 형태를 유지한다.
     print("Warning: WeasyPrint could not be imported. PDF conversion features will be disabled.")
     HTML = None
 
