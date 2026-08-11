@@ -209,8 +209,8 @@ python serving_gateway_test.py --mode chunker --doc-json /tmp/doc.json --chunk-s
 주요 인자: `--mode`(health/parser/parser_upload/chunker/e2e), `--base-url`, `--serving-id`, `--auth-key`,
 `--file-path`, `--chunk-size`, `--param KEY=VALUE`(임의 `params` 오버라이드, 반복 가능).
 
-> `--chunk-size` 를 생략하면 `0`(분할 안 함)이 전송되어 청크가 1개만 나옵니다. config 값을 쓰려면
-> 값을 명시하세요.
+> `--chunk-size` 를 생략하면 필드를 아예 보내지 않아 **서빙 config 의 `chunking.chunk_size` 가
+> 적용**됩니다. 크기 기반 병합·분할을 끄려면 `--chunk-size 0` 을 명시하세요.
 
 ## 에러 응답
 

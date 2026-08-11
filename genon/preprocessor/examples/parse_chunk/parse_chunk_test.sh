@@ -58,13 +58,14 @@ RUN="run-1"
 # 결과 확인: cat "${OUT}/card02.docling.metadata.json"
 # --doc_type card: 모든 청크에 doc_type="card" 스탬프(기존 12필드 유지).
 
-# ── monimo FAQ 엑셀 → parser(tabular 행별) → chunker (행마다 1청크, 컬럼→목표필드 매핑) ─────────
-# doc_type=faq 이면 xlsx 를 시트 HTML 통짜가 아니라 "행=청크" 로 처리하고, 각 행 컬럼을
-# custom_field_faq.yaml 매핑으로 목표 필드(question/answer_text/category_code/... + doc_type)로 부착한다.
+# ── monimo FAQ 엑셀 → parser(tabular 행별) → chunker (행마다 1청크) ───────────────────────────
+# processing_mode=tabular 이면 doc_type 없이도 "행=청크" 로 처리한다.
+# doc_type=faq 는 각 행 컬럼을 custom_field_faq.yaml의 목표 필드
+# (question/answer_text/category_code/... + doc_type)로 매핑할 때만 사용한다.
 # LLM 미호출 → 모델서버 불필요. (증권/카드 FAQ 도 동일 스키마라 같은 매핑으로 처리)
 # FAQ_SRC="../../../../shkim_labs/20260803_monimo/02_faq/증권FAQ_260712.xlsx"
 # "${PYTHON}" parse_chunk_test.py --doc_type faq "${FAQ_SRC}" "${OUT}/"
-# 결과 확인: 행마다 1청크 + 목표 메타 부착
+# 결과 확인: 행마다 1청크. --doc_type faq 사용 시 목표 custom field도 부착.
 #   ls "${OUT}"/생명FAQ_260712.chunks.json
 #   "${PYTHON}" -c "import json;d=json.load(open('${OUT}/생명FAQ_260712.chunks.json'));print(len(d));print(d[0])"
 

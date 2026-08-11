@@ -179,6 +179,35 @@ def test_duplicate_headers_rejected_only_in_split_path(tmp_path):
 
 
 @pytest.mark.unit
+def test_blank_headers_keep_distinct_columns(tmp_path):
+    """헤더가 빈 컬럼이 둘 이상이어도 값이 소실되지 않는다(빈 이름 → col_N 으로 구분).
+
+    빈 이름을 그대로 두면 dict(zip) 이 같은 key("")로 뭉개져 마지막 컬럼만 남는다.
+    """
+    xp = _xp()
+    path = _make_xlsx(
+        tmp_path / "blank_headers.xlsx",
+        rows=[
+            ["표 제목", "", ""],
+            ["name", "", ""],       # 2·3번째 컬럼은 헤더 없이 값만 있다
+            ["A", "b1", "c1"],
+            ["B", "b2", "c2"],
+        ],
+    )
+
+    rows = xp.build_tabular_data_dict(str(path), header_row=1)["data"][0]["data_rows"]
+    assert [sorted(r) for r in rows] == [["col_2", "col_3", "name"]] * 2
+    assert (rows[0]["name"], rows[0]["col_2"], rows[0]["col_3"]) == ("A", "b1", "c1")
+
+    # parse-format(행별 element)까지 살아남는지 — 세 컬럼 값이 metadata 에 모두 실린다.
+    data_dict = xp.build_tabular_data_dict(str(path), header_row=1)
+    elements = xp.tabular_data_to_parse_format(data_dict)["elements"]
+    assert len(elements) == 2
+    meta = elements[0]["metadata"]
+    assert (meta["name"], meta["col_2"], meta["col_3"]) == ("A", "b1", "c1")
+
+
+@pytest.mark.unit
 def test_tabular_merged_body_forward_fill(tmp_path):
     """본문 병합셀(그룹 컬럼)이 unmerge 후 forward-fill 되어 모든 행에 값이 채워진다."""
     xp = _xp()

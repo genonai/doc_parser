@@ -246,6 +246,7 @@ htmlcov/
 # Local test outputs
 genon/preprocessor/facade/result.json
 genon/preprocessor/examples/parse_chunk/result_parse_chunk/
+genon/preprocessor/examples/code_serving/result_serving_gateway_test/
 
 # Platform-specific offline development kits (distribute separately; do not commit)
 offline-dev-kit/

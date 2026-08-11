@@ -2,12 +2,15 @@
 #   export GENOS_BASE_URL=https://<GENOS_HOST>
 #   export GENOS_SERVING_ID=<SERVING_ID>
 #   export GENOS_AUTH_KEY=<AUTH_KEY>
+#
+# 인증키는 인자로 넘기지 않습니다 — 스크립트가 읽는 python 이 GENOS_AUTH_KEY 를 직접 읽으므로,
+# 넘기면 `ps` 등 프로세스 목록에 토큰이 그대로 보입니다.
 
 
 # python serving_gateway_test.py --mode e2e --file-path "/app/src/service/genon/preprocessor/sample_files/pdf_sample.pdf" --out result_serving_gateway_test/
-# python serving_gateway_test.py --mode parser_upload --upload-file "../sample_files/hwp_sample_table.hwp" --out-doc result_serving_gateway_test/doc.json --serving-id "$GENOS_SERVING_ID" --auth-key "$GENOS_AUTH_KEY"
-python serving_gateway_test.py --mode parser --file-path "/app/src/service/genon/preprocessor/sample_files/pdf_sample.pdf" --out-doc result_serving_gateway_test/doc.json --serving-id "$GENOS_SERVING_ID" --auth-key "$GENOS_AUTH_KEY"
-python serving_gateway_test.py --mode chunker --doc-json result_serving_gateway_test/doc.json --out result_serving_gateway_test/chunks.json --serving-id "$GENOS_SERVING_ID" --auth-key "$GENOS_AUTH_KEY"
+# python serving_gateway_test.py --mode parser_upload --upload-file "../sample_files/hwp_sample_table.hwp" --out-doc result_serving_gateway_test/doc.json --serving-id "$GENOS_SERVING_ID"
+python serving_gateway_test.py --mode parser --file-path "/app/src/service/genon/preprocessor/sample_files/pdf_sample.pdf" --out-doc result_serving_gateway_test/doc.json --base-url "$GENOS_BASE_URL" --serving-id "$GENOS_SERVING_ID"
+python serving_gateway_test.py --mode chunker --doc-json result_serving_gateway_test/doc.json --out result_serving_gateway_test/chunks.json --base-url "$GENOS_BASE_URL" --serving-id "$GENOS_SERVING_ID"
 
 # ── 문서유형(doc_type) 지정: FAQ 엑셀(행별 custom_fields) / 카드(문서 metadata 스탬프) ──────────
 # --doc-type 으로 전달(= --param doc_type=.. 와 동일, 둘 다 주면 --param 우선).
@@ -19,12 +22,14 @@ python serving_gateway_test.py --mode chunker --doc-json result_serving_gateway_
 #   --out result_serving_gateway_test/faq_chunks.json
 
 # 또는 단일콜(run: intelligent/convert facade, 파싱+청킹 일괄):
-# python serving_gateway_test.py --mode run --file-path "/app/src/service/genon/preprocessor/sample_files/생명FAQ_260712.xlsx" \
-#   --doc-type faq --out result_serving_gateway_test/faq_run.json --serving-id <RUN_SERVING_ID> --auth-key <KEY>
+# run 은 다른 서빙을 쓰므로 그 서빙의 id/인증키가 필요하다. 인증키는 인자가 아니라 env 로 넘긴다
+# (인자로 주면 프로세스 목록에 토큰이 노출됨).
+# GENOS_AUTH_KEY=<RUN_KEY> python serving_gateway_test.py --mode run --file-path "/app/src/service/genon/preprocessor/sample_files/생명FAQ_260712.xlsx" \
+#   --doc-type faq --out result_serving_gateway_test/faq_run.json --serving-id <RUN_SERVING_ID>
 
 # 카드 HTML(flatten 후): 모든 청크에 doc_type=card + 카드 12필드.
-# python serving_gateway_test.py --mode run --file-path "/app/src/service/genon/preprocessor/sample_files/card.flat.html" \
-#   --doc-type card --out result_serving_gateway_test/card_run.json --serving-id <RUN_SERVING_ID> --auth-key <KEY>
+# GENOS_AUTH_KEY=<RUN_KEY> python serving_gateway_test.py --mode run --file-path "/app/src/service/genon/preprocessor/sample_files/card.flat.html" \
+#   --doc-type card --out result_serving_gateway_test/card_run.json --serving-id <RUN_SERVING_ID>
 
 
 # ── LLM 캐시 테스트 ──────────────────────────────────────────────────────

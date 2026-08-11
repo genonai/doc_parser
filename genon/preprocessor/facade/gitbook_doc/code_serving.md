@@ -323,11 +323,11 @@ python serving_gateway_test.py --mode parser --file-path /data/documents/report.
 | 인자 | 기본값 | 설명 |
 | --- | --- | --- |
 | `--mode` | `e2e` | `health` / `parser` / `parser_upload` / `chunker` / `e2e` |
-| `--base-url` | `https://<GENOS_HOST>` | 게이트웨이 base URL |
-| `--serving-id` | `139` | 코드 서빙 ID |
-| `--auth-key` | (스크립트 기본값) | `Authorization: Bearer <key>` |
+| `--base-url` | `$GENOS_BASE_URL` | 게이트웨이 base URL. 환경변수도 인자도 없으면 실행 거부 |
+| `--serving-id` | `$GENOS_SERVING_ID` | 코드 서빙 ID. 환경변수도 인자도 없으면 실행 거부 |
+| `--auth-key` | `$GENOS_AUTH_KEY` | `Authorization: Bearer <key>`. 환경변수도 인자도 없으면 실행 거부 |
 | `--file-path` | `""` | 파싱할 문서 경로(서버 기준). `parser`/`e2e` 에 필요 |
-| `--chunk-size` | `0` | 청크 최대 크기(0=분할 안 함). 청킹 config 기본값을 덮어씀 |
+| `--chunk-size` | (미전송) | 청크 최대 크기. 생략하면 필드를 보내지 않아 서빙 config 의 `chunking.chunk_size` 가 쓰인다. `0` 은 크기 기반 병합·분할 끄기 |
 | `--doc-json` | `None` | `chunker` 모드의 입력 docling JSON 파일 경로 |
 | `--out` | `None` | 청크 결과 JSON 저장 경로/디렉터리(옵션) |
 | `--out-doc` | `None` | `parser` 모드의 docling JSON 저장 경로/디렉터리(옵션) |

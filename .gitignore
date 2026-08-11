@@ -83,6 +83,9 @@ ipython_config.py
 .AppleDouble
 .LSOverride
 
+# MS Office 임시 잠금 파일 (문서를 Word/Excel 로 열어 둔 동안 생김)
+~$*
+
 # Icon must end with two \r
 Icon
 

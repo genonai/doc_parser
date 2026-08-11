@@ -547,7 +547,10 @@ def build_tabular_data_dict(
     tables = load_tables(file_path, header_row=header_row, multi_table=multi_table)
     data: list[dict] = []
     for t in tables:
-        headers = t["headers"]
+        # 헤더가 빈 컬럼(이름 없이 값만 있는 열)은 위치 기반 이름으로 채운다. 빈 이름이 둘 이상이면
+        # 아래 dict(zip) 이 같은 key("")로 뭉개져 컬럼이 조용히 사라진다. 이름 규칙은 직접처리 경로
+        # _build_column_keys 의 fallback(col_{i+1})과 동일해 두 경로의 key 가 일치한다.
+        headers = [h or f"col_{i + 1}" for i, h in enumerate(t["headers"])]
         # 정확히 동일한 헤더명이 있으면 dict(zip) 이 앞 컬럼을 조용히 덮어써 데이터가 소실된다
         # (이후 _header_index 는 정규화 후 충돌만 감지 → 원본 중복은 못 잡음). 여기서 명확히 거부한다.
         dup_headers = [h for h, cnt in Counter(headers).items() if h and cnt > 1]

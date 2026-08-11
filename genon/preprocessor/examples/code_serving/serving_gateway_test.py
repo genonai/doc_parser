@@ -101,9 +101,10 @@ from pathlib import Path
 #   export GENOS_SERVING_ID=<SERVING_ID>
 #   export GENOS_AUTH_KEY=<AUTH_KEY>
 # 또는  --base-url / --serving-id / --auth-key
+# ⚠️ 인증키는 argparse default 로 두지 않는다 — ArgumentDefaultsHelpFormatter 가 --help 에
+#    "(default: <토큰>)" 으로 값을 찍어버린다. GENOS_AUTH_KEY 는 파싱 후에 해소한다(main 참고).
 DEFAULT_BASE_URL = os.environ.get("GENOS_BASE_URL", "")
 DEFAULT_SERVING_ID = os.environ.get("GENOS_SERVING_ID", "")
-DEFAULT_AUTH_KEY = os.environ.get("GENOS_AUTH_KEY", "")
 
 
 def _url(args, route: str) -> str:
@@ -371,7 +372,9 @@ def build_parser() -> argparse.ArgumentParser:
                    default="e2e", help="실행 모드")
     p.add_argument("--base-url", default=DEFAULT_BASE_URL, help="게이트웨이 base URL")
     p.add_argument("--serving-id", default=DEFAULT_SERVING_ID, help="코드서빙 id")
-    p.add_argument("--auth-key", default=DEFAULT_AUTH_KEY, help="Authorization: Bearer <key>")
+    # default 를 비워 두고 env 는 파싱 후 해소 — --help 에 토큰이 노출되지 않게 한다.
+    p.add_argument("--auth-key", default="",
+                   help="Authorization: Bearer <key> (생략 시 환경변수 GENOS_AUTH_KEY)")
     p.add_argument("--file-path", default="",
                    help="파싱할 문서 경로(서버 기준). parser/e2e 에 필요")
     p.add_argument("--upload-file", default="",
@@ -397,6 +400,8 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv=None) -> int:
     args = build_parser().parse_args(argv)
+    # 인증키는 --help 노출을 피하려고 argparse default 를 비워 뒀으므로 여기서 env 로 해소한다.
+    args.auth_key = args.auth_key or os.environ.get("GENOS_AUTH_KEY", "")
     # 접속 정보 필수 — 코드에 기본값을 두지 않으므로 여기서 안내한다.
     missing = [n for n, v in (("--base-url (GENOS_BASE_URL)", args.base_url),
                               ("--serving-id (GENOS_SERVING_ID)", args.serving_id),
