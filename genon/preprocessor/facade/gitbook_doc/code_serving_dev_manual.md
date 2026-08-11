@@ -1,7 +1,7 @@
 # Genos 코드서빙 전처리기 개발 매뉴얼
 
 Genos 코드서빙으로 배포된 **문서 전처리기(doc parser)** 의 코드를 수정하고 재배포하는 방법을 다룹니다.
-Genos 를 처음 접하는 외부 개발자를 대상으로 합니다.
+Genos 를 처음 접하는 개발자를 대상으로 합니다.
 
 ## 목차
 
@@ -440,10 +440,14 @@ uv pip install -r requirements-dev.txt    # 로컬 실행용 의존성
 | | 이 환경에서 |
 |---|---|
 | Python 패키지 설치 | ❌ 인터넷 필요 → **아래 오프라인 키트로 해결** |
-| 파싱·청킹 실행 | ✅ 가능. 모델 추론은 Genos 게이트웨이 호출이라 로컬 모델 다운로드가 없습니다(4.4절) |
+| 파싱·청킹 실행 | ✅ 가능(**게이트웨이 접근 가능 전제**). 모델 추론은 Genos 게이트웨이 호출이라 로컬 모델 다운로드가 없습니다(4.4절) |
 
-> 게이트웨이조차 닿지 않는 완전 격리 환경이라면 **청킹만** 로컬에서 검증할 수 있고(저장해 둔 파싱 결과
-> JSON 입력), 파싱은 재배포 후 게이트웨이로 확인해야 합니다(8.7절). 환경을 받았을 때
+> 게이트웨이조차 닿지 않는 완전 격리 환경이라면 **기본 설정의 PDF 파싱은 불가능**합니다
+> (`layout.genos_layout` 이 게이트웨이를 호출). 반면 **모델을 전혀 호출하지 않는 경로는 로컬에서 그대로
+> 검증할 수 있습니다** — 청킹(저장해 둔 파싱 결과 JSON 입력), CSV·XLSX `tabular` 파싱, TXT·MD·JSON 파싱.
+> DOCX 처럼 파싱 자체는 모델 없이 되지만 enrichment(목차·메타데이터) 호출이 붙는 포맷은, 실패해도 경고만
+> 남기고 건너뛰므로 파싱은 진행됩니다. 다만 실패를 확인하기까지 불필요한 대기가 생길 수 있어 각 항목을
+> `enable: false` 로 끄고 쓰는 편이 낫습니다. PDF 등 나머지는 재배포 후 게이트웨이로 확인합니다(8.7절). 환경을 받았을 때
 > **게이트웨이 접근 가능 여부를 먼저 확인**하세요.
 
 인터넷이 되는 PC에서 **소스 bundle + Python wheelhouse**를 먼저 만들고, 회사의 승인된 반입 절차로
@@ -534,6 +538,9 @@ gitea 저장소 작업은 Genos 코드스페이스에서 진행할 수 있습니
 | 코드서빙 컨테이너 | `http://llmops-gateway-api-service:8080/rep/serving/<MODEL_SERVING_ID>/v1/chat/completions` | 내부 호출이면 빈 값 가능 |
 | 로컬 PC | `https://<GENOS_HOST>/api/gateway/rep/serving/<MODEL_SERVING_ID>/v1/chat/completions` | **필수** |
 
+위 표의 `<MODEL_SERVING_ID>` 는 총칭입니다. **용도별로 서로 다른 서빙일 수 있으므로**(레이아웃 / 목차·메타데이터 /
+이미지·페이지 설명) 실제 config 에는 1.3 절 표의 이름에 해당하는 ID 를 각각 넣으세요.
+
 `parser_processor_config.yaml`의 `layout.genos_layout.endpoint`, 활성화된 enrichment의 `url`,
 PPT 페이지 설명을 사용한다면 `formats.ppt.page_description.url`에 외부 URL을 넣고, 각 항목의
 `api_key`에 해당 **모델 서빙 인증키**를 설정합니다.
@@ -542,15 +549,26 @@ PPT 페이지 설명을 사용한다면 `formats.ppt.page_description.url`에 �
 layout:
   layout_model_type: "genos_layout"
   genos_layout:
-    endpoint: "https://<GENOS_HOST>/api/gateway/rep/serving/<MODEL_SERVING_ID>/v1/chat/completions"
+    endpoint: "https://<GENOS_HOST>/api/gateway/rep/serving/<LAYOUT_SERVING_ID>/v1/chat/completions"
     api_key: "<MODEL_SERVING_API_KEY>"
 
 enrichment:
   - toc:
       enable: true
-      url: "https://<GENOS_HOST>/api/gateway/rep/serving/<MODEL_SERVING_ID>/v1/chat/completions"
+      url: "https://<GENOS_HOST>/api/gateway/rep/serving/<ENRICHMENT_SERVING_ID>/v1/chat/completions"
       api_key: "<MODEL_SERVING_API_KEY>"
 ```
+
+**OCR 도 함께 확인하세요.** 출고 기본값은 `ocr.ocr_mode: auto` 이고 주소는
+`paddle.ocr_endpoint: "http://<OCR_ENDPOINT>/ocr"` 플레이스홀더로 남아 있습니다. OCR 은 서빙 ID 가 아니라 **주소**라서
+게이트웨이 URL 로 대체되지 않습니다. 로컬에서 PDF 파싱을 검증하려면 다음 중 하나가 필요합니다.
+
+- 접근 가능한 PaddleOCR 서버 주소를 `paddle.ocr_endpoint` 에 설정
+- OCR 이 필요 없으면 `ocr.ocr_mode: disable`
+- Upstage OCR 을 쓰면 `ocr.engine: upstage` 로 바꾸고 `upstage.api_key` 설정
+  (`api_endpoint` 는 기본값이 이미 채워져 있고, 외부 인터넷 접속이 필요합니다)
+
+값의 의미와 나머지 옵션은 6.2·6.3 절을 참고하세요.
 
 모델 서빙 상세 화면의 **인증키** 탭에서 키를 확인합니다. 자세한 위치는
 [Genos 공식 문서: 서빙 API 키 확인](https://genos-docs.gitbook.io/default/advanced-tutorials/guides/serving/api-log)을
@@ -1053,7 +1071,7 @@ grep -rn "<[A-Z_]*>" genon/preprocessor/resource/ | grep -vE ':[0-9]+: *#'
 | `output.format` | **parser 전용** (다른 파일엔 이 키가 없음) | `docling` | `json` / `html` / `markdown` / `docling` | **`/chunker` 에 넘기려면 `docling`** 이어야 `data.document` 가 생김 |
 | `layout.layout_model_type` | parser · intelligent · convert | `genos_layout` | `genos_layout` / `docling_layout` | 레이아웃 모델 서빙이 없으면 `docling_layout` (아래 비교표) |
 | `ocr.ocr_mode` | parser · intelligent · convert | `auto` | `auto` / `force` / `disable` | 스캔 문서가 많으면 `force`, OCR 서버가 없으면 `disable` |
-| `chunking.chunk_size` | chunking · intelligent · convert (**attachment 는 `1000000`**) | `10000` | 정수 | 청크 길이. **`0` = 자동분할** `0` 초과 `1024` 미만은 `1024` 로 보정 |
+| `chunking.chunk_size` | chunking · intelligent · convert (**attachment 는 `1000000`**) | `10000` | 정수 | 청크 길이. **`0` = 크기 기반 병합·분할 끄기**(아래 주의) `0` 초과 `1024` 미만은 `1024` 로 보정 |
 
 > **`layout_model_type` 선택 기준** — 무거운 레이아웃/표 구조 분석을 **어디서 돌릴지**의 선택입니다.
 >
@@ -1065,6 +1083,17 @@ grep -rn "<[A-Z_]*>" genon/preprocessor/resource/ | grep -vE ':[0-9]+: *#'
 >
 > 이 매뉴얼의 로컬 검증은 외부 Genos 모델 서빙을 사용하는 `genos_layout`을 기본으로 합니다(4.4절).
 > `docling_layout`은 별도 모델 파일과 충분한 로컬 자원이 준비된 경우에만 선택합니다.
+
+> **`chunk_size: 0` 은 "청크 1개"가 아닙니다.** 입력 종류에 따라 의미가 다릅니다.
+>
+> | 입력 | `0` 의 의미 | 결과 |
+> |---|---|---|
+> | 파서 출력(docling) 문서 | 크기 기반 **병합·분할을 끔**. 섹션 구조 기준 청킹은 그대로 | 청크가 **여러 개** 나옴 (오히려 더 많아질 수 있음) |
+> | parse-format(텍스트) 문서 | 문자 기준 **미분할** | 요소당 1개 |
+>
+> 실측: 2개 절짜리 문서를 `chunk_mode: resize_all` 로 청킹하면 `chunk_size: 10000` 은 1개로 합쳐지는데
+> `chunk_size: 0` 은 2개가 그대로 남습니다. **청크를 크게 합치려는 목적이라면 `0` 이 아니라 충분히 큰 값**을
+> 주세요.
 
 #### (나) 그 밖에 자주 쓰는 것
 
@@ -1452,8 +1481,9 @@ doc_type 이 동작해야 한다면 아래 파일에 **같은 블록을 각각**
 
 **③ `GenosServiceException` 은 facade 안의 로컬 사본입니다.**
 `main.py` 가 import 한 정본과는 다른 타입이라, 전용 예외 핸들러가 아니라 일반 예외 처리에서
-속성 이름(`stage`, `error_type`)을 읽어 응답에 싣습니다. **로컬 사본의 속성 이름을 바꾸면 응답에서
-해당 정보가 에러 없이 누락됩니다.**
+속성 이름(`error_code`, `error_msg`, `stage`, `error_type`)을 읽어 응답에 싣습니다.
+**로컬 사본의 속성 이름을 바꾸면 응답에서 해당 정보가 에러 없이 누락됩니다** — 예를 들어 `error_code`
+속성이 없어지면 응답의 `error_code` 는 타입 기반 자동 분류값(`INTERNAL_ERROR` 등)으로 바뀝니다.
 
 **④ docling 은 수정할 수 없습니다.**
 docling 은 소스가 아니라 `packages/*.whl` 로 들어옵니다. docling 내부 동작을 바꾸고 싶다면 facade
@@ -1540,8 +1570,12 @@ cd gitea_repo
 git clone https://github.com/genonai/doc_parser_code_serving.git   # 이미 있으면 git pull
 cd doc_parser_code_serving && git pull && cat VERSION               # 어느 릴리스인지 확인
 ```
-필요한 파일(보통 `genon/preprocessor/facade/` 아래 몇 개)만 골라 코드스페이스 VSCode 로 업로드합니다.
-전체를 갈아끼울 때는 `.git` 을 제외하고 압축해 올린 뒤 코드스페이스에서 풀면 됩니다.
+`.git` 을 제외하고 압축해 올린 뒤 코드스페이스에서 풀어 **릴리스 단위로 통째 갱신**합니다.
+
+> ⚠️ **facade 몇 개만 골라 올리지 마세요.** facade 는 `packages/*.whl`(docling), `main.py`,
+> `enrichment/`, `converters/` 와 같은 릴리스를 전제로 동작합니다. 일부만 바꾸면 서로 다른 릴리스가
+> 섞여 재현하기 어려운 오류가 납니다. 급히 한 파일만 바꿔야 한다면 `VERSION` 의 `source_commit` 이
+> 같은 배포본에서 가져온 것인지 먼저 확인하세요.
 
 **(나) 코드스페이스에서 직접 clone (인터넷이 열린 환경에서만)**
 
@@ -1553,9 +1587,21 @@ tar --exclude=.git -cf - . | (cd ../gitea_repo && tar -xf -)
 cd ../gitea_repo
 ```
 
-> ⚠️ **전체 복사는 `resource/*.yaml` 도 덮어씁니다.** 현재 환경에 맞게 채워진 config 가 초기화되므로,
-> **복사 전에 `resource/` 를 백업**해 두고 복사 후 되돌리세요. 그다음 `git diff --stat` 으로
-> 무엇이 바뀌었는지 확인하세요.
+> ⚠️ **전체 복사는 `resource/*.yaml` 도 덮어씁니다.** 현재 환경에 맞게 채워진 config 가 초기화됩니다.
+> 다만 **`resource/` 를 통째로 백업해 두고 그대로 되돌리면 안 됩니다** — 새 릴리스가 추가한 config 키와
+> 프롬프트 파일까지 예전 것으로 되돌아갑니다. 복사 전에 백업해 두되, 복사 후에는
+> **새 파일을 기준으로 두고 환경별 값(모델 서빙 URL·`api_key`·OCR 주소)만 옮겨 심으세요.**
+> 그다음 아래로 무엇이 바뀌었는지 확인합니다.
+>
+> ```bash
+> git diff --stat                                   # 전체 변경 요약
+> git diff -- genon/preprocessor/resource           # 신규 키·프롬프트 확인 (되돌리기 전에 반드시)
+> git status --short                                # 새로 생긴 파일 목록
+> ```
+>
+> ⚠️ **`tar` 덮어쓰기는 새 파일을 얹을 뿐, 상위 릴리스에서 삭제된 파일은 지우지 않습니다.**
+> 삭제까지 반영하려면 `git status --short` 로 남은 파일을 확인해 손으로 지우거나, `gitea_repo` 를
+> 새로 clone 해 배포본 내용으로 채우는 편이 안전합니다.
 >
 > (나)에서 이미 받아 둔 `doc_parser_code_serving` 폴더가 있으면 `git clone` 은 실패하지만 뒤이은
 > `cd` 와 `tar` 는 그대로 성공합니다. 그러면 **예전 소스가 복사**되고 커밋도 정상적으로 생겨서 원인을
@@ -1577,7 +1623,8 @@ grep -rn "<[A-Z_]*>" genon/preprocessor/resource/ | grep -vE ':[0-9]+: *#'
 
 ```bash
 # 실행 위치: 코드스페이스 터미널, gitea_repo 안
-git add .
+git status --short                                  # 먼저 무엇이 잡히는지 확인
+git add genon/preprocessor/facade genon/preprocessor/resource   # 고친 경로만 명시
 git commit -m "update preprocessor"
 git push                # push 시 Genos id / pass 입력
 
@@ -1667,8 +1714,9 @@ curl --location "${GW}/parser" \
 { "file_path": "/app/src/service/tmp/doc.json", "params": { "chunk_size": 10000 } }
 ```
 
-> `chunk_size` 를 **`0` 으로 주면 분할하지 않아** 청크가 1개만 나옵니다. config 값을 쓰려면
-> `chunk_size` 키를 아예 빼세요.
+> `chunk_size` 를 **`0` 으로 주면 크기 기반 병합·분할을 끕니다.** docling 문서 입력이면 섹션 구조 기준
+> 청크가 그대로 남아 **여러 개**가 나오고, parse-format(텍스트) 입력이면 요소당 1개가 됩니다(6.3절 표).
+> config 의 `chunking.chunk_size` 를 쓰려면 `chunk_size` 키를 아예 빼세요.
 
 #### ④ 스크립트로 한 번에
 
@@ -1693,7 +1741,7 @@ python serving_gateway_test.py --mode health $AUTHARGS
 
 # 내 PC 의 파일을 업로드해서 파싱 (서버 내부 경로가 없을 때 편함)
 python serving_gateway_test.py --mode parser_upload $AUTHARGS \
-  --upload-file ./report.pdf --out-doc /tmp/doc.json
+  --upload-file ../../sample_files/pdf_sample.pdf --out-doc /tmp/doc.json
 
 # 저장해 둔 파싱 결과로 청킹만
 python serving_gateway_test.py --mode chunker $AUTHARGS \
@@ -1706,11 +1754,11 @@ python serving_gateway_test.py --mode e2e $AUTHARGS \
 
 | 주요 인자 | 설명 |
 |---|---|
-| `--mode` | `health` / `parser` / `parser_upload` / `chunker` / `e2e` (그 외 `run` 모드도 있으나 이 문서에서는 쓰지 않습니다) |
+| `--mode` | `health` / `parser` / `parser_upload` / `chunker` / `e2e` (스크립트에 `run` 모드도 있지만 `/run` 라우트가 `main.py` 에 없어 **이 코드서빙에서는 동작하지 않습니다**) |
 | `--base-url` · `--serving-id` · `--auth-key` | **항상 명시** (위 경고 참고) |
 | `--file-path` | **서버 내부** 문서 경로 (`parser`, `e2e`) |
 | `--upload-file` | **내 PC** 의 파일 (`parser_upload`) |
-| `--chunk-size` | **생략하면 `0`(분할 안 함)이 전송됩니다.** config 값을 쓰려면 값을 명시하세요 |
+| `--chunk-size` | **생략하면 전송하지 않아** 서버 config 의 `chunking.chunk_size` 가 쓰입니다. 값을 주면 config 를 덮어씁니다 |
 | `--param KEY=VALUE` | 임의의 `params` 항목 추가 (반복 가능) |
 | `--out` / `--out-doc` | 결과 저장 경로 |
 | `--timeout` | 요청 타임아웃(초). 기본 3600 |
@@ -1720,7 +1768,8 @@ python serving_gateway_test.py --mode e2e $AUTHARGS \
 | 응답 | 원인 | 확인할 것 |
 |---|---|---|
 | `…지원하지 않습니다` (`code:1`) | facade 에 `IS_PARSER`/`IS_CHUNKER` 마커가 없어 요청이 facade 에 도달하지 못함 | 클래스명(`DocumentProcessor`)과 마커를 바꾸지 않았는지 — [5.3 계약](#53-documentprocessor-계약) |
-| 청크가 1개만 나옴 | `chunk_size` 가 `0`(분할 안 함)으로 전달됨 | 위 `--chunk-size` 주의. curl 이면 `params.chunk_size` |
+| 청크가 1개만 나옴 | parse-format(텍스트) 입력에 `chunk_size: 0` 이 전달됨 | `chunk_size` 를 충분히 큰 양수로. curl 이면 `params.chunk_size` |
+| 청크가 합쳐지지 않음 | `chunk_size: 0` 은 병합을 끄는 값 (docling 입력) | `0` 대신 큰 값 + `chunk_mode: resize_all` (6.3절) |
 | `code:1` + 연결 오류 | config 의 모델 서빙 주소·키가 실행 환경과 맞지 않음 | [4.4](#44-로컬-검증-범위와-모델-서빙-연결)의 URL·키 표, [6.2](#62-채워야-하는-값-플레이스홀더) |
 | `/parser` 는 되는데 `data.document` 가 없음 | `output.format` 이 `docling` 이 아님 | `parser_processor_config.yaml` 의 `output.format` |
 
@@ -1744,8 +1793,8 @@ vi genon/preprocessor/resource/parser_processor_config.yaml
 # ② 미치환 플레이스홀더 확인 — 아무것도 안 나와야 정상
 grep -rn "<[A-Z_]*>" genon/preprocessor/resource/ | grep -vE ':[0-9]+: *#'
 
-# ③ push (8.5)
-git add . && git commit -m "update config" && git push
+# ③ push (8.5) — 고친 경로만 명시 (git add . 는 .venv·산출물·인증정보를 함께 담을 수 있음)
+git add genon/preprocessor/resource && git commit -m "update config" && git push
 
 # ④ 리비전에 넣을 커밋 해시
 git rev-parse HEAD
@@ -1801,7 +1850,9 @@ curl --location "${GW}/parser" \
 > ```bash
 > # 실행 위치: 내 PC, 로컬 클론
 > # 코드만 골라 패치 생성 — resource/ 는 제외된다
-> git diff -- genon/preprocessor/facade genon/preprocessor/src main.py > my_change.patch
+> git diff -- genon/preprocessor/facade genon/preprocessor/converters \
+>            genon/preprocessor/src genon/preprocessor/examples \
+>            main.py requirements.txt > my_change.patch
 >
 > git apply --stat my_change.patch    # 패치에 담긴 파일 목록 확인 (resource/ 가 없어야 정상)
 > ```

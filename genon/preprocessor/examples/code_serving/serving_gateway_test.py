@@ -377,8 +377,9 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--upload-file", default="",
                    help="업로드할 로컬 파일 경로(스크립트 실행 호스트 기준). parser_upload 에 필요. "
                         "e2e 에 지정하면 업로드 파싱을 사용")
-    p.add_argument("--chunk-size", type=int, default=0,
-                   help="청크 최대 크기(0=토큰/문자 기반 분할 안 함). 청킹 config 기본값을 덮어씀")
+    p.add_argument("--chunk-size", type=int, default=None,
+                   help="청크 최대 크기. 생략하면 전송하지 않아 서버의 chunking.chunk_size 가 쓰인다. "
+                        "값을 주면 config 를 덮어쓴다(0=크기 기반 병합·분할 끄기 — 구조 청크는 유지)")
     p.add_argument("--param", action="append", default=[], metavar="KEY=VALUE",
                    help="파싱 kwargs 오버라이드(반복 가능). "
                         "예: --param img_desc=1 --param chart_desc=1 --param chart_detection=1 --param doc_summary=1. "
