@@ -2736,10 +2736,13 @@ class DocumentProcessor:
         )
         document_metadata = extract_metadata_from_document(document)
         # GenOS 가 __call__ 의 kwargs 로 넘겨주는 문서 메타데이터
-        # (ID, TASK_CARD, DOC_NO, DOC_TTL, DEPT_CODE, DEPT_NAME, ... 전부)를
+        # (id, task_card, doc_no, doc_ttl, dept_code, dept_name, ... 전부)를
         # 그대로 GenOS 메타데이터에 key-value 로 실어보낸다.
         # `_enrichment_context` 는 내부 제어용 구조체(원본 kwargs 가 아님)라 제외.
-        raw_request_metadata = {k: v for k, v in kwargs.items() if k != "_enrichment_context"}
+        # 키 대소문자가 들어오는 대로 섞이는 것을 막기 위해 전부 lower로 통일.
+        raw_request_metadata = {
+            k.lower(): v for k, v in kwargs.items() if k != "_enrichment_context"
+        }
         merged_metadata = dict(raw_request_metadata)
         merged_metadata.update(document_metadata)
         merged_metadata.update(context_metadata)
