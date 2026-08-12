@@ -6,7 +6,7 @@ set -euo pipefail
 # 동작: 배포에 필요한 것만(whitelist: genon/ + main.py + requirements.txt) 서브모듈 폴더 `code-serving/`에
 #       재생성하고, docling wheel 을 packages/ 로 동봉 + requirements.txt 에 wheel 경로 append +
 #       배포본 root README.md(코드서빙 사용 가이드, build-script/code-serving-README.md) 복사 +
-#       requirements-dev.txt(로컬 facade/test.py 실행 전용 deps)와 .gitignore 생성 후,
+#       requirements-dev.txt(로컬 facade/test.py 실행 전용 deps), constraints-cpu.txt와 .gitignore 생성 후,
 #       배포본 repo(genonai/doc_parser_code_serving) 안에서 commit/push 한다.
 #
 # 왜: 코드서빙은 GenOS 가 런타임에 배포본 repo 를 /app/src/service 로 clone 해 main.py 를 띄우고,
@@ -225,7 +225,16 @@ fi
 } > "${DEST}/requirements-dev.txt"
 echo "[INFO] requirements-dev.txt 생성: ${DEST}/requirements-dev.txt"
 
-# ── 2d) 배포본 root .gitignore 생성 ─────────────────────────────────────────
+# ── 2d) CPU 전용 PyTorch constraints 생성 ────────────────────────────────────
+# Linux CPU 개발환경의 오프라인 wheelhouse를 만들 때 PyPI 기본 CUDA wheel 대신
+# PyTorch CPU wheel을 선택하도록 버전을 고정한다.
+cat > "${DEST}/constraints-cpu.txt" <<'EOF'
+torch==2.13.0+cpu
+torchvision==0.28.0+cpu
+EOF
+echo "[INFO] constraints-cpu.txt 생성: ${DEST}/constraints-cpu.txt"
+
+# ── 2e) 배포본 root .gitignore 생성 ─────────────────────────────────────────
 # 로컬 개발 산출물과 오프라인 설치 키트가 실수로 gitea 배포 저장소에 커밋되지 않도록 한다.
 # DEST 는 매 실행 새로 재생성되므로 이 파일도 배포 스크립트가 단일 정본으로 관리한다.
 cat > "${DEST}/.gitignore" <<'EOF'
@@ -254,7 +263,7 @@ wheelhouse/
 EOF
 echo "[INFO] .gitignore 생성: ${DEST}/.gitignore"
 
-# ── 2e) VERSION 스탬프 생성 (배포본 ↔ 원본 릴리스 연결 + 산출물 자가 식별) ──────
+# ── 2f) VERSION 스탬프 생성 (배포본 ↔ 원본 릴리스 연결 + 산출물 자가 식별) ──────
 # 원본 릴리스 태그·SHA·wheel 을 배포본에 새긴다. 배포된 산출물이 자기 버전을 식별 가능.
 # ⚠️ 결정적 값(원본에서 파생)만 사용 — now() 타임스탬프 금지. 넣으면 매 실행 diff 가 생겨
 #    아래 4) 의 "변경 없음 스킵"이 깨진다. 날짜는 원본 커밋 날짜(고정값)만 쓴다.
@@ -296,6 +305,15 @@ if [[ ! -f "${DEST}/requirements-dev.txt" ]]; then
   echo "[ERROR] requirements-dev.txt 가 생성되지 않았습니다." >&2
   exit 1
 fi
+EXPECTED_CPU_CONSTRAINTS=$'torch==2.13.0+cpu\ntorchvision==0.28.0+cpu'
+if [[ ! -f "${DEST}/constraints-cpu.txt" ]]; then
+  echo "[ERROR] constraints-cpu.txt 가 생성되지 않았습니다." >&2
+  exit 1
+fi
+if [[ "$(cat "${DEST}/constraints-cpu.txt")" != "${EXPECTED_CPU_CONSTRAINTS}" ]]; then
+  echo "[ERROR] constraints-cpu.txt 내용이 예상값과 다릅니다." >&2
+  exit 1
+fi
 if [[ ! -f "${DEST}/.gitignore" ]]; then
   echo "[ERROR] .gitignore 가 생성되지 않았습니다." >&2
   exit 1
@@ -304,7 +322,7 @@ if [[ ! -f "${DEST}/VERSION" ]]; then
   echo "[ERROR] VERSION 스탬프가 생성되지 않았습니다." >&2
   exit 1
 fi
-echo "[SMOKE] 배포본 청결성 OK — docling 소스 없음, genon/+main.py 존재, packages/${WHEEL_NAME} 동봉됨, requirements-dev.txt·.gitignore·VERSION 생성됨"
+echo "[SMOKE] 배포본 청결성 OK — docling 소스 없음, genon/+main.py 존재, packages/${WHEEL_NAME} 동봉됨, requirements-dev.txt·constraints-cpu.txt·.gitignore·VERSION 생성됨"
 echo "[INFO] 배포본 조립 위치: ${DEST}  (원본 커밋 ${SOURCE_COMMIT})"
 
 # ── 4) 배포본 클론이면 commit/push ──────────────────────────────────────────

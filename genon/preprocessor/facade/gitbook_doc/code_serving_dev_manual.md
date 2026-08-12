@@ -461,22 +461,42 @@ uv pip install -r requirements-dev.txt    # 로컬 실행용 의존성
 git clone https://github.com/genonai/doc_parser_code_serving.git
 cd doc_parser_code_serving
 
+# offline 파일 저장 폴더 생성
+mkdir ../offline-dev-kit
+
 # Git 이력과 태그를 하나의 파일로 묶음
-git bundle create ../doc_parser_code_serving.bundle --all
+git bundle create ../offline-dev-kit/doc_parser_code_serving.bundle --all
 
 # Python 3.11용 의존성을 로컬 설치 파일로 수집
-python3.11 -m pip download --only-binary=:all: \
-  --dest ../offline-dev-kit/wheelhouse \
-  -r requirements.txt -r requirements-dev.txt
+# python 버전이 3.11 인지 확인
+python -V
+
+# 만약 3.11 이 아니면 임의의 가상환경에 3.11을 설치
+python -m pip install uv
+python -m uv python install 3.11
+# 그다음 별도의 python 3.11 가상환경 생성
+python -m uv venv \
+  --python 3.11 \
+  --seed \
+  ~/.venvs/py311
+
+# 가상환경의 python을 사용해야 하는 경우에는 python 대신 ~/.venvs/py311/bin/python 를 사용
+python -m pip download \
+  --only-binary=:all: \
+  --dest ../offline-dev-kit/wheelhouse-cpu-py311 \
+  --extra-index-url https://download.pytorch.org/whl/cpu \
+  --constraint constraints-cpu.txt \
+  -r requirements.txt \
+  -r requirements-dev.txt
 
 # 전달 전 실제 용량과 파일 목록 확인
 du -sh ../offline-dev-kit
 find ../offline-dev-kit/wheelhouse -maxdepth 1 -type f | sort
-```
 
-**용량 참고(실측)** — macOS/arm64 · Python 3.11 기준으로 wheel **136개, 약 316MB** 였습니다. 설치 후
-`.venv` 는 약 1.5GB 가 됩니다(torch·OpenCV·SciPy 등이 큽니다). OS·아키텍처에 따라 달라지므로 위
-`du -sh` 로 실제 값을 확인해 반입 계획을 세우세요.
+# 배포본 파일 생성
+cd ../
+tar -czvf offline-dev-kit.tar.gz offline-dev-kit
+```
 
 동봉된 docling wheel(`packages/*.whl`)도 이 과정에서 wheelhouse 에 함께 수집됩니다 — 별도로 챙길 필요는
 없습니다.
@@ -489,15 +509,22 @@ Python 3.11이 개발 PC에 없다면 [Python 공식 다운로드](https://www.p
 개발 PC에서는 네트워크를 사용하지 않도록 `--no-index`를 지정합니다.
 
 ```bash
+# 패키지 압축 해제
+tar -xzvf offline-dev-kit.tar.gz
+cd offline-dev-kit
+
 # 실행 위치: 인터넷 단절 개발 PC, 전달받은 파일이 있는 폴더
 git clone doc_parser_code_serving.bundle doc_parser_code_serving
 cd doc_parser_code_serving
 
-python3.11 -m venv .venv
+python -m venv .venv
 source .venv/bin/activate                 # Windows: .venv\Scripts\activate
-python -m pip install --no-index \
-  --find-links ../offline-dev-kit/wheelhouse \
-  -r requirements.txt -r requirements-dev.txt
+python -m pip install \
+  --no-index \
+  --find-links ../wheelhouse-cpu-py311 \
+  --constraint constraints-cpu.txt \
+  -r requirements.txt \
+  -r requirements-dev.txt
 ```
 
 설치가 끝나면 4.5 의 facade import 확인으로 정상 여부를 점검합니다.
