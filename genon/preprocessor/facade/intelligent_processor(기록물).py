@@ -2735,7 +2735,13 @@ class DocumentProcessor:
             else {}
         )
         document_metadata = extract_metadata_from_document(document)
-        merged_metadata = dict(document_metadata)
+        # GenOS 가 __call__ 의 kwargs 로 넘겨주는 문서 메타데이터
+        # (ID, TASK_CARD, DOC_NO, DOC_TTL, DEPT_CODE, DEPT_NAME, ... 전부)를
+        # 그대로 GenOS 메타데이터에 key-value 로 실어보낸다.
+        # `_enrichment_context` 는 내부 제어용 구조체(원본 kwargs 가 아님)라 제외.
+        raw_request_metadata = {k: v for k, v in kwargs.items() if k != "_enrichment_context"}
+        merged_metadata = dict(raw_request_metadata)
+        merged_metadata.update(document_metadata)
         merged_metadata.update(context_metadata)
         # 설정 기반 typed 필드 변환 (created_date 등). source/target 키는 passthrough 에서 제외.
         typed_values, consumed_keys = apply_field_transforms(self._metadata_field_transforms, merged_metadata, document)
