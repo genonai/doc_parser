@@ -29,6 +29,15 @@ formats:
       # 선택 튜닝: images_scale(렌더 배율) / max_image_side(전송 이미지 최대 변) / max_tokens(출력 상한) / params(추가 VLM 파라미터)
       prompt_template_file: prompt_page_image_description_default.md
 
+  # HTML(.html/.htm): docling 은 <iframe srcdoc="..."> 속성값 안의 본문을 읽지 못한다.
+  # 크롤 산출물(merged.html)이 그 형태라 4MB 문서에서 641자·표 0개만 추출되는 문제가 있어,
+  # 파싱 전에 srcdoc 을 펼쳐 heading 기반 단일 문서로 재조립한다(실측: 641자 → 59,140자, 표 43개).
+  #   auto  (기본): 원문 스캔으로 srcdoc/이중인코딩이 감지될 때만 flatten. 정상 HTML 은 무영향.
+  #   always      : 항상 flatten(콘텐츠영역 선택 + script/style 제거)
+  #   off         : 전처리 없음(기존 동작)
+  html:
+    flatten: auto
+
 ocr:
   ocr_mode: "auto" # "auto"(default), "force", "disable"
 
@@ -194,6 +203,14 @@ enrichment:
       doc_type: card
       extractor: llm
       config_file: custom_field_card.yaml   # resource_path 자동 = 이 yaml 파일 디렉토리
+      # .json 입력 처리: 본문 텍스트(markdown/html)가 담긴 key 이름을 나열한다.
+      # 키는 JSON 임의 깊이에서 재귀 매칭되므로 pages[*].html 같은 배열 구조도 그대로 처리된다.
+      # 항목이 여러 개면 항목별 <h2> 섹션을 가진 단일 문서로 병합해 docling 을 1회 호출한다.
+      # 이 블록이 없으면 .json 은 기존 텍스트 경로로 처리된다(동작 변경 없음).
+      json:
+        text_fields: [html, summary_md]
+        format: auto             # auto(기본, 값 내용으로 판별) | html | markdown
+        missing_policy: skip     # skip(기본, 경고만) | error
 
   # FAQ Excel/CSV 행별 메타데이터 매핑 — LLM 호출 없음
   - custom_fields:

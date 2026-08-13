@@ -757,7 +757,7 @@ class DocumentProcessor:          # ← 클래스 이름 고정. main.py 가 이
 | 603–1826 | 로더들 (`TextLoader`, `HwpDocumentLoader`, `DocxDocumentLoader`, `GenericDocumentLoader`) | 포맷별 수정 시 |
 | **827–1658** | **`IntelligentDocumentProcessor`(경량 사본)** — docling 파이프라인과 enrichment 실체 | OCR/layout/enrichment 수정 시 |
 | 1833–1846 | `GenosServiceException` | 예외 처리 시 |
-| **1853–2704** | **`DocumentProcessor`** — `/parser` 진입점 | **여기부터 읽으세요** |
+| **1858–2875** | **`DocumentProcessor`** — `/parser` 진입점 | **여기부터 읽으세요** |
 
 #### `__init__` (1863–1938) 이 하는 일
 
@@ -776,7 +776,7 @@ class DocumentProcessor:          # ← 클래스 이름 고정. main.py 가 이
 | `self._gr_cfg` | 개인정보 분류 설정 |
 | `self._page_desc_options` | PPT 페이지 설명 옵션 |
 
-#### `__call__` (2593–2704) — 확장자 라우팅
+#### `__call__` (2725–2875) — 확장자 라우팅
 
 ```
 로깅 설정 → 런타임 kwargs 정규화 → 캐시 컨텍스트 설정 → 확장자 추출
@@ -784,17 +784,37 @@ class DocumentProcessor:          # ← 클래스 이름 고정. main.py 가 이
    → 확장자별 분기 (아래 표)
 ```
 
-| 확장자 | 줄 | 파싱 메서드 | 파싱 결과 | 최종 조립 |
-|---|---|---|---|---|
-| `.csv .xlsx .xlsm` | 2594–2625 | 3분기: custom_fields 매칭(우선) / `docling` 모드 / `tabular` 모드 | dict 또는 DoclingDocument | 각각 다름 |
-| `.hwp .hwpx .hml` | 2630 | `_parse_hwp_hwpx` | DoclingDocument | `_build_docling_response` |
-| `.docx` | 2638 | `_parse_docx` | DoclingDocument | `_build_docling_response` |
-| `.pdf .html .htm` | 2646 | `_parse_docling` | DoclingDocument | `_build_docling_response` |
-| `.ppt .pptx` | 2656 | `_parse_ppt_docling` | DoclingDocument 또는 None | 실패 시 parse-format 폴백 |
-| 그 외 | 2673 | `_parse_other` | langchain Document 리스트 | `_langchain_to_parse_format` |
+| 확장자 | 파싱 메서드 | 파싱 결과 | 최종 조립 |
+|---|---|---|---|
+| `.csv .xlsx .xlsm` | 3분기: custom_fields 매칭(우선) / `docling` 모드 / `tabular` 모드 | dict 또는 DoclingDocument | 각각 다름 |
+| `.hwp .hwpx .hml` | `_parse_hwp_hwpx` | DoclingDocument | `_build_docling_response` |
+| `.docx` | `_parse_docx` | DoclingDocument | `_build_docling_response` |
+| `.pdf` | `_parse_docling` | DoclingDocument | `_build_docling_response` |
+| `.html .htm` | `_prepare_html`(flatten 전처리) → `_parse_docling` | DoclingDocument | `_build_docling_response` |
+| `.json` | custom_fields `json:` 매칭 시 `_parse_json`, 미매칭이면 아래 "그 외"로 폴백 | DoclingDocument | `_build_docling_response` |
+| `.ppt .pptx` | `_parse_ppt_docling` | DoclingDocument 또는 None | 실패 시 parse-format 폴백 |
+| 그 외 | `_parse_other` | langchain Document 리스트 | `_langchain_to_parse_format` |
 
 > 코드에는 위 표 외에 오디오(`.wav`/`.mp3`/`.m4a`) 분기도 있습니다. 이 문서의 범위 밖이므로 표에서
 > 생략했습니다.
+
+**`.html` 전처리 (`_prepare_html`)** — docling 의 HTML 백엔드는 `<iframe srcdoc="...">`
+속성값 안의 본문을 읽지 못합니다. 크롤 산출물(`merged.html`)이 그 형태라 4MB 문서에서
+641자·표 0개만 추출되므로, 파싱 전에 srcdoc 을 펼쳐 heading 기반 단일 문서로 재조립합니다
+(실측: 641자 → 59,140자, 표 43개). 설정은 `formats.html.flatten` = `auto`(기본, 원문
+스캔으로 결함 감지 시에만) / `always` / `off`. 판정은 정규식 원문 스캔이라 4MB에 약 3ms고,
+정상 HTML에서는 오탐이 없어 기존 동작을 건드리지 않습니다.
+
+> ⚠️ 정리 단계에서 `aria-hidden`/`display:none` 요소를 지우면 안 됩니다. monimo 카드의
+> 혜택 텍스트가 `<span aria-hidden="true">` 안에, 약관 본문이 접힌 아코디언
+> (`display:none`) 안에 있습니다. `hidden` 속성만 제거하는 것이 docling 과 같은 범위이고,
+> 이 규칙은 `tests/unit/test_html_flatten_unit.py` 가 고정합니다.
+
+**`.json` 경로 (`_parse_json`)** — JSON 안의 본문 텍스트(markdown/html)를 꺼내 항목별
+`<h2>` 섹션을 가진 단일 HTML 로 병합한 뒤 `_parse_docling` 을 재사용합니다(파싱 본체는
+새로 만들지 않음). 텍스트가 담긴 key 는 `enrichment.custom_fields` 항목의 `json:` 블록에
+**키 이름만** 나열하고, JSON 임의 깊이에서 재귀 매칭되므로 `pages[*].html` 같은 배열
+구조도 경로 문법 없이 처리됩니다. 매칭 설정이 없으면 기존 텍스트 경로로 폴백합니다.
 
 **docling 계열 4단 패턴** — 세 경로(hwp/docx/pdf)가 모두 동일합니다. 새 포맷을 추가할 때 그대로 따르세요.
 
@@ -839,7 +859,7 @@ return self._normalize_response(result)
 | element 카테고리·필드 변경 | `_docling_to_parse_format` (2281–2369) | 5키 스키마는 `/chunker` 가 의존. **추가는 안전, 삭제·개명은 위험** |
 | 표 출력 형식 | `_export_table_content` (2227) + 2325–2341 | `[표 설명]` 구분자·시트명 접두를 바꾸면 다운스트림 파싱에 영향 |
 | 이미지 element 의 내용 | 2352–2358 | 현재 이미지 설명으로 `content` 를 덮어씀. 별도 필드로 빼려면 소비 측도 함께 확인 |
-| 확장자 추가·라우팅 변경 | `__call__` (2619–2701) | 반드시 `_normalize_response()` 를 통과시켜 반환. docling 경로면 4단 패턴 복제 |
+| 확장자 추가·라우팅 변경 | `__call__` (2725–2875) | 반드시 `_normalize_response()` 를 통과시켜 반환. docling 경로면 4단 패턴 복제 |
 | OCR / layout 옵션 | `IntelligentDocumentProcessor` (979–1013, 1169–1250) | 파이프라인 옵션은 요청마다 재구성되는 부분이 있어 상태 추가 주의 |
 | enrichment 단계 추가 | `_apply_docling_post_enrichment` (2139) | `try/except → _handle_stage_error(exc, "<stage>")` 패턴 유지 |
 | 입력 검증 완화(새 포맷 허용) | `_detect_unsupported_file` (284) + 매직헤더 목록 (193) | 손상 파일을 통과시키면 뒤 단계에서 이상한 결과가 나옴 |
