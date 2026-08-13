@@ -231,16 +231,25 @@ def document_title(raw: str, fallback: str = "") -> str:
     return text or fallback
 
 
-def flatten_html(raw: str, title: str = "") -> str:
+def flatten_html(raw: str, title: str = "", reasons: list[str] | None = None) -> str:
     """srcdoc 형태의 HTML 을 펼쳐 docling 이 읽을 수 있는 단일 클린 문서로 만든다.
 
     srcdoc 섹션이 없으면(= 단일 페이지 HTML) 그 페이지 자체를 정리해 한 섹션짜리
     문서로 만든다. 그래서 `flatten: always` 모드에서도 안전하게 호출할 수 있다.
+
+    `reasons` 는 호출측이 이미 계산해 둔 precheck_html 결과다. 넘기지 않으면 내부에서
+    계산한다 — 대용량 문서를 정규식으로 한 번 더 전수 스캔하지 않기 위한 선택 인자.
     """
     doc_title = title or document_title(raw, "document")
     pages = iter_srcdoc_sections(raw)
     if pages:
+        # srcdoc 섹션은 iter_srcdoc_sections 가 이미 unescape 했다(중복 적용 금지).
         sections = [(label, extract_content(page)) for label, page in pages]
     else:
-        sections = [(doc_title, extract_content(raw))]
+        # iframe 없이 본문 전체가 escape 된 경우. 여기서 풀지 않으면 bs4 가
+        # `&lt;table&gt;` 을 텍스트 노드로 읽어 표/헤딩 구조가 통째로 사라진다.
+        if reasons is None:
+            reasons = precheck_html(raw)
+        source = _fully_unescape(raw) if "escaped_html" in reasons else raw
+        sections = [(doc_title, extract_content(source))]
     return build_docling_document(doc_title, sections)

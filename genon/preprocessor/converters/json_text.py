@@ -175,7 +175,7 @@ def _section_node(value: str, fmt: str, label: str):
     reasons = precheck_html(value)
     if reasons:
         _log.info(f"[json_text] '{label}' flatten 적용 — 사유: {', '.join(reasons)}")
-        value = flatten_html(value, label)
+        value = flatten_html(value, label, reasons)
     return extract_content(value)
 
 

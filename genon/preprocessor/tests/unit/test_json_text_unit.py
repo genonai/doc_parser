@@ -130,6 +130,26 @@ def test_build_merged_html_flattens_srcdoc_inside_value():
     assert "펼쳐진 본문" in out
 
 
+def test_build_merged_html_flattens_escaped_html_inside_value():
+    """iframe 없이 값 전체가 escape 된 필드도 표 구조가 복원된다.
+
+    `_section_node` 주석이 말하는 '이중인코딩' 경로. srcdoc 만 unescape 하던 시절엔
+    escape 텍스트가 그대로 남아 표가 0개인 문서가 만들어졌다. 회귀 방지용.
+    """
+    value = (
+        '<main><div class="wrap"><section>'
+        "&lt;table&gt;&lt;tr&gt;&lt;td&gt;셀값&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;"
+        + "&lt;p&gt;문단&lt;/p&gt;" * 12  # precheck 임계값(10) 초과
+        + "</section></div></main>"
+    )
+    assert detect_format(value) == "html"
+
+    out = build_merged_html([("겉", value)], "문서")
+    assert "<table>" in out
+    assert "셀값" in out
+    assert "&lt;table&gt;" not in out
+
+
 def test_build_merged_html_honors_forced_format():
     """format: markdown 강제 시 html 처럼 보이는 값도 markdown 으로 처리된다."""
     out = build_merged_html([("x", "## 제목")], "문서", forced_format="markdown")

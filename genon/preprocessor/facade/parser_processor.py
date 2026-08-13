@@ -2174,7 +2174,9 @@ class DocumentProcessor:
 
         stem = Path(file_path).stem
         try:
-            flattened = html_flatten.flatten_html(raw, html_flatten.document_title(raw, stem))
+            flattened = html_flatten.flatten_html(
+                raw, html_flatten.document_title(raw, stem), reasons
+            )
         except Exception as exc:
             # 전처리 실패가 파싱 자체를 막지 않도록 원본으로 폴백한다.
             _log.warning(f"[parser] html flatten 실패(원본으로 진행): {exc}")
