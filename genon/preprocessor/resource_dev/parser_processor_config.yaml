@@ -196,7 +196,8 @@ enrichment:
         prompt_file: prompt_table_refine_combined.md   # 재구성 HTML + 요약 통합 프롬프트
 
   # ── 문서유형별 custom_fields 추출 ──────────────────────────────────────────
-  # extractor=llm은 문서 단위 LLM 추출, tabular_mapping은 Excel/CSV 행별 직접 매핑.
+  # extractor=llm은 문서 단위 LLM 추출, tabular_mapping은 Excel/CSV 행별 직접 매핑,
+  # json_mapping은 JSON 레코드 배열의 레코드별 직접 매핑(+ 필요 시 LLM 생성 필드).
   # 카드 상품 메타데이터(12필드) 추출 — monimo 카드 HTML(flatten 후) 대상
   - custom_fields:
       enable: true
@@ -218,6 +219,15 @@ enrichment:
       doc_type: faq
       extractor: tabular_mapping
       config_file: custom_field_faq.yaml   # resource_path 자동 = 이 yaml 파일 디렉토리
+
+  # monimo 이벤트 JSON 레코드별 매핑 — 레코드 1건 = 청크 1개, 요약본문은 LLM 생성
+  # (요약을 쓰려면 custom_field_monimo_event.yaml 의 llm_fields.url/model 을 채워야 한다.
+  #  LLM 연결·프롬프트까지 그 파일 하나에 인라인되어 있어 별도 파일이 없다)
+  - custom_fields:
+      enable: false
+      doc_type: monimo_event
+      extractor: json_mapping
+      config_file: custom_field_monimo_event.yaml   # resource_path 자동 = 이 yaml 파일 디렉토리
 
   # ── authors 데모(기존) — 카드 추출 데모용 임시 off ──
   - custom_fields:

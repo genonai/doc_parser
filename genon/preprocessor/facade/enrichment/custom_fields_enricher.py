@@ -29,8 +29,11 @@ _DEFAULT_CUSTOM_FIELDS_SYSTEM_PROMPT = (
 
 DOCUMENT_CUSTOM_FIELD_EXTRACTORS = {"llm", "document_llm"}
 TABULAR_CUSTOM_FIELD_EXTRACTORS = {"tabular", "tabular_mapping", "column_mapping"}
+JSON_CUSTOM_FIELD_EXTRACTORS = {"json_mapping", "json_records"}
 SUPPORTED_CUSTOM_FIELD_EXTRACTORS = (
-    DOCUMENT_CUSTOM_FIELD_EXTRACTORS | TABULAR_CUSTOM_FIELD_EXTRACTORS
+    DOCUMENT_CUSTOM_FIELD_EXTRACTORS
+    | TABULAR_CUSTOM_FIELD_EXTRACTORS
+    | JSON_CUSTOM_FIELD_EXTRACTORS
 )
 
 
@@ -78,9 +81,9 @@ def _enricher_kwargs(config: dict) -> dict:
 def build_document_custom_fields_enrichers(configs: list[dict]) -> list["CustomFieldsEnricher"]:
     """document/LLM custom_fields 설정만 실제 Docling enricher로 생성한다.
 
-    tabular_mapping 설정은 parser의 Excel 조기 분기에서 별도 handler가 소비한다. 이를
-    여기서 제외해야 intelligent/convert/chunking 프로세서 초기화 시 LLM enricher 생성자로
-    잘못 전달되지 않는다.
+    tabular_mapping(Excel 행 매핑) / json_mapping(JSON 레코드 매핑) 설정은 parser의 조기
+    분기에서 별도 handler가 소비한다. 이를 여기서 제외해야 intelligent/convert/chunking
+    프로세서 초기화 시 LLM enricher 생성자로 잘못 전달되지 않는다.
     """
     enrichers = []
     for config in configs or []:
@@ -369,7 +372,9 @@ class CustomFieldsEnricher(BaseEnricher):
 
         return await async_cached_call(self._url, payload, _produce)
 
-    def _parse_with_custom_parser(self, llm_output: str, document: DoclingDocument, **kwargs) -> dict:
+    def _parse_with_custom_parser(
+        self, llm_output: str, document: DoclingDocument | None, **kwargs
+    ) -> dict:
         try:
             parsed = self._parser_callable(
                 llm_output,
@@ -399,10 +404,26 @@ class CustomFieldsEnricher(BaseEnricher):
         )
         return serializer.serialize().text
 
+    @property
+    def is_configured(self) -> bool:
+        """LLM 연결 설정이 채워져 있는지. 비어 있으면 호출 자체를 하지 않는다."""
+        return bool(self._url and self._model)
+
+    async def extract_fields_from_text(self, raw_text: str) -> dict:
+        """DoclingDocument 없이 원문 텍스트만으로 필드를 추출한다(레코드 단위 호출용).
+
+        `enrich` 는 문서 단위 진입점이라 문서에서 raw_text 를 뽑고 결과를 문서에 저장하지만,
+        JSON 레코드 매핑(json_records)은 문서가 없고 레코드마다 호출한다. 프롬프트 템플릿/
+        thinking dialect/llm_cache/응답 파싱은 모두 같은 경로를 그대로 쓴다.
+        """
+        llm_output = await self._call_llm(raw_text, None)
+        parsed = self._parse_with_custom_parser(llm_output, None)
+        return self._normalize_output_fields(parsed)
+
     async def enrich(self, document: DoclingDocument, **kwargs) -> DoclingDocument:
         if not matches_doc_type(self._doc_types, kwargs.get("doc_type")):
             return document
-        if not self._url or not self._model:
+        if not self.is_configured:
             _log.warning("custom_fields enricher 비활성: url/model 설정이 비어있습니다.")
             return document
 

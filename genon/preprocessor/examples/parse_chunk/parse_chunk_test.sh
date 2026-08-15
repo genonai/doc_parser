@@ -69,6 +69,17 @@ RUN="run-1"
 #   ls "${OUT}"/생명FAQ_260712.chunks.json
 #   "${PYTHON}" -c "import json;d=json.load(open('${OUT}/생명FAQ_260712.chunks.json'));print(len(d));print(d[0])"
 
+# ── monimo 이벤트 JSON → parser(json_mapping 레코드별) → chunker (레코드마다 1청크) ──────────
+# resource_dev/parser_processor_config.yaml 의 doc_type=monimo_event 블록을 enable: true 로 바꾸면
+# eventList[*] 가 레코드마다 청크 1개가 되고 TITLE/EVENT_FROM/EVENT_TO/DETAIL_HTML 이 청크 metadata 로 실린다.
+# 요약본문(CONTENT_HASH)은 LLM 생성이라 custom_field_monimo_event.yaml 의 llm_fields.url/model
+# 설정이 필요하다(LLM 연결·프롬프트까지 그 파일 하나에 인라인되어 있다).
+# LLM 없이 매핑만 확인하려면 같은 파일에서 llm_fields 를 주석 처리하고
+# text_fields 를 [TITLE, DETAIL_TEXT] 로 바꾼다.
+# "${PYTHON}" parse_chunk_test.py --doc_type monimo_event "../../sample_files/json/monimo_event_sample.json" "${OUT}/"
+# 결과 확인: 제목이 빈 3번째 레코드는 skip 되어 2청크.
+#   "${PYTHON}" -c "import json;d=json.load(open('${OUT}/monimo_event_sample.chunks.json'));print(len(d));print(d[0])"
+
 # 캐시 파일 확인: ls -R "${INTERIM}/${WF}/${RUN}/llm_cache/"
 
 # error_policy=strict (enrichment 실패 시 예외 전파):

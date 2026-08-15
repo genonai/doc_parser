@@ -108,6 +108,27 @@ def transform_date_int(value: Any) -> int:
     return parse_created_date(str(value))
 
 
+# 2자리 연도 표기("26.07.01")를 4자리로 펼칠 때의 세기 분기점. 50 미만은 20xx, 이상은 19xx.
+_SHORT_YEAR_PIVOT = 50
+_SHORT_DATE_RE = re.compile(r"^\s*(\d{2})\s*[-./]\s*(\d{1,2})\s*[-./]\s*(\d{1,2})\s*$")
+
+
+def transform_date_int_flex(value: Any) -> int:
+    """date_int_flex 변환기: 2자리 연도("26.07.01")까지 받는 YYYYMMDD 정수 변환.
+
+    `date_int`(parse_created_date)는 `\\d{4}` 연도만 인식해 "26.07.01" 을 2601 년으로도,
+    날짜로도 읽지 못한다. 여기서 2자리 연도만 4자리로 펼친 뒤 나머지는 `date_int` 에 위임하므로
+    기존 created_date 동작에는 영향이 없다.
+    """
+    if isinstance(value, str):
+        match = _SHORT_DATE_RE.match(value)
+        if match:
+            year, month, day = match.groups()
+            century = 2000 if int(year) < _SHORT_YEAR_PIVOT else 1900
+            value = f"{century + int(year)}-{month}-{day}"
+    return transform_date_int(value)
+
+
 # ── 보조 추출(fallback) ──────────────────────────────────────────────────────
 
 def extract_created_date_from_document_text(document: "DoclingDocument") -> int:
@@ -149,6 +170,7 @@ def extract_created_date_from_document_text(document: "DoclingDocument") -> int:
 # 신규 변환기/보조추출은 함수 작성 후 아래 dict 에 등록만 하면 설정에서 바로 사용 가능.
 VALUE_TRANSFORMS: dict[str, Callable[[Any], Any]] = {
     "date_int": transform_date_int,
+    "date_int_flex": transform_date_int_flex,
 }
 FALLBACK_STRATEGIES: dict[str, Callable[["DoclingDocument"], Any]] = {
     "doc_text_scan": extract_created_date_from_document_text,

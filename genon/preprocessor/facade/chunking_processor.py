@@ -2580,19 +2580,16 @@ class DocumentProcessor:
             'media_files': ".",
         })
 
-    def _chunk_text_elements(self, elements: list, **kwargs: dict) -> list:
-        """parse-format element 들을 RecursiveCharacterTextSplitter 로 청킹한다.
+    def _resolve_recursive_split_params(self, **kwargs: dict) -> "tuple[int, int]":
+        """RecursiveCharacterTextSplitter 용 (chunk_size, chunk_overlap) 결정.
 
-        legacy attachment_processor.split_documents/compose_vectors 와 동일한 동작.
-        parser 의 element page 는 이미 1-based 이므로 attachment 처럼 +1 하지 않는다.
+        chunk_size: 명시 kwargs(0 포함) 우선. 0/음수는 docling '분할 안 함' 관례에 맞춰 char splitter
+          에서 사실상 미분할(1000000)로 해석. 키가 없거나 파싱 불가면 공통 chunking.chunk_size 사용.
+        chunk_overlap: 호출 kwargs(chunk_overlap/recursive_chunk_overlap) > config(recursive.chunk_overlap).
+          명시적 null 도 default 로 폴백해 int(None) 크래시를 막는다.
+
+        parse-format 텍스트 경로와 행 기반 경로(splittable element)가 같은 규칙을 쓰도록 공유한다.
         """
-        from langchain_text_splitters import RecursiveCharacterTextSplitter
-        from langchain_core.documents import Document
-
-        # chunk_size: 명시 kwargs(0 포함) 우선. 0/음수는 docling '분할 안 함' 관례에 맞춰 char splitter
-        #   에서 사실상 미분할(1000000)로 해석. 키가 없거나 파싱 불가면 공통 chunking.chunk_size 사용.
-        # chunk_overlap: 호출 kwargs(chunk_overlap/recursive_chunk_overlap) > config(recursive.chunk_overlap).
-        #   명시적 null 도 default 로 폴백해 int(None) 크래시를 막는다.
         _NO_SPLIT = 1000000
         common_size = getattr(self, "_chunk_size", None)
         overlap_default = getattr(self, "_recursive_chunk_overlap", 100)
@@ -2617,6 +2614,18 @@ class DocumentProcessor:
         chunk_size = max(int(chunk_size), 1)
         # overlap >= size 면 RecursiveCharacterTextSplitter 가 ValueError 로 크래시하므로 size-1 이하로 클램프.
         chunk_overlap = min(max(int(overlap), 0), chunk_size - 1)
+        return chunk_size, chunk_overlap
+
+    def _chunk_text_elements(self, elements: list, **kwargs: dict) -> list:
+        """parse-format element 들을 RecursiveCharacterTextSplitter 로 청킹한다.
+
+        legacy attachment_processor.split_documents/compose_vectors 와 동일한 동작.
+        parser 의 element page 는 이미 1-based 이므로 attachment 처럼 +1 하지 않는다.
+        """
+        from langchain_text_splitters import RecursiveCharacterTextSplitter
+        from langchain_core.documents import Document
+
+        chunk_size, chunk_overlap = self._resolve_recursive_split_params(**kwargs)
 
         # #315 민감정보 분류: __call__ 에서 문서 전체 1회 분류한 결과를 청크별 quote 매칭에 사용.
         _sensitive_infos: list = kwargs.get("_sensitive_infos") or []
@@ -2683,6 +2692,44 @@ class DocumentProcessor:
             chunk_index_on_page += 1
         return vectors
 
+    def _expand_splittable_rows(self, rows: list, **kwargs: dict) -> list:
+        """`splittable` 표시가 있고 chunk_size 를 넘는 행을 여러 행으로 펼친다.
+
+        레코드 1건이 chunk_size 를 넘으면 청크를 나누되 **레코드 metadata 는 모든 조각에 그대로**
+        유지한다(적재 측에서 같은 레코드의 조각임을 metadata 로 식별). 플래그가 없는 기존
+        tabular_row/faq_row 는 손대지 않으므로 회귀가 없다.
+        """
+        if not any(el.get("splittable") for el in rows):
+            return rows
+
+        from langchain_text_splitters import RecursiveCharacterTextSplitter
+
+        chunk_size, chunk_overlap = self._resolve_recursive_split_params(**kwargs)
+        splitter = RecursiveCharacterTextSplitter(
+            chunk_size=chunk_size, chunk_overlap=chunk_overlap
+        )
+
+        expanded: list = []
+        split_records = 0
+        for el in rows:
+            content = str(el.get("content", "") or "")
+            if not el.get("splittable") or len(content) <= chunk_size:
+                expanded.append(el)
+                continue
+            pieces = [piece for piece in splitter.split_text(content) if piece.strip()]
+            if len(pieces) <= 1:
+                expanded.append(el)
+                continue
+            split_records += 1
+            expanded.extend({**el, "content": piece} for piece in pieces)
+
+        if split_records:
+            _log.info(
+                f"[chunker] splittable 레코드 {split_records}건을 chunk_size({chunk_size}) 기준으로 "
+                f"분할했습니다: {len(rows)} → {len(expanded)} 청크"
+            )
+        return expanded
+
     def _chunk_custom_fields_rows(self, elements: list, **kwargs: dict) -> list:
         """행별 tabular/custom_fields element → 행마다 청크 1개.
 
@@ -2703,6 +2750,10 @@ class DocumentProcessor:
                 f"[chunker] 행 기반 청킹 경로에서 비-행 element {dropped}개를 버렸습니다 "
                 f"(rows={len(rows)}, total={len(elements)})"
             )
+
+        # splittable=True element(json_mapping 레코드)만 chunk_size 기준으로 나눈다.
+        # 플래그가 없는 tabular_row/faq_row 는 종전대로 "행 1개 = 청크 1개" 다.
+        rows = self._expand_splittable_rows(rows, **kwargs)
 
         # #315 민감정보 분류 결과(있으면 text 에 quote 매칭·라벨·마스킹 적용).
         _sensitive_infos: list = kwargs.get("_sensitive_infos") or []

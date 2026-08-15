@@ -189,7 +189,8 @@ enrichment:
         prompt_file: prompt_table_refine_combined.md   # 재구성 HTML + 요약 통합 프롬프트
 
   # ── 문서유형별 custom_fields 추출 ──────────────────────────────────────────
-  # extractor=llm 은 문서 단위 LLM 추출, tabular_mapping 은 Excel/CSV 행별 직접 매핑.
+  # extractor=llm 은 문서 단위 LLM 추출, tabular_mapping 은 Excel/CSV 행별 직접 매핑,
+  # json_mapping 은 JSON 레코드 배열의 레코드별 직접 매핑(+ 필요 시 LLM 생성 필드).
   # doc_type(요청 kwargs)과 일치하는 설정만 동작. 배포 시 enable/serving ID 설정 후 사용.
   - custom_fields:
       enable: false
@@ -209,6 +210,14 @@ enrichment:
       doc_type: faq
       extractor: tabular_mapping
       config_file: custom_field_faq.yaml   # resource_path 자동 = 이 yaml 파일 디렉토리
+  # .json 레코드 모드: eventList[*] 처럼 레코드 배열이 오는 입력을 레코드마다 청크 1개로
+  # 만들고, 목표필드를 그 청크의 metadata 로 싣는다(xlsx 의 tabular_mapping 과 같은 성격).
+  # 위 card 의 json: 블록(문서 모드)보다 우선하며, 매칭 설정이 없으면 기존 .json 동작 그대로.
+  - custom_fields:
+      enable: false
+      doc_type: monimo_event
+      extractor: json_mapping
+      config_file: custom_field_monimo_event.yaml   # resource_path 자동 = 이 yaml 파일 디렉토리
 
 output:
   format: "docling" # "json" (default), "html", "markdown", "docling"
