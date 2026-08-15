@@ -105,6 +105,7 @@ try:
     from genon.preprocessor.facade.enrichment.custom_fields_enricher import (
         build_document_custom_fields_enrichers,
         normalize_doc_type,
+        normalize_doc_types,
     )
     from genon.preprocessor.facade.enrichment.tabular_custom_fields import (
         build_tabular_custom_fields_mappers,
@@ -115,6 +116,10 @@ except ImportError:
 
     def normalize_doc_type(value):  # type: ignore[no-redef]
         return str(value or "").strip().lower()
+
+    def normalize_doc_types(value):  # type: ignore[no-redef]
+        values = value if isinstance(value, (list, tuple, set)) else [value]
+        return tuple(dict.fromkeys(d for d in (normalize_doc_type(v) for v in values) if d))
 
 try:
     from genon.preprocessor.facade.enrichment.metadata_enricher import MetadataEnricher
@@ -1936,6 +1941,17 @@ class DocumentProcessor:
         self._page_desc_options = PageDescriptionOptions.from_config(ppt_pd_cfg, self._intel._config_dir)
         self._ppt_pdf_converter = None
 
+        # HTML flatten 전처리 모드. docling 은 <iframe srcdoc="..."> 속성 안의 본문을
+        # 읽지 못해 4MB 문서에서 641자만 추출되는 경우가 있다(monimo 크롤 산출물).
+        # auto: 원문 스캔으로 그런 구조적 결함이 감지될 때만 flatten(기본)
+        # always: 항상 flatten  |  off: 전처리 없음(기존 동작)
+        html_cfg = _as_dict(formats_cfg.get("html"))
+        self._html_flatten_mode = self._normalize_flatten_mode(html_cfg.get("flatten", "auto"))
+
+        # enrichment.custom_fields 중 json 블록을 가진 설정(= .json 입력에서 본문 텍스트를
+        # 꺼낼 key 목록)을 시작 시 1회 로드한다. tabular_mapping 과 같은 패턴.
+        self._json_text_specs = self._build_json_text_specs(self._intel.custom_fields_cfgs)
+
     @staticmethod
     def _normalize_output_format(value: Any) -> str:
         fmt = str(value).strip().lower()
@@ -1952,14 +1968,62 @@ class DocumentProcessor:
             return "html"
         return fmt
 
+    @staticmethod
+    def _normalize_flatten_mode(value: Any) -> str:
+        mode = str(value).strip().lower()
+        if mode not in {"auto", "always", "off"}:
+            _log.warning(
+                f"[DocumentProcessor] Invalid formats.html.flatten '{value}', fallback to 'auto'"
+            )
+            return "auto"
+        return mode
+
+    @staticmethod
+    def _build_json_text_specs(custom_fields_cfgs: list) -> list:
+        """custom_fields 설정 중 `json:` 블록을 가진 것만 JsonTextSpec 으로 만든다."""
+        from genon.preprocessor.converters.json_text import JsonTextSpec
+
+        specs = []
+        for config in custom_fields_cfgs or []:
+            json_cfg = _as_dict(config.get("json"))
+            if not json_cfg:
+                continue
+            doc_types = normalize_doc_types(config.get("doc_type"))
+            try:
+                specs.append(JsonTextSpec(json_cfg, doc_types))
+            except ValueError as exc:
+                raise GenosServiceException(
+                    "1", f"custom_fields.json 설정 오류: {exc}", stage="custom_fields"
+                ) from exc
+        return specs
+
+    def _json_text_spec_for(self, runtime_doc_type: Any):
+        """런타임 doc_type 에 매칭되는 json 설정. 없으면 None(기존 경로 폴백)."""
+        matching = [
+            spec for spec in self._json_text_specs
+            if not spec.doc_types or normalize_doc_type(runtime_doc_type) in spec.doc_types
+        ]
+        if len(matching) > 1:
+            raise GenosServiceException(
+                "1",
+                f"동일 doc_type에 json custom_fields 설정이 여러 개입니다: {runtime_doc_type}",
+            )
+        return matching[0] if matching else None
+
     # ------------------------------------------------------------------
     # 포맷별 파싱 메서드
     # ------------------------------------------------------------------
 
-    def _parse_docling(self, file_path: str, **kwargs) -> DoclingDocument:
+    def _parse_docling(
+        self, file_path: str, artifacts_from: str | None = None, **kwargs
+    ) -> DoclingDocument:
         """
         intelligent_processor.__call__ 흐름 중 enrichment 까지만 실행.
         load → OCR 검사 → ocr_all_table_cells → enrichment
+
+        artifacts_from: 이미지 artifacts 경로 계산에 쓸 '원본' 파일 경로. html flatten /
+            json 병합처럼 파싱 대상이 파생 임시 파일일 때, media_files 경로가 원본
+            기준으로 유지되도록 원본 경로를 넘긴다. 미지정 시 file_path 를 쓴다.
         """
         ocr_mode = getattr(self._intel, "ocr_mode", "auto")
 
@@ -1985,7 +2049,7 @@ class DocumentProcessor:
         # 한다(청커는 설정하지 않음). 이게 빠져 있으면 /parse→/chunk 의 media_files 가 비어
         # /run 과 달라진다. PNG 는 공유 NFS(artifacts_dir=파일 경로 기준)에 저장돼 /chunk 가
         # 같은 경로로 minio 업로드한다.
-        output_path, output_file = os.path.split(file_path)
+        output_path, output_file = os.path.split(artifacts_from or file_path)
         filename, _ = os.path.splitext(output_file)
         artifacts_dir = Path(output_path) / filename  # 빈 output_path 가 절대경로(/filename)로 바뀌는 것 방지
         reference_path = None if artifacts_dir.is_absolute() else artifacts_dir.parent
@@ -2080,6 +2144,106 @@ class DocumentProcessor:
 
     def _parse_other(self, file_path: str, **kwargs) -> list:
         return self._generic.load_documents(file_path, **kwargs)
+
+    # ------------------------------------------------------------------
+    # HTML flatten 전처리 / JSON 본문 추출
+    # ------------------------------------------------------------------
+
+    def _prepare_html(self, file_path: str, work_dir: str) -> str:
+        """필요 시 HTML 을 flatten 해 새 경로를 돌려준다. 불필요하면 원본 경로 그대로.
+
+        docling 의 HTML 백엔드는 `<iframe srcdoc="...">` 속성값 안의 본문을 읽지 못한다
+        (크롤 산출물 merged.html: 4MB → 641자, 표 0개). 원인이 '속성 안에 escape 된
+        본문'이라는 구조적 사실이라 임계값 없이 원문 스캔으로 판정 가능하고, 정상 HTML
+        에서는 오탐이 없어 기존 동작을 건드리지 않는다.
+        """
+        if self._html_flatten_mode == "off":
+            return file_path
+
+        from genon.preprocessor.converters import html_flatten
+
+        try:
+            raw = Path(file_path).read_text(encoding="utf-8", errors="replace")
+        except OSError as exc:
+            _log.warning(f"[parser] html flatten 사전검사 실패(원본으로 진행): {exc}")
+            return file_path
+
+        reasons = html_flatten.precheck_html(raw)
+        if self._html_flatten_mode == "auto" and not reasons:
+            return file_path
+
+        stem = Path(file_path).stem
+        try:
+            flattened = html_flatten.flatten_html(
+                raw, html_flatten.document_title(raw, stem), reasons
+            )
+        except Exception as exc:
+            # 전처리 실패가 파싱 자체를 막지 않도록 원본으로 폴백한다.
+            _log.warning(f"[parser] html flatten 실패(원본으로 진행): {exc}")
+            return file_path
+
+        out_path = os.path.join(work_dir, f"{stem}.html")
+        with open(out_path, "w", encoding="utf-8") as fp:
+            fp.write(flattened)
+        _log.info(
+            f"[parser] html flatten 적용(mode={self._html_flatten_mode}, "
+            f"사유={reasons or 'always'}): {len(raw):,} → {len(flattened):,} bytes"
+        )
+        return out_path
+
+    def _warn_if_thin_html(self, file_path: str, doc: DoclingDocument) -> None:
+        """원문은 큰데 추출 텍스트가 거의 없으면 경고만 남긴다(재파싱하지 않음).
+
+        사전검사는 flatten 으로 복구 가능한 결함만 잡는다. SPA 가 본문을 하이드레이션
+        JSON 에만 담은 경우는 flatten 으로도 복구되지 않으므로, 재파싱 대신 운영자가
+        알아챌 수 있게 로그만 남긴다.
+        """
+        from genon.preprocessor.converters import html_flatten
+
+        try:
+            raw_size = os.path.getsize(file_path)
+            # export_to_text() 는 큰 문서에서 비싸다 — 판정 하한을 못 넘는 문서는 애초에
+            # 대상이 아니므로 먼저 걸러 텍스트 export 자체를 건너뛴다.
+            if raw_size < html_flatten.THIN_MIN_RAW_SIZE:
+                return
+            text_len = len(doc.export_to_text() or "")
+        except Exception:
+            return
+        if html_flatten.looks_thin(raw_size, text_len):
+            _log.warning(
+                f"[parser] HTML 추출 텍스트가 비정상적으로 적습니다 "
+                f"({raw_size:,} bytes → {text_len:,}자). 본문이 스크립트/동적 렌더링에만 "
+                f"있을 수 있습니다: {os.path.basename(file_path)}"
+            )
+
+    def _parse_json(self, file_path: str, spec, work_dir: str, **kwargs) -> DoclingDocument:
+        """JSON 의 지정 key 에서 본문 텍스트(markdown/html)를 꺼내 docling 으로 파싱한다.
+
+        항목별 <h2> 섹션을 가진 단일 HTML 로 병합해 docling 을 1회만 호출한다. 파싱
+        본체는 기존 `_parse_docling` 을 그대로 재사용하고, artifacts 경로는 원본 json
+        기준으로 유지해 media_files 가 어긋나지 않게 한다.
+        """
+        from genon.preprocessor.converters.json_text import json_payload_to_html
+
+        try:
+            with open(file_path, "r", encoding="utf-8") as fp:
+                payload = json.load(fp)
+        except (OSError, ValueError) as exc:
+            raise GenosServiceException(
+                "1", f"JSON 파일을 읽을 수 없습니다: {os.path.basename(file_path)} ({exc})"
+            ) from exc
+
+        stem = Path(file_path).stem
+        try:
+            merged_html = json_payload_to_html(payload, spec, stem)
+        except ValueError as exc:
+            raise GenosServiceException("1", str(exc), stage="custom_fields") from exc
+
+        html_path = os.path.join(work_dir, f"{stem}.html")
+        with open(html_path, "w", encoding="utf-8") as fp:
+            fp.write(merged_html)
+
+        return self._parse_docling(html_path, artifacts_from=file_path, **kwargs)
 
     def _get_ppt_pdf_converter(self) -> DocumentConverter:
         """PPT(→PDF) 파싱용 경량 docling 컨버터(lazy, 캐시). dotsocr 미수행 + do_ocr=False.
@@ -2644,12 +2808,48 @@ class DocumentProcessor:
                 return self._normalize_response(result)
 
             if ext in (".pdf", ".html", ".htm"):
-                doc = self._parse_docling(file_path, _enrichment_context=enrichment_context, **kwargs)
+                if ext in (".html", ".htm"):
+                    # html 은 flatten 전처리를 거칠 수 있다(srcdoc 등). 파생 임시 파일은
+                    # 파싱 후 정리하고, artifacts 경로는 원본 기준으로 유지한다.
+                    with tempfile.TemporaryDirectory(prefix="parser_html_") as work_dir:
+                        parse_path = self._prepare_html(file_path, work_dir)
+                        doc = self._parse_docling(
+                            parse_path,
+                            artifacts_from=file_path if parse_path != file_path else None,
+                            _enrichment_context=enrichment_context,
+                            **kwargs,
+                        )
+                    self._warn_if_thin_html(file_path, doc)
+                else:
+                    doc = self._parse_docling(file_path, _enrichment_context=enrichment_context, **kwargs)
                 doc = await self._apply_docling_post_enrichment(doc, _enrichment_context=enrichment_context, **kwargs)
                 result = self._build_docling_response(doc, **kwargs)
                 if enrichment_context.get("metadata"):
                     result["metadata"] = enrichment_context["metadata"]
                 return self._normalize_response(result)
+
+            # JSON: 설정(custom_fields.json)에 지정된 key 에서 본문 텍스트(markdown/html)를
+            # 꺼내 docling 으로 파싱한다. 매칭 설정이 없으면 기존 캐치올 경로로 폴백해
+            # 기존 .json 동작을 보존한다(xlsx 분기와 같은 게이팅 패턴).
+            if ext == ".json":
+                json_spec = self._json_text_spec_for(kwargs.get("doc_type"))
+                if json_spec is not None:
+                    with tempfile.TemporaryDirectory(prefix="parser_json_") as work_dir:
+                        doc = self._parse_json(
+                            file_path, json_spec, work_dir,
+                            _enrichment_context=enrichment_context, **kwargs,
+                        )
+                    doc = await self._apply_docling_post_enrichment(
+                        doc, _enrichment_context=enrichment_context, **kwargs
+                    )
+                    result = self._build_docling_response(doc, **kwargs)
+                    if enrichment_context.get("metadata"):
+                        result["metadata"] = enrichment_context["metadata"]
+                    return self._normalize_response(result)
+                _log.info(
+                    "[parser] custom_fields.json 매칭 설정 없음 — 기존 텍스트 경로로 처리: "
+                    f"{os.path.basename(file_path)}"
+                )
 
             # PPT: PDF 변환 → 경량 docling 파싱 + 페이지 단위 image description(옵션).
             # 변환 실패 시에만 레거시 langchain 경로로 폴백한다. (파스 전용 — 청킹 없음)

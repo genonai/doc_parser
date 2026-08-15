@@ -63,6 +63,18 @@ def custom_fields_extractor(config: dict) -> str:
     return str((config or {}).get("extractor") or "llm").strip().lower()
 
 
+# custom_fields 항목에 있지만 이 enricher 가 아니라 다른 단계가 소비하는 키.
+# CustomFieldsEnricher 생성자는 **kwargs 를 받지 않으므로, 여기서 제외하지 않으면
+# 설정에 이 키를 넣는 순간 TypeError 가 난다.
+#   - json: .json 입력에서 본문 텍스트를 꺼낼 key 목록 (parser 의 DocumentProcessor 가 소비)
+_NON_ENRICHER_KEYS = ("json",)
+
+
+def _enricher_kwargs(config: dict) -> dict:
+    """설정 dict 에서 CustomFieldsEnricher 생성자에 넘길 키만 남긴다(원본 미변경)."""
+    return {k: v for k, v in (config or {}).items() if k not in _NON_ENRICHER_KEYS}
+
+
 def build_document_custom_fields_enrichers(configs: list[dict]) -> list["CustomFieldsEnricher"]:
     """document/LLM custom_fields 설정만 실제 Docling enricher로 생성한다.
 
@@ -76,7 +88,7 @@ def build_document_custom_fields_enrichers(configs: list[dict]) -> list["CustomF
         if extractor not in SUPPORTED_CUSTOM_FIELD_EXTRACTORS:
             raise ValueError(f"지원하지 않는 custom_fields extractor: {extractor}")
         if extractor in DOCUMENT_CUSTOM_FIELD_EXTRACTORS:
-            enrichers.append(CustomFieldsEnricher(**dict(config)))
+            enrichers.append(CustomFieldsEnricher(**_enricher_kwargs(config)))
     return enrichers
 
 
