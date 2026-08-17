@@ -408,15 +408,39 @@ def test_shipped_monimo_event_config_loads(resource_dir):
         extractor="json_mapping",
     )
     assert mapper.records_key == "eventList"
-    assert mapper.text_fields == ["CONTENT_HASH"]
+    # 요약본문 필드는 SUMMARY_TEXT 다. TB_* 의 CONTENT_HASH 는 RAW(32) 원문 검증 해시라
+    # 임베딩 입력이 아니다 — 과거에 이 이름으로 잘못 나가 있었으므로 회귀를 막는다.
+    assert mapper.text_fields == ["TITLE", "SUMMARY_TEXT"]
+    assert "CONTENT_HASH" not in mapper.key_map
 
     # 출고 설정은 자족해야 한다 — LLM 연결·프롬프트가 이 파일 안에 인라인되어 있고
     # 참조하는 외부 파일이 없다(파생 yaml/프롬프트 md 를 다시 만들면 여기서 깨진다).
     spec = mapper.llm_field_specs[0]
-    assert spec.output_fields == ["CONTENT_HASH"]
+    assert spec.output_fields == ["SUMMARY_TEXT"]
     assert "config_file" not in spec.enricher_kwargs
     for key in ("url", "model", "system_prompt", "user_prompt"):
         assert spec.enricher_kwargs.get(key), f"{key} 가 인라인되어 있어야 합니다"
     assert "{{raw_text}}" in spec.enricher_kwargs["user_prompt"]
     # 프롬프트가 내놓는 JSON 키와 output_fields 가 어긋나면 값이 조용히 빈다.
-    assert "CONTENT_HASH" in spec.enricher_kwargs["system_prompt"]
+    assert "SUMMARY_TEXT" in spec.enricher_kwargs["system_prompt"]
+    assert "CONTENT_HASH" not in spec.enricher_kwargs["system_prompt"]
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("raw,expected", [
+    # 모니모 원천이 실제로 쓰는 압축 표기. parse_created_date 는 `\\d{4}` 를 연도로만 읽어
+    # "260731"→26070101, "20260713"→20260101 로 뭉갰다. 종료일이 그렇게 들어가면
+    # 기간 게이트가 영원히 열리므로 회귀를 막는다.
+    ("260701", 20260701),        # 관심소식/이벤트 YYMMDD
+    ("260731", 20260731),
+    (260701, 20260701),          # 엑셀이 숫자로 준 경우
+    ("20260713", 20260713),      # 링크 YYYYMMDD
+    (20260713, 20260713),
+    ("26.07.01", 20260701),      # 기존 동작 유지
+    ("2026-07-13", 20260713),
+    ("202699", 20260101),        # 날짜가 아니면 압축 표기로 보지 않고 기존 경로(연도만)
+    ("", 0),
+    (None, 0),
+])
+def test_date_int_flex_handles_compact_forms(raw, expected):
+    assert transform_date_int_flex(raw) == expected

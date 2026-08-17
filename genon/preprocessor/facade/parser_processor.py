@@ -1041,6 +1041,20 @@ class IntelligentDocumentProcessor:
             "multi_table": bool(_parse_optional_bool(tabular_cfg.get("multi_table"), "formats.xlsx.tabular.multi_table")),
         }
 
+        # md(마크다운) 처리 설정. formats.md 아래에 둔다.
+        #   docling(기본): MarkdownDocumentBackend 로 파싱 → 헤딩/표 구조 유지 + enrichment(custom_fields) 적용.
+        #   text: 레거시 TextLoader 경로. 구조가 없고 enrichment 가 걸리지 않는다.
+        # 기본을 docling 으로 두는 이유: 상품설명서(md) 같은 doc_type 이 custom_fields 를 쓰려면
+        # DoclingDocument 가 있어야 한다(TextLoader 경로에는 후처리 enrichment 훅이 없다).
+        md_cfg = _as_dict(formats_cfg.get("md"))
+        md_mode = str(md_cfg.get("processing_mode", "docling")).strip().lower()
+        if md_mode not in {"docling", "text"}:
+            _log.warning(
+                f"[DocumentProcessor] Unknown formats.md.processing_mode '{md_mode}', fallback to 'docling'."
+            )
+            md_mode = "docling"
+        self._md_cfg = {"processing_mode": md_mode}
+
         self.simple_pipeline_options = PipelineOptions()
         self.simple_pipeline_options.save_images = False
 
@@ -1778,9 +1792,9 @@ class GenericDocumentLoader:
             convert_to_pdf(file_path)
             return UnstructuredImageLoader(file_path, languages=["kor", "eng"])
         elif ext in ['.txt', '.json', '.md']:
+            # .md 는 기본적으로 docling 분기에서 처리된다. 여기로 오는 건
+            # formats.md.processing_mode=text 인 레거시 경로뿐이다.
             return TextLoader(file_path)
-        elif ext == '.md':
-            return UnstructuredMarkdownLoader(file_path)
         else:
             return UnstructuredFileLoader(file_path)
 
@@ -1877,8 +1891,9 @@ class DocumentProcessor:
         cfg = _load_config(config_path)
         self._intel = IntelligentDocumentProcessor(cfg, config_path=config_path)
 
-        # xlsx/csv 처리 설정은 intel 프로세서가 동일 config에서 이미 파싱함 → 재사용
+        # xlsx/csv · md 처리 설정은 intel 프로세서가 동일 config에서 이미 파싱함 → 재사용
         self._xlsx_cfg = self._intel._xlsx_cfg
+        self._md_cfg = self._intel._md_cfg
         # enrichment.custom_fields 중 tabular_mapping handler를 시작 시 1회 로드한다.
         self._config_dir = self._intel._config_dir
         self._tabular_custom_fields_mappers = (
@@ -1960,12 +1975,12 @@ class DocumentProcessor:
         # enrichment.custom_fields 중 extractor=json_mapping 설정(= JSON 레코드 → 목표필드
         # 매핑). 문서 모드(json:)보다 우선하며, 레코드마다 청크 메타데이터를 따로 싣는다.
         self._json_records_mappers = self._build_json_records_mappers(self._intel.custom_fields_cfgs)
-        # json_mapping 이 선언한 LLM 생성 필드용 enricher(설정 파일당 1개).
+        # json_mapping/tabular_mapping 이 선언한 LLM 생성 필드용 enricher(설정 파일당 1개).
         # 설정/프롬프트 파일 오류가 첫 요청이 아니라 기동 시 드러나도록 여기서 미리 만든다.
-        self._json_llm_enrichers: dict = {}
-        for mapper in self._json_records_mappers:
-            for llm_spec in mapper.llm_field_specs:
-                self._json_llm_enricher(llm_spec, mapper)
+        self._llm_field_enrichers: dict = {}
+        for mapper in (*self._json_records_mappers, *self._tabular_custom_fields_mappers):
+            for llm_spec in getattr(mapper, "llm_field_specs", ()):
+                self._llm_field_enricher(llm_spec, mapper)
 
     @staticmethod
     def _normalize_output_format(value: Any) -> str:
@@ -2270,14 +2285,17 @@ class DocumentProcessor:
                 "1", f"JSON 파일을 읽을 수 없습니다: {os.path.basename(file_path)} ({exc})"
             ) from exc
 
-    def _json_llm_enricher(self, spec, mapper):
+    def _llm_field_enricher(self, spec, mapper):
         """llm_fields 항목용 CustomFieldsEnricher(항목당 1개, 생성 후 캐시).
 
         LLM 설정은 항목에 인라인돼 있을 수도, config_file 로 분리돼 있을 수도 있다. 어느 쪽이든
         spec.enricher_kwargs 로 통일돼 오므로 여기서는 구분하지 않는다. 캐시 키는 스펙 객체 자체다
         — 스펙은 기동 시 1회 생성되어 매퍼가 붙들고 있으므로 identity 가 안정적이다.
+
+        json_mapping(JSON 레코드)과 tabular_mapping(Excel 행) 양쪽이 같은 스펙 타입을 쓰므로
+        이 경로를 공유한다.
         """
-        enricher = self._json_llm_enrichers.get(spec)
+        enricher = self._llm_field_enrichers.get(spec)
         if enricher is None:
             from genon.preprocessor.facade.enrichment.custom_fields_enricher import (
                 CustomFieldsEnricher,
@@ -2290,22 +2308,22 @@ class DocumentProcessor:
                 raise GenosServiceException(
                     "1", f"llm_fields 설정 오류({spec.label}): {exc}", stage="custom_fields"
                 ) from exc
-            self._json_llm_enrichers[spec] = enricher
+            self._llm_field_enrichers[spec] = enricher
         return enricher
 
-    async def _apply_json_llm_fields(self, mapper, fields_list: list) -> list:
-        """`llm_fields` 선언대로 레코드마다 LLM 을 호출해 목표필드를 채운다.
+    async def _apply_llm_fields(self, mapper, fields_list: list) -> list:
+        """`llm_fields` 선언대로 행/레코드마다 LLM 을 호출해 목표필드를 채운다.
 
-        레코드 수만큼 호출이 나가므로 spec.concurrency 로 동시 실행을 제한한다.
-        실패는 on_error 정책(null 채움 / 레코드 skip)으로 흡수하고 전체를 중단하지 않는다.
+        건수만큼 호출이 나가므로 spec.concurrency 로 동시 실행을 제한한다.
+        실패는 on_error 정책(null 채움 / 건별 skip)으로 흡수하고 전체를 중단하지 않는다.
         """
-        for spec in mapper.llm_field_specs:
+        for spec in getattr(mapper, "llm_field_specs", ()):
             if not fields_list:
                 break
-            enricher = self._json_llm_enricher(spec, mapper)
+            enricher = self._llm_field_enricher(spec, mapper)
             if not enricher.is_configured:
                 _log.warning(
-                    f"[json_records] llm_fields 비활성({spec.label}): url/model 설정이 "
+                    f"[llm_fields] 비활성({spec.label}): url/model 설정이 "
                     f"비어있어 {spec.output_fields} 를 null 로 둡니다."
                 )
                 for fields in fields_list:
@@ -2331,7 +2349,7 @@ class DocumentProcessor:
                 if isinstance(result, BaseException):
                     failed += 1
                     _log.warning(
-                        f"[json_records] LLM 필드 추출 실패({spec.label}): {result}"
+                        f"[llm_fields] LLM 필드 추출 실패({spec.label}): {result}"
                     )
                     if spec.on_error == "skip_record":
                         continue
@@ -2341,7 +2359,7 @@ class DocumentProcessor:
             if failed:
                 # silent 축소 방지 — 몇 건이 실패했고 어떻게 처리했는지 요약으로 드러낸다.
                 _log.warning(
-                    f"[json_records] llm_fields 실패 {failed}/{len(fields_list)}건 "
+                    f"[llm_fields] 실패 {failed}/{len(fields_list)}건 "
                     f"(on_error={spec.on_error})"
                 )
             fields_list = kept
@@ -2360,7 +2378,7 @@ class DocumentProcessor:
         except ValueError as exc:
             raise GenosServiceException("1", str(exc), stage="custom_fields") from exc
 
-        fields_list = await self._apply_json_llm_fields(mapper, fields_list)
+        fields_list = await self._apply_llm_fields(mapper, fields_list)
         _log.info(f"[parser] json_mapping 레코드 {len(fields_list)}건 → element")
         return mapper.to_parse_format(fields_list, doc_type)
 
@@ -2912,12 +2930,19 @@ class DocumentProcessor:
                         f"동일 doc_type에 tabular custom_fields 설정이 여러 개입니다: {runtime_doc_type}",
                     )
                 if matching_mappers:
+                    mapper = matching_mappers[0]
                     data_dict = self._parse_tabular(file_path)
                     try:
-                        result = matching_mappers[0].to_parse_format(data_dict, runtime_doc_type)
+                        fields_list = mapper.build_fields(data_dict, runtime_doc_type)
                     except (FileNotFoundError, TypeError, ValueError) as exc:
                         raise GenosServiceException("1", str(exc), stage="custom_fields") from exc
-                    return self._normalize_response(result)
+                    # 원천에 없는 필드(요약본문·키워드 등)를 행마다 LLM 으로 채운다.
+                    # json_mapping 과 같은 build_fields → LLM → to_parse_format 3단 구성.
+                    fields_list = await self._apply_llm_fields(mapper, fields_list)
+                    _log.info(f"[parser] tabular_mapping 행 {len(fields_list)}건 → element")
+                    return self._normalize_response(
+                        mapper.to_parse_format_from_fields(fields_list, runtime_doc_type)
+                    )
                 # docling 모드: MsExcel/Csv 백엔드로 DoclingDocument 생성 후 parse-JSON 직렬화.
                 if self._xlsx_cfg["processing_mode"] == "docling":
                     from genon.preprocessor.converters.xlsx_processor import build_docling_document
@@ -2948,7 +2973,11 @@ class DocumentProcessor:
                     result["metadata"] = enrichment_context["metadata"]
                 return self._normalize_response(result)
 
-            if ext in (".pdf", ".html", ".htm"):
+            # .md 는 formats.md.processing_mode=docling(기본)일 때만 이 분기로 온다.
+            # text 모드면 아래 캐치올(TextLoader)로 빠져 레거시 동작을 그대로 유지한다.
+            if ext in (".pdf", ".html", ".htm") or (
+                ext == ".md" and self._md_cfg["processing_mode"] == "docling"
+            ):
                 if ext in (".html", ".htm"):
                     # html 은 flatten 전처리를 거칠 수 있다(srcdoc 등). 파생 임시 파일은
                     # 파싱 후 정리하고, artifacts 경로는 원본 기준으로 유지한다.

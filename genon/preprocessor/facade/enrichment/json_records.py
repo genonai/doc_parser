@@ -36,28 +36,42 @@ _log = logging.getLogger(__name__)
 
 from .custom_fields_enricher import (
     JSON_CUSTOM_FIELD_EXTRACTORS,
+    VALID_LLM_ERROR_POLICIES,  # noqa: F401  (하위 호환 재노출)
+    LlmFieldSpec,  # noqa: F401  (하위 호환 재노출 — 정의는 custom_fields_enricher 로 이동)
+    build_llm_field_specs,
     custom_fields_extractor,
     matches_doc_type,
     normalize_doc_type,
     normalize_doc_types,
 )
 from .field_transforms import VALUE_TRANSFORMS
-from .tabular_custom_fields import normalize_column_name
+from .tabular_custom_fields import apply_value_map, compile_value_map, normalize_column_name
 
 VALID_MISSING_POLICIES = ("error", "skip")
-VALID_LLM_ERROR_POLICIES = ("null", "skip_record")
 
-# LlmFieldSpec 자신이 소비하는 키. 나머지는 전부 CustomFieldsEnricher 생성자로 넘어간다
-# (custom_fields_enricher._NON_ENRICHER_KEYS 와 같은 발상 — 소비자별로 키를 나눈다).
-# output_fields 는 양쪽이 다 쓴다 — 스펙은 실패 시 null 채움에, enricher 는 응답 정규화에.
-_SPEC_ONLY_KEYS = ("input_fields", "concurrency", "on_error")
-
-# 스칼라로 볼 값 타입. dict/list 는 "필드 값"이 아니므로 매칭 대상에서 제외하고 계속 파고든다.
+# 스칼라로 볼 값 타입. dict 는 "필드 값"이 아니므로 매칭 대상에서 제외하고 계속 파고든다.
 _SCALAR_TYPES = (str, int, float, bool)
 
 
+def _is_field_value(value: Any) -> bool:
+    """이 값을 "필드 값"으로 채택할지 — 스칼라, 또는 스칼라만 담긴 배열.
+
+    `related_keywords: []` 처럼 원천이 배열로 주는 JSON 컬럼(TB_CS_ITEM.RELATED_KEYWORDS,
+    TB_FAQ.QUESTION_VARIANTS 등)을 받기 위해 스칼라 배열까지 허용한다.
+    dict 와 dict 를 담은 배열은 여전히 값이 아니라 **구조**로 보고 계속 파고든다 —
+    그래야 `eventList` 같은 레코드 배열이 실수로 필드 값으로 잡히지 않는다.
+    """
+    if isinstance(value, _SCALAR_TYPES):
+        return True
+    if isinstance(value, list):
+        return all(isinstance(item, _SCALAR_TYPES) for item in value)
+    return False
+
+
 def _clean_value(value: Any) -> Any:
-    """문자열 값의 BOM/양끝 공백 제거(tabular `_clean_cell` 과 같은 규칙)."""
+    """문자열 값의 BOM/양끝 공백 제거(tabular `_clean_cell` 과 같은 규칙). 배열은 원소별로 적용."""
+    if isinstance(value, list):
+        return [_clean_value(item) for item in value]
     if isinstance(value, str):
         return value.replace("\ufeff", "").strip()
     return value
@@ -78,11 +92,11 @@ def find_field(record: Any, aliases: list[str]) -> Any:
         dicts = [node for node in level if isinstance(node, dict)]
         for alias in exact_aliases:
             for node in dicts:
-                if alias in node and isinstance(node[alias], _SCALAR_TYPES):
+                if alias in node and _is_field_value(node[alias]):
                     return _clean_value(node[alias])
         for node in dicts:
             for key, value in node.items():
-                if isinstance(value, _SCALAR_TYPES) and normalize_column_name(key) in normalized_aliases:
+                if _is_field_value(value) and normalize_column_name(key) in normalized_aliases:
                     return _clean_value(value)
 
         next_level: list = []
@@ -143,70 +157,6 @@ def html_to_text(value: Any) -> str:
     return "\n".join(line for line in lines if line)
 
 
-class LlmFieldSpec:
-    """`llm_fields` 항목 — JSON 에 없는 필드를 LLM 으로 생성하는 선언.
-
-    LLM 연결/프롬프트 설정은 **이 항목에 직접 써도 되고**(`url`·`model`·`system_prompt`·
-    `user_prompt` …) `config_file` 로 외부 yaml 을 가리켜도 된다. 아래 `_SPEC_ONLY_KEYS` 를 뺀
-    나머지 키가 그대로 `CustomFieldsEnricher` 생성자로 넘어가므로 두 방식이 같은 코드로 처리된다
-    — 설정 하나짜리 유형은 파일을 쪼개지 않고 한 파일로 끝낼 수 있다.
-    """
-
-    def __init__(self, cfg: dict):
-        if not isinstance(cfg, dict):
-            raise ValueError("llm_fields 항목은 object 여야 합니다.")
-
-        self.output_fields = [str(f).strip() for f in (cfg.get("output_fields") or []) if str(f).strip()]
-        if not self.output_fields:
-            raise ValueError("llm_fields 항목의 output_fields 가 비어 있습니다.")
-
-        self.input_fields = [str(f).strip() for f in (cfg.get("input_fields") or []) if str(f).strip()]
-        if not self.input_fields:
-            raise ValueError(f"llm_fields{self.output_fields} 의 input_fields 가 비어 있습니다.")
-
-        # 설정을 통째로 빠뜨린 경우를 기동 시에 잡는다. 값이 placeholder 라 실제 호출이 실패하는 건
-        # 런타임 경고로 흡수하지만(enricher.is_configured), 연결 정보가 아예 없는 건 오설정이다.
-        if not (str(cfg.get("config_file") or "").strip() or str(cfg.get("url") or "").strip()):
-            raise ValueError(
-                f"llm_fields{self.output_fields} 에는 config_file 또는 url 중 하나가 필요합니다."
-            )
-
-        try:
-            self.concurrency = max(1, int(cfg.get("concurrency") or 4))
-        except (TypeError, ValueError):
-            _log.warning("[json_records] Invalid llm_fields.concurrency, fallback to 4")
-            self.concurrency = 4
-
-        policy = str(cfg.get("on_error") or "null").strip().lower()
-        if policy not in VALID_LLM_ERROR_POLICIES:
-            _log.warning(f"[json_records] Invalid llm_fields.on_error '{policy}', fallback to 'null'")
-            policy = "null"
-        self.on_error = policy
-
-        # 나머지는 전부 enricher 생성자로. 알 수 없는 키는 거기서 TypeError 로 걸러진다(기동 시 노출).
-        self.enricher_kwargs = {k: v for k, v in cfg.items() if k not in _SPEC_ONLY_KEYS}
-
-    @property
-    def label(self) -> str:
-        """로그/오류 메시지에서 이 항목을 가리키는 이름(인라인이면 파일명이 없다)."""
-        config_file = self.enricher_kwargs.get("config_file")
-        return str(config_file) if config_file else ",".join(self.output_fields)
-
-    def build_input_text(self, fields: dict) -> str:
-        """프롬프트의 `{{raw_text}}` 로 들어갈 입력 텍스트(선언 순서대로 결합).
-
-        입력이 2개 이상이면 어떤 값이 무엇인지 모델이 알 수 있게 `필드명: 값` 형태로 붙인다.
-        """
-        labeled = len(self.input_fields) > 1
-        parts = []
-        for name in self.input_fields:
-            value = fields.get(name)
-            if value in (None, ""):
-                continue
-            parts.append(f"{name}: {value}" if labeled else str(value))
-        return "\n\n".join(parts)
-
-
 class JsonRecordsMapper:
     """custom_fields 설정 하나를 JSON 레코드 → parse-format 변환기로 컴파일한다.
 
@@ -245,6 +195,9 @@ class JsonRecordsMapper:
         self.defaults = dict(cfg.get("defaults") or {})
         self.constants = dict(cfg.get("constants") or {})
 
+        # 값 별칭 정규화(GROUP_C 의 "삼성생명/생명/SLF" 흔들림 등). tabular 와 같은 구현을 공유한다.
+        self.value_map = compile_value_map(cfg.get("value_map"))
+
         self.transforms = {str(k): str(v) for k, v in (cfg.get("transforms") or {}).items()}
         unknown = sorted({name for name in self.transforms.values() if name not in VALUE_TRANSFORMS})
         if unknown:
@@ -253,7 +206,7 @@ class JsonRecordsMapper:
             )
 
         self.html_text_fields = {str(k): str(v) for k, v in (cfg.get("html_text_fields") or {}).items()}
-        self.llm_field_specs = [LlmFieldSpec(item) for item in (cfg.get("llm_fields") or [])]
+        self.llm_field_specs = build_llm_field_specs(cfg)
 
         self.text_fields = [str(f).strip() for f in (cfg.get("text_fields") or []) if str(f).strip()]
         if not self.text_fields:
@@ -325,6 +278,9 @@ class JsonRecordsMapper:
         for key, value in self.defaults.items():
             if fields.get(key) in (None, ""):
                 fields[key] = value
+
+        # 값 정규화 → 변환 순서. 별칭을 표준값으로 접은 뒤에 타입 변환을 건다(tabular 와 동일).
+        apply_value_map(fields, self.value_map)
 
         for target, transform_name in self.transforms.items():
             fields[target] = VALUE_TRANSFORMS[transform_name](fields.get(target))

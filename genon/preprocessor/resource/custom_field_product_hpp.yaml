@@ -1,0 +1,110 @@
+# CustomFieldsEnricher 외부 config — 상품설명서(카드) 문서 단위 메타데이터 추출
+#
+# 사용 (parser_processor_config.yaml):
+#   - custom_fields:
+#       enable: true
+#       doc_type: product_hpp
+#       extractor: llm
+#       config_file: custom_field_product_hpp.yaml   # resource_path 자동 = 이 yaml 디렉토리
+#       json:
+#         text_fields: [html, summary_md]
+#         format: auto
+#         missing_policy: skip
+#
+# 원천: ssc_rag_adpr_yyyymmdd_xxxxx_001.json (/data/raw/WCM/ADPR, 확장자 "json(희망)")
+#
+# ★ custom_field_card.yaml 의 후속이다.
+#   기존 card config 는 마케팅 관점 12필드(issuer_name/annual_fee_amount/…)를 평면으로 뽑았는데,
+#   TB_PRODUCT 컬럼은 PRODUCT_C · PRODUCT_NM · PRODUCT_ATTRS(JSON) · SUMMARY_TEXT · GROUP_C 다.
+#   그래서 연회비·혜택·가입조건 같은 속성은 개별 컬럼이 아니라 PRODUCT_ATTRS 안으로 넣는다
+#   (DB 예시가 정확히 그 형태다: {"annual_fee": 0, "benefits": ["세제혜택"]}).
+#   생명/화재(custom_field_product_slf.yaml · _ssf.yaml)와 같은 출력 스키마를 쓴다.
+#
+# ⚠️ 상품 시트 요청사항(카드):
+#   - json 과 html n종으로 분리된 데이터를 하나로 통합 가능한지 확인 필요
+#   - 단순 통합하면 중복 내용이 많고, 카드 상품 특성상 이미지가 많다
+#   - 정형화 레이아웃 권장: ID, 제목, 문서 개요, 혜택, 추가정보(발급기준 등), 유의사항, 출처
+#   원천이 json 으로 확정되면 위 `json.text_fields` 를 카드WCMS 실제 스키마의 본문 키로 교체할 것.
+#
+# ⚠️ PRODUCT_C(상품코드)는 NOT NULL 이다. 카드는 상품코드가 페이지에 노출되는 경우가 있어
+#    LLM 추출을 시도하되, 안정적으로 확보하려면 원천이 별도 필드로 주는 편이 낫다.
+
+# ── LLM 연결 ────────────────────────────────────────────────────────────────
+# <ENRICHMENT_SERVING_ID>: Genos에 등록한 모델서빙 ID로 변경 필요. api_key 도 배포 시 설정.
+url: "http://llmops-gateway-api-service:8080/rep/serving/<ENRICHMENT_SERVING_ID>/v1/chat/completions"
+api_key: ""
+model: model
+
+# ── LLM 생성 파라미터 ────────────────────────────────────────────────────────
+max_tokens: 4000
+temperature: 0.0
+timeout: 300
+
+# ── 입력 페이지 범위 ─────────────────────────────────────────────────────────
+# 카드 페이지는 여러 섹션에 정보가 흩어져 있어 문서 전체를 대상으로 한다.
+pages: null
+
+# ── 파서 ─────────────────────────────────────────────────────────────────────
+parser:
+  type: json
+
+# ── 소스와 무관하게 고정으로 채울 값 ────────────────────────────────────────
+constants:
+  GROUP_C: "HPP"
+  SALE_STATUS: "ON_SALE"
+
+# ── 프롬프트 ─────────────────────────────────────────────────────────────────
+system_prompt: |
+  너는 카드 상품 정보추출 전문가다. 주어진 카드 상품 페이지 문서에서 요청한 필드를 정확하게 추출한다.
+
+  규칙:
+  - 반드시 하나의 JSON 객체만 반환한다. 설명 문구·마크다운 코드펜스 없이 순수 JSON 만 출력한다.
+  - 요청된 4개 키를 모두 포함한다. 문서에서 근거를 찾을 수 없는 값은 null 로 둔다.
+  - 문서에 없는 정보를 지어내지 않는다(환각 금지). 금액·비율은 원문 숫자를 그대로 쓴다.
+    추론이 필요한 yn 속성만 문맥 근거로 판단한다.
+
+  필드별 형식:
+  - `PRODUCT_C`: 카드 상품코드 문자열. 페이지나 메타에 상품코드가 있으면 그 값. 없으면 null
+    (상품명을 코드처럼 지어내지 않는다).
+  - `PRODUCT_NM`: 카드 상품명 원문 문자열. 반드시 채운다.
+  - `PRODUCT_ATTRS`: 구조화 속성 JSON 객체. 아래 키만 쓰고, 근거가 없는 키는 넣지 않는다.
+      - `product_name_norm`  : 상품명 정규화 문자열. 앞뒤/중복 공백, 마케팅 수식어, 괄호 부가설명을
+                               제거한 대표 명칭
+      - `annual_fee`         : 국내 기준 "본인" 연회비를 정수(원)로. 콤마·"원" 제거.
+                               브랜드/등급별로 여러 값이면 가장 낮은 기본 값
+      - `family_annual_fee`  : 가족카드 연회비를 정수(원)로
+      - `annual_fee_text`    : 연회비 관련 원문 텍스트(요약·재작성 금지)
+      - `family_annual_fee_text`: 가족연회비 관련 원문 텍스트
+      - `benefits`           : 주요 혜택 문자열 배열(3~10개). 혜택 1건을 한 문장으로
+      - `benefit_text`       : 주요 혜택 관련 원문 텍스트(요약·재작성 금지, 원문 그대로 발췌)
+      - `join_condition_text`: 가입조건·발급기준 관련 원문 텍스트
+      - `overseas_payment_yn`: 해외 가맹점 결제 가능 여부. "Y" 또는 "N"
+      - `transit_card_yn`    : 후불/모바일 교통카드 기능 제공 여부. "Y" 또는 "N"
+      - `joinable_yn`        : 현재 신규 발급(가입) 가능 여부. 단종·발급중단 문구가 있으면 "N"
+  - `SUMMARY_TEXT`: 검색용 임베딩에 넣을 요약본문 문자열.
+    어떤 이용자에게 어떤 혜택이 있는 카드인지, 연회비와 주요 발급 조건, 유의사항을 담는다.
+    문장형 한국어로 5~10문장, 1500자 이내. 불릿·머리기호를 쓰지 않는다.
+
+  출력 예시 형식(값은 예시):
+  {"PRODUCT_C": "HPP-CARD-0012", "PRODUCT_NM": "삼성 iD ON 카드", "PRODUCT_ATTRS": {"product_name_norm": "삼성 iD ON 카드", "annual_fee": 18000, "benefits": ["온라인 쇼핑 5% 할인"], "overseas_payment_yn": "Y", "transit_card_yn": "Y", "joinable_yn": "Y"}, "SUMMARY_TEXT": "온라인 쇼핑 이용이 많은 고객을 위한 카드로 …"}
+
+user_prompt: |
+  아래 카드 상품 페이지 문서에서 다음 4개 필드를 추출하라.
+
+  - PRODUCT_C (상품코드)
+  - PRODUCT_NM (상품명) — 필수
+  - PRODUCT_ATTRS (구조화 속성 객체)
+  - SUMMARY_TEXT (요약본문, 임베딩 입력)
+
+  반드시 위 4개 키를 모두 가진 하나의 JSON 객체로만 반환하라.
+
+  <document>
+  {{raw_text}}
+  </document>
+
+# ── 출력 필드 (프롬프트의 JSON 키와 일치해야 함) ──────────────────────────────
+output_fields:
+  - PRODUCT_C
+  - PRODUCT_NM
+  - PRODUCT_ATTRS
+  - SUMMARY_TEXT

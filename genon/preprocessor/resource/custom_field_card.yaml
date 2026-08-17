@@ -1,5 +1,12 @@
 # CustomFieldsEnricher 외부 config — 카드 상품 메타데이터(12필드) 추출
 #
+# ⚠️ 이 설정은 모니모 적재 스키마(TB_PRODUCT)와 필드명이 맞지 않는다.
+#    아래 12필드는 마케팅 관점 평면 필드라 PRODUCT_C(NOT NULL) · GROUP_C(NOT NULL) ·
+#    SUMMARY_TEXT(임베딩 입력) 가 없고, 연회비·혜택은 PRODUCT_ATTRS(JSON) 안으로 들어가야 한다.
+#    적재용으로는 custom_field_product_hpp.yaml(doc_type: product_hpp)을 쓸 것.
+#    이 파일은 기존 데모(doc_type: card — parse_chunk_test.sh / serving_gateway_test.sh)를
+#    깨지 않기 위해 그대로 둔다.
+#
 # 사용 (parser_processor_config.yaml):
 #   - custom_fields:
 #       enable: true

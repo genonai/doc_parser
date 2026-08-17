@@ -324,10 +324,14 @@ try:
     )
     from genon.preprocessor.facade.enrichment.tabular_custom_fields import (
         build_tabular_custom_fields_mappers as _build_tabular_custom_fields_mappers,
+        warn_tabular_llm_fields_unsupported as _warn_tabular_llm_fields_unsupported,
     )
 except ImportError:
     _build_document_custom_fields_enrichers = None  # type: ignore[assignment]
     _build_tabular_custom_fields_mappers = None  # type: ignore[assignment]
+
+    def _warn_tabular_llm_fields_unsupported(mappers, processor):  # type: ignore[no-redef]
+        return None
 
     def normalize_doc_type(value):  # type: ignore[no-redef]
         return str(value or "").strip().lower()
@@ -2236,6 +2240,7 @@ class DocumentProcessor:
             if _build_tabular_custom_fields_mappers is not None
             else []
         )
+        _warn_tabular_llm_fields_unsupported(self._tabular_custom_fields_mappers, "intelligent")
         self.metadata_enricher = (
             _MetadataEnricher(
                 url=ec.metadata.url,

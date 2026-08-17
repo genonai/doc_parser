@@ -1,0 +1,29 @@
+{
+  "_note": "parser .json 레코드 모드 + doc_type=faq. custom_field_faq_json.yaml(records: faqMenuList) 검증용. 같은 doc_type=faq 가 확장자에 따라 xlsx(tabular_mapping)/json(json_mapping)으로 갈리는지 확인한다.",
+  "faqMenuList": [
+    {
+      "depth1": "더보기",
+      "depth2": "FAQ",
+      "depth3": "앱 이용",
+      "depth4": "설정한 홈 화면을 변경하고 싶어요.",
+      "id": "ca01_1",
+      "app_route": "더보기>고객센터>앱 이용",
+      "url": "/fcm/common/faq/ca01/1492147_1415.json",
+      "description": "세 가지의 홈 유형(생활 금융형, 데일리 투자형, 일상 혜택형) 중 이용 패턴에 맞는 유형을 선택할 수 있습니다. 홈화면 최하단 '큐레이션 홈 설정' 또는 '전체 메뉴>설정>화면 관리>큐레이션 홈 설정'에서 변경합니다.",
+      "corp_code": "IFP",
+      "logo": "IFP"
+    },
+    {
+      "depth1": "더보기",
+      "depth2": "FAQ",
+      "depth3": "카드",
+      "depth4": "SFC 삼성카드는 어떻게 신청하나요?",
+      "id": "ca01_2",
+      "app_route": "더보기>고객센터>카드",
+      "url": "/fcm/common/faq/ca01/1491815_1415.json",
+      "description": "전체메뉴 > 카드 > 카드안내/신청 > SFC카드에서 신청할 수 있습니다. 신청 후 심사 결과는 영업일 기준 2일 내에 안내됩니다.",
+      "corp_code": "HPP",
+      "logo": "HPP"
+    }
+  ]
+}
