@@ -65,6 +65,12 @@ MONIMO_CASES=(
   "cs_ssf:${MONIMO}/monimo_cs_ssf_sample.xlsx"
   "cs_sss:${MONIMO}/monimo_cs_sss_sample.json"
   "cs_hpp:${MONIMO}/monimo_cs_hpp_sample.html"
+  # 실 원천 형태(ADCC 카드 고객센터). 파일명이 점으로 시작하고 본문이 <!DOCTYPE>/<html> 없는
+  # fragment 다 — 이 조합이 겹치면 docling 이 포맷 판정에 실패해 "File format not allowed" 로
+  # 죽었다(#349). 파일명의 선행 점을 지우면 재현이 사라지므로 rename 하지 말 것.
+  #   _02_ : section 1개(항목 1건), _01_ : section 3개(항목 3건 → metadata 는 1세트만 나온다)
+  "cs_hpp:${MONIMO}/.INC_235488_02_20260626103138.html"
+  "cs_hpp:${MONIMO}/.INC_235489_01_20260626103139.html"
   "product_slf:${MONIMO}/monimo_product_slf_sample.md"
   "product_ssf:${MONIMO}/monimo_product_ssf_sample.md"
   "product_hpp:${MONIMO}/monimo_product_hpp_sample.json"
