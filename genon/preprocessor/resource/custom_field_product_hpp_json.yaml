@@ -21,10 +21,10 @@
 column_map:
   BIZ_ID:       [id, 아이디]                            # 원천 FAQ 번호 (중복 감지용)
   GROUP_C:      [corp_code, 회사명, 고객사]              # 고객사 (NOT NULL) — 원천이 이미 코드일 수 있다
-  FAQ_CTGR_NM:  [depth3, 분류, 카테고리, FAQ분류]        # FAQ 분류 (주제영역과 다름)
-  QUESTION:     [depth4, 대표질문, 질문]                 # 대표질문 (NOT NULL)
-  ANSWER:       [description, 답변, 답변내용]            # 답변 본문 (NOT NULL)
-  SRC_LAST_MOD_DT:       [최종수정일]
+  PRODUCT_C:    [code]
+  PRODUCT_NM:   [cardTitle]
+  PRODUCT_ATTRS: [benefit]
+  SALE_STATUS:  [sale_status]
 
 # ── 값 별칭 → 표준 코드 ─────────────────────────────────────────────────────
 # corp_code 는 이미 "HPP" 같은 코드로 오지만, 표준값 자신도 자동 별칭이라 그대로 통과한다.
@@ -38,20 +38,20 @@ value_map:
 
 required:
   - GROUP_C
-  - QUESTION
-  - ANSWER
+  - PRODUCT_C
+  - PRODUCT_NM
+  - SALE_STATUS
 
 defaults:
-  STATUS: "PUBLISHED"              # TB_FAQ 기본값과 동일
+  GROUP_C: "HPP"
+  SALE_STATUS: "ON_SALE"
 
 nulls:
   - BIZ_ID
-  - FAQ_CTGR_NM
-  # 앱 딥링크: 표 형태 원천에는 대응 컬럼이 없다. JSON 형태의 url / app_route 를 쓸지
-  # 원천 담당 확인 필요(url 은 데이터 경로, app_route 는 메뉴 경로라 둘 다 딥링크가 아니다).
-  # - DEEP_LINK_URL
-  # - EFFECTIVE_FROM                 # 유효시작 — 원천 미제공
-  # - EFFECTIVE_TO                   # 유효종료 — 원천 미제공
+
+constants:
+  GROUP_C: "HPP"
+  SALE_STATUS: "ON_SALE"
 
 # ── 원천에 없는 필드를 행마다 LLM 으로 생성 ─────────────────────────────────
 # QUESTION_VARIANTS 는 TB_FAQ 에 JSON 타입이다. "표현이 달라도 찾아지게" 하는 용도라
@@ -102,5 +102,9 @@ nulls:
 # ── 청크 text 본문 구성 순서 (개행 결합) ──────────────────────────────────────
 # TB_FAQ 에는 SUMMARY_TEXT 컬럼이 없다 — 질문과 답변 자체가 검색 단위다.
 text_fields:
-  - QUESTION
-  - ANSWER
+  - PRODUCT_C
+  - PRODUCT_NM
+  - SALE_STATUS
+
+split: true
+missing_policy: error

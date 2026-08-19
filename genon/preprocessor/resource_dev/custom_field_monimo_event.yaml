@@ -16,10 +16,21 @@
 #
 # 목표필드명은 TB_EVENT 컬럼명(대문자)을 그대로 쓴다.
 #
-# 입력 예시:
+# 입력 예시(협의용 한글 키 표기):
 #   {"eventList": [{"ID": "CM26061182", "회사명": "모니모", "제목": "…",
 #                   "이벤트 시작일": "26.07.01", "이벤트 종료일": "26.07.31",
 #                   "wcmsHtml": {"htmlText": "<div>이벤트 상세 …</div>"}}]}
+#
+# 실 payload(원천 화면에서 확인): 키가 영문 camelCase 이고 회사명 필드가 없다.
+#   {"resultCode": "0000", "eventList": [
+#     {"cmpId": "M261106191", "cmsId": "3750598", "evtTodayMainCopy": "하이마트 구독을 …",
+#      "evtHeaderTopTitle": "하이마트 구독을 가볍게 ", "evtHeaderTitle": "… <br/>…",
+#      "evtTodaySubCopy": "26.07.01~26.07.31", "evtPtrmStrtDt": "20260710",
+#      "evtPtrmEndDt": "20261111", "evtDvC": "F", "buttonLink": "https://…",
+#      "wcmsHtml": {"htmlText": "<div class=\"box940 mt0\">…"}}]}
+#   → 두 표기를 모두 받도록 key_map 별칭에 실 payload 키를 함께 등록해 두었다.
+#      샘플: sample_files/monimo/monimo_event_real_sample.json (실 스키마)
+#            sample_files/json/monimo_event_sample.json        (한글 키 표기)
 
 # ── 레코드 배열이 담긴 key. 키 이름만 쓴다(임의 깊이 재귀 매칭). 생략 시 payload 전체가 1건 ──
 records: eventList
@@ -27,12 +38,21 @@ records: eventList
 # ── 목표필드: [허용 소스 key 별칭 목록] ─────────────────────────────────────
 # 목표필드명 자체도 자동 별칭으로 포함된다. 비교 시 Unicode/BOM/공백/대소문자/_,-,. 차이를 정규화한다.
 # 값은 레코드 안 임의 깊이에서 찾되 얕은 쪽이 우선한다(wcmsHtml.htmlText → htmlText 한 단어로 매칭).
+# 같은 레벨 안에서는 별칭 선언 순서가 우선순위다 — 실 payload 키는 한글 키 뒤에 덧붙인다.
 key_map:
-  BIZ_ID:      [ID, 이벤트ID, event_id]           # 원천 업무키 (유일키 CLCM_C + BIZ_ID)
-  GROUP_C:     [회사명, corp_code, 고객사]         # 고객사 (NOT NULL)
-  TITLE:       [제목, title]                      # 대표 제목 (NOT NULL)
-  EVENT_FROM:  [이벤트 시작일, 시작일, startDate, start_date]
-  EVENT_TO:    [이벤트 종료일, 종료일, endDate, end_date]   # 기간 게이트용
+  BIZ_ID:      [ID, 이벤트ID, event_id, cmpId, cmsId]   # 원천 업무키 (유일키 CLCM_C + BIZ_ID)
+                                                  # 실 payload 는 cmpId(캠페인) + cmsId(콘텐츠) 2개다.
+                                                  # 어느 쪽이 적재 유일키인지 확정되면 순서를 조정할 것.
+  GROUP_C:     [회사명, corp_code, 고객사]         # 고객사. 실 payload 에는 대응 키가 없어 defaults 로 채운다.
+  TITLE:       [제목, title, evtTodayMainCopy, evtHeaderTopTitle, evtHeaderTitle]
+                                                  # 대표 제목 (NOT NULL). 실 payload 우선순위:
+                                                  # evtTodayMainCopy(태그 없는 전체 문구)
+                                                  # → evtHeaderTopTitle(짧은 상단 제목)
+                                                  # → evtHeaderTitle(<br/> 가 섞여 있어 차선)
+  EVENT_FROM:  [이벤트 시작일, 시작일, startDate, start_date, evtPtrmStrtDt]
+  EVENT_TO:    [이벤트 종료일, 종료일, endDate, end_date, evtPtrmEndDt]   # 기간 게이트용
+                                                  # 실 payload 는 "20260710" 8자리 — date_int_flex 가 처리한다.
+                                                  # evtTodaySubCopy("26.07.01~26.07.31") 는 범위 문자열이라 쓰지 않는다.
   DETAIL_HTML: [htmlText, 상세내용]                # 상세내용 원문 HTML
                                                   # ⚠️ 원문 그대로 청크 metadata 에 실린다. 상세가
                                                   # 수십~수백 KB 면 청크 payload 도 그만큼 커지므로,
@@ -48,8 +68,9 @@ value_map:
     SSS: [삼성증권, 증권]
 
 # ── 필수 목표필드. 값이 없는 레코드는 그 건만 skip 하고 건수를 경고로 남긴다 ──
+# GROUP_C 는 여기서 뺐다 — 실 payload 에 회사 구분 필드가 없어 필수로 두면 전 레코드가 skip 된다.
+# 아래 defaults 로 채우고, 적재 측 NOT NULL 은 그 기본값으로 만족시킨다.
 required:
-  - GROUP_C
   - TITLE
 
 # ── 대응 소스가 없어도 null 로 명시 출력할 필드 (스키마 고정) ─────────────────
@@ -57,7 +78,12 @@ nulls:
   - BIZ_ID
 
 # ── 대응 소스가 없을 때 채울 기본값 ─────────────────────────────────────────
-defaults: {}
+# GROUP_C: 위 value_map 을 타고 IFP 로 접힌다(defaults → value_map 순서).
+# ⚠️ 원천(monimo_rag_adev_*_full_*.json)은 전 관계사가 혼재한다고 안내받았는데, 실 payload 에는
+#    관계사를 가릴 필드가 보이지 않는다(evtDvC: "F" 의 의미 미확인). 전건을 IFP 로 채우는 것은
+#    잠정 조치다 — 관계사 판별 필드를 확인해 GROUP_C 별칭으로 추가해야 한다.
+defaults:
+  GROUP_C: 모니모
 
 # ── 소스와 무관하게 고정으로 채울 값 ────────────────────────────────────────
 # 공통 표준 레이아웃에는 노출 게이트 필드가 없다(받은 원본의 monimo_hidden 대응 여부 확인 필요).

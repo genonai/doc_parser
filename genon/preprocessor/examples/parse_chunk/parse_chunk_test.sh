@@ -33,9 +33,12 @@ export DYLD_FALLBACK_LIBRARY_PATH="/opt/homebrew/lib:/usr/local/lib:/usr/lib"
 cd "${SCRIPT_DIR}"
 # "${PYTHON}" parse_chunk_test.py "../../sample_files/pdf_sample.pdf" result_parse_chunk/
 
-# ── 모니모 doc_type 15종 일괄 E2E (parse → chunk) ────────────────────────────────
+# ── 모니모 doc_type 15종 일괄 E2E (parse → chunk, 케이스 16건) ───────────────────
 # 샘플은 sample_files/monimo/ 의 가상 데이터. 행/레코드마다 LLM 이 1회 호출되므로
-# 각 샘플은 2~3건으로 제한되어 있다(전체 ~35 호출).
+# 각 샘플은 2~3건으로 제한되어 있다(전체 ~37 호출).
+# monimo_event 는 케이스가 2개다 — 협의용 한글 키 표기(sample_files/json/…)와
+# 원천 화면에서 확인한 실 payload 스키마(monimo_event_real_sample.json). 같은 config 가
+# 두 표기를 모두 받는지(key_map 별칭 fallback) 확인하는 용도다.
 #
 # 필요 조건: resource_dev/custom_field_*.yaml 의 llm_fields.url / api_key 가 살아있는 모델서빙을
 #            가리켜야 SUMMARY_TEXT·KEYWORDS·SYNONYMS·QUESTION_VARIANTS 가 채워진다.
@@ -56,6 +59,7 @@ MONIMO_CASES=(
   "faq:${MONIMO}/monimo_faq_sample.xlsx"
   "faq:${MONIMO}/monimo_faq_json_sample.json"
   "monimo_event:../../sample_files/json/monimo_event_sample.json"
+  "monimo_event:${MONIMO}/monimo_event_real_sample.json"
   "monimo_news:${MONIMO}/monimo_news_sample.json"
   "cs_slf:${MONIMO}/monimo_cs_slf_sample.xlsx"
   "cs_ssf:${MONIMO}/monimo_cs_ssf_sample.xlsx"

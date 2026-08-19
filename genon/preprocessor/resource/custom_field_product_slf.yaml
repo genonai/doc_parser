@@ -49,6 +49,8 @@ parser:
 constants:
   GROUP_C: "SLF"
   SALE_STATUS: "ON_SALE"
+  BIZ_ID: null
+  PRODUCT_ATTRS: null
 
 # ── 프롬프트 ─────────────────────────────────────────────────────────────────
 system_prompt: |
@@ -56,40 +58,26 @@ system_prompt: |
 
   규칙:
   - 반드시 하나의 JSON 객체만 반환한다. 설명 문구·마크다운 코드펜스 없이 순수 JSON 만 출력한다.
-  - 요청된 4개 키를 모두 포함한다. 문서에서 근거를 찾을 수 없는 값은 null 로 둔다.
+  - 요청된 2개 키를 모두 포함한다. 문서에서 근거를 찾을 수 없는 값은 null 로 둔다.
   - 문서에 없는 정보를 지어내지 않는다(환각 금지). 금액·기간·비율·나이는 원문 숫자를 그대로 쓴다.
 
   필드별 형식:
-  - `PRODUCT_C`: 상품코드 문자열. frontmatter 나 본문에 상품코드/약관코드가 있으면 그 값.
+  - `PRODUCT_C`: 상품코드 문자열. frontmatter 나 본문에 상품코드/product_code가 있으면 그 값.
     없으면 null 로 둔다(상품명을 코드처럼 지어내지 않는다).
   - `PRODUCT_NM`: 상품명 문자열. 문서 제목(H1)의 상품명을 쓰되 "상품요약서" 같은 문서종류
     표기는 뺀다. 예: "# 삼성 s교통상해보험(2501)(무배당) 상품요약서" → "삼성 s교통상해보험(2501)(무배당)".
     반드시 채운다.
-  - `PRODUCT_ATTRS`: 구조화 속성 JSON 객체. 아래 키만 쓰고, 근거가 없는 키는 넣지 않는다.
-      - `insurance_type`  : 보험종목(예: "상해보험", "건강보험") 문자열
-      - `dividend_type`   : "무배당" 또는 "유배당"
-      - `join_age`        : 가입나이 표기 문자열(예: "만 15세 ~ 70세")
-      - `insurance_period`: 보험기간 표기 문자열
-      - `payment_period`  : 납입기간 표기 문자열
-      - `coverages`       : 주요 보장 항목 문자열 배열(3~10개). 지급사유 소제목을 쓴다.
-      - `exclusions`      : 주요 면책·유의사항 문자열 배열(0~5개)
-  - `SUMMARY_TEXT`: 검색용 임베딩에 넣을 요약본문 문자열.
-    이 상품이 누구를 대상으로 어떤 위험을 보장하는지, 대표 지급사유와 가입 조건, 유의사항을 담는다.
-    문장형 한국어로 5~10문장, 1500자 이내. 불릿·머리기호를 쓰지 않는다.
-    표의 항목명만 나열하지 말고 문장으로 풀어 쓴다.
 
   출력 예시 형식(값은 예시):
-  {"PRODUCT_C": null, "PRODUCT_NM": "삼성 s교통상해보험(2501)(무배당)", "PRODUCT_ATTRS": {"insurance_type": "상해보험", "dividend_type": "무배당", "coverages": ["교통상해 사망", "교통상해 후유장해"]}, "SUMMARY_TEXT": "교통사고로 인한 상해를 보장하는 무배당 상해보험으로 …"}
+  {"PRODUCT_C": "30387", "PRODUCT_NM": "삼성 s교통상해보험(2501)(무배당)"}
 
 user_prompt: |
-  아래 보험 상품요약서에서 다음 4개 필드를 추출하라.
+  아래 보험 상품요약서에서 다음 2개 필드를 추출하라.
 
   - PRODUCT_C (상품코드)
   - PRODUCT_NM (상품명) — 필수
-  - PRODUCT_ATTRS (구조화 속성 객체)
-  - SUMMARY_TEXT (요약본문, 임베딩 입력)
 
-  반드시 위 4개 키를 모두 가진 하나의 JSON 객체로만 반환하라.
+  반드시 위 2개 키를 모두 가진 하나의 JSON 객체로만 반환하라.
 
   <document>
   {{raw_text}}
@@ -99,5 +87,3 @@ user_prompt: |
 output_fields:
   - PRODUCT_C
   - PRODUCT_NM
-  - PRODUCT_ATTRS
-  - SUMMARY_TEXT

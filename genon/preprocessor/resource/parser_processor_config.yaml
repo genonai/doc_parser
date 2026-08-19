@@ -315,6 +315,17 @@ enrichment:
       doc_type: link
       extractor: json_mapping
       config_file: custom_field_link.yaml   # resource_path 자동 = 이 yaml 파일 디렉토리
+  - custom_fields:
+      enable: true
+      doc_type: research_report
+      extractor: llm
+      config_file: custom_field_research_report.yaml   # resource_path 자동 = 이 yaml 파일 디렉토리
+      # .json 입력 처리: 본문 텍스트(markdown/html)가 담긴 key 이름을 나열한다.
+      # 원천이 json 으로 확정되면 카드WCMS 실제 스키마의 본문 키로 교체할 것.
+      json:
+        text_fields: [html, summary_md]
+        format: auto             # auto(기본, 값 내용으로 판별) | html | markdown
+        missing_policy: skip     # skip(기본, 경고만) | error
 
 output:
   format: "docling" # "json" (default), "html", "markdown", "docling"

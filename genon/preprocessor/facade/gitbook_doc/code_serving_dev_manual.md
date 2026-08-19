@@ -1492,7 +1492,7 @@ enrichment:
 | 키 | 뜻 |
 |---|---|
 | `records` | 레코드 배열이 담긴 key **이름만**. JSON 임의 깊이에서 재귀 매칭. 생략하면 payload 전체가 레코드 1건 |
-| `key_map` | `목표필드: [허용 소스 key 별칭 …]`. 경로 B 의 `column_map` 과 같은 규칙이고, 값은 레코드 안 임의 깊이에서 찾되 **얕은 쪽이 우선**합니다(`wcmsHtml.htmlText` → `htmlText` 한 단어로 매칭) |
+| `key_map` | `목표필드: [허용 소스 key 별칭 …]`. 경로 B 의 `column_map` 과 같은 규칙이고, 값은 레코드 안 임의 깊이에서 찾되 **얕은 쪽이 우선**합니다(`wcmsHtml.htmlText` → `htmlText` 한 단어로 매칭). **같은 레벨 안에서는 별칭 선언 순서**가 우선순위이므로, 원천 표기가 여러 가지면 선호하는 키를 앞에 두고 나머지를 뒤에 덧붙이면 됩니다 |
 | `required` · `defaults` · `nulls` · `constants` | 경로 B 와 동일 |
 | `transforms` | `목표필드: 변환기이름`. 등록된 변환기만 쓸 수 있고(없는 이름은 기동 시 실패), `date_int_flex` 는 `"26.07.01"`·`"2026-07-01"` 을 모두 `20260701` 정수로 바꿉니다 |
 | `html_text_fields` | `파생필드: 소스필드`. HTML 값을 평문으로 바꿔 새 필드로 만듭니다(LLM 입력용). 정리 규칙은 `.html` 파싱과 같아 `aria-hidden`/접힌 약관 텍스트가 보존됩니다 |
@@ -1582,6 +1582,10 @@ python parse_chunk_test.py --doc_type notice ../../sample_files/<파일>.xlsx re
 # 경로 C(레코드 매핑) 출고 픽스처 — 제목이 빈 레코드는 skip 되어 2청크가 나옵니다
 python parse_chunk_test.py --doc_type monimo_event \
   ../../sample_files/json/monimo_event_sample.json result_parse_chunk/
+
+# 같은 config 로 실 payload 스키마(영문 camelCase 키) 픽스처 — 역시 2청크
+python parse_chunk_test.py --doc_type monimo_event \
+  ../../sample_files/monimo/monimo_event_real_sample.json result_parse_chunk/
 ```
 
 재배포한 뒤에는 게이트웨이로 확인합니다(8.7 ④). `--doc-type` 대신 `--param doc_type=notice` 도 됩니다.
@@ -1620,6 +1624,7 @@ doc_type 이 동작해야 한다면 아래 파일에 **같은 블록을 각각**
 | `정규화 후 중복되는 Excel 컬럼이 있습니다` | 대소문자·공백만 다른 컬럼이 한 시트에 둘 이상 |
 | xlsx 가 행별로 안 나뉨 | 매칭되는 매핑이 없으면 `formats.xlsx.processing_mode` 가 결정합니다 (`tabular` 인지 확인) |
 | json 레코드가 청크로 안 나옴 | `records` 키 이름 확인. 또는 `text_fields` 가 모두 비어 청크 본문이 없는 경우 — `본문이 빈 레코드 N/M건을 제외했습니다` 경고를 보세요(LLM 요약 실패가 흔한 원인) |
+| json 레코드가 **전건** skip 됨 | `skipped N/N records (missing required)` 경고 확인. 원천 키 표기가 `key_map` 별칭과 달라 `required` 필드가 null 이 된 경우입니다 — 별칭을 늘리거나, 원천에 아예 없는 필드면 `required` 에서 빼고 `defaults`/`constants` 로 채우세요 |
 | `등록되지 않은 transforms 변환기: …` | `transforms` 에 없는 변환기 이름. `field_transforms.VALUE_TRANSFORMS` 에 등록된 것만 쓸 수 있습니다 |
 | 필드는 안 붙는데 `doc_type` 만 모든 청크에 붙음 | 매칭되는 블록이 없는 상태. 스탬프(위 3번)는 docling 계열 포맷이면 매칭 여부와 무관하게 동작합니다 |
 | csv/xlsx 인데 `doc_type` 조차 안 붙음 | 정상입니다. csv/xlsx 는 **매칭되는 행 매핑이 있을 때만** `doc_type` 이 실립니다 |

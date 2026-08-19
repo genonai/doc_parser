@@ -20,7 +20,7 @@ column_map:
   # 각각 매핑한 뒤 아래 transforms 로 한쪽만 정규화한다(별도 파생 기능이 필요 없다).
   TERM_NORM:  [용어(국문), 용어, 용어국문]                # 정규화 (NOT NULL)
   DEFINITION: [정의·설명, 정의 설명, 정의, 설명]          # 용어 뜻풀이 (NOT NULL)
-  STATUS:     [노출여부, 상태]                           # ACTIVE / DRAFT / RETIRED (NOT NULL)
+  SRC_LAST_MOD_DT:     [최종수정일]                           # ACTIVE / DRAFT / RETIRED (NOT NULL)
 
 # ── 값 별칭 → 표준 코드 ─────────────────────────────────────────────────────
 # 이 시트의 회사명은 축약형("생명/화재/카드/증권")이다. 메뉴 시트의 정식 표기도 함께 등록.
@@ -31,9 +31,6 @@ value_map:
     SSF: [삼성화재, 화재]
     HPP: [삼성카드, 카드]
     SSS: [삼성증권, 증권]
-  STATUS:
-    ACTIVE:  [Y, 사용, 노출]
-    RETIRED: [N, 미사용, 미노출]
 
 # ── 값 변환 (field_transforms.VALUE_TRANSFORMS 에 등록된 이름) ───────────────
 # text_norm: NFKC → 양끝 공백 제거 → 연속 공백 1칸 축약 → casefold.

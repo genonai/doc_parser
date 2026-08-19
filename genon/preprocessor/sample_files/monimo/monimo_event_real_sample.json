@@ -1,0 +1,76 @@
+{
+  "_note": "doc_type=monimo_event 실 payload 스키마 픽스처. 원천 화면에서 확인한 eventList 레코드의 영문 camelCase 키(cmpId/evtTodayMainCopy/evtPtrmStrtDt/wcmsHtml.htmlText …)를 그대로 쓴다(값은 가상 데이터). 1번째=풀 스키마(기간 8자리 압축표기 + aria-hidden 혜택 문구/접힌 약관/표), 2번째=evtTodayMainCopy 없이 evtHeaderTopTitle 만 있고 시작일도 없음(별칭 fallback + EVENT_FROM=0 확인), 3번째=제목 계열 키 전무라 required(TITLE) 로 skip 되어야 한다. 실 payload 에는 회사명 필드가 없어 GROUP_C 는 config defaults 로 채워진다.",
+  "resultCode": "0000",
+  "eventList": [
+    {
+      "cmpId": "M261106191",
+      "cmsId": "3750598",
+      "detailUrl": "",
+      "evtMoaImg": "",
+      "evtTodayImg": "",
+      "evtTodayImgB": "",
+      "evtTodayBgYn": "N",
+      "evtTodayType": "A",
+      "evtTodayMainCopy": "하이마트 구독을 가볍게 매월 최대2만원 까지 혜택",
+      "evtTodaySubCopy": "26.07.01~26.07.31",
+      "evtTodaybgCol": "#FFF5EF",
+      "evtTodayTitCol": "#111111",
+      "evtMoaImgAlt": "",
+      "evtDvC": "F",
+      "backgroundImageYn": "Y",
+      "evtHeaderTitle": "하이마트 구독을 가볍게 <br/>매월 최대2만원 까지 혜택",
+      "evtHeaderTxt": "26.07.01~26.07.31",
+      "evtHeaderImg": "",
+      "buttonName": "하이마트 삼성카드 자세히보기",
+      "buttonLink": "https://www.samsungcard.com/home/card/cardinfo/PGHPPCCCardCardinfoDetails001?code=AAP1883&alncmpC=QQMNMBNFTE",
+      "buttonType": "A",
+      "backgroundColor": "",
+      "evtTitleColor": "",
+      "evtHeaderTopTitle": "하이마트 구독을 가볍게 ",
+      "buttonUseYn": "Y",
+      "evtPtrmTitle": "",
+      "evtPtrmStrtDt": "20260710",
+      "evtPtrmEndDt": "20261111",
+      "evtAtentnList": [],
+      "evtClauseList": [],
+      "wcmsHtml": {
+        "htmlText": "<div class=\"box940 mt0\"> <article class=\"evt_sec_new\"> <!-- 2022/07/13 ASIS 상단영역 중복 노출을 위한 주석 --> <h2>하이마트 구독 혜택</h2><p>하이마트 구독 서비스를 삼성카드로 결제하면 매월 구독료의 10%를 최대 2만원까지 결제일할인 해드립니다.</p><span class=\"option-label\" aria-hidden=\"true\">가전 구독료 10% 결제일할인</span><table><thead><tr><th>구독료</th><th>할인</th></tr></thead><tbody><tr><td>5만원 이상</td><td>5,000원</td></tr><tr><td>10만원 이상</td><td>10,000원</td></tr></tbody></table><div class=\"accordion-collapse\" style=\"display:none\"><p>본 혜택은 신규 구독 고객에 한하며 중도 해지 시 회수됩니다.</p></div><script>trackEvent('view');</script></article></div>"
+      }
+    },
+    {
+      "cmpId": "M261106192",
+      "cmsId": "3750611",
+      "detailUrl": "",
+      "evtTodayBgYn": "N",
+      "evtTodayType": "A",
+      "evtTodaySubCopy": "26.08.01~26.08.31",
+      "evtDvC": "F",
+      "backgroundImageYn": "N",
+      "evtHeaderTopTitle": "여름 휴가 주유 캐시백",
+      "evtHeaderTxt": "26.08.01~26.08.31",
+      "buttonName": "이벤트 자세히보기",
+      "buttonUseYn": "Y",
+      "evtPtrmEndDt": "20260831",
+      "evtAtentnList": [],
+      "evtClauseList": [],
+      "wcmsHtml": {
+        "htmlText": "<div class=\"box940 mt0\"> <article class=\"evt_sec_new\"><p>전국 주유소에서 월 20만원 이상 주유 시 5,000원 캐시백을 드립니다. 응모 후 이용분부터 집계됩니다.</p></article></div>"
+      }
+    },
+    {
+      "cmpId": "M261106193",
+      "cmsId": "3750620",
+      "detailUrl": "",
+      "evtTodayBgYn": "N",
+      "evtDvC": "F",
+      "buttonUseYn": "N",
+      "evtPtrmStrtDt": "20260901",
+      "evtPtrmEndDt": "20260930",
+      "evtAtentnList": [],
+      "evtClauseList": [],
+      "wcmsHtml": {
+        "htmlText": "<div class=\"box940 mt0\"><p>제목 계열 키가 없어 skip 되어야 하는 레코드</p></div>"
+      }
+    }
+  ]
+}

@@ -426,6 +426,53 @@ def test_shipped_monimo_event_config_loads(resource_dir):
     assert "CONTENT_HASH" not in spec.enricher_kwargs["system_prompt"]
 
 
+@pytest.mark.parametrize("resource_dir", ["resource", "resource_dev"])
+def test_shipped_monimo_event_config_maps_real_payload_schema(resource_dir):
+    """출고 yaml 이 실 payload(영문 camelCase 키) 스키마를 매핑하는지.
+
+    원천 화면에서 확인한 키(cmpId / evtTodayMainCopy / evtHeaderTopTitle / evtPtrmStrtDt …)는
+    협의용 한글 키와 표기가 다르고 회사명 필드가 없다. 별칭이 빠지면 TITLE 이 null 이 되어
+    전 레코드가 조용히 skip 되므로(그러면 청크 0건) 여기서 고정한다.
+    샘플 파일을 그대로 읽어 config 와 픽스처가 따로 흘러가지 않게 한다.
+    """
+    import json
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[2]
+    payload = json.loads(
+        (root / "sample_files/monimo/monimo_event_real_sample.json").read_text(encoding="utf-8")
+    )
+    mapper = JsonRecordsMapper(
+        config_file="custom_field_monimo_event.yaml",
+        resource_path=str(root / resource_dir),
+        doc_type="monimo_event",
+        extractor="json_mapping",
+    )
+
+    fields_list = mapper.build_fields(payload, "monimo_event")
+    # 3번째 레코드는 제목 계열 키가 없어 required(TITLE) 로 skip 된다.
+    assert len(fields_list) == 2
+
+    first, second = fields_list
+    assert first["BIZ_ID"] == "M261106191"                 # cmpId
+    assert first["TITLE"] == "하이마트 구독을 가볍게 매월 최대2만원 까지 혜택"   # evtTodayMainCopy 우선
+    assert first["EVENT_FROM"] == 20260710                 # evtPtrmStrtDt (8자리 압축)
+    assert first["EVENT_TO"] == 20261111                   # evtPtrmEndDt
+    # 실 payload 에 회사명이 없어도 defaults→value_map 으로 표준 코드가 채워진다.
+    assert first["GROUP_C"] == "IFP"
+    assert first["SEARCHABLE_YN"] == "N"
+    # 상세 HTML 은 원문 그대로, 평문 파생에는 aria-hidden/접힌 약관 텍스트가 남아야 한다.
+    assert first["DETAIL_HTML"].startswith("<div class=\"box940 mt0\">")
+    assert "가전 구독료 10% 결제일할인" in first["DETAIL_TEXT"]
+    assert "중도 해지 시 회수됩니다" in first["DETAIL_TEXT"]
+    assert "trackEvent" not in first["DETAIL_TEXT"]
+
+    # evtTodayMainCopy 가 없으면 evtHeaderTopTitle 로 내려가고, 시작일이 없으면 0 이다.
+    assert second["TITLE"] == "여름 휴가 주유 캐시백"
+    assert second["EVENT_FROM"] == 0
+    assert second["EVENT_TO"] == 20260831
+
+
 @pytest.mark.unit
 @pytest.mark.parametrize("raw,expected", [
     # 모니모 원천이 실제로 쓰는 압축 표기. parse_created_date 는 `\\d{4}` 를 연도로만 읽어
