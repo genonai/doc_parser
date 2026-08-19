@@ -1,0 +1,131 @@
+# ═══════════════════════════════════════════════════════════════════════════
+#  템플릿 — 문서 단위 LLM 추출 (extractor: llm)
+#
+#  언제 쓰나 : 원천이 **문서**(pdf/docx/hwp/html/md/pptx)이고, 그 문서 하나에서
+#              필드 몇 개를 뽑고 싶을 때 (상품설명서의 상품명·상품코드, 카드 혜택 요약 …)
+#  결과      : 문서 metadata → 그 문서에서 나온 **모든 청크에 같은 값**이 붙는다.
+#              (행/레코드마다 다른 값이 필요하면 tabular/json 템플릿을 쓴다)
+#  LLM 호출  : 문서당 1회.
+#
+#  ── 쓰는 순서 ────────────────────────────────────────────────────────────
+#  ① 이 파일을 resource/custom_field_<유형>.yaml 로 복사한다.
+#  ② <...> 로 표시된 곳을 채운다.
+#  ③ resource/parser_processor_config.yaml 의 enrichment 목록에 아래를 추가한다.
+#        - custom_fields:
+#            enable: true
+#            doc_type: <유형>
+#            extractor: llm            # 생략해도 llm 로 간주된다
+#            config_file: custom_field_<유형>.yaml   # 파일명만. 이 yaml 과 같은 폴더 기준
+#  ④ 확인한다(아래 "확인 방법" 참고).
+#
+#  ★ 이 파일 하나로 자족한다 — 프롬프트를 여기 인라인하면 별도 md 파일이 필요 없다.
+#    (출고된 custom_field_card.yaml · custom_field_product_slf.yaml 이 같은 형태다)
+#    프롬프트가 아주 길거나 여러 유형이 공유하면 system_prompt_file / user_prompt_file 로
+#    별도 md 로 빼도 된다 — 파일 지정이 인라인보다 우선한다.
+#
+#  ⚠️ 이 템플릿은 참고용이므로 parser_processor_config.yaml 에 등록하지 않는다.
+# ═══════════════════════════════════════════════════════════════════════════
+
+# ── [필수] LLM 연결 ─────────────────────────────────────────────────────────
+# <ENRICHMENT_SERVING_ID>: Genos에 등록한 모델서빙 ID 로 변경 필요.
+# api_key 는 k8s 내부 통신 기반 모델 호출 시 불필요하다(배포 환경에 맞춰 설정).
+# url 또는 model 이 비어 있으면 실행 시 경고를 남기고 이 enricher 를 건너뛴다.
+url: "http://llmops-gateway-api-service:8080/rep/serving/<ENRICHMENT_SERVING_ID>/v1/chat/completions"
+api_key: ""
+model: model
+
+# ── [선택] LLM 생성 파라미터 ────────────────────────────────────────────────
+# 생략 시 기본값: max_tokens 1000 / temperature 0.0 / timeout 60
+# 문서 전체를 넣으면 입력이 길어지므로 max_tokens·timeout 을 넉넉히 잡는 편이 좋다.
+max_tokens: 4000
+temperature: 0.0
+timeout: 300
+
+# ── [선택] 입력 페이지 범위 ─────────────────────────────────────────────────
+# 미지정(또는 null) → 문서 전체를 대상으로 한다.
+# 앞쪽 몇 페이지만 보면 충분한 경우에만 지정한다(입력 토큰 절약).
+pages: null
+
+# ── [선택] 응답 파서 ────────────────────────────────────────────────────────
+# json(기본) = 응답에서 JSON 객체를 찾아 dict 로 만든다(코드펜스·앞뒤 설명 문구를 견딘다).
+# 외부 파이썬 함수로 위임할 수도 있다:
+#   parser:
+#     type: python
+#     file: custom_field_<유형>.py    # 이 yaml 과 같은 폴더 기준
+#     callable: parse
+parser:
+  type: json
+
+# ── [선택] 원천과 무관하게 항상 같은 값 ─────────────────────────────────────
+# LLM 에게 상수를 받아쓰게 시키지 않고 여기서 채운다 — 환각·누락 여지가 없고 프롬프트도 짧아진다.
+# LLM 이 같은 키를 다른 값으로 내놔도 여기 값이 이긴다. output_fields 에 함께 적어도 된다.
+# constants:
+#   <TARGET_FIELD_3>: "<고정값>"
+
+# ── [필수] 프롬프트 ─────────────────────────────────────────────────────────
+# ⚠️ 아래 output_fields 의 이름이 프롬프트가 요구하는 JSON 키와 **정확히 같아야** 한다.
+#    어긋나면 **에러 없이 값이 null** 로 채워진다. 이게 가장 흔한 실수다.
+# ⚠️ user_prompt 의 `{{raw_text}}` 가 문서 본문으로 치환된다 — 반드시 넣어야 한다.
+#    빠뜨리면 본문이 전달되지 않고 프롬프트만 전송된다.
+#    (`{{filename}}` 등 다른 예약 변수와 variables 로 정의한 사용자 변수도 쓸 수 있다.
+#     정의되지 않은 `{{변수}}` 를 쓰면 기동 시 실패한다 — strict 모드가 기본)
+# system_prompt 를 생략하면 built-in default("문서 정보추출 전문가다 …")가 쓰인다.
+system_prompt: |
+  너는 <문서 종류> 정보추출 전문가다. 주어진 문서에서 요청한 필드를 정확하게 추출한다.
+
+  규칙:
+  - 반드시 하나의 JSON 객체만 반환한다. 설명 문구·마크다운 코드펜스 없이 순수 JSON 만 출력한다.
+  - 키는 아래 필드명을 그대로 쓴다.
+  - 원문에 없는 정보를 지어내지 않는다(환각 금지). 없으면 값을 null 로 둔다.
+  - `<TARGET_FIELD_1>`: <무엇을, 어디서, 어떤 형태로 뽑을지>
+  - `<TARGET_FIELD_2>`: <무엇을, 어디서, 어떤 형태로 뽑을지>
+
+  출력 예시 형식(값은 예시):
+  {"<TARGET_FIELD_1>": "<예시 값>", "<TARGET_FIELD_2>": "<예시 값>"}
+
+user_prompt: |
+  아래 문서에서 다음 필드를 추출하라.
+
+  - <TARGET_FIELD_1> (<설명>)
+  - <TARGET_FIELD_2> (<설명>)
+
+  반드시 위 키를 모두 가진 하나의 JSON 객체로만 반환하라.
+
+  <document>
+  {{raw_text}}
+  </document>
+
+# ── [필수] 출력 필드 (프롬프트의 JSON 키와 일치해야 함) ──────────────────────
+# 여기 적은 필드만 결과에 남는다. 프롬프트가 다른 키를 더 내놔도 버려지고,
+# 여기 적었는데 응답에 없으면 null 로 채워진다.
+# 적재 DB 컬럼명(대문자)으로 쓰면 적재 매핑이 1:1 이 된다.
+output_fields:
+  - <TARGET_FIELD_1>
+  - <TARGET_FIELD_2>
+
+# ═══════════════════════════════════════════════════════════════════════════
+#  확인 방법
+#
+#  프롬프트·출력필드가 제대로 실렸는지 검사한다(LLM 호출 없음).
+#  실행 위치: genon/preprocessor
+#      python -c "
+#    import sys; sys.path.insert(0,'.'); sys.path.insert(0,'../..')
+#    from facade.enrichment.custom_fields_enricher import CustomFieldsEnricher as E
+#    e = E(config_file='custom_field_<유형>.yaml', resource_path='resource')
+#    print('연결 설정 :', e.is_configured, e._model, e._max_tokens, e._timeout)
+#    print('출력 필드 :', e._output_fields)
+#    print('{{raw_text}} 포함:', '{{raw_text}}' in e._user_prompt)
+#    missing = [f for f in e._output_fields
+#               if f not in e._system_prompt and f not in (e._constants or {})]
+#    print('프롬프트에 없는 출력필드:', missing or '없음')
+#    "
+#  → `프롬프트에 없는 출력필드` 가 비어 있어야 한다. 남아 있으면 그 필드는 null 로 나온다.
+#
+#  ── 알려진 주의사항 (현재 코드) ─────────────────────────────────────────────
+#  · 모르는 키는 **조용히 무시**된다. `output_field`(오타)처럼 한 글자만 틀려도 에러가 없다.
+#  · `thinking` / `thinking_dialect` 는 **이 파일에 써도 반영되지 않는다**
+#    (생성자 기본값이 먼저 잡힌다). 필요하면 등록 블록에 직접 쓴다.
+#  · `max_tokens: 1000` / `temperature: 0.0` / `timeout: 60` 을 **등록 블록에** 쓰면
+#    "미지정"과 구분되지 않아 이 파일의 값이 이긴다. 등록 블록에서 덮어쓰려면
+#    기본값과 다른 값을 쓰거나, 이 파일에서 값을 지운다.
+# ═══════════════════════════════════════════════════════════════════════════

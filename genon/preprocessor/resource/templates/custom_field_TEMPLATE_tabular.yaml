@@ -1,0 +1,166 @@
+# ═══════════════════════════════════════════════════════════════════════════
+#  템플릿 — Excel/CSV 행별 매핑 (extractor: tabular_mapping)
+#
+#  언제 쓰나 : 원천이 xlsx/xlsm/csv 이고 **한 행이 검색 결과 한 건**일 때
+#              (FAQ 목록, 용어사전, 메뉴 목록, 고객센터 항목 …)
+#  결과      : 행 1개 = 청크 1개(element category=`custom_fields_row`).
+#              아래 목표필드가 그 청크의 metadata 로 실린다.
+#  LLM 호출  : 없음. 원천에 없는 필드가 필요할 때만 맨 아래 llm_fields 를 쓴다.
+#
+#  ── 쓰는 순서 ────────────────────────────────────────────────────────────
+#  ① 이 파일을 resource/custom_field_<유형>.yaml 로 복사한다.
+#  ② <...> 로 표시된 곳을 채운다. 필요 없는 [선택] 항목은 지운다.
+#  ③ resource/parser_processor_config.yaml 의 enrichment 목록에 아래를 추가한다.
+#        - custom_fields:
+#            enable: true
+#            doc_type: <유형>            # 요청 params 로 넘길 문서유형 키
+#            extractor: tabular_mapping
+#            config_file: custom_field_<유형>.yaml   # 파일명만. 이 yaml 과 같은 폴더 기준
+#  ④ 실제 원천 파일로 결과를 확인한다(아래 "확인 방법" 참고).
+#
+#  ★ 이 파일 하나로 자족한다 — 프롬프트까지 여기 인라인하면 별도 md 파일이 필요 없다.
+#    (출고된 custom_field_faq.yaml · custom_field_term.yaml 이 같은 형태다)
+#
+#  ⚠️ 이 템플릿은 참고용이므로 parser_processor_config.yaml 에 등록하지 않는다.
+#     <...> 가 남은 상태로 등록하면 매핑이 원천과 맞지 않아 값이 비어서 나온다.
+# ═══════════════════════════════════════════════════════════════════════════
+
+# ── [필수] 목표필드: [원천 컬럼명 별칭 목록] ─────────────────────────────────
+# 왼쪽 = 만들고 싶은 필드명. 적재 DB 컬럼명(대문자)으로 쓴다.
+# 오른쪽 = 그 값이 든 **엑셀 헤더 이름들**. 원천 표기가 흔들려도 잡히게 여러 개 나열한다.
+#          앞에 쓴 것이 우선한다. 목표필드명 자체도 자동으로 별칭에 포함된다.
+#          비교 시 대소문자·공백·`_-./`·전각/반각 차이는 무시하므로 정확히 안 맞춰도 된다.
+column_map:
+  <TARGET_FIELD_1>: [<엑셀 헤더>, <다른 표기>]
+  <TARGET_FIELD_2>: [<엑셀 헤더>]
+  # 같은 컬럼을 두 목표필드에 매핑해도 된다(한쪽만 transforms 로 정규화하는 용도).
+
+# ── [선택] 값 변환 ──────────────────────────────────────────────────────────
+# 쓸 수 있는 변환기는 이 3개뿐이다(facade/enrichment/field_transforms.py 의 VALUE_TRANSFORMS).
+#   date_int       "2026-07-01"                    → 20260701 (파싱 실패 시 0)
+#   date_int_flex  "26.07.01" / "260701" / 8자리   → 20260701 (두 자리 연도까지 흡수)
+#   text_norm      NFKC → 공백 축약 → casefold     (중복 판정 키를 만들 때)
+# 목록에 없는 이름을 쓰면 기동 시 실패하며 쓸 수 있는 이름을 알려준다.
+# transforms:
+#   <TARGET_FIELD_2>: date_int_flex
+
+# ── [선택] 값 별칭 → 표준 코드 ──────────────────────────────────────────────
+# 컬럼명이 아니라 **값**의 표기 흔들림을 접는다. `표준값: [별칭…]` 형태다.
+# 표준값 자신도 자동 별칭이라 이미 코드로 오는 원천은 그대로 통과한다.
+# 매핑표에 없는 값은 원값을 두고 경고만 남긴다(조용히 null 로 바꾸지 않는다).
+# value_map:
+#   <TARGET_FIELD_1>:
+#     "Y": [노출, 사용]
+#     "N": [미노출, 미사용]
+
+# ── [선택] 필수 목표필드 ────────────────────────────────────────────────────
+# 두 가지로 동작한다(구분이 중요하다):
+#   · 여기 적은 필드가 **엑셀 컬럼에 아예 없으면** → 기동 시 실패(원천이 바뀐 것이므로)
+#   · 컬럼은 있는데 **행의 값이 비었으면** → 그 행만 건너뛰고 건수를 경고로 남긴다
+# required:
+#   - <TARGET_FIELD_1>
+
+# ── [선택] 원천에 값이 없을 때 채울 기본값 ──────────────────────────────────
+# 적재 DB 의 NOT NULL 컬럼인데 원천이 주지 않는 필드를 여기서 채운다.
+# 값이 None 또는 "" 일 때만 적용된다.
+# defaults:
+#   <TARGET_FIELD_3>: "<기본값>"
+
+# ── [선택] 원천과 무관하게 항상 같은 값 ─────────────────────────────────────
+# defaults 와 달리 **원천 값이 있어도 덮어쓴다**. 관계사 전용 파일의 회사코드처럼
+# 파일 단위로 고정인 값에 쓴다(원천·LLM 에 맡기지 않는다).
+# constants:
+#   <TARGET_FIELD_4>: "<고정값>"
+
+# ── [선택] 매핑이 없는 필드를 null 로 명시 출력 ─────────────────────────────
+# 적재 스키마를 고정하고 싶을 때만 쓴다. **column_map 에 있는 필드는 적지 않는다**
+# — 매핑 루프가 항상 채우므로 불필요하다.
+# nulls:
+#   - <TARGET_FIELD_5>
+
+# ── [선택] 원천에 없는 필드를 행마다 LLM 으로 생성 ──────────────────────────
+# 행 1건당 LLM 1회 호출이다. 행이 많으면 비용·시간이 그만큼 늘어난다.
+#
+# ⚠️ output_fields 의 이름은 프롬프트가 내놓는 JSON 키와 **정확히 같아야** 한다.
+#    어긋나면 에러 없이 값이 null 로 채워진다.
+# ⚠️ **parser 경로에서만 실행된다.** 적재용(intelligent)/변환용(convert) 경로는 동기 처리라
+#    LLM 호출 자리가 없어 기동 시 경고만 남기고 이 필드는 비어서 나온다.
+# llm_fields:
+#   - output_fields: [<GENERATED_FIELD>]        # 만들 필드
+#     input_fields:  [<TARGET_FIELD_1>]         # 프롬프트 {{raw_text}} 로 넣을 필드(선언 순서대로 결합)
+#     concurrency: 4                            # 행 동시 호출 상한(기본 4)
+#     on_error: null                            # null(해당 필드만 null 로 두고 진행) | skip_record
+#
+#     # ── LLM 연결 ──────────────────────────────────────────────────────────
+#     # <ENRICHMENT_SERVING_ID>: Genos에 등록한 모델서빙 ID 로 변경. api_key 도 배포 시 설정.
+#     # api_key 는 k8s 내부 통신 기반 호출 시 불필요하다.
+#     url: "http://llmops-gateway-api-service:8080/rep/serving/<ENRICHMENT_SERVING_ID>/v1/chat/completions"
+#     api_key: ""
+#     model: model
+#
+#     max_tokens: 800
+#     temperature: 0.0
+#     timeout: 60
+#
+#     parser:
+#       type: json                              # 응답에서 JSON 객체를 찾아 dict 로
+#
+#     system_prompt: |
+#       <역할>. 반드시 하나의 JSON 객체만 반환한다. 설명 문구·코드펜스 없이 순수 JSON 만 출력한다.
+#       키는 `<GENERATED_FIELD>` 하나다.
+#       원문에 없는 내용을 지어내지 않는다(환각 금지). 만들 것이 없으면 값을 null 로 둔다.
+#
+#       출력 예시 형식(값은 예시):
+#       {"<GENERATED_FIELD>": "<예시 값>"}
+#
+#     user_prompt: |
+#       <지시문>
+#
+#       반드시 `<GENERATED_FIELD>` 키를 가진 JSON 객체로만 반환하라.
+#
+#       <item>
+#       {{raw_text}}
+#       </item>
+
+# ── [필수] 청크 본문을 구성할 필드 (선언 순서대로 개행 결합) ─────────────────
+# 이 값이 임베딩 입력이 된다.
+# ⚠️ **여기 적은 필드는 위에서 반드시 만들어져야 한다** — column_map/constants/defaults/
+#    llm_fields 중 어디에도 없는 필드를 적으면 **에러 없이 그 부분이 빠진 채** 청크가 나간다.
+#    (llm_fields 를 주석 처리하고 그 출력 필드를 여기 남겨두는 실수가 가장 흔하다)
+# 이 항목을 생략하면 그 행의 모든 셀 값을 개행으로 이어붙인 값이 본문이 된다.
+text_fields:
+  - <TARGET_FIELD_1>
+  - <TARGET_FIELD_2>
+
+# ═══════════════════════════════════════════════════════════════════════════
+#  확인 방법
+#
+#  1) 기동 검사 — 설정만 컴파일해 본다(LLM 호출 없음).
+#     실행 위치: genon/preprocessor
+#       python -c "
+#     import sys; sys.path.insert(0,'.'); sys.path.insert(0,'../..')
+#     from facade.enrichment.tabular_custom_fields import TabularCustomFieldsMapper as M
+#     m = M(config_file='custom_field_<유형>.yaml', resource_path='resource',
+#           doc_type='<유형>', extractor='tabular_mapping')
+#     print('목표필드:', sorted(m.config['column_map']))
+#     print('본문필드:', m.config.get('text_fields'))
+#     "
+#
+#  2) 실제 엑셀로 매핑 결과 보기 — 가장 확실하다(LLM 호출 없음).
+#       python -c "
+#     import sys; sys.path.insert(0,'.'); sys.path.insert(0,'../..')
+#     from facade.enrichment.tabular_custom_fields import TabularCustomFieldsMapper as M
+#     from genon.preprocessor.converters.xlsx_processor import build_tabular_data_dict
+#     m = M(config_file='custom_field_<유형>.yaml', resource_path='resource',
+#           doc_type='<유형>', extractor='tabular_mapping')
+#     d = build_tabular_data_dict('<내_엑셀.xlsx>')
+#     print('원천 컬럼:', list(d['data'][0]['data_rows'][0].keys()))
+#     out = m.to_parse_format(d, '<유형>')
+#     for e in out['elements'][:3]:
+#         print(e['metadata']); print('본문:', repr(e['content'])); print()
+#     "
+#     → 원천 컬럼 목록과 실제 채워진 값, 청크 본문을 눈으로 확인한다.
+#
+#  ⚠️ 현재 코드는 **모르는 키를 조용히 무시**한다. `column_maps`(오타)처럼 한 글자만 틀려도
+#     에러 없이 매핑이 0개가 되므로, 위 2번으로 결과를 꼭 확인할 것.
+# ═══════════════════════════════════════════════════════════════════════════

@@ -1,0 +1,168 @@
+# ═══════════════════════════════════════════════════════════════════════════
+#  템플릿 — JSON 레코드별 매핑 (extractor: json_mapping)
+#
+#  언제 쓰나 : 원천이 .json 이고 **레코드 배열 한 요소가 검색 결과 한 건**일 때
+#              (이벤트 목록, 관심소식, FAQ JSON, 링크 목록 …)
+#  결과      : 레코드 1개 = 청크 1개(element category=`custom_fields_row`).
+#              아래 목표필드가 그 청크의 metadata 로 실린다.
+#
+#  tabular 와의 차이
+#   · `column_map` 대신 `key_map` 을 쓴다.
+#   · JSON 중첩 안쪽 값도 **키 이름만으로** 찾는다(`wcmsHtml.htmlText` → `htmlText` 한 단어).
+#     JSONPath 같은 경로 문법은 없다. 깊이가 다르면 **얕은 쪽이 우선**한다.
+#   · `records`·`html_text_fields`·`split`·`missing_policy` 를 추가로 쓸 수 있다.
+#
+#  ── 쓰는 순서 ────────────────────────────────────────────────────────────
+#  ① 이 파일을 resource/custom_field_<유형>.yaml 로 복사한다.
+#  ② <...> 로 표시된 곳을 채운다. 필요 없는 [선택] 항목은 지운다.
+#  ③ resource/parser_processor_config.yaml 의 enrichment 목록에 아래를 추가한다.
+#        - custom_fields:
+#            enable: true
+#            doc_type: <유형>
+#            extractor: json_mapping
+#            config_file: custom_field_<유형>.yaml   # 파일명만. 이 yaml 과 같은 폴더 기준
+#  ④ 실제 원천 파일로 결과를 확인한다(아래 "확인 방법" 참고).
+#
+#  ⚠️ 이 템플릿은 참고용이므로 parser_processor_config.yaml 에 등록하지 않는다.
+# ═══════════════════════════════════════════════════════════════════════════
+
+# ── [선택] 레코드 배열이 담긴 key ───────────────────────────────────────────
+# 키 이름만 쓴다(임의 깊이에서 찾는다). 예: {"eventList": [ {...}, {...} ]} → eventList
+# 생략하면 payload 가 배열이면 원소마다 1건, 단일 object 면 그 자체가 1건이 된다.
+# 원천이 배열로 감싸 올지 확정되지 않았다면 생략하는 편이 안전하다.
+# records: <배열_키>
+
+# ── [필수] 목표필드: [원천 key 별칭 목록] ────────────────────────────────────
+# 왼쪽 = 만들고 싶은 필드명. 적재 DB 컬럼명(대문자)으로 쓴다.
+# 오른쪽 = 그 값이 담긴 **JSON key 이름들**. 같은 깊이에서는 선언 순서가 우선순위다.
+#          비교 시 대소문자·공백·`_-./` 차이는 무시한다.
+#          값이 dict/list 컨테이너면 값으로 잡지 않는다(스칼라 배열은 그대로 값이 된다).
+key_map:
+  <TARGET_FIELD_1>: [<json key>, <다른 표기>]
+  <TARGET_FIELD_2>: [<json key>]
+
+# ── [선택] 값 변환 ──────────────────────────────────────────────────────────
+# 쓸 수 있는 변환기는 이 3개뿐이다.
+#   date_int       "2026-07-01"                    → 20260701 (파싱 실패 시 0)
+#   date_int_flex  "26.07.01" / "260701" / 8자리   → 20260701
+#   text_norm      NFKC → 공백 축약 → casefold
+# transforms:
+#   <TARGET_FIELD_2>: date_int_flex
+
+# ── [선택] 값 별칭 → 표준 코드 ──────────────────────────────────────────────
+# 값의 표기 흔들림을 표준 코드로 접는다. 매핑표에 없는 값은 원값을 두고 경고만 남긴다.
+# value_map:
+#   <TARGET_FIELD_1>:
+#     "Y": [노출, 사용]
+#     "N": [미노출, 미사용]
+
+# ── [선택] 필수 목표필드 ────────────────────────────────────────────────────
+# 값이 빈 레코드는 **그 건만 건너뛰고** 건수를 경고로 남긴다.
+# tabular 과 달리 기동 시 실패는 없다 — 그래서 key_map 별칭이 원천과 전부 어긋나면
+# "skipped N/N records" 경고와 함께 **청크 0건**이 된다(확인 방법 2번으로 미리 잡을 것).
+# required:
+#   - <TARGET_FIELD_1>
+
+# ── [선택] 기본값 / 고정값 / null 명시 ──────────────────────────────────────
+# defaults  : 원천 값이 None·"" 일 때만 채운다
+# constants : 원천 값이 있어도 덮어쓴다(파일 단위로 고정인 값)
+# nulls     : key_map 에 **없는** 필드를 null 로 명시 출력한다(있는 필드는 적지 않는다)
+# 적용 순서: nulls 초기화 → key_map 매핑 → constants → defaults → value_map → transforms
+#            → html_text_fields
+# defaults:
+#   <TARGET_FIELD_3>: "<기본값>"
+# constants:
+#   <TARGET_FIELD_4>: "<고정값>"
+# nulls:
+#   - <TARGET_FIELD_5>
+
+# ── [선택] HTML 필드 → 평문 파생 필드 ───────────────────────────────────────
+# `파생필드: 원본필드` 형태다. 원본 HTML 을 평문으로 바꿔 새 필드에 담는다.
+# 같은 이름을 양쪽에 쓰면 제자리에서 평문으로 바꾼다(예: `CONTENT: CONTENT`).
+# 정리 규칙은 파싱 경로와 같다 — 접힌 약관·aria-hidden 텍스트도 보존된다.
+# html_text_fields:
+#   <DERIVED_TEXT>: <TARGET_FIELD_HTML>
+
+# ── [선택] 원천에 없는 필드를 레코드마다 LLM 으로 생성 ──────────────────────
+# 레코드 1건당 LLM 1회 호출이다.
+#
+# ⚠️ output_fields 의 이름은 프롬프트가 내놓는 JSON 키와 **정확히 같아야** 한다.
+#    어긋나면 에러 없이 값이 null 로 채워진다.
+# ⚠️ **parser 경로에서만 실행된다.** json_mapping 자체가 parser 의 .json 분기 전용이므로
+#    적재용(intelligent)/변환용(convert) 설정에 넣으면 **경고도 없이 아무 일도 일어나지 않는다.**
+# llm_fields:
+#   - output_fields: [<GENERATED_FIELD>]
+#     input_fields:  [<TARGET_FIELD_1>]         # 프롬프트 {{raw_text}} 로 넣을 필드(선언 순서대로 결합)
+#     concurrency: 4                            # 레코드 동시 호출 상한(기본 4)
+#     on_error: null                            # null(해당 필드만 null) | skip_record
+#
+#     # <ENRICHMENT_SERVING_ID>: Genos에 등록한 모델서빙 ID 로 변경. api_key 도 배포 시 설정.
+#     url: "http://llmops-gateway-api-service:8080/rep/serving/<ENRICHMENT_SERVING_ID>/v1/chat/completions"
+#     api_key: ""
+#     model: model
+#
+#     max_tokens: 1000
+#     temperature: 0.0
+#     timeout: 120
+#
+#     parser:
+#       type: json
+#
+#     system_prompt: |
+#       <역할>. 반드시 하나의 JSON 객체만 반환한다. 설명 문구·코드펜스 없이 순수 JSON 만 출력한다.
+#       키는 `<GENERATED_FIELD>` 하나다.
+#       원문에 없는 내용을 지어내지 않는다(환각 금지). 만들 것이 없으면 값을 null 로 둔다.
+#
+#       출력 예시 형식(값은 예시):
+#       {"<GENERATED_FIELD>": "<예시 값>"}
+#
+#     user_prompt: |
+#       <지시문>
+#
+#       반드시 `<GENERATED_FIELD>` 키를 가진 JSON 객체로만 반환하라.
+#
+#       <item>
+#       {{raw_text}}
+#       </item>
+
+# ── [필수] 청크 본문을 구성할 필드 (선언 순서대로 개행 결합) ─────────────────
+# 이 값이 임베딩 입력이 된다. 비어 있으면 기동 시 실패한다(tabular 와 달리 필수다).
+# ⚠️ **여기 적은 필드는 위에서 반드시 만들어져야 한다** — 어디에도 없는 필드를 적으면
+#    **에러 없이 그 부분이 빠진 채** 청크가 나간다. 본문이 통째로 비면 그 레코드는
+#    element 에서 제외된다("본문이 빈 레코드 N/M건을 제외했습니다" 경고).
+#    앞에 항상 값이 있는 필드(제목 등)를 두면 요약 실패 시에도 검색 가능한 상태가 유지된다.
+text_fields:
+  - <TARGET_FIELD_1>
+  - <TARGET_FIELD_2>
+
+# ── [선택] 긴 레코드 분할 ───────────────────────────────────────────────────
+# true 면 본문이 chunk_size 를 넘을 때 여러 청크로 나눈다(metadata 는 조각마다 동일).
+# 미지정(기본 false) = 레코드 1건이 항상 청크 1개.
+# split: true
+
+# ── [선택] records 키를 못 찾았을 때 ────────────────────────────────────────
+# error(기본) = 즉시 실패 / skip = 경고 후 0건
+# missing_policy: skip
+
+# ═══════════════════════════════════════════════════════════════════════════
+#  확인 방법
+#
+#  실제 json 으로 매핑 결과 보기 — 가장 확실하다(LLM 호출 없음).
+#  실행 위치: genon/preprocessor
+#      python -c "
+#    import sys, json; sys.path.insert(0,'.'); sys.path.insert(0,'../..')
+#    from facade.enrichment.json_records import JsonRecordsMapper as M
+#    m = M(config_file='custom_field_<유형>.yaml', resource_path='resource',
+#          doc_type='<유형>', extractor='json_mapping')
+#    payload = json.load(open('<내_데이터.json>', encoding='utf-8'))
+#    rows = m.build_fields(payload, '<유형>')
+#    print(f'매핑된 레코드: {len(rows)}건')
+#    out = m.to_parse_format(rows, '<유형>')
+#    for e in out['elements'][:3]:
+#        print(e['metadata']); print('본문:', repr(e['content'])); print()
+#    "
+#  → 레코드 수가 0 이면 key_map 별칭이 원천 키와 어긋난 것이다(required 로 전건 skip).
+#
+#  ⚠️ 현재 코드는 **모르는 키를 조용히 무시**한다. `key_maps`(오타)처럼 한 글자만 틀려도
+#     에러 없이 매핑이 0개가 되므로 위 방법으로 결과를 꼭 확인할 것.
+# ═══════════════════════════════════════════════════════════════════════════
