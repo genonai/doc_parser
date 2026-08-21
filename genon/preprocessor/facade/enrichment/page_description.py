@@ -4,8 +4,10 @@ facade 의 "페이지 자체"를 렌더링해 VLM 으로 설명하는 로직을 
 (기존 PictureItem 단위 image_description enricher 와는 별개; 이미지형 슬라이드/PDF 대응)
 
 - `PageDescriptionOptions`  : config(formats.ppt.page_description) → 옵션 dataclass
+- `should_describe`         : 설명 요청 가능 설정인지 판정(렌더 등 선행 비용 전에 호출)
 - `collect_page_texts`      : DoclingDocument → {page_no: native text}
-- `describe_pages`          : 각 페이지 렌더 이미지 + native text 를 VLM 에 보내 설명 반환
+- `describe_page_images`    : {page_no: PIL Image} + native text 를 VLM 에 보내 설명 반환(docling 비의존)
+- `describe_pages`          : DoclingDocument 에서 페이지 이미지를 뽑아 위 코어에 위임
 
 프롬프트는 `{{page_text}}` 변수를 지원한다(PromptTemplate). 페이지 native text 를 프롬프트에
 직접 반영해 요청한다.
@@ -152,6 +154,20 @@ def _maybe_downscale(image: "Image.Image", max_side: int) -> "Image.Image":
     return resized
 
 
+def should_describe(options: PageDescriptionOptions) -> bool:
+    """설명 요청이 가능한 설정인지 판정한다(경고 로그를 이 함수가 소유).
+
+    페이지 렌더처럼 비싼 선행 작업 전에 호출부가 먼저 물어볼 수 있도록 분리했다.
+    False 경로에서만 경고하므로, 호출부와 코어가 모두 호출해도 로그가 중복되지 않는다.
+    """
+    if not options.enabled:
+        return False
+    if not options.url:
+        _log.warning("[page_description] enable=true 이지만 url 이 비어 있어 건너뜁니다.")
+        return False
+    return True
+
+
 def collect_page_texts(document: Any) -> "dict[int, str]":
     """DoclingDocument 의 아이템을 prov.page_no 로 그룹핑해 페이지별 native text 를 만든다.
 
@@ -168,25 +184,22 @@ def collect_page_texts(document: Any) -> "dict[int, str]":
     return {pno: "\n".join(v).strip() for pno, v in parts.items()}
 
 
-def describe_pages(
-    document: Any,
+def describe_page_images(
+    images: "dict[int, Image.Image]",
     options: PageDescriptionOptions,
     page_texts: Optional[dict] = None,
 ) -> "dict[int, str]":
-    """각 페이지를 렌더 이미지로 VLM 에 보내 설명을 반환한다.
+    """페이지 렌더 이미지를 VLM 에 보내 설명을 반환한다(docling 비의존 코어).
 
-    generate_page_images=True 로 파싱되어 page.image.pil_image 가 있어야 한다.
-    page_texts 가 주어지면 프롬프트의 `{{page_text}}` 변수에 반영해 요청한다.
-    반환: {page_no(1-based): description text}. 비활성/URL 없음/페이지 이미지 없음 → 빈 dict.
+    images: {page_no(1-based): PIL Image}. 이미지 출처(docling 페이지 렌더 / PyMuPDF 렌더 등)를
+    가리지 않는다. page_texts 가 주어지면 프롬프트의 `{{page_text}}` 변수에 반영해 요청한다.
+    반환: {page_no(1-based): description text}. 비활성/URL 없음/이미지 없음 → 빈 dict.
     """
-    if not options.enabled:
-        return {}
-    if not options.url:
-        _log.warning("[page_description] enable=true 이지만 url 이 비어 있어 건너뜁니다.")
+    if not should_describe(options):
         return {}
 
-    pages = getattr(document, "pages", None) or {}
-    page_nos = sorted(pages.keys())
+    images = images or {}
+    page_nos = sorted(images.keys())
     if not page_nos:
         return {}
 
@@ -211,10 +224,7 @@ def describe_pages(
     lock = threading.Lock()
 
     def _describe(page_no: int) -> None:
-        page = pages.get(page_no)
-        if page is None or getattr(page, "image", None) is None:
-            return
-        image = page.image.pil_image
+        image = images.get(page_no)
         if image is None:
             return
         image = _maybe_downscale(image, options.max_image_side)
@@ -241,3 +251,26 @@ def describe_pages(
         # #329: 워커 스레드에도 llm_cache 컨텍스트 전파
         list(executor.map(in_current_context(_describe), page_nos))
     return results
+
+
+def describe_pages(
+    document: Any,
+    options: PageDescriptionOptions,
+    page_texts: Optional[dict] = None,
+) -> "dict[int, str]":
+    """DoclingDocument 의 페이지 렌더 이미지를 VLM 에 보내 설명을 반환한다.
+
+    generate_page_images=True 로 파싱되어 page.image.pil_image 가 있어야 한다.
+    실제 요청은 `describe_page_images` 가 수행한다(첨부 PPT 경로는 PyMuPDF 렌더로 코어를 직접 호출).
+    반환: {page_no(1-based): description text}. 비활성/URL 없음/페이지 이미지 없음 → 빈 dict.
+    """
+    if not should_describe(options):
+        return {}
+
+    images: "dict[int, Image.Image]" = {}
+    for page_no, page in (getattr(document, "pages", None) or {}).items():
+        image = getattr(page, "image", None)
+        pil_image = getattr(image, "pil_image", None) if image is not None else None
+        if pil_image is not None:
+            images[page_no] = pil_image
+    return describe_page_images(images, options, page_texts=page_texts)

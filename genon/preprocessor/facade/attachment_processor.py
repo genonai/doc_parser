@@ -23,6 +23,7 @@ import yaml
 from datetime import datetime
 import logging
 from fastapi import Request
+from PIL import Image
 
 _log = logging.getLogger(__name__)
 
@@ -213,15 +214,16 @@ except (ImportError, OSError):
     HTML = None
 
 from docling.datamodel.base_models import InputFormat
-from docling.datamodel.pipeline_options import PipelineOptions, PdfPipelineOptions
+from docling.datamodel.pipeline_options import PipelineOptions
 from docling.datamodel.document import ConversionResult, InputDocument
 from docling.pipeline.simple_pipeline import SimplePipeline
 from docling.document_converter import (
-    DocumentConverter, HwpxFormatOption, WordFormatOption, PdfFormatOption,
+    DocumentConverter, HwpxFormatOption, WordFormatOption,
 )
 from genon.preprocessor.facade.enrichment.page_description import (
     PageDescriptionOptions,
-    describe_pages,
+    describe_page_images,
+    should_describe,
 )
 from docling_core.transforms.chunker import BaseChunk, BaseChunker, DocChunk, DocMeta
 from docling_core.transforms.serializer.markdown import (
@@ -2039,32 +2041,32 @@ class DocumentProcessor:
                 merged[k] = v
         return merged
 
-    def _get_ppt_pdf_converter(self) -> DocumentConverter:
-        """이미지 기반 PPT(→PDF) 파싱용 경량 docling 컨버터(lazy, 캐시).
+    @staticmethod
+    def _render_pdf_page_images(pdf_path: str, scale: float) -> "dict[int, Image.Image]":
+        """PDF 각 페이지를 PIL 이미지로 렌더한다(page_description 전용).
 
-        첨부용은 dotsocr(genos_layout) 미수행 + do_ocr=False 로 최소 파싱만 수행한다.
-        페이지 단위 설명이 켜져 있으면 generate_page_images=True 로 페이지 렌더 이미지를 만든다.
+        scale 은 docling images_scale 과 같은 의미(1.0 = 72 DPI 기준 배율)다.
+        반환: {page_no(1-based): PIL Image}
         """
-        converter = getattr(self, "_ppt_pdf_converter", None)
-        if converter is not None:
-            return converter
-        opts = PdfPipelineOptions()
-        opts.do_ocr = False
-        opts.do_table_structure = False
-        opts.generate_page_images = bool(self._page_desc_options.enabled)
-        opts.generate_picture_images = False
-        opts.images_scale = self._page_desc_options.images_scale
-        converter = DocumentConverter(
-            format_options={InputFormat.PDF: PdfFormatOption(pipeline_options=opts)}
-        )
-        self._ppt_pdf_converter = converter
-        return converter
+        images: "dict[int, Image.Image]" = {}
+        matrix = fitz.Matrix(scale, scale)
+        with fitz.open(pdf_path) as pdf:
+            for idx, page in enumerate(pdf):
+                pixmap = page.get_pixmap(matrix=matrix)
+                images[idx + 1] = Image.frombytes(
+                    "RGB", (pixmap.width, pixmap.height), pixmap.samples
+                )
+        return images
 
     def _load_ppt_page_documents(self, file_path: str, **kwargs: dict) -> "Optional[list[Document]]":
-        """PPT/PPTX → PDF 변환 후 docling 경량 파싱 + 페이지 단위 image description.
+        """PPT/PPTX → PDF 변환 후 PyMuPDF 페이지 파싱 + 페이지 단위 image description.
 
         페이지별 Document(metadata['page']=0-based) 리스트를 반환한다. PDF 변환이 불가하면
         None 을 반환해 호출부가 레거시 langchain 경로로 폴백하도록 한다.
+
+        파싱은 .pdf 첨부와 동일한 PyMuPDFLoader 를 쓴다. docling StandardPdfPipeline 은
+        레이아웃 모델을 무조건 태우면서(끌 수 없음) 정작 첨부가 쓰는 건 페이지 텍스트뿐이었고,
+        레이아웃 클러스터에 안 잡힌 텍스트(표지 문구·차트 라벨·리스트 번호 등)를 누락시켰다.
         """
         pdf_path = convert_to_pdf(file_path, use_pdf_sdk=kwargs.get('use_pdf_sdk', True))
         if not pdf_path or not os.path.exists(pdf_path):
@@ -2074,31 +2076,27 @@ class DocumentProcessor:
             _log.warning(f"[ppt] PDF 변환 실패 — 레거시 경로로 폴백: {os.path.basename(file_path)}")
             return None
 
-        converter = self._get_ppt_pdf_converter()
-        document: DoclingDocument = converter.convert(pdf_path, raises_on_error=True).document
+        # 페이지별 네이티브 텍스트 수집(page_no 는 1-based 로 정규화)
+        page_documents = PyMuPDFLoader(pdf_path, mode="page").load()
+        page_texts: dict[int, str] = {}
+        for page_document in page_documents:
+            text = str(page_document.page_content or "").strip()
+            if text:
+                page_texts[int(page_document.metadata.get('page', 0)) + 1] = text
 
-        # 페이지별 네이티브 텍스트 수집
-        page_text_parts: dict[int, list[str]] = defaultdict(list)
-        for item, _ in document.iterate_items():
-            text = str(getattr(item, "text", "") or "").strip()
-            if not text:
-                continue
-            prov = getattr(item, "prov", None) or []
-            page_no = prov[0].page_no if prov and getattr(prov[0], "page_no", None) else 1
-            page_text_parts[page_no].append(text)
-        page_texts: dict[int, str] = {
-            pno: "\n".join(parts).strip() for pno, parts in page_text_parts.items()
-        }
-
-        # 페이지 단위 image description(옵션). enable=false 면 설명만 skip(파싱은 유지).
+        # 페이지 단위 image description(옵션). enable=false 이거나 url 미설정이면 렌더/요청을 모두
+        # skip 한다(파싱은 유지). 렌더가 describe_page_images 의 인자라 먼저 평가되므로,
+        # 설정 판정을 호출 전에 해야 헛렌더를 막을 수 있다.
         # native text 가 있으면 프롬프트({{page_text}})에 반영해 요청한다.
-        page_descs: dict[int, str] = describe_pages(
-            document, self._page_desc_options, page_texts=page_texts
-        )
+        page_descs: dict[int, str] = {}
+        if should_describe(self._page_desc_options):
+            page_descs = describe_page_images(
+                self._render_pdf_page_images(pdf_path, self._page_desc_options.images_scale),
+                self._page_desc_options,
+                page_texts=page_texts,
+            )
 
-        all_pages: set[int] = set()
-        if getattr(document, "pages", None):
-            all_pages |= set(document.pages.keys())
+        all_pages: set[int] = set(range(1, len(page_documents) + 1))
         all_pages |= set(page_texts.keys()) | set(page_descs.keys())
         if not all_pages:
             all_pages = {1}
