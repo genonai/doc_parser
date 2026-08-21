@@ -116,6 +116,18 @@ async def test_md_smoke(dp, sample):
     _validate_result(result)
 
 
+# ─── HTML ─────────────────────────────────────────────────────────────────────
+
+@pytest.mark.smoke
+@pytest.mark.parametrize("sample", _samples(".html"), ids=lambda p: p.name)
+@pytest.mark.asyncio
+async def test_html_smoke(dp, sample):
+    """docling HTML 경로. md 가 raw HTML 블록 때문에 이 경로로 위임됐을 때 usage.pages 가
+    0 으로 나가던 버그를 여기서도 잡는다(HTML 백엔드는 doc.pages 를 채우지 않는다)."""
+    result = await dp(None, str(sample))
+    _validate_result(result)
+
+
 # ─── PPTX ─────────────────────────────────────────────────────────────────────
 
 @pytest.mark.smoke

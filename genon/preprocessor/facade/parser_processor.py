@@ -2703,7 +2703,7 @@ class DocumentProcessor:
             # "content": {"html": full_html, "markdown": "", "text": ""},
             "elements": elements,
             # "model": "genonai-parser",
-            "usage": {"pages": doc.num_pages()},
+            "usage": {"pages": DocumentProcessor._docling_page_count(doc)},
         }
 
     @staticmethod
@@ -2775,6 +2775,27 @@ class DocumentProcessor:
         return ""
 
     @staticmethod
+    def _docling_page_count(doc: DoclingDocument) -> int:
+        """DoclingDocument 의 페이지 수. 페이지 개념이 없는 백엔드는 1 로 센다.
+
+        docling HTML 백엔드는 브라우저 렌더링을 켠 경우에만 doc.pages 를 채우므로 평소엔 0 이다.
+        raw HTML 블록이 섞인 md 도 md_backend 가 HTML 백엔드로 위임하면서(page 1 스텁이 버려진다)
+        같은 상태가 된다. 내용이 있는 문서를 0페이지로 내보내면 소비계층의 페이지 기반 계산이
+        전부 무너지므로 1 로 올린다. 진짜 빈 문서는 0 을 유지한다.
+        """
+        try:
+            pages = int(doc.num_pages())
+        except Exception:
+            pages = 0
+        if pages >= 1:
+            return pages
+        try:
+            has_content = next(doc.iterate_items(), None) is not None
+        except Exception:
+            has_content = False
+        return 1 if has_content else 0
+
+    @staticmethod
     def _normalize_response(result: dict) -> dict:
         """응답에 content / elements / usage 키가 항상 존재하도록 보장."""
         result.setdefault("content", "")
@@ -2805,7 +2826,7 @@ class DocumentProcessor:
             # clear_coordinates / table_format 은 원본 보존을 위해 docling 포맷에서는 무시한다.
             resp = {
                 "document": self._serialize_docling_document(doc),
-                "usage": {"pages": doc.num_pages()},
+                "usage": {"pages": self._docling_page_count(doc)},
             }
         elif output_format == "json":
             result = self._docling_to_parse_format(doc, table_format=table_format,
@@ -2815,10 +2836,7 @@ class DocumentProcessor:
                     element["coordinates"] = []
             resp = result
         else:
-            try:
-                pages = max(1, int(doc.num_pages()))
-            except Exception:
-                pages = 0
+            pages = self._docling_page_count(doc)
             content = self._docling_to_content(doc)
             resp = self._content_response(content, pages=pages)
 
