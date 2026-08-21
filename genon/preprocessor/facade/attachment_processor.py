@@ -223,6 +223,7 @@ from docling.document_converter import (
 from genon.preprocessor.facade.enrichment.page_description import (
     PageDescriptionOptions,
     describe_page_images,
+    should_describe,
 )
 from docling_core.transforms.chunker import BaseChunk, BaseChunker, DocChunk, DocMeta
 from docling_core.transforms.serializer.markdown import (
@@ -2083,10 +2084,12 @@ class DocumentProcessor:
             if text:
                 page_texts[int(page_document.metadata.get('page', 0)) + 1] = text
 
-        # 페이지 단위 image description(옵션). enable=false 면 렌더/요청을 모두 skip(파싱은 유지).
+        # 페이지 단위 image description(옵션). enable=false 이거나 url 미설정이면 렌더/요청을 모두
+        # skip 한다(파싱은 유지). 렌더가 describe_page_images 의 인자라 먼저 평가되므로,
+        # 설정 판정을 호출 전에 해야 헛렌더를 막을 수 있다.
         # native text 가 있으면 프롬프트({{page_text}})에 반영해 요청한다.
         page_descs: dict[int, str] = {}
-        if self._page_desc_options.enabled:
+        if should_describe(self._page_desc_options):
             page_descs = describe_page_images(
                 self._render_pdf_page_images(pdf_path, self._page_desc_options.images_scale),
                 self._page_desc_options,

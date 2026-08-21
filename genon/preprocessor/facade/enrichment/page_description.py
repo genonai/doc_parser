@@ -4,6 +4,7 @@ facade 의 "페이지 자체"를 렌더링해 VLM 으로 설명하는 로직을 
 (기존 PictureItem 단위 image_description enricher 와는 별개; 이미지형 슬라이드/PDF 대응)
 
 - `PageDescriptionOptions`  : config(formats.ppt.page_description) → 옵션 dataclass
+- `should_describe`         : 설명 요청 가능 설정인지 판정(렌더 등 선행 비용 전에 호출)
 - `collect_page_texts`      : DoclingDocument → {page_no: native text}
 - `describe_page_images`    : {page_no: PIL Image} + native text 를 VLM 에 보내 설명 반환(docling 비의존)
 - `describe_pages`          : DoclingDocument 에서 페이지 이미지를 뽑아 위 코어에 위임
@@ -153,6 +154,20 @@ def _maybe_downscale(image: "Image.Image", max_side: int) -> "Image.Image":
     return resized
 
 
+def should_describe(options: PageDescriptionOptions) -> bool:
+    """설명 요청이 가능한 설정인지 판정한다(경고 로그를 이 함수가 소유).
+
+    페이지 렌더처럼 비싼 선행 작업 전에 호출부가 먼저 물어볼 수 있도록 분리했다.
+    False 경로에서만 경고하므로, 호출부와 코어가 모두 호출해도 로그가 중복되지 않는다.
+    """
+    if not options.enabled:
+        return False
+    if not options.url:
+        _log.warning("[page_description] enable=true 이지만 url 이 비어 있어 건너뜁니다.")
+        return False
+    return True
+
+
 def collect_page_texts(document: Any) -> "dict[int, str]":
     """DoclingDocument 의 아이템을 prov.page_no 로 그룹핑해 페이지별 native text 를 만든다.
 
@@ -180,10 +195,7 @@ def describe_page_images(
     가리지 않는다. page_texts 가 주어지면 프롬프트의 `{{page_text}}` 변수에 반영해 요청한다.
     반환: {page_no(1-based): description text}. 비활성/URL 없음/이미지 없음 → 빈 dict.
     """
-    if not options.enabled:
-        return {}
-    if not options.url:
-        _log.warning("[page_description] enable=true 이지만 url 이 비어 있어 건너뜁니다.")
+    if not should_describe(options):
         return {}
 
     images = images or {}
@@ -252,10 +264,7 @@ def describe_pages(
     실제 요청은 `describe_page_images` 가 수행한다(첨부 PPT 경로는 PyMuPDF 렌더로 코어를 직접 호출).
     반환: {page_no(1-based): description text}. 비활성/URL 없음/페이지 이미지 없음 → 빈 dict.
     """
-    if not options.enabled:
-        return {}
-    if not options.url:
-        _log.warning("[page_description] enable=true 이지만 url 이 비어 있어 건너뜁니다.")
+    if not should_describe(options):
         return {}
 
     images: "dict[int, Image.Image]" = {}
