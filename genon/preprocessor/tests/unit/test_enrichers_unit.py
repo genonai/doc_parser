@@ -384,6 +384,60 @@ class TestCustomFieldsPromptFiles:
                 user_prompt_file="ghost.md", resource_path=str(tmp_path),
             )
 
+    def test_inline_yaml_prompt_loaded(self, tmp_path):
+        """프롬프트를 config yaml 안에 직접 써도 파일과 동일하게 로드된다(자족 설정)."""
+        (tmp_path / "cf.yaml").write_text(
+            'system_prompt: |\n  SYS_INLINE\nuser_prompt: |\n  USER_INLINE {{raw_text}}\n',
+            encoding="utf-8",
+        )
+        enr = _make_custom_fields_enricher(
+            system_prompt="", user_prompt="",
+            config_file="cf.yaml", resource_path=str(tmp_path),
+        )
+        assert enr._system_prompt == "SYS_INLINE"
+        assert enr._user_prompt == "USER_INLINE {{raw_text}}"
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("resource_dir", ["resource", "resource_dev"])
+class TestShippedCardConfigSelfContained:
+    """출고 custom_field_card.yaml 이 외부 프롬프트 파일 없이 자족하는지 고정한다.
+
+    프롬프트를 yaml 안에 인라인해 두었으므로, 누가 다시 md 로 쪼개거나 인라인 본문을 지우면
+    LLM 이 built-in default 프롬프트로 조용히 돌아 12필드가 전부 비게 된다 — 그걸 여기서 잡는다.
+    실제 config 를 읽어 enricher 를 만들 뿐 LLM 호출은 하지 않는다.
+    """
+
+    def _enricher(self, resource_dir):
+        from pathlib import Path
+        base = Path(__file__).resolve().parents[2] / resource_dir
+        return CustomFieldsEnricher(
+            config_file="custom_field_card.yaml", resource_path=str(base)
+        )
+
+    def test_prompts_are_inline(self, resource_dir):
+        from facade.enrichment.custom_fields_enricher import (
+            _DEFAULT_CUSTOM_FIELDS_SYSTEM_PROMPT,
+        )
+        enr = self._enricher(resource_dir)
+        # built-in default 로 폴백하지 않았다 = 실제 카드 프롬프트가 실렸다
+        assert enr._system_prompt != _DEFAULT_CUSTOM_FIELDS_SYSTEM_PROMPT
+        assert "카드 상품 정보추출" in enr._system_prompt
+        assert "{{raw_text}}" in enr._user_prompt
+
+    def test_output_fields_match_prompt_keys(self, resource_dir):
+        """output_fields 와 프롬프트가 요구하는 JSON 키가 어긋나면 값이 조용히 빈다."""
+        enr = self._enricher(resource_dir)
+        assert len(enr._output_fields) == 12
+        for field in enr._output_fields:
+            assert field in enr._system_prompt, f"{field} 가 system prompt 에 없습니다"
+
+    def test_llm_settings_survive(self, resource_dir):
+        enr = self._enricher(resource_dir)
+        assert enr._model == "model"
+        assert enr._max_tokens == 4000
+        assert enr._timeout == 300
+
 
 @pytest.mark.unit
 @pytest.mark.parametrize("factory,modpath", _ENRICHERS)

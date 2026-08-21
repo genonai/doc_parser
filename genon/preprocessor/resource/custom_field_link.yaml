@@ -1,0 +1,113 @@
+# 링크(딥링크 목록) JSON 레코드 → TB_LINK 목표필드 직접 매핑 (모니모)
+#
+# 사용 (parser_processor_config.yaml):
+#   - custom_fields:
+#       enable: true
+#       doc_type: link
+#       extractor: json_mapping
+#       config_file: custom_field_link.yaml
+#
+# 원천: ssc_rag_adlk_yyyymmdd_delta_001.json (/data/raw/XXX/ADLK, 원천구분 LINK)
+#
+# ⚠️ **요건 협의 중** — 링크 시트에는 "요건 협의 중" 만 적혀 있고 원천 키 목록이 아직 없다.
+#    수집데이터목록상 포맷만 json 으로 확정된 상태다(초안의 "파일포맷: 협의 중" 은 요건 이야기).
+#    아래 key_map 은 TB_LINK 컬럼과 이벤트/관심소식 원천의 작명 관례에서 유추한 **잠정값**이다.
+#    원천 스키마를 받는 즉시 별칭을 대조해 확정해야 한다. 그때까지는 enable:false 로 둔다.
+
+# records 미지정: payload 가 배열이면 원소마다 1건, 단일 object 면 그 자체가 1건.
+# 원천이 어떤 래퍼를 쓸지 미확정이라 양쪽을 모두 받는 형태로 둔다
+# (`linkList` 같은 래퍼 키가 확정되면 `records: linkList` 를 추가한다).
+
+key_map:
+  BIZ_ID:         [ID, 아이디, link_id]            # 원천 업무키 (예: S22-LNK-TODAY)
+  TITLE:          [제목, title]                    # 검색 결과 목록에 그대로 보임 (NOT NULL)
+  LINK_URL:       [서비스 URL, linkUrl, url, 링크]  # 앱에서 여는 주소
+  DESCRIPTION:    [설명, description, desc]
+  CAMPAIGN_FROM:  [캠페인 시작일, 시작일, startDate, start_date]
+  CAMPAIGN_TO:    [캠페인 종료일, 종료일, endDate, end_date]
+                                                   # 미지정 시 끝난 캠페인이 계속 노출된다
+  BENEFIT_TYPE_C: [혜택구분, benefitType, benefit_type]
+                                                   # 01 할인 · 02 적립 · 03 캐시백 (원천 코드 그대로)
+  BENEFIT_DESC:   [혜택내용, benefitDesc, benefit_desc]
+  SEARCHABLE_YN:  [노출여부]
+
+value_map:
+  SEARCHABLE_YN:
+    "Y": [노출, 사용]
+    "N": [미노출, 미사용]
+
+# ── 소스와 무관하게 고정으로 채울 값 ────────────────────────────────────────
+constants:
+  GROUP_C: "HPP"                   # 카드 전용 원천 (NOT NULL)
+
+required:
+  - GROUP_C
+  - TITLE
+
+defaults:
+  SEARCHABLE_YN: "N"               # TB_LINK 기본값과 동일
+
+nulls:
+  - BIZ_ID
+  - LINK_URL
+  - DESCRIPTION
+  - CAMPAIGN_FROM
+  - CAMPAIGN_TO
+  - BENEFIT_TYPE_C
+  - BENEFIT_DESC
+
+# 원천은 "20260713" 같은 형태로 준다(링크 시트 예시). date_int_flex 가 두 자리 연도까지 흡수한다.
+transforms:
+  CAMPAIGN_FROM: date_int_flex
+  CAMPAIGN_TO:   date_int_flex
+
+llm_fields:
+  - output_fields: [SUMMARY_TEXT]        # 요약본문 (임베딩 입력)
+    input_fields:  [TITLE, DESCRIPTION, BENEFIT_DESC]
+    concurrency: 4
+    on_error: null
+
+    # <ENRICHMENT_SERVING_ID>: Genos에 등록한 모델서빙 ID로 변경 필요. api_key 도 배포 시 설정.
+    url: "http://llmops-gateway-api-service:8080/rep/serving/<ENRICHMENT_SERVING_ID>/v1/chat/completions"
+    api_key: ""
+    model: model
+
+    max_tokens: 800
+    temperature: 0.0
+    timeout: 60
+
+    parser:
+      type: json
+
+    system_prompt: |
+      너는 앱 화면 링크 안내 요약 전문가다. 주어진 링크 정보를 검색용 임베딩에 넣을 요약본문으로 압축한다.
+
+      규칙:
+      - 반드시 하나의 JSON 객체만 반환한다. 설명 문구·마크다운 코드펜스 없이 순수 JSON 만 출력한다.
+      - 키는 `SUMMARY_TEXT` 하나다. 값은 요약본문 문자열이다.
+      - 원문에 없는 정보를 지어내지 않는다(환각 금지). 금액·비율은 원문 숫자를 그대로 쓴다.
+      - 이 링크로 무엇을 할 수 있는지, 어떤 혜택이 있는지, 참여 조건이 있으면 그 조건을 남긴다.
+      - 버튼 라벨·배너 문구는 제외한다.
+      - 문장형 한국어로 2~4문장, 400자 이내로 쓴다. 불릿·머리기호를 쓰지 않는다.
+      - 설명과 혜택내용이 모두 비어 있으면 값을 null 로 둔다.
+
+      출력 예시 형식(값은 예시):
+      {"SUMMARY_TEXT": "오늘의 캠페인 화면으로 이동하는 링크로, 신규 가입 시 …"}
+
+    user_prompt: |
+      아래 링크 정보를 검색용 요약본문으로 압축하라.
+
+      - SUMMARY_TEXT (요약본문) — 필수
+
+      반드시 `SUMMARY_TEXT` 키 하나를 가진 JSON 객체로만 반환하라.
+
+      <link>
+      {{raw_text}}
+      </link>
+
+text_fields:
+  - TITLE
+  - SUMMARY_TEXT
+
+split: false
+missing_policy: error

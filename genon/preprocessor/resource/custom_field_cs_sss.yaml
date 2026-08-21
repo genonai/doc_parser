@@ -1,0 +1,112 @@
+# 고객센터(증권) JSON 레코드 → TB_CS_ITEM 목표필드 직접 매핑 (모니모)
+#
+# 사용 (parser_processor_config.yaml):
+#   - custom_fields:
+#       enable: true
+#       doc_type: cs_sss
+#       extractor: json_mapping
+#       config_file: custom_field_cs_sss.yaml
+#
+# 원천: sss_rag_adcc_yyyymmdd_delta_001.json (S3://os-tifa-sss/FAO/ADCC)
+#
+# 입력 예시(고객센터 시트의 "분석된 수집 문서 구조"):
+#   {"ID": "FAQ_0007", "회사명": "증권", "category": "국내주식",
+#    "question": "시간외 종가 주문을 신청하려면 어떻게 하나요?",
+#    "answer": "<html> 내용", "related_keywords": [],
+#    "linked_screen": "주식주문 #1149", "최종수정일": "2026-06-01"}
+#
+# ⚠️ `linked_screen` 은 "받은 문서 구조"에는 있으나 "분석된 수집 문서 구조"에서 빠졌다.
+#    DEEP_LINK_URL 의 유일한 후보이므로 복원 여부를 원천 담당과 확정해야 한다.
+#    (아래 key_map 에는 넣어 두었다 — 값이 오면 채워지고, 안 오면 null 로 남는다)
+
+# records 를 지정하지 않는다: payload 가 배열이면 원소마다 1건, 단일 object 면 그 자체가 1건이 된다.
+# 원천이 배열로 감싸서 올지 확정되지 않았으므로 양쪽을 모두 받는 이 형태가 안전하다.
+
+key_map:
+  BIZ_ID:           [ID, id]                       # 원천 업무키 (예: FAQ_0007)
+  GROUP_C:          [회사명, corp_code, 고객사]     # 고객사 (NOT NULL)
+  CS_CATEGORY:      [category, 문의유형, 카테고리]
+  TITLE:            [question, 제목, 대표질문]      # 검색 결과 목록에 그대로 보임 (NOT NULL)
+  CONTENT:          [answer, 안내본문, 답변]        # HTML 로 온다 → 아래 html_text_fields 로 평문화
+  RELATED_KEYWORDS: [related_keywords, 연관 키워드]  # JSON 배열 (스칼라 배열은 그대로 값으로 잡힌다)
+  DEEP_LINK_URL:    [딥링크, 앱 딥링크]
+
+value_map:
+  GROUP_C:
+    IFP: [모니모]
+    SLF: [삼성생명, 생명]
+    SSF: [삼성화재, 화재]
+    HPP: [삼성카드, 카드]
+    SSS: [삼성증권, 증권]
+
+required:
+  - TITLE
+
+nulls:
+  - BIZ_ID
+  - CS_CATEGORY
+  - DEEP_LINK_URL
+  - RELATED_KEYWORDS
+  - SRC_LAST_MOD_DT
+
+# 원천에 노출 게이트가 없다. TB_CS_ITEM 기본값과 같은 'N' 으로 두고 적재 측 승인 전제.
+constants:
+  GROUP_C: "SSS"
+
+# ── HTML 필드 → 평문 (제자리 변환) ──────────────────────────────────────────
+# TB_CS_ITEM.CONTENT 는 안내본문(평문) 컬럼이다 — TB_NEWS 의 DETAIL_HTML 처럼 원문 HTML 을
+# 담는 자리가 아니다. 같은 필드를 소스이자 목표로 지정해 제자리에서 평문으로 바꾼다.
+# 정리 규칙은 파싱 경로(html_flatten)와 동일 — aria-hidden/접힌 약관 텍스트는 보존된다.
+html_text_fields:
+  CONTENT: CONTENT
+
+# llm_fields:
+#   - output_fields: [SUMMARY_TEXT]        # 요약본문 (임베딩 입력)
+#     input_fields:  [TITLE, CS_CATEGORY, CONTENT]
+#     concurrency: 4
+#     on_error: null
+
+#     # <ENRICHMENT_SERVING_ID>: Genos에 등록한 모델서빙 ID로 변경 필요. api_key 도 배포 시 설정.
+#     url: "http://llmops-gateway-api-service:8080/rep/serving/<ENRICHMENT_SERVING_ID>/v1/chat/completions"
+#     api_key: ""
+#     model: model
+
+#     max_tokens: 1000
+#     temperature: 0.0
+#     timeout: 120
+
+#     parser:
+#       type: json
+
+#     system_prompt: |
+#       너는 증권 고객센터 안내문 요약 전문가다. 주어진 안내 항목을 검색용 임베딩에 넣을 요약본문으로 압축한다.
+
+#       규칙:
+#       - 반드시 하나의 JSON 객체만 반환한다. 설명 문구·마크다운 코드펜스 없이 순수 JSON 만 출력한다.
+#       - 키는 `SUMMARY_TEXT` 하나다. 값은 요약본문 문자열이다.
+#       - 원문에 없는 정보를 지어내지 않는다(환각 금지). 시각·수수료·한도 등 숫자는 원문 그대로 쓴다.
+#       - 요약본문에는 이용자가 검색할 만한 표현을 남긴다: 어떤 거래·업무인지, 신청 방법과 경로,
+#         접수·체결 시간, 조건과 예외사항. 표 안의 항목명만 나열하지 말고 문장으로 풀어 쓴다.
+#       - 문장형 한국어로 3~6문장, 800자 이내로 쓴다. 불릿·머리기호를 쓰지 않는다.
+#       - 안내본문이 비어 있거나 요약할 내용이 없으면 값을 null 로 둔다.
+
+#       출력 예시 형식(값은 예시):
+#       {"SUMMARY_TEXT": "시간외 종가 주문은 KRX 장 개시 전과 장 종료 후에 …"}
+
+#     user_prompt: |
+#       아래 고객센터 안내 항목을 검색용 요약본문으로 압축하라.
+
+#       - SUMMARY_TEXT (요약본문) — 필수
+
+#       반드시 `SUMMARY_TEXT` 키 하나를 가진 JSON 객체로만 반환하라.
+
+#       <cs_item>
+#       {{raw_text}}
+#       </cs_item>
+
+text_fields:
+  - TITLE
+  - CONTENT
+
+split: true
+missing_policy: error

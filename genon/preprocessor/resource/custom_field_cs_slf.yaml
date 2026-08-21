@@ -1,0 +1,101 @@
+# 고객센터(생명) Excel 행 → TB_CS_ITEM 목표필드 직접 매핑 (모니모)
+#
+# 사용 (parser_processor_config.yaml):
+#   - custom_fields:
+#       enable: true
+#       doc_type: cs_slf
+#       extractor: tabular_mapping
+#       config_file: custom_field_cs_slf.yaml
+#
+# 원천: slf_rag_adcc_yyyymmdd_delta_001.xlsx (S3://os-tifa-slf/FAO/ADCC)
+#
+# ⚠️ 수집데이터목록의 확장자가 "미정"이다. 초안에는 Md 로 적혀 있었으나 파일명은 .xlsx 다.
+#    포맷이 md/html 로 확정되면 extractor 를 llm 으로 바꾸고 이 파일 대신
+#    custom_field_cs_hpp.yaml(문서 단위 LLM 추출) 형태를 따라야 한다.
+#
+# ⚠️ 고객센터 시트에는 컬럼 목록이 아니라 "문서 구조 유형"만 정의돼 있다
+#    (메타정보: 문서ID·버전 / 카테고리 / 적용대상 / 최종수정일 → 질의답변 타이틀(대표질문)
+#     → 핵심요약(동의어·키워드 / 1~2줄 답변) → 상세가이드(처리절차·조건 및 예외사항)
+#     → 상담원 액션 연계). 아래 컬럼 별칭은 그 구조에서 유추한 **잠정값**이므로,
+#    실제 xlsx 헤더를 받는 즉시 대조해 확정해야 한다.
+#
+# 생명은 "질문답변형"과 "질문링크형" 두 유형이 섞여 있다. 링크형은 답변이 짧고
+# `[확인 방법]` 아래에 채널·경로 안내가 붙으므로 DEEP_LINK_URL 후보가 된다.
+
+column_map:
+  BIZ_ID:           [문서ID, 문서 ID, ID, 문서번호]
+  CS_CATEGORY:      [카테고리, 문의유형, 분류, 대분류]     # "보험 > 기타" 처럼 2단계 표기 가능
+                                                          # ⚠️ 2단계를 그대로 저장할지 확인 필요
+  TITLE:            [대표질문, 제목, 질문]                 # 검색 결과 목록에 그대로 보임 (NOT NULL)
+  CONTENT:          [답변, 안내본문, 핵심요약, 상세가이드]  # 검색 대상 본문
+  DEEP_LINK_URL:    [딥링크, 앱 딥링크, 확인방법, 링크]
+  RELATED_KEYWORDS: [동의어, 키워드, 연관 키워드]           # JSON 배열
+  SEARCHABLE_YN:    [노출여부]
+
+# ── 소스와 무관하게 고정으로 채울 값 ────────────────────────────────────────
+# 이 파일은 생명 전용 원천이라 고객사가 파일 단위로 고정이다(공통 파일과 달리 value_map 불필요).
+constants:
+  GROUP_C: "SLF"
+
+required:
+  - GROUP_C
+  - TITLE
+
+defaults:
+  SEARCHABLE_YN: "N"
+
+nulls:
+  - BIZ_ID
+  - CS_CATEGORY
+  - DEEP_LINK_URL
+  - RELATED_KEYWORDS
+
+llm_fields:
+  - output_fields: [SUMMARY_TEXT]        # 요약본문 (임베딩 입력)
+    input_fields:  [TITLE, CS_CATEGORY, CONTENT]
+    concurrency: 4
+    on_error: null
+
+    # <ENRICHMENT_SERVING_ID>: Genos에 등록한 모델서빙 ID로 변경 필요. api_key 도 배포 시 설정.
+    url: "http://llmops-gateway-api-service:8080/rep/serving/<ENRICHMENT_SERVING_ID>/v1/chat/completions"
+    api_key: ""
+    model: model
+
+    max_tokens: 1000
+    temperature: 0.0
+    timeout: 120
+
+    parser:
+      type: json
+
+    system_prompt: |
+      너는 보험 고객센터 안내문 요약 전문가다. 주어진 안내 항목을 검색용 임베딩에 넣을 요약본문으로 압축한다.
+
+      규칙:
+      - 반드시 하나의 JSON 객체만 반환한다. 설명 문구·마크다운 코드펜스 없이 순수 JSON 만 출력한다.
+      - 키는 `SUMMARY_TEXT` 하나다. 값은 요약본문 문자열이다.
+      - 원문에 없는 정보를 지어내지 않는다(환각 금지). 금액·기간·비율은 원문 숫자를 그대로 쓴다.
+      - 요약본문에는 이용자가 검색할 만한 표현을 남긴다: 무엇을 하는 절차인지, 필요한 서류·조건,
+        처리 기간, 예외사항, 이용 가능한 채널. 상담원 내부 지침·이관 조건은 제외한다.
+      - 문장형 한국어로 3~6문장, 800자 이내로 쓴다. 불릿·머리기호를 쓰지 않는다.
+      - 안내본문이 비어 있거나 요약할 내용이 없으면 값을 null 로 둔다.
+
+      출력 예시 형식(값은 예시):
+      {"SUMMARY_TEXT": "보험금 청구는 청구서와 진단서를 준비해 …"}
+
+    user_prompt: |
+      아래 고객센터 안내 항목을 검색용 요약본문으로 압축하라.
+
+      - SUMMARY_TEXT (요약본문) — 필수
+
+      반드시 `SUMMARY_TEXT` 키 하나를 가진 JSON 객체로만 반환하라.
+
+      <cs_item>
+      {{raw_text}}
+      </cs_item>
+
+# 안내본문 원문은 CONTENT metadata 로 싣고, 임베딩 입력은 요약본문을 쓴다.
+# 제목을 앞에 두어 LLM 미설정/실패 시에도 본문이 비지 않게 한다.
+text_fields:
+  - TITLE
+  - SUMMARY_TEXT

@@ -791,7 +791,7 @@ class DocumentProcessor:          # ← 클래스 이름 고정. main.py 가 이
 | `.docx` | `_parse_docx` | DoclingDocument | `_build_docling_response` |
 | `.pdf` | `_parse_docling` | DoclingDocument | `_build_docling_response` |
 | `.html .htm` | `_prepare_html`(flatten 전처리) → `_parse_docling` | DoclingDocument | `_build_docling_response` |
-| `.json` | custom_fields `json:` 매칭 시 `_parse_json`, 미매칭이면 아래 "그 외"로 폴백 | DoclingDocument | `_build_docling_response` |
+| `.json` | 2분기: `extractor: json_mapping` 매칭 시 `_parse_json_records`(우선) / custom_fields `json:` 매칭 시 `_parse_json`. 둘 다 미매칭이면 아래 "그 외"로 폴백 | dict(parse-format) 또는 DoclingDocument | 각각 다름 |
 | `.ppt .pptx` | `_parse_ppt_docling` | DoclingDocument 또는 None | 실패 시 parse-format 폴백 |
 | 그 외 | `_parse_other` | langchain Document 리스트 | `_langchain_to_parse_format` |
 
@@ -810,11 +810,29 @@ class DocumentProcessor:          # ← 클래스 이름 고정. main.py 가 이
 > (`display:none`) 안에 있습니다. `hidden` 속성만 제거하는 것이 docling 과 같은 범위이고,
 > 이 규칙은 `tests/unit/test_html_flatten_unit.py` 가 고정합니다.
 
-**`.json` 경로 (`_parse_json`)** — JSON 안의 본문 텍스트(markdown/html)를 꺼내 항목별
+**`.json` 경로 — 두 가지 모드**가 있고 `enrichment.custom_fields` 설정으로 갈립니다.
+둘 다 매칭되지 않으면 기존 텍스트 경로(캐치올)로 폴백해 종전 동작을 보존합니다.
+
+| | 레코드 모드 (`extractor: json_mapping`) | 문서 모드 (`json:` 블록) |
+|---|---|---|
+| 우선순위 | **높음** (먼저 검사) | 레코드 모드 미매칭 시 |
+| 메서드 | `_parse_json_records` | `_parse_json` |
+| docling | **거치지 않음** | 거침(`_parse_docling` 재사용) |
+| 결과 | 레코드마다 `custom_fields_row` element | DoclingDocument 1개 |
+| 청크 | 레코드 1건 = 청크 1개(길면 분할) | 문서 전체를 길이 기준 청킹 |
+| metadata | **레코드마다 다름** | 문서 전역(모든 청크 동일) |
+
+**문서 모드 (`_parse_json`)** — JSON 안의 본문 텍스트(markdown/html)를 꺼내 항목별
 `<h2>` 섹션을 가진 단일 HTML 로 병합한 뒤 `_parse_docling` 을 재사용합니다(파싱 본체는
 새로 만들지 않음). 텍스트가 담긴 key 는 `enrichment.custom_fields` 항목의 `json:` 블록에
 **키 이름만** 나열하고, JSON 임의 깊이에서 재귀 매칭되므로 `pages[*].html` 같은 배열
-구조도 경로 문법 없이 처리됩니다. 매칭 설정이 없으면 기존 텍스트 경로로 폴백합니다.
+구조도 경로 문법 없이 처리됩니다.
+
+**레코드 모드 (`_parse_json_records`)** — `eventList[*]` 처럼 레코드 배열이 오고 레코드마다
+다른 메타데이터(제목·기간·상세HTML)를 청크에 실어야 할 때 씁니다. xlsx 의 `tabular_mapping` 과
+같은 성격의 **파싱 이전 조기 분기**라 docling 을 거치지 않고, 같은 출력 계약
+(`category="custom_fields_row"`)을 쓰므로 청커의 행 기반 경로가 그대로 소비합니다.
+설정은 6.4절 "경로 C" 참고.
 
 **docling 계열 4단 패턴** — 세 경로(hwp/docx/pdf)가 모두 동일합니다. 새 포맷을 추가할 때 그대로 따르세요.
 
@@ -958,7 +976,7 @@ return self._normalize_response(result)
 
 | 판별 | 경로 | 결과 |
 |---|---|---|
-| `category` 가 `tabular_row`/`custom_fields_row`/`faq_row` 인 element 가 있음 | `_chunk_custom_fields_rows`(2686) | **행 1개 = 청크 1개.** element `metadata` 를 청크 property 로 승격 |
+| `category` 가 `tabular_row`/`custom_fields_row`/`faq_row` 인 element 가 있음 | `_chunk_custom_fields_rows` | **행 1개 = 청크 1개.** element `metadata` 를 청크 property 로 승격. 단 element 에 `"splittable": true` 가 있으면(json_mapping 레코드) `chunk_size` 초과분만 여러 청크로 나누고 metadata 는 조각마다 동일하게 붙임 |
 | `content` 이 `[AUDIO]` 로 시작 | `_single_marker_vector` | 전사 전체가 단일 청크 |
 | 비어있지 않은 element 가 전부 `category=="table"` | `_single_marker_vector` | `[DA]` 단일 청크 (**예전 csv/xlsx parse 결과 하위호환**) |
 | 그 외 | `_chunk_text_elements`(2583) | 문자 단위 분할 |
@@ -998,7 +1016,7 @@ return self._normalize_response(result)
 | `image_description.py` (+`chart_detection.py`) | `image_description` | `prompt_image_description_default.md`, `prompt_chart_description_default.md` |
 | `table_description.py` | `table_description` | `prompt_table_description_default.md`, `prompt_table_refine_combined.md` |
 | `metadata_enricher.py` | `metadata` | `prompt_metadata_default_{system,user}.md` |
-| `custom_fields_enricher.py`, `tabular_custom_fields.py` | `custom_fields` | `prompt_custom_fields_card_{system,user}.md` + `custom_field_*.yaml` |
+| `custom_fields_enricher.py`, `tabular_custom_fields.py`, `json_records.py` | `custom_fields` | `custom_field_*.yaml` (출고 설정은 프롬프트까지 yaml 안에 인라인 — 별도 md 없음) |
 | `page_description.py` | `formats.ppt.page_description` | `prompt_page_image_description_{default,fast}.md` |
 | `enrichment_config.py` | `enrichment` 전체 파싱 | — |
 | (docling 내장) | `toc` | `prompt_toc_default_{system,user}.md` |
@@ -1328,8 +1346,17 @@ raise GenosServiceException(
 #### (g) 새 doc_type 추가하기
 
 `doc_type` 은 요청 `params` 로 넘기는 **문서유형 키**입니다. "이 문서는 계약서다 / FAQ 엑셀이다" 를
-알려 주면 전처리기가 그 유형 전용 필드 추출을 켭니다. 출고 상태에는 `card`(카드 상품) 와
-`faq`(FAQ 엑셀) 두 종류가 예시로 들어 있고, **둘 다 `enable: false`** 입니다.
+알려 주면 전처리기가 그 유형 전용 필드 추출을 켭니다.
+
+출고 `parser_processor_config.yaml` 에는 **17개 항목이 `enable: true` 로 등록**되어 있습니다
+(`card` · 모니모 15종 · `research_report`). 셋 다 모델 서빙 ID 가 `<ENRICHMENT_SERVING_ID>`
+placeholder 이므로, LLM 을 쓰는 항목은 그 값을 채우기 전까지 경고만 남기고 건너뜁니다
+(`url`/`model` 이 비어 있으면 호출하지 않습니다). 쓰지 않을 유형은 `enable: false` 로 내리세요.
+
+> **먼저 시작할 것** — 새 유형을 만들 때는 `resource/templates/` 의 extractor 별 템플릿을
+> 복사하는 편이 빠릅니다. 항목마다 `[필수]`/`[선택]` 표시와 뜻, 그리고 실제 원천 파일로
+> 결과를 확인하는 명령이 들어 있습니다. 이 절은 **그 설정이 코드에서 어떻게 소비되는지**
+> (분기 위치·실행 시점·경로별 제약·코드 수정이 필요한 예외)를 다룹니다.
 
 **doc_type 이 하는 일은 세 가지입니다.**
 
@@ -1342,38 +1369,79 @@ raise GenosServiceException(
 > **정상적인 doc_type 추가에는 파이썬 코드 수정이 필요 없습니다.** config yaml 과 프롬프트 md 만
 > 추가하면 됩니다. 코드가 필요한 예외 상황은 이 절 마지막에 정리했습니다.
 
-**extractor 2종** — `custom_fields` 블록의 `extractor` 값이 처리 방식을 정합니다.
+**extractor 3종** — `custom_fields` 블록의 `extractor` 값이 처리 방식을 정합니다.
 
-| | `llm` (문서형) | `tabular_mapping` (행 매핑형) |
-|---|---|---|
-| 별칭 | `document_llm` | `tabular`, `column_mapping` |
-| 대상 | 문서 전체 (pdf/html/docx …) | csv / xlsx / xlsm |
-| LLM 호출 | **함** (항목당 1회) | **안 함** |
-| 실행 시점 | 파싱 후 enrichment 단계 | 파싱 **이전**, 확장자 분기에서 조기 반환 |
-| 설정 파일 키 | `url`·`model`·프롬프트 파일·`output_fields` | `column_map`·`required`·`defaults`·`nulls`·`text_fields` |
-| 결과 | 문서 metadata → 모든 청크에 부착 | 행별 `custom_fields_row` element → 행마다 청크 1개 |
-| 복사할 원본 | `resource/custom_field_card.yaml` | `resource/custom_field_faq.yaml` |
+| | `llm` (문서형) | `tabular_mapping` (행 매핑형) | `json_mapping` (레코드 매핑형) |
+|---|---|---|---|
+| 별칭 | `document_llm` | `tabular`, `column_mapping` | `json_records` |
+| 대상 | 문서 전체 (pdf/html/docx …) | csv / xlsx / xlsm | json (레코드 배열) |
+| LLM 호출 | **함** (항목당 1회) | **안 함** | `llm_fields` 선언 시 **레코드마다 1회** |
+| 실행 시점 | 파싱 후 enrichment 단계 | 파싱 **이전**, 확장자 분기에서 조기 반환 | 파싱 **이전**, 확장자 분기에서 조기 반환 |
+| 설정 파일 키(전체) | `url`·`api_key`·`model`·`max_tokens`·`temperature`·`timeout`·`system_prompt`·`user_prompt`·`system_prompt_file`·`user_prompt_file`·`prompt`·`output_fields`·`constants`·`parser`·`pages`·`variables`·`template` | `column_map`·`value_map`·`constants`·`defaults`·`nulls`·`required`·`transforms`·`llm_fields`·`text_fields` | 왼쪽 tabular 키에서 `column_map` → `key_map`, 그리고 `records`·`html_text_fields`·`split`·`missing_policy` 추가 |
+| 결과 | 문서 metadata → 모든 청크에 부착 | 행별 `custom_fields_row` element → 행마다 청크 1개 | 레코드별 `custom_fields_row` element → 레코드마다 청크 1개(길면 분할) |
+| 복사할 템플릿 | `resource/templates/custom_field_TEMPLATE_llm.yaml` | `..._TEMPLATE_tabular.yaml` | `..._TEMPLATE_json.yaml` |
+| 출고 실례 | `custom_field_card.yaml` | `custom_field_faq.yaml`·`custom_field_term.yaml` | `custom_field_monimo_event.yaml` |
 
 > `extractor` 를 생략하면 `llm` 로 간주합니다. 표에 없는 값을 쓰면 기동 시
 > `지원하지 않는 custom_fields extractor: …` 로 실패합니다.
+
+> ⚠️ **설정 파일의 모르는 키는 조용히 무시됩니다.** 위 표에 없는 최상위 키(오타 포함)를 쓰면
+> 에러도 경고도 없이 그냥 읽히지 않습니다 — `column_maps` 처럼 한 글자만 틀려도 매핑이 0개가
+> 되고, 그 결과는 "청크는 나오는데 metadata 가 비어 있다"로만 드러납니다.
+> extractor 를 잘못 골라 다른 계열 전용 키를 쓴 경우도 같습니다(tabular 설정의 `split` 등).
+> 그래서 **작성 후 실제 원천 파일로 결과를 확인하는 절차가 사실상 필수**입니다(아래 [검증](#검증)).
+>
+> 반면 **등록 블록(entry)의 키**는 `extractor: llm` 에서만 엄격합니다 — `CustomFieldsEnricher`
+> 생성자가 `**kwargs` 를 받지 않아 모르는 키는 `TypeError` 로 기동 시 드러납니다.
+> `tabular_mapping`/`json_mapping` 은 `**_` 로 흡수하므로 `doc_types` 같은 오타가 조용히
+> 무시되고 `doc_type=None` → **wildcard(모든 문서에 매칭)** 로 격하됩니다.
 
 ##### 경로 A — 문서형 (`extractor: llm`)
 
 예: 계약서에서 계약기간·당사자 같은 필드를 뽑는 `contract` 유형을 만든다고 합시다.
 
-**① `resource/custom_field_contract.yaml` 작성** — `custom_field_card.yaml` 을 복사해 고칩니다.
+**① `resource/custom_field_contract.yaml` 작성** — `resource/templates/custom_field_TEMPLATE_llm.yaml`
+을 복사해 채웁니다(출고 실례는 `custom_field_card.yaml`).
 
 | 키 | 뜻 |
 |---|---|
-| `url` · `api_key` · `model` | enrichment LLM 모델 서빙 (1.3절·4.4절) |
-| `max_tokens` · `temperature` · `timeout` | LLM 생성 파라미터 |
-| `pages` | 입력 페이지 범위. `null` 이면 문서 전체 |
-| `parser.type` | LLM 응답 파싱 방식 (`json`) |
-| `system_prompt_file` · `user_prompt_file` | 프롬프트 md 파일명 |
-| `output_fields` | 뽑아낼 필드 이름 목록 |
+| `url` · `api_key` · `model` | enrichment LLM 모델 서빙 (1.3절·4.4절). `url` 또는 `model` 이 비면 호출을 건너뜁니다 |
+| `max_tokens` · `temperature` · `timeout` | LLM 생성 파라미터 (기본 1000 / 0.0 / 60) |
+| `pages` | 입력 페이지 범위. `null` 또는 미지정이면 문서 전체 |
+| `parser.type` | LLM 응답 파싱 방식. `json`(기본) 또는 `python`(`parser.file`+`parser.callable` 로 외부 함수 위임) |
+| `parser.extract_pattern` | 응답에서 JSON 을 뽑을 정규식. 미지정 시 3단 자동 fallback |
+| `system_prompt` · `user_prompt` | 프롬프트 본문을 **yaml 안에 직접** (YAML 블록 스칼라 `\|`) |
+| `system_prompt_file` · `user_prompt_file` | 프롬프트를 별도 md 로 뺄 때의 파일명 (위 인라인보다 **우선**) |
+| `prompt.system` · `prompt.user` | 위 두 방식의 하위 호환 형태(우선순위 가장 낮음) |
+| `output_fields` | 뽑아낼 필드 이름 목록. 여기 적은 키만 남고, 응답에 없으면 `null` 이 됩니다 |
+| `constants` | LLM 에 맡기지 않고 고정으로 채울 필드. **LLM 이 같은 키를 내놔도 이 값이 이깁니다** |
+| `variables` · `template.mode` | 프롬프트 변수 치환(6.4절). 정의되지 않은 `{{변수}}` 는 기동 시 실패(`strict` 기본) |
 
-**② 프롬프트 작성** — `resource/prompt_custom_fields_contract_{system,user}.md`.
-user 프롬프트 안의 `{{raw_text}}` 가 문서 본문으로 치환됩니다(6.4절).
+> ⚠️ **`thinking` · `thinking_dialect` 는 이 파일에 써도 반영되지 않습니다.** 생성자 기본값
+> (`"off"` / `"standard"`)이 먼저 잡혀 `config_file` 값이 읽히지 않습니다. 추론 모드를 바꾸려면
+> 등록 블록에 직접 쓰세요.
+>
+> ⚠️ **`max_tokens: 1000` · `temperature: 0.0` · `timeout: 60` 을 등록 블록에 쓰면 무효입니다.**
+> 그 값이 생성자 기본값과 같아 "미지정"과 구분되지 않고, `config_file` 쪽 값이 이깁니다
+> (`custom_fields_enricher.py` 의 `max_tokens if max_tokens != 1000 else cfg.get(...)`).
+> 등록 블록에서 덮어쓰려면 기본값과 다른 값을 쓰거나, config 파일에서 그 키를 지우세요.
+
+**② 프롬프트 작성** — 출고된 `custom_field_card.yaml` 처럼 **yaml 안에 인라인**하면 설정 파일
+하나만 관리하면 됩니다. user 프롬프트 안의 `{{raw_text}}` 가 문서 본문으로 치환됩니다(6.4절).
+
+```yaml
+system_prompt: |
+  너는 계약서 정보추출 전문가다. …
+user_prompt: |
+  …
+  <document>
+  {{raw_text}}
+  </document>
+```
+
+프롬프트가 아주 길거나 여러 doc_type 이 공유한다면 `resource/prompt_custom_fields_contract_{system,user}.md`
+로 빼고 `system_prompt_file`/`user_prompt_file` 을 쓰세요. **두 방식은 같은 코드 경로**이고, 둘 다 있으면
+파일 쪽이 이깁니다.
 
 > `output_fields` 는 **프롬프트가 내놓는 JSON 키와 이름이 같아야** 합니다. 어긋나면 에러 없이
 > 값이 비어서 나옵니다.
@@ -1404,16 +1472,27 @@ enrichment:
 예: 공지사항 엑셀을 행마다 청크 1개로 만드는 `notice` 유형. LLM 을 쓰지 않고 **엑셀 컬럼을 목표
 필드에 직접 매핑**합니다.
 
-**① `resource/custom_field_notice.yaml` 작성** — `custom_field_faq.yaml` 을 복사해 고칩니다.
+**① `resource/custom_field_notice.yaml` 작성** — `resource/templates/custom_field_TEMPLATE_tabular.yaml`
+을 복사해 채웁니다(출고 실례는 `custom_field_faq.yaml`·`custom_field_term.yaml`).
 
 | 키 | 뜻 |
 |---|---|
 | `column_map` | `목표필드: [허용 소스 컬럼 별칭 …]`. **목표필드명 자체도 자동 별칭**이고, 비교 시 BOM·공백·대소문자·`_`·`-`·`.` 차이를 정규화합니다 |
+| `value_map` | 컬럼명이 아니라 **값**의 표기를 표준 코드로 접습니다. `목표필드: {표준값: [별칭…]}`. 표준값 자신도 자동 별칭이라 이미 코드로 오는 원천은 그대로 통과하고, 표에 없는 값은 **원값을 두고 경고만** 남깁니다 |
+| `transforms` | `목표필드: 변환기이름`. 쓸 수 있는 것은 `date_int` · `date_int_flex` · `text_norm` 3개뿐이고, 없는 이름은 기동 시 실패합니다 |
 | `required` | 필수 목표필드 (동작은 아래 주의 참고) |
 | `defaults` | 대응 컬럼이 없거나 값이 비었을 때 채울 기본값 |
-| `nulls` | 대응 소스가 없어 `null` 로 **명시 출력**할 필드 (스키마 고정용) |
-| `constants` | 모든 행에 같은 값으로 넣을 필드 (선택) |
+| `nulls` | 대응 소스가 없어 `null` 로 **명시 출력**할 필드 (스키마 고정용). `column_map` 에 있는 필드는 매핑 루프가 항상 채우므로 적을 필요가 없습니다 |
+| `constants` | 모든 행에 같은 값으로 넣을 필드. `defaults` 와 달리 **원천 값이 있어도 덮어씁니다** |
+| `llm_fields` | 원천에 없는 필드를 **행마다 LLM 으로** 생성. 스키마는 경로 C 와 같습니다(아래 참고). ⚠️ parser 경로에서만 실행됩니다 |
 | `text_fields` | 청크 `text` 본문을 구성할 필드와 그 순서 (개행으로 이어붙임). 생략하면 행의 모든 값 |
+
+> ⚠️ **`text_fields` 에 아무도 만들지 않는 필드를 적으면 그 부분이 조용히 빠집니다.**
+> `column_map`·`constants`·`defaults`·`llm_fields[].output_fields` 중 어디에도 없는 이름을 쓰면
+> 에러·경고 없이 본문에서 누락됩니다. `llm_fields` 를 주석 처리하면서 그 출력 필드를
+> `text_fields` 에 남겨 두는 실수가 가장 흔합니다 — 출고
+> `custom_field_monimo_event.yaml` 이 실제로 그 상태입니다(`text_fields` 에 `SUMMARY_TEXT` 가
+> 있는데 `llm_fields` 는 주석). 값 확인은 아래 [검증](#검증) 절대로 하세요.
 
 > **`required` 는 두 가지로 다르게 동작합니다.**
 > - 시트에 **대응 컬럼 자체가 없으면**(그리고 `defaults` 도 없으면) → **파싱 전체가 입력 오류로 종료**
@@ -1448,13 +1527,189 @@ enrichment:
 > "행으로 나눌지"만 정하고, `doc_type` 은 "행의 컬럼을 어떤 목표필드로 매핑할지"를 정합니다.
 > 매칭되는 매핑이 있으면 목적이 행별 매핑이므로 mode 와 무관하게 이 경로를 탑니다.
 
+##### 경로 C — 레코드 매핑형 (`extractor: json_mapping`)
+
+예: `eventList[*]` 처럼 레코드 배열이 오는 JSON 을 **레코드마다 청크 1개**로 만들고, 제목·기간·상세HTML 을
+그 청크의 metadata 로 싣는 `monimo_event` 유형. 경로 B(엑셀 행 매핑)의 JSON 판이고, 거기에 없던
+**JSON 에 없는 필드를 LLM 으로 만들어 붙이는 기능**이 추가돼 있습니다.
+
+**① `resource/custom_field_<유형>.yaml` 작성** — 출고된 `custom_field_monimo_event.yaml` 을 복사해 고칩니다.
+
+| 키 | 뜻 |
+|---|---|
+| `records` | 레코드 배열이 담긴 key **이름만**. JSON 임의 깊이에서 재귀 매칭. 생략하면 payload 전체가 레코드 1건 |
+| `key_map` | `목표필드: [허용 소스 key 별칭 …]`. 경로 B 의 `column_map` 과 같은 규칙이고, 값은 레코드 안 임의 깊이에서 찾되 **얕은 쪽이 우선**합니다(`wcmsHtml.htmlText` → `htmlText` 한 단어로 매칭). **같은 레벨 안에서는 별칭 선언 순서**가 우선순위이므로, 원천 표기가 여러 가지면 선호하는 키를 앞에 두고 나머지를 뒤에 덧붙이면 됩니다 |
+| `required` · `defaults` · `nulls` · `constants` | 경로 B 와 동일 |
+| `transforms` | `목표필드: 변환기이름`. 등록된 변환기만 쓸 수 있고(없는 이름은 기동 시 실패), `date_int_flex` 는 `"26.07.01"`·`"2026-07-01"` 을 모두 `20260701` 정수로 바꿉니다 |
+| `html_text_fields` | `파생필드: 소스필드`. HTML 값을 평문으로 바꿔 새 필드로 만듭니다(LLM 입력용). 정리 규칙은 `.html` 파싱과 같아 `aria-hidden`/접힌 약관 텍스트가 보존됩니다 |
+| `llm_fields` | JSON 에 없는 필드를 LLM 으로 생성. 아래 참고 |
+| `text_fields` | 청크 `text` 본문을 구성할 필드와 순서 (경로 B 와 동일) |
+| `split` | `true` 면 레코드 본문이 `chunk_size` 를 넘을 때 여러 청크로 나눕니다(metadata 는 조각마다 동일). 생략하면 레코드 1건 = 청크 1개 |
+| `missing_policy` | `records` 키를 못 찾았을 때. `error`(기본, 즉시 실패) / `skip`(경고 후 0건) |
+
+**`llm_fields`** — 항목마다 레코드 1건당 LLM 을 1회 호출합니다.
+항목이 쓰는 키는 `input_fields`·`concurrency`·`on_error` 세 개뿐이고, **나머지는 전부 경로 A 와 같은
+`CustomFieldsEnricher` 설정 스키마**로 그대로 넘어갑니다. 그래서 LLM 연결과 프롬프트를 **항목에 직접
+써도 되고**(파일 하나로 끝남), `config_file` 로 외부 yaml 을 가리켜도 됩니다.
+
+```yaml
+llm_fields:
+  - # ① 무엇을 만들 것인가 — 이 세 키만 llm_fields 가 직접 소비합니다
+    output_fields: [SUMMARY_TEXT]   # 프롬프트가 내놓는 JSON 키와 같아야 함
+    input_fields: [TITLE, DETAIL_TEXT]   # 프롬프트 {{raw_text}} 로 들어갈 필드(순서대로 결합)
+    concurrency: 4                  # 레코드 동시 호출 상한
+    on_error: null                  # null(필드를 null 로 두고 진행) | skip_record
+
+    # ② 아래부터는 CustomFieldsEnricher 로 그대로 전달 (경로 A 의 yaml 키와 동일)
+    url: "http://llmops-gateway-api-service:8080/rep/serving/<ID>/v1/chat/completions"
+    api_key: ""
+    model: model
+    max_tokens: 1000
+    temperature: 0.0
+    timeout: 120
+    parser:
+      type: json
+    system_prompt: |
+      너는 이벤트 안내문 요약 전문가다. …
+    user_prompt: |
+      …
+      <event>
+      {{raw_text}}
+      </event>
+```
+
+**언제 파일로 뺄까** — 위처럼 인라인하면 설정 파일 하나만 관리하면 되고(출고된
+`custom_field_monimo_event.yaml` 이 이 형태), 프롬프트가 길거나 여러 doc_type 이 공유한다면
+`config_file: custom_field_<유형>.yaml` + `system_prompt_file`/`user_prompt_file` 로 쪼개는 편이
+낫습니다(경로 A 의 `custom_field_card.yaml` 이 이 형태). **두 방식은 같은 코드 경로**로 처리됩니다.
+
+> `url`/`model` 이 비어 있으면 호출하지 않고 해당 필드를 `null` 로 둡니다(경고 로그). 둘 다 없고
+> `config_file` 도 없으면 기동 시 `config_file 또는 url 중 하나가 필요합니다` 로 실패합니다.
+> 레코드 수만큼 호출이 나가므로 큰 파일에서는 `concurrency` 와 모델 서빙 처리량을 함께 보세요.
+
+**② config 블록 추가**
+
+```yaml
+enrichment:
+  - custom_fields:
+      enable: true
+      doc_type: monimo_event
+      extractor: json_mapping
+      config_file: custom_field_monimo_event.yaml
+```
+
+**③ 결과** — 각 레코드가 경로 B 와 **같은 element 형태**가 됩니다(`split: true` 면 `"splittable": true` 추가).
+따라서 청커 쪽은 새로 배울 게 없습니다 — 같은 행 기반 경로가 그대로 처리합니다.
+
+```json
+{ "category": "custom_fields_row", "content": "<text_fields 를 개행으로 이어붙인 값>",
+  "coordinates": [], "id": 0, "page": 1, "splittable": true,
+  "metadata": { "TITLE": "…", "EVENT_FROM": 20260701, "EVENT_TO": 20260731,
+                "DETAIL_HTML": "<div>…</div>", "SUMMARY_TEXT": "…", "doc_type": "monimo_event" } }
+```
+
+> ⚠️ **요약본문 필드명은 `SUMMARY_TEXT` 입니다.** 예전 문서·설정에 `CONTENT_HASH` 로 잘못 적힌
+> 적이 있는데, 적재 스키마의 `CONTENT_HASH` 는 RAW(32) **원문 검증 해시**라 임베딩 입력이
+> 아닙니다. `tests/unit/test_custom_fields_routing.py` 가 이 회귀를 막고 있습니다.
+
+> **본문이 빈 레코드는 element 로 내보내지 않습니다.** `text_fields` 값이 전부 비면 text 가 빈 벡터가
+> 적재되므로 그 레코드를 빼고 `본문이 빈 레코드 N/M건을 제외했습니다` 경고를 남깁니다. `text_fields` 가
+> LLM 생성 필드뿐인데 모델 서빙이 죽어 있으면 전부 빠져 `chunk length is 0` 이 됩니다 — 조용히 빈
+> 벡터가 들어가는 것보다 낫습니다.
+
+> **문서 모드(`json:` 블록)와 함께 쓰지 마세요.** 같은 `doc_type` 에 둘 다 매칭되면 레코드 모드가
+> 이깁니다. 하나의 JSON 을 통짜 문서로 파싱하려면 경로 C 가 아니라 `json: text_fields` 를 쓰세요
+> (5.4절 `.json` 경로 표 참고).
+
 ##### 검증
 
-로컬에서(4.5절) 먼저 돌려 봅니다.
+**① 설정만 컴파일해 값 확인** — 모르는 키가 조용히 무시되므로, 파싱을 돌리기 전에 **의도한
+목표필드가 실제로 잡혔는지** 먼저 봅니다. LLM·모델 서빙이 필요 없습니다.
+
+```bash
+# 실행 위치: genon/preprocessor
+# (A) 문서형 — 프롬프트와 output_fields 정합
+python -c "
+import sys; sys.path.insert(0,'.'); sys.path.insert(0,'../..')
+from facade.enrichment.custom_fields_enricher import CustomFieldsEnricher as E
+e = E(config_file='custom_field_contract.yaml', resource_path='resource')
+print('연결:', e.is_configured, '| 출력필드:', e._output_fields)
+print('{{raw_text}} 포함:', '{{raw_text}}' in e._user_prompt)
+print('프롬프트에 없는 출력필드:',
+      [f for f in e._output_fields
+       if f not in e._system_prompt and f not in (e._constants or {})] or '없음')
+"
+
+# (B) 행 매핑형 — 실제 엑셀 헤더와 매핑 결과
+python -c "
+import sys; sys.path.insert(0,'.'); sys.path.insert(0,'../..')
+from facade.enrichment.tabular_custom_fields import TabularCustomFieldsMapper as M
+from genon.preprocessor.converters.xlsx_processor import build_tabular_data_dict
+m = M(config_file='custom_field_notice.yaml', resource_path='resource',
+      doc_type='notice', extractor='tabular_mapping')
+d = build_tabular_data_dict('sample_files/<파일>.xlsx')
+print('원천 컬럼:', list(d['data'][0]['data_rows'][0].keys()))
+for el in m.to_parse_format(d, 'notice')['elements'][:3]:
+    print(el['metadata']); print('본문:', repr(el['content'])[:120]); print()
+"
+
+# (C) 레코드 매핑형 — 레코드 수가 0 이면 key_map 별칭이 원천 키와 어긋난 것
+python -c "
+import sys, json; sys.path.insert(0,'.'); sys.path.insert(0,'../..')
+from facade.enrichment.json_records import JsonRecordsMapper as M
+m = M(config_file='custom_field_monimo_event.yaml', resource_path='resource',
+      doc_type='monimo_event', extractor='json_mapping')
+payload = json.load(open('sample_files/json/monimo_event_sample.json', encoding='utf-8'))
+rows = m.build_fields(payload, 'monimo_event')
+print(f'매핑된 레코드: {len(rows)}건')
+for el in m.to_parse_format(rows, 'monimo_event')['elements'][:3]:
+    print(el['metadata']); print('본문:', repr(el['content'])[:120]); print()
+"
+```
+
+여기서 볼 것 — **원천 컬럼/키 목록**(내가 안 쓴 컬럼이 없는지), **각 목표필드 값**(엉뚱한 컬럼이
+들어왔거나 `None` 인 필드), **청크 본문**(비었거나 일부가 빠졌는지).
+
+> **(B)·(C) 미리보기에는 `llm_fields` 생성 필드가 나타나지 않습니다.** parser 는
+> `build_fields` → LLM 호출 → `to_parse_format` 3단으로 도는데 위 명령은 가운데를 건너뛰기
+> 때문입니다. 그래서 **본문에 그 필드가 빠져 보이는 것이 정상**입니다.
+>
+> 문제는 이 모습이 "`text_fields` 가 만들 수 없는 필드를 가리키는 실제 결함"과 **똑같이
+> 보인다**는 점입니다. 아래로 구분하세요 — `llm_fields` 에 선언돼 있으면 정상(런타임에 채워짐),
+> 없으면 결함입니다.
+>
+> ```bash
+> # 실행 위치: genon/preprocessor
+> python -c "
+> import yaml
+> c = yaml.safe_load(open('resource/custom_field_<유형>.yaml', encoding='utf-8'))
+> llm = {x for s in (c.get('llm_fields') or []) for x in (s.get('output_fields') or [])}
+> producible = (set(c.get('column_map') or {}) | set(c.get('key_map') or {})
+>               | set(c.get('constants') or {}) | set(c.get('defaults') or {})
+>               | set(c.get('nulls') or []) | set(c.get('html_text_fields') or {}) | llm)
+> print('llm_fields 로 채워질 필드:', sorted(llm) or '(없음/주석 처리)')
+> print('만들 수 없는 필드:',
+>       [x for x in (c.get('text_fields') or []) if x not in producible] or '없음')
+> "
+> ```
+>
+> `만들 수 없는 필드` 가 비어 있어야 합니다. 출고 `custom_field_monimo_event.yaml` 로 돌리면
+> `['SUMMARY_TEXT']` 가 나오고(= 결함), `custom_field_cs_slf.yaml` 은 `없음` 이 나옵니다
+> (= `llm_fields` 활성이라 런타임에 채워짐).
+
+**② 파싱+청킹 실행** — 로컬에서(4.5절) 돌려 봅니다.
 
 ```bash
 # 실행 위치: genon/preprocessor/examples/parse_chunk
 python parse_chunk_test.py --doc_type notice ../../sample_files/<파일>.xlsx result_parse_chunk/
+
+# 경로 C(레코드 매핑) 출고 픽스처 — 제목이 빈 레코드는 skip 되어 2청크가 나옵니다
+python parse_chunk_test.py --doc_type monimo_event \
+  ../../sample_files/json/monimo_event_sample.json result_parse_chunk/
+
+# 같은 config 로 실 payload 스키마(영문 camelCase 키) 픽스처 — 역시 2청크
+python parse_chunk_test.py --doc_type monimo_event \
+  ../../sample_files/monimo/monimo_event_real_sample.json result_parse_chunk/
 ```
 
 재배포한 뒤에는 게이트웨이로 확인합니다(8.7 ④). `--doc-type` 대신 `--param doc_type=notice` 도 됩니다.
@@ -1479,18 +1734,41 @@ doc_type 이 동작해야 한다면 아래 파일에 **같은 블록을 각각**
 
 `custom_field_*.yaml` 과 프롬프트 md 는 `resource/` 에 한 벌만 두고 세 config 가 함께 참조하면 됩니다.
 
+> ⚠️ **블록을 복사해도 경로에 따라 동작하지 않는 것이 있습니다.** 적재용/변환용은 xlsx 를
+> 동기 경로로 벡터까지 만들기 때문에 async LLM 호출을 끼워 넣을 자리가 없습니다.
+>
+> | 설정 | `/parser` | `/preprocess`(적재용) · `/preprocess_convert` |
+> |---|---|---|
+> | `extractor: llm` | 동작 | 동작 |
+> | `extractor: tabular_mapping` (매핑만) | 동작 | 동작 |
+> | `tabular_mapping` 의 `llm_fields` | 동작 | **미실행** — 기동 시 경고를 남기고 그 필드는 빈 채로 나갑니다 |
+> | `extractor: json_mapping` | 동작 | **미실행** — 매퍼를 아예 만들지 않아 **경고조차 없습니다** |
+>
+> 요약본문 같은 LLM 생성 필드나 `.json` 레코드 매핑이 필요하면 **`/parser` + `/chunker`** 조합을
+> 쓰세요. 적재용에서 요약이 비어 나오면 기동 로그의
+> `tabular custom_fields 의 llm_fields 는 이 프로세서에서 실행되지 않습니다` 경고를 확인하세요.
+
 ##### 안 될 때
 
 | 증상 | 원인 |
 |---|---|
-| doc_type 을 줬는데 아무 일도 안 일어남 | 블록이 `enable: false` 이거나(그러면 아예 구성되지 않습니다), doc_type 문자열 불일치. **오타는 에러 없이 무시**됩니다 |
-| doc_type 을 안 줬는데 custom_fields 가 동작함 | 블록에 `doc_type` 키가 없으면 **wildcard** — 모든 요청에 매칭됩니다 |
+| doc_type 을 줬는데 아무 일도 안 일어남 | 블록이 `enable: false` 이거나, doc_type **값**의 문자열 불일치. 값 오타는 에러 없이 무시됩니다(매칭이 안 될 뿐) |
+| doc_type 을 안 줬는데 custom_fields 가 동작함 | 블록에 `doc_type` 키가 없으면 **wildcard** — 모든 요청에 매칭됩니다. `doc_types` 처럼 **키 이름을 틀린 경우도 같습니다**(tabular/json 은 모르는 entry 키를 흡수합니다) |
+| 청크는 나오는데 metadata 가 비어 있음 | 설정 파일의 **최상위 키 오타**(`column_maps` 등). 조용히 무시되므로 에러가 없습니다 — 아래 [검증](#검증) 으로 실제 값을 확인하세요 |
+| 청크 본문의 일부가 빠져 있음 | `text_fields` 에 아무도 만들지 않는 필드가 있습니다(주석 처리한 `llm_fields` 의 출력 필드가 흔한 원인) |
+| 특정 필드만 계속 `null` | `output_fields` 이름과 프롬프트가 내놓는 JSON 키가 다릅니다. 이름을 맞추세요 |
+| 등록 블록의 `max_tokens`/`temperature`/`timeout` 이 안 먹음 | 기본값(1000/0.0/60)과 같은 값이면 "미지정"과 구분되지 않아 config 파일 값이 이깁니다(경로 A 주의 참고) |
+| config 파일의 `thinking` 이 안 먹음 | 이 파일에서는 읽히지 않습니다. 등록 블록에 쓰세요(경로 A 주의 참고) |
 | `동일 doc_type에 tabular custom_fields 설정이 여러 개입니다` | 같은 doc_type 에 `tabular_mapping` 블록이 2개 |
-| `tabular custom_fields config 없음: …` | `config_file` 경로는 **config yaml 과 같은 폴더** 기준. 파일명만 적으세요 |
-| `지원하지 않는 custom_fields extractor: …` | `extractor` 값 오타 — 허용 값은 위 2종 표 |
+| `동일 doc_type에 json_mapping custom_fields 설정이 여러 개입니다` | 같은 doc_type 에 `json_mapping` 블록이 2개 |
+| `tabular custom_fields config 없음: …` / `json custom_fields config 없음: …` | `config_file` 경로는 **config yaml 과 같은 폴더** 기준. 파일명만 적으세요 |
+| `지원하지 않는 custom_fields extractor: …` | `extractor` 값 오타 — 허용 값은 위 3종 표 |
 | `필수 Excel 컬럼 매핑 실패` | `required` 목표필드에 대응 컬럼이 없음. `column_map` 별칭을 늘리거나 `defaults` 를 주세요 |
 | `정규화 후 중복되는 Excel 컬럼이 있습니다` | 대소문자·공백만 다른 컬럼이 한 시트에 둘 이상 |
 | xlsx 가 행별로 안 나뉨 | 매칭되는 매핑이 없으면 `formats.xlsx.processing_mode` 가 결정합니다 (`tabular` 인지 확인) |
+| json 레코드가 청크로 안 나옴 | `records` 키 이름 확인. 또는 `text_fields` 가 모두 비어 청크 본문이 없는 경우 — `본문이 빈 레코드 N/M건을 제외했습니다` 경고를 보세요(LLM 요약 실패가 흔한 원인) |
+| json 레코드가 **전건** skip 됨 | `skipped N/N records (missing required)` 경고 확인. 원천 키 표기가 `key_map` 별칭과 달라 `required` 필드가 null 이 된 경우입니다 — 별칭을 늘리거나, 원천에 아예 없는 필드면 `required` 에서 빼고 `defaults`/`constants` 로 채우세요 |
+| `등록되지 않은 transforms 변환기: …` | `transforms` 에 없는 변환기 이름. `field_transforms.VALUE_TRANSFORMS` 에 등록된 것만 쓸 수 있습니다 |
 | 필드는 안 붙는데 `doc_type` 만 모든 청크에 붙음 | 매칭되는 블록이 없는 상태. 스탬프(위 3번)는 docling 계열 포맷이면 매칭 여부와 무관하게 동작합니다 |
 | csv/xlsx 인데 `doc_type` 조차 안 붙음 | 정상입니다. csv/xlsx 는 **매칭되는 행 매핑이 있을 때만** `doc_type` 이 실립니다 |
 
@@ -1507,7 +1785,8 @@ doc_type 이 동작해야 한다면 아래 파일에 **같은 블록을 각각**
 
 | 하고 싶은 것 | 고칠 곳 |
 |---|---|
-| 새 **extractor 종류** 추가 (예: 정규식 기반 추출기) | `facade/enrichment/custom_fields_enricher.py` 의 `DOCUMENT_CUSTOM_FIELD_EXTRACTORS` / `TABULAR_CUSTOM_FIELD_EXTRACTORS` 집합 + 해당 빌더 함수 |
+| 새 **extractor 종류** 추가 (예: 정규식 기반 추출기) | `facade/enrichment/custom_fields_enricher.py` 의 `DOCUMENT_CUSTOM_FIELD_EXTRACTORS` / `TABULAR_CUSTOM_FIELD_EXTRACTORS` / `JSON_CUSTOM_FIELD_EXTRACTORS` 집합 + 해당 빌더 함수 |
+| 새 **값 변환기** 추가 (예: 금액 파싱) | `facade/enrichment/field_transforms.py` 에 함수 작성 후 `VALUE_TRANSFORMS` 에 등록. 그러면 `transforms` 에서 이름으로 바로 쓸 수 있습니다 |
 | 새 **element category** 추가 | `chunking_processor.py` 의 `row_categories` 리터럴이 **두 군데**에 있습니다(`_chunk_custom_fields_rows` 와 `_chunk_parse_format`). **둘 다** 고쳐야 합니다 |
 
 > 새 category 를 만들기보다 **`custom_fields_row` 를 그대로 재사용**하는 쪽이 안전합니다.

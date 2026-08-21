@@ -340,11 +340,14 @@ class _DocumentConversionInput(BaseModel):
             obj.stream.seek(0)
             mime = filetype.guess_mime(content)
             if mime is None:
-                ext = (
-                    obj.name.rsplit(".", 1)[-1]
-                    if ("." in obj.name and not obj.name.startswith("."))
-                    else ""
-                )
+                # 점으로 시작하는 파일명(.INC_235488_02_20260626103138.html)도 확장자를
+                # 인정한다. 상류 원본은 `not obj.name.startswith(".")` 로 걸러 dotfile 을
+                # 제외했지만, 그 조건은 확장자가 없는 dotfile(.gitignore/.env)뿐 아니라
+                # '점으로 시작하면서 확장자가 있는' 실제 원천 파일까지 함께 죽였다.
+                # PurePath.suffix 는 전자를 그대로 ''로 두면서 후자만 살린다.
+                # (모니모 카드 고객센터 원천이 이 형태다. Path 분기는 obj.suffix 를 써서
+                #  원래부터 정상이고, 이 DocumentStream 분기만 문제였다.)
+                ext = PurePath(obj.name).suffix.lstrip(".")
                 mime = _DocumentConversionInput._mime_from_extension(ext.lower())
             if mime is not None and mime.lower() == "application/zip":
                 objname = obj.name.lower()

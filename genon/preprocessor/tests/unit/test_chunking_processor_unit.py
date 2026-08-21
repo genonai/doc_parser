@@ -209,3 +209,68 @@ def test_chunker_parse_format_text_multi_chunk():
     assert [v.i_chunk_on_doc for v in vectors] == list(range(len(vectors)))
     # page 메타가 1-based 로 보존(parser element page 그대로, +1 하지 않음)
     assert set(v.i_page for v in vectors) <= {1, 2}
+
+
+def test_chunker_splittable_row_expands_and_keeps_metadata():
+    """splittable 행(json_mapping 레코드)은 chunk_size 초과 시 여러 청크로 나뉜다."""
+    cp = pytest.importorskip("facade.chunking_processor")
+
+    elements = [
+        {
+            "category": "custom_fields_row",
+            "content": "가나다라마바사아자차카타파하 " * 20,
+            "page": 1,
+            "id": 0,
+            "splittable": True,
+            "metadata": {"TITLE": "이벤트A", "EVENT_TO": 20260731},
+        },
+        {
+            "category": "custom_fields_row",
+            "content": "짧은 본문",
+            "page": 2,
+            "id": 1,
+            "splittable": True,
+            "metadata": {"TITLE": "이벤트B", "EVENT_TO": 20260831},
+        },
+    ]
+
+    chunker = cp.DocumentProcessor()
+    vectors = asyncio.run(
+        chunker(
+            request=None, file_path="/data/event.json",
+            document={"elements": elements}, chunk_size=50, chunk_overlap=0,
+        )
+    )
+
+    assert len(vectors) > 2  # 첫 레코드가 나뉘었다
+    # 조각마다 원 레코드의 metadata 가 그대로 붙는다
+    assert {v.TITLE for v in vectors} == {"이벤트A", "이벤트B"}
+    assert all(v.EVENT_TO == 20260731 for v in vectors if v.TITLE == "이벤트A")
+    # 인덱스는 확장 후 기준으로 연속
+    assert [v.i_chunk_on_doc for v in vectors] == list(range(len(vectors)))
+    assert all(v.n_chunk_of_doc == len(vectors) for v in vectors)
+
+
+def test_chunker_rows_without_splittable_stay_one_chunk_per_row():
+    """splittable 이 없는 기존 행은 chunk_size 와 무관하게 행 1개 = 청크 1개(회귀 가드)."""
+    cp = pytest.importorskip("facade.chunking_processor")
+
+    elements = [
+        {
+            "category": "faq_row",
+            "content": "가나다라마바사아자차카타파하 " * 20,
+            "page": 1,
+            "id": 0,
+            "metadata": {"question": "긴 질문"},
+        },
+    ]
+
+    chunker = cp.DocumentProcessor()
+    vectors = asyncio.run(
+        chunker(
+            request=None, file_path="/data/faq.json",
+            document={"elements": elements}, chunk_size=50, chunk_overlap=0,
+        )
+    )
+
+    assert len(vectors) == 1

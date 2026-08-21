@@ -13,6 +13,7 @@ from __future__ import annotations
 import json
 import logging
 import re
+import unicodedata
 from datetime import datetime
 from typing import TYPE_CHECKING, Any, Callable, Optional
 
@@ -108,6 +109,77 @@ def transform_date_int(value: Any) -> int:
     return parse_created_date(str(value))
 
 
+# 2자리 연도 표기("26.07.01")를 4자리로 펼칠 때의 세기 분기점. 50 미만은 20xx, 이상은 19xx.
+_SHORT_YEAR_PIVOT = 50
+# 구분자 없는 압축 표기. 모니모 원천이 실제로 이 형태로 준다:
+#   관심소식/이벤트 "260701"(YYMMDD) · 링크 "20260713"(YYYYMMDD)
+# parse_created_date 는 `\d{4}` 를 연도로만 읽어 "260731"→2607년, "20260713"→2026-01-01 로
+# 조용히 뭉갠다. 종료일이 그렇게 들어가면 기간 게이트가 영원히 열리므로 여기서 먼저 잡는다.
+_COMPACT_DATE8_RE = re.compile(r"^\s*(\d{4})(\d{2})(\d{2})\s*$")
+_COMPACT_DATE6_RE = re.compile(r"^\s*(\d{2})(\d{2})(\d{2})\s*$")
+_SHORT_DATE_RE = re.compile(r"^\s*(\d{2})\s*[-./]\s*(\d{1,2})\s*[-./]\s*(\d{1,2})\s*$")
+
+
+def transform_date_int_flex(value: Any) -> int:
+    """date_int_flex 변환기: 2자리 연도("26.07.01")까지 받는 YYYYMMDD 정수 변환.
+
+    `date_int`(parse_created_date)는 `\\d{4}` 연도만 인식해 "26.07.01" 을 2601 년으로도,
+    날짜로도 읽지 못한다. 여기서 아래 세 형태를 먼저 정규화한 뒤 나머지는 `date_int` 에
+    위임하므로 기존 created_date 동작에는 영향이 없다.
+      - "26.07.01" / "26-07-01"  (2자리 연도 + 구분자)
+      - "20260713"               (구분자 없는 8자리 YYYYMMDD)
+      - "260701"                 (구분자 없는 6자리 YYMMDD)
+    월/일이 실제 날짜가 아니면(예: "202699") 정규화하지 않고 기존 경로로 넘긴다.
+    """
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        # 엑셀/JSON 이 숫자로 준 압축 날짜(20260713)도 문자열과 같게 다룬다.
+        as_int = int(value)
+        if 10_000_000 <= as_int <= 99_999_999 or 100_000 <= as_int <= 999_999:
+            value = str(as_int)
+
+    if isinstance(value, str):
+        match = _SHORT_DATE_RE.match(value)
+        if match:
+            year, month, day = match.groups()
+            century = 2000 if int(year) < _SHORT_YEAR_PIVOT else 1900
+            value = f"{century + int(year)}-{month}-{day}"
+        else:
+            for pattern, two_digit_year in ((_COMPACT_DATE8_RE, False), (_COMPACT_DATE6_RE, True)):
+                compact = pattern.match(value)
+                if not compact:
+                    continue
+                year, month, day = compact.groups()
+                if two_digit_year:
+                    century = 2000 if int(year) < _SHORT_YEAR_PIVOT else 1900
+                    year = str(century + int(year))
+                try:
+                    datetime(int(year), int(month), int(day))
+                except ValueError:
+                    break          # 날짜가 아니면 압축 표기로 보지 않는다
+                value = f"{year}-{month}-{day}"
+                break
+    return transform_date_int(value)
+
+
+def transform_text_norm(value: Any) -> Optional[str]:
+    """text_norm 변환기: 표기 흔들림을 흡수한 대조용 정규화 문자열.
+
+    모니모 TB_TERM.TERM_NORM("띄어쓰기와 대소문자를 고른 형태입니다. 같은 용어가 두 번
+    등록되는 걸 막습니다") 용도. 유일키 `CLCM_C + TERM_NORM` 의 재료라 규칙이 곧 중복 판정
+    기준이 된다.
+
+    적용 규칙: NFKC 정규화 → 양끝 공백 제거 → 연속 공백 1칸으로 축약 → casefold.
+    공백을 **제거하지 않고 축약만** 한다 — 완전 제거는 "선 지급"/"선지급" 같은 서로 다른
+    용어까지 합쳐버릴 수 있어, 원천 담당과 규칙이 확정되기 전까지는 보수적으로 둔다.
+    """
+    if value in (None, ""):
+        return None
+    text = unicodedata.normalize("NFKC", str(value))
+    text = text.replace("﻿", "").strip()
+    text = re.sub(r"\s+", " ", text)
+    return text.casefold() or None
+
+
 # ── 보조 추출(fallback) ──────────────────────────────────────────────────────
 
 def extract_created_date_from_document_text(document: "DoclingDocument") -> int:
@@ -149,6 +221,8 @@ def extract_created_date_from_document_text(document: "DoclingDocument") -> int:
 # 신규 변환기/보조추출은 함수 작성 후 아래 dict 에 등록만 하면 설정에서 바로 사용 가능.
 VALUE_TRANSFORMS: dict[str, Callable[[Any], Any]] = {
     "date_int": transform_date_int,
+    "date_int_flex": transform_date_int_flex,
+    "text_norm": transform_text_norm,
 }
 FALLBACK_STRATEGIES: dict[str, Callable[["DoclingDocument"], Any]] = {
     "doc_text_scan": extract_created_date_from_document_text,

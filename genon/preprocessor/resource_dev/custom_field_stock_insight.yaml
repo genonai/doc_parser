@@ -1,0 +1,127 @@
+# AI 차트뷰 Excel 행 → TB_STOCK_INSIGHT 목표필드 직접 매핑 (모니모)
+#
+# 사용 (parser_processor_config.yaml):
+#   - custom_fields:
+#       enable: true
+#       doc_type: stock_insight
+#       extractor: tabular_mapping
+#       config_file: custom_field_stock_insight.yaml
+#
+# 원천: sss_rag_adac_yyyymmdd_delta_001.xlsx (S3://os-tifa-sss/FAO/ADAC)
+#   국장/미장 공통. 엑셀 셀 구조이고 `세부내용` 셀에만 JSON 문자열이 들어 있다
+#   (파일 자체는 xlsx 이므로 tabular_mapping 이 맞다 — json_mapping 이 아니다).
+#
+# 증권_AI차트뷰 시트 기준 원천 컬럼:
+#   REGT_NO(등록번호) · NTC_OBJLINE_NO(게시물라인번호) · DETAIL_DESC(세부내용, json) ·
+#   JONG_CODE(종목코드) · JONG_NAME(종목명) · NEWS_DATE(뉴스일자)
+#   + 필수 요청 사항으로 "ID - unique ID(유일키 확인)" 를 추가 요청한 상태
+
+column_map:
+  BIZ_ID:         [ID, 아이디]                          # ⚠️ 원천에 추가 요청 중인 컬럼
+  REGT_NO:        [등록번호, REGT_NO]
+  NTC_OBJLINE_NO: [게시물라인번호, 게시물 라인번호]
+  JONG_CODE:      [종목코드]                             # (NOT NULL)
+  JONG_NAME:      [종목명]
+  NEWS_DATE:      [뉴스일자]
+  DETAIL_DESC:    [세부내용]                             # 원천 JSON 원본 문자열
+  # ⚠️ ANALYSIS_DATE(분석 기준일)는 NOT NULL 인데 원천에 대응 컬럼이 없다.
+  #    "언제 시점의 분석인지" 를 밝히는 값이라 뉴스일자로 대체하는 것이 현재로선 가장 가깝다.
+  #    별도 제공 여부를 원천 담당과 확정할 것 — 확정되면 아래 별칭을 그 컬럼으로 바꾼다.
+  ANALYSIS_DATE:  [분석기준일, 분석 기준일, 뉴스일자]
+  SEARCHABLE_YN:  [노출여부]
+
+# ── 소스와 무관하게 고정으로 채울 값 ────────────────────────────────────────
+constants:
+  GROUP_C: "SSS"                   # 증권 전용 원천 (NOT NULL)
+  CURRENT_YN: "Y"                  # 종목당 현행 1건만 Y. 같은 종목에 새 인사이트가 오면
+                                   # 이전 행을 N 으로 내리는 것은 적재 측 책임이다.
+  COMPLIANCE_YN: "N"               # 투자권유 해당 여부. Y 면 답변에 고지문구를 동반해야 한다.
+                                   # 원천이 판정값을 주지 않으므로 TB 기본값과 같은 N 으로 둔다.
+
+# ── 값 변환 ─────────────────────────────────────────────────────────────────
+transforms:
+  NEWS_DATE:     date_int_flex
+  ANALYSIS_DATE: date_int_flex
+
+required:
+  - GROUP_C
+  - JONG_CODE
+  - ANALYSIS_DATE                  # NOT NULL — 값이 없으면 그 행을 적재하지 않는다
+
+defaults:
+  SEARCHABLE_YN: "N"
+
+nulls:
+  - BIZ_ID
+  - REGT_NO
+  - NTC_OBJLINE_NO
+  - JONG_NAME                      # TB 기준 Null 허용(초안의 N 은 오기)
+  - EXPIRES_DTM                    # 만료시각(TTL 검색 제외) — 원천 미제공
+  - DISCLAIMER_VER                 # 고지문구 버전 — 원천 미제공
+
+# ── 원천에 없는 필드를 행마다 LLM 으로 생성 ─────────────────────────────────
+# DETAIL_DESC 는 JSON 문자열이고 아래 하위 키를 담고 있다(증권_AI차트뷰 시트 기준):
+#   trading_strategy · candle_analysis · price_pattern_desc · volume_change ·
+#   technical_indicator_analysis · overall_diagnosis
+# 이 JSON 을 그대로 임베딩하면 키 이름이 잡음이 되므로 문장형 요약으로 접는다.
+llm_fields:
+  - output_fields: [SUMMARY_TEXT]        # 요약본문 (임베딩 입력)
+    input_fields:  [JONG_NAME, JONG_CODE, DETAIL_DESC]
+    concurrency: 4
+    on_error: null
+
+    # <ENRICHMENT_SERVING_ID>: Genos에 등록한 모델서빙 ID로 변경 필요. api_key 도 배포 시 설정.
+    url: "https://genos.genon.ai/api/gateway/rep/serving/752/v1/chat/completions"
+    api_key: "d1a9e0acab6243019008a96cd8af868e"
+    model: model
+
+    max_tokens: 1500
+    temperature: 0.0
+    timeout: 120
+
+    parser:
+      type: json
+
+    system_prompt: |
+      너는 종목 분석 인사이트 요약 전문가다. 주어진 종목별 분석 JSON 을 검색용 임베딩에 넣을
+      요약본문으로 압축한다.
+
+      입력의 세부내용 JSON 은 다음 키를 가질 수 있다:
+      - trading_strategy            : 매매 전략
+      - candle_analysis             : 캔들 분석
+      - price_pattern_desc          : 가격 패턴 설명
+      - volume_change               : 거래량 변화
+      - technical_indicator_analysis: 기술적 지표 분석
+      - overall_diagnosis           : 종합 진단
+
+      규칙:
+      - 반드시 하나의 JSON 객체만 반환한다. 설명 문구·마크다운 코드펜스 없이 순수 JSON 만 출력한다.
+      - 키는 `SUMMARY_TEXT` 하나다. 값은 요약본문 문자열이다.
+      - 원문에 없는 정보를 지어내지 않는다(환각 금지). 가격·비율·지표값은 원문 숫자를 그대로 쓴다.
+      - 종목명과 종목코드를 요약본문 안에 반드시 남긴다(검색 진입점이다).
+      - 종합 진단을 먼저 쓰고, 그 근거가 된 지표·패턴·거래량 관찰을 뒤에 붙인다.
+      - JSON 키 이름을 그대로 나열하지 말고 문장으로 풀어 쓴다.
+      - 투자 권유·매수매도 단정 표현을 새로 만들지 않는다. 원문에 있는 전략 서술은 그대로 옮긴다.
+      - 문장형 한국어로 4~8문장, 1000자 이내로 쓴다. 불릿·머리기호를 쓰지 않는다.
+      - 세부내용이 비어 있거나 요약할 내용이 없으면 값을 null 로 둔다.
+
+      출력 예시 형식(값은 예시):
+      {"SUMMARY_TEXT": "SK하이닉스(000660)는 종합적으로 관망 의견이다. …"}
+
+    user_prompt: |
+      아래 종목 분석 정보를 검색용 요약본문으로 압축하라.
+
+      - SUMMARY_TEXT (요약본문) — 필수
+
+      반드시 `SUMMARY_TEXT` 키 하나를 가진 JSON 객체로만 반환하라.
+
+      <stock_insight>
+      {{raw_text}}
+      </stock_insight>
+
+# ── 청크 text 본문 구성 순서 (개행 결합) ──────────────────────────────────────
+# 원천 JSON 원본은 DETAIL_DESC metadata 로만 싣고, 임베딩 입력은 요약본문을 쓴다.
+# 종목명을 앞에 두어 LLM 미설정/실패 시에도 본문이 비지 않게 한다.
+text_fields:
+  - JONG_NAME
+  - SUMMARY_TEXT

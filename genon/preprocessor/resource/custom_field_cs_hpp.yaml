@@ -1,0 +1,98 @@
+# CustomFieldsEnricher 외부 config — 고객센터(카드) 문서 단위 메타데이터 추출
+#
+# 사용 (parser_processor_config.yaml):
+#   - custom_fields:
+#       enable: true
+#       doc_type: cs_hpp
+#       extractor: llm
+#       config_file: custom_field_cs_hpp.yaml   # resource_path 자동 = 이 yaml 디렉토리
+#
+# 원천: ssc_rag_adcc_yyyymmdd_delta_001.html (/data/raw/XXX/ADCC, 원천구분 "이중화")
+#
+# 생명/화재(xlsx 행 매핑)와 달리 카드 고객센터는 html 문서로 온다. 행 단위 원천이 아니므로
+# 문서 단위 LLM 추출(extractor=llm)을 쓴다 — 결과는 문서 전역 metadata 로 실려 모든 청크에 붙는다.
+#
+# ⚠️ 확인 필요: html 1건에 고객센터 항목이 여러 건 들어 있다면 이 방식으로는 항목별 metadata 를
+#    실을 수 없다(문서 전역 1세트만 나온다). 그 경우 원천을 항목별 파일로 쪼개 받거나,
+#    json 으로 받아 json_mapping(custom_field_cs_sss.yaml 방식)으로 처리해야 한다.
+#
+# ★ 이 파일 하나로 자족한다 — 프롬프트가 아래에 인라인되어 있어 별도 md 파일이 없다.
+
+# ── LLM 연결 ────────────────────────────────────────────────────────────────
+# <ENRICHMENT_SERVING_ID>: Genos에 등록한 모델서빙 ID로 변경 필요. api_key 도 배포 시 설정.
+url: "http://llmops-gateway-api-service:8080/rep/serving/<ENRICHMENT_SERVING_ID>/v1/chat/completions"
+api_key: ""
+model: model
+
+# ── LLM 생성 파라미터 ────────────────────────────────────────────────────────
+max_tokens: 4000
+temperature: 0.0
+timeout: 300
+
+# ── 입력 페이지 범위 ─────────────────────────────────────────────────────────
+# 미지정(null) → 문서 전체를 대상으로 한다.
+pages: null
+
+# ── 파서 ─────────────────────────────────────────────────────────────────────
+parser:
+  type: json
+
+# ── 소스와 무관하게 고정으로 채울 값 ────────────────────────────────────────
+# 카드 전용 원천이라 고객사가 파일 단위로 고정이다. LLM 에게 상수를 받아쓰게 시키지 않는다.
+constants:
+  GROUP_C: "HPP"
+
+# ── 프롬프트 ─────────────────────────────────────────────────────────────────
+system_prompt: |
+  너는 카드 고객센터 안내문 정보추출 전문가다. 주어진 고객센터 안내 페이지에서 요청한 필드를 정확하게 추출한다.
+
+  규칙:
+  - 반드시 하나의 JSON 객체만 반환한다. 설명 문구·마크다운 코드펜스 없이 순수 JSON 만 출력한다.
+  - 요청된 6개 키를 모두 포함한다. 문서에서 근거를 찾을 수 없는 값은 null 로 둔다.
+  - 문서에 없는 정보를 지어내지 않는다(환각 금지). 금액·기간·비율은 원문 숫자를 그대로 쓴다.
+
+  필드별 형식:
+  - `BIZ_ID`: 문서 상단 메타정보의 문서ID 문자열. 없으면 null.
+  - `CS_CATEGORY`: 문의유형(카테고리) 문자열. "결제/환불 > 카드 결제 취소" 처럼 상위>하위 표기가
+    있으면 그대로 유지한다. 없으면 null.
+  - `TITLE`: 대표질문 한 문장. 검색 결과 목록에 그대로 노출되는 제목이다. 반드시 채운다.
+  - `CONTENT`: 안내본문 평문. 처리절차가 단계별로 있으면 순서를 유지해 문장으로 풀어 쓴다.
+    HTML 태그·버튼 라벨·배너 문구는 제외한다.
+  - `DEEP_LINK_URL`: 앱에서 여는 화면 주소(딥링크). 문서에 URL 이나 앱 경로가 있으면 그 값.
+    없으면 null.
+  - `RELATED_KEYWORDS`: 이 항목을 찾을 때 쓸 연관 검색어 문자열 배열. 3~8개.
+    동의어·구어체 표현을 포함하고, 문서에 근거가 없는 상품명을 지어내지 않는다.
+  - `SRC_LAST_MOD_DT`: 최종 수정일. 문서에 최종 수정이 있으면 추출.
+
+  출력 예시 형식(값은 예시):
+  {"BIZ_ID": "CS-HPP-0012", "CS_CATEGORY": "결제/환불 > 카드 결제 취소", "TITLE": "카드 결제를 취소했는데 언제 환불되나요?", "CONTENT": "카드 결제 취소 후 환불은 …", "DEEP_LINK_URL": null, "RELATED_KEYWORDS": ["결제취소", "환불 기간", "승인취소"], "SRC_LAST_MOD_DT": 20240601}
+
+user_prompt: |
+  아래 카드 고객센터 안내 문서에서 다음 7개 필드를 추출하라.
+
+  - BIZ_ID (문서ID)
+  - CS_CATEGORY (문의유형)
+  - TITLE (대표질문) — 필수
+  - CONTENT (안내본문)
+  - DEEP_LINK_URL (앱 딥링크)
+  - RELATED_KEYWORDS (연관 키워드 배열)
+  - SRC_LAST_MOD_DT (최종 수정일)
+
+  반드시 위 7개 키를 모두 가진 하나의 JSON 객체로만 반환하라.
+
+  <document>
+  {{raw_text}}
+  </document>
+
+# ── 출력 필드 (프롬프트의 JSON 키와 일치해야 함) ──────────────────────────────
+# SUMMARY_TEXT 는 이 경로에서 만들지 않는다 — 문서 단위 추출이라 청크 본문이 문서 원문
+# 그대로이고, 임베딩 입력도 그 본문이다. 항목별 요약이 필요해지면 원천을 항목 단위로
+# 받아 json_mapping + llm_fields 로 전환한다(custom_field_cs_sss.yaml 참고).
+output_fields:
+  - BIZ_ID
+  - CS_CATEGORY
+  - TITLE
+  - CONTENT
+  - DEEP_LINK_URL
+  - RELATED_KEYWORDS
+  - SRC_LAST_MOD_DT

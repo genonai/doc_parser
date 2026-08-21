@@ -1,0 +1,6 @@
+{
+  "_note": "parser .json 문서 모드(custom_fields 의 json.text_fields:[html, summary_md]) + doc_type=product_hpp. 본문 키를 합쳐 docling 으로 파싱한 뒤 extractor=llm 이 TB_PRODUCT 필드를 추출하는 경로를 검증한다.",
+  "productId": "HPP-CARD-0012",
+  "summary_md": "# 삼성 iD ON 카드\n\n온라인 쇼핑과 간편결제 이용이 많은 고객을 위한 카드입니다.\n",
+  "html": "<div class=\"card-detail\"><h1>삼성 iD ON 카드</h1><p>상품코드: HPP-CARD-0012</p><h2>연회비</h2><table><thead><tr><th>구분</th><th>금액</th></tr></thead><tbody><tr><td>본인(국내전용)</td><td>15,000원</td></tr><tr><td>본인(해외겸용)</td><td>18,000원</td></tr><tr><td>가족카드</td><td>7,000원</td></tr></tbody></table><h2>주요 혜택</h2><ul><li>온라인 쇼핑 5% 결제일할인 (월 최대 1만원)</li><li>간편결제 3% 결제일할인</li><li>커피전문점 10% 결제일할인</li></ul><h2>발급 기준</h2><p>만 19세 이상, 삼성카드 신용평가 기준 충족 시 발급됩니다. 현재 신규 발급 가능한 상품입니다.</p><h2>유의사항</h2><p>전월 이용금액 30만원 이상 시 혜택이 적용됩니다. 후불 교통카드 기능과 해외 가맹점 결제를 모두 지원합니다.</p></div>"
+}

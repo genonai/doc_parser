@@ -1,0 +1,123 @@
+# 메뉴서비스 Excel 행 → TB_MENU 목표필드 직접 매핑 (모니모)
+#
+# 사용 (parser_processor_config.yaml):
+#   - custom_fields:
+#       enable: true
+#       doc_type: menu
+#       extractor: tabular_mapping
+#       config_file: custom_field_menu.yaml   # resource_path 자동 = 이 yaml 파일 디렉토리
+#
+# 원천: monimo_rag_adme_yyyymmdd_full_001.xlsx (공통, 전 관계사 혼재)
+# 헤더: ID | 회사명 | 메뉴 중분류 | 메뉴 소분류 | 메뉴명 | 서비스 개요 | 서비스 주요 기능 |
+#       서비스 이용가능 대상 | 서비스 이용방법 | 접근 경로 | 서비스 URL | 개발계 URL |
+#       최종수정일 | 노출여부
+#
+# ⚠️ 원천 xlsx 는 1~5행이 메타 영역(검토 및 요청사항 / 예상 파일명 / 임베딩컬럼여부)이고
+#    실제 헤더가 6행이다. xlsx_processor 의 헤더 자동판정이 이를 잡지 못하면
+#    formats.xlsx.tabular.header_row 로 지정해야 한다(프로세서 전역 설정).
+#
+# 목표필드명은 TB_MENU 컬럼명(대문자)을 그대로 쓴다 — 적재 측 매핑이 1:1 이 되도록.
+
+# ── 컬럼 직접 매핑 (목표필드: 허용 소스 컬럼 별칭 목록) ───────────────────────
+# 목표필드명 자체도 자동 별칭으로 포함된다. 비교 시 Unicode/BOM/공백/대소문자/_, -, . 차이를 정규화한다.
+column_map:
+  BIZ_ID:           [ID, 아이디]                       # 원천 업무키 (예: s_menu163)
+  GROUP_C:          [회사명, 고객사]                    # 고객사 (NOT NULL) — 아래 value_map 으로 코드화
+  MENU_L3:          [메뉴 중분류, 중분류]
+  MENU_L4:          [메뉴 소분류, 소분류]
+  MENU_NM:          [메뉴명, 메뉴]                      # 화면에 보이는 메뉴명 (NOT NULL)
+  SERVICE_DESC:     [서비스 개요, 개요]
+  SERVICE_FEATURES: [서비스 주요 기능, 주요기능]
+  ELIGIBLE_TARGET:  [서비스 이용가능 대상, 이용가능대상]
+  USAGE_METHOD:     [서비스 이용방법, 이용방법]
+  ACCESS_PATH:      [접근 경로, 접근경로]
+  SERVICE_URL:      [서비스 URL]
+  DEV_URL:          [개발계 URL]
+  SRC_LAST_MOD_DT:    [최종수정일]                          # 검색노출게이트 (NOT NULL)
+
+# ── 값 별칭 → 표준 코드 ─────────────────────────────────────────────────────
+# 이 시트의 회사명은 "모니모 / 삼성생명 / 삼성화재 / 삼성카드 / 삼성증권" 표기다.
+# 용어사전 시트는 축약형("생명/화재/…")을 쓰므로 양쪽 별칭을 모두 등록해 둔다.
+value_map:
+  GROUP_C:
+    IFP: [모니모]
+    SLF: [삼성생명, 생명]
+    SSF: [삼성화재, 화재]
+    HPP: [삼성카드, 카드]
+    SSS: [삼성증권, 증권]
+
+# ── 필수 목표필드. 값이 빈 행은 그 행만 skip 하고 건수를 경고로 남긴다 ────────
+required:
+  - GROUP_C
+  - MENU_NM
+
+# ── 대응 컬럼이 없을 때 채울 기본값 (NOT NULL 필드용) ─────────────────────────
+defaults:
+  SEARCHABLE_YN: "N"               # TB_MENU 기본값과 동일
+
+# ── 대응 소스가 없어 null 로 명시 출력할 필드 (스키마 고정) ───────────────────
+nulls:
+  - KEYWORDS
+  - OPEN_NATIVE_APP_C              # 네이티브 오픈 앱 — 원천 미제공
+
+# ── 원천에 없는 필드를 행마다 LLM 으로 생성 ─────────────────────────────────
+# KEYWORDS 는 TB_MENU 에 JSON 타입이고, 원천 xlsx 에 키워드 컬럼이 아예 없다(파생 전용).
+# SUMMARY_TEXT 는 임베딩 입력이다 — 메뉴는 설명이 여러 컬럼에 흩어져 있어 한 문장으로 접는다.
+# llm_fields:
+#   - output_fields: [KEYWORDS, SUMMARY_TEXT]
+#     input_fields:  [MENU_NM, SERVICE_DESC, SERVICE_FEATURES, ELIGIBLE_TARGET, USAGE_METHOD, ACCESS_PATH]
+#     concurrency: 4
+#     on_error: null                 # null(필드를 null 로 두고 진행) | skip_record
+
+#     # ── LLM 연결 ────────────────────────────────────────────────────────────
+#     # <ENRICHMENT_SERVING_ID>: Genos에 등록한 모델서빙 ID로 변경 필요. api_key 도 배포 시 설정.
+#     url: "http://llmops-gateway-api-service:8080/rep/serving/<ENRICHMENT_SERVING_ID>/v1/chat/completions"
+#     api_key: ""
+#     model: model
+
+#     max_tokens: 1000
+#     temperature: 0.0
+#     timeout: 120
+
+#     parser:
+#       type: json
+
+#     # output_fields 와 프롬프트가 내놓는 JSON 키는 반드시 같아야 한다.
+#     # 어긋나면 에러 없이 값이 비어서 나온다.
+#     system_prompt: |
+#       너는 금융 앱 메뉴 안내 정리 전문가다. 주어진 메뉴 정보를 검색용 키워드와 요약본문으로 압축한다.
+
+#       규칙:
+#       - 반드시 하나의 JSON 객체만 반환한다. 설명 문구·마크다운 코드펜스 없이 순수 JSON 만 출력한다.
+#       - 키는 `KEYWORDS` 와 `SUMMARY_TEXT` 둘이다.
+#       - `KEYWORDS`: 이용자가 이 메뉴를 찾을 때 입력할 만한 검색어 문자열 배열. 3~8개.
+#         메뉴명에 이미 있는 표현뿐 아니라 동의어·구어체 표현도 포함한다(예: "분실신고", "카드 잃어버림").
+#         원문에 근거가 없는 상품명·브랜드명을 지어내지 않는다.
+#       - `SUMMARY_TEXT`: 이 메뉴가 무엇을 할 수 있는 화면인지 설명하는 요약본문 문자열.
+#         문장형 한국어로 2~4문장, 400자 이내. 불릿·머리기호를 쓰지 않는다.
+#         이용가능 대상과 이용방법에 조건이 있으면 그 조건을 남긴다.
+#       - 원문에 없는 정보를 지어내지 않는다(환각 금지). 근거가 없으면 값을 null 로 둔다.
+
+#       출력 예시 형식(값은 예시):
+#       {"KEYWORDS": ["분실신고", "카드 분실", "재발급"], "SUMMARY_TEXT": "카드를 분실했을 때 …"}
+
+#     user_prompt: |
+#       아래 메뉴 정보를 검색용 키워드와 요약본문으로 정리하라.
+
+#       - KEYWORDS (검색 키워드 배열)
+#       - SUMMARY_TEXT (요약본문)
+
+#       반드시 `KEYWORDS`, `SUMMARY_TEXT` 두 키를 가진 JSON 객체로만 반환하라.
+
+#       <menu>
+#       {{raw_text}}
+#       </menu>
+
+# ── 청크 text 본문 구성 순서 (개행 결합) ──────────────────────────────────────
+# 임베딩 입력은 SUMMARY_TEXT 지만, LLM 미설정/실패 시 본문이 비지 않도록 메뉴명을 앞에 둔다.
+text_fields:
+  - MENU_NM
+  - SERVICE_DESC
+  - SERVICE_FEATURES
+  - ELIGIBLE_TARGET
+  - USAGE_METHOD

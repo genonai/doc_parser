@@ -29,8 +29,11 @@ _DEFAULT_CUSTOM_FIELDS_SYSTEM_PROMPT = (
 
 DOCUMENT_CUSTOM_FIELD_EXTRACTORS = {"llm", "document_llm"}
 TABULAR_CUSTOM_FIELD_EXTRACTORS = {"tabular", "tabular_mapping", "column_mapping"}
+JSON_CUSTOM_FIELD_EXTRACTORS = {"json_mapping", "json_records"}
 SUPPORTED_CUSTOM_FIELD_EXTRACTORS = (
-    DOCUMENT_CUSTOM_FIELD_EXTRACTORS | TABULAR_CUSTOM_FIELD_EXTRACTORS
+    DOCUMENT_CUSTOM_FIELD_EXTRACTORS
+    | TABULAR_CUSTOM_FIELD_EXTRACTORS
+    | JSON_CUSTOM_FIELD_EXTRACTORS
 )
 
 
@@ -63,6 +66,87 @@ def custom_fields_extractor(config: dict) -> str:
     return str((config or {}).get("extractor") or "llm").strip().lower()
 
 
+# ── llm_fields (행/레코드 단위 LLM 생성 필드) ────────────────────────────────
+# tabular_mapping(Excel 행)과 json_mapping(JSON 레코드)이 공유하는 선언 스펙이다.
+# 두 mapper 모두 이 모듈을 import 하므로 여기가 공통 상위 지점이다
+# (json_records 는 tabular_custom_fields 를 import 하므로 그쪽에 두면 순환이 된다).
+VALID_LLM_ERROR_POLICIES = ("null", "skip_record")
+
+# LlmFieldSpec 자신이 소비하는 키. 나머지는 전부 CustomFieldsEnricher 생성자로 넘어간다
+# (_NON_ENRICHER_KEYS 와 같은 발상 — 소비자별로 키를 나눈다).
+# output_fields 는 양쪽이 다 쓴다 — 스펙은 실패 시 null 채움에, enricher 는 응답 정규화에.
+_LLM_SPEC_ONLY_KEYS = ("input_fields", "concurrency", "on_error")
+
+
+class LlmFieldSpec:
+    """`llm_fields` 항목 — 원천에 없는 필드를 행/레코드마다 LLM 으로 생성하는 선언.
+
+    LLM 연결/프롬프트 설정은 **이 항목에 직접 써도 되고**(`url`·`model`·`system_prompt`·
+    `user_prompt` …) `config_file` 로 외부 yaml 을 가리켜도 된다. 아래 `_LLM_SPEC_ONLY_KEYS` 를 뺀
+    나머지 키가 그대로 `CustomFieldsEnricher` 생성자로 넘어가므로 두 방식이 같은 코드로 처리된다
+    — 설정 하나짜리 유형은 파일을 쪼개지 않고 한 파일로 끝낼 수 있다.
+    """
+
+    def __init__(self, cfg: dict):
+        if not isinstance(cfg, dict):
+            raise ValueError("llm_fields 항목은 object 여야 합니다.")
+
+        self.output_fields = [str(f).strip() for f in (cfg.get("output_fields") or []) if str(f).strip()]
+        if not self.output_fields:
+            raise ValueError("llm_fields 항목의 output_fields 가 비어 있습니다.")
+
+        self.input_fields = [str(f).strip() for f in (cfg.get("input_fields") or []) if str(f).strip()]
+        if not self.input_fields:
+            raise ValueError(f"llm_fields{self.output_fields} 의 input_fields 가 비어 있습니다.")
+
+        # 설정을 통째로 빠뜨린 경우를 기동 시에 잡는다. 값이 placeholder 라 실제 호출이 실패하는 건
+        # 런타임 경고로 흡수하지만(enricher.is_configured), 연결 정보가 아예 없는 건 오설정이다.
+        if not (str(cfg.get("config_file") or "").strip() or str(cfg.get("url") or "").strip()):
+            raise ValueError(
+                f"llm_fields{self.output_fields} 에는 config_file 또는 url 중 하나가 필요합니다."
+            )
+
+        try:
+            self.concurrency = max(1, int(cfg.get("concurrency") or 4))
+        except (TypeError, ValueError):
+            _log.warning("[llm_fields] Invalid llm_fields.concurrency, fallback to 4")
+            self.concurrency = 4
+
+        policy = str(cfg.get("on_error") or "null").strip().lower()
+        if policy not in VALID_LLM_ERROR_POLICIES:
+            _log.warning(f"[llm_fields] Invalid llm_fields.on_error '{policy}', fallback to 'null'")
+            policy = "null"
+        self.on_error = policy
+
+        # 나머지는 전부 enricher 생성자로. 알 수 없는 키는 거기서 TypeError 로 걸러진다(기동 시 노출).
+        self.enricher_kwargs = {k: v for k, v in cfg.items() if k not in _LLM_SPEC_ONLY_KEYS}
+
+    @property
+    def label(self) -> str:
+        """로그/오류 메시지에서 이 항목을 가리키는 이름(인라인이면 파일명이 없다)."""
+        config_file = self.enricher_kwargs.get("config_file")
+        return str(config_file) if config_file else ",".join(self.output_fields)
+
+    def build_input_text(self, fields: dict) -> str:
+        """프롬프트의 `{{raw_text}}` 로 들어갈 입력 텍스트(선언 순서대로 결합).
+
+        입력이 2개 이상이면 어떤 값이 무엇인지 모델이 알 수 있게 `필드명: 값` 형태로 붙인다.
+        """
+        labeled = len(self.input_fields) > 1
+        parts = []
+        for name in self.input_fields:
+            value = fields.get(name)
+            if value in (None, ""):
+                continue
+            parts.append(f"{name}: {value}" if labeled else str(value))
+        return "\n\n".join(parts)
+
+
+def build_llm_field_specs(cfg: dict) -> list["LlmFieldSpec"]:
+    """config 의 `llm_fields` 목록을 스펙으로 컴파일한다(두 mapper 공통)."""
+    return [LlmFieldSpec(item) for item in ((cfg or {}).get("llm_fields") or [])]
+
+
 # custom_fields 항목에 있지만 이 enricher 가 아니라 다른 단계가 소비하는 키.
 # CustomFieldsEnricher 생성자는 **kwargs 를 받지 않으므로, 여기서 제외하지 않으면
 # 설정에 이 키를 넣는 순간 TypeError 가 난다.
@@ -78,9 +162,9 @@ def _enricher_kwargs(config: dict) -> dict:
 def build_document_custom_fields_enrichers(configs: list[dict]) -> list["CustomFieldsEnricher"]:
     """document/LLM custom_fields 설정만 실제 Docling enricher로 생성한다.
 
-    tabular_mapping 설정은 parser의 Excel 조기 분기에서 별도 handler가 소비한다. 이를
-    여기서 제외해야 intelligent/convert/chunking 프로세서 초기화 시 LLM enricher 생성자로
-    잘못 전달되지 않는다.
+    tabular_mapping(Excel 행 매핑) / json_mapping(JSON 레코드 매핑) 설정은 parser의 조기
+    분기에서 별도 handler가 소비한다. 이를 여기서 제외해야 intelligent/convert/chunking
+    프로세서 초기화 시 LLM enricher 생성자로 잘못 전달되지 않는다.
     """
     enrichers = []
     for config in configs or []:
@@ -115,6 +199,7 @@ class CustomFieldsEnricher(BaseEnricher):
         system_prompt_file: str = "",
         user_prompt_file: str = "",
         output_fields: list[str] | None = None,
+        constants: dict | None = None,
         parser: dict | None = None,
         pages: list[int] | None = None,
         variables: dict | None = None,
@@ -151,6 +236,10 @@ class CustomFieldsEnricher(BaseEnricher):
             or str(prompt_cfg.get("user") or "").strip()
         )
         self._output_fields = list(output_fields or cfg.get("output_fields", []))
+        # 문서마다 값이 고정인 필드(관계사 전용 파일의 GROUP_C 등). LLM 에게 상수를 받아쓰게
+        # 시키는 대신 여기서 채운다 — 환각·누락 여지가 없고 프롬프트도 짧아진다.
+        # tabular_mapping/json_mapping 의 `constants` 와 같은 의미다.
+        self._constants = dict(constants or cfg.get("constants") or {})
         self._headers: dict[str, str] = {"Content-Type": "application/json"}
         resolved_key = api_key or cfg.get("api_key", "")
         if resolved_key:
@@ -369,7 +458,9 @@ class CustomFieldsEnricher(BaseEnricher):
 
         return await async_cached_call(self._url, payload, _produce)
 
-    def _parse_with_custom_parser(self, llm_output: str, document: DoclingDocument, **kwargs) -> dict:
+    def _parse_with_custom_parser(
+        self, llm_output: str, document: DoclingDocument | None, **kwargs
+    ) -> dict:
         try:
             parsed = self._parser_callable(
                 llm_output,
@@ -385,9 +476,15 @@ class CustomFieldsEnricher(BaseEnricher):
         return parsed
 
     def _normalize_output_fields(self, parsed: dict) -> dict:
-        if not self._output_fields:
-            return parsed
-        return {key: parsed.get(key) for key in self._output_fields}
+        normalized = (
+            parsed if not self._output_fields
+            else {key: parsed.get(key) for key in self._output_fields}
+        )
+        # 상수는 LLM 응답보다 우선한다 — 고정값이라고 선언한 이상 모델이 뭘 내놓든 그 값이다.
+        # output_fields 에 없는 상수도 그대로 실린다(선언 자체가 출력 의사 표시).
+        if self._constants:
+            normalized = {**normalized, **self._constants}
+        return normalized
 
     def _extract_raw_text(self, document: DoclingDocument) -> str:
         if not self._pages:
@@ -399,10 +496,26 @@ class CustomFieldsEnricher(BaseEnricher):
         )
         return serializer.serialize().text
 
+    @property
+    def is_configured(self) -> bool:
+        """LLM 연결 설정이 채워져 있는지. 비어 있으면 호출 자체를 하지 않는다."""
+        return bool(self._url and self._model)
+
+    async def extract_fields_from_text(self, raw_text: str) -> dict:
+        """DoclingDocument 없이 원문 텍스트만으로 필드를 추출한다(레코드 단위 호출용).
+
+        `enrich` 는 문서 단위 진입점이라 문서에서 raw_text 를 뽑고 결과를 문서에 저장하지만,
+        JSON 레코드 매핑(json_records)은 문서가 없고 레코드마다 호출한다. 프롬프트 템플릿/
+        thinking dialect/llm_cache/응답 파싱은 모두 같은 경로를 그대로 쓴다.
+        """
+        llm_output = await self._call_llm(raw_text, None)
+        parsed = self._parse_with_custom_parser(llm_output, None)
+        return self._normalize_output_fields(parsed)
+
     async def enrich(self, document: DoclingDocument, **kwargs) -> DoclingDocument:
         if not matches_doc_type(self._doc_types, kwargs.get("doc_type")):
             return document
-        if not self._url or not self._model:
+        if not self.is_configured:
             _log.warning("custom_fields enricher 비활성: url/model 설정이 비어있습니다.")
             return document
 
@@ -413,7 +526,8 @@ class CustomFieldsEnricher(BaseEnricher):
             normalized = self._normalize_output_fields(parsed)
         except Exception as e:
             _log.warning(f"custom_fields 추출 실패: {e}")
-            normalized = {key: None for key in self._output_fields}
+            # 실패해도 상수는 유지한다 — LLM 과 무관하게 확정된 값이라 null 로 떨어뜨릴 이유가 없다.
+            normalized = {**{key: None for key in self._output_fields}, **self._constants}
 
         # 문서에 저장 → 별도 chunk API 경계를 넘어 청커 passthrough 가 각 청크에 부착
         # (created_date/MetadataEnricher 와 동일 경로). 선언된 output_fields 는 값이 null 이어도
