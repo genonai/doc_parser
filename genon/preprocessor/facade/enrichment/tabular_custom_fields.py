@@ -111,6 +111,148 @@ def apply_value_map(fields: dict, compiled: dict[str, dict[str, Any]], *, contex
         fields[target] = mapped
 
 
+def validate_target_field_names(targets: Any, *, label: str) -> None:
+    """목표필드명이 벡터 예약 필드/property 규칙을 위반하면 **기동 시** 실패시킨다.
+
+    행 metadata 는 그대로 벡터 property 로 승격되므로(`chunking_processor._chunk_custom_fields_rows`
+    가 `{**row_meta, 'text': …}` 로 model_validate), 예약 필드명과 겹치면 두 가지로 터진다.
+      - `title`·`created_date`·`appendix` : 선언 타입이 있어 **값이 None 이기만 해도** ValidationError
+        → 요청 전체 실패. 그 예외는 GenosServiceException 으로 감싸이지 않아 stage 도 없고,
+          pydantic v2 ValidationError 가 ValueError 하위라 업로드 파일 문제(INPUT_ERROR)로 오분류된다.
+      - `text`·`n_char`·`i_page` 등 : 예약 키가 뒤에 와서 **조용히 덮어써져** 값이 사라진다.
+    또 한글·공백·기호가 섞인 이름은 Weaviate property 규칙(`/[_A-Za-z][_0-9A-Za-z]*/`)을 벗어나
+    적재 시 grpc 에러가 된다.
+
+    일반 컬럼 경로는 `xlsx_processor._stable_key` 로 이 문제를 이미 회피하는데, custom_fields 는
+    그 경로를 타지 않아 검사 없이 통과해 왔다. 판정 기준은 그쪽과 공유해 드리프트를 막는다
+    (`_RESERVED_FIELDS` 는 `tests/unit/test_xlsx_processor.py::test_reserved_fields_cover_chunker_vector_meta`
+    가 청커 모델과의 정합을 지킨다).
+    """
+    # facade → converters 단방향 import (parser_processor._parse_tabular 와 같은 방향).
+    # 함수 안에서 import 하는 이유: 이 모듈은 converters 없이도 로드돼야 한다(enrichment 단독 테스트).
+    from genon.preprocessor.converters.xlsx_processor import _RESERVED_FIELDS, _VALID_KEY_RE
+
+    reserved, invalid = [], []
+    for name in targets:
+        text = str(name)
+        if text in _RESERVED_FIELDS:
+            reserved.append(text)
+        elif not _VALID_KEY_RE.match(text):
+            invalid.append(text)
+    if reserved:
+        raise ValueError(
+            f"{label}: 목표필드명이 벡터 예약 필드와 겹칩니다: {sorted(reserved)}. "
+            f"이 이름을 쓰면 값이 조용히 덮어써지거나 청킹에서 요청 전체가 실패합니다 — "
+            f"다른 이름으로 바꾸세요(적재 DB 컬럼명은 보통 대문자라 겹치지 않습니다)."
+        )
+    if invalid:
+        raise ValueError(
+            f"{label}: 목표필드명이 property 이름 규칙(/[_A-Za-z][_0-9A-Za-z]*/)에 맞지 않습니다: "
+            f"{sorted(invalid)}. 한글·공백·기호는 적재 시 실패하므로 영문/숫자/밑줄만 쓰세요 "
+            f"(원천 컬럼명은 별칭 목록에 그대로 두면 됩니다)."
+        )
+
+
+# YAML 에서 타입을 틀리기 쉬운 키. 코드가 set()/list()/dict() 로만 감싸기 때문에
+# 틀린 타입이 조용히 엉뚱하게 해석되거나 요청마다 터진다 — 기동 시에 잡는다.
+_LIST_SHAPED_KEYS = ("required", "nulls", "text_fields")
+_MAP_SHAPED_KEYS = (
+    "column_map", "key_map", "constants", "defaults", "value_map", "transforms", "html_text_fields",
+)
+
+
+def validate_config_shape(cfg: dict, *, label: str) -> None:
+    """리스트/맵이어야 하는 키가 다른 타입이면 **기동 시** 실패시킨다.
+
+    YAML 에서 `-` 를 빠뜨려 스칼라가 들어오면 코드가 문자열을 글자 단위로 쪼갠다 —
+    `required: TITLE` 은 `{'T','I','L','E'}` 가 되어 **전 행이 skip → 청크 0건**이 되는데
+    경고만 남고 요청은 성공으로 끝난다.
+    `constants` 를 리스트로 쓰면 `dict()` 강제 변환이 `build_fields` 안에서 터져 **매 요청**
+    실패하고, 메시지(`dictionary update sequence element #0 …`)에 파일도 키도 없다.
+    (`dict(['ab','cd'])` → `{'a':'b','c':'d'}` 처럼 **에러 없이 잘못된 값**이 되는 경우도 있다.)
+    """
+    wrong_list = [k for k in _LIST_SHAPED_KEYS
+                  if cfg.get(k) is not None and not isinstance(cfg.get(k), list)]
+    wrong_map = [k for k in _MAP_SHAPED_KEYS
+                 if cfg.get(k) is not None and not isinstance(cfg.get(k), dict)]
+    if wrong_list:
+        raise ValueError(
+            f"{label}: {sorted(wrong_list)} 는 목록이어야 합니다. YAML 에서 각 항목 앞에 '- ' 를 "
+            f"붙이세요 — 문자열로 쓰면 글자 단위로 쪼개져 전 행이 걸러집니다(청크 0건)."
+        )
+    if wrong_map:
+        raise ValueError(
+            f"{label}: {sorted(wrong_map)} 는 '키: 값' 형태의 object 여야 합니다."
+        )
+
+
+def validate_required_not_llm_generated(cfg: dict, *, label: str) -> None:
+    """`required` 에 `llm_fields` 생성 필드가 있으면 **기동 시** 거부한다.
+
+    필수값 검사는 LLM 호출보다 **먼저** 돈다(build_fields → _apply_llm_fields 순서).
+    그래서 LLM 이 만들 필드를 required 로 걸면 **LLM 을 한 번도 부르지 않고 전 행이 skip** 되고,
+    요청은 빈 문서 + 성공으로 끝난다 — 원인을 찾기 매우 어렵다.
+    """
+    llm_outputs = {
+        str(f)
+        for spec in (cfg.get("llm_fields") or [])
+        for f in ((spec or {}).get("output_fields") or [])
+    }
+    clash = sorted({str(f) for f in (cfg.get("required") or [])} & llm_outputs)
+    if clash:
+        raise ValueError(
+            f"{label}: required 에 llm_fields 가 만드는 필드가 있습니다: {clash}. "
+            f"필수값 검사가 LLM 호출보다 먼저 돌아 전 행이 걸러집니다 — required 에서 빼세요."
+        )
+
+
+def warn_unproducible_text_fields(cfg: dict, *, label: str) -> None:
+    """`text_fields` 가 아무도 만들지 않는 필드를 가리키면 경고한다.
+
+    그 필드는 본문 조립에서 조용히 빠진다 — 전부 그러면 본문이 비어 레코드가 통째로 제외되고,
+    결국 청킹에서 `chunk length is 0` 으로 터진다(원인과 에러 지점이 다르다).
+    `llm_fields` 를 주석 처리하면서 그 출력 필드를 `text_fields` 에 남겨 두는 실수가 가장 흔하다.
+
+    실패가 아니라 경고인 이유: 출고 `custom_field_monimo_event.yaml` 이 현재 이 상태라
+    hard error 로 두면 서비스가 기동하지 않는다.
+    """
+    unproducible = [
+        str(f) for f in (cfg.get("text_fields") or [])
+        if str(f) not in collect_target_field_names(cfg)
+    ]
+    if unproducible:
+        _log.warning(
+            f"[custom_fields] {label}: text_fields 의 {unproducible} 를 만드는 설정이 없습니다 — "
+            f"청크 본문에서 조용히 빠집니다(llm_fields 를 주석 처리하고 남겨 둔 경우가 흔합니다)."
+        )
+
+
+def validate_custom_field_config(cfg: dict, *, label: str) -> None:
+    """custom_field yaml 하나에 대한 기동 시 검증 묶음(두 extractor 공통).
+
+    순서가 중요하다 — shape 를 먼저 봐야 이후 검사가 엉뚱한 타입을 훑지 않는다.
+    """
+    validate_config_shape(cfg, label=label)
+    validate_target_field_names(collect_target_field_names(cfg), label=label)
+    validate_required_not_llm_generated(cfg, label=label)
+    warn_unproducible_text_fields(cfg, label=label)
+
+
+def collect_target_field_names(cfg: dict) -> set[str]:
+    """설정이 만들어 내는 목표필드명 전체(두 extractor 공통 키 + 각자 전용 키)."""
+    cfg = cfg or {}
+    names = set(cfg.get("column_map") or {}) | set(cfg.get("key_map") or {})
+    names |= set(cfg.get("constants") or {}) | set(cfg.get("defaults") or {})
+    names |= {str(f) for f in (cfg.get("nulls") or [])}
+    names |= set(cfg.get("html_text_fields") or {})
+    names |= {
+        str(f)
+        for spec in (cfg.get("llm_fields") or [])
+        for f in ((spec or {}).get("output_fields") or [])
+    }
+    return names
+
+
 class TabularCustomFieldsMapper:
     """custom_fields 설정 하나를 행 단위 metadata 변환기로 컴파일한다."""
 
@@ -129,6 +271,8 @@ class TabularCustomFieldsMapper:
         # llm_fields 의 프롬프트/LLM config 파일 경로 해석 기준(= 이 config 파일과 같은 디렉토리).
         self.resource_path = resource_path
         self.config = self._load_config(config_file, resource_path)
+        # 설정 오기입을 **키를 소비하기 전에** 막는다 — 런타임 크래시·조용한 전건 skip 예방.
+        validate_custom_field_config(self.config, label=f"tabular custom_fields({config_file})")
 
         # 값 정규화·파생 필드 설정은 json_mapping(JsonRecordsMapper)과 같은 키/의미를 쓴다.
         self.value_map = compile_value_map(self.config.get("value_map"))

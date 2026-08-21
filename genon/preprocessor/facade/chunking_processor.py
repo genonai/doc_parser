@@ -2786,24 +2786,36 @@ class DocumentProcessor:
             text = str(el.get("content", "") or "")
             text, chunk_cats = gr.apply_to_text(text, _sensitive_infos, _gr_masking)
             row_meta = el.get("metadata") or {}
-            vectors.append(GenOSVectorMeta.model_validate({
-                **row_meta,  # 목표 필드(question/answer_text/...) + doc_type. extra=allow 로 보존.
-                'text': text,
-                'n_char': len(text),
-                'n_word': len(text.split()),
-                'n_line': len(text.splitlines()),
-                'i_page': page,
-                'e_page': page,
-                'i_chunk_on_page': chunk_index_on_page,
-                'n_chunk_of_page': page_chunk_counts[page],
-                'i_chunk_on_doc': idx,
-                'n_chunk_of_doc': n_chunk_of_doc,
-                'n_page': n_page,
-                'reg_date': reg_date,
-                'chunk_bboxes': ".",
-                'media_files': ".",
-                'guardrail_categories': sorted(chunk_cats) if chunk_cats else None,
-            }))
+            try:
+                vectors.append(GenOSVectorMeta.model_validate({
+                    **row_meta,  # 목표 필드(question/answer_text/...) + doc_type. extra=allow 로 보존.
+                    'text': text,
+                    'n_char': len(text),
+                    'n_word': len(text.split()),
+                    'n_line': len(text.splitlines()),
+                    'i_page': page,
+                    'e_page': page,
+                    'i_chunk_on_page': chunk_index_on_page,
+                    'n_chunk_of_page': page_chunk_counts[page],
+                    'i_chunk_on_doc': idx,
+                    'n_chunk_of_doc': n_chunk_of_doc,
+                    'n_page': n_page,
+                    'reg_date': reg_date,
+                    'chunk_bboxes': ".",
+                    'media_files': ".",
+                    'guardrail_categories': sorted(chunk_cats) if chunk_cats else None,
+                }))
+            except Exception as exc:
+                # 목표필드명이 예약 필드(title/created_date/appendix)와 겹치면 타입 검증에 걸린다.
+                # 그대로 두면 pydantic ValidationError 가 raw 로 올라가 stage 도 없고, ValueError
+                # 하위라 업로드 파일 문제(INPUT_ERROR)로 오분류된다 — 원인을 메시지에 담아 바꾼다.
+                collided = sorted(set(row_meta) & set(GenOSVectorMeta.model_fields))
+                hint = f" 예약 필드와 겹치는 목표필드: {collided}." if collided else ""
+                raise GenosServiceException(
+                    "1",
+                    f"행 metadata 를 청크 property 로 변환하지 못했습니다(element #{idx}).{hint} {exc}",
+                    stage="custom_fields",
+                ) from exc
             chunk_index_on_page += 1
         return vectors
 

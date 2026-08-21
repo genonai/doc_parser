@@ -1896,9 +1896,8 @@ class DocumentProcessor:
         self._md_cfg = self._intel._md_cfg
         # enrichment.custom_fields 중 tabular_mapping handler를 시작 시 1회 로드한다.
         self._config_dir = self._intel._config_dir
-        self._tabular_custom_fields_mappers = (
-            build_tabular_custom_fields_mappers(self._intel.custom_fields_cfgs)
-            if build_tabular_custom_fields_mappers is not None else []
+        self._tabular_custom_fields_mappers = self._build_tabular_custom_fields_mappers(
+            self._intel.custom_fields_cfgs
         )
 
         defaults_cfg = _as_dict(cfg.get("defaults"))
@@ -2028,13 +2027,30 @@ class DocumentProcessor:
         return specs
 
     @staticmethod
+    def _build_tabular_custom_fields_mappers(custom_fields_cfgs: list) -> list:
+        """custom_fields 설정 중 extractor=tabular_mapping 만 매퍼로 만든다.
+
+        json 쪽과 같이 감싸는 이유: 감싸지 않으면 설정 오류가 raw 로 __init__ 을 뚫고 나가
+        **서비스 import 자체가 죽는다**(어느 설정이 문제인지도 드러나지 않는다).
+        TypeError 도 잡는다 — `constants: 5` 처럼 dict() 강제 변환이 TypeError 를 내는 경우가 있다.
+        """
+        if build_tabular_custom_fields_mappers is None:
+            return []
+        try:
+            return build_tabular_custom_fields_mappers(custom_fields_cfgs)
+        except (ValueError, TypeError, FileNotFoundError) as exc:
+            raise GenosServiceException(
+                "1", f"custom_fields tabular_mapping 설정 오류: {exc}", stage="custom_fields"
+            ) from exc
+
+    @staticmethod
     def _build_json_records_mappers(custom_fields_cfgs: list) -> list:
         """custom_fields 설정 중 extractor=json_mapping 만 매퍼로 만든다. tabular 와 같은 패턴."""
         if build_json_records_mappers is None:
             return []
         try:
             return build_json_records_mappers(custom_fields_cfgs)
-        except (ValueError, FileNotFoundError) as exc:
+        except (ValueError, TypeError, FileNotFoundError) as exc:
             raise GenosServiceException(
                 "1", f"custom_fields json_mapping 설정 오류: {exc}", stage="custom_fields"
             ) from exc

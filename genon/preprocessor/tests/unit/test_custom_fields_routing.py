@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import textwrap
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 
@@ -416,3 +417,206 @@ def test_shipped_monimo_configs_use_db_column_names(resource_dir, config_name):
     # 요약본문을 CONTENT_HASH 로 잘못 쓰던 회귀를 막는다(그건 RAW(32) 원문 검증 해시다).
     llm_outputs = {f for spec in (cfg.get("llm_fields") or []) for f in spec["output_fields"]}
     assert "CONTENT_HASH" not in llm_outputs
+
+
+# ── 목표필드명 검증 (예약 필드 / property 이름 규칙) ─────────────────────────
+# 행 metadata 는 그대로 벡터 property 로 승격되므로, 목표필드명이 청커 모델의 예약 필드와 겹치면
+# 값이 조용히 덮어써지거나(text 등) 타입 검증에 걸려 **요청 전체가 실패**한다
+# (title/created_date/appendix 는 값이 None 이기만 해도 ValidationError).
+# 일반 컬럼 경로는 xlsx_processor._stable_key 로 이미 회피하는데 custom_fields 는 그 경로를 안 탄다.
+
+def _write_mapper_cfg(tmp_path, body: str):
+    path = tmp_path / "custom_field_probe.yaml"
+    path.write_text(textwrap.dedent(body), encoding="utf-8")
+    return path
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("target", ["title", "created_date", "appendix", "text", "n_char", "reg_date"])
+def test_reserved_target_field_name_rejected_at_startup(tmp_path, target):
+    """예약 필드명을 목표필드로 쓰면 기동 시 막는다(런타임 크래시 예방)."""
+    _write_mapper_cfg(tmp_path, f"""
+        column_map:
+          {target}: [원천컬럼]
+        text_fields: [{target}]
+    """)
+    with pytest.raises(ValueError, match="예약 필드"):
+        TabularCustomFieldsMapper(
+            config_file="custom_field_probe.yaml", resource_path=str(tmp_path),
+            doc_type="x", extractor="tabular_mapping",
+        )
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("target", ["제목", "MY FIELD", "1ST", "a-b"])
+def test_invalid_property_name_rejected_at_startup(tmp_path, target):
+    """한글·공백·기호·숫자시작 목표필드명은 적재 시 실패하므로 기동 시 막는다."""
+    _write_mapper_cfg(tmp_path, f"""
+        column_map:
+          "{target}": [원천컬럼]
+        text_fields: ["{target}"]
+    """)
+    with pytest.raises(ValueError, match="이름 규칙"):
+        TabularCustomFieldsMapper(
+            config_file="custom_field_probe.yaml", resource_path=str(tmp_path),
+            doc_type="x", extractor="tabular_mapping",
+        )
+
+
+@pytest.mark.unit
+def test_reserved_name_checked_in_constants_and_llm_fields(tmp_path):
+    """column_map 뿐 아니라 constants·defaults·nulls·llm_fields 출력도 검사 대상이다."""
+    _write_mapper_cfg(tmp_path, """
+        column_map:
+          TITLE: [제목]
+        text_fields: [TITLE]
+        llm_fields:
+          - output_fields: [created_date]
+            input_fields: [TITLE]
+            url: "http://example/v1/chat/completions"
+    """)
+    with pytest.raises(ValueError, match="예약 필드"):
+        TabularCustomFieldsMapper(
+            config_file="custom_field_probe.yaml", resource_path=str(tmp_path),
+            doc_type="x", extractor="tabular_mapping",
+        )
+
+
+@pytest.mark.unit
+def test_db_column_style_target_names_pass(tmp_path):
+    """출고 관례(대문자 DB 컬럼명)는 그대로 통과해야 한다 — 오탐 방지."""
+    _write_mapper_cfg(tmp_path, """
+        column_map:
+          TITLE: [제목]
+          GROUP_C: [회사명]
+          SRC_LAST_MOD_DT: [최종수정일]
+        text_fields: [TITLE]
+    """)
+    mapper = TabularCustomFieldsMapper(
+        config_file="custom_field_probe.yaml", resource_path=str(tmp_path),
+        doc_type="x", extractor="tabular_mapping",
+    )
+    assert set(mapper.config["column_map"]) == {"TITLE", "GROUP_C", "SRC_LAST_MOD_DT"}
+
+
+@pytest.mark.unit
+def test_row_metadata_validation_failure_is_wrapped_with_stage():
+    """청커의 예약필드 충돌은 raw ValidationError 가 아니라 stage 를 가진 예외로 올라간다.
+
+    raw 로 두면 pydantic ValidationError 가 ValueError 하위라 업로드 파일 문제(INPUT_ERROR)로
+    오분류되고 stage 도 없어 원인 추적이 어렵다.
+    """
+    cp = pytest.importorskip("facade.chunking_processor")
+    proc = object.__new__(cp.DocumentProcessor)
+    elements = [{
+        "category": "custom_fields_row", "content": "본문", "page": 1,
+        "metadata": {"title": None, "GROUP_C": "SLF", "doc_type": "notice"},
+    }]
+    with pytest.raises(cp.GenosServiceException) as exc:
+        cp.DocumentProcessor._chunk_custom_fields_rows(proc, elements)
+    assert exc.value.stage == "custom_fields"
+    assert "title" in exc.value.error_msg
+
+
+# ── 설정 오기입을 기동 시에 잡는다 ───────────────────────────────────────────
+# YAML 에서 타입을 틀리면 코드가 조용히 엉뚱하게 해석한다(문자열을 글자 단위로 쪼개는 등).
+# 그 결과는 "청크 0건" 또는 "매 요청 실패"로만 드러나므로 기동 시에 막는다.
+
+@pytest.mark.unit
+@pytest.mark.parametrize("key", ["required", "nulls", "text_fields"])
+def test_scalar_instead_of_list_rejected_at_startup(tmp_path, key):
+    """`- ` 를 빠뜨려 스칼라가 되면 글자 단위로 쪼개져 전 행이 걸러진다 — 기동 시 거부."""
+    _write_mapper_cfg(tmp_path, f"""
+        column_map:
+          TITLE: [제목]
+        text_fields: [TITLE]
+        {key}: TITLE
+    """)
+    with pytest.raises(ValueError, match="목록이어야"):
+        TabularCustomFieldsMapper(
+            config_file="custom_field_probe.yaml", resource_path=str(tmp_path),
+            doc_type="x", extractor="tabular_mapping",
+        )
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("key", ["constants", "defaults", "value_map", "transforms"])
+def test_list_instead_of_mapping_rejected_at_startup(tmp_path, key):
+    """맵이어야 하는 키를 리스트로 쓰면 dict() 강제 변환이 요청마다 터진다 — 기동 시 거부."""
+    _write_mapper_cfg(tmp_path, f"""
+        column_map:
+          TITLE: [제목]
+        text_fields: [TITLE]
+        {key}:
+          - X
+    """)
+    with pytest.raises(ValueError, match="object 여야"):
+        TabularCustomFieldsMapper(
+            config_file="custom_field_probe.yaml", resource_path=str(tmp_path),
+            doc_type="x", extractor="tabular_mapping",
+        )
+
+
+@pytest.mark.unit
+def test_required_on_llm_generated_field_rejected_at_startup(tmp_path):
+    """필수값 검사는 LLM 호출보다 먼저 돈다 — LLM 생성 필드를 required 로 걸면 전 행이 사라진다."""
+    _write_mapper_cfg(tmp_path, """
+        column_map:
+          TITLE: [제목]
+        required: [SUMMARY_TEXT]
+        text_fields: [TITLE]
+        llm_fields:
+          - output_fields: [SUMMARY_TEXT]
+            input_fields: [TITLE]
+            url: "http://example/v1/chat/completions"
+    """)
+    with pytest.raises(ValueError, match="llm_fields 가 만드는 필드"):
+        TabularCustomFieldsMapper(
+            config_file="custom_field_probe.yaml", resource_path=str(tmp_path),
+            doc_type="x", extractor="tabular_mapping",
+        )
+
+
+@pytest.mark.unit
+def test_unproducible_text_field_warns_but_loads(tmp_path, caplog):
+    """text_fields 가 만들 수 없는 필드를 가리키면 경고한다(실패는 아니다).
+
+    출고 custom_field_monimo_event.yaml 이 현재 이 상태라 hard error 로 두면 기동이 막힌다.
+    """
+    _write_mapper_cfg(tmp_path, """
+        column_map:
+          TITLE: [제목]
+        text_fields: [TITLE, SUMMARY_TEXT]
+    """)
+    with caplog.at_level("WARNING"):
+        TabularCustomFieldsMapper(
+            config_file="custom_field_probe.yaml", resource_path=str(tmp_path),
+            doc_type="x", extractor="tabular_mapping",
+        )
+    assert "SUMMARY_TEXT" in caplog.text
+
+
+@pytest.mark.unit
+def test_shipped_configs_pass_startup_validation():
+    """출고 매핑 설정은 새 검증을 모두 통과해야 한다(오탐 방지)."""
+    import yaml as _yaml
+    base = Path(__file__).resolve().parents[2] / "resource"
+    raw = _yaml.safe_load((base / "parser_processor_config.yaml").read_text(encoding="utf-8"))
+    built = 0
+    for item in raw.get("enrichment") or []:
+        for name, opts in (item or {}).items():
+            if name != "custom_fields" or not isinstance(opts, dict) or not opts.get("config_file"):
+                continue
+            extractor = opts.get("extractor") or "llm"
+            if extractor.startswith("tabular"):
+                cls = TabularCustomFieldsMapper
+            elif extractor.startswith("json"):
+                cls = pytest.importorskip(
+                    "genon.preprocessor.facade.enrichment.json_records"
+                ).JsonRecordsMapper
+            else:
+                continue
+            cls(config_file=opts["config_file"], resource_path=str(base),
+                doc_type=opts.get("doc_type"), extractor=extractor)
+            built += 1
+    assert built >= 10, f"검증 대상 매핑 설정이 너무 적다({built}개) — 등록을 확인하라"

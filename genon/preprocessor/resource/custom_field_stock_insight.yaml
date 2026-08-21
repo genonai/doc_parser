@@ -45,8 +45,8 @@ required:
   - JONG_CODE
   - ANALYSIS_DATE                  # NOT NULL — 값이 없으면 그 행을 적재하지 않는다
 
-defaults:
-  SEARCHABLE_YN: "N"
+# defaults:
+#   SEARCHABLE_YN: "N"
 
 nulls:
   - BIZ_ID

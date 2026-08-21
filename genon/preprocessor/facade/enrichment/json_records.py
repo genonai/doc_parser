@@ -45,7 +45,12 @@ from .custom_fields_enricher import (
     normalize_doc_types,
 )
 from .field_transforms import VALUE_TRANSFORMS
-from .tabular_custom_fields import apply_value_map, compile_value_map, normalize_column_name
+from .tabular_custom_fields import (
+    apply_value_map,
+    compile_value_map,
+    normalize_column_name,
+    validate_custom_field_config,
+)
 
 VALID_MISSING_POLICIES = ("error", "skip")
 
@@ -219,6 +224,9 @@ class JsonRecordsMapper:
             _log.warning(f"[json_records] Invalid missing_policy '{policy}', fallback to 'error'")
             policy = "error"
         self.missing_policy = policy
+
+        # 설정 오기입을 여기서 막는다(tabular 와 동일 기준).
+        validate_custom_field_config(cfg, label=f"json custom_fields({config_file})")
 
     # ── 설정 로딩 ────────────────────────────────────────────────────────────
     @staticmethod
