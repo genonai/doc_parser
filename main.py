@@ -7,6 +7,10 @@ import tempfile
 import traceback
 import time
 from pathlib import Path
+from urllib.parse import urlsplit
+
+import aiofiles
+import httpx
 
 BASE_DIR = Path(__file__).resolve().parent
 # Put preprocessor src ahead of /app/src to avoid collisions like common.settings.
@@ -34,6 +38,40 @@ logger = Logger.getLogger(__name__)
 
 app: FastAPI = FastAPI()
 cors_config(app)
+
+
+def _positive_int_env(name: str, default: int) -> int:
+    try:
+        value = int(os.getenv(name, str(default)))
+    except (TypeError, ValueError):
+        return default
+    return value if value > 0 else default
+
+
+def _positive_float_env(name: str, default: float) -> float:
+    try:
+        value = float(os.getenv(name, str(default)))
+    except (TypeError, ValueError):
+        return default
+    return value if value > 0 else default
+
+
+_DOWNLOAD_CHUNK_BYTES = 1024 * 1024
+_PRESIGNED_DOWNLOAD_MAX_BYTES = _positive_int_env(
+    'PRESIGNED_DOWNLOAD_MAX_BYTES', 100 * 1024 * 1024
+)
+_PRESIGNED_DOWNLOAD_TIMEOUT_SECONDS = _positive_float_env(
+    'PRESIGNED_DOWNLOAD_TIMEOUT_SECONDS', 60
+)
+_PRESIGNED_DOWNLOAD_TOTAL_TIMEOUT_SECONDS = _positive_float_env(
+    'PRESIGNED_DOWNLOAD_TOTAL_TIMEOUT_SECONDS', 120
+)
+_PRESIGNED_DOWNLOAD_MAX_CONCURRENCY = _positive_int_env(
+    'PRESIGNED_DOWNLOAD_MAX_CONCURRENCY', 2
+)
+_PRESIGNED_DOWNLOAD_SEMAPHORE = asyncio.Semaphore(
+    _PRESIGNED_DOWNLOAD_MAX_CONCURRENCY
+)
 
 
 # ── 에러 응답 ────────────────────────────────────────────────────────────
@@ -199,6 +237,126 @@ async def _run(tag, processor, request, file_path, params, marker=None):
         logger.info(f'[{tag}] End: "{file_path}" ({time.time() - pt:.2f} seconds)')
 
 
+def _validate_presigned_url(presigned_url: str) -> None:
+    """다운로드 가능한 URL인지 검사한다. URL은 서명값 보호를 위해 로그에 남기지 않는다."""
+    if not presigned_url or len(presigned_url) > 8192:
+        raise ValueError('presigned_url 이 비어있거나 너무 깁니다.')
+    try:
+        parsed = urlsplit(presigned_url)
+        hostname = parsed.hostname
+    except ValueError as exc:
+        raise ValueError('presigned_url 형식이 올바르지 않습니다.') from exc
+    if parsed.scheme not in {'http', 'https'} or not hostname:
+        raise ValueError('presigned_url 은 http 또는 https URL이어야 합니다.')
+    if parsed.username is not None or parsed.password is not None:
+        raise ValueError('presigned_url 에 사용자 인증정보를 포함할 수 없습니다.')
+
+    # 운영 환경에서 설정하면 임의 외부 URL 호출(SSRF)을 차단한다.
+    allowed_hosts = {
+        item.strip().lower()
+        for item in os.getenv('PRESIGNED_URL_ALLOWED_HOSTS', '').split(',')
+        if item.strip()
+    }
+    if allowed_hosts:
+        hostname = hostname.lower()
+        allowed = hostname in allowed_hosts or any(
+            pattern.startswith('*.')
+            and hostname.endswith(pattern[1:])
+            and hostname != pattern[2:]
+            for pattern in allowed_hosts
+        )
+        if not allowed:
+            raise ValueError('허용되지 않은 presigned URL 호스트입니다.')
+
+
+class PresignedDownloadTimeout(TimeoutError):
+    """presigned URL 다운로드 단계의 timeout."""
+
+
+async def _download_presigned_file(presigned_url: str, destination: str) -> int:
+    """presigned URL을 destination에 스트리밍 저장하고 다운로드 크기를 반환한다."""
+    _validate_presigned_url(presigned_url)
+    max_bytes = _PRESIGNED_DOWNLOAD_MAX_BYTES
+    downloaded_bytes = 0
+    timeout = httpx.Timeout(_PRESIGNED_DOWNLOAD_TIMEOUT_SECONDS)
+
+    try:
+        async with httpx.AsyncClient(
+                timeout=timeout,
+                follow_redirects=False,
+                trust_env=False,
+        ) as client:
+            async with client.stream('GET', presigned_url) as response:
+                if 300 <= response.status_code < 400:
+                    raise ValueError('presigned URL redirect는 허용되지 않습니다.')
+                if 400 <= response.status_code < 500:
+                    raise ValueError(
+                        f'presigned URL 다운로드가 거부되었습니다(status={response.status_code}).'
+                    )
+                if response.status_code >= 500:
+                    raise RuntimeError(
+                        f'presigned URL 원격 서버 오류(status={response.status_code}).'
+                    )
+
+                content_length = response.headers.get('content-length')
+                try:
+                    declared_size = int(content_length) if content_length else None
+                except ValueError:
+                    declared_size = None
+                if declared_size is not None and declared_size > max_bytes:
+                    raise ValueError(
+                        f'파일이 다운로드 제한({max_bytes} bytes)을 초과합니다.'
+                    )
+
+                async with aiofiles.open(destination, 'wb') as target:
+                    async for chunk in response.aiter_bytes(
+                            chunk_size=_DOWNLOAD_CHUNK_BYTES):
+                        if not chunk:
+                            continue
+                        downloaded_bytes += len(chunk)
+                        if downloaded_bytes > max_bytes:
+                            raise ValueError(
+                                f'파일이 다운로드 제한({max_bytes} bytes)을 초과합니다.'
+                            )
+                        await target.write(chunk)
+    except httpx.TimeoutException as exc:
+        raise PresignedDownloadTimeout(
+            'presigned URL 연결 또는 데이터 수신 제한 시간을 초과했습니다.'
+        ) from exc
+    except httpx.RequestError as exc:
+        raise RuntimeError(
+            f'presigned URL 다운로드에 실패했습니다({type(exc).__name__}).'
+        ) from exc
+
+    if downloaded_bytes == 0:
+        raise ValueError('다운로드한 파일이 비어있습니다.')
+    return downloaded_bytes
+
+
+async def _download_presigned_file_with_limits(
+        presigned_url: str,
+        destination: str,
+) -> int:
+    """동시성 슬롯 대기부터 다운로드 완료까지 total deadline을 적용한다."""
+
+    async def _run_download() -> int:
+        async with _PRESIGNED_DOWNLOAD_SEMAPHORE:
+            return await _download_presigned_file(presigned_url, destination)
+
+    try:
+        return await asyncio.wait_for(
+            _run_download(),
+            timeout=_PRESIGNED_DOWNLOAD_TOTAL_TIMEOUT_SECONDS,
+        )
+    except PresignedDownloadTimeout:
+        raise
+    except asyncio.TimeoutError as exc:
+        seconds = _PRESIGNED_DOWNLOAD_TOTAL_TIMEOUT_SECONDS
+        raise PresignedDownloadTimeout(
+            f'presigned URL 전체 다운로드 제한 시간({seconds:g}초)을 초과했습니다.'
+        ) from exc
+
+
 # ── 적재 프로세서: 프로세서별 별도 엔드포인트 ──────────────────────────────
 # /preprocess 는 하위호환을 위해 intelligent 의 별칭으로 유지한다.
 
@@ -222,6 +380,109 @@ async def preprocess_attachment(
         params: dict = Body(default_factory=dict)
 ):
     return await _run('preprocess_attachment', attachment_processor, request, file_path, params)
+
+
+# /preprocess_attachment 의 presigned URL 변형: 원격 파일을 임시 경로에 스트리밍 저장한 뒤
+# 동일한 attachment_processor 를 호출하므로 파싱·청킹·벡터 메타 생성 결과가 동일하다.
+@app.post('/preprocess_attachment_url')
+async def preprocess_attachment_url(
+        request: Request,
+        presigned_url: str = Body(..., embed=True),
+        file_name: str = Body(..., embed=True),
+        params: dict = Body(default_factory=dict),
+):
+    try:
+        if not isinstance(params, dict):
+            raise ValueError('params 는 JSON 객체여야 합니다.')
+        safe_name = os.path.basename(file_name or '')
+        if not safe_name or safe_name in {'.', '..'}:
+            raise ValueError('file_name 이 비어있습니다.')
+        if len(safe_name.encode('utf-8')) > 255:
+            raise ValueError('file_name 이 너무 깁니다.')
+        if not os.path.splitext(safe_name)[1]:
+            raise ValueError('file_name 에 파일 확장자가 필요합니다.')
+    except (ValueError, TypeError) as e:
+        return _error_response(
+            'preprocess_attachment_url',
+            os.path.basename(file_name or ''),
+            e,
+            error_code=ERROR_CODE_INPUT,
+        )
+
+    tmp_dir = tempfile.mkdtemp(prefix='attachment_url_')
+    tmp_path = os.path.join(tmp_dir, safe_name)
+
+    async def _download_and_preprocess():
+        downloaded_bytes = await _download_presigned_file_with_limits(
+            presigned_url,
+            tmp_path,
+        )
+        logger.info(
+            f'[preprocess_attachment_url] Downloaded: "{safe_name}" '
+            f'({downloaded_bytes} bytes)'
+        )
+        return await _run(
+            'preprocess_attachment_url',
+            attachment_processor,
+            request,
+            tmp_path,
+            params,
+        )
+
+    try:
+        # 기존 _run 내부 deadline은 processor 구간만 감싼다. URL 엔드포인트에서는
+        # 동일한 deadline으로 다운로드 시작부터 processor 완료까지 전체 요청을 제한한다.
+        request_deadline = _request_deadline_seconds(params)
+        if request_deadline is None:
+            return await _download_and_preprocess()
+        return await asyncio.wait_for(
+            _download_and_preprocess(),
+            timeout=request_deadline,
+        )
+    except PresignedDownloadTimeout as e:
+        logger.error(
+            f'[preprocess_attachment_url] Download timeout: "{safe_name}" '
+            f'({e})'
+        )
+        return _error_response(
+            'preprocess_attachment_url',
+            safe_name,
+            e,
+            error_code=ERROR_CODE_TIMEOUT,
+            stage='download',
+        )
+    except asyncio.TimeoutError:
+        seconds = _request_deadline_seconds(params)
+        timeout_error = TimeoutError(
+            f'전체 요청 제한 시간({seconds:g}초)을 초과했습니다.'
+            if seconds is not None
+            else '전체 요청 제한 시간을 초과했습니다.'
+        )
+        logger.error(
+            f'[preprocess_attachment_url] Request timeout: "{safe_name}" '
+            f'({timeout_error})'
+        )
+        return _error_response(
+            'preprocess_attachment_url',
+            safe_name,
+            timeout_error,
+            error_code=ERROR_CODE_TIMEOUT,
+            stage='request',
+        )
+    except Exception as e:
+        logger.error(
+            f'[preprocess_attachment_url] Error processing downloaded file: '
+            f'"{safe_name}"\n'
+            f'{traceback.format_exc()}\n'
+        )
+        return _error_response(
+            'preprocess_attachment_url',
+            safe_name,
+            e,
+            stage='download',
+        )
+    finally:
+        shutil.rmtree(tmp_dir, ignore_errors=True)
 
 
 @app.post('/preprocess_intelligent')
