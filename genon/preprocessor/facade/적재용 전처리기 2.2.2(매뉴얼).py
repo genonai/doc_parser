@@ -136,7 +136,12 @@ def _looks_like_text(head: bytes) -> bool:
 
 
 def _is_encrypted_pdf(file_path: str) -> bool:
-    """PDF /Encrypt(비밀번호/DRM 암호화) 여부. ISO 32000 기준, pypdf is_encrypted 사용."""
+    """PDF /Encrypt(비밀번호/DRM 암호화) 여부. ISO 32000 기준, pypdf 사용.
+
+    is_encrypted 플래그만 보면 owner-password-only(빈 user password) PDF까지
+    "암호화됨"으로 오판한다. 빈 문자열 복호화를 시도해, 실제로 콘텐츠 접근이
+    불가한 경우(NOT_DECRYPTED)만 True로 판정한다.
+    """
     try:
         from pypdf import PdfReader, PasswordType
 
@@ -144,7 +149,7 @@ def _is_encrypted_pdf(file_path: str) -> bool:
         reader = PdfReader(file_path)
         if not reader.is_encrypted:
             return False
-        return reader.decrpyt("") == PasswordType.NOT_DECRYPTED
+        return reader.decrypt("") == PasswordType.NOT_DECRYPTED
     except Exception:
         return False  # 파싱 실패는 여기서 단정 안 함(후속 단계에서 처리)
 
@@ -1826,7 +1831,6 @@ class GenosSmartChunker(BaseChunker):
                             group_h_infos.append(g[1])
                             group_h_short.append(g[2])
 
-                    # @@@@ 성민:
                     # 단일 표 아이템은 아이템 경계 분할로는 더 못 줄어드므로(n=1),
                     # 자체가 max_tokens 를 넘으면 row 단위로 서브 분할한다.
                     if len(group_items) == 1 and isinstance(group_items[0], TableItem):
@@ -2894,6 +2898,11 @@ class DocumentProcessor:
         chunk_index_on_page = 0
         vectors = []
         upload_tasks = []
+        # 동일 이미지(PictureItem)가 인접 청크에 중복 참조되는 경우가 있어
+        # (헤더/캡션이 청크 경계에 걸치거나 merge_small_chunks 로 병합될 때),
+        # 중복 업로드를 막지 않으면 먼저 끝난 업로드가 원본 파일을 지운 뒤
+        # 나중 업로드가 열려다 FileNotFoundError 로 실패한다 (image_000041... 에러).
+        uploaded_media_paths: set[str] = set()
         for chunk_idx, chunk in enumerate(chunks):
             chunk_page = chunk.meta.doc_items[0].prov[0].page_no if chunk.meta.doc_items[0].prov else 0
             # header 앞에 헤더 마커 추가 (HEADER: )
@@ -2925,7 +2934,11 @@ class DocumentProcessor:
             chunk_index_on_page += 1
             if upload_files:
                 file_list = self.get_media_files(chunk.meta.doc_items, include_tables=self.table_image_enabled)
-                upload_tasks.append(asyncio.create_task(upload_files(file_list, request=request)))
+                # 이미 업로드 스케줄된 경로는 제외 (중복 업로드 방지)
+                file_list = [f for f in file_list if f["path"] not in uploaded_media_paths]
+                if file_list:
+                    uploaded_media_paths.update(f["path"] for f in file_list)
+                    upload_tasks.append(asyncio.create_task(upload_files(file_list, request=request)))
 
         if upload_tasks:
             await asyncio.gather(*upload_tasks)
