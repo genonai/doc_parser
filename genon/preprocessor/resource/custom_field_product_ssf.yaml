@@ -24,6 +24,19 @@
 #
 # 이 파일 하나로 자족한다 — 프롬프트가 아래에 인라인되어 있어 별도 md 파일이 없다.
 
+# ── Markdown 원천 전처리 ─────────────────────────────────────────────────────
+markdown:
+  front_matter:
+    metadata_fields:
+      document_type: document_type
+      source_file: source_file
+      source_pages: source_pages
+      author: author
+      created_at: created_date
+    exclude_text_fields: ["*"]
+    # metadata_fields 는 적재 필수값이라 front matter 가 없는 md 는 조용히 넘기지 않는다.
+    on_missing: warn
+
 # ── LLM 연결 ────────────────────────────────────────────────────────────────
 # <ENRICHMENT_SERVING_ID>: Genos에 등록한 모델서빙 ID로 변경 필요. api_key 도 배포 시 설정.
 url: "http://llmops-gateway-api-service:8080/rep/serving/<ENRICHMENT_SERVING_ID>/v1/chat/completions"

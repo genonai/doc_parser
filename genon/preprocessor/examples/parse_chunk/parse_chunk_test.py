@@ -15,7 +15,7 @@ facade 의 DocumentProcessor 를 직접 import 해 호출하므로 uvicorn/게�
       2) 원본 소스 문서 JSON(위 형태가 아닌 임의 데이터 JSON) → 파서로 파싱(raw text)→청킹
          - 프로덕션 파서와 동일하게 TextLoader 로 파싱. 모델서버 불필요.
 
-    # 비-docling 포맷(csv/xlsx/txt/md/ppt/pptx/이미지/오디오 등) → 파싱(parse-format)→공통 청킹
+    # 비-docling 포맷(csv/xlsx/txt/ppt/pptx/이미지/오디오 등) → 파싱(parse-format)→공통 청킹
     python parse_chunk_test.py <input.csv|dir> <output_dir> [--chunk-size N]
       - parser 가 docling 을 못 만드는 포맷은 {"elements":[...]} parse-format 을 반환하고,
         chunker 가 이를 legacy(attachment) 와 동일하게 공통 청킹한다.
@@ -47,11 +47,11 @@ from genon.preprocessor.facade.chunking_processor import (
 
 mock_request = Request(scope={"type": "http"})
 
-# 파싱 경로(docling) 확장자 + docling JSON 입력
-PARSE_EXTENSIONS = {".pdf", ".docx", ".hwp", ".hwpx", ".html", ".htm"}
+# 파싱 경로(docling) 확장자 + docling JSON 입력. md는 MarkdownDocumentBackend를 사용한다.
+PARSE_EXTENSIONS = {".pdf", ".docx", ".hwp", ".hwpx", ".html", ".htm", ".md"}
 # parser 가 docling 을 못 만드는 포맷 → parse-format({"elements":[...]}) → 공통 청킹
 NONDOCLING_EXTENSIONS = {
-    ".csv", ".xlsx", ".txt", ".md", ".ppt", ".pptx", ".doc",
+    ".csv", ".xlsx", ".txt", ".ppt", ".pptx", ".doc",
     ".jpg", ".jpeg", ".png", ".wav", ".mp3", ".m4a",
 }
 SUPPORTED_EXTENSIONS = PARSE_EXTENSIONS | NONDOCLING_EXTENSIONS | {".json"}
@@ -186,8 +186,8 @@ def parse_args():
     ap = argparse.ArgumentParser(description="in-process 파싱→청킹 테스트(docling + parse-format 공통)")
     ap.add_argument(
         "input_path",
-        help="입력 파일/디렉터리 (docling: PDF/DOCX/HWP/HWPX/HTML | "
-             "parse-format: CSV/XLSX/TXT/MD/PPT/PPTX/이미지/오디오 | "
+        help="입력 파일/디렉터리 (docling: PDF/DOCX/HWP/HWPX/HTML/MD | "
+             "parse-format: CSV/XLSX/TXT/PPT/PPTX/이미지/오디오 | "
              ".json: 파서 출력물이면 청킹만, 원본 소스 문서면 파싱→청킹 자동 판별)",
     )
     ap.add_argument("output_dir", help="결과 저장 디렉터리")

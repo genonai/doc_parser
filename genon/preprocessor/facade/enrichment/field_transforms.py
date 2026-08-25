@@ -26,6 +26,9 @@ _log = logging.getLogger(__name__)
 # null 값을 KeyValueItem 으로 왕복하기 위한 sentinel. 빈 값 셀은 extract 에서 skip 되어
 # key/value 페어링을 깨므로, None 을 비지 않는 이 토큰으로 저장하고 읽을 때 다시 None 으로 복원한다.
 NULL_SENTINEL = "\x00__CF_NULL__\x00"
+# 문자열 "9"와 정수 9를 구분하면서 parse→chunk API 경계를 왕복하기 위한 표식.
+# 표식 없는 기존 KeyValueItem은 종전 normalize_metadata_value 규칙으로 계속 읽는다.
+JSON_VALUE_SENTINEL = "\x00__CF_JSON__\x00"
 
 
 # 추출 메타데이터 → typed 벡터 필드 변환의 기본값.
@@ -326,7 +329,8 @@ def extract_metadata_from_document(document: "DoclingDocument") -> dict[str, Any
                 continue
             if label == "value" and pending_key:
                 metadata[pending_key] = (
-                    None if text == NULL_SENTINEL else normalize_metadata_value(text)
+                    None if text == NULL_SENTINEL
+                    else _deserialize_stored_metadata_value(text)
                 )
                 pending_key = None
                 continue
@@ -335,10 +339,23 @@ def extract_metadata_from_document(document: "DoclingDocument") -> dict[str, Any
                 pending_key = text
             else:
                 metadata[pending_key] = (
-                    None if text == NULL_SENTINEL else normalize_metadata_value(text)
+                    None if text == NULL_SENTINEL
+                    else _deserialize_stored_metadata_value(text)
                 )
                 pending_key = None
     return metadata
+
+
+def _deserialize_stored_metadata_value(text: str) -> Any:
+    """새 typed 표식과 기존 무표식 metadata를 모두 읽는다."""
+    if text.startswith(JSON_VALUE_SENTINEL):
+        candidate = text[len(JSON_VALUE_SENTINEL):]
+        try:
+            return json.loads(candidate)
+        except Exception:
+            _log.warning("typed metadata JSON 복원 실패 — 문자열로 유지")
+            return candidate
+    return normalize_metadata_value(text)
 
 
 def serialize_metadata_value_for_output(value: Any) -> Any:
@@ -349,7 +366,10 @@ def serialize_metadata_value_for_output(value: Any) -> Any:
 
 
 def store_metadata_in_document(
-    document: "DoclingDocument", metadata: dict, preserve_nulls: bool = False
+    document: "DoclingDocument",
+    metadata: dict,
+    preserve_nulls: bool = False,
+    typed_keys: "set[str] | None" = None,
 ) -> None:
     """추출한 key→value 메타데이터를 문서의 KeyValueItem 으로 저장한다.
 
@@ -364,7 +384,17 @@ def store_metadata_in_document(
       null 은 애초에 emit 하지 않는다.
     - preserve_nulls=True(custom_fields): 선언된 output_fields 를 값이 null 이어도 결과에
       모두 남기기 위해, None 을 비지 않는 NULL_SENTINEL 로 저장한다(읽을 때 다시 None 으로 복원).
+
+    typed_keys: 값의 **타입까지** chunk API 경계 너머로 보존할 키 집합(예: md front matter 의
+        `source_pages: 9`). 여기 든 키만 JSON_VALUE_SENTINEL 로 직렬화되어 읽을 때 int/bool/
+        list 원형으로 복원된다.
+        **의도적으로 opt-in 이다** — 전 필드에 적용하면 문서 단위 custom_fields 를 쓰는 모든
+        doc_type 의 청크 property 타입이 함께 바뀐다(실측: card 의 annual_fee_amount 가
+        '18000' → 18000). 이미 text 로 생성된 벡터 컬렉션 property 에 int 가 들어가면 적재가
+        깨지므로, 기존 doc_type 은 종전 직렬화 규칙(dict/list → json.dumps, 그 외 → str)을
+        그대로 유지한다.
     """
+    typed_keys = typed_keys or set()
     try:
         from docling_core.types.doc.document import GraphData, GraphCell, GraphCellLabel
     except ImportError:
@@ -378,7 +408,17 @@ def store_metadata_in_document(
             if not preserve_nulls:
                 continue  # null 필드는 저장하지 않음(빈 value 셀 skip → 페어링 붕괴 방지)
             value_str = NULL_SENTINEL  # 페어링을 깨지 않는 sentinel 로 왕복
+        elif isinstance(value, str):
+            value_str = value
+        elif key in typed_keys:
+            # 숫자/bool/배열/객체의 타입을 별도 chunk API 까지 보존한다. JSON 직렬화가
+            # 불가능한 사용자 객체는 기존 동작처럼 문자열로 안전하게 내린다.
+            try:
+                value_str = JSON_VALUE_SENTINEL + json.dumps(value, ensure_ascii=False)
+            except (TypeError, ValueError):
+                value_str = str(value)
         else:
+            # 기존 규칙(하위 호환): dict/list 는 표식 없는 JSON, 그 외는 문자열.
             value_str = (
                 json.dumps(value, ensure_ascii=False)
                 if isinstance(value, (dict, list))

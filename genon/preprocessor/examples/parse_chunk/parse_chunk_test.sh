@@ -85,6 +85,14 @@ for case in "${MONIMO_CASES[@]}"; do
   "${PYTHON}" parse_chunk_test.py --doc_type "${dt}" "${src}" "${OUT}/" \
     || echo "[FAIL] doc_type=${dt} ${src}"
 done
+# ── Markdown front matter → 청크 metadata / text 제외 확인 ───────────────────
+# product_slf/product_ssf 설정은 document_type/source_file/source_pages/author/created_at만
+# 청크 metadata로 승격하고 front matter 전체는 text에서 제거한다. LLM 연결이 실패해도 이 직접
+# 추출 필드와 constants는 유지된다(error_policy 기본 lenient).
+# "${PYTHON}" parse_chunk_test.py --doc_type product_slf \
+#   "${MONIMO}/monimo_product_slf_sample.md" "${OUT}/front_matter/"
+# "${PYTHON}" -c \
+#   "import json; p='${OUT}/front_matter/monimo_product_slf_sample.chunks.json'; d=json.load(open(p)); print(len(d), d[0]['source_file'], d[0]['source_pages'], d[0]['created_date']); assert all('conversion_note:' not in c['text'] and 'source_file:' not in c['text'] for c in d)"
 
 # 기존 카드 데모(회귀 확인용)
 "${PYTHON}" parse_chunk_test.py --doc_type card "/Users/shkim/_shkim/01.source/doc_parser/shkim_labs/20260803_monimo/01_card/card01.flat.html" result_parse_chunk/

@@ -115,7 +115,7 @@ defaults:
   log_level: 4
 
 # ───────────────────────────────────────────────
-# 포맷별 처리 옵션 (xlsx/csv — "지원 파일 형식 > CSV / XLSX" 참고)
+# 포맷별 처리 옵션 (xlsx/csv — "지원 파일 형식 > CSV / XLSX", md — "지원 파일 형식 > Markdown" 참고)
 # ───────────────────────────────────────────────
 formats:
   xlsx:
@@ -123,6 +123,8 @@ formats:
     tabular:                      # tabular 모드에서만 사용
       header_row: 0               # 0=자동판정 | >0=단일헤더 강제
       multi_table: false          # true 면 1시트 복수표(빈 행 분리) 분리
+  md:
+    processing_mode: "docling"    # "docling"(default) | "text"(레거시 TextLoader)
 
 # ───────────────────────────────────────────────
 # OCR 설정 (PDF 파이프라인에서 사용)
@@ -567,6 +569,13 @@ metadata:
 - **외부 config:** `config_file: "이름.yaml"`로 분리할 수 있습니다. 상대 경로는 config 파일과 동일한 디렉터리(resource_path) 기준으로 해석됩니다. 외부 파일에도 `system_prompt_file`/`user_prompt_file`(또는 `system_prompt`/`user_prompt`, `prompt.system`/`prompt.user`)/`url`/`model`/`output_fields`/`parser`/`pages` 등을 둘 수 있으며, 항목에 직접 지정한 값이 외부 config보다 우선합니다. `*_file` 경로는 외부 config 파일이 위치한 디렉터리 기준으로 해석됩니다.
 - `parser.type`은 `json`(기본값) 또는 `python`(외부 파일 위임)을 지원합니다.
 
+**입력 포맷별 전처리 블록** — LLM 호출 설정과 별개로, 항목(또는 `config_file`) 안에 입력 포맷 전처리를 함께 선언할 수 있습니다. 이 두 블록은 enricher 생성자로 넘어가지 않고 파서가 소비합니다.
+
+| 블록 | 대상 | 설명 |
+|------|------|------|
+| `json:` | `.json` 입력 | 본문 텍스트(markdown/html)가 담긴 key 이름 목록. [기타 포맷](#기타-포맷-doc-ppt-pptx-txt-json-md-jpg-jpeg-png) 참고 |
+| `markdown.front_matter:` | `.md` 입력 | YAML front matter 를 청크 metadata 로 승격 / 청크 텍스트에서 제외. [Markdown](#markdown-md) 참고 |
+
 #### 프롬프트 파일 분리 & 변수 치환
 
 enrichment 프롬프트는 YAML 안에 inline 으로 박지 않고 **별도 `.md` 파일**로 분리합니다. 운영 시 프롬프트만 교체하기 쉽고, 두 전처리기(parser/intelligent/convert)가 동일 프롬프트를 공유할 때 파일 경로 한 줄만 같게 두면 됩니다.
@@ -846,6 +855,63 @@ GenosHwpDocumentBackend  →  HwpDocumentBackend/HwpxDocumentBackend  →  Libre
 > 셀 값이 덮어쓰거나 타입 검증에 걸려 청킹이 실패하는 것을 막기 위함입니다.
 >
 > 정확히 같은 이름의 컬럼(중복 헤더)이 있으면 parser 는 명시적으로 오류를 냅니다(적재용 직접처리 경로는 `_2` suffix 로 통과 — 경로별 차이).
+
+---
+
+### Markdown (.md)
+
+`.md` 는 `formats.md.processing_mode` 로 처리 방식을 선택합니다.
+
+```yaml
+formats:
+  md:
+    # docling (기본): MarkdownDocumentBackend 로 파싱해 heading/표 구조를 유지하고 enrichment 적용
+    # text          : 레거시 TextLoader 경로(구조 없음, enrichment 미적용)
+    processing_mode: docling
+```
+
+- **docling (기본)** — 모델서버 없이 로컬 백엔드로 `DoclingDocument` 를 만듭니다. heading 계층이 살아 있어 청커가 섹션 단위로 나누고, 후처리 enrichment(`custom_fields` 등)가 적용됩니다. 상품설명서(md) 같은 `doc_type` 이 `custom_fields` 를 쓰려면 이 모드여야 합니다 — 레거시 TextLoader 경로에는 enrichment 훅이 없습니다.
+- **text** — 아래 [기타 포맷](#기타-포맷-doc-ppt-pptx-txt-json-md-jpg-jpeg-png) 의 `TextLoader` 경로로 빠집니다(기존 동작).
+
+#### YAML front matter 처리 (`custom_fields.markdown.front_matter`)
+
+docling 의 Markdown 백엔드는 `---` 로 감싼 front matter 를 **일반 본문 텍스트**로 읽습니다. 그대로 두면 front matter 만으로 이루어진 청크가 하나 생겨(실측 283자) 검색 노이즈가 됩니다. `custom_fields` 항목의 `markdown.front_matter` 블록으로 **청크 metadata 로 승격할 키**와 **청크 텍스트에서 제외할 키**를 서로 독립적으로 선택합니다(`json:` 블록과 같은 위치·같은 방식).
+
+기본값은 `config_file` 이 가리키는 doc_type yaml 에 두고, 상위 `custom_fields` 항목에 같은 블록을 쓰면 재귀 병합으로 덮어씁니다. 상위에서 `markdown: false` 또는 `front_matter: false` 로 명시적으로 끌 수 있습니다.
+
+```yaml
+# custom_field_product_slf.yaml
+markdown:
+  front_matter:
+    metadata_fields:            # 원천키: 목표필드 (list 로 쓰면 이름 그대로 승격)
+      document_type: document_type
+      source_file: source_file
+      source_pages: source_pages
+      author: author
+      created_at: created_date  # 청커 date_int transform 이 YYYYMMDD 정수로 변환
+    exclude_text_fields: ["*"]  # "*" = front matter 전체를 청크 텍스트에서 제외
+    on_missing: warn            # ignore(기본) | warn | error — front matter 자체가 없을 때
+    on_invalid: ignore          # ignore(기본) | warn | error — 읽기/YAML 파싱 실패
+    max_bytes: 65536            # front matter YAML 크기 상한(기본 64KB)
+```
+
+| 키 | 기본값 | 설명 |
+|----|--------|------|
+| `metadata_fields` | — | 청크 metadata 로 승격할 키. `{원천키: 목표필드}` 매핑 또는 이름 목록(list). 목표필드가 벡터 예약 필드(`title`/`text`/`i_page`/`doc_type` 등)와 겹치면 **기동 시** 실패합니다 |
+| `exclude_text_fields` | `[]` | 청크 텍스트에서 뺄 원천키 목록. `"*"` 는 전체 제외. 일부만 빼면 남은 키로 front matter 블록을 다시 씁니다 |
+| `on_missing` / `on_invalid` | `ignore` | front matter 부재 / 파싱 실패 시 정책 |
+| `max_bytes` | `65536` | front matter YAML 크기 상한 |
+
+동작 규칙:
+
+- **승격과 제외는 독립**입니다 — 승격하면서 본문에 남길 수도, 승격 없이 빼기만 할 수도 있습니다.
+- **본문에서 뺀 front matter 도 LLM 프롬프트에는 그대로 실립니다.** `PRODUCT_C` 처럼 근거가 front matter 에만 있는 추출 필드가 있기 때문입니다.
+- **front matter 값이 LLM 추출값보다 우선**합니다(구조화 원천이 추론값보다 신뢰도가 높음). 다만 config 의 `constants` 는 front matter 보다도 우선합니다.
+- `created_at → created_date` 매핑은 청커의 기본 metadata transform(`type: date_int`)을 타고 `20260112` 같은 정수 벡터 필드가 됩니다. **명시 매핑이 없으면 front matter 를 본문에서 뺀 순간 `created_date` 가 0 이 됩니다** — 기존에는 본문 스캔 fallback 이 front matter 의 날짜를 우연히 주워 왔기 때문입니다.
+- `source_pages: 9` 처럼 숫자/불리언/배열인 front matter 값은 **타입 그대로** 청크 property 가 됩니다. 이 타입 보존은 front matter 유래 키에만 적용되며, 다른 `custom_fields` 출력 필드는 종전 직렬화 규칙을 유지합니다(기존 컬렉션의 property 타입 호환).
+- front matter 를 제외한 파생 md 는 **임시 파일로만** 존재하며 원본 파일명을 유지합니다(docling `origin.filename` 보존, 이미지 artifacts 경로도 원본 기준).
+
+> 이 처리는 **`/parse` → `/chunk` 워크플로 전용**입니다. `intelligent`(`/run`) · `convert` 는 `formats.md` 설정 자체가 없어 `.md` 를 docling 으로 파싱하지 않습니다(PDF 변환 경로).
 
 ---
 

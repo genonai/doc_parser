@@ -66,6 +66,44 @@ def custom_fields_extractor(config: dict) -> str:
     return str((config or {}).get("extractor") or "llm").strip().lower()
 
 
+def resolve_custom_fields_config_path(
+    config_file: str, resource_path: str | None = None
+) -> Path:
+    """custom_fields 하위 config 경로를 기존 규칙대로 해석한다."""
+    cfg_path = Path(config_file)
+    if cfg_path.is_absolute():
+        return cfg_path
+    if cfg_path.suffix in {".yaml", ".yml"} or len(cfg_path.parts) > 1:
+        return (Path(resource_path) / cfg_path).resolve() if resource_path else cfg_path
+    if resource_path:
+        candidate = (Path(resource_path) / f"{config_file}.yaml").resolve()
+        if candidate.exists():
+            return candidate
+    return _CONFIG_DIR / f"{config_file}.yaml"
+
+
+def load_custom_fields_config(
+    config_file: str, resource_path: str | None = None
+) -> dict:
+    """custom_fields 하위 YAML을 로드한다.
+
+    LLM enricher와 Markdown 전처리가 같은 파일 및 경로 해석 규칙을 공유하도록
+    module-level 함수로 둔다.
+    """
+    if not config_file:
+        return {}
+    path = resolve_custom_fields_config_path(config_file, resource_path)
+    if not path.exists():
+        raise FileNotFoundError(f"custom_fields config 없음: {path}")
+    loaded = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    if not isinstance(loaded, dict):
+        raise ValueError(
+            f"custom_fields config는 mapping이어야 합니다: {path} "
+            f"({type(loaded).__name__})"
+        )
+    return loaded
+
+
 # ── llm_fields (행/레코드 단위 LLM 생성 필드) ────────────────────────────────
 # tabular_mapping(Excel 행)과 json_mapping(JSON 레코드)이 공유하는 선언 스펙이다.
 # 두 mapper 모두 이 모듈을 import 하므로 여기가 공통 상위 지점이다
@@ -151,7 +189,8 @@ def build_llm_field_specs(cfg: dict) -> list["LlmFieldSpec"]:
 # CustomFieldsEnricher 생성자는 **kwargs 를 받지 않으므로, 여기서 제외하지 않으면
 # 설정에 이 키를 넣는 순간 TypeError 가 난다.
 #   - json: .json 입력에서 본문 텍스트를 꺼낼 key 목록 (parser 의 DocumentProcessor 가 소비)
-_NON_ENRICHER_KEYS = ("json",)
+#   - markdown: .md front matter 분리/선택 규칙 (parser 의 DocumentProcessor 가 소비)
+_NON_ENRICHER_KEYS = ("json", "markdown")
 
 
 def _enricher_kwargs(config: dict) -> dict:
@@ -276,28 +315,7 @@ class CustomFieldsEnricher(BaseEnricher):
         return ""
 
     def _load_config(self, config_file: str, resource_path: str | None = None) -> dict:
-        if not config_file:
-            return {}
-        cfg_path = Path(config_file)
-        if cfg_path.is_absolute():
-            path = cfg_path
-        elif cfg_path.suffix in {".yaml", ".yml"} or len(cfg_path.parts) > 1:
-            if resource_path:
-                path = (Path(resource_path) / cfg_path).resolve()
-            else:
-                path = cfg_path
-        else:
-            if resource_path:
-                candidate = (Path(resource_path) / f"{config_file}.yaml").resolve()
-                if candidate.exists():
-                    path = candidate
-                else:
-                    path = _CONFIG_DIR / f"{config_file}.yaml"
-            else:
-                path = _CONFIG_DIR / f"{config_file}.yaml"
-        if not path.exists():
-            raise FileNotFoundError(f"custom_fields config 없음: {path}")
-        return yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+        return load_custom_fields_config(config_file, resource_path)
 
     @staticmethod
     def _resolve_parser_base_dir(config_file: str, resource_path: str | None) -> Path:
@@ -475,13 +493,29 @@ class CustomFieldsEnricher(BaseEnricher):
             raise TypeError("custom_fields parser 결과는 dict 이어야 합니다.")
         return parsed
 
-    def _normalize_output_fields(self, parsed: dict) -> dict:
+    def _normalize_output_fields(
+        self, parsed: dict, structured_fields: dict | None = None
+    ) -> dict:
         normalized = (
             parsed if not self._output_fields
             else {key: parsed.get(key) for key in self._output_fields}
         )
+        # YAML front matter처럼 이미 구조화된 원천값은 LLM 추론값보다 신뢰도가 높다.
+        # output_fields 밖의 필드도 사용자가 metadata_fields로 명시한 것이므로 보존한다.
+        if structured_fields:
+            overridden = sorted(
+                key for key, value in structured_fields.items()
+                if key in normalized
+                and normalized.get(key) not in (None, "")
+                and value != normalized.get(key)
+            )
+            if overridden:
+                _log.warning(
+                    "custom_fields 구조화 원천값이 LLM 결과를 덮어씁니다: %s", overridden
+                )
+            normalized = {**normalized, **structured_fields}
         # 상수는 LLM 응답보다 우선한다 — 고정값이라고 선언한 이상 모델이 뭘 내놓든 그 값이다.
-        # output_fields 에 없는 상수도 그대로 실린다(선언 자체가 출력 의사 표시).
+        # front matter보다도 우선하며, output_fields 에 없는 상수도 그대로 실린다.
         if self._constants:
             normalized = {**normalized, **self._constants}
         return normalized
@@ -489,7 +523,10 @@ class CustomFieldsEnricher(BaseEnricher):
     def _extract_raw_text(self, document: DoclingDocument) -> str:
         if not self._pages:
             return document.export_to_text()
-        from docling_core.transforms.serializer.markdown import MarkdownDocSerializer, MarkdownParams
+        from docling_core.transforms.serializer.markdown import (
+            MarkdownDocSerializer,
+            MarkdownParams,
+        )
         serializer = MarkdownDocSerializer(
             doc=document,
             params=MarkdownParams(pages=set(self._pages)),
@@ -515,24 +552,51 @@ class CustomFieldsEnricher(BaseEnricher):
     async def enrich(self, document: DoclingDocument, **kwargs) -> DoclingDocument:
         if not matches_doc_type(self._doc_types, kwargs.get("doc_type")):
             return document
-        if not self.is_configured:
+
+        raw_text = self._extract_raw_text(document)
+        front_matter = kwargs.get("_markdown_front_matter")
+        if not isinstance(front_matter, dict):
+            front_matter = {}
+        structured_fields = front_matter.get("metadata")
+        if not isinstance(structured_fields, dict):
+            structured_fields = {}
+        prompt_prefix = str(front_matter.get("prompt_prefix") or "").strip()
+
+        # LLM 도 없고 LLM 과 무관한 산출물(front matter/constants)도 없으면 예전처럼 아무것도
+        # 하지 않는다. 이 가드가 없으면 url 이 빈 설정에서도 output_fields 가 전부 null 로
+        # 저장돼 모든 청크에 빈 property 가 생긴다.
+        if not (self.is_configured or structured_fields or self._constants):
             _log.warning("custom_fields enricher 비활성: url/model 설정이 비어있습니다.")
             return document
 
-        raw_text = self._extract_raw_text(document)
-        try:
-            llm_output = await self._call_llm(raw_text, document)
-            parsed = self._parse_with_custom_parser(llm_output, document, **kwargs)
-            normalized = self._normalize_output_fields(parsed)
-        except Exception as e:
-            _log.warning(f"custom_fields 추출 실패: {e}")
-            # 실패해도 상수는 유지한다 — LLM 과 무관하게 확정된 값이라 null 로 떨어뜨릴 이유가 없다.
-            normalized = {**{key: None for key in self._output_fields}, **self._constants}
+        if prompt_prefix:
+            # 청크 텍스트에서 제외한 front matter 도 custom_fields 추출에는 계속 제공한다
+            # (product_slf 의 PRODUCT_C 처럼 근거가 front matter 에만 있는 필드가 있다).
+            raw_text = f"{prompt_prefix}\n\n{raw_text}" if raw_text else prompt_prefix
+
+        parsed: dict = {}
+        if self.is_configured:
+            try:
+                llm_output = await self._call_llm(raw_text, document)
+                parsed = self._parse_with_custom_parser(llm_output, document, **kwargs)
+            except Exception as e:
+                _log.warning(f"custom_fields 추출 실패: {e}")
+        else:
+            # LLM 연결과 무관한 constants/front matter 는 계속 산출해야 한다.
+            _log.warning(
+                "custom_fields LLM 비활성: url/model 설정이 비어있어 LLM 필드는 null 로 둡니다."
+            )
+
+        normalized = self._normalize_output_fields(parsed, structured_fields)
 
         # 문서에 저장 → 별도 chunk API 경계를 넘어 청커 passthrough 가 각 청크에 부착
         # (created_date/MetadataEnricher 와 동일 경로). 선언된 output_fields 는 값이 null 이어도
         # 결과에 모두 남겨야 하므로 preserve_nulls=True(sentinel 왕복)로 저장한다.
-        store_metadata_in_document(document, normalized, preserve_nulls=True)
+        # typed_keys 는 front matter 유래 키로 한정한다 — 전 필드에 적용하면 기존 doc_type 의
+        # 청크 property 타입까지 바뀐다(field_transforms.store_metadata_in_document 주석 참고).
+        store_metadata_in_document(
+            document, normalized, preserve_nulls=True, typed_keys=set(structured_fields)
+        )
 
         context = kwargs.get("_enrichment_context")
         if isinstance(context, dict):

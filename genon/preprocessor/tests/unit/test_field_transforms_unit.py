@@ -9,11 +9,13 @@ import pytest
 
 from facade.enrichment.field_transforms import (
     DEFAULT_METADATA_FIELD_TRANSFORMS,
+    JSON_VALUE_SENTINEL,
     apply_field_transforms,
     extract_metadata_from_document,
     normalize_metadata_value,
     parse_created_date,
     serialize_metadata_value_for_output,
+    store_metadata_in_document,
 )
 
 
@@ -144,8 +146,75 @@ def test_extract_metadata_from_document():
 
 
 @pytest.mark.unit
+def test_extract_metadata_preserves_typed_json_sentinel():
+    doc = _make_document([
+        ("source_pages", JSON_VALUE_SENTINEL + "9"),
+        ("searchable", JSON_VALUE_SENTINEL + "true"),
+        ("tags", JSON_VALUE_SENTINEL + '["보험", "교통"]'),
+        # 표식 없는 숫자 문자열은 하위 호환상 문자열로 유지한다.
+        ("legacy_code", "00123"),
+    ])
+    assert extract_metadata_from_document(doc) == {
+        "source_pages": 9,
+        "searchable": True,
+        "tags": ["보험", "교통"],
+        "legacy_code": "00123",
+    }
+
+
+@pytest.mark.unit
 def test_extract_metadata_from_document_empty():
     assert extract_metadata_from_document(MagicMock(key_value_items=[])) == {}
+
+
+def _stored_pairs(metadata, **kwargs):
+    """store_metadata_in_document 이 실제로 기록한 (key, value_text) 쌍을 뽑아낸다."""
+    pytest.importorskip("docling_core")
+    document = MagicMock()
+    store_metadata_in_document(document, metadata, **kwargs)
+    if not document.add_key_values.call_args_list:
+        return []
+    cells = document.add_key_values.call_args.kwargs["graph"].cells
+    return [(cells[i].text, cells[i + 1].text) for i in range(0, len(cells), 2)]
+
+
+@pytest.mark.unit
+def test_store_metadata_types_only_typed_keys():
+    """typed_keys 에 든 키만 JSON 표식으로 저장되고, 나머지는 종전 규칙을 유지한다.
+
+    #360: 표식을 전 필드에 적용하면 md front matter 와 무관한 기존 doc_type 의 청크 property
+    타입까지 바뀐다(card 의 annual_fee_amount 가 '18000' → 18000). 이미 text 로 만들어진
+    벡터 컬렉션에 int 가 들어가면 적재가 깨지므로 opt-in 이어야 한다.
+    """
+    stored = dict(_stored_pairs(
+        {
+            "source_pages": 9,          # front matter 유래 → 타입 보존
+            "annual_fee_amount": 18000,  # 기존 LLM 필드 → 문자열 유지
+            "PRODUCT_ATTRS": {"a": 1},   # 기존 규칙: 표식 없는 JSON
+            "issuer_name": "삼성카드",
+        },
+        typed_keys={"source_pages"},
+    ))
+    assert stored["source_pages"] == JSON_VALUE_SENTINEL + "9"
+    assert stored["annual_fee_amount"] == "18000"
+    assert stored["PRODUCT_ATTRS"] == '{"a": 1}'
+    assert stored["issuer_name"] == "삼성카드"
+
+    # 읽기측 왕복: 표식이 붙은 값만 원래 타입으로 복원된다.
+    doc = _make_document(list(stored.items()))
+    assert extract_metadata_from_document(doc) == {
+        "source_pages": 9,
+        "annual_fee_amount": "18000",
+        "PRODUCT_ATTRS": {"a": 1},
+        "issuer_name": "삼성카드",
+    }
+
+
+@pytest.mark.unit
+def test_store_metadata_typed_keys_default_is_off():
+    """typed_keys 미지정(기본)이면 표식이 전혀 붙지 않는다 — 기존 호출부 하위 호환."""
+    stored = dict(_stored_pairs({"n": 9, "flag": True}))
+    assert stored == {"n": "9", "flag": "True"}
 
 
 @pytest.mark.unit
