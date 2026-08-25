@@ -7,7 +7,9 @@
 - #284: chunking_processor 가 그 docling JSON 을 입력받아 GenOSVectorMeta 리스트를 반환하는지.
 """
 import asyncio
+import json
 import logging
+from pathlib import Path
 
 import pytest
 
@@ -274,3 +276,324 @@ def test_chunker_rows_without_splittable_stay_one_chunk_per_row():
     )
 
     assert len(vectors) == 1
+
+
+# ----------------------------------------------------------------------
+# 청크 선두 헤더(HEADER: <섹션 경로>) 정규화 + include_chunk_header on/off.
+#
+# 과거에는 섹션 제목이 세 지점에서 3번 붙었다(compose_vectors 의 HEADER 라인 +
+# _generate_section_text_with_heading 접두 + _generate_text_from_items_with_headers 삽입).
+# 실측으로 청크 텍스트의 30~56% 가 제목 반복이었고, 제목만 있고 본문이 없는 껍데기 청크도
+# 생겼다(여비세칙 76개 중 20개). 부착 지점을 compose_vectors 한 곳으로 정규화했다.
+# ----------------------------------------------------------------------
+
+HEADER_SEP = " > "  # facade 의 _CHUNK_HEADER_SEP 과 같아야 한다(콤마는 heading 내부 콤마와 충돌)
+
+
+def _chunk(doc_dict, **kwargs):
+    cp = pytest.importorskip("facade.chunking_processor")
+    chunker = cp.DocumentProcessor()
+    return asyncio.run(
+        chunker(request=None, file_path="/data/monimo_sample.pdf", document=doc_dict, **kwargs)
+    )
+
+
+def test_chunk_header_appears_once_not_repeated_in_body():
+    """섹션 제목은 HEADER 라인에만 붙고 본문에서 반복되지 않는다."""
+    pytest.importorskip("facade.chunking_processor")
+
+    vectors = _chunk(_build_doc().model_dump(mode="json"))
+    tagged = [v for v in vectors if v.text.startswith("HEADER: ")]
+    assert tagged, "HEADER 라인이 붙은 청크가 있어야 한다"
+
+    for v in tagged:
+        header_line, _, body = v.text.partition("\n")
+        path = header_line[len("HEADER: "):]
+        parts = path.split(HEADER_SEP)
+        for heading in (p.strip() for p in parts if p.strip()):
+            # 제목은 본문에 최대 1회(문서가 내보낸 SECTION_HEADER DocItem 자신)만 남는다.
+            assert body.count(heading) <= 1, f"본문에 제목 반복: {heading!r} in {body!r}"
+        # 예전 헤더 삽입 로직은 빈 문자열을 경로에 넣어 "상품 안내, " 처럼 끝이 잘린 조각을 남겼다.
+        # 경로 조각 중 빈 것이 없어야 한다(구분자 무관하게 성립하는 조건).
+        assert all(p.strip() for p in parts), f"빈 경로 조각: {path!r}"
+
+
+def test_chunk_header_off_emits_body_only():
+    """include_chunk_header=0 이면 HEADER 라인이 사라지고 청크 경계는 유지된다."""
+    pytest.importorskip("facade.chunking_processor")
+
+    doc_dict = _build_doc().model_dump(mode="json")
+    on = _chunk(doc_dict)
+    off = _chunk(doc_dict, include_chunk_header=0)
+
+    assert any(v.text.startswith("HEADER: ") for v in on)
+    assert not any("HEADER: " in v.text for v in off)
+    # 헤더만 빠지고 청크 분할 자체는 동일해야 한다.
+    assert len(off) == len(on)
+    for v_on, v_off in zip(on, off):
+        assert v_on.text.split("\n", 1)[-1].endswith(v_off.text) or v_off.text in v_on.text
+
+
+def test_heading_only_chunk_is_merged_forward():
+    """본문 없이 제목만 있는 청크는 다음 청크로 병합되고 제목은 headings 로 승계된다."""
+    cp = pytest.importorskip("facade.chunking_processor")
+
+    # 제1장(하위 본문 없음) → 제1조(본문 있음): 예전에는 제1장만 담긴 껍데기 청크가 생겼다.
+    doc = DoclingDocument(name="heading_only")
+    chapter = doc.add_heading(text="제1장 총칙", level=1)
+    article = doc.add_heading(text="제1조 목적", level=2, parent=chapter)
+    doc.add_text(label=DocItemLabel.TEXT, text="이 규정은 여비 지급 기준을 정한다.", parent=article)
+
+    vectors = _chunk(doc.model_dump(mode="json"))
+
+    # 제목만 있는 청크가 남아있지 않아야 한다.
+    for v in vectors:
+        body = v.text
+        for heading in (v.text.partition("\n")[0][len("HEADER: "):].split(HEADER_SEP)
+                        if v.text.startswith("HEADER: ") else []):
+            body = body.replace(heading, "")
+        assert body.strip(" ,\n"), f"제목만 있는 청크가 남았다: {v.text!r}"
+
+    # 드롭된 제목이 유실되지 않고 어딘가의 HEADER 경로로 승계되어야 한다.
+    assert any("제1장 총칙" in v.text for v in vectors)
+    assert any("이 규정은 여비 지급 기준을 정한다." in v.text for v in vectors)
+
+
+# ----------------------------------------------------------------------
+# chunk_size 계약: 청크 선두 헤더 라인도 크기 예산에 포함되어야 한다.
+#
+# 회귀 배경 — 크기 판정(_size)은 헤더를 포함하는데 실제 분할 예산은 본문 토큰만 써서
+# 각 조각이 본문만으로 한도를 채우고 헤더가 그 위에 얹혀 초과했다(실측 1033자 > 1024).
+# 병합(_merge_heading_only_chunks)도 headings 합집합으로 헤더를 늘려 같은 초과를 만들었다.
+# 조립을 _build_header_line 한 곳으로 모으고, 분할 예산에서 헤더 몫과 delim 비용을 빼고,
+# 병합 시 크기를 재검증해 막았다.
+# ----------------------------------------------------------------------
+
+def _sample_docling_doc() -> dict:
+    """실제 규정 문서(여비세칙) 파싱 결과. 없으면 skip."""
+    path = (Path(__file__).resolve().parents[2]
+            / "examples" / "parse_chunk" / "result_parse_chunk" / "hwp_sample_table.docling.json")
+    if not path.exists():
+        pytest.skip(f"샘플 docling JSON 없음: {path}")
+    with open(path, encoding="utf-8") as f:
+        return json.load(f)
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("chunk_size", [1024, 2048, 4096])
+def test_chunk_never_exceeds_chunk_size(chunk_size):
+    """헤더 포함 최종 텍스트가 chunk_size 를 넘지 않는다(헤더 on/off 모두)."""
+    cp = pytest.importorskip("facade.chunking_processor")
+    doc = _sample_docling_doc()
+    effective = cp._clamp_chunk_size(chunk_size)  # 0 초과면 최소 1024 로 보정된다
+
+    for kwargs in ({}, {"include_chunk_header": 0}):
+        vectors = _chunk(doc, chunk_size=chunk_size, **kwargs)
+        over = [(i, len(v.text)) for i, v in enumerate(vectors) if len(v.text) > effective]
+        assert not over, f"chunk_size={effective} {kwargs} 초과: {over[:5]}"
+
+
+@pytest.mark.unit
+def test_heading_only_merge_skipped_when_it_would_overflow():
+    """병합이 한도를 넘기면 제목-only 청크를 병합하지 않고 그대로 남긴다.
+
+    헤더 합집합만 생략하면 donor 본문이 버려지는 구조라 제목이 산출물에서 사라진다 —
+    그래서 '병합을 포기'하는 쪽이 맞다. 제목이 유실되지 않았는지도 확인한다.
+    """
+    cp = pytest.importorskip("facade.chunking_processor")
+    CS = 1024
+    long_chapter = "제1장 총칙에 관한 매우 긴 장 제목 문자열"
+
+    doc = DoclingDocument(name="overflow_probe")
+    doc.add_heading(text=long_chapter, level=1)          # 본문 없는 제목 → 병합 후보
+    article = doc.add_heading(text="제1조 목적", level=1)
+    # 헤더 포함 크기가 한도에 거의 찬 본문
+    body_len = CS - (len("HEADER: ") + len("제1조 목적") + 1) - (len("제1조 목적") + 1)
+    doc.add_text(label=DocItemLabel.TEXT, text="가" * body_len, parent=article)
+
+    vectors = _chunk(doc.model_dump(mode="json"), chunk_size=CS)
+
+    over = [len(v.text) for v in vectors if len(v.text) > CS]
+    assert not over, f"병합 후 한도 초과: {over}"
+    # 병합을 포기했더라도 제목 자체는 어딘가에 남아야 한다.
+    assert any(long_chapter in v.text for v in vectors), "병합 생략 시 제목이 유실됨"
+
+
+@pytest.mark.unit
+def test_oversized_heading_falls_back_with_warning(caplog):
+    """헤더 라인이 chunk_size 이상인 병리 케이스 — 예외 없이 산출되고 경고를 남긴다.
+
+    헤더 몫을 예약하면 예산이 0 이하가 되어 분할이 끝나지 않으므로 본문 기준으로 폴백한다.
+    (근본 원인은 docling 이 조문 전체를 SECTION_HEADER 로 승격하는 것 — 별도 이슈)
+    """
+    cp = pytest.importorskip("facade.chunking_processor")
+    CS = 1024
+    # 헤더 라인("HEADER: " + heading + "\n")이 chunk_size 를 넘어야 폴백 경로를 탄다.
+    huge_heading = "제1조(목적) " + "이 세칙은 여비 지급에 관한 사항을 정한다. " * 60
+    assert len("HEADER: ") + len(huge_heading) + 1 > CS
+
+    doc = DoclingDocument(name="huge_heading")
+    section = doc.add_heading(text=huge_heading, level=1)
+    doc.add_text(label=DocItemLabel.TEXT, text="본문 " * 500, parent=section)
+
+    with caplog.at_level(logging.WARNING):
+        vectors = _chunk(doc.model_dump(mode="json"), chunk_size=CS)
+
+    assert vectors, "병리 케이스에서도 청크는 산출되어야 한다"
+    assert "헤더 몫 예약 생략" in caplog.text, "폴백 경고가 없다"
+
+
+# ----------------------------------------------------------------------
+# 헤더 경로 표기와 무손실 — 리뷰 4건 회귀 방지.
+#
+# (1) 헤더-only 판정을 문자열 replace 로 하면 본문이 헤더 문자열로만 구성된 정상 청크를
+#     오판해 본문이 사라진다(실측: 헤더 `가` + 본문 `가가가가가` → 소실). 유형으로 판정한다.
+# (2) 헤더를 평탄하게 dedup 하면 형제 섹션이 부모-자식처럼 보인다
+#     (`상품 안내 > 우대금리 조건 > 가입 제한` — 뒤 둘은 형제). 실제 경로를 렌더한다.
+# (3) 아이템 하나가 예산보다 크면 아이템 경계 분할로는 못 자른다 → 내부 분할.
+# (4) PPT 페이지 병합이 headings 를 None 으로 덮어 HEADER 가 사라졌다.
+# ----------------------------------------------------------------------
+
+PATH_SEP = " | "
+
+
+def _header_of(vector) -> str:
+    """청크 선두 HEADER 경로 문자열(없으면 '')."""
+    if not vector.text.startswith("HEADER: "):
+        return ""
+    return vector.text.partition("\n")[0][len("HEADER: "):]
+
+
+@pytest.mark.unit
+def test_no_item_text_is_lost():
+    """입력 DocItem 의 모든 텍스트가 산출물(본문 또는 헤더 경로)에 남는다 — 유실 부류 전체 가드."""
+    pytest.importorskip("facade.chunking_processor")
+
+    doc = DoclingDocument(name="lossless")
+    doc.add_title(text="여비세칙")
+    doc.add_text(label=DocItemLabel.TEXT, text="제정 2005. 11. 23")
+    chapter = doc.add_heading(text="제1장 총칙", level=1)
+    article = doc.add_heading(text="제1조 목적", level=2, parent=chapter)
+    doc.add_text(label=DocItemLabel.TEXT, text="이 세칙은 여비 기준을 정한다.", parent=article)
+    same = doc.add_heading(text="가", level=1)
+    doc.add_text(label=DocItemLabel.TEXT, text="가가가가가", parent=same)
+
+    sources = [t.text.strip() for t in doc.texts if (t.text or "").strip()]
+    for chunk_mode in ("split_only", "resize_all"):
+        vectors = _chunk(doc.model_dump(mode="json"), chunk_mode=chunk_mode)
+        joined = "\n".join(v.text for v in vectors)
+        missing = [s for s in sources if s not in joined]
+        assert not missing, f"{chunk_mode} 에서 유실: {missing}"
+
+
+@pytest.mark.unit
+def test_heading_equals_body_text_preserved():
+    """본문이 헤더 문자열과 같거나 헤더 문자열만으로 구성돼도 본문이 사라지지 않는다."""
+    pytest.importorskip("facade.chunking_processor")
+
+    for heading, body in (("할인", "할인"), ("가", "가가가가가")):
+        doc = DoclingDocument(name="same_text")
+        h = doc.add_heading(text=heading, level=1)
+        doc.add_text(label=DocItemLabel.TEXT, text=body, parent=h)
+        nxt = doc.add_heading(text="다음", level=1)
+        doc.add_text(label=DocItemLabel.TEXT, text="보존되는 본문", parent=nxt)
+
+        vectors = _chunk(doc.model_dump(mode="json"))
+        joined = "\n".join(v.text for v in vectors)
+        assert body in joined, f"본문 {body!r} 유실 (heading={heading!r})"
+        assert "보존되는 본문" in joined
+
+
+@pytest.mark.unit
+def test_title_only_chunk_not_lost():
+    """문서 선두 TITLE 청크가 병합으로 사라지지 않는다(무손실 가드).
+
+    _is_section_header 는 TITLE 도 포함하므로 유형 판정만으로는 병합 대상이 되는데,
+    TITLE 은 headings 에 안 실릴 수 있어 그대로 병합하면 텍스트가 어디에도 안 남는다.
+    """
+    pytest.importorskip("facade.chunking_processor")
+
+    doc = DoclingDocument(name="title_only")
+    doc.add_title(text="독립 문서 제목")
+    section = doc.add_heading(text="제1장", level=1)
+    doc.add_text(label=DocItemLabel.TEXT, text="장 본문입니다.", parent=section)
+
+    joined = "\n".join(v.text for v in _chunk(doc.model_dump(mode="json")))
+    assert "독립 문서 제목" in joined
+    assert "장 본문입니다." in joined
+
+
+@pytest.mark.unit
+def test_sibling_sections_are_not_rendered_as_parent_child():
+    """형제 섹션을 한 청크에 담아도 부모-자식 경로로 표기하지 않는다."""
+    pytest.importorskip("facade.chunking_processor")
+
+    doc = DoclingDocument(name="siblings")
+    top = doc.add_heading(text="상품 안내", level=1)
+    for name in ("우대금리 조건", "가입 제한", "수수료 안내"):
+        node = doc.add_heading(text=name, level=2, parent=top)
+        doc.add_text(label=DocItemLabel.TEXT, text=f"{name} 본문", parent=node)
+
+    header = _header_of(_chunk(doc.model_dump(mode="json"),
+                               chunk_mode="resize_all", chunk_size=10000)[0])
+    # 공통 조상은 한 번만, 형제는 PATH_SEP 로 나열된다.
+    assert header.startswith("상품 안내" + HEADER_SEP), header
+    assert PATH_SEP in header, header
+    # 형제가 부모-자식처럼 직접 이어지면 안 된다.
+    assert f"우대금리 조건{HEADER_SEP}가입 제한" not in header, header
+
+
+@pytest.mark.unit
+def test_prefix_paths_are_collapsed():
+    """`A` 와 `A > B` 가 함께 오면 최장 경로 하나로 접는다."""
+    pytest.importorskip("facade.chunking_processor")
+
+    doc = DoclingDocument(name="prefix")
+    top = doc.add_heading(text="삼성카드", level=1)
+    doc.add_text(label=DocItemLabel.TEXT, text="문서 서두", parent=top)
+    child = doc.add_heading(text="카드상세", level=2, parent=top)
+    doc.add_text(label=DocItemLabel.TEXT, text="상세 본문", parent=child)
+
+    header = _header_of(_chunk(doc.model_dump(mode="json"),
+                               chunk_mode="resize_all", chunk_size=10000)[0])
+    assert header == f"삼성카드{HEADER_SEP}카드상세", header
+
+
+@pytest.mark.unit
+def test_many_sibling_paths_are_capped():
+    """경로가 많으면 리프를 상한까지만 나열하고 나머지는 접는다(헤더 폭증 방지).
+
+    실측: 71경로를 전부 나열하면 헤더가 3,239자가 되어 청크가 chunk_size 를 30% 초과했다.
+    """
+    cp = pytest.importorskip("facade.chunking_processor")
+
+    doc = DoclingDocument(name="many")
+    top = doc.add_heading(text="제1장 총칙", level=1)
+    for i in range(1, 40):
+        node = doc.add_heading(text=f"제{i}조", level=2, parent=top)
+        doc.add_text(label=DocItemLabel.TEXT, text=f"제{i}조 본문", parent=node)
+
+    header = _header_of(_chunk(doc.model_dump(mode="json"),
+                               chunk_mode="resize_all", chunk_size=100000)[0])
+    assert "외" in header and "개" in header, header
+    assert header.count(PATH_SEP) < cp._CHUNK_PATH_MAX_LEAVES, header
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("chunk_size", [1024, 2048])
+def test_single_oversized_text_item_is_split(chunk_size):
+    """아이템 하나가 예산보다 커도 내부 분할되어 chunk_size 를 지킨다."""
+    cp = pytest.importorskip("facade.chunking_processor")
+    effective = cp._clamp_chunk_size(chunk_size)
+
+    doc = DoclingDocument(name="huge_item")
+    section = doc.add_heading(text="제1조 목적", level=1)
+    doc.add_text(label=DocItemLabel.TEXT, text="본문내용 " * 1000, parent=section)
+
+    for chunk_mode in ("split_only", "resize_all"):
+        vectors = _chunk(doc.model_dump(mode="json"),
+                         chunk_size=chunk_size, chunk_mode=chunk_mode)
+        over = [len(v.text) for v in vectors if len(v.text) > effective]
+        assert not over, f"{chunk_mode} chunk_size={effective} 초과: {over[:5]}"
+        # 잘린 조각들이 원문을 모두 담고 있어야 한다.
+        assert "본문내용" in "\n".join(v.text for v in vectors)

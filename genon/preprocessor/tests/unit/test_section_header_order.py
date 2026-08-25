@@ -7,20 +7,44 @@ from pathlib import Path
 import re
 from typing import List, Dict, Any
 
+# 경로 내부(부모 → 자식) 구분자. facade 의 _CHUNK_HEADER_SEP 과 같아야 한다.
+# 콤마였을 때는 heading 자체에 든 콤마(실측 409건 중 20건)와 충돌해 한 제목이 여러 조각으로
+# 오분해됐다 — 예: "제4조(여비) ① 여비는 여객운임, 숙박비, 식비 등을 말한다.".
+HEADER_SEP = " > "
+# 서로 다른 경로(형제 섹션) 사이 구분자. facade 의 _CHUNK_PATH_SEP 과 같아야 한다.
+PATH_SEP = " | "
+
 
 class TestSectionHeaderOrder:
     """섹션헤더 순서 테스트 클래스"""
 
     def extract_headers_from_chunk(self, chunk_text: str) -> List[str]:
-        """청크 텍스트에서 HEADER: 부분을 추출하여 리스트로 반환"""
+        """청크 텍스트의 HEADER 경로를 레벨 단위 리스트로 분해.
+
+        표기는 `부모 > 자식`(단일 경로) 또는 `공통조상 > (리프A | 리프B)`(형제 경로)다.
+        형제가 있으면 공통 조상 + 각 리프를 순서대로 펼친다.
+        """
         header_pattern = r'HEADER:\s*(.+?)(?:\n|$)'
         matches = re.findall(header_pattern, chunk_text)
 
         if not matches:
             return []
 
-        # 첫 번째 매치에서 쉼표로 구분된 헤더들을 분리
-        headers = [h.strip() for h in matches[0].split(',') if h.strip()]
+        line = matches[0].strip()
+        # `공통조상 > (리프A | 리프B …)` 형태면 괄호를 풀어 공통조상 + 리프들로 만든다.
+        m = re.match(r'^(.*?)' + re.escape(HEADER_SEP) + r'\((.+)\)$', line)
+        if m:
+            prefix, leaves = m.group(1), m.group(2)
+            parts = [prefix] + [leaf for leaf in leaves.split(PATH_SEP)]
+        else:
+            parts = line.split(PATH_SEP)
+
+        headers: List[str] = []
+        for part in parts:
+            for level in part.split(HEADER_SEP):
+                level = level.strip()
+                if level and level not in headers:
+                    headers.append(level)
         return headers
 
     def check_header_order_in_chunk(self, chunk_text: str, expected_headers: List[str]) -> bool:
@@ -220,14 +244,23 @@ class TestSectionHeaderOrder:
         """헤더 추출 정규식 테스트 (pdf_sample.pdf 기준)"""
         test_cases = [
             # 실제 pdf_sample.pdf의 헤더 패턴들
-            ("HEADER: A2, English Practice Test, SECTION I: Grammar (Use of English)\n본문 내용",
+            ("HEADER: A2 > English Practice Test > SECTION I: Grammar (Use of English)\n본문 내용",
              ["A2", "English Practice Test", "SECTION I: Grammar (Use of English)"]),
-            ("HEADER: SECTION I: Grammar (Use of English), SECTION II: Reading Comprehension\n본문 내용",
+            ("HEADER: SECTION I: Grammar (Use of English) > SECTION II: Reading Comprehension\n본문 내용",
              ["SECTION I: Grammar (Use of English)", "SECTION II: Reading Comprehension"]),
-            ("HEADER: Reading Task 1, Reading Task 2\n본문 내용",
+            ("HEADER: Reading Task 1 > Reading Task 2\n본문 내용",
              ["Reading Task 1", "Reading Task 2"]),
-            ("HEADER: 1. 'COMEWITHUS.COM' sell, 2. According to the advertisement\n본문 내용",
+            ("HEADER: 1. 'COMEWITHUS.COM' sell > 2. According to the advertisement\n본문 내용",
              ["1. 'COMEWITHUS.COM' sell", "2. According to the advertisement"]),
+            # heading 자체에 콤마가 든 경로 — 콤마 구분자였을 때 오분해되던 케이스(회귀 방지).
+            # 여비세칙 등 규정 문서에서 docling 이 조문 전체를 SECTION_HEADER 로 승격할 때 발생한다.
+            ("HEADER: 제4조(여비) ① 여비는 여객운임, 숙박비, 식비 등을 말한다. > 제1항\n본문 내용",
+             ["제4조(여비) ① 여비는 여객운임, 숙박비, 식비 등을 말한다.", "제1항"]),
+            # 형제 경로: 공통 조상을 factor 한 표기. 형제끼리 부모-자식으로 오인하면 안 된다.
+            ("HEADER: 상품 안내 > (우대금리 조건 | 가입 제한 | 수수료 안내)\n본문 내용",
+             ["상품 안내", "우대금리 조건", "가입 제한", "수수료 안내"]),
+            # 공통 조상이 없는 형제 경로는 괄호 없이 나열된다.
+            ("HEADER: A > B | C > D\n본문 내용", ["A", "B", "C", "D"]),
             ("본문만 있는 청크", []),
         ]
 

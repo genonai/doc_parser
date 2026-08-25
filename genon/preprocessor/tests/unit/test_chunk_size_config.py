@@ -11,12 +11,13 @@ from pathlib import Path
 import pytest
 import yaml
 
-_MODULES = ["intelligent_processor", "convert_processor"]
+_MODULES = ["intelligent_processor", "convert_processor", "chunking_processor"]
 
 # facade 모듈명 → 출고 config 파일명
 _DEFAULT_CONFIG = {
     "intelligent_processor": "intelligent_processor_config.yaml",
     "convert_processor": "convert_processor_config.yaml",
+    "chunking_processor": "chunking_processor_config.yaml",
 }
 
 
@@ -28,9 +29,17 @@ def _load_processor(module_name: str):
 _UNSET = object()
 
 
-def _make_config(tmp_path: Path, module_name: str, chunk_size, chunk_mode=_UNSET) -> str:
-    """출고 config 를 복사하고 chunking.chunk_size(및 옵션 chunk_mode)만 덮어쓴 임시 config 경로 반환."""
-    repo_resource = Path(__file__).resolve().parents[2] / "resource" / _DEFAULT_CONFIG[module_name]
+def _make_config(tmp_path: Path, module_name: str, chunk_size, chunk_mode=_UNSET,
+                 include_chunk_header=_UNSET) -> str:
+    """출고 config 를 복사하고 chunking.chunk_size(및 옵션 chunk_mode/include_chunk_header)만 덮어쓴다.
+
+    config 는 자신과 같은 디렉터리에서 prompt_*.md 등 형제 파일을 참조하므로 resource/ 를 통째로
+    tmp_path 에 복사한다(yaml 하나만 복사하면 intelligent/convert 가 prompt 파일 부재로 init 실패 →
+    테스트가 조용히 skip 된다).
+    """
+    resource_dir = Path(__file__).resolve().parents[2] / "resource"
+    repo_resource = resource_dir / _DEFAULT_CONFIG[module_name]
+    shutil.copytree(resource_dir, tmp_path, dirs_exist_ok=True)
     cfg = yaml.safe_load(repo_resource.read_text(encoding="utf-8"))
     cfg.setdefault("chunking", {})
     if chunk_size is None:
@@ -42,6 +51,11 @@ def _make_config(tmp_path: Path, module_name: str, chunk_size, chunk_mode=_UNSET
             cfg["chunking"].pop("chunk_mode", None)
         else:
             cfg["chunking"]["chunk_mode"] = chunk_mode
+    if include_chunk_header is not _UNSET:
+        if include_chunk_header is None:
+            cfg["chunking"].pop("include_chunk_header", None)
+        else:
+            cfg["chunking"]["include_chunk_header"] = include_chunk_header
     out = tmp_path / _DEFAULT_CONFIG[module_name]
     out.write_text(yaml.safe_dump(cfg, allow_unicode=True), encoding="utf-8")
     return str(out)
@@ -88,6 +102,7 @@ def _spy_split(mod, proc, **split_kwargs):
         def __init__(self, **kw):
             captured["max_tokens"] = kw.get("max_tokens")
             captured["chunk_mode"] = kw.get("chunk_mode")
+            captured["include_chunk_header"] = kw.get("include_chunk_header")
             super().__init__(**kw)
 
         def chunk(self, *a, **k):  # 실제 청킹은 생략
@@ -158,3 +173,38 @@ def test_chunk_mode_default_and_override(tmp_path, module_name):
     # 잘못된 yaml 값 → split_only fallback
     proc = _init_processor(module_name, _make_config(tmp_path, module_name, 5000, chunk_mode="bogus"))
     assert proc._chunk_mode == "split_only"
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("module_name", _MODULES)
+def test_include_chunk_header_default_and_override(tmp_path, module_name):
+    """include_chunk_header: yaml 기본 True, yaml false 로드, kwargs 오버라이드, 잘못된 값 fallback.
+
+    청커에도 같은 값이 전달되어야 크기 산정(_size)이 compose_vectors 의 실제 부착 여부와 일치한다.
+    """
+    mod = pytest.importorskip(f"facade.{module_name}")
+
+    # yaml 미설정 → 기본 True
+    proc = _init_processor(module_name, _make_config(tmp_path, module_name, 5000, include_chunk_header=None))
+    assert proc._include_chunk_header is True
+    assert _spy_split(mod, proc)["include_chunk_header"] is True
+
+    # yaml false → 로드/전달
+    proc = _init_processor(module_name, _make_config(tmp_path, module_name, 5000, include_chunk_header=False))
+    assert proc._include_chunk_header is False
+    assert _spy_split(mod, proc)["include_chunk_header"] is False
+    # kwargs 오버라이드 (0/1 숫자와 "on"/"off" 문자열 모두 허용)
+    assert _spy_split(mod, proc, include_chunk_header=1)["include_chunk_header"] is True
+    assert _spy_split(mod, proc, include_chunk_header="on")["include_chunk_header"] is True
+
+    # yaml true + kwargs off → False
+    proc = _init_processor(module_name, _make_config(tmp_path, module_name, 5000, include_chunk_header=True))
+    assert proc._include_chunk_header is True
+    assert _spy_split(mod, proc, include_chunk_header=0)["include_chunk_header"] is False
+    assert _spy_split(mod, proc, include_chunk_header="off")["include_chunk_header"] is False
+
+    # 잘못된 yaml 값 → True fallback
+    proc = _init_processor(module_name, _make_config(tmp_path, module_name, 5000, include_chunk_header="bogus"))
+    assert proc._include_chunk_header is True
+    # 잘못된 kwargs 값 → yaml 값(True) 유지
+    assert _spy_split(mod, proc, include_chunk_header="bogus")["include_chunk_header"] is True

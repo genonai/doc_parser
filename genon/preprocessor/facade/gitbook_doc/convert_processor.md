@@ -1028,7 +1028,7 @@ config 가 각 처리 단계에 어떻게 매핑되는지 요약합니다. 코�
 | 3. 단독 타이틀 병합 | 30자 이하 단독 헤더는 다음 섹션으로 병합(헤더 레벨이 더 낮지 않을 때) |
 | 4. 토큰 기준 최종 병합 | 토큰 여유가 있고 헤더 레벨이 상위가 아니면 인접 섹션 병합 |
 
-> 청크 텍스트 선두에는 짧은 헤더 경로가 `HEADER: ...` 접두어로 부착되어 벡터 검색 시 문맥 파악을 돕습니다. 이 청커는 현재 facade 에 한시적으로 구현되어 있으며, 추후 컨테이너 이미지(라이브러리)에서 제공될 예정입니다.
+> 청크 텍스트 선두에는 짧은 헤더 경로가 `HEADER: ...` 접두어로 부착되어 벡터 검색 시 문맥 파악을 돕습니다. 요청 `params` 의 `include_chunk_header: 0` (또는 yaml `chunking.include_chunk_header: false`) 로 끌 수 있습니다(기본 on). 이 청커는 현재 facade 에 한시적으로 구현되어 있으며, 추후 컨테이너 이미지(라이브러리)에서 제공될 예정입니다.
 
 <a id="41-convert"></a>
 
@@ -1056,7 +1056,7 @@ class GenOSVectorMeta(BaseModel):
     class Config:
         extra = 'allow'          # 정의되지 않은 추가 필드(custom_fields 등)도 허용
 
-    text: str = None             # 청크 텍스트 (선두에 "HEADER: ..." 접두어 가능)
+    text: str = None             # 청크 텍스트 (선두에 "HEADER: ..." 접두어 — include_chunk_header 로 on/off)
     n_char: int = None
     n_word: int = None
     n_line: int = None
@@ -1084,7 +1084,7 @@ class GenOSVectorMeta(BaseModel):
 | `authors` | `enrichment.metadata` (passthrough) | 작성자 정보 (JSON 문자열) |
 | `title` | 문서 첫 `TITLE` 아이템 | 문서 제목 |
 | `guardrail_categories` | 민감정보 분류/마스킹 (`guardrail_call`) | 청크별 민감정보 분류 라벨(`Optional[list]`). `guardrail_call` on + quote 매칭 시 채워짐 (민감정보 분류/마스킹 절 참고) |
-| `HEADER:` (text 선두) | `GenosSmartChunker` 헤더 경로 | 청크가 속한 섹션 헤더 경로 접두어 (예: `HEADER: 제1장 총칙, 제1절 목적`) |
+| `HEADER:` (text 선두) | `GenosSmartChunker` 헤더 경로 | 청크가 속한 섹션 헤더 경로 접두어 (예: `HEADER: 제1장 총칙 > 제1절 목적`). 경로가 여러 개면 공통 조상을 한 번만 쓰고 리프를 나열합니다 — `상품 안내 > (우대금리 조건 | 가입 제한 | 수수료 안내)`. `>` 는 실제 부모→자식 관계에만 쓰이며, 형제 섹션은 `|` 로 구분됩니다.. `include_chunk_header: 0` 으로 끌 수 있고, 이 줄이 섹션 경로의 유일한 부착 지점입니다(본문 반복 없음) |
 
 > `extra='allow'` 이므로 `custom_fields` enricher 가 추출한 임의 키도 예약 필드와 충돌하지 않는 한 그대로 벡터에 passthrough 됩니다(중첩 값은 JSON 문자열로 직렬화).
 

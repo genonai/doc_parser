@@ -88,6 +88,15 @@ done
 
 # 기존 카드 데모(회귀 확인용)
 "${PYTHON}" parse_chunk_test.py --doc_type card "/Users/shkim/_shkim/01.source/doc_parser/shkim_labs/20260803_monimo/01_card/card01.flat.html" result_parse_chunk/
+# ── 청크 선두 헤더(HEADER: <섹션 경로>) on/off ─────────────────────────────────
+# 섹션 경로는 청크 선두 한 줄에서만 붙는다(compose_vectors). 예전에는 본문 안에도 같은 제목이
+# 두 번 더 들어가 청크 텍스트의 30~56% 가 제목 반복이었고, 제목만 있고 본문이 없는 청크도
+# 생겼다(여비세칙 76개 중 20개) — 둘 다 제거되었다.
+# --chunk-header 미지정 시 설정값(chunking.include_chunk_header, 기본 on)을 따른다.
+# off 는 순수 본문만 뽑을 때 쓴다. 검색 시 섹션 문맥이 사라지므로 RAG 적재용으로는 on 을 권장.
+# 이미 만들어둔 .docling.json 을 입력으로 주면 모델서버 없이 청킹만 다시 돌려 비교할 수 있다.
+# "${PYTHON}" parse_chunk_test.py --chunk-header on  "${OUT}/hwp_sample_table.docling.json" "${OUT}/hdr_on/"
+# "${PYTHON}" parse_chunk_test.py --chunk-header off "${OUT}/hwp_sample_table.docling.json" "${OUT}/hdr_off/"
 
 
 # ── LLM 캐시 / error_policy / deadline 테스트 (parse→chunk 분리 경로) ──────

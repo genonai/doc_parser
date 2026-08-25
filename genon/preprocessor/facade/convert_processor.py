@@ -465,6 +465,105 @@ def _parse_optional_bool(value: Any, key: str = "") -> Optional[bool]:
     return None
 
 
+def _resolve_include_chunk_header(kwargs: dict, yaml_default: bool) -> bool:
+    """청크 선두 `HEADER: <섹션 경로>` 라인 부착 여부. 우선순위: 요청 kwargs > yaml > True.
+
+    0/1 숫자와 "on"/"off" 등 문자열을 모두 허용한다(_parse_optional_bool).
+    off 로 주면 순수 본문만 산출된다.
+    """
+    parsed = _parse_optional_bool(kwargs.get("include_chunk_header"), "include_chunk_header")
+    return bool(yaml_default) if parsed is None else parsed
+
+
+# 한 경로 안의 레벨 구분자(부모 → 자식). heading 자체에 콤마가 들어있는 경우가 있어
+# (실측 409건 중 20건) 콤마로는 경로를 레벨 단위로 되돌릴 수 없다 —
+# 예: "제4조(여비) ① 여비는 여객운임, 숙박비, 식비 …". " > " 는 실측 충돌이 0 이다.
+# (검색 신호로서의 효과는 미검증이다. 표준 BM25 분석기는 문장부호를 제거한다.
+#  이 구분자의 근거는 파싱 안정성과 사람이 읽을 때의 명료성이다.)
+_CHUNK_HEADER_SEP = " > "
+
+# 서로 다른 경로(형제 섹션) 사이 구분자. 경로 내부 구분자와 반드시 달라야
+# `A > B`(부모-자식)와 `A | B`(형제)가 구분된다. 한 청크가 여러 섹션에 걸치면
+# 예전에는 전부 평탄하게 dedup 해서 형제를 부모-자식처럼 표기했다
+# (실측: `상품 안내 > 우대금리 조건 > 가입 제한` — 뒤 둘은 형제).
+_CHUNK_PATH_SEP = " | "
+
+
+def _union_paths(first, second) -> Optional[list]:
+    """헤더 경로 목록 두 개를 순서 보존 dedup 으로 합친다(청크 병합 시 사용)."""
+    merged: list = []
+    for path in list(first or []) + list(second or []):
+        if path and path not in merged:
+            merged.append(path)
+    return merged or None
+
+
+# 다경로 청크에서 나열할 리프 최대 개수. 초과분은 "… 외 N개" 로 접는다.
+# resize_all 로 수십 개 섹션이 한 청크에 뭉치면 경로를 전부 나열한 헤더가 노이즈가 된다
+# (실측: hwp 71경로 → 헤더 3,239자, 청크가 chunk_size 를 30% 초과).
+_CHUNK_PATH_MAX_LEAVES = 5
+
+
+def _build_header_line(headings, include_header: bool) -> str:
+    """청크 선두에 실제로 붙을 `HEADER: <경로들>\n` 문자열.
+
+    headings 의 원소 하나가 하나의 완전한 경로(`부모 > 자식`)다. 경로가 여러 개면
+    공통 조상을 한 번만 쓰고 리프만 나열한다 — 부모를 경로마다 반복하지 않는다.
+
+        1개        : `상품 안내 > 우대금리 조건`
+        여러 개    : `상품 안내 > (우대금리 조건 | 가입 제한 | 수수료 안내)`
+        상한 초과  : `제1장 총칙 > (제1조 | 제2조 … 외 68개)`
+
+    크기 산정(_size / 분할 예산 / 병합 재검증)과 실제 부착(compose_vectors)이 반드시 같은
+    문자열을 봐야 청크가 chunk_size 를 넘지 않는다. 예전에는 이 조립이 네 곳에 흩어져 있어
+    분할 예산과 병합이 헤더 몫을 빼먹고 청크가 한도를 초과했다 — 그래서 한 곳으로 모았다.
+    """
+    if not include_header or not headings:
+        return ""
+    return "HEADER: " + _render_header_paths(headings) + "\n"
+
+
+def _collapse_paths(paths) -> list:
+    """경로 목록을 정규화: 중복 제거 + 다른 경로의 진부분 접두인 경로 버리기.
+
+    `A` 와 `A > B` 가 함께 오면 `A > B` 만 남긴다(같은 위치를 두 번 말하는 셈).
+    _extract_header_paths 가 이미 한 번 하지만, 청크 병합(_union_paths)이 접두 쌍을
+    다시 만들 수 있어 렌더 직전에도 적용한다.
+    """
+    seen: list = []
+    for p in (paths or []):
+        if p and p not in seen:
+            seen.append(p)
+    prefixes = [tuple(p.split(_CHUNK_HEADER_SEP)) for p in seen]
+    return [p for p, tp in zip(seen, prefixes)
+            if not any(tq != tp and tq[:len(tp)] == tp for tq in prefixes)]
+
+
+def _render_header_paths(headings) -> str:
+    """경로 목록을 한 줄로 렌더. 공통 조상은 factor 하고 리프 수는 상한을 둔다."""
+    paths = _collapse_paths([h for h in (headings or []) if h])
+    if not paths:
+        return ""
+    if len(paths) == 1:
+        return paths[0]
+
+    split = [p.split(_CHUNK_HEADER_SEP) for p in paths]
+    shortest = min(len(s) for s in split)
+    # 공통 조상(모든 경로가 공유하는 선행 레벨). 마지막 레벨은 리프로 남겨야 하므로 제외한다.
+    common: list = []
+    for level in zip(*split):
+        if len(set(level)) != 1 or len(common) >= shortest - 1:
+            break
+        common.append(level[0])
+
+    leaves = [_CHUNK_HEADER_SEP.join(s[len(common):]) for s in split]
+    shown, rest = leaves[:_CHUNK_PATH_MAX_LEAVES], len(leaves) - _CHUNK_PATH_MAX_LEAVES
+    body = _CHUNK_PATH_SEP.join(shown) + (f" … 외 {rest}개" if rest > 0 else "")
+    if not common:
+        return body
+    return _CHUNK_HEADER_SEP.join(common) + _CHUNK_HEADER_SEP + "(" + body + ")"
+
+
 def _parse_optional_int(value: Any, key: str = "") -> Optional[int]:
     if value is None or value == "":
         return None
@@ -642,6 +741,9 @@ class GenosSmartChunker(BaseChunker):
     tokenizer_type: str = "char"
     # 청킹 모드. "split_only"(기본)=chunk_size 초과 청크만 분할(구조 보존) | "resize_all"=모든 청크를 chunk_size 에 맞게 병합/분할
     chunk_mode: str = "split_only"
+    # 청크 텍스트 선두 "HEADER: <섹션 경로>" 라인 부착 여부(기본 on). compose_vectors 의 실제 부착 지점과
+    # 이 청커의 크기 산정(_size)이 같은 값을 봐야 청크 경계가 산출 텍스트와 일치한다.
+    include_chunk_header: bool = True
 
     # _inner_chunker: BaseChunker = None
     _tokenizer: PreTrainedTokenizerBase = None
@@ -837,38 +939,17 @@ class GenosSmartChunker(BaseChunker):
                                               header_info_list: list[dict],
                                               dl_doc: DoclingDocument,
                                               **kwargs) -> str:
-        """DocItem 리스트로부터 헤더 정보를 포함한 텍스트 생성"""
+        """DocItem 리스트로부터 본문 텍스트 생성.
+
+        섹션 헤더 경로(breadcrumb)는 여기서 본문에 삽입하지 않는다. 청크 선두의
+        `HEADER: <섹션 경로>` 라인(compose_vectors)이 유일한 부착 지점이며, 과거에는 이 루프와
+        `_generate_section_text_with_heading` 이 같은 문자열을 추가로 두 번 더 넣어 청크 텍스트의
+        30~56% 가 제목 반복이었다(임베딩 희석·BM25 term frequency 왜곡). `header_info_list` 는
+        호출부 시그니처 호환을 위해 유지한다.
+        """
         text_parts = []
-        current_section_headers = {}  # 현재 섹션의 헤더 정보
 
-        for i, item in enumerate(items):
-            item_headers = header_info_list[i] if i < len(header_info_list) else {}
-
-            # 헤더 정보가 변경된 경우 (새로운 섹션 시작)
-            if item_headers != current_section_headers:
-                # 변경된 헤더 레벨들만 추가
-                headers_to_add = []
-                for level in sorted(item_headers.keys()):
-                    # 이전 섹션과 다른 헤더만 추가
-                    if (level not in current_section_headers or
-                        current_section_headers[level] != item_headers[level]):
-                        # 해당 레벨까지의 모든 상위 헤더 포함
-                        for l in sorted(item_headers.keys()):
-                            if l < level:
-                                headers_to_add.append(item_headers[l])
-                            elif l == level:
-                                headers_to_add.append('')
-
-                        break
-
-                # 헤더가 있으면 추가
-                if headers_to_add:
-                    header_text = ", ".join(headers_to_add)
-                    if header_text not in text_parts:
-                        text_parts.append(header_text)
-
-                current_section_headers = item_headers.copy()
-
+        for item in items:
             # 아이템 텍스트 추가
             if isinstance(item, TableItem):
                 table_text = self._extract_table_text(item, dl_doc, **kwargs)
@@ -1078,11 +1159,8 @@ class GenosSmartChunker(BaseChunker):
         if any(getattr(c, "row_span", 1) > 1 for r in data_rows for c in r):
             return [single]
 
-        # heading 접두(_generate_section_text_with_heading 과 동일 규칙). xlsx 는 보통 공백.
-        merged = {lvl: t for lvl, t in (h_short or {}).items() if t}
-        heading = ", ".join(merged[l] for l in sorted(merged)) if merged else ""
-        prefix = (heading + ", ") if heading else ""
-
+        # heading 접두는 붙이지 않는다 — 분할된 조각들도 각자 청크가 되어 compose_vectors 에서
+        # `HEADER: <섹션 경로>` 를 받으므로 중복이다. sheet_prefix(`시트명: X`)는 heading 이 아니라 유지.
         # table_format 에 맞춰 헤더/데이터 행을 렌더하고 버킷을 감싼다(html | markdown).
         if self._resolve_table_format(kwargs) == "markdown":
             render_row = self._render_table_row_md
@@ -1090,13 +1168,13 @@ class GenosSmartChunker(BaseChunker):
             header_block.append("| " + " | ".join(["---"] * num_cols) + " |")
 
             def wrap(data_rendered: list) -> str:
-                return sheet_prefix + prefix + "\n".join(header_block + data_rendered)
+                return sheet_prefix + "\n".join(header_block + data_rendered)
         else:
             render_row = self._render_table_row_html
             header_inner = "".join(render_row(r, num_cols) for r in header_rows)
 
             def wrap(data_rendered: list) -> str:
-                return sheet_prefix + prefix + "<table><tbody>" + header_inner + "".join(data_rendered) + "</tbody></table>"
+                return sheet_prefix + "<table><tbody>" + header_inner + "".join(data_rendered) + "</tbody></table>"
 
         texts: list[str] = []
         cur: list[str] = []
@@ -1115,23 +1193,37 @@ class GenosSmartChunker(BaseChunker):
             texts[-1] = texts[-1] + "\n---\n[표 설명]\n" + table_summary
         return texts
 
-    def _extract_used_headers(self, header_info_list: list[dict]) -> Optional[list[str]]:
-        """헤더 정보 리스트에서 실제 사용되는 모든 헤더들을 level 순서대로 추출하고 ', '로 연결"""
+    def _header_line_for(self, h_short: list[dict]) -> str:
+        """그룹의 header_short 정보로 청크 선두 헤더 라인을 만든다(크기 산정용).
+
+        compose_vectors 의 실제 부착과 같은 _build_header_line 을 쓰므로 둘이 어긋날 수 없다.
+        """
+        return _build_header_line(self._extract_header_paths(h_short), self.include_chunk_header)
+
+    def _extract_header_paths(self, header_info_list: list[dict]) -> Optional[list[str]]:
+        """아이템별 헤더 스택(h_short)에서 실제 부모→자식 경로들을 뽑는다.
+
+        반환 원소 하나가 하나의 완전한 경로(`부모 > 자식`)이며, 한 청크가 여러 섹션에
+        걸치면 경로가 여러 개 나온다. 호출부(_build_header_line)가 _CHUNK_PATH_SEP 으로 잇는다.
+
+        예전에는 모든 헤더를 평탄하게 dedup 한 목록만 만들어, 형제 섹션이 부모-자식처럼
+        표기됐다(실측: `상품 안내 > 우대금리 조건 > 가입 제한` — 뒤 둘은 형제 관계).
+        h_short 는 아이템마다 {level: text} 맵을 갖고 있어 진짜 경로를 복원할 수 있다.
+        """
         if not header_info_list:
             return None
 
-        all_headers = [] # header 순서대로 추가
-        seen_headers = set()  # 중복 방지용
-
+        paths: list[tuple] = []
         for header_info in header_info_list:
-            if header_info:
-                for level in sorted(header_info.keys()):
-                    header_text = header_info[level]
-                    if header_text and header_text not in seen_headers:
-                        all_headers.append(header_text)
-                        seen_headers.add(header_text)
+            if not header_info:
+                continue
+            path = tuple(header_info[lvl] for lvl in sorted(header_info) if header_info[lvl])
+            if path and path not in paths:
+                paths.append(path)
 
-        return all_headers if all_headers else None
+        # 다른 경로의 진부분 접두인 경로는 버린다: ('A',) + ('A','B') → ('A','B') 하나.
+        # (실측 card01 split_only 94건이 이 형태 — 접으면 표기가 짧아지고 의미는 같다)
+        return _collapse_paths([_CHUNK_HEADER_SEP.join(p) for p in paths]) or None
 
     def _split_table_text(self, table_text: str, max_tokens: int) -> list[str]:
         """테이블 텍스트를 토큰 제한에 맞게 분할 (단순 토큰 수 기준)"""
@@ -1148,6 +1240,25 @@ class GenosSmartChunker(BaseChunker):
         chunker = semchunk.chunkerify(counter, chunk_size=max_tokens)
         chunks = chunker(table_text)
         return chunks if chunks else [table_text]
+
+    def _split_text_to_budget(self, text: str, budget: int) -> list[str]:
+        """텍스트를 budget 이하 조각들로 내부 분할한다.
+
+        split_items_evenly_by_tokens 는 아이템 경계에서만 자르므로, 아이템 하나가 예산보다
+        크면 그대로 통과해 청크가 chunk_size 를 넘었다(실측: 1500자 아이템 → 1515자 청크).
+        표 분할(_split_table_text)과 같은 semchunk 방식으로 아이템 내부를 자른다.
+
+        조각들은 원본 아이템을 공유하므로 chunk_bboxes 가 아이템 전체를 가리킨다
+        (표 분할과 동일한 기존 트레이드오프).
+        """
+        if not text or budget <= 0:
+            return [text]
+        if self._count_tokens(text) <= budget:
+            return [text]
+        # char 모드는 문자 수 카운터(len), huggingface 모드는 토크나이저를 카운터로 쓴다.
+        counter = len if self._tokenizer is None else self._tokenizer
+        pieces = semchunk.chunkerify(counter, chunk_size=budget)(text)
+        return [p for p in pieces if p] or [text]
 
     def _is_section_header(self, item: DocItem) -> bool:
         """아이템이 section header인지 확인"""
@@ -1170,34 +1281,16 @@ class GenosSmartChunker(BaseChunker):
                                             section_header_infos: list[dict],
                                             dl_doc: DoclingDocument,
                                             **kwargs) -> str:
-        """섹션의 텍스트를 생성하되, 앞에 heading을 붙임"""
-        # 첫 번째 item의 header_info에서 heading 추출
-        if section_header_infos and section_header_infos[0]:
-            merged_headers = {}
-            for level, header_text in section_header_infos[0].items():
-                if header_text:
-                    merged_headers[level] = header_text
+        """섹션의 본문 텍스트를 생성한다.
 
-            # level 순서대로 정렬해서 ', '로 연결
-            if merged_headers:
-                sorted_levels = sorted(merged_headers.keys())
-                headers = [merged_headers[level] for level in sorted_levels]
-                heading_text = ', '.join(headers)
-            else:
-                heading_text = ""
-        else:
-            heading_text = ""
-
-        # 섹션의 일반 텍스트 생성
-        section_text = self._generate_text_from_items_with_headers(
+        과거에는 이름 그대로 섹션 heading 을 본문 앞에 접두로 붙였으나, 청크 선두의
+        `HEADER: <섹션 경로>` 라인(compose_vectors)과 정보가 완전히 동일한 중복이라 제거했다.
+        섹션 경로 부착 지점은 compose_vectors 한 곳뿐이며, include_chunk_header 로 on/off 한다.
+        (호출부가 5곳이라 함수명은 유지한다.)
+        """
+        return self._generate_text_from_items_with_headers(
             section_items, section_header_infos, dl_doc, **kwargs
         )
-
-        # heading이 있으면 앞에 붙이기
-        if heading_text:
-            return heading_text + ", " + section_text
-        else:
-            return section_text
 
     def _split_document_by_tokens(self, doc_chunk: DocChunk, dl_doc: DoclingDocument, **kwargs) -> list[DocChunk]:
         """문서를 토큰 제한에 맞게 분할 (v2: 섹션 헤더 기준으로 분할 후 max_tokens로 병합)"""
@@ -1226,7 +1319,7 @@ class GenosSmartChunker(BaseChunker):
             if not merged_texts or not merged_items:
                 return None
             chunk_text = "\n".join(merged_texts)
-            used_headers = self._extract_used_headers(merged_header_short_infos)
+            used_headers = self._extract_header_paths(merged_header_short_infos)
 
             return DocChunk(
                     text=chunk_text,
@@ -1258,7 +1351,7 @@ class GenosSmartChunker(BaseChunker):
             if n == 0:
                 return []
             if total <= max_tokens:
-                return [(0, n)]   # ✅ 항상 (a,b)
+                return [(0, n)]   # 항상 (a,b)
 
             k = math.ceil(total / max_tokens)
             target = total / k
@@ -1480,10 +1573,19 @@ class GenosSmartChunker(BaseChunker):
         if self.max_tokens > 0 and self.chunk_mode == "resize_all":
             final_sections = []  # 결과를 담을 새 리스트
             for text, items, h_infos, h_short in sections_with_text:
-                token_count = self._count_tokens(text)
-                if token_count < self.max_tokens:
+                # 크기 판정·분할 예산 모두 헤더 라인 몫을 반영해야 최종 청크가 한도를 지킨다
+                # (예전엔 본문만 세어 헤더가 그 위에 얹혀 초과했다).
+                header_tokens = self._count_tokens(self._header_line_for(h_short))
+                if self._count_tokens(text) + header_tokens <= self.max_tokens:
                     final_sections.append((text, items, h_infos, h_short))
                     continue
+                budget = self.max_tokens - header_tokens
+                if budget <= 0:
+                    # 헤더 하나가 chunk_size 이상인 병리 케이스 — 본문 기준으로 폴백(경고).
+                    _log.warning(
+                        "[GenosSmartChunker] 헤더 라인(%d)이 chunk_size(%d) 이상 — 헤더 몫 예약 생략, "
+                        "청크가 한도를 초과할 수 있음", header_tokens, self.max_tokens)
+                    budget = self.max_tokens
 
                 # caption 및 table 내 그림은 같은 섹션에 있도록 조정
                 items_group=[[(item, info, short)] for item, info, short in zip(items, h_infos, h_short)]
@@ -1492,15 +1594,17 @@ class GenosSmartChunker(BaseChunker):
 
                 # 너무 긴 섹션은 분할
                 # 각 아이템 별 token 수 계산
+                # 최종 텍스트는 delim.join(...) 이라 아이템 사이 구분자도 길이에 들어간다.
+                delim_tokens = self._count_tokens(self.delim)
                 item_token_counts = []
                 for group in items_group:
                     cur_count = 0
                     for g in group:
-                        cur_count += self._count_tokens(get_text_from_item(g[0]))
+                        cur_count += self._count_tokens(get_text_from_item(g[0])) + delim_tokens
                     item_token_counts.append(cur_count)
 
-                # 아이템 그룹들을 토큰 기준으로 균등 분할
-                split_info = split_items_evenly_by_tokens(item_token_counts, self.max_tokens)
+                # 아이템 그룹들을 토큰 기준으로 균등 분할 (헤더 몫을 뺀 예산 기준)
+                split_info = split_items_evenly_by_tokens(item_token_counts, budget)
 
                 # 분할된 결과들을 새 리스트에 추가
                 for (a, b) in split_info:
@@ -1518,7 +1622,9 @@ class GenosSmartChunker(BaseChunker):
                     new_text = self._generate_section_text_with_heading(
                         group_items, group_h_short, dl_doc, **kwargs
                     )
-                    final_sections.append((new_text, group_items, group_h_infos, group_h_short))
+                    # 아이템 경계로도 예산을 못 맞추면(단일 긴 아이템) 텍스트 내부를 자른다.
+                    for piece in self._split_text_to_budget(new_text, budget):
+                        final_sections.append((piece, group_items, group_h_infos, group_h_short))
 
             sections_with_text = final_sections  # 전체 리스트 교체
 
@@ -1545,8 +1651,16 @@ class GenosSmartChunker(BaseChunker):
             if 0 <= next_level < current_level:
                 continue
 
+            # 병합 결과가 chunk_size 를 넘으면 합치지 않는다. 이 단계에는 크기 검사가 없어,
+            # 5.5/2.5 단계가 예산에 맞춰 잘라놓은 조각을 여기서 다시 붙여 한도를 넘겼다
+            # (실측: 6자 제목 + 1009자 조각 = 1016자 → 헤더 15자 포함 1031 > 1024).
+            merged_text = text + '\n' + n_text
+            if self.max_tokens > 0 and self._count_tokens(
+                    self._header_line_for(h_short + n_h_short) + merged_text) > self.max_tokens:
+                continue
+
             # 다음 섹션과 병합
-            sections_with_text[i] = (text + '\n' + n_text, items + n_items, h_infos + n_h_infos, h_short + n_h_short)
+            sections_with_text[i] = (merged_text, items + n_items, h_infos + n_h_infos, h_short + n_h_short)
             sections_with_text.pop(i + 1)
 
         # ================================================================
@@ -1573,8 +1687,11 @@ class GenosSmartChunker(BaseChunker):
             #----------------------------------
             # 병합 가능 여부 판단
 
-            # 병합 가능 토큰 수 계산
-            test_tokens = self._count_tokens("\n".join(merged_texts + [text]))
+            # 병합 가능 토큰 수 계산. 헤더 라인도 최종 청크 길이에 들어가므로 함께 센다
+            # (경로가 합쳐지면 헤더가 길어져 병합 판정이 달라져야 한다).
+            test_tokens = self._count_tokens(
+                self._header_line_for(merged_header_short_infos + list(header_short_infos))
+                + "\n".join(merged_texts + [text]))
 
             # 현재 섹션헤더 레벨과 병합된 섹션헤더 레벨
             section_level = get_header_level(header_infos, first=True)
@@ -1618,8 +1735,8 @@ class GenosSmartChunker(BaseChunker):
         # ================================================================
         def _size(g):
             text = "\n".join(g["texts"])
-            headings = self._extract_used_headers(g["h_short"]) or []
-            header_line = ("HEADER: " + ", ".join(headings) + "\n") if headings else ""
+            # compose_vectors 가 실제로 붙이는 것과 같은 문자열이어야 경계 판정이 산출 텍스트와 일치한다.
+            header_line = self._header_line_for(g["h_short"])
             # char 모드면 문자 수, huggingface 모드면 토큰 수로 산정 (max_tokens 단위와 일치)
             return self._count_tokens(header_line + text)
 
@@ -1657,17 +1774,41 @@ class GenosSmartChunker(BaseChunker):
                 items_group = adjust_captions(items_group)
                 items_group = adjust_pictures_in_tables(items_group)
 
+                # 최종 텍스트는 delim.join(...) 이라 아이템 사이 구분자도 길이에 들어간다.
+                # 아이템당 구분자 1개를 더해 예산을 보수적으로 잡는다(조각당 1개 과대 계상 → 안전).
+                # 안 더하면 구분자 총량만큼 예산이 헐거워져 실제 산출이 chunk_size 를 넘는다
+                # (실측: 18줄 청크에서 구분자 17자가 빠져 11자 초과).
+                delim_tokens = self._count_tokens(self.delim)
                 item_token_counts = []
                 for grp in items_group:
-                    item_token_counts.append(sum(self._count_tokens(get_text_from_item(x[0])) for x in grp))
+                    item_token_counts.append(
+                        sum(self._count_tokens(get_text_from_item(x[0])) + delim_tokens for x in grp))
 
-                for (a, b) in split_items_evenly_by_tokens(item_token_counts, self.max_tokens):
+                # item_token_counts 는 본문 토큰만 세므로, 청크 선두에 붙을 헤더 라인 몫을 예산에서
+                # 빼야 한다. 안 빼면 각 조각이 본문만으로 max_tokens 를 채우고 헤더가 그 위에 얹혀
+                # chunk_size 를 초과한다. 하위 그룹의 h_short 는 부모의 부분집합이라 부모 기준
+                # 헤더 길이는 상한이며, 따라서 이 예약은 안전하다.
+                header_tokens = self._count_tokens(self._header_line_for(g["h_short"]))
+                budget = self.max_tokens - header_tokens
+                if budget <= 0:
+                    # 헤더 하나가 chunk_size 이상인 병리 케이스(조문 전체가 SECTION_HEADER 로 승격된 경우).
+                    # 예약하면 예산이 0 이하가 되어 분할이 끝나지 않으므로 기존 동작(본문 기준)으로
+                    # 폴백하고 경고만 남긴다 — 근본 원인은 heading 길이라 별도로 다룬다.
+                    _log.warning(
+                        "[GenosSmartChunker] 헤더 라인(%d)이 chunk_size(%d) 이상 — 헤더 몫 예약 생략, "
+                        "청크가 한도를 초과할 수 있음", header_tokens, self.max_tokens)
+                    budget = self.max_tokens
+
+                for (a, b) in split_items_evenly_by_tokens(item_token_counts, budget):
                     gi, gh, gs = [], [], []
                     for idx in range(a, b):
                         for x in items_group[idx]:
                             gi.append(x[0]); gh.append(x[1]); gs.append(x[2])
                     new_text = self._generate_section_text_with_heading(gi, gs, dl_doc, **kwargs)
-                    new_groups.append({"texts": [new_text], "items": gi, "h_infos": gh, "h_short": gs})
+                    # 아이템 경계 분할로도 예산을 못 맞추면(단일 긴 아이템) 텍스트 내부를 자른다.
+                    for piece in self._split_text_to_budget(new_text, budget):
+                        new_groups.append({"texts": [piece], "items": gi,
+                                           "h_infos": gh, "h_short": gs})
             groups = new_groups
 
         # ================================================================
@@ -1698,8 +1839,108 @@ class GenosSmartChunker(BaseChunker):
         doc_chunk = doc_chunks[0]  # preprocess는 하나의 청크만 반환
 
         final_chunks = self._split_document_by_tokens(doc_chunk, dl_doc, **kwargs)
+        final_chunks = self._merge_heading_only_chunks(final_chunks)
 
         return iter(final_chunks)
+
+    def _merge_heading_only_chunks(self, chunks: list[DocChunk]) -> list[DocChunk]:
+        """본문이 없고 제목만 있는 청크를 인접 청크로 병합한다.
+
+        docling 이 섹션 헤더를 독립 DocItem 으로 내보내면 그 헤더 하나만 담긴 청크가 생긴다
+        (실측: 여비세칙 76청크 중 20개). 이런 청크는 제목 용어로 검색 상위를 차지한 뒤 답변 근거를
+        0 개 제공하는 인덱스 오염이므로, doc_items(bbox·페이지 커버리지)와 headings 를 다음 청크로
+        승계시키고 청크 자체는 없앤다. 다음 청크가 없으면 이전 청크로 후방 병합한다.
+
+        DocMeta.doc_items 는 min_length=1 이라 doc_items 가 비지 않도록 원본을 그대로 옮긴다.
+        """
+        if len(chunks) < 2:
+            return chunks
+
+        def _is_heading_only(chunk: DocChunk) -> bool:
+            """아이템이 전부 섹션 헤더/타이틀인 청크.
+
+            문자열 기반(본문에서 heading 을 replace 해 남는지)으로 판정하면, 본문이 헤더
+            문자열로만 구성된 정상 청크를 헤더-only 로 오판해 본문이 사라졌다
+            (실측: 헤더 `가` + 본문 `가가가가가` → `가가가가가` 소실). 유형으로 판정한다.
+            """
+            return bool(chunk.meta.doc_items) and all(
+                self._is_section_header(item) for item in chunk.meta.doc_items)
+
+        def _text_covered(donor: DocChunk, headings) -> bool:
+            """donor 텍스트의 모든 줄이 병합 후 헤더 경로에 남는지.
+
+            _absorb 는 donor 본문을 버리고 headings 만 승계하므로, donor 텍스트가 경로에
+            남지 않으면 그 내용은 산출물에서 사라진다. 유형 판정만으로는 부족하다 —
+            _is_section_header 는 TITLE 도 포함하는데 문서 선두 TITLE 청크는 headings 가
+            비어 있을 수 있다(실측: hwp chunk 0 에 HEADER 라인 없음). 여기서 최종 차단한다.
+            """
+            joined = _CHUNK_PATH_SEP.join(headings or [])
+            return all(line.strip() in joined
+                       for line in (donor.text or "").splitlines() if line.strip())
+
+        def _absorb(donor: DocChunk, target: DocChunk, *, donor_first: bool) -> DocChunk:
+            items = ([*donor.meta.doc_items, *target.meta.doc_items] if donor_first
+                     else [*target.meta.doc_items, *donor.meta.doc_items])
+            headings = (_union_paths(donor.meta.headings, target.meta.headings) if donor_first
+                        else _union_paths(target.meta.headings, donor.meta.headings))
+            return DocChunk(
+                text=target.text,
+                meta=DocMeta(
+                    doc_items=items,
+                    headings=headings,
+                    # 이 청커는 captions 를 채우지 않는다(get_current_chunk 도 None).
+                    # target.meta.captions 를 읽으면 docling 의 deprecation 경고만 유발한다.
+                    captions=None,
+                    origin=target.meta.origin,
+                ),
+            )
+
+        def _fits(chunk: DocChunk) -> bool:
+            """병합 결과가 chunk_size 이내인지. 본문은 안 늘지만 headings 합집합으로 헤더 라인이
+            길어지므로, _size 검증이 끝난 뒤인 여기서 다시 확인해야 한도를 넘기지 않는다."""
+            if self.max_tokens <= 0:
+                return True
+            line = _build_header_line(chunk.meta.headings, self.include_chunk_header)
+            return self._count_tokens(line + (chunk.text or "")) <= self.max_tokens
+
+        result: list[DocChunk] = []
+        pending: list[DocChunk] = []  # 아직 흡수처를 못 찾은 제목-only 청크들
+        for chunk in chunks:
+            if _is_heading_only(chunk):
+                pending.append(chunk)
+                continue
+            # 가까운 donor 부터 흡수해야 items·headings 가 문서 순서로 쌓인다.
+            # 한도에 걸리면 그 지점에서 멈춘다 — 가까운 donor 를 못 넣은 채 먼 donor 를 건너뛰어
+            # 붙이면 순서가 뒤집히기 때문이다. 못 넣은 것은 제목-only 청크로 그대로 남긴다.
+            skipped: list[DocChunk] = []
+            stopped = False
+            for donor in reversed(pending):
+                if stopped:
+                    skipped.append(donor)
+                    continue
+                cand = _absorb(donor, chunk, donor_first=True)
+                # 크기(_fits)와 무손실(_text_covered) 둘 다 만족할 때만 흡수한다.
+                # 못 하면 제목-only 청크로 남긴다 — 인덱스 오염을 조금 남기는 편이 본문 유실보다 낫다.
+                if _fits(cand) and _text_covered(donor, cand.meta.headings):
+                    chunk = cand
+                else:
+                    stopped = True
+                    skipped.append(donor)
+            result.extend(reversed(skipped))  # 문서 순서 복원 후 target 앞에 배치
+            result.append(chunk)
+            pending.clear()
+
+        # 문서 끝에 남은 제목-only 청크는 마지막 본문 청크로 후방 병합(한도를 넘으면 그대로 남긴다).
+        while pending:
+            donor = pending.pop(0)
+            if result:
+                cand = _absorb(donor, result[-1], donor_first=False)
+                if _fits(cand) and _text_covered(donor, cand.meta.headings):
+                    result[-1] = cand
+                    continue
+            result.append(donor)
+        # 본문 청크가 하나도 없으면(제목뿐인 문서) 원본을 그대로 반환한다.
+        return result if result else chunks
 # 민감정보 분류/마스킹(#315)은 facade/guardrail 모듈로 분리 — gr.* 로 사용.
 from genon.preprocessor.facade import guardrail as gr
 
@@ -1897,6 +2138,10 @@ class DocumentProcessor:
         if self._chunk_mode not in {"split_only", "resize_all"}:
             _log.warning(f"[DocumentProcessor] Unknown chunking.chunk_mode '{self._chunk_mode}', fallback to 'split_only'.")
             self._chunk_mode = "split_only"
+
+        # 청크 선두 "HEADER: <섹션 경로>" 라인 부착 여부(기본 True). kwargs 의 include_chunk_header 가 우선.
+        _ich = _parse_optional_bool(chunking_cfg.get("include_chunk_header"), "chunking.include_chunk_header")
+        self._include_chunk_header = True if _ich is None else _ich
 
         # xlsx(엑셀) 처리 설정(이슈 #288). formats.xlsx 아래에 둔다(포맷별 옵션 컨테이너).
         #   docling(기본): xlsx 를 docling MsExcel 백엔드로 처리(현행) → 기존 청킹/벡터 파이프라인.
@@ -2543,6 +2788,8 @@ class DocumentProcessor:
             tokenizer = self._tokenizer,
             tokenizer_type = self._tokenizer_type,
             chunk_mode = chunk_mode,
+            # 크기 산정(_size)이 compose_vectors 의 실제 부착 여부와 같은 값을 보게 한다.
+            include_chunk_header = _resolve_include_chunk_header(kwargs, self._include_chunk_header),
         )
 
         # 표 직렬화 형식(html|markdown)을 청커로 전달(런타임 kwarg 가 있으면 우선).
@@ -2573,6 +2820,7 @@ class DocumentProcessor:
             tokenizer=self._tokenizer,
             tokenizer_type=self._tokenizer_type,
             chunk_mode=chunk_mode,
+            include_chunk_header=_resolve_include_chunk_header(kwargs, self._include_chunk_header),
         )
         kwargs.setdefault("table_format", self._table_format)
         kwargs.setdefault("compact_tables", self._compact_tables)
@@ -2607,7 +2855,9 @@ class DocumentProcessor:
             if text and text.strip() and text.strip() != ".":
                 page_chunks.append(DocChunk(
                     text=text,
-                    meta=DocMeta(doc_items=its, headings=None, captions=None, origin=documents.origin),
+                    # headings 를 채워야 compose_vectors 가 `HEADER:` 를 붙인다(본문 접두는 제거됨).
+                    meta=DocMeta(doc_items=its, headings=chunker._extract_header_paths(page_headers[pg]),
+                                 captions=None, origin=documents.origin),
                 ))
 
         # chunk_size>0 이면 연속 페이지 greedy 병합 (split_only 는 1 page = 1 chunk 유지)
@@ -2615,12 +2865,18 @@ class DocumentProcessor:
             merged: List[DocChunk] = [page_chunks[0]]
             for ch in page_chunks[1:]:
                 cand_text = merged[-1].text + "\n" + ch.text
-                if chunker._count_tokens(cand_text) <= chunk_size:
+                # headings 를 None 으로 덮으면 위에서 채운 섹션 경로가 사라져 병합 청크에만
+                # HEADER 가 안 붙는다. 경로를 합집합으로 승계하고, 크기 판정에도 그 헤더 라인을
+                # 포함한다(경로가 길어지면 병합 여부가 달라져야 한다).
+                cand_headings = _union_paths(merged[-1].meta.headings, ch.meta.headings)
+                cand_size = chunker._count_tokens(
+                    _build_header_line(cand_headings, chunker.include_chunk_header) + cand_text)
+                if cand_size <= chunk_size:
                     merged[-1] = DocChunk(
                         text=cand_text,
                         meta=DocMeta(
                             doc_items=merged[-1].meta.doc_items + ch.meta.doc_items,
-                            headings=None, captions=None, origin=documents.origin,
+                            headings=cand_headings, captions=None, origin=documents.origin,
                         ),
                     )
                 else:
@@ -2869,6 +3125,9 @@ class DocumentProcessor:
         title = ""
         _sensitive_infos: list = kwargs.get("_sensitive_infos") or []      # #315 분류 결과
         _gr_masking: bool = bool(kwargs.get("_guardrail_masking", False))   # #315 마스킹 치환 on/off
+        # 청크 선두 "HEADER: <섹션 경로>" 부착 여부. split_documents 와 kwargs 를 각기 언패킹해서 받으므로
+        # setdefault 로 전달할 수 없어 양쪽이 같은 resolver 를 호출한다.
+        _include_header: bool = _resolve_include_chunk_header(kwargs, self._include_chunk_header)
         enrichment_context = kwargs.get("_enrichment_context")
         context_metadata = (
             dict(enrichment_context.get("metadata", {}))
@@ -2918,8 +3177,9 @@ class DocumentProcessor:
         upload_tasks = []
         for chunk_idx, chunk in enumerate(chunks):
             chunk_page = chunk.meta.doc_items[0].prov[0].page_no if chunk.meta.doc_items[0].prov else 0
-            # header 앞에 헤더 마커 추가 (HEADER: )
-            headers_text = "HEADER: " + ", ".join(chunk.meta.headings) + '\n' if chunk.meta.headings else ''
+            # 청크 선두에 섹션 경로 부착 (HEADER: ). 여기가 유일한 부착 지점이며,
+            # 청커의 크기 산정도 같은 _build_header_line 을 쓴다(한도 초과 방지).
+            headers_text = _build_header_line(chunk.meta.headings, _include_header)
             content = headers_text + chunk.text
 
             if chunk_page != current_page:
@@ -3591,7 +3851,7 @@ class DocumentProcessor:
         try:
             # HWP/HWPX: docling(SDK + 레거시 백엔드) 처리가 전체 실패하면 PDF 변환으로 최종 폴백한다.
             # attachment_processor.DocumentProcessor.__call__ 의 PDF 폴백과 동일 취지 —
-            # convert_to_pdf 는 rhwp ↔ LibreOffice HWP→PDF 체인이며, 변환된 PDF 를 PDF 경로로 재처리한다.
+            # convert_to_pdf 는 rhwp와 LibreOffice의 HWP-PDF 변환 체인이며, 변환된 PDF를 PDF 경로로 재처리한다.
             # (헌법.hwp 처럼 SDK 가 exit 3 으로 거부하거나 02.hwp 처럼 빈 결과를 내는 경우를 살린다.)
             # 비정상/암호화 파일 사전 감지(이슈 #278/#307): 지원 포맷 매직헤더에 하나도 안 맞고
             # 텍스트도 아니면(=DRM 암호화/손상 바이너리) 파싱/변환 단계의 garbage 처리를 유발하므로

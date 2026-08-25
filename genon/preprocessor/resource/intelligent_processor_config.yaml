@@ -219,6 +219,11 @@ chunking:
   # 청킹 모드: split_only(기본) = chunk_size 초과 청크만 분할(구조 보존) |
   #           resize_all = 모든 청크를 chunk_size 에 맞게 병합/분할. 우선순위: kwargs.chunk_mode > 아래.
   chunk_mode: split_only
+  # 청크 텍스트 선두에 "HEADER: <섹션 경로>" 라인을 붙일지 여부(기본 true).
+  # false 면 순수 본문만 산출된다(검색 시 섹션 문맥이 사라지므로 기본값 변경은 신중히).
+  # 섹션 경로는 이 라인 한 곳에서만 붙는다 — 본문 내 제목 반복은 제거되었다.
+  # 우선순위: kwargs.include_chunk_header > 아래 > true.
+  include_chunk_header: true
   # 토큰 수 계산 방식. "char"(default)=문자 수 기준 | "huggingface"=HF 토크나이저 기준
   tokenizer_type: "char"
   # 청킹용 토크나이저(huggingface 모드에서만 사용). tokenizer_path 가 실제 존재하면 그 경로,

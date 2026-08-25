@@ -9,6 +9,7 @@ import os
 import tempfile
 import shutil
 from unittest.mock import Mock, AsyncMock
+from collections import defaultdict
 
 
 class TestIntelligentProcessor:
@@ -357,3 +358,56 @@ def test_metadata_config_parses_field_transforms():
         Path("."),
     )
     assert ec_default.metadata.field_transforms == []
+
+
+# ----------------------------------------------------------------------
+# PPT 페이지 기반 청킹 — resize_all 병합 시 섹션 경로(HEADER) 유지.
+#
+# 회귀 배경: 페이지 청크에는 headings 를 채우는데 연속 페이지 greedy 병합이 그걸
+# headings=None 으로 덮어써, 병합된 PPT 청크에만 HEADER 가 붙지 않았다. 병합 크기 판정에도
+# 헤더 라인이 빠져 있어 병합 후 chunk_size 를 넘을 수 있었다.
+# ----------------------------------------------------------------------
+
+@pytest.mark.unit
+@pytest.mark.parametrize("module_name", ["intelligent_processor", "convert_processor"])
+def test_ppt_page_merge_keeps_header_paths(module_name):
+    """resize_all 로 페이지를 병합해도 섹션 경로가 살아있고 한도를 지킨다."""
+    mod = pytest.importorskip(f"facade.{module_name}")
+    from docling_core.types import DoclingDocument
+    from docling_core.types.doc import BoundingBox, DocItemLabel, ProvenanceItem
+
+    doc = DoclingDocument(name="ppt_probe")
+    section = doc.add_heading(text="발표 개요", level=1)
+    for page in (1, 2, 3):
+        doc.add_text(
+            label=DocItemLabel.TEXT,
+            text=f"{page}쪽 본문입니다.",
+            parent=section,
+            prov=ProvenanceItem(page_no=page, bbox=BoundingBox(l=0, t=0, r=1, b=1), charspan=(0, 1)),
+        )
+
+    # __init__(config/prompt/네트워크) 우회 — split_documents_by_page 가 쓰는 속성만 채운다.
+    proc = object.__new__(mod.DocumentProcessor)
+    proc._chunk_size = 10000
+    proc._chunk_mode = "resize_all"
+    # tokenizer 필드는 char 모드에서도 pydantic 검증을 통과해야 한다(None 불가).
+    proc._tokenizer = mod.GenosSmartChunker.model_fields["tokenizer"].default
+    proc._tokenizer_type = "char"
+    proc._include_chunk_header = True
+    proc._table_format = "html"
+    proc._compact_tables = True
+    proc.page_chunk_counts = defaultdict(int)
+
+    chunks = proc.split_documents_by_page(doc, chunk_size=10000, chunk_mode="resize_all")
+
+    assert chunks, "페이지 청크가 생성되어야 한다"
+    assert len(chunks) < 3, "resize_all 이면 연속 페이지가 병합되어야 한다"
+    for ch in chunks:
+        assert ch.meta.headings, f"병합 청크에 섹션 경로가 없다: {ch.text[:60]!r}"
+        line = mod._build_header_line(ch.meta.headings, True)
+        assert line.startswith("HEADER: ")
+        assert len(line + ch.text) <= 10000, "병합 후 chunk_size 초과"
+    # 본문은 모두 남아야 한다.
+    joined = "\n".join(ch.text for ch in chunks)
+    for page in (1, 2, 3):
+        assert f"{page}쪽 본문입니다." in joined

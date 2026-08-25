@@ -1004,7 +1004,11 @@ return self._normalize_response(result)
 | 분할 기준 변경 | `split_items_evenly_by_tokens` (930–978) | 반환 구간은 **폭이 0 이 아니어야** 합니다. 0 이면 그 청크가 에러 없이 사라집니다 |
 | parse-format 청킹 방식 | `_chunk_text_elements` (2583), 라우팅은 `_chunk_parse_format` (2759) | `chunk_size: 0`(미분할) 계약과 표 입력의 하위호환 가드를 유지 |
 | 표 직렬화 형식 | `_extract_table_text` (624), 큰 표는 `_table_item_to_texts` (726) | 요청 `params` 의 `export_to_html: 0` 으로도 markdown 전환 가능(코드 수정 불필요). 다만 큰 표 분할 경로는 HTML 전제 |
-| `HEADER:` 접두 형식 | `compose_vectors` (2211) + `_generate_section_text_with_heading` (844) | 헤더 문자열이 **두 군데서 두 번** 붙습니다. 한쪽만 고치면 중복 또는 누락 |
+| `HEADER:` 접두 형식 | 조립은 `_build_header_line` **한 곳**, 부착은 `compose_vectors` 한 곳 | `chunk.meta.headings` 의 **원소 하나가 완전한 경로**입니다. 경로 내부는 `_CHUNK_HEADER_SEP`(` > `), 형제 경로 사이는 `_CHUNK_PATH_SEP`(` | `)이며, 형제가 여럿이면 공통 조상을 factor 하고 리프는 `_CHUNK_PATH_MAX_LEAVES` 까지만 나열합니다 — `상품 안내 > (우대금리 조건 | 가입 제한 … 외 3개)`. **크기 산정(`_size` · 분할 예산 · 병합 재검증)도 같은 `_build_header_line` 을 써야 합니다.** 조립이 흩어져 있던 동안 분할 예산과 병합이 헤더 몫을 빼먹어 청크가 chunk_size 를 넘었습니다. 본문에 제목을 다시 넣던 옛 동작(제목이 3번, 청크의 30~56%)은 되살리지 마십시오 |
+| 청크 선두 헤더 on/off | 요청 `params` 의 `include_chunk_header` (yaml `chunking.include_chunk_header`, 기본 true) | **코드 수정 없이** 끌 수 있습니다. 0/1 과 `on`/`off` 모두 허용. off 면 순수 본문만 나옵니다(검색 시 섹션 문맥 소실). parse-format 경로는 애초에 헤더가 없어 no-op |
+| chunk_size 예산 (알려진 한계) | split_only·resize_all 분할이 헤더 몫 + `delim` 비용을 예약하고, 아이템 하나가 예산보다 크면 `_split_text_to_budget`(semchunk)으로 내부 분할합니다(조각들은 표 분할과 마찬가지로 bbox 를 공유) | **표 분할(`_table_item_to_texts` · `_split_table_text`)은 아직 헤더 몫을 예약하지 않습니다.** 그 경로에서는 청크가 헤더 길이만큼 chunk_size 를 넘을 수 있습니다. 헤더 라인이 chunk_size 보다 긴 경우(조문 전체가 SECTION_HEADER 로 승격)는 예약을 생략하고 warning 을 남깁니다 |
+| 헤더-only 청크 병합 | `_merge_heading_only_chunks` (`_is_heading_only` · `_text_covered`) | 판정은 **아이템 유형**(`_is_section_header`)입니다. 문자열 replace 로 되돌리지 마십시오 — 본문이 헤더 문자열로만 구성된 정상 청크를 오판해 본문이 사라졌습니다(실측: 헤더 `가` + 본문 `가가가가가` → 소실). `_text_covered` 가 donor 텍스트가 헤더 경로에 남는지 최종 확인하며, 크기(`_fits`)와 함께 둘 다 통과할 때만 병합합니다 |
+| 섹션 병합 지점의 크기 검사 | 2·3·4·5·5.5단계 + PPT 페이지 병합 | **섹션을 합치는 모든 지점이 헤더 라인을 포함해 크기를 재야 합니다.** 3단계(단독 타이틀 병합)에 검사가 없어서, 예산에 맞춰 잘라둔 조각을 다시 붙여 한도를 넘긴 전례가 있습니다. 표 분할 경로(`_table_item_to_texts` · `_split_table_text`)는 아직 헤더 몫을 예약하지 않습니다(알려진 한계) |
 
 ### 5.6 enrichment 모듈
 
@@ -1027,7 +1031,7 @@ return self._normalize_response(result)
 
 | 필드 | 의미 |
 |---|---|
-| `text` | 청크 본문. 앞에 `HEADER: <섹션 제목들>` 줄이 붙습니다 |
+| `text` | 청크 본문. 앞에 `HEADER: <섹션 제목들>` 줄이 붙습니다(`include_chunk_header: 0` 으로 끌 수 있음). 섹션 제목은 이 줄에만 붙고 본문에서 반복되지 않습니다 |
 | `n_char` · `n_word` · `n_line` | 본문에서 자동 계산 |
 | `i_page` · `e_page` · `n_page` | 시작/끝/전체 페이지 |
 | `i_chunk_on_page` · `n_chunk_of_page` | 페이지 내 순번/총수 |
@@ -1208,8 +1212,8 @@ facade 별로 받는 키가 다릅니다. 자주 쓰는 것만:
 | facade | 자주 쓰는 `params` 키 |
 |---|---|
 | parser | `toc`, `img_desc`, `chart_desc`, `table_desc`, `table_refine`, `doc_summary`, [`doc_type`](#g-새-doc_type-추가하기), `save_images`, `use_hwp_sdk`, `log_level` |
-| chunking | `document`(`file_path` 가 서버 안의 `.json` 이면 생략 가능), `chunk_size`, `chunk_mode`, `chunk_overlap`, `table_as_chunk`, `export_to_html`, `log_level` |
-| intelligent / convert | 위 parser 키 + `chunk_size`, `chunk_mode`, `use_pdf_sdk`, `table_format`, `export_to_html` |
+| chunking | `document`(`file_path` 가 서버 안의 `.json` 이면 생략 가능), `chunk_size`, `chunk_mode`, `include_chunk_header`, `chunk_overlap`, `table_as_chunk`, `export_to_html`, `log_level` |
+| intelligent / convert | 위 parser 키 + `chunk_size`, `chunk_mode`, `include_chunk_header`, `use_pdf_sdk`, `table_format`, `export_to_html` |
 | attachment | `chunker_type`, `chunk_size`, `chunk_overlap`, `use_pdf_sdk`, `use_hwp_sdk` |
 | **공통** | `llm_cache`, `interim_root`, `workflow_id`, `run_id`, `error_policy`(`strict`/`lenient`), `request_deadline`(초), `guardrail_call` |
 
