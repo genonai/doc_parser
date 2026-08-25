@@ -1834,9 +1834,7 @@ class GenosSmartChunker(BaseChunker):
                     # 단일 표 아이템은 아이템 경계 분할로는 더 못 줄어드므로(n=1),
                     # 자체가 max_tokens 를 넘으면 row 단위로 서브 분할한다.
                     if len(group_items) == 1 and isinstance(group_items[0], TableItem):
-                        table_texts = self._table_item_to_texts(
-                            group_items[0], dl_doc, group_h_short[0], **kwargs
-                        )
+                        table_texts = self._table_item_to_texts(group_items[0], dl_doc, group_h_short[0], **kwargs)
                         if len(table_texts) > 1:
                             for table_text in table_texts:
                                 new_sections.append((table_text, group_items, group_h_infos, group_h_short))
@@ -2163,13 +2161,14 @@ class GenOSVectorMetaBuilder:
         }
         return GenOSVectorMeta.model_validate(payload)
 
+
 PLANT_NAMES = {
-    # "건공절차",
-    # "건본절차",
-    # "건사지침",
-    # "발공절차",
-    # "발전소공용절차",
-    # "발전소공용지침",
+    "건공절차": "전사",
+    "건본절차": "전사",
+    "건사지침": "전사",
+    "발공절차": "전사",
+    "발전소공용절차": "전사",
+    "발전소공용지침": "전사",
     "보령2발절차": "보령발전본부",
     "보령2발지침": "보령발전본부",
     "보령2절차": "보령발전본부",
@@ -2185,10 +2184,11 @@ PLANT_NAMES = {
     "보령복지침": "보령발전본부",
     "보령복합지침": "보령발전본부",
     "보령삼지침": "보령발전본부",
+    "보령삼절차": "보령발전본부",
     "보령신복지침": "보령발전본부",
     "보령이지침": "보령발전본부",
     "보령친환경절차": "보령발전본부",
-    # "본공지침",
+    "본공지침": "전사",
     "서울건절차": "서울발전본부",
     "서울매뉴얼": "서울발전본부",
     "서울복절차": "서울발전본부",
@@ -2203,12 +2203,13 @@ PLANT_NAMES = {
     "세종지침": "세종발전본부",
     "신보령건지침": "신보령발전본부",
     "신보령매뉴얼": "신보령발전본부",
+    "신서천매뉴얼": "신보령발전본부",
     "신보령절차": "신보령발전본부",
     "신보령지침": "신보령발전본부",
     "신서천절차": "신보령발전본부",
     "신서천지침": "신보령발전본부",
-    # "원주절차",
-    # "인력절차",
+    "원주절차": "전사",
+    "인력절차": "전사",
     "인천공용절차": "인천발전본부",
     "인천공용지침": "인천발전본부",
     "인천복절차": "인천발전본부",
@@ -2216,11 +2217,11 @@ PLANT_NAMES = {
     "인천연료전지": "인천발전본부",
     "인천절차": "인천발전본부",
     "인천지침": "인천발전본부",
-    # "전사공용절차",
-    # "전사공용지침",
-    # "전사매뉴얼",
-    # "전사절차",
-    # "전사지침",
+    "전사공용절차": "전사",
+    "전사공용지침": "전사",
+    "전사매뉴얼": "전사",
+    "전사절차": "전사",
+    "전사지침": "전사",
     "제주1발절차": "제주발전본부",
     "제주1발지침": "제주발전본부",
     "제주2발절차": "제주발전본부",
@@ -2233,14 +2234,31 @@ PLANT_NAMES = {
     "함안건지침": "함안건설본부",
 }
 
+
+# tokens[1](부서/분야) 자리에 실제로 나타나는 카테고리 전체 목록.
+# tokens[0] 이 PLANT_NAMES 에 없어 전사 문서로 분류될 때, 특정 부서로 단정할 수 없으므로
+# 이 전체를 공백으로 join 해서 field 에 넣는다 (검색/필터링 시 어떤 부서로 걸러도 매칭되게).
+FIELD_CATEGORIES = [
+    "운전", "정비", "안전보건", "운영", "환경", "작업", "정보", "안전",
+    "품질", "건설", "환경화학", "설비", "PSM", "물자", "시운전", "녹색",
+    "기술", "총무", "화학", "자재", "인사", "토건", "기타", "경영",
+    "해사", "업무", "내부통제", "재무", "회로", "전산", "개발", "관리", "배출권",
+]
+_ALL_FIELDS_JOINED = " ".join(FIELD_CATEGORIES)
+
+
 def extract_manual_metadata_from_filename(file_name) -> dict:
     tokens = Path(file_name).stem.split("-")
+    tokens[0] = tokens[0].replace(" ", "")  # "제주2발 지침" 같은 공백 오타 정규화
 
-    plant_name = PLANT_NAMES.get(tokens[0], "전사")
-    _field = tokens[1] if len(tokens) > 1 else "none"
+    plant_name = PLANT_NAMES.get(tokens[0])
+    if plant_name is None:
+        # dict 에 없는 접두어(오탈자/구분자 다른 파일명/제목형 파일명 등) -> 전사 문서로 간주.
+        # 특정 부서로 단정할 수 없으므로 존재 가능한 모든 카테고리를 합쳐서 반환한다.
+        return {"plant_name": "전사", "field": _ALL_FIELDS_JOINED}
 
-    return {"plant_name": plant_name, 
-            "field": _field}
+    _field = tokens[1] if len(tokens) > 1 else _ALL_FIELDS_JOINED
+    return {"plant_name": plant_name, "field": _field}
 
 
 class DocumentProcessor:
