@@ -13,20 +13,20 @@
 #
 # 원천: ssc_rag_adpr_yyyymmdd_xxxxx_001.json (/data/raw/WCM/ADPR, 확장자 "json(희망)")
 #
-# ★ custom_field_card.yaml 의 후속이다.
+# custom_field_card.yaml 의 후속이다.
 #   기존 card config 는 마케팅 관점 12필드(issuer_name/annual_fee_amount/…)를 평면으로 뽑았는데,
 #   TB_PRODUCT 컬럼은 PRODUCT_C · PRODUCT_NM · PRODUCT_ATTRS(JSON) · SUMMARY_TEXT · GROUP_C 다.
 #   그래서 연회비·혜택·가입조건 같은 속성은 개별 컬럼이 아니라 PRODUCT_ATTRS 안으로 넣는다
 #   (DB 예시가 정확히 그 형태다: {"annual_fee": 0, "benefits": ["세제혜택"]}).
 #   생명/화재(custom_field_product_slf.yaml · _ssf.yaml)와 같은 출력 스키마를 쓴다.
 #
-# ⚠️ 상품 시트 요청사항(카드):
+# 상품 시트 요청사항(카드):
 #   - json 과 html n종으로 분리된 데이터를 하나로 통합 가능한지 확인 필요
 #   - 단순 통합하면 중복 내용이 많고, 카드 상품 특성상 이미지가 많다
 #   - 정형화 레이아웃 권장: ID, 제목, 문서 개요, 혜택, 추가정보(발급기준 등), 유의사항, 출처
 #   원천이 json 으로 확정되면 위 `json.text_fields` 를 카드WCMS 실제 스키마의 본문 키로 교체할 것.
 #
-# ⚠️ PRODUCT_C(상품코드)는 NOT NULL 이다. 카드는 상품코드가 페이지에 노출되는 경우가 있어
+# PRODUCT_C(상품코드)는 NOT NULL 이다. 카드는 상품코드가 페이지에 노출되는 경우가 있어
 #    LLM 추출을 시도하되, 안정적으로 확보하려면 원천이 별도 필드로 주는 편이 낫다.
 
 # ── LLM 연결 ────────────────────────────────────────────────────────────────

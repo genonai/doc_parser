@@ -13,7 +13,7 @@ requires-python = ">=3.11,<4.0"
 #     easyocr/rtree/tree-sitter*/scipy/pandas/openpyxl/marko/lxml/pylatexenc 등.
 #   - 코드서빙 harness 필수 deps — pydantic-settings(settings), python-dotenv(env_loader).
 # 버전 충돌은 더 구체적인 pin(주로 preprocessor) 을 채택했다.
-# ⚠️ preprocessor / repo 루트 docling 의 deps 가 바뀌면 이 목록도 동기화할 것.
+# preprocessor / repo 루트 docling 의 deps 가 바뀌면 이 목록도 동기화할 것.
 dependencies = [
     # ── docling 계열 (docling 패키지 자체는 제외) ──────────────────────────────
     "docling-core[chunking]==2.85.0",

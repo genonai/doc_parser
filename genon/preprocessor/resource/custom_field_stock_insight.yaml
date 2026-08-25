@@ -17,14 +17,14 @@
 #   + 필수 요청 사항으로 "ID - unique ID(유일키 확인)" 를 추가 요청한 상태
 
 column_map:
-  BIZ_ID:         [ID, 아이디]                          # ⚠️ 원천에 추가 요청 중인 컬럼
+  BIZ_ID:         [ID, 아이디]                          # 원천에 추가 요청 중인 컬럼
   REGT_NO:        [등록번호, REGT_NO]
   NTC_OBJLINE_NO: [NTC_OBJLINE_NO, 게시물라인번호, 게시물 라인번호]
   JONG_CODE:      [JONG_CODE]                             # (NOT NULL)
   JONG_NAME:      [JONG_NAME]
   NEWS_DATE:      [NEWS_DATE]
   DETAIL_DESC:    [DETAIL_DESC]                             # 원천 JSON 원본 문자열
-  # ⚠️ ANALYSIS_DATE(분석 기준일)는 NOT NULL 인데 원천에 대응 컬럼이 없다.
+  # ANALYSIS_DATE(분석 기준일)는 NOT NULL 인데 원천에 대응 컬럼이 없다.
   #    "언제 시점의 분석인지" 를 밝히는 값이라 뉴스일자로 대체하는 것이 현재로선 가장 가깝다.
   #    별도 제공 여부를 원천 담당과 확정할 것 — 확정되면 아래 별칭을 그 컬럼으로 바꾼다.
   ANALYSIS_DATE:  [NEWS_DATE, 분석기준일, 분석 기준일, 뉴스일자]

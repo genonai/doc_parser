@@ -72,7 +72,7 @@ RUN uv venv ${APP_DIR}/.venv
 ENV VIRTUAL_ENV=${APP_DIR}/.venv
 ENV PATH="${VIRTUAL_ENV}/bin:${PATH}"
 
-# ❗❗ 여기가 핵심
+# 여기가 핵심
 # 1) --frozen 없애고
 # 2) paddle 레포 + pypi 둘 다 보라고 하고
 # 3) 인덱스 순서 고정 안 됐을 때도 뒤에 있는 것도 보라고 함

@@ -1,6 +1,6 @@
 # CustomFieldsEnricher 외부 config — 카드 상품 메타데이터(12필드) 추출
 #
-# ⚠️ 이 설정은 모니모 적재 스키마(TB_PRODUCT)와 필드명이 맞지 않는다.
+# 이 설정은 모니모 적재 스키마(TB_PRODUCT)와 필드명이 맞지 않는다.
 #    아래 12필드는 마케팅 관점 평면 필드라 PRODUCT_C(NOT NULL) · GROUP_C(NOT NULL) ·
 #    SUMMARY_TEXT(임베딩 입력) 가 없고, 연회비·혜택은 PRODUCT_ATTRS(JSON) 안으로 들어가야 한다.
 #    적재용으로는 custom_field_product_hpp.yaml(doc_type: product_hpp)을 쓸 것.
@@ -14,7 +14,7 @@
 #       extractor: llm
 #       config_file: custom_field_card.yaml   # resource_path 자동 = 이 yaml 디렉토리
 #
-# ★ 이 파일 하나로 자족한다 — 프롬프트가 아래에 인라인되어 있어 별도 md 파일이 없다.
+# 이 파일 하나로 자족한다 — 프롬프트가 아래에 인라인되어 있어 별도 md 파일이 없다.
 #
 # 이 파일은 parser_processor_config.yaml 과 동일 폴더(resource/)에 위치.
 # 인라인 블록에서 null 이 아닌 값을 지정하면 이 파일 값보다 우선한다.

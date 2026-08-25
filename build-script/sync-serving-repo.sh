@@ -197,7 +197,7 @@ fi
 # ── 2c) requirements-dev.txt 생성 (로컬 bare-metal 에서 facade 직접 실행용) ──
 # 운영(코드서빙)은 base 이미지에 이 deps 가 이미 포함되어 런타임은 requirements.txt(docling wheel)만
 # 설치한다. 로컬에서 서빙 없이 전처리기를 직접 돌릴 때만 이 파일이 추가로 필요하다(README 부록 참고).
-# ⚠️ intelligent facade 는 fastapi/httpx 만으로 import 되지만, parser·chunking·attachment·convert 는
+# intelligent facade 는 fastapi/httpx 만으로 import 되지만, parser·chunking·attachment·convert 는
 #    모듈 최상위에서 fitz(pymupdf)/langchain*/markdown2/pydub 를 import 한다. 이들이 없으면 로컬에서
 #    facade import 자체가 실패하므로 함께 담는다 (외부 개발자의 주 작업 대상이 parser/chunker).
 # DEST 는 매 실행 새로 재생성(1) 단계)되므로 누적/중복 없음.
@@ -265,7 +265,7 @@ echo "[INFO] .gitignore 생성: ${DEST}/.gitignore"
 
 # ── 2f) VERSION 스탬프 생성 (배포본 ↔ 원본 릴리스 연결 + 산출물 자가 식별) ──────
 # 원본 릴리스 태그·SHA·wheel 을 배포본에 새긴다. 배포된 산출물이 자기 버전을 식별 가능.
-# ⚠️ 결정적 값(원본에서 파생)만 사용 — now() 타임스탬프 금지. 넣으면 매 실행 diff 가 생겨
+# 결정적 값(원본에서 파생)만 사용 — now() 타임스탬프 금지. 넣으면 매 실행 diff 가 생겨
 #    아래 4) 의 "변경 없음 스킵"이 깨진다. 날짜는 원본 커밋 날짜(고정값)만 쓴다.
 SOURCE_COMMIT_DATE="$(git -C "${ROOT_DIR}" show -s --format=%cI "${SOURCE_COMMIT}")"
 # 값은 셸 보간이 아니라 env 로 넘겨 python 이 인코딩한다(따옴표 escaping + 셸 주입 여지 제거).

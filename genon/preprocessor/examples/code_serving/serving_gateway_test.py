@@ -101,7 +101,7 @@ from pathlib import Path
 #   export GENOS_SERVING_ID=<SERVING_ID>
 #   export GENOS_AUTH_KEY=<AUTH_KEY>
 # 또는  --base-url / --serving-id / --auth-key
-# ⚠️ 인증키는 argparse default 로 두지 않는다 — ArgumentDefaultsHelpFormatter 가 --help 에
+# 인증키는 argparse default 로 두지 않는다 — ArgumentDefaultsHelpFormatter 가 --help 에
 #    "(default: <토큰>)" 으로 값을 찍어버린다. GENOS_AUTH_KEY 는 파싱 후에 해소한다(main 참고).
 DEFAULT_BASE_URL = os.environ.get("GENOS_BASE_URL", "")
 DEFAULT_SERVING_ID = os.environ.get("GENOS_SERVING_ID", "")

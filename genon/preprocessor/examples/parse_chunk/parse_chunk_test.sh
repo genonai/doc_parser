@@ -128,7 +128,7 @@ RUN="run-1"
 # processing_mode=tabular 이면 doc_type 없이도 "행=청크" 로 처리한다.
 # doc_type=faq 는 각 행 컬럼을 custom_field_faq.yaml의 목표 필드
 # (question/answer_text/category_code/... + doc_type)로 매핑할 때만 사용한다.
-# ⚠️ 지금은 custom_field_faq.yaml 에 llm_fields(QUESTION_VARIANTS)가 있어 행마다 LLM 을 1회 호출한다.
+# 지금은 custom_field_faq.yaml 에 llm_fields(QUESTION_VARIANTS)가 있어 행마다 LLM 을 1회 호출한다.
 #    모델서버 없이 매핑만 보려면 --doc_type 없이 돌리거나 그 yaml 의 llm_fields 를 주석 처리한다.
 #    (증권/카드 FAQ 도 동일 스키마라 같은 매핑으로 처리)
 # FAQ_SRC="../../../../shkim_labs/20260803_monimo/02_faq/증권FAQ_260712.xlsx"

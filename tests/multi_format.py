@@ -30,10 +30,10 @@ def main():
         Path("/workspaces/삼증리서치_리포트반출_일부/포스코퓨처엠/original/2025042415214444K_01.docx"),
         Path("/workspaces/docx_header_real/doc_parser/sample_files/건조주의보 및 강풍대비 특보 대처 방안.docx")
         # Path("/workspaces/test_data/259_그룹.pptx"),
-        # Path("/workspaces/hwpx/★(통화정책국)의결문(안) 및 참고자료(1810)_의결문제외.hwp"),
+        #Path("/workspaces/hwpx/(통화정책국)의결문(안) 및 참고자료(1810)_의결문제외.hwp"),
         # Path("/workspaces/test_data/25.09 주요 상품 라인업(상품지원담당)(사내한).pdf"),
         # Path("/workspaces/hwpx/외환국제금융동향(2018.4.12)_최종(송부본).hwpx"),
-        # Path("/workspaces/hwpx/★(통화정책국)의결문(안) 및 참고자료(1810)_의결문제외.hwpx"),
+        #Path("/workspaces/hwpx/(통화정책국)의결문(안) 및 참고자료(1810)_의결문제외.hwpx"),
         # Path("/workspaces/hwpx/(통화정책국)통화정책 여건점검(1810)_송부.hwpx"),
         # Path("/workspaces/hwpx/(통화정책국)의결문(안) 및 참고자료(1804)_송부용.hwpx"),
         # Path("/workspaces/hwpx/(1810) 통화정책방향 여건점검 메모_F.hwpx"),

@@ -11,7 +11,7 @@ from collections import defaultdict
 class DoclingDocumentWebViewer:
     def __init__(self, json_file_path):
         self.json_file_path = json_file_path
-        self.pages_content = {}  # 🚀 에러 방지를 위해 이름을 'pages_content'로 고정
+        self.pages_content = {}  # 에러 방지를 위해 이름을 'pages_content'로 고정
         self.total_pages = 0
         self.load_data()
 
@@ -62,7 +62,7 @@ class DoclingDocumentWebViewer:
 
     def render_item(self, item, view_mode):
         """서식 모드와 JSON(Raw) 모드를 구분하여 렌더링"""
-        # 🚀 [복구]: 원본 JSON 보기 기능
+        # [복구]: 원본 JSON 보기 기능
         if view_mode == 'raw':
             raw_json = json.dumps(item["data"], indent=2, ensure_ascii=False)
             return f'<pre style="background:#f8f9fa; padding:15px; border:1px solid #ddd; overflow-x:auto; font-size:12px;">{html.escape(raw_json)}</pre>'
@@ -77,7 +77,7 @@ class DoclingDocumentWebViewer:
             res += f'<div class="item-label" style="font-size:0.7em; color:#999;">📊 {item["self_ref"]}</div>'
             res += self.render_docling_table(item["data"])
         
-        # 🚀 2. 이미지(Picture) 처리 추가
+        # 2. 이미지(Picture) 처리 추가
         elif it_type == "picture":
             # Docling 구조에서 이미지 URI와 캡션 추출
             img_data = item["data"].get("image", {})
@@ -89,7 +89,7 @@ class DoclingDocumentWebViewer:
             
             res += f'<div class="item-label" style="font-size:0.7em; color:#999;">🖼️ {item["self_ref"]}</div>'
             if img_uri:
-                # 💡 주의: 브라우저에서 접근 가능한 상대 경로인지 확인 필요
+                # 주의: 브라우저에서 접근 가능한 상대 경로인지 확인 필요
                 res += f'''
                 <div class="image-container">
                     <img src="{img_uri}" alt="{html.escape(caption_text)}">
@@ -119,7 +119,7 @@ class DoclingDocumentWebViewer:
         for r_idx, row in enumerate(grid):
             html_out += "<tr>"
             for c_idx, cell in enumerate(row):
-                # 🚀 핵심 수정 포인트:
+                # 핵심 수정 포인트:
                 # 현재 좌표(r_idx, c_idx)가 셀의 시작 좌표(Top-Left)인 경우에만 <td>를 만듭니다.
                 # 병합된 '그림자' 셀들은 시작 좌표가 현재 좌표보다 작을 것이므로 여기서 걸러집니다.
                 if cell.get("start_row_offset_idx") == r_idx and \
@@ -129,7 +129,7 @@ class DoclingDocumentWebViewer:
                     cs = cell.get("col_span", 1)
                     tag = "th" if cell.get("column_header") else "td"
                     
-                    # 🚀 텍스트 내의 \n을 <br>로 바꿔서 줄바꿈 유지
+                    # 텍스트 내의 \n을 <br>로 바꿔서 줄바꿈 유지
                     txt = html.escape(cell.get("text", "")).replace("\n", "<br>")
                     
                     # 병합 속성 적용
@@ -230,10 +230,10 @@ class DoclingHandler(SimpleHTTPRequestHandler):
         self.wfile.write(html_out.encode('utf-8'))
 
 def run_server(file_path):
-    # 🚀 클래스 명칭을 뷰어 내부와 일치시킴
+    # 클래스 명칭을 뷰어 내부와 일치시킴
     viewer = DoclingDocumentWebViewer(file_path)
     
-    # 🚀 pages_content 존재 여부 체크
+    # pages_content 존재 여부 체크
     if not viewer.pages_content: 
         print("❌ 표시할 페이지 데이터가 없습니다. (JSON 구조나 load_data 로직 확인 필요)")
         return

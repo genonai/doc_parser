@@ -9,7 +9,7 @@
 #
 # 원천: monimo_rag_adev_yyyymmdd_full_001.json (공통, 전 관계사 혼재)
 #
-# ★ 이 파일 하나로 자족한다 — 별도 프롬프트 md 나 LLM config yaml 이 필요 없다.
+# 이 파일 하나로 자족한다 — 별도 프롬프트 md 나 LLM config yaml 이 필요 없다.
 #   요약 생성에 쓰는 LLM 연결/프롬프트까지 아래 llm_fields 안에 인라인되어 있다.
 #   (프롬프트가 길거나 여러 doc_type 이 공유한다면 llm_fields 항목에 config_file 을 대신 써도 된다
 #    — custom_field_card.yaml 과 같은 방식. 두 방식은 같은 코드 경로로 처리된다.)
@@ -54,7 +54,7 @@ key_map:
                                                   # 실 payload 는 "20260710" 8자리 — date_int_flex 가 처리한다.
                                                   # evtTodaySubCopy("26.07.01~26.07.31") 는 범위 문자열이라 쓰지 않는다.
   DETAIL_HTML: [cmp_desc, htmlText, 상세내용]                # 상세내용 원문 HTML
-                                                  # ⚠️ 원문 그대로 청크 metadata 에 실린다. 상세가
+                                                  # 원문 그대로 청크 metadata 에 실린다. 상세가
                                                   # 수십~수백 KB 면 청크 payload 도 그만큼 커지므로,
                                                   # 적재 측에서 별도 컬럼으로 받는지 확인할 것.
 
@@ -79,7 +79,7 @@ nulls:
 
 # ── 대응 소스가 없을 때 채울 기본값 ─────────────────────────────────────────
 # GROUP_C: 위 value_map 을 타고 IFP 로 접힌다(defaults → value_map 순서).
-# ⚠️ 원천(monimo_rag_adev_*_full_*.json)은 전 관계사가 혼재한다고 안내받았는데, 실 payload 에는
+# 원천(monimo_rag_adev_*_full_*.json)은 전 관계사가 혼재한다고 안내받았는데, 실 payload 에는
 #    관계사를 가릴 필드가 보이지 않는다(evtDvC: "F" 의 의미 미확인). 전건을 IFP 로 채우는 것은
 #    잠정 조치다 — 관계사 판별 필드를 확인해 GROUP_C 별칭으로 추가해야 한다.
 defaults:
@@ -107,7 +107,7 @@ html_text_fields:
 # CustomFieldsEnricher 생성자로 넘어간다(= custom_field_card.yaml 의 키들과 동일한 스키마).
 # llm_fields:
 #   - # 무엇을 만들 것인가
-#     # ⚠️ 이 필드는 예전에 CONTENT_HASH 로 잘못 적혀 있었다. TB_* 의 CONTENT_HASH 는
+#    # 이 필드는 예전에 CONTENT_HASH 로 잘못 적혀 있었다. TB_* 의 CONTENT_HASH 는
 #     #    RAW(32) 원문 검증 해시이고, 요약본문(임베딩 입력)은 SUMMARY_TEXT 다.
 #     output_fields: [SUMMARY_TEXT]        # 요약본문 (임베딩 입력)
 #     input_fields: [TITLE, DETAIL_TEXT]   # 프롬프트 {{raw_text}} 로 들어갈 필드(순서대로 결합)

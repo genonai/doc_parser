@@ -35,7 +35,7 @@ ARG DOCLING_PKG_VER=2.41.0
 FROM python:${PY_VER}-slim-${DEBIAN_DIST} AS base
 # NOTE: libspatialindex 는 rtree 가 libspatialindex_c.so 를 dlopen 할 때만 필요하므로
 #   런타임 패키지(-c8)로 충분하다 (-dev 는 헤더뿐이라 런타임 이미지에 둘 이유가 없다).
-#   ⚠️ 패키지명이 배포판마다 다르다: Debian trixie = libspatialindex-c8,
+#   패키지명이 배포판마다 다르다: Debian trixie = libspatialindex-c8,
 #      Ubuntu 22.04(jammy) = libspatialindex-c6 (Dockerfile.gpu 가 쓰는 이름).
 #      서로 바꿔 쓰면 apt 가 패키지를 못 찾아 빌드가 깨진다.
 ENV DEBIAN_FRONTEND=noninteractive \
@@ -51,7 +51,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
 # NOTE: /var/cache/apt 와 /var/lib/apt/lists 는 cache mount 라 **이미지 레이어에 포함되지 않는다.**
 #   예전에는 이 RUN 끝에서 `rm -rf /var/lib/apt/lists/*` 를 했는데, 이미지 크기에는 아무 이득이 없고
 #   다음 빌드가 재사용할 apt 인덱스 캐시만 파괴했다. 그래서 제거했다.
-#   ⚠️ cache mount 가 없는 다른 apt RUN(rhwp 빌더 등)의 rm 은 실제로 레이어를 줄이므로 유지해야 한다.
+#   cache mount 가 없는 다른 apt RUN(rhwp 빌더 등)의 rm 은 실제로 레이어를 줄이므로 유지해야 한다.
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
     echo "deb http://deb.debian.org/debian sid main" > /etc/apt/sources.list.d/sid.list && \
@@ -128,7 +128,7 @@ COPY build-script/code-serving-doc-parser/pyproject.toml build-script/code-servi
 #   이게 없으면 PyPI 기본(CUDA) torch 가 잡혀 nvidia 휠 15종 + triton 약 4GB 가 함께 내려오고,
 #   아래 HW_VARIANT=cpu 단계에서 전부 버려진다. 콜드 빌드 시간의 대부분이 이 다운로드였다.
 #   (preprocessor 쪽은 uv sync 를 써서 --torch-backend 가 없어 --no-install-package 로 처리한다.)
-# ⚠️ /app/tmp 를 지운 뒤 반드시 다시 만들어야 한다. base 스테이지가 ENV TMPDIR=/app/tmp 를
+# /app/tmp 를 지운 뒤 반드시 다시 만들어야 한다. base 스테이지가 ENV TMPDIR=/app/tmp 를
 #    설정하므로, 디렉토리가 없으면 uv 가 임시 파일을 만들지 못해
 #    `error: No such file or directory (os error 2) at path "/app/tmp/.tmpXXXX"` 로 죽는다.
 #    (uv 버전을 0.8.0 으로 핀하면서 드러났다 — 이전 미핀 uv 는 TMPDIR 을 자동 생성했다.)
@@ -144,7 +144,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 # 재설치하지 않는다(예전에는 --reinstall-package 로 같은 CPU 휠을 약 190MB 다시 받았다).
 # 이 블록은 --torch-backend 가 어떤 이유로 CUDA 휠을 들여보냈을 때를 대비한 **안전망**이다.
 #
-# ⚠️ 제거 목록을 하드코딩하지 말 것. 예전에는 `nvidia-cublas-cu12` 처럼 `-cu12` 접미사
+# 제거 목록을 하드코딩하지 말 것. 예전에는 `nvidia-cublas-cu12` 처럼 `-cu12` 접미사
 #    목록을 박아두었는데, 버전 핀이 없어 torch 2.13 이 잡히면서 CUDA 13 휠로 패키지명이
 #    바뀌었다(`nvidia_cublas` 접미사 없음, `nvidia_cudnn_cu13`, `nvidia_nccl_cu13` …).
 #    이름이 하나도 일치하지 않아 uninstall 이 전부 실패했고, 끝의 `|| true` 가 그 실패를
@@ -169,10 +169,10 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 
 # torch 의 런타임 미사용 자산 제거 (약 141MB: test 81M + include 60M).
 # C++ 헤더와 테스트 픽스처로, 추론 경로에서는 쓰이지 않는다.
-# ⚠️ torch/bin(50MB)은 지우면 안 된다. torch/__init__.py 가 import 시점에 _manager_path() 로
+# torch/bin(50MB)은 지우면 안 된다. torch/__init__.py 가 import 시점에 _manager_path() 로
 #    torch/bin/torch_shm_manager 존재를 무조건 확인하고, 없으면 RuntimeError 로 죽는다
 #    (DataLoader 를 쓰지 않아도 발생).
-# ⚠️ 코드서빙 특유의 위험: 런타임에 git clone 되는 **외부 서비스 코드**가
+# 코드서빙 특유의 위험: 런타임에 git clone 되는 **외부 서비스 코드**가
 #    `torch.utils.cpp_extension`(JIT C++ 확장 컴파일)을 쓰면 torch/include 가 없어 실패한다.
 #    현재 이 레포에는 사용처가 없지만, 서비스 코드는 이 이미지 밖에서 오므로 보장할 수 없다.
 #    그런 서비스를 붙이려면 이 RUN 에서 include 제거를 빼야 한다.
@@ -183,8 +183,8 @@ RUN rm -rf ${APP_VENV}/lib/python3*/site-packages/torch/test \
 #   opencv-python(non-headless)과 opencv-python-headless 가 둘 다 들어와 `opencv_python.libs`
 #   (약 116MB)가 중복이고, non-headless 가 libGL.so.1 에 링크해 apt `libgl1` → Mesa 소프트웨어
 #   GL 스택(약 208MB)까지 끌어온다. 헤드리스 컨테이너에는 불필요해 apt 에서도 libgl1 을 뺐다.
-# ⚠️ 순서 중요: opencv-python 을 지우면 공유되는 cv2/ 파일까지 사라지므로 뒤에 --reinstall 필수.
-# ⚠️ 버전을 uv.lock 에 맞춰 핀한다. `uv pip install` 은 lock 을 참조하지 않으므로 버전을 안 주면
+# 순서 중요: opencv-python 을 지우면 공유되는 cv2/ 파일까지 사라지므로 뒤에 --reinstall 필수.
+# 버전을 uv.lock 에 맞춰 핀한다. `uv pip install` 은 lock 을 참조하지 않으므로 버전을 안 주면
 #    최신(현재 5.0.x)을 가져온다. 이 파일은 설치 자체가 lock 기반이 아니지만(위 uv pip install .),
 #    최소한 opencv 만이라도 결정적으로 고정해 빌드마다 달라지지 않게 한다.
 RUN --mount=type=cache,target=/root/.cache/uv \
@@ -235,7 +235,7 @@ ARG RHWP_GIT_REF
 # rust:latest(약 1.5GB)는 buildpack-deps 기반이라 git 이 들어 있지만 rust:slim 에는 없다.
 # 산출물이 바이너리 하나뿐이라 slim 으로 낮추고 git 만 따로 설치한다 — 최종 이미지 크기는 그대로이고
 # 빌드 중 다운로드/디스크만 줄어든다.
-# ⚠️ genos-rhwp 가 pkg-config / libssl-dev / cmake 같은 시스템 의존을 요구하면 cargo build 에서
+# genos-rhwp 가 pkg-config / libssl-dev / cmake 같은 시스템 의존을 요구하면 cargo build 에서
 #    깨진다. 그때는 아래 목록에 추가하거나 rust:latest 로 되돌린다.
 RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates \
     && rm -rf /var/lib/apt/lists/*
@@ -251,7 +251,7 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
 
 ############################
 # 4-3) 모델/NLTK/EasyOCR
-#  ⚠️ docling-tools 는 docling 패키지 CLI 이므로 이 스테이지에서만 docling 임시 설치 후 모델 다운로드.
+#  docling-tools 는 docling 패키지 CLI 이므로 이 스테이지에서만 docling 임시 설치 후 모델 다운로드.
 #     (이 stage 의 venv 는 runtime 에 COPY 되지 않음 — /models, /app/nltk_data 만 가져감)
 ############################
 FROM builder AS models_artifacts
@@ -263,7 +263,7 @@ ARG DOCLING_PKG_VER
 # code_formula(ds4sd--CodeFormula, 506MB)는 이 레포에서 절대 로드되지 않는다:
 #   do_code_enrichment / do_formula_enrichment 기본값 False(pipeline_options.py)이고
 #   이를 켜는 config 키·코드가 없어 CodeFormulaModel 은 enabled=False 로만 생성된다.
-#   ⚠️ 이 판단은 "현재 제품 기능 기준"이다. docling CLI 자체에는 code/formula enrichment 를 켜는
+#   이 판단은 "현재 제품 기능 기준"이다. docling CLI 자체에는 code/formula enrichment 를 켜는
 #      옵션이 있으므로, 향후 facade 가 이를 노출하거나(코드서빙이라면 런타임에 clone 되는 서비스
 #      코드가 켜면) **오프라인 환경에서 모델이 없어 실패**한다. 그때는 DOCLING_MODELS 에
 #      code_formula 를 다시 넣어야 한다.
@@ -275,7 +275,7 @@ ARG DOCLING_PKG_VER
 #   tableformer       → ds4sd--docling-models. layout_model_type: docling_layout 배포에서 필요.
 #   picture_classifier→ ds4sd--DocumentFigureClassifier. chart.enable opt-in (16MB).
 #   easyocr           → /models/EasyOcr 의 craft_mlt_25k(83MB)/english_g2/latin_g2.
-#                       ⚠️ with_easyocr 도 기본 True 라, 목록에서 빼면 아래 korean_g2.zip
+#                       with_easyocr 도 기본 True 라, 목록에서 빼면 아래 korean_g2.zip
 #                       단계만 남아 CRAFT 검출기가 사라진다(EasyOCR 사용 시 필수).
 ARG DOCLING_MODELS="layout tableformer picture_classifier easyocr"
 RUN --mount=type=cache,target=/root/.cache/uv \
@@ -353,7 +353,7 @@ RUN groupadd -g $GID $GNAME && \
       /app/.config/libreoffice /app/.cache/libreoffice /app/.local/share /app/tmp /tmp/xdg
 
 # venv (패치된 docling_parse 포함) + 아티팩트
-# 🔴 --chown 으로 처음부터 올바른 소유자로 복사한다. 예전에는 아래에서
+# --chown 으로 처음부터 올바른 소유자로 복사한다. 예전에는 아래에서
 #    `chown -R $UID:$GID /app … /models /app/nltk_data` 를 한 번에 돌렸는데, 이미 복사된
 #    .venv + /models + nltk_data + hwp_sdk 의 소유권만 바꾸는 것도 overlayfs 에서는
 #    전 파일 copy-up 이라 같은 데이터를 담은 수 GB 레이어가 하나 더 생겼다.
@@ -366,7 +366,7 @@ COPY --chown=${UID}:${GID} --from=models_artifacts /models /models
 COPY --chown=${UID}:${GID} --from=models_artifacts /app/nltk_data /app/nltk_data
 
 # hwp_sdk import 경로 (venv site-packages 심링크, 표준 빌드 파리티용). python3.12 고정(slim 3.12.x).
-# ⚠️ docling 은 런타임에 clone 된 복사본 packages/ 의 wheel(genon-docling, import name: docling)을
+# docling 은 런타임에 clone 된 복사본 packages/ 의 wheel(genon-docling, import name: docling)을
 #    requirements.txt 경로 참조로 pip install 해 /app/.venv 에 설치한다(복사본엔 docling 소스 없음, index 불필요).
 #    코드서빙 런타임은 ENV HWP_SDK_DIR=/app/hwp_sdk 로 SDK 경로를 잡는다(genos_hwp_backend.py).
 RUN ln -s /app/hwp_sdk ${APP_VENV}/lib/python3.12/site-packages/hwp_sdk

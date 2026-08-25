@@ -4,7 +4,7 @@ version = "1.0.0"
 requires-python = ">=3.9,<4.0"
 description = "PaddleX OCR serving"
 
-# 👇 여기서부터는 uv가 전부 설치
+# 여기서부터는 uv가 전부 설치
 dependencies = [
     # GPU 빌드
     "paddlepaddle-gpu==3.2.0",
@@ -18,7 +18,7 @@ dependencies = [
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
-# 👇 여기가 중요
+# 여기가 중요
 # uv가 "파이파이 말고 이 레포도 같이 봐라" 라고 알려주는 부분
 # 최신 uv 문법 기준 (도큐가 조금씩 바뀌어서 이렇게 쓰는 게 제일 안전해)
 [tool.uv]

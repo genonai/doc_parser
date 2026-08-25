@@ -11,7 +11,7 @@
 #   - 표 형태(카드 FAQ)   : id | corp_code | depth3 | depth4 | description | 최종수정일 | 노출여부
 #   - JSON 형태(모니모 FAQ): faqMenuList[] — depth1~4 · id · corp_code · description · url · app_route …
 #
-# ★ 두 형태를 doc_type=faq 하나로 함께 받는다.
+# 두 형태를 doc_type=faq 하나로 함께 받는다.
 #   이 파일은 xlsx/csv 경로(tabular_mapping)를, 형제 파일 custom_field_faq_json.yaml 이
 #   .json 경로(json_mapping)를 담당한다. 파서가 확장자로 분기하므로 doc_type 이 같아도 충돌하지 않는다.
 #   원천 포맷이 확정되면 쓰지 않는 쪽을 enable:false 로 내리면 된다.
