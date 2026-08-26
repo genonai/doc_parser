@@ -116,12 +116,14 @@ try:
     )
     from genon.preprocessor.facade.enrichment.markdown_front_matter import (
         build_markdown_front_matter_specs,
+        build_markdown_text_fence_specs,
     )
 except ImportError:
     build_document_custom_fields_enrichers = None  # type: ignore[assignment]
     build_tabular_custom_fields_mappers = None  # type: ignore[assignment]
     build_json_records_mappers = None  # type: ignore[assignment]
     build_markdown_front_matter_specs = None  # type: ignore[assignment]
+    build_markdown_text_fence_specs = None  # type: ignore[assignment]
 
     def normalize_doc_type(value):  # type: ignore[no-redef]
         return str(value or "").strip().lower()
@@ -1981,6 +1983,13 @@ class DocumentProcessor:
             self._intel.custom_fields_cfgs
         )
 
+        # 문서 단위 custom_fields의 markdown.text_fence 설정. PDF 레이아웃 보존용 ```text
+        # 펜스를 docling 변환 전에 논리 단위 단락으로 되돌린다(안 하면 펜스 본문 전체가
+        # CodeItem 하나가 되어 chunk_size 가 무의미해진다).
+        self._markdown_text_fence_specs = self._build_markdown_text_fence_specs(
+            self._intel.custom_fields_cfgs
+        )
+
         # enrichment.custom_fields 중 extractor=json_mapping 설정(= JSON 레코드 → 목표필드
         # 매핑). 문서 모드(json:)보다 우선하며, 레코드마다 청크 메타데이터를 따로 싣는다.
         self._json_records_mappers = self._build_json_records_mappers(self._intel.custom_fields_cfgs)
@@ -2049,6 +2058,18 @@ class DocumentProcessor:
             ) from exc
 
     @staticmethod
+    def _build_markdown_text_fence_specs(custom_fields_cfgs: list) -> list:
+        if build_markdown_text_fence_specs is None:
+            return []
+        try:
+            return build_markdown_text_fence_specs(custom_fields_cfgs)
+        except (ValueError, TypeError) as exc:
+            raise GenosServiceException(
+                "1", f"custom_fields markdown.text_fence 설정 오류: {exc}",
+                stage="custom_fields",
+            ) from exc
+
+    @staticmethod
     def _build_tabular_custom_fields_mappers(custom_fields_cfgs: list) -> list:
         """custom_fields 설정 중 extractor=tabular_mapping 만 매퍼로 만든다.
 
@@ -2104,6 +2125,17 @@ class DocumentProcessor:
             ],
             runtime_doc_type,
             "markdown.front_matter",
+        )
+
+    def _markdown_text_fence_spec_for(self, runtime_doc_type: Any):
+        """런타임 doc_type 에 매칭되는 text_fence 설정. 없으면 None(전처리 없이 파싱)."""
+        return self._single_json_match(
+            [
+                spec for spec in self._markdown_text_fence_specs
+                if not spec.doc_types or normalize_doc_type(runtime_doc_type) in spec.doc_types
+            ],
+            runtime_doc_type,
+            "markdown.text_fence",
         )
 
     @staticmethod
@@ -2256,33 +2288,57 @@ class DocumentProcessor:
     # ------------------------------------------------------------------
 
     @staticmethod
-    def _prepare_markdown(file_path: str, work_dir: str, spec) -> tuple[str, dict]:
-        """Front matter 선택 규칙을 적용한 파싱 경로와 enrichment context를 반환."""
-        try:
-            parsed = spec.parse(file_path)
-        except ValueError as exc:
-            raise GenosServiceException(
-                "1", str(exc), stage="custom_fields"
-            ) from exc
+    def _prepare_markdown(file_path: str, work_dir: str, fm_spec, fence_spec) -> tuple[str, dict]:
+        """Front matter / text_fence 전처리를 적용한 파싱 경로와 enrichment context를 반환.
 
-        if not parsed.found:
-            return file_path, {}
+        둘 중 하나라도 텍스트를 바꿨을 때만 파생 파일을 쓴다. 바뀐 것이 없으면 원본 경로를
+        그대로 돌려주므로 docling 입력은 물론 artifacts 경로도 기존과 동일하다.
+        """
+        context: dict = {}
+        text: str | None = None   # 전처리로 실제로 바뀐 텍스트만 담는다(None = 원본 그대로)
 
-        context = {
-            "metadata": dict(parsed.metadata),
-            "prompt_prefix": parsed.prompt_prefix,
-            "source_fields": list(parsed.source_fields),
-        }
-        if parsed.filtered_text is None:
+        if fm_spec is not None:
+            try:
+                parsed = fm_spec.parse(file_path)
+            except ValueError as exc:
+                raise GenosServiceException(
+                    "1", str(exc), stage="custom_fields"
+                ) from exc
+            if parsed.found:
+                context = {
+                    "metadata": dict(parsed.metadata),
+                    "prompt_prefix": parsed.prompt_prefix,
+                    "source_fields": list(parsed.source_fields),
+                }
+                text = parsed.filtered_text
+
+        if fence_spec is not None:
+            source = text
+            if source is None:
+                try:
+                    source = Path(file_path).read_text(encoding="utf-8-sig")
+                except (OSError, UnicodeError) as exc:
+                    # 읽을 수 없으면 전처리를 건너뛰고 원본 경로로 파싱한다(기존 동작).
+                    _log.warning(f"[DocumentProcessor] markdown.text_fence 입력 읽기 실패: {exc}")
+                    return file_path, context
+            fenced, converted = fence_spec.apply(source)
+            if converted:
+                _log.info(
+                    f"[DocumentProcessor] markdown.text_fence: {converted}개 펜스 블록을 "
+                    f"단락으로 복원 ({Path(file_path).name})"
+                )
+                text = fenced
+
+        if text is None:
             return file_path, context
 
         # 원본과 같은 basename을 유지해 Docling origin.filename이 임시 이름으로 바뀌지 않게 한다.
         out_path = Path(work_dir) / Path(file_path).name
         try:
-            out_path.write_text(parsed.filtered_text, encoding="utf-8")
+            out_path.write_text(text, encoding="utf-8")
         except OSError as exc:
             raise GenosServiceException(
-                "1", f"Markdown front matter 전처리 파일 생성 실패: {exc}",
+                "1", f"Markdown 전처리 파일 생성 실패: {exc}",
                 stage="custom_fields",
             ) from exc
         return str(out_path), context
@@ -3095,17 +3151,19 @@ class DocumentProcessor:
                         )
                     self._warn_if_thin_html(file_path, doc)
                 elif ext == ".md":
-                    spec = self._markdown_front_matter_spec_for(kwargs.get("doc_type"))
-                    if spec is None:
+                    fm_spec = self._markdown_front_matter_spec_for(kwargs.get("doc_type"))
+                    fence_spec = self._markdown_text_fence_spec_for(kwargs.get("doc_type"))
+                    if fm_spec is None and fence_spec is None:
                         doc = self._parse_docling(
                             file_path, _enrichment_context=enrichment_context, **kwargs
                         )
                     else:
-                        # front matter를 제외한 파생 Markdown은 임시 파일로만 사용한다.
-                        # 선택 metadata와 제외된 원문은 custom-fields 후처리에 별도 전달한다.
+                        # front matter를 제외하거나 ```text 펜스를 단락으로 되돌린 파생
+                        # Markdown은 임시 파일로만 사용한다. 선택 metadata와 제외된 원문은
+                        # custom-fields 후처리에 별도 전달한다.
                         with tempfile.TemporaryDirectory(prefix="parser_md_") as work_dir:
                             parse_path, front_matter_context = self._prepare_markdown(
-                                file_path, work_dir, spec
+                                file_path, work_dir, fm_spec, fence_spec
                             )
                             markdown_kwargs = dict(kwargs)
                             markdown_kwargs["_markdown_front_matter"] = front_matter_context

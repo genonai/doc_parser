@@ -19,6 +19,10 @@ conversion_note 7줄을 갖는데, 그대로 두면 그 7줄만으로 이루어�
 `custom_fields_enricher._NON_ENRICHER_KEYS` 에 등록되어 enricher 생성자로 새지 않는다.
 기본값은 `config_file` 이 가리키는 doc_type yaml 의 `markdown:` 블록에 두고, 상위
 `custom_fields` 항목에 같은 블록을 쓰면 재귀 병합으로 덮어쓴다.
+
+`markdown:` 블록의 해석(`resolve_markdown_cfg`)과 하위 블록 빌더를 이 모듈이 소유한다 —
+`front_matter` 외에 `text_fence`(펜스 본문을 단락으로 복원, 변환 로직은
+`converters.md_text_fence`)도 같은 자리에서 컴파일한다.
 """
 from __future__ import annotations
 
@@ -29,6 +33,8 @@ from pathlib import Path
 from typing import Any
 
 import yaml
+
+from genon.preprocessor.converters.md_text_fence import MarkdownTextFenceSpec
 
 from .custom_fields_enricher import (
     DOCUMENT_CUSTOM_FIELD_EXTRACTORS,
@@ -392,46 +398,83 @@ def _merge_config(base: dict, override: dict) -> dict:
     return merged
 
 
+def resolve_markdown_cfg(config: dict) -> dict | None:
+    """custom_fields 항목 하나의 유효 ``markdown`` 블록을 해석한다.
+
+    ``config_file``의 ``markdown`` 블록이 기본값이고, 상위 custom_fields 항목에
+    ``markdown``이 있으면 재귀적으로 덮어쓴다. 상위 ``markdown: false``는 하위 설정을
+    명시적으로 비활성화한다. 대상이 아니면(문서 단위 extractor 아님/비활성) None.
+
+    ``markdown`` 하위 블록(front_matter · text_fence)의 빌더들이 공유한다.
+    """
+    inline_present = "markdown" in config
+    inline_markdown = config.get("markdown")
+
+    # 상위 설정에 잘못 배치한 markdown 블록은 하위 파일 로드 전에 명확히 잡는다.
+    if (
+        inline_present
+        and inline_markdown not in (None, False)
+        and custom_fields_extractor(config) not in DOCUMENT_CUSTOM_FIELD_EXTRACTORS
+    ):
+        raise ValueError("custom_fields.markdown은 문서 단위 extractor에서만 지원합니다.")
+
+    if custom_fields_extractor(config) not in DOCUMENT_CUSTOM_FIELD_EXTRACTORS:
+        return None
+
+    child_cfg = load_custom_fields_config(
+        str(config.get("config_file") or ""),
+        str(config.get("resource_path") or "") or None,
+    )
+    child_markdown = child_cfg.get("markdown")
+    child_markdown = child_markdown if isinstance(child_markdown, dict) else {}
+
+    if inline_present and inline_markdown in (None, False):
+        return None
+    if inline_present and not isinstance(inline_markdown, dict):
+        raise ValueError("custom_fields.markdown은 object 또는 false여야 합니다.")
+
+    return _merge_config(child_markdown, inline_markdown or {})
+
+
 def build_markdown_front_matter_specs(configs: list[dict]) -> list[MarkdownFrontMatterSpec]:
     """문서 단위 custom_fields 설정들을 front matter spec 으로 컴파일한다(기동 시 1회).
 
-    ``config_file``의 ``markdown`` 블록이 기본값이고, 상위 custom_fields 항목에
-    ``markdown``이 있으면 재귀적으로 덮어쓴다. 상위 ``markdown: false`` 또는
-    ``front_matter: false``는 하위 설정을 명시적으로 비활성화한다.
+    상위 ``markdown: false`` 또는 ``front_matter: false``는 명시적 비활성화다.
     """
     specs = []
     for config in configs or []:
-        inline_present = "markdown" in config
-        inline_markdown = config.get("markdown")
-
-        # 상위 설정에 잘못 배치한 markdown 블록은 하위 파일 로드 전에 명확히 잡는다.
-        if (
-            inline_present
-            and inline_markdown not in (None, False)
-            and custom_fields_extractor(config) not in DOCUMENT_CUSTOM_FIELD_EXTRACTORS
-        ):
-            raise ValueError("custom_fields.markdown.front_matter는 문서 단위 extractor에서만 지원합니다.")
-
-        if custom_fields_extractor(config) not in DOCUMENT_CUSTOM_FIELD_EXTRACTORS:
+        markdown_cfg = resolve_markdown_cfg(config)
+        if markdown_cfg is None:
             continue
-
-        child_cfg = load_custom_fields_config(
-            str(config.get("config_file") or ""),
-            str(config.get("resource_path") or "") or None,
-        )
-        child_markdown = child_cfg.get("markdown")
-        child_markdown = child_markdown if isinstance(child_markdown, dict) else {}
-
-        if inline_present and inline_markdown in (None, False):
-            continue
-        if inline_present and not isinstance(inline_markdown, dict):
-            raise ValueError("custom_fields.markdown은 object 또는 false여야 합니다.")
-
-        markdown_cfg = _merge_config(child_markdown, inline_markdown or {})
         if "front_matter" not in markdown_cfg or markdown_cfg.get("front_matter") in (None, False):
             continue
 
         effective_config = dict(config)
         effective_config["markdown"] = markdown_cfg
         specs.append(MarkdownFrontMatterSpec.from_config(effective_config))
+    return specs
+
+
+def build_markdown_text_fence_specs(configs: list[dict]) -> list[MarkdownTextFenceSpec]:
+    """문서 단위 custom_fields 설정들을 text_fence spec 으로 컴파일한다(기동 시 1회).
+
+    front matter 와 같은 ``markdown`` 블록을 공유하므로 해석부도 같이 쓴다
+    (``resolve_markdown_cfg``). ``text_fence: false`` 또는 ``enable: false``는 비활성화다.
+    """
+    specs = []
+    for config in configs or []:
+        markdown_cfg = resolve_markdown_cfg(config)
+        if markdown_cfg is None:
+            continue
+        fence_cfg = markdown_cfg.get("text_fence")
+        if fence_cfg in (None, False):
+            continue
+        if isinstance(fence_cfg, dict) and fence_cfg.get("enable") is False:
+            continue
+
+        specs.append(
+            MarkdownTextFenceSpec.from_config(
+                fence_cfg, normalize_doc_types(config.get("doc_type"))
+            )
+        )
     return specs

@@ -40,6 +40,14 @@ markdown:
     # 위 metadata_fields 는 적재 필수값이라 front matter 가 없는 md 는 조용히 넘기지 않는다.
     # (코드 기본값은 ignore — 여기서 명시적으로 올린다)
     on_missing: warn
+  # PDF 레이아웃 보존용 ```text 펜스를 논리 단위(Q/A/불릿/※) 단락으로 되돌린다.
+  # 안 하면 docling 이 펜스 본문 전체를 CodeItem 하나로 만들어(실측 4654자 → 아이템 1개)
+  # chunk_size 가 무의미해진다. 레이아웃 파이프 줄 제거도 함께 한다 — md 백엔드는 `|` 한 줄로
+  # 표 모드에 들어가 뒤따르는 본문을 빈 표로 삼킨다(실측 본문 1586자 소실).
+  text_fence:
+    enable: true
+    langs: ["", "text"]      # 변환 대상 정보문자열. 진짜 코드 펜스(python 등)는 손대지 않는다
+    min_hangul_ratio: 0.3    # 본문 한글 비율 하한 — 코드 블록 오변환 방지
 
 # ── LLM 연결 ────────────────────────────────────────────────────────────────
 # <ENRICHMENT_SERVING_ID>: Genos에 등록한 모델서빙 ID로 변경 필요. api_key 도 배포 시 설정.

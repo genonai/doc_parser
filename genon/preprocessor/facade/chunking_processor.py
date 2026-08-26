@@ -716,11 +716,14 @@ class GenosSmartChunker(BaseChunker):
                 #      item.label in [DocItemLabel.SECTION_HEADER])  # TITLE은 제외
                 # )
 
-                # 타이틀은 항상 포함, 섹션 헤더는 중복 방지를 위해 스킵
-                # if not is_section_header:
-                # 20250909, shkim, text_parts에 없는 경우만 추가. 섹션헤더가 반복해서 추가되는 것 방지
-                if item.text not in text_parts:
-                    text_parts.append(item.text)
+                # 중복 제거는 섹션헤더/타이틀에만 적용한다. 본문까지 막으면 같은 섹션 안에서
+                # 정당하게 반복되는 문장(상품요약서의 동일 특이사항 문단, 반복 표 캡션, 반복
+                # OCR 줄)이 통째로 사라진다 — 실측: Q/A 4회 반복 md 에서 아이템 65개 중 36개 소실.
+                # 그룹 단위 판정이라 chunk_size 가 작아 섹션이 쪼개지면 증상이 사라져 발견이 늦었다
+                # (실측 본문 라인: chunk_size 1024 → 64, 3000/10000 → 29).
+                if self._is_section_header(item) and item.text in text_parts:
+                    continue
+                text_parts.append(item.text)
             elif isinstance(item, PictureItem):
                 picture_text = self._extract_picture_annotation_text(item)
                 if picture_text and picture_text not in text_parts:

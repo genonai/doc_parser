@@ -534,6 +534,39 @@ def test_no_item_text_is_lost():
 
 
 @pytest.mark.unit
+def test_repeated_body_text_is_not_deduped():
+    """같은 섹션 안에서 반복되는 본문은 반복 횟수만큼 남는다 — 개수 기반 무손실 가드.
+
+    존재 여부(`s not in joined`)만 보는 test_no_item_text_is_lost 는 이 부류를 못 잡는다.
+    실제로 본문까지 중복 제거하던 시절 상품요약서 md 에서 아이템 65개 중 36개가 사라졌고,
+    그 테스트는 통과했다. 반복은 정당한 원문 구조다(같은 특이사항 문단이 여러 쪽에 실린다).
+
+    섹션이 chunk_size 로 쪼개지면 반복이 서로 다른 그룹으로 흩어져 증상이 감춰지므로,
+    한 그룹에 다 들어가도록 chunk_size 를 넉넉히 준다.
+    """
+    pytest.importorskip("facade.chunking_processor")
+
+    repeated = "해당사항 없음"
+    n = 4
+
+    doc = DoclingDocument(name="repeated_body")
+    section = doc.add_heading(text="제1조 목적", level=1)
+    for _ in range(n):
+        doc.add_text(label=DocItemLabel.TEXT, text=repeated, parent=section)
+        doc.add_text(label=DocItemLabel.TEXT, text="사이에 끼는 다른 문장.", parent=section)
+
+    for chunk_mode in ("split_only", "resize_all"):
+        vectors = _chunk(doc.model_dump(mode="json"), chunk_mode=chunk_mode, chunk_size=10000)
+        joined = "\n".join(v.text for v in vectors)
+        assert joined.count(repeated) == n, (
+            f"{chunk_mode}: 반복 본문이 {joined.count(repeated)}회만 남음(기대 {n})"
+        )
+        # 섹션헤더는 여전히 HEADER 라인 + 본문 1회까지만 (헤더 dedup 은 유지된다)
+        bodies = [v.text.partition("\n")[2] for v in vectors]
+        assert sum(b.count("제1조 목적") for b in bodies) <= 1
+
+
+@pytest.mark.unit
 def test_heading_equals_body_text_preserved():
     """본문이 헤더 문자열과 같거나 헤더 문자열만으로 구성돼도 본문이 사라지지 않는다."""
     pytest.importorskip("facade.chunking_processor")
