@@ -1,0 +1,249 @@
+{
+  "class": null,
+  "vectorizer": null,
+  "vectorIndexType": "hnsw",
+  "vectorIndexConfig": {
+    "cleanupIntervalSeconds": 300,
+    "distanceMetric": "cosine",
+    "dynamicEfMin": 100,
+    "dynamicEfMax": 500,
+    "dynamicEfFactor": 8,
+    "ef": -1,
+    "efConstruction": 128,
+    "filterStrategy": "sweeping",
+    "flatSearchCutoff": 40000,
+    "maxConnections": 32,
+    "skip": false,
+    "vectorCacheMaxObjects": 1000000000000
+  },
+  "invertedIndexConfig": {
+    "bm25": {
+      "b": 0.75,
+      "k1": 1.2
+    },
+    "tokenizerUserDict": [
+      {
+        "tokenizer": "kagome_kr",
+        "replacements": [
+          {
+            "source": "보령",
+            "target": "보령"
+          },
+          {
+            "source": "신보령",
+            "target": "신보령"
+          }
+        ]
+      }
+    ],
+    "cleanupIntervalSeconds": 60,
+    "indexNullState": false,
+    "indexPropertyLength": false,
+    "indexTimestamps": false,
+    "stopwords": {
+      "additions": null,
+      "removals": null
+    }
+  },
+  "multiTenancyConfig": {
+    "enabled": false,
+    "autoTenantCreation": false,
+    "autoTenantActivation": false
+  },
+  "properties": [
+    {
+      "name": "doc_id",
+      "dataType": [
+        "number"
+      ],
+      "description": "genos default property",
+      "indexSearchable": false
+    },
+    {
+      "name": "text",
+      "dataType": [
+        "text"
+      ],
+      "description": "Original text content for chunk-level embedding",
+      "tokenization": "kagome_kr"
+    },
+    {
+      "name": "title",
+      "dataType": [
+        "text"
+      ],
+      "description": "문서 제목",
+      "tokenization": "kagome_kr"
+    },
+    {
+      "name": "chapter",
+      "dataType": [
+        "text"
+      ],
+      "description": "장",
+      "tokenization": "kagome_kr"
+    },
+    {
+      "name": "section",
+      "dataType": [
+        "text"
+      ],
+      "description": "절",
+      "tokenization": "kagome_kr"
+    },
+    {
+      "name": "article",
+      "dataType": [
+        "text"
+      ],
+      "description": "조",
+      "tokenization": "kagome_kr"
+    },
+    {
+      "name": "summary",
+      "dataType": [
+        "text"
+      ],
+      "description": "Summary of the content for summary-level embedding",
+      "tokenization": "kagome_kr"
+    },
+    {
+      "name": "chunk_bboxes",
+      "dataType": [
+        "text"
+      ],
+      "description": "genos default property",
+      "indexSearchable": false
+    },
+    {
+      "name": "n_lines",
+      "dataType": [
+        "number"
+      ],
+      "description": "genos default property",
+      "indexSearchable": false
+    },
+    {
+      "name": "file_hash",
+      "dataType": [
+        "uuid"
+      ],
+      "description": "genos default property",
+      "indexSearchable": false
+    },
+    {
+      "name": "n_words",
+      "dataType": [
+        "number"
+      ],
+      "description": "genos default property",
+      "indexSearchable": false
+    },
+    {
+      "name": "i_page",
+      "dataType": [
+        "number"
+      ],
+      "description": "genos default property",
+      "indexSearchable": false
+    },
+    {
+      "name": "n_chunk_of_pages",
+      "dataType": [
+        "number"
+      ],
+      "description": "genos default property",
+      "indexSearchable": false
+    },
+    {
+      "name": "i_chunk_on_doc",
+      "dataType": [
+        "number"
+      ],
+      "description": "genos default property",
+      "indexSearchable": false
+    },
+    {
+      "name": "media_files",
+      "dataType": [
+        "text"
+      ],
+      "description": "genos default property",
+      "indexSearchable": false
+    },
+    {
+      "name": "file_ext",
+      "dataType": [
+        "text"
+      ],
+      "description": "genos default property",
+      "tokenization": "word",
+      "indexSearchable": false
+    },
+    {
+      "name": "file_path",
+      "dataType": [
+        "text"
+      ],
+      "description": "genos default property",
+      "tokenization": "field",
+      "indexSearchable": false
+    },
+    {
+      "name": "n_chars",
+      "dataType": [
+        "number"
+      ],
+      "description": "genos default property",
+      "indexSearchable": false
+    },
+    {
+      "name": "n_chunk_of_doc",
+      "dataType": [
+        "number"
+      ],
+      "description": "genos default property",
+      "indexSearchable": false
+    },
+    {
+      "name": "n_pages",
+      "dataType": [
+        "number"
+      ],
+      "description": "genos default property",
+      "indexSearchable": false
+    },
+    {
+      "name": "is_encrypted",
+      "dataType": [
+        "boolean"
+      ],
+      "description": "genos default property",
+      "indexSearchable": false
+    },
+    {
+      "name": "file_size",
+      "dataType": [
+        "number"
+      ],
+      "description": "genos default property",
+      "indexSearchable": false
+    },
+    {
+      "name": "file_name",
+      "dataType": [
+        "text"
+      ],
+      "description": "genos default property",
+      "tokenization": "kagome_kr"
+    },
+    {
+      "name": "i_chunk_on_page",
+      "dataType": [
+        "number"
+      ],
+      "description": "genos default property",
+      "indexSearchable": false
+    }
+  ]
+}
