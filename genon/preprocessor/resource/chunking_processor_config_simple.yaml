@@ -1,0 +1,36 @@
+# 청킹 전용 전처리기(Chunk API, /chunker) 설정 — 모니모 GenOS Temporal 파이프라인 #284
+#
+# 이 facade(chunking_processor.py)는 파싱(docling) 결과를 입력으로 받아 청킹만 수행한다.
+# 파싱/로딩/OCR/레이아웃/enrichment 는 앞단계(파싱 Activity)에서 이미 끝났으므로
+# 여기서는 호출되지 않는다. 따라서 ocr/layout/pdf_pipeline/enrichment 섹션은 두지 않으며,
+# 미설정 시 코드 기본값으로 안전하게 폴백된다.
+
+defaults:
+  # 5=DEBUG, 4=INFO, 3=WARNING, 2=ERROR, 1=CRITICAL, 0=NOLOG
+  log_level: 4
+
+# 청킹(GenosSmartChunker) 설정
+chunking:
+  # 청크 최대 크기(공통): docling=GenosSmartChunker max_tokens · parse-format=문자 splitter 크기.
+  # char 모드면 문자 수, huggingface 모드면 docling 은 토큰 수(parse-format 은 항상 문자 수).
+  # 우선순위: 호출 kwargs 의 chunk_size > 아래 chunk_size. docling: 0=분할 안 함, 0 초과 시 최소 1024 로 보정.
+  # parse-format: chunk_size 0/음수면 사실상 미분할(1000000). 미설정이면 위 공통 chunk_size 사용.
+  chunk_size: 1000
+  # 청킹 모드: split_only(기본) = 파서 섹션 단위(제N조 등) 그대로 유지 + chunk_size 초과 섹션만 분할
+  #             (작은 섹션을 장 단위로 병합하지 않음) |
+  #           resize_all = 모든 청크를 chunk_size 에 맞게 병합/분할. 우선순위: kwargs.chunk_mode > 아래.
+  chunk_mode: split_only
+  # 청크 텍스트 선두에 "HEADER: <섹션 경로>" 라인을 붙일지 여부(기본 true).
+  # false 면 순수 본문만 산출된다(검색 시 섹션 문맥이 사라지므로 기본값 변경은 신중히).
+  # 섹션 경로는 이 라인 한 곳에서만 붙는다 — 본문 내 제목 반복은 제거되었다.
+  # 우선순위: kwargs.include_chunk_header > 아래 > true.
+  include_chunk_header: true
+
+  # parse-format(비-docling) 문자 splitter 의 overlap 기본값.
+  # 파서가 docling 을 못 만드는 포맷(csv/xlsx/txt/md/ppt/pptx/doc/이미지/오디오)은 parse-format
+  # ({"elements":[...]})으로 들어오며, 그 중 일반 텍스트는 RecursiveCharacterTextSplitter 로 분할한다.
+  # 크기는 위 공통 chunk_size 를 사용한다(docling 무관). audio([AUDIO])/csv·xlsx([DA]) 단일 벡터엔 미적용.
+  # 우선순위: 호출 kwargs(chunk_overlap/recursive_chunk_overlap) > 아래 > 코드 기본값(100).
+  recursive:
+    chunk_overlap: 100    # 음수면 100 으로 폴백
+
