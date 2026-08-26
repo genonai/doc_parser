@@ -1641,6 +1641,7 @@ with open(file, "w", encoding="utf-8") as f:
         vectors = []
         if len(chunks) > 0:
             vectors: list[dict] = self.compose_vectors(document, chunks, file_path, **kwargs)
+            print("@@@@", vectors[0])
         else:
             raise GenosServiceException(1, f"chunk length is 0")
         return vectors
