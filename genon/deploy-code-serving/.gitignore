@@ -1,0 +1,9 @@
+# 실제 GenOS 접속 정보와 secret env가 포함될 수 있으므로 커밋하지 않는다.
+config.yaml.serving
+.env
+.env.*
+
+.venv/
+__pycache__/
+*.py[cod]
+

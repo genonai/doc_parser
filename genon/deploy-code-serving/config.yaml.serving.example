@@ -1,0 +1,44 @@
+# 커밋 가능한 예제 설정입니다.
+# 실제 사용 시 config.yaml.serving으로 복사하고 비밀번호와 secret 값을 주입하세요.
+
+genos:
+  base_url: https://genos.genon.ai/api/admin
+  username: yewon.kim-admin
+  password: ''
+code_serving_id: 529
+deployment:
+  dev:
+    docker_image_id: 215
+    instance_type_id: 3
+    replicas: 1
+    poll_interval_sec: 5
+    poll_timeout_sec: 300
+    start_command: uvicorn main:app --host 0.0.0.0 --port 8080 --workers 1
+  prod:
+    docker_image_id: 215
+    instance_type_id: 4
+    replicas: 2
+    poll_interval_sec: 5
+    poll_timeout_sec: 300
+    start_command: uvicorn main:app --host 0.0.0.0 --port 8080 --workers 2
+envs:
+- key: PRESIGNED_URL_ALLOWED_HOSTS
+  value: ''
+  is_secret: true
+- key: PRESIGNED_DOWNLOAD_MAX_BYTES
+  value: '104857600'
+  is_secret: false
+- key: PRESIGNED_DOWNLOAD_TIMEOUT_SECONDS
+  value: '60'
+  is_secret: false
+- key: PRESIGNED_DOWNLOAD_TOTAL_TIMEOUT_SECONDS
+  value: '120'
+  is_secret: false
+- key: PRESIGNED_DOWNLOAD_MAX_CONCURRENCY
+  value: '2'
+  is_secret: false
+service_router_id: 79
+auth_key_id:
+  dev: 1873
+  prod: 1876
+

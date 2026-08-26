@@ -1,0 +1,12 @@
+[project]
+name = "genon-deploy-code-serving"
+version = "0.1.0"
+description = "Standalone GenOS code-serving and service-router deployment tool"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "pyyaml>=6.0.3",
+    "requests>=2.34.2",
+    "rich>=15.0.0",
+]
+
