@@ -165,7 +165,7 @@ html_text_fields:
 # element 에서 제외된다(경고 로그). 제목만이라도 남겨 검색 가능한 상태를 유지한다.
 text_fields:
   - TITLE
-  - SUMMARY_TEXT
+  - DETAIL_TEXT
 
 # ── 레코드 본문이 chunk_size 를 넘으면 여러 청크로 나눈다(metadata 는 조각마다 동일) ──
 split: true

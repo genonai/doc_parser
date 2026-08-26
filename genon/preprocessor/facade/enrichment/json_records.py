@@ -25,7 +25,9 @@ JSON 에 없는 필드(예: 상세내용 요약)는 `llm_fields` 로 선언만 �
 """
 from __future__ import annotations
 
+import io
 import logging
+import re
 from collections import deque
 from pathlib import Path
 from typing import Any
@@ -146,20 +148,147 @@ def collect_records(payload: Any, records_key: str | None) -> list[dict] | None:
     return None
 
 
-def html_to_text(value: Any) -> str:
-    """HTML 문자열 → 평문. 정리 규칙은 파싱 경로(html_flatten)와 동일하게 맞춘다.
+# docling HTML 백엔드 전용 경량 컨버터(lazy 싱글턴). HTML 백엔드는 순수 bs4 라 모델
+# 로딩이 없어 생성이 사실상 무료다(실측 0.2ms).
+_html_converter: Any = None
+
+
+def _get_html_converter() -> Any:
+    global _html_converter
+    if _html_converter is None:
+        from docling.datamodel.base_models import InputFormat
+        from docling.document_converter import DocumentConverter
+
+        _html_converter = DocumentConverter(allowed_formats=[InputFormat.HTML])
+    return _html_converter
+
+
+# 표 출력 포맷. parser 의 `output.table_format` 과 같은 값 집합·기본값을 쓴다
+# (`parser_processor._normalize_table_format`). 파서가 이미 정규화해 넘겨주지만, 이 모듈을
+# 직접 부르는 경우(테스트 등)를 위해 여기서도 방어한다.
+VALID_TABLE_FORMATS = ("html", "markdown")
+DEFAULT_TABLE_FORMAT = "html"
+
+# LLM 입력용 평문이라 markdown 이스케이프와 이미지 자리표시자는 노이즈다.
+_MD_EXPORT_OPTS = {"escape_html": False, "escape_underscores": False, "image_placeholder": ""}
+
+# 표만 HTML 로 바꿔 끼우는 markdown serializer(lazy 싱글턴).
+_html_table_serializer: Any = None
+
+
+def _get_html_table_serializer() -> Any:
+    """markdown 직렬화 중 TableItem 만 `export_to_html` 결과로 내보내는 serializer.
+
+    문자열 치환(`parser_processor._replace_markdown_tables_with_html`) 대신 docling 의
+    serializer 확장점을 쓴다 — 치환 방식은 문서 전체 export 와 item 단위 export 의
+    이스케이프 규칙이 달라(`snake_case` → `snake\\_case` 등) 매치에 실패하면 표가 조용히
+    markdown 으로 남는다. serializer 를 갈아 끼우면 그 불일치 자체가 생기지 않는다.
+    """
+    global _html_table_serializer
+    if _html_table_serializer is None:
+        from docling_core.transforms.serializer.base import BaseTableSerializer, SerializationResult
+        from docling_core.transforms.serializer.common import create_ser_result
+
+        class _HtmlTableSerializer(BaseTableSerializer):
+            def serialize(self, *, item, doc_serializer, doc, **kwargs) -> SerializationResult:
+                return create_ser_result(text=item.export_to_html(doc=doc), span_source=item)
+
+        _html_table_serializer = _HtmlTableSerializer()
+    return _html_table_serializer
+
+
+def normalize_table_format(value: Any) -> str:
+    fmt = str(value or "").strip().lower()
+    if fmt not in VALID_TABLE_FORMATS:
+        _log.warning(
+            f"[json_records] 지원하지 않는 table_format '{value}' — "
+            f"'{DEFAULT_TABLE_FORMAT}' 으로 진행합니다(사용 가능: {list(VALID_TABLE_FORMATS)})."
+        )
+        return DEFAULT_TABLE_FORMAT
+    return fmt
+
+
+def _export_text(doc: Any, table_format: str, compact_tables: bool) -> str:
+    """DoclingDocument → 평문. 본문은 markdown 이고 표만 table_format 을 따른다."""
+    if table_format == "html":
+        from docling_core.transforms.serializer.markdown import (
+            MarkdownDocSerializer,
+            MarkdownParams,
+        )
+
+        return MarkdownDocSerializer(
+            doc=doc,
+            table_serializer=_get_html_table_serializer(),
+            params=MarkdownParams(**_MD_EXPORT_OPTS),
+        ).serialize().text
+    return doc.export_to_markdown(compact_tables=compact_tables, **_MD_EXPORT_OPTS)
+
+
+# build_docling_document(title="") 이 만드는 합성 heading 2개가 markdown 선두에 남는다.
+# 제목이 빈 문자열이라 "# " / "## " 로만 이루어진 줄로 나오므로 선두에서 걷어낸다.
+# (본문이 비면 뒤에 개행조차 없어서 고정 프리픽스 비교로는 못 잡는다 — 줄 단위로 본다.)
+_EMPTY_HEADING_RE = re.compile(r"^#{1,2}\s*$")
+
+
+def _drop_synthetic_headings(text: str) -> str:
+    """markdown 선두의 빈 heading 줄을 제거한다. 원문의 빈 heading 도 어차피 내용이 없다."""
+    lines = text.split("\n")
+    while lines and (not lines[0].strip() or _EMPTY_HEADING_RE.match(lines[0])):
+        lines.pop(0)
+    return "\n".join(lines).strip()
+
+
+def html_to_text(
+    value: Any,
+    *,
+    table_format: str = DEFAULT_TABLE_FORMAT,
+    compact_tables: bool = True,
+) -> str:
+    """HTML 문자열 → 구조를 보존한 평문. 파싱은 docling 이 한다.
+
+    표 처리는 docling HTML 백엔드 몫이다. 예전에는 이 함수가 bs4 `get_text("\\n")` 으로
+    직접 평문화해서 `<table>` 이 셀 하나당 한 줄로 뭉개졌다 — 행/열 대응이 사라지고 빈 셀은
+    아예 없어져(5열 표가 4줄) 위치로도 복원이 불가능했다. 그래서 `.html` 경로와 같은
+    docling 백엔드에 태운다.
+
+    본문은 markdown 이고 **표만** `table_format` 을 따른다(`html`=`<table>`, `markdown`=파이프 표).
+    파서가 config 의 `output.table_format`/`output.compact_tables` 를 그대로 넘겨주므로,
+    docling 경로(`_docling_to_parse_format`)와 같은 설정으로 같은 모양의 표가 나온다.
+    `compact_tables` 는 markdown 일 때만 의미가 있다(컬럼 정렬 패딩 제거).
 
     `aria-hidden`/`display:none` 안의 본문(혜택 텍스트·접힌 약관)은 **보존**된다 —
-    html_flatten 모듈 docstring 의 측정 근거 참고.
+    extract_content 가 숨김 '표시'를 떼어내므로 docling 이 억제하지 않는다.
+
+    `build_docling_document` 래퍼는 반드시 거쳐야 한다. docling 은 첫 heading 앞의 내용을
+    furniture 로 보고 본문에서 제외하므로, 조각을 그대로 넣으면 문서 중간에 `<h2>` 가
+    하나라도 있을 때 그 앞의 표가 출력에서 통째로 빠진다.
     """
     if not isinstance(value, str) or not value.strip():
         return ""
-    from genon.preprocessor.converters.html_flatten import extract_content
+    from genon.preprocessor.converters.html_flatten import (
+        build_docling_document,
+        extract_content,
+    )
 
     node = extract_content(value)
-    # 태그 경계마다 빈 줄이 생기므로 공백 줄을 접어 프롬프트 토큰 낭비를 막는다.
-    lines = (line.strip() for line in node.get_text("\n").splitlines())
-    return "\n".join(line for line in lines if line)
+    try:
+        from docling.datamodel.base_models import DocumentStream
+
+        doc_html = build_docling_document("", [("", node)])
+        result = _get_html_converter().convert(
+            DocumentStream(name="detail.html", stream=io.BytesIO(doc_html.encode("utf-8")))
+        )
+        text = _export_text(
+            result.document, normalize_table_format(table_format), bool(compact_tables)
+        )
+    except Exception as exc:
+        # 전처리 실패가 파싱 자체를 막지 않게 한다(parser 의 html flatten 폴백과 같은 방침).
+        # 표 구조는 잃지만 텍스트는 남는다.
+        _log.warning(f"[json_records] docling HTML 파싱 실패(평문 추출로 폴백): {exc}")
+        lines = (line.strip() for line in node.get_text("\n").splitlines())
+        return "\n".join(line for line in lines if line)
+
+    return _drop_synthetic_headings(text)
 
 
 class JsonRecordsMapper:
@@ -276,8 +405,18 @@ class JsonRecordsMapper:
             return []
         return records
 
-    def map_record(self, record: dict) -> dict:
-        """레코드 1건 → 목표필드 dict(변환/기본값/파생 필드까지 적용)."""
+    def map_record(
+        self,
+        record: dict,
+        *,
+        table_format: str = DEFAULT_TABLE_FORMAT,
+        compact_tables: bool = True,
+    ) -> dict:
+        """레코드 1건 → 목표필드 dict(변환/기본값/파생 필드까지 적용).
+
+        `table_format`/`compact_tables` 는 html_text_fields 파생 필드의 표 모양을 정한다
+        (파서가 config 의 `output.*` 를 그대로 넘긴다). html 필드가 없으면 무시된다.
+        """
         fields: dict[str, Any] = {name: None for name in self.nulls}
         for target, aliases in self.key_map.items():
             fields[target] = find_field(record, aliases)
@@ -294,22 +433,34 @@ class JsonRecordsMapper:
             fields[target] = VALUE_TRANSFORMS[transform_name](fields.get(target))
 
         for target, source in self.html_text_fields.items():
-            fields[target] = html_to_text(fields.get(source))
+            fields[target] = html_to_text(
+                fields.get(source), table_format=table_format, compact_tables=compact_tables
+            )
 
         return fields
 
     def missing_required(self, fields: dict) -> list[str]:
         return [name for name in self.required if fields.get(name) in (None, "")]
 
-    def build_fields(self, payload: Any, runtime_doc_type: Any) -> list[dict]:
+    def build_fields(
+        self,
+        payload: Any,
+        runtime_doc_type: Any,
+        *,
+        table_format: str = DEFAULT_TABLE_FORMAT,
+        compact_tables: bool = True,
+    ) -> list[dict]:
         """payload → 레코드별 목표필드 목록. 필수값 누락 레코드는 skip(요약 경고)."""
         records = self.extract_records(payload)
         doc_type = self.canonical_doc_type(runtime_doc_type)
+        table_format = normalize_table_format(table_format)
 
         mapped: list[dict] = []
         skipped = 0
         for index, record in enumerate(records):
-            fields = self.map_record(record)
+            fields = self.map_record(
+                record, table_format=table_format, compact_tables=compact_tables
+            )
             missing = self.missing_required(fields)
             if missing:
                 skipped += 1

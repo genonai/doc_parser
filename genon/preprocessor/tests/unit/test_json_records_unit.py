@@ -161,15 +161,186 @@ def test_html_to_text_keeps_aria_hidden_and_collapsed_text():
     assert "중도 해지 시 회수" in text
 
 
-def test_html_to_text_drops_scripts_and_blank_lines():
+def test_html_to_text_drops_scripts():
+    """markdown 은 블록 사이에 빈 줄을 넣는다 — 내용 줄만 비교한다."""
     text = html_to_text("<div><p>본문</p><script>track()</script>\n\n<p>다음</p></div>")
     assert "track()" not in text
-    assert text.splitlines() == ["본문", "다음"]
+    assert [line for line in text.splitlines() if line.strip()] == ["본문", "다음"]
 
 
 def test_html_to_text_handles_empty_input():
     assert html_to_text(None) == ""
     assert html_to_text("   ") == ""
+
+
+def _pipe_rows(text: str) -> list[str]:
+    return [line for line in text.splitlines() if line.startswith("|")]
+
+
+def _cells(row: str) -> list[str]:
+    return [cell.strip() for cell in row.strip("|").split("|")]
+
+
+def _has_table(text: str, table_format: str) -> bool:
+    """table_format 에 맞는 표가 출력에 있는지."""
+    return bool("<table" in text) if table_format == "html" else bool(_pipe_rows(text))
+
+
+def test_html_to_text_renders_table_as_markdown_pipe_table():
+    """표는 docling 이 파이프 표로 만든다 — 예전 get_text 평문화는 행/열을 뭉갰다."""
+    html = (
+        "<div><table><thead><tr><th>구독료</th><th>할인</th></tr></thead>"
+        "<tbody><tr><td>5만원 이상</td><td>5,000원</td></tr>"
+        "<tr><td>10만원 이상</td><td>10,000원</td></tr></tbody></table></div>"
+    )
+    rows = _pipe_rows(html_to_text(html, table_format="markdown"))
+    # 헤더 + 구분줄 + 본문 2행
+    assert len(rows) == 4
+    assert _cells(rows[0]) == ["구독료", "할인"]
+    assert _cells(rows[2]) == ["5만원 이상", "5,000원"]
+    assert _cells(rows[3]) == ["10만원 이상", "10,000원"]
+
+
+def test_html_to_text_keeps_empty_cell_so_columns_stay_aligned():
+    """빈 셀이 소실되면 5열 표가 4줄이 되어 위치로도 복원할 수 없다(원 버그)."""
+    html = (
+        '<div class="overflow_wrap_scroll"><div class="inner"><table>'
+        "<thead><tr><th>전월 이용금액</th><th>1회차</th><th>2회차</th><th>3회차</th><th>합계</th></tr></thead>"
+        '<tbody><tr><td>150만원 이상</td><td>20,000원</td><td>20,000원</td><td> </td>'
+        "<td>720,000원</td></tr></tbody></table></div></div>"
+    )
+    rows = _pipe_rows(html_to_text(html, table_format="markdown"))
+    assert all(len(row.strip("|").split("|")) == 5 for row in rows)
+    assert _cells(rows[-1]) == ["150만원 이상", "20,000원", "20,000원", "", "720,000원"]
+
+
+@pytest.mark.parametrize("table_format", ["html", "markdown"])
+def test_html_to_text_keeps_table_inside_hidden_container(table_format):
+    """docling 백엔드는 숨김 컨테이너의 내용을 억제한다 — 상류에서 표시를 떼어 살린다."""
+    html = (
+        '<div><div style="display:none"><table><tr><th>K</th><th>V</th></tr>'
+        "<tr><td>a</td><td>1</td></tr></table></div>"
+        '<div aria-hidden="true"><p>혜택 문구</p></div></div>'
+    )
+    text = html_to_text(html, table_format=table_format)
+    assert _has_table(text, table_format)
+    assert "혜택 문구" in text
+
+
+@pytest.mark.parametrize("table_format", ["html", "markdown"])
+def test_html_to_text_keeps_table_before_a_later_heading(table_format):
+    """docling 은 첫 heading 앞을 furniture 로 본다 — 합성 heading 래퍼가 없으면 표가 사라진다."""
+    html = (
+        "<div><p>선두 문단</p><table><tr><th>A</th></tr><tr><td>1</td></tr></table>"
+        "<h2>중간 제목</h2><p>제목 뒤 문단</p></div>"
+    )
+    text = html_to_text(html, table_format=table_format)
+    assert "선두 문단" in text
+    assert _has_table(text, table_format)
+
+
+# ── output.table_format 반영 ─────────────────────────────────────────────────
+
+_TABLE_HTML = (
+    "<div><p>안내</p><table><thead><tr><th>구분</th><th>금액</th></tr></thead>"
+    "<tbody><tr><td>snake_case 항목</td><td>13,000원</td></tr>"
+    "<tr><td>빈칸행</td><td> </td></tr></tbody></table></div>"
+)
+
+
+def test_html_to_text_table_format_html_emits_html_table():
+    """config output.table_format=html → 표만 <table> 로, 본문은 markdown 그대로."""
+    text = html_to_text(_TABLE_HTML, table_format="html")
+    assert "<table" in text and "</table>" in text
+    assert not _pipe_rows(text)
+    assert "안내" in text                       # 표 밖 본문은 markdown 유지
+    assert "snake_case 항목" in text and "13,000원" in text
+
+
+def test_html_to_text_table_format_markdown_emits_pipe_table():
+    text = html_to_text(_TABLE_HTML, table_format="markdown")
+    assert "<table" not in text
+    assert len(_pipe_rows(text)) == 4
+
+
+def test_html_to_text_defaults_to_config_default_table_format():
+    """인자를 생략하면 parser config 의 기본값(html)과 같게 동작한다."""
+    assert html_to_text(_TABLE_HTML) == html_to_text(_TABLE_HTML, table_format="html")
+
+
+def test_html_to_text_invalid_table_format_falls_back_to_html(caplog):
+    with caplog.at_level("WARNING"):
+        text = html_to_text(_TABLE_HTML, table_format="csv")
+    assert "<table" in text
+    assert "지원하지 않는 table_format" in caplog.text
+
+
+def test_html_to_text_compact_tables_only_affects_markdown():
+    """compact_tables 는 markdown 표의 컬럼 정렬 패딩만 없앤다. html 에는 무관하다."""
+    compact = html_to_text(_TABLE_HTML, table_format="markdown", compact_tables=True)
+    padded = html_to_text(_TABLE_HTML, table_format="markdown", compact_tables=False)
+    assert compact != padded
+    # 구분줄로 판별한다 — compact 는 "-" 하나, 패딩본은 컬럼 폭만큼 늘어난다.
+    assert _cells(_pipe_rows(compact)[1]) == ["-", "-"]
+    assert all(len(cell) > 1 for cell in _cells(_pipe_rows(padded)[1]))
+    # 셀 값 자체는 두 모드가 같다
+    assert _cells(_pipe_rows(compact)[0]) == _cells(_pipe_rows(padded)[0])
+    assert _cells(_pipe_rows(compact)[-1]) == _cells(_pipe_rows(padded)[-1])
+
+    html_compact = html_to_text(_TABLE_HTML, table_format="html", compact_tables=True)
+    html_padded = html_to_text(_TABLE_HTML, table_format="html", compact_tables=False)
+    assert html_compact == html_padded
+
+
+def test_build_fields_applies_table_format_to_html_derived_fields(tmp_path):
+    """매퍼가 table_format 을 html_text_fields 파생 필드까지 전달한다."""
+    payload = {
+        "eventList": [
+            {
+                "ID": "T1", "회사명": "모니모", "제목": "표 테스트",
+                "이벤트 시작일": "26.07.01", "이벤트 종료일": "26.07.31",
+                "wcmsHtml": {"htmlText": _TABLE_HTML},
+            }
+        ]
+    }
+    mapper = write_mapper(tmp_path)
+    as_html = mapper.build_fields(payload, "monimo_event", table_format="html")[0]["DETAIL_TEXT"]
+    as_md = mapper.build_fields(payload, "monimo_event", table_format="markdown")[0]["DETAIL_TEXT"]
+    assert "<table" in as_html and not _pipe_rows(as_html)
+    assert "<table" not in as_md and _pipe_rows(as_md)
+
+
+def test_html_to_text_keeps_table_caption():
+    html = "<div><table><caption>표 설명입니다</caption><tr><th>A</th></tr><tr><td>1</td></tr></table></div>"
+    assert "표 설명입니다" in html_to_text(html)
+
+
+def test_html_to_text_has_no_synthetic_heading_prefix():
+    """래퍼가 넣은 빈 heading 2개는 출력에 남지 않는다."""
+    text = html_to_text("<div><p>본문</p></div>")
+    assert text == "본문"
+
+
+@pytest.mark.parametrize(
+    "html",
+    ["<div></div>", "<div>   </div>", "<div><script>x</script></div>"],
+)
+def test_html_to_text_returns_empty_for_contentless_html(html):
+    """본문이 없으면 빈 문자열이어야 한다 — 합성 heading 이 새어 나가면 빈 값 판정이 깨진다."""
+    assert html_to_text(html) == ""
+
+
+def test_html_to_text_does_not_escape_entities_or_underscores():
+    """LLM 입력용 평문이라 markdown 이스케이프는 노이즈다."""
+    text = html_to_text("<div><p>A &amp; B &lt;태그&gt; snake_case</p></div>")
+    assert "&amp;" not in text and "&lt;" not in text
+    assert "snake_case" in text
+
+
+def test_html_to_text_drops_image_placeholder_but_keeps_alt():
+    text = html_to_text('<div><img src="a.png" alt="대체문구"></div>')
+    assert "<!-- image -->" not in text
+    assert "대체문구" in text
 
 
 # ── 레코드 매핑 ─────────────────────────────────────────────────────────────

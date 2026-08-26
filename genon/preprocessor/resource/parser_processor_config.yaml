@@ -333,6 +333,8 @@ output:
   # 민감정보 분류(#315): parser 가 guardrail 워크플로우를 호출해 sensitive_infos 를 출력에 실어 보내고,
   # chunking API 가 그 결과로 청크별 라벨/마스킹을 적용한다(아래 guardrail 섹션 참고).
   table_format: "html" # "html" (default), "markdown"  ("docling" 포맷에서는 무시)
+  # custom_fields 의 html_text_fields(예: monimo_event 의 DETAIL_HTML → DETAIL_TEXT)에도 적용된다
+  # — 그 파생 필드는 본문이 markdown 이고 표만 이 설정을 따른다.
   compact_tables: true # markdown 표 컬럼 정렬 패딩 제거(대형 표 축소). html/docling 포맷엔 무관.
 
 # whisper 설정. 음성(.wav/.mp3/.m4a) 처리 시에만 필요(선택).

@@ -2454,7 +2454,13 @@ class DocumentProcessor:
         payload = self._load_json_payload(file_path)
         doc_type = kwargs.get("doc_type")
         try:
-            fields_list = mapper.build_fields(payload, doc_type)
+            # html_text_fields 파생 필드의 표 모양을 docling 경로와 같은 설정으로 맞춘다
+            # (output.table_format: html=<table> / markdown=파이프 표).
+            fields_list = mapper.build_fields(
+                payload, doc_type,
+                table_format=getattr(self, "_table_format", "html"),
+                compact_tables=bool(getattr(self, "_compact_tables", True)),
+            )
         except ValueError as exc:
             raise GenosServiceException("1", str(exc), stage="custom_fields") from exc
 

@@ -27,10 +27,25 @@
   | hidden 속성만 제거(이 모듈)                   | 60,857자 | +1,725 |
   | 콘텐츠영역 선택도 안 함(body 전체)            | 63,381자 | +4,249 |
 
-그래서 이 모듈은 **`hidden` 속성만** 제거한다(docling 의 `convert()` 와 동일한 범위).
-숨김 판정은 docling 이 `_is_invisible_tag` 에서 문맥에 따라 이미 수행하므로 상류에서
-중복 적용할 필요가 없다. 마지막 +4,249자는 대부분 footer 상용구(사업자번호·주소·
-수상내역·전화번호)라, 콘텐츠영역 선택(main/.modal-container/#contents)은 유지한다.
+그래서 이 모듈은 요소를 지울 때 **`hidden` 속성만** 본다(docling 의 `convert()` 와 동일한 범위).
+마지막 +4,249자는 대부분 footer 상용구(사업자번호·주소·수상내역·전화번호)라, 콘텐츠영역
+선택(main/.modal-container/#contents)은 유지한다.
+
+## 숨김 '표시'는 떼어내야 한다 (docling 백엔드가 억제한다)
+
+내용을 보존하려면 지우지 않는 것만으로는 부족하다. docling 백엔드는 `_walk` 에서
+`_is_suppressed_tag` → `_is_invisible_tag` 를 타고 **`aria-hidden` / 인라인
+`display:none`·`visibility:hidden|collapse`·`opacity:0` 컨테이너의 내용을 통째로 억제**한다
+(`docling/backend/html_backend.py`). 실측 — `<div style="display:none"><table>` 과
+`<div aria-hidden="true"><table>` 은 인식되는 표가 0개다(보이는 `<table>` 은 1개).
+
+즉 상류에서 "안 지운다"고 끝나지 않는다. `_clean` 은 **숨김 표시만 떼고 내용은 남긴다** —
+그래야 위 측정에서 지키려던 혜택 텍스트·접힌 약관과 그 안의 표가 docling BODY 에 들어온다.
+(이 모듈이 추가된 시점 `4792e0ff` 보다 백엔드 업그레이드 `93557b6a` 가 앞서서, 위 측정 당시의
+"docling 이 문맥에 따라 알아서 판정한다"는 전제가 더는 성립하지 않는다.)
+
+`<caption>` 도 docling 이 버리므로("라이트할부 기간동안 추가 결제 안내입니다." 같은 표 설명),
+표 앞의 문단으로 옮겨 살린다.
 
 의존성: beautifulsoup4 (docling 이 자체 HTML 백엔드에서 쓰므로 전이 확보) + 표준 라이브러리.
 """
@@ -51,6 +66,19 @@ _CONTENT_SELECTORS = ("main", ".modal-container", "#contents")
 # 제거할 태그(docling 이 무시하거나 노이즈인 것).
 _STRIP_TAGS = (
     "script", "style", "noscript", "iframe", "svg", "template", "canvas", "base",
+)
+
+# 떼어낼 숨김 속성. `hidden` 은 여기가 아니라 요소째로 제거한다(docling 과 동일 범위).
+_UNHIDE_ATTRS = ("aria-hidden",)
+
+# 인라인 style 에서 떼어낼 숨김 선언. 선언 하나 단위로 매칭해 나머지 선언은 살린다.
+# `!important` 는 실 마크업에 흔하므로 함께 받는다. `opacity:0.5` 처럼 0 이 아닌 값은 남긴다.
+_HIDDEN_DECL_RE = re.compile(
+    r"^\s*(?:display\s*:\s*none"
+    r"|visibility\s*:\s*(?:hidden|collapse)"
+    r"|opacity\s*:\s*0(?:\.0+)?)"
+    r"(?:\s*!\s*important)?\s*$",
+    re.I,
 )
 
 # ── flatten 사전 검사 ────────────────────────────────────────────────────────────
@@ -114,25 +142,64 @@ def _fully_unescape(text: str) -> str:
     return text
 
 
+def _strip_hidden_markers(el: Tag) -> None:
+    """요소에서 숨김 '표시'만 떼어낸다(내용·다른 스타일은 그대로).
+
+    docling 백엔드가 이 표시를 보고 내용을 통째로 억제하므로, 보존하려면 표시를
+    제거해야 한다 — 모듈 docstring "숨김 '표시'는 떼어내야 한다" 참고.
+    """
+    for attr in _UNHIDE_ATTRS:
+        el.attrs.pop(attr, None)
+
+    style = el.get("style")
+    if not isinstance(style, str) or not style:
+        return
+    decls = [decl for decl in style.split(";") if decl.strip()]
+    kept = [decl for decl in decls if not _HIDDEN_DECL_RE.match(decl)]
+    if len(kept) == len(decls):
+        return  # 숨김 선언이 없었다 — 원본 style 문자열을 건드리지 않는다
+    if kept:
+        el["style"] = ";".join(kept)
+    else:
+        del el["style"]
+
+
+def _lift_table_captions(node: Tag) -> None:
+    """`<caption>` 을 표 앞의 `<p>` 로 옮긴다 — docling 은 caption 을 버린다."""
+    for caption in node.find_all("caption"):
+        table = caption.find_parent("table")
+        text = caption.get_text(" ", strip=True)
+        caption.decompose()
+        if table is None or not text:
+            continue
+        para = Tag(name="p")
+        para.string = text
+        table.insert_before(para)
+
+
 def _clean(node: Tag) -> None:
     """콘텐츠 노드에서 노이즈를 제거한다.
 
-    숨김 요소는 `hidden` 속성만 제거한다 — 모듈 docstring 의 측정 근거 참고.
+    요소를 지우는 기준은 `hidden` 속성뿐이다 — 모듈 docstring 의 측정 근거 참고.
     `aria-hidden`/`display:none` 은 실제 본문(혜택 텍스트, 접힌 약관)을 담고 있어
-    지우면 안 되고, docling 이 문맥에 따라 자체 판정한다.
+    지우지 않고, 대신 그 **표시만** 떼어내 docling 이 억제하지 않게 한다.
     """
     for tag in node.find_all(_STRIP_TAGS):
         try:
             tag.decompose()
         except (AttributeError, ValueError):
             pass  # 부모가 먼저 제거되어 이미 사라진 경우
-    for el in node.find_all(True):
+    # 루트 자신도 대상이다 — find_all(True) 은 자신을 포함하지 않는다.
+    for el in [node, *node.find_all(True)]:
         # find_all 은 정적 리스트라, 조상을 먼저 제거하면 그 자손은 이미 분리되어
         # (attrs=None) 있을 수 있다 → 건너뛴다.
         if el.attrs is None:
             continue
-        if el.has_attr("hidden"):
+        if el is not node and el.has_attr("hidden"):
             el.decompose()
+            continue
+        _strip_hidden_markers(el)
+    _lift_table_captions(node)
     # facebook 추적 픽셀 등 1x1 트래커 제거
     for img in node.find_all("img"):
         src = (img.get("src") or "").lower()

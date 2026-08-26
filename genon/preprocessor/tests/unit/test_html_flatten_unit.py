@@ -88,6 +88,75 @@ def test_extract_content_drops_hidden_attribute():
     assert "보임" in text
 
 
+def test_extract_content_strips_hidden_markers_not_content():
+    """숨김 '표시'는 떼어낸다 — 남겨 두면 docling 백엔드가 내용을 통째로 억제한다."""
+    raw = (
+        "<html><body><main>"
+        '<span aria-hidden="true">혜택</span>'
+        '<div style="display:none"><p>약관</p></div>'
+        '<div style="visibility:hidden">숨김2</div>'
+        '<div style="opacity:0">숨김3</div>'
+        "</main></body></html>"
+    )
+    html = str(extract_content(raw))
+    assert "aria-hidden" not in html
+    assert "display:none" not in html.replace(" ", "")
+    assert "visibility:hidden" not in html.replace(" ", "")
+    assert "opacity:0" not in html.replace(" ", "")
+    for text in ("혜택", "약관", "숨김2", "숨김3"):
+        assert text in html
+
+
+def test_extract_content_keeps_other_style_declarations():
+    """숨김 선언만 골라 떼고 나머지 style 은 건드리지 않는다."""
+    raw = '<html><body><main><div style="color:red;display:none;margin:4px">본문</div></main></body></html>'
+    html = str(extract_content(raw))
+    assert "color:red" in html
+    assert "margin:4px" in html
+    assert "display" not in html
+
+
+def test_extract_content_strips_hidden_marker_with_important():
+    """`!important` 가 붙은 숨김 선언도 떼어낸다(실 마크업에 흔하다)."""
+    raw = '<html><body><main><div style="display:none !important">본문</div></main></body></html>'
+    html = str(extract_content(raw))
+    assert "display" not in html
+    assert "본문" in html
+
+
+def test_extract_content_keeps_nonzero_opacity():
+    """opacity 는 0 일 때만 숨김이다 — 0.5 는 남긴다."""
+    raw = '<html><body><main><div style="opacity:0.5">본문</div></main></body></html>'
+    assert "opacity:0.5" in str(extract_content(raw))
+
+
+def test_extract_content_strips_hidden_marker_on_root_node():
+    """콘텐츠 루트 자신이 숨김 표시를 달고 있어도 떼어낸다(find_all 은 자신을 포함하지 않는다)."""
+    raw = '<html><body><main aria-hidden="true"><p>본문</p></main></body></html>'
+    node = extract_content(raw)
+    assert not node.has_attr("aria-hidden")
+    assert "본문" in node.get_text()
+
+
+def test_extract_content_lifts_table_caption_before_table():
+    """docling 은 <caption> 을 버리므로 표 앞 문단으로 옮겨 살린다."""
+    raw = (
+        "<html><body><main><table><caption>표 설명입니다</caption>"
+        "<tr><td>a</td></tr></table></main></body></html>"
+    )
+    node = extract_content(raw)
+    html = str(node)
+    assert "<caption>" not in html
+    assert html.index("표 설명입니다") < html.index("<table>")
+
+
+def test_extract_content_drops_empty_caption():
+    raw = "<html><body><main><table><caption>  </caption><tr><td>a</td></tr></table></main></body></html>"
+    html = str(extract_content(raw))
+    assert "<caption>" not in html
+    assert "<p>" not in html
+
+
 def test_extract_content_drops_script_and_style():
     raw = (
         "<html><body><main><script>var a=1;</script>"
