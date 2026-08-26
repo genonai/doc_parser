@@ -14,7 +14,7 @@ from pathlib import Path
 import pytest
 
 from docling_core.types import DoclingDocument
-from docling_core.types.doc import DocItemLabel
+from docling_core.types.doc import DocItemLabel, DocumentOrigin
 
 
 def _build_doc() -> DoclingDocument:
@@ -332,6 +332,53 @@ def test_chunk_header_off_emits_body_only():
     assert len(off) == len(on)
     for v_on, v_off in zip(on, off):
         assert v_on.text.split("\n", 1)[-1].endswith(v_off.text) or v_off.text in v_on.text
+
+
+@pytest.mark.unit
+def test_semantic_document_title_stays_in_chunk_header():
+    """문서 이름과 다른 실제 TITLE 은 HEADER 경로에 유지한다."""
+    pytest.importorskip("facade.chunking_processor")
+
+    vectors = _chunk(_build_doc().model_dump(mode="json"))
+
+    assert any(v.text.startswith("HEADER: ") for v in vectors)
+    assert any(
+        "모니모 약관" in v.text.partition("\n")[0]
+        for v in vectors
+        if v.text.startswith("HEADER: ")
+    )
+    assert "모니모 약관" in "\n".join(v.text for v in vectors)
+    assert all(v.title == "모니모 약관" for v in vectors)
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    "module_name",
+    ["chunking_processor", "intelligent_processor", "convert_processor"],
+)
+def test_all_chunkers_exclude_only_filename_title_from_header_paths(module_name):
+    """세 facade 모두 파일명 TITLE 만 제외하고 실제 TITLE 은 유지한다."""
+    mod = pytest.importorskip(f"facade.{module_name}")
+    chunker = mod.GenosSmartChunker(tokenizer_type="char")
+
+    doc = DoclingDocument(
+        name="sample",
+        origin=DocumentOrigin(
+            filename="sample.pdf",
+            mimetype="application/pdf",
+            binary_hash=0,
+        ),
+    )
+    doc.add_title(text="sample.pdf")
+    doc.add_title(text="sample")
+    doc.add_title(text="실제 문서 제목")
+    section = doc.add_heading(text="제1장 총칙", level=1)
+    doc.add_text(label=DocItemLabel.TEXT, text="본문", parent=section)
+
+    base_chunk = next(chunker.preprocess(doc))
+    paths = chunker._extract_header_paths(base_chunk._header_short_info_list)
+
+    assert paths == [f"실제 문서 제목{HEADER_SEP}제1장 총칙"]
 
 
 def test_heading_only_chunk_is_merged_forward():

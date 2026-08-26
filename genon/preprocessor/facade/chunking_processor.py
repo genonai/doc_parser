@@ -266,6 +266,35 @@ def _resolve_include_chunk_header(kwargs: dict, yaml_default: bool) -> bool:
     return bool(yaml_default) if parsed is None else parsed
 
 
+def _normalize_filename_title(value: Any) -> str:
+    """파일명과 TITLE 을 비교하기 위한 유니코드/대소문자 정규화."""
+    if not isinstance(value, str):
+        return ""
+    return unicodedata.normalize("NFKC", value).strip().casefold()
+
+
+def _filename_title_candidates(document: Any) -> set[str]:
+    """문서 이름에서 HEADER 에 넣지 않을 파일명 TITLE 후보를 만든다.
+
+    backend 에 따라 TITLE 이 `sample.pdf` 또는 `sample` 로 들어올 수 있어 원본명과
+    확장자를 제거한 이름을 모두 비교한다. 그 밖의 실제 TITLE 은 헤더 경로에 유지한다.
+    """
+    raw_names = [getattr(document, "name", None)]
+    origin = getattr(document, "origin", None)
+    raw_names.append(getattr(origin, "filename", None))
+
+    candidates: set[str] = set()
+    for raw_name in raw_names:
+        if not isinstance(raw_name, str) or not raw_name.strip():
+            continue
+        basename = os.path.basename(raw_name.replace("\\", "/"))
+        for candidate in (basename, Path(basename).stem):
+            normalized = _normalize_filename_title(candidate)
+            if normalized:
+                candidates.add(normalized)
+    return candidates
+
+
 # 한 경로 안의 레벨 구분자(부모 → 자식). heading 자체에 콤마가 들어있는 경우가 있어
 # (실측 409건 중 20건) 콤마로는 경로를 레벨 단위로 되돌릴 수 없다 —
 # 예: "제4조(여비) ① 여비는 여객운임, 숙박비, 식비 …". " > " 는 실측 충돌이 0 이다.
@@ -500,6 +529,7 @@ class GenosSmartChunker(BaseChunker):
 
         # iterate_items()로 수집된 아이템들의 self_ref 추적
         processed_refs = set()
+        filename_titles = _filename_title_candidates(dl_doc)
 
         # 모든 아이템 순회
         for item, level in dl_doc.iterate_items(included_content_layers={ContentLayer.BODY, ContentLayer.FURNITURE}, traverse_pictures=True):
@@ -524,6 +554,16 @@ class GenosSmartChunker(BaseChunker):
                         all_header_info.append({k: v for k, v in current_heading_by_level.items()})
                         all_header_short_info.append({k: v for k, v in current_heading_short_by_level.items()})
                     list_items = []
+
+            # 일부 backend 는 파일명을 TITLE 아이템으로 만든다. 이 아이템은 본문에는
+            # 보존하되 섹션 breadcrumb 로는 사용하지 않는다. 실제 문서 TITLE 은 유지한다.
+            if (isinstance(item, TextItem) and item.label == DocItemLabel.TITLE and
+                    any(_normalize_filename_title(value) in filename_titles
+                        for value in (item.text, item.orig) if value)):
+                all_items.append(item)
+                all_header_info.append(dict(current_heading_by_level))
+                all_header_short_info.append(dict(current_heading_short_by_level))
+                continue
 
             # 섹션 헤더 처리
             if isinstance(item, SectionHeaderItem) or (
