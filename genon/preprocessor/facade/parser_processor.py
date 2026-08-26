@@ -114,6 +114,9 @@ try:
     from genon.preprocessor.facade.enrichment.json_records import (
         build_json_records_mappers,
     )
+    from genon.preprocessor.facade.enrichment.json_semantic import (
+        build_semantic_json_mappers,
+    )
     from genon.preprocessor.facade.enrichment.markdown_front_matter import (
         build_markdown_front_matter_specs,
         build_markdown_text_fence_specs,
@@ -122,6 +125,7 @@ except ImportError:
     build_document_custom_fields_enrichers = None  # type: ignore[assignment]
     build_tabular_custom_fields_mappers = None  # type: ignore[assignment]
     build_json_records_mappers = None  # type: ignore[assignment]
+    build_semantic_json_mappers = None  # type: ignore[assignment]
     build_markdown_front_matter_specs = None  # type: ignore[assignment]
     build_markdown_text_fence_specs = None  # type: ignore[assignment]
 
@@ -2088,14 +2092,24 @@ class DocumentProcessor:
 
     @staticmethod
     def _build_json_records_mappers(custom_fields_cfgs: list) -> list:
-        """custom_fields 설정 중 extractor=json_mapping 만 매퍼로 만든다. tabular 와 같은 패턴."""
-        if build_json_records_mappers is None:
+        """custom_fields 설정 중 JSON 레코드/의미 계열(json_mapping/json_records/json_semantic)을
+        모두 매퍼로 만들어 합친다. tabular 와 같은 패턴이되, 두 빌더에 전체 목록을 그대로
+        넘긴다 — 각 빌더가 자기 extractor 집합(json_records.JSON_RECORD_EXTRACTORS /
+        json_semantic.JSON_SEMANTIC_EXTRACTORS)에 속하는 설정만 스스로 고른다
+        (custom_fields_enricher.py 의 집합 분리 참고). 여기서 미리 걸러줄 필요가 없다.
+        """
+        if build_json_records_mappers is None and build_semantic_json_mappers is None:
             return []
         try:
-            return build_json_records_mappers(custom_fields_cfgs)
+            mappers: list = []
+            if build_json_records_mappers is not None:
+                mappers.extend(build_json_records_mappers(custom_fields_cfgs))
+            if build_semantic_json_mappers is not None:
+                mappers.extend(build_semantic_json_mappers(custom_fields_cfgs))
+            return mappers
         except (ValueError, TypeError, FileNotFoundError) as exc:
             raise GenosServiceException(
-                "1", f"custom_fields json_mapping 설정 오류: {exc}", stage="custom_fields"
+                "1", f"custom_fields json_mapping/json_semantic 설정 오류: {exc}", stage="custom_fields"
             ) from exc
 
     def _json_records_mapper_for(self, runtime_doc_type: Any):
@@ -2448,11 +2462,18 @@ class DocumentProcessor:
         return enricher
 
     async def _apply_llm_fields(self, mapper, fields_list: list) -> list:
-        """`llm_fields` 선언대로 행/레코드마다 LLM 을 호출해 목표필드를 채운다.
+        """`llm_fields` 선언대로 LLM 을 호출해 목표필드를 채운다.
 
-        건수만큼 호출이 나가므로 spec.concurrency 로 동시 실행을 제한한다.
-        실패는 on_error 정책(null 채움 / 건별 skip)으로 흡수하고 전체를 중단하지 않는다.
+        기본(record 스코프)은 행/레코드마다 호출한다 — 건수만큼 나가므로 spec.concurrency 로
+        동시 실행을 제한하고, 실패는 on_error 정책(null 채움 / 건별 skip)으로 흡수한다.
+
+        `mapper.llm_fields_scope == "document"`(json_semantic)면 문서 1건당 1회만 호출하고
+        결과를 전 섹션에 복사한다 — 섹션(청크) 수만큼 부르면 카드 1장에 10회 넘게 호출되기
+        때문이다(json_semantic 모듈 docstring 참고).
         """
+        if getattr(mapper, "llm_fields_scope", "record") == "document":
+            return await self._apply_llm_fields_document_scope(mapper, fields_list)
+
         for spec in getattr(mapper, "llm_field_specs", ()):
             if not fields_list:
                 break
@@ -2499,6 +2520,39 @@ class DocumentProcessor:
                     f"(on_error={spec.on_error})"
                 )
             fields_list = kept
+        return fields_list
+
+    async def _apply_llm_fields_document_scope(self, mapper, fields_list: list) -> list:
+        """llm_fields_scope == "document" 인 매퍼용 — spec 당 LLM 을 문서 1회만 호출해
+        결과를 전 섹션(fields_list 전체)에 그대로 복사한다.
+
+        record 스코프처럼 건별 skip 은 의미가 없다(스킵할 "건"이 없다) — 실패 시 on_error 와
+        같은 톤으로 output_fields 를 null 채움해 나머지 필드는 계속 살아남게 한다.
+        """
+        for spec in getattr(mapper, "llm_field_specs", ()):
+            if not fields_list:
+                break
+            enricher = self._llm_field_enricher(spec, mapper)
+            if not enricher.is_configured:
+                _log.warning(
+                    f"[llm_fields] 비활성({spec.label}): url/model 설정이 "
+                    f"비어있어 {spec.output_fields} 를 null 로 둡니다."
+                )
+                for fields in fields_list:
+                    for name in spec.output_fields:
+                        fields.setdefault(name, None)
+                continue
+
+            document_fields = mapper.document_input_fields(fields_list)
+            try:
+                result = await enricher.extract_fields_from_text(
+                    spec.build_input_text(document_fields)
+                )
+            except Exception as exc:
+                _log.warning(f"[llm_fields] 문서 단위 LLM 필드 추출 실패({spec.label}): {exc}")
+                result = {name: None for name in spec.output_fields}
+            for fields in fields_list:
+                fields.update(result)
         return fields_list
 
     async def _parse_json_records(self, file_path: str, mapper, **kwargs) -> dict:

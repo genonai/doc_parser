@@ -155,9 +155,11 @@ def validate_target_field_names(targets: Any, *, label: str) -> None:
 
 # YAML 에서 타입을 틀리기 쉬운 키. 코드가 set()/list()/dict() 로만 감싸기 때문에
 # 틀린 타입이 조용히 엉뚱하게 해석되거나 요청마다 터진다 — 기동 시에 잡는다.
-_LIST_SHAPED_KEYS = ("required", "nulls", "text_fields")
+# ignore_keys/shared_fields/sections 는 json_semantic(SemanticJsonMapper) 전용 키다.
+_LIST_SHAPED_KEYS = ("required", "nulls", "text_fields", "ignore_keys", "required_shared_fields")
 _MAP_SHAPED_KEYS = (
-    "column_map", "key_map", "constants", "defaults", "value_map", "transforms", "html_text_fields",
+    "column_map", "key_map", "collect_key_map", "constants", "defaults", "value_map", "transforms",
+    "html_text_fields", "shared_fields", "sections",
 )
 
 
@@ -239,9 +241,14 @@ def validate_custom_field_config(cfg: dict, *, label: str) -> None:
 
 
 def collect_target_field_names(cfg: dict) -> set[str]:
-    """설정이 만들어 내는 목표필드명 전체(두 extractor 공통 키 + 각자 전용 키)."""
+    """설정이 만들어 내는 목표필드명 전체(세 extractor 공통 키 + 각자 전용 키)."""
     cfg = cfg or {}
-    names = set(cfg.get("column_map") or {}) | set(cfg.get("key_map") or {})
+    names = (
+        set(cfg.get("column_map") or {})
+        | set(cfg.get("key_map") or {})
+        | set(cfg.get("collect_key_map") or {})
+        | set(cfg.get("shared_fields") or {})  # json_semantic 전용
+    )
     names |= set(cfg.get("constants") or {}) | set(cfg.get("defaults") or {})
     names |= {str(f) for f in (cfg.get("nulls") or [])}
     names |= set(cfg.get("html_text_fields") or {})
@@ -520,4 +527,3 @@ def build_tabular_custom_fields_mappers(configs: list[dict]) -> list[TabularCust
         for config in (configs or [])
         if custom_fields_extractor(config) in TABULAR_CUSTOM_FIELD_EXTRACTORS
     ]
-

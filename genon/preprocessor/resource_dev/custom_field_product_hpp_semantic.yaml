@@ -1,0 +1,32 @@
+# 개발 실행용 미러. 운영본의 설명과 필드 정의는 resource/custom_field_product_hpp_semantic.yaml 참고.
+shared_fields:
+  BIZ_ID:        [wcmsId, id, productId]
+  PRODUCT_C:     [productCode, cardCode, code]
+  PRODUCT_NM:    [cardTitle, productName, name]
+  SALE_STATUS:   [saleStatus, sale_status]
+  PRODUCT_ATTRS: [benefit, benefits]
+
+required_shared_fields: [PRODUCT_C, PRODUCT_NM]
+
+sections:
+  ksp:      { name: 주요 혜택,  include: true  }
+  benefit:  { name: 주요 혜택,  include: true  }
+  bubble:   { name: 혜택 상세,  include: true  }
+  htmlList: { name: 상품 문서,  include: true  }
+  mpo:      { name: 추천 상품,  include: false }
+
+ignore_keys:
+  - "*Img*"
+  - "*Lottie*"
+  - fontColor
+  - bgColor
+  - sort
+  - hideSummaryTab
+  - is3d
+  - pCApplyNoYn
+
+defaults:
+  SALE_STATUS: "ON_SALE"
+
+constants:
+  GROUP_C: "HPP"

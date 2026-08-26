@@ -37,7 +37,7 @@ import yaml
 _log = logging.getLogger(__name__)
 
 from .custom_fields_enricher import (
-    JSON_CUSTOM_FIELD_EXTRACTORS,
+    JSON_RECORD_EXTRACTORS,
     VALID_LLM_ERROR_POLICIES,  # noqa: F401  (하위 호환 재노출)
     LlmFieldSpec,  # noqa: F401  (하위 호환 재노출 — 정의는 custom_fields_enricher 로 이동)
     build_llm_field_specs,
@@ -114,6 +114,39 @@ def find_field(record: Any, aliases: list[str]) -> Any:
                 next_level.extend(node)
         level = next_level
     return None
+
+
+def find_fields(record: Any, aliases: list[str]) -> list[Any]:
+    """레코드 안에서 별칭에 해당하는 값을 문서 순서대로 모두 수집한다.
+
+    ``find_field``는 메타데이터용 단일 값에 맞춰 가장 얕은 첫 값만 반환한다. 카드 WCMS의
+    ``bubble[].serviceUrl``처럼 같은 key가 반복되는 본문은 그 규칙으로 대부분 유실되므로,
+    ``collect_key_map`` 전용으로 전체 값을 수집한다. 같은 값이 구조 안에서 재사용된 경우에는
+    검색 본문의 불필요한 반복을 막기 위해 첫 값만 보존한다.
+    """
+    normalized_aliases = {
+        normalize_column_name(alias) for alias in aliases if str(alias or "").strip()
+    }
+    if not normalized_aliases:
+        return []
+
+    found: list[Any] = []
+    queue: deque = deque([record])
+    while queue:
+        node = queue.popleft()
+        if isinstance(node, dict):
+            for key, value in node.items():
+                if (
+                    normalize_column_name(key) in normalized_aliases
+                    and _is_field_value(value)
+                ):
+                    cleaned = _clean_value(value)
+                    if cleaned not in found:
+                        found.append(cleaned)
+            queue.extend(node.values())
+        elif isinstance(node, list):
+            queue.extend(node)
+    return found
 
 
 def collect_records(payload: Any, records_key: str | None) -> list[dict] | None:
@@ -263,6 +296,12 @@ def html_to_text(
     furniture 로 보고 본문에서 제외하므로, 조각을 그대로 넣으면 문서 중간에 `<h2>` 가
     하나라도 있을 때 그 앞의 표가 출력에서 통째로 빠진다.
     """
+    if isinstance(value, list):
+        parts = [
+            html_to_text(item, table_format=table_format, compact_tables=compact_tables)
+            for item in value
+        ]
+        return "\n\n".join(part for part in parts if part.strip())
     if not isinstance(value, str) or not value.strip():
         return ""
     from genon.preprocessor.converters.html_flatten import (
@@ -306,7 +345,7 @@ class JsonRecordsMapper:
         extractor: str = "json_mapping",
         **_: Any,
     ) -> None:
-        if str(extractor or "").strip().lower() not in JSON_CUSTOM_FIELD_EXTRACTORS:
+        if str(extractor or "").strip().lower() not in JSON_RECORD_EXTRACTORS:
             raise ValueError(f"지원하지 않는 json custom_fields extractor: {extractor}")
         self.doc_types = normalize_doc_types(doc_type)
         # 프롬프트/LLM config 파일 경로 해석 기준(= 이 config 파일과 같은 디렉토리).
@@ -322,6 +361,19 @@ class JsonRecordsMapper:
         self.key_map: dict[str, list[str]] = {
             str(target): self._aliases(str(target), sources)
             for target, sources in key_map.items()
+        }
+
+        collect_key_map = cfg.get("collect_key_map") or {}
+        if not isinstance(collect_key_map, dict):
+            raise ValueError("json_mapping custom_fields의 collect_key_map은 object여야 합니다.")
+        overlap = sorted(set(self.key_map) & set(collect_key_map))
+        if overlap:
+            raise ValueError(
+                f"key_map과 collect_key_map에 같은 목표필드가 있습니다: {overlap}"
+            )
+        self.collect_key_map: dict[str, list[str]] = {
+            str(target): self._aliases(str(target), sources)
+            for target, sources in collect_key_map.items()
         }
 
         self.required = list(cfg.get("required") or [])
@@ -420,6 +472,8 @@ class JsonRecordsMapper:
         fields: dict[str, Any] = {name: None for name in self.nulls}
         for target, aliases in self.key_map.items():
             fields[target] = find_field(record, aliases)
+        for target, aliases in self.collect_key_map.items():
+            fields[target] = find_fields(record, aliases)
 
         fields.update(self.constants)
         for key, value in self.defaults.items():
@@ -533,5 +587,5 @@ def build_json_records_mappers(configs: list[dict]) -> list[JsonRecordsMapper]:
     return [
         JsonRecordsMapper(**dict(config))
         for config in (configs or [])
-        if custom_fields_extractor(config) in JSON_CUSTOM_FIELD_EXTRACTORS
+        if custom_fields_extractor(config) in JSON_RECORD_EXTRACTORS
     ]

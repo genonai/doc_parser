@@ -2992,6 +2992,11 @@ class DocumentProcessor:
         레코드 1건이 chunk_size 를 넘으면 청크를 나누되 **레코드 metadata 는 모든 조각에 그대로**
         유지한다(적재 측에서 같은 레코드의 조각임을 metadata 로 식별). 플래그가 없는 기존
         tabular_row/faq_row 는 손대지 않으므로 회귀가 없다.
+
+        element 에 `chunk_prefix`(json_semantic — 섹션 제목 + 공통 정보 행)가 실려 있으면 접두를
+        뗀 본문만 분할하고 조각마다 접두를 다시 붙인다 — 안 그러면 두 번째 조각부터
+        "어느 카드/어느 섹션인지"가 사라진다(docling 경로가 헤더 몫을 분할 예산에서 미리 빼는
+        논리, `_header_line_for`/`:1300-1306` 와 같은 발상).
         """
         if not any(el.get("splittable") for el in rows):
             return rows
@@ -2999,9 +3004,6 @@ class DocumentProcessor:
         from langchain_text_splitters import RecursiveCharacterTextSplitter
 
         chunk_size, chunk_overlap = self._resolve_recursive_split_params(**kwargs)
-        splitter = RecursiveCharacterTextSplitter(
-            chunk_size=chunk_size, chunk_overlap=chunk_overlap
-        )
 
         expanded: list = []
         split_records = 0
@@ -3010,12 +3012,42 @@ class DocumentProcessor:
             if not el.get("splittable") or len(content) <= chunk_size:
                 expanded.append(el)
                 continue
-            pieces = [piece for piece in splitter.split_text(content) if piece.strip()]
+
+            prefix = str(el.get("chunk_prefix") or "")
+            body = content
+            budget = chunk_size
+            if prefix:
+                if content.startswith(prefix):
+                    body = content[len(prefix):].lstrip("\n")
+                    budget = chunk_size - len(prefix) - 1  # 접두와 본문 사이 개행 1자
+                    if budget <= 0:
+                        # 접두 하나가 chunk_size 이상인 병리 케이스 — 본문 기준으로 폴백(경고).
+                        _log.warning(
+                            "[chunker] chunk_prefix(%d자)가 chunk_size(%d) 이상 — 접두 몫 예약 "
+                            "생략, 청크가 한도를 초과할 수 있음", len(prefix), chunk_size,
+                        )
+                        budget = chunk_size
+                        prefix = ""
+                        body = content
+                else:
+                    # 접두와 본문이 어긋나면(설정 변경 등) 접두 재부착을 포기하고 전체를 분할한다.
+                    prefix = ""
+
+            # chunk_overlap 은 원래 chunk_size 기준으로 이미 클램프돼 있다(_resolve_recursive_
+            # split_params) — 접두를 뺀 budget 이 더 작으면 그 기준으로 다시 클램프해야
+            # RecursiveCharacterTextSplitter 가 "overlap > chunk_size" 로 죽지 않는다.
+            splitter = RecursiveCharacterTextSplitter(
+                chunk_size=budget, chunk_overlap=min(chunk_overlap, max(budget - 1, 0))
+            )
+            pieces = [piece for piece in splitter.split_text(body if prefix else content) if piece.strip()]
             if len(pieces) <= 1:
                 expanded.append(el)
                 continue
             split_records += 1
-            expanded.extend({**el, "content": piece} for piece in pieces)
+            if prefix:
+                expanded.extend({**el, "content": f"{prefix}\n{piece}"} for piece in pieces)
+            else:
+                expanded.extend({**el, "content": piece} for piece in pieces)
 
         if split_records:
             _log.info(

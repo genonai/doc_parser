@@ -916,3 +916,87 @@ class TestBuildOcrOptions:
         )
         assert opts.timeout == 120
         assert opts.text_score == 0.7
+
+
+# ─── _apply_llm_fields_document_scope — 문서 1건당 LLM 1회 ────────────────────
+#
+# json_semantic(llm_fields_scope="document")은 섹션(청크)마다 LLM 을 부르면 카드 1장에
+# 10회 넘게 호출된다 — enricher 실제 호출은 이 테스트가 검증하려는 대상이 아니라(엔드포인트
+# 테스트 스크립트가 실제 호출을 담당한다), "호출 횟수를 섹션 수와 무관하게 1회로 제어하는
+# 로직" 자체를 검증하는 것이 목적이라 스텁을 쓴다.
+
+from facade.enrichment.custom_fields_enricher import LlmFieldSpec  # noqa: E402
+
+
+class _CountingStubEnricher:
+    """is_configured/extract_fields_from_text 만 흉내 낸 최소 스텁 — 실제 LLM 호출 없음."""
+
+    def __init__(self):
+        self.is_configured = True
+        self.calls = 0
+
+    async def extract_fields_from_text(self, text: str) -> dict:
+        self.calls += 1
+        return {"SALE_STATUS": "판매중"}
+
+
+class _StubDocumentScopeMapper:
+    """json_semantic 매퍼의 document 스코프 계약(llm_field_specs/document_input_fields)만 흉내."""
+
+    def __init__(self, llm_field_specs):
+        self.llm_field_specs = llm_field_specs
+        self.resource_path = None
+
+    def document_input_fields(self, fields_list: list) -> dict:
+        return {"PRODUCT_INFO": "\n\n".join(f.get("SECTION_NM", "") for f in fields_list)}
+
+
+def _make_llm_field_spec() -> LlmFieldSpec:
+    return LlmFieldSpec({
+        "output_fields": ["SALE_STATUS"],
+        "input_fields": ["PRODUCT_INFO"],
+        "url": "http://llm.invalid/v1/chat/completions",
+        "model": "model",
+    })
+
+
+def test_apply_llm_fields_document_scope_calls_enricher_once_regardless_of_section_count(dp):
+    """섹션이 5건이어도 spec 당 enricher 호출은 1회뿐이고, 결과는 전 섹션에 복사된다."""
+    mapper = _StubDocumentScopeMapper(llm_field_specs=[_make_llm_field_spec()])
+    stub_enricher = _CountingStubEnricher()
+    dp._llm_field_enricher = MagicMock(return_value=stub_enricher)
+
+    fields_list = [{"SECTION_NM": f"섹션{i}"} for i in range(5)]
+    result = asyncio.run(dp._apply_llm_fields_document_scope(mapper, fields_list))
+
+    assert stub_enricher.calls == 1
+    assert len(result) == 5
+    assert all(fields["SALE_STATUS"] == "판매중" for fields in result)
+
+
+def test_apply_llm_fields_document_scope_fills_null_when_enricher_not_configured(dp):
+    """url/model 미설정(is_configured=False)이면 호출 없이 null 로 채우고 나머지는 계속 진행한다."""
+    mapper = _StubDocumentScopeMapper(llm_field_specs=[_make_llm_field_spec()])
+    stub_enricher = _CountingStubEnricher()
+    stub_enricher.is_configured = False
+    dp._llm_field_enricher = MagicMock(return_value=stub_enricher)
+
+    fields_list = [{"SECTION_NM": "섹션0"}, {"SECTION_NM": "섹션1"}]
+    result = asyncio.run(dp._apply_llm_fields_document_scope(mapper, fields_list))
+
+    assert stub_enricher.calls == 0
+    assert all(fields["SALE_STATUS"] is None for fields in result)
+
+
+def test_apply_llm_fields_document_scope_routes_from_apply_llm_fields(dp):
+    """llm_fields_scope='document' 인 매퍼는 _apply_llm_fields 가 document 스코프로 위임한다."""
+    mapper = _StubDocumentScopeMapper(llm_field_specs=[_make_llm_field_spec()])
+    mapper.llm_fields_scope = "document"
+    stub_enricher = _CountingStubEnricher()
+    dp._llm_field_enricher = MagicMock(return_value=stub_enricher)
+
+    fields_list = [{"SECTION_NM": f"섹션{i}"} for i in range(3)]
+    result = asyncio.run(dp._apply_llm_fields(mapper, fields_list))
+
+    assert stub_enricher.calls == 1
+    assert len(result) == 3

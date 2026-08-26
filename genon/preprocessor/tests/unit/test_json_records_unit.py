@@ -13,6 +13,7 @@ from genon.preprocessor.facade.enrichment.json_records import (
     build_json_records_mappers,
     collect_records,
     find_field,
+    find_fields,
     html_to_text,
 )
 
@@ -124,6 +125,14 @@ def test_find_field_skips_containers_and_strips_whitespace():
 
 def test_find_field_returns_none_when_absent():
     assert find_field({"a": 1}, ["없는키"]) is None
+
+
+def test_find_fields_collects_repeated_nested_values_in_order():
+    record = {
+        "bubble": [{"serviceUrl": "첫째"}, {"serviceUrl": "둘째"}],
+        "nested": {"items": [{"service_url": "둘째"}, {"serviceUrl": "셋째"}]},
+    }
+    assert find_fields(record, ["serviceUrl"]) == ["첫째", "둘째", "셋째"]
 
 
 # ── 값 변환 ─────────────────────────────────────────────────────────────────

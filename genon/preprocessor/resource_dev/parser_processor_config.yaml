@@ -284,6 +284,12 @@ enrichment:
         text_fields: [html, summary_md]
         format: auto             # auto(기본, 값 내용으로 판별) | html | markdown
         missing_policy: skip     # skip(기본, 경고만) | error
+  # 삼성카드 WCMS JSON — 상품별 성격별 섹션 매핑(로컬/E2E 검증용).
+  - custom_fields:
+      enable: true
+      doc_type: product_hpp
+      extractor: json_semantic
+      config_file: custom_field_product_hpp_semantic.yaml
   # 고객센터 생명/화재 — xlsx 행별 매핑 (원천 확장자 '미정' — 확정 시 재검토)
   - custom_fields:
       enable: true

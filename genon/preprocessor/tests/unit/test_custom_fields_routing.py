@@ -618,6 +618,10 @@ def test_shipped_configs_pass_startup_validation():
             extractor = opts.get("extractor") or "llm"
             if extractor.startswith("tabular"):
                 cls = TabularCustomFieldsMapper
+            elif extractor == "json_semantic":
+                cls = pytest.importorskip(
+                    "genon.preprocessor.facade.enrichment.json_semantic"
+                ).SemanticJsonMapper
             elif extractor.startswith("json"):
                 cls = pytest.importorskip(
                     "genon.preprocessor.facade.enrichment.json_records"

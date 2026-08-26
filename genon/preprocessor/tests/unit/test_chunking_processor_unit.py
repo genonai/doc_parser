@@ -279,6 +279,82 @@ def test_chunker_rows_without_splittable_stay_one_chunk_per_row():
 
 
 # ----------------------------------------------------------------------
+# chunk_prefix(json_semantic — 섹션 제목 + 공통 정보 행) 유지 분할.
+#
+# json_records 의 splittable 레코드는 접두가 없어도 괜찮지만(레코드 자체가 이미 한 종류의
+# 정보), json_semantic 섹션은 조각마다 "[혜택 상세] 0.5%~3% 빅포인트 적립\n상품명: …" 같은
+# 접두가 없으면 두 번째 조각부터 어느 카드/어느 섹션인지 알 길이 없어진다.
+# ----------------------------------------------------------------------
+
+def test_chunker_splittable_row_with_prefix_keeps_prefix_on_every_piece():
+    """chunk_prefix 를 가진 splittable 행이 분할되면 모든 조각이 접두로 시작한다."""
+    cp = pytest.importorskip("facade.chunking_processor")
+
+    prefix = "[혜택 상세] 0.5%~3% 빅포인트 적립\n상품코드: AAP1344\n상품명: 새마을금고 삼성카드 7"
+    body = "국내외 가맹점에서 이용금액의 0.5%를 빅포인트로 적립합니다. " * 30
+    elements = [
+        {
+            "category": "custom_fields_row",
+            "content": f"{prefix}\n{body}",
+            "page": 1,
+            "id": 0,
+            "splittable": True,
+            "chunk_prefix": prefix,
+            "metadata": {"SECTION_NM": "혜택 상세", "PRODUCT_NM": "새마을금고 삼성카드 7"},
+        },
+    ]
+
+    chunker = cp.DocumentProcessor()
+    vectors = asyncio.run(
+        chunker(
+            request=None, file_path="/data/product.json",
+            document={"elements": elements}, chunk_size=80, chunk_overlap=0,
+        )
+    )
+
+    assert len(vectors) > 1, "본문이 chunk_size 를 넘으니 여러 조각으로 나뉘어야 한다"
+    for v in vectors:
+        assert v.text.startswith(prefix), f"접두 없이 시작하는 조각: {v.text!r}"
+        # metadata 는 조각마다 원 레코드 것을 그대로 유지한다(기존 splittable 규칙과 동일).
+        assert v.SECTION_NM == "혜택 상세"
+
+
+def test_chunker_splittable_row_prefix_overflow_falls_back_with_warning(caplog):
+    """접두 자체가 chunk_size 이상인 병리 케이스 — 죽지 않고 경고 후 본문 기준으로 진행한다."""
+    cp = pytest.importorskip("facade.chunking_processor")
+
+    huge_prefix = "[혜택 상세] " + "아주 긴 섹션 제목이라 접두만으로도 chunk_size 를 넘긴다 " * 10
+    body = "본문 내용 " * 50
+    assert len(huge_prefix) > 80  # 이 테스트의 전제(접두 > chunk_size)
+
+    elements = [
+        {
+            "category": "custom_fields_row",
+            "content": f"{huge_prefix}\n{body}",
+            "page": 1,
+            "id": 0,
+            "splittable": True,
+            "chunk_prefix": huge_prefix,
+            "metadata": {"SECTION_NM": "혜택 상세"},
+        },
+    ]
+
+    chunker = cp.DocumentProcessor()
+    with caplog.at_level(logging.WARNING):
+        vectors = asyncio.run(
+            chunker(
+                request=None, file_path="/data/product.json",
+                document={"elements": elements}, chunk_size=80, chunk_overlap=0,
+            )
+        )
+
+    assert vectors, "병리 케이스에서도 청크는 산출되어야 한다"
+    assert "접두 몫 예약" in caplog.text
+    # 폴백 후에도 원문 내용은 어딘가에 남아 있어야 한다(정보 유실 방지).
+    assert "본문 내용" in "\n".join(v.text for v in vectors)
+
+
+# ----------------------------------------------------------------------
 # 청크 선두 헤더(HEADER: <섹션 경로>) 정규화 + include_chunk_header on/off.
 #
 # 과거에는 섹션 제목이 세 지점에서 3번 붙었다(compose_vectors 의 HEADER 라인 +

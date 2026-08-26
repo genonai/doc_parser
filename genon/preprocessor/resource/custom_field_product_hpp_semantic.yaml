@@ -1,0 +1,140 @@
+# ═══════════════════════════════════════════════════════════════════════════
+#  삼성카드 WCMS 상품 JSON → 검색 청크   (extractor: json_semantic)
+#
+#  언제 쓰나 : JSON 파일 하나가 **대상 하나**(카드 1장)를 설명하는데, 그 안에
+#              성격이 다른 내용(기본정보 · 혜택 · 안내문 · 추천상품)이 섞여 있을 때.
+#  결과      : 성격별로 나뉜 "섹션" 하나가 검색 청크 하나가 된다.
+#              모든 청크에 상품명·상품코드가 함께 들어가므로, 어떤 청크가 검색돼도
+#              "어느 카드 이야기인지" 알 수 있다.
+#
+#  레코드 매핑(json_mapping)과 무엇이 다른가
+#   · json_mapping  : {"eventList": [건, 건, 건]} 처럼 **나열된 목록**용. 1건 = 청크 1개.
+#   · json_semantic : **대상 하나를 깊게 설명하는 JSON**용. 1건 = 청크 여러 개.
+#
+#  ── 이 파일에서 정하는 것은 세 가지뿐이다 ───────────────────────────────────
+#    ① shared_fields : 모든 청크에 함께 넣을 공통 정보 (상품명·상품코드 …)
+#    ② sections      : JSON 의 어떤 key 가 어떤 성격인지, 검색에 포함할지
+#    ③ ignore_keys   : 검색에 쓸모없는 key (이미지 경로, 화면 색상 …)
+#
+#  나머지는 **자동**이다 — 적을 필요가 없다.
+#    · HTML 값은 알아서 표·목록이 살아 있는 글자로 바뀐다
+#    · 빈 값(null, "", [], {})은 알아서 빠진다
+#    · 섹션 제목은 값 안에 들어 있는 제목을 찾아 알아서 붙인다
+#    · 여기 적지 않은 key 도 알아서 검색에 들어간다(빠뜨려서 누락될 일이 없다)
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+# ── [필수] ① 모든 청크에 함께 넣을 공통 정보 ────────────────────────────────
+# 왼쪽  = 만들 필드 이름. 적재 DB 컬럼명(대문자)으로 쓴다.
+# 오른쪽 = 그 값이 들어 있는 **JSON key 이름들**. 먼저 찾은 것을 쓴다.
+#
+# 경로(`a.b.c`)가 아니라 **루트 객체의 key 이름만** 적는다. 관련 상품이나 혜택 객체의
+# `code`/`name`이 본 상품 식별자로 잘못 들어가지 않도록 중첩 안쪽은 찾지 않는다.
+# 대소문자와 `_ - . /` 차이는 무시하므로 `wcmsId` 로 적어도 `wcms_id` 가 걸린다.
+# 원천마다 이름이 다를 수 있어 여러 개를 나열한다(앞에 적은 것이 우선).
+#
+# 여기 적은 값은 두 곳에 들어간다.
+#   · 청크 본문 맨 앞  → "상품명: 새마을금고 삼성카드 7" 로 붙어 검색이 잘 되게 한다
+#   · 청크 metadata    → 적재 시 DB 컬럼이 된다
+shared_fields:
+  BIZ_ID:        [wcmsId, id, productId]
+  PRODUCT_C:     [productCode, cardCode, code]
+  PRODUCT_NM:    [cardTitle, productName, name]
+  SALE_STATUS:   [saleStatus, sale_status]
+  PRODUCT_ATTRS: [benefit, benefits]         # 혜택 제목 목록 — 스칼라 배열. "주요 혜택" 목록
+                                              # 섹션 본문에는 그대로 남고(억제 예외), metadata 에도
+                                              # 함께 실린다.
+
+# PRODUCT_C/PRODUCT_NM 이 없는 파일은 상품 정체성이 없는 것이라 검색에 쓸모가 없다 —
+# 기동이 아니라 **요청 시점**에 걸러낸다(missing_policy 기본값 error).
+required_shared_fields: [PRODUCT_C, PRODUCT_NM]
+
+
+# ── [필수] ② JSON key 별 성격과 포함 여부 ───────────────────────────────────
+# 왼쪽    = JSON 의 key 이름 (경로가 아니라 이름만 — 깊이가 달라져도 계속 동작한다)
+# name    = 청크 본문 앞에 `[혜택 상세]` 처럼 표시될 이름
+# include = true 면 검색에 넣고, false 면 통째로 뺀다
+#
+# 여기 적지 않은 key 도 자동으로 검색에 들어간다. 이 블록은
+# **"이름을 보기 좋게 붙일 key"** 와 **"빼야 하는 key"** 만 적는 곳이다.
+#
+# mpo 를 빼는 이유: mpo 는 이 카드가 아니라 **다른 카드(추천 상품)** 다.
+# 그대로 두면 다른 카드 혜택이 이 카드 혜택으로 검색되어 오답이 된다.
+# 이건 JSON 구조만 봐서는 알 수 없어서, 사람이 알려줘야 하는 유일한 부분이다.
+sections:
+  ksp:      { name: 주요 혜택,  include: true  }   # 혜택 제목 요약(code + title) — 아래 참고
+  benefit:  { name: 주요 혜택,  include: true  }   # 혜택 제목 목록(문자열 배열)
+  bubble:   { name: 혜택 상세,  include: true  }   # 혜택별 설명 HTML
+  htmlList: { name: 상품 문서,  include: true  }   # 연회비·유의사항·안내문 HTML
+  mpo:      { name: 추천 상품,  include: false }   # 다른 카드 — 검색에서 제외
+
+# ksp 와 benefit 은 내용이 겹친다(같은 혜택 문구를 code+title 객체 배열 / 문자열 배열 두 형태로
+# 각각 들고 있다). ksp 는 title 을 빼면 code 식별자만 남아 항목마다 규칙 9(식별자뿐인 섹션
+# 접기)로 조용히 접히므로, 검색에는 문자열 배열인 benefit 쪽만 "주요 혜택" 섹션으로 남는다.
+# 둘 다 include: true 로 둬도 결과가 겹치지 않는 이유가 이것이다 — 굳이 ksp 를 빼지 않는다.
+
+
+# ── [선택] ③ 검색에 쓸모없는 key ────────────────────────────────────────────
+# 이미지 경로·화면 색상·정렬 순서처럼 사람이 검색할 일이 없는 값을 뺀다.
+# `*` 로 부분 일치를 쓸 수 있다 — `*Img*` 한 줄이 pcImg1·moImg1·bgImgUrl 을 모두 잡는다.
+#
+# 빼지 않으면 "pcImg1: /wcms/home/scard/image/personal/b_AAP1344.png" 같은 줄이
+# 청크에 섞여 검색 정확도를 떨어뜨린다.
+ignore_keys:
+  - "*Img*"          # 이미지 경로 (pcImg1, moImg1 …)
+  - "*Lottie*"       # 애니메이션 리소스 경로
+  - fontColor        # 화면 표시용 색상
+  - bgColor
+  - sort             # 화면 정렬 순서
+  - hideSummaryTab   # 화면 동작 플래그
+  - is3d
+  - pCApplyNoYn
+
+
+# ── [선택] 원천 값이 없을 때 넣을 기본값 ────────────────────────────────────
+# saleStatus가 원천에 있으면 그 값을 유지하고, 없거나 빈 문자열일 때만 ON_SALE을 넣는다.
+defaults:
+  SALE_STATUS: "ON_SALE"
+
+# ── [선택] 모든 청크에 넣을 고정값 ──────────────────────────────────────────
+# 원천/defaults와 관계없이 항상 같은 값이어야 할 때 쓴다.
+constants:
+  GROUP_C: "HPP"
+
+
+# ── [선택] JSON 에 아예 없는 값만 LLM 으로 만든다 ───────────────────────────
+# 규칙으로 뽑을 수 있는 값(상품코드·금액·혜택 본문)은 **LLM 에 맡기지 않는다** —
+# 값이 틀리거나 빠질 수 있고, 실행할 때마다 결과가 달라진다.
+# 여기는 "원천에 없어서 판단이 필요한 것"만 적는다.
+#
+# 호출 횟수는 **문서 1건당 1회**다(청크 개수와 무관하다).
+# url·api_key·프롬프트 작성법은 templates/custom_field_TEMPLATE_json.yaml 을 참고한다.
+#
+# llm_fields:
+#   - output_fields: [<GENERATED_FIELD>]   # SALE_STATUS 는 원천/defaults로 직접 채우므로
+#     input_fields:  [PRODUCT_INFO]        # LLM 예시로 쓰지 않는다.
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+#  확인 방법 — 실제 json 으로 결과를 눈으로 본다 (LLM 호출 없음)
+#  실행 위치: 저장소 루트
+#      SP=$(ls -d genon/preprocessor/.venv/lib/python*/site-packages)
+#      PYTHONPATH="$PWD:$SP" .venv/bin/python -c "
+#    import json
+#    from genon.preprocessor.facade.enrichment.json_semantic import SemanticJsonMapper as M
+#    m = M(config_file='custom_field_product_hpp_semantic.yaml',
+#          resource_path='genon/preprocessor/resource',
+#          doc_type='product_hpp', extractor='json_semantic')
+#    payload = json.load(open('<내_데이터.json>', encoding='utf-8'))
+#    out = m.to_parse_format(m.build_fields(payload, 'product_hpp'), 'product_hpp')
+#    print(f'섹션 {len(out[\"elements\"])}건')
+#    for e in out['elements']:
+#        print('=' * 60); print(e['content'])
+#    "
+#
+#  · PRODUCT_C/PRODUCT_NM(required_shared_fields)를 못 찾으면 위 스크립트가 ValueError 로
+#    죽는다(기동이 아니라 요청 시점 — missing_policy: error 가 기본값이다). shared_fields 의
+#    key 이름이 원천과 어긋난 것이다.
+#  · 다른 카드 이름이 섞여 나오면 sections 에 그 key 를 include: false 로 추가한다.
+#  · 이상한 값(색상·경로)이 섞여 나오면 ignore_keys 에 추가한다.
+# ═══════════════════════════════════════════════════════════════════════════

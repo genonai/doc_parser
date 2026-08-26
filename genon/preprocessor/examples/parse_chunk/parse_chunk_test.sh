@@ -48,7 +48,9 @@ cd "${SCRIPT_DIR}"
 # doc_type 별 경로:
 #   tabular_mapping (xlsx) : menu term faq cs_slf cs_ssf stock_insight   → 행 1개 = 청크 1개
 #   json_mapping    (json) : faq monimo_event monimo_news cs_sss link    → 레코드 1개 = 청크 1개
-#   llm (문서 단위)        : product_slf product_ssf product_hpp cs_hpp card
+#   json_semantic   (json) : product_hpp                                 → 섹션 1개 = 청크 1개
+#                            (성격별로 나뉜 섹션마다 SECTION_NM/SOURCE_JSON_PATH + 공통 정보)
+#   llm (문서 단위)        : product_slf product_ssf cs_hpp card
 #                            → metadata 가 모든 청크에 동일하게 붙는다
 MONIMO="../../sample_files/monimo"
 OUT="result_parse_chunk"
@@ -60,6 +62,10 @@ MONIMO_CASES=(
   "faq:${MONIMO}/monimo_faq_json_sample.json"
   "monimo_event:../../sample_files/json/monimo_event_sample.json"
   "monimo_event:${MONIMO}/monimo_event_real_sample.json"
+  # 실 WCMS 마크업(evant.html) 재현 — 5열 표의 빈 셀까지 살아나오는지 본다.
+  # DETAIL_TEXT 의 표는 output.table_format 을 따른다(html=<table>, markdown=파이프 표).
+  # 구 코드는 셀 하나당 한 줄로 뭉개 빈 셀이 사라졌고 열 대응을 복원할 수 없었다.
+  "monimo_event:${MONIMO}/monimo_event_table_sample.json"
   "monimo_news:${MONIMO}/monimo_news_sample.json"
   "cs_slf:${MONIMO}/monimo_cs_slf_sample.xlsx"
   "cs_ssf:${MONIMO}/monimo_cs_ssf_sample.xlsx"
@@ -73,26 +79,40 @@ MONIMO_CASES=(
   "cs_hpp:${MONIMO}/.INC_235489_01_20260626103139.html"
   "product_slf:${MONIMO}/monimo_product_slf_sample.md"
   "product_ssf:${MONIMO}/monimo_product_ssf_sample.md"
+  # json_semantic — 상품 1건(JSON 파일 1개)이 성격별 섹션(혜택 상세/상품 문서 …)으로 나뉘어
+  # 섹션마다 청크 1건이 된다. wcms 샘플은 풀 캡처 재현본, product_hpp_sample 은 최소(루트 평평) 케이스.
+  "product_hpp:${MONIMO}/monimo_product_hpp_wcms_sample.json"
   "product_hpp:${MONIMO}/monimo_product_hpp_sample.json"
   "stock_insight:${MONIMO}/monimo_stock_insight_sample.xlsx"
   "link:${MONIMO}/monimo_link_sample.json"
 )
 
 # 한 건이 실패해도 나머지는 계속 돌린다(set -e 아래에서 전체 중단 방지).
-for case in "${MONIMO_CASES[@]}"; do
-  dt="${case%%:*}"; src="${case#*:}"
-  echo "=== doc_type=${dt}  ${src}"
-  "${PYTHON}" parse_chunk_test.py --doc_type "${dt}" "${src}" "${OUT}/" \
-    || echo "[FAIL] doc_type=${dt} ${src}"
-done
-# ── Markdown front matter → 청크 metadata / text 제외 확인 ───────────────────
-# product_slf/product_ssf 설정은 document_type/source_file/source_pages/author/created_at만
-# 청크 metadata로 승격하고 front matter 전체는 text에서 제거한다. LLM 연결이 실패해도 이 직접
-# 추출 필드와 constants는 유지된다(error_policy 기본 lenient).
+# for case in "${MONIMO_CASES[@]}"; do
+#   dt="${case%%:*}"; src="${case#*:}"
+#   echo "=== doc_type=${dt}  ${src}"
+#   "${PYTHON}" parse_chunk_test.py --doc_type "${dt}" "${src}" "${OUT}/" \
+#     || echo "[FAIL] doc_type=${dt} ${src}"
+# done
+
+# ── Markdown front matter → 청크 metadata 승격 / 청크 텍스트 제외 확인 (#360) ──
+# custom_field_product_{slf,ssf}.yaml 의 markdown.front_matter 블록이
+#   document_type/source_file/source_pages/author/created_at(→created_date) 만 metadata 로 올리고
+#   front matter 전체(exclude_text_fields: ["*"])는 청크 텍스트에서 뺀다.
+# front matter 만으로 이루어진 청크가 사라져 8청크 → 7청크가 된다.
+# 본문에서 뺀 front matter 도 LLM 프롬프트에는 계속 실린다(PRODUCT_C 근거 보존).
+# LLM 연결이 죽어도 front matter 승격 필드와 constants(GROUP_C 등)는 그대로 남는다.
 # "${PYTHON}" parse_chunk_test.py --doc_type product_slf \
 #   "${MONIMO}/monimo_product_slf_sample.md" "${OUT}/front_matter/"
-# "${PYTHON}" -c \
-#   "import json; p='${OUT}/front_matter/monimo_product_slf_sample.chunks.json'; d=json.load(open(p)); print(len(d), d[0]['source_file'], d[0]['source_pages'], d[0]['created_date']); assert all('conversion_note:' not in c['text'] and 'source_file:' not in c['text'] for c in d)"
+# "${PYTHON}" -c "
+# import json
+# d = json.load(open('${OUT}/front_matter/monimo_product_slf_sample.chunks.json'))
+# c = d[0]
+# print(len(d), c['source_file'], c['source_pages'], c['created_date'])
+# assert c['source_pages'] == 9          # front matter 유래 값은 타입(int) 그대로
+# assert c['created_date'] == 20260112   # created_at → 청커 date_int transform
+# assert all('conversion_note' not in x['text'] and 'source_file:' not in x['text'] for x in d)
+# "
 
 # 기존 카드 데모(회귀 확인용)
 "${PYTHON}" parse_chunk_test.py --doc_type card "/Users/shkim/_shkim/01.source/doc_parser/shkim_labs/20260803_monimo/01_card/card01.flat.html" result_parse_chunk/

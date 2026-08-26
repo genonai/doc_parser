@@ -29,7 +29,14 @@ _DEFAULT_CUSTOM_FIELDS_SYSTEM_PROMPT = (
 
 DOCUMENT_CUSTOM_FIELD_EXTRACTORS = {"llm", "document_llm"}
 TABULAR_CUSTOM_FIELD_EXTRACTORS = {"tabular", "tabular_mapping", "column_mapping"}
-JSON_CUSTOM_FIELD_EXTRACTORS = {"json_mapping", "json_records"}
+# json_mapping/json_records(JsonRecordsMapper)와 json_semantic(SemanticJsonMapper)은 서로 다른
+# 빌더(json_records.build_json_records_mappers / json_semantic.build_semantic_json_mappers)로
+# 컴파일된다 — 두 집합을 나눠 두면 각 빌더가 "내가 처리할 설정"만 자기 필터로 고르므로
+# (json_records.py:348,590 / json_semantic.py:524,780), 공개 빌더를 직접 호출해도(또는 다른
+# extractor 로 매퍼를 생성해도) 서로의 설정을 침범하지 않는다.
+JSON_RECORD_EXTRACTORS = {"json_mapping", "json_records"}
+JSON_SEMANTIC_EXTRACTORS = {"json_semantic"}
+JSON_CUSTOM_FIELD_EXTRACTORS = JSON_RECORD_EXTRACTORS | JSON_SEMANTIC_EXTRACTORS
 SUPPORTED_CUSTOM_FIELD_EXTRACTORS = (
     DOCUMENT_CUSTOM_FIELD_EXTRACTORS
     | TABULAR_CUSTOM_FIELD_EXTRACTORS
