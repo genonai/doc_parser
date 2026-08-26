@@ -41,7 +41,6 @@ parser:
 # 카드 전용 원천이라 고객사가 파일 단위로 고정이다. LLM 에게 상수를 받아쓰게 시키지 않는다.
 constants:
   GROUP_C: "HPP"
-  SEARCHABLE_YN: "N"
 
 # ── 프롬프트 ─────────────────────────────────────────────────────────────────
 system_prompt: |
@@ -63,12 +62,13 @@ system_prompt: |
     없으면 null.
   - `RELATED_KEYWORDS`: 이 항목을 찾을 때 쓸 연관 검색어 문자열 배열. 3~8개.
     동의어·구어체 표현을 포함하고, 문서에 근거가 없는 상품명을 지어내지 않는다.
+  - `SRC_LAST_MOD_DT`: 최종 수정일. 문서에 최종 수정이 있으면 추출.
 
   출력 예시 형식(값은 예시):
-  {"BIZ_ID": "CS-HPP-0012", "CS_CATEGORY": "결제/환불 > 카드 결제 취소", "TITLE": "카드 결제를 취소했는데 언제 환불되나요?", "CONTENT": "카드 결제 취소 후 환불은 …", "DEEP_LINK_URL": null, "RELATED_KEYWORDS": ["결제취소", "환불 기간", "승인취소"]}
+  {"BIZ_ID": "CS-HPP-0012", "CS_CATEGORY": "결제/환불 > 카드 결제 취소", "TITLE": "카드 결제를 취소했는데 언제 환불되나요?", "CONTENT": "카드 결제 취소 후 환불은 …", "DEEP_LINK_URL": null, "RELATED_KEYWORDS": ["결제취소", "환불 기간", "승인취소"], "SRC_LAST_MOD_DT": 20240601}
 
 user_prompt: |
-  아래 카드 고객센터 안내 문서에서 다음 6개 필드를 추출하라.
+  아래 카드 고객센터 안내 문서에서 다음 7개 필드를 추출하라.
 
   - BIZ_ID (문서ID)
   - CS_CATEGORY (문의유형)
@@ -76,8 +76,9 @@ user_prompt: |
   - CONTENT (안내본문)
   - DEEP_LINK_URL (앱 딥링크)
   - RELATED_KEYWORDS (연관 키워드 배열)
+  - SRC_LAST_MOD_DT (최종 수정일)
 
-  반드시 위 6개 키를 모두 가진 하나의 JSON 객체로만 반환하라.
+  반드시 위 7개 키를 모두 가진 하나의 JSON 객체로만 반환하라.
 
   <document>
   {{raw_text}}
@@ -94,3 +95,4 @@ output_fields:
   - CONTENT
   - DEEP_LINK_URL
   - RELATED_KEYWORDS
+  - SRC_LAST_MOD_DT

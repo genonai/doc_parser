@@ -29,7 +29,7 @@ key_map:
   TITLE:            [question, 제목, 대표질문]      # 검색 결과 목록에 그대로 보임 (NOT NULL)
   CONTENT:          [answer, 안내본문, 답변]        # HTML 로 온다 → 아래 html_text_fields 로 평문화
   RELATED_KEYWORDS: [related_keywords, 연관 키워드]  # JSON 배열 (스칼라 배열은 그대로 값으로 잡힌다)
-  DEEP_LINK_URL:    [linked_screen, 딥링크, 앱 딥링크]
+  DEEP_LINK_URL:    [딥링크, 앱 딥링크]
 
 value_map:
   GROUP_C:
@@ -40,7 +40,6 @@ value_map:
     SSS: [삼성증권, 증권]
 
 required:
-  - GROUP_C
   - TITLE
 
 nulls:
@@ -48,10 +47,11 @@ nulls:
   - CS_CATEGORY
   - DEEP_LINK_URL
   - RELATED_KEYWORDS
+  - SRC_LAST_MOD_DT
 
 # 원천에 노출 게이트가 없다. TB_CS_ITEM 기본값과 같은 'N' 으로 두고 적재 측 승인 전제.
 constants:
-  SEARCHABLE_YN: "N"
+  GROUP_C: "SSS"
 
 # ── HTML 필드 → 평문 (제자리 변환) ──────────────────────────────────────────
 # TB_CS_ITEM.CONTENT 는 안내본문(평문) 컬럼이다 — TB_NEWS 의 DETAIL_HTML 처럼 원문 HTML 을
@@ -104,7 +104,6 @@ html_text_fields:
 #       {{raw_text}}
 #       </cs_item>
 
-# 요약본문(SUMMARY_TEXT)을 쓰지 않으므로 평문화한 안내본문을 그대로 임베딩 입력으로 쓴다.
 text_fields:
   - TITLE
   - CONTENT
