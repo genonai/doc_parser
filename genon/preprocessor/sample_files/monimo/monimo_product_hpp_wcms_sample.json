@@ -1,0 +1,59 @@
+{
+  "wcmsId": "1202631",
+  "code": "AAP1344",
+  "cardTitle": "새마을금고 삼성카드 7",
+  "cardSlogan": "가족과 함께할 때도 필요한 실속<br>새마을금고 혜택까지",
+  "imgInfo": {
+    "pcImg1": "/wcms/home/scard/image/personal/b_AAP1344.png",
+    "moImg1": "/wcms/home/scard/image/personal/s_AAP1344.png"
+  },
+  "ksp": [
+    {"code": "P000210", "title": "새마을금고 현금카드 기능"},
+    {"code": "P006890", "title": "0.5%~3% 빅포인트 적립"},
+    {"code": "P007002", "title": "주말 2·3개월 무이자할부"}
+  ],
+  "benefit": [
+    "새마을금고 현금카드 기능",
+    "0.5%~3% 빅포인트 적립",
+    "주말 2·3개월 무이자할부"
+  ],
+  "bubble": [
+    {
+      "title": "0.5%~3% 빅포인트 적립",
+      "tabName": "포인트 적립",
+      "serviceName": "0.5%~3% 빅포인트 적립",
+      "serviceCode": "P006890",
+      "serviceUrl": "<h4 class=\"hide\">0.5%~3% 빅포인트 적립</h4><p>국내외 가맹점에서 이용금액의 0.5%를 빅포인트로 적립합니다.</p><table><thead><tr><th>이용처</th><th>적립률</th></tr></thead><tbody><tr><td>일반 가맹점</td><td>0.5%</td></tr><tr><td>특별 가맹점</td><td>최대 3%</td></tr></tbody></table>"
+    },
+    {
+      "title": "S-OIL 리터당 40 보너스포인트 적립",
+      "serviceCode": "P000326",
+      "serviceUrl": "<h4 class=\"hide\">S-OIL 리터당 40 보너스포인트 적립</h4><p>S-OIL 주유 시 리터당 40 보너스포인트를 적립합니다.</p>"
+    }
+  ],
+  "mpo": [
+    {
+      "code": "AAP1727",
+      "name": "삼성 iD ALL 카드",
+      "type": "백화점",
+      "ksp": [
+        {
+          "code": "B10165",
+          "title": "많이 쓰는 영역 5% 자동 맞춤 할인",
+          "serviceUrl": "<h4 class=\"hide\">많이 쓰는 영역 5% 자동 맞춤 할인</h4><p>이용금액이 큰 영역을 자동으로 찾아 할인합니다.</p>"
+        }
+      ]
+    }
+  ],
+  "mpoNum": "여신금융협회 심의필 제 2025-C1h-14606호 (2025.09.30)",
+  "htmlList": {
+    "feeUrl": "<h3 class=\"hide\">연회비</h3><table><thead><tr><th>구분</th><th>연회비</th></tr></thead><tbody><tr><td>국내전용</td><td>18,000원</td></tr><tr><td>해외겸용</td><td>20,000원</td></tr></tbody></table>",
+    "addServiceUrl": "<h3>추가 서비스와 발급 기준</h3><p>만 19세 이상이며 삼성카드의 발급 심사 기준을 충족해야 합니다.</p>",
+    "noticeUrl": "<h3>이용 유의사항</h3><p>혜택별 전월 이용금액과 월 할인 한도를 확인하세요.</p>",
+    "etcUrl": "",
+    "infoUrl": "<!-- 안내문구 --><h3>상품 안내</h3><p>해당 카드는 발급 중단됐으며 현재 이용 중인 회원만 기존 카드를 이용할 수 있습니다.</p>"
+  },
+  "is3d": "N",
+  "pCApplyNoYn": "N",
+  "fee": ""
+}
