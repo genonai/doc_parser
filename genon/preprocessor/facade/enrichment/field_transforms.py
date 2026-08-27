@@ -179,6 +179,7 @@ def transform_text_norm(value: Any) -> Optional[str]:
         return None
     text = unicodedata.normalize("NFKC", str(value))
     text = text.replace("﻿", "").strip()
+    text = text.replace("<BR>", " ").replace("<br>", " ").replace("<br/>", " ").replace("<BR/>", " ").strip()
     text = re.sub(r"\s+", " ", text)
     return text.casefold() or None
 

@@ -304,26 +304,54 @@ def build_chunk_text(
     chunk_prefix_fields: list[str],
     *,
     fallback_text: str = "",
+    column_map: dict | None = None,
 ) -> tuple[str, str]:
     """본문과 모든 분할 조각에 반복할 접두를 함께 만든다.
 
     접두 필드는 본문에서 제외해 제목이 두 번 들어가지 않게 한다. 반환한 ``content`` 는
     접두가 있으면 반드시 그 문자열로 시작하므로 chunking processor 의 재부착 계약을 만족한다.
     """
+    column_map = column_map or {}
+    def get_field_label(field: str) -> str:
+        """column_map 에 매핑된 원천 컬럼명을 쓰고, 없으면 목표필드명을 그대로 쓴다."""
+        source_spec = column_map.get(field)
+        if isinstance(source_spec, list) and source_spec:
+            return str(source_spec[0])
+        if source_spec is not None:
+            return str(source_spec)
+        return field
+
     prefix_names = set(chunk_prefix_fields)
-    prefix = "\n".join(
-        str(fields[name])
-        for name in chunk_prefix_fields
-        if fields.get(name) not in (None, "")
-    )
-    if text_fields:
-        body = "\n".join(
-            str(fields[name])
-            for name in text_fields
-            if name not in prefix_names and fields.get(name) not in (None, "")
+    if column_map:
+        prefix = "\n".join(
+            # str(fields[name])
+            f"{get_field_label(name)}: {fields[name]}"
+            for name in chunk_prefix_fields
+            if fields.get(name) not in (None, "")
         )
+        if text_fields:
+            body = "\n".join(
+                f"{get_field_label(name)}: {fields[name]}"
+                for name in text_fields
+                if name not in prefix_names and fields.get(name) not in (None, "")
+            )
+        else:
+            body = fallback_text
     else:
-        body = fallback_text
+        prefix = "\n".join(
+            f"{fields[name]}"
+            for name in chunk_prefix_fields
+            if fields.get(name) not in (None, "")
+        )
+        if text_fields:
+            body = "\n".join(
+                f"{fields[name]}"
+                for name in text_fields
+                if name not in prefix_names and fields.get(name) not in (None, "")
+            )
+        else:
+            body = fallback_text
+
     content = f"{prefix}\n{body}" if prefix and body else (prefix or body)
     return content, prefix
 
@@ -531,6 +559,8 @@ class TabularCustomFieldsMapper:
         text_fields = list(self.config.get("text_fields") or [])
         doc_type = self.canonical_doc_type(runtime_doc_type)
 
+        column_map = self.config.get("column_map") or {}
+
         elements: list[dict] = []
         max_page = 0
         for fields in fields_list:
@@ -542,6 +572,7 @@ class TabularCustomFieldsMapper:
                 text_fields,
                 self.chunk_prefix_fields,
                 fallback_text=fallback_text,
+                column_map=column_map,
             )
             element = {
                 "category": "custom_fields_row",
