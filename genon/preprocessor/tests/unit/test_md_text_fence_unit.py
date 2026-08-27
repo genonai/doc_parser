@@ -39,8 +39,85 @@ def test_fence_becomes_logical_unit_paragraphs():
     assert [u.splitlines()[0][:2] for u in units[-7:]] == [
         "상품", "Q ", "A ", "- ", "Q ", "A ", "※ ",
     ]
-    # 하드랩된 줄은 단위 안에서 줄바꿈으로 유지한다(재결합하지 않는다).
-    assert "알릴의무사항 항\n목(이하," in out
+    # 하드랩된 물리 줄은 한 item이 되도록 공백 하나로 접는다.
+    assert "알릴의무사항 항 목(이하," in out
+
+
+@pytest.mark.unit
+def test_repeated_bullets_on_hard_wrapped_lines_are_merged(tmp_path):
+    """레이아웃 변환기가 매 줄에 붙인 불릿은 문장이 완결될 때까지 한 item이다."""
+    text = """```text
+A    - 이 상품의 1종(건강고지형)은 건강고지 상품으로 표준체에 해당하는 계약 전 알릴의무사항 항
+       - 목(이하, "일반고지"라 한다) 대비 추가된 항목을 활용하여 확인한 건강상태에 따라 동일한 보
+       - 장의 일반고지 대비 보험료 부담을 덜어주는 상품을 의미합니다.
+     - 이 상품은 사망을 보장하며 각종 특약 부가로 다양한 보장 설계를 목적으로 합니다.
+```
+"""
+
+    out, converted = transform(text)
+
+    assert converted == 1
+    assert '알릴의무사항 항 목(이하, "일반고지"라 한다)' in out
+    assert "동일한 보 장의 일반고지" in out
+    assert "\n- 목(" not in out
+    assert "\n- 장의" not in out
+    assert "의미합니다.\n\n- 이 상품은" in out
+
+    # Markdown backend을 거친 뒤에도 세 물리 줄이 TextItem 하나여야 한다.
+    from docling.backend.md_backend import MarkdownDocumentBackend
+    from docling.datamodel.base_models import InputFormat
+    from docling.datamodel.document import InputDocument
+
+    source = tmp_path / "repeated_bullets.md"
+    source.write_text(out, encoding="utf-8")
+    in_doc = InputDocument(
+        path_or_stream=source,
+        format=InputFormat.MD,
+        backend=MarkdownDocumentBackend,
+    )
+    document = MarkdownDocumentBackend(in_doc=in_doc, path_or_stream=source).convert()
+    matching = [
+        item for item, _ in document.iterate_items()
+        if "이 상품의 1종" in getattr(item, "text", "")
+    ]
+    assert len(matching) == 1
+    assert "목(이하" in matching[0].text
+    assert "장의 일반고지" in matching[0].text
+
+
+@pytest.mark.unit
+def test_short_unpunctuated_bullets_remain_separate():
+    """문장부호가 없어도 짧은 불릿은 독립 item으로 유지한다."""
+    text = """```text
+- 가입 대상
+- 보험 기간
+- 납입 기간
+```
+"""
+
+    out, converted = transform(text)
+
+    assert converted == 1
+    assert [block for block in out.split("\n\n") if block] == [
+        "- 가입 대상",
+        "- 보험 기간",
+        "- 납입 기간",
+    ]
+
+
+@pytest.mark.unit
+def test_first_bullet_after_long_heading_is_not_merged():
+    """긴 제목이 하드랩 폭에 가까워도 첫 불릿은 새 item이다."""
+    text = """```text
+이 상품에서 반드시 확인해야 하는 주요 보장 내용과 계약 조건 안내
+- 첫 번째 보장 내용은 다음과 같습니다.
+```
+"""
+
+    out, converted = transform(text)
+
+    assert converted == 1
+    assert "계약 조건 안내\n\n- 첫 번째" in out
 
 
 @pytest.mark.unit

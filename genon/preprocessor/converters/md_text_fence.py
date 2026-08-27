@@ -22,11 +22,11 @@ docling 의 Markdown 백엔드는 `FencedCode` 를 `doc.add_code()` **한 번**�
 
 ## 무엇을 하지 않는가
 
-하드랩된 줄을 다시 이어붙이지(unwrap) 않는다. 원문에는 단어 중간 랩("…알릴의무사항 항" /
-"목(이하…")과 어절 경계 랩("…유병력자" / "또는 고연령자…")이 섞여 있어 공백을 넣어야 하는지
-아닌지를 안전하게 판정할 수 없다. 줄바꿈을 그대로 두면 docling 이 같은 단락 안의 줄을 공백으로
-이어 붙이므로 "항 목" 처럼 공백 하나가 끼는 경우가 남는다 — 펜스 밖 일반 본문에서 이미
-발생하는 것과 동일한 기존 동작이다.
+하드랩 경계의 공백을 추측해 지우지 않는다. 원문에는 단어 중간 랩("…알릴의무사항 항" /
+"목(이하…")과 어절 경계 랩("…유병력자" / "또는 고연령자…")이 섞여 있어 공백을 지워야
+하는지 안전하게 판정할 수 없다. 다만 Markdown backend 구현이나 HTML 우회 여부와
+무관하게 논리 단위 하나를 item 하나로 만들기 위해 물리 줄들을 공백 하나로 접는다.
+그 결과 "항 목" 처럼 공백 하나가 끼는 기존 동작은 남는다.
 
 ## 설정 위치
 
@@ -55,6 +55,18 @@ _FENCE_RE = re.compile(r"^[ \t]{0,3}(?P<ticks>`{3,}|~{3,})[ \t]*(?P<lang>[^`]*?)
 
 # 논리 단위(= 새 단락)의 시작. Q/A 문답, 불릿, ※ 주석, 번호 목록.
 _UNIT_START_RE = re.compile(r"(?:[QA][.)]?(?=\s)|[-*•·▪◦○□■](?=\s)|※|\d+[.)](?=\s))")
+
+# 불릿은 PDF 레이아웃을 md 로 옮기는 과정에서 물리 줄마다 반복되기도
+# 한다. 다른 구조 마커(Q/A, ※, 번호)와 달리 불릿만 문장 완결성을 보조
+# 신호로 삼아 새 단위인지 하드랩 연속 행인지 판별한다.
+_BULLET_START_RE = re.compile(r"(?P<marker>[-*•·▪◦○□■])\s+(?P<text>.*)")
+_BULLET_UNIT_RE = re.compile(r"(?:[A][.)]?\s+)?[-*•·▪◦○□■]\s+")
+
+# 닫는 따옴표/괄호 뒤의 종결부호도 문장 끝으로 본다. 콜론은 뒤의
+# 불릿이 설명 목록으로 시작하는 구조가 많아 구조적 종결에 포함한다.
+_TERMINAL_RE = re.compile(
+    r"[.!?\u3002\uff01\uff1f:\uff1a](?:[\"'\u201d\u2019)\]}>》」』]*)$"
+)
 
 # 구분선/장식만 남은 줄. 안 지우면 `---` 가 thematic break 나 setext 헤딩이 된다.
 _RULE_RE = re.compile(r"[\s\-=_~·ㆍ*]+")
@@ -144,25 +156,100 @@ def _escape_md_prefix(line: str) -> str:
     return "\\" + line if line.startswith(_ESCAPE_PREFIX) else line
 
 
+def _leading_indent(raw: str) -> int:
+    """탭을 4칸으로 펼 뒤의 시각적 들여쓰기 깊이."""
+    expanded = raw.expandtabs(4)
+    return len(expanded) - len(expanded.lstrip(" "))
+
+
+def _estimate_wrap_width(body_lines: list[str]) -> int:
+    """펜스 본문의 대략적인 하드랩 폭(길이 75 백분위)."""
+    widths = sorted(
+        len(cleaned)
+        for raw in body_lines
+        if (cleaned := _clean_line(raw)) and not _RULE_RE.fullmatch(cleaned)
+    )
+    if not widths:
+        return 0
+    return widths[min(len(widths) - 1, (len(widths) * 3) // 4)]
+
+
+def _has_unclosed_delimiter(text: str) -> bool:
+    """괄호가 닫히지 않은 행은 다음 행과 연결된 것으로 본다."""
+    pairs = (("(", ")"), ("[", "]"), ("{", "}"), ("「", "」"), ("『", "』"))
+    return any(
+        text.count(opening) > text.count(closing) for opening, closing in pairs
+    )
+
+
+def _is_wrapped_bullet_continuation(
+    *,
+    raw: str,
+    previous_raw: str,
+    previous_text: str,
+    current_unit_first_text: str,
+    current_unit_text: str,
+    wrap_width: int,
+) -> bool:
+    """반복 불릿이 새 목록이 아니라 이전 물리 줄의 연속인지 판정."""
+    # 긴 제목/질문 뒤에 처음 나오는 불릿은 조건없이 새 단위다.
+    # 현재 단위가 이미 불릿(또는 `A - ...` 형태)로 시작했을 때만
+    # 뒤이은 불릿을 하드랩 후보로 본다.
+    if not _BULLET_UNIT_RE.match(current_unit_first_text):
+        return False
+    if _TERMINAL_RE.search(previous_text.rstrip()):
+        return False
+    if _has_unclosed_delimiter(current_unit_text):
+        return True
+
+    # 긴 행이 종결부호 없이 끝나고 불릿이 반복되면 고정폭 레이아웃의
+    # 하드랩일 가능성이 높다. 더 깊은 들여쓰기는 연속 행 신호이므로
+    # 필요 길이를 낮춘다. 짧은 무종결 불릿("가입 대상")은 병합하지 않는다.
+    deeper_indent = _leading_indent(raw) > _leading_indent(previous_raw)
+    ratio = 0.65 if deeper_indent else 0.80
+    threshold = max(20, int(wrap_width * ratio))
+    return len(previous_text) >= threshold
+
+
 def _restore_paragraphs(body_lines: list[str]) -> str:
     """펜스 본문을 논리 단위별 단락으로 복원한다.
 
-    단위 내부의 물리 줄은 `\\n` 으로 유지하고(하드랩 원문을 보존), 단위 사이는 빈 줄로
-    끊는다. 그러면 docling 이 단위마다 별개 TextItem/ListItem 을 만든다.
+    단위 내부의 물리 줄은 공백 하나로 접고 단위 사이는 빈 줄로 끊는다.
+    이렇게 해야 Markdown backend 의 줄바꿈 처리 차이와 무관하게 단위마다
+    별개 TextItem/ListItem 하나가 된다.
     """
-    units: list[list[str]] = []
-    cur: list[str] = []
+    units: list[list[tuple[str, str]]] = []
+    cur: list[tuple[str, str]] = []
+    wrap_width = _estimate_wrap_width(body_lines)
     for raw in body_lines:
         cleaned = _clean_line(raw)
         if not cleaned or _RULE_RE.fullmatch(cleaned):
             continue
-        if _UNIT_START_RE.match(cleaned) and cur:
+
+        starts_unit = _UNIT_START_RE.match(cleaned) is not None
+        bullet = _BULLET_START_RE.match(cleaned)
+        wrapped_bullet = False
+        if starts_unit and bullet and cur:
+            wrapped_bullet = _is_wrapped_bullet_continuation(
+                raw=raw,
+                previous_raw=cur[-1][0],
+                previous_text=cur[-1][1],
+                current_unit_first_text=cur[0][1],
+                current_unit_text=" ".join(line for _, line in cur),
+                wrap_width=wrap_width,
+            )
+
+        if starts_unit and cur and not wrapped_bullet:
             units.append(cur)
             cur = []
-        cur.append(_escape_md_prefix(cleaned))
+        elif wrapped_bullet and bullet:
+            # 레이아웃 변환기가 물리 줄마다 붙인 가짜 불릿은 본문에서 제거한다.
+            cleaned = bullet.group("text")
+
+        cur.append((raw, _escape_md_prefix(cleaned)))
     if cur:
         units.append(cur)
-    return "\n\n".join("\n".join(unit) for unit in units)
+    return "\n\n".join(" ".join(line for _, line in unit) for unit in units)
 
 
 def transform(
