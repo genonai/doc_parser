@@ -146,6 +146,11 @@ text_fields:
 # true 면 본문이 chunk_size 를 넘을 때 여러 청크로 나눈다(metadata 는 조각마다 동일).
 # 미지정(기본 false) = 레코드 1건이 항상 청크 1개.
 # split: true
+# 분할된 모든 청크 앞에 반복할 식별 필드. `split: true` 일 때만 유효하다(false 면 무시).
+# 접두 필드는 본문 맨 앞으로 이동하며 text_fields 에도 있으면 거기서 빠진다(중복 방지) —
+# text_fields 선두가 아닌 필드를 지정하면 본문 순서가 바뀌니 선두 필드를 쓰는 것이 안전하다.
+# chunk_prefix_fields:
+#   - <TARGET_FIELD_1>                       # 예: TITLE, QUESTION
 
 # ── [선택] records 키를 못 찾았을 때 ────────────────────────────────────────
 # error(기본) = 즉시 실패 / skip = 경고 후 0건

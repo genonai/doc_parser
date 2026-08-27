@@ -976,7 +976,7 @@ return self._normalize_response(result)
 
 | 판별 | 경로 | 결과 |
 |---|---|---|
-| `category` 가 `tabular_row`/`custom_fields_row`/`faq_row` 인 element 가 있음 | `_chunk_custom_fields_rows` | **행 1개 = 청크 1개.** element `metadata` 를 청크 property 로 승격. 단 element 에 `"splittable": true` 가 있으면(json_mapping 레코드) `chunk_size` 초과분만 여러 청크로 나누고 metadata 는 조각마다 동일하게 붙임 |
+| `category` 가 `tabular_row`/`custom_fields_row`/`faq_row` 인 element 가 있음 | `_chunk_custom_fields_rows` | **행 1개 = 청크 1개.** element `metadata` 를 청크 property 로 승격. 단 element 에 `"splittable": true` 가 있으면(custom_field yaml 에 `split: true` 를 켠 json_mapping 레코드 / tabular_mapping 행) `chunk_size` 초과분만 여러 청크로 나누고 metadata 는 조각마다 동일하게 붙임. `chunk_prefix` 가 함께 실려 있으면 그 접두를 뗀 본문만 나누고 조각마다 접두를 다시 붙임(`chunk_prefix_fields` 설정) |
 | `content` 이 `[AUDIO]` 로 시작 | `_single_marker_vector` | 전사 전체가 단일 청크 |
 | 비어있지 않은 element 가 전부 `category=="table"` | `_single_marker_vector` | `[DA]` 단일 청크 (**예전 csv/xlsx parse 결과 하위호환**) |
 | 그 외 | `_chunk_text_elements`(2583) | 문자 단위 분할 |
@@ -1381,7 +1381,7 @@ placeholder 이므로, LLM 을 쓰는 항목은 그 값을 채우기 전까지 �
 | 대상 | 문서 전체 (pdf/html/docx …) | csv / xlsx / xlsm | json (레코드 배열) |
 | LLM 호출 | **함** (항목당 1회) | **안 함** | `llm_fields` 선언 시 **레코드마다 1회** |
 | 실행 시점 | 파싱 후 enrichment 단계 | 파싱 **이전**, 확장자 분기에서 조기 반환 | 파싱 **이전**, 확장자 분기에서 조기 반환 |
-| 설정 파일 키(전체) | `url`·`api_key`·`model`·`max_tokens`·`temperature`·`timeout`·`system_prompt`·`user_prompt`·`system_prompt_file`·`user_prompt_file`·`prompt`·`output_fields`·`constants`·`parser`·`pages`·`variables`·`template` | `column_map`·`value_map`·`constants`·`defaults`·`nulls`·`required`·`transforms`·`llm_fields`·`text_fields` | 왼쪽 tabular 키에서 `column_map` → `key_map`, 그리고 `records`·`html_text_fields`·`split`·`missing_policy` 추가 |
+| 설정 파일 키(전체) | `url`·`api_key`·`model`·`max_tokens`·`temperature`·`timeout`·`system_prompt`·`user_prompt`·`system_prompt_file`·`user_prompt_file`·`prompt`·`output_fields`·`constants`·`parser`·`pages`·`variables`·`template` | `column_map`·`value_map`·`constants`·`defaults`·`nulls`·`required`·`transforms`·`llm_fields`·`text_fields`·`split`·`chunk_prefix_fields` | 왼쪽 tabular 키에서 `column_map` → `key_map`, 그리고 `records`·`html_text_fields`·`missing_policy` 추가 |
 | 결과 | 문서 metadata → 모든 청크에 부착 | 행별 `custom_fields_row` element → 행마다 청크 1개 | 레코드별 `custom_fields_row` element → 레코드마다 청크 1개(길면 분할) |
 | 복사할 템플릿 | `resource/templates/custom_field_TEMPLATE_llm.yaml` | `..._TEMPLATE_tabular.yaml` | `..._TEMPLATE_json.yaml` |
 | 출고 실례 | `custom_field_card.yaml` | `custom_field_faq.yaml`·`custom_field_term.yaml` | `custom_field_monimo_event.yaml` |
@@ -1490,6 +1490,8 @@ enrichment:
 | `constants` | 모든 행에 같은 값으로 넣을 필드. `defaults` 와 달리 **원천 값이 있어도 덮어씁니다** |
 | `llm_fields` | 원천에 없는 필드를 **행마다 LLM 으로** 생성. 스키마는 경로 C 와 같습니다(아래 참고). ⚠️ parser 경로에서만 실행됩니다 |
 | `text_fields` | 청크 `text` 본문을 구성할 필드와 그 순서 (개행으로 이어붙임). 생략하면 행의 모든 값 |
+| `split` | `true` 면 행 본문이 `chunk_size` 를 넘을 때 여러 청크로 나눕니다(metadata 는 조각마다 동일). 생략하면 행 1개 = 청크 1개 |
+| `chunk_prefix_fields` | 분할된 **모든** 조각 앞에 반복할 식별 필드(예: `QUESTION`, `MENU_NM`). `split: true` 일 때만 유효. 접두는 본문 맨 앞으로 이동하고 `text_fields` 에서는 빠집니다(중복 방지) |
 
 > ⚠️ **`text_fields` 에 아무도 만들지 않는 필드를 적으면 그 부분이 조용히 빠집니다.**
 > `column_map`·`constants`·`defaults`·`llm_fields[].output_fields` 중 어디에도 없는 이름을 쓰면
@@ -1549,6 +1551,7 @@ enrichment:
 | `llm_fields` | JSON 에 없는 필드를 LLM 으로 생성. 아래 참고 |
 | `text_fields` | 청크 `text` 본문을 구성할 필드와 순서 (경로 B 와 동일) |
 | `split` | `true` 면 레코드 본문이 `chunk_size` 를 넘을 때 여러 청크로 나눕니다(metadata 는 조각마다 동일). 생략하면 레코드 1건 = 청크 1개 |
+| `chunk_prefix_fields` | 경로 B 와 동일 — 분할된 모든 조각 앞에 반복할 식별 필드(예: `TITLE`). `split: true` 일 때만 유효 |
 | `missing_policy` | `records` 키를 못 찾았을 때. `error`(기본, 즉시 실패) / `skip`(경고 후 0건) |
 
 **`llm_fields`** — 항목마다 레코드 1건당 LLM 을 1회 호출합니다.

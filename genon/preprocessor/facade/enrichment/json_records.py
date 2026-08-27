@@ -49,6 +49,8 @@ from .custom_fields_enricher import (
 from .field_transforms import VALUE_TRANSFORMS
 from .tabular_custom_fields import (
     apply_value_map,
+    build_chunk_text,
+    compile_chunk_prefix_fields,
     compile_value_map,
     normalize_column_name,
     validate_custom_field_config,
@@ -399,6 +401,7 @@ class JsonRecordsMapper:
             raise ValueError("json_mapping custom_fields 에는 text_fields(청크 본문 구성)가 필요합니다.")
 
         self.split = bool(cfg.get("split", False))
+        self.chunk_prefix_fields = compile_chunk_prefix_fields(cfg, split=self.split)
 
         policy = str(cfg.get("missing_policy") or "error").strip().lower()
         if policy not in VALID_MISSING_POLICIES:
@@ -536,9 +539,8 @@ class JsonRecordsMapper:
 
     def build_text(self, fields: dict) -> str:
         """청크 본문 — text_fields 를 선언 순서대로 개행 결합(tabular 와 같은 규칙)."""
-        return "\n".join(
-            str(fields[name]) for name in self.text_fields if fields.get(name) not in (None, "")
-        )
+        content, _ = build_chunk_text(fields, self.text_fields, self.chunk_prefix_fields)
+        return content
 
     def to_parse_format(self, fields_list: list[dict], runtime_doc_type: Any) -> dict:
         """목표필드 목록 → parse-format(청커 행 기반 경로가 소비하는 형태).
@@ -551,7 +553,9 @@ class JsonRecordsMapper:
         elements = []
         empty = 0
         for fields in fields_list:
-            content = self.build_text(fields)
+            content, prefix = build_chunk_text(
+                fields, self.text_fields, self.chunk_prefix_fields
+            )
             if not content.strip():
                 empty += 1
                 continue
@@ -567,6 +571,8 @@ class JsonRecordsMapper:
                 # 청커가 chunk_size 초과 시 이 element 만 여러 청크로 나눈다
                 # (tabular/faq 의 "행 1개 = 청크 1개" 동작은 그대로 유지).
                 element["splittable"] = True
+                if prefix:
+                    element["chunk_prefix"] = prefix
             elements.append(element)
 
         if empty:

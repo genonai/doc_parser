@@ -60,6 +60,7 @@ html_text_fields:
   DETAIL_TEXT: DETAIL_HTML
 text_fields: [TITLE, DETAIL_TEXT]
 split: true
+chunk_prefix_fields: [TITLE]
 """
 
 
@@ -415,6 +416,7 @@ def test_to_parse_format_emits_row_elements(tmp_path):
     assert element["category"] == "custom_fields_row"
     assert element["page"] == 1
     assert element["splittable"] is True
+    assert element["chunk_prefix"] == "무신사 블랙 프라이데이 혜택 받기"
     # text_fields 선언 순서대로 개행 결합
     assert element["content"] == "무신사 블랙 프라이데이 혜택 받기\n이벤트 상세 내용"
     assert element["metadata"]["EVENT_TO"] == 20260731
@@ -423,7 +425,11 @@ def test_to_parse_format_emits_row_elements(tmp_path):
 def test_split_false_omits_splittable_flag(tmp_path):
     mapper = write_mapper(tmp_path, BASE_CONFIG.replace("split: true", "split: false"))
     fields_list = mapper.build_fields(SAMPLE_PAYLOAD, "monimo_event")
-    assert "splittable" not in mapper.to_parse_format(fields_list, "monimo_event")["elements"][0]
+    element = mapper.to_parse_format(fields_list, "monimo_event")["elements"][0]
+    assert "splittable" not in element
+    assert "chunk_prefix" not in element
+    # 접두는 본문 맨 앞으로 이동하므로 분할하지 않는 설정에서는 아예 무효화한다.
+    assert mapper.chunk_prefix_fields == []
 
 
 def test_text_fields_skip_empty_values(tmp_path):
@@ -433,8 +439,9 @@ def test_text_fields_skip_empty_values(tmp_path):
 
 def test_records_without_text_are_excluded(tmp_path, caplog):
     """본문이 빈 레코드는 element 로 내보내지 않는다(빈 text 벡터 적재 방지)."""
-    mapper = write_mapper(tmp_path, BASE_CONFIG.replace("text_fields: [TITLE, DETAIL_TEXT]",
-                                                        "text_fields: [CONTENT_HASH]"))
+    config = BASE_CONFIG.replace("text_fields: [TITLE, DETAIL_TEXT]", "text_fields: [CONTENT_HASH]")
+    config = config.replace("chunk_prefix_fields: [TITLE]\n", "")
+    mapper = write_mapper(tmp_path, config)
     fields_list = [
         {"TITLE": "요약 성공", "CONTENT_HASH": "요약본문"},
         {"TITLE": "요약 실패", "CONTENT_HASH": None},   # LLM 실패 → on_error=null
@@ -588,9 +595,10 @@ def test_shipped_monimo_event_config_loads(resource_dir):
         extractor="json_mapping",
     )
     assert mapper.records_key == "eventList"
-    # 요약본문 필드는 SUMMARY_TEXT 다. TB_* 의 CONTENT_HASH 는 RAW(32) 원문 검증 해시라
-    # 임베딩 입력이 아니다 — 과거에 이 이름으로 잘못 나가 있었으므로 회귀를 막는다.
-    assert mapper.text_fields == ["TITLE", "SUMMARY_TEXT"]
+    # LLM 요약 설정이 비활성화된 현재 출고 설정은 평문화한 상세 원문을 검색 본문으로 쓴다.
+    # TB_* 의 CONTENT_HASH 는 RAW(32) 원문 검증 해시이므로 임베딩 입력이 아니다.
+    assert mapper.text_fields == ["TITLE", "DETAIL_TEXT"]
+    assert mapper.chunk_prefix_fields == ["TITLE"]
     assert "CONTENT_HASH" not in mapper.key_map
 
     # llm_fields 는 모델서빙이 배정되기 전까지 주석으로 내려둘 수 있다(현재 resource/ 가 그 상태).

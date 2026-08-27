@@ -101,3 +101,8 @@ nulls:
 text_fields:
   - TERM
   - DEFINITION
+
+# 긴 정의는 chunk_size 기준으로 나누고, 모든 조각에 용어를 반복한다.
+split: true
+chunk_prefix_fields:
+  - TERM

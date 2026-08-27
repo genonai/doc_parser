@@ -109,4 +109,6 @@ text_fields:
   - CONTENT
 
 split: true
+chunk_prefix_fields:
+  - TITLE
 missing_policy: error

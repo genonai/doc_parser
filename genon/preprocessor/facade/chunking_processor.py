@@ -2993,7 +2993,7 @@ class DocumentProcessor:
         유지한다(적재 측에서 같은 레코드의 조각임을 metadata 로 식별). 플래그가 없는 기존
         tabular_row/faq_row 는 손대지 않으므로 회귀가 없다.
 
-        element 에 `chunk_prefix`(json_semantic — 섹션 제목 + 공통 정보 행)가 실려 있으면 접두를
+        element 에 `chunk_prefix`(섹션 제목 또는 JSON/Excel 레코드 식별 필드)가 실려 있으면 접두를
         뗀 본문만 분할하고 조각마다 접두를 다시 붙인다 — 안 그러면 두 번째 조각부터
         "어느 카드/어느 섹션인지"가 사라진다(docling 경로가 헤더 몫을 분할 예산에서 미리 빼는
         논리, `_header_line_for`/`:1300-1306` 와 같은 발상).

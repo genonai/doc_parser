@@ -107,6 +107,13 @@ def _assert_row_path_record_split(rows: list[dict], long_id: str, short_id: str,
         values = {r.get(key) for r in long_rows}
         assert len(values) == 1, f"{long_id} 조각들의 {key} 가 갈렸습니다: {values}"
 
+    # 제목은 metadata 에만 남아서는 안 된다. 각 청크 text 앞에 반복돼 독립 검색 결과로도
+    # 무엇에 대한 본문인지 식별할 수 있어야 한다.
+    title = long_rows[0]["TITLE"]
+    assert all(r["text"].startswith(title) for r in long_rows), (
+        f"{long_id} 분할 조각 중 TITLE 없이 시작하는 청크가 있습니다"
+    )
+
 
 @pytest.mark.unit
 def test_monimo_news_chunks_respect_chunk_size():

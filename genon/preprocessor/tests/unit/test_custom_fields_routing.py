@@ -168,6 +168,101 @@ def test_tabular_mapping_accepts_renamed_and_normalized_headers(tmp_path):
 
 
 @pytest.mark.unit
+def test_tabular_mapping_splits_long_row_and_repeats_prefix(tmp_path):
+    """긴 Excel 행은 chunk_size 로 나뉘고 모든 조각에 질문이 유지된다."""
+    config_path = _write_mapping(tmp_path / "faq.yaml")
+    config = yaml.safe_load(config_path.read_text(encoding="utf-8"))
+    config.update({"split": True, "chunk_prefix_fields": ["question"]})
+    config_path.write_text(yaml.safe_dump(config, allow_unicode=True), encoding="utf-8")
+
+    mapper = TabularCustomFieldsMapper(
+        doc_type="faq",
+        extractor="tabular_mapping",
+        config_file=config_path.name,
+        resource_path=str(tmp_path),
+    )
+    question = "가입은 어떻게 하나요?"
+    data = {"data": [{
+        "sheet_name": "FAQ",
+        "data_rows": [{"대표질문": question, "답변": "앱에서 가입하세요. " * 40}],
+    }]}
+    document = mapper.to_parse_format(data, "faq")
+    element = document["elements"][0]
+    assert element["splittable"] is True
+    assert element["chunk_prefix"] == question
+
+    vectors = asyncio.run(ChunkProcessor()(
+        request=None,
+        file_path="/data/faq.xlsx",
+        document=document,
+        chunk_size=80,
+        chunk_overlap=0,
+    ))
+    assert len(vectors) > 1
+    assert all(vector.text.startswith(question) for vector in vectors)
+    assert all(len(vector.text) <= 80 for vector in vectors)
+    assert all(vector.question == question for vector in vectors)
+
+
+@pytest.mark.unit
+def test_tabular_mapping_short_row_stays_one_chunk_even_with_split(tmp_path):
+    """split: true 를 켜도 chunk_size 미만 행은 여전히 "행 1개 = 청크 1개" 다."""
+    config_path = _write_mapping(tmp_path / "faq.yaml")
+    config = yaml.safe_load(config_path.read_text(encoding="utf-8"))
+    config.update({"split": True, "chunk_prefix_fields": ["question"]})
+    config_path.write_text(yaml.safe_dump(config, allow_unicode=True), encoding="utf-8")
+
+    mapper = TabularCustomFieldsMapper(
+        doc_type="faq",
+        extractor="tabular_mapping",
+        config_file=config_path.name,
+        resource_path=str(tmp_path),
+    )
+    data = {"data": [{
+        "sheet_name": "FAQ",
+        "data_rows": [{"대표질문": "가입은 어떻게 하나요?", "답변": "앱에서 가입하세요."}],
+    }]}
+    vectors = asyncio.run(ChunkProcessor()(
+        request=None,
+        file_path="/data/faq.xlsx",
+        document=mapper.to_parse_format(data, "faq"),
+        chunk_size=80,
+        chunk_overlap=0,
+    ))
+    assert len(vectors) == 1
+    assert vectors[0].text == "가입은 어떻게 하나요?\n앱에서 가입하세요."
+
+
+@pytest.mark.unit
+def test_tabular_mapping_split_false_ignores_chunk_prefix_fields(tmp_path):
+    """split 이 아니면 접두 설정은 무시된다 — 본문은 text_fields 선언 순서 그대로다.
+
+    접두는 본문 맨 앞으로 끌어올려지므로, 분할하지 않는 설정에서까지 허용하면
+    text_fields 중간 필드를 지정했을 때 청크 본문 순서가 조용히 바뀐다.
+    """
+    config_path = _write_mapping(tmp_path / "faq.yaml")
+    config = yaml.safe_load(config_path.read_text(encoding="utf-8"))
+    config.update({"split": False, "chunk_prefix_fields": ["answer_text"]})
+    config_path.write_text(yaml.safe_dump(config, allow_unicode=True), encoding="utf-8")
+
+    mapper = TabularCustomFieldsMapper(
+        doc_type="faq",
+        extractor="tabular_mapping",
+        config_file=config_path.name,
+        resource_path=str(tmp_path),
+    )
+    assert mapper.chunk_prefix_fields == []
+    data = {"data": [{
+        "sheet_name": "FAQ",
+        "data_rows": [{"대표질문": "가입은 어떻게 하나요?", "답변": "앱에서 가입하세요."}],
+    }]}
+    element = mapper.to_parse_format(data, "faq")["elements"][0]
+    assert "splittable" not in element
+    assert "chunk_prefix" not in element
+    assert element["content"] == "가입은 어떻게 하나요?\n앱에서 가입하세요."
+
+
+@pytest.mark.unit
 def test_tabular_mapping_rejects_missing_required_column(tmp_path):
     config_path = _write_mapping(tmp_path / "faq.yaml")
     mapper = TabularCustomFieldsMapper(
@@ -531,7 +626,7 @@ def test_row_metadata_validation_failure_is_wrapped_with_stage():
 # 그 결과는 "청크 0건" 또는 "매 요청 실패"로만 드러나므로 기동 시에 막는다.
 
 @pytest.mark.unit
-@pytest.mark.parametrize("key", ["required", "nulls", "text_fields"])
+@pytest.mark.parametrize("key", ["required", "nulls", "text_fields", "chunk_prefix_fields"])
 def test_scalar_instead_of_list_rejected_at_startup(tmp_path, key):
     """`- ` 를 빠뜨려 스칼라가 되면 글자 단위로 쪼개져 전 행이 걸러진다 — 기동 시 거부."""
     _write_mapper_cfg(tmp_path, f"""
@@ -541,6 +636,21 @@ def test_scalar_instead_of_list_rejected_at_startup(tmp_path, key):
         {key}: TITLE
     """)
     with pytest.raises(ValueError, match="목록이어야"):
+        TabularCustomFieldsMapper(
+            config_file="custom_field_probe.yaml", resource_path=str(tmp_path),
+            doc_type="x", extractor="tabular_mapping",
+        )
+
+
+@pytest.mark.unit
+def test_unknown_chunk_prefix_field_rejected_at_startup(tmp_path):
+    _write_mapper_cfg(tmp_path, """
+        column_map:
+          TITLE: [제목]
+        text_fields: [TITLE]
+        chunk_prefix_fields: [MISSING_TITLE]
+    """)
+    with pytest.raises(ValueError, match="chunk_prefix_fields.*만드는 설정이 없습니다"):
         TabularCustomFieldsMapper(
             config_file="custom_field_probe.yaml", resource_path=str(tmp_path),
             doc_type="x", extractor="tabular_mapping",

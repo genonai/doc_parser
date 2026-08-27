@@ -106,6 +106,8 @@ text_fields:
 
 # ── 레코드 본문이 chunk_size 를 넘으면 여러 청크로 나눈다(metadata 는 조각마다 동일) ──
 split: true
+chunk_prefix_fields:
+  - QUESTION
 
 # ── records 키를 찾지 못했을 때: error(기본, 즉시 실패) | skip(경고 후 0건) ──
 missing_policy: error

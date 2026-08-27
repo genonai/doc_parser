@@ -279,11 +279,10 @@ def test_chunker_rows_without_splittable_stay_one_chunk_per_row():
 
 
 # ----------------------------------------------------------------------
-# chunk_prefix(json_semantic — 섹션 제목 + 공통 정보 행) 유지 분할.
+# chunk_prefix(json_semantic 섹션 및 json/tabular 레코드 제목) 유지 분할.
 #
-# json_records 의 splittable 레코드는 접두가 없어도 괜찮지만(레코드 자체가 이미 한 종류의
-# 정보), json_semantic 섹션은 조각마다 "[혜택 상세] 0.5%~3% 빅포인트 적립\n상품명: …" 같은
-# 접두가 없으면 두 번째 조각부터 어느 카드/어느 섹션인지 알 길이 없어진다.
+# JSON 레코드와 긴 Excel 행도 조각마다 TITLE/QUESTION 같은 식별 접두가 없으면 두 번째
+# 조각부터 무엇에 대한 본문인지 사라진다. json_semantic 은 여기에 섹션명과 공통 정보도 싣는다.
 # ----------------------------------------------------------------------
 
 def test_chunker_splittable_row_with_prefix_keeps_prefix_on_every_piece():

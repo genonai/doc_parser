@@ -104,3 +104,8 @@ nulls:
 text_fields:
   - QUESTION
   - ANSWER
+
+# 긴 답변은 chunk_size 기준으로 나누고, 모든 조각에 질문을 반복한다.
+split: true
+chunk_prefix_fields:
+  - QUESTION

@@ -121,3 +121,8 @@ text_fields:
   - SERVICE_FEATURES
   - ELIGIBLE_TARGET
   - USAGE_METHOD
+
+# 긴 행은 chunk_size 기준으로 나누고, 모든 조각에 메뉴명을 반복한다.
+split: true
+chunk_prefix_fields:
+  - MENU_NM

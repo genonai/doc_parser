@@ -156,7 +156,10 @@ def validate_target_field_names(targets: Any, *, label: str) -> None:
 # YAML 에서 타입을 틀리기 쉬운 키. 코드가 set()/list()/dict() 로만 감싸기 때문에
 # 틀린 타입이 조용히 엉뚱하게 해석되거나 요청마다 터진다 — 기동 시에 잡는다.
 # ignore_keys/shared_fields/sections 는 json_semantic(SemanticJsonMapper) 전용 키다.
-_LIST_SHAPED_KEYS = ("required", "nulls", "text_fields", "ignore_keys", "required_shared_fields")
+_LIST_SHAPED_KEYS = (
+    "required", "nulls", "text_fields", "chunk_prefix_fields", "ignore_keys",
+    "required_shared_fields",
+)
 _MAP_SHAPED_KEYS = (
     "column_map", "key_map", "collect_key_map", "constants", "defaults", "value_map", "transforms",
     "html_text_fields", "shared_fields", "sections",
@@ -229,6 +232,24 @@ def warn_unproducible_text_fields(cfg: dict, *, label: str) -> None:
         )
 
 
+def validate_chunk_prefix_fields(cfg: dict, *, label: str) -> None:
+    """반복 접두 필드는 매퍼가 실제로 만들 수 있는 필드만 허용한다.
+
+    잘못된 필드명을 허용하면 ``content.startswith(chunk_prefix)`` 계약이 깨져 청커가
+    접두 재부착을 조용히 포기한다. 제목 소실을 막기 위한 설정인 만큼 기동 시에 즉시 잡는다.
+    """
+    unknown = sorted(
+        {str(f) for f in (cfg.get("chunk_prefix_fields") or [])}
+        - collect_target_field_names(cfg)
+    )
+    if unknown:
+        raise ValueError(
+            f"{label}: chunk_prefix_fields 의 {unknown} 를 만드는 설정이 없습니다. "
+            f"column_map/key_map/constants/defaults/nulls/html_text_fields/llm_fields 중 하나에 "
+            f"필드를 선언하세요."
+        )
+
+
 def validate_custom_field_config(cfg: dict, *, label: str) -> None:
     """custom_field yaml 하나에 대한 기동 시 검증 묶음(두 extractor 공통).
 
@@ -237,6 +258,7 @@ def validate_custom_field_config(cfg: dict, *, label: str) -> None:
     validate_config_shape(cfg, label=label)
     validate_target_field_names(collect_target_field_names(cfg), label=label)
     validate_required_not_llm_generated(cfg, label=label)
+    validate_chunk_prefix_fields(cfg, label=label)
     warn_unproducible_text_fields(cfg, label=label)
 
 
@@ -258,6 +280,52 @@ def collect_target_field_names(cfg: dict) -> set[str]:
         for f in ((spec or {}).get("output_fields") or [])
     }
     return names
+
+
+def compile_chunk_prefix_fields(cfg: dict, *, split: bool) -> list[str]:
+    """`chunk_prefix_fields` 를 매퍼가 쓸 목록으로 정규화한다(두 매퍼 공통).
+
+    `split: false` 면 빈 목록으로 만든다. 접두는 본문 맨 앞으로 끌어올려지므로, 분할하지 않는
+    설정에서 접두를 허용하면 `text_fields` 중간 필드를 지정했을 때 청크 본문 순서가 조용히
+    바뀐다 — 분할과 무관한 본문 재정렬 수단으로 오용되지 않게 여기서 막는다.
+    """
+    if not split:
+        return []
+    return [
+        str(f).strip()
+        for f in (cfg.get("chunk_prefix_fields") or [])
+        if str(f).strip()
+    ]
+
+
+def build_chunk_text(
+    fields: dict,
+    text_fields: list[str],
+    chunk_prefix_fields: list[str],
+    *,
+    fallback_text: str = "",
+) -> tuple[str, str]:
+    """본문과 모든 분할 조각에 반복할 접두를 함께 만든다.
+
+    접두 필드는 본문에서 제외해 제목이 두 번 들어가지 않게 한다. 반환한 ``content`` 는
+    접두가 있으면 반드시 그 문자열로 시작하므로 chunking processor 의 재부착 계약을 만족한다.
+    """
+    prefix_names = set(chunk_prefix_fields)
+    prefix = "\n".join(
+        str(fields[name])
+        for name in chunk_prefix_fields
+        if fields.get(name) not in (None, "")
+    )
+    if text_fields:
+        body = "\n".join(
+            str(fields[name])
+            for name in text_fields
+            if name not in prefix_names and fields.get(name) not in (None, "")
+        )
+    else:
+        body = fallback_text
+    content = f"{prefix}\n{body}" if prefix and body else (prefix or body)
+    return content, prefix
 
 
 class TabularCustomFieldsMapper:
@@ -293,6 +361,8 @@ class TabularCustomFieldsMapper:
 
         # 선언만 컴파일한다. 실제 호출은 parser 가 행 목록을 들고 수행한다(json_mapping 과 동일).
         self.llm_field_specs = build_llm_field_specs(self.config)
+        self.split = bool(self.config.get("split", False))
+        self.chunk_prefix_fields = compile_chunk_prefix_fields(self.config, split=self.split)
 
     @staticmethod
     def _load_config(config_file: str, resource_path: str | None) -> dict:
@@ -467,22 +537,25 @@ class TabularCustomFieldsMapper:
             page = fields.pop(_ROW_PAGE_KEY, len(elements) + 1)
             max_page = max(max_page, page)
             fallback_text = fields.pop(_ROW_FALLBACK_TEXT_KEY, "")
-            if text_fields:
-                content = "\n".join(
-                    str(fields.get(field))
-                    for field in text_fields
-                    if fields.get(field) not in (None, "")
-                )
-            else:
-                content = fallback_text
-            elements.append({
+            content, prefix = build_chunk_text(
+                fields,
+                text_fields,
+                self.chunk_prefix_fields,
+                fallback_text=fallback_text,
+            )
+            element = {
                 "category": "custom_fields_row",
                 "content": content,
                 "coordinates": [],
                 "id": len(elements),
                 "page": page,
                 "metadata": fields,
-            })
+            }
+            if self.split:
+                element["splittable"] = True
+                if prefix:   # split 이 아니면 chunk_prefix_fields 가 비어 prefix 도 항상 ""
+                    element["chunk_prefix"] = prefix
+            elements.append(element)
 
         # 시트 수 대신 행에 실려온 최대 페이지 번호를 쓴다 — mapper 는 요청 간 공유되는
         # 장수명 객체라 시트 수를 인스턴스 상태로 들고 있으면 동시 요청끼리 값이 섞인다.

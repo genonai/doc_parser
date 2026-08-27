@@ -1018,7 +1018,7 @@ markdown:
 | `list_item` | 목록 항목 텍스트 문자열 | `"• 항목 내용"` |
 | `table` | HTML 또는 Markdown 형식의 표 (`output.table_format` 설정에 따라 결정) | `"<table>...</table>"` |
 | `tabular_row` | CSV/XLSX 데이터 행 1개. `시트명 → (제목) → 헤더 라인 → 값 라인` 파이프 텍스트 | `"시트명: Sheet1\n\| name \| age \|\n\| Alice \| 30 \|"` |
-| `custom_fields_row` | CSV/XLSX 데이터 행 1개(`doc_type` 매핑 적용). `text_fields` 로 지정한 목표필드 값을 줄바꿈으로 이어붙임 | `"카드 발급은 어떻게 하나요?\n앱에서 신청 가능합니다."` |
+| `custom_fields_row` | CSV/XLSX 데이터 행 1개(`doc_type` 매핑 적용). `text_fields` 로 지정한 목표필드 값을 줄바꿈으로 이어붙임. `split: true` 면 `"splittable": true`(+ `chunk_prefix_fields` 지정 시 `chunk_prefix`)가 함께 실려 청커가 긴 행을 나눔 | `"카드 발급은 어떻게 하나요?\n앱에서 신청 가능합니다."` |
 | `picture` | 기본은 빈 문자열 `""` (이미지 자체는 별도 파일로 저장). 이미지 설명 활성화 시 `content`에 설명 텍스트가 포함됨 | `"이미지 설명 텍스트"` |
 | `caption` | 그림/표 캡션 텍스트 | `"그림 1. 시스템 구조도"` |
 | `footnote` | 각주 텍스트 | `"1) 출처: ..."` |

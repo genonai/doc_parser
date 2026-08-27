@@ -122,3 +122,10 @@ nulls:
 text_fields:
   - JONG_NAME
   - DETAIL_DESC
+
+# 긴 분석은 chunk_size 기준으로 나누고, 모든 조각에 종목명을 반복한다.
+# 종목코드(JONG_CODE)는 metadata 로만 싣는다 — 접두에 넣으면 분할하지 않은 청크의 본문까지
+# 바뀌어 이미 적재된 임베딩과 어긋난다.
+split: true
+chunk_prefix_fields:
+  - JONG_NAME
