@@ -29,10 +29,11 @@ formats:
       # 선택 튜닝: images_scale(렌더 배율) / max_image_side(전송 이미지 최대 변) / max_tokens(출력 상한) / params(추가 VLM 파라미터)
       prompt_template_file: prompt_page_image_description_default.md
 
-  # HTML(.html/.htm): docling 은 <iframe srcdoc="..."> 속성값 안의 본문을 읽지 못한다.
+  # HTML(.html/.htm): docling 은 <iframe srcdoc="..."> 속성값 안의 본문, 접힌 아코디언,
+  # div/section 등으로 감싸진 <li> 하위 목록을 읽지 못할 수 있다.
   # 크롤 산출물(merged.html)이 그 형태라 4MB 문서에서 641자·표 0개만 추출되는 문제가 있어,
   # 파싱 전에 srcdoc 을 펼쳐 heading 기반 단일 문서로 재조립한다(실측: 641자 → 59,140자, 표 43개).
-  #   auto  (기본): 원문 스캔으로 srcdoc/이중인코딩이 감지될 때만 flatten. 정상 HTML 은 무영향.
+  #   auto  (기본): srcdoc/이중인코딩/아코디언/감싸진 목록이 감지될 때만 flatten.
   #   always      : 항상 flatten(콘텐츠영역 선택 + script/style 제거)
   #   off         : 전처리 없음(기존 동작)
   html:

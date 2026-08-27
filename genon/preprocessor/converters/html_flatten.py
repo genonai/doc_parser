@@ -81,6 +81,24 @@ _HIDDEN_DECL_RE = re.compile(
     re.I,
 )
 
+# Docling 은 <li> 의 본문을 읽을 때 하위 <ul>/<ol> 텍스트를 먼저 제외한 뒤,
+# <li> 의 *직접 자식* 목록만 별도로 순회한다. 따라서 웹 UI 에 흔한
+#   <li><div class="content"><ul>...</ul></div></li>
+# 구조는 안쪽 목록 전체가 누락된다. 아래 태그들은 문서 의미보다 레이아웃을 위한
+# 투명 컨테이너로 보고, 목록과 가장 가까운 <li> 사이에 있을 때만 unwrap 한다.
+_TRANSPARENT_LIST_WRAPPERS = frozenset(
+    {"div", "section", "article", "aside", "details", "span"}
+)
+
+# 접힌 본문으로 판정할 class 힌트. 임의의 display:none 을 모두 펼치면 메뉴·로딩 UI·
+# 반응형 중복 DOM까지 본문에 섞이므로, 내용 컨테이너로 알려진 이름에만 적용한다.
+_COLLAPSIBLE_CONTENT_CLASS_HINTS = (
+    "ui_accord_content",
+    "accordion-content",
+    "accordion-collapse",
+    "desc_wrap",
+)
+
 # ── flatten 사전 검사 ────────────────────────────────────────────────────────────
 # 본문이 속성 안에 escape 되어 있는지는 '구조적 사실'이라 임계값 없이 원문 스캔으로
 # 판정된다. bs4 파싱도 필요 없어 4MB 문서가 약 3ms 다(실측). 정상 HTML 9종에서
@@ -105,6 +123,25 @@ def precheck_html(raw: str) -> list[str]:
         reasons.append("iframe_srcdoc")
     if len(_ESCAPED_BLOCK_RE.findall(raw)) >= _ESCAPED_BLOCK_MIN:
         reasons.append("escaped_html")
+
+    # srcdoc/escape 검사는 수 ms 정규식 경로를 유지한다. DOM 검사는 관련 태그/클래스가
+    # 원문에 있을 때만 수행해 일반 HTML 의 auto 경로 비용을 최소화한다.
+    lower = raw.lower()
+    has_list_candidate = (
+        "<li" in lower
+        and ("<ul" in lower or "<ol" in lower)
+        and any(f"<{name}" in lower for name in _TRANSPARENT_LIST_WRAPPERS)
+    )
+    has_collapsible_candidate = (
+        any(hint in lower for hint in _COLLAPSIBLE_CONTENT_CLASS_HINTS)
+        and any(marker in lower for marker in ("display", "visibility", "opacity", "aria-hidden", " hidden"))
+    )
+    if has_list_candidate or has_collapsible_candidate:
+        soup = BeautifulSoup(raw, "html.parser")
+        if has_list_candidate and _has_wrapped_nested_list(soup):
+            reasons.append("wrapped_nested_list")
+        if has_collapsible_candidate and _has_hidden_collapsible_content(soup):
+            reasons.append("collapsed_content")
     return reasons
 
 
@@ -164,6 +201,88 @@ def _strip_hidden_markers(el: Tag) -> None:
         del el["style"]
 
 
+def _is_collapsible_content(el: Tag) -> bool:
+    """실제 문서 본문을 담는 아코디언/접힘 컨테이너인지 보수적으로 판정한다."""
+    classes = el.get("class") or []
+    if isinstance(classes, str):
+        classes = classes.split()
+    normalized = {str(cls).strip("\\\"'").lower() for cls in classes}
+    return any(
+        hint in cls
+        for cls in normalized
+        for hint in _COLLAPSIBLE_CONTENT_CLASS_HINTS
+    )
+
+
+def _has_hidden_marker(el: Tag) -> bool:
+    if el.has_attr("hidden"):
+        return True
+    aria_hidden = el.get("aria-hidden")
+    if isinstance(aria_hidden, str) and aria_hidden.strip().lower() in {"true", "1", "yes"}:
+        return True
+    style = el.get("style")
+    if not isinstance(style, str):
+        return False
+    return any(_HIDDEN_DECL_RE.match(decl) for decl in style.split(";") if decl.strip())
+
+
+def _has_hidden_collapsible_content(node: Tag) -> bool:
+    """숨겨진 아코디언 본문이 실제 텍스트/구조를 담고 있는지 확인한다."""
+    for el in node.find_all(True):
+        if not _is_collapsible_content(el) or not _has_hidden_marker(el):
+            continue
+        if el.get_text(" ", strip=True) or el.find(("table", "ul", "ol", "img")) is not None:
+            return True
+    return False
+
+
+def _transparent_wrapper_chain(sublist: Tag, owner: Tag) -> list[Tag] | None:
+    """sublist 와 소유 <li> 사이가 투명 컨테이너뿐이면 안쪽부터 그 체인을 반환한다."""
+    chain: list[Tag] = []
+    parent = sublist.parent
+    while parent is not owner:
+        if not isinstance(parent, Tag) or parent.name not in _TRANSPARENT_LIST_WRAPPERS:
+            return None
+        chain.append(parent)
+        parent = parent.parent
+    return chain
+
+
+def _has_wrapped_nested_list(node: Tag) -> bool:
+    """Docling 이 놓치는 `<li> ... wrapper ... <ul|ol>` 구조가 있는지 판정한다."""
+    for sublist in node.find_all(("ul", "ol")):
+        owner = sublist.find_parent("li")
+        if owner is None or sublist.parent is owner:
+            continue
+        if _transparent_wrapper_chain(sublist, owner) is not None:
+            return True
+    return False
+
+
+def _normalize_wrapped_nested_lists(node: Tag) -> int:
+    """감싸진 중첩 목록을 가장 가까운 `<li>`의 직접 자식으로 만든다.
+
+    목록 자체를 이동하면 wrapper 안의 앞/뒤 문장 순서가 바뀔 수 있다. 대신 사이의
+    레이아웃 컨테이너를 안쪽부터 unwrap 해 모든 자식의 DOM 순서를 그대로 보존한다.
+    의미 있는 태그가 하나라도 사이에 있으면 건드리지 않는다.
+    """
+    normalized = 0
+    for sublist in list(node.find_all(("ul", "ol"))):
+        owner = sublist.find_parent("li")
+        if owner is None or sublist.parent is owner:
+            continue
+        chain = _transparent_wrapper_chain(sublist, owner)
+        if chain is None:
+            continue
+        for wrapper in chain:
+            # 앞 목록 처리로 이미 풀린 공유 wrapper 는 부모가 없을 수 있다.
+            if wrapper.parent is not None:
+                wrapper.unwrap()
+        if sublist.parent is owner:
+            normalized += 1
+    return normalized
+
+
 def _lift_table_captions(node: Tag) -> None:
     """`<caption>` 을 표 앞의 `<p>` 로 옮긴다 — docling 은 caption 을 버린다."""
     for caption in node.find_all("caption"):
@@ -196,9 +315,15 @@ def _clean(node: Tag) -> None:
         if el.attrs is None:
             continue
         if el is not node and el.has_attr("hidden"):
-            el.decompose()
-            continue
+            # 접힌 약관/FAQ 본문은 hidden 이어도 적재해야 한다. 일반 hidden 요소는 기존
+            # 정책대로 제거해 메뉴·템플릿·반응형 중복 콘텐츠 유입을 막는다.
+            if _is_collapsible_content(el):
+                el.attrs.pop("hidden", None)
+            else:
+                el.decompose()
+                continue
         _strip_hidden_markers(el)
+    _normalize_wrapped_nested_lists(node)
     _lift_table_captions(node)
     # facebook 추적 픽셀 등 1x1 트래커 제거
     for img in node.find_all("img"):

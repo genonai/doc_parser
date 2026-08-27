@@ -1970,9 +1970,9 @@ class DocumentProcessor:
         self._page_desc_options = PageDescriptionOptions.from_config(ppt_pd_cfg, self._intel._config_dir)
         self._ppt_pdf_converter = None
 
-        # HTML flatten 전처리 모드. docling 은 <iframe srcdoc="..."> 속성 안의 본문을
-        # 읽지 못해 4MB 문서에서 641자만 추출되는 경우가 있다(monimo 크롤 산출물).
-        # auto: 원문 스캔으로 그런 구조적 결함이 감지될 때만 flatten(기본)
+        # HTML flatten 전처리 모드. docling 은 <iframe srcdoc="..."> 속성 안의 본문,
+        # 접힌 아코디언, <li>와 중첩 목록 사이에 div가 낀 구조를 누락할 수 있다.
+        # auto: 원문 스캔/DOM 사전검사로 그런 구조적 결함이 감지될 때만 flatten(기본)
         # always: 항상 flatten  |  off: 전처리 없음(기존 동작)
         html_cfg = _as_dict(formats_cfg.get("html"))
         self._html_flatten_mode = self._normalize_flatten_mode(html_cfg.get("flatten", "auto"))
@@ -2360,10 +2360,9 @@ class DocumentProcessor:
     def _prepare_html(self, file_path: str, work_dir: str) -> str:
         """필요 시 HTML 을 flatten 해 새 경로를 돌려준다. 불필요하면 원본 경로 그대로.
 
-        docling 의 HTML 백엔드는 `<iframe srcdoc="...">` 속성값 안의 본문을 읽지 못한다
-        (크롤 산출물 merged.html: 4MB → 641자, 표 0개). 원인이 '속성 안에 escape 된
-        본문'이라는 구조적 사실이라 임계값 없이 원문 스캔으로 판정 가능하고, 정상 HTML
-        에서는 오탐이 없어 기존 동작을 건드리지 않는다.
+        docling 의 HTML 백엔드가 읽지 못하는 iframe srcdoc/escape 본문과, 접힌
+        아코디언·wrapper 안의 중첩 목록을 사전검사한다. 결함이 감지된 문서만 정리해
+        정상 HTML 의 기존 파싱 경로는 유지한다.
         """
         if self._html_flatten_mode == "off":
             return file_path

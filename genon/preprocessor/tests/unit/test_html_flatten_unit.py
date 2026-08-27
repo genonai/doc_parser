@@ -9,6 +9,9 @@
    그래서 monimo 카드의 혜택 텍스트("대중교통·택시·전기차 충전요금 10% 결제일할인" 등,
    custom_field_card.yaml 의 benefit_text 대상)가 소실됐다. 회귀 방지용 고정 테스트다.
 """
+from io import BytesIO
+from pathlib import Path
+
 import pytest
 
 from genon.preprocessor.converters.html_flatten import (
@@ -22,6 +25,9 @@ from genon.preprocessor.converters.html_flatten import (
 )
 
 pytestmark = pytest.mark.unit
+
+_FIXTURES = Path(__file__).resolve().parents[1] / "fixtures" / "html"
+_WRAPPED_ACCORDION = _FIXTURES / "accordion_wrapped_nested_list.html"
 
 
 # ── precheck ────────────────────────────────────────────────────────────────
@@ -45,6 +51,21 @@ def test_precheck_ignores_few_escaped_samples():
 
 def test_precheck_clean_document_has_no_reasons():
     raw = "<html><body><h1>제목</h1><p>본문</p><table><tr><td>1</td></tr></table></body></html>"
+    assert precheck_html(raw) == []
+
+
+def test_precheck_detects_wrapped_nested_list_and_collapsed_content():
+    raw = _WRAPPED_ACCORDION.read_text(encoding="utf-8")
+    reasons = precheck_html(raw)
+    assert "wrapped_nested_list" in reasons
+    assert "collapsed_content" in reasons
+
+
+def test_precheck_does_not_trigger_for_direct_nested_list_or_generic_hidden_ui():
+    raw = (
+        '<html><body><div style="display:none">로딩 중</div>'
+        "<ul><li>항목<ul><li>정상 중첩</li></ul></li></ul></body></html>"
+    )
     assert precheck_html(raw) == []
 
 
@@ -86,6 +107,17 @@ def test_extract_content_drops_hidden_attribute():
     text = extract_content(raw).get_text()
     assert "숨김" not in text
     assert "보임" in text
+
+
+def test_extract_content_unhides_hidden_accordion_body():
+    raw = (
+        '<html><body><main><div class="ui_accord_content" hidden>'
+        "<p>접힌 FAQ 본문</p></div></main></body></html>"
+    )
+    assert "collapsed_content" in precheck_html(raw)
+    node = extract_content(raw)
+    assert not node.find("div").has_attr("hidden")
+    assert "접힌 FAQ 본문" in node.get_text()
 
 
 def test_extract_content_strips_hidden_markers_not_content():
@@ -136,6 +168,33 @@ def test_extract_content_strips_hidden_marker_on_root_node():
     node = extract_content(raw)
     assert not node.has_attr("aria-hidden")
     assert "본문" in node.get_text()
+
+
+def test_extract_content_normalizes_wrapped_nested_lists_without_text_loss():
+    raw = _WRAPPED_ACCORDION.read_text(encoding="utf-8")
+    node = extract_content(raw)
+    html = str(node)
+
+    assert "display:none" not in html.replace(" ", "")
+    for sublist in node.find_all(("ul", "ol")):
+        owner = sublist.find_parent("li")
+        if owner is not None:
+            assert sublist.parent is owner
+
+    for expected in (
+        "전자티켓 수령을 위해 등록한 이메일 확인 필요",
+        "대상카드로 결제하지 않을 시 예약은 취소될 수 있음",
+        "연체이자율은 회원별·이용상품별 정상 이자율에 3%p를 더해 적용",
+        "신용카드 발급이 부적정한 경우 카드 발급이 제한될 수 있음",
+    ):
+        assert expected in node.get_text(" ", strip=True)
+
+
+def test_extract_content_keeps_meaningful_wrapper_between_li_and_list():
+    raw = "<html><body><ul><li>항목<blockquote><ul><li>인용 목록</li></ul></blockquote></li></ul></body></html>"
+    node = extract_content(raw)
+    sublist = node.find("blockquote").find("ul")
+    assert sublist.parent.name == "blockquote"
 
 
 def test_extract_content_lifts_table_caption_before_table():
@@ -236,6 +295,37 @@ def test_flatten_html_single_page_without_srcdoc():
     out = flatten_html(raw)
     assert "본문" in out
     assert "<h1>T</h1>" in out
+
+
+def test_problem_fixture_recovers_missing_text_in_real_docling_parse():
+    """캡처와 같은 li > div > ul 및 display:none 조합의 실제 Docling 회귀 테스트."""
+    from docling.datamodel.base_models import DocumentStream
+    from docling.document_converter import DocumentConverter
+
+    raw = _WRAPPED_ACCORDION.read_text(encoding="utf-8")
+    converter = DocumentConverter()
+
+    def parse(html: str, name: str) -> str:
+        stream = DocumentStream(name=name, stream=BytesIO(html.encode("utf-8")))
+        return converter.convert(stream, raises_on_error=True).document.export_to_text()
+
+    raw_text = parse(raw, "accordion_raw.html")
+    parsed_text = parse(flatten_html(raw, reasons=precheck_html(raw)), "accordion_flat.html")
+
+    # 전처리 전에는 Docling 의 목록 직접 자식 제약과 숨김 판정으로 상세가 누락된다.
+    assert "전자티켓 수령을 위해 등록한 이메일 확인 필요" not in raw_text
+    assert "연체이자율은 회원별·이용상품별 정상 이자율에 3%p를 더해 적용" not in raw_text
+
+    # 전처리 후에는 접힌/펼친 두 아코디언의 중첩 목록이 모두 살아난다.
+    for expected in (
+        "전자티켓 수령을 위해 등록한 이메일 확인 필요",
+        "대상카드로 결제하지 않을 시 예약은 취소될 수 있음",
+        "혜택은 아이디당 1회 제공",
+        "연체이자율은 회원별·이용상품별 정상 이자율에 3%p를 더해 적용",
+        "신용카드 발급이 부적정한 경우 카드 발급이 제한될 수 있음",
+        "결제 기간 원리금을 연체할 경우 모든 원리금을 변제할 의무가 발생할 수 있음",
+    ):
+        assert expected in parsed_text
 
 
 def test_flatten_html_decodes_whole_document_escaped_html():
