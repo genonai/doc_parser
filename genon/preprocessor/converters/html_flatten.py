@@ -47,15 +47,50 @@
 `<caption>` 도 docling 이 버리므로("라이트할부 기간동안 추가 결제 안내입니다." 같은 표 설명),
 표 앞의 문단으로 옮겨 살린다.
 
+## 마커만으로 계층을 표현한 문서
+
+모니모 고객센터 카드 HTML(doc_type=cs_hpp)은 `<h1>` 하나만 갖고 화면상 섹션 계층을
+◈/▣/■ 같은 도형 마커 문자로만 표현한다(예: `◈ 시행일자`/`◈ 대상카드`/`◈ 기본내용`
+같은 상위 구획, `▣ 네이버페이 간편결제 이용방법` 같은 중간 구획, `<td>` 안의
+`■ 카드 등록방법 및 화면` 같은 하위 구획). 마크업은 전부 `<p>` 또는 `<td><p>` 다.
+docling HTML 백엔드는 `SECTION_HEADER` 를 `_handle_heading`(h1~h6 전용,
+`docling/backend/html_backend.py:2075-2136`) 한 곳에서만 만들고 h1~h6 외
+heading 승격 휴리스틱이 전무해서, 이런 문서는 `SectionHeaderItem` 이 0개가 된다.
+실측 — 운영 산출 청크 6개 전부 접두어가 `HEADER: [AI 에이전트용]`로 동일하고
+(n_char 683~1326), 청크 경계는 ◈/▣ 마커와 무관하게 chunk_size 로만 절단된다.
+
+`docling/backend/genos_hwp_backend.py`(상수 `:77-118`, 판정 `:211-269`)에 이미
+마커 기반 heading 승격이 있다. `_SENTENCE_FINAL`/`_HEADING_MAX_LEN` 은 그 값과
+정규식을 그대로 복사했다 — 다만 그 모듈은 import 하지 않는다. 임포트 시점에
+`os.environ["PATH"]`/`LD_LIBRARY_PATH` 를 변조하고 SDK 부재 경고를 찍기 때문이다
+(`genos_hwp_backend.py:60-70`).
+
+hwp 의 "약한 마커 AND 강조(bold/큰폰트)" 규칙(`genos_hwp_backend.py:264-266`)은
+이식하지 않는다. 캡쳐 실측에서 `- 2015년 6월 25일` 은 `-` 마커 + 100% bold +
+20자 + 명사 종결이라 강등 조건 어디에도 안 걸려 오승격된다. 게다가 이 문서
+계열은 인라인 `font-size` 가 실측 27건 중 26건이 `revert` 라 baseline 계산이
+불가능하고, `<b>`/`<strong>`/`font-weight` 는 0건이다
+(`sample_files/monimo/.INC_235488_02_20260626103138.html`). 그래서 강조 신호는
+쓰지 않고, 대신 좁힌 도형 마커 화이트리스트 + 문서단위 구조 게이트로 대체한다
+(아래 `_MARKER_*` 상수와 `promote_marker_headings`).
+
+이 승격은 srcdoc 이 없는 단일 페이지 HTML 에만 걸린다는 한계가 있다. srcdoc 로
+합쳐진 merged 문서는 본문이 속성값 안에 escape 되어 있어 원문 스캔(precheck)이
+마커를 보지 못하고, 애초에 페이지 라벨 h2 를 이미 갖고 있어 기존 하위 heading
+개수 게이트에서 대상 밖으로 걸러진다.
+
 의존성: beautifulsoup4 (docling 이 자체 HTML 백엔드에서 쓰므로 전이 확보) + 표준 라이브러리.
 """
 from __future__ import annotations
 
 import html
+import logging
 import re
 
 from bs4 import BeautifulSoup
 from bs4.element import Tag
+
+_log = logging.getLogger(__name__)
 
 # 콘텐츠 영역 우선순위 셀렉터. 첫 매치를 본문으로 쓰고, 없으면 body 전체로 폴백한다.
 #  - main             : 카드 상세 full-page 스냅샷. gnb/footer 제외.
@@ -110,13 +145,79 @@ _ESCAPED_BLOCK_RE = re.compile(r"&lt;\s*(?:div|p|table|section|h[1-6])\b", re.I)
 # 보여주는 것과, 본문 전체가 escape 된 것을 구분한다.
 _ESCAPED_BLOCK_MIN = 10
 
+# ── 마커 기반 heading 승격 ──────────────────────────────────────────────────
+# 모듈 docstring "마커만으로 계층을 표현한 문서" 절 참고. hwp 선례
+# (docling/backend/genos_hwp_backend.py, import 는 하지 않는다)에서 값을 그대로
+# 가져온 상수는 각각 표기했다.
 
-def precheck_html(raw: str) -> list[str]:
+# 소제목으로 승격할 도형 마커 화이트리스트. hwp `_HEADING_WEAK_MARKER`
+# (genos_hwp_backend.py:105-109) 집합에서 글머리표·주석 마커(- · • * ∙ ◦ ※ →
+# ①-⑳, 가., (1))를 뺐다. 캡쳐 실측 — 소제목은 예외 없이 ◈/▣/■로 시작하고
+# 본문은 예외 없이 -/※/→로 시작한다(오탐·미탐 0). bold 는 양쪽에 섞여 있어
+# 판별 신호로 쓸 수 없다. ●/○/▶는 이 문서엔 없지만 한국 기업문서 소제목으로
+# 흔해 포함했고, 본문 포인터로 이 문자를 쓰는 문서의 오탐은 아래 문서단위
+# 게이트(_MARKER_MAX_EXISTING_SUBHEADINGS, _MARKER_HEADING_MIN)와 강등 규칙
+# (_SENTENCE_FINAL, _HEADING_MAX_LEN)이 막는다.
+_MARKER_CHARS = "◈◆◇▣■□❏●○▶▷"
+
+_SUBHEADING_TAG_RE = re.compile(r"<h[2-6][\s>/]", re.I)
+
+# 이미 하위 heading 으로 계층을 표현한 문서는 승격 대상이 아니다. 실측 —
+# 문제 문서(모니모 cs_hpp)는 h1 1개 + h2 0~1개뿐이고, 기존 픽스처는
+# monimo_cs_hpp_sample.html h2×4 / monimo_cs_hpp_chunksize_sample.html h2×6
+# 이라 이 게이트 하나로 갈린다. 표 안 h태그까지 세는 보수적 상한이다(원문
+# 전체 개수가 이 상한을 통과했다면, 그 부분집합인 표 밖 개수도 상한 이하다).
+_MARKER_MAX_EXISTING_SUBHEADINGS = 1
+
+# 1~2개면 마커를 장식으로 쓴 문서와 구분할 수 없고, 헤더 1개는 섹션 경계를
+# 하나도 만들지 못해 승격해도 이득이 없다. 실측 — 캡쳐 문서의 표 밖 후보는
+# ◈ 4개(시행일자·대상카드·기본내용·예상Q&A) + ▣ 3개(간편결제 이용방법·서비스
+# 등록방법 및 화면·참고사항) = 7개다.
+_MARKER_HEADING_MIN = 3
+
+# 마커 뒤 공백을 필수로 둔다 — `■■■` 같은 구분선 장식과 `◈결제` 같은 본문
+# 강조 표기를 배제한다.
+_MARKER_HEADING_RE = re.compile(rf"^([{_MARKER_CHARS}])\s+(\S.*)$", re.S)
+
+_MARKER_TITLE_MIN_LEN = 2
+
+# hwp 선례(genos_hwp_backend.py:112)와 동일한 값·정규식. 한국어 서술형 본문은
+# 종결형 '다./함/음/됨/임' 또는 의문형 '까?'로 끝나는 경우가 많고, 제목은
+# 보통 명사로 끝난다.
+_SENTENCE_FINAL = re.compile(r"(?:다|함|음|됨|임)[.)\]」』】〉]?\s*$|까[?]\s*$")
+
+# hwp 선례(genos_hwp_backend.py:114)와 동일한 값. 마커가 있어도 이 길이를
+# 넘으면 제목이 아니라 본문으로 본다.
+_HEADING_MAX_LEN = 80
+
+_PROMOTABLE_TAGS = frozenset({"p", "div"})  # li 는 승격하면 목록 구조가 깨지므로 제외
+_BLOCK_CHILD_TAGS = ("p", "div", "table", "ul", "ol", "li", "br",
+                     "h1", "h2", "h3", "h4", "h5", "h6", "section", "article")
+
+# build_docling_document(:354-371 부근)가 h1(문서 title) + h2(섹션 라벨)를
+# 이미 주입하므로, 마커 heading 은 h3 부터 써야 주입된 레벨과 충돌하지 않는다.
+_MARKER_HEADING_BASE_LEVEL = 3
+_MARKER_HEADING_MAX_LEVEL = 6
+
+
+def precheck_html(raw: str, *, detect_marker_headings: bool = False) -> list[str]:
     """flatten 이 고칠 수 있는 구조적 결함의 사유 목록. 비어 있으면 그대로 파싱 가능.
 
     주의: 여기서 잡는 건 'flatten 으로 복구 가능한' 결함뿐이다. SPA 가 본문을
     `<script type="application/json">` 하이드레이션 페이로드에만 담은 경우는 잡히지
     않지만, 그건 flatten 으로도 복구되지 않는다(호출측에서 경고만 남긴다).
+
+    `detect_marker_headings` 는 opt-in 이고 기본값은 False 다. 이게 핵심이다 —
+    기존 호출부와 테스트(tests/unit/test_html_flatten_unit.py) 계약이 그대로
+    유지되고, facade/enrichment/json_records.py:309-318 의 extract_content
+    경로와 다른 doc_type 의 auto 모드 동작이 이 인자로 전혀 바뀌지 않는다.
+    모니모 cs_hpp 처럼 마커 승격을 원하는 호출측만 명시적으로 켠다.
+
+    한계: 이 함수는 원문 DOM(전처리 전)을 본다. `iframe srcdoc` 로 합쳐진 merged
+    문서는 마커 후보가 속성값 안에 escape 되어 있어 여기서 보이지 않으므로
+    "marker_headings" 사유가 뜨지 않는다. 그 문서들은 이미 페이지 라벨 h2 를
+    갖고 있어 애초에 _MARKER_MAX_EXISTING_SUBHEADINGS 게이트에서 탈락하므로
+    동작은 일관된다 — 즉 승격은 실질적으로 단일 페이지 HTML 에만 걸린다.
     """
     reasons: list[str] = []
     if _SRCDOC_RE.search(raw):
@@ -136,12 +237,23 @@ def precheck_html(raw: str) -> list[str]:
         any(hint in lower for hint in _COLLAPSIBLE_CONTENT_CLASS_HINTS)
         and any(marker in lower for marker in ("display", "visibility", "opacity", "aria-hidden", " hidden"))
     )
-    if has_list_candidate or has_collapsible_candidate:
+    # 문서 전체가 이미 하위 heading 으로 계층을 표현했다면(_MARKER_MAX_EXISTING_
+    # SUBHEADINGS 초과) 마커 승격 대상이 아니므로 bs4 파싱까지 가지 않는다.
+    has_marker_candidate = (
+        detect_marker_headings
+        and any(ch in raw for ch in _MARKER_CHARS)
+        and len(_SUBHEADING_TAG_RE.findall(raw)) <= _MARKER_MAX_EXISTING_SUBHEADINGS
+    )
+    if has_list_candidate or has_collapsible_candidate or has_marker_candidate:
         soup = BeautifulSoup(raw, "html.parser")
         if has_list_candidate and _has_wrapped_nested_list(soup):
             reasons.append("wrapped_nested_list")
         if has_collapsible_candidate and _has_hidden_collapsible_content(soup):
             reasons.append("collapsed_content")
+        if has_marker_candidate and len(_marker_heading_candidates(soup)) >= _MARKER_HEADING_MIN:
+            # promote_marker_headings 와 같은 스캐너(_marker_heading_candidates)를
+            # 공유한다 — "사유는 떴는데 승격은 0건"인 드리프트를 원천 차단한다.
+            reasons.append("marker_headings")
     return reasons
 
 
@@ -296,6 +408,99 @@ def _lift_table_captions(node: Tag) -> None:
         table.insert_before(para)
 
 
+def _marker_heading_candidates(node: Tag) -> list[tuple[Tag, str]]:
+    """"마커 + 짧은 제목" 한 줄짜리 블록을 문서 순서로 찾는다.
+
+    모듈 docstring "마커만으로 계층을 표현한 문서" 절 참고. 반환은
+    (요소, 마커 문자) 쌍의 목록이며, 아래 조건을 모두 만족해야 후보가 된다.
+
+    `_lift_table_captions` 가 표 앞에 만든 `<p>`(표 설명)는 여기서 함께
+    걸러진다 — 캡션은 도형 마커로 시작하지 않아 정규식 매치(조건 4) 단계에서
+    이미 배제되므로 실질 위험은 없지만, 표 안 여부(조건 2)도 이중으로 막는다.
+    """
+    candidates: list[tuple[Tag, str]] = []
+    for el in node.find_all(True):
+        if el.name not in _PROMOTABLE_TAGS:
+            continue  # li 는 목록 구조가 깨지므로 제외
+        if el.find_parent("table") is not None:
+            # 표 안 heading 은 두 가지 이유로 제외한다.
+            # (a) docling 의 clean_headers(html_backend.py:534-548)가
+            #     find_parent("table") heading 을 furniture 규칙에서 빼버린다.
+            # (b) 실측 — <td> 안 heading 은 SectionHeaderItem 을 만들되 자기
+            #     TableItem 뒤에 배치되어(document.py:5999-6031 의 자식 순회가
+            #     PictureItem 만 가드) 표가 직전 섹션에 귀속되고 셀 텍스트가
+            #     표 마크다운과 중복된다. 청커가 _is_section_header 로 섹션을
+            #     끊어 표가 셀 중간에서 쪼개져 "완전한 표 조각" 불변식
+            #     (커밋 a6e4241c, tests/unit/test_doc_type_chunk_size.py:186-217)
+            #     이 깨진다.
+            continue
+        if el.find(_BLOCK_CHILD_TAGS) is not None:
+            # 인라인 <b>/<span>/<a>/<em> 자식은 허용한다 — 스마트에디터가
+            # 제목 문단을 이런 인라인 태그로 감싸는 경우가 흔하다.
+            continue
+        text = el.get_text(" ", strip=True)
+        match = _MARKER_HEADING_RE.match(text)
+        if not match:
+            continue
+        if len(text) > _HEADING_MAX_LEN:
+            continue
+        if _SENTENCE_FINAL.search(text):
+            continue  # 서술형 본문 문장 — 제목이 아니다
+        marker, title = match.group(1), match.group(2)
+        if len(title.strip()) < _MARKER_TITLE_MIN_LEN:
+            continue
+        candidates.append((el, marker))
+    return candidates
+
+
+def _marker_levels(markers: list[str]) -> dict[str, int]:
+    """마커 문자별 heading 레벨을 문서 내 첫 등장 순서로 배정한다.
+
+    개요 문서는 하위 항목보다 상위 항목을 반드시 먼저 소개하므로, 첫 등장
+    순서가 곧 깊이 순서라고 본다. 마커 문자 → 레벨을 하드코딩한 목록은
+    마커 사이의 깊이 서열(예: ◈ 가 ▣ 보다 위인지)에 측정 근거가 없어 채택하지
+    않았다.
+    """
+    levels: dict[str, int] = {}
+    next_level = _MARKER_HEADING_BASE_LEVEL
+    for marker in markers:
+        if marker in levels:
+            continue
+        levels[marker] = min(next_level, _MARKER_HEADING_MAX_LEVEL)
+        next_level += 1
+    return levels
+
+
+def promote_marker_headings(node: Tag) -> int:
+    """마커로 시작하는 단락을 heading 태그로 제자리 승격한다.
+
+    자식·속성·문서 순서는 그대로 두고 태그 이름만 `h{level}` 로 바꾼다(rename).
+    승격 대상은 `_marker_heading_candidates`, 레벨 배정은 `_marker_levels` 를
+    그대로 쓴다 — precheck_html 의 사유 판정과 같은 스캐너를 공유해 "사유는
+    떴는데 승격은 0건"인 드리프트를 막는다.
+
+    마커 문자는 텍스트에서 제거하지 않는다 — 저자가 쓴 라벨이고, 청커
+    breadcrumb 이 쓰는 값이 item.orig(facade/chunking_processor.py:583)라
+    "HEADER: [AI 에이전트용] > ◈ 기본내용 > ▣ 네이버페이 서비스 등록방법 및
+    화면"처럼 원문 그대로 읽힌다.
+
+    반환값은 승격 건수다(0 이면 이 노드엔 대상이 없었다는 뜻).
+    """
+    candidates = _marker_heading_candidates(node)
+    if not candidates:
+        return 0
+    levels = _marker_levels([marker for _el, marker in candidates])
+    for el, marker in candidates:
+        el.name = f"h{levels[marker]}"
+    # 배정 결과는 여기서 남긴다 — 레벨이 문서 내 등장 순서로 정해지므로, 산출물만
+    # 보고는 왜 그 레벨이 됐는지 알 수 없다. 호출측에서 따로 스캔해 찍으면 노드마다
+    # 독립 배정되는 실제 결과와 어긋날 수 있어(섹션이 여러 개인 경우) 승격과 같은
+    # 자리에서 찍는다.
+    mapping = ", ".join(f"{marker}→h{level}" for marker, level in levels.items())
+    _log.info("[html_flatten] marker_headings: %s (승격 %d건)", mapping, len(candidates))
+    return len(candidates)
+
+
 def _clean(node: Tag) -> None:
     """콘텐츠 노드에서 노이즈를 제거한다.
 
@@ -357,14 +562,27 @@ def build_docling_document(title: str, sections: list[tuple[str, Tag]]) -> str:
     docling HTML 백엔드는 첫 non-table heading 부터 본문 레이어(BODY)를 켜므로
     (`docling/backend/html_backend.py` convert() 의 furniture 규칙), 각 페이지를
     <h2> 로 시작시켜 본문이 확실히 BODY 로 분류되게 한다.
+
+    단일 페이지 경로는 섹션 라벨이 문서 제목과 같은 값이라(`flatten_html` 의 else
+    분기), 그 <h2> 가 바로 위 <h1> 과 같은 문자열을 한 번 더 넣는다. 실측 — 청커
+    breadcrumb 이 `제목 > 제목 | 원문제목 > ◈ 시행일자` 처럼 같은 이름을 두 번
+    거치는 첫 청크를 만든다. 라벨이 제목과 같은 한 섹션짜리 문서에서는 <h2> 를
+    생략한다. 이미 주입한 <h1> 이 첫 non-table heading 이므로 BODY 전환 보장은
+    그대로다. `label` 이 비어 있지 않을 것을 조건에 넣어, 라벨과 제목을 모두 빈
+    문자열로 넘기는 `facade/enrichment/json_records.py` 경로는 건드리지 않는다.
     """
     parts = [
         '<!doctype html><html lang="ko"><head><meta charset="utf-8">',
         f"<title>{html.escape(title)}</title></head><body>",
         f"<h1>{html.escape(title)}</h1>",
     ]
+    skip_label = (
+        len(sections) == 1
+        and bool(sections[0][0].strip())
+        and sections[0][0].strip() == title.strip()
+    )
     for label, node in sections:
-        parts.append(f"<section><h2>{html.escape(label)}</h2>")
+        parts.append("<section>" if skip_label else f"<section><h2>{html.escape(label)}</h2>")
         parts.append(str(node))
         parts.append("</section>")
     parts.append("</body></html>")
@@ -423,7 +641,12 @@ def document_title(raw: str, fallback: str = "") -> str:
     return text or fallback
 
 
-def flatten_html(raw: str, title: str = "", reasons: list[str] | None = None) -> str:
+def flatten_html(
+    raw: str,
+    title: str = "",
+    reasons: list[str] | None = None,
+    marker_headings: bool = False,
+) -> str:
     """srcdoc 형태의 HTML 을 펼쳐 docling 이 읽을 수 있는 단일 클린 문서로 만든다.
 
     srcdoc 섹션이 없으면(= 단일 페이지 HTML) 그 페이지 자체를 정리해 한 섹션짜리
@@ -431,8 +654,19 @@ def flatten_html(raw: str, title: str = "", reasons: list[str] | None = None) ->
 
     `reasons` 는 호출측이 이미 계산해 둔 precheck_html 결과다. 넘기지 않으면 내부에서
     계산한다 — 대용량 문서를 정규식으로 한 번 더 전수 스캔하지 않기 위한 선택 인자.
+    이 계산은 함수 선두에서 한다(예전엔 else 분기에서만 계산해 srcdoc 섹션이 있는
+    `always` 모드 호출에서 marker_headings 게이트가 항상 죽어 있었다). `_prepare_html`
+    이 항상 `reasons` 를 미리 계산해 넘기므로, 실사용 경로에서 재스캔 비용이
+    늘어나는 건 아니다 — 지연 계산이라는 기존 설계 의도는 그대로 유지된다.
+
+    `marker_headings=True` 면 srcdoc 을 펼친 각 섹션 노드에 대해
+    `promote_marker_headings` 를 적용한다. `reasons` 에 "marker_headings" 가
+    없으면(대상 문서가 아니거나 호출측이 넘긴 reasons 에 빠져 있으면) 아무 것도
+    하지 않는다 — 판정은 precheck_html 쪽 게이트가 전담한다.
     """
     doc_title = title or document_title(raw, "document")
+    if reasons is None:
+        reasons = precheck_html(raw, detect_marker_headings=marker_headings)
     pages = iter_srcdoc_sections(raw)
     if pages:
         # srcdoc 섹션은 iter_srcdoc_sections 가 이미 unescape 했다(중복 적용 금지).
@@ -440,8 +674,9 @@ def flatten_html(raw: str, title: str = "", reasons: list[str] | None = None) ->
     else:
         # iframe 없이 본문 전체가 escape 된 경우. 여기서 풀지 않으면 bs4 가
         # `&lt;table&gt;` 을 텍스트 노드로 읽어 표/헤딩 구조가 통째로 사라진다.
-        if reasons is None:
-            reasons = precheck_html(raw)
         source = _fully_unescape(raw) if "escaped_html" in reasons else raw
         sections = [(doc_title, extract_content(source))]
+    if "marker_headings" in reasons:
+        for _label, node in sections:
+            promote_marker_headings(node)  # 배정 로그는 그 함수가 남긴다
     return build_docling_document(doc_title, sections)

@@ -120,6 +120,7 @@ try:
     from genon.preprocessor.facade.enrichment.markdown_front_matter import (
         build_markdown_front_matter_specs,
         build_markdown_text_fence_specs,
+        build_html_marker_heading_doc_types,
     )
 except ImportError:
     build_document_custom_fields_enrichers = None  # type: ignore[assignment]
@@ -128,6 +129,7 @@ except ImportError:
     build_semantic_json_mappers = None  # type: ignore[assignment]
     build_markdown_front_matter_specs = None  # type: ignore[assignment]
     build_markdown_text_fence_specs = None  # type: ignore[assignment]
+    build_html_marker_heading_doc_types = None  # type: ignore[assignment]
 
     def normalize_doc_type(value):  # type: ignore[no-redef]
         return str(value or "").strip().lower()
@@ -1994,6 +1996,13 @@ class DocumentProcessor:
             self._intel.custom_fields_cfgs
         )
 
+        # 문서 단위 custom_fields 의 html.marker_headings 설정. h태그 없이 도형 마커로만 계층을
+        # 표현하는 원천(고객센터 카드 HTML)에서 그 마커 줄을 섹션 헤더로 승격한다. 대상 doc_type
+        # 이 아니면 사유 계산 자체를 켜지 않아 다른 원천의 flatten auto 동작을 건드리지 않는다.
+        self._html_marker_heading_doc_types = self._build_html_marker_heading_doc_types(
+            self._intel.custom_fields_cfgs
+        )
+
         # enrichment.custom_fields 중 extractor=json_mapping 설정(= JSON 레코드 → 목표필드
         # 매핑). 문서 모드(json:)보다 우선하며, 레코드마다 청크 메타데이터를 따로 싣는다.
         self._json_records_mappers = self._build_json_records_mappers(self._intel.custom_fields_cfgs)
@@ -2074,6 +2083,17 @@ class DocumentProcessor:
             ) from exc
 
     @staticmethod
+    def _build_html_marker_heading_doc_types(custom_fields_cfgs: list) -> frozenset:
+        if build_html_marker_heading_doc_types is None:
+            return frozenset()
+        try:
+            return build_html_marker_heading_doc_types(custom_fields_cfgs)
+        except (ValueError, TypeError, FileNotFoundError) as exc:
+            raise GenosServiceException(
+                "1", f"custom_fields html 설정 오류: {exc}", stage="custom_fields"
+            ) from exc
+
+    @staticmethod
     def _build_tabular_custom_fields_mappers(custom_fields_cfgs: list) -> list:
         """custom_fields 설정 중 extractor=tabular_mapping 만 매퍼로 만든다.
 
@@ -2151,6 +2171,10 @@ class DocumentProcessor:
             runtime_doc_type,
             "markdown.text_fence",
         )
+
+    def _html_marker_headings_enabled(self, runtime_doc_type: Any) -> bool:
+        """런타임 doc_type 이 마커 승격 대상인지."""
+        return normalize_doc_type(runtime_doc_type) in self._html_marker_heading_doc_types
 
     @staticmethod
     def _single_json_match(matching: list, runtime_doc_type: Any, label: str):
@@ -2357,12 +2381,15 @@ class DocumentProcessor:
             ) from exc
         return str(out_path), context
 
-    def _prepare_html(self, file_path: str, work_dir: str) -> str:
+    def _prepare_html(self, file_path: str, work_dir: str, marker_headings: bool = False) -> str:
         """필요 시 HTML 을 flatten 해 새 경로를 돌려준다. 불필요하면 원본 경로 그대로.
 
         docling 의 HTML 백엔드가 읽지 못하는 iframe srcdoc/escape 본문과, 접힌
         아코디언·wrapper 안의 중첩 목록을 사전검사한다. 결함이 감지된 문서만 정리해
         정상 HTML 의 기존 파싱 경로는 유지한다.
+
+        ``marker_headings`` 는 대상 doc_type 일 때만 True 다 — 그때만 도형 마커 소제목을
+        섹션 헤더로 승격하는 사유를 계산·적용한다.
         """
         if self._html_flatten_mode == "off":
             return file_path
@@ -2375,14 +2402,14 @@ class DocumentProcessor:
             _log.warning(f"[parser] html flatten 사전검사 실패(원본으로 진행): {exc}")
             return file_path
 
-        reasons = html_flatten.precheck_html(raw)
+        reasons = html_flatten.precheck_html(raw, detect_marker_headings=marker_headings)
         if self._html_flatten_mode == "auto" and not reasons:
             return file_path
 
         stem = Path(file_path).stem
         try:
             flattened = html_flatten.flatten_html(
-                raw, html_flatten.document_title(raw, stem), reasons
+                raw, html_flatten.document_title(raw, stem), reasons, marker_headings=marker_headings
             )
         except Exception as exc:
             # 전처리 실패가 파싱 자체를 막지 않도록 원본으로 폴백한다.
@@ -3195,7 +3222,10 @@ class DocumentProcessor:
                     # html 은 flatten 전처리를 거칠 수 있다(srcdoc 등). 파생 임시 파일은
                     # 파싱 후 정리하고, artifacts 경로는 원본 기준으로 유지한다.
                     with tempfile.TemporaryDirectory(prefix="parser_html_") as work_dir:
-                        parse_path = self._prepare_html(file_path, work_dir)
+                        parse_path = self._prepare_html(
+                            file_path, work_dir,
+                            marker_headings=self._html_marker_headings_enabled(kwargs.get("doc_type")),
+                        )
                         doc = self._parse_docling(
                             parse_path,
                             artifacts_from=file_path if parse_path != file_path else None,

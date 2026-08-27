@@ -398,6 +398,44 @@ def _merge_config(base: dict, override: dict) -> dict:
     return merged
 
 
+def resolve_format_cfg(config: dict, block: str) -> dict | None:
+    """custom_fields 항목 하나의 유효 ``<block>`` 설정을 해석한다.
+
+    ``config_file`` 의 해당 블록이 기본값이고, 상위 custom_fields 항목에 같은 키가 있으면
+    재귀적으로 덮어쓴다. 상위 ``<block>: false`` 는 하위 설정을 명시적으로 비활성화한다.
+    ``markdown`` 과 ``html`` 이 같은 해석 규칙을 공유한다.
+
+    대상이 아니면(문서 단위 extractor 아님/비활성) None.
+    """
+    inline_present = block in config
+    inline_block = config.get(block)
+
+    # 상위 설정에 잘못 배치한 블록은 하위 파일 로드 전에 명확히 잡는다.
+    if (
+        inline_present
+        and inline_block not in (None, False)
+        and custom_fields_extractor(config) not in DOCUMENT_CUSTOM_FIELD_EXTRACTORS
+    ):
+        raise ValueError(f"custom_fields.{block}은 문서 단위 extractor에서만 지원합니다.")
+
+    if custom_fields_extractor(config) not in DOCUMENT_CUSTOM_FIELD_EXTRACTORS:
+        return None
+
+    child_cfg = load_custom_fields_config(
+        str(config.get("config_file") or ""),
+        str(config.get("resource_path") or "") or None,
+    )
+    child_block = child_cfg.get(block)
+    child_block = child_block if isinstance(child_block, dict) else {}
+
+    if inline_present and inline_block in (None, False):
+        return None
+    if inline_present and not isinstance(inline_block, dict):
+        raise ValueError(f"custom_fields.{block}은 object 또는 false여야 합니다.")
+
+    return _merge_config(child_block, inline_block or {})
+
+
 def resolve_markdown_cfg(config: dict) -> dict | None:
     """custom_fields 항목 하나의 유효 ``markdown`` 블록을 해석한다.
 
@@ -407,33 +445,7 @@ def resolve_markdown_cfg(config: dict) -> dict | None:
 
     ``markdown`` 하위 블록(front_matter · text_fence)의 빌더들이 공유한다.
     """
-    inline_present = "markdown" in config
-    inline_markdown = config.get("markdown")
-
-    # 상위 설정에 잘못 배치한 markdown 블록은 하위 파일 로드 전에 명확히 잡는다.
-    if (
-        inline_present
-        and inline_markdown not in (None, False)
-        and custom_fields_extractor(config) not in DOCUMENT_CUSTOM_FIELD_EXTRACTORS
-    ):
-        raise ValueError("custom_fields.markdown은 문서 단위 extractor에서만 지원합니다.")
-
-    if custom_fields_extractor(config) not in DOCUMENT_CUSTOM_FIELD_EXTRACTORS:
-        return None
-
-    child_cfg = load_custom_fields_config(
-        str(config.get("config_file") or ""),
-        str(config.get("resource_path") or "") or None,
-    )
-    child_markdown = child_cfg.get("markdown")
-    child_markdown = child_markdown if isinstance(child_markdown, dict) else {}
-
-    if inline_present and inline_markdown in (None, False):
-        return None
-    if inline_present and not isinstance(inline_markdown, dict):
-        raise ValueError("custom_fields.markdown은 object 또는 false여야 합니다.")
-
-    return _merge_config(child_markdown, inline_markdown or {})
+    return resolve_format_cfg(config, "markdown")
 
 
 def build_markdown_front_matter_specs(configs: list[dict]) -> list[MarkdownFrontMatterSpec]:
@@ -478,3 +490,26 @@ def build_markdown_text_fence_specs(configs: list[dict]) -> list[MarkdownTextFen
             )
         )
     return specs
+
+
+def build_html_marker_heading_doc_types(configs: list[dict]) -> frozenset[str]:
+    """``html.marker_headings`` 를 켠 문서 단위 custom_fields 의 doc_type 집합(기동 시 1회).
+
+    스펙 객체를 만들지 않는 이유 — 이 전처리는 문서군마다 조정할 값이 없다(마커 집합·길이
+    상한·종결형 판정은 한국 기업문서 공통이고 converters/html_flatten.py 의 근거 주석과 함께
+    코드 상수로 있다). 켜고 끄는 doc_type 목록 하나로 충분하므로 설정 개념을 늘리지 않는다.
+    상위 ``html: false`` 또는 ``marker_headings: false`` 는 명시적 비활성화다.
+    """
+    doc_types: set[str] = set()
+    for config in configs or []:
+        html_cfg = resolve_format_cfg(config, "html")
+        if html_cfg is None:
+            continue
+        marker_cfg = html_cfg.get("marker_headings")
+        if marker_cfg in (None, False):
+            continue
+        if isinstance(marker_cfg, dict):
+            if marker_cfg.get("enable") is False:
+                continue
+        doc_types.update(normalize_doc_types(config.get("doc_type")))
+    return frozenset(doc_types)

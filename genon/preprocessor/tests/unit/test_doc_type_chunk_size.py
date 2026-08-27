@@ -217,3 +217,60 @@ def test_cs_hpp_large_html_table_is_split_by_complete_rows(chunk_mode):
     assert all(r.get("doc_type") == "cs_hpp" for r in table_rows)
     assert all(r.get("BIZ_ID") == "CS-HPP-9001" for r in table_rows)
     assert all(r.get("GROUP_C") == "HPP" for r in table_rows)
+
+
+@pytest.mark.unit
+def test_cs_hpp_marker_sections_split_chunk_headers():
+    """cs_hpp 마커 승격 — 도형 마커(◈/▣)가 청커 breadcrumb 의 섹션 경계로 되살아난다.
+
+    개선 전(대조군은 test_marker_promotion_is_gated_by_doc_type, doc_type=faq)은
+    distinct HEADER 가 2개뿐이라 chunk_size 로만 절단됐다. distinct >= 3 단정이
+    회귀 지표다(실측 6).
+    """
+    cp = pytest.importorskip("genon.preprocessor.facade.chunking_processor")
+    source = _require("monimo_cs_hpp_marker_sections_sample.html")
+    rows = _parse_and_chunk(source, "cs_hpp", llm_stub=_CS_HPP_LLM_STUB)
+
+    assert len(rows) > 1
+    headers = [r["text"].splitlines()[0] for r in rows]
+    assert all(h.startswith("HEADER: ") for h in headers)
+    assert len(set(headers)) >= 3, f"distinct HEADER 부족: {headers}"
+
+    assert any("◈ 기본내용 > ▣ 네이버페이 간편결제 이용방법" in h for h in headers)
+    assert any("◈ 예상Q&A" in h for h in headers)
+
+    # 섹션 경계가 실제로 서로 다른 청크를 만든다(◈ 시행일자 청크와 ◈ 예상Q&A 청크가 다르다).
+    start_idx = {i for i, h in enumerate(headers) if "◈ 시행일자" in h}
+    qna_idx = {i for i, h in enumerate(headers) if "◈ 예상Q&A" in h}
+    assert start_idx and qna_idx
+    assert start_idx.isdisjoint(qna_idx)
+
+    # 상한 준수. cs_hpp 는 docling 경로라 _clamp_chunk_size 로 보정된 값이 유효 상한이다.
+    effective = cp._clamp_chunk_size(CHUNK_SIZE)
+    over = [(i, len(r["text"])) for i, r in enumerate(rows) if len(r["text"]) > effective]
+    assert not over, f"유효 상한={effective} 초과 청크: {over[:5]}"
+
+    # 표를 포함한 청크는 태그가 완결돼 있다(섹션 분할이 표 중간을 자르지 않는다).
+    for r in rows:
+        text = r["text"]
+        if "<table>" in text:
+            assert text.count("<table>") == text.count("</table>")
+
+    assert all(r.get("doc_type") == "cs_hpp" for r in rows)
+
+
+@pytest.mark.unit
+def test_marker_promotion_is_gated_by_doc_type():
+    """같은 픽스처를 doc_type=faq 로 돌리면(마커 승격 미적용) 여전히 크기로만 절단된다.
+
+    doc_type 게이트가 실제로 마커 승격을 봉인함을 고정하는 대조군 테스트이며, 이것이
+    개선 전 상태다(실측 distinct HEADER 2). faq 는 tabular_mapping/json_mapping
+    계열이라 llm_stub 를 넘기면 custom_fields enricher 를 못 찾아 _parse_and_chunk 의
+    `assert stubbed` 가 터지므로 llm_stub=None(기본값)으로 호출한다.
+    """
+    source = _require("monimo_cs_hpp_marker_sections_sample.html")
+    rows = _parse_and_chunk(source, "faq")
+
+    headers = [r["text"].splitlines()[0] for r in rows]
+    assert len(set(headers)) < 3, f"distinct HEADER 가 예상보다 많습니다: {headers}"
+    assert not any("◈" in h for h in headers)

@@ -22,12 +22,23 @@ from genon.preprocessor.converters.html_flatten import (
     iter_srcdoc_sections,
     looks_thin,
     precheck_html,
+    promote_marker_headings,
 )
 
 pytestmark = pytest.mark.unit
 
 _FIXTURES = Path(__file__).resolve().parents[1] / "fixtures" / "html"
 _WRAPPED_ACCORDION = _FIXTURES / "accordion_wrapped_nested_list.html"
+
+_MONIMO_SAMPLES = Path(__file__).resolve().parents[2] / "sample_files" / "monimo"
+_MARKER_FIXTURE = _MONIMO_SAMPLES / "monimo_cs_hpp_marker_sections_sample.html"
+
+
+def _require_html(path: Path) -> str:
+    """픽스처가 없으면 skip 하고, 있으면 원문 HTML 을 읽어 돌려준다."""
+    if not path.exists():
+        pytest.skip(f"검증용 샘플 없음: {path}")
+    return path.read_text(encoding="utf-8")
 
 
 # ── precheck ────────────────────────────────────────────────────────────────
@@ -379,6 +390,180 @@ def test_build_docling_document_escapes_labels():
 def test_document_title_fallback():
     assert document_title("<html><body></body></html>", "fb") == "fb"
     assert document_title("<html><head><title> T </title></head></html>") == "T"
+
+
+# ── 마커 기반 heading 승격(cs_hpp) ──────────────────────────────────────────
+
+def test_precheck_detects_marker_headings():
+    raw = _require_html(_MARKER_FIXTURE)
+    assert "marker_headings" in precheck_html(raw, detect_marker_headings=True)
+
+
+def test_precheck_marker_headings_requires_opt_in():
+    """opt-in 기본값이 False 다 — 이게 핵심이다.
+
+    marker_headings 를 명시적으로 켜지 않은 호출(다른 doc_type 의 auto 모드 포함)에는
+    이 사유가 전혀 뜨지 않는다, 즉 기존 호출부 동작이 이 인자로 바뀌지 않는다는 보장이다.
+    """
+    raw = _require_html(_MARKER_FIXTURE)
+    assert "marker_headings" not in precheck_html(raw)
+
+
+def test_precheck_ignores_markers_when_document_has_subheadings():
+    """표 밖 마커 후보가 3개 이상이어도 원문에 하위 heading(h2)이 이미 2개면
+
+    게이트 A(_MARKER_MAX_EXISTING_SUBHEADINGS)에서 탈락한다 — 이미 h 태그로 계층을
+    표현한 문서는 승격 대상이 아니다.
+    """
+    raw = (
+        "<html><body><h2>섹션1</h2><p>◈ 항목1</p><p>▣ 항목2</p><p>■ 항목3</p>"
+        "<h2>섹션2</h2></body></html>"
+    )
+    assert "marker_headings" not in precheck_html(raw, detect_marker_headings=True)
+
+
+def test_precheck_ignores_few_marker_blocks():
+    """마커 후보가 2개뿐이면 임계값(_MARKER_HEADING_MIN=3) 미만이라 게이트 B 에서 탈락한다."""
+    raw = "<html><body><p>◈ 항목1</p><p>▣ 항목2</p></body></html>"
+    assert "marker_headings" not in precheck_html(raw, detect_marker_headings=True)
+
+
+def test_precheck_marker_headings_absent_for_existing_cs_hpp_fixtures():
+    """회귀 가드 — 기존 cs_hpp 픽스처 3종은 opt-in 이어도 승격 사유가 뜨지 않는다.
+
+    monimo_cs_hpp_sample.html / monimo_cs_hpp_chunksize_sample.html 은 h2 를 이미
+    갖고 있어 게이트 A(_MARKER_MAX_EXISTING_SUBHEADINGS)에서 탈락하고,
+    monimo_cs_hpp_large_table_sample.html 은 h2 가 0개지만 도형 마커 자체가 없어
+    게이트 B(마커 후보 부족)에서 탈락한다 — 탈락 사유가 서로 다른 근접 케이스다.
+    """
+    for name in (
+        "monimo_cs_hpp_sample.html",
+        "monimo_cs_hpp_chunksize_sample.html",
+        "monimo_cs_hpp_large_table_sample.html",
+    ):
+        raw = _require_html(_MONIMO_SAMPLES / name)
+        assert precheck_html(raw, detect_marker_headings=True) == [], name
+
+
+def test_promote_marker_headings_assigns_levels_by_first_appearance():
+    """마커 문자별 레벨은 문서 내 첫 등장 순서로 배정된다 — ◈ 재등장도 h3 을 유지한다."""
+    raw = "<html><body><p>◈ 첫제목</p><p>▣ 중제목</p><p>◈ 둘째제목</p></body></html>"
+    node = extract_content(raw)
+    assert promote_marker_headings(node) == 3
+    headings = [(tag.name, tag.get_text(strip=True)) for tag in node.find_all(True)]
+    assert headings == [("h3", "◈ 첫제목"), ("h4", "▣ 중제목"), ("h3", "◈ 둘째제목")]
+
+
+def test_promote_marker_headings_keeps_bold_bullet_as_body():
+    """`- 2015년 6월 25일` 은 `-` 마커 + 100% bold + 20자 + 명사 종결이라 길이·종결형·
+
+    강조 조건 어디에도 걸리지 않는다(hwp 선례의 "약한 마커 AND 강조" 규칙은 미이식).
+    마커 화이트리스트(_MARKER_CHARS)에 `-` 가 없다는 사실만이 오승격을 막는다.
+    """
+    raw = "<html><body><p><b>- 2015년 6월 25일</b></p></body></html>"
+    node = extract_content(raw)
+    assert promote_marker_headings(node) == 0
+    assert node.find("p").name == "p"
+
+
+def test_promote_marker_headings_skips_annotation_markers():
+    """`※`/`→`/`-`/`·` 로 시작하는 줄은 마커 화이트리스트 밖이라 본문(p)으로 남는다."""
+    raw = '<html><body><p>※ 주석1</p><p>→ 화살표</p><p>- 대시</p><p>· 가운뎃점</p></body></html>'
+    node = extract_content(raw)
+    assert promote_marker_headings(node) == 0
+    assert [tag.name for tag in node.find_all(True)] == ["p", "p", "p", "p"]
+
+
+def test_promote_marker_headings_skips_table_cells():
+    """표 안 heading 은 표를 셀 중간에서 쪼개므로(모듈 docstring 참고) 표 밖 후보만 승격한다."""
+    raw = _require_html(_MARKER_FIXTURE)
+    node = extract_content(raw)
+    tables_before = len(node.find_all("table"))
+    tds_before = len(node.find_all("td"))
+    promote_marker_headings(node)
+    assert len(node.find_all("table")) == tables_before
+    assert len(node.find_all("td")) == tds_before
+    for table in node.find_all("table"):
+        assert not table.find_all(["h1", "h2", "h3", "h4", "h5", "h6"])
+
+
+def test_promote_marker_headings_demotes_long_and_sentence_final():
+    """80자 초과 줄과 서술형 종결(`...다.`)은 마커가 있어도 제목이 아니라 본문으로 본다."""
+    long_line = "◈ " + "가" * 90
+    raw = f"<html><body><p>{long_line}</p><p>◈ 서비스가 오픈됩니다.</p></body></html>"
+    node = extract_content(raw)
+    assert promote_marker_headings(node) == 0
+    assert [tag.name for tag in node.find_all(True)] == ["p", "p"]
+
+
+def test_promote_marker_headings_requires_marker_space_and_title():
+    """`■`(제목 없음) / `■■■`(마커 뒤 공백 없는 장식선) / `◈결제`(마커-본문 사이 공백 없음)
+
+    셋 다 승격 조건(마커 + 공백 + 2자 이상 제목)을 만족하지 못해 본문으로 남는다.
+    """
+    raw = "<html><body><p>■</p><p>■■■</p><p>◈결제</p></body></html>"
+    node = extract_content(raw)
+    assert promote_marker_headings(node) == 0
+    assert [tag.name for tag in node.find_all(True)] == ["p", "p", "p"]
+
+
+def test_flatten_html_promotes_marker_sections_only_when_reason_present():
+    """flatten_html 은 reasons 에 marker_headings 가 있을 때만 승격을 적용한다."""
+    raw = (
+        "<html><head><title>T</title></head><body>"
+        "<p>◈ 항목1</p><p>▣ 항목2</p><p>■ 항목3</p></body></html>"
+    )
+    assert "<h3>" in flatten_html(raw, reasons=["marker_headings"])
+    assert "<h3>" not in flatten_html(raw, reasons=[])
+
+
+def test_build_docling_document_skips_duplicate_single_section_label():
+    """단일 섹션 라벨이 제목과 같으면 <h2> 중복을 생략하고, 다르면 <h2>라벨</h2> 을 넣는다.
+
+    라벨·제목이 둘 다 빈 문자열이면(facade/enrichment/json_records.py:309-318 이
+    build_docling_document("", [("", node)]) 로 호출하는 경로) <h2></h2> 를 그대로
+    유지한다 — "라벨이 비어있지 않을 것"을 skip 조건에 넣어 이 경로를 건드리지 않는다.
+    """
+    node = extract_content("<html><body><p>x</p></body></html>")
+    assert "<h2>" not in build_docling_document("T", [("T", node)])
+    assert "<h2>혜택</h2>" in build_docling_document("T", [("혜택", node)])
+    assert "<h2></h2>" in build_docling_document("", [("", node)])
+
+
+def test_marker_headings_produce_section_headers_in_real_docling_parse():
+    """실제 Docling 왕복 — 원문은 SectionHeaderItem 0개, 승격 후엔 7개(레벨 2/3)가 잡히고
+
+    표 2개는 양쪽 다 파괴되지 않는다. 문서 최상위 <h1> 은 TitleItem 으로 분류돼
+    SectionHeaderItem 집계에 들지 않는다(이 픽스처는 <title>과 본문 <h1> 이 서로 달라
+    TitleItem 이 2개다).
+    """
+    from docling.datamodel.base_models import DocumentStream
+    from docling.document_converter import DocumentConverter
+    from docling_core.types.doc import SectionHeaderItem
+
+    raw = _require_html(_MARKER_FIXTURE)
+    converter = DocumentConverter()
+
+    def parse(html: str, name: str):
+        stream = DocumentStream(name=name, stream=BytesIO(html.encode("utf-8")))
+        return converter.convert(stream, raises_on_error=True).document
+
+    raw_doc = parse(raw, "marker_raw.html")
+    flat = flatten_html(
+        raw, reasons=precheck_html(raw, detect_marker_headings=True), marker_headings=True
+    )
+    flat_doc = parse(flat, "marker_flat.html")
+
+    def section_headers(doc):
+        return [item for item, _ in doc.iterate_items() if isinstance(item, SectionHeaderItem)]
+
+    raw_headers = section_headers(raw_doc)
+    flat_headers = section_headers(flat_doc)
+
+    assert len(raw_headers) == 0
+    assert len(flat_headers) == 7
+    assert len(raw_doc.tables) == len(flat_doc.tables) == 2
+    assert {h.level for h in flat_headers} == {2, 3}
 
 
 # ── looks_thin ──────────────────────────────────────────────────────────────
