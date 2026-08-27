@@ -22,8 +22,11 @@ column_map:
   BIZ_ID:       [id, 아이디]                            # 원천 FAQ 번호 (중복 감지용)
   GROUP_C:      [corp_code, 회사명, 고객사]              # 고객사 (NOT NULL) — 원천이 이미 코드일 수 있다
   FAQ_CTGR_NM:  [depth3, 분류, 카테고리, FAQ분류]        # FAQ 분류 (주제영역과 다름)
-  QUESTION:     [depth4, 대표질문, 질문]                 # 대표질문 (NOT NULL)
-  ANSWER:       [description, 답변, 답변내용]            # 답변 본문 (NOT NULL)
+  QUESTION:     [대표질문, 질문, depth4]                 # 대표질문 (NOT NULL)
+  ANSWER:       [답변, 답변내용, description]            # 답변 본문 (NOT NULL)
+  # QUESTION/ANSWER 는 청크 본문에 실리는 필드라 별칭 첫 값이 곧 본문 라벨이 된다.
+  # 원천 헤더인 depth4/description 을 앞에 두면 "depth4: …" 로 렌더되어 검색어와 겹치지 않으므로
+  # 사람이 읽는 이름을 앞에 둔다 — 원천 헤더는 목록에 남으므로 컬럼 매칭은 그대로다.
   SRC_LAST_MOD_DT:       [최종수정일]
 
 # ── 값 별칭 → 표준 코드 ─────────────────────────────────────────────────────

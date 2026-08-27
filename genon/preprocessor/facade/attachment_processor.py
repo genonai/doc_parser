@@ -225,6 +225,10 @@ from genon.preprocessor.facade.enrichment.page_description import (
     describe_page_images,
     should_describe,
 )
+from genon.preprocessor.facade.chunking.table_splitter import (
+    leading_header_row_count,
+    split_table_rows,
+)
 from docling_core.transforms.chunker import BaseChunk, BaseChunker, DocChunk, DocMeta
 from docling_core.transforms.serializer.markdown import (
     MarkdownDocSerializer,
@@ -1229,6 +1233,41 @@ class HybridChunker(BaseChunker):
                     # noqa
                 )
                 return []
+
+            # HierarchicalChunker가 만든 단일 TableItem 청크는 일반 semchunk에 보내면
+            # Markdown 헤더가 첫 조각에만 남는다. 공통 행 분할기로 각 조각에 헤더와
+            # 구분선을 반복하여 모두 독립적인 Markdown 표가 되게 한다.
+            doc_items = list(doc_chunk.meta.doc_items or [])
+            if len(doc_items) == 1 and isinstance(doc_items[0], TableItem):
+                table_item = doc_items[0]
+                try:
+                    grid = table_item.data.grid
+                    num_cols = table_item.data.num_cols
+                except Exception:
+                    grid, num_cols = None, 0
+                if grid and num_cols:
+                    header_n = max(leading_header_row_count(grid), 1)
+                    result = split_table_rows(
+                        grid=grid,
+                        num_cols=num_cols,
+                        single_text=doc_chunk.text,
+                        limit=available_length,
+                        count_text=self._count_text_tokens,
+                        table_format="markdown",
+                        header_row_count=header_n,
+                    )
+                    for index in result.oversized_piece_indexes:
+                        _log.warning(
+                            "[HybridChunker] 표의 단일 행이 분할 예산(%d)을 초과해 "
+                            "행 구조를 보존한 채 유지합니다: table=%s size=%d",
+                            available_length, getattr(table_item, "self_ref", ""),
+                            self._count_text_tokens(result.pieces[index]),
+                        )
+                    return [
+                        type(doc_chunk)(text=piece, meta=doc_chunk.meta)
+                        for piece in result.pieces
+                    ]
+
             text = doc_chunk.text
             segments = sem_chunker.chunk(text)
             chunks = [type(doc_chunk)(text=s, meta=doc_chunk.meta) for s in segments]
@@ -1350,12 +1389,90 @@ def _split_with_recursive_chunker(
     if not md_full:
         return []
 
+    cs = int(chunk_size) if chunk_size is not None else 0
     co = max(int(chunk_overlap), 0) if chunk_overlap is not None else 100
-    raw_chunks = _char_split_text(
-        md_full,
-        chunk_size=chunk_size,
-        chunk_overlap=chunk_overlap,
-    )
+
+    # (text, 원본 markdown 시작 위치, 끝 위치, 명시적 doc_items) 목록. chunk_size가
+    # 활성화된 경우 TableItem의 정확한 직렬화 구간을 먼저 찾아 표 밖 텍스트만
+    # RecursiveCharacterTextSplitter에 보낸다. 따라서 표의 행/헤더 구조를 잃지 않는다.
+    positioned_chunks: list[tuple[str, int, int, Optional[list[DocItem]]]] = []
+    table_spans: list[tuple[int, int, TableItem]] = []
+    if cs > 0:
+        search_cursor = 0
+        serializer = MarkdownDocSerializer(
+            doc=document,
+            params=MarkdownParams(compact_tables=compact_tables),
+        )
+        for item, _ in document.iterate_items():
+            if not isinstance(item, TableItem):
+                continue
+            try:
+                table_md = serializer.serialize(item=item).text
+            except Exception:
+                table_md = item.export_to_markdown(document)
+            if not table_md:
+                continue
+            pos = md_full.find(table_md, search_cursor)
+            if pos < 0:
+                _log.warning(
+                    "[recursive chunker] Markdown 원문에서 표 구간을 찾지 못해 해당 표는 "
+                    "기존 문자 분할 경로를 사용합니다: table=%s",
+                    getattr(item, "self_ref", ""),
+                )
+                continue
+            end = pos + len(table_md)
+            table_spans.append((pos, end, item))
+            search_cursor = end
+
+    def _append_plain_segment(start: int, end: int) -> None:
+        segment = md_full[start:end]
+        local_cursor = 0
+        search_backoff = max(co * 4, 200)
+        for raw in _char_split_text(segment, chunk_size=chunk_size, chunk_overlap=chunk_overlap):
+            local_pos = segment.find(raw, max(0, local_cursor - search_backoff))
+            if local_pos < 0:
+                local_pos = local_cursor
+            local_end = local_pos + len(raw)
+            positioned_chunks.append((raw, start + local_pos, start + local_end, None))
+            local_cursor = local_end
+
+    if table_spans:
+        cursor = 0
+        for start, end, table_item in table_spans:
+            if start > cursor:
+                _append_plain_segment(cursor, start)
+            table_md = md_full[start:end]
+            try:
+                grid = table_item.data.grid
+                num_cols = table_item.data.num_cols
+            except Exception:
+                grid, num_cols = None, 0
+            if grid and num_cols:
+                result = split_table_rows(
+                    grid=grid,
+                    num_cols=num_cols,
+                    single_text=table_md,
+                    limit=cs,
+                    count_text=len,
+                    table_format="markdown",
+                    header_row_count=max(leading_header_row_count(grid), 1),
+                )
+                for index in result.oversized_piece_indexes:
+                    _log.warning(
+                        "[recursive chunker] 표의 단일 행이 chunk_size(%d)를 초과해 "
+                        "행 구조를 보존한 채 유지합니다: table=%s size=%d",
+                        cs, getattr(table_item, "self_ref", ""), len(result.pieces[index]),
+                    )
+                positioned_chunks.extend(
+                    (piece, start, end, [table_item]) for piece in result.pieces
+                )
+            else:
+                positioned_chunks.append((table_md, start, end, [table_item]))
+            cursor = end
+        if cursor < len(md_full):
+            _append_plain_segment(cursor, len(md_full))
+    else:
+        _append_plain_segment(0, len(md_full))
 
     # 페이지별 doc_items 캐시 (반복 조회 방지)
     page_items_cache: dict[int, list] = {}
@@ -1369,25 +1486,19 @@ def _split_with_recursive_chunker(
         return page_items_cache[p]
 
     results: list[dict] = []
-    cursor = 0
-    search_backoff = max(co * 4, 200)
-    for raw in raw_chunks:
-        pos = md_full.find(raw, max(0, cursor - search_backoff))
-        if pos < 0:
-            pos = cursor
-        end_pos = pos + len(raw)
+    for raw, pos, end_pos, explicit_items in positioned_chunks:
 
         start_page = md_full[:pos].count(_RECURSIVE_PAGE_BREAK) + 1
         end_page = md_full[:end_pos].count(_RECURSIVE_PAGE_BREAK) + 1
 
         text = raw.replace(_RECURSIVE_PAGE_BREAK, "").strip()
-        cursor = end_pos
         if not text:
             continue
 
-        doc_items: list = []
-        for p in range(start_page, end_page + 1):
-            doc_items.extend(_items_for_page(p))
+        doc_items: list = list(explicit_items or [])
+        if explicit_items is None:
+            for p in range(start_page, end_page + 1):
+                doc_items.extend(_items_for_page(p))
 
         results.append({
             "text": text,

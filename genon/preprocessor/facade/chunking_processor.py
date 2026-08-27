@@ -176,6 +176,11 @@ from genon.preprocessor.facade.enrichment.image_description import (
     ImageDescriptionOptions,
     ImageDescriptionEnricher,
 )
+from genon.preprocessor.facade.chunking.table_splitter import (
+    leading_header_row_count,
+    split_entries_preserving_tables,
+    split_table_rows,
+)
 
 try:
     import semchunk
@@ -810,28 +815,6 @@ class GenosSmartChunker(BaseChunker):
         return False
 
     @staticmethod
-    def _render_table_row_html(row: list, num_cols: int) -> str:
-        """grid 한 행을 <tr>..</tr> HTML 로 렌더(docling HTMLTableSerializer 형식 모방).
-        colspan 중복 셀은 제거하고 헤더 계열 셀은 <th>, 그 외는 <td> 로 낸다.
-        (row_span==1 전제 — 호출부에서 세로 병합 표는 분할하지 않음)
-        """
-        import html as _html
-        cells = []
-        for j in range(num_cols):
-            cell = row[j]
-            if cell.start_col_offset_idx != j:  # colspan 으로 이미 렌더된 셀 스킵
-                continue
-            is_header = bool(
-                getattr(cell, "column_header", False)
-                or getattr(cell, "row_header", False)
-                or getattr(cell, "row_section", False)
-            )
-            tag = "th" if is_header else "td"
-            attrs = f' colspan="{cell.col_span}"' if cell.col_span > 1 else ""
-            cells.append(f"<{tag}{attrs}>{_html.escape((cell.text or '').strip())}</{tag}>")
-        return "<tr>" + "".join(cells) + "</tr>"
-
-    @staticmethod
     def _sheet_prefix(table_item: TableItem, dl_doc: DoclingDocument) -> str:
         """xlsx docling 표의 부모 그룹(name='sheet: X')에서 시트명을 뽑아 '시트명: X\\n' 접두 생성.
         시트 그룹이 없으면 '' 반환(PDF 등 비-xlsx 문서엔 실질 미적용)."""
@@ -848,9 +831,10 @@ class GenosSmartChunker(BaseChunker):
         return f"시트명: {name}\n" if name else ""
 
     def _table_item_to_texts(self, table_item: TableItem, dl_doc: DoclingDocument,
-                             h_short: dict, **kwargs) -> list[str]:
+                             h_short: dict, *, max_tokens: Optional[int] = None,
+                             **kwargs) -> list[str]:
         """표를 청크 텍스트 목록으로 변환. chunk_size(max_tokens) 초과 시 row 단위로 분할하고
-        각 분할 청크에 헤더 행(선두 column_header 행 + 다음 컬럼명 행)을 반복 포함한다.
+        각 분할 청크에 헤더 행(HTML은 선두 헤더, 그 외는 기존 제목+컬럼명 규칙)을 반복 포함한다.
 
         미초과(또는 max_tokens<=0)면 현행과 동일하게 단일 청크(docling export_to_html) 1개를 반환.
         모든 청크(단일/분할)에 시트명 접두(`시트명: X\\n`)를 붙인다.
@@ -858,9 +842,10 @@ class GenosSmartChunker(BaseChunker):
         sheet_prefix = self._sheet_prefix(table_item, dl_doc)
         single = sheet_prefix + self._generate_section_text_with_heading([table_item], [h_short], dl_doc, **kwargs)
 
-        if self.max_tokens is None or self.max_tokens <= 0:
+        limit = self.max_tokens if max_tokens is None else max_tokens
+        if limit is None or limit <= 0:
             return [single]
-        if self._count_tokens(single) <= self.max_tokens:
+        if self._count_tokens(single) <= limit:
             return [single]
 
         try:
@@ -871,45 +856,35 @@ class GenosSmartChunker(BaseChunker):
         if not grid or not num_cols:
             return [single]
 
-        # 헤더 행 수: 선두의 연속된 헤더 플래그 행 + 바로 다음 행(컬럼명 추정)
-        flag_n = 0
-        for row in grid:
-            if any(getattr(c, "column_header", False) or getattr(c, "row_header", False)
-                   or getattr(c, "row_section", False) for c in row):
-                flag_n += 1
-            else:
-                break
-        header_n = flag_n + 1
-        if header_n >= len(grid):  # 데이터 행이 없음 → 분할 불가
-            return [single]
-
-        header_rows = grid[:header_n]
-        data_rows = grid[header_n:]
-
-        # 세로 병합(row_span>1)이 데이터 행에 있으면 row 분할이 구조를 깨뜨리므로 분할하지 않는다.
-        # (헤더 영역의 세로병합은 헤더 블록이 매 청크에 통째로 반복되므로 무해)
-        if any(getattr(c, "row_span", 1) > 1 for r in data_rows for c in r):
-            return [single]
-
-        # heading 접두는 붙이지 않는다 — 분할된 조각들도 각자 청크가 되어 compose_vectors 에서
-        # `HEADER: <섹션 경로>` 를 받으므로 중복이다. sheet_prefix(`시트명: X`)는 heading 이 아니라 유지.
-        header_inner = "".join(self._render_table_row_html(r, num_cols) for r in header_rows)
-
-        def wrap(inner: str) -> str:
-            return sheet_prefix + "<table><tbody>" + header_inner + inner + "</tbody></table>"
-
-        texts: list[str] = []
-        cur = ""
-        for r in data_rows:
-            tr = self._render_table_row_html(r, num_cols)
-            if cur and self._count_tokens(wrap(cur + tr)) > self.max_tokens:
-                texts.append(wrap(cur))
-                cur = tr
-            else:
-                cur += tr
-        if cur:
-            texts.append(wrap(cur))
-        return texts or [single]
+        # HTML은 선두 헤더 플래그 행(없으면 첫 행), 그 외 문서는 기존 규칙대로
+        # 플래그 행 다음의 컬럼명 추정 행까지 반복한다.
+        flag_n = leading_header_row_count(grid)
+        origin = getattr(dl_doc, "origin", None)
+        origin_mimetype = str(getattr(origin, "mimetype", "") or "").lower()
+        origin_filename = str(getattr(origin, "filename", "") or "").lower()
+        is_html = origin_mimetype in {"text/html", "application/xhtml+xml"} or origin_filename.endswith(
+            (".html", ".htm", ".xhtml")
+        )
+        header_n = max(flag_n, 1) if is_html else flag_n + 1
+        result = split_table_rows(
+            grid=grid,
+            num_cols=num_cols,
+            single_text=single,
+            limit=limit,
+            count_text=self._count_tokens,
+            table_format="html",
+            header_row_count=header_n,
+            prefix=sheet_prefix,
+        )
+        for index in result.oversized_piece_indexes:
+            if index < len(result.pieces):
+                _log.warning(
+                    "[GenosSmartChunker] 표의 단일 행이 분할 예산(%d)을 초과해 HTML 행 구조를 "
+                    "보존한 채 초과 청크로 유지합니다: table=%s size=%d",
+                    limit, getattr(table_item, "self_ref", ""),
+                    self._count_tokens(result.pieces[index]),
+                )
+        return result.pieces
 
     def _header_line_for(self, h_short: list[dict]) -> str:
         """그룹의 header_short 정보로 청크 선두 헤더 라인을 만든다(크기 산정용).
@@ -1198,6 +1173,49 @@ class GenosSmartChunker(BaseChunker):
 
             return items_group
 
+        def split_item_groups_preserving_html_tables(items_group, budget):
+            """초과 그룹을 나누되 HTML TableItem 은 직렬화 문자열 중간에서 자르지 않는다.
+
+            반환값이 None 이면 구조 보존 대상 표가 없다는 뜻이며 호출부는 기존 균등 분할을 그대로
+            사용한다. 표가 있으면 작은 표는 인접 아이템과 예산 안에서 병합하고, 예산을 넘는 표만
+            `_table_item_to_texts`의 행 단위 완전한 `<table>...</table>` 조각으로 내보낸다.
+            """
+            if kwargs.get("export_to_html", 1) != 1:
+                return None
+
+            def unpack(entries):
+                return (
+                    [entry[0] for entry in entries],
+                    [entry[1] for entry in entries],
+                    [entry[2] for entry in entries],
+                )
+
+            def render(entries):
+                entry_items, _, entry_short = unpack(entries)
+                return self._generate_section_text_with_heading(
+                    entry_items, entry_short, dl_doc, **kwargs
+                )
+
+            parts = split_entries_preserving_tables(
+                item_groups=items_group,
+                budget=budget,
+                is_table_entry=lambda entry: isinstance(entry[0], TableItem),
+                render_entries=render,
+                count_text=self._count_tokens,
+                split_plain_text=self._split_text_to_budget,
+                split_table_entry=lambda entry, part_budget: self._table_item_to_texts(
+                    entry[0], dl_doc, entry[2], max_tokens=part_budget, **kwargs
+                ),
+            )
+            if parts is None:
+                return None
+
+            result = []
+            for text, entries in parts:
+                entry_items, entry_infos, entry_short = unpack(entries)
+                result.append((text, entry_items, entry_infos, entry_short))
+            return result
+
         # ================================================================
         # 표 단위 청크 분리 (xlsx docling: table_as_chunk kwarg 또는 xlsx-origin 자동감지)
         #   각 TableItem 을 독립 청크로(초과 시 row 분할+헤더 반복+시트명), 사이 비표 아이템은 별도 청크.
@@ -1309,6 +1327,11 @@ class GenosSmartChunker(BaseChunker):
                 items_group=[[(item, info, short)] for item, info, short in zip(items, h_infos, h_short)]
                 items_group = adjust_captions(items_group)
                 items_group = adjust_pictures_in_tables(items_group)
+
+                table_safe_parts = split_item_groups_preserving_html_tables(items_group, budget)
+                if table_safe_parts is not None:
+                    final_sections.extend(table_safe_parts)
+                    continue
 
                 # 너무 긴 섹션은 분할
                 # 각 아이템 별 token 수 계산
@@ -1492,17 +1515,7 @@ class GenosSmartChunker(BaseChunker):
                 items_group = adjust_captions(items_group)
                 items_group = adjust_pictures_in_tables(items_group)
 
-                # 최종 텍스트는 delim.join(...) 이라 아이템 사이 구분자도 길이에 들어간다.
-                # 아이템당 구분자 1개를 더해 예산을 보수적으로 잡는다(조각당 1개 과대 계상 → 안전).
-                # 안 더하면 구분자 총량만큼 예산이 헐거워져 실제 산출이 chunk_size 를 넘는다
-                # (실측: 18줄 청크에서 구분자 17자가 빠져 11자 초과).
-                delim_tokens = self._count_tokens(self.delim)
-                item_token_counts = []
-                for grp in items_group:
-                    item_token_counts.append(
-                        sum(self._count_tokens(get_text_from_item(x[0])) + delim_tokens for x in grp))
-
-                # item_token_counts 는 본문 토큰만 세므로, 청크 선두에 붙을 헤더 라인 몫을 예산에서
+                # 일반 아이템의 크기 계산은 본문 토큰만 세므로, 청크 선두에 붙을 헤더 라인 몫을 예산에서
                 # 빼야 한다. 안 빼면 각 조각이 본문만으로 max_tokens 를 채우고 헤더가 그 위에 얹혀
                 # chunk_size 를 초과한다. 하위 그룹의 h_short 는 부모의 부분집합이라 부모 기준
                 # 헤더 길이는 상한이며, 따라서 이 예약은 안전하다.
@@ -1516,6 +1529,27 @@ class GenosSmartChunker(BaseChunker):
                         "[GenosSmartChunker] 헤더 라인(%d)이 chunk_size(%d) 이상 — 헤더 몫 예약 생략, "
                         "청크가 한도를 초과할 수 있음", header_tokens, self.max_tokens)
                     budget = self.max_tokens
+
+                table_safe_parts = split_item_groups_preserving_html_tables(items_group, budget)
+                if table_safe_parts is not None:
+                    for piece, piece_items, piece_infos, piece_short in table_safe_parts:
+                        new_groups.append({
+                            "texts": [piece],
+                            "items": piece_items,
+                            "h_infos": piece_infos,
+                            "h_short": piece_short,
+                        })
+                    continue
+
+                # 최종 텍스트는 delim.join(...) 이라 아이템 사이 구분자도 길이에 들어간다.
+                # 아이템당 구분자 1개를 더해 예산을 보수적으로 잡는다(조각당 1개 과대 계상 → 안전).
+                # 안 더하면 구분자 총량만큼 예산이 헐거워져 실제 산출이 chunk_size 를 넘는다
+                # (실측: 18줄 청크에서 구분자 17자가 빠져 11자 초과).
+                delim_tokens = self._count_tokens(self.delim)
+                item_token_counts = []
+                for grp in items_group:
+                    item_token_counts.append(
+                        sum(self._count_tokens(get_text_from_item(x[0])) + delim_tokens for x in grp))
 
                 for (a, b) in split_items_evenly_by_tokens(item_token_counts, budget):
                     gi, gh, gs = [], [], []

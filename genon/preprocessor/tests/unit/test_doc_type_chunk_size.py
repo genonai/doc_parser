@@ -47,7 +47,9 @@ _CS_HPP_LLM_STUB = json.dumps(
 )
 
 
-def _parse_and_chunk(source: Path, doc_type: str, llm_stub: str | None = None) -> list[dict]:
+def _parse_and_chunk(source: Path, doc_type: str, llm_stub: str | None = None, *,
+                     chunk_size: int = CHUNK_SIZE,
+                     chunk_mode: str = CHUNK_MODE) -> list[dict]:
     """파서→청커 왕복을 실제로 돌리고 청크 dict 목록을 돌려준다."""
     from fastapi import Request
 
@@ -67,7 +69,7 @@ def _parse_and_chunk(source: Path, doc_type: str, llm_stub: str | None = None) -
         payload = await parser(request, str(source), doc_type=doc_type, log_level=3)
         vectors = await cp.DocumentProcessor()(
             request, str(source), document=payload,
-            chunk_size=CHUNK_SIZE, chunk_mode=CHUNK_MODE,
+            chunk_size=chunk_size, chunk_mode=chunk_mode,
         )
         return [v.model_dump() for v in vectors]
 
@@ -175,3 +177,43 @@ def test_cs_hpp_chunks_respect_chunk_size():
     assert all(r.get("doc_type") == "cs_hpp" for r in rows)
     assert all(r.get("BIZ_ID") == "CS-HPP-9001" for r in rows)
     assert all(r.get("GROUP_C") == "HPP" for r in rows)
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("chunk_mode", ["split_only", "resize_all"])
+def test_cs_hpp_large_html_table_is_split_by_complete_rows(chunk_mode):
+    """1000자 초과 단일 HTML 표는 태그/행 중간이 아니라 완전한 table 조각으로 나뉜다."""
+    cp = pytest.importorskip("genon.preprocessor.facade.chunking_processor")
+    source = _require("monimo_cs_hpp_large_table_sample.html")
+    rows = _parse_and_chunk(
+        source, "cs_hpp", llm_stub=_CS_HPP_LLM_STUB, chunk_mode=chunk_mode
+    )
+
+    effective = cp._clamp_chunk_size(CHUNK_SIZE)
+    table_rows = [r for r in rows if "<table>" in r["text"]]
+    assert len(table_rows) > 1, "대형 단일 표가 여러 청크로 분할되지 않았습니다"
+    assert len(table_rows) == len(rows), "표와 무관한 청크가 예기치 않게 추가됐습니다"
+
+    # 모든 조각은 독립적으로 파싱 가능한 완전한 표이며 컬럼 헤더를 반복한다.
+    for row in table_rows:
+        text = row["text"]
+        assert text.count("<table>") == text.count("</table>") == 1
+        assert text.count("<tr>") == text.count("</tr>")
+        assert "<th>단계</th><th>처리 내용</th><th>확인 사항</th>" in text
+        assert len(text) <= effective
+
+    # 데이터 행은 순서대로 정확히 한 번 등장하고, 한 행의 시작/끝 marker가 같은 청크에 있어야 한다.
+    marker_chunks = []
+    for n in range(1, 13):
+        marker = f"ROW-{n:02d}"
+        assert sum(r["text"].count(f"<td>{marker}</td>") for r in table_rows) == 1
+        start_chunks = [i for i, r in enumerate(table_rows) if f"{marker}-START" in r["text"]]
+        end_chunks = [i for i, r in enumerate(table_rows) if f"{marker}-END" in r["text"]]
+        assert start_chunks == end_chunks and len(start_chunks) == 1, f"{marker} 행이 청크 사이에서 잘렸습니다"
+        marker_chunks.append(start_chunks[0])
+    assert marker_chunks == sorted(marker_chunks), "표 데이터 행 순서가 바뀌었습니다"
+
+    # 문서 단위 cs_hpp metadata는 분할된 모든 표 조각에 유지된다.
+    assert all(r.get("doc_type") == "cs_hpp" for r in table_rows)
+    assert all(r.get("BIZ_ID") == "CS-HPP-9001" for r in table_rows)
+    assert all(r.get("GROUP_C") == "HPP" for r in table_rows)

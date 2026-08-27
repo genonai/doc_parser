@@ -370,6 +370,11 @@ from genon.preprocessor.facade.enrichment.field_transforms import (
     serialize_metadata_value_for_output,
     store_metadata_in_document,
 )
+from genon.preprocessor.facade.chunking.table_splitter import (
+    leading_header_row_count,
+    split_entries_preserving_tables,
+    split_table_rows,
+)
 
 try:
     import semchunk
@@ -1109,38 +1114,6 @@ class GenosSmartChunker(BaseChunker):
         return ""
 
     @staticmethod
-    def _render_table_row_html(row: list, num_cols: int) -> str:
-        """grid 한 행을 <tr>..</tr> HTML 로 렌더(docling HTMLTableSerializer 형식 모방).
-        colspan 중복 셀은 제거하고 헤더 계열 셀은 <th>, 그 외는 <td> 로 낸다.
-        (row_span==1 전제 — 호출부에서 세로 병합 표는 분할하지 않음)
-        """
-        import html as _html
-        cells = []
-        for j in range(num_cols):
-            cell = row[j]
-            if cell.start_col_offset_idx != j:  # colspan 으로 이미 렌더된 셀 스킵
-                continue
-            is_header = bool(
-                getattr(cell, "column_header", False)
-                or getattr(cell, "row_header", False)
-                or getattr(cell, "row_section", False)
-            )
-            tag = "th" if is_header else "td"
-            attrs = f' colspan="{cell.col_span}"' if cell.col_span > 1 else ""
-            cells.append(f"<{tag}{attrs}>{_html.escape((cell.text or '').strip())}</{tag}>")
-        return "<tr>" + "".join(cells) + "</tr>"
-
-    @staticmethod
-    def _render_table_row_md(row: list, num_cols: int) -> str:
-        """grid 한 행을 markdown 표 행 `| c1 | c2 | ... |` 로 렌더(파이프는 이스케이프).
-        markdown 은 colspan/rowspan 미지원이라 num_cols 전 컬럼을 그대로 낸다."""
-        cells = []
-        for j in range(num_cols):
-            text = (row[j].text or "").strip().replace("|", "\\|").replace("\n", " ")
-            cells.append(text)
-        return "| " + " | ".join(cells) + " |"
-
-    @staticmethod
     def _sheet_prefix(table_item: TableItem, dl_doc: DoclingDocument) -> str:
         """xlsx docling 표의 부모 그룹(name='sheet: X')에서 시트명을 뽑아 '시트명: X\\n' 접두 생성.
         시트 그룹이 없으면 '' 반환(PDF 등 비-xlsx 문서엔 실질 미적용)."""
@@ -1157,7 +1130,8 @@ class GenosSmartChunker(BaseChunker):
         return f"시트명: {name}\n" if name else ""
 
     def _table_item_to_texts(self, table_item: TableItem, dl_doc: DoclingDocument,
-                             h_short: dict, **kwargs) -> list[str]:
+                             h_short: dict, *, max_tokens: Optional[int] = None,
+                             **kwargs) -> list[str]:
         """표를 청크 텍스트 목록으로 변환. chunk_size(max_tokens) 초과 시 row 단위로 분할하고
         각 분할 청크에 헤더 행(선두 column_header 행 + 다음 컬럼명 행)을 반복 포함한다.
 
@@ -1174,9 +1148,10 @@ class GenosSmartChunker(BaseChunker):
         # 요약은 마지막 분할 청크에만 1회 덧붙인다(중복 방지). single 경로는 이미 요약 포함.
         table_summary = TableDescriptionExtractor.extract_summary(table_item)
 
-        if self.max_tokens is None or self.max_tokens <= 0:
+        limit = self.max_tokens if max_tokens is None else max_tokens
+        if limit is None or limit <= 0:
             return [single]
-        if self._count_tokens(single) <= self.max_tokens:
+        if self._count_tokens(single) <= limit:
             return [single]
 
         try:
@@ -1187,59 +1162,34 @@ class GenosSmartChunker(BaseChunker):
         if not grid or not num_cols:
             return [single]
 
-        # 헤더 행 수: 선두의 연속된 헤더 플래그 행 + 바로 다음 행(컬럼명 추정)
-        flag_n = 0
-        for row in grid:
-            if any(getattr(c, "column_header", False) or getattr(c, "row_header", False)
-                   or getattr(c, "row_section", False) for c in row):
-                flag_n += 1
-            else:
-                break
-        header_n = flag_n + 1
-        if header_n >= len(grid):  # 데이터 행이 없음 → 분할 불가
-            return [single]
-
-        header_rows = grid[:header_n]
-        data_rows = grid[header_n:]
-
-        # 세로 병합(row_span>1)이 데이터 행에 있으면 row 분할이 구조를 깨뜨리므로 분할하지 않는다.
-        # (헤더 영역의 세로병합은 헤더 블록이 매 청크에 통째로 반복되므로 무해)
-        if any(getattr(c, "row_span", 1) > 1 for r in data_rows for c in r):
-            return [single]
-
-        # heading 접두는 붙이지 않는다 — 분할된 조각들도 각자 청크가 되어 compose_vectors 에서
-        # `HEADER: <섹션 경로>` 를 받으므로 중복이다. sheet_prefix(`시트명: X`)는 heading 이 아니라 유지.
-        # table_format 에 맞춰 헤더/데이터 행을 렌더하고 버킷을 감싼다(html | markdown).
-        if self._resolve_table_format(kwargs) == "markdown":
-            render_row = self._render_table_row_md
-            header_block = [render_row(r, num_cols) for r in header_rows]
-            header_block.append("| " + " | ".join(["---"] * num_cols) + " |")
-
-            def wrap(data_rendered: list) -> str:
-                return sheet_prefix + "\n".join(header_block + data_rendered)
-        else:
-            render_row = self._render_table_row_html
-            header_inner = "".join(render_row(r, num_cols) for r in header_rows)
-
-            def wrap(data_rendered: list) -> str:
-                return sheet_prefix + "<table><tbody>" + header_inner + "".join(data_rendered) + "</tbody></table>"
-
-        texts: list[str] = []
-        cur: list[str] = []
-        for r in data_rows:
-            rr = render_row(r, num_cols)
-            if cur and self._count_tokens(wrap(cur + [rr])) > self.max_tokens:
-                texts.append(wrap(cur))
-                cur = [rr]
-            else:
-                cur.append(rr)
-        if cur:
-            texts.append(wrap(cur))
-        if not texts:
-            return [single]
-        if table_summary:
-            texts[-1] = texts[-1] + "\n---\n[표 설명]\n" + table_summary
-        return texts
+        flag_n = leading_header_row_count(grid)
+        origin = getattr(dl_doc, "origin", None)
+        mimetype = str(getattr(origin, "mimetype", "") or "").lower()
+        filename = str(getattr(origin, "filename", "") or "").lower()
+        is_html = mimetype in {"text/html", "application/xhtml+xml"} or filename.endswith(
+            (".html", ".htm", ".xhtml")
+        )
+        header_n = max(flag_n, 1) if is_html else flag_n + 1
+        suffix = "\n---\n[표 설명]\n" + table_summary if table_summary else ""
+        result = split_table_rows(
+            grid=grid,
+            num_cols=num_cols,
+            single_text=single,
+            limit=limit,
+            count_text=self._count_tokens,
+            table_format=self._resolve_table_format(kwargs),
+            header_row_count=header_n,
+            prefix=sheet_prefix,
+            suffix=suffix,
+        )
+        for index in result.oversized_piece_indexes:
+            _log.warning(
+                "[GenosSmartChunker] 표의 단일 행 또는 설명이 분할 예산(%d)을 초과해 "
+                "행 구조를 보존한 채 유지합니다: table=%s size=%d",
+                limit, getattr(table_item, "self_ref", ""),
+                self._count_tokens(result.pieces[index]),
+            )
+        return result.pieces
 
     def _header_line_for(self, h_short: list[dict]) -> str:
         """그룹의 header_short 정보로 청크 선두 헤더 라인을 만든다(크기 산정용).
@@ -1528,6 +1478,41 @@ class GenosSmartChunker(BaseChunker):
 
             return items_group
 
+        def split_item_groups_preserving_tables(items_group, budget):
+            """공통 분할기를 사용해 HTML/Markdown TableItem의 행 경계를 보존한다."""
+
+            def unpack(entries):
+                return (
+                    [entry[0] for entry in entries],
+                    [entry[1] for entry in entries],
+                    [entry[2] for entry in entries],
+                )
+
+            def render(entries):
+                entry_items, _, entry_short = unpack(entries)
+                return self._generate_section_text_with_heading(
+                    entry_items, entry_short, dl_doc, **kwargs
+                )
+
+            parts = split_entries_preserving_tables(
+                item_groups=items_group,
+                budget=budget,
+                is_table_entry=lambda entry: isinstance(entry[0], TableItem),
+                render_entries=render,
+                count_text=self._count_tokens,
+                split_plain_text=self._split_text_to_budget,
+                split_table_entry=lambda entry, part_budget: self._table_item_to_texts(
+                    entry[0], dl_doc, entry[2], max_tokens=part_budget, **kwargs
+                ),
+            )
+            if parts is None:
+                return None
+            result = []
+            for text, entries in parts:
+                entry_items, entry_infos, entry_short = unpack(entries)
+                result.append((text, entry_items, entry_infos, entry_short))
+            return result
+
         # ================================================================
         # 표 단위 청크 분리 (xlsx docling 전용, kwargs: table_as_chunk)
         #   각 TableItem 을 독립 청크로, 사이의 연속 비표 아이템은 별도 청크로 묶는다.
@@ -1639,6 +1624,11 @@ class GenosSmartChunker(BaseChunker):
                 items_group=[[(item, info, short)] for item, info, short in zip(items, h_infos, h_short)]
                 items_group = adjust_captions(items_group)
                 items_group = adjust_pictures_in_tables(items_group)
+
+                table_safe_parts = split_item_groups_preserving_tables(items_group, budget)
+                if table_safe_parts is not None:
+                    final_sections.extend(table_safe_parts)
+                    continue
 
                 # 너무 긴 섹션은 분할
                 # 각 아이템 별 token 수 계산
@@ -1846,6 +1836,17 @@ class GenosSmartChunker(BaseChunker):
                         "[GenosSmartChunker] 헤더 라인(%d)이 chunk_size(%d) 이상 — 헤더 몫 예약 생략, "
                         "청크가 한도를 초과할 수 있음", header_tokens, self.max_tokens)
                     budget = self.max_tokens
+
+                table_safe_parts = split_item_groups_preserving_tables(items_group, budget)
+                if table_safe_parts is not None:
+                    for piece, piece_items, piece_infos, piece_short in table_safe_parts:
+                        new_groups.append({
+                            "texts": [piece],
+                            "items": piece_items,
+                            "h_infos": piece_infos,
+                            "h_short": piece_short,
+                        })
+                    continue
 
                 for (a, b) in split_items_evenly_by_tokens(item_token_counts, budget):
                     gi, gh, gs = [], [], []
