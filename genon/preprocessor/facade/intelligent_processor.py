@@ -317,28 +317,17 @@ from typing import Iterable, Iterator, Optional, Union
 from pydantic import BaseModel, ConfigDict, PositiveInt, TypeAdapter, model_validator
 from typing_extensions import Self
 
-try:
-    from genon.preprocessor.facade.enrichment.custom_fields_enricher import (
-        build_document_custom_fields_enrichers as _build_document_custom_fields_enrichers,
-        normalize_doc_type,
-    )
-    from genon.preprocessor.facade.enrichment.tabular_custom_fields import (
-        build_tabular_custom_fields_mappers as _build_tabular_custom_fields_mappers,
-        warn_tabular_llm_fields_unsupported as _warn_tabular_llm_fields_unsupported,
-    )
-except ImportError:
-    _build_document_custom_fields_enrichers = None  # type: ignore[assignment]
-    _build_tabular_custom_fields_mappers = None  # type: ignore[assignment]
-
-    def _warn_tabular_llm_fields_unsupported(mappers, processor):  # type: ignore[no-redef]
-        return None
-
-    def normalize_doc_type(value):  # type: ignore[no-redef]
-        return str(value or "").strip().lower()
-try:
-    from genon.preprocessor.facade.enrichment.metadata_enricher import MetadataEnricher as _MetadataEnricher
-except ImportError:
-    _MetadataEnricher = None  # type: ignore[assignment,misc]
+from genon.preprocessor.facade.enrichment.custom_fields_enricher import (
+    build_document_custom_fields_enrichers as _build_document_custom_fields_enrichers,
+    normalize_doc_type,
+)
+from genon.preprocessor.facade.enrichment.tabular_custom_fields import (
+    build_tabular_custom_fields_mappers as _build_tabular_custom_fields_mappers,
+    warn_tabular_llm_fields_unsupported as _warn_tabular_llm_fields_unsupported,
+)
+from genon.preprocessor.facade.enrichment.metadata_enricher import (
+    MetadataEnricher as _MetadataEnricher,
+)
 
 from genon.preprocessor.facade.enrichment.enrichment_config import EnrichmentConfig
 from genon.preprocessor.facade.enrichment.page_description import (
@@ -2547,17 +2536,13 @@ class DocumentProcessor:
             self.table_description_options
         )
         self.doc_summary_enricher = DocSummaryEnricher(self.doc_summary_options)
-        self.custom_fields_enrichers: list = (
-            _build_document_custom_fields_enrichers(ec.custom_fields_cfgs)
-            if _build_document_custom_fields_enrichers is not None
-            else []
+        self.custom_fields_enrichers: list = _build_document_custom_fields_enrichers(
+            ec.custom_fields_cfgs
         )
         # enrichment.custom_fields 중 tabular_mapping handler(요청 doc_type=faq 등 xlsx 행별 매핑).
         # LLM enricher 와 달리 파싱 조기 분기(_process_xlsx)에서 소비한다.
-        self._tabular_custom_fields_mappers: list = (
-            _build_tabular_custom_fields_mappers(ec.custom_fields_cfgs)
-            if _build_tabular_custom_fields_mappers is not None
-            else []
+        self._tabular_custom_fields_mappers: list = _build_tabular_custom_fields_mappers(
+            ec.custom_fields_cfgs
         )
         _warn_tabular_llm_fields_unsupported(self._tabular_custom_fields_mappers, "intelligent")
         self.metadata_enricher = (
@@ -2579,7 +2564,7 @@ class DocumentProcessor:
                 thinking=ec.metadata.thinking,
                 thinking_dialect=ec.metadata.thinking_dialect,
             )
-            if _MetadataEnricher is not None and ec.metadata.do_metadata and ec.metadata.has_custom_metadata
+            if ec.metadata.do_metadata and ec.metadata.has_custom_metadata
             else None
         )
         # 추출 메타데이터 → typed 벡터 필드 매핑(설정 기반). 설정이 비어있으면

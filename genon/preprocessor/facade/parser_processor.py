@@ -102,46 +102,26 @@ from docling_core.transforms.serializer.markdown import (
     MarkdownParams,
 )
 
-try:
-    from genon.preprocessor.facade.enrichment.custom_fields_enricher import (
-        build_document_custom_fields_enrichers,
-        normalize_doc_type,
-        normalize_doc_types,
-    )
-    from genon.preprocessor.facade.enrichment.tabular_custom_fields import (
-        build_tabular_custom_fields_mappers,
-    )
-    from genon.preprocessor.facade.enrichment.json_records import (
-        build_json_records_mappers,
-    )
-    from genon.preprocessor.facade.enrichment.json_semantic import (
-        build_semantic_json_mappers,
-    )
-    from genon.preprocessor.facade.enrichment.markdown_front_matter import (
-        build_markdown_front_matter_specs,
-        build_markdown_text_fence_specs,
-        build_html_marker_heading_doc_types,
-    )
-except ImportError:
-    build_document_custom_fields_enrichers = None  # type: ignore[assignment]
-    build_tabular_custom_fields_mappers = None  # type: ignore[assignment]
-    build_json_records_mappers = None  # type: ignore[assignment]
-    build_semantic_json_mappers = None  # type: ignore[assignment]
-    build_markdown_front_matter_specs = None  # type: ignore[assignment]
-    build_markdown_text_fence_specs = None  # type: ignore[assignment]
-    build_html_marker_heading_doc_types = None  # type: ignore[assignment]
-
-    def normalize_doc_type(value):  # type: ignore[no-redef]
-        return str(value or "").strip().lower()
-
-    def normalize_doc_types(value):  # type: ignore[no-redef]
-        values = value if isinstance(value, (list, tuple, set)) else [value]
-        return tuple(dict.fromkeys(d for d in (normalize_doc_type(v) for v in values) if d))
-
-try:
-    from genon.preprocessor.facade.enrichment.metadata_enricher import MetadataEnricher
-except ImportError:
-    MetadataEnricher = None  # type: ignore[assignment,misc]
+from genon.preprocessor.facade.enrichment.custom_fields_enricher import (
+    build_document_custom_fields_enrichers,
+    normalize_doc_type,
+    normalize_doc_types,
+)
+from genon.preprocessor.facade.enrichment.tabular_custom_fields import (
+    build_tabular_custom_fields_mappers,
+)
+from genon.preprocessor.facade.enrichment.json_records import (
+    build_json_records_mappers,
+)
+from genon.preprocessor.facade.enrichment.json_semantic import (
+    build_semantic_json_mappers,
+)
+from genon.preprocessor.facade.enrichment.markdown_front_matter import (
+    build_markdown_front_matter_specs,
+    build_markdown_text_fence_specs,
+    build_html_marker_heading_doc_types,
+)
+from genon.preprocessor.facade.enrichment.metadata_enricher import MetadataEnricher
 
 from genon.preprocessor.facade import guardrail as gr
 from genon.preprocessor.facade.enrichment.enrichment_config import EnrichmentConfig
@@ -1135,7 +1115,6 @@ class IntelligentDocumentProcessor:
         self.custom_fields_cfgs = list(ec.custom_fields_cfgs)
         self.custom_fields_enrichers: list = (
             build_document_custom_fields_enrichers(self.custom_fields_cfgs)
-            if build_document_custom_fields_enrichers is not None else []
         )
 
         # 사용자가 커스텀 metadata 신호(prompt/파일/output_fields/parser)를 하나라도 지정한 경우
@@ -1161,7 +1140,7 @@ class IntelligentDocumentProcessor:
                 thinking=ec.metadata.thinking,
                 thinking_dialect=ec.metadata.thinking_dialect,
             )
-            if MetadataEnricher is not None and ec.metadata.do_metadata and ec.metadata.has_custom_metadata
+            if ec.metadata.do_metadata and ec.metadata.has_custom_metadata
             else None
         )
 
@@ -2060,8 +2039,6 @@ class DocumentProcessor:
 
     @staticmethod
     def _build_markdown_front_matter_specs(custom_fields_cfgs: list) -> list:
-        if build_markdown_front_matter_specs is None:
-            return []
         try:
             return build_markdown_front_matter_specs(custom_fields_cfgs)
         except (ValueError, TypeError) as exc:
@@ -2072,8 +2049,6 @@ class DocumentProcessor:
 
     @staticmethod
     def _build_markdown_text_fence_specs(custom_fields_cfgs: list) -> list:
-        if build_markdown_text_fence_specs is None:
-            return []
         try:
             return build_markdown_text_fence_specs(custom_fields_cfgs)
         except (ValueError, TypeError) as exc:
@@ -2084,8 +2059,6 @@ class DocumentProcessor:
 
     @staticmethod
     def _build_html_marker_heading_doc_types(custom_fields_cfgs: list) -> frozenset:
-        if build_html_marker_heading_doc_types is None:
-            return frozenset()
         try:
             return build_html_marker_heading_doc_types(custom_fields_cfgs)
         except (ValueError, TypeError, FileNotFoundError) as exc:
@@ -2101,8 +2074,6 @@ class DocumentProcessor:
         **서비스 import 자체가 죽는다**(어느 설정이 문제인지도 드러나지 않는다).
         TypeError 도 잡는다 — `constants: 5` 처럼 dict() 강제 변환이 TypeError 를 내는 경우가 있다.
         """
-        if build_tabular_custom_fields_mappers is None:
-            return []
         try:
             return build_tabular_custom_fields_mappers(custom_fields_cfgs)
         except (ValueError, TypeError, FileNotFoundError) as exc:
@@ -2118,14 +2089,9 @@ class DocumentProcessor:
         json_semantic.JSON_SEMANTIC_EXTRACTORS)에 속하는 설정만 스스로 고른다
         (custom_fields_enricher.py 의 집합 분리 참고). 여기서 미리 걸러줄 필요가 없다.
         """
-        if build_json_records_mappers is None and build_semantic_json_mappers is None:
-            return []
         try:
-            mappers: list = []
-            if build_json_records_mappers is not None:
-                mappers.extend(build_json_records_mappers(custom_fields_cfgs))
-            if build_semantic_json_mappers is not None:
-                mappers.extend(build_semantic_json_mappers(custom_fields_cfgs))
+            mappers: list = list(build_json_records_mappers(custom_fields_cfgs))
+            mappers.extend(build_semantic_json_mappers(custom_fields_cfgs))
             return mappers
         except (ValueError, TypeError, FileNotFoundError) as exc:
             raise GenosServiceException(

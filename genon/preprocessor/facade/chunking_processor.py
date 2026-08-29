@@ -152,16 +152,12 @@ from typing import Iterable, Iterator, Optional, Union
 from pydantic import BaseModel, ConfigDict, PositiveInt, TypeAdapter, model_validator
 from typing_extensions import Self
 
-try:
-    from genon.preprocessor.facade.enrichment.custom_fields_enricher import (
-        build_document_custom_fields_enrichers as _build_document_custom_fields_enrichers,
-    )
-except ImportError:
-    _build_document_custom_fields_enrichers = None  # type: ignore[assignment]
-try:
-    from genon.preprocessor.facade.enrichment.metadata_enricher import MetadataEnricher as _MetadataEnricher
-except ImportError:
-    _MetadataEnricher = None  # type: ignore[assignment,misc]
+from genon.preprocessor.facade.enrichment.custom_fields_enricher import (
+    build_document_custom_fields_enrichers as _build_document_custom_fields_enrichers,
+)
+from genon.preprocessor.facade.enrichment.metadata_enricher import (
+    MetadataEnricher as _MetadataEnricher,
+)
 
 from genon.preprocessor.facade.enrichment.prompt_files import read_prompt_file
 from genon.preprocessor.facade.enrichment.prompt_template import PromptTemplate
@@ -2218,10 +2214,8 @@ class DocumentProcessor:
         self.image_description_enricher = ImageDescriptionEnricher(
             self.image_description_options
         )
-        self.custom_fields_enrichers: list = (
-            _build_document_custom_fields_enrichers(ec.custom_fields_cfgs)
-            if _build_document_custom_fields_enrichers is not None
-            else []
+        self.custom_fields_enrichers: list = _build_document_custom_fields_enrichers(
+            ec.custom_fields_cfgs
         )
         self.metadata_enricher = (
             _MetadataEnricher(
@@ -2240,7 +2234,7 @@ class DocumentProcessor:
                 variables=ec.metadata.variables,
                 template_mode=ec.metadata.template_mode,
             )
-            if _MetadataEnricher is not None and ec.metadata.do_metadata and ec.metadata.has_custom_metadata
+            if ec.metadata.do_metadata and ec.metadata.has_custom_metadata
             else None
         )
         # 추출 메타데이터 → typed 벡터 필드 매핑(설정 기반). 설정이 비어있으면
