@@ -29,7 +29,6 @@ _log = logging.getLogger(__name__)
 import shutil
 import subprocess
 import tempfile
-import unicodedata
 
 
 def convert_to_pdf(file_path: str, use_pdf_sdk: bool = True) -> str | None:
@@ -56,13 +55,47 @@ def convert_to_pdf(file_path: str, use_pdf_sdk: bool = True) -> str | None:
         order = ["rhwp", "libreoffice"] if is_hwp else ["libreoffice"]
     return convert_hwp_to_pdf(file_path, order=order)
 
-def _is_pdf(file_path: str) -> bool:
-    """파일이 PDF 매직 헤더로 시작하는지 확인 (확장자 무관)."""
-    try:
-        with open(file_path, "rb") as f:
-            return f.read(5) == b"%PDF-"
-    except Exception:
-        return False
+# ── 공용 하위 모듈로 옮긴 헬퍼들의 별칭 ──────────────────────────────
+# 구현은 facade/common/, facade/chunking/ 에 한 벌만 둔다. 여기서는 기존 이름을
+# 그대로 유지해 호출부를 건드리지 않는다. 사이트별 조정 대상 상수(구분자, 최소
+# 청크 크기, 토크나이저 경로)는 이 파일에 남아 있으므로 래퍼가 넘겨준다.
+from genon.preprocessor.facade.common import config_parse as cp
+from genon.preprocessor.facade.common import file_probe as fp
+from genon.preprocessor.facade.chunking import header_path as hp
+
+_as_dict = cp.as_dict
+_filename_title_candidates = hp.filename_title_candidates
+_is_pdf = fp.is_pdf
+_normalize_filename_title = hp.normalize_filename_title
+_parse_optional_bool = cp.parse_optional_bool
+_parse_optional_float = cp.parse_optional_float
+_parse_optional_int = cp.parse_optional_int
+_resolve_include_chunk_header = cp.resolve_include_chunk_header
+_union_paths = hp.union_paths
+_warn_unresolved_placeholders = cp.warn_unresolved_placeholders
+
+
+def _build_header_line(headings, include_header: bool) -> str:
+    return hp.build_header_line(
+        headings, include_header, _CHUNK_HEADER_SEP, _CHUNK_PATH_SEP, _CHUNK_PATH_MAX_LEAVES)
+
+def _clamp_chunk_size(size):
+    return cp.clamp_chunk_size(size, _MIN_CHUNK_SIZE)
+
+def _collapse_paths(paths) -> list:
+    return hp.collapse_paths(paths, _CHUNK_HEADER_SEP)
+
+def _load_config(config_path: str) -> dict:
+    return cp.load_config(config_path, strict=True)
+
+def _render_header_paths(headings) -> str:
+    return hp.render_header_paths(
+        headings, _CHUNK_HEADER_SEP, _CHUNK_PATH_SEP, _CHUNK_PATH_MAX_LEAVES)
+
+def _resolve_tokenizer(chunking_cfg: dict):
+    return cp.resolve_tokenizer(
+        chunking_cfg, local_path=_DEFAULT_TOKENIZER_LOCAL_PATH, hf_id=_DEFAULT_TOKENIZER_ID)
+
 
 
 # docling imports
@@ -199,103 +232,18 @@ except ImportError:
 # 설정 로딩 헬퍼 (from parser_processor.py)
 # ============================================================
 
-def _warn_unresolved_placeholders(cfg: dict, config_path: str) -> None:
-    """config 에 남아있는 미치환 플레이스홀더(<UPPER_SNAKE>)를 탐지해 경고한다.
-
-    Site 배포 시 OCR/Layout/Enrichment endpoint·serving ID 등의 치환 누락을 조기에
-    드러내기 위함. fail-fast 하지 않고(기동 보존) WARNING 로그만 남긴다.
-    """
-    pattern = re.compile(r"<[A-Z0-9_]+>")
-    found = []
-
-    def _scan(node, path):
-        if isinstance(node, dict):
-            for k, v in node.items():
-                _scan(v, f"{path}.{k}" if path else str(k))
-        elif isinstance(node, list):
-            for i, v in enumerate(node):
-                _scan(v, f"{path}[{i}]")
-        elif isinstance(node, str):
-            for ph in pattern.findall(node):
-                found.append((path, ph))
-
-    _scan(cfg, "")
-    if found:
-        lines = "\n".join(f"  - {path}: {ph}" for path, ph in found)
-        _log.warning(
-            "[DocumentProcessor] 미치환 설정 플레이스홀더가 발견되었습니다 "
-            f"(config='{config_path}'). Site 배포 시 실제 값으로 변경하세요:\n{lines}"
-        )
 
 
-def _load_config(config_path: str) -> dict:
-    with open(config_path, "r", encoding="utf-8") as f:
-        cfg = yaml.safe_load(f) or {}
-    if not isinstance(cfg, dict):
-        raise ValueError(f"Invalid config format: expected mapping, got {type(cfg).__name__}")
-    _warn_unresolved_placeholders(cfg, config_path)
-    return cfg
 
 
-def _as_dict(value: Any) -> dict:
-    return value if isinstance(value, dict) else {}
 
 
-def _parse_optional_bool(value: Any, key: str = "") -> Optional[bool]:
-    if value is None:
-        return None
-    if isinstance(value, bool):
-        return value
-    if isinstance(value, (int, float)):
-        return bool(value)
-    if isinstance(value, str):
-        text = value.strip().lower()
-        if text in {"1", "true", "yes", "y", "on"}:
-            return True
-        if text in {"0", "false", "no", "n", "off"}:
-            return False
-    if key:
-        _log.warning(f"[DocumentProcessor] Invalid bool value for '{key}': {value!r}. Fallback to default.")
-    return None
 
 
-def _resolve_include_chunk_header(kwargs: dict, yaml_default: bool) -> bool:
-    """청크 선두 `HEADER: <섹션 경로>` 라인 부착 여부. 우선순위: 요청 kwargs > yaml > True.
-
-    0/1 숫자와 "on"/"off" 등 문자열을 모두 허용한다(_parse_optional_bool).
-    off 로 주면 순수 본문만 산출된다.
-    """
-    parsed = _parse_optional_bool(kwargs.get("include_chunk_header"), "include_chunk_header")
-    return bool(yaml_default) if parsed is None else parsed
 
 
-def _normalize_filename_title(value: Any) -> str:
-    """파일명과 TITLE 을 비교하기 위한 유니코드/대소문자 정규화."""
-    if not isinstance(value, str):
-        return ""
-    return unicodedata.normalize("NFKC", value).strip().casefold()
 
 
-def _filename_title_candidates(document: Any) -> set[str]:
-    """문서 이름에서 HEADER 에 넣지 않을 파일명 TITLE 후보를 만든다.
-
-    backend 에 따라 TITLE 이 `sample.pdf` 또는 `sample` 로 들어올 수 있어 원본명과
-    확장자를 제거한 이름을 모두 비교한다. 그 밖의 실제 TITLE 은 헤더 경로에 유지한다.
-    """
-    raw_names = [getattr(document, "name", None)]
-    origin = getattr(document, "origin", None)
-    raw_names.append(getattr(origin, "filename", None))
-
-    candidates: set[str] = set()
-    for raw_name in raw_names:
-        if not isinstance(raw_name, str) or not raw_name.strip():
-            continue
-        basename = os.path.basename(raw_name.replace("\\", "/"))
-        for candidate in (basename, Path(basename).stem):
-            normalized = _normalize_filename_title(candidate)
-            if normalized:
-                candidates.add(normalized)
-    return candidates
 
 
 # 한 경로 안의 레벨 구분자(부모 → 자식). heading 자체에 콤마가 들어있는 경우가 있어
@@ -312,13 +260,6 @@ _CHUNK_HEADER_SEP = " > "
 _CHUNK_PATH_SEP = " | "
 
 
-def _union_paths(first, second) -> Optional[list]:
-    """헤더 경로 목록 두 개를 순서 보존 dedup 으로 합친다(청크 병합 시 사용)."""
-    merged: list = []
-    for path in list(first or []) + list(second or []):
-        if path and path not in merged:
-            merged.append(path)
-    return merged or None
 
 
 # 다경로 청크에서 나열할 리프 최대 개수. 초과분은 "… 외 N개" 로 접는다.
@@ -327,98 +268,19 @@ def _union_paths(first, second) -> Optional[list]:
 _CHUNK_PATH_MAX_LEAVES = 5
 
 
-def _build_header_line(headings, include_header: bool) -> str:
-    """청크 선두에 실제로 붙을 `HEADER: <경로들>\n` 문자열.
-
-    headings 의 원소 하나가 하나의 완전한 경로(`부모 > 자식`)다. 경로가 여러 개면
-    공통 조상을 한 번만 쓰고 리프만 나열한다 — 부모를 경로마다 반복하지 않는다.
-
-        1개        : `상품 안내 > 우대금리 조건`
-        여러 개    : `상품 안내 > (우대금리 조건 | 가입 제한 | 수수료 안내)`
-        상한 초과  : `제1장 총칙 > (제1조 | 제2조 … 외 68개)`
-
-    크기 산정(_size / 분할 예산 / 병합 재검증)과 실제 부착(compose_vectors)이 반드시 같은
-    문자열을 봐야 청크가 chunk_size 를 넘지 않는다. 예전에는 이 조립이 네 곳에 흩어져 있어
-    분할 예산과 병합이 헤더 몫을 빼먹고 청크가 한도를 초과했다 — 그래서 한 곳으로 모았다.
-    """
-    if not include_header or not headings:
-        return ""
-    return "HEADER: " + _render_header_paths(headings) + "\n"
 
 
-def _collapse_paths(paths) -> list:
-    """경로 목록을 정규화: 중복 제거 + 다른 경로의 진부분 접두인 경로 버리기.
-
-    `A` 와 `A > B` 가 함께 오면 `A > B` 만 남긴다(같은 위치를 두 번 말하는 셈).
-    _extract_header_paths 가 이미 한 번 하지만, 청크 병합(_union_paths)이 접두 쌍을
-    다시 만들 수 있어 렌더 직전에도 적용한다.
-    """
-    seen: list = []
-    for p in (paths or []):
-        if p and p not in seen:
-            seen.append(p)
-    prefixes = [tuple(p.split(_CHUNK_HEADER_SEP)) for p in seen]
-    return [p for p, tp in zip(seen, prefixes)
-            if not any(tq != tp and tq[:len(tp)] == tp for tq in prefixes)]
 
 
-def _render_header_paths(headings) -> str:
-    """경로 목록을 한 줄로 렌더. 공통 조상은 factor 하고 리프 수는 상한을 둔다."""
-    paths = _collapse_paths([h for h in (headings or []) if h])
-    if not paths:
-        return ""
-    if len(paths) == 1:
-        return paths[0]
-
-    split = [p.split(_CHUNK_HEADER_SEP) for p in paths]
-    shortest = min(len(s) for s in split)
-    # 공통 조상(모든 경로가 공유하는 선행 레벨). 마지막 레벨은 리프로 남겨야 하므로 제외한다.
-    common: list = []
-    for level in zip(*split):
-        if len(set(level)) != 1 or len(common) >= shortest - 1:
-            break
-        common.append(level[0])
-
-    leaves = [_CHUNK_HEADER_SEP.join(s[len(common):]) for s in split]
-    shown, rest = leaves[:_CHUNK_PATH_MAX_LEAVES], len(leaves) - _CHUNK_PATH_MAX_LEAVES
-    body = _CHUNK_PATH_SEP.join(shown) + (f" … 외 {rest}개" if rest > 0 else "")
-    if not common:
-        return body
-    return _CHUNK_HEADER_SEP.join(common) + _CHUNK_HEADER_SEP + "(" + body + ")"
 
 
-def _parse_optional_int(value: Any, key: str = "") -> Optional[int]:
-    if value is None or value == "":
-        return None
-    try:
-        return int(value)
-    except (TypeError, ValueError):
-        if key:
-            _log.warning(f"[DocumentProcessor] Invalid int value for '{key}': {value!r}. Fallback to default.")
-        return None
 
 
 _MIN_CHUNK_SIZE = 1024
 
 
-def _clamp_chunk_size(size: Optional[int]) -> Optional[int]:
-    """chunk_size 가 0 초과이면서 _MIN_CHUNK_SIZE 미만이면 _MIN_CHUNK_SIZE 로 보정.
-    0(=분할 안 함) 과 None 은 그대로 둔다."""
-    if size is not None and 0 < size < _MIN_CHUNK_SIZE:
-        _log.info(f"[chunk_size] {size} < {_MIN_CHUNK_SIZE} → {_MIN_CHUNK_SIZE} 로 보정")
-        return _MIN_CHUNK_SIZE
-    return size
 
 
-def _parse_optional_float(value: Any, key: str = "") -> Optional[float]:
-    if value is None or value == "":
-        return None
-    try:
-        return float(value)
-    except (TypeError, ValueError):
-        if key:
-            _log.warning(f"[DocumentProcessor] Invalid float value for '{key}': {value!r}. Fallback to default.")
-        return None
 
 
 # pdf_pipeline.device / pdf_pipeline.table_structure_mode 의 yaml 문자열 → docling enum 매핑.
@@ -451,15 +313,6 @@ _DEFAULT_TOKENIZER_LOCAL_PATH = "/models/doc_parser_models/sentence-transformers
 _DEFAULT_TOKENIZER_ID = "sentence-transformers/all-MiniLM-L6-v2"
 
 
-def _resolve_tokenizer(chunking_cfg: dict):
-    """chunking config 로부터 토크나이저를 결정한다.
-
-    tokenizer_path 가 실제 존재하면 그 로컬 경로를, 없으면 tokenizer_id(HF) 로 폴백한다
-    (외부 네트워크 차단 환경 대비). config 미지정 시 기본값은 현행 하드코딩 값과 동일.
-    """
-    local = chunking_cfg.get("tokenizer_path") or _DEFAULT_TOKENIZER_LOCAL_PATH
-    hf_id = chunking_cfg.get("tokenizer_id") or _DEFAULT_TOKENIZER_ID
-    return Path(local) if Path(local).exists() else hf_id
 
 
 # ============================================

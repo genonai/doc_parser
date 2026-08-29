@@ -183,149 +183,40 @@ def _handle_stage_error(exc: Exception, stage: str) -> None:
     _log.warning(f"[DocumentProcessor] {stage} enrichment skipped ({error_type}): {exc}")
 
 
-# ── 비정상/암호화 파일 사전 감지 (이슈 #278/#307) ─────────────────────────────
-# intelligent_processor.py 의 동일 블록을 복제한 것. facade 는 단일 파일로 배포되므로
-# import 공유 대신 복제한다. 수정 시 네 파일(intelligent/parser/convert/attachment) 동기화 필요.
-# 지원 포맷의 매직 헤더(allowlist). 각 값은 아래 공식 출처로 근거 확인 + 실제 샘플로 검증함.
-#   - 정본 매직 DB: file/file(libmagic) magic/Magdir — 실제 본 모듈이 쓰는 python-magic의 DB.
-#     (PDF=Magdir/pdf "%PDF-", PNG/GIF=Magdir/images, JPEG=Magdir/jpeg 0xffd8ff, ZIP=Magdir/msooxml "PK\3\4")
-#   - 포맷 공식 스펙: PDF=ISO 32000(%PDF-), PNG=W3C PNG/RFC2083(89 50 4E 47 0D 0A 1A 0A),
-#     ZIP=PKWARE APPNOTE(local file header 0x04034b50), OLE2/CFB=[MS-CFB] §2.2 Header(D0CF11E0A1B11AE1).
-# zip(PK)=docx/xlsx/pptx/hwpx, OLE2(d0cf..)=hwp/doc/ppt/xls(레거시).
-_KNOWN_MAGIC_PREFIXES = (
-    b"%PDF-",                                # pdf
-    b"\x89PNG\r\n\x1a\n",                    # png
-    b"\xff\xd8\xff",                         # jpeg/jpg
-    b"GIF87a", b"GIF89a",                    # gif
-    b"BM",                                    # bmp
-    b"II*\x00", b"MM\x00*",                  # tiff
-    b"PK\x03\x04", b"PK\x05\x06", b"PK\x07\x08",  # zip 계열(ooxml/hwpx)
-    b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1",     # OLE2/CFB(hwp5/doc/ppt/xls)
-    b"ID3",                                   # mp3(id3v2)
-    b"RIFF",                                  # wav/avi/webp
-    b"OggS",                                  # ogg
-    b"fLaC",                                  # flac
-    b"\x1f\x8b",                             # gzip
-    b"7z\xbc\xaf\x27\x1c",                  # 7z
-    b"Rar!\x1a\x07",                        # rar
-    b"<?xml",                                 # xml
-)
-
-# 텍스트로 봐줄 수 없는 제어 바이트(탭/개행/CR/FF 제외). 텍스트 파일엔 거의 없음.
-_TEXT_ALLOWED_CTRL = {0x09, 0x0A, 0x0C, 0x0D}
 
 
-def _looks_like_text(head: bytes) -> bool:
-    """csv/txt/json/md/html 등 매직넘버 없는 텍스트 파일인지 휴리스틱 판정.
-    NUL 이 있거나 제어문자 비율이 높으면 바이너리(=텍스트 아님)."""
-    if not head:
-        return False
-    # UTF-16/32 텍스트는 NUL 바이트가 흔하므로 BOM 이면 먼저 텍스트로 인정.
-    if head.startswith((b"\xff\xfe", b"\xfe\xff")):  # UTF-16 LE/BE (UTF-32 BOM 도 이 prefix로 시작)
-        return True
-    if b"\x00" in head:
-        return False
-    ctrl = sum(
-        1 for c in head if (c < 0x20 and c not in _TEXT_ALLOWED_CTRL) or c == 0x7F
-    )
-    return (ctrl / len(head)) < 0.05
+# ── 공용 하위 모듈로 옮긴 헬퍼들의 별칭 ──────────────────────────────
+# 구현은 facade/common/, facade/chunking/ 에 한 벌만 둔다. 여기서는 기존 이름을
+# 그대로 유지해 호출부를 건드리지 않는다. 사이트별 조정 대상 상수(구분자, 최소
+# 청크 크기, 토크나이저 경로)는 이 파일에 남아 있으므로 래퍼가 넘겨준다.
+from genon.preprocessor.facade.common import config_parse as cp
+from genon.preprocessor.facade.common import file_probe as fp
+
+_as_dict = cp.as_dict
+_as_int_flag = cp.as_int_flag
+_copy_enrichment_options = cp.copy_enrichment_options
+_detect_unsupported_file = fp.detect_unsupported_file
+_is_encrypted_office = fp.is_encrypted_office
+_is_encrypted_pdf = fp.is_encrypted_pdf
+_is_protected_hwp = fp.is_protected_hwp
+_looks_like_text = fp.looks_like_text
+_parse_optional_bool = cp.parse_optional_bool
+_parse_optional_float = cp.parse_optional_float
+_parse_optional_int = cp.parse_optional_int
+_warn_unresolved_placeholders = cp.warn_unresolved_placeholders
 
 
-def _is_encrypted_pdf(file_path: str) -> bool:
-    """PDF /Encrypt(비밀번호/DRM 암호화) 여부. ISO 32000 기준, pypdf is_encrypted 사용."""
-    try:
-        from pypdf import PdfReader
-
-        return bool(PdfReader(file_path).is_encrypted)
-    except Exception:
-        return False  # 파싱 실패는 여기서 단정 안 함(후속 단계에서 처리)
+def _load_config(config_path: str) -> dict:
+    return cp.load_config(config_path, strict=True)
 
 
-def _is_encrypted_office(file_path: str) -> bool:
-    """암호화된 OOXML(docx/xlsx/pptx)은 OLE2 컨테이너의 'EncryptedPackage' 스트림으로
-    저장된다(MS-OFFCRYPTO). olefile 로 그 스트림 존재를 확인."""
-    try:
-        import olefile
-
-        if not olefile.isOleFile(file_path):
-            return False
-        ole = olefile.OleFileIO(file_path)
-        try:
-            return ole.exists("EncryptedPackage")
-        finally:
-            ole.close()
-    except Exception:
-        return False
 
 
-def _is_protected_hwp(file_path: str) -> bool:
-    """암호화/배포용(DRM) HWP 감지. HWP 5.0 'FileHeader' 스트림(OLE2 내, 256B)의
-    flags(offset 36, uint32 LE) bit1=password, bit2=distribution(배포용/DRM).
-    이런 HWP 는 본문 스트림이 암호화돼 변환기가 정상 처리 못 함. (근거: HWP 5.0 스펙)"""
-    try:
-        import olefile
-        import struct
-
-        if not olefile.isOleFile(file_path):
-            return False
-        ole = olefile.OleFileIO(file_path)
-        try:
-            if not ole.exists("FileHeader"):
-                return False
-            data = ole.openstream("FileHeader").read()
-            if len(data) < 40 or data[:17] != b"HWP Document File":
-                return False
-            flags = struct.unpack("<I", data[36:40])[0]
-            return bool(flags & 0x02) or bool(flags & 0x04)  # password or distribution(DRM)
-        finally:
-            ole.close()
-    except Exception:
-        return False
 
 
-def _detect_unsupported_file(file_path: str) -> str | None:
-    """입력 파일이 정상 처리 가능한지 판정(이슈 #278). 차단 사유 문자열 또는 정상이면 None.
 
-    근거(공식):
-    - 포맷 인식: 매직헤더 allowlist (file/file libmagic 정본 DB + 각 포맷 공식 스펙).
-      _KNOWN_MAGIC_PREFIXES 위 주석에 출처 명시. 확장자와 무관하게 실제 바이트로 본다.
-    - 암호화 자체는 바이트 패턴으로 못 본다(암호문=고엔트로피 랜덤). 포맷별 구조로 판정:
-      PDF=/Encrypt(pypdf is_encrypted, ISO 32000), Office=OLE2의 EncryptedPackage(MS-OFFCRYPTO),
-      HWP=FileHeader flags(HWP 5.0 스펙).
-    - Fasoo 등 독점 DRM은 표준 감지법이 없다 → 알려진 매직헤더에 안 맞고 텍스트도 아닌
-      바이너리(=고엔트로피 garbage)로 걸러낸다.
-    """
-    try:
-        with open(file_path, "rb") as f:
-            head = f.read(512)
-    except Exception:
-        return None  # 읽기 실패는 여기서 판단 안 함(후속 단계에서 처리)
-    if not head:
-        return "빈 파일"
 
-    is_pdf = head.startswith(b"%PDF-")
-    is_ole2 = head.startswith(b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1")
-    # ── Layer 1: 알려진 포맷 매직헤더인가 ──
-    known = (
-        is_pdf
-        or is_ole2
-        or head[4:8] == b"ftyp"  # mp4/mov/m4a (ISO-BMFF, offset 4)
-        or (len(head) >= 2 and head[0] == 0xFF and (head[1] & 0xE0) == 0xE0)  # mp3 frame sync
-        or any(head.startswith(sig) for sig in _KNOWN_MAGIC_PREFIXES)
-    )
-    if not known:
-        if _looks_like_text(head):
-            return None  # csv/txt/json/md/html 등 텍스트 파일
-        return "지원하지 않거나 손상된 파일(DRM 암호화 등)"
 
-    # ── Layer 2: 알려진 포맷이지만 비밀번호/암호화된 경우 ──
-    if is_pdf and _is_encrypted_pdf(file_path):
-        return "암호화된 PDF 문서"
-    if is_ole2 and _is_encrypted_office(file_path):
-        return "암호화된 Office 문서"
-    if is_ole2 and _is_protected_hwp(file_path):
-        return "암호화/배포용(DRM) HWP 문서"
-    return None
 
 
 # fontTools 로그 억제
@@ -343,121 +234,20 @@ CONVERTIBLE_EXTENSIONS = ['.hwp', '.txt', '.json', '.md', '.ppt', '.pptx', '.doc
 # 설정 로딩
 # ============================================================
 
-def _warn_unresolved_placeholders(cfg: dict, config_path: str) -> None:
-    """config 에 남아있는 미치환 플레이스홀더(<UPPER_SNAKE>)를 탐지해 경고한다.
-
-    Site 배포 시 OCR/Layout/Enrichment endpoint·serving ID 등의 치환 누락을 조기에
-    드러내기 위함. fail-fast 하지 않고(기동 보존) WARNING 로그만 남긴다.
-    """
-    pattern = re.compile(r"<[A-Z0-9_]+>")
-    found = []
-
-    def _scan(node, path):
-        if isinstance(node, dict):
-            for k, v in node.items():
-                _scan(v, f"{path}.{k}" if path else str(k))
-        elif isinstance(node, list):
-            for i, v in enumerate(node):
-                _scan(v, f"{path}[{i}]")
-        elif isinstance(node, str):
-            for ph in pattern.findall(node):
-                found.append((path, ph))
-
-    _scan(cfg, "")
-    if found:
-        lines = "\n".join(f"  - {path}: {ph}" for path, ph in found)
-        _log.warning(
-            "[DocumentProcessor] 미치환 설정 플레이스홀더가 발견되었습니다 "
-            f"(config='{config_path}'). Site 배포 시 실제 값으로 변경하세요:\n{lines}"
-        )
 
 
-def _load_config(config_path: str) -> dict:
-    with open(config_path, "r", encoding="utf-8") as f:
-        cfg = yaml.safe_load(f) or {}
-    if not isinstance(cfg, dict):
-        raise ValueError(f"Invalid config format: expected mapping, got {type(cfg).__name__}")
-    _warn_unresolved_placeholders(cfg, config_path)
-    return cfg
 
 
-def _as_dict(value: Any) -> dict:
-    return value if isinstance(value, dict) else {}
 
 
-def _as_int_flag(value: Any, default: int = 0) -> int:
-    """Normalize runtime feature flags to 0 or 1."""
-    if value is None:
-        return default
-    if isinstance(value, bool):
-        return 1 if value else 0
-    if isinstance(value, (int, float)):
-        return 1 if int(value) == 1 else 0
-    if isinstance(value, str):
-        normalized = value.strip().lower()
-        if normalized in {"1", "true", "yes", "y", "on"}:
-            return 1
-        if normalized in {"0", "false", "no", "n", "off"}:
-            return 0
-    return default
 
 
-def _copy_enrichment_options(options, **updates):
-    """DataEnrichmentOptions 를 얕게 복제하며 지정 필드를 override(원본 불변)."""
-    try:
-        return options.model_copy(update=updates)
-    except AttributeError:
-        import copy as _copy
-        cloned = _copy.copy(options)
-        for key, value in updates.items():
-            setattr(cloned, key, value)
-        return cloned
 
 
-def _parse_optional_bool(value: Any, key: str = "") -> Optional[bool]:
-    if value is None:
-        return None
-    if isinstance(value, bool):
-        return value
-    if isinstance(value, (int, float)):
-        return bool(value)
-    if isinstance(value, str):
-        text = value.strip().lower()
-        if text in {"1", "true", "yes", "y", "on"}:
-            return True
-        if text in {"0", "false", "no", "n", "off"}:
-            return False
-    if key:
-        _log.warning(
-            f"[ImageDescriptionOptions] Invalid bool value for '{key}': {value!r}. Fallback to default."
-        )
-    return None
 
 
-def _parse_optional_int(value: Any, key: str = "") -> Optional[int]:
-    if value is None or value == "":
-        return None
-    try:
-        return int(value)
-    except (TypeError, ValueError):
-        if key:
-            _log.warning(
-                f"[ImageDescriptionOptions] Invalid int value for '{key}': {value!r}. Fallback to default."
-            )
-        return None
 
 
-def _parse_optional_float(value: Any, key: str = "") -> Optional[float]:
-    if value is None or value == "":
-        return None
-    try:
-        return float(value)
-    except (TypeError, ValueError):
-        if key:
-            _log.warning(
-                f"Invalid float value for '{key}': {value!r}. Fallback to default."
-            )
-        return None
 
 
 
