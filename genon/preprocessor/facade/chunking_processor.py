@@ -60,6 +60,7 @@ def convert_to_pdf(file_path: str, use_pdf_sdk: bool = True) -> str | None:
 # 그대로 유지해 호출부를 건드리지 않는다. 사이트별 조정 대상 상수(구분자, 최소
 # 청크 크기, 토크나이저 경로)는 이 파일에 남아 있으므로 래퍼가 넘겨준다.
 from genon.preprocessor.facade.common import config_parse as cp
+from genon.preprocessor.facade.common import vector_meta as vm
 from genon.preprocessor.facade.common import docling_ops as dops
 from genon.preprocessor.facade.common import runtime as rt
 from genon.preprocessor.facade.common import file_probe as fp
@@ -1605,123 +1606,26 @@ class GenOSVectorMeta(BaseModel):
     file_path: Optional[str] = None
     guardrail_categories: Optional[list] = None  # #315 민감정보 분류 라벨(부동산/인사/민감 등). 미적용 시 None
 
-class GenOSVectorMetaBuilder:
+class GenOSVectorMetaBuilder(vm.VectorMetaBuilderBase):
+    """공통 세터(텍스트 통계·페이지·bbox·미디어·글로벌 메타데이터)는
+    facade/common/vector_meta.py 에 있다. 여기에는 이 facade 고유 필드만 둔다."""
+
     def __init__(self):
         """빌더 초기화"""
-        self.text: Optional[str] = None
-        self.n_char: Optional[int] = None
-        self.n_word: Optional[int] = None
-        self.n_line: Optional[int] = None
-        self.i_page: Optional[int] = None
-        self.e_page: Optional[int] = None
-        self.i_chunk_on_page: Optional[int] = None
-        self.n_chunk_of_page: Optional[int] = None
-        self.i_chunk_on_doc: Optional[int] = None
-        self.n_chunk_of_doc: Optional[int] = None
-        self.n_page: Optional[int] = None
-        self.reg_date: Optional[str] = None
-        self.chunk_bboxes: Optional[str] = None
-        self.media_files: Optional[str] = None
+        super().__init__()
         self.title: Optional[str] = None
         self.created_date: Optional[int] = None
         self.appendix: Optional[str] = None # !! appendix feature (2025-09-30, geonhee kim) !!
         self.file_path: Optional[str] = None
-        self.guardrail_categories: Optional[list] = None  # #315 민감정보 분류 라벨
-        self.extra_metadata: dict[str, Any] = {}
-
-    def set_guardrail_categories(self, guardrail_categories: Optional[list]) -> "GenOSVectorMetaBuilder":
-        """#315 청크 민감정보 분류 라벨 설정 (부동산/인사/민감 등의 list, 미적용 시 None)"""
-        self.guardrail_categories = guardrail_categories or None
-        return self
-
-    def set_text(self, text: str) -> "GenOSVectorMetaBuilder":
-        """텍스트와 관련된 데이터를 설정"""
-        self.text = text
-        self.n_char = len(text)
-        self.n_word = len(text.split())
-        self.n_line = len(text.splitlines())
-        return self
-
-    def set_page_info(
-            self, i_page: int, i_chunk_on_page: int, n_chunk_of_page: int
-    ) -> "GenOSVectorMetaBuilder":
-        """페이지 정보 설정"""
-        self.i_page = i_page
-        self.i_chunk_on_page = i_chunk_on_page
-        self.n_chunk_of_page = n_chunk_of_page
-        return self
-
-    def set_chunk_index(self, i_chunk_on_doc: int) -> "GenOSVectorMetaBuilder":
-        """문서 전체의 청크 인덱스 설정"""
-        self.i_chunk_on_doc = i_chunk_on_doc
-        return self
-
-    def set_global_metadata(self, **global_metadata) -> "GenOSVectorMetaBuilder":
-        """글로벌 메타데이터 병합"""
-        for key, value in global_metadata.items():
-            if hasattr(self, key):
-                setattr(self, key, value)
-            else:
-                self.extra_metadata[key] = value
-        return self
-
-    def set_chunk_bboxes(self, doc_items: list, document: DoclingDocument) -> "GenOSVectorMetaBuilder":
-        chunk_bboxes = []
-        for item in doc_items:
-            for prov in item.prov:
-                label = item.self_ref
-                type_ = item.label
-                size = document.pages.get(prov.page_no).size
-                page_no = prov.page_no
-                bbox = prov.bbox
-                bbox_data = {'l': bbox.l / size.width,
-                             't': bbox.t / size.height,
-                             'r': bbox.r / size.width,
-                             'b': bbox.b / size.height,
-                             'coord_origin': bbox.coord_origin.value}
-                chunk_bboxes.append({'page': page_no, 'bbox': bbox_data, 'type': type_, 'ref': label})
-        self.e_page = max([bbox['page'] for bbox in chunk_bboxes]) if chunk_bboxes else 0
-        self.chunk_bboxes = json.dumps(chunk_bboxes)
-        return self
-
-    def set_media_files(self, doc_items: list, include_tables: bool = False) -> "GenOSVectorMetaBuilder":
-        temp_list = []
-        for item in doc_items:
-            if isinstance(item, PictureItem) and item.image:
-                path = str(item.image.uri)
-                name = path.rsplit("/", 1)[-1]
-                temp_list.append({'name': name, 'type': 'image', 'ref': item.self_ref})
-            elif include_tables and isinstance(item, TableItem) and item.image:
-                # 표 이미지는 picture 와 구분되도록 type='table_image' 로 기록한다.
-                # ref(self_ref)는 chunk_bboxes 의 table 엔트리 ref 와 동일 → 조인 가능.
-                path = str(item.image.uri)
-                name = path.rsplit("/", 1)[-1]
-                temp_list.append({'name': name, 'type': 'table_image', 'ref': item.self_ref})
-        self.media_files = json.dumps(temp_list)
-        return self
 
     def build(self) -> GenOSVectorMeta:
         """설정된 데이터를 사용해 최종적으로 GenOSVectorMeta 객체 생성"""
         payload = {
-            "text": self.text,
-            "n_char": self.n_char,
-            "n_word": self.n_word,
-            "n_line": self.n_line,
-            "i_page": self.i_page,
-            "e_page": self.e_page,
-            "i_chunk_on_page": self.i_chunk_on_page,
-            "n_chunk_of_page": self.n_chunk_of_page,
-            "i_chunk_on_doc": self.i_chunk_on_doc,
-            "n_chunk_of_doc": self.n_chunk_of_doc,
-            "n_page": self.n_page,
-            "reg_date": self.reg_date,
-            "chunk_bboxes": self.chunk_bboxes,
-            "media_files": self.media_files,
+            **self.core_payload(),
             "title": self.title,
             "created_date": self.created_date,
             "appendix": self.appendix or "", # !! appendix feature (2025-09-30, geonhee kim) !!
             "file_path": self.file_path,
-            "guardrail_categories": self.guardrail_categories,  # #315 민감정보 분류 라벨
             **self.extra_metadata,
         }
         return GenOSVectorMeta.model_validate(payload)
