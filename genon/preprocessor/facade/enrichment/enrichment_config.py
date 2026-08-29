@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 from .prompt_files import read_prompt_file
+from .table_text_context import merge_table_text_description
 
 _log = logging.getLogger(__name__)
 
@@ -145,8 +146,34 @@ _ENRICHMENT_LIST_NAMES: dict[str, set[str]] = {
     "doc_summary": {"doc_summary", "doc_summary_enricher"},
     "image_description": {"image_description", "image_description_enricher"},
     "table_description": {"table_description", "table_description_enricher"},
+    "table_text_description": {"table_text_description", "table_text_description_enricher"},
     "custom_fields": {"custom_fields", "custom_fields_enricher"},
 }
+
+
+def _merge_table_text_description_config(
+    custom_fields_cfgs: list[dict], common_cfg: dict
+) -> list[dict]:
+    """공통 텍스트 표 설정을 문서 LLM custom_fields에 병합한다.
+
+    표 설명이 기존 custom-fields 추출과 같은 호출을 사용해야 하므로 별도 enricher를
+    만들지 않는다. 여기서는 프로세서 공통값만 실어 보내고, 문서유형 YAML(config_file)의
+    값과의 최종 병합은 enricher 생성자가 같은 규칙(merge_table_text_description)으로 한다.
+    """
+    if not common_cfg:
+        return custom_fields_cfgs
+    merged_cfgs: list[dict] = []
+    for original in custom_fields_cfgs:
+        current = dict(original)
+        extractor = str(current.get("extractor") or "llm").strip().lower()
+        if extractor not in {"llm", "document_llm"}:
+            merged_cfgs.append(current)
+            continue
+        current["table_text_description"] = merge_table_text_description(
+            common_cfg, _as_dict(current.get("table_text_description"))
+        )
+        merged_cfgs.append(current)
+    return merged_cfgs
 
 
 # ── Sub-dataclasses ───────────────────────────────────────────────────────────
@@ -232,6 +259,7 @@ class EnrichmentConfig:
     doc_summary_cfg: dict
     image_description_cfg: dict
     table_description_cfg: dict
+    table_text_description_cfg: dict
     custom_fields_cfgs: list
     api_url: str
     api_key: str
@@ -270,6 +298,7 @@ class EnrichmentConfig:
         doc_summary_cfg: dict = {"enabled": False}
         image_desc_cfg: dict = {"enabled": False}
         table_desc_cfg: dict = {"enabled": False}
+        table_text_desc_cfg: dict = {"enabled": False}
         custom_fields_cfgs: list = []
 
         for item in items:
@@ -315,6 +344,10 @@ class EnrichmentConfig:
                 # 런타임 kwargs(table_desc/table_refine/doc_summary 등)로 켤 때 프롬프트가 필요하기 때문.
                 opts["enabled"] = bool(enabled)
                 table_desc_cfg = opts
+            elif category == "table_text_description":
+                # custom_fields LLM 호출에 병합되는 텍스트(HTML/Markdown) 표 설명 설정.
+                opts["enabled"] = bool(enabled)
+                table_text_desc_cfg = opts
             elif category == "custom_fields":
                 if enabled and opts:
                     if "resource_path" not in opts:
@@ -358,6 +391,10 @@ class EnrichmentConfig:
 
         toc_thinking, toc_thinking_dialect = _parse_thinking(toc_opts)
         meta_thinking, meta_thinking_dialect = _parse_thinking(metadata_opts)
+
+        custom_fields_cfgs = _merge_table_text_description_config(
+            custom_fields_cfgs, table_text_desc_cfg
+        )
 
         return cls(
             toc=_TocConfig(
@@ -425,6 +462,7 @@ class EnrichmentConfig:
             doc_summary_cfg=doc_summary_cfg,
             image_description_cfg=image_desc_cfg,
             table_description_cfg=table_desc_cfg,
+            table_text_description_cfg=table_text_desc_cfg,
             custom_fields_cfgs=custom_fields_cfgs,
             api_url="",
             api_key="",
@@ -475,6 +513,14 @@ class EnrichmentConfig:
         for _cf in cf_list:
             if "resource_path" not in _cf:
                 _cf["resource_path"] = str(config_dir)
+        table_text_desc_cfg = _as_dict(cfg.get("table_text_description"))
+        if table_text_desc_cfg:
+            table_text_desc_cfg = dict(table_text_desc_cfg)
+            if "enabled" not in table_text_desc_cfg and "enable" in table_text_desc_cfg:
+                table_text_desc_cfg["enabled"] = bool(table_text_desc_cfg.pop("enable"))
+        else:
+            table_text_desc_cfg = {"enabled": False}
+        cf_list = _merge_table_text_description_config(cf_list, table_text_desc_cfg)
 
         toc_sp = _resolve_prompt(
             toc_cfg.get("system_prompt"), toc_cfg.get("system_prompt_file"), None, config_dir
@@ -597,6 +643,7 @@ class EnrichmentConfig:
             doc_summary_cfg=_as_dict(cfg.get("doc_summary")),
             image_description_cfg=_as_dict(cfg.get("image_description")),
             table_description_cfg=_as_dict(cfg.get("table_description")),
+            table_text_description_cfg=table_text_desc_cfg,
             custom_fields_cfgs=cf_list,
             api_url=global_url,
             api_key=global_key,

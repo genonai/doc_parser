@@ -203,6 +203,28 @@ enrichment:
         enable: false
         prompt_file: prompt_table_refine_combined.md   # 재구성 HTML + 요약 통합 프롬프트
 
+  # 텍스트 기반(HTML/Markdown) 표를 기존 custom_fields LLM 호출에 함께 넣어 RAG 설명 생성.
+  # true 또는 런타임 table_text_desc=1로 활성화. 문서 내 여러 표는 가능한 한 1회 호출로 처리한다.
+  # LLM url/model/max_tokens/temperature/timeout/thinking은 매칭된 문서형 custom_fields YAML 값을 공유한다.
+  - table_text_description:
+      enable: false
+      prompt_template_file: prompt_table_text_description_rag.md
+      input_format: auto       # auto=HTML 원본은 html, 그 외 markdown | markdown | html
+      before_items: 3          # 표 앞쪽 본문 아이템 수
+      after_items: 2           # 표 뒤쪽 본문 아이템 수
+      max_context_chars: 1500  # 앞/뒤 문맥 각각의 최대 문자 수
+      max_context_tokens: 128000       # 프롬프트 허용 상한(토크나이저 없이 문자 수로 보수 판정)
+      completion_reserved_tokens: 8000 # 응답 생성을 위해 남겨둘 여유
+      overflow_policy: batch   # batch=최소 추가 호출 | skip=표 설명 생략 | error=실패
+      conflict_policy: prefer_text # 기존 이미지 표 설명과 충돌 시 prefer_text | prefer_image | error
+      rag:
+        retrieval_context_max_chars: 350 # 모든 분할 표 청크에 반복할 독립 검색 문맥
+        key_fact_limit: 3                # 원표에서 직접 확인되는 핵심 사실 최대 개수
+        key_fact_max_chars: 160          # 핵심 사실 1개당 최대 문자 수
+        search_terms_limit: 8            # 질의 확장용 검색 표현 최대 개수
+        include_search_terms: false      # true면 검색어도 청크 텍스트에 노출
+        repeat_context_on_split: true    # 큰 표 분할 시 retrieval_context를 모든 조각에 반복
+
   # ── 문서유형별 custom_fields 추출 ──────────────────────────────────────────
   # extractor=llm은 문서 단위 LLM 추출, tabular_mapping은 Excel/CSV 행별 직접 매핑,
   # json_mapping은 JSON 레코드 배열의 레코드별 직접 매핑(+ 필요 시 LLM 생성 필드).

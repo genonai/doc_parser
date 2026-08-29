@@ -2,12 +2,15 @@ import importlib.util
 import json
 import logging
 import re
+from dataclasses import replace
 from pathlib import Path
 from typing import Any, Callable
 
 import httpx
 import yaml
 from docling_core.types import DoclingDocument
+from docling_core.types.doc import DescriptionAnnotation
+from docling_core.types.doc.document import MiscAnnotation
 
 from docling.utils.llm_cache import async_cached_call, remaining_timeout
 
@@ -16,8 +19,19 @@ from .field_transforms import store_metadata_in_document
 from .prompt_files import read_prompt_file
 from .prompt_template import PromptTemplate
 from .thinking import resolve_thinking_kwargs, strip_reasoning
+from .table_description import TABLE_TEXT_DESCRIPTION_PROVENANCE, TableDescriptionExtractor
+from .table_text_context import (
+    TableTextDescriptionOptions,
+    TableTextTarget,
+    collect_table_text_targets,
+    merge_table_text_description,
+    render_table_targets,
+)
 
 _log = logging.getLogger(__name__)
+
+# 문자 수를 토큰으로 환산할 때의 안전계수. 한국어 기준 1글자가 1토큰을 넘는 경우를 감안한 상한.
+_TOKENS_PER_CHAR = 1.5
 
 _CONFIG_DIR = Path(__file__).parent.parent / "configs" / "enrich" / "custom_fields"
 
@@ -255,6 +269,7 @@ class CustomFieldsEnricher(BaseEnricher):
         thinking_dialect: str = "standard",
         doc_type: str | list[str] | None = None,
         extractor: str = "llm",
+        table_text_description: dict | None = None,
     ):
         cfg = self._load_config(config_file, resource_path)
         prompt_cfg = cfg.get("prompt", {}) if isinstance(cfg.get("prompt"), dict) else {}
@@ -303,6 +318,9 @@ class CustomFieldsEnricher(BaseEnricher):
         ).strip().lower()
         self._doc_types = normalize_doc_types(doc_type)
         self._extractor = str(extractor or "llm").strip().lower()
+        self._table_description_options = self._resolve_table_text_description_options(
+            merge_table_text_description(table_text_description, cfg.get("table_text_description"))
+        )
 
         cfg_pages = cfg.get("pages")
         self._pages: list[int] | None = pages or (cfg_pages if isinstance(cfg_pages, list) and cfg_pages else None)
@@ -320,6 +338,19 @@ class CustomFieldsEnricher(BaseEnricher):
         if isinstance(file_ref, str) and file_ref.strip():
             return read_prompt_file(file_ref.strip(), self._parser_base_dir)
         return ""
+
+    def _resolve_table_text_description_options(
+        self, table_cfg: dict | None
+    ) -> TableTextDescriptionOptions:
+        """텍스트 표 설명 프롬프트는 custom_fields와 동일하게 MD 파일 우선으로 해석한다."""
+        cfg = table_cfg if isinstance(table_cfg, dict) else {}
+        prompt_file = cfg.get("prompt_template_file") or cfg.get("prompt_file")
+        prompt = self._maybe_read_prompt(prompt_file) or str(
+            cfg.get("prompt_template") or cfg.get("prompt") or ""
+        ).strip()
+        return replace(
+            TableTextDescriptionOptions.from_config(cfg), prompt_template=prompt
+        )
 
     def _load_config(self, config_file: str, resource_path: str | None = None) -> dict:
         return load_custom_fields_config(config_file, resource_path)
@@ -442,7 +473,12 @@ class CustomFieldsEnricher(BaseEnricher):
             return "\n".join(chunks).strip()
         return str(content)
 
-    def _render_prompts(self, raw_text: str, document: DoclingDocument | None) -> "tuple[str, str]":
+    def _render_prompts(
+        self,
+        raw_text: str,
+        document: DoclingDocument | None,
+        user_suffix: str = "",
+    ) -> "tuple[str, str]":
         needed = self._user_tpl.referenced | self._system_tpl.referenced
         if document is not None:
             ctx = PromptTemplate.doc_context(
@@ -451,11 +487,18 @@ class CustomFieldsEnricher(BaseEnricher):
         else:
             ctx = {"raw_text": raw_text, **self._variables}
         user = raw_text if self._user_tpl.is_empty else self._user_tpl.render(**ctx)
+        if user_suffix:
+            user = f"{user}\n\n{user_suffix}" if user else user_suffix
         system = "" if self._system_tpl.is_empty else self._system_tpl.render(**ctx)
         return system, user
 
-    async def _call_llm(self, raw_text: str, document: DoclingDocument | None = None) -> str:
-        system, prompt = self._render_prompts(raw_text, document)
+    async def _call_llm(
+        self,
+        raw_text: str,
+        document: DoclingDocument | None = None,
+        user_suffix: str = "",
+    ) -> str:
+        system, prompt = self._render_prompts(raw_text, document, user_suffix)
         messages = []
         if system:
             messages.append({"role": "system", "content": system})
@@ -540,6 +583,231 @@ class CustomFieldsEnricher(BaseEnricher):
         )
         return serializer.serialize().text
 
+    def wants_table_descriptions(self, **kwargs: Any) -> bool:
+        """현재 요청에서 텍스트 표 설명 기능이 켜졌는지 반환한다.
+
+        런타임 플래그(table_text_desc)로도 켤 수 있지만, 프롬프트가 없으면 켜지 않는다 —
+        전역 플래그 하나로 프롬프트 미설정 문서유형의 custom_fields 추출까지 실패시키지 않기 위해서다.
+        """
+        if not self.is_configured or not matches_doc_type(self._doc_types, kwargs.get("doc_type")):
+            return False
+        if self._table_description_options.conflict_policy == "prefer_image":
+            return False
+        runtime = kwargs.get("table_text_desc")
+        if runtime is None:
+            wanted = self._table_description_options.enabled
+        elif isinstance(runtime, str):
+            wanted = runtime.strip().lower() in {"1", "true", "yes", "on"}
+        else:
+            wanted = bool(runtime)
+        if wanted and not self._table_description_options.prompt_template:
+            _log.warning(
+                "표 설명을 요청했지만 table_text_description.prompt_template_file 설정이 없어 건너뜁니다."
+            )
+            return False
+        return wanted
+
+    @property
+    def table_description_conflict_policy(self) -> str:
+        return self._table_description_options.conflict_policy
+
+    def _table_prompt(self, targets: list[TableTextTarget]) -> str:
+        options = self._table_description_options
+        limits = (
+            f"retrieval_context 최대 {options.retrieval_context_max_chars}자, "
+            f"key_facts 최대 {options.key_fact_limit}개(항목당 {options.key_fact_max_chars}자), "
+            f"search_terms 최대 {options.search_terms_limit}개."
+        )
+        return "\n\n".join((
+            options.prompt_template,
+            limits,
+            render_table_targets(targets),
+        ))
+
+    def _prompt_fits(
+        self, raw_text: str, document: DoclingDocument, suffix: str
+    ) -> bool:
+        """토크나이저 없이 문자 수로 토큰을 추정한다.
+
+        한국어는 한 글자가 1토큰을 넘는 경우가 흔하므로 문자 수를 그대로 토큰으로 보면
+        과소 추정이 된다. _TOKENS_PER_CHAR 안전계수를 곱해 넘치는 쪽으로 판정한다.
+        """
+        system, user = self._render_prompts(raw_text, document, suffix)
+        available = max(
+            1,
+            self._table_description_options.max_context_tokens
+            - self._table_description_options.completion_reserved_tokens,
+        )
+        estimated = (len(system) + len(user)) * _TOKENS_PER_CHAR
+        return estimated <= available
+
+    @staticmethod
+    def _clean_string_list(value: Any, limit: int, max_chars: int | None = None) -> list[str]:
+        if not isinstance(value, list):
+            return []
+        result: list[str] = []
+        for item in value:
+            text = re.sub(r"\s+", " ", str(item or "")).strip()
+            if not text or text in result:
+                continue
+            result.append(text[:max_chars] if max_chars else text)
+            if len(result) >= limit:
+                break
+        return result
+
+    def _attach_table_descriptions(
+        self, parsed: dict, targets: list[TableTextTarget]
+    ) -> None:
+        values = parsed.pop("_table_descriptions", None)
+        if not isinstance(values, list):
+            _log.warning("custom_fields 표 설명 응답에 _table_descriptions 배열이 없습니다.")
+            return
+        by_id = {
+            str(value.get("table_id") or ""): value
+            for value in values
+            if isinstance(value, dict)
+        }
+        options = self._table_description_options
+        for target in targets:
+            value = by_id.get(target.table_id)
+            if not value:
+                _log.warning("custom_fields 표 설명 누락: %s", target.table_id)
+                continue
+            context = re.sub(r"\s+", " ", str(value.get("retrieval_context") or "")).strip()
+            context = context[:options.retrieval_context_max_chars]
+            facts = self._clean_string_list(
+                value.get("key_facts"), options.key_fact_limit, options.key_fact_max_chars
+            )
+            terms = self._clean_string_list(value.get("search_terms"), options.search_terms_limit)
+            if not context:
+                _log.warning("custom_fields 표 retrieval_context 누락: %s", target.table_id)
+                continue
+            description = context
+            if facts:
+                description += "\n핵심 사실: " + " | ".join(facts)
+            if options.include_search_terms and terms:
+                description += "\n검색어: " + ", ".join(terms)
+            item = target.table_item
+            # 재실행 시 같은 표에 설명이 겹치지 않도록 이전 텍스트 설명을 먼저 뗀다.
+            item.annotations = TableDescriptionExtractor.strip_text_descriptions(
+                getattr(item, "annotations", None)
+            )
+            item.annotations.append(DescriptionAnnotation(
+                text=description, provenance=TABLE_TEXT_DESCRIPTION_PROVENANCE
+            ))
+            item.annotations.append(MiscAnnotation(content={
+                "provenance": TABLE_TEXT_DESCRIPTION_PROVENANCE,
+                "table_retrieval": {
+                    "retrieval_context": context,
+                    "key_facts": facts,
+                    "search_terms": terms,
+                    "include_search_terms": options.include_search_terms,
+                    "repeat_context_on_split": options.repeat_context_on_split,
+                },
+            }))
+
+    def _fit_targets(
+        self, raw_text: str, document: DoclingDocument, targets: list[TableTextTarget]
+    ) -> tuple[list[TableTextTarget], bool]:
+        """예산 안에 들어가도록 target 을 단계적으로 줄인다.
+
+        계획한 순서 그대로 (1) 있는 그대로 (2) 주변 문맥 축소 (3) HTML 을 markdown 으로 낮춤
+        을 시도하고, 어느 단계에서 들어갔는지를 (targets, 통과여부) 로 돌려준다.
+        """
+        options = self._table_description_options
+        if self._prompt_fits(raw_text, document, self._table_prompt(targets)):
+            return targets, True
+
+        shrunk = collect_table_text_targets(
+            document, options, max_context_chars=max(1, options.max_context_chars // 4)
+        )
+        if shrunk and self._prompt_fits(raw_text, document, self._table_prompt(shrunk)):
+            _log.info("표 설명 프롬프트가 예산을 넘어 주변 문맥을 축소했습니다.")
+            return shrunk, True
+
+        if any(target.input_format == "html" for target in (shrunk or targets)):
+            downgraded = collect_table_text_targets(
+                document, options, input_format="markdown",
+                max_context_chars=max(1, options.max_context_chars // 4),
+            )
+            if downgraded and self._prompt_fits(raw_text, document, self._table_prompt(downgraded)):
+                _log.info("표 설명 프롬프트가 예산을 넘어 표 본문을 markdown 으로 낮췄습니다.")
+                return downgraded, True
+            return downgraded or shrunk or targets, False
+        return shrunk or targets, False
+
+    def _plan_batches(
+        self, document: DoclingDocument, targets: list[TableTextTarget]
+    ) -> list[list[TableTextTarget]]:
+        """표만 담는 추가 호출을 예산 안에서 최소 개수로 묶는다.
+
+        표 하나만으로도 예산을 넘으면 그 표는 어떤 호출에도 담을 수 없으므로 제외한다
+        (overflow_policy=error 는 호출부에서 예외로 바꾼다).
+        """
+        batches: list[list[TableTextTarget]] = []
+        batch: list[TableTextTarget] = []
+        for target in targets:
+            if not self._prompt_fits("", document, self._table_prompt([target])):
+                _log.warning("표 하나가 프롬프트 예산을 넘어 설명을 생략합니다: %s", target.table_id)
+                continue
+            candidate = batch + [target]
+            if batch and not self._prompt_fits("", document, self._table_prompt(candidate)):
+                batches.append(batch)
+                batch = [target]
+            else:
+                batch = candidate
+        if batch:
+            batches.append(batch)
+        return batches
+
+    async def _extract_with_table_descriptions(
+        self,
+        raw_text: str,
+        document: DoclingDocument,
+        targets: list[TableTextTarget],
+        **kwargs: Any,
+    ) -> dict:
+        """가능하면 custom fields와 모든 표 설명을 단일 호출로 추출한다.
+
+        표 설명은 부가 기능이므로 이 경로의 어떤 실패도 custom fields 결과를 버리지 않는다.
+        """
+        policy = self._table_description_options.overflow_policy
+        try:
+            fitted, fits = self._fit_targets(raw_text, document, targets)
+        except Exception as exc:
+            _log.warning("표 설명 입력 구성 실패: %s", exc)
+            fitted, fits = targets, False
+
+        if fits:
+            output = await self._call_llm(raw_text, document, self._table_prompt(fitted))
+            parsed = self._parse_with_custom_parser(output, document, **kwargs)
+            try:
+                self._attach_table_descriptions(parsed, fitted)
+            except Exception as exc:
+                _log.warning("표 설명 부착 실패: %s", exc)
+                parsed.pop("_table_descriptions", None)
+            return parsed
+
+        if policy == "error":
+            raise ValueError("custom_fields + 표 설명 프롬프트가 max_context_tokens를 초과했습니다.")
+        output = await self._call_llm(raw_text, document)
+        parsed = self._parse_with_custom_parser(output, document, **kwargs)
+        if policy == "skip":
+            _log.warning("표 설명 프롬프트가 한도를 초과해 표 설명을 건너뜁니다.")
+            return parsed
+
+        # batch 정책: custom fields는 한 번만 호출하고 표는 들어가는 만큼 묶어 추가 호출한다.
+        try:
+            batches = self._plan_batches(document, fitted)
+            for table_batch in batches:
+                table_output = await self._call_llm("", document, self._table_prompt(table_batch))
+                table_parsed = self._parse_with_custom_parser(table_output, document, **kwargs)
+                self._attach_table_descriptions(table_parsed, table_batch)
+        except Exception as exc:
+            # 이미 추출한 custom fields 는 유지한다 — 표 설명만 없는 상태로 진행.
+            _log.warning("표 설명 배치 호출 실패: %s", exc)
+        return parsed
+
     @property
     def is_configured(self) -> bool:
         """LLM 연결 설정이 채워져 있는지. 비어 있으면 호출 자체를 하지 않는다."""
@@ -584,8 +852,18 @@ class CustomFieldsEnricher(BaseEnricher):
         parsed: dict = {}
         if self.is_configured:
             try:
-                llm_output = await self._call_llm(raw_text, document)
-                parsed = self._parse_with_custom_parser(llm_output, document, **kwargs)
+                targets = (
+                    collect_table_text_targets(document, self._table_description_options)
+                    if self.wants_table_descriptions(**kwargs)
+                    else []
+                )
+                if targets:
+                    parsed = await self._extract_with_table_descriptions(
+                        raw_text, document, targets, **kwargs
+                    )
+                else:
+                    llm_output = await self._call_llm(raw_text, document)
+                    parsed = self._parse_with_custom_parser(llm_output, document, **kwargs)
             except Exception as e:
                 _log.warning(f"custom_fields 추출 실패: {e}")
         else:

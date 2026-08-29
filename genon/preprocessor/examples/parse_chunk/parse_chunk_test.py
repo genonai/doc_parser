@@ -213,6 +213,11 @@ def parse_args():
         help="청크 선두 'HEADER: <섹션 경로>' 라인 부착 여부. "
              "미지정=설정(chunking.include_chunk_header, 기본 on) | off=순수 본문만",
     )
+    ap.add_argument(
+        "--table-text-desc",
+        action="store_true",
+        help="custom_fields의 텍스트 표 설명을 활성화(설정된 LLM으로 여러 표를 통합 호출)",
+    )
     # ── #329: LLM 캐시 / error_policy / deadline (opt-in) ──────────────────────
     # 캐시는 parse 단계(LLM 호출: OCR VLM/TOC/이미지·표 desc/메타데이터)에서 동작한다.
     # chunk 단계는 LLM 호출이 없어 스코프만 전달(no-op). 두 단계 모두 같은 스코프를 준다.
@@ -253,6 +258,8 @@ def build_cache_kwargs(args) -> dict:
         kw["error_policy"] = args.error_policy
     if getattr(args, "request_deadline", None) is not None:
         kw["request_deadline"] = args.request_deadline
+    if getattr(args, "table_text_desc", False):
+        kw["table_text_desc"] = 1
     return kw
 
 

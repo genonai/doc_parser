@@ -43,6 +43,13 @@ _log = logging.getLogger(__name__)
 # 표 description enricher 가 부착하는 annotation 의 기본 provenance(무관 annotation 배제용).
 TABLE_DESCRIPTION_PROVENANCE = "facade_table_description"
 
+# custom_fields 통합 호출이 만드는 텍스트(HTML/Markdown) 표 RAG 설명의 provenance.
+# 이미지 기반 설명과 출처를 구분해야 재실행 정리·파서 출력에서 서로를 덮어쓰지 않는다.
+TABLE_TEXT_DESCRIPTION_PROVENANCE = "facade_table_text_description"
+
+# 표 RAG 설명을 청크 본문에 실을 때 쓰는 라벨(청커 3종 공통).
+TABLE_RETRIEVAL_LABEL = "[표 검색 설명]"
+
 # refine 통합 응답 마커 규약: 프롬프트가 아래 두 마커를 정확히 출력하도록 강제한다.
 TABLE_HTML_MARKER = "[[[TABLE_HTML]]]"
 TABLE_SUMMARY_MARKER = "[[[TABLE_SUMMARY]]]"
@@ -384,12 +391,27 @@ class TableDescriptionExtractor:
     """
 
     @staticmethod
-    def extract_summary(item: TableItem) -> str:
-        # 표 description enricher 가 부착한 것(provenance 일치)만 대상 — docling/타 enricher annotation 배제.
+    def _has_provenance(annotation: Any, provenance: str) -> bool:
+        """DescriptionAnnotation 의 provenance 필드와 MiscAnnotation 의 content 를 함께 본다."""
+        if getattr(annotation, "provenance", "") == provenance:
+            return True
+        if isinstance(annotation, MiscAnnotation):
+            return (getattr(annotation, "content", None) or {}).get("provenance") == provenance
+        return False
+
+    @classmethod
+    def extract_summary(cls, item: TableItem) -> str:
+        """표 설명 텍스트(이미지 기반 또는 텍스트 기반)를 반환한다.
+
+        provenance 가 일치하는 것만 대상으로 삼아 docling/타 enricher annotation 을 배제한다.
+        """
         for annotation in getattr(item, "annotations", []) or []:
             if not isinstance(annotation, DescriptionAnnotation):
                 continue
-            if getattr(annotation, "provenance", "") != TABLE_DESCRIPTION_PROVENANCE:
+            if not (
+                cls._has_provenance(annotation, TABLE_DESCRIPTION_PROVENANCE)
+                or cls._has_provenance(annotation, TABLE_TEXT_DESCRIPTION_PROVENANCE)
+            ):
                 continue
             text = str(getattr(annotation, "text", "") or "").strip()
             if text:
@@ -406,6 +428,66 @@ class TableDescriptionExtractor:
             if html:
                 return html
         return ""
+
+    @classmethod
+    def extract_retrieval(cls, item: TableItem) -> dict:
+        """텍스트 표 설명이 저장한 RAG 전용 구조를 반환한다."""
+        for annotation in getattr(item, "annotations", []) or []:
+            if not isinstance(annotation, MiscAnnotation):
+                continue
+            if not cls._has_provenance(annotation, TABLE_TEXT_DESCRIPTION_PROVENANCE):
+                continue
+            retrieval = (getattr(annotation, "content", None) or {}).get("table_retrieval")
+            if isinstance(retrieval, dict):
+                return retrieval
+        return {}
+
+    @classmethod
+    def strip_text_descriptions(cls, annotations: list) -> list:
+        """텍스트 표 설명이 부착한 annotation 만 걸러낸 새 리스트를 반환한다."""
+        return [
+            annotation
+            for annotation in (annotations or [])
+            if not cls._has_provenance(annotation, TABLE_TEXT_DESCRIPTION_PROVENANCE)
+        ]
+
+    @classmethod
+    def clean_copy(cls, item: TableItem) -> TableItem:
+        """텍스트 표 설명을 뗀 복사본을 반환해 직렬화 중 중복 삽입을 막는다.
+
+        docling serializer 는 표 annotation 을 본문에 함께 내보내므로, 청커가 설명을
+        별도 접두로 붙일 때 이 복사본을 직렬화해야 같은 문장이 두 번 실리지 않는다.
+        """
+        copied = item.model_copy(deep=True)
+        copied.annotations = cls.strip_text_descriptions(getattr(copied, "annotations", None))
+        return copied
+
+    @classmethod
+    def retrieval_text(cls, item: TableItem, *, split_piece: bool = False) -> str:
+        """RAG 청크에 넣을 텍스트 표 설명. 분할 조각에는 짧은 문맥만 반복한다.
+
+        이미지 기반 요약으로 폴백하지 않는다 — 요약은 기존대로 청커의 접미 경로가 다룬다.
+        """
+        retrieval = cls.extract_retrieval(item)
+        if not retrieval:
+            return ""
+        context = str(retrieval.get("retrieval_context") or "").strip()
+        if split_piece:
+            return context if retrieval.get("repeat_context_on_split", True) else ""
+        lines = [context] if context else []
+        facts = [str(value).strip() for value in retrieval.get("key_facts", []) if str(value).strip()]
+        terms = [str(value).strip() for value in retrieval.get("search_terms", []) if str(value).strip()]
+        if facts:
+            lines.append("핵심 사실: " + " | ".join(facts))
+        if retrieval.get("include_search_terms") and terms:
+            lines.append("검색어: " + ", ".join(terms))
+        return "\n".join(lines)
+
+    @classmethod
+    def retrieval_prefix(cls, item: TableItem, *, split_piece: bool = False) -> str:
+        """청크 본문 선두에 붙일 설명 블록. 설명이 없으면 빈 문자열."""
+        text = cls.retrieval_text(item, split_piece=split_piece)
+        return f"{TABLE_RETRIEVAL_LABEL}\n{text}\n" if text else ""
 
 
 class TableDescriptionEnricher:

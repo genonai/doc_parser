@@ -176,6 +176,7 @@ from genon.preprocessor.facade.enrichment.image_description import (
     ImageDescriptionOptions,
     ImageDescriptionEnricher,
 )
+from genon.preprocessor.facade.enrichment.table_description import TableDescriptionExtractor
 from genon.preprocessor.facade.chunking.table_splitter import (
     leading_header_row_count,
     split_entries_preserving_tables,
@@ -762,28 +763,49 @@ class GenosSmartChunker(BaseChunker):
         # 동일 annotation 중복 주입 방지
         return "\n".join(dict.fromkeys(texts))
 
+    @staticmethod
+    def _resolve_table_format(kwargs: dict) -> str:
+        """표 직렬화 형식 결정: table_format(html|markdown) 우선, 없으면 레거시 export_to_html(1/0)."""
+        fmt = kwargs.get("table_format")
+        if fmt is None:
+            return "html" if kwargs.get("export_to_html", 1) == 1 else "markdown"
+        fmt = str(fmt).strip().lower()
+        return "markdown" if fmt == "markdown" else "html"
+
+    @staticmethod
+    def _resolve_compact_tables(kwargs: dict) -> bool:
+        """markdown 표를 compact(컬럼 정렬 패딩 제거)로 낼지 결정. 기본 True."""
+        return bool(kwargs.get("compact_tables", True))
+
     def _extract_table_text(self, table_item: TableItem, dl_doc: DoclingDocument, **kwargs) -> str:
-        """테이블에서 텍스트를 추출하는 일반화된 메서드"""
+        """테이블에서 텍스트를 추출하는 일반화된 메서드.
+
+        텍스트 표 RAG 설명이 있으면 청크 선두에 붙인다. 설명은 표 본체와 함께 검색되어야
+        의미가 있으므로 접두 위치가 고정이다.
+        """
+        prefix = TableDescriptionExtractor.retrieval_prefix(table_item)
+        # docling serializer 는 표 annotation 을 본문에 함께 싣는다. 접두로 직접 붙이는 만큼
+        # 직렬화 대상에서는 설명을 떼어 같은 문장이 두 번 들어가지 않게 한다.
+        source = TableDescriptionExtractor.clean_copy(table_item) if prefix else table_item
         try:
-            # 먼저 export_to_markdown 시도
-            export_to_html = kwargs.get('export_to_html', 1)
-            if export_to_html == 1:
-                table_text = table_item.export_to_html(dl_doc)
-            elif bool(kwargs.get("compact_tables", True)):
-                # TableItem.export_to_markdown() 은 compact 옵션이 없어 직접 serializer 구성
-                # (컬럼 정렬 패딩 제거 → 대형 표 markdown 크기 대폭 축소)
-                table_text = MarkdownDocSerializer(
-                    doc=dl_doc,
-                    params=MarkdownParams(compact_tables=True),
-                ).serialize(item=table_item).text
+            if self._resolve_table_format(kwargs) == "markdown":
+                if self._resolve_compact_tables(kwargs):
+                    # TableItem.export_to_markdown() 은 compact 옵션이 없어 직접 serializer 구성
+                    # (컬럼 정렬 패딩 제거 → 대형 표 markdown 크기 대폭 축소)
+                    table_text = MarkdownDocSerializer(
+                        doc=dl_doc,
+                        params=MarkdownParams(compact_tables=True),
+                    ).serialize(item=source).text
+                else:
+                    table_text = source.export_to_markdown(dl_doc)
             else:
-                table_text = table_item.export_to_markdown(dl_doc)
+                table_text = source.export_to_html(dl_doc)
             if table_text and table_text.strip():
-                return table_text
+                return prefix + table_text
         except Exception:
             pass
 
-        # export_to_markdown 실패 시 테이블 셀 데이터에서 직접 텍스트 추출
+        # export 실패 시 테이블 셀 데이터에서 직접 텍스트 추출
         try:
             if hasattr(table_item, 'data') and table_item.data:
                 cell_texts = []
@@ -804,13 +826,13 @@ class GenosSmartChunker(BaseChunker):
 
                 # 추출된 셀 텍스트들을 결합
                 if cell_texts:
-                    return ' '.join(cell_texts)
+                    return prefix + ' '.join(cell_texts)
         except Exception:
             pass
 
         # 모든 방법 실패 시 item.text 사용 (있는 경우)
         if hasattr(table_item, 'text') and table_item.text:
-            return table_item.text
+            return prefix + table_item.text
 
         return ""
 
@@ -837,8 +859,9 @@ class GenosSmartChunker(BaseChunker):
             name = None
         if not name:
             return ""
-        if name.startswith("sheet: "):
-            name = name[len("sheet: "):]
+        if not name.startswith("sheet: "):
+            return ""
+        name = name[len("sheet: "):]
         name = name.strip()
         return f"시트명: {name}\n" if name else ""
 
@@ -878,15 +901,19 @@ class GenosSmartChunker(BaseChunker):
             (".html", ".htm", ".xhtml")
         )
         header_n = max(flag_n, 1) if is_html else flag_n + 1
+        # 분할 조각에는 짧은 retrieval_context 만 반복한다(key_facts 는 행 매핑이 불가능).
+        description_prefix = TableDescriptionExtractor.retrieval_prefix(
+            table_item, split_piece=True
+        )
         result = split_table_rows(
             grid=grid,
             num_cols=num_cols,
             single_text=single,
             limit=limit,
             count_text=self._count_tokens,
-            table_format="html",
+            table_format=self._resolve_table_format(kwargs),
             header_row_count=header_n,
-            prefix=sheet_prefix,
+            prefix=sheet_prefix + description_prefix,
         )
         for index in result.oversized_piece_indexes:
             if index < len(result.pieces):
@@ -1186,15 +1213,12 @@ class GenosSmartChunker(BaseChunker):
             return items_group
 
         def split_item_groups_preserving_html_tables(items_group, budget):
-            """초과 그룹을 나누되 HTML TableItem 은 직렬화 문자열 중간에서 자르지 않는다.
+            """초과 그룹을 나누되 HTML/Markdown TableItem 문자열 중간을 자르지 않는다.
 
             반환값이 None 이면 구조 보존 대상 표가 없다는 뜻이며 호출부는 기존 균등 분할을 그대로
             사용한다. 표가 있으면 작은 표는 인접 아이템과 예산 안에서 병합하고, 예산을 넘는 표만
             `_table_item_to_texts`의 행 단위 완전한 `<table>...</table>` 조각으로 내보낸다.
             """
-            if kwargs.get("export_to_html", 1) != 1:
-                return None
-
             def unpack(entries):
                 return (
                     [entry[0] for entry in entries],

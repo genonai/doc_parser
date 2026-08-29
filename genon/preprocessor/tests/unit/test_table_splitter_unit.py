@@ -110,6 +110,27 @@ def test_single_oversized_row_is_reported_but_kept_complete():
 
 
 @pytest.mark.unit
+@pytest.mark.parametrize("table_format", ["html", "markdown"])
+def test_rag_context_prefix_is_repeated_and_counted_in_every_piece(table_format):
+    grid = _grid(rows=8, payload_size=70)
+    prefix = "[표 검색 설명]\n2026년 센터별 장애 건수와 평균 복구시간\n"
+    result = split_table_rows(
+        grid=grid,
+        num_cols=2,
+        single_text=prefix + ("X" * 2000),
+        limit=360,
+        count_text=len,
+        table_format=table_format,
+        header_row_count=1,
+        prefix=prefix,
+    )
+
+    assert result.did_split
+    assert all(piece.startswith(prefix) for piece in result.pieces)
+    assert all(len(piece) <= 360 for piece in result.pieces)
+
+
+@pytest.mark.unit
 def test_entry_splitter_routes_only_oversized_table_to_table_callback():
     normal_a = ("normal-a",)
     table = ("table",)

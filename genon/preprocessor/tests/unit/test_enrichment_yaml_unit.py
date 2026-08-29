@@ -84,6 +84,33 @@ def test_shipped_enrichment_parses_without_error(repo_root, rel):
     assert isinstance(ec.metadata.parser, dict)
     assert isinstance(ec.custom_fields_cfgs, list)
     assert isinstance(ec.image_description_cfg, dict)
+    assert isinstance(ec.table_text_description_cfg, dict)
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    "rel",
+    ENRICHMENT_CONFIGS + ["resource/parser_processor_config_simple.yaml"],
+)
+def test_shipped_table_text_description_exposes_all_user_options(repo_root, rel):
+    ec = _parse_enrichment(repo_root, rel)
+    cfg = ec.table_text_description_cfg
+    assert set(cfg) >= {
+        "enabled", "input_format", "before_items", "after_items",
+        "max_context_chars", "max_context_tokens", "completion_reserved_tokens",
+        "overflow_policy", "conflict_policy", "rag",
+    }
+    prompt_file = cfg["prompt_template_file"]
+    assert (repo_root / rel).parent.joinpath(prompt_file).is_file()
+    assert set(cfg["rag"]) >= {
+        "retrieval_context_max_chars", "key_fact_limit", "key_fact_max_chars",
+        "search_terms_limit", "include_search_terms", "repeat_context_on_split",
+    }
+    document_llm = [
+        item for item in ec.custom_fields_cfgs
+        if str(item.get("extractor") or "llm").lower() in {"llm", "document_llm"}
+    ]
+    assert all(item["table_text_description"] == cfg for item in document_llm)
 
 
 @pytest.mark.unit
@@ -256,6 +283,41 @@ class TestEnrichmentConfigFromList:
             Path("."),
         )
         assert len(ec.custom_fields_cfgs) == 2
+
+    def test_common_table_text_description_merges_only_document_llm(self):
+        ec = EnrichmentConfig.from_raw(
+            [
+                {"table_text_description": {
+                    "enable": True,
+                    "before_items": 4,
+                    "rag": {"key_fact_limit": 5, "search_terms_limit": 7},
+                }},
+                {"custom_fields": {
+                    "enable": True,
+                    "extractor": "llm",
+                    "url": "http://llm",
+                    "table_text_description": {
+                        "after_items": 6,
+                        "rag": {"search_terms_limit": 2},
+                    },
+                }},
+                {"custom_fields": {
+                    "enable": True,
+                    "extractor": "tabular_mapping",
+                    "config_file": "faq.yaml",
+                }},
+            ],
+            Path("/tmp/cfgdir"),
+        )
+        assert ec.table_text_description_cfg["enabled"] is True
+        llm_cfg, tabular_cfg = ec.custom_fields_cfgs
+        assert llm_cfg["table_text_description"] == {
+            "enabled": True,
+            "before_items": 4,
+            "after_items": 6,
+            "rag": {"key_fact_limit": 5, "search_terms_limit": 2},
+        }
+        assert "table_text_description" not in tabular_cfg
 
     def test_disabled_custom_fields_excluded(self):
         ec = EnrichmentConfig.from_raw(

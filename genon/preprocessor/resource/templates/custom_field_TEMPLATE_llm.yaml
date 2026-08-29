@@ -41,6 +41,19 @@ max_tokens: 4000
 temperature: 0.0
 timeout: 300
 
+# ── [선택] 텍스트 표 RAG 설명의 문서유형별 override ─────────────────────────
+# 프로세서 config의 공통 `table_text_description` 값이 기본이며, 아래처럼 필요한 키만 쓰면
+# 이 문서유형에서만 덮어쓴다(rag 하위도 키 단위 병합). model/max_tokens/thinking은 표 설명도
+# 이 custom_fields 호출의 값을 그대로 공유한다(별도 호출·별도 모델 없음).
+# table_text_description:
+#   prompt_template_file: prompt_table_text_description_rag.md
+#   input_format: auto
+#   before_items: 4
+#   after_items: 3
+#   rag:
+#     key_fact_limit: 5
+#     include_search_terms: true
+
 # ── [선택] 입력 페이지 범위 ─────────────────────────────────────────────────
 # 미지정(또는 null) → 문서 전체를 대상으로 한다.
 # 앞쪽 몇 페이지만 보면 충분한 경우에만 지정한다(입력 토큰 절약).

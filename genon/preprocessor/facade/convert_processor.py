@@ -1051,18 +1051,24 @@ class GenosSmartChunker(BaseChunker):
     def _extract_table_text(self, table_item: TableItem, dl_doc: DoclingDocument, **kwargs) -> str:
         """테이블 청크 텍스트를 만든다.
 
-        표 description(refine/요약) annotation 이 있으면 반영한다:
+        표 description annotation 이 있으면 반영한다:
         - refine ON: 재구성 HTML 로 표 본체 교체
-        - 요약 존재: '\\n---\\n[표 설명]\\n<요약>' 을 항상 병기
+        - 텍스트 표 RAG 설명 존재: '[표 검색 설명]' 블록을 선두에 병기
+        - 이미지 요약 존재: '\\n---\\n[표 설명]\\n<요약>' 을 항상 병기
         annotation 이 없으면(기본) 기존 export 결과를 그대로 반환(회귀 없음).
         """
         refined_html = TableDescriptionExtractor.extract_refined_html(table_item)
-        table_summary = TableDescriptionExtractor.extract_summary(table_item)
+        # 텍스트 표 RAG 설명이 있으면 접두로 싣고 이미지 요약 접미 경로는 쓰지 않는다.
+        retrieval_prefix = TableDescriptionExtractor.retrieval_prefix(table_item)
+        table_summary = "" if retrieval_prefix else TableDescriptionExtractor.extract_summary(table_item)
 
         # refine 은 항상 HTML 로 재구성 → output table_format 에 맞춰 변환(markdown 등).
         refined = refined_html_to_format(
             refined_html, self._resolve_table_format(kwargs), self._resolve_compact_tables(kwargs))
-        base_text = refined or self._compute_table_base_text(table_item, dl_doc, **kwargs)
+        source = TableDescriptionExtractor.clean_copy(table_item) if retrieval_prefix else table_item
+        base_text = refined or self._compute_table_base_text(source, dl_doc, **kwargs)
+        if retrieval_prefix:
+            return retrieval_prefix + base_text if base_text else retrieval_prefix.rstrip("\n")
         if table_summary:
             if base_text:
                 return base_text + "\n---\n[표 설명]\n" + table_summary
@@ -1131,8 +1137,9 @@ class GenosSmartChunker(BaseChunker):
             name = None
         if not name:
             return ""
-        if name.startswith("sheet: "):
-            name = name[len("sheet: "):]
+        if not name.startswith("sheet: "):
+            return ""
+        name = name[len("sheet: "):]
         name = name.strip()
         return f"시트명: {name}\n" if name else ""
 
@@ -1151,9 +1158,14 @@ class GenosSmartChunker(BaseChunker):
         # 재구성 HTML(refine)이 있으면 grid/구조가 달라 row 분할이 무의미 → 단일 청크로 둔다.
         if TableDescriptionExtractor.extract_refined_html(table_item):
             return [single]
+        # 분할 조각에는 짧은 retrieval_context 만 반복한다(key_facts 는 행 매핑이 불가능).
+        description_prefix = TableDescriptionExtractor.retrieval_prefix(table_item, split_piece=True)
         # 요약(summary)만 있는 경우: chunk_size 초과 표는 정상적으로 row 분할하고,
         # 요약은 마지막 분할 청크에만 1회 덧붙인다(중복 방지). single 경로는 이미 요약 포함.
-        table_summary = TableDescriptionExtractor.extract_summary(table_item)
+        table_summary = (
+            "" if TableDescriptionExtractor.retrieval_text(table_item)
+            else TableDescriptionExtractor.extract_summary(table_item)
+        )
 
         limit = self.max_tokens if max_tokens is None else max_tokens
         if limit is None or limit <= 0:
@@ -1186,7 +1198,7 @@ class GenosSmartChunker(BaseChunker):
             count_text=self._count_tokens,
             table_format=self._resolve_table_format(kwargs),
             header_row_count=header_n,
-            prefix=sheet_prefix,
+            prefix=sheet_prefix + description_prefix,
             suffix=suffix,
         )
         for index in result.oversized_piece_indexes:
@@ -3840,10 +3852,23 @@ class DocumentProcessor:
             document = self.enrich_image_descriptions(document, **enrichment_kwargs)
         except Exception as exc:
             _log.warning(f"[DocumentProcessor] facade image enrichment skipped: {exc}")
-        try:
-            document = self.enrich_table_descriptions(document, **enrichment_kwargs)
-        except Exception as exc:
-            _log.warning(f"[DocumentProcessor] facade table enrichment skipped: {exc}")
+        text_table_enricher = next((
+            enricher for enricher in self.custom_fields_enrichers
+            if enricher.wants_table_descriptions(**enrichment_kwargs)
+        ), None)
+        if text_table_enricher is None:
+            try:
+                document = self.enrich_table_descriptions(document, **enrichment_kwargs)
+            except Exception as exc:
+                _log.warning(f"[DocumentProcessor] facade table enrichment skipped: {exc}")
+        elif (
+            text_table_enricher.table_description_conflict_policy == "error"
+            and enrichment_kwargs.get("table_desc")
+        ):
+            _log.warning(
+                "[DocumentProcessor] facade table enrichment skipped: 텍스트 표 설명과 "
+                "이미지 표 설명이 동시에 활성화되었습니다."
+            )
         # 페이지 단위 image description 은 PPT(.pptx) 원본에만 적용.
         if is_ppt:
             try:

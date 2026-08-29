@@ -198,6 +198,27 @@ enrichment:
         enable: false
         prompt_file: prompt_table_refine_combined.md   # 재구성 HTML + 요약 통합 프롬프트
 
+  # 텍스트 기반(HTML/Markdown) 표 RAG 설명. 기존 custom_fields LLM과 통합 호출한다.
+  # LLM 연결/생성 파라미터는 매칭된 문서형 custom_fields YAML 값을 공유한다.
+  - table_text_description:
+      enable: false           # true 또는 런타임 table_text_desc=1
+      prompt_template_file: prompt_table_text_description_rag.md
+      input_format: auto      # auto | markdown | html
+      before_items: 3
+      after_items: 2
+      max_context_chars: 1500
+      max_context_tokens: 128000
+      completion_reserved_tokens: 8000
+      overflow_policy: batch  # batch | skip | error
+      conflict_policy: prefer_text # prefer_text | prefer_image | error
+      rag:
+        retrieval_context_max_chars: 350
+        key_fact_limit: 3
+        key_fact_max_chars: 160
+        search_terms_limit: 8
+        include_search_terms: false
+        repeat_context_on_split: true
+
   # ── 문서유형별 custom_fields 추출 ──────────────────────────────────────────
   # extractor=llm 은 문서 단위 LLM 추출, tabular_mapping 은 Excel/CSV 행별 직접 매핑.
   # doc_type(요청 kwargs)과 일치하는 설정만 동작. 배포 시 enable/serving ID 설정 후 사용.

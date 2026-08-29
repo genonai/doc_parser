@@ -2693,10 +2693,24 @@ class DocumentProcessor:
             document = self._intel.enrich_image_descriptions(document, **kwargs)
         except Exception as exc:
             _handle_stage_error(exc, "image_description")
-        try:
-            document = self._intel.enrich_table_descriptions(document, **kwargs)
-        except Exception as exc:
-            _handle_stage_error(exc, "table_description")
+        text_table_enricher = next((
+            enricher for enricher in self._intel.custom_fields_enrichers
+            if enricher.wants_table_descriptions(**kwargs)
+        ), None)
+        # prefer_image 는 wants_table_descriptions 안에서 이미 False 로 걸러진다.
+        if text_table_enricher is None:
+            try:
+                document = self._intel.enrich_table_descriptions(document, **kwargs)
+            except Exception as exc:
+                _handle_stage_error(exc, "table_description")
+        elif (
+            text_table_enricher.table_description_conflict_policy == "error"
+            and kwargs.get("table_desc")
+        ):
+            _handle_stage_error(
+                ValueError("텍스트 표 설명과 이미지 표 설명이 동시에 활성화되었습니다."),
+                "table_description",
+            )
         try:
             document = await self._intel.enrich_metadata(document, **kwargs)
         except Exception as exc:
