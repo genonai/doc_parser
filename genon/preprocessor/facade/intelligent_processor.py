@@ -55,6 +55,8 @@ def convert_to_pdf(file_path: str, use_pdf_sdk: bool = True) -> str | None:
 # 그대로 유지해 호출부를 건드리지 않는다. 사이트별 조정 대상 상수(구분자, 최소
 # 청크 크기, 토크나이저 경로)는 이 파일에 남아 있으므로 래퍼가 넘겨준다.
 from genon.preprocessor.facade.common import config_parse as cp
+from genon.preprocessor.facade.common import docling_ops as dops
+from genon.preprocessor.facade.common import runtime as rt
 from genon.preprocessor.facade.common import file_probe as fp
 from genon.preprocessor.facade.chunking import header_path as hp
 
@@ -139,8 +141,6 @@ def _has_any_pdf_converter() -> bool:
 
 # docling imports
 
-from docling.backend.docling_parse_v4_backend import DoclingParseV4DocumentBackend
-from docling.backend.pypdfium2_backend import PyPdfiumDocumentBackend
 from docling.datamodel.base_models import InputFormat
 from docling.pipeline.simple_pipeline import SimplePipeline
 # from docling.datamodel.document import ConversionStatus
@@ -154,7 +154,6 @@ from docling.datamodel.pipeline_options import (
     TableFormerMode,
     TableStructureModelType,
     PipelineOptions,
-    PaddleOcrOptions,
     UpstageOcrOptions,
 )
 
@@ -204,7 +203,6 @@ from docling_core.types.doc import (
     DoclingDocument,
     DocumentOrigin,
     DocItem,
-    ImageRef,
     PictureItem,
     SectionHeaderItem,
     TableItem,
@@ -212,7 +210,6 @@ from docling_core.types.doc import (
     PageItem,
     ProvenanceItem
 )
-from docling_core.types.doc.utils import relative_path
 from docling.datamodel.settings import settings
 
 from collections import Counter
@@ -2292,109 +2289,13 @@ class DocumentProcessor:
 
     @staticmethod
     def _build_ocr_options(ocr_cfg: dict, paddle_endpoint: str):
-        """Build OcrOptions based on ocr.engine key in yaml.
-
-        Returns PaddleOcrOptions or UpstageOcrOptions. Default engine is "paddle".
-        For "upstage", api_key falls back to UPSTAGE_API_KEY env var when empty.
-        Unknown engine values fall back to "paddle" with a warning.
-        """
-        ocr_cfg = ocr_cfg if isinstance(ocr_cfg, dict) else {}
-        ocr_engine = str(ocr_cfg.get("engine", "paddle")).lower().strip()
-        if ocr_engine not in {"paddle", "upstage"}:
-            _log.warning(f"[DocumentProcessor] Unknown ocr.engine '{ocr_engine}', fallback to 'paddle'")
-            ocr_engine = "paddle"
-
-        if ocr_engine == "upstage":
-            upstage_cfg = _as_dict(ocr_cfg.get("upstage"))
-            upstage_api_key = upstage_cfg.get("api_key", "") or os.getenv("UPSTAGE_API_KEY", "")
-
-            raw_timeout = upstage_cfg.get("timeout", 60)
-            try:
-                upstage_timeout = int(raw_timeout)
-                if upstage_timeout <= 0:
-                    raise ValueError
-            except (TypeError, ValueError):
-                _log.warning(f"[DocumentProcessor] Invalid ocr.upstage.timeout '{raw_timeout}', fallback to 60")
-                upstage_timeout = 60
-
-            raw_text_score = upstage_cfg.get("text_score", 0.5)
-            try:
-                upstage_text_score = float(raw_text_score)
-            except (TypeError, ValueError):
-                _log.warning(f"[DocumentProcessor] Invalid ocr.upstage.text_score '{raw_text_score}', fallback to 0.5")
-                upstage_text_score = 0.5
-
-            return UpstageOcrOptions(
-                force_full_page_ocr=False,
-                lang=upstage_cfg.get("lang", ["ko", "en"]),
-                api_endpoint=upstage_cfg.get(
-                    "api_endpoint",
-                    "https://api.upstage.ai/v1/document-digitization",
-                ),
-                api_key=upstage_api_key,
-                model=upstage_cfg.get("model", "ocr"),
-                timeout=upstage_timeout,
-                text_score=upstage_text_score,
-            )
-
-        paddle_cfg = _as_dict(ocr_cfg.get("paddle"))
-
-        raw_lang = paddle_cfg.get("lang", ["korean"])
-        if isinstance(raw_lang, list) and raw_lang:
-            paddle_lang = raw_lang
-        else:
-            if raw_lang not in (None, [], ["korean"]):
-                _log.warning(f"[DocumentProcessor] Invalid ocr.paddle.lang '{raw_lang}', fallback to ['korean']")
-            paddle_lang = ["korean"]
-
-        raw_text_score = paddle_cfg.get("text_score", 0.3)
-        try:
-            paddle_text_score = float(raw_text_score)
-        except (TypeError, ValueError):
-            _log.warning(f"[DocumentProcessor] Invalid ocr.paddle.text_score '{raw_text_score}', fallback to 0.3")
-            paddle_text_score = 0.3
-
-        return PaddleOcrOptions(
-            force_full_page_ocr=False,
-            lang=paddle_lang,
-            ocr_endpoint=paddle_endpoint,
-            text_score=paddle_text_score,
-        )
+        return dops.build_ocr_options(ocr_cfg, paddle_endpoint)
 
     def _create_converters(self):
         """컨버터들을 생성하는 헬퍼 메서드"""
-        self.converter = DocumentConverter(
-                format_options={
-                    InputFormat.PDF: PdfFormatOption(
-                        pipeline_options=self.pipe_line_options,
-                        backend=PyPdfiumDocumentBackend
-                    ),
-                }
-            )
-        self.second_converter = DocumentConverter(
-            format_options={
-                InputFormat.PDF: PdfFormatOption(
-                    pipeline_options=self.pipe_line_options,
-                    backend=PyPdfiumDocumentBackend
-                ),
-            },
-        )
-        self.ocr_converter = DocumentConverter(
-                format_options={
-                    InputFormat.PDF: PdfFormatOption(
-                        pipeline_options=self.ocr_pipe_line_options,
-                        backend=DoclingParseV4DocumentBackend
-                    ),
-                }
-            )
-        self.ocr_second_converter = DocumentConverter(
-            format_options={
-                InputFormat.PDF: PdfFormatOption(
-                    pipeline_options=self.ocr_pipe_line_options,
-                    backend=PyPdfiumDocumentBackend
-                ),
-            },
-        )
+        (self.converter, self.second_converter,
+         self.ocr_converter, self.ocr_second_converter) = dops.create_converters(
+            self.pipe_line_options, self.ocr_pipe_line_options)
 
     def load_documents_with_docling(self, file_path: str, **kwargs: dict) -> DoclingDocument:
         # kwargs에서 save_images 값을 가져와서 옵션 업데이트
@@ -2938,82 +2839,16 @@ class DocumentProcessor:
         image_dir: Path,
         reference_path: Optional[Path] = None,
     ) -> None:
-        """표 영역을 PNG 로 저장하고 TableItem.image.uri 를 설정한다(in-place).
-
-        docling 의 DoclingDocument._with_pictures_refs 가 PictureItem 만 디스크에
-        저장하므로, 동일 로직을 TableItem 에 대해 미러링한다. TableItem.get_image 는
-        item.image 가 없으면 페이지 이미지에서 prov bbox 로 잘라 반환한다
-        (generate_page_images 가 True 여야 함 — __init__ 에서 보장).
-        """
-        image_dir.mkdir(parents=True, exist_ok=True)
-        if not image_dir.is_dir():
-            return
-
-        img_count = 0
-        for item, _ in document.iterate_items(with_groups=False):
-            if not isinstance(item, TableItem):
-                continue
-            img = item.get_image(doc=document)
-            if img is None:
-                continue
-            hexhash = PictureItem._image_to_hexhash(img)
-            if hexhash is None:
-                continue
-            loc_path = image_dir / f"table_{img_count:06}_{hexhash}.png"
-            img.save(loc_path)
-            if reference_path is not None:
-                obj_path = relative_path(reference_path.resolve(), loc_path.resolve())
-            else:
-                obj_path = loc_path
-            # 파이프라인이 표 이미지를 미리 크롭하지 않으므로(generate_table_images 미사용)
-            # item.image 는 보통 None 이다. ImageRef 를 생성하되 uri 는 반드시 저장한
-            # PNG 파일 경로로 설정한다(from_pil 의 base64 data URI 가 남지 않도록).
-            if item.image is None:
-                scale = img.size[0] / item.prov[0].bbox.width
-                item.image = ImageRef.from_pil(image=img, dpi=round(72 * scale))
-            item.image.uri = Path(obj_path)
-            img_count += 1
+        dops.save_table_images(document, image_dir, reference_path)
 
     def get_media_files(self, doc_items: list, include_tables: bool = False):
-        temp_list = []
-        for item in doc_items:
-            if isinstance(item, PictureItem) and item.image:
-                path = str(item.image.uri)
-                name = path.rsplit("/", 1)[-1]
-                temp_list.append({'path': path, 'name': name})
-            elif include_tables and isinstance(item, TableItem) and item.image:
-                path = str(item.image.uri)
-                name = path.rsplit("/", 1)[-1]
-                temp_list.append({'path': path, 'name': name})
-        return temp_list
+        return dops.get_media_files(doc_items, include_tables)
 
     def check_glyph_text(self, text: str, threshold: int = 1) -> bool:
-        """텍스트에 GLYPH 항목이 있는지 확인하는 메서드"""
-        if not text:
-            return False
-
-        # GLYPH 항목이 있는지 정규식으로 확인
-        matches = re.findall(r'GLYPH\w*', text)
-        if len(matches) >= threshold:
-            # print(f"Text has glyphs. len(matches): {len(matches)}. ")
-            return True
-
-        return False
+        return dops.check_glyph_text(text, threshold)
 
     def check_glyphs(self, document: DoclingDocument) -> bool:
-        """문서에 글리프가 있는지 확인하는 메서드"""
-        for item, level in document.iterate_items():
-            if isinstance(item, TextItem) and hasattr(item, 'prov') and item.prov:
-                page_no = item.prov[0].page_no
-                # page_texts += item.text
-
-                # GLYPH 항목이 있는지 확인. 정규식사용
-                matches = re.findall(r'GLYPH\w*', item.text)
-                if len(matches) > self._glyph_document_threshold:
-                    # print(f"Document has glyphs on page {page_no}. len(matches): {len(matches)}. ")
-                    return True
-
-        return False
+        return dops.check_glyphs(document, self._glyph_document_threshold)
 
     def check_empty_text(self, document: DoclingDocument) -> bool:
         """텍스트 클러스터(박스)는 있는데 그 텍스트가 전부 비어 있는 페이지가 있는지 확인.
@@ -3082,177 +2917,17 @@ class DocumentProcessor:
 
         return ', '.join(matched_appendices) if matched_appendices else ""
 
-    def ocr_all_table_cells(self, document: DoclingDocument, pdf_path) -> List[Dict[str, Any]]:
-        """
-        글리프 깨진 텍스트가 있는 테이블에 대해서만 OCR을 수행합니다.
-        Args:
-            document: DoclingDocument 객체
-            pdf_path: PDF 파일 경로
-        Returns:
-            OCR이 완료된 문서의 DoclingDocument 객체
-        """
-        import io
-        import base64
-        import requests
-        from PIL import Image
-
-        def post_ocr_bytes(img_bytes: bytes, timeout=60) -> dict:
-            HEADERS = {"Accept": "application/json", "Content-Type": "application/json"}
-            payload = {"file": base64.b64encode(img_bytes).decode("ascii"), "fileType": 1, "visualize": False}
-            r = requests.post(self.ocr_endpoint, json=payload, headers=HEADERS, timeout=timeout)
-            if not r.ok:
-                # 진단에 도움되도록 본문 일부 출력
-                raise RuntimeError(f"OCR HTTP {r.status_code}: {r.text[:500]}")
-            return r.json()
-
-        def extract_ocr_fields(resp: dict):
-            """
-            resp: 위와 같은 OCR 응답 JSON(dict)
-            return: (rec_texts, rec_scores, rec_boxes) — 모두 list
-            """
-            if resp is None:
-                return [], [], []
-
-            # 최상위 상태 체크
-            if resp.get("errorCode") not in (0, None):
-                return [], [], []
-
-            ocr_results = (
-                resp.get("result", {})
-                    .get("ocrResults", [])
-            )
-            if not ocr_results:
-                return [], [], []
-
-            pruned = (
-                ocr_results[0]
-                .get("prunedResult", {})
-            )
-            if not pruned:
-                return [], [], []
-
-            rec_texts  = pruned.get("rec_texts", [])   # list[str]
-            rec_scores = pruned.get("rec_scores", [])  # list[float]
-            rec_boxes  = pruned.get("rec_boxes", [])   # list[[x1,y1,x2,y2]]
-
-            # 길이 불일치 방어: 최소 길이에 맞춰 자르기
-            n = min(len(rec_texts), len(rec_scores), len(rec_boxes))
-            return rec_texts[:n], rec_scores[:n], rec_boxes[:n]
-
-        try:
-            for table_idx, table_item in enumerate(document.tables):
-                if not table_item.data or not table_item.data.table_cells:
-                    continue
-                if not table_item.prov:
-                    continue
-
-                b_ocr = False
-                for cell_idx, cell in enumerate(table_item.data.table_cells):
-                    if self.check_glyph_text(cell.text, threshold=self._glyph_table_cell_threshold):
-                        b_ocr = True
-                        break
-
-                if b_ocr is False:
-                    # 글리프 깨진 텍스트가 없는 경우, OCR을 수행하지 않음
-                    continue
-
-                # docling 이 이미 렌더해 둔 페이지 이미지(generate_page_images=True)를
-                # 재사용해 셀 영역을 crop 한다. PyMuPDF 재렌더(get_pixmap)는 일부 PDF 에서
-                # 네이티브 크래시(SIGSEGV, worker code 139)를 유발하므로 사용하지 않는다.
-                page_no = table_item.prov[0].page_no
-                page = document.pages.get(page_no)
-                if page is None or page.size is None or page.image is None:
-                    continue
-                page_image = page.image.pil_image
-                if page_image is None:
-                    continue
-                W, H = page_image.size
-
-                for cell_idx, cell in enumerate(table_item.data.table_cells):
-                    try:
-                        if cell.bbox is None:
-                            continue
-
-                        # docling 셀 bbox(BOTTOMLEFT) → 페이지 이미지 픽셀 좌표(TOPLEFT)
-                        crop = (
-                            cell.bbox
-                            .to_top_left_origin(page_height=page.size.height)
-                            .scale_to_size(old_size=page.size, new_size=page.image.size)
-                        )
-                        x0, y0, x1, y1 = crop.as_tuple()
-                        # 정규화 + 페이지 경계 클램프 + degenerate skip
-                        x0, x1 = sorted((x0, x1))
-                        y0, y1 = sorted((y0, y1))
-                        x0 = max(0, min(x0, W)); x1 = max(0, min(x1, W))
-                        y0 = max(0, min(y0, H)); y1 = max(0, min(y1, H))
-                        if (x1 - x0) < 1 or (y1 - y0) < 1:
-                            continue
-
-                        cell_img = page_image.crop((x0, y0, x1, y1))
-
-                        # 아주 작은 셀은 OCR 가독성을 위해 확대(기존 target_height=20, ≤4x)
-                        ch = y1 - y0
-                        zoom = min(max(20.0 / ch, 1.0), 4.0) if ch > 0 else 1.0
-                        if zoom > 1.0:
-                            cell_img = cell_img.resize(
-                                (max(1, round((x1 - x0) * zoom)), max(1, round(ch * zoom))),
-                                Image.LANCZOS,
-                            )
-
-                        buf = io.BytesIO()
-                        cell_img.save(buf, format="PNG")
-                        img_data = buf.getvalue()
-
-                        result = post_ocr_bytes(img_data, timeout=self._table_cell_ocr_timeout)
-                        rec_texts, rec_scores, rec_boxes = extract_ocr_fields(result)
-
-                        cell.text = ""
-                        for t in rec_texts:
-                            if len(cell.text) > 0:
-                                cell.text += " "
-                            cell.text += t if t else ""
-                    except Exception as cell_err:
-                        # 한 셀 실패가 나머지 셀/표를 막지 않도록 격리
-                        print(f"OCR cell processing failed (table={table_idx}, cell={cell_idx}): {cell_err}")
-                        continue
-        except Exception as e:
-            print(f"OCR processing failed: {e}")
-            pass
-
-        return document
-
-    def setup_logging(self, level_num: int):
-        """
-            5"DEBUG", 4"INFO", 3"WARNING", 2"ERROR", 1"CRITICAL", 0"NOLOG" 중 하나를 받아서 로깅 레벨을 설정하는 메서드
-        """
-        def get_level_name(level_num: int) -> str:
-            level_map = {
-                5: "DEBUG",
-                4: "INFO",
-                3: "WARNING",
-                2: "ERROR",
-                1: "CRITICAL",
-                0: "NOLOG"
-            }
-            return level_map.get(level_num, "INFO")
-        level_name = get_level_name(level_num)
-        print(f"Setting log level to: {level_name}")
-
-        if level_name == "NOLOG" or not hasattr(logging, level_name):
-            logging.disable(logging.CRITICAL)  # 모든 로그 비활성화
-            return
-
-        level = getattr(logging, level_name.upper())
-
-        # root logger 설정 (핸들러는 main에서만 설정)
-        logging.basicConfig(
-            level=level,
-            format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-            handlers=[logging.StreamHandler()]   # 콘솔 출력
+    def ocr_all_table_cells(self, document: DoclingDocument, pdf_path) -> DoclingDocument:
+        """글리프 깨진 텍스트가 있는 표에 대해서만 셀 단위 재OCR 을 수행한다."""
+        return dops.ocr_all_table_cells(
+            document,
+            ocr_endpoint=self.ocr_endpoint,
+            cell_threshold=self._glyph_table_cell_threshold,
+            timeout=self._table_cell_ocr_timeout,
         )
 
-        # root logger level 적용
-        logging.getLogger().setLevel(level)
+    def setup_logging(self, level_num: int):
+        rt.setup_logging(level_num)
 
     def _convert_to_pdf(self, file_path: str, **kwargs: dict) -> tuple[str, str]:
         """비-PDF 입력을 PDF SDK/LibreOffice 로 변환. (변환된 file_path, converted_pdf_path) 반환."""

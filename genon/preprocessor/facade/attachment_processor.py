@@ -34,6 +34,7 @@ _log = logging.getLogger(__name__)
 # 그대로 유지해 호출부를 건드리지 않는다. 사이트별 조정 대상 상수(구분자, 최소
 # 청크 크기, 토크나이저 경로)는 이 파일에 남아 있으므로 래퍼가 넘겨준다.
 from genon.preprocessor.facade.common import config_parse as cp
+from genon.preprocessor.facade.common import runtime as rt
 from genon.preprocessor.facade.common import file_probe as fp
 
 _as_dict = cp.as_dict
@@ -2331,37 +2332,8 @@ class DocumentProcessor:
         return vectors
 
     def setup_logging(self, level_num: int):
-        """
-            5"DEBUG", 4"INFO", 3"WARNING", 2"ERROR", 1"CRITICAL", 0"NOLOG" 중 하나를 받아서 로깅 레벨을 설정하는 메서드
-        """
-        def get_level_name(level_num: int) -> str:
-            level_map = {
-                5: "DEBUG",
-                4: "INFO",
-                3: "WARNING",
-                2: "ERROR",
-                1: "CRITICAL",
-                0: "NOLOG"
-            }
-            return level_map.get(level_num, "INFO")
-        level_name = get_level_name(level_num)
-        _log.info(f"Setting log level to: {level_name}")
-
-        if level_name == "NOLOG" or not hasattr(logging, level_name):
-            logging.disable(logging.CRITICAL)  # 모든 로그 비활성화
-            return
-
-        level = getattr(logging, level_name.upper())
-
-        # root logger 설정 (핸들러는 main에서만 설정)
-        logging.basicConfig(
-            level=level,
-            format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-            handlers=[logging.StreamHandler()]   # 콘솔 출력
-        )
-
-        # root logger level 적용
-        logging.getLogger().setLevel(level)
+        # 첨부 프로세서만 stdout 대신 로거로 알린다(기존 동작 유지).
+        rt.setup_logging(level_num, announce=_log.info)
 
     async def __call__(self, request: Request, file_path: str, **kwargs: dict):
         kwargs = self._merge_runtime_kwargs(kwargs)
