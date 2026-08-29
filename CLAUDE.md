@@ -73,6 +73,11 @@ facade 프로세서는 파일 하나가 매우 크다.
 ## 아키텍처 제약
 
 - **최상위 processor는 self-contained.** `intelligent_processor.py`, `convert_processor.py` 같은 최상위 processor 파일끼리는 서로 import하지 않는다. 배포본에 포함되는 공용 하위 모듈은 공유할 수 있으므로, 공통 로직을 무조건 복제하지 말고 `build-script/sync-serving-repo.sh` 의 배포 범위를 먼저 확인한다.
+- **신규 기능은 공용 하위 모듈에 구현하고 facade는 호출만 한다.** 여러 facade가 쓸 수 있는 로직이면 processor 파일 안에 직접 쓰거나 복붙하지 말고 `facade/chunking/`, `facade/enrichment/`, `facade/guardrail/` 같은 공용 패키지에 모듈을 만든다. facade에는 설정 읽기 한 줄과 호출부만 남긴다. 판정 기준은 "두 번째 facade에 같은 코드를 넣고 싶어지는가"이며, 그렇다면 이미 공용 모듈 대상이다.
+  - 설정 해석(yaml/kwargs 우선순위), 판정 헬퍼, 텍스트 변환 같은 부수 로직도 함께 공용 모듈에 둔다. facade마다 `_resolve_*` 헬퍼를 복제하면 그 자체가 새 lockstep 부채가 된다.
+  - 공용 모듈은 docling 타입 import를 피하고 duck typing으로 처리한다. 배포본에서 docling 버전에 묶이지 않게 한다.
+  - `object.__new__` 로 `__init__` 을 우회해 만든 인스턴스를 쓰는 단위 테스트가 있다. processor 속성을 읽는 공용 헬퍼는 `getattr(..., 기본값)` 으로 속성 부재를 견뎌야 한다.
+  - 예: `facade/chunking/text_norm.py`(청크 텍스트 정제) — 활성 processor 3종의 출력 경로 9곳이 이 모듈 하나를 호출한다.
 - **청킹 파이프라인은 6곳에 복제되어 있다.** `GenosSmartChunker` 청킹 로직은 활성 3종 + BOK 적재용 3종에 사본이 존재하므로 lockstep으로 함께 수정해야 한다.
 - **`GenosServiceException` 은 활성 경로 6곳과 여러 legacy 파일에 복제**되어 있다. 고정 개수를 가정하지 말고 시그니처 변경 전에 `rg -n '^class GenosServiceException' genon/preprocessor/src genon/preprocessor/facade --glob '*.py'` 로 전체 대상을 확인한다. facade가 던진 로컬 예외는 `main.py` 의 제네릭 핸들러가 받는다.
 - **docling 안의 결함은 docling 안에서 고친다.** genon 쪽 우회책을 기본 해법으로 삼지 말 것.
