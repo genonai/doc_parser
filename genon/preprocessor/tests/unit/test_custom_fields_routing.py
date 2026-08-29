@@ -472,12 +472,38 @@ _REQUIRED_BY_DOC_TYPE = {
     "custom_field_link.yaml":          ["GROUP_C", "TITLE", "SEARCHABLE_YN"],
 }
 
+# 날짜 메타데이터는 원천의 YYMMDD·YYYYMMDD·구분자 표기를 모두 YYYYMMDD 정수로 고정한다.
+# 운영과 개발 설정을 함께 검사해 한쪽만 누락되는 배포 차이를 막는다.
+_DATE_INT_FLEX_FIELDS = {
+    "custom_field_faq.yaml": ["SRC_LAST_MOD_DT"],
+    "custom_field_menu.yaml": ["SRC_LAST_MOD_DT"],
+    "custom_field_term.yaml": ["SRC_LAST_MOD_DT"],
+    "custom_field_link.yaml": ["CAMPAIGN_FROM", "CAMPAIGN_TO"],
+    "custom_field_monimo_event.yaml": ["EVENT_FROM", "EVENT_TO"],
+    "custom_field_monimo_news.yaml": ["NEWS_TO"],
+    "custom_field_stock_insight.yaml": ["NEWS_DATE", "ANALYSIS_DATE"],
+}
+
 # TB_* 쪽에 컬럼 기본값이 있어 config 가 값을 주지 않아도 적재가 되는 NOT NULL 컬럼.
 # SEARCHABLE_YN 은 전 TB 가 'N' 을 기본값으로 갖는다("TB_EVENT 기본값과 같은 'N' 으로 두고,
 # 적재 측에서 게시 승인 시 올리는 것을 전제로 한다" — 각 yaml 주석 참고). 그래서 출고 설정이
 # 노출 게이트를 잠정 보류(주석)해 둔 상태도 적재 실패가 아니다.
 # 단, nulls 로 명시 선언하면 기본값을 덮어 null 이 들어가므로 아래 두 번째 검사는 그대로 적용한다.
 _DB_DEFAULTED_COLUMNS = {"SEARCHABLE_YN"}
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("resource_dir", _RESOURCE_DIRS)
+@pytest.mark.parametrize("config_name,fields", sorted(_DATE_INT_FLEX_FIELDS.items()))
+def test_shipped_date_fields_use_flexible_integer_transform(resource_dir, config_name, fields):
+    """날짜 대상 필드는 압축·2자리 연도 표기까지 정규화해야 한다."""
+    base = Path(__file__).resolve().parents[2] / resource_dir
+    cfg = yaml.safe_load((base / config_name).read_text(encoding="utf-8"))
+
+    transforms = cfg.get("transforms") or {}
+    assert {field: transforms.get(field) for field in fields} == {
+        field: "date_int_flex" for field in fields
+    }
 
 
 @pytest.mark.unit

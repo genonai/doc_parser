@@ -46,6 +46,9 @@ value_map:
     HPP: [삼성카드, 카드]
     SSS: [삼성증권, 증권]
 
+transforms:
+  SRC_LAST_MOD_DT: date_int_flex
+
 # ── 필수 목표필드. 값이 빈 행은 그 행만 skip 하고 건수를 경고로 남긴다 ────────
 required:
   - GROUP_C

@@ -37,6 +37,7 @@ value_map:
 # 유일키 UX_TERM_CANON(CLCM_C + TERM_NORM)의 재료라 이 규칙이 곧 중복 판정 기준이 된다.
 transforms:
   TERM_NORM: text_norm
+  SRC_LAST_MOD_DT: date_int_flex
 
 required:
   - GROUP_C

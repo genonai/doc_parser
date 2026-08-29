@@ -39,6 +39,9 @@ value_map:
     HPP: [삼성카드, 카드]
     SSS: [삼성증권, 증권]
 
+transforms:
+  SRC_LAST_MOD_DT: date_int_flex
+
 required:
   - GROUP_C
   - QUESTION
