@@ -6,7 +6,7 @@ docling(v2.41.0) 포크 위에 GenOn 전처리기(genon/preprocessor)를 올린 
 
 | 경로 | 역할 |
 |---|---|
-| `main.py` | **실제 배포 진입점.** FastAPI 앱, 7개 엔드포인트를 정의하고 facade를 호출 |
+| `main.py` | 통합·로컬 실행 진입점. FastAPI 앱, 업무 API 7개와 health를 정의하고 facade를 호출 |
 | `genon/preprocessor/facade/` | 처리 로직 본체 (아래 참조) |
 | `genon/preprocessor/src/` | 공통 모듈 (`common`, `logger`, `config`, `utils`) — `main.py`가 sys.path 최상단에 넣음 |
 | `genon/preprocessor/resource/` | 운영 YAML 설정 (프로세서 설정 + `custom_field_*.yaml`) |
@@ -17,7 +17,15 @@ docling(v2.41.0) 포크 위에 GenOn 전처리기(genon/preprocessor)를 올린 
 | `build-script/` | 도커 이미지 빌드, 코드서빙 저장소 동기화 |
 
 **수정 금지 / 탐색 제외** (모두 gitignore됨): `reference/`, `shkim_labs/`, `dist/`, `build/`, `debug/`, `tmp/`, `code-serving/`.
-검색은 `genon/`, `docling/`, `tests/` 로 한정할 것. 저장소 전체는 11G / 6만 개 이상 파일이라 광역 Glob·Grep은 비용만 크다.
+저장소 전체는 11G / 6만 개 이상 파일이므로 검색은 작업과 관련된 경로만 지정한다. 특히 추적된 대형 fixture와 노트북은 기본 검색에서 제외한다.
+
+```bash
+rg '<pattern>' main.py genon docling tests build-script \
+  --glob '!tests/data/**' \
+  --glob '!tests/data_scanned/**' \
+  --glob '!**/*.pages.json' \
+  --glob '!**/*.ipynb'
+```
 
 ## 엔드포인트 → facade 매핑
 
@@ -34,7 +42,7 @@ docling(v2.41.0) 포크 위에 GenOn 전처리기(genon/preprocessor)를 올린 
 
 ## 두 번째 진입점: 단일 프로세서 배포 (`genon/preprocessor/src/main.py`)
 
-루트 `main.py` 는 facade 여러 개를 한 서버에 올리는 형태이고, **실제 외부 사이트 적용 환경은 이와 다르다.**
+루트 `main.py` 는 facade 여러 개를 한 서버에 올리는 통합·로컬 실행 형태이고, **실제 외부 사이트 적용 환경은 이와 다르다.**
 
 - 배포 대상 facade **한 개**만 `preprocessor.py` 라는 이름으로 바뀌어 마운트된다.
 - 진입점은 `genon/preprocessor/src/main.py` 이며, `from preprocessor import DocumentProcessor` 로 그 하나를 로드해 `/run` 으로 진입한다.
@@ -43,8 +51,8 @@ docling(v2.41.0) 포크 위에 GenOn 전처리기(genon/preprocessor)를 올린 
 
 여기서 나오는 결론이 앞서의 제약들이다.
 
-- **facade가 self-contained여야 하는 이유**: 파일 하나만 옮겨지므로 facade끼리 import하면 배포본에서 깨진다.
-- **청킹 로직이 6곳에 복제된 이유**: 공유가 불가능해 사본을 유지한다.
+- **processor가 self-contained여야 하는 이유**: 배포 대상 `*_processor.py` 는 하나이므로 최상위 processor 파일끼리 서로 import하면 배포본에서 깨진다. 배포본에 포함되는 `facade/enrichment`, `facade/chunking`, `guardrail` 같은 공용 하위 모듈은 공유할 수 있다.
+- **청킹 로직이 6곳에 복제된 이유**: 활성 processor 3종과 BOK 배포본 3종이 각각 독립적인 사본을 유지한다.
 - `main.py` 계층 기능(요청 deadline, 에러 envelope의 `stage`/`error_kind` 등)을 바꿀 때는 **루트 `main.py` 와 `src/main.py` 두 파일을 모두** 확인해야 한다.
 
 ## 큰 파일 취급 규칙 (중요)
@@ -64,9 +72,9 @@ facade 프로세서는 파일 하나가 매우 크다.
 
 ## 아키텍처 제약
 
-- **facade는 self-contained.** 코드서빙 배포는 프로세서 파일을 하나씩 개별 마운트하므로, facade끼리 서로 import 하면 안 된다. 공통 로직이 필요하면 복제한다.
+- **최상위 processor는 self-contained.** `intelligent_processor.py`, `convert_processor.py` 같은 최상위 processor 파일끼리는 서로 import하지 않는다. 배포본에 포함되는 공용 하위 모듈은 공유할 수 있으므로, 공통 로직을 무조건 복제하지 말고 `build-script/sync-serving-repo.sh` 의 배포 범위를 먼저 확인한다.
 - **청킹 파이프라인은 6곳에 복제되어 있다.** `GenosSmartChunker` 청킹 로직은 활성 3종 + BOK 적재용 3종에 사본이 존재하므로 lockstep으로 함께 수정해야 한다.
-- **`GenosServiceException` 은 4곳에 복제**되어 있다(`src/common` + facade 3종). 시그니처를 바꾸면 전부 함께 고쳐야 하고, facade가 던진 예외는 `main.py` 의 제네릭 핸들러가 받는다.
+- **`GenosServiceException` 은 활성 경로 6곳과 여러 legacy 파일에 복제**되어 있다. 고정 개수를 가정하지 말고 시그니처 변경 전에 `rg -n '^class GenosServiceException' genon/preprocessor/src genon/preprocessor/facade --glob '*.py'` 로 전체 대상을 확인한다. facade가 던진 로컬 예외는 `main.py` 의 제네릭 핸들러가 받는다.
 - **docling 안의 결함은 docling 안에서 고친다.** genon 쪽 우회책을 기본 해법으로 삼지 말 것.
 - 설정은 스키마별 키를 늘리기보다 일반화된 메커니즘으로 푼다. allowlist보다 blocklist. YAML은 초보자가 읽을 수 있게 개념 수를 줄인다.
 
@@ -76,14 +84,14 @@ facade 프로세서는 파일 하나가 매우 크다.
 
 ```bash
 cd genon/preprocessor
-.venv/bin/python -m pytest tests/unit -q -p no:randomly
+.venv/bin/python -m pytest tests/unit -q -p no:randomly --color=no
 ```
 
 마커: `unit`, `smoke`, `regression`, `update_baseline`(일반 실행 제외).
 
 주의:
 - `addopts` 에 `-p no:cacheprovider` 가 있어 **`--lf` 를 쓸 수 없다.**
-- 출력에 ANSI 색상이 섞여 `grep '^FAILED'` 가 매치되지 않는다. `--color=no` 를 붙일 것.
+- 출력에 ANSI 색상이 섞여 `grep '^FAILED'` 가 매치되지 않도록 항상 `--color=no` 를 유지한다.
 - 검증은 토큰 절약이 우선이다. 본문 전문을 출력하지 말고, 영향 범위에 대한 단정문 테스트로 고정한다.
 
 ## 로컬 실행
@@ -107,7 +115,7 @@ PYTHONPATH=<repo>:<repo>/genon/preprocessor:<repo>/genon/preprocessor/src:<repo>
 
 - 진행 상황과 결과 보고는 한국어로.
 - 소스 주석·docstring에 이모지를 쓰지 않는다. 강조는 문장으로 한다.
-- 설계와 검토는 직접, 구현은 서브에이전트에 위임한다(구현 sonnet, 기계적 반복 수정 haiku).
+- 서브에이전트는 작업이 독립적인 하위 문제로 명확히 분할되고 병렬 실행의 이점이 있을 때만 사용한다. 단순·순차 작업은 직접 처리한다.
 - 병렬 서브에이전트에게 `git checkout`/`git restore` 등 작업 트리를 되돌리는 명령을 주지 않는다. 담당 경계를 모르는 되돌리기로 미커밋 작업물이 소실된 전례가 있다.
 
 ## Compact instructions

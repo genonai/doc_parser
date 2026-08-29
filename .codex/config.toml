@@ -1,0 +1,8 @@
+# Repository-specific Codex defaults. Project config is loaded only for trusted repositories.
+project_doc_fallback_filenames = ["CLAUDE.md"]
+
+# Use the everyday GPT-5.6 model at balanced reasoning by default.
+# Switch to gpt-5.6-sol/high explicitly for difficult architecture or debugging work.
+model = "gpt-5.6-terra"
+model_reasoning_effort = "medium"
+model_verbosity = "low"
