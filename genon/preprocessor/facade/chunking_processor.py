@@ -531,6 +531,7 @@ class GenosSmartChunker(BaseChunker):
         all_header_short_info = []  # 각 아이템의 짧은 헤더 정보
         current_heading_short_by_level: dict[LevelNumber, str] = {}
         list_items: list[TextItem] = []
+        dropped_filename_titles: list[TextItem] = []  # 파일명 TITLE. 본문이 비면 되살린다
 
         # iterate_items()로 수집된 아이템들의 self_ref 추적
         processed_refs = set()
@@ -560,25 +561,24 @@ class GenosSmartChunker(BaseChunker):
                         all_header_short_info.append({k: v for k, v in current_heading_short_by_level.items()})
                     list_items = []
 
-            # 일부 backend 는 파일명을 TITLE 아이템으로 만든다. 이 아이템은 본문에는
-            # 보존하되 섹션 breadcrumb 로는 사용하지 않는다. 실제 문서 TITLE 은 유지한다.
+            # 일부 backend 는 파일명을 TITLE 아이템으로 만든다. 파일명은 문서 내용이 아니므로
+            # 본문과 섹션 breadcrumb 양쪽에서 모두 제외한다. 실제 문서 TITLE 은 유지한다.
+            # 제외한 결과 남는 아이템이 하나도 없으면 아래에서 되살린다.
             if (isinstance(item, TextItem) and item.label == DocItemLabel.TITLE and
                     any(_normalize_filename_title(value) in filename_titles
                         for value in (item.text, item.orig) if value)):
-                all_items.append(item)
-                all_header_info.append(dict(current_heading_by_level))
-                all_header_short_info.append(dict(current_heading_short_by_level))
+                dropped_filename_titles.append(item)
                 continue
 
-            # 섹션 헤더 처리
+            # 섹션 헤더 처리. TITLE 은 제외한다 — 파일명·문서 타이틀이 `HEADER:` 라인에
+            # 중복 노출되는 것을 막기 위함이며, TITLE 텍스트는 아래 본문 분기로 보존된다.
             if isinstance(item, SectionHeaderItem) or (
                 isinstance(item, TextItem) and
-                item.label in [DocItemLabel.SECTION_HEADER, DocItemLabel.TITLE]
+                item.label in [DocItemLabel.SECTION_HEADER]
             ):
                 # 새로운 헤더 레벨 설정
                 header_level = (
-                    item.level if isinstance(item, SectionHeaderItem)
-                    else (0 if item.label == DocItemLabel.TITLE else 1)
+                    item.level if isinstance(item, SectionHeaderItem) else 1
                 )
                 current_heading_by_level[header_level] = item.text
                 current_heading_short_by_level[header_level] = item.orig  # 첫 단어로 짧은 헤더 정보 설정
@@ -593,8 +593,8 @@ class GenosSmartChunker(BaseChunker):
 
                 # 헤더 아이템도 추가 (헤더 자체도 아이템임)
                 all_items.append(item)
-                all_header_info.append({k: v for k, v in current_heading_by_level.items()})
-                all_header_short_info.append({k: v for k, v in current_heading_short_by_level.items()})
+                all_header_info.append(dict(current_heading_by_level))
+                all_header_short_info.append(dict(current_heading_short_by_level))
                 continue
 
             if (isinstance(item, TextItem) or
@@ -630,6 +630,18 @@ class GenosSmartChunker(BaseChunker):
                 all_items.insert(0, missing_table)
                 all_header_info.insert(0, {})  # 빈 헤더 정보
                 all_header_short_info.insert(0, {})  # 빈 짧은 헤더 정보
+
+        # 파일명 TITLE 만 있는 문서는 위에서 전부 걸러져 all_items 가 빈다. 그대로 두면
+        # 청크가 0개가 되어 하위에서 "chunk length is 0" 으로 실패하므로 되살린다.
+        if not all_items and dropped_filename_titles:
+            _log.warning(
+                "[GenosSmartChunker] 파일명 TITLE 외 본문 아이템이 없어 파일명 TITLE "
+                f"{len(dropped_filename_titles)}개를 본문으로 되살립니다."
+            )
+            for title_item in dropped_filename_titles:
+                all_items.append(title_item)
+                all_header_info.append({})
+                all_header_short_info.append({})
 
         # 아이템이 없으면 빈 문서
         if not all_items:
