@@ -153,6 +153,28 @@ processor.set_chunking_options('docx',
 )
 ```
 
+### 청크 텍스트 정제 (`chunking.text_cleanup`)
+
+RAG 검색 매칭을 방해하는 문자 노이즈만 결정적으로 제거하는 opt-in 후처리다.
+기본값은 `off` 이며, `safe` 로 켜면 활성 processor 3종(chunking/intelligent/convert)의
+모든 청크 출력 경로에 동일하게 적용된다. 구현은 공용 모듈
+`facade/chunking/text_norm.py` 한 곳이며 processor 는 이를 호출만 한다.
+
+| 단계 | 적용 지점 | 내용 |
+|---|---|---|
+| `sanitize` | 청킹 입력(문서/element/langchain doc) | NFC(한글 자모 분리 복원), BOM·제로폭·제어문자 제거, NBSP 등 특수 공백 → 일반 공백, CRLF → LF, 전각 영숫자 → 반각, 따옴표·대시 통일 |
+| `tidy` | 가드레일 마스킹 뒤, 벡터 생성 직전 | 줄 끝 공백 제거, 연속 빈 줄 최대 1개, 앞뒤 공백 제거 |
+
+- **입력 단계에서 먼저 정제하는 이유**: 출력에서만 정제하면 청크 경계가 노이즈 문자를
+  센 채로 잡힌다. 청크 크기 산정과 임베딩 텍스트가 같은 텍스트를 보게 한다.
+- **`tidy` 가 마스킹 뒤인 이유**: 임베딩 텍스트와 `n_char`/`n_word`/`n_line` 통계를 일치시킨다.
+- **하지 않는 것**: 문장 재작성(LLM), 모든 공백·줄바꿈 일괄 병합, NFKC 일괄 변환,
+  OCR 하이픈 연결, 중복 문장 제거. 오탐 위험이 커 별도 opt-in 대상이다.
+- **보존 대상**: 표(Markdown/HTML), 코드 블록(펜스/인라인 백틱) 내부, `HEADER:` 라인.
+- 내용이 남지 않는 청크는 페이지 카운트 집계 **전에** 제거되므로
+  `n_chunk_of_doc`/`n_chunk_of_page` 와 `i_chunk_*` 인덱스가 어긋나지 않는다.
+- 우선순위: 요청 kwargs `text_cleanup` > yaml `chunking.text_cleanup` > `off`.
+
 ### Whisper 옵션 (오디오)
 ```python
 # 기본값이 이미 설정되어 있음

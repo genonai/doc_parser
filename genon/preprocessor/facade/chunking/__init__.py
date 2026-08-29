@@ -6,10 +6,12 @@ from .table_splitter import (
     split_entries_preserving_tables,
     split_table_rows,
 )
+from . import text_norm
 
 __all__ = [
     "TableSplitResult",
     "leading_header_row_count",
     "split_entries_preserving_tables",
     "split_table_rows",
+    "text_norm",
 ]

@@ -301,6 +301,15 @@ chunking:
   # 섹션 경로는 이 라인 한 곳에서만 붙는다 — 본문 내 제목 반복은 제거되었다.
   # 우선순위: kwargs.include_chunk_header > 아래 > true.
   include_chunk_header: true
+  # 청크 텍스트 정제(RAG 검색용). off(기본) | safe
+  # safe 로 켜면 검색 매칭을 방해하는 문자 노이즈만 결정적으로 제거한다.
+  #   - 한글 자모 분리(NFD) 복원, BOM/제로폭/제어문자 제거
+  #   - NBSP 등 특수 공백을 일반 공백으로, 줄바꿈을 LF 로 통일
+  #   - 전각 영숫자를 반각으로, 따옴표/대시를 통일
+  #   - 줄 끝 공백 제거, 연속 빈 줄 최대 1개, 내용 없는 청크 제거
+  # 표/코드 블록 안의 구조와 원문 의미는 건드리지 않는다(문장 재작성/공백 병합 없음).
+  # 우선순위: 호출 kwargs 의 text_cleanup > 아래 > off.
+  text_cleanup: off
   # 토큰 수 계산 방식. "char"(default)=문자 수 기준 | "huggingface"=HF 토크나이저 기준
   tokenizer_type: "char"
   # 청킹용 토크나이저(huggingface 모드에서만 사용). tokenizer_path 가 실제 존재하면 그 경로,

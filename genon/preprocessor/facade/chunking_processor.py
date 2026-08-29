@@ -182,6 +182,7 @@ from genon.preprocessor.facade.chunking.table_splitter import (
     split_entries_preserving_tables,
     split_table_rows,
 )
+from genon.preprocessor.facade.chunking import text_norm as tn
 
 try:
     import semchunk
@@ -1992,6 +1993,11 @@ class DocumentProcessor:
         _ich = _parse_optional_bool(chunking_cfg.get("include_chunk_header"), "chunking.include_chunk_header")
         self._include_chunk_header = True if _ich is None else _ich
 
+        # 청크 텍스트 정규화(chunking.text_cleanup): "off"(기본) | "safe".
+        # safe 면 청킹 입력에 문자 위생(tn.sanitize)을, 벡터 생성 직전에 표현 정리(tn.tidy)를 적용한다.
+        # 우선순위: kwargs.text_cleanup > 아래 > "off".
+        self._text_cleanup = tn.mode_from_cfg(chunking_cfg)
+
         # 민감정보 분류(#315): chunking 은 워크플로우를 직접 호출하지 않는다(parser 가 호출).
         # parser 가 넘긴 sensitive_infos 를 청크에 적용만 하며, 치환 여부는 masking_enabled 로 결정.
         self._gr_cfg = gr.GuardrailConfig.from_cfg(cfg)
@@ -2442,7 +2448,12 @@ class DocumentProcessor:
         )
 
         kwargs.setdefault("compact_tables", self._compact_tables)
+        # 청크 텍스트 정규화(text_cleanup=safe): 문자 위생을 청킹 입력에 먼저 적용한다.
+        # 출력에서만 정규화하면 청크 경계가 노이즈 문자를 센 채로 잡힌다.
+        _cleanup = tn.prepare_document(documents, kwargs, self)
         chunks: List[DocChunk] = list(chunker.chunk(dl_doc=documents, **kwargs))
+        if _cleanup:
+            chunks = tn.drop_blank_chunks(chunks)
         for chunk in chunks:
             if chunk.meta.doc_items[0].prov:
                 self.page_chunk_counts[chunk.meta.doc_items[0].prov[0].page_no] += 1
@@ -2493,6 +2504,9 @@ class DocumentProcessor:
         title = ""
         _sensitive_infos: list = kwargs.get("_sensitive_infos") or []      # #315 분류 결과
         _gr_masking: bool = bool(kwargs.get("_guardrail_masking", False))   # #315 마스킹 치환 on/off
+        # 벡터 생성 직전 표현 정리(text_cleanup=safe). 마스킹 뒤에 적용해야
+        # 임베딩 텍스트와 n_char/n_word/n_line 통계가 일치한다.
+        _cleanup_out: bool = tn.enabled_for(kwargs, self)
         # 청크 선두 "HEADER: <섹션 경로>" 부착 여부. split_documents 와 kwargs 를 각기 언패킹해서 받으므로
         # setdefault 로 전달할 수 없어 양쪽이 같은 resolver 를 호출한다.
         _include_header: bool = _resolve_include_chunk_header(kwargs, self._include_chunk_header)
@@ -2588,6 +2602,8 @@ class DocumentProcessor:
 
             # #315 가드레일 분류 후처리: quote 매칭 → guardrail_categories 부착(항상) + 마스킹 치환(옵션)
             content, chunk_cats = gr.apply_to_text(content, _sensitive_infos, _gr_masking)
+            if _cleanup_out:
+                content = tn.tidy(content)
 
             vector = (GenOSVectorMetaBuilder()
                       .set_text(content)
@@ -2922,17 +2938,22 @@ class DocumentProcessor:
     # ------------------------------------------------------------------
 
     @staticmethod
-    def _single_marker_vector(text: str) -> GenOSVectorMeta:
+    def _single_marker_vector(text: str, cleanup: bool = False) -> GenOSVectorMeta:
         """legacy return_vectormeta_format 과 동일한 단일(미분할) 벡터.
 
         audio([AUDIO]) / tabular([DA]) 처럼 분할하지 않고 통째로 1개 벡터로 반환한다.
         (attachment_processor.AudioLoader/TabularLoader.return_vectormeta_format 동일 형태)
+
+        legacy 는 n_char/n_word/n_line 을 1 로 고정해 통계가 실제와 달랐다. 다른 경로와
+        동일하게 실제 값을 계산한다.
         """
+        if cleanup:
+            text = tn.tidy(text)
         return GenOSVectorMeta.model_validate({
             'text': text,
-            'n_char': 1,
-            'n_word': 1,
-            'n_line': 1,
+            'n_char': len(text),
+            'n_word': len(text.split()),
+            'n_line': len(text.splitlines()),
             'i_page': 1,
             'e_page': 1,
             'n_page': 1,
@@ -2994,6 +3015,9 @@ class DocumentProcessor:
         # #315 민감정보 분류: __call__ 에서 문서 전체 1회 분류한 결과를 청크별 quote 매칭에 사용.
         _sensitive_infos: list = kwargs.get("_sensitive_infos") or []
         _gr_masking: bool = bool(kwargs.get("_guardrail_masking", False))
+        # 벡터 생성 직전 표현 정리(text_cleanup=safe). 마스킹 뒤에 적용해야
+        # 임베딩 텍스트와 n_char/n_word/n_line 통계가 일치한다.
+        _cleanup_out: bool = tn.enabled_for(kwargs, self)
 
         # element → page 단위 Document 재구성 (빈 내용 제외)
         docs: list = []
@@ -3015,7 +3039,11 @@ class DocumentProcessor:
             chunk_size=chunk_size, chunk_overlap=chunk_overlap,
         )
         chunks = splitter.split_documents(docs)
-        chunks = [c for c in chunks if c.page_content]
+        # 정규화 시 공백만 남는 청크도 제거한다(페이지 카운트 집계 전이어야 한다).
+        if _cleanup_out:
+            chunks = tn.drop_blank_chunks(chunks, "page_content")
+        else:
+            chunks = [c for c in chunks if c.page_content]
         if not chunks:
             raise GenosServiceException(1, "chunk length is 0")
 
@@ -3040,6 +3068,8 @@ class DocumentProcessor:
                 chunk_index_on_page = 0
             # #315 가드레일 분류 후처리: quote 매칭 → guardrail_categories 부착(항상) + 마스킹 치환(옵션)
             text, chunk_cats = gr.apply_to_text(text, _sensitive_infos, _gr_masking)
+            if _cleanup_out:
+                text = tn.tidy(text)
             vectors.append(GenOSVectorMeta.model_validate({
                 'text': text,
                 'n_char': len(text),
@@ -3154,6 +3184,9 @@ class DocumentProcessor:
         # #315 민감정보 분류 결과(있으면 text 에 quote 매칭·라벨·마스킹 적용).
         _sensitive_infos: list = kwargs.get("_sensitive_infos") or []
         _gr_masking: bool = bool(kwargs.get("_guardrail_masking", False))
+        # 벡터 생성 직전 표현 정리(text_cleanup=safe). 마스킹 뒤에 적용해야
+        # 임베딩 텍스트와 n_char/n_word/n_line 통계가 일치한다.
+        _cleanup_out: bool = tn.enabled_for(kwargs, self)
 
         def _page_of(el: dict) -> int:
             # /chunk 는 호출자 인라인 payload 를 받으므로 손상/외부 JSON 의 비숫자 page 가 도달 가능.
@@ -3181,6 +3214,8 @@ class DocumentProcessor:
                 chunk_index_on_page = 0
             text = str(el.get("content", "") or "")
             text, chunk_cats = gr.apply_to_text(text, _sensitive_infos, _gr_masking)
+            if _cleanup_out:
+                text = tn.tidy(text)
             row_meta = el.get("metadata") or {}
             try:
                 vectors.append(GenOSVectorMeta.model_validate({
@@ -3226,6 +3261,13 @@ class DocumentProcessor:
         """
         elements = elements or []
 
+        # 청크 텍스트 정규화(text_cleanup=safe): 분할 전에 문자 위생을 적용한다.
+        # 행 기반 경로는 metadata 가 그대로 청크 property 로 나가므로 함께 정규화한다
+        # (text 만 정규화하면 같은 내용이 두 표현으로 저장된다).
+        _cleanup_in = tn.enabled_for(kwargs, self)
+        if _cleanup_in:
+            elements = tn.sanitize_elements(elements)
+
         # 0) 행 기반 tabular/custom_fields 가드. faq_row는 이전 산출물 하위 호환용이다.
         non_empty_all = [el for el in elements if isinstance(el, dict)]
         row_categories = {"tabular_row", "custom_fields_row", "faq_row"}
@@ -3236,7 +3278,7 @@ class DocumentProcessor:
         for el in elements:
             content = str((el or {}).get("content", "") or "")
             if content.startswith("[AUDIO]"):
-                return [self._single_marker_vector(content)]
+                return [self._single_marker_vector(content, _cleanup_in)]
 
         # 2) legacy tabular([DA]) 가드 — 이전 csv/xlsx parse payload 호환용.
         non_empty = [
@@ -3245,7 +3287,7 @@ class DocumentProcessor:
         ]
         if non_empty and all((el or {}).get("category") == "table" for el in non_empty):
             joined = "\n".join(str(el.get("content", "")) for el in non_empty)
-            return [self._single_marker_vector("[DA] " + joined)]
+            return [self._single_marker_vector("[DA] " + joined, _cleanup_in)]
 
         # 3) 공통 텍스트 경로
         return self._chunk_text_elements(elements, **kwargs)
