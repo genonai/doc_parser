@@ -29,6 +29,7 @@ from genon.preprocessor.facade.common import loaders as ld
 from genon.preprocessor.facade.common import vector_meta as vm
 from genon.preprocessor.facade.common import runtime as rt
 from genon.preprocessor.facade.common import file_probe as fp
+from genon.preprocessor.facade.common import pdf_convert as pc
 from genon.preprocessor.facade.chunking import hybrid_chunker as hc
 
 _as_dict = cp.as_dict
@@ -150,8 +151,7 @@ def _resolve_default_attachment_config_path() -> str:
 
 
 def convert_to_pdf(file_path: str, use_pdf_sdk: bool = True) -> str | None:
-    """
-    PDF 변환을 시도한다. 실패해도 예외를 던지지 않고 None을 반환한다.
+    """PDF 변환을 시도한다. 실패해도 예외를 던지지 않고 None 을 반환한다.
 
     chain (HWP/HWPX 입력):
       use_pdf_sdk=True  → pdf_sdk → rhwp → libreoffice
@@ -160,27 +160,10 @@ def convert_to_pdf(file_path: str, use_pdf_sdk: bool = True) -> str | None:
       use_pdf_sdk=True  → pdf_sdk → libreoffice
       use_pdf_sdk=False → libreoffice
 
-    rhwp 는 HWP/HWPX 전용이라 비-HWP 입력에는 chain 에 들어가지 않는다. HWP/HWPX
-    변환은 rhwp 를 libreoffice 보다 우선한다 (pdf_sdk 가 있으면 그 다음 순위).
-    내부 구현은 `genon.preprocessor.converters.hwp_to_pdf` 모듈에 통합되어 있다.
+    구현은 facade/common/pdf_convert.py 에 있다(변환 backend 는
+    genon.preprocessor.converters.hwp_to_pdf).
     """
-    from genon.preprocessor.converters.hwp_to_pdf import convert_hwp_to_pdf
-    # 이슈 #286 — 변환 backend(pdf_sdk/rhwp/libreoffice)가 전무하면(빌드 시 OFF) 변환 시도가
-    # 무의미하므로, PDF 직접 입력을 안내하는 warning 한 번만 남기고 None 을 반환한다.
-    if not _has_any_pdf_converter():
-        _log.warning(
-            "[convert_to_pdf] PDF 변환기(rhwp/LibreOffice/PDF SDK)가 설치되어 있지 않습니다 "
-            f"(이슈 #286). '{os.path.basename(file_path)}' 변환을 건너뜁니다. PDF 로 변환된 "
-            "파일을 입력하거나, 변환기를 포함해 전처리기 이미지를 다시 빌드하세요 (genon/README.md 참고)."
-        )
-        return None
-    ext = os.path.splitext(file_path)[1].lower()
-    is_hwp = ext in (".hwp", ".hwpx")
-    if use_pdf_sdk:
-        order = ["pdf_sdk", "rhwp", "libreoffice"] if is_hwp else ["pdf_sdk", "libreoffice"]
-    else:
-        order = ["rhwp", "libreoffice"] if is_hwp else ["libreoffice"]
-    return convert_hwp_to_pdf(file_path, order=order)
+    return pc.convert_to_pdf(file_path, use_pdf_sdk=use_pdf_sdk)
 
 
 def _has_any_pdf_converter() -> bool:

@@ -27,8 +27,7 @@ import httpx
 
 
 def convert_to_pdf(file_path: str, use_pdf_sdk: bool = True) -> str | None:
-    """
-    PDF 변환을 시도한다. 실패해도 예외를 던지지 않고 None을 반환한다.
+    """PDF 변환을 시도한다. 실패해도 예외를 던지지 않고 None 을 반환한다.
 
     chain (HWP/HWPX 입력):
       use_pdf_sdk=True  → pdf_sdk → rhwp → libreoffice
@@ -37,18 +36,10 @@ def convert_to_pdf(file_path: str, use_pdf_sdk: bool = True) -> str | None:
       use_pdf_sdk=True  → pdf_sdk → libreoffice
       use_pdf_sdk=False → libreoffice
 
-    rhwp 는 HWP/HWPX 전용이라 비-HWP 입력에는 chain 에 들어가지 않는다. HWP/HWPX
-    변환은 rhwp 를 libreoffice 보다 우선한다 (pdf_sdk 가 있으면 그 다음 순위).
-    내부 구현은 `genon.preprocessor.converters.hwp_to_pdf` 모듈에 통합되어 있다.
+    구현은 facade/common/pdf_convert.py 에 있다(변환 backend 는
+    genon.preprocessor.converters.hwp_to_pdf).
     """
-    from genon.preprocessor.converters.hwp_to_pdf import convert_hwp_to_pdf
-    ext = os.path.splitext(file_path)[1].lower()
-    is_hwp = ext in (".hwp", ".hwpx")
-    if use_pdf_sdk:
-        order = ["pdf_sdk", "rhwp", "libreoffice"] if is_hwp else ["pdf_sdk", "libreoffice"]
-    else:
-        order = ["rhwp", "libreoffice"] if is_hwp else ["libreoffice"]
-    return convert_hwp_to_pdf(file_path, order=order)
+    return pc.convert_to_pdf(file_path, use_pdf_sdk=use_pdf_sdk)
 
 # ── 공용 하위 모듈로 옮긴 헬퍼들의 별칭 ──────────────────────────────
 # 구현은 facade/common/, facade/chunking/ 에 한 벌만 둔다. 여기서는 기존 이름을
@@ -65,6 +56,7 @@ from genon.preprocessor.facade.common import vector_meta as vm
 from genon.preprocessor.facade.common import docling_ops as dops
 from genon.preprocessor.facade.common import runtime as rt
 from genon.preprocessor.facade.common import file_probe as fp
+from genon.preprocessor.facade.common import pdf_convert as pc
 from genon.preprocessor.facade.chunking import header_path as hp
 
 _as_dict = cp.as_dict
