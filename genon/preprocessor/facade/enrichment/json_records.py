@@ -203,7 +203,7 @@ def _get_html_converter() -> Any:
 # 표 출력 포맷. parser 의 `output.table_format` 과 같은 값 집합·기본값을 쓴다
 # (`parser_processor._normalize_table_format`). 파서가 이미 정규화해 넘겨주지만, 이 모듈을
 # 직접 부르는 경우(테스트 등)를 위해 여기서도 방어한다.
-VALID_TABLE_FORMATS = ("html", "markdown")
+VALID_TABLE_FORMATS = ("html", "markdown", "auto")
 DEFAULT_TABLE_FORMAT = "html"
 
 # LLM 입력용 평문이라 markdown 이스케이프와 이미지 자리표시자는 노이즈다.
@@ -234,6 +234,48 @@ def _get_html_table_serializer() -> Any:
     return _html_table_serializer
 
 
+# 표마다 구조를 보고 형식을 고르는 serializer(lazy 싱글턴).
+_auto_table_serializer: Any = None
+
+
+def _get_auto_table_serializer() -> Any:
+    """병합 셀·계층 헤더 표는 HTML, 단순 격자 표는 markdown 으로 내보내는 serializer.
+
+    문서 단위로 형식을 고정하면 둘 중 한쪽이 항상 손해다 — 단순 표를 HTML 로 내면 태그
+    토큰이 낭비되고, 병합 표를 markdown 으로 내면 헤더 계층이 사라져 어느 항목의 값인지
+    알 수 없다. 청커가 쓰는 판정(table_shape)과 같은 함수를 써서 두 경로가 어긋나지 않는다.
+    """
+    global _auto_table_serializer
+    if _auto_table_serializer is None:
+        from docling_core.transforms.serializer.base import BaseTableSerializer, SerializationResult
+        from docling_core.transforms.serializer.common import create_ser_result
+        from docling_core.transforms.serializer.markdown import MarkdownTableSerializer
+
+        from genon.preprocessor.facade.chunking.table_shape import (
+            analyze_grid, resolve_table_format,
+        )
+
+        class _AutoTableSerializer(BaseTableSerializer):
+            def __init__(self) -> None:
+                self._markdown = MarkdownTableSerializer()
+
+            def serialize(self, *, item, doc_serializer, doc, **kwargs) -> SerializationResult:
+                data = getattr(item, "data", None)
+                shape = analyze_grid(
+                    getattr(data, "grid", None), getattr(data, "num_cols", 0),
+                    # 이 경로의 원본은 HTML 필드라 thead 플래그를 그대로 믿는다.
+                    is_html_origin=True,
+                )
+                if resolve_table_format("auto", shape) == "html":
+                    return create_ser_result(
+                        text=item.export_to_html(doc=doc), span_source=item)
+                return self._markdown.serialize(
+                    item=item, doc_serializer=doc_serializer, doc=doc, **kwargs)
+
+        _auto_table_serializer = _AutoTableSerializer()
+    return _auto_table_serializer
+
+
 def normalize_table_format(value: Any) -> str:
     fmt = str(value or "").strip().lower()
     if fmt not in VALID_TABLE_FORMATS:
@@ -246,17 +288,25 @@ def normalize_table_format(value: Any) -> str:
 
 
 def _export_text(doc: Any, table_format: str, compact_tables: bool) -> str:
-    """DoclingDocument → 평문. 본문은 markdown 이고 표만 table_format 을 따른다."""
-    if table_format == "html":
+    """DoclingDocument → 평문. 본문은 markdown 이고 표만 table_format 을 따른다.
+
+    auto 는 표마다 다르게 나가므로 문서 단위 markdown export 로는 표현할 수 없다 —
+    표 serializer 를 갈아 끼워 표별로 결정한다.
+    """
+    if table_format in {"html", "auto"}:
         from docling_core.transforms.serializer.markdown import (
             MarkdownDocSerializer,
             MarkdownParams,
         )
 
+        table_serializer = (
+            _get_auto_table_serializer() if table_format == "auto"
+            else _get_html_table_serializer()
+        )
         return MarkdownDocSerializer(
             doc=doc,
-            table_serializer=_get_html_table_serializer(),
-            params=MarkdownParams(**_MD_EXPORT_OPTS),
+            table_serializer=table_serializer,
+            params=MarkdownParams(compact_tables=compact_tables, **_MD_EXPORT_OPTS),
         ).serialize().text
     return doc.export_to_markdown(compact_tables=compact_tables, **_MD_EXPORT_OPTS)
 
