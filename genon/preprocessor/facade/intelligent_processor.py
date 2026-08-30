@@ -109,21 +109,8 @@ def _resolve_tokenizer(chunking_cfg: dict):
         chunking_cfg, local_path=_DEFAULT_TOKENIZER_LOCAL_PATH, hf_id=_DEFAULT_TOKENIZER_ID)
 
 
-
 def _has_any_pdf_converter() -> bool:
     return fp.has_any_pdf_converter()
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 # docling imports
@@ -278,19 +265,6 @@ except ImportError:
 # ============================================================
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
 # 한 경로 안의 레벨 구분자(부모 → 자식). heading 자체에 콤마가 들어있는 경우가 있어
 # (실측 409건 중 20건) 콤마로는 경로를 레벨 단위로 되돌릴 수 없다 —
 # 예: "제4조(여비) ① 여비는 여객운임, 숙박비, 식비 …". " > " 는 실측 충돌이 0 이다.
@@ -305,33 +279,13 @@ _CHUNK_HEADER_SEP = " > "
 _CHUNK_PATH_SEP = " | "
 
 
-
-
 # 다경로 청크에서 나열할 리프 최대 개수. 초과분은 "… 외 N개" 로 접는다.
 # resize_all 로 수십 개 섹션이 한 청크에 뭉치면 경로를 전부 나열한 헤더가 노이즈가 된다
 # (실측: hwp 71경로 → 헤더 3,239자, 청크가 chunk_size 를 30% 초과).
 _CHUNK_PATH_MAX_LEAVES = 5
 
 
-
-
-
-
-
-
-
-
 _MIN_CHUNK_SIZE = 1024
-
-
-
-
-
-
-
-
-
-
 
 
 # #329: LLM 캐시 / error_policy 컨텍스트 해석은 docling.utils.llm_cache.resolve_context
@@ -385,8 +339,6 @@ _DEFAULT_TOKENIZER_ID = "sentence-transformers/all-MiniLM-L6-v2"
 # PDF 변환에서 제외(직접 처리)할 엑셀 계열 포맷(이슈 #288).
 # PDF 변환 시 한 행이 페이지 경계로 쪼개지는 논리 오류가 생기므로 변환하지 않고 직접 처리한다.
 _XLSX_DIRECT_EXTS = {".xlsx", ".xlsm", ".csv"}
-
-
 
 
 # ============================================
@@ -563,21 +515,13 @@ class DocumentProcessor:
 
         # OCR 엔드포인트는 ocr.paddle.ocr_endpoint 가 정식 위치.
         # 구버전 호환: ocr.ocr_endpoint(상위) / 최상위 ocr_endpoint 도 폴백으로 인식.
-        # OCR 엔드포인트·모드·재OCR 임계값 해석은 facade/common/pipeline_setup.py 로 모았다.
-        # 조정 지점은 yaml 의 ocr 섹션이다(paddle.ocr_endpoint, ocr_mode, table_cell_ocr_timeout,
-        # glyph_detection.table_cell_threshold / document_threshold).
+        # 해석은 facade/common/pipeline_setup.py 로 모았다(조정 지점은 yaml 의 ocr 섹션).
         _ocr_rt = ps.resolve_ocr_runtime(cfg, ocr_cfg)
         ocr_ep = _ocr_rt.endpoint
         self.ocr_mode = _ocr_rt.mode
         self._table_cell_ocr_timeout = _ocr_rt.table_cell_ocr_timeout
         self._glyph_table_cell_threshold = _ocr_rt.glyph_table_cell_threshold
         self._glyph_document_threshold = _ocr_rt.glyph_document_threshold
-
-        # OCR 수행 모드. "auto"(default)=휴리스틱 기반 재OCR / "force"=무조건 전체 OCR / "disable"=OCR 안 함
-
-        # 테이블 셀 재OCR HTTP timeout (ocr_all_table_cells). 잘못된 값은 60 으로 폴백.
-
-        # 글리프 기반 auto-OCR 재트리거 임계값.
 
         ocr_options = self._build_ocr_options(ocr_cfg, paddle_endpoint=ocr_ep)
         if isinstance(ocr_options, UpstageOcrOptions):
@@ -597,17 +541,13 @@ class DocumentProcessor:
 
         self.page_chunk_counts = defaultdict(int)
 
-        # pdf_pipeline 섹션(device, num_threads, images_scale, generate_*_images,
-        # table_structure_mode) 해석은 facade/common/pipeline_setup.py 로 모았다.
+        # pdf_pipeline 섹션 해석은 facade/common/pipeline_setup.py 로 모았다.
         _pdf = ps.resolve_pdf_basics(pdf_cfg)
         accelerator_options = _pdf.accelerator_options
         images_scale = _pdf.images_scale
         generate_page_images = _pdf.generate_page_images
         generate_picture_images = _pdf.generate_picture_images
         table_structure_mode = _pdf.table_structure_mode
-
-
-
 
         # 표 이미지(table_image) 옵션: 표를 picture 와 동일하게 이미지로 잘라 저장하고,
         # media_files 에 type='table_image' 로 기록한다(검색=청크 텍스트 / 답변=표 이미지).
@@ -623,7 +563,6 @@ class DocumentProcessor:
         ppt_fmt_cfg = _as_dict(formats_cfg.get("ppt"))
         page_img_cfg = _as_dict(ppt_fmt_cfg.get("page_description"))
         self._page_desc_options = PageDescriptionOptions.from_config(page_img_cfg, self._config_dir)
-
 
         # PDF 파이프라인 옵션 설정
         self.pipe_line_options = PdfPipelineOptions()
@@ -643,17 +582,10 @@ class DocumentProcessor:
         self.pipe_line_options.images_scale = images_scale
 
         # layout 모델 선택. "genos_layout"(default) / "docling_layout". 잘못된 값은 경고 후 폴백.
-        # layout(genos_layout) 설정 해석은 facade/common/pipeline_setup.py 로 모았다.
-        # 조정 지점은 yaml 의 layout 섹션이다(genos_layout.endpoint/api_key/model/timeout/
-        # page_batch_size/max_completion_tokens/temperature/top_p/repetition_penalty/
-        # length_fallback_enabled/fallback_dpi/table_fallback_enabled).
+        # 해석·적용은 facade/common/pipeline_setup.py 로 모았다(조정 지점은 yaml 의 layout 섹션).
         _layout = ps.resolve_layout_settings(cfg, layout_cfg)
         ps.apply_layout_settings(self.pipe_line_options, _layout)
         settings.perf.page_batch_size = _layout.page_batch_size
-
-
-
-        # DotsOCR VLM 호출/생성 파라미터 (yaml 누락·무효 시 기본값 폴백)
 
         self.pipe_line_options.do_table_structure = True
         self.pipe_line_options.table_structure_options.do_cell_matching = True

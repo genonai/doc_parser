@@ -27,8 +27,6 @@ from PIL import Image
 _log = logging.getLogger(__name__)
 
 
-
-
 # ── 공용 하위 모듈로 옮긴 헬퍼들의 별칭 ──────────────────────────────
 # 구현은 facade/common/, facade/chunking/ 에 한 벌만 둔다. 여기서는 기존 이름을
 # 그대로 유지해 호출부를 건드리지 않는다. 사이트별 조정 대상 상수(구분자, 최소
@@ -56,15 +54,6 @@ def _load_config(config_path: str) -> dict:
 def _resolve_tokenizer(chunking_cfg: dict):
     return cp.resolve_tokenizer(
         chunking_cfg, local_path=_DEFAULT_TOKENIZER_LOCAL_PATH, hf_id=_DEFAULT_TOKENIZER_ID)
-
-
-
-
-
-
-
-
-
 
 
 from glob import glob
@@ -166,14 +155,6 @@ _DEFAULT_TOKENIZER_ID = "sentence-transformers/all-MiniLM-L6-v2"
 _DEFAULT_HYBRID_MAX_TOKENS = int(1e30)
 
 
-
-
-
-
-
-
-
-
 def _resolve_compact_tables(kwargs: dict) -> bool:
     """런타임 kwargs 의 compact_tables 를 bool 로 해석. 기본/오류 시 True.
 
@@ -184,10 +165,6 @@ def _resolve_compact_tables(kwargs: dict) -> bool:
     return True if parsed is None else parsed
 
 
-
-
-
-
 def _resolve_default_attachment_config_path() -> str:
     base_dir = Path(__file__).resolve().parent
     local_config = (base_dir / "../resource_dev/attachment_processor_config.yaml").resolve()
@@ -196,8 +173,6 @@ def _resolve_default_attachment_config_path() -> str:
     if local_config.exists():
         return str(local_config)
     return str(default_config)
-
-
 
 
 def convert_to_pdf(file_path: str, use_pdf_sdk: bool = True) -> str | None:

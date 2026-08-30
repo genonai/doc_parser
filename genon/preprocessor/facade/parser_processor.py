@@ -177,8 +177,6 @@ def _handle_stage_error(exc: Exception, stage: str) -> None:
     _log.warning(f"[DocumentProcessor] {stage} enrichment skipped ({error_type}): {exc}")
 
 
-
-
 # ── 공용 하위 모듈로 옮긴 헬퍼들의 별칭 ──────────────────────────────
 # 구현은 facade/common/, facade/chunking/ 에 한 벌만 둔다. 여기서는 기존 이름을
 # 그대로 유지해 호출부를 건드리지 않는다. 사이트별 조정 대상 상수(구분자, 최소
@@ -208,15 +206,6 @@ def _load_config(config_path: str) -> dict:
     return cp.load_config(config_path, strict=True)
 
 
-
-
-
-
-
-
-
-
-
 # fontTools 로그 억제
 for _n in ("fontTools", "fontTools.ttLib", "fontTools.ttLib.ttFont"):
     _lg = logging.getLogger(_n)
@@ -231,23 +220,6 @@ CONVERTIBLE_EXTENSIONS = ['.hwp', '.txt', '.json', '.md', '.ppt', '.pptx', '.doc
 # ============================================================
 # 설정 로딩
 # ============================================================
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 # pdf_pipeline.device / pdf_pipeline.table_structure_mode 의 yaml 문자열 → docling enum 매핑.
@@ -628,9 +600,7 @@ class IntelligentDocumentProcessor:
 
         # OCR 엔드포인트는 ocr.paddle.ocr_endpoint 가 정식 위치.
         # 구버전 호환: ocr.ocr_endpoint(상위) / 최상위 ocr_endpoint 도 폴백으로 인식.
-        # OCR 엔드포인트·모드·재OCR 임계값 해석은 facade/common/pipeline_setup.py 로 모았다.
-        # 조정 지점은 yaml 의 ocr 섹션이다(paddle.ocr_endpoint, ocr_mode, table_cell_ocr_timeout,
-        # glyph_detection.table_cell_threshold / document_threshold).
+        # 해석은 facade/common/pipeline_setup.py 로 모았다(조정 지점은 yaml 의 ocr 섹션).
         _ocr_rt = ps.resolve_ocr_runtime(cfg, ocr_cfg)
         ocr_ep = _ocr_rt.endpoint
         self.ocr_mode = _ocr_rt.mode
@@ -638,18 +608,8 @@ class IntelligentDocumentProcessor:
         self._glyph_table_cell_threshold = _ocr_rt.glyph_table_cell_threshold
         self._glyph_document_threshold = _ocr_rt.glyph_document_threshold
 
-        # 테이블 셀 재OCR HTTP timeout (ocr_all_table_cells). 잘못된 값은 60 으로 폴백.
-
-        # 글리프 기반 auto-OCR 재트리거 임계값.
-
-        # layout(genos_layout) 설정 해석은 facade/common/pipeline_setup.py 로 모았다.
-        # 조정 지점은 yaml 의 layout 섹션이다(genos_layout.endpoint/api_key/model/timeout/
-        # page_batch_size/max_completion_tokens/temperature/top_p/repetition_penalty/
-        # length_fallback_enabled/fallback_dpi/table_fallback_enabled).
+        # 해석·적용은 facade/common/pipeline_setup.py 로 모았다(조정 지점은 yaml 의 layout 섹션).
         _layout = ps.resolve_layout_settings(cfg, layout_cfg)
-
-
-        # DotsOCR VLM 호출/생성 파라미터 (yaml 누락·무효 시 기본값 폴백)
 
         ocr_options = self._build_ocr_options(ocr_cfg, paddle_endpoint=ocr_ep)
         if isinstance(ocr_options, UpstageOcrOptions):
@@ -659,18 +619,13 @@ class IntelligentDocumentProcessor:
 
         self.page_chunk_counts = defaultdict(int)
 
-        # pdf_pipeline 섹션(device, num_threads, images_scale, generate_*_images,
-        # table_structure_mode) 해석은 facade/common/pipeline_setup.py 로 모았다.
+        # pdf_pipeline 섹션 해석은 facade/common/pipeline_setup.py 로 모았다.
         _pdf = ps.resolve_pdf_basics(pdf_cfg)
         accelerator_options = _pdf.accelerator_options
         images_scale = _pdf.images_scale
         generate_page_images = _pdf.generate_page_images
         generate_picture_images = _pdf.generate_picture_images
         table_structure_mode = _pdf.table_structure_mode
-
-
-
-
 
         self.pipe_line_options = PdfPipelineOptions()
         self.pipe_line_options.generate_page_images = (
@@ -685,7 +640,6 @@ class IntelligentDocumentProcessor:
 
         ps.apply_layout_settings(self.pipe_line_options, _layout)
         docling_settings.perf.page_batch_size = _layout.page_batch_size
-
 
         self.pipe_line_options.do_table_structure = True
         self.pipe_line_options.table_structure_options.do_cell_matching = True
@@ -2410,7 +2364,6 @@ class DocumentProcessor:
             "elements": elements,
             "usage": {"pages": num_pages},
         }
-
 
     def setup_logging(self, level_num: int):
         rt.setup_logging(level_num)
