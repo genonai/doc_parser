@@ -106,10 +106,95 @@ def check_card_annual_fee(chunks: list) -> list[str]:
     return []
 
 
+def check_stock_insight_row_merge(chunks: list) -> list[str]:
+    """AI차트뷰 원천은 세부내용을 여러 행에 문자 단위로 잘라 보낸다.
+
+    row_merge 가 등록번호+종목코드 연속 런을 게시물 라인번호 순으로 이어붙여
+    20행 → 4레코드(종목 4건)가 되어야 한다. 구분자가 끼거나 순서가 틀리면 복원되지 않는다.
+
+    detail_desc 는 **JSON·HTML·평문 중 무엇이든** 올 수 있어 스키마를 못 박을 수 없다.
+    샘플에 세 종류를 모두 넣어 text_from 의 자동 판별을 검증한다.
+      테슬라·엔비디아 = JSON, 팔란티어 = 구조 HTML(표 포함), 리게티 = 평문
+    레코드가 chunk_size 를 넘으므로 종목당 여러 청크로 갈라지고, 조각마다 종목명 접두가
+    반복되며 분할 지점에는 직전 섹션 제목이 `(이어서)` 로 다시 붙는다.
+    """
+    problems = []
+    expected = {"테슬라", "엔비디아", "팔란티어 테크놀로지스", "리게티 컴퓨팅"}
+    stocks = {c.get("JONG_NM") for c in chunks}
+    if stocks != expected:
+        problems.append(f"종목 {len(expected)}건 기대, 실제 {sorted(stocks)}(row_merge 병합 실패)")
+    if len(chunks) <= len(stocks):
+        problems.append(f"분할이 일어나지 않았습니다: 종목 {len(stocks)}건에 청크 {len(chunks)}건")
+
+    for idx, chunk in enumerate(chunks):
+        name = chunk.get("JONG_NM")
+        text = chunk.get("text") or ""
+        # 분할 조각마다 "어느 종목의 언제 기준 분석인지" 가 다시 붙어야 그 조각만 검색돼도
+        # LLM 이 근거로 쓸 수 있다. 종목코드·기준일은 어휘 매칭에도 기여한다.
+        expected_prefix = (
+            f"종목명: {name}\n종목코드: {chunk.get('JONG_CODE')}\n"
+            f"분석기준일: {chunk.get('ANALYSIS_DATE')}"
+        )
+        if not text.startswith(expected_prefix):
+            problems.append(f"[{idx}] 접두 3줄이 어긋납니다: {text[:60]!r}")
+        if "<BR>" in text or "<strong>" in text:
+            problems.append(f"[{idx}] 본문에 인라인 HTML 태그가 남았습니다")
+        if '{"trading_strategy"' in text:
+            problems.append(f"[{idx}] 본문에 JSON 원문이 그대로 들어갔습니다(text_from 미적용)")
+
+    # JSON 종목: 원본이 metadata 에 JSON 그대로 남고, 본문은 마크다운 헤딩으로 펴진다.
+    tesla = [c for c in chunks if c.get("JONG_NM") == "테슬라"]
+    for idx, chunk in enumerate(tesla):
+        try:
+            json.loads(chunk.get("DETAIL_DESC") or "")
+        except (ValueError, TypeError):
+            problems.append(f"테슬라[{idx}] DETAIL_DESC 가 JSON 으로 복원되지 않았습니다")
+    if tesla and "## trading strategy" not in tesla[0]["text"]:
+        problems.append("JSON 이 마크다운 헤딩으로 펴지지 않았습니다(## trading strategy 없음)")
+
+    # 핵심 계약: 섹션이 있는 원천이면 **모든** 청크가 섹션 문맥을 갖는다. 헤딩 경계에서
+    # 잘렸으면 조각이 헤딩으로 시작하고, 섹션 하나가 chunk_size 를 넘어 중간에서 잘렸으면
+    # `(이어서)` 로 직전 제목을 물려받는다. 둘 다 아니면 "8월 17일 2544만" 같은 조각이
+    # 무엇에 대한 값인지 모르는 채로 검색에 노출된다.
+    by_stock = {}
+    for chunk in chunks:
+        by_stock.setdefault(chunk.get("JONG_NM"), []).append(chunk)
+    for name, group in by_stock.items():
+        bodies = [c["text"].split("\n", 3)[3] if c["text"].count("\n") >= 3 else ""
+                  for c in group]
+        if not any(body.lstrip().startswith("#") for body in bodies):
+            continue                      # 헤딩이 없는 원천(평문)은 대상이 아니다
+        for idx, body in enumerate(bodies):
+            if not body.lstrip().startswith("#") and "(이어서)" not in body:
+                problems.append(
+                    f"{name}[{idx}] 조각이 섹션 문맥 없이 시작합니다: {body[:40]!r}"
+                )
+
+    # 구조 HTML 종목: 표가 셀 한 줄씩으로 뭉개지지 않고 살아 있어야 한다.
+    pltr = " ".join(c["text"] for c in chunks if c.get("JONG_NM") == "팔란티어 테크놀로지스")
+    if pltr and "36,178,448" not in pltr:
+        problems.append("HTML 표의 값이 사라졌습니다(구조 HTML 렌더링 실패)")
+
+    # 평문 종목: 그대로 실려야 한다(판별이 HTML/JSON 으로 새면 안 된다).
+    rgti = " ".join(c["text"] for c in chunks if c.get("JONG_NM") == "리게티 컴퓨팅")
+    if rgti and "20일선(17.15)" not in rgti:
+        problems.append("평문 detail_desc 가 본문에 실리지 않았습니다")
+
+    first = tesla[0] if tesla else {}
+    if first.get("ANALYSIS_DATE") != 20260827:
+        problems.append(f"ANALYSIS_DATE 20260827 기대, 실제 {first.get('ANALYSIS_DATE')!r}")
+    # TB 에 대응 컬럼이 없어 매핑하지 않는 원천 컬럼이 metadata 로 새면 안 된다.
+    leaked = sorted({"md_stck_itm_c", "kosc_stck_itm_c", "nat_c"} & set(first))
+    if leaked:
+        problems.append(f"매핑하지 않은 원천 컬럼이 metadata 에 실렸습니다: {leaked}")
+    return problems
+
+
 # (doc_type, 샘플 파일명) → 추가 단정 함수
 EXTRA_CHECKS = {
     ("product_slf", "monimo_product_slf_sample.md"): check_front_matter,
     ("card", "card01.flat.html"): check_card_annual_fee,
+    ("stock_insight", "monimo_stock_insight_sample.xlsx"): check_stock_insight_row_merge,
 }
 
 # 입력 확장자로 extractor 를 고른다. 같은 doc_type 에 블록이 둘인 경우가 있다

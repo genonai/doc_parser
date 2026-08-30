@@ -83,6 +83,8 @@ MONIMO_CASES=(
   # 섹션마다 청크 1건이 된다. wcms 샘플은 풀 캡처 재현본, product_hpp_sample 은 최소(루트 평평) 케이스.
   "product_hpp:${MONIMO}/monimo_product_hpp_wcms_sample.json"
   "product_hpp:${MONIMO}/monimo_product_hpp_sample.json"
+  # 원천이 한 종목의 세부내용 JSON 하나를 ntc_objline 1..N 으로 문자 단위로 잘라 여러 행에
+  # 뿌린다. row_merge 가 그 행들을 도로 이어붙인다 — 아래 전용 블록 참고.
   "stock_insight:${MONIMO}/monimo_stock_insight_sample.xlsx"
   "link:${MONIMO}/monimo_link_sample.json"
 )
@@ -114,8 +116,67 @@ MONIMO_CASES=(
 # assert all('conversion_note' not in x['text'] and 'source_file:' not in x['text'] for x in d)
 # "
 
+# ── AI차트뷰 xlsx: 행 병합 + 자동판별 렌더링 + 섹션 단위 분할 (#360) ─────────
+# 2026-08-28 원천 개편으로 세 가지가 바뀌었다.
+#   1) 헤더가 영문 소문자 (jong_name·jong_code·regt_no·ntc_objline·detail_desc·news_date …)
+#   2) 한 종목의 세부내용이 ntc_objline 1..N 으로 **문자 단위 절단**되어 행마다 흩어짐
+#      (실 원천에 `"price_pat` / `tern_desc":` 처럼 키 이름 중간에서 끊긴 사례가 있다)
+#      → row_merge(group_by=REGT_NO+JONG_CODE, order_by=NTC_OBJLINE_NO)가 구분자 없이 이어붙임
+#   3) detail_desc 에 **JSON·HTML·평문이 섞여** 오고 정해진 스키마가 없음
+#      → text_from 이 종류를 자동 판별해 하나의 마크다운으로 수렴시킴
+# 샘플 4종목이 세 종류를 모두 덮는다:
+#   테슬라·엔비디아 = JSON, 팔란티어 = 구조 HTML(표 포함), 리게티 = 평문
+# 청커는 `## ` 를 우선 분리자로 써서 섹션 경계에서 자르고, 섹션 하나가 chunk_size 를 넘어
+# 중간에서 잘리면 직전 제목을 `(이어서)` 로 다시 붙인다 — 뒷 조각만 검색돼도 문맥이 남는다.
+# 샘플을 다시 만들려면: "${PYTHON}" make_stock_insight_sample.py
+# LLM 필드가 비활성이라 모델서빙 없이 돈다.
+"${PYTHON}" parse_chunk_test.py --doc_type stock_insight --chunk-size 1500 \
+  "${MONIMO}/monimo_stock_insight_sample.xlsx" "${OUT}/"
+# "${PYTHON}" -c "
+# import json
+# d = json.load(open('${OUT}/monimo_stock_insight_sample.chunks.json'))
+# stocks = {c['JONG_NM'] for c in d}
+# assert stocks == {'테슬라', '엔비디아', '팔란티어 테크놀로지스', '리게티 컴퓨팅'}, sorted(stocks)
+# assert len(d) > len(stocks), f'분할이 일어나지 않았습니다: {len(d)}청크'
+# for i, c in enumerate(d):
+#     # 조각마다 '어느 종목의 언제 기준 분석인지' 3줄이 반복된다.
+#     assert c['text'].startswith(f\"종목명: {c['JONG_NM']}\\n종목코드: {c['JONG_CODE']}\\n분석기준일: {c['ANALYSIS_DATE']}\"), i
+#     assert len(c['text']) <= 1500, (i, len(c['text']))
+#     assert '<BR>' not in c['text'] and '<strong>' not in c['text'], i
+#     assert 'DETAIL_TEXT' not in c['text'] and 'detail_desc:' not in c['text'], i
+
+# def body(c): return c['text'].split(chr(10), 3)[3]   # 접두 3줄을 걷어낸 본문
+# # JSON 종목: 원본은 metadata 에 JSON 그대로, 본문은 마크다운 헤딩으로 펴진다.
+# tesla = [c for c in d if c['JONG_NM'] == '테슬라']
+# assert all(json.loads(c['DETAIL_DESC']) for c in tesla)   # 조각 순서/구분자가 틀리면 터진다
+# assert '## trading strategy' in tesla[0]['text']
+# # 섹션이 있는 원천이면 모든 조각이 섹션 문맥을 갖는다(헤딩으로 시작하거나 (이어서)).
+# for name in ('테슬라', '엔비디아', '팔란티어 테크놀로지스'):
+#     for i, c in enumerate(x for x in d if x['JONG_NM'] == name):
+#         assert body(c).lstrip().startswith('#') or '(이어서)' in body(c), (name, i, body(c)[:40])
+# # 구조 HTML 종목: 표 값이 살아 있어야 한다. 평문 종목: 그대로 실려야 한다.
+# assert '36,178,448' in ' '.join(c['text'] for c in d if c['JONG_NM'] == '팔란티어 테크놀로지스')
+# assert '20일선(17.15)' in ' '.join(c['text'] for c in d if c['JONG_NM'] == '리게티 컴퓨팅')
+# assert d[0]['ANALYSIS_DATE'] == 20260827
+# assert 'md_stck_itm_c' not in d[0]        # TB 에 없는 원천 컬럼은 metadata 로 새지 않는다
+# print(f'stock_insight OK: 종목 {len(stocks)}건 → {len(d)}청크, 길이 {[len(c[\"text\"]) for c in d]}')
+# "
+
 # 기존 카드 데모(회귀 확인용)
-"${PYTHON}" parse_chunk_test.py --doc_type card "/Users/shkim/_shkim/01.source/doc_parser/shkim_labs/20260803_monimo/01_card/card01.flat.html" result_parse_chunk/
+# front matter 타입 보존은 front matter 키에만 적용된다 — card 의 annual_fee_amount 는
+# 예전대로 문자열 '18000' 이어야 한다(이미 적재된 컬렉션의 property 타입 호환).
+# "${PYTHON}" parse_chunk_test.py --doc_type card "/Users/shkim/_shkim/01.source/doc_parser/shkim_labs/20260803_monimo/01_card/card01.flat.html" "${OUT}/"
+# "${PYTHON}" -c "
+# import json
+# d = json.load(open('${OUT}/card01.flat.chunks.json'))
+# assert d[0]['annual_fee_amount'] == '18000', d[0]['annual_fee_amount']
+# "
+
+# "${PYTHON}" parse_chunk_test.py --doc_type faq "/Users/shkim/_shkim/01.source/doc_parser/shkim_labs/20260803_monimo/02_faq/증권FAQ_260712.csv" "${OUT}/"
+# "${PYTHON}" parse_chunk_test.py --doc_type card "../../../../shkim_labs/20260806_hwp/hwp_sample_table.hwp" "${OUT}/"
+# "${PYTHON}" parse_chunk_test.py --doc_type monimo_event "${MONIMO}/monimo_event_table_sample.json" "${OUT}/"
+# "${PYTHON}" parse_chunk_test.py --doc_type product_hpp "${MONIMO}/monimo_product_hpp_wcms_sample.json" "${OUT}/"
+
 # ── 청크 선두 헤더(HEADER: <섹션 경로>) on/off ─────────────────────────────────
 # 섹션 경로는 청크 선두 한 줄에서만 붙는다(compose_vectors). 예전에는 본문 안에도 같은 제목이
 # 두 번 더 들어가 청크 텍스트의 30~56% 가 제목 반복이었고, 제목만 있고 본문이 없는 청크도

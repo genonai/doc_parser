@@ -7,30 +7,53 @@
 #       extractor: tabular_mapping
 #       config_file: custom_field_stock_insight.yaml
 #
-# 원천: sss_rag_adac_yyyymmdd_delta_001.xlsx (S3://os-tifa-sss/FAO/ADAC)
-#   국장/미장 공통. 엑셀 셀 구조이고 `세부내용` 셀에만 JSON 문자열이 들어 있다
+# 원천: [AI차트뷰]<국장|미장>_yyyymmdd.xlsx (S3://os-tifa-sss/FAO/ADAC)
+#   국장/미장 공통. 시트 1개(`Sheet`)이고 `detail_desc` 셀에만 JSON 문자열이 들어 있다
 #   (파일 자체는 xlsx 이므로 tabular_mapping 이 맞다 — json_mapping 이 아니다).
 #
-# 증권_AI차트뷰 시트 기준 원천 컬럼:
-#   REGT_NO(등록번호) · NTC_OBJLINE_NO(게시물라인번호) · DETAIL_DESC(세부내용, json) ·
-#   JONG_CODE(종목코드) · JONG_NAME(종목명) · NEWS_DATE(뉴스일자)
-#   + 필수 요청 사항으로 "ID - unique ID(유일키 확인)" 를 추가 요청한 상태
+# 2026-08-28 원천 개편으로 헤더가 한글에서 영문 소문자로 전면 교체되었다:
+#   jong_name · jong_code · regt_no · ntc_objline · detail_desc · news_date ·
+#   md_stck_itm_c · kosc_stck_itm_c · nat_c
+# 옛 한글 헤더도 별칭에 남겨 둔다 — 과거 파일을 다시 돌릴 때 그대로 통과시키기 위해서다.
+#
+# 그리고 detail_desc 가 **여러 행에 쪼개져** 온다. 아래 row_merge 주석 참고.
 
 column_map:
-  BIZ_ID:         [ID, 아이디]                          # 원천에 추가 요청 중인 컬럼
-  REGT_NO:        [등록번호, REGT_NO]
-  NTC_OBJLINE_NO: [NTC_OBJLINE_NO, 게시물라인번호, 게시물 라인번호]
-  JONG_CODE:      [종목코드, JONG_CODE]                             # (NOT NULL)
-  JONG_NAME:      [종목명, JONG_NAME]
-  NEWS_DATE:      [뉴스일자, NEWS_DATE]
-  DETAIL_DESC:    [세부내용, 상세내용, DETAIL_DESC]                   # 원천 JSON 원본 문자열
-  # 원천 헤더는 "세부내용" · "뉴스일자" 다(위 원천 설명 참고). 별칭에 빠져 있어 두 필드가
-  # 매칭되지 않았고, DETAIL_DESC 가 비면서 청크 본문이 종목명 한 줄만 남았다.
-  # DETAIL_DESC 는 청크 본문에 실리므로 별칭 첫 값이 곧 본문 라벨이 된다 — 원천 헤더를 앞에 둔다.
+  BIZ_ID:         [BIZ_ID, ID, 아이디]                 # 원천에 추가 요청 중인 컬럼(현재 미제공)
+  REGT_NO:        [regt_no, REGT_NO, 등록번호]
+  NTC_OBJLINE_NO: [ntc_objline, ntc_objline_no, NTC_OBJLINE_NO, 게시물라인번호, 게시물 라인번호]
+  JONG_CODE:      [종목코드, jong_code, JONG_CODE]                     # (NOT NULL)
+  JONG_NM:        [종목명, jong_name, jong_nm]                         # (NOT NULL)
+  # 목표필드명은 TB 컬럼명(JONG_NM)을 따른다 — 적재 매핑이 1:1 이 되도록.
+  # 별칭 **첫 값이 청크 접두 라벨**이 되므로(build_chunk_text) 한글을 앞에 둔다.
+  #   "종목명: 테슬라" 가 "jong_name: 테슬라" 보다 한국어 질의의 어휘 매칭에 유리하다.
+  # 컬럼 매칭 자체는 순서와 무관하다 — 목록 전체를 훑고 대소문자·밑줄을 무시하므로
+  # 신규 헤더(jong_name)든 구 헤더(종목명)든 그대로 붙는다.
+  NEWS_DATE:      [news_date, NEWS_DATE, 뉴스일자]
+  DETAIL_DESC:    [detail_desc, DETAIL_DESC, 세부내용, 상세내용]      # 원천 JSON 원본 문자열
+  # DETAIL_DESC 는 TB 정의상 "원천이 보낸 세부 내용을 JSON 그대로 보관" 이다. 그래서 여기에는
+  # 원본을 남기고, 청크 본문에는 아래 json_text_fields 가 만든 평문 사본을 쓴다.
   # ANALYSIS_DATE(분석 기준일)는 NOT NULL 인데 원천에 대응 컬럼이 없다.
   #    "언제 시점의 분석인지" 를 밝히는 값이라 뉴스일자로 대체하는 것이 현재로선 가장 가깝다.
   #    별도 제공 여부를 원천 담당과 확정할 것 — 확정되면 아래 별칭을 그 컬럼으로 바꾼다.
-  ANALYSIS_DATE:  [NEWS_DATE, 분석기준일, 분석 기준일, 뉴스일자]
+  ANALYSIS_DATE:  [분석기준일, 분석 기준일, news_date, NEWS_DATE, 뉴스일자]
+  # 접두 라벨로 "분석기준일" 이 쓰이도록 한글을 앞에 둔다. 실제로 값이 붙는 원천 컬럼은
+  # 여전히 news_date 다(위 설명 참고) — 별칭 순서는 매칭 결과를 바꾸지 않는다.
+
+  # 원천에는 있으나 TB_STOCK_INSIGHT 에 대응 컬럼이 없어 **의도적으로 버리는** 컬럼:
+  #   md_stck_itm_c(ISIN) · kosc_stck_itm_c(거래소 티커) · nat_c(국가코드)
+  # 적재 대상이 생기면 여기에 목표필드를 추가한다. 매핑하지 않아도 파싱은 정상 동작한다.
+
+# ── 여러 행에 쪼개진 detail_desc 를 한 레코드로 접기 ─────────────────────────
+# 원천이 한 종목의 JSON 하나를 ntc_objline 1..N 으로 **문자 단위 절단**해 행마다 뿌린다.
+# 조각 수는 종목마다 다르다(실측 6~7). 실제 원천에 `"price_pat` / `tern_desc":` 처럼
+# 키 이름 중간에서 끊긴 사례가 있어 **구분자 없이** 이어붙여야 JSON 이 복원된다(separator 기본값 "").
+# 묶음 경계는 등록번호(+종목코드)가 같은 연속 행이고, 순서는 게시물 라인번호를 따른다.
+# 이 블록이 없으면 종목 하나가 깨진 JSON 조각 6~7개의 청크로 흩어진다.
+row_merge:
+  group_by: [REGT_NO, JONG_CODE]
+  order_by: NTC_OBJLINE_NO
+  concat:   [DETAIL_DESC]
 
 # ── 소스와 무관하게 고정으로 채울 값 ────────────────────────────────────────
 constants:
@@ -39,14 +62,31 @@ constants:
                                    # 이전 행을 N 으로 내리는 것은 적재 측 책임이다.
 
 # ── 값 변환 ─────────────────────────────────────────────────────────────────
+# DETAIL_DESC 에는 변환을 걸지 않는다. TB 가 원천 JSON 원본을 요구하고, text_norm 은
+# 중복 판정용이라 casefold 를 걸어 MACD·RSI 같은 지표 이름을 소문자로 뭉갠다.
 transforms:
   NEWS_DATE:     date_int_flex
   ANALYSIS_DATE: date_int_flex
-  DETAIL_DESC:   text_norm
+
+# ── 원천 필드 → 평문 파생 필드 (임베딩 입력용) ──────────────────────────────
+# DETAIL_DESC 는 원본 그대로 두고, 평문 사본만 따로 만든다.
+# 이 원천은 같은 컬럼에 **JSON·HTML·평문이 섞여** 오고 정해진 스키마가 없다. 그래서 종류를
+# 미리 못 박지 않고 text_from 이 자동 판별한다.
+#   JSON  → 최상위 키가 `## 제목`, 한 단계 아래가 `### 제목` 인 마크다운으로 편다.
+#           키 이름은 밑줄·camelCase 만 풀고 그대로 쓴다(RSI·MACD 가 망가지지 않게).
+#   HTML  → 표·목록이 있으면 docling 백엔드로(행/열 보존), 인라인 태그뿐이면 태그만 제거.
+#   평문  → 정규화만.
+# 헤딩을 만드는 이유는 청킹 때문이다. 청커가 `## ` 를 우선 분리자로 써서 섹션 경계에서 자르고,
+# 분할된 뒷 조각에 직전 섹션 제목을 `(이어서)` 로 다시 붙인다. 그래야 뒷 조각만 검색돼도
+# 무엇에 대한 값인지 알 수 있다.
+# `{`·`[` 로 시작하는데 파싱이 안 되면 경고가 남는다 — row_merge 가 어긋났다는 신호다.
+text_from:
+  DETAIL_TEXT: DETAIL_DESC
 
 required:
   - GROUP_C
   - JONG_CODE
+  - JONG_NM
   - ANALYSIS_DATE                  # NOT NULL — 값이 없으면 그 행을 적재하지 않는다
 
 # defaults:
@@ -56,18 +96,19 @@ nulls:
   - BIZ_ID
   - REGT_NO
   - NTC_OBJLINE_NO
-  - JONG_NAME                      # TB 기준 Null 허용(초안의 N 은 오기)
+  - DETAIL_DESC                    # TB 기준 Null 허용
   # - EXPIRES_DTM                    # 만료시각(TTL 검색 제외) — 원천 미제공
   # - DISCLAIMER_VER                 # 고지문구 버전 — 원천 미제공
 
 # ── 원천에 없는 필드를 행마다 LLM 으로 생성 ─────────────────────────────────
+# 지금은 json_text_fields 평문화로 본문을 만든다. 요약이 필요해지면 아래를 살리고
+# text_fields 를 [JONG_NM, SUMMARY_TEXT] 로 바꾼다.
 # DETAIL_DESC 는 JSON 문자열이고 아래 하위 키를 담고 있다(증권_AI차트뷰 시트 기준):
 #   trading_strategy · candle_analysis · price_pattern_desc · volume_change ·
 #   technical_indicator_analysis · overall_diagnosis
-# 이 JSON 을 그대로 임베딩하면 키 이름이 잡음이 되므로 문장형 요약으로 접는다.
 # llm_fields:
 #   - output_fields: [SUMMARY_TEXT]        # 요약본문 (임베딩 입력)
-#     input_fields:  [JONG_NAME, JONG_CODE, DETAIL_DESC]
+#     input_fields:  [JONG_NM, JONG_CODE, DETAIL_DESC]
 #     concurrency: 4
 #     on_error: null
 
@@ -121,15 +162,21 @@ nulls:
 #       </stock_insight>
 
 # ── 청크 text 본문 구성 순서 (개행 결합) ──────────────────────────────────────
-# 원천 JSON 원본은 DETAIL_DESC metadata 로만 싣고, 임베딩 입력은 요약본문을 쓴다.
-# 종목명을 앞에 두어 LLM 미설정/실패 시에도 본문이 비지 않게 한다.
+# 원천 JSON 원본은 DETAIL_DESC metadata 로만 싣고, 임베딩 입력은 평문화한 DETAIL_TEXT 를 쓴다.
+# 종목명을 앞에 두어 본문이 비지 않게 한다.
 text_fields:
-  - JONG_NAME
-  - DETAIL_DESC
+  - JONG_NM
+  - DETAIL_TEXT
 
-# 긴 분석은 chunk_size 기준으로 나누고, 모든 조각에 종목명을 반복한다.
-# 종목코드(JONG_CODE)는 metadata 로만 싣는다 — 접두에 넣으면 분할하지 않은 청크의 본문까지
-# 바뀌어 이미 적재된 임베딩과 어긋난다.
+# 긴 분석은 chunk_size 기준으로 나누고, **모든 조각에 이 세 줄을 반복**한다.
+# 분할된 조각이 단독으로 검색돼도 "어느 종목의 언제 기준 분석인지" 가 남아야 LLM 이 근거로 쓴다
+# (Contextual Retrieval 과 같은 발상을 LLM 없이 결정론적으로 적용한 것).
+# 종목코드·기준일은 하이브리드 검색의 어휘 매칭에도 기여한다 — 임베딩만으로는 "NQQUSATSLA"
+# 나 "20260827" 같은 식별자가 잘 잡히지 않는다.
+# 예전에는 종목명만 넣었다. 접두를 늘리면 청크 본문이 바뀌어 이미 적재된 임베딩과 어긋나는데,
+# text_from 도입으로 어차피 본문 전체가 바뀌어 재적재가 전제이므로 이번에 함께 반영한다.
 split: true
 chunk_prefix_fields:
-  - JONG_NAME
+  - JONG_NM
+  - JONG_CODE
+  - ANALYSIS_DATE
