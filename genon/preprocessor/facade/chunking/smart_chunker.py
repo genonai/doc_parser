@@ -380,7 +380,7 @@ class SmartChunkerBase(BaseChunker):
     @staticmethod
     def _resolve_compact_tables(kwargs: dict) -> bool:
         """markdown 표를 compact(컬럼 정렬 패딩 제거)로 낼지 결정. 기본 True."""
-        return bool(kwargs.get("compact_tables", True))
+        return cp.resolve_compact_tables(kwargs)
 
     def _extract_table_text_full(self, table_item: TableItem, dl_doc: DoclingDocument, **kwargs) -> str:
         """테이블 청크 텍스트를 만든다.

@@ -511,7 +511,7 @@ class DocumentProcessor:
             table_format = "html"
         self._table_format = table_format
         # markdown 표 compact(컬럼 정렬 패딩 제거) 여부. 기본 True. html 포맷엔 무관.
-        self._compact_tables = bool(output_cfg.get("compact_tables", True))
+        self._compact_tables = cp.resolve_compact_tables(output_cfg)
 
         # OCR 엔드포인트는 ocr.paddle.ocr_endpoint 가 정식 위치.
         # 구버전 호환: ocr.ocr_endpoint(상위) / 최상위 ocr_endpoint 도 폴백으로 인식.

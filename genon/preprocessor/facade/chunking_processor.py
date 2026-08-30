@@ -529,7 +529,7 @@ class DocumentProcessor:
 
         # markdown 표 compact(컬럼 정렬 패딩 제거) 여부. 기본 True. html 포맷엔 무관.
         output_cfg = _as_dict(cfg.get("output"))
-        self._compact_tables = bool(output_cfg.get("compact_tables", True))
+        self._compact_tables = cp.resolve_compact_tables(output_cfg)
 
         # PDF 파이프라인 옵션 설정
         self.pipe_line_options = PdfPipelineOptions()
