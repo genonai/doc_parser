@@ -114,3 +114,83 @@ def test_legacy_export_to_html_flag_still_works(source, expected):
 def test_row_serialization_switch_defaults_off(value, expected):
     source = {} if value is None else {"table_row_serialization": value}
     assert cp.resolve_table_row_serialization(source) is expected
+
+
+# ─── /chunker 설정 경로 ────────────────────────────────────────────────────────
+
+import yaml
+from pathlib import Path
+
+_RESOURCE = Path(__file__).resolve().parents[2] / "resource"
+_RESOURCE_DEV = Path(__file__).resolve().parents[2] / "resource_dev"
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("name", [
+    "chunking_processor_config.yaml",
+    "chunking_processor_config_simple.yaml",
+])
+def test_chunker_config_exposes_table_switches(name):
+    """파서와 청커는 별개 호출이라 파서 설정이 넘어오지 않는다.
+
+    이 블록이 없으면 /chunker 로 들어온 문서는 표 형식을 지정할 방법이 없다.
+    """
+    output = yaml.safe_load((_RESOURCE / name).read_text(encoding="utf-8")).get("output")
+    assert output is not None, f"{name} 에 output 블록이 없다"
+    assert cp.resolve_table_format_setting(output) in {"html", "markdown", "auto"}
+    assert cp.resolve_table_row_serialization(output) is False  # 기본은 off
+
+
+@pytest.mark.unit
+def test_chunker_dev_config_matches_operational_keys():
+    ops = yaml.safe_load(
+        (_RESOURCE / "chunking_processor_config.yaml").read_text(encoding="utf-8"))["output"]
+    dev = yaml.safe_load(
+        (_RESOURCE_DEV / "chunking_processor_config.yaml").read_text(encoding="utf-8"))["output"]
+    assert set(ops) == set(dev)
+
+
+class _Processor:
+    """object.__new__ 로 만든 인스턴스처럼 속성이 일부만 있는 상황도 흉내낸다."""
+
+    def __init__(self, **attrs):
+        for key, value in attrs.items():
+            setattr(self, key, value)
+
+
+@pytest.mark.unit
+def test_config_fills_table_format_when_request_is_silent():
+    kwargs = cp.apply_table_output_defaults({}, _Processor(_table_format="auto"))
+    assert kwargs["table_format"] == "auto"
+    assert kwargs["compact_tables"] is True
+    assert kwargs["table_row_serialization"] is False
+
+
+@pytest.mark.unit
+def test_request_value_wins_over_config():
+    kwargs = cp.apply_table_output_defaults(
+        {"table_format": "markdown"}, _Processor(_table_format="auto"))
+    assert kwargs["table_format"] == "markdown"
+
+
+@pytest.mark.unit
+def test_legacy_export_to_html_flag_is_not_overridden_by_config():
+    """레거시 플래그만 보낸 요청에 table_format 을 채우면 그 플래그가 조용히 무시된다."""
+    kwargs = cp.apply_table_output_defaults(
+        {"export_to_html": 0}, _Processor(_table_format="html"))
+    assert "table_format" not in kwargs
+
+    module = pytest.importorskip(
+        "genon.preprocessor.facade.chunking_processor", exc_type=ImportError)
+    chunker = object.__new__(module.GenosSmartChunker)
+    assert chunker._resolve_table_format(kwargs) == "markdown"
+
+
+@pytest.mark.unit
+def test_missing_processor_attributes_fall_back_to_defaults():
+    """object.__new__ 로 만든 인스턴스를 쓰는 테스트가 있어 속성 부재를 견뎌야 한다."""
+    kwargs = cp.apply_table_output_defaults({}, _Processor())
+    assert kwargs == {
+        "table_format": "html", "compact_tables": True,
+        "table_row_serialization": False,
+    }
