@@ -7,7 +7,8 @@ docling(v2.41.0) 포크 위에 GenOn 전처리기(genon/preprocessor)를 올린 
 | 경로 | 역할 |
 |---|---|
 | `main.py` | 통합·로컬 실행 진입점. FastAPI 앱, 업무 API 7개와 health를 정의하고 facade를 호출 |
-| `genon/preprocessor/facade/` | 처리 로직 본체 (아래 참조) |
+| `genon/preprocessor/facade/` | 처리 로직 본체 — 최상위 `*_processor.py` 5종 (아래 참조) |
+| `genon/preprocessor/facade/common/`, `chunking/`, `enrichment/`, `guardrail/` | facade가 공유하는 공용 하위 모듈. 배포본에 포함된다 (아래 참조) |
 | `genon/preprocessor/src/` | 공통 모듈 (`common`, `logger`, `config`, `utils`) — `main.py`가 sys.path 최상단에 넣음 |
 | `genon/preprocessor/resource/` | 운영 YAML 설정 (프로세서 설정 + `custom_field_*.yaml`) |
 | `genon/preprocessor/resource_dev/` | 로컬개발 YAML 설정 (프로세서 설정 + `custom_field_*.yaml`) |
@@ -52,23 +53,45 @@ rg '<pattern>' main.py genon docling tests build-script \
 여기서 나오는 결론이 앞서의 제약들이다.
 
 - **processor가 self-contained여야 하는 이유**: 배포 대상 `*_processor.py` 는 하나이므로 최상위 processor 파일끼리 서로 import하면 배포본에서 깨진다. 배포본에 포함되는 `facade/enrichment`, `facade/chunking`, `guardrail` 같은 공용 하위 모듈은 공유할 수 있다.
-- **청킹 로직이 6곳에 복제된 이유**: 활성 processor 3종과 BOK 배포본 3종이 각각 독립적인 사본을 유지한다.
+- **BOK 배포본이 청킹 로직 사본을 갖는 이유**: `legacy/BOK_적재용_*` 3종은 별도 배포 단위라 자체 사본과 모듈 상수 설정을 유지한다. 활성 processor 3종은 `facade/chunking/smart_chunker.py` 로 통합되어 사본이 없다.
 - `main.py` 계층 기능(요청 deadline, 에러 envelope의 `stage`/`error_kind` 등)을 바꿀 때는 **루트 `main.py` 와 `src/main.py` 두 파일을 모두** 확인해야 한다.
+
+## 공용 하위 모듈 지도
+
+facade가 공유하는 로직은 아래에 한 벌씩만 둔다. 최상위 processor는 별칭이나 얇은 호출부만 갖는다.
+새 로직을 어디 둘지 고민되면 이 표에서 가장 가까운 모듈을 먼저 찾는다.
+
+| 모듈 | 역할 |
+|---|---|
+| `common/config_parse.py` | yaml/kwargs 값 파싱(`parse_optional_bool/int/float`), `load_config`, 토크나이저·청크크기·`compact_tables` 등 설정 해석 |
+| `common/file_probe.py` | 파일 종류 판별(PDF/텍스트/암호화/HWP 보호), PDF 경로 변환, 변환기 가용성 |
+| `common/pdf_convert.py` | 비-PDF 입력의 PDF 변환 진입점. backend chain 순서 결정 + 이슈 #286 사전 체크 |
+| `common/loaders.py` | `install_packages`, Text/Tabular/Audio 로더 |
+| `common/docling_ops.py` | docling 배관 — OCR 옵션, 컨버터 생성, 표 이미지 저장, 글리프·빈 텍스트 검사 |
+| `common/pipeline_setup.py` | `__init__` 의 OCR·PDF·layout 설정 해석 |
+| `common/runtime_kwargs.py` | 런타임 kwargs 정규화, 이미지 모드 배선 |
+| `common/vector_meta.py` | `GenOSVectorMeta` 빌더 공통 코어 |
+| `common/runtime.py`, `common/appendix.py` | 로깅 초기화, 별첨 키워드 판정 |
+| `chunking/smart_chunker.py` | `GenosSmartChunker` 본체. 활성 3종이 ClassVar 플래그만 다른 서브클래스로 상속 |
+| `chunking/hybrid_chunker.py` | docling_core `HybridChunker`/`HierarchicalChunker` 포크본. 이름을 `TokenAwareHybridChunker`/`HierarchicalDocChunker` 로 달리해 업스트림과 구분한다. 업스트림과 갈라진 축은 모듈 docstring 참조 |
+| `chunking/header_path.py`, `page_split.py`, `table_splitter.py`, `text_norm.py` | 청크 헤더 경로, 페이지 분할, 표 행 분할, 청크 텍스트 정제 |
+| `enrichment/`, `guardrail/` | custom_fields·LLM 보강, 민감정보 처리 |
 
 ## 큰 파일 취급 규칙 (중요)
 
-facade 프로세서는 파일 하나가 매우 크다.
+facade 프로세서는 공용 모듈 추출로 절반 이하로 줄었지만(2026-08-30 기준 5종 합계 8,393줄) 여전히 크다.
 
 | 파일 | 크기 | 전체 Read 비용 |
 |---|---|---|
-| `intelligent_processor.py` | 190KB / 3,922줄 | 약 54k 토큰 |
-| `convert_processor.py` | 190KB / 3,956줄 | 약 54k 토큰 |
 | `docling/backend/html_backend.py` | 175KB / 4,441줄 | 약 50k 토큰 |
-| `chunking_processor.py` | 162KB / 3,366줄 | 약 46k 토큰 |
-| `parser_processor.py` | 156KB / 3,327줄 | 약 44k 토큰 |
-| `attachment_processor.py` | 122KB / 2,712줄 | 약 35k 토큰 |
+| `parser_processor.py` | 110KB / 2,353줄 | 약 31k 토큰 |
+| `convert_processor.py` | 77KB / 1,613줄 | 약 22k 토큰 |
+| `attachment_processor.py` | 76KB / 1,641줄 | 약 22k 토큰 |
+| `intelligent_processor.py` | 72KB / 1,464줄 | 약 21k 토큰 |
+| `chunking_processor.py` | 70KB / 1,436줄 | 약 20k 토큰 |
+| `facade/chunking/smart_chunker.py` | 71KB / 1,498줄 | 약 20k 토큰 |
 
-**이 파일들을 통째로 Read 하지 말 것.** `Grep` 으로 심볼·문자열 위치를 먼저 찾고, `Read` 의 `offset`/`limit` 으로 해당 구간만 읽는다. 6개를 다 읽으면 약 280k 토큰으로 컨텍스트의 상당 부분이 날아간다.
+**이 파일들을 통째로 Read 하지 말 것.** `Grep` 으로 심볼·문자열 위치를 먼저 찾고, `Read` 의 `offset`/`limit` 으로 해당 구간만 읽는다. 다 읽으면 약 180k 토큰으로 컨텍스트의 상당 부분이 날아간다.
 
 ## 아키텍처 제약
 
@@ -78,8 +101,8 @@ facade 프로세서는 파일 하나가 매우 크다.
   - 공용 모듈은 docling 타입 import를 피하고 duck typing으로 처리한다. 배포본에서 docling 버전에 묶이지 않게 한다.
   - `object.__new__` 로 `__init__` 을 우회해 만든 인스턴스를 쓰는 단위 테스트가 있다. processor 속성을 읽는 공용 헬퍼는 `getattr(..., 기본값)` 으로 속성 부재를 견뎌야 한다.
   - 예: `facade/chunking/text_norm.py`(청크 텍스트 정제) — 활성 processor 3종의 출력 경로 9곳이 이 모듈 하나를 호출한다.
-- **청킹 파이프라인은 6곳에 복제되어 있다.** `GenosSmartChunker` 청킹 로직은 활성 3종 + BOK 적재용 3종에 사본이 존재하므로 lockstep으로 함께 수정해야 한다.
-- **`GenosServiceException` 은 활성 경로 6곳과 여러 legacy 파일에 복제**되어 있다. 고정 개수를 가정하지 말고 시그니처 변경 전에 `rg -n '^class GenosServiceException' genon/preprocessor/src genon/preprocessor/facade --glob '*.py'` 로 전체 대상을 확인한다. facade가 던진 로컬 예외는 `main.py` 의 제네릭 핸들러가 받는다.
+- **청킹 파이프라인은 `facade/chunking/smart_chunker.py` 한 벌이다.** 활성 3종은 ClassVar 플래그만 다른 얇은 서브클래스를 두므로 여기만 고치면 된다. `legacy/BOK_적재용_*` 3종에는 아직 독립 사본이 있으니, 변경이 거기까지 반영돼야 하는지 먼저 판단한다.
+- **`GenosServiceException` 은 활성 경로 7곳과 legacy 포함 총 22곳에 복제**되어 있다. 고정 개수를 가정하지 말고 시그니처 변경 전에 `rg -n '^class GenosServiceException' genon/preprocessor/src genon/preprocessor/facade --glob '*.py'` 로 전체 대상을 확인한다. facade가 던진 로컬 예외는 `main.py` 의 제네릭 핸들러가 받는다.
 - **docling 안의 결함은 docling 안에서 고친다.** genon 쪽 우회책을 기본 해법으로 삼지 말 것.
 - 설정은 스키마별 키를 늘리기보다 일반화된 메커니즘으로 푼다. allowlist보다 blocklist. YAML은 초보자가 읽을 수 있게 개념 수를 줄인다.
 
@@ -98,6 +121,18 @@ cd genon/preprocessor
 - `addopts` 에 `-p no:cacheprovider` 가 있어 **`--lf` 를 쓸 수 없다.**
 - 출력에 ANSI 색상이 섞여 `grep '^FAILED'` 가 매치되지 않도록 항상 `--color=no` 를 유지한다.
 - 검증은 토큰 절약이 우선이다. 본문 전문을 출력하지 말고, 영향 범위에 대한 단정문 테스트로 고정한다.
+
+custom_fields 를 건드렸거나 facade 파싱·청킹 경로를 바꿨으면 doc_type 자동 검증도 함께 돌린다.
+실제로 파싱·청킹하고 LLM 을 호출하므로 유닛보다 느리지만, yaml 이 약속한 필드가 실제 청크에
+실렸는지는 이것으로만 확인된다.
+
+```bash
+genon/preprocessor/examples/parse_chunk/parse_chunk_verify.sh          # doc_type 20종
+genon/preprocessor/examples/parse_chunk/parse_chunk_verify.sh --only faq menu
+```
+
+같은 디렉터리의 `parse_chunk_test.sh` 는 손으로 돌려보는 놀이터다. 대부분이 주석 상태이고
+개인 경로에 의존하므로, 자동 검증에 넣을 것은 `parse_chunk_verify.py` 쪽에 단정문으로 옮긴다.
 
 ## 로컬 실행
 
