@@ -332,19 +332,10 @@ def convert_to_pdf(file_path: str) -> str | None:
 
 
 def _get_pdf_path(file_path: str) -> str:
-    """다양한 파일 확장자를 PDF 확장자로 변경하는 공통 함수"""
-    p = Path(file_path)
-    if p.suffix.lower() in CONVERTIBLE_EXTENSIONS:
-        return str(p.with_suffix('.pdf'))
-    return file_path
+    """변환 가능한 확장자면 PDF 경로로 바꾼다(구현은 facade/common/file_probe.py)."""
+    return fp.get_pdf_path(file_path, CONVERTIBLE_EXTENSIONS)
 
-def install_packages(packages):
-    for package in packages:
-        try:
-            __import__(package)
-        except ImportError:
-            _log.warning(f"{package} 패키지가 없습니다. 설치를 시도합니다.")
-            subprocess.run([sys.executable, "-m", "pip", "install", package], check=True)
+install_packages = ld.install_packages
 
 
 # 민감정보 분류(#315): parser 는 청크가 없어 직접 라벨/마스킹은 못 하지만, guardrail_call 시

@@ -11,6 +11,8 @@ facade 마다 구현이 갈리는 PDF 변환 계열(`convert_to_pdf`, `_has_any_
 from __future__ import annotations
 
 import logging
+from pathlib import Path
+from typing import Sequence
 
 _log = logging.getLogger(__name__)
 
@@ -187,3 +189,17 @@ def has_any_pdf_converter() -> bool:
         # 가용성 probe 자체가 예기치 못하게 실패하면 로그만 남기고 파이프라인은 막지 않는다
         _log.warning(f"[has_any_pdf_converter] PDF 변환기 가용성 확인 실패: {exc}")
         return True
+
+
+def get_pdf_path(file_path: str, convertible_extensions: Sequence[str]) -> str:
+    """변환 가능한 확장자면 PDF 확장자로 바꾼 경로를, 아니면 원본 경로를 돌려준다.
+
+    확장자 부분만 교체한다. 예전 attachment/convert 구현은 경로 문자열 전체에
+    str.replace 를 확장자마다 순서대로 돌려서, '.ppt' 가 '.pptx' 보다 먼저 처리되는
+    바람에 report.pptx → report.pdfx 가 됐고 디렉터리 이름에 확장자 문자열이 들어간
+    경로(/data/a.txt.d/report.hwp)도 망가뜨렸다.
+    """
+    p = Path(file_path)
+    if p.suffix.lower() in {str(e).lower() for e in convertible_extensions}:
+        return str(p.with_suffix(".pdf"))
+    return file_path

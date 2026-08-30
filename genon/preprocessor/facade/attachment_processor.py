@@ -208,28 +208,11 @@ def _has_any_pdf_converter() -> bool:
 
 
 def _get_pdf_path(file_path: str) -> str:
-    """
-    다양한 파일 확장자를 PDF 확장자로 변경하는 공통 함수
-
-    Args:
-        file_path (str): 원본 파일 경로
-
-    Returns:
-        str: PDF 확장자로 변경된 파일 경로
-    """
-    pdf_path = file_path
-    for ext in CONVERTIBLE_EXTENSIONS:
-        pdf_path = pdf_path.replace(ext, '.pdf')
-    return pdf_path
+    """변환 가능한 확장자면 PDF 경로로 바꾼다(구현은 facade/common/file_probe.py)."""
+    return fp.get_pdf_path(file_path, CONVERTIBLE_EXTENSIONS)
 
 
-def install_packages(packages):
-    for package in packages:
-        try:
-            __import__(package)
-        except ImportError:
-            _log.warning(f"{package} 패키지가 없습니다. 설치를 시도합니다.")
-            subprocess.run([sys.executable, "-m", "pip", "install", package], check=True)
+install_packages = ld.install_packages
 # 민감정보 분류/마스킹(#315)은 facade/guardrail 모듈로 분리 — gr.* 로 사용.
 from genon.preprocessor.facade import guardrail as gr
 
@@ -258,8 +241,6 @@ class GenOSVectorMeta(BaseModel):
 class GenOSVectorMetaBuilder(vm.VectorMetaBuilderBase):
     """공통 세터는 facade/common/vector_meta.py 에 있다.
 
-class TabularLoader(ld.TabularLoaderBase):
-
     첨부 프로세서는 벡터 고유 필드가 없고, 미디어 파일 처리만 다르다."""
 
     def set_media_files(self, doc_items: list) -> "GenOSVectorMetaBuilder":
@@ -276,6 +257,8 @@ class TabularLoader(ld.TabularLoaderBase):
 class TextLoader(ld.TextLoaderBase):
     pass
 
+
+class TabularLoader(ld.TabularLoaderBase):
     def return_vectormeta_format(self):
         if not self.data_dict:
             return None
