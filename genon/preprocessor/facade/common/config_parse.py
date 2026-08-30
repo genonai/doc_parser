@@ -186,6 +186,26 @@ def resolve_table_row_serialization(source: dict, default: bool = False) -> bool
     return default if parsed is None else parsed
 
 
+def apply_table_output_defaults(kwargs: dict, processor) -> dict:
+    """표 출력 설정을 호출 kwargs 에 채운다(요청이 명시한 값이 우선).
+
+    파서와 청커는 별개 호출이라 파서의 output 설정이 청커로 넘어오지 않는다. 요청이
+    지정하지 않으면 프로세서 자신의 설정이 유일한 경로다.
+
+    레거시 ``export_to_html`` 만 보낸 요청은 건드리지 않는다 - ``table_format`` 을 채워
+    넣으면 그 플래그가 조용히 무시된다. ``object.__new__`` 로 만든 인스턴스에서도
+    동작해야 하므로 속성은 getattr 기본값으로 읽는다.
+    """
+    if "export_to_html" not in kwargs:
+        kwargs.setdefault("table_format", getattr(processor, "_table_format", "html"))
+    kwargs.setdefault("compact_tables", getattr(processor, "_compact_tables", True))
+    kwargs.setdefault(
+        "table_row_serialization",
+        getattr(processor, "_table_row_serialization", False),
+    )
+    return kwargs
+
+
 def resolve_tokenizer(
     chunking_cfg: dict,
     *,

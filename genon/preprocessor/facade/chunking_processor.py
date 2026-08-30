@@ -503,8 +503,12 @@ class DocumentProcessor:
             _parse_optional_bool(table_image_cfg.get("enable"), "table_image.enable")
         )
 
-        # markdown 표 compact(컬럼 정렬 패딩 제거) 여부. 기본 True. html 포맷엔 무관.
         output_cfg = _as_dict(cfg.get("output"))
+        # 표 직렬화 형식. auto 는 여기서 확정하지 않는다 - 표마다 grid 구조를 봐야 정해진다.
+        # 파서와 청커는 별개 호출이라 이 값이 kwargs 로 넘어오지 않는다. 요청이 명시하지
+        # 않으면 이 설정이 유일한 경로다.
+        self._table_format = cp.resolve_table_format_setting(output_cfg)
+        # markdown 표 compact(컬럼 정렬 패딩 제거) 여부. 기본 True. html 포맷엔 무관.
         self._compact_tables = cp.resolve_compact_tables(output_cfg)
         # 병합 셀 표에 행 문장을 덧붙일지. 기본 off(청크가 커진다).
         self._table_row_serialization = cp.resolve_table_row_serialization(output_cfg)
@@ -702,8 +706,7 @@ class DocumentProcessor:
             include_chunk_header = _resolve_include_chunk_header(kwargs, self._include_chunk_header),
         )
 
-        kwargs.setdefault("compact_tables", self._compact_tables)
-        kwargs.setdefault("table_row_serialization", self._table_row_serialization)
+        cp.apply_table_output_defaults(kwargs, self)
         # 청크 텍스트 정규화(text_cleanup=safe): 문자 위생을 청킹 입력에 먼저 적용한다.
         # 출력에서만 정규화하면 청크 경계가 노이즈 문자를 센 채로 잡힌다.
         _cleanup = tn.prepare_document(documents, kwargs, self)

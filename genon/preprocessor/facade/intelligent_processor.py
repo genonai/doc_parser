@@ -759,9 +759,7 @@ class DocumentProcessor:
         )
 
         # 표 직렬화 형식(html|markdown)을 청커로 전달(런타임 kwarg 가 있으면 우선).
-        kwargs.setdefault("table_format", self._table_format)
-        kwargs.setdefault("compact_tables", self._compact_tables)
-        kwargs.setdefault("table_row_serialization", self._table_row_serialization)
+        cp.apply_table_output_defaults(kwargs, self)
         # 청크 텍스트 정규화(text_cleanup=safe): 문자 위생을 청킹 입력에 먼저 적용한다.
         # 출력에서만 정규화하면 청크 경계가 노이즈 문자를 센 채로 잡힌다.
         _cleanup = tn.prepare_document(documents, kwargs, self)
