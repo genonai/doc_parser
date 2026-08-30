@@ -96,8 +96,13 @@ table_image:
 
 # 표 텍스트 직렬화 형식(청크 text 내 docling 표 표현). tabular 모드(행=벡터)는 무관.
 output:
-  table_format: "html"   # "html"(default) | "markdown"
+  # "auto" 는 표마다 구조를 보고 고른다 - 병합 셀이나 2단 헤더가 있으면 html,
+  # 단순 격자면 markdown. markdown 은 병합 셀을 표현하지 못해 헤더 계층이 사라진다.
+  table_format: "html"   # "html"(default) | "markdown" | "auto"
   compact_tables: true    # markdown 표 컬럼 정렬 패딩 제거(대형 표 청크 축소). html 포맷엔 무관.
+  # 병합 셀 표에 한해 표 뒤에 "컬럼=값 | 컬럼=값" 행 문장을 덧붙인다. 어느 헤더에 걸린
+  # 값인지 문장으로 드러나 검색이 쉬워지지만 청크가 커진다. 단순 격자 표에는 적용 안 됨.
+  table_row_serialization: false
 
 # enrichment
 # 각 항목은 {이름: {옵션}} 형식의 list.
