@@ -136,46 +136,21 @@ def test_no_chunk_exceeds_budget_and_no_cell_value_is_lost(
     assert not missing, f"사라진 셀 값: {missing[:5]}"
 
 
-def _captioned_table_doc(caption: str, rows: int = 20, payload: int = 90):
-    """캡션이 달린 큰 표 하나짜리 문서.
-
-    HTML fixture 를 쓰지 않는 이유는 docling HTML 백엔드가 <caption> 을 버리기 때문이다
-    (caption_text 도 texts 도 비어 있다). 캡션은 PDF 등 다른 백엔드에서 채워진다.
-    """
-    core = pytest.importorskip("docling_core.types.doc", exc_type=ImportError)
-    document = core.DoclingDocument(name="captioned")
-    cells = []
-    values = [["항목", "내용"]]
-    values.extend([[f"ITEM-{n:02d}",
-                    f"ROW-{n:02d}-START " + ("가" * payload) + f" ROW-{n:02d}-END"]
-                   for n in range(1, rows + 1)])
-    for r, row in enumerate(values):
-        for c, value in enumerate(row):
-            cells.append(core.TableCell(
-                text=value, start_row_offset_idx=r, end_row_offset_idx=r + 1,
-                start_col_offset_idx=c, end_col_offset_idx=c + 1, column_header=(r == 0)))
-    document.add_table(
-        data=core.TableData(num_rows=len(values), num_cols=2, table_cells=cells),
-        caption=document.add_text(label=core.DocItemLabel.CAPTION, text=caption),
-    )
-    return document
-
-
 @pytest.mark.unit
-def test_caption_is_repeated_in_every_split_piece(chunker_module):
+def test_caption_is_repeated_in_every_split_piece(chunker_module, documents):
     """단일 청크 경로는 serializer 가 캡션을 싣지만 분할 경로는 grid 에서 다시 만든다.
 
     캡션은 그 표가 무엇에 대한 것인지 말하는 유일한 문장인 경우가 많아, 조각마다
     없으면 그 조각만 검색됐을 때 근거로 쓸 수 없다.
     """
-    caption = "월별 이용 내역 요약표"
-    document = _captioned_table_doc(caption)
-    assert document.tables[0].caption_text(document).strip() == caption
+    document = documents["mixed_doc"]
+    captions = {c for t in document.tables if (c := t.caption_text(document).strip())}
+    assert captions, "fixture 표에 캡션이 있어야 이 검사가 의미 있다"
 
     _, chunks = _chunk(chunker_module, document, table_format="html")
-    pieces = [c.text for c in chunks if "<table>" in c.text]
-    assert len(pieces) > 1, "표가 분할되어야 이 검사가 의미 있다"
-    assert all(caption in piece for piece in pieces)
+    for caption in captions:
+        pieces = [c.text for c in chunks if caption in c.text]
+        assert len(pieces) > 1, f"캡션 '{caption}' 이 조각마다 반복되지 않았다"
 
 
 @pytest.mark.unit
