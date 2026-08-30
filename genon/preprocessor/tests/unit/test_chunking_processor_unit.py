@@ -13,6 +13,7 @@ from pathlib import Path
 
 import pytest
 
+from genon.preprocessor.facade.chunking_processor import _carry_over_section_headings
 from docling_core.types import DoclingDocument
 from docling_core.types.doc import DocItemLabel, DocumentOrigin
 
@@ -752,3 +753,42 @@ def test_single_oversized_text_item_is_split(chunk_size):
         assert not over, f"{chunk_mode} chunk_size={effective} 초과: {over[:5]}"
         # 잘린 조각들이 원문을 모두 담고 있어야 한다.
         assert "본문내용" in "\n".join(v.text for v in vectors)
+
+
+# ── 분할 조각의 섹션 문맥 승계 (#360) ────────────────────────────────────────
+# custom_fields 의 text_from 이 원천(JSON/HTML/평문)을 `## 제목` 마크다운으로 펴 놓으면,
+# 청커는 그 헤딩을 우선 분리자로 써서 섹션 경계에서 자르고, 섹션 하나가 chunk_size 를 넘어
+# 중간에서 잘린 경우에만 직전 제목을 다시 붙인다.
+
+@pytest.mark.unit
+def test_carry_over_section_headings_reattaches_last_title():
+    """헤딩 없이 시작하는 뒷 조각에 직전 섹션 제목을 `(이어서)` 로 붙인다.
+
+    이게 없으면 "8월 17일 2544만으로 감소" 같은 조각이 **무엇에 대한 값인지 알 수 없는**
+    상태로 검색에 노출되어, 그 조각만 뽑혔을 때 근거로 쓸 수 없다.
+    """
+    pieces = _carry_over_section_headings([
+        "## 거래량 변화\n8월 13일 3408만",
+        "8월 17일 2544만으로 감소",
+        "## 종합 진단\n관망",
+    ])
+    assert pieces[1] == "## 거래량 변화 (이어서)\n8월 17일 2544만으로 감소"
+    assert pieces[0].startswith("## 거래량 변화\n")     # 첫 조각은 그대로
+    assert pieces[2].startswith("## 종합 진단")          # 헤딩으로 시작하면 손대지 않는다
+
+
+@pytest.mark.unit
+def test_carry_over_section_headings_tracks_nested_level():
+    """가장 최근 헤딩을 물려받는다 — 레벨(##/###)도 그대로 유지한다."""
+    pieces = _carry_over_section_headings([
+        "## 기술적 지표\n### RSI\n8월 13일 47.72",
+        "8월 17일 47.44로 하락",
+    ])
+    assert pieces[1].startswith("### RSI (이어서)\n")
+
+
+@pytest.mark.unit
+def test_carry_over_section_headings_noop_without_headings():
+    """헤딩이 없는 평문 입력에서는 아무것도 하지 않는다(회귀 가드)."""
+    pieces = ["첫 문단입니다.", "둘째 문단입니다."]
+    assert _carry_over_section_headings(list(pieces)) == pieces

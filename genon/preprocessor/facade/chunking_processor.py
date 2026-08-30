@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 import os
 import logging
+import re
 from pathlib import Path
 
 from collections import defaultdict
@@ -258,6 +259,33 @@ class GenosSmartChunker(sc.SmartChunkerBase):
 # 민감정보 분류/마스킹(#315)은 facade/guardrail 모듈로 분리 — gr.* 로 사용.
 # chunking 은 워크플로우를 직접 호출하지 않고, parser 가 넘긴 sensitive_infos 를 청크에 적용만 한다.
 from genon.preprocessor.facade import guardrail as gr
+
+
+_HEADING_RE = re.compile(r"^(#{1,6})\s+(.+)$", re.MULTILINE)
+
+
+def _carry_over_section_headings(pieces: list[str]) -> list[str]:
+    """분할된 뒷 조각에 직전 섹션 제목을 `## <제목> (이어서)` 로 다시 붙인다.
+
+    이게 없으면 두 번째 조각이 "8월 17일 2544만으로 감소" 처럼 **무엇에 대한 값인지 알 수 없는
+    상태**로 검색에 노출된다. 검색으로 그 조각만 뽑히면 LLM 이 근거로 쓸 수 없다.
+    (Contextual Retrieval 과 같은 발상을 LLM 없이 결정론적으로 적용한 것이다.)
+
+    이미 헤딩으로 시작하는 조각은 그대로 둔다 — 섹션 경계에서 깔끔히 잘린 경우다.
+    헤딩이 하나도 없는 평문 입력에서는 아무것도 하지 않는다.
+    """
+    out: list[str] = []
+    current: str | None = None
+    for idx, piece in enumerate(pieces):
+        text = piece.strip("\n")
+        if idx and current and not text.lstrip().startswith("#"):
+            text = f"{current} (이어서)\n{text}"
+        found = _HEADING_RE.findall(piece)
+        if found:
+            marks, title = found[-1]
+            current = f"{marks} {title.strip()}"
+        out.append(text)
+    return out
 
 
 class GenOSVectorMeta(BaseModel):
@@ -1088,12 +1116,20 @@ class DocumentProcessor:
             # split_params) — 접두를 뺀 budget 이 더 작으면 그 기준으로 다시 클램프해야
             # RecursiveCharacterTextSplitter 가 "overlap > chunk_size" 로 죽지 않는다.
             splitter = RecursiveCharacterTextSplitter(
-                chunk_size=budget, chunk_overlap=min(chunk_overlap, max(budget - 1, 0))
+                chunk_size=budget,
+                chunk_overlap=min(chunk_overlap, max(budget - 1, 0)),
+                # 마크다운 헤딩을 최우선 분리자로 둔다. 본문이 섹션으로 나뉘어 있으면 문장
+                # 한가운데가 아니라 섹션 경계에서 잘린다(custom_fields 의 text_from 렌더링,
+                # HTML/markdown 원천 모두 해당). 헤딩이 없는 평문은 종전 문단/문장 분리자로
+                # 조용히 폴백하므로 회귀가 없다.
+                separators=["\n## ", "\n### ", "\n#### ", "\n\n", "\n", " ", ""],
+                keep_separator=True,
             )
             pieces = [piece for piece in splitter.split_text(body if prefix else content) if piece.strip()]
             if len(pieces) <= 1:
                 expanded.append(el)
                 continue
+            pieces = _carry_over_section_headings(pieces)
             split_records += 1
             if prefix:
                 expanded.extend({**el, "content": f"{prefix}\n{piece}"} for piece in pieces)
