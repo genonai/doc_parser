@@ -48,6 +48,19 @@ def assert_header_self_contained(grid, pieces, num_cols, header_row_count):
             assert leaf in piece, f"조각 {index} 에 헤더 '{leaf}' 가 없다"
 
 
+def looks_like_markdown_table(text: str) -> bool:
+    """markdown 파이프 표가 들어 있는가.
+
+    구분선 표기가 경로마다 다르다 - table_splitter 는 `| --- |`, docling 의 compact
+    serializer 는 `| - |` 를 낸다. 어느 쪽이든 구분선으로 인정한다.
+    """
+    lines = [line.strip() for line in text.splitlines() if line.strip().startswith("|")]
+    return any(
+        set(line.replace("|", "").replace(" ", "")) <= {"-", ":"} and line.count("|") > 1
+        for line in lines
+    )
+
+
 def assert_markdown_table_valid(piece):
     """유효한 markdown 표인가 — 헤더 1행 다음 줄이 구분선이고 열 수가 일정한가."""
     lines = [line for line in piece.splitlines() if line.strip().startswith("|")]
