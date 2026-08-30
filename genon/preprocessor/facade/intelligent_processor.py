@@ -355,10 +355,6 @@ def _handle_stage_error(exc: Exception, stage: str) -> None:
 
 # pdf_pipeline.device / pdf_pipeline.table_structure_mode 의 yaml 문자열 → docling enum 매핑.
 # 키가 없거나 알 수 없는 값이면 호출부에서 경고 + 기본값으로 폴백한다 (startup 견고성).
-# OCR 엔드포인트를 yaml 어디에서도 못 찾았을 때 쓰는 기본값(기존 동작 보존).
-_DEFAULT_OCR_ENDPOINT = "http://192.168.73.172:48080/ocr"
-
-
 _ACCELERATOR_DEVICE_MAP = {
     "auto": AcceleratorDevice.AUTO,
     "cpu": AcceleratorDevice.CPU,
@@ -570,8 +566,7 @@ class DocumentProcessor:
         # OCR 엔드포인트·모드·재OCR 임계값 해석은 facade/common/pipeline_setup.py 로 모았다.
         # 조정 지점은 yaml 의 ocr 섹션이다(paddle.ocr_endpoint, ocr_mode, table_cell_ocr_timeout,
         # glyph_detection.table_cell_threshold / document_threshold).
-        _ocr_rt = ps.resolve_ocr_runtime(
-            cfg, ocr_cfg, default_endpoint=_DEFAULT_OCR_ENDPOINT)
+        _ocr_rt = ps.resolve_ocr_runtime(cfg, ocr_cfg)
         ocr_ep = _ocr_rt.endpoint
         self.ocr_mode = _ocr_rt.mode
         self._table_cell_ocr_timeout = _ocr_rt.table_cell_ocr_timeout
@@ -648,97 +643,17 @@ class DocumentProcessor:
         self.pipe_line_options.images_scale = images_scale
 
         # layout 모델 선택. "genos_layout"(default) / "docling_layout". 잘못된 값은 경고 후 폴백.
-        layout_model_type_str = str(
-            layout_cfg.get("layout_model_type", cfg.get("layout_model_type", "genos_layout"))
-        ).lower().strip()
-        if layout_model_type_str == LayoutModelType.DOCLING_LAYOUT.value:
-            layout_model_type = LayoutModelType.DOCLING_LAYOUT
-        else:
-            if layout_model_type_str != LayoutModelType.GENOS_LAYOUT.value:
-                _log.warning(
-                    f"[DocumentProcessor] Unknown layout_model_type '{layout_model_type_str}', "
-                    f"fallback to '{LayoutModelType.GENOS_LAYOUT.value}'"
-                )
-            layout_model_type = LayoutModelType.GENOS_LAYOUT
-        self.pipe_line_options.layout_options.layout_model_type = layout_model_type
-        self.pipe_line_options.layout_options.genos_layout_options.endpoint = _as_dict(
-            layout_cfg.get("genos_layout")
-        ).get("endpoint", "http://192.168.75.174:26001/v1/chat/completions")
-        self.pipe_line_options.layout_options.genos_layout_options.api_key = _as_dict(
-            layout_cfg.get("genos_layout")
-        ).get("api_key", "")
+        # layout(genos_layout) 설정 해석은 facade/common/pipeline_setup.py 로 모았다.
+        # 조정 지점은 yaml 의 layout 섹션이다(genos_layout.endpoint/api_key/model/timeout/
+        # page_batch_size/max_completion_tokens/temperature/top_p/repetition_penalty/
+        # length_fallback_enabled/fallback_dpi/table_fallback_enabled).
+        _layout = ps.resolve_layout_settings(cfg, layout_cfg)
+        ps.apply_layout_settings(self.pipe_line_options, _layout)
+        settings.perf.page_batch_size = _layout.page_batch_size
 
-        # genos layout 모델은 batch size를 32로 설정
-        page_batch_size = _parse_optional_int(
-            _as_dict(layout_cfg.get("genos_layout")).get("page_batch_size"), "layout.genos_layout.page_batch_size"
-        )
-        if page_batch_size is None or page_batch_size <= 0:
-            page_batch_size = 128
-        settings.perf.page_batch_size = page_batch_size
 
-        max_completion_tokens = _parse_optional_int(
-            _as_dict(layout_cfg.get("genos_layout")).get("max_completion_tokens"),
-            "layout.genos_layout.max_completion_tokens",
-        )
-        if max_completion_tokens is None or max_completion_tokens <= 0:
-            max_completion_tokens = 16384
-        self.pipe_line_options.layout_options.genos_layout_options.max_completion_tokens = max_completion_tokens
 
         # DotsOCR VLM 호출/생성 파라미터 (yaml 누락·무효 시 기본값 폴백)
-        genos_layout_cfg = _as_dict(layout_cfg.get("genos_layout"))
-        layout_model = genos_layout_cfg.get("model") or "dots-mocr"
-        layout_timeout = _parse_optional_int(
-            genos_layout_cfg.get("timeout"), "layout.genos_layout.timeout"
-        )
-        if layout_timeout is None or layout_timeout <= 0:
-            layout_timeout = 1200
-        layout_retry_count = _parse_optional_int(
-            genos_layout_cfg.get("retry_count"), "layout.genos_layout.retry_count"
-        )
-        if layout_retry_count is None or layout_retry_count < 0:
-            layout_retry_count = 2
-        layout_temperature = _parse_optional_float(
-            genos_layout_cfg.get("temperature"), "layout.genos_layout.temperature"
-        )
-        if layout_temperature is None or layout_temperature < 0:
-            layout_temperature = 0.1
-        layout_top_p = _parse_optional_float(
-            genos_layout_cfg.get("top_p"), "layout.genos_layout.top_p"
-        )
-        if layout_top_p is None or not (0 < layout_top_p <= 1):
-            layout_top_p = 0.9
-        layout_repetition_penalty = _parse_optional_float(
-            genos_layout_cfg.get("repetition_penalty"),
-            "layout.genos_layout.repetition_penalty",
-        )
-        if layout_repetition_penalty is None or layout_repetition_penalty <= 0:
-            layout_repetition_penalty = 1.15
-        layout_length_fallback = _parse_optional_bool(
-            genos_layout_cfg.get("length_fallback_enabled"),
-            "layout.genos_layout.length_fallback_enabled",
-        )
-        if layout_length_fallback is None:
-            layout_length_fallback = True
-        layout_fallback_dpi = _parse_optional_int(
-            genos_layout_cfg.get("fallback_dpi"), "layout.genos_layout.fallback_dpi"
-        )
-        if layout_fallback_dpi is None or layout_fallback_dpi <= 0:
-            layout_fallback_dpi = 200
-        layout_table_fallback = _parse_optional_bool(
-            genos_layout_cfg.get("table_fallback_enabled"),
-            "layout.genos_layout.table_fallback_enabled",
-        )
-        if layout_table_fallback is None:
-            layout_table_fallback = True
-        self.pipe_line_options.layout_options.genos_layout_options.model = layout_model
-        self.pipe_line_options.layout_options.genos_layout_options.timeout = layout_timeout
-        self.pipe_line_options.layout_options.genos_layout_options.retry_count = layout_retry_count
-        self.pipe_line_options.layout_options.genos_layout_options.temperature = layout_temperature
-        self.pipe_line_options.layout_options.genos_layout_options.top_p = layout_top_p
-        self.pipe_line_options.layout_options.genos_layout_options.repetition_penalty = layout_repetition_penalty
-        self.pipe_line_options.layout_options.genos_layout_options.length_fallback_enabled = layout_length_fallback
-        self.pipe_line_options.layout_options.genos_layout_options.fallback_dpi = layout_fallback_dpi
-        self.pipe_line_options.layout_options.genos_layout_options.table_fallback_enabled = layout_table_fallback
 
         self.pipe_line_options.do_table_structure = True
         self.pipe_line_options.table_structure_options.do_cell_matching = True

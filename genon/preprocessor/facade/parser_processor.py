@@ -642,67 +642,14 @@ class IntelligentDocumentProcessor:
 
         # 글리프 기반 auto-OCR 재트리거 임계값.
 
-        layout_model_type_str = str(
-            layout_cfg.get("layout_model_type", cfg.get("layout_model_type", "genos_layout"))
-        ).lower().strip()
-        if layout_model_type_str == LayoutModelType.DOCLING_LAYOUT.value:
-            layout_model_type = LayoutModelType.DOCLING_LAYOUT
-        else:
-            if layout_model_type_str != LayoutModelType.GENOS_LAYOUT.value:
-                _log.warning(
-                    f"[IntelligentDocumentProcessor] Unknown layout_model_type '{layout_model_type_str}', "
-                    f"fallback to '{LayoutModelType.GENOS_LAYOUT.value}'"
-                )
-            layout_model_type = LayoutModelType.GENOS_LAYOUT
+        # layout(genos_layout) 설정 해석은 facade/common/pipeline_setup.py 로 모았다.
+        # 조정 지점은 yaml 의 layout 섹션이다(genos_layout.endpoint/api_key/model/timeout/
+        # page_batch_size/max_completion_tokens/temperature/top_p/repetition_penalty/
+        # length_fallback_enabled/fallback_dpi/table_fallback_enabled).
+        _layout = ps.resolve_layout_settings(cfg, layout_cfg)
 
-        genos_layout_cfg = _as_dict(layout_cfg.get("genos_layout"))
-        layout_ep = genos_layout_cfg.get("endpoint") or cfg.get("layout_endpoint", "")
-        layout_key = genos_layout_cfg.get("api_key") or cfg.get("layout_api_key", "")
-        page_batch_size = genos_layout_cfg.get("page_batch_size", cfg.get("page_batch_size", 32))
-        max_completion_tokens = _parse_optional_int(
-            genos_layout_cfg.get("max_completion_tokens"),
-            "layout.genos_layout.max_completion_tokens",
-        )
-        if max_completion_tokens is None or max_completion_tokens <= 0:
-            max_completion_tokens = 16384
-        try:
-            page_batch_size = int(page_batch_size)
-            if page_batch_size <= 0:
-                raise ValueError
-        except (TypeError, ValueError):
-            _log.warning(
-                f"[IntelligentDocumentProcessor] Invalid page_batch_size '{page_batch_size}', fallback to 32"
-            )
-            page_batch_size = 128
 
         # DotsOCR VLM 호출/생성 파라미터 (yaml 누락·무효 시 기본값 폴백)
-        layout_model = genos_layout_cfg.get("model") or "dots-mocr"
-        layout_timeout = _parse_optional_int(
-            genos_layout_cfg.get("timeout"), "layout.genos_layout.timeout"
-        )
-        if layout_timeout is None or layout_timeout <= 0:
-            layout_timeout = 1200  # 이슈 #278: per-page hang 방지(GenosLayoutOptions 기본과 통일)
-        layout_retry_count = _parse_optional_int(
-            genos_layout_cfg.get("retry_count"), "layout.genos_layout.retry_count"
-        )
-        if layout_retry_count is None or layout_retry_count < 0:
-            layout_retry_count = 2
-        layout_temperature = _parse_optional_float(
-            genos_layout_cfg.get("temperature"), "layout.genos_layout.temperature"
-        )
-        if layout_temperature is None or layout_temperature < 0:
-            layout_temperature = 0.1
-        layout_top_p = _parse_optional_float(
-            genos_layout_cfg.get("top_p"), "layout.genos_layout.top_p"
-        )
-        if layout_top_p is None or not (0 < layout_top_p <= 1):
-            layout_top_p = 0.9
-        layout_repetition_penalty = _parse_optional_float(
-            genos_layout_cfg.get("repetition_penalty"),
-            "layout.genos_layout.repetition_penalty",
-        )
-        if layout_repetition_penalty is None or layout_repetition_penalty <= 0:
-            layout_repetition_penalty = 1.15
 
         ocr_options = self._build_ocr_options(ocr_cfg, paddle_endpoint=ocr_ep)
         if isinstance(ocr_options, UpstageOcrOptions):
@@ -736,18 +683,9 @@ class IntelligentDocumentProcessor:
         self.pipe_line_options.ocr_options = ocr_options
         self.pipe_line_options.images_scale = images_scale
 
-        self.pipe_line_options.layout_options.layout_model_type = layout_model_type
-        self.pipe_line_options.layout_options.genos_layout_options.endpoint = layout_ep
-        self.pipe_line_options.layout_options.genos_layout_options.api_key = layout_key
-        self.pipe_line_options.layout_options.genos_layout_options.max_completion_tokens = max_completion_tokens
-        self.pipe_line_options.layout_options.genos_layout_options.model = layout_model
-        self.pipe_line_options.layout_options.genos_layout_options.timeout = layout_timeout
-        self.pipe_line_options.layout_options.genos_layout_options.retry_count = layout_retry_count
-        self.pipe_line_options.layout_options.genos_layout_options.temperature = layout_temperature
-        self.pipe_line_options.layout_options.genos_layout_options.top_p = layout_top_p
-        self.pipe_line_options.layout_options.genos_layout_options.repetition_penalty = layout_repetition_penalty
+        ps.apply_layout_settings(self.pipe_line_options, _layout)
+        docling_settings.perf.page_batch_size = _layout.page_batch_size
 
-        docling_settings.perf.page_batch_size = page_batch_size
 
         self.pipe_line_options.do_table_structure = True
         self.pipe_line_options.table_structure_options.do_cell_matching = True

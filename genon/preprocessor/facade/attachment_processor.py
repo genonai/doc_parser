@@ -1794,9 +1794,9 @@ class DocumentProcessor:
             "hybrid_tokenizer_type": hybrid_tokenizer_type,
             "image_ocr_languages": image_ocr_languages,
             "tabular_encoding_detect_sample_bytes": tabular_sample_bytes,
-            "whisper_url": str(
-                whisper_cfg.get("url", "http://192.168.74.164:30100/v1/audio/transcriptions")
-            ).strip() or "http://192.168.74.164:30100/v1/audio/transcriptions",
+            # 사내 주소를 코드 기본값으로 두지 않는다(배포본에 그대로 나간다).
+            # 음성 전사를 쓰는 사이트는 yaml 의 whisper.url 을 반드시 지정해야 한다.
+            "whisper_url": str(whisper_cfg.get("url", "")).strip(),
             "whisper_model": str(whisper_cfg.get("model", "model")).strip() or "model",
             "whisper_language": str(whisper_cfg.get("language", "ko")).strip() or "ko",
             "whisper_response_format": str(
