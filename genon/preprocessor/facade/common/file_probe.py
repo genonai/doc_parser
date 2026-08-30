@@ -10,6 +10,10 @@ facade 마다 구현이 갈리는 PDF 변환 계열(`convert_to_pdf`, `_has_any_
 
 from __future__ import annotations
 
+import logging
+
+_log = logging.getLogger(__name__)
+
 # 지원 포맷의 매직 헤더(allowlist). 각 값은 아래 공식 출처로 근거 확인 + 실제 샘플로 검증함.
 #   - 정본 매직 DB: file/file(libmagic) magic/Magdir — 실제 본 모듈이 쓰는 python-magic의 DB.
 #     (PDF=Magdir/pdf "%PDF-", PNG/GIF=Magdir/images, JPEG=Magdir/jpeg 0xffd8ff, ZIP=Magdir/msooxml "PK\3\4")
@@ -159,3 +163,27 @@ def detect_unsupported_file(file_path: str) -> str | None:
     if is_ole2 and is_protected_hwp(file_path):
         return "암호화/배포용(DRM) HWP 문서"
     return None
+
+
+def has_any_pdf_converter() -> bool:
+    """PDF 변환 backend(pdf_sdk / rhwp / libreoffice) 가 하나라도 가용한지 확인 (이슈 #286).
+
+    빌드 시 INSTALL_LIBREOFFICE / INSTALL_RHWP 를 끄거나 PDF SDK 미포함(standard)이면
+    변환 backend 가 0개가 될 수 있다. 이때 비-PDF 입력을 변환 시도하면 무조건 실패하므로,
+    호출부에서 "PDF 로 직접 입력" 안내를 주기 위한 판별 헬퍼.
+    가용성 판단 자체가 불가하면(import 실패 등) True 를 반환해 기존 동작을 유지한다.
+    """
+    try:
+        from genon.preprocessor.converters.hwp_to_pdf.availability import (
+            libreoffice_available,
+            pdf_sdk_available,
+            rhwp_available,
+        )
+        return bool(pdf_sdk_available() or rhwp_available() or libreoffice_available())
+    except ImportError:
+        # facade 단일 파일 실행 등으로 모듈 import 가 안 되는 경우 → 기존 동작 유지(가용 가정)
+        return True
+    except Exception as exc:
+        # 가용성 probe 자체가 예기치 못하게 실패하면 로그만 남기고 파이프라인은 막지 않는다
+        _log.warning(f"[has_any_pdf_converter] PDF 변환기 가용성 확인 실패: {exc}")
+        return True

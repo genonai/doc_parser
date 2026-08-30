@@ -24,6 +24,9 @@ _log = logging.getLogger(__name__)
 # 그대로 유지해 호출부를 건드리지 않는다. 사이트별 조정 대상 상수(구분자, 최소
 # 청크 크기, 토크나이저 경로)는 이 파일에 남아 있으므로 래퍼가 넘겨준다.
 from genon.preprocessor.facade.common import config_parse as cp
+from genon.preprocessor.facade.common import runtime_kwargs as rk
+from genon.preprocessor.facade.enrichment.page_description import inject_page_descriptions
+from genon.preprocessor.facade.chunking import page_split
 from genon.preprocessor.facade.chunking import smart_chunker as sc
 from genon.preprocessor.facade.common import vector_meta as vm
 from genon.preprocessor.facade.common import docling_ops as dops
@@ -165,7 +168,6 @@ from docling_core.types.doc.document import (
 )
 from docling_core.types.doc.labels import DocItemLabel
 from docling_core.types.doc import (
-    BoundingBox,
     DocItemLabel,
     DoclingDocument,
     DocumentOrigin,
@@ -175,7 +177,6 @@ from docling_core.types.doc import (
     TableItem,
     TextItem,
     PageItem,
-    ProvenanceItem
 )
 from docling.datamodel.settings import settings
 
@@ -225,25 +226,20 @@ from genon.preprocessor.facade.enrichment.metadata_enricher import MetadataEnric
 
 from genon.preprocessor.facade.enrichment.page_description import (
     PageDescriptionOptions,
-    collect_page_texts,
-    describe_pages,
 )
 from genon.preprocessor.facade.enrichment.image_description import (
     ImageDescriptionOptions,
     ImageDescriptionEnricher,
-    resolve_runtime_image_options,
 )
 from genon.preprocessor.facade.enrichment.table_description import (
     TableDescriptionOptions,
     TableDescriptionEnricher,
     TableDescriptionExtractor,
     refined_html_to_format,
-    resolve_runtime_table_options,
 )
 from genon.preprocessor.facade.enrichment.doc_summary import (
     DocSummaryOptions,
     DocSummaryEnricher,
-    resolve_runtime_doc_summary_options,
 )
 from genon.preprocessor.facade.chunking.table_splitter import (
     leading_header_row_count,
@@ -396,26 +392,7 @@ def convert_to_pdf(file_path: str, use_pdf_sdk: bool = True) -> str | None:
 
 
 def _has_any_pdf_converter() -> bool:
-    """PDF 변환 backend(pdf_sdk / rhwp / libreoffice) 가 하나라도 가용한지 확인 (이슈 #286).
-
-    빌드 시 INSTALL_LIBREOFFICE / INSTALL_RHWP 를 끄거나 PDF SDK 미포함(standard)이면
-    변환 backend 가 0개가 될 수 있다. 가용성 판단 자체가 불가하면(import 실패 등) True 를
-    반환해 기존 동작을 유지한다.
-    """
-    try:
-        from genon.preprocessor.converters.hwp_to_pdf.availability import (
-            libreoffice_available,
-            pdf_sdk_available,
-            rhwp_available,
-        )
-        return bool(pdf_sdk_available() or rhwp_available() or libreoffice_available())
-    except ImportError:
-        # facade 단일 파일 실행 등으로 모듈 import 가 안 되는 경우 → 기존 동작 유지(가용 가정)
-        return True
-    except Exception as exc:
-        # 가용성 probe 자체가 예기치 못하게 실패하면 로그만 남기고 파이프라인은 막지 않는다
-        _log.warning(f"[_has_any_pdf_converter] PDF 변환기 가용성 확인 실패: {exc}")
-        return True
+    return fp.has_any_pdf_converter()
 
 
 def _get_pdf_path(file_path: str) -> str:
@@ -1134,97 +1111,9 @@ class DocumentProcessor:
         return chunks
 
     def split_documents_by_page(self, documents: DoclingDocument, **kwargs: dict) -> List[DocChunk]:
-        """PPT 전용 페이지 기반 청킹.
-
-        기본 1 page = 1 chunk. chunk_size(kwargs > yaml) 가 주어지면 연속 페이지를 토큰 기준
-        chunk_size 이하가 되도록 greedy 병합한다. 같은 페이지의 native text 와 주입된 page
-        description TextItem 은 prov.page_no 로 동일 페이지 청크에 자연히 묶인다.
-        """
-        chunk_size = _parse_optional_int(kwargs.get('chunk_size'), 'chunk_size')
-        if chunk_size is None:
-            chunk_size = self._chunk_size
-        chunk_size = _clamp_chunk_size(chunk_size)
-        # chunk_mode(0/1 또는 'split_only'/'resize_all') > yaml > "split_only"
-        chunk_mode = _resolve_chunk_mode(kwargs, self._chunk_mode)
-        chunker: GenosSmartChunker = GenosSmartChunker(
-            max_tokens=chunk_size if chunk_size is not None else 0,
-            merge_peers=True,
-            tokenizer=self._tokenizer,
-            tokenizer_type=self._tokenizer_type,
-            chunk_mode=chunk_mode,
-            include_chunk_header=_resolve_include_chunk_header(kwargs, self._include_chunk_header),
-        )
-        kwargs.setdefault("table_format", self._table_format)
-        kwargs.setdefault("compact_tables", self._compact_tables)
-
-        # 청크 텍스트 정규화(text_cleanup=safe): 청킹 입력에 문자 위생을 먼저 적용.
-        _cleanup = tn.prepare_document(documents, kwargs, self)
-
-        # 전체 아이템 base chunk(정상 경로와 동일한 아이템 수집/헤더/누락표 복구 재사용)
-        base = next(iter(chunker.preprocess(dl_doc=documents, **kwargs)), None)
-        if base is None:
-            return []
-        items = base.meta.doc_items
-        header_short = getattr(base, "_header_short_info_list", []) or []
-
-        # prov page_no 로 그룹(아이템 순서 유지). prov 없으면 직전 페이지에 귀속.
-        page_items: dict = {}
-        page_headers: dict = {}
-        last_page = 1
-        for idx, it in enumerate(items):
-            prov = getattr(it, "prov", None) or []
-            pg = prov[0].page_no if prov and getattr(prov[0], "page_no", None) else last_page
-            last_page = pg
-            page_items.setdefault(pg, []).append(it)
-            page_headers.setdefault(pg, []).append(
-                header_short[idx] if idx < len(header_short) else {}
-            )
-
-        # 페이지별 1 청크 직렬화
-        page_chunks: List[DocChunk] = []
-        for pg in sorted(page_items.keys()):
-            its = page_items[pg]
-            text = chunker._generate_section_text_with_heading(
-                its, page_headers[pg], documents, **kwargs
-            )
-            if text and text.strip() and text.strip() != ".":
-                page_chunks.append(DocChunk(
-                    text=text,
-                    # headings 를 채워야 compose_vectors 가 `HEADER:` 를 붙인다(본문 접두는 제거됨).
-                    meta=DocMeta(doc_items=its, headings=chunker._extract_header_paths(page_headers[pg]),
-                                 captions=None, origin=documents.origin),
-                ))
-
-        # chunk_size>0 이면 연속 페이지 greedy 병합 (split_only 는 1 page = 1 chunk 유지)
-        if chunk_mode == "resize_all" and chunk_size and chunk_size > 0 and page_chunks:
-            merged: List[DocChunk] = [page_chunks[0]]
-            for ch in page_chunks[1:]:
-                cand_text = merged[-1].text + "\n" + ch.text
-                # headings 를 None 으로 덮으면 위에서 채운 섹션 경로가 사라져 병합 청크에만
-                # HEADER 가 안 붙는다. 경로를 합집합으로 승계하고, 크기 판정에도 그 헤더 라인을
-                # 포함한다(경로가 길어지면 병합 여부가 달라져야 한다).
-                cand_headings = _union_paths(merged[-1].meta.headings, ch.meta.headings)
-                cand_size = chunker._count_tokens(
-                    _build_header_line(cand_headings, chunker.include_chunk_header) + cand_text)
-                if cand_size <= chunk_size:
-                    merged[-1] = DocChunk(
-                        text=cand_text,
-                        meta=DocMeta(
-                            doc_items=merged[-1].meta.doc_items + ch.meta.doc_items,
-                            headings=cand_headings, captions=None, origin=documents.origin,
-                        ),
-                    )
-                else:
-                    merged.append(ch)
-            page_chunks = merged
-
-        if _cleanup:
-            page_chunks = tn.drop_blank_chunks(page_chunks)
-        for ch in page_chunks:
-            if ch.meta.doc_items and ch.meta.doc_items[0].prov:
-                self.page_chunk_counts[ch.meta.doc_items[0].prov[0].page_no] += 1
-        _log.info(f"[ppt] page-based chunks: {len(page_chunks)} (chunk_size={chunk_size})")
-        return page_chunks
+        """PPT 전용 페이지 기반 청킹. 본체는 facade/chunking/page_split.py 에 있다."""
+        return page_split.split_documents_by_page(
+            self, documents, GenosSmartChunker, min_chunk_size=_MIN_CHUNK_SIZE, **kwargs)
 
     def safe_join(self, iterable):
         if not isinstance(iterable, (list, tuple, set)):
@@ -1256,126 +1145,10 @@ class DocumentProcessor:
             raise GenosServiceException("1", e.raw_error_message) from e
 
     def _normalize_runtime_kwargs(self, kwargs: dict) -> dict:
-        """이미지/차트 description 런타임 토글을 정규화한다(전부 0/1 플래그).
-
-        img_desc→image_description.enable, chart_desc(alias chart_convert)→chart.enable,
-        chart_detection(1=auto/0=all), doc_summary→body_summary.enable.
-        미지정 kwarg 는 config(runtime 섹션 또는 base 옵션) 기본값을 따른다.
-        """
-        normalized = dict(kwargs or {})
-        runtime = self._runtime_cfg
-        base = getattr(self, "_base_image_description_options", None)
-
-        img_default = _as_int_flag(runtime.get("img_desc"), 1 if (base and base.enabled) else 0)
-        chart_default = _as_int_flag(
-            runtime.get("chart_desc", runtime.get("chart_convert")),
-            1 if (base and base.chart_enabled) else 0,
-        )
-        detection_default = _as_int_flag(
-            runtime.get("chart_detection"), 1 if (base and base.chart_detection == "auto") else 0
-        )
-        dbase = getattr(self, "_base_doc_summary_options", None)
-        summary_default = _as_int_flag(
-            runtime.get("doc_summary"), 1 if (dbase and dbase.enabled) else 0
-        )
-
-        normalized["img_desc"] = _as_int_flag(normalized.get("img_desc"), img_default)
-        normalized["chart_desc"] = _as_int_flag(
-            normalized.get("chart_desc", normalized.get("chart_convert")), chart_default
-        )
-        normalized["chart_detection"] = _as_int_flag(
-            normalized.get("chart_detection"), detection_default
-        )
-        normalized["doc_summary"] = _as_int_flag(normalized.get("doc_summary"), summary_default)
-
-        # 표 description 런타임 토글(table_desc→enable, table_refine→refine.enable)
-        tbase = getattr(self, "_base_table_description_options", None)
-        table_default = _as_int_flag(
-            runtime.get("table_desc"), 1 if (tbase and tbase.enabled) else 0
-        )
-        refine_default = _as_int_flag(
-            runtime.get("table_refine"), 1 if (tbase and tbase.refine_enabled) else 0
-        )
-        normalized["table_desc"] = _as_int_flag(normalized.get("table_desc"), table_default)
-        normalized["table_refine"] = _as_int_flag(normalized.get("table_refine"), refine_default)
-
-        # TOC 런타임 토글(toc/toc_on alias) — 기본값은 config 의 do_toc_enrichment.
-        toc_default = _as_int_flag(
-            runtime.get("toc", runtime.get("toc_on")),
-            1 if getattr(self.enrichment_options, "do_toc_enrichment", False) else 0,
-        )
-        normalized["toc"] = _as_int_flag(
-            normalized.get("toc", normalized.get("toc_on")), toc_default
-        )
-        # merge_sections 별칭은 도입하지 않는다 — 기존 chunk_mode kwarg 가 동일 기능이며
-        # split_documents 의 _resolve_chunk_mode() 가 chunk_mode 0/1/문자열을 직접 해석한다.
-        return normalized
+        return rk.normalize_runtime_kwargs(self, kwargs)
 
     def _configure_runtime_image_mode(self, kwargs: dict):
-        """정규화된 kwargs 로 image_description_options/enricher 를 재구성한다.
-
-        순수 override 계산은 enrichment.image_description.resolve_runtime_image_options 에 위임.
-        """
-        doc_summary = _as_int_flag(kwargs.get("doc_summary"), 0)
-
-        # image description 런타임 재구성 (image base 옵션이 있을 때만)
-        base = getattr(self, "_base_image_description_options", None)
-        if base is not None:
-            img_desc = _as_int_flag(kwargs.get("img_desc"), 0)
-            chart_desc = _as_int_flag(kwargs.get("chart_desc"), 0)
-            chart_detection = _as_int_flag(kwargs.get("chart_detection"), 0)
-            self.image_description_options = resolve_runtime_image_options(
-                base,
-                img_desc=img_desc,
-                chart_desc=chart_desc,
-                chart_detection=chart_detection,
-                classification_available=getattr(
-                    self.pipe_line_options, "do_picture_classification", False
-                ),
-            )
-            self.image_description_enricher = ImageDescriptionEnricher(
-                self.image_description_options
-            )
-            _log.info(
-                "[runtime_feature] image mode enabled=%s img_desc=%s chart_desc=%s detection=%s",
-                self.image_description_options.enabled,
-                img_desc,
-                chart_desc,
-                self.image_description_options.chart_detection,
-            )
-
-        # 표 description 런타임 재구성 (image base 유무와 무관하게 독립 실행)
-        tbase = getattr(self, "_base_table_description_options", None)
-        if tbase is not None:
-            table_desc = _as_int_flag(kwargs.get("table_desc"), 0)
-            table_refine = _as_int_flag(kwargs.get("table_refine"), 0)
-            self.table_description_options = resolve_runtime_table_options(
-                tbase,
-                table_desc=table_desc,
-                table_refine=table_refine,
-            )
-            self.table_description_enricher = TableDescriptionEnricher(
-                self.table_description_options
-            )
-            _log.info(
-                "[runtime_feature] table mode enabled=%s table_desc=%s table_refine=%s",
-                self.table_description_options.enabled,
-                table_desc,
-                table_refine,
-            )
-
-        # doc_summary 런타임 재구성(image/table 공통 컨텍스트 제공)
-        dbase = getattr(self, "_base_doc_summary_options", None)
-        if dbase is not None:
-            self.doc_summary_options = resolve_runtime_doc_summary_options(
-                dbase, doc_summary=doc_summary
-            )
-            self.doc_summary_enricher = DocSummaryEnricher(self.doc_summary_options)
-            _log.info(
-                "[runtime_feature] doc_summary mode enabled=%s doc_summary=%s",
-                self.doc_summary_options.enabled,
-                doc_summary,
-            )
+        rk.configure_runtime_image_mode(self, kwargs)
 
     def _get_or_create_image_description_enricher(self):
         enricher = getattr(self, "image_description_enricher", None)
@@ -1421,30 +1194,7 @@ class DocumentProcessor:
         return enricher.enrich(document, **kwargs)
 
     def enrich_page_descriptions(self, document: DoclingDocument, **kwargs: dict) -> DoclingDocument:
-        """페이지 단위 image description: 각 페이지를 렌더링해 설명한 텍스트를 페이지별
-        TextItem 으로 주입한다(기존 PictureItem 단위 설명과 별개, 옵션 default False).
-        """
-        if not self._page_desc_options.enabled:
-            return document
-
-        # 페이지별 native text 수집(설명 주입 전) → 프롬프트({{page_text}})에 반영해 요청
-        page_texts = collect_page_texts(document)
-        page_descs = describe_pages(document, self._page_desc_options, page_texts=page_texts)
-        if not page_descs:
-            return document
-
-        for page_no in sorted(page_descs.keys()):
-            text = page_descs[page_no].strip()
-            if not text:
-                continue
-            prov = ProvenanceItem(
-                page_no=page_no,
-                bbox=BoundingBox(l=0, t=0, r=1, b=1),
-                charspan=(0, len(text)),
-            )
-            document.add_text(label=DocItemLabel.TEXT, text=text, prov=prov)
-        _log.info(f"[page_image_description] 페이지 설명 주입: pages={len(page_descs)}")
-        return document
+        return inject_page_descriptions(document, self._page_desc_options)
 
     async def enrich_metadata(self, document: DoclingDocument, **kwargs: dict) -> DoclingDocument:
         enricher = getattr(self, "metadata_enricher", None)

@@ -274,3 +274,33 @@ def describe_pages(
         if pil_image is not None:
             images[page_no] = pil_image
     return describe_page_images(images, options, page_texts=page_texts)
+
+
+def inject_page_descriptions(document: Any, options: PageDescriptionOptions) -> Any:
+    """페이지 단위 image description: 각 페이지를 렌더링해 설명한 텍스트를 페이지별
+    TextItem 으로 주입한다(기존 PictureItem 단위 설명과 별개, 옵션 default False).
+    """
+    from docling_core.types.doc import BoundingBox, ProvenanceItem
+    from docling_core.types.doc.labels import DocItemLabel
+
+    if not options.enabled:
+        return document
+
+    # 페이지별 native text 수집(설명 주입 전) → 프롬프트({{page_text}})에 반영해 요청
+    page_texts = collect_page_texts(document)
+    page_descs = describe_pages(document, options, page_texts=page_texts)
+    if not page_descs:
+        return document
+
+    for page_no in sorted(page_descs.keys()):
+        text = page_descs[page_no].strip()
+        if not text:
+            continue
+        prov = ProvenanceItem(
+            page_no=page_no,
+            bbox=BoundingBox(l=0, t=0, r=1, b=1),
+            charspan=(0, len(text)),
+        )
+        document.add_text(label=DocItemLabel.TEXT, text=text, prov=prov)
+    _log.info(f"[page_image_description] 페이지 설명 주입: pages={len(page_descs)}")
+    return document

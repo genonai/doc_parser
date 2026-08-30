@@ -60,6 +60,7 @@ def convert_to_pdf(file_path: str, use_pdf_sdk: bool = True) -> str | None:
 # 그대로 유지해 호출부를 건드리지 않는다. 사이트별 조정 대상 상수(구분자, 최소
 # 청크 크기, 토크나이저 경로)는 이 파일에 남아 있으므로 래퍼가 넘겨준다.
 from genon.preprocessor.facade.common import config_parse as cp
+from genon.preprocessor.facade.common import appendix as apx
 from genon.preprocessor.facade.chunking import smart_chunker as sc
 from genon.preprocessor.facade.common import vector_meta as vm
 from genon.preprocessor.facade.common import docling_ops as dops
@@ -140,7 +141,6 @@ from docling_core.transforms.chunker import (
     BaseChunk,
     BaseChunker,
     DocChunk,
-    DocMeta,
 )
 from docling_core.transforms.serializer.markdown import (
     MarkdownDocSerializer,
@@ -1061,51 +1061,8 @@ class DocumentProcessor:
     def check_glyphs(self, document: DoclingDocument) -> bool:
         return dops.check_glyphs(document, self._glyph_document_threshold)
 
-    def check_appendix_keywords(self, content: str, appendix_list: list) -> str: # !! appendix feature (2025-09-30, geonhee kim) !!
-        if not content or not appendix_list:
-            return ""
-
-        matched_appendices = []
-
-        # 1. Find appendix patterns in content first
-        found_patterns = []
-
-        # Complex patterns: 별지/별표/장부 + numbers (with hyphens, Roman numerals)
-        # Updated regex to capture full patterns like "별지 제 Ⅰ -1 호 서식" by matching until closing delimiters
-        content = re.sub(r"\s+", "", content)
-        complex_patterns = re.findall(r'(별지|별표|장부)(?:제)?([^<>()\[\]]+?)(?=(?:호|서식)|[<>\)\]]|$)', content)
-        for pattern_type, number in complex_patterns:
-            found_patterns.extend([
-                f"{pattern_type} {number}",
-                f"{pattern_type} 제{number}호",
-                f"{pattern_type}{number}",
-                f"{pattern_type}제{number}호"
-            ])
-
-        # Standalone patterns: (별표), (별지), (장부)
-        standalone_patterns = re.findall(r'[\(\[]+(별지|별표|장부)[\)\]]+', content)
-        for pattern_type in set(standalone_patterns):
-            found_patterns.extend([
-                pattern_type,
-                f"{pattern_type}",
-            ])
-
-        # 2. Check if found patterns match any appendix in the list
-        for appendix in appendix_list:
-            if not appendix or not isinstance(appendix, str):
-                continue
-
-            appendix_clean = appendix.replace('.pdf', '').lower().strip()
-            appendix_clean_no_space = re.sub(r"\s+", "", appendix_clean)
-
-            # If any found pattern exists in appendix filename, it's a match
-            for pattern in found_patterns:
-                pattern_no_space = re.sub(r"\s+", "", pattern).lower()
-                if pattern_no_space in appendix_clean_no_space:
-                    matched_appendices.append(appendix)
-                    break  # Prevent duplicates
-
-        return ', '.join(matched_appendices) if matched_appendices else ""
+    def check_appendix_keywords(self, content: str, appendix_list: list) -> str:
+        return apx.check_appendix_keywords(content, appendix_list)
 
     def ocr_all_table_cells(self, document: DoclingDocument, pdf_path) -> DoclingDocument:
         """글리프 깨진 텍스트가 있는 표에 대해서만 셀 단위 재OCR 을 수행한다."""

@@ -131,19 +131,16 @@ from genon.preprocessor.facade.enrichment.image_description import (
     ImageDescriptionOptions,
     ImageDescriptionEnricher,
     PictureDescriptionExtractor,
-    resolve_runtime_image_options,
 )
 from genon.preprocessor.facade.enrichment.table_description import (
     TableDescriptionOptions,
     TableDescriptionEnricher,
     TableDescriptionExtractor,
     refined_html_to_format,
-    resolve_runtime_table_options,
 )
 from genon.preprocessor.facade.enrichment.doc_summary import (
     DocSummaryOptions,
     DocSummaryEnricher,
-    resolve_runtime_doc_summary_options,
 )
 
 try:
@@ -187,6 +184,7 @@ def _handle_stage_error(exc: Exception, stage: str) -> None:
 # 그대로 유지해 호출부를 건드리지 않는다. 사이트별 조정 대상 상수(구분자, 최소
 # 청크 크기, 토크나이저 경로)는 이 파일에 남아 있으므로 래퍼가 넘겨준다.
 from genon.preprocessor.facade.common import config_parse as cp
+from genon.preprocessor.facade.common import runtime_kwargs as rk
 from genon.preprocessor.facade.common import docling_ops as dops
 from genon.preprocessor.facade.common import runtime as rt
 from genon.preprocessor.facade.common import file_probe as fp
@@ -1034,125 +1032,10 @@ class IntelligentDocumentProcessor:
             raise GenosServiceException("1", e.raw_error_message) from e
 
     def _normalize_runtime_kwargs(self, kwargs: dict) -> dict:
-        """이미지/차트 description 런타임 토글을 정규화한다(전부 0/1 플래그).
-
-        img_desc→image_description.enable, chart_desc(alias chart_convert)→chart.enable,
-        chart_detection(1=auto/0=all), doc_summary→body_summary.enable.
-        미지정 kwarg 는 config(runtime 섹션 또는 base 옵션) 기본값을 따른다.
-        """
-        normalized = dict(kwargs or {})
-        runtime = self._runtime_cfg
-        base = getattr(self, "_base_image_description_options", None)
-
-        img_default = _as_int_flag(runtime.get("img_desc"), 1 if (base and base.enabled) else 0)
-        chart_default = _as_int_flag(
-            runtime.get("chart_desc", runtime.get("chart_convert")),
-            1 if (base and base.chart_enabled) else 0,
-        )
-        detection_default = _as_int_flag(
-            runtime.get("chart_detection"), 1 if (base and base.chart_detection == "auto") else 0
-        )
-        dbase = getattr(self, "_base_doc_summary_options", None)
-        summary_default = _as_int_flag(
-            runtime.get("doc_summary"), 1 if (dbase and dbase.enabled) else 0
-        )
-
-        normalized["img_desc"] = _as_int_flag(normalized.get("img_desc"), img_default)
-        normalized["chart_desc"] = _as_int_flag(
-            normalized.get("chart_desc", normalized.get("chart_convert")), chart_default
-        )
-        normalized["chart_detection"] = _as_int_flag(
-            normalized.get("chart_detection"), detection_default
-        )
-        normalized["doc_summary"] = _as_int_flag(normalized.get("doc_summary"), summary_default)
-
-        # 표 description 런타임 토글(table_desc→enable, table_refine→refine.enable)
-        tbase = getattr(self, "_base_table_description_options", None)
-        table_default = _as_int_flag(
-            runtime.get("table_desc"), 1 if (tbase and tbase.enabled) else 0
-        )
-        refine_default = _as_int_flag(
-            runtime.get("table_refine"), 1 if (tbase and tbase.refine_enabled) else 0
-        )
-        normalized["table_desc"] = _as_int_flag(normalized.get("table_desc"), table_default)
-        normalized["table_refine"] = _as_int_flag(normalized.get("table_refine"), refine_default)
-
-        # TOC 런타임 토글(toc/toc_on alias) — 기본값은 config 의 do_toc_enrichment.
-        # (parser 는 parse-only 라 merge_sections/chunk_mode 는 해당 없음 → 미추가)
-        toc_default = _as_int_flag(
-            runtime.get("toc", runtime.get("toc_on")),
-            1 if getattr(self.enrichment_options, "do_toc_enrichment", False) else 0,
-        )
-        normalized["toc"] = _as_int_flag(
-            normalized.get("toc", normalized.get("toc_on")), toc_default
-        )
-        return normalized
+        return rk.normalize_runtime_kwargs(self, kwargs)
 
     def _configure_runtime_image_mode(self, kwargs: dict):
-        """정규화된 kwargs 로 image_description_options/enricher 를 재구성한다.
-
-        순수 override 계산은 enrichment.image_description.resolve_runtime_image_options 에 위임.
-        """
-        doc_summary = _as_int_flag(kwargs.get("doc_summary"), 0)
-
-        # image description 런타임 재구성 (image base 옵션이 있을 때만)
-        base = getattr(self, "_base_image_description_options", None)
-        if base is not None:
-            img_desc = _as_int_flag(kwargs.get("img_desc"), 0)
-            chart_desc = _as_int_flag(kwargs.get("chart_desc"), 0)
-            chart_detection = _as_int_flag(kwargs.get("chart_detection"), 0)
-            self.image_description_options = resolve_runtime_image_options(
-                base,
-                img_desc=img_desc,
-                chart_desc=chart_desc,
-                chart_detection=chart_detection,
-                classification_available=getattr(
-                    self.pipe_line_options, "do_picture_classification", False
-                ),
-            )
-            self.image_description_enricher = ImageDescriptionEnricher(
-                self.image_description_options
-            )
-            _log.info(
-                "[runtime_feature] image mode enabled=%s img_desc=%s chart_desc=%s detection=%s",
-                self.image_description_options.enabled,
-                img_desc,
-                chart_desc,
-                self.image_description_options.chart_detection,
-            )
-
-        # 표 description 런타임 재구성 (image base 유무와 무관하게 독립 실행)
-        tbase = getattr(self, "_base_table_description_options", None)
-        if tbase is not None:
-            table_desc = _as_int_flag(kwargs.get("table_desc"), 0)
-            table_refine = _as_int_flag(kwargs.get("table_refine"), 0)
-            self.table_description_options = resolve_runtime_table_options(
-                tbase,
-                table_desc=table_desc,
-                table_refine=table_refine,
-            )
-            self.table_description_enricher = TableDescriptionEnricher(
-                self.table_description_options
-            )
-            _log.info(
-                "[runtime_feature] table mode enabled=%s table_desc=%s table_refine=%s",
-                self.table_description_options.enabled,
-                table_desc,
-                table_refine,
-            )
-
-        # doc_summary 런타임 재구성(image/table 공통 컨텍스트 제공)
-        dbase = getattr(self, "_base_doc_summary_options", None)
-        if dbase is not None:
-            self.doc_summary_options = resolve_runtime_doc_summary_options(
-                dbase, doc_summary=doc_summary
-            )
-            self.doc_summary_enricher = DocSummaryEnricher(self.doc_summary_options)
-            _log.info(
-                "[runtime_feature] doc_summary mode enabled=%s doc_summary=%s",
-                self.doc_summary_options.enabled,
-                doc_summary,
-            )
+        rk.configure_runtime_image_mode(self, kwargs)
 
     def _get_or_create_image_description_enricher(self) -> ImageDescriptionEnricher:
         enricher = getattr(self, "image_description_enricher", None)
@@ -1209,26 +1092,7 @@ class IntelligentDocumentProcessor:
         return dops.check_glyphs(document, self._glyph_document_threshold)
 
     def check_empty_text(self, document: DoclingDocument) -> bool:
-        """텍스트 클러스터(박스)는 있는데 그 텍스트가 전부 비어 있는 페이지가 있는지 확인.
-
-        length 폴백(layout_only)이나 텍스트레이어 부재 등으로 박스만 있고 텍스트가
-        안 채워진 페이지를 잡아 강제 OCR 로 보낸다(이슈 #278 B-2).
-        (intelligent_processor.DocumentProcessor.check_empty_text 미러 — /parse↔/run auto-OCR 정합)
-        """
-        from collections import defaultdict
-        page_item_count: dict = defaultdict(int)
-        page_text_len: dict = defaultdict(int)
-        for item, _level in document.iterate_items():
-            if isinstance(item, TextItem) and hasattr(item, 'prov') and item.prov:
-                page_no = item.prov[0].page_no
-                page_item_count[page_no] += 1
-                page_text_len[page_no] += len((item.text or "").strip())
-        for page_no, n_items in page_item_count.items():
-            # 텍스트 아이템이 있는데 그 페이지 텍스트 총량이 0 → 비어있는 페이지
-            if n_items > 0 and page_text_len[page_no] == 0:
-                _log.info(f"[intelligent] page {page_no} 텍스트가 비어있음 → 강제 OCR 필요")
-                return True
-        return False
+        return dops.check_empty_text(document)
 
     def ocr_all_table_cells(self, document: DoclingDocument, pdf_path) -> DoclingDocument:
         """글리프 깨진 텍스트가 있는 표에 대해서만 셀 단위 재OCR 을 수행한다."""

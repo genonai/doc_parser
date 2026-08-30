@@ -229,6 +229,29 @@ def check_glyphs(document: DoclingDocument, threshold: int) -> bool:
     return False
 
 
+def check_empty_text(document: DoclingDocument) -> bool:
+    """텍스트 클러스터(박스)는 있는데 그 텍스트가 전부 비어 있는 페이지가 있는지 확인.
+
+    length 폴백(layout_only)이나 텍스트레이어 부재 등으로 박스만 있고 텍스트가
+    안 채워진 페이지를 잡아 강제 OCR 로 보낸다(이슈 #278 B-2).
+    """
+    from collections import defaultdict
+
+    page_item_count: dict = defaultdict(int)
+    page_text_len: dict = defaultdict(int)
+    for item, _level in document.iterate_items():
+        if isinstance(item, TextItem) and hasattr(item, "prov") and item.prov:
+            page_no = item.prov[0].page_no
+            page_item_count[page_no] += 1
+            page_text_len[page_no] += len((item.text or "").strip())
+    for page_no, n_items in page_item_count.items():
+        # 텍스트 아이템이 있는데 그 페이지 텍스트 총량이 0 → 비어있는 페이지
+        if n_items > 0 and page_text_len[page_no] == 0:
+            _log.info(f"[intelligent] page {page_no} 텍스트가 비어있음 → 강제 OCR 필요")
+            return True
+    return False
+
+
 # ── 표 셀 재OCR ─────────────────────────────────────────────────────────────
 
 def _post_ocr_bytes(img_bytes: bytes, ocr_endpoint: str, timeout: int = 60) -> dict:

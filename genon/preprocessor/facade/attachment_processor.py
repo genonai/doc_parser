@@ -235,26 +235,7 @@ def convert_to_pdf(file_path: str, use_pdf_sdk: bool = True) -> str | None:
 
 
 def _has_any_pdf_converter() -> bool:
-    """PDF 변환 backend(pdf_sdk / rhwp / libreoffice) 가 하나라도 가용한지 확인 (이슈 #286).
-
-    빌드 시 INSTALL_LIBREOFFICE / INSTALL_RHWP 를 끄거나 PDF SDK 미포함(standard)이면
-    변환 backend 가 0개가 될 수 있다. 가용성 판단 자체가 불가하면(import 실패 등) True 를
-    반환해 기존 동작을 유지한다.
-    """
-    try:
-        from genon.preprocessor.converters.hwp_to_pdf.availability import (
-            libreoffice_available,
-            pdf_sdk_available,
-            rhwp_available,
-        )
-        return bool(pdf_sdk_available() or rhwp_available() or libreoffice_available())
-    except ImportError:
-        # facade 단일 파일 실행 등으로 모듈 import 가 안 되는 경우 → 기존 동작 유지(가용 가정)
-        return True
-    except Exception as exc:
-        # 가용성 probe 자체가 예기치 못하게 실패하면 로그만 남기고 파이프라인은 막지 않는다
-        _log.warning(f"[_has_any_pdf_converter] PDF 변환기 가용성 확인 실패: {exc}")
-        return True
+    return fp.has_any_pdf_converter()
 
 
 def _get_pdf_path(file_path: str) -> str:
