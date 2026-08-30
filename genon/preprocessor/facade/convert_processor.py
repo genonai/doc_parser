@@ -24,6 +24,7 @@ _log = logging.getLogger(__name__)
 # 그대로 유지해 호출부를 건드리지 않는다. 사이트별 조정 대상 상수(구분자, 최소
 # 청크 크기, 토크나이저 경로)는 이 파일에 남아 있으므로 래퍼가 넘겨준다.
 from genon.preprocessor.facade.common import config_parse as cp
+from genon.preprocessor.facade.common import pipeline_setup as ps
 from genon.preprocessor.facade.common import runtime_kwargs as rk
 from genon.preprocessor.facade.enrichment.page_description import inject_page_descriptions
 from genon.preprocessor.facade.chunking import page_split
@@ -312,6 +313,10 @@ _MIN_CHUNK_SIZE = 1024
 
 # pdf_pipeline.device / pdf_pipeline.table_structure_mode 의 yaml 문자열 → docling enum 매핑.
 # 키가 없거나 알 수 없는 값이면 호출부에서 경고 + 기본값으로 폴백한다 (startup 견고성).
+# OCR 엔드포인트를 yaml 어디에서도 못 찾았을 때 쓰는 기본값(기존 동작 보존).
+_DEFAULT_OCR_ENDPOINT = "http://192.168.73.172:48080/ocr"
+
+
 _ACCELERATOR_DEVICE_MAP = {
     "auto": AcceleratorDevice.AUTO,
     "cpu": AcceleratorDevice.CPU,
@@ -571,39 +576,23 @@ class DocumentProcessor:
 
         # OCR 엔드포인트는 ocr.paddle.ocr_endpoint 가 정식 위치.
         # 구버전 호환: ocr.ocr_endpoint(상위) / 최상위 ocr_endpoint 도 폴백으로 인식.
-        paddle_cfg = _as_dict(ocr_cfg.get("paddle"))
-        ocr_ep = (
-            paddle_cfg.get("ocr_endpoint")
-            or ocr_cfg.get("ocr_endpoint")
-            or cfg.get("ocr_endpoint", "http://192.168.73.172:48080/ocr")
-        )
+        # OCR 엔드포인트·모드·재OCR 임계값 해석은 facade/common/pipeline_setup.py 로 모았다.
+        # 조정 지점은 yaml 의 ocr 섹션이다(paddle.ocr_endpoint, ocr_mode, table_cell_ocr_timeout,
+        # glyph_detection.table_cell_threshold / document_threshold).
+        _ocr_rt = ps.resolve_ocr_runtime(
+            cfg, ocr_cfg, default_endpoint=_DEFAULT_OCR_ENDPOINT)
+        ocr_ep = _ocr_rt.endpoint
+        self.ocr_mode = _ocr_rt.mode
+        self._table_cell_ocr_timeout = _ocr_rt.table_cell_ocr_timeout
+        self._glyph_table_cell_threshold = _ocr_rt.glyph_table_cell_threshold
+        self._glyph_document_threshold = _ocr_rt.glyph_document_threshold
 
         # OCR 수행 모드. "auto"(default)=휴리스틱 기반 재OCR / "force"=무조건 전체 OCR / "disable"=OCR 안 함
         # (PDF 입력에만 적용. DOCX/기타 포맷은 ocr_mode 무관)
-        raw_ocr_mode = str(ocr_cfg.get("ocr_mode", cfg.get("ocr_mode", "auto"))).lower().strip()
-        if raw_ocr_mode not in {"auto", "force", "disable"}:
-            _log.warning(f"[DocumentProcessor] Unknown ocr_mode '{raw_ocr_mode}', fallback to 'auto'")
-            raw_ocr_mode = "auto"
-        self.ocr_mode = raw_ocr_mode
 
         # 테이블 셀 재OCR HTTP timeout (ocr_all_table_cells). 잘못된 값은 60 으로 폴백.
-        table_cell_ocr_timeout = _parse_optional_int(
-            ocr_cfg.get("table_cell_ocr_timeout"), "ocr.table_cell_ocr_timeout"
-        )
-        self._table_cell_ocr_timeout = (
-            table_cell_ocr_timeout if table_cell_ocr_timeout and table_cell_ocr_timeout > 0 else 60
-        )
 
         # 글리프 기반 auto-OCR 재트리거 임계값.
-        glyph_cfg = _as_dict(ocr_cfg.get("glyph_detection"))
-        glyph_cell_th = _parse_optional_int(
-            glyph_cfg.get("table_cell_threshold"), "ocr.glyph_detection.table_cell_threshold"
-        )
-        self._glyph_table_cell_threshold = glyph_cell_th if glyph_cell_th and glyph_cell_th > 0 else 1
-        glyph_doc_th = _parse_optional_int(
-            glyph_cfg.get("document_threshold"), "ocr.glyph_detection.document_threshold"
-        )
-        self._glyph_document_threshold = glyph_doc_th if glyph_doc_th and glyph_doc_th > 0 else 10
 
         ocr_options = self._build_ocr_options(ocr_cfg, paddle_endpoint=ocr_ep)
         if isinstance(ocr_options, UpstageOcrOptions):
@@ -622,27 +611,17 @@ class DocumentProcessor:
 
         self.page_chunk_counts = defaultdict(int)
 
-        device_str = str(pdf_cfg.get("device", "auto")).lower().strip()
-        device = _ACCELERATOR_DEVICE_MAP.get(device_str)
-        if device is None:
-            _log.warning(f"[DocumentProcessor] Unknown pdf_pipeline.device '{device_str}', fallback to 'auto'")
-            device = AcceleratorDevice.AUTO
+        # pdf_pipeline 섹션(device, num_threads, images_scale, generate_*_images,
+        # table_structure_mode) 해석은 facade/common/pipeline_setup.py 로 모았다.
+        _pdf = ps.resolve_pdf_basics(pdf_cfg)
+        accelerator_options = _pdf.accelerator_options
+        images_scale = _pdf.images_scale
+        generate_page_images = _pdf.generate_page_images
+        generate_picture_images = _pdf.generate_picture_images
+        table_structure_mode = _pdf.table_structure_mode
 
-        num_threads = _parse_optional_int(pdf_cfg.get("num_threads"), "pdf_pipeline.num_threads")
-        if num_threads is None or num_threads <= 0:
-            num_threads = 8
-        accelerator_options = AcceleratorOptions(num_threads=num_threads, device=device)
 
-        images_scale = _parse_optional_int(pdf_cfg.get("images_scale"), "pdf_pipeline.images_scale")
-        if images_scale is None or images_scale <= 0:
-            images_scale = 2
 
-        generate_page_images = _parse_optional_bool(
-            pdf_cfg.get("generate_page_images"), "pdf_pipeline.generate_page_images"
-        )
-        generate_picture_images = _parse_optional_bool(
-            pdf_cfg.get("generate_picture_images"), "pdf_pipeline.generate_picture_images"
-        )
 
         # 표 이미지(table_image) 옵션: 표를 picture 와 동일하게 이미지로 잘라 저장하고,
         # media_files 에 type='table_image' 로 기록한다(검색=청크 텍스트 / 답변=표 이미지).
@@ -658,13 +637,6 @@ class DocumentProcessor:
         page_img_cfg = _as_dict(ppt_fmt_cfg.get("page_description"))
         self._page_desc_options = PageDescriptionOptions.from_config(page_img_cfg, self._config_dir)
 
-        table_mode_str = str(pdf_cfg.get("table_structure_mode", "accurate")).lower().strip()
-        table_structure_mode = _TABLE_FORMER_MODE_MAP.get(table_mode_str)
-        if table_structure_mode is None:
-            _log.warning(
-                f"[DocumentProcessor] Unknown pdf_pipeline.table_structure_mode '{table_mode_str}', fallback to 'accurate'"
-            )
-            table_structure_mode = TableFormerMode.ACCURATE
 
         # PDF 파이프라인 옵션 설정
         self.pipe_line_options = PdfPipelineOptions()

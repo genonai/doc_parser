@@ -184,6 +184,7 @@ def _handle_stage_error(exc: Exception, stage: str) -> None:
 # 그대로 유지해 호출부를 건드리지 않는다. 사이트별 조정 대상 상수(구분자, 최소
 # 청크 크기, 토크나이저 경로)는 이 파일에 남아 있으므로 래퍼가 넘겨준다.
 from genon.preprocessor.facade.common import config_parse as cp
+from genon.preprocessor.facade.common import pipeline_setup as ps
 from genon.preprocessor.facade.common import runtime_kwargs as rk
 from genon.preprocessor.facade.common import docling_ops as dops
 from genon.preprocessor.facade.common import runtime as rt
@@ -627,40 +628,19 @@ class IntelligentDocumentProcessor:
 
         # OCR 엔드포인트는 ocr.paddle.ocr_endpoint 가 정식 위치.
         # 구버전 호환: ocr.ocr_endpoint(상위) / 최상위 ocr_endpoint 도 폴백으로 인식.
-        paddle_cfg = _as_dict(ocr_cfg.get("paddle"))
-        ocr_ep = (
-            paddle_cfg.get("ocr_endpoint")
-            or ocr_cfg.get("ocr_endpoint")
-            or cfg.get("ocr_endpoint", "")
-        )
+        # OCR 엔드포인트·모드·재OCR 임계값 해석은 facade/common/pipeline_setup.py 로 모았다.
+        # 조정 지점은 yaml 의 ocr 섹션이다(paddle.ocr_endpoint, ocr_mode, table_cell_ocr_timeout,
+        # glyph_detection.table_cell_threshold / document_threshold).
+        _ocr_rt = ps.resolve_ocr_runtime(cfg, ocr_cfg)
+        ocr_ep = _ocr_rt.endpoint
+        self.ocr_mode = _ocr_rt.mode
+        self._table_cell_ocr_timeout = _ocr_rt.table_cell_ocr_timeout
+        self._glyph_table_cell_threshold = _ocr_rt.glyph_table_cell_threshold
+        self._glyph_document_threshold = _ocr_rt.glyph_document_threshold
 
         # 테이블 셀 재OCR HTTP timeout (ocr_all_table_cells). 잘못된 값은 60 으로 폴백.
-        table_cell_ocr_timeout = _parse_optional_int(
-            ocr_cfg.get("table_cell_ocr_timeout"), "ocr.table_cell_ocr_timeout"
-        )
-        self._table_cell_ocr_timeout = (
-            table_cell_ocr_timeout if table_cell_ocr_timeout and table_cell_ocr_timeout > 0 else 60
-        )
 
         # 글리프 기반 auto-OCR 재트리거 임계값.
-        glyph_cfg = _as_dict(ocr_cfg.get("glyph_detection"))
-        glyph_cell_th = _parse_optional_int(
-            glyph_cfg.get("table_cell_threshold"), "ocr.glyph_detection.table_cell_threshold"
-        )
-        self._glyph_table_cell_threshold = (
-            glyph_cell_th if glyph_cell_th and glyph_cell_th > 0 else 1
-        )
-        glyph_doc_th = _parse_optional_int(
-            glyph_cfg.get("document_threshold"), "ocr.glyph_detection.document_threshold"
-        )
-        self._glyph_document_threshold = (
-            glyph_doc_th if glyph_doc_th and glyph_doc_th > 0 else 10
-        )
-        raw_ocr_mode = str(ocr_cfg.get("ocr_mode", cfg.get("ocr_mode", "auto"))).lower().strip()
-        if raw_ocr_mode not in {"auto", "force", "disable"}:
-            _log.warning(f"[IntelligentDocumentProcessor] Unknown ocr_mode '{raw_ocr_mode}', fallback to 'auto'")
-            raw_ocr_mode = "auto"
-        self.ocr_mode = raw_ocr_mode
 
         layout_model_type_str = str(
             layout_cfg.get("layout_model_type", cfg.get("layout_model_type", "genos_layout"))
@@ -732,38 +712,18 @@ class IntelligentDocumentProcessor:
 
         self.page_chunk_counts = defaultdict(int)
 
-        device_str = str(pdf_cfg.get("device", "auto")).lower().strip()
-        device = _ACCELERATOR_DEVICE_MAP.get(device_str)
-        if device is None:
-            _log.warning(
-                f"[IntelligentDocumentProcessor] Unknown pdf_pipeline.device '{device_str}', fallback to 'auto'"
-            )
-            device = AcceleratorDevice.AUTO
+        # pdf_pipeline 섹션(device, num_threads, images_scale, generate_*_images,
+        # table_structure_mode) 해석은 facade/common/pipeline_setup.py 로 모았다.
+        _pdf = ps.resolve_pdf_basics(pdf_cfg)
+        accelerator_options = _pdf.accelerator_options
+        images_scale = _pdf.images_scale
+        generate_page_images = _pdf.generate_page_images
+        generate_picture_images = _pdf.generate_picture_images
+        table_structure_mode = _pdf.table_structure_mode
 
-        num_threads = _parse_optional_int(pdf_cfg.get("num_threads"), "pdf_pipeline.num_threads")
-        if num_threads is None or num_threads <= 0:
-            num_threads = 8
-        accelerator_options = AcceleratorOptions(num_threads=num_threads, device=device)
 
-        images_scale = _parse_optional_int(pdf_cfg.get("images_scale"), "pdf_pipeline.images_scale")
-        if images_scale is None or images_scale <= 0:
-            images_scale = 2
 
-        generate_page_images = _parse_optional_bool(
-            pdf_cfg.get("generate_page_images"), "pdf_pipeline.generate_page_images"
-        )
-        generate_picture_images = _parse_optional_bool(
-            pdf_cfg.get("generate_picture_images"), "pdf_pipeline.generate_picture_images"
-        )
 
-        table_mode_str = str(pdf_cfg.get("table_structure_mode", "accurate")).lower().strip()
-        table_structure_mode = _TABLE_FORMER_MODE_MAP.get(table_mode_str)
-        if table_structure_mode is None:
-            _log.warning(
-                f"[IntelligentDocumentProcessor] Unknown pdf_pipeline.table_structure_mode "
-                f"'{table_mode_str}', fallback to 'accurate'"
-            )
-            table_structure_mode = TableFormerMode.ACCURATE
 
         self.pipe_line_options = PdfPipelineOptions()
         self.pipe_line_options.generate_page_images = (
