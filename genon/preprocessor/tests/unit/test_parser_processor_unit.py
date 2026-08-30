@@ -26,8 +26,10 @@ from facade.parser_processor import (
     GenosServiceException,
     GenericDocumentLoader,
     IntelligentDocumentProcessor,
-    TabularLoader,
 )
+# check_sql_dtypes 는 공용 로더(facade/common/loaders.py)에 있다. parser 파이프라인은
+# tabular 입력을 converters.xlsx_processor 로 처리하므로 parser 쪽 사본은 없다.
+from genon.preprocessor.facade.common.loaders import TabularLoaderBase
 from docling.prompts.prompt_manager import LLMApiError
 
 
@@ -727,13 +729,13 @@ class TestBuildDoclingResponse:
         assert intel.check_glyph_text("GLYPHXYZ") is True
 
 
-# ─── TabularLoader.check_sql_dtypes ──────────────────────────────────────────
+# ─── TabularLoaderBase.check_sql_dtypes (공용 로더) ───────────────────────────
 
 @pytest.mark.unit
 class TestCheckSqlDtypes:
     @pytest.fixture
     def loader(self):
-        return object.__new__(TabularLoader)
+        return object.__new__(TabularLoaderBase)
 
     def test_int_column_maps_to_int_type(self, loader):
         df = pd.DataFrame({"n": [1, 2, 3]})

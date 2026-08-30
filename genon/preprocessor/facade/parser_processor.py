@@ -5,27 +5,21 @@ import asyncio
 import base64
 import json
 import logging
-import math
 import os
 import re
 import shutil
 import subprocess
-import sys
 import tempfile
-import threading
 import time
 import unicodedata
-import uuid
 import warnings
 from collections import defaultdict
 from datetime import datetime
-from glob import glob
 from pathlib import Path
 from typing import Any, Dict, Iterable, Iterator, List, Optional, Tuple, Union
 
 import fitz
 import pandas as pd
-import pydub
 import requests
 import yaml
 from fastapi import Request
@@ -35,7 +29,6 @@ from pydantic import BaseModel
 from typing_extensions import Self
 
 from langchain_community.document_loaders import (
-    DataFrameLoader,
     PyMuPDFLoader,
     UnstructuredFileLoader,
     UnstructuredImageLoader,
@@ -182,6 +175,7 @@ def _handle_stage_error(exc: Exception, stage: str) -> None:
 # 그대로 유지해 호출부를 건드리지 않는다. 사이트별 조정 대상 상수(구분자, 최소
 # 청크 크기, 토크나이저 경로)는 이 파일에 남아 있으므로 래퍼가 넘겨준다.
 from genon.preprocessor.facade.common import config_parse as cp
+from genon.preprocessor.facade.common import loaders as ld
 from genon.preprocessor.facade.common import pipeline_setup as ps
 from genon.preprocessor.facade.common import runtime_kwargs as rk
 from genon.preprocessor.facade.common import docling_ops as dops
@@ -362,223 +356,17 @@ def install_packages(packages):
 # TextLoader (from attachment_processor.py)
 # ============================================================
 
-class TextLoader:
-    def __init__(self, file_path: str):
-        self.file_path = file_path
-        self.output_dir = os.path.join('/tmp', str(uuid.uuid4()))
-        os.makedirs(self.output_dir, exist_ok=True)
+class TextLoader(ld.TextLoaderBase):
+    pass
 
-    def load(self):
-        try:
-            with open(self.file_path, 'rb') as f:
-                raw = f.read()
-            enc = chardet.detect(raw).get('encoding') or ''
-            encodings = [enc] if enc and enc.lower() not in ('ascii', 'unknown') else []
-            encodings += ['utf-8', 'cp949', 'euc-kr', 'iso-8859-1', 'latin-1']
-
-            content = None
-            for e in encodings:
-                try:
-                    content = raw.decode(e)
-                    break
-                except UnicodeDecodeError:
-                    continue
-            if content is None:
-                content = raw.decode('utf-8', errors='replace')
-
-            html = f"<html><meta charset='utf-8'><body><pre>{content}</pre></body></html>"
-            html_path = os.path.join(self.output_dir, 'temp.html')
-            with open(html_path, 'w', encoding='utf-8') as f:
-                f.write(html)
-            pdf_path = _get_pdf_path(self.file_path)
-            if HTML:
-                HTML(html_path).write_pdf(pdf_path)
-                loader = PyMuPDFLoader(pdf_path)
-                return loader.load()
-            return [Document(page_content=content, metadata={'source': self.file_path, 'page': 0})]
-
-        except Exception:
-            for e in ['utf-8', 'cp949', 'euc-kr', 'iso-8859-1']:
-                try:
-                    with open(self.file_path, 'r', encoding=e) as f:
-                        content = f.read()
-                    return [Document(page_content=content, metadata={'source': self.file_path, 'page': 0})]
-                except UnicodeDecodeError:
-                    continue
-            with open(self.file_path, 'r', encoding='utf-8', errors='replace') as f:
-                content = f.read()
-            return [Document(page_content=content, metadata={'source': self.file_path, 'page': 0})]
-        finally:
-            if os.path.exists(self.output_dir):
-                shutil.rmtree(self.output_dir)
-
-
-# ============================================================
-# TabularLoader (from attachment_processor.py)
-# ============================================================
-
-class TabularLoader:
-    def __init__(self, file_path: str, ext: str):
-        packages = ['openpyxl', 'chardet']
-        install_packages(packages)
-
-        self.file_path = file_path
-        if ext == ".csv":
-            self.data_dict = self.load_csv_documents(file_path)
-        elif ext == ".xlsx":
-            self.data_dict = self.load_xlsx_documents(file_path)
-        else:
-            _log.warning(f"Inadequate extension for TabularLoader: {ext}")
-            return
-
-    def check_sql_dtypes(self, df):
-        df = df.convert_dtypes()
-        res = []
-        for col in df.columns:
-            dtype = str(df.dtypes[col]).lower()
-            if 'int' in dtype:
-                sql_dtype = 'BIGINT' if '64' in dtype else 'INT'
-            elif 'float' in dtype:
-                sql_dtype = 'FLOAT'
-            elif 'bool' in dtype:
-                sql_dtype = 'BOOLEAN'
-            elif 'date' in dtype:
-                sql_dtype = 'DATE'
-                df[col] = df[col].astype(str)
-            elif 'datetime' in dtype:
-                sql_dtype = 'DATETIME'
-                df[col] = df[col].astype(str)
-            else:
-                lens = df[col].astype(str).str.len()
-                max_len_val = lens.max()
-                max_len = int(0 if pd.isna(max_len_val) else max_len_val) + 10
-                sql_dtype = f'VARCHAR({max_len})'
-            res.append([col, sql_dtype])
-        return df, res
-
-    def process_data_rows(self, data: dict):
-        rows = []
-        for doc in data["documents"]:
-            row = {}
-            if 'int' in data["page_column_type"]:
-                row[data["page_column"]] = int(doc.page_content)
-            elif 'float' in data["page_column_type"]:
-                row[data["page_column"]] = float(doc.page_content)
-            elif 'bool' in data["page_column_type"]:
-                if doc.page_content.lower() == 'true':
-                    row[data["page_column"]] = True
-                elif doc.page_content.lower() == 'false':
-                    row[data["page_column"]] = False
-                else:
-                    raise ValueError(f"Invalid boolean string: {doc.page_content}")
-            else:
-                row[data["page_column"]] = doc.page_content
-            row.update(doc.metadata)
-            rows.append(row)
-        return {"sheet_name": data["sheet_name"], "data_rows": rows, "data_types": data["dtypes"]}
-
-    def load_csv_documents(self, file_path: str, **kwargs: dict):
-        import chardet as _chardet
-        with open(file_path, "rb") as f:
-            raw_file = f.read(10000)
-        enc_type = _chardet.detect(raw_file)['encoding']
-        df = pd.read_csv(file_path, encoding=enc_type, index_col=False)
-        df = df.fillna('null')
-        df, dtypes_str = self.check_sql_dtypes(df)
-
-        for i in range(len(df.columns)):
-            try:
-                col = df.columns[0]
-                col_type = str(df[col].dtype)
-                df = df.astype({col: 'str'})
-                break
-            except:
-                raise ValueError(
-                    f"Any columns cannot be converted into the string type so that can't load LangChain Documents: {dtypes_str}")
-
-        loader = DataFrameLoader(df, page_content_column=col)
-        documents = loader.load()
-        data = {
-            "sheet_name": "table_1",
-            "page_column": col,
-            "page_column_type": col_type,
-            "documents": documents,
-            "dtypes": dtypes_str
-        }
-        return {"data": [self.process_data_rows(data)]}
-
-    def load_xlsx_documents(self, file_path: str, **kwargs: dict):
-        dfs = pd.read_excel(file_path, sheet_name=None)
-        sheets = []
-        for sheet_name, df in dfs.items():
-            df = df.fillna('null')
-            df, dtypes_str = self.check_sql_dtypes(df)
-            for i in range(len(df.columns)):
-                try:
-                    col = df.columns[0]
-                    col_type = str(type(col))
-                    df = df.astype({col: 'str'})
-                    break
-                except:
-                    raise ValueError(
-                        f"Any columns cannot be converted into string type so that can't load LangChain Documents: {dtypes_str}")
-            loader = DataFrameLoader(df, page_content_column=col)
-            documents = loader.load()
-            sheets.append({
-                "sheet_name": sheet_name,
-                "page_column": col,
-                "page_column_type": col_type,
-                "documents": documents,
-                "dtypes": dtypes_str
-            })
-        data_dict: dict = {"data": []}
-        for sheet in sheets:
-            data_dict["data"].append(self.process_data_rows(sheet))
-        return data_dict
 
 
 # ============================================================
 # AudioLoader (from attachment_processor.py)
 # ============================================================
 
-class AudioLoader:
-    def __init__(self, file_path: str, req_url: str, req_data: dict,
-                 chunk_sec: int = 29, tmp_path: str = '.', chunk_overlap_ms: int = 300):
-        self.file_path = file_path
-        self.tmp_path = tmp_path
-        self.chunk_sec = chunk_sec
-        self.chunk_overlap_ms = chunk_overlap_ms
-        self.req_url = req_url
-        self.req_data = req_data
-
-    def split_file_as_chunks(self) -> list:
-        audio = pydub.AudioSegment.from_file(self.file_path)
-        chunk_len = self.chunk_sec * 1000
-        n_chunks = math.ceil(len(audio) / chunk_len)
-        for i in range(n_chunks):
-            start_ms = i * chunk_len
-            overlap_start_ms = start_ms - self.chunk_overlap_ms if start_ms > 0 else start_ms
-            end_ms = start_ms + chunk_len
-            audio_chunk = audio[overlap_start_ms:end_ms]
-            audio_chunk.export(os.path.join(self.tmp_path, "tmp_{}.wav".format(str(i))), format="wav")
-        return glob(os.path.join(self.tmp_path, "*.wav"))
-
-    def transcribe_audio(self, file_path_lst: list):
-        transcribed_text_chunks = []
-
-        def _send_request(filepath: str):
-            files = {'file': (filepath, open(filepath, 'rb'), 'audio/mp3')}
-            response = requests.post(self.req_url, data=self.req_data, files=files)
-            text = response.json().get('text', ', ')
-            transcribed_text_chunks.append({'file_name': os.path.basename(filepath), 'text': text})
-
-        threads = [threading.Thread(target=_send_request, args=(f,)) for f in file_path_lst]
-        for t in threads:
-            t.start()
-        for t in threads:
-            t.join()
-        transcribed_text_chunks.sort(key=lambda x: x['file_name'])
-        return "[AUDIO]" + ' '.join([t['text'] for t in transcribed_text_chunks])
+class AudioLoader(ld.AudioLoaderBase):
+    pass
 
 
 # ============================================================
@@ -2339,7 +2127,7 @@ class DocumentProcessor:
 
     @staticmethod
     def _tabular_to_parse_format(data_dict: dict) -> dict:
-        """TabularLoader.data_dict → 행별 parse format."""
+        """tabular data_dict(converters.xlsx_processor 산출) → 행별 parse format."""
         from genon.preprocessor.converters.xlsx_processor import tabular_data_to_parse_format
 
         return tabular_data_to_parse_format(data_dict)
