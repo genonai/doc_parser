@@ -2,35 +2,21 @@
 from __future__ import annotations
 
 import asyncio
-import base64
 import json
 import logging
 import os
-import re
 import subprocess
 import tempfile
-import time
-import warnings
 from collections import defaultdict
-from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, Iterable, Iterator, List, Optional, Tuple, Union
+from typing import Any, Optional
 
-import fitz
-import pandas as pd
-import requests
-import yaml
 from fastapi import Request
-from markdown2 import markdown
-from pandas import DataFrame
-from pydantic import BaseModel
-from typing_extensions import Self
 
 from langchain_community.document_loaders import (
     PyMuPDFLoader,
     UnstructuredFileLoader,
     UnstructuredImageLoader,
-    UnstructuredMarkdownLoader,
     UnstructuredPowerPointLoader,
     UnstructuredWordDocumentLoader,
 )
@@ -44,9 +30,7 @@ from docling.datamodel.base_models import InputFormat
 from docling.datamodel.document import ConversionResult
 from docling.datamodel.pipeline_options import (
     AcceleratorDevice,
-    AcceleratorOptions,
     DataEnrichmentOptions,
-    LayoutModelType,
     PdfPipelineOptions,
     PipelineOptions,
     TableFormerMode,
@@ -70,21 +54,16 @@ from docling.utils.llm_cache import (
     resolve_context as _resolve_cache_context,
     set_context as _set_cache_context,
 )
-from docling_core.types import DoclingDocument
 from docling_core.types.doc import (
     BoundingBox,
-    DocItem,
     DocItemLabel,
     DoclingDocument,
-    DocumentOrigin,
     PictureItem,
     ProvenanceItem,
-    SectionHeaderItem,
     TableItem,
-    TextItem,
 )
 from docling_core.types.doc.base import CoordOrigin
-from docling_core.types.doc.document import CodeItem, ContentLayer, ListItem
+from docling_core.types.doc.document import ContentLayer
 from docling_core.transforms.serializer.markdown import (
     MarkdownDocSerializer,
     MarkdownParams,

@@ -4,13 +4,11 @@ from __future__ import annotations
 import json
 import os
 import logging
-import math, bisect
-import yaml
 from pathlib import Path
 
 from collections import defaultdict
 from datetime import datetime
-from typing import Optional, Iterable, Any, List, Dict, Tuple
+from typing import Optional, List
 
 from fastapi import Request
 
@@ -77,50 +75,30 @@ def _resolve_tokenizer(chunking_cfg: dict):
 
 # from utils import assert_cancelled
 import fitz
-import math, bisect
 import uuid
-import shutil
-import subprocess
-import tempfile
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.document_loaders import (
     # TextLoader,                       # TXT
-    PyMuPDFLoader,  # PDF
-    DataFrameLoader,  # DataFrame
-    UnstructuredWordDocumentLoader,  # DOC and DOCX
     UnstructuredPowerPointLoader,  # PPT and PPTX
-    UnstructuredImageLoader,  # JPG, PNG
-    UnstructuredMarkdownLoader,  # Markdown
     UnstructuredFileLoader,  # Generic fallback
 )
-from langchain_core.documents import Document
 # docling imports
 
-from docling.backend.genos_msword_backend import GenosMsWordDocumentBackend
 # HWP/HWPX 레거시 백엔드 (GenosHwp SDK 실패 시 폴백용; olefile/xml 순수 파이썬, SDK 미사용)
 from docling.backend.hwp_backend import HwpDocumentBackend
 from docling.backend.xml.hwpx_backend import HwpxDocumentBackend
 from docling.datamodel.base_models import InputFormat
-from docling.pipeline.simple_pipeline import SimplePipeline
 # from docling.datamodel.document import ConversionStatus
 from docling.datamodel.pipeline_options import (
     AcceleratorDevice,
-    AcceleratorOptions,
-    # OcrEngine,
-    # PdfBackend,
-    LayoutModelType,
     PdfPipelineOptions,
     TableFormerMode,
-    TableStructureModelType,
     PipelineOptions,
     UpstageOcrOptions,
 )
 
 from docling.document_converter import (
     DocumentConverter,
-    PdfFormatOption,
-    FormatOption,
-    WordFormatOption,
     HwpxFormatOption
 )
 from docling.datamodel.pipeline_options import DataEnrichmentOptions
@@ -135,53 +113,20 @@ from docling.utils.llm_cache import (
 from docling.datamodel.document import ConversionResult
 from docling.exceptions import HwpConversionError
 from docling_core.transforms.chunker import (
-    BaseChunk,
-    BaseChunker,
     DocChunk,
-    DocMeta,
-)
-from docling_core.transforms.serializer.markdown import (
-    MarkdownDocSerializer,
-    MarkdownParams,
 )
 
-from docling_core.types import DoclingDocument
 
-from pandas import DataFrame
 import asyncio
-from docling_core.types import DoclingDocument as DLDocument
-from docling_core.types.doc.document import (
-    DocumentOrigin,
-    LevelNumber,
-    ListItem,
-    CodeItem,
-    ContentLayer,
-)
-from docling_core.types.doc.labels import DocItemLabel
 from docling_core.types.doc import (
     DocItemLabel,
     DoclingDocument,
-    DocumentOrigin,
-    DocItem,
-    PictureItem,
-    SectionHeaderItem,
-    TableItem,
-    TextItem,
-    PageItem,
 )
 from docling.datamodel.settings import settings
 
-from collections import Counter
-import re
-import json
-import time
-import warnings
-import asyncio
 
-from typing import Iterable, Iterator, Optional, Union
 
-from pydantic import BaseModel, ConfigDict, PositiveInt, TypeAdapter, model_validator
-from typing_extensions import Self
+from pydantic import BaseModel
 
 try:
     import semchunk
@@ -225,17 +170,10 @@ from genon.preprocessor.facade.enrichment.image_description import (
 from genon.preprocessor.facade.enrichment.table_description import (
     TableDescriptionOptions,
     TableDescriptionEnricher,
-    TableDescriptionExtractor,
-    refined_html_to_format,
 )
 from genon.preprocessor.facade.enrichment.doc_summary import (
     DocSummaryOptions,
     DocSummaryEnricher,
-)
-from genon.preprocessor.facade.chunking.table_splitter import (
-    leading_header_row_count,
-    split_entries_preserving_tables,
-    split_table_rows,
 )
 from genon.preprocessor.facade.chunking import text_norm as tn
 

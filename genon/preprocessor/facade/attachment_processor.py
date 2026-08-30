@@ -5,12 +5,7 @@ from collections import defaultdict
 
 import asyncio
 import fitz
-import json
 import os
-import pandas as pd
-import re
-import requests
-import shutil
 import subprocess
 from datetime import datetime
 import logging
@@ -56,7 +51,6 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.document_loaders import (
     # TextLoader,                       # TXT
     PyMuPDFLoader,  # PDF
-    DataFrameLoader,  # DataFrame
     UnstructuredWordDocumentLoader,  # DOC and DOCX
     UnstructuredPowerPointLoader,  # PPT and PPTX
     UnstructuredImageLoader,  # JPG, PNG
@@ -83,7 +77,7 @@ except (ImportError, OSError):
 
 from docling.datamodel.base_models import InputFormat
 from docling.datamodel.pipeline_options import PipelineOptions
-from docling.datamodel.document import ConversionResult, InputDocument
+from docling.datamodel.document import ConversionResult
 from docling.pipeline.simple_pipeline import SimplePipeline
 from docling.document_converter import (
     DocumentConverter, HwpxFormatOption, WordFormatOption,
@@ -116,11 +110,6 @@ try:
 except ImportError:
     upload_files = None
 
-from pathlib import Path
-import os
-import subprocess
-import tempfile
-import shutil
 
 import logging
 

@@ -11,13 +11,11 @@ from __future__ import annotations
 import json
 import os
 import logging
-import math, bisect
-import yaml
 from pathlib import Path
 
 from collections import defaultdict
 from datetime import datetime
-from typing import Optional, Iterable, Any, List, Dict, Tuple
+from typing import Optional, Any, List, Tuple
 
 from fastapi import Request
 
@@ -26,9 +24,6 @@ _log = logging.getLogger(__name__)
 # Genos 웹 UI 환경은 facade 코드를 단일 파일(preprocessor.py)로 처리하므로
 # 다른 facade 파일에서 import 가 깨진다. 따라서 convert_to_pdf 는
 # attachment_processor / convert_processor 와 동일하게 자체 정의한다.
-import shutil
-import subprocess
-import tempfile
 
 
 def convert_to_pdf(file_path: str, use_pdf_sdk: bool = True) -> str | None:
@@ -97,30 +92,18 @@ def _resolve_tokenizer(chunking_cfg: dict):
 
 # docling imports
 
-from docling.datamodel.base_models import InputFormat
-from docling.pipeline.simple_pipeline import SimplePipeline
 # from docling.datamodel.document import ConversionStatus
 from docling.datamodel.pipeline_options import (
     AcceleratorDevice,
-    AcceleratorOptions,
-    # OcrEngine,
-    # PdfBackend,
-    LayoutModelType,
     PdfPipelineOptions,
     TableFormerMode,
-    TableStructureModelType,
     PipelineOptions,
     UpstageOcrOptions,
 )
 
-from docling.document_converter import (
-    DocumentConverter,
-    PdfFormatOption,
-    FormatOption
-)
 from docling.datamodel.pipeline_options import DataEnrichmentOptions
 from docling.prompts.prompt_manager import LLMApiError
-from docling.utils.document_enrichment import enrich_document, check_document
+from docling.utils.document_enrichment import enrich_document
 from docling.utils.llm_cache import (
     log_summary as _log_cache_summary,
     parse_interim_ref as _parse_interim_ref,
@@ -130,51 +113,27 @@ from docling.utils.llm_cache import (
 )
 from docling.datamodel.document import ConversionResult
 from docling_core.transforms.chunker import (
-    BaseChunk,
-    BaseChunker,
     DocChunk,
 )
-from docling_core.transforms.serializer.markdown import (
-    MarkdownDocSerializer,
-    MarkdownParams,
-)
-from docling_core.types import DoclingDocument
 
-from pandas import DataFrame
 import asyncio
-from docling_core.types import DoclingDocument as DLDocument
 from docling_core.types.doc.document import (
-    DocumentOrigin,
-    LevelNumber,
     ListItem,
     CodeItem,
-    ContentLayer,
 )
-from docling_core.types.doc.labels import DocItemLabel
 from docling_core.types.doc import (
     BoundingBox,
     DocItemLabel,
     DoclingDocument,
-    DocumentOrigin,
-    DocItem,
-    PictureItem,
     SectionHeaderItem,
     TableItem,
     TextItem,
-    PageItem,
     ProvenanceItem
 )
 from docling.datamodel.settings import settings
 
-from collections import Counter
-import re
-import json
-import time
-import warnings
-from typing import Iterable, Iterator, Optional, Union
 
-from pydantic import BaseModel, ConfigDict, PositiveInt, TypeAdapter, model_validator
-from typing_extensions import Self
+from pydantic import BaseModel
 
 from genon.preprocessor.facade.enrichment.custom_fields_enricher import (
     build_document_custom_fields_enrichers as _build_document_custom_fields_enrichers,
@@ -183,8 +142,6 @@ from genon.preprocessor.facade.enrichment.metadata_enricher import (
     MetadataEnricher as _MetadataEnricher,
 )
 
-from genon.preprocessor.facade.enrichment.prompt_files import read_prompt_file
-from genon.preprocessor.facade.enrichment.prompt_template import PromptTemplate
 from genon.preprocessor.facade.enrichment.enrichment_config import EnrichmentConfig
 from genon.preprocessor.facade.enrichment.field_transforms import (
     DEFAULT_METADATA_FIELD_TRANSFORMS,
@@ -195,12 +152,6 @@ from genon.preprocessor.facade.enrichment.field_transforms import (
 from genon.preprocessor.facade.enrichment.image_description import (
     ImageDescriptionOptions,
     ImageDescriptionEnricher,
-)
-from genon.preprocessor.facade.enrichment.table_description import TableDescriptionExtractor
-from genon.preprocessor.facade.chunking.table_splitter import (
-    leading_header_row_count,
-    split_entries_preserving_tables,
-    split_table_rows,
 )
 from genon.preprocessor.facade.chunking import text_norm as tn
 
