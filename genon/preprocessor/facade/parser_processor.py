@@ -7,11 +7,9 @@ import json
 import logging
 import os
 import re
-import shutil
 import subprocess
 import tempfile
 import time
-import unicodedata
 import warnings
 from collections import defaultdict
 from datetime import datetime
@@ -181,6 +179,7 @@ from genon.preprocessor.facade.common import runtime_kwargs as rk
 from genon.preprocessor.facade.common import docling_ops as dops
 from genon.preprocessor.facade.common import runtime as rt
 from genon.preprocessor.facade.common import file_probe as fp
+from genon.preprocessor.facade.common import pdf_convert as pc
 
 _as_dict = cp.as_dict
 _as_int_flag = cp.as_int_flag
@@ -245,90 +244,16 @@ def _resolve_default_parser_config_path() -> str:
 # 헬퍼 함수 (from attachment_processor.py)
 # ============================================================
 
-def _is_libreoffice_available() -> bool:
-    """LibreOffice 가 가용한지 확인 (이슈 #286).
-
-    parser_processor 의 convert_to_pdf 는 soffice(LibreOffice) 단독 구현이라,
-    rhwp/pdf_sdk 와 무관하게 LibreOffice 가용성만 따져야 정확하다. 빌드 시
-    INSTALL_LIBREOFFICE 를 끄면 False. 가용성 판단 자체가 불가하면(import 실패 등)
-    True 를 반환해 기존 동작을 유지한다.
-    """
-    try:
-        from genon.preprocessor.converters.hwp_to_pdf.availability import libreoffice_available
-        return bool(libreoffice_available())
-    except ImportError:
-        # facade 단일 파일 실행 등으로 모듈 import 가 안 되는 경우 → 기존 동작 유지(가용 가정)
-        return True
-    except Exception as exc:
-        # 가용성 probe 자체가 예기치 못하게 실패하면 로그만 남기고 파이프라인은 막지 않는다
-        _log.warning(f"[_is_libreoffice_available] LibreOffice 가용성 확인 실패: {exc}")
-        return True
+_is_libreoffice_available = fp.is_libreoffice_available
 
 
 def convert_to_pdf(file_path: str) -> str | None:
+    """LibreOffice 로 PDF 변환을 시도한다. 실패해도 예외를 던지지 않고 None 을 반환한다.
+
+    이 facade 는 backend chain 을 LibreOffice 하나로 고정한다(rhwp/pdf_sdk 미사용).
+    구현은 facade/common/pdf_convert.py 에 있다.
     """
-    LibreOffice로 PDF 변환을 시도한다.
-    실패해도 예외를 던지지 않고 None을 반환한다.
-    """
-    # 이슈 #286 — LibreOffice 가 없으면(이 함수는 soffice 단독 사용) 변환 시도가 무의미하므로,
-    # PDF 직접 입력을 안내하는 warning 한 번만 남기고 None 을 반환한다.
-    if not _is_libreoffice_available():
-        _log.warning(
-            "[convert_to_pdf] PDF 변환기(LibreOffice)가 설치되어 있지 않습니다 "
-            f"(이슈 #286). '{os.path.basename(file_path)}' 변환을 건너뜁니다. PDF 로 변환된 "
-            "파일을 입력하거나, 변환기를 포함해 전처리기 이미지를 다시 빌드하세요 (genon/README.md 참고)."
-        )
-        return None
-    try:
-        in_path = Path(file_path).resolve()
-        out_dir = in_path.parent
-        pdf_path = in_path.with_suffix('.pdf')
-
-        env = os.environ.copy()
-        env.setdefault("LANG", "C.UTF-8")
-        env.setdefault("LC_ALL", "C.UTF-8")
-
-        ext = in_path.suffix.lower()
-        if ext in ('.ppt', '.pptx'):
-            convert_arg = "pdf:impress_pdf_Export"
-        elif ext in ('.doc', '.docx'):
-            convert_arg = "pdf:writer_pdf_Export"
-        elif ext in ('.xls', '.xlsx', '.csv'):
-            convert_arg = "pdf:calc_pdf_Export"
-        else:
-            convert_arg = "pdf"
-
-        try:
-            in_path.name.encode('ascii')
-            candidates = [in_path]
-            tmp_dir = None
-        except UnicodeEncodeError:
-            tmp_dir = Path(tempfile.mkdtemp())
-            ascii_name = unicodedata.normalize('NFKD', in_path.stem).encode('ascii', 'ignore').decode('ascii') or "file"
-            ascii_copy = tmp_dir / f"{ascii_name}{in_path.suffix}"
-            shutil.copy2(in_path, ascii_copy)
-            candidates = [ascii_copy, in_path]
-
-        for cand in candidates:
-            cmd = [
-                "soffice", "--headless",
-                "--convert-to", convert_arg,
-                "--outdir", str(out_dir),
-                str(cand)
-            ]
-            proc = subprocess.run(cmd, env=env, capture_output=True, text=True)
-            if proc.returncode == 0 and pdf_path.exists():
-                if tmp_dir:
-                    shutil.rmtree(tmp_dir, ignore_errors=True)
-                return str(pdf_path)
-            _log.warning(f"[convert_to_pdf] stderr: {proc.stderr.strip()}")
-
-        if tmp_dir:
-            shutil.rmtree(tmp_dir, ignore_errors=True)
-        return None
-    except Exception as e:
-        _log.error(f"[convert_to_pdf] error: {e}")
-        return None
+    return pc.convert_to_pdf(file_path, libreoffice_only=True)
 
 
 def _get_pdf_path(file_path: str) -> str:
