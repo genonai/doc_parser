@@ -228,8 +228,12 @@ _CHUNKER_MODULES = [
 
 @pytest.mark.unit
 @pytest.mark.parametrize("module_name", _CHUNKER_MODULES)
-def test_unsplittable_rowspan_table_keeps_description_once(module_name):
-    """rowspan 표는 구조 보존이 우선이라 예산을 넘겨도 단일 청크로 두고 설명은 1회만 싣는다."""
+def test_rowspan_table_splits_with_description_once_per_piece(module_name):
+    """rowspan 표도 행 경계에서 나뉘고, 각 조각이 설명을 정확히 한 번씩 싣는다.
+
+    예전에는 rowspan 이 보이면 분할을 포기해 예산을 크게 넘는 청크가 그대로 나갔다.
+    이제는 병합 값을 각 행에 복제해 나누므로, 조각마다 자족적인 표가 된다.
+    """
     module = pytest.importorskip(module_name, exc_type=ImportError)
     doc = _rowspan_table_doc()
     _attach_rag_description(doc.tables[0])
@@ -239,9 +243,9 @@ def test_unsplittable_rowspan_table_keeps_description_once(module_name):
     texts = [chunk.text for chunk in chunker.chunk(dl_doc=doc, export_to_html=1)
              if "[표 검색 설명]" in chunk.text]
 
-    assert len(texts) == 1
-    assert texts[0].count("[표 검색 설명]") == 1
-    assert "ROW-01-START" in texts[0] and "ROW-12-END" in texts[0]
+    assert len(texts) > 1
+    assert all(text.count("[표 검색 설명]") == 1 for text in texts)
+    _assert_rows_stay_together(texts)
 
 
 @pytest.mark.unit

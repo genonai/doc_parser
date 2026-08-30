@@ -10,10 +10,23 @@ from __future__ import annotations
 import html
 from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass
-from typing import Any, Literal
+from typing import Any
 
-TableFormat = Literal["html", "markdown"]
+from genon.preprocessor.facade.chunking.table_shape import (
+    TableFormat,
+    cell_at as _cell_at,
+    cell_text as _cell_text,
+    flatten_header_rows,
+    is_header_cell as _is_header_cell,
+    leading_header_row_count,
+    normalize_row_spans,
+    serialize_rows,
+)
+
 CountText = Callable[[str], int]
+
+# 행 문장 블록의 머리말. 표 격자와 시각적으로 구분되어야 LLM 이 중복으로 읽지 않는다.
+ROW_LINES_LABEL = "[표 행 요약]"
 
 
 @dataclass(frozen=True)
@@ -24,30 +37,8 @@ class TableSplitResult:
     did_split: bool
     reason: str | None = None
     oversized_piece_indexes: tuple[int, ...] = ()
-
-
-def _is_header_cell(cell: Any) -> bool:
-    return bool(
-        getattr(cell, "column_header", False)
-        or getattr(cell, "row_header", False)
-        or getattr(cell, "row_section", False)
-    )
-
-
-def leading_header_row_count(grid: Sequence[Sequence[Any]]) -> int:
-    """선두에서 연속되는 Docling 헤더 플래그 행 수를 반환한다."""
-
-    count = 0
-    for row in grid:
-        if any(_is_header_cell(cell) for cell in row):
-            count += 1
-        else:
-            break
-    return count
-
-
-def _cell_at(row: Sequence[Any], column: int) -> Any | None:
-    return row[column] if column < len(row) else None
+    # 데이터 행의 rowspan 을 풀고 분할했는가. 조각 안에서 병합 값이 행마다 복제된다.
+    normalized_spans: bool = False
 
 
 def _render_html_row(row: Sequence[Any], num_cols: int) -> str:
@@ -68,13 +59,16 @@ def _render_html_row(row: Sequence[Any], num_cols: int) -> str:
     return "<tr>" + "".join(cells) + "</tr>"
 
 
+def _escape_markdown_cell(value: str) -> str:
+    """파이프와 줄바꿈은 표 구조를 깨므로 셀 안에서 무해하게 만든다."""
+    return value.replace("|", "\\|").replace("\r", " ").replace("\n", " ")
+
+
 def _render_markdown_row(row: Sequence[Any], num_cols: int) -> str:
-    cells: list[str] = []
-    for column in range(num_cols):
-        cell = _cell_at(row, column)
-        value = str(getattr(cell, "text", "") or "").strip()
-        value = value.replace("|", "\\|").replace("\r", " ").replace("\n", " ")
-        cells.append(value)
+    cells = [
+        _escape_markdown_cell(_cell_text(_cell_at(row, column)))
+        for column in range(num_cols)
+    ]
     return "| " + " | ".join(cells) + " |"
 
 
@@ -89,12 +83,20 @@ def split_table_rows(
     header_row_count: int = 1,
     prefix: str = "",
     suffix: str = "",
+    row_serialization: bool = False,
 ) -> TableSplitResult:
     """표를 행 경계에서 분할하고 각 조각을 독립적인 완전한 표로 만든다.
 
-    분할할 수 없는 구조(rowspan, 데이터 행 없음)는 ``single_text``를 그대로
-    반환한다. 단일 데이터 행 자체가 한도를 넘으면 행/태그를 깨지 않고 초과
-    조각으로 유지하며 ``oversized_piece_indexes``로 이를 알린다.
+    데이터 행에 rowspan 이 걸려 있으면 그 값을 각 행에 복제한 뒤 분할한다(원본 grid 는
+    건드리지 않는다). 예전에는 여기서 분할을 포기해 chunk_size 를 크게 넘는 청크가
+    그대로 나갔고, 임베딩 입력 한도에서 잘려 검색이 실패했다.
+
+    분할할 수 없는 구조(데이터 행 없음, 빈 grid)는 ``single_text``를 그대로 반환한다.
+    단일 데이터 행 자체가 한도를 넘으면 행/태그를 깨지 않고 초과 조각으로 유지하며
+    ``oversized_piece_indexes``로 이를 알린다.
+
+    ``row_serialization``이 참이면 각 조각의 표 뒤에 그 조각의 행을 ``컬럼=값`` 문장으로
+    덧붙인다. 병합 셀 표에서 어느 헤더에 걸린 값인지 임베딩에 드러내기 위한 것이다.
     """
 
     if limit <= 0 or count_text(single_text) <= limit:
@@ -106,23 +108,30 @@ def split_table_rows(
     if header_row_count >= len(grid):
         return TableSplitResult([single_text], False, "no-data-rows")
 
+    normalized_spans = any(
+        int(getattr(cell, "row_span", 1) or 1) > 1
+        for row in grid[header_row_count:]
+        for cell in row
+    )
+    if normalized_spans:
+        grid = normalize_row_spans(grid)
     header_rows = list(grid[:header_row_count])
     data_rows = list(grid[header_row_count:])
-    if any(
-        int(getattr(cell, "row_span", 1) or 1) > 1
-        for row in data_rows
-        for cell in row
-    ):
-        return TableSplitResult([single_text], False, "rowspan")
+
+    header_labels = flatten_header_rows(grid, header_row_count, num_cols)
 
     if table_format == "markdown":
         render_row = _render_markdown_row
-        header_lines = [render_row(row, num_cols) for row in header_rows]
-        # Markdown 표는 헤더가 최소 한 행 필요하다. header_row_count=0은 첫 데이터
-        # 행을 헤더로 승격하지 않고 안전하게 원문 유지한다.
-        if not header_lines:
+        # Markdown 표는 헤더가 정확히 한 행이고 그 다음 줄이 구분선이어야 한다. 헤더가
+        # 여러 행이면 컬럼마다 `상위 > 하위` 로 합쳐 한 행으로 만든다 — 예전처럼 여러 행을
+        # 그대로 늘어놓고 뒤에 구분선을 붙이면 표로 파싱되지 않는 텍스트가 나왔다.
+        # header_row_count=0 은 첫 데이터 행을 헤더로 승격하지 않고 안전하게 원문 유지한다.
+        if not header_rows:
             return TableSplitResult([single_text], False, "no-markdown-header")
-        header_lines.append("| " + " | ".join(["---"] * num_cols) + " |")
+        header_lines = [
+            "| " + " | ".join(_escape_markdown_cell(label) for label in header_labels) + " |",
+            "| " + " | ".join(["---"] * num_cols) + " |",
+        ]
 
         def wrap(rows: Sequence[str], trailing: str = "") -> str:
             body = "\n".join(header_lines + list(rows))
@@ -136,28 +145,42 @@ def split_table_rows(
             return prefix + "<table><tbody>" + header_html + "".join(rows) + "</tbody></table>" + trailing
 
     rendered_rows = [render_row(row, num_cols) for row in data_rows]
-    buckets: list[list[str]] = []
-    current: list[str] = []
+    row_lines = (
+        serialize_rows(data_rows, header_labels, num_cols)
+        if row_serialization else []
+    )
+
+    def compose(indexes: Sequence[int], trailing: str = "") -> str:
+        """조각 하나의 최종 텍스트. 예산 판정과 실제 출력이 같은 함수를 쓴다."""
+        text = wrap([rendered_rows[i] for i in indexes], trailing)
+        if not row_lines:
+            return text
+        lines = [row_lines[i] for i in indexes if i < len(row_lines) and row_lines[i]]
+        return text + "\n" + ROW_LINES_LABEL + "\n" + "\n".join(lines) if lines else text
+
+    buckets: list[list[int]] = []
+    current: list[int] = []
     last_index = len(rendered_rows) - 1
-    for index, rendered in enumerate(rendered_rows):
+    for index in range(len(rendered_rows)):
         trailing = suffix if index == last_index else ""
-        candidate = [*current, rendered]
-        if current and count_text(wrap(candidate, trailing)) > limit:
+        candidate = [*current, index]
+        if current and count_text(compose(candidate, trailing)) > limit:
             buckets.append(current)
-            current = [rendered]
+            current = [index]
         else:
             current = candidate
     if current:
         buckets.append(current)
 
     pieces = [
-        wrap(bucket, suffix if index == len(buckets) - 1 else "")
+        compose(bucket, suffix if index == len(buckets) - 1 else "")
         for index, bucket in enumerate(buckets)
     ]
     if not pieces:
         return TableSplitResult([single_text], False, "no-pieces")
     oversized = tuple(index for index, piece in enumerate(pieces) if count_text(piece) > limit)
-    return TableSplitResult(pieces, len(pieces) > 1, None, oversized)
+    return TableSplitResult(
+        pieces, len(pieces) > 1, None, oversized, normalized_spans=normalized_spans)
 
 
 def split_entries_preserving_tables(

@@ -84,17 +84,20 @@ def test_html_escapes_cells_and_preserves_colspan():
 
 
 @pytest.mark.unit
-def test_rowspan_falls_back_without_breaking_original_table():
+def test_rowspan_is_normalized_instead_of_giving_up_on_split():
+    """rowspan 이 있어도 조각을 낸다.
+
+    예전에는 여기서 원문을 그대로 돌려줘, 예산을 크게 넘는 청크가 벡터로 나갔다.
+    """
     grid = _grid(rows=3)
     grid[1][0].row_span = 2
-    original = "<table>original-rowspan-table</table>"
     result = split_table_rows(
-        grid=grid, num_cols=2, single_text=original, limit=10,
-        count_text=len, table_format="html", header_row_count=1,
+        grid=grid, num_cols=2, single_text="X" * 2000,
+        limit=300, count_text=len, table_format="html", header_row_count=1,
     )
-    assert result.pieces == [original]
-    assert not result.did_split
-    assert result.reason == "rowspan"
+    assert result.did_split and result.normalized_spans
+    assert result.reason is None
+    assert all(piece.count("<table>") == 1 for piece in result.pieces)
 
 
 @pytest.mark.unit
@@ -157,3 +160,124 @@ def test_entry_splitter_routes_only_oversized_table_to_table_callback():
         ("T2", [table]),
         ("normal-b", [normal_b]),
     ]
+
+
+# ─── 다중 헤더행 markdown (결함 회귀 고정) ─────────────────────────────────────
+
+def _two_header_grid(rows=6, payload_size=90):
+    """헤더가 두 행인 표. colspan 상위 헤더 + 하위 헤더 구성."""
+    grid = [
+        [Cell("구분", 0, column_header=True),
+         Cell("금리", 1, col_span=2, column_header=True),
+         Cell("금리", 1, col_span=2, column_header=True)],
+        [Cell("연도", 0, column_header=True),
+         Cell("기본", 1, column_header=True),
+         Cell("추가", 2, column_header=True)],
+    ]
+    for n in range(1, rows + 1):
+        grid.append([
+            Cell(f"ROW-{n:02d}-START " + ("가" * payload_size) + f" ROW-{n:02d}-END", 0),
+            Cell(f"{n}.0", 1),
+            Cell(f"0.{n}", 2),
+        ])
+    return grid
+
+
+@pytest.mark.unit
+def test_multi_header_markdown_piece_has_exactly_one_header_row_then_separator():
+    """헤더가 여러 행이어도 markdown 표로 파싱되는 조각이 나와야 한다.
+
+    예전에는 헤더 행을 전부 늘어놓고 뒤에 구분선을 붙여, 구분선이 2번째 줄이 아니라
+    표로 인식되지 않는 텍스트가 나왔다.
+    """
+    grid = _two_header_grid()
+    result = split_table_rows(
+        grid=grid, num_cols=3, single_text="X" * 3000, limit=400,
+        count_text=len, table_format="markdown", header_row_count=2,
+    )
+
+    assert result.did_split
+    for piece in result.pieces:
+        lines = [line for line in piece.splitlines() if line.strip()]
+        assert set(lines[1].replace("|", "").replace(" ", "")) <= {"-", ":"}
+        # 계층은 사라지지 않고 한 라벨로 합쳐진다.
+        assert "금리 > 기본" in lines[0] and "금리 > 추가" in lines[0]
+        assert len({line.count("|") for line in lines}) == 1
+
+
+# ─── rowspan 분할 (결함 회귀 고정) ─────────────────────────────────────────────
+
+def _rowspan_grid(groups=3, per_group=4, payload_size=90):
+    """분류 열이 rowspan 으로 묶인 표. docling grid 처럼 값이 각 행에 복제된 상태."""
+    grid = [[Cell("분류", 0, column_header=True), Cell("내용", 1, column_header=True)]]
+    n = 0
+    for g in range(groups):
+        for _ in range(per_group):
+            n += 1
+            grid.append([
+                Cell(f"CAT-{g}", 0, row_span=per_group),
+                Cell(f"ROW-{n:02d}-START " + ("가" * payload_size) + f" ROW-{n:02d}-END", 1),
+            ])
+    return grid
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("table_format", ["html", "markdown"])
+def test_rowspan_table_is_split_after_normalizing_spans(table_format):
+    """rowspan 이 있어도 분할한다. 예전에는 포기해서 초과 청크가 그대로 나갔다."""
+    grid = _rowspan_grid()
+    result = split_table_rows(
+        grid=grid, num_cols=2, single_text="X" * 5000, limit=500,
+        count_text=len, table_format=table_format, header_row_count=1,
+    )
+
+    assert result.did_split and result.normalized_spans
+    assert result.reason is None
+    assert not result.oversized_piece_indexes
+    assert all(len(piece) <= 500 for piece in result.pieces)
+    # 병합 값은 걸친 모든 조각에 복제되어 남는다.
+    for group in range(3):
+        assert any(f"CAT-{group}" in piece for piece in result.pieces)
+
+
+@pytest.mark.unit
+def test_normalized_spans_is_false_when_no_rowspan():
+    grid = _grid(rows=6)
+    result = split_table_rows(
+        grid=grid, num_cols=2, single_text="X" * 3000, limit=400,
+        count_text=len, table_format="html", header_row_count=1,
+    )
+    assert result.did_split and not result.normalized_spans
+
+
+# ─── 행 직렬화 ────────────────────────────────────────────────────────────────
+
+@pytest.mark.unit
+def test_row_serialization_appends_only_that_piece_rows_within_budget():
+    grid = _two_header_grid(rows=6, payload_size=40)
+    result = split_table_rows(
+        grid=grid, num_cols=3, single_text="X" * 3000, limit=600,
+        count_text=len, table_format="html", header_row_count=2,
+        row_serialization=True,
+    )
+
+    assert result.did_split
+    assert all(len(piece) <= 600 for piece in result.pieces)
+    for piece in result.pieces:
+        assert "[표 행 요약]" in piece
+        assert "금리 > 기본=" in piece
+        # 조각에 없는 행의 문장이 새어 들어오지 않는다.
+        for n in range(1, 7):
+            marker = f"ROW-{n:02d}-START"
+            body, _, summary = piece.partition("[표 행 요약]")
+            assert (marker in summary) == (marker in body)
+
+
+@pytest.mark.unit
+def test_row_serialization_off_by_default():
+    grid = _grid(rows=6)
+    result = split_table_rows(
+        grid=grid, num_cols=2, single_text="X" * 3000, limit=400,
+        count_text=len, table_format="html", header_row_count=1,
+    )
+    assert all("[표 행 요약]" not in piece for piece in result.pieces)
