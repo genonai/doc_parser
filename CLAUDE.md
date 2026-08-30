@@ -123,11 +123,25 @@ PYTHONPATH=<repo>:<repo>/genon/preprocessor:<repo>/genon/preprocessor/src:<repo>
 - 서브에이전트는 작업이 독립적인 하위 문제로 명확히 분할되고 병렬 실행의 이점이 있을 때만 사용한다. 단순·순차 작업은 직접 처리한다.
 - 병렬 서브에이전트에게 `git checkout`/`git restore` 등 작업 트리를 되돌리는 명령을 주지 않는다. 담당 경계를 모르는 되돌리기로 미커밋 작업물이 소실된 전례가 있다.
 
+### GitHub 작업 흐름
+
+이슈 등록부터 PR 까지는 스킬 3개로 자동화되어 있다. `gh` CLI 인증(`gh auth login`)이 전제조건이다.
+
+| 단계 | 스킬 |
+|---|---|
+| 이슈 등록 + 작업 브랜치 생성·체크아웃 | `/issue-start <작업 설명>` |
+| 작업 중 커밋·푸시 (반복) | `/wip [힌트]` |
+| 로컬 테스트 → PR 생성 → CI 확인 | `/open-pr [--draft]` |
+
+컨벤션: 브랜치는 `<type>/<이슈번호>-<slug>` (slug 는 영문), 커밋 메시지는 한국어 한 줄에
+conventional prefix 없음, PR 대상은 `develop`, 본문에 `Resolves #N` 을 넣어 머지 시 이슈가 닫히게 한다.
+
 ## .claude/ 도구 설정
 
 - `settings.json` — 빌드 산출물·캐시·`code-serving/`·`shkim_labs/` 를 Read 에서 차단하고, `reference/` 와 `code-serving/` 은 Edit 에서 차단한다(`reference/` 는 읽기 전용 참조용이라 Read 는 허용).
 - `hooks/pytest-filter.sh` — PreToolUse(Bash) 훅. 단순한 pytest 명령에 `--color=no -p no:randomly` 를 붙이고 PASSED/SKIPPED 줄을 걷어낸다. `set -o pipefail` 로 종료 코드는 보존된다. 실측 11,949바이트 출력이 653바이트로 줄었다. 파이프·`&&` 등이 섞인 복합 명령은 건드리지 않는다.
 - `skills/deploy-code-serving`, `skills/create-patch-bundle` — 배포·패치 절차. 필요할 때만 로드된다.
+- `skills/issue-start`, `skills/wip`, `skills/open-pr` — GitHub 작업 흐름. 위 "GitHub 작업 흐름" 참조.
 - `pyright-lsp` 플러그인(선택). 설치되어 있으면 심볼 정의를 찾을 때 Grep 대신 LSP 탐색을 우선한다. 개인 설정이므로 공유되지 않는다. 쓰려면 `npm install -g pyright` 로 `pyright-langserver` 를 깔고 `claude plugin install pyright-lsp@claude-plugins-official --scope local` 을 실행한다.
 
 ## Compact instructions
