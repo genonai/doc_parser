@@ -4,16 +4,25 @@ attachment_processor 가 markdown 을 만드는 경로는 두 곳뿐이며 둘 �
   1) `_split_with_recursive_chunker` — 기본 `chunker_type: recursive`. 전체 문서
      `DoclingDocument.export_to_markdown(compact_tables=...)`.
   2) `HierarchicalChunker.chunk` — `chunker_type: hybrid` 전용. `TableItem` 은 compact 인자가
-     없어 `MarkdownDocSerializer` 를 직접 구성한다.
+     없어 `MarkdownDocSerializer` 를 직접 구성한다. 구현은 facade/chunking/hybrid_chunker.py
+     의 `HierarchicalDocChunker` 이고 attachment_processor 는 별칭만 갖는다.
 그리고 config(`output.compact_tables`) → `_default_kwargs` 배선을 확인한다.
 
 내부 서버 요청 없음. attachment_processor import 가 불가한 환경에서는 모듈 단위로 skip 된다.
 """
 
+import sys
+
 import pytest
 
 # 무거운 의존성(docling 등) 미설치 환경에서는 파일 전체 skip (GitHub CI 에서는 정상 import)
 attachment = pytest.importorskip("facade.attachment_processor")
+# HierarchicalChunker 구현체는 facade/chunking/hybrid_chunker.py 에 있다(facade 는 별칭).
+# MarkdownDocSerializer 를 가로채려면 이름이 조회되는 그 모듈을 패치해야 한다.
+# sys.modules 에서 클래스가 실제로 사는 모듈을 집는다 — 같은 파일이 "facade.…" 와
+# "genon.preprocessor.facade.…" 두 이름으로 각각 로드돼 모듈 객체가 둘이라,
+# 이름을 직접 import 하면 facade 가 쓰는 쪽이 아닌 사본을 패치하게 된다.
+hybrid_chunker = sys.modules[attachment.HierarchicalChunker.__module__]
 
 _split_with_recursive_chunker = attachment._split_with_recursive_chunker
 HierarchicalChunker = attachment.HierarchicalChunker
@@ -141,7 +150,7 @@ class TestHierarchicalChunkerCompactTables:
         def boom(*args, **kwargs):
             raise RuntimeError("serializer unavailable")
 
-        monkeypatch.setattr(attachment, "MarkdownDocSerializer", boom)
+        monkeypatch.setattr(hybrid_chunker, "MarkdownDocSerializer", boom)
 
         chunks = list(HierarchicalChunker().chunk(dl_doc=_build_table_doc(), compact_tables=True))
         assert len(chunks) == 1

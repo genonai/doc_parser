@@ -144,6 +144,17 @@ def load_config(config_path: str, *, strict: bool = True) -> dict:
     return cfg
 
 
+def resolve_compact_tables(source: dict, default: bool = True) -> bool:
+    """compact_tables 스위치를 bool 로 해석. 값이 없거나 해석 불가면 default.
+
+    런타임 kwargs 와 yaml 양쪽에서 온다. 둘 다 검증 없이 전달되므로 문자열
+    "false" 가 올 수 있는데 bool("false") 는 True 라서, 그대로 bool() 을 씌우면
+    문서화된 off 스위치가 조용히 무시된다.
+    """
+    parsed = parse_optional_bool(source.get("compact_tables"), "compact_tables")
+    return default if parsed is None else parsed
+
+
 def resolve_tokenizer(
     chunking_cfg: dict,
     *,
