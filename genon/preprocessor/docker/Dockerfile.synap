@@ -477,6 +477,29 @@ RUN --mount=type=cache,target=/root/.cache/easyocr_korean \
     unzip -q -o /root/.cache/easyocr_korean/korean_g2.zip -d /models/EasyOcr
 
 ############################
+# 4z) facade 런타임 패키지 선별
+#
+# facade 하위에서 __init__.py 를 가진 디렉터리만 런타임 패키지로 본다
+# (현재 common/chunking/enrichment/guardrail). 나머지(legacy, legal_parser,
+# evaluation, gitbook_doc 약 22MB)와 최상위 *_processor.py 는 런타임 이미지에
+# 들어가지 않는다.
+#
+# 이전에는 패키지를 COPY 로 하나씩 나열했는데(allowlist), 신규 패키지가 생겨도
+# 빌드가 그대로 통과해 버려 facade/common 이 누락된 채로 나갈 뻔했다. 여기서
+# 통째로 받아 비패키지를 걷어내는 방식으로 바꿔 같은 누락이 재발하지 않게 한다.
+# 걷어낸 용량은 이 스테이지에만 남고 런타임 이미지에는 반영되지 않는다.
+############################
+FROM base AS facade_pkgs
+COPY ./genon/preprocessor/facade /facade
+RUN set -eu; \
+    find /facade -mindepth 1 -maxdepth 1 -type f -delete; \
+    for d in /facade/*/; do \
+      [ -f "${d}__init__.py" ] || rm -rf "$d"; \
+    done; \
+    find /facade -name '__pycache__' -type d -prune -exec rm -rf {} +; \
+    test -f /facade/common/__init__.py
+
+############################
 # 5) Runtime (엔터프라이즈)
 ############################
 FROM loext AS runtime
@@ -533,14 +556,12 @@ COPY --chown=${UID}:${GID} ./genon/preprocessor/src /app/src
 # import 되도록 genon/preprocessor 트리 그대로 복사
 # (facade 의 `from genon.preprocessor.converters.hwp_to_pdf import ...` 가 풀림).
 COPY --chown=${UID}:${GID} ./genon/preprocessor/converters /app/genon/preprocessor/converters
-# enrichment 패키지를 namespace tree 로 복사 — facade 의
-# `from genon.preprocessor.facade.enrichment.* import ...` (intelligent_processor.py:151-152)
-# 가 /app 기준 namespace package 로 풀리도록. (converters 와 동일 패턴)
-COPY --chown=${UID}:${GID} ./genon/preprocessor/facade/enrichment /app/genon/preprocessor/facade/enrichment
-COPY --chown=${UID}:${GID} ./genon/preprocessor/facade/chunking /app/genon/preprocessor/facade/chunking
-# guardrail 패키지를 namespace tree 로 복사 — facade 의
-# `from genon.preprocessor.facade import guardrail as gr` (#315) 가 /app 기준으로 풀리도록.
-COPY --chown=${UID}:${GID} ./genon/preprocessor/facade/guardrail /app/genon/preprocessor/facade/guardrail
+# facade 런타임 패키지(common/chunking/enrichment/guardrail)를 namespace tree 로
+# 복사 — `from genon.preprocessor.facade.<pkg> import ...` 가 /app 기준
+# namespace package 로 풀리도록. (converters 와 동일 패턴)
+# 어떤 디렉터리를 담을지는 facade_pkgs 스테이지가 __init__.py 유무로 정하므로,
+# 공용 패키지를 새로 만들어도 이 파일은 고치지 않아도 된다.
+COPY --chown=${UID}:${GID} --from=facade_pkgs /facade /app/genon/preprocessor/facade
 
 # HWP sdk
 COPY --chown=${UID}:${GID} --from=sdk_artifacts /app/hwp_sdk /app/hwp_sdk
