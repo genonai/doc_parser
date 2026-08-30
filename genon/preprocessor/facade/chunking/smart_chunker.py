@@ -173,15 +173,18 @@ class SmartChunkerBase(BaseChunker):
                 dropped_filename_titles.append(item)
                 continue
 
-            # 섹션 헤더 처리. TITLE 은 제외한다 — 파일명·문서 타이틀이 `HEADER:` 라인에
-            # 중복 노출되는 것을 막기 위함이며, TITLE 텍스트는 아래 본문 분기로 보존된다.
+            # 섹션 헤더 처리. 파일명 TITLE 은 위에서 이미 제외됐으므로 여기 남은 TITLE 은
+            # 실제 문서 제목이며 최상위(level 0) 헤더로 경로에 넣는다. 경로에서 빼면 제목
+            # 아이템만 담긴 청크가 breadcrumb 없이 홀로 남아 본문 0 개짜리 검색 결과가 된다
+            # (실측: 상품요약서 md 의 `#` 제목이 단독 청크로 색인됨).
             if isinstance(item, SectionHeaderItem) or (
                 isinstance(item, TextItem) and
-                item.label in [DocItemLabel.SECTION_HEADER]
+                item.label in [DocItemLabel.SECTION_HEADER, DocItemLabel.TITLE]
             ):
                 # 새로운 헤더 레벨 설정
                 header_level = (
-                    item.level if isinstance(item, SectionHeaderItem) else 1
+                    item.level if isinstance(item, SectionHeaderItem)
+                    else (0 if item.label == DocItemLabel.TITLE else 1)
                 )
                 current_heading_by_level[header_level] = item.text
                 current_heading_short_by_level[header_level] = item.orig  # 첫 단어로 짧은 헤더 정보 설정

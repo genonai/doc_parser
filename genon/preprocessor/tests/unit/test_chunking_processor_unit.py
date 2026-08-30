@@ -457,6 +457,27 @@ def test_all_chunkers_exclude_only_filename_title_from_header_paths(module_name)
     assert paths == [f"실제 문서 제목{HEADER_SEP}제1장 총칙"]
 
 
+def test_document_title_chunk_merges_into_first_section():
+    """문서 TITLE(`#`) 만 담긴 청크는 남지 않고 하위 섹션 청크의 헤더 경로로 승계된다.
+
+    실측(상품요약서 md): TITLE 을 breadcrumb 에서 빼자 제목만 든 41자 청크가 색인됐다.
+    본문이 0 개라 검색 상위를 차지해도 근거를 못 주므로 하위 섹션과 합쳐야 한다.
+    """
+    pytest.importorskip("facade.chunking_processor")
+
+    doc = DoclingDocument(name="product_summary")
+    title = doc.add_title(text="상품요약서")
+    overview = doc.add_heading(text="문서 개요", level=1, parent=title)
+    doc.add_text(label=DocItemLabel.TEXT, text="가입나이 만 15세 이상 40세 이하", parent=overview)
+    keywords = doc.add_heading(text="핵심 키워드", level=1, parent=title)
+    doc.add_text(label=DocItemLabel.TEXT, text="무배당, 무해약환급금형", parent=keywords)
+
+    vectors = _chunk(doc.model_dump(mode="json"))
+
+    assert all(v.text.strip() != "상품요약서" for v in vectors), "제목만 있는 청크가 남았다"
+    assert all(v.text.startswith(f"HEADER: 상품요약서{HEADER_SEP}") for v in vectors)
+
+
 def test_heading_only_chunk_is_merged_forward():
     """본문 없이 제목만 있는 청크는 다음 청크로 병합되고 제목은 headings 로 승계된다."""
     cp = pytest.importorskip("facade.chunking_processor")
