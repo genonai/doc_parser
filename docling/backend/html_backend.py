@@ -2462,8 +2462,10 @@ class HTMLDocumentBackend(DeclarativeDocumentBackend):
             num_rows, num_cols = self.get_html_table_row_col(tag)
             data_e = TableData(num_rows=num_rows, num_cols=num_cols)
             table_prov = self._make_prov(text="", tag=tag)
+            caption_item = self._emit_table_caption(tag, doc)
             docling_table = doc.add_table(
                 data=data_e,
+                caption=caption_item,
                 parent=self.parents[self.level],
                 prov=table_prov,
                 content_layer=self.content_layer,
@@ -4132,6 +4134,40 @@ class HTMLDocumentBackend(DeclarativeDocumentBackend):
             else:
                 added_refs.extend(self._walk(tag, doc))
         return added_refs
+
+    def _emit_table_caption(
+        self, table_tag: Tag, doc: DoclingDocument
+    ) -> Optional[TextItem]:
+        """<table> 바로 아래 <caption> 을 캡션 아이템으로 만든다.
+
+        캡션이 없으면 None. 그림이 <figcaption> 을 캡션으로 다루는 것과 같은 취급이며,
+        이게 없으면 캡션 텍스트가 표에도 본문에도 남지 않고 통째로 사라진다. 표가 무엇에
+        대한 것인지 말하는 유일한 문장인 경우가 많아 청크만 보고는 표를 식별할 수 없게 된다.
+
+        recursive=False 로 직계 자식만 본다. 중첩 표의 캡션을 바깥 표가 가져가면 안 된다.
+        """
+        caption_tag = table_tag.find("caption", recursive=False)
+        if not isinstance(caption_tag, Tag):
+            return None
+        annotated = self._extract_text_and_hyperlink_recursively(
+            caption_tag, find_parent_annotation=True
+        ).to_single_text_element()
+        if not annotated.text or not annotated.text.strip():
+            return None
+        text_clean = HTMLDocumentBackend._clean_unicode(annotated.text.strip())
+        return doc.add_text(
+            label=DocItemLabel.CAPTION,
+            text=text_clean,
+            orig=annotated.text,
+            content_layer=self.content_layer,
+            formatting=annotated.formatting,
+            hyperlink=annotated.hyperlink,
+            prov=self._make_prov(
+                text=text_clean,
+                tag=caption_tag,
+                source_tag_id=annotated.source_tag_id,
+            ),
+        )
 
     def _emit_image(self, img_tag: Tag, doc: DoclingDocument) -> Optional[RefItem]:
         figure = img_tag.find_parent("figure")
