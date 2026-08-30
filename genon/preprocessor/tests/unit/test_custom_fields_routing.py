@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import asyncio
+import json
+import logging
 import textwrap
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
@@ -16,7 +18,12 @@ from genon.preprocessor.facade.enrichment.custom_fields_enricher import (
     matches_doc_type,
 )
 from genon.preprocessor.facade.enrichment.enrichment_config import EnrichmentConfig
+from genon.preprocessor.facade.enrichment.field_transforms import (
+    detect_payload_kind,
+    render_field_text,
+)
 from genon.preprocessor.facade.enrichment.tabular_custom_fields import (
+    compile_text_from,
     TabularCustomFieldsMapper,
     build_tabular_custom_fields_mappers,
 )
@@ -156,7 +163,7 @@ def test_tabular_mapping_accepts_renamed_and_normalized_headers(tmp_path):
     assert len(result["elements"]) == 1
     element = result["elements"][0]
     assert element["category"] == "custom_fields_row"
-    assert element["content"] == "가입은 어떻게 하나요?\n앱에서 가입할 수 있습니다."
+    assert element["content"] == "대표질문: 가입은 어떻게 하나요?\n답변: 앱에서 가입할 수 있습니다."
     assert element["metadata"] == {
         "question_variant_text": None,
         "question": "가입은 어떻게 하나요?",
@@ -189,7 +196,9 @@ def test_tabular_mapping_splits_long_row_and_repeats_prefix(tmp_path):
     document = mapper.to_parse_format(data, "faq")
     element = document["elements"][0]
     assert element["splittable"] is True
-    assert element["chunk_prefix"] == question
+    # 접두에도 원천 컬럼 라벨이 붙는다(본문과 같은 규칙 — 5265f487).
+    prefix = f"대표질문: {question}"
+    assert element["chunk_prefix"] == prefix
 
     vectors = asyncio.run(ChunkProcessor()(
         request=None,
@@ -199,7 +208,7 @@ def test_tabular_mapping_splits_long_row_and_repeats_prefix(tmp_path):
         chunk_overlap=0,
     ))
     assert len(vectors) > 1
-    assert all(vector.text.startswith(question) for vector in vectors)
+    assert all(vector.text.startswith(prefix) for vector in vectors)
     assert all(len(vector.text) <= 80 for vector in vectors)
     assert all(vector.question == question for vector in vectors)
 
@@ -230,7 +239,7 @@ def test_tabular_mapping_short_row_stays_one_chunk_even_with_split(tmp_path):
         chunk_overlap=0,
     ))
     assert len(vectors) == 1
-    assert vectors[0].text == "가입은 어떻게 하나요?\n앱에서 가입하세요."
+    assert vectors[0].text == "대표질문: 가입은 어떻게 하나요?\n답변: 앱에서 가입하세요."
 
 
 @pytest.mark.unit
@@ -259,7 +268,7 @@ def test_tabular_mapping_split_false_ignores_chunk_prefix_fields(tmp_path):
     element = mapper.to_parse_format(data, "faq")["elements"][0]
     assert "splittable" not in element
     assert "chunk_prefix" not in element
-    assert element["content"] == "가입은 어떻게 하나요?\n앱에서 가입하세요."
+    assert element["content"] == "대표질문: 가입은 어떻게 하나요?\n답변: 앱에서 가입하세요."
 
 
 @pytest.mark.unit
@@ -379,7 +388,7 @@ def test_tabular_build_fields_and_to_parse_format_round_trip(tmp_path):
     # llm_fields 의 skip_record 로 일부 행이 빠져도 남은 행의 page/본문이 어긋나지 않는다.
     partial = mapper.to_parse_format_from_fields(mapper.build_fields(data, "faq")[1:], "faq")
     assert len(partial["elements"]) == 1
-    assert partial["elements"][0]["content"] == "Q2\nA2"
+    assert partial["elements"][0]["content"] == "대표질문: Q2\n답변: A2"
     assert partial["elements"][0]["metadata"]["question"] == "Q2"
     # 내부 전용 예약 키는 metadata 로 새어 나가지 않는다.
     assert not [k for k in partial["elements"][0]["metadata"] if k.startswith("__cf_")]
@@ -468,7 +477,8 @@ _REQUIRED_BY_DOC_TYPE = {
     "custom_field_cs_slf.yaml":        ["GROUP_C", "TITLE", "SEARCHABLE_YN"],
     "custom_field_cs_ssf.yaml":        ["GROUP_C", "TITLE", "SEARCHABLE_YN"],
     "custom_field_cs_sss.yaml":        ["GROUP_C", "TITLE", "SEARCHABLE_YN"],
-    "custom_field_stock_insight.yaml": ["GROUP_C", "JONG_CODE", "ANALYSIS_DATE", "SEARCHABLE_YN"],
+    "custom_field_stock_insight.yaml": ["GROUP_C", "JONG_CODE", "JONG_NM", "ANALYSIS_DATE",
+                                        "SEARCHABLE_YN"],
     "custom_field_link.yaml":          ["GROUP_C", "TITLE", "SEARCHABLE_YN"],
 }
 
@@ -517,7 +527,7 @@ def test_shipped_monimo_configs_cover_not_null_columns(resource_dir, config_name
     mapped |= set(cfg.get("constants") or {})
     mapped |= set(cfg.get("defaults") or {})
     mapped |= {f for spec in (cfg.get("llm_fields") or []) for f in spec["output_fields"]}
-    mapped |= set(cfg.get("html_text_fields") or {})
+    mapped |= {t for t, _, _ in compile_text_from(cfg)}
 
     missing = [c for c in _REQUIRED_BY_DOC_TYPE[config_name]
                if c not in mapped and c not in _DB_DEFAULTED_COLUMNS]
@@ -546,6 +556,247 @@ def test_shipped_monimo_configs_use_db_column_names(resource_dir, config_name):
     # 요약본문을 CONTENT_HASH 로 잘못 쓰던 회귀를 막는다(그건 RAW(32) 원문 검증 해시다).
     llm_outputs = {f for spec in (cfg.get("llm_fields") or []) for f in spec["output_fields"]}
     assert "CONTENT_HASH" not in llm_outputs
+
+
+# ── row_merge: 여러 행에 쪼개져 오는 값을 한 레코드로 접기 ───────────────────
+# 모니모 AI차트뷰(stock_insight) 원천은 한 종목의 세부내용 JSON 하나를 게시물 라인번호
+# 1..N 으로 **문자 단위 절단**해 행마다 뿌린다. 구분자를 끼우면 JSON 이 복원되지 않는다.
+
+def _write_row_merge_cfg(tmp_path: Path, **overrides) -> Path:
+    config = {
+        "column_map": {
+            "REGT_NO": ["regt_no"],
+            "NTC_OBJLINE_NO": ["ntc_objline"],
+            "JONG_CODE": ["jong_code"],
+            "JONG_NM": ["jong_name"],
+            "DETAIL_DESC": ["detail_desc"],
+        },
+        "row_merge": {
+            "group_by": ["REGT_NO", "JONG_CODE"],
+            "order_by": "NTC_OBJLINE_NO",
+            "concat": ["DETAIL_DESC"],
+        },
+        "text_from": {"DETAIL_TEXT": "DETAIL_DESC"},
+        "text_fields": ["JONG_NM", "DETAIL_TEXT"],
+    }
+    config.update(overrides)
+    path = tmp_path / "stock.yaml"
+    path.write_text(yaml.safe_dump(config, allow_unicode=True), encoding="utf-8")
+    return path
+
+
+def _row_merge_rows(order=(1, 2, 3)):
+    """한 JSON 을 키 이름 한가운데에서 3조각으로 자른 원천 재현."""
+    pieces = {
+        1: '{"a": "\uac12", "long_k',
+        2: 'ey": {"b": "<strong>\ubcfc\ub4dc</strong>"}, "c": "x<BR>y',
+        3: '"}',
+    }
+    return [
+        {
+            "regt_no": "4556", "jong_code": "TSLA", "jong_name": "\ud14c\uc2ac\ub77c",
+            "ntc_objline": line, "detail_desc": pieces[line],
+        }
+        for line in order
+    ]
+
+
+def _build(mapper, rows, sheet="Sheet"):
+    return mapper.build_fields({"data": [{"sheet_name": sheet, "data_rows": rows}]}, "stock_insight")
+
+
+def _mapper(config_path: Path, tmp_path: Path):
+    return TabularCustomFieldsMapper(
+        doc_type="stock_insight", extractor="tabular_mapping",
+        config_file=config_path.name, resource_path=str(tmp_path),
+    )
+
+
+@pytest.mark.unit
+def test_row_merge_joins_pieces_without_separator(tmp_path):
+    """3행 → 1레코드. 구분자 없이 이어붙여야 JSON 이 복원된다."""
+    mapper = _mapper(_write_row_merge_cfg(tmp_path), tmp_path)
+    fields = _build(mapper, _row_merge_rows())
+
+    assert len(fields) == 1
+    assert json.loads(fields[0]["DETAIL_DESC"]) == {
+        "a": "값", "long_key": {"b": "<strong>볼드</strong>"}, "c": "x<BR>y",
+    }
+
+
+@pytest.mark.unit
+def test_row_merge_sorts_by_order_by(tmp_path):
+    """원천이 순서를 뒤섞어 보내도 order_by 로 정렬해 복원한다."""
+    mapper = _mapper(_write_row_merge_cfg(tmp_path), tmp_path)
+    shuffled = _build(mapper, _row_merge_rows(order=(3, 1, 2)))
+    ordered = _build(mapper, _row_merge_rows())
+
+    assert shuffled[0]["DETAIL_DESC"] == ordered[0]["DETAIL_DESC"]
+
+
+@pytest.mark.unit
+def test_row_merge_keeps_first_row_values_for_other_fields(tmp_path):
+    """concat 이외 필드는 정렬 후 첫 행 값을 쓴다."""
+    mapper = _mapper(_write_row_merge_cfg(tmp_path), tmp_path)
+    fields = _build(mapper, _row_merge_rows(order=(3, 1, 2)))
+
+    assert fields[0]["NTC_OBJLINE_NO"] == 1
+    assert fields[0]["JONG_NM"] == "테슬라"
+
+
+@pytest.mark.unit
+def test_row_merge_splits_on_group_boundary(tmp_path):
+    """등록번호가 바뀌면 다른 레코드다 — 두 종목이 한 덩어리로 뭉개지지 않는다."""
+    mapper = _mapper(_write_row_merge_cfg(tmp_path), tmp_path)
+    rows = _row_merge_rows()
+    other = [
+        {**row, "regt_no": "4558", "jong_code": "NVDA", "jong_name": "엔비디아"}
+        for row in _row_merge_rows()
+    ]
+    fields = _build(mapper, rows + other)
+
+    assert [f["JONG_NM"] for f in fields] == ["테슬라", "엔비디아"]
+    assert all(json.loads(f["DETAIL_DESC"]) for f in fields)
+
+
+@pytest.mark.unit
+def test_row_merge_absent_keeps_one_record_per_row(tmp_path):
+    """row_merge 미선언이면 종전대로 행 1개 = 레코드 1개다(회귀 가드)."""
+    config = yaml.safe_load(_write_row_merge_cfg(tmp_path).read_text(encoding="utf-8"))
+    config.pop("row_merge")
+    config.pop("text_from")
+    config["text_fields"] = ["JONG_NM", "DETAIL_DESC"]
+    path = tmp_path / "stock.yaml"
+    path.write_text(yaml.safe_dump(config, allow_unicode=True), encoding="utf-8")
+
+    fields = _build(_mapper(path, tmp_path), _row_merge_rows())
+    assert len(fields) == 3
+    assert [f["NTC_OBJLINE_NO"] for f in fields] == [1, 2, 3]
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("bad", [
+    {"group_by": ["NOPE"], "order_by": "NTC_OBJLINE_NO", "concat": ["DETAIL_DESC"]},
+    {"group_by": ["REGT_NO"], "order_by": "NOPE", "concat": ["DETAIL_DESC"]},
+    {"group_by": ["REGT_NO"], "order_by": "NTC_OBJLINE_NO", "concat": ["NOPE"]},
+])
+def test_row_merge_rejects_unknown_field_at_startup(tmp_path, bad):
+    """오타를 조용히 무시하면 병합이 안 된 채로 요청이 성공해 버린다 — 기동 시에 잡는다."""
+    path = _write_row_merge_cfg(tmp_path, row_merge=bad)
+    with pytest.raises(ValueError, match="NOPE"):
+        _mapper(path, tmp_path)
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("bad,match", [
+    ({"order_by": "NTC_OBJLINE_NO", "concat": ["DETAIL_DESC"]}, "group_by"),
+    ({"group_by": ["REGT_NO"], "order_by": "NTC_OBJLINE_NO"}, "concat"),
+    ({"group_by": "REGT_NO", "concat": ["DETAIL_DESC"]}, "목록"),
+])
+def test_row_merge_rejects_bad_shape_at_startup(tmp_path, bad, match):
+    with pytest.raises(ValueError, match=match):
+        _mapper(_write_row_merge_cfg(tmp_path, row_merge=bad), tmp_path)
+
+
+# ── json_text_fields: JSON 필드 → 평문 파생 필드 ─────────────────────────────
+
+@pytest.mark.unit
+def test_text_from_keeps_source_and_derives_markdown(tmp_path):
+    """원본은 그대로 남고 파생 필드만 마크다운이 된다(TB 는 원천 원본을 보관한다)."""
+    mapper = _mapper(_write_row_merge_cfg(tmp_path), tmp_path)
+    fields = _build(mapper, _row_merge_rows())[0]
+
+    assert fields["DETAIL_DESC"].startswith('{"a"')
+    # 짧은 스칼라는 앞으로 끌어올린 불릿, 나머지는 `## 제목` 섹션.
+    assert fields["DETAIL_TEXT"] == "- a: 값\n\n## long key\n- b: 볼드\n\n## c\nx\ny"
+
+
+@pytest.mark.unit
+def test_text_from_block_drops_column_label(tmp_path):
+    """여러 줄 블록에는 `detail_desc:` 라벨을 붙이지 않는다 — 헤딩이 이미 문맥을 담는다."""
+    mapper = _mapper(_write_row_merge_cfg(tmp_path), tmp_path)
+    element = mapper.to_parse_format(
+        {"data": [{"sheet_name": "Sheet", "data_rows": _row_merge_rows()}]}, "stock_insight"
+    )["elements"][0]
+
+    assert element["content"].startswith("jong_name: 테슬라\n- a: 값")
+    assert "DETAIL_TEXT" not in element["content"]
+    assert "detail_desc:" not in element["content"]
+
+
+@pytest.mark.unit
+def test_text_from_warns_and_falls_back_on_broken_json(caplog):
+    """병합이 어긋나 JSON 이 안 맞으면 조용히 넘기지 않는다 — 경고 + 원문 평문화."""
+    with caplog.at_level(logging.WARNING):
+        text = render_field_text('{"a": "\uac12<BR>\ub05d')
+
+    assert text == "{\"a\": \"값\n끝"
+    assert "row_merge" in caplog.text
+
+
+@pytest.mark.unit
+def test_text_from_plain_text_does_not_warn(caplog):
+    """브레이스로 시작하지 않는 평문은 그냥 평문이다 — 경고를 남기지 않는다."""
+    with caplog.at_level(logging.WARNING):
+        text = render_field_text("현재 주가는 20일선 아래에서 형성되며 하락 추세입니다.")
+
+    assert text == "현재 주가는 20일선 아래에서 형성되며 하락 추세입니다."
+    assert "row_merge" not in caplog.text
+
+
+@pytest.mark.unit
+def test_text_from_routes_structural_html_to_renderer():
+    """표가 섞인 HTML 은 넘겨준 렌더러(docling)로 보낸다 — 표 행/열이 뭉개지지 않게."""
+    seen = []
+
+    def renderer(value):
+        seen.append(value)
+        return "| 일자 | 종가 |\n| --- | --- |"
+
+    text = render_field_text("<p>본문</p><table><tr><td>1</td></tr></table>", html_renderer=renderer)
+    assert seen and text.startswith("| 일자")
+
+
+@pytest.mark.unit
+def test_text_from_inline_html_skips_renderer():
+    """인라인 태그뿐이면 렌더러를 부르지 않는다 — 행마다 docling 문서를 세우지 않게."""
+    called = []
+    text = render_field_text("가나<BR>다라<strong>강조</strong>",
+                             html_renderer=lambda v: called.append(v) or "")
+    assert not called
+    assert text == "가나\n다라강조"
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("value,kind", [
+    ('{"a": 1}', "json"),
+    ("[1, 2]", "json"),
+    ('{"a": ', "broken_json"),
+    ("<p>본문</p>", "html"),
+    ("<table><tr><td>1</td></tr></table>", "html"),
+    ("가나<BR>다라", "html_inline"),
+    ("그냥 평문", "text"),
+    ("", "empty"),
+    (None, "empty"),
+])
+def test_detect_payload_kind(value, kind):
+    """detail_desc 에 JSON·HTML·평문이 섞여 오므로 판별이 계약이다."""
+    assert detect_payload_kind(value) == kind
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("value,expected", [
+    (None, None),
+    ("", None),
+    ('{"a": null, "b": ""}', None),                       # 빈 리프만 있으면 본문도 비운다
+    ('{"a": {"b": {"c": "\uae4a\uc74c"}}}', "## a\n\n### b\n- c: 깊음"),  # 헤딩은 두 단계까지
+    ('{"a": [1, 2]}', "- a: 1, 2"),                       # 짧은 스칼라 배열은 한 줄로
+    ('{"a": "  x   y  "}', "- a: x y"),                   # 줄 안 연속 공백만 접는다
+    ('{"totalCount": 3}', "- total Count: 3"),            # camelCase 를 단어로 나눈다
+    ('{"RSI": "8월 13일 47.72"}', "- RSI: 8월 13일 47.72"),  # 약어는 대문자 그대로
+])
+def test_render_field_text_shapes(value, expected):
+    assert render_field_text(value) == expected
 
 
 # ── 목표필드명 검증 (예약 필드 / property 이름 규칙) ─────────────────────────

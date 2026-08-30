@@ -48,9 +48,11 @@ from .custom_fields_enricher import (
 )
 from .field_transforms import VALUE_TRANSFORMS
 from .tabular_custom_fields import (
+    apply_text_from,
     apply_value_map,
     build_chunk_text,
     compile_chunk_prefix_fields,
+    compile_text_from,
     compile_value_map,
     normalize_column_name,
     validate_custom_field_config,
@@ -393,7 +395,8 @@ class JsonRecordsMapper:
                 f"등록되지 않은 transforms 변환기: {unknown} (사용 가능: {sorted(VALUE_TRANSFORMS)})"
             )
 
-        self.html_text_fields = {str(k): str(v) for k, v in (cfg.get("html_text_fields") or {}).items()}
+        # 원천 필드 → 평문 파생 필드. text_from 은 종류 자동 판별, html_/json_text_fields 는 강제.
+        self.text_from = compile_text_from(cfg, label=f"json custom_fields({config_file})")
         self.llm_field_specs = build_llm_field_specs(cfg)
 
         self.text_fields = [str(f).strip() for f in (cfg.get("text_fields") or []) if str(f).strip()]
@@ -489,10 +492,15 @@ class JsonRecordsMapper:
         for target, transform_name in self.transforms.items():
             fields[target] = VALUE_TRANSFORMS[transform_name](fields.get(target))
 
-        for target, source in self.html_text_fields.items():
-            fields[target] = html_to_text(
-                fields.get(source), table_format=table_format, compact_tables=compact_tables
-            )
+        apply_text_from(
+            fields,
+            self.text_from,
+            # 표가 섞인 HTML 은 docling 백엔드로 보낸다(행/열·빈 셀 보존). 파서가 넘겨준
+            # output.table_format / compact_tables 를 그대로 물려 docling 경로와 모양을 맞춘다.
+            html_renderer=lambda value: html_to_text(
+                value, table_format=table_format, compact_tables=compact_tables
+            ),
+        )
 
         return fields
 

@@ -10,6 +10,7 @@ docling 타입은 타입 힌트 용도로만 참조하므로 TYPE_CHECKING 으�
 """
 from __future__ import annotations
 
+import html
 import json
 import logging
 import re
@@ -182,6 +183,239 @@ def transform_text_norm(value: Any) -> Optional[str]:
     text = text.replace("<BR>", " ").replace("<br>", " ").replace("<br/>", " ").replace("<BR/>", " ").strip()
     text = re.sub(r"\s+", " ", text)
     return text.casefold() or None
+
+
+# ── 원천 필드 → 사람이 읽는 평문 (text_from 파생 필드용) ─────────────────────
+# 원천이 같은 컬럼에 JSON·HTML·평문을 섞어 보낸다(모니모 AI차트뷰 detail_desc). 정해진
+# 스키마가 없으므로 **종류를 자동 판별해 하나의 마크다운으로 수렴**시킨다. 설정은 없다.
+#
+# VALUE_TRANSFORMS 에 등록하지 않는 이유: 등록 변환기는 값을 제자리에서 덮어쓰는데,
+# 여기서는 원본(TB 는 "원천이 보낸 세부 내용을 그대로 보관")을 남긴 채 평문 사본만 따로
+# 만들어야 한다. 그 배선은 tabular/json 매퍼의 text_from 이 맡는다.
+
+_BR_RE = re.compile(r"<\s*br\s*/?\s*>", re.IGNORECASE)
+_TAG_RE = re.compile(r"<[^>]+>")
+# 인라인 태그만 있으면 경량 경로로 충분하다. 표·목록·문단 같은 **구조**가 섞여 있으면
+# docling 백엔드(json_records.html_to_text)에 태워야 행/열 대응이 살아남는다.
+_STRUCTURAL_HTML_RE = re.compile(
+    r"<\s*(table|thead|tbody|tr|td|th|ul|ol|li|dl|h[1-6]|p|div|section|article)\b",
+    re.IGNORECASE,
+)
+_ANY_TAG_RE = re.compile(r"<\s*[a-zA-Z][a-zA-Z0-9]*\b[^>]*>")
+
+# 값이 이보다 짧은 스칼라면 헤딩을 만들지 않고 한 줄 불릿으로 붙인다.
+# 안 그러면 평평한 20필드 JSON 이 헤딩 20개가 되어 본문보다 제목이 많아진다.
+_SHORT_SCALAR = 60
+# 헤딩은 두 단계까지만(## / ###). 그보다 깊으면 `- 경로: 값` 불릿으로 접는다 —
+# 깊은 트리에서 제목이 계단처럼 쌓여 본문을 밀어내는 것을 막는다.
+_HEADING_MAX_DEPTH = 2
+
+
+def strip_inline_html(value: Any) -> str:
+    """인라인 HTML 조각 → 평문. `<BR>` 은 개행으로, 나머지 태그는 제거한다."""
+    if value in (None, ""):
+        return ""
+    text = _BR_RE.sub("\n", str(value))
+    text = _TAG_RE.sub("", text)
+    text = html.unescape(text)
+    text = unicodedata.normalize("NFKC", text).replace("﻿", "")
+    # 줄 안의 연속 공백만 접는다. 개행은 <BR> 이 만든 문단 구분이라 살린다.
+    text = "\n".join(re.sub(r"[ \t]+", " ", line).strip() for line in text.splitlines())
+    return re.sub(r"\n{3,}", "\n\n", text).strip()
+
+
+def detect_payload_kind(value: Any) -> str:
+    """값의 종류를 판별한다: json / html / html_inline / text / broken_json / empty.
+
+    `broken_json` 은 `{`·`[` 로 시작하는데 파싱이 안 되는 경우다. 원천이 한 JSON 을
+    문자 단위로 잘라 여러 행에 나눠 보내는 스키마가 있어(row_merge), 이 상태는 조용히
+    넘기면 안 되는 신호다. 브레이스로 시작하지 않는 평문은 그냥 text 다.
+    """
+    if value in (None, ""):
+        return "empty"
+    if isinstance(value, (dict, list)):
+        return "json"
+    text = str(value).strip()
+    if not text:
+        return "empty"
+    if text[0] in "{[":
+        try:
+            json.loads(text)
+        except (ValueError, TypeError):
+            return "broken_json"
+        return "json"
+    if _STRUCTURAL_HTML_RE.search(text):
+        return "html"
+    if _ANY_TAG_RE.search(text) or _BR_RE.search(text):
+        return "html_inline"
+    return "text"
+
+
+def humanize_key(key: Any) -> str:
+    """JSON 키를 제목으로 쓸 수 있게 다듬는다 — 사전 없이, 스키마와 무관하게.
+
+    `_`/`-` 를 공백으로, camelCase 를 단어로 나눈다. **대문자화는 하지 않는다** —
+    `RSI`·`MACD` 같은 약어가 망가진다. 한글 키는 그대로 나온다.
+    """
+    text = re.sub(r"[_\-]+", " ", str(key).strip())
+    text = re.sub(r"(?<=[a-z0-9])(?=[A-Z])", " ", text)
+    return re.sub(r"\s+", " ", text).strip()
+
+
+def _leaf_text(value: Any, html_renderer: Optional[Callable[[str], str]]) -> str:
+    """리프 값 하나 → 평문. 리프 안에 HTML 이 섞여 있으면 같은 판별을 다시 건다."""
+    if value is None or value == "":
+        return ""
+    if isinstance(value, bool):
+        return "예" if value else "아니오"
+    if not isinstance(value, str):
+        return str(value)
+    if detect_payload_kind(value) == "html" and html_renderer is not None:
+        return str(html_renderer(value) or "").strip()
+    return strip_inline_html(value)
+
+
+def _is_short(text: str) -> bool:
+    return len(text) <= _SHORT_SCALAR and "\n" not in text
+
+
+def _render_node(node: Any, key: Any, depth: int, path: str, lines: list[str],
+                 html_renderer: Optional[Callable[[str], str]]) -> None:
+    """`node` 하나를 마크다운 줄로 펼친다. `key=None` 이면 루트(제목 없음)."""
+    label = humanize_key(key) if key is not None else ""
+    full_path = f"{path}.{label}" if path and label else (label or path)
+    heading_ok = label and depth < _HEADING_MAX_DEPTH
+
+    def heading() -> None:
+        if heading_ok:
+            lines.append(f"{'#' * (depth + 2)} {label}")
+
+    # 헤딩을 냈으면 그 제목이 문맥을 담으므로 하위 불릿 경로를 거기서 다시 시작한다
+    # (`- deep.a.b.c:` 대신 `### a` 아래 `- b.c:`).
+    child_path = "" if heading_ok else full_path
+
+    if isinstance(node, dict):
+        heading()
+        # 루트는 깊이를 소비하지 않는다 — 최상위 키가 `##` 이 되도록.
+        child_depth = depth if key is None else depth + 1
+        if key is None:
+            # 한 줄 불릿으로 끝나는 항목을 앞으로 끌어올린다. 그러지 않으면 앞 섹션 뒤에
+            # 붙어 그 섹션의 하위 항목처럼 보인다(`## candle analysis` 다음의 `- nat c:`).
+            bullets: list[str] = []
+            sections: list[str] = []
+            for child_key, child in node.items():
+                rendered: list[str] = []
+                _render_node(child, child_key, child_depth, child_path, rendered, html_renderer)
+                (sections if any(l.startswith("#") for l in rendered) else bullets).extend(rendered)
+            lines.extend(bullets)
+            lines.extend(sections)
+            return
+        for child_key, child in node.items():
+            _render_node(child, child_key, child_depth, child_path, lines, html_renderer)
+        return
+
+    if isinstance(node, (list, tuple)):
+        items = [item for item in node if item not in (None, "")]
+        if not items:
+            return
+        if all(not isinstance(item, (dict, list, tuple)) for item in items):
+            rendered = [text for text in (_leaf_text(i, html_renderer) for i in items) if text]
+            if not rendered:
+                return
+            inline = ", ".join(rendered)
+            if label and _is_short(inline):
+                lines.append(f"- {label}: {inline}")
+                return
+            heading()
+            lines.extend(f"- {text}" for text in rendered)
+            return
+        for idx, item in enumerate(items, start=1):
+            _render_node(item, f"{key} {idx}" if key is not None else str(idx),
+                         depth, child_path, lines, html_renderer)
+        return
+
+    text = _leaf_text(node, html_renderer)
+    if not text:
+        return
+    if not heading_ok:
+        lines.append(f"- {full_path}: {text}" if full_path else text)
+        return
+    # 짧은 스칼라는 헤딩을 만들지 않고 한 줄로 — 제목이 본문보다 많아지지 않게.
+    if _is_short(text):
+        lines.append(f"- {label}: {text}")
+        return
+    heading()
+    lines.append(text)
+
+
+def json_to_markdown(parsed: Any, html_renderer: Optional[Callable[[str], str]] = None) -> str:
+    """파싱된 JSON → 마크다운. 최상위 키가 `##`, 한 단계 아래가 `###` 이 된다.
+
+    헤딩을 만드는 이유는 읽기 좋으라고가 아니라 **청킹 때문**이다. 청커가 `## ` 를 우선
+    분리자로 써서 섹션 경계에서 자르고, 분할된 뒷 조각에 직전 섹션 제목을 다시 붙인다
+    (`_expand_splittable_rows`). 헤딩이 없으면 "8월 17일 2544만" 같은 조각이 무엇에
+    대한 값인지 알 수 없는 상태로 검색에 노출된다.
+    """
+    lines: list[str] = []
+    _render_node(parsed, None, 0, "", lines, html_renderer)
+    out: list[str] = []
+    for line in lines:
+        # 헤딩 앞에는 빈 줄을 둔다(청커의 문단 분리자와 마크다운 렌더링 양쪽에 필요).
+        if line.startswith("#") and out and out[-1] != "":
+            out.append("")
+        out.append(line)
+    return "\n".join(out).strip()
+
+
+def render_field_text(
+    value: Any,
+    *,
+    kind: Optional[str] = None,
+    html_renderer: Optional[Callable[[str], str]] = None,
+) -> Optional[str]:
+    """원천 값 하나 → 청크 본문에 실을 평문. 종류는 자동 판별한다.
+
+    `kind` 로 "json"/"html"/"text" 를 주면 판별을 건너뛰고 그 경로로 강제한다
+    (출고 설정의 html_text_fields/json_text_fields 별칭이 이걸 쓴다).
+    `html_renderer` 는 구조 HTML 을 처리할 함수다(json_records.html_to_text). 주지 않으면
+    경량 태그 제거로 폴백한다 — 표가 한 줄씩 뭉개지므로 표가 오는 경로에서는 반드시 넘긴다.
+    """
+    if kind == "html":
+        # 원본을 그대로 넘긴다 — html_to_text 는 리스트(collect_key_map 결과)까지 처리하므로
+        # 여기서 문자열로 눌러 버리면 기존 html_text_fields 동작이 깨진다.
+        if html_renderer is not None:
+            return str(html_renderer(value) or "").strip() or None
+        return strip_inline_html(value) or None
+
+    detected = detect_payload_kind(value)
+    if detected == "empty":
+        return None
+
+    if kind == "text":
+        return strip_inline_html(value) or None
+    if kind == "json" and detected == "text":
+        # 강제했는데 JSON 이 아니면 파싱 실패로 취급해 신호를 남긴다.
+        detected = "broken_json"
+
+    if detected == "broken_json":
+        raw = str(value).strip()
+        _log.warning(
+            f"[text_from] JSON 파싱 실패 — 원문을 평문화만 합니다"
+            f"(len={len(raw)}, head={raw[:80]!r}). 여러 행으로 쪼개진 값이라면 "
+            f"row_merge 의 group_by/order_by 를 확인하세요."
+        )
+        return strip_inline_html(raw) or None
+
+    if detected == "json":
+        parsed = value if isinstance(value, (dict, list)) else json.loads(str(value).strip())
+        if not isinstance(parsed, (dict, list)):
+            return _leaf_text(parsed, html_renderer) or None
+        return json_to_markdown(parsed, html_renderer) or None
+
+    if detected == "html" and html_renderer is not None:
+        return str(html_renderer(value) or "").strip() or None
+
+    return strip_inline_html(value) or None
 
 
 # ── 보조 추출(fallback) ──────────────────────────────────────────────────────

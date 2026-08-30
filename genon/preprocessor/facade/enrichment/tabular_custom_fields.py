@@ -27,7 +27,7 @@ from .custom_fields_enricher import (
     normalize_doc_type,
     normalize_doc_types,
 )
-from .field_transforms import VALUE_TRANSFORMS
+from .field_transforms import VALUE_TRANSFORMS, render_field_text
 
 # build_fields → to_parse_format 사이에서만 쓰는 행 부가정보. metadata 로 내보내기 전에 pop 한다.
 # 필드 dict 안에 실어야 llm_fields 의 skip_record 로 일부 행이 빠져도 정렬이 어긋나지 않는다.
@@ -162,7 +162,8 @@ _LIST_SHAPED_KEYS = (
 )
 _MAP_SHAPED_KEYS = (
     "column_map", "key_map", "collect_key_map", "constants", "defaults", "value_map", "transforms",
-    "html_text_fields", "shared_fields", "sections",
+    "text_from", "html_text_fields", "json_text_fields", "shared_fields", "sections",
+    "row_merge",
 )
 
 
@@ -262,6 +263,60 @@ def validate_custom_field_config(cfg: dict, *, label: str) -> None:
     warn_unproducible_text_fields(cfg, label=label)
 
 
+# ── 원천 필드 → 평문 파생 필드(text_from) ────────────────────────────────────
+# 같은 컬럼에 JSON·HTML·평문이 섞여 오는 원천이 있어(모니모 AI차트뷰 detail_desc) 종류를
+# 미리 못 박을 수 없다. 그래서 키 하나로 접고 종류는 render_field_text 가 자동 판별한다.
+#
+#   text_from:
+#     DETAIL_TEXT: DETAIL_DESC     # 원본 필드는 그대로 남고 평문 사본만 더해진다
+#
+# `html_text_fields` / `json_text_fields` 는 **그 종류로 강제**하는 별칭이다. 판별을 믿을 수
+# 없는 원천이나 기존 출고 설정(monimo_event·monimo_news)이 계속 쓰던 대로 동작한다.
+_TEXT_FROM_BLOCKS = (("text_from", None), ("html_text_fields", "html"), ("json_text_fields", "json"))
+
+
+def compile_text_from(cfg: dict, *, label: str = "text_from") -> list[tuple[str, str, str | None]]:
+    """`[(목표필드, 원천필드, 강제종류|None)]` 로 컴파일한다(세 블록 공통)."""
+    specs: list[tuple[str, str, str | None]] = []
+    seen: dict[str, str] = {}
+    for key, forced in _TEXT_FROM_BLOCKS:
+        block = cfg.get(key)
+        if not block:
+            continue
+        if not isinstance(block, dict):
+            raise ValueError(f"{label}: {key} 는 '파생필드: 원천필드' 형태의 object 여야 합니다.")
+        for target, source in block.items():
+            target, source = str(target), str(source)
+            if target in seen:
+                raise ValueError(
+                    f"{label}: 파생 필드 '{target}' 가 {seen[target]} 와 {key} 양쪽에 선언됐습니다. "
+                    f"한 곳에만 두세요."
+                )
+            seen[target] = key
+            specs.append((target, source, forced))
+    return specs
+
+
+def apply_text_from(fields: dict, specs: list, html_renderer: Any = None) -> None:
+    """컴파일된 text_from 을 제자리 적용한다. 원본 필드는 건드리지 않는다."""
+    for target, source, forced in specs:
+        fields[target] = render_field_text(
+            fields.get(source), kind=forced, html_renderer=html_renderer
+        )
+
+
+def structural_html_renderer(**options: Any):
+    """구조 HTML(표·목록)을 docling 으로 평문화하는 콜백을 만든다.
+
+    함수 안에서 import 하는 이유: `json_records` 가 이 모듈을 import 하므로 모듈 최상단에서
+    되가져오면 순환 import 가 된다. 호출 시점에는 양쪽이 모두 로드돼 있어 안전하다.
+    표가 없는 인라인 조각은 render_field_text 가 경량 경로로 처리하므로 docling 을 타지 않는다.
+    """
+    from .json_records import html_to_text
+
+    return lambda value: html_to_text(value, **options)
+
+
 def collect_target_field_names(cfg: dict) -> set[str]:
     """설정이 만들어 내는 목표필드명 전체(세 extractor 공통 키 + 각자 전용 키)."""
     cfg = cfg or {}
@@ -273,13 +328,132 @@ def collect_target_field_names(cfg: dict) -> set[str]:
     )
     names |= set(cfg.get("constants") or {}) | set(cfg.get("defaults") or {})
     names |= {str(f) for f in (cfg.get("nulls") or [])}
-    names |= set(cfg.get("html_text_fields") or {})
+    names |= {target for target, _, _ in compile_text_from(cfg)}
     names |= {
         str(f)
         for spec in (cfg.get("llm_fields") or [])
         for f in ((spec or {}).get("output_fields") or [])
     }
     return names
+
+
+# ── 여러 행을 한 레코드로 접기(row_merge) ────────────────────────────────────
+# 원천이 값 하나를 여러 행에 나눠 보내는 스키마가 있다. 모니모 AI차트뷰(stock_insight)는
+# 한 종목의 세부내용 JSON 하나를 `ntc_objline` 1..N 으로 **문자 단위 절단**해 뿌린다 —
+# 실제 원천에 `"price_pat` / `tern_desc":` 처럼 키 이름 중간에서 끊긴 사례가 있다.
+# 그래서 기본 separator 는 빈 문자열이다. 구분자를 끼우면 JSON 이 복원되지 않는다.
+#
+#   row_merge:
+#     group_by: [REGT_NO, JONG_CODE]   # 이 값이 같은 "연속" 행이 한 묶음
+#     order_by: NTC_OBJLINE_NO         # 묶음 안 정렬 기준(숫자 우선)
+#     concat:   [DETAIL_DESC]          # 순서대로 이어붙일 필드
+#     separator: ""                    # 기본값
+#
+# 이름은 원천 컬럼명이 아니라 **목표필드명**을 쓴다(column_map 을 거친 뒤 이름). yaml 안에서
+# 어휘를 하나로 유지하려는 것이고, 오타는 아래 검증이 기동 시에 잡는다.
+
+
+def compile_row_merge(cfg: dict, *, label: str) -> dict | None:
+    """`row_merge` 설정을 검증해 컴파일한다. 미선언이면 None(= 행 1개 = 레코드 1개)."""
+    spec = cfg.get("row_merge")
+    if not spec:
+        return None
+    if not isinstance(spec, dict):
+        raise ValueError(f"{label}: row_merge 는 '키: 값' 형태의 object 여야 합니다.")
+
+    def as_list(key: str) -> list[str]:
+        value = spec.get(key)
+        if value is None:
+            return []
+        if not isinstance(value, list):
+            raise ValueError(f"{label}: row_merge.{key} 는 목록이어야 합니다(각 항목 앞에 '- ').")
+        return [str(f).strip() for f in value if str(f).strip()]
+
+    group_by = as_list("group_by")
+    concat = as_list("concat")
+    order_by = str(spec.get("order_by") or "").strip() or None
+    if not group_by:
+        raise ValueError(f"{label}: row_merge 에는 group_by 가 필요합니다(묶음 경계를 정하는 필드).")
+    if not concat:
+        raise ValueError(f"{label}: row_merge 에는 concat 이 필요합니다(이어붙일 필드).")
+
+    known = collect_target_field_names(cfg)
+    unknown = sorted({*group_by, *concat, *([order_by] if order_by else [])} - known)
+    if unknown:
+        raise ValueError(
+            f"{label}: row_merge 의 {unknown} 를 만드는 설정이 없습니다. "
+            f"column_map/constants/defaults/nulls 중 하나에 선언된 목표필드명을 쓰세요 "
+            f"(원천 컬럼명이 아니라 매핑 후 이름입니다)."
+        )
+    return {
+        "group_by": group_by,
+        "order_by": order_by,
+        "concat": concat,
+        "separator": str(spec.get("separator", "") or ""),
+    }
+
+
+def _order_key(value: Any) -> tuple[int, float, str]:
+    """order_by 정렬 키. 숫자면 숫자로, 아니면 문자열로 — 섞여 있어도 터지지 않는다."""
+    if value in (None, ""):
+        return (2, 0.0, "")
+    try:
+        return (0, float(str(value).strip()), "")
+    except (TypeError, ValueError):
+        return (1, 0.0, str(value))
+
+
+def merge_row_records(
+    records: list[tuple[dict, dict]],
+    spec: dict,
+    resolved: dict[str, str | None],
+) -> list[tuple[dict, dict]]:
+    """`(목표필드 dict, 원본 row dict)` 목록을 group_by 연속 런 단위로 접는다.
+
+    **연속 런** 기준인 이유: 멀리 떨어진 동일 키를 끌어와 붙이면 원천이 같은 등록번호를
+    재사용했을 때 서로 다른 게시물이 한 덩어리로 뭉개진다. 원천은 조각을 붙여서 보내므로
+    연속으로 충분하고, 그렇지 않은 데이터를 조용히 이어붙이지 않는 쪽이 안전하다.
+
+    concat 이외 필드는 정렬 후 **첫 행** 값을 쓴다. 원본 row dict 도 첫 행 것을 쓰되
+    concat 대상의 원천 컬럼만 이어붙인 값으로 덮는다(폴백 본문이 조각만 갖지 않게).
+    """
+    group_by = spec["group_by"]
+    order_by = spec["order_by"]
+    concat = spec["concat"]
+    separator = spec["separator"]
+
+    merged: list[tuple[dict, dict]] = []
+    run: list[tuple[dict, dict]] = []
+    run_key: Any = object()
+
+    def flush() -> None:
+        if not run:
+            return
+        ordered = sorted(run, key=lambda item: _order_key(item[0].get(order_by))) if order_by else run
+        fields = dict(ordered[0][0])
+        row = dict(ordered[0][1])
+        for target in concat:
+            pieces = [
+                str(item[0].get(target))
+                for item in ordered
+                if item[0].get(target) not in (None, "")
+            ]
+            value = separator.join(pieces) if pieces else None
+            fields[target] = value
+            source = resolved.get(target)
+            if source is not None:
+                row[source] = value
+        merged.append((fields, row))
+        run.clear()
+
+    for fields, row in records:
+        key = tuple(fields.get(name) for name in group_by)
+        if run and key != run_key:
+            flush()
+        run_key = key
+        run.append((fields, row))
+    flush()
+    return merged
 
 
 def compile_chunk_prefix_fields(cfg: dict, *, split: bool) -> list[str]:
@@ -321,17 +495,26 @@ def build_chunk_text(
             return str(source_spec)
         return field
 
+    def labeled(name: str) -> str:
+        """짧은 값은 `라벨: 값`, 여러 줄 블록은 값만.
+
+        text_from 이 만든 파생 필드는 `## 제목` 헤딩을 가진 마크다운 블록이다. 거기에
+        `detail_desc: ` 라벨을 덧붙이면 첫 줄만 라벨 뒤에 붙어 구조가 깨지고, 임베딩에는
+        의미 없는 컬럼명이 하나 더 들어간다. 블록은 자기 제목을 이미 갖고 있다.
+        """
+        value = str(fields[name])
+        return value if "\n" in value else f"{get_field_label(name)}: {value}"
+
     prefix_names = set(chunk_prefix_fields)
     if column_map:
         prefix = "\n".join(
-            # str(fields[name])
-            f"{get_field_label(name)}: {fields[name]}"
+            labeled(name)
             for name in chunk_prefix_fields
             if fields.get(name) not in (None, "")
         )
         if text_fields:
             body = "\n".join(
-                f"{get_field_label(name)}: {fields[name]}"
+                labeled(name)
                 for name in text_fields
                 if name not in prefix_names and fields.get(name) not in (None, "")
             )
@@ -391,6 +574,15 @@ class TabularCustomFieldsMapper:
         self.llm_field_specs = build_llm_field_specs(self.config)
         self.split = bool(self.config.get("split", False))
         self.chunk_prefix_fields = compile_chunk_prefix_fields(self.config, split=self.split)
+
+        # 여러 행에 쪼개져 오는 값을 한 레코드로 접는다(미선언이면 종전대로 행 1개 = 레코드 1개).
+        self.row_merge = compile_row_merge(
+            self.config, label=f"tabular custom_fields({config_file})"
+        )
+        # 원천 필드 → 평문 파생 필드. 원본 필드는 그대로 남는다(json_mapping 과 같은 키).
+        self.text_from = compile_text_from(
+            self.config, label=f"tabular custom_fields({config_file})"
+        )
 
     @staticmethod
     def _load_config(config_file: str, resource_path: str | None) -> dict:
@@ -466,12 +658,20 @@ class TabularCustomFieldsMapper:
         return resolved
 
     def build_fields(self, data_dict: dict, runtime_doc_type: Any) -> list[dict]:
-        """parser의 tabular 중립 표현 → 행별 목표필드 목록.
+        """parser의 tabular 중립 표현 → 레코드별 목표필드 목록.
 
-        `to_parse_format` 과 분리해 둔 이유는 그 사이에 `llm_fields`(행마다 LLM 호출)를
+        `to_parse_format` 과 분리해 둔 이유는 그 사이에 `llm_fields`(레코드마다 LLM 호출)를
         끼워 넣기 위해서다 — json_mapping 의 `build_fields → _apply_llm_fields →
         to_parse_format` 3단 구성과 같은 모양이다. 행 페이지/폴백 본문은 예약 키로 필드 dict
         안에 실어 보내고 `to_parse_format` 이 pop 한다.
+
+        3단으로 나뉘어 있다.
+          1. 원시 매핑 — 행마다 `nulls` 스캐폴딩 + `column_map` 값만 채운다.
+          2. 병합 — `row_merge` 가 있으면 연속 런을 한 레코드로 접는다.
+          3. 레코드 마감 — constants/defaults/value_map/transforms/json_text_fields/required.
+        순서가 중요하다. transforms 와 required 는 **병합이 끝난 값**을 봐야 한다 —
+        조각 하나만 보고 날짜를 변환하거나 필수값을 판정하면 결과가 달라진다.
+        `row_merge` 미선언이면 런 길이가 1이라 종전과 동일하다.
         """
         column_map = self.config.get("column_map") or {}
         constants = dict(self.config.get("constants") or {})
@@ -479,6 +679,9 @@ class TabularCustomFieldsMapper:
         null_fields = list(self.config.get("nulls") or [])
         required_fields = set(self.config.get("required") or [])
         doc_type = self.canonical_doc_type(runtime_doc_type)
+
+        # 구조 HTML 이 섞여 올 수 있으므로 렌더러를 준비한다(파생 필드가 없으면 만들지 않는다).
+        html_renderer = structural_html_renderer() if self.text_from else None
 
         fields_list: list[dict] = []
         sheets = data_dict.get("data", []) or []
@@ -500,12 +703,30 @@ class TabularCustomFieldsMapper:
                     f"available={available}"
                 )
 
-            skipped = 0
-            for row_idx, row in enumerate(rows, start=1):
+            # 1단계 — 원시 매핑. 원본 row 도 함께 들고 간다(폴백 본문·병합 재료).
+            records: list[tuple[dict, dict]] = []
+            for row in rows:
                 fields = {name: None for name in null_fields}
                 for target in column_map:
                     source = resolved.get(str(target))
                     fields[str(target)] = _clean_cell(row.get(source)) if source else None
+                records.append((fields, row))
+
+            # 2단계 — 병합. 시트 경계는 넘지 않는다(시트마다 page 가 다르다).
+            if self.row_merge and records:
+                merged = merge_row_records(records, self.row_merge, resolved)
+                if len(merged) != len(records):
+                    # silent 축소 방지 — 몇 행이 몇 레코드로 접혔는지 드러낸다.
+                    _log.info(
+                        f"[tabular_custom_fields] row_merge {len(records)} rows -> "
+                        f"{len(merged)} records (sheet={sheet_name}, "
+                        f"group_by={self.row_merge['group_by']})"
+                    )
+                records = merged
+
+            # 3단계 — 레코드 마감.
+            skipped = 0
+            for record_idx, (fields, row) in enumerate(records, start=1):
                 fields.update(constants)
                 for key, value in defaults.items():
                     if fields.get(key) in (None, ""):
@@ -513,17 +734,21 @@ class TabularCustomFieldsMapper:
 
                 # 값 정규화 → 변환 순서. 별칭을 표준값으로 접은 뒤에 타입 변환을 건다.
                 apply_value_map(
-                    fields, self.value_map, context=f"(sheet={sheet_name}, row={row_idx})"
+                    fields, self.value_map, context=f"(sheet={sheet_name}, row={record_idx})"
                 )
                 for target, transform_name in self.transforms.items():
                     fields[target] = VALUE_TRANSFORMS[transform_name](fields.get(target))
+
+                # 파생 필드는 transforms 뒤에 만든다 — 원본 필드는 그대로 두고 평문 사본만 더한다.
+                apply_text_from(fields, self.text_from, html_renderer)
 
                 if doc_type:
                     # 요청/프로파일에서 확정한 값이 config constants보다 우선한다.
                     fields["doc_type"] = doc_type
 
-                # 필수값이 빈 행은 전체 문서를 중단하지 않고 해당 행만 skip(경고 로그). 필수 컬럼 자체가
-                # 매핑 불가한 경우는 위 missing_columns 에서 이미 하드 에러로 처리(전 행 공통 스키마 문제).
+                # 필수값이 빈 레코드는 전체 문서를 중단하지 않고 그것만 skip(경고 로그). 필수 컬럼
+                # 자체가 매핑 불가한 경우는 위 missing_columns 에서 이미 하드 에러로 처리했다
+                # (전 행 공통 스키마 문제).
                 missing_values = [
                     field for field in required_fields if fields.get(field) in (None, "")
                 ]
@@ -531,7 +756,7 @@ class TabularCustomFieldsMapper:
                     skipped += 1
                     _log.warning(
                         f"[tabular_custom_fields] 필수값 누락 행 skip(sheet={sheet_name}, "
-                        f"row={row_idx}): {sorted(missing_values)}"
+                        f"row={record_idx}): {sorted(missing_values)}"
                     )
                     continue
 
@@ -546,9 +771,9 @@ class TabularCustomFieldsMapper:
                 fields_list.append(fields)
 
             if skipped:
-                # silent 축소 방지 — 몇 행이 빠졌는지 요약으로 드러낸다.
+                # silent 축소 방지 — 몇 건이 빠졌는지 요약으로 드러낸다.
                 _log.warning(
-                    f"[tabular_custom_fields] skipped {skipped}/{len(rows)} rows "
+                    f"[tabular_custom_fields] skipped {skipped}/{len(records)} records "
                     f"(missing required) sheet={sheet_name}"
                 )
 
@@ -559,7 +784,13 @@ class TabularCustomFieldsMapper:
         text_fields = list(self.config.get("text_fields") or [])
         doc_type = self.canonical_doc_type(runtime_doc_type)
 
-        column_map = self.config.get("column_map") or {}
+        # 파생 필드는 원본 필드의 라벨을 물려받는다. build_chunk_text 는 column_map 별칭 첫 값을
+        # 본문 라벨로 쓰는데, DETAIL_TEXT 같은 파생 필드는 column_map 에 없어 목표필드명이 그대로
+        # 라벨이 된다 — "DETAIL_TEXT: …" 가 청크마다 임베딩에 실린다. 원천 헤더를 쓰는 편이 낫다.
+        column_map = dict(self.config.get("column_map") or {})
+        for target, source, _ in self.text_from:
+            if target not in column_map and source in column_map:
+                column_map[target] = column_map[source]
 
         elements: list[dict] = []
         max_page = 0
