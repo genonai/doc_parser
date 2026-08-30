@@ -23,6 +23,7 @@ CORE_FIELDS = (
     "i_page", "e_page", "i_chunk_on_page", "n_chunk_of_page",
     "i_chunk_on_doc", "n_chunk_of_doc", "n_page",
     "reg_date", "chunk_bboxes", "media_files", "guardrail_categories",
+    "has_table", "table_refs", "table_split_index", "table_split_total",
 )
 
 
@@ -45,6 +46,11 @@ class VectorMetaBuilderBase:
         self.chunk_bboxes: Optional[str] = None
         self.media_files: Optional[str] = None
         self.guardrail_categories: Optional[list] = None  # #315 민감정보 분류 라벨
+        # 표 관련 메타(#360). 표가 없는 청크는 has_table=False, 나머지는 None.
+        self.has_table: bool = False
+        self.table_refs: Optional[str] = None
+        self.table_split_index: Optional[int] = None
+        self.table_split_total: Optional[int] = None
         self.extra_metadata: dict[str, Any] = {}
 
     def set_guardrail_categories(self, guardrail_categories: Optional[list]):
@@ -117,6 +123,31 @@ class VectorMetaBuilderBase:
                 temp_list.append({'name': path.rsplit("/", 1)[-1], 'type': 'table_image',
                                   'ref': item.self_ref})
         self.media_files = json.dumps(temp_list)
+        return self
+
+    def set_table_info(self, doc_items: list, split_totals: Optional[dict] = None,
+                       seen_counts: Optional[dict] = None):
+        """청크가 담은 표를 메타데이터로 드러낸다.
+
+        예전에는 chunk_bboxes 안 type 을 파헤쳐야만 표 청크인지 알 수 있었다. 하이브리드
+        검색에서 표만 걸러 보거나, 나뉜 조각을 원래 순서로 다시 잇는 데 쓴다.
+
+        ``split_totals`` 는 청커가 남긴 {self_ref: 조각 수} 이고, ``seen_counts`` 는
+        호출부가 문서 단위로 들고 다니는 {self_ref: 지금까지 본 조각 수} 다. 같은 표가
+        연속해서 나오는 순서가 곧 조각 순서다.
+        """
+        refs = [item.self_ref for item in doc_items if isinstance(item, TableItem)]
+        self.has_table = bool(refs)
+        self.table_refs = json.dumps(refs) if refs else None
+        if not refs or not split_totals or seen_counts is None:
+            return self
+        # 한 청크에 표가 여럿이면 조각 순서라는 개념이 성립하지 않으므로 비워 둔다.
+        total = split_totals.get(refs[0]) if len(refs) == 1 else None
+        if total and total > 1:
+            index = seen_counts.get(refs[0], 0)
+            seen_counts[refs[0]] = index + 1
+            self.table_split_index = index
+            self.table_split_total = total
         return self
 
     def core_payload(self) -> dict:

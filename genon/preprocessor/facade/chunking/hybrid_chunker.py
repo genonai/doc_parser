@@ -57,10 +57,8 @@ from docling_core.types.doc import (
 from docling_core.types.doc.document import LevelNumber, ListItem, CodeItem
 
 from genon.preprocessor.facade.common import config_parse as cp
-from genon.preprocessor.facade.chunking.table_splitter import (
-    leading_header_row_count,
-    split_table_rows,
-)
+from genon.preprocessor.facade.chunking.table_shape import analyze_grid
+from genon.preprocessor.facade.chunking.table_splitter import split_table_rows
 
 _log = logging.getLogger(__name__)
 
@@ -379,16 +377,18 @@ class TokenAwareHybridChunker(BaseChunker):
                     num_cols = table_item.data.num_cols
                 except Exception:
                     grid, num_cols = None, 0
-                if grid and num_cols:
-                    header_n = max(leading_header_row_count(grid), 1)
+                # 첨부 경로는 항상 markdown 이고 입력이 HTML 계열이 아니어도 thead 를
+                # 신뢰한다(HierarchicalChunker 가 이미 표 하나만 떼어 준 상태).
+                shape = analyze_grid(grid, num_cols, is_html_origin=True)
+                if shape is not None:
                     result = split_table_rows(
                         grid=grid,
-                        num_cols=num_cols,
+                        num_cols=shape.num_cols,
                         single_text=doc_chunk.text,
                         limit=available_length,
                         count_text=self._count_text_tokens,
                         table_format="markdown",
-                        header_row_count=header_n,
+                        header_row_count=shape.header_row_count,
                     )
                     for index in result.oversized_piece_indexes:
                         _log.warning(

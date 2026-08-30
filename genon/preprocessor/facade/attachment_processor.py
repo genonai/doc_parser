@@ -188,6 +188,9 @@ class GenOSVectorMeta(BaseModel):
     chunk_bboxes: str | None = None
     media_files: str | None = None
     guardrail_categories: Optional[list] = None    # #315 민감정보 분류 라벨(부동산/인사/민감 등). 미적용 시 None
+    # 표 메타(#360). 첨부 경로는 표 단위 분할 순서를 기록하지 않아 refs 까지만 채운다.
+    has_table: bool = False
+    table_refs: Optional[str] = None
 
 
 class GenOSVectorMetaBuilder(vm.VectorMetaBuilderBase):
@@ -576,6 +579,7 @@ class DocxProcessor:
                       .set_global_metadata(**global_metadata)
                       .set_chunk_bboxes(doc_items, document)
                       .set_media_files(doc_items)
+                      .set_table_info(doc_items)
                       .set_guardrail_categories(sorted(chunk_cats) if chunk_cats else None)
                       ).build()
             vectors.append(vector)
@@ -784,6 +788,7 @@ class HwpProcessor:
                       .set_global_metadata(**global_metadata)
                       .set_chunk_bboxes(doc_items, document)
                       .set_media_files(doc_items)
+                      .set_table_info(doc_items)
                       .set_guardrail_categories(sorted(chunk_cats) if chunk_cats else None)
                       ).build()
             vectors.append(vector_obj)

@@ -151,6 +151,7 @@ def _handle_stage_error(exc: Exception, stage: str) -> None:
 # 구현은 facade/common/, facade/chunking/ 에 한 벌만 둔다. 여기서는 기존 이름을
 # 그대로 유지해 호출부를 건드리지 않는다. 사이트별 조정 대상 상수(구분자, 최소
 # 청크 크기, 토크나이저 경로)는 이 파일에 남아 있으므로 래퍼가 넘겨준다.
+from genon.preprocessor.facade.chunking import table_shape as ts
 from genon.preprocessor.facade.common import config_parse as cp
 from genon.preprocessor.facade.common import loaders as ld
 from genon.preprocessor.facade.common import pipeline_setup as ps
@@ -250,6 +251,16 @@ install_packages = ld.install_packages
 # ============================================================
 # TextLoader (from attachment_processor.py)
 # ============================================================
+
+def _doc_is_html_origin(doc) -> bool:
+    """원본이 HTML 계열인가. 표 헤더 행 수 판정 규칙이 여기서 갈린다."""
+    origin = getattr(doc, "origin", None)
+    mimetype = str(getattr(origin, "mimetype", "") or "").lower()
+    filename = str(getattr(origin, "filename", "") or "").lower()
+    return mimetype in {"text/html", "application/xhtml+xml"} or filename.endswith(
+        (".html", ".htm", ".xhtml"))
+
+
 
 class TextLoader(ld.TextLoaderBase):
     pass
@@ -969,11 +980,8 @@ class DocumentProcessor:
 
     @staticmethod
     def _normalize_table_format(value: Any) -> str:
-        fmt = str(value).strip().lower()
-        if fmt not in {"html", "markdown"}:
-            _log.warning(f"[DocumentProcessor] Invalid output.table_format '{value}', fallback to 'html'")
-            return "html"
-        return fmt
+        """output.table_format 설정을 읽는다. auto 는 표마다 구조를 보고 정해진다."""
+        return cp.resolve_table_format_setting({"table_format": value})
 
     @staticmethod
     def _normalize_flatten_mode(value: Any) -> str:
@@ -1720,7 +1728,18 @@ class DocumentProcessor:
         item: TableItem, doc: DoclingDocument, table_format: str = "html",
         compact_tables: bool = True,
     ) -> str:
-        """TableItem을 지정한 포맷(html/markdown)으로 변환."""
+        """TableItem을 지정한 포맷으로 변환. auto 면 그 표의 구조를 보고 고른다.
+
+        청커도 같은 analyze_grid/resolve_table_format 을 쓰므로, 같은 표가 파서 출력과
+        청크에서 다른 형식으로 나가지 않는다.
+        """
+        table_format = ts.resolve_table_format(
+            table_format, ts.analyze_grid(
+                getattr(getattr(item, "data", None), "grid", None),
+                getattr(getattr(item, "data", None), "num_cols", 0),
+                is_html_origin=_doc_is_html_origin(doc),
+            ),
+        )
         try:
             if table_format == "markdown":
                 if compact_tables:

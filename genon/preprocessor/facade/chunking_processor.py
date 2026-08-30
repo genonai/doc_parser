@@ -311,6 +311,11 @@ class GenOSVectorMeta(BaseModel):
     appendix: str = None ## !! appendix feature (2025-09-30, geonhee kim) !!
     file_path: Optional[str] = None
     guardrail_categories: Optional[list] = None  # #315 민감정보 분류 라벨(부동산/인사/민감 등). 미적용 시 None
+    # 표 메타(#360). 표 청크만 골라 검색하거나 나뉜 조각을 원래 순서로 잇는 데 쓴다.
+    has_table: bool = False
+    table_refs: Optional[str] = None
+    table_split_index: Optional[int] = None
+    table_split_total: Optional[int] = None
 
 class GenOSVectorMetaBuilder(vm.VectorMetaBuilderBase):
     """공통 세터(텍스트 통계·페이지·bbox·미디어·글로벌 메타데이터)는
@@ -501,6 +506,8 @@ class DocumentProcessor:
         # markdown 표 compact(컬럼 정렬 패딩 제거) 여부. 기본 True. html 포맷엔 무관.
         output_cfg = _as_dict(cfg.get("output"))
         self._compact_tables = cp.resolve_compact_tables(output_cfg)
+        # 병합 셀 표에 행 문장을 덧붙일지. 기본 off(청크가 커진다).
+        self._table_row_serialization = cp.resolve_table_row_serialization(output_cfg)
 
         # PDF 파이프라인 옵션 설정
         self.pipe_line_options = PdfPipelineOptions()
@@ -696,10 +703,13 @@ class DocumentProcessor:
         )
 
         kwargs.setdefault("compact_tables", self._compact_tables)
+        kwargs.setdefault("table_row_serialization", self._table_row_serialization)
         # 청크 텍스트 정규화(text_cleanup=safe): 문자 위생을 청킹 입력에 먼저 적용한다.
         # 출력에서만 정규화하면 청크 경계가 노이즈 문자를 센 채로 잡힌다.
         _cleanup = tn.prepare_document(documents, kwargs, self)
         chunks: List[DocChunk] = list(chunker.chunk(dl_doc=documents, **kwargs))
+        # 표별 분할 조각 수는 청커만 안다. compose_vectors 가 조각 순서 메타를 매길 때 읽는다.
+        self._table_split_totals = getattr(chunker, "_table_split_totals", {})
         if _cleanup:
             chunks = tn.drop_blank_chunks(chunks)
         for chunk in chunks:
@@ -826,6 +836,8 @@ class DocumentProcessor:
         if converted_pdf_path:
             global_metadata['file_path'] = converted_pdf_path
 
+        # 같은 표의 조각이 연속해서 나오는 순서가 곧 조각 번호다.
+        table_piece_seen: dict = {}
         current_page = None
         chunk_index_on_page = 0
         vectors = []
@@ -860,6 +872,9 @@ class DocumentProcessor:
                       .set_global_metadata(**chunk_global_metadata) #!! appendix feature (2025-09-30, geonhee kim) !!
                       .set_chunk_bboxes(chunk.meta.doc_items, document)
                       .set_media_files(chunk.meta.doc_items, include_tables=self.table_image_enabled)
+                      .set_table_info(chunk.meta.doc_items,
+                                      getattr(self, "_table_split_totals", {}),
+                                      table_piece_seen)
                       .set_guardrail_categories(sorted(chunk_cats) if chunk_cats else None)
                       ).build()
             vectors.append(vector)

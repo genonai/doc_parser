@@ -155,6 +155,37 @@ def resolve_compact_tables(source: dict, default: bool = True) -> bool:
     return default if parsed is None else parsed
 
 
+# output.table_format 이 받는 값. 실제 html/markdown 선택은 표 구조를 아는 쪽에서 한다.
+TABLE_FORMAT_SETTINGS = ("html", "markdown", "auto")
+
+
+def resolve_table_format_setting(source: dict, default: str = "html") -> str:
+    """표 직렬화 형식 설정을 읽는다. 반환값은 html | markdown | auto 중 하나.
+
+    ``auto`` 는 여기서 확정하지 않는다 - 표 구조를 봐야 정해지므로 그대로 넘기고,
+    facade/chunking/table_shape.resolve_table_format 이 grid 를 보고 결론을 낸다.
+
+    table_format 이 없으면 레거시 export_to_html(1/0) 플래그로 폴백한다. 운영 설정과
+    호출 kwargs 양쪽에서 오며 둘 다 검증 없이 전달된다.
+    """
+    value = source.get("table_format")
+    if value is None:
+        return "html" if source.get("export_to_html", 1) == 1 else "markdown"
+    value = str(value).strip().lower()
+    if value in TABLE_FORMAT_SETTINGS:
+        return value
+    _log.warning(
+        "[config_parse] Unknown table_format %r, falling back to %r.", value, default)
+    return default
+
+
+def resolve_table_row_serialization(source: dict, default: bool = False) -> bool:
+    """병합 셀 표에 행 문장을 덧붙일지. 청크가 커지므로 기본은 off."""
+    parsed = parse_optional_bool(
+        source.get("table_row_serialization"), "table_row_serialization")
+    return default if parsed is None else parsed
+
+
 def resolve_tokenizer(
     chunking_cfg: dict,
     *,

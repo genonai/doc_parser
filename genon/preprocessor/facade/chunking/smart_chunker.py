@@ -19,7 +19,7 @@ from pathlib import Path
 from typing import Any, ClassVar, Iterator, Optional, Union
 
 import semchunk
-from pydantic import ConfigDict, model_validator
+from pydantic import ConfigDict, PrivateAttr, model_validator
 from transformers import AutoTokenizer, PreTrainedTokenizerBase
 from typing_extensions import Self
 
@@ -38,8 +38,11 @@ from docling_core.types.doc.document import CodeItem, ContentLayer, LevelNumber,
 from docling_core.types.doc.labels import DocItemLabel
 
 from genon.preprocessor.facade.chunking import header_path as hp
+from genon.preprocessor.facade.chunking.table_shape import (
+    analyze_grid,
+    resolve_table_format,
+)
 from genon.preprocessor.facade.chunking.table_splitter import (
-    leading_header_row_count,
     split_entries_preserving_tables,
     split_table_rows,
 )
@@ -50,6 +53,19 @@ from genon.preprocessor.facade.enrichment.table_description import (
 )
 
 _log = logging.getLogger(__name__)
+
+
+def _is_html_origin(dl_doc) -> bool:
+    """원본이 HTML 계열인가. 헤더 행 수 판정 규칙이 여기서 갈린다.
+
+    HTML 은 thead 가 그대로 보존되므로 플래그 행을 믿을 수 있지만, PDF 등은 플래그가
+    첫 행에만 붙어 다음의 컬럼명 행을 놓친다.
+    """
+    origin = getattr(dl_doc, "origin", None)
+    mimetype = str(getattr(origin, "mimetype", "") or "").lower()
+    filename = str(getattr(origin, "filename", "") or "").lower()
+    return mimetype in {"text/html", "application/xhtml+xml"} or filename.endswith(
+        (".html", ".htm", ".xhtml"))
 
 
 class SmartChunkerBase(BaseChunker):
@@ -79,6 +95,9 @@ class SmartChunkerBase(BaseChunker):
     CHUNK_PATH_MAX_LEAVES: ClassVar[int] = 5
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    # 표 self_ref -> 그 표가 나뉜 조각 수. compose_vectors 가 조각 순서 메타를 매길 때 읽는다.
+    _table_split_totals: dict = PrivateAttr(default_factory=dict)
 
     tokenizer: Union[PreTrainedTokenizerBase, str, Path] = (
             Path(cp.DEFAULT_TOKENIZER_LOCAL_PATH)
@@ -372,13 +391,23 @@ class SmartChunkerBase(BaseChunker):
         return "\n".join(dict.fromkeys(texts))
 
     @staticmethod
-    def _resolve_table_format(kwargs: dict) -> str:
-        """표 직렬화 형식 결정: table_format(html|markdown) 우선, 없으면 레거시 export_to_html(1/0)."""
-        fmt = kwargs.get("table_format")
-        if fmt is None:
-            return "html" if kwargs.get("export_to_html", 1) == 1 else "markdown"
-        fmt = str(fmt).strip().lower()
-        return "markdown" if fmt == "markdown" else "html"
+    def _table_shape(table_item: TableItem, dl_doc: DoclingDocument):
+        """표의 grid 구조 요약. 읽을 수 없으면 None(호출부가 단일 청크로 폴백한다)."""
+        try:
+            grid = table_item.data.grid
+            num_cols = table_item.data.num_cols
+        except Exception:
+            return None
+        return analyze_grid(grid, num_cols, is_html_origin=_is_html_origin(dl_doc))
+
+    def _resolve_table_format(self, kwargs: dict, shape=None) -> str:
+        """표 직렬화 형식 결정.
+
+        설정 해석은 공용 모듈이 하고(레거시 export_to_html 폴백 포함), auto 일 때의 최종
+        선택만 표 구조를 보고 여기서 확정한다. shape 를 주지 않으면 auto 는 정보를 잃지
+        않는 html 로 간다.
+        """
+        return resolve_table_format(cp.resolve_table_format_setting(kwargs), shape)
 
     @staticmethod
     def _resolve_compact_tables(kwargs: dict) -> bool:
@@ -401,7 +430,9 @@ class SmartChunkerBase(BaseChunker):
 
         # refine 은 항상 HTML 로 재구성 → output table_format 에 맞춰 변환(markdown 등).
         refined = refined_html_to_format(
-            refined_html, self._resolve_table_format(kwargs), self._resolve_compact_tables(kwargs))
+            refined_html,
+            self._resolve_table_format(kwargs, self._table_shape(table_item, dl_doc)),
+            self._resolve_compact_tables(kwargs))
         source = TableDescriptionExtractor.clean_copy(table_item) if retrieval_prefix else table_item
         base_text = refined or self._compute_table_base_text(source, dl_doc, **kwargs)
         if retrieval_prefix:
@@ -414,8 +445,10 @@ class SmartChunkerBase(BaseChunker):
 
     def _compute_table_base_text(self, table_item: TableItem, dl_doc: DoclingDocument, **kwargs) -> str:
         """테이블에서 텍스트를 추출하는 일반화된 메서드"""
+        # 분할 경로와 같은 shape 를 보고 정해야 같은 표가 분할 여부에 따라 형식이 갈리지 않는다.
+        table_format = self._resolve_table_format(kwargs, self._table_shape(table_item, dl_doc))
         try:
-            if self._resolve_table_format(kwargs) == "markdown":
+            if table_format == "markdown":
                 if self._resolve_compact_tables(kwargs):
                     # TableItem.export_to_markdown() 은 compact 옵션이 없어 직접 serializer 구성
                     # (컬럼 정렬 패딩 제거 → 대형 표 markdown 크기 대폭 축소)
@@ -504,48 +537,14 @@ class SmartChunkerBase(BaseChunker):
             else TableDescriptionExtractor.extract_summary(table_item)
         )
 
-        limit = self.max_tokens if max_tokens is None else max_tokens
-        if limit is None or limit <= 0:
-            return [single]
-        if self._count_tokens(single) <= limit:
-            return [single]
-
-        try:
-            grid = table_item.data.grid
-            num_cols = table_item.data.num_cols
-        except Exception:
-            return [single]
-        if not grid or not num_cols:
-            return [single]
-
-        flag_n = leading_header_row_count(grid)
-        origin = getattr(dl_doc, "origin", None)
-        mimetype = str(getattr(origin, "mimetype", "") or "").lower()
-        filename = str(getattr(origin, "filename", "") or "").lower()
-        is_html = mimetype in {"text/html", "application/xhtml+xml"} or filename.endswith(
-            (".html", ".htm", ".xhtml")
-        )
-        header_n = max(flag_n, 1) if is_html else flag_n + 1
         suffix = "\n---\n[표 설명]\n" + table_summary if table_summary else ""
-        result = split_table_rows(
-            grid=grid,
-            num_cols=num_cols,
-            single_text=single,
-            limit=limit,
-            count_text=self._count_tokens,
-            table_format=self._resolve_table_format(kwargs),
-            header_row_count=header_n,
+        return self._split_table_by_rows(
+            table_item, dl_doc, single,
+            max_tokens=max_tokens,
             prefix=sheet_prefix + description_prefix,
             suffix=suffix,
+            **kwargs,
         )
-        for index in result.oversized_piece_indexes:
-            _log.warning(
-                "[GenosSmartChunker] 표의 단일 행 또는 설명이 분할 예산(%d)을 초과해 "
-                "행 구조를 보존한 채 유지합니다: table=%s size=%d",
-                limit, getattr(table_item, "self_ref", ""),
-                self._count_tokens(result.pieces[index]),
-            )
-        return result.pieces
 
     def _extract_table_text_prefix_only(self, table_item: TableItem, dl_doc: DoclingDocument, **kwargs) -> str:
         """테이블에서 텍스트를 추출하는 일반화된 메서드.
@@ -557,8 +556,9 @@ class SmartChunkerBase(BaseChunker):
         # docling serializer 는 표 annotation 을 본문에 함께 싣는다. 접두로 직접 붙이는 만큼
         # 직렬화 대상에서는 설명을 떼어 같은 문장이 두 번 들어가지 않게 한다.
         source = TableDescriptionExtractor.clean_copy(table_item) if prefix else table_item
+        table_format = self._resolve_table_format(kwargs, self._table_shape(table_item, dl_doc))
         try:
-            if self._resolve_table_format(kwargs) == "markdown":
+            if table_format == "markdown":
                 if self._resolve_compact_tables(kwargs):
                     # TableItem.export_to_markdown() 은 compact 옵션이 없어 직접 serializer 구성
                     # (컬럼 정렬 패딩 제거 → 대형 표 markdown 크기 대폭 축소)
@@ -618,53 +618,86 @@ class SmartChunkerBase(BaseChunker):
         sheet_prefix = self._sheet_prefix(table_item, dl_doc)
         single = sheet_prefix + self._generate_section_text_with_heading([table_item], [h_short], dl_doc, **kwargs)
 
+        # 분할 조각에는 짧은 retrieval_context 만 반복한다(key_facts 는 행 매핑이 불가능).
+        description_prefix = TableDescriptionExtractor.retrieval_prefix(
+            table_item, split_piece=True
+        )
+        return self._split_table_by_rows(
+            table_item, dl_doc, single,
+            max_tokens=max_tokens,
+            prefix=sheet_prefix + description_prefix,
+            **kwargs,
+        )
+
+    @staticmethod
+    def _caption_prefix(table_item: TableItem, dl_doc: DoclingDocument) -> str:
+        """분할 조각에 반복할 캡션 접두.
+
+        단일 청크 경로는 docling serializer 가 캡션을 함께 실어 주지만, 분할 경로는
+        grid 에서 표를 다시 만들기 때문에 캡션이 빠진다. 캡션은 그 표가 무엇에 대한
+        것인지를 말하는 유일한 문장인 경우가 많아 조각마다 있어야 한다.
+        """
+        try:
+            caption = str(table_item.caption_text(dl_doc) or "").strip()
+        except Exception:
+            return ""
+        return f"{caption}\n" if caption else ""
+
+    def _split_table_by_rows(self, table_item: TableItem, dl_doc: DoclingDocument,
+                             single: str, *, max_tokens: Optional[int] = None,
+                             prefix: str = "", suffix: str = "", **kwargs) -> list[str]:
+        """표를 행 경계에서 나눈 청크 텍스트 목록. 예산 안이면 ``single`` 하나만.
+
+        두 변종(_full / _prefix_only)이 설명 처리만 다르고 이 아래 흐름은 같았다.
+        표 구조 판정과 포맷 선택이 한 곳에만 있어야 같은 표가 분할 여부에 따라 다른
+        형식으로 나가는 일을 막을 수 있다.
+        """
         limit = self.max_tokens if max_tokens is None else max_tokens
         if limit is None or limit <= 0:
             return [single]
         if self._count_tokens(single) <= limit:
             return [single]
 
-        try:
-            grid = table_item.data.grid
-            num_cols = table_item.data.num_cols
-        except Exception:
-            return [single]
-        if not grid or not num_cols:
+        shape = self._table_shape(table_item, dl_doc)
+        if shape is None:
             return [single]
 
-        # HTML은 선두 헤더 플래그 행(없으면 첫 행), 그 외 문서는 기존 규칙대로
-        # 플래그 행 다음의 컬럼명 추정 행까지 반복한다.
-        flag_n = leading_header_row_count(grid)
-        origin = getattr(dl_doc, "origin", None)
-        origin_mimetype = str(getattr(origin, "mimetype", "") or "").lower()
-        origin_filename = str(getattr(origin, "filename", "") or "").lower()
-        is_html = origin_mimetype in {"text/html", "application/xhtml+xml"} or origin_filename.endswith(
-            (".html", ".htm", ".xhtml")
-        )
-        header_n = max(flag_n, 1) if is_html else flag_n + 1
-        # 분할 조각에는 짧은 retrieval_context 만 반복한다(key_facts 는 행 매핑이 불가능).
-        description_prefix = TableDescriptionExtractor.retrieval_prefix(
-            table_item, split_piece=True
-        )
         result = split_table_rows(
-            grid=grid,
-            num_cols=num_cols,
+            grid=table_item.data.grid,
+            num_cols=shape.num_cols,
             single_text=single,
             limit=limit,
             count_text=self._count_tokens,
-            table_format=self._resolve_table_format(kwargs),
-            header_row_count=header_n,
-            prefix=sheet_prefix + description_prefix,
+            table_format=self._resolve_table_format(kwargs, shape),
+            header_row_count=shape.header_row_count,
+            prefix=prefix + self._caption_prefix(table_item, dl_doc),
+            suffix=suffix,
+            row_serialization=shape.is_complex and cp.resolve_table_row_serialization(kwargs),
         )
+        self._record_table_split(table_item, len(result.pieces))
+        if result.normalized_spans:
+            _log.debug(
+                "[GenosSmartChunker] 병합 행을 풀어 분할했습니다: table=%s pieces=%d",
+                getattr(table_item, "self_ref", ""), len(result.pieces))
         for index in result.oversized_piece_indexes:
-            if index < len(result.pieces):
-                _log.warning(
-                    "[GenosSmartChunker] 표의 단일 행이 분할 예산(%d)을 초과해 HTML 행 구조를 "
-                    "보존한 채 초과 청크로 유지합니다: table=%s size=%d",
-                    limit, getattr(table_item, "self_ref", ""),
-                    self._count_tokens(result.pieces[index]),
-                )
+            _log.warning(
+                "[GenosSmartChunker] 표의 단일 행 또는 설명이 분할 예산(%d)을 초과해 "
+                "행 구조를 보존한 채 유지합니다: table=%s size=%d",
+                limit, getattr(table_item, "self_ref", ""),
+                self._count_tokens(result.pieces[index]),
+            )
         return result.pieces
+
+    def _record_table_split(self, table_item: TableItem, piece_count: int) -> None:
+        """표별 분할 조각 수를 남긴다. compose_vectors 가 조각 순서 메타를 매길 때 읽는다.
+
+        DocChunk 에는 실을 자리가 없어 청커 인스턴스에 둔다. object.__new__ 로 만든
+        인스턴스는 이 속성이 없으므로 읽는 쪽은 getattr 기본값으로 받아야 한다.
+        """
+        ref = getattr(table_item, "self_ref", None)
+        if not ref:
+            return
+        self._table_split_totals[ref] = piece_count
 
     @staticmethod
     def _doc_has_sheet_groups(dl_doc) -> bool:
@@ -1390,6 +1423,8 @@ class SmartChunkerBase(BaseChunker):
         Yields:
             토큰 제한에 맞게 분할된 청크들
         """
+        # 같은 청커 인스턴스가 문서를 이어서 처리할 수 있으므로 표 분할 기록을 비운다.
+        self._table_split_totals = {}
         doc_chunks = list(self.preprocess(dl_doc=dl_doc, **kwargs))
 
         if not doc_chunks:

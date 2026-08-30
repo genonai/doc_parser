@@ -57,6 +57,9 @@ _RESERVED_FIELDS = {
     # 청커에서 문서 필드를 덮어쓰거나(title/file_path/appendix) 타입 검증에
     # 걸려 요청 전체가 실패한다(created_date: int).
     "title", "created_date", "appendix", "file_path", "guardrail_categories",
+    # 표 메타(#360). has_table 은 bool, table_split_* 는 int 라 컬럼 헤더가 같은
+    # 이름이면 문자열 값이 들어가 타입 검증에 걸린다.
+    "has_table", "table_refs", "table_split_index", "table_split_total",
 }
 
 
