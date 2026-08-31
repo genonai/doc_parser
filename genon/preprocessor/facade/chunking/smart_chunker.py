@@ -1451,6 +1451,9 @@ class SmartChunkerBase(BaseChunker):
         0 개 제공하는 인덱스 오염이므로, doc_items(bbox·페이지 커버리지)와 headings 를 다음 청크로
         승계시키고 청크 자체는 없앤다. 다음 청크가 없으면 이전 청크로 후방 병합한다.
 
+        include_chunk_header 가 꺼져 있으면 승계된 headings 가 렌더되지 않으므로 제목 텍스트를
+        본문에 이어붙인다(_absorb 참조). 어느 설정에서도 제목이 유실되지 않는 것이 이 함수의 계약이다.
+
         DocMeta.doc_items 는 min_length=1 이라 doc_items 가 비지 않도록 원본을 그대로 옮긴다.
         """
         if len(chunks) < 2:
@@ -1466,16 +1469,20 @@ class SmartChunkerBase(BaseChunker):
             return bool(chunk.meta.doc_items) and all(
                 self._is_section_header(item) for item in chunk.meta.doc_items)
 
-        def _text_covered(donor: DocChunk, headings) -> bool:
-            """donor 텍스트의 모든 줄이 병합 후 헤더 경로에 남는지.
+        def _text_covered(donor: DocChunk, cand: DocChunk) -> bool:
+            """donor 텍스트의 모든 줄이 병합 결과(본문 또는 헤더 경로)에 남는지.
 
-            _absorb 는 donor 본문을 버리고 headings 만 승계하므로, donor 텍스트가 경로에
-            남지 않으면 그 내용은 산출물에서 사라진다. 유형 판정만으로는 부족하다 —
-            _is_section_header 는 TITLE 도 포함하는데 문서 선두 TITLE 청크는 headings 가
+            donor 텍스트가 어디에도 남지 않으면 그 내용은 산출물에서 사라진다. 유형 판정만으로는
+            부족하다 — _is_section_header 는 TITLE 도 포함하는데 문서 선두 TITLE 청크는 headings 가
             비어 있을 수 있다(실측: hwp chunk 0 에 HEADER 라인 없음). 여기서 최종 차단한다.
+
+            headings 경로는 include_chunk_header 가 켜져 있을 때만 실제로 렌더되므로, 꺼져 있으면
+            경로를 커버 근거로 쓰지 않는다. 이 구분이 없어 40자 H1 이 통째로 소실된 전례가 있다.
             """
-            joined = self.CHUNK_PATH_SEP.join(headings or [])
-            return all(line.strip() in joined
+            joined = (self.CHUNK_PATH_SEP.join(cand.meta.headings or [])
+                      if self.include_chunk_header else "")
+            body = cand.text or ""
+            return all(line.strip() in joined or line.strip() in body
                        for line in (donor.text or "").splitlines() if line.strip())
 
         def _absorb(donor: DocChunk, target: DocChunk, *, donor_first: bool) -> DocChunk:
@@ -1483,8 +1490,17 @@ class SmartChunkerBase(BaseChunker):
                      else [*target.meta.doc_items, *donor.meta.doc_items])
             headings = (hp.union_paths(donor.meta.headings, target.meta.headings) if donor_first
                         else hp.union_paths(target.meta.headings, donor.meta.headings))
+            # 헤더 라인이 켜져 있으면 donor 제목은 HEADER 경로로 렌더되므로 본문에 다시 넣지 않는다
+            # (본문 내 제목 반복은 의도적으로 제거된 상태다). 꺼져 있으면 경로가 렌더되지 않으니
+            # donor 본문을 이어붙여야 제목이 남는다.
+            if self.include_chunk_header:
+                text = target.text
+            else:
+                parts = ([donor.text, target.text] if donor_first
+                         else [target.text, donor.text])
+                text = "\n".join(p for p in parts if p)
             return DocChunk(
-                text=target.text,
+                text=text,
                 meta=DocMeta(
                     doc_items=items,
                     headings=headings,
@@ -1521,7 +1537,7 @@ class SmartChunkerBase(BaseChunker):
                 cand = _absorb(donor, chunk, donor_first=True)
                 # 크기(_fits)와 무손실(_text_covered) 둘 다 만족할 때만 흡수한다.
                 # 못 하면 제목-only 청크로 남긴다 — 인덱스 오염을 조금 남기는 편이 본문 유실보다 낫다.
-                if _fits(cand) and _text_covered(donor, cand.meta.headings):
+                if _fits(cand) and _text_covered(donor, cand):
                     chunk = cand
                 else:
                     stopped = True
@@ -1535,7 +1551,7 @@ class SmartChunkerBase(BaseChunker):
             donor = pending.pop(0)
             if result:
                 cand = _absorb(donor, result[-1], donor_first=False)
-                if _fits(cand) and _text_covered(donor, cand.meta.headings):
+                if _fits(cand) and _text_covered(donor, cand):
                     result[-1] = cand
                     continue
             result.append(donor)
