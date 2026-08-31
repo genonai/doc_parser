@@ -24,7 +24,7 @@ chunking:
   # false 면 순수 본문만 산출된다(검색 시 섹션 문맥이 사라지므로 기본값 변경은 신중히).
   # 섹션 경로는 이 라인 한 곳에서만 붙는다 — 본문 내 제목 반복은 제거되었다.
   # 우선순위: kwargs.include_chunk_header > 아래 > true.
-  include_chunk_header: true
+  include_chunk_header: false
   # 청크 텍스트 정제(RAG 검색용). off(기본) | safe
   # safe 로 켜면 검색 매칭을 방해하는 문자 노이즈만 결정적으로 제거한다.
   #   - 한글 자모 분리(NFD) 복원, BOM/제로폭/제어문자 제거
