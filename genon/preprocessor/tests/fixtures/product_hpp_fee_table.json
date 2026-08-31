@@ -1,0 +1,20 @@
+{
+  "wcmsId": "1202631",
+  "code": "AAP1344",
+  "cardTitle": "새마을금고 삼성카드 7",
+  "cardSlogan": "가족과 함께할 때도 필요한 실속<br>새마을금고 혜택까지",
+  "ksp": [
+    {
+      "code": "P006890",
+      "title": "0.5%~3% 빅포인트 적립"
+    }
+  ],
+  "benefit": [
+    "0.5%~3% 빅포인트 적립"
+  ],
+  "htmlList": {
+    "feeUrl": "<h3 class=\"hide\">연회비</h3><div class=\"indv\"><div class=\"tit_wrap\"><h4 class=\"t_web_em f21_tm\">본인 연회비</h4></div><div class=\"table_col multiple2\"><table><caption>본인카드의 해외겸용, 국내전용 별 연회비 정보를 확인할 수 있는 표입니다.</caption><colgroup><col style=\"width: 30%;\"><col style=\"width: 35%;\"><col style=\"width: 35%;\"></colgroup><thead><tr><th scope=\"col\" class=\"first\">구분</th><th scope=\"col\"><span class=\"txt_pa w01\">해외겸용<br>(AMEX)</span></th><th scope=\"col\"><span class=\"txt_pa w01\">국내전용</span></th></tr></thead><tbody><tr><th scope=\"row\">총 연회비</th><td class=\"al_r\"><span class=\"ls0\">20,000</span>원</td><td class=\"al_r\"><span class=\"ls0\">18,000</span>원</td></tr><tr><th scope=\"row\">기본연회비</th><td class=\"al_r\"><span class=\"ls0\">5,000</span>원</td><td class=\"al_r\"><span class=\"ls0\">5,000</span>원</td></tr><tr><th scope=\"row\">제휴 연회비</th><td class=\"al_r\"><span class=\"ls0\">15,000</span>원</td><td class=\"al_r\"><span class=\"ls0\">13,000</span>원</td></tr></tbody></table></div></div><div class=\"indv\"><div class=\"tit_wrap\"><h4 class=\"t_web_em f21_tm\">가족 연회비</h4></div><div class=\"table_col\"><p class=\"no_result\">가족카드는 없음</p></div></div><div class=\"b_note cnt\"><div class=\"list_box_nt bg_box solo\"><h4 class=\"tit04 box_s b_tit\">유의사항</h4><ul class=\"txt_list\"><li><span class=\"txt_dot\">연회비는 카드 발급일(발급 첫 해에는 카드 사용등록일)을 기준으로 매년 청구됩니다.</span><ul class=\"txt_list box_s\"><li><span class=\"txt_bar solo_sp01\">예외기준</span><ul class=\"txt_list\"><li><span class=\"txt_squ02 solo_sp01\">카드 발급일(발급 첫 해에는 카드 사용등록일)에 연회비가 청구되지 않은 경우 최초 이용일자 기준으로 해당 결제일에 청구됩니다.</span></li><li><span class=\"txt_squ02 solo_sp01\">매년 카드 발급일을 기준으로 직전 1년 이내 실적이 없는 경우 연회비가 청구되지 않습니다.</span></li><li><span class=\"txt_squ02 solo_sp01\">재발급, 갱신 시에는 이전 카드의 카드 발급일을 기준으로 연회비가 청구됩니다.</span></li></ul></li></ul></li><li><span class=\"txt_dot\">연회비는 기본 연회비와 제휴 연회비로 구분되며 기본 연회비는 보유 카드 매수에 관계없이 연 1회만 청구되고, 제휴 연회비는 보유하신 카드별로 청구됩니다.</span></li><li><span class=\"txt_dot\">보너스포인트로 연회비를 결제할 수 있습니다.</span></li></ul></div></div>",
+    "addServiceUrl": "<h3>추가 서비스와 발급 기준</h3><p>만 19세 이상이며 삼성카드의 발급 심사 기준을 충족해야 합니다.</p>"
+  },
+  "mpoNum": "여신금융협회 심의필 제 2025-C1h-14606호 (2025.09.30)"
+}

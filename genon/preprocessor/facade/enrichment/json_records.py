@@ -213,6 +213,43 @@ _MD_EXPORT_OPTS = {"escape_html": False, "escape_underscores": False, "image_pla
 _html_table_serializer: Any = None
 
 
+def _mark_rich_cells_visited(item: Any, doc: Any, kwargs: dict) -> None:
+    """rich cell 하위 아이템을 방문 처리해 표 밖에서 다시 직렬화되지 않게 한다.
+
+    docling HTML 백엔드는 `<td><span>20,000</span>원</td>` 처럼 셀 텍스트가 인라인 태그로
+    쪼개진 셀을 RichTableCell 로 만들고, 그 내용을 표 아래 별도 TextItem 으로도 문서에 넣는다.
+    docling_core 의 MarkdownTableSerializer 는 그 하위 트리를 visited 로 찍어 문서 직렬화가
+    다시 내보내지 않게 하는데, `export_to_html` 로 갈아 끼운 serializer 는 그 처리를 하지
+    않아 셀 값이 표 뒤에 평문으로 한 번 더 붙었다(실측 — 연회비 표의 금액 6개가 중복).
+
+    표 HTML 자체는 rich cell 내용을 이미 담고 있으므로 여기서 visited 만 채워 주면 된다.
+    """
+    visited = kwargs.get("visited")
+    if visited is None:
+        return
+    for row in getattr(getattr(item, "data", None), "grid", None) or []:
+        for cell in row:
+            ref = getattr(cell, "ref", None)
+            if ref is None:
+                continue
+            try:
+                _mark_subtree_visited(ref.resolve(doc=doc), doc, visited)
+            except Exception:  # 참조가 끊긴 셀은 건너뛴다
+                continue
+
+
+def _mark_subtree_visited(node: Any, doc: Any, visited: set) -> None:
+    ref = getattr(node, "self_ref", None)
+    if ref is None or ref in visited:
+        return
+    visited.add(ref)
+    for child in getattr(node, "children", None) or []:
+        try:
+            _mark_subtree_visited(child.resolve(doc=doc), doc, visited)
+        except Exception:
+            continue
+
+
 def _get_html_table_serializer() -> Any:
     """markdown 직렬화 중 TableItem 만 `export_to_html` 결과로 내보내는 serializer.
 
@@ -228,6 +265,7 @@ def _get_html_table_serializer() -> Any:
 
         class _HtmlTableSerializer(BaseTableSerializer):
             def serialize(self, *, item, doc_serializer, doc, **kwargs) -> SerializationResult:
+                _mark_rich_cells_visited(item, doc, kwargs)
                 return create_ser_result(text=item.export_to_html(doc=doc), span_source=item)
 
         _html_table_serializer = _HtmlTableSerializer()
@@ -267,6 +305,7 @@ def _get_auto_table_serializer() -> Any:
                     is_html_origin=True,
                 )
                 if resolve_table_format("auto", shape) == "html":
+                    _mark_rich_cells_visited(item, doc, kwargs)
                     return create_ser_result(
                         text=item.export_to_html(doc=doc), span_source=item)
                 return self._markdown.serialize(
