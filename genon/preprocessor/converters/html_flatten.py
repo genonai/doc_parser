@@ -44,8 +44,11 @@
 (이 모듈이 추가된 시점 `4792e0ff` 보다 백엔드 업그레이드 `93557b6a` 가 앞서서, 위 측정 당시의
 "docling 이 문맥에 따라 알아서 판정한다"는 전제가 더는 성립하지 않는다.)
 
-`<caption>` 도 docling 이 버리므로("라이트할부 기간동안 추가 결제 안내입니다." 같은 표 설명),
-표 앞의 문단으로 옮겨 살린다.
+`<caption>`("라이트할부 기간동안 추가 결제 안내입니다." 같은 표 설명)은 손대지 않고 그대로
+넘긴다. 예전에는 docling 이 caption 을 버려서 표 앞의 `<p>` 로 옮겨 살렸는데, 그 우회책은
+캡션을 본문 문단으로 만들어 `TableItem.captions` 를 비워 놓는다 — 표 설명이 어느 표의 것인지
+잃어버리므로 청커·enrichment 가 표 설명으로 쓸 수 없다. 백엔드가 `<caption>` 을 캡션 아이템으로
+만들도록 고쳐졌으니(`html_backend._emit_table_caption`) 전처리에서 미리 뜯어내면 안 된다.
 
 ## 마커만으로 계층을 표현한 문서
 
@@ -395,28 +398,11 @@ def _normalize_wrapped_nested_lists(node: Tag) -> int:
     return normalized
 
 
-def _lift_table_captions(node: Tag) -> None:
-    """`<caption>` 을 표 앞의 `<p>` 로 옮긴다 — docling 은 caption 을 버린다."""
-    for caption in node.find_all("caption"):
-        table = caption.find_parent("table")
-        text = caption.get_text(" ", strip=True)
-        caption.decompose()
-        if table is None or not text:
-            continue
-        para = Tag(name="p")
-        para.string = text
-        table.insert_before(para)
-
-
 def _marker_heading_candidates(node: Tag) -> list[tuple[Tag, str]]:
     """"마커 + 짧은 제목" 한 줄짜리 블록을 문서 순서로 찾는다.
 
     모듈 docstring "마커만으로 계층을 표현한 문서" 절 참고. 반환은
     (요소, 마커 문자) 쌍의 목록이며, 아래 조건을 모두 만족해야 후보가 된다.
-
-    `_lift_table_captions` 가 표 앞에 만든 `<p>`(표 설명)는 여기서 함께
-    걸러진다 — 캡션은 도형 마커로 시작하지 않아 정규식 매치(조건 4) 단계에서
-    이미 배제되므로 실질 위험은 없지만, 표 안 여부(조건 2)도 이중으로 막는다.
     """
     candidates: list[tuple[Tag, str]] = []
     for el in node.find_all(True):
@@ -529,7 +515,6 @@ def _clean(node: Tag) -> None:
                 continue
         _strip_hidden_markers(el)
     _normalize_wrapped_nested_lists(node)
-    _lift_table_captions(node)
     # facebook 추적 픽셀 등 1x1 트래커 제거
     for img in node.find_all("img"):
         src = (img.get("src") or "").lower()

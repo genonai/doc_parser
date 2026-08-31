@@ -208,23 +208,19 @@ def test_extract_content_keeps_meaningful_wrapper_between_li_and_list():
     assert sublist.parent.name == "blockquote"
 
 
-def test_extract_content_lifts_table_caption_before_table():
-    """docling 은 <caption> 을 버리므로 표 앞 문단으로 옮겨 살린다."""
+def test_extract_content_keeps_table_caption_in_place():
+    """`<caption>` 은 백엔드가 표의 캡션 아이템으로 만든다 — 전처리가 미리 뜯어내면 안 된다.
+
+    예전에는 docling 이 caption 을 버려서 표 앞의 `<p>` 로 옮겼다. 그 우회책은 표 설명을
+    본문 문단으로 만들어 `TableItem.captions` 를 비워 놓으므로 지금은 하지 않는다.
+    """
     raw = (
         "<html><body><main><table><caption>표 설명입니다</caption>"
         "<tr><td>a</td></tr></table></main></body></html>"
     )
-    node = extract_content(raw)
-    html = str(node)
-    assert "<caption>" not in html
-    assert html.index("표 설명입니다") < html.index("<table>")
-
-
-def test_extract_content_drops_empty_caption():
-    raw = "<html><body><main><table><caption>  </caption><tr><td>a</td></tr></table></main></body></html>"
     html = str(extract_content(raw))
-    assert "<caption>" not in html
-    assert "<p>" not in html
+    assert "<caption>표 설명입니다</caption>" in html
+    assert html.index("<table>") < html.index("표 설명입니다")
 
 
 def test_extract_content_drops_script_and_style():
