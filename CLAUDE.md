@@ -104,6 +104,9 @@ facade 프로세서는 공용 모듈 추출로 절반 이하로 줄었지만(202
 - **청킹 파이프라인은 `facade/chunking/smart_chunker.py` 한 벌이다.** 활성 3종은 ClassVar 플래그만 다른 얇은 서브클래스를 두므로 여기만 고치면 된다. `legacy/BOK_적재용_*` 3종에는 아직 독립 사본이 있으니, 변경이 거기까지 반영돼야 하는지 먼저 판단한다.
 - **`GenosServiceException` 은 활성 경로 7곳과 legacy 포함 총 22곳에 복제**되어 있다. 고정 개수를 가정하지 말고 시그니처 변경 전에 `rg -n '^class GenosServiceException' genon/preprocessor/src genon/preprocessor/facade --glob '*.py'` 로 전체 대상을 확인한다. facade가 던진 로컬 예외는 `main.py` 의 제네릭 핸들러가 받는다.
 - **docling 안의 결함은 docling 안에서 고친다.** genon 쪽 우회책을 기본 해법으로 삼지 말 것.
+  백엔드가 고쳐지면 그 자리를 메우던 genon 우회책은 걷어낸다 — 남겨두면 수정을 가로챈다.
+  실례: `html_flatten._lift_table_captions` 가 `<caption>` 을 표 앞 `<p>` 로 옮기는 바람에
+  백엔드가 만든 `TableItem.captions` 가 계속 비었고, 표 설명이 사라졌다.
 - 설정은 스키마별 키를 늘리기보다 일반화된 메커니즘으로 푼다. allowlist보다 blocklist. YAML은 초보자가 읽을 수 있게 개념 수를 줄인다.
 
 ## 테스트
@@ -116,6 +119,10 @@ cd genon/preprocessor
 ```
 
 마커: `unit`, `smoke`, `regression`, `update_baseline`(일반 실행 제외).
+
+`tests/unit` 전체는 실측 201초다. **바꾼 모듈을 쓰는 테스트 파일만 지정해서 돌린다.**
+회귀인지 사전 실패인지 헷갈리면 `git stash push -- <바꾼 파일>` 로 그 테스트만 베이스라인과
+대조하고 곧바로 `git stash pop` 한다.
 
 주의:
 - `addopts` 에 `-p no:cacheprovider` 가 있어 **`--lf` 를 쓸 수 없다.**
