@@ -14,6 +14,8 @@ from docling_core.types.doc.document import MiscAnnotation
 
 from docling.utils.llm_cache import async_cached_call, remaining_timeout
 
+from genon.preprocessor.facade.common import config_parse as cp
+
 from .base_enricher import BaseEnricher
 from .field_transforms import store_metadata_in_document
 from .prompt_files import read_prompt_file
@@ -301,6 +303,9 @@ class CustomFieldsEnricher(BaseEnricher):
         # 시키는 대신 여기서 채운다 — 환각·누락 여지가 없고 프롬프트도 짧아진다.
         # tabular_mapping/json_mapping 의 `constants` 와 같은 의미다.
         self._constants = dict(constants or cfg.get("constants") or {})
+        # 청크 본문(text)과 같은 값을 실을 필드 이름(검색 대상 본문 컬럼). 값 자체는 청커가
+        # 청크 단위로 채우므로 여기서는 이름만 문서 metadata 에 실어 넘긴다.
+        self._body_fields = cp.parse_field_name_list(cfg.get(cp.BODY_FIELDS_KEY))
         self._headers: dict[str, str] = {"Content-Type": "application/json"}
         resolved_key = api_key or cfg.get("api_key", "")
         if resolved_key:
@@ -568,6 +573,9 @@ class CustomFieldsEnricher(BaseEnricher):
         # front matter보다도 우선하며, output_fields 에 없는 상수도 그대로 실린다.
         if self._constants:
             normalized = {**normalized, **self._constants}
+        # 값이 아니라 규칙이다. 청커가 읽어 청크 본문으로 채우고 청크 필드에서는 뺀다.
+        if self._body_fields:
+            normalized = {**normalized, cp.BODY_FIELDS_KEY: list(self._body_fields)}
         return normalized
 
     def _extract_raw_text(self, document: DoclingDocument) -> str:

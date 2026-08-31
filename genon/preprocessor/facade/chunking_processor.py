@@ -783,6 +783,9 @@ class DocumentProcessor:
         # 설정 기반 typed 필드 변환 (created_date 등). source/target 키는 passthrough 에서 제외.
         typed_values, consumed_keys = apply_field_transforms(
             self._metadata_field_transforms, merged_metadata, document)
+        # 본문과 동일한 값을 실을 메타 필드. 문서형 custom_fields yaml 이 정하고 파서가
+        # 문서 metadata 로 실어 보낸다.
+        _body_fields: list = cp.resolve_body_fields(kwargs, merged_metadata)
 
         for item, _ in document.iterate_items():
             if hasattr(item, 'label'):
@@ -819,6 +822,7 @@ class DocumentProcessor:
             "i_chunk_on_page", "n_chunk_of_page", "i_chunk_on_doc", "n_chunk_of_doc",
             "n_page", "reg_date", "chunk_bboxes", "media_files", "title",
             "created_date", "appendix", "file_path", "metadata", "guardrail_categories",
+            cp.BODY_FIELDS_KEY,
         } | consumed_keys
         for reserved_key in reserved_keys:
             passthrough_metadata.pop(reserved_key, None)
@@ -867,6 +871,10 @@ class DocumentProcessor:
             content, chunk_cats = gr.apply_to_text(content, _sensitive_infos, _gr_masking)
             if _cleanup_out:
                 content = tn.tidy(content)
+            # 본문이 확정된 뒤에 넣어야 헤더 접두·가드레일 마스킹·정제까지 반영된 값이
+            # 그대로 실린다. 문서 단위로 뽑힌 같은 이름의 값은 여기서 덮인다.
+            for field_name in _body_fields:
+                chunk_global_metadata[field_name] = content
 
             vector = (GenOSVectorMetaBuilder()
                       .set_text(content)
@@ -1221,7 +1229,11 @@ class DocumentProcessor:
             text, chunk_cats = gr.apply_to_text(text, _sensitive_infos, _gr_masking)
             if _cleanup_out:
                 text = tn.tidy(text)
-            row_meta = el.get("metadata") or {}
+            row_meta = dict(el.get("metadata") or {})
+            # docling 경로와 같은 계약: body_fields 에 오른 필드는 청크 본문과 같은 값을 갖는다.
+            for field_name in cp.resolve_body_fields(kwargs, row_meta):
+                row_meta[field_name] = text
+            row_meta.pop(cp.BODY_FIELDS_KEY, None)  # 제어값은 청크 필드로 내보내지 않는다
             try:
                 vectors.append(GenOSVectorMeta.model_validate({
                     **row_meta,  # 목표 필드(question/answer_text/...) + doc_type. extra=allow 로 보존.

@@ -277,3 +277,41 @@ def copy_enrichment_options(options, **updates):
         for key, value in updates.items():
             setattr(cloned, key, value)
         return cloned
+
+
+# ── 청크 본문과 같은 값을 실을 메타 필드(body_fields) ────────────────────────
+# 소비계층 스키마가 "검색 대상 본문" 컬럼을 따로 두는 경우, 그 컬럼이 청크 본문과
+# 어긋나면(문서 단위 LLM 요약이 전 청크에 복사되는 등) 청크 단위 검색이 엉뚱한 청크를
+# 집는다. 이 목록에 올린 필드는 청크 본문과 글자 그대로 같은 값을 받는다.
+#
+# 설정 자리는 문서형 custom_fields yaml(custom_field_<doc_type>.yaml) 이다. 필드 이름이
+# 거기 정의돼 있으니 규칙도 같은 파일에 두고, 파서가 문서 metadata 로 실어 청커까지 넘긴다.
+# doc_type 별 yaml 이 곧 적용 범위라 청커 쪽에 doc_type 분기를 따로 두지 않는다.
+
+# 문서 metadata 로 실려 청커까지 넘어가는 키. 청크 필드로는 내보내지 않는다.
+BODY_FIELDS_KEY = "body_fields"
+
+
+def parse_field_name_list(value: Any) -> list[str]:
+    """필드 이름 목록을 리스트로 해석. list 와 쉼표 구분 문자열을 모두 받는다."""
+    if value is None:
+        return []
+    if isinstance(value, str):
+        items = value.split(",")
+    elif isinstance(value, (list, tuple, set)):
+        items = list(value)
+    else:
+        return []
+    return [name for name in (str(item).strip() for item in items) if name]
+
+
+def resolve_body_fields(kwargs: dict, metadata: Any = None) -> list[str]:
+    """본문과 같은 값을 실을 메타 필드 목록.
+
+    우선순위: 런타임 kwargs > 문서 metadata(custom_fields yaml 이 실어 보낸 값).
+    """
+    from_kwargs = parse_field_name_list((kwargs or {}).get(BODY_FIELDS_KEY))
+    if from_kwargs:
+        return from_kwargs
+    source = metadata if isinstance(metadata, dict) else {}
+    return parse_field_name_list(source.get(BODY_FIELDS_KEY))
