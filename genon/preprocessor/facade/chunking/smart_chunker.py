@@ -47,6 +47,7 @@ from genon.preprocessor.facade.chunking.table_splitter import (
     split_table_rows,
 )
 from genon.preprocessor.facade.common import config_parse as cp
+from genon.preprocessor.facade.common.doc_meta import strip_enricher_meta
 from genon.preprocessor.facade.enrichment.table_description import (
     TableDescriptionExtractor,
     refined_html_to_format,
@@ -1425,6 +1426,11 @@ class SmartChunkerBase(BaseChunker):
         """
         # 같은 청커 인스턴스가 문서를 이어서 처리할 수 있으므로 표 분할 기록을 비운다.
         self._table_split_totals = {}
+        # docling_core 가 enricher annotation 을 meta 로 이관해 두면 표·그림 직렬화에
+        # `<details class="docling-meta">` 블록이 딸려 나온다. 표 설명은 이 청커가 본문
+        # 선두에 직접 싣는 값이라 중복이고, 내부 구조체(table_retrieval)까지 노출되므로
+        # 청킹 전에 걷어낸다.
+        strip_enricher_meta(dl_doc)
         doc_chunks = list(self.preprocess(dl_doc=dl_doc, **kwargs))
 
         if not doc_chunks:

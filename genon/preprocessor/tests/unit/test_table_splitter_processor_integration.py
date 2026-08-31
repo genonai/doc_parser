@@ -281,3 +281,47 @@ def test_description_survives_every_chunk_mode(module_name, chunk_mode):
     assert texts
     assert all("[표 검색 설명]" in text for text in texts)
     assert all(text.count("[표 검색 설명]") == 1 for text in texts)
+
+
+def _roundtrip(doc):
+    """/parser 가 낸 docling JSON 을 /chunker 가 다시 읽는 경로를 재현한다.
+
+    이 검증 시점에 docling_core 가 deprecated `annotations` 를 `meta` 로 이관한다.
+    """
+    core = pytest.importorskip("docling_core.types.doc", exc_type=ImportError)
+    return core.DoclingDocument.model_validate(doc.model_dump(mode="json"))
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    "module_name",
+    [
+        "genon.preprocessor.facade.chunking_processor",
+        "genon.preprocessor.facade.intelligent_processor",
+        "genon.preprocessor.facade.convert_processor",
+    ],
+)
+def test_enricher_meta_does_not_leak_into_chunk_text_after_json_roundtrip(module_name):
+    """표 설명이 meta 로 이관돼도 청크 본문에 docling meta 블록이 실리지 않는다."""
+    module = pytest.importorskip(module_name, exc_type=ImportError)
+    # 분할되지 않는 작은 표라야 docling 직렬화기를 그대로 타고, meta 누출이 드러난다.
+    doc = _large_table_doc(rows=2, payload_size=10)
+    _attach_rag_description(doc.tables[0])
+    doc = _roundtrip(doc)
+    assert doc.tables[0].meta is not None  # 이관이 실제로 일어났는지 먼저 고정
+
+    chunker = module.GenosSmartChunker(
+        max_tokens=4000, chunk_mode="split_only", tokenizer_type="char"
+    )
+    texts = [chunk.text for chunk in chunker.chunk(dl_doc=doc, export_to_html=1)]
+
+    assert texts
+    for text in texts:
+        assert "docling-meta" not in text
+        assert "docling_legacy" not in text
+        assert "table_retrieval" not in text
+        assert "retrieval_context" not in text
+    # 설명 자체는 청커가 붙이는 접두 한 번만 남는다.
+    table_texts = [text for text in texts if "<table>" in text]
+    assert table_texts
+    assert all(text.count("[표 검색 설명]") == 1 for text in table_texts)

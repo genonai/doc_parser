@@ -160,6 +160,7 @@ from genon.preprocessor.facade.common import docling_ops as dops
 from genon.preprocessor.facade.common import runtime as rt
 from genon.preprocessor.facade.common import file_probe as fp
 from genon.preprocessor.facade.common import pdf_convert as pc
+from genon.preprocessor.facade.common.doc_meta import strip_enricher_meta
 
 _as_dict = cp.as_dict
 _as_int_flag = cp.as_int_flag
@@ -2001,6 +2002,9 @@ class DocumentProcessor:
                 "usage": {"pages": self._docling_page_count(doc)},
             }
         elif output_format == "json":
+            # 표 설명은 아래에서 `[표 설명]` 로 따로 싣는다. docling_core 가 meta 로 이관해 둔
+            # 사본까지 본문에 딸려 나가면 같은 문장이 두 번 실리고 내부 구조체가 노출된다.
+            strip_enricher_meta(doc)
             result = self._docling_to_parse_format(doc, table_format=table_format,
                                                    compact_tables=compact_tables)
             if clear_coordinates:
@@ -2009,6 +2013,7 @@ class DocumentProcessor:
             resp = result
         else:
             pages = self._docling_page_count(doc)
+            strip_enricher_meta(doc)
             content = self._docling_to_content(doc)
             resp = self._content_response(content, pages=pages)
 
