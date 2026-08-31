@@ -110,7 +110,10 @@ def test_shipped_table_text_description_exposes_all_user_options(repo_root, rel)
         item for item in ec.custom_fields_cfgs
         if str(item.get("extractor") or "llm").lower() in {"llm", "document_llm"}
     ]
-    assert all(item["table_text_description"] == cfg for item in document_llm)
+    # 융합 사본은 공통 설정과 같아야 한다. 단 `resource_path` 는 독립 실행기 전용 키라
+    # 융합 사본에는 붙지 않는다(enrichment_config._with_resource_path 참고).
+    expected = {k: v for k, v in cfg.items() if k != "resource_path"}
+    assert all(item["table_text_description"] == expected for item in document_llm)
 
 
 @pytest.mark.unit

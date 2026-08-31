@@ -196,11 +196,21 @@ enrichment:
         enable: false
         prompt_file: prompt_table_refine_combined.md   # 재구성 HTML + 요약 통합 프롬프트
 
-  # 텍스트 기반(HTML/Markdown) 표를 기존 custom_fields LLM 호출에 함께 넣어 RAG 설명 생성.
-  # true 또는 런타임 table_text_desc=1로 활성화. 문서 내 여러 표는 가능한 한 1회 호출로 처리한다.
-  # LLM url/model/max_tokens/temperature/timeout/thinking은 매칭된 문서형 custom_fields YAML 값을 공유한다.
+  # 텍스트 기반(HTML/Markdown) 표의 RAG 설명 생성. true 또는 런타임 table_text_desc=1로 활성화.
+  # 문서 내 여러 표는 가능한 한 1회 호출로 처리한다.
+  #
+  # 아래 url/model 을 채우면 custom_fields 의 LLM 사용 여부와 상관없이 표 설명을 이 연결로
+  # 직접 만든다(권장). 그래야 custom_fields 가 LLM 을 쓰지 않는 문서유형(tabular/json 매핑)이나
+  # 매칭 설정이 없는 문서에도 표 설명이 붙는다.
+  # 비워 두면 예전처럼 매칭된 문서형 custom_fields YAML 의 연결을 빌려 쓴다(그 경우 위 문서들은 제외).
   - table_text_description:
       enable: true
+      url: "https://genos.genon.ai/api/gateway/rep/serving/752/v1/chat/completions"
+      api_key: "d1a9e0acab6243019008a96cd8af868e"
+      model: "model"
+      max_tokens: 4000
+      temperature: 0.0
+      timeout: 300
       prompt_template_file: prompt_table_text_description_rag.md
       input_format: auto       # auto=HTML 원본은 html, 그 외 markdown | markdown | html
       before_items: 3          # 표 앞쪽 본문 아이템 수

@@ -151,6 +151,20 @@ _ENRICHMENT_LIST_NAMES: dict[str, set[str]] = {
 }
 
 
+def _with_resource_path(cfg: dict, config_dir: Path) -> dict:
+    """독립 실행기용 사본에만 기준 디렉토리를 붙인다.
+
+    `TableTextDescriptionEnricher` 는 `prompt_template_file` 을 custom_fields 와 같은 규칙으로
+    풀어야 해서 기준 디렉토리가 필요하다. 융합 경로로 넘어가는 사본에는 붙이지 않는다 —
+    그쪽은 문서유형 YAML 이 이미 자기 resource_path 를 갖고 있어 불필요한 키가 된다.
+    """
+    if not cfg:
+        return cfg
+    merged = dict(cfg)
+    merged.setdefault("resource_path", str(config_dir))
+    return merged
+
+
 def _merge_table_text_description_config(
     custom_fields_cfgs: list[dict], common_cfg: dict
 ) -> list[dict]:
@@ -462,7 +476,7 @@ class EnrichmentConfig:
             doc_summary_cfg=doc_summary_cfg,
             image_description_cfg=image_desc_cfg,
             table_description_cfg=table_desc_cfg,
-            table_text_description_cfg=table_text_desc_cfg,
+            table_text_description_cfg=_with_resource_path(table_text_desc_cfg, config_dir),
             custom_fields_cfgs=custom_fields_cfgs,
             api_url="",
             api_key="",
@@ -643,7 +657,7 @@ class EnrichmentConfig:
             doc_summary_cfg=_as_dict(cfg.get("doc_summary")),
             image_description_cfg=_as_dict(cfg.get("image_description")),
             table_description_cfg=_as_dict(cfg.get("table_description")),
-            table_text_description_cfg=table_text_desc_cfg,
+            table_text_description_cfg=_with_resource_path(table_text_desc_cfg, config_dir),
             custom_fields_cfgs=cf_list,
             api_url=global_url,
             api_key=global_key,

@@ -14,6 +14,10 @@ from .image_description import (
     PictureDescriptionExtractor,
     resolve_runtime_image_options,
 )
+from .table_text_description import (
+    TableTextDescriptionEnricher,
+    apply_table_description_stage,
+)
 from .table_description import (
     TableDescriptionEnricher,
     TableDescriptionExtractor,
@@ -40,6 +44,8 @@ __all__ = [
     "ImageDescriptionOptions",
     "PictureDescriptionExtractor",
     "resolve_runtime_image_options",
+    "TableTextDescriptionEnricher",
+    "apply_table_description_stage",
     "TableDescriptionEnricher",
     "TableDescriptionExtractor",
     "TableDescriptionOptions",

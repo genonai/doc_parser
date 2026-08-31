@@ -596,7 +596,12 @@ class CustomFieldsEnricher(BaseEnricher):
 
         런타임 플래그(table_text_desc)로도 켤 수 있지만, 프롬프트가 없으면 켜지 않는다 —
         전역 플래그 하나로 프롬프트 미설정 문서유형의 custom_fields 추출까지 실패시키지 않기 위해서다.
+
+        `table_text_description` 이 자체 LLM 연결로 이미 표 설명을 만든 요청이면 융합하지
+        않는다(`_table_text_desc_owned`) — 같은 표를 두 번 설명하는 것을 막는다.
         """
+        if kwargs.get("_table_text_desc_owned"):
+            return False
         if not self.is_configured or not matches_doc_type(self._doc_types, kwargs.get("doc_type")):
             return False
         if self._table_description_options.conflict_policy == "prefer_image":
@@ -815,6 +820,70 @@ class CustomFieldsEnricher(BaseEnricher):
             # 이미 추출한 custom fields 는 유지한다 — 표 설명만 없는 상태로 진행.
             _log.warning("표 설명 배치 호출 실패: %s", exc)
         return parsed
+
+    async def describe_table_targets(
+        self,
+        targets: list[TableTextTarget],
+        *,
+        document: DoclingDocument | None = None,
+        **kwargs: Any,
+    ) -> dict:
+        """target 별 표 설명 응답을 table_id 기준으로 모아 반환한다.
+
+        `document` 를 선택 인자로 둔 이유는 docling 문서가 없는 레코드 경로(json/tabular
+        매핑)도 같은 프롬프트·예산·배치 규칙을 그대로 쓰게 하기 위해서다 — 문서가 없으면
+        프롬프트 문맥 변수만 비고 나머지 계산은 동일하다.
+
+        예산 초과는 `_plan_batches` 가 호출을 나눠 흡수한다. 표 하나가 통째로 예산을 넘으면
+        그 표만 빠진다(경고 후 계속).
+        """
+        results: dict = {}
+        if not targets:
+            return results
+        for batch in self._plan_batches(document, targets):
+            output = await self._call_llm("", document, self._table_prompt(batch))
+            parsed = self._parse_with_custom_parser(output, document, **kwargs)
+            values = parsed.get("_table_descriptions")
+            if not isinstance(values, list):
+                _log.warning("표 설명 응답에 _table_descriptions 배열이 없습니다.")
+                continue
+            for value in values:
+                table_id = str(value.get("table_id") or "") if isinstance(value, dict) else ""
+                if table_id:
+                    results[table_id] = value
+        return results
+
+    async def describe_tables_only(
+        self, document: DoclingDocument, **kwargs: Any
+    ) -> None:
+        """custom_fields 추출 없이 표 설명만 만들어 문서에 부착한다.
+
+        문서형 custom_fields 가 없거나 그 연결을 빌려 쓸 수 없는 문서를 위해
+        `TableTextDescriptionEnricher` 가 부르는 진입점이다. 융합 경로
+        (`_extract_with_table_descriptions`)와 같은 헬퍼를 쓰되, custom_fields 본문을
+        비워 두고 표만 싣는다 — 그래서 융합 경로의 "custom fields 1회 + 표 배치" 대신
+        표 배치만 호출한다(본문이 없으니 그 1회가 순수 낭비다).
+        """
+        targets = collect_table_text_targets(document, self._table_description_options)
+        if not targets:
+            return
+        fitted, fits = self._fit_targets("", document, targets)
+        if fits:
+            output = await self._call_llm("", document, self._table_prompt(fitted))
+            parsed = self._parse_with_custom_parser(output, document, **kwargs)
+            self._attach_table_descriptions(parsed, fitted)
+            return
+
+        policy = self._table_description_options.overflow_policy
+        if policy == "error":
+            raise ValueError("표 설명 프롬프트가 max_context_tokens 를 초과했습니다.")
+        if policy == "skip":
+            _log.warning("표 설명 프롬프트가 한도를 초과해 표 설명을 건너뜁니다.")
+            return
+        for table_batch in self._plan_batches(document, fitted):
+            output = await self._call_llm("", document, self._table_prompt(table_batch))
+            parsed = self._parse_with_custom_parser(output, document, **kwargs)
+            self._attach_table_descriptions(parsed, table_batch)
 
     @property
     def is_configured(self) -> bool:

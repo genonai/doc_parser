@@ -102,6 +102,10 @@ from genon.preprocessor.facade.enrichment.image_description import (
     ImageDescriptionEnricher,
     PictureDescriptionExtractor,
 )
+from genon.preprocessor.facade.enrichment.table_text_description import (
+    TableTextDescriptionEnricher,
+    apply_table_description_stage,
+)
 from genon.preprocessor.facade.enrichment.table_description import (
     TableDescriptionOptions,
     TableDescriptionEnricher,
@@ -444,6 +448,11 @@ class IntelligentDocumentProcessor:
         )
         self.table_description_enricher = TableDescriptionEnricher(
             self.table_description_options
+        )
+        # 텍스트 표 설명. 자체 url/model 이 있으면 custom_fields 의 LLM 사용 여부와 무관하게
+        # 이 실행기가 표 설명을 맡는다(table_text_description 모듈 docstring 참고).
+        self.table_text_description_enricher = TableTextDescriptionEnricher(
+            ec.table_text_description_cfg
         )
         self.doc_summary_enricher = DocSummaryEnricher(self.doc_summary_options)
         self.custom_fields_cfgs = list(ec.custom_fields_cfgs)
@@ -1623,6 +1632,30 @@ class DocumentProcessor:
         )
         return document
 
+    async def _describe_record_tables(self, result: dict, **kwargs) -> dict:
+        """레코드 경로(json/tabular 매핑) 산출물의 표에 설명 블록을 넣는다.
+
+        이 경로들은 docling 문서를 만들지 않고 조기 반환하므로 `_apply_docling_post_enrichment`
+        의 표 설명 스테이지를 타지 않는다. `table_text_description` 에 자체 LLM 연결이 있으면
+        여기서 element 본문의 표를 직접 설명해, custom_fields 의 extractor 종류와 무관하게
+        모든 문서유형이 같은 표 설명을 갖게 한다.
+        """
+        enricher = getattr(self._intel, "table_text_description_enricher", None)
+        if enricher is None or not enricher.wants(**kwargs):
+            return result
+        elements = result.get("elements")
+        if not isinstance(elements, list) or not elements:
+            return result
+        contents = [str(element.get("content") or "") for element in elements]
+        try:
+            described = await enricher.describe_texts(contents, **kwargs)
+        except Exception as exc:
+            _handle_stage_error(exc, "table_text_description")
+            return result
+        for element, content in zip(elements, described):
+            element["content"] = content
+        return result
+
     async def _apply_docling_post_enrichment(self, document: DoclingDocument, **kwargs) -> DoclingDocument:
         """Facade 후처리 enrichment 훅."""
         # #329: error_policy=strict 이면 _handle_stage_error 가 GenosServiceException 으로
@@ -1635,24 +1668,15 @@ class DocumentProcessor:
             document = self._intel.enrich_image_descriptions(document, **kwargs)
         except Exception as exc:
             _handle_stage_error(exc, "image_description")
-        text_table_enricher = next((
-            enricher for enricher in self._intel.custom_fields_enrichers
-            if enricher.wants_table_descriptions(**kwargs)
-        ), None)
-        # prefer_image 는 wants_table_descriptions 안에서 이미 False 로 걸러진다.
-        if text_table_enricher is None:
-            try:
-                document = self._intel.enrich_table_descriptions(document, **kwargs)
-            except Exception as exc:
-                _handle_stage_error(exc, "table_description")
-        elif (
-            text_table_enricher.table_description_conflict_policy == "error"
-            and kwargs.get("table_desc")
-        ):
-            _handle_stage_error(
-                ValueError("텍스트 표 설명과 이미지 표 설명이 동시에 활성화되었습니다."),
-                "table_description",
-            )
+        # 표 설명(독립 → 융합 → 이미지). 판정은 공용 모듈 한 곳에 있다.
+        document = await apply_table_description_stage(
+            document,
+            custom_fields_enrichers=self._intel.custom_fields_enrichers,
+            standalone=getattr(self._intel, "table_text_description_enricher", None),
+            run_image_stage=self._intel.enrich_table_descriptions,
+            handle_error=_handle_stage_error,
+            kwargs=kwargs,
+        )
         try:
             document = await self._intel.enrich_metadata(document, **kwargs)
         except Exception as exc:
@@ -2136,9 +2160,11 @@ class DocumentProcessor:
                     # json_mapping 과 같은 build_fields → LLM → to_parse_format 3단 구성.
                     fields_list = await self._apply_llm_fields(mapper, fields_list)
                     _log.info(f"[parser] tabular_mapping 행 {len(fields_list)}건 → element")
-                    return self._normalize_response(
-                        mapper.to_parse_format_from_fields(fields_list, runtime_doc_type)
+                    result = await self._describe_record_tables(
+                        mapper.to_parse_format_from_fields(fields_list, runtime_doc_type),
+                        **kwargs,
                     )
+                    return self._normalize_response(result)
                 # docling 모드: MsExcel/Csv 백엔드로 DoclingDocument 생성 후 parse-JSON 직렬화.
                 if self._xlsx_cfg["processing_mode"] == "docling":
                     from genon.preprocessor.converters.xlsx_processor import build_docling_document
@@ -2235,6 +2261,7 @@ class DocumentProcessor:
                     result = await self._parse_json_records(
                         file_path, records_mapper, **kwargs
                     )
+                    result = await self._describe_record_tables(result, **kwargs)
                     return self._normalize_response(result)
 
                 # 2순위: 문서 모드(json: text_fields) — 본문 텍스트를 합쳐 docling 으로 파싱.

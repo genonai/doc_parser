@@ -54,10 +54,13 @@ enrichment:
       system_prompt_file: prompt_toc_default_system.md
       user_prompt_file: prompt_toc_default_user.md
 
-  # 텍스트 기반(HTML/Markdown) 표 RAG 설명. 문서형 custom_fields LLM 호출에 통합된다.
-  # LLM 연결/생성 파라미터는 매칭된 문서형 custom_fields YAML 값을 공유한다.
+  # 텍스트 기반(HTML/Markdown) 표 RAG 설명.
+  # url/model 을 채우면 이 연결로 직접 만들고, 비워 두면 문서형 custom_fields 호출에 통합된다.
   - table_text_description:
       enable: false           # true 또는 런타임 table_text_desc=1
+      url: ""
+      api_key: ""
+      model: ""
       prompt_template_file: prompt_table_text_description_rag.md
       input_format: auto      # auto | markdown | html
       before_items: 3

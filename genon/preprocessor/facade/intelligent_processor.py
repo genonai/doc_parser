@@ -167,6 +167,10 @@ from genon.preprocessor.facade.enrichment.image_description import (
     ImageDescriptionOptions,
     ImageDescriptionEnricher,
 )
+from genon.preprocessor.facade.enrichment.table_text_description import (
+    TableTextDescriptionEnricher,
+    apply_table_description_stage,
+)
 from genon.preprocessor.facade.enrichment.table_description import (
     TableDescriptionOptions,
     TableDescriptionEnricher,
@@ -614,6 +618,11 @@ class DocumentProcessor:
         )
         self.table_description_enricher = TableDescriptionEnricher(
             self.table_description_options
+        )
+        # 텍스트 표 설명. 자체 url/model 이 있으면 custom_fields 의 LLM 사용 여부와 무관하게
+        # 이 실행기가 표 설명을 맡는다(table_text_description 모듈 docstring 참고).
+        self.table_text_description_enricher = TableTextDescriptionEnricher(
+            ec.table_text_description_cfg
         )
         self.doc_summary_enricher = DocSummaryEnricher(self.doc_summary_options)
         self.custom_fields_enrichers: list = _build_document_custom_fields_enrichers(
@@ -1204,23 +1213,15 @@ class DocumentProcessor:
             document = self.enrich_image_descriptions(document, **enrichment_kwargs)
         except Exception as exc:
             _handle_stage_error(exc, "image_description")
-        text_table_enricher = next((
-            enricher for enricher in self.custom_fields_enrichers
-            if enricher.wants_table_descriptions(**enrichment_kwargs)
-        ), None)
-        if text_table_enricher is None:
-            try:
-                document = self.enrich_table_descriptions(document, **enrichment_kwargs)
-            except Exception as exc:
-                _handle_stage_error(exc, "table_description")
-        elif (
-            text_table_enricher.table_description_conflict_policy == "error"
-            and enrichment_kwargs.get("table_desc")
-        ):
-            _handle_stage_error(
-                ValueError("텍스트 표 설명과 이미지 표 설명이 동시에 활성화되었습니다."),
-                "table_description",
-            )
+        # 표 설명(독립 → 융합 → 이미지). 판정은 공용 모듈 한 곳에 있다.
+        document = await apply_table_description_stage(
+            document,
+            custom_fields_enrichers=self.custom_fields_enrichers,
+            standalone=getattr(self, "table_text_description_enricher", None),
+            run_image_stage=self.enrich_table_descriptions,
+            handle_error=_handle_stage_error,
+            kwargs=enrichment_kwargs,
+        )
         # 페이지 단위 image description 은 PPT 원본에만 적용(formats.ppt.page_description).
         if is_ppt:
             try:
