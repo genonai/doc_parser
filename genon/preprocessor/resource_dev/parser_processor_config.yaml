@@ -384,15 +384,22 @@ output:
   # "docling": 복원 가능한 DoclingDocument 원본 JSON 을 data.document 로 반환(Chunk API 입력용)
   # 민감정보 분류(#315): parser 가 guardrail 워크플로우를 호출해 sensitive_infos 를 출력에 실어 보내고,
   # chunking API 가 그 결과로 청크별 라벨/마스킹을 적용한다(아래 guardrail 섹션 참고).
+
+  # ── 표 표기형태 ────────────────────────────────────────────────────────────
+  # 아래 두 키는 파서가 표를 직접 문자열로 낼 때만 쓰인다.
+  #   1) format 이 json/html/markdown 일 때의 파싱 출력
+  #   2) custom_fields 의 html_text_fields 파생 필드
+  #      (예: monimo_event 의 DETAIL_HTML → DETAIL_TEXT). 이 파생 필드는 docling 을
+  #      거치지 않으므로 format: docling 에서도 파서가 표 모양을 확정한다.
+  # format: docling 으로 청커(/chunker)에 넘기는 구성에서는 파싱 출력의 표에 영향이 없다.
+  # 그때 청크 텍스트의 표 모양은 chunking_processor_config.yaml 의 output 이 정한다.
+  #
   # "auto" 는 표마다 구조를 보고 고른다 - 병합 셀이나 2단 헤더가 있으면 html,
   # 단순 격자면 markdown. markdown 은 병합 셀을 표현하지 못해 헤더 계층이 사라진다.
   table_format: "auto" # "html"(default) | "markdown" | "auto"  ("docling" 포맷에서는 무시)
-  # custom_fields 의 html_text_fields(예: monimo_event 의 DETAIL_HTML → DETAIL_TEXT)에도 적용된다
-  # — 그 파생 필드는 본문이 markdown 이고 표만 이 설정을 따른다.
   compact_tables: true # markdown 표 컬럼 정렬 패딩 제거(대형 표 축소). html/docling 포맷엔 무관.
-  # 병합 셀 표에 한해 표 뒤에 "컬럼=값 | 컬럼=값" 행 문장을 덧붙인다. 어느 헤더에 걸린
-  # 값인지 문장으로 드러나 검색이 쉬워지지만 청크가 커진다. 단순 격자 표에는 적용 안 됨.
-  table_row_serialization: false
+  # 표 뒤 "컬럼=값 | 컬럼=값" 행 문장(table_row_serialization)은 청커 전용이라 여기에 없다 —
+  # chunking_processor_config.yaml 의 output 에서 켠다.
 
 # whisper 설정, 음성인식 모델이 필요한 경우 설정.
 whisper:
