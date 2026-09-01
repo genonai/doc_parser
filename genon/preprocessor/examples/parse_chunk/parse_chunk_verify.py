@@ -60,10 +60,13 @@ CASES = [
     # 파일명이 점으로 시작하고 본문이 fragment 인 실 원천(#349 재현). rename 금지.
     ("cs_hpp",        MONIMO / ".INC_235488_02_20260626103138.html",   "section 1개"),
     ("cs_hpp",        MONIMO / ".INC_235489_01_20260626103139.html",   "section 3개"),
+    ("cs_hpp",        MONIMO / "monimo_cs_hpp_rich_table_sample.html", "rich cell 표 + colspan 안내 셀"),
     ("product_slf",   MONIMO / "monimo_product_slf_sample.md",         "llm + markdown front matter"),
     ("product_ssf",   MONIMO / "monimo_product_ssf_sample.md",         "llm + markdown front matter"),
     ("product_hpp",   MONIMO / "monimo_product_hpp_wcms_sample.json",  "json_semantic(풀 캡처)"),
     ("product_hpp",   MONIMO / "monimo_product_hpp_sample.json",       "json_semantic(최소)"),
+    ("product_hpp",   MONIMO / "monimo_product_hpp_rich_table_sample.json",
+     "rich cell 표(연회비·적립·제휴링크)"),
     ("stock_insight", MONIMO / "monimo_stock_insight_sample.xlsx",     "tabular_mapping"),
     ("link",          MONIMO / "monimo_link_sample.json",              "json_mapping"),
     # 개인 작업 디렉터리(gitignore)에 있는 실 원천. 없는 머신에서는 SKIP 된다.

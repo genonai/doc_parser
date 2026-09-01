@@ -3,18 +3,63 @@
   "code": "AAP1344",
   "cardTitle": "새마을금고 삼성카드 7",
   "cardSlogan": "가족과 함께할 때도 필요한 실속<br>새마을금고 혜택까지",
+  "imgInfo": {
+    "pcImg1": "/wcms/home/scard/image/personal/b_AAP1344.png",
+    "moImg1": "/wcms/home/scard/image/personal/s_AAP1344.png"
+  },
   "ksp": [
+    {
+      "code": "P000210",
+      "title": "새마을금고 현금카드 기능"
+    },
     {
       "code": "P006890",
       "title": "0.5%~3% 빅포인트 적립"
+    },
+    {
+      "code": "P007002",
+      "title": "주말 2·3개월 무이자할부"
     }
   ],
   "benefit": [
-    "0.5%~3% 빅포인트 적립"
+    "새마을금고 현금카드 기능",
+    "0.5%~3% 빅포인트 적립",
+    "주말 2·3개월 무이자할부"
   ],
+  "bubble": [
+    {
+      "title": "0.5%~3% 빅포인트 적립",
+      "tabName": "포인트 적립",
+      "serviceName": "0.5%~3% 빅포인트 적립",
+      "serviceCode": "P006890",
+      "serviceUrl": "<h4 class=\"hide\">0.5%~3% 빅포인트 적립</h4><p>국내외 가맹점에서 이용금액의 0.5%를 빅포인트로 적립합니다.</p><table><thead><tr><th>이용처</th><th>적립률</th></tr></thead><tbody><tr><td>일반 가맹점</td><td>0.5%</td></tr><tr><td>특별 가맹점</td><td>최대 3%</td></tr></tbody></table>"
+    },
+    {
+      "title": "S-OIL 리터당 40 보너스포인트 적립",
+      "serviceCode": "P000326",
+      "serviceUrl": "<h4 class=\"hide\">S-OIL 리터당 40 보너스포인트 적립</h4><p>S-OIL 주유 시 리터당 40 보너스포인트를 적립합니다.</p>"
+    }
+  ],
+  "mpo": [
+    {
+      "code": "AAP1727",
+      "name": "삼성 iD ALL 카드",
+      "type": "백화점",
+      "ksp": [
+        {
+          "code": "B10165",
+          "title": "많이 쓰는 영역 5% 자동 맞춤 할인",
+          "serviceUrl": "<h4 class=\"hide\">많이 쓰는 영역 5% 자동 맞춤 할인</h4><p>이용금액이 큰 영역을 자동으로 찾아 할인합니다.</p>"
+        }
+      ]
+    }
+  ],
+  "mpoNum": "여신금융협회 심의필 제 2025-C1h-14606호 (2025.09.30)",
   "htmlList": {
     "feeUrl": "<h3 class=\"hide\">연회비</h3><div class=\"indv\"><div class=\"tit_wrap\"><h4 class=\"t_web_em f21_tm\">본인 연회비</h4></div><div class=\"table_col multiple2\"><table><caption>본인카드의 해외겸용, 국내전용 별 연회비 정보를 확인할 수 있는 표입니다.</caption><colgroup><col style=\"width: 30%;\"><col style=\"width: 35%;\"><col style=\"width: 35%;\"></colgroup><thead><tr><th scope=\"col\" class=\"first\">구분</th><th scope=\"col\"><span class=\"txt_pa w01\">해외겸용<br>(AMEX)</span></th><th scope=\"col\"><span class=\"txt_pa w01\">국내전용</span></th></tr></thead><tbody><tr><th scope=\"row\">총 연회비</th><td class=\"al_r\"><span class=\"ls0\">20,000</span>원</td><td class=\"al_r\"><span class=\"ls0\">18,000</span>원</td></tr><tr><th scope=\"row\">기본연회비</th><td class=\"al_r\"><span class=\"ls0\">5,000</span>원</td><td class=\"al_r\"><span class=\"ls0\">5,000</span>원</td></tr><tr><th scope=\"row\">제휴 연회비</th><td class=\"al_r\"><span class=\"ls0\">15,000</span>원</td><td class=\"al_r\"><span class=\"ls0\">13,000</span>원</td></tr></tbody></table></div></div><div class=\"indv\"><div class=\"tit_wrap\"><h4 class=\"t_web_em f21_tm\">가족 연회비</h4></div><div class=\"table_col\"><p class=\"no_result\">가족카드는 없음</p></div></div><div class=\"b_note cnt\"><div class=\"list_box_nt bg_box solo\"><h4 class=\"tit04 box_s b_tit\">유의사항</h4><ul class=\"txt_list\"><li><span class=\"txt_dot\">연회비는 카드 발급일(발급 첫 해에는 카드 사용등록일)을 기준으로 매년 청구됩니다.</span><ul class=\"txt_list box_s\"><li><span class=\"txt_bar solo_sp01\">예외기준</span><ul class=\"txt_list\"><li><span class=\"txt_squ02 solo_sp01\">카드 발급일(발급 첫 해에는 카드 사용등록일)에 연회비가 청구되지 않은 경우 최초 이용일자 기준으로 해당 결제일에 청구됩니다.</span></li><li><span class=\"txt_squ02 solo_sp01\">매년 카드 발급일을 기준으로 직전 1년 이내 실적이 없는 경우 연회비가 청구되지 않습니다.</span></li><li><span class=\"txt_squ02 solo_sp01\">재발급, 갱신 시에는 이전 카드의 카드 발급일을 기준으로 연회비가 청구됩니다.</span></li></ul></li></ul></li><li><span class=\"txt_dot\">연회비는 기본 연회비와 제휴 연회비로 구분되며 기본 연회비는 보유 카드 매수에 관계없이 연 1회만 청구되고, 제휴 연회비는 보유하신 카드별로 청구됩니다.</span></li><li><span class=\"txt_dot\">보너스포인트로 연회비를 결제할 수 있습니다.</span></li></ul></div></div>",
     "addServiceUrl": "<h3>추가 서비스와 발급 기준</h3><p>만 19세 이상이며 삼성카드의 발급 심사 기준을 충족해야 합니다.</p><div class=\"indv\"><div class=\"tit_wrap\"><h4 class=\"t_web_em f21_tm\">적립기준</h4></div><div class=\"table_col\"><table><caption>적립기준에 따른 할인 정보를 확인하실 수 있는 표 입니다.</caption><thead><tr><th scope=\"col\">구분</th><th scope=\"col\">적립처</th><th scope=\"col\">적립률</th></tr></thead><tbody><tr><th scope=\"row\">기본</th><td>일반 제휴점</td><td><ul class=\"txt_list\"><li>주중(월~금요일) : 0.5%</li><li>주말(토~일요일) : 1%</li></ul></td></tr><tr><th scope=\"row\">2배</th><td><ul class=\"txt_list\"><li>음식점 : 한식, 양식, 일식, 중식, 뷔페, 패밀리레스토랑, 간이음식점, 패스트푸드 등 모든 음식점</li><li>백화점 : 신세계·롯데·현대·갤러리아·동아·대구백화점</li><li>주유 : 전국 주유소 및 LPG 충전소</li></ul></td><td><ul class=\"txt_list\"><li>주중(월~금요일) : 1%</li><li>주말(토~일요일) : 2%</li></ul></td></tr><tr><th scope=\"row\">3배</th><td><ul class=\"txt_list\"><li>대중교통 : 버스(시외·고속버스 제외), 지하철</li><li>택시</li><li>제과 : 배스킨라빈스, 파리바게뜨, 던킨도너츠</li><li>편의점 : CU</li></ul></td><td><ul class=\"txt_list\"><li>주중(월~금요일) : 1.5%</li><li>주말(토~일요일) : 3%</li></ul></td></tr></tbody></table></div></div><div class=\"indv\"><div class=\"tit_wrap\"><h4 class=\"t_web_em f21_tm\">놀이공원 할인</h4></div><div class=\"table_col\"><table><caption>놀이공원 별 할인정보를 확인하실 수 있는 표 입니다.</caption><thead><tr><th scope=\"col\">대상점</th><th scope=\"col\">서비스내용</th></tr></thead><tbody><tr><th scope=\"row\">에버랜드</th><td><ul class=\"txt_list\"><li>본인 자유이용권 50 % 현장할인</li><li><span class=\"txt_pa\">홈페이지 예매 할인 가능(제휴 할인 카드 선택)</span> <a href=\"http://www.everland.com/\" target=\"_blank\">예약하기</a></li><li>본인+소인 자유이용권 현장구매 시 50 % 현장할인</li></ul></td></tr><tr><th scope=\"row\">롯데월드</th><td><ul class=\"txt_list\"><li>자유이용권 50% 현장할인</li><li><span class=\"txt_pa\">홈페이지 예매 할인 가능(제휴 할인 카드 선택)</span> <a href=\"http://www.lotteworld.com/\" target=\"_blank\">예약하기</a></li></ul></td></tr><tr><th scope=\"row\">서울랜드, 통도환타지아, 대전오월드,경주월드</th><td><ul class=\"txt_list\"><li>자유이용권 50% 현장할인</li></ul></td></tr></tbody></table></div></div><div class=\"indv\"><div class=\"tit_wrap\"><h4 class=\"t_web_em f21_tm\">결제방법</h4></div><div class=\"table_col\"><table><caption>삼성페이 연동 결제 방법을 설명하는 표입니다.</caption><thead><tr><th scope=\"col\">구분</th><th scope=\"col\">상세내용</th></tr></thead><tbody><tr><td>온라인 결제</td><td><p>일반결제 > 삼성페이 선택 후 하단 결제하기 버튼 클릭</p><p><img src=\"/wcms/home/scard/image/personal/pay_flow.png\" alt=\"\"></p></td></tr><tr><td>오프라인 결제</td><td><p>네이버페이 앱에서 카드 선택 후 QR코드 생성</p><p><img src=\"/wcms/home/scard/image/personal/qr_flow.png\" alt=\"\"></p></td></tr><tr><td><img src=\"/wcms/home/scard/image/personal/step1.png\" alt=\"\"></td><td><img src=\"/wcms/home/scard/image/personal/step2.png\" alt=\"\"></td></tr></tbody></table></div></div>"
   },
-  "mpoNum": "여신금융협회 심의필 제 2025-C1h-14606호 (2025.09.30)"
+  "is3d": "N",
+  "pCApplyNoYn": "N",
+  "fee": ""
 }
