@@ -43,8 +43,11 @@ def split_documents_by_page(processor, documents, chunker_cls, *,
         include_chunk_header=cp.resolve_include_chunk_header(
             kwargs, getattr(processor, "_include_chunk_header", True)),
     )
-    kwargs.setdefault("table_format", getattr(processor, "_table_format", "html"))
-    kwargs.setdefault("compact_tables", getattr(processor, "_compact_tables", True))
+    # 표 출력 설정(table_format/compact_tables/table_text_formats/table_row_serialization)을
+    # 한 벌로 흘린다. 개별 setdefault 로 두면 설정이 늘 때마다 이 경로만 빠진다.
+    # table_as_chunk 는 넘기지 않는다 — 이 경로의 계약은 "1 page = 1 chunk" 이고 표 격리는
+    # 그 계약과 정면으로 충돌한다(누락이 아니라 의도).
+    cp.apply_table_output_defaults(kwargs, processor)
 
     # 청크 텍스트 정규화(text_cleanup=safe): 청킹 입력에 문자 위생을 먼저 적용.
     _cleanup = tn.prepare_document(documents, kwargs, processor)
@@ -109,5 +112,9 @@ def split_documents_by_page(processor, documents, chunker_cls, *,
     for ch in page_chunks:
         if ch.meta.doc_items and ch.meta.doc_items[0].prov:
             processor.page_chunk_counts[ch.meta.doc_items[0].prov[0].page_no] += 1
+    # compose_vectors 가 읽는 표 기록을 프로세서로 돌려준다(정상 경로의 split_documents 와
+    # 같은 배선). 이게 없으면 PPT 청크에는 표기형태 필드와 표 조각 순서가 실리지 않는다.
+    processor._table_split_totals = getattr(chunker, "_table_split_totals", {})
+    processor._table_variants = getattr(chunker, "_table_variants", None)
     _log.info(f"[ppt] page-based chunks: {len(page_chunks)} (chunk_size={chunk_size})")
     return page_chunks

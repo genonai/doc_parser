@@ -153,6 +153,12 @@ class SmartChunkerBase(BaseChunker):
         Yields:
             문서의 모든 아이템을 포함하는 하나의 청크
         """
+        # 같은 청커 인스턴스가 문서를 이어서 처리할 수 있으므로 표 분할 기록을 비운다.
+        # chunk() 가 아니라 여기서 비우는 이유: PPT 페이지 청킹(page_split)은 chunk() 를
+        # 거치지 않고 preprocess() 를 직접 부른다. chunk() 에만 두면 그 경로에서 기록부가
+        # 아예 만들어지지 않아 표기형태 필드가 조용히 빠진다.
+        self._table_split_totals = {}
+        self._table_variants = TableTextVariants(self._variant_formats(kwargs))
         # 모든 아이템과 헤더 정보 수집
         all_items = []
         all_header_info = []  # 각 아이템의 헤더 정보
@@ -1491,9 +1497,6 @@ class SmartChunkerBase(BaseChunker):
         Yields:
             토큰 제한에 맞게 분할된 청크들
         """
-        # 같은 청커 인스턴스가 문서를 이어서 처리할 수 있으므로 표 분할 기록을 비운다.
-        self._table_split_totals = {}
-        self._table_variants = TableTextVariants(self._variant_formats(kwargs))
         # docling_core 가 enricher annotation 을 meta 로 이관해 두면 표·그림 직렬화에
         # `<details class="docling-meta">` 블록이 딸려 나온다. 표 설명은 이 청커가 본문
         # 선두에 직접 싣는 값이라 중복이고, 내부 구조체(table_retrieval)까지 노출되므로
