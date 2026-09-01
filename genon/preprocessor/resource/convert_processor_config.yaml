@@ -104,6 +104,11 @@ output:
   # 값인지 문장으로 드러나 검색이 쉬워지지만 청크가 커진다. 단순 격자 표에는 적용 안 됨.
   table_row_serialization: false
 
+  # 같은 청크 전문을 표만 다른 표기형태로 렌더한 텍스트를 청크에 추가로 싣는다.
+  # 표가 없는 청크는 text 와 같은 값이 들어간다. 켜면 본문이 형식 수만큼 복제된다.
+  # 빈 목록(기본)=추가 안 함 | "html" -> text_table_html | "markdown" -> text_table_md
+  table_text_formats: []
+
 # enrichment
 # 각 항목은 {이름: {옵션}} 형식의 list.
 # 비활성화: ① 항목 삭제  ② 항목 주석 처리  ③ enable: false

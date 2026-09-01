@@ -54,6 +54,7 @@ from genon.preprocessor.facade.common import runtime as rt
 from genon.preprocessor.facade.common import file_probe as fp
 from genon.preprocessor.facade.common import pdf_convert as pc
 from genon.preprocessor.facade.chunking import header_path as hp
+from genon.preprocessor.facade.chunking import table_variants as tv
 
 _as_dict = cp.as_dict
 _as_int_flag = cp.as_int_flag
@@ -466,6 +467,9 @@ class DocumentProcessor:
         self._compact_tables = cp.resolve_compact_tables(output_cfg)
         # 병합 셀 표에 행 문장을 덧붙일지. 기본 off(청크가 커진다).
         self._table_row_serialization = cp.resolve_table_row_serialization(output_cfg)
+        # 같은 청크 전문을 표만 다른 표기형태로 렌더한 텍스트를 추가 필드로 실을지.
+        # 기본은 빈 목록(추가 필드 없음) — 켜면 본문이 형식 수만큼 복제되어 페이로드가 커진다.
+        self._table_text_formats = cp.resolve_table_text_formats(output_cfg)
 
         # OCR 엔드포인트는 ocr.paddle.ocr_endpoint 가 정식 위치.
         # 구버전 호환: ocr.ocr_endpoint(상위) / 최상위 ocr_endpoint 도 폴백으로 인식.
@@ -779,6 +783,8 @@ class DocumentProcessor:
         chunks: List[DocChunk] = list(chunker.chunk(dl_doc=documents, **kwargs))
         # 표별 분할 조각 수는 청커만 안다. compose_vectors 가 조각 순서 메타를 매길 때 읽는다.
         self._table_split_totals = getattr(chunker, "_table_split_totals", {})
+        # 표 표기형태별 변형 텍스트도 같은 방식으로 청커에서 받는다.
+        self._table_variants = getattr(chunker, "_table_variants", None)
         if _cleanup:
             chunks = tn.drop_blank_chunks(chunks)
         for chunk in chunks:
@@ -897,6 +903,10 @@ class DocumentProcessor:
         # 청크 선두 "HEADER: <섹션 경로>" 부착 여부. split_documents 와 kwargs 를 각기 언패킹해서 받으므로
         # setdefault 로 전달할 수 없어 양쪽이 같은 resolver 를 호출한다.
         _include_header: bool = _resolve_include_chunk_header(kwargs, self._include_chunk_header)
+        # 표 표기형태별 변형 텍스트 기록부(청커가 남긴다). off 면 None 이라 필드가 아예 생기지 않는다.
+        _table_variants = getattr(self, "_table_variants", None)
+        if _table_variants is not None and not _table_variants.enabled():
+            _table_variants = None
         enrichment_context = kwargs.get("_enrichment_context")
         context_metadata = (
             dict(enrichment_context.get("metadata", {}))
@@ -945,7 +955,7 @@ class DocumentProcessor:
             "i_chunk_on_page", "n_chunk_of_page", "i_chunk_on_doc", "n_chunk_of_doc",
             "n_page", "reg_date", "chunk_bboxes", "media_files", "title",
             "created_date", "appendix", "file_path", "metadata", "guardrail_categories",
-        } | consumed_keys
+        } | set(tv.field_names()) | consumed_keys
         for reserved_key in reserved_keys:
             passthrough_metadata.pop(reserved_key, None)
         passthrough_metadata = {
@@ -989,10 +999,20 @@ class DocumentProcessor:
                 current_page = chunk_page
                 chunk_index_on_page = 0
 
+            # 표 표기형태별 변형은 마스킹·정제 이전 텍스트에서 치환하고, 변형에도 같은
+            # 후처리를 적용한다. 순서를 바꾸면 가드레일로 가린 값이 변형 필드로 평문 유출된다.
+            variant_values = _table_variants.field_values(
+                content, [getattr(item, "self_ref", "") for item in chunk.meta.doc_items],
+            ) if _table_variants else {}
+
             # #315 가드레일 분류 후처리: quote 매칭 → guardrail_categories 부착(항상) + 마스킹 치환(옵션)
             content, chunk_cats = gr.apply_to_text(content, _sensitive_infos, _gr_masking)
             if _cleanup_out:
                 content = tn.tidy(content)
+            for field_name, variant_text in variant_values.items():
+                variant_text, _ = gr.apply_to_text(variant_text, _sensitive_infos, _gr_masking)
+                chunk_global_metadata[field_name] = (
+                    tn.tidy(variant_text) if _cleanup_out else variant_text)
 
             vector = (GenOSVectorMetaBuilder()
                       .set_text(content)
