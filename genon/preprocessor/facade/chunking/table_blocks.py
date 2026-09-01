@@ -248,6 +248,43 @@ def renotate(text: str, fmt: str, *, compact_tables: bool = True) -> str:
     return "".join(pieces)
 
 
+def _degenerate_prose(block: Any) -> str:
+    """블록이 레이아웃용 표면 평문, 아니면 빈 문자열."""
+    if not _looks_degenerate(getattr(block, "kind", ""), getattr(block, "text", "") or ""):
+        return ""
+    grid = _to_grid(block)
+    if grid is None or not grid.rows:
+        return ""
+    if not ts.degenerate_reason(
+            grid.rows, grid.num_cols, header_rows=getattr(grid, "header_rows", None)):
+        return ""
+    return th.render_plain_text(grid.rows, grid.num_cols, caption=grid.caption)
+
+
+def normalize_degenerate(text: str) -> str:
+    """텍스트 안의 레이아웃용 표를 평문으로 바꾼 텍스트. 정형 표는 그대로 둔다.
+
+    `renotate` 는 표기형태 필드(`text_table_html`/`text_table_md`)만 만들므로, 청크 본문
+    자체에 남는 배너 표는 여기서 푼다. 표가 없거나 전부 정형 표면 원문을 그대로 돌려준다.
+    """
+    blocks = find_blocks(text)
+    if not blocks:
+        return text
+    pieces: list = []
+    cursor = 0
+    changed = 0
+    for block in blocks:
+        prose = _degenerate_prose(block)
+        pieces.append(text[cursor:block.start])
+        pieces.append(prose or block.text)
+        cursor = block.end
+        changed += 1 if prose else 0
+    pieces.append(text[cursor:])
+    if changed:
+        _log.debug("[table_blocks] 레이아웃용 표를 평문으로 냈습니다: count=%d", changed)
+    return "".join(pieces)
+
+
 def split_at_tables(text: str) -> list:
     """표 블록마다 자기 조각을 갖도록 텍스트를 나눈다.
 
@@ -321,6 +358,9 @@ def expand_elements(elements) -> list:
             body = content[len(prefix):].lstrip("\n")
         else:
             prefix = ""      # 접두와 본문이 어긋나면 재부착을 포기하고 전체를 나눈다
+        # 배너 표를 먼저 평문으로 풀어 둔다. 안 그러면 안내 산문이 표로 인식돼 자기 청크로
+        # 격리되고, 정작 표로서 검색될 것은 없다.
+        body = normalize_degenerate(body)
         pieces = split_at_tables(body)
         if len(pieces) <= 1:
             expanded.append(element)
@@ -341,8 +381,12 @@ def expand_elements(elements) -> list:
 
 
 def has_table(text: str) -> bool:
-    """텍스트가 표를 담고 있는가. 행 경로 청크의 `has_table` 판정에 쓴다."""
-    return bool(find_blocks(text))
+    """텍스트가 표를 담고 있는가. 행 경로 청크의 `has_table` 판정에 쓴다.
+
+    레이아웃용 표는 세지 않는다 - `expand_elements` 가 그 블록을 평문으로 풀어 내보내므로,
+    표로 세면 청크 본문에는 없는 표를 있다고 표시하게 된다.
+    """
+    return any(not _degenerate_prose(block) for block in find_blocks(text))
 
 
 def _to_grid(block: Any):
