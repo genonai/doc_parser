@@ -309,8 +309,6 @@ class GenosSmartChunker(sc.SmartChunkerBase):
     PICTURE_ANNOTATION_TEXT = True
     # 표 설명 annotation 반영 범위: refine HTML + 검색 설명 접두 + 요약 접미.
     TABLE_DESCRIPTION_MODE = "full"
-    # xlsx 유래 문서를 table_as_chunk 로 자동 전환한다 (요청 kwargs 로만 켠다).
-    AUTO_TABLE_AS_CHUNK_FOR_SHEETS = False
 
     # 헤더 경로 구분자는 이 파일의 모듈 상수를 그대로 쓴다 — 청크 크기 산정과
     # compose_vectors 의 실제 부착이 반드시 같은 문자열을 봐야 한다.
@@ -430,6 +428,11 @@ class DocumentProcessor:
         # 청크 선두 "HEADER: <섹션 경로>" 라인 부착 여부(기본 True). kwargs 의 include_chunk_header 가 우선.
         _ich = _parse_optional_bool(chunking_cfg.get("include_chunk_header"), "chunking.include_chunk_header")
         self._include_chunk_header = True if _ich is None else _ich
+
+        # 표를 본문과 섞지 않고 독자 청크로 낼지(chunking.table_as_chunk, 기본 true).
+        # kwargs 의 table_as_chunk 가 우선.
+        _tac = _parse_optional_bool(chunking_cfg.get("table_as_chunk"), "chunking.table_as_chunk")
+        self._table_as_chunk = True if _tac is None else _tac
 
         # 청크 텍스트 정규화(chunking.text_cleanup): "off"(기본) | "safe".
         # safe 면 청킹 입력에 문자 위생(tn.sanitize)을, 벡터 생성 직전에 표현 정리(tn.tidy)를 적용한다.
@@ -765,6 +768,7 @@ class DocumentProcessor:
             chunk_mode = chunk_mode,
             # 크기 산정(_size)이 compose_vectors 의 실제 부착 여부와 같은 값을 보게 한다.
             include_chunk_header = _resolve_include_chunk_header(kwargs, self._include_chunk_header),
+            table_as_chunk = cp.resolve_table_as_chunk(kwargs, self._table_as_chunk),
         )
 
         # 표 직렬화 형식(html|markdown)을 청커로 전달(런타임 kwarg 가 있으면 우선).
@@ -1129,10 +1133,10 @@ class DocumentProcessor:
                 1, f"xlsx 처리 실패: {os.path.basename(file_path)} ({e})"
             )
         # openpyxl 텍스트라 글리프 깨짐이 없고 렌더 PDF 도 없으므로 테이블셀 재OCR 은 생략.
-        # table_as_chunk=True: 시트/표마다 별도 청크로 분리(엑셀은 표 단위가 논리 단위).
+        # 시트/표마다 별도 청크가 되는 것은 이제 청커 기본값(table_as_chunk)이 보장한다.
         return await self._document_to_vectors(
             document, file_path, request,
-            converted_pdf_path=None, ocr_table_cells=False, table_as_chunk=True, **kwargs
+            converted_pdf_path=None, ocr_table_cells=False, **kwargs
         )
 
     async def _process_pdf(self, request: Request, file_path: str,

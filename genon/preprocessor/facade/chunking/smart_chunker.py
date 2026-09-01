@@ -2,8 +2,8 @@
 
 intelligent / convert / chunking 세 facade 가 각자 복제해 두었던 청킹 로직의 단일
 사본이다. 정본은 intelligent 사본이며, 세 사본의 실제 차이는 클래스 플래그
-(PICTURE_ANNOTATION_TEXT / TABLE_DESCRIPTION_MODE / AUTO_TABLE_AS_CHUNK_FOR_SHEETS)
-로만 남겼다. 파생 클래스가 값을 정하면 기존 동작이 그대로 재현된다.
+(PICTURE_ANNOTATION_TEXT / TABLE_DESCRIPTION_MODE)로만 남겼다.
+파생 클래스가 값을 정하면 기존 동작이 그대로 재현된다.
 
 플래그가 서로 다르다는 사실 자체가 이 파일에서 한눈에 보인다는 점이 통합의 핵심이다.
 예전에는 chunking 사본이 표 설명 기능에서 뒤처져 있다는 것을 세 파일을 나란히 놓고
@@ -88,9 +88,6 @@ class SmartChunkerBase(BaseChunker):
     #   "full"        refine HTML 재구성 + 검색 설명 접두 + 이미지 요약 접미까지
     #   "prefix_only" 검색 설명 접두만 (chunking 의 기존 동작)
     TABLE_DESCRIPTION_MODE: ClassVar[str] = "full"
-    # xlsx 유래 문서(그룹명 'sheet: X')를 table_as_chunk 로 자동 전환할지.
-    # True 면 kwargs 없이도 표 단위 청크로 나눈다(chunking 의 기존 동작).
-    AUTO_TABLE_AS_CHUNK_FOR_SHEETS: ClassVar[bool] = False
 
     # 헤더 경로 구분자. facade 모듈 상수를 파생 클래스가 실어 준다.
     CHUNK_HEADER_SEP: ClassVar[str] = " > "
@@ -116,6 +113,10 @@ class SmartChunkerBase(BaseChunker):
     # 청크 텍스트 선두 "HEADER: <섹션 경로>" 라인 부착 여부(기본 on). compose_vectors 의 실제 부착 지점과
     # 이 청커의 크기 산정(_size)이 같은 값을 봐야 청크 경계가 산출 텍스트와 일치한다.
     include_chunk_header: bool = True
+    # 표를 앞뒤 본문과 섞지 않고 독자 청크로 낼지(기본 on). 표 앞뒤에 섹션 경계를 강제하고
+    # 표 그룹이 인접 그룹과 병합되지 않게 막는다. 섹션 제목·캡션·표 설명은 그대로 실리고,
+    # chunk_size 초과 표의 행 분할도 평소대로 동작한다.
+    table_as_chunk: bool = True
 
     # _inner_chunker: BaseChunker = None
     _tokenizer: PreTrainedTokenizerBase = None
@@ -711,16 +712,14 @@ class SmartChunkerBase(BaseChunker):
         self._table_split_totals[ref] = piece_count
 
     @staticmethod
-    def _doc_has_sheet_groups(dl_doc) -> bool:
-        """DoclingDocument 가 xlsx 유래인지(그룹명 'sheet: X' 존재) 자동 감지."""
-        try:
-            for g in getattr(dl_doc, "groups", None) or []:
-                name = getattr(g, "name", None)
-                if isinstance(name, str) and name.startswith("sheet: "):
-                    return True
-        except Exception:
-            pass
-        return False
+    def _has_table(items) -> bool:
+        """아이템 묶음이 표를 품고 있는지. 표 격리 판정의 유일한 기준이다.
+
+        1단계에서 표 앞뒤에 섹션 경계를 강제하므로 "TableItem 을 포함한 섹션 == 표 섹션"
+        이 성립한다. 별도 상태를 들고 다니지 않으므로 2.5/3 단계가 섹션 리스트를
+        재구성해도 판정이 어긋나지 않는다.
+        """
+        return any(isinstance(item, TableItem) for item in items)
 
     def _extract_table_text(self, table_item: TableItem, dl_doc: DoclingDocument, **kwargs) -> str:
         """표 청크 텍스트. 설명 annotation 반영 범위는 TABLE_DESCRIPTION_MODE 가 정한다."""
@@ -1066,44 +1065,8 @@ class SmartChunkerBase(BaseChunker):
                 result.append((text, entry_items, entry_infos, entry_short))
             return result
 
-        # ================================================================
-        # 표 단위 청크 분리 (xlsx docling 전용, kwargs: table_as_chunk)
-        #   각 TableItem 을 독립 청크로, 사이의 연속 비표 아이템은 별도 청크로 묶는다.
-        #   chunk_size(max_tokens) 와 무관하게 표가 병합되지 않도록 토큰 단계 이전에 확정 반환한다.
-        # ================================================================
-        if kwargs.get("table_as_chunk") or (
-                self.AUTO_TABLE_AS_CHUNK_FOR_SHEETS and self._doc_has_sheet_groups(dl_doc)):
-            table_chunks: list[DocChunk] = []
-            buf_items: list[DocItem] = []
-            buf_short: list[dict] = []
-
-            def _flush_buf():
-                if buf_items:
-                    text = self._generate_section_text_with_heading(buf_items, buf_short, dl_doc, **kwargs)
-                    # 빈 문서 방어용 "." placeholder 등 무의미한 텍스트 run 은 청크로 만들지 않는다.
-                    if text and text.strip() and text.strip() != ".":
-                        ch = get_current_chunk(doc_chunk, [text], list(buf_short), list(buf_items))
-                        if ch:
-                            table_chunks.append(ch)
-                    buf_items.clear()
-                    buf_short.clear()
-
-            for i, item in enumerate(items):
-                h_short = header_short_info_list[i] if i < len(header_short_info_list) else {}
-                if isinstance(item, TableItem):
-                    _flush_buf()
-                    # 행이 많아 chunk_size 를 초과하는 표는 row 단위로 분할(각 청크에 헤더 반복 포함).
-                    for text in self._table_item_to_texts(item, dl_doc, h_short, **kwargs):
-                        ch = get_current_chunk(doc_chunk, [text], [h_short], [item])
-                        if ch:
-                            table_chunks.append(ch)
-                else:
-                    buf_items.append(item)
-                    buf_short.append(h_short)
-            _flush_buf()
-
-            if table_chunks:
-                return table_chunks
+        # 표 격리 스위치. 요청 kwargs 가 청커 필드(=yaml)보다 우선한다.
+        table_as_chunk = bool(kwargs.get("table_as_chunk", self.table_as_chunk))
 
         # ================================================================
         # 1단계: 섹션 헤더 기준으로 분할
@@ -1116,8 +1079,16 @@ class SmartChunkerBase(BaseChunker):
             h_info = header_info_list[i] if i < len(header_info_list) else {}
             h_short = header_short_info_list[i] if i < len(header_short_info_list) else {}
 
+            # 표는 자기 섹션을 갖는다 — 표 격리의 실질적 구현 지점.
+            # 앞의 섹션을 끊고 표 하나만 담은 섹션을 만든 뒤 다시 끊는다. 이후 단계가
+            # 이 경계를 존중하므로 표가 앞뒤 본문과 한 청크로 묶이지 않는다.
+            if table_as_chunk and isinstance(item, TableItem):
+                if cur_items:
+                    sections.append((cur_items, cur_h_infos, cur_h_short))
+                sections.append(([item], [h_info], [h_short]))
+                cur_items, cur_h_infos, cur_h_short = [], [], []
             # 섹션 헤더를 만나면
-            if self._is_section_header(item):
+            elif self._is_section_header(item):
                 # 이전 섹션이 있으면 저장
                 if cur_items:
                     sections.append((cur_items, cur_h_infos, cur_h_short))
@@ -1151,6 +1122,36 @@ class SmartChunkerBase(BaseChunker):
                 header_infos,
                 header_short_infos
             ))
+
+        # 텍스트가 빈 섹션은 그대로 두면 본문 없는 청크가 된다. 표 앞뒤에 경계를 세우면서
+        # 떨어져 나온 그림·빈 아이템이 여기 해당한다(예전에는 표와 같은 섹션에 묻혀 있었다).
+        # 아이템은 버리지 않고 이웃 섹션에 붙여 bbox·media 참조가 살아 있는 청크에 남긴다.
+        # 붙일 이웃은 직전 섹션을 먼저 본다 - 빈 아이템은 그 섹션의 내용 뒤에 있었으므로
+        # 문서 순서와 헤더 문맥이 그대로 유지된다. 직전이 없으면(문서 선두) 다음에 붙인다.
+        if any(not text.strip() for text, _, _, _ in sections_with_text):
+            compacted: list = []
+            pending: tuple[list, list, list] | None = None  # 붙일 앞 섹션이 없어 대기 중인 아이템
+            for text, items, h_infos, h_short in sections_with_text:
+                if not text.strip():
+                    if compacted:
+                        p_text, p_items, p_h_infos, p_h_short = compacted[-1]
+                        compacted[-1] = (p_text, p_items + list(items),
+                                         p_h_infos + list(h_infos), p_h_short + list(h_short))
+                    elif pending is None:
+                        pending = (list(items), list(h_infos), list(h_short))
+                    else:
+                        pending[0].extend(items)
+                        pending[1].extend(h_infos)
+                        pending[2].extend(h_short)
+                    continue
+                if pending is not None:
+                    items = pending[0] + list(items)
+                    h_infos = pending[1] + list(h_infos)
+                    h_short = pending[2] + list(h_short)
+                    pending = None
+                compacted.append((text, items, h_infos, h_short))
+            # 문서 전체가 빈 섹션뿐이면 붙일 곳이 없다 - 청크로 만들 수 없으므로 버린다.
+            sections_with_text = compacted
 
         # ================================================================
         # 2.5단계: 너무 긴 청크는 분할 (인덱스 꼬임 방지를 위해 새 리스트 사용)
@@ -1293,6 +1294,11 @@ class SmartChunkerBase(BaseChunker):
             #   (1·3단계로 만든 섹션을 그대로 두고, 초과분만 5.5단계에서 분할)
             if self.chunk_mode == "split_only" and len(merged_texts) > 0:
                 b_new_chunk = True
+            # 표 격리: 표 섹션은 앞 그룹에 붙지 않고, 표를 담은 그룹 뒤에도 새 그룹을 연다.
+            # (split_only 는 위에서 이미 걸리므로 실질적으로 resize_all 경로의 방어다.)
+            elif table_as_chunk and len(merged_texts) > 0 and (
+                    self._has_table(items) or self._has_table(merged_items)):
+                b_new_chunk = True
             # 토큰 수 초과 시 새로운 청크 생성 (resize_all 전용)
             elif self.chunk_mode == "resize_all" and test_tokens > self.max_tokens and len(merged_texts) > 0:
                 b_new_chunk = True
@@ -1343,6 +1349,11 @@ class SmartChunkerBase(BaseChunker):
 
             merged_groups = [groups[0]]
             for g in groups[1:]:
+                # 표 격리: 어느 한쪽이 표 그룹이면 크기와 무관하게 병합하지 않는다.
+                if table_as_chunk and (
+                        self._has_table(g["items"]) or self._has_table(merged_groups[-1]["items"])):
+                    merged_groups.append(g)
+                    continue
                 cand = _merge(merged_groups[-1], g)
                 if _size(cand) <= self.max_tokens:
                     merged_groups[-1] = cand

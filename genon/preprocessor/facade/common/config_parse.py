@@ -266,6 +266,16 @@ def resolve_include_chunk_header(kwargs: dict, yaml_default: bool) -> bool:
     return bool(yaml_default) if parsed is None else parsed
 
 
+def resolve_table_as_chunk(kwargs: dict, yaml_default: bool = True) -> bool:
+    """표를 본문과 섞지 않고 독자 청크로 낼지. 우선순위: 요청 kwargs > yaml > True.
+
+    0/1 숫자와 "on"/"off" 등 문자열을 모두 허용한다. bool("false") 가 True 인 탓에
+    문서화된 off 스위치가 조용히 무시되는 것을 막으려고 parse_optional_bool 을 쓴다.
+    """
+    parsed = parse_optional_bool(kwargs.get("table_as_chunk"), "table_as_chunk")
+    return bool(yaml_default) if parsed is None else parsed
+
+
 def copy_enrichment_options(options, **updates):
     """DataEnrichmentOptions 를 얕게 복제하며 지정 필드를 override(원본 불변)."""
     try:
