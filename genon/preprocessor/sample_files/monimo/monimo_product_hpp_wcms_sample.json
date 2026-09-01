@@ -47,7 +47,7 @@
   ],
   "mpoNum": "여신금융협회 심의필 제 2025-C1h-14606호 (2025.09.30)",
   "htmlList": {
-    "feeUrl": "<h3 class=\"hide\">연회비</h3><table><thead><tr><th>구분</th><th>연회비</th></tr></thead><tbody><tr><td>국내전용</td><td>18,000원</td></tr><tr><td>해외겸용</td><td>20,000원</td></tr></tbody></table>",
+    "feeUrl": "<h3 class=\"hide\">연회비</h3><table><caption>본인카드의 해외겸용, 국내전용 별 연회비 정보를 확인할 수 있는 표입니다.</caption><thead><tr><th scope=\"col\" class=\"first\">구분</th><th scope=\"col\"><span class=\"txt_pa w01\">해외겸용<br>(AMEX)</span></th><th scope=\"col\"><span class=\"txt_pa w01\">국내전용</span></th></tr></thead><tbody><tr><th scope=\"row\">총 연회비</th><td class=\"al_r\"><span class=\"ls0\">20,000</span>원</td><td class=\"al_r\"><span class=\"ls0\">18,000</span>원</td></tr><tr><th scope=\"row\">기본연회비</th><td class=\"al_r\"><span class=\"ls0\">5,000</span>원</td><td class=\"al_r\"><span class=\"ls0\">5,000</span>원</td></tr><tr><th scope=\"row\">제휴 연회비</th><td class=\"al_r\"><span class=\"ls0\">15,000</span>원</td><td class=\"al_r\"><span class=\"ls0\">13,000</span>원</td></tr></tbody></table>",
     "addServiceUrl": "<h3>추가 서비스와 발급 기준</h3><p>만 19세 이상이며 삼성카드의 발급 심사 기준을 충족해야 합니다.</p>",
     "noticeUrl": "<h3>이용 유의사항</h3><p>혜택별 전월 이용금액과 월 할인 한도를 확인하세요.</p>",
     "etcUrl": "",

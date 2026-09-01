@@ -106,6 +106,28 @@ def test_rowspan_is_normalized_instead_of_giving_up_on_split():
 
 
 @pytest.mark.unit
+def test_row_label_table_is_split_not_treated_as_all_header():
+    """행 라벨 `<th>` 표도 분할된다.
+
+    헤더 행 수를 `any(is_header_cell)` 로 세던 시절에는 모든 행이 헤더로 집계돼
+    `header_row_count >= len(grid)` 가 되고, 분할을 포기해(`no-data-rows`) 예산을
+    넘는 표가 통째로 나갔다.
+    """
+    grid = _grid(rows=6)
+    for row in grid[1:]:
+        row[0].row_header = True
+    result = split_table_rows(
+        grid=grid, num_cols=2, single_text="X" * 3000, limit=420,
+        count_text=len, table_format="html",
+        header_row_count=leading_header_row_count(grid),
+    )
+    assert result.did_split and result.reason is None
+    assert all("<th>번호</th><th>내용</th>" in piece for piece in result.pieces)
+    # 행 라벨은 데이터 행으로 남아야 한다 - 헤더로 반복되면 값이 조각마다 중복된다.
+    assert sum(piece.count("ROW-01-START") for piece in result.pieces) == 1
+
+
+@pytest.mark.unit
 def test_single_oversized_row_is_reported_but_kept_complete():
     grid = _grid(rows=1, payload_size=500)
     result = split_table_rows(

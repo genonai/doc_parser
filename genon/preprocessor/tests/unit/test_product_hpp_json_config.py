@@ -55,9 +55,14 @@ def test_product_hpp_wcms_sample_maps_to_sections():
     # 연회비 섹션에는 표 셀 텍스트가 살아있어야 한다. 표 구조(파이프 개수 등)는 docling
     # 버전에 따라 갈릴 수 있어 단정하지 않고, 셀 텍스트 보존만 확인한다(html_to_text 의
     # 안전 폴백에서도 텍스트 자체는 보존된다 — json_records.html_to_text 참고).
-    fee_content = next(c for c in contents if "18,000원" in c)
+    # 셀 값이 인라인 태그로 쪼개져 있어(`<span>18,000</span>원`) 공백 삽입 여부는
+    # 백엔드 사정이다. 숫자 보존만 본다.
+    fee_content = next(c for c in contents if "18,000" in c)
     assert "구분" in fee_content
     assert "연회비" in fee_content
+    # 행 라벨이 `<th scope="row">` 인 실제 WCMS 표다. 행 라벨이 헤더 행으로 오인되면
+    # 표가 html 로 새고 데이터 행이 사라진다(table_shape.leading_header_row_count 회귀).
+    assert "총 연회비" in fee_content and "제휴 연회비" in fee_content
 
     # 추천 상품(mpo)의 혜택 문구는 이 상품 것이 아니므로 어느 섹션에도 없어야 한다.
     all_content = "\n".join(contents)

@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import shutil
 import subprocess
 import sys
@@ -107,6 +108,38 @@ def check_card_annual_fee(chunks: list) -> list[str]:
     if got != "18000":
         return [f"annual_fee_amount 문자열 '18000' 기대, 실제 {got!r}"]
     return []
+
+
+def check_product_hpp_table_format(chunks: list) -> list[str]:
+    """table_format: auto 는 정형 표를 markdown 으로 낸다.
+
+    연회비 표는 행 라벨이 `<th scope="row">` 인 실제 WCMS 표다. 병합 셀도 계층 헤더도
+    없으므로 markdown 이어야 하는데, 예전에는 행 라벨 `<th>` 때문에 모든 행이 헤더 행으로
+    집계돼 계층 헤더 표로 오인되고 html 로 나갔다(table_shape.leading_header_row_count).
+    """
+    problems = []
+    texts = [c.get("text") or "" for c in chunks]
+    fee = next((t for t in texts if "총 연회비" in t), None)
+    if fee is None:
+        return ["연회비 표가 어느 청크에도 없습니다"]
+
+    if "<table" in fee:
+        problems.append("연회비 표가 html 로 나왔습니다(auto 가 markdown 을 골라야 함)")
+    # compact_tables 가 켜져 있으면 구분선이 `| - | - |` 로 줄어든다(`| --- |` 아님).
+    if not any(re.fullmatch(r"\|(\s*-+\s*\|)+", line.strip()) for line in fee.splitlines()):
+        problems.append("연회비 표에 markdown 구분선이 없습니다")
+    # 행 라벨은 첫 컬럼의 데이터 행으로 남아야 한다(헤더로 반복되면 안 된다).
+    if not any(line.lstrip().startswith("| 총 연회비 |") for line in fee.splitlines()):
+        problems.append("행 라벨 '총 연회비' 가 첫 컬럼 데이터 행으로 남지 않았습니다")
+    for value in ("20,000", "18,000", "15,000", "13,000", "국내전용"):
+        if value not in fee:
+            problems.append(f"연회비 표에서 '{value}' 가 사라졌습니다")
+
+    # 대조군: 원래도 정형이던 적립률 표도 markdown 이어야 한다.
+    rate = next((t for t in texts if "적립률" in t and "일반 가맹점" in t), None)
+    if rate is not None and "<table" in rate:
+        problems.append("적립률 표가 html 로 나왔습니다(정형 표 회귀)")
+    return problems
 
 
 def check_stock_insight_row_merge(chunks: list) -> list[str]:
@@ -197,6 +230,7 @@ def check_stock_insight_row_merge(chunks: list) -> list[str]:
 EXTRA_CHECKS = {
     ("product_slf", "monimo_product_slf_sample.md"): check_front_matter,
     ("card", "card01.flat.html"): check_card_annual_fee,
+    ("product_hpp", "monimo_product_hpp_wcms_sample.json"): check_product_hpp_table_format,
     ("stock_insight", "monimo_stock_insight_sample.xlsx"): check_stock_insight_row_merge,
 }
 

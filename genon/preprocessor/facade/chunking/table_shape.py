@@ -35,11 +35,27 @@ def is_header_cell(cell: Any) -> bool:
     )
 
 
+def _is_header_row(row: Sequence[Any]) -> bool:
+    """이 행 전체가 컬럼 헤더 행인가.
+
+    ``any(is_header_cell)`` 로는 셀 수 없다 - 행 라벨 표(`<th>구분</th><td>값</td>`)의
+    데이터 행마다 첫 셀에 ``row_header`` 가 붙어 있어서 모든 행이 헤더로 집계되고,
+    그 결과 단순 격자 표가 계층 헤더 표로 오인돼 auto 가 html 을 고르고 행 분할도
+    포기하게 된다. 컬럼 헤더 셀이 있거나 행 전체가 헤더 셀일 때만 헤더 행으로 본다.
+    """
+    cells = list(row)
+    if not cells:
+        return False
+    if any(getattr(cell, "column_header", False) for cell in cells):
+        return True
+    return all(is_header_cell(cell) for cell in cells)
+
+
 def leading_header_row_count(grid: Sequence[Sequence[Any]]) -> int:
     """선두에서 연속되는 Docling 헤더 플래그 행 수를 반환한다."""
     count = 0
     for row in grid:
-        if any(is_header_cell(cell) for cell in row):
+        if _is_header_row(row):
             count += 1
         else:
             break

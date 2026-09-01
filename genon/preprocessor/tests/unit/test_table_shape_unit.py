@@ -77,6 +77,38 @@ def test_header_row_count_never_exceeds_grid():
     assert analyze_grid(grid, 1, is_html_origin=False).header_row_count == 1
 
 
+def _row_label_grid():
+    """행 라벨 `<th>` 표. docling HTML 백엔드가 데이터 행 첫 셀에 row_header 를 붙인다."""
+    return [
+        [Cell("구분", 0, column_header=True),
+         Cell("총 연회비", 1, column_header=True),
+         Cell("기본연회비", 2, column_header=True)],
+        [Cell("국내전용", 0, row_header=True), Cell("20,000 원", 1), Cell("15,000 원", 2)],
+        [Cell("해외겸용", 0, row_header=True), Cell("18,000 원", 1), Cell("13,000 원", 2)],
+    ]
+
+
+@pytest.mark.unit
+def test_row_label_header_cells_do_not_inflate_header_rows():
+    """행 라벨 `<th>` 는 헤더 행 수를 늘리지 않는다 - 늘어나면 단순 격자가 html 로 샌다."""
+    shape = analyze_grid(_row_label_grid(), 3, is_html_origin=True)
+    assert shape.header_row_count == 1
+    assert not shape.is_complex
+    assert resolve_table_format("auto", shape) == "markdown"
+
+
+@pytest.mark.unit
+def test_header_row_with_empty_leading_cell_is_still_one_header_row():
+    """좌상단이 빈 `td` 인 헤더 행도 헤더 1행으로 본다(다음 데이터 행까지 세지 않는다)."""
+    grid = [
+        [Cell("", 0), Cell("총 연회비", 1, row_header=True), Cell("기본연회비", 2, row_header=True)],
+        [Cell("국내전용", 0, row_header=True), Cell("20,000 원", 1), Cell("15,000 원", 2)],
+    ]
+    shape = analyze_grid(grid, 3, is_html_origin=True)
+    assert shape.header_row_count == 1
+    assert resolve_table_format("auto", shape) == "markdown"
+
+
 @pytest.mark.unit
 @pytest.mark.parametrize("grid", [None, [], [[]]])
 def test_unreadable_grid_returns_none(grid):
