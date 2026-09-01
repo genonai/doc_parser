@@ -264,6 +264,12 @@ def sanitize_elements(elements) -> list:
         metadata = element.get("metadata")
         if isinstance(metadata, dict):
             element["metadata"] = sanitize_metadata(metadata)
+        # 접두는 content 선두와 글자 단위로 같아야 한다. content 만 sanitize 하면
+        # 조각 분할 경로의 `content.startswith(prefix)` 가 어긋나 접두 재부착이 조용히
+        # 포기된다(두 번째 조각부터 어느 카드·섹션인지 사라진다).
+        prefix = element.get("chunk_prefix")
+        if isinstance(prefix, str) and prefix:
+            element["chunk_prefix"] = sanitize(prefix)
     return elements
 
 
