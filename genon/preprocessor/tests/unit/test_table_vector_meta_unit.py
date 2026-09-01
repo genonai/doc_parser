@@ -192,5 +192,52 @@ def test_missing_processor_attributes_fall_back_to_defaults():
     kwargs = cp.apply_table_output_defaults({}, _Processor())
     assert kwargs == {
         "table_format": "html", "compact_tables": True,
-        "table_row_serialization": False,
+        "table_row_serialization": False, "table_text_formats": (),
     }
+
+
+# ─── 표 표기형태별 추가 텍스트(#360 text_table_html / text_table_md) ───────────
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("value,expected", [
+    (None, ()),
+    ([], ()),
+    (["html", "markdown"], ("html", "markdown")),
+    (["markdown", "html"], ("markdown", "html")),   # 순서를 보존한다
+    ("html", ("html",)),
+    ("html, markdown", ("html", "markdown")),
+    (["md"], ("markdown",)),                        # 필드명(md)으로 써도 받는다
+    (["html", "html"], ("html",)),
+    (["html", "아무말"], ("html",)),                 # 모르는 형식만 버린다
+    (["아무말"], ()),
+    (17, ()),
+])
+def test_table_text_formats_parsing(value, expected):
+    source = {} if value is None else {"table_text_formats": value}
+    assert cp.resolve_table_text_formats(source) == expected
+
+
+@pytest.mark.unit
+def test_table_text_formats_defaults_to_off_in_operational_config():
+    """켜면 본문이 형식 수만큼 복제된다. 운영 기본은 off 여야 한다."""
+    for name in ("chunking_processor_config.yaml", "chunking_processor_config_simple.yaml",
+                 "intelligent_processor_config.yaml", "convert_processor_config.yaml"):
+        output = yaml.safe_load((_RESOURCE / name).read_text(encoding="utf-8"))["output"]
+        assert cp.resolve_table_text_formats(output) == (), name
+
+
+@pytest.mark.unit
+def test_table_text_formats_reaches_chunker_through_kwargs():
+    kwargs = cp.apply_table_output_defaults(
+        {}, _Processor(_table_text_formats=("html", "markdown")))
+    assert kwargs["table_text_formats"] == ("html", "markdown")
+
+    module = pytest.importorskip(
+        "genon.preprocessor.facade.chunking_processor", exc_type=ImportError)
+    chunker = object.__new__(module.GenosSmartChunker)
+    assert chunker._variant_formats(kwargs) == ("html", "markdown")
+    # 요청이 명시한 값이 설정을 이긴다.
+    assert cp.apply_table_output_defaults(
+        {"table_text_formats": ["html"]},
+        _Processor(_table_text_formats=("markdown",)))["table_text_formats"] == ["html"]

@@ -5,6 +5,7 @@ from dataclasses import dataclass
 import pytest
 
 from genon.preprocessor.facade.chunking.table_splitter import (
+    ROW_LINES_LABEL,
     leading_header_row_count,
     split_entries_preserving_tables,
     split_table_rows,
@@ -330,3 +331,98 @@ def test_render_table_emits_rowspan_once_instead_of_repeating_the_value():
     assert html.count("연회비") == 1
     assert 'rowspan="2"' in html
     assert "20,000원" in html and "18,000원" in html
+
+
+# ─── 표기형태별 조각(#360 text_table_html / text_table_md) ─────────────────────
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("table_format", ["html", "markdown"])
+def test_extra_formats_share_row_boundaries_with_primary(table_format):
+    """형식별로 따로 분할하면 텍스트 길이가 달라 조각 경계가 어긋난다.
+
+    행 묶음은 primary 로 한 번만 계산되어야 조각이 1:1 로 대응한다.
+    """
+    grid = _grid()
+    result = split_table_rows(
+        grid=grid, num_cols=2, single_text="X" * 3000, limit=420, count_text=len,
+        table_format=table_format, header_row_count=leading_header_row_count(grid),
+        extra_formats=("html", "markdown"),
+    )
+
+    assert result.did_split
+    assert len(result.buckets) == len(result.pieces)
+    for fmt in ("html", "markdown"):
+        assert len(result.format_pieces[fmt]) == len(result.pieces)
+    # 같은 조각은 형식이 달라도 같은 행을 담는다.
+    for index in range(len(result.pieces)):
+        for row_index in result.buckets[index]:
+            marker = f"ROW-{row_index + 1:02d}-END"
+            assert marker in result.format_pieces["html"][index]
+            assert marker in result.format_pieces["markdown"][index]
+    # 요청한 형식이 primary 와 같으면 primary 조각을 그대로 준다.
+    assert result.format_pieces[table_format] == result.pieces
+
+
+@pytest.mark.unit
+def test_primary_pieces_are_unchanged_when_extra_formats_requested():
+    """추가 형식 요청이 primary 산출물을 건드리면 이 기능이 회귀를 만든다."""
+    grid = _grid()
+    common = dict(
+        grid=grid, num_cols=2, single_text="X" * 3000, limit=420, count_text=len,
+        table_format="html", header_row_count=leading_header_row_count(grid),
+    )
+    base = split_table_rows(**common)
+    with_extra = split_table_rows(**common, extra_formats=("markdown",))
+
+    assert with_extra.pieces == base.pieces
+    assert with_extra.oversized_piece_indexes == base.oversized_piece_indexes
+    assert with_extra.did_split == base.did_split
+
+
+@pytest.mark.unit
+def test_extra_formats_repeat_prefix_and_keep_suffix_on_last_piece():
+    grid = _grid()
+    result = split_table_rows(
+        grid=grid, num_cols=2, single_text="X" * 3000, limit=460, count_text=len,
+        table_format="html", header_row_count=leading_header_row_count(grid),
+        prefix="캡션 문장\n", suffix="\n---\n[표 설명]\n요약",
+        extra_formats=("markdown",),
+    )
+
+    pieces = result.format_pieces["markdown"]
+    assert len(pieces) > 1
+    assert all(piece.startswith("캡션 문장\n") for piece in pieces)
+    assert pieces[-1].endswith("요약")
+    assert not any(piece.endswith("요약") for piece in pieces[:-1])
+    # 접미 위치가 primary 와 같아야 조각 대응이 유지된다.
+    assert result.pieces[-1].endswith("요약")
+
+
+@pytest.mark.unit
+def test_extra_format_row_lines_match_primary():
+    """행 문장은 표기형태와 무관하다. 형식마다 다시 만들면 값이 갈릴 수 있다."""
+    grid = _grid(rows=6)
+    result = split_table_rows(
+        grid=grid, num_cols=2, single_text="X" * 3000, limit=520, count_text=len,
+        table_format="html", header_row_count=leading_header_row_count(grid),
+        row_serialization=True, extra_formats=("markdown",),
+    )
+
+    for primary, variant in zip(result.pieces, result.format_pieces["markdown"]):
+        label = ROW_LINES_LABEL + "\n"
+        assert label in primary and label in variant
+        assert primary.split(label, 1)[1] == variant.split(label, 1)[1]
+
+
+@pytest.mark.unit
+def test_markdown_variant_is_omitted_when_header_row_is_missing():
+    """markdown 표는 헤더 행이 있어야 만들 수 있다. 못 만들면 호출부가 primary 로 폴백한다."""
+    grid = _grid()
+    result = split_table_rows(
+        grid=grid, num_cols=2, single_text="X" * 3000, limit=420, count_text=len,
+        table_format="html", header_row_count=0, extra_formats=("markdown",),
+    )
+
+    assert result.did_split
+    assert "markdown" not in result.format_pieces

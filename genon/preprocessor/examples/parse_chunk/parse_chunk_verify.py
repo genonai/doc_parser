@@ -226,6 +226,48 @@ def check_stock_insight_row_merge(chunks: list) -> list[str]:
     return problems
 
 
+
+def check_table_text_formats(chunks: list) -> list[str]:
+    """표 표기형태별 추가 필드(#360 text_table_html / text_table_md) 공통 단정.
+
+    resource_dev 가 이 기능을 켜 두므로 docling 경로 케이스는 두 필드를 갖는다.
+    parse-format(비-docling) 경로는 대상이 아니라 필드가 없다 — 그때는 검사를 건너뛴다.
+
+    확인하는 것은 하나다: 표기형태만 다르고 담은 내용은 text 와 같아야 한다.
+    표 밖 본문이 잘려 나가거나 셀 값이 중복되면 여기서 걸린다.
+    """
+    problems = []
+    fields = ("text_table_html", "text_table_md")
+    present = [c for c in chunks if any(f in c for f in fields)]
+    if not present:
+        return []                      # parse-format 경로: 기능 범위 밖
+    if len(present) != len(chunks):
+        problems.append(
+            f"표기형태 필드가 일부 청크에만 있습니다 {len(present)}/{len(chunks)}건")
+
+    def tokens(text: str) -> list:
+        """표기형태를 지운 내용 토큰. 태그·파이프·markdown 구분선을 걷어낸다."""
+        text = re.sub(r"<[^>]+>", " ", text or "")
+        text = re.sub(r"^\s*\|[\s\-:|]+\|\s*$", " ", text, flags=re.M)
+        return [t for t in re.split(r"\s+", text.replace("|", " ")) if t]
+
+    for idx, chunk in enumerate(present):
+        base = tokens(chunk.get("text"))
+        for field in fields:
+            value = chunk.get(field)
+            if not value:
+                problems.append(f"[{idx}] {field} 가 비어 있습니다")
+                continue
+            got = tokens(value)
+            if got == base:
+                continue
+            # 병합 셀(colspan)을 markdown 으로 펴면 값이 컬럼마다 복제된다 — 손실만 문제다.
+            lost = [t for t in base if t not in got]
+            if lost:
+                problems.append(f"[{idx}] {field} 에서 내용이 사라졌습니다: {lost[:3]}")
+    return problems
+
+
 # (doc_type, 샘플 파일명) → 추가 단정 함수
 EXTRA_CHECKS = {
     ("product_slf", "monimo_product_slf_sample.md"): check_front_matter,
@@ -324,6 +366,8 @@ def verify(doc_type: str, src: Path, out_dir: Path, block: dict) -> list[str]:
         if bad:
             problems.append(f"constants '{field}' 불일치 {len(bad)}/{len(chunks)}건 "
                             f"(기대 {value!r}, 실제 {chunks[bad[0]].get(field)!r})")
+
+    problems += check_table_text_formats(chunks)
 
     extra = EXTRA_CHECKS.get((doc_type, src.name))
     if extra is not None:

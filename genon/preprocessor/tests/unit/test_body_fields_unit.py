@@ -37,7 +37,8 @@ class TestBodyFieldsSetting:
             __import__("pathlib").Path(__file__).resolve().parents[2]
             / "facade" / "chunking_processor.py"
         ).read_text(encoding="utf-8")
-        assert "cp.BODY_FIELDS_KEY,\n        } | consumed_keys" in source
+        reserved_block = source.split("reserved_keys = {", 1)[1].split("consumed_keys", 1)[0]
+        assert "cp.BODY_FIELDS_KEY" in reserved_block
         assert "row_meta.pop(cp.BODY_FIELDS_KEY, None)" in source
 
 

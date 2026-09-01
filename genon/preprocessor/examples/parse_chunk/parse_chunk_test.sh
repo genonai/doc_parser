@@ -177,6 +177,20 @@ MONIMO_CASES=(
 # "${PYTHON}" parse_chunk_test.py --doc_type monimo_event "${MONIMO}/monimo_event_table_sample.json" "${OUT}/"
 # "${PYTHON}" parse_chunk_test.py --doc_type product_hpp "${MONIMO}/monimo_product_hpp_wcms_sample.json" "${OUT}/"
 
+# ── 표 표기형태별 추가 텍스트(text_table_html / text_table_md) ─────────────────
+# output.table_text_formats 를 켜면 청크에 text 외에 표기형태별 텍스트가 함께 실린다.
+# text 는 그대로 두고 표 부분만 바꿔 렌더한 전문이며, 표가 없는 청크는 text 와 같은 값이 된다.
+# resource_dev 는 ["html", "markdown"] 로 켜져 있다. 껐다 켠 대조는 아래처럼 확인한다
+# (설정 편집 없이 청킹만 다시 돌리려면 이미 만들어둔 .docling.json 을 입력으로 준다).
+# "${PYTHON}" parse_chunk_test.py --doc_type cs_hpp "${MONIMO}/monimo_cs_hpp_rich_table_sample.html" "${OUT}/"
+# "${PYTHON}" -c "
+# import json
+# d = json.load(open('${OUT}/monimo_cs_hpp_rich_table_sample.chunks.json'))
+# t = next(c for c in d if c['has_table'])
+# assert '<table' in t['text_table_html'] and '<table' not in t['text_table_md']
+# print('표기형태 분리 확인:', len(t['text']), len(t['text_table_html']), len(t['text_table_md']))
+# "
+
 # ── 청크 선두 헤더(HEADER: <섹션 경로>) on/off ─────────────────────────────────
 # 섹션 경로는 청크 선두 한 줄에서만 붙는다(compose_vectors). 예전에는 본문 안에도 같은 제목이
 # 두 번 더 들어가 청크 텍스트의 30~56% 가 제목 반복이었고, 제목만 있고 본문이 없는 청크도
