@@ -49,8 +49,14 @@ _CS_HPP_LLM_STUB = json.dumps(
 
 def _parse_and_chunk(source: Path, doc_type: str, llm_stub: str | None = None, *,
                      chunk_size: int = CHUNK_SIZE,
-                     chunk_mode: str = CHUNK_MODE) -> list[dict]:
-    """파서→청커 왕복을 실제로 돌리고 청크 dict 목록을 돌려준다."""
+                     chunk_mode: str = CHUNK_MODE,
+                     include_chunk_header: bool | None = None) -> list[dict]:
+    """파서→청커 왕복을 실제로 돌리고 청크 dict 목록을 돌려준다.
+
+    ``include_chunk_header`` 를 주면 kwargs 로 넘겨 yaml 설정을 덮는다. HEADER 접두어를
+    단정하는 테스트는 반드시 이걸 명시한다 — resource_dev 는 개발 편의로 접두어를 꺼둔
+    상태(커밋 e332b1e5)라, 설정에 기대면 테스트가 개발 설정 변경에 끌려다닌다.
+    """
     from fastapi import Request
 
     cp = pytest.importorskip("genon.preprocessor.facade.chunking_processor")
@@ -67,9 +73,11 @@ def _parse_and_chunk(source: Path, doc_type: str, llm_stub: str | None = None, *
                     stubbed += 1
             assert stubbed, f"{doc_type} custom_fields enricher 를 찾지 못했습니다"
         payload = await parser(request, str(source), doc_type=doc_type, log_level=3)
+        chunk_kwargs = {"chunk_size": chunk_size, "chunk_mode": chunk_mode}
+        if include_chunk_header is not None:
+            chunk_kwargs["include_chunk_header"] = include_chunk_header
         vectors = await cp.DocumentProcessor()(
-            request, str(source), document=payload,
-            chunk_size=chunk_size, chunk_mode=chunk_mode,
+            request, str(source), document=payload, **chunk_kwargs,
         )
         return [v.model_dump() for v in vectors]
 
@@ -229,7 +237,8 @@ def test_cs_hpp_marker_sections_split_chunk_headers():
     """
     cp = pytest.importorskip("genon.preprocessor.facade.chunking_processor")
     source = _require("monimo_cs_hpp_marker_sections_sample.html")
-    rows = _parse_and_chunk(source, "cs_hpp", llm_stub=_CS_HPP_LLM_STUB)
+    rows = _parse_and_chunk(source, "cs_hpp", llm_stub=_CS_HPP_LLM_STUB,
+                            include_chunk_header=True)
 
     assert len(rows) > 1
     headers = [r["text"].splitlines()[0] for r in rows]
@@ -260,6 +269,24 @@ def test_cs_hpp_marker_sections_split_chunk_headers():
 
 
 @pytest.mark.unit
+def test_cs_hpp_nospace_marker_sections_split_chunk_headers():
+    """공백 없는 마커(`◆개요`)도 청커 breadcrumb 의 섹션 경계가 된다.
+
+    캡쳐 05(INC_19570012) 전사본. 승격 규칙이 마커 뒤 공백을 요구하던 시절엔 이 문서의
+    후보가 0건이라 전 청크 HEADER 가 문서 제목 하나로 같았다. 규칙 자체의 단정은
+    test_html_flatten_unit.py 에 있고, 여기서는 그것이 실제 청크 경계까지 이어지는지만 본다.
+    """
+    source = _require("monimo_cs_hpp_marker_nospace_sample.html")
+    rows = _parse_and_chunk(source, "cs_hpp", llm_stub=_CS_HPP_LLM_STUB,
+                            include_chunk_header=True)
+
+    headers = [r["text"].splitlines()[0] for r in rows]
+    assert all(h.startswith("HEADER: ") for h in headers)
+    assert any("◆처리방법 > ▣[홈페이지]서비스 신청 및 해지 방법" in h for h in headers)
+    assert len(set(headers)) >= 3, f"distinct HEADER 부족: {headers}"
+
+
+@pytest.mark.unit
 def test_marker_promotion_is_gated_by_doc_type():
     """같은 픽스처를 doc_type=faq 로 돌리면(마커 승격 미적용) 여전히 크기로만 절단된다.
 
@@ -269,7 +296,7 @@ def test_marker_promotion_is_gated_by_doc_type():
     `assert stubbed` 가 터지므로 llm_stub=None(기본값)으로 호출한다.
     """
     source = _require("monimo_cs_hpp_marker_sections_sample.html")
-    rows = _parse_and_chunk(source, "faq")
+    rows = _parse_and_chunk(source, "faq", include_chunk_header=True)
 
     headers = [r["text"].splitlines()[0] for r in rows]
     assert len(set(headers)) < 3, f"distinct HEADER 가 예상보다 많습니다: {headers}"
