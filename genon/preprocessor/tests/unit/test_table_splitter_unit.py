@@ -17,6 +17,8 @@ class Cell:
     start_col_offset_idx: int
     col_span: int = 1
     row_span: int = 1
+    # docling grid 는 병합 셀을 피복 위치마다 복제하고, 각 사본이 시작 행을 가리킨다.
+    start_row_offset_idx: int = 0
     column_header: bool = False
     row_header: bool = False
     row_section: bool = False
@@ -80,7 +82,10 @@ def test_html_escapes_cells_and_preserves_colspan():
         count_text=len, table_format="html", header_row_count=1,
     )
     assert all('<th colspan="2">A&amp;B</th>' in piece for piece in result.pieces)
-    assert any("&lt;value&gt;" in piece for piece in result.pieces)
+    # `<` 와 `&` 만 이스케이프한다. `>` 는 HTML5 텍스트 노드에서 이스케이프할 의무가 없고,
+    # 바꿔 두면 청크 텍스트에 `&gt;` 노이즈만 남는다(실측 — `일반결제 &gt; 삼성페이`).
+    assert any("&lt;value>" in piece for piece in result.pieces)
+    assert all("&gt;" not in piece for piece in result.pieces)
 
 
 @pytest.mark.unit
@@ -281,3 +286,25 @@ def test_row_serialization_off_by_default():
         count_text=len, table_format="html", header_row_count=1,
     )
     assert all("[표 행 요약]" not in piece for piece in result.pieces)
+
+
+@pytest.mark.unit
+def test_render_table_emits_rowspan_once_instead_of_repeating_the_value():
+    """docling grid 는 병합 셀을 피복 위치마다 복제해 둔다.
+
+    전체 표를 렌더할 때 그 복제를 그대로 내면 같은 값이 행마다 반복된다. 시작 행에서만
+    ``rowspan`` 과 함께 내고 이어지는 행은 건너뛴다.
+    """
+    from genon.preprocessor.facade.chunking.table_html import render_table
+
+    merged = Cell("연회비", 0, row_span=2, start_row_offset_idx=1)
+    grid = [
+        [Cell("구분", 0, column_header=True), Cell("값", 1, column_header=True)],
+        [merged, Cell("20,000원", 1, start_row_offset_idx=1)],
+        [merged, Cell("18,000원", 1, start_row_offset_idx=2)],
+    ]
+    html = render_table(grid, 2)
+
+    assert html.count("연회비") == 1
+    assert 'rowspan="2"' in html
+    assert "20,000원" in html and "18,000원" in html

@@ -57,6 +57,10 @@ from docling_core.types.doc import (
 from docling_core.types.doc.document import LevelNumber, ListItem, CodeItem
 
 from genon.preprocessor.facade.common import config_parse as cp
+from genon.preprocessor.facade.chunking.rich_cells import table_embedded_refs
+from genon.preprocessor.facade.chunking.table_html import (
+    MD_TABLE_PARAMS, drop_blank_markdown_rows,
+)
 from genon.preprocessor.facade.chunking.table_shape import analyze_grid
 from genon.preprocessor.facade.chunking.table_splitter import split_table_rows
 
@@ -111,7 +115,11 @@ class HierarchicalDocChunker(BaseChunker):
         list_items: list[TextItem] = []
         # 표마다 반복 파싱/경고하지 않도록 루프 진입 전에 한 번만 해석한다.
         compact_tables = resolve_compact_tables(kwargs)
+        # rich cell 내용은 표 직렬화 결과에 이미 들어 있다(smart_chunker 와 같은 이유).
+        rich_refs = table_embedded_refs(dl_doc)
         for item, level in dl_doc.iterate_items():
+            if getattr(item, "self_ref", None) in rich_refs:
+                continue
             captions = None
             if isinstance(item, DocItem):
                 # first handle any merging needed
@@ -172,12 +180,13 @@ class HierarchicalDocChunker(BaseChunker):
                         try:
                             text = MarkdownDocSerializer(
                                 doc=dl_doc,
-                                params=MarkdownParams(compact_tables=True),
+                                params=MarkdownParams(compact_tables=True, **MD_TABLE_PARAMS),
                             ).serialize(item=item).text
                         except Exception:
                             text = item.export_to_markdown(dl_doc)
                     else:
                         text = item.export_to_markdown(dl_doc)
+                    text = drop_blank_markdown_rows(text)
                     # dataframe으로 추출할 때 사용되는 코드
                     # if table_df.shape[0] < 1 or table_df.shape[1] < 2:
                     #     # at least two cols needed, as first column contains row headers

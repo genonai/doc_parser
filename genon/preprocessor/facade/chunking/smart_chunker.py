@@ -38,6 +38,8 @@ from docling_core.types.doc.document import CodeItem, ContentLayer, LevelNumber,
 from docling_core.types.doc.labels import DocItemLabel
 
 from genon.preprocessor.facade.chunking import header_path as hp
+from genon.preprocessor.facade.chunking import table_html as th
+from genon.preprocessor.facade.chunking.rich_cells import table_embedded_refs
 from genon.preprocessor.facade.chunking.table_shape import (
     analyze_grid,
     resolve_table_format,
@@ -159,11 +161,16 @@ class SmartChunkerBase(BaseChunker):
         # iterate_items()로 수집된 아이템들의 self_ref 추적
         processed_refs = set()
         filename_titles = hp.filename_title_candidates(dl_doc)
+        # rich cell 내용은 표 직렬화 결과에 이미 들어 있다. 문서 트리에도 TableItem 자식으로
+        # 남아 있어 그대로 순회하면 셀 값이 표 뒤에 평문으로 한 번 더 붙는다.
+        rich_refs = table_embedded_refs(dl_doc)
 
         # 모든 아이템 순회
         for item, level in dl_doc.iterate_items(included_content_layers={ContentLayer.BODY, ContentLayer.FURNITURE}, traverse_pictures=True):
             if hasattr(item, 'self_ref'):
                 processed_refs.add(item.self_ref)
+                if item.self_ref in rich_refs:
+                    continue
 
             if not isinstance(item, DocItem):
                 continue
@@ -415,6 +422,39 @@ class SmartChunkerBase(BaseChunker):
         """markdown 표를 compact(컬럼 정렬 패딩 제거)로 낼지 결정. 기본 True."""
         return cp.resolve_compact_tables(kwargs)
 
+    def _serialize_table(self, table_item: TableItem, dl_doc: DoclingDocument, **kwargs) -> str:
+        """표 하나를 청크에 실을 텍스트로 직렬화한다. 만들 수 없으면 빈 문자열.
+
+        html 형식은 docling_core 의 `export_to_html` 을 쓰지 않는다. 그 serializer 는 화면
+        렌더링이 목적이라 rich cell 서브트리를 통째로 내보내 `<p>`/`<ul><li>`/`<a href>` 가
+        청크 텍스트에 실렸다. 격자 구조만 필요하므로 `table_html` 로 직접 렌더한다.
+        렌더가 실패하면 예전 경로로 폴백해 내용 손실을 막는다.
+        """
+        table_format = self._resolve_table_format(kwargs, self._table_shape(table_item, dl_doc))
+        try:
+            if table_format == "markdown":
+                if self._resolve_compact_tables(kwargs):
+                    # TableItem.export_to_markdown() 은 compact 옵션이 없어 직접 serializer 구성
+                    # (컬럼 정렬 패딩 제거 → 대형 표 markdown 크기 대폭 축소)
+                    table_text = MarkdownDocSerializer(
+                        doc=dl_doc,
+                        params=MarkdownParams(compact_tables=True, **th.MD_TABLE_PARAMS),
+                    ).serialize(item=table_item).text
+                else:
+                    table_text = table_item.export_to_markdown(dl_doc)
+                table_text = th.drop_blank_markdown_rows(table_text)
+            else:
+                table_text = th.render_table(
+                    table_item.data.grid,
+                    table_item.data.num_cols,
+                    caption=table_item.caption_text(dl_doc),
+                ) or table_item.export_to_html(dl_doc)
+            if table_text and table_text.strip():
+                return table_text
+        except Exception:
+            pass
+        return ""
+
     def _extract_table_text_full(self, table_item: TableItem, dl_doc: DoclingDocument, **kwargs) -> str:
         """테이블 청크 텍스트를 만든다.
 
@@ -447,24 +487,9 @@ class SmartChunkerBase(BaseChunker):
     def _compute_table_base_text(self, table_item: TableItem, dl_doc: DoclingDocument, **kwargs) -> str:
         """테이블에서 텍스트를 추출하는 일반화된 메서드"""
         # 분할 경로와 같은 shape 를 보고 정해야 같은 표가 분할 여부에 따라 형식이 갈리지 않는다.
-        table_format = self._resolve_table_format(kwargs, self._table_shape(table_item, dl_doc))
-        try:
-            if table_format == "markdown":
-                if self._resolve_compact_tables(kwargs):
-                    # TableItem.export_to_markdown() 은 compact 옵션이 없어 직접 serializer 구성
-                    # (컬럼 정렬 패딩 제거 → 대형 표 markdown 크기 대폭 축소)
-                    table_text = MarkdownDocSerializer(
-                        doc=dl_doc,
-                        params=MarkdownParams(compact_tables=True),
-                    ).serialize(item=table_item).text
-                else:
-                    table_text = table_item.export_to_markdown(dl_doc)
-            else:
-                table_text = table_item.export_to_html(dl_doc)
-            if table_text and table_text.strip():
-                return table_text
-        except Exception:
-            pass
+        table_text = self._serialize_table(table_item, dl_doc, **kwargs)
+        if table_text:
+            return table_text
 
         # export_to_markdown 실패 시 테이블 셀 데이터에서 직접 텍스트 추출
         try:
@@ -557,24 +582,9 @@ class SmartChunkerBase(BaseChunker):
         # docling serializer 는 표 annotation 을 본문에 함께 싣는다. 접두로 직접 붙이는 만큼
         # 직렬화 대상에서는 설명을 떼어 같은 문장이 두 번 들어가지 않게 한다.
         source = TableDescriptionExtractor.clean_copy(table_item) if prefix else table_item
-        table_format = self._resolve_table_format(kwargs, self._table_shape(table_item, dl_doc))
-        try:
-            if table_format == "markdown":
-                if self._resolve_compact_tables(kwargs):
-                    # TableItem.export_to_markdown() 은 compact 옵션이 없어 직접 serializer 구성
-                    # (컬럼 정렬 패딩 제거 → 대형 표 markdown 크기 대폭 축소)
-                    table_text = MarkdownDocSerializer(
-                        doc=dl_doc,
-                        params=MarkdownParams(compact_tables=True),
-                    ).serialize(item=source).text
-                else:
-                    table_text = source.export_to_markdown(dl_doc)
-            else:
-                table_text = source.export_to_html(dl_doc)
-            if table_text and table_text.strip():
-                return prefix + table_text
-        except Exception:
-            pass
+        table_text = self._serialize_table(source, dl_doc, **kwargs)
+        if table_text:
+            return prefix + table_text
 
         # export 실패 시 테이블 셀 데이터에서 직접 텍스트 추출
         try:

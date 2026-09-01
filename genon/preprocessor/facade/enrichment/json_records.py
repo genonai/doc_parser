@@ -36,6 +36,11 @@ import yaml
 
 _log = logging.getLogger(__name__)
 
+from genon.preprocessor.facade.chunking.rich_cells import collect_subtree_refs
+from genon.preprocessor.facade.chunking.table_html import (
+    drop_blank_markdown_rows, render_table,
+)
+
 from .custom_fields_enricher import (
     JSON_RECORD_EXTRACTORS,
     VALID_LLM_ERROR_POLICIES,  # noqa: F401  (하위 호환 재노출)
@@ -216,8 +221,6 @@ _html_table_serializer: Any = None
 def _mark_rich_cells_visited(item: Any, doc: Any, kwargs: dict) -> None:
     """rich cell 하위 아이템을 방문 처리해 표 밖에서 다시 직렬화되지 않게 한다.
 
-    docling HTML 백엔드는 `<td><span>20,000</span>원</td>` 처럼 셀 텍스트가 인라인 태그로
-    쪼개진 셀을 RichTableCell 로 만들고, 그 내용을 표 아래 별도 TextItem 으로도 문서에 넣는다.
     docling_core 의 MarkdownTableSerializer 는 그 하위 트리를 visited 로 찍어 문서 직렬화가
     다시 내보내지 않게 하는데, `export_to_html` 로 갈아 끼운 serializer 는 그 처리를 하지
     않아 셀 값이 표 뒤에 평문으로 한 번 더 붙었다(실측 — 연회비 표의 금액 6개가 중복).
@@ -233,21 +236,27 @@ def _mark_rich_cells_visited(item: Any, doc: Any, kwargs: dict) -> None:
             if ref is None:
                 continue
             try:
-                _mark_subtree_visited(ref.resolve(doc=doc), doc, visited)
+                collect_subtree_refs(ref.resolve(doc=doc), doc, visited)
             except Exception:  # 참조가 끊긴 셀은 건너뛴다
                 continue
 
 
-def _mark_subtree_visited(node: Any, doc: Any, visited: set) -> None:
-    ref = getattr(node, "self_ref", None)
-    if ref is None or ref in visited:
-        return
-    visited.add(ref)
-    for child in getattr(node, "children", None) or []:
-        try:
-            _mark_subtree_visited(child.resolve(doc=doc), doc, visited)
-        except Exception:
-            continue
+def _table_html(item: Any, doc: Any) -> str:
+    """표를 정제 HTML 로 렌더한다. 렌더할 수 없으면 예전 경로로 폴백.
+
+    `export_to_html` 은 rich cell 서브트리를 통째로 직렬화해 `<p>`/`<ul><li>`/`<a href>` 를
+    남긴다(실측 — 상품 카드 적립기준·놀이공원 표). 청킹 경로와 같은 렌더러를 쓴다.
+    """
+    data = getattr(item, "data", None)
+    try:
+        rendered = render_table(
+            getattr(data, "grid", None),
+            getattr(data, "num_cols", 0),
+            caption=item.caption_text(doc),
+        )
+    except Exception:
+        rendered = ""
+    return rendered or item.export_to_html(doc=doc)
 
 
 def _get_html_table_serializer() -> Any:
@@ -266,7 +275,7 @@ def _get_html_table_serializer() -> Any:
         class _HtmlTableSerializer(BaseTableSerializer):
             def serialize(self, *, item, doc_serializer, doc, **kwargs) -> SerializationResult:
                 _mark_rich_cells_visited(item, doc, kwargs)
-                return create_ser_result(text=item.export_to_html(doc=doc), span_source=item)
+                return create_ser_result(text=_table_html(item, doc), span_source=item)
 
         _html_table_serializer = _HtmlTableSerializer()
     return _html_table_serializer
@@ -307,9 +316,11 @@ def _get_auto_table_serializer() -> Any:
                 if resolve_table_format("auto", shape) == "html":
                     _mark_rich_cells_visited(item, doc, kwargs)
                     return create_ser_result(
-                        text=item.export_to_html(doc=doc), span_source=item)
-                return self._markdown.serialize(
+                        text=_table_html(item, doc), span_source=item)
+                result = self._markdown.serialize(
                     item=item, doc_serializer=doc_serializer, doc=doc, **kwargs)
+                return create_ser_result(
+                    text=drop_blank_markdown_rows(result.text), span_source=item)
 
         _auto_table_serializer = _AutoTableSerializer()
     return _auto_table_serializer

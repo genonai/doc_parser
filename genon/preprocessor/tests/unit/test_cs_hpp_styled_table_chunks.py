@@ -20,6 +20,11 @@ import pytest
 FIXTURE = Path(__file__).resolve().parents[1] / "fixtures" / "cs_hpp_styled_tables.md"
 
 PRESENTATION_MARKUP = ("style=", "colgroup", "<col", "<span", "revert", "rgb(")
+# 청크 텍스트에는 위에 더해 재직렬화가 다시 붙이던 것들도 남으면 안 된다. docling 의
+# `export_to_html` 자체는 여전히 rich cell 서브트리를 내보내므로 문서 수준 단정과 구분한다.
+CHUNK_MARKUP = PRESENTATION_MARKUP + (
+    "<p>", "<ul", "<li", "<a href", "inline-group", "<!-- image -->", "&gt;",
+)
 META_LEAK_MARKUP = (
     "docling-meta", "docling_legacy", "table_retrieval",
     "retrieval_context", "repeat_context_on_split", "include_search_terms",
@@ -99,7 +104,7 @@ def test_styled_table_chunks_carry_no_markup_and_no_enricher_meta(module_name):
 
     assert texts
     for text in texts:
-        for token in PRESENTATION_MARKUP:
+        for token in CHUNK_MARKUP:
             assert token not in text
         for token in META_LEAK_MARKUP:
             assert token not in text

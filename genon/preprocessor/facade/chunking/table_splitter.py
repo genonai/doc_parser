@@ -7,17 +7,16 @@
 
 from __future__ import annotations
 
-import html
 from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass
 from typing import Any
 
+from genon.preprocessor.facade.chunking.table_html import render_row as _render_html_row
 from genon.preprocessor.facade.chunking.table_shape import (
     TableFormat,
     cell_at as _cell_at,
     cell_text as _cell_text,
     flatten_header_rows,
-    is_header_cell as _is_header_cell,
     leading_header_row_count,
     normalize_row_spans,
     serialize_rows,
@@ -39,24 +38,6 @@ class TableSplitResult:
     oversized_piece_indexes: tuple[int, ...] = ()
     # 데이터 행의 rowspan 을 풀고 분할했는가. 조각 안에서 병합 값이 행마다 복제된다.
     normalized_spans: bool = False
-
-
-def _render_html_row(row: Sequence[Any], num_cols: int) -> str:
-    cells: list[str] = []
-    for column in range(num_cols):
-        cell = _cell_at(row, column)
-        if cell is None:
-            cells.append("<td></td>")
-            continue
-        # colspan으로 복제된 grid cell은 시작 컬럼에서만 렌더한다.
-        if getattr(cell, "start_col_offset_idx", column) != column:
-            continue
-        tag = "th" if _is_header_cell(cell) else "td"
-        col_span = max(int(getattr(cell, "col_span", 1) or 1), 1)
-        attrs = f' colspan="{col_span}"' if col_span > 1 else ""
-        value = html.escape(str(getattr(cell, "text", "") or "").strip())
-        cells.append(f"<{tag}{attrs}>{value}</{tag}>")
-    return "<tr>" + "".join(cells) + "</tr>"
 
 
 def _escape_markdown_cell(value: str) -> str:

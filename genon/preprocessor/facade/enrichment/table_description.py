@@ -34,6 +34,7 @@ from docling_core.types.doc.document import ContentLayer, MiscAnnotation
 from docling.utils.api_image_request import api_image_request
 from docling.utils.llm_cache import in_current_context
 
+from genon.preprocessor.facade.chunking.table_html import sanitize_table_html
 from genon.preprocessor.facade.enrichment.prompt_files import read_prompt_file
 from genon.preprocessor.facade.enrichment.prompt_template import PromptTemplate
 
@@ -287,7 +288,9 @@ def refined_html_to_format(refined_html: str, table_format: str, compact_tables:
     if not refined_html:
         return refined_html
     if str(table_format).strip().lower() != "markdown":
-        return refined_html
+        # refine 결과는 LLM 이 만든 HTML 이라 표시용 태그가 섞일 수 있다. 청크 텍스트에
+        # 실리기 전에 격자 태그만 남긴다(청킹 html 경로와 같은 기준).
+        return sanitize_table_html(refined_html)
     try:
         md = _refined_html_to_markdown(refined_html, compact_tables)
         return md or refined_html
