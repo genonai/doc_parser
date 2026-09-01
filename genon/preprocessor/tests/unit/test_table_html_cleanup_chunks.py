@@ -91,8 +91,11 @@ def test_product_hpp_rich_cell_tables_carry_no_markup(module_name, tmp_path, tab
     for token in MARKUP_LEAKS:
         assert token not in body
 
-    # 셀 안 리스트 항목은 공백 한 칸으로 이어지고 링크는 표시 문구만 남는다.
-    assert "주중(월~금요일) : 0.5% 주말(토~일요일) : 1%" in body
+    # 셀 안 리스트 항목은 한 줄로 이어진다. 이 표들은 행 라벨이 `<th scope="row">` 일 뿐
+    # 병합 셀이 없어 auto 에서는 markdown 으로 나가고, 그 경로는 항목 앞에 `- ` 를 남긴다.
+    joiner = " " if table_format == "html" else " - "
+    assert f"주중(월~금요일) : 0.5%{joiner}주말(토~일요일) : 1%" in body
+    # 링크는 어느 경로에서도 표시 문구만 남는다(URL 은 검색에 기여하지 않는다).
     assert "홈페이지 예매 할인 가능(제휴 할인 카드 선택) 예약하기" in body
     assert "everland.com" not in body
 

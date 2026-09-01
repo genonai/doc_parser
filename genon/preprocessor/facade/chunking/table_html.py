@@ -30,6 +30,9 @@ MD_TABLE_PARAMS = {
     "image_placeholder": "",
     "escape_html": False,
     "escape_underscores": False,
+    # 셀 안 링크는 표시 문구만 남긴다. `[예약하기](http://...)` 의 URL 은 검색에 기여하지
+    # 않으면서 청크 예산만 먹는다 - 정제 HTML 경로(render_table)도 URL 을 버린다.
+    "include_hyperlinks": False,
 }
 
 # 정제 후 남기는 태그와 속성. 그 밖은 벗겨 내되 내용은 보존한다.
