@@ -151,3 +151,55 @@ class TableTextVariants:
                     "남긴 표가 있습니다: format=%s count=%d", fmt, misses)
             values[field] = rendered
         return values
+
+
+def field_values_for_text(text: str, formats: Sequence[str] = (),
+                          *, compact_tables: bool = True,
+                          mask: Callable[[str], str] | None = None,
+                          tidy: Callable[[str], str] | None = None) -> dict:
+    """청크 텍스트만 보고 만드는 형식별 필드값. 표 구조 정보가 없는 경로용.
+
+    `TableTextVariants` 는 청커가 `TableItem` 을 직렬화할 때 남긴 기록으로 치환한다.
+    행 기반 custom_fields 나 parse-format 텍스트 경로에는 그 기록이 없으므로, 확정된
+    청크 텍스트 안의 표 블록을 찾아 표기형태만 바꾼다(`table_blocks`).
+
+    계약은 `field_values` 와 같다 — 형식마다 필드를 하나씩 채우고, 표가 없는 청크도
+    `text` 원문 그대로 채운다(소비 측이 청크마다 분기하지 않게 한다).
+
+    `text` 는 **가드레일 마스킹·정제 이전** 텍스트여야 하고, 그 두 후처리를 `mask`/`tidy`
+    로 넘겨 변형에도 같은 순서로 적용한다. 순서를 바꾸면 가드레일로 가린 값이 변형
+    필드로 평문 유출된다(docling 경로의 같은 규칙: `chunking_processor` compose_vectors).
+    """
+    values: dict = {}
+    if not formats:
+        return values
+    from genon.preprocessor.facade.chunking import table_blocks as tbk
+
+    for fmt in formats:
+        field = VARIANT_FIELDS.get(fmt)
+        if not field:
+            continue
+        value = tbk.renotate(text, fmt, compact_tables=compact_tables) if text else text
+        if mask is not None:
+            value = mask(value)
+        if tidy is not None:
+            value = tidy(value)
+        values[field] = value
+    return values
+
+
+def text_fields_hook(formats: Sequence[str] = (), *, compact_tables: bool = True):
+    """청크 텍스트 → 표 파생 필드(표기형태 변형 + `has_table`) 를 만드는 훅.
+
+    청커를 거치지 않고 벡터를 직접 만드는 경로(xlsx tabular 직접 처리 등)가 쓴다. 그
+    경로의 구현체는 `converters/` 아래에 있어 facade 를 import 하지 않으므로(단방향
+    규칙), 정책을 함수로 넘겨 같은 규칙을 공유한다.
+    """
+    from genon.preprocessor.facade.chunking import table_blocks as tbk
+
+    def build(text: str) -> dict:
+        fields = field_values_for_text(text, formats, compact_tables=compact_tables)
+        fields["has_table"] = tbk.has_table(text)
+        return fields
+
+    return build

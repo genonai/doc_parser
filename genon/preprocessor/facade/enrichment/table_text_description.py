@@ -63,8 +63,6 @@ def _as_bool(value: Any, default: bool = False) -> bool:
 # `<table>` 블록(또는 파이프 표)이다. 그래서 문서 대신 텍스트에서 표를 찾아 같은 프롬프트에
 # 태우고, 설명은 annotation 이 아니라 표 바로 앞의 `[표 검색 설명]` 블록으로 넣는다
 # (청커의 docling 경로가 붙이는 접두와 같은 모양이라 최종 청크가 두 경로에서 동일하다).
-_HTML_TABLE_RE = re.compile(r"<table\b.*?</table>", re.IGNORECASE | re.DOTALL)
-_MD_TABLE_RE = re.compile(r"(?:^[ \t]*\|.*\|[ \t]*(?:\n|$))+", re.MULTILINE)
 _HEADING_RE = re.compile(r"^\s{0,3}#{1,6}\s+(.*\S)\s*$")
 
 
@@ -73,15 +71,13 @@ def find_table_blocks(text: str) -> list[tuple[int, int, str]]:
 
     HTML 표를 먼저 잡고, 그 바깥에서만 파이프 표를 찾는다 — `table_format` 이 html 이어도
     본문에 markdown 표가 섞여 있을 수 있어 형식을 설정이 아니라 실제 마크업으로 판정한다.
+
+    검출은 청킹 경로와 같은 공용 모듈(`facade/chunking/table_blocks`) 한 벌을 쓴다. 표
+    경계 판정이 두 벌이면 설명을 넣은 자리와 청크를 끊는 자리가 어긋난다.
     """
-    spans = [(m.start(), m.end(), "html") for m in _HTML_TABLE_RE.finditer(text)]
-    for m in _MD_TABLE_RE.finditer(text):
-        if any(start <= m.start() < end for start, end, _ in spans):
-            continue
-        if m.group().count("\n") < 2:
-            continue  # 헤더+구분선 없이 한 줄뿐이면 표가 아니다
-        spans.append((m.start(), m.end(), "markdown"))
-    return sorted(spans)
+    from genon.preprocessor.facade.chunking import table_blocks as tbk
+
+    return [(block.start, block.end, block.kind) for block in tbk.find_blocks(text)]
 
 
 def _context_before(text: str, start: int, count: int, limit: int) -> str:

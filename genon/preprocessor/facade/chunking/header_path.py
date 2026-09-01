@@ -11,6 +11,7 @@ intelligent/convert/chunking 세 facade 가 동일하게 복제해 두었던 로
 from __future__ import annotations
 
 import os
+import re
 import unicodedata
 from pathlib import Path
 from typing import Any, Optional
@@ -108,3 +109,34 @@ def build_header_line(headings, include_header: bool, sep: str, path_sep: str, m
     if not include_header or not headings:
         return ""
     return "HEADER: " + render_header_paths(headings, sep, path_sep, max_leaves) + "\n"
+
+
+# markdown 헤딩 줄. 레코드 본문(custom_fields text_from 렌더링)에서 섹션 제목을 찾는다.
+_MD_HEADING_RE = re.compile(r"^(#{1,6})\s+(.+)$", re.MULTILINE)
+
+
+def carry_over_section_headings(pieces: list) -> list:
+    """분할된 뒷 조각에 직전 섹션 제목을 `## <제목> (이어서)` 로 다시 붙인다.
+
+    이게 없으면 두 번째 조각이 "8월 17일 2544만으로 감소" 처럼 **무엇에 대한 값인지 알 수 없는
+    상태**로 검색에 노출된다. 검색으로 그 조각만 뽑히면 LLM 이 근거로 쓸 수 없다.
+    (Contextual Retrieval 과 같은 발상을 LLM 없이 결정론적으로 적용한 것이다.)
+
+    이미 헤딩으로 시작하는 조각은 그대로 둔다 — 섹션 경계에서 깔끔히 잘린 경우다.
+    헤딩이 하나도 없는 평문 입력에서는 아무것도 하지 않는다.
+
+    크기 기준 분할(`_expand_splittable_rows`)과 표 기준 분리(`table_blocks.expand_elements`)가
+    같은 함수를 쓴다 — 조각을 만드는 이유가 달라도 조각이 문맥을 잃는 문제는 같다.
+    """
+    out: list = []
+    current = None
+    for idx, piece in enumerate(pieces):
+        text = str(piece).strip("\n")
+        if idx and current and not text.lstrip().startswith("#"):
+            text = f"{current} (이어서)\n{text}"
+        found = _MD_HEADING_RE.findall(str(piece))
+        if found:
+            marks, title = found[-1]
+            current = f"{marks} {title.strip()}"
+        out.append(text)
+    return out
