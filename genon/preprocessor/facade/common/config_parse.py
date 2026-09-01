@@ -186,6 +186,46 @@ def resolve_table_row_serialization(source: dict, default: bool = False) -> bool
     return default if parsed is None else parsed
 
 
+# output.table_text_formats 가 받는 값. 형식 하나가 청크 필드 하나에 대응한다.
+TABLE_TEXT_FORMATS = ("html", "markdown")
+
+
+def resolve_table_text_formats(source: dict, default: tuple = ()) -> tuple:
+    """청크에 추가로 실을 표 표기형태 목록. 기본은 빈 목록(추가 필드 없음).
+
+    같은 청크 전문을 표만 다른 표기형태로 렌더한 텍스트를 별도 필드로 내보내기 위한
+    설정이다. 형식 하나가 필드 하나에 대응하므로(html -> text_table_html) 형식이
+    늘어도 설정 키는 늘지 않는다.
+
+    문자열 하나("html")도 목록으로 받아들이고, 아는 형식만 원래 순서로 남긴다.
+    """
+    value = source.get("table_text_formats")
+    if value is None:
+        return tuple(default)
+    if isinstance(value, str):
+        # 쉼표 목록도 허용한다. yaml 에 리스트를 못 쓰는 호출 경로(kwargs 문자열)가 있다.
+        items = [part for part in value.replace(",", " ").split() if part]
+    elif isinstance(value, (list, tuple, set)):
+        items = list(value)
+    else:
+        _log.warning(
+            "[config_parse] Unknown table_text_formats %r, ignoring.", value)
+        return tuple(default)
+
+    resolved: list = []
+    for item in items:
+        name = str(item).strip().lower()
+        if name in ("md", "markdown"):
+            name = "markdown"
+        if name not in TABLE_TEXT_FORMATS:
+            _log.warning(
+                "[config_parse] Unknown table_text_formats entry %r, ignoring.", item)
+            continue
+        if name not in resolved:
+            resolved.append(name)
+    return tuple(resolved)
+
+
 def apply_table_output_defaults(kwargs: dict, processor) -> dict:
     """표 출력 설정을 호출 kwargs 에 채운다(요청이 명시한 값이 우선).
 
@@ -202,6 +242,10 @@ def apply_table_output_defaults(kwargs: dict, processor) -> dict:
     kwargs.setdefault(
         "table_row_serialization",
         getattr(processor, "_table_row_serialization", False),
+    )
+    kwargs.setdefault(
+        "table_text_formats",
+        getattr(processor, "_table_text_formats", ()),
     )
     return kwargs
 

@@ -8,7 +8,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Iterable, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 from genon.preprocessor.facade.chunking.table_html import render_row as _render_html_row
@@ -38,6 +38,11 @@ class TableSplitResult:
     oversized_piece_indexes: tuple[int, ...] = ()
     # 데이터 행의 rowspan 을 풀고 분할했는가. 조각 안에서 병합 값이 행마다 복제된다.
     normalized_spans: bool = False
+    # ``extra_formats`` 로 요청한 형식별 조각. pieces 와 길이가 같고 행 경계도 같다.
+    # 렌더할 수 없는 형식(markdown 헤더 행 부재 등)은 키가 없다.
+    format_pieces: dict[str, list[str]] = field(default_factory=dict)
+    # 조각별 데이터 행 인덱스 묶음(정규화된 grid 기준). 형식 간 경계 동일성 검증용.
+    buckets: tuple[tuple[int, ...], ...] = ()
 
 
 def _escape_markdown_cell(value: str) -> str:
@@ -53,6 +58,65 @@ def _render_markdown_row(row: Sequence[Any], num_cols: int) -> str:
     return "| " + " | ".join(cells) + " |"
 
 
+@dataclass(frozen=True)
+class _RowRenderer:
+    """한 표기형태의 행 렌더러. render_row 와 wrap 이 짝이어야 조각이 완전한 표가 된다."""
+
+    render_row: Callable[[Sequence[Any], int], str]
+    wrap: Callable[[Sequence[str], str], str]
+
+
+def _build_renderer(
+    *,
+    table_format: TableFormat,
+    header_rows: Sequence[Sequence[Any]],
+    header_labels: Sequence[str],
+    num_cols: int,
+    prefix: str,
+) -> _RowRenderer | None:
+    """형식별 렌더러. markdown 인데 헤더 행이 없으면 None(호출부가 폴백한다)."""
+
+    if table_format == "markdown":
+        # Markdown 표는 헤더가 정확히 한 행이고 그 다음 줄이 구분선이어야 한다. 헤더가
+        # 여러 행이면 컬럼마다 `상위 > 하위` 로 합쳐 한 행으로 만든다 - 예전처럼 여러 행을
+        # 그대로 늘어놓고 뒤에 구분선을 붙이면 표로 파싱되지 않는 텍스트가 나왔다.
+        # header_row_count=0 은 첫 데이터 행을 헤더로 승격하지 않고 안전하게 원문 유지한다.
+        if not header_rows:
+            return None
+        header_lines = [
+            "| " + " | ".join(_escape_markdown_cell(label) for label in header_labels) + " |",
+            "| " + " | ".join(["---"] * num_cols) + " |",
+        ]
+
+        def wrap_markdown(rows: Sequence[str], trailing: str = "") -> str:
+            body = "\n".join(header_lines + list(rows))
+            return prefix + body + trailing
+
+        return _RowRenderer(_render_markdown_row, wrap_markdown)
+
+    header_html = "".join(_render_html_row(row, num_cols) for row in header_rows)
+
+    def wrap_html(rows: Sequence[str], trailing: str = "") -> str:
+        return prefix + "<table><tbody>" + header_html + "".join(rows) + "</tbody></table>" + trailing
+
+    return _RowRenderer(_render_html_row, wrap_html)
+
+
+def _compose_with(
+    renderer: _RowRenderer,
+    rendered_rows: Sequence[str],
+    row_lines: Sequence[str],
+    indexes: Sequence[int],
+    trailing: str = "",
+) -> str:
+    """조각 하나의 최종 텍스트. 예산 판정과 실제 출력이 같은 함수를 쓴다."""
+    text = renderer.wrap([rendered_rows[i] for i in indexes], trailing)
+    if not row_lines:
+        return text
+    lines = [row_lines[i] for i in indexes if i < len(row_lines) and row_lines[i]]
+    return text + "\n" + ROW_LINES_LABEL + "\n" + "\n".join(lines) if lines else text
+
+
 def split_table_rows(
     *,
     grid: Sequence[Sequence[Any]],
@@ -65,6 +129,7 @@ def split_table_rows(
     prefix: str = "",
     suffix: str = "",
     row_serialization: bool = False,
+    extra_formats: Sequence[TableFormat] = (),
 ) -> TableSplitResult:
     """표를 행 경계에서 분할하고 각 조각을 독립적인 완전한 표로 만든다.
 
@@ -78,6 +143,11 @@ def split_table_rows(
 
     ``row_serialization``이 참이면 각 조각의 표 뒤에 그 조각의 행을 ``컬럼=값`` 문장으로
     덧붙인다. 병합 셀 표에서 어느 헤더에 걸린 값인지 임베딩에 드러내기 위한 것이다.
+
+    ``extra_formats``를 주면 같은 행 경계로 그 형식들의 조각도 만들어 ``format_pieces``에
+    담는다. 행 묶음(buckets)은 ``table_format``으로 한 번만 계산하고 형식마다 재사용한다 -
+    형식별로 이 함수를 따로 부르면 텍스트 길이가 달라 조각 경계와 개수가 어긋난다.
+    그래서 추가 형식의 조각은 ``limit``을 넘을 수 있고, 재분할하지 않는다.
     """
 
     if limit <= 0 or count_text(single_text) <= limit:
@@ -101,43 +171,22 @@ def split_table_rows(
 
     header_labels = flatten_header_rows(grid, header_row_count, num_cols)
 
-    if table_format == "markdown":
-        render_row = _render_markdown_row
-        # Markdown 표는 헤더가 정확히 한 행이고 그 다음 줄이 구분선이어야 한다. 헤더가
-        # 여러 행이면 컬럼마다 `상위 > 하위` 로 합쳐 한 행으로 만든다 — 예전처럼 여러 행을
-        # 그대로 늘어놓고 뒤에 구분선을 붙이면 표로 파싱되지 않는 텍스트가 나왔다.
-        # header_row_count=0 은 첫 데이터 행을 헤더로 승격하지 않고 안전하게 원문 유지한다.
-        if not header_rows:
-            return TableSplitResult([single_text], False, "no-markdown-header")
-        header_lines = [
-            "| " + " | ".join(_escape_markdown_cell(label) for label in header_labels) + " |",
-            "| " + " | ".join(["---"] * num_cols) + " |",
-        ]
+    renderer = _build_renderer(
+        table_format=table_format, header_rows=header_rows,
+        header_labels=header_labels, num_cols=num_cols, prefix=prefix,
+    )
+    if renderer is None:
+        return TableSplitResult([single_text], False, "no-markdown-header")
 
-        def wrap(rows: Sequence[str], trailing: str = "") -> str:
-            body = "\n".join(header_lines + list(rows))
-            return prefix + body + trailing
-
-    else:
-        render_row = _render_html_row
-        header_html = "".join(render_row(row, num_cols) for row in header_rows)
-
-        def wrap(rows: Sequence[str], trailing: str = "") -> str:
-            return prefix + "<table><tbody>" + header_html + "".join(rows) + "</tbody></table>" + trailing
-
-    rendered_rows = [render_row(row, num_cols) for row in data_rows]
+    rendered_rows = [renderer.render_row(row, num_cols) for row in data_rows]
+    # 행 문장은 표기형태와 무관하다. 한 번 만들어 모든 형식이 공유한다.
     row_lines = (
         serialize_rows(data_rows, header_labels, num_cols)
         if row_serialization else []
     )
 
     def compose(indexes: Sequence[int], trailing: str = "") -> str:
-        """조각 하나의 최종 텍스트. 예산 판정과 실제 출력이 같은 함수를 쓴다."""
-        text = wrap([rendered_rows[i] for i in indexes], trailing)
-        if not row_lines:
-            return text
-        lines = [row_lines[i] for i in indexes if i < len(row_lines) and row_lines[i]]
-        return text + "\n" + ROW_LINES_LABEL + "\n" + "\n".join(lines) if lines else text
+        return _compose_with(renderer, rendered_rows, row_lines, indexes, trailing)
 
     buckets: list[list[int]] = []
     current: list[int] = []
@@ -160,8 +209,30 @@ def split_table_rows(
     if not pieces:
         return TableSplitResult([single_text], False, "no-pieces")
     oversized = tuple(index for index, piece in enumerate(pieces) if count_text(piece) > limit)
+
+    # 추가 형식은 같은 buckets 를 그대로 쓴다. 예산 재판정도 재분할도 하지 않는다.
+    format_pieces: dict[str, list[str]] = {}
+    for fmt in dict.fromkeys(extra_formats):
+        if fmt == table_format:
+            format_pieces[fmt] = list(pieces)
+            continue
+        alt = _build_renderer(
+            table_format=fmt, header_rows=header_rows,
+            header_labels=header_labels, num_cols=num_cols, prefix=prefix,
+        )
+        if alt is None:
+            continue
+        alt_rows = [alt.render_row(row, num_cols) for row in data_rows]
+        format_pieces[fmt] = [
+            _compose_with(alt, alt_rows, row_lines, bucket,
+                          suffix if index == len(buckets) - 1 else "")
+            for index, bucket in enumerate(buckets)
+        ]
+
     return TableSplitResult(
-        pieces, len(pieces) > 1, None, oversized, normalized_spans=normalized_spans)
+        pieces, len(pieces) > 1, None, oversized, normalized_spans=normalized_spans,
+        format_pieces=format_pieces,
+        buckets=tuple(tuple(bucket) for bucket in buckets))
 
 
 def split_entries_preserving_tables(

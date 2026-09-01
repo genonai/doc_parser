@@ -48,6 +48,7 @@ from genon.preprocessor.facade.chunking.table_splitter import (
     split_entries_preserving_tables,
     split_table_rows,
 )
+from genon.preprocessor.facade.chunking.table_variants import TableTextVariants
 from genon.preprocessor.facade.common import config_parse as cp
 from genon.preprocessor.facade.common.doc_meta import strip_enricher_meta
 from genon.preprocessor.facade.enrichment.table_description import (
@@ -98,6 +99,8 @@ class SmartChunkerBase(BaseChunker):
 
     # 표 self_ref -> 그 표가 나뉜 조각 수. compose_vectors 가 조각 순서 메타를 매길 때 읽는다.
     _table_split_totals: dict = PrivateAttr(default_factory=dict)
+    # 표 표기형태별 변형 텍스트 기록부. compose_vectors 가 청크 텍스트를 형식별로 다시 낼 때 읽는다.
+    _table_variants: Any = PrivateAttr(default=None)
 
     tokenizer: Union[PreTrainedTokenizerBase, str, Path] = (
             Path(cp.DEFAULT_TOKENIZER_LOCAL_PATH)
@@ -685,8 +688,19 @@ class SmartChunkerBase(BaseChunker):
             prefix=prefix + self._caption_prefix(table_item, dl_doc),
             suffix=suffix,
             row_serialization=shape.is_complex and cp.resolve_table_row_serialization(kwargs),
+            extra_formats=self._variant_formats(kwargs),
         )
         self._record_table_split(table_item, len(result.pieces))
+        variants = getattr(self, "_table_variants", None)
+        if variants is not None and result.format_pieces:
+            # 조각 경계는 primary 로 한 번만 계산되므로 형식별 조각이 1:1 로 대응한다.
+            ref = getattr(table_item, "self_ref", "") or ""
+            for index, piece in enumerate(result.pieces):
+                variants.record(piece, {
+                    fmt: pieces[index]
+                    for fmt, pieces in result.format_pieces.items()
+                    if index < len(pieces)
+                }, ref)
         if result.normalized_spans:
             _log.debug(
                 "[GenosSmartChunker] 병합 행을 풀어 분할했습니다: table=%s pieces=%d",
@@ -723,9 +737,41 @@ class SmartChunkerBase(BaseChunker):
 
     def _extract_table_text(self, table_item: TableItem, dl_doc: DoclingDocument, **kwargs) -> str:
         """표 청크 텍스트. 설명 annotation 반영 범위는 TABLE_DESCRIPTION_MODE 가 정한다."""
+        text = self._extract_table_text_by_mode(table_item, dl_doc, **kwargs)
+        self._record_table_variants(table_item, dl_doc, text, **kwargs)
+        return text
+
+    def _extract_table_text_by_mode(self, table_item: TableItem, dl_doc: DoclingDocument,
+                                    **kwargs) -> str:
         if self.TABLE_DESCRIPTION_MODE == "full":
             return self._extract_table_text_full(table_item, dl_doc, **kwargs)
         return self._extract_table_text_prefix_only(table_item, dl_doc, **kwargs)
+
+    @staticmethod
+    def _variant_formats(kwargs: dict) -> tuple:
+        """청크에 추가로 실을 표 표기형태 목록. 기본은 빈 목록(기능 off)."""
+        return cp.resolve_table_text_formats(kwargs)
+
+    def _record_table_variants(self, table_item: TableItem, dl_doc: DoclingDocument,
+                               primary: str, **kwargs) -> None:
+        """표 하나의 형식별 변형 텍스트를 기록한다(미분할 경로).
+
+        표 텍스트 생성부는 표기형태를 kwargs 에서만 읽으므로 형식만 바꿔 다시 부르면
+        refine HTML·검색 설명 접두·표 설명 접미까지 같은 규칙으로 따라온다. 접두·접미
+        규칙을 여기서 다시 조립하면 그 자체가 새 lockstep 부채가 된다.
+        """
+        variants = getattr(self, "_table_variants", None)
+        if not primary or variants is None or not variants.enabled():
+            return
+        ref = getattr(table_item, "self_ref", "") or ""
+        built = {}
+        for fmt in variants.formats:
+            def build(fmt=fmt):
+                return self._extract_table_text_by_mode(
+                    table_item, dl_doc, **{**kwargs, "table_format": fmt})
+            # 캐시 키가 self_ref 라 ref 를 못 읽은 표는 서로의 결과를 가져가게 된다.
+            built[fmt] = variants.memo(ref, fmt, build) if ref else build()
+        variants.record(primary, built, ref)
 
     def _table_item_to_texts(self, table_item: TableItem, dl_doc: DoclingDocument,
                              h_short: dict, *, max_tokens=None, **kwargs) -> list[str]:
@@ -1447,6 +1493,7 @@ class SmartChunkerBase(BaseChunker):
         """
         # 같은 청커 인스턴스가 문서를 이어서 처리할 수 있으므로 표 분할 기록을 비운다.
         self._table_split_totals = {}
+        self._table_variants = TableTextVariants(self._variant_formats(kwargs))
         # docling_core 가 enricher annotation 을 meta 로 이관해 두면 표·그림 직렬화에
         # `<details class="docling-meta">` 블록이 딸려 나온다. 표 설명은 이 청커가 본문
         # 선두에 직접 싣는 값이라 중복이고, 내부 구조체(table_retrieval)까지 노출되므로
