@@ -77,6 +77,56 @@ def _span(cell: Any, name: str) -> int:
         return 1
 
 
+# degenerate 사유. 표 표기(파이프·태그)가 정보를 하나도 더하지 않는 블록의 종류다.
+DEGENERATE_SINGLE_VALUE = "single-value"
+DEGENERATE_NO_DATA_ROWS = "no-data-rows"
+
+
+def degenerate_reason(
+    grid: Optional[Sequence[Sequence[Any]]],
+    num_cols: Optional[int] = None,
+    *,
+    header_rows: Optional[int] = None,
+) -> Optional[str]:
+    """표 표기가 정보를 더하지 않는 표인가. 그러면 사유 문자열, 아니면 None.
+
+    HTML 문서에는 레이아웃·배너 용도로만 쓴 표가 흔하다(`<td colspan="4">안내 산문</td>`
+    하나뿐인 표). 이런 블록을 markdown 으로 내면 헤더 행 + 구분선만 남고 데이터 행이 0이
+    되며, colspan 은 grid 에서 피복 열마다 복제돼 있어 산문이 열 수만큼 중복된다. 검색
+    임베딩에는 잡음만 더한다.
+
+    ``analyze_grid().header_row_count`` 를 쓰지 않는다. 그쪽은 비-HTML 유래 표에서
+    `flag_n + 1`(컬럼명 추정 행)을 더하므로, 여기에 쓰면 2행 정형 표가 데이터 행 0으로
+    오판된다. 헤더 판정은 플래그 기반 카운트만 쓴다.
+
+    ``header_rows`` 를 주면 그 값을 그대로 믿는다. 셀 플래그만으로 헤더 행을 세면 grid 를
+    만든 쪽에 따라 답이 갈리기 때문이다 — `table_blocks._html_to_grid` 는 `<th>` 를 모두
+    `column_header` 로 표시하므로 행 라벨 표(`<th scope="row">총 연회비</th><td>18,000</td>`)
+    의 데이터 행까지 헤더로 세어 정형 표가 데이터 행 0으로 오판된다. 그 쪽은 자기 grid 를
+    만들 때 이미 올바른 헤더 행 수를 알고 있으니 그 값을 넘긴다.
+
+    판정에 넣지 않은 것: 헤더 없는 1행 표(헤더가 떨어져 나간 진짜 데이터 행일 수 있다),
+    1열 N행 목록형 표(행 경계가 정보다), 셀 개수·길이 임계값(문서 종류마다 경계가 갈려
+    설정 키를 부른다).
+    """
+    if not grid:
+        return None
+    cols = int(num_cols or 0) or max((len(row) for row in grid), default=0)
+    if cols <= 0:
+        return None
+
+    # span 은 grid 에서 피복 위치마다 복제돼 있으므로 집합 크기가 곧 "전개 후 서로 다른 값" 수다.
+    distinct = {text for row in grid for text in map(cell_text, row) if text}
+    if len(distinct) <= 1:
+        return DEGENERATE_SINGLE_VALUE
+
+    header_n = leading_header_row_count(grid) if header_rows is None else int(header_rows)
+    header_n = min(max(header_n, 0), len(grid))
+    if len(grid) - header_n <= 0:
+        return DEGENERATE_NO_DATA_ROWS
+    return None
+
+
 @dataclass(frozen=True)
 class TableShape:
     """표 구조의 요약. 포맷 선택과 분할 전략이 이것 하나만 보고 결정된다."""

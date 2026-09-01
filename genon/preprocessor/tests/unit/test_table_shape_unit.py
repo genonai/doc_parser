@@ -5,7 +5,10 @@ from dataclasses import dataclass
 import pytest
 
 from genon.preprocessor.facade.chunking.table_shape import (
+    DEGENERATE_NO_DATA_ROWS,
+    DEGENERATE_SINGLE_VALUE,
     analyze_grid,
+    degenerate_reason,
     flatten_header_rows,
     normalize_row_spans,
     resolve_table_format,
@@ -215,3 +218,42 @@ def test_serialize_rows_labels_each_value_with_header_path():
 def test_serialize_rows_drops_empty_cells_and_rows():
     grid = [[Cell("", 0), Cell("3.0", 1)], [Cell("", 0), Cell("", 1)]]
     assert serialize_rows(grid, ["연도", "금리"], 2) == ["금리=3.0"]
+
+
+# ─── degenerate_reason ────────────────────────────────────────────────────────
+
+@pytest.mark.unit
+def test_degenerate_reason_catches_layout_only_tables():
+    """표 표기가 정보를 더하지 않는 두 형태."""
+    # `<td colspan="4">안내 산문</td>` 하나뿐인 배너. grid 에는 열마다 복제돼 있다.
+    banner = [[Cell("안내 산문", 0, col_span=4)] * 4]
+    assert degenerate_reason(banner, 4) == DEGENERATE_SINGLE_VALUE
+    # 헤더 행만 있고 데이터 행이 0. markdown 으로 내면 구분선까지가 전부다.
+    header_only = [[Cell("구분", 0, column_header=True), Cell("값", 1, column_header=True)]]
+    assert degenerate_reason(header_only, 2) == DEGENERATE_NO_DATA_ROWS
+
+
+@pytest.mark.unit
+def test_degenerate_reason_keeps_real_tables():
+    """오탐 경계. 여기 걸리면 정상 표가 평문으로 풀려 구조가 사라진다."""
+    assert degenerate_reason(_simple_grid(), 2) is None
+    assert degenerate_reason(_hierarchical_grid(), 3) is None
+    # 1열 N행 목록형 표는 행 경계가 정보다.
+    assert degenerate_reason([[Cell("A", 0)], [Cell("B", 0)], [Cell("C", 0)]], 1) is None
+    # 헤더가 떨어져 나간 1행 표. 값이 여럿이면 표로 남긴다.
+    assert degenerate_reason([[Cell("사과", 0), Cell("배", 1), Cell("감", 2)]], 3) is None
+
+
+@pytest.mark.unit
+def test_degenerate_reason_trusts_given_header_rows():
+    """헤더 행 수를 넘기면 셀 플래그보다 그 값을 믿는다.
+
+    `table_blocks._html_to_grid` 는 `<th>` 를 모두 column_header 로 표시하므로 행 라벨 표의
+    데이터 행까지 헤더로 세어 정형 표가 데이터 행 0으로 오판된다.
+    """
+    row_label_table = [
+        [Cell("구분", 0, column_header=True), Cell("금액", 1, column_header=True)],
+        [Cell("총 연회비", 0, column_header=True), Cell("18,000", 1)],
+    ]
+    assert degenerate_reason(row_label_table, 2) == DEGENERATE_NO_DATA_ROWS
+    assert degenerate_reason(row_label_table, 2, header_rows=1) is None
