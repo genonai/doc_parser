@@ -56,6 +56,7 @@ from genon.preprocessor.facade.common import runtime as rt
 from genon.preprocessor.facade.common import file_probe as fp
 from genon.preprocessor.facade.common import pdf_convert as pc
 from genon.preprocessor.facade.chunking import header_path as hp
+from genon.preprocessor.facade.chunking import table_blocks as tbk
 from genon.preprocessor.facade.chunking import table_variants as tv
 
 _as_dict = cp.as_dict
@@ -260,31 +261,10 @@ class GenosSmartChunker(sc.SmartChunkerBase):
 from genon.preprocessor.facade import guardrail as gr
 
 
-_HEADING_RE = re.compile(r"^(#{1,6})\s+(.+)$", re.MULTILINE)
 
 
-def _carry_over_section_headings(pieces: list[str]) -> list[str]:
-    """분할된 뒷 조각에 직전 섹션 제목을 `## <제목> (이어서)` 로 다시 붙인다.
-
-    이게 없으면 두 번째 조각이 "8월 17일 2544만으로 감소" 처럼 **무엇에 대한 값인지 알 수 없는
-    상태**로 검색에 노출된다. 검색으로 그 조각만 뽑히면 LLM 이 근거로 쓸 수 없다.
-    (Contextual Retrieval 과 같은 발상을 LLM 없이 결정론적으로 적용한 것이다.)
-
-    이미 헤딩으로 시작하는 조각은 그대로 둔다 — 섹션 경계에서 깔끔히 잘린 경우다.
-    헤딩이 하나도 없는 평문 입력에서는 아무것도 하지 않는다.
-    """
-    out: list[str] = []
-    current: str | None = None
-    for idx, piece in enumerate(pieces):
-        text = piece.strip("\n")
-        if idx and current and not text.lstrip().startswith("#"):
-            text = f"{current} (이어서)\n{text}"
-        found = _HEADING_RE.findall(piece)
-        if found:
-            marks, title = found[-1]
-            current = f"{marks} {title.strip()}"
-        out.append(text)
-    return out
+# 조각에 섹션 문맥을 물려주는 규칙은 공용 모듈 한 벌이다(표 기준 분리도 같은 함수를 쓴다).
+_carry_over_section_headings = hp.carry_over_section_headings
 
 
 class GenOSVectorMeta(BaseModel):
@@ -967,7 +947,8 @@ class DocumentProcessor:
     # ------------------------------------------------------------------
 
     @staticmethod
-    def _single_marker_vector(text: str, cleanup: bool = False) -> GenOSVectorMeta:
+    def _single_marker_vector(text: str, cleanup: bool = False,
+                              **variant_kwargs) -> GenOSVectorMeta:
         """legacy return_vectormeta_format 과 동일한 단일(미분할) 벡터.
 
         audio([AUDIO]) / tabular([DA]) 처럼 분할하지 않고 통째로 1개 벡터로 반환한다.
@@ -976,9 +957,12 @@ class DocumentProcessor:
         legacy 는 n_char/n_word/n_line 을 1 로 고정해 통계가 실제와 달랐다. 다른 경로와
         동일하게 실제 값을 계산한다.
         """
+        variant_values = tv.field_values_for_text(
+            text, tidy=tn.tidy if cleanup else None, **variant_kwargs)
         if cleanup:
             text = tn.tidy(text)
         return GenOSVectorMeta.model_validate({
+            **variant_values,
             'text': text,
             'n_char': len(text),
             'n_word': len(text.split()),
@@ -993,6 +977,21 @@ class DocumentProcessor:
             'chunk_bboxes': ".",
             'media_files': ".",
         })
+
+    def _text_variant_options(self, **kwargs: dict) -> dict:
+        """비-docling 경로에서 표기형태 필드를 만들 때 쓸 인자.
+
+        `_chunk_parse_format` 이 `apply_table_output_defaults` 로 kwargs 에 채워 둔 값을
+        읽는다. 설정 해석은 공용 모듈에만 둔다(facade 마다 헬퍼를 복제하지 않는다).
+        """
+        return {
+            "formats": cp.resolve_table_text_formats(kwargs),
+            "compact_tables": cp.resolve_compact_tables(kwargs),
+        }
+
+    def _isolate_tables_enabled(self, **kwargs: dict) -> bool:
+        """표를 독립 청크로 분리할지. docling 경로의 table_as_chunk 와 같은 스위치다."""
+        return cp.resolve_table_as_chunk(kwargs, getattr(self, "_table_as_chunk", True))
 
     def _resolve_recursive_split_params(self, **kwargs: dict) -> "tuple[int, int]":
         """RecursiveCharacterTextSplitter 용 (chunk_size, chunk_overlap) 결정.
@@ -1048,6 +1047,11 @@ class DocumentProcessor:
         # 임베딩 텍스트와 n_char/n_word/n_line 통계가 일치한다.
         _cleanup_out: bool = tn.enabled_for(kwargs, self)
 
+        # 표를 독립 청크로 분리한다(table_as_chunk). 표 조각을 별 Document 로 두면
+        # splitter 가 표와 앞뒤 본문을 한 청크로 다시 묶지 못한다.
+        _isolate_tables: bool = self._isolate_tables_enabled(**kwargs)
+        _variant_options = self._text_variant_options(**kwargs)
+
         # element → page 단위 Document 재구성 (빈 내용 제외)
         docs: list = []
         for el in elements:
@@ -1059,7 +1063,10 @@ class DocumentProcessor:
                 page = int(page)
             except (TypeError, ValueError):
                 page = 1
-            docs.append(Document(page_content=content, metadata={"page": page}))
+            parts = tbk.split_at_tables(content) if _isolate_tables else [content]
+            docs.extend(
+                Document(page_content=part, metadata={"page": page}) for part in parts
+            )
 
         if not docs:
             raise GenosServiceException(1, "chunk length is 0")
@@ -1095,11 +1102,23 @@ class DocumentProcessor:
             if page != current_page:
                 current_page = page
                 chunk_index_on_page = 0
+            # 표기형태 변형은 마스킹·정제 이전 텍스트에서 만들고 같은 후처리를 거친다
+            # (순서를 바꾸면 가드레일로 가린 값이 변형 필드로 평문 유출된다).
+            variant_values = tv.field_values_for_text(
+                text,
+                mask=lambda value: gr.apply_to_text(
+                    value, _sensitive_infos, _gr_masking)[0],
+                tidy=tn.tidy if _cleanup_out else None,
+                **_variant_options,
+            )
+            has_table = tbk.has_table(text)
             # #315 가드레일 분류 후처리: quote 매칭 → guardrail_categories 부착(항상) + 마스킹 치환(옵션)
             text, chunk_cats = gr.apply_to_text(text, _sensitive_infos, _gr_masking)
             if _cleanup_out:
                 text = tn.tidy(text)
             vectors.append(GenOSVectorMeta.model_validate({
+                **variant_values,
+                'has_table': has_table,
                 'text': text,
                 'n_char': len(text),
                 'n_word': len(text.split()),
@@ -1114,6 +1133,16 @@ class DocumentProcessor:
             }))
             chunk_index_on_page += 1
         return vectors
+
+    def _expand_table_rows(self, rows: list, **kwargs: dict) -> list:
+        """표를 담은 행을 표 조각과 본문 조각으로 나눈다(table_as_chunk).
+
+        분리 규칙은 공용 모듈 한 벌이다 — xlsx 직접 경로(converters/xlsx_processor)도
+        같은 함수를 쓴다.
+        """
+        if not self._isolate_tables_enabled(**kwargs):
+            return rows
+        return tbk.expand_elements(rows)
 
     def _expand_splittable_rows(self, rows: list, **kwargs: dict) -> list:
         """`splittable` 표시가 있고 chunk_size 를 넘는 행을 여러 행으로 펼친다.
@@ -1214,9 +1243,15 @@ class DocumentProcessor:
                 f"(rows={len(rows)}, total={len(elements)})"
             )
 
+        # 표를 독립 청크로 분리한다(table_as_chunk). 행 경로에는 TableItem 이 없으므로
+        # 청크 텍스트 안의 표 블록을 경계로 삼는다.
+        rows = self._expand_table_rows(rows, **kwargs)
+
         # splittable=True element(json_mapping 레코드)만 chunk_size 기준으로 나눈다.
         # 플래그가 없는 tabular_row/faq_row 는 종전대로 "행 1개 = 청크 1개" 다.
         rows = self._expand_splittable_rows(rows, **kwargs)
+
+        _variant_options = self._text_variant_options(**kwargs)
 
         # #315 민감정보 분류 결과(있으면 text 에 quote 매칭·라벨·마스킹 적용).
         _sensitive_infos: list = kwargs.get("_sensitive_infos") or []
@@ -1250,6 +1285,16 @@ class DocumentProcessor:
                 current_page = page
                 chunk_index_on_page = 0
             text = str(el.get("content", "") or "")
+            # 표기형태 변형은 마스킹·정제 이전 텍스트에서 만들고 같은 후처리를 거친다.
+            # 순서를 바꾸면 가드레일로 가린 값이 변형 필드로 평문 유출된다.
+            variant_values = tv.field_values_for_text(
+                text,
+                mask=lambda value: gr.apply_to_text(
+                    value, _sensitive_infos, _gr_masking)[0],
+                tidy=tn.tidy if _cleanup_out else None,
+                **_variant_options,
+            )
+            has_table = tbk.has_table(text)
             text, chunk_cats = gr.apply_to_text(text, _sensitive_infos, _gr_masking)
             if _cleanup_out:
                 text = tn.tidy(text)
@@ -1261,6 +1306,8 @@ class DocumentProcessor:
             try:
                 vectors.append(GenOSVectorMeta.model_validate({
                     **row_meta,  # 목표 필드(question/answer_text/...) + doc_type. extra=allow 로 보존.
+                    **variant_values,
+                    'has_table': has_table,
                     'text': text,
                     'n_char': len(text),
                     'n_word': len(text.split()),
@@ -1302,6 +1349,10 @@ class DocumentProcessor:
         """
         elements = elements or []
 
+        # 파서와 청커가 별개 요청이라 표 출력 설정은 프로세서 속성에만 있다. docling 경로
+        # (split_documents)와 마찬가지로 kwargs 로 옮겨, 이 아래 경로들도 같은 설정을 본다.
+        cp.apply_table_output_defaults(kwargs, self)
+
         # 청크 텍스트 정규화(text_cleanup=safe): 분할 전에 문자 위생을 적용한다.
         # 행 기반 경로는 metadata 가 그대로 청크 property 로 나가므로 함께 정규화한다
         # (text 만 정규화하면 같은 내용이 두 표현으로 저장된다).
@@ -1319,7 +1370,8 @@ class DocumentProcessor:
         for el in elements:
             content = str((el or {}).get("content", "") or "")
             if content.startswith("[AUDIO]"):
-                return [self._single_marker_vector(content, _cleanup_in)]
+                return [self._single_marker_vector(
+                    content, _cleanup_in, **self._text_variant_options(**kwargs))]
 
         # 2) legacy tabular([DA]) 가드 — 이전 csv/xlsx parse payload 호환용.
         non_empty = [
@@ -1328,7 +1380,8 @@ class DocumentProcessor:
         ]
         if non_empty and all((el or {}).get("category") == "table" for el in non_empty):
             joined = "\n".join(str(el.get("content", "")) for el in non_empty)
-            return [self._single_marker_vector("[DA] " + joined, _cleanup_in)]
+            return [self._single_marker_vector(
+                "[DA] " + joined, _cleanup_in, **self._text_variant_options(**kwargs))]
 
         # 3) 공통 텍스트 경로
         return self._chunk_text_elements(elements, **kwargs)

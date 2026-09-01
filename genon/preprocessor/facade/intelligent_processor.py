@@ -54,6 +54,7 @@ from genon.preprocessor.facade.common import runtime as rt
 from genon.preprocessor.facade.common import file_probe as fp
 from genon.preprocessor.facade.common import pdf_convert as pc
 from genon.preprocessor.facade.chunking import header_path as hp
+from genon.preprocessor.facade.chunking import table_blocks as tbk
 from genon.preprocessor.facade.chunking import table_variants as tv
 
 _as_dict = cp.as_dict
@@ -1125,6 +1126,14 @@ class DocumentProcessor:
                     file_path, matching_mappers[0], runtime_doc_type,
                     header_row=self._xlsx_cfg["header_row"],
                     multi_table=self._xlsx_cfg["multi_table"],
+                    expand_elements=(
+                        tbk.expand_elements
+                        if cp.resolve_table_as_chunk(
+                            kwargs, getattr(self, "_table_as_chunk", True)) else None
+                    ),
+                    text_fields_hook=tv.text_fields_hook(
+                        getattr(self, "_table_text_formats", ()),
+                        compact_tables=getattr(self, "_compact_tables", True)),
                 )
             except (FileNotFoundError, TypeError, ValueError) as exc:
                 raise GenosServiceException(1, str(exc)) from exc

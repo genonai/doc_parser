@@ -631,6 +631,8 @@ def build_tabular_custom_fields_vectors(
     header_row: int = 0,
     multi_table: bool = False,
     reg_date: Optional[str] = None,
+    expand_elements: Any = None,
+    text_fields_hook: Any = None,
 ) -> list[GenOSVectorMeta]:
     """xlsx/csv 를 tabular custom_fields 매핑으로 행별 벡터(GenOSVectorMeta)로 변환한다.
 
@@ -648,6 +650,12 @@ def build_tabular_custom_fields_vectors(
     if not elements:
         _log.warning(f"[xlsx] tabular custom_fields 청크 없음: {file_path}")
         return []
+
+    # 표 격리(table_as_chunk)와 표기형태 필드는 청커 경로와 같은 규칙이어야 하지만, 그
+    # 구현은 facade 쪽 공용 모듈에 있다(converters → facade 단방향 금지). 그래서 정책을
+    # 함수로 주입받는다 — 호출부가 안 주면 종전과 똑같이 동작한다.
+    if expand_elements is not None:
+        elements = expand_elements(elements)
 
     n_chunk_of_doc = len(elements)
     n_page = max((_page_or_default(el) for el in elements), default=1)
@@ -669,6 +677,7 @@ def build_tabular_custom_fields_vectors(
         vectors.append(
             GenOSVectorMeta.model_validate({
                 **row_meta,  # 목표 필드(question/answer_text/...) + doc_type. extra=allow 로 보존.
+                **(text_fields_hook(text) if text_fields_hook else {}),
                 "text": text,
                 "n_char": len(text),
                 "n_word": len(text.split()),

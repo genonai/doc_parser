@@ -31,6 +31,7 @@ from genon.preprocessor.facade.common import runtime as rt
 from genon.preprocessor.facade.common import file_probe as fp
 from genon.preprocessor.facade.common import pdf_convert as pc
 from genon.preprocessor.facade.chunking import header_path as hp
+from genon.preprocessor.facade.chunking import table_blocks as tbk
 from genon.preprocessor.facade.chunking import table_variants as tv
 
 _as_dict = cp.as_dict
@@ -1105,6 +1106,9 @@ class DocumentProcessor:
 
     def compose_vectors_langchain(self, chunks, file_path: str, **kwargs: dict) -> list[dict]:
         """langchain 청크를 벡터로 변환 (PPT용)"""
+        # 이 경로는 청커를 거치지 않으므로 표 출력 설정을 직접 kwargs 로 옮긴다
+        # (docling 경로의 split_documents 와 같은 배선).
+        cp.apply_table_output_defaults(kwargs, self)
         pdf_path = _get_pdf_path(file_path)
         doc = None
         total_pages = 0
@@ -1189,7 +1193,14 @@ class DocumentProcessor:
                             e_page_value = max(bbox_pages)  # 최대값
 
             chunk_text = tn.tidy(text) if _cleanup_out else text
+            # 표기형태 필드는 정제 이전 텍스트에서 만들고 같은 후처리를 거친다(docling 경로 규칙).
+            variant_values = tv.field_values_for_text(
+                text, cp.resolve_table_text_formats(kwargs),
+                compact_tables=cp.resolve_compact_tables(kwargs),
+                tidy=tn.tidy if _cleanup_out else None)
             vectors.append(GenOSVectorMeta.model_validate({
+                **variant_values,
+                'has_table': tbk.has_table(chunk_text),
                 'text': chunk_text,
                 'n_chars': len(chunk_text),
                 'n_words': len(chunk_text.split()),
@@ -1332,6 +1343,14 @@ class DocumentProcessor:
                     file_path, matching_mappers[0], runtime_doc_type,
                     header_row=self._xlsx_cfg["header_row"],
                     multi_table=self._xlsx_cfg["multi_table"],
+                    expand_elements=(
+                        tbk.expand_elements
+                        if cp.resolve_table_as_chunk(
+                            kwargs, getattr(self, "_table_as_chunk", True)) else None
+                    ),
+                    text_fields_hook=tv.text_fields_hook(
+                        getattr(self, "_table_text_formats", ()),
+                        compact_tables=getattr(self, "_compact_tables", True)),
                 )
             except (FileNotFoundError, TypeError, ValueError) as exc:
                 raise GenosServiceException("1", str(exc)) from exc

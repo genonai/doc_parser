@@ -118,7 +118,9 @@ def check_product_hpp_table_format(chunks: list) -> list[str]:
     집계돼 계층 헤더 표로 오인되고 html 로 나갔다(table_shape.leading_header_row_count).
     """
     problems = []
-    texts = [c.get("text") or "" for c in chunks]
+    # 표 청크만 본다 — table_as_chunk 로 표와 표 설명이 다른 청크로 갈리므로, 설명 청크가
+    # "총 연회비" 를 언급하는 것만으로 골라지면 표기형태를 엉뚱한 청크에서 검사한다.
+    texts = [c.get("text") or "" for c in chunks if c.get("has_table")]
     fee = next((t for t in texts if "총 연회비" in t), None)
     if fee is None:
         return ["연회비 표가 어느 청크에도 없습니다"]
@@ -230,8 +232,9 @@ def check_stock_insight_row_merge(chunks: list) -> list[str]:
 def check_table_text_formats(chunks: list) -> list[str]:
     """표 표기형태별 추가 필드(#360 text_table_html / text_table_md) 공통 단정.
 
-    resource_dev 가 이 기능을 켜 두므로 docling 경로 케이스는 두 필드를 갖는다.
-    parse-format(비-docling) 경로는 대상이 아니라 필드가 없다 — 그때는 검사를 건너뛴다.
+    resource_dev 가 이 기능을 켜 두므로 모든 케이스가 두 필드를 갖는다. 예전에는 이 함수가
+    "필드가 없으면 기능 범위 밖" 으로 통과시켰는데, 그 폴백이 곧 이 기능이 행 기반 경로
+    (product_hpp JSON 등)에서 조용히 빠져 있던 것을 감추고 있었다. 이제 필드 부재는 실패다.
 
     확인하는 것은 하나다: 표기형태만 다르고 담은 내용은 text 와 같아야 한다.
     표 밖 본문이 잘려 나가거나 셀 값이 중복되면 여기서 걸린다.
@@ -240,7 +243,8 @@ def check_table_text_formats(chunks: list) -> list[str]:
     fields = ("text_table_html", "text_table_md")
     present = [c for c in chunks if any(f in c for f in fields)]
     if not present:
-        return []                      # parse-format 경로: 기능 범위 밖
+        return ["표기형태 필드가 한 청크에도 없습니다 "
+                "(resource_dev 는 table_text_formats on — 이 경로가 기능을 건너뜁니다)"]
     if len(present) != len(chunks):
         problems.append(
             f"표기형태 필드가 일부 청크에만 있습니다 {len(present)}/{len(chunks)}건")
@@ -265,6 +269,28 @@ def check_table_text_formats(chunks: list) -> list[str]:
             lost = [t for t in base if t not in got]
             if lost:
                 problems.append(f"[{idx}] {field} 에서 내용이 사라졌습니다: {lost[:3]}")
+    return problems
+
+
+def check_table_as_chunk(chunks: list) -> list[str]:
+    """표 독립 청크(#360 table_as_chunk) 공통 단정.
+
+    표는 자기 청크를 갖는다 — 한 청크에 표가 둘 이상 실리면 그 규칙이 깨진 것이다.
+    "표 밖 문장이 없다" 로는 단정할 수 없다: 청크 접두(카드명·섹션 제목)와 `[표 검색 설명]`
+    블록은 표 청크에 함께 실려야 하는 값이다(docling 경로도 그렇게 싣는다).
+    """
+    problems = []
+    for idx, chunk in enumerate(chunks):
+        if not chunk.get("has_table"):
+            continue
+        text = chunk.get("text") or ""
+        # 검출은 여기서 단순하게 센다(이 스크립트는 facade 를 import 하지 않는다).
+        # html 표는 여는 태그 수, markdown 표는 구분선 줄 수가 곧 표 개수다.
+        count = text.lower().count("<table") + sum(
+            1 for line in text.splitlines()
+            if re.fullmatch(r"\|(\s*:?-+:?\s*\|)+", line.strip()))
+        if count > 1:
+            problems.append(f"[{idx}] 한 청크에 표가 {count}개 실렸습니다(표 독립 청크 위반)")
     return problems
 
 
@@ -368,6 +394,7 @@ def verify(doc_type: str, src: Path, out_dir: Path, block: dict) -> list[str]:
                             f"(기대 {value!r}, 실제 {chunks[bad[0]].get(field)!r})")
 
     problems += check_table_text_formats(chunks)
+    problems += check_table_as_chunk(chunks)
 
     extra = EXTRA_CHECKS.get((doc_type, src.name))
     if extra is not None:
