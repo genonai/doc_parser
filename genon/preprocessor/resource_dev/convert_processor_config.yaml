@@ -283,6 +283,12 @@ chunking:
   # 청킹 모드: split_only(기본) = chunk_size 초과 청크만 분할(구조 보존) |
   #           resize_all = 모든 청크를 chunk_size 에 맞게 병합/분할. 우선순위: kwargs.chunk_mode > 아래.
   chunk_mode: split_only
+  # 표를 본문과 섞지 않고 독자 청크로 만들지 여부(기본 true).
+  # 표 청크에는 섹션 제목·표 캡션·표 설명이 함께 실리고, chunk_size 를 넘는 큰 표는
+  # 행 단위로 나뉘며 조각마다 표 헤더 행이 반복된다.
+  # false 로 내리면 예전처럼 표가 앞뒤 본문과 한 청크로 묶인다.
+  # 우선순위: kwargs.table_as_chunk > 아래 > true.
+  table_as_chunk: true
   # 청크 텍스트 선두에 "HEADER: <섹션 경로>" 라인을 붙일지 여부(기본 true).
   # false 면 순수 본문만 산출된다(검색 시 섹션 문맥이 사라지므로 기본값 변경은 신중히).
   # 섹션 경로는 이 라인 한 곳에서만 붙는다 — 본문 내 제목 반복은 제거되었다.
