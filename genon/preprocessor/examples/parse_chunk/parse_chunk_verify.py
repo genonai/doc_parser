@@ -229,6 +229,50 @@ def check_stock_insight_row_merge(chunks: list) -> list[str]:
 
 
 
+def check_cs_hpp_degenerate_table(chunks: list) -> list[str]:
+    """레이아웃용 표(colspan 안내 배너)는 표 표기 없이 평문으로 나간다(#360).
+
+    이 샘플의 첫 표는 `<tr><td colspan="4">해당 목차는 [AI 에이전트용] …</td></tr>` 하나뿐인
+    안내 배너다. 표로 내면 markdown 에서는 산문이 열 수만큼 복제되고 데이터 행이 0인 무효
+    표가 되며, html 에서는 태그만 얹힌다. 어느 쪽도 검색에 기여하지 않는다.
+
+    표기형태 필드에서도 같아야 한다 — 강제 markdown/html 보다 이 판정이 앞선다는 계약이다.
+    같은 문서의 정형 표 2개는 표로 남아야 한다(오탐 대조군).
+    """
+    # 배너 원문 그대로 찾는다. `[표 검색 설명]` 의 LLM 요약문도 같은 내용을 다른 문장으로
+    # 다시 말하므로, 짧은 조각으로 세면 그 요약까지 중복으로 집계된다.
+    banner = ("해당 목차는 [AI 에이전트용] 이므로, 실제 상담 시에는 세부 지침이 포함된 "
+              "[상담직원용] 컨텐츠를 활용하시기 바랍니다.")
+    problems = []
+    fields = ("text", "text_table_html", "text_table_md")
+    hit = next((c for c in chunks if banner in (c.get("text") or "")), None)
+    if hit is None:
+        return ["안내 배너 원문이 어느 청크에도 없습니다(내용 손실)"]
+
+    for field in fields:
+        value = hit.get(field) or ""
+        if banner not in value:
+            problems.append(f"{field} 에서 안내 배너가 사라졌습니다")
+            continue
+        if value.count(banner) != 1:
+            problems.append(
+                f"{field} 에 안내 배너가 {value.count(banner)}번 실렸습니다(colspan 복제)")
+        # 배너가 든 줄에 표 표기가 남아 있으면 안 된다.
+        line = next(ln for ln in value.splitlines() if banner in ln)
+        if "|" in line or "<table" in line or "<td" in line:
+            problems.append(f"{field} 의 안내 배너가 표 표기를 달고 있습니다: {line[:60]!r}")
+
+    # 대조군: 정형 표 2개는 표로 남는다(표기형태는 auto 가 정하므로 둘 다 허용).
+    tables = [c.get("text") or "" for c in chunks if c.get("has_table")]
+    kept = sum(
+        1 for t in tables
+        if "<table" in t or any(
+            re.fullmatch(r"\|(\s*:?-+:?\s*\|)+", ln.strip()) for ln in t.splitlines()))
+    if kept < 2:
+        problems.append(f"정형 표 2개가 표로 남아야 하는데 {kept}개만 남았습니다(오탐)")
+    return problems
+
+
 def check_table_text_formats(chunks: list) -> list[str]:
     """표 표기형태별 추가 필드(#360 text_table_html / text_table_md) 공통 단정.
 
@@ -299,6 +343,7 @@ EXTRA_CHECKS = {
     ("product_slf", "monimo_product_slf_sample.md"): check_front_matter,
     ("card", "card01.flat.html"): check_card_annual_fee,
     ("product_hpp", "monimo_product_hpp_wcms_sample.json"): check_product_hpp_table_format,
+    ("cs_hpp", "monimo_cs_hpp_rich_table_sample.html"): check_cs_hpp_degenerate_table,
     ("stock_insight", "monimo_stock_insight_sample.xlsx"): check_stock_insight_row_merge,
 }
 

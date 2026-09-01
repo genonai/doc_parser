@@ -69,10 +69,15 @@ def test_cs_hpp_rich_cell_tables_carry_no_markup(module_name, table_format):
     for token in MARKUP_LEAKS:
         assert token not in body
 
-    # 표 구조와 내용은 남는다.
-    assert "<table>" in body
-    assert 'colspan="4"' in body
+    # 표 구조와 내용은 남는다. 정형 표는 auto 에서 markdown 으로 나가므로 `<table>` 을
+    # 기대할 수 있는 것은 html 강제일 때뿐이다.
+    if table_format == "html":
+        assert "<table>" in body
     assert "비밀번호 6자리를 입력" in body
+    # `colspan="4"` 안내 배너는 레이아웃용 표라 표기 없이 평문 한 번으로만 실린다
+    # (예전에는 이 표가 열 수만큼 값이 복제된 채 표로 실렸다).
+    assert 'colspan="4"' not in body
+    assert body.count("해당 목차는 [AI 에이전트용] 이므로") == 1
     if table_format == "html":
         # 정제 HTML 은 셀 안 여러 문단을 공백 한 칸으로 잇는다.
         assert "본인인증 진행 2. 비밀번호 6자리를 입력" in body

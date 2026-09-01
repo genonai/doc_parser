@@ -59,7 +59,7 @@ from docling_core.types.doc.document import LevelNumber, ListItem, CodeItem
 from genon.preprocessor.facade.common import config_parse as cp
 from genon.preprocessor.facade.chunking.rich_cells import table_embedded_refs
 from genon.preprocessor.facade.chunking.table_html import (
-    MD_TABLE_PARAMS, drop_blank_markdown_rows,
+    MD_TABLE_PARAMS, drop_blank_markdown_rows, render_degenerate,
 )
 from genon.preprocessor.facade.chunking.table_shape import analyze_grid
 from genon.preprocessor.facade.chunking.table_splitter import split_table_rows
@@ -174,7 +174,10 @@ class HierarchicalDocChunker(BaseChunker):
                     text = item.text
 
                 elif isinstance(item, TableItem):
-                    if compact_tables:
+                    # 레이아웃용 표(안내 배너 등)는 표기형태와 무관하게 평문으로 낸다.
+                    # 캡션은 아래 공통 경로에서 실으므로 여기서는 넘기지 않는다.
+                    text = render_degenerate(getattr(item, "data", None))
+                    if not text and compact_tables:
                         # TableItem.export_to_markdown() 은 compact 옵션이 없어 직접 serializer 구성
                         # (컬럼 정렬 패딩 제거 → 대형 표 markdown 크기 대폭 축소)
                         try:
@@ -184,7 +187,7 @@ class HierarchicalDocChunker(BaseChunker):
                             ).serialize(item=item).text
                         except Exception:
                             text = item.export_to_markdown(dl_doc)
-                    else:
+                    elif not text:
                         text = item.export_to_markdown(dl_doc)
                     text = drop_blank_markdown_rows(text)
                     # dataframe으로 추출할 때 사용되는 코드

@@ -110,8 +110,9 @@ def test_styled_table_chunks_carry_no_markup_and_no_enricher_meta(module_name):
             assert token not in text
 
     body = "\n".join(texts)
-    # 표 2개가 각각 docling 직렬화 결과로 실리고, 설명은 표마다 접두 한 번씩만 붙는다.
-    assert body.count("<table>") == 2
+    # 픽스처의 표 2개 중 첫째는 `colspan="4"` 안내 배너(레이아웃용)라 표기 없이 평문으로
+    # 나간다. 표로 실리는 것은 정형 표 하나뿐이고, 설명은 표마다 접두 한 번씩만 붙는다.
+    assert body.count("<table>") == 1
     assert body.count("[표 검색 설명]") == 2
     assert body.count("네이버페이 간편결제 안내 표 1") == 1
     assert body.count("네이버페이 간편결제 안내 표 2") == 1

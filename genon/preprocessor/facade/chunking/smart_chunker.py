@@ -432,6 +432,27 @@ class SmartChunkerBase(BaseChunker):
         """markdown 표를 compact(컬럼 정렬 패딩 제거)로 낼지 결정. 기본 True."""
         return cp.resolve_compact_tables(kwargs)
 
+    @staticmethod
+    def _serialize_degenerate_table(table_item: TableItem, dl_doc: DoclingDocument) -> str:
+        """레이아웃용 표면 표기 없는 평문을, 아니면 빈 문자열.
+
+        표기형태 설정(`table_format`, `table_text_formats`)을 보지 않는다. 설정이 정하는 것은
+        "표를 어떤 표기로 낼지"이고 degenerate 블록은 표가 아니다. 강제 markdown 일 때만
+        비켜 가면 `text_table_md` 에 안내 산문이 열 수만큼 중복된 채 남는다.
+
+        캡션은 명시로 넘긴다 - markdown 분기에서는 docling serializer 가 붙여 주던 것이라
+        여기서 빠뜨리면 캡션만 사라진다.
+        """
+        try:
+            caption = table_item.caption_text(dl_doc)
+        except Exception:
+            caption = ""
+        prose = th.render_degenerate(getattr(table_item, "data", None), caption=caption)
+        if prose:
+            _log.debug("[smart_chunker] 레이아웃용 표를 평문으로 냈습니다: ref=%s",
+                       getattr(table_item, "self_ref", ""))
+        return prose
+
     def _serialize_table(self, table_item: TableItem, dl_doc: DoclingDocument, **kwargs) -> str:
         """표 하나를 청크에 실을 텍스트로 직렬화한다. 만들 수 없으면 빈 문자열.
 
@@ -442,6 +463,9 @@ class SmartChunkerBase(BaseChunker):
         """
         table_format = self._resolve_table_format(kwargs, self._table_shape(table_item, dl_doc))
         try:
+            prose = self._serialize_degenerate_table(table_item, dl_doc)
+            if prose:
+                return prose
             if table_format == "markdown":
                 if self._resolve_compact_tables(kwargs):
                     # TableItem.export_to_markdown() 은 compact 옵션이 없어 직접 serializer 구성

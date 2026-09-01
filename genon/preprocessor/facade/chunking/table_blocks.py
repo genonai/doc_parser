@@ -27,6 +27,7 @@ from typing import Any
 
 from genon.preprocessor.facade.chunking import header_path as hp
 from genon.preprocessor.facade.chunking import table_html as th
+from genon.preprocessor.facade.chunking import table_shape as ts
 
 _log = logging.getLogger(__name__)
 
@@ -173,14 +174,46 @@ def _find_markdown_blocks(text: str, *, source: str) -> list:
     return blocks
 
 
+def _looks_degenerate(kind: str, source: str) -> bool:
+    """grid 를 만들기 전에 값싸게 걸러 낸다. 재현율만 보장하면 된다.
+
+    `renotate` 는 청크마다 표기형태마다 돌므로, 표기가 이미 맞는 블록까지 bs4 로 파싱하면
+    비용이 눈에 보이게 늘어난다. 여기서 통과한 것만 grid 로 확정 판정한다
+    (정밀도는 `table_shape.degenerate_reason` 이 담당).
+    """
+    if kind == HTML:
+        return source.lower().count("<tr") <= 1 or (
+            source.lower().count("<td") + source.lower().count("<th")) <= 1
+    if kind == MARKDOWN:
+        return len([line for line in source.split("\n") if _MD_ROW.match(line)]) <= 2
+    return False
+
+
 def convert(block: Any, fmt: str, *, compact_tables: bool = True) -> str:
-    """표 블록을 `fmt` 표기형태로 렌더한다. 바꿀 필요·수단이 없으면 원문 그대로."""
+    """표 블록을 `fmt` 표기형태로 렌더한다. 바꿀 필요·수단이 없으면 원문 그대로.
+
+    레이아웃용 표(`table_shape.degenerate_reason`)는 요청 표기와 무관하게 평문으로 낸다.
+    표기가 이미 `fmt` 인 블록도 이 판정을 받아야 하므로, 조기 반환보다 판정이 앞에 온다.
+    """
     kind = getattr(block, "kind", "")
     source = getattr(block, "text", "") or ""
-    if not source or fmt not in (HTML, MARKDOWN) or kind == fmt:
+    if not source or fmt not in (HTML, MARKDOWN):
+        return source
+    if kind == fmt and not _looks_degenerate(kind, source):
         return source
     grid = _to_grid(block)
     if grid is None or not grid.rows:
+        return source
+    reason = ts.degenerate_reason(
+        grid.rows, grid.num_cols, header_rows=getattr(grid, "header_rows", None))
+    if reason:
+        prose = th.render_plain_text(grid.rows, grid.num_cols, caption=grid.caption)
+        if prose:
+            _log.debug(
+                "[table_blocks] 레이아웃용 표를 평문으로 냈습니다: reason=%s", reason)
+            return prose
+        return source
+    if kind == fmt:
         return source
     rendered = (
         _render_html(grid) if fmt == HTML
