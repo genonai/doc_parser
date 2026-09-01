@@ -339,11 +339,50 @@ def check_table_as_chunk(chunks: list) -> list[str]:
 
 
 # (doc_type, 샘플 파일명) → 추가 단정 함수
+# 마크다운 링크. 라벨 안 대괄호는 다루지 않는다 - 스킴이 있는 것만 링크로 본다.
+_MD_LINK_RE = re.compile(r"\]\(\s*(?:https?|mailto|tel):")
+
+
+def check_no_markdown_links(chunks: list) -> list[str]:
+    """청크 텍스트에 마크다운 링크 URL 이 남지 않는다(공통).
+
+    docling HTML 백엔드는 `<a href>` 를 hyperlink 로 보존하고 markdown serializer 가
+    `[라벨](URL)` 로 찍는다. URL 은 검색에 기여하지 않으면서 청크 예산만 먹으므로
+    `facade/common/markdown_export` 가 라벨만 남기고 버린다. 라벨 보존은
+    케이스별 단정(check_product_hpp_link_labels)에서 따로 본다.
+    """
+    problems = []
+    for idx, chunk in enumerate(chunks):
+        for field in ("text", "text_table_html", "text_table_md"):
+            value = chunk.get(field)
+            if not isinstance(value, str):
+                continue
+            hit = _MD_LINK_RE.search(value)
+            if hit:
+                start = max(hit.start() - 40, 0)
+                problems.append(
+                    f"청크[{idx}].{field} 에 링크 URL 이 남았습니다: "
+                    f"...{value[start:hit.end() + 10]}...")
+                break
+    return problems
+
+
+def check_product_hpp_link_labels(chunks: list) -> list[str]:
+    """URL 만 버리고 라벨은 남는다 - 링크 텍스트를 통째로 지우는 회귀를 잡는다."""
+    joined = "\n".join(c.get("text") or "" for c in chunks)
+    missing = [label for label in ("www.samsungfire.com", "www.speedmate.com", "예약하기")
+               if label not in joined]
+    if missing:
+        return [f"링크 라벨이 사라졌습니다: {missing} (URL 만 버려야 함)"]
+    return []
+
+
 EXTRA_CHECKS = {
     ("product_slf", "monimo_product_slf_sample.md"): check_front_matter,
     ("card", "card01.flat.html"): check_card_annual_fee,
     ("product_hpp", "monimo_product_hpp_wcms_sample.json"): check_product_hpp_table_format,
     ("cs_hpp", "monimo_cs_hpp_rich_table_sample.html"): check_cs_hpp_degenerate_table,
+    ("product_hpp", "monimo_product_hpp_rich_table_sample.json"): check_product_hpp_link_labels,
     ("stock_insight", "monimo_stock_insight_sample.xlsx"): check_stock_insight_row_merge,
 }
 
@@ -439,6 +478,7 @@ def verify(doc_type: str, src: Path, out_dir: Path, block: dict) -> list[str]:
                             f"(기대 {value!r}, 실제 {chunks[bad[0]].get(field)!r})")
 
     problems += check_table_text_formats(chunks)
+    problems += check_no_markdown_links(chunks)
     problems += check_table_as_chunk(chunks)
 
     extra = EXTRA_CHECKS.get((doc_type, src.name))

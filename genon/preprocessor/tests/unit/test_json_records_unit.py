@@ -347,6 +347,23 @@ def test_html_to_text_does_not_escape_entities_or_underscores():
     assert "snake_case" in text
 
 
+@pytest.mark.parametrize("table_format", ["html", "markdown", "auto"])
+def test_html_to_text_drops_hyperlink_url_keeps_label(table_format):
+    """`<a href>` 는 라벨만 남는다 - URL 은 검색에 기여하지 않고 청크 예산만 먹는다.
+
+    실측(상품카드): 라벨이 도메인 자체일 때 `[www.samsungfire.com](http://www.samsungfire.com/)`
+    처럼 같은 문자열이 두 번 실렸다.
+    """
+    html = (
+        '<div><p>애니카랜드 <a href="http://www.samsungfire.com/">www.samsungfire.com</a>'
+        ' , 1588-5114</p></div>'
+    )
+    text = html_to_text(html, table_format=table_format)
+    assert "](http" not in text
+    assert "http://www.samsungfire.com/" not in text
+    assert "애니카랜드 www.samsungfire.com , 1588-5114" in text
+
+
 def test_html_to_text_drops_image_placeholder_but_keeps_alt():
     text = html_to_text('<div><img src="a.png" alt="대체문구"></div>')
     assert "<!-- image -->" not in text

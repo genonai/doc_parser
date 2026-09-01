@@ -567,22 +567,24 @@ class TestExportTableContent:
         item.export_to_html.assert_called_once_with(doc=doc)
         assert result == "<table></table>"
 
-    def test_markdown_format_noncompact_calls_export_to_markdown(self):
-        # compact_tables=False 일 때만 TableItem.export_to_markdown() 경로를 탄다.
+    def test_markdown_format_uses_shared_export_markdown(self):
+        # 표 markdown 은 공용 관문을 거친다 - 링크 URL 억제가 여기 한 벌로 걸린다.
         item = _make_table_item()
         doc = MagicMock()
-        result = DocumentProcessor._export_table_content(
-            item, doc, table_format="markdown", compact_tables=False
-        )
-        item.export_to_markdown.assert_called_once_with(doc=doc)
+        with patch("facade.parser_processor.export_markdown", return_value="| a |") as em:
+            result = DocumentProcessor._export_table_content(
+                item, doc, table_format="markdown", compact_tables=False
+            )
+        em.assert_called_once_with(doc, item=item, compact_tables=False)
+        item.export_to_markdown.assert_not_called()
         assert result == "| a |"
 
-    def test_markdown_format_compact_uses_serializer_not_export_to_markdown(self):
-        # compact_tables=True(기본)면 MarkdownDocSerializer 경로 → export_to_markdown 미호출.
+    def test_markdown_format_passes_compact_tables_through(self):
         item = _make_table_item()
         doc = MagicMock()
-        DocumentProcessor._export_table_content(item, doc, table_format="markdown")
-        item.export_to_markdown.assert_not_called()
+        with patch("facade.parser_processor.export_markdown", return_value="| a |") as em:
+            DocumentProcessor._export_table_content(item, doc, table_format="markdown")
+        assert em.call_args.kwargs["compact_tables"] is True
 
     def test_default_format_is_html(self):
         item = _make_table_item()
@@ -639,21 +641,24 @@ class TestDoclingToContent:
         doc.export_to_html.assert_called_once()
         assert result == "<html>content</html>"
 
-    def test_markdown_format_with_markdown_table_calls_export_to_markdown(self):
+    def test_markdown_format_with_markdown_table_uses_shared_export_markdown(self):
         proc = _make_proc_with_format("markdown", "markdown")
         doc = MagicMock()
-        doc.export_to_markdown.return_value = "# heading\n| a | b |"
-        result = proc._docling_to_content(doc)
-        doc.export_to_markdown.assert_called_once()
+        with patch("facade.parser_processor.export_markdown",
+                   return_value="# heading\n| a | b |") as em:
+            result = proc._docling_to_content(doc)
+        em.assert_called_once()
+        doc.export_to_markdown.assert_not_called()
         assert result == "# heading\n| a | b |"
 
     def test_markdown_format_with_html_table_uses_replace(self):
         proc = _make_proc_with_format("markdown", "html")
         doc = MagicMock()
-        doc.export_to_markdown.return_value = "# heading\n| a | b |"
         doc.iterate_items.return_value = []
-        result = proc._docling_to_content(doc)
-        doc.export_to_markdown.assert_called_once()
+        with patch("facade.parser_processor.export_markdown",
+                   return_value="# heading\n| a | b |") as em:
+            result = proc._docling_to_content(doc)
+        em.assert_called_once()
         assert isinstance(result, str)
 
     def test_json_format_returns_empty_string(self):
