@@ -6,6 +6,7 @@
 """
 from __future__ import annotations
 
+from genon.preprocessor.facade.common.markdown_export import export_markdown
 from docling_core.types.doc import DoclingDocument, PictureItem, TableItem
 
 
@@ -17,7 +18,7 @@ def doc_text(document: DoclingDocument) -> str:
             continue
         if isinstance(it, TableItem):
             try:
-                t = it.export_to_markdown(document)
+                t = export_markdown(document, item=it)
             except Exception:
                 cells = getattr(getattr(it, "data", None), "table_cells", None) or []
                 t = " ".join((getattr(c, "text", "") or "") for c in cells)

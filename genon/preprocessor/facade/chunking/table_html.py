@@ -19,6 +19,9 @@ import re
 from collections.abc import Sequence
 from typing import Any
 
+from genon.preprocessor.facade.common.markdown_export import (
+    MD_PLAIN_TEXT_OPTS as _MD_PLAIN_TEXT_OPTS,
+)
 from genon.preprocessor.facade.chunking.table_shape import (
     cell_at as _cell_at,
     cell_text as _cell_text,
@@ -26,16 +29,10 @@ from genon.preprocessor.facade.chunking.table_shape import (
     is_header_cell as _is_header_cell,
 )
 
-# markdown 표 직렬화 공용 옵션. 청크 텍스트도 LLM/임베딩 입력이라 markdown 이스케이프와
-# 이미지 자리표시자는 노이즈다(`facade/enrichment/json_records._MD_EXPORT_OPTS` 와 같은 값).
-MD_TABLE_PARAMS = {
-    "image_placeholder": "",
-    "escape_html": False,
-    "escape_underscores": False,
-    # 셀 안 링크는 표시 문구만 남긴다. `[예약하기](http://...)` 의 URL 은 검색에 기여하지
-    # 않으면서 청크 예산만 먹는다 - 정제 HTML 경로(render_table)도 URL 을 버린다.
-    "include_hyperlinks": False,
-}
+# markdown 표 직렬화 공용 옵션. 본문 텍스트 쪽과 같은 값을 써야 하므로 공용 모듈을 가리키는
+# 별칭만 남긴다(`facade/common/markdown_export.MD_PLAIN_TEXT_OPTS`).
+# 셀 안 링크는 표시 문구만 남긴다 - 정제 HTML 경로(render_table)도 URL 을 버린다.
+MD_TABLE_PARAMS = _MD_PLAIN_TEXT_OPTS
 
 # 정제 후 남기는 태그와 속성. 그 밖은 벗겨 내되 내용은 보존한다.
 ALLOWED_TAGS = ("table", "caption", "thead", "tbody", "tfoot", "tr", "th", "td")

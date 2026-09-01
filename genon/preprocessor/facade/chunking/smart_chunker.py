@@ -24,7 +24,6 @@ from transformers import AutoTokenizer, PreTrainedTokenizerBase
 from typing_extensions import Self
 
 from docling_core.transforms.chunker import BaseChunk, BaseChunker, DocChunk, DocMeta
-from docling_core.transforms.serializer.markdown import MarkdownDocSerializer, MarkdownParams
 from docling_core.types import DoclingDocument
 from docling_core.types import DoclingDocument as DLDocument
 from docling_core.types.doc import (
@@ -51,6 +50,7 @@ from genon.preprocessor.facade.chunking.table_splitter import (
 from genon.preprocessor.facade.chunking.table_variants import TableTextVariants
 from genon.preprocessor.facade.common import config_parse as cp
 from genon.preprocessor.facade.common.doc_meta import strip_enricher_meta
+from genon.preprocessor.facade.common.markdown_export import export_markdown
 from genon.preprocessor.facade.enrichment.table_description import (
     TableDescriptionExtractor,
     refined_html_to_format,
@@ -467,15 +467,13 @@ class SmartChunkerBase(BaseChunker):
             if prose:
                 return prose
             if table_format == "markdown":
-                if self._resolve_compact_tables(kwargs):
-                    # TableItem.export_to_markdown() 은 compact 옵션이 없어 직접 serializer 구성
-                    # (컬럼 정렬 패딩 제거 → 대형 표 markdown 크기 대폭 축소)
-                    table_text = MarkdownDocSerializer(
-                        doc=dl_doc,
-                        params=MarkdownParams(compact_tables=True, **th.MD_TABLE_PARAMS),
-                    ).serialize(item=table_item).text
-                else:
-                    table_text = table_item.export_to_markdown(dl_doc)
+                # compact_tables 는 컬럼 정렬 패딩을 없애 대형 표 markdown 크기를 줄인다.
+                table_text = export_markdown(
+                    dl_doc,
+                    item=table_item,
+                    compact_tables=self._resolve_compact_tables(kwargs),
+                    **th.MD_TABLE_PARAMS,
+                )
                 table_text = th.drop_blank_markdown_rows(table_text)
             else:
                 table_text = th.render_table(

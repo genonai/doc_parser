@@ -9,6 +9,8 @@ from docling_core.types import DoclingDocument
 from docling_core.types.doc import DocItem, PictureItem, TableItem
 from docling_core.types.doc.document import ContentLayer
 
+from genon.preprocessor.facade.common.markdown_export import export_markdown
+
 
 def _as_bool(value: Any, default: bool = False) -> bool:
     if value is None:
@@ -156,7 +158,7 @@ def _section_header(items: list[DocItem], index: int) -> str:
 def _table_text(item: TableItem, document: DoclingDocument, fmt: str) -> str:
     if fmt == "html":
         return str(item.export_to_html(document) or "").strip()
-    return str(item.export_to_markdown(document) or "").strip()
+    return str(export_markdown(document, item=item) or "").strip()
 
 
 def _resolve_input_format(document: DoclingDocument, configured: str) -> str:

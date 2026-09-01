@@ -370,10 +370,9 @@ def _refined_html_to_markdown(html: str, compact_tables: bool = True) -> str:
     """
     # 지연 import (모듈 로드 시 하드 의존 회피)
     from docling_core.types.doc.document import DoclingDocument
-    from docling_core.transforms.serializer.markdown import (
-        MarkdownDocSerializer,
-        MarkdownParams,
-    )
+    from docling_core.transforms.serializer.markdown import MarkdownDocSerializer
+
+    from genon.preprocessor.facade.common.markdown_export import markdown_params
 
     table_data = _parse_refined_table_data(html)
     if table_data is None:
@@ -383,7 +382,7 @@ def _refined_html_to_markdown(html: str, compact_tables: bool = True) -> str:
     tbl = doc.add_table(data=table_data)
     return MarkdownDocSerializer(
         doc=doc,
-        params=MarkdownParams(compact_tables=compact_tables),
+        params=markdown_params(compact_tables=compact_tables),
     ).serialize(item=tbl).text
 
 

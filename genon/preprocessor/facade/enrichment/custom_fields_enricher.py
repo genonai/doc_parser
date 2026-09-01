@@ -581,15 +581,9 @@ class CustomFieldsEnricher(BaseEnricher):
     def _extract_raw_text(self, document: DoclingDocument) -> str:
         if not self._pages:
             return document.export_to_text()
-        from docling_core.transforms.serializer.markdown import (
-            MarkdownDocSerializer,
-            MarkdownParams,
-        )
-        serializer = MarkdownDocSerializer(
-            doc=document,
-            params=MarkdownParams(pages=set(self._pages)),
-        )
-        return serializer.serialize().text
+        from genon.preprocessor.facade.common.markdown_export import export_markdown
+
+        return export_markdown(document, pages=set(self._pages))
 
     def wants_table_descriptions(self, **kwargs: Any) -> bool:
         """현재 요청에서 텍스트 표 설명 기능이 켜졌는지 반환한다.

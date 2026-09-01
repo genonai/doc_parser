@@ -45,10 +45,6 @@ except ImportError:
     )
 
 from docling_core.transforms.chunker import BaseChunk, BaseChunker, DocChunk, DocMeta
-from docling_core.transforms.serializer.markdown import (
-    MarkdownDocSerializer,
-    MarkdownParams,
-)
 from docling_core.types import DoclingDocument as DLDocument
 from docling_core.types.doc import (
     DocItem, DocItemLabel, DoclingDocument,
@@ -57,6 +53,7 @@ from docling_core.types.doc import (
 from docling_core.types.doc.document import LevelNumber, ListItem, CodeItem
 
 from genon.preprocessor.facade.common import config_parse as cp
+from genon.preprocessor.facade.common.markdown_export import export_markdown
 from genon.preprocessor.facade.chunking.rich_cells import table_embedded_refs
 from genon.preprocessor.facade.chunking.table_html import (
     MD_TABLE_PARAMS, drop_blank_markdown_rows, render_degenerate,
@@ -177,18 +174,12 @@ class HierarchicalDocChunker(BaseChunker):
                     # 레이아웃용 표(안내 배너 등)는 표기형태와 무관하게 평문으로 낸다.
                     # 캡션은 아래 공통 경로에서 실으므로 여기서는 넘기지 않는다.
                     text = render_degenerate(getattr(item, "data", None))
-                    if not text and compact_tables:
-                        # TableItem.export_to_markdown() 은 compact 옵션이 없어 직접 serializer 구성
-                        # (컬럼 정렬 패딩 제거 → 대형 표 markdown 크기 대폭 축소)
-                        try:
-                            text = MarkdownDocSerializer(
-                                doc=dl_doc,
-                                params=MarkdownParams(compact_tables=True, **MD_TABLE_PARAMS),
-                            ).serialize(item=item).text
-                        except Exception:
-                            text = item.export_to_markdown(dl_doc)
-                    elif not text:
-                        text = item.export_to_markdown(dl_doc)
+                    if not text:
+                        # compact_tables 는 컬럼 정렬 패딩을 없애 대형 표 markdown 크기를 줄인다.
+                        text = export_markdown(
+                            dl_doc, item=item,
+                            compact_tables=compact_tables, **MD_TABLE_PARAMS,
+                        )
                     text = drop_blank_markdown_rows(text)
                     # dataframe으로 추출할 때 사용되는 코드
                     # if table_df.shape[0] < 1 or table_df.shape[1] < 2:

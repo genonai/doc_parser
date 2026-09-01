@@ -92,10 +92,11 @@ from genon.preprocessor.facade.chunking.table_splitter import (
     split_table_rows,
 )
 from docling_core.transforms.chunker import DocChunk
-from docling_core.transforms.serializer.markdown import (
-    MarkdownDocSerializer,
-    MarkdownParams,
+from genon.preprocessor.facade.common.markdown_export import (
+    export_markdown,
+    markdown_params,
 )
+from docling_core.transforms.serializer.markdown import MarkdownDocSerializer
 from docling_core.types.doc import (
     DocItem, DoclingDocument, PictureItem, TableItem
 )
@@ -315,7 +316,8 @@ def _split_with_recursive_chunker(
 
     Returns: list of dict {text, page_no, pages, doc_items}
     """
-    md_full = document.export_to_markdown(
+    md_full = export_markdown(
+        document,
         page_break_placeholder=_RECURSIVE_PAGE_BREAK,
         compact_tables=compact_tables,
     )
@@ -334,7 +336,7 @@ def _split_with_recursive_chunker(
         search_cursor = 0
         serializer = MarkdownDocSerializer(
             doc=document,
-            params=MarkdownParams(compact_tables=compact_tables),
+            params=markdown_params(compact_tables=compact_tables),
         )
         for item, _ in document.iterate_items():
             if not isinstance(item, TableItem):
@@ -342,7 +344,7 @@ def _split_with_recursive_chunker(
             try:
                 table_md = serializer.serialize(item=item).text
             except Exception:
-                table_md = item.export_to_markdown(document)
+                table_md = export_markdown(document, item=item)
             if not table_md:
                 continue
             pos = md_full.find(table_md, search_cursor)

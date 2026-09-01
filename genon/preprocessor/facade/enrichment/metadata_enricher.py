@@ -10,6 +10,8 @@ from docling_core.types import DoclingDocument
 
 from docling.utils.llm_cache import async_cached_call, remaining_timeout
 
+from genon.preprocessor.facade.common.markdown_export import export_markdown
+
 from .base_enricher import BaseEnricher
 from .prompt_template import PromptTemplate
 from .thinking import resolve_thinking_kwargs, strip_reasoning
@@ -184,7 +186,7 @@ class MetadataEnricher(BaseEnricher):
 
         text = ""
         for page in pages_to_read:
-            text += document.export_to_markdown(page_no=page)
+            text += export_markdown(document, page_no=page)
         return text
 
     @staticmethod

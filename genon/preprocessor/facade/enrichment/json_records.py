@@ -40,6 +40,10 @@ from genon.preprocessor.facade.chunking.rich_cells import collect_subtree_refs
 from genon.preprocessor.facade.chunking.table_html import (
     drop_blank_markdown_rows, render_table,
 )
+from genon.preprocessor.facade.common.markdown_export import (
+    MD_PLAIN_TEXT_OPTS as _MD_EXPORT_OPTS,
+    export_markdown,
+)
 
 from .custom_fields_enricher import (
     JSON_RECORD_EXTRACTORS,
@@ -211,8 +215,6 @@ def _get_html_converter() -> Any:
 VALID_TABLE_FORMATS = ("html", "markdown", "auto")
 DEFAULT_TABLE_FORMAT = "html"
 
-# LLM 입력용 평문이라 markdown 이스케이프와 이미지 자리표시자는 노이즈다.
-_MD_EXPORT_OPTS = {"escape_html": False, "escape_underscores": False, "image_placeholder": ""}
 
 # 표만 HTML 로 바꿔 끼우는 markdown serializer(lazy 싱글턴).
 _html_table_serializer: Any = None
@@ -343,22 +345,18 @@ def _export_text(doc: Any, table_format: str, compact_tables: bool) -> str:
     auto 는 표마다 다르게 나가므로 문서 단위 markdown export 로는 표현할 수 없다 —
     표 serializer 를 갈아 끼워 표별로 결정한다.
     """
+    table_serializer = None
     if table_format in {"html", "auto"}:
-        from docling_core.transforms.serializer.markdown import (
-            MarkdownDocSerializer,
-            MarkdownParams,
-        )
-
         table_serializer = (
             _get_auto_table_serializer() if table_format == "auto"
             else _get_html_table_serializer()
         )
-        return MarkdownDocSerializer(
-            doc=doc,
-            table_serializer=table_serializer,
-            params=MarkdownParams(compact_tables=compact_tables, **_MD_EXPORT_OPTS),
-        ).serialize().text
-    return doc.export_to_markdown(compact_tables=compact_tables, **_MD_EXPORT_OPTS)
+    return export_markdown(
+        doc,
+        table_serializer=table_serializer,
+        compact_tables=compact_tables,
+        **_MD_EXPORT_OPTS,
+    )
 
 
 # build_docling_document(title="") 이 만드는 합성 heading 2개가 markdown 선두에 남는다.

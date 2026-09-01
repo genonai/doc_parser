@@ -64,10 +64,7 @@ from docling_core.types.doc import (
 )
 from docling_core.types.doc.base import CoordOrigin
 from docling_core.types.doc.document import ContentLayer
-from docling_core.transforms.serializer.markdown import (
-    MarkdownDocSerializer,
-    MarkdownParams,
-)
+from genon.preprocessor.facade.common.markdown_export import export_markdown
 
 from genon.preprocessor.facade.enrichment.custom_fields_enricher import (
     build_document_custom_fields_enrichers,
@@ -1767,15 +1764,8 @@ class DocumentProcessor:
         )
         try:
             if table_format == "markdown":
-                if compact_tables:
-                    # TableItem.export_to_markdown() 은 compact 옵션이 없어 직접 serializer 구성
-                    # (컬럼 정렬 패딩 제거 → 대형 표 markdown 크기 대폭 축소)
-                    text = MarkdownDocSerializer(
-                        doc=doc,
-                        params=MarkdownParams(compact_tables=True),
-                    ).serialize(item=item).text
-                else:
-                    text = item.export_to_markdown(doc=doc)
+                # compact_tables 는 컬럼 정렬 패딩을 없애 대형 표 markdown 크기를 줄인다.
+                text = export_markdown(doc, item=item, compact_tables=compact_tables)
             else:
                 text = item.export_to_html(doc=doc)
             if text and text.strip():
@@ -1932,7 +1922,7 @@ class DocumentProcessor:
                 continue
 
             try:
-                md_table_raw = item.export_to_markdown(doc=doc)
+                md_table_raw = export_markdown(doc, item=item)
                 html_table = item.export_to_html(doc=doc)
             except Exception:
                 continue
@@ -1964,7 +1954,7 @@ class DocumentProcessor:
             return doc.export_to_html(included_content_layers=layers)
 
         if output_format == "markdown":
-            markdown_text = doc.export_to_markdown(included_content_layers=layers)
+            markdown_text = export_markdown(doc, included_content_layers=layers)
             if table_format == "html":
                 return self._replace_markdown_tables_with_html(doc, markdown_text)
             return markdown_text
