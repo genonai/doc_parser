@@ -21,6 +21,8 @@ from typing import Any
 
 from genon.preprocessor.facade.chunking.table_shape import (
     cell_at as _cell_at,
+    cell_text as _cell_text,
+    degenerate_reason as _degenerate_reason,
     is_header_cell as _is_header_cell,
 )
 
@@ -43,6 +45,10 @@ _WS = re.compile(r"\s+")
 _EMPTY_ROW = re.compile(r"<(?:th|td)[^>]*></(?:th|td)>")
 # 셀이 전부 빈 markdown 표 행. 구분선(`| - | - |`)은 `-` 가 있어 걸리지 않는다.
 _BLANK_MD_ROW = re.compile(r"^\|(?:\s*\|)+\s*$")
+# markdown 표 구분선. `| - | - |` 과 `| --- | :--: |` 을 모두 받는다.
+_MD_DELIM_ROW = re.compile(r"^\|(?:\s*:?-+:?\s*\|)+\s*$")
+# 표 런의 한 줄. 앞 공백을 허용한다(들여쓴 표).
+_MD_ANY_ROW = re.compile(r"^\s*\|")
 
 
 def escape_cell(value: Any) -> str:
@@ -113,6 +119,58 @@ def render_table(
     return f"<table>{caption_html}<tbody>{rows}</tbody></table>"
 
 
+def render_plain_text(
+    grid: Sequence[Sequence[Any]] | None,
+    num_cols: Any = 0,
+    *,
+    caption: str = "",
+) -> str:
+    """표기 없는 평문으로 렌더한다. 낼 값이 없으면 빈 문자열.
+
+    ``render_table`` 과 시그니처를 맞췄다 - 호출부가 같은 자리에서 두 렌더러를 갈아 끼운다.
+    레이아웃용 표(`table_shape.degenerate_reason`)에만 쓴다.
+
+    행마다 셀 값을 순서대로 이어 한 줄로 만들고, 연속 중복은 버린다. colspan 셀은 grid 에서
+    피복 열마다 복제돼 있어 그대로 내면 산문이 열 수만큼 중복된다(실측 - `colspan="4"` 안내
+    배너가 4번 반복). 같은 이유로 rowspan 이 만든 복제 행도 버린다.
+
+    산출물에 ``|`` 도 ``<table`` 도 없으므로 ``table_blocks`` 가 다시 표로 잡지 않는다. 즉
+    같은 텍스트에 두 번 걸어도 결과가 같다.
+    """
+    if not grid:
+        return caption.strip() if caption else ""
+
+    lines: list[str] = []
+    for row in grid:
+        values: list[str] = []
+        for text in map(_cell_text, row):
+            if text and (not values or values[-1] != text):
+                values.append(text)
+        line = " ".join(values).strip()
+        if line and (not lines or lines[-1] != line):
+            lines.append(line)
+
+    head = str(caption or "").strip()
+    if head and (not lines or lines[0] != head):
+        lines.insert(0, head)
+    elif head and not lines:
+        lines = [head]
+    return "\n".join(lines)
+
+
+def render_degenerate(table_data: Any, *, caption: str = "") -> str:
+    """표 데이터가 레이아웃용이면 평문, 아니면 빈 문자열.
+
+    `data.grid` / `data.num_cols` 만 duck typing 으로 읽는다. 청킹 경로 두 곳
+    (`smart_chunker`, `hybrid_chunker`)이 같은 한 벌을 쓰게 하려고 여기에 둔다.
+    """
+    grid = getattr(table_data, "grid", None)
+    num_cols = getattr(table_data, "num_cols", 0)
+    if not _degenerate_reason(grid, num_cols):
+        return ""
+    return render_plain_text(grid, num_cols, caption=caption)
+
+
 def sanitize_table_html(html_text: str) -> str:
     """이미 만들어진 표 HTML 에서 허용 태그·속성만 남긴다.
 
@@ -154,13 +212,68 @@ def _span(cell: Any, name: str) -> int:
         return 1
 
 
-def drop_blank_markdown_rows(text: str) -> str:
-    """markdown 표에서 값이 하나도 없는 행을 버린다.
+def unpipe_markdown_row(line: str) -> str:
+    """markdown 표 행 한 줄을 파이프 없는 평문으로 만든다.
 
-    이미지만 든 셀은 평문이 비어 ``|  |  |`` 한 줄로 남는다. 정보가 없는데 표를 읽는 쪽에는
-    행이 하나 더 있는 것으로 보인다.
+    셀 구분자를 없애고 셀 값만 공백으로 잇는다. 이스케이프된 파이프는 되돌린다.
+    구분자는 ``render_plain_text`` 와 같게 맞춘다 - 두 경로의 산출이 갈리지 않게 한다.
+    """
+    values: list[str] = []
+    for cell in str(line or "").strip().strip("|").split("|"):
+        cell = cell.strip()
+        # 연속 중복은 버린다 - colspan 셀이 열마다 복제된 것이다(render_plain_text 와 같은 규칙).
+        if cell and (not values or values[-1] != cell):
+            values.append(cell)
+    return " ".join(values).replace("\\|", "|").replace("&#124;", "|").strip()
+
+
+def _tidy_markdown_run(run: list[str]) -> list[str]:
+    """표 런(파이프 줄 연속 구간) 하나를 정리한다.
+
+    1. 값이 하나도 없는 행을 버린다. 이미지만 든 셀은 평문이 비어 ``|  |  |`` 한 줄로 남는데,
+       정보가 없는데 표를 읽는 쪽에는 행이 하나 더 있는 것으로 보인다.
+    2. 그 결과 구분선이 맨 앞에 오면(딸려 있던 헤더 행을 버린 경우) 한 줄 아래로 내린다.
+       구분선이 첫 줄인 표는 markdown 으로 읽히지 않는다(실측 - md_sample2 의 1열 표).
+       내릴 자리가 없으면 구분선을 버린다.
+    3. 1·2 를 거치고 내용 행이 하나만 남았으면 표로 표현하는 관계가 없다. 구분선을 버리고
+       남은 행을 평문 한 줄로 낸다.
+
+    3 은 **빈 행을 실제로 버린 런에만** 적용한다. 원래부터 한 행짜리인 표는 여기서 손대지
+    않는다 - 문자열만 봐서는 "헤더만 있는 표"와 "헤더 없는 데이터 한 줄"을 가를 수 없고,
+    그 판정은 격자 구조를 가진 쪽(`table_shape.degenerate_reason`)의 몫이다.
+    """
+    kept = [line for line in run if not _BLANK_MD_ROW.match(line.strip())]
+    if not kept:
+        return []
+    dropped_blank = len(kept) != len(run)
+    if _MD_DELIM_ROW.match(kept[0].strip()):
+        delim = kept.pop(0)
+        if kept:
+            kept.insert(1, delim)
+    content = [line for line in kept if not _MD_DELIM_ROW.match(line.strip())]
+    if dropped_blank and len(content) <= 1:
+        return [unpipe_markdown_row(line) for line in content if unpipe_markdown_row(line)]
+    return kept
+
+
+def drop_blank_markdown_rows(text: str) -> str:
+    """markdown 표에서 값 없는 행을 버리고, 그 자리에 구분선이 고아로 남지 않게 한다.
+
+    표 런 단위로 본다 - 줄 하나만 보면 "구분선이 딸린 헤더 행을 버렸다"를 알 수 없다.
+    표 밖 줄은 손대지 않는다.
     """
     if not text or "|" not in text:
         return text
-    kept = [line for line in text.split("\n") if not _BLANK_MD_ROW.match(line)]
-    return "\n".join(kept)
+    out: list[str] = []
+    run: list[str] = []
+    for line in text.split("\n"):
+        if _MD_ANY_ROW.match(line):
+            run.append(line)
+            continue
+        if run:
+            out.extend(_tidy_markdown_run(run))
+            run = []
+        out.append(line)
+    if run:
+        out.extend(_tidy_markdown_run(run))
+    return "\n".join(out)
