@@ -1,0 +1,54 @@
+<!--
+  DOM 골격 출처: 실 CMS 산출물 genon/preprocessor/sample_files/monimo/.INC_235488_02_20260626103138.html
+  (section[data-subj-seq/data-level] > h1 > div.parag > div.se-contents > style[data-publishing-style] +
+  본문 p.parag / table.__se_tbl 구조를 그대로 재현, 거대한 inline style="...: revert; ..." 목록은
+  대표 속성 몇 개로 축약).
+  문안: genon/_tmp_docs/20260901_캡쳐/03_고객_카드_문서_03·04 (INC_4710521 무료보험서비스 /
+  INC_4902781 지점 안내) 전사분.
+
+  검증 대상: 실 CMS 가 붙이는 노이즈가 섞인 마커 섹션헤더 승격.
+  같은 문서 안에서 마커 뒤 공백 유무가 섞여 있다는 것이 이 픽스처의 핵심이다 —
+  캡쳐의 파서 산출물이 `▣ **이용방법**`(공백 있음)과 `▣**처리가능 업무**`(공백 없음)를
+  같은 파일에서 함께 보여줬다.
+  - ▣ 만 쓰는 문서이므로 승격된 헤더는 전부 h3
+  - 마커와 제목이 서로 다른 span 으로 쪼개진 형태(`▣ <span>이용방법</span>`)도 승격 대상
+  - 제목 뒤 후행 <br> 이 붙은 문단도 승격 대상(스마트에디터가 흔히 붙인다)
+  - 표 안의 굵은 셀(`■ 카드 등록방법`)은 표 구조를 깨므로 승격되면 안 됨
+  - `- `/`※ ` 로 시작하는 본문 줄과 서술형 종결(...바랍니다.) 줄은 본문으로 남아야 함
+  - h1 하나만 있고 h2~h6 은 없음(문서 단위 게이트 조건 재현)
+-->
+<!DOCTYPE html>
+<html lang="ko">
+<head><meta charset="utf-8"><title>[AI 에이전트용] 무료보험서비스 안내</title></head>
+<body>
+<section data-subj-seq="9201" data-level="1"><h1>[AI 에이전트용]</h1><div class="parag" data-parag-id="92010"><div class="se-contents"><div class="se-contents" role="textbox" style="box-sizing: content-box; font-family: 굴림; font-size: 9pt; line-height: 1.5;" data-document-fixed-width="false" data-document-padding-top="18" data-document-padding-bottom="18" data-document-padding-left="23" data-document-padding-right="23"><style type="text/css" data-publishing-style="true">.se-contents { line-height: 1.5; } .se-contents .__se_tbl { border-collapse: collapse; } .se-contents .__se_tbl td { border: 1px solid #dcdcdc; padding: 4px 8px; }</style><table class="__se_tbl" style="color: revert; font-weight: 500;"><tbody><tr style="color: revert;"><td colspan="4" style="color: revert;"><span style="color: rgb(0, 0, 0); font-weight: 700;">해당 목차는 [AI 에이전트용] 이므로, </span><span style="color: rgb(255, 0, 0); font-weight: 700;">실제 상담 시에는 세부 지침이 포함된 [상담직원용] 컨텐츠를 활용하시기 바랍니다.</span></td></tr></tbody></table>
+<p class="parag">▣ <span style="font-weight: 700;">무료보험서비스</span>(별도의 신청 절차없이 삼성화재 트래블 마스터 보험 무료 가입)</p>
+<table class="__se_tbl" style="box-sizing: revert; border: revert; padding: revert;"><tbody><tr><td><span style="font-weight: 700;">구분</span></td><td><span style="font-weight: 700;">상세내용</span></td><td><span style="font-weight: 700;">보상한도액(최고)</span></td></tr>
+<tr><td><span style="font-weight: 700;">국내 공공교통</span></td><td>국내 공공교통수단 탑승 중 상해사망 또는 후유장해</td><td>상해사망/후유장해 최고 5억 / 피보험자 100% (본인, 배우자 및 자녀포함)</td></tr>
+<tr><td><span style="font-weight: 700;">해외여행</span></td><td>해외여행 도중(90일 한정) 상해사망 후유장해</td><td>상해사망/후유장해 최고 5억 / 피보험자 100% (본인, 배우자 및 자녀포함)</td></tr>
+<tr><td><span style="font-weight: 700;">등록방법</span></td><td><p><b>■ 카드 등록방법 및 화면</b></p><p>1) 삼성카드 앱 실행 후 보험 서비스 메뉴로 이동합니다.</p></td><td>-</td></tr>
+</tbody></table>
+<p class="parag">▣ <span style="font-weight: 700;">이용방법</span><br></p>
+<p class="parag">- 삼성카드 대표전화 1588-8700을 통해 보험증권번호 확인→삼성화재 콜센터 1588-5114로 전화→5번(사고 접수)→상담원 연결</p>
+<p class="parag">- 구비서류: 청구서(회사양식), 사고증명서(진료비 계산서, 장해진단서, 입원치료확인서, 의사처방전·처방제조비)등</p>
+<p class="parag">▣ <span style="font-weight: 700;">이용조건</span></p>
+<p class="parag">- 항공요금 전액 또는 여행상품(항공료 포함)의 50% 이상을 해당 카드로 결제 시 제공</p>
+<p class="parag">- 해외여행 중 상해 후유장해: 해외여행을 위한 항공요금을 해당 카드로 전액 결제 시 제공</p>
+<p class="parag">- 국내여행 공공교통수단 탑승 중 상해 후유장해: 공공교통수단의 요금을 해당 카드로 전액 결제 시 제공(후불교통카드 이용건 제외)</p>
+<p class="parag">- 패키지 여행: 피보험자(보험 대상자)가 전체 패키지 여행의 비용 중 50% 이상을 해당 카드로 결제 시 제공</p>
+<p class="parag">- 피보험자의 범위: 본인 및 배우자, 만23세 미만의 미취업·미혼 자녀</p>
+<p class="parag">※ 피보험자 보험계약조회: 손해보험협회 조회서비스에서 확인 가능</p>
+<p class="parag">▣<span style="font-weight: 700;">처리가능 업무</span></p>
+<table class="__se_tbl" style="box-sizing: revert; border: revert;"><tbody><tr><td><span style="font-weight: 700;">구분</span></td><td><span style="font-weight: 700;">업무</span></td><td><span style="font-weight: 700;">가능여부</span></td></tr>
+<tr><td rowspan="3"><span style="font-weight: 700;">신용카드</span></td><td><span style="font-weight: 700;">비밀번호 변경</span></td><td><span style="color: rgb(14, 23, 241); font-weight: 700;">가능</span></td></tr>
+<tr><td><span style="font-weight: 700;">카드분실/해제</span></td><td><span style="color: rgb(14, 23, 241); font-weight: 700;">가능</span></td></tr>
+<tr><td><span style="font-weight: 700;">즉시발급</span></td><td><span style="color: rgb(14, 23, 241); font-weight: 700;">가능</span></td></tr>
+</tbody></table>
+<p class="parag">▣ <span style="font-weight: 700;">주소/전화번호/영업시간/교통편</span></p>
+<p class="parag">- 대전광역시 유성구 엑스포로 1 신세계백화점 7층 (도룡동) / 센터 : 1599-6581</p>
+<p class="parag">※ 고객서비스 센터 방문시 대기고객 등을 감안하여 영업시간 종료 30분 전까지 방문이 필요함을 안내 바랍니다.</p>
+<p class="parag">▣ <span style="font-weight: 700;">유의사항</span></p>
+<p class="parag">- 일반 질병 및 상해의 경우 보험 약관에 해당하지 않으므로, 필요한 서비스에 대하여 다른 여행자보험에 가입하시기 바랍니다.</p>
+</div></div></div></section>
+</body>
+</html>

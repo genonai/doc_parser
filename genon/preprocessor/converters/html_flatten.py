@@ -77,6 +77,13 @@ hwp 의 "약한 마커 AND 강조(bold/큰폰트)" 규칙(`genos_hwp_backend.py:
 쓰지 않고, 대신 좁힌 도형 마커 화이트리스트 + 문서단위 구조 게이트로 대체한다
 (아래 `_MARKER_*` 상수와 `promote_marker_headings`).
 
+추가 실측(2026-09-01 캡쳐, `sample_files/monimo/monimo_cs_hpp_marker_nospace_sample.html`
+와 `..._marker_real_dom_sample.html` 로 전사)은 같은 결론을 다른 각도에서 확인해 준다.
+이 문서들은 위와 달리 `font-weight:700` 을 대량으로 쓰는데, 소제목(`◆개요`)과 본문
+(`-2025년 11월 22일(토)`)이 **둘 다** bold 다. 강조는 여기서도 신호가 아니다.
+같은 캡쳐가 마커 뒤 공백을 필수로 두면 안 된다는 것도 보여준다 — 소제목이 `◆개요`,
+`▣[홈페이지]서비스 신청 및 해지 방법` 처럼 마커와 붙어 있다(`_MARKER_HEADING_RE` 주석 참고).
+
 이 승격은 srcdoc 이 없는 단일 페이지 HTML 에만 걸린다는 한계가 있다. srcdoc 로
 합쳐진 merged 문서는 본문이 속성값 안에 escape 되어 있어 원문 스캔(precheck)이
 마커를 보지 못하고, 애초에 페이지 라벨 h2 를 이미 갖고 있어 기존 하위 heading
@@ -91,7 +98,7 @@ import logging
 import re
 
 from bs4 import BeautifulSoup
-from bs4.element import Tag
+from bs4.element import NavigableString, Tag
 
 _log = logging.getLogger(__name__)
 
@@ -178,9 +185,20 @@ _MARKER_MAX_EXISTING_SUBHEADINGS = 1
 # 등록방법 및 화면·참고사항) = 7개다.
 _MARKER_HEADING_MIN = 3
 
-# 마커 뒤 공백을 필수로 둔다 — `■■■` 같은 구분선 장식과 `◈결제` 같은 본문
-# 강조 표기를 배제한다.
-_MARKER_HEADING_RE = re.compile(rf"^([{_MARKER_CHARS}])\s+(\S.*)$", re.S)
+# 마커 뒤 공백은 선택이다. 초기 규칙은 공백을 필수로 뒀지만 실측이 이를 뒤집었다 —
+# 캡쳐(genon/_tmp_docs/20260901_캡쳐/03_고객_카드_문서_05, INC_19570012)의 소제목은
+# `◆개요` / `▣[홈페이지]서비스 신청 및 해지 방법` 처럼 마커와 제목이 붙어 있다.
+# 게다가 공백 필수 규칙은 저자가 아니라 DOM 우연에 반응한다. `get_text(" ")` 가 태그
+# 경계에 공백을 넣으므로, 같은 `▣제목` 표기라도 마커와 제목이 다른 span 이면 통과하고
+# 한 span 안에 있으면 탈락한다(픽스처 marker_real_dom 의 `▣ 처리가능 업무` 대 픽스처
+# marker_nospace 의 `◆개요`). 공백 필수가 막던 `■■■` 구분선 장식은 아래
+# `_MARKER_DECORATION_RE` 가 대신 막고, `◈결제` 류 본문 강조는 후보 조건이 "블록 자식
+# 없는 p/div 한 줄 전체"라 문장 중간에서는 애초에 매칭되지 않는다. 한 줄 전체가 `◈결제`
+# 면 소제목으로 보는 편이 맞다.
+_MARKER_HEADING_RE = re.compile(rf"^([{_MARKER_CHARS}])\s*(\S.*)$", re.S)
+
+# 제목이 다시 마커 문자로 시작하면 제목이 아니라 마커 반복 장식선이다(`■■■`, `◈◈`).
+_MARKER_DECORATION_RE = re.compile(rf"^[{_MARKER_CHARS}]")
 
 _MARKER_TITLE_MIN_LEN = 2
 
@@ -398,6 +416,23 @@ def _normalize_wrapped_nested_lists(node: Tag) -> int:
     return normalized
 
 
+def _text_after_first_break(el: Tag) -> str:
+    """요소 안 첫 <br> 뒤에 남는 텍스트.
+
+    `get_text("\n")` 은 <br> 이 아니라 모든 텍스트 노드 경계에 구분자를 넣으므로
+    `▣ <span>이용방법</span><br>` 을 두 줄로 잘못 센다. 문서 순서대로 훑어 <br> 이후의
+    텍스트만 모은다.
+    """
+    seen_break = False
+    tail: list[str] = []
+    for node in el.descendants:
+        if getattr(node, "name", None) == "br":
+            seen_break = True
+        elif seen_break and isinstance(node, NavigableString):
+            tail.append(str(node))
+    return "".join(tail).strip()
+
+
 def _marker_heading_candidates(node: Tag) -> list[tuple[Tag, str]]:
     """"마커 + 짧은 제목" 한 줄짜리 블록을 문서 순서로 찾는다.
 
@@ -420,9 +455,15 @@ def _marker_heading_candidates(node: Tag) -> list[tuple[Tag, str]]:
             #     (커밋 a6e4241c, tests/unit/test_doc_type_chunk_size.py:186-217)
             #     이 깨진다.
             continue
-        if el.find(_BLOCK_CHILD_TAGS) is not None:
+        if any(t.name != "br" for t in el.find_all(_BLOCK_CHILD_TAGS)):
             # 인라인 <b>/<span>/<a>/<em> 자식은 허용한다 — 스마트에디터가
             # 제목 문단을 이런 인라인 태그로 감싸는 경우가 흔하다.
+            continue
+        if el.find("br") is not None and _text_after_first_break(el):
+            # <br> 은 후행 한 개까지만 허용한다. 스마트에디터가 제목 문단 끝에 습관적으로
+            # 붙이는데(픽스처 marker_real_dom 의 `▣ 이용방법<br>`), 이걸 블록 자식으로
+            # 취급하면 소제목 하나가 통째로 후보에서 빠진다. 반대로 <br> 이 텍스트를 두 줄
+            # 이상으로 쪼갰다면 한 줄짜리 제목이 아니라 여러 줄 본문이므로 승격하지 않는다.
             continue
         text = el.get_text(" ", strip=True)
         match = _MARKER_HEADING_RE.match(text)
@@ -433,6 +474,8 @@ def _marker_heading_candidates(node: Tag) -> list[tuple[Tag, str]]:
         if _SENTENCE_FINAL.search(text):
             continue  # 서술형 본문 문장 — 제목이 아니다
         marker, title = match.group(1), match.group(2)
+        if _MARKER_DECORATION_RE.match(title):
+            continue  # `■■■` 처럼 마커를 반복한 구분선 장식 — 제목이 아니다
         if len(title.strip()) < _MARKER_TITLE_MIN_LEN:
             continue
         candidates.append((el, marker))

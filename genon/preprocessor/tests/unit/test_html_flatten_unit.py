@@ -32,6 +32,7 @@ _WRAPPED_ACCORDION = _FIXTURES / "accordion_wrapped_nested_list.html"
 
 _MONIMO_SAMPLES = Path(__file__).resolve().parents[2] / "sample_files" / "monimo"
 _MARKER_FIXTURE = _MONIMO_SAMPLES / "monimo_cs_hpp_marker_sections_sample.html"
+_HEADING_TAGS = ["h1", "h2", "h3", "h4", "h5", "h6"]
 
 
 def _require_html(path: Path) -> str:
@@ -492,15 +493,90 @@ def test_promote_marker_headings_demotes_long_and_sentence_final():
     assert [tag.name for tag in node.find_all(True)] == ["p", "p"]
 
 
-def test_promote_marker_headings_requires_marker_space_and_title():
-    """`■`(제목 없음) / `■■■`(마커 뒤 공백 없는 장식선) / `◈결제`(마커-본문 사이 공백 없음)
+def test_promote_marker_headings_requires_title_but_not_space():
+    """`■`(제목 없음)과 `■■■`(마커 반복 장식선)은 본문으로 남고, `◈결제`는 승격된다.
 
-    셋 다 승격 조건(마커 + 공백 + 2자 이상 제목)을 만족하지 못해 본문으로 남는다.
+    마커 뒤 공백은 더 이상 필수가 아니다(_MARKER_HEADING_RE). 실측 근거는
+    monimo_cs_hpp_marker_nospace_sample.html 로, 실제 소제목이 `◆개요` 처럼 마커와
+    붙어 있다. 공백 필수 규칙은 저자 의도가 아니라 DOM 우연에 반응했다 —
+    `get_text(" ")` 가 태그 경계에 공백을 넣으므로 같은 표기라도 마커와 제목이 다른
+    span 이면 통과하고 한 span 안이면 탈락했다.
+
+    공백 필수가 막던 장식선은 `_MARKER_DECORATION_RE`(제목이 다시 마커로 시작하면 탈락)가
+    대신 막는다. 한 줄 전체가 `◈결제` 인 문단은 소제목으로 보는 편이 맞다 — 문장 중간의
+    `◈결제` 는 후보 조건("블록 자식 없는 p/div 한 줄 전체")에서 애초에 걸리지 않는다.
     """
     raw = "<html><body><p>■</p><p>■■■</p><p>◈결제</p></body></html>"
     node = extract_content(raw)
-    assert promote_marker_headings(node) == 0
-    assert [tag.name for tag in node.find_all(True)] == ["p", "p", "p"]
+    assert promote_marker_headings(node) == 1
+    assert [tag.name for tag in node.find_all(True)] == ["p", "p", "h3"]
+
+
+def test_marker_headings_promote_nospace_bold_sections():
+    """캡쳐 05(INC_19570012) 전사본 — 마커와 제목이 한 bold span 안에 붙어 있는 형태.
+
+    `◆개요` / `▣[홈페이지]서비스 신청 및 해지 방법` 처럼 마커 뒤 공백이 없고 줄 전체가
+    bold 다. 이 픽스처가 고정하는 사실 두 가지:
+    (a) 공백 없는 마커도 소제목이다 — 6건 전부 승격되어야 한다.
+    (b) bold 는 판별 신호가 못 된다 — `-`로 시작하는 본문 줄도 똑같이 bold 인데,
+        마커 화이트리스트(_MARKER_CHARS) 밖이라는 사실만이 오승격을 막는다.
+    """
+    raw = _require_html(_MONIMO_SAMPLES / "monimo_cs_hpp_marker_nospace_sample.html")
+    assert "marker_headings" in precheck_html(raw, detect_marker_headings=True)
+
+    node = extract_content(raw)
+    assert promote_marker_headings(node) == 6
+
+    # 문서 <h1> 은 원래 있던 제목이므로 승격분(h3/h4)만 본다.
+    promoted = [(t.name, t.get_text(" ", strip=True))
+                for t in node.find_all(_HEADING_TAGS) if t.name != "h1"]
+    assert [name for name, _ in promoted] == ["h3", "h3", "h3", "h3", "h3", "h4"]
+    assert promoted[0][1] == "◆개요"
+    assert promoted[-1][1] == "▣[홈페이지]서비스 신청 및 해지 방법"
+
+    # bold 본문 줄은 p 로 남는다. 마커가 없다는 것 외에 제목과 구분되는 신호가 없다.
+    bodies = [t.get_text(" ", strip=True) for t in node.find_all("p")]
+    assert any(b.startswith("-2025년 11월 22일") for b in bodies)
+    assert any(b.startswith("고객 동의하에") for b in bodies)
+
+
+def test_marker_headings_promote_real_dom_noise_sections():
+    """캡쳐 03·04(INC_4710521/INC_4902781) 전사본 — 실 CMS 노이즈가 섞인 형태.
+
+    같은 문서가 `▣ 이용조건`(공백 있음)과 `▣처리가능 업무`(공백 없음)를 함께 쓰고, 제목
+    문단 끝에 스마트에디터가 붙인 후행 `<br>` 이 달려 있다. ▣ 하나만 쓰는 문서라 승격된
+    헤더는 전부 h3 이며, 표 구조와 표 안 굵은 셀(`■ 카드 등록방법 및 화면`)은 건드리지
+    않는다.
+    """
+    raw = _require_html(_MONIMO_SAMPLES / "monimo_cs_hpp_marker_real_dom_sample.html")
+    assert "marker_headings" in precheck_html(raw, detect_marker_headings=True)
+
+    node = extract_content(raw)
+    tables_before, tds_before = len(node.find_all("table")), len(node.find_all("td"))
+    assert promote_marker_headings(node) == 6
+
+    promoted = [(t.name, t.get_text(" ", strip=True)) for t in node.find_all(_HEADING_TAGS)]
+    assert {name for name, _ in promoted} == {"h1", "h3"}
+    titles = [text for name, text in promoted if name == "h3"]
+    assert "▣ 이용방법" in titles       # 후행 <br> 이 붙은 문단
+    assert "▣ 처리가능 업무" in titles   # 마커 뒤 공백 없는 문단
+
+    assert len(node.find_all("table")) == tables_before
+    assert len(node.find_all("td")) == tds_before
+    for table in node.find_all("table"):
+        assert not table.find_all(_HEADING_TAGS)
+
+
+def test_promote_marker_headings_skips_paragraph_split_by_inner_break():
+    """`<br>` 이 텍스트를 두 줄로 쪼갠 문단은 한 줄짜리 제목이 아니므로 승격하지 않는다.
+
+    후행 `<br>` 만 허용한다 — 그 경계가 없으면 여러 줄 본문 블록까지 헤더가 된다.
+    """
+    raw = ("<html><body><p>▣ 제목<br>본문이 이어짐</p>"
+           "<p>▣ 항목2</p><p>▣ 항목3</p></body></html>")
+    node = extract_content(raw)
+    assert promote_marker_headings(node) == 2
+    assert node.find("p").name == "p"
 
 
 def test_flatten_html_promotes_marker_sections_only_when_reason_present():
@@ -527,7 +603,7 @@ def test_build_docling_document_skips_duplicate_single_section_label():
 
 
 def test_marker_headings_produce_section_headers_in_real_docling_parse():
-    """실제 Docling 왕복 — 원문은 SectionHeaderItem 0개, 승격 후엔 7개(레벨 2/3)가 잡히고
+    """실제 Docling 왕복 — 원문은 SectionHeaderItem 0개, 승격 후엔 8개(레벨 2/3)가 잡히고
 
     표 2개는 양쪽 다 파괴되지 않는다. 문서 최상위 <h1> 은 TitleItem 으로 분류돼
     SectionHeaderItem 집계에 들지 않는다(이 픽스처는 <title>과 본문 <h1> 이 서로 달라
@@ -557,7 +633,7 @@ def test_marker_headings_produce_section_headers_in_real_docling_parse():
     flat_headers = section_headers(flat_doc)
 
     assert len(raw_headers) == 0
-    assert len(flat_headers) == 7
+    assert len(flat_headers) == 8
     assert len(raw_doc.tables) == len(flat_doc.tables) == 2
     assert {h.level for h in flat_headers} == {2, 3}
 
