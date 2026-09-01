@@ -923,7 +923,8 @@ class DocumentProcessor:
         self._output_format = self._normalize_output_format(output_cfg.get("format", "json"))
         self._table_format = self._normalize_table_format(output_cfg.get("table_format", "html"))
         # markdown 표 compact(컬럼 정렬 패딩 제거) 여부. 기본 True. html 포맷엔 무관.
-        self._compact_tables = bool(output_cfg.get("compact_tables", True))
+        # 공용 헬퍼를 쓴다 - 다른 facade 와 같은 규칙으로 문자열 "false" 도 off 로 읽는다.
+        self._compact_tables = cp.resolve_compact_tables(output_cfg)
 
         # 민감정보 분류(#315): parser 가 호출 주체. guardrail_call 요청 시 문서 전체를 1회 분류해
         # sensitive_infos 를 파스 출력에 실어 chunking 으로 전달(chunking 은 청크에 적용만 = 병합).
