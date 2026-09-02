@@ -161,9 +161,13 @@ from genon.preprocessor.facade.common import docling_ops as dops
 from genon.preprocessor.facade.common import runtime as rt
 from genon.preprocessor.facade.common import file_probe as fp
 from genon.preprocessor.facade.common import pdf_convert as pc
+from genon.preprocessor.facade.common import format_alias as fa
 from genon.preprocessor.facade.common.doc_meta import strip_enricher_meta
 
 _as_dict = cp.as_dict
+_materialize_alias_copy = fa.materialize_alias_copy
+_parse_extension_aliases = fa.parse_extension_aliases
+_resolve_ext = fa.resolve_ext
 _as_int_flag = cp.as_int_flag
 _copy_enrichment_options = cp.copy_enrichment_options
 _detect_unsupported_file = fp.detect_unsupported_file
@@ -381,6 +385,13 @@ class IntelligentDocumentProcessor:
             )
             md_mode = "docling"
         self._md_cfg = {"processing_mode": md_mode}
+
+        # 비표준 확장자 별칭. formats.extension_aliases 아래에 둔다.
+        #   예) {".parsed": ".md"} — *.parsed 를 마크다운으로 보고 md 분기로 라우팅한다.
+        # 확장자별 분기를 늘리지 않고 설정 한 줄로 새 원천을 받기 위한 장치다.
+        self._ext_aliases = _parse_extension_aliases(formats_cfg)
+        if self._ext_aliases:
+            _log.info(f"[DocumentProcessor] 확장자 별칭: {self._ext_aliases}")
 
         self.simple_pipeline_options = PipelineOptions()
         self.simple_pipeline_options.save_images = False
@@ -2106,9 +2117,21 @@ class DocumentProcessor:
         # #329: LLM 캐시 / error_policy 컨텍스트를 요청 스코프로 설정(/parse 는 body 의
         # workflow_id/run_id 로 스코프 유도). ThreadPool 워커엔 in_current_context 로 전파.
         _cache_token = _set_cache_context(_resolve_cache_context(kwargs))
+        # 확장자 별칭이 적용되면 표준 확장자 이름의 사본으로 파싱한다. 그 임시 디렉터리는
+        # 요청이 끝날 때 정리한다(finally).
+        alias_tmp: tempfile.TemporaryDirectory | None = None
+        # 별칭 사본으로 파싱할 때 artifacts(이미지) 경로 기준이 되는 원본 경로.
+        artifacts_source: str | None = None
         try:
-            ext = os.path.splitext(file_path)[-1].lower()
-            _log.info(f"[DocumentProcessor] file_path={file_path}, ext={ext}")
+            raw_ext = os.path.splitext(file_path)[-1].lower()
+            # __init__ 을 우회해 만든 인스턴스(단위 테스트)도 견디도록 getattr 로 읽는다.
+            ext = _resolve_ext(raw_ext, getattr(self, "_ext_aliases", {}))
+            if ext != raw_ext:
+                _log.info(
+                    f"[DocumentProcessor] file_path={file_path}, ext={raw_ext} -> {ext} (확장자 별칭)"
+                )
+            else:
+                _log.info(f"[DocumentProcessor] file_path={file_path}, ext={ext}")
 
             # 비정상/암호화 파일 사전 감지(이슈 #278/#307): 지원 포맷 매직헤더에 하나도 안 맞고
             # 텍스트도 아니면(=DRM 암호화/손상 바이너리) 파싱/변환 단계의 garbage 처리를 유발하므로
@@ -2119,6 +2142,18 @@ class DocumentProcessor:
                 raise GenosServiceException(
                     "1", f"{bad_reason} 입니다. 정상 문서로 다시 업로드하세요: {os.path.basename(file_path)}"
                 )
+
+            if ext != raw_ext:
+                # docling 은 파일명 확장자로 포맷을 판정하므로 이름을 바꾼 사본을 넘긴다.
+                # 원본 경로는 artifacts_source 로 남겨 media_files 경로를 원본 기준으로 유지한다.
+                try:
+                    alias_tmp = tempfile.TemporaryDirectory(prefix="parser_alias_")
+                    artifacts_source = file_path
+                    file_path = _materialize_alias_copy(file_path, ext, alias_tmp.name)
+                except OSError as exc:
+                    raise GenosServiceException(
+                        "1", f"확장자 별칭 사본 생성 실패: {exc}"
+                    ) from exc
 
             if ext in (".wav", ".mp3", ".m4a"):
                 # TODO(#315): PII 마스킹 미적용(보류) — 오디오 전사 텍스트는 별도 논의 후 적용.
@@ -2201,7 +2236,9 @@ class DocumentProcessor:
                         )
                         doc = self._parse_docling(
                             parse_path,
-                            artifacts_from=file_path if parse_path != file_path else None,
+                            artifacts_from=artifacts_source or (
+                                file_path if parse_path != file_path else None
+                            ),
                             _enrichment_context=enrichment_context,
                             **kwargs,
                         )
@@ -2211,7 +2248,10 @@ class DocumentProcessor:
                     fence_spec = self._markdown_text_fence_spec_for(kwargs.get("doc_type"))
                     if fm_spec is None and fence_spec is None:
                         doc = self._parse_docling(
-                            file_path, _enrichment_context=enrichment_context, **kwargs
+                            file_path,
+                            artifacts_from=artifacts_source,
+                            _enrichment_context=enrichment_context,
+                            **kwargs,
                         )
                     else:
                         # front matter를 제외하거나 ```text 펜스를 단락으로 되돌린 파생
@@ -2225,14 +2265,21 @@ class DocumentProcessor:
                             markdown_kwargs["_markdown_front_matter"] = front_matter_context
                             doc = self._parse_docling(
                                 parse_path,
-                                artifacts_from=file_path if parse_path != file_path else None,
+                                artifacts_from=artifacts_source or (
+                                    file_path if parse_path != file_path else None
+                                ),
                                 _enrichment_context=enrichment_context,
                                 **markdown_kwargs,
                             )
                         kwargs = dict(kwargs)
                         kwargs["_markdown_front_matter"] = front_matter_context
                 else:
-                    doc = self._parse_docling(file_path, _enrichment_context=enrichment_context, **kwargs)
+                    doc = self._parse_docling(
+                        file_path,
+                        artifacts_from=artifacts_source,
+                        _enrichment_context=enrichment_context,
+                        **kwargs,
+                    )
                 doc = await self._apply_docling_post_enrichment(doc, _enrichment_context=enrichment_context, **kwargs)
                 result = self._build_docling_response(doc, **kwargs)
                 if enrichment_context.get("metadata"):
@@ -2297,5 +2344,7 @@ class DocumentProcessor:
             docs = self._parse_other(file_path, **kwargs)
             return self._normalize_response(self._langchain_to_parse_format(docs))
         finally:
+            if alias_tmp is not None:
+                alias_tmp.cleanup()
             _log_cache_summary()
             _reset_cache_context(_cache_token)
