@@ -369,3 +369,46 @@ def resolve_body_fields(kwargs: dict, metadata: Any = None) -> list[str]:
         return from_kwargs
     source = metadata if isinstance(metadata, dict) else {}
     return parse_field_name_list(source.get(BODY_FIELDS_KEY))
+
+
+# ── 청크 본문에 실을 메타 필드(chunk_prefix_fields / first_chunk_fields) ─────
+# body_fields 의 반대 방향이다. body_fields 는 "메타 필드에 청크 본문을 채우고",
+# 이 둘은 "청크 본문 앞에 메타 필드 값을 얹는다".
+#
+# 왜 필요한가: 문서 단위로 뽑힌 식별값(카드명 PRODUCT_NM, 문의유형 CS_CATEGORY)은
+# metadata 컬럼에만 있으면 필터 검색에만 걸리고 임베딩 검색에는 안 걸린다. 청크 본문에
+# 얹어야 "삼성 iD ON 카드 연회비" 같은 질의가 그 카드의 연회비 청크를 집는다.
+#
+# 둘의 차이는 반복 여부 하나다.
+#   chunk_prefix_fields : 모든 청크 앞에 반복. 매 청크가 단독으로 검색되어야 하는 식별자.
+#   first_chunk_fields  : 문서의 첫 청크에만 1회. 매 청크에 반복하기엔 chunk_size 가 아까운
+#                         문서 단위 분류·출처. 첫 청크만 임베딩 검색에 걸린다는 점을 감수한다.
+# 설정 자리와 전달 경로는 body_fields 와 같다(문서형 custom_fields yaml → 문서 metadata).
+
+CHUNK_PREFIX_FIELDS_KEY = "chunk_prefix_fields"
+FIRST_CHUNK_FIELDS_KEY = "first_chunk_fields"
+
+
+def _resolve_field_rule(key: str, kwargs: dict, metadata: Any) -> list[str]:
+    """제어 규칙 목록 하나를 kwargs > 문서 metadata 순으로 해석한다."""
+    from_kwargs = parse_field_name_list((kwargs or {}).get(key))
+    if from_kwargs:
+        return from_kwargs
+    source = metadata if isinstance(metadata, dict) else {}
+    return parse_field_name_list(source.get(key))
+
+
+def resolve_chunk_prefix_fields(kwargs: dict, metadata: Any = None) -> list[str]:
+    """모든 청크 앞에 반복해 붙일 메타 필드 목록."""
+    return _resolve_field_rule(CHUNK_PREFIX_FIELDS_KEY, kwargs, metadata)
+
+
+def resolve_first_chunk_fields(kwargs: dict, metadata: Any = None) -> list[str]:
+    """문서의 첫 청크에만 1회 붙일 메타 필드 목록.
+
+    `chunk_prefix_fields` 에 이미 오른 필드는 매 청크에 들어가므로 여기서 뺀다 — 첫 청크에만
+    같은 값이 두 줄로 겹치는 것을 막는다.
+    """
+    fields = _resolve_field_rule(FIRST_CHUNK_FIELDS_KEY, kwargs, metadata)
+    repeated = set(resolve_chunk_prefix_fields(kwargs, metadata))
+    return [name for name in fields if name not in repeated]

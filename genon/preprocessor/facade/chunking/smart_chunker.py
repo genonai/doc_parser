@@ -120,6 +120,10 @@ class SmartChunkerBase(BaseChunker):
     # 표 그룹이 인접 그룹과 병합되지 않게 막는다. 섹션 제목·캡션·표 설명은 그대로 실리고,
     # chunk_size 초과 표의 행 분할도 평소대로 동작한다.
     table_as_chunk: bool = True
+    # 문서 단위 메타 필드(chunk_prefix_fields / first_chunk_fields)로 청크 선두에 붙을 접두
+    # 문자열. 값이 아니라 크기 예약용이다 — 실제 부착은 compose_vectors 가 하고, 여기서는
+    # 헤더 라인과 똑같이 몫을 빼 두어 산출 청크가 chunk_size 를 넘지 않게 한다.
+    chunk_prefix_text: str = ""
 
     # _inner_chunker: BaseChunker = None
     _tokenizer: PreTrainedTokenizerBase = None
@@ -811,8 +815,13 @@ class SmartChunkerBase(BaseChunker):
             table_item, dl_doc, h_short, max_tokens=max_tokens, **kwargs)
 
     def _header_line(self, headings, include_header: bool) -> str:
-        """청크 선두 `HEADER:` 라인. 구분자·리프 상한은 facade 가 정한 클래스 속성을 쓴다."""
-        return hp.build_header_line(
+        """청크 선두에 실제로 붙는 문자열(문서 접두 + `HEADER:` 라인).
+
+        구분자·리프 상한은 facade 가 정한 클래스 속성을 쓴다. 이 메서드의 반환값은 전부
+        크기 산정에만 쓰이므로, 문서 접두를 여기 얹으면 산정 지점 네 곳이 한꺼번에 그 몫을
+        예약한다(2.5단계·5단계·5.5단계·병합 후 _fits).
+        """
+        return self.chunk_prefix_text + hp.build_header_line(
             headings, include_header,
             self.CHUNK_HEADER_SEP, self.CHUNK_PATH_SEP, self.CHUNK_PATH_MAX_LEAVES)
 

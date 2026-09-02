@@ -119,3 +119,15 @@ output_fields:
   - PRODUCT_NM
   - PRODUCT_ATTRS
   - SUMMARY_TEXT
+
+# ── 청크 본문 앞에 얹을 메타 필드 ────────────────────────────────────────────
+# 문서 단위 값이라 metadata 컬럼에만 두면 필터 검색에만 걸리고 임베딩 검색에는 안 걸린다.
+#
+#   chunk_prefix_fields : 모든 청크 앞에 반복 (매 청크가 단독으로 검색돼야 하는 식별자)
+#   first_chunk_fields  : 문서의 첫 청크에만 1회
+#
+# 카드는 청크마다 다른 혜택·연회비를 다루므로 상품명이 매 청크에 있어야 "삼성 iD ON 카드
+# 연회비" 같은 질의가 그 카드의 연회비 청크를 집는다. 접두만큼 chunk_size 가 깎이니 짧은
+# 식별 필드 1~2개로 제한한다.
+chunk_prefix_fields:
+  - PRODUCT_NM

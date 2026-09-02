@@ -114,3 +114,16 @@ output_fields:
   - DEEP_LINK_URL
   - RELATED_KEYWORDS
   - SRC_LAST_MOD_DT
+
+# ── 청크 본문 앞에 얹을 메타 필드 ────────────────────────────────────────────
+# 문서 단위 값이라 metadata 컬럼에만 두면 필터 검색에만 걸리고 임베딩 검색에는 안 걸린다.
+# 청크 본문에 실어야 "카드 결제 취소 문의" 같은 질의가 그 문서의 청크를 집는다.
+#
+#   chunk_prefix_fields : 모든 청크 앞에 반복 (매 청크가 단독으로 검색돼야 하는 식별자)
+#   first_chunk_fields  : 문서의 첫 청크에만 1회
+#
+# CS_CATEGORY 는 문의유형 분류다. 매 청크에 반복하기엔 chunk_size 가 아까워 1회만 넣는다 —
+# 대신 카테고리를 임베딩으로 검색하면 첫 청크만 걸린다(값 자체는 모든 청크의 metadata 에
+# 그대로 실리므로 필터 검색은 전 청크에서 된다).
+first_chunk_fields:
+  - CS_CATEGORY

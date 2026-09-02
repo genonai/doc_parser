@@ -34,10 +34,26 @@ CHUNK_SIZE = 1000
 CHUNK_MODE = "split_only"
 
 # cs_hpp custom_field yaml 의 output_fields 6개를 모두 채운다 — 누락되면 missing_policy 에 걸린다.
+_CS_HPP_CATEGORY = "이용안내 > 상세 이용 조건"
+
+
+def _chunk_header(text: str) -> str:
+    """청크 선두 HEADER 라인.
+
+    첫 청크에는 first_chunk_fields(custom_field_cs_hpp.yaml 의 CS_CATEGORY) 접두가 HEADER
+    앞에 한 번 붙는다. 접두를 떼고 봐야 "HEADER 는 청크 맨 앞 한 줄" 계약을 그대로 검사할 수
+    있다.
+    """
+    body = text
+    if body.startswith(_CS_HPP_CATEGORY + "\n"):
+        body = body[len(_CS_HPP_CATEGORY) + 1:]
+    return body.splitlines()[0] if body else ""
+
+
 _CS_HPP_LLM_STUB = json.dumps(
     {
         "BIZ_ID": "CS-HPP-9001",
-        "CS_CATEGORY": "이용안내 > 상세 이용 조건",
+        "CS_CATEGORY": _CS_HPP_CATEGORY,
         "TITLE": "상세 이용 조건 안내",
         "CONTENT": "테스트용 안내본문",
         "DEEP_LINK_URL": None,
@@ -50,7 +66,8 @@ _CS_HPP_LLM_STUB = json.dumps(
 def _parse_and_chunk(source: Path, doc_type: str, llm_stub: str | None = None, *,
                      chunk_size: int = CHUNK_SIZE,
                      chunk_mode: str = CHUNK_MODE,
-                     include_chunk_header: bool | None = None) -> list[dict]:
+                     include_chunk_header: bool | None = None,
+                     extra_kwargs: dict | None = None) -> list[dict]:
     """파서→청커 왕복을 실제로 돌리고 청크 dict 목록을 돌려준다.
 
     ``include_chunk_header`` 를 주면 kwargs 로 넘겨 yaml 설정을 덮는다. HEADER 접두어를
@@ -76,6 +93,7 @@ def _parse_and_chunk(source: Path, doc_type: str, llm_stub: str | None = None, *
         chunk_kwargs = {"chunk_size": chunk_size, "chunk_mode": chunk_mode}
         if include_chunk_header is not None:
             chunk_kwargs["include_chunk_header"] = include_chunk_header
+        chunk_kwargs.update(extra_kwargs or {})
         vectors = await cp.DocumentProcessor()(
             request, str(source), document=payload, **chunk_kwargs,
         )
@@ -241,9 +259,15 @@ def test_cs_hpp_marker_sections_split_chunk_headers():
                             include_chunk_header=True)
 
     assert len(rows) > 1
-    headers = [r["text"].splitlines()[0] for r in rows]
+    headers = [_chunk_header(r["text"]) for r in rows]
     assert all(h.startswith("HEADER: ") for h in headers)
     assert len(set(headers)) >= 3, f"distinct HEADER 부족: {headers}"
+
+    # first_chunk_fields 계약 — 문의유형은 첫 청크에만 1회 실린다(반복 접두가 아니다).
+    leading = [i for i, r in enumerate(rows) if r["text"].startswith(_CS_HPP_CATEGORY + "\n")]
+    assert leading == [0], f"첫 청크에만 붙어야 합니다: {leading}"
+    # 값 자체는 모든 청크의 metadata 에 그대로 남아 필터 검색이 된다.
+    assert all(r.get("CS_CATEGORY") == _CS_HPP_CATEGORY for r in rows)
 
     assert any("◈ 기본내용 > ▣ 네이버페이 간편결제 이용방법" in h for h in headers)
     assert any("◈ 예상Q&A" in h for h in headers)
@@ -280,10 +304,43 @@ def test_cs_hpp_nospace_marker_sections_split_chunk_headers():
     rows = _parse_and_chunk(source, "cs_hpp", llm_stub=_CS_HPP_LLM_STUB,
                             include_chunk_header=True)
 
-    headers = [r["text"].splitlines()[0] for r in rows]
+    headers = [_chunk_header(r["text"]) for r in rows]
     assert all(h.startswith("HEADER: ") for h in headers)
     assert any("◆처리방법 > ▣[홈페이지]서비스 신청 및 해지 방법" in h for h in headers)
     assert len(set(headers)) >= 3, f"distinct HEADER 부족: {headers}"
+
+
+@pytest.mark.unit
+def test_chunk_prefix_fields_repeat_on_every_chunk_within_chunk_size():
+    """chunk_prefix_fields — 지정 필드가 모든 청크 선두에 반복되고 상한은 그대로 지켜진다.
+
+    first_chunk_fields(1회) 와 짝을 이루는 반복 접두 경로다. 청커가 접두 몫을 크기 산정에서
+    예약하지 않으면 본문이 chunk_size 를 꽉 채운 뒤 접두가 그 위에 얹혀 상한을 넘는데,
+    아래 상한 단정이 그 회귀를 잡는다.
+
+    설정 자리는 custom_field yaml 이지만 여기서는 kwargs 로 덮어 doc_type 하나에 묶이지
+    않게 한다(두 경로가 같은 resolver 를 탄다).
+    """
+    cp = pytest.importorskip("genon.preprocessor.facade.chunking_processor")
+    source = _require("monimo_cs_hpp_marker_sections_sample.html")
+    rows = _parse_and_chunk(
+        source, "cs_hpp", llm_stub=_CS_HPP_LLM_STUB, include_chunk_header=True,
+        extra_kwargs={"chunk_prefix_fields": "TITLE"},
+    )
+
+    title = "상세 이용 조건 안내"
+    assert len(rows) > 1
+    assert all(r["text"].startswith(title + "\n") for r in rows), "모든 청크에 반복돼야 합니다"
+
+    # 선두 조립 순서 계약: 반복 접두 → 첫 청크 전용 접두 → HEADER → 본문.
+    # (yaml 의 first_chunk_fields=CS_CATEGORY 가 그대로 살아 있어 첫 청크만 한 줄 더 길다)
+    assert rows[0]["text"].splitlines()[:2] == [title, _CS_HPP_CATEGORY]
+    assert rows[0]["text"].splitlines()[2].startswith("HEADER: ")
+    assert all(r["text"].splitlines()[1].startswith("HEADER: ") for r in rows[1:])
+
+    effective = cp._clamp_chunk_size(CHUNK_SIZE)
+    over = [(i, len(r["text"])) for i, r in enumerate(rows) if len(r["text"]) > effective]
+    assert not over, f"접두 몫 예약 누락 — 유효 상한={effective} 초과 청크: {over[:5]}"
 
 
 @pytest.mark.unit

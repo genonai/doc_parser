@@ -306,6 +306,11 @@ class CustomFieldsEnricher(BaseEnricher):
         # 청크 본문(text)과 같은 값을 실을 필드 이름(검색 대상 본문 컬럼). 값 자체는 청커가
         # 청크 단위로 채우므로 여기서는 이름만 문서 metadata 에 실어 넘긴다.
         self._body_fields = cp.parse_field_name_list(cfg.get(cp.BODY_FIELDS_KEY))
+        # 청크 본문 앞에 얹을 메타 필드(body_fields 의 반대 방향). 값이 아니라 규칙이라
+        # 여기서는 이름만 문서 metadata 에 실어 청커까지 넘긴다.
+        #   chunk_prefix_fields: 모든 청크에 반복 / first_chunk_fields: 첫 청크에만 1회
+        self._chunk_prefix_fields = cp.parse_field_name_list(cfg.get(cp.CHUNK_PREFIX_FIELDS_KEY))
+        self._first_chunk_fields = cp.parse_field_name_list(cfg.get(cp.FIRST_CHUNK_FIELDS_KEY))
         self._headers: dict[str, str] = {"Content-Type": "application/json"}
         resolved_key = api_key or cfg.get("api_key", "")
         if resolved_key:
@@ -576,6 +581,13 @@ class CustomFieldsEnricher(BaseEnricher):
         # 값이 아니라 규칙이다. 청커가 읽어 청크 본문으로 채우고 청크 필드에서는 뺀다.
         if self._body_fields:
             normalized = {**normalized, cp.BODY_FIELDS_KEY: list(self._body_fields)}
+        # 같은 성격의 규칙 — 청커가 읽어 청크 본문 앞에 해당 필드 값을 얹는다.
+        if self._chunk_prefix_fields:
+            normalized = {
+                **normalized, cp.CHUNK_PREFIX_FIELDS_KEY: list(self._chunk_prefix_fields)}
+        if self._first_chunk_fields:
+            normalized = {
+                **normalized, cp.FIRST_CHUNK_FIELDS_KEY: list(self._first_chunk_fields)}
         return normalized
 
     def _extract_raw_text(self, document: DoclingDocument) -> str:

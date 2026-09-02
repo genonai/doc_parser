@@ -116,6 +116,27 @@ output_fields:
   - <TARGET_FIELD_1>
   - <TARGET_FIELD_2>
 
+# ── 청크 본문 관련 규칙 (선택) ───────────────────────────────────────────────
+# 아래 3개는 값이 아니라 규칙이다. 프롬프트·output_fields 에 넣지 않는다.
+# 파서가 문서 metadata 로 실어 보내고 청커가 소비한다.
+#
+#   body_fields         : 그 청크의 본문(text)과 글자 그대로 같은 값을 받는 필드
+#                         (소비계층의 검색 대상 본문 컬럼용)
+#   chunk_prefix_fields : 모든 청크 본문 앞에 반복해 얹을 필드
+#                         (매 청크가 단독으로 검색돼야 하는 식별자 — 상품명 등)
+#   first_chunk_fields  : 문서의 첫 청크에만 1회 얹을 필드
+#                         (매 청크에 반복하기엔 chunk_size 가 아까운 문서 단위 분류)
+#
+# 뒤의 두 개는 접두만큼 chunk_size 를 깎으므로 짧은 필드 1~2개로 제한한다. 값이 비었거나
+# 중첩 객체인 필드는 조용히 건너뛴다. first_chunk_fields 만 쓴 값은 임베딩 검색에서 첫
+# 청크만 걸린다(값 자체는 모든 청크의 metadata 에 실리므로 필터 검색은 전 청크에서 된다).
+# body_fields:
+#   - <BODY_COLUMN>
+# chunk_prefix_fields:
+#   - <IDENTIFIER_FIELD>
+# first_chunk_fields:
+#   - <CATEGORY_FIELD>
+
 # ═══════════════════════════════════════════════════════════════════════════
 #  확인 방법
 #

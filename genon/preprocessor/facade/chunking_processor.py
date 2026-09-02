@@ -55,6 +55,7 @@ from genon.preprocessor.facade.common import docling_ops as dops
 from genon.preprocessor.facade.common import runtime as rt
 from genon.preprocessor.facade.common import file_probe as fp
 from genon.preprocessor.facade.common import pdf_convert as pc
+from genon.preprocessor.facade.chunking import doc_prefix as dpx
 from genon.preprocessor.facade.chunking import header_path as hp
 from genon.preprocessor.facade.chunking import table_blocks as tbk
 from genon.preprocessor.facade.chunking import table_variants as tv
@@ -692,6 +693,11 @@ class DocumentProcessor:
             # 크기 산정(_size)이 compose_vectors 의 실제 부착 여부와 같은 값을 보게 한다.
             include_chunk_header = _resolve_include_chunk_header(kwargs, self._include_chunk_header),
             table_as_chunk = cp.resolve_table_as_chunk(kwargs, self._table_as_chunk),
+            # 문서 접두(chunk_prefix_fields / first_chunk_fields) 몫 예약. compose_vectors 가
+            # 같은 metadata 로 같은 문자열을 만들어 실제로 붙인다.
+            chunk_prefix_text = dpx.reserved_prefix_text(
+                kwargs,
+                dpx.merge_context_metadata(extract_metadata_from_document(documents), kwargs)),
         )
 
         cp.apply_table_output_defaults(kwargs, self)
@@ -765,21 +771,16 @@ class DocumentProcessor:
         _table_variants = getattr(self, "_table_variants", None)
         if _table_variants is not None and not _table_variants.enabled():
             _table_variants = None
-        enrichment_context = kwargs.get("_enrichment_context")
-        context_metadata = (
-            dict(enrichment_context.get("metadata", {}))
-            if isinstance(enrichment_context, dict) and isinstance(enrichment_context.get("metadata"), dict)
-            else {}
-        )
-        document_metadata = extract_metadata_from_document(document)
-        merged_metadata = dict(document_metadata)
-        merged_metadata.update(context_metadata)
+        merged_metadata = dpx.merge_context_metadata(
+            extract_metadata_from_document(document), kwargs)
         # 설정 기반 typed 필드 변환 (created_date 등). source/target 키는 passthrough 에서 제외.
         typed_values, consumed_keys = apply_field_transforms(
             self._metadata_field_transforms, merged_metadata, document)
         # 본문과 동일한 값을 실을 메타 필드. 문서형 custom_fields yaml 이 정하고 파서가
         # 문서 metadata 로 실어 보낸다.
         _body_fields: list = cp.resolve_body_fields(kwargs, merged_metadata)
+        # 청크 본문 앞에 얹을 문서 단위 메타 값. 청커가 크기 산정에서 예약한 것과 같은 문자열이다.
+        _prefix_text, _first_prefix_text = dpx.resolve_prefix_texts(kwargs, merged_metadata)
 
         for item, _ in document.iterate_items():
             if hasattr(item, 'label'):
@@ -816,7 +817,7 @@ class DocumentProcessor:
             "i_chunk_on_page", "n_chunk_of_page", "i_chunk_on_doc", "n_chunk_of_doc",
             "n_page", "reg_date", "chunk_bboxes", "media_files", "title",
             "created_date", "appendix", "file_path", "metadata", "guardrail_categories",
-            cp.BODY_FIELDS_KEY,
+            cp.BODY_FIELDS_KEY, cp.CHUNK_PREFIX_FIELDS_KEY, cp.FIRST_CHUNK_FIELDS_KEY,
         } | set(tv.field_names()) | consumed_keys
         for reserved_key in reserved_keys:
             passthrough_metadata.pop(reserved_key, None)
@@ -848,7 +849,12 @@ class DocumentProcessor:
             # 청크 선두에 섹션 경로 부착 (HEADER: ). 여기가 유일한 부착 지점이며,
             # 청커의 크기 산정도 같은 _build_header_line 을 쓴다(한도 초과 방지).
             headers_text = _build_header_line(chunk.meta.headings, _include_header)
-            content = headers_text + chunk.text
+            # 접두는 헤더 앞이다 — 문서 식별(카드명·문의유형)이 섹션 경로보다 앞에 와야
+            # 청크만 떼어 봤을 때 "무엇에 대한 글인지" 가 먼저 읽힌다.
+            # 첫 청크 전용 접두는 chunk_idx 0 에서만 붙는다(문서당 1회 계약).
+            content = (_prefix_text
+                       + (_first_prefix_text if chunk_idx == 0 else "")
+                       + headers_text + chunk.text)
 
             # appendix 추출 !! appendix feature (2025-09-30, geonhee kim) !!
             matched_appendices = self.check_appendix_keywords(content, appendix_list)

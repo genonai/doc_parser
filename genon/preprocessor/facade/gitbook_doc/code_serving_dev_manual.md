@@ -1381,13 +1381,37 @@ placeholder 이므로, LLM 을 쓰는 항목은 그 값을 채우기 전까지 �
 | 대상 | 문서 전체 (pdf/html/docx …) | csv / xlsx / xlsm | json (레코드 배열) |
 | LLM 호출 | **함** (항목당 1회) | **안 함** | `llm_fields` 선언 시 **레코드마다 1회** |
 | 실행 시점 | 파싱 후 enrichment 단계 | 파싱 **이전**, 확장자 분기에서 조기 반환 | 파싱 **이전**, 확장자 분기에서 조기 반환 |
-| 설정 파일 키(전체) | `url`·`api_key`·`model`·`max_tokens`·`temperature`·`timeout`·`system_prompt`·`user_prompt`·`system_prompt_file`·`user_prompt_file`·`prompt`·`output_fields`·`constants`·`parser`·`pages`·`variables`·`template` | `column_map`·`value_map`·`constants`·`defaults`·`nulls`·`required`·`transforms`·`llm_fields`·`text_fields`·`split`·`chunk_prefix_fields` | 왼쪽 tabular 키에서 `column_map` → `key_map`, 그리고 `records`·`html_text_fields`·`missing_policy` 추가 |
+| 설정 파일 키(전체) | `url`·`api_key`·`model`·`max_tokens`·`temperature`·`timeout`·`system_prompt`·`user_prompt`·`system_prompt_file`·`user_prompt_file`·`prompt`·`output_fields`·`constants`·`parser`·`pages`·`variables`·`template`·`body_fields`·`chunk_prefix_fields`·`first_chunk_fields` | `column_map`·`value_map`·`constants`·`defaults`·`nulls`·`required`·`transforms`·`llm_fields`·`text_fields`·`split`·`chunk_prefix_fields` | 왼쪽 tabular 키에서 `column_map` → `key_map`, 그리고 `records`·`html_text_fields`·`missing_policy` 추가 |
 | 결과 | 문서 metadata → 모든 청크에 부착 | 행별 `custom_fields_row` element → 행마다 청크 1개 | 레코드별 `custom_fields_row` element → 레코드마다 청크 1개(길면 분할) |
 | 복사할 템플릿 | `resource/templates/custom_field_TEMPLATE_llm.yaml` | `..._TEMPLATE_tabular.yaml` | `..._TEMPLATE_json.yaml` |
 | 출고 실례 | `custom_field_card.yaml` | `custom_field_faq.yaml`·`custom_field_term.yaml` | `custom_field_monimo_event.yaml` |
 
 > `extractor` 를 생략하면 `llm` 로 간주합니다. 표에 없는 값을 쓰면 기동 시
 > `지원하지 않는 custom_fields extractor: …` 로 실패합니다.
+
+문서형(`llm`)의 청크 본문 관련 키 3개는 값이 아니라 **규칙**입니다. 프롬프트나
+`output_fields` 에 넣지 않고, 파서가 문서 metadata 로 실어 청커가 소비합니다.
+
+| 키 | 하는 일 |
+|---|---|
+| `body_fields` | 여기 올린 필드가 **그 청크의 본문(text)과 글자 그대로 같은 값**을 받습니다. 소비계층의 검색 대상 본문 컬럼(`CONTENT`)용 |
+| `chunk_prefix_fields` | 필드 값을 **모든 청크 본문 앞에** 반복해 얹습니다. 매 청크가 단독으로 검색돼야 하는 식별자(카드명 `PRODUCT_NM`)용 |
+| `first_chunk_fields` | 필드 값을 **문서의 첫 청크에만 1회** 얹습니다. 매 청크에 반복하기엔 `chunk_size` 가 아까운 문서 단위 분류(`CS_CATEGORY`)용 |
+
+뒤의 두 키는 `body_fields` 의 반대 방향입니다(메타 → 본문). 문서 단위 값은 metadata
+컬럼에만 두면 필터 검색에만 걸리고 임베딩 검색에는 안 걸리므로, 청크 본문에 실어야
+`"삼성 iD ON 카드 연회비"` 같은 질의가 그 카드의 연회비 청크를 집습니다.
+
+> ⚠️ `first_chunk_fields` 만 쓰면 **그 값으로 임베딩 검색을 할 때 첫 청크만 걸립니다.**
+> 값 자체는 모든 청크의 metadata 에 그대로 실리므로 필터 검색은 전 청크에서 됩니다.
+> 두 목록에 같은 필드를 넣으면 `chunk_prefix_fields` 가 이깁니다(첫 청크에 두 번 넣지 않음).
+>
+> 접두는 청크마다 `chunk_size` 를 그만큼 깎습니다(청커가 크기 산정에서 미리 예약합니다).
+> 짧은 식별 필드 1~2개로 제한하세요. 값이 비었거나 `PRODUCT_ATTRS` 같은 중첩 객체인
+> 필드는 조용히 건너뜁니다.
+>
+> 행 매핑형·레코드 매핑형의 `chunk_prefix_fields` 는 이름만 같고 자리가 다릅니다 —
+> 그쪽은 `split: true` 로 쪼갠 조각마다 접두를 다시 붙이는 설정입니다.
 
 > ⚠️ **설정 파일의 모르는 키는 조용히 무시됩니다.** 위 표에 없는 최상위 키(오타 포함)를 쓰면
 > 에러도 경고도 없이 그냥 읽히지 않습니다 — `column_maps` 처럼 한 글자만 틀려도 매핑이 0개가
