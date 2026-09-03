@@ -63,7 +63,8 @@ shared_fields:
 # name    = 청크 본문 앞에 `[<name>]` 처럼 표시될 이름. 하위 key 에 별도 설정이 없으면
 #           그 아래 자식들도 전부 이 이름을 물려받는다(컨테이너 하나 = SECTION_NM 하나).
 # include = true(기본) 면 검색에 넣고, false 면 그 서브트리를 통째로 뺀다.
-# name/include 외의 키는 읽지 않는다 — 오타를 내도 에러 없이 조용히 무시되니 철자에 주의한다.
+# name/include 외의 키는 읽지 않는다 — 최상위 키와 달리 **여기 안쪽 오타는 검사되지 않아**
+# 에러 없이 조용히 무시되니 철자에 주의한다.
 #
 # 여기 적지 않은 key 도 자동으로 검색에 들어간다(제목은 key 이름 그대로거나, 값 안의 제목이
 # 있으면 그걸 쓴다). 이 블록은 **"이름을 보기 좋게 붙일 key"** 와 **"빼야 하는 key"** 만
@@ -174,15 +175,21 @@ sections:
 #     (`required: TITLE` 처럼 `- ` 를 빠뜨리면 글자 단위로 쪼개져 전건 skip 이 된다)
 #   · 목표필드명이 벡터 예약 필드(text·title·n_char·i_page·created_date·appendix …)와
 #     겹치거나 property 이름 규칙 `/[_A-Za-z][_0-9A-Za-z]*/` 을 벗어난 경우(한글·공백·기호)
-#   · `required` 에 `llm_fields` 가 만드는 필드를 적은 경우(LLM 호출 전에 전건이 걸러진다)
-#   · `chunk_prefix_fields` 에 아무도 만들지 않는 필드를 적은 경우
+#   · **json_semantic 이 읽지 않는 키를 적은 경우.** 어느 extractor 도 모르는 키
+#     (`shared_field` 같은 오타)는 가장 가까운 이름을 제안하고, 다른 extractor 의 키는
+#     어느 extractor 전용인지 알려준다. 지원 키 목록은
+#     facade/enrichment/config_schema.py 의 EXTRACTOR_KEYS 한 곳에 있다.
+#     json_semantic 이 **읽지 않는** 대표 키는 아래와 같다 — 적으면 기동이 실패한다.
+#       text_fields · split · chunk_prefix_fields · required · nulls
+#       value_map · transforms · text_from(html_/json_text_fields) · key_map · column_map
+#     본문은 섹션 워커가 만들고 필수 필드는 `required_shared_fields` 를 쓴다.
 #
 #  경고만 남긴다(로그를 봐야 안다)
-#   · `text_fields` 가 아무도 만들지 않는 필드를 가리킬 때 — 그 부분이 조용히 빠진다
 #   · `field_labels` 가 아무도 만들지 않는 필드를 가리킬 때 — 라벨만 조용히 사라진다
 #
 #  못 잡는다(아래 "확인 방법"으로 직접 봐야 한다)
-#   · **모르는 최상위 키는 조용히 무시된다.** `shared_field`(오타)처럼 한 글자만 틀려도 에러가 없다.
+#   · `required_shared_fields` 에 `llm_fields` 가 만드는 필드를 적은 경우
+#     (그 필드는 identity 확정 시점에 항상 비어 있어 missing_policy 대로 전건이 걸러진다)
 #   · 별칭이 원천과 어긋나 값이 전부 비는 경우
 
 # ═══════════════════════════════════════════════════════════════════════════

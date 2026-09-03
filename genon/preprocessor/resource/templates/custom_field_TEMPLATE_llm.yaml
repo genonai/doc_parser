@@ -171,7 +171,10 @@ output_fields:
 #  → `프롬프트에 없는 출력필드` 가 비어 있어야 한다. 남아 있으면 그 필드는 null 로 나온다.
 #
 #  ── 알려진 주의사항 (현재 코드) ─────────────────────────────────────────────
-#  · 모르는 키는 **조용히 무시**된다. `output_field`(오타)처럼 한 글자만 틀려도 에러가 없다.
+#  · 모르는 키는 **기동 시 실패**한다. `output_field`(오타)처럼 한 글자만 틀리면 가장 가까운
+#    이름을 제안하고, 다른 extractor 전용 키(`column_map` 등)는 어느 extractor 것인지 알려준다.
+#    지원 키 목록은 facade/enrichment/config_schema.py 의 EXTRACTOR_KEYS 한 곳에 있다.
+#    (`parser` 안쪽처럼 중첩 블록의 오타는 여전히 검사되지 않는다.)
 #  · `thinking` / `thinking_dialect` 는 **이 파일에 써도 반영되지 않는다**
 #    (생성자 기본값이 먼저 잡힌다). 필요하면 등록 블록에 직접 쓴다.
 #  · `max_tokens: 1000` / `temperature: 0.0` / `timeout: 60` 을 **등록 블록에** 쓰면
