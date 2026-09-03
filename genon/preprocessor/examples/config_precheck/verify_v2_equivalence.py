@@ -192,7 +192,8 @@ def main() -> int:
         for line in problems:
             print(line)
 
-    passed = sum(1 for r in rows if r[2] == "PASS")
+    # "이미 v2" 는 대조할 v1 이 없다 — 실패가 아니라 검증 대상이 아닌 것이다.
+    passed = sum(1 for r in rows if r[2] in ("PASS", "이미 v2"))
     print("\n" + "=" * 70)
     print(f"설정 {len(rows)}건 | PASS {passed} | FAIL {len(rows) - passed}")
     if problems:

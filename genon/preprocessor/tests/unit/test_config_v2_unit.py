@@ -110,3 +110,137 @@ def test_preprocess_blocks_survive_round_trip():
                                       "html": {"marker_headings": True}}
     back, _ = cv2.normalize(as_v2)
     assert back == v1
+
+
+# ── v1 ↔ v2 드리프트 가드 ───────────────────────────────────────────────────
+
+def test_v2_covers_every_v1_key():
+    """v1 에 새 키를 넣고 v2 를 잊으면 여기서 깨진다.
+
+    두 스키마가 갈리는 가장 흔한 경로다 — v1 에 키를 추가하고 config_v2 의 매핑 표를
+    갱신하지 않으면, 그 키를 쓴 설정은 v2 로 옮길 수 없는데 아무도 모른다.
+    """
+    from genon.preprocessor.facade.enrichment import config_schema as cs
+
+    v1_keys = set().union(*cs.EXTRACTOR_KEYS.values())
+    missing = sorted(v1_keys - cv2.COVERED_V1_KEYS)
+    assert not missing, (
+        f"v2 가 표현하지 못하는 v1 키: {missing}. config_v2 의 매핑 표에 추가하세요."
+    )
+
+
+def test_covered_set_has_no_phantom_keys():
+    """반대 방향 — 없어진 v1 키가 covered 에 남으면 왕복 검증이 헛돈다."""
+    from genon.preprocessor.facade.enrichment import config_schema as cs
+
+    v1_keys = set().union(*cs.EXTRACTOR_KEYS.values()) | set(cs.WIRING_KEYS)
+    phantom = sorted(cv2.COVERED_V1_KEYS - v1_keys)
+    assert not phantom, f"v1 에 없는 키가 covered 에 남아 있습니다: {phantom}"
+
+
+def test_v2_config_still_gets_extractor_level_validation(tmp_path):
+    """v2 는 내부 형태로 번역된 뒤 **같은 검증기**를 탄다 — 검증이 두 벌이 되지 않는다.
+
+    json_semantic 은 text_fields 를 읽지 않으므로, v2 의 body.fields 로 그 키를 만들면
+    번역 결과가 extractor 지원키 검사에서 걸려야 한다.
+    """
+    from genon.preprocessor.facade.enrichment.json_semantic import SemanticJsonMapper
+
+    cfg = tmp_path / "custom_field_s.yaml"
+    cfg.write_text(
+        "schema: v2\n"
+        "source:\n  kind: sections\n  sections: {ksp: {name: 혜택, include: true}}\n"
+        "fields:\n  PRODUCT_NM: {alias: [prodNm]}\n"
+        "body:\n  fields: [PRODUCT_NM]\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError, match="text_fields"):
+        SemanticJsonMapper(
+            config_file=cfg.name, resource_path=str(tmp_path),
+            doc_type="t", extractor="json_semantic",
+        )
+
+
+def test_mapping_tables_are_single_source(tmp_path):
+    """양방향이 같은 표를 쓰는지 — 한쪽 표를 지우면 반대 방향도 함께 멈춰야 한다."""
+    assert set(cv2._BLOCK_TO_SPEC.values()) <= cv2.FIELD_SPEC_KEYS
+    assert set(cv2._BODY_TO_V1) == cv2.BODY_KEYS
+    assert set(cv2._SOURCE_TO_V1) | {"kind", "table_at", "pre"} == cv2.SOURCE_KEYS
+
+
+# ── 변환 스크립트 (C1 3단계) ────────────────────────────────────────────────
+
+def _load_script(name: str):
+    import importlib.util
+    from pathlib import Path
+
+    path = Path(__file__).resolve().parents[2] / "examples" / "config_precheck" / name
+    spec = importlib.util.spec_from_file_location(name.replace(".py", ""), path)
+    module = importlib.util.module_from_spec(spec)
+    import sys as _sys
+
+    _sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_migration_preview_does_not_touch_files(tmp_path):
+    """기본이 미리보기여야 한다 — 실수로 돌려도 파일이 안 바뀐다."""
+    migrate = _load_script("migrate_to_v2.py")
+    path = tmp_path / "custom_field_x.yaml"
+    original = "column_map:\n  Q: [질문]\ntext_fields: [Q]\n"
+    path.write_text(original, encoding="utf-8")
+
+    status, _note = migrate.migrate_one(path, "tabular_mapping", tmp_path, write=False)
+    assert status == "OK"
+    assert path.read_text(encoding="utf-8") == original
+
+
+def test_migration_writes_readable_v2(tmp_path):
+    """기록한 v2 가 다시 읽혀 같은 내부 형태가 되어야 한다."""
+    migrate = _load_script("migrate_to_v2.py")
+    path = tmp_path / "custom_field_x.yaml"
+    path.write_text(
+        "# 설명 주석\ncolumn_map:\n  Q: [질문, 대표질문]\ntext_fields: [Q]\n"
+        "defaults:\n  S: \"N\"\n",
+        encoding="utf-8",
+    )
+    before = cv2.normalize(cv2.to_v2(yaml.safe_load(path.read_text(encoding="utf-8")),
+                                     "tabular_mapping"))[0]
+
+    status, _note = migrate.migrate_one(path, "tabular_mapping", tmp_path, write=True)
+    assert status == "WRITE"
+
+    text = path.read_text(encoding="utf-8")
+    assert "schema: v2" in text
+    assert "alias: [질문, 대표질문]" in text   # 짧은 목록은 한 줄로
+    assert "# 설명 주석" in text               # 원본 주석을 머리말로 보존
+    assert cv2.normalize(yaml.safe_load(text))[0] == before
+
+
+def test_migration_refuses_when_equivalence_fails(tmp_path, monkeypatch):
+    """왕복이 어긋나면 기록하지 않는다 — 검증을 통과한 것만 고친다."""
+    migrate = _load_script("migrate_to_v2.py")
+    path = tmp_path / "custom_field_x.yaml"
+    original = "column_map:\n  Q: [질문]\ntext_fields: [Q]\n"
+    path.write_text(original, encoding="utf-8")
+
+    monkeypatch.setattr(migrate, "compare_configs",
+                        lambda *a, **k: ["[왕복불일치] 일부러 만든 실패"])
+    status, note = migrate.migrate_one(path, "tabular_mapping", tmp_path, write=True)
+    assert status == "FAIL"
+    assert "왕복불일치" in note
+    assert path.read_text(encoding="utf-8") == original
+
+
+def test_precheck_understands_v2_configs(tmp_path):
+    """배포 전 점검이 v2 설정을 v1 키로 검사해 전건 실패로 보면 안 된다."""
+    precheck = _load_script("precheck_custom_fields.py")
+    (tmp_path / "custom_field_x.yaml").write_text(
+        "schema: v2\nsource: {kind: rows}\nfields:\n  Q: {alias: [질문]}\n"
+        "body:\n  fields: [Q]\n",
+        encoding="utf-8",
+    )
+    block = {"doc_type": "t", "extractor": "tabular_mapping",
+             "config_file": "custom_field_x.yaml"}
+    assert precheck.check_block("cfg.yaml", block, tmp_path, set()) == []

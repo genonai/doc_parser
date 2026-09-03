@@ -37,6 +37,7 @@ REPO_ROOT = Path(__file__).resolve().parents[4]
 sys.path.insert(0, str(REPO_ROOT))
 
 from genon.preprocessor.facade.enrichment import config_schema as cs  # noqa: E402
+from genon.preprocessor.facade.enrichment import config_v2 as cv2  # noqa: E402
 
 # 이번 정리에서 없앤 키 → 대신 쓸 것.
 REMOVED_KEYS = {
@@ -119,6 +120,14 @@ def check_block(source: str, block: dict, root: Path, seen_files: set[str]) -> l
 
     cfg = load_yaml(path)
     label = f"{config_file}"
+    if cv2.is_v2(cfg):
+        # v2 는 내부(v1) 형태로 번역된 뒤에야 extractor 지원키와 대조할 수 있다.
+        # 번역 전 원본을 그대로 검사하면 v2 키가 전부 "모르는 키"로 잡힌다.
+        try:
+            cfg, extractor = cv2.normalize(cfg, label=label)
+        except cv2.ConfigV2Error as exc:
+            problems.append(f"[기동실패] {exc}")
+            return problems
     diagnosis = cs.diagnose_keys(cfg, extractor)
     if diagnosis:
         problems.append(f"[기동실패] {cs.format_diagnosis(label, diagnosis)}")
