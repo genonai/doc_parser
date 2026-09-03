@@ -43,12 +43,10 @@ required:
 
 defaults:
   SEARCHABLE_YN: "N"
-
-nulls:
-  - BIZ_ID
-  - CS_CATEGORY
-  - DEEP_LINK_URL
-  - RELATED_KEYWORDS
+  BIZ_ID: null
+  CS_CATEGORY: null
+  DEEP_LINK_URL: null
+  RELATED_KEYWORDS: null
 
 llm_fields:
   - output_fields: [SUMMARY_TEXT]        # 요약본문 (임베딩 입력)

@@ -131,8 +131,7 @@ def _write_mapping(path: Path) -> Path:
             "needs_realtime_yn": ["실시간보완필요"],
         },
         "required": ["question", "answer_text", "needs_realtime_yn"],
-        "defaults": {"needs_realtime_yn": "N"},
-        "nulls": ["question_variant_text"],
+        "defaults": {"needs_realtime_yn": "N", "question_variant_text": None},
         "text_fields": ["question", "answer_text"],
     }
     path.write_text(yaml.safe_dump(config, allow_unicode=True), encoding="utf-8")
@@ -498,7 +497,8 @@ _DATE_INT_FLEX_FIELDS = {
 # SEARCHABLE_YN 은 전 TB 가 'N' 을 기본값으로 갖는다("TB_EVENT 기본값과 같은 'N' 으로 두고,
 # 적재 측에서 게시 승인 시 올리는 것을 전제로 한다" — 각 yaml 주석 참고). 그래서 출고 설정이
 # 노출 게이트를 잠정 보류(주석)해 둔 상태도 적재 실패가 아니다.
-# 단, nulls 로 명시 선언하면 기본값을 덮어 null 이 들어가므로 아래 두 번째 검사는 그대로 적용한다.
+# 단, `defaults: {X: null}` 로 명시 선언하면 기본값을 덮어 null 이 들어가므로 아래 두 번째
+# 검사는 그대로 적용한다(예전 `nulls:` 목록이 이 형태로 통합됐다).
 _DB_DEFAULTED_COLUMNS = {"SEARCHABLE_YN"}
 
 
@@ -533,10 +533,11 @@ def test_shipped_monimo_configs_cover_not_null_columns(resource_dir, config_name
                if c not in mapped and c not in _DB_DEFAULTED_COLUMNS]
     assert not missing, f"{config_name}: NOT NULL 컬럼에 값 확보 경로가 없습니다: {missing}"
 
-    # nulls 에만 있는 NOT NULL 컬럼은 무조건 적재 실패다.
-    only_null = [c for c in _REQUIRED_BY_DOC_TYPE[config_name] if c in set(cfg.get("nulls") or [])
-                 and c not in (set(cfg.get("constants") or {}) | set(cfg.get("defaults") or {}))]
-    assert not only_null, f"{config_name}: NOT NULL 인데 nulls 로 선언됨: {only_null}"
+    # 값이 null 인 defaults 로만 선언된 NOT NULL 컬럼은 무조건 적재 실패다.
+    declared_null = {k for k, v in (cfg.get("defaults") or {}).items() if v is None}
+    only_null = [c for c in _REQUIRED_BY_DOC_TYPE[config_name]
+                 if c in declared_null and c not in set(cfg.get("constants") or {})]
+    assert not only_null, f"{config_name}: NOT NULL 인데 defaults 로 null 선언됨: {only_null}"
 
 
 @pytest.mark.unit
@@ -548,7 +549,7 @@ def test_shipped_monimo_configs_use_db_column_names(resource_dir, config_name):
     cfg = yaml.safe_load((base / config_name).read_text(encoding="utf-8"))
 
     targets = set(cfg.get("column_map") or {}) | set(cfg.get("key_map") or {})
-    targets |= set(cfg.get("constants") or {}) | set(cfg.get("nulls") or [])
+    targets |= set(cfg.get("constants") or {}) | set(cfg.get("defaults") or {})
     targets |= {f for spec in (cfg.get("llm_fields") or []) for f in spec["output_fields"]}
     bad = sorted(t for t in targets if t != t.upper())
     assert not bad, f"{config_name}: DB 컬럼명(대문자)이 아닌 목표필드: {bad}"
@@ -845,7 +846,7 @@ def test_invalid_property_name_rejected_at_startup(tmp_path, target):
 
 @pytest.mark.unit
 def test_reserved_name_checked_in_constants_and_llm_fields(tmp_path):
-    """column_map 뿐 아니라 constants·defaults·nulls·llm_fields 출력도 검사 대상이다."""
+    """column_map 뿐 아니라 constants·defaults·llm_fields 출력도 검사 대상이다."""
     _write_mapper_cfg(tmp_path, """
         column_map:
           TITLE: [제목]
@@ -903,7 +904,7 @@ def test_row_metadata_validation_failure_is_wrapped_with_stage():
 # 그 결과는 "청크 0건" 또는 "매 요청 실패"로만 드러나므로 기동 시에 막는다.
 
 @pytest.mark.unit
-@pytest.mark.parametrize("key", ["required", "nulls", "text_fields", "chunk_prefix_fields"])
+@pytest.mark.parametrize("key", ["required", "text_fields", "chunk_prefix_fields"])
 def test_scalar_instead_of_list_rejected_at_startup(tmp_path, key):
     """`- ` 를 빠뜨려 스칼라가 되면 글자 단위로 쪼개져 전 행이 걸러진다 — 기동 시 거부."""
     _write_mapper_cfg(tmp_path, f"""
@@ -1205,3 +1206,83 @@ def test_real_column_wins_over_sheet_context(tmp_path):
         {"sheet_name": "시트A", "data_rows": [{"sheet_name": "행에_있는_값", "질문": "Q1"}]},
     ]}, "cs")
     assert rows[0]["SRC"] == "행에_있는_값"
+
+
+# ── 죽은 키·중복 키 정리 (B1·B2) ────────────────────────────────────────────
+
+@pytest.mark.unit
+@pytest.mark.parametrize("key", ["nulls", "json_text_fields"])
+def test_removed_keys_are_rejected(tmp_path, key):
+    """제거한 키는 조용히 무시되지 않고 기동 시에 드러나야 한다.
+
+    nulls 는 `defaults: {X: null}` 과 결과가 완전히 같아 개념 하나를 줄였고,
+    json_text_fields 는 순효과가 경고 한 줄뿐이라 text_from 으로 접었다.
+    """
+    from genon.preprocessor.facade.enrichment.tabular_custom_fields import (
+        TabularCustomFieldsMapper,
+    )
+
+    cfg = tmp_path / "custom_field_x.yaml"
+    body = "  - BIZ_ID\n" if key == "nulls" else "  D: SRC\n"
+    cfg.write_text(
+        f"column_map:\n  Q: [질문]\n  SRC: [원문]\ntext_fields: [Q]\n{key}:\n{body}",
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError, match=key):
+        TabularCustomFieldsMapper(
+            config_file=cfg.name, resource_path=str(tmp_path),
+            doc_type="t", extractor="tabular_mapping",
+        )
+
+
+@pytest.mark.unit
+def test_defaults_null_declares_field_without_mapping(tmp_path):
+    """`defaults: {X: null}` 이 예전 `nulls: [X]` 와 같은 결과를 낸다."""
+    from genon.preprocessor.facade.enrichment.tabular_custom_fields import (
+        TabularCustomFieldsMapper,
+    )
+
+    cfg = tmp_path / "custom_field_d.yaml"
+    cfg.write_text(
+        'column_map:\n  Q: [질문]\ndefaults:\n  STATUS: "PUBLISHED"\n  BIZ_ID: null\n'
+        "text_fields: [Q]\n",
+        encoding="utf-8",
+    )
+    mapper = TabularCustomFieldsMapper(
+        config_file=cfg.name, resource_path=str(tmp_path),
+        doc_type="t", extractor="tabular_mapping",
+    )
+    row = mapper.build_fields(
+        {"data": [{"sheet_name": "S", "data_rows": [{"질문": "Q1"}]}]}, "t"
+    )[0]
+    assert "BIZ_ID" in row and row["BIZ_ID"] is None
+    assert row["STATUS"] == "PUBLISHED"
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("alias", ["document_llm", "tabular", "column_mapping", "json_records"])
+def test_extractor_aliases_are_gone(alias):
+    """extractor 이름은 종류마다 하나씩이다 — 별칭은 "무엇을 써야 하나"만 늘렸다."""
+    with pytest.raises(ValueError, match="지원하지 않는 custom_fields extractor"):
+        build_document_custom_fields_enrichers([{"extractor": alias, "url": "u", "model": "m"}])
+
+
+@pytest.mark.unit
+def test_thinking_falls_back_to_config_file(tmp_path):
+    """문서유형 yaml 의 thinking 값이 반영돼야 한다(생성자 기본값이 먼저 잡히던 버그)."""
+    from genon.preprocessor.facade.enrichment.custom_fields_enricher import (
+        CustomFieldsEnricher,
+    )
+
+    cfg = tmp_path / "custom_field_t.yaml"
+    cfg.write_text(
+        "url: u\nmodel: m\nthinking: auto\nthinking_dialect: hcx\n"
+        "output_fields: [T]\nuser_prompt: |\n  {{raw_text}}\n",
+        encoding="utf-8",
+    )
+    kwargs = {"config_file": cfg.name, "resource_path": str(tmp_path)}
+    assert (CustomFieldsEnricher(**kwargs)._thinking,
+            CustomFieldsEnricher(**kwargs)._thinking_dialect) == ("auto", "hcx")
+    # 등록 블록이 명시하면 그쪽이 이긴다(다른 키와 같은 우선순위).
+    explicit = CustomFieldsEnricher(**kwargs, thinking="off", thinking_dialect="standard")
+    assert (explicit._thinking, explicit._thinking_dialect) == ("off", "standard")

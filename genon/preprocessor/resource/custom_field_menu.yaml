@@ -57,11 +57,10 @@ required:
 # ── 대응 컬럼이 없을 때 채울 기본값 (NOT NULL 필드용) ─────────────────────────
 defaults:
   SEARCHABLE_YN: "N"               # TB_MENU 기본값과 동일
+  KEYWORDS: null
+  OPEN_NATIVE_APP_C: null              # 네이티브 오픈 앱 — 원천 미제공
 
 # ── 대응 소스가 없어 null 로 명시 출력할 필드 (스키마 고정) ───────────────────
-nulls:
-  - KEYWORDS
-  - OPEN_NATIVE_APP_C              # 네이티브 오픈 앱 — 원천 미제공
 
 # ── 원천에 없는 필드를 행마다 LLM 으로 생성 ─────────────────────────────────
 # KEYWORDS 는 TB_MENU 에 JSON 타입이고, 원천 xlsx 에 키워드 컬럼이 아예 없다(파생 전용).

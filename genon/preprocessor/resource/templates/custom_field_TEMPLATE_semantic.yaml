@@ -180,8 +180,8 @@ sections:
 #     어느 extractor 전용인지 알려준다. 지원 키 목록은
 #     facade/enrichment/config_schema.py 의 EXTRACTOR_KEYS 한 곳에 있다.
 #     json_semantic 이 **읽지 않는** 대표 키는 아래와 같다 — 적으면 기동이 실패한다.
-#       text_fields · split · chunk_prefix_fields · required · nulls
-#       value_map · transforms · text_from(html_/json_text_fields) · key_map · column_map
+#       text_fields · split · chunk_prefix_fields · required
+#       value_map · transforms · text_from(html_text_fields) · key_map · column_map
 #     본문은 섹션 워커가 만들고 필수 필드는 `required_shared_fields` 를 쓴다.
 #
 #  경고만 남긴다(로그를 봐야 안다)

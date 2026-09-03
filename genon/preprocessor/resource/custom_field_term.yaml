@@ -47,9 +47,7 @@ required:
 
 defaults:
   STATUS: "ACTIVE"                 # TB_TERM 기본값과 동일
-
-nulls:
-  - BIZ_ID                         # 원천이 비워 보내도 스키마는 고정
+  BIZ_ID: null                         # 원천이 비워 보내도 스키마는 고정
 
 # ── 원천에 없는 필드를 행마다 LLM 으로 생성 ─────────────────────────────────
 # SYNONYMS 는 TB_TERM 에 JSON 타입이고 원천에 동의어 컬럼이 없다(파생 전용).

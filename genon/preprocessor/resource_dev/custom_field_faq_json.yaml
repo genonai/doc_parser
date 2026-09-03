@@ -48,14 +48,14 @@ required:
 constants:
   STATUS: "PUBLISHED"
 
-nulls:
-  - BIZ_ID
-  - FAQ_CTGR_NM
+defaults:
+  BIZ_ID: null
+  FAQ_CTGR_NM: null
   # 앱 딥링크: 레코드의 url 은 데이터 경로(/fcm/...json), app_route 는 메뉴 경로라
   # 둘 다 앱 딥링크가 아니다. 어느 값을 쓸지 원천 담당 확인 후 key_map 에 추가할 것.
-  - DEEP_LINK_URL
-  - EFFECTIVE_FROM
-  - EFFECTIVE_TO
+  DEEP_LINK_URL: null
+  EFFECTIVE_FROM: null
+  EFFECTIVE_TO: null
 
 llm_fields:
   - output_fields: [QUESTION_VARIANTS]

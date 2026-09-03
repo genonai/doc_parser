@@ -86,13 +86,12 @@ column_map:
 # 같은 컬럼에 JSON·HTML·평문이 섞여 오는 원천(정해진 스키마가 없을 때) 대상이다.
 # text_from 은 값의 종류를 자동 판별한다: JSON → 마크다운(`##`/`###` 헤딩), 구조 HTML(표·목록)
 # → docling 으로 평문화, 인라인 태그만 있으면 태그만 제거, 평문은 정규화만 한다.
-# html_text_fields / json_text_fields 는 판별 대신 **그 종류로 강제**하는 별칭이다 — 원천이
-# 항상 HTML/JSON 으로 온다고 확정됐을 때 쓴다. 세 블록은 값의 형태만 다를 뿐 동작은 같다.
+# html_text_fields 는 판별 대신 **HTML 로 강제**하는 별칭이다 — 원천이 항상 HTML 로 온다고
+# 확정됐을 때 쓴다. 두 블록은 값의 형태만 다를 뿐 동작은 같다(같은 파생필드명을 두 곳에
+# 쓰면 오류다).
 # text_from:
 #   <DERIVED_FIELD>: <TARGET_FIELD_2>   # 원천이 아니라 위에서 만든 목표필드명을 가리킨다
 # html_text_fields:
-#   <DERIVED_FIELD>: <TARGET_FIELD_2>
-# json_text_fields:
 #   <DERIVED_FIELD>: <TARGET_FIELD_2>
 
 # ── [선택] 필수 목표필드 ────────────────────────────────────────────────────
@@ -107,20 +106,17 @@ column_map:
 # ── [선택] 원천에 값이 없을 때 채울 기본값 ──────────────────────────────────
 # 적재 DB 의 NOT NULL 컬럼인데 원천이 주지 않는 필드를 여기서 채운다.
 # 값이 None 또는 "" 일 때만 적용된다.
+# 값을 `null` 로 두면 "매핑은 없지만 적재 스키마에는 있어야 하는 필드"를 명시 출력한다
+# (예전의 `nulls:` 목록과 결과가 같다 — 개념 하나를 줄여 defaults 로 통일했다).
 # defaults:
 #   <TARGET_FIELD_3>: "<기본값>"
+#   <TARGET_FIELD_5>: null           # 매핑 없이 스키마만 고정
 
 # ── [선택] 원천과 무관하게 항상 같은 값 ─────────────────────────────────────
 # defaults 와 달리 **원천 값이 있어도 덮어쓴다**. 관계사 전용 파일의 회사코드처럼
 # 파일 단위로 고정인 값에 쓴다(원천·LLM 에 맡기지 않는다).
 # constants:
 #   <TARGET_FIELD_4>: "<고정값>"
-
-# ── [선택] 매핑이 없는 필드를 null 로 명시 출력 ─────────────────────────────
-# 적재 스키마를 고정하고 싶을 때만 쓴다. **column_map 에 있는 필드는 적지 않는다**
-# — 매핑 루프가 항상 채우므로 불필요하다.
-# nulls:
-#   - <TARGET_FIELD_5>
 
 # ── [선택] 원천에 없는 필드를 행마다 LLM 으로 생성 ──────────────────────────
 # 행 1건당 LLM 1회 호출이다. 행이 많으면 비용·시간이 그만큼 늘어난다.
@@ -184,8 +180,8 @@ column_map:
 
 # ── [필수] 청크 본문을 구성할 필드 (선언 순서대로 개행 결합) ─────────────────
 # 이 값이 임베딩 입력이 된다.
-# **여기 적은 필드는 위에서 반드시 만들어져야 한다** — column_map/constants/defaults/nulls/
-#    text_from(html_text_fields/json_text_fields 포함)/llm_fields 중 어디에도 없는 필드를 적으면
+# **여기 적은 필드는 위에서 반드시 만들어져야 한다** — column_map/constants/defaults/
+#    text_from(html_text_fields 포함)/llm_fields 중 어디에도 없는 필드를 적으면
 #    **에러 없이 그 부분이 빠진 채** 청크가 나간다(기동 시 경고는 남는다).
 #    (llm_fields 를 주석 처리하고 그 출력 필드를 여기 남겨두는 실수가 가장 흔하다)
 # 이 항목을 생략하면 그 행의 모든 셀 값을 개행으로 이어붙인 값이 본문이 된다.
@@ -209,7 +205,7 @@ text_fields:
 #   json_mapping·json_semantic 도 같은 검사를 공유한다)
 #
 #  실패시킨다(요청 전에 바로 안다)
-#   · `required`/`nulls`/`text_fields`/`chunk_prefix_fields` 를 목록이 아닌 값으로,
+#   · `required`/`text_fields`/`chunk_prefix_fields` 를 목록이 아닌 값으로,
 #     `column_map`/`constants`/`defaults`/`value_map`/`transforms`/`field_labels`/`row_merge` 등을 맵이 아닌 값으로 쓴 경우
 #     (`required: TITLE` 처럼 `- ` 를 빠뜨리면 글자 단위로 쪼개져 전건 skip 이 된다)
 #   · 목표필드명이 벡터 예약 필드(text·title·n_char·i_page·created_date·appendix …)와

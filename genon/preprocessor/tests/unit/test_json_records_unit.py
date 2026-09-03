@@ -52,7 +52,8 @@ key_map:
   EVENT_TO:    [이벤트 종료일]
   DETAIL_HTML: [htmlText]
 required: [TITLE]
-nulls: [KEYWORD]
+defaults:
+  KEYWORD: null
 transforms:
   EVENT_FROM: date_int_flex
   EVENT_TO:   date_int_flex

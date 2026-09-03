@@ -92,13 +92,13 @@ required:
 # defaults:
 #   SEARCHABLE_YN: "N"
 
-nulls:
-  - BIZ_ID
-  - REGT_NO
-  - NTC_OBJLINE_NO
-  - DETAIL_DESC                    # TB 기준 Null 허용
-  # - EXPIRES_DTM                    # 만료시각(TTL 검색 제외) — 원천 미제공
-  # - DISCLAIMER_VER                 # 고지문구 버전 — 원천 미제공
+defaults:
+  BIZ_ID: null
+  REGT_NO: null
+  NTC_OBJLINE_NO: null
+  DETAIL_DESC: null                    # TB 기준 Null 허용
+  # EXPIRES_DTM: null                    # 만료시각(TTL 검색 제외) — 원천 미제공
+  # DISCLAIMER_VER: null                 # 고지문구 버전 — 원천 미제공
 
 # ── 원천에 없는 필드를 행마다 LLM 으로 생성 ─────────────────────────────────
 # 지금은 json_text_fields 평문화로 본문을 만든다. 요약이 필요해지면 아래를 살리고

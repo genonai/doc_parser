@@ -46,15 +46,13 @@ required:
 
 defaults:
   SEARCHABLE_YN: "N"               # TB_LINK 기본값과 동일
-
-nulls:
-  - BIZ_ID
-  - LINK_URL
-  - DESCRIPTION
-  - CAMPAIGN_FROM
-  - CAMPAIGN_TO
-  - BENEFIT_TYPE_C
-  - BENEFIT_DESC
+  BIZ_ID: null
+  LINK_URL: null
+  DESCRIPTION: null
+  CAMPAIGN_FROM: null
+  CAMPAIGN_TO: null
+  BENEFIT_TYPE_C: null
+  BENEFIT_DESC: null
 
 # 원천은 "20260713" 같은 형태로 준다(링크 시트 예시). date_int_flex 가 두 자리 연도까지 흡수한다.
 transforms:

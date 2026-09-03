@@ -42,12 +42,12 @@ value_map:
 required:
   - TITLE
 
-nulls:
-  - BIZ_ID
-  - CS_CATEGORY
-  - DEEP_LINK_URL
-  - RELATED_KEYWORDS
-  - SRC_LAST_MOD_DT
+defaults:
+  BIZ_ID: null
+  CS_CATEGORY: null
+  DEEP_LINK_URL: null
+  RELATED_KEYWORDS: null
+  SRC_LAST_MOD_DT: null
 
 # 원천에 노출 게이트가 없다. TB_CS_ITEM 기본값과 같은 'N' 으로 두고 적재 측 승인 전제.
 constants:

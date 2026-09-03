@@ -59,12 +59,10 @@ required:
   # - GROUP_C
   - TITLE
 
-nulls:
-  - BIZ_ID
-  - KEYW_CTGR_NM
-
 defaults:
   GROUP_C: "IFP"               # TB_NEWS 기본값과 동일
+  BIZ_ID: null                 # 대응 소스가 없어도 스키마 고정을 위해 명시 출력
+  KEYW_CTGR_NM: null
 
 # "260701" 처럼 6자리로 오는 표기도 date_int_flex 가 20260701 로 펼친다.
 transforms:

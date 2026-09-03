@@ -10,8 +10,8 @@
 #   · `column_map` 대신 `key_map` 을 쓴다.
 #   · JSON 중첩 안쪽 값도 **키 이름만으로** 찾는다(`wcmsHtml.htmlText` → `htmlText` 한 단어).
 #     JSONPath 같은 경로 문법은 없다. 깊이가 다르면 **얕은 쪽이 우선**한다.
-#   · `records`·`collect_key_map`·`html_text_fields`(및 형제 `text_from`/`json_text_fields`)·
-#     `split`·`missing_policy` 를 추가로 쓸 수 있다.
+#   · `records`·`collect_key_map`·`missing_policy` 를 추가로 쓸 수 있다
+#     (`row_merge`·`text_from`/`html_text_fields`·`split` 은 tabular 와 같다).
 #
 #  ── 쓰는 순서 ────────────────────────────────────────────────────────────
 #  ① 이 파일을 resource/custom_field_<유형>.yaml 로 복사한다.
@@ -83,26 +83,24 @@ key_map:
 # required:
 #   - <TARGET_FIELD_1>
 
-# ── [선택] 기본값 / 고정값 / null 명시 ──────────────────────────────────────
-# defaults  : 원천 값이 None·"" 일 때만 채운다
+# ── [선택] 기본값 / 고정값 ──────────────────────────────────────────────────
+# defaults  : 원천 값이 None·"" 일 때만 채운다. 값을 `null` 로 두면 "매핑은 없지만 적재
+#             스키마에는 있어야 하는 필드"를 명시 출력한다(예전 `nulls:` 목록과 같은 결과다)
 # constants : 원천 값이 있어도 덮어쓴다(파일 단위로 고정인 값)
-# nulls     : key_map 에 **없는** 필드를 null 로 명시 출력한다(있는 필드는 적지 않는다)
-# 적용 순서: nulls 초기화 → key_map 매핑 → collect_key_map 매핑 → constants → defaults
+# 적용 순서: key_map 매핑 → collect_key_map 매핑 → (row_merge 병합) → constants → defaults
 #            → value_map → transforms → html_text_fields
 # defaults:
 #   <TARGET_FIELD_3>: "<기본값>"
+#   <TARGET_FIELD_5>: null           # 매핑 없이 스키마만 고정
 # constants:
 #   <TARGET_FIELD_4>: "<고정값>"
-# nulls:
-#   - <TARGET_FIELD_5>
 
 # ── [선택] HTML 필드 → 평문 파생 필드 ───────────────────────────────────────
 # `파생필드: 원본필드` 형태다. 원본 HTML 을 평문으로 바꿔 새 필드에 담는다.
 # 같은 이름을 양쪽에 쓰면 제자리에서 평문으로 바꾼다(예: `CONTENT: CONTENT`).
 # 정리 규칙은 파싱 경로와 같다 — 접힌 약관·aria-hidden 텍스트도 보존된다.
-# 형제 키가 두 개 더 있다(셋 중 아무 것이나 섞어 써도 된다. 단, 같은 파생필드명을 두 곳에 쓰면 오류다):
+# 형제 키가 하나 더 있다(섞어 써도 된다. 단, 같은 파생필드명을 두 곳에 쓰면 오류다):
 #   text_from        원본 값의 종류(JSON/HTML/평문)를 자동 판별해 변환한다. 스키마가 안 정해진 원천용.
-#   json_text_fields  원본을 JSON 으로 강제 해석해 마크다운으로 편다(판별이 아니라 강제).
 # html_text_fields:
 #   <DERIVED_TEXT>: <TARGET_FIELD_HTML>
 
@@ -192,7 +190,7 @@ text_fields:
 #   tabular_mapping·json_semantic 도 같은 검사를 공유한다)
 #
 #  실패시킨다(요청 전에 바로 안다)
-#   · `required`/`nulls`/`text_fields`/`chunk_prefix_fields` 를 목록이 아닌 값으로,
+#   · `required`/`text_fields`/`chunk_prefix_fields` 를 목록이 아닌 값으로,
 #     `key_map`/`collect_key_map`/`constants`/`defaults`/`value_map`/`transforms`/`field_labels` 등을 맵이 아닌 값으로 쓴 경우
 #     (`required: TITLE` 처럼 `- ` 를 빠뜨리면 글자 단위로 쪼개져 전건 skip 이 된다)
 #   · 목표필드명이 벡터 예약 필드(text·title·n_char·i_page·created_date·appendix …)와
