@@ -258,9 +258,9 @@ class CustomFieldsEnricher(BaseEnricher):
         resource_path: str | None = None,
         url: str = "",
         model: str = "",
-        max_tokens: int = 1000,
-        temperature: float = 0.0,
-        timeout: int = 60,
+        max_tokens: int | None = None,
+        temperature: float | None = None,
+        timeout: int | None = None,
         system_prompt: str = "",
         user_prompt: str = "",
         system_prompt_file: str = "",
@@ -291,20 +291,29 @@ class CustomFieldsEnricher(BaseEnricher):
 
         self._url = url or cfg.get("url", "")
         self._model = model or cfg.get("model", "")
-        self._max_tokens = max_tokens if max_tokens != 1000 else cfg.get("max_tokens", max_tokens)
-        self._temperature = temperature if temperature != 0.0 else cfg.get("temperature", temperature)
-        self._timeout = timeout if timeout != 60 else cfg.get("timeout", timeout)
-        # 우선순위: file > 생성자 kwarg > cfg["*_prompt"] > cfg["prompt"][*] > built-in default
+        # 생성자 기본값이 None 인 것이 중요하다 — 예전에는 기본값과 같은 값을 등록 블록에
+        # **명시**해도 "미지정"과 구분되지 않아 config_file 값이 이겼다(`temperature: 0.0`
+        # 이 가장 자주 밟혔다). None 판정으로 바꿔 다른 키와 우선순위를 맞춘다.
+        self._max_tokens = max_tokens if max_tokens is not None else cfg.get("max_tokens", 1000)
+        self._temperature = (
+            temperature if temperature is not None else cfg.get("temperature", 0.0)
+        )
+        self._timeout = timeout if timeout is not None else cfg.get("timeout", 60)
+        # 우선순위: 등록 블록(file > 인라인) > config_file(file > 인라인 > prompt 블록) > 기본값.
+        # 등록 블록이 config_file 을 이기는 것은 다른 모든 키와 같다 — 예전에는 config_file 의
+        # `*_prompt_file` 이 등록 블록 인라인 프롬프트를 이겨 이 키만 방향이 반대였다.
         self._system_prompt = (
-            self._maybe_read_prompt(system_prompt_file or cfg.get("system_prompt_file"))
+            self._maybe_read_prompt(system_prompt_file)
             or system_prompt
+            or self._maybe_read_prompt(cfg.get("system_prompt_file"))
             or str(cfg.get("system_prompt") or "").strip()
             or str(prompt_cfg.get("system") or "").strip()
             or _DEFAULT_CUSTOM_FIELDS_SYSTEM_PROMPT
         )
         self._user_prompt = (
-            self._maybe_read_prompt(user_prompt_file or cfg.get("user_prompt_file"))
+            self._maybe_read_prompt(user_prompt_file)
             or user_prompt
+            or self._maybe_read_prompt(cfg.get("user_prompt_file"))
             or str(cfg.get("user_prompt") or "").strip()
             or str(prompt_cfg.get("user") or "").strip()
         )
@@ -312,7 +321,9 @@ class CustomFieldsEnricher(BaseEnricher):
         # 문서마다 값이 고정인 필드(관계사 전용 파일의 GROUP_C 등). LLM 에게 상수를 받아쓰게
         # 시키는 대신 여기서 채운다 — 환각·누락 여지가 없고 프롬프트도 짧아진다.
         # tabular_mapping/json_mapping 의 `constants` 와 같은 의미다.
-        self._constants = dict(constants or cfg.get("constants") or {})
+        # 키 단위 병합이다. 전체 치환이면 등록 블록에 상수 하나만 덧붙여도 config_file 의
+        # constants 가 통째로 사라진다 — markdown/html/table_text_description 과 같은 규칙.
+        self._constants = {**(cfg.get("constants") or {}), **(constants or {})}
         # 청크 본문(text)과 같은 값을 실을 필드 이름(검색 대상 본문 컬럼). 값 자체는 청커가
         # 청크 단위로 채우므로 여기서는 이름만 문서 metadata 에 실어 넘긴다.
         self._body_fields = cp.parse_field_name_list(cfg.get(cp.BODY_FIELDS_KEY))
