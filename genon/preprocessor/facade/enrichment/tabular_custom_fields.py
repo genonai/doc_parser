@@ -684,6 +684,41 @@ def passes_filter(fields: dict, compiled: list[tuple[str, str, set]]) -> bool:
     return True
 
 
+# ── doc_type 하나에 매퍼 여러 개 ────────────────────────────────────────────
+#
+# 한 파일에 성격이 다른 묶음이 여럿 오는 원천이 있다 — JSON 에 `faqList` 와 `noticeList` 가
+# 함께 오거나, 엑셀 한 장에 스키마가 다른 표가 둘 있는 경우다. 매퍼 하나에 `column_map`
+# 하나뿐이라 그중 하나만 다룰 수 있었고, 나머지는 통째로 버려졌다.
+#
+# `tables:` 같은 하위 스키마를 새로 만들지 않고 **매퍼를 여러 개 등록하게** 푼다. 각 매퍼가
+# 자기가 다룰 수 있는 묶음만 맡고 결과를 이어 붙인다 — 설정 개념이 늘지 않고, 이미 있는
+# doc_type 등록 구조를 그대로 쓴다.
+#
+# 주의: 실수로 같은 설정을 두 번 등록한 것과 구분해야 한다. 그 판정은 호출측이 한다
+# (json 은 `records` 키가 서로 달라야, tabular 은 맡는 블록이 겹치지 않아야 의도적이다).
+
+
+def merge_parse_formats(results: list[dict]) -> dict:
+    """여러 매퍼의 parse-format 산출을 하나로 합친다(element 는 등록 순서대로 이어 붙인다)."""
+    if not results:
+        return {"elements": [], "usage": {"pages": 0}}
+    if len(results) == 1:
+        return results[0]
+
+    elements: list[dict] = []
+    pages = 0
+    metadata: dict = {}
+    for result in results:
+        elements.extend(result.get("elements") or [])
+        pages = max(pages, int((result.get("usage") or {}).get("pages") or 0))
+        metadata.update(result.get("metadata") or {})
+
+    merged = {"elements": elements, "usage": {"pages": pages or len(elements)}}
+    if metadata:
+        merged["metadata"] = metadata
+    return merged
+
+
 def compile_chunk_prefix_fields(cfg: dict, *, split: bool) -> list[str]:
     """`chunk_prefix_fields` 를 매퍼가 쓸 목록으로 정규화한다(두 매퍼 공통).
 
@@ -916,7 +951,9 @@ class TabularCustomFieldsMapper:
                 return value
         return None
 
-    def build_fields(self, data_dict: dict, runtime_doc_type: Any) -> list[dict]:
+    def build_fields(
+        self, data_dict: dict, runtime_doc_type: Any, *, skip_unmapped: bool = False
+    ) -> list[dict]:
         """parser의 tabular 중립 표현 → 레코드별 목표필드 목록.
 
         `to_parse_format` 과 분리해 둔 이유는 그 사이에 `llm_fields`(레코드마다 LLM 호출)를
@@ -958,6 +995,14 @@ class TabularCustomFieldsMapper:
             ]
             if missing_columns:
                 available = list(rows[0].keys()) if rows else []
+                if skip_unmapped:
+                    # doc_type 에 매퍼가 여럿일 때는 "내가 맡을 표가 아니다"라는 뜻이다.
+                    # 다른 매퍼가 맡으며, 아무도 안 맡으면 호출측이 경고한다.
+                    _log.info(
+                        f"[tabular_custom_fields] 이 매퍼가 맡지 않는 표(sheet={sheet_name}): "
+                        f"필수 컬럼 {sorted(missing_columns)} 없음; available={available}"
+                    )
+                    continue
                 raise ValueError(
                     f"필수 Excel 컬럼 매핑 실패(sheet={sheet_name}): {sorted(missing_columns)}; "
                     f"available={available}"

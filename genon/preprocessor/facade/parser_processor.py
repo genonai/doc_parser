@@ -73,6 +73,7 @@ from genon.preprocessor.facade.enrichment.custom_fields_enricher import (
 )
 from genon.preprocessor.facade.enrichment.tabular_custom_fields import (
     build_tabular_custom_fields_mappers,
+    merge_parse_formats,
 )
 from genon.preprocessor.facade.enrichment.json_records import (
     build_json_records_mappers,
@@ -1132,13 +1133,29 @@ class DocumentProcessor:
                 "1", f"custom_fields json_mapping/json_semantic 설정 오류: {exc}", stage="custom_fields"
             ) from exc
 
-    def _json_records_mapper_for(self, runtime_doc_type: Any):
-        """런타임 doc_type 에 매칭되는 json_mapping 매퍼. 없으면 None(다음 경로로 폴백)."""
-        return self._single_json_match(
-            [m for m in self._json_records_mappers if m.matches(runtime_doc_type)],
-            runtime_doc_type,
-            "json_mapping",
-        )
+    def _json_records_mappers_for(self, runtime_doc_type: Any) -> list:
+        """런타임 doc_type 에 매칭되는 json_mapping 매퍼 **목록**. 없으면 빈 목록.
+
+        한 파일에 성격이 다른 배열이 여럿 오는 원천(`faqList` + `noticeList`)을 다루려면
+        매퍼가 여러 개여야 한다. 다만 실수로 같은 설정을 두 번 등록한 것과 구분해야 하므로
+        **`records` 키가 서로 달라야** 의도적인 것으로 본다 — 같거나 둘 다 없으면 어느
+        매퍼가 무엇을 맡는지 알 수 없어 종전처럼 거부한다.
+        """
+        matching = [m for m in self._json_records_mappers if m.matches(runtime_doc_type)]
+        if len(matching) > 1:
+            # 이 목록에는 json_semantic 매퍼도 섞여 있다(빌더 둘의 결과를 합쳐 담는다).
+            # 그쪽은 records_key 가 없으므로 getattr 로 견딘다 — 그리고 키가 None 이면
+            # 무엇을 맡는지 알 수 없으니 아래에서 거부된다(semantic 은 1파일=1대상이라
+            # 다른 매퍼와 섞이는 것 자체가 모호하다).
+            keys = [getattr(m, "records_key", None) for m in matching]
+            if len(set(keys)) != len(keys) or None in keys:
+                raise GenosServiceException(
+                    "1",
+                    f"동일 doc_type 에 json_mapping 설정이 여러 개인데 records 키가 겹칩니다"
+                    f"({runtime_doc_type}, records={keys}). 배열마다 다른 records 키를 주거나"
+                    f" 설정 하나를 지우세요.",
+                )
+        return matching
 
     def _json_text_spec_for(self, runtime_doc_type: Any):
         """런타임 doc_type 에 매칭되는 json 설정. 없으면 None(기존 경로 폴백)."""
@@ -1610,7 +1627,7 @@ class DocumentProcessor:
                 fields.update(result)
         return fields_list
 
-    async def _parse_json_records(self, file_path: str, mapper, **kwargs) -> dict:
+    async def _parse_json_records(self, file_path: str, mappers: list, **kwargs) -> dict:
         """JSON 레코드 배열 → 레코드별 목표필드 element(parse-format).
 
         docling 을 거치지 않는다 — 필요한 본문은 지정 필드에서 직접 오고, 청커의 행 기반
@@ -1618,20 +1635,59 @@ class DocumentProcessor:
         """
         payload = self._load_json_payload(file_path)
         doc_type = kwargs.get("doc_type")
-        try:
-            # html_text_fields 파생 필드의 표 모양을 docling 경로와 같은 설정으로 맞춘다
-            # (output.table_format: html=<table> / markdown=파이프 표).
-            fields_list = mapper.build_fields(
-                payload, doc_type,
-                table_format=getattr(self, "_table_format", "html"),
-                compact_tables=bool(getattr(self, "_compact_tables", True)),
-            )
-        except ValueError as exc:
-            raise GenosServiceException("1", str(exc), stage="custom_fields") from exc
+        results = []
+        for mapper in mappers:
+            try:
+                # html_text_fields 파생 필드의 표 모양을 docling 경로와 같은 설정으로 맞춘다
+                # (output.table_format: html=<table> / markdown=파이프 표).
+                fields_list = mapper.build_fields(
+                    payload, doc_type,
+                    table_format=getattr(self, "_table_format", "html"),
+                    compact_tables=bool(getattr(self, "_compact_tables", True)),
+                )
+            except ValueError as exc:
+                raise GenosServiceException("1", str(exc), stage="custom_fields") from exc
 
-        fields_list = await self._apply_llm_fields(mapper, fields_list)
-        _log.info(f"[parser] json_mapping 레코드 {len(fields_list)}건 → element")
-        return mapper.to_parse_format(fields_list, doc_type)
+            fields_list = await self._apply_llm_fields(mapper, fields_list)
+            _log.info(
+                f"[parser] json 레코드 {len(fields_list)}건 → element "
+                f"(records={getattr(mapper, 'records_key', None)})"
+            )
+            # json 매퍼의 to_parse_format 은 이미 만들어진 fields 목록을 받는다
+            # (tabular 는 같은 이름이 원시 data_dict 를 받아 이름이 어긋나 있다).
+            results.append(mapper.to_parse_format(fields_list, doc_type))
+        return merge_parse_formats(results)
+
+    async def _parse_tabular_records(
+        self, file_path: str, mappers: list, runtime_doc_type: Any
+    ) -> dict:
+        """엑셀/CSV 를 매퍼 목록으로 매핑해 합친다(매퍼가 하나면 종전과 동일).
+
+        매퍼가 여럿이면 각자 맡을 수 있는 표만 처리한다 — 스키마가 다른 표가 한 파일에
+        섞여 오는 원천 대응이다. 어느 매퍼도 안 맡은 표가 있으면 경고로 드러낸다.
+        조용히 사라지면 "몇 건이 왜 없지"를 나중에 데이터에서 발견하게 된다.
+        """
+        data_dict = self._parse_tabular(file_path)
+        multi = len(mappers) > 1
+        results, claimed = [], 0
+        for mapper in mappers:
+            try:
+                fields_list = mapper.build_fields(
+                    data_dict, runtime_doc_type, skip_unmapped=multi
+                )
+            except (FileNotFoundError, TypeError, ValueError) as exc:
+                raise GenosServiceException("1", str(exc), stage="custom_fields") from exc
+            claimed += len(fields_list)
+            fields_list = await self._apply_llm_fields(mapper, fields_list)
+            _log.info(f"[parser] tabular_mapping 행 {len(fields_list)}건 → element")
+            results.append(mapper.to_parse_format_from_fields(fields_list, runtime_doc_type))
+
+        if multi and not claimed:
+            _log.warning(
+                f"[parser] tabular_mapping 매퍼 {len(mappers)}개 중 어느 것도 이 파일의 표를 "
+                f"맡지 못했습니다(doc_type={runtime_doc_type}) — column_map 별칭을 확인하세요."
+            )
+        return merge_parse_formats(results)
 
     def _parse_json(self, file_path: str, spec, work_dir: str, **kwargs) -> DoclingDocument:
         """JSON 의 지정 key 에서 본문 텍스트(markdown/html)를 꺼내 docling 으로 파싱한다.
@@ -2241,26 +2297,11 @@ class DocumentProcessor:
                     mapper for mapper in self._tabular_custom_fields_mappers
                     if mapper.matches(runtime_doc_type)
                 ]
-                if len(matching_mappers) > 1:
-                    raise GenosServiceException(
-                        "1",
-                        f"동일 doc_type에 tabular custom_fields 설정이 여러 개입니다: {runtime_doc_type}",
-                    )
                 if matching_mappers:
-                    mapper = matching_mappers[0]
-                    data_dict = self._parse_tabular(file_path)
-                    try:
-                        fields_list = mapper.build_fields(data_dict, runtime_doc_type)
-                    except (FileNotFoundError, TypeError, ValueError) as exc:
-                        raise GenosServiceException("1", str(exc), stage="custom_fields") from exc
-                    # 원천에 없는 필드(요약본문·키워드 등)를 행마다 LLM 으로 채운다.
-                    # json_mapping 과 같은 build_fields → LLM → to_parse_format 3단 구성.
-                    fields_list = await self._apply_llm_fields(mapper, fields_list)
-                    _log.info(f"[parser] tabular_mapping 행 {len(fields_list)}건 → element")
-                    result = await self._describe_record_tables(
-                        mapper.to_parse_format_from_fields(fields_list, runtime_doc_type),
-                        **kwargs,
+                    result = await self._parse_tabular_records(
+                        file_path, matching_mappers, runtime_doc_type
                     )
+                    result = await self._describe_record_tables(result, **kwargs)
                     return self._normalize_response(result)
                 # docling 모드: MsExcel/Csv 백엔드로 DoclingDocument 생성 후 parse-JSON 직렬화.
                 # 다른 문서 포맷과 같은 후처리 훅을 태운다 — 이 경로를 건너뛰면 xlsx 만
@@ -2377,10 +2418,10 @@ class DocumentProcessor:
             if ext == ".json":
                 # 1순위: 레코드 매핑(json_mapping) — 레코드마다 청크/메타데이터를 따로 만든다.
                 #        docling 을 거치지 않으므로 xlsx 의 tabular 조기 분기와 같은 성격이다.
-                records_mapper = self._json_records_mapper_for(kwargs.get("doc_type"))
-                if records_mapper is not None:
+                records_mappers = self._json_records_mappers_for(kwargs.get("doc_type"))
+                if records_mappers:
                     result = await self._parse_json_records(
-                        file_path, records_mapper, **kwargs
+                        file_path, records_mappers, **kwargs
                     )
                     result = await self._describe_record_tables(result, **kwargs)
                     return self._normalize_response(result)
