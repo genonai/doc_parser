@@ -80,9 +80,17 @@ parser:
 #    어긋나면 **에러 없이 값이 null** 로 채워진다. 이게 가장 흔한 실수다.
 # user_prompt 의 `{{raw_text}}` 가 문서 본문으로 치환된다 — 반드시 넣어야 한다.
 #    빠뜨리면 본문이 전달되지 않고 프롬프트만 전송된다.
-#    (`{{filename}}` 등 다른 예약 변수와 variables 로 정의한 사용자 변수도 쓸 수 있다.
-#     정의되지 않은 `{{변수}}` 를 쓰면 기동 시 실패한다 — strict 모드가 기본)
+#    예약 변수(값 자동 채움): raw_text, full_text, filename, mimetype, page_count,
+#    table_count, picture_count, section_headers. (before_context/after_context/caption/
+#    section_header 도 이름은 허용되지만 이미지 단위 enrichment 전용이라 여기서는 항상 빈 값이다)
+#    추가로 아래 variables 에 정의한 사용자 변수도 `{{이름}}` 으로 쓸 수 있다.
+#    정의되지 않은 `{{변수}}` 를 쓰면 기동 시 실패한다 — strict 모드가 기본(template.mode 로 완화 가능).
 # system_prompt 를 생략하면 built-in default("문서 정보추출 전문가다 …")가 쓰인다.
+# system_prompt_file / user_prompt_file 로 프롬프트를 별도 md 파일로 뺄 수도 있다(이 yaml과
+#    같은 폴더 기준 상대경로). 지정하면 inline system_prompt/user_prompt 보다 우선한다.
+# variables 로 프롬프트에서 쓸 사용자 정의 변수를 선언할 수 있다(위 예약 변수와 함께 허용된다):
+#    variables:
+#      <MY_VAR>: "<값>"
 system_prompt: |
   너는 <문서 종류> 정보추출 전문가다. 주어진 문서에서 요청한 필드를 정확하게 추출한다.
 
@@ -136,6 +144,13 @@ output_fields:
 #   - <IDENTIFIER_FIELD>
 # first_chunk_fields:
 #   - <CATEGORY_FIELD>
+#
+# field_labels : chunk_prefix_fields/first_chunk_fields 로 얹는 값 앞에 붙일 사람이 읽는
+#                항목명(`항목명: 값`). 목표필드명(예: QUESTION)은 적재 DB 컬럼명이라 그대로
+#                노출하면 임베딩에 안 쓰는 토큰이 섞이므로, 여기 이름이 있는 필드만 라벨을
+#                붙이고 없으면 종전대로 값만 낸다.
+# field_labels:
+#   <IDENTIFIER_FIELD>: <사람이 읽는 이름>
 
 # ═══════════════════════════════════════════════════════════════════════════
 #  확인 방법
