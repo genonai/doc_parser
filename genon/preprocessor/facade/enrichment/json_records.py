@@ -455,6 +455,10 @@ class JsonRecordsMapper:
         self.resource_path = resource_path
         cfg = self._load_config(config_file, resource_path)
 
+        # 설정 오기입을 키 소비 **전에** 막는다(tabular 와 같은 순서). 뒤로 미루면
+        # `transforms` 를 리스트로 쓴 경우 파일명도 키 이름도 없는 AttributeError 가 먼저 난다.
+        validate_custom_field_config(cfg, label=f"json custom_fields({config_file})")
+
         self.records_key: str | None = str(cfg.get("records") or "").strip() or None
 
         key_map = cfg.get("key_map") or {}
@@ -513,9 +517,6 @@ class JsonRecordsMapper:
             _log.warning(f"[json_records] Invalid missing_policy '{policy}', fallback to 'error'")
             policy = "error"
         self.missing_policy = policy
-
-        # 설정 오기입을 여기서 막는다(tabular 와 동일 기준).
-        validate_custom_field_config(cfg, label=f"json custom_fields({config_file})")
 
     # ── 설정 로딩 ────────────────────────────────────────────────────────────
     @staticmethod

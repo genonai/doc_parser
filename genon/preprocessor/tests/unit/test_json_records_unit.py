@@ -713,3 +713,24 @@ def test_shipped_monimo_event_config_maps_real_payload_schema(resource_dir):
 ])
 def test_date_int_flex_handles_compact_forms(raw, expected):
     assert transform_date_int_flex(raw) == expected
+
+
+# ── 설정 형 오류 진단(검증 순서) ────────────────────────────────────────────
+
+def test_shape_error_reports_key_name_before_consumption(tmp_path):
+    """`transforms` 를 맵이 아닌 값으로 쓰면 키 이름과 파일명이 담긴 ValueError 가 나야 한다.
+
+    검증을 키 소비 뒤로 미루면 `'list' object has no attribute 'items'` 라는
+    AttributeError 가 먼저 나서 어느 파일 어느 키가 틀렸는지 알 수 없었다(tabular 와 순서 불일치).
+    """
+    with pytest.raises(ValueError) as exc:
+        write_mapper(tmp_path, """
+            key_map:
+              TITLE: [title]
+            text_fields: [TITLE]
+            transforms:
+              - date_int_flex
+        """)
+    message = str(exc.value)
+    assert "transforms" in message
+    assert "custom_field_json.yaml" in message
