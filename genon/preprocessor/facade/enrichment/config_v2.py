@@ -37,6 +37,7 @@ v1 은 최상위 키가 25개를 넘고, **한 필드의 규칙이 6개 블록�
 
 from __future__ import annotations
 
+import difflib
 from typing import Any
 
 SCHEMA_KEY = "schema"
@@ -59,6 +60,9 @@ TOP_LEVEL_KEYS = frozenset({
 FIELD_SPEC_KEYS = frozenset({
     "alias", "const", "default", "values", "transform", "from", "as", "collect", "template",
 })
+# kind: document 에서 쓸 수 있는 필드 스펙. 이 kind 는 원천을 고르고 값을 접는 단계가 없어
+# (LLM 응답이 유일한 원천) 고정값과 빈 값 채우기만 남는다.
+DOCUMENT_FIELD_SPEC_KEYS = frozenset({"const", "default"})
 SOURCE_KEYS = frozenset({
     "kind", "records_at", "table_at", "on_missing", "merge_rows",
     "sections", "ignore_keys", "pre",
@@ -148,10 +152,20 @@ def _require_list(value: Any, label: str, what: str) -> list:
 def _check_unknown(keys, allowed, label: str, what: str) -> None:
     unknown = sorted(str(k) for k in keys if str(k) not in allowed)
     if unknown:
+        # 오타에 가장 가까운 지원 키를 붙인다. v1 경로는 config_schema 가 같은 제안을 하는데
+        # v2 는 정규화가 끝난 뒤에야 그 검증기를 타므로, 여기서 제안하지 않으면 `records_key`
+        # 처럼 한 글자 틀린 키가 "쓸 수 있는 키 목록"만 던지고 끝난다.
+        detail = ", ".join(f"`{key}`{_suggest(key, allowed)}" for key in unknown)
         raise ConfigV2Error(
-            f"{label}: {what} 에 쓸 수 없는 키가 있습니다: {unknown}. "
+            f"{label}: {what} 에 쓸 수 없는 키가 있습니다: {detail}. "
             f"쓸 수 있는 키: {sorted(allowed)}"
         )
+
+
+def _suggest(key: str, allowed) -> str:
+    """오타로 보이는 키에 가장 가까운 지원 키를 한 개 제안한다(config_schema 와 같은 기준)."""
+    close = difflib.get_close_matches(key, sorted(str(k) for k in allowed), n=1, cutoff=0.6)
+    return f" (혹시 `{close[0]}`?)" if close else ""
 
 
 def normalize(cfg: dict, *, label: str = "custom_fields") -> tuple[dict, str]:
@@ -220,6 +234,12 @@ def _normalize_fields(fields: Any, kind: str, out: dict, label: str) -> None:
                 f"값을 빠뜨리면 조용히 무시되므로 단축 표기를 받지 않습니다."
             )
         _check_unknown(spec, FIELD_SPEC_KEYS, where, "필드 스펙")
+        # kind: document 는 원천 값을 고르고 접는 경로가 없다(LLM 응답이 유일한 원천이다).
+        # 여기서 막지 않으면 `values`/`transform`/`from` 이 v1 블록(value_map/transforms/
+        # text_from)으로 번역된 뒤 config_schema 가 거부해, 설정에 쓰지도 않은 이름으로
+        # 기동이 실패한다 — 쓴 사람이 어느 줄을 고쳐야 하는지 알 수 없다.
+        if kind == "document":
+            _check_unknown(spec, DOCUMENT_FIELD_SPEC_KEYS, where, "kind: document 의 필드 스펙")
 
         if "alias" in spec:
             if alias_block is None:

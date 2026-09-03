@@ -267,6 +267,7 @@ class CustomFieldsEnricher(BaseEnricher):
         user_prompt_file: str = "",
         output_fields: list[str] | None = None,
         constants: dict | None = None,
+        defaults: dict | None = None,
         parser: dict | None = None,
         pages: list[int] | None = None,
         variables: dict | None = None,
@@ -324,6 +325,12 @@ class CustomFieldsEnricher(BaseEnricher):
         # 키 단위 병합이다. 전체 치환이면 등록 블록에 상수 하나만 덧붙여도 config_file 의
         # constants 가 통째로 사라진다 — markdown/html/table_text_description 과 같은 규칙.
         self._constants = {**(cfg.get("constants") or {}), **(constants or {})}
+        # LLM 이 값을 못 뽑았을 때만(None·"") 채우는 값. `const` 와 달리 모델이 뽑아낸 값을
+        # 덮지 않는다. 적용 순서는 다른 kind 와 같은 `default → const` 이고, 그래서 둘 다
+        # 선언했다면 언제나 const 가 이긴다. `default: null` 은 값 없이 출력 필드만 고정한다
+        # (적재 스키마에 컬럼은 있어야 하는데 문서에서 뽑을 근거가 없는 경우).
+        # 병합 규칙은 constants 와 같다(키 단위, 등록 블록 우선).
+        self._defaults = {**(cfg.get("defaults") or {}), **(defaults or {})}
         # 청크 본문(text)과 같은 값을 실을 필드 이름(검색 대상 본문 컬럼). 값 자체는 청커가
         # 청크 단위로 채우므로 여기서는 이름만 문서 metadata 에 실어 넘긴다.
         self._body_fields = cp.parse_field_name_list(cfg.get(cp.BODY_FIELDS_KEY))
@@ -594,6 +601,14 @@ class CustomFieldsEnricher(BaseEnricher):
             parsed if not self._output_fields
             else {key: parsed.get(key) for key in self._output_fields}
         )
+        # 기본값은 LLM 이 못 뽑은 자리만 채운다(값이 있으면 손대지 않는다). 뒤이어 front
+        # matter 와 constants 가 덮으므로 우선순위는 default < LLM < front matter < const 다
+        # — 다른 kind 가 공유하는 `default → const` 계약과 같은 순서다.
+        if self._defaults:
+            normalized = dict(normalized)
+            for key, value in self._defaults.items():
+                if normalized.get(key) in (None, ""):
+                    normalized[key] = value
         # YAML front matter처럼 이미 구조화된 원천값은 LLM 추론값보다 신뢰도가 높다.
         # output_fields 밖의 필드도 사용자가 metadata_fields로 명시한 것이므로 보존한다.
         if structured_fields:
@@ -959,7 +974,7 @@ class CustomFieldsEnricher(BaseEnricher):
         # LLM 도 없고 LLM 과 무관한 산출물(front matter/constants)도 없으면 예전처럼 아무것도
         # 하지 않는다. 이 가드가 없으면 url 이 빈 설정에서도 output_fields 가 전부 null 로
         # 저장돼 모든 청크에 빈 property 가 생긴다.
-        if not (self.is_configured or structured_fields or self._constants):
+        if not (self.is_configured or structured_fields or self._constants or self._defaults):
             _log.warning("custom_fields enricher 비활성: url/model 설정이 비어있습니다.")
             return document
 

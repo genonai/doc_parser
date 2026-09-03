@@ -81,10 +81,12 @@ EXTRACTOR_KEYS: dict[str, frozenset[str]] = {
         "defaults", "constants", "llm_fields", "field_labels", "first_chunk_fields",
     }),
     # 문서 단위 LLM 추출. 값 매핑이 없고 프롬프트·연결·출력필드가 중심이다.
+    # `defaults`(v2 의 `fields.<이름>.default`)는 값 매핑이 아니라 빈 값 채우기라 여기도 읽는다 —
+    # 적용 순서 `default → const` 는 네 kind 가 공유하는 계약이다.
     "llm": frozenset({
         "url", "api_key", "model", "max_tokens", "temperature", "timeout",
         "system_prompt", "user_prompt", "system_prompt_file", "user_prompt_file", "prompt",
-        "output_fields", "constants", "parser", "pages", "variables", "template",
+        "output_fields", "constants", "defaults", "parser", "pages", "variables", "template",
         "thinking", "thinking_dialect", "table_text_description",
         "body_fields", "chunk_prefix_fields", "first_chunk_fields", "field_labels",
     }),
