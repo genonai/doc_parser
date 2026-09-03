@@ -11,7 +11,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PREPROCESSOR_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../../../.." && pwd)"
 
-# yaml 만 있으면 되므로 어떤 python 이든 상관없다(무거운 의존성 없음).
+# 기록 전 안전 장치가 매퍼를 실제로 만들어 대조하므로 전처리기 의존성이 필요하다.
+# 매퍼를 못 불러오면 그 설정은 FAIL 로 잡혀 기록되지 않는다(조용히 통과하지 않는다).
 if [ -z "${PYTHON:-}" ]; then
   if [ -x "${PREPROCESSOR_DIR}/.venv/bin/python" ]; then
     PYTHON="${PREPROCESSOR_DIR}/.venv/bin/python"

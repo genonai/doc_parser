@@ -57,6 +57,7 @@ PROCESSOR_CONFIGS = (
     "intelligent_processor_config.yaml",
     "convert_processor_config.yaml",
     "chunking_processor_config.yaml",
+    "chunking_processor_config_simple.yaml",
     "attachment_processor_config.yaml",
 )
 

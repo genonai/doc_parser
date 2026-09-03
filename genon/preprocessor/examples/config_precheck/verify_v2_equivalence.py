@@ -41,6 +41,19 @@ sys.path.insert(0, str(Path(__file__).parent))
 from precheck_custom_fields import load_yaml, registered_blocks  # noqa: E402
 
 
+def stage_siblings(root: Path, tmp: Path) -> None:
+    """설정이 옆에 두고 참조하는 파일(프롬프트 .md 등)을 임시 디렉터리에 복사한다.
+
+    비교용 설정은 임시 디렉터리에 쓰고 그곳을 resource_path 로 주는데, `system_prompt_file`
+    처럼 같은 디렉터리의 파일을 가리키는 설정은 그 파일이 따라오지 않으면 "프롬프트 파일이
+    없습니다"로 죽는다. 의미가 달라서가 아니라 환경 때문에 나는 실패이므로 v1/v2 대조가
+    아니라 준비 단계에서 없앤다.
+    """
+    for item in root.iterdir():
+        if item.is_file() and item.suffix.lower() not in (".yaml", ".yml"):
+            (tmp / item.name).write_bytes(item.read_bytes())
+
+
 def normalized(cfg: dict) -> dict:
     """비교용 정규화 — 빈 컨테이너는 "없음"과 같게 본다.
 
@@ -284,6 +297,7 @@ def main() -> int:
     import tempfile
     with tempfile.TemporaryDirectory() as td:
         tmp = Path(td)
+        stage_siblings(root, tmp)
         for _source, block in registered_blocks(root):
             config_file = block.get("config_file")
             if not config_file or str(config_file) in seen:

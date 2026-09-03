@@ -2,8 +2,9 @@
 
 ## 안전 장치
 
-파일을 고치기 전에 그 파일 하나에 대해 병행 검증을 다시 돌린다 — 변환 결과를 되돌린 것이
-원본과 같고, 매퍼 산출도 같아야 기록한다. 하나라도 어긋나면 그 파일은 건너뛴다.
+파일을 고치기 전에 그 파일 하나에 대해 병행 검증 세 층을 다시 돌린다 — 변환 결과를 되돌린
+것이 원본과 같고, 매퍼·enricher 가 해석해 낸 상태가 같고, 매퍼 산출도 같아야 기록한다.
+하나라도 어긋나면 그 파일은 건너뛴다.
 `nulls` 마이그레이션에서 "의미는 같은데 파일 여백이 망가진" 사고가 있었으므로, 의미 대조와
 별개로 **바뀐 줄 수**도 함께 보여 준다.
 
@@ -32,7 +33,9 @@ sys.path.insert(0, str(Path(__file__).parent))
 from genon.preprocessor.facade.enrichment import config_v2 as v2  # noqa: E402
 
 from precheck_custom_fields import load_yaml, registered_blocks  # noqa: E402
-from verify_v2_equivalence import compare_configs, compare_mapper_output  # noqa: E402
+from verify_v2_equivalence import (  # noqa: E402
+    compare_configs, compare_mapper_output, compare_resolved_state, stage_siblings,
+)
 
 _HEADER = """# ─────────────────────────────────────────────────────────────────────────
 #  v2 스키마로 자동 변환된 설정입니다.
@@ -71,7 +74,7 @@ def _flow_for_scalar_seq(dumper, data):
 
 
 def _block_for_multiline_str(dumper, data):
-    """여러 줄 문자열은 `|` 리터럴 블록으로 쓴다.
+    r"""여러 줄 문자열은 `|` 리터럴 블록으로 쓴다.
 
     기본 직렬화는 개행을 `\n` 이스케이프와 줄바꿈 연속 기호(`\`)로 접어 프롬프트를
     사람이 읽지도 고치지도 못하게 만든다. v1 이 `|` 를 쓰고 있었으므로 그대로 두는 것이
@@ -102,6 +105,9 @@ def migrate_one(path: Path, extractor: str, tmp: Path, write: bool) -> tuple[str
         return "SKIP", "이미 v2"
 
     problems = compare_configs(path.name, cfg, extractor)
+    # 해석된 상태까지 본다. 문서형(llm)은 매핑 산출이 없어 이 층이 빠지면 프롬프트·연결·
+    # 출력필드가 그대로 옮겨졌는지 아무도 확인하지 않은 채 파일이 덮인다.
+    problems += compare_resolved_state(path.name, cfg, extractor, tmp)
     problems += compare_mapper_output(path.name, cfg, extractor, tmp)
     if problems:
         return "FAIL", problems[0].splitlines()[0][:90]
@@ -140,6 +146,8 @@ def main() -> int:
     rows: list[tuple[str, str, str]] = []
     with tempfile.TemporaryDirectory() as td:
         tmp = Path(td)
+        # 프롬프트 파일을 참조하는 설정이 임시 디렉터리에서도 읽히게 한다.
+        stage_siblings(root, tmp)
         for _source, block in registered_blocks(root):
             name = str(block.get("config_file") or "")
             if not name or name in seen:
