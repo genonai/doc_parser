@@ -1019,3 +1019,36 @@ def test_shipped_configs_pass_startup_validation():
                 doc_type=opts.get("doc_type"), extractor=extractor)
             built += 1
     assert built >= 10, f"검증 대상 매핑 설정이 너무 적다({built}개) — 등록을 확인하라"
+
+
+@pytest.mark.unit
+def test_registration_block_accepts_html_preprocess_block():
+    """등록 블록 최상위의 `html:` 은 enricher 가 아니라 parser 가 소비하는 키다.
+
+    `_NON_ENRICHER_KEYS` 에서 빠져 있으면 생성자로 흘러들어 TypeError 로 기동이 죽는다.
+    `build_html_marker_heading_doc_types` 가 이 위치의 블록을 읽도록 만들어져 있는데도
+    그 코드에 도달하지 못했다(json/markdown 은 처음부터 제외돼 있었다).
+    """
+    from genon.preprocessor.facade.enrichment.markdown_front_matter import (
+        build_html_marker_heading_doc_types,
+    )
+
+    configs = [{
+        "doc_type": "cs_hpp",
+        "extractor": "llm",
+        "url": "http://example",
+        "model": "model",
+        "html": {"marker_headings": True},
+    }]
+    enrichers = build_document_custom_fields_enrichers(configs)
+    assert len(enrichers) == 1
+    assert "cs_hpp" in build_html_marker_heading_doc_types(configs)
+
+
+@pytest.mark.unit
+def test_registration_block_still_rejects_unknown_keys():
+    """html 을 통과시키느라 모르는 키까지 삼키면 안 된다(오타 fail-fast 유지)."""
+    with pytest.raises(TypeError):
+        build_document_custom_fields_enrichers(
+            [{"extractor": "llm", "url": "u", "model": "m", "htmlx": {}}]
+        )

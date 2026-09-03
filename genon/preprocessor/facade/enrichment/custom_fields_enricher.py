@@ -213,7 +213,8 @@ def build_llm_field_specs(cfg: dict) -> list["LlmFieldSpec"]:
 # 설정에 이 키를 넣는 순간 TypeError 가 난다.
 #   - json: .json 입력에서 본문 텍스트를 꺼낼 key 목록 (parser 의 DocumentProcessor 가 소비)
 #   - markdown: .md front matter 분리/선택 규칙 (parser 의 DocumentProcessor 가 소비)
-_NON_ENRICHER_KEYS = ("json", "markdown")
+#   - html: .html 마커 heading 승격 규칙 (parser 의 DocumentProcessor 가 소비)
+_NON_ENRICHER_KEYS = ("json", "markdown", "html")
 
 
 def _enricher_kwargs(config: dict) -> dict:
