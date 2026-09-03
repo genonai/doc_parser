@@ -15,6 +15,7 @@ from docling_core.types.doc.document import MiscAnnotation
 from docling.utils.llm_cache import async_cached_call, remaining_timeout
 
 from genon.preprocessor.facade.common import config_parse as cp
+from genon.preprocessor.facade.enrichment import config_schema as cs
 
 from .base_enricher import BaseEnricher
 from .field_transforms import store_metadata_in_document
@@ -275,6 +276,11 @@ class CustomFieldsEnricher(BaseEnricher):
         table_text_description: dict | None = None,
     ):
         cfg = self._load_config(config_file, resource_path)
+        # 모르는 키는 지금까지 조용히 무시됐다 — `output_field`(오타)처럼 한 글자만 틀려도
+        # 그 필드가 결과에서 사라질 뿐 아무 신호가 없었다. 키 소비 전에 대조한다.
+        cs.validate_known_keys(
+            cfg, label=f"custom_fields({config_file})", extractor=extractor
+        )
         prompt_cfg = cfg.get("prompt", {}) if isinstance(cfg.get("prompt"), dict) else {}
 
         # prompt 파일/parser 파일 경로 해석 기준 디렉토리.

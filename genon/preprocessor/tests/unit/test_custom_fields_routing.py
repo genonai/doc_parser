@@ -1052,3 +1052,102 @@ def test_registration_block_still_rejects_unknown_keys():
         build_document_custom_fields_enrichers(
             [{"extractor": "llm", "url": "u", "model": "m", "htmlx": {}}]
         )
+
+
+# ── extractor 별 지원키 선언 (config_schema) ────────────────────────────────
+
+@pytest.mark.unit
+def test_unknown_key_is_rejected_with_suggestion(tmp_path):
+    """모르는 최상위 키는 지금까지 완전 무증상이었다 — `column_maps` 한 글자로 매핑이 사라졌다."""
+    from genon.preprocessor.facade.enrichment.tabular_custom_fields import (
+        TabularCustomFieldsMapper,
+    )
+
+    cfg = tmp_path / "custom_field_x.yaml"
+    cfg.write_text("column_maps:\n  Q: [질문]\ntext_fields: [Q]\n", encoding="utf-8")
+    with pytest.raises(ValueError) as exc:
+        TabularCustomFieldsMapper(
+            config_file=cfg.name, resource_path=str(tmp_path),
+            doc_type="t", extractor="tabular_mapping",
+        )
+    message = str(exc.value)
+    assert "column_maps" in message
+    assert "column_map" in message  # 가장 가까운 이름을 제안한다
+
+
+@pytest.mark.unit
+def test_key_of_another_extractor_is_rejected(tmp_path):
+    """다른 extractor 의 키는 읽히지 않으므로 설정이 무효다 — 조용히 무시하지 않는다.
+
+    특히 json_semantic 은 text_fields/chunk_prefix_fields 를 읽지 않는데, 예전에는
+    이름이 맞으면 무시하고 틀리면 기동을 실패시켜 신호가 정반대로 나갔다.
+    """
+    from genon.preprocessor.facade.enrichment.json_semantic import SemanticJsonMapper
+
+    cfg = tmp_path / "custom_field_s.yaml"
+    cfg.write_text(
+        "shared_fields:\n  PRODUCT_NM: [prodNm]\n"
+        "sections:\n  ksp: {name: 혜택, include: true}\n"
+        "text_fields: [PRODUCT_NM]\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError) as exc:
+        SemanticJsonMapper(
+            config_file=cfg.name, resource_path=str(tmp_path),
+            doc_type="t", extractor="json_semantic",
+        )
+    assert "text_fields" in str(exc.value)
+
+
+@pytest.mark.unit
+def test_llm_config_rejects_output_field_typo(tmp_path):
+    """템플릿이 오래 경고만 하던 오타다 — 이제 기동 시에 잡는다."""
+    from genon.preprocessor.facade.enrichment.custom_fields_enricher import (
+        CustomFieldsEnricher,
+    )
+
+    cfg = tmp_path / "custom_field_l.yaml"
+    cfg.write_text(
+        'url: "u"\nmodel: m\noutput_field:\n  - TITLE\nuser_prompt: |\n  {{raw_text}}\n',
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError) as exc:
+        CustomFieldsEnricher(config_file=cfg.name, resource_path=str(tmp_path))
+    assert "output_fields" in str(exc.value)
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("resource_dir", ["resource", "resource_dev"])
+def test_shipped_configs_match_declared_keys(resource_dir):
+    """출고 설정이 지원키 선언과 어긋나지 않는지 지킨다.
+
+    코드에 새 키를 넣고 config_schema 갱신을 잊으면 그 키를 쓴 설정이 기동에 실패한다 —
+    이 테스트가 그 누락을 배포 전에 잡는다.
+    """
+    from pathlib import Path
+
+    import yaml
+
+    from genon.preprocessor.facade.enrichment import config_schema as cs
+
+    root = Path(__file__).resolve().parents[2] / resource_dir
+    registered = {}
+    for name in ("parser_processor_config.yaml", "parser_processor_config_simple.yaml",
+                 "intelligent_processor_config.yaml", "convert_processor_config.yaml"):
+        path = root / name
+        if not path.exists():
+            continue
+        for item in (yaml.safe_load(path.read_text(encoding="utf-8")) or {}).get("enrichment") or []:
+            block = (item or {}).get("custom_fields")
+            if block and block.get("config_file"):
+                registered.setdefault(block["config_file"], block.get("extractor") or "llm")
+
+    checked = 0
+    for path in sorted(root.glob("custom_field_*.yaml")):
+        extractor = registered.get(path.name)
+        if extractor is None:
+            continue  # 어느 프로세서에도 등록되지 않은 설정은 대상이 아니다
+        cfg = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+        cs.validate_known_keys(cfg, label=f"{resource_dir}/{path.name}", extractor=extractor)
+        checked += 1
+    assert checked >= 15, f"검사된 출고 설정이 너무 적다: {checked}건"

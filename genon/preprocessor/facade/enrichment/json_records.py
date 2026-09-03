@@ -457,7 +457,9 @@ class JsonRecordsMapper:
 
         # 설정 오기입을 키 소비 **전에** 막는다(tabular 와 같은 순서). 뒤로 미루면
         # `transforms` 를 리스트로 쓴 경우 파일명도 키 이름도 없는 AttributeError 가 먼저 난다.
-        validate_custom_field_config(cfg, label=f"json custom_fields({config_file})")
+        validate_custom_field_config(
+            cfg, label=f"json custom_fields({config_file})", extractor=extractor
+        )
 
         self.records_key: str | None = str(cfg.get("records") or "").strip() or None
 

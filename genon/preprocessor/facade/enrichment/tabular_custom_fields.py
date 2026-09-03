@@ -18,6 +18,7 @@ from typing import Any
 import yaml
 
 from genon.preprocessor.facade.common import config_parse as cp
+from genon.preprocessor.facade.enrichment import config_schema as cs
 
 _log = logging.getLogger(__name__)
 
@@ -271,16 +272,31 @@ def warn_unknown_field_labels(cfg: dict, *, label: str) -> None:
         )
 
 
-def validate_custom_field_config(cfg: dict, *, label: str) -> None:
-    """custom_field yaml 하나에 대한 기동 시 검증 묶음(두 extractor 공통).
+def validate_custom_field_config(cfg: dict, *, label: str, extractor: str | None = None) -> None:
+    """custom_field yaml 하나에 대한 기동 시 검증 묶음(extractor 3종 공통).
 
-    순서가 중요하다 — shape 를 먼저 봐야 이후 검사가 엉뚱한 타입을 훑지 않는다.
+    순서가 중요하다 — 지원 키를 먼저 봐야 오타가 "만들 수 없는 필드" 같은 엉뚱한
+    메시지로 새지 않고, shape 를 그다음에 봐야 이후 검사가 틀린 타입을 훑지 않는다.
+
+    `extractor` 를 주면 그 extractor 가 읽지 않는 키를 거부하고, **그 키에 딸린 검사도
+    건너뛴다**. 예전에는 `json_semantic` 이 읽지도 않는 `chunk_prefix_fields` 를 검사해
+    아무 효과 없는 키 때문에 기동이 실패했다(반대로 이름이 맞으면 조용히 무시됐다).
     """
+    supported = cs.EXTRACTOR_KEYS.get(cs.canonical_extractor(extractor)) if extractor else None
+
+    def uses(key: str) -> bool:
+        """이 extractor 가 그 키를 읽는가(extractor 미지정이면 종전대로 전부 검사)."""
+        return supported is None or key in supported
+
+    cs.validate_known_keys(cfg, label=label, extractor=extractor)
     validate_config_shape(cfg, label=label)
     validate_target_field_names(collect_target_field_names(cfg), label=label)
-    validate_required_not_llm_generated(cfg, label=label)
-    validate_chunk_prefix_fields(cfg, label=label)
-    warn_unproducible_text_fields(cfg, label=label)
+    if uses("required"):
+        validate_required_not_llm_generated(cfg, label=label)
+    if uses("chunk_prefix_fields"):
+        validate_chunk_prefix_fields(cfg, label=label)
+    if uses("text_fields"):
+        warn_unproducible_text_fields(cfg, label=label)
     warn_unknown_field_labels(cfg, label=label)
 
 
@@ -579,7 +595,9 @@ class TabularCustomFieldsMapper:
         self.resource_path = resource_path
         self.config = self._load_config(config_file, resource_path)
         # 설정 오기입을 **키를 소비하기 전에** 막는다 — 런타임 크래시·조용한 전건 skip 예방.
-        validate_custom_field_config(self.config, label=f"tabular custom_fields({config_file})")
+        validate_custom_field_config(
+            self.config, label=f"tabular custom_fields({config_file})", extractor=extractor
+        )
 
         # 값 정규화·파생 필드 설정은 json_mapping(JsonRecordsMapper)과 같은 키/의미를 쓴다.
         self.value_map = compile_value_map(self.config.get("value_map"))

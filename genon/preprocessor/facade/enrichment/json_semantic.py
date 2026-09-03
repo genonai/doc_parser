@@ -622,7 +622,9 @@ class SemanticJsonMapper:
         self.llm_fields_scope = "document"
 
         # 설정 오기입을 여기서 막는다(json_mapping/tabular 와 동일 기준).
-        validate_custom_field_config(cfg, label=f"json_semantic custom_fields({config_file})")
+        validate_custom_field_config(
+            cfg, label=f"json_semantic custom_fields({config_file})", extractor=extractor
+        )
 
     # ── 설정 로딩 ────────────────────────────────────────────────────────────
     @staticmethod
