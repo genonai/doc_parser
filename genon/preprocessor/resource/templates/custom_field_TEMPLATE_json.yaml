@@ -68,6 +68,18 @@ key_map:
 #   text_norm      NFKC → 공백 축약 → casefold
 # transforms:
 #   <TARGET_FIELD_2>: date_int_flex
+#
+# 인자를 받는 변환기도 있다. 목록으로 쓰면 순서대로 적용된다(체이닝).
+#   regex_sub      pattern, repl        정규식 치환   "18,000원" → "18000"
+#   regex_extract  pattern, group=1     정규식 추출   매칭 없으면 null
+#   to_int         (on_error=null)      숫자만 남겨 정수로
+#   truncate       length, suffix=""    길이 자르기(적재 컬럼 길이 맞추기)
+# 잘못된 이름·빠진 인자·컴파일 안 되는 정규식은 기동 시에 잡는다.
+# transforms:
+#   <FEE_AMT>:
+#     - {name: regex_sub, pattern: "[^0-9]", repl: ""}
+#     - {name: to_int}
+#   <CODE>: {name: regex_extract, pattern: "([A-Z]+-[0-9]+)"}
 
 # ── [선택] 값 별칭 → 표준 코드 ──────────────────────────────────────────────
 # 값의 표기 흔들림을 표준 코드로 접는다. 매핑표에 없는 값은 원값을 두고 경고만 남긴다.
@@ -159,6 +171,22 @@ key_map:
 # json_mapping 은 원천 key 가 시스템 이름이라, 여기 적은 필드만 항목명과 함께 나간다.
 # field_labels:
 #   <TARGET_FIELD_1>: <항목명>
+
+# ── [선택] 값 기반 레코드 필터 ──────────────────────────────────────────────
+# `required` 는 **빈 값**만 거른다. "삭제여부가 Y 인 건은 빼라" 는 이 블록으로 쓴다.
+# 조건은 모두 만족해야 하며(AND), 비교는 value_map 과 같은 규칙이다
+# (대소문자·공백·`_-./` 차이 무시). 필터로 빠진 건은 info 로 건수만 남는다 —
+# 정상 제외이므로 "필수값 누락" 경고로 찍지 않는다.
+# filter:
+#   - {field: <TARGET_FIELD_1>, not_in: [Y]}
+#   - {field: <TARGET_FIELD_2>, in: [ACTIVE, PENDING]}
+
+# ── [선택] 여러 필드를 합쳐 새 필드 만들기 ──────────────────────────────────
+# `{{목표필드}}` 를 값으로 채운다. 값이 없는 자리는 지우고 양끝 공백을 다듬는다.
+# text_fields 는 청크 **본문**을 만들 뿐이라, 적재용 metadata 필드를 합치려면 여기를 쓴다.
+# 변환(transforms) 뒤에 돌므로 정규화된 값으로 합쳐진다.
+# derive:
+#   <DISPLAY_NM>: "{{<TARGET_FIELD_1>}} {{<TARGET_FIELD_2>}}"
 
 # ── [필수] 청크 본문을 구성할 필드 (선언 순서대로 개행 결합) ─────────────────
 # 이 값이 임베딩 입력이 된다. 비어 있으면 기동 시 실패한다(tabular 와 달리 필수다).

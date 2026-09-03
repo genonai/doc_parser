@@ -57,7 +57,7 @@ TOP_LEVEL_KEYS = frozenset({
 # 필드 스펙 안에 쓸 수 있는 키. 값은 **항상 dict** 다 — 리스트/스칼라 단축형을 받지 않는다.
 # `TARGET_A:` 처럼 값을 빠뜨린 오타가 null 로 파싱돼 조용히 통과하는 것을 막기 위해서다.
 FIELD_SPEC_KEYS = frozenset({
-    "alias", "const", "default", "values", "transform", "from", "as", "collect",
+    "alias", "const", "default", "values", "transform", "from", "as", "collect", "template",
 })
 SOURCE_KEYS = frozenset({
     "kind", "records_at", "table_at", "on_missing", "merge_rows",
@@ -91,6 +91,7 @@ _SPEC_TO_BLOCK = {
     "default": "defaults",
     "values": "value_map",
     "transform": "transforms",
+    "template": "derive",
 }
 _BLOCK_TO_SPEC = {v: k for k, v in _SPEC_TO_BLOCK.items()}
 
@@ -177,13 +178,10 @@ def normalize(cfg: dict, *, label: str = "custom_fields") -> tuple[dict, str]:
     _normalize_body(cfg.get("body"), kind, out, label)
     _normalize_llm(cfg.get("llm"), kind, out, label)
 
-    if cfg.get("filter"):
-        # C2 에서 구현한다. 지금 조용히 무시하면 "필터가 걸린 줄 알았는데 전건이 나가는"
-        # 무증상 실패가 되므로 여기서 막는다.
-        raise ConfigV2Error(
-            f"{label}: filter 는 아직 구현되지 않았습니다(값 기반 레코드 필터). "
-            f"지금은 required 로 빈 값만 거를 수 있습니다."
-        )
+    if cfg.get("filter") is not None:
+        if kind not in ("rows", "records"):
+            raise ConfigV2Error(f"{label}: filter 는 kind: rows/records 전용입니다.")
+        out["filter"] = cfg["filter"]
     return out, extractor
 
 
@@ -373,6 +371,9 @@ def to_v2(cfg: dict, extractor: str) -> dict:
     if pre:
         source["pre"] = pre
 
+    if cfg.get("filter") is not None:
+        out["filter"] = cfg["filter"]
+
     required = cfg.get("required_shared_fields") if kind == "sections" else cfg.get("required")
     if required:
         out["require"] = {"fields": required}
@@ -471,7 +472,7 @@ COVERED_V1_KEYS = (
     _FIELD_BLOCKS
     | {v1 for v1, _kinds in _SOURCE_TO_V1.values()}
     | set(_BODY_TO_V1.values())
-    | {"required", "required_shared_fields", "llm_fields"}
+    | {"required", "required_shared_fields", "llm_fields", "filter"}
     | set(_LLM_ENDPOINT_KEYS) | set(_LLM_PARAM_KEYS) | set(_LLM_PROMPT_KEYS)
     | {"output_fields", "parser", "pages", "template", "table_text_description", "prompt"}
     | set(PRE_KEYS)

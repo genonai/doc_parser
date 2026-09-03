@@ -90,7 +90,7 @@ def test_field_spec_must_be_a_dict(tmp_path):
         ("source:\n  kind: bogus\n", "source.kind"),
         ("source:\n  kind: rows\n  records_at: x\n", "records_at"),
         ("source:\n  kind: rows\nfields:\n  Q: {alias: [질문], typo: 1}\n", "typo"),
-        ("source:\n  kind: rows\nfilter:\n  - {field: X, in: [Y]}\n", "filter"),
+        ("source:\n  kind: sections\nfilter:\n  - {field: X, in: [Y]}\n", "filter"),
         ("source:\n  kind: document\nfields:\n  Q: {alias: [질문]}\n", "alias"),
     ],
 )
