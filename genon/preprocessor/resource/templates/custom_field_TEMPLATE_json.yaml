@@ -1,17 +1,16 @@
 # ═══════════════════════════════════════════════════════════════════════════
-#  템플릿 — JSON 레코드별 매핑 (extractor: json_mapping)
+#  템플릿 — JSON 레코드별 매핑 (source.kind: records)
 #
 #  언제 쓰나 : 원천이 .json 이고 **레코드 배열 한 요소가 검색 결과 한 건**일 때
 #              (이벤트 목록, 관심소식, FAQ JSON, 링크 목록 …)
 #  결과      : 레코드 1개 = 청크 1개(element category=`custom_fields_row`).
 #              아래 목표필드가 그 청크의 metadata 로 실린다.
 #
-#  tabular 와의 차이
-#   · `column_map` 대신 `key_map` 을 쓴다.
+#  rows(엑셀) 와의 차이 — 나머지는 전부 같다
+#   · `alias` 가 **엑셀 헤더**가 아니라 **JSON key 이름**이다.
 #   · JSON 중첩 안쪽 값도 **키 이름만으로** 찾는다(`wcmsHtml.htmlText` → `htmlText` 한 단어).
 #     JSONPath 같은 경로 문법은 없다. 깊이가 다르면 **얕은 쪽이 우선**한다.
-#   · `records`·`collect_key_map`·`missing_policy` 를 추가로 쓸 수 있다
-#     (`row_merge`·`text_from`/`html_text_fields`·`split` 은 tabular 와 같다).
+#   · `source.records_at`·`source.on_missing`·필드 스펙의 `collect` 를 추가로 쓸 수 있다.
 #
 #  ── 쓰는 순서 ────────────────────────────────────────────────────────────
 #  ① 이 파일을 resource/custom_field_<유형>.yaml 로 복사한다.
@@ -20,247 +19,218 @@
 #        - custom_fields:
 #            enable: true
 #            doc_type: <유형>
-#            extractor: json_mapping
+#            extractor: json_mapping     # source.kind: records 와 짝이다
 #            config_file: custom_field_<유형>.yaml   # 파일명만. 이 yaml 과 같은 폴더 기준
 #  ④ 실제 원천 파일로 결과를 확인한다(아래 "확인 방법" 참고).
 #
-#
 #  한 파일에 성격이 다른 배열이 여럿 올 때는(예: `faqList` 와 `noticeList`) 이 설정을
-#  **배열마다 하나씩** 만들어 같은 doc_type 으로 등록한다. 각 설정이 자기 `records` 배열만
-#  맡고 결과가 이어 붙는다. 실수로 같은 설정을 두 번 등록한 것과 구분해야 하므로
-#  `records` 키가 서로 달라야 한다 — 겹치거나 비어 있으면 기동 시 거부된다.
+#  **배열마다 하나씩** 만들어 같은 doc_type 으로 등록한다. 각 설정이 자기 `records_at`
+#  배열만 맡고 결과가 이어 붙는다. 실수로 같은 설정을 두 번 등록한 것과 구분해야 하므로
+#  `records_at` 이 서로 달라야 한다 — 겹치거나 비어 있으면 기동 시 거부된다.
+#
 #  이 템플릿은 참고용이므로 parser_processor_config.yaml 에 등록하지 않는다.
 # ═══════════════════════════════════════════════════════════════════════════
 
-# ── [선택] 레코드 배열이 담긴 key ───────────────────────────────────────────
-# 키 이름만 쓴다(임의 깊이에서 찾는다). 예: {"eventList": [ {...}, {...} ]} → eventList
-# 생략하면 payload 가 배열이면 원소마다 1건, 단일 object 면 그 자체가 1건이 된다.
-# 원천이 배열로 감싸 올지 확정되지 않았다면 생략하는 편이 안전하다.
-# records: <배열_키>
+schema: v2
 
-# ── [필수] 목표필드: [원천 key 별칭 목록] ────────────────────────────────────
-# 왼쪽 = 만들고 싶은 필드명. 적재 DB 컬럼명(대문자)으로 쓴다.
-# 오른쪽 = 그 값이 담긴 **JSON key 이름들**. 같은 깊이에서는 선언 순서가 우선순위다.
-#          비교 시 대소문자·공백·`_-./` 차이는 무시한다.
-#          값이 dict/list 컨테이너면 값으로 잡지 않는다(스칼라 배열은 그대로 값이 된다).
-key_map:
-  <TARGET_FIELD_1>: [<json key>, <다른 표기>]
-  <TARGET_FIELD_2>: [<json key>]
+# ── [필수] 레코드 소스 ──────────────────────────────────────────────────────
+source:
+  kind: records
 
-# ── [선택] 반복 key의 값을 모두 수집 ─────────────────────────────────────────
-# bubble[].serviceUrl처럼 한 레코드 안에 같은 key가 여러 번 나오고 모두 본문에 필요할 때 쓴다.
-# 결과는 문서 순서의 배열이며 같은 값은 한 번만 남긴다. key_map과 목표필드명이 겹치면 오류다.
-# html_text_fields의 원본으로 지정하면 HTML 배열을 항목별 변환한 뒤 빈 줄로 이어 붙인다.
-# collect_key_map:
-#   <REPEATED_HTML_FIELDS>: [serviceUrl]
+  # ── [선택] 레코드 배열이 담긴 key ─────────────────────────────────────────
+  # 키 이름만 쓴다(임의 깊이에서 찾는다). 예: {"eventList": [ {...}, {...} ]} → eventList
+  # 생략하면 payload 가 배열이면 원소마다 1건, 단일 object 면 그 자체가 1건이 된다.
+  # 원천이 배열로 감싸 올지 확정되지 않았다면 생략하는 편이 안전하다.
+  # records_at: <배열_키>
 
-# ── [선택] 여러 레코드에 걸쳐 쪼개진 값을 한 건으로 접기 ────────────────────
-# 원천이 값 하나(주로 JSON 문자열)를 여러 레코드에 나눠 보내는 스키마에만 쓴다.
-# tabular 의 row_merge 와 같은 구현·같은 규칙이다 — group_by 가 같은 **연속** 레코드만
-# 한 묶음으로 접는다(멀리 떨어진 동일 키는 다른 건으로 남긴다).
-# 병합은 값 변환·파생 필드보다 **먼저** 돈다. 조각마다 transforms/text_from 이 돌면
-# 잘린 JSON 조각을 각각 평문화하게 되어 복원이 불가능하다.
-# row_merge:
-#   group_by:  [<TARGET_FIELD_1>]     # 이 값이 같은 연속 레코드가 한 묶음(목표필드명 기준)
-#   order_by:  <TARGET_FIELD_2>       # 묶음 안 정렬 기준(숫자 우선, 미지정 시 원본 순서)
-#   concat:    [<TARGET_FIELD_3>]     # 순서대로 이어붙일 필드(목표필드명)
-#   separator: ""                     # 기본값. 문자 단위로 잘려 온다면 반드시 빈 문자열로 둔다
+  # ── [선택] records_at 을 못 찾았을 때 ─────────────────────────────────────
+  # error(기본) = 즉시 실패 / skip = 경고 후 0건
+  # on_missing: skip
 
-# ── [선택] 값 변환 ──────────────────────────────────────────────────────────
-# 쓸 수 있는 변환기는 이 3개뿐이다.
-#   date_int       "2026-07-01"                    → 20260701 (파싱 실패 시 0)
-#   date_int_flex  "26.07.01" / "260701" / 8자리   → 20260701
-#   text_norm      NFKC → 공백 축약 → casefold
-# transforms:
-#   <TARGET_FIELD_2>: date_int_flex
+  # ── [선택] 여러 레코드에 걸쳐 쪼개진 값을 한 건으로 접기 ──────────────────
+  # rows 의 merge_rows 와 같은 구현·같은 규칙이다. group_by 가 같은 **연속** 레코드만
+  # 한 묶음으로 접는다. 병합은 값 변환·파생 필드보다 **먼저** 돈다 — 조각마다 transform 이
+  # 돌면 잘린 JSON 조각을 각각 평문화하게 되어 복원이 불가능하다.
+  # merge_rows:
+  #   group_by:  [<TARGET_FIELD_1>]
+  #   order_by:  <TARGET_FIELD_2>
+  #   concat:    [<TARGET_FIELD_3>]
+  #   separator: ""
+
+# ── [필수] 필드 — 한 필드의 규칙을 한 자리에 모은다 ─────────────────────────
+# 왼쪽 = 만들 목표필드명. 적재 DB 컬럼명(대문자)으로 쓴다.
+# 값은 **항상 object** 다(`<TARGET>:` 처럼 값을 빠뜨린 오타를 막는다).
 #
-# 인자를 받는 변환기도 있다. 목록으로 쓰면 순서대로 적용된다(체이닝).
-#   regex_sub      pattern, repl        정규식 치환   "18,000원" → "18000"
-#   regex_extract  pattern, group=1     정규식 추출   매칭 없으면 null
-#   to_int         (on_error=null)      숫자만 남겨 정수로
-#   truncate       length, suffix=""    길이 자르기(적재 컬럼 길이 맞추기)
-# 잘못된 이름·빠진 인자·컴파일 안 되는 정규식은 기동 시에 잡는다.
-# transforms:
-#   <FEE_AMT>:
-#     - {name: regex_sub, pattern: "[^0-9]", repl: ""}
-#     - {name: to_int}
-#   <CODE>: {name: regex_extract, pattern: "([A-Z]+-[0-9]+)"}
+# 쓸 수 있는 키
+#   alias      : 그 값이 담긴 **JSON key 이름들**. 같은 깊이에서는 선언 순서가 우선순위다.
+#                비교 시 대소문자·공백·`_-./` 차이는 무시한다.
+#                값이 dict/list 컨테이너면 값으로 잡지 않는다(스칼라 배열은 그대로 값이 된다).
+#   collect    : 반복 key 의 값을 **모두** 수집해 배열로 만든다. `bubble[].serviceUrl` 처럼
+#                한 레코드 안에 같은 key 가 여러 번 나오고 모두 본문에 필요할 때 쓴다.
+#                결과는 문서 순서의 배열이며 같은 값은 한 번만 남긴다.
+#                같은 필드에 alias 와 함께 쓰면 오류다.
+#   const      : 원천 값이 있어도 덮어쓴다(파일 단위로 고정인 값)
+#   default    : 원천 값이 None·"" 일 때만 채운다. `null` 로 두면 매핑 없이 스키마만 고정
+#   values     : 값의 표기 흔들림을 표준 코드로 접는다. 매핑표에 없는 값은 원값을 두고 경고만
+#   transform  : 값 변환. 이름 하나 또는 목록(순서대로 적용). 아래 [변환기] 참고
+#   from + as  : 다른 목표필드를 평문으로 바꿔 이 필드에 담는다.
+#                `as: auto`(기본) 자동 판별 / `as: html` HTML 강제.
+#                같은 이름을 from 과 목표에 쓰면 제자리에서 평문으로 바뀐다.
+#                정리 규칙은 파싱 경로와 같다 — 접힌 약관·aria-hidden 텍스트도 보존된다.
+#                `collect` 결과(배열)를 from 으로 주면 항목별 변환 뒤 빈 줄로 이어 붙인다.
+#   template   : 여러 필드를 합쳐 새 필드를 만든다(`{{목표필드}}`). 변환 뒤에 돈다
+#
+# [변환기] date_int · date_int_flex · text_norm (인자 없음)
+#          regex_sub(pattern, repl) · regex_extract(pattern, group=1) ·
+#          to_int(on_error=null) · truncate(length, suffix="")
+# 모르는 이름·빠진 인자·잘못된 정규식은 기동 시 실패한다.
+fields:
+  <TARGET_FIELD_1>:
+    alias: [<json key>, <다른 표기>]
+  <TARGET_FIELD_2>:
+    alias: [<json key>]
+    transform: date_int_flex
 
-# ── [선택] 값 별칭 → 표준 코드 ──────────────────────────────────────────────
-# 값의 표기 흔들림을 표준 코드로 접는다. 매핑표에 없는 값은 원값을 두고 경고만 남긴다.
-# value_map:
-#   <TARGET_FIELD_1>:
-#     "Y": [노출, 사용]
-#     "N": [미노출, 미사용]
+  # 한 필드가 별칭·값매핑·기본값을 **동시에** 가질 수 있다.
+  # <SEARCHABLE_YN>:
+  #   alias:   [노출여부]
+  #   values:  {"Y": [노출, 사용], "N": [미노출, 미사용]}
+  #   default: "N"
+  #
+  # <GROUP_C>:     {const: "<고정값>"}
+  # <BIZ_ID>:      {default: null}
+  # <REPEATED_URLS>: {collect: [serviceUrl]}
+  # <DETAIL_TEXT>: {from: <TARGET_FIELD_HTML>, as: html}
+  # <DISPLAY_NM>:  {template: "{{<TARGET_FIELD_1>}} {{<TARGET_FIELD_2>}}"}
+
+# ── [참고] 값 적용 순서 ──────────────────────────────────────────────────────
+#   alias/collect 원시 매핑 → (merge_rows 병합) →
+#   default → const → values → transform → template → from/as → filter → require 검사
+# default 가 빈 값을 채운 뒤에 const 가 덮어쓰므로 둘 다 선언했다면 언제나 const 가 이긴다.
 
 # ── [선택] 필수 목표필드 ────────────────────────────────────────────────────
 # 값이 빈 레코드는 **그 건만 건너뛰고** 건수를 경고로 남긴다.
-# tabular 과 달리 기동 시 실패는 없다 — 그래서 key_map 별칭이 원천과 전부 어긋나면
+# rows 와 달리 기동 시 실패는 없다 — 그래서 alias 가 원천과 전부 어긋나면
 # "skipped N/N records" 경고와 함께 **청크 0건**이 된다(확인 방법 2번으로 미리 잡을 것).
-# required:
-#   - <TARGET_FIELD_1>
-
-# ── [선택] 기본값 / 고정값 ──────────────────────────────────────────────────
-# defaults  : 원천 값이 None·"" 일 때만 채운다. 값을 `null` 로 두면 "매핑은 없지만 적재
-#             스키마에는 있어야 하는 필드"를 명시 출력한다(예전 `nulls:` 목록과 같은 결과다)
-# constants : 원천 값이 있어도 덮어쓴다(파일 단위로 고정인 값)
-# 적용 순서: key_map 매핑 → collect_key_map 매핑 → (row_merge 병합) → defaults → constants
-#            → value_map → transforms → html_text_fields
-# defaults:
-#   <TARGET_FIELD_3>: "<기본값>"
-#   <TARGET_FIELD_5>: null           # 매핑 없이 스키마만 고정
-# constants:
-#   <TARGET_FIELD_4>: "<고정값>"
-
-# ── [선택] HTML 필드 → 평문 파생 필드 ───────────────────────────────────────
-# `파생필드: 원본필드` 형태다. 원본 HTML 을 평문으로 바꿔 새 필드에 담는다.
-# 같은 이름을 양쪽에 쓰면 제자리에서 평문으로 바꾼다(예: `CONTENT: CONTENT`).
-# 정리 규칙은 파싱 경로와 같다 — 접힌 약관·aria-hidden 텍스트도 보존된다.
-# 형제 키가 하나 더 있다(섞어 써도 된다. 단, 같은 파생필드명을 두 곳에 쓰면 오류다):
-#   text_from        원본 값의 종류(JSON/HTML/평문)를 자동 판별해 변환한다. 스키마가 안 정해진 원천용.
-# html_text_fields:
-#   <DERIVED_TEXT>: <TARGET_FIELD_HTML>
-
-# ── [선택] 원천에 없는 필드를 레코드마다 LLM 으로 생성 ──────────────────────
-# 레코드 1건당 LLM 1회 호출이다.
-#
-# output_fields 의 이름은 프롬프트가 내놓는 JSON 키와 **정확히 같아야** 한다.
-#    어긋나면 에러 없이 값이 null 로 채워진다.
-# **parser 경로에서만 실행된다.** json_mapping 자체가 parser 의 .json 분기 전용이므로
-#    적재용(intelligent)/변환용(convert) 설정에 넣으면 **경고도 없이 아무 일도 일어나지 않는다.**
-# `output_fields`/`input_fields`/`concurrency`/`on_error` 를 뺀 나머지 키는 그대로
-#    CustomFieldsEnricher 생성자로 넘어간다 — 아래 `url`/`api_key`/`model`/프롬프트를 이 항목에
-#    직접 쓰는 대신, `config_file: custom_field_<이름>.yaml` 로 별도 파일을 가리켜도 된다
-#    (같은 리소스 폴더 기준. 여러 doc_type 이 프롬프트를 공유할 때 유용하다).
-# llm_fields:
-#   - output_fields: [<GENERATED_FIELD>]
-#     input_fields:  [<TARGET_FIELD_1>]         # 프롬프트 {{raw_text}} 로 넣을 필드(선언 순서대로 결합)
-#     concurrency: 4                            # 레코드 동시 호출 상한(기본 4)
-#     on_error: null                            # null(해당 필드만 null) | skip_record
-#
-#     # <ENRICHMENT_SERVING_ID>: Genos에 등록한 모델서빙 ID 로 변경. api_key 도 배포 시 설정.
-#     url: "http://llmops-gateway-api-service:8080/rep/serving/<ENRICHMENT_SERVING_ID>/v1/chat/completions"
-#     api_key: ""
-#     model: model
-#
-#     max_tokens: 1000
-#     temperature: 0.0
-#     timeout: 120
-#
-#     parser:
-#       type: json
-#
-#     system_prompt: |
-#       <역할>. 반드시 하나의 JSON 객체만 반환한다. 설명 문구·코드펜스 없이 순수 JSON 만 출력한다.
-#       키는 `<GENERATED_FIELD>` 하나다.
-#       원문에 없는 내용을 지어내지 않는다(환각 금지). 만들 것이 없으면 값을 null 로 둔다.
-#
-#       출력 예시 형식(값은 예시):
-#       {"<GENERATED_FIELD>": "<예시 값>"}
-#
-#     user_prompt: |
-#       <지시문>
-#
-#       반드시 `<GENERATED_FIELD>` 키를 가진 JSON 객체로만 반환하라.
-#
-#       <item>
-#       {{raw_text}}
-#       </item>
-
-# ── [선택] 청크 본문에 함께 실을 항목명 ─────────────────────────────────────
-# 본문 필드를 `항목명: 값` 으로 낸다(`질문: 가입은 어떻게 하나요?`).
-# 여기 이름이 없는 필드는 값만 나가고, 값에 줄바꿈이 있는 블록에는 붙지 않는다 —
-# 그 블록은 이미 자기 제목을 갖고 있어 라벨을 얹으면 첫 줄만 라벨 뒤에 붙어 구조가 깨진다.
-# **사람이 검색어로 쓰는 말**을 적는다. 목표필드명(DB 컬럼명)과 원천 key 는 검색어에 안 나오므로
-# 그대로 노출하면 임베딩에 잡음만 는다.
-# json_mapping 은 원천 key 가 시스템 이름이라, 여기 적은 필드만 항목명과 함께 나간다.
-# field_labels:
-#   <TARGET_FIELD_1>: <항목명>
+# require:
+#   fields: [<TARGET_FIELD_1>]
 
 # ── [선택] 값 기반 레코드 필터 ──────────────────────────────────────────────
-# `required` 는 **빈 값**만 거른다. "삭제여부가 Y 인 건은 빼라" 는 이 블록으로 쓴다.
-# 조건은 모두 만족해야 하며(AND), 비교는 value_map 과 같은 규칙이다
-# (대소문자·공백·`_-./` 차이 무시). 필터로 빠진 건은 info 로 건수만 남는다 —
-# 정상 제외이므로 "필수값 누락" 경고로 찍지 않는다.
+# `require` 는 **빈 값**만 거른다. "삭제여부가 Y 인 건은 빼라" 는 이 블록으로 쓴다.
+# 조건은 모두 만족해야 하며(AND), 비교는 `values` 와 같은 규칙이다.
+# 필터로 빠진 건은 info 로 건수만 남는다 — 정상 제외이므로 경고로 찍지 않는다.
 # filter:
-#   - {field: <TARGET_FIELD_1>, not_in: [Y]}
-#   - {field: <TARGET_FIELD_2>, in: [ACTIVE, PENDING]}
+#   - {field: <DEL_YN>, not_in: [Y]}
 
-# ── [선택] 여러 필드를 합쳐 새 필드 만들기 ──────────────────────────────────
-# `{{목표필드}}` 를 값으로 채운다. 값이 없는 자리는 지우고 양끝 공백을 다듬는다.
-# text_fields 는 청크 **본문**을 만들 뿐이라, 적재용 metadata 필드를 합치려면 여기를 쓴다.
-# 변환(transforms) 뒤에 돌므로 정규화된 값으로 합쳐진다.
-# derive:
-#   <DISPLAY_NM>: "{{<TARGET_FIELD_1>}} {{<TARGET_FIELD_2>}}"
+# ── [필수] 청크 본문 ────────────────────────────────────────────────────────
+# fields  : 본문을 구성할 필드(선언 순서대로 개행 결합). 이 값이 임베딩 입력이 된다.
+#           비어 있으면 기동 시 실패한다(rows 와 달리 필수다).
+#           **여기 적은 필드는 위에서 반드시 만들어져야 한다** — 어디에도 없는 필드를 적으면
+#           **에러 없이 그 부분이 빠진 채** 청크가 나간다(기동 시 경고는 남는다). 본문이 통째로
+#           비면 그 레코드는 element 에서 제외된다("본문이 빈 레코드 N/M건을 제외했습니다").
+#           앞에 항상 값이 있는 필드(제목 등)를 두면 요약 실패 시에도 검색 가능한 상태가 유지된다.
+# labels  : 본문 필드를 `항목명: 값` 으로 낸다. **사람이 검색어로 쓰는 말**을 적는다.
+#           records 는 원천 key 가 시스템 이름(`depth4`·`htmlText`)이라 **폴백이 없다** —
+#           여기 적은 필드만 항목명과 함께 나가고, 없으면 값만 나간다.
+#           값에 줄바꿈이 있는 블록에는 붙지 않는다(그 블록은 이미 자기 제목을 갖는다).
+# split   : true 면 본문이 chunk_size 를 넘을 때 여러 청크로 나눈다(metadata 는 조각마다 동일).
+#           미지정(기본 false) = 레코드 1건이 항상 청크 1개.
+# repeat  : 분할된 모든 청크 앞에 반복할 식별 필드. `split: true` 일 때만 유효하다.
+#           접두 필드는 본문 맨 앞으로 이동하며 fields 에도 있으면 거기서 빠진다(중복 방지).
+body:
+  fields: [<TARGET_FIELD_1>, <TARGET_FIELD_2>]
+  # labels:
+  #   <TARGET_FIELD_1>: <항목명>
+  # split: true
+  # repeat: [<TARGET_FIELD_1>]      # 예: TITLE, QUESTION
 
-# ── [필수] 청크 본문을 구성할 필드 (선언 순서대로 개행 결합) ─────────────────
-# 이 값이 임베딩 입력이 된다. 비어 있으면 기동 시 실패한다(tabular 와 달리 필수다).
-# **여기 적은 필드는 위에서 반드시 만들어져야 한다** — 어디에도 없는 필드를 적으면
-#    **에러 없이 그 부분이 빠진 채** 청크가 나간다(기동 시 경고는 남는다). 본문이 통째로 비면 그 레코드는
-#    element 에서 제외된다("본문이 빈 레코드 N/M건을 제외했습니다" 경고).
-#    앞에 항상 값이 있는 필드(제목 등)를 두면 요약 실패 시에도 검색 가능한 상태가 유지된다.
-text_fields:
-  - <TARGET_FIELD_1>
-  - <TARGET_FIELD_2>
-
-# ── [선택] 긴 레코드 분할 ───────────────────────────────────────────────────
-# true 면 본문이 chunk_size 를 넘을 때 여러 청크로 나눈다(metadata 는 조각마다 동일).
-# 미지정(기본 false) = 레코드 1건이 항상 청크 1개.
-# split: true
-# 분할된 모든 청크 앞에 반복할 식별 필드. `split: true` 일 때만 유효하다(false 면 무시).
-# 접두 필드는 본문 맨 앞으로 이동하며 text_fields 에도 있으면 거기서 빠진다(중복 방지) —
-# text_fields 선두가 아닌 필드를 지정하면 본문 순서가 바뀌니 선두 필드를 쓰는 것이 안전하다.
-# chunk_prefix_fields:
-#   - <TARGET_FIELD_1>                       # 예: TITLE, QUESTION
-
-# ── [선택] records 키를 못 찾았을 때 ────────────────────────────────────────
-# error(기본) = 즉시 실패 / skip = 경고 후 0건
-# missing_policy: skip
+# ── [선택] 원천에 없는 필드를 레코드마다 LLM 으로 생성 ──────────────────────
+# 레코드 1건당 LLM 1회 호출이다. 호출 단위는 `source.kind` 가 정한다 — `scope` 를 적지 않는다.
+#
+# out 의 이름은 프롬프트가 내놓는 JSON 키와 **정확히 같아야** 한다.
+#    어긋나면 에러 없이 값이 null 로 채워진다.
+# **parser 경로에서만 실행된다.** kind: records 자체가 parser 의 .json 분기 전용이므로
+#    적재용(intelligent)/변환용(convert) 설정에 넣으면 **경고도 없이 아무 일도 일어나지 않는다.**
+# llm:
+#   - out: [<GENERATED_FIELD>]
+#     in:  [<TARGET_FIELD_1>]               # 프롬프트 {{raw_text}} 로 넣을 필드(선언 순서대로 결합)
+#     concurrency: 4                        # 레코드 동시 호출 상한(기본 4)
+#     on_error: null                        # null(해당 필드만 null) | skip_record
+#     parser: {type: json}
+#
+#     # <ENRICHMENT_SERVING_ID>: Genos에 등록한 모델서빙 ID 로 변경. api_key 도 배포 시 설정.
+#     endpoint:
+#       url: "http://llmops-gateway-api-service:8080/rep/serving/<ENRICHMENT_SERVING_ID>/v1/chat/completions"
+#       api_key: ""
+#       model: model
+#     params:
+#       max_tokens: 1000
+#       temperature: 0.0
+#       timeout: 120
+#     prompt:
+#       system: |
+#         <역할>. 반드시 하나의 JSON 객체만 반환한다. 설명 문구·코드펜스 없이 순수 JSON 만 출력한다.
+#         키는 `<GENERATED_FIELD>` 하나다.
+#         원문에 없는 내용을 지어내지 않는다(환각 금지). 만들 것이 없으면 값을 null 로 둔다.
+#
+#         출력 예시 형식(값은 예시):
+#         {"<GENERATED_FIELD>": "<예시 값>"}
+#       user: |
+#         <지시문>
+#
+#         반드시 `<GENERATED_FIELD>` 키를 가진 JSON 객체로만 반환하라.
+#
+#         <item>
+#         {{raw_text}}
+#         </item>
 
 # ═══════════════════════════════════════════════════════════════════════════
 #  기동 시 자동 검사 — 무엇을 잡아주고 무엇을 못 잡나
-#  (facade/enrichment/tabular_custom_fields.py 의 validate_custom_field_config,
-#   tabular_mapping·json_semantic 도 같은 검사를 공유한다)
 #
 #  실패시킨다(요청 전에 바로 안다)
-#   · `required`/`text_fields`/`chunk_prefix_fields` 를 목록이 아닌 값으로,
-#     `key_map`/`collect_key_map`/`constants`/`defaults`/`value_map`/`transforms`/`field_labels` 등을 맵이 아닌 값으로 쓴 경우
-#     (`required: TITLE` 처럼 `- ` 를 빠뜨리면 글자 단위로 쪼개져 전건 skip 이 된다)
+#   · **이 kind 가 읽지 않는 키를 적은 경우.** 어느 스키마에도 없는 키(오타)는 가장 가까운
+#     이름을 제안하고, 다른 kind 의 키는 어디 전용인지 알려준다.
+#   · `fields` 의 값이 object 가 아닌 경우(값을 빠뜨린 오타 포함)
 #   · 목표필드명이 벡터 예약 필드(text·title·n_char·i_page·created_date·appendix …)와
-#     겹치거나 property 이름 규칙 `/[_A-Za-z][_0-9A-Za-z]*/` 을 벗어난 경우(한글·공백·기호)
-#   · `required` 에 `llm_fields` 가 만드는 필드를 적은 경우(LLM 호출 전에 전건이 걸러진다)
-#   · `chunk_prefix_fields` 에 아무도 만들지 않는 필드를 적은 경우
-#   · **이 extractor 가 읽지 않는 키를 적은 경우.** 두 가지를 나눠 알려준다 —
-#     어느 extractor 도 모르는 키(`key_maps` 같은 오타)는 가장 가까운 이름을 제안하고,
-#     다른 extractor 의 키(예: json_mapping 설정에 남의 키)는 어느 extractor 전용인지 알려준다.
-#     지원 키 목록은 facade/enrichment/config_schema.py 의 EXTRACTOR_KEYS 한 곳에 있다.
+#     겹치거나 property 이름 규칙 `/[_A-Za-z][_0-9A-Za-z]*/` 을 벗어난 경우
+#   · `require.fields` 에 `llm` 이 만드는 필드를 적은 경우
+#   · `body.repeat` 에 아무도 만들지 않는 필드를 적은 경우
+#   · `transform` 의 모르는 이름·빠진 인자·잘못된 정규식
+#   · `template`/`filter` 가 아무도 만들지 않는 필드를 가리킬 때
+#   · 같은 필드에 `alias` 와 `collect` 를 함께 쓴 경우
 #
 #  경고만 남긴다(로그를 봐야 안다)
-#   · `text_fields` 가 아무도 만들지 않는 필드를 가리킬 때 — 그 부분이 조용히 빠진다
-#   · `field_labels` 가 아무도 만들지 않는 필드를 가리킬 때 — 라벨만 조용히 사라진다
+#   · `body.fields` 가 아무도 만들지 않는 필드를 가리킬 때 — 그 부분이 조용히 빠진다
+#   · `body.labels` 가 아무도 만들지 않는 필드를 가리킬 때 — 라벨만 조용히 사라진다
 #
 #  못 잡는다(아래 "확인 방법"으로 직접 봐야 한다)
-#   · 별칭이 원천과 어긋나 값이 전부 비는 경우
-
+#   · alias 가 원천과 어긋나 값이 전부 비는 경우
+#
 # ═══════════════════════════════════════════════════════════════════════════
 #  확인 방법
 #
-#  실제 json 으로 매핑 결과 보기 — 가장 확실하다(LLM 호출 없음).
-#  실행 위치: genon/preprocessor
-#      python -c "
-#    import sys, json; sys.path.insert(0,'.'); sys.path.insert(0,'../..')
-#    from facade.enrichment.json_records import JsonRecordsMapper as M
-#    m = M(config_file='custom_field_<유형>.yaml', resource_path='resource',
-#          doc_type='<유형>', extractor='json_mapping')
-#    payload = json.load(open('<내_데이터.json>', encoding='utf-8'))
-#    rows = m.build_fields(payload, '<유형>')
-#    print(f'매핑된 레코드: {len(rows)}건')
-#    out = m.to_parse_format(rows, '<유형>')
-#    for e in out['elements'][:3]:
-#        print(e['metadata']); print('본문:', repr(e['content'])); print()
-#    "
-#  → 레코드 수가 0 이면 key_map 별칭이 원천 키와 어긋난 것이다(required 로 전건 skip).
+#  1) 설정만 검사 — 파싱·LLM 없이 yaml 만 읽는다.
+#       genon/preprocessor/examples/config_precheck/precheck_custom_fields.sh
 #
-#  위 "기동 시 자동 검사"가 못 잡는 것(모르는 키·어긋난 별칭)은 여기서만 드러난다 —
+#  2) 실제 json 으로 매핑 결과 보기 — 가장 확실하다(LLM 호출 없음).
+#     실행 위치: genon/preprocessor
+#       python -c "
+#     import sys, json; sys.path.insert(0,'.'); sys.path.insert(0,'../..')
+#     from facade.enrichment.json_records import JsonRecordsMapper as M
+#     m = M(config_file='custom_field_<유형>.yaml', resource_path='resource',
+#           doc_type='<유형>', extractor='json_mapping')
+#     payload = json.load(open('<내_데이터.json>', encoding='utf-8'))
+#     rows = m.build_fields(payload, '<유형>')
+#     print(f'매핑된 레코드: {len(rows)}건')
+#     out = m.to_parse_format(rows, '<유형>')
+#     for e in out['elements'][:3]:
+#         print(e['metadata']); print('본문:', repr(e['content'])); print()
+#     "
+#     → 레코드 수가 0 이면 alias 가 원천 키와 어긋난 것이다(require 로 전건 skip).
+#
+#  3) doc_type 자동 검증 — 파싱·청킹까지 태워 약속한 필드가 실제 청크에 실렸는지 본다.
+#       genon/preprocessor/examples/parse_chunk/parse_chunk_verify.sh --only <유형>
+#
+#  위 "기동 시 자동 검사"가 못 잡는 것(어긋난 alias)은 2번에서만 드러난다 —
 #     설정을 바꿨으면 꼭 돌려볼 것.
 # ═══════════════════════════════════════════════════════════════════════════

@@ -1,12 +1,12 @@
 # ═══════════════════════════════════════════════════════════════════════════
-#  템플릿 — Excel/CSV 행별 매핑 (extractor: tabular_mapping)
+#  템플릿 — Excel/CSV 행별 매핑 (source.kind: rows)
 #
 #  언제 쓰나 : 원천이 xlsx/xlsm/csv 이고 **한 행이 검색 결과 한 건**일 때
 #              (FAQ 목록, 용어사전, 메뉴 목록, 고객센터 항목 …)
 #  결과      : 행 1개 = 청크 1개(element category=`custom_fields_row`).
 #              아래 목표필드가 그 청크의 metadata 로 실린다.
-#              단 `split: true` 를 켜면 chunk_size 를 넘는 행만 여러 청크로 나뉜다.
-#  LLM 호출  : 없음. 원천에 없는 필드가 필요할 때만 맨 아래 llm_fields 를 쓴다.
+#              단 `body.split: true` 를 켜면 chunk_size 를 넘는 행만 여러 청크로 나뉜다.
+#  LLM 호출  : 없음. 원천에 없는 필드가 필요할 때만 맨 아래 `llm` 을 쓴다.
 #
 #  ── 쓰는 순서 ────────────────────────────────────────────────────────────
 #  ① 이 파일을 resource/custom_field_<유형>.yaml 로 복사한다.
@@ -15,264 +15,224 @@
 #        - custom_fields:
 #            enable: true
 #            doc_type: <유형>            # 요청 params 로 넘길 문서유형 키
-#            extractor: tabular_mapping
+#            extractor: tabular_mapping  # source.kind: rows 와 짝이다
 #            config_file: custom_field_<유형>.yaml   # 파일명만. 이 yaml 과 같은 폴더 기준
 #  ④ 실제 원천 파일로 결과를 확인한다(아래 "확인 방법" 참고).
 #
 #  이 파일 하나로 자족한다 — 프롬프트까지 여기 인라인하면 별도 md 파일이 필요 없다.
-#    (출고된 custom_field_faq.yaml · custom_field_term.yaml 이 같은 형태다)
 #
+#  한 파일에 스키마가 다른 표가 여럿 오면 이 설정을 **표마다 하나씩** 만들어 같은 doc_type
+#  으로 등록한다. 각 설정은 자기 `require.fields` 컬럼이 있는 표만 맡고 나머지는 건너뛴다
+#  (설정이 하나뿐이면 종전대로 필수 컬럼이 없을 때 기동 시 실패한다 — 원천 스키마가 바뀐
+#  신호이기 때문이다). 어느 설정도 안 맡은 표가 있으면 경고가 남는다.
 #
-#  한 파일에 스키마가 다른 표가 여럿 올 때는 이 설정을 **표마다 하나씩** 만들어 같은
-#  doc_type 으로 등록한다. 각 설정은 자기 `required` 컬럼이 있는 표만 맡고 나머지는
-#  건너뛴다(설정이 하나뿐이면 종전대로 필수 컬럼이 없을 때 기동 시 실패한다 — 원천
-#  스키마가 바뀐 신호이기 때문이다). 어느 설정도 안 맡은 표가 있으면 경고가 남는다.
 #  이 템플릿은 참고용이므로 parser_processor_config.yaml 에 등록하지 않는다.
 #     <...> 가 남은 상태로 등록하면 매핑이 원천과 맞지 않아 값이 비어서 나온다.
 # ═══════════════════════════════════════════════════════════════════════════
 
-# ── [필수] 목표필드: [원천 컬럼명 별칭 목록] ─────────────────────────────────
-# 왼쪽 = 만들고 싶은 필드명. 적재 DB 컬럼명(대문자)으로 쓴다.
-# 오른쪽 = 그 값이 든 **엑셀 헤더 이름들**. 원천 표기가 흔들려도 잡히게 여러 개 나열한다.
-#          앞에 쓴 것이 우선한다. 목표필드명 자체도 자동으로 별칭에 포함된다.
-#          비교 시 대소문자·공백·`_-./`·전각/반각 차이는 무시하므로 정확히 안 맞춰도 된다.
-column_map:
-  <TARGET_FIELD_1>: [<엑셀 헤더>, <다른 표기>]
-  <TARGET_FIELD_2>: [<엑셀 헤더>]
-  # 같은 컬럼을 두 목표필드에 매핑해도 된다(한쪽만 transforms 로 정규화하는 용도).
+schema: v2
+
+# ── [필수] 레코드 소스 ──────────────────────────────────────────────────────
+source:
+  kind: rows
+
+  # ── [선택] 여러 행에 걸쳐 쪼개진 값을 한 레코드로 접기 ────────────────────
+  # 원천이 값 하나(주로 JSON 문자열)를 여러 행에 나눠 보내는 스키마에만 쓴다. 없으면
+  # 행 1개 = 레코드 1개(기본 동작)다. group_by 가 같은 **연속** 행만 한 묶음으로 접는다 —
+  # 멀리 떨어진 동일 키는 다른 레코드로 남는다(등록번호를 재사용하는 원천에서 서로 다른
+  # 게시물이 뭉개지는 것을 막는다).
+  # merge_rows:
+  #   group_by:  [<TARGET_FIELD_1>]   # 이 값이 같은 연속 행이 한 묶음(목표필드명 기준)
+  #   order_by:  <TARGET_FIELD_2>     # 묶음 안 정렬 기준(숫자 우선, 미지정 시 원본 순서)
+  #   concat:    [<TARGET_FIELD_3>]   # 순서대로 이어붙일 필드(목표필드명)
+  #   separator: ""                   # 기본값. 문자 단위로 잘려 온다면 반드시 빈 문자열로 둔다
+
+# ── [필수] 필드 — 한 필드의 규칙을 한 자리에 모은다 ─────────────────────────
+# 왼쪽 = 만들 목표필드명. 적재 DB 컬럼명(대문자)으로 쓴다.
+# 값은 **항상 object** 다. `<TARGET>:` 처럼 값을 빠뜨리면 조용히 무시되므로 단축 표기를
+# 받지 않는다(예전에 그 오타가 무증상으로 통과하던 것을 막기 위해서다).
+#
+# 쓸 수 있는 키
+#   alias      : 그 값이 든 **엑셀 헤더 이름들**. 원천 표기가 흔들려도 잡히게 여러 개 나열한다.
+#                앞에 쓴 것이 우선한다. 목표필드명 자체도 자동으로 별칭에 포함된다.
+#                비교 시 대소문자·공백·`_-./`·전각/반각 차이는 무시하므로 정확히 안 맞춰도 된다.
+#                `sheet_name`(시트 이름)과 `title`(표 블록 제목)도 별칭으로 쓸 수 있다 —
+#                관계사별로 시트를 나눠 보내면서 구분값을 셀에는 안 넣는 원천용이다.
+#                같은 이름의 진짜 컬럼이 있으면 **컬럼이 이긴다**.
+#   const      : 원천 값이 있어도 덮어쓴다(파일 단위로 고정인 값)
+#   default    : 원천 값이 None·"" 일 때만 채운다. 값을 `null` 로 두면 "매핑은 없지만 적재
+#                스키마에는 있어야 하는 필드"를 명시 출력한다
+#   values     : **값**의 표기 흔들림을 표준 코드로 접는다. `표준값: [별칭…]` 형태다.
+#                표준값 자신도 자동 별칭이라 이미 코드로 오는 원천은 그대로 통과한다.
+#                매핑표에 없는 값은 원값을 두고 경고만 남긴다(조용히 null 로 바꾸지 않는다)
+#   transform  : 값 변환. 이름 하나 또는 목록(순서대로 적용). 아래 [변환기] 참고
+#   from + as  : 다른 목표필드를 평문으로 바꿔 이 필드에 담는다(원본은 그대로 둔다).
+#                `as: auto`(기본) 는 값의 종류를 자동 판별한다 — JSON → 마크다운 헤딩,
+#                구조 HTML(표·목록) → docling 평문화, 인라인 태그만 있으면 태그만 제거.
+#                `as: html` 은 판별 대신 HTML 로 강제한다(원천이 항상 HTML 로 확정됐을 때).
+#                같은 컬럼에 JSON·HTML·평문이 섞여 오는 원천에는 `auto` 가 맞다
+#   template   : 여러 필드를 합쳐 새 필드를 만든다. `{{목표필드}}` 를 값으로 채우고,
+#                값이 없는 자리는 지우고 양끝 공백을 다듬는다. 변환 뒤에 돈다
+#
+# [변환기] 인자 없는 것 3개 + 인자 받는 것 4개. 목록으로 쓰면 순서대로 적용된다(체이닝).
+#   date_int       "2026-07-01"                  → 20260701 (파싱 실패 시 0)
+#   date_int_flex  "26.07.01" / "260701" / 8자리 → 20260701 (두 자리 연도까지 흡수)
+#   text_norm      NFKC → 공백 축약 → casefold   (중복 판정 키를 만들 때)
+#   regex_sub      pattern, repl                 정규식 치환  "18,000원" → "18000"
+#   regex_extract  pattern, group=1              정규식 추출  매칭 없으면 null
+#   to_int         (on_error=null)               숫자만 남겨 정수로
+#   truncate       length, suffix=""             길이 자르기(적재 컬럼 길이 맞추기)
+# 목록에 없는 이름·빠진 인자·컴파일 안 되는 정규식은 기동 시 실패하며 쓸 수 있는 이름을 알려준다.
+fields:
+  <TARGET_FIELD_1>:
+    alias: [<엑셀 헤더>, <다른 표기>]
+  <TARGET_FIELD_2>:
+    alias: [<엑셀 헤더>]
+    transform: date_int_flex
+
+  # 한 필드가 별칭·값매핑·기본값을 **동시에** 가질 수 있다(예전에는 세 블록에 흩어져 있었다).
+  # <SEARCHABLE_YN>:
+  #   alias:   [노출여부]
+  #   values:  {"Y": [노출, 사용], "N": [미노출, 미사용]}
+  #   default: "N"
   #
-  # 행이 아니라 **시트/표 단위**로만 붙는 값도 여기서 참조한다. 관계사별로 시트를 나눠
-  # 보내면서 구분값을 셀에는 안 넣는 원천이 있다. 쓸 수 있는 이름은 두 개다.
-  #   sheet_name  시트 이름(csv 는 파일 기준 기본 이름)
-  #   title       그 표 블록의 제목(multi_table 로 잘린 블록의 제목행)
-  # 같은 이름의 진짜 컬럼이 있으면 **컬럼이 이긴다** — 컨텍스트가 데이터를 가리지 않는다.
-  # <COMPANY_FIELD>: [sheet_name]
+  # <GROUP_C>:  {const: "<고정값>"}
+  # <BIZ_ID>:   {default: null}                  # 매핑 없이 적재 스키마만 고정
+  # <FEE_AMT>:
+  #   alias: [연회비]
+  #   transform:
+  #     - {name: regex_sub, pattern: "[^0-9]", repl: ""}
+  #     - {name: to_int}
+  # <DETAIL_TEXT>: {from: <TARGET_FIELD_2>, as: auto}   # 평문 파생 필드
+  # <DISPLAY_NM>:  {template: "{{<TARGET_FIELD_1>}} {{<TARGET_FIELD_2>}}"}
 
 # ── [참고] 값 적용 순서 ──────────────────────────────────────────────────────
 # 행 하나가 청크가 되기까지 이 순서로 처리된다:
-#   column_map 원시 매핑 → (row_merge 가 있으면 연속 행 병합) →
-#   defaults → constants → value_map → transforms → text_from → required 검사
-# value_map 이 transforms 보다 먼저 걸린다 — 표기 흔들림을 표준값으로 접은 뒤에 타입 변환을 건다.
-# defaults 가 빈 값을 채운 **뒤에** constants 가 덮어쓴다. 그래서 둘 다 선언했다면 언제나
-# constants 가 이긴다 — `constants: {X: ""}` 처럼 빈 값으로 못 박은 경우도 마찬가지다
-# (세 extractor 가 같은 순서를 쓴다).
-# required 는 이 모든 단계가 끝난 **최종 값**을 본다 — 원천에 없어도 defaults/constants 로
+#   alias 원시 매핑 → (merge_rows 가 있으면 연속 행 병합) →
+#   default → const → values → transform → template → from/as → filter → require 검사
+# values 가 transform 보다 먼저 걸린다 — 표기 흔들림을 표준값으로 접은 뒤에 타입 변환을 건다.
+# default 가 빈 값을 채운 **뒤에** const 가 덮어쓴다. 그래서 둘 다 선언했다면 언제나 const 가
+# 이긴다 — `const: ""` 처럼 빈 값으로 못 박은 경우도 마찬가지다(세 kind 가 같은 순서를 쓴다).
+# require 는 이 모든 단계가 끝난 **최종 값**을 본다 — 원천에 없어도 default/const 로
 # 채워졌으면 통과한다.
-
-# ── [선택] 여러 행에 걸쳐 쪼개진 값을 한 레코드로 접기 ───────────────────────
-# 원천이 값 하나(주로 JSON 문자열)를 여러 행에 나눠 보내는 스키마에만 쓴다. 없으면 행 1개 =
-# 레코드 1개(기본 동작)다. group_by 가 같은 **연속** 행만 한 묶음으로 접는다 — 멀리 떨어진
-# 동일 키는 다른 레코드로 남는다(등록번호 재사용 시 서로 다른 게시물이 뭉개지는 것을 막는다).
-# row_merge:
-#   group_by:  [<TARGET_FIELD_1>]     # 이 값이 같은 연속 행이 한 묶음(목표필드명 기준)
-#   order_by:  <TARGET_FIELD_2>       # 묶음 안 정렬 기준(숫자 우선, 미지정 시 원본 순서)
-#   concat:    [<TARGET_FIELD_3>]     # 순서대로 이어붙일 필드(목표필드명)
-#   separator: ""                     # 기본값. 원문이 문자 단위로 잘려 온다면 반드시 빈 문자열로 둔다
-
-# ── [선택] 값 별칭 → 표준 코드 ──────────────────────────────────────────────
-# 컬럼명이 아니라 **값**의 표기 흔들림을 접는다. `표준값: [별칭…]` 형태다.
-# 표준값 자신도 자동 별칭이라 이미 코드로 오는 원천은 그대로 통과한다.
-# 매핑표에 없는 값은 원값을 두고 경고만 남긴다(조용히 null 로 바꾸지 않는다).
-# value_map:
-#   <TARGET_FIELD_1>:
-#     "Y": [노출, 사용]
-#     "N": [미노출, 미사용]
-
-# ── [선택] 값 변환 ──────────────────────────────────────────────────────────
-# 쓸 수 있는 변환기는 이 3개뿐이다(facade/enrichment/field_transforms.py 의 VALUE_TRANSFORMS).
-#   date_int       "2026-07-01"                    → 20260701 (파싱 실패 시 0)
-#   date_int_flex  "26.07.01" / "260701" / 8자리   → 20260701 (두 자리 연도까지 흡수)
-#   text_norm      NFKC → 공백 축약 → casefold     (중복 판정 키를 만들 때)
-# 목록에 없는 이름을 쓰면 기동 시 실패하며 쓸 수 있는 이름을 알려준다.
-# transforms:
-#   <TARGET_FIELD_2>: date_int_flex
-#
-# 인자를 받는 변환기도 있다. 목록으로 쓰면 순서대로 적용된다(체이닝).
-#   regex_sub      pattern, repl        정규식 치환   "18,000원" → "18000"
-#   regex_extract  pattern, group=1     정규식 추출   매칭 없으면 null
-#   to_int         (on_error=null)      숫자만 남겨 정수로
-#   truncate       length, suffix=""    길이 자르기(적재 컬럼 길이 맞추기)
-# 잘못된 이름·빠진 인자·컴파일 안 되는 정규식은 기동 시에 잡는다.
-# transforms:
-#   <FEE_AMT>:
-#     - {name: regex_sub, pattern: "[^0-9]", repl: ""}
-#     - {name: to_int}
-#   <CODE>: {name: regex_extract, pattern: "([A-Z]+-[0-9]+)"}
-
-# ── [선택] 원천 필드 → 평문 파생 필드 ────────────────────────────────────────
-# 원본 필드는 그대로 두고, 사람이 읽는 평문 사본만 새 목표필드에 만든다(원본을 덮지 않는다).
-# 같은 컬럼에 JSON·HTML·평문이 섞여 오는 원천(정해진 스키마가 없을 때) 대상이다.
-# text_from 은 값의 종류를 자동 판별한다: JSON → 마크다운(`##`/`###` 헤딩), 구조 HTML(표·목록)
-# → docling 으로 평문화, 인라인 태그만 있으면 태그만 제거, 평문은 정규화만 한다.
-# html_text_fields 는 판별 대신 **HTML 로 강제**하는 별칭이다 — 원천이 항상 HTML 로 온다고
-# 확정됐을 때 쓴다. 두 블록은 값의 형태만 다를 뿐 동작은 같다(같은 파생필드명을 두 곳에
-# 쓰면 오류다).
-# text_from:
-#   <DERIVED_FIELD>: <TARGET_FIELD_2>   # 원천이 아니라 위에서 만든 목표필드명을 가리킨다
-# html_text_fields:
-#   <DERIVED_FIELD>: <TARGET_FIELD_2>
 
 # ── [선택] 필수 목표필드 ────────────────────────────────────────────────────
 # 두 가지로 동작한다(구분이 중요하다):
 #   · 여기 적은 필드가 **엑셀 컬럼에 아예 없으면** → 기동 시 실패(원천이 바뀐 것이므로)
+#     단 같은 doc_type 에 설정이 여럿이면 "내가 맡을 표가 아니다"로 보고 그 표를 건너뛴다
 #   · 컬럼은 있는데 **행의 값이 비었으면** → 그 행만 건너뛰고 건수를 경고로 남긴다
-# 아래 llm_fields 가 만드는 필드는 여기 적을 수 없다(기동 시 실패) — 필수값 검사가 LLM
-# 호출보다 먼저 돌아, 걸어 두면 LLM 을 부르기도 전에 전 행이 걸러진다.
-# required:
-#   - <TARGET_FIELD_1>
+# 아래 `llm` 이 만드는 필드는 여기 적을 수 없다(기동 시 실패) — 필수값 검사가 LLM 호출보다
+# 먼저 돌아, 걸어 두면 LLM 을 부르기도 전에 전 행이 걸러진다.
+# require:
+#   fields: [<TARGET_FIELD_1>]
 
-# ── [선택] 원천에 값이 없을 때 채울 기본값 ──────────────────────────────────
-# 적재 DB 의 NOT NULL 컬럼인데 원천이 주지 않는 필드를 여기서 채운다.
-# 값이 None 또는 "" 일 때만 적용된다.
-# 값을 `null` 로 두면 "매핑은 없지만 적재 스키마에는 있어야 하는 필드"를 명시 출력한다
-# (예전의 `nulls:` 목록과 결과가 같다 — 개념 하나를 줄여 defaults 로 통일했다).
-# defaults:
-#   <TARGET_FIELD_3>: "<기본값>"
-#   <TARGET_FIELD_5>: null           # 매핑 없이 스키마만 고정
+# ── [선택] 값 기반 레코드 필터 ──────────────────────────────────────────────
+# `require` 는 **빈 값**만 거른다. "삭제여부가 Y 인 건은 빼라" 는 이 블록으로 쓴다.
+# 조건은 모두 만족해야 하며(AND), 비교는 `values` 와 같은 규칙이다(대소문자·공백·`_-./` 무시).
+# 필터로 빠진 건은 info 로 건수만 남는다 — 정상 제외이므로 "필수값 누락" 경고로 찍지 않는다.
+# filter:
+#   - {field: <DEL_YN>, not_in: [Y]}
+#   - {field: <STATUS>, in: [ACTIVE, PENDING]}
 
-# ── [선택] 원천과 무관하게 항상 같은 값 ─────────────────────────────────────
-# defaults 와 달리 **원천 값이 있어도 덮어쓴다**. 관계사 전용 파일의 회사코드처럼
-# 파일 단위로 고정인 값에 쓴다(원천·LLM 에 맡기지 않는다).
-# constants:
-#   <TARGET_FIELD_4>: "<고정값>"
+# ── [필수] 청크 본문 ────────────────────────────────────────────────────────
+# fields    : 본문을 구성할 필드(선언 순서대로 개행 결합). 이 값이 임베딩 입력이 된다.
+#             **여기 적은 필드는 위에서 반드시 만들어져야 한다** — 어디에도 없는 필드를
+#             적으면 **에러 없이 그 부분이 빠진 채** 청크가 나간다(기동 시 경고는 남는다).
+#             (`llm` 을 주석 처리하고 그 출력 필드를 여기 남겨두는 실수가 가장 흔하다)
+#             이 항목을 생략하면 그 행의 모든 셀 값을 개행으로 이어붙인 값이 본문이 된다.
+# labels    : 본문 필드를 `항목명: 값` 으로 낸다(`질문: 가입은 어떻게 하나요?`).
+#             **사람이 검색어로 쓰는 말**을 적는다. 목표필드명(DB 컬럼명)과 원천 key 는
+#             검색어에 안 나오므로 그대로 노출하면 임베딩에 잡음만 는다.
+#             미지정 시 `alias` 첫 값을 항목명으로 쓴다(엑셀 헤더는 사람이 읽는 말이므로).
+#             alias 가 없는 필드(const·template·llm 산출)는 **이름이 없으면 값만** 나간다.
+#             값에 줄바꿈이 있는 블록에는 붙지 않는다 — 그 블록은 이미 자기 제목을 갖고 있다.
+# split     : true 면 행 본문이 chunk_size 를 넘을 때 여러 청크로 나눈다(metadata 는 동일).
+#             미지정(기본 false) = 행 1개가 항상 청크 1개.
+# repeat    : 분할된 모든 청크 앞에 반복할 식별 필드. `split: true` 일 때만 유효하다.
+#             접두 필드는 본문 맨 앞으로 이동하며 fields 에도 있으면 거기서 빠진다(중복 방지) —
+#             fields 선두가 아닌 필드를 지정하면 본문 순서가 바뀌니 선두 필드가 안전하다.
+body:
+  fields: [<TARGET_FIELD_1>, <TARGET_FIELD_2>]
+  # labels:
+  #   <TARGET_FIELD_1>: <항목명>
+  # split: true
+  # repeat: [<TARGET_FIELD_1>]      # 예: MENU_NM, TERM, QUESTION
 
 # ── [선택] 원천에 없는 필드를 행마다 LLM 으로 생성 ──────────────────────────
 # 행 1건당 LLM 1회 호출이다. 행이 많으면 비용·시간이 그만큼 늘어난다.
+# 호출 단위는 `source.kind` 가 정한다 — `scope` 를 적지 않는다.
 #
-# output_fields 의 이름은 프롬프트가 내놓는 JSON 키와 **정확히 같아야** 한다.
+# out 의 이름은 프롬프트가 내놓는 JSON 키와 **정확히 같아야** 한다.
 #    어긋나면 에러 없이 값이 null 로 채워진다.
 # **parser 경로에서만 실행된다.** 적재용(intelligent)/변환용(convert) 경로는 동기 처리라
 #    LLM 호출 자리가 없어 기동 시 경고만 남기고 이 필드는 비어서 나온다.
-# llm_fields:
-#   - output_fields: [<GENERATED_FIELD>]        # 만들 필드
-#     input_fields:  [<TARGET_FIELD_1>]         # 프롬프트 {{raw_text}} 로 넣을 필드(선언 순서대로 결합)
-#     concurrency: 4                            # 행 동시 호출 상한(기본 4)
-#     on_error: null                            # null(해당 필드만 null 로 두고 진행) | skip_record
+# llm:
+#   - out: [<GENERATED_FIELD>]              # 만들 필드
+#     in:  [<TARGET_FIELD_1>]               # 프롬프트 {{raw_text}} 로 넣을 필드(선언 순서대로 결합)
+#     concurrency: 4                        # 행 동시 호출 상한(기본 4)
+#     on_error: null                        # null(해당 필드만 null 로 두고 진행) | skip_record
+#     parser: {type: json}                  # 응답에서 JSON 객체를 찾아 dict 로
 #
-#     # ── LLM 연결 ──────────────────────────────────────────────────────────
 #     # <ENRICHMENT_SERVING_ID>: Genos에 등록한 모델서빙 ID 로 변경. api_key 도 배포 시 설정.
 #     # api_key 는 k8s 내부 통신 기반 호출 시 불필요하다.
-#     # 프롬프트가 길거나 여러 doc_type 이 공유한다면, 아래를 인라인하는 대신 이 항목에
-#     # config_file: <다른_yaml> 하나만 써서 연결/프롬프트를 그 파일에서 읽게 해도 된다
-#     # (url/api_key/model/system_prompt/user_prompt 를 인라인하지 않는 대신).
-#     url: "http://llmops-gateway-api-service:8080/rep/serving/<ENRICHMENT_SERVING_ID>/v1/chat/completions"
-#     api_key: ""
-#     model: model
+#     endpoint:
+#       url: "http://llmops-gateway-api-service:8080/rep/serving/<ENRICHMENT_SERVING_ID>/v1/chat/completions"
+#       api_key: ""
+#       model: model
+#     params:
+#       max_tokens: 800
+#       temperature: 0.0
+#       timeout: 60
 #
-#     max_tokens: 800
-#     temperature: 0.0
-#     timeout: 60
+#     # 프롬프트를 인라인 대신 별도 파일로 두려면 system_file / user_file 에 경로를 쓴다
+#     # (이 yaml 과 같은 디렉토리 기준).
+#     prompt:
+#       system: |
+#         <역할>. 반드시 하나의 JSON 객체만 반환한다. 설명 문구·코드펜스 없이 순수 JSON 만 출력한다.
+#         키는 `<GENERATED_FIELD>` 하나다.
+#         원문에 없는 내용을 지어내지 않는다(환각 금지). 만들 것이 없으면 값을 null 로 둔다.
 #
-#     parser:
-#       type: json                              # 응답에서 JSON 객체를 찾아 dict 로
+#         출력 예시 형식(값은 예시):
+#         {"<GENERATED_FIELD>": "<예시 값>"}
+#       user: |
+#         <지시문>
 #
-#     # 프롬프트를 인라인 대신 별도 파일로 두려면 system_prompt_file / user_prompt_file 에
-#     # 경로를 쓴다(이 yaml 과 같은 디렉토리 기준). 우선순위는 file > 인라인이다.
-#     system_prompt: |
-#       <역할>. 반드시 하나의 JSON 객체만 반환한다. 설명 문구·코드펜스 없이 순수 JSON 만 출력한다.
-#       키는 `<GENERATED_FIELD>` 하나다.
-#       원문에 없는 내용을 지어내지 않는다(환각 금지). 만들 것이 없으면 값을 null 로 둔다.
+#         반드시 `<GENERATED_FIELD>` 키를 가진 JSON 객체로만 반환하라.
 #
-#       출력 예시 형식(값은 예시):
-#       {"<GENERATED_FIELD>": "<예시 값>"}
-#
-#     user_prompt: |
-#       <지시문>
-#
-#       반드시 `<GENERATED_FIELD>` 키를 가진 JSON 객체로만 반환하라.
-#
-#       <item>
-#       {{raw_text}}
-#       </item>
-
-# ── [선택] 청크 본문에 함께 실을 항목명 ─────────────────────────────────────
-# 본문 필드를 `항목명: 값` 으로 낸다(`질문: 가입은 어떻게 하나요?`).
-# 여기 이름이 없는 필드는 값만 나가고, 값에 줄바꿈이 있는 블록에는 붙지 않는다 —
-# 그 블록은 이미 자기 제목을 갖고 있어 라벨을 얹으면 첫 줄만 라벨 뒤에 붙어 구조가 깨진다.
-# **사람이 검색어로 쓰는 말**을 적는다. 목표필드명(DB 컬럼명)과 원천 key 는 검색어에 안 나오므로
-# 그대로 노출하면 임베딩에 잡음만 는다.
-# tabular_mapping 은 미지정 시 column_map 별칭 첫 값을 항목명으로 쓴다 — column_map 에 없는
-# 파생·LLM 생성 필드(SUMMARY_TEXT 등)는 목표필드명이 그대로 노출되므로 여기서 이름을 준다.
-# field_labels:
-#   <TARGET_FIELD_1>: <항목명>
-
-# ── [선택] 값 기반 레코드 필터 ──────────────────────────────────────────────
-# `required` 는 **빈 값**만 거른다. "삭제여부가 Y 인 건은 빼라" 는 이 블록으로 쓴다.
-# 조건은 모두 만족해야 하며(AND), 비교는 value_map 과 같은 규칙이다
-# (대소문자·공백·`_-./` 차이 무시). 필터로 빠진 건은 info 로 건수만 남는다 —
-# 정상 제외이므로 "필수값 누락" 경고로 찍지 않는다.
-# filter:
-#   - {field: <TARGET_FIELD_1>, not_in: [Y]}
-#   - {field: <TARGET_FIELD_2>, in: [ACTIVE, PENDING]}
-
-# ── [선택] 여러 필드를 합쳐 새 필드 만들기 ──────────────────────────────────
-# `{{목표필드}}` 를 값으로 채운다. 값이 없는 자리는 지우고 양끝 공백을 다듬는다.
-# text_fields 는 청크 **본문**을 만들 뿐이라, 적재용 metadata 필드를 합치려면 여기를 쓴다.
-# 변환(transforms) 뒤에 돌므로 정규화된 값으로 합쳐진다.
-# derive:
-#   <DISPLAY_NM>: "{{<TARGET_FIELD_1>}} {{<TARGET_FIELD_2>}}"
-
-# ── [필수] 청크 본문을 구성할 필드 (선언 순서대로 개행 결합) ─────────────────
-# 이 값이 임베딩 입력이 된다.
-# **여기 적은 필드는 위에서 반드시 만들어져야 한다** — column_map/constants/defaults/
-#    text_from(html_text_fields 포함)/llm_fields 중 어디에도 없는 필드를 적으면
-#    **에러 없이 그 부분이 빠진 채** 청크가 나간다(기동 시 경고는 남는다).
-#    (llm_fields 를 주석 처리하고 그 출력 필드를 여기 남겨두는 실수가 가장 흔하다)
-# 이 항목을 생략하면 그 행의 모든 셀 값을 개행으로 이어붙인 값이 본문이 된다.
-text_fields:
-  - <TARGET_FIELD_1>
-  - <TARGET_FIELD_2>
-
-# ── [선택] 긴 행 분할 ──────────────────────────────────────────────────────
-# true 면 행 본문이 chunk_size 를 넘을 때 여러 청크로 나눈다(metadata 는 조각마다 동일).
-# 미지정(기본 false) = 행 1개가 항상 청크 1개.
-# split: true
-# 분할된 모든 청크 앞에 반복할 식별 필드. `split: true` 일 때만 유효하다(false 면 무시).
-# 접두 필드는 본문 맨 앞으로 이동하며 text_fields 에도 있으면 거기서 빠진다(중복 방지) —
-# text_fields 선두가 아닌 필드를 지정하면 본문 순서가 바뀌니 선두 필드를 쓰는 것이 안전하다.
-# chunk_prefix_fields:
-#   - <TARGET_FIELD_1>                       # 예: MENU_NM, TERM, QUESTION
+#         <item>
+#         {{raw_text}}
+#         </item>
 
 # ═══════════════════════════════════════════════════════════════════════════
 #  기동 시 자동 검사 — 무엇을 잡아주고 무엇을 못 잡나
-#  (facade/enrichment/tabular_custom_fields.py 의 validate_custom_field_config,
-#   json_mapping·json_semantic 도 같은 검사를 공유한다)
 #
 #  실패시킨다(요청 전에 바로 안다)
-#   · `required`/`text_fields`/`chunk_prefix_fields` 를 목록이 아닌 값으로,
-#     `column_map`/`constants`/`defaults`/`value_map`/`transforms`/`field_labels`/`row_merge` 등을 맵이 아닌 값으로 쓴 경우
-#     (`required: TITLE` 처럼 `- ` 를 빠뜨리면 글자 단위로 쪼개져 전건 skip 이 된다)
+#   · **이 kind 가 읽지 않는 키를 적은 경우.** 어느 스키마에도 없는 키(오타)는 가장 가까운
+#     이름을 제안하고, 다른 kind 의 키는 어디 전용인지 알려준다. 지원 키 목록은
+#     facade/enrichment/config_v2.py 와 config_schema.py 에 있다.
+#   · `fields` 의 값이 object 가 아닌 경우(`<TARGET>:` 처럼 값을 빠뜨린 오타 포함)
 #   · 목표필드명이 벡터 예약 필드(text·title·n_char·i_page·created_date·appendix …)와
 #     겹치거나 property 이름 규칙 `/[_A-Za-z][_0-9A-Za-z]*/` 을 벗어난 경우(한글·공백·기호)
-#   · `required` 에 `llm_fields` 가 만드는 필드를 적은 경우(LLM 호출 전에 전건이 걸러진다)
-#   · `chunk_prefix_fields` 에 아무도 만들지 않는 필드를 적은 경우
-#   · **이 extractor 가 읽지 않는 키를 적은 경우.** 두 가지를 나눠 알려준다 —
-#     어느 extractor 도 모르는 키(`column_maps` 같은 오타)는 가장 가까운 이름을 제안하고,
-#     다른 extractor 의 키(예: tabular_mapping 설정에 남의 키)는 어느 extractor 전용인지 알려준다.
-#     지원 키 목록은 facade/enrichment/config_schema.py 의 EXTRACTOR_KEYS 한 곳에 있다.
+#   · `require.fields` 에 `llm` 이 만드는 필드를 적은 경우(LLM 호출 전에 전건이 걸러진다)
+#   · `body.repeat` 에 아무도 만들지 않는 필드를 적은 경우
+#   · `transform` 의 모르는 이름·빠진 인자·잘못된 정규식
+#   · `template`/`filter` 가 아무도 만들지 않는 필드를 가리킬 때
 #
 #  경고만 남긴다(로그를 봐야 안다)
-#   · `text_fields` 가 아무도 만들지 않는 필드를 가리킬 때 — 그 부분이 조용히 빠진다
-#   · `field_labels` 가 아무도 만들지 않는 필드를 가리킬 때 — 라벨만 조용히 사라진다
+#   · `body.fields` 가 아무도 만들지 않는 필드를 가리킬 때 — 그 부분이 조용히 빠진다
+#   · `body.labels` 가 아무도 만들지 않는 필드를 가리킬 때 — 라벨만 조용히 사라진다
 #
 #  못 잡는다(아래 "확인 방법"으로 직접 봐야 한다)
 #   · 별칭이 원천과 어긋나 값이 전부 비는 경우
-
+#
 # ═══════════════════════════════════════════════════════════════════════════
 #  확인 방법
 #
-#  1) 기동 검사 — 설정만 컴파일해 본다(LLM 호출 없음).
-#     실행 위치: genon/preprocessor
-#       python -c "
-#     import sys; sys.path.insert(0,'.'); sys.path.insert(0,'../..')
-#     from facade.enrichment.tabular_custom_fields import TabularCustomFieldsMapper as M
-#     m = M(config_file='custom_field_<유형>.yaml', resource_path='resource',
-#           doc_type='<유형>', extractor='tabular_mapping')
-#     print('목표필드:', sorted(m.config['column_map']))
-#     print('본문필드:', m.config.get('text_fields'))
-#     "
+#  1) 설정만 검사 — 파싱·LLM 없이 yaml 만 읽는다.
+#       genon/preprocessor/examples/config_precheck/precheck_custom_fields.sh
 #
 #  2) 실제 엑셀로 매핑 결과 보기 — 가장 확실하다(LLM 호출 없음).
+#     실행 위치: genon/preprocessor
 #       python -c "
 #     import sys; sys.path.insert(0,'.'); sys.path.insert(0,'../..')
 #     from facade.enrichment.tabular_custom_fields import TabularCustomFieldsMapper as M
@@ -287,6 +247,9 @@ text_fields:
 #     "
 #     → 원천 컬럼 목록과 실제 채워진 값, 청크 본문을 눈으로 확인한다.
 #
-#  위 "기동 시 자동 검사"가 못 잡는 것(모르는 키·어긋난 별칭)은 여기서만 드러난다 —
-#     설정을 바꿨으면 2번을 꼭 돌려볼 것.
+#  3) doc_type 자동 검증 — 파싱·청킹까지 태워 약속한 필드가 실제 청크에 실렸는지 본다.
+#       genon/preprocessor/examples/parse_chunk/parse_chunk_verify.sh --only <유형>
+#
+#  위 "기동 시 자동 검사"가 못 잡는 것(어긋난 별칭)은 2번에서만 드러난다 —
+#     설정을 바꿨으면 꼭 돌려볼 것.
 # ═══════════════════════════════════════════════════════════════════════════

@@ -1,10 +1,10 @@
 # ═══════════════════════════════════════════════════════════════════════════
-#  템플릿 — 문서 단위 LLM 추출 (extractor: llm)
+#  템플릿 — 문서 단위 LLM 추출 (source.kind: document)
 #
-#  언제 쓰나 : 원천이 **문서**(pdf/docx/hwp/html/md/pptx)이고, 그 문서 하나에서
+#  언제 쓰나 : 원천이 **문서**(pdf/docx/hwp/html/md/pptx/xlsx)이고, 그 문서 하나에서
 #              필드 몇 개를 뽑고 싶을 때 (상품설명서의 상품명·상품코드, 카드 혜택 요약 …)
 #  결과      : 문서 metadata → 그 문서에서 나온 **모든 청크에 같은 값**이 붙는다.
-#              (행/레코드마다 다른 값이 필요하면 tabular/json 템플릿을 쓴다)
+#              (행/레코드마다 다른 값이 필요하면 rows/records 템플릿을 쓴다)
 #  LLM 호출  : 문서당 1회.
 #
 #  ── 쓰는 순서 ────────────────────────────────────────────────────────────
@@ -14,199 +14,213 @@
 #        - custom_fields:
 #            enable: true
 #            doc_type: <유형>
-#            extractor: llm            # 생략해도 llm 로 간주된다
+#            extractor: llm            # source.kind: document 와 짝이다(생략해도 llm)
 #            config_file: custom_field_<유형>.yaml   # 파일명만. 이 yaml 과 같은 폴더 기준
 #  ④ 확인한다(아래 "확인 방법" 참고).
 #
 #  이 파일 하나로 자족한다 — 프롬프트를 여기 인라인하면 별도 md 파일이 필요 없다.
-#    (출고된 custom_field_card.yaml · custom_field_product_slf.yaml 이 같은 형태다)
-#    프롬프트가 아주 길거나 여러 유형이 공유하면 system_prompt_file / user_prompt_file 로
+#    프롬프트가 아주 길거나 여러 유형이 공유하면 `prompt.system_file` / `prompt.user_file` 로
 #    별도 md 로 빼도 된다 — 파일 지정이 인라인보다 우선한다.
 #
 #  이 템플릿은 참고용이므로 parser_processor_config.yaml 에 등록하지 않는다.
 # ═══════════════════════════════════════════════════════════════════════════
 
-# ── [필수] LLM 연결 ─────────────────────────────────────────────────────────
-# <ENRICHMENT_SERVING_ID>: Genos에 등록한 모델서빙 ID 로 변경 필요.
-# api_key 는 k8s 내부 통신 기반 모델 호출 시 불필요하다(배포 환경에 맞춰 설정).
-# url 또는 model 이 비어 있으면 실행 시 경고를 남기고 이 enricher 를 건너뛴다.
-url: "http://llmops-gateway-api-service:8080/rep/serving/<ENRICHMENT_SERVING_ID>/v1/chat/completions"
-api_key: ""
-model: model
+schema: v2
 
-# ── [선택] LLM 생성 파라미터 ────────────────────────────────────────────────
-# 생략 시 기본값: max_tokens 1000 / temperature 0.0 / timeout 60
-# 문서 전체를 넣으면 입력이 길어지므로 max_tokens·timeout 을 넉넉히 잡는 편이 좋다.
-max_tokens: 4000
-temperature: 0.0
-timeout: 300
+source:
+  kind: document
 
-# ── [선택] 텍스트 표 RAG 설명의 문서유형별 override ─────────────────────────
-# 프로세서 config의 공통 `table_text_description` 값이 기본이며, 아래처럼 필요한 키만 쓰면
-# 이 문서유형에서만 덮어쓴다(rag 하위도 키 단위 병합). model/max_tokens/thinking은 표 설명도
-# 이 custom_fields 호출의 값을 그대로 공유한다(별도 호출·별도 모델 없음).
-# table_text_description:
-#   prompt_template_file: prompt_table_text_description_rag.md
-#   input_format: auto
-#   before_items: 4
-#   after_items: 3
-#   rag:
-#     key_fact_limit: 5
-#     include_search_terms: true
-
-# ── [선택] 원천 포맷 전처리 (md / html) ─────────────────────────────────────
-# 이 블록들은 LLM 추출이 아니라 **docling 파싱 전에** 원문을 손보는 규칙이다.
-# 문서 단위 extractor(llm) 에서만 쓸 수 있다.
-#
-# marker_headings 는 md 와 html 이 같은 스위치를 갖고 판정 규칙도 공유한다 —
-# 같은 원문이 포맷에 따라 다르게 쪼개지지 않게 하기 위해서다.
-# markdown:
-#   front_matter:                     # 선두 YAML front matter 를 본문에서 분리
-#     metadata_fields:                # 원천키: 목표필드 (list 로 쓰면 이름 그대로 승격)
-#       created_at: created_date      # 청커 transform 이 YYYYMMDD 정수로 바꾼다
-#     exclude_text_fields: ["*"]      # "*" = front matter 전체를 검색 본문에서 제외
-#     on_missing: ignore              # ignore(기본) | warn | error
-#     on_invalid: ignore              # ignore(기본) | warn | error
-#     max_bytes: 65536                # front matter 로 읽을 선두 바이트 상한
-#   text_fence:                       # ```text 펜스를 단락으로 되돌린다
-#     enable: true                    # `text_fence: true` 로 줄여 써도 된다
-#     langs: ["", "text"]             # 대상 펜스 정보문자열(진짜 코드 펜스는 건드리지 않음)
-#     min_hangul_ratio: 0.3           # 본문 한글 비율 하한(코드 블록 오변환 방지)
-#   marker_headings: true             # `◈ 기본내용` 처럼 마커로만 표현된 소제목을 heading 승격
-# html:
-#   marker_headings: true             # 같은 승격을 html 원천에 적용
-#
-# 왜 필요한가(실측):
-#   · text_fence 없이 두면 docling 이 펜스 전체를 CodeItem 1개로 만들어 4,654자가 아이템
-#     하나가 되고 chunk_size 가 무의미해진다. `|` 한 줄이 표 모드를 열어 뒤 본문도 삼킨다.
-#   · marker_headings 없이 두면 h태그·`#` 없는 문서가 통째로 한 섹션이 되어 청킹 경계가
-#     생기지 않는다.
-# 이 블록들은 **등록 블록 최상위에 써도 되고** config_file 안에 써도 된다(재귀 병합).
-
-# ── [선택] 입력 페이지 범위 ─────────────────────────────────────────────────
-# 미지정(또는 null) → 문서 전체를 대상으로 한다.
-# 앞쪽 몇 페이지만 보면 충분한 경우에만 지정한다(입력 토큰 절약).
-pages: null
-
-# ── [선택] 응답 파서 ────────────────────────────────────────────────────────
-# json(기본) = 응답에서 JSON 객체를 찾아 dict 로 만든다(코드펜스·앞뒤 설명 문구를 견딘다).
-# 외부 파이썬 함수로 위임할 수도 있다:
-#   parser:
-#     type: python
-#     file: custom_field_<유형>.py    # 이 yaml 과 같은 폴더 기준
-#     callable: parse
-parser:
-  type: json
+  # ── [선택] 원천 포맷 전처리 (md / html) ───────────────────────────────────
+  # docling 파싱 **전에** 원문을 손보는 규칙이다. 문서 단위(kind: document)에서만 쓸 수 있다.
+  # marker_headings 는 md 와 html 이 같은 스위치를 갖고 판정 규칙도 공유한다 —
+  # 같은 원문이 포맷에 따라 다르게 쪼개지지 않게 하기 위해서다.
+  #
+  # 왜 필요한가(실측):
+  #   · text_fence 없이 두면 docling 이 ```text 펜스 전체를 CodeItem 1개로 만들어 4,654자가
+  #     아이템 하나가 되고 chunk_size 가 무의미해진다. `|` 한 줄이 md 표 모드를 열어 뒤따르는
+  #     본문 1,586자를 빈 표로 삼키기도 한다.
+  #   · marker_headings 없이 두면 h태그·`#` 없이 도형 마커(◈ ▣ ■)로만 계층을 표현한 문서가
+  #     통째로 한 섹션이 되어 청킹 경계가 생기지 않는다.
+  # pre:
+  #   markdown:
+  #     front_matter:                   # 선두 YAML front matter 를 본문에서 분리
+  #       metadata_fields:              # 원천키: 목표필드(또는 목표 목록)
+  #         created_at: created_date    # 청커 transform 이 YYYYMMDD 정수로 바꾼다
+  #         # created_at: [created_date, <ATTRS>]   # 한 원천 키를 여러 목표로 보낼 수도 있다
+  #       exclude_text_fields: ["*"]    # "*" = front matter 전체를 검색 본문에서 제외
+  #       on_missing: ignore            # ignore(기본) | warn | error
+  #       on_invalid: ignore            # ignore(기본) | warn | error
+  #       max_bytes: 65536              # front matter 로 읽을 선두 바이트 상한
+  #     text_fence:                     # ```text 펜스를 단락으로 되돌린다
+  #       enable: true                  # `text_fence: true` 로 줄여 써도 된다
+  #       langs: ["", "text"]           # 대상 펜스 정보문자열(진짜 코드 펜스는 건드리지 않음)
+  #       min_hangul_ratio: 0.3         # 본문 한글 비율 하한(코드 블록 오변환 방지)
+  #     marker_headings: true           # `◈ 기본내용` 같은 마커 줄을 heading 으로 승격
+  #   html:
+  #     marker_headings: true           # 같은 승격을 html 원천에 적용
 
 # ── [선택] 원천과 무관하게 항상 같은 값 ─────────────────────────────────────
 # LLM 에게 상수를 받아쓰게 시키지 않고 여기서 채운다 — 환각·누락 여지가 없고 프롬프트도 짧아진다.
-# LLM 이 같은 키를 다른 값으로 내놔도 여기 값이 이긴다. output_fields 에 함께 적어도 된다.
-# constants:
-#   <TARGET_FIELD_3>: "<고정값>"
+# LLM 이 같은 키를 다른 값으로 내놔도 여기 값이 이긴다. `llm.out` 에 함께 적어도 된다.
+# 이 kind 에서 필드 스펙은 `const` / `default` 만 쓸 수 있다(값 매핑이 없는 경로다).
+# fields:
+#   <GROUP_C>: {const: "<고정값>"}
+#   <BIZ_ID>:  {default: null}
 
-# ── [필수] 프롬프트 ─────────────────────────────────────────────────────────
-# 아래 output_fields 의 이름이 프롬프트가 요구하는 JSON 키와 **정확히 같아야** 한다.
+# ── [선택] 청크 본문 관련 규칙 ──────────────────────────────────────────────
+# 값이 아니라 규칙이다. 프롬프트·`llm.out` 에 넣지 않는다.
+# 파서가 문서 metadata 로 실어 보내고 청커가 소비한다.
+#
+#   mirror_to : 그 청크의 본문(text)과 글자 그대로 같은 값을 받는 필드
+#               (소비계층의 검색 대상 본문 컬럼용)
+#   repeat    : 모든 청크 본문 앞에 반복해 얹을 필드
+#               (매 청크가 단독으로 검색돼야 하는 식별자 — 상품명 등)
+#   once      : 문서의 첫 청크에만 1회 얹을 필드
+#               (매 청크에 반복하기엔 chunk_size 가 아까운 문서 단위 분류·작성일 등)
+#   labels    : 위 두 규칙으로 얹는 값 앞에 붙일 사람이 읽는 항목명(`항목명: 값`).
+#               목표필드명(예: QUESTION)은 적재 DB 컬럼명이라 그대로 노출하면 임베딩에
+#               안 쓰는 토큰이 섞이므로, 이름이 있는 필드만 라벨을 붙이고 없으면 값만 낸다.
+#
+# repeat/once 는 접두만큼 chunk_size 를 깎으므로 짧은 필드 1~2개로 제한한다. 값이 비었거나
+# 중첩 객체인 필드는 조용히 건너뛴다. once 만 쓴 값은 임베딩 검색에서 첫 청크만 걸린다
+# (값 자체는 모든 청크의 metadata 에 실리므로 필터 검색은 전 청크에서 된다).
+# body:
+#   mirror_to: [<BODY_COLUMN>]
+#   repeat:    [<IDENTIFIER_FIELD>]
+#   once:      [<CATEGORY_FIELD>]
+#   labels:
+#     <IDENTIFIER_FIELD>: <사람이 읽는 이름>
+
+# ── [필수] LLM 추출 ─────────────────────────────────────────────────────────
+# 호출 단위는 `source.kind` 가 정한다 — `scope` 를 적지 않는다(document = 문서 1회).
+#
+# out 의 이름이 프롬프트가 요구하는 JSON 키와 **정확히 같아야** 한다.
 #    어긋나면 **에러 없이 값이 null** 로 채워진다. 이게 가장 흔한 실수다.
-# user_prompt 의 `{{raw_text}}` 가 문서 본문으로 치환된다 — 반드시 넣어야 한다.
+# user 프롬프트의 `{{raw_text}}` 가 문서 본문으로 치환된다 — 반드시 넣어야 한다.
 #    빠뜨리면 본문이 전달되지 않고 프롬프트만 전송된다.
 #    예약 변수(값 자동 채움): raw_text, full_text, filename, mimetype, page_count,
 #    table_count, picture_count, section_headers. (before_context/after_context/caption/
-#    section_header 도 이름은 허용되지만 이미지 단위 enrichment 전용이라 여기서는 항상 빈 값이다)
-#    추가로 아래 variables 에 정의한 사용자 변수도 `{{이름}}` 으로 쓸 수 있다.
-#    정의되지 않은 `{{변수}}` 를 쓰면 기동 시 실패한다 — strict 모드가 기본(template.mode 로 완화 가능).
-# system_prompt 를 생략하면 built-in default("문서 정보추출 전문가다 …")가 쓰인다.
-# system_prompt_file / user_prompt_file 로 프롬프트를 별도 md 파일로 뺄 수도 있다(이 yaml과
-#    같은 폴더 기준 상대경로). 지정하면 inline system_prompt/user_prompt 보다 우선한다.
-# variables 로 프롬프트에서 쓸 사용자 정의 변수를 선언할 수 있다(위 예약 변수와 함께 허용된다):
-#    variables:
-#      <MY_VAR>: "<값>"
-system_prompt: |
-  너는 <문서 종류> 정보추출 전문가다. 주어진 문서에서 요청한 필드를 정확하게 추출한다.
-
-  규칙:
-  - 반드시 하나의 JSON 객체만 반환한다. 설명 문구·마크다운 코드펜스 없이 순수 JSON 만 출력한다.
-  - 키는 아래 필드명을 그대로 쓴다.
-  - 원문에 없는 정보를 지어내지 않는다(환각 금지). 없으면 값을 null 로 둔다.
-  - `<TARGET_FIELD_1>`: <무엇을, 어디서, 어떤 형태로 뽑을지>
-  - `<TARGET_FIELD_2>`: <무엇을, 어디서, 어떤 형태로 뽑을지>
-
-  출력 예시 형식(값은 예시):
-  {"<TARGET_FIELD_1>": "<예시 값>", "<TARGET_FIELD_2>": "<예시 값>"}
-
-user_prompt: |
-  아래 문서에서 다음 필드를 추출하라.
-
-  - <TARGET_FIELD_1> (<설명>)
-  - <TARGET_FIELD_2> (<설명>)
-
-  반드시 위 키를 모두 가진 하나의 JSON 객체로만 반환하라.
-
-  <document>
-  {{raw_text}}
-  </document>
-
-# ── [필수] 출력 필드 (프롬프트의 JSON 키와 일치해야 함) ──────────────────────
-# 여기 적은 필드만 결과에 남는다. 프롬프트가 다른 키를 더 내놔도 버려지고,
-# 여기 적었는데 응답에 없으면 null 로 채워진다.
+#    section_header 도 이름은 허용되지만 이미지 단위 enrichment 전용이라 여기서는 항상 빈 값)
+#    추가로 `prompt.variables` 에 정의한 사용자 변수도 `{{이름}}` 으로 쓸 수 있다.
+#    정의되지 않은 `{{변수}}` 를 쓰면 기동 시 실패한다 — strict 가 기본(`prompt.mode` 로 완화).
+# system 을 생략하면 built-in default("문서 정보추출 전문가다 …")가 쓰인다.
 # 적재 DB 컬럼명(대문자)으로 쓰면 적재 매핑이 1:1 이 된다.
-output_fields:
-  - <TARGET_FIELD_1>
-  - <TARGET_FIELD_2>
+llm:
+- out: [<TARGET_FIELD_1>, <TARGET_FIELD_2>]
 
-# ── 청크 본문 관련 규칙 (선택) ───────────────────────────────────────────────
-# 아래 3개는 값이 아니라 규칙이다. 프롬프트·output_fields 에 넣지 않는다.
-# 파서가 문서 metadata 로 실어 보내고 청커가 소비한다.
-#
-#   body_fields         : 그 청크의 본문(text)과 글자 그대로 같은 값을 받는 필드
-#                         (소비계층의 검색 대상 본문 컬럼용)
-#   chunk_prefix_fields : 모든 청크 본문 앞에 반복해 얹을 필드
-#                         (매 청크가 단독으로 검색돼야 하는 식별자 — 상품명 등)
-#   first_chunk_fields  : 문서의 첫 청크에만 1회 얹을 필드
-#                         (매 청크에 반복하기엔 chunk_size 가 아까운 문서 단위 분류)
-#
-# 뒤의 두 개는 접두만큼 chunk_size 를 깎으므로 짧은 필드 1~2개로 제한한다. 값이 비었거나
-# 중첩 객체인 필드는 조용히 건너뛴다. first_chunk_fields 만 쓴 값은 임베딩 검색에서 첫
-# 청크만 걸린다(값 자체는 모든 청크의 metadata 에 실리므로 필터 검색은 전 청크에서 된다).
-# body_fields:
-#   - <BODY_COLUMN>
-# chunk_prefix_fields:
-#   - <IDENTIFIER_FIELD>
-# first_chunk_fields:
-#   - <CATEGORY_FIELD>
-#
-# field_labels : chunk_prefix_fields/first_chunk_fields 로 얹는 값 앞에 붙일 사람이 읽는
-#                항목명(`항목명: 값`). 목표필드명(예: QUESTION)은 적재 DB 컬럼명이라 그대로
-#                노출하면 임베딩에 안 쓰는 토큰이 섞이므로, 여기 이름이 있는 필드만 라벨을
-#                붙이고 없으면 종전대로 값만 낸다.
-# field_labels:
-#   <IDENTIFIER_FIELD>: <사람이 읽는 이름>
+  # ── 입력 페이지 범위 ─────────────────────────────────────────────────────
+  # 미지정(또는 null) → 문서 전체를 대상으로 한다.
+  # 앞쪽 몇 페이지만 보면 충분한 경우에만 지정한다(입력 토큰 절약).
+  pages: null
 
+  # ── 응답 파서 ────────────────────────────────────────────────────────────
+  # json(기본) = 응답에서 JSON 객체를 찾아 dict 로 만든다(코드펜스·앞뒤 설명 문구를 견딘다).
+  # 외부 파이썬 함수로 위임할 수도 있다:
+  #   parser: {type: python, file: custom_field_<유형>.py, callable: parse}
+  parser:
+    type: json
+
+  # ── LLM 연결 ─────────────────────────────────────────────────────────────
+  # <ENRICHMENT_SERVING_ID>: Genos에 등록한 모델서빙 ID 로 변경 필요.
+  # api_key 는 k8s 내부 통신 기반 모델 호출 시 불필요하다(배포 환경에 맞춰 설정).
+  # url 또는 model 이 비어 있으면 실행 시 경고를 남기고 이 enricher 를 건너뛴다.
+  endpoint:
+    url: "http://llmops-gateway-api-service:8080/rep/serving/<ENRICHMENT_SERVING_ID>/v1/chat/completions"
+    api_key: ""
+    model: model
+
+  # ── 생성 파라미터 ────────────────────────────────────────────────────────
+  # 생략 시 기본값: max_tokens 1000 / temperature 0.0 / timeout 60
+  # 문서 전체를 넣으면 입력이 길어지므로 max_tokens·timeout 을 넉넉히 잡는 편이 좋다.
+  # thinking / thinking_dialect 도 여기 쓴다(등록 블록이 우선, 없으면 이 값).
+  params:
+    max_tokens: 4000
+    temperature: 0.0
+    timeout: 300
+
+  # ── [선택] 텍스트 표 RAG 설명의 문서유형별 override ──────────────────────
+  # 프로세서 config 의 공통 `table_text_description` 값이 기본이며, 아래처럼 필요한 키만 쓰면
+  # 이 문서유형에서만 덮어쓴다(rag 하위도 키 단위 병합). model/max_tokens/thinking 은 표 설명도
+  # 이 custom_fields 호출의 값을 그대로 공유한다(별도 호출·별도 모델 없음).
+  # table_text_description:
+  #   prompt_template_file: prompt_table_text_description_rag.md
+  #   input_format: auto
+  #   before_items: 4
+  #   after_items: 3
+  #   rag:
+  #     key_fact_limit: 5
+  #     include_search_terms: true
+
+  prompt:
+    # system_file / user_file 로 프롬프트를 별도 md 로 뺄 수도 있다(이 yaml 과 같은 폴더 기준).
+    # 지정하면 인라인보다 우선한다. variables 로 사용자 변수를, mode 로 strict/lenient 를 정한다.
+    # variables: {<MY_VAR>: "<값>"}
+    # mode: strict
+    system: |
+      너는 <문서 종류> 정보추출 전문가다. 주어진 문서에서 요청한 필드를 정확하게 추출한다.
+
+      규칙:
+      - 반드시 하나의 JSON 객체만 반환한다. 설명 문구·마크다운 코드펜스 없이 순수 JSON 만 출력한다.
+      - 키는 아래 필드명을 그대로 쓴다.
+      - 원문에 없는 정보를 지어내지 않는다(환각 금지). 없으면 값을 null 로 둔다.
+      - `<TARGET_FIELD_1>`: <무엇을, 어디서, 어떤 형태로 뽑을지>
+      - `<TARGET_FIELD_2>`: <무엇을, 어디서, 어떤 형태로 뽑을지>
+
+      출력 예시 형식(값은 예시):
+      {"<TARGET_FIELD_1>": "<예시 값>", "<TARGET_FIELD_2>": "<예시 값>"}
+    user: |
+      아래 문서에서 다음 필드를 추출하라.
+
+      - <TARGET_FIELD_1> (<설명>)
+      - <TARGET_FIELD_2> (<설명>)
+
+      반드시 위 키를 모두 가진 하나의 JSON 객체로만 반환하라.
+
+      <document>
+      {{raw_text}}
+      </document>
+
+# ═══════════════════════════════════════════════════════════════════════════
+#  기동 시 자동 검사 — 무엇을 잡아주고 무엇을 못 잡나
+#
+#  실패시킨다(요청 전에 바로 안다)
+#   · **이 kind 가 읽지 않는 키를 적은 경우.** 어느 스키마에도 없는 키(오타)는 가장 가까운
+#     이름을 제안하고(`out` 을 `outs` 로 쓴 경우 등), 다른 kind 의 키는 어디 전용인지 알려준다.
+#   · 필드 스펙에 `alias`/`values`/`transform`/`from` 을 쓴 경우 — 이 kind 는 값 매핑이 없다
+#   · 정의되지 않은 `{{변수}}` 를 프롬프트에 쓴 경우(strict 기본)
+#
+#  못 잡는다(아래 "확인 방법"으로 직접 봐야 한다)
+#   · `out` 이름과 프롬프트의 JSON 키가 어긋나 값이 전부 null 이 되는 경우
+#   · `prompt`·`parser` 같은 **중첩 블록 안쪽**의 오타(최상위 키만 검사한다)
+#
 # ═══════════════════════════════════════════════════════════════════════════
 #  확인 방법
 #
-#  프롬프트·출력필드가 제대로 실렸는지 검사한다(LLM 호출 없음).
-#  실행 위치: genon/preprocessor
-#      python -c "
-#    import sys; sys.path.insert(0,'.'); sys.path.insert(0,'../..')
-#    from facade.enrichment.custom_fields_enricher import CustomFieldsEnricher as E
-#    e = E(config_file='custom_field_<유형>.yaml', resource_path='resource')
-#    print('연결 설정 :', e.is_configured, e._model, e._max_tokens, e._timeout)
-#    print('출력 필드 :', e._output_fields)
-#    print('{{raw_text}} 포함:', '{{raw_text}}' in e._user_prompt)
-#    missing = [f for f in e._output_fields
-#               if f not in e._system_prompt and f not in (e._constants or {})]
-#    print('프롬프트에 없는 출력필드:', missing or '없음')
-#    "
-#  → `프롬프트에 없는 출력필드` 가 비어 있어야 한다. 남아 있으면 그 필드는 null 로 나온다.
+#  1) 설정만 검사 — 파싱·LLM 없이 yaml 만 읽는다.
+#       genon/preprocessor/examples/config_precheck/precheck_custom_fields.sh
+#
+#  2) 프롬프트·출력필드가 제대로 실렸는지 검사한다(LLM 호출 없음).
+#     실행 위치: genon/preprocessor
+#       python -c "
+#     import sys; sys.path.insert(0,'.'); sys.path.insert(0,'../..')
+#     from facade.enrichment.custom_fields_enricher import CustomFieldsEnricher as E
+#     e = E(config_file='custom_field_<유형>.yaml', resource_path='resource')
+#     print('연결 설정 :', e.is_configured, e._model, e._max_tokens, e._timeout)
+#     print('출력 필드 :', e._output_fields)
+#     print('{{raw_text}} 포함:', '{{raw_text}}' in e._user_prompt)
+#     missing = [f for f in e._output_fields
+#                if f not in e._system_prompt and f not in (e._constants or {})]
+#     print('프롬프트에 없는 출력필드:', missing or '없음')
+#     "
+#     → `프롬프트에 없는 출력필드` 가 비어 있어야 한다. 남아 있으면 그 필드는 null 로 나온다.
+#
+#  3) doc_type 자동 검증 — 파싱·청킹까지 태워 약속한 필드가 실제 청크에 실렸는지 본다.
+#       genon/preprocessor/examples/parse_chunk/parse_chunk_verify.sh --only <유형>
 #
 #  ── 알려진 주의사항 (현재 코드) ─────────────────────────────────────────────
-#  · 모르는 키는 **기동 시 실패**한다. `output_field`(오타)처럼 한 글자만 틀리면 가장 가까운
-#    이름을 제안하고, 다른 extractor 전용 키(`column_map` 등)는 어느 extractor 것인지 알려준다.
-#    지원 키 목록은 facade/enrichment/config_schema.py 의 EXTRACTOR_KEYS 한 곳에 있다.
-#    (`parser` 안쪽처럼 중첩 블록의 오타는 여전히 검사되지 않는다.)
-#  · `thinking` / `thinking_dialect` 는 **이 파일에 써도 반영되지 않는다**
-#    (생성자 기본값이 먼저 잡힌다). 필요하면 등록 블록에 직접 쓴다.
-#  · `max_tokens: 1000` / `temperature: 0.0` / `timeout: 60` 을 **등록 블록에** 쓰면
-#    "미지정"과 구분되지 않아 이 파일의 값이 이긴다. 등록 블록에서 덮어쓰려면
-#    기본값과 다른 값을 쓰거나, 이 파일에서 값을 지운다.
+#  · `params.max_tokens: 1000` / `temperature: 0.0` / `timeout: 60` 처럼 **기본값과 같은 값**을
+#    등록 블록에 써도 이제는 등록 블록이 이긴다(예전에는 "미지정"과 구분되지 않아 이 파일의
+#    값이 이겼다).
+#  · `fields` 의 `const` 는 LLM 응답보다 우선한다 — 고정값이라고 선언한 이상 모델이 뭘 내놓든
+#    그 값이다. front matter 로 온 구조화 원천값보다도 우선한다.
 # ═══════════════════════════════════════════════════════════════════════════
