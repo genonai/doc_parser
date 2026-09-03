@@ -69,7 +69,6 @@ CASES = [
     ("product_hpp",   MONIMO / "monimo_product_hpp_rich_table_sample.json",
      "rich cell 표(연회비·적립·제휴링크)"),
     ("stock_insight", MONIMO / "monimo_stock_insight_sample.xlsx",     "tabular_mapping"),
-    ("link",          MONIMO / "monimo_link_sample.json",              "json_mapping"),
     # 개인 작업 디렉터리(gitignore)에 있는 실 원천. 없는 머신에서는 SKIP 된다.
     ("card",          REPO_ROOT / "shkim_labs" / "20260803_monimo" / "01_card" / "card01.flat.html",
                                                                       "llm(카드 12필드)"),

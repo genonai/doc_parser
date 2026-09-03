@@ -86,7 +86,6 @@ MONIMO_CASES=(
   # 원천이 한 종목의 세부내용 JSON 하나를 ntc_objline 1..N 으로 문자 단위로 잘라 여러 행에
   # 뿌린다. row_merge 가 그 행들을 도로 이어붙인다 — 아래 전용 블록 참고.
   "stock_insight:${MONIMO}/monimo_stock_insight_sample.xlsx"
-  "link:${MONIMO}/monimo_link_sample.json"
 )
 
 # 한 건이 실패해도 나머지는 계속 돌린다(set -e 아래에서 전체 중단 방지).

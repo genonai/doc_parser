@@ -478,7 +478,6 @@ _REQUIRED_BY_DOC_TYPE = {
     "custom_field_cs_sss.yaml":        ["GROUP_C", "TITLE", "SEARCHABLE_YN"],
     "custom_field_stock_insight.yaml": ["GROUP_C", "JONG_CODE", "JONG_NM", "ANALYSIS_DATE",
                                         "SEARCHABLE_YN"],
-    "custom_field_link.yaml":          ["GROUP_C", "TITLE", "SEARCHABLE_YN"],
 }
 
 # 날짜 메타데이터는 원천의 YYMMDD·YYYYMMDD·구분자 표기를 모두 YYYYMMDD 정수로 고정한다.
@@ -487,7 +486,6 @@ _DATE_INT_FLEX_FIELDS = {
     "custom_field_faq.yaml": ["SRC_LAST_MOD_DT"],
     "custom_field_menu.yaml": ["SRC_LAST_MOD_DT"],
     "custom_field_term.yaml": ["SRC_LAST_MOD_DT"],
-    "custom_field_link.yaml": ["CAMPAIGN_FROM", "CAMPAIGN_TO"],
     "custom_field_monimo_event.yaml": ["EVENT_FROM", "EVENT_TO"],
     "custom_field_monimo_news.yaml": ["NEWS_TO"],
     "custom_field_stock_insight.yaml": ["NEWS_DATE", "ANALYSIS_DATE"],

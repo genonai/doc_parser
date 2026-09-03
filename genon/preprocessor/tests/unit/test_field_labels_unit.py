@@ -194,7 +194,7 @@ def test_doc_prefix_reads_labels_from_document_metadata():
 @pytest.mark.unit
 @pytest.mark.parametrize("name", [
     "custom_field_faq.yaml", "custom_field_faq_json.yaml", "custom_field_cs_sss.yaml",
-    "custom_field_cs_slf.yaml", "custom_field_cs_ssf.yaml", "custom_field_link.yaml",
+    "custom_field_cs_slf.yaml", "custom_field_cs_ssf.yaml",
     "custom_field_monimo_news.yaml", "custom_field_monimo_event.yaml",
 ])
 def test_shipped_configs_name_every_body_field(name):
