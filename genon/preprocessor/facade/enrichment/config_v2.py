@@ -68,6 +68,11 @@ BODY_KEYS = frozenset({"fields", "labels", "split", "repeat", "once", "mirror_to
 PRE_KEYS = ("markdown", "html")
 REQUIRE_KEYS = frozenset({"fields"})
 
+# ── v2 ↔ 내부(v1) 매핑은 **여기 한 벌만** 둔다 ──────────────────────────────
+# normalize() 와 to_v2() 가 같은 표를 양방향으로 읽는다. 방향마다 표를 따로 두면 한쪽만
+# 고쳐져 "v2 로 옮겼더니 값이 사라지는" 번역 결함이 생기고, 그건 왕복 검증에도 안 잡힌다
+# (양쪽이 똑같이 흘리면 왕복은 통과한다).
+
 # `as:` 가 고르는 파생 블록. auto 는 값의 종류를 자동 판별한다(text_from).
 _AS_TO_BLOCK = {"auto": "text_from", "html": "html_text_fields"}
 
@@ -77,6 +82,41 @@ _ALIAS_BLOCK = {
     "records": "key_map",
     "sections": "shared_fields",
 }
+
+# 필드 스펙 키 → 그 값이 들어가는 v1 블록(`{목표필드: 값}` 모양이 같은 것들).
+# alias/from/as 는 kind·as 값에 따라 블록이 달라져 위 표가 따로 맡는다.
+_SPEC_TO_BLOCK = {
+    "collect": "collect_key_map",
+    "const": "constants",
+    "default": "defaults",
+    "values": "value_map",
+    "transform": "transforms",
+}
+_BLOCK_TO_SPEC = {v: k for k, v in _SPEC_TO_BLOCK.items()}
+
+# body 블록 키 → v1 키.
+_BODY_TO_V1 = {
+    "fields": "text_fields",
+    "labels": "field_labels",
+    "split": "split",
+    "repeat": "chunk_prefix_fields",
+    "once": "first_chunk_fields",
+    "mirror_to": "body_fields",
+}
+
+# source 블록 키 → (v1 키, 이 키를 쓸 수 있는 kind).
+_SOURCE_TO_V1 = {
+    "records_at": ("records", ("records",)),
+    "on_missing": ("missing_policy", ("records", "sections")),
+    "merge_rows": ("row_merge", ("rows", "records")),
+    "sections": ("sections", ("sections",)),
+    "ignore_keys": ("ignore_keys", ("sections",)),
+}
+
+# 필드 스펙이 만들 수 있는 모든 v1 블록(왕복 커버리지 계산에 쓴다).
+_FIELD_BLOCKS = (
+    set(_SPEC_TO_BLOCK.values()) | set(_ALIAS_BLOCK.values()) | set(_AS_TO_BLOCK.values())
+)
 
 
 class ConfigV2Error(ValueError):
@@ -148,29 +188,18 @@ def normalize(cfg: dict, *, label: str = "custom_fields") -> tuple[dict, str]:
 
 
 def _normalize_source(source: dict, kind: str, out: dict, label: str) -> None:
-    if source.get("records_at") is not None:
-        if kind != "records":
-            raise ConfigV2Error(f"{label}: source.records_at 는 kind: records 전용입니다.")
-        out["records"] = source["records_at"]
     if source.get("table_at") is not None:
         raise ConfigV2Error(
             f"{label}: source.table_at 는 아직 구현되지 않았습니다(표 N개 중 선택)."
         )
-    if source.get("on_missing") is not None:
-        if kind not in ("records", "sections"):
+    for v2_key, (v1_key, kinds) in _SOURCE_TO_V1.items():
+        if source.get(v2_key) is None:
+            continue
+        if kind not in kinds:
             raise ConfigV2Error(
-                f"{label}: source.on_missing 은 kind: records/sections 전용입니다."
+                f"{label}: source.{v2_key} 는 kind: {'/'.join(kinds)} 전용입니다."
             )
-        out["missing_policy"] = source["on_missing"]
-    if source.get("merge_rows") is not None:
-        if kind not in ("rows", "records"):
-            raise ConfigV2Error(f"{label}: source.merge_rows 는 kind: rows/records 전용입니다.")
-        out["row_merge"] = source["merge_rows"]
-    for key in ("sections", "ignore_keys"):
-        if source.get(key) is not None:
-            if kind != "sections":
-                raise ConfigV2Error(f"{label}: source.{key} 는 kind: sections 전용입니다.")
-            out[key] = source[key]
+        out[v1_key] = source[v2_key]
     pre = _require_dict(source.get("pre"), label, "source.pre")
     if pre:
         # 원천 포맷 전처리는 enricher 가 아니라 parser 가 소비한다. 내부 형태에서는 최상위
@@ -206,16 +235,13 @@ def _normalize_fields(fields: Any, kind: str, out: dict, label: str) -> None:
             out.setdefault("collect_key_map", {})[target] = _require_list(
                 spec["collect"], where, "collect"
             )
-        if "const" in spec:
-            out.setdefault("constants", {})[target] = spec["const"]
-        if "default" in spec:
-            out.setdefault("defaults", {})[target] = spec["default"]
-        if "values" in spec:
-            out.setdefault("value_map", {})[target] = _require_dict(
-                spec["values"], where, "values"
-            )
-        if "transform" in spec:
-            out.setdefault("transforms", {})[target] = spec["transform"]
+        for spec_key, block in _SPEC_TO_BLOCK.items():
+            if spec_key in ("collect",) or spec_key not in spec:
+                continue  # collect 는 kind 제약이 있어 위에서 따로 다룬다
+            value = spec[spec_key]
+            if spec_key == "values":
+                value = _require_dict(value, where, "values")
+            out.setdefault(block, {})[target] = value
         if "from" in spec:
             as_kind = str(spec.get("as") or "auto").strip().lower()
             block = _AS_TO_BLOCK.get(as_kind)
@@ -244,15 +270,7 @@ def _normalize_body(body: Any, kind: str, out: dict, label: str) -> None:
     if not body:
         return
     _check_unknown(body, BODY_KEYS, label, "body")
-    mapping = {
-        "fields": "text_fields",
-        "labels": "field_labels",
-        "split": "split",
-        "repeat": "chunk_prefix_fields",
-        "once": "first_chunk_fields",
-        "mirror_to": "body_fields",
-    }
-    for v2_key, v1_key in mapping.items():
+    for v2_key, v1_key in _BODY_TO_V1.items():
         if body.get(v2_key) is not None:
             out[v1_key] = body[v2_key]
 
@@ -312,11 +330,10 @@ def _flatten_llm_item(item: dict, where: str) -> dict:
 # `normalize()` 의 역방향. 이 둘의 왕복이 원본과 같아야 v2 가 v1 을 온전히 표현한다는 뜻이다.
 
 _EXTRACTOR_TO_KIND = {v: k for k, v in KIND_TO_EXTRACTOR.items()}
+# v1 블록 → v2 필드 스펙 키. 위 단일 표에서 파생한다(직접 적지 않는다).
 _BLOCK_TO_SPEC_KEY = {
-    "column_map": "alias", "key_map": "alias", "shared_fields": "alias",
-    "collect_key_map": "collect",
-    "constants": "const", "defaults": "default",
-    "value_map": "values", "transforms": "transform",
+    **{block: "alias" for block in _ALIAS_BLOCK.values()},
+    **_BLOCK_TO_SPEC,
 }
 # v1 의 llm 문서형 최상위 키 → v2 llm 항목 안에서의 자리.
 _LLM_ENDPOINT_KEYS = ("url", "api_key", "model")
@@ -349,13 +366,9 @@ def to_v2(cfg: dict, extractor: str) -> dict:
         out["fields"] = fields
 
     source = out["source"]
-    for v1_key, v2_key in (("records", "records_at"), ("missing_policy", "on_missing"),
-                           ("row_merge", "merge_rows")):
+    for v2_key, (v1_key, _kinds) in _SOURCE_TO_V1.items():
         if cfg.get(v1_key) is not None:
             source[v2_key] = cfg[v1_key]
-    for key in ("sections", "ignore_keys"):
-        if cfg.get(key) is not None:
-            source[key] = cfg[key]
     pre = {k: cfg[k] for k in PRE_KEYS if cfg.get(k) is not None}
     if pre:
         source["pre"] = pre
@@ -365,9 +378,7 @@ def to_v2(cfg: dict, extractor: str) -> dict:
         out["require"] = {"fields": required}
 
     body = {}
-    for v1_key, v2_key in (("text_fields", "fields"), ("field_labels", "labels"),
-                           ("split", "split"), ("chunk_prefix_fields", "repeat"),
-                           ("first_chunk_fields", "once"), ("body_fields", "mirror_to")):
+    for v2_key, v1_key in _BODY_TO_V1.items():
         if cfg.get(v1_key) is not None:
             body[v2_key] = cfg[v1_key]
     if body:
@@ -384,15 +395,7 @@ def to_v2(cfg: dict, extractor: str) -> dict:
         out["llm"] = llm
 
     # 남은 키는 v2 가 아직 표현하지 못하는 것이다 — 조용히 버리면 왕복 검증이 통과해 버린다.
-    covered = (
-        set(_BLOCK_TO_SPEC_KEY) | {"text_from", "html_text_fields", "records", "missing_policy",
-        "row_merge", "sections", "ignore_keys", "required", "required_shared_fields",
-        "text_fields", "field_labels", "split", "chunk_prefix_fields", "first_chunk_fields",
-        "body_fields", "llm_fields"}
-        | set(_LLM_ENDPOINT_KEYS) | set(_LLM_PARAM_KEYS) | set(_LLM_PROMPT_KEYS)
-        | {"output_fields", "parser", "pages", "template", "table_text_description", "prompt"}
-        | set(PRE_KEYS)
-    )
+    covered = COVERED_V1_KEYS
     leftover = sorted(k for k in cfg if str(k) not in covered)
     if leftover:
         raise ConfigV2Error(f"v2 로 옮기지 못한 키가 있습니다: {leftover}")
@@ -459,3 +462,17 @@ def load(loaded: dict, *, label: str) -> tuple[dict, str | None]:
     if not is_v2(loaded):
         return loaded, None
     return normalize(loaded, label=label)
+
+
+# v2 가 표현할 수 있는 v1 키 전체. 위 단일 표에서 파생하므로 표를 고치면 여기도 따라온다.
+# `tests/unit/test_config_v2_unit.py` 가 이 집합이 config_schema.EXTRACTOR_KEYS 를 덮는지
+# 지켜, v1 에 새 키를 넣고 v2 를 잊는 드리프트를 배포 전에 잡는다.
+COVERED_V1_KEYS = (
+    _FIELD_BLOCKS
+    | {v1 for v1, _kinds in _SOURCE_TO_V1.values()}
+    | set(_BODY_TO_V1.values())
+    | {"required", "required_shared_fields", "llm_fields"}
+    | set(_LLM_ENDPOINT_KEYS) | set(_LLM_PARAM_KEYS) | set(_LLM_PROMPT_KEYS)
+    | {"output_fields", "parser", "pages", "template", "table_text_description", "prompt"}
+    | set(PRE_KEYS)
+)
