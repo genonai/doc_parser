@@ -45,12 +45,16 @@ _HEADER = """# ─────────────────────�
 
 
 def original_comments(text: str) -> str:
-    """원본에서 주석 줄만 뽑아 머리말로 쓸 블록을 만든다."""
+    """원본에서 주석 줄만 뽑아 머리말로 쓸 블록을 만든다.
+
+    줄을 **그대로** 옮긴다. `#` 뒤 공백을 정규화하면 주석 안의 설정 예시가 들여쓰기를
+    잃어 구조가 뭉개진다(`#   - custom_fields:` / `#       enable: true` 가 같은 열이 된다).
+    주석을 남기는 목적이 "왜 그런 설정인지"를 보존하는 것이므로 모양도 그대로 둔다.
+    """
     lines = [ln for ln in text.splitlines() if ln.lstrip().startswith("#")]
     if not lines:
         return ""
-    return _HEADER + "\n".join(f"# {ln.lstrip()[1:].lstrip()}" if ln.strip() != "#" else "#"
-                               for ln in lines) + "\n\n"
+    return _HEADER + "\n".join(lines) + "\n\n"
 
 
 class _V2Dumper(yaml.SafeDumper):
@@ -66,7 +70,20 @@ def _flow_for_scalar_seq(dumper, data):
     return dumper.represent_sequence("tag:yaml.org,2002:seq", data, flow_style=flow)
 
 
+def _block_for_multiline_str(dumper, data):
+    """여러 줄 문자열은 `|` 리터럴 블록으로 쓴다.
+
+    기본 직렬화는 개행을 `\n` 이스케이프와 줄바꿈 연속 기호(`\`)로 접어 프롬프트를
+    사람이 읽지도 고치지도 못하게 만든다. v1 이 `|` 를 쓰고 있었으므로 그대로 두는 것이
+    맞다 — 설정을 읽기 쉽게 하려고 v2 로 옮기면서 프롬프트를 못 읽게 하면 앞뒤가 안 맞는다.
+    """
+    if "\n" in data:
+        return dumper.represent_scalar("tag:yaml.org,2002:str", data, style="|")
+    return dumper.represent_scalar("tag:yaml.org,2002:str", data)
+
+
 _V2Dumper.add_representer(list, _flow_for_scalar_seq)
+_V2Dumper.add_representer(str, _block_for_multiline_str)
 
 
 def render(cfg_v2: dict) -> str:

@@ -377,8 +377,40 @@ def check_product_hpp_link_labels(chunks: list) -> list[str]:
     return []
 
 
+def _once_field_problems(chunks: list, label: str) -> list[str]:
+    """`body.once` 계약: 라벨 붙은 값이 **첫 청크에만** 본문에 실린다.
+
+    값 자체(작성일·연회비)는 LLM 이나 원천에 따라 달라지므로 단정하지 않는다. 단정하는
+    것은 위치와 횟수뿐이다 — 모든 청크에 반복되면 chunk_size 를 깎고 같은 문장이 청크
+    수만큼 임베딩에 들어간다. 그 회귀는 값이 무엇이든 똑같이 나쁘다.
+    """
+    if not chunks:
+        return ["청크가 없어 body.once 를 확인할 수 없습니다"]
+    marker = f"{label}:"
+    carrying = [i for i, c in enumerate(chunks) if marker in (c.get("text") or "")]
+    if not carrying:
+        return [f"'{marker}' 가 어느 청크 본문에도 없습니다(body.once 미적용)"]
+    if carrying != [0]:
+        return [f"'{marker}' 가 첫 청크에만 실려야 하는데 {len(carrying)}건"
+                f"(청크 {carrying[:5]})에 실렸습니다"]
+    return []
+
+
+def check_product_attrs_once(chunks: list) -> list[str]:
+    """product_slf/ssf — front matter created_at 이 작성일로 1회만 표기된다."""
+    return _once_field_problems(chunks, "작성일")
+
+
+def check_annual_fee_once(chunks: list) -> list[str]:
+    """product_hpp — llm 이 뽑은 연회비가 첫 청크에만 1회 표기된다."""
+    return _once_field_problems(chunks, "연회비")
+
+
 EXTRA_CHECKS = {
-    ("product_slf", "monimo_product_slf_sample.md"): check_front_matter,
+    ("product_slf", "monimo_product_slf_sample.md"):
+        lambda chunks: check_front_matter(chunks) + check_product_attrs_once(chunks),
+    ("product_ssf", "monimo_product_ssf_sample.md"): check_product_attrs_once,
+    ("product_hpp", "monimo_product_hpp_sample.json"): check_annual_fee_once,
     ("card", "card01.flat.html"): check_card_annual_fee,
     ("product_hpp", "monimo_product_hpp_wcms_sample.json"): check_product_hpp_table_format,
     ("cs_hpp", "monimo_cs_hpp_rich_table_sample.html"): check_cs_hpp_degenerate_table,
