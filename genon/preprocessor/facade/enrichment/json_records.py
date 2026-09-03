@@ -610,11 +610,15 @@ class JsonRecordsMapper:
         table_format: str = DEFAULT_TABLE_FORMAT,
         compact_tables: bool = True,
     ) -> dict:
-        """원시 매핑 값에 constants → defaults → value_map → transforms → text_from 을 건다."""
-        fields.update(self.constants)
+        """원시 매핑 값에 defaults → constants → value_map → transforms → text_from 을 건다.
+
+        defaults 가 먼저다 — 반대로 하면 `constants: {X: ""}` 를 defaults 가 되살려
+        "constants 가 이긴다"는 계약이 깨진다(tabular/json_semantic 과 같은 순서).
+        """
         for key, value in self.defaults.items():
             if fields.get(key) in (None, ""):
                 fields[key] = value
+        fields.update(self.constants)
 
         # 값 정규화 → 변환 순서. 별칭을 표준값으로 접은 뒤에 타입 변환을 건다(tabular 와 동일).
         apply_value_map(fields, self.value_map)

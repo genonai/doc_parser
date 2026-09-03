@@ -735,7 +735,7 @@ class TabularCustomFieldsMapper:
         3단으로 나뉘어 있다.
           1. 원시 매핑 — 행마다 `column_map` 값만 채운다.
           2. 병합 — `row_merge` 가 있으면 연속 런을 한 레코드로 접는다.
-          3. 레코드 마감 — constants/defaults/value_map/transforms/text_from/required.
+          3. 레코드 마감 — defaults/constants/value_map/transforms/text_from/required.
         순서가 중요하다. transforms 와 required 는 **병합이 끝난 값**을 봐야 한다 —
         조각 하나만 보고 날짜를 변환하거나 필수값을 판정하면 결과가 달라진다.
         `row_merge` 미선언이면 런 길이가 1이라 종전과 동일하다.
@@ -801,10 +801,13 @@ class TabularCustomFieldsMapper:
             # 3단계 — 레코드 마감.
             skipped = 0
             for record_idx, (fields, row) in enumerate(records, start=1):
-                fields.update(constants)
+                # defaults 를 먼저 채우고 constants 로 덮는다. 반대 순서면 `constants: {X: ""}`
+                # 처럼 상수를 빈 값으로 못 박았을 때 defaults 가 그것을 되살려 "constants 가
+                # 이긴다"는 계약이 깨진다(json_semantic 과 같은 순서).
                 for key, value in defaults.items():
                     if fields.get(key) in (None, ""):
                         fields[key] = value
+                fields.update(constants)
 
                 # 값 정규화 → 변환 순서. 별칭을 표준값으로 접은 뒤에 타입 변환을 건다.
                 apply_value_map(
