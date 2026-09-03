@@ -2,13 +2,17 @@
 
 ## 무엇을 대조하나
 
-두 층을 본다. 위층이 통과하면 아래층은 원리상 통과하지만, 번역 실수를 잡으려면 둘 다 본다.
+세 층을 본다. 위층이 통과하면 아래층은 원리상 통과하지만, 번역 실수를 잡으려면 전부 본다.
 
 1. **설정 왕복** — `to_v2(v1)` 로 옮긴 뒤 `normalize()` 로 되돌린 것이 원본 v1 과 같은가.
    여기서 같으면 v2 는 그 설정을 **온전히 표현한다**는 뜻이다. `to_v2` 는 옮기지 못한 키가
    남으면 예외를 던지므로 "조용히 버려서 통과"가 생기지 않는다.
 
-2. **매퍼 산출** — 같은 샘플을 v1 매퍼와 v2 매퍼에 넣어 목표필드 dict 가 같은가.
+2. **해석된 상태** — v1/v2 설정으로 만든 매퍼·enricher 의 속성이 전부 같은가.
+   LLM 없이 결정적으로 볼 수 있는 가장 깊은 지점이고, 매핑 산출이 없는 문서형(llm)에는
+   이것이 유일한 결정적 검증이다(프롬프트·연결·출력필드·본문 규칙이 모두 여기 드러난다).
+
+3. **매퍼 산출** — 같은 샘플을 v1 매퍼와 v2 매퍼에 넣어 목표필드 dict 가 같은가.
    v2 는 내부 형태로 정규화해 **같은 매퍼 코드**를 타므로 구조상 같아야 하고, 이 검사는
    그 전제가 실제로 지켜지는지 본다(LLM 은 부르지 않는다).
 
@@ -99,6 +103,122 @@ def _sample_payload(cfg: dict, extractor: str):
     return {str(records_key): [record]} if records_key else [record]
 
 
+# 경로·런타임에 따라 달라지는 속성. 값이 아니라 환경이므로 비교에서 뺀다.
+_VOLATILE_ATTRS = {
+    "resource_path", "config_file", "_parser_base_dir", "_session", "_client",
+    "_runner", "_parser_callable",
+}
+
+
+def _has_default_repr(value) -> bool:
+    """이 객체의 repr 이 메모리 주소인가 — 즉 값이 아니라 정체(identity)를 보여 주는가.
+
+    repr 문자열을 패턴으로 맞히지 않는다. 중첩·지역 클래스는 `<...<locals>.Holder object
+    at 0x...>` 처럼 꺾쇠가 섞여 패턴이 어긋나고, 그러면 조용히 주소를 비교해 늘 불일치가
+    난다. 클래스가 `__repr__` 을 재정의했는지 직접 보는 편이 정확하다.
+    """
+    return type(value).__repr__ is object.__repr__
+
+
+def _describe(value, depth: int = 0) -> str:
+    """비교용 문자열 — **값이 같으면 같은 문자열**이 나오게 만든다.
+
+    그냥 `repr` 을 쓰면 두 가지로 헛경보가 난다. dict 는 삽입 순서가 repr 에 남아 같은
+    매핑이 다르게 보이고(v2 는 필드 스펙 순서대로 블록을 채우므로 순서가 다르다),
+    객체는 기본 repr 이 메모리 주소라 매번 다르다. 둘 다 값이 아니라 표현일 뿐이므로
+    dict 는 키로 정렬하고 객체는 내부 상태로 파고든다. 리스트는 순서가 의미이므로 그대로 둔다.
+    """
+    if depth > 6:
+        return "<깊이 초과>"
+    if isinstance(value, dict):
+        return "{" + ", ".join(
+            f"{k!r}: {_describe(v, depth + 1)}" for k, v in sorted(value.items(), key=lambda i: repr(i[0]))
+        ) + "}"
+    if isinstance(value, (list, tuple)):
+        body = ", ".join(_describe(v, depth + 1) for v in value)
+        return f"[{body}]" if isinstance(value, list) else f"({body})"
+    if isinstance(value, (set, frozenset)):
+        return "{" + ", ".join(sorted(_describe(v, depth + 1) for v in value)) + "}"
+    if _has_default_repr(value) and hasattr(value, "__dict__"):
+        inner = {k: v for k, v in vars(value).items() if not callable(v)}
+        return f"{type(value).__name__}{_describe(inner, depth + 1)}"
+    try:
+        return repr(value)
+    except Exception:  # noqa: BLE001 - repr 이 실패하는 값은 비교 대상이 아니다
+        return "<repr 실패>"
+
+
+def _resolved_state(obj) -> dict:
+    """객체가 설정에서 해석해 낸 상태 전부.
+
+    속성 이름을 나열하지 않고 `vars()` 를 통째로 훑는 것이 중요하다 — 나중에 새 설정 키가
+    생겨 새 속성이 늘어도 이 비교가 저절로 따라간다. 이름을 적어 두면 그 순간 드리프트가
+    시작된다.
+    """
+    return {
+        name: _describe(value)
+        for name, value in vars(obj).items()
+        if name not in _VOLATILE_ATTRS and not callable(value)
+    }
+
+
+def compare_resolved_state(label: str, cfg_v1: dict, extractor: str, tmp: Path) -> list[str]:
+    """v1/v2 설정으로 만든 매퍼·enricher 가 **같은 상태로 해석되는가**.
+
+    LLM 을 부르지 않고 결정적으로 비교할 수 있는 가장 깊은 지점이다. 문서형(llm)은 매핑
+    산출이 없어 이 비교가 유일한 결정적 검증이다 — 프롬프트·연결·출력필드·본문 규칙이
+    모두 여기서 드러난다.
+    """
+    try:
+        as_v2 = v2.to_v2(cfg_v1, extractor)
+    except v2.ConfigV2Error:
+        return []  # 설정 왕복 단계에서 이미 보고했다
+
+    try:
+        from genon.preprocessor.facade.enrichment.custom_fields_enricher import (
+            CustomFieldsEnricher,
+        )
+        from genon.preprocessor.facade.enrichment.json_records import JsonRecordsMapper
+        from genon.preprocessor.facade.enrichment.json_semantic import SemanticJsonMapper
+        from genon.preprocessor.facade.enrichment.tabular_custom_fields import (
+            TabularCustomFieldsMapper,
+        )
+    except Exception as exc:  # noqa: BLE001
+        return [f"[건너뜀] {label}: 매퍼를 불러올 수 없습니다({exc})"]
+
+    builders = {
+        "tabular_mapping": TabularCustomFieldsMapper,
+        "json_mapping": JsonRecordsMapper,
+        "json_semantic": SemanticJsonMapper,
+    }
+
+    def build(cfg: dict, name: str):
+        path = tmp / name
+        path.write_text(yaml.safe_dump(cfg, allow_unicode=True, sort_keys=False), encoding="utf-8")
+        if extractor == "llm":
+            return CustomFieldsEnricher(config_file=path.name, resource_path=str(tmp))
+        return builders[extractor](
+            config_file=path.name, resource_path=str(tmp),
+            doc_type="__verify__", extractor=extractor,
+        )
+
+    try:
+        state_v1 = _resolved_state(build(cfg_v1, "custom_field_state_v1.yaml"))
+        state_v2 = _resolved_state(build(as_v2, "custom_field_state_v2.yaml"))
+    except Exception as exc:  # noqa: BLE001
+        return [f"[상태생성] {label}: {exc}"]
+
+    problems = []
+    for key in sorted(set(state_v1) | set(state_v2)):
+        if state_v1.get(key) != state_v2.get(key):
+            problems.append(
+                f"[상태불일치] {label}.{key}\n"
+                f"      v1: {str(state_v1.get(key))[:180]}\n"
+                f"      v2: {str(state_v2.get(key))[:180]}"
+            )
+    return problems
+
+
 def compare_mapper_output(label: str, cfg_v1: dict, extractor: str, tmp: Path) -> list[str]:
     """같은 입력을 v1/v2 설정으로 매핑해 목표필드가 같은지 본다."""
     if extractor not in ("tabular_mapping", "json_mapping"):
@@ -179,6 +299,7 @@ def main() -> int:
                 continue
 
             found = compare_configs(str(config_file), cfg, extractor)
+            found += compare_resolved_state(str(config_file), cfg, extractor, tmp)
             found += compare_mapper_output(str(config_file), cfg, extractor, tmp)
             problems.extend(found)
             rows.append((str(config_file), extractor, "FAIL" if found else "PASS"))

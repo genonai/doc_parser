@@ -244,3 +244,55 @@ def test_precheck_understands_v2_configs(tmp_path):
     block = {"doc_type": "t", "extractor": "tabular_mapping",
              "config_file": "custom_field_x.yaml"}
     assert precheck.check_block("cfg.yaml", block, tmp_path, set()) == []
+
+
+# ── 해석된 상태 비교 (C1 4단계) ─────────────────────────────────────────────
+
+def _verify_module():
+    return _load_script("verify_v2_equivalence.py")
+
+
+_LLM_CFG = {
+    "url": "u", "model": "m", "max_tokens": 4000, "temperature": 0.0, "timeout": 300,
+    "output_fields": ["A", "B"], "constants": {"G": "HPP"},
+    "system_prompt": "시스템 프롬프트", "user_prompt": "{{raw_text}}",
+    "body_fields": ["CONTENT"], "chunk_prefix_fields": ["A"], "field_labels": {"A": "제목"},
+}
+
+
+def test_resolved_state_matches_for_document_extractor(tmp_path):
+    """문서형(llm)은 매핑 산출이 없어 해석된 상태 비교가 유일한 결정적 검증이다."""
+    verify = _verify_module()
+    assert verify.compare_resolved_state("t", _LLM_CFG, "llm", tmp_path) == []
+
+
+@pytest.mark.parametrize(
+    "break_it, expect",
+    [
+        (lambda m: m._LLM_PROMPT_KEYS.pop("system_prompt"), "_system_prompt"),
+        (lambda m: m._BODY_TO_V1.pop("mirror_to"), "_body_fields"),
+    ],
+)
+def test_resolved_state_detects_dropped_translation(tmp_path, monkeypatch, break_it, expect):
+    """번역이 값을 흘리면 잡아야 한다 — 왕복 검증만으로는 안 잡히는 종류다."""
+    verify = _verify_module()
+    monkeypatch.setattr(cv2, "_LLM_PROMPT_KEYS", dict(cv2._LLM_PROMPT_KEYS))
+    monkeypatch.setattr(cv2, "_BODY_TO_V1", dict(cv2._BODY_TO_V1))
+    break_it(cv2)
+    problems = verify.compare_resolved_state("t", _LLM_CFG, "llm", tmp_path)
+    assert any(expect in p for p in problems), problems
+
+
+def test_state_comparison_ignores_representation_noise(tmp_path):
+    """dict 키 순서와 객체 메모리 주소는 값이 아니다 — 헛경보를 내면 게이트가 무시된다."""
+    verify = _verify_module()
+
+    class Holder:
+        def __init__(self, mapping):
+            self.mapping = mapping
+
+    left = verify._describe({"a": 1, "b": Holder({"x": 1, "y": 2})})
+    right = verify._describe({"b": Holder({"y": 2, "x": 1}), "a": 1})
+    assert left == right
+    # 값이 실제로 다르면 달라야 한다.
+    assert left != verify._describe({"a": 1, "b": Holder({"x": 9, "y": 2})})
