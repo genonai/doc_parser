@@ -622,6 +622,16 @@ class SemanticJsonMapper:
         self.ignore_keys = [str(p).strip() for p in (cfg.get("ignore_keys") or []) if str(p).strip()]
         self.defaults = dict(cfg.get("defaults") or {})
         self.constants = dict(cfg.get("constants") or {})
+
+        # 본문 접두에 실릴 수 있는 공통 필드 이름(선언 순서). alias 로 원천에서 찾는 필드만이
+        # 공통 필드가 아니다 — `default`/`const` 로만 만드는 필드도 모든 청크에 붙는 같은
+        # 성격의 값이므로, 라벨을 붙였으면 본문에 실려야 한다. shared_fields 만 훑으면
+        # `GROUP_C: {const: HPP}` 같은 필드는 라벨을 붙여도 metadata 에만 남았다.
+        self.common_field_targets: list[str] = list(self.shared_fields)
+        for name in (*self.defaults, *self.constants):
+            if str(name) not in self.common_field_targets:
+                self.common_field_targets.append(str(name))
+
         self.llm_field_specs = build_llm_field_specs(cfg)
         # 섹션(청크)마다 LLM 을 부르면 카드 1장에 10회 넘게 호출된다 — parser 의
         # _apply_llm_fields 가 이 값을 보고 문서 1회만 호출한 뒤 전 섹션에 결과를 복사한다.
@@ -777,7 +787,12 @@ class SemanticJsonMapper:
         else:
             header = title or section_name or ""
         lines = [header] if header else []
-        for target in self.shared_fields:
+        for target in self.common_field_targets:
+            # first_chunk_fields(`body.once`)는 첫 청크에만 1회 싣는 값이다. 접두는 모든
+            # 청크에 반복되므로 여기서 내보내면 그 약속이 깨진다 — 값이 섹션 수만큼
+            # 반복되고, 첫 청크에서는 접두와 1회 줄이 겹쳐 같은 문장이 두 번 나온다.
+            if target in self.first_chunk_fields:
+                continue
             # 규칙 10 — 사람이 붙인 항목명(field_labels)이 있는 필드만 본문에 싣는다.
             # BIZ_ID 처럼 이름이 없는 내부 식별자는 metadata(적재 컬럼)에만 남는다 — 사람이
             # 검색어로 쓰지 않는 값을 임베딩에 태우지 않기 위해서다.

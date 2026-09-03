@@ -87,10 +87,10 @@ def test_product_hpp_wcms_sample_maps_to_sections():
         assert metadata.get("GROUP_C") == "HPP"
         # SALE_STATUS는 원천 유무와 무관하게 기존 적재 계약의 고정값을 유지한다.
         assert metadata.get("SALE_STATUS") == "ON_SALE"
-        # PRODUCT_ATTRS(benefit 배열)는 스칼라 배열이라 전 섹션 metadata 에 리스트로 실린다.
-        assert metadata.get("PRODUCT_ATTRS") == [
-            "새마을금고 현금카드 기능", "0.5%~3% 빅포인트 적립", "주말 2·3개월 무이자할부",
-        ]
+        # PRODUCT_ATTRS 는 llm 이 유일한 출처다 — 설정의 fields 에 두지 않으므로
+        # LLM 을 부르지 않는 이 경로에서는 값이 실리지 않는다. 원천 benefit 배열로
+        # 되채우면 "원천 값이 먼저 채워졌다가 llm 결과에 덮이는" 순서 의존이 되살아난다.
+        assert metadata.get("PRODUCT_ATTRS") is None
 
 
 def test_product_hpp_minimal_sample_yields_sections():

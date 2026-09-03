@@ -812,3 +812,65 @@ def test_first_chunk_field_keeps_prefix_contract(tmp_path):
         row["ANNUAL_FEE"] = "18,000원"
     first = mapper.to_parse_format(rows, "p")["elements"][0]
     assert first["content"].startswith(first.get("chunk_prefix") or "")
+
+
+@pytest.mark.unit
+def test_first_chunk_field_declared_as_shared_is_not_repeated_in_prefix(tmp_path):
+    """`first_chunk_fields` 에 적은 필드는 원천에서 오는 공통 필드여도 접두에 반복하지 않는다.
+
+    접두는 모든 청크에 붙으므로, 라벨이 있는 shared_fields 를 그대로 내보내면 "첫 청크에만
+    1회" 라는 약속이 두 가지로 깨졌다 — 값이 섹션 수만큼 반복되고, 첫 청크에서는 접두 줄과
+    1회 줄이 겹쳐 같은 문장이 두 번 나왔다.
+    """
+    config = """
+shared_fields:
+  PRODUCT_NM: [prodNm]
+  ANNUAL_FEE: [fee]
+sections:
+  ksp: {name: 주요 혜택, include: true}
+first_chunk_fields: [ANNUAL_FEE]
+field_labels:
+  ANNUAL_FEE: 연회비
+"""
+    mapper = write_mapper(tmp_path, config)
+    payload = {"prodNm": "카드", "fee": "국내전용 18,000원",
+               "ksp": {"a": "혜택 하나"}, "etc": {"b": "다른 절"}}
+    elements = mapper.to_parse_format(mapper.build_fields(payload, "product_hpp"), "product_hpp")["elements"]
+
+    assert len(elements) >= 2, "여러 섹션이 나와야 의미 있는 검사다"
+    marker = "연회비: 국내전용 18,000원"
+    assert elements[0]["content"].count(marker) == 1
+    assert not any(marker in e["content"] for e in elements[1:])
+    # 값 자체는 전 청크 metadata 에 남는다(필터 검색용).
+    assert all(e["metadata"]["ANNUAL_FEE"] == "국내전용 18,000원" for e in elements)
+    # 접두 재부착 계약도 유지된다.
+    assert all(e["content"].startswith(e["chunk_prefix"]) for e in elements)
+
+
+@pytest.mark.unit
+def test_const_only_field_can_be_put_in_body_with_a_label(tmp_path):
+    """`const`/`default` 로만 만드는 공통 필드도 라벨을 붙이면 본문에 실려야 한다.
+
+    예전에는 접두가 `shared_fields`(별칭으로 원천에서 찾는 필드)만 훑어서, 원천 key 가 없는
+    `GROUP_C: {const: HPP}` 같은 필드는 라벨을 붙여도 metadata 에만 남았다.
+    """
+    config = """
+shared_fields:
+  PRODUCT_NM: [prodNm]
+sections:
+  ksp: {name: 주요 혜택, include: true}
+constants:
+  GROUP_C: HPP
+defaults:
+  SALE_STATUS: ON_SALE
+field_labels:
+  GROUP_C: 그룹코드
+"""
+    mapper = write_mapper(tmp_path, config)
+    fields_list = mapper.build_fields({"prodNm": "카드", "ksp": {"a": "혜택 하나"}}, "product_hpp")
+    prefix = mapper._chunk_prefix(fields_list[0])
+
+    assert "그룹코드: HPP" in prefix
+    # 라벨이 없는 defaults 필드는 종전대로 metadata 에만 남는다(규칙 10).
+    assert "ON_SALE" not in prefix
+    assert fields_list[0]["SALE_STATUS"] == "ON_SALE"
