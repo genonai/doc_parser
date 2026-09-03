@@ -421,6 +421,14 @@ def pick_block(blocks: list[dict], doc_type: str, suffix: str) -> dict | None:
     return narrowed[0] if narrowed else cands[0]
 
 
+def load_config_spec(block: dict) -> dict:
+    """블록이 가리키는 custom_field yaml 원본(없으면 빈 dict)."""
+    path = RESOURCE_DIR / str(block.get("config_file") or "")
+    if not path.exists():
+        return {}
+    return yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+
+
 def expected_from_yaml(block: dict) -> tuple[list[str], dict, list[str]]:
     """(필수 필드, 상수 필드, LLM 산출 필드)."""
     path = RESOURCE_DIR / str(block.get("config_file") or "")
@@ -439,6 +447,32 @@ def expected_from_yaml(block: dict) -> tuple[list[str], dict, list[str]]:
     if isinstance(spec.get("output_fields"), (list, dict)):
         llm += list(spec["output_fields"])
     return required, constants, [f for f in dict.fromkeys(llm) if isinstance(f, str)]
+
+
+def check_field_labels(chunks: list, spec: dict) -> list[str]:
+    """`field_labels` 를 선언한 필드는 청크 본문에 `항목명: 값` 으로 실린다.
+
+    라벨은 값이 한 줄일 때만 붙는다(여러 줄 블록은 자기 제목을 이미 갖는다). 그래서 검사도
+    한 줄 값에만 적용한다. metadata 에는 값이 있는데 본문에 `항목명: 값` 이 없으면 설정과
+    산출이 어긋난 것이다 — extractor 마다 라벨 규칙이 갈리던 회귀(#360)를 여기서 잡는다.
+    """
+    labels = spec.get("field_labels") or {}
+    body_fields = [f for f in (spec.get("text_fields") or []) if f in labels]
+    if not body_fields:
+        return []
+    problems = []
+    for idx, chunk in enumerate(chunks):
+        text = chunk.get("text") or ""
+        for field in body_fields:
+            value = chunk.get(field)
+            if not isinstance(value, str) or not value.strip() or "\n" in value:
+                continue
+            expected = f"{labels[field]}: {value}"
+            if expected not in text:
+                problems.append(
+                    f"[{idx}] '{field}' 가 항목명 없이 실렸습니다(기대 {expected[:40]!r})")
+                break
+    return problems
 
 
 def run_case(python: str, doc_type: str, src: Path, out_dir: Path) -> tuple[bool, str]:
@@ -465,6 +499,7 @@ def verify(doc_type: str, src: Path, out_dir: Path, block: dict) -> list[str]:
     if len(stamped) != len(chunks):
         problems.append(f"doc_type 스탬프 누락 {len(chunks)-len(stamped)}/{len(chunks)}건")
 
+    spec = load_config_spec(block)
     required, constants, _llm = expected_from_yaml(block)
     for field in required:
         missing = [i for i, c in enumerate(chunks)
@@ -477,6 +512,7 @@ def verify(doc_type: str, src: Path, out_dir: Path, block: dict) -> list[str]:
             problems.append(f"constants '{field}' 불일치 {len(bad)}/{len(chunks)}건 "
                             f"(기대 {value!r}, 실제 {chunks[bad[0]].get(field)!r})")
 
+    problems += check_field_labels(chunks, spec)
     problems += check_table_text_formats(chunks)
     problems += check_no_markdown_links(chunks)
     problems += check_table_as_chunk(chunks)
