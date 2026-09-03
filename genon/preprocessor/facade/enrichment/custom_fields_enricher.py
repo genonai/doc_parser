@@ -44,14 +44,17 @@ _DEFAULT_CUSTOM_FIELDS_SYSTEM_PROMPT = (
 )
 
 
-DOCUMENT_CUSTOM_FIELD_EXTRACTORS = {"llm", "document_llm"}
-TABULAR_CUSTOM_FIELD_EXTRACTORS = {"tabular", "tabular_mapping", "column_mapping"}
+# extractor 이름은 종류마다 **하나씩만** 받는다. 예전에는 document_llm/tabular/
+# column_mapping/json_records 별칭이 함께 있었는데, 출고 설정 어디에도 쓰이지 않으면서
+# "무엇을 써야 하나"라는 질문만 만들었다(설정 개념 수를 줄인다는 원칙).
+DOCUMENT_CUSTOM_FIELD_EXTRACTORS = {"llm"}
+TABULAR_CUSTOM_FIELD_EXTRACTORS = {"tabular_mapping"}
 # json_mapping/json_records(JsonRecordsMapper)와 json_semantic(SemanticJsonMapper)은 서로 다른
 # 빌더(json_records.build_json_records_mappers / json_semantic.build_semantic_json_mappers)로
 # 컴파일된다 — 두 집합을 나눠 두면 각 빌더가 "내가 처리할 설정"만 자기 필터로 고르므로
 # (json_records.py:348,590 / json_semantic.py:524,780), 공개 빌더를 직접 호출해도(또는 다른
 # extractor 로 매퍼를 생성해도) 서로의 설정을 침범하지 않는다.
-JSON_RECORD_EXTRACTORS = {"json_mapping", "json_records"}
+JSON_RECORD_EXTRACTORS = {"json_mapping"}
 JSON_SEMANTIC_EXTRACTORS = {"json_semantic"}
 JSON_CUSTOM_FIELD_EXTRACTORS = JSON_RECORD_EXTRACTORS | JSON_SEMANTIC_EXTRACTORS
 SUPPORTED_CUSTOM_FIELD_EXTRACTORS = (
@@ -269,8 +272,8 @@ class CustomFieldsEnricher(BaseEnricher):
         variables: dict | None = None,
         template: dict | None = None,
         template_mode: str = "strict",
-        thinking: str | None = "off",
-        thinking_dialect: str = "standard",
+        thinking: str | None = None,
+        thinking_dialect: str | None = None,
         doc_type: str | list[str] | None = None,
         extractor: str = "llm",
         table_text_description: dict | None = None,
@@ -330,10 +333,16 @@ class CustomFieldsEnricher(BaseEnricher):
         self._extract_pattern: str = self._parser_cfg.get("extract_pattern", "")
 
         # thinking(추론) 모드. 기본 "off"(차단 토큰 전송). "auto"면 미전송(모델 자동 판단).
-        _thinking = thinking if thinking is not None else cfg.get("thinking")
-        self._thinking = str(_thinking or "off").strip().lower()
+        # 생성자 기본값을 None 으로 두는 것이 중요하다 — 다른 키와 같은 우선순위
+        # (등록 블록 > config_file > 기본값)를 갖는다. 예전에는 기본값이 truthy 라
+        # cfg 까지 도달하지 못해 문서유형 yaml 의 값이 조용히 무시됐다.
+        self._thinking = str(
+            thinking if thinking is not None else cfg.get("thinking") or "off"
+        ).strip().lower()
         self._thinking_dialect = str(
-            thinking_dialect or cfg.get("thinking_dialect") or "standard"
+            thinking_dialect
+            if thinking_dialect is not None
+            else cfg.get("thinking_dialect") or "standard"
         ).strip().lower()
         self._doc_types = normalize_doc_types(doc_type)
         self._extractor = str(extractor or "llm").strip().lower()
