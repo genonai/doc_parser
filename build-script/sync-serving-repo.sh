@@ -3,10 +3,10 @@ set -euo pipefail
 
 # sync-serving-repo.sh — 코드서빙 배포본을 별도 공개 repo로 생성/갱신한다.
 #
-# 동작: 배포에 필요한 것만(whitelist: genon/ + main.py + requirements.txt) 서브모듈 폴더 `code-serving/`에
+# 동작: 배포에 필요한 것만(whitelist: genon/ + main.py + requirements.txt + Dockerfile) 서브모듈 폴더 `code-serving/`에
 #       재생성하고, docling wheel 을 packages/ 로 동봉 + requirements.txt 에 wheel 경로 append +
 #       배포본 root README.md(코드서빙 사용 가이드, build-script/code-serving-README.md) 복사 +
-#       requirements-dev.txt(로컬 facade/test.py 실행 전용 deps), constraints-cpu.txt와 .gitignore 생성 후,
+#       requirements-dev.txt(로컬 facade/test.py 실행 전용 deps), constraints-cpu.txt와 .gitignore/.dockerignore 생성 후,
 #       배포본 repo(genonai/doc_parser_code_serving) 안에서 commit/push 한다.
 #
 # 왜: 코드서빙은 GenOS 가 런타임에 배포본 repo 를 /app/src/service 로 clone 해 main.py 를 띄우고,
@@ -69,7 +69,8 @@ if ! git -C "${ROOT_DIR}" describe --exact-match --tags "${SOURCE_REF}" >/dev/nu
 fi
 
 # 배포본에 담을 것 (whitelist, repo 루트 기준 추적 경로). 나머지는 애초에 복사 안 함.
-WHITELIST=("genon" "main.py" "requirements.txt")
+# Dockerfile: 코드서빙이 리비전 부팅 시 배포본 루트의 이 파일로 이미지를 빌드한다(main.py 와 같은 위치).
+WHITELIST=("genon" "main.py" "requirements.txt" "Dockerfile")
 
 # whitelist 로 가져온 뒤 배포본에서 제거할 하위 폴더 (dev/legacy/build — 서빙 런타임 무의존).
 #   main.py 는 production resource/ 를 config_path 로 고정하므로 resource_dev 제외해도 무영향.
@@ -194,6 +195,31 @@ else
   echo "[WARN] README 소스가 없어 건너뜀: ${SERVING_README}"
 fi
 
+# ── 2b-2) 배포본 root .dockerignore 생성 ────────────────────────────────────
+# 부팅 빌드의 컨텍스트는 clone 된 배포본 루트 전체다. .git 과 로컬 산출물이 이미지에 실리지 않게 한다.
+# ⚠️ packages/ 는 절대 제외하지 말 것 — Dockerfile 이 그 안의 docling wheel 을 설치한다.
+cat > "${DEST}/.dockerignore" <<'EOF'
+# 부팅 단계 도커 빌드의 컨텍스트에서 제외할 항목 (sync-serving-repo.sh 가 생성, 직접 편집 금지).
+# packages/ 는 docling wheel 설치에 필요하므로 제외하지 않는다.
+.git
+.gitignore
+.dockerignore
+.venv/
+**/__pycache__
+**/*.py[cod]
+**/.pytest_cache
+**/.mypy_cache
+**/.ruff_cache
+.DS_Store
+.idea/
+offline-dev-kit/
+wheelhouse/
+genon/preprocessor/facade/result.json
+genon/preprocessor/examples/parse_chunk/result_parse_chunk/
+genon/preprocessor/examples/code_serving/result_serving_gateway_test/
+EOF
+echo "[INFO] .dockerignore 생성: ${DEST}/.dockerignore"
+
 # ── 2c) requirements-dev.txt 생성 (로컬 bare-metal 에서 facade 직접 실행용) ──
 # 운영(코드서빙)은 base 이미지에 이 deps 가 이미 포함되어 런타임은 requirements.txt(docling wheel)만
 # 설치한다. 로컬에서 서빙 없이 전처리기를 직접 돌릴 때만 이 파일이 추가로 필요하다(README 부록 참고).
@@ -301,6 +327,26 @@ if [[ -f "${SERVING_README}" && ! -f "${DEST}/README.md" ]]; then
   echo "[ERROR] README 소스는 있으나 배포본에 복사되지 않았습니다." >&2
   exit 1
 fi
+# Dockerfile 은 whitelist 로 SOURCE_REF 에서 export 된다. 작업 트리에서 고치고 커밋하지 않으면
+# 예전 내용이 조용히 나가므로, 코드서빙용인지 센티널로 확인한다.
+if [[ ! -f "${DEST}/Dockerfile" ]]; then
+  echo "[ERROR] 배포본 루트에 Dockerfile 이 없습니다 (부팅 단계 도커 빌드가 불가능합니다)." >&2
+  exit 1
+fi
+if ! grep -q 'template-code-serving-doc-parser' "${DEST}/Dockerfile"; then
+  echo "[ERROR] 배포본 Dockerfile 이 코드서빙용이 아닙니다 (BASE_IMAGE 센티널 없음)." >&2
+  echo "        루트 Dockerfile 변경을 커밋하지 않았을 가능성이 큽니다 — export 는 SOURCE_REF(${SOURCE_REF}) 기준입니다." >&2
+  exit 1
+fi
+if [[ ! -f "${DEST}/.dockerignore" ]]; then
+  echo "[ERROR] .dockerignore 가 생성되지 않았습니다." >&2
+  exit 1
+fi
+# 부팅 빌드가 설치할 wheel 이 .dockerignore 로 컨텍스트에서 빠지면 빌드가 조용히 깨진다.
+if grep -qE '^[[:space:]]*packages/?[[:space:]]*$' "${DEST}/.dockerignore"; then
+  echo "[ERROR] .dockerignore 가 packages/ 를 제외합니다 — docling wheel 설치가 깨집니다." >&2
+  exit 1
+fi
 if [[ ! -f "${DEST}/requirements-dev.txt" ]]; then
   echo "[ERROR] requirements-dev.txt 가 생성되지 않았습니다." >&2
   exit 1
@@ -322,7 +368,7 @@ if [[ ! -f "${DEST}/VERSION" ]]; then
   echo "[ERROR] VERSION 스탬프가 생성되지 않았습니다." >&2
   exit 1
 fi
-echo "[SMOKE] 배포본 청결성 OK — docling 소스 없음, genon/+main.py 존재, packages/${WHEEL_NAME} 동봉됨, requirements-dev.txt·constraints-cpu.txt·.gitignore·VERSION 생성됨"
+echo "[SMOKE] 배포본 청결성 OK — docling 소스 없음, genon/+main.py 존재, packages/${WHEEL_NAME} 동봉됨, Dockerfile·requirements-dev.txt·constraints-cpu.txt·.gitignore·.dockerignore·VERSION 생성됨"
 echo "[INFO] 배포본 조립 위치: ${DEST}  (원본 커밋 ${SOURCE_COMMIT})"
 
 # ── 4) 배포본 클론이면 commit/push ──────────────────────────────────────────
