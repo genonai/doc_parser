@@ -70,3 +70,35 @@ def test_table_caption_survives_every_format():
     body = f'<table><caption>월별 내역</caption>{SIMPLE[len("<table>"):]}'
     for fmt in ("html", "markdown", "auto"):
         assert "월별 내역" in html_to_text(f"<h2>안내</h2>{body}", table_format=fmt)
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("fmt,expect_md", [("html", False), ("markdown", True)])
+def test_rows_path_honors_table_format(tmp_path, fmt, expect_md):
+    """rows(tabular_mapping) 경로도 프로세서의 `output.table_format` 을 따른다.
+
+    예전에는 `structural_html_renderer()` 를 인자 없이 만들어 rows 파생 필드만 항상
+    `<table>` 이었다. records 경로는 파서가 설정을 넘기고 있어서, 현장이
+    `table_format: markdown` 을 쓰면 같은 파일 안에서 kind 마다 표 모양이 갈렸다.
+    """
+    import textwrap
+
+    from genon.preprocessor.facade.enrichment.tabular_custom_fields import (
+        TabularCustomFieldsMapper,
+    )
+
+    (tmp_path / "custom_field_t.yaml").write_text(textwrap.dedent("""
+        column_map: {RAW: [내용]}
+        required: [RAW]
+        html_text_fields: {DETAIL: RAW}
+        text_fields: [DETAIL]
+    """), encoding="utf-8")
+    mapper = TabularCustomFieldsMapper(
+        config_file="custom_field_t.yaml", resource_path=str(tmp_path),
+        doc_type="t", extractor="tabular_mapping",
+    )
+    data = {"data": [{"sheet_name": "S", "data_rows": [{"내용": SIMPLE}]}]}
+
+    detail = mapper.build_fields(data, "t", table_format=fmt)[0]["DETAIL"]
+    assert _has_markdown_table(detail) is expect_md
+    assert ("<table" in detail) is (not expect_md)

@@ -33,11 +33,30 @@ from .custom_fields_enricher import (
 )
 from .field_transforms import VALUE_TRANSFORMS, render_field_text
 
+# 표 출력 포맷 기본값은 json_records 와 한 벌을 쓴다 — 경로마다 기본값이 갈리면
+# 같은 원천이 kind 에 따라 다른 표 모양으로 적재된다.
+DEFAULT_TABLE_FORMAT = "html"
+
 # build_fields → to_parse_format 사이에서만 쓰는 행 부가정보. metadata 로 내보내기 전에 pop 한다.
 # 필드 dict 안에 실어야 llm_fields 의 skip_record 로 일부 행이 빠져도 정렬이 어긋나지 않는다.
 _ROW_PAGE_KEY = "__cf_row_page"
 _ROW_FALLBACK_TEXT_KEY = "__cf_row_fallback_text"
 _ROW_INTERNAL_KEYS = (_ROW_PAGE_KEY, _ROW_FALLBACK_TEXT_KEY)
+
+
+def claimed_row_pages(fields_list: list) -> set:
+    """레코드 목록이 실제로 맡은 표(페이지) 번호 집합.
+
+    `_ROW_PAGE_KEY` 는 build_fields 와 to_parse_format 사이에서만 쓰는 내부 키라 호출측이
+    직접 들여다보면 안 된다. "어느 표를 맡았나"는 여러 매퍼를 돌리는 파서가 알아야 하므로
+    판정을 여기 한 벌만 두고 호출측은 이 함수만 쓴다.
+    """
+    pages = set()
+    for fields in fields_list or []:
+        page = (fields or {}).get(_ROW_PAGE_KEY)
+        if page is not None:
+            pages.add(page)
+    return pages
 
 
 def normalize_column_name(value: Any) -> str:
@@ -735,6 +754,35 @@ def compile_chunk_prefix_fields(cfg: dict, *, split: bool) -> list[str]:
     ]
 
 
+# ── 청크 본문에 실을 값의 표기 ───────────────────────────────────────────────
+# 목표필드 값은 스칼라만이 아니다. json_mapping 의 `collect`(반복 key 수집)와 스칼라 배열
+# 원천(`related_keywords`)은 값이 **리스트**다. 이를 `str()` 로 그냥 찍으면 파이썬 repr
+# (`['a', 'b']`)이 그대로 임베딩 입력에 실리고, 빈 리스트는 `'[]'` 라는 본문을 만들어
+# "본문이 빈 레코드는 제외한다"는 계약을 빠져나가 내용 없는 벡터가 적재된다.
+
+
+def _has_chunk_text_value(value: Any) -> bool:
+    """본문에 실을 값이 있는가. 빈 컨테이너는 값이 없는 것으로 본다."""
+    if value is None or value == "":
+        return False
+    if isinstance(value, (list, tuple, dict)) and not value:
+        return False
+    return True
+
+
+def _chunk_text_value(value: Any) -> str:
+    """본문에 실을 문자열. 배열은 항목을 `, ` 로 잇는다(파이썬 repr 을 내보내지 않는다).
+
+    줄바꿈이 아니라 쉼표로 잇는 이유: 라벨(`키워드: …`)은 여러 줄 블록에 붙지 않으므로,
+    줄바꿈으로 이으면 항목이 둘 이상일 때만 항목명이 조용히 사라진다.
+    """
+    if isinstance(value, (list, tuple)):
+        return ", ".join(
+            str(item) for item in value if item is not None and item != ""
+        )
+    return str(value)
+
+
 def build_chunk_text(
     fields: dict,
     text_fields: list[str],
@@ -782,7 +830,7 @@ def build_chunk_text(
         `detail_desc: ` 라벨을 덧붙이면 첫 줄만 라벨 뒤에 붙어 구조가 깨지고, 임베딩에는
         의미 없는 컬럼명이 하나 더 들어간다. 블록은 자기 제목을 이미 갖고 있다.
         """
-        value = str(fields[name])
+        value = _chunk_text_value(fields[name])
         label = label_for(name)
         return value if ("\n" in value or not label) else f"{label}: {value}"
 
@@ -790,13 +838,13 @@ def build_chunk_text(
     prefix = "\n".join(
         labeled(name)
         for name in chunk_prefix_fields
-        if fields.get(name) not in (None, "")
+        if _has_chunk_text_value(fields.get(name))
     )
     if text_fields:
         body = "\n".join(
             labeled(name)
             for name in text_fields
-            if name not in prefix_names and fields.get(name) not in (None, "")
+            if name not in prefix_names and _has_chunk_text_value(fields.get(name))
         )
     else:
         body = fallback_text
@@ -952,7 +1000,8 @@ class TabularCustomFieldsMapper:
         return None
 
     def build_fields(
-        self, data_dict: dict, runtime_doc_type: Any, *, skip_unmapped: bool = False
+        self, data_dict: dict, runtime_doc_type: Any, *, skip_unmapped: bool = False,
+        table_format: str = DEFAULT_TABLE_FORMAT, compact_tables: bool = True,
     ) -> list[dict]:
         """parser의 tabular 중립 표현 → 레코드별 목표필드 목록.
 
@@ -976,7 +1025,11 @@ class TabularCustomFieldsMapper:
         doc_type = self.canonical_doc_type(runtime_doc_type)
 
         # 구조 HTML 이 섞여 올 수 있으므로 렌더러를 준비한다(파생 필드가 없으면 만들지 않는다).
-        html_renderer = structural_html_renderer() if self.text_from else None
+        # 표 모양을 docling 경로·records 경로와 같은 설정으로 맞춘다. 인자를 주지 않으면
+        # 항상 <table> 이 되어, 같은 파일 안에서도 kind 마다 표가 다르게 나온다.
+        html_renderer = structural_html_renderer(
+            table_format=table_format, compact_tables=compact_tables
+        ) if self.text_from else None
 
         fields_list: list[dict] = []
         sheets = data_dict.get("data", []) or []

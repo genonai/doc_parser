@@ -73,6 +73,7 @@ from genon.preprocessor.facade.enrichment.custom_fields_enricher import (
 )
 from genon.preprocessor.facade.enrichment.tabular_custom_fields import (
     build_tabular_custom_fields_mappers,
+    claimed_row_pages,
     merge_parse_formats,
 )
 from genon.preprocessor.facade.enrichment.json_records import (
@@ -1669,24 +1670,37 @@ class DocumentProcessor:
         """
         data_dict = self._parse_tabular(file_path)
         multi = len(mappers) > 1
-        results, claimed = [], 0
+        results: list = []
+        # 표 단위로 맡았는지 본다. 건수 총합만 세면 매퍼 A 가 시트1을 맡은 순간 시트2가
+        # 아무에게도 안 맡겨져도 "맡았다"가 되어, 표 하나가 통째로 조용히 사라진다.
+        claimed_pages: set = set()
         for mapper in mappers:
             try:
                 fields_list = mapper.build_fields(
-                    data_dict, runtime_doc_type, skip_unmapped=multi
+                    data_dict, runtime_doc_type, skip_unmapped=multi,
+                    table_format=getattr(self, "_table_format", "html"),
+                    compact_tables=bool(getattr(self, "_compact_tables", True)),
                 )
             except (FileNotFoundError, TypeError, ValueError) as exc:
                 raise GenosServiceException("1", str(exc), stage="custom_fields") from exc
-            claimed += len(fields_list)
+            claimed_pages.update(claimed_row_pages(fields_list))
             fields_list = await self._apply_llm_fields(mapper, fields_list)
             _log.info(f"[parser] tabular_mapping 행 {len(fields_list)}건 → element")
             results.append(mapper.to_parse_format_from_fields(fields_list, runtime_doc_type))
 
-        if multi and not claimed:
-            _log.warning(
-                f"[parser] tabular_mapping 매퍼 {len(mappers)}개 중 어느 것도 이 파일의 표를 "
-                f"맡지 못했습니다(doc_type={runtime_doc_type}) — column_map 별칭을 확인하세요."
-            )
+        if multi:
+            sheets = data_dict.get("data", []) or []
+            unclaimed = [
+                str((sheets[page - 1] or {}).get("sheet_name") or f"sheet_{page}")
+                for page in range(1, len(sheets) + 1)
+                if page not in claimed_pages
+            ]
+            if unclaimed:
+                _log.warning(
+                    f"[parser] tabular_mapping 매퍼 {len(mappers)}개 중 어느 것도 맡지 않은 "
+                    f"표가 있습니다(doc_type={runtime_doc_type}): {unclaimed} — 그 표는 청크가 "
+                    f"되지 않습니다. 각 설정의 require.fields 와 alias 를 확인하세요."
+                )
         return merge_parse_formats(results)
 
     def _parse_json(self, file_path: str, spec, work_dir: str, **kwargs) -> DoclingDocument:

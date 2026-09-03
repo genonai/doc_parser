@@ -12,6 +12,7 @@ import pytest
 from genon.preprocessor.facade.enrichment.json_records import JsonRecordsMapper
 from genon.preprocessor.facade.enrichment.tabular_custom_fields import (
     TabularCustomFieldsMapper,
+    claimed_row_pages,
     merge_parse_formats,
 )
 
@@ -166,3 +167,32 @@ def test_ambiguous_json_mappers_are_rejected(tmp_path, monkeypatch):
         processor._json_records_mappers = mappers
         with pytest.raises(Exception, match="records 키가 겹칩니다"):
             processor._json_records_mappers_for("mixed")
+
+
+def test_claimed_row_pages_reports_only_tables_that_produced_records(tmp_path):
+    """맡은 표를 **표 단위**로 돌려준다.
+
+    파서가 "아무도 안 맡은 표" 경고를 건수 총합으로 판정하던 시절에는, 매퍼 A 가 시트1을
+    맡는 순간 시트2가 아무에게도 안 맡겨져도 경고가 안 났다. 표 하나가 통째로 청크가 되지
+    않는데 로그에 아무 흔적이 없어서, 나중에 데이터에서 "몇 건이 왜 없지"로 발견하게 된다.
+    """
+    faq = _tabular(tmp_path, "custom_field_faq.yaml", """
+        column_map: {QUESTION: [질문], ANSWER: [답변]}
+        required: [QUESTION]
+        text_fields: [QUESTION]
+    """)
+    rows = faq.build_fields(_TWO_SHEETS, "mixed", skip_unmapped=True)
+
+    # FAQ 는 1번 표에서만 나온다. 용어집(2번 표)은 이 매퍼가 맡지 않았다.
+    assert claimed_row_pages(rows) == {1}
+
+    # 두 표를 다 맡는 매퍼라면 두 페이지가 모두 잡힌다.
+    both = _tabular(tmp_path, "custom_field_both.yaml", """
+        column_map: {A: [질문, 용어]}
+        required: [A]
+        text_fields: [A]
+    """)
+    assert claimed_row_pages(both.build_fields(_TWO_SHEETS, "mixed", skip_unmapped=True)) == {1, 2}
+
+    # 빈 결과는 빈 집합이다(아무 표도 안 맡음).
+    assert claimed_row_pages([]) == set()
