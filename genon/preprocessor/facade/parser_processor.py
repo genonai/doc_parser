@@ -2184,6 +2184,8 @@ class DocumentProcessor:
                         "1", f"확장자 별칭 사본 생성 실패: {exc}"
                     ) from exc
 
+            enrichment_context: dict = {}
+
             if ext in (".wav", ".mp3", ".m4a"):
                 # TODO(#315): PII 마스킹 미적용(보류) — 오디오 전사 텍스트는 별도 논의 후 적용.
                 text = self._parse_audio(file_path, **kwargs)
@@ -2221,17 +2223,28 @@ class DocumentProcessor:
                     )
                     return self._normalize_response(result)
                 # docling 모드: MsExcel/Csv 백엔드로 DoclingDocument 생성 후 parse-JSON 직렬화.
+                # 다른 문서 포맷과 같은 후처리 훅을 태운다 — 이 경로를 건너뛰면 xlsx 만
+                # 문서 단위 custom_fields(extractor: llm)·metadata·doc_type 스탬프를
+                # 설정으로 켤 수 없게 된다.
                 if self._xlsx_cfg["processing_mode"] == "docling":
                     from genon.preprocessor.converters.xlsx_processor import build_docling_document
                     doc = build_docling_document(file_path)
-                    return self._normalize_response(self._build_docling_response(doc, **kwargs))
+                    doc = await self._apply_docling_post_enrichment(
+                        doc, _enrichment_context=enrichment_context, **kwargs
+                    )
+                    result = self._build_docling_response(doc, **kwargs)
+                    if enrichment_context.get("metadata"):
+                        result["metadata"] = enrichment_context["metadata"]
+                    return self._normalize_response(result)
                 # tabular 모드(기본): openpyxl 병합셀 처리 → 데이터 행마다 element 하나.
+                # docling 문서를 만들지 않으므로 표 설명만 레코드 경로와 같은 훅으로 넣는다
+                # (custom_fields 매핑 경로와 동일하게 맞춘다).
                 # TODO(#315): PII 마스킹 미적용(보류) — tabular 산출은 별도 논의 후 적용.
-                return self._normalize_response(
-                    self._tabular_to_parse_format(self._parse_tabular(file_path))
+                result = await self._describe_record_tables(
+                    self._tabular_to_parse_format(self._parse_tabular(file_path)),
+                    **kwargs,
                 )
-
-            enrichment_context: dict = {}
+                return self._normalize_response(result)
 
             # .hml(HWPML)은 hwp_sdk 260713+ 에서 지원 — 같은 SDK 경로로 라우팅 (이슈 #323)
             if ext in (".hwp", ".hwpx", ".hml"):

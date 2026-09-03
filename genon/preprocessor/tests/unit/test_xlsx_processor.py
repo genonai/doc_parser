@@ -646,3 +646,33 @@ async def test_e2e_xlsx_modes(tmp_path, mode):
     if hasattr(v, "model_dump"):
         v = v.model_dump()
     assert isinstance(v.get("text"), str) and v["text"]
+
+
+_PARSER_CONFIG = _PREPROC / "resource" / "parser_processor_config.yaml"
+
+
+@pytest.mark.smoke
+@pytest.mark.asyncio
+@pytest.mark.skipif(not _SAMPLE.exists(), reason="해진공 샘플 xlsx 없음")
+async def test_parser_xlsx_docling_mode_runs_post_enrichment(tmp_path):
+    """xlsx docling 모드도 다른 포맷과 같은 후처리 훅을 타야 한다.
+
+    조기 return 으로 `_apply_docling_post_enrichment` 를 건너뛰면 xlsx 만 문서 단위
+    custom_fields(extractor: llm)·metadata·doc_type 스탬프를 설정으로 켤 수 없다.
+    doc_type 스탬프가 그 훅을 통과했는지 보여 주는 가장 싼 증거다(LLM 호출 없음).
+    """
+    mod = pytest.importorskip("facade.parser_processor")
+    cfg = yaml.safe_load(_PARSER_CONFIG.read_text(encoding="utf-8"))
+    cfg["enrichment"] = []  # 네트워크/LLM 호출 차단
+    cfg.setdefault("formats", {}).setdefault("xlsx", {})["processing_mode"] = "docling"
+    cfg.setdefault("output", {})["format"] = "json"
+    out = tmp_path / "parser_processor_config.yaml"
+    out.write_text(yaml.safe_dump(cfg, allow_unicode=True), encoding="utf-8")
+    try:
+        dp = mod.DocumentProcessor(config_path=str(out))
+    except Exception as e:  # noqa: BLE001 - 모델/네트워크 등 환경 의존
+        pytest.skip(f"DocumentProcessor init unavailable: {e}")
+
+    result = await dp(None, str(_SAMPLE), doc_type="card")
+    assert result.get("elements")
+    assert (result.get("metadata") or {}).get("doc_type") == "card"
