@@ -147,6 +147,13 @@ genon/preprocessor/examples/config_precheck/precheck_custom_fields.sh           
 genon/preprocessor/examples/config_precheck/precheck_custom_fields.sh <현장_설정_경로>
 ```
 
+v2 스키마(`schema: v2`)는 아직 **병행 검증 단계**다. 전환하지 말 것 — 아래가 전부 통과한 뒤에
+출고 설정을 옮긴다. v1↔v2 왕복과 매퍼 산출을 대조한다(LLM 호출 없음).
+
+```bash
+genon/preprocessor/examples/config_precheck/verify_v2_equivalence.sh
+```
+
 설정 오기입은 기본적으로 **기동 실패**다. 현장 설정을 미리 검사하지 못한 첫 릴리스에 한해
 `GENOS_CUSTOM_FIELDS_VALIDATION=warn` 으로 낮추면 경고만 남기고 기동한다(그 설정은 무시된다).
 
