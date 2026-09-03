@@ -62,8 +62,10 @@ from .tabular_custom_fields import (
     apply_value_map,
     build_chunk_text,
     compile_chunk_prefix_fields,
+    compile_row_merge,
     compile_text_from,
     compile_value_map,
+    merge_row_records,
     normalize_column_name,
     validate_custom_field_config,
 )
@@ -502,6 +504,9 @@ class JsonRecordsMapper:
 
         # 원천 필드 → 평문 파생 필드. text_from 은 종류 자동 판별, html_/json_text_fields 는 강제.
         self.text_from = compile_text_from(cfg, label=f"json custom_fields({config_file})")
+        # 원천이 값 하나를 여러 레코드에 쪼개 보내는 스키마용. tabular 와 같은 구현을 공유한다
+        # (연속 런 기준 병합 — 멀리 떨어진 동일 키는 다른 레코드로 남긴다).
+        self.row_merge = compile_row_merge(cfg, label=f"json custom_fields({config_file})")
         self.llm_field_specs = build_llm_field_specs(cfg)
 
         self.text_fields = [str(f).strip() for f in (cfg.get("text_fields") or []) if str(f).strip()]
@@ -580,12 +585,33 @@ class JsonRecordsMapper:
         `table_format`/`compact_tables` 는 html_text_fields 파생 필드의 표 모양을 정한다
         (파서가 config 의 `output.*` 를 그대로 넘긴다). html 필드가 없으면 무시된다.
         """
+        return self.apply_value_pipeline(
+            self.map_record_raw(record),
+            table_format=table_format,
+            compact_tables=compact_tables,
+        )
+
+    def map_record_raw(self, record: dict) -> dict:
+        """레코드 1건 → **원시 매핑만** 한 목표필드 dict(변환·기본값 이전).
+
+        `row_merge` 는 이 단계의 값을 이어붙인다. 조각마다 transforms/text_from 이 먼저
+        돌면 잘린 JSON 조각을 각각 평문화하게 되어 복원이 불가능하다(tabular 와 같은 순서).
+        """
         fields: dict[str, Any] = {name: None for name in self.nulls}
         for target, aliases in self.key_map.items():
             fields[target] = find_field(record, aliases)
         for target, aliases in self.collect_key_map.items():
             fields[target] = find_fields(record, aliases)
+        return fields
 
+    def apply_value_pipeline(
+        self,
+        fields: dict,
+        *,
+        table_format: str = DEFAULT_TABLE_FORMAT,
+        compact_tables: bool = True,
+    ) -> dict:
+        """원시 매핑 값에 constants → defaults → value_map → transforms → text_from 을 건다."""
         fields.update(self.constants)
         for key, value in self.defaults.items():
             if fields.get(key) in (None, ""):
@@ -625,11 +651,30 @@ class JsonRecordsMapper:
         doc_type = self.canonical_doc_type(runtime_doc_type)
         table_format = normalize_table_format(table_format)
 
+        # 1단계 — 원시 매핑. 원본 레코드도 함께 들고 간다(병합 재료).
+        raw: list[tuple[dict, dict]] = [
+            (self.map_record_raw(record), record) for record in records
+        ]
+
+        # 2단계 — 병합. 값 파이프라인 **전에** 접어야 조각마다 transforms/text_from 이 돌지 않는다.
+        # resolved(목표필드 → 원천 컬럼명)는 tabular 전용 개념이라 빈 dict 를 넘긴다 — json 은
+        # 폴백 본문에 원본 row 를 쓰지 않으므로 원본 레코드를 덮을 필요가 없다.
+        if self.row_merge and raw:
+            merged = merge_row_records(raw, self.row_merge, {})
+            if len(merged) != len(raw):
+                # silent 축소 방지 — 몇 건이 몇 레코드로 접혔는지 드러낸다.
+                _log.info(
+                    f"[json_records] row_merge {len(raw)} records -> {len(merged)} records "
+                    f"(group_by={self.row_merge['group_by']})"
+                )
+            raw = merged
+
+        # 3단계 — 값 파이프라인 → 필수값 검사.
         mapped: list[dict] = []
         skipped = 0
-        for index, record in enumerate(records):
-            fields = self.map_record(
-                record, table_format=table_format, compact_tables=compact_tables
+        for index, (fields, _record) in enumerate(raw):
+            fields = self.apply_value_pipeline(
+                fields, table_format=table_format, compact_tables=compact_tables
             )
             missing = self.missing_required(fields)
             if missing:

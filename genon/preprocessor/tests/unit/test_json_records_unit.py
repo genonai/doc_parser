@@ -734,3 +734,57 @@ def test_shape_error_reports_key_name_before_consumption(tmp_path):
     message = str(exc.value)
     assert "transforms" in message
     assert "custom_field_json.yaml" in message
+
+
+# ── row_merge (tabular 와 공유) ─────────────────────────────────────────────
+
+def test_row_merge_folds_split_records_before_value_pipeline(tmp_path):
+    """원천이 값 하나를 여러 레코드에 쪼개 보내는 스키마를 한 건으로 접는다.
+
+    병합은 값 파이프라인 **전에** 돌아야 한다 — 조각마다 text_from 이 먼저 돌면 잘린 JSON
+    조각을 각각 평문화하게 되어 복원이 불가능하다.
+    """
+    whole = '{"종목명": "삼성전자", "투자의견": "매수"}'
+    mapper = write_mapper(tmp_path, """
+        key_map:
+          REGT_NO:     [regtNo]
+          LINE_NO:     [lineNo]
+          DETAIL_JSON: [detailDesc]
+        row_merge:
+          group_by:  [REGT_NO]
+          order_by:  LINE_NO
+          concat:    [DETAIL_JSON]
+          separator: ""
+        text_from:
+          DETAIL_TEXT: DETAIL_JSON
+        text_fields: [DETAIL_TEXT]
+    """, doc_type="stock")
+    rows = mapper.build_fields([
+        {"regtNo": "R1", "lineNo": 1, "detailDesc": whole[:12]},
+        {"regtNo": "R1", "lineNo": 2, "detailDesc": whole[12:]},
+        {"regtNo": "R2", "lineNo": 1, "detailDesc": '{"종목명": "SK하이닉스"}'},
+    ], "stock")
+
+    assert len(rows) == 2
+    assert rows[0]["DETAIL_JSON"] == whole
+    assert "삼성전자" in str(rows[0]["DETAIL_TEXT"])
+    assert "SK하이닉스" in str(rows[1]["DETAIL_JSON"])
+
+
+def test_row_merge_only_folds_consecutive_runs(tmp_path):
+    """떨어진 동일 키는 합치지 않는다 — 등록번호 재사용 시 다른 건이 뭉개지는 것을 막는다."""
+    mapper = write_mapper(tmp_path, """
+        key_map:
+          REGT_NO: [regtNo]
+          BODY:    [body]
+        row_merge:
+          group_by: [REGT_NO]
+          concat:   [BODY]
+        text_fields: [BODY]
+    """, doc_type="stock")
+    rows = mapper.build_fields([
+        {"regtNo": "R1", "body": "a"},
+        {"regtNo": "R2", "body": "b"},
+        {"regtNo": "R1", "body": "c"},
+    ], "stock")
+    assert [r["BODY"] for r in rows] == ["a", "b", "c"]

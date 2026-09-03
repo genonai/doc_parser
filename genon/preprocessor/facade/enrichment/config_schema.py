@@ -42,7 +42,9 @@ _RECORD_COMMON = frozenset({
 # extractor 별 지원 키. 값은 "그 extractor 의 매퍼/enricher 가 실제로 읽는 키" 다.
 EXTRACTOR_KEYS: dict[str, frozenset[str]] = {
     "tabular_mapping": _RECORD_COMMON | {"column_map", "row_merge"},
-    "json_mapping": _RECORD_COMMON | {"records", "key_map", "collect_key_map", "missing_policy"},
+    "json_mapping": _RECORD_COMMON | {
+        "records", "key_map", "collect_key_map", "missing_policy", "row_merge",
+    },
     # json_semantic 은 레코드형과 파이프라인이 다르다 — 값 변환·본문 조립 키를 읽지 않고
     # 본문은 섹션 워커가 만든다. 공유 키 중 defaults/constants/llm_fields 만 쓴다.
     "json_semantic": frozenset({
