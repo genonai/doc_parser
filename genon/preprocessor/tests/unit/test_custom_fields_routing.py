@@ -1151,3 +1151,57 @@ def test_shipped_configs_match_declared_keys(resource_dir):
         cs.validate_known_keys(cfg, label=f"{resource_dir}/{path.name}", extractor=extractor)
         checked += 1
     assert checked >= 15, f"검사된 출고 설정이 너무 적다: {checked}건"
+
+
+# ── 시트/표 컨텍스트를 column_map 에서 참조 (A3) ────────────────────────────
+
+@pytest.mark.unit
+def test_column_map_can_reference_sheet_name(tmp_path):
+    """관계사별로 시트를 나눠 보내면서 구분값을 셀에는 안 넣는 원천이 있다.
+
+    시트명·표 제목은 그동안 로그·에러 메시지에만 쓰여 목표필드로 만들 방법이 없었다.
+    """
+    from genon.preprocessor.facade.enrichment.tabular_custom_fields import (
+        TabularCustomFieldsMapper,
+    )
+
+    cfg = tmp_path / "custom_field_ctx.yaml"
+    cfg.write_text(
+        "column_map:\n  COMPANY: [sheet_name]\n  QUESTION: [질문]\n"
+        "required: [COMPANY, QUESTION]\n"
+        "text_fields: [QUESTION]\n",
+        encoding="utf-8",
+    )
+    mapper = TabularCustomFieldsMapper(
+        config_file=cfg.name, resource_path=str(tmp_path),
+        doc_type="cs", extractor="tabular_mapping",
+    )
+    rows = mapper.build_fields({"data": [
+        {"sheet_name": "삼성생명", "data_rows": [{"질문": "가입 방법은?"}]},
+        {"sheet_name": "삼성화재", "data_rows": [{"질문": "청구 방법은?"}]},
+    ]}, "cs")
+
+    assert [r["COMPANY"] for r in rows] == ["삼성생명", "삼성화재"]
+    assert rows[0]["QUESTION"] == "가입 방법은?"
+
+
+@pytest.mark.unit
+def test_real_column_wins_over_sheet_context(tmp_path):
+    """컨텍스트가 진짜 데이터를 가리면 안 된다 — 같은 이름의 실제 컬럼이 우선한다."""
+    from genon.preprocessor.facade.enrichment.tabular_custom_fields import (
+        TabularCustomFieldsMapper,
+    )
+
+    cfg = tmp_path / "custom_field_ctx2.yaml"
+    cfg.write_text(
+        "column_map:\n  SRC: [sheet_name]\n  QUESTION: [질문]\ntext_fields: [QUESTION]\n",
+        encoding="utf-8",
+    )
+    mapper = TabularCustomFieldsMapper(
+        config_file=cfg.name, resource_path=str(tmp_path),
+        doc_type="cs", extractor="tabular_mapping",
+    )
+    rows = mapper.build_fields({"data": [
+        {"sheet_name": "시트A", "data_rows": [{"sheet_name": "행에_있는_값", "질문": "Q1"}]},
+    ]}, "cs")
+    assert rows[0]["SRC"] == "행에_있는_값"
