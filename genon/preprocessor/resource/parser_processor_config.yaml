@@ -357,12 +357,6 @@ enrichment:
       doc_type: stock_insight
       extractor: tabular_mapping
       config_file: custom_field_stock_insight.yaml   # resource_path 자동 = 이 yaml 파일 디렉토리
-  # 링크 — 원천 요건 협의 중이라 key_map 이 잠정값이다. 스키마 확정 전까지 비활성 유지.
-  - custom_fields:
-      enable: true
-      doc_type: link
-      extractor: json_mapping
-      config_file: custom_field_link.yaml   # resource_path 자동 = 이 yaml 파일 디렉토리
   - custom_fields:
       enable: true
       doc_type: research_report
