@@ -193,3 +193,58 @@ async def test_unaliased_unknown_extension_falls_back_to_catchall(parser_process
 
     dp._parse_docling.assert_not_called()
     dp._parse_other.assert_called_once()
+
+
+# ---------------------------------------------------------------------------
+# 3. 별칭이 없는 미지의 확장자 — 오프라인(unstructured 미설치) 내성
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_unknown_text_extension_uses_textloader_not_unstructured(tmp_path: Path):
+    """설정에 별칭이 없어도 내용이 텍스트면 TextLoader 로 읽는다.
+
+    unstructured 는 무거운 선택 의존이라 오프라인 배포본에는 없을 수 있다. 예전에는
+    이 경로가 UnstructuredFileLoader 를 만들다 ImportError 로 죽었다.
+    """
+    from facade.parser_processor import GenericDocumentLoader, TextLoader
+
+    src = tmp_path / "sample.parsed"
+    src.write_text(MIXED_MD_HTML, encoding="utf-8")
+
+    loader = GenericDocumentLoader().get_loader(str(src))
+
+    assert isinstance(loader, TextLoader)
+
+
+@pytest.mark.unit
+def test_unknown_binary_extension_still_goes_to_unstructured(tmp_path: Path):
+    """텍스트가 아니면 기존대로 Unstructured 로 보낸다(동작 보존)."""
+    from facade.parser_processor import GenericDocumentLoader, TextLoader
+
+    src = tmp_path / "sample.bin"
+    src.write_bytes(b"\x00\x01\x02\x03" * 64)
+
+    loader = GenericDocumentLoader().get_loader(str(src))
+
+    assert not isinstance(loader, TextLoader)
+
+
+@pytest.mark.unit
+def test_missing_unstructured_becomes_actionable_error(tmp_path: Path, monkeypatch):
+    """unstructured 미설치 ImportError 는 조치가 적힌 서비스 예외로 바뀐다."""
+    from facade import parser_processor as pp
+
+    src = tmp_path / "sample.bin"
+    src.write_bytes(b"\x00\x01\x02\x03" * 64)
+
+    generic = pp.GenericDocumentLoader()
+    monkeypatch.setattr(
+        generic, "get_loader",
+        MagicMock(side_effect=ImportError("unstructured package not found")),
+    )
+
+    with pytest.raises(pp.GenosServiceException) as excinfo:
+        generic.load_documents(str(src))
+
+    assert "unstructured" in excinfo.value.error_msg
+    assert "extension_aliases" in excinfo.value.error_msg

@@ -743,6 +743,15 @@ class DocxDocumentLoader:
 # load_documents() 메서드만 포함
 # ============================================================
 
+def _file_looks_like_text(file_path: str) -> bool:
+    """파일 앞부분이 텍스트로 보이는지. 읽을 수 없으면 False(=텍스트로 단정하지 않음)."""
+    try:
+        with open(file_path, "rb") as f:
+            return _looks_like_text(f.read(512))
+    except OSError:
+        return False
+
+
 class GenericDocumentLoader:
 
     def __init__(self):
@@ -782,6 +791,16 @@ class GenericDocumentLoader:
             # .md 는 기본적으로 docling 분기에서 처리된다. 여기로 오는 건
             # formats.md.processing_mode=text 인 레거시 경로뿐이다.
             return TextLoader(file_path)
+        elif _file_looks_like_text(file_path):
+            # 모르는 확장자라도 내용이 텍스트면 TextLoader 로 읽는다. Unstructured 는 무거운
+            # 선택 의존이라 오프라인 배포본에는 없을 수 있는데, 그때 ImportError 로 죽는 대신
+            # 최소한 본문은 살린다. 구조(헤딩/표)까지 살리려면 아래 안내대로 별칭을 지정한다.
+            _log.warning(
+                f"[GenericDocumentLoader] 모르는 확장자 '{ext}' — 구조 없는 텍스트로 읽습니다. "
+                "표준 포맷으로 처리하려면 파서 설정의 formats.extension_aliases 에 "
+                f"'{ext}' 별칭을 지정하세요(예: \"{ext}\": \".md\")."
+            )
+            return TextLoader(file_path)
         else:
             return UnstructuredFileLoader(file_path)
 
@@ -819,7 +838,17 @@ class GenericDocumentLoader:
         return documents
 
     def load_documents(self, file_path: str, **kwargs: dict) -> list:
-        loader = self.get_loader(file_path)
+        try:
+            loader = self.get_loader(file_path)
+        except ImportError as exc:
+            # unstructured 는 선택 의존이라 오프라인 배포본에는 없을 수 있다. 원인과 조치를
+            # 알 수 있게 바꿔 던진다(텍스트 파일은 위에서 TextLoader 로 빠지므로 여기 안 온다).
+            raise GenosServiceException(
+                "1",
+                f"이 형식은 unstructured 패키지가 있어야 처리됩니다({exc}). "
+                f"표준 포맷으로 변환해 올리거나 파서 설정의 formats.extension_aliases 로 "
+                f"처리할 포맷을 지정하세요: {os.path.basename(file_path)}",
+            ) from exc
         ext = os.path.splitext(file_path)[-1].lower()
         try:
             documents = loader.load()
