@@ -21,6 +21,34 @@
 from __future__ import annotations
 
 import difflib
+import logging
+import os
+
+_log = logging.getLogger(__name__)
+
+# 검증 강도. 기본은 error(기동 실패) — 무증상 실패를 없애는 것이 이 검증의 목적이다.
+#
+# 운영 반영 첫 릴리스처럼 "현장 설정에 예상 못 한 키가 있는지 아직 모르는" 상황에서는
+# warn 으로 낮춰 기동은 시키고 로그로만 알릴 수 있다. 배포 단위 스위치라 yaml 이 아니라
+# 환경변수에 둔다 — 통합 실행(main.py)은 한 프로세스에 facade 를 여럿 올리므로
+# 프로세서 yaml 에 두면 나중에 로드된 값이 앞의 것을 덮어 예측이 어려워진다.
+#
+# 배포 전에는 examples/config_precheck 로 현장 설정을 먼저 검사하는 것이 정석이고,
+# warn 은 그 검사를 못 돌린 경우의 안전판이다.
+VALIDATION_POLICY_ENV = "GENOS_CUSTOM_FIELDS_VALIDATION"
+_VALID_POLICIES = ("error", "warn")
+
+
+def validation_policy() -> str:
+    """`error`(기본) 또는 `warn`. 모르는 값은 error 로 보고 경고를 남긴다."""
+    raw = str(os.environ.get(VALIDATION_POLICY_ENV) or "error").strip().lower()
+    if raw not in _VALID_POLICIES:
+        _log.warning(
+            f"[custom_fields] {VALIDATION_POLICY_ENV}='{raw}' 는 알 수 없는 값입니다 "
+            f"(사용 가능: {list(_VALID_POLICIES)}). error 로 진행합니다."
+        )
+        return "error"
+    return raw
 
 # 등록 블록(parser_processor_config.yaml 의 `- custom_fields:`)에서 넘어오는 배선 키.
 # custom_field yaml 안에 적을 값이 아니라 매퍼/enricher 생성자의 인자다.
@@ -86,33 +114,61 @@ def validate_known_keys(cfg: dict, *, label: str, extractor: str | None) -> None
     두 종류를 나눠 알린다 — 오타인지, 다른 extractor 의 키를 가져다 쓴 것인지에 따라
     고칠 방법이 다르기 때문이다.
     """
+    diagnosis = diagnose_keys(cfg, extractor)
+    if diagnosis is None:
+        return
+    message = format_diagnosis(label, diagnosis)
+    if validation_policy() == "warn":
+        _log.warning(
+            f"[custom_fields] {message} "
+            f"(이 설정은 무시되고 그대로 진행합니다. {VALIDATION_POLICY_ENV}=error 면 기동을 막습니다.)"
+        )
+        return
+    raise ValueError(message)
+
+
+def diagnose_keys(cfg: dict, extractor: str | None) -> dict | None:
+    """쓸 수 없는 키를 찾아 구조화해 돌려준다. 문제가 없으면 None.
+
+    검증기와 배포 전 점검 스크립트가 같은 판정을 공유하도록 진단과 처리를 분리했다 —
+    스크립트가 규칙을 다시 구현하면 둘이 갈린다.
+    """
     name = canonical_extractor(extractor)
     supported = EXTRACTOR_KEYS.get(name)
     if supported is None:  # 모르는 extractor 는 각 매퍼 생성자가 이미 거부한다.
-        return
+        return None
 
     allowed = supported | WIRING_KEYS
     unexpected = sorted(k for k in (cfg or {}) if str(k) not in allowed)
     if not unexpected:
-        return
+        return None
 
-    typos = [k for k in unexpected if k not in ALL_KNOWN_KEYS]
-    misplaced = [k for k in unexpected if k in ALL_KNOWN_KEYS]
-
-    lines = []
-    if typos:
-        detail = ", ".join(f"`{k}`{_suggest(k, allowed)}" for k in typos)
-        lines.append(f"모르는 키: {detail}")
-    if misplaced:
-        owners = {
+    return {
+        "extractor": name,
+        # 오타(어느 extractor 도 모르는 키) → 가장 가까운 지원 키를 제안
+        "typos": {k: _suggest(k, allowed).strip() for k in unexpected if k not in ALL_KNOWN_KEYS},
+        # 다른 extractor 의 키 → 어느 extractor 전용인지
+        "misplaced": {
             k: sorted(x for x, keys in EXTRACTOR_KEYS.items() if k in keys)
-            for k in misplaced
-        }
-        detail = ", ".join(f"`{k}`(→ {'/'.join(owners[k])} 전용)" for k in misplaced)
-        lines.append(f"이 extractor 가 읽지 않는 키: {detail}")
+            for k in unexpected if k in ALL_KNOWN_KEYS
+        },
+        "supported": sorted(supported),
+    }
 
-    raise ValueError(
-        f"{label}: extractor '{name}' 설정에 쓸 수 없는 키가 있습니다. "
+
+def format_diagnosis(label: str, diagnosis: dict) -> str:
+    """`diagnose_keys` 결과를 사람이 읽는 한 줄로."""
+    lines = []
+    if diagnosis["typos"]:
+        detail = ", ".join(f"`{k}`{(' ' + s) if s else ''}"
+                           for k, s in diagnosis["typos"].items())
+        lines.append(f"모르는 키: {detail}")
+    if diagnosis["misplaced"]:
+        detail = ", ".join(f"`{k}`(→ {'/'.join(owners)} 전용)"
+                           for k, owners in diagnosis["misplaced"].items())
+        lines.append(f"이 extractor 가 읽지 않는 키: {detail}")
+    return (
+        f"{label}: extractor '{diagnosis['extractor']}' 설정에 쓸 수 없는 키가 있습니다. "
         + " / ".join(lines)
-        + f". 지원 키: {sorted(supported)}"
+        + f". 지원 키: {diagnosis['supported']}"
     )
