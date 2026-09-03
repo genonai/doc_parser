@@ -110,9 +110,16 @@ constants:
 # 호출 횟수는 **문서 1건당 1회**다(청크 개수와 무관하다).
 # url·api_key·프롬프트 작성법은 templates/custom_field_TEMPLATE_json.yaml 을 참고한다.
 #
+# input_fields 에는 shared_fields 의 목표필드명, 문서 전체(`PRODUCT_INFO`), 또는
+# **JSON 의 key 이름**(`feeUrl`, `htmlList` …)을 적는다. 세 번째가 보통 정답이다 —
+# 연회비 표는 `htmlList.feeUrl` 안에만 있으므로 카드 전체를 넣을 이유가 없다.
+#
+# output_fields 이름은 shared_fields 와 겹치면 안 된다(위 PRODUCT_ATTRS 등) —
+# LLM 결과가 그 필드를 덮어써서 원천 값이 사라진다.
+#
 # llm_fields:
-#   - output_fields: [<GENERATED_FIELD>]   # SALE_STATUS 는 원천/defaults로 직접 채우므로
-#     input_fields:  [PRODUCT_INFO]        # LLM 예시로 쓰지 않는다.
+#   - output_fields: [ANNUAL_FEE]          # SALE_STATUS 는 원천/defaults로 직접 채우므로
+#     input_fields:  [feeUrl]              # LLM 예시로 쓰지 않는다.
 
 
 # ═══════════════════════════════════════════════════════════════════════════

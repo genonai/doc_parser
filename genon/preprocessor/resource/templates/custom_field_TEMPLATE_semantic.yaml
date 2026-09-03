@@ -96,15 +96,30 @@ sections:
 # 호출 횟수는 **문서(파일) 1건당 1회**다(json_mapping 과 달리 섹션/청크 개수와 무관하다 —
 # json_semantic 은 llm_fields_scope="document" 로 고정이라 매퍼가 대표 입력 하나를 만들고
 # 결과를 전 섹션에 그대로 복사한다).
-# input_fields 에는 shared_fields 의 목표필드명이나, 섹션 전체를 이어붙인 대표 텍스트인
-# `PRODUCT_INFO` 를 쓸 수 있다(SemanticJsonMapper.document_input_fields 참고).
+# input_fields 에는 세 가지를 쓸 수 있다(SemanticJsonMapper.document_input_fields 참고).
+#   · shared_fields 의 목표필드명 (`PRODUCT_NM` …)  — 짧은 사실값
+#   · `PRODUCT_INFO`                                 — 문서 전체(모든 섹션 본문을 이어붙인 것)
+#   · **JSON 의 key 이름** (`htmlList`, `feeUrl` …)  — 그 key 아래 섹션 본문만
+#
+# 세 번째가 보통 정답이다. 예를 들어 연회비 표는 `htmlList.feeUrl` 안에만 있는데,
+# `PRODUCT_INFO` 로 카드 전체를 넣으면 토큰이 크고 다른 이야기가 섞여 추출이 흔들린다.
+#   input_fields: [feeUrl]      ← 연회비 표만 (권장)
+#   input_fields: [htmlList]    ← 그 컨테이너 아래 문서 전부
+# 경로(`htmlList.feeUrl`)가 아니라 **이름만** 적는다 — 이 파일의 다른 설정과 같다.
+# 여기 적은 이름은 원문 HTML 이 아니라 **청크에 실제로 실리는 평문**으로 들어간다.
+#
+# 이름을 못 찾으면 경고 로그가 남고 그 입력은 빠진다. `input_fields` 가 전부 빠지면 LLM 은
+# 빈 문서를 받으므로 결과가 null 이 된다 — "모델이 못 뽑는다" 싶으면 로그를 먼저 본다.
+#
+# output_fields 이름을 shared_fields 목표필드와 겹치게 두지 않는다 — LLM 결과가 그 필드를
+# 덮어써서 원천 값이 사라진다.
 #
 # output_fields 의 이름은 프롬프트가 내놓는 JSON 키와 **정확히 같아야** 한다.
 #    어긋나면 에러 없이 값이 null 로 채워진다.
 #
 # llm_fields:
 #   - output_fields: [<GENERATED_FIELD>]
-#     input_fields:  [PRODUCT_INFO]
+#     input_fields:  [feeUrl]                   # 필요한 부분만 — 문서 전체는 PRODUCT_INFO
 #     concurrency: 4                            # 사용되지 않음(문서 1회 호출이라 무의미) — 남겨도 무해
 #     on_error: null                            # null(해당 필드만 null) — document 스코프는 skip_record 없음
 #
