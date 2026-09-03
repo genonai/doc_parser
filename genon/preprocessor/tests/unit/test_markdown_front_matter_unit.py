@@ -160,9 +160,10 @@ def test_builder_loads_child_markdown_config_and_applies_inline_override(tmp_pat
 
     specs = build_markdown_front_matter_specs([config])
     assert len(specs) == 1
+    # 목표는 항상 목록이다 — 한 원천 키를 여러 목표로 보낼 수 있게 하면서 자료형을 하나로 뒀다.
     assert specs[0].metadata_fields == {
-        "source_file": "source_file",
-        "created_at": "created_date",
+        "source_file": ["source_file"],
+        "created_at": ["created_date"],
     }
     assert specs[0].exclude_text_fields == ("*",)
 
@@ -367,3 +368,30 @@ def test_product_markdown_parser_to_chunk_round_trip():
     assert all(row["PRODUCT_C"] == "30387" for row in rows)
     assert all(row["GROUP_C"] == "SLF" for row in rows)
     assert all(row["doc_type"] == "product_slf" for row in rows)
+
+
+@pytest.mark.unit
+def test_one_front_matter_key_can_feed_several_targets():
+    """`created_at` 하나가 날짜 벡터 필드와 사람이 읽는 표기 양쪽에 필요할 때가 있다.
+
+    front matter 에는 그 키가 하나뿐이라 목표를 하나로 제한하면 둘 중 하나를 포기해야 했다.
+    """
+    spec = build_markdown_front_matter_specs([{
+        "doc_type": "p", "extractor": "llm",
+        "markdown": {"front_matter": {
+            "metadata_fields": {"created_at": ["created_date", "PRODUCT_ATTRS"]},
+        }},
+    }])[0]
+    assert spec.metadata_fields == {"created_at": ["created_date", "PRODUCT_ATTRS"]}
+
+
+@pytest.mark.unit
+def test_duplicate_targets_are_still_rejected():
+    """목표가 겹치면 어느 원천이 이겼는지 알 수 없어진다 — 종전대로 막는다."""
+    with pytest.raises(ValueError, match="중복"):
+        build_markdown_front_matter_specs([{
+            "doc_type": "p", "extractor": "llm",
+            "markdown": {"front_matter": {
+                "metadata_fields": {"created_at": "X", "author": ["X"]},
+            }},
+        }])

@@ -502,13 +502,28 @@ _DATE_INT_FLEX_FIELDS = {
 _DB_DEFAULTED_COLUMNS = {"SEARCHABLE_YN"}
 
 
+
+def _load_shipped(path) -> dict:
+    """출고 설정을 **내부(v1) 형태**로 읽는다.
+
+    resource/ 는 v2 로 옮겨졌지만 아래 검사들은 "이 설정이 무엇을 만드는가"를 보는 것이라
+    표기(v1/v2)와 무관해야 한다. 매퍼가 하는 것과 같은 번역을 거쳐 한 모양으로 맞춘다 —
+    검사마다 v2 키를 따로 읽으면 스키마가 하나 더 늘어나는 셈이 된다.
+    """
+    from genon.preprocessor.facade.enrichment import config_v2 as cv2
+
+    loaded = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    normalized, _extractor = cv2.load(loaded, label=str(path.name))
+    return normalized
+
+
 @pytest.mark.unit
 @pytest.mark.parametrize("resource_dir", _RESOURCE_DIRS)
 @pytest.mark.parametrize("config_name,fields", sorted(_DATE_INT_FLEX_FIELDS.items()))
 def test_shipped_date_fields_use_flexible_integer_transform(resource_dir, config_name, fields):
     """날짜 대상 필드는 압축·2자리 연도 표기까지 정규화해야 한다."""
     base = Path(__file__).resolve().parents[2] / resource_dir
-    cfg = yaml.safe_load((base / config_name).read_text(encoding="utf-8"))
+    cfg = _load_shipped(base / config_name)
 
     transforms = cfg.get("transforms") or {}
     assert {field: transforms.get(field) for field in fields} == {
@@ -521,7 +536,7 @@ def test_shipped_date_fields_use_flexible_integer_transform(resource_dir, config
 @pytest.mark.parametrize("config_name", sorted(_REQUIRED_BY_DOC_TYPE))
 def test_shipped_monimo_configs_cover_not_null_columns(resource_dir, config_name):
     base = Path(__file__).resolve().parents[2] / resource_dir
-    cfg = yaml.safe_load((base / config_name).read_text(encoding="utf-8"))
+    cfg = _load_shipped(base / config_name)
 
     mapped = set(cfg.get("column_map") or {}) | set(cfg.get("key_map") or {})
     mapped |= set(cfg.get("constants") or {})
@@ -546,7 +561,7 @@ def test_shipped_monimo_configs_cover_not_null_columns(resource_dir, config_name
 def test_shipped_monimo_configs_use_db_column_names(resource_dir, config_name):
     """출력 필드명은 DB 컬럼명(대문자)으로 통일한다 — 적재 매핑이 1:1 이 되도록."""
     base = Path(__file__).resolve().parents[2] / resource_dir
-    cfg = yaml.safe_load((base / config_name).read_text(encoding="utf-8"))
+    cfg = _load_shipped(base / config_name)
 
     targets = set(cfg.get("column_map") or {}) | set(cfg.get("key_map") or {})
     targets |= set(cfg.get("constants") or {}) | set(cfg.get("defaults") or {})
@@ -1148,7 +1163,8 @@ def test_shipped_configs_match_declared_keys(resource_dir):
         extractor = registered.get(path.name)
         if extractor is None:
             continue  # 어느 프로세서에도 등록되지 않은 설정은 대상이 아니다
-        cfg = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+        # v2 설정은 내부 형태로 번역한 뒤에야 extractor 지원키와 대조할 수 있다.
+        cfg = _load_shipped(path)
         cs.validate_known_keys(cfg, label=f"{resource_dir}/{path.name}", extractor=extractor)
         checked += 1
     assert checked >= 15, f"검사된 출고 설정이 너무 적다: {checked}건"

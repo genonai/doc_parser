@@ -141,29 +141,45 @@ def _policy(value: Any, name: str, default: str) -> str:
     return policy
 
 
-def _metadata_field_map(value: Any) -> dict[str, str]:
+def _metadata_field_map(value: Any) -> dict[str, list[str]]:
+    """`metadata_fields` → `{원천키: [목표필드…]}`.
+
+    한 원천 키를 **여러 목표로** 보낼 수 있다. `created_at` 하나가 청커의 날짜 벡터
+    필드(`created_date`)와 사람이 읽는 표기(`PRODUCT_ATTRS`) 양쪽에 필요한 경우가 있는데,
+    front matter 에는 그 키가 하나뿐이라 목표를 하나로 제한하면 둘 중 하나를 포기해야 했다.
+
+        metadata_fields:
+          created_at: created_date          # 하나면 문자열
+          created_at: [created_date, ATTRS] # 여럿이면 목록
+
+    목표가 겹치는 것은 여전히 막는다 — 어느 원천이 이겼는지 알 수 없어진다.
+    """
     if value is None:
         return {}
     if isinstance(value, list):
-        result = {}
+        result: dict[str, list[str]] = {}
         for item in value:
             key = str(item or "").strip()
             if not key:
                 raise ValueError("front_matter.metadata_fields에 빈 필드명이 있습니다.")
-            result[key] = key
+            result[key] = [key]
         return result
     if isinstance(value, dict):
         result = {}
+        seen: set[str] = set()
         for source, target in value.items():
             source_name = str(source or "").strip()
-            target_name = str(target or "").strip()
-            if not source_name or not target_name:
+            targets = target if isinstance(target, list) else [target]
+            names = [str(t or "").strip() for t in targets]
+            if not source_name or not names or not all(names):
                 raise ValueError("front_matter.metadata_fields의 source/target은 비어 있을 수 없습니다.")
-            if target_name in result.values():
-                raise ValueError(
-                    f"front_matter.metadata_fields 대상 필드가 중복됩니다: {target_name}"
-                )
-            result[source_name] = target_name
+            for name in names:
+                if name in seen:
+                    raise ValueError(
+                        f"front_matter.metadata_fields 대상 필드가 중복됩니다: {name}"
+                    )
+                seen.add(name)
+            result[source_name] = names
         return result
     raise ValueError("front_matter.metadata_fields는 list 또는 mapping이어야 합니다.")
 
@@ -205,7 +221,7 @@ class MarkdownFrontMatterSpec:
     ```yaml
     markdown:
       front_matter:
-        metadata_fields:            # 원천키: 목표필드 (list 로 쓰면 이름 그대로 승격)
+        metadata_fields:            # 원천키: 목표필드(또는 목표 목록). list 면 이름 그대로 승격
           source_file: source_file
           created_at: created_date  # 청커 date_int transform 이 YYYYMMDD 정수로 바꾼다
         exclude_text_fields: ["*"]  # "*" = front matter 전체를 본문에서 제외
@@ -216,7 +232,7 @@ class MarkdownFrontMatterSpec:
     """
 
     doc_types: tuple[str, ...]
-    metadata_fields: dict[str, str]
+    metadata_fields: dict[str, list[str]]   # 원천키 → 목표필드 목록(하나여도 목록)
     exclude_text_fields: tuple[str, ...]
     on_missing: str = "ignore"
     on_invalid: str = "ignore"
@@ -233,7 +249,9 @@ class MarkdownFrontMatterSpec:
             raise ValueError("custom_fields.markdown.front_matter는 object여야 합니다.")
 
         metadata_fields = _metadata_field_map(fm_cfg.get("metadata_fields"))
-        invalid_targets = sorted(set(metadata_fields.values()) & _RESERVED_TARGETS)
+        invalid_targets = sorted(
+            {t for targets in metadata_fields.values() for t in targets} & _RESERVED_TARGETS
+        )
         if invalid_targets:
             raise ValueError(
                 "front_matter metadata 대상이 청크 예약 필드와 충돌합니다: "
@@ -328,8 +346,9 @@ class MarkdownFrontMatterSpec:
             )
         selected = {
             target: fields[source]
-            for source, target in self.metadata_fields.items()
+            for source, targets in self.metadata_fields.items()
             if source in fields
+            for target in targets
         }
         missing_selected = sorted(set(self.metadata_fields) - set(fields))
         if missing_selected:
@@ -424,6 +443,14 @@ def resolve_format_cfg(config: dict, block: str) -> dict | None:
     child_cfg = load_custom_fields_config(
         str(config.get("config_file") or ""),
         str(config.get("resource_path") or "") or None,
+    )
+    # v2 는 이 블록을 `source.pre.<block>` 에 담는다. 번역을 거치지 않고 원본을 읽으면
+    # v2 설정에서 markdown/html 전처리가 통째로 꺼진다 — front matter 분리도, text_fence
+    # 복원도, marker heading 승격도 조용히 사라진다(파싱은 성공하므로 티가 안 난다).
+    from . import config_v2 as cv2
+
+    child_cfg, _extractor = cv2.load(
+        child_cfg, label=f"custom_fields({config.get('config_file')})"
     )
     child_block = child_cfg.get(block)
     child_block = child_block if isinstance(child_block, dict) else {}
