@@ -365,6 +365,9 @@ def collect_target_field_names(cfg: dict) -> set[str]:
         | set(cfg.get("shared_fields") or {})  # json_semantic 전용
     )
     names |= set(cfg.get("constants") or {}) | set(cfg.get("defaults") or {})
+    # derive 는 다른 필드를 합쳐 새 목표필드를 만든다. 여기 넣지 않으면 그 필드를
+    # text_fields 에 쓰면 오탐 경고가 나고, chunk_prefix_fields/filter 에 쓰면 기동이 실패한다.
+    names |= set(cfg.get("derive") or {})
     names |= {target for target, _, _ in compile_text_from(cfg)}
     names |= {
         str(f)
@@ -493,6 +496,194 @@ def merge_row_records(
     return merged
 
 
+# ── 값 변환(transforms) — 이름만 쓰는 형태와 인자를 주는 형태 둘 다 ──────────
+#
+#   transforms:
+#     OPEN_DT: date_int_flex                              # 인자 없는 변환기(종전 표기)
+#     FEE_AMT:                                            # 인자를 주는 변환기, 순서대로 적용
+#       - {name: regex_sub, pattern: "[^0-9]", repl: ""}
+#       - {name: to_int}
+#
+# 체이닝을 허용하는 이유: "콤마를 지우고 정수로" 처럼 두 단계가 필요한 요건이 흔한데, 이걸
+# 못 쓰면 그때마다 field_transforms.py 에 전용 함수를 추가하게 된다 — 그게 "새 요건 = 코드
+# 수정"의 통로였다.
+
+
+def compile_transforms(spec: Any, *, label: str) -> dict[str, list]:
+    """`transforms` 를 `{목표필드: [적용할 (함수, 인자) 목록]}` 으로 컴파일한다.
+
+    잘못된 변환기 이름·빠진 인자·컴파일 안 되는 정규식을 **기동 시**에 잡는다. 요청 때
+    터지면 어느 설정이 문제인지 로그만 보고는 알 수 없다.
+    """
+    if not spec:
+        return {}
+    if not isinstance(spec, dict):
+        raise ValueError(f"{label}: transforms 는 '키: 값' 형태의 object 여야 합니다.")
+
+    compiled: dict[str, list] = {}
+    for target, entry in spec.items():
+        steps = entry if isinstance(entry, list) else [entry]
+        chain = []
+        for step in steps:
+            if isinstance(step, str):
+                name, kwargs = step, {}
+            elif isinstance(step, dict):
+                kwargs = {k: v for k, v in step.items() if k != "name"}
+                name = str(step.get("name") or "")
+            else:
+                raise ValueError(
+                    f"{label}: transforms.{target} 의 각 단계는 이름(문자열)이거나 "
+                    f"`{{name: …, 인자: …}}` object 여야 합니다."
+                )
+            chain.append(_compile_transform_step(name, kwargs, target=str(target), label=label))
+        compiled[str(target)] = chain
+    return compiled
+
+
+def _compile_transform_step(name: str, kwargs: dict, *, target: str, label: str):
+    """변환기 한 단계를 `(함수, 인자)` 로 만든다. 이름·인자·정규식을 여기서 검증한다."""
+    from .field_transforms import (
+        ALL_TRANSFORM_NAMES, PARAM_TRANSFORM_REQUIRED, PARAM_TRANSFORMS,
+    )
+
+    if name in VALUE_TRANSFORMS:
+        if kwargs:
+            raise ValueError(
+                f"{label}: transforms.{target} 의 '{name}' 은 인자를 받지 않습니다: {sorted(kwargs)}"
+            )
+        return (VALUE_TRANSFORMS[name], {})
+    if name not in PARAM_TRANSFORMS:
+        raise ValueError(
+            f"{label}: 등록되지 않은 transforms 변환기: {name!r} "
+            f"(사용 가능: {list(ALL_TRANSFORM_NAMES)})"
+        )
+
+    missing = [k for k in PARAM_TRANSFORM_REQUIRED[name] if k not in kwargs]
+    if missing:
+        raise ValueError(f"{label}: transforms.{target} 의 '{name}' 에 {missing} 인자가 필요합니다.")
+    if "pattern" in kwargs:
+        try:
+            re.compile(str(kwargs["pattern"]))
+        except re.error as exc:
+            raise ValueError(
+                f"{label}: transforms.{target} 의 정규식이 잘못됐습니다: {exc}"
+            ) from exc
+    return (PARAM_TRANSFORMS[name], dict(kwargs))
+
+
+def apply_transforms(fields: dict, compiled: dict[str, list]) -> None:
+    """컴파일된 변환 체인을 제자리 적용한다."""
+    for target, chain in compiled.items():
+        value = fields.get(target)
+        for func, kwargs in chain:
+            value = func(value, **kwargs) if kwargs else func(value)
+        fields[target] = value
+
+
+# ── 필드 결합(derive) ────────────────────────────────────────────────────────
+#
+#   derive:
+#     DISPLAY_NM: "{{BRAND}} {{PRODUCT_NM}}"
+#
+# 지금까지 두 필드를 하나로 합치는 방법이 없었다. `row_merge.concat` 은 같은 필드를 여러
+# 행에 걸쳐 잇는 것이고, 별칭 목록은 첫 값을 고르는 폴백이라 결합이 아니다. 유일한 결합
+# 지점이 `text_fields`(청크 본문)뿐이라 **metadata 필드**로는 만들 수 없었다.
+_DERIVE_VAR_RE = re.compile(r"\{\{\s*([_A-Za-z][_0-9A-Za-z]*)\s*\}\}")
+
+
+def compile_derive(cfg: dict, *, label: str) -> dict[str, str]:
+    """`derive` 를 검증해 컴파일한다. 참조하는 필드가 없으면 기동 시 실패한다."""
+    spec = cfg.get("derive")
+    if not spec:
+        return {}
+    if not isinstance(spec, dict):
+        raise ValueError(f"{label}: derive 는 '키: 값' 형태의 object 여야 합니다.")
+
+    known = collect_target_field_names(cfg)
+    compiled: dict[str, str] = {}
+    for target, template in spec.items():
+        if not isinstance(template, str):
+            raise ValueError(
+                f"{label}: derive.{target} 는 `\"{{{{필드}}}} {{{{필드}}}}\"` 형태의 문자열이어야 합니다."
+            )
+        unknown = sorted({v for v in _DERIVE_VAR_RE.findall(template)} - known - set(spec))
+        if unknown:
+            raise ValueError(
+                f"{label}: derive.{target} 가 참조하는 {unknown} 를 만드는 설정이 없습니다."
+            )
+        compiled[str(target)] = template
+    return compiled
+
+
+def apply_derive(fields: dict, compiled: dict[str, str]) -> None:
+    """템플릿을 채워 파생 필드를 만든다. 값이 없는 자리는 빈 문자열로 두고 양끝을 다듬는다."""
+    for target, template in compiled.items():
+        def _sub(match: "re.Match") -> str:
+            value = fields.get(match.group(1))
+            return "" if value in (None, "") else str(value)
+
+        text = _DERIVE_VAR_RE.sub(_sub, template).strip()
+        fields[target] = text or None
+
+
+# ── 값 기반 레코드 필터(filter) ──────────────────────────────────────────────
+#
+#   filter:
+#     - {field: DEL_YN, not_in: [Y]}
+#     - {field: STATUS, in: [ACTIVE, PENDING]}
+#
+# `required` 는 **빈 값**만 거른다. "삭제여부 Y 인 행은 빼라" 를 표현할 수 없어, 지금까지는
+# value_map 에 빈 문자열 표준값을 두고 required 로 떨구는 우회를 썼다. 그 우회는 열거하지
+# 않은 값이 그대로 통과하는 fail-open 이고(신규 코드값이 조용히 적재된다) 원래 값도 파괴된다.
+#
+# 필터는 required 보다 **먼저** 본다 — 대상이 아닌 레코드를 "필수값 누락"으로 경고하면
+# 정상 동작이 데이터 품질 사고처럼 보인다.
+_FILTER_OPS = ("in", "not_in")
+
+
+def compile_filter(cfg: dict, *, label: str) -> list[tuple[str, str, set]]:
+    """`filter` 를 `[(필드, 연산, 정규화된 값 집합)]` 으로 컴파일한다."""
+    spec = cfg.get("filter")
+    if not spec:
+        return []
+    if not isinstance(spec, list):
+        raise ValueError(f"{label}: filter 는 목록이어야 합니다(각 항목 앞에 '- ').")
+
+    known = collect_target_field_names(cfg)
+    compiled: list[tuple[str, str, set]] = []
+    for index, item in enumerate(spec):
+        where = f"{label}: filter[{index}]"
+        if not isinstance(item, dict):
+            raise ValueError(f"{where} 는 `{{field: …, in: […]}}` 형태의 object 여야 합니다.")
+        field = str(item.get("field") or "").strip()
+        if not field:
+            raise ValueError(f"{where} 에 field 가 필요합니다.")
+        if field not in known:
+            raise ValueError(f"{where}: {field!r} 를 만드는 설정이 없습니다.")
+        ops = [op for op in _FILTER_OPS if op in item]
+        if len(ops) != 1:
+            raise ValueError(
+                f"{where} 에는 {list(_FILTER_OPS)} 중 정확히 하나가 필요합니다: {sorted(item)}"
+            )
+        values = item[ops[0]]
+        if not isinstance(values, list) or not values:
+            raise ValueError(f"{where}.{ops[0]} 는 비어 있지 않은 목록이어야 합니다.")
+        # 비교 규칙은 value_map 과 같다 — 대소문자·공백·구분자 차이를 무시한다.
+        compiled.append((field, ops[0], {normalize_column_name(v) for v in values}))
+    return compiled
+
+
+def passes_filter(fields: dict, compiled: list[tuple[str, str, set]]) -> bool:
+    """모든 조건을 만족하면 True. 조건이 없으면 항상 True."""
+    for field, op, values in compiled:
+        current = normalize_column_name(fields.get(field))
+        if op == "in" and current not in values:
+            return False
+        if op == "not_in" and current in values:
+            return False
+    return True
+
+
 def compile_chunk_prefix_fields(cfg: dict, *, split: bool) -> list[str]:
     """`chunk_prefix_fields` 를 매퍼가 쓸 목록으로 정규화한다(두 매퍼 공통).
 
@@ -605,13 +796,11 @@ class TabularCustomFieldsMapper:
         # 값 정규화·파생 필드 설정은 json_mapping(JsonRecordsMapper)과 같은 키/의미를 쓴다.
         self.value_map = compile_value_map(self.config.get("value_map"))
 
-        self.transforms = {str(k): str(v) for k, v in (self.config.get("transforms") or {}).items()}
-        unknown = sorted({name for name in self.transforms.values() if name not in VALUE_TRANSFORMS})
-        if unknown:
-            raise ValueError(
-                f"등록되지 않은 transforms 변환기: {unknown} (사용 가능: {sorted(VALUE_TRANSFORMS)})"
-            )
-
+        self.transforms = compile_transforms(
+            self.config.get("transforms"), label=f"tabular custom_fields({config_file})"
+        )
+        self.derive = compile_derive(self.config, label=f"tabular custom_fields({config_file})")
+        self.filter = compile_filter(self.config, label=f"tabular custom_fields({config_file})")
         # 선언만 컴파일한다. 실제 호출은 parser 가 행 목록을 들고 수행한다(json_mapping 과 동일).
         self.llm_field_specs = build_llm_field_specs(self.config)
         self.split = bool(self.config.get("split", False))
@@ -802,7 +991,7 @@ class TabularCustomFieldsMapper:
                 records = merged
 
             # 3단계 — 레코드 마감.
-            skipped = 0
+            skipped = filtered = 0
             for record_idx, (fields, row) in enumerate(records, start=1):
                 # defaults 를 먼저 채우고 constants 로 덮는다. 반대 순서면 `constants: {X: ""}`
                 # 처럼 상수를 빈 값으로 못 박았을 때 defaults 가 그것을 되살려 "constants 가
@@ -816,11 +1005,18 @@ class TabularCustomFieldsMapper:
                 apply_value_map(
                     fields, self.value_map, context=f"(sheet={sheet_name}, row={record_idx})"
                 )
-                for target, transform_name in self.transforms.items():
-                    fields[target] = VALUE_TRANSFORMS[transform_name](fields.get(target))
+                apply_transforms(fields, self.transforms)
+                # 결합은 변환 뒤에 — 정규화된 값으로 합쳐야 표기가 흔들리지 않는다.
+                apply_derive(fields, self.derive)
 
                 # 파생 필드는 transforms 뒤에 만든다 — 원본 필드는 그대로 두고 평문 사본만 더한다.
                 apply_text_from(fields, self.text_from, html_renderer)
+
+                # 대상이 아닌 레코드는 여기서 빠진다. required 보다 **먼저** 보는 것이 중요하다 —
+                # 뒤에 두면 정상 제외가 "필수값 누락" 경고로 찍혀 데이터 사고처럼 보인다.
+                if not passes_filter(fields, self.filter):
+                    filtered += 1
+                    continue
 
                 if doc_type:
                     # 요청/프로파일에서 확정한 값이 config constants보다 우선한다.
@@ -850,6 +1046,12 @@ class TabularCustomFieldsMapper:
                 )
                 fields_list.append(fields)
 
+            if filtered:
+                # 정상 제외지만 조용히 줄면 "왜 건수가 다르지"가 된다 — info 로 남긴다.
+                _log.info(
+                    f"[tabular_custom_fields] filtered {filtered}/{len(records)} records "
+                    f"(filter 조건 불일치) sheet={sheet_name}"
+                )
             if skipped:
                 # silent 축소 방지 — 몇 건이 빠졌는지 요약으로 드러낸다.
                 _log.warning(

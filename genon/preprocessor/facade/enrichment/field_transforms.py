@@ -462,6 +462,77 @@ VALUE_TRANSFORMS: dict[str, Callable[[Any], Any]] = {
     "date_int_flex": transform_date_int_flex,
     "text_norm": transform_text_norm,
 }
+
+
+# ── 인자를 받는 변환기 ───────────────────────────────────────────────────────
+# 위 3종은 인자가 없어 "값에서 숫자만 남긴다", "패턴으로 잘라낸다" 같은 흔한 요건을
+# 표현하지 못했다. 그때마다 이 파일에 함수를 추가해 왔는데, 그게 곧 "새 요건 = 코드 수정"의
+# 주된 통로였다. 설정에서 인자를 줄 수 있으면 그 통로가 닫힌다.
+#
+# 화이트리스트를 유지하는 것이 중요하다 — yaml 이 임의 코드를 부르게 하지 않는다.
+# 정규식은 설정자가 쓰는 것이므로, 잘못된 패턴은 기동 시에 컴파일해 걸러낸다.
+
+def transform_regex_sub(value: Any, *, pattern: str, repl: str = "") -> Any:
+    """정규식으로 치환한다. `"18,000원"` → `"18000"` 처럼 값을 정규화할 때 쓴다."""
+    if value in (None, ""):
+        return value
+    return re.sub(pattern, repl, str(value))
+
+
+def transform_regex_extract(value: Any, *, pattern: str, group: int = 1) -> Any:
+    """정규식으로 오려낸다. 매칭이 없으면 None — 원값을 남기면 "안 뽑혔다"를 못 가린다."""
+    if value in (None, ""):
+        return value
+    match = re.search(pattern, str(value))
+    if match is None:
+        return None
+    try:
+        return match.group(group)
+    except (IndexError, re.error):
+        return None
+
+
+def transform_to_int(value: Any, *, on_error: Any = None) -> Any:
+    """숫자만 남겨 정수로. 콤마·단위가 섞인 금액에 쓴다(`"18,000원"` → 18000)."""
+    if value in (None, ""):
+        return value
+    digits = re.sub(r"[^0-9-]", "", str(value))
+    if digits in ("", "-"):
+        return on_error
+    try:
+        return int(digits)
+    except ValueError:
+        return on_error
+
+
+def transform_truncate(value: Any, *, length: int, suffix: str = "") -> Any:
+    """길이를 자른다. 적재 DB 컬럼 길이에 맞출 때 쓴다."""
+    if value in (None, ""):
+        return value
+    text = str(value)
+    if len(text) <= length:
+        return text
+    return text[: max(0, length - len(suffix))] + suffix
+
+
+# 인자를 받는 변환기. 위 VALUE_TRANSFORMS 와 이름이 겹치지 않아야 한다(기동 시 검사).
+PARAM_TRANSFORMS: dict[str, Callable[..., Any]] = {
+    "regex_sub": transform_regex_sub,
+    "regex_extract": transform_regex_extract,
+    "to_int": transform_to_int,
+    "truncate": transform_truncate,
+}
+
+# 각 변환기의 필수 인자. 빠뜨리면 요청 때가 아니라 기동 때 알려 준다.
+PARAM_TRANSFORM_REQUIRED: dict[str, tuple[str, ...]] = {
+    "regex_sub": ("pattern",),
+    "regex_extract": ("pattern",),
+    "to_int": (),
+    "truncate": ("length",),
+}
+
+ALL_TRANSFORM_NAMES = tuple(sorted({*VALUE_TRANSFORMS, *PARAM_TRANSFORMS}))
+assert not (set(VALUE_TRANSFORMS) & set(PARAM_TRANSFORMS)), "변환기 이름이 겹칩니다"
 FALLBACK_STRATEGIES: dict[str, Callable[["DoclingDocument"], Any]] = {
     "doc_text_scan": extract_created_date_from_document_text,
 }

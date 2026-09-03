@@ -59,15 +59,21 @@ from .custom_fields_enricher import (
 )
 from .field_transforms import VALUE_TRANSFORMS
 from .tabular_custom_fields import (
+    apply_derive,
     apply_text_from,
+    apply_transforms,
     apply_value_map,
     build_chunk_text,
     compile_chunk_prefix_fields,
+    compile_derive,
+    compile_filter,
     compile_row_merge,
     compile_text_from,
+    compile_transforms,
     compile_value_map,
     merge_row_records,
     normalize_column_name,
+    passes_filter,
     validate_custom_field_config,
 )
 
@@ -495,12 +501,10 @@ class JsonRecordsMapper:
         # 값 별칭 정규화(GROUP_C 의 "삼성생명/생명/SLF" 흔들림 등). tabular 와 같은 구현을 공유한다.
         self.value_map = compile_value_map(cfg.get("value_map"))
 
-        self.transforms = {str(k): str(v) for k, v in (cfg.get("transforms") or {}).items()}
-        unknown = sorted({name for name in self.transforms.values() if name not in VALUE_TRANSFORMS})
-        if unknown:
-            raise ValueError(
-                f"등록되지 않은 transforms 변환기: {unknown} (사용 가능: {sorted(VALUE_TRANSFORMS)})"
-            )
+        label = f"json custom_fields({config_file})"
+        self.transforms = compile_transforms(cfg.get("transforms"), label=label)
+        self.derive = compile_derive(cfg, label=label)
+        self.filter = compile_filter(cfg, label=label)
 
         # 원천 필드 → 평문 파생 필드. text_from 은 종류 자동 판별, html_text_fields 는 HTML 강제.
         self.text_from = compile_text_from(cfg, label=f"json custom_fields({config_file})")
@@ -626,8 +630,9 @@ class JsonRecordsMapper:
         # 값 정규화 → 변환 순서. 별칭을 표준값으로 접은 뒤에 타입 변환을 건다(tabular 와 동일).
         apply_value_map(fields, self.value_map)
 
-        for target, transform_name in self.transforms.items():
-            fields[target] = VALUE_TRANSFORMS[transform_name](fields.get(target))
+        apply_transforms(fields, self.transforms)
+        # 결합은 변환 뒤에 — 정규화된 값으로 합쳐야 표기가 흔들리지 않는다.
+        apply_derive(fields, self.derive)
 
         apply_text_from(
             fields,
@@ -677,11 +682,16 @@ class JsonRecordsMapper:
 
         # 3단계 — 값 파이프라인 → 필수값 검사.
         mapped: list[dict] = []
-        skipped = 0
+        skipped = filtered = 0
         for index, (fields, _record) in enumerate(raw):
             fields = self.apply_value_pipeline(
                 fields, table_format=table_format, compact_tables=compact_tables
             )
+            # 대상이 아닌 레코드는 여기서 빠진다. required 보다 **먼저** 보는 것이 중요하다 —
+            # 뒤에 두면 정상 제외가 "필수값 누락" 경고로 찍혀 데이터 사고처럼 보인다.
+            if not passes_filter(fields, self.filter):
+                filtered += 1
+                continue
             missing = self.missing_required(fields)
             if missing:
                 skipped += 1
@@ -694,6 +704,11 @@ class JsonRecordsMapper:
                 fields["doc_type"] = doc_type
             mapped.append(fields)
 
+        if filtered:
+            # 정상 제외지만 조용히 줄면 "왜 건수가 다르지"가 된다 — info 로 남긴다.
+            _log.info(
+                f"[json_records] filtered {filtered}/{len(raw)} records (filter 조건 불일치)"
+            )
         if skipped:
             # silent 축소 방지 — 몇 건이 빠졌는지 요약으로 드러낸다.
             _log.warning(
