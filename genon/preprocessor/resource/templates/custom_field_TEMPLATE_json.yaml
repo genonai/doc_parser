@@ -87,7 +87,7 @@ key_map:
 # defaults  : 원천 값이 None·"" 일 때만 채운다. 값을 `null` 로 두면 "매핑은 없지만 적재
 #             스키마에는 있어야 하는 필드"를 명시 출력한다(예전 `nulls:` 목록과 같은 결과다)
 # constants : 원천 값이 있어도 덮어쓴다(파일 단위로 고정인 값)
-# 적용 순서: key_map 매핑 → collect_key_map 매핑 → (row_merge 병합) → constants → defaults
+# 적용 순서: key_map 매핑 → collect_key_map 매핑 → (row_merge 병합) → defaults → constants
 #            → value_map → transforms → html_text_fields
 # defaults:
 #   <TARGET_FIELD_3>: "<기본값>"

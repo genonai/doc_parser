@@ -1286,3 +1286,105 @@ def test_thinking_falls_back_to_config_file(tmp_path):
     # 등록 블록이 명시하면 그쪽이 이긴다(다른 키와 같은 우선순위).
     explicit = CustomFieldsEnricher(**kwargs, thinking="off", thinking_dialect="standard")
     assert (explicit._thinking, explicit._thinking_dialect) == ("off", "standard")
+
+
+# ── 등록 블록 ↔ config_file 병합 규칙 (B3) ──────────────────────────────────
+# 규칙은 하나다 — 등록 블록이 config_file 을 이기고, 미지정이면 config_file 을 쓴다.
+
+def _llm_cfg(tmp_path, extra=""):
+    path = tmp_path / "custom_field_b3.yaml"
+    path.write_text(
+        "url: cfg-url\nmodel: cfg-model\n"
+        "max_tokens: 4000\ntemperature: 0.7\ntimeout: 300\n"
+        "constants:\n  FROM_CFG: cfg\n  BOTH: cfg\n"
+        "system_prompt: |\n  cfg-system\n"
+        "user_prompt: |\n  cfg-user {{raw_text}}\n"
+        "output_fields: [A]\n" + extra,
+        encoding="utf-8",
+    )
+    return {"config_file": path.name, "resource_path": str(tmp_path)}
+
+
+@pytest.mark.unit
+def test_registration_block_wins_even_with_default_looking_values(tmp_path):
+    """기본값과 같은 값을 등록 블록에 **명시**해도 이겨야 한다.
+
+    예전에는 sentinel 비교(`max_tokens != 1000`)라 "미지정"과 구분되지 않아 config_file
+    값이 이겼다. `temperature: 0.0` 이 가장 자주 밟혔다.
+    """
+    from genon.preprocessor.facade.enrichment.custom_fields_enricher import (
+        CustomFieldsEnricher,
+    )
+
+    kwargs = _llm_cfg(tmp_path)
+    unset = CustomFieldsEnricher(**kwargs)
+    assert (unset._max_tokens, unset._temperature, unset._timeout) == (4000, 0.7, 300)
+
+    explicit = CustomFieldsEnricher(**kwargs, max_tokens=1000, temperature=0.0, timeout=60)
+    assert (explicit._max_tokens, explicit._temperature, explicit._timeout) == (1000, 0.0, 60)
+
+
+@pytest.mark.unit
+def test_constants_merge_per_key(tmp_path):
+    """전체 치환이면 등록 블록에 상수 하나만 덧붙여도 config_file 상수가 통째로 사라진다."""
+    from genon.preprocessor.facade.enrichment.custom_fields_enricher import (
+        CustomFieldsEnricher,
+    )
+
+    enricher = CustomFieldsEnricher(
+        **_llm_cfg(tmp_path), constants={"BOTH": "item", "FROM_ITEM": "item"}
+    )
+    assert enricher._constants == {"FROM_CFG": "cfg", "BOTH": "item", "FROM_ITEM": "item"}
+
+
+@pytest.mark.unit
+def test_registration_inline_prompt_beats_config_file_prompt_file(tmp_path):
+    """프롬프트만 방향이 반대였다 — config_file 의 `*_prompt_file` 이 등록 블록을 이겼다."""
+    from genon.preprocessor.facade.enrichment.custom_fields_enricher import (
+        CustomFieldsEnricher,
+    )
+
+    (tmp_path / "sys.md").write_text("cfg-system-from-file", encoding="utf-8")
+    kwargs = _llm_cfg(tmp_path, extra="system_prompt_file: sys.md\n")
+
+    assert CustomFieldsEnricher(**kwargs)._system_prompt == "cfg-system-from-file"
+    named = CustomFieldsEnricher(**kwargs, system_prompt="item-system")
+    assert named._system_prompt == "item-system"
+
+
+# ── 값 적용 순서 (B4) ───────────────────────────────────────────────────────
+
+@pytest.mark.unit
+def test_constants_beat_defaults_even_when_empty(tmp_path):
+    """`constants: {X: ""}` 를 defaults 가 되살리면 "constants 가 이긴다"는 계약이 깨진다.
+
+    세 extractor 가 같은 순서(defaults → constants)를 쓰는지 고정한다.
+    """
+    from genon.preprocessor.facade.enrichment.json_records import JsonRecordsMapper
+    from genon.preprocessor.facade.enrichment.tabular_custom_fields import (
+        TabularCustomFieldsMapper,
+    )
+
+    tab = tmp_path / "custom_field_t.yaml"
+    tab.write_text(
+        'column_map:\n  Q: [질문]\n  X: [엑스]\n'
+        'constants:\n  X: ""\ndefaults:\n  X: "채움"\ntext_fields: [Q]\n',
+        encoding="utf-8",
+    )
+    row = TabularCustomFieldsMapper(
+        config_file=tab.name, resource_path=str(tmp_path),
+        doc_type="t", extractor="tabular_mapping",
+    ).build_fields({"data": [{"sheet_name": "S", "data_rows": [{"질문": "Q1", "엑스": "원천"}]}]}, "t")[0]
+    assert row["X"] == ""
+
+    jsn = tmp_path / "custom_field_j.yaml"
+    jsn.write_text(
+        'key_map:\n  T: [title]\n  X: [x]\n'
+        'constants:\n  X: ""\ndefaults:\n  X: "채움"\ntext_fields: [T]\n',
+        encoding="utf-8",
+    )
+    record = JsonRecordsMapper(
+        config_file=jsn.name, resource_path=str(tmp_path),
+        doc_type="t", extractor="json_mapping",
+    ).build_fields([{"title": "T1", "x": "원천"}], "t")[0]
+    assert record["X"] == ""
