@@ -392,7 +392,12 @@ class CustomFieldsEnricher(BaseEnricher):
         )
 
     def _load_config(self, config_file: str, resource_path: str | None = None) -> dict:
-        return load_custom_fields_config(config_file, resource_path)
+        loaded = load_custom_fields_config(config_file, resource_path)
+        # `schema: v2` 면 내부(v1) 형태로 번역해 넘긴다 — 아래 코드는 v1/v2 를 구분하지 않는다.
+        from . import config_v2 as cv2
+
+        normalized, _ = cv2.load(loaded, label=f"custom_fields({config_file})")
+        return normalized
 
     @staticmethod
     def _resolve_parser_base_dir(config_file: str, resource_path: str | None) -> Path:

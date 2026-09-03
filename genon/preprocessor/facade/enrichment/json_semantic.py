@@ -90,6 +90,7 @@ from .json_records import (
     normalize_table_format,
 )
 from genon.preprocessor.facade.common import config_parse as cp
+from genon.preprocessor.facade.enrichment import config_v2 as cv2
 from .tabular_custom_fields import normalize_column_name, validate_custom_field_config
 
 # 스칼라로 볼 값 타입(json_records._SCALAR_TYPES 와 동일 기준).
@@ -640,7 +641,9 @@ class SemanticJsonMapper:
         loaded = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
         if not isinstance(loaded, dict):
             raise ValueError(f"json_semantic custom_fields config 는 object 여야 합니다: {path}")
-        return loaded
+        # `schema: v2` 면 내부(v1) 형태로 번역해 넘긴다 — 아래 코드는 v1/v2 를 구분하지 않는다.
+        normalized, _ = cv2.load(loaded, label=f"json_semantic custom_fields({config_file})")
+        return normalized
 
     @staticmethod
     def _aliases(target: str, source_spec: Any) -> list[str]:

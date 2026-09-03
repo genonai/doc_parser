@@ -41,6 +41,7 @@ from genon.preprocessor.facade.chunking.table_html import (
     drop_blank_markdown_rows, render_table,
 )
 from genon.preprocessor.facade.common import config_parse as cp
+from genon.preprocessor.facade.enrichment import config_v2 as cv2
 from genon.preprocessor.facade.common.markdown_export import (
     MD_PLAIN_TEXT_OPTS as _MD_EXPORT_OPTS,
     export_markdown,
@@ -538,7 +539,9 @@ class JsonRecordsMapper:
         loaded = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
         if not isinstance(loaded, dict):
             raise ValueError(f"json custom_fields config 는 object 여야 합니다: {path}")
-        return loaded
+        # `schema: v2` 면 내부(v1) 형태로 번역해 넘긴다 — 아래 코드는 v1/v2 를 구분하지 않는다.
+        normalized, _ = cv2.load(loaded, label=f"json custom_fields({config_file})")
+        return normalized
 
     @staticmethod
     def _aliases(target: str, source_spec: Any) -> list[str]:
