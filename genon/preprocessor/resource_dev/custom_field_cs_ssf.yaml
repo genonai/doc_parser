@@ -1,3 +1,10 @@
+# ─────────────────────────────────────────────────────────────────────────
+#  v2 스키마로 자동 변환된 설정입니다.
+#
+#  자동 변환은 **값만** 옮깁니다. 아래는 원본 v1 의 주석 전문이며, 필요한 설명을 각
+#  필드 스펙 옆으로 손수 옮긴 뒤 이 블록을 지우세요. 주석이 사라지면 왜 그런 설정인지
+#  아는 사람이 없어집니다.
+# ─────────────────────────────────────────────────────────────────────────
 # 고객센터(화재) Excel 행 → TB_CS_ITEM 목표필드 직접 매핑 (모니모)
 #
 # 사용 (parser_processor_config.yaml):
@@ -21,51 +28,65 @@
 #
 # 화재는 생명과 같은 문서 구조를 쓴다. 질문링크형은 답변이 짧고
 # `[확인 방법]` 아래에 채널·경로 안내가 붙으므로 DEEP_LINK_URL 후보가 된다.
-
-column_map:
-  BIZ_ID:           [문서ID, 문서 ID, ID, 문서번호]
-  CS_CATEGORY:      [카테고리, 문의유형, 분류, 대분류]     # "보험 > 기타" 처럼 2단계 표기 가능
                                                           # 2단계를 그대로 저장할지 확인 필요
-  TITLE:            [대표질문, 제목, 질문]                 # 검색 결과 목록에 그대로 보임 (NOT NULL)
-  CONTENT:          [답변, 안내본문, 핵심요약, 상세가이드]  # 검색 대상 본문
-  DEEP_LINK_URL:    [딥링크, 앱 딥링크, 확인방법, 링크]
-  RELATED_KEYWORDS: [동의어, 키워드, 연관 키워드]           # JSON 배열
-  SEARCHABLE_YN:    [노출여부]
-
 # ── 소스와 무관하게 고정으로 채울 값 ────────────────────────────────────────
 # 이 파일은 화재 전용 원천이라 고객사가 파일 단위로 고정이다(공통 파일과 달리 value_map 불필요).
-constants:
-  GROUP_C: "SSF"
+# ── [선택] 청크 본문에 함께 실을 항목명 ─────────────────────────────────────
+# 본문 필드를 `항목명: 값` 으로 낸다. 여기 이름이 없는 필드는 값만 나간다.
+# 사람이 검색어로 쓰는 말을 적는다 — 목표필드명(DB 컬럼명)이나 원천 key 는 검색어에 안 나온다.
+# 값에 줄바꿈이 있는 블록(상세 본문 등)에는 붙지 않는다. 그 블록은 이미 자기 제목을 갖는다.
+# 안내본문 원문은 CONTENT metadata 로 싣고, 임베딩 입력은 요약본문을 쓴다.
+# 제목을 앞에 두어 LLM 미설정/실패 시에도 본문이 비지 않게 한다.
 
-required:
-  - GROUP_C
-  - TITLE
-
-defaults:
-  SEARCHABLE_YN: "N"
-  BIZ_ID: null
-  CS_CATEGORY: null
-  DEEP_LINK_URL: null
-  RELATED_KEYWORDS: null
-
-llm_fields:
-  - output_fields: [SUMMARY_TEXT]        # 요약본문 (임베딩 입력)
-    input_fields:  [TITLE, CS_CATEGORY, CONTENT]
-    concurrency: 4
-    on_error: null
-
-    url: "https://genos.genon.ai/api/gateway/rep/serving/752/v1/chat/completions"
-    api_key: "d1a9e0acab6243019008a96cd8af868e"
+schema: v2
+source:
+  kind: rows
+fields:
+  BIZ_ID:
+    alias: [문서ID, 문서 ID, ID, 문서번호]
+    default: null
+  CS_CATEGORY:
+    alias: [카테고리, 문의유형, 분류, 대분류]
+    default: null
+  TITLE:
+    alias: [대표질문, 제목, 질문]
+  CONTENT:
+    alias: [답변, 안내본문, 핵심요약, 상세가이드]
+  DEEP_LINK_URL:
+    alias: [딥링크, 앱 딥링크, 확인방법, 링크]
+    default: null
+  RELATED_KEYWORDS:
+    alias: [동의어, 키워드, 연관 키워드]
+    default: null
+  SEARCHABLE_YN:
+    alias: [노출여부]
+    default: N
+  GROUP_C:
+    const: SSF
+require:
+  fields: [GROUP_C, TITLE]
+body:
+  fields: [TITLE, SUMMARY_TEXT]
+  labels:
+    TITLE: 제목
+    SUMMARY_TEXT: 안내요약
+llm:
+- out: [SUMMARY_TEXT]
+  in: [TITLE, CS_CATEGORY, CONTENT]
+  concurrency: 4
+  on_error: null
+  parser:
+    type: json
+  endpoint:
+    url: https://genos.genon.ai/api/gateway/rep/serving/752/v1/chat/completions
+    api_key: d1a9e0acab6243019008a96cd8af868e
     model: model
-
+  params:
     max_tokens: 1000
     temperature: 0.0
     timeout: 120
-
-    parser:
-      type: json
-
-    system_prompt: |
+  prompt:
+    system: |
       너는 보험 고객센터 안내문 요약 전문가다. 주어진 안내 항목을 검색용 임베딩에 넣을 요약본문으로 압축한다.
 
       규칙:
@@ -79,8 +100,7 @@ llm_fields:
 
       출력 예시 형식(값은 예시):
       {"SUMMARY_TEXT": "보험금 청구는 청구서와 진단서를 준비해 …"}
-
-    user_prompt: |
+    user: |
       아래 고객센터 안내 항목을 검색용 요약본문으로 압축하라.
 
       - SUMMARY_TEXT (요약본문) — 필수
@@ -90,17 +110,3 @@ llm_fields:
       <cs_item>
       {{raw_text}}
       </cs_item>
-
-# ── [선택] 청크 본문에 함께 실을 항목명 ─────────────────────────────────────
-# 본문 필드를 `항목명: 값` 으로 낸다. 여기 이름이 없는 필드는 값만 나간다.
-# 사람이 검색어로 쓰는 말을 적는다 — 목표필드명(DB 컬럼명)이나 원천 key 는 검색어에 안 나온다.
-# 값에 줄바꿈이 있는 블록(상세 본문 등)에는 붙지 않는다. 그 블록은 이미 자기 제목을 갖는다.
-field_labels:
-  TITLE: 제목
-  SUMMARY_TEXT: 안내요약
-
-# 안내본문 원문은 CONTENT metadata 로 싣고, 임베딩 입력은 요약본문을 쓴다.
-# 제목을 앞에 두어 LLM 미설정/실패 시에도 본문이 비지 않게 한다.
-text_fields:
-  - TITLE
-  - SUMMARY_TEXT

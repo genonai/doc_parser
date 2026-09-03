@@ -1,3 +1,10 @@
+# ─────────────────────────────────────────────────────────────────────────
+#  v2 스키마로 자동 변환된 설정입니다.
+#
+#  자동 변환은 **값만** 옮깁니다. 아래는 원본 v1 의 주석 전문이며, 필요한 설명을 각
+#  필드 스펙 옆으로 손수 옮긴 뒤 이 블록을 지우세요. 주석이 사라지면 왜 그런 설정인지
+#  아는 사람이 없어집니다.
+# ─────────────────────────────────────────────────────────────────────────
 # CustomFieldsEnricher 외부 config — 상품설명서(카드) 문서 단위 메타데이터 추출
 #
 # 사용 (parser_processor_config.yaml):
@@ -28,98 +35,20 @@
 #
 # PRODUCT_C(상품코드)는 NOT NULL 이다. 카드는 상품코드가 페이지에 노출되는 경우가 있어
 #    LLM 추출을 시도하되, 안정적으로 확보하려면 원천이 별도 필드로 주는 편이 낫다.
-
 # ── Markdown 원천 전처리 ─────────────────────────────────────────────────────
-markdown:
   # PDF 레이아웃 보존용 ```text 펜스를 논리 단위(Q/A/불릿/※) 단락으로 되돌린다.
   # 안 하면 docling 이 펜스 본문 전체를 CodeItem 하나로 만들어(실측 4654자 → 아이템 1개)
   # chunk_size 가 무의미해진다. 레이아웃 파이프 줄 제거도 함께 한다 — md 백엔드는 `|` 한 줄로
   # 표 모드에 들어가 뒤따르는 본문을 빈 표로 삼킨다(실측 본문 1586자 소실).
-  text_fence:
-    enable: true
-    langs: ["", "text"]      # 변환 대상 정보문자열. 진짜 코드 펜스(python 등)는 손대지 않는다
-    min_hangul_ratio: 0.3    # 본문 한글 비율 하한 — 코드 블록 오변환 방지
-
 # ── LLM 연결 ────────────────────────────────────────────────────────────────
 # <ENRICHMENT_SERVING_ID>: Genos에 등록한 모델서빙 ID로 변경 필요. api_key 도 배포 시 설정.
-url: "https://genos.genon.ai/api/gateway/rep/serving/752/v1/chat/completions"
-api_key: "d1a9e0acab6243019008a96cd8af868e"
-model: model
-
 # ── LLM 생성 파라미터 ────────────────────────────────────────────────────────
-max_tokens: 4000
-temperature: 0.0
-timeout: 300
-
 # ── 입력 페이지 범위 ─────────────────────────────────────────────────────────
 # 카드 페이지는 여러 섹션에 정보가 흩어져 있어 문서 전체를 대상으로 한다.
-pages: null
-
 # ── 파서 ─────────────────────────────────────────────────────────────────────
-parser:
-  type: json
-
 # ── 소스와 무관하게 고정으로 채울 값 ────────────────────────────────────────
-constants:
-  GROUP_C: "HPP"
-  SALE_STATUS: "ON_SALE"
-
 # ── 프롬프트 ─────────────────────────────────────────────────────────────────
-system_prompt: |
-  너는 카드 상품 정보추출 전문가다. 주어진 카드 상품 페이지 문서에서 요청한 필드를 정확하게 추출한다.
-
-  규칙:
-  - 반드시 하나의 JSON 객체만 반환한다. 설명 문구·마크다운 코드펜스 없이 순수 JSON 만 출력한다.
-  - 요청된 4개 키를 모두 포함한다. 문서에서 근거를 찾을 수 없는 값은 null 로 둔다.
-  - 문서에 없는 정보를 지어내지 않는다(환각 금지). 금액·비율은 원문 숫자를 그대로 쓴다.
-    추론이 필요한 yn 속성만 문맥 근거로 판단한다.
-
-  필드별 형식:
-  - `PRODUCT_C`: 카드 상품코드 문자열. 페이지나 메타에 상품코드가 있으면 그 값. 없으면 null
-    (상품명을 코드처럼 지어내지 않는다).
-  - `PRODUCT_NM`: 카드 상품명 원문 문자열. 반드시 채운다.
-  - `PRODUCT_ATTRS`: 구조화 속성 JSON 객체. 아래 키만 쓰고, 근거가 없는 키는 넣지 않는다.
-      - `product_name_norm`  : 상품명 정규화 문자열. 앞뒤/중복 공백, 마케팅 수식어, 괄호 부가설명을
-                               제거한 대표 명칭
-      - `annual_fee`         : 국내 기준 "본인" 연회비를 정수(원)로. 콤마·"원" 제거.
-                               브랜드/등급별로 여러 값이면 가장 낮은 기본 값
-      - `family_annual_fee`  : 가족카드 연회비를 정수(원)로
-      - `annual_fee_text`    : 연회비 관련 원문 텍스트(요약·재작성 금지)
-      - `family_annual_fee_text`: 가족연회비 관련 원문 텍스트
-      - `benefits`           : 주요 혜택 문자열 배열(3~10개). 혜택 1건을 한 문장으로
-      - `benefit_text`       : 주요 혜택 관련 원문 텍스트(요약·재작성 금지, 원문 그대로 발췌)
-      - `join_condition_text`: 가입조건·발급기준 관련 원문 텍스트
-      - `overseas_payment_yn`: 해외 가맹점 결제 가능 여부. "Y" 또는 "N"
-      - `transit_card_yn`    : 후불/모바일 교통카드 기능 제공 여부. "Y" 또는 "N"
-      - `joinable_yn`        : 현재 신규 발급(가입) 가능 여부. 단종·발급중단 문구가 있으면 "N"
-  - `SUMMARY_TEXT`: 검색용 임베딩에 넣을 요약본문 문자열.
-    어떤 이용자에게 어떤 혜택이 있는 카드인지, 연회비와 주요 발급 조건, 유의사항을 담는다.
-    문장형 한국어로 5~10문장, 1500자 이내. 불릿·머리기호를 쓰지 않는다.
-
-  출력 예시 형식(값은 예시):
-  {"PRODUCT_C": "HPP-CARD-0012", "PRODUCT_NM": "삼성 iD ON 카드", "PRODUCT_ATTRS": {"product_name_norm": "삼성 iD ON 카드", "annual_fee": 18000, "benefits": ["온라인 쇼핑 5% 할인"], "overseas_payment_yn": "Y", "transit_card_yn": "Y", "joinable_yn": "Y"}, "SUMMARY_TEXT": "온라인 쇼핑 이용이 많은 고객을 위한 카드로 …"}
-
-user_prompt: |
-  아래 카드 상품 페이지 문서에서 다음 4개 필드를 추출하라.
-
-  - PRODUCT_C (상품코드)
-  - PRODUCT_NM (상품명) — 필수
-  - PRODUCT_ATTRS (구조화 속성 객체)
-  - SUMMARY_TEXT (요약본문, 임베딩 입력)
-
-  반드시 위 4개 키를 모두 가진 하나의 JSON 객체로만 반환하라.
-
-  <document>
-  {{raw_text}}
-  </document>
-
 # ── 출력 필드 (프롬프트의 JSON 키와 일치해야 함) ──────────────────────────────
-output_fields:
-  - PRODUCT_C
-  - PRODUCT_NM
-  - PRODUCT_ATTRS
-  - SUMMARY_TEXT
-
 # ── 청크 본문 앞에 얹을 메타 필드 ────────────────────────────────────────────
 # 문서 단위 값이라 metadata 컬럼에만 두면 필터 검색에만 걸리고 임베딩 검색에는 안 걸린다.
 #
@@ -129,5 +58,79 @@ output_fields:
 # 카드는 청크마다 다른 혜택·연회비를 다루므로 상품명이 매 청크에 있어야 "삼성 iD ON 카드
 # 연회비" 같은 질의가 그 카드의 연회비 청크를 집는다. 접두만큼 chunk_size 가 깎이니 짧은
 # 식별 필드 1~2개로 제한한다.
-chunk_prefix_fields:
-  - PRODUCT_NM
+
+schema: v2
+source:
+  kind: document
+  pre:
+    markdown:
+      text_fence:
+        enable: true
+        langs: ['', text]
+        min_hangul_ratio: 0.3
+fields:
+  GROUP_C:
+    const: HPP
+  SALE_STATUS:
+    const: ON_SALE
+body:
+  repeat: [PRODUCT_NM]
+llm:
+- out: [PRODUCT_C, PRODUCT_NM, PRODUCT_ATTRS, SUMMARY_TEXT]
+  parser:
+    type: json
+  endpoint:
+    url: https://genos.genon.ai/api/gateway/rep/serving/752/v1/chat/completions
+    api_key: d1a9e0acab6243019008a96cd8af868e
+    model: model
+  params:
+    max_tokens: 4000
+    temperature: 0.0
+    timeout: 300
+  prompt:
+    system: |
+      너는 카드 상품 정보추출 전문가다. 주어진 카드 상품 페이지 문서에서 요청한 필드를 정확하게 추출한다.
+
+      규칙:
+      - 반드시 하나의 JSON 객체만 반환한다. 설명 문구·마크다운 코드펜스 없이 순수 JSON 만 출력한다.
+      - 요청된 4개 키를 모두 포함한다. 문서에서 근거를 찾을 수 없는 값은 null 로 둔다.
+      - 문서에 없는 정보를 지어내지 않는다(환각 금지). 금액·비율은 원문 숫자를 그대로 쓴다.
+        추론이 필요한 yn 속성만 문맥 근거로 판단한다.
+
+      필드별 형식:
+      - `PRODUCT_C`: 카드 상품코드 문자열. 페이지나 메타에 상품코드가 있으면 그 값. 없으면 null
+        (상품명을 코드처럼 지어내지 않는다).
+      - `PRODUCT_NM`: 카드 상품명 원문 문자열. 반드시 채운다.
+      - `PRODUCT_ATTRS`: 구조화 속성 JSON 객체. 아래 키만 쓰고, 근거가 없는 키는 넣지 않는다.
+          - `product_name_norm`  : 상품명 정규화 문자열. 앞뒤/중복 공백, 마케팅 수식어, 괄호 부가설명을
+                                   제거한 대표 명칭
+          - `annual_fee`         : 국내 기준 "본인" 연회비를 정수(원)로. 콤마·"원" 제거.
+                                   브랜드/등급별로 여러 값이면 가장 낮은 기본 값
+          - `family_annual_fee`  : 가족카드 연회비를 정수(원)로
+          - `annual_fee_text`    : 연회비 관련 원문 텍스트(요약·재작성 금지)
+          - `family_annual_fee_text`: 가족연회비 관련 원문 텍스트
+          - `benefits`           : 주요 혜택 문자열 배열(3~10개). 혜택 1건을 한 문장으로
+          - `benefit_text`       : 주요 혜택 관련 원문 텍스트(요약·재작성 금지, 원문 그대로 발췌)
+          - `join_condition_text`: 가입조건·발급기준 관련 원문 텍스트
+          - `overseas_payment_yn`: 해외 가맹점 결제 가능 여부. "Y" 또는 "N"
+          - `transit_card_yn`    : 후불/모바일 교통카드 기능 제공 여부. "Y" 또는 "N"
+          - `joinable_yn`        : 현재 신규 발급(가입) 가능 여부. 단종·발급중단 문구가 있으면 "N"
+      - `SUMMARY_TEXT`: 검색용 임베딩에 넣을 요약본문 문자열.
+        어떤 이용자에게 어떤 혜택이 있는 카드인지, 연회비와 주요 발급 조건, 유의사항을 담는다.
+        문장형 한국어로 5~10문장, 1500자 이내. 불릿·머리기호를 쓰지 않는다.
+
+      출력 예시 형식(값은 예시):
+      {"PRODUCT_C": "HPP-CARD-0012", "PRODUCT_NM": "삼성 iD ON 카드", "PRODUCT_ATTRS": {"product_name_norm": "삼성 iD ON 카드", "annual_fee": 18000, "benefits": ["온라인 쇼핑 5% 할인"], "overseas_payment_yn": "Y", "transit_card_yn": "Y", "joinable_yn": "Y"}, "SUMMARY_TEXT": "온라인 쇼핑 이용이 많은 고객을 위한 카드로 …"}
+    user: |
+      아래 카드 상품 페이지 문서에서 다음 4개 필드를 추출하라.
+
+      - PRODUCT_C (상품코드)
+      - PRODUCT_NM (상품명) — 필수
+      - PRODUCT_ATTRS (구조화 속성 객체)
+      - SUMMARY_TEXT (요약본문, 임베딩 입력)
+
+      반드시 위 4개 키를 모두 가진 하나의 JSON 객체로만 반환하라.
+
+      <document>
+      {{raw_text}}
+      </document>

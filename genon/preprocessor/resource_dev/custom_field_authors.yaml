@@ -1,3 +1,10 @@
+# ─────────────────────────────────────────────────────────────────────────
+#  v2 스키마로 자동 변환된 설정입니다.
+#
+#  자동 변환은 **값만** 옮깁니다. 아래는 원본 v1 의 주석 전문이며, 필요한 설명을 각
+#  필드 스펙 옆으로 손수 옮긴 뒤 이 블록을 지우세요. 주석이 사라지면 왜 그런 설정인지
+#  아는 사람이 없어집니다.
+# ─────────────────────────────────────────────────────────────────────────
 # CustomFieldsEnricher 외부 config 예시 — 작성자(authors) 추출
 #
 # 사용법 (intelligent_config_shkim.yaml):
@@ -6,44 +13,45 @@
 #
 # 이 파일은 intelligent_config_shkim.yaml과 동일한 폴더에 위치해야 함.
 # 인라인에서 null이 아닌 값을 지정하면 이 파일의 값보다 우선 적용됨.
-
 # ── LLM 연결 ────────────────────────────────────────────────────────────────
-url: "https://genos.genon.ai/api/gateway/rep/serving/776/v1/chat/completions"
-api_key: "30241fdbb58d42e48a36495da34a6de7"
-model: model
-
 # ── LLM 생성 파라미터 ────────────────────────────────────────────────────────
-max_tokens: 800
-temperature: 0.0
-timeout: 60
-
 # ── 입력 페이지 범위 ─────────────────────────────────────────────────────────
 # null 또는 미지정 → 전체 문서
-pages: [1]
-
 # ── 외부 파서 (선택) ─────────────────────────────────────────────────────────
 # parser.file 경로는 이 yaml 파일이 위치한 디렉토리 기준으로 해석됨
 # parser:
 #   type: python
 #   file: custom_field_authors.py
 #   callable: parse
-
 # ── 프롬프트 ─────────────────────────────────────────────────────────────────
-system_prompt_file: prompt_custom_fields_authors_system.md
-user_prompt: |
-  아래 문서에서 작성자(authors) 정보를 추출하라.
-
-  각 작성자는 다음 두 가지 정보를 포함한다:
-  - name: 작성자 이름
-  - affiliation: 소속 기관 또는 부서 (없으면 null)
-
-  반드시 아래 JSON 포맷으로만 반환하라:
-  {"authors2": [{"name": "이름", "affiliation": "소속"}]}
-
-  <document>
-  {{raw_text}}
-  </document>
-
 # ── 출력 필드 ─────────────────────────────────────────────────────────────────
-output_fields:
-  - authors2
+
+schema: v2
+source:
+  kind: document
+llm:
+- out: [authors2]
+  pages: [1]
+  endpoint:
+    url: https://genos.genon.ai/api/gateway/rep/serving/776/v1/chat/completions
+    api_key: 30241fdbb58d42e48a36495da34a6de7
+    model: model
+  params:
+    max_tokens: 800
+    temperature: 0.0
+    timeout: 60
+  prompt:
+    user: |
+      아래 문서에서 작성자(authors) 정보를 추출하라.
+
+      각 작성자는 다음 두 가지 정보를 포함한다:
+      - name: 작성자 이름
+      - affiliation: 소속 기관 또는 부서 (없으면 null)
+
+      반드시 아래 JSON 포맷으로만 반환하라:
+      {"authors2": [{"name": "이름", "affiliation": "소속"}]}
+
+      <document>
+      {{raw_text}}
+      </document>
+    system_file: prompt_custom_fields_authors_system.md
