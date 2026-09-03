@@ -32,9 +32,9 @@ WIRING_KEYS = frozenset({
 
 # 레코드형 3종이 공유하는 키(값 조립 → 본문 조립 파이프라인).
 _RECORD_COMMON = frozenset({
-    "required", "nulls", "defaults", "constants",
+    "required", "defaults", "constants",
     "value_map", "transforms",
-    "text_from", "html_text_fields", "json_text_fields",
+    "text_from", "html_text_fields",
     "llm_fields",
     "text_fields", "split", "chunk_prefix_fields", "field_labels",
 })
@@ -62,21 +62,16 @@ EXTRACTOR_KEYS: dict[str, frozenset[str]] = {
     }),
 }
 
-# 코드가 쓰는 정규 이름으로 접기 위한 별칭표(custom_fields_enricher 의 extractor 집합과 같다).
-_EXTRACTOR_ALIASES = {
-    "tabular": "tabular_mapping",
-    "column_mapping": "tabular_mapping",
-    "json_records": "json_mapping",
-    "document_llm": "llm",
-}
-
 ALL_KNOWN_KEYS = frozenset().union(*EXTRACTOR_KEYS.values()) | WIRING_KEYS
 
 
 def canonical_extractor(extractor: str | None) -> str:
-    """별칭을 정규 이름으로 접는다. 모르는 값은 그대로 돌려준다(호출부가 판정)."""
-    name = str(extractor or "llm").strip().lower()
-    return _EXTRACTOR_ALIASES.get(name, name)
+    """extractor 이름을 정규화한다(미지정은 하위호환으로 llm).
+
+    이름은 종류마다 하나씩이다 — 별칭을 두면 "무엇을 써야 하나"만 늘고, 지원 키 표가
+    어느 이름에 붙는지도 흐려진다.
+    """
+    return str(extractor or "llm").strip().lower()
 
 
 def _suggest(key: str, candidates: frozenset[str]) -> str:

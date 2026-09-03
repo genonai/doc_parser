@@ -488,7 +488,6 @@ class JsonRecordsMapper:
         }
 
         self.required = list(cfg.get("required") or [])
-        self.nulls = list(cfg.get("nulls") or [])
         self.defaults = dict(cfg.get("defaults") or {})
         self.constants = dict(cfg.get("constants") or {})
 
@@ -502,7 +501,7 @@ class JsonRecordsMapper:
                 f"등록되지 않은 transforms 변환기: {unknown} (사용 가능: {sorted(VALUE_TRANSFORMS)})"
             )
 
-        # 원천 필드 → 평문 파생 필드. text_from 은 종류 자동 판별, html_/json_text_fields 는 강제.
+        # 원천 필드 → 평문 파생 필드. text_from 은 종류 자동 판별, html_text_fields 는 HTML 강제.
         self.text_from = compile_text_from(cfg, label=f"json custom_fields({config_file})")
         # 원천이 값 하나를 여러 레코드에 쪼개 보내는 스키마용. tabular 와 같은 구현을 공유한다
         # (연속 런 기준 병합 — 멀리 떨어진 동일 키는 다른 레코드로 남긴다).
@@ -597,7 +596,7 @@ class JsonRecordsMapper:
         `row_merge` 는 이 단계의 값을 이어붙인다. 조각마다 transforms/text_from 이 먼저
         돌면 잘린 JSON 조각을 각각 평문화하게 되어 복원이 불가능하다(tabular 와 같은 순서).
         """
-        fields: dict[str, Any] = {name: None for name in self.nulls}
+        fields: dict[str, Any] = {}
         for target, aliases in self.key_map.items():
             fields[target] = find_field(record, aliases)
         for target, aliases in self.collect_key_map.items():

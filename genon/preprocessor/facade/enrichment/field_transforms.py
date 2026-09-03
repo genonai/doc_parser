@@ -376,7 +376,7 @@ def render_field_text(
     """원천 값 하나 → 청크 본문에 실을 평문. 종류는 자동 판별한다.
 
     `kind` 로 "json"/"html"/"text" 를 주면 판별을 건너뛰고 그 경로로 강제한다
-    (출고 설정의 html_text_fields/json_text_fields 별칭이 이걸 쓴다).
+    (출고 설정의 html_text_fields 별칭이 `kind="html"` 로 쓴다).
     `html_renderer` 는 구조 HTML 을 처리할 함수다(json_records.html_to_text). 주지 않으면
     경량 태그 제거로 폴백한다 — 표가 한 줄씩 뭉개지므로 표가 오는 경로에서는 반드시 넘긴다.
     """

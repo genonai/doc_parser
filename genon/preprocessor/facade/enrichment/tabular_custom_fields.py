@@ -160,13 +160,13 @@ def validate_target_field_names(targets: Any, *, label: str) -> None:
 # 틀린 타입이 조용히 엉뚱하게 해석되거나 요청마다 터진다 — 기동 시에 잡는다.
 # ignore_keys/shared_fields/sections 는 json_semantic(SemanticJsonMapper) 전용 키다.
 _LIST_SHAPED_KEYS = (
-    "required", "nulls", "text_fields", "chunk_prefix_fields", "ignore_keys",
+    "required", "text_fields", "chunk_prefix_fields", "ignore_keys",
     "required_shared_fields",
 )
 _MAP_SHAPED_KEYS = (
     "column_map", "key_map", "collect_key_map", "constants", "defaults", "value_map", "transforms",
     "field_labels",
-    "text_from", "html_text_fields", "json_text_fields", "shared_fields", "sections",
+    "text_from", "html_text_fields", "shared_fields", "sections",
     "row_merge",
 )
 
@@ -250,7 +250,7 @@ def validate_chunk_prefix_fields(cfg: dict, *, label: str) -> None:
     if unknown:
         raise ValueError(
             f"{label}: chunk_prefix_fields 의 {unknown} 를 만드는 설정이 없습니다. "
-            f"column_map/key_map/constants/defaults/nulls/html_text_fields/llm_fields 중 하나에 "
+            f"column_map/key_map/constants/defaults/text_from/llm_fields 중 하나에 "
             f"필드를 선언하세요."
         )
 
@@ -307,9 +307,9 @@ def validate_custom_field_config(cfg: dict, *, label: str, extractor: str | None
 #   text_from:
 #     DETAIL_TEXT: DETAIL_DESC     # 원본 필드는 그대로 남고 평문 사본만 더해진다
 #
-# `html_text_fields` / `json_text_fields` 는 **그 종류로 강제**하는 별칭이다. 판별을 믿을 수
+# `html_text_fields` 는 HTML 로 **강제**하는 별칭이다. 판별을 믿을 수
 # 없는 원천이나 기존 출고 설정(monimo_event·monimo_news)이 계속 쓰던 대로 동작한다.
-_TEXT_FROM_BLOCKS = (("text_from", None), ("html_text_fields", "html"), ("json_text_fields", "json"))
+_TEXT_FROM_BLOCKS = (("text_from", None), ("html_text_fields", "html"))
 
 
 def compile_text_from(cfg: dict, *, label: str = "text_from") -> list[tuple[str, str, str | None]]:
@@ -364,7 +364,6 @@ def collect_target_field_names(cfg: dict) -> set[str]:
         | set(cfg.get("shared_fields") or {})  # json_semantic 전용
     )
     names |= set(cfg.get("constants") or {}) | set(cfg.get("defaults") or {})
-    names |= {str(f) for f in (cfg.get("nulls") or [])}
     names |= {target for target, _, _ in compile_text_from(cfg)}
     names |= {
         str(f)
@@ -419,7 +418,7 @@ def compile_row_merge(cfg: dict, *, label: str) -> dict | None:
     if unknown:
         raise ValueError(
             f"{label}: row_merge 의 {unknown} 를 만드는 설정이 없습니다. "
-            f"column_map/constants/defaults/nulls 중 하나에 선언된 목표필드명을 쓰세요 "
+            f"column_map/constants/defaults 중 하나에 선언된 목표필드명을 쓰세요 "
             f"(원천 컬럼명이 아니라 매핑 후 이름입니다)."
         )
     return {
@@ -734,9 +733,9 @@ class TabularCustomFieldsMapper:
         안에 실어 보내고 `to_parse_format` 이 pop 한다.
 
         3단으로 나뉘어 있다.
-          1. 원시 매핑 — 행마다 `nulls` 스캐폴딩 + `column_map` 값만 채운다.
+          1. 원시 매핑 — 행마다 `column_map` 값만 채운다.
           2. 병합 — `row_merge` 가 있으면 연속 런을 한 레코드로 접는다.
-          3. 레코드 마감 — constants/defaults/value_map/transforms/json_text_fields/required.
+          3. 레코드 마감 — constants/defaults/value_map/transforms/text_from/required.
         순서가 중요하다. transforms 와 required 는 **병합이 끝난 값**을 봐야 한다 —
         조각 하나만 보고 날짜를 변환하거나 필수값을 판정하면 결과가 달라진다.
         `row_merge` 미선언이면 런 길이가 1이라 종전과 동일하다.
@@ -744,7 +743,6 @@ class TabularCustomFieldsMapper:
         column_map = self.config.get("column_map") or {}
         constants = dict(self.config.get("constants") or {})
         defaults = dict(self.config.get("defaults") or {})
-        null_fields = list(self.config.get("nulls") or [])
         required_fields = set(self.config.get("required") or [])
         doc_type = self.canonical_doc_type(runtime_doc_type)
 
@@ -776,7 +774,7 @@ class TabularCustomFieldsMapper:
             # 1단계 — 원시 매핑. 원본 row 도 함께 들고 간다(폴백 본문·병합 재료).
             records: list[tuple[dict, dict]] = []
             for row in rows:
-                fields = {name: None for name in null_fields}
+                fields = {}
                 for target in column_map:
                     source = resolved.get(str(target))
                     if source:
