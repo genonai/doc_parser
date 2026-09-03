@@ -56,6 +56,29 @@ NONDOCLING_EXTENSIONS = {
 }
 SUPPORTED_EXTENSIONS = PARSE_EXTENSIONS | NONDOCLING_EXTENSIONS | {".json"}
 
+
+def _alias_extensions() -> set[str]:
+    """파서 설정(formats.extension_aliases)에 등록된 비표준 확장자.
+
+    러너가 확장자 목록을 따로 들고 있으면 파서는 처리할 수 있는 파일을 러너가 먼저
+    막는다. 목록을 파서 설정에서 끌어와 그 어긋남을 없앤다.
+    """
+    try:
+        from genon.preprocessor.facade.common import config_parse as cp
+        from genon.preprocessor.facade.common import format_alias as fa
+        from genon.preprocessor.facade.parser_processor import (
+            _resolve_default_parser_config_path,
+        )
+
+        cfg = cp.load_config(_resolve_default_parser_config_path(), strict=False)
+        return set(fa.parse_extension_aliases(cfg.get("formats")))
+    except Exception as exc:  # 설정을 못 읽어도 러너는 계속 돈다
+        print(f"  [warn] 확장자 별칭을 읽지 못했습니다: {exc}")
+        return set()
+
+
+SUPPORTED_EXTENSIONS |= _alias_extensions()
+
 # 지연 인스턴스화 (파싱이 필요할 때만 ParserProcessor 생성)
 _parser: ParserProcessor | None = None
 _chunker: ChunkerProcessor | None = None
