@@ -113,9 +113,12 @@ def find_field(record: Any, aliases: list[str]) -> Any:
     별칭 순서보다 **깊이가 우선**한다 — 같은 레벨 안에서만 설정 순서를 따른다. 그래야
     최상위의 `제목` 이 중첩된 `title` 보다 먼저 잡혀 결과가 예측 가능해진다.
     각 레벨에서 정확 일치를 먼저 보고, 없으면 정규화 일치로 재시도한다.
+    정규화 일치도 **별칭 선언 순서**로 돈다 — 레코드의 key 순서로 돌면 대소문자·구분자만
+    다른 별칭들(`event_id` 와 `eventId`)의 우선순위가 원천이 키를 나열한 순서에 좌우돼
+    "같은 깊이에서는 선언 순서가 우선"이라는 계약이 깨진다.
     """
     exact_aliases = [alias for alias in aliases if alias]
-    normalized_aliases = {normalize_column_name(alias) for alias in exact_aliases}
+    normalized_aliases = [normalize_column_name(alias) for alias in exact_aliases]
 
     level: list = [record]
     while level:
@@ -124,10 +127,11 @@ def find_field(record: Any, aliases: list[str]) -> Any:
             for node in dicts:
                 if alias in node and _is_field_value(node[alias]):
                     return _clean_value(node[alias])
-        for node in dicts:
-            for key, value in node.items():
-                if _is_field_value(value) and normalize_column_name(key) in normalized_aliases:
-                    return _clean_value(value)
+        for normalized in normalized_aliases:
+            for node in dicts:
+                for key, value in node.items():
+                    if _is_field_value(value) and normalize_column_name(key) == normalized:
+                        return _clean_value(value)
 
         next_level: list = []
         for node in level:
@@ -473,8 +477,8 @@ class JsonRecordsMapper:
         self.records_key: str | None = str(cfg.get("records") or "").strip() or None
 
         key_map = cfg.get("key_map") or {}
-        if not isinstance(key_map, dict) or not key_map:
-            raise ValueError("json_mapping custom_fields 에는 key_map 이 필요합니다.")
+        if not isinstance(key_map, dict):
+            raise ValueError("json_mapping custom_fields 의 key_map 은 object 여야 합니다.")
         # 목표필드명 자체를 자동 별칭으로 포함(tabular column_map 과 동일 규칙).
         self.key_map: dict[str, list[str]] = {
             str(target): self._aliases(str(target), sources)
@@ -484,6 +488,14 @@ class JsonRecordsMapper:
         collect_key_map = cfg.get("collect_key_map") or {}
         if not isinstance(collect_key_map, dict):
             raise ValueError("json_mapping custom_fields의 collect_key_map은 object여야 합니다.")
+        # 원천에서 값을 가져오는 방법은 alias(key_map) 와 collect(collect_key_map) 둘이다.
+        # 둘 다 비면 원천을 한 번도 읽지 않는 설정이므로 거부한다 — 예전에는 key_map 만 보고
+        # 거부해서, 필드가 전부 collect 인 정상 설정이 "key_map 이 필요합니다" 로 막혔다.
+        if not key_map and not collect_key_map:
+            raise ValueError(
+                "json_mapping custom_fields 에는 원천 key 를 읽는 필드가 하나는 필요합니다"
+                "(fields 의 alias 또는 collect)."
+            )
         overlap = sorted(set(self.key_map) & set(collect_key_map))
         if overlap:
             raise ValueError(

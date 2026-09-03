@@ -488,9 +488,21 @@ def test_wildcard_when_doc_type_unset(tmp_path):
     assert mapper.matches("아무거나") is True
 
 
-def test_key_map_is_required(tmp_path):
-    with pytest.raises(ValueError, match="key_map"):
+def test_source_reading_field_is_required(tmp_path):
+    """원천 key 를 읽는 필드가 하나도 없으면 거부한다(alias 도 collect 도 없는 설정)."""
+    with pytest.raises(ValueError, match="원천 key 를 읽는 필드"):
         write_mapper(tmp_path, "records: eventList\ntext_fields: [TITLE]\n")
+
+
+def test_collect_only_config_is_accepted(tmp_path):
+    """필드가 전부 collect 여도 정상 설정이다(예전에는 key_map 이 없다고 막혔다)."""
+    mapper = write_mapper(
+        tmp_path,
+        "records: eventList\ncollect_key_map:\n  URLS: [serviceUrl]\ntext_fields: [URLS]\n",
+    )
+    fields_list = mapper.build_fields(
+        {"eventList": [{"bubble": [{"serviceUrl": "a"}, {"serviceUrl": "b"}]}]}, "monimo_event")
+    assert fields_list[0]["URLS"] == ["a", "b"]
 
 
 def test_text_fields_is_required(tmp_path):
