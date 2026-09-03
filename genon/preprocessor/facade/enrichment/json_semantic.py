@@ -590,6 +590,11 @@ class SemanticJsonMapper:
             **cp.parse_field_labels(cfg.get(cp.FIELD_LABELS_KEY)),
         }
 
+        # 문서 1건에 1회만 실을 필드(연회비처럼 섹션마다 반복할 이유가 없는 값).
+        # llm extractor 의 같은 이름 키와 의미가 같다 — extractor 마다 다른 이름을 쓰면
+        # "이 설정에서는 뭐라고 부르나"를 매번 확인하게 된다.
+        self.first_chunk_fields = cp.parse_field_name_list(cfg.get(cp.FIRST_CHUNK_FIELDS_KEY))
+
         # 필수 공통 필드 — 문서 루트에서 못 찾으면(identity 확정 후에도 비어 있으면)
         # missing_policy 에 따라 처리한다(build_fields 참고).
         self.required_shared_fields = [
@@ -785,11 +790,37 @@ class SemanticJsonMapper:
             lines.append(f"{label}: {_render_value(value)}")
         return "\n".join(lines)
 
-    def build_text(self, fields: dict) -> str:
-        """청크 본문 — 접두(제목+공통 정보) + 본문(규칙에 따라 정규화된 텍스트)."""
+    def build_text(self, fields: dict, *, extra_lines: list[str] | None = None) -> str:
+        """청크 본문 — 접두(제목+공통 정보) + [1회 필드] + 본문.
+
+        `extra_lines` 는 첫 청크에만 1회 싣는 값이다(`first_chunk_fields`). 접두 **뒤**에
+        넣는 것이 중요하다 — 청커는 과대 섹션을 쪼갤 때 `content.startswith(chunk_prefix)`
+        를 계약으로 접두를 다시 붙이므로, 앞에 끼우면 그 계약이 깨진다.
+        """
         prefix = self._chunk_prefix(fields)
+        parts = [prefix] if prefix else []
+        parts.extend(extra_lines or [])
         body = str(fields.get("_body") or "").strip()
-        return f"{prefix}\n{body}" if body else prefix
+        if body:
+            parts.append(body)
+        return "\n".join(parts)
+
+    def first_chunk_lines(self, fields: dict) -> list[str]:
+        """`first_chunk_fields` 를 `항목명: 값` 줄로 만든다(첫 청크에만 쓴다).
+
+        문서 1건에 한 번만 있으면 되는 값(연회비처럼 섹션마다 반복할 이유가 없는 것)을 위한
+        것이다. shared_fields 처럼 모든 청크에 반복하면 chunk_size 를 그만큼 깎고 같은 문장이
+        섹션 수만큼 임베딩에 들어간다.
+        """
+        lines = []
+        for target in self.first_chunk_fields:
+            value = fields.get(target)
+            if value in (None, ""):
+                continue
+            label = self.field_labels.get(target)
+            rendered = _render_value(value)
+            lines.append(f"{label}: {rendered}" if label else rendered)
+        return lines
 
     def to_parse_format(self, fields_list: list[dict], runtime_doc_type: Any) -> dict:
         """섹션별 목표필드 목록 → parse-format(청커 행 기반 경로가 소비하는 형태).
@@ -801,7 +832,10 @@ class SemanticJsonMapper:
         elements: list[dict] = []
         empty = 0
         for fields in fields_list:
-            content = self.build_text(fields)
+            # 첫 섹션에만 1회 — 접두처럼 모든 청크에 반복하지 않는다.
+            content = self.build_text(
+                fields, extra_lines=self.first_chunk_lines(fields) if not elements else None
+            )
             if not content.strip():
                 empty += 1
                 continue

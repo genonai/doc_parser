@@ -78,7 +78,7 @@ EXTRACTOR_KEYS: dict[str, frozenset[str]] = {
     "json_semantic": frozenset({
         "shared_fields", "sections", "ignore_keys",
         "required_shared_fields", "missing_policy",
-        "defaults", "constants", "llm_fields", "field_labels",
+        "defaults", "constants", "llm_fields", "field_labels", "first_chunk_fields",
     }),
     # 문서 단위 LLM 추출. 값 매핑이 없고 프롬프트·연결·출력필드가 중심이다.
     "llm": frozenset({

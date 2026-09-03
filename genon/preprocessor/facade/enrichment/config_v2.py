@@ -274,20 +274,29 @@ def _normalize_body(body: Any, kind: str, out: dict, label: str) -> None:
 
 
 def _normalize_llm(llm: Any, kind: str, out: dict, label: str) -> None:
-    """`llm:` 목록 → 문서형은 최상위 키로, 레코드형은 `llm_fields` 로."""
+    """`llm:` 목록 → 문서형은 최상위 키로, 나머지는 `llm_fields` 로.
+
+    **호출 단위는 `kind` 가 정하지 설정이 정하지 않는다.** 매퍼가 고정하고 있기 때문이다.
+      · document — 문서 1회(문서 단위 추출 그 자체)
+      · rows / records — 행·레코드마다 1회
+      · sections — **문서 1회**. json_semantic 이 llm_fields_scope="document" 로 고정이라
+        섹션 수와 무관하고, 결과가 그 파일의 모든 섹션에 같은 값으로 복사된다.
+    그래서 `scope:` 를 설정으로 받지 않는다 — 받으면 sections 처럼 "kind 와 호출 단위가
+    다른" 경우에 무엇을 적어야 하는지 알 수 없고, 틀리게 적을 여지만 생긴다.
+    """
     items = _require_list(llm, label, "llm")
     if not items:
         return
     for index, item in enumerate(items):
         if not isinstance(item, dict):
             raise ConfigV2Error(f"{label}: llm[{index}] 는 object 여야 합니다.")
-        scope = str(item.get("scope") or ("document" if kind == "document" else "record"))
+        if "scope" in item:
+            raise ConfigV2Error(
+                f"{label}: llm[{index}].scope 는 쓰지 않습니다 — 호출 단위는 source.kind 가 "
+                f"정합니다(document=문서 1회 / rows·records=건별 1회 / sections=문서 1회)."
+            )
         flat = _flatten_llm_item(item, f"{label}: llm[{index}]")
-        if scope == "document":
-            if kind != "document":
-                raise ConfigV2Error(
-                    f"{label}: llm[{index}].scope=document 는 kind: document 전용입니다."
-                )
+        if kind == "document":
             out.update(flat)
         else:
             out.setdefault("llm_fields", []).append(flat)
@@ -297,8 +306,6 @@ def _flatten_llm_item(item: dict, where: str) -> dict:
     """v2 의 endpoint/params/prompt 묶음을 v1 의 평평한 키로 편다."""
     flat: dict[str, Any] = {}
     for key, value in item.items():
-        if key == "scope":
-            continue
         if key == "out":
             flat["output_fields"] = value
         elif key == "in":
@@ -422,14 +429,12 @@ def _document_llm_item(cfg: dict) -> dict:
         item["params"] = params
     if prompt:
         item["prompt"] = prompt
-    if item:
-        item = {"scope": "document", **item}
     return item
 
 
 def _record_llm_item(spec: dict) -> dict:
     """`llm_fields` 항목 하나 → v2 llm 항목(scope: record)."""
-    item: dict[str, Any] = {"scope": "record"}
+    item: dict[str, Any] = {}
     endpoint = {k: spec[k] for k in _LLM_ENDPOINT_KEYS if k in spec}
     params = {k: spec[k] for k in _LLM_PARAM_KEYS if k in spec}
     prompt = {v2: spec[v1] for v1, v2 in _LLM_PROMPT_KEYS.items() if v1 in spec}

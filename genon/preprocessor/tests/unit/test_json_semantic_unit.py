@@ -748,3 +748,67 @@ def test_input_fields_array_index_segments_match_by_key_name(tmp_path):
 
     assert "빅포인트" in merged["bubble"]
     assert "총 연회비" not in merged["bubble"]
+
+
+# ── 첫 청크에만 1회 싣는 필드(first_chunk_fields) ───────────────────────────
+
+@pytest.mark.unit
+def test_first_chunk_fields_appear_once(tmp_path):
+    """문서 1건에 하나뿐인 값(연회비 등)을 섹션마다 반복하지 않는다.
+
+    shared_fields 로 넣으면 모든 청크 접두에 붙어 chunk_size 를 깎고 같은 문장이 섹션 수만큼
+    임베딩에 들어간다. 값 자체는 모든 청크 metadata 에 실리므로 필터 검색은 전 청크에서 된다.
+    """
+    import textwrap
+
+    cfg = tmp_path / "custom_field_s.yaml"
+    cfg.write_text(textwrap.dedent("""
+        shared_fields:
+          PRODUCT_NM: [prodNm]
+        sections:
+          ksp: {name: 주요 혜택, include: true}
+        first_chunk_fields: [ANNUAL_FEE]
+        field_labels:
+          ANNUAL_FEE: 연회비
+    """), encoding="utf-8")
+    mapper = SemanticJsonMapper(
+        config_file=cfg.name, resource_path=str(tmp_path),
+        doc_type="p", extractor="json_semantic",
+    )
+    rows = mapper.build_fields(
+        {"prodNm": "카드", "ksp": {"a": "혜택 하나"}, "etc": {"b": "다른 절"}}, "p"
+    )
+    fee = "국내전용 18,000원"
+    for row in rows:
+        row["ANNUAL_FEE"] = fee
+
+    elements = mapper.to_parse_format(rows, "p")["elements"]
+    assert len(elements) >= 2, "여러 섹션이 나와야 의미 있는 검사다"
+    hits = [i for i, e in enumerate(elements) if fee in (e.get("content") or "")]
+    assert hits == [0], f"첫 청크에만 1회여야 한다: {hits}"
+    assert all((e.get("metadata") or {}).get("ANNUAL_FEE") == fee for e in elements)
+    assert "연회비: " + fee in elements[0]["content"]
+
+
+@pytest.mark.unit
+def test_first_chunk_field_keeps_prefix_contract(tmp_path):
+    """청커는 `content.startswith(chunk_prefix)` 로 접두를 재부착한다 — 앞에 끼우면 깨진다."""
+    import textwrap
+
+    cfg = tmp_path / "custom_field_s.yaml"
+    cfg.write_text(textwrap.dedent("""
+        shared_fields:
+          PRODUCT_NM: [prodNm]
+        sections:
+          ksp: {name: 주요 혜택, include: true}
+        first_chunk_fields: [ANNUAL_FEE]
+    """), encoding="utf-8")
+    mapper = SemanticJsonMapper(
+        config_file=cfg.name, resource_path=str(tmp_path),
+        doc_type="p", extractor="json_semantic",
+    )
+    rows = mapper.build_fields({"prodNm": "카드", "ksp": {"a": "혜택"}}, "p")
+    for row in rows:
+        row["ANNUAL_FEE"] = "18,000원"
+    first = mapper.to_parse_format(rows, "p")["elements"][0]
+    assert first["content"].startswith(first.get("chunk_prefix") or "")
