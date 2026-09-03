@@ -533,18 +533,21 @@ def build_chunk_text(
         헤더) 이다. json_mapping 은 `column_map` 이 없는데, 그 자리의 `key_map` 별칭은
         `depth4`·`htmlText` 같은 시스템 key 라 라벨로 쓰면 잡음만 된다 — 그래서 폴백하지 않고
         `field_labels` 에 이름이 있는 필드만 항목명과 함께 나간다.
+
+        `column_map` 이 있어도 **거기 없는 필드는 이름 없이 값만 낸다**. 엑셀 헤더로 폴백하는
+        근거는 그 헤더가 사람이 읽는 말이라는 것뿐인데, constants·llm_fields 출력처럼
+        column_map 에 없는 필드에는 그런 헤더가 없다. 목표필드명으로 폴백하면 `SUMMARY_TEXT: `
+        같은 적재 DB 컬럼명이 청크마다 임베딩에 실린다.
         """
         explicit = field_labels.get(field)
         if explicit:
             return str(explicit)
-        if not column_map:
-            return None
         source_spec = column_map.get(field)
         if isinstance(source_spec, list) and source_spec:
             return str(source_spec[0])
         if source_spec is not None:
             return str(source_spec)
-        return field
+        return None
 
     def labeled(name: str) -> str:
         """짧은 값은 `항목명: 값`, 여러 줄 블록은 값만.
@@ -698,6 +701,30 @@ class TabularCustomFieldsMapper:
             resolved[str(target)] = source
         return resolved
 
+    # 행이 아니라 **시트/표 단위**로 붙는 값. 원천이 시트명이나 표 제목에만 담아 보내는
+    # 구분값(관계사·상품군 등)을 column_map 에서 그대로 참조할 수 있게 한다.
+    # 실제 컬럼이 항상 이기므로, 같은 이름의 진짜 컬럼이 있으면 그쪽이 쓰인다.
+    _SHEET_CONTEXT_SOURCES = ("sheet_name", "title")
+
+    def _resolve_sheet_context(self, sheet: dict, sheet_name: str) -> dict[str, Any]:
+        """이 시트에서 참조 가능한 컨텍스트 값(정규화된 이름 → 값)."""
+        values = {"sheet_name": sheet_name, "title": sheet.get("title")}
+        return {
+            normalize_column_name(name): values.get(name)
+            for name in self._SHEET_CONTEXT_SOURCES
+            if str(values.get(name) or "").strip()
+        }
+
+    def _context_value(self, target: str, source_spec: Any, context: dict) -> Any:
+        """target 의 별칭 중 하나가 컨텍스트 이름이면 그 값을, 아니면 None."""
+        if not context:
+            return None
+        for alias in self._aliases(str(target), source_spec):
+            value = context.get(normalize_column_name(alias))
+            if value is not None:
+                return value
+        return None
+
     def build_fields(self, data_dict: dict, runtime_doc_type: Any) -> list[dict]:
         """parser의 tabular 중립 표현 → 레코드별 목표필드 목록.
 
@@ -733,9 +760,11 @@ class TabularCustomFieldsMapper:
             resolved = self._resolve_columns(rows[0]) if rows else {
                 str(target): None for target in column_map
             }
+            sheet_context = self._resolve_sheet_context(sheet, sheet_name)
             missing_columns = [
                 field for field in required_fields
                 if field in column_map and resolved.get(field) is None and field not in defaults
+                and self._context_value(field, column_map[field], sheet_context) is None
             ]
             if missing_columns:
                 available = list(rows[0].keys()) if rows else []
@@ -750,7 +779,13 @@ class TabularCustomFieldsMapper:
                 fields = {name: None for name in null_fields}
                 for target in column_map:
                     source = resolved.get(str(target))
-                    fields[str(target)] = _clean_cell(row.get(source)) if source else None
+                    if source:
+                        fields[str(target)] = _clean_cell(row.get(source))
+                        continue
+                    # 컬럼으로 못 잡은 필드만 시트/표 컨텍스트에서 채운다(실제 컬럼이 우선).
+                    fields[str(target)] = _clean_cell(
+                        self._context_value(target, column_map[target], sheet_context)
+                    )
                 records.append((fields, row))
 
             # 2단계 — 병합. 시트 경계는 넘지 않는다(시트마다 page 가 다르다).
@@ -825,9 +860,9 @@ class TabularCustomFieldsMapper:
         text_fields = list(self.config.get("text_fields") or [])
         doc_type = self.canonical_doc_type(runtime_doc_type)
 
-        # 파생 필드는 원본 필드의 라벨을 물려받는다. build_chunk_text 는 column_map 별칭 첫 값을
-        # 본문 라벨로 쓰는데, DETAIL_TEXT 같은 파생 필드는 column_map 에 없어 목표필드명이 그대로
-        # 라벨이 된다 — "DETAIL_TEXT: …" 가 청크마다 임베딩에 실린다. 원천 헤더를 쓰는 편이 낫다.
+        # 파생 필드는 원본 필드의 라벨을 물려받는다. DETAIL_TEXT 는 원본 detail_desc 를 평문으로
+        # 바꾼 같은 내용이므로 원천 헤더가 그대로 맞는 이름이다. 이게 없으면 파생 필드는
+        # column_map 에 없어 이름 없이 값만 나간다(목표필드명으로 폴백하지는 않는다).
         column_map = dict(self.config.get("column_map") or {})
         for target, source, _ in self.text_from:
             if target not in column_map and source in column_map:

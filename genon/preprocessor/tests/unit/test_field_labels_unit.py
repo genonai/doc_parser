@@ -50,12 +50,18 @@ def test_column_map_alias_stays_the_fallback_label():
 
 @pytest.mark.unit
 def test_field_labels_names_a_field_that_column_map_does_not_have():
-    """LLM 생성 필드는 column_map 에 없어 목표필드명(DB 컬럼명)이 그대로 새어 나갔다."""
+    """LLM 생성 필드는 column_map 에 없다 — 이름을 안 주면 값만 나가야 한다.
+
+    엑셀 헤더로 폴백하는 근거는 그 헤더가 사람이 읽는 말이라는 것뿐이다. column_map 에
+    없는 필드에는 그런 헤더가 없으므로 목표필드명으로 폴백하면 `SUMMARY_TEXT: ` 같은
+    적재 DB 컬럼명이 청크마다 임베딩에 실린다.
+    """
     fields = {"TITLE": "보험금 청구", "SUMMARY_TEXT": "청구서와 진단서를 준비한다."}
-    leaked, _ = build_chunk_text(
+    unlabeled, _ = build_chunk_text(
         fields, ["TITLE", "SUMMARY_TEXT"], [], column_map={"TITLE": ["제목"]},
     )
-    assert "SUMMARY_TEXT: " in leaked
+    assert "SUMMARY_TEXT" not in unlabeled
+    assert unlabeled == "제목: 보험금 청구\n청구서와 진단서를 준비한다."
 
     named, _ = build_chunk_text(
         fields, ["TITLE", "SUMMARY_TEXT"], [],
