@@ -138,6 +138,18 @@ genon/preprocessor/examples/parse_chunk/parse_chunk_verify.sh          # doc_typ
 genon/preprocessor/examples/parse_chunk/parse_chunk_verify.sh --only faq menu
 ```
 
+설정만 바꿨거나 **배포 전 현장 설정을 검사할 때**는 파싱·LLM 없이 yaml 만 읽는 점검을 쓴다.
+extractor 별 지원 키(`facade/enrichment/config_schema.py`)와 같은 판정을 공유하므로 기동 실패를
+미리 드러낸다. 청크 본문이 바뀌는 필드(재색인 판단)도 함께 알려준다.
+
+```bash
+genon/preprocessor/examples/config_precheck/precheck_custom_fields.sh                 # 저장소 resource/
+genon/preprocessor/examples/config_precheck/precheck_custom_fields.sh <현장_설정_경로>
+```
+
+설정 오기입은 기본적으로 **기동 실패**다. 현장 설정을 미리 검사하지 못한 첫 릴리스에 한해
+`GENOS_CUSTOM_FIELDS_VALIDATION=warn` 으로 낮추면 경고만 남기고 기동한다(그 설정은 무시된다).
+
 같은 디렉터리의 `parse_chunk_test.sh` 는 손으로 돌려보는 놀이터다. 대부분이 주석 상태이고
 개인 경로에 의존하므로, 자동 검증에 넣을 것은 `parse_chunk_verify.py` 쪽에 단정문으로 옮긴다.
 
