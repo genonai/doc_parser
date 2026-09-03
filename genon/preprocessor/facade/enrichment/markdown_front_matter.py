@@ -492,6 +492,26 @@ def build_markdown_text_fence_specs(configs: list[dict]) -> list[MarkdownTextFen
     return specs
 
 
+def build_marker_heading_doc_types(configs: list[dict], fmt: str) -> frozenset[str]:
+    """``<fmt>.marker_headings`` 를 켠 문서 단위 custom_fields 의 doc_type 집합.
+
+    같은 원문이 html 로도 md 로도 올 수 있어 두 포맷이 같은 스위치를 갖는다. 판정 규칙은
+    converters 쪽에서 공유하므로 여기서 갈리는 것은 어느 포맷 블록을 읽느냐뿐이다.
+    """
+    doc_types: set[str] = set()
+    for config in configs or []:
+        format_cfg = resolve_format_cfg(config, fmt)
+        if format_cfg is None:
+            continue
+        marker_cfg = format_cfg.get("marker_headings")
+        if marker_cfg in (None, False):
+            continue
+        if isinstance(marker_cfg, dict) and marker_cfg.get("enable") is False:
+            continue
+        doc_types.update(normalize_doc_types(config.get("doc_type")))
+    return frozenset(doc_types)
+
+
 def build_html_marker_heading_doc_types(configs: list[dict]) -> frozenset[str]:
     """``html.marker_headings`` 를 켠 문서 단위 custom_fields 의 doc_type 집합(기동 시 1회).
 
@@ -500,16 +520,9 @@ def build_html_marker_heading_doc_types(configs: list[dict]) -> frozenset[str]:
     코드 상수로 있다). 켜고 끄는 doc_type 목록 하나로 충분하므로 설정 개념을 늘리지 않는다.
     상위 ``html: false`` 또는 ``marker_headings: false`` 는 명시적 비활성화다.
     """
-    doc_types: set[str] = set()
-    for config in configs or []:
-        html_cfg = resolve_format_cfg(config, "html")
-        if html_cfg is None:
-            continue
-        marker_cfg = html_cfg.get("marker_headings")
-        if marker_cfg in (None, False):
-            continue
-        if isinstance(marker_cfg, dict):
-            if marker_cfg.get("enable") is False:
-                continue
-        doc_types.update(normalize_doc_types(config.get("doc_type")))
-    return frozenset(doc_types)
+    return build_marker_heading_doc_types(configs, "html")
+
+
+def build_markdown_marker_heading_doc_types(configs: list[dict]) -> frozenset[str]:
+    """``markdown.marker_headings`` 를 켠 문서 단위 custom_fields 의 doc_type 집합."""
+    return build_marker_heading_doc_types(configs, "markdown")

@@ -84,6 +84,7 @@ from genon.preprocessor.facade.enrichment.markdown_front_matter import (
     build_markdown_front_matter_specs,
     build_markdown_text_fence_specs,
     build_html_marker_heading_doc_types,
+    build_markdown_marker_heading_doc_types,
 )
 from genon.preprocessor.facade.enrichment.metadata_enricher import MetadataEnricher
 
@@ -1007,6 +1008,10 @@ class DocumentProcessor:
         self._html_marker_heading_doc_types = self._build_html_marker_heading_doc_types(
             self._intel.custom_fields_cfgs
         )
+        # 같은 원문이 md 로도 온다. 판정 규칙은 converters 쪽에서 공유하므로 스위치만 나란히 둔다.
+        self._markdown_marker_heading_doc_types = self._build_marker_heading_doc_types(
+            build_markdown_marker_heading_doc_types, self._intel.custom_fields_cfgs, "markdown"
+        )
 
         # enrichment.custom_fields 중 extractor=json_mapping 설정(= JSON 레코드 → 목표필드
         # 매핑). 문서 모드(json:)보다 우선하며, 레코드마다 청크 메타데이터를 따로 싣는다.
@@ -1081,13 +1086,19 @@ class DocumentProcessor:
             ) from exc
 
     @staticmethod
-    def _build_html_marker_heading_doc_types(custom_fields_cfgs: list) -> frozenset:
+    def _build_marker_heading_doc_types(builder, custom_fields_cfgs: list, fmt: str) -> frozenset:
         try:
-            return build_html_marker_heading_doc_types(custom_fields_cfgs)
+            return builder(custom_fields_cfgs)
         except (ValueError, TypeError, FileNotFoundError) as exc:
             raise GenosServiceException(
-                "1", f"custom_fields html 설정 오류: {exc}", stage="custom_fields"
+                "1", f"custom_fields {fmt} 설정 오류: {exc}", stage="custom_fields"
             ) from exc
+
+    @classmethod
+    def _build_html_marker_heading_doc_types(cls, custom_fields_cfgs: list) -> frozenset:
+        return cls._build_marker_heading_doc_types(
+            build_html_marker_heading_doc_types, custom_fields_cfgs, "html"
+        )
 
     @staticmethod
     def _build_tabular_custom_fields_mappers(custom_fields_cfgs: list) -> list:
@@ -1164,6 +1175,10 @@ class DocumentProcessor:
     def _html_marker_headings_enabled(self, runtime_doc_type: Any) -> bool:
         """런타임 doc_type 이 마커 승격 대상인지."""
         return normalize_doc_type(runtime_doc_type) in self._html_marker_heading_doc_types
+
+    def _markdown_marker_headings_enabled(self, runtime_doc_type: Any) -> bool:
+        """런타임 doc_type 이 md 마커 승격 대상인지."""
+        return normalize_doc_type(runtime_doc_type) in self._markdown_marker_heading_doc_types
 
     @staticmethod
     def _single_json_match(matching: list, runtime_doc_type: Any, label: str):
@@ -1315,7 +1330,9 @@ class DocumentProcessor:
     # ------------------------------------------------------------------
 
     @staticmethod
-    def _prepare_markdown(file_path: str, work_dir: str, fm_spec, fence_spec) -> tuple[str, dict]:
+    def _prepare_markdown(
+        file_path: str, work_dir: str, fm_spec, fence_spec, marker_headings: bool = False
+    ) -> tuple[str, dict]:
         """Front matter / text_fence 전처리를 적용한 파싱 경로와 enrichment context를 반환.
 
         둘 중 하나라도 텍스트를 바꿨을 때만 파생 파일을 쓴다. 바뀐 것이 없으면 원본 경로를
@@ -1355,6 +1372,29 @@ class DocumentProcessor:
                     f"단락으로 복원 ({Path(file_path).name})"
                 )
                 text = fenced
+
+        if marker_headings:
+            # text_fence 뒤에 돈다 — 펜스를 단락으로 되돌린 뒤라야 그 안의 마커 줄도 후보가 된다.
+            from genon.preprocessor.converters.md_marker_headings import (
+                promote_markdown_marker_headings,
+            )
+
+            source = text
+            if source is None:
+                try:
+                    source = Path(file_path).read_text(encoding="utf-8-sig")
+                except (OSError, UnicodeError) as exc:
+                    _log.warning(
+                        f"[DocumentProcessor] markdown.marker_headings 입력 읽기 실패: {exc}"
+                    )
+                    return file_path, context
+            promoted, count = promote_markdown_marker_headings(source)
+            if count:
+                _log.info(
+                    f"[DocumentProcessor] markdown.marker_headings: {count}개 마커 줄을 "
+                    f"heading 으로 승격 ({Path(file_path).name})"
+                )
+                text = promoted
 
         if text is None:
             return file_path, context
@@ -2288,7 +2328,8 @@ class DocumentProcessor:
                 elif ext == ".md":
                     fm_spec = self._markdown_front_matter_spec_for(kwargs.get("doc_type"))
                     fence_spec = self._markdown_text_fence_spec_for(kwargs.get("doc_type"))
-                    if fm_spec is None and fence_spec is None:
+                    marker_on = self._markdown_marker_headings_enabled(kwargs.get("doc_type"))
+                    if fm_spec is None and fence_spec is None and not marker_on:
                         doc = self._parse_docling(
                             file_path,
                             artifacts_from=artifacts_source,
@@ -2301,7 +2342,7 @@ class DocumentProcessor:
                         # custom-fields 후처리에 별도 전달한다.
                         with tempfile.TemporaryDirectory(prefix="parser_md_") as work_dir:
                             parse_path, front_matter_context = self._prepare_markdown(
-                                file_path, work_dir, fm_spec, fence_spec
+                                file_path, work_dir, fm_spec, fence_spec, marker_on
                             )
                             markdown_kwargs = dict(kwargs)
                             markdown_kwargs["_markdown_front_matter"] = front_matter_context

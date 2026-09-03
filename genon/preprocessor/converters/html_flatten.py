@@ -433,6 +433,29 @@ def _text_after_first_break(el: Tag) -> str:
     return "".join(tail).strip()
 
 
+def marker_heading_match(text: str) -> tuple[str, str] | None:
+    """한 줄 텍스트가 "마커 + 짧은 제목" 규칙을 만족하면 `(마커, 제목)`, 아니면 None.
+
+    HTML 과 Markdown 이 이 판정을 공유한다. 마커 집합·길이 상한·종결형/장식 강등 규칙은
+    문서 포맷이 아니라 한국 기업문서 관례에서 나온 것이라 두 경로가 같아야 한다 —
+    한쪽에만 규칙을 복사하면 같은 원문이 포맷에 따라 다르게 쪼개진다.
+    DOM 에만 있는 조건(블록 자식·표 안·`<br>`)은 호출측이 따로 본다.
+    """
+    match = _MARKER_HEADING_RE.match(text)
+    if not match:
+        return None
+    if len(text) > _HEADING_MAX_LEN:
+        return None
+    if _SENTENCE_FINAL.search(text):
+        return None  # 서술형 본문 문장 — 제목이 아니다
+    marker, title = match.group(1), match.group(2)
+    if _MARKER_DECORATION_RE.match(title):
+        return None  # `■■■` 처럼 마커를 반복한 구분선 장식 — 제목이 아니다
+    if len(title.strip()) < _MARKER_TITLE_MIN_LEN:
+        return None
+    return marker, title
+
+
 def _marker_heading_candidates(node: Tag) -> list[tuple[Tag, str]]:
     """"마커 + 짧은 제목" 한 줄짜리 블록을 문서 순서로 찾는다.
 
@@ -465,20 +488,10 @@ def _marker_heading_candidates(node: Tag) -> list[tuple[Tag, str]]:
             # 취급하면 소제목 하나가 통째로 후보에서 빠진다. 반대로 <br> 이 텍스트를 두 줄
             # 이상으로 쪼갰다면 한 줄짜리 제목이 아니라 여러 줄 본문이므로 승격하지 않는다.
             continue
-        text = el.get_text(" ", strip=True)
-        match = _MARKER_HEADING_RE.match(text)
-        if not match:
+        matched = marker_heading_match(el.get_text(" ", strip=True))
+        if matched is None:
             continue
-        if len(text) > _HEADING_MAX_LEN:
-            continue
-        if _SENTENCE_FINAL.search(text):
-            continue  # 서술형 본문 문장 — 제목이 아니다
-        marker, title = match.group(1), match.group(2)
-        if _MARKER_DECORATION_RE.match(title):
-            continue  # `■■■` 처럼 마커를 반복한 구분선 장식 — 제목이 아니다
-        if len(title.strip()) < _MARKER_TITLE_MIN_LEN:
-            continue
-        candidates.append((el, marker))
+        candidates.append((el, matched[0]))
     return candidates
 
 
