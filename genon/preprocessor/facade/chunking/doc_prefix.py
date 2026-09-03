@@ -8,8 +8,9 @@
 부착에 같은 문자열을 써야 산출 청크가 chunk_size 를 넘지 않는다. 두 곳이 각자 만들면
 그 순간 어긋난다.
 
-라벨(`PRODUCT_NM: `)은 붙이지 않는다. 문서형 custom_fields 의 필드명은 적재 스키마의 DB
-컬럼명이라, 라벨로 노출하면 사람이 쓰지 않는 토큰이 임베딩에 섞인다.
+항목명은 설정의 `field_labels` 에 사람이 붙인 이름이 있는 필드에만 붙인다(`상품명: …`).
+필드명 자체(`PRODUCT_NM`)는 적재 스키마의 DB 컬럼명이라 그대로 노출하면 사람이 쓰지 않는
+토큰이 임베딩에 섞인다 — 그래서 이름이 없으면 종전대로 값만 낸다.
 """
 
 from typing import Any
@@ -31,18 +32,28 @@ def render_value(value: Any) -> str:
     return str(value).strip()
 
 
-def build_prefix_text(metadata: Any, field_names: list[str]) -> str:
-    """필드 목록을 청크 선두에 붙일 문자열(`값\\n` 들)로 만든다.
+def build_prefix_text(
+    metadata: Any, field_names: list[str], labels: dict[str, str] | None = None
+) -> str:
+    """필드 목록을 청크 선두에 붙일 문자열(`항목명: 값\\n` 또는 `값\\n` 들)로 만든다.
 
     값이 비었거나 렌더할 수 없는 필드는 조용히 건너뛴다 — 문서마다 LLM 이 뽑지 못하는
     필드가 있는데, 그때 빈 줄이 청크 선두에 남으면 임베딩에 잡음만 는다.
+
+    중복 판정은 항목명이 아니라 값으로 한다. 같은 값이 두 필드에 실려 있으면 항목명만 다른
+    같은 문장이 접두에 두 줄로 남는데, 접두는 모든 청크에 반복되므로 그만큼 손해가 크다.
     """
     source = metadata if isinstance(metadata, dict) else {}
-    lines = []
+    labels = labels or {}
+    lines: list[str] = []
+    seen: set[str] = set()
     for name in field_names or []:
         text = render_value(source.get(name))
-        if text and text not in lines:
-            lines.append(text)
+        if not text or text in seen:
+            continue
+        seen.add(text)
+        label = labels.get(name)
+        lines.append(f"{label}: {text}" if label else text)
     return "".join(f"{line}\n" for line in lines)
 
 
@@ -64,8 +75,13 @@ def resolve_prefix_texts(kwargs: dict, metadata: Any) -> tuple[str, str]:
 
     호출부가 두 설정을 따로 읽다가 한쪽을 빠뜨리는 일이 없도록 묶어 둔다.
     """
-    repeated = build_prefix_text(metadata, cp.resolve_chunk_prefix_fields(kwargs, metadata))
-    first_only = build_prefix_text(metadata, cp.resolve_first_chunk_fields(kwargs, metadata))
+    labels = cp.resolve_field_labels(kwargs, metadata)
+    repeated = build_prefix_text(
+        metadata, cp.resolve_chunk_prefix_fields(kwargs, metadata), labels
+    )
+    first_only = build_prefix_text(
+        metadata, cp.resolve_first_chunk_fields(kwargs, metadata), labels
+    )
     return repeated, first_only
 
 

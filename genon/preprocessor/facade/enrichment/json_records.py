@@ -40,6 +40,7 @@ from genon.preprocessor.facade.chunking.rich_cells import collect_subtree_refs
 from genon.preprocessor.facade.chunking.table_html import (
     drop_blank_markdown_rows, render_table,
 )
+from genon.preprocessor.facade.common import config_parse as cp
 from genon.preprocessor.facade.common.markdown_export import (
     MD_PLAIN_TEXT_OPTS as _MD_EXPORT_OPTS,
     export_markdown,
@@ -503,6 +504,9 @@ class JsonRecordsMapper:
 
         self.split = bool(cfg.get("split", False))
         self.chunk_prefix_fields = compile_chunk_prefix_fields(cfg, split=self.split)
+        # 청크 본문에 `질문: …` 처럼 항목명을 함께 실을 필드. key_map 별칭은 원천 시스템 key 라
+        # 라벨로 쓸 수 없어, 여기 이름을 적은 필드만 항목명과 함께 나간다.
+        self.field_labels = cp.parse_field_labels(cfg.get(cp.FIELD_LABELS_KEY))
 
         policy = str(cfg.get("missing_policy") or "error").strip().lower()
         if policy not in VALID_MISSING_POLICIES:
@@ -645,7 +649,9 @@ class JsonRecordsMapper:
 
     def build_text(self, fields: dict) -> str:
         """청크 본문 — text_fields 를 선언 순서대로 개행 결합(tabular 와 같은 규칙)."""
-        content, _ = build_chunk_text(fields, self.text_fields, self.chunk_prefix_fields)
+        content, _ = build_chunk_text(
+            fields, self.text_fields, self.chunk_prefix_fields, field_labels=self.field_labels
+        )
         return content
 
     def to_parse_format(self, fields_list: list[dict], runtime_doc_type: Any) -> dict:
@@ -660,7 +666,8 @@ class JsonRecordsMapper:
         empty = 0
         for fields in fields_list:
             content, prefix = build_chunk_text(
-                fields, self.text_fields, self.chunk_prefix_fields
+                fields, self.text_fields, self.chunk_prefix_fields,
+                field_labels=self.field_labels,
             )
             if not content.strip():
                 empty += 1

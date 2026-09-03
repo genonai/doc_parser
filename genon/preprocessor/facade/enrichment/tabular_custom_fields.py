@@ -17,6 +17,8 @@ from typing import Any
 
 import yaml
 
+from genon.preprocessor.facade.common import config_parse as cp
+
 _log = logging.getLogger(__name__)
 
 from .custom_fields_enricher import (
@@ -162,6 +164,7 @@ _LIST_SHAPED_KEYS = (
 )
 _MAP_SHAPED_KEYS = (
     "column_map", "key_map", "collect_key_map", "constants", "defaults", "value_map", "transforms",
+    "field_labels",
     "text_from", "html_text_fields", "json_text_fields", "shared_fields", "sections",
     "row_merge",
 )
@@ -251,6 +254,23 @@ def validate_chunk_prefix_fields(cfg: dict, *, label: str) -> None:
         )
 
 
+def warn_unknown_field_labels(cfg: dict, *, label: str) -> None:
+    """`field_labels` 가 어디서도 만들어지지 않는 필드를 가리키면 경고한다.
+
+    이름을 잘못 적으면 에러 없이 라벨만 조용히 사라져 청크 본문이 값만 남는다 — 눈으로
+    비교하기 전에는 안 드러나므로 기동 시에 이름을 대조해 둔다.
+    """
+    labels = cp.parse_field_labels(cfg.get(cp.FIELD_LABELS_KEY))
+    if not labels:
+        return
+    unknown = sorted(set(labels) - collect_target_field_names(cfg))
+    if unknown:
+        _log.warning(
+            f"[custom_fields] {label}: field_labels 의 {unknown} 를 만드는 설정이 없습니다 — "
+            f"이름이 틀렸다면 그 필드는 항목명 없이 값만 실립니다."
+        )
+
+
 def validate_custom_field_config(cfg: dict, *, label: str) -> None:
     """custom_field yaml 하나에 대한 기동 시 검증 묶음(두 extractor 공통).
 
@@ -261,6 +281,7 @@ def validate_custom_field_config(cfg: dict, *, label: str) -> None:
     validate_required_not_llm_generated(cfg, label=label)
     validate_chunk_prefix_fields(cfg, label=label)
     warn_unproducible_text_fields(cfg, label=label)
+    warn_unknown_field_labels(cfg, label=label)
 
 
 # ── 원천 필드 → 평문 파생 필드(text_from) ────────────────────────────────────
@@ -479,6 +500,7 @@ def build_chunk_text(
     *,
     fallback_text: str = "",
     column_map: dict | None = None,
+    field_labels: dict | None = None,
 ) -> tuple[str, str]:
     """본문과 모든 분할 조각에 반복할 접두를 함께 만든다.
 
@@ -486,8 +508,21 @@ def build_chunk_text(
     접두가 있으면 반드시 그 문자열로 시작하므로 chunking processor 의 재부착 계약을 만족한다.
     """
     column_map = column_map or {}
-    def get_field_label(field: str) -> str:
-        """column_map 에 매핑된 원천 컬럼명을 쓰고, 없으면 목표필드명을 그대로 쓴다."""
+    field_labels = field_labels or {}
+
+    def label_for(field: str) -> str | None:
+        """이 필드를 `항목명: 값` 으로 낼 때 쓸 이름. 이름이 없으면 None(값만 낸다).
+
+        우선순위는 `field_labels`(사람이 붙인 이름) > `column_map` 별칭 첫 값(엑셀/CSV 원천
+        헤더) 이다. json_mapping 은 `column_map` 이 없는데, 그 자리의 `key_map` 별칭은
+        `depth4`·`htmlText` 같은 시스템 key 라 라벨로 쓰면 잡음만 된다 — 그래서 폴백하지 않고
+        `field_labels` 에 이름이 있는 필드만 항목명과 함께 나간다.
+        """
+        explicit = field_labels.get(field)
+        if explicit:
+            return str(explicit)
+        if not column_map:
+            return None
         source_spec = column_map.get(field)
         if isinstance(source_spec, list) and source_spec:
             return str(source_spec[0])
@@ -496,44 +531,30 @@ def build_chunk_text(
         return field
 
     def labeled(name: str) -> str:
-        """짧은 값은 `라벨: 값`, 여러 줄 블록은 값만.
+        """짧은 값은 `항목명: 값`, 여러 줄 블록은 값만.
 
         text_from 이 만든 파생 필드는 `## 제목` 헤딩을 가진 마크다운 블록이다. 거기에
         `detail_desc: ` 라벨을 덧붙이면 첫 줄만 라벨 뒤에 붙어 구조가 깨지고, 임베딩에는
         의미 없는 컬럼명이 하나 더 들어간다. 블록은 자기 제목을 이미 갖고 있다.
         """
         value = str(fields[name])
-        return value if "\n" in value else f"{get_field_label(name)}: {value}"
+        label = label_for(name)
+        return value if ("\n" in value or not label) else f"{label}: {value}"
 
     prefix_names = set(chunk_prefix_fields)
-    if column_map:
-        prefix = "\n".join(
+    prefix = "\n".join(
+        labeled(name)
+        for name in chunk_prefix_fields
+        if fields.get(name) not in (None, "")
+    )
+    if text_fields:
+        body = "\n".join(
             labeled(name)
-            for name in chunk_prefix_fields
-            if fields.get(name) not in (None, "")
+            for name in text_fields
+            if name not in prefix_names and fields.get(name) not in (None, "")
         )
-        if text_fields:
-            body = "\n".join(
-                labeled(name)
-                for name in text_fields
-                if name not in prefix_names and fields.get(name) not in (None, "")
-            )
-        else:
-            body = fallback_text
     else:
-        prefix = "\n".join(
-            f"{fields[name]}"
-            for name in chunk_prefix_fields
-            if fields.get(name) not in (None, "")
-        )
-        if text_fields:
-            body = "\n".join(
-                f"{fields[name]}"
-                for name in text_fields
-                if name not in prefix_names and fields.get(name) not in (None, "")
-            )
-        else:
-            body = fallback_text
+        body = fallback_text
 
     content = f"{prefix}\n{body}" if prefix and body else (prefix or body)
     return content, prefix
@@ -574,6 +595,8 @@ class TabularCustomFieldsMapper:
         self.llm_field_specs = build_llm_field_specs(self.config)
         self.split = bool(self.config.get("split", False))
         self.chunk_prefix_fields = compile_chunk_prefix_fields(self.config, split=self.split)
+        # 사람이 붙인 항목명. 적으면 column_map 별칭 첫 값 대신 이 이름으로 본문에 실린다.
+        self.field_labels = cp.parse_field_labels(self.config.get(cp.FIELD_LABELS_KEY))
 
         # 여러 행에 쪼개져 오는 값을 한 레코드로 접는다(미선언이면 종전대로 행 1개 = 레코드 1개).
         self.row_merge = compile_row_merge(
@@ -804,6 +827,7 @@ class TabularCustomFieldsMapper:
                 self.chunk_prefix_fields,
                 fallback_text=fallback_text,
                 column_map=column_map,
+                field_labels=self.field_labels,
             )
             element = {
                 "category": "custom_fields_row",

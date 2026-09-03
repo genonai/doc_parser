@@ -89,6 +89,7 @@ from .json_records import (
     html_to_text,
     normalize_table_format,
 )
+from genon.preprocessor.facade.common import config_parse as cp
 from .tabular_custom_fields import normalize_column_name, validate_custom_field_config
 
 # 스칼라로 볼 값 타입(json_records._SCALAR_TYPES 와 동일 기준).
@@ -103,6 +104,7 @@ _DEFAULT_SECTION_TITLE = "개요"
 # 컬럼)에만 남기고 본문에서는 뺀다(규칙 10, `_chunk_prefix` 참고). yaml 없이도 동작하는
 # 기본값일 뿐, 필요하면 얼마든지 늘릴 수 있다 — 새 shared_fields target 을 여기 추가하지
 # 않으면 자동으로 "본문에는 안 실리고 metadata 에만 남는" 필드가 된다.
+# 공통 필드의 기본 항목명. 설정의 `field_labels` 가 이 위에 덮어쓰고 새 필드도 더할 수 있다.
 _SHARED_FIELD_LABELS = {
     "PRODUCT_NM": "상품명",
     "PRODUCT_C": "상품코드",
@@ -579,6 +581,14 @@ class SemanticJsonMapper:
             for target, sources in shared_fields_cfg.items()
         }
 
+        # 공통 필드를 청크 접두에 실을 때 붙일 항목명. 기본값 위에 설정을 덮어쓴다 —
+        # 이름이 있는 필드만 접두에 실리므로(규칙 10), 여기에 필드를 더하면 그 필드가
+        # metadata 에만 있던 상태에서 본문(임베딩 대상)으로 올라온다.
+        self.field_labels = {
+            **_SHARED_FIELD_LABELS,
+            **cp.parse_field_labels(cfg.get(cp.FIELD_LABELS_KEY)),
+        }
+
         # 필수 공통 필드 — 문서 루트에서 못 찾으면(identity 확정 후에도 비어 있으면)
         # missing_policy 에 따라 처리한다(build_fields 참고).
         self.required_shared_fields = [
@@ -758,10 +768,10 @@ class SemanticJsonMapper:
             header = title or section_name or ""
         lines = [header] if header else []
         for target in self.shared_fields:
-            # 규칙 10 — 사람이 붙인 라벨(_SHARED_FIELD_LABELS)이 있는 필드만 본문에 싣는다.
-            # BIZ_ID 처럼 라벨이 없는 내부 식별자는 metadata(적재 컬럼)에만 남는다 — 사람이
+            # 규칙 10 — 사람이 붙인 항목명(field_labels)이 있는 필드만 본문에 싣는다.
+            # BIZ_ID 처럼 이름이 없는 내부 식별자는 metadata(적재 컬럼)에만 남는다 — 사람이
             # 검색어로 쓰지 않는 값을 임베딩에 태우지 않기 위해서다.
-            label = _SHARED_FIELD_LABELS.get(target)
+            label = self.field_labels.get(target)
             if not label:
                 continue
             value = fields.get(target)

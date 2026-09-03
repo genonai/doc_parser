@@ -388,6 +388,42 @@ def resolve_body_fields(kwargs: dict, metadata: Any = None) -> list[str]:
 CHUNK_PREFIX_FIELDS_KEY = "chunk_prefix_fields"
 FIRST_CHUNK_FIELDS_KEY = "first_chunk_fields"
 
+# ── 청크 본문에 실을 때 붙일 사람이 읽는 항목명(field_labels) ────────────────
+# 목표필드명(BIZ_ID, DETAIL_TEXT)은 적재 DB 컬럼명이고 원천 key(depth4, htmlText)는 시스템
+# 이름이라, 둘 다 그대로 라벨로 쓰면 사람이 검색어로 쓰지 않는 토큰이 임베딩에 섞인다.
+# 그래서 "라벨을 붙일지"가 아니라 "사람이 붙인 이름이 있는지"를 기준으로 삼는다 —
+# 여기에 이름이 있는 필드만 `질문: …` 처럼 항목명과 함께 본문에 실린다.
+#
+#   field_labels:
+#     QUESTION: 질문
+#     ANSWER: 답변
+#
+# 설정 자리와 전달 경로는 chunk_prefix_fields 와 같다(custom_fields yaml → 문서 metadata).
+FIELD_LABELS_KEY = "field_labels"
+
+
+def parse_field_labels(value: Any) -> dict[str, str]:
+    """`목표필드: 항목명` 매핑을 해석한다. 이름이 빈 필드는 라벨 없이 값만 낸다."""
+    if not isinstance(value, dict):
+        return {}
+    labels: dict[str, str] = {}
+    for name, label in value.items():
+        key = str(name).strip()
+        text = "" if label is None else str(label).strip()
+        if key and text:
+            labels[key] = text
+    return labels
+
+
+def resolve_field_labels(kwargs: dict, metadata: Any = None) -> dict[str, str]:
+    """항목명 매핑을 kwargs > 문서 metadata 순으로 해석한다."""
+    from_kwargs = parse_field_labels((kwargs or {}).get(FIELD_LABELS_KEY))
+    if from_kwargs:
+        return from_kwargs
+    source = metadata if isinstance(metadata, dict) else {}
+    return parse_field_labels(source.get(FIELD_LABELS_KEY))
+
+
 
 def _resolve_field_rule(key: str, kwargs: dict, metadata: Any) -> list[str]:
     """제어 규칙 목록 하나를 kwargs > 문서 metadata 순으로 해석한다."""

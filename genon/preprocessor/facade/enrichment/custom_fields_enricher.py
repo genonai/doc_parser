@@ -311,6 +311,8 @@ class CustomFieldsEnricher(BaseEnricher):
         #   chunk_prefix_fields: 모든 청크에 반복 / first_chunk_fields: 첫 청크에만 1회
         self._chunk_prefix_fields = cp.parse_field_name_list(cfg.get(cp.CHUNK_PREFIX_FIELDS_KEY))
         self._first_chunk_fields = cp.parse_field_name_list(cfg.get(cp.FIRST_CHUNK_FIELDS_KEY))
+        # 위 두 규칙으로 얹힌 값 앞에 붙일 사람이 읽는 항목명. 이름이 있는 필드만 붙는다.
+        self._field_labels = cp.parse_field_labels(cfg.get(cp.FIELD_LABELS_KEY))
         self._headers: dict[str, str] = {"Content-Type": "application/json"}
         resolved_key = api_key or cfg.get("api_key", "")
         if resolved_key:
@@ -588,6 +590,8 @@ class CustomFieldsEnricher(BaseEnricher):
         if self._first_chunk_fields:
             normalized = {
                 **normalized, cp.FIRST_CHUNK_FIELDS_KEY: list(self._first_chunk_fields)}
+        if self._field_labels:
+            normalized = {**normalized, cp.FIELD_LABELS_KEY: dict(self._field_labels)}
         return normalized
 
     def _extract_raw_text(self, document: DoclingDocument) -> str:
