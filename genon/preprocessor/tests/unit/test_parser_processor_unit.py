@@ -954,7 +954,11 @@ class _StubDocumentScopeMapper:
         self.llm_field_specs = llm_field_specs
         self.resource_path = None
 
-    def document_input_fields(self, fields_list: list) -> dict:
+    def document_input_fields(
+        self, fields_list: list, input_field_names: list | None = None
+    ) -> dict:
+        # 파서가 spec.input_fields 를 함께 넘긴다(섹션 이름 입력 지원).
+        self.received_input_field_names = input_field_names
         return {"PRODUCT_INFO": "\n\n".join(f.get("SECTION_NM", "") for f in fields_list)}
 
 

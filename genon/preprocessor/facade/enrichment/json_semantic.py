@@ -50,6 +50,16 @@ json_records 는 레코드마다 LLM 을 부르지만, 이 모듈은 **문서(�
 호출되므로, `document_input_fields` 로 대표 입력 하나를 만들고 파서가 결과를 전 섹션에
 그대로 복사한다(`parser_processor._apply_llm_fields` 의 document 스코프 분기). 이 모듈은
 순수 변환만 담당하고 실제 LLM 호출은 하지 않는다.
+
+`llm_fields.input_fields` 에 적을 수 있는 이름은 세 가지다.
+
+  - `shared_fields` 의 목표필드명 (`PRODUCT_NM` …) — 짧은 사실값
+  - `PRODUCT_INFO` — 전 섹션 본문을 이어붙인 문서 전체 평문
+  - **JSON key 이름** (`htmlList`, `feeUrl` …) — 그 key 를 경로에 가진 섹션들의 청크 본문만.
+    문서 전체를 넣으면 토큰이 크고 노이즈가 많아 추출이 흔들리므로 필요한 부분만 좁힌다.
+
+어느 쪽으로도 못 찾은 이름은 경고를 남긴다 — 조용히 빠지면 빈 `raw_text` 로 LLM 이 호출돼
+"모델이 못 뽑았다"로 보이기 때문이다.
 """
 from __future__ import annotations
 
@@ -113,6 +123,22 @@ _ID_KEY_RE = re.compile(r"(?:id|code|no|seq)$", re.IGNORECASE)
 # 문자열(`<br>` 하나)은 그 문턱을 못 넘어 원문 태그가 그대로 새어 나갔다 — 이 정규식은 그
 # 문턱과 무관하게 "태그가 있는가" 만 본다.
 _HTML_TAG_RE = re.compile(r"<[a-zA-Z][^>]*>")
+
+
+# `input_fields` 이름을 SOURCE_JSON_PATH 세그먼트와 맞출 때 배열 인덱스를 떼는 패턴
+# (`benefit[3]` -> `benefit`). 이 모듈은 경로 문법을 쓰지 않으므로 사람이 적는 것은 언제나
+# key 이름 하나뿐이다.
+_PATH_INDEX_RE = re.compile(r"\[\d+\]$")
+
+
+def _path_segments(json_path: Any) -> set[str]:
+    """`$.htmlList.feeUrl` -> {"htmlList", "feeUrl"}. 루트 표식 `$` 는 제외한다."""
+    segments: set[str] = set()
+    for part in str(json_path or "").split("."):
+        part = _PATH_INDEX_RE.sub("", part.strip())
+        if part and part != "$":
+            segments.add(part)
+    return segments
 
 
 def _is_scalar(value: Any) -> bool:
@@ -786,18 +812,62 @@ class SemanticJsonMapper:
             result["metadata"] = {"doc_type": doc_type}
         return result
 
-    def document_input_fields(self, fields_list: list[dict]) -> dict:
+    def document_input_fields(
+        self, fields_list: list[dict], input_field_names: list[str] | None = None
+    ) -> dict:
         """문서(파일) 단위 LLM 입력용 대표 필드 dict.
 
         공통 정보(상품명/상품코드 등)는 모든 섹션이 같으므로 첫 섹션 것을 그대로 쓰고, 섹션
-        본문은 전부 이어붙여 `PRODUCT_INFO` 로 제공한다. `llm_fields.input_fields` 는 공통
-        필드명이나 `PRODUCT_INFO` 를 가리키면 된다.
+        본문은 전부 이어붙여 `PRODUCT_INFO` 로 제공한다.
+
+        `input_fields` 가 그중 어느 것도 아니면 **JSON key 이름**으로 해석해, 그 key 를 경로에
+        가진 섹션들의 청크 본문만 모아 같은 이름으로 실어 준다(`htmlList` = 그 컨테이너 아래
+        전부, `feeUrl` = 그 한 덩어리만). 카드 1장 전체(`PRODUCT_INFO`)를 넣으면 토큰이 크고
+        노이즈가 많아 추출 정확도가 떨어지므로, 필요한 부분만 좁혀 넣기 위한 것이다. 경로
+        문법은 없다 — 이 모듈의 다른 설정과 마찬가지로 key 이름만 적는다.
+
+        LLM 에 넣는 것은 원문 HTML 이 아니라 **청크에 실제로 실리는 평문**이다. 추출값이
+        이상할 때 청크만 보고 원인을 짚을 수 있어야 하고(LLM 은 봤는데 청크엔 없는 값이 생기면
+        환각과 구분되지 않는다), 태그를 걷어낸 쪽이 같은 정보를 훨씬 적은 토큰으로 담는다.
         """
         if not fields_list:
             return {}
         merged = {k: v for k, v in fields_list[0].items() if not str(k).startswith("_")}
         merged["PRODUCT_INFO"] = "\n\n".join(self.build_text(fields) for fields in fields_list)
+
+        for name in input_field_names or ():
+            name = str(name).strip()
+            if not name or name in merged:
+                continue
+            text = self._section_input_text(fields_list, name)
+            if text:
+                merged[name] = text
+                continue
+            # silent 축소 방지 — 예전에는 못 찾은 이름이 그냥 빠져서 raw_text 가 빈 채로
+            # LLM 에 나갔고, 모델이 근거 없이 null 을 돌려주는 것으로만 드러났다.
+            _log.warning(
+                f"[json_semantic] llm_fields.input_fields 의 '{name}' 을(를) 찾지 못했습니다 "
+                f"— 공통 필드도 PRODUCT_INFO 도 아니고, 이 이름을 경로에 가진 섹션도 없습니다. "
+                f"사용 가능한 이름: {sorted(set(merged) | self._section_input_names(fields_list))}"
+            )
         return merged
+
+    @staticmethod
+    def _section_input_names(fields_list: list[dict]) -> set[str]:
+        """`input_fields` 에 적을 수 있는 JSON key 이름 전체(경고 메시지용)."""
+        names: set[str] = set()
+        for fields in fields_list:
+            names |= _path_segments(fields.get("SOURCE_JSON_PATH"))
+        return names
+
+    def _section_input_text(self, fields_list: list[dict], name: str) -> str:
+        """`name` 을 경로에 가진 섹션들의 청크 본문(평문)을 선언 순서대로 이어붙인다."""
+        parts = [
+            self.build_text(fields)
+            for fields in fields_list
+            if name in _path_segments(fields.get("SOURCE_JSON_PATH"))
+        ]
+        return "\n\n".join(part for part in parts if part.strip())
 
 
 def build_semantic_json_mappers(configs: list[dict]) -> list[SemanticJsonMapper]:

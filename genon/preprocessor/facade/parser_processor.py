@@ -1558,7 +1558,7 @@ class DocumentProcessor:
                         fields.setdefault(name, None)
                 continue
 
-            document_fields = mapper.document_input_fields(fields_list)
+            document_fields = mapper.document_input_fields(fields_list, spec.input_fields)
             try:
                 result = await enricher.extract_fields_from_text(
                     spec.build_input_text(document_fields)

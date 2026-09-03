@@ -6,7 +6,10 @@
 검증한다. LLM 은 호출하지 않는다(llm_fields_scope="document" 는 parser_processor 쪽에서
 검증한다).
 """
+import json
+import logging
 import textwrap
+from pathlib import Path
 
 import pytest
 
@@ -657,3 +660,91 @@ sections:
     assert "첫째 혜택" not in prefix
     assert "판매중" not in prefix
     assert "테스트카드" in prefix
+
+
+# ── input_fields 에 JSON key 이름(섹션) 지정 ─────────────────────────────────
+#
+# 실데이터(sample_files/monimo/monimo_product_hpp_wcms_sample.json)로 검증한다 — 연회비 표는
+# 루트가 아니라 `htmlList.feeUrl` 안에 HTML 로 들어 있어서, shared_fields(루트 스칼라 전용)로는
+# 애초에 잡히지 않는다. "총연회비를 LLM 으로 뽑고 싶다"가 막혔던 실제 사례가 이 구조다.
+
+REAL_SAMPLE = (
+    Path(__file__).resolve().parents[2]
+    / "sample_files" / "monimo" / "monimo_product_hpp_wcms_sample.json"
+)
+
+
+def real_sample_mapper(tmp_path):
+    payload = json.loads(REAL_SAMPLE.read_text(encoding="utf-8"))
+    return write_mapper(tmp_path), payload
+
+
+def test_input_fields_accepts_json_key_and_narrows_to_that_section(tmp_path):
+    """`feeUrl` 한 이름으로 연회비 섹션 본문만 뽑아 온다 — 문서 전체보다 짧고, 값은 살아 있다."""
+    mapper, payload = real_sample_mapper(tmp_path)
+    fields_list = mapper.build_fields(payload, "product_hpp")
+    merged = mapper.document_input_fields(fields_list, ["feeUrl"])
+
+    assert "총 연회비" in merged["feeUrl"]
+    assert "20,000" in merged["feeUrl"] and "18,000" in merged["feeUrl"]
+    # 좁혀 넣는 것이 목적이므로 문서 전체보다 확실히 작아야 한다.
+    assert len(merged["feeUrl"]) < len(merged["PRODUCT_INFO"]) / 2
+    # 다른 섹션(혜택·유의사항)은 섞이지 않는다.
+    assert "빅포인트" not in merged["feeUrl"]
+
+
+def test_input_fields_json_key_carries_chunk_plaintext_not_raw_html(tmp_path):
+    """LLM 에 들어가는 것은 원문 HTML 이 아니라 청크에 실제로 실리는 평문이다."""
+    mapper, payload = real_sample_mapper(tmp_path)
+    fields_list = mapper.build_fields(payload, "product_hpp")
+    text = mapper.document_input_fields(fields_list, ["feeUrl"])["feeUrl"]
+
+    assert 'class="hide"' not in text and "<span" not in text
+    # 섹션 접두(제목 + 상품명/상품코드)가 함께 들어가 어느 카드 이야기인지 알 수 있다.
+    assert "[상품 문서] 연회비" in text
+    assert "상품명: 새마을금고 삼성카드 7" in text
+
+
+def test_input_fields_container_key_covers_all_children(tmp_path):
+    """컨테이너 이름(`htmlList`)을 적으면 그 아래 섹션이 모두 들어간다."""
+    mapper, payload = real_sample_mapper(tmp_path)
+    fields_list = mapper.build_fields(payload, "product_hpp")
+    merged = mapper.document_input_fields(fields_list, ["htmlList", "feeUrl"])
+
+    assert "총 연회비" in merged["htmlList"]
+    assert "이용 유의사항" in merged["htmlList"]
+    assert len(merged["htmlList"]) > len(merged["feeUrl"])
+
+
+def test_input_fields_unknown_name_warns_with_available_names(tmp_path, caplog):
+    """못 찾은 이름은 조용히 빠지지 않는다 — 빈 raw_text 로 LLM 이 호출되던 실패 모드의 회귀 방지.
+
+    캡처된 실제 설정이 쓴 `FEE`(shared_fields 로 `feeUrl` 을 잡으려던 시도)가 이 경우다.
+    """
+    mapper, payload = real_sample_mapper(tmp_path)
+    fields_list = mapper.build_fields(payload, "product_hpp")
+    with caplog.at_level(logging.WARNING):
+        merged = mapper.document_input_fields(fields_list, ["FEE"])
+
+    assert "FEE" not in merged
+    message = "\n".join(r.message for r in caplog.records)
+    assert "FEE" in message and "feeUrl" in message and "PRODUCT_INFO" in message
+
+
+def test_input_fields_shared_field_name_still_wins(tmp_path):
+    """기존 동작 보존 — 공통 필드명은 예전처럼 그 값 그대로다(섹션 검색으로 넘어가지 않는다)."""
+    mapper, payload = real_sample_mapper(tmp_path)
+    fields_list = mapper.build_fields(payload, "product_hpp")
+    merged = mapper.document_input_fields(fields_list, ["PRODUCT_NM", "PRODUCT_INFO"])
+
+    assert merged["PRODUCT_NM"] == "새마을금고 삼성카드 7"
+
+
+def test_input_fields_array_index_segments_match_by_key_name(tmp_path):
+    """`$.bubble[0]` 같은 배열 원소 섹션도 `bubble` 한 이름으로 잡힌다(경로 문법 불필요)."""
+    mapper, payload = real_sample_mapper(tmp_path)
+    fields_list = mapper.build_fields(payload, "product_hpp")
+    merged = mapper.document_input_fields(fields_list, ["bubble"])
+
+    assert "빅포인트" in merged["bubble"]
+    assert "총 연회비" not in merged["bubble"]
