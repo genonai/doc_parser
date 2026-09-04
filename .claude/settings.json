@@ -10,7 +10,7 @@
       "Bash(git check-ignore:*)",
       "Bash(rg:*)",
       "Bash(grep:*)",
-      "Bash(sed:*)",
+      "Bash(sed -n:*)",
       "Bash(awk:*)",
       "Bash(find:*)",
       "Bash(jq:*)",
