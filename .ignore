@@ -1,0 +1,16 @@
+# ripgrep / Grep 툴 전용 제외 목록 (git 추적 여부와 무관하게 검색에서만 뺀다).
+#
+# gitignore 는 reference/, shkim_labs/, code-serving/, dist/, build/, tmp/ 를 이미 걸러주지만
+# 아래 항목은 tracked 라서 gitignore 로는 빠지지 않는다. 일반적인 패턴 검색에서
+# 히트의 20~47% 가 여기서 나온다(실측: table 562 -> 298, ocr 185 -> 129, heading 120 -> 95).
+#
+# 이 파일 때문에 못 찾는 것이 있으면 rg --no-ignore-dot 으로 해제한다.
+# rg -u / --no-ignore 는 gitignore 까지 풀려 shkim_labs(5.0G) 를 훑으므로 쓰지 않는다.
+
+# docling 업스트림 테스트 fixture (268M / 408 파일)
+tests/data/
+tests/data_scanned/
+
+# 대형 생성물 — 페이지 단위 파싱 결과 덤프, 노트북 출력
+*.pages.json
+*.ipynb

@@ -20,13 +20,18 @@ docling(v2.41.0) 포크 위에 GenOn 전처리기(genon/preprocessor)를 올린 
 
 **수정 금지 / 탐색 제외** (모두 gitignore됨): `reference/`, `shkim_labs/`, `dist/`, `build/`, `debug/`, `tmp/`, `code-serving/`.
 `facade/legacy/` 는 **기본적으로 참조하지 않는다** — 별도 배포 단위이므로 활성 경로 작업에 끌어들이지 말고, 사용자가 명시적으로 언급할 때만 읽는다.
-저장소 전체가 11G / 6만 파일 이상이므로 검색은 관련 경로만 지정하고 대형 fixture·노트북은 제외한다.
+저장소 전체가 11G / 6만 파일 이상이다. 대형 fixture·노트북 제외는 루트 `.ignore` 가
+자동으로 해주므로(`rg` 와 `Grep` 툴 양쪽에 적용) 글롭을 손으로 붙일 필요는 없다.
 
 ```bash
-rg '<pattern>' main.py genon docling tests build-script \
-  --glob '!tests/data/**' --glob '!tests/data_scanned/**' \
-  --glob '!**/*.pages.json' --glob '!**/*.ipynb'
+rg '<pattern>' main.py genon docling tests build-script
 ```
+
+`.ignore` 가 빼는 것은 `tests/data/`, `tests/data_scanned/`, `*.pages.json`, `*.ipynb` 이고
+`reference/`·`shkim_labs/`·`code-serving/` 은 gitignore 로 이미 빠진다. 일반적인 패턴에서
+히트의 20~47% 가 이 노이즈다(실측: `table` 562→298, `ocr` 185→129).
+그 안을 봐야 하면 `rg --no-ignore-dot` 을 쓴다 — `-u`/`--no-ignore` 는 gitignore 까지 풀려
+`shkim_labs`(5.0G) 를 훑으므로 쓰지 않는다.
 
 ## 진입점 2개
 
@@ -147,7 +152,7 @@ cd genon/preprocessor
 **doc_type 자동 검증** — custom_fields 를 건드렸거나 facade 파싱·청킹 경로를 바꿨으면 함께 돌린다. 실제로 파싱·청킹하고 LLM 을 호출해 유닛보다 느리지만, yaml 이 약속한 필드가 실제 청크에 실렸는지는 이것으로만 확인된다.
 
 ```bash
-genon/preprocessor/examples/parse_chunk/parse_chunk_verify.sh          # doc_type 20종
+genon/preprocessor/examples/parse_chunk/parse_chunk_verify.sh          # 케이스 23건 / doc_type 14종
 genon/preprocessor/examples/parse_chunk/parse_chunk_verify.sh --only faq menu
 ```
 
@@ -198,7 +203,11 @@ conventional prefix 없음, PR 대상은 `develop`, 본문에 `Resolves #N` 을 
 ## .claude/ 도구 설정
 
 - `settings.json` — 빌드 산출물·캐시·`code-serving/`·`shkim_labs/` 를 Read 에서 차단하고, `reference/` 와 `code-serving/` 은 Edit 에서 차단한다(`reference/` 는 읽기 전용 참조용이라 Read 는 허용).
+- `.ignore` — `rg`/`Grep` 전용 제외 목록. 위 "저장소 지도" 절 참조.
 - `hooks/pytest-filter.sh` — PreToolUse(Bash) 훅. 단순한 pytest 명령에 `--color=no -p no:randomly` 를 붙이고 PASSED/SKIPPED 줄을 걷어낸다(실측 11,949→653바이트, 종료 코드는 `pipefail` 로 보존). 파이프·`&&` 가 섞인 복합 명령은 건드리지 않는다.
+  - 실행 위치도 교정한다. `tests/unit|smoke|regression` 인자가 실행 기준 디렉터리에 없고 `genon/preprocessor` 아래에 있으면 절대경로 `cd` 를 앞에 붙인다. 훅은 Bash 툴이 유지하는 cwd 를 볼 수 없어서(입력의 `cwd` 는 늘 루트) 차단 대신 교정으로 처리한다 — 차단 방식은 cwd 가 이미 `genon/preprocessor` 인 정상 명령을 막았다. 복합 명령에는 적용되지 않는다.
+- `hooks/large-file-read-guard.sh` — PreToolUse(Read) 훅. 1,200줄 초과 텍스트 파일을 `offset`/`limit` 없이 Read 하려 하면 거부하고 Grep 선행을 요구한다. 활성 `.py` 393개 중 26개가 대상이며 "큰 파일 취급 규칙" 절의 7개 파일이 모두 포함된다. 전체가 정말 필요하면 `offset=1 limit=<줄수>` 로 의도를 명시하면 통과한다.
+- `agents/scope-check.md` — "수정 범위" 절의 판정 기준 5개를 고정한 서브에이전트. 변경 적용 전이나 PR 직전에 diff/계획의 범위 과잉만 판정한다(버그 사냥은 범위 밖).
 - 스킬 — `deploy-code-serving`, `create-patch-bundle`(배포·패치 절차), `issue-start`/`wip`/`open-pr`(위 GitHub 흐름). 필요할 때만 로드된다.
 - `pyright-lsp` 플러그인(선택, 개인 설정이라 미공유). 설치되어 있으면 심볼 정의 탐색에 Grep 대신 LSP 를 우선한다. `npm install -g pyright` 후 `claude plugin install pyright-lsp@claude-plugins-official --scope local`.
 
