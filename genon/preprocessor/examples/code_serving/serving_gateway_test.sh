@@ -6,6 +6,9 @@
 # 인증키는 인자로 넘기지 않습니다 — 스크립트가 읽는 python 이 GENOS_AUTH_KEY 를 직접 읽으므로,
 # 넘기면 `ps` 등 프로세스 목록에 토큰이 그대로 보입니다.
 
+GENOS_BASE_URL="${GENOS_BASE_URL:-https://genos.genon.ai}"
+GENOS_SERVING_ID="${GENOS_SERVING_ID:?GENOS_SERVING_ID 을 지정하세요}"
+: "${GENOS_AUTH_KEY:?GENOS_AUTH_KEY 을 지정하세요}"
 
 # python serving_gateway_test.py --mode e2e --file-path "/app/src/service/genon/preprocessor/sample_files/pdf_sample.pdf" --out result_serving_gateway_test/
 # python serving_gateway_test.py --mode parser_upload --upload-file "../sample_files/hwp_sample_table.hwp" --out-doc result_serving_gateway_test/doc.json --serving-id "$GENOS_SERVING_ID"
