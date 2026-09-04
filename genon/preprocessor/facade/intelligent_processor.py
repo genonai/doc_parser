@@ -440,6 +440,9 @@ class DocumentProcessor:
         # safe 면 청킹 입력에 문자 위생(tn.sanitize)을, 벡터 생성 직전에 표현 정리(tn.tidy)를 적용한다.
         # 우선순위: kwargs.text_cleanup > 아래 > "off".
         self._text_cleanup = tn.mode_from_cfg(chunking_cfg)
+        # 사이트별 노이즈 삭제 규칙(text_cleanup.rules). 기동 시 정규식을 컴파일해
+        # 잘못된 설정을 요청 전에 드러낸다. 규칙이 없으면 빈 튜플이라 무비용이다.
+        self._text_cleanup_rules = tn.rules_from_cfg(chunking_cfg)
 
         # xlsx(엑셀) 직접 처리 설정(이슈 #288). formats.xlsx 아래에 둔다(포맷별 옵션 컨테이너).
         #   processing_mode: docling(기본)=MsExcel 백엔드로 DoclingDocument 후 기존 파이프라인 /
@@ -787,7 +790,7 @@ class DocumentProcessor:
         # 표 표기형태별 변형 텍스트도 같은 방식으로 청커에서 받는다.
         self._table_variants = getattr(chunker, "_table_variants", None)
         if _cleanup:
-            chunks = tn.drop_blank_chunks(chunks)
+            chunks = tn.drop_blank_chunks(chunks, rules=tn.rules_of(self))
         for chunk in chunks:
             if chunk.meta.doc_items[0].prov:
                 self.page_chunk_counts[chunk.meta.doc_items[0].prov[0].page_no] += 1

@@ -418,6 +418,9 @@ class DocumentProcessor:
         # safe 면 청킹 입력에 문자 위생(tn.sanitize)을, 벡터 생성 직전에 표현 정리(tn.tidy)를 적용한다.
         # 우선순위: kwargs.text_cleanup > 아래 > "off".
         self._text_cleanup = tn.mode_from_cfg(chunking_cfg)
+        # 사이트별 노이즈 삭제 규칙(text_cleanup.rules). 기동 시 정규식을 컴파일해
+        # 잘못된 설정을 요청 전에 드러낸다. 규칙이 없으면 빈 튜플이라 무비용이다.
+        self._text_cleanup_rules = tn.rules_from_cfg(chunking_cfg)
 
         # xlsx(엑셀) 처리 설정(이슈 #288). formats.xlsx 아래에 둔다(포맷별 옵션 컨테이너).
         #   docling(기본): xlsx 를 docling MsExcel 백엔드로 처리(현행) → 기존 청킹/벡터 파이프라인.
@@ -819,13 +822,13 @@ class DocumentProcessor:
         # 청크 텍스트 정규화(text_cleanup=safe): 분할 전에 문자 위생을 적용한다.
         _cleanup = tn.enabled_for(kwargs, self)
         if _cleanup:
-            tn.sanitize_langchain_docs(documents)
+            tn.sanitize_langchain_docs(documents, tn.rules_of(self))
 
         text_splitter = RecursiveCharacterTextSplitter(**splitter_params)
         chunks = text_splitter.split_documents(documents)
         # 내용이 남지 않는 청크는 page_chunk_counts 집계 전에 제거한다.
         if _cleanup:
-            chunks = tn.drop_blank_chunks(chunks, "page_content")
+            chunks = tn.drop_blank_chunks(chunks, "page_content", rules=tn.rules_of(self))
         else:
             chunks = [chunk for chunk in chunks if chunk.page_content]
         if not chunks:
@@ -881,7 +884,7 @@ class DocumentProcessor:
         # 표 표기형태별 변형 텍스트도 같은 방식으로 청커에서 받는다.
         self._table_variants = getattr(chunker, "_table_variants", None)
         if _cleanup:
-            chunks = tn.drop_blank_chunks(chunks)
+            chunks = tn.drop_blank_chunks(chunks, rules=tn.rules_of(self))
         for chunk in chunks:
             if chunk.meta.doc_items[0].prov:
                 self.page_chunk_counts[chunk.meta.doc_items[0].prov[0].page_no] += 1

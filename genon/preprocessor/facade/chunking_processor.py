@@ -443,6 +443,9 @@ class DocumentProcessor:
         # safe 면 청킹 입력에 문자 위생(tn.sanitize)을, 벡터 생성 직전에 표현 정리(tn.tidy)를 적용한다.
         # 우선순위: kwargs.text_cleanup > 아래 > "off".
         self._text_cleanup = tn.mode_from_cfg(chunking_cfg)
+        # 사이트별 노이즈 삭제 규칙(text_cleanup.rules). 기동 시 정규식을 컴파일해
+        # 잘못된 설정을 요청 전에 드러낸다. 규칙이 없으면 빈 튜플이라 무비용이다.
+        self._text_cleanup_rules = tn.rules_from_cfg(chunking_cfg)
 
         # 민감정보 분류(#315): chunking 은 워크플로우를 직접 호출하지 않는다(parser 가 호출).
         # parser 가 넘긴 sensitive_infos 를 청크에 적용만 하며, 치환 여부는 masking_enabled 로 결정.
@@ -710,7 +713,7 @@ class DocumentProcessor:
         # 표 표기형태별 변형 텍스트도 같은 방식으로 청커에서 받는다.
         self._table_variants = getattr(chunker, "_table_variants", None)
         if _cleanup:
-            chunks = tn.drop_blank_chunks(chunks)
+            chunks = tn.drop_blank_chunks(chunks, rules=tn.rules_of(self))
         for chunk in chunks:
             if chunk.meta.doc_items[0].prov:
                 self.page_chunk_counts[chunk.meta.doc_items[0].prov[0].page_no] += 1
@@ -1084,7 +1087,7 @@ class DocumentProcessor:
         chunks = splitter.split_documents(docs)
         # 정규화 시 공백만 남는 청크도 제거한다(페이지 카운트 집계 전이어야 한다).
         if _cleanup_out:
-            chunks = tn.drop_blank_chunks(chunks, "page_content")
+            chunks = tn.drop_blank_chunks(chunks, "page_content", rules=tn.rules_of(self))
         else:
             chunks = [c for c in chunks if c.page_content]
         if not chunks:
@@ -1365,7 +1368,7 @@ class DocumentProcessor:
         # (text 만 정규화하면 같은 내용이 두 표현으로 저장된다).
         _cleanup_in = tn.enabled_for(kwargs, self)
         if _cleanup_in:
-            elements = tn.sanitize_elements(elements)
+            elements = tn.sanitize_elements(elements, tn.rules_of(self))
 
         # 0) 행 기반 tabular/custom_fields 가드. faq_row는 이전 산출물 하위 호환용이다.
         non_empty_all = [el for el in elements if isinstance(el, dict)]

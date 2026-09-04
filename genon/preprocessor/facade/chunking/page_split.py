@@ -108,7 +108,7 @@ def split_documents_by_page(processor, documents, chunker_cls, *,
         page_chunks = merged
 
     if _cleanup:
-        page_chunks = tn.drop_blank_chunks(page_chunks)
+        page_chunks = tn.drop_blank_chunks(page_chunks, rules=tn.rules_of(processor))
     for ch in page_chunks:
         if ch.meta.doc_items and ch.meta.doc_items[0].prov:
             processor.page_chunk_counts[ch.meta.doc_items[0].prov[0].page_no] += 1

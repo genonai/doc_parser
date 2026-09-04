@@ -23,7 +23,10 @@ LLM 재작성이나 문장 병합은 하지 않는다. 원문 의미, 표 구조
 줄 정리를 하지 않는다. 문자 위생(제로폭 제거, NFC 등)은 코드 안에서도 안전하므로
 전 구간에 적용한다.
 
-설정은 chunking.text_cleanup 하나뿐이다("off" 기본 | "safe").
+설정은 chunking.text_cleanup 하나뿐이다("off" 기본 | "safe"). 블록으로 쓰면
+`{mode: safe, rules: [...]}` 로 **그 사이트에만 있는 노이즈**를 정규식으로 지울 수 있다
+(아래 "패턴 규칙" 절). 규칙도 sanitize 와 같은 자리(청킹 입력)에 걸어야 청크 경계가
+삭제를 반영한다.
 """
 from __future__ import annotations
 
@@ -43,6 +46,12 @@ __all__ = [
     "sanitize_elements",
     "sanitize_metadata",
     "mode_from_cfg",
+    "rules_from_cfg",
+    "rules_of",
+    "apply_rules",
+    "chunk_dropped",
+    "RULE_ACTIONS",
+    "RULES_ATTR",
     "mode_of",
     "mode_for",
     "enabled_for",
@@ -181,11 +190,121 @@ def _map_outside_inline_code(text: str, fn: Callable[[str], str]) -> str:
 
 
 # ---------------------------------------------------------------------------
+# 패턴 규칙 (chunking.text_cleanup.rules)
+#
+# 위 치환 테이블이 "어느 문서에나 안전한 문자 위생" 이라면, 규칙은 **그 사이트의 원천에만
+# 있는 노이즈**를 설정으로 지우는 수단이다. 무엇을 지울지 내용으로 판정하지 않는다 —
+# 설정이 준 정규식만 본다.
+#
+#   text_cleanup:
+#     mode: safe
+#     rules:                                        # 순서대로 적용
+#       - {line: "^\\s*목차\\s*$"}                   # 매칭되는 줄을 지운다
+#       - {find: "\\[이미지[^\\]]*\\]", replace: ""}  # 부분 치환
+#       - {chunk: "^본 문서는 참고용"}                # 청크 자체를 버린다
+#
+# 키 이름이 곧 액션이다(`action:` 을 하나 더 만들지 않는다).
+# ---------------------------------------------------------------------------
+
+RULE_ACTIONS = ("line", "find", "chunk")
+RULES_ATTR = "_text_cleanup_rules"
+
+# 마크다운 표 행. `line` 규칙이 여기 걸리면 표가 통째로 깨지므로 건너뛴다
+# (표 셀 텍스트에는 `line` 규칙을 아예 태우지 않는다 — `_cell_rules` 참고).
+_TABLE_ROW_RE = re.compile(r"^\s*\|")
+
+
+def rules_from_cfg(chunking_cfg: dict) -> tuple:
+    """yaml `chunking.text_cleanup.rules` → 컴파일된 규칙 튜플.
+
+    정규식과 액션 이름을 **기동 시** 검증한다(`compile_transforms` 선례). 요청 때 터지면
+    로그만 보고는 어느 설정이 문제인지 알 수 없다.
+    """
+    cfg = (chunking_cfg or {}).get("text_cleanup")
+    if not isinstance(cfg, dict):
+        return ()
+    raw = cfg.get("rules")
+    if raw is None:
+        return ()
+    if not isinstance(raw, list):
+        raise ValueError("chunking.text_cleanup.rules 는 목록이어야 합니다(각 항목 앞에 '- ').")
+
+    compiled: list = []
+    for index, item in enumerate(raw, start=1):
+        where = f"chunking.text_cleanup.rules[{index}]"
+        if not isinstance(item, dict):
+            raise ValueError(f"{where} 는 `{{line: …}}` 같은 object 여야 합니다.")
+        actions = [k for k in item if k in RULE_ACTIONS]
+        unknown = sorted(k for k in item if k not in RULE_ACTIONS and k != "replace")
+        if unknown:
+            raise ValueError(
+                f"{where}: 쓸 수 없는 키 {unknown}. 쓸 수 있는 것: {list(RULE_ACTIONS)} (+ find 의 replace)"
+            )
+        if len(actions) != 1:
+            raise ValueError(
+                f"{where}: 액션 키를 정확히 하나 적어야 합니다 — {list(RULE_ACTIONS)} 중 하나 "
+                f"(지금: {actions or '없음'})"
+            )
+        action = actions[0]
+        if "replace" in item and action != "find":
+            raise ValueError(f"{where}: replace 는 find 와 함께만 쓸 수 있습니다.")
+        pattern = item[action]
+        try:
+            regex = re.compile(str(pattern))
+        except re.error as exc:
+            raise ValueError(f"{where}: 정규식이 잘못됐습니다: {exc}") from exc
+        compiled.append((action, regex, str(item.get("replace") or "")))
+    return tuple(compiled)
+
+
+def _cell_rules(rules: tuple) -> tuple:
+    """표 셀에 태울 규칙만 남긴다 — 셀은 "줄" 이 아니라 값이라 `line` 을 적용하지 않는다."""
+    return tuple(r for r in rules if r[0] != "line")
+
+
+def _apply_rules_segment(segment: str, rules: tuple) -> str:
+    for action, regex, replacement in rules:
+        if action == "find":
+            segment = regex.sub(replacement, segment)
+        elif action == "line":
+            segment = "\n".join(
+                line for line in segment.split("\n")
+                if _TABLE_ROW_RE.match(line) or not regex.search(line)
+            )
+    return segment
+
+
+def apply_rules(text: Optional[str], rules: tuple) -> Optional[str]:
+    """`line`/`find` 규칙을 적용한다. 코드 구간(펜스·인라인 백틱)은 건너뛴다.
+
+    `chunk` 규칙은 여기서 보지 않는다 — 청크 하나를 통째로 버리는 판정이라 출력 단계
+    (`drop_blank_chunks`)가 맡는다.
+    """
+    if not text or not isinstance(text, str) or not rules:
+        return text
+    active = tuple(r for r in rules if r[0] != "chunk")
+    if not active:
+        return text
+    return _map_outside_code(text, lambda seg: _apply_rules_segment(seg, active))
+
+
+def chunk_dropped(text: Optional[str], rules: tuple) -> bool:
+    """`chunk` 규칙에 걸려 이 청크를 통째로 버려야 하는가."""
+    if not text or not isinstance(text, str) or not rules:
+        return False
+    return any(action == "chunk" and regex.search(text) for action, regex, _ in rules)
+
+
+# ---------------------------------------------------------------------------
 # 공개 API
 # ---------------------------------------------------------------------------
 
-def sanitize(text: Optional[str]) -> Optional[str]:
-    """문자 위생. 줄 구조는 바꾸지 않는다(길이가 줄 수는 있다)."""
+def sanitize(text: Optional[str], rules: tuple = ()) -> Optional[str]:
+    """문자 위생(+ 설정 규칙). 줄 구조는 바꾸지 않는다(길이가 줄 수는 있다).
+
+    규칙은 문자 위생 **뒤**에 돈다 — 전각 괄호나 특수 공백이 섞인 원문에도 설정의
+    정규식이 그대로 맞도록 표기를 먼저 고르고 나서 지운다.
+    """
     if not text or not isinstance(text, str):
         return text
     result = text.replace("\r\n", "\n").replace("\r", "\n")
@@ -193,7 +312,8 @@ def sanitize(text: Optional[str]) -> Optional[str]:
     # NFC. macOS 유래 파일이나 HWP 경유 텍스트의 한글 자모 분리(NFD)를 되돌린다.
     # 이 항목 하나가 검색 매칭에 미치는 영향이 가장 크다.
     result = unicodedata.normalize("NFC", result)
-    return _map_outside_code(result, lambda seg: seg.translate(_ASCII_MAP))
+    result = _map_outside_code(result, lambda seg: seg.translate(_ASCII_MAP))
+    return apply_rules(result, rules)
 
 
 def _tidy_segment(segment: str) -> str:
@@ -215,7 +335,7 @@ def is_blank(text: Optional[str]) -> bool:
     return not text or not str(text).strip()
 
 
-def sanitize_document(document) -> None:
+def sanitize_document(document, rules: tuple = ()) -> None:
     """DoclingDocument 의 텍스트 아이템과 표 셀을 제자리에서 sanitize 한다.
 
     docling 타입을 import 하지 않고 duck typing 으로 처리한다(공용 모듈이
@@ -227,13 +347,14 @@ def sanitize_document(document) -> None:
         items = list(document.iterate_items())
     except Exception:
         return
+    cell_rules = _cell_rules(rules)
     for entry in items:
         item = entry[0] if isinstance(entry, tuple) else entry
         for attr in ("text", "orig"):
             value = getattr(item, attr, None)
             if isinstance(value, str) and value:
                 try:
-                    setattr(item, attr, sanitize(value))
+                    setattr(item, attr, sanitize(value, rules))
                 except Exception:
                     pass
         data = getattr(item, "data", None)
@@ -241,12 +362,12 @@ def sanitize_document(document) -> None:
             value = getattr(cell, "text", None)
             if isinstance(value, str) and value:
                 try:
-                    cell.text = sanitize(value)
+                    cell.text = sanitize(value, cell_rules)
                 except Exception:
                     pass
 
 
-def sanitize_elements(elements) -> list:
+def sanitize_elements(elements, rules: tuple = ()) -> list:
     """parse-format element 리스트의 content 와 metadata 문자열을 sanitize 한다.
 
     행 기반(tabular_row/custom_fields_row) 경로는 metadata 가 그대로 청크
@@ -260,33 +381,34 @@ def sanitize_elements(elements) -> list:
             continue
         content = element.get("content")
         if isinstance(content, str) and content:
-            element["content"] = sanitize(content)
+            element["content"] = sanitize(content, rules)
         metadata = element.get("metadata")
         if isinstance(metadata, dict):
-            element["metadata"] = sanitize_metadata(metadata)
+            # metadata 는 적재 컬럼 값이라 "줄" 단위 삭제가 뜻을 갖지 않는다(표 셀과 같다).
+            element["metadata"] = sanitize_metadata(metadata, _cell_rules(rules))
         # 접두는 content 선두와 글자 단위로 같아야 한다. content 만 sanitize 하면
         # 조각 분할 경로의 `content.startswith(prefix)` 가 어긋나 접두 재부착이 조용히
         # 포기된다(두 번째 조각부터 어느 카드·섹션인지 사라진다).
         prefix = element.get("chunk_prefix")
         if isinstance(prefix, str) and prefix:
-            element["chunk_prefix"] = sanitize(prefix)
+            element["chunk_prefix"] = sanitize(prefix, rules)
     return elements
 
 
-def sanitize_metadata(metadata: dict) -> dict:
+def sanitize_metadata(metadata: dict, rules: tuple = ()) -> dict:
     """dict 안의 문자열 값(중첩 dict/list 포함)을 sanitize 한 새 dict 를 만든다."""
     if not isinstance(metadata, dict):
         return metadata
-    return {key: _sanitize_value(value) for key, value in metadata.items()}
+    return {key: _sanitize_value(value, rules) for key, value in metadata.items()}
 
 
-def _sanitize_value(value):
+def _sanitize_value(value, rules: tuple = ()):
     if isinstance(value, str):
-        return sanitize(value)
+        return sanitize(value, rules)
     if isinstance(value, dict):
-        return {k: _sanitize_value(v) for k, v in value.items()}
+        return {k: _sanitize_value(v, rules) for k, v in value.items()}
     if isinstance(value, list):
-        return [_sanitize_value(v) for v in value]
+        return [_sanitize_value(v, rules) for v in value]
     return value
 
 
@@ -298,8 +420,20 @@ def _sanitize_value(value):
 # ---------------------------------------------------------------------------
 
 def mode_from_cfg(chunking_cfg: dict) -> str:
-    """yaml `chunking:` 섹션에서 text_cleanup 모드를 읽는다(미설정/오타는 off)."""
-    return resolve_mode((chunking_cfg or {}).get("text_cleanup"), MODE_OFF)
+    """yaml `chunking:` 섹션에서 text_cleanup 모드를 읽는다(미설정/오타는 off).
+
+    블록 표기(`{mode: safe, rules: […]}`)는 **yaml 에만 있다** — 여기서만 푼다.
+    `resolve_mode` 는 요청 kwargs 도 타는데, kwargs 로 dict 를 받아 주면 `rules` 는
+    아무도 안 읽는(기동 시 컴파일본만 쓴다) 반쪽 계약이 생긴다.
+
+    `mode` 를 생략한 블록은 `rules` 가 실제로 있을 때만 safe 로 본다. 그렇게 하지 않으면
+    `{mdoe: safe}` 같은 오타 블록이 off 를 safe 로 뒤집어, 규칙도 없이 문자 위생만 켜져
+    청크 본문이 조용히 바뀐다(재색인 영향).
+    """
+    value = (chunking_cfg or {}).get("text_cleanup")
+    if isinstance(value, dict):
+        return resolve_mode(value.get("mode"), MODE_SAFE if value.get("rules") else MODE_OFF)
+    return resolve_mode(value, MODE_OFF)
 
 
 ATTR = "_text_cleanup"
@@ -332,29 +466,47 @@ def enabled_for(kwargs: dict, owner) -> bool:
     return mode_for(kwargs, owner) == MODE_SAFE
 
 
+def rules_of(owner) -> tuple:
+    """yaml 에서 컴파일해 둔 규칙을 읽는다.
+
+    `object.__new__` 로 __init__ 을 우회해 만든 인스턴스(단위 테스트 스텁)에는 속성이
+    없으므로 빈 튜플로 본다 — 기본값이 없으면 그 테스트들이 AttributeError 로 죽는다.
+    """
+    if owner is None or isinstance(owner, (str, bool)):
+        return ()
+    value = getattr(owner, RULES_ATTR, ())
+    return tuple(value) if value else ()
+
+
 def prepare_document(document, kwargs: dict, owner) -> bool:
-    """청킹 직전 문서에 문자 위생을 적용하고, 정규화 활성 여부를 돌려준다.
+    """청킹 직전 문서에 문자 위생(+ 설정 규칙)을 적용하고, 정규화 활성 여부를 돌려준다.
 
     호출부는 반환값으로 이후 단계(빈 청크 제거 등)를 게이팅한다.
+    규칙을 **청킹 입력**에 거는 것이 중요하다 — 출력 직전에 걸면 청크 경계와 n_char 가
+    이미 확정된 뒤라 삭제량만큼 청크가 작아지고 빈 청크가 남는다.
     """
     if not enabled_for(kwargs, owner):
         return False
-    sanitize_document(document)
+    sanitize_document(document, rules_of(owner))
     return True
 
 
-def drop_blank_chunks(chunks, attr: str = "text") -> list:
-    """내용이 남지 않는 청크를 제거한다.
+def drop_blank_chunks(chunks, attr: str = "text", rules: tuple = ()) -> list:
+    """내용이 남지 않는 청크와 `chunk` 규칙에 걸린 청크를 제거한다.
 
     반드시 페이지 카운트(page_chunk_counts) 집계 전에 호출해야 한다. 집계 뒤에
     제거하면 n_chunk_of_doc / n_chunk_of_page 와 i_chunk_* 인덱스가 어긋난다.
     """
-    return [c for c in chunks if not is_blank(getattr(c, attr, None))]
+    return [
+        c for c in chunks
+        if not is_blank(getattr(c, attr, None))
+        and not chunk_dropped(getattr(c, attr, None), rules)
+    ]
 
 
-def sanitize_langchain_docs(documents) -> None:
+def sanitize_langchain_docs(documents, rules: tuple = ()) -> None:
     """langchain Document 리스트의 page_content 를 제자리에서 sanitize 한다."""
     for doc in documents or []:
         content = getattr(doc, "page_content", None)
         if isinstance(content, str) and content:
-            doc.page_content = sanitize(content)
+            doc.page_content = sanitize(content, rules)
