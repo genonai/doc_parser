@@ -25,7 +25,7 @@ SERVING_DIR=$(mktemp -d) bash build-script/sync-serving-repo.sh
 ```
 
 **docling 을 고쳤으면 wheel 재빌드가 필수다.**
-배포본에는 docling 소스가 들어가지 않고 `packages/` 의 wheel 만 동봉된다. 핫픽스 overlay(`create_patch.sh` 계열)는 genon 전용이라 docling 변경을 전달하지 못한다.
+배포본에는 docling 소스가 들어가지 않고 `packages/` 의 wheel 만 동봉된다. 핫픽스 overlay(`build-script/create-patch-bundle.sh` 계열)는 genon 전용이라 docling 변경을 전달하지 못한다.
 
 ```bash
 bash build-script/build-docling-wheel.sh

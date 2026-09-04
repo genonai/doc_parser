@@ -16,7 +16,7 @@ docling(v2.41.0) 포크 위에 GenOn 전처리기(genon/preprocessor)를 올린 
 | `genon/preprocessor/examples/` | 손으로 돌리는 검증 스크립트 (테스트 절 참조) |
 | `docling/` | 포크된 docling 본체. 백엔드·파이프라인 수정은 여기 |
 | `tests/` | docling 업스트림 테스트 |
-| `build-script/` | 도커 이미지 빌드, 코드서빙 저장소 동기화 |
+| `build-script/` | 도커 이미지 빌드, 코드서빙 저장소 동기화, 핫픽스 패치 번들 생성. 저장소의 셸 스크립트는 전부 여기 둔다 |
 
 **수정 금지 / 탐색 제외** (모두 gitignore됨): `reference/`, `shkim_labs/`, `dist/`, `build/`, `debug/`, `tmp/`, `code-serving/`.
 `facade/legacy/` 는 **기본적으로 참조하지 않는다** — 별도 배포 단위이므로 활성 경로 작업에 끌어들이지 말고, 사용자가 명시적으로 언급할 때만 읽는다.

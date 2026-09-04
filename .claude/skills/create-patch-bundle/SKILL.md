@@ -1,6 +1,6 @@
 ---
 name: create-patch-bundle
-description: genon 전처리기 핫픽스 패치 번들(dist/<이름>) 생성. "패치 번들", "핫픽스 전달", "create_patch" 관련 작업일 때 사용한다.
+description: genon 전처리기 핫픽스 패치 번들(dist/<이름>) 생성. "패치 번들", "핫픽스 전달", "create-patch-bundle", "create_patch"(옛 이름) 관련 작업일 때 사용한다.
 ---
 
 # 패치 번들 생성
@@ -8,9 +8,12 @@ description: genon 전처리기 핫픽스 패치 번들(dist/<이름>) 생성. "
 운영 환경에 genon 전처리기 변경만 얹을 때 쓰는 overlay 번들을 만든다.
 
 ```bash
-bash create_patch.sh patch_20260829
+bash build-script/create-patch-bundle.sh patch_20260829
 # → dist/patch_20260829/ 에 생성
 ```
+
+저장소 루트가 아닌 곳에서 호출해도 된다. 스크립트가 `git rev-parse --show-toplevel` 로
+루트를 찾으므로 출력은 항상 저장소 루트의 `dist/` 다.
 
 ## 동작
 
