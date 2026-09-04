@@ -93,8 +93,8 @@ genon/preprocessor/docs/plans/README.md 와 <작업파일>.md 를 읽고 그 작
 | 01 | [01-semantic-body-explicit.md](01-semantic-body-explicit.md) | sections 본문 포함 규칙 명시화 | | 완료 (task/360) |
 | 02 | [02-semantic-exclude-merge.md](02-semantic-exclude-merge.md) | `include: false` → `ignore_keys` 통합 | | 완료 (task/360) |
 | 03 | [03-semantic-field-pipeline.md](03-semantic-field-pipeline.md) | sections 에 값 파이프라인 개방 | | 완료 (task/360) |
-| 04 | [04-document-field-pipeline.md](04-document-field-pipeline.md) | document 에 값 파이프라인 + `alias` 개방 | | 미착수 |
-| 05 | [05-transform-html-text.md](05-transform-html-text.md) | `from`/`as` → `transform` 통합 | **O** | 미착수 |
+| 04 | [04-document-field-pipeline.md](04-document-field-pipeline.md) | document 에 값 파이프라인 + `alias` 개방 | | 완료 (task/360) |
+| 05 | [05-transform-html-text.md](05-transform-html-text.md) | `from`/`as` → `transform` 통합 | **O** | 완료 (task/360) |
 | 06 | [06-chunk-text-rules.md](06-chunk-text-rules.md) | 청크 텍스트 패턴 후처리 | 무관(v2 밖) | 미착수 |
 
 ## B. intelligent 기능 동등화
@@ -142,8 +142,17 @@ B) 07 (분석·0단계) ─→ 08 ─┐
   조사 중 눈에 띈 다른 결함은 아래 "별도 이슈" 에 적고 이번 변경에 끌어들이지 않는다.
 - **docling 은 건드리지 않는다.** 6개 작업 모두 `genon/preprocessor/` 안에서 끝난다.
   docling 수정이 필요해 보이면 그 판단 자체가 틀렸을 가능성이 높으니 먼저 보고한다.
-- **하위호환은 `normalize()` 에서 흡수한다.** 옛 표기를 매퍼까지 흘려보내지 말고 번역 계층에서
-  새 표기로 바꾼다. 템플릿(`resource/templates/custom_field_TEMPLATE_*.yaml`)에서는 옛 표기를 지운다.
+- **하위호환 흡수는 v1·v2 두 경로가 합류하는 지점에 한 벌만 둔다.** 초안은 `normalize()` 라고
+  적었는데 틀렸다 — `config_v2.load` 는 `is_v2()` 로만 갈려서 **v1 표기 설정은 `normalize()` 를
+  아예 거치지 않는다.** 거기 두면 v1 의 옛 표기가 조용히 무효가 되고, 그걸 막으려면 소비
+  지점에 사본이 또 필요해 두 벌이 된다.
+  - v1 표기에도 있는 옛 표기(`sections.include`, `front_matter.metadata_fields`)는
+    **소비 지점**(매퍼·spec 생성자)에서 흡수한다. 02·04 가 그렇게 했다.
+  - v2 표기에만 있던 것이면 `normalize()` 가 맞다.
+  - 어휘 자체를 없애는 경우(05 의 `from`/`as`)는 흡수하지 않고 **제거**한다 — 흡수하면
+    매퍼가 두 벌을 계속 들고 있어야 해 정리의 목적이 사라진다. 대신 `to_v2` 는 계속
+    옮길 수 있어야 마이그레이션 경로가 막히지 않는다.
+  - 템플릿(`resource/templates/custom_field_TEMPLATE_*.yaml`)에서는 어느 경우든 옛 표기를 지운다.
 - **`config_schema.EXTRACTOR_KEYS` 를 함께 고친다.** 매퍼가 새로 읽는 키를 여기 넣지 않으면
   그 키를 쓴 설정이 기동에 실패한다. 반대로 안 읽는 키를 넣으면 조용히 무시된다.
 - **`COVERED_V1_KEYS` 를 함께 고친다.** `test_config_v2_unit.py` 가 이 집합이 `EXTRACTOR_KEYS` 를
@@ -206,6 +215,11 @@ genon/preprocessor/examples/parse_chunk/parse_chunk_verify.sh --only <doc_type�
 청크 본문이 바뀌면 이미 적재된 임베딩과 어긋난다. 02·05 가 그럴 수 있고 01 도 설정에 따라
 달라진다. 비교 전에 **같은 버전으로 2회 돌려 노이즈 기준선**을 먼저 잡는다
 (LLM 응답 흔들림 때문에 1회 비교로는 변경분과 노이즈를 구분할 수 없다).
+
+**실측한 노이즈는 두 가지뿐이다**(01~05 에서 반복 확인): `reg_date`(생성 타임스탬프)와
+`[표 검색 설명]` 문단(LLM 이 표마다 새로 쓰는 설명, 그리고 그 길이 `n_char`/`n_word`).
+그 둘을 걷어내면 나머지는 완전히 결정적이라 `*.chunks.json` 전량 대조가 가능하다 —
+PASS/FAIL 은 사전 실패에 가려지므로 전량 대조 쪽이 신뢰할 만하다.
 
 ## B 갈래의 검증 특이점
 
