@@ -35,6 +35,11 @@ shkim_labs
 # ── 참조용 사본 (gitignore 대상, 빌드에 불필요) ─────────────────────
 reference
 
+# ── Triton(HPS) 로컬 검증용 모델 (약 74MB) ──────────────────────────
+# prepare_models.sh 가 만드는 디렉토리. genon/serving/paddle/docker/Dockerfile 의
+# `COPY genon/serving/paddle ${OCR_DIR}` 에 딸려 들어가므로 컨텍스트에서 제외한다.
+genon/serving/paddle/triton/models
+
 # ── 에디터 / OS ─────────────────────────────────────────────────────
 .idea
 .vscode
