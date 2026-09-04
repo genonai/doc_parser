@@ -1051,3 +1051,173 @@ field_labels:
     # 라벨이 없는 defaults 필드는 종전대로 metadata 에만 남는다(규칙 10).
     assert "ON_SALE" not in prefix
     assert fields_list[0]["SALE_STATUS"] == "ON_SALE"
+
+
+# ── 공통 필드 값 파이프라인(values / transform / template) ────────────────────
+#
+# 실제 원천 파일로 검증한다 — 값의 형태(코드값·단위 붙은 금액·브랜드 분리)를 흉내낸
+# sample_files/monimo/monimo_product_hpp_fields_sample.json 을 쓴다. 생성 스크립트는
+# examples/parse_chunk/make_product_hpp_fields_sample.py 다.
+
+FIELDS_SAMPLE = (
+    Path(__file__).resolve().parents[2]
+    / "sample_files" / "monimo" / "monimo_product_hpp_fields_sample.json"
+)
+
+PIPELINE_CONFIG = """
+shared_fields:
+  PRODUCT_C:   [productCode]
+  PRODUCT_NM:  [cardTitle]
+  BRAND_NM:    [brandName]
+  SALE_STATUS: [saleStatus]
+  ANNUAL_FEE:  [feeAmount]
+sections:
+  htmlList: 상품 문서
+ignore_keys:
+  - mpo
+  - "*Img*"
+  - fontColor
+value_map:
+  SALE_STATUS:
+    ON_SALE:  ["1", "Y", 판매중]
+    OFF_SALE: ["0", "N", 판매중지]
+transforms:
+  ANNUAL_FEE:
+    - {name: regex_sub, pattern: "[^0-9]", repl: ""}
+    - {name: to_int}
+derive:
+  DISPLAY_NM: "{{BRAND_NM}} {{PRODUCT_NM}}"
+"""
+
+
+def pipeline_fields(tmp_path, config_text=PIPELINE_CONFIG):
+    """실 샘플 파일을 새 파이프라인 설정으로 태워 공통 필드를 돌려준다."""
+    mapper = write_mapper(tmp_path, config_text)
+    payload = json.loads(FIELDS_SAMPLE.read_text(encoding="utf-8"))
+    return mapper, mapper.build_fields(payload, "product_hpp")[0]
+
+
+def test_value_map_folds_a_code_value(tmp_path):
+    """`values` — 원천의 코드값(`"1"`)이 적재 표준값으로 접힌다."""
+    _mapper, fields = pipeline_fields(tmp_path)
+
+    assert fields["SALE_STATUS"] == "ON_SALE"
+
+
+def test_transform_chain_runs_in_declared_order(tmp_path):
+    """`transform` — 단위를 떼고 정수로. 체인은 적은 순서대로 돈다."""
+    _mapper, fields = pipeline_fields(tmp_path)
+
+    assert fields["ANNUAL_FEE"] == 18000
+
+
+def test_template_joins_other_fields(tmp_path):
+    """`template` — 브랜드와 상품명을 합쳐 표시용 이름을 만든다."""
+    _mapper, fields = pipeline_fields(tmp_path)
+
+    assert fields["DISPLAY_NM"] == "다올신협 다올신협 체크카드"
+
+
+def test_pipeline_order_matches_rows_and_records(tmp_path):
+    """적용 순서 `원천값 -> default -> const -> values -> transform -> template` 고정.
+
+    다른 kind 와 순서가 어긋나는 것이 이 기능에서 가장 나기 쉬운 결함이다. 순서가
+    드러나도록 한 필드에 네 단계를 겹쳐 태운다.
+      · SALE_STATUS  : 원천에 값이 있으므로 default 가 무시되고 원천값이 values 로 접힌다
+      · GRADE        : 원천에 없어 default 가 채워지고 그 값이 values 로 접힌다
+      · GROUP_C      : const 가 원천값을 덮고, 덮은 값이 values 로 접힌다
+      · DISPLAY_GRADE: template 이 values/transform 를 지난 값을 읽는다(파이프라인 마지막)
+    """
+    config = """
+shared_fields:
+  PRODUCT_NM:  [cardTitle]
+  SALE_STATUS: [saleStatus]
+  GRADE:       [gradeCode]
+  GROUP_C:     [brandName]
+defaults:
+  SALE_STATUS: "0"
+  GRADE: "2"
+constants:
+  GROUP_C: "1"
+sections:
+  htmlList: 상품 문서
+value_map:
+  SALE_STATUS: {ON_SALE: ["1"], OFF_SALE: ["0"]}
+  GRADE:       {GOLD: ["1"], SILVER: ["2"]}
+  GROUP_C:     {HPP: ["1"]}
+derive:
+  DISPLAY_GRADE: "{{GROUP_C}}/{{GRADE}}"
+"""
+    _mapper, fields = pipeline_fields(tmp_path, config)
+
+    # 원천값이 default 를 이기고, 그 뒤 values 가 돈다.
+    assert fields["SALE_STATUS"] == "ON_SALE"
+    # 원천에 없으면 default("2") 가 채워지고, 채워진 값도 values 를 지난다.
+    assert fields["GRADE"] == "SILVER"
+    # const 가 원천값(brandName="다올신협")을 덮고, 덮은 값이 values 를 지난다.
+    assert fields["GROUP_C"] == "HPP"
+    # template 은 파이프라인 **뒤**라 접힌 값을 읽는다(원본 코드값이 아니다).
+    assert fields["DISPLAY_GRADE"] == "HPP/SILVER"
+
+
+def test_pipeline_runs_before_required_check(tmp_path):
+    """`require` 는 파이프라인 뒤에 본다 — const/template 으로 채운 필드가 통과해야 한다."""
+    config = """
+shared_fields:
+  PRODUCT_NM: [cardTitle]
+  BRAND_NM:   [brandName]
+sections:
+  htmlList: 상품 문서
+derive:
+  DISPLAY_NM: "{{BRAND_NM}} {{PRODUCT_NM}}"
+required_shared_fields: [DISPLAY_NM]
+"""
+    _mapper, fields = pipeline_fields(tmp_path, config)
+
+    assert fields["DISPLAY_NM"] == "다올신협 다올신협 체크카드"
+
+
+def test_derive_target_can_be_carried_in_the_chunk_body(tmp_path):
+    """`template` 로만 만드는 필드도 `body.fields` 에 적으면 접두에 실린다.
+
+    접두는 `shared_fields`+`defaults`+`constants`+`derive` 를 훑는다 — derive 를 빼면
+    파생 필드는 body.fields 에 적어도 metadata 에만 남았다.
+    """
+    config = PIPELINE_CONFIG + """
+text_fields: [DISPLAY_NM]
+field_labels:
+  DISPLAY_NM: 상품명
+"""
+    mapper, fields = pipeline_fields(tmp_path, config)
+    prefix = mapper._chunk_prefix(fields)
+
+    assert "상품명: 다올신협 다올신협 체크카드" in prefix
+
+
+def test_bad_transform_name_fails_at_startup(tmp_path):
+    """잘못된 변환기 이름은 요청 때가 아니라 기동 시에 잡는다(rows/records 와 동일)."""
+    config = """
+shared_fields:
+  PRODUCT_NM: [cardTitle]
+sections:
+  htmlList: 상품 문서
+transforms:
+  PRODUCT_NM:
+    - {name: no_such_transform}
+"""
+    with pytest.raises(ValueError, match="no_such_transform"):
+        write_mapper(tmp_path, config)
+
+
+def test_derive_referencing_an_unknown_field_fails_at_startup(tmp_path):
+    """`template` 이 아무도 만들지 않는 필드를 참조하면 기동 시에 잡는다."""
+    config = """
+shared_fields:
+  PRODUCT_NM: [cardTitle]
+sections:
+  htmlList: 상품 문서
+derive:
+  DISPLAY_NM: "{{NO_SUCH_FIELD}} {{PRODUCT_NM}}"
+"""
+    with pytest.raises(ValueError, match="NO_SUCH_FIELD"):
+        write_mapper(tmp_path, config)

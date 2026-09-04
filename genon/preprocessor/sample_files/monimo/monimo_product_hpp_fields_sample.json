@@ -1,0 +1,31 @@
+{
+  "wcmsId": "1900001",
+  "productCode": "TST0001",
+  "brandName": "다올신협",
+  "cardTitle": "다올신협 체크카드",
+  "saleStatus": "1",
+  "feeAmount": "18,000원",
+  "cardSlogan": "생활비는 아끼고<br>포인트는 쌓이는 체크카드",
+  "pcImg1": "/wcms/home/scard/image/personal/b_TST0001.png",
+  "fontColor": "#1a1a1a",
+  "benefit": [
+    "전월실적 없이 포인트 적립",
+    "대중교통 10% 할인",
+    "편의점 5% 할인"
+  ],
+  "htmlList": {
+    "feeUrl": "<h3>연회비</h3><table><tr><th>구분</th><th>금액</th></tr><tr><td>국내전용</td><td>18,000원</td></tr><tr><td>해외겸용</td><td>20,000원</td></tr></table>",
+    "noticeUrl": "<h3>이용 유의사항</h3><p>체크카드는 예금 잔액 범위에서만 결제됩니다.</p><p>전월실적 조건은 매월 1일 기준으로 재산정됩니다.</p>"
+  },
+  "mpo": [
+    {
+      "code": "OTH0002",
+      "name": "다른 신협 카드",
+      "ksp": [
+        {
+          "title": "다른 카드만의 혜택"
+        }
+      ]
+    }
+  ]
+}

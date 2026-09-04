@@ -30,7 +30,14 @@ for key, value in self.defaults.items(): ...            # default
 identity.update(self.constants)                          # const
 ```
 
-여기 `default` 와 `const` 사이에 값 파이프라인이 빠져 있다.
+여기 `const` **뒤**에 값 파이프라인이 빠져 있다.
+
+계획 초안은 "`default` 와 `const` 사이" 라고 썼는데 **틀렸다.** rows/records 의 실제 순서는
+`원천값 → default → const → values → transform → template` 다(`json_records.apply_value_pipeline`
+과 `tabular_custom_fields` 3단계 모두 `fields.update(constants)` 뒤에 `apply_value_map` 을
+부른다 — 실측). `const` 를 파이프라인 뒤로 옮기면 sections 만 다른 순서가 되어 이번 요구
+("다른 타입의 fields 와 차이를 두지 않는다")를 정면으로 어긴다. 지금 코드의
+`default → const` 를 그대로 두고 그 **뒤에** 세 줄을 붙이는 것이 맞다.
 
 ## 바꿀 것
 
@@ -42,11 +49,12 @@ self.value_map  = compile_value_map(cfg.get("value_map"))
 self.transforms = compile_transforms(cfg.get("transforms"), label=label)
 self.derive     = compile_derive(cfg, label=label)
 
-# identity 확정부: default -> 원천값 -> values -> transform -> template -> const
+# identity 확정부: 원천값 -> default -> const 뒤에 이어 붙인다
+#   (rows/records 와 같은 순서. 앞의 두 줄은 이미 있는 코드다)
+identity.update(self.constants)                          # 기존
 apply_value_map(identity, self.value_map)
 apply_transforms(identity, self.transforms)
 apply_derive(identity, self.derive)
-identity.update(self.constants)
 ```
 
 1. 위 4개 블록을 `config_schema.EXTRACTOR_KEYS["json_semantic"]` 에 추가한다
@@ -123,7 +131,7 @@ cd genon/preprocessor
 ```
 
 `values`/`transform`/`template` 각각에 대해 **적용 순서를 고정하는 단정문 테스트**를 새로 넣는다
-(`default -> 원천값 -> values -> transform -> template -> const`). 다른 kind 와 순서가
+(`원천값 -> default -> const -> values -> transform -> template`). 다른 kind 와 순서가
 어긋나는 것이 이 작업에서 가장 나기 쉬운 결함이다.
 
 ```bash

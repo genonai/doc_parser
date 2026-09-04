@@ -40,6 +40,9 @@ element 1개"가 아니라 "섹션 1개 = element 1개"라는 점뿐이다.
     `error` 다(`json_records.py` 의 `missing_policy` 와 같은 이름·기본값).
   - `defaults` : 루트 원천값이 없거나 빈 문자열일 때만 채우는 기본값.
   - `constants` : 원천값/defaults 유무와 관계없이 항상 덮어쓰는 고정값.
+  - `value_map` / `transforms` / `derive` : 공통 필드 값 접기·변환·결합. rows/records 와
+    같은 순수 함수를 같은 순서(`constants` 뒤)로 쓴다 — 공통 필드는 그대로 적재 DB 컬럼이
+    되므로 값 파이프라인이 다를 이유가 없다. 섹션 본문에는 관여하지 않는다.
 
 나머지(HTML→Markdown 변환, 섹션 제목 승격, 부모-자식 중복 제거, 식별자뿐인 섹션 접기,
 깊이/규모 상한)는 전부 값의 성격을 보고 자동으로 처리된다.
@@ -92,7 +95,16 @@ from .json_records import (
 )
 from genon.preprocessor.facade.common import config_parse as cp
 from genon.preprocessor.facade.enrichment import config_v2 as cv2
-from .tabular_custom_fields import normalize_column_name, validate_custom_field_config
+from .tabular_custom_fields import (
+    apply_derive,
+    apply_transforms,
+    apply_value_map,
+    compile_derive,
+    compile_transforms,
+    compile_value_map,
+    normalize_column_name,
+    validate_custom_field_config,
+)
 
 # 스칼라로 볼 값 타입(json_records._SCALAR_TYPES 와 동일 기준).
 _SCALAR_TYPES = (str, int, float, bool)
@@ -648,12 +660,22 @@ class SemanticJsonMapper:
         self.defaults = dict(cfg.get("defaults") or {})
         self.constants = dict(cfg.get("constants") or {})
 
+        # 공통 필드 값 파이프라인 — rows/records 와 같은 순수 함수를 그대로 쓴다. 여기서
+        # 컴파일해 두면 잘못된 변환기 이름·안 되는 정규식·없는 참조 필드를 기동 시에 잡는다.
+        # 섹션 본문에는 관여하지 않는다(본문은 섹션 워커가 만든다) — 이 파이프라인이 다루는
+        # 것은 적재 DB 컬럼이 되는 공통 필드 값이고, 그 점에서 다른 kind 와 다를 이유가 없다.
+        label = f"json_semantic custom_fields({config_file})"
+        self.value_map = compile_value_map(cfg.get("value_map"))
+        self.transforms = compile_transforms(cfg.get("transforms"), label=label)
+        self.derive = compile_derive(cfg, label=label)
+
         # 본문 접두에 실릴 수 있는 공통 필드 이름(선언 순서). alias 로 원천에서 찾는 필드만이
-        # 공통 필드가 아니다 — `default`/`const` 로만 만드는 필드도 모든 청크에 붙는 같은
-        # 성격의 값이므로, 라벨을 붙였으면 본문에 실려야 한다. shared_fields 만 훑으면
-        # `GROUP_C: {const: HPP}` 같은 필드는 라벨을 붙여도 metadata 에만 남았다.
+        # 공통 필드가 아니다 — `default`/`const` 로만 만드는 필드나 `template` 으로 합쳐
+        # 만드는 필드도 모든 청크에 붙는 같은 성격의 값이므로, 본문에 싣기로 했으면 실려야
+        # 한다. shared_fields 만 훑으면 `GROUP_C: {const: HPP}` 같은 필드는 `body.fields` 에
+        # 적어도 metadata 에만 남았다.
         self.common_field_targets: list[str] = list(self.shared_fields)
-        for name in (*self.defaults, *self.constants):
+        for name in (*self.defaults, *self.constants, *self.derive):
             if str(name) not in self.common_field_targets:
                 self.common_field_targets.append(str(name))
 
@@ -747,6 +769,13 @@ class SemanticJsonMapper:
                 identity[key] = value
         identity.update(self.constants)
 
+        # 값 정규화 -> 변환 -> 결합. rows/records 와 같은 자리(constants 뒤)에 같은 순서로
+        # 건다 — 별칭을 표준값으로 접은 뒤 타입을 바꾸고, 결합은 정규화된 값으로 해야
+        # 표기가 흔들리지 않는다.
+        apply_value_map(identity, self.value_map)
+        apply_transforms(identity, self.transforms)
+        apply_derive(identity, self.derive)
+
         missing = [f for f in self.required_shared_fields if identity.get(f) in (None, "")]
         if missing:
             msg = f"[json_semantic] 필수 공통 필드 누락: {sorted(missing)}"
@@ -782,11 +811,14 @@ class SemanticJsonMapper:
 
         fields_list: list[dict] = []
         for section in ctx.sections:
+            # constants 를 여기서 다시 덮지 않는다 — identity 는 문서 루트에서 한 번 확정된
+            # 뒤 순회 내내 불변으로 전달되므로(`_walk` 의 `identity = inherited`, `_emit` 의
+            # `dict(identity)`) 이미 constants 가 적용돼 있다. 다시 덮으면 constants 로 만든
+            # 필드에는 값 파이프라인(value_map/transforms/derive) 결과가 되돌려진다.
             fields: dict[str, Any] = {
                 "SECTION_NM": section["section_name"],
                 "SOURCE_JSON_PATH": section["json_path"],
                 **section["identity"],
-                **self.constants,
                 "_title": section["title"],
                 "_body": section["body"],
             }

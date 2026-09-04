@@ -73,13 +73,15 @@ EXTRACTOR_KEYS: dict[str, frozenset[str]] = {
     "json_mapping": _RECORD_COMMON | {
         "records", "key_map", "collect_key_map", "missing_policy", "row_merge",
     },
-    # json_semantic 은 레코드형과 파이프라인이 다르다 — 값 변환 키를 읽지 않고 섹션 본문은
-    # 섹션 워커가 만든다. 본문 조립 키 중에서는 `text_fields`(v2 `body.fields`)만 읽는다 —
-    # 공통 필드를 청크 접두에 실을지 정하는 스위치다(섹션 본문 구성과는 무관하다).
+    # json_semantic 은 섹션 본문을 섹션 워커가 만들지만, 공통 필드(적재 DB 컬럼이 되는 값)의
+    # 파이프라인은 레코드형과 같다 — `value_map`/`transforms`/`derive` 를 같은 순서로 읽는다.
+    # 본문 조립 키 중에서는 `text_fields`(v2 `body.fields`)만 읽는다 — 공통 필드를 청크
+    # 접두에 실을지 정하는 스위치다(섹션 본문 구성과는 무관하다).
     "json_semantic": frozenset({
         "shared_fields", "sections", "ignore_keys",
         "required_shared_fields", "missing_policy",
         "defaults", "constants", "llm_fields",
+        "value_map", "transforms", "derive",
         "text_fields", "field_labels", "first_chunk_fields",
     }),
     # 문서 단위 LLM 추출. 값 매핑이 없고 프롬프트·연결·출력필드가 중심이다.

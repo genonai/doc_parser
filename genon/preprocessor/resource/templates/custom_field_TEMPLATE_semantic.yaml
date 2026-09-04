@@ -80,14 +80,20 @@ source:
 # 값은 **항상 object** 다.
 #
 # 쓸 수 있는 키
-#   alias   : 그 값이 들어 있는 **루트 JSON key 이름들**. 먼저 찾은 것을 쓴다(경로 아님).
-#             관련 객체의 `code`/`name` 이 대상 식별자로 섞이지 않도록 **중첩 안쪽은 찾지
-#             않는다**. 대소문자와 `_ - . /` 차이는 무시한다.
-#   const   : 원천 값과 무관하게 항상 같은 값(파일 단위로 고정일 때만)
-#   default : 원천 값이 없거나 빈 문자열일 때만 채운다
+#   alias     : 그 값이 들어 있는 **루트 JSON key 이름들**. 먼저 찾은 것을 쓴다(경로 아님).
+#               관련 객체의 `code`/`name` 이 대상 식별자로 섞이지 않도록 **중첩 안쪽은 찾지
+#               않는다**. 대소문자와 `_ - . /` 차이는 무시한다.
+#   const     : 원천 값과 무관하게 항상 같은 값(파일 단위로 고정일 때만)
+#   default   : 원천 값이 없거나 빈 문자열일 때만 채운다
+#   values    : 코드값·표기 흔들림을 표준값으로 접는다 (`ON_SALE: ["1", Y, 판매중]`)
+#   transform : 값 변환 체인 (`[{name: regex_sub, pattern: "[^0-9]"}, {name: to_int}]`)
+#   template  : 다른 필드를 합쳐 만든다 (`"{{BRAND_NM}} {{PRODUCT_NM}}"`)
 #
-# rows/records 와 달리 `values`·`transform`·`from/as`·`template` 은 **읽지 않는다**
-# (적으면 기동 시 실패한다). 이 kind 는 본문을 섹션 워커가 만들기 때문이다.
+# 적용 순서는 rows/records 와 같다.
+#   원천값 -> default(빈 값만) -> const(덮어씀) -> values -> transform -> template
+# `require` 검사는 그 **뒤**라, const/template 으로 채운 필드도 정상 통과한다.
+#
+# `from`/`as` 는 이 kind 가 **읽지 않는다**(적으면 기동 시 실패한다).
 #
 # 여기 적은 값은 두 곳에 들어간다.
 #   · 청크 본문 맨 앞  → "상품명: <값>" 처럼 라벨과 함께 붙어 검색이 잘 되게 한다
@@ -104,6 +110,16 @@ fields:
   # 콘텐츠라 그 원천 key 의 목록 섹션이 그대로 남는다(예: 혜택 제목 목록).
   # <GROUP_C>: {const: "<고정값>"}
   # <SALE_STATUS>: {alias: [saleStatus], default: ON_SALE}
+  #
+  # 값을 손봐야 할 때(rows/records 와 같은 스펙이다)
+  # <SALE_STATUS>:
+  #   alias: [saleStatus]
+  #   values: {ON_SALE: ["1", Y, 판매중], OFF_SALE: ["0", N, 판매중지]}
+  # <ANNUAL_FEE>:
+  #   alias: [feeAmount]                                  # "18,000원" -> 18000
+  #   transform: [{name: regex_sub, pattern: "[^0-9]", repl: ""}, {name: to_int}]
+  # <DISPLAY_NM>:
+  #   template: "{{<BRAND_NM>}} {{<TARGET_FIELD_1>}}"      # 다른 필드를 합쳐 만든다
 
 # ── [선택] 필수 공통 필드 ───────────────────────────────────────────────────
 # 여기 적은 필드가 문서 루트에서 하나라도 안 잡히면(원천에 아예 없거나 key 이름이 어긋나면)
@@ -199,8 +215,10 @@ fields:
 #     이름을 제안하고, 다른 kind 의 키는 어디 전용인지 알려준다.
 #     sections 가 **읽지 않는** 대표 키는 아래와 같다.
 #       body.split · body.repeat · body.mirror_to
-#       필드 스펙의 values · transform · from/as · template
+#       필드 스펙의 from/as
 #       filter · source.records_at · source.merge_rows
+#   · `transform` 의 변환기 이름이 틀렸거나 필수 인자가 빠진 경우, 안 되는 정규식
+#   · `template` 이 아무도 만들지 않는 필드를 참조하는 경우
 #   · `fields` 의 값이 object 가 아닌 경우(값을 빠뜨린 오타 포함)
 #   · 목표필드명이 벡터 예약 필드(text·title·n_char·i_page·created_date·appendix …)와
 #     겹치거나 property 이름 규칙 `/[_A-Za-z][_0-9A-Za-z]*/` 을 벗어난 경우
@@ -208,6 +226,8 @@ fields:
 #  경고만 남긴다(로그를 봐야 안다)
 #   · `body.fields` 가 아무도 만들지 않는 필드를 가리킬 때 — 그 줄이 조용히 빠진다
 #   · `body.labels` 가 아무도 만들지 않는 필드를 가리킬 때 — 라벨만 조용히 사라진다
+#   · `values` 에 없는 값이 원천에 들어올 때 — 원값을 그대로 두고 경고만 남긴다
+#     (조용히 null 로 바꾸면 NOT NULL 컬럼이 적재 직전에야 터진다)
 #   · `llm.in` 의 이름을 못 찾을 때 — 그 입력이 빠진다
 #
 #  못 잡는다(아래 "확인 방법"으로 직접 봐야 한다)

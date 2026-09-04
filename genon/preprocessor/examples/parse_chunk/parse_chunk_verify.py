@@ -72,6 +72,10 @@ CASES = [
     ("product_hpp",   MONIMO / "monimo_product_hpp_sample.json",       "json_semantic(최소)"),
     ("product_hpp",   MONIMO / "monimo_product_hpp_rich_table_sample.json",
      "rich cell 표(연회비·적립·제휴링크)"),
+    # 값 파이프라인(values/transform/template)용 원천. 생성 스크립트는
+    # examples/parse_chunk/make_product_hpp_fields_sample.py 다.
+    ("product_hpp",   MONIMO / "monimo_product_hpp_fields_sample.json",
+     "코드값·금액문자열·브랜드 분리 필드"),
     ("stock_insight", MONIMO / "monimo_stock_insight_sample.xlsx",     "tabular_mapping"),
     # 개인 작업 디렉터리(gitignore)에 있는 실 원천. 없는 머신에서는 SKIP 된다.
     ("card",          REPO_ROOT / "shkim_labs" / "20260803_monimo" / "01_card" / "card01.flat.html",
