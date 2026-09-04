@@ -59,14 +59,8 @@ source:
     markdown:
       front_matter:
         metadata_fields:
-          document_type: document_type
-          source_file: source_file
-          source_pages: source_pages
-          author: author
-          # 한 원천 키를 두 목표로 보낸다 — created_date 는 청커가 YYYYMMDD 정수
-          # 벡터 필드로 쓰고(적재 필수값), PRODUCT_ATTRS 는 사람이 읽는 표기로
-          # 청크 본문에 1회 실린다(아래 body.once).
-          created_at: [created_date, PRODUCT_ATTRS]
+          created_at: [created_date]
+          product_code: [PRODUCT_C]
         exclude_text_fields: ['*']
         on_missing: warn
       text_fence:
@@ -77,7 +71,7 @@ fields:
   GROUP_C:
     const: SLF
   SALE_STATUS:
-    const: ON_SALE
+    const: SALE
   BIZ_ID:
     const: null
 # 작성일은 문서 1건에 하나뿐이라 청크마다 반복할 이유가 없다. 첫 청크에만 1회 싣는다 —
@@ -85,9 +79,9 @@ fields:
 body:
   once: [PRODUCT_ATTRS]
   labels:
-    PRODUCT_ATTRS: 작성일
+    PRODUCT_ATTRS: 출시일
 llm:
-- out: [PRODUCT_C, PRODUCT_NM]
+- out: [PRODUCT_C, PRODUCT_NM, PRODUCT_ATTRS]
   parser:
     type: json
   endpoint:
@@ -104,7 +98,7 @@ llm:
 
       규칙:
       - 반드시 하나의 JSON 객체만 반환한다. 설명 문구·마크다운 코드펜스 없이 순수 JSON 만 출력한다.
-      - 요청된 2개 키를 모두 포함한다. 문서에서 근거를 찾을 수 없는 값은 null 로 둔다.
+      - 요청된 3개 키를 모두 포함한다. 문서에서 근거를 찾을 수 없는 값은 null 로 둔다.
       - 문서에 없는 정보를 지어내지 않는다(환각 금지). 금액·기간·비율·나이는 원문 숫자를 그대로 쓴다.
 
       필드별 형식:
@@ -113,16 +107,18 @@ llm:
       - `PRODUCT_NM`: 상품명 문자열. 문서 제목(H1)의 상품명을 쓰되 "상품요약서" 같은 문서종류
         표기는 뺀다. 예: "# 삼성 s교통상해보험(2501)(무배당) 상품요약서" → "삼성 s교통상해보험(2501)(무배당)".
         반드시 채운다.
+      - `PRODUCT_ATTRS`: 출시일 문자열. frontmatter 나 본문에서 created_at 있으면 그 값.
 
       출력 예시 형식(값은 예시):
-      {"PRODUCT_C": "30387", "PRODUCT_NM": "삼성 s교통상해보험(2501)(무배당)"}
+      {"PRODUCT_C": "30387", "PRODUCT_NM": "삼성 s교통상해보험(2501)(무배당)", "PRODUCT_ATTRS": 20260710}
     user: |
-      아래 보험 상품요약서에서 다음 2개 필드를 추출하라.
+      아래 보험 상품요약서에서 다음 3개 필드를 추출하라.
 
       - PRODUCT_C (상품코드)
       - PRODUCT_NM (상품명) — 필수
+      - PRODUCT_ATTRS (출시일)
 
-      반드시 위 2개 키를 모두 가진 하나의 JSON 객체로만 반환하라.
+      반드시 위 3개 키를 모두 가진 하나의 JSON 객체로만 반환하라.
 
       <document>
       {{raw_text}}

@@ -57,19 +57,13 @@ fields:
       HPP: [삼성카드, 카드]
       SSS: [삼성증권, 증권]
   FAQ_CTGR_NM:
-    alias: [depth3, 분류, 카테고리]
+    alias: [분류, depth3, 카테고리]
     default: null
   QUESTION:
-    alias: [depth4, 대표질문, 질문]
+    alias: [질문, depth4, 대표질문]
   ANSWER:
-    alias: [description, 답변]
-  STATUS:
-    const: PUBLISHED
+    alias: [답변, description]
   DEEP_LINK_URL:
-    default: null
-  EFFECTIVE_FROM:
-    default: null
-  EFFECTIVE_TO:
     default: null
 require:
   fields: [GROUP_C, QUESTION, ANSWER]
@@ -80,42 +74,3 @@ body:
     ANSWER: 답변
   split: true
   repeat: [QUESTION]
-llm:
-- out: [QUESTION_VARIANTS]
-  in: [QUESTION, ANSWER]
-  concurrency: 4
-  on_error: null
-  parser:
-    type: json
-  endpoint:
-    url: http://llmops-gateway-api-service:8080/rep/serving/<ENRICHMENT_SERVING_ID>/v1/chat/completions
-    api_key: ''
-    model: model
-  params:
-    max_tokens: 800
-    temperature: 0.0
-    timeout: 60
-  prompt:
-    system: |
-      너는 고객센터 FAQ 검색 품질 담당자다. 대표질문을 이용자가 실제로 물어볼 법한 표현으로 바꿔 쓴다.
-
-      규칙:
-      - 반드시 하나의 JSON 객체만 반환한다. 설명 문구·마크다운 코드펜스 없이 순수 JSON 만 출력한다.
-      - 키는 `QUESTION_VARIANTS` 하나다. 값은 문자열 배열이다.
-      - 같은 답변으로 해결되는 질문만 넣는다. 답변 범위를 벗어나는 질문은 넣지 않는다.
-      - 구어체·준말·오탈자에 가까운 실제 검색 표현을 섞는다.
-      - 대표질문을 그대로 복사하지 않는다.
-      - 3~6개로 제한한다. 마땅한 변형이 없으면 빈 배열 [] 을 반환한다.
-
-      출력 예시 형식(값은 예시):
-      {"QUESTION_VARIANTS": ["카드 한도 올리려면?", "이용한도 상향 신청 방법"]}
-    user: |
-      아래 FAQ 의 유사질문을 정리하라.
-
-      - QUESTION_VARIANTS (유사질문 배열)
-
-      반드시 `QUESTION_VARIANTS` 키 하나를 가진 JSON 객체로만 반환하라.
-
-      <faq>
-      {{raw_text}}
-      </faq>

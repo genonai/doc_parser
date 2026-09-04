@@ -135,26 +135,27 @@ source:
     concat: [DETAIL_DESC]
 fields:
   BIZ_ID:
-    alias: [BIZ_ID, ID, 아이디]
+    alias: [ID, 아이디]
     default: null
   REGT_NO:
-    alias: [regt_no, REGT_NO, 등록번호]
+    alias: [등록번호, regt_no, REGT_NO]
     default: null
   NTC_OBJLINE_NO:
-    alias: [ntc_objline, ntc_objline_no, NTC_OBJLINE_NO, 게시물라인번호, 게시물 라인번호]
+    alias: [ntc_objline, ntc_objline_no, NTC_OBJLINE_NO, 게시물 라인번호]
     default: null
   JONG_CODE:
     alias: [종목코드, jong_code, JONG_CODE]
   JONG_NM:
-    alias: [종목명, jong_name, jong_nm]
+    alias: [종목명, jong_name, jong_nm, JONG_NAME]
   NEWS_DATE:
-    alias: [news_date, NEWS_DATE, 뉴스일자]
+    alias: [뉴스일자, news_date, NEWS_DATE]
     transform: date_int_flex
   DETAIL_DESC:
-    alias: [detail_desc, DETAIL_DESC, 세부내용, 상세내용]
+    alias: [상세내용, detail_desc, DETAIL_DESC, 세부내용]
     default: null
+    transform: text_norm
   ANALYSIS_DATE:
-    alias: [분석기준일, 분석 기준일, news_date, NEWS_DATE, 뉴스일자]
+    alias: [NEWS_DATE, 분석기준일, 분석 기준일, news_date, 뉴스일자]
     transform: date_int_flex
   GROUP_C:
     const: SSS
@@ -168,4 +169,4 @@ require:
 body:
   fields: [JONG_NM, DETAIL_TEXT]
   split: true
-  repeat: [JONG_NM, JONG_CODE, ANALYSIS_DATE]
+  repeat: [JONG_NM]

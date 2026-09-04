@@ -72,7 +72,7 @@ fields:
     alias: [ID, 아이디]
     default: null
   GROUP_C:
-    alias: [회사명, 고객사]
+    alias: [회사, 회사명, 고객사]
     values:
       IFP: [모니모]
       SLF: [삼성생명, 생명]
@@ -80,17 +80,17 @@ fields:
       HPP: [삼성카드, 카드]
       SSS: [삼성증권, 증권]
   TERM:
-    alias: [용어(국문), 용어, 용어국문]
+    alias: [용어, 용어(국문), 용어국문]
   TERM_NORM:
-    alias: [용어(국문), 용어, 용어국문]
+    alias: [용어, 용어(국문), 용어국문]
     transform: text_norm
   DEFINITION:
-    alias: [정의·설명, 정의 설명, 정의, 설명]
+    alias: [설명, 정의·설명, 정의 설명, 정의]
   SRC_LAST_MOD_DT:
     alias: [최종수정일]
     transform: date_int_flex
-  STATUS:
-    default: ACTIVE
+  SYNONYMS:
+    default: null
 require:
   fields: [GROUP_C, TERM, TERM_NORM, DEFINITION]
 body:

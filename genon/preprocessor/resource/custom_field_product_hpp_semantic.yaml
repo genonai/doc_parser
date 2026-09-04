@@ -133,7 +133,7 @@ source:
     mpo:
       name: 추천 상품
       include: false
-  ignore_keys: ['*Img*', '*Lottie*', fontColor, bgColor, sort, hideSummaryTab, is3d, pCApplyNoYn]
+  ignore_keys: ['*Img*', '*Lottie*', fontColor, bgColor, sort, hideSummaryTab, is3d, pCApplyNoYn, monimoDeepLink, youtube, imgInfo, serviceUrl, smplAplcExcdYn]
 fields:
   BIZ_ID:
     alias: [wcmsId, id, productId]

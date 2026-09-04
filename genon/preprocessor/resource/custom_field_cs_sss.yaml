@@ -107,9 +107,9 @@ fields:
 require:
   fields: [TITLE]
 body:
-  fields: [TITLE, CONTENT]
+  fields: [CS_CATEGORY, TITLE, CONTENT]
   labels:
     TITLE: 제목
     CONTENT: 안내내용
   split: true
-  repeat: [TITLE]
+  repeat: [CS_CATEGORY, TITLE]

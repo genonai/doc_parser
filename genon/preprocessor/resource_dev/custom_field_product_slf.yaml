@@ -1,10 +1,3 @@
-# ─────────────────────────────────────────────────────────────────────────
-#  v2 스키마로 자동 변환된 설정입니다.
-#
-#  자동 변환은 **값만** 옮깁니다. 아래는 원본 v1 의 주석 전문이며, 필요한 설명을 각
-#  필드 스펙 옆으로 손수 옮긴 뒤 이 블록을 지우세요. 주석이 사라지면 왜 그런 설정인지
-#  아는 사람이 없어집니다.
-# ─────────────────────────────────────────────────────────────────────────
 # CustomFieldsEnricher 외부 config — 상품설명서(생명) 문서 단위 메타데이터 추출
 #
 # 사용 (parser_processor_config.yaml):
@@ -25,33 +18,6 @@
 #   → `## 내용 색인`
 #   → `원문 전사` / `원문 N쪽 - {소제목}`
 #
-# PRODUCT_C(상품코드)는 NOT NULL 인데 MD frontmatter 에 상품코드가 없다.
-#    파일명 `slf_rag_adpr_yyyymmdd_xxxxx_001.md` 의 xxxxx 자리인지 원천 담당 확인 필요.
-#    확정 전까지는 LLM 이 본문에서 찾도록 두고, 못 찾으면 null 로 남는다(적재 시 걸린다).
-#
-# 이 파일 하나로 자족한다 — 프롬프트가 아래에 인라인되어 있어 별도 md 파일이 없다.
-# ── Markdown 원천 전처리 ─────────────────────────────────────────────────────
-    # 구조화된 원천값만 모든 청크 metadata로 broadcast한다.
-    # created_at은 기본 field_transform을 거쳐 YYYYMMDD 정수 created_date가 된다.
-    # file은 H1/title과 중복되고 conversion_note는 검색 본문이 아니므로 front matter 전체 제외.
-    # 위 metadata_fields 는 적재 필수값이라 front matter 가 없는 md 는 조용히 넘기지 않는다.
-    # (코드 기본값은 ignore — 여기서 명시적으로 올린다)
-  # PDF 레이아웃 보존용 ```text 펜스를 논리 단위(Q/A/불릿/※) 단락으로 되돌린다.
-  # 안 하면 docling 이 펜스 본문 전체를 CodeItem 하나로 만들어(실측 4654자 → 아이템 1개)
-  # chunk_size 가 무의미해진다. 레이아웃 파이프 줄 제거도 함께 한다 — md 백엔드는 `|` 한 줄로
-  # 표 모드에 들어가 뒤따르는 본문을 빈 표로 삼킨다(실측 본문 1586자 소실).
-# ── LLM 연결 ────────────────────────────────────────────────────────────────
-# <ENRICHMENT_SERVING_ID>: Genos에 등록한 모델서빙 ID로 변경 필요. api_key 도 배포 시 설정.
-# ── LLM 생성 파라미터 ────────────────────────────────────────────────────────
-# 상품요약서는 원문이 수십 쪽이라 입력이 길다. 출력은 요약본문 위주라 4000 이면 충분하다.
-# ── 입력 페이지 범위 ─────────────────────────────────────────────────────────
-# 미지정(null) → 문서 전체(`## 핵심 키워드`·`## 문서 개요`·원문 전사 전체)를 대상으로 한다.
-# ── 파서 ─────────────────────────────────────────────────────────────────────
-# ── 소스와 무관하게 고정으로 채울 값 ────────────────────────────────────────
-# 생명 전용 원천이라 고객사가 파일 단위로 고정이다. LLM 에게 상수를 받아쓰게 시키지 않는다.
-# ── 프롬프트 ─────────────────────────────────────────────────────────────────
-# ── 출력 필드 (프롬프트의 JSON 키와 일치해야 함) ──────────────────────────────
-
 schema: v2
 source:
   kind: document
@@ -59,14 +25,9 @@ source:
     markdown:
       front_matter:
         metadata_fields:
-          document_type: document_type
-          source_file: source_file
-          source_pages: source_pages
-          author: author
-          # 한 원천 키를 두 목표로 보낸다 — created_date 는 청커가 YYYYMMDD 정수
-          # 벡터 필드로 쓰고(적재 필수값), PRODUCT_ATTRS 는 사람이 읽는 표기로
-          # 청크 본문에 1회 실린다(아래 body.once).
-          created_at: [created_date, PRODUCT_ATTRS]
+          created_at: [created_date]
+          # created_at: [created_date, PRODUCT_ATTRS]
+          product_code: [PRODUCT_C]
         exclude_text_fields: ['*']
         on_missing: warn
       text_fence:
@@ -77,17 +38,19 @@ fields:
   GROUP_C:
     const: SLF
   SALE_STATUS:
-    const: ON_SALE
+    const: SALE
   BIZ_ID:
     const: null
+  # PRODUCT_ATTRS:
+  #   transform: date_int_flex
 # 작성일은 문서 1건에 하나뿐이라 청크마다 반복할 이유가 없다. 첫 청크에만 1회 싣는다 —
 # 값 자체는 모든 청크 metadata 에 실리므로 필터 검색은 전 청크에서 된다.
 body:
   once: [PRODUCT_ATTRS]
   labels:
-    PRODUCT_ATTRS: 작성일
+    PRODUCT_ATTRS: 출시일
 llm:
-- out: [PRODUCT_C, PRODUCT_NM]
+- out: [PRODUCT_C, PRODUCT_NM, PRODUCT_ATTRS]
   parser:
     type: json
   endpoint:
@@ -104,7 +67,7 @@ llm:
 
       규칙:
       - 반드시 하나의 JSON 객체만 반환한다. 설명 문구·마크다운 코드펜스 없이 순수 JSON 만 출력한다.
-      - 요청된 2개 키를 모두 포함한다. 문서에서 근거를 찾을 수 없는 값은 null 로 둔다.
+      - 요청된 3개 키를 모두 포함한다. 문서에서 근거를 찾을 수 없는 값은 null 로 둔다.
       - 문서에 없는 정보를 지어내지 않는다(환각 금지). 금액·기간·비율·나이는 원문 숫자를 그대로 쓴다.
 
       필드별 형식:
@@ -113,16 +76,18 @@ llm:
       - `PRODUCT_NM`: 상품명 문자열. 문서 제목(H1)의 상품명을 쓰되 "상품요약서" 같은 문서종류
         표기는 뺀다. 예: "# 삼성 s교통상해보험(2501)(무배당) 상품요약서" → "삼성 s교통상해보험(2501)(무배당)".
         반드시 채운다.
+      - `PRODUCT_ATTRS`: 출시일 문자열. frontmatter 나 본문에서 created_at 있으면 그 값.
 
       출력 예시 형식(값은 예시):
-      {"PRODUCT_C": "30387", "PRODUCT_NM": "삼성 s교통상해보험(2501)(무배당)"}
+      {"PRODUCT_C": "30387", "PRODUCT_NM": "삼성 s교통상해보험(2501)(무배당)", "PRODUCT_ATTRS": 20260710}
     user: |
-      아래 보험 상품요약서에서 다음 2개 필드를 추출하라.
+      아래 보험 상품요약서에서 다음 3개 필드를 추출하라.
 
       - PRODUCT_C (상품코드)
       - PRODUCT_NM (상품명) — 필수
+      - PRODUCT_ATTRS (출시일)
 
-      반드시 위 2개 키를 모두 가진 하나의 JSON 객체로만 반환하라.
+      반드시 위 3개 키를 모두 가진 하나의 JSON 객체로만 반환하라.
 
       <document>
       {{raw_text}}

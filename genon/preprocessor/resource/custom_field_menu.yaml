@@ -85,7 +85,7 @@ fields:
   BIZ_ID:
     alias: [ID, 아이디]
   GROUP_C:
-    alias: [회사명, 고객사]
+    alias: [회사, 회사명, 고객사]
     values:
       IFP: [모니모]
       SLF: [삼성생명, 생명]

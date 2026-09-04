@@ -136,17 +136,17 @@ source:
   on_missing: error
 fields:
   BIZ_ID:
-    alias: [ID, 이벤트ID, event_id, cmpId, cmsId]
+    alias: [cmpCntsId, ID, 이벤트ID, event_id]
     default: null
   GROUP_C:
     alias: [mnmFncoCd, 회사명, corp_code, 고객사]
     default: IFP
     values:
-      IFP: [모니모]
-      SLF: [삼성생명, 생명]
-      SSF: [삼성화재, 화재]
-      HPP: [삼성카드, 카드]
-      SSS: [삼성증권, 증권]
+      IFP: [0, 모니모]
+      SLF: [2, 삼성생명, 생명]
+      SSF: [3, 삼성화재, 화재]
+      HPP: [1, 삼성카드, 카드]
+      SSS: [4, 삼성증권, 증권]
   TITLE:
     alias: [text, 제목, title, evtTodayMainCopy]
     transform: text_norm
@@ -161,6 +161,12 @@ fields:
   DETAIL_TEXT:
     from: DETAIL_HTML
     as: html
+  MOVE_TARGET_URL:
+    alias: [etcMoveTargetPage]
+  EVENT_KIND_C:
+    alias: [evnKndCd]
+  CAMPAIGN_C:
+    alias: [cmpCode]
 require:
   fields: [TITLE]
 body:

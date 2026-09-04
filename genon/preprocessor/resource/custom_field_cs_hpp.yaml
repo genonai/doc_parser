@@ -74,7 +74,7 @@ fields:
   GROUP_C:
     const: HPP
 body:
-  once: [CS_CATEGORY]
+  once: [CS_CATEGORY, TITLE]
   mirror_to: [CONTENT]
 llm:
 - out: [BIZ_ID, CS_CATEGORY, TITLE, DEEP_LINK_URL, RELATED_KEYWORDS, SRC_LAST_MOD_DT]

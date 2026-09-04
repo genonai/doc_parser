@@ -34,7 +34,7 @@ fields:
   GROUP_C:
     # 고객사 (NOT NULL). corp_code 는 이미 "HPP" 같은 코드로 오지만, values 는 표준값
     # 자신도 자동 별칭이라 그대로 통과한다.
-    alias: [corp_code, 회사명, 고객사]
+    alias: [회사, corp_code, 회사명, 고객사]
     values:
       IFP: [모니모]
       SLF: [삼성생명, 생명]
@@ -42,22 +42,17 @@ fields:
       HPP: [삼성카드, 카드]
       SSS: [삼성증권, 증권]
   FAQ_CTGR_NM:
-    alias: [depth3, 분류, 카테고리, FAQ분류]  # FAQ 분류 (주제영역과 다름)
+    alias: [분류, depth3, 카테고리, FAQ분류]  # FAQ 분류 (주제영역과 다름)
     default: null
   QUESTION:
-    alias: [대표질문, 질문, depth4]           # 대표질문 (NOT NULL)
+    alias: [질문, 대표질문, depth4]           # 대표질문 (NOT NULL)
   ANSWER:
     alias: [답변, 답변내용, description]      # 답변 본문 (NOT NULL)
   SRC_LAST_MOD_DT:
     alias: [최종수정일]
     transform: date_int_flex
-  STATUS:
-    default: PUBLISHED                        # TB_FAQ 기본값과 동일
-  # 앱 딥링크: 표 형태 원천에는 대응 컬럼이 없다. JSON 형태의 url / app_route 를 쓸지
-  # 원천 담당 확인 필요(url 은 데이터 경로, app_route 는 메뉴 경로라 둘 다 딥링크가 아니다).
-  # DEEP_LINK_URL: {default: null}
-  # EFFECTIVE_FROM: {default: null}           # 유효시작 — 원천 미제공
-  # EFFECTIVE_TO: {default: null}             # 유효종료 — 원천 미제공
+  DEEP_LINK_URL:
+    default: null
 require:
   fields: [GROUP_C, QUESTION, ANSWER]         # 하나라도 비면 그 행은 버린다
 body:
