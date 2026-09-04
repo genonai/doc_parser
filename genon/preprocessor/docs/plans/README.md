@@ -28,7 +28,19 @@ v2(`facade/enrichment/config_v2.py`)는 v1 내부 dict 로 정규화하는 **번
 | `collect` | 여러 원천 키를 목록으로 | X | O | X | X |
 | `from` / `as` | 파생 사본 만들기 | O | O | X | X → **05 에서 삭제** |
 
-적용 순서는 네 kind 공통이다: `default → 원천값 → values → transform → template → const`.
+적용 순서는 rows/records 가 이미 이렇게 굳어 있다(실측 — `json_records.apply_value_pipeline`,
+`tabular_custom_fields` 3단계):
+
+```
+원천값 → default(빈 값만 채움) → const(덮어씀) → values → transform → template
+```
+
+`const` 가 `default` 보다 먼저 오는 것이 아니라 **`default` 를 덮는 위치**에 있고,
+값 파이프라인은 그 **뒤**다. `constants: {X: ""}` 로 빈 값을 못 박았을 때 default 가
+그것을 되살리지 않게 하려는 계약이다.
+
+sections 와 document 는 아직 `원천값 → default → const` 까지만이고 파이프라인이 없다.
+03·04 가 그 뒤에 파이프라인을 같은 순서로 붙인다.
 
 ## 다른 세션에서 쓰는 법
 
@@ -79,8 +91,8 @@ genon/preprocessor/docs/plans/README.md 와 <작업파일>.md 를 읽고 그 작
 | # | 파일 | 대상 | v2 전환 전 필수 | 상태 |
 |---|---|---|:-:|---|
 | 01 | [01-semantic-body-explicit.md](01-semantic-body-explicit.md) | sections 본문 포함 규칙 명시화 | | 완료 (task/360) |
-| 02 | [02-semantic-exclude-merge.md](02-semantic-exclude-merge.md) | `include: false` → `ignore_keys` 통합 | | 미착수 |
-| 03 | [03-semantic-field-pipeline.md](03-semantic-field-pipeline.md) | sections 에 값 파이프라인 개방 | | 미착수 |
+| 02 | [02-semantic-exclude-merge.md](02-semantic-exclude-merge.md) | `include: false` → `ignore_keys` 통합 | | 완료 (task/360) |
+| 03 | [03-semantic-field-pipeline.md](03-semantic-field-pipeline.md) | sections 에 값 파이프라인 개방 | | 완료 (task/360) |
 | 04 | [04-document-field-pipeline.md](04-document-field-pipeline.md) | document 에 값 파이프라인 + `alias` 개방 | | 미착수 |
 | 05 | [05-transform-html-text.md](05-transform-html-text.md) | `from`/`as` → `transform` 통합 | **O** | 미착수 |
 | 06 | [06-chunk-text-rules.md](06-chunk-text-rules.md) | 청크 텍스트 패턴 후처리 | 무관(v2 밖) | 미착수 |
