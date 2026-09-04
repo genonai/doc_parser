@@ -100,17 +100,6 @@ _SCALAR_TYPES = (str, int, float, bool)
 # (문서 루트가 대표적 — "이 문서가 통째로 다루는 대상의 기본 정보" 섹션).
 _DEFAULT_SECTION_TITLE = "개요"
 
-# shared_fields 목표필드명 -> 사람이 읽는 라벨. 여기 있는 필드만 본문(청크 접두)에 실린다 —
-# 라벨이 없는 필드(예: BIZ_ID)는 사람이 검색어로 쓰지 않는 내부 식별자이므로 metadata(적재
-# 컬럼)에만 남기고 본문에서는 뺀다(규칙 10, `_chunk_prefix` 참고). yaml 없이도 동작하는
-# 기본값일 뿐, 필요하면 얼마든지 늘릴 수 있다 — 새 shared_fields target 을 여기 추가하지
-# 않으면 자동으로 "본문에는 안 실리고 metadata 에만 남는" 필드가 된다.
-# 공통 필드의 기본 항목명. 설정의 `field_labels` 가 이 위에 덮어쓰고 새 필드도 더할 수 있다.
-_SHARED_FIELD_LABELS = {
-    "PRODUCT_NM": "상품명",
-    "PRODUCT_C": "상품코드",
-}
-
 # 트리 폭주 방어(순환 참조·비정상 대형 payload). 실측 카드 JSON은 깊이 5 안팎이라
 # 넉넉히 잡는다 — 여기 걸리면 데이터가 아니라 설정/원천이 잘못됐을 가능성이 크다.
 _MAX_DEPTH = 12
@@ -224,7 +213,7 @@ def _local_lines_to_text(
       3) 식별자로 보이면 제외(규칙 9 판정 헬퍼 `_looks_like_identifier` 재사용)
       4) 남으면 원문 key 이름 없이 값만 한 줄로 낸다 — 원문 key(`tabName`, `mpoNum` 등)를
          본문 라벨로 노출하는 경로를 완전히 없앤다. key 이름은 사람이 붙인 라벨
-         (`_SHARED_FIELD_LABELS`, `sections[].name`)일 때만 본문에 등장한다.
+         (`field_labels`, `sections[].name`)일 때만 본문에 등장한다.
     """
     seen = {(title or "").strip()}
     if extra_body and extra_body.strip():
@@ -582,13 +571,19 @@ class SemanticJsonMapper:
             for target, sources in shared_fields_cfg.items()
         }
 
-        # 공통 필드를 청크 접두에 실을 때 붙일 항목명. 기본값 위에 설정을 덮어쓴다 —
-        # 이름이 있는 필드만 접두에 실리므로(규칙 10), 여기에 필드를 더하면 그 필드가
-        # metadata 에만 있던 상태에서 본문(임베딩 대상)으로 올라온다.
-        self.field_labels = {
-            **_SHARED_FIELD_LABELS,
-            **cp.parse_field_labels(cfg.get(cp.FIELD_LABELS_KEY)),
-        }
+        # 공통 필드를 청크 접두에 실을 때 붙일 항목명. 설정에 적은 것만 쓴다 — 매퍼가
+        # 특정 사이트의 필드명(PRODUCT_NM 등)을 기본 라벨로 들고 있으면, 그 이름을 쓰는
+        # 다른 사이트에서 아무 것도 안 적었는데 본문에 줄이 생긴다.
+        self.field_labels = cp.parse_field_labels(cfg.get(cp.FIELD_LABELS_KEY))
+
+        # 청크 접두에 실을 공통 필드(`body.fields`). 선언이 있으면 이것이 포함 여부의
+        # 단일 스위치이고, 라벨은 표시 이름만 맡는다. 선언이 아예 없으면 종전 규칙 10 대로
+        # `field_labels` 에 항목명이 있는 필드를 싣는다(하위호환).
+        raw_text_fields = cfg.get("text_fields")
+        self.text_fields: list[str] | None = (
+            None if raw_text_fields is None
+            else [str(f).strip() for f in (raw_text_fields or []) if str(f).strip()]
+        )
 
         # 문서 1건에 1회만 실을 필드(연회비처럼 섹션마다 반복할 이유가 없는 값).
         # llm extractor 의 같은 이름 키와 의미가 같다 — extractor 마다 다른 이름을 쓰면
@@ -793,17 +788,31 @@ class SemanticJsonMapper:
             # 반복되고, 첫 청크에서는 접두와 1회 줄이 겹쳐 같은 문장이 두 번 나온다.
             if target in self.first_chunk_fields:
                 continue
-            # 규칙 10 — 사람이 붙인 항목명(field_labels)이 있는 필드만 본문에 싣는다.
-            # BIZ_ID 처럼 이름이 없는 내부 식별자는 metadata(적재 컬럼)에만 남는다 — 사람이
-            # 검색어로 쓰지 않는 값을 임베딩에 태우지 않기 위해서다.
-            label = self.field_labels.get(target)
-            if not label:
+            # 규칙 10 — 본문에 실을 공통 필드만 싣는다. BIZ_ID 처럼 사람이 검색어로 쓰지
+            # 않는 내부 식별자는 metadata(적재 컬럼)에만 남겨 임베딩에 태우지 않는다.
+            if not self._in_chunk_body(target):
                 continue
             value = fields.get(target)
             if value in (None, ""):
                 continue
-            lines.append(f"{label}: {_render_value(value)}")
+            label = self.field_labels.get(target)
+            rendered = _render_value(value)
+            lines.append(f"{label}: {rendered}" if label else rendered)
         return "\n".join(lines)
+
+    def _in_chunk_body(self, target: str) -> bool:
+        """이 공통 필드를 청크 접두(본문)에 실을까 — 규칙 10 의 판정.
+
+        `body.fields`(내부 `text_fields`)가 선언돼 있으면 그것만 본다. 본문에 나가는 것이
+        설정 한 곳에 다 적혀 있게 하는 것이 이 키의 목적이므로, 라벨 유무는 표시 이름에만
+        관여한다(빈 목록이면 접두에는 아무 공통 필드도 싣지 않는다).
+
+        선언이 없으면 종전대로 `body.labels` 에 항목명이 있는 필드를 싣는다 — 옛 설정이
+        그 규칙에 기대고 있어서 하위호환으로 남긴다.
+        """
+        if self.text_fields is not None:
+            return target in self.text_fields
+        return bool(self.field_labels.get(target))
 
     def build_text(self, fields: dict, *, extra_lines: list[str] | None = None) -> str:
         """청크 본문 — 접두(제목+공통 정보) + [1회 필드] + 본문.

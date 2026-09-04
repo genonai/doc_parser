@@ -154,9 +154,15 @@ require:
 # 싣는다 — 공통 정보(상품명·상품코드)처럼 모든 청크에 붙이면 chunk_size 를 그만큼 깎고
 # 같은 문장이 섹션 수만큼 임베딩에 들어간다.
 # 값 자체는 모든 청크의 metadata 에 실리므로 필터 검색은 전 청크에서 된다.
+#
+# `fields` 가 청크 접두에 실을 공통 필드다 — 여기 적지 않은 필드(BIZ_ID·SALE_STATUS·GROUP_C)는
+# metadata(적재 컬럼)에만 남는다.
 body:
-  once: [PRODUCT_ATTRS]
+  fields: [PRODUCT_C, PRODUCT_NM]
+  once:   [PRODUCT_ATTRS]
   labels:
+    PRODUCT_C: 상품코드
+    PRODUCT_NM: 상품명
     PRODUCT_ATTRS: 연회비
 # ── 연회비 추출 (feeUrl 섹션만 입력) ─────────────────────────────────────────
 # 연회비는 `htmlList.feeUrl` 안의 표에만 있고 규칙으로 뽑을 수 없다 — 카드마다 표의 행·열이

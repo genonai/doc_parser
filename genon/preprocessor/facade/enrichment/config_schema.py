@@ -5,9 +5,9 @@
 1. **모르는 키는 아무도 안 본다.** 검증기는 알려진 키를 이름으로 꺼내 타입·참조 정합만
    봤을 뿐, `set(cfg) - 지원키` 를 훑는 곳이 없었다. `column_maps`(오타 s) 한 글자로
    매핑 전체가 사라져도 에러도 경고도 없다.
-2. **extractor 가 안 읽는 키도 검증은 통과한다.** `json_semantic` 설정에 `text_fields` 를
-   올바른 필드명으로 적으면 검증을 통과하고 그대로 무시된다. 반대로 이름을 틀리면
-   `chunk_prefix_fields` 처럼 **읽지도 않는 키 때문에 기동이 실패**하기도 했다.
+2. **extractor 가 안 읽는 키도 검증은 통과한다.** `json_semantic` 설정에
+   `chunk_prefix_fields` 를 올바른 필드명으로 적으면 검증을 통과하고 그대로 무시된다.
+   반대로 이름을 틀리면 그 **읽지도 않는 키 때문에 기동이 실패**하기도 했다.
 
 그래서 "이 extractor 가 읽는 키" 를 한 곳에 적고, 그 목록으로 두 가지를 판정한다.
   · 어느 extractor 도 모르는 키 → **기동 실패**(오타로 본다. 가장 가까운 이름을 제안한다)
@@ -73,12 +73,14 @@ EXTRACTOR_KEYS: dict[str, frozenset[str]] = {
     "json_mapping": _RECORD_COMMON | {
         "records", "key_map", "collect_key_map", "missing_policy", "row_merge",
     },
-    # json_semantic 은 레코드형과 파이프라인이 다르다 — 값 변환·본문 조립 키를 읽지 않고
-    # 본문은 섹션 워커가 만든다. 공유 키 중 defaults/constants/llm_fields 만 쓴다.
+    # json_semantic 은 레코드형과 파이프라인이 다르다 — 값 변환 키를 읽지 않고 섹션 본문은
+    # 섹션 워커가 만든다. 본문 조립 키 중에서는 `text_fields`(v2 `body.fields`)만 읽는다 —
+    # 공통 필드를 청크 접두에 실을지 정하는 스위치다(섹션 본문 구성과는 무관하다).
     "json_semantic": frozenset({
         "shared_fields", "sections", "ignore_keys",
         "required_shared_fields", "missing_policy",
-        "defaults", "constants", "llm_fields", "field_labels", "first_chunk_fields",
+        "defaults", "constants", "llm_fields",
+        "text_fields", "field_labels", "first_chunk_fields",
     }),
     # 문서 단위 LLM 추출. 값 매핑이 없고 프롬프트·연결·출력필드가 중심이다.
     # `defaults`(v2 의 `fields.<이름>.default`)는 값 매핑이 아니라 빈 값 채우기라 여기도 읽는다 —

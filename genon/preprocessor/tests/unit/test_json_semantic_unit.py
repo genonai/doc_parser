@@ -35,6 +35,10 @@ ignore_keys:
   - "*Img*"
 constants:
   GROUP_C: "HPP"
+text_fields: [PRODUCT_C, PRODUCT_NM]
+field_labels:
+  PRODUCT_C:  상품코드
+  PRODUCT_NM: 상품명
 """
 
 
@@ -306,11 +310,100 @@ def test_original_json_key_names_never_leak_into_body(tmp_path):
     assert "P006890" not in full_text
 
 
-def test_shared_field_without_label_is_metadata_only():
-    """규칙 10 — BIZ_ID 는 라벨이 없어 본문에서 빠지고 metadata 에만 남는다."""
-    from genon.preprocessor.facade.enrichment.json_semantic import _SHARED_FIELD_LABELS
+def test_shared_field_outside_body_fields_is_metadata_only(tmp_path):
+    """규칙 10 — `body.fields` 에 없는 BIZ_ID 는 본문에서 빠지고 metadata 에만 남는다."""
+    mapper = write_mapper(tmp_path)
 
-    assert "BIZ_ID" not in _SHARED_FIELD_LABELS
+    assert mapper._in_chunk_body("PRODUCT_NM")
+    assert not mapper._in_chunk_body("BIZ_ID")
+
+
+def test_body_fields_is_the_only_switch_even_with_a_label(tmp_path):
+    """라벨이 있어도 `body.fields` 에 없으면 본문에 나가지 않는다.
+
+    예전에는 라벨이 표시 이름과 포함 스위치를 겸해서, 이름을 붙이는 순간 그 값이
+    metadata 전용에서 임베딩 대상으로 조용히 올라왔다.
+    """
+    config = """
+shared_fields:
+  PRODUCT_NM: [cardTitle]
+  BIZ_ID:     [wcmsId]
+sections:
+  htmlList: { name: 상품 문서, include: true }
+text_fields: [PRODUCT_NM]
+field_labels:
+  PRODUCT_NM: 상품명
+  BIZ_ID:     사업자
+"""
+    mapper = write_mapper(tmp_path, config)
+    payload = {"wcmsId": "W1", "cardTitle": "테스트카드",
+               "htmlList": {"noticeUrl": "<h3>유의사항</h3><p>본문.</p>"}}
+    prefix = mapper._chunk_prefix(_by_title(mapper.build_fields(payload, "product_hpp"), "유의사항"))
+
+    assert "상품명: 테스트카드" in prefix
+    assert "사업자" not in prefix and "W1" not in prefix
+
+
+def test_empty_body_fields_drops_every_shared_field_from_prefix(tmp_path):
+    """`body.fields: []` 는 "접두에 공통 필드를 싣지 않는다" 는 명시적 선언이다."""
+    config = """
+shared_fields:
+  PRODUCT_NM: [cardTitle]
+sections:
+  htmlList: { name: 상품 문서, include: true }
+text_fields: []
+field_labels:
+  PRODUCT_NM: 상품명
+"""
+    mapper = write_mapper(tmp_path, config)
+    payload = {"cardTitle": "테스트카드",
+               "htmlList": {"noticeUrl": "<h3>유의사항</h3><p>본문.</p>"}}
+    fields = _by_title(mapper.build_fields(payload, "product_hpp"), "유의사항")
+
+    assert "테스트카드" not in mapper._chunk_prefix(fields)
+    assert fields["PRODUCT_NM"] == "테스트카드"  # metadata 에는 남는다
+
+
+def test_without_body_fields_labels_still_decide_inclusion(tmp_path):
+    """`body.fields` 선언이 없는 옛 설정은 종전대로 라벨이 포함 여부를 정한다(하위호환)."""
+    config = """
+shared_fields:
+  PRODUCT_NM: [cardTitle]
+  BIZ_ID:     [wcmsId]
+sections:
+  htmlList: { name: 상품 문서, include: true }
+field_labels:
+  PRODUCT_NM: 상품명
+"""
+    mapper = write_mapper(tmp_path, config)
+    payload = {"wcmsId": "W1", "cardTitle": "테스트카드",
+               "htmlList": {"noticeUrl": "<h3>유의사항</h3><p>본문.</p>"}}
+    prefix = mapper._chunk_prefix(_by_title(mapper.build_fields(payload, "product_hpp"), "유의사항"))
+
+    assert "상품명: 테스트카드" in prefix
+    assert "W1" not in prefix
+
+
+def test_no_field_is_in_the_body_by_default(tmp_path):
+    """매퍼가 특정 사이트의 필드명을 기본 라벨로 들고 있지 않다.
+
+    예전에는 `PRODUCT_NM`/`PRODUCT_C` 가 상수로 박혀 있어, 설정에 아무 것도 안 적어도
+    그 이름을 쓰는 사이트에서는 접두 2줄이 생겼다.
+    """
+    config = """
+shared_fields:
+  PRODUCT_NM: [cardTitle]
+  PRODUCT_C:  [code]
+sections:
+  htmlList: { name: 상품 문서, include: true }
+"""
+    mapper = write_mapper(tmp_path, config)
+    payload = {"code": "C1", "cardTitle": "테스트카드",
+               "htmlList": {"noticeUrl": "<h3>유의사항</h3><p>본문.</p>"}}
+    prefix = mapper._chunk_prefix(_by_title(mapper.build_fields(payload, "product_hpp"), "유의사항"))
+
+    assert mapper.field_labels == {}
+    assert "테스트카드" not in prefix and "C1" not in prefix
 
 
 def test_biz_id_value_absent_from_body_but_present_in_metadata(tmp_path):
@@ -637,8 +730,8 @@ def test_semantic_constants_override_source_and_defaults(tmp_path):
 
 
 def test_product_attrs_and_sale_status_absent_from_chunk_prefix(tmp_path):
-    """청크 접두(본문 첫 줄들)에는 상품명·상품코드만 실리고, 라벨이 없는 PRODUCT_ATTRS/
-    SALE_STATUS 는 metadata 에만 남는다(규칙 10)."""
+    """청크 접두(본문 첫 줄들)에는 `body.fields` 에 적은 상품명만 실리고, 적지 않은
+    PRODUCT_ATTRS/SALE_STATUS 는 metadata 에만 남는다(규칙 10)."""
     config = """
 shared_fields:
   PRODUCT_NM:    [cardTitle]
@@ -646,6 +739,9 @@ shared_fields:
   SALE_STATUS:   [saleStatus]
 sections:
   htmlList: { name: 상품 문서, include: true }
+text_fields: [PRODUCT_NM]
+field_labels:
+  PRODUCT_NM: 상품명
 """
     payload = {
         "cardTitle": "테스트카드", "saleStatus": "판매중",

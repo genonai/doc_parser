@@ -1093,8 +1093,8 @@ def test_unknown_key_is_rejected_with_suggestion(tmp_path):
 def test_key_of_another_extractor_is_rejected(tmp_path):
     """다른 extractor 의 키는 읽히지 않으므로 설정이 무효다 — 조용히 무시하지 않는다.
 
-    특히 json_semantic 은 text_fields/chunk_prefix_fields 를 읽지 않는데, 예전에는
-    이름이 맞으면 무시하고 틀리면 기동을 실패시켜 신호가 정반대로 나갔다.
+    특히 json_semantic 은 chunk_prefix_fields 를 읽지 않는데, 예전에는 이름이 맞으면
+    무시하고 틀리면 기동을 실패시켜 신호가 정반대로 나갔다.
     """
     from genon.preprocessor.facade.enrichment.json_semantic import SemanticJsonMapper
 
@@ -1102,7 +1102,7 @@ def test_key_of_another_extractor_is_rejected(tmp_path):
     cfg.write_text(
         "shared_fields:\n  PRODUCT_NM: [prodNm]\n"
         "sections:\n  ksp: {name: 혜택, include: true}\n"
-        "text_fields: [PRODUCT_NM]\n",
+        "chunk_prefix_fields: [PRODUCT_NM]\n",
         encoding="utf-8",
     )
     with pytest.raises(ValueError) as exc:
@@ -1110,7 +1110,7 @@ def test_key_of_another_extractor_is_rejected(tmp_path):
             config_file=cfg.name, resource_path=str(tmp_path),
             doc_type="t", extractor="json_semantic",
         )
-    assert "text_fields" in str(exc.value)
+    assert "chunk_prefix_fields" in str(exc.value)
 
 
 @pytest.mark.unit

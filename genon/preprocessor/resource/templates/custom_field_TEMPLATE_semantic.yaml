@@ -92,9 +92,9 @@ source:
 #
 # 여기 적은 값은 두 곳에 들어간다.
 #   · 청크 본문 맨 앞  → "상품명: <값>" 처럼 라벨과 함께 붙어 검색이 잘 되게 한다
-#     (PRODUCT_NM → "상품명", PRODUCT_C → "상품코드" 는 기본 제공 라벨이다. 그 외 필드는
-#      `body.labels` 에 이름이 **없으면 본문에서 빠지고** metadata 에만 남는다.
-#      `alias` 없이 `const`/`default` 로만 만든 필드도 라벨을 붙이면 똑같이 본문에 실린다)
+#     (**`body.fields` 에 적은 필드만** 실린다. 기본으로 실리는 필드는 없다 —
+#      적지 않은 필드는 metadata 에만 남는다. `alias` 없이 `const`/`default` 로만 만든
+#      필드도 `body.fields` 에 적으면 똑같이 본문에 실린다)
 #   · 청크 metadata    → 적재 시 DB 컬럼이 된다
 fields:
   <TARGET_FIELD_1>:
@@ -113,11 +113,13 @@ fields:
 # require:
 #   fields: [<TARGET_FIELD_1>]
 
-# ── [선택] 청크 본문에 실을 항목명과 1회 필드 ───────────────────────────────
-# labels : PRODUCT_NM/PRODUCT_C 외의 공통 필드를 본문에도 싣고 싶을 때만 쓴다.
-#          **여기 이름이 없는 필드는 metadata(적재 컬럼)에만 남고 본문에는 나가지 않는다** —
-#          BIZ_ID 처럼 사람이 검색어로 쓰지 않는 내부 식별자를 적지 않으면 잡음이 줄어든다.
-#          이 kind 에서 labels 는 표시 이름이자 **본문 포함 여부를 정하는 스위치**다.
+# ── [선택] 청크 본문에 실을 공통 필드와 항목명 ──────────────────────────────
+# fields : 청크 접두(본문 맨 앞)에 실을 공통 필드. **본문에 나가는 것이 전부 여기 적힌다** —
+#          적지 않은 필드는 metadata(적재 컬럼)에만 남으므로 BIZ_ID 처럼 사람이 검색어로
+#          쓰지 않는 내부 식별자는 그냥 빼 두면 잡음이 줄어든다.
+#          `fields` 를 아예 쓰지 않으면 하위호환으로 `labels` 에 이름이 있는 필드가 실린다.
+# labels : 그 필드를 본문에서 뭐라고 부를지. 없으면 값만 실린다.
+#          섹션 본문(자동 생성)에는 관여하지 않는다 — 접두에 실리는 공통 필드에만 붙는다.
 # once   : 문서 1건에 하나뿐인 값(연회비·작성일 등)을 **첫 청크에만 1회** 싣는다.
 #          공통 정보처럼 모든 청크에 붙이면 chunk_size 를 그만큼 깎고 같은 문장이 섹션 수만큼
 #          임베딩에 들어간다. 값 자체는 모든 청크 metadata 에 실리므로 필터 검색은 전 청크에서 된다.
@@ -125,10 +127,12 @@ fields:
 #          `fields` 로 원천에서 찾는 필드를 여기 적어도 된다 — 그 필드는 매 청크 접두에서
 #          자동으로 빠지고 첫 청크에만 실린다(둘이 겹쳐 두 번 나오지 않는다).
 #
-# `fields`·`split`·`repeat`·`mirror_to` 는 이 kind 가 **읽지 않는다**(적으면 기동 시 실패).
-# 본문은 섹션 워커가 만들고, 과대 섹션 분할은 항상 켜져 있다.
+# `split`·`repeat`·`mirror_to` 는 이 kind 가 **읽지 않는다**(적으면 기동 시 실패).
+# 섹션 본문은 섹션 워커가 만들고, 과대 섹션 분할은 항상 켜져 있다.
 # body:
+#   fields: [<TARGET_FIELD_1>, <TARGET_FIELD_2>]
 #   labels:
+#     <TARGET_FIELD_1>: <항목명>
 #     <TARGET_FIELD_2>: <항목명>
 #   once: [<ANNUAL_FEE>]
 
@@ -195,7 +199,7 @@ fields:
 #   · **이 kind 가 읽지 않는 키를 적은 경우.** 어느 스키마에도 없는 키(오타)는 가장 가까운
 #     이름을 제안하고, 다른 kind 의 키는 어디 전용인지 알려준다.
 #     sections 가 **읽지 않는** 대표 키는 아래와 같다.
-#       body.fields · body.split · body.repeat · body.mirror_to
+#       body.split · body.repeat · body.mirror_to
 #       필드 스펙의 values · transform · from/as · template
 #       filter · source.records_at · source.merge_rows
 #   · `fields` 의 값이 object 가 아닌 경우(값을 빠뜨린 오타 포함)
@@ -203,6 +207,7 @@ fields:
 #     겹치거나 property 이름 규칙 `/[_A-Za-z][_0-9A-Za-z]*/` 을 벗어난 경우
 #
 #  경고만 남긴다(로그를 봐야 안다)
+#   · `body.fields` 가 아무도 만들지 않는 필드를 가리킬 때 — 그 줄이 조용히 빠진다
 #   · `body.labels` 가 아무도 만들지 않는 필드를 가리킬 때 — 라벨만 조용히 사라진다
 #   · `llm.in` 의 이름을 못 찾을 때 — 그 입력이 빠진다
 #

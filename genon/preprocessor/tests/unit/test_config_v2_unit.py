@@ -141,8 +141,8 @@ def test_covered_set_has_no_phantom_keys():
 def test_v2_config_still_gets_extractor_level_validation(tmp_path):
     """v2 는 내부 형태로 번역된 뒤 **같은 검증기**를 탄다 — 검증이 두 벌이 되지 않는다.
 
-    json_semantic 은 text_fields 를 읽지 않으므로, v2 의 body.fields 로 그 키를 만들면
-    번역 결과가 extractor 지원키 검사에서 걸려야 한다.
+    json_semantic 은 chunk_prefix_fields 를 읽지 않으므로, v2 의 body.repeat 로 그 키를
+    만들면 번역 결과가 extractor 지원키 검사에서 걸려야 한다.
     """
     from genon.preprocessor.facade.enrichment.json_semantic import SemanticJsonMapper
 
@@ -151,10 +151,10 @@ def test_v2_config_still_gets_extractor_level_validation(tmp_path):
         "schema: v2\n"
         "source:\n  kind: sections\n  sections: {ksp: {name: 혜택, include: true}}\n"
         "fields:\n  PRODUCT_NM: {alias: [prodNm]}\n"
-        "body:\n  fields: [PRODUCT_NM]\n",
+        "body:\n  repeat: [PRODUCT_NM]\n",
         encoding="utf-8",
     )
-    with pytest.raises(ValueError, match="text_fields"):
+    with pytest.raises(ValueError, match="chunk_prefix_fields"):
         SemanticJsonMapper(
             config_file=cfg.name, resource_path=str(tmp_path),
             doc_type="t", extractor="json_semantic",
