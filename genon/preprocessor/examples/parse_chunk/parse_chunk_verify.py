@@ -62,6 +62,10 @@ CASES = [
     ("cs_hpp",        MONIMO / ".INC_235488_02_20260626103138.html",   "section 1개"),
     ("cs_hpp",        MONIMO / ".INC_235489_01_20260626103139.html",   "section 3개"),
     ("cs_hpp",        MONIMO / "monimo_cs_hpp_rich_table_sample.html", "rich cell 표 + colspan 안내 셀"),
+    # 같은 원천의 마크다운 산출물. 확장자가 표준이 아니라(*.parsed) 라우팅이 그 사실을
+    # 설정/내용으로 알아내야 한다. 위 .html 과 쌍이므로 함께 둔다.
+    ("cs_hpp",        MONIMO / ".INC_235488_02_20260626103138.html.parsed",
+                                                                      "md+HTML 혼합(*.parsed)"),
     ("product_slf",   MONIMO / "monimo_product_slf_sample.md",         "llm + markdown front matter"),
     ("product_ssf",   MONIMO / "monimo_product_ssf_sample.md",         "llm + markdown front matter"),
     ("product_hpp",   MONIMO / "monimo_product_hpp_wcms_sample.json",  "json_semantic(풀 캡처)"),
@@ -405,6 +409,43 @@ def check_annual_fee_once(chunks: list) -> list[str]:
     return _once_field_problems(chunks, "연회비")
 
 
+def check_cs_hpp_parsed_ext(chunks: list) -> list[str]:
+    """*.parsed(마크다운+HTML 혼합 산출물)의 HTML 이 실제로 파싱되는가(#360).
+
+    이 원천은 표준 확장자를 쓰지 않는다. 예전에는 확장자 라우팅이 그것을 알아내지 못해
+    구조 없는 텍스트로 떨어졌고, 청크 본문에 `<table style=...>` 이 원문 그대로 실렸으며
+    문서 단위 enrichment 도 걸리지 않아 custom_fields 가 통째로 비었다. 실측 10청크 중
+    8청크가 태그 덩어리였다.
+    """
+    problems: list[str] = []
+    markup = re.compile(r"<(?:table|tbody|thead|tr|td|th|span|div|colgroup|img)\b")
+    for idx, chunk in enumerate(chunks):
+        text = chunk.get("text") or ""
+        hit = markup.search(text)
+        if hit:
+            problems.append(
+                f"청크 {idx} 본문에 HTML 태그가 원문 그대로 남았습니다: "
+                f"{text[hit.start():hit.start() + 40]!r}"
+            )
+    if not any(chunk.get("has_table") for chunk in chunks):
+        problems.append("표로 인식된 청크가 없습니다(HTML 표가 파싱되지 않았습니다)")
+    # 문서 단위 custom_fields 가 걸렸는지는 const 필드로 본다. LLM 산출 필드(TITLE 등)는
+    # 모델서빙이 없으면 on_error 정책에 따라 null 이 되므로 이 판정의 근거가 못 된다.
+    if {chunk.get("GROUP_C") for chunk in chunks} != {"HPP"}:
+        problems.append(
+            "GROUP_C 가 모든 청크에 HPP 로 실리지 않았습니다"
+            "(문서 단위 custom_fields 가 걸리지 않았습니다)"
+        )
+    # 마커 소제목(◈/■)이 heading 으로 승격돼야 섹션마다 청크가 갈린다. 승격이 빠지면
+    # 마커가 본문 한 줄로 남아 앞뒤가 크기로만 잘린다.
+    marker_led = sum(1 for c in chunks if (c.get("text") or "").lstrip().startswith(("◈", "■", "▣")))
+    if marker_led < 3:
+        problems.append(
+            f"마커 소제목으로 시작하는 청크가 {marker_led}건뿐입니다(마커 heading 승격 미적용)"
+        )
+    return problems
+
+
 EXTRA_CHECKS = {
     ("product_slf", "monimo_product_slf_sample.md"):
         lambda chunks: check_front_matter(chunks) + check_product_attrs_once(chunks),
@@ -413,6 +454,7 @@ EXTRA_CHECKS = {
     ("card", "card01.flat.html"): check_card_annual_fee,
     ("product_hpp", "monimo_product_hpp_wcms_sample.json"): check_product_hpp_table_format,
     ("cs_hpp", "monimo_cs_hpp_rich_table_sample.html"): check_cs_hpp_degenerate_table,
+    ("cs_hpp", ".INC_235488_02_20260626103138.html.parsed"): check_cs_hpp_parsed_ext,
     ("product_hpp", "monimo_product_hpp_rich_table_sample.json"): check_product_hpp_link_labels,
     ("stock_insight", "monimo_stock_insight_sample.xlsx"): check_stock_insight_row_merge,
 }

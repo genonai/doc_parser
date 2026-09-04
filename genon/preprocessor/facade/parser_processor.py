@@ -910,9 +910,12 @@ class DocumentProcessor:
         cfg = _load_config(config_path)
         self._intel = IntelligentDocumentProcessor(cfg, config_path=config_path)
 
-        # xlsx/csv · md 처리 설정은 intel 프로세서가 동일 config에서 이미 파싱함 → 재사용
+        # xlsx/csv · md · 확장자 별칭 설정은 intel 프로세서가 동일 config에서 이미 파싱함 → 재사용.
+        # _ext_aliases 를 빠뜨리면 formats.extension_aliases 가 설정에 있어도 라우팅이 그것을
+        # 못 읽어(빈 dict) *.parsed 같은 입력이 구조 없는 텍스트로 떨어진다.
         self._xlsx_cfg = self._intel._xlsx_cfg
         self._md_cfg = self._intel._md_cfg
+        self._ext_aliases = self._intel._ext_aliases
         # enrichment.custom_fields 중 tabular_mapping handler를 시작 시 1회 로드한다.
         self._config_dir = self._intel._config_dir
         self._tabular_custom_fields_mappers = self._build_tabular_custom_fields_mappers(
@@ -1249,6 +1252,12 @@ class DocumentProcessor:
         # 같은 경로로 minio 업로드한다.
         output_path, output_file = os.path.split(artifacts_from or file_path)
         filename, _ = os.path.splitext(output_file)
+        # 확장자가 둘 이상인 입력(X.html.parsed)은 마지막 확장자만 떼면 형제 파일(X.html)과
+        # 이름이 겹친다. _with_pictures_refs 는 그림 유무와 무관하게 이 경로를 mkdir 하므로
+        # 형제가 파일로 있으면 FileExistsError 로 파싱이 죽고, 반대로 먼저 만들면 나중에
+        # 그 형제 파일을 같은 폴더에 내려받을 수 없다. 겹칠 수 없는 이름을 쓴다.
+        if os.path.splitext(filename)[1]:
+            filename = output_file + ".artifacts"
         artifacts_dir = Path(output_path) / filename  # 빈 output_path 가 절대경로(/filename)로 바뀌는 것 방지
         reference_path = None if artifacts_dir.is_absolute() else artifacts_dir.parent
 

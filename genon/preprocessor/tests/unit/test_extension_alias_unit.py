@@ -103,6 +103,7 @@ def _stub_processor(cls, aliases: dict[str, str]):
     dp._intel._normalize_runtime_kwargs.side_effect = lambda kwargs: kwargs
     dp._markdown_front_matter_spec_for = MagicMock(return_value=None)
     dp._markdown_text_fence_spec_for = MagicMock(return_value=None)
+    dp._markdown_marker_headings_enabled = MagicMock(return_value=False)
     dp._apply_docling_post_enrichment = AsyncMock(side_effect=lambda doc, **kw: doc)
     dp._build_docling_response = MagicMock(return_value={"elements": []})
     dp._normalize_response = MagicMock(side_effect=lambda result: result)
@@ -248,3 +249,90 @@ def test_missing_unstructured_becomes_actionable_error(tmp_path: Path, monkeypat
 
     assert "unstructured" in excinfo.value.error_msg
     assert "extension_aliases" in excinfo.value.error_msg
+
+
+# ---------------------------------------------------------------------------
+# 4. 설정 배선 — 별칭 표가 파사드까지 실제로 도달하는가
+# ---------------------------------------------------------------------------
+# 위 라우팅 테스트들은 `_ext_aliases` 를 손으로 심는다(스텁). 그래서 "설정을 읽어 그 속성에
+# 넣는" 배선이 빠져도 통과했고, 실제로 빠져 있었다 — DocumentProcessor.__init__ 이 임베디드
+# intel 프로세서에서 _xlsx_cfg/_md_cfg 만 가져오고 _ext_aliases 는 안 가져와, 설정에
+# `.parsed: .md` 가 있어도 라우팅이 빈 dict 를 읽었다. 아래는 그 배선 자체를 고정한다.
+
+@pytest.mark.unit
+def test_processor_reads_extension_aliases_from_config(parser_processor, tmp_path: Path):
+    config = tmp_path / "parser_processor_config.yaml"
+    config.write_text(
+        "formats:\n"
+        "  extension_aliases:\n"
+        '    ".parsed": ".md"\n',
+        encoding="utf-8",
+    )
+
+    dp = parser_processor(config_path=str(config))
+
+    assert dp._ext_aliases == {".parsed": ".md"}
+    assert fa.resolve_ext(".parsed", dp._ext_aliases) == ".md"
+
+
+# ---------------------------------------------------------------------------
+# 5. artifacts 디렉터리 이름 — 형제 파일과 겹치면 안 된다
+# ---------------------------------------------------------------------------
+# 파싱은 그림·표 이미지를 원본 파일명에서 만든 디렉터리에 저장한다. 확장자가 둘인 입력
+# (`X.html.parsed`)은 마지막 확장자만 떼면 형제 파일(`X.html`)과 이름이 같아지고,
+# `_with_pictures_refs` 는 그림 유무와 무관하게 그 경로를 mkdir 하므로 파싱이
+# FileExistsError 로 죽는다. 반대로 먼저 만들면 그 형제 파일을 받을 자리가 없어진다.
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_double_suffix_artifacts_dir_avoids_sibling_name(
+    parser_processor, tmp_path: Path
+):
+    sibling = tmp_path / "INC_1.html"
+    sibling.write_text("<table></table>", encoding="utf-8")
+    src = tmp_path / "INC_1.html.parsed"
+    src.write_text(MIXED_MD_HTML, encoding="utf-8")
+
+    dp = _stub_processor(parser_processor, {".parsed": ".md"})
+    seen: dict = {}
+
+    def _fake(document, image_dir=None, page_no=None, reference_path=None):
+        seen["image_dir"] = image_dir
+        return document
+
+    doc = MagicMock(name="DoclingDocument")
+    doc._with_pictures_refs.side_effect = lambda **kw: _fake(doc, **kw)
+    dp._intel.ocr_mode = "disable"
+    dp._intel.ocr_endpoint = ""
+    dp._intel.load_documents = MagicMock(return_value=doc)
+    dp._intel.table_image_enabled = False
+
+    await dp(MagicMock(), str(src))
+
+    assert seen["image_dir"] != sibling
+    assert seen["image_dir"] == tmp_path / "INC_1.html.parsed.artifacts"
+    # 원본과도 겹치지 않아야 한다(그 자리에 디렉터리를 만들 수 없다).
+    assert seen["image_dir"] != src
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_single_suffix_artifacts_dir_is_unchanged(parser_processor, tmp_path: Path):
+    """확장자가 하나면 기존 규칙 그대로다(산출물 경로가 달라지면 안 된다)."""
+    src = tmp_path / "sample.md"
+    src.write_text(MIXED_MD_HTML, encoding="utf-8")
+
+    dp = _stub_processor(parser_processor, {})
+    seen: dict = {}
+    doc = MagicMock(name="DoclingDocument")
+    doc._with_pictures_refs.side_effect = lambda **kw: (
+        seen.update(image_dir=kw.get("image_dir")) or doc
+    )
+    dp._intel.ocr_mode = "disable"
+    dp._intel.ocr_endpoint = ""
+    dp._intel.load_documents = MagicMock(return_value=doc)
+    dp._intel.table_image_enabled = False
+
+    await dp(MagicMock(), str(src))
+
+    assert seen["image_dir"] == tmp_path / "sample"

@@ -77,6 +77,10 @@ MONIMO_CASES=(
   #   _02_ : section 1개(항목 1건), _01_ : section 3개(항목 3건 → metadata 는 1세트만 나온다)
   "cs_hpp:${MONIMO}/.INC_235488_02_20260626103138.html"
   "cs_hpp:${MONIMO}/.INC_235489_01_20260626103139.html"
+  # 같은 원천의 마크다운 산출물. 확장자가 표준이 아니라 설정의 formats.extension_aliases
+  # (".parsed": ".md")로 포맷을 알려준다. 예전에는 그 설정이 파사드까지 배선되지 않아
+  # 구조 없는 텍스트로 떨어져 청크 본문에 <table> 태그가 원문 그대로 실렸다.
+  "cs_hpp:${MONIMO}/.INC_235488_02_20260626103138.html.parsed"
   "product_slf:${MONIMO}/monimo_product_slf_sample.md"
   "product_ssf:${MONIMO}/monimo_product_ssf_sample.md"
   # json_semantic — 상품 1건(JSON 파일 1개)이 성격별 섹션(혜택 상세/상품 문서 …)으로 나뉘어

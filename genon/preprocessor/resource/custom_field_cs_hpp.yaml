@@ -68,7 +68,12 @@ schema: v2
 source:
   kind: document
   pre:
+    # 이 원천은 h태그가 h1 하나뿐이고 화면상 계층을 도형 마커(◈ ▣ ■)로만 표현한다.
+    # 켜 두면 표 밖 마커 소제목을 heading 으로 승격해 섹션 경계를 되살린다.
+    # 같은 문서가 html 로도, 그 md 산출물(*.parsed)로도 들어오므로 두 포맷에 모두 건다.
     html:
+      marker_headings: true
+    markdown:
       marker_headings: true
 fields:
   GROUP_C:
