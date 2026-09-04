@@ -45,23 +45,20 @@
                                               # 함께 실린다.
 # PRODUCT_C/PRODUCT_NM 이 없는 파일은 상품 정체성이 없는 것이라 검색에 쓸모가 없다 —
 # 기동이 아니라 **요청 시점**에 걸러낸다(missing_policy 기본값 error).
-# ── [필수] ② JSON key 별 성격과 포함 여부 ───────────────────────────────────
-# 왼쪽    = JSON 의 key 이름 (경로가 아니라 이름만 — 깊이가 달라져도 계속 동작한다)
-# name    = 청크 본문 앞에 `[혜택 상세]` 처럼 표시될 이름
-# include = true 면 검색에 넣고, false 면 통째로 뺀다
+# ── [선택] ② JSON key 별 표시 이름 ──────────────────────────────────────────
+# 왼쪽  = JSON 의 key 이름 (경로가 아니라 이름만 — 깊이가 달라져도 계속 동작한다)
+# 오른쪽 = 청크 본문 앞에 `[혜택 상세]` 처럼 표시될 이름
 #
 # 여기 적지 않은 key 도 자동으로 검색에 들어간다. 이 블록은
-# **"이름을 보기 좋게 붙일 key"** 와 **"빼야 하는 key"** 만 적는 곳이다.
+# **"이름을 보기 좋게 붙일 key"** 만 적는 곳이고, 제외는 ignore_keys 에서 한다.
 #
-# mpo 를 빼는 이유: mpo 는 이 카드가 아니라 **다른 카드(추천 상품)** 다.
-# 그대로 두면 다른 카드 혜택이 이 카드 혜택으로 검색되어 오답이 된다.
-# 이건 JSON 구조만 봐서는 알 수 없어서, 사람이 알려줘야 하는 유일한 부분이다.
 # ksp 와 benefit 은 내용이 겹친다(같은 혜택 문구를 code+title 객체 배열 / 문자열 배열 두 형태로
 # 각각 들고 있다). ksp 는 title 을 빼면 code 식별자만 남아 항목마다 규칙 9(식별자뿐인 섹션
 # 접기)로 조용히 접히므로, 검색에는 문자열 배열인 benefit 쪽만 "주요 혜택" 섹션으로 남는다.
-# 둘 다 include: true 로 둬도 결과가 겹치지 않는 이유가 이것이다 — 굳이 ksp 를 빼지 않는다.
-# ── [선택] ③ 검색에 쓸모없는 key ────────────────────────────────────────────
-# 이미지 경로·화면 색상·정렬 순서처럼 사람이 검색할 일이 없는 값을 뺀다.
+# 둘 다 이름을 붙여도 결과가 겹치지 않는 이유가 이것이다 — 굳이 ksp 를 빼지 않는다.
+# ── [필수] ③ 검색에서 뺄 key ────────────────────────────────────────────────
+# 두 종류를 여기 함께 적는다 — "이 대상이 아닌 내용"(mpo 같은 추천 상품)과
+# 이미지 경로·화면 색상·정렬 순서처럼 사람이 검색할 일이 없는 값.
 # `*` 로 부분 일치를 쓸 수 있다 — `*Img*` 한 줄이 pcImg1·moImg1·bgImgUrl 을 모두 잡는다.
 #
 # 빼지 않으면 "pcImg1: /wcms/home/scard/image/personal/b_AAP1344.png" 같은 줄이
@@ -110,30 +107,35 @@
 #  · PRODUCT_C/PRODUCT_NM(required_shared_fields)를 못 찾으면 위 스크립트가 ValueError 로
 #    죽는다(기동이 아니라 요청 시점 — missing_policy: error 가 기본값이다). shared_fields 의
 #    key 이름이 원천과 어긋난 것이다.
-#  · 다른 카드 이름이 섞여 나오면 sections 에 그 key 를 include: false 로 추가한다.
-#  · 이상한 값(색상·경로)이 섞여 나오면 ignore_keys 에 추가한다.
+#  · 다른 카드 이름이나 이상한 값(색상·경로)이 섞여 나오면 ignore_keys 에 그 key 를 추가한다.
 # ═══════════════════════════════════════════════════════════════════════════
 
 schema: v2
 source:
   kind: sections
   sections:
-    ksp:
-      name: 주요 혜택
-      include: true
-    benefit:
-      name: 주요 혜택
-      include: true
-    bubble:
-      name: 혜택 상세
-      include: true
-    htmlList:
-      name: 상품 문서
-      include: true
-    mpo:
-      name: 추천 상품
-      include: false
-  ignore_keys: ['*Img*', '*Lottie*', fontColor, bgColor, sort, hideSummaryTab, is3d, pCApplyNoYn, monimoDeepLink, youtube, imgInfo, serviceUrl, smplAplcExcdYn]
+    ksp: 주요 혜택
+    benefit: 주요 혜택
+    bubble: 혜택 상세
+    htmlList: 상품 문서
+  ignore_keys:
+    # mpo 는 이 카드가 아니라 다른 카드(추천 상품)다 — 그대로 두면 다른 카드 혜택이
+    # 이 카드 혜택으로 검색되어 오답이 된다. JSON 구조만 봐서는 알 수 없어 사람이 적는다.
+    - mpo
+    # 사람이 검색할 일이 없는 값(이미지 경로·화면 색상·정렬 순서 등).
+    - '*Img*'
+    - '*Lottie*'
+    - fontColor
+    - bgColor
+    - sort
+    - hideSummaryTab
+    - is3d
+    - pCApplyNoYn
+    - monimoDeepLink
+    - youtube
+    - imgInfo
+    - serviceUrl
+    - smplAplcExcdYn
 fields:
   BIZ_ID:
     alias: [wcmsId, id, productId]

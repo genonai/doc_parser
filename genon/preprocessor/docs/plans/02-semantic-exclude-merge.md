@@ -62,7 +62,17 @@ source:
 ```
 
 1. `sections` 값으로 **문자열**을 받는다. `{name: X, include: true}` object 도 계속 받아
-   하위호환을 유지하되, `include: false` 는 `normalize()` 에서 `ignore_keys` 항목으로 옮긴다.
+   하위호환을 유지하되, `include: false` 는 `ignore_keys` 항목으로 옮긴다.
+
+   이관 지점은 **매퍼의 `sections` 파싱**이다(`normalize()` 가 아니다 — 계획 초안은 틀렸다).
+   `normalize()` 는 `schema: v2` 인 설정만 거치므로, 거기에 두면 v1 표기 설정의
+   `include: false` 가 조용히 무효가 된다. v1 표기는 여전히 지원 대상이고(`normalize()` 는
+   `is_v2()` 로만 갈린다) 매퍼가 곧 v1 소비자이므로, 두 경로가 합류하는 매퍼에 두면
+   구현이 한 벌로 끝난다. `normalize()` 에 두면 v1 용 사본이 매퍼에도 필요해 두 벌이 된다.
+
+   따라서 **`config_v2.py` 는 고칠 것이 없다.** `_normalize_source` 는 `source.sections` 를
+   안쪽을 보지 않고 그대로 복사하므로 문자열 값이 이미 통과하고, `to_v2` 도 대칭이라
+   v1↔v2 왕복이 유지된다(확인함).
 2. `sections` 를 **선택**으로 바꾼다. 지금은 비어 있으면 기동이 실패한다
    (`json_semantic.py:610` "json_semantic custom_fields 에는 sections 가 필요합니다").
    제외만 필요한 설정이 정상적으로 존재할 수 있다.
@@ -86,7 +96,6 @@ source:
 ## 영향 파일
 
 - `facade/enrichment/json_semantic.py` (sections_cfg 파싱 609~622, `_resolve_child_context` 306~322)
-- `facade/enrichment/config_v2.py` (`_SOURCE_TO_V1`, `_normalize_source` 에 include→ignore 이관)
 - `resource/custom_field_product_hpp_semantic.yaml` + `resource_dev/` 사본
 - `resource/templates/custom_field_TEMPLATE_semantic.yaml`
 

@@ -2,22 +2,28 @@ schema: v2
 source:
   kind: sections
   sections:
-    ksp:
-      name: 주요 혜택
-      include: true
-    benefit:
-      name: 주요 혜택
-      include: true
-    bubble:
-      name: 혜택 상세
-      include: true
-    htmlList:
-      name: 상품 문서
-      include: true
-    mpo:
-      name: 추천 상품
-      include: false
-  ignore_keys: ['*Img*', '*Lottie*', fontColor, bgColor, sort, hideSummaryTab, is3d, pCApplyNoYn, monimoDeepLink, youtube, imgInfo, serviceUrl, smplAplcExcdYn]
+    ksp: 주요 혜택
+    benefit: 주요 혜택
+    bubble: 혜택 상세
+    htmlList: 상품 문서
+  ignore_keys:
+    # mpo 는 이 카드가 아니라 다른 카드(추천 상품)다 — 그대로 두면 다른 카드 혜택이
+    # 이 카드 혜택으로 검색되어 오답이 된다. JSON 구조만 봐서는 알 수 없어 사람이 적는다.
+    - mpo
+    # 사람이 검색할 일이 없는 값(이미지 경로·화면 색상·정렬 순서 등).
+    - '*Img*'
+    - '*Lottie*'
+    - fontColor
+    - bgColor
+    - sort
+    - hideSummaryTab
+    - is3d
+    - pCApplyNoYn
+    - monimoDeepLink
+    - youtube
+    - imgInfo
+    - serviceUrl
+    - smplAplcExcdYn
 fields:
   BIZ_ID:
     alias: [wcmsId, id, productId]

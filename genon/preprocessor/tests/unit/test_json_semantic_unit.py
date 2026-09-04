@@ -27,11 +27,11 @@ shared_fields:
   PRODUCT_C:  [code]
   PRODUCT_NM: [cardTitle]
 sections:
-  bubble:   { name: 혜택 상세,     include: true  }
-  ksp:      { name: 주요 혜택 요약, include: true  }
-  htmlList: { name: 상품 문서,     include: true  }
-  mpo:      { name: 추천 상품,     include: false }
+  bubble:   혜택 상세
+  ksp:      주요 혜택 요약
+  htmlList: 상품 문서
 ignore_keys:
+  - mpo
   - "*Img*"
 constants:
   GROUP_C: "HPP"
@@ -208,19 +208,106 @@ def test_ignore_keys_glob_matches_multiple_keys(tmp_path):
     assert "moImg1" not in full_text
 
 
-# ── include:false 서브트리 전체 제외 ─────────────────────────────────────────
+# ── ignore_keys 정확 이름으로 서브트리 전체 제외 ─────────────────────────────
 
-def test_include_false_excludes_whole_subtree(tmp_path):
-    payload = {
-        "wcmsId": "W1", "code": "C1", "cardTitle": "테스트카드",
-        "mpo": [{"code": "X1", "name": "다른 카드", "ksp": [{"title": "다른 카드만의 혜택 문구"}]}],
-    }
+_OTHER_TARGET_PAYLOAD = {
+    "wcmsId": "W1", "code": "C1", "cardTitle": "테스트카드",
+    "mpo": [{"code": "X1", "name": "다른 카드", "ksp": [{"title": "다른 카드만의 혜택 문구"}]}],
+}
+
+
+def test_ignore_keys_exact_name_excludes_whole_subtree(tmp_path):
+    """와일드카드 없는 정확 이름도 fnmatch 로 걸린다 — "이 대상이 아닌 내용" 제외 경로다."""
     mapper = write_mapper(tmp_path)
+    full_text = "\n".join(_texts(mapper, mapper.build_fields(_OTHER_TARGET_PAYLOAD, "product_hpp")))
+
+    assert "다른 카드만의 혜택 문구" not in full_text
+    assert "다른 카드" not in full_text
+
+
+def test_legacy_include_false_still_excludes_the_same_subtree(tmp_path):
+    """옛 표기 `include: false` 는 `ignore_keys` 항목과 같은 결과여야 한다(하위호환).
+
+    제외 수단을 `ignore_keys` 하나로 합쳤으므로, 옛 설정이 조용히 무효가 되면
+    다른 대상의 내용이 이 대상의 청크로 새어 나간다.
+    """
+    legacy = """
+shared_fields:
+  PRODUCT_NM: [cardTitle]
+sections:
+  mpo: { name: 추천 상품, include: false }
+"""
+    mapper = write_mapper(tmp_path, legacy)
+    full_text = "\n".join(_texts(mapper, mapper.build_fields(_OTHER_TARGET_PAYLOAD, "product_hpp")))
+
+    assert "mpo" in mapper.ignore_keys
+    assert "mpo" not in mapper.sections_cfg
+    assert "다른 카드만의 혜택 문구" not in full_text
+    assert "추천 상품" not in full_text
+
+
+def test_legacy_object_form_keeps_the_display_name(tmp_path):
+    """`{name: X, include: true}` 는 문자열 `X` 와 같게 해석된다."""
+    legacy = """
+shared_fields:
+  PRODUCT_NM: [cardTitle]
+sections:
+  htmlList: { name: 상품 문서, include: true }
+"""
+    mapper = write_mapper(tmp_path, legacy)
+
+    assert mapper.sections_cfg == {"htmlList": "상품 문서"}
+
+
+def test_sections_is_optional(tmp_path):
+    """이름을 안 붙이고 제외만 하는 설정도 정상이다 — 예전에는 기동이 실패했다."""
+    config = """
+shared_fields:
+  PRODUCT_NM: [cardTitle]
+ignore_keys:
+  - mpo
+"""
+    payload = {**_OTHER_TARGET_PAYLOAD,
+               "htmlList": {"noticeUrl": "<h3>이용 유의사항</h3><p>유의사항 본문.</p>"}}
+    mapper = write_mapper(tmp_path, config)
     fields_list = mapper.build_fields(payload, "product_hpp")
     full_text = "\n".join(_texts(mapper, fields_list))
 
+    assert mapper.sections_cfg == {}
+    assert "유의사항 본문." in full_text
+    # 이름을 안 붙였으므로 SECTION_NM 은 자동(컨테이너 key 이름)이 된다.
+    assert _by_title(fields_list, "이용 유의사항")["SECTION_NM"] == "htmlList"
     assert "다른 카드만의 혜택 문구" not in full_text
-    assert "추천 상품" not in full_text
+
+
+def test_section_name_without_a_label_falls_back_to_the_key(tmp_path):
+    """`sections` 에 값을 빠뜨려도(`key:` 만) key 이름을 표시 이름으로 쓴다."""
+    config = """
+shared_fields:
+  PRODUCT_NM: [cardTitle]
+sections:
+  htmlList:
+"""
+    mapper = write_mapper(tmp_path, config)
+
+    assert mapper.sections_cfg == {"htmlList": "htmlList"}
+
+
+@pytest.mark.parametrize("value", ["[상품 문서]", "123", "true"])
+def test_sections_rejects_a_non_string_display_name(tmp_path, value):
+    """표시 이름 자리에 문자열이 아닌 값을 적으면 기동 시 잡는다.
+
+    `include: true/false` 를 적던 습관 때문에 `htmlList: true` 같은 오기입이 나기 쉽고,
+    통과시키면 이름이 `"True"` 인 섹션이 조용히 생긴다.
+    """
+    config = f"""
+shared_fields:
+  PRODUCT_NM: [cardTitle]
+sections:
+  htmlList: {value}
+"""
+    with pytest.raises(ValueError, match="sections.htmlList"):
+        write_mapper(tmp_path, config)
 
 
 # ── SOURCE_JSON_PATH 형식 ─────────────────────────────────────────────────────
@@ -329,7 +416,7 @@ shared_fields:
   PRODUCT_NM: [cardTitle]
   BIZ_ID:     [wcmsId]
 sections:
-  htmlList: { name: 상품 문서, include: true }
+  htmlList: 상품 문서
 text_fields: [PRODUCT_NM]
 field_labels:
   PRODUCT_NM: 상품명
@@ -350,7 +437,7 @@ def test_empty_body_fields_drops_every_shared_field_from_prefix(tmp_path):
 shared_fields:
   PRODUCT_NM: [cardTitle]
 sections:
-  htmlList: { name: 상품 문서, include: true }
+  htmlList: 상품 문서
 text_fields: []
 field_labels:
   PRODUCT_NM: 상품명
@@ -371,7 +458,7 @@ shared_fields:
   PRODUCT_NM: [cardTitle]
   BIZ_ID:     [wcmsId]
 sections:
-  htmlList: { name: 상품 문서, include: true }
+  htmlList: 상품 문서
 field_labels:
   PRODUCT_NM: 상품명
 """
@@ -395,7 +482,7 @@ shared_fields:
   PRODUCT_NM: [cardTitle]
   PRODUCT_C:  [code]
 sections:
-  htmlList: { name: 상품 문서, include: true }
+  htmlList: 상품 문서
 """
     mapper = write_mapper(tmp_path, config)
     payload = {"code": "C1", "cardTitle": "테스트카드",
@@ -480,17 +567,11 @@ def test_node_count_limit_exceeded_warns(tmp_path, caplog):
     assert "상한을 초과" in caplog.text
 
 
-# ── shared_fields/sections 누락 시 기동 실패 ──────────────────────────────────
+# ── shared_fields 누락 시 기동 실패 ──────────────────────────────────────────
 
 def test_shared_fields_is_required(tmp_path):
-    config = "sections:\n  bubble: { name: 혜택, include: true }\n"
+    config = "sections:\n  bubble: 혜택\n"
     with pytest.raises(ValueError, match="shared_fields"):
-        write_mapper(tmp_path, config)
-
-
-def test_sections_is_required(tmp_path):
-    config = "shared_fields:\n  PRODUCT_NM: [cardTitle]\n"
-    with pytest.raises(ValueError, match="sections"):
         write_mapper(tmp_path, config)
 
 
@@ -649,7 +730,7 @@ shared_fields:
   PRODUCT_NM:    [cardTitle]
   PRODUCT_ATTRS: [benefit]
 sections:
-  benefit: { name: 주요 혜택, include: true }
+  benefit: 주요 혜택
 """
 
 SALE_STATUS_CONFIG = """
@@ -657,7 +738,7 @@ shared_fields:
   PRODUCT_NM:  [cardTitle]
   SALE_STATUS: [saleStatus]
 sections:
-  htmlList: { name: 상품 문서, include: true }
+  htmlList: 상품 문서
 """
 
 SALE_STATUS_DEFAULT_CONFIG = SALE_STATUS_CONFIG + """
@@ -738,7 +819,7 @@ shared_fields:
   PRODUCT_ATTRS: [benefit]
   SALE_STATUS:   [saleStatus]
 sections:
-  htmlList: { name: 상품 문서, include: true }
+  htmlList: 상품 문서
 text_fields: [PRODUCT_NM]
 field_labels:
   PRODUCT_NM: 상품명
@@ -862,7 +943,7 @@ def test_first_chunk_fields_appear_once(tmp_path):
         shared_fields:
           PRODUCT_NM: [prodNm]
         sections:
-          ksp: {name: 주요 혜택, include: true}
+          ksp: 주요 혜택
         first_chunk_fields: [ANNUAL_FEE]
         field_labels:
           ANNUAL_FEE: 연회비
@@ -896,7 +977,7 @@ def test_first_chunk_field_keeps_prefix_contract(tmp_path):
         shared_fields:
           PRODUCT_NM: [prodNm]
         sections:
-          ksp: {name: 주요 혜택, include: true}
+          ksp: 주요 혜택
         first_chunk_fields: [ANNUAL_FEE]
     """), encoding="utf-8")
     mapper = SemanticJsonMapper(
@@ -923,7 +1004,7 @@ shared_fields:
   PRODUCT_NM: [prodNm]
   ANNUAL_FEE: [fee]
 sections:
-  ksp: {name: 주요 혜택, include: true}
+  ksp: 주요 혜택
 first_chunk_fields: [ANNUAL_FEE]
 field_labels:
   ANNUAL_FEE: 연회비
@@ -954,7 +1035,7 @@ def test_const_only_field_can_be_put_in_body_with_a_label(tmp_path):
 shared_fields:
   PRODUCT_NM: [prodNm]
 sections:
-  ksp: {name: 주요 혜택, include: true}
+  ksp: 주요 혜택
 constants:
   GROUP_C: HPP
 defaults:

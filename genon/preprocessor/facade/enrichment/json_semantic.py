@@ -31,9 +31,10 @@ element 1개"가 아니라 "섹션 1개 = element 1개"라는 점뿐이다.
     **문서 루트 객체에서만** 찾아 문서당 한 번 확정한다. json_semantic 의 전제는
     "1 파일 = 1 대상"이므로, 루트에 상품 식별자가 없을 때 `mpo[].code` 같은 관련 상품의
     동명 키로 빈 값을 보충하면 안 된다. 하위 객체의 값은 섹션 본문에만 사용한다.
-  - `sections`      : JSON key 별 표시 이름과 포함 여부(`include: false` 로 통째로 제외).
-    설정하지 않은 key 도 자동으로 검색에 들어간다 — 빠뜨려서 누락되는 일이 없다.
-  - `ignore_keys`   : 검색에 쓸모없는 key(이미지 경로 등)를 glob 으로 제외한다.
+  - `sections`      : JSON key 별 표시 이름(`{key: 이름}`). 설정하지 않은 key 도 자동으로
+    검색에 들어간다 — 빠뜨려서 누락되는 일이 없다.
+  - `ignore_keys`   : 검색에서 뺄 key 를 glob 으로 제외한다. 쓸모없는 값(이미지 경로 등)과
+    "이 대상이 아닌 내용"(추천 상품 등)을 모두 여기서 뺀다 — 제외 수단은 이것 하나다.
   - `required_shared_fields` : 이 목표필드가 하나라도 비어 있으면(문서 루트에서 못 찾으면)
     `missing_policy` 에 따라 처리한다(`error`=예외, `skip`=경고 후 섹션 0건). 기본은
     `error` 다(`json_records.py` 의 `missing_policy` 와 같은 이름·기본값).
@@ -290,13 +291,50 @@ def _child_path(parent_path: str, key: str) -> str:
     return f"{parent_path}.{key}"
 
 
+def _parse_sections(sections_cfg: Any) -> tuple[dict[str, str], list[str]]:
+    """`sections` 설정 → (key 별 표시 이름, 제외할 key 목록).
+
+    새 표기는 `{key: 이름}` 문자열 하나다. 옛 표기 `{key: {name: 이름, include: bool}}` 도
+    받아 `include: false` 를 **제외 목록으로 돌려준다** — 호출측이 `ignore_keys` 에 합쳐
+    제외 경로를 하나로 만든다. 둘은 원래 같은 일을 했다(`_walk` 안에서 앞뒤로 서브트리를
+    통째로 건너뛰었고, 공통 필드는 원천 payload 루트에서 직접 찾으므로 metadata 도 무영향).
+
+    이관을 v2 번역 계층(`config_v2.normalize`)이 아니라 여기 두는 이유: `normalize()` 는
+    `schema: v2` 인 설정만 거치므로 거기 두면 v1 표기의 `include: false` 가 조용히 무효가
+    된다. v1·v2 두 경로가 합류하는 지점이 여기라 구현이 한 벌로 끝난다.
+    """
+    if sections_cfg is None:
+        return {}, []
+    if not isinstance(sections_cfg, dict):
+        raise ValueError("json_semantic custom_fields 의 sections 는 '키: 이름' object 여야 합니다.")
+
+    names: dict[str, str] = {}
+    excluded: list[str] = []
+    for key, spec in sections_cfg.items():
+        key = str(key)
+        if isinstance(spec, dict):  # 옛 표기
+            if not bool(spec.get("include", True)):
+                excluded.append(key)
+                continue
+            names[key] = str(spec.get("name") or key)
+            continue
+        if spec is None or isinstance(spec, str):
+            names[key] = spec.strip() if spec and spec.strip() else key
+            continue
+        raise ValueError(
+            f"json_semantic custom_fields sections.{key} 는 표시 이름(문자열)이어야 합니다. "
+            f"제외는 ignore_keys 에 적습니다."
+        )
+    return names, excluded
+
+
 def _resolve_child_context(
     key: str,
-    sections_cfg: dict[str, dict[str, Any]],
+    sections_cfg: dict[str, str],
     parent_key: str | None,
     parent_name: str | None,
-) -> tuple[str | None, str | None, bool]:
-    """이 key 의 섹션 컨텍스트(section_key/section_name/include). 설정에 없으면 부모 것을 그대로
+) -> tuple[str | None, str | None]:
+    """이 key 의 섹션 컨텍스트(section_key/section_name). 설정에 없으면 부모 것을 그대로
     물려받는다 — `htmlList.feeUrl` 처럼 컨테이너 자신만 설정되고 자식은 안 적힌 경우, 자식들이
     전부 같은 SECTION_NM("상품 문서")을 갖게 하기 위해서다.
 
@@ -306,12 +344,12 @@ def _resolve_child_context(
     leftover 스칼라 섹션만 이 함수를 거치지 않으므로 `_emit` 이 그 경우를 "개요"로 별도
     기본값 처리한다.
     """
-    cfg = sections_cfg.get(key)
-    if cfg:
-        return key, cfg["name"], cfg["include"]
+    name = sections_cfg.get(key)
+    if name:
+        return key, name
     if parent_name:
-        return parent_key, parent_name, True
-    return key, key, True
+        return parent_key, parent_name
+    return key, key
 
 
 class _WalkContext:
@@ -336,7 +374,7 @@ class _WalkContext:
         self,
         *,
         shared_fields: dict[str, list[str]],
-        sections_cfg: dict[str, dict[str, Any]],
+        sections_cfg: dict[str, str],
         ignore_keys: list[str],
         table_format: str,
         compact_tables: bool,
@@ -462,11 +500,9 @@ def _walk(
             # 아니라 콘텐츠다(예: `PRODUCT_ATTRS` 의 원천인 `benefit` 목록 섹션이 사라지면
             # 안 된다).
             continue
-        child_key, child_name, include = _resolve_child_context(
+        child_key, child_name = _resolve_child_context(
             key, ctx.sections_cfg, section_key, section_name
         )
-        if not include:
-            continue
 
         if isinstance(value, dict):
             dict_children.append((key, child_key, child_name))
@@ -601,20 +637,14 @@ class SemanticJsonMapper:
             policy = "error"
         self.missing_policy = policy
 
-        sections_cfg = cfg.get("sections")
-        if not isinstance(sections_cfg, dict) or not sections_cfg:
-            raise ValueError("json_semantic custom_fields 에는 sections 가 필요합니다.")
-        self.sections_cfg: dict[str, dict[str, Any]] = {}
-        for key, spec in sections_cfg.items():
-            spec = spec or {}
-            if not isinstance(spec, dict):
-                raise ValueError(f"json_semantic custom_fields sections.{key} 는 object 여야 합니다.")
-            self.sections_cfg[str(key)] = {
-                "name": str(spec.get("name") or key),
-                "include": bool(spec.get("include", True)),
-            }
+        # sections 는 표시 이름표일 뿐이다 — 제외는 ignore_keys 한 곳에서 한다.
+        # 선택 항목이다: 이름을 안 붙이고 제외만 하는 설정이 정상적으로 존재할 수 있고,
+        # 이름이 없으면 값 안의 제목이나 key 이름이 자동으로 쓰인다.
+        self.sections_cfg, excluded_keys = _parse_sections(cfg.get("sections"))
 
         self.ignore_keys = [str(p).strip() for p in (cfg.get("ignore_keys") or []) if str(p).strip()]
+        # 옛 표기의 `include: false` 를 제외 목록으로 합친다(위 _parse_sections 참고).
+        self.ignore_keys.extend(k for k in excluded_keys if k not in self.ignore_keys)
         self.defaults = dict(cfg.get("defaults") or {})
         self.constants = dict(cfg.get("constants") or {})
 
