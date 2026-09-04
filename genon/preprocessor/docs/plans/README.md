@@ -95,7 +95,7 @@ genon/preprocessor/docs/plans/README.md 와 <작업파일>.md 를 읽고 그 작
 | 03 | [03-semantic-field-pipeline.md](03-semantic-field-pipeline.md) | sections 에 값 파이프라인 개방 | | 완료 (task/360) |
 | 04 | [04-document-field-pipeline.md](04-document-field-pipeline.md) | document 에 값 파이프라인 + `alias` 개방 | | 완료 (task/360) |
 | 05 | [05-transform-html-text.md](05-transform-html-text.md) | `from`/`as` → `transform` 통합 | **O** | 완료 (task/360) |
-| 06 | [06-chunk-text-rules.md](06-chunk-text-rules.md) | 청크 텍스트 패턴 후처리 | 무관(v2 밖) | 미착수 |
+| 06 | [06-chunk-text-rules.md](06-chunk-text-rules.md) | 청크 텍스트 패턴 후처리 | 무관(v2 밖) | 완료 (task/360) |
 
 ## B. intelligent 기능 동등화
 
