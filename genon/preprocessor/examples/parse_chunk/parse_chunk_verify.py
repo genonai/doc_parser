@@ -67,6 +67,10 @@ CASES = [
     ("cs_hpp",        MONIMO / ".INC_235488_02_20260626103138.html.parsed",
                                                                       "md+HTML 혼합(*.parsed)"),
     ("product_slf",   MONIMO / "monimo_product_slf_sample.md",         "llm + markdown front matter"),
+    # front matter 값 파이프라인(values/transform/template)용 원천. 생성 스크립트는
+    # examples/parse_chunk/make_product_slf_fields_sample.py 다.
+    ("product_slf",   MONIMO / "monimo_product_slf_fields_sample.md",
+     "코드값·비표준 날짜·브랜드 분리 front matter"),
     ("product_ssf",   MONIMO / "monimo_product_ssf_sample.md",         "llm + markdown front matter"),
     ("product_hpp",   MONIMO / "monimo_product_hpp_wcms_sample.json",  "json_semantic(풀 캡처)"),
     ("product_hpp",   MONIMO / "monimo_product_hpp_sample.json",       "json_semantic(최소)"),

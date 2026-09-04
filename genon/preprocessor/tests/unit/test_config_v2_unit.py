@@ -91,7 +91,9 @@ def test_field_spec_must_be_a_dict(tmp_path):
         ("source:\n  kind: rows\n  records_at: x\n", "records_at"),
         ("source:\n  kind: rows\nfields:\n  Q: {alias: [질문], typo: 1}\n", "typo"),
         ("source:\n  kind: sections\nfilter:\n  - {field: X, in: [Y]}\n", "filter"),
-        ("source:\n  kind: document\nfields:\n  Q: {alias: [질문]}\n", "alias"),
+        # document 도 alias/values/transform/template 을 쓴다(front matter 가 두 번째 원천).
+        # 못 쓰는 것은 원천 컬럼의 평문 사본을 만드는 from/as 뿐이다.
+        ("source:\n  kind: document\nfields:\n  Q: {from: A, as: html}\n", "from"),
     ],
 )
 def test_v2_rejects_malformed_config(body, expect):

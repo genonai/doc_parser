@@ -44,9 +44,8 @@ source:
   # pre:
   #   markdown:
   #     front_matter:                   # 선두 YAML front matter 를 본문에서 분리
-  #       metadata_fields:              # 원천키: 목표필드(또는 목표 목록)
-  #         created_at: created_date    # 청커 transform 이 YYYYMMDD 정수로 바꾼다
-  #         # created_at: [created_date, <ATTRS>]   # 한 원천 키를 여러 목표로 보낼 수도 있다
+  #       # 어느 front matter 키에서 값을 가져올지는 아래 `fields.<목표>.alias` 에 적는다.
+  #       # 여기 남는 것은 "본문에 남길까" 같은 텍스트 정책뿐이다.
   #       exclude_text_fields: ["*"]    # "*" = front matter 전체를 검색 본문에서 제외
   #       on_missing: ignore            # ignore(기본) | warn | error
   #       on_invalid: ignore            # ignore(기본) | warn | error
@@ -59,13 +58,30 @@ source:
   #   html:
   #     marker_headings: true           # 같은 승격을 html 원천에 적용
 
-# ── [선택] 원천과 무관하게 항상 같은 값 ─────────────────────────────────────
-# LLM 에게 상수를 받아쓰게 시키지 않고 여기서 채운다 — 환각·누락 여지가 없고 프롬프트도 짧아진다.
-# LLM 이 같은 키를 다른 값으로 내놔도 여기 값이 이긴다. `llm.out` 에 함께 적어도 된다.
-# 이 kind 에서 필드 스펙은 `const` / `default` 만 쓸 수 있다(값 매핑이 없는 경로다).
+# ── [선택] 필드 선언 ────────────────────────────────────────────────────────
+# 이 kind 의 원천은 둘이다 — LLM 응답과 **markdown front matter**.
+# 한 필드의 규칙(어디서 오나 / 어떻게 접나 / 뭐라고 부르나)을 전부 여기 한 자리에 적는다.
+#
+# 쓸 수 있는 키 (rows/records 와 같다. `from`/`as` 만 못 쓴다)
+#   alias     : 값이 들어 있는 **front matter 키 이름들**. 먼저 찾은 것을 쓴다.
+#   const     : 원천과 무관하게 항상 같은 값. LLM 이 다른 값을 내놔도 이긴다.
+#   default   : LLM 도 front matter 도 값을 못 준 자리만 채운다.
+#   values    : 코드값·표기 흔들림을 표준값으로 접는다 (`SALE: ["1", Y, 판매중]`)
+#   transform : 값 변환 체인 (`date_int_flex`, `[{name: regex_sub, pattern: ...}]`)
+#   template  : 다른 필드를 합쳐 만든다 (`"{{BRAND_NM}} {{PRODUCT_NM}}"`)
+#
+# 적용 순서
+#   default < LLM < front matter < const  →  values → transform → template
+# 값 파이프라인은 이 병합이 끝난 뒤에 도는 후처리라, LLM 이 준 값도 const 로 못 박은 값도
+# 똑같이 지나간다. 순서는 rows/records/sections 와 같다.
 # fields:
-#   <GROUP_C>: {const: "<고정값>"}
-#   <BIZ_ID>:  {default: null}
+#   <GROUP_C>:     {const: "<고정값>"}
+#   <BIZ_ID>:      {default: null}
+#   # front matter 에서 가져오기 — 예전 `front_matter.metadata_fields` 자리가 여기로 왔다.
+#   created_date:  {alias: [created_at], transform: date_int_flex}
+#   <PRODUCT_C>:   {alias: [product_code, prod_cd]}
+#   <SALE_STATUS>: {alias: [sale_state], values: {SALE: ["1"], STOP: ["0"]}}
+#   <DISPLAY_NM>:  {template: "{{<BRAND_NM>}} {{<PRODUCT_NM>}}"}
 
 # ── [선택] 청크 본문 관련 규칙 ──────────────────────────────────────────────
 # 값이 아니라 규칙이다. 프롬프트·`llm.out` 에 넣지 않는다.
@@ -186,8 +202,15 @@ llm:
 #  실패시킨다(요청 전에 바로 안다)
 #   · **이 kind 가 읽지 않는 키를 적은 경우.** 어느 스키마에도 없는 키(오타)는 가장 가까운
 #     이름을 제안하고(`out` 을 `outs` 로 쓴 경우 등), 다른 kind 의 키는 어디 전용인지 알려준다.
-#   · 필드 스펙에 `alias`/`values`/`transform`/`from` 을 쓴 경우 — 이 kind 는 값 매핑이 없다
+#   · 필드 스펙에 `from`/`as` 를 쓴 경우 — 원천 컬럼의 평문 사본을 만드는 스펙이라
+#     rows/records 전용이다(나머지 스펙은 이 kind 도 그대로 쓴다)
+#   · `transform` 의 변환기 이름이 틀렸거나 필수 인자가 빠진 경우, 안 되는 정규식
+#   · `template` 이 아무도 만들지 않는 필드를 참조하는 경우
 #   · 정의되지 않은 `{{변수}}` 를 프롬프트에 쓴 경우(strict 기본)
+#
+#  경고만 남긴다(로그를 봐야 안다)
+#   · `alias` 의 front matter 키를 원천에서 못 찾을 때 — 그 필드가 빈 값으로 지나간다
+#   · `values` 에 없는 값이 들어올 때 — 원값을 그대로 두고 경고만 남긴다
 #
 #  못 잡는다(아래 "확인 방법"으로 직접 봐야 한다)
 #   · `out` 이름과 프롬프트의 JSON 키가 어긋나 값이 전부 null 이 되는 경우

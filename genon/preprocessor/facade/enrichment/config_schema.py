@@ -84,14 +84,16 @@ EXTRACTOR_KEYS: dict[str, frozenset[str]] = {
         "value_map", "transforms", "derive",
         "text_fields", "field_labels", "first_chunk_fields",
     }),
-    # 문서 단위 LLM 추출. 값 매핑이 없고 프롬프트·연결·출력필드가 중심이다.
-    # `defaults`(v2 의 `fields.<이름>.default`)는 값 매핑이 아니라 빈 값 채우기라 여기도 읽는다 —
-    # 적용 순서 `default → const` 는 네 kind 가 공유하는 계약이다.
+    # 문서 단위 LLM 추출. 프롬프트·연결·출력필드가 중심이지만 원천이 하나는 아니다 —
+    # markdown front matter 가 두 번째 원천이라 `front_matter_map`(v2 의 `fields.<이름>.alias`)
+    # 으로 어느 front matter 키에서 가져올지 정하고, 그 값에 다른 kind 와 같은 값
+    # 파이프라인(`value_map`/`transforms`/`derive`)을 같은 순서로 건다.
     "llm": frozenset({
         "url", "api_key", "model", "max_tokens", "temperature", "timeout",
         "system_prompt", "user_prompt", "system_prompt_file", "user_prompt_file", "prompt",
         "output_fields", "constants", "defaults", "parser", "pages", "variables", "template",
         "thinking", "thinking_dialect", "table_text_description",
+        "front_matter_map", "value_map", "transforms", "derive",
         "body_fields", "chunk_prefix_fields", "first_chunk_fields", "field_labels",
     }),
 }

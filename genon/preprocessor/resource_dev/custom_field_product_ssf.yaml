@@ -24,9 +24,7 @@ source:
   pre:
     markdown:
       front_matter:
-        metadata_fields:
-          # created_at: [created_date, PRODUCT_ATTRS]
-          product_code: [PRODUCT_C]
+        # 어느 front matter 키에서 가져올지는 아래 `fields.<목표>.alias` 에 적는다.
         exclude_text_fields: ['*']
         on_missing: warn
       text_fence:
@@ -34,6 +32,8 @@ source:
         langs: ['', text]
         min_hangul_ratio: 0.3
 fields:
+  PRODUCT_C:
+    alias: [product_code]
   GROUP_C:
     const: SSF
   SALE_STATUS:

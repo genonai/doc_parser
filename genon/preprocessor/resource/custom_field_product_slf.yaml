@@ -34,8 +34,8 @@
     # 구조화된 원천값만 모든 청크 metadata로 broadcast한다.
     # created_at은 기본 field_transform을 거쳐 YYYYMMDD 정수 created_date가 된다.
     # file은 H1/title과 중복되고 conversion_note는 검색 본문이 아니므로 front matter 전체 제외.
-    # 위 metadata_fields 는 적재 필수값이라 front matter 가 없는 md 는 조용히 넘기지 않는다.
-    # (코드 기본값은 ignore — 여기서 명시적으로 올린다)
+    # fields 의 front matter 별칭이 적재 필수값이라 front matter 가 없는 md 는 조용히
+    # 넘기지 않는다(코드 기본값은 ignore — on_missing 을 여기서 명시적으로 올린다).
   # PDF 레이아웃 보존용 ```text 펜스를 논리 단위(Q/A/불릿/※) 단락으로 되돌린다.
   # 안 하면 docling 이 펜스 본문 전체를 CodeItem 하나로 만들어(실측 4654자 → 아이템 1개)
   # chunk_size 가 무의미해진다. 레이아웃 파이프 줄 제거도 함께 한다 — md 백엔드는 `|` 한 줄로
@@ -58,9 +58,8 @@ source:
   pre:
     markdown:
       front_matter:
-        metadata_fields:
-          created_at: [created_date]
-          product_code: [PRODUCT_C]
+        # 어느 front matter 키에서 가져올지는 아래 `fields.<목표>.alias` 에 적는다.
+        # 여기 남는 것은 "본문에 남길까" 같은 텍스트 정책뿐이다.
         exclude_text_fields: ['*']
         on_missing: warn
       text_fence:
@@ -68,6 +67,13 @@ source:
         langs: ['', text]
         min_hangul_ratio: 0.3
 fields:
+  # front matter 에서 가져오는 값. `alias` 는 다른 kind 와 같은 뜻이다(먼저 찾은 것을 쓴다).
+  # created_date 는 청커의 field_transform 이 YYYYMMDD 정수로 바꾼다.
+  created_date:
+    alias: [created_at]
+  # LLM 도 뽑지만 front matter 값이 이긴다(default < LLM < front matter < const).
+  PRODUCT_C:
+    alias: [product_code]
   GROUP_C:
     const: SLF
   SALE_STATUS:

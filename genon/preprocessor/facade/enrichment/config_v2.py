@@ -60,9 +60,14 @@ TOP_LEVEL_KEYS = frozenset({
 FIELD_SPEC_KEYS = frozenset({
     "alias", "const", "default", "values", "transform", "from", "as", "collect", "template",
 })
-# kind: document 에서 쓸 수 있는 필드 스펙. 이 kind 는 원천을 고르고 값을 접는 단계가 없어
-# (LLM 응답이 유일한 원천) 고정값과 빈 값 채우기만 남는다.
-DOCUMENT_FIELD_SPEC_KEYS = frozenset({"const", "default"})
+# kind: document 가 **쓸 수 없는** 필드 스펙. 나머지는 다른 kind 와 같다 — 이 kind 도
+# 원천이 둘이다(LLM 응답 + markdown front matter). `from`/`as` 는 원천 컬럼의 평문 파생
+# 사본을 만드는 것이라 표/레코드 kind 전용이다.
+#
+# 허용목록이 아니라 금지목록인 이유: 예전에는 `{const, default}` 허용목록이었고, 그래서
+# 스펙을 하나 열 때마다 여기를 고쳐야 했고 뒤처지면 "이 kind 는 쓸 수 없다" 는 잘못된
+# 안내가 남았다.
+DOCUMENT_UNSUPPORTED_FIELD_SPECS = frozenset({"from", "as"})
 SOURCE_KEYS = frozenset({
     "kind", "records_at", "table_at", "on_missing", "merge_rows",
     "sections", "ignore_keys", "pre",
@@ -81,10 +86,21 @@ REQUIRE_KEYS = frozenset({"fields"})
 _AS_TO_BLOCK = {"auto": "text_from", "html": "html_text_fields"}
 
 # kind 별로 별칭 매핑이 들어가는 v1 키.
+#
+# document 의 원천은 LLM 응답과 **markdown front matter** 둘이다. front matter 쪽 별칭이
+# 예전에는 `source.pre.markdown.front_matter.metadata_fields` 에 따로 있어서 한 필드의
+# 규칙이 두 자리로 흩어졌다 — v2 가 없애려던 바로 그 문제다. 이제 `fields.<목표>.alias` 가
+# 단일 선언 자리다.
+#
+# 옛 표기 `metadata_fields` 흡수는 여기가 아니라 **소비 지점**(`MarkdownFrontMatterSpec`)에
+# 있다. v1 표기 설정은 normalize 를 아예 거치지 않으므로(`load` 가 `is_v2` 로만 갈린다)
+# 여기 두면 v1 의 `metadata_fields` 가 조용히 무효가 되고, 그걸 막으려면 소비 지점에 사본이
+# 또 필요하다. 두 경로가 합류하는 곳에 한 벌만 둔다(sections 의 `include: false` 와 같은 이유).
 _ALIAS_BLOCK = {
     "rows": "column_map",
     "records": "key_map",
     "sections": "shared_fields",
+    "document": "front_matter_map",
 }
 
 # 필드 스펙 키 → 그 값이 들어가는 v1 블록(`{목표필드: 값}` 모양이 같은 것들).
@@ -234,16 +250,20 @@ def _normalize_fields(fields: Any, kind: str, out: dict, label: str) -> None:
                 f"값을 빠뜨리면 조용히 무시되므로 단축 표기를 받지 않습니다."
             )
         _check_unknown(spec, FIELD_SPEC_KEYS, where, "필드 스펙")
-        # kind: document 는 원천 값을 고르고 접는 경로가 없다(LLM 응답이 유일한 원천이다).
-        # 여기서 막지 않으면 `values`/`transform`/`from` 이 v1 블록(value_map/transforms/
-        # text_from)으로 번역된 뒤 config_schema 가 거부해, 설정에 쓰지도 않은 이름으로
-        # 기동이 실패한다 — 쓴 사람이 어느 줄을 고쳐야 하는지 알 수 없다.
+        # 여기서 막지 않으면 `from`/`as` 가 v1 블록(text_from/html_text_fields)으로 번역된
+        # 뒤 config_schema 가 거부해, 설정에 쓰지도 않은 이름으로 기동이 실패한다 — 쓴
+        # 사람이 어느 줄을 고쳐야 하는지 알 수 없다.
         if kind == "document":
-            _check_unknown(spec, DOCUMENT_FIELD_SPEC_KEYS, where, "kind: document 의 필드 스펙")
+            unsupported = sorted(set(spec) & DOCUMENT_UNSUPPORTED_FIELD_SPECS)
+            if unsupported:
+                raise ConfigV2Error(
+                    f"{where}: kind: document 에는 {unsupported} 를 쓸 수 없습니다 "
+                    f"(원천 컬럼의 평문 파생 사본을 만드는 스펙이라 rows/records 전용입니다)."
+                )
 
         if "alias" in spec:
-            if alias_block is None:
-                raise ConfigV2Error(f"{where}: kind: document 에는 alias 를 쓸 수 없습니다.")
+            if alias_block is None:  # _ALIAS_BLOCK 에 없는 kind (지금은 없다)
+                raise ConfigV2Error(f"{where}: kind: {kind} 에는 alias 를 쓸 수 없습니다.")
             out.setdefault(alias_block, {})[target] = _require_list(
                 spec["alias"], where, "alias"
             )

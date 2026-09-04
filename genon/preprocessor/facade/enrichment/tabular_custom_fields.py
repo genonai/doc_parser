@@ -393,6 +393,11 @@ def collect_target_field_names(cfg: dict) -> set[str]:
         for spec in (cfg.get("llm_fields") or [])
         for f in ((spec or {}).get("output_fields") or [])
     }
+    # 문서형(llm) 전용 목표필드. 최상위 `output_fields` 는 LLM 이 만드는 필드이고,
+    # `front_matter_map`(v2 `fields.<목표>.alias`)은 markdown front matter 에서 가져오는
+    # 필드다. 넣지 않으면 그 이름을 `template` 이 참조할 때 "만들 수 없는 필드" 로 막힌다.
+    names |= {str(f) for f in (cfg.get("output_fields") or [])}
+    names |= set(cfg.get("front_matter_map") or {})
     return names
 
 

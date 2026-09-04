@@ -7,10 +7,12 @@ docling 의 Markdown 백엔드는 `---` 로 감싼 front matter 를 **일반 본
 conversion_note 7줄을 갖는데, 그대로 두면 그 7줄만으로 이루어진 청크가 하나 생기고(실측 283자)
 검색 노이즈가 된다. 이 모듈은 docling 변환 **전에** front matter 를 분리해
 
-  - `metadata_fields`      : 어떤 키를 청크 metadata 로 승격할지
+  - `fields.<목표>.alias`  : 어떤 front matter 키에서 값을 가져올지(= 청크 metadata 승격)
   - `exclude_text_fields`  : 어떤 키를 청크 텍스트에서 뺄지
 
-를 **서로 독립적으로** 선택하게 한다. 본문에서 뺀 front matter 도 LLM 추출 프롬프트에는
+를 **서로 독립적으로** 선택하게 한다. 앞의 것은 다른 kind 의 `alias` 와 같은 자리·같은
+뜻이고(먼저 찾은 것을 쓴다), 뒤의 것은 텍스트 정책이라 `front_matter` 블록에 남는다.
+옛 표기 `front_matter.metadata_fields`(`{원천키: 목표}`)도 계속 받아 흡수한다. 본문에서 뺀 front matter 도 LLM 추출 프롬프트에는
 계속 실어(`prompt_prefix`) 추출 근거를 잃지 않는다.
 
 ## 설정 위치
@@ -48,6 +50,10 @@ _log = logging.getLogger(__name__)
 
 _POLICIES = {"ignore", "warn", "error"}
 _DEFAULT_MAX_BYTES = 64 * 1024
+
+# front matter 별칭이 담기는 내부(v1) 키. v2 표기는 `fields.<목표>.alias` 다
+# (config_v2._ALIAS_BLOCK["document"]).
+_FRONT_MATTER_MAP_KEY = "front_matter_map"
 
 # GenOSVectorMeta/청크 조립이 소유한 이름들. 조용히 받아주면 원천 값이 버려지거나
 # 청크 구조 필드를 덮어쓴다(tabular_custom_fields.validate_target_field_names 와 같은 취지).
@@ -141,12 +147,13 @@ def _policy(value: Any, name: str, default: str) -> str:
     return policy
 
 
-def _metadata_field_map(value: Any) -> dict[str, list[str]]:
-    """`metadata_fields` → `{원천키: [목표필드…]}`.
+def _legacy_metadata_field_map(value: Any) -> dict[str, list[str]]:
+    """옛 표기 `front_matter.metadata_fields` → `{목표필드: [원천키]}`.
 
-    한 원천 키를 **여러 목표로** 보낼 수 있다. `created_at` 하나가 청커의 날짜 벡터
-    필드(`created_date`)와 사람이 읽는 표기(`PRODUCT_ATTRS`) 양쪽에 필요한 경우가 있는데,
-    front matter 에는 그 키가 하나뿐이라 목표를 하나로 제한하면 둘 중 하나를 포기해야 했다.
+    옛 표기는 방향이 반대다(`{원천키: 목표(들)}`). 한 원천 키를 **여러 목표로** 보낼 수
+    있었는데 — `created_at` 하나가 청커의 날짜 벡터 필드(`created_date`)와 사람이 읽는
+    표기(`PRODUCT_ATTRS`) 양쪽에 필요한 경우가 있다 — 목표를 키로 뒤집으면 그 관계가
+    그대로 보존된다(목표 둘이 같은 원천을 하나씩 가리키는 형태).
 
         metadata_fields:
           created_at: created_date          # 하나면 문자열
@@ -166,7 +173,6 @@ def _metadata_field_map(value: Any) -> dict[str, list[str]]:
         return result
     if isinstance(value, dict):
         result = {}
-        seen: set[str] = set()
         for source, target in value.items():
             source_name = str(source or "").strip()
             targets = target if isinstance(target, list) else [target]
@@ -174,14 +180,32 @@ def _metadata_field_map(value: Any) -> dict[str, list[str]]:
             if not source_name or not names or not all(names):
                 raise ValueError("front_matter.metadata_fields의 source/target은 비어 있을 수 없습니다.")
             for name in names:
-                if name in seen:
+                if name in result:
                     raise ValueError(
                         f"front_matter.metadata_fields 대상 필드가 중복됩니다: {name}"
                     )
-                seen.add(name)
-            result[source_name] = names
+                result[name] = [source_name]
         return result
     raise ValueError("front_matter.metadata_fields는 list 또는 mapping이어야 합니다.")
+
+
+def _alias_field_map(value: Any) -> dict[str, list[str]]:
+    """`fields.<목표>.alias`(내부 `front_matter_map`) → `{목표필드: [원천키…]}`.
+
+    다른 kind 의 `alias` 와 뜻이 같다 — 여러 개를 적으면 **먼저 찾은 것**을 쓴다.
+    """
+    if value is None:
+        return {}
+    if not isinstance(value, dict):
+        raise ValueError("front matter 별칭(fields.<목표>.alias)은 mapping이어야 합니다.")
+    result: dict[str, list[str]] = {}
+    for target, sources in value.items():
+        target_name = str(target or "").strip()
+        names = [str(s or "").strip() for s in (sources if isinstance(sources, list) else [sources])]
+        if not target_name or not names or not all(names):
+            raise ValueError("front matter 별칭의 목표/원천키는 비어 있을 수 없습니다.")
+        result[target_name] = names
+    return result
 
 
 def _field_list(value: Any, name: str) -> tuple[str, ...]:
@@ -219,20 +243,25 @@ class MarkdownFrontMatterSpec:
     """`markdown.front_matter` 블록 하나를 컴파일한 선언.
 
     ```yaml
-    markdown:
-      front_matter:
-        metadata_fields:            # 원천키: 목표필드(또는 목표 목록). list 면 이름 그대로 승격
-          source_file: source_file
-          created_at: created_date  # 청커 date_int transform 이 YYYYMMDD 정수로 바꾼다
-        exclude_text_fields: ["*"]  # "*" = front matter 전체를 본문에서 제외
-        on_missing: warn            # ignore(기본) | warn | error
-        on_invalid: warn            # ignore(기본) | warn | error
-        max_bytes: 65536            # front matter YAML 크기 상한
+    fields:                                    # 어디서 가져오나 — 다른 kind 의 alias 와 같다
+      source_file:  {alias: [source_file]}
+      created_date: {alias: [created_at]}      # 청커 date_int transform 이 정수로 바꾼다
+    source:
+      pre:
+        markdown:
+          front_matter:                        # 텍스트 정책만 남는다
+            exclude_text_fields: ["*"]         # "*" = front matter 전체를 본문에서 제외
+            on_missing: warn                   # ignore(기본) | warn | error
+            on_invalid: warn                   # ignore(기본) | warn | error
+            max_bytes: 65536                   # front matter YAML 크기 상한
     ```
+
+    옛 표기 `front_matter.metadata_fields`(`{원천키: 목표(들)}`)도 계속 받아 위 모양으로
+    뒤집어 흡수한다(`_legacy_metadata_field_map`).
     """
 
     doc_types: tuple[str, ...]
-    metadata_fields: dict[str, list[str]]   # 원천키 → 목표필드 목록(하나여도 목록)
+    field_aliases: dict[str, list[str]]     # 목표필드 → 원천키 목록(먼저 찾은 것을 쓴다)
     exclude_text_fields: tuple[str, ...]
     on_missing: str = "ignore"
     on_invalid: str = "ignore"
@@ -248,10 +277,14 @@ class MarkdownFrontMatterSpec:
         if not isinstance(fm_cfg, dict):
             raise ValueError("custom_fields.markdown.front_matter는 object여야 합니다.")
 
-        metadata_fields = _metadata_field_map(fm_cfg.get("metadata_fields"))
-        invalid_targets = sorted(
-            {t for targets in metadata_fields.values() for t in targets} & _RESERVED_TARGETS
-        )
+        # 새 표기는 `fields.<목표>.alias`(내부 `front_matter_map`) 하나다. 옛 표기
+        # `front_matter.metadata_fields` 도 계속 받아 같은 모양으로 합친다 — 두 자리에 같은
+        # 목표를 적었으면 새 표기가 이긴다(조용히 합치면 어느 쪽이 이겼는지 알 수 없다).
+        field_aliases = {
+            **_legacy_metadata_field_map(fm_cfg.get("metadata_fields")),
+            **_alias_field_map(config.get(_FRONT_MATTER_MAP_KEY)),
+        }
+        invalid_targets = sorted(set(field_aliases) & _RESERVED_TARGETS)
         if invalid_targets:
             raise ValueError(
                 "front_matter metadata 대상이 청크 예약 필드와 충돌합니다: "
@@ -268,7 +301,7 @@ class MarkdownFrontMatterSpec:
 
         return cls(
             doc_types=normalize_doc_types(config.get("doc_type")),
-            metadata_fields=metadata_fields,
+            field_aliases=field_aliases,
             exclude_text_fields=exclude_fields,
             on_missing=_policy(fm_cfg.get("on_missing"), "on_missing", "ignore"),
             on_invalid=_policy(fm_cfg.get("on_invalid"), "on_invalid", "ignore"),
@@ -344,18 +377,20 @@ class MarkdownFrontMatterSpec:
                 f"Markdown front matter 값 정규화 실패: {path.name} ({exc})",
                 exc,
             )
-        selected = {
-            target: fields[source]
-            for source, targets in self.metadata_fields.items()
-            if source in fields
-            for target in targets
-        }
-        missing_selected = sorted(set(self.metadata_fields) - set(fields))
+        # 목표마다 **먼저 찾은** 원천키를 쓴다(다른 kind 의 alias 와 같은 규칙).
+        selected: dict[str, Any] = {}
+        missing_selected = []
+        for target, sources in self.field_aliases.items():
+            found = next((s for s in sources if s in fields), None)
+            if found is None:
+                missing_selected.append(target)
+                continue
+            selected[target] = fields[found]
         if missing_selected:
             _log.warning(
-                "Markdown front matter metadata_fields 누락(%s): %s",
+                "Markdown front matter 별칭 원천키 누락(%s): %s",
                 path.name,
-                missing_selected,
+                sorted(missing_selected),
             )
 
         # 승격(metadata_fields)과 제외(exclude_text_fields)는 서로 독립이다 — 승격하면서 본문에
@@ -417,6 +452,26 @@ def _merge_config(base: dict, override: dict) -> dict:
     return merged
 
 
+def resolve_child_cfg(config: dict) -> dict:
+    """등록 블록이 가리키는 doc_type yaml 을 **내부(v1) 형태로** 읽는다.
+
+    v2 는 전처리 블록을 `source.pre.<block>` 에, front matter 별칭을 `fields.<목표>.alias`
+    에 담는다. 번역을 거치지 않고 원본을 읽으면 v2 설정에서 markdown/html 전처리가 통째로
+    꺼진다 — front matter 분리도, text_fence 복원도, marker heading 승격도 조용히 사라진다
+    (파싱은 성공하므로 티가 안 난다).
+    """
+    from . import config_v2 as cv2
+
+    child_cfg = load_custom_fields_config(
+        str(config.get("config_file") or ""),
+        str(config.get("resource_path") or "") or None,
+    )
+    child_cfg, _extractor = cv2.load(
+        child_cfg, label=f"custom_fields({config.get('config_file')})"
+    )
+    return child_cfg
+
+
 def resolve_format_cfg(config: dict, block: str) -> dict | None:
     """custom_fields 항목 하나의 유효 ``<block>`` 설정을 해석한다.
 
@@ -440,18 +495,7 @@ def resolve_format_cfg(config: dict, block: str) -> dict | None:
     if custom_fields_extractor(config) not in DOCUMENT_CUSTOM_FIELD_EXTRACTORS:
         return None
 
-    child_cfg = load_custom_fields_config(
-        str(config.get("config_file") or ""),
-        str(config.get("resource_path") or "") or None,
-    )
-    # v2 는 이 블록을 `source.pre.<block>` 에 담는다. 번역을 거치지 않고 원본을 읽으면
-    # v2 설정에서 markdown/html 전처리가 통째로 꺼진다 — front matter 분리도, text_fence
-    # 복원도, marker heading 승격도 조용히 사라진다(파싱은 성공하므로 티가 안 난다).
-    from . import config_v2 as cv2
-
-    child_cfg, _extractor = cv2.load(
-        child_cfg, label=f"custom_fields({config.get('config_file')})"
-    )
+    child_cfg = resolve_child_cfg(config)
     child_block = child_cfg.get(block)
     child_block = child_block if isinstance(child_block, dict) else {}
 
@@ -488,8 +532,16 @@ def build_markdown_front_matter_specs(configs: list[dict]) -> list[MarkdownFront
         if "front_matter" not in markdown_cfg or markdown_cfg.get("front_matter") in (None, False):
             continue
 
+        # front matter 별칭은 자식 yaml 의 `fields.<목표>.alias` (내부 형태 `front_matter_map`)
+        # 에 있는데, 위 해석부는 `markdown` 블록 하나만 꺼내고 나머지를 버린다. spec 이 그
+        # 별칭을 못 보면 승격이 통째로 사라지므로 여기서 함께 실어 준다 —
+        # `resolve_format_cfg` 의 반환 계약을 바꾸면 html 블록 경로까지 영향권이라
+        # 쓰는 쪽에서 자식 config 를 한 번 더 얻는 편이 좁다.
         effective_config = dict(config)
         effective_config["markdown"] = markdown_cfg
+        effective_config[_FRONT_MATTER_MAP_KEY] = resolve_child_cfg(config).get(
+            _FRONT_MATTER_MAP_KEY
+        )
         specs.append(MarkdownFrontMatterSpec.from_config(effective_config))
     return specs
 

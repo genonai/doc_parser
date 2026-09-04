@@ -24,10 +24,7 @@ source:
   pre:
     markdown:
       front_matter:
-        metadata_fields:
-          created_at: [created_date]
-          # created_at: [created_date, PRODUCT_ATTRS]
-          product_code: [PRODUCT_C]
+        # 어느 front matter 키에서 가져올지는 아래 `fields.<목표>.alias` 에 적는다.
         exclude_text_fields: ['*']
         on_missing: warn
       text_fence:
@@ -35,6 +32,10 @@ source:
         langs: ['', text]
         min_hangul_ratio: 0.3
 fields:
+  created_date:
+    alias: [created_at]
+  PRODUCT_C:
+    alias: [product_code]
   GROUP_C:
     const: SLF
   SALE_STATUS:
@@ -42,6 +43,7 @@ fields:
   BIZ_ID:
     const: null
   # PRODUCT_ATTRS:
+  #   alias: [created_at]
   #   transform: date_int_flex
 # 작성일은 문서 1건에 하나뿐이라 청크마다 반복할 이유가 없다. 첫 청크에만 1회 싣는다 —
 # 값 자체는 모든 청크 metadata 에 실리므로 필터 검색은 전 청크에서 된다.

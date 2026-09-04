@@ -331,6 +331,17 @@ class CustomFieldsEnricher(BaseEnricher):
         # (적재 스키마에 컬럼은 있어야 하는데 문서에서 뽑을 근거가 없는 경우).
         # 병합 규칙은 constants 와 같다(키 단위, 등록 블록 우선).
         self._defaults = {**(cfg.get("defaults") or {}), **(defaults or {})}
+        # 값 접기·변환·결합. 다른 kind 와 같은 순수 함수를 같은 순서로 쓴다 — 이 kind 의
+        # 원천은 LLM 응답과 markdown front matter 둘이고, 둘 다 표기가 흔들리는 값을 준다.
+        # 기동 시 컴파일해 잘못된 변환기 이름·안 되는 정규식·없는 참조 필드를 먼저 잡는다.
+        #
+        # 지연 import 인 이유: tabular_custom_fields 가 이 모듈을 import 한다(순환).
+        from .tabular_custom_fields import compile_derive, compile_transforms, compile_value_map
+
+        pipeline_label = f"custom_fields({config_file})"
+        self._value_map = compile_value_map(cfg.get("value_map"))
+        self._transforms = compile_transforms(cfg.get("transforms"), label=pipeline_label)
+        self._derive = compile_derive(cfg, label=pipeline_label)
         # 청크 본문(text)과 같은 값을 실을 필드 이름(검색 대상 본문 컬럼). 값 자체는 청커가
         # 청크 단위로 채우므로 여기서는 이름만 문서 metadata 에 실어 넘긴다.
         self._body_fields = cp.parse_field_name_list(cfg.get(cp.BODY_FIELDS_KEY))
@@ -627,6 +638,16 @@ class CustomFieldsEnricher(BaseEnricher):
         # front matter보다도 우선하며, output_fields 에 없는 상수도 그대로 실린다.
         if self._constants:
             normalized = {**normalized, **self._constants}
+        # 값 정규화 -> 변환 -> 결합. 병합이 끝난 뒤에 도는 후처리이고, 다른 kind 와 같은
+        # 자리(const 뒤)에 같은 순서로 건다. 우선순위 계약(default < LLM < front matter
+        # < const)은 그대로다.
+        if self._value_map or self._transforms or self._derive:
+            from .tabular_custom_fields import apply_derive, apply_transforms, apply_value_map
+
+            normalized = dict(normalized)
+            apply_value_map(normalized, self._value_map)
+            apply_transforms(normalized, self._transforms)
+            apply_derive(normalized, self._derive)
         # 값이 아니라 규칙이다. 청커가 읽어 청크 본문으로 채우고 청크 필드에서는 뺀다.
         if self._body_fields:
             normalized = {**normalized, cp.BODY_FIELDS_KEY: list(self._body_fields)}

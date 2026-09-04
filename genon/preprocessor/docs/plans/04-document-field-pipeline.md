@@ -67,13 +67,27 @@ fields:
   GROUP_C:      {const: HPP}
 ```
 
-1. `DOCUMENT_FIELD_SPEC_KEYS` 상수를 **제거**한다. document 도 다른 kind 와 같은
-   `FIELD_SPEC_KEYS` 를 쓴다(`collect` 제외).
+1. `DOCUMENT_FIELD_SPEC_KEYS`(허용목록)를 **금지목록으로 뒤집는다.** document 가 실제로
+   못 쓰는 것은 `from`/`as` 뿐이다(평문 파생 사본이라 원천 컬럼이 있는 kind 전용이고,
+   05 에서 `transform` 으로 흡수된다). `collect` 는 이미 `kind != records` 로 따로 막힌다.
+   허용목록으로 두면 스펙을 하나 열 때마다 여기를 고쳐야 하고, 지금처럼 뒤처지면
+   "쓸 수 없다" 는 잘못된 안내가 남는다(CLAUDE.md — allowlist 보다 blocklist).
 2. `alias` 를 front matter 키 조회로 배선한다. `_ALIAS_BLOCK` 에 document 항목이 없으므로
-   새 v1 블록 이름이 하나 필요하다(예: `front_matter_map`). `metadata_fields` 는
-   `normalize()` 에서 이 블록으로 번역해 하위호환을 유지한다.
-3. 값 병합(605~629행) 뒤에 `apply_value_map -> apply_transforms -> apply_derive` 를 끼운다.
-   `const` 는 그 **뒤**에 와야 한다(네 kind 공통 계약).
+   새 v1 블록 이름이 하나 필요하다(`front_matter_map`).
+
+   옛 표기 `metadata_fields` 흡수는 **`normalize()` 가 아니라 소비 지점**
+   (`MarkdownFrontMatterSpec.from_config`)에 둔다 — v1 표기 설정은 `normalize()` 를 거치지
+   않으므로 거기 두면 v1 의 `metadata_fields` 가 조용히 무효가 되고, 그걸 막으려면 소비
+   지점에 사본이 또 필요해 두 벌이 된다. 02 의 `include: false` 이관과 같은 판단이다.
+
+   이 배치의 부수 효과로 v1↔v2 왕복이 대칭으로 유지된다 — `metadata_fields` 가 블록 사이를
+   옮겨 다니지 않으므로 `to_v2` 에 특례가 필요 없다.
+3. 값 병합(605~629행) 뒤에 `apply_value_map -> apply_transforms -> apply_derive` 를 붙인다.
+   `const` 는 지금 자리(병합의 마지막)에 **그대로 둔다** — 초안은 "const 가 파이프라인 뒤"
+   라고 썼는데 틀렸다. rows/records/sections 실측 순서는
+   `원천값 -> default -> const -> values -> transform -> template` 이고(03 에서 확인·정정),
+   const 를 파이프라인 뒤로 옮기면 document 만 순서가 달라진다.
+   따라서 최종 순서는 `default < LLM < front matter < const` **뒤에** 파이프라인이다.
 4. `config_schema.EXTRACTOR_KEYS["llm"]` 에 `value_map`, `transforms`, `derive`,
    새 alias 블록을 추가한다.
 5. `_RESERVED_TARGETS`(markdown_front_matter.py:64) 검사가 `fields` 경로에서도 걸리게 한다.
