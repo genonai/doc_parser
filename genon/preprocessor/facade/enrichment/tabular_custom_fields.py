@@ -186,7 +186,7 @@ _LIST_SHAPED_KEYS = (
 _MAP_SHAPED_KEYS = (
     "column_map", "key_map", "collect_key_map", "constants", "defaults", "value_map", "transforms",
     "field_labels",
-    "text_from", "html_text_fields", "shared_fields", "sections",
+    "shared_fields", "sections",
     "row_merge",
 )
 
@@ -270,7 +270,7 @@ def validate_chunk_prefix_fields(cfg: dict, *, label: str) -> None:
     if unknown:
         raise ValueError(
             f"{label}: chunk_prefix_fields 의 {unknown} 를 만드는 설정이 없습니다. "
-            f"column_map/key_map/constants/defaults/text_from/llm_fields 중 하나에 "
+            f"column_map/key_map/constants/defaults/derive/llm_fields 중 하나에 "
             f"필드를 선언하세요."
         )
 
@@ -320,48 +320,6 @@ def validate_custom_field_config(cfg: dict, *, label: str, extractor: str | None
     warn_unknown_field_labels(cfg, label=label)
 
 
-# ── 원천 필드 → 평문 파생 필드(text_from) ────────────────────────────────────
-# 같은 컬럼에 JSON·HTML·평문이 섞여 오는 원천이 있어(모니모 AI차트뷰 detail_desc) 종류를
-# 미리 못 박을 수 없다. 그래서 키 하나로 접고 종류는 render_field_text 가 자동 판별한다.
-#
-#   text_from:
-#     DETAIL_TEXT: DETAIL_DESC     # 원본 필드는 그대로 남고 평문 사본만 더해진다
-#
-# `html_text_fields` 는 HTML 로 **강제**하는 별칭이다. 판별을 믿을 수
-# 없는 원천이나 기존 출고 설정(monimo_event·monimo_news)이 계속 쓰던 대로 동작한다.
-_TEXT_FROM_BLOCKS = (("text_from", None), ("html_text_fields", "html"))
-
-
-def compile_text_from(cfg: dict, *, label: str = "text_from") -> list[tuple[str, str, str | None]]:
-    """`[(목표필드, 원천필드, 강제종류|None)]` 로 컴파일한다(세 블록 공통)."""
-    specs: list[tuple[str, str, str | None]] = []
-    seen: dict[str, str] = {}
-    for key, forced in _TEXT_FROM_BLOCKS:
-        block = cfg.get(key)
-        if not block:
-            continue
-        if not isinstance(block, dict):
-            raise ValueError(f"{label}: {key} 는 '파생필드: 원천필드' 형태의 object 여야 합니다.")
-        for target, source in block.items():
-            target, source = str(target), str(source)
-            if target in seen:
-                raise ValueError(
-                    f"{label}: 파생 필드 '{target}' 가 {seen[target]} 와 {key} 양쪽에 선언됐습니다. "
-                    f"한 곳에만 두세요."
-                )
-            seen[target] = key
-            specs.append((target, source, forced))
-    return specs
-
-
-def apply_text_from(fields: dict, specs: list, html_renderer: Any = None) -> None:
-    """컴파일된 text_from 을 제자리 적용한다. 원본 필드는 건드리지 않는다."""
-    for target, source, forced in specs:
-        fields[target] = render_field_text(
-            fields.get(source), kind=forced, html_renderer=html_renderer
-        )
-
-
 def structural_html_renderer(**options: Any):
     """구조 HTML(표·목록)을 docling 으로 평문화하는 콜백을 만든다.
 
@@ -387,7 +345,6 @@ def collect_target_field_names(cfg: dict) -> set[str]:
     # derive 는 다른 필드를 합쳐 새 목표필드를 만든다. 여기 넣지 않으면 그 필드를
     # text_fields 에 쓰면 오탐 경고가 나고, chunk_prefix_fields/filter 에 쓰면 기동이 실패한다.
     names |= set(cfg.get("derive") or {})
-    names |= {target for target, _, _ in compile_text_from(cfg)}
     names |= {
         str(f)
         for spec in (cfg.get("llm_fields") or [])
@@ -565,9 +522,9 @@ def compile_transforms(spec: Any, *, label: str) -> dict[str, list]:
 
 
 def _compile_transform_step(name: str, kwargs: dict, *, target: str, label: str):
-    """변환기 한 단계를 `(함수, 인자)` 로 만든다. 이름·인자·정규식을 여기서 검증한다."""
+    """변환기 한 단계를 `(함수, 인자, 렌더러_필요)` 로 만든다. 이름·인자·정규식을 여기서 검증한다."""
     from .field_transforms import (
-        ALL_TRANSFORM_NAMES, PARAM_TRANSFORM_REQUIRED, PARAM_TRANSFORMS,
+        ALL_TRANSFORM_NAMES, PARAM_TRANSFORM_REQUIRED, PARAM_TRANSFORMS, RENDERER_TRANSFORMS,
     )
 
     if name in VALUE_TRANSFORMS:
@@ -575,7 +532,7 @@ def _compile_transform_step(name: str, kwargs: dict, *, target: str, label: str)
             raise ValueError(
                 f"{label}: transforms.{target} 의 '{name}' 은 인자를 받지 않습니다: {sorted(kwargs)}"
             )
-        return (VALUE_TRANSFORMS[name], {})
+        return (VALUE_TRANSFORMS[name], {}, False)
     if name not in PARAM_TRANSFORMS:
         raise ValueError(
             f"{label}: 등록되지 않은 transforms 변환기: {name!r} "
@@ -592,15 +549,21 @@ def _compile_transform_step(name: str, kwargs: dict, *, target: str, label: str)
             raise ValueError(
                 f"{label}: transforms.{target} 의 정규식이 잘못됐습니다: {exc}"
             ) from exc
-    return (PARAM_TRANSFORMS[name], dict(kwargs))
+    return (PARAM_TRANSFORMS[name], dict(kwargs), name in RENDERER_TRANSFORMS)
 
 
-def apply_transforms(fields: dict, compiled: dict[str, list]) -> None:
-    """컴파일된 변환 체인을 제자리 적용한다."""
+def apply_transforms(fields: dict, compiled: dict[str, list], html_renderer: Any = None) -> None:
+    """컴파일된 변환 체인을 제자리 적용한다.
+
+    `html_renderer` 는 `html_text`/`text` 변환기에만 주입한다 — 표 모양을 살리려면 요청의
+    table_format/compact_tables 를 물려야 해서 설정으로는 표현할 수 없는 인자다. 기본값이
+    None 이라 렌더러가 필요 없는 호출부는 그대로 둔다(표가 오는 경로에서는 반드시 넘긴다).
+    """
     for target, chain in compiled.items():
         value = fields.get(target)
-        for func, kwargs in chain:
-            value = func(value, **kwargs) if kwargs else func(value)
+        for func, kwargs, needs_renderer in chain:
+            call_kwargs = {**kwargs, "html_renderer": html_renderer} if needs_renderer else kwargs
+            value = func(value, **call_kwargs) if call_kwargs else func(value)
         fields[target] = value
 
 
@@ -831,7 +794,7 @@ def build_chunk_text(
     def labeled(name: str) -> str:
         """짧은 값은 `항목명: 값`, 여러 줄 블록은 값만.
 
-        text_from 이 만든 파생 필드는 `## 제목` 헤딩을 가진 마크다운 블록이다. 거기에
+`text`/`html_text` 변환이 만든 값은 `## 제목` 헤딩을 가진 마크다운 블록이다. 거기에
         `detail_desc: ` 라벨을 덧붙이면 첫 줄만 라벨 뒤에 붙어 구조가 깨지고, 임베딩에는
         의미 없는 컬럼명이 하나 더 들어간다. 블록은 자기 제목을 이미 갖고 있다.
         """
@@ -898,10 +861,6 @@ class TabularCustomFieldsMapper:
 
         # 여러 행에 쪼개져 오는 값을 한 레코드로 접는다(미선언이면 종전대로 행 1개 = 레코드 1개).
         self.row_merge = compile_row_merge(
-            self.config, label=f"tabular custom_fields({config_file})"
-        )
-        # 원천 필드 → 평문 파생 필드. 원본 필드는 그대로 남는다(json_mapping 과 같은 키).
-        self.text_from = compile_text_from(
             self.config, label=f"tabular custom_fields({config_file})"
         )
 
@@ -1018,7 +977,7 @@ class TabularCustomFieldsMapper:
         3단으로 나뉘어 있다.
           1. 원시 매핑 — 행마다 `column_map` 값만 채운다.
           2. 병합 — `row_merge` 가 있으면 연속 런을 한 레코드로 접는다.
-          3. 레코드 마감 — defaults/constants/value_map/transforms/text_from/required.
+          3. 레코드 마감 — defaults/constants/value_map/transforms/derive/required.
         순서가 중요하다. transforms 와 required 는 **병합이 끝난 값**을 봐야 한다 —
         조각 하나만 보고 날짜를 변환하거나 필수값을 판정하면 결과가 달라진다.
         `row_merge` 미선언이면 런 길이가 1이라 종전과 동일하다.
@@ -1029,12 +988,13 @@ class TabularCustomFieldsMapper:
         required_fields = set(self.config.get("required") or [])
         doc_type = self.canonical_doc_type(runtime_doc_type)
 
-        # 구조 HTML 이 섞여 올 수 있으므로 렌더러를 준비한다(파생 필드가 없으면 만들지 않는다).
-        # 표 모양을 docling 경로·records 경로와 같은 설정으로 맞춘다. 인자를 주지 않으면
-        # 항상 <table> 이 되어, 같은 파일 안에서도 kind 마다 표가 다르게 나온다.
+        # 구조 HTML 이 섞여 올 수 있으므로 렌더러를 준비한다(변환이 없으면 만들지 않는다).
+        # `html_text`/`text` 변환기만 이것을 받는다. 표 모양을 docling 경로·records 경로와
+        # 같은 설정으로 맞춘다 — 인자를 주지 않으면 항상 <table> 이 되어, 같은 파일 안에서도
+        # kind 마다 표가 다르게 나온다.
         html_renderer = structural_html_renderer(
             table_format=table_format, compact_tables=compact_tables
-        ) if self.text_from else None
+        ) if self.transforms else None
 
         fields_list: list[dict] = []
         sheets = data_dict.get("data", []) or []
@@ -1108,12 +1068,9 @@ class TabularCustomFieldsMapper:
                 apply_value_map(
                     fields, self.value_map, context=f"(sheet={sheet_name}, row={record_idx})"
                 )
-                apply_transforms(fields, self.transforms)
+                apply_transforms(fields, self.transforms, html_renderer)
                 # 결합은 변환 뒤에 — 정규화된 값으로 합쳐야 표기가 흔들리지 않는다.
                 apply_derive(fields, self.derive)
-
-                # 파생 필드는 transforms 뒤에 만든다 — 원본 필드는 그대로 두고 평문 사본만 더한다.
-                apply_text_from(fields, self.text_from, html_renderer)
 
                 # 대상이 아닌 레코드는 여기서 빠진다. required 보다 **먼저** 보는 것이 중요하다 —
                 # 뒤에 두면 정상 제외가 "필수값 누락" 경고로 찍혀 데이터 사고처럼 보인다.
@@ -1169,13 +1126,7 @@ class TabularCustomFieldsMapper:
         text_fields = list(self.config.get("text_fields") or [])
         doc_type = self.canonical_doc_type(runtime_doc_type)
 
-        # 파생 필드는 원본 필드의 라벨을 물려받는다. DETAIL_TEXT 는 원본 detail_desc 를 평문으로
-        # 바꾼 같은 내용이므로 원천 헤더가 그대로 맞는 이름이다. 이게 없으면 파생 필드는
-        # column_map 에 없어 이름 없이 값만 나간다(목표필드명으로 폴백하지는 않는다).
         column_map = dict(self.config.get("column_map") or {})
-        for target, source, _ in self.text_from:
-            if target not in column_map and source in column_map:
-                column_map[target] = column_map[source]
 
         elements: list[dict] = []
         max_page = 0

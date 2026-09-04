@@ -58,16 +58,8 @@ TOP_LEVEL_KEYS = frozenset({
 # 필드 스펙 안에 쓸 수 있는 키. 값은 **항상 dict** 다 — 리스트/스칼라 단축형을 받지 않는다.
 # `TARGET_A:` 처럼 값을 빠뜨린 오타가 null 로 파싱돼 조용히 통과하는 것을 막기 위해서다.
 FIELD_SPEC_KEYS = frozenset({
-    "alias", "const", "default", "values", "transform", "from", "as", "collect", "template",
+    "alias", "const", "default", "values", "transform", "collect", "template",
 })
-# kind: document 가 **쓸 수 없는** 필드 스펙. 나머지는 다른 kind 와 같다 — 이 kind 도
-# 원천이 둘이다(LLM 응답 + markdown front matter). `from`/`as` 는 원천 컬럼의 평문 파생
-# 사본을 만드는 것이라 표/레코드 kind 전용이다.
-#
-# 허용목록이 아니라 금지목록인 이유: 예전에는 `{const, default}` 허용목록이었고, 그래서
-# 스펙을 하나 열 때마다 여기를 고쳐야 했고 뒤처지면 "이 kind 는 쓸 수 없다" 는 잘못된
-# 안내가 남았다.
-DOCUMENT_UNSUPPORTED_FIELD_SPECS = frozenset({"from", "as"})
 SOURCE_KEYS = frozenset({
     "kind", "records_at", "table_at", "on_missing", "merge_rows",
     "sections", "ignore_keys", "pre",
@@ -82,8 +74,15 @@ REQUIRE_KEYS = frozenset({"fields"})
 # 고쳐져 "v2 로 옮겼더니 값이 사라지는" 번역 결함이 생기고, 그건 왕복 검증에도 안 잡힌다
 # (양쪽이 똑같이 흘리면 왕복은 통과한다).
 
-# `as:` 가 고르는 파생 블록. auto 는 값의 종류를 자동 판별한다(text_from).
-_AS_TO_BLOCK = {"auto": "text_from", "html": "html_text_fields"}
+# 옛 v1 블록 → 그 일을 대신하는 `transform` 변환기 이름. 두 블록은 "원본은 남기고 평문
+# 사본을 하나 더 만든다" 는 파생 전용 표기였는데, 같은 alias 를 두 필드에 붙이면 같은 일을
+# 하면서 제자리 변환까지 된다. v2 에는 대응 표기가 없고 `to_v2` 만 이 표를 쓴다
+# (v1 설정을 옮길 때 `{목표: {alias: [원천…], transform: <이름>}}` 로 편다).
+_TEXT_FROM_TO_TRANSFORM = {"text_from": "text", "html_text_fields": "html_text"}
+
+# **v1 에만 있던** 키. 어느 매퍼도 더는 읽지 않지만 `to_v2` 는 계속 옮길 수 있어야 한다 —
+# 옮기지 못하면 그 설정은 손으로 고치기 전에는 v2 로 갈 수 없다.
+LEGACY_V1_ONLY_KEYS = frozenset(_TEXT_FROM_TO_TRANSFORM)
 
 # kind 별로 별칭 매핑이 들어가는 v1 키.
 #
@@ -136,7 +135,7 @@ _SOURCE_TO_V1 = {
 
 # 필드 스펙이 만들 수 있는 모든 v1 블록(왕복 커버리지 계산에 쓴다).
 _FIELD_BLOCKS = (
-    set(_SPEC_TO_BLOCK.values()) | set(_ALIAS_BLOCK.values()) | set(_AS_TO_BLOCK.values())
+    set(_SPEC_TO_BLOCK.values()) | set(_ALIAS_BLOCK.values()) | set(_TEXT_FROM_TO_TRANSFORM)
 )
 
 
@@ -250,17 +249,6 @@ def _normalize_fields(fields: Any, kind: str, out: dict, label: str) -> None:
                 f"값을 빠뜨리면 조용히 무시되므로 단축 표기를 받지 않습니다."
             )
         _check_unknown(spec, FIELD_SPEC_KEYS, where, "필드 스펙")
-        # 여기서 막지 않으면 `from`/`as` 가 v1 블록(text_from/html_text_fields)으로 번역된
-        # 뒤 config_schema 가 거부해, 설정에 쓰지도 않은 이름으로 기동이 실패한다 — 쓴
-        # 사람이 어느 줄을 고쳐야 하는지 알 수 없다.
-        if kind == "document":
-            unsupported = sorted(set(spec) & DOCUMENT_UNSUPPORTED_FIELD_SPECS)
-            if unsupported:
-                raise ConfigV2Error(
-                    f"{where}: kind: document 에는 {unsupported} 를 쓸 수 없습니다 "
-                    f"(원천 컬럼의 평문 파생 사본을 만드는 스펙이라 rows/records 전용입니다)."
-                )
-
         if "alias" in spec:
             if alias_block is None:  # _ALIAS_BLOCK 에 없는 kind (지금은 없다)
                 raise ConfigV2Error(f"{where}: kind: {kind} 에는 alias 를 쓸 수 없습니다.")
@@ -280,16 +268,6 @@ def _normalize_fields(fields: Any, kind: str, out: dict, label: str) -> None:
             if spec_key == "values":
                 value = _require_dict(value, where, "values")
             out.setdefault(block, {})[target] = value
-        if "from" in spec:
-            as_kind = str(spec.get("as") or "auto").strip().lower()
-            block = _AS_TO_BLOCK.get(as_kind)
-            if block is None:
-                raise ConfigV2Error(
-                    f"{where}: as 는 {sorted(_AS_TO_BLOCK)} 중 하나여야 합니다: {as_kind!r}"
-                )
-            out.setdefault(block, {})[target] = spec["from"]
-        elif "as" in spec:
-            raise ConfigV2Error(f"{where}: as 는 from 과 함께 써야 합니다.")
 
 
 def _normalize_require(require: Any, kind: str, out: dict, label: str) -> None:
@@ -390,6 +368,23 @@ _LLM_PROMPT_KEYS = {
 }
 
 
+def _carry_derived_into_merge(source: dict, derived_from: dict[str, str]) -> None:
+    """옛 파생 필드를 `merge_rows.concat` 에도 따라 넣는다.
+
+    옛 표기에서 파생 필드는 값 파이프라인 **뒤**에 만들어졌으므로 병합이 끝난 값을 봤다.
+    새 표기에서는 원천을 직접 읽는 보통 필드라, 원천이 여러 행에 쪼개져 오는 스키마
+    (`merge_rows`)에서는 원본과 **함께** 이어붙이지 않으면 첫 조각만 남은 채로 변환된다.
+    옮기는 쪽이 원본·파생 관계를 알고 있으므로 여기서 채운다 — 사람이 놓치기 가장 쉬운 곳이다.
+    """
+    merge = source.get("merge_rows")
+    if not derived_from or not isinstance(merge, dict):
+        return
+    concat = list(merge.get("concat") or [])
+    added = [t for t, src in derived_from.items() if src in concat and t not in concat]
+    if added:
+        source["merge_rows"] = {**merge, "concat": concat + added}
+
+
 def to_v2(cfg: dict, extractor: str) -> dict:
     """v1 설정 → v2 설정. 값은 그대로 옮기고 자리만 바꾼다."""
     kind = _EXTRACTOR_TO_KIND.get(str(extractor or "llm").strip().lower())
@@ -402,11 +397,24 @@ def to_v2(cfg: dict, extractor: str) -> dict:
     for v1_key, spec_key in _BLOCK_TO_SPEC_KEY.items():
         for target, value in (cfg.get(v1_key) or {}).items():
             fields.setdefault(str(target), {})[spec_key] = value
-    for v1_key, as_kind in (("text_from", "auto"), ("html_text_fields", "html")):
-        for target, source in (cfg.get(v1_key) or {}).items():
+    # 옛 파생 블록은 "원천 alias 를 한 번 더 붙이고 transform 을 건다" 로 편다. `from` 은
+    # 목표필드를 가리켰으므로 그 목표필드의 alias 를 그대로 가져온다.
+    alias_block = _ALIAS_BLOCK.get(kind)
+    derived_from: dict[str, str] = {}
+    for v1_key, transform_name in _TEXT_FROM_TO_TRANSFORM.items():
+        for target, source_field in (cfg.get(v1_key) or {}).items():
             spec = fields.setdefault(str(target), {})
-            spec["from"] = source
-            spec["as"] = as_kind
+            spec["transform"] = transform_name
+            source_alias = (
+                (cfg.get(alias_block) or {}).get(str(source_field)) if alias_block else None
+            )
+            if source_alias is None:
+                raise ConfigV2Error(
+                    f"{v1_key}.{target} 의 원천 '{source_field}' 을 {alias_block} 에서 찾지 "
+                    f"못했습니다 — v2 는 파생 블록 대신 같은 alias 를 두 필드에 붙여 표현합니다."
+                )
+            spec["alias"] = list(source_alias)
+            derived_from[str(target)] = str(source_field)
     if fields:
         out["fields"] = fields
 
@@ -414,6 +422,7 @@ def to_v2(cfg: dict, extractor: str) -> dict:
     for v2_key, (v1_key, _kinds) in _SOURCE_TO_V1.items():
         if cfg.get(v1_key) is not None:
             source[v2_key] = cfg[v1_key]
+    _carry_derived_into_merge(source, derived_from)
     pre = {k: cfg[k] for k in PRE_KEYS if cfg.get(k) is not None}
     if pre:
         source["pre"] = pre

@@ -62,7 +62,6 @@ WIRING_KEYS = frozenset({
 _RECORD_COMMON = frozenset({
     "required", "defaults", "constants",
     "value_map", "transforms", "derive", "filter",
-    "text_from", "html_text_fields",
     "llm_fields",
     "text_fields", "split", "chunk_prefix_fields", "field_labels",
 })

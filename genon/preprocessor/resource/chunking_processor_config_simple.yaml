@@ -53,7 +53,7 @@ chunking:
 # /chunker 로 들어오는 문서의 표 모양은 여기서 정한다. 청크 텍스트의 표 표기형태는
 # 이 섹션이 최종 결정한다. parser_processor_config.yaml 에도 같은 이름의 키가 있지만
 # 그쪽은 파서가 자기 출력을 낼 때(format: json/html/markdown)와 custom_fields 의
-# html_text_fields 파생 필드에만 쓰인다 — 여기 값과 맞출 필요가 없다.
+# custom_fields 의 `html_text`/`text` 변환에만 쓰인다 — 여기 값과 맞출 필요가 없다.
 output:
   # "auto" 는 표마다 구조를 보고 고른다 - 병합 셀이나 2단 헤더가 있으면 html,
   # 단순 격자면 markdown. markdown 은 병합 셀을 표현하지 못해 헤더 계층이 사라진다.

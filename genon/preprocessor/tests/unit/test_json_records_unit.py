@@ -51,14 +51,14 @@ key_map:
   EVENT_FROM:  [이벤트 시작일]
   EVENT_TO:    [이벤트 종료일]
   DETAIL_HTML: [htmlText]
+  DETAIL_TEXT: [htmlText]
 required: [TITLE]
 defaults:
   KEYWORD: null
 transforms:
   EVENT_FROM: date_int_flex
   EVENT_TO:   date_int_flex
-html_text_fields:
-  DETAIL_TEXT: DETAIL_HTML
+  DETAIL_TEXT: html_text
 text_fields: [TITLE, DETAIL_TEXT]
 split: true
 chunk_prefix_fields: [TITLE]
@@ -304,7 +304,7 @@ def test_html_to_text_compact_tables_only_affects_markdown():
 
 
 def test_build_fields_applies_table_format_to_html_derived_fields(tmp_path):
-    """매퍼가 table_format 을 html_text_fields 파생 필드까지 전달한다."""
+    """매퍼가 table_format 을 `transform: html_text` 필드까지 전달한다."""
     payload = {
         "eventList": [
             {
@@ -754,7 +754,7 @@ def test_shape_error_reports_key_name_before_consumption(tmp_path):
 def test_row_merge_folds_split_records_before_value_pipeline(tmp_path):
     """원천이 값 하나를 여러 레코드에 쪼개 보내는 스키마를 한 건으로 접는다.
 
-    병합은 값 파이프라인 **전에** 돌아야 한다 — 조각마다 text_from 이 먼저 돌면 잘린 JSON
+    병합은 값 파이프라인 **전에** 돌아야 한다 — 조각마다 변환이 먼저 돌면 잘린 JSON
     조각을 각각 평문화하게 되어 복원이 불가능하다.
     """
     whole = '{"종목명": "삼성전자", "투자의견": "매수"}'
@@ -763,13 +763,14 @@ def test_row_merge_folds_split_records_before_value_pipeline(tmp_path):
           REGT_NO:     [regtNo]
           LINE_NO:     [lineNo]
           DETAIL_JSON: [detailDesc]
+          DETAIL_TEXT: [detailDesc]
         row_merge:
           group_by:  [REGT_NO]
           order_by:  LINE_NO
-          concat:    [DETAIL_JSON]
+          concat:    [DETAIL_JSON, DETAIL_TEXT]
           separator: ""
-        text_from:
-          DETAIL_TEXT: DETAIL_JSON
+        transforms:
+          DETAIL_TEXT: text
         text_fields: [DETAIL_TEXT]
     """, doc_type="stock")
     rows = mapper.build_fields([

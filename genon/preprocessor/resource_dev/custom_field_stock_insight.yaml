@@ -22,7 +22,8 @@ source:
   merge_rows:
     group_by: [REGT_NO, JONG_CODE]
     order_by: NTC_OBJLINE_NO
-    concat: [DETAIL_DESC]
+    # DETAIL_TEXT 도 같은 원천을 읽으므로 함께 이어붙인다(병합이 값 파이프라인보다 먼저다).
+    concat: [DETAIL_DESC, DETAIL_TEXT]
 fields:
   BIZ_ID:
     alias: [ID, 아이디]
@@ -51,9 +52,11 @@ fields:
     const: SSS
   CURRENT_YN:
     const: Y
+  # DETAIL_DESC 와 **같은 원천**을 한 번 더 읽어 평문 사본을 만든다(원본은 TB 정의상 보관).
   DETAIL_TEXT:
-    from: DETAIL_DESC
-    as: auto
+    alias: [상세내용, detail_desc, DETAIL_DESC, 세부내용]
+    default: null
+    transform: [text_norm, text]
 require:
   fields: [GROUP_C, JONG_CODE, JONG_NM, ANALYSIS_DATE]
 body:

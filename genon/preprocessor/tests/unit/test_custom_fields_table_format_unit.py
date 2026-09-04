@@ -1,4 +1,4 @@
-"""custom_fields(html_text_fields) 경로의 표 형식 선택 테스트.
+"""custom_fields(`transform: html_text`) 경로의 표 형식 선택 테스트.
 
 파서가 docling 을 거치지 않고 HTML 필드를 평문으로 바꾸는 경로다. 청커가 쓰는 판정과
 같은 함수를 써야 같은 표가 파생 필드와 청크에서 다른 모양으로 나가지 않는다.
@@ -88,9 +88,9 @@ def test_rows_path_honors_table_format(tmp_path, fmt, expect_md):
     )
 
     (tmp_path / "custom_field_t.yaml").write_text(textwrap.dedent("""
-        column_map: {RAW: [내용]}
+        column_map: {RAW: [내용], DETAIL: [내용]}
         required: [RAW]
-        html_text_fields: {DETAIL: RAW}
+        transforms: {DETAIL: html_text}
         text_fields: [DETAIL]
     """), encoding="utf-8")
     mapper = TabularCustomFieldsMapper(

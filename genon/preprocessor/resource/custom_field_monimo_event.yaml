@@ -158,9 +158,12 @@ fields:
     transform: date_int_flex
   DETAIL_HTML:
     alias: [cmp_desc, htmlText, 상세내용]
+  # DETAIL_HTML 과 **같은 원천**을 한 번 더 읽어 평문 사본을 만든다. 원본 HTML 은
+  # metadata 로만 싣고 임베딩 입력은 이 평문을 쓴다.
+  # `html_text` 는 HTML 로 강제 평문화한다(표·목록 구조 유지).
   DETAIL_TEXT:
-    from: DETAIL_HTML
-    as: html
+    alias: [cmp_desc, htmlText, 상세내용]
+    transform: html_text
   MOVE_TARGET_URL:
     alias: [etcMoveTargetPage]
   EVENT_KIND_C:

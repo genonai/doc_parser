@@ -60,7 +60,6 @@ from .custom_fields_enricher import (
 from .field_transforms import VALUE_TRANSFORMS
 from .tabular_custom_fields import (
     apply_derive,
-    apply_text_from,
     apply_transforms,
     apply_value_map,
     build_chunk_text,
@@ -68,7 +67,6 @@ from .tabular_custom_fields import (
     compile_derive,
     compile_filter,
     compile_row_merge,
-    compile_text_from,
     compile_transforms,
     compile_value_map,
     merge_row_records,
@@ -518,8 +516,6 @@ class JsonRecordsMapper:
         self.derive = compile_derive(cfg, label=label)
         self.filter = compile_filter(cfg, label=label)
 
-        # 원천 필드 → 평문 파생 필드. text_from 은 종류 자동 판별, html_text_fields 는 HTML 강제.
-        self.text_from = compile_text_from(cfg, label=f"json custom_fields({config_file})")
         # 원천이 값 하나를 여러 레코드에 쪼개 보내는 스키마용. tabular 와 같은 구현을 공유한다
         # (연속 런 기준 병합 — 멀리 떨어진 동일 키는 다른 레코드로 남긴다).
         self.row_merge = compile_row_merge(cfg, label=f"json custom_fields({config_file})")
@@ -600,8 +596,8 @@ class JsonRecordsMapper:
     ) -> dict:
         """레코드 1건 → 목표필드 dict(변환/기본값/파생 필드까지 적용).
 
-        `table_format`/`compact_tables` 는 html_text_fields 파생 필드의 표 모양을 정한다
-        (파서가 config 의 `output.*` 를 그대로 넘긴다). html 필드가 없으면 무시된다.
+        `table_format`/`compact_tables` 는 `html_text`/`text` 변환의 표 모양을 정한다
+        (파서가 config 의 `output.*` 를 그대로 넘긴다). 그 변환이 없으면 무시된다.
         """
         return self.apply_value_pipeline(
             self.map_record_raw(record),
@@ -612,8 +608,8 @@ class JsonRecordsMapper:
     def map_record_raw(self, record: dict) -> dict:
         """레코드 1건 → **원시 매핑만** 한 목표필드 dict(변환·기본값 이전).
 
-        `row_merge` 는 이 단계의 값을 이어붙인다. 조각마다 transforms/text_from 이 먼저
-        돌면 잘린 JSON 조각을 각각 평문화하게 되어 복원이 불가능하다(tabular 와 같은 순서).
+        `row_merge` 는 이 단계의 값을 이어붙인다. 조각마다 transforms 가 먼저 돌면 잘린
+        JSON 조각을 각각 평문화하게 되어 복원이 불가능하다(tabular 와 같은 순서).
         """
         fields: dict[str, Any] = {}
         for target, aliases in self.key_map.items():
@@ -629,7 +625,7 @@ class JsonRecordsMapper:
         table_format: str = DEFAULT_TABLE_FORMAT,
         compact_tables: bool = True,
     ) -> dict:
-        """원시 매핑 값에 defaults → constants → value_map → transforms → text_from 을 건다.
+        """원시 매핑 값에 defaults → constants → value_map → transforms → derive 를 건다.
 
         defaults 가 먼저다 — 반대로 하면 `constants: {X: ""}` 를 defaults 가 되살려
         "constants 가 이긴다"는 계약이 깨진다(tabular/json_semantic 과 같은 순서).
@@ -642,19 +638,18 @@ class JsonRecordsMapper:
         # 값 정규화 → 변환 순서. 별칭을 표준값으로 접은 뒤에 타입 변환을 건다(tabular 와 동일).
         apply_value_map(fields, self.value_map)
 
-        apply_transforms(fields, self.transforms)
-        # 결합은 변환 뒤에 — 정규화된 값으로 합쳐야 표기가 흔들리지 않는다.
-        apply_derive(fields, self.derive)
-
-        apply_text_from(
+        # 표가 섞인 HTML 은 docling 백엔드로 보낸다(행/열·빈 셀 보존). 파서가 넘겨준
+        # output.table_format / compact_tables 를 그대로 물려 docling 경로와 모양을 맞춘다.
+        # `html_text`/`text` 변환기만 이 렌더러를 받는다.
+        apply_transforms(
             fields,
-            self.text_from,
-            # 표가 섞인 HTML 은 docling 백엔드로 보낸다(행/열·빈 셀 보존). 파서가 넘겨준
-            # output.table_format / compact_tables 를 그대로 물려 docling 경로와 모양을 맞춘다.
-            html_renderer=lambda value: html_to_text(
+            self.transforms,
+            lambda value: html_to_text(
                 value, table_format=table_format, compact_tables=compact_tables
             ),
         )
+        # 결합은 변환 뒤에 — 정규화된 값으로 합쳐야 표기가 흔들리지 않는다.
+        apply_derive(fields, self.derive)
 
         return fields
 
@@ -679,7 +674,7 @@ class JsonRecordsMapper:
             (self.map_record_raw(record), record) for record in records
         ]
 
-        # 2단계 — 병합. 값 파이프라인 **전에** 접어야 조각마다 transforms/text_from 이 돌지 않는다.
+        # 2단계 — 병합. 값 파이프라인 **전에** 접어야 조각마다 transforms 가 돌지 않는다.
         # resolved(목표필드 → 원천 컬럼명)는 tabular 전용 개념이라 빈 dict 를 넘긴다 — json 은
         # 폴백 본문에 원본 row 를 쓰지 않으므로 원본 레코드를 덮을 필요가 없다.
         if self.row_merge and raw:

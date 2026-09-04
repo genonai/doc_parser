@@ -1648,7 +1648,7 @@ class DocumentProcessor:
         results = []
         for mapper in mappers:
             try:
-                # html_text_fields 파생 필드의 표 모양을 docling 경로와 같은 설정으로 맞춘다
+                # custom_fields 의 html_text/text 변환 표 모양을 docling 경로와 같은 설정으로 맞춘다
                 # (output.table_format: html=<table> / markdown=파이프 표).
                 fields_list = mapper.build_fields(
                     payload, doc_type,

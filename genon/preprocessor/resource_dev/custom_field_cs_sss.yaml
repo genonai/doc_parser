@@ -39,8 +39,7 @@ fields:
     alias: [question, 제목, 대표질문]
   CONTENT:
     alias: [answer, 안내본문, 답변]
-    from: CONTENT
-    as: html
+    transform: html_text
   RELATED_KEYWORDS:
     alias: [related_keywords, 연관 키워드]
     default: null

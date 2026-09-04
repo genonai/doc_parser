@@ -185,13 +185,13 @@ def transform_text_norm(value: Any) -> Optional[str]:
     return text.casefold() or None
 
 
-# ── 원천 필드 → 사람이 읽는 평문 (text_from 파생 필드용) ─────────────────────
+# ── 원천 값 → 사람이 읽는 평문 (`text`/`html_text` 변환기용) ─────────────────
 # 원천이 같은 컬럼에 JSON·HTML·평문을 섞어 보낸다(모니모 AI차트뷰 detail_desc). 정해진
 # 스키마가 없으므로 **종류를 자동 판별해 하나의 마크다운으로 수렴**시킨다. 설정은 없다.
 #
-# VALUE_TRANSFORMS 에 등록하지 않는 이유: 등록 변환기는 값을 제자리에서 덮어쓰는데,
-# 여기서는 원본(TB 는 "원천이 보낸 세부 내용을 그대로 보관")을 남긴 채 평문 사본만 따로
-# 만들어야 한다. 그 배선은 tabular/json 매퍼의 text_from 이 맡는다.
+# 원본(TB 는 "원천이 보낸 세부 내용을 그대로 보관")을 남긴 채 평문 사본만 따로 만들려면
+# 같은 alias 를 두 목표필드에 붙이고 한쪽에만 이 변환을 건다 — 예전에는 `text_from` 이라는
+# 파생 전용 블록이 그 일을 했는데, 그러면 원본 컬럼 생성이 강제되고 제자리 변환이 불가능했다.
 
 _BR_RE = re.compile(r"<\s*br\s*/?\s*>", re.IGNORECASE)
 _TAG_RE = re.compile(r"<[^>]+>")
@@ -376,13 +376,13 @@ def render_field_text(
     """원천 값 하나 → 청크 본문에 실을 평문. 종류는 자동 판별한다.
 
     `kind` 로 "json"/"html"/"text" 를 주면 판별을 건너뛰고 그 경로로 강제한다
-    (출고 설정의 html_text_fields 별칭이 `kind="html"` 로 쓴다).
+    (`transform: html_text` 가 `kind="html"` 로 쓴다).
     `html_renderer` 는 구조 HTML 을 처리할 함수다(json_records.html_to_text). 주지 않으면
     경량 태그 제거로 폴백한다 — 표가 한 줄씩 뭉개지므로 표가 오는 경로에서는 반드시 넘긴다.
     """
     if kind == "html":
         # 원본을 그대로 넘긴다 — html_to_text 는 리스트(collect_key_map 결과)까지 처리하므로
-        # 여기서 문자열로 눌러 버리면 기존 html_text_fields 동작이 깨진다.
+        # 여기서 문자열로 눌러 버리면 `html_text` 가 배열을 못 다룬다.
         if html_renderer is not None:
             return str(html_renderer(value) or "").strip() or None
         return strip_inline_html(value) or None
@@ -400,7 +400,7 @@ def render_field_text(
     if detected == "broken_json":
         raw = str(value).strip()
         _log.warning(
-            f"[text_from] JSON 파싱 실패 — 원문을 평문화만 합니다"
+            f"[text] JSON 파싱 실패 — 원문을 평문화만 합니다"
             f"(len={len(raw)}, head={raw[:80]!r}). 여러 행으로 쪼개진 값이라면 "
             f"row_merge 의 group_by/order_by 를 확인하세요."
         )
@@ -515,12 +515,28 @@ def transform_truncate(value: Any, *, length: int, suffix: str = "") -> Any:
     return text[: max(0, length - len(suffix))] + suffix
 
 
+def transform_html_text(value: Any, *, html_renderer: Optional[Callable[[str], str]] = None) -> Any:
+    """HTML 로 **강제** 평문화한다(표·목록 구조 유지). 옛 표기 `as: html` 과 같다."""
+    return render_field_text(value, kind="html", html_renderer=html_renderer)
+
+
+def transform_text(value: Any, *, html_renderer: Optional[Callable[[str], str]] = None) -> Any:
+    """값의 종류(JSON / HTML / 평문)를 자동 판별해 평문화한다. 옛 표기 `as: auto` 와 같다.
+
+    같은 컬럼에 세 종류가 섞여 오는 원천(모니모 AI차트뷰 `detail_desc`)이 있어 강제
+    변환만으로는 부족하다.
+    """
+    return render_field_text(value, html_renderer=html_renderer)
+
+
 # 인자를 받는 변환기. 위 VALUE_TRANSFORMS 와 이름이 겹치지 않아야 한다(기동 시 검사).
 PARAM_TRANSFORMS: dict[str, Callable[..., Any]] = {
     "regex_sub": transform_regex_sub,
     "regex_extract": transform_regex_extract,
     "to_int": transform_to_int,
     "truncate": transform_truncate,
+    "html_text": transform_html_text,
+    "text": transform_text,
 }
 
 # 각 변환기의 필수 인자. 빠뜨리면 요청 때가 아니라 기동 때 알려 준다.
@@ -529,7 +545,14 @@ PARAM_TRANSFORM_REQUIRED: dict[str, tuple[str, ...]] = {
     "regex_extract": ("pattern",),
     "to_int": (),
     "truncate": ("length",),
+    "html_text": (),
+    "text": (),
 }
+
+# 설정이 아니라 **런타임**이 주는 인자(`html_renderer`)를 받는 변환기. 표 모양을 살리려면
+# 요청의 table_format/compact_tables 를 물려야 해서 yaml 로는 표현할 수 없다 — 적용 시점에
+# 호출부가 주입한다(tabular_custom_fields.apply_transforms).
+RENDERER_TRANSFORMS = frozenset({"html_text", "text"})
 
 ALL_TRANSFORM_NAMES = tuple(sorted({*VALUE_TRANSFORMS, *PARAM_TRANSFORMS}))
 assert not (set(VALUE_TRANSFORMS) & set(PARAM_TRANSFORMS)), "변환기 이름이 겹칩니다"

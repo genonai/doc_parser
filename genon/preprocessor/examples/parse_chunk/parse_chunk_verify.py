@@ -162,7 +162,7 @@ def check_stock_insight_row_merge(chunks: list) -> list[str]:
     20행 → 4레코드(종목 4건)가 되어야 한다. 구분자가 끼거나 순서가 틀리면 복원되지 않는다.
 
     detail_desc 는 **JSON·HTML·평문 중 무엇이든** 올 수 있어 스키마를 못 박을 수 없다.
-    샘플에 세 종류를 모두 넣어 text_from 의 자동 판별을 검증한다.
+    샘플에 세 종류를 모두 넣어 `transform: text` 의 자동 판별을 검증한다.
       테슬라·엔비디아 = JSON, 팔란티어 = 구조 HTML(표 포함), 리게티 = 평문
     레코드가 chunk_size 를 넘으므로 종목당 여러 청크로 갈라지고, 조각마다 종목명 접두가
     반복되며 분할 지점에는 직전 섹션 제목이 `(이어서)` 로 다시 붙는다.
@@ -189,7 +189,7 @@ def check_stock_insight_row_merge(chunks: list) -> list[str]:
         if "<BR>" in text or "<strong>" in text:
             problems.append(f"[{idx}] 본문에 인라인 HTML 태그가 남았습니다")
         if '{"trading_strategy"' in text:
-            problems.append(f"[{idx}] 본문에 JSON 원문이 그대로 들어갔습니다(text_from 미적용)")
+            problems.append(f"[{idx}] 본문에 JSON 원문이 그대로 들어갔습니다(text 변환 미적용)")
 
     # JSON 종목: 원본이 metadata 에 JSON 그대로 남고, 본문은 마크다운 헤딩으로 펴진다.
     tesla = [c for c in chunks if c.get("JONG_NM") == "테슬라"]

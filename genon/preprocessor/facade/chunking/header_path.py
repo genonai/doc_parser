@@ -111,7 +111,7 @@ def build_header_line(headings, include_header: bool, sep: str, path_sep: str, m
     return "HEADER: " + render_header_paths(headings, sep, path_sep, max_leaves) + "\n"
 
 
-# markdown 헤딩 줄. 레코드 본문(custom_fields text_from 렌더링)에서 섹션 제목을 찾는다.
+# markdown 헤딩 줄. 레코드 본문(custom_fields 의 text/html_text 렌더링)에서 섹션 제목을 찾는다.
 _MD_HEADING_RE = re.compile(r"^(#{1,6})\s+(.+)$", re.MULTILINE)
 
 

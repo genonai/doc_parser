@@ -1205,7 +1205,7 @@ class DocumentProcessor:
                 chunk_size=budget,
                 chunk_overlap=min(chunk_overlap, max(budget - 1, 0)),
                 # 마크다운 헤딩을 최우선 분리자로 둔다. 본문이 섹션으로 나뉘어 있으면 문장
-                # 한가운데가 아니라 섹션 경계에서 잘린다(custom_fields 의 text_from 렌더링,
+                # 한가운데가 아니라 섹션 경계에서 잘린다(custom_fields 의 text/html_text 렌더링,
                 # HTML/markdown 원천 모두 해당). 헤딩이 없는 평문은 종전 문단/문장 분리자로
                 # 조용히 폴백하므로 회귀가 없다.
                 separators=["\n## ", "\n### ", "\n#### ", "\n\n", "\n", " ", ""],

@@ -68,11 +68,6 @@ source:
 #                표준값 자신도 자동 별칭이라 이미 코드로 오는 원천은 그대로 통과한다.
 #                매핑표에 없는 값은 원값을 두고 경고만 남긴다(조용히 null 로 바꾸지 않는다)
 #   transform  : 값 변환. 이름 하나 또는 목록(순서대로 적용). 아래 [변환기] 참고
-#   from + as  : 다른 목표필드를 평문으로 바꿔 이 필드에 담는다(원본은 그대로 둔다).
-#                `as: auto`(기본) 는 값의 종류를 자동 판별한다 — JSON → 마크다운 헤딩,
-#                구조 HTML(표·목록) → docling 평문화, 인라인 태그만 있으면 태그만 제거.
-#                `as: html` 은 판별 대신 HTML 로 강제한다(원천이 항상 HTML 로 확정됐을 때).
-#                같은 컬럼에 JSON·HTML·평문이 섞여 오는 원천에는 `auto` 가 맞다
 #   template   : 여러 필드를 합쳐 새 필드를 만든다. `{{목표필드}}` 를 값으로 채우고,
 #                값이 없는 자리는 지우고 양끝 공백을 다듬는다. 변환 뒤에 돈다
 #
@@ -80,6 +75,10 @@ source:
 #   date_int       "2026-07-01"                  → 20260701 (파싱 실패 시 0)
 #   date_int_flex  "26.07.01" / "260701" / 8자리 → 20260701 (두 자리 연도까지 흡수)
 #   text_norm      NFKC → 공백 축약 → casefold   (중복 판정 키를 만들 때)
+#   text           JSON/HTML/평문 자동 판별       JSON → 마크다운 헤딩, 구조 HTML → docling
+#                                                 평문화, 인라인 태그뿐이면 태그만 제거.
+#                                                 같은 컬럼에 세 종류가 섞여 오는 원천용
+#   html_text      HTML 로 강제 평문화            원천이 항상 HTML 로 확정됐을 때
 #   regex_sub      pattern, repl                 정규식 치환  "18,000원" → "18000"
 #   regex_extract  pattern, group=1              정규식 추출  매칭 없으면 null
 #   to_int         (on_error=null)               숫자만 남겨 정수로
@@ -105,7 +104,12 @@ fields:
   #   transform:
   #     - {name: regex_sub, pattern: "[^0-9]", repl: ""}
   #     - {name: to_int}
-  # <DETAIL_TEXT>: {from: <TARGET_FIELD_2>, as: auto}   # 평문 파생 필드
+  # 원본도 함께 남기려면 같은 alias 를 두 필드에 붙인다(원본은 적재 컬럼, 사본은 본문용).
+  # <DETAIL_DESC>: {alias: [세부내용]}
+  # <DETAIL_TEXT>: {alias: [세부내용], transform: text}
+  #   · merge_rows 를 쓰면 두 필드를 **모두** concat 에 넣는다 — 병합이 변환보다 먼저다.
+  # 원본이 필요 없으면 제자리로 바꾼다.
+  # <DETAIL>:      {alias: [세부내용], transform: text}
   # <DISPLAY_NM>:  {template: "{{<TARGET_FIELD_1>}} {{<TARGET_FIELD_2>}}"}
 
 # ── [참고] 값 적용 순서 ──────────────────────────────────────────────────────

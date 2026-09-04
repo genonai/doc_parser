@@ -53,7 +53,7 @@
 # ── 원천 필드 → 평문 파생 필드 (임베딩 입력용) ──────────────────────────────
 # DETAIL_DESC 는 원본 그대로 두고, 평문 사본만 따로 만든다.
 # 이 원천은 같은 컬럼에 **JSON·HTML·평문이 섞여** 오고 정해진 스키마가 없다. 그래서 종류를
-# 미리 못 박지 않고 text_from 이 자동 판별한다.
+# 미리 못 박지 않고 `transform: text` 가 자동 판별한다.
 #   JSON  → 최상위 키가 `## 제목`, 한 단계 아래가 `### 제목` 인 마크다운으로 편다.
 #           키 이름은 밑줄·camelCase 만 풀고 그대로 쓴다(RSI·MACD 가 망가지지 않게).
 #   HTML  → 표·목록이 있으면 docling 백엔드로(행/열 보존), 인라인 태그뿐이면 태그만 제거.
@@ -124,7 +124,7 @@
 # 종목코드·기준일은 하이브리드 검색의 어휘 매칭에도 기여한다 — 임베딩만으로는 "NQQUSATSLA"
 # 나 "20260827" 같은 식별자가 잘 잡히지 않는다.
 # 예전에는 종목명만 넣었다. 접두를 늘리면 청크 본문이 바뀌어 이미 적재된 임베딩과 어긋나는데,
-# text_from 도입으로 어차피 본문 전체가 바뀌어 재적재가 전제이므로 이번에 함께 반영한다.
+# 평문 파생 필드 도입으로 어차피 본문 전체가 바뀌어 재적재가 전제이므로 이번에 함께 반영한다.
 
 schema: v2
 source:
@@ -132,7 +132,9 @@ source:
   merge_rows:
     group_by: [REGT_NO, JONG_CODE]
     order_by: NTC_OBJLINE_NO
-    concat: [DETAIL_DESC]
+    # DETAIL_TEXT 도 같은 원천을 읽으므로 함께 이어붙여야 한다 — 병합은 값 파이프라인
+    # **전에** 돌기 때문에, 여기 없으면 첫 조각만 남은 채로 평문화된다.
+    concat: [DETAIL_DESC, DETAIL_TEXT]
 fields:
   BIZ_ID:
     alias: [ID, 아이디]
@@ -161,9 +163,14 @@ fields:
     const: SSS
   CURRENT_YN:
     const: Y
+  # DETAIL_DESC 와 **같은 원천**을 한 번 더 읽어 평문 사본을 만든다. 원본(DETAIL_DESC)은
+  # TB 정의상 그대로 보관해야 하므로 제자리 변환이 아니라 필드를 따로 둔다.
+  # `text` 는 값의 종류(JSON/HTML/평문)를 자동 판별해 평문화한다.
+  # text_norm 을 먼저 거는 것은 DETAIL_DESC 와 같게 맞추기 위해서다(표기 흔들림 흡수).
   DETAIL_TEXT:
-    from: DETAIL_DESC
-    as: auto
+    alias: [상세내용, detail_desc, DETAIL_DESC, 세부내용]
+    default: null
+    transform: [text_norm, text]
 require:
   fields: [GROUP_C, JONG_CODE, JONG_NM, ANALYSIS_DATE]
 body:

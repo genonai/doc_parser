@@ -28,15 +28,17 @@ def apply_text_from(fields, specs, html_renderer=None):
 `source` 는 **목표필드명**이다. 그래서 평문 필드 하나를 만들려면 원본 HTML 을 반드시
 목표필드로 선언해야 하고, 그게 그대로 적재 컬럼이 된다.
 
-출고 설정 3개가 쓰고 있다.
+출고 설정 **4개**가 쓰고 있다(초안은 3개로 적었으나 실측에서 `cs_sss` 가 더 있었다).
 
 | 설정 | 원본(metadata 전용) | 파생(body) | `as` |
 |---|---|---|---|
 | `custom_field_stock_insight.yaml` | `DETAIL_DESC` (TB 정의상 원천 JSON 원본 보관) | `DETAIL_TEXT` | `auto` |
 | `custom_field_monimo_event.yaml` | `DETAIL_HTML` | `DETAIL_TEXT` | `html` |
 | `custom_field_monimo_news.yaml` | `DETAIL_HTML` | `DETAIL_TEXT` | `html` |
+| `custom_field_cs_sss.yaml` | — (`from` 이 자기 자신을 가리키는 제자리 변환) | `CONTENT` | `html` |
 
-셋 다 원본과 평문 사본을 **동시에** 유지한다. 이 요구를 잃으면 안 된다.
+앞 셋은 원본과 평문 사본을 **동시에** 유지한다. 이 요구를 잃으면 안 된다.
+`cs_sss` 만 제자리 변환이라 `transform: html_text` 한 줄로 접힌다 — 보고된 요구가 바로 이 모양이다.
 
 ## 바꿀 것
 
@@ -83,7 +85,10 @@ DETAIL_DESC: {alias: [cmp_desc, htmlText], transform: html_text}
    (원천 alias 는 v1 `column_map`/`key_map` 에서 가져온다).
 4. `text_from`/`html_text_fields` 내부 블록과 `compile_text_from`/`apply_text_from` 을 제거한다.
    `collect_target_field_names`(tabular_custom_fields.py:390)의 참조도 함께 정리한다.
-5. 출고 설정 3개 + `resource_dev/` 사본을 새 표기로 옮긴다.
+5. 출고 설정 4개 + `resource_dev/` 사본(총 8개 파일)을 새 표기로 옮긴다.
+   `stock_insight` 는 `merge_rows.concat` 에 파생 필드를 함께 넣어야 하고,
+   `DETAIL_DESC` 에 걸린 `text_norm` 을 파생 쪽에도 체이닝해야 값이 같다
+   (옛 경로에서 파생은 변환이 끝난 값을 봤다).
 6. 템플릿 `custom_field_TEMPLATE_json.yaml`, `custom_field_TEMPLATE_tabular.yaml` 의
    `from`/`as` 설명을 `transform` 으로 고친다.
 
@@ -111,14 +116,15 @@ DETAIL_DESC: {alias: [cmp_desc, htmlText], transform: html_text}
 - `facade/enrichment/json_records.py` (호출부 645~652, `__init__` 517~522)
 - `facade/enrichment/config_v2.py` (`FIELD_SPEC_KEYS`, `_AS_TO_BLOCK`, `to_v2`, `COVERED_V1_KEYS`)
 - `facade/enrichment/config_schema.py` (`_RECORD_COMMON` 에서 두 블록 제거)
-- `resource/custom_field_{stock_insight,monimo_event,monimo_news}.yaml` + `resource_dev/` 사본
+- `resource/custom_field_{stock_insight,monimo_event,monimo_news,cs_sss}.yaml` + `resource_dev/` 사본
 - `resource/templates/custom_field_TEMPLATE_{json,tabular}.yaml`
 
 ## 검증 — 여기만 방식이 다르다
 
 ### 테스트 데이터 (실제 문서로 검증한다)
 
-`from`/`as` 를 실제로 쓰는 출고 설정 3개의 원천이 전부 저장소에 있다. **새로 만들 것은 없다.**
+`from`/`as` 를 실제로 쓰는 출고 설정의 원천이 전부 저장소에 있다. **새로 만들 것은 없다.**
+(`cs_sss` 는 `parse_chunk_verify` 케이스가 있어 아래 유닛·precheck 로 함께 걸린다.)
 
 | doc_type | 파일 | 무엇을 보는가 |
 |---|---|---|
@@ -148,7 +154,15 @@ genon/preprocessor/examples/parse_chunk/parse_chunk_verify.sh --only stock_insig
 ```
 
 케이스는 `monimo_event` 3건(협의용 한글 키 / 실 payload / 5열 표 빈 셀), `monimo_news` 1건,
-`stock_insight` 1건(row_merge 추가 단정 `check_stock_insight_row_merge` 포함)이다.
+`stock_insight` 1건(row_merge 추가 단정 `check_stock_insight_row_merge` 포함), `cs_sss` 1건이다.
+
+**노이즈 기준선(실측).** 같은 버전 2회에서 흔들리는 것은 두 가지뿐이다.
+
+  · `reg_date`            — 생성 타임스탬프
+  · `[표 검색 설명]` 문단  — LLM 이 표마다 새로 쓰는 설명(과 그 길이 `n_char`/`n_word`)
+
+그 둘을 걷어내면 나머지는 완전히 결정적이다. PASS/FAIL 로는 사전 실패(`stock_insight`)에
+가려지므로, 두 산출 디렉터리의 `*.chunks.json` 을 위 노이즈만 제외하고 **전량 대조**한다.
 
 ```bash
 cd genon/preprocessor

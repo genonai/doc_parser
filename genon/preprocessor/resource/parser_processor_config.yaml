@@ -378,7 +378,7 @@ output:
   # ── 표 표기형태 ────────────────────────────────────────────────────────────
   # 아래 두 키는 파서가 표를 직접 문자열로 낼 때만 쓰인다.
   #   1) format 이 json/html/markdown 일 때의 파싱 출력
-  #   2) custom_fields 의 html_text_fields 파생 필드
+  #   2) custom_fields 의 `html_text`/`text` 변환
   #      (예: monimo_event 의 DETAIL_HTML → DETAIL_TEXT). 이 파생 필드는 docling 을
   #      거치지 않으므로 format: docling 에서도 파서가 표 모양을 확정한다.
   # format: docling 으로 청커(/chunker)에 넘기는 구성에서는 파싱 출력의 표에 영향이 없다.

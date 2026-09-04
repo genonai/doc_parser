@@ -23,7 +23,6 @@ from genon.preprocessor.facade.enrichment.field_transforms import (
     render_field_text,
 )
 from genon.preprocessor.facade.enrichment.tabular_custom_fields import (
-    compile_text_from,
     TabularCustomFieldsMapper,
     build_tabular_custom_fields_mappers,
 )
@@ -540,7 +539,7 @@ def test_shipped_monimo_configs_cover_not_null_columns(resource_dir, config_name
     mapped |= set(cfg.get("constants") or {})
     mapped |= set(cfg.get("defaults") or {})
     mapped |= {f for spec in (cfg.get("llm_fields") or []) for f in spec["output_fields"]}
-    mapped |= {t for t, _, _ in compile_text_from(cfg)}
+    mapped |= set(cfg.get('transforms') or {})
 
     missing = [c for c in _REQUIRED_BY_DOC_TYPE[config_name]
                if c not in mapped and c not in _DB_DEFAULTED_COLUMNS]
@@ -584,13 +583,16 @@ def _write_row_merge_cfg(tmp_path: Path, **overrides) -> Path:
             "JONG_CODE": ["jong_code"],
             "JONG_NM": ["jong_name"],
             "DETAIL_DESC": ["detail_desc"],
+            "DETAIL_TEXT": ["detail_desc"],
         },
         "row_merge": {
             "group_by": ["REGT_NO", "JONG_CODE"],
             "order_by": "NTC_OBJLINE_NO",
-            "concat": ["DETAIL_DESC"],
+            "concat": ["DETAIL_DESC", "DETAIL_TEXT"],
         },
-        "text_from": {"DETAIL_TEXT": "DETAIL_DESC"},
+        # 원본(DETAIL_DESC)은 남기고 평문 사본을 만든다 — 같은 alias 를 한 번 더 붙이고
+        # `text`(종류 자동 판별) 변환을 건다. 병합 대상에도 함께 넣는다.
+        "transforms": {"DETAIL_TEXT": "text"},
         "text_fields": ["JONG_NM", "DETAIL_TEXT"],
     }
     config.update(overrides)
@@ -678,7 +680,8 @@ def test_row_merge_absent_keeps_one_record_per_row(tmp_path):
     """row_merge 미선언이면 종전대로 행 1개 = 레코드 1개다(회귀 가드)."""
     config = yaml.safe_load(_write_row_merge_cfg(tmp_path).read_text(encoding="utf-8"))
     config.pop("row_merge")
-    config.pop("text_from")
+    config.pop("transforms")
+    config["column_map"].pop("DETAIL_TEXT")
     config["text_fields"] = ["JONG_NM", "DETAIL_DESC"]
     path = tmp_path / "stock.yaml"
     path.write_text(yaml.safe_dump(config, allow_unicode=True), encoding="utf-8")
@@ -712,10 +715,10 @@ def test_row_merge_rejects_bad_shape_at_startup(tmp_path, bad, match):
         _mapper(_write_row_merge_cfg(tmp_path, row_merge=bad), tmp_path)
 
 
-# ── json_text_fields: JSON 필드 → 평문 파생 필드 ─────────────────────────────
+# ── transform: text / html_text — 값 종류 판별과 평문화 ──────────────────────
 
 @pytest.mark.unit
-def test_text_from_keeps_source_and_derives_markdown(tmp_path):
+def test_text_transform_keeps_source_and_derives_markdown(tmp_path):
     """원본은 그대로 남고 파생 필드만 마크다운이 된다(TB 는 원천 원본을 보관한다)."""
     mapper = _mapper(_write_row_merge_cfg(tmp_path), tmp_path)
     fields = _build(mapper, _row_merge_rows())[0]
@@ -726,7 +729,7 @@ def test_text_from_keeps_source_and_derives_markdown(tmp_path):
 
 
 @pytest.mark.unit
-def test_text_from_block_drops_column_label(tmp_path):
+def test_text_transform_block_drops_column_label(tmp_path):
     """여러 줄 블록에는 `detail_desc:` 라벨을 붙이지 않는다 — 헤딩이 이미 문맥을 담는다."""
     mapper = _mapper(_write_row_merge_cfg(tmp_path), tmp_path)
     element = mapper.to_parse_format(
@@ -739,7 +742,7 @@ def test_text_from_block_drops_column_label(tmp_path):
 
 
 @pytest.mark.unit
-def test_text_from_warns_and_falls_back_on_broken_json(caplog):
+def test_render_field_text_warns_and_falls_back_on_broken_json(caplog):
     """병합이 어긋나 JSON 이 안 맞으면 조용히 넘기지 않는다 — 경고 + 원문 평문화."""
     with caplog.at_level(logging.WARNING):
         text = render_field_text('{"a": "\uac12<BR>\ub05d')
@@ -749,7 +752,7 @@ def test_text_from_warns_and_falls_back_on_broken_json(caplog):
 
 
 @pytest.mark.unit
-def test_text_from_plain_text_does_not_warn(caplog):
+def test_render_field_text_plain_text_does_not_warn(caplog):
     """브레이스로 시작하지 않는 평문은 그냥 평문이다 — 경고를 남기지 않는다."""
     with caplog.at_level(logging.WARNING):
         text = render_field_text("현재 주가는 20일선 아래에서 형성되며 하락 추세입니다.")
@@ -759,7 +762,7 @@ def test_text_from_plain_text_does_not_warn(caplog):
 
 
 @pytest.mark.unit
-def test_text_from_routes_structural_html_to_renderer():
+def test_render_field_text_routes_structural_html_to_renderer():
     """표가 섞인 HTML 은 넘겨준 렌더러(docling)로 보낸다 — 표 행/열이 뭉개지지 않게."""
     seen = []
 
@@ -772,7 +775,7 @@ def test_text_from_routes_structural_html_to_renderer():
 
 
 @pytest.mark.unit
-def test_text_from_inline_html_skips_renderer():
+def test_render_field_text_inline_html_skips_renderer():
     """인라인 태그뿐이면 렌더러를 부르지 않는다 — 행마다 docling 문서를 세우지 않게."""
     called = []
     text = render_field_text("가나<BR>다라<strong>강조</strong>",
@@ -1230,7 +1233,7 @@ def test_removed_keys_are_rejected(tmp_path, key):
     """제거한 키는 조용히 무시되지 않고 기동 시에 드러나야 한다.
 
     nulls 는 `defaults: {X: null}` 과 결과가 완전히 같아 개념 하나를 줄였고,
-    json_text_fields 는 순효과가 경고 한 줄뿐이라 text_from 으로 접었다.
+    json_text_fields 는 순효과가 경고 한 줄뿐이라 `transform: text` 로 접었다.
     """
     from genon.preprocessor.facade.enrichment.tabular_custom_fields import (
         TabularCustomFieldsMapper,
@@ -1402,3 +1405,96 @@ def test_constants_beat_defaults_even_when_empty(tmp_path):
         doc_type="t", extractor="json_mapping",
     ).build_fields([{"title": "T1", "x": "원천"}], "t")[0]
     assert record["X"] == ""
+
+
+# ── transform: html_text / text — from/as 를 대신하는 평문화 변환기 ──────────
+
+@pytest.mark.unit
+def test_html_text_transform_forces_html_and_receives_the_runtime_renderer(tmp_path):
+    """`html_text` 는 판별 없이 HTML 로 강제하고, 표 모양은 런타임 렌더러가 정한다.
+
+    렌더러는 요청의 table_format/compact_tables 를 물고 있어 yaml 로 표현할 수 없다 —
+    설정이 아니라 적용 시점에 주입된다.
+    """
+    from genon.preprocessor.facade.enrichment.tabular_custom_fields import (
+        apply_transforms, compile_transforms,
+    )
+
+    seen = []
+    compiled = compile_transforms({"DETAIL": "html_text"}, label="t")
+    fields = {"DETAIL": "<table><tr><td>1</td></tr></table>"}
+    apply_transforms(fields, compiled, lambda value: seen.append(value) or "| 1 |")
+
+    assert seen and fields["DETAIL"] == "| 1 |"
+
+
+@pytest.mark.unit
+def test_text_transform_auto_detects_json(tmp_path):
+    """`text` 는 값의 종류를 자동 판별한다 — JSON 은 마크다운 헤딩으로 편다."""
+    from genon.preprocessor.facade.enrichment.tabular_custom_fields import (
+        apply_transforms, compile_transforms,
+    )
+
+    fields = {"DETAIL": '{"a": "값"}'}
+    apply_transforms(fields, compile_transforms({"DETAIL": "text"}, label="t"))
+
+    assert fields["DETAIL"] == "- a: 값"
+
+
+@pytest.mark.unit
+def test_renderer_is_only_injected_into_renderer_transforms():
+    """렌더러가 필요 없는 변환기에는 주입하지 않는다 — 인자를 안 받는 함수가 터진다."""
+    from genon.preprocessor.facade.enrichment.tabular_custom_fields import (
+        apply_transforms, compile_transforms,
+    )
+
+    fields = {"D": "26.07.01"}
+    apply_transforms(fields, compile_transforms({"D": "date_int_flex"}, label="t"), lambda v: v)
+
+    assert fields["D"] == 20260701
+
+
+@pytest.mark.unit
+def test_duplicate_alias_keeps_source_and_derives_in_one_pass(tmp_path):
+    """같은 alias 를 두 필드에 붙이면 원본과 평문 사본을 함께 얻는다(옛 from/as 대체)."""
+    from genon.preprocessor.facade.enrichment.tabular_custom_fields import (
+        TabularCustomFieldsMapper,
+    )
+
+    (tmp_path / "custom_field_t.yaml").write_text(textwrap.dedent("""
+        column_map:
+          RAW:    [내용]
+          PLAIN:  [내용]
+        transforms: {PLAIN: html_text}
+        text_fields: [PLAIN]
+    """), encoding="utf-8")
+    mapper = TabularCustomFieldsMapper(
+        config_file="custom_field_t.yaml", resource_path=str(tmp_path),
+        doc_type="t", extractor="tabular_mapping",
+    )
+    fields = mapper.build_fields(
+        {"data": [{"sheet_name": "S", "data_rows": [{"내용": "가나<br>다라"}]}]}, "t"
+    )[0]
+
+    assert fields["RAW"] == "가나<br>다라"
+    # 표가 없는 조각도 docling 렌더러를 타므로 `<br>` 은 공백으로 합쳐진다(종전과 같다).
+    assert fields["PLAIN"] == "가나 다라"
+
+
+@pytest.mark.unit
+def test_old_derived_blocks_are_rejected_at_startup(tmp_path):
+    """옛 `text_from`/`html_text_fields` 는 어느 매퍼도 읽지 않는다 — 조용히 무시하지 않는다."""
+    from genon.preprocessor.facade.enrichment.tabular_custom_fields import (
+        TabularCustomFieldsMapper,
+    )
+
+    (tmp_path / "custom_field_t.yaml").write_text(textwrap.dedent("""
+        column_map: {RAW: [내용]}
+        text_from: {PLAIN: RAW}
+        text_fields: [PLAIN]
+    """), encoding="utf-8")
+    with pytest.raises(ValueError, match="text_from"):
+        TabularCustomFieldsMapper(
+            config_file="custom_field_t.yaml", resource_path=str(tmp_path),
+            doc_type="t", extractor="tabular_mapping",
+        )

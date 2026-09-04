@@ -42,7 +42,9 @@ from genon.preprocessor.facade.enrichment import config_v2 as cv2  # noqa: E402
 # 이번 정리에서 없앤 키 → 대신 쓸 것.
 REMOVED_KEYS = {
     "nulls": "defaults 에 `필드: null` 로 적는다(결과가 같다)",
-    "json_text_fields": "text_from 으로 옮긴다(값 종류를 자동 판별한다)",
+    "json_text_fields": "`transform: text` 로 옮긴다(값 종류를 자동 판별한다)",
+    "text_from": "같은 alias 를 목표필드에 한 번 더 붙이고 `transform: text` 를 건다",
+    "html_text_fields": "같은 alias 를 목표필드에 한 번 더 붙이고 `transform: html_text` 를 건다",
 }
 REMOVED_EXTRACTORS = {
     "document_llm": "llm",
@@ -154,15 +156,9 @@ def check_body_label_change(label: str, cfg: dict) -> list[str]:
     labels: dict = raw_labels if isinstance(raw_labels, dict) else {}
     raw_text_fields = cfg.get("text_fields")
     text_fields: list = raw_text_fields if isinstance(raw_text_fields, list) else []
-    derived = set()
-    for block_key in ("text_from", "html_text_fields"):
-        spec = cfg.get(block_key)
-        if isinstance(spec, dict):
-            derived |= {str(k) for k in spec}
-
     affected = [
         str(f) for f in text_fields
-        if str(f) not in column_map and str(f) not in labels and str(f) not in derived
+        if str(f) not in column_map and str(f) not in labels
     ]
     if not affected:
         return []

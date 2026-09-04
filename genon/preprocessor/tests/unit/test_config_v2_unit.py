@@ -21,7 +21,6 @@ _V1 = {
     "defaults": {"SEARCHABLE_YN": "N"},
     "constants": {"GROUP_C": "HPP"},
     "transforms": {"MOD_DT": "date_int_flex"},
-    "html_text_fields": {"DETAIL_TEXT": "DETAIL_HTML"},
     "required": ["QUESTION"],
     "text_fields": ["QUESTION", "ANSWER"],
     "field_labels": {"QUESTION": "질문"},
@@ -42,8 +41,36 @@ def test_field_rules_collapse_into_one_spec():
     """한 필드의 규칙이 6개 블록에 흩어지던 것이 한 dict 로 모인다(v2 의 존재 이유)."""
     as_v2 = cv2.to_v2(_V1, "tabular_mapping")
     assert as_v2["fields"]["SEARCHABLE_YN"] == {"values": {"Y": ["노출"]}, "default": "N"}
-    assert as_v2["fields"]["DETAIL_TEXT"] == {"from": "DETAIL_HTML", "as": "html"}
     assert set(as_v2) <= cv2.TOP_LEVEL_KEYS
+
+
+# 옛 파생 블록(text_from / html_text_fields)은 v1 에만 있다. 매퍼는 더 이상 읽지 않지만
+# `to_v2` 는 계속 옮길 수 있어야 한다 — 못 옮기면 그 설정은 손으로 고치기 전에는 v2 로
+# 갈 수 없다. 되돌아오는 모양이 원본과 다르므로(그게 이 정리의 목적이다) 왕복 대상이 아니다.
+_V1_LEGACY_DERIVED = {
+    "column_map": {"DETAIL_HTML": ["cmp_desc", "상세내용"], "DETAIL_DESC": ["detail_desc"]},
+    "html_text_fields": {"DETAIL_TEXT": "DETAIL_HTML"},
+    "text_from": {"DETAIL_PLAIN": "DETAIL_DESC"},
+    "text_fields": ["DETAIL_TEXT"],
+}
+
+
+def test_legacy_derived_blocks_migrate_to_duplicate_alias_and_transform():
+    """`from`/`as` 는 같은 alias 를 한 번 더 붙이고 transform 을 거는 것으로 펴진다."""
+    as_v2 = cv2.to_v2(_V1_LEGACY_DERIVED, "tabular_mapping")
+
+    assert as_v2["fields"]["DETAIL_TEXT"] == {
+        "alias": ["cmp_desc", "상세내용"], "transform": "html_text",
+    }
+    assert as_v2["fields"]["DETAIL_PLAIN"] == {"alias": ["detail_desc"], "transform": "text"}
+    # 원본 필드는 그대로 남는다 — 파생이 원본을 대체하지 않는다.
+    assert as_v2["fields"]["DETAIL_HTML"] == {"alias": ["cmp_desc", "상세내용"]}
+
+
+def test_legacy_derived_block_without_a_source_alias_fails_loudly():
+    """`from` 이 가리키는 목표필드에 alias 가 없으면 옮길 수 없다 — 조용히 버리지 않는다."""
+    with pytest.raises(cv2.ConfigV2Error, match="찾지 못했습니다"):
+        cv2.to_v2({"html_text_fields": {"X": "NO_SUCH"}}, "tabular_mapping")
 
 
 def test_to_v2_refuses_to_drop_unknown_keys():
@@ -92,8 +119,8 @@ def test_field_spec_must_be_a_dict(tmp_path):
         ("source:\n  kind: rows\nfields:\n  Q: {alias: [질문], typo: 1}\n", "typo"),
         ("source:\n  kind: sections\nfilter:\n  - {field: X, in: [Y]}\n", "filter"),
         # document 도 alias/values/transform/template 을 쓴다(front matter 가 두 번째 원천).
-        # 못 쓰는 것은 원천 컬럼의 평문 사본을 만드는 from/as 뿐이다.
-        ("source:\n  kind: document\nfields:\n  Q: {from: A, as: html}\n", "from"),
+        # kind 제약이 남은 필드 스펙은 records 전용인 collect 뿐이다.
+        ("source:\n  kind: document\nfields:\n  Q: {collect: [a]}\n", "collect"),
     ],
 )
 def test_v2_rejects_malformed_config(body, expect):
@@ -136,7 +163,8 @@ def test_covered_set_has_no_phantom_keys():
     from genon.preprocessor.facade.enrichment import config_schema as cs
 
     v1_keys = set().union(*cs.EXTRACTOR_KEYS.values()) | set(cs.WIRING_KEYS)
-    phantom = sorted(cv2.COVERED_V1_KEYS - v1_keys)
+    # 옛 파생 블록은 예외다 — 매퍼는 안 읽지만 to_v2 가 계속 옮겨야 하므로 covered 에 남는다.
+    phantom = sorted(cv2.COVERED_V1_KEYS - v1_keys - cv2.LEGACY_V1_ONLY_KEYS)
     assert not phantom, f"v1 에 없는 키가 covered 에 남아 있습니다: {phantom}"
 
 
@@ -298,3 +326,25 @@ def test_state_comparison_ignores_representation_noise(tmp_path):
     assert left == right
     # 값이 실제로 다르면 달라야 한다.
     assert left != verify._describe({"a": 1, "b": Holder({"x": 9, "y": 2})})
+
+
+def test_legacy_derived_field_joins_merge_rows_concat():
+    """옛 파생 필드는 `merge_rows.concat` 에도 따라 들어가야 한다.
+
+    옛 표기에서는 파생이 값 파이프라인 뒤라 병합이 끝난 값을 봤다. 새 표기에서는 원천을
+    직접 읽는 보통 필드라, 여기 안 넣으면 여러 행에 쪼개져 온 값의 첫 조각만 변환된다 —
+    사람이 손으로 옮길 때 가장 놓치기 쉬운 곳이라 옮기는 쪽이 채운다.
+    """
+    v1 = {
+        "column_map": {"DETAIL_DESC": ["detail_desc"], "KEEP": ["keep"]},
+        "row_merge": {"group_by": ["KEEP"], "order_by": "KEEP", "concat": ["DETAIL_DESC"]},
+        "text_from": {"DETAIL_TEXT": "DETAIL_DESC"},
+    }
+    as_v2 = cv2.to_v2(v1, "tabular_mapping")
+
+    assert as_v2["source"]["merge_rows"]["concat"] == ["DETAIL_DESC", "DETAIL_TEXT"]
+    # 병합 대상이 아닌 원천에서 파생한 필드는 건드리지 않는다.
+    v1_no_merge = {**v1, "text_from": {"KEEP_TEXT": "KEEP"}}
+    assert cv2.to_v2(v1_no_merge, "tabular_mapping")["source"]["merge_rows"]["concat"] == [
+        "DETAIL_DESC"
+    ]
