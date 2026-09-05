@@ -23,10 +23,25 @@ import requests
 from PIL import Image
 
 from docling.backend.docling_parse_v4_backend import DoclingParseV4DocumentBackend
+from docling.backend.genos_hwp_backend import GenosHwpDocumentBackend
+from docling.backend.genos_msword_backend import GenosMsWordDocumentBackend
+from docling.backend.hwp_backend import HwpDocumentBackend
 from docling.backend.pypdfium2_backend import PyPdfiumDocumentBackend
+from docling.backend.xml.hwpx_backend import HwpxDocumentBackend
 from docling.datamodel.base_models import InputFormat
-from docling.datamodel.pipeline_options import PaddleOcrOptions, UpstageOcrOptions
-from docling.document_converter import DocumentConverter, PdfFormatOption
+from docling.datamodel.document import ConversionResult
+from docling.datamodel.pipeline_options import (
+    PaddleOcrOptions,
+    PipelineOptions,
+    UpstageOcrOptions,
+)
+from docling.document_converter import (
+    DocumentConverter,
+    HwpxFormatOption,
+    PdfFormatOption,
+    WordFormatOption,
+)
+from docling.pipeline.simple_pipeline import SimplePipeline
 from docling_core.types import DoclingDocument
 from docling_core.types.doc import ImageRef, PictureItem, TableItem, TextItem
 from docling_core.types.doc.utils import relative_path
@@ -379,3 +394,70 @@ def ocr_all_table_cells(
         print(f"OCR processing failed: {e}")
 
     return document
+
+
+# ── 포맷 전용 로더 ──────────────────────────────────────────────────────────
+# 확장자를 어느 로더로 보낼지(라우팅)는 facade 에 남긴다 - 사이트가 읽고 고치는 곳이다.
+# 여기 있는 것은 그 라우팅이 고른 뒤의 docling 컨버터 조립뿐이다.
+
+class HwpLoaderBase:
+    """HWP/HWPX 전용 로더.
+
+    use_hwp_sdk=True 면 GenosHwp SDK 백엔드를, False 면 순수 파이썬 레거시 백엔드를 쓴다.
+    컨버터를 요청마다 만드는 것은 kwargs(save_images/use_hwp_sdk)가 요청별로 달라지기 때문이다.
+    """
+
+    def load_documents(self, file_path: str, **kwargs: dict) -> DoclingDocument:
+        pipeline_options = PipelineOptions()
+        pipeline_options.save_images = kwargs.get('save_images', True)
+
+        use_hwp_sdk = kwargs.get('use_hwp_sdk', True)
+        pipeline_options.dump_sdk_output = kwargs.get('dump_sdk_output', False) if use_hwp_sdk else False
+
+        if use_hwp_sdk:
+            converter = DocumentConverter(
+                format_options={
+                    InputFormat.HWP: HwpxFormatOption(
+                        pipeline_options=pipeline_options,
+                        backend=GenosHwpDocumentBackend
+                    ),
+                    InputFormat.XML_HWPX: HwpxFormatOption(
+                        pipeline_options=pipeline_options,
+                        backend=GenosHwpDocumentBackend
+                    ),
+                }
+            )
+        else:
+            converter = DocumentConverter(
+                format_options={
+                    InputFormat.HWP: HwpxFormatOption(
+                        pipeline_options=pipeline_options,
+                        backend=HwpDocumentBackend
+                    ),
+                    InputFormat.XML_HWPX: HwpxFormatOption(
+                        pipeline_options=pipeline_options,
+                        backend=HwpxDocumentBackend
+                    ),
+                }
+            )
+
+        conv_result: ConversionResult = converter.convert(Path(file_path).resolve(), raises_on_error=True)
+        return conv_result.document
+
+
+class DocxLoaderBase:
+    """DOCX 전용 로더. 컨버터를 __init__ 에서 한 번 만든다(요청별 옵션이 없다)."""
+
+    def __init__(self):
+        self.pipeline_options = PipelineOptions()
+        self.converter = DocumentConverter(
+            format_options={
+                InputFormat.DOCX: WordFormatOption(
+                    pipeline_cls=SimplePipeline, backend=GenosMsWordDocumentBackend
+                ),
+            }
+        )
+
+    def load_documents(self, file_path: str, **kwargs: dict) -> DoclingDocument:
+        conv_result: ConversionResult = self.converter.convert(file_path, raises_on_error=True)
+        return conv_result.document
