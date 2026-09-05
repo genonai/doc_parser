@@ -1,0 +1,13 @@
+# B12 JSONL/NDJSON — 줄 단위 레코드 피드.
+# 확장자(.jsonl)는 formats.extension_aliases 로 받을 수 있지만, 내용(줄 단위 JSON)은
+# json.load 가 하드 실패한다 — 거기서부터 코드다.
+schema: v2
+source:
+  kind: records
+  records_at: rows
+fields:
+  SUBJECT: {alias: [subject]}
+  BODY:    {alias: [body]}
+body:
+  fields: [SUBJECT, BODY]
+  labels: {SUBJECT: 제목, BODY: 본문}

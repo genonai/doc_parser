@@ -1,0 +1,13 @@
+# B7 문서형 메타 + 레코드 배열 혼합 — 헤더 메타(documentTitle/owner)가 레코드 밖에 있다.
+schema: v2
+source:
+  kind: records
+  records_at: faqList
+fields:
+  QUESTION:  {alias: [q]}
+  ANSWER:    {alias: [a]}
+  DOC_TITLE: {alias: [documentTitle]}
+  OWNER:     {alias: [owner]}
+body:
+  fields: [QUESTION, ANSWER]
+  labels: {QUESTION: 질문, ANSWER: 답변}

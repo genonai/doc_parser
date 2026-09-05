@@ -1,0 +1,12 @@
+# B6 표가 HTML 문자열로 박혀 있다 — transform: html_text 로 표 구조를 살릴 수 있는가.
+schema: v2
+source:
+  kind: records
+  records_at: cards
+fields:
+  CARD_NAME:   {alias: [cardName]}
+  DETAIL_HTML: {alias: [detail]}
+  DETAIL_TEXT: {alias: [detail], transform: html_text}
+body:
+  fields: [CARD_NAME, DETAIL_TEXT]
+  labels: {CARD_NAME: 카드명, DETAIL_TEXT: 상세}

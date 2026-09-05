@@ -1,0 +1,26 @@
+{
+  "groups": [
+    {
+      "groupName": "예금",
+      "items": [
+        {
+          "itemTitle": "정기예금 12개월",
+          "itemBody": "만기 일시지급"
+        },
+        {
+          "itemTitle": "정기예금 24개월",
+          "itemBody": "만기 일시지급"
+        }
+      ]
+    },
+    {
+      "groupName": "대출",
+      "items": [
+        {
+          "itemTitle": "마이너스통장",
+          "itemBody": "한도 내 자유입출금"
+        }
+      ]
+    }
+  ]
+}

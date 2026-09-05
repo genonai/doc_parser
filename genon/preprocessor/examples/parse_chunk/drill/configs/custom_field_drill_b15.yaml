@@ -1,0 +1,12 @@
+# B15 records 는 있는데 요소 0 — 에러 경로가 갈리는 지점.
+schema: v2
+source:
+  kind: records
+  records_at: noticeList
+  on_missing: skip
+fields:
+  SUBJECT: {alias: [subject]}
+  BODY:    {alias: [body]}
+body:
+  fields: [SUBJECT, BODY]
+  labels: {SUBJECT: 제목, BODY: 본문}

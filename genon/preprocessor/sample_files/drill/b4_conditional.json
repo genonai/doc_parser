@@ -1,0 +1,22 @@
+{
+  "noticeList": [
+    {
+      "type": "TEXT",
+      "subject": "시스템 점검 안내",
+      "plainBody": "7월 5일 02:00~04:00 점검",
+      "htmlBody": null
+    },
+    {
+      "type": "HTML",
+      "subject": "여름 이벤트",
+      "plainBody": null,
+      "htmlBody": "<p>선착순 <b>1,000명</b></p>"
+    },
+    {
+      "type": "TEXT",
+      "subject": "약관 개정 안내",
+      "plainBody": "8월 1일부터 적용됩니다",
+      "htmlBody": null
+    }
+  ]
+}

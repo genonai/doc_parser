@@ -1,0 +1,12 @@
+# B1 동명 키 충돌 — 필요한 것은 meta.title 인데 레코드 최상위에도 title 이 있다.
+schema: v2
+source:
+  kind: records
+  records_at: items
+fields:
+  TITLE:    {alias: [title]}
+  CODE:     {alias: [code]}
+  SUMMARY:  {alias: [summary]}
+body:
+  fields: [TITLE, SUMMARY]
+  labels: {TITLE: 제목, SUMMARY: 요약}

@@ -1,0 +1,16 @@
+# B5 타입 흔들림 — 같은 필드가 문자열/숫자/배열/null 로 섞여 온다.
+schema: v2
+source:
+  kind: records
+  records_at: rows
+fields:
+  NAME:    {alias: [name]}
+  FEE_AMT:
+    alias: [fee]
+    transform:
+      - {name: regex_sub, pattern: "[^0-9]", repl: ""}
+      - {name: to_int, on_error: "null"}
+  TAGS:    {alias: [tags]}
+body:
+  fields: [NAME, TAGS]
+  labels: {NAME: 상품명, TAGS: 태그}

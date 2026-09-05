@@ -57,7 +57,7 @@ NONDOCLING_EXTENSIONS = {
 SUPPORTED_EXTENSIONS = PARSE_EXTENSIONS | NONDOCLING_EXTENSIONS | {".json"}
 
 
-def _alias_extensions() -> set[str]:
+def _alias_extensions(config_path: str | None = None) -> set[str]:
     """파서 설정(formats.extension_aliases)에 등록된 비표준 확장자.
 
     러너가 확장자 목록을 따로 들고 있으면 파서는 처리할 수 있는 파일을 러너가 먼저
@@ -70,14 +70,14 @@ def _alias_extensions() -> set[str]:
             _resolve_default_parser_config_path,
         )
 
-        cfg = cp.load_config(_resolve_default_parser_config_path(), strict=False)
+        cfg = cp.load_config(config_path or _resolve_default_parser_config_path(), strict=False)
         return set(fa.parse_extension_aliases(cfg.get("formats")))
     except Exception as exc:  # 설정을 못 읽어도 러너는 계속 돈다
         print(f"  [warn] 확장자 별칭을 읽지 못했습니다: {exc}")
         return set()
 
 
-SUPPORTED_EXTENSIONS |= _alias_extensions()
+# 별칭 확장자는 main() 에서 더한다 — --config 가 주어지면 그 설정의 별칭을 봐야 한다.
 
 # 지연 인스턴스화 (파싱이 필요할 때만 ParserProcessor 생성)
 _parser: ParserProcessor | None = None
@@ -90,11 +90,16 @@ _OUTPUT_FORMAT = "docling"
 
 OUTPUT_FORMATS = ("docling", "json", "html", "markdown")
 
+# 설정 파일 경로. 미지정이면 프로세서가 resource_dev/ → resource/ 순으로 스스로 찾는다.
+# 배포 설정을 건드리지 않고 별도 설정 트리로 시험할 때 --config / --chunker-config 로 준다.
+_PARSER_CONFIG: str | None = None
+_CHUNKER_CONFIG: str | None = None
+
 
 def get_parser() -> ParserProcessor:
     global _parser
     if _parser is None:
-        _parser = ParserProcessor()
+        _parser = ParserProcessor(_PARSER_CONFIG) if _PARSER_CONFIG else ParserProcessor()
         _parser._output_format = _OUTPUT_FORMAT  # config 편집 없이 출력 포맷 강제
     return _parser
 
@@ -102,14 +107,30 @@ def get_parser() -> ParserProcessor:
 def get_chunker() -> ChunkerProcessor:
     global _chunker
     if _chunker is None:
-        _chunker = ChunkerProcessor()
+        _chunker = ChunkerProcessor(_CHUNKER_CONFIG) if _CHUNKER_CONFIG else ChunkerProcessor()
     return _chunker
 
 
 def load_docling_json(path: Path) -> dict:
-    """docling JSON 입력을 dict 로 로드. {"document": ...} 래핑/비래핑 모두 허용."""
-    with open(path, "r", encoding="utf-8") as f:
-        obj = json.load(f)
+    """docling JSON 입력을 dict 로 로드. {"document": ...} 래핑/비래핑 모두 허용.
+
+    인코딩을 단정하지 않는다 — 러너가 원천을 먼저 읽고 판별하는 자리라서, 여기서
+    utf-8 을 강제하면 BOM·CP949 원천이 **파서에 닿기도 전에** 죽는다.
+    """
+    raw = path.read_bytes()
+    for enc in ("utf-8-sig", "utf-8", "cp949"):
+        try:
+            text = raw.decode(enc)
+            break
+        except UnicodeDecodeError:
+            continue
+    else:
+        raise SystemExit(f"인코딩을 판별할 수 없습니다: {path}")
+    try:
+        obj = json.loads(text)
+    except ValueError:
+        # JSONL/NDJSON 은 파서 쪽에서 다룬다. 여기서는 "파서 출력물이 아니다" 로만 본다.
+        return {}
     if isinstance(obj, dict) and "document" in obj and isinstance(obj["document"], dict):
         return obj["document"]
     return obj
@@ -252,6 +273,17 @@ def parse_args():
              "json=parse-format({\"elements\":[...]}) → .parse.json",
     )
     ap.add_argument(
+        "--config",
+        default=None,
+        help="파서 설정 yaml 경로(미지정 시 resource_dev/ → resource/ 자동 탐색). "
+             "배포 설정을 건드리지 않고 별도 설정 트리로 시험할 때 쓴다",
+    )
+    ap.add_argument(
+        "--chunker-config",
+        default=None,
+        help="청커 설정 yaml 경로(미지정 시 자동 탐색)",
+    )
+    ap.add_argument(
         "--table-text-desc",
         action="store_true",
         help="custom_fields의 텍스트 표 설명을 활성화(설정된 LLM으로 여러 표를 통합 호출)",
@@ -302,9 +334,12 @@ def build_cache_kwargs(args) -> dict:
 
 
 def main():
-    global _OUTPUT_FORMAT
+    global _OUTPUT_FORMAT, _PARSER_CONFIG, _CHUNKER_CONFIG, SUPPORTED_EXTENSIONS
     args = parse_args()
     _OUTPUT_FORMAT = args.output_format
+    _PARSER_CONFIG = args.config
+    _CHUNKER_CONFIG = args.chunker_config
+    SUPPORTED_EXTENSIONS = SUPPORTED_EXTENSIONS | _alias_extensions(_PARSER_CONFIG)
     input_path = Path(args.input_path).expanduser().resolve()
     output_dir = Path(args.output_dir).expanduser().resolve()
     files = collect_files(input_path)
