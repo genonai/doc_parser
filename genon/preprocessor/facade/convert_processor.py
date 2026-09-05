@@ -20,13 +20,12 @@ _log = logging.getLogger(__name__)
 # 그대로 유지해 호출부를 건드리지 않는다. 사이트별 조정 대상 상수(구분자, 최소
 # 청크 크기, 토크나이저 경로)는 이 파일에 남아 있으므로 래퍼가 넘겨준다.
 from genon.preprocessor.facade.common import config_parse as cp
-from genon.preprocessor.facade.common import pipeline_setup as ps
-from genon.preprocessor.facade.common import runtime_kwargs as rk
 from genon.preprocessor.facade.enrichment.page_description import inject_page_descriptions
 from genon.preprocessor.facade.chunking import page_split
 from genon.preprocessor.facade.chunking import smart_chunker as sc
 from genon.preprocessor.facade.common import vector_meta as vm
 from genon.preprocessor.facade.common import docling_ops as dops
+from genon.preprocessor.facade.common.docling_runtime import DoclingRuntimeBase
 from genon.preprocessor.facade.common import runtime as rt
 from genon.preprocessor.facade.common import file_probe as fp
 from genon.preprocessor.facade.common import pdf_convert as pc
@@ -93,17 +92,14 @@ from docling.datamodel.base_models import InputFormat
 # from docling.datamodel.document import ConversionStatus
 from docling.datamodel.pipeline_options import (
     AcceleratorDevice,
-    PdfPipelineOptions,
     TableFormerMode,
     PipelineOptions,
-    UpstageOcrOptions,
 )
 
 from docling.document_converter import (
     DocumentConverter,
-    HwpxFormatOption
+    HwpxFormatOption,
 )
-from docling.datamodel.pipeline_options import DataEnrichmentOptions
 from docling.prompts.prompt_manager import LLMApiError
 from docling.utils.document_enrichment import enrich_document, check_document
 from docling.utils.llm_cache import (
@@ -124,7 +120,6 @@ from docling_core.types.doc import (
     DocItemLabel,
     DoclingDocument,
 )
-from docling.datamodel.settings import settings
 
 
 
@@ -144,7 +139,6 @@ try:
 except ImportError:
     upload_files = None
 
-from genon.preprocessor.facade.enrichment.enrichment_config import EnrichmentConfig
 from genon.preprocessor.facade.enrichment.field_transforms import (
     DEFAULT_METADATA_FIELD_TRANSFORMS,
     apply_field_transforms,
@@ -153,33 +147,18 @@ from genon.preprocessor.facade.enrichment.field_transforms import (
     store_metadata_in_document,
 )
 from genon.preprocessor.facade.enrichment.custom_fields_enricher import (
-    build_document_custom_fields_enrichers,
     normalize_doc_type,
 )
 from genon.preprocessor.facade.enrichment.tabular_custom_fields import (
     build_tabular_custom_fields_mappers,
     warn_tabular_llm_fields_unsupported as _warn_tabular_llm_fields_unsupported,
 )
-from genon.preprocessor.facade.enrichment.metadata_enricher import MetadataEnricher
 
 from genon.preprocessor.facade.enrichment.page_description import (
     PageDescriptionOptions,
 )
-from genon.preprocessor.facade.enrichment.image_description import (
-    ImageDescriptionOptions,
-    ImageDescriptionEnricher,
-)
 from genon.preprocessor.facade.enrichment.table_text_description import (
-    TableTextDescriptionEnricher,
     apply_table_description_stage,
-)
-from genon.preprocessor.facade.enrichment.table_description import (
-    TableDescriptionOptions,
-    TableDescriptionEnricher,
-)
-from genon.preprocessor.facade.enrichment.doc_summary import (
-    DocSummaryOptions,
-    DocSummaryEnricher,
 )
 from genon.preprocessor.facade.chunking import text_norm as tn
 
@@ -354,7 +333,10 @@ class GenOSVectorMetaBuilder(vm.VectorMetaBuilderBase):
         return GenOSVectorMeta.model_validate(payload)
 
 
-class DocumentProcessor:
+class DocumentProcessor(DoclingRuntimeBase):
+
+    # formats.xlsx.processing_mode 기본값. parser 는 tabular 지만 여기는 docling 이다.
+    _xlsx_default_mode = "docling"
 
     def __init__(self, config_path: str | None = None):
         '''
@@ -363,27 +345,29 @@ class DocumentProcessor:
         config_path 가 None 이면 resource_dev/convert_processor_config.yaml
         (없으면 resource/convert_processor_config.yaml) 을 사용한다.
         GenOS 는 DocumentProcessor() 무인자로 호출하므로 기본 경로 resolve 필수.
+
+        docling 배관(OCR·파이프라인·layout·컨버터·enricher)은 DoclingRuntimeBase 가
+        세운다. 이 클래스 몫은 아래 훅 두 개에 있다.
         '''
         if config_path is None:
             config_path = _resolve_default_convert_config_path()
+        super().__init__(_load_config(config_path), config_path=config_path)
 
-        cfg = _load_config(config_path)
-        self._config_dir = Path(config_path).resolve().parent
-        # 런타임 kwargs 기본값(img_desc/chart_desc/chart_detection/doc_summary) 용도
-        self._runtime_cfg = _as_dict(cfg.get("runtime"))
+    def _pre_pipeline_setup(self, cfg: dict) -> None:
+        """PdfPipelineOptions 생성 **전**에 불린다.
+
+        여기서 세운 table_image_enabled / _page_desc_options 를 _force_page_images 가
+        읽는다. 뒤로 옮기면 OCR 컨버터 옵션에 반영되지 않는다.
+        """
+        chunking_cfg = _as_dict(cfg.get("chunking"))
+        formats_cfg = _as_dict(cfg.get("formats"))
+        output_cfg = _as_dict(cfg.get("output"))
 
         defaults_cfg = _as_dict(cfg.get("defaults"))
         log_level = _parse_optional_int(defaults_cfg.get("log_level"), "defaults.log_level")
         if log_level is None:
             log_level = 4
         self._log_level = log_level
-
-        ocr_cfg = _as_dict(cfg.get("ocr"))
-        layout_cfg = _as_dict(cfg.get("layout"))
-        pdf_cfg = _as_dict(cfg.get("pdf_pipeline"))
-        models_cfg = _as_dict(cfg.get("models"))
-        chunking_cfg = _as_dict(cfg.get("chunking"))
-        ec = EnrichmentConfig.from_raw(cfg.get("enrichment"), self._config_dir, parent_cfg=cfg)
 
         # 청킹용 토크나이저 (chunking config 기반; 미지정 시 현행 기본값)
         self._tokenizer = _resolve_tokenizer(chunking_cfg)
@@ -422,25 +406,6 @@ class DocumentProcessor:
         # 잘못된 설정을 요청 전에 드러낸다. 규칙이 없으면 빈 튜플이라 무비용이다.
         self._text_cleanup_rules = tn.rules_from_cfg(chunking_cfg)
 
-        # xlsx(엑셀) 처리 설정(이슈 #288). formats.xlsx 아래에 둔다(포맷별 옵션 컨테이너).
-        #   docling(기본): xlsx 를 docling MsExcel 백엔드로 처리(현행) → 기존 청킹/벡터 파이프라인.
-        #   tabular: 데이터 행마다 1벡터 + 컬럼 헤더→메타(병합셀 unmerge+forward-fill).
-        #   tabular.{header_row, multi_table}: tabular 모드 전용 세부 옵션
-        formats_cfg = _as_dict(cfg.get("formats"))
-        xlsx_cfg = _as_dict(formats_cfg.get("xlsx"))
-        tabular_cfg = _as_dict(xlsx_cfg.get("tabular"))
-        xlsx_mode = str(xlsx_cfg.get("processing_mode", "docling")).strip().lower()
-        if xlsx_mode not in {"docling", "tabular"}:
-            _log.warning(
-                f"[DocumentProcessor] Unknown formats.xlsx.processing_mode '{xlsx_mode}', fallback to 'docling'."
-            )
-            xlsx_mode = "docling"
-        self._xlsx_cfg = {
-            "processing_mode": xlsx_mode,
-            "header_row": _parse_optional_int(tabular_cfg.get("header_row"), "formats.xlsx.tabular.header_row") or 0,
-            "multi_table": bool(_parse_optional_bool(tabular_cfg.get("multi_table"), "formats.xlsx.tabular.multi_table")),
-        }
-
         # 표 텍스트 직렬화 형식(청크 text 내 docling 표 표현). "html"(default) | "markdown".
         output_cfg = _as_dict(cfg.get("output"))
         # auto 는 여기서 확정하지 않는다 - 표마다 grid 구조를 봐야 정해지므로 청커로 넘긴다.
@@ -453,24 +418,6 @@ class DocumentProcessor:
         # 기본은 빈 목록(추가 필드 없음) — 켜면 본문이 형식 수만큼 복제되어 페이로드가 커진다.
         self._table_text_formats = cp.resolve_table_text_formats(output_cfg)
 
-        # OCR 엔드포인트는 ocr.paddle.ocr_endpoint 가 정식 위치.
-        # 구버전 호환: ocr.ocr_endpoint(상위) / 최상위 ocr_endpoint 도 폴백으로 인식.
-        # 해석은 facade/common/pipeline_setup.py 로 모았다(조정 지점은 yaml 의 ocr 섹션).
-        _ocr_rt = ps.resolve_ocr_runtime(cfg, ocr_cfg)
-        ocr_ep = _ocr_rt.endpoint
-        self.ocr_mode = _ocr_rt.mode
-        self._table_cell_ocr_timeout = _ocr_rt.table_cell_ocr_timeout
-        self._glyph_table_cell_threshold = _ocr_rt.glyph_table_cell_threshold
-        self._glyph_document_threshold = _ocr_rt.glyph_document_threshold
-
-        # (PDF 입력에만 적용. DOCX/기타 포맷은 ocr_mode 무관)
-
-        ocr_options = self._build_ocr_options(ocr_cfg, paddle_endpoint=ocr_ep)
-        if isinstance(ocr_options, UpstageOcrOptions):
-            self.ocr_endpoint = ocr_options.api_endpoint
-        else:
-            self.ocr_endpoint = ocr_ep
-
         # 민감정보 분류(#315): GenOS 분류 워크플로우 접속 정보. on/off 는 요청별 kwargs(guardrail_call).
         gm_cfg = _as_dict(cfg.get("guardrail"))
         self._guardrail_url = str(gm_cfg.get("url") or "").strip()
@@ -479,16 +426,6 @@ class DocumentProcessor:
         gm_timeout = _parse_optional_int(gm_cfg.get("timeout"), "guardrail.timeout")
         self._guardrail_timeout = gm_timeout if gm_timeout and gm_timeout > 0 else 60
         self._guardrail_masking_enabled = bool(_parse_optional_bool(gm_cfg.get("masking_enabled"), "guardrail.masking_enabled"))
-
-        self.page_chunk_counts = defaultdict(int)
-
-        # pdf_pipeline 섹션 해석은 facade/common/pipeline_setup.py 로 모았다.
-        _pdf = ps.resolve_pdf_basics(pdf_cfg)
-        accelerator_options = _pdf.accelerator_options
-        images_scale = _pdf.images_scale
-        generate_page_images = _pdf.generate_page_images
-        generate_picture_images = _pdf.generate_picture_images
-        table_structure_mode = _pdf.table_structure_mode
 
         # 표 이미지(table_image) 옵션: 표를 picture 와 동일하게 이미지로 잘라 저장하고,
         # media_files 에 type='table_image' 로 기록한다(검색=청크 텍스트 / 답변=표 이미지).
@@ -504,191 +441,25 @@ class DocumentProcessor:
         page_img_cfg = _as_dict(ppt_fmt_cfg.get("page_description"))
         self._page_desc_options = PageDescriptionOptions.from_config(page_img_cfg, self._config_dir)
 
-        # PDF 파이프라인 옵션 설정
-        self.pipe_line_options = PdfPipelineOptions()
-        self.pipe_line_options.generate_page_images = (
-            True if generate_page_images is None else generate_page_images
-        )
-        self.pipe_line_options.generate_picture_images = (
-            True if generate_picture_images is None else generate_picture_images
-        )
+    def _force_page_images(self) -> bool:
         # 표 이미지 크롭(TableItem.get_image)/페이지 설명은 페이지 이미지를 소스로 하므로,
-        # table_image 또는 page_description 이 켜지면 generate_page_images 를 True 로 강제 보장한다.
-        if self.table_image_enabled or self._page_desc_options.enabled:
-            self.pipe_line_options.generate_page_images = True
-        self.pipe_line_options.do_ocr = False
-        self.pipe_line_options.ocr_options = ocr_options
-        self.pipe_line_options.images_scale = images_scale
+        # 둘 중 하나라도 켜지면 generate_page_images 를 강제한다.
+        return bool(self.table_image_enabled or self._page_desc_options.enabled)
 
-        # layout 모델 선택. "genos_layout"(default) / "docling_layout". 잘못된 값은 경고 후 폴백.
-        # 해석·적용은 facade/common/pipeline_setup.py 로 모았다(조정 지점은 yaml 의 layout 섹션).
-        _layout = ps.resolve_layout_settings(cfg, layout_cfg)
-        ps.apply_layout_settings(self.pipe_line_options, _layout)
-        settings.perf.page_batch_size = _layout.page_batch_size
-
-        self.pipe_line_options.do_table_structure = True
-        self.pipe_line_options.table_structure_options.do_cell_matching = True
-        self.pipe_line_options.table_structure_options.mode = table_structure_mode
-        self.pipe_line_options.accelerator_options = accelerator_options
-
-        # docling 모델(TableFormer 등) 로컬 경로. config 에 값이 있을 때만 설정하고,
-        # 비어있으면 설정하지 않아 docling 기본 캐시 동작을 그대로 유지(backward compat).
-        # (아래 ocr_pipe_line_options 는 pipe_line_options 의 deep copy 라 자동 전파됨)
-        artifacts_path = models_cfg.get("artifacts_path")
-        if artifacts_path:
-            self.pipe_line_options.artifacts_path = Path(artifacts_path)
-
-        # Simple 파이프라인 옵션을 인스턴스 변수로 저장
-        self.simple_pipeline_options = PipelineOptions()
-        self.simple_pipeline_options.save_images = False
-
-        # 이미지/차트 description 옵션. chart.enable 이면 변환 단계에서 그림 분류가 필요하므로
-        # 컨버터(ocr 포함) 생성 전에 옵션을 결정하고 do_picture_classification 을 켜 둔다.
-        self.image_description_options = ImageDescriptionOptions.from_config(
-            image_desc_cfg=ec.image_description_cfg,
-            fallback_api_url=ec.api_url,
-            fallback_api_key=ec.api_key,
-            fallback_model=ec.model,
-            config_dir=self._config_dir,
-        )
-        # 런타임 kwargs 오버라이드의 기준(base) 옵션 보관
-        self._base_image_description_options = self.image_description_options
-        # chart.enable=true 이면 그림 분류를 켠다(런타임 chart_detection=auto 전환 허용).
-        if self.image_description_options.chart_enabled:
-            try:
-                self.pipe_line_options.do_picture_classification = True
-            except Exception as exc:
-                _log.warning(
-                    f"[DocumentProcessor] do_picture_classification 설정 실패: {exc}"
-                )
-
-        # 표 description 옵션. VLM 이 표 영역을 crop 하려면 페이지 이미지가 필요하므로
-        # base 옵션이 켜져 있으면 컨버터 생성 전에 generate_page_images 를 강제한다.
-        self.table_description_options = TableDescriptionOptions.from_config(
-            table_desc_cfg=ec.table_description_cfg,
-            fallback_api_url=ec.api_url,
-            fallback_api_key=ec.api_key,
-            fallback_model=ec.model,
-            config_dir=self._config_dir,
-        )
-        self._base_table_description_options = self.table_description_options
-        if self.table_description_options.enabled:
-            self.pipe_line_options.generate_page_images = True
-
-        # 문서 본문요약(doc_summary) 옵션. image/table 이 공유하는 {{doc_summary}} 를 1회 계산.
-        self.doc_summary_options = DocSummaryOptions.from_config(
-            doc_summary_cfg=ec.doc_summary_cfg,
-            fallback_api_url=ec.api_url,
-            fallback_api_key=ec.api_key,
-            fallback_model=ec.model,
-            config_dir=self._config_dir,
-        )
-        self._base_doc_summary_options = self.doc_summary_options
-
-        # ocr 파이프라인 옵션
-        self.ocr_pipe_line_options = PdfPipelineOptions()
-        self.ocr_pipe_line_options = self.pipe_line_options.model_copy(deep=True)
-        self.ocr_pipe_line_options.do_ocr = True
-        self.ocr_pipe_line_options.ocr_options = ocr_options.model_copy(deep=True)
-        self.ocr_pipe_line_options.ocr_options.force_full_page_ocr = True
-
-        # 기본 컨버터들 생성
-        self._create_converters()
-
-        self.image_description_enricher = ImageDescriptionEnricher(
-            self.image_description_options
-        )
-        self.table_description_enricher = TableDescriptionEnricher(
-            self.table_description_options
-        )
-        # 텍스트 표 설명. 자체 url/model 이 있으면 custom_fields 의 LLM 사용 여부와 무관하게
-        # 이 실행기가 표 설명을 맡는다(table_text_description 모듈 docstring 참고).
-        self.table_text_description_enricher = TableTextDescriptionEnricher(
-            ec.table_text_description_cfg
-        )
-        self.doc_summary_enricher = DocSummaryEnricher(self.doc_summary_options)
-        self.custom_fields_enrichers: list = (
-            build_document_custom_fields_enrichers(ec.custom_fields_cfgs)
-        )
+    def _post_runtime_setup(self, cfg: dict, ec) -> None:
+        """컨버터·enricher 생성 뒤에 불린다."""
         # enrichment.custom_fields 중 tabular_mapping handler(요청 doc_type=faq 등 xlsx 행별 매핑).
         # LLM enricher 와 달리 파싱 조기 분기(_process_xlsx)에서 소비한다.
         self._tabular_custom_fields_mappers: list = (
             build_tabular_custom_fields_mappers(ec.custom_fields_cfgs)
         )
         _warn_tabular_llm_fields_unsupported(self._tabular_custom_fields_mappers, "convert")
-        self.metadata_enricher = (
-            MetadataEnricher(
-                url=ec.metadata.url,
-                api_key=ec.metadata.api_key,
-                model=ec.metadata.model,
-                system_prompt=ec.metadata.system_prompt,
-                user_prompt=ec.metadata.user_prompt,
-                output_fields=ec.metadata.output_fields,
-                parser=ec.metadata.parser,
-                pages=ec.metadata.pages,
-                max_tokens=ec.metadata.max_tokens,
-                temperature=ec.metadata.temperature,
-                timeout=ec.metadata.timeout,
-                config_dir=self._config_dir,
-                variables=ec.metadata.variables,
-                template_mode=ec.metadata.template_mode,
-                thinking=ec.metadata.thinking,
-                thinking_dialect=ec.metadata.thinking_dialect,
-            )
-            if ec.metadata.do_metadata and ec.metadata.has_custom_metadata
-            else None
-        )
+
         # 추출 메타데이터 → typed 벡터 필드 매핑(설정 기반). 설정이 비어있으면
         # 기존 created_date 동작을 그대로 재현한다(하위 호환).
         self._metadata_field_transforms = (
             ec.metadata.field_transforms or DEFAULT_METADATA_FIELD_TRANSFORMS
         )
-
-        # enrichment 옵션 설정 (yaml 의 enrichment 섹션을 EnrichmentConfig 로 파싱)
-        self.enrichment_options = DataEnrichmentOptions(
-            do_toc_enrichment=ec.toc.do_toc,
-            toc_doc_type=ec.toc.doc_type,
-            extract_metadata=ec.metadata.do_metadata and self.metadata_enricher is None,
-            toc_api_provider="custom",
-            metadata_api_provider="custom",
-            toc_api_base_url=ec.toc.url,
-            metadata_api_base_url=ec.metadata.url,
-            toc_api_key=ec.toc.api_key,
-            metadata_api_key=ec.metadata.api_key,
-            toc_model=ec.toc.model,
-            metadata_model=ec.metadata.model,
-            toc_temperature=ec.toc.temperature,
-            toc_top_p=ec.toc.top_p,
-            toc_seed=ec.toc.seed,
-            toc_max_tokens=ec.toc.max_tokens,
-            toc_repetition_penalty=ec.toc.repetition_penalty,
-            toc_precheck_enabled=ec.toc.precheck_enabled,
-            toc_max_context_tokens=ec.toc.precheck_max_context_tokens,
-            toc_completion_reserved_tokens=ec.toc.precheck_completion_reserved_tokens,
-            toc_split_enabled=ec.toc.split_enabled,
-            toc_pages_per_chunk=ec.toc.split_pages_per_chunk,
-            toc_page_overlap=ec.toc.split_page_overlap,
-            toc_carryover_max_tokens=ec.toc.split_carryover_max_tokens,
-            metadata_precheck_enabled=ec.metadata.precheck_enabled,
-            metadata_max_context_tokens=ec.metadata.precheck_max_context_tokens,
-            metadata_completion_reserved_tokens=ec.metadata.precheck_completion_reserved_tokens,
-            toc_system_prompt=ec.toc.system_prompt,
-            toc_user_prompt=ec.toc.user_prompt,
-            toc_thinking=ec.toc.thinking,
-            toc_thinking_dialect=ec.toc.thinking_dialect,
-            metadata_thinking=ec.metadata.thinking,
-            metadata_thinking_dialect=ec.metadata.thinking_dialect,
-        )
-
-    @staticmethod
-    def _build_ocr_options(ocr_cfg: dict, paddle_endpoint: str):
-        return dops.build_ocr_options(ocr_cfg, paddle_endpoint)
-
-    def _create_converters(self):
-        """컨버터들을 생성하는 헬퍼 메서드"""
-        (self.converter, self.second_converter,
-         self.ocr_converter, self.ocr_second_converter) = dops.create_converters(
-            self.pipe_line_options, self.ocr_pipe_line_options)
 
     def load_documents_with_docling(self, file_path: str, **kwargs: dict) -> DoclingDocument:
         try:
@@ -924,68 +695,8 @@ class DocumentProcessor:
             # Preserve provider error payload as-is for load status error message.
             raise GenosServiceException("1", e.raw_error_message) from e
 
-    def _normalize_runtime_kwargs(self, kwargs: dict) -> dict:
-        return rk.normalize_runtime_kwargs(self, kwargs)
-
-    def _configure_runtime_image_mode(self, kwargs: dict):
-        rk.configure_runtime_image_mode(self, kwargs)
-
-    def _get_or_create_image_description_enricher(self):
-        enricher = getattr(self, "image_description_enricher", None)
-        if enricher is None:
-            # 테스트 등에서 __init__ 우회 시 legacy attribute 기반으로 재구성
-            legacy_options = ImageDescriptionOptions.from_legacy_processor(self)
-            enricher = ImageDescriptionEnricher(legacy_options)
-            self.image_description_enricher = enricher
-        return enricher
-
-    def enrich_image_descriptions(self, document: DoclingDocument, **kwargs: dict) -> DoclingDocument:
-        enricher = self._get_or_create_image_description_enricher()
-        if enricher is None:
-            return document
-        return enricher.enrich(document, **kwargs)
-
-    def _get_or_create_doc_summary_enricher(self):
-        enricher = getattr(self, "doc_summary_enricher", None)
-        if enricher is None:
-            base = getattr(self, "_base_doc_summary_options", None)
-            enricher = DocSummaryEnricher(base or DocSummaryOptions())
-            self.doc_summary_enricher = enricher
-        return enricher
-
-    def enrich_doc_summary(self, document: DoclingDocument, **kwargs: dict) -> DoclingDocument:
-        enricher = self._get_or_create_doc_summary_enricher()
-        if enricher is None:
-            return document
-        return enricher.enrich(document, **kwargs)
-
-    def _get_or_create_table_description_enricher(self):
-        enricher = getattr(self, "table_description_enricher", None)
-        if enricher is None:
-            base = getattr(self, "_base_table_description_options", None)
-            enricher = TableDescriptionEnricher(base or TableDescriptionOptions())
-            self.table_description_enricher = enricher
-        return enricher
-
-    def enrich_table_descriptions(self, document: DoclingDocument, **kwargs: dict) -> DoclingDocument:
-        enricher = self._get_or_create_table_description_enricher()
-        if enricher is None:
-            return document
-        return enricher.enrich(document, **kwargs)
-
     def enrich_page_descriptions(self, document: DoclingDocument, **kwargs: dict) -> DoclingDocument:
         return inject_page_descriptions(document, self._page_desc_options)
-
-    async def enrich_metadata(self, document: DoclingDocument, **kwargs: dict) -> DoclingDocument:
-        enricher = getattr(self, "metadata_enricher", None)
-        if enricher is not None:
-            document = await enricher.enrich(document, **kwargs)
-        return document
-
-    async def enrich_custom_fields(self, document: DoclingDocument, **kwargs: dict) -> DoclingDocument:
-        for enricher in self.custom_fields_enrichers:
-            document = await enricher.enrich(document, **kwargs)
-        return document
 
     async def compose_vectors(self, document: DoclingDocument, chunks: List[DocChunk], file_path: str, request: Request, **kwargs: dict) -> \
             list[dict]:
@@ -1269,31 +980,8 @@ class DocumentProcessor:
         doc.close()
         return page_meta
 
-    def _save_table_images(
-        self,
-        document: DoclingDocument,
-        image_dir: Path,
-        reference_path: Optional[Path] = None,
-    ) -> None:
-        dops.save_table_images(document, image_dir, reference_path)
-
     def get_media_files(self, doc_items: list, include_tables: bool = False):
         return dops.get_media_files(doc_items, include_tables)
-
-    def check_glyph_text(self, text: str, threshold: int = 1) -> bool:
-        return dops.check_glyph_text(text, threshold)
-
-    def check_glyphs(self, document: DoclingDocument) -> bool:
-        return dops.check_glyphs(document, self._glyph_document_threshold)
-
-    def ocr_all_table_cells(self, document: DoclingDocument, pdf_path) -> DoclingDocument:
-        """글리프 깨진 텍스트가 있는 표에 대해서만 셀 단위 재OCR 을 수행한다."""
-        return dops.ocr_all_table_cells(
-            document,
-            ocr_endpoint=self.ocr_endpoint,
-            cell_threshold=self._glyph_table_cell_threshold,
-            timeout=self._table_cell_ocr_timeout,
-        )
 
     def setup_logging(self, level_num: int):
         rt.setup_logging(level_num)
