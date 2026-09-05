@@ -1,5 +1,12 @@
 # 01. chunking_processor 의 미사용 파싱 런타임 제거
 
+
+> **상태: 완료 (2026-09-06).** 1,536 → 1,217줄. 개정판의 유지 목록을 그대로 따랐고
+> `settings.perf.page_batch_size` 는 남겼다(전역값 32 유지를 실측 확인).
+> "함께 걷어낼 죽은 코드"(별칭 8개, `safe_join`, 모듈 `convert_to_pdf`)도 함께 지웠다.
+> 잃는 안전망은 `examples/config_precheck/precheck_custom_fields.py` 의
+> `PROCESSOR_CONFIGS` 가 이미 `chunking_processor_config.yaml` 을 포함하고 있어 그쪽이 받는다.
+
 전제: [00](00-golden-baseline.md) 기준선. 작업 절차는 [WORKFLOW.md](WORKFLOW.md) 를 따른다.
 
 > 독립 검증을 마쳤다(2026-09-05). **"미호출" 판정 15건은 전부 참**으로 확인됐다 —

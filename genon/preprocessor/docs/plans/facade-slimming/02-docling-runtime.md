@@ -1,5 +1,22 @@
 # 02. docling 런타임을 공용 모듈로 추출
 
+
+> **상태: 완료 (2026-09-06).** `facade/common/docling_runtime.py`(523줄) 신설 +
+> facade 3종 배선 교체. 커밋 3개(모듈 → 계약 테스트 → 배선)로 나눴다.
+>
+> base 모양은 계획대로 **(A) parser 모양 + 훅**이다. 훅은 3개가 됐다 —
+> `_pre_pipeline_setup` / `_force_page_images` / `_post_runtime_setup`.
+> 앞의 둘이 `PdfPipelineOptions` 생성보다 먼저 도는 것이 `generate_page_images` 강제의
+> 순서 의존을 푸는 지점이고, 그 순서를 `tests/unit/test_docling_runtime_contract.py` 가 고정한다.
+>
+> 계획이 지목한 함정은 전부 그대로였고 그대로 처리했다: `enrichment` 는 base 에 넣지 않았고,
+> convert 의 `load_documents` 오버라이드를 남겼으며, `IntelligentDocumentProcessor` 이름을
+> 별칭이 아니라 **enrichment 만 가진 서브클래스**로 남겼다.
+>
+> 계획에 없던 드리프트 2개를 발견해 플래그로 보존했다(통일은 별도 이슈).
+> - `formats.xlsx.processing_mode` 기본값이 parser=tabular / intelligent·convert=docling
+> - `MetadataEnricher` 의 `thinking` 인자를 intelligent 만 넘기지 않는다
+
 전제: [00](00-golden-baseline.md) 기준선, [01](01-chunking-dead-code.md) 완료. 절차는 [WORKFLOW.md](WORKFLOW.md).
 
 > 독립 검증을 마쳤다(2026-09-05). **핵심 전제가 틀렸다.**

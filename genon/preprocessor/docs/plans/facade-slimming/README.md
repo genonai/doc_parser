@@ -52,6 +52,42 @@ parser / chunking 프로세서를 **고객이 직접 읽고 수정할 수 있는
 **07 은 01~06 과 독립이며 우선순위가 가장 높다.** 고객이 고친 코드가 다음 릴리스에서
 어떻게 되는지가 정해지지 않으면 나머지 작업의 목적이 성립하지 않는다.
 
+## 진행 상태 (2026-09-06)
+
+| 단계 | 상태 | 결과 |
+|---|---|---|
+| 00 골든 기준선 | **완료** | 56케이스 112산출물. `--record`/`--check`/`--noise` + `--output-format` 축 |
+| 01 청커 죽은 코드 | **완료** | 1,536 → 1,217줄 |
+| 02 docling 런타임 | **완료** | facade 3종 −1,110, 신규 공용 모듈 +523 |
+| 03 parser 분해 | **완료** | 2,497 → 1,605줄 (3a/3b/3c) |
+| 04~07 | 미착수 | |
+
+각 단계는 골든 56케이스 차이 0 과 표적 유닛 실패 집합 동일(착수 전 40건 베이스라인)로 확인했다.
+
+착수 중 내린 결정 4가지(계획에 없던 것):
+
+1. **골든에서 빼는 케이스 3종** — `card01.flat.html`(개인 디렉터리), `hwp_sample_table.hwp`
+   (외부 실행파일 `convtext` 필요), `pptx_sample.pptx`(PPT→PDF 변환본이 실행마다 달라져
+   layout VLM 캐시가 매번 miss, 실측 17건). 뺐다는 사실은 실행할 때마다 출력한다.
+   docling PDF 경로는 `pdf_sample.pdf` 가 덮으며 이쪽은 안정적이다.
+2. **노이즈 측정은 record/check 와 같은 캐시 스코프로** — 회차마다 스코프를 나누면 2회차가
+   LLM 을 다시 불러 그 답의 흔들림까지 노이즈로 잡힌다(실측: text/n_char/SUMMARY_TEXT 등
+   58개 산출물이 어긋났다). 스코프를 맞추면 남는 노이즈는 `reg_date` 하나다.
+3. **3a 에서 `GenericDocumentLoader` 는 facade 에 남긴다** — `get_loader` 가 곧
+   "어떤 확장자를 어느 로더로 보내는가" 라서 04·05 가 고객에게 읽히려는 바로 그 표다.
+   옮긴 것은 `HwpDocumentLoader`/`DocxDocumentLoader`(순수 docling 컨버터 조립)뿐이고,
+   그 덕에 계획이 걸림돌로 꼽은 두 가지(공용 모듈의 docling import, 공용 모듈이 어느
+   `GenosServiceException` 을 쓰나)가 함께 사라졌다.
+4. **A/B 대조는 `*_wip.py` 대신 "HEAD 사본 vs 현재 트리" in-process 비교로 했다** —
+   `git show HEAD:<파일>` 을 별도 모듈로 로드해 같은 프로세스에서 양쪽 인스턴스를 만들고
+   `__dict__` 를 통째로 대조했다. WORKFLOW 의 임시본 방식보다 이쪽이 `__init__` 리팩터링에
+   더 맞는다 — 임시본은 "wip == 현재 트리" 만 증명하는데, 이 방식은 "현재 == 착수 전" 을
+   직접 증명한다. 임시본을 만들지 않았으므로 종료조건 4·5(임시 파일 삭제·`git status` 청결)는
+   자동으로 만족한다.
+5. **드리프트 2개는 고치지 않고 플래그로 보존** — `formats.xlsx.processing_mode` 기본값
+   (parser=tabular / 나머지=docling)과 `MetadataEnricher` 의 `thinking` 인자
+   (intelligent 만 안 넘긴다). 통일은 동작 변경이라 별도 이슈다.
+
 ## 현재 규모 (실측 2026-09-05)
 
 | 파일 | 줄수 | 목표(예상) |
@@ -62,6 +98,21 @@ parser / chunking 프로세서를 **고객이 직접 읽고 수정할 수 있는
 | `facade/convert_processor.py` | 1,600 | ~1,250 |
 | `facade/attachment_processor.py` | 1,620 | 범위 밖 |
 | 합계 | 8,711 | ~6,470 |
+
+01~03 이후 실측(2026-09-06):
+
+| 파일 | 착수 전 | 현재 |
+|---|---:|---:|
+| `facade/parser_processor.py` | 2,497 | **1,605** |
+| `facade/chunking_processor.py` | 1,536 | **1,217** |
+| `facade/intelligent_processor.py` | 1,458 | **1,098** |
+| `facade/convert_processor.py` | 1,600 | **1,288** |
+| 합계(attachment 제외) | 7,091 | **5,208** |
+| 신규 공용 모듈 | — | +958 (`common/docling_runtime.py` 523 · `common/parser_config.py` 95 · `serialize/parse_format.py` 340) |
+
+parser 는 목표치(~1,400)에 못 미쳤다. 테스트가 요구하는 얇은 래퍼와 남긴
+`GenericDocumentLoader`(위 결정 3) 때문이며, **대용량 파일 가드 임계 1,200줄을 여전히 넘는다**
+— 04 의 표면 정리가 그만큼 중요하다.
 
 parser 목표치는 검증에서 **~1,000 이 350~450줄 낙관**으로 판정돼 상향했다. 산술:
 2,497 − 387(02) − 765(3a+3b+3c) = 1,345 이고, 테스트가 요구하는 얇은 래퍼를 더하면

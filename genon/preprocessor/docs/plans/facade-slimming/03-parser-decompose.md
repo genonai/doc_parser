@@ -1,5 +1,26 @@
 # 03. parser_processor 분해
 
+
+> **상태: 완료 (2026-09-06).** 2,497 → 1,605줄. 3a → 3b → 3c 순서로 진행했다.
+>
+> - **3a**: `HwpDocumentLoader`/`DocxDocumentLoader` 만 `common/docling_ops.py` 로 옮겼다.
+>   **`GenericDocumentLoader` 는 facade 에 남긴다** — `get_loader` 가 곧 "어떤 확장자를 어느
+>   로더로 보내는가" 이고, 이 문서 스스로 "포맷별 파싱 라우팅은 facade 에 남긴다" 고 적었다.
+>   그 결과 계획이 걸림돌로 꼽은 두 가지(공용 모듈의 docling import 원칙, 공용 모듈이 어느
+>   `GenosServiceException` 을 쓰나)가 함께 사라졌다.
+> - **3b**: `_build_*` 7개를 없애고 `__init__` 이 `_guard(label, builder, cfgs)` 를 직접
+>   부른다. 예외 변환은 사라지지 않고 한 곳(`common/parser_config.py::guard_config`)으로 모였다.
+>   런타임 doc_type 선택 헬퍼는 **facade 에 남는다** — 유닛이 인스턴스 속성을 갈아끼우고
+>   메서드를 MagicMock 으로 대체한다.
+>   포집 예외를 셋 중 가장 넓은 것으로 통일했고(좁던 자리에선 설정 오류가 raw 로 샜다),
+>   기동 오류(`stage="custom_fields"`)와 요청 중 doc_type 매칭 오류(stage 없음)는
+>   팩토리를 둘로 나눠 원래 envelope 을 유지했다.
+> - **3c**: `facade/serialize/parse_format.py`(340줄) 신설. `_item_to_html` 은 지웠다(죽은 코드).
+>   `_build_docling_response` 는 계획대로 facade 에 남겼다(설정 4종 + 문서 변이 + guardrail HTTP).
+>   facade 에는 `staticmethod(pf.…)` 래퍼 12개가 남는다 — 유닛이 클래스 경유로 부르고
+>   `patch.object` 로 갈아끼운다. `patch("facade.parser_processor.export_markdown")` 4곳은
+>   새 모듈을 가리키도록 고쳤다(계획이 예고한 대로 시끄럽게 실패했다).
+
 전제: [00](00-golden-baseline.md) 기준선, [02](02-docling-runtime.md) 완료. 절차는 [WORKFLOW.md](WORKFLOW.md).
 
 ## 현재 구성 (2,497줄)
