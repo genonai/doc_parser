@@ -212,8 +212,8 @@ enrichment:
   # 비워 두면 예전처럼 매칭된 문서형 custom_fields YAML 의 연결을 빌려 쓴다(그 경우 위 문서들은 제외).
   - table_text_description:
       enable: true
-      url: "https://genos.genon.ai/api/gateway/rep/serving/752/v1/chat/completions"
-      api_key: "d1a9e0acab6243019008a96cd8af868e"
+      url: "http://llmops-gateway-api-service:8080/rep/serving/<ENRICHMENT_SERVING_ID>/v1/chat/completions"
+      api_key: ""
       model: "model"
       max_tokens: 4000
       temperature: 0.0

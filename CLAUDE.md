@@ -163,7 +163,8 @@ genon/preprocessor/examples/config_precheck/precheck_custom_fields.sh   # 인자
 genon/preprocessor/examples/config_precheck/verify_v2_equivalence.sh    # v1↔v2 왕복·매퍼 산출 대조
 ```
 
-v2 스키마(`schema: v2`)는 아직 **병행 검증 단계다. 전환하지 말 것** — 위 검증이 전부 통과한 뒤에 출고 설정을 옮긴다.
+v2 스키마(`schema: v2`)는 **이미 출고 표기다** — `resource/`·`resource_dev/` 의 `custom_field_*.yaml` 17개씩과 `templates/` 4종이 전부 v2 이고, 전환 커밋은 `2a28195d`(2026-09-04) 다. 새 설정은 v2 로 쓴다.
+v1 표기도 계속 동작한다(로더가 `config_v2.is_v2()` 하나로만 갈리고 v1 은 normalize 를 거치지 않는다). 다만 **한 파일 안에서 v1/v2 키를 섞으면 기동에 실패한다.** 현장 설정을 v2 로 옮길 때는 `verify_v2_equivalence.sh` 로 왕복 산출을 먼저 대조한다.
 설정 오기입은 기본적으로 **기동 실패**다. 현장 설정을 미리 검사하지 못한 첫 릴리스에 한해 `GENOS_CUSTOM_FIELDS_VALIDATION=warn` 으로 낮추면 경고만 남기고 기동한다(그 설정은 무시된다).
 
 같은 디렉터리의 `parse_chunk_test.sh` 는 손으로 돌려보는 놀이터다. 대부분 주석 상태이고 개인 경로에 의존하므로, 자동 검증에 넣을 것은 `parse_chunk_verify.py` 쪽에 단정문으로 옮긴다.
