@@ -83,12 +83,19 @@ SUPPORTED_EXTENSIONS |= _alias_extensions()
 _parser: ParserProcessor | None = None
 _chunker: ChunkerProcessor | None = None
 
+# 파서 출력 포맷. 기본은 docling(청킹 입력으로 쓰이는 형태)이고 --output-format 으로 바꾼다.
+# 이 축이 필요한 이유: _build_docling_response 가 포맷으로 분기하므로 docling 만 돌리면
+# parse-format 직렬화 경로(_docling_to_parse_format 계열)가 한 번도 실행되지 않는다.
+_OUTPUT_FORMAT = "docling"
+
+OUTPUT_FORMATS = ("docling", "json", "html", "markdown")
+
 
 def get_parser() -> ParserProcessor:
     global _parser
     if _parser is None:
         _parser = ParserProcessor()
-        _parser._output_format = "docling"  # config 편집 없이 docling 출력 강제
+        _parser._output_format = _OUTPUT_FORMAT  # config 편집 없이 출력 포맷 강제
     return _parser
 
 
@@ -237,6 +244,14 @@ def parse_args():
              "미지정=설정(chunking.include_chunk_header, 기본 on) | off=순수 본문만",
     )
     ap.add_argument(
+        "--output-format",
+        choices=list(OUTPUT_FORMATS),
+        default="docling",
+        help="파서 출력 포맷 강제(설정 output.format 을 덮어쓴다). "
+             "docling(기본)=DoclingDocument 원본 → .docling.json | "
+             "json=parse-format({\"elements\":[...]}) → .parse.json",
+    )
+    ap.add_argument(
         "--table-text-desc",
         action="store_true",
         help="custom_fields의 텍스트 표 설명을 활성화(설정된 LLM으로 여러 표를 통합 호출)",
@@ -287,7 +302,9 @@ def build_cache_kwargs(args) -> dict:
 
 
 def main():
+    global _OUTPUT_FORMAT
     args = parse_args()
+    _OUTPUT_FORMAT = args.output_format
     input_path = Path(args.input_path).expanduser().resolve()
     output_dir = Path(args.output_dir).expanduser().resolve()
     files = collect_files(input_path)

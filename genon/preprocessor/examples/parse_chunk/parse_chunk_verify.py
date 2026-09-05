@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -35,6 +36,13 @@ import tempfile
 from pathlib import Path
 
 import yaml
+
+# WeasyPrint 가 찾는 네이티브 라이브러리 경로. 없으면 import 가 실패해 일부 경로가 조용히
+# 달라진다. 셸 스크립트에 두면 이 파일을 직접 부르는 다른 러너(골든)가 같은 환경을 못 받으므로
+# 여기에 둔다. 이미 설정된 값이 있으면 그것을 존중한다.
+os.environ.setdefault(
+    "DYLD_FALLBACK_LIBRARY_PATH", "/opt/homebrew/lib:/usr/local/lib:/usr/lib"
+)
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 PREPROCESSOR_DIR = SCRIPT_DIR.parents[1]
@@ -556,14 +564,23 @@ def check_field_labels(chunks: list, spec: dict) -> list[str]:
     return problems
 
 
-def run_case(python: str, doc_type: str, src: Path, out_dir: Path) -> tuple[bool, str]:
+def run_case(python: str, doc_type: str | None, src: Path, out_dir: Path,
+             extra_args: list[str] | None = None) -> tuple[bool, str, str]:
+    """parse_chunk_test.py 를 1건 실행한다.
+
+    extra_args 로 러너 인자를 덧붙일 수 있다(골든 하네스가 --llm_cache/--output-format 등을
+    넘긴다). 반환 3번째 값은 합쳐진 stdout+stderr 로, 호출자가 llm_cache 요약 같은 실행
+    사실을 읽는 데 쓴다.
+    """
+    doc_type_args = ["--doc_type", doc_type] if doc_type else []
     cmd = [python, str(SCRIPT_DIR / "parse_chunk_test.py"),
-           "--doc_type", doc_type, str(src), str(out_dir) + "/"]
+           *doc_type_args, *(extra_args or []), str(src), str(out_dir) + "/"]
     proc = subprocess.run(cmd, cwd=SCRIPT_DIR, capture_output=True, text=True)
+    output = (proc.stdout or "") + (proc.stderr or "")
     if proc.returncode != 0:
         tail = (proc.stderr or proc.stdout).strip().splitlines()[-3:]
-        return False, "실행 실패: " + " / ".join(tail)
-    return True, ""
+        return False, "실행 실패: " + " / ".join(tail), output
+    return True, "", output
 
 
 def verify(doc_type: str, src: Path, out_dir: Path, block: dict) -> list[str]:
@@ -638,7 +655,7 @@ def main() -> int:
 
         out_dir = out_root / doc_type
         out_dir.mkdir(parents=True, exist_ok=True)
-        ok, err = run_case(args.python, doc_type, src, out_dir)
+        ok, err, _out = run_case(args.python, doc_type, src, out_dir)
         if not ok:
             rows.append((label, "FAIL", err, "-", "-")); failed += 1; continue
 
