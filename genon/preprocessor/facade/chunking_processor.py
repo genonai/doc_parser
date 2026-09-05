@@ -120,9 +120,12 @@ except ImportError:
 
 
 # ============================================================
-# 설정 로딩 헬퍼 (from parser_processor.py)
+# 사이트 조정 지점 — 여기까지가 "고쳐도 되는 값" 이다
 # ============================================================
-
+# 아래 상수와 GenosSmartChunker 의 ClassVar 가 이 파일에서 사이트마다 실제로 달라지는
+# 전부다. 그 아래는 배관이며 고칠 일이 없다(청킹 본체는 facade/chunking/ 에 있다).
+# 요청/설정으로 조절되는 값(chunk_size·chunk_mode·include_chunk_header 등)은 여기가
+# 아니라 chunking_processor_config.yaml 이다.
 
 # 한 경로 안의 레벨 구분자(부모 → 자식). heading 자체에 콤마가 들어있는 경우가 있어
 # (실측 409건 중 20건) 콤마로는 경로를 레벨 단위로 되돌릴 수 없다 —
@@ -146,18 +149,7 @@ _CHUNK_PATH_MAX_LEAVES = 5
 
 _MIN_CHUNK_SIZE = 1024
 
-
-def _resolve_default_chunking_config_path() -> str:
-    base_dir = Path(__file__).resolve().parent
-    local_config = (base_dir / "../resource_dev/chunking_processor_config.yaml").resolve()
-    default_config = (base_dir / "../resource/chunking_processor_config.yaml").resolve()
-
-    if local_config.exists():
-        return str(local_config)
-    return str(default_config)
-
-
-# 청킹용 토크나이저 기본 경로 (config 미지정 시 현행 동작 유지)
+# 청킹용 토크나이저 기본 경로 (config 의 chunking.tokenizer 미지정 시 이 값을 쓴다)
 _DEFAULT_TOKENIZER_LOCAL_PATH = "/models/doc_parser_models/sentence-transformers-all-MiniLM-L6-v2"
 _DEFAULT_TOKENIZER_ID = "sentence-transformers/all-MiniLM-L6-v2"
 
@@ -187,11 +179,25 @@ class GenosSmartChunker(sc.SmartChunkerBase):
     CHUNK_HEADER_SEP = _CHUNK_HEADER_SEP
     CHUNK_PATH_SEP = _CHUNK_PATH_SEP
     CHUNK_PATH_MAX_LEAVES = _CHUNK_PATH_MAX_LEAVES
+
+
+# ============================================================
+# 여기부터 배관 — 설정 로딩, 벡터 스키마, 청킹 실행. 고칠 일이 없다.
+# ============================================================
+
 # 민감정보 분류/마스킹(#315)은 facade/guardrail 모듈로 분리 — gr.* 로 사용.
 # chunking 은 워크플로우를 직접 호출하지 않고, parser 가 넘긴 sensitive_infos 를 청크에 적용만 한다.
 from genon.preprocessor.facade import guardrail as gr
 
 
+def _resolve_default_chunking_config_path() -> str:
+    base_dir = Path(__file__).resolve().parent
+    local_config = (base_dir / "../resource_dev/chunking_processor_config.yaml").resolve()
+    default_config = (base_dir / "../resource/chunking_processor_config.yaml").resolve()
+
+    if local_config.exists():
+        return str(local_config)
+    return str(default_config)
 
 
 # 조각에 섹션 문맥을 물려주는 규칙은 공용 모듈 한 벌이다(표 기준 분리도 같은 함수를 쓴다).

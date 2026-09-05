@@ -668,14 +668,19 @@ print(len(chunks), chunks[0].model_dump()['text'][:80])
 ## 5. 코드 이해
 
 코드를 고치기 전에 **무엇이 어디에 있는지** 파악하는 장입니다.
-`parser_processor.py`(2,700줄)와 `chunking_processor.py`(2,900줄)는 길지만, **실제로 봐야 하는 곳은
-몇 군데뿐**입니다. 나머지는 다른 facade 에서 복사해 온, 해당 엔드포인트에서는 호출되지 않는 코드입니다.
 
-> **줄번호 표기에 대하여** — 이 장의 줄번호는 작성 시점 소스 기준이며 릴리스마다 조금씩 밀립니다.
-> **함수·클래스 이름으로 찾는 것을 기본으로** 하고 줄번호는 위치 감각용으로만 쓰세요.
+> **이 장에는 줄번호가 없습니다.** 예전 판에는 있었는데 릴리스마다 어긋나서 전부 걷어냈습니다.
+> 위치는 **파일 경로 + 함수·클래스 이름**으로만 적습니다. 찾을 때는 이렇게 합니다.
 > ```bash
-> grep -n "def _build_docling_response" genon/preprocessor/facade/parser_processor.py
+> # 실행 위치: 저장소 루트
+> grep -rn "def _build_docling_response" genon/preprocessor/facade/
 > ```
+
+> **처리 본체는 facade 파일 안에 있지 않습니다.** facade(`parser_processor.py` ·
+> `chunking_processor.py`)는 "어떤 입력을 어느 경로로 보내는가" 와 사이트 조정 지점만 갖고,
+> docling 배관·청킹 엔진·직렬화는 `facade/common/` · `facade/chunking/` · `facade/serialize/` 에
+> **한 벌씩** 있습니다. 그래서 **고칠 자리는 대부분 facade 안**이고, 공용 모듈까지 가야 한다면
+> 그건 설정이나 facade 로 풀 수 있는 일을 놓쳤다는 신호입니다.
 
 ### 5.1 코드 지도
 
@@ -747,63 +752,76 @@ class DocumentProcessor:          # ← 클래스 이름 고정. main.py 가 이
 
 #### 파일 구획
 
-| 줄 | 구획 | 봐야 하나 |
+| 구획 | 내용 | 봐야 하나 |
 |---|---|---|
-| 1–150 | import (docling 백엔드, langchain 로더, enrichment 모듈) | 참고 |
-| 169–191 | `_handle_stage_error` — enrichment 단계 실패 정책(`strict`/`lenient`) | 참고 |
-| 193–336 | **입력 파일 사전 검증** — 매직헤더·암호화·DRM 감지 | 포맷을 늘릴 때 |
-| 340–486 | 설정 로딩 헬퍼 (`_load_config`, `_parse_optional_*` 등) | 옵션 추가 시 |
-| 488–597 | PDF 변환 헬퍼 (`convert_to_pdf` 등) | 참고 |
-| 603–1826 | 로더들 (`TextLoader`, `HwpDocumentLoader`, `DocxDocumentLoader`, `GenericDocumentLoader`) | 포맷별 수정 시 |
-| **827–1658** | **`IntelligentDocumentProcessor`(경량 사본)** — docling 파이프라인과 enrichment 실체 | OCR/layout/enrichment 수정 시 |
-| 1833–1846 | `GenosServiceException` | 예외 처리 시 |
-| **1858–2875** | **`DocumentProcessor`** — `/parser` 진입점 | **여기부터 읽으세요** |
+| 파일 머리 주석 | **이 파일에서 고칠 자리 3개** | **여기부터 읽으세요** |
+| import + 공용 모듈 별칭 | `cp`(설정) · `fp`(파일 판별) · `dops`(docling 배관) · `pf`(직렬화) 등 | 참고 |
+| `TextLoader` · `AudioLoader` · `HwpDocumentLoader` · `DocxDocumentLoader` | 이름만 남은 얇은 서브클래스. 본체는 `facade/common/` | 거의 없음 |
+| `GenericDocumentLoader` | **확장자 → langchain 로더 매핑**(`get_loader`) | 캐치올 포맷을 늘릴 때 |
+| `IntelligentDocumentProcessor` | docling 런타임(합성으로 씀). `enrichment()` 외에는 `facade/common/docling_runtime.py` | OCR/layout/enrichment 수정 시 |
+| `GenosServiceException` | 이 facade 의 예외 | 예외 처리 시 |
+| `DocumentProcessor` | `/parser` 진입점 | **예** |
 
-#### `__init__` (1863–1938) 이 하는 일
+#### `DocumentProcessor.__init__` 이 하는 일
 
-1. config yaml 로드 → 2. **`IntelligentDocumentProcessor` 생성**(파싱·enrichment 전부 위임) →
-3. 확장자별 로더 생성 → 4. output·guardrail·PPT 페이지설명 설정 정규화
+1. config yaml 로드 → 2. `IntelligentDocumentProcessor` 생성(파싱·enrichment 전부 위임) →
+3. 확장자별 로더 생성 → 4. output·guardrail·PPT 페이지설명 정규화 →
+5. `custom_fields` 설정에서 spec/mapper 생성
+
+5번은 전부 `_guard("<라벨>", <빌더>, cf_cfgs)` 한 줄씩입니다. `_guard` 는 설정 오류를
+`GenosServiceException` 으로 바꿔 **어느 yaml 이 문제인지** 드러냅니다. 감싸지 않으면 raw 예외가
+서비스 import 자체를 죽입니다.
 
 주요 `self` 속성:
 
 | 속성 | 의미 |
 |---|---|
-| `self._intel` | 실제 파싱/enrichment 엔진 |
+| `self._intel` | 실제 파싱/enrichment 엔진(docling 런타임) |
 | `self._hwp` / `self._docx` / `self._generic` | 확장자별 로더 |
 | `self._output_format` | `json` / `html` / `markdown` / `docling` |
 | `self._table_format` · `self._compact_tables` | 표 출력 형식 |
-| `self._xlsx_cfg` | 엑셀 처리 모드 |
+| `self._xlsx_cfg` · `self._md_cfg` · `self._ext_aliases` | 포맷별 처리 모드와 확장자 별칭 |
 | `self._gr_cfg` | 개인정보 분류 설정 |
 | `self._page_desc_options` | PPT 페이지 설명 옵션 |
+| `self._json_text_specs` · `self._json_records_mappers` · `self._tabular_custom_fields_mappers` · `self._markdown_*_specs` | custom_fields 설정에서 만든 spec/mapper |
 
-#### `__call__` (2725–2875) — 확장자 라우팅
+#### `__call__` — 확장자 라우팅
 
 ```
-로깅 설정 → 런타임 kwargs 정규화 → 캐시 컨텍스트 설정 → 확장자 추출
+로깅 설정 → 런타임 kwargs 정규화 → 캐시 컨텍스트 설정 → 확장자 추출(별칭 적용)
    → 입력 파일 검증(_detect_unsupported_file)  ← 암호화/DRM/손상이면 즉시 에러
-   → 확장자별 분기 (아래 표)
+   → ROUTES 표를 위에서부터 훑어 핸들러 호출
 ```
 
-| 확장자 | 파싱 메서드 | 파싱 결과 | 최종 조립 |
-|---|---|---|---|
-| `.csv .xlsx .xlsm` | 3분기: custom_fields 매칭(우선) / `docling` 모드 / `tabular` 모드 | dict 또는 DoclingDocument | 각각 다름 |
-| `.hwp .hwpx .hml` | `_parse_hwp_hwpx` | DoclingDocument | `_build_docling_response` |
-| `.docx` | `_parse_docx` | DoclingDocument | `_build_docling_response` |
-| `.pdf` | `_parse_docling` | DoclingDocument | `_build_docling_response` |
-| `.html .htm` | `_prepare_html`(flatten 전처리) → `_parse_docling` | DoclingDocument | `_build_docling_response` |
-| `.json` | 2분기: `extractor: json_mapping` 매칭 시 `_parse_json_records`(우선) / custom_fields `json:` 매칭 시 `_parse_json`. 둘 다 미매칭이면 아래 "그 외"로 폴백 | dict(parse-format) 또는 DoclingDocument | 각각 다름 |
-| `.ppt .pptx` | `_parse_ppt_docling` | DoclingDocument 또는 None | 실패 시 parse-format 폴백 |
-| 그 외 | `_parse_other` | langchain Document 리스트 | `_langchain_to_parse_format` |
+**`DocumentProcessor.ROUTES` 가 라우팅 표입니다.** 확장자가 맞는 첫 항목의 핸들러를 부르고,
+핸들러가 응답을 돌려주면 끝, **`None` 을 돌려주면 다음 후보로 넘어갑니다**(폴스루).
 
-> 코드에는 위 표 외에 오디오(`.wav`/`.mp3`/`.m4a`) 분기도 있습니다. 이 문서의 범위 밖이므로 표에서
-> 생략했습니다.
+| 확장자 | 핸들러 | 파싱 결과 | 폴스루 조건 |
+|---|---|---|---|
+| `.wav .mp3 .m4a` | `_route_audio` | 전사 텍스트 | 없음 |
+| `.csv .xlsx .xlsm` | `_route_tabular` | 3분기: custom_fields 매칭(우선) / `docling` 모드 / `tabular` 모드 | 없음 |
+| `.hwp .hwpx .hml` | `_route_hwp` | DoclingDocument | 없음 |
+| `.docx` | `_route_docx` | DoclingDocument (`clear_coordinates=True`) | 없음 |
+| `.pdf .html .htm .md` | `_route_docling` | DoclingDocument | `.md` 가 `formats.md.processing_mode: text` 일 때 |
+| `.json` | `_route_json` | 2분기(아래) | custom_fields 에 매칭 설정이 없을 때 |
+| `.ppt .pptx` | `_route_ppt` | DoclingDocument 또는 langchain 폴백 | 없음 |
+| 그 외 | `_route_other` | langchain Document 리스트 | 없음 — 캐치올 |
+
+**새 확장자를 받으려면** `ROUTES` 에 한 줄, `_route_*` 메서드 하나를 더합니다. 그게 전부입니다.
+docling 을 만드는 핸들러라면 마무리는 `self._docling_response(doc, ctx, **kwargs)` 한 줄입니다 —
+후처리 enrichment · 응답 조립 · metadata 부착이 그 안에 들어 있습니다.
+
+```python
+    async def _route_myformat(self, file_path, ext, ctx, **kwargs):
+        doc = self._parse_myformat(file_path, **kwargs)
+        return await self._docling_response(doc, ctx, **kwargs)
+```
 
 **`.html` 전처리 (`_prepare_html`)** — docling 의 HTML 백엔드는 `<iframe srcdoc="...">`
 속성값 안의 본문을 읽지 못합니다. 크롤 산출물(`merged.html`)이 그 형태라 4MB 문서에서
 641자·표 0개만 추출되므로, 파싱 전에 srcdoc 을 펼쳐 heading 기반 단일 문서로 재조립합니다
 (실측: 641자 → 59,140자, 표 43개). 설정은 `formats.html.flatten` = `auto`(기본, 원문
-스캔으로 결함 감지 시에만) / `always` / `off`. 판정은 정규식 원문 스캔이라 4MB에 약 3ms고,
-정상 HTML에서는 오탐이 없어 기존 동작을 건드리지 않습니다.
+스캔으로 결함 감지 시에만) / `always` / `off`.
 
 > ⚠️ 정리 단계에서 `aria-hidden`/`display:none` 요소를 지우면 안 됩니다. monimo 카드의
 > 혜택 텍스트가 `<span aria-hidden="true">` 안에, 약관 본문이 접힌 아코디언
@@ -822,42 +840,38 @@ class DocumentProcessor:          # ← 클래스 이름 고정. main.py 가 이
 | 청크 | 레코드 1건 = 청크 1개(길면 분할) | 문서 전체를 길이 기준 청킹 |
 | metadata | **레코드마다 다름** | 문서 전역(모든 청크 동일) |
 
-**문서 모드 (`_parse_json`)** — JSON 안의 본문 텍스트(markdown/html)를 꺼내 항목별
-`<h2>` 섹션을 가진 단일 HTML 로 병합한 뒤 `_parse_docling` 을 재사용합니다(파싱 본체는
-새로 만들지 않음). 텍스트가 담긴 key 는 `enrichment.custom_fields` 항목의 `json:` 블록에
-**키 이름만** 나열하고, JSON 임의 깊이에서 재귀 매칭되므로 `pages[*].html` 같은 배열
-구조도 경로 문법 없이 처리됩니다.
-
-**레코드 모드 (`_parse_json_records`)** — `eventList[*]` 처럼 레코드 배열이 오고 레코드마다
-다른 메타데이터(제목·기간·상세HTML)를 청크에 실어야 할 때 씁니다. xlsx 의 `tabular_mapping` 과
-같은 성격의 **파싱 이전 조기 분기**라 docling 을 거치지 않고, 같은 출력 계약
-(`category="custom_fields_row"`)을 쓰므로 청커의 행 기반 경로가 그대로 소비합니다.
-설정은 6.4절 "경로 C" 참고.
-
-**docling 계열 4단 패턴** — 세 경로(hwp/docx/pdf)가 모두 동일합니다. 새 포맷을 추가할 때 그대로 따르세요.
+**`_load_json_payload` 가 JSON 정규화 훅입니다.** 위 두 경로가 모두 이 한 곳으로 들어옵니다.
+원천 구조가 설정으로 안 풀릴 때(같은 이름 키가 얕은 곳과 깊은 곳에 둘 다 있다, 상품코드가
+key 다, JSONL 이다, BOM 이 붙어 있다 …) **공용 모듈이 아니라 여기서** payload 모양을 바꿉니다.
 
 ```python
-doc = self._parse_XXX(file_path, **kwargs)
-doc = await self._apply_docling_post_enrichment(doc, _enrichment_context=ctx, **kwargs)
-result = self._build_docling_response(doc, **kwargs)
-if ctx.get("metadata"):
-    result["metadata"] = ctx["metadata"]
-return self._normalize_response(result)
+    def _load_json_payload(self, file_path, doc_type=None):
+        ...
+        payload = json.load(fp)
+        if normalize_doc_type(doc_type) == "my_new_type":   # ← doc_type 게이팅 필수
+            payload = _reshape(payload)
+        return payload
 ```
+
+> **doc_type 게이팅을 빠뜨리지 마세요.** 게이팅 없이 정규화를 넣으면 **모든** JSON doc_type 의
+> 산출이 바뀝니다. 바꾼 뒤에는 반드시 골든 대조(4.5절)로 기존 문서가 그대로인지 확인합니다.
 
 #### 응답 조립
 
-| 함수 | 줄 | 만드는 것 |
+| 함수 | 있는 곳 | 만드는 것 |
 |---|---|---|
-| `_docling_to_parse_format` | 2281 | **element 배열 생성기.** 문서를 순회해 `{category, content, coordinates, id, page}` 5키 dict 리스트 + `usage.pages` |
-| `_build_docling_response` | 2455 | **`output.format` 분기 지점.** `docling`→`{"document": …}`(무손실 JSON), `json`→element 배열, `html`/`markdown`→문자열 |
-| `_normalize_response` | 2439 | `content`/`elements`/`usage` 키 존재 보장. **모든 반환 경로가 통과** |
-| `_tabular_to_parse_format` | 2514 | 데이터 행 1개 = element 1개 (`category="tabular_row"`, `metadata` 에 컬럼 값 + `column_map`). 실제 변환은 `converters/xlsx_processor.tabular_data_to_parse_format` |
-| `_langchain_to_parse_format` | 2521 | Document 1개 = element 1개 (`category="paragraph"`) |
+| `_build_docling_response` | `parser_processor.py` | **`output.format` 분기 지점.** `docling`→`{"document": …}`(무손실 JSON), `json`→element 배열, `html`/`markdown`→문자열. 개인정보 분류(guardrail) 호출도 여기 |
+| `docling_to_parse_format` | `facade/serialize/parse_format.py` | **element 배열 생성기.** 문서를 순회해 `{category, content, coordinates, id, page}` 5키 dict 리스트 + `usage.pages` |
+| `normalize_response` | 〃 | `content`/`elements`/`usage` 키 존재 보장. **모든 반환 경로가 통과** |
+| `tabular_to_parse_format` | 〃 | 데이터 행 1개 = element 1개 (`category="tabular_row"`) |
+| `langchain_to_parse_format` | 〃 | Document 1개 = element 1개 (`category="paragraph"`) |
+
+> facade 에는 같은 이름의 `_docling_to_parse_format` 같은 **얇은 래퍼**가 남아 있습니다.
+> 고칠 때는 `facade/serialize/parse_format.py` 쪽 본체를 고칩니다.
 
 #### enrichment 연결
 
-`_apply_docling_post_enrichment` (2139) 가 아래 순서로 호출합니다. 각 단계는 실패해도
+`_apply_docling_post_enrichment` 가 아래 순서로 호출합니다. 각 단계는 실패해도
 `_handle_stage_error` 정책에 따라 계속 진행할 수 있습니다.
 
 ```
@@ -867,37 +881,43 @@ return self._normalize_response(result)
 > ⑤·⑥ 은 요청 `params` 의 `doc_type` 으로 켜집니다. 새 문서유형을 추가하는 방법은
 > [7.2 (g)](#g-새-doc_type-추가하기) 를 보세요.
 
-> **목차(TOC)와 docling 내장 metadata 는 이 훅이 아닙니다.** `_parse_docling` 내부(2004)에서
+> **목차(TOC)와 docling 내장 metadata 는 이 훅이 아닙니다.** `_parse_docling` 내부에서
 > docling 파이프라인의 일부로 처리됩니다. TOC 동작을 바꾸려면 그쪽을 보세요.
 
 #### 여기를 고치면 무엇이 바뀌나
 
 | 목표 | 고칠 곳 | 주의점 |
 |---|---|---|
-| element 카테고리·필드 변경 | `_docling_to_parse_format` (2281–2369) | 5키 스키마는 `/chunker` 가 의존. **추가는 안전, 삭제·개명은 위험** |
-| 표 출력 형식 | `_export_table_content` (2227) + 2325–2341 | `[표 설명]` 구분자·시트명 접두를 바꾸면 다운스트림 파싱에 영향 |
-| 이미지 element 의 내용 | 2352–2358 | 현재 이미지 설명으로 `content` 를 덮어씀. 별도 필드로 빼려면 소비 측도 함께 확인 |
-| 확장자 추가·라우팅 변경 | `__call__` (2725–2875) | 반드시 `_normalize_response()` 를 통과시켜 반환. docling 경로면 4단 패턴 복제 |
-| OCR / layout 옵션 | `IntelligentDocumentProcessor` (979–1013, 1169–1250) | 파이프라인 옵션은 요청마다 재구성되는 부분이 있어 상태 추가 주의 |
-| enrichment 단계 추가 | `_apply_docling_post_enrichment` (2139) | `try/except → _handle_stage_error(exc, "<stage>")` 패턴 유지 |
-| 입력 검증 완화(새 포맷 허용) | `_detect_unsupported_file` (284) + 매직헤더 목록 (193) | 손상 파일을 통과시키면 뒤 단계에서 이상한 결과가 나옴 |
-| `output.format` 값 추가 | `_normalize_output_format` (1940) + `_build_docling_response` (2463–2481) | **한쪽만 고치면 에러 없이 `json` 으로 폴백**됩니다 |
+| 확장자 추가·라우팅 변경 | `DocumentProcessor.ROUTES` + `_route_*` | 표의 **순서에 의미**가 있습니다. docling 경로면 마무리는 `_docling_response` 한 줄 |
+| JSON 원천 구조 흡수 | `_load_json_payload` | **doc_type 게이팅 필수.** 없으면 모든 JSON doc_type 이 바뀝니다 |
+| element 카테고리·필드 변경 | `serialize/parse_format.py::docling_to_parse_format` | 5키 스키마는 `/chunker` 가 의존. **추가는 안전, 삭제·개명은 위험** |
+| 표 출력 형식 | `serialize/parse_format.py::export_table_content` | `[표 설명]` 구분자·시트명 접두를 바꾸면 다운스트림 파싱에 영향 |
+| 이미지 element 의 내용 | `docling_to_parse_format` 의 `PictureItem` 분기 | 현재 이미지 설명으로 `content` 를 덮어씀. 별도 필드로 빼려면 소비 측도 함께 확인 |
+| OCR / layout 옵션 | `facade/common/docling_runtime.py` | **공용 모듈입니다** — 파서·적재 프로세서가 함께 바뀝니다 |
+| enrichment 단계 추가 | `_apply_docling_post_enrichment` | `try/except → _handle_stage_error(exc, "<stage>")` 패턴 유지 |
+| 입력 검증 완화(새 포맷 허용) | `facade/common/file_probe.py::detect_unsupported_file` | 손상 파일을 통과시키면 뒤 단계에서 이상한 결과가 나옴 |
+| `output.format` 값 추가 | `_normalize_output_format` + `_build_docling_response` | **한쪽만 고치면 에러 없이 `json` 으로 폴백**됩니다 |
 
 ### 5.5 `chunking_processor.py` 읽기
 
-#### 봐야 하는 곳은 네 군데
+**청킹 엔진 본체는 이 파일에 없습니다.** `facade/chunking/smart_chunker.py` 에 한 벌 있고,
+facade 의 `GenosSmartChunker` 는 동작 옵션(ClassVar)만 지정하는 얇은 서브클래스입니다.
 
-| 줄 | 구획 | 설명 |
+#### 봐야 하는 곳
+
+| 위치 | 구획 | 설명 |
 |---|---|---|
-| **342–1376** | **`GenosSmartChunker`** | 청킹 엔진 본체 |
-| **2066–2090** | `split_documents` | 청커를 만들어 실행하는 지점 |
-| **2131–2249** | `compose_vectors` | 청크 → 출력 스키마 조립 |
-| **2552–2899** | parse-format 청킹 + `__call__` | 비-docling 경로와 진입점 |
+| `chunking_processor.py` 파일 머리 | **사이트 조정 지점 블록** | 헤더 구분자·최소 청크 크기·토크나이저 기본 경로. 그 아래는 배관 |
+| `chunking_processor.py::GenosSmartChunker` | 동작 옵션 ClassVar | 그림 annotation·표 설명 모드·헤더 구분자 |
+| `chunking_processor.py::DocumentProcessor.split_documents` | 청커를 만들어 실행하는 지점 | |
+| `chunking_processor.py::DocumentProcessor.compose_vectors` | 청크 → 출력 스키마 조립 | |
+| `chunking_processor.py::DocumentProcessor._chunk_parse_format` 이하 | 비-docling 경로 | |
+| `facade/chunking/smart_chunker.py` | **청킹 엔진 본체** | 섹션 판정·분할·병합 |
 
-> 나머지(`__init__` 의 OCR·PDF 파이프라인 설정, 1922–2062, 2380–2517)는 파서에서 복사해 온 코드로
-> **`/chunker` 실행 시 호출되지 않습니다.** 여기를 고쳐도 청킹 동작은 바뀌지 않습니다.
+> 이 파일에는 더 이상 OCR·PDF 파이프라인·컨버터·enrichment 배선이 없습니다. `/chunker` 가
+> 한 번도 부르지 않는데 기동할 때마다 만들고 있어서 걷어냈습니다.
 
-#### `__call__` (2785) — 입력 판별과 분기
+#### `__call__` — 입력 판별과 분기
 
 ```
 로깅 설정 → 캐시 컨텍스트 → 캐시/정책 키를 kwargs 에서 제거
@@ -914,7 +934,7 @@ return self._normalize_response(result)
    └─ parse-format:  _chunk_parse_format
 ```
 
-> `_classify_payload`(1542)는 **`document` 를 `elements` 보다 먼저 검사**합니다. 파서 응답이 빈
+> `_classify_payload` 는 **`document` 를 `elements` 보다 먼저 검사**합니다. 파서 응답이 빈
 > `"elements": []` 를 함께 담기 때문입니다. 이 순서를 바꾸면 docling 문서가 문자 기반 splitter 로
 > 흘러가 청킹 품질이 크게 떨어집니다.
 
@@ -927,40 +947,31 @@ return self._normalize_response(result)
 | `tokenizer_type` | `char` | `char`=문자 수 / `huggingface`=토큰 수 |
 | `merge_peers` | `True` | **코드에서 읽지 않는 잔재 필드.** 바꿔도 동작이 변하지 않습니다 |
 
-`chunk()` → `preprocess()`(382, 문서 순회·수집) → `_split_document_by_tokens()`(877, 실제 파이프라인)
+`facade/chunking/smart_chunker.py` 안에서:
+`chunk()` → `preprocess()`(문서 순회·수집) → `_split_document_by_tokens()`(실제 파이프라인)
 
 ```
-표 단위 조기 반환 (1065–1102)   ← params 의 table_as_chunk 또는 xlsx 유래 문서
+표 단위 조기 반환   ← params 의 table_as_chunk 또는 xlsx 유래 문서
    표마다 독립 청크로 만들고 즉시 반환 (아래 단계 전부 우회)
       │ (해당 없으면)
       ▼
-1단계   (1104)  섹션 헤더 기준 분할
-2단계   (1135)  각 섹션 텍스트에 heading 붙이기
-2.5단계 (1151)  긴 섹션 균등 분할              ← resize_all 전용
-3단계   (1201)  단독 타이틀을 다음 섹션에 병합
-4단계   (1228)  섹션들을 그룹으로 묶기
-5단계   (1290)  인접 그룹 greedy 병합           ← resize_all 전용
-5.5단계 (1320)  chunk_size 초과 그룹만 분할     ← split_only 전용
-6단계   (1349)  최종 청크 객체 생성
+1단계    섹션 헤더 기준 분할
+2단계    각 섹션 텍스트에 heading 붙이기
+2.5단계  긴 섹션 균등 분할              ← resize_all 전용
+3단계    단독 타이틀을 다음 섹션에 병합
+4단계    섹션들을 그룹으로 묶기          ← split_only 는 여기서 아무 병합도 하지 않는다
+5단계    인접 그룹 greedy 병합           ← resize_all 전용
+5.5단계  chunk_size 초과 그룹만 분할     ← split_only 전용
+6단계    최종 청크 객체 생성
 ```
-
-**`chunk_mode` 가 갈리는 지점**
-
-| 줄 | 효과 |
-|---|---|
-| 1155 | 2.5단계를 `resize_all` 만 실행 |
-| **1260** | **`split_only` 핵심** — 4단계에서 아무 병합도 하지 않음 (섹션 1개 = 그룹 1개) |
-| 1263 | `resize_all` 은 토큰 초과 시에만 새 그룹 |
-| 1301 | 5단계 greedy 병합은 `resize_all` 전용 |
-| 1323 | 5.5단계 초과분 분할은 `split_only` 전용 |
 
 > **동작 요약**: `split_only` = 파서가 인식한 섹션 경계(예: 조항 단위)를 그대로 유지하고 큰 섹션만
 > 쪼갬 → 작은 청크가 많이 나옵니다. `resize_all` = 전부 `chunk_size` 에 맞춰 재조립 → 균일한 크기.
 
-**섹션 인식은 정규식이 아닙니다.** `_is_section_header`(827)가 docling 이 붙인 라벨
+**섹션 인식은 정규식이 아닙니다.** `_is_section_header` 가 docling 이 붙인 라벨
 (`SECTION_HEADER`/`TITLE`)로 판정합니다. "제N조" 같은 텍스트 패턴으로 자르고 싶다면
-이 함수에 정규식을 추가하고, **`preprocess`(427–430)의 같은 판정 코드와 `_get_section_header_level`(833)
-까지 세 곳을 함께** 고쳐야 합니다.
+이 함수에 정규식을 추가하고, **`preprocess` 안의 같은 판정과 `_get_section_header_level`
+까지 세 곳을 함께** 고쳐야 합니다. 셋 다 `facade/chunking/smart_chunker.py` 에 있습니다.
 
 #### 두 경로의 차이
 
@@ -972,16 +983,19 @@ return self._normalize_response(result)
 | 좌표·미디어 | 실제 값 | `"."` 고정값 |
 | 문서 metadata | 부착됨 | 없음 (단, 행 단위 element 는 예외 — 아래) |
 
-`_chunk_parse_format`(2759)은 입력 형식에 따라 네 경로로 나뉩니다.
+`_chunk_parse_format` 은 입력 형식에 따라 네 경로로 나뉩니다.
 
 | 판별 | 경로 | 결과 |
 |---|---|---|
-| `category` 가 `tabular_row`/`custom_fields_row`/`faq_row` 인 element 가 있음 | `_chunk_custom_fields_rows` | **행 1개 = 청크 1개.** element `metadata` 를 청크 property 로 승격. 단 element 에 `"splittable": true` 가 있으면(custom_field yaml 에 `split: true` 를 켠 json_mapping 레코드 / tabular_mapping 행) `chunk_size` 초과분만 여러 청크로 나누고 metadata 는 조각마다 동일하게 붙임. `chunk_prefix` 가 함께 실려 있으면 그 접두를 뗀 본문만 나누고 조각마다 접두를 다시 붙임(`chunk_prefix_fields` 설정) |
+| `category` 가 `tabular_row`/`custom_fields_row`/`faq_row` 인 element 가 있음 | `_chunk_custom_fields_rows` | **행 1개 = 청크 1개.** element `metadata` 를 청크 property 로 승격. 단 element 에 `"splittable": true` 가 있으면 `chunk_size` 초과분만 여러 청크로 나누고 metadata 는 조각마다 동일하게 붙임 |
 | `content` 이 `[AUDIO]` 로 시작 | `_single_marker_vector` | 전사 전체가 단일 청크 |
 | 비어있지 않은 element 가 전부 `category=="table"` | `_single_marker_vector` | `[DA]` 단일 청크 (**예전 csv/xlsx parse 결과 하위호환**) |
-| 그 외 | `_chunk_text_elements`(2583) | 문자 단위 분할 |
+| 그 외 | `_chunk_text_elements` | 문자 단위 분할 |
 
-> 행 기반 경로는 행 element 만 청킹하고 섞여 온 다른 element 는 버립니다(버린 개수는 WARN 로그).
+> ⚠️ **파서 → 청커 element 계약.** 행 기반 경로는 행 element 만 청킹하고 **섞여 온 다른
+> element 는 경고 한 줄 남기고 버립니다.** 위 세 `category` 문자열이 아니면 조용히 일반
+> 텍스트 분할로 빠져 metadata 가 청크에 실리지 않습니다. 새 JSON 경로를 만들 때 **category
+> 문자열 하나를 잘못 쓰면** 그 두 가지 중 하나가 일어납니다.
 
 #### 토크나이저
 
@@ -995,20 +1009,23 @@ return self._normalize_response(result)
 
 #### 여기를 고치면 무엇이 바뀌나
 
+`smart_chunker.py` 는 **공용 모듈**입니다. 여기를 고치면 `/chunker` 와 `/preprocess*` 가 함께
+바뀝니다. 요청 `params` 나 yaml 로 되는 일인지 먼저 확인하세요.
+
 | 목표 | 고칠 곳 | 주의점 |
 |---|---|---|
-| 섹션 인식 규칙 변경 | `_is_section_header` (827) + `preprocess` (427–430) + `_get_section_header_level` (833) | **세 곳이 같은 판정을 중복 구현.** 하나만 고치면 헤더 스택과 레벨 계산이 어긋남 |
-| 표를 항상 별도 청크로 | 1070 조건 | **코드 수정 없이** 요청 `params` 의 `table_as_chunk` 로 켤 수 있습니다. 켜면 1~6단계가 전부 우회됩니다 |
+| 헤더 구분자·리프 상한 | `chunking_processor.py` 머리의 조정 지점 블록 | 크기 산정과 실제 부착이 **같은 문자열**을 봐야 합니다 |
+| 그림 annotation·표 설명 모드 | `GenosSmartChunker` ClassVar | facade 안에서 끝납니다 |
+| 표를 항상 별도 청크로 | **코드 수정 불필요** — 요청 `params` 의 `table_as_chunk` | 켜면 1~6단계가 전부 우회됩니다 |
+| 청크 선두 헤더 on/off | **코드 수정 불필요** — `include_chunk_header` (yaml `chunking.include_chunk_header`) | off 면 순수 본문만(검색 시 섹션 문맥 소실). parse-format 경로는 no-op |
+| 청크 텍스트 노이즈 제거 | **코드 수정 불필요** — yaml `chunking.text_cleanup` | 규칙 정규식은 기동 시 컴파일되어 오타가 바로 드러납니다 |
+| 섹션 인식 규칙 변경 | `smart_chunker.py::_is_section_header` + `preprocess` + `_get_section_header_level` | **세 곳이 같은 판정을 중복 구현.** 하나만 고치면 헤더 스택과 레벨 계산이 어긋남 |
 | 청크 메타데이터 필드 추가 | 가장 안전: `set_global_metadata` 경유 (스키마는 `extra` 허용) | 정식 필드로 올리려면 스키마·빌더·조립부 3곳 + parse-format 경로 3곳을 함께 |
-| 병합 기준 변경 | 4단계 조건 (1258–1268), 5단계 (1290–1318) | 1260 을 완화하면 조 단위가 장 단위로 뭉쳐집니다 |
-| 분할 기준 변경 | `split_items_evenly_by_tokens` (930–978) | 반환 구간은 **폭이 0 이 아니어야** 합니다. 0 이면 그 청크가 에러 없이 사라집니다 |
-| parse-format 청킹 방식 | `_chunk_text_elements` (2583), 라우팅은 `_chunk_parse_format` (2759) | `chunk_size: 0`(미분할) 계약과 표 입력의 하위호환 가드를 유지 |
-| 표 직렬화 형식 | `_extract_table_text` (624), 큰 표는 `_table_item_to_texts` (726) | 요청 `params` 의 `export_to_html: 0` 으로도 markdown 전환 가능(코드 수정 불필요). 다만 큰 표 분할 경로는 HTML 전제 |
-| `HEADER:` 접두 형식 | 조립은 `_build_header_line` **한 곳**, 부착은 `compose_vectors` 한 곳 | `chunk.meta.headings` 의 **원소 하나가 완전한 경로**입니다. 경로 내부는 `_CHUNK_HEADER_SEP`(` > `), 형제 경로 사이는 `_CHUNK_PATH_SEP`(` | `)이며, 형제가 여럿이면 공통 조상을 factor 하고 리프는 `_CHUNK_PATH_MAX_LEAVES` 까지만 나열합니다 — `상품 안내 > (우대금리 조건 | 가입 제한 … 외 3개)`. **크기 산정(`_size` · 분할 예산 · 병합 재검증)도 같은 `_build_header_line` 을 써야 합니다.** 조립이 흩어져 있던 동안 분할 예산과 병합이 헤더 몫을 빼먹어 청크가 chunk_size 를 넘었습니다. 본문에 제목을 다시 넣던 옛 동작(제목이 3번, 청크의 30~56%)은 되살리지 마십시오 |
-| 청크 선두 헤더 on/off | 요청 `params` 의 `include_chunk_header` (yaml `chunking.include_chunk_header`, 기본 true) | **코드 수정 없이** 끌 수 있습니다. 0/1 과 `on`/`off` 모두 허용. off 면 순수 본문만 나옵니다(검색 시 섹션 문맥 소실). parse-format 경로는 애초에 헤더가 없어 no-op |
-| chunk_size 예산 (알려진 한계) | split_only·resize_all 분할이 헤더 몫 + `delim` 비용을 예약하고, 아이템 하나가 예산보다 크면 `_split_text_to_budget`(semchunk)으로 내부 분할합니다(조각들은 표 분할과 마찬가지로 bbox 를 공유) | **표 분할(`_table_item_to_texts` · `_split_table_text`)은 아직 헤더 몫을 예약하지 않습니다.** 그 경로에서는 청크가 헤더 길이만큼 chunk_size 를 넘을 수 있습니다. 헤더 라인이 chunk_size 보다 긴 경우(조문 전체가 SECTION_HEADER 로 승격)는 예약을 생략하고 warning 을 남깁니다 |
-| 헤더-only 청크 병합 | `_merge_heading_only_chunks` (`_is_heading_only` · `_text_covered`) | 판정은 **아이템 유형**(`_is_section_header`)입니다. 문자열 replace 로 되돌리지 마십시오 — 본문이 헤더 문자열로만 구성된 정상 청크를 오판해 본문이 사라졌습니다(실측: 헤더 `가` + 본문 `가가가가가` → 소실). `_text_covered` 가 donor 텍스트가 헤더 경로에 남는지 최종 확인하며, 크기(`_fits`)와 함께 둘 다 통과할 때만 병합합니다 |
-| 섹션 병합 지점의 크기 검사 | 2·3·4·5·5.5단계 + PPT 페이지 병합 | **섹션을 합치는 모든 지점이 헤더 라인을 포함해 크기를 재야 합니다.** 3단계(단독 타이틀 병합)에 검사가 없어서, 예산에 맞춰 잘라둔 조각을 다시 붙여 한도를 넘긴 전례가 있습니다. 표 분할 경로(`_table_item_to_texts` · `_split_table_text`)는 아직 헤더 몫을 예약하지 않습니다(알려진 한계) |
+| 병합/분할 기준 변경 | `smart_chunker.py` 4·5·5.5단계 | 4단계 조건을 완화하면 조 단위가 장 단위로 뭉쳐집니다. 분할 구간은 **폭이 0 이 아니어야** 합니다 — 0 이면 그 청크가 에러 없이 사라집니다 |
+| 표 직렬화 형식 | `smart_chunker.py::_extract_table_text` / `_table_item_to_texts`, HTML 직렬화는 `facade/chunking/table_html.py` | 요청 `params` 의 `export_to_html: 0` 으로도 markdown 전환 가능(코드 수정 불필요). 다만 큰 표 분할 경로는 HTML 전제 |
+| `HEADER:` 접두 형식 | 조립은 `_build_header_line` **한 곳**, 부착은 `compose_vectors` 한 곳 | `chunk.meta.headings` 의 **원소 하나가 완전한 경로**입니다. **크기 산정(`_size` · 분할 예산 · 병합 재검증)도 같은 `_build_header_line` 을 써야 합니다.** 본문에 제목을 다시 넣던 옛 동작(제목이 3번, 청크의 30~56%)은 되살리지 마십시오 |
+| 헤더-only 청크 병합 | `smart_chunker.py::_merge_heading_only_chunks` | 판정은 **아이템 유형**(`_is_section_header`)입니다. 문자열 replace 로 되돌리지 마십시오 — 본문이 헤더 문자열로만 구성된 정상 청크를 오판해 본문이 사라졌습니다 |
+| chunk_size 예산 (알려진 한계) | — | **표 분할 경로는 아직 헤더 몫을 예약하지 않습니다.** 그 경로에서는 청크가 헤더 길이만큼 chunk_size 를 넘을 수 있습니다 |
 
 ### 5.6 enrichment 모듈
 
@@ -1051,15 +1068,25 @@ return self._normalize_response(result)
 
 ### 5.8 수정 전 반드시 확인할 복제 범위
 
-같은 코드가 여러 facade 에 복사되어 있습니다. **`/chunker` 결과와 `/preprocess`(적재) 결과가 같아야
-한다면 관련 파일을 함께 고쳐야 합니다.**
+facade 는 **한 파일씩 배포**되므로 서로 import 하지 않습니다. 그래서 일부 코드가 복제돼
+있습니다. **`/chunker` 결과와 `/preprocess`(적재) 결과가 같아야 한다면 관련 파일을 함께
+고쳐야 합니다.**
 
 | 복제된 것 | 어디에 |
 |---|---|
-| 청킹 엔진 `GenosSmartChunker` | `chunking_processor.py:342` · `intelligent_processor.py:615` · `convert_processor.py:625` |
-| 청크 출력 스키마 | 위 3곳 + `attachment_processor.py` |
-| `GenosServiceException` | `src/common/exception.py`(정본) + facade 5곳의 로컬 사본 |
-| 입력 파일 사전 검증 블록 | facade 4곳 |
+| 청크 출력 스키마 `GenOSVectorMeta` | `chunking_processor.py` · `intelligent_processor.py` · `convert_processor.py` · `attachment_processor.py` |
+| `GenosServiceException` | `src/common/exception.py`(정본) + facade 각각의 로컬 사본 |
+| `enrichment()` | facade 3곳 (로그 태그·PPT 처리·예외 스탬프가 서로 다릅니다) |
+
+반대로 **아래는 이제 한 벌뿐입니다.** 여기를 고치면 관련 facade 전부가 함께 바뀝니다.
+
+| 한 벌인 것 | 어디에 |
+|---|---|
+| 청킹 엔진 | `facade/chunking/smart_chunker.py` |
+| docling 런타임(OCR·파이프라인·컨버터·enricher 생성) | `facade/common/docling_runtime.py` |
+| docling 배관(OCR 옵션·컨버터 생성·글리프 검사·표 셀 재OCR·포맷 로더) | `facade/common/docling_ops.py` |
+| 파서 응답 직렬화 | `facade/serialize/parse_format.py` |
+| 설정 해석·custom_fields spec 빌더 | `facade/common/config_parse.py` · `facade/common/parser_config.py` |
 
 수정 전에 아래로 복제본을 찾으세요.
 
@@ -1319,7 +1346,8 @@ facade 별로 받는 키가 다릅니다. 자주 쓰는 것만:
 
 파싱 결과의 element 는 `{category, content, coordinates, id, page}` 5키입니다(행 기반 element —
 `tabular_row`/`custom_fields_row` — 는 행 metadata 를 담은 `metadata` 를 더해 6키). 필드를 추가하려면
-`_docling_to_parse_format`(2281)에서 dict 를 만드는 부분을 고칩니다.
+`facade/serialize/parse_format.py::docling_to_parse_format` 에서 dict 를 만드는 부분을 고칩니다
+(facade 의 같은 이름 메서드는 그 함수를 부르는 얇은 래퍼입니다).
 
 - **추가는 안전**하지만, 기존 키를 삭제·개명하면 `/chunker` 와 다운스트림이 깨집니다.
 - 응답 최상위(`data`)에 값을 싣고 싶다면 `_enrichment_context` 에 담아 `__call__` 의
@@ -1373,7 +1401,14 @@ placeholder 이므로, LLM 을 쓰는 항목은 그 값을 채우기 전까지 �
 > **정상적인 doc_type 추가에는 파이썬 코드 수정이 필요 없습니다.** config yaml 과 프롬프트 md 만
 > 추가하면 됩니다. 코드가 필요한 예외 상황은 이 절 마지막에 정리했습니다.
 
-**extractor 3종** — `custom_fields` 블록의 `extractor` 값이 처리 방식을 정합니다.
+> **표기는 v2 가 출고본입니다.** 출고 `custom_field_*.yaml` 17개가 전부 `schema: v2` 이므로
+> 새 설정은 v2 로 씁니다. v1 표기도 계속 동작하지만 **한 파일 안에서 섞으면 기동에 실패합니다.**
+> **extractor 는 4종**(`llm` · `tabular_mapping` · `json_mapping` · `json_semantic`)이고,
+> kind 별로 되는 키가 다릅니다 — 전체 지원 매트릭스와 `transform` 9종, 별칭 탐색 범위,
+> 설정으로 안 되는 8가지는 [파싱용 전처리기 매뉴얼](parser_processor.md) 의
+> "새 문서 유형 추가하기" 절에 있습니다. 아래 표는 자주 쓰는 3종의 요약입니다.
+
+**extractor 3종(요약)** — `custom_fields` 블록의 `extractor` 값이 처리 방식을 정합니다.
 
 | | `llm` (문서형) | `tabular_mapping` (행 매핑형) | `json_mapping` (레코드 매핑형) |
 |---|---|---|---|

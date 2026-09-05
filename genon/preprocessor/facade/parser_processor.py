@@ -1,4 +1,17 @@
 # 파싱용 전처리기 v.2.2.0 (2026-06-02 Release)
+#
+# ── 이 파일에서 고칠 자리 ────────────────────────────────────────────────────
+# 새 문서 유형을 만났을 때 손대는 지점은 아래 셋뿐이다. 그 밖은 배관이고, 배관의
+# 구현은 facade/common/ · facade/serialize/ 에 한 벌씩 있다.
+#
+#   1) DocumentProcessor.ROUTES        새 **확장자**를 받을 때. 표에 한 줄 + _route_* 하나.
+#   2) DocumentProcessor._route_*      그 확장자를 어떻게 파싱할지.
+#   3) DocumentProcessor._load_json_payload
+#                                      .json 원천의 **구조**가 설정으로 안 풀릴 때.
+#                                      두 JSON 경로의 유일한 입구다. doc_type 게이팅 필수.
+#
+# 새 **doc_type** 을 추가하는 것뿐이라면 코드가 아니라 custom_field_*.yaml 이 먼저다.
+# 어디까지 설정으로 되는지는 gitbook_doc/parser_processor.md 의 지원 매트릭스를 본다.
 from __future__ import annotations
 
 import asyncio
@@ -22,11 +35,7 @@ from langchain_community.document_loaders import (
 from langchain_core.documents import Document
 
 from docling.datamodel.base_models import InputFormat
-from docling.datamodel.pipeline_options import (
-    AcceleratorDevice,
-    PdfPipelineOptions,
-    TableFormerMode,
-)
+from docling.datamodel.pipeline_options import PdfPipelineOptions
 from docling.document_converter import DocumentConverter, PdfFormatOption
 from docling.prompts.prompt_manager import LLMApiError
 from docling.utils.document_enrichment import check_document, enrich_document
@@ -185,21 +194,6 @@ CONVERTIBLE_EXTENSIONS = ['.hwp', '.txt', '.json', '.md', '.ppt', '.pptx', '.doc
 # ============================================================
 # 설정 로딩
 # ============================================================
-
-
-# pdf_pipeline.device / pdf_pipeline.table_structure_mode 의 yaml 문자열 → docling enum 매핑.
-# 키가 없거나 알 수 없는 값이면 호출부에서 경고 + 기본값으로 폴백한다 (startup 견고성).
-_ACCELERATOR_DEVICE_MAP = {
-    "auto": AcceleratorDevice.AUTO,
-    "cpu": AcceleratorDevice.CPU,
-    "cuda": AcceleratorDevice.CUDA,
-    "mps": AcceleratorDevice.MPS,
-}
-
-_TABLE_FORMER_MODE_MAP = {
-    "accurate": TableFormerMode.ACCURATE,
-    "fast": TableFormerMode.FAST,
-}
 
 
 def _resolve_default_parser_config_path() -> str:
@@ -932,9 +926,20 @@ class DocumentProcessor:
                 f"있을 수 있습니다: {os.path.basename(file_path)}"
             )
 
-    @staticmethod
-    def _load_json_payload(file_path: str) -> Any:
-        """`.json` 입력을 읽는다. 읽기/파싱 실패는 입력 오류로 즉시 종료."""
+    def _load_json_payload(self, file_path: str, doc_type: Any = None) -> Any:
+        """`.json` 입력을 읽는다. 읽기/파싱 실패는 입력 오류로 즉시 종료.
+
+        **여기가 JSON 정규화 훅이다.** `.json` 두 경로(레코드 모드 `_parse_json_records`,
+        문서 모드 `_parse_json`)가 모두 이 한 곳으로 들어온다. 설정으로 안 되는 원천
+        구조(동명 키 충돌·동적 키·조건부 선택·JSONL 등)는 공용 모듈이 아니라 여기서
+        payload 모양을 바꿔 푼다.
+
+        **반드시 doc_type 으로 게이팅한다.** 게이팅 없이 정규화를 넣으면 모든 JSON
+        doc_type 의 산출이 바뀐다. 예:
+
+            if normalize_doc_type(doc_type) == "my_new_type":
+                payload = _reshape(payload)
+        """
         try:
             with open(file_path, "r", encoding="utf-8") as fp:
                 return json.load(fp)
@@ -1069,8 +1074,8 @@ class DocumentProcessor:
         docling 을 거치지 않는다 — 필요한 본문은 지정 필드에서 직접 오고, 청커의 행 기반
         경로가 레코드마다 청크를 만들며 metadata 를 청크 property 로 승격한다.
         """
-        payload = self._load_json_payload(file_path)
         doc_type = kwargs.get("doc_type")
+        payload = self._load_json_payload(file_path, doc_type)
         results = []
         for mapper in mappers:
             try:
@@ -1147,7 +1152,7 @@ class DocumentProcessor:
         """
         from genon.preprocessor.converters.json_text import json_payload_to_html
 
-        payload = self._load_json_payload(file_path)
+        payload = self._load_json_payload(file_path, kwargs.get("doc_type"))
         stem = Path(file_path).stem
         try:
             merged_html = json_payload_to_html(payload, spec, stem)
@@ -1361,6 +1366,216 @@ class DocumentProcessor:
     # 메인 진입점
     # ------------------------------------------------------------------
 
+    # ------------------------------------------------------------------
+    # 포맷별 파싱 라우팅 — 고객이 새 문서 유형을 위해 코드를 넣는 자리
+    # ------------------------------------------------------------------
+    #
+    # 위에서부터 확장자가 맞는 항목을 찾아 핸들러를 부른다. 핸들러가 응답 dict 를
+    # 돌려주면 거기서 끝이고, **None 을 돌려주면 다음 후보로 넘어간다**(폴스루).
+    # 순서에 의미가 있으므로 표의 위아래를 바꾸지 않는다.
+    #
+    #   확장자              핸들러            폴스루 조건
+    #   ------------------  ----------------  ------------------------------------
+    #   wav mp3 m4a         _route_audio      없음
+    #   csv xlsx xlsm       _route_tabular    없음
+    #   hwp hwpx hml        _route_hwp        없음
+    #   docx                _route_docx       없음
+    #   pdf html htm md     _route_docling    .md 가 formats.md.processing_mode=text 일 때
+    #   json                _route_json       custom_fields 에 매칭 설정이 없을 때
+    #   ppt pptx            _route_ppt        없음 (PDF 변환 실패는 langchain 폴백으로 끝난다)
+    #   (그 밖)             _route_other      없음 — 캐치올
+    #
+    # 새 확장자를 추가하려면 이 표에 한 줄과 `_route_*` 메서드 하나를 더한다.
+    # 새 doc_type 을 추가하는 것뿐이라면 코드가 아니라 custom_fields yaml 이 먼저다.
+    ROUTES = (
+        ((".wav", ".mp3", ".m4a"), "_route_audio"),
+        ((".csv", ".xlsx", ".xlsm"), "_route_tabular"),
+        ((".hwp", ".hwpx", ".hml"), "_route_hwp"),
+        ((".docx",), "_route_docx"),
+        ((".pdf", ".html", ".htm", ".md"), "_route_docling"),
+        ((".json",), "_route_json"),
+        ((".ppt", ".pptx"), "_route_ppt"),
+        (None, "_route_other"),  # 캐치올 — 반드시 마지막
+    )
+
+    async def _docling_response(self, doc: DoclingDocument, ctx: dict,
+                                clear_coordinates: bool = False, **kwargs) -> dict:
+        """docling 문서 → 응답. docling 을 만드는 분기 5개가 공유하는 마무리다."""
+        enrichment_context = ctx["enrichment_context"]
+        doc = await self._apply_docling_post_enrichment(
+            doc, _enrichment_context=enrichment_context, **kwargs
+        )
+        result = self._build_docling_response(doc, clear_coordinates=clear_coordinates, **kwargs)
+        if enrichment_context.get("metadata"):
+            result["metadata"] = enrichment_context["metadata"]
+        return result
+
+    async def _route_audio(self, file_path: str, ext: str, ctx: dict, **kwargs) -> dict:
+        # TODO(#315): PII 마스킹 미적용(보류) — 오디오 전사 텍스트는 별도 논의 후 적용.
+        text = self._parse_audio(file_path, **kwargs)
+        return self._audio_to_parse_format(text)
+
+    async def _route_tabular(self, file_path: str, ext: str, ctx: dict, **kwargs) -> dict:
+        # doc_type 은 "행을 어떻게 나눌지"가 아니라 "행 컬럼을 어떤 목표필드로 매핑할지"에만
+        # 쓴다. 행 분할 여부는 formats.xlsx.processing_mode 가 결정한다.
+        # 단, enrichment.custom_fields 의 tabular_mapping 이 doc_type 과 매칭되면 행별 매핑이
+        # 목적이므로 processing_mode 와 무관하게 우선한다(intelligent._process_xlsx 와 동일).
+        runtime_doc_type = normalize_doc_type(kwargs.get("doc_type"))
+        matching_mappers = [
+            mapper for mapper in self._tabular_custom_fields_mappers
+            if mapper.matches(runtime_doc_type)
+        ]
+        if matching_mappers:
+            result = await self._parse_tabular_records(
+                file_path, matching_mappers, runtime_doc_type
+            )
+            return await self._describe_record_tables(result, **kwargs)
+        # docling 모드: MsExcel/Csv 백엔드로 DoclingDocument 생성 후 parse-JSON 직렬화.
+        # 다른 문서 포맷과 같은 후처리 훅을 태운다 — 이 경로를 건너뛰면 xlsx 만
+        # 문서 단위 custom_fields(extractor: llm)·metadata·doc_type 스탬프를
+        # 설정으로 켤 수 없게 된다.
+        if self._xlsx_cfg["processing_mode"] == "docling":
+            from genon.preprocessor.converters.xlsx_processor import build_docling_document
+            return await self._docling_response(
+                build_docling_document(file_path), ctx, **kwargs
+            )
+        # tabular 모드(기본): openpyxl 병합셀 처리 → 데이터 행마다 element 하나.
+        # docling 문서를 만들지 않으므로 표 설명만 레코드 경로와 같은 훅으로 넣는다
+        # (custom_fields 매핑 경로와 동일하게 맞춘다).
+        # TODO(#315): PII 마스킹 미적용(보류) — tabular 산출은 별도 논의 후 적용.
+        return await self._describe_record_tables(
+            self._tabular_to_parse_format(self._parse_tabular(file_path)), **kwargs,
+        )
+
+    async def _route_hwp(self, file_path: str, ext: str, ctx: dict, **kwargs) -> dict:
+        # .hml(HWPML)은 hwp_sdk 260713+ 에서 지원 — 같은 SDK 경로로 라우팅 (이슈 #323)
+        return await self._docling_response(
+            self._parse_hwp_hwpx(file_path, **kwargs), ctx, **kwargs
+        )
+
+    async def _route_docx(self, file_path: str, ext: str, ctx: dict, **kwargs) -> dict:
+        return await self._docling_response(
+            self._parse_docx(file_path, **kwargs), ctx, clear_coordinates=True, **kwargs
+        )
+
+    async def _route_docling(self, file_path: str, ext: str, ctx: dict, **kwargs):
+        """pdf / html / htm / md 를 docling 으로 파싱한다.
+
+        .md 는 formats.md.processing_mode=docling(기본)일 때만 여기서 처리하고,
+        text 모드면 None 을 돌려 캐치올(TextLoader)로 넘긴다 — 레거시 동작 보존.
+        """
+        if ext == ".md" and self._md_cfg["processing_mode"] != "docling":
+            return None
+
+        enrichment_context = ctx["enrichment_context"]
+        artifacts_source = ctx["artifacts_source"]
+
+        if ext in (".html", ".htm"):
+            # html 은 flatten 전처리를 거칠 수 있다(srcdoc 등). 파생 임시 파일은
+            # 파싱 후 정리하고, artifacts 경로는 원본 기준으로 유지한다.
+            with tempfile.TemporaryDirectory(prefix="parser_html_") as work_dir:
+                parse_path = self._prepare_html(
+                    file_path, work_dir,
+                    marker_headings=self._html_marker_headings_enabled(kwargs.get("doc_type")),
+                )
+                doc = self._parse_docling(
+                    parse_path,
+                    artifacts_from=artifacts_source or (
+                        file_path if parse_path != file_path else None
+                    ),
+                    _enrichment_context=enrichment_context,
+                    **kwargs,
+                )
+            self._warn_if_thin_html(file_path, doc)
+        elif ext == ".md":
+            fm_spec = self._markdown_front_matter_spec_for(kwargs.get("doc_type"))
+            fence_spec = self._markdown_text_fence_spec_for(kwargs.get("doc_type"))
+            marker_on = self._markdown_marker_headings_enabled(kwargs.get("doc_type"))
+            if fm_spec is None and fence_spec is None and not marker_on:
+                doc = self._parse_docling(
+                    file_path,
+                    artifacts_from=artifacts_source,
+                    _enrichment_context=enrichment_context,
+                    **kwargs,
+                )
+            else:
+                # front matter를 제외하거나 ```text 펜스를 단락으로 되돌린 파생
+                # Markdown은 임시 파일로만 사용한다. 선택 metadata와 제외된 원문은
+                # custom-fields 후처리에 별도 전달한다.
+                with tempfile.TemporaryDirectory(prefix="parser_md_") as work_dir:
+                    parse_path, front_matter_context = self._prepare_markdown(
+                        file_path, work_dir, fm_spec, fence_spec, marker_on
+                    )
+                    markdown_kwargs = dict(kwargs)
+                    markdown_kwargs["_markdown_front_matter"] = front_matter_context
+                    doc = self._parse_docling(
+                        parse_path,
+                        artifacts_from=artifacts_source or (
+                            file_path if parse_path != file_path else None
+                        ),
+                        _enrichment_context=enrichment_context,
+                        **markdown_kwargs,
+                    )
+                kwargs = dict(kwargs)
+                kwargs["_markdown_front_matter"] = front_matter_context
+        else:
+            doc = self._parse_docling(
+                file_path,
+                artifacts_from=artifacts_source,
+                _enrichment_context=enrichment_context,
+                **kwargs,
+            )
+        return await self._docling_response(doc, ctx, **kwargs)
+
+    async def _route_json(self, file_path: str, ext: str, ctx: dict, **kwargs):
+        """enrichment.custom_fields 설정으로 두 모드가 갈린다.
+
+          레코드 모드(extractor: json_mapping) — 레코드별 목표필드 element
+          문서 모드(json: text_fields)        — 본문 텍스트를 합쳐 docling 파싱
+
+        매칭 설정이 없으면 None 을 돌려 캐치올 경로로 폴백한다 — 기존 .json 동작 보존
+        (xlsx 분기와 같은 게이팅 패턴).
+        """
+        # 1순위: 레코드 매핑(json_mapping) — 레코드마다 청크/메타데이터를 따로 만든다.
+        #        docling 을 거치지 않으므로 xlsx 의 tabular 조기 분기와 같은 성격이다.
+        records_mappers = self._json_records_mappers_for(kwargs.get("doc_type"))
+        if records_mappers:
+            result = await self._parse_json_records(file_path, records_mappers, **kwargs)
+            return await self._describe_record_tables(result, **kwargs)
+
+        # 2순위: 문서 모드(json: text_fields) — 본문 텍스트를 합쳐 docling 으로 파싱.
+        json_spec = self._json_text_spec_for(kwargs.get("doc_type"))
+        if json_spec is not None:
+            with tempfile.TemporaryDirectory(prefix="parser_json_") as work_dir:
+                doc = self._parse_json(
+                    file_path, json_spec, work_dir,
+                    _enrichment_context=ctx["enrichment_context"], **kwargs,
+                )
+            return await self._docling_response(doc, ctx, **kwargs)
+
+        _log.info(
+            "[parser] custom_fields json 매칭 설정 없음 — 기존 텍스트 경로로 처리: "
+            f"{os.path.basename(file_path)}"
+        )
+        return None
+
+    async def _route_ppt(self, file_path: str, ext: str, ctx: dict, **kwargs) -> dict:
+        """PDF 변환 → 경량 docling 파싱 + 페이지 단위 image description(옵션).
+
+        변환 실패 시에만 레거시 langchain 경로로 폴백한다. (파스 전용 — 청킹 없음)
+        """
+        doc = self._parse_ppt_docling(file_path, **kwargs)
+        if doc is not None:
+            return await self._docling_response(doc, ctx, **kwargs)
+        # PDF 변환 실패 폴백
+        # TODO(#315): PII 마스킹 미적용(보류) — langchain 폴백 경로. docling 아닌 파서 산출은 별도 논의.
+        return self._langchain_to_parse_format(self._parse_other(file_path, **kwargs))
+
+    async def _route_other(self, file_path: str, ext: str, ctx: dict, **kwargs) -> dict:
+        """캐치올: doc, txt, json, md, jpg, jpeg, png 등."""
+        # TODO(#315): PII 마스킹 미적용(보류) — langchain 경로(doc/txt/md/이미지 등)는 별도 논의 후 적용.
+        return self._langchain_to_parse_format(self._parse_other(file_path, **kwargs))
+
     async def __call__(self, request: Request, file_path: str, **kwargs) -> dict:
         runtime_level = kwargs.get('log_level')
         self.setup_logging(runtime_level if runtime_level is not None else self._log_level)
@@ -1411,193 +1626,17 @@ class DocumentProcessor:
                         "1", f"확장자 별칭 사본 생성 실패: {exc}"
                     ) from exc
 
-            enrichment_context: dict = {}
+            # 분기 사이에 공유되는 상태. enrichment_context 는 후처리가 채워 응답 metadata 로 나간다.
+            ctx = {"enrichment_context": {}, "artifacts_source": artifacts_source}
 
-            if ext in (".wav", ".mp3", ".m4a"):
-                # TODO(#315): PII 마스킹 미적용(보류) — 오디오 전사 텍스트는 별도 논의 후 적용.
-                text = self._parse_audio(file_path, **kwargs)
-                return self._normalize_response(self._audio_to_parse_format(text))
-
-            if ext in (".csv", ".xlsx", ".xlsm"):
-                # doc_type 은 "행을 어떻게 나눌지"가 아니라 "행 컬럼을 어떤 목표필드로 매핑할지"에만
-                # 쓴다. 행 분할 여부는 formats.xlsx.processing_mode 가 결정한다.
-                # 단, enrichment.custom_fields 의 tabular_mapping 이 doc_type 과 매칭되면 행별 매핑이
-                # 목적이므로 processing_mode 와 무관하게 우선한다(intelligent._process_xlsx 와 동일).
-                runtime_doc_type = normalize_doc_type(kwargs.get("doc_type"))
-                matching_mappers = [
-                    mapper for mapper in self._tabular_custom_fields_mappers
-                    if mapper.matches(runtime_doc_type)
-                ]
-                if matching_mappers:
-                    result = await self._parse_tabular_records(
-                        file_path, matching_mappers, runtime_doc_type
-                    )
-                    result = await self._describe_record_tables(result, **kwargs)
+            for extensions, handler_name in self.ROUTES:
+                if extensions is not None and ext not in extensions:
+                    continue
+                result = await getattr(self, handler_name)(file_path, ext, ctx, **kwargs)
+                if result is not None:
                     return self._normalize_response(result)
-                # docling 모드: MsExcel/Csv 백엔드로 DoclingDocument 생성 후 parse-JSON 직렬화.
-                # 다른 문서 포맷과 같은 후처리 훅을 태운다 — 이 경로를 건너뛰면 xlsx 만
-                # 문서 단위 custom_fields(extractor: llm)·metadata·doc_type 스탬프를
-                # 설정으로 켤 수 없게 된다.
-                if self._xlsx_cfg["processing_mode"] == "docling":
-                    from genon.preprocessor.converters.xlsx_processor import build_docling_document
-                    doc = build_docling_document(file_path)
-                    doc = await self._apply_docling_post_enrichment(
-                        doc, _enrichment_context=enrichment_context, **kwargs
-                    )
-                    result = self._build_docling_response(doc, **kwargs)
-                    if enrichment_context.get("metadata"):
-                        result["metadata"] = enrichment_context["metadata"]
-                    return self._normalize_response(result)
-                # tabular 모드(기본): openpyxl 병합셀 처리 → 데이터 행마다 element 하나.
-                # docling 문서를 만들지 않으므로 표 설명만 레코드 경로와 같은 훅으로 넣는다
-                # (custom_fields 매핑 경로와 동일하게 맞춘다).
-                # TODO(#315): PII 마스킹 미적용(보류) — tabular 산출은 별도 논의 후 적용.
-                result = await self._describe_record_tables(
-                    self._tabular_to_parse_format(self._parse_tabular(file_path)),
-                    **kwargs,
-                )
-                return self._normalize_response(result)
-
-            # .hml(HWPML)은 hwp_sdk 260713+ 에서 지원 — 같은 SDK 경로로 라우팅 (이슈 #323)
-            if ext in (".hwp", ".hwpx", ".hml"):
-                doc = self._parse_hwp_hwpx(file_path, **kwargs)
-                doc = await self._apply_docling_post_enrichment(doc, _enrichment_context=enrichment_context, **kwargs)
-                result = self._build_docling_response(doc, **kwargs)
-                if enrichment_context.get("metadata"):
-                    result["metadata"] = enrichment_context["metadata"]
-                return self._normalize_response(result)
-
-            if ext == ".docx":
-                doc = self._parse_docx(file_path, **kwargs)
-                doc = await self._apply_docling_post_enrichment(doc, _enrichment_context=enrichment_context, **kwargs)
-                result = self._build_docling_response(doc, clear_coordinates=True, **kwargs)
-                if enrichment_context.get("metadata"):
-                    result["metadata"] = enrichment_context["metadata"]
-                return self._normalize_response(result)
-
-            # .md 는 formats.md.processing_mode=docling(기본)일 때만 이 분기로 온다.
-            # text 모드면 아래 캐치올(TextLoader)로 빠져 레거시 동작을 그대로 유지한다.
-            if ext in (".pdf", ".html", ".htm") or (
-                ext == ".md" and self._md_cfg["processing_mode"] == "docling"
-            ):
-                if ext in (".html", ".htm"):
-                    # html 은 flatten 전처리를 거칠 수 있다(srcdoc 등). 파생 임시 파일은
-                    # 파싱 후 정리하고, artifacts 경로는 원본 기준으로 유지한다.
-                    with tempfile.TemporaryDirectory(prefix="parser_html_") as work_dir:
-                        parse_path = self._prepare_html(
-                            file_path, work_dir,
-                            marker_headings=self._html_marker_headings_enabled(kwargs.get("doc_type")),
-                        )
-                        doc = self._parse_docling(
-                            parse_path,
-                            artifacts_from=artifacts_source or (
-                                file_path if parse_path != file_path else None
-                            ),
-                            _enrichment_context=enrichment_context,
-                            **kwargs,
-                        )
-                    self._warn_if_thin_html(file_path, doc)
-                elif ext == ".md":
-                    fm_spec = self._markdown_front_matter_spec_for(kwargs.get("doc_type"))
-                    fence_spec = self._markdown_text_fence_spec_for(kwargs.get("doc_type"))
-                    marker_on = self._markdown_marker_headings_enabled(kwargs.get("doc_type"))
-                    if fm_spec is None and fence_spec is None and not marker_on:
-                        doc = self._parse_docling(
-                            file_path,
-                            artifacts_from=artifacts_source,
-                            _enrichment_context=enrichment_context,
-                            **kwargs,
-                        )
-                    else:
-                        # front matter를 제외하거나 ```text 펜스를 단락으로 되돌린 파생
-                        # Markdown은 임시 파일로만 사용한다. 선택 metadata와 제외된 원문은
-                        # custom-fields 후처리에 별도 전달한다.
-                        with tempfile.TemporaryDirectory(prefix="parser_md_") as work_dir:
-                            parse_path, front_matter_context = self._prepare_markdown(
-                                file_path, work_dir, fm_spec, fence_spec, marker_on
-                            )
-                            markdown_kwargs = dict(kwargs)
-                            markdown_kwargs["_markdown_front_matter"] = front_matter_context
-                            doc = self._parse_docling(
-                                parse_path,
-                                artifacts_from=artifacts_source or (
-                                    file_path if parse_path != file_path else None
-                                ),
-                                _enrichment_context=enrichment_context,
-                                **markdown_kwargs,
-                            )
-                        kwargs = dict(kwargs)
-                        kwargs["_markdown_front_matter"] = front_matter_context
-                else:
-                    doc = self._parse_docling(
-                        file_path,
-                        artifacts_from=artifacts_source,
-                        _enrichment_context=enrichment_context,
-                        **kwargs,
-                    )
-                doc = await self._apply_docling_post_enrichment(doc, _enrichment_context=enrichment_context, **kwargs)
-                result = self._build_docling_response(doc, **kwargs)
-                if enrichment_context.get("metadata"):
-                    result["metadata"] = enrichment_context["metadata"]
-                return self._normalize_response(result)
-
-            # JSON: enrichment.custom_fields 설정으로 두 모드가 갈린다.
-            #   레코드 모드(extractor: json_mapping) — 레코드별 목표필드 element
-            #   문서 모드(json: text_fields)        — 본문 텍스트를 합쳐 docling 파싱
-            # 매칭 설정이 없으면 기존 캐치올 경로로 폴백해 기존 .json 동작을 보존한다
-            # (xlsx 분기와 같은 게이팅 패턴).
-            if ext == ".json":
-                # 1순위: 레코드 매핑(json_mapping) — 레코드마다 청크/메타데이터를 따로 만든다.
-                #        docling 을 거치지 않으므로 xlsx 의 tabular 조기 분기와 같은 성격이다.
-                records_mappers = self._json_records_mappers_for(kwargs.get("doc_type"))
-                if records_mappers:
-                    result = await self._parse_json_records(
-                        file_path, records_mappers, **kwargs
-                    )
-                    result = await self._describe_record_tables(result, **kwargs)
-                    return self._normalize_response(result)
-
-                # 2순위: 문서 모드(json: text_fields) — 본문 텍스트를 합쳐 docling 으로 파싱.
-                json_spec = self._json_text_spec_for(kwargs.get("doc_type"))
-                if json_spec is not None:
-                    with tempfile.TemporaryDirectory(prefix="parser_json_") as work_dir:
-                        doc = self._parse_json(
-                            file_path, json_spec, work_dir,
-                            _enrichment_context=enrichment_context, **kwargs,
-                        )
-                    doc = await self._apply_docling_post_enrichment(
-                        doc, _enrichment_context=enrichment_context, **kwargs
-                    )
-                    result = self._build_docling_response(doc, **kwargs)
-                    if enrichment_context.get("metadata"):
-                        result["metadata"] = enrichment_context["metadata"]
-                    return self._normalize_response(result)
-                _log.info(
-                    "[parser] custom_fields json 매칭 설정 없음 — 기존 텍스트 경로로 처리: "
-                    f"{os.path.basename(file_path)}"
-                )
-
-            # PPT: PDF 변환 → 경량 docling 파싱 + 페이지 단위 image description(옵션).
-            # 변환 실패 시에만 레거시 langchain 경로로 폴백한다. (파스 전용 — 청킹 없음)
-            if ext in (".ppt", ".pptx"):
-                doc = self._parse_ppt_docling(file_path, **kwargs)
-                if doc is not None:
-                    doc = await self._apply_docling_post_enrichment(
-                        doc, _enrichment_context=enrichment_context, **kwargs
-                    )
-                    result = self._build_docling_response(doc, **kwargs)
-                    if enrichment_context.get("metadata"):
-                        result["metadata"] = enrichment_context["metadata"]
-                    return self._normalize_response(result)
-                # PDF 변환 실패 폴백
-                # TODO(#315): PII 마스킹 미적용(보류) — langchain 폴백 경로. docling 아닌 파서 산출은 별도 논의.
-                docs = self._parse_other(file_path, **kwargs)
-                return self._normalize_response(self._langchain_to_parse_format(docs))
-
-            # 기타 포맷: doc, txt, json, md, jpg, jpeg, png 등
-            # TODO(#315): PII 마스킹 미적용(보류) — langchain 경로(doc/txt/md/이미지 등)는 별도 논의 후 적용.
-            docs = self._parse_other(file_path, **kwargs)
-            return self._normalize_response(self._langchain_to_parse_format(docs))
+            # ROUTES 의 마지막이 캐치올이라 여기 도달하지 않는다.
+            raise GenosServiceException("1", f"처리할 수 없는 형식입니다: {ext}")
         finally:
             if alias_tmp is not None:
                 alias_tmp.cleanup()

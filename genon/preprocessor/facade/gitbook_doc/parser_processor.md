@@ -1157,6 +1157,217 @@ Docling 파이프라인(PDF/HTML/HWP/HWPX/DOCX) 출력 기준:
 
 ---
 
+## 새 문서 유형 추가하기 — 어디까지 설정이고 어디서부터 코드인가
+
+새 원천을 받았을 때 순서는 하나입니다. **① 그대로 넣어 본다 → ② 설정(`custom_field_*.yaml`)으로
+시도한다 → ③ 그래도 안 되면 코드를 고친다.** 순서를 뒤집으면 설정으로 되는 것도 코드로 풀게 됩니다.
+
+> 아래 표기는 전부 **v2**(`schema: v2`)입니다. 출고 `custom_field_*.yaml` 17개가 전부 v2 이므로
+> 새 설정은 v2 로 씁니다. v1 표기도 계속 동작하지만 **한 파일 안에서 섞으면 기동에 실패합니다.**
+> 괄호 안이 v1 대응 키입니다.
+>
+> 헷갈리는 동음이의 하나: v2 의 `template`(필드 결합)은 v1 의 `derive` 입니다.
+> v1 에도 `template` 이 따로 있는데 그것은 llm 전용 프롬프트 변수 치환 모드로 뜻이 다릅니다.
+
+### extractor 4종
+
+| kind | `extractor` (별칭) | 대상 | LLM |
+|---|---|---|---|
+| rows | `tabular_mapping` (`tabular`, `column_mapping`) | csv / xlsx / xlsm 의 **행** | `llm:` 선언 시 행마다 |
+| records | `json_mapping` (`json_records`) | json 의 **레코드 배열** | `llm:` 선언 시 레코드마다 |
+| sections | `json_semantic` | json **트리 전체**(섹션 자동 순회) | 문서 1회 |
+| document | `llm` (`document_llm`) | 문서 전체(pdf/html/docx/md …) | 본체가 LLM |
+
+### 지원 매트릭스
+
+✔ = 됨 / ✗ = 그 키를 적으면 **기동 실패** / ⚠ = 통과하지만 무효이거나 제한
+
+**원천에서 값 가져오기 (`fields:`)**
+
+| 기능 | v2 (v1) | rows | records | sections | document |
+|---|---|:-:|:-:|:-:|:-:|
+| 별칭 | `alias` | ✔ | ✔ | ✔ | ✔ |
+| 반복 key 전부 수집 | `collect` (`collect_key_map`) | ✗ | ✔ | ✗ | ✗ |
+| 상수 | `const` (`constants`) | ✔ | ✔ | ✔ | ✔ |
+| 기본값(빈 값만) | `default` (`defaults`) | ✔ | ✔ | ✔ | ✔ |
+| 값 접기 | `values` (`value_map`) | ✔ | ✔ | ✔ | ✔ |
+| 변환(9종 체이닝) | `transform` (`transforms`) | ✔ | ✔ | ⚠ 표 뭉갬 | ⚠ 표 뭉갬 |
+| 필드 결합 | `template` (**`derive`**) | ✔ | ✔ | ✔ | ✔ |
+
+적용 순서는 kind 공통입니다: `default`(빈 값만) → `const`(덮어씀) → `values` → `transform` → `template`
+
+**청크 본문에 싣기 (`body:`)**
+
+| 기능 | v2 (v1) | rows | records | sections | document |
+|---|---|:-:|:-:|:-:|:-:|
+| 본문 구성 필드 | `body.fields` (`text_fields`) | ✔ 선택 | ✔ **필수** | ⚠ 뜻이 다름¹ | ✗ |
+| 항목명 | `body.labels` (`field_labels`) | ✔ | ✔ | ✔ | ✔ |
+| 과대 본문 분할 | `body.split` (`split`) | ✔ | ✔ | ⚠ 항상 분할 | ✗ |
+| 모든 청크에 반복 접두 | `body.repeat` (`chunk_prefix_fields`) | ✔ split 시만 | ✔ split 시만 | ⚠ 자동 생성 | ✔ |
+| 첫 청크에만 1회 | `body.once` (`first_chunk_fields`) | ✗ | ✗ | ✔ | ✔ |
+| 본문을 메타 필드에 복사 | `body.mirror_to` (`body_fields`) | ✗ | ✗ | ✗ | ✔ |
+
+¹ sections 의 `body.fields` 는 본문 구성이 아니라 **공통 필드를 청크 접두에 실을지 정하는 스위치**입니다.
+본문은 트리 순회가 만듭니다.
+
+**원천 구조 · 필터 · LLM**
+
+| 기능 | v2 (v1) | rows | records | sections | document |
+|---|---|:-:|:-:|:-:|:-:|
+| 레코드 배열 위치 | `source.records_at` (`records`) | ✗ | ✔ | ✗ | ✗ |
+| 못 찾을 때 정책 | `source.on_missing` (`missing_policy`) | ✗ | ✔ | ✔ | ✗ |
+| 여러 행 접기 | `source.merge_rows` (`row_merge`) | ✔ | ✔ | ✗ | ✗ |
+| 섹션 표시 이름 | `source.sections` | ✗ | ✗ | ✔ | ✗ |
+| 서브트리 제외 | `source.ignore_keys` | ✗ | ✗ | ✔ | ✗ |
+| 포맷 전처리 | `source.pre.markdown` / `.html` | ⚠ **무시** | ⚠ **무시** | ⚠ **무시** | ✔ |
+| 필수값(빈 값 제외) | `require.fields` (`required`) | ✔ 건별 | ✔ 건별 | ✔ 문서 전체 | ✗ |
+| 값 기반 제외 | `filter` | ✔ | ✔ | ✗ | ✗ |
+| 필드별 LLM 생성 | `llm:` (`llm_fields`) | ✔ 행별² | ✔ 레코드별 | ✔ 문서 1회 | (본체가 LLM) |
+
+² rows 의 LLM 필드는 **파서 경로에서만** 실행됩니다. 적재 프로세서는 기동 시 경고만 남깁니다.
+
+> **청크 텍스트 정제(`chunking.text_cleanup`)는 doc_type 별 설정이 아니라 프로세서 config** 입니다.
+> `parser_processor_config.yaml` 에는 없습니다 — 파서와 청커를 나눠 배포했다면 **청커 쪽 yaml** 에 적습니다.
+
+### `transform` 9종 — 체이닝됩니다
+
+| 이름 | 인자 | 하는 일 |
+|---|---|---|
+| `date_int` | — | 날짜 텍스트 → `YYYYMMDD` 정수 |
+| `date_int_flex` | — | 위 + 2자리 연도(`26.07.01`)·구분자 없는 `260701` |
+| `text_norm` | — | NFKC + 공백 축약 + casefold (중복 판정용) |
+| `regex_sub` | `pattern`, `repl` | 정규식 치환 (`"18,000원"` → `"18000"`) |
+| `regex_extract` | `pattern`, `group` | 정규식 오려내기. 미매칭 시 `None` |
+| `to_int` | `on_error` | 숫자만 남겨 정수화 |
+| `truncate` | `length`, `suffix` | 길이 자르기(적재 컬럼 길이 맞춤) |
+| `html_text` | — | HTML 로 **강제** 평문화. 표·목록 유지 |
+| `text` | — | JSON/HTML/평문 **자동 판별** 후 평문화 |
+
+체이닝이 "새 요건 = 코드 수정" 을 막는 핵심 수단입니다.
+
+```yaml
+fields:
+  FEE_AMT:
+    alias: [수수료]
+    transform:
+      - {name: regex_sub, pattern: "[^0-9]", repl: ""}
+      - {name: to_int}
+```
+
+잘못된 이름·빠진 인자·컴파일 안 되는 정규식은 **기동 시** 잡힙니다.
+
+### 별칭이 원천을 찾는 범위 — 이름으로 찾습니다, 경로로는 못 찾습니다
+
+| 대상 | 탐색 범위 | 우선순위 |
+|---|---|---|
+| records `source.records_at` | 문서 **임의 깊이 BFS** | 최초 매칭 1개 |
+| records `alias` | **레코드 안 임의 깊이 BFS** | **깊이 우선**, 같은 레벨에서만 선언 순서 |
+| records `collect` | 레코드 안 BFS **레벨 순서**, 중복 제거 | 전부(중복 제외) |
+| sections `alias` | **문서 루트의 스칼라만** | 루트 1회 확정 후 불변 |
+| sections 본문 | 트리 **자동 전수 순회**(깊이≤12, 노드≤5000) | 미설정 key 도 자동 포함 |
+| sections `ignore_keys` | **key 이름 glob**, 경로 아님 | 매칭 시 서브트리 통째 제외 |
+| rows `alias` | **시트 첫 행 헤더**(깊이 없음) + 시트 컨텍스트 | 선언 순서, 실제 컬럼 우선 |
+| document `alias` | **front matter 최상위 키만**(중첩 미탐색) | **순수 선언 순서** |
+
+> "여러 개 적으면 먼저 찾은 것" 이라는 설명은 **document 에만** 문자 그대로 맞습니다.
+> records/rows/sections 는 깊이·헤더가 먼저 좌우합니다.
+
+### 조용히 실패하는 자리 — 가장 오래 헤매는 지점
+
+"오타는 기동 실패로 드러난다" 는 절반만 맞습니다. 아래는 **경고만 남기고 진행**합니다.
+
+| 상황 | 결과 |
+|---|---|
+| `body.fields` 에 없는 필드 | 경고만, 본문에서 조용히 빠짐 |
+| `body.labels` 에 없는 필드 | 경고만, 라벨 없이 값만 |
+| rows/records 의 `require` 미충족 | 그 건만 skip. **전건이면 청크 0건인데 요청은 성공** |
+| `values` 미등록 값 | 경고만, 원값 통과 (fail-open) |
+| `source.pre.*` 를 llm 아닌 kind 에 | 검증 통과 + 무시 |
+| `GENOS_CUSTOM_FIELDS_VALIDATION=warn` | 모든 키 검증이 경고로 격하 |
+
+청크가 0건이거나 필드가 빈 채로 나오면 **먼저 기동 로그의 WARNING 을 확인**하세요.
+
+### 설정으로 안 되는 8가지와 우회법
+
+**우회 가능**
+
+| # | 상황 | 우회 |
+|---|---|---|
+| ① | **동명 키 충돌** — 얕은 것이 이겨서 깊은 것을 못 고름 | 원하는 값의 컨테이너가 이름 있는 배열/객체면 `source.records_at` 을 그쪽으로 내린다(대가: 상위 레벨 필드를 못 읽음). 또는 `records_at` 이 다른 매퍼를 2개 등록. **같은 배열 안 같은 이름이거나 컨테이너가 무명이면 남는 경계** |
+| ② | **동적 키**(`{"P001":{…},"P002":{…}}`) | `json_semantic` 이면 **설정 0줄로 본문이 들어옵니다.** key 이름을 모른 채 전수 순회하고 key 를 섹션명으로 씁니다. "동적 키마다 레코드 1건 + 그 키에 딸린 메타데이터" 형태만 남는 경계 |
+| ③ | **조건부 선택** — 형제 값에 따라 갈림 | 배타적일 때만 `template: "{{A}}{{B}}"`(**둘 다 있으면 붙어버립니다**). 또는 `filter` + `records_at` 이 다른 매퍼 2개. `filter` 는 `in`/`not_in` 뿐이고 AND 만 됩니다 |
+
+**우회 불가**
+
+| # | 상황 |
+|---|---|
+| ④ | json_semantic 의 **루트 밖 공통 필드** — "1 파일 = 1 대상" 전제를 지키려는 의도된 제약 |
+| ⑤ | sections/document 에서 **표 구조를 살린 평문화**가 안 됨. `<table>…a…b…</table>` → `"ab"` 로 뭉갬 |
+| ⑥ | `merge_rows` 는 **연속 런만** 접음. 같은 키가 떨어져 오면 별개 레코드(의도된 안전장치) |
+| ⑦ | `values` 는 fail-open. "열거 밖은 전부 X 로" 를 표현할 수 없음 |
+| ⑧ | `source.pre.*` 는 `extractor: llm` 에서만 소비됨 |
+
+### 코드가 필요할 때 — 고칠 자리 3개
+
+`parser_processor.py` 파일 머리 주석에 같은 목록이 있습니다. **그 밖으로 나가야 한다면
+설정이나 facade 로 풀 수 있는 일을 놓친 것입니다.**
+
+| # | 자리 | 언제 |
+|---|---|---|
+| 1 | `DocumentProcessor.ROUTES` | 새 **확장자**를 받을 때. 표에 한 줄 + `_route_*` 하나 |
+| 2 | `DocumentProcessor._route_*` | 그 확장자를 어떻게 파싱할지 |
+| 3 | `DocumentProcessor._load_json_payload` | `.json` 원천의 **구조**가 설정으로 안 풀릴 때 |
+
+**`_load_json_payload` 가 JSON 정규화 훅입니다.** `.json` 두 경로(레코드 모드·문서 모드)가
+모두 이 한 곳으로 들어옵니다. 위 경계 ①②③ 과 JSONL·BOM·이스케이프된 중첩 JSON 같은 것이
+여기서 10~15줄로 풀립니다.
+
+```python
+    def _load_json_payload(self, file_path, doc_type=None):
+        ...
+        payload = json.load(fp)
+        if normalize_doc_type(doc_type) == "my_new_type":   # ← 게이팅 필수
+            payload = _reshape(payload)
+        return payload
+```
+
+> **doc_type 게이팅을 반드시 넣으세요.** 없으면 **모든** JSON doc_type 의 산출이 바뀝니다.
+
+### 파서 → 청커 element 계약
+
+새 JSON 경로를 만들면 결국 청커가 그것을 소비합니다. 계약은 `category` 문자열 하나입니다.
+
+- element 의 `category` 가 `tabular_row` / `custom_fields_row` / `faq_row` 중 하나면
+  **행 기반 경로**로 갑니다 — 행 1개 = 청크 1개, element `metadata` 가 청크 property 로 승격.
+- 그 경로는 **섞여 온 비-행 element 를 경고 한 줄 남기고 버립니다.**
+- 그 category 가 아니면 **조용히 일반 텍스트 분할**로 빠지고 metadata 는 청크에 실리지 않습니다.
+
+**category 문자열 하나를 잘못 쓰면 metadata 가 사라지거나 element 가 통째로 버려집니다.**
+
+### 고치기 전에 내 기준선을 만드세요
+
+수정이 **기존 문서의 산출을 바꾸지 않았는지** 확인하는 절차입니다. 벤더 골든은 배포되지
+않으므로 **자기 문서로 자기 골든을 만듭니다.**
+
+```bash
+# 실행 위치: genon/preprocessor/examples/parse_chunk
+# ① 내 문서 목록을 yaml 로 적는다
+cat > my_cases.yaml <<'EOF'
+- {doc_type: my_type, path: /data/samples/a.json}
+- {doc_type: my_type, path: /data/samples/b.json}
+EOF
+
+# ② 고치기 전에 기준선을 찍는다
+./parse_chunk_golden.py --record --cases my_cases.yaml --golden ~/my_golden
+
+# ③ 코드/설정을 고친다
+
+# ④ 달라진 게 있는지 본다 — "차이 0" 이어야 통과
+./parse_chunk_golden.py --check --cases my_cases.yaml --golden ~/my_golden
+```
+
+`--noise` 로 같은 코드를 2회 돌려 흔들리는 필드가 없는지 먼저 확인할 수도 있습니다.
+
 ## 예외 처리
 
 ### FastAPI 레벨 예외

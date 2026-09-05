@@ -335,11 +335,25 @@ GenOS 웹 UI에서 **데이터 > 벡터 DB > 벡터 DB 생성** 으로 새 벡�
   - `attachment_processor.py` — 청커는 `attachment_processor_config.yaml` 의 [`defaults.chunker_type` (L9)](../../resource/attachment_processor_config.yaml#L9) 로 `recursive`(기본) ↔ `hybrid` 전환 가능합니다.
     - 청커별 세부 옵션은 같은 파일의 [`chunking.recursive` (L30-36)](../../resource/attachment_processor_config.yaml#L30-L36) (`chunk_size` / `chunk_overlap` / `token_chunk_size_cap`) 또는 [`chunking.hybrid` (L39-42)](../../resource/attachment_processor_config.yaml#L39-L42) (`max_tokens` / `merge_peers`) 에서 조정합니다.
     - 수정한 yaml 을 5단계 절차대로 리소스 파일로 재업로드한 뒤 전처리기를 재배포합니다.
-  - `convert_processor.py` / `intelligent_processor.py` — 청커가 `GenosSmartChunker` 로 **고정**되어 yaml·kwargs 만으로는 바꿀 수 없습니다. 청크 품질이 큰 문제면 facade 코드의 청크 로직을 직접 손봐야 하므로 AI Search 팀에 문의하세요.
+  - `convert_processor.py` / `intelligent_processor.py` / `chunking_processor.py` — 청커가 `GenosSmartChunker` 로 고정되어 있지만 **yaml 로 조절되는 범위가 넓습니다**: `chunking.chunk_size` · `chunk_mode`(`split_only` ↔ `resize_all`) · `table_as_chunk` · `include_chunk_header` · `text_cleanup` · `output.table_format`. 대부분의 "청크가 너무 크다/문맥이 끊긴다" 는 여기서 해결됩니다. 자세한 것은 [청킹용 전처리기 매뉴얼](chunking_processor.md) 을 보세요.
 
 ### 9.2 더 깊은 변경이 필요한 경우
 
-Facade 코드 자체를 사이트에 맞게 수정해야 하는 케이스(새 확장자 처리, 지능형에서 청킹 알고리즘 변경 등)는 **facade 소스를 사이트 운영자가 직접 수정**해 다시 저장하면 됩니다. 안전한 수정 범위와 패턴은 facade reference 문서들을 참고하세요.
+yaml 로 안 되는 것(새 확장자 처리, 원천 JSON 구조 흡수, 섹션 인식 규칙 변경 등)은
+**facade 소스를 사이트에서 직접 수정**합니다. 고칠 자리는 정해져 있고 파일 머리 주석에
+적혀 있습니다.
+
+| 목표 | 문서 |
+|---|---|
+| 새 문서유형 · 새 확장자 · JSON 구조 흡수 | [파싱용 전처리기 매뉴얼](parser_processor.md) 의 "새 문서 유형 추가하기" |
+| 청크 크기·경계·표 표기 | [청킹용 전처리기 매뉴얼](chunking_processor.md) |
+| 수정 → 검증 → 재배포 절차 | [코드서빙 개발 매뉴얼](code_serving_dev_manual.md) |
+
+> **고치기 전에 자기 기준선을 만드세요.** `examples/parse_chunk/parse_chunk_golden.py --record`
+> 로 지금 산출을 기록해 두면, 수정 뒤 `--check` 로 **기존 문서가 그대로인지** 확인할 수 있습니다.
+> 벤더 골든은 배포되지 않으므로 이 절차가 정식입니다.
+
+> 판단이 서지 않는 변경은 AI Search 팀에 문의하세요.
 
 ---
 

@@ -1,10 +1,13 @@
-# 청킹 전용 전처리기(Chunk API, /chunker) 설정 — 모니모 GenOS Temporal 파이프라인 #284
+# 청킹 전용 전처리기(Chunk API, /chunker) 설정 — **간소 프로필**
 #
-# 이 facade(chunking_processor.py)는 파싱(docling) 결과를 입력으로 받아 청킹만 수행한다.
-# 파싱/로딩/OCR/레이아웃/enrichment 는 앞단계(파싱 Activity)에서 이미 끝났으므로
-# 여기서는 호출되지 않는다. 따라서 ocr/layout/pdf_pipeline/enrichment 섹션은 두지 않으며,
-# 미설정 시 코드 기본값으로 안전하게 폴백된다.
-
+# 정식 설정(chunking_processor_config.yaml)에서 사이트가 실제로 손대는 키만 남긴 판입니다.
+# 여기 없는 키는 코드 기본값으로 안전하게 폴백합니다.
+#
+#   청크 크기·경계·표 표기·정제 → gitbook_doc/chunking_processor.md
+#
+# 이 facade 는 파싱(docling) 결과를 입력받아 청킹만 합니다. OCR·레이아웃·enrichment 는
+# 앞 단계에서 끝났으므로 그 섹션들은 **코드에도 없습니다** — 적어도 읽지 않습니다.
+#
 defaults:
   # 5=DEBUG, 4=INFO, 3=WARNING, 2=ERROR, 1=CRITICAL, 0=NOLOG
   log_level: 4

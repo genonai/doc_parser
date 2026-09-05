@@ -1,3 +1,12 @@
+# 파싱용 전처리기 설정 — **간소 프로필**
+#
+# 정식 설정(parser_processor_config.yaml)에서 사이트가 실제로 손대는 키만 남긴 판입니다.
+# 여기 없는 키는 코드 기본값으로 안전하게 폴백합니다. 세부 옵션이 필요해지면 정식 설정을
+# 복사해 쓰세요.
+#
+#   설정으로 어디까지 되는지 / 코드는 어디를 고치는지  → gitbook_doc/parser_processor.md
+#   문서유형(doc_type) 설정                          → resource/templates/custom_field_TEMPLATE_*.yaml
+#
 defaults:
   # 5=DEBUG, 4=INFO, 3=WARNING, 2=ERROR, 1=CRITICAL, 0=NOLOG
   log_level: 4
