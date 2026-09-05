@@ -571,7 +571,7 @@ class TestExportTableContent:
         # 표 markdown 은 공용 관문을 거친다 - 링크 URL 억제가 여기 한 벌로 걸린다.
         item = _make_table_item()
         doc = MagicMock()
-        with patch("facade.parser_processor.export_markdown", return_value="| a |") as em:
+        with patch("genon.preprocessor.facade.serialize.parse_format.export_markdown", return_value="| a |") as em:
             result = DocumentProcessor._export_table_content(
                 item, doc, table_format="markdown", compact_tables=False
             )
@@ -582,7 +582,7 @@ class TestExportTableContent:
     def test_markdown_format_passes_compact_tables_through(self):
         item = _make_table_item()
         doc = MagicMock()
-        with patch("facade.parser_processor.export_markdown", return_value="| a |") as em:
+        with patch("genon.preprocessor.facade.serialize.parse_format.export_markdown", return_value="| a |") as em:
             DocumentProcessor._export_table_content(item, doc, table_format="markdown")
         assert em.call_args.kwargs["compact_tables"] is True
 
@@ -644,7 +644,7 @@ class TestDoclingToContent:
     def test_markdown_format_with_markdown_table_uses_shared_export_markdown(self):
         proc = _make_proc_with_format("markdown", "markdown")
         doc = MagicMock()
-        with patch("facade.parser_processor.export_markdown",
+        with patch("genon.preprocessor.facade.serialize.parse_format.export_markdown",
                    return_value="# heading\n| a | b |") as em:
             result = proc._docling_to_content(doc)
         em.assert_called_once()
@@ -655,7 +655,7 @@ class TestDoclingToContent:
         proc = _make_proc_with_format("markdown", "html")
         doc = MagicMock()
         doc.iterate_items.return_value = []
-        with patch("facade.parser_processor.export_markdown",
+        with patch("genon.preprocessor.facade.serialize.parse_format.export_markdown",
                    return_value="# heading\n| a | b |") as em:
             result = proc._docling_to_content(doc)
         em.assert_called_once()

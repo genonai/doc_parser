@@ -21,25 +21,13 @@ from langchain_community.document_loaders import (
 )
 from langchain_core.documents import Document
 
-from docling.backend.genos_hwp_backend import GenosHwpDocumentBackend
-from docling.backend.genos_msword_backend import GenosMsWordDocumentBackend
-from docling.backend.hwp_backend import HwpDocumentBackend
-from docling.backend.xml.hwpx_backend import HwpxDocumentBackend
 from docling.datamodel.base_models import InputFormat
-from docling.datamodel.document import ConversionResult
 from docling.datamodel.pipeline_options import (
     AcceleratorDevice,
     PdfPipelineOptions,
-    PipelineOptions,
     TableFormerMode,
 )
-from docling.document_converter import (
-    DocumentConverter,
-    HwpxFormatOption,
-    PdfFormatOption,
-    WordFormatOption,
-)
-from docling.pipeline.simple_pipeline import SimplePipeline
+from docling.document_converter import DocumentConverter, PdfFormatOption
 from docling.prompts.prompt_manager import LLMApiError
 from docling.utils.document_enrichment import check_document, enrich_document
 from docling.utils.llm_cache import (
@@ -54,18 +42,10 @@ from docling_core.types.doc import (
     BoundingBox,
     DocItemLabel,
     DoclingDocument,
-    PictureItem,
     ProvenanceItem,
-    TableItem,
 )
-from docling_core.types.doc.base import CoordOrigin
-from docling_core.types.doc.document import ContentLayer
-from genon.preprocessor.facade.common.markdown_export import export_markdown
 
-from genon.preprocessor.facade.enrichment.custom_fields_enricher import (
-    normalize_doc_type,
-    normalize_doc_types,
-)
+from genon.preprocessor.facade.enrichment.custom_fields_enricher import normalize_doc_type
 from genon.preprocessor.facade.enrichment.tabular_custom_fields import (
     build_tabular_custom_fields_mappers,
     claimed_row_pages,
@@ -90,15 +70,8 @@ from genon.preprocessor.facade.enrichment.page_description import (
     collect_page_texts,
     describe_pages,
 )
-from genon.preprocessor.facade.enrichment.image_description import (
-    PictureDescriptionExtractor,
-)
 from genon.preprocessor.facade.enrichment.table_text_description import (
     apply_table_description_stage,
-)
-from genon.preprocessor.facade.enrichment.table_description import (
-    TableDescriptionExtractor,
-    refined_html_to_format,
 )
 
 try:
@@ -139,9 +112,11 @@ def _handle_stage_error(exc: Exception, stage: str) -> None:
 # 구현은 facade/common/, facade/chunking/ 에 한 벌만 둔다. 여기서는 기존 이름을
 # 그대로 유지해 호출부를 건드리지 않는다. 사이트별 조정 대상 상수(구분자, 최소
 # 청크 크기, 토크나이저 경로)는 이 파일에 남아 있으므로 래퍼가 넘겨준다.
-from genon.preprocessor.facade.chunking import table_shape as ts
 from genon.preprocessor.facade.common import config_parse as cp
 from genon.preprocessor.facade.common import loaders as ld
+from genon.preprocessor.facade.common import docling_ops as dops
+from genon.preprocessor.facade.common import parser_config as pcfg
+from genon.preprocessor.facade.serialize import parse_format as pf
 from genon.preprocessor.facade.common import runtime as rt
 from genon.preprocessor.facade.common import file_probe as fp
 from genon.preprocessor.facade.common import pdf_convert as pc
@@ -164,6 +139,32 @@ _parse_optional_bool = cp.parse_optional_bool
 _parse_optional_float = cp.parse_optional_float
 _parse_optional_int = cp.parse_optional_int
 _warn_unresolved_placeholders = cp.warn_unresolved_placeholders
+
+
+def _config_error(message: str) -> "GenosServiceException":
+    """기동 시 설정 오류용 예외 팩토리. 공용 모듈이 이 facade 의 예외 클래스를 쓰게 하는 통로다."""
+    return GenosServiceException("1", message, stage="custom_fields")
+
+
+def _routing_error(message: str) -> "GenosServiceException":
+    """요청 처리 중 doc_type 매칭 오류. 기동 시 설정 오류가 아니므로 stage 를 붙이지 않는다."""
+    return GenosServiceException("1", message)
+
+
+def _guard(label: str, fn, *args, **kwargs):
+    """설정 빌더 호출을 감싸 어느 설정이 문제인지 드러낸다(구현은 common/parser_config.py)."""
+    return pcfg.guard_config(label, _config_error, fn, *args, **kwargs)
+
+
+def _build_json_records_mappers(custom_fields_cfgs: list) -> list:
+    """json_mapping/json_records/json_semantic 설정을 모두 매퍼로 만들어 합친다.
+
+    두 빌더에 전체 목록을 그대로 넘긴다 — 각 빌더가 자기 extractor 집합에 속하는 설정만
+    스스로 고른다(custom_fields_enricher.py 의 집합 분리 참고).
+    """
+    mappers: list = list(build_json_records_mappers(custom_fields_cfgs))
+    mappers.extend(build_semantic_json_mappers(custom_fields_cfgs))
+    return mappers
 
 
 def _load_config(config_path: str) -> dict:
@@ -243,15 +244,6 @@ install_packages = ld.install_packages
 # TextLoader (from attachment_processor.py)
 # ============================================================
 
-def _doc_is_html_origin(doc) -> bool:
-    """원본이 HTML 계열인가. 표 헤더 행 수 판정 규칙이 여기서 갈린다."""
-    origin = getattr(doc, "origin", None)
-    mimetype = str(getattr(origin, "mimetype", "") or "").lower()
-    filename = str(getattr(origin, "filename", "") or "").lower()
-    return mimetype in {"text/html", "application/xhtml+xml"} or filename.endswith(
-        (".html", ".htm", ".xhtml"))
-
-
 
 class TextLoader(ld.TextLoaderBase):
     pass
@@ -296,73 +288,17 @@ class IntelligentDocumentProcessor(DoclingRuntimeBase):
 
 
 # ============================================================
-# HwpDocumentLoader — HWP/HWPX 전용 (from attachment_processor.py)
-# load_documents() 메서드만 포함
+# 포맷 전용 로더 — 컨버터 조립은 facade/common/docling_ops.py 에 한 벌 있다.
+# 여기 남는 것은 이름뿐이다. 확장자를 어느 로더로 보낼지(라우팅)는 아래
+# GenericDocumentLoader.get_loader 와 DocumentProcessor 의 _parse_* 가 정한다.
 # ============================================================
 
-class HwpDocumentLoader:
-
-    def __init__(self):
-        pass
-
-    def load_documents(self, file_path: str, **kwargs: dict) -> DoclingDocument:
-        pipeline_options = PipelineOptions()
-        pipeline_options.save_images = kwargs.get('save_images', True)
-
-        use_hwp_sdk = kwargs.get('use_hwp_sdk', True)
-        pipeline_options.dump_sdk_output = kwargs.get('dump_sdk_output', False) if use_hwp_sdk else False
-
-        if use_hwp_sdk:
-            converter = DocumentConverter(
-                format_options={
-                    InputFormat.HWP: HwpxFormatOption(
-                        pipeline_options=pipeline_options,
-                        backend=GenosHwpDocumentBackend
-                    ),
-                    InputFormat.XML_HWPX: HwpxFormatOption(
-                        pipeline_options=pipeline_options,
-                        backend=GenosHwpDocumentBackend
-                    ),
-                }
-            )
-        else:
-            converter = DocumentConverter(
-                format_options={
-                    InputFormat.HWP: HwpxFormatOption(
-                        pipeline_options=pipeline_options,
-                        backend=HwpDocumentBackend
-                    ),
-                    InputFormat.XML_HWPX: HwpxFormatOption(
-                        pipeline_options=pipeline_options,
-                        backend=HwpxDocumentBackend
-                    ),
-                }
-            )
-
-        conv_result: ConversionResult = converter.convert(Path(file_path).resolve(), raises_on_error=True)
-        return conv_result.document
+class HwpDocumentLoader(dops.HwpLoaderBase):
+    pass
 
 
-# ============================================================
-# DocxDocumentLoader — DOCX 전용 (from attachment_processor.py)
-# load_documents() 메서드만 포함
-# ============================================================
-
-class DocxDocumentLoader:
-
-    def __init__(self):
-        self.pipeline_options = PipelineOptions()
-        self.converter = DocumentConverter(
-            format_options={
-                InputFormat.DOCX: WordFormatOption(
-                    pipeline_cls=SimplePipeline, backend=GenosMsWordDocumentBackend
-                ),
-            }
-        )
-
-    def load_documents(self, file_path: str, **kwargs: dict) -> DoclingDocument:
-        conv_result: ConversionResult = self.converter.convert(file_path, raises_on_error=True)
-        return conv_result.document
+class DocxDocumentLoader(dops.DocxLoaderBase):
+    pass
 
 
 # ============================================================
@@ -540,11 +476,11 @@ class DocumentProcessor:
         self._xlsx_cfg = self._intel._xlsx_cfg
         self._md_cfg = self._intel._md_cfg
         self._ext_aliases = self._intel._ext_aliases
-        # enrichment.custom_fields 중 tabular_mapping handler를 시작 시 1회 로드한다.
         self._config_dir = self._intel._config_dir
-        self._tabular_custom_fields_mappers = self._build_tabular_custom_fields_mappers(
-            self._intel.custom_fields_cfgs
-        )
+        # extractor=tabular_mapping = xlsx 행별 매핑. 파싱 조기 분기(_parse_tabular_records)가 쓴다.
+        self._tabular_custom_fields_mappers = _guard(
+            "tabular_mapping", build_tabular_custom_fields_mappers,
+            self._intel.custom_fields_cfgs)
 
         defaults_cfg = _as_dict(cfg.get("defaults"))
         log_level = _parse_optional_int(defaults_cfg.get("log_level"), "defaults.log_level")
@@ -614,37 +550,31 @@ class DocumentProcessor:
         html_cfg = _as_dict(formats_cfg.get("html"))
         self._html_flatten_mode = self._normalize_flatten_mode(html_cfg.get("flatten", "auto"))
 
-        # enrichment.custom_fields 중 json 블록을 가진 설정(= .json 입력에서 본문 텍스트를
-        # 꺼낼 key 목록)을 시작 시 1회 로드한다. tabular_mapping 과 같은 패턴.
-        self._json_text_specs = self._build_json_text_specs(self._intel.custom_fields_cfgs)
-
-        # 문서 단위 custom_fields의 markdown.front_matter 설정. doc_type별로 원천 YAML의
-        # metadata 승격 필드와 청크 텍스트 제외 필드를 독립 선택한다.
-        self._markdown_front_matter_specs = self._build_markdown_front_matter_specs(
-            self._intel.custom_fields_cfgs
-        )
-
-        # 문서 단위 custom_fields의 markdown.text_fence 설정. PDF 레이아웃 보존용 ```text
-        # 펜스를 docling 변환 전에 논리 단위 단락으로 되돌린다(안 하면 펜스 본문 전체가
-        # CodeItem 하나가 되어 chunk_size 가 무의미해진다).
-        self._markdown_text_fence_specs = self._build_markdown_text_fence_specs(
-            self._intel.custom_fields_cfgs
-        )
-
-        # 문서 단위 custom_fields 의 html.marker_headings 설정. h태그 없이 도형 마커로만 계층을
-        # 표현하는 원천(고객센터 카드 HTML)에서 그 마커 줄을 섹션 헤더로 승격한다. 대상 doc_type
-        # 이 아니면 사유 계산 자체를 켜지 않아 다른 원천의 flatten auto 동작을 건드리지 않는다.
-        self._html_marker_heading_doc_types = self._build_html_marker_heading_doc_types(
-            self._intel.custom_fields_cfgs
-        )
+        # custom_fields 설정에서 파싱 라우팅이 참조할 spec/mapper 를 시작 시 1회 만든다.
+        # _guard 로 감싸는 이유: 설정 오류가 raw 예외로 __init__ 을 뚫고 나가면 서비스
+        # import 자체가 죽고 어느 yaml 이 문제인지도 드러나지 않는다.
+        cf_cfgs = self._intel.custom_fields_cfgs
+        # `json:` 블록 = .json 입력에서 본문 텍스트를 꺼낼 key 목록.
+        self._json_text_specs = _guard("json", pcfg.build_json_text_specs, cf_cfgs)
+        # markdown.front_matter = 원천 YAML 머리말의 metadata 승격 필드와 청크 텍스트 제외 필드.
+        self._markdown_front_matter_specs = _guard(
+            "markdown.front_matter", build_markdown_front_matter_specs, cf_cfgs)
+        # markdown.text_fence = PDF 레이아웃 보존용 ```text 펜스를 논리 단락으로 되돌린다
+        # (안 하면 펜스 본문 전체가 CodeItem 하나가 되어 chunk_size 가 무의미해진다).
+        self._markdown_text_fence_specs = _guard(
+            "markdown.text_fence", build_markdown_text_fence_specs, cf_cfgs)
+        # html.marker_headings = h태그 없이 도형 마커로만 계층을 표현하는 원천에서 그 마커
+        # 줄을 섹션 헤더로 승격한다. 대상 doc_type 이 아니면 사유 계산 자체를 켜지 않는다.
+        self._html_marker_heading_doc_types = _guard(
+            "html.marker_headings", build_html_marker_heading_doc_types, cf_cfgs)
         # 같은 원문이 md 로도 온다. 판정 규칙은 converters 쪽에서 공유하므로 스위치만 나란히 둔다.
-        self._markdown_marker_heading_doc_types = self._build_marker_heading_doc_types(
-            build_markdown_marker_heading_doc_types, self._intel.custom_fields_cfgs, "markdown"
-        )
-
-        # enrichment.custom_fields 중 extractor=json_mapping 설정(= JSON 레코드 → 목표필드
-        # 매핑). 문서 모드(json:)보다 우선하며, 레코드마다 청크 메타데이터를 따로 싣는다.
-        self._json_records_mappers = self._build_json_records_mappers(self._intel.custom_fields_cfgs)
+        self._markdown_marker_heading_doc_types = _guard(
+            "markdown.marker_headings", build_markdown_marker_heading_doc_types, cf_cfgs)
+        # extractor=json_mapping / json_semantic = JSON 레코드 → 목표필드 매핑.
+        # 문서 모드(json:)보다 우선하며, 레코드마다 청크 메타데이터를 따로 싣는다.
+        # 빌더 둘에 전체 목록을 그대로 넘긴다 — 각자 자기 extractor 집합만 골라 간다.
+        self._json_records_mappers = _guard(
+            "json_mapping/json_semantic", _build_json_records_mappers, cf_cfgs)
         # json_mapping/tabular_mapping 이 선언한 LLM 생성 필드용 enricher(설정 파일당 1개).
         # 설정/프롬프트 파일 오류가 첫 요청이 아니라 기동 시 드러나도록 여기서 미리 만든다.
         self._llm_field_enrichers: dict = {}
@@ -675,147 +605,23 @@ class DocumentProcessor:
             return "auto"
         return mode
 
-    @staticmethod
-    def _build_json_text_specs(custom_fields_cfgs: list) -> list:
-        """custom_fields 설정 중 `json:` 블록을 가진 것만 JsonTextSpec 으로 만든다."""
-        from genon.preprocessor.converters.json_text import JsonTextSpec
-
-        specs = []
-        for config in custom_fields_cfgs or []:
-            json_cfg = _as_dict(config.get("json"))
-            if not json_cfg:
-                continue
-            doc_types = normalize_doc_types(config.get("doc_type"))
-            try:
-                specs.append(JsonTextSpec(json_cfg, doc_types))
-            except ValueError as exc:
-                raise GenosServiceException(
-                    "1", f"custom_fields.json 설정 오류: {exc}", stage="custom_fields"
-                ) from exc
-        return specs
-
-    @staticmethod
-    def _build_markdown_front_matter_specs(custom_fields_cfgs: list) -> list:
-        try:
-            return build_markdown_front_matter_specs(custom_fields_cfgs)
-        except (ValueError, TypeError) as exc:
-            raise GenosServiceException(
-                "1", f"custom_fields markdown.front_matter 설정 오류: {exc}",
-                stage="custom_fields",
-            ) from exc
-
-    @staticmethod
-    def _build_markdown_text_fence_specs(custom_fields_cfgs: list) -> list:
-        try:
-            return build_markdown_text_fence_specs(custom_fields_cfgs)
-        except (ValueError, TypeError) as exc:
-            raise GenosServiceException(
-                "1", f"custom_fields markdown.text_fence 설정 오류: {exc}",
-                stage="custom_fields",
-            ) from exc
-
-    @staticmethod
-    def _build_marker_heading_doc_types(builder, custom_fields_cfgs: list, fmt: str) -> frozenset:
-        try:
-            return builder(custom_fields_cfgs)
-        except (ValueError, TypeError, FileNotFoundError) as exc:
-            raise GenosServiceException(
-                "1", f"custom_fields {fmt} 설정 오류: {exc}", stage="custom_fields"
-            ) from exc
-
-    @classmethod
-    def _build_html_marker_heading_doc_types(cls, custom_fields_cfgs: list) -> frozenset:
-        return cls._build_marker_heading_doc_types(
-            build_html_marker_heading_doc_types, custom_fields_cfgs, "html"
-        )
-
-    @staticmethod
-    def _build_tabular_custom_fields_mappers(custom_fields_cfgs: list) -> list:
-        """custom_fields 설정 중 extractor=tabular_mapping 만 매퍼로 만든다.
-
-        json 쪽과 같이 감싸는 이유: 감싸지 않으면 설정 오류가 raw 로 __init__ 을 뚫고 나가
-        **서비스 import 자체가 죽는다**(어느 설정이 문제인지도 드러나지 않는다).
-        TypeError 도 잡는다 — `constants: 5` 처럼 dict() 강제 변환이 TypeError 를 내는 경우가 있다.
-        """
-        try:
-            return build_tabular_custom_fields_mappers(custom_fields_cfgs)
-        except (ValueError, TypeError, FileNotFoundError) as exc:
-            raise GenosServiceException(
-                "1", f"custom_fields tabular_mapping 설정 오류: {exc}", stage="custom_fields"
-            ) from exc
-
-    @staticmethod
-    def _build_json_records_mappers(custom_fields_cfgs: list) -> list:
-        """custom_fields 설정 중 JSON 레코드/의미 계열(json_mapping/json_records/json_semantic)을
-        모두 매퍼로 만들어 합친다. tabular 와 같은 패턴이되, 두 빌더에 전체 목록을 그대로
-        넘긴다 — 각 빌더가 자기 extractor 집합(json_records.JSON_RECORD_EXTRACTORS /
-        json_semantic.JSON_SEMANTIC_EXTRACTORS)에 속하는 설정만 스스로 고른다
-        (custom_fields_enricher.py 의 집합 분리 참고). 여기서 미리 걸러줄 필요가 없다.
-        """
-        try:
-            mappers: list = list(build_json_records_mappers(custom_fields_cfgs))
-            mappers.extend(build_semantic_json_mappers(custom_fields_cfgs))
-            return mappers
-        except (ValueError, TypeError, FileNotFoundError) as exc:
-            raise GenosServiceException(
-                "1", f"custom_fields json_mapping/json_semantic 설정 오류: {exc}", stage="custom_fields"
-            ) from exc
-
     def _json_records_mappers_for(self, runtime_doc_type: Any) -> list:
-        """런타임 doc_type 에 매칭되는 json_mapping 매퍼 **목록**. 없으면 빈 목록.
-
-        한 파일에 성격이 다른 배열이 여럿 오는 원천(`faqList` + `noticeList`)을 다루려면
-        매퍼가 여러 개여야 한다. 다만 실수로 같은 설정을 두 번 등록한 것과 구분해야 하므로
-        **`records` 키가 서로 달라야** 의도적인 것으로 본다 — 같거나 둘 다 없으면 어느
-        매퍼가 무엇을 맡는지 알 수 없어 종전처럼 거부한다.
-        """
-        matching = [m for m in self._json_records_mappers if m.matches(runtime_doc_type)]
-        if len(matching) > 1:
-            # 이 목록에는 json_semantic 매퍼도 섞여 있다(빌더 둘의 결과를 합쳐 담는다).
-            # 그쪽은 records_key 가 없으므로 getattr 로 견딘다 — 그리고 키가 None 이면
-            # 무엇을 맡는지 알 수 없으니 아래에서 거부된다(semantic 은 1파일=1대상이라
-            # 다른 매퍼와 섞이는 것 자체가 모호하다).
-            keys = [getattr(m, "records_key", None) for m in matching]
-            if len(set(keys)) != len(keys) or None in keys:
-                raise GenosServiceException(
-                    "1",
-                    f"동일 doc_type 에 json_mapping 설정이 여러 개인데 records 키가 겹칩니다"
-                    f"({runtime_doc_type}, records={keys}). 배열마다 다른 records 키를 주거나"
-                    f" 설정 하나를 지우세요.",
-                )
-        return matching
+        return pcfg.json_records_mappers_for(
+            self._json_records_mappers, runtime_doc_type, _routing_error)
 
     def _json_text_spec_for(self, runtime_doc_type: Any):
         """런타임 doc_type 에 매칭되는 json 설정. 없으면 None(기존 경로 폴백)."""
-        return self._single_json_match(
-            [
-                spec for spec in self._json_text_specs
-                if not spec.doc_types or normalize_doc_type(runtime_doc_type) in spec.doc_types
-            ],
-            runtime_doc_type,
-            "json",
-        )
+        return self._single_json_match(self._json_text_specs, runtime_doc_type, "json")
 
     def _markdown_front_matter_spec_for(self, runtime_doc_type: Any):
         return self._single_json_match(
-            [
-                spec for spec in self._markdown_front_matter_specs
-                if spec.matches(runtime_doc_type)
-            ],
-            runtime_doc_type,
-            "markdown.front_matter",
-        )
+            [s for s in self._markdown_front_matter_specs if s.matches(runtime_doc_type)],
+            runtime_doc_type, "markdown.front_matter", filtered=True)
 
     def _markdown_text_fence_spec_for(self, runtime_doc_type: Any):
         """런타임 doc_type 에 매칭되는 text_fence 설정. 없으면 None(전처리 없이 파싱)."""
         return self._single_json_match(
-            [
-                spec for spec in self._markdown_text_fence_specs
-                if not spec.doc_types or normalize_doc_type(runtime_doc_type) in spec.doc_types
-            ],
-            runtime_doc_type,
-            "markdown.text_fence",
-        )
+            self._markdown_text_fence_specs, runtime_doc_type, "markdown.text_fence")
 
     def _html_marker_headings_enabled(self, runtime_doc_type: Any) -> bool:
         """런타임 doc_type 이 마커 승격 대상인지."""
@@ -826,14 +632,10 @@ class DocumentProcessor:
         return normalize_doc_type(runtime_doc_type) in self._markdown_marker_heading_doc_types
 
     @staticmethod
-    def _single_json_match(matching: list, runtime_doc_type: Any, label: str):
-        """doc_type 매칭 결과가 1개 이하인지 확인하고 반환한다(중복 설정은 즉시 실패)."""
-        if len(matching) > 1:
-            raise GenosServiceException(
-                "1",
-                f"동일 doc_type에 {label} custom_fields 설정이 여러 개입니다: {runtime_doc_type}",
-            )
-        return matching[0] if matching else None
+    def _single_json_match(specs, runtime_doc_type: Any, label: str, filtered: bool = False):
+        """doc_type 으로 고르고, 매칭이 1개 이하인지 확인한다(중복 설정은 즉시 실패)."""
+        matching = specs if filtered else pcfg.specs_for_doc_type(specs, runtime_doc_type)
+        return pcfg.single_match(matching, runtime_doc_type, label, _routing_error)
 
     # ------------------------------------------------------------------
     # 포맷별 파싱 메서드
@@ -1483,305 +1285,31 @@ class DocumentProcessor:
         return document
 
     # ------------------------------------------------------------------
-    # 직렬화 헬퍼
+    # 직렬화 — 구현은 facade/serialize/parse_format.py 에 한 벌 있다.
+    # 여기 남는 래퍼는 단위 테스트가 클래스 경유로 부르고(patch.object 로 갈아끼운다)
+    # 응답 조립(_build_docling_response)이 self 를 통해 부르기 때문이다.
     # ------------------------------------------------------------------
 
-    @staticmethod
-    def _get_normalized_coords(
-        bbox, page_w: float, page_h: float
-    ) -> list:
-        """BoundingBox → 정규화된 4-코너 좌표 ([top-left, top-right, bottom-right, bottom-left])."""
-        if bbox.coord_origin != CoordOrigin.TOPLEFT:
-            bbox = bbox.to_top_left_origin(page_h)
-        l = round(bbox.l / page_w, 4)
-        t = round(bbox.t / page_h, 4)
-        r = round(bbox.r / page_w, 4)
-        b = round(bbox.b / page_h, 4)
-        return [
-            {"x": l, "y": t},
-            {"x": r, "y": t},
-            {"x": r, "y": b},
-            {"x": l, "y": b},
-        ]
-
-    @staticmethod
-    def _item_to_html(item, element_id: int, doc: DoclingDocument) -> str:
-        """DocItem → element 수준 HTML 문자열."""
-        label_value = item.label.value if hasattr(item.label, "value") else str(item.label)
-
-        if isinstance(item, TableItem):
-            return item.export_to_html(doc=doc) or f"<table id='{element_id}'></table>"
-
-        if isinstance(item, PictureItem):
-            return f"<figure id='{element_id}'></figure>"
-
-        text = (getattr(item, "text", "") or "").replace("\n", "<br>")
-
-        if label_value == "title":
-            return f"<h1 id='{element_id}'>{text}</h1>"
-
-        if label_value == "section_header":
-            level = max(1, min(getattr(item, "level", 1), 6))
-            return f"<h{level} id='{element_id}'>{text}</h{level}>"
-
-        if label_value == "list_item":
-            return f"<p id='{element_id}' data-category='list'>{text}</p>"
-
-        return f"<p id='{element_id}' data-category='{label_value}'>{text}</p>"
-
-    @staticmethod
-    def _export_table_content(
-        item: TableItem, doc: DoclingDocument, table_format: str = "html",
-        compact_tables: bool = True,
-    ) -> str:
-        """TableItem을 지정한 포맷으로 변환. auto 면 그 표의 구조를 보고 고른다.
-
-        청커도 같은 analyze_grid/resolve_table_format 을 쓰므로, 같은 표가 파서 출력과
-        청크에서 다른 형식으로 나가지 않는다.
-        """
-        table_format = ts.resolve_table_format(
-            table_format, ts.analyze_grid(
-                getattr(getattr(item, "data", None), "grid", None),
-                getattr(getattr(item, "data", None), "num_cols", 0),
-                is_html_origin=_doc_is_html_origin(doc),
-            ),
-        )
-        try:
-            if table_format == "markdown":
-                # compact_tables 는 컬럼 정렬 패딩을 없애 대형 표 markdown 크기를 줄인다.
-                text = export_markdown(doc, item=item, compact_tables=compact_tables)
-            else:
-                text = item.export_to_html(doc=doc)
-            if text and text.strip():
-                return text
-        except Exception:
-            pass
-
-        try:
-            if item.data and item.data.table_cells:
-                parts = []
-                for cell in item.data.table_cells:
-                    value = getattr(cell, "text", "")
-                    if value and str(value).strip():
-                        parts.append(str(value).strip())
-                if parts:
-                    return " ".join(parts)
-        except Exception:
-            pass
-
-        return getattr(item, "text", "") or ""
-
-    @staticmethod
-    def _docling_sheet_prefix(item, doc) -> str:
-        """xlsx docling 표의 부모 그룹(name='sheet: X')에서 시트명을 뽑아 '시트명: X\\n' 접두 생성.
-        시트 그룹이 없으면 '' 반환(비-xlsx 문서엔 실질 미적용)."""
-        try:
-            parent = item.parent.resolve(doc) if getattr(item, "parent", None) else None
-            name = getattr(parent, "name", None)
-        except Exception:
-            name = None
-        if not name:
-            return ""
-        if name.startswith("sheet: "):
-            name = name[len("sheet: "):]
-        name = name.strip()
-        return f"시트명: {name}\n" if name else ""
-
-    @staticmethod
-    def _docling_to_parse_format(doc: DoclingDocument, table_format: str = "html",
-                                 compact_tables: bool = True) -> dict:
-        """DoclingDocument → sample_result.json 호환 출력 포맷."""
-        elements = []
-        element_id = 0
-        default_page_no = 1
-        try:
-            if getattr(doc, "pages", None):
-                default_page_no = min(doc.pages.keys())
-        except Exception:
-            default_page_no = 1
-
-        for item, _ in doc.iterate_items(
-            included_content_layers={ContentLayer.BODY, ContentLayer.FURNITURE}
-        ):
-            prov_list = getattr(item, "prov", None) or []
-            prov = prov_list[0] if len(prov_list) > 0 else None
-
-            page_no = getattr(prov, "page_no", None)
-            if not isinstance(page_no, int) or page_no <= 0:
-                page_no = default_page_no
-
-            coordinates = []
-            if prov is not None:
-                try:
-                    page_info = doc.pages.get(page_no)
-                    if page_info is None or page_info.size is None:
-                        raise ValueError("no page size")
-                    page_w = page_info.size.width
-                    page_h = page_info.size.height
-                    coordinates = DocumentProcessor._get_normalized_coords(prov.bbox, page_w, page_h)
-                except Exception:
-                    coordinates = []
-
-            label_value = item.label.value if hasattr(item.label, "value") else str(item.label)
-            # if label_value == "section_header":
-            #     level = max(1, min(getattr(item, "level", 1), 6))
-            #     category = f"heading{level}"
-
-            # html = DocumentProcessor._item_to_html(item, element_id, doc)
-            if isinstance(item, TableItem):
-                text = DocumentProcessor._export_table_content(
-                    item=item,
-                    doc=doc,
-                    table_format=table_format,
-                    compact_tables=compact_tables,
-                )
-                sheet_prefix = DocumentProcessor._docling_sheet_prefix(item, doc)
-                # refine ON 이면 재구성 HTML 로 표 본체 교체, 요약이 있으면 항상 병기.
-                refined_html = TableDescriptionExtractor.extract_refined_html(item)
-                table_summary = TableDescriptionExtractor.extract_summary(item)
-                if refined_html:
-                    # refine 은 항상 HTML 로 재구성 → output table_format 에 맞춰 변환(markdown 등).
-                    text = sheet_prefix + refined_html_to_format(refined_html, table_format, compact_tables)
-                else:
-                    # xlsx docling 표면 시트명 접두 추가(비-xlsx 는 "" 라 영향 없음).
-                    text = sheet_prefix + text
-                if table_summary:
-                    text = text + "\n---\n[표 설명]\n" + table_summary
-            else:
-                text = getattr(item, "text", "") or ""
-
-            element = {
-                "category": label_value,
-                # "content": {"html": html, "markdown": "", "text": text},
-                "content": text,
-                "coordinates": coordinates,
-                "id": element_id,
-                "page": page_no,
-            }
-            if isinstance(item, PictureItem):
-                image_description = PictureDescriptionExtractor.extract(item)
-                if image_description:
-                    # 최종 소비계층에서 별도 필드 매핑 없이 바로 활용할 수 있도록
-                    # picture 의 content 를 이미지 설명 텍스트로 채운다.
-                    element["content"] = image_description
-
-            elements.append(element)
-            element_id += 1
-
-        # full_html = "\n".join(e["content"]["html"] for e in elements)
-
-        return {
-            # "content": {"html": full_html, "markdown": "", "text": ""},
-            "elements": elements,
-            # "model": "genonai-parser",
-            "usage": {"pages": DocumentProcessor._docling_page_count(doc)},
-        }
-
-    @staticmethod
-    def _serialize_docling_document(doc: DoclingDocument) -> dict:
-        """DoclingDocument를 JSON 직렬화 가능한 dict로 변환."""
-        try:
-            # pydantic v2 호환 방식 (enum/datetime 등 JSON-safe 변환 포함)
-            return doc.model_dump(mode="json")
-            # return doc.export_to_dict()
-        except Exception:
-            try:
-                # model_dump가 호환되지 않을 때 문자열 JSON을 다시 dict로 복원
-                return json.loads(doc.model_dump_json())
-            except Exception:
-                # 최후 폴백: docling 기본 export
-                return doc.export_to_dict()
-
-    @staticmethod
-    def _replace_markdown_tables_with_html(doc: DoclingDocument, markdown_text: str) -> str:
-        """Markdown 문자열의 테이블 블록을 순차적으로 HTML 테이블로 치환."""
-        if not markdown_text:
-            return markdown_text
-
-        out = markdown_text
-        for item, _ in doc.iterate_items(
-            included_content_layers={ContentLayer.BODY, ContentLayer.FURNITURE}
-        ):
-            if not isinstance(item, TableItem):
-                continue
-
-            try:
-                md_table_raw = export_markdown(doc, item=item)
-                html_table = item.export_to_html(doc=doc)
-            except Exception:
-                continue
-
-            if not md_table_raw or not html_table:
-                continue
-
-            md_table = md_table_raw.strip()
-            if not md_table:
-                continue
-
-            idx = out.find(md_table)
-            if idx >= 0:
-                out = out[:idx] + html_table + out[idx + len(md_table):]
-            else:
-                idx_raw = out.find(md_table_raw)
-                if idx_raw >= 0:
-                    out = out[:idx_raw] + html_table + out[idx_raw + len(md_table_raw):]
-
-        return out
+    _get_normalized_coords = staticmethod(pf.get_normalized_coords)
+    _export_table_content = staticmethod(pf.export_table_content)
+    _docling_sheet_prefix = staticmethod(pf.docling_sheet_prefix)
+    _docling_to_parse_format = staticmethod(pf.docling_to_parse_format)
+    _serialize_docling_document = staticmethod(pf.serialize_docling_document)
+    _replace_markdown_tables_with_html = staticmethod(pf.replace_markdown_tables_with_html)
+    _docling_page_count = staticmethod(pf.docling_page_count)
+    _normalize_response = staticmethod(pf.normalize_response)
+    _content_response = staticmethod(pf.content_response)
+    _audio_to_parse_format = staticmethod(pf.audio_to_parse_format)
+    _tabular_to_parse_format = staticmethod(pf.tabular_to_parse_format)
+    _langchain_to_parse_format = staticmethod(pf.langchain_to_parse_format)
 
     def _docling_to_content(self, doc: DoclingDocument) -> str:
         """DoclingDocument를 output.format에 따라 content 문자열로 변환."""
-        output_format = getattr(self, "_output_format", "json")
-        table_format = getattr(self, "_table_format", "html")
-        layers = {ContentLayer.BODY, ContentLayer.FURNITURE}
-
-        if output_format == "html":
-            return doc.export_to_html(included_content_layers=layers)
-
-        if output_format == "markdown":
-            markdown_text = export_markdown(doc, included_content_layers=layers)
-            if table_format == "html":
-                return self._replace_markdown_tables_with_html(doc, markdown_text)
-            return markdown_text
-
-        return ""
-
-    @staticmethod
-    def _docling_page_count(doc: DoclingDocument) -> int:
-        """DoclingDocument 의 페이지 수. 페이지 개념이 없는 백엔드는 1 로 센다.
-
-        docling HTML 백엔드는 브라우저 렌더링을 켠 경우에만 doc.pages 를 채우므로 평소엔 0 이다.
-        raw HTML 블록이 섞인 md 도 md_backend 가 HTML 백엔드로 위임하면서(page 1 스텁이 버려진다)
-        같은 상태가 된다. 내용이 있는 문서를 0페이지로 내보내면 소비계층의 페이지 기반 계산이
-        전부 무너지므로 1 로 올린다. 진짜 빈 문서는 0 을 유지한다.
-        """
-        try:
-            pages = int(doc.num_pages())
-        except Exception:
-            pages = 0
-        if pages >= 1:
-            return pages
-        try:
-            has_content = next(doc.iterate_items(), None) is not None
-        except Exception:
-            has_content = False
-        return 1 if has_content else 0
-
-    @staticmethod
-    def _normalize_response(result: dict) -> dict:
-        """응답에 content / elements / usage 키가 항상 존재하도록 보장."""
-        result.setdefault("content", "")
-        result.setdefault("elements", [])
-        result.setdefault("usage", {"pages": 0})
-        return result
-
-    @staticmethod
-    def _content_response(content: str, pages: int = 0) -> dict:
-        """content 전용 출력 포맷."""
-        return {
-            "elements": [],
-            "usage": {"pages": pages},
-            "content": content,
-        }
+        return pf.docling_to_content(
+            doc,
+            getattr(self, "_output_format", "json"),
+            getattr(self, "_table_format", "html"),
+        )
 
     def _build_docling_response(self, doc: DoclingDocument, clear_coordinates: bool = False, **kwargs) -> dict:
         """Docling 경로의 최종 응답 생성.
@@ -1825,50 +1353,6 @@ class DocumentProcessor:
             if infos:
                 resp["sensitive_infos"] = infos
         return resp
-
-    @staticmethod
-    def _audio_to_parse_format(text: str) -> dict:
-        """전사 텍스트 → parse format."""
-        return {
-            "elements": [
-                {
-                    "category": "paragraph",
-                    "content": text,
-                    "coordinates": [],
-                    "id": 0,
-                    "page": 1,
-                }
-            ],
-            "usage": {"pages": 1},
-        }
-
-    @staticmethod
-    def _tabular_to_parse_format(data_dict: dict) -> dict:
-        """tabular data_dict(converters.xlsx_processor 산출) → 행별 parse format."""
-        from genon.preprocessor.converters.xlsx_processor import tabular_data_to_parse_format
-
-        return tabular_data_to_parse_format(data_dict)
-
-    @staticmethod
-    def _langchain_to_parse_format(docs: list) -> dict:
-        """LangChain Document 목록 → parse format."""
-        elements = []
-        for idx, doc in enumerate(docs):
-            page = doc.metadata.get("page", idx)
-            if isinstance(page, int):
-                page = page + 1  # 0-based → 1-based
-            elements.append({
-                "category": "paragraph",
-                "content": doc.page_content,
-                "coordinates": [],
-                "id": idx,
-                "page": page,
-            })
-        num_pages = max((e["page"] for e in elements), default=0)
-        return {
-            "elements": elements,
-            "usage": {"pages": num_pages},
-        }
 
     def setup_logging(self, level_num: int):
         rt.setup_logging(level_num)
