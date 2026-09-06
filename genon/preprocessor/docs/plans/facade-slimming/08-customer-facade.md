@@ -92,6 +92,19 @@ git apply my_change.patch
 절차는 [`gitbook_doc/facade_hooks.md`](../../../facade/gitbook_doc/facade_hooks.md) 의
 "릴리스 갱신 때 내 수정분 지키기" 절에 넣었다.
 
+**`main.py` 로 실제로 돌려 확인했다.** `examples/code_serving/local_main_test.sh` 를
+신설했다 — FastAPI TestClient 로 앱을 직접 호출하므로 네트워크가 필요 없고, 프로세서 5종
+생성과 라우팅·예외 핸들러를 전부 실제로 태운다. 표 경로(xlsx → elements 2건 → 청크 2건,
+`doc_type` 스탬프)와 docling 경로(md → document → 청크 1건, `HEADER:` 접두) 둘 다 통과한다.
+
+그 과정에서 **로컬에서 `main.py` 를 올릴 때 걸리는 것 셋**을 확인했다.
+
+| 걸림 | 이유 | 처리 |
+|---|---|---|
+| `POD_ID` 등 필수 설정 17개 | `common.settings` 가 MQ·MinIO 접속 정보를 필수로 요구하고 그 값은 `genon/env/.env.<profile>` 에서 온다(**저장소에 없다**) | 스크립트가 더미로 채운다 |
+| `LOG_PATH` | `list[str]` 이라 env 로 줄 때 JSON 배열이어야 한다 | `json.dumps([...])` |
+| `PREPROCESSOR_ID` | 값이 있으면 `main.py` 가 MinIO 에서 `/app/resource` 로 리소스를 내려받는다. 로컬에 `/app` 이 없다 | **주지 않는다** |
+
 **07-C 서술도 정정했다.** "한 서빙이 파싱과 청킹을 둘 다 할 수 없다" 는 facade 한 개만
 `preprocessor.py` 로 마운트하는 형태에만 해당한다. `main.py` 형태는 한 서빙이 둘 다 한다.
 
