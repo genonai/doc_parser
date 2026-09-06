@@ -424,6 +424,34 @@ D7 에서 A3(고객 소유 파일을 배포 범위에서 분리)를 골랐다. �
   안 바뀐 릴리스는 "없음" 이고, 그때 고객은 아무것도 안 해도 된다.
 - 훅은 **고정 API** 로 취급한다(D7 의 대가). 시그니처를 바꾸면 모든 사이트의 파일이 깨진다.
 
+### 고객 문서 — 개발 매뉴얼 최신화
+
+`code_serving_dev_manual.md`(2,447 → 2,608줄). 04 가 지적한 낡은 좌표는 이미 걷혔지만
+08 의 구조 변경이 반영돼 있지 않았다.
+
+| 절 | 갱신 |
+|---|---|
+| 5.1 코드 지도 | `facade/core/` 추가. parser·chunker 를 "표면(92/100줄)" 로 |
+| 5.4 parser 읽기 | 파일 구획 표를 훅·`ROUTES` 기준으로 재작성. 로더·런타임·예외의 새 위치 표 추가. `_route_*` → `route_*` |
+| 5.5 chunker 읽기 | `GenOSVectorMeta`·`GenosSmartChunker`·훅 기준으로 재작성. `VECTOR_META`/`CHUNKER` 를 facade 가 반드시 정한다는 사실 명시 |
+| 5.8 복제 범위 | parser·chunker 본체가 한 벌로 모인 것 반영. `GenosSmartChunker` 사본 3곳 명시 |
+| **7.2 (h)** | **신설** — 확장 훅 레시피. 레시피 (a)~(h) 목차도 추가 |
+| 부록 D | `chunking_processor.md`·`facade_hooks.md` 링크 |
+
+**7.2 (h) 는 실제 doc_type(`monimo_event`)의 변형 2가지를 실측으로 담았다.** 원천은
+`sample_files/drill/e1_nested_by_company.json`·`e2_detail_joined.json` 이다.
+
+| 변형 | 훅 없이 | 훅 적용 후 |
+|---|---|---|
+| ① 관계사별 2단 중첩 | 3건 중 **2건만** 청크. `GROUP_C` 전부 기본값 `IFP` | **3건**. `HPP`/`HPP`/`SSF` |
+| ② 목록·상세 분리(`cmpId` 조인) | `DETAIL_TEXT` 전부 빈 값 → 본문이 제목만 | `## 해외 여행자보험 **30%** 할인` |
+
+**둘 다 에러가 나지 않는다** — 산출을 열어 보지 않으면 모른다. 그 사실을 예시의 핵심으로
+적었다. 훅은 각각 6줄·5줄이고, "훅이 하는 일은 값을 만드는 것이 아니라 **설정이 값을 찾을 수
+있는 모양으로 되돌리는 것**" 이라는 원칙을 두 예시가 함께 보여준다.
+
+드릴 러너에는 넣지 않았다 — 훅 없이는 실패가 정상 상태라 상시 실패 케이스가 된다.
+
 ### 고객 문서
 
 [`gitbook_doc/facade_hooks.md`](../../../facade/gitbook_doc/facade_hooks.md) 를 신설했다.
