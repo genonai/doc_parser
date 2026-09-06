@@ -53,6 +53,34 @@
         return data
 ```
 
+### 새 확장자를 받으려면 — ROUTES 한 줄
+
+`route_*` 메서드를 새로 만들 필요는 없습니다. `pre_source` 가 원천을 **이미 처리할 수 있는
+포맷으로 바꿔** 그 핸들러에 태우면 됩니다. `.md` `.html` `.json` 표 파일 말고 다른 확장자는
+`pre_source` 가 **파일 경로**를 받고 `work_dir`(요청이 끝나면 정리되는 임시 디렉터리)을
+함께 받으므로, 거기에 변환 결과를 쓰고 그 경로를 돌려주면 됩니다.
+
+```python
+    ROUTES = (((".xml",), "route_json"),        # 표 맨 앞에 두 줄
+              ((".tsv",), "route_tabular")) + (... 기존 표 그대로 ...)
+
+    def pre_source(self, ext, doc_type, data, work_dir=None):
+        if ext == ".xml" and doc_type == "monimo_event":
+            events = [{c.tag: c.text for c in ev}
+                      for ev in ET.parse(data).getroot().find("eventList")]
+            out = os.path.join(work_dir, "converted.json")
+            json.dump({"eventList": events}, open(out, "w", encoding="utf-8"),
+                      ensure_ascii=False)
+            return out                          # 새 경로를 돌려주면 그것으로 파싱합니다
+        return data
+```
+
+실측(#363)으로 `.xml` → `monimo_event`(3청크, `GROUP_C` 정상), `.tsv` → `faq`(3청크)가
+위 방식으로 통했습니다. 등록 전에는 둘 다 1청크에 목표필드가 비어 있었습니다.
+
+**먼저 ROUTES 에 등록한 다음 시험하세요.** 등록 전에 넣으면 캐치올(`route_other`)이 받아
+결과가 달라집니다.
+
 ### 엑셀은 원하는 라이브러리로 다뤄도 됩니다
 
 2차원 행 목록, pandas·polars `DataFrame`, `list[dict]` 중 무엇으로 돌려줘도 받습니다.
@@ -93,12 +121,54 @@ API 라 그 값은 호출자용 정보로 끝납니다. `tb.set_chunk_metadata()
 
 ```python
     def pre_chunk(self, kind, data, **kwargs):
-        # kind=="docling" 이면 data 는 DoclingDocument, "parse" 면 list[dict]
+        # kind=="parse" 면 data 는 list[dict]
+        # kind=="docling" 이면 DoclingDocument 를 **직렬화한 dict** 입니다.
+        #   본문은 data["texts"][i]["text"] 로 닿습니다. data.texts 는 없습니다.
         return data
 
     def post_chunk(self, vectors, **kwargs):
-        return [v for v in vectors if v.n_char > 20]   # 너무 짧은 청크 버리기
+        kept = [v for v in vectors if v.n_char > 20]   # 너무 짧은 청크 버리기
+        return tb.refresh_stats(kept)                  # 아래 주의사항
 ```
+
+### post_chunk 에서 본문을 고치면 refresh_stats 를 부르세요
+
+`n_char`·`n_word`·`n_line` 과 청크 순번(`i_chunk_on_doc` 등)은 청킹이 끝날 때 계산됩니다.
+`post_chunk` 는 그 뒤라서, 본문을 고치거나 청크를 버려도 이 값들이 **옛 값으로 남습니다**
+(실측: 마커만 지운 훅에서 11건 중 9건의 `n_char` 가 실제 길이와 달랐습니다).
+
+```python
+tb.refresh_stats(vectors)                  # 청크를 버렸을 때 — 순번까지 다시 맞춥니다
+tb.refresh_stats(vectors, reindex=False)   # 본문만 고쳤을 때 — 통계만 고칩니다
+```
+
+## 청크 본문에서 특수문자 걷어내기
+
+RAG 검색용 정제는 **설정으로 하는 것이 기본**입니다. `chunking_processor_config.yaml` 의
+`chunking.text_cleanup` 에 규칙을 적으면 됩니다 — 코드를 고치지 않습니다.
+
+| 방식 | 정제하는 자리 | 쓰는 때 |
+|---|---|---|
+| yaml | `chunking.text_cleanup` | 전 문서 공통 |
+| `post_chunk` | 이 파일 | 특정 doc_type 만 |
+| 둘 다 | 공통은 yaml, 예외만 훅 | 대부분의 실제 사이트 |
+
+설정 규칙은 **청킹 입력**에 걸리므로 삭제가 청크 경계와 `n_char` 에 반영되고, LLM 보강이
+보는 텍스트까지 같이 깨끗해집니다. `post_chunk` 는 완성된 청크를 손보므로 그 두 이점이
+없습니다. 그래서 `text_cleanup` 이 doc_type 을 가릴 수 없을 때만 훅을 씁니다.
+
+**전부 지우면 안 됩니다.** 실측(상담 HTML 1건, 청크 11건 / 2,582자)에서 특수문자 225개 중
+지워서 이득인 것은 장식 마커(`■ ◈ ※ ☎`) 13개와 미해독 엔티티(`&gt;`) 3개뿐이었습니다.
+`|` 66개는 마크다운 표의 칸 경계이고 `[` `]` 12개는 파이프라인이 붙인 `[표 검색 설명]`
+라벨입니다 — 지우면 표와 라벨이 같이 죽습니다.
+
+원천에는 `<table>` 마크업이 261쌍 있었지만 **청크에는 남지 않습니다**(docling 이 표로
+바꿔 줍니다). 규칙은 원문이 아니라 **청크 산출을 보고** 정하세요.
+
+돌려 볼 수 있는 예시 3종이 `examples/text_cleanup/` 에 있습니다 — yaml 만 / `post_chunk` 만 /
+둘 다. 세 산출을 나란히 재고, 정제 후 마커가 0 인지와 `n_char` 가 어긋나지 않는지 단정합니다.
+
+어느 방식이든 청크 본문이 바뀌므로 **재색인이 필요합니다.**
 
 ## toolbox — 이미 있는 기능을 씁니다
 
@@ -118,6 +188,7 @@ from genon.preprocessor.facade.core import toolbox as tb
 | 텍스트 | `sanitize` `tidy` `read_text_with_fallback` |
 | md·html | `promote_markdown_marker_headings` `unfence_text` `precheck_html` `marker_heading_match` |
 | 청크 메타 | `set_chunk_metadata` + 예약 키 4개 |
+| 청크 통계 | `refresh_stats` (post_chunk 로 본문을 고쳤을 때) |
 
 ## 고쳤으면 확인합니다
 

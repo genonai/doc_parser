@@ -454,10 +454,22 @@ def check_cs_hpp_parsed_ext(chunks: list) -> list[str]:
         )
     # 마커 소제목(◈/■)이 heading 으로 승격돼야 섹션마다 청크가 갈린다. 승격이 빠지면
     # 마커가 본문 한 줄로 남아 앞뒤가 크기로만 잘린다.
-    marker_led = sum(1 for c in chunks if (c.get("text") or "").lstrip().startswith(("◈", "■", "▣")))
-    if marker_led < 3:
+    #
+    # 마커 글자 자체를 증거로 쓰지 않는다 — chunking.text_cleanup 의 출고 규칙이 장식
+    # 마커를 지우므로(#363) 승격은 그대로인데 이 단정만 깨진다(실측: 정제 전후 모두
+    # 11청크로 동일). 승격되면 섹션 제목이 청크 **첫 줄**로 올라오므로 그것을 센다.
+    def _starts_with_section_title(text: str) -> bool:
+        lines = (text or "").lstrip().splitlines()[:1]
+        if not lines:
+            return False
+        title = lines[0].lstrip("◈■▣ ").strip()
+        # 크기로만 잘린 청크의 첫 줄은 문단 한 줄이라 길다. 질문 접두(QUESTION)는 뺀다.
+        return 0 < len(title) <= 30 and not title.endswith("?")
+
+    section_led = sum(1 for c in chunks if _starts_with_section_title(c.get("text") or ""))
+    if section_led < 3:
         problems.append(
-            f"마커 소제목으로 시작하는 청크가 {marker_led}건뿐입니다(마커 heading 승격 미적용)"
+            f"섹션 제목으로 시작하는 청크가 {section_led}건뿐입니다(마커 heading 승격 미적용)"
         )
     return problems
 

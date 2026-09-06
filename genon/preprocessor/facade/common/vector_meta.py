@@ -153,3 +153,47 @@ class VectorMetaBuilderBase:
     def core_payload(self) -> dict:
         """모든 facade 가 공유하는 필드만 담은 dict. facade 고유 필드는 build() 가 더한다."""
         return {name: getattr(self, name) for name in CORE_FIELDS}
+
+
+def refresh_stats(vectors, reindex: bool = True):
+    """청크 목록의 파생 필드를 본문 기준으로 다시 계산한다(제자리 수정, 같은 목록 반환).
+
+    `post_chunk` 에서 본문을 고치거나 청크를 버리면 통계와 순번이 옛 값으로 남는다
+    (실측: 마커만 지운 훅에서 11건 중 9건의 n_char 가 실제 길이와 달랐다). 파싱·청킹
+    본체가 처음 계산할 때와 같은 식을 쓰므로 결과가 어긋나지 않는다.
+
+      통계         n_char=len, n_word=split, n_line=splitlines
+      순번         i_chunk_on_doc / n_chunk_of_doc / i_chunk_on_page / n_chunk_of_page / n_page
+
+    reindex=False 면 통계만 고친다. 청크를 버리지 않고 본문만 손봤을 때 쓴다.
+
+    순번은 0 부터 센다 — 청킹 본체의 세 경로가 모두 그렇게 쓴다. 단일 마커 청크 한 건만
+    만드는 경로는 1 부터 넣으므로, 그 산출에 reindex 를 걸면 1 이 0 으로 바뀐다.
+    """
+    items = list(vectors)
+    for item in items:
+        text = getattr(item, "text", None) or ""
+        item.n_char = len(text)
+        item.n_word = len(text.split())
+        item.n_line = len(text.splitlines())
+    if not reindex:
+        return vectors
+
+    def page_of(item):
+        return getattr(item, "i_page", None) or 1
+
+    per_page: dict = {}
+    for item in items:
+        page = page_of(item)
+        per_page[page] = per_page.get(page, 0) + 1
+    n_page = max(per_page) if per_page else 1
+    seen: dict = {}
+    for index, item in enumerate(items):
+        page = page_of(item)
+        item.i_chunk_on_doc = index
+        item.n_chunk_of_doc = len(items)
+        item.i_chunk_on_page = seen.get(page, 0)
+        item.n_chunk_of_page = per_page[page]
+        item.n_page = n_page
+        seen[page] = seen.get(page, 0) + 1
+    return vectors

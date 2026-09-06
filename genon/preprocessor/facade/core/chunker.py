@@ -617,9 +617,14 @@ class ChunkerCore:
             'i_page': 1,
             'e_page': 1,
             'n_page': 1,
-            'i_chunk_on_page': 1,
+            # 순번은 0 부터 센다 — 다른 세 경로(_chunk_text_elements 등)가 모두 그렇다.
+            # legacy 는 1 로 넣었는데, 그러면 같은 적재 테이블에 두 규약이 섞이고
+            # post_chunk 훅이 toolbox.refresh_stats 를 부를 때 값이 1 에서 0 으로
+            # 바뀌어 버린다. n_chunk_of_doc 도 이 경로만 비어 있었다.
+            'i_chunk_on_page': 0,
             'n_chunk_of_page': 1,
-            'i_chunk_on_doc': 1,
+            'i_chunk_on_doc': 0,
+            'n_chunk_of_doc': 1,
             'reg_date': datetime.now().isoformat(timespec='seconds') + 'Z',
             'chunk_bboxes': ".",
             'media_files': ".",

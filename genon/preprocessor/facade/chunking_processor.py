@@ -88,11 +88,14 @@ class DocumentProcessor(ChunkerCore):
 
     def pre_chunk(self, kind, data, **kwargs):
         """[전처리] 분할 직전. 받은 형 그대로 돌려준다.
-        kind=="docling" 이면 data 는 DoclingDocument, "parse" 면 list[dict] 다."""
+        kind=="parse" 면 data 는 list[dict], "docling" 이면 DoclingDocument 를
+        **직렬화한 dict** 다 — 본문은 data["texts"][i]["text"] 로 닿는다."""
         return data
 
     def post_chunk(self, vectors, **kwargs):
-        """[후처리] 응답 직전. list[GenOSVectorMeta] 를 손본다(필드 추가·청크 제거)."""
+        """[후처리] 응답 직전. list[GenOSVectorMeta] 를 손본다(필드 추가·청크 제거).
+        본문을 고쳤거나 청크를 버렸으면 toolbox.refresh_stats(vectors) 를 부른다 —
+        안 부르면 n_char 와 청크 순번이 옛 값으로 남는다."""
         return vectors
 
 

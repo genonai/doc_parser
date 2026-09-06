@@ -98,6 +98,14 @@ class TextLoaderBase:
             #             .replace('.txt', '.pdf')
             #             .replace('.json', '.pdf'))
             pdf_path = get_pdf_path(self.file_path, CONVERTIBLE_EXTENSIONS)
+            if os.path.abspath(pdf_path) == os.path.abspath(self.file_path):
+                # get_pdf_path 는 변환 목록에 없는 확장자에 **입력 경로를 그대로** 돌려준다.
+                # 그 경로에 write_pdf 하면 원본이 PDF 로 덮어써져 복구가 불가능하다
+                # (실측: .xml 원천 파일이 %PDF-1.7 로 바뀜). 신규 확장자를 ROUTES 에
+                # 등록하기 전에 한 번 넣어 보는 것만으로 원천이 사라지는 경로였다.
+                # 이 파생 PDF 를 읽는 소비처는 바로 아래 PyMuPDFLoader 뿐이므로
+                # 요청 임시 디렉터리로 돌린다(finally 에서 정리된다).
+                pdf_path = os.path.join(self.output_dir, 'temp.pdf')
             if HTML:
                 HTML(html_path).write_pdf(pdf_path)
                 loader = PyMuPDFLoader(pdf_path)

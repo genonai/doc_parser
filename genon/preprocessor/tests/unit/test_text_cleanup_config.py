@@ -57,11 +57,31 @@ def _init_processor(module_name: str, config_path: str):
         pytest.skip(f"DocumentProcessor init unavailable: {e}")
 
 
+# 출고 기본값. 청커만 켜져 있다(#363) — 파서+청커 배포 단위의 청크 본문을 RAG 검색용으로
+# 정제하기로 결정했다. intelligent/convert 는 각자 다른 사이트가 쓰고 재색인 시점도 다르므로
+# 건드리지 않았다. 여기서 값을 고정해 두는 이유는 기본값이 조용히 뒤집히면 재색인 없이
+# 산출이 바뀌기 때문이다.
+_SHIPPED_MODE = {
+    "intelligent_processor": "off",
+    "convert_processor": "off",
+    "chunking_processor": "safe",
+}
+
+
 @pytest.mark.parametrize("module_name", _MODULES)
-def test_shipped_default_is_off(tmp_path, module_name):
-    """출고 기본값은 off — 기존 산출물이 바뀌지 않아야 한다."""
+def test_shipped_default_mode(tmp_path, module_name):
     proc = _init_processor(module_name, _make_config(tmp_path, module_name))
-    assert proc._text_cleanup == "off"
+    assert proc._text_cleanup == _SHIPPED_MODE[module_name]
+
+
+def test_shipped_chunker_rules_strip_decorative_glyphs(tmp_path):
+    """청커 출고 설정의 규칙이 실제로 장식 마커를 지운다."""
+    from genon.preprocessor.facade.chunking import text_norm as tn
+
+    proc = _init_processor("chunking_processor", _make_config(tmp_path, "chunking_processor"))
+    rules = tn.rules_of(proc)
+    assert rules, "출고 설정에 text_cleanup 규칙이 있어야 한다"
+    assert tn.apply_rules("■ 제목\n◈ 항목\n※ 주의", rules) == "제목\n항목\n주의"
 
 
 @pytest.mark.parametrize("module_name", _MODULES)

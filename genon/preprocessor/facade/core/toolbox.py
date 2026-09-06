@@ -117,6 +117,19 @@ from genon.preprocessor.facade.common.file_probe import (
     read_text_with_fallback,   # utf-8-sig -> utf-8 -> cp949
 )
 
+
+def refresh_stats(vectors, reindex: bool = True):
+    """post_chunk 에서 본문을 고치거나 청크를 버린 뒤 통계·순번을 다시 맞춘다.
+
+    부르지 않으면 n_char/n_word/n_line 과 청크 순번이 옛 값으로 남는다
+    (실측: 마커만 지운 훅에서 11건 중 9건 불일치). 청크를 버리지 않았다면
+    reindex=False 로 통계만 고친다.
+    """
+    from genon.preprocessor.facade.common.vector_meta import refresh_stats as _refresh
+
+    return _refresh(vectors, reindex=reindex)
+
+
 __all__ = [
     "json_to_markdown", "strip_inline_html", "date_int", "date_int_flex", "html_text",
     "regex_extract", "regex_sub", "text", "text_norm", "to_int", "truncate",
@@ -127,6 +140,6 @@ __all__ = [
     "promote_markdown_marker_headings", "unfence_text",
     "marker_heading_match", "precheck_html",
     "BODY_FIELDS_KEY", "CHUNK_PREFIX_FIELDS_KEY", "FIELD_LABELS_KEY", "FIRST_CHUNK_FIELDS_KEY",
-    "set_chunk_metadata", "normalize_doc_type", "check_appendix_keywords",
+    "set_chunk_metadata", "refresh_stats", "normalize_doc_type", "check_appendix_keywords",
     "is_encrypted_pdf", "is_protected_hwp", "read_text_with_fallback",
 ]

@@ -42,7 +42,10 @@ class DocumentProcessor(ParserCore):
     #   ppt pptx            route_ppt        없음 (PDF 변환 실패는 langchain 폴백으로 끝난다)
     #   (그 밖)             route_other      없음 — 캐치올
     #
-    # 새 확장자는 이 표에 한 줄과 route_* 메서드 하나를 더한다.
+    # 새 확장자는 **이 표에 한 줄**이면 된다. route_* 를 새로 만들 필요는 없다 —
+    # pre_source 가 원천을 이미 있는 포맷으로 바꿔 그 핸들러에 태우면 된다
+    # (실측: .xml -> route_json, .tsv -> route_tabular. 레시피는 gitbook_doc/facade_hooks.md).
+    # **먼저 여기 등록한 다음 시험한다.** 등록 전에 넣으면 캐치올이 받아 결과가 달라진다.
     ROUTES = (
         ((".wav", ".mp3", ".m4a"), "route_audio"),
         ((".csv", ".xlsx", ".xlsm"), "route_tabular"),
