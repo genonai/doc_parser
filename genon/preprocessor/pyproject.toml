@@ -30,6 +30,11 @@ dependencies = [
     "watchfiles==1.1.0",
     "pika==1.3.2",
     "chardet==5.2.0",
+    # 저장소 코드가 직접 import 한다. 지금까지는 docling/unstructured 를 타고 들어오는
+    # 전이 의존이었고, 그쪽이 끊기면 조용히 깨진다(#363 08).
+    "openpyxl>=3.1.5",          # converters/xlsx_processor
+    "beautifulsoup4>=4.12",     # converters/html_flatten
+    "pandas>=2.2",              # facade 훅에서 격자를 다룰 때 쓰라고 안내한다
     'wand',
     'grpcio',
     'grpcio-tools',

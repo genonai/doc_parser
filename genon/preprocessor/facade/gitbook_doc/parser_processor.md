@@ -3,6 +3,10 @@
 > **역할:** 다양한 문서 포맷을 파싱하여 element 단위 구조화 데이터를 반환하는 전용 파서.
 > 청킹·벡터 조합은 수행하지 않습니다.
 
+> **코드를 고쳐야 할 때는** [facade_hooks.md](facade_hooks.md) 를 보세요.
+> 설정으로 안 되는 원천은 전처리기 파일의 훅(`pre_source` / `post_parse` /
+> `pre_chunk` / `post_chunk`)에서 처리합니다. 처리 본체(`facade/core/`)는 열지 않습니다.
+
 ---
 
 ## 목차

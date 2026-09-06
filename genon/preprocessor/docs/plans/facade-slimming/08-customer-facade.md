@@ -329,8 +329,8 @@ doc_type 임을 확인했다(2026-09-06).** 조사 과정에서 함께 드러난
 | 08-3b | **완료** — 훅 4개 + 인코딩 폴백 + `ChunkInput` 분해 + toolbox 29항목 | 골든 차이 0 · 유닛 40건 동일 |
 | 08-3c | **완료** — 엑셀 격자 훅 + `cli()`. facade **92 / 100줄** | 골든 차이 0 |
 | **08-B** | **완료** — 5 doc_type / 13케이스를 훅 **26줄**로 차이 0 ([결과](08-B-ablation-results.md)). `post_parse` 가 청크에 닿지 않던 구멍을 잡았다 | 합격 기준 4개 중 3개 통과, 1개 조건부 |
-| 08-4 | 신규 문서 드릴 — json(06 재실행) · xlsx · md · html | 포맷별 facade 1파일 · 30줄 이하 |
-| 08-5 | `preprocessor_template.py` · gitbook 갱신 · 릴리스 노트 규칙 | — |
+| 08-4 | **완료** — 7변형 2/7 → **7/7**, 훅 24줄([결과](08-4-format-drill-results.md)) | 포맷별 doc_type 당 1~3줄 |
+| 08-5 | **부분 완료** — `facade_hooks.md` 신설·링크, 의존성 3개 선언. A3 확정은 마운트 이름 지정 방법 확인 후 | — |
 
 08-1/08-2 는 순수 이동이라 위험이 낮다. **실질 판정은 08-B 와 08-4 다.**
 
@@ -363,6 +363,47 @@ facade 에 있고 **core 에는 사본이 없다** — `VECTOR_META: type = None
 그리고 **간접화가 테스트의 패치 지점을 바꾼다.** `test_chunk_size_config.py` 는
 `mod.GenosSmartChunker` 를 갈아 끼워 생성 인자를 훔쳐보는데, `self.CHUNKER` 를 읽게 되면
 그 패치가 안 먹는다. 실제 배선도 함께 갈아 끼우도록 고쳤다.
+
+## 08-5 — A3 배포 절차의 사실관계 (2026-09-06 실측)
+
+D7 에서 A3(고객 소유 파일을 배포 범위에서 분리)를 골랐다. 실제 배포 경로를 확인한 결과
+**07 의 전제 일부가 달랐다.**
+
+### 확인된 것
+
+1. **고객 배포는 gitea 저장소 clone 이고, 릴리스 갱신은 `.git` 을 뺀 tar 통째 갱신이다**
+   (`code_serving_dev_manual.md` 8.3). 매뉴얼이 "facade 몇 개만 골라 올리지 마세요" 라고
+   릴리스 단위 갱신을 못박고 있다.
+2. **tar 추출은 tarball 에 있는 파일만 덮어쓰고, 없는 파일은 지우지 않는다.** 즉 벤더가
+   배포하지 않는 이름의 파일은 갱신을 견딘다 — A3 가 성립할 수 있는 근거다.
+3. 벤더가 배포하는 facade 파일명은 `facade/parser_processor.py` 와
+   `facade/chunking_processor.py` 다(`sync-serving-repo.sh` whitelist = `genon` 전체).
+4. **`genon/preprocessor/src/preprocessor.py` 는 마운트 지점이 아니다.** 머리에
+   `[!!DEPRECATED!!]` 가 붙은 예시이고 "실제로는 DB의 값을 가져와서 사용한다" 고 적혀 있다.
+   07 이 이 파일을 고객 소유 대상으로 본 것은 사실과 다르다.
+5. `create-patch-bundle.sh` 는 `git ls-files -- '*.py' '*.md' '*.yaml' '*.sh'` 를 복사하므로
+   덮어쓰기 집합이 릴리스와 같다.
+
+### 확인하지 못한 것 — A3 확정의 남은 조건
+
+**코드서빙이 어느 facade 파일을 `/run` 에 마운트할지 정하는 방법**을 저장소에서 확인하지
+못했다(GenOS 설정 또는 관리 UI 로 보인다). A3 는 "고객이 벤더가 배포하지 않는 이름의
+파일을 소유한다" 이므로, **그 이름을 마운트 대상으로 지정할 수 있어야** 성립한다.
+
+### 그때까지의 실무 지침
+
+- 기본은 **A2**: 릴리스 전에 `git diff > my_change.patch` 로 보관하고 갱신 뒤 `git apply`.
+  명령 자체는 dev manual 에 이미 있다.
+- 릴리스 노트에 **"템플릿 변경 있음 / 없음"** 을 표시한다. 훅 시그니처와 `ROUTES` 형태가
+  안 바뀐 릴리스는 "없음" 이고, 그때 고객은 아무것도 안 해도 된다.
+- 훅은 **고정 API** 로 취급한다(D7 의 대가). 시그니처를 바꾸면 모든 사이트의 파일이 깨진다.
+
+### 고객 문서
+
+[`gitbook_doc/facade_hooks.md`](../../../facade/gitbook_doc/facade_hooks.md) 를 신설했다.
+고칠 파일 둘, 훅이 불리는 시점, 확장자별 데이터 형, toolbox 목록, 단독 실행, 그리고
+**훅으로 안 되는 것 3가지**(08-B 실측)를 담았다. `parser_processor.md` 와
+`chunking_processor.md` 머리에서 링크한다.
 
 ## 알려진 결손 (08-A 가 확정한다)
 
