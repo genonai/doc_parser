@@ -426,9 +426,12 @@ class ParserCore:
     파싱 단계만 수행하고 결과를 JSON으로 반환하는 파사드.
     청킹/벡터 조합은 수행하지 않음.
 
-    IS_PARSER 는 배포되는 facade 가 선언한다 — main.py 가 그 속성으로 /parser 전용임을
-    식별한다. core 는 그 표식을 갖지 않는다.
+    IS_PARSER 와 ROUTES 는 배포되는 facade 가 선언한다. core 에 기본 표를 두면
+    사본이 둘이 되어 조용히 어긋난다.
     """
+
+    # 확장자 → 핸들러. 배포되는 facade 가 **반드시** 정한다(#363 08-3).
+    ROUTES: tuple = ()
 
     def __init__(self, config_path: str | None = None):
         if config_path is None:
@@ -1339,38 +1342,6 @@ class ParserCore:
     # 메인 진입점
     # ------------------------------------------------------------------
 
-    # ------------------------------------------------------------------
-    # 포맷별 파싱 라우팅 — 고객이 새 문서 유형을 위해 코드를 넣는 자리
-    # ------------------------------------------------------------------
-    #
-    # 위에서부터 확장자가 맞는 항목을 찾아 핸들러를 부른다. 핸들러가 응답 dict 를
-    # 돌려주면 거기서 끝이고, **None 을 돌려주면 다음 후보로 넘어간다**(폴스루).
-    # 순서에 의미가 있으므로 표의 위아래를 바꾸지 않는다.
-    #
-    #   확장자              핸들러            폴스루 조건
-    #   ------------------  ----------------  ------------------------------------
-    #   wav mp3 m4a         _route_audio      없음
-    #   csv xlsx xlsm       _route_tabular    없음
-    #   hwp hwpx hml        _route_hwp        없음
-    #   docx                _route_docx       없음
-    #   pdf html htm md     _route_docling    .md 가 formats.md.processing_mode=text 일 때
-    #   json                _route_json       custom_fields 에 매칭 설정이 없을 때
-    #   ppt pptx            _route_ppt        없음 (PDF 변환 실패는 langchain 폴백으로 끝난다)
-    #   (그 밖)             _route_other      없음 — 캐치올
-    #
-    # 새 확장자를 추가하려면 이 표에 한 줄과 `_route_*` 메서드 하나를 더한다.
-    # 새 doc_type 을 추가하는 것뿐이라면 코드가 아니라 custom_fields yaml 이 먼저다.
-    ROUTES = (
-        ((".wav", ".mp3", ".m4a"), "_route_audio"),
-        ((".csv", ".xlsx", ".xlsm"), "_route_tabular"),
-        ((".hwp", ".hwpx", ".hml"), "_route_hwp"),
-        ((".docx",), "_route_docx"),
-        ((".pdf", ".html", ".htm", ".md"), "_route_docling"),
-        ((".json",), "_route_json"),
-        ((".ppt", ".pptx"), "_route_ppt"),
-        (None, "_route_other"),  # 캐치올 — 반드시 마지막
-    )
-
     async def _docling_response(self, doc: DoclingDocument, ctx: dict,
                                 clear_coordinates: bool = False, **kwargs) -> dict:
         """docling 문서 → 응답. docling 을 만드는 분기 5개가 공유하는 마무리다."""
@@ -1383,12 +1354,12 @@ class ParserCore:
             result["metadata"] = enrichment_context["metadata"]
         return result
 
-    async def _route_audio(self, file_path: str, ext: str, ctx: dict, **kwargs) -> dict:
+    async def route_audio(self, file_path: str, ext: str, ctx: dict, **kwargs) -> dict:
         # TODO(#315): PII 마스킹 미적용(보류) — 오디오 전사 텍스트는 별도 논의 후 적용.
         text = self._parse_audio(file_path, **kwargs)
         return self._audio_to_parse_format(text)
 
-    async def _route_tabular(self, file_path: str, ext: str, ctx: dict, **kwargs) -> dict:
+    async def route_tabular(self, file_path: str, ext: str, ctx: dict, **kwargs) -> dict:
         # doc_type 은 "행을 어떻게 나눌지"가 아니라 "행 컬럼을 어떤 목표필드로 매핑할지"에만
         # 쓴다. 행 분할 여부는 formats.xlsx.processing_mode 가 결정한다.
         # 단, enrichment.custom_fields 의 tabular_mapping 이 doc_type 과 매칭되면 행별 매핑이
@@ -1420,18 +1391,18 @@ class ParserCore:
             self._tabular_to_parse_format(self._parse_tabular(file_path)), **kwargs,
         )
 
-    async def _route_hwp(self, file_path: str, ext: str, ctx: dict, **kwargs) -> dict:
+    async def route_hwp(self, file_path: str, ext: str, ctx: dict, **kwargs) -> dict:
         # .hml(HWPML)은 hwp_sdk 260713+ 에서 지원 — 같은 SDK 경로로 라우팅 (이슈 #323)
         return await self._docling_response(
             self._parse_hwp_hwpx(file_path, **kwargs), ctx, **kwargs
         )
 
-    async def _route_docx(self, file_path: str, ext: str, ctx: dict, **kwargs) -> dict:
+    async def route_docx(self, file_path: str, ext: str, ctx: dict, **kwargs) -> dict:
         return await self._docling_response(
             self._parse_docx(file_path, **kwargs), ctx, clear_coordinates=True, **kwargs
         )
 
-    async def _route_docling(self, file_path: str, ext: str, ctx: dict, **kwargs):
+    async def route_docling(self, file_path: str, ext: str, ctx: dict, **kwargs):
         """pdf / html / htm / md 를 docling 으로 파싱한다.
 
         .md 는 formats.md.processing_mode=docling(기본)일 때만 여기서 처리하고,
@@ -1500,7 +1471,7 @@ class ParserCore:
             )
         return await self._docling_response(doc, ctx, **kwargs)
 
-    async def _route_json(self, file_path: str, ext: str, ctx: dict, **kwargs):
+    async def route_json(self, file_path: str, ext: str, ctx: dict, **kwargs):
         """enrichment.custom_fields 설정으로 두 모드가 갈린다.
 
           레코드 모드(extractor: json_mapping) — 레코드별 목표필드 element
@@ -1532,7 +1503,7 @@ class ParserCore:
         )
         return None
 
-    async def _route_ppt(self, file_path: str, ext: str, ctx: dict, **kwargs) -> dict:
+    async def route_ppt(self, file_path: str, ext: str, ctx: dict, **kwargs) -> dict:
         """PDF 변환 → 경량 docling 파싱 + 페이지 단위 image description(옵션).
 
         변환 실패 시에만 레거시 langchain 경로로 폴백한다. (파스 전용 — 청킹 없음)
@@ -1544,12 +1515,12 @@ class ParserCore:
         # TODO(#315): PII 마스킹 미적용(보류) — langchain 폴백 경로. docling 아닌 파서 산출은 별도 논의.
         return self._langchain_to_parse_format(self._parse_other(file_path, **kwargs))
 
-    async def _route_other(self, file_path: str, ext: str, ctx: dict, **kwargs) -> dict:
+    async def route_other(self, file_path: str, ext: str, ctx: dict, **kwargs) -> dict:
         """캐치올: doc, txt, json, md, jpg, jpeg, png 등."""
         # TODO(#315): PII 마스킹 미적용(보류) — langchain 경로(doc/txt/md/이미지 등)는 별도 논의 후 적용.
         return self._langchain_to_parse_format(self._parse_other(file_path, **kwargs))
 
-    async def __call__(self, request: Request, file_path: str, **kwargs) -> dict:
+    async def run(self, request: Request, file_path: str, **kwargs) -> dict:
         runtime_level = kwargs.get('log_level')
         self.setup_logging(runtime_level if runtime_level is not None else self._log_level)
 
