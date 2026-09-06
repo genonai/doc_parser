@@ -14,6 +14,7 @@ from pathlib import Path
 
 from collections import defaultdict
 from datetime import datetime
+from dataclasses import dataclass
 from typing import Optional, Any, List, Tuple
 
 from fastapi import Request
@@ -238,6 +239,15 @@ def _classify_payload(obj) -> Tuple[str, Any]:
     raise GenosServiceException(
         1, "chunker 입력 형식을 인식할 수 없습니다(docling/parse-format 아님)."
     )
+
+
+@dataclass
+class ChunkInput:
+    """load_input 산출. 청킹 훅이 다루는 것은 kind 와 data 뿐이다."""
+
+    kind: str            # "docling" | "parse"
+    data: object         # DoclingDocument(또는 dict) | list[dict]
+    guardrail: dict      # #315 민감정보 컨텍스트. core 가 그대로 넘긴다
 
 
 class ChunkerCore:
@@ -1033,10 +1043,62 @@ class ChunkerCore:
         (파싱 Activity)에서 이미 수행됐으므로 여기서는 호출하지 않는다.
         file_path 는 벡터 메타(file_path)로도 사용된다.
         """
+        src = self.load_input(file_path, **kwargs)
+        return await self.chunk(request, file_path, src, **kwargs)
+
+    def load_input(self, file_path: str = "", **kwargs) -> "ChunkInput":
+        """파서 결과를 읽어 (형태, 데이터, 가드레일 컨텍스트) 로 돌려준다.
+
+        인라인 document 가 우선이고 없으면 file_path 의 .json 을 읽는다. 형태 판별은
+        확장자가 아니라 payload 내용으로 한다(file_path 는 parser 결과 JSON 경로다).
+        """
         runtime_level = kwargs.get('log_level')
         self.setup_logging(runtime_level if runtime_level is not None else self._log_level)
-
         _log.info(f"[chunker] file_path: {file_path}")
+
+        raw_payload = kwargs.get("document")
+        if raw_payload is None:
+            raw_payload = kwargs.get("docling_document")
+        if not raw_payload and file_path and file_path.lower().endswith(".json") and os.path.isfile(file_path):
+            try:
+                with open(file_path, "r", encoding="utf-8") as f:
+                    raw_payload = json.load(f)
+            except Exception as exc:
+                raise GenosServiceException(1, f"chunker 입력 파일 로드 실패({file_path}): {exc}") from exc
+        if not raw_payload:
+            raise GenosServiceException(
+                1, "chunker API: 'document'(인라인 JSON) 또는 file_path(.json) 입력이 필요합니다.")
+
+        if isinstance(raw_payload, DoclingDocument):
+            kind, data = "docling", raw_payload
+        else:
+            kind, data = _classify_payload(raw_payload)
+        # 민감정보 분류(#315): chunking 은 워크플로우를 호출하지 않는다. parser 가 분류해
+        #   파스 출력에 실어 보낸 sensitive_infos 를 청크에 적용만 한다(병합).
+        return ChunkInput(kind, data, dict(
+            _sensitive_infos=_extract_sensitive_infos(raw_payload),
+            _guardrail_masking=self._gr_cfg.masking_enabled,
+        ))
+
+    def pre_chunk(self, kind, data, **kwargs):
+        """[전처리] 분할 직전. 받은 형 그대로 돌려준다.
+
+          kind == "docling"   data = DoclingDocument (또는 그 dict)
+          kind == "parse"     data = list[dict]  (레코드/표 경로 elements)
+        """
+        return data
+
+    def post_chunk(self, vectors, **kwargs):
+        """[후처리] 응답 직전. list[VECTOR_META] 를 손본다."""
+        return vectors
+
+    async def chunk(self, request: Request, file_path: str, src: "ChunkInput", **kwargs):
+        """분할과 벡터 조합. 입력 판별은 load_input 이 이미 끝냈다."""
+
+        # 인라인 payload 는 load_input 이 이미 읽었다. 여기 남아 있으면 split/compose 로
+        # 흘러가므로 제거한다.
+        kwargs.pop("document", None)
+        kwargs.pop("docling_document", None)
 
         # #329: /chunk 는 interim_ref(=workflow_id/run_id)로 캐시 스코프를 유도한다.
         #   현재 청킹 경로엔 LLM 호출이 없어 캐시는 실질 no-op 이지만, Temporal 호출부와
@@ -1050,36 +1112,7 @@ class ChunkerCore:
         for _k in ("interim_ref", "interim_root", "llm_cache", "error_policy", "request_deadline", "workflow_id", "run_id"):
             kwargs.pop(_k, None)
         try:
-            # 1) 인라인 우선: 앞단계(파싱) 결과를 요청 JSON 에 인라인으로 전달.
-            #    채널(document/file_path)·형태(docling/parse-format) 어느 조합이든 허용한다.
-            raw_payload = kwargs.pop("document", None)
-            if raw_payload is None:
-                raw_payload = kwargs.pop("docling_document", None)
-            # 2) 인라인이 없으면 file_path 가 가리키는 .json 파일에서 로드(폴백).
-            if not raw_payload and file_path and file_path.lower().endswith(".json") and os.path.isfile(file_path):
-                try:
-                    with open(file_path, "r", encoding="utf-8") as f:
-                        raw_payload = json.load(f)
-                except Exception as exc:
-                    raise GenosServiceException(1, f"chunker 입력 파일 로드 실패({file_path}): {exc}") from exc
-            if not raw_payload:
-                raise GenosServiceException(
-                    1, "chunker API: 'document'(인라인 JSON) 또는 file_path(.json) 입력이 필요합니다.")
-
-            # parser 결과 형태 판별: docling(DoclingDocument) vs parse-format({"elements":[...]}).
-            # file_path 는 parser 결과 JSON 경로이므로 확장자가 아니라 payload 형태로 분기한다.
-            if isinstance(raw_payload, DoclingDocument):
-                kind, data = "docling", raw_payload
-            else:
-                kind, data = _classify_payload(raw_payload)
-
-            # 민감정보 분류(#315): chunking 은 워크플로우를 호출하지 않는다. parser 가 분류해 파스 출력에
-            #   실어 보낸 sensitive_infos 를 받아 청크에 quote 매칭·라벨·마스킹만 적용(병합).
-            _gr_kwargs = dict(
-                _sensitive_infos=_extract_sensitive_infos(raw_payload),
-                _guardrail_masking=self._gr_cfg.masking_enabled,
-            )
-
+            kind, data, _gr_kwargs = src.kind, src.data, src.guardrail
             if kind == "parse":
                 # parse-format(비-docling): legacy(attachment) 와 동일하게 공통 청킹.
                 vectors = self._chunk_parse_format(data, **_gr_kwargs, **kwargs)

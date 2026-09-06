@@ -136,10 +136,22 @@ _is_encrypted_office = fp.is_encrypted_office
 _is_encrypted_pdf = fp.is_encrypted_pdf
 _is_protected_hwp = fp.is_protected_hwp
 _looks_like_text = fp.looks_like_text
+read_text_with_fallback = fp.read_text_with_fallback
 _parse_optional_bool = cp.parse_optional_bool
 _parse_optional_float = cp.parse_optional_float
 _parse_optional_int = cp.parse_optional_int
 _warn_unresolved_placeholders = cp.warn_unresolved_placeholders
+
+
+def _write_derived(work_dir: str, src_path: str, ext: str, text: str) -> str:
+    """훅이 바꾼 텍스트를 파생 입력 파일로 쓴다. 원본은 건드리지 않는다.
+
+    docling 은 파일명 확장자로 포맷을 판정하므로 확장자를 그대로 유지한다.
+    """
+    out = os.path.join(work_dir, os.path.basename(os.path.splitext(src_path)[0]) + ext)
+    with open(out, "w", encoding="utf-8") as fp:
+        fp.write(text)
+    return out
 
 
 def _config_error(message: str) -> "GenosServiceException":
@@ -180,6 +192,9 @@ for _n in ("fontTools", "fontTools.ttLib", "fontTools.ttLib.ttFont"):
     logging.getLogger().setLevel(logging.WARNING)
 
 # PDF 변환 대상 확장자
+# pre_source 를 **데이터 형태**로 받는 확장자. 나머지는 파일 경로로 받는다(#363 08-3).
+_DATA_HOOK_EXTS = {".json", ".md", ".html", ".htm", ".csv", ".xlsx", ".xlsm"}
+
 CONVERTIBLE_EXTENSIONS = ['.hwp', '.txt', '.json', '.md', '.ppt', '.pptx', '.docx']
 
 
@@ -432,6 +447,55 @@ class ParserCore:
 
     # 확장자 → 핸들러. 배포되는 facade 가 **반드시** 정한다(#363 08-3).
     ROUTES: tuple = ()
+
+    # ── 확장 훅 (#363 08-3) ────────────────────────────────────────────────
+    # 배포되는 facade 가 덮어쓴다. 기본 구현은 받은 값을 그대로 돌려주므로
+    # 덮어쓰지 않으면 산출이 착수 전과 같다.
+
+    def pre_source(self, ext, doc_type, data, work_dir=None):
+        """[전처리] 파싱 직전. 원천을 파싱 입력으로 바꾼다.
+
+        data 의 형은 ext 가 정하고, 같은 형으로 돌려준다.
+          .json          dict / list (깨진 JSON 이면 str)   매핑 전
+          .md .html      str                              내장 전처리(flatten 등) 전
+          그 밖           str(파일 경로)                    파생 파일은 work_dir 에
+        건드릴 것이 없으면 data 를 **그대로** 돌려준다 — 받은 객체를 그대로 돌려주면
+        core 는 파생 입력을 만들지 않고 원본 경로를 유지한다.
+        """
+        return data
+
+    def post_parse(self, ext, doc_type, result):
+        """[후처리] 응답 확정 직전. 청킹으로 넘어가기 전 마지막 자리.
+
+          result["elements"]   레코드/표 경로 산출 (list[dict])
+          result["document"]   docling 경로 산출   (dict)
+          result["metadata"]   문서 단위 메타      (dict)
+        """
+        return result
+
+    # 훅을 덮어썼는지 본다. 안 덮어썼으면 원천을 읽는 비용조차 치르지 않는다.
+    def _pre_source_active(self) -> bool:
+        return type(self).pre_source is not ParserCore.pre_source
+
+    def _hook_pre_source(self, ext, kwargs, data, work_dir=None):
+        """훅을 부르고 (값, 바뀌었는지) 를 돌려준다.
+
+        받은 객체를 그대로 돌려주면 '안 바뀜' 으로 본다. 그래야 훅을 정의만 하고
+        해당 doc_type 을 다루지 않는 경우에 파생 입력이 생기지 않는다.
+        """
+        if not self._pre_source_active():
+            return data, False
+        out = self.pre_source(ext, normalize_doc_type(kwargs.get("doc_type")), data, work_dir)
+        return out, out is not data
+
+    def resolve_ext(self, file_path: str) -> str:
+        """확장자 별칭(formats.extension_aliases)이 반영된 확장자."""
+        raw = os.path.splitext(file_path)[-1].lower()
+        return _resolve_ext(raw, getattr(self, "_ext_aliases", {}))
+
+    @staticmethod
+    def resolve_doc_type(**kwargs):
+        return normalize_doc_type(kwargs.get("doc_type"))
 
     def __init__(self, config_path: str | None = None):
         if config_path is None:
@@ -917,12 +981,24 @@ class ParserCore:
                 payload = _reshape(payload)
         """
         try:
-            with open(file_path, "r", encoding="utf-8") as fp:
-                return json.load(fp)
-        except (OSError, ValueError) as exc:
+            text = read_text_with_fallback(file_path)
+        except OSError as exc:
             raise GenosServiceException(
                 "1", f"JSON 파일을 읽을 수 없습니다: {os.path.basename(file_path)} ({exc})"
             ) from exc
+        try:
+            payload = json.loads(text)
+        except ValueError as exc:
+            # 깨진 JSON 은 훅에 원문 str 을 넘겨 구제 기회를 준다(JSONL 등).
+            # 훅이 없거나 손대지 않으면 종전대로 입력 오류로 끝난다.
+            payload, changed = self._hook_pre_source(".json", {"doc_type": doc_type}, text)
+            if not changed:
+                raise GenosServiceException(
+                    "1", f"JSON 파일을 읽을 수 없습니다: {os.path.basename(file_path)} ({exc})"
+                ) from exc
+            return payload
+        payload, _ = self._hook_pre_source(".json", {"doc_type": doc_type}, payload)
+        return payload
 
     def _llm_field_enricher(self, spec, mapper):
         """llm_fields 항목용 CustomFieldsEnricher(항목당 1개, 생성 후 캐시).
@@ -1414,6 +1490,29 @@ class ParserCore:
         enrichment_context = ctx["enrichment_context"]
         artifacts_source = ctx["artifacts_source"]
 
+        # 원문 텍스트 훅. 훅을 안 덮어썼으면 파일을 읽지도 않는다.
+        # 훅이 텍스트를 바꾸면 파생 파일로 파싱하고 artifacts 기준은 원본으로 남긴다.
+        hook_tmp = None
+        if ext in (".html", ".htm", ".md") and self._pre_source_active():
+            try:
+                _raw = read_text_with_fallback(file_path)
+            except OSError:
+                _raw = None
+            if _raw is not None:
+                _new, _changed = self._hook_pre_source(ext, kwargs, _raw)
+                if _changed:
+                    hook_tmp = tempfile.TemporaryDirectory(prefix="parser_hook_")
+                    artifacts_source = artifacts_source or file_path
+                    file_path = _write_derived(hook_tmp.name, file_path, ext, _new)
+        try:
+            return await self._route_docling_inner(
+                file_path, ext, ctx, enrichment_context, artifacts_source, **kwargs)
+        finally:
+            if hook_tmp is not None:
+                hook_tmp.cleanup()
+
+    async def _route_docling_inner(self, file_path, ext, ctx, enrichment_context,
+                                   artifacts_source, **kwargs):
         if ext in (".html", ".htm"):
             # html 은 flatten 전처리를 거칠 수 있다(srcdoc 등). 파생 임시 파일은
             # 파싱 후 정리하고, artifacts 경로는 원본 기준으로 유지한다.
@@ -1535,6 +1634,8 @@ class ParserCore:
         # 확장자 별칭이 적용되면 표준 확장자 이름의 사본으로 파싱한다. 그 임시 디렉터리는
         # 요청이 끝날 때 정리한다(finally).
         alias_tmp: tempfile.TemporaryDirectory | None = None
+        # 경로형 pre_source 훅이 만든 파생 파일의 임시 디렉터리.
+        hook_tmp: tempfile.TemporaryDirectory | None = None
         # 별칭 사본으로 파싱할 때 artifacts(이미지) 경로 기준이 되는 원본 경로.
         artifacts_source: str | None = None
         try:
@@ -1570,6 +1671,18 @@ class ParserCore:
                         "1", f"확장자 별칭 사본 생성 실패: {exc}"
                     ) from exc
 
+            # 경로형 pre_source 훅. 데이터형으로 넘기는 확장자(.json/.md/.html/표)는
+            # 각 라우트가 자기 자리에서 부르므로 여기서는 제외한다.
+            if ext not in _DATA_HOOK_EXTS and self._pre_source_active():
+                hook_tmp = tempfile.TemporaryDirectory(prefix="parser_hookpath_")
+                new_path, changed = self._hook_pre_source(ext, kwargs, file_path, hook_tmp.name)
+                if changed:
+                    artifacts_source = artifacts_source or file_path
+                    file_path = new_path
+                else:
+                    hook_tmp.cleanup()
+                    hook_tmp = None
+
             # 분기 사이에 공유되는 상태. enrichment_context 는 후처리가 채워 응답 metadata 로 나간다.
             ctx = {"enrichment_context": {}, "artifacts_source": artifacts_source}
 
@@ -1584,5 +1697,7 @@ class ParserCore:
         finally:
             if alias_tmp is not None:
                 alias_tmp.cleanup()
+            if hook_tmp is not None:
+                hook_tmp.cleanup()
             _log_cache_summary()
             _reset_cache_context(_cache_token)

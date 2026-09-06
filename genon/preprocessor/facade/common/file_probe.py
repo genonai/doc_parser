@@ -45,6 +45,28 @@ KNOWN_MAGIC_PREFIXES = (
 TEXT_ALLOWED_CTRL = {0x09, 0x0A, 0x0C, 0x0D}
 
 
+# BOM 붙은 UTF-8 과 CP949 는 국내 원천에서 흔하다. 훅이 구조 문제만 다루도록
+# 인코딩은 여기서 흡수한다(#363 08-3). errors="replace" 는 쓰지 않는다 —
+# 조용히 깨진 글자를 남기느니 다음 후보 인코딩을 시도하는 편이 낫다.
+_TEXT_ENCODINGS = ("utf-8-sig", "utf-8", "cp949")
+
+
+def read_text_with_fallback(file_path: str, encodings: Sequence[str] = _TEXT_ENCODINGS) -> str:
+    """텍스트 파일을 인코딩 후보 순서대로 시도해 읽는다.
+
+    전부 실패하면 마지막 후보의 UnicodeDecodeError 를 그대로 올린다 — 호출부가
+    "읽을 수 없는 파일" 로 처리할 수 있게 한다.
+    """
+    raw = Path(file_path).read_bytes()
+    last: Exception | None = None
+    for enc in encodings:
+        try:
+            return raw.decode(enc)
+        except UnicodeDecodeError as exc:
+            last = exc
+    raise last  # type: ignore[misc]
+
+
 def is_pdf(file_path: str) -> bool:
     """파일이 PDF 매직 헤더로 시작하는지 확인 (확장자 무관)."""
     try:

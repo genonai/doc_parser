@@ -54,5 +54,32 @@ class DocumentProcessor(ParserCore):
     )
 
     async def __call__(self, request: Request, file_path: str, **kwargs) -> dict:
-        """요청 진입점. 실제 처리는 core 가 한다(확장자 판정 → ROUTES → 파싱)."""
-        return await self.run(request, file_path, **kwargs)
+        """① 원천 로드 → ② pre_source → ③ 파싱 → ④ post_parse
+
+        ①~③ 은 확장자마다 로드 시점이 달라 core 가 ROUTES 안에서 처리한다.
+        (.json 은 custom_fields 가 매칭될 때만 읽히므로 여기서 미리 읽으면 동작이 바뀐다)
+        """
+        ext = self.resolve_ext(file_path)
+        doc_type = self.resolve_doc_type(**kwargs)
+        result = await self.run(request, file_path, **kwargs)
+        return self.post_parse(ext, doc_type, result)
+
+    def pre_source(self, ext, doc_type, data, work_dir=None):
+        """[전처리] 파싱 직전. 원천을 파싱 입력으로 바꾼다.
+
+        data 의 형은 ext 가 정하고, 같은 형으로 돌려준다.
+          .json          dict / list (깨진 JSON 이면 str)   매핑 전
+          .md .html      str                              내장 전처리(flatten 등) 전
+          그 밖           str(파일 경로)                    파생 파일은 work_dir 에
+        건드릴 것이 없으면 data 를 **그대로** 돌려준다.
+        """
+        return data
+
+    def post_parse(self, ext, doc_type, result):
+        """[후처리] 응답 확정 직전. 청킹으로 넘어가기 전 마지막 자리.
+
+          result["elements"]   레코드/표 경로 산출 (list[dict])
+          result["document"]   docling 경로 산출   (dict)
+          result["metadata"]   문서 단위 메타      (dict)
+        """
+        return result
