@@ -263,6 +263,32 @@ records_at 3  merge_rows 1  order_by 1  mirror_to 1  ignore_keys 1  sections 1
 2. doc_type 마다 **"비면 실패" 필드 목록**을 명시한다. 빈 값 일치는 통과로 세지 않는다
 3. 노이즈 기준선 제외 — 같은 버전 2회 실행에서 흔들리는 것은 `reg_date` 하나(실측)
 
+### 로컬 환경 제약 — 골든을 찍으려면 설정 2줄을 임시로 바꿔야 한다
+
+사내망 밖에서는 `resource_dev` 가 가리키는 내부 서비스 두 곳에 닿지 않고, **둘 다 조용히
+멈춘다**(실패가 아니라 대기다).
+
+| 설정 | 값 | 증상 |
+|---|---|---|
+| `layout.genos_layout.endpoint` | `192.168.75.174:26001` | `timeout: 3600` 이라 TCP 연결에서 **1시간** 대기. 골든 기록이 54/112 에서 멈췄다 |
+| `ocr.paddle.ocr_endpoint` | `192.168.73.172:48080` | connect timeout 60초 후 `ConnectTimeout` 예외 |
+
+골든 기록·대조 동안 `resource_dev/parser_processor_config.yaml` 을 두 줄 바꾼다.
+
+```yaml
+layout:
+  layout_model_type: "docling_layout"   # 원래 genos_layout
+ocr:
+  ocr_mode: "disable"                   # 원래 auto
+```
+
+실측: `pdf_sample.pdf` 가 **2분 19초 → 18초**. 골든은 "리팩터링 전후 산출이 같은가" 를 묻지
+"산출이 옳은가" 를 묻지 않으므로, 기록과 대조가 **같은 설정**이면 안전망으로 성립한다.
+다만 PDF 경로는 OCR 없는 열화 구성으로 덮인다는 사실을 함께 남긴다.
+
+**작업이 끝나면 반드시 되돌린다.** 되돌리지 않으면 사내망에서 도는 다른 검증이 조용히
+다른 구성으로 돌아간다.
+
 ### 배포 설정 오염 금지
 
 06 드릴과 같은 방식. `resource_dev/` 를 임시 디렉터리로 복사한 뒤 최소 yaml 을 그 사본에만

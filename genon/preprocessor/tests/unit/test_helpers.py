@@ -18,19 +18,19 @@ def test_safe_join():
 @pytest.mark.unit
 @pytest.mark.parametrize("ext", [".hwp", ".txt", ".json", ".md", ".ppt", ".pptx", ".docx"])
 def test_get_pdf_path_returns_pdf_for_convertible_ext(ext):
-    from facade.parser_processor import _get_pdf_path
+    from facade.core.parser import _get_pdf_path
     assert _get_pdf_path(f"/path/to/file{ext}") == "/path/to/file.pdf"
 
 
 @pytest.mark.unit
 def test_get_pdf_path_preserves_directory_structure():
-    from facade.parser_processor import _get_pdf_path
+    from facade.core.parser import _get_pdf_path
     assert _get_pdf_path("/some/deep/dir/document.docx") == "/some/deep/dir/document.pdf"
 
 
 @pytest.mark.unit
 def test_get_pdf_path_pdf_input_is_unchanged():
-    from facade.parser_processor import _get_pdf_path
+    from facade.core.parser import _get_pdf_path
     assert _get_pdf_path("/path/to/file.pdf") == "/path/to/file.pdf"
 
 
@@ -54,7 +54,7 @@ _SOFFICE_RUN = "genon.preprocessor.converters.hwp_to_pdf.libreoffice.subprocess.
     (".txt",  "pdf"),
 ])
 def test_convert_to_pdf_passes_correct_convert_arg(ext, expected_arg, tmp_path):
-    from facade.parser_processor import convert_to_pdf
+    from facade.core.parser import convert_to_pdf
 
     in_file = tmp_path / f"test{ext}"
     in_file.write_bytes(b"fake content")
@@ -71,7 +71,7 @@ def test_convert_to_pdf_passes_correct_convert_arg(ext, expected_arg, tmp_path):
 
 @pytest.mark.unit
 def test_convert_to_pdf_returns_none_when_soffice_fails(tmp_path):
-    from facade.parser_processor import convert_to_pdf
+    from facade.core.parser import convert_to_pdf
 
     in_file = tmp_path / "test.docx"
     in_file.write_bytes(b"fake content")

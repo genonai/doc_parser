@@ -207,7 +207,7 @@ def test_unknown_text_extension_uses_textloader_not_unstructured(tmp_path: Path)
     unstructured 는 무거운 선택 의존이라 오프라인 배포본에는 없을 수 있다. 예전에는
     이 경로가 UnstructuredFileLoader 를 만들다 ImportError 로 죽었다.
     """
-    from facade.parser_processor import GenericDocumentLoader, TextLoader
+    from facade.core.parser import GenericDocumentLoader, TextLoader
 
     src = tmp_path / "sample.parsed"
     src.write_text(MIXED_MD_HTML, encoding="utf-8")
@@ -220,7 +220,7 @@ def test_unknown_text_extension_uses_textloader_not_unstructured(tmp_path: Path)
 @pytest.mark.unit
 def test_unknown_binary_extension_still_goes_to_unstructured(tmp_path: Path):
     """텍스트가 아니면 기존대로 Unstructured 로 보낸다(동작 보존)."""
-    from facade.parser_processor import GenericDocumentLoader, TextLoader
+    from facade.core.parser import GenericDocumentLoader, TextLoader
 
     src = tmp_path / "sample.bin"
     src.write_bytes(b"\x00\x01\x02\x03" * 64)
@@ -233,7 +233,8 @@ def test_unknown_binary_extension_still_goes_to_unstructured(tmp_path: Path):
 @pytest.mark.unit
 def test_missing_unstructured_becomes_actionable_error(tmp_path: Path, monkeypatch):
     """unstructured 미설치 ImportError 는 조치가 적힌 서비스 예외로 바뀐다."""
-    from facade import parser_processor as pp
+    # 로더와 예외는 처리 본체(core)에 있다(#363 08-1).
+    from facade.core import parser as pp
 
     src = tmp_path / "sample.bin"
     src.write_bytes(b"\x00\x01\x02\x03" * 64)

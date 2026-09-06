@@ -21,12 +21,9 @@ from docling_core.types.doc import (
 from docling_core.types.doc.base import CoordOrigin
 from langchain_core.documents import Document
 
-from facade.parser_processor import (
-    DocumentProcessor,
-    GenosServiceException,
-    GenericDocumentLoader,
-    IntelligentDocumentProcessor,
-)
+from facade.parser_processor import DocumentProcessor, GenosServiceException
+# 로더와 docling 런타임은 처리 본체(core)에 있다 — facade 는 얇은 서브클래스다(#363 08-1).
+from facade.core.parser import GenericDocumentLoader, IntelligentDocumentProcessor
 # check_sql_dtypes 는 공용 로더(facade/common/loaders.py)에 있다. parser 파이프라인은
 # tabular 입력을 converters.xlsx_processor 로 처리하므로 parser 쪽 사본은 없다.
 from genon.preprocessor.facade.common.loaders import TabularLoaderBase
@@ -485,7 +482,7 @@ def test_enrichment_provider_error_is_rethrown_as_genos_exception(intel):
     dummy_doc = MagicMock()
 
     with patch(
-        "facade.parser_processor.enrich_document",
+        "facade.core.parser.enrich_document",
         side_effect=LLMApiError(raw_error, status_code=400),
     ):
         with pytest.raises(GenosServiceException) as exc_info:

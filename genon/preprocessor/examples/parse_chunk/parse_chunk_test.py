@@ -66,7 +66,7 @@ def _alias_extensions(config_path: str | None = None) -> set[str]:
     try:
         from genon.preprocessor.facade.common import config_parse as cp
         from genon.preprocessor.facade.common import format_alias as fa
-        from genon.preprocessor.facade.parser_processor import (
+        from genon.preprocessor.facade.core.parser import (
             _resolve_default_parser_config_path,
         )
 
