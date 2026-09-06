@@ -12,7 +12,7 @@ Genos 를 처음 접하는 개발자를 대상으로 합니다.
 - [4. 개발환경 준비](#4-개발환경-준비) — 인터넷 연결 환경 · 오프라인 환경 · 코드스페이스 · 모델 서빙 연결
 - [5. 코드 이해](#5-코드-이해) — 코드 지도 · `main.py` 처리 순서 · parser 읽기 · chunker 읽기 · 출력 스키마
 - [6. config yaml 옵션 설정](#6-config-yaml-옵션-설정) — 채워야 할 값 · 자주 바꾸는 옵션 · `params` 오버라이드
-- [7. 코드 수정 가이드](#7-코드-수정-가이드) — 개발 루프 · 수정 레시피 · 알아둘 제약
+- [7. 코드 수정 가이드](#7-코드-수정-가이드) — 개발 루프 · 수정 레시피(**확장 훅** 포함) · 알아둘 제약
 - [8. 재배포](#8-재배포) — gitea push → 리비전 배포 → 호출 검증
 - [9. 퀵 가이드](#9-퀵-가이드) — 시나리오 A/B · 자주 쓰는 명령어
 - 부록 [A 용어집](#부록-a-용어집) · [B 환경값 확인 목록](#부록-b-환경값-확인-목록) · [C 컨테이너 경로·환경변수](#부록-c-컨테이너-경로환경변수) · [D 참고 문서](#부록-d-참고-문서) · [E 코드서빙·코드스페이스 신규 생성](#부록-e-코드서빙코드스페이스-신규-생성)
@@ -687,8 +687,11 @@ print(len(chunks), chunks[0].model_dump()['text'][:80])
 | 위치 | 역할 | 수정 대상인가 |
 |---|---|---|
 | `main.py` | FastAPI 앱. 라우트 정의 + 공통 예외/응답 처리 | 엔드포인트를 추가할 때만 |
-| `facade/parser_processor.py` | `/parser` 구현 | **예** |
-| `facade/chunking_processor.py` | `/chunker` 구현 | **예** |
+| `facade/parser_processor.py` | `/parser` **표면** (92줄) — 라우팅 표와 확장 훅 | **예. 여기만 고칩니다** |
+| `facade/chunking_processor.py` | `/chunker` **표면** (100줄) — 적재 컬럼·청킹 옵션·확장 훅 | **예. 여기만 고칩니다** |
+| `facade/core/parser.py` · `core/chunker.py` | **처리 본체.** 로더·docling 배관·custom_fields·직렬화·분할 | **열 일이 없습니다** |
+| `facade/core/toolbox.py` | 훅에서 쓰는 기존 기능 모음(값 변환·표·엑셀·텍스트) | 훅을 쓸 때 |
+| `facade/core/cli.py` · `core/errors.py` | 파일 단독 실행 · 공용 예외 | 거의 없음 |
 | `facade/intelligent_processor.py` · `convert_processor.py` · `attachment_processor.py` | `/preprocess*` 구현 | 해당 엔드포인트를 쓸 때만 |
 | `facade/enrichment/` | 목차·메타데이터·이미지/표 설명 등 공용 모듈 | enrichment 동작을 바꿀 때 |
 | `facade/guardrail/` | 개인정보 탐지·마스킹 | 가드레일을 쓸 때 |
@@ -752,17 +755,28 @@ class DocumentProcessor:          # ← 클래스 이름 고정. main.py 가 이
 
 #### 파일 구획
 
+**파일이 92줄입니다.** 처리 본체는 `facade/core/parser.py` 에 있고 열 일이 없습니다.
+
 | 구획 | 내용 | 봐야 하나 |
 |---|---|---|
-| 파일 머리 주석 | **이 파일에서 고칠 자리 3개** | **여기부터 읽으세요** |
-| import + 공용 모듈 별칭 | `cp`(설정) · `fp`(파일 판별) · `dops`(docling 배관) · `pf`(직렬화) 등 | 참고 |
-| `TextLoader` · `AudioLoader` · `HwpDocumentLoader` · `DocxDocumentLoader` | 이름만 남은 얇은 서브클래스. 본체는 `facade/common/` | 거의 없음 |
-| `GenericDocumentLoader` | **확장자 → langchain 로더 매핑**(`get_loader`) | 캐치올 포맷을 늘릴 때 |
-| `IntelligentDocumentProcessor` | docling 런타임(합성으로 씀). `enrichment()` 외에는 `facade/common/docling_runtime.py` | OCR/layout/enrichment 수정 시 |
-| `GenosServiceException` | 이 facade 의 예외 | 예외 처리 시 |
-| `DocumentProcessor` | `/parser` 진입점 | **예** |
+| 파일 머리 주석 | **이 파일에서 고칠 자리** | **여기부터 읽으세요** |
+| `ROUTES` | 확장자 → 핸들러 표 | 새 확장자를 받을 때 |
+| `__call__` | ① 원천 로드 → ② `pre_source` → ③ 파싱 → ④ `post_parse` | 단계 순서를 볼 때 |
+| `pre_source` | **원천을 파싱 입력으로 바꾸는 훅** | 설정으로 안 될 때 (7.2 (h)) |
+| `post_parse` | **산출을 손보는 훅** | 〃 |
+| `cli()` 호출 두 줄 | 파일 단독 실행 | 고친 뒤 확인할 때 |
 
-#### `DocumentProcessor.__init__` 이 하는 일
+본체 쪽에서 이름을 알아 둘 것:
+
+| 위치 | 내용 |
+|---|---|
+| `core/parser.py::ParserCore` | `/parser` 처리 본체. facade 의 `DocumentProcessor` 가 이것을 상속한다 |
+| `core/parser.py::GenericDocumentLoader` | 확장자 → langchain 로더 매핑(`get_loader`). 캐치올 포맷 |
+| `core/parser.py::IntelligentDocumentProcessor` | docling 런타임(합성으로 씀) |
+| `core/errors.py::GenosServiceException` | 공용 예외. facade 가 이름을 재수출한다 |
+| `core/toolbox.py` | 훅에서 쓰는 기존 기능 모음 |
+
+#### `__init__` 이 하는 일 (`core/parser.py`)
 
 1. config yaml 로드 → 2. `IntelligentDocumentProcessor` 생성(파싱·enrichment 전부 위임) →
 3. 확장자별 로더 생성 → 4. output·guardrail·PPT 페이지설명 정규화 →
@@ -798,21 +812,21 @@ class DocumentProcessor:          # ← 클래스 이름 고정. main.py 가 이
 
 | 확장자 | 핸들러 | 파싱 결과 | 폴스루 조건 |
 |---|---|---|---|
-| `.wav .mp3 .m4a` | `_route_audio` | 전사 텍스트 | 없음 |
-| `.csv .xlsx .xlsm` | `_route_tabular` | 3분기: custom_fields 매칭(우선) / `docling` 모드 / `tabular` 모드 | 없음 |
-| `.hwp .hwpx .hml` | `_route_hwp` | DoclingDocument | 없음 |
-| `.docx` | `_route_docx` | DoclingDocument (`clear_coordinates=True`) | 없음 |
-| `.pdf .html .htm .md` | `_route_docling` | DoclingDocument | `.md` 가 `formats.md.processing_mode: text` 일 때 |
-| `.json` | `_route_json` | 2분기(아래) | custom_fields 에 매칭 설정이 없을 때 |
-| `.ppt .pptx` | `_route_ppt` | DoclingDocument 또는 langchain 폴백 | 없음 |
-| 그 외 | `_route_other` | langchain Document 리스트 | 없음 — 캐치올 |
+| `.wav .mp3 .m4a` | `route_audio` | 전사 텍스트 | 없음 |
+| `.csv .xlsx .xlsm` | `route_tabular` | 3분기: custom_fields 매칭(우선) / `docling` 모드 / `tabular` 모드 | 없음 |
+| `.hwp .hwpx .hml` | `route_hwp` | DoclingDocument | 없음 |
+| `.docx` | `route_docx` | DoclingDocument (`clear_coordinates=True`) | 없음 |
+| `.pdf .html .htm .md` | `route_docling` | DoclingDocument | `.md` 가 `formats.md.processing_mode: text` 일 때 |
+| `.json` | `route_json` | 2분기(아래) | custom_fields 에 매칭 설정이 없을 때 |
+| `.ppt .pptx` | `route_ppt` | DoclingDocument 또는 langchain 폴백 | 없음 |
+| 그 외 | `route_other` | langchain Document 리스트 | 없음 — 캐치올 |
 
-**새 확장자를 받으려면** `ROUTES` 에 한 줄, `_route_*` 메서드 하나를 더합니다. 그게 전부입니다.
+**새 확장자를 받으려면** `ROUTES` 에 한 줄, `route_*` 메서드 하나를 더합니다. 그게 전부입니다.
 docling 을 만드는 핸들러라면 마무리는 `self._docling_response(doc, ctx, **kwargs)` 한 줄입니다 —
 후처리 enrichment · 응답 조립 · metadata 부착이 그 안에 들어 있습니다.
 
 ```python
-    async def _route_myformat(self, file_path, ext, ctx, **kwargs):
+    async def route_myformat(self, file_path, ext, ctx, **kwargs):
         doc = self._parse_myformat(file_path, **kwargs)
         return await self._docling_response(doc, ctx, **kwargs)
 ```
@@ -888,7 +902,7 @@ key 다, JSONL 이다, BOM 이 붙어 있다 …) **공용 모듈이 아니라 �
 
 | 목표 | 고칠 곳 | 주의점 |
 |---|---|---|
-| 확장자 추가·라우팅 변경 | `DocumentProcessor.ROUTES` + `_route_*` | 표의 **순서에 의미**가 있습니다. docling 경로면 마무리는 `_docling_response` 한 줄 |
+| 확장자 추가·라우팅 변경 | `DocumentProcessor.ROUTES` + `route_*` | 표의 **순서에 의미**가 있습니다. docling 경로면 마무리는 `_docling_response` 한 줄 |
 | JSON 원천 구조 흡수 | `_load_json_payload` | **doc_type 게이팅 필수.** 없으면 모든 JSON doc_type 이 바뀝니다 |
 | element 카테고리·필드 변경 | `serialize/parse_format.py::docling_to_parse_format` | 5키 스키마는 `/chunker` 가 의존. **추가는 안전, 삭제·개명은 위험** |
 | 표 출력 형식 | `serialize/parse_format.py::export_table_content` | `[표 설명]` 구분자·시트명 접두를 바꾸면 다운스트림 파싱에 영향 |
@@ -905,14 +919,20 @@ facade 의 `GenosSmartChunker` 는 동작 옵션(ClassVar)만 지정하는 얇�
 
 #### 봐야 하는 곳
 
+**파일이 100줄입니다.** 사이트마다 실제로 달라지는 것만 들어 있습니다.
+
 | 위치 | 구획 | 설명 |
 |---|---|---|
-| `chunking_processor.py` 파일 머리 | **사이트 조정 지점 블록** | 헤더 구분자·최소 청크 크기·토크나이저 기본 경로. 그 아래는 배관 |
+| `chunking_processor.py::GenOSVectorMeta` | **적재 DB 컬럼** | 청크 1건 = 1행. 선언에 없는 키도 실린다(`extra=allow`) |
 | `chunking_processor.py::GenosSmartChunker` | 동작 옵션 ClassVar | 그림 annotation·표 설명 모드·헤더 구분자 |
-| `chunking_processor.py::DocumentProcessor.split_documents` | 청커를 만들어 실행하는 지점 | |
-| `chunking_processor.py::DocumentProcessor.compose_vectors` | 청크 → 출력 스키마 조립 | |
-| `chunking_processor.py::DocumentProcessor._chunk_parse_format` 이하 | 비-docling 경로 | |
+| `chunking_processor.py::DocumentProcessor.__call__` | ① 입력 판별 → ② `pre_chunk` → ③ 분할·벡터 조합 → ④ `post_chunk` | |
+| `chunking_processor.py::pre_chunk` · `post_chunk` | **확장 훅** | 7.2 (h) |
+| `core/chunker.py::ChunkerCore.load_input` | 입력 채널 판별(인라인 / `.json`) | 열 일 없음 |
+| `core/chunker.py::ChunkerCore.chunk` · `compose_vectors` | 분할 실행 · 출력 스키마 조립 | 〃 |
 | `facade/chunking/smart_chunker.py` | **청킹 엔진 본체** | 섹션 판정·분할·병합 |
+
+> `VECTOR_META` 와 `CHUNKER` 는 facade 가 **반드시** 정합니다. core 에 기본값을 두지
+> 않았습니다 — 스키마 사본이 둘이 되면 조용히 어긋나기 때문입니다.
 
 > 이 파일에는 더 이상 OCR·PDF 파이프라인·컨버터·enrichment 배선이 없습니다. `/chunker` 가
 > 한 번도 부르지 않는데 기동할 때마다 만들고 있어서 걷어냈습니다.
@@ -1075,13 +1095,16 @@ facade 는 **한 파일씩 배포**되므로 서로 import 하지 않습니다. 
 | 복제된 것 | 어디에 |
 |---|---|
 | 청크 출력 스키마 `GenOSVectorMeta` | `chunking_processor.py` · `intelligent_processor.py` · `convert_processor.py` · `attachment_processor.py` |
-| `GenosServiceException` | `src/common/exception.py`(정본) + facade 각각의 로컬 사본 |
-| `enrichment()` | facade 3곳 (로그 태그·PPT 처리·예외 스탬프가 서로 다릅니다) |
+| `GenosSmartChunker` | 〃 (청커만 `core` 의 `CHUNKER` ClassVar 를 거칩니다) |
+| `GenosServiceException` | `src/common/exception.py`(정본) · `facade/core/errors.py`(parser·chunker 공용) + 나머지 facade 의 로컬 사본 |
+| `enrichment()` | `core/parser.py` + `intelligent_processor.py` · `convert_processor.py` (로그 태그·PPT 처리·예외 스탬프가 서로 다릅니다) |
 
 반대로 **아래는 이제 한 벌뿐입니다.** 여기를 고치면 관련 facade 전부가 함께 바뀝니다.
 
 | 한 벌인 것 | 어디에 |
 |---|---|
+| **`/parser` 처리 본체** | `facade/core/parser.py` |
+| **`/chunker` 처리 본체** | `facade/core/chunker.py` |
 | 청킹 엔진 | `facade/chunking/smart_chunker.py` |
 | docling 런타임(OCR·파이프라인·컨버터·enricher 생성) | `facade/common/docling_runtime.py` |
 | docling 배관(OCR 옵션·컨버터 생성·글리프 검사·표 셀 재OCR·포맷 로더) | `facade/common/docling_ops.py` |
@@ -1274,6 +1297,19 @@ facade 별로 받는 키가 다릅니다. 자주 쓰는 것만:
 로컬에서 최대한 확인하고, 마지막에 재배포로 검증하는 순서가 가장 빠릅니다.
 
 ### 7.2 수정 레시피
+
+| | 하고 싶은 것 | 고칠 곳 |
+|---|---|---|
+| (a) | config 옵션 하나 추가 | `resource/*.yaml` + `__init__` |
+| (b) | 요청 파라미터 추가 | `params` 해석부 |
+| (c) | 새 엔드포인트 추가 | `main.py` |
+| (d) | 파싱 결과에 필드 추가 | 직렬화부 |
+| (e) | 청킹 동작 바꾸기 | `GenosSmartChunker` ClassVar 또는 청킹 설정 |
+| (f) | 예외와 로깅 | |
+| (g) | **새 doc_type 추가** | `custom_field_*.yaml` — **코드를 안 고칩니다** |
+| (h) | **원천 구조가 설정으로 안 될 때** | 전처리기 파일의 **확장 훅** |
+
+**(g) 를 먼저 봅니다.** 새 문서 유형은 대부분 설정만으로 됩니다. 그것으로 안 될 때 (h) 입니다.
 
 #### (a) config 옵션 하나 추가하기
 
@@ -1859,6 +1895,136 @@ doc_type 이 동작해야 한다면 아래 파일에 **같은 블록을 각각**
 > 청커는 `doc_type` 을 전혀 보지 않고 `category` 로만 분기하므로, 기존 category 를 쓰면 청킹 쪽은
 > 손댈 일이 없습니다.
 
+#### (h) 원천 구조가 설정으로 안 될 때 — 확장 훅
+
+`custom_field_*.yaml` 은 **원천이 예상한 모양일 때** 값을 꺼냅니다. 원천 자체의 모양이
+어긋나면 설정으로는 못 풉니다. 그때 전처리기 파일의 **훅**에서 모양을 바로잡습니다.
+
+| 훅 | 자리 | 받는 것 |
+|---|---|---|
+| `pre_source` | 파싱 **전** | `.json` dict/list · `.md .html` str · `.xlsx .csv` 시트 격자 · 그 밖 파일 경로 |
+| `post_parse` | 응답 확정 **직전** | 응답 dict(`elements` / `document` / `metadata`) |
+| `pre_chunk` · `post_chunk` | 청커 쪽 | 파서 산출 · 완성된 청크 |
+
+전체 계약과 `toolbox` 목록은 [`facade_hooks.md`](facade_hooks.md) 에 있습니다.
+아래는 **실제 doc_type(`monimo_event`)의 원천이 조금 바뀐 경우** 두 가지입니다.
+아래 숫자는 전부 실측이고, 원천은 저장소에 있어 그대로 재현할 수 있습니다.
+
+```
+genon/preprocessor/sample_files/drill/e1_nested_by_company.json   변형 ①
+genon/preprocessor/sample_files/drill/e2_detail_joined.json       변형 ②
+```
+
+##### 기준이 되는 원천
+
+```json
+{ "resultCode": "0000",
+  "eventList": [
+    { "cmpId": "M001", "mnmFncoCd": "1",
+      "evtTodayMainCopy": "카드 첫 결제 이벤트",
+      "evtPtrmStrtDt": "20260701", "evtPtrmEndDt": "20260731",
+      "htmlText": "<p>카드 혜택</p>" } ] }
+```
+
+설정은 `source.records_at: eventList` 로 레코드를 찾고, 각 필드는 `alias` 로 레코드 **안에서**
+이름을 찾습니다. 이 전제가 깨지는 두 경우를 봅니다.
+
+##### 변형 ① 관계사별로 한 겹 더 묶여 온다
+
+```json
+{ "resultCode": "0000",
+  "companyList": [
+    { "mnmFncoCd": "1", "eventList": [ {…}, {…} ] },
+    { "mnmFncoCd": "3", "eventList": [ {…} ] } ] }
+```
+
+**그대로 넣으면 두 가지가 조용히 틀립니다** (실측).
+
+| 증상 | 원인 |
+|---|---|
+| 이벤트 3건 중 **2건만** 청크가 된다 | `records_at` 은 이름이 맞는 **첫 배열만** 찾는다. 두 번째 관계사가 통째로 사라진다 |
+| `GROUP_C` 가 전부 `IFP`(기본값) | `mnmFncoCd` 가 레코드 **밖** 부모에 있어 `alias` 가 못 찾는다 |
+
+에러가 나지 않으므로 **산출을 열어 보지 않으면 모릅니다.** 훅에서 평탄화하고 부모 값을
+레코드에 심어 넣습니다.
+
+```python
+    def pre_source(self, ext, doc_type, data, work_dir=None):
+        if ext == ".json" and doc_type == "monimo_event" and "companyList" in data:
+            return {"eventList": [
+                {**event, "mnmFncoCd": company.get("mnmFncoCd")}
+                for company in data["companyList"]
+                for event in company.get("eventList") or []
+            ]}
+        return data
+```
+
+`records_at: eventList` 를 그대로 쓰려면 **`eventList` 키를 가진 dict 로** 돌려줘야 합니다.
+목록만 돌려주면 `records_at` 이 그 이름을 못 찾아 `on_missing: error` 에 걸립니다.
+
+적용 후 실측: 청크 **2건 → 3건**, `GROUP_C` **`IFP`/`IFP` → `HPP`/`HPP`/`SSF`**.
+
+##### 변형 ② 목록과 상세가 분리돼 온다
+
+API 가 목록과 상세를 나눠 주고 `cmpId` 로 연결되는 형태입니다.
+
+```json
+{ "eventList":  [ { "cmpId": "M101", "evtTodayMainCopy": "여행자보험 가입 이벤트" } ],
+  "detailList": [ { "cmpId": "M101", "htmlText": "<p>해외 여행자보험 <b>30%</b> 할인</p>" } ] }
+```
+
+**증상**: `DETAIL_HTML`·`DETAIL_TEXT` 가 전부 빈다. `body.fields` 에 `DETAIL_TEXT` 가 있으므로
+**청크 본문이 제목만 남습니다.** `alias` 는 레코드 안에서만 찾고 `detailList` 는 그 밖입니다.
+
+```python
+        if ext == ".json" and doc_type == "monimo_event" and "detailList" in data:
+            detail = {d.get("cmpId"): d for d in data["detailList"]}
+            return {**data, "eventList": [
+                {**event, **detail.get(event.get("cmpId"), {})}
+                for event in data["eventList"]
+            ]}
+```
+
+적용 후 실측: `DETAIL_TEXT` 가 빈 값에서 `## 해외 여행자보험 **30%** 할인` 로 채워집니다 —
+설정의 `transform: html_text` 가 그때부터 동작합니다. **훅이 하는 일은 값을 만드는 것이
+아니라 설정이 값을 찾을 수 있는 모양으로 되돌리는 것입니다.**
+
+##### 두 예시가 공통으로 보여주는 것
+
+1. **`doc_type` 으로 게이팅합니다.** 안 하면 모든 JSON doc_type 의 산출이 바뀝니다.
+   `doc_type` 은 **소문자로 정규화**되어 옵니다.
+2. **손댈 것이 없으면 받은 값을 그대로 돌려줍니다.** 그러면 core 가 파생 입력을 만들지 않고
+   기존 경로를 그대로 씁니다.
+3. **설정을 대체하지 않습니다.** `alias`·`transform`·`values`·`require` 는 그대로 동작하고,
+   훅은 그 앞에서 모양만 맞춥니다.
+
+##### 고친 뒤 확인
+
+전처리기 파일은 그 자체로 실행됩니다. 서버를 띄우지 않고 한 건만 돌려 볼 수 있습니다.
+
+```bash
+python preprocessor.py 변형원천.json --doc-type monimo_event -o parsed.json
+python preprocessor.py parsed.json -o chunks.json
+```
+
+**기존 문서가 안 깨졌는지**는 자기 골든으로 봅니다 — 고치기 전에 `--record`, 고친 뒤 `--check`.
+
+```bash
+examples/parse_chunk/parse_chunk_golden.py --record   # 고치기 전
+examples/parse_chunk/parse_chunk_golden.py --check    # 고친 뒤
+```
+
+##### 훅으로 안 되는 것
+
+아래는 설정이 값 파이프라인 **안쪽**이나 순회 자체를 바꾸는 것들이라 훅으로 재현되지
+않습니다. `custom_field_*.yaml` 에서 푸세요.
+
+| 기능 | 이유 |
+|---|---|
+| `source.merge_rows` | 값 파이프라인 이전에 값을 이어붙여 렌더까지 바꿉니다 |
+| `source.sections` · `ignore_keys` | `json_semantic` 순회 자체를 좌우합니다 |
+| `markdown.front_matter` 승격 | 본문 제외는 되지만 metadata 승격은 안 됩니다 |
+
 ### 7.3 알아둘 제약
 
 코드를 고치기 전에 알아 두면 시간을 아낄 수 있는 제약들입니다.
@@ -2406,6 +2572,8 @@ grep -rn "<함수명>" genon/preprocessor/facade/
 | [`code_serving.md`](code_serving.md) | 코드서빙 **호출** 매뉴얼 (엔드포인트·LLM 캐시·실패 정책) |
 | [`intro.md`](intro.md) | 전처리기 종류 소개 · 핵심 기술 |
 | [`parser_processor.md`](parser_processor.md) | 파싱용 전처리기 레퍼런스 |
+| [`chunking_processor.md`](chunking_processor.md) | 청킹용 전처리기 레퍼런스 |
+| [`facade_hooks.md`](facade_hooks.md) | **확장 훅** — 설정으로 안 되는 원천을 코드로 처리하기 |
 | [`intelligent_processor.md`](intelligent_processor.md) | 적재용(지능형) 레퍼런스 |
 | [`convert_processor.md`](convert_processor.md) | 변환용 레퍼런스 |
 | [`attachment_processor.md`](attachment_processor.md) | 첨부용 레퍼런스 |

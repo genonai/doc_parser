@@ -1,0 +1,39 @@
+{
+ "resultCode": "0000",
+ "companyList": [
+  {
+   "mnmFncoCd": "1",
+   "eventList": [
+    {
+     "cmpId": "M001",
+     "cmsId": "001",
+     "evtTodayMainCopy": "카드 첫 결제 이벤트",
+     "evtPtrmStrtDt": "20260701",
+     "evtPtrmEndDt": "20260731",
+     "htmlText": "<p>카드 혜택</p>"
+    },
+    {
+     "cmpId": "M002",
+     "cmsId": "002",
+     "evtTodayMainCopy": "카드 구독 이벤트",
+     "evtPtrmStrtDt": "20260801",
+     "evtPtrmEndDt": "20260831",
+     "htmlText": "<p>구독 혜택</p>"
+    }
+   ]
+  },
+  {
+   "mnmFncoCd": "3",
+   "eventList": [
+    {
+     "cmpId": "M003",
+     "cmsId": "003",
+     "evtTodayMainCopy": "화재 건강검진 이벤트",
+     "evtPtrmStrtDt": "20260901",
+     "evtPtrmEndDt": "20260930",
+     "htmlText": "<p>검진 혜택</p>"
+    }
+   ]
+  }
+ ]
+}
