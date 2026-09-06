@@ -375,6 +375,10 @@ HEADER_SEP = " > "  # facade 의 _CHUNK_HEADER_SEP 과 같아야 한다(콤마�
 def _chunk(doc_dict, **kwargs):
     cp = pytest.importorskip("facade.chunking_processor")
     chunker = cp.DocumentProcessor()
+    # 헤더 접두는 개발 설정(resource_dev)에서 꺼져 있다(e332b1e5 — 의도된 값이다).
+    # 헤더 동작을 검사하는 테스트가 주변 설정에 좌우되면 안 되므로 여기서 명시한다.
+    # 끄는 쪽을 보는 테스트는 호출부가 include_chunk_header=0 으로 덮어쓴다.
+    kwargs.setdefault("include_chunk_header", 1)
     return asyncio.run(
         chunker(request=None, file_path="/data/monimo_sample.pdf", document=doc_dict, **kwargs)
     )

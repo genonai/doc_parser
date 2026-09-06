@@ -1,0 +1,26 @@
+{
+  "num_vectors": 1,
+  "vectors": [
+    {
+      "text": "# 사내 규정 안내\n\n목차\n\n1. 휴가 신청\n2. 근태 기록\n\n## 휴가 신청\n\n[이미지1] 휴가 신청은 사내 포털에서 한다. 승인 전에는 일정이 확정되지 않는다.\n자세한 절차는 목차를 참고하세요.\n\n## 근태 기록\n\n| 구분 | 설명 |\n| --- | --- |\n| 목차 | 문서 앞머리의 항목 목록 |\n| 출퇴근 | 사원증 태깅으로 기록된다 |\n\n[이미지2]\n\n근태는 매월 말일에 마감한다.\n\n## 예시 코드\n\n```python\n# 목차\nsections = [\"[이미지1]\", \"목차\"]\n```\n\n## 고지\n\n본 문서는 참고용이며 실제 적용은 인사규정을 따른다.",
+      "n_char": 316,
+      "n_word": 82,
+      "n_line": 33,
+      "i_page": 1,
+      "e_page": 1,
+      "i_chunk_on_page": 0,
+      "n_chunk_of_page": 0,
+      "i_chunk_on_doc": 0,
+      "n_chunk_of_doc": 1,
+      "n_page": 0,
+      "reg_date": "2026-09-07T06:13:10Z",
+      "chunk_bboxes": null,
+      "media_files": null,
+      "guardrail_categories": null,
+      "has_table": false,
+      "table_refs": null
+    }
+  ],
+  "label_distribution": {},
+  "total_characters": 316
+}
