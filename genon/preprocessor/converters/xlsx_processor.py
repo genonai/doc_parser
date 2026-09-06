@@ -229,6 +229,91 @@ def load_sheets(file_path: str, *, encoding: Optional[str] = None) -> dict[str, 
     return _load_sheets(file_path, encoding)
 
 
+def normalize_sheets(obj) -> dict[str, list[list[str]]]:
+    """훅이 돌려준 값을 {시트명: 2차원 문자열 행} 으로 되돌린다(#363 08-3).
+
+    고객이 어떤 라이브러리로 손보든 받아준다. 특정 라이브러리를 import 하지 않고
+    덕타이핑으로 판정한다 — pandas·polars 둘 다 `.columns` 와 `.to_numpy()` 를 가진다.
+
+      {시트명: 2차원 행}      그대로
+      {시트명: DataFrame}     컬럼명을 헤더 행으로 얹어 2차원화
+      DataFrame               단일 시트
+      2차원 행 목록            단일 시트
+      {시트명: list[dict]}     key 를 헤더 행으로
+    """
+    if _is_frame(obj):
+        return {"table_1": _frame_to_rows(obj)}
+    if isinstance(obj, list):
+        return {"table_1": _rows_to_grid(obj)}
+    if not isinstance(obj, dict):
+        raise TypeError(f"pre_source(.xlsx) 반환형을 알 수 없습니다: {type(obj).__name__}")
+    out: dict[str, list[list[str]]] = {}
+    for name, value in obj.items():
+        if _is_frame(value):
+            out[str(name)] = _frame_to_rows(value)
+        elif isinstance(value, list):
+            out[str(name)] = _rows_to_grid(value)
+        else:
+            raise TypeError(
+                f"pre_source(.xlsx) 시트 '{name}' 의 형을 알 수 없습니다: {type(value).__name__}")
+    return out
+
+
+def _is_frame(obj) -> bool:
+    return hasattr(obj, "columns") and hasattr(obj, "to_numpy")
+
+
+def _frame_to_rows(df) -> list[list[str]]:
+    header = [_cell_str(c) for c in df.columns]
+    return [header] + [[_cell_str(v) for v in row] for row in df.to_numpy().tolist()]
+
+
+def _rows_to_grid(rows: list) -> list[list[str]]:
+    if rows and isinstance(rows[0], dict):
+        keys = list(rows[0].keys())
+        return [[_cell_str(k) for k in keys]] + [[_cell_str(r.get(k)) for k in keys] for r in rows]
+    return [[_cell_str(c) for c in row] for row in rows]
+
+
+def sheets_to_xlsx(sheets: dict[str, list[list[str]]], work_dir: str,
+                   name: str = "derived.xlsx") -> str:
+    """격자를 파생 xlsx 로 쓴다. docling 모드가 파일을 요구하기 때문이다.
+
+    라운드트립이므로 원본의 서식·이미지·병합은 남지 않는다. 훅이 격자를 바꿨을 때만
+    이 경로를 탄다.
+    """
+    import openpyxl
+
+    wb = openpyxl.Workbook()
+    wb.remove(wb.active)
+    for sheet_name, rows in sheets.items():
+        ws = wb.create_sheet(title=str(sheet_name)[:31] or "Sheet1")
+        for row in rows:
+            ws.append(list(row))
+    out = os.path.join(work_dir, name)
+    wb.save(out)
+    return out
+
+
+def merge_hook_sheets(original: dict, hooked: dict) -> dict:
+    """훅이 돌려준 격자에 병합 정보를 다시 붙인다(#363 08 결정 D6).
+
+    병합 정보는 (행,열) **좌표**라 격자가 바뀌면 무의미해진다. 행·열 개수가 그대로면
+    좌표가 여전히 유효하므로 유지하고, 달라졌으면 버린다. 값만 정규화한 사용자가
+    멀티헤더 자동판정을 잃지 않게 하려는 규칙이다.
+    """
+    out: dict = {}
+    for name, rows in hooked.items():
+        orig = original.get(name)
+        keep = (
+            orig is not None
+            and len(orig[0]) == len(rows)
+            and all(len(a) == len(b) for a, b in zip(orig[0], rows))
+        )
+        out[name] = (rows, orig[1] if keep else [])
+    return out
+
+
 def _is_empty_row(row: list[str]) -> bool:
     return all(not c.strip() for c in row)
 
@@ -382,6 +467,7 @@ def load_tables(
     *,
     header_row: int = 0,
     multi_table: bool = False,
+    sheets_with_merges: dict | None = None,
 ) -> list[dict]:
     """xlsx/csv 를 표 블록 목록으로 감지·추출한다(출력 형태에 중립 — 벡터/HTML 공용).
 
@@ -394,7 +480,7 @@ def load_tables(
     멀티헤더 자동 판정(_detect_header)·복수표 분리(_split_blocks) 적용.
     header_row>0 이면 레거시 단일헤더(그 인덱스) 강제.
     """
-    sheets = _load_sheets_with_merges(file_path)
+    sheets = sheets_with_merges if sheets_with_merges is not None else _load_sheets_with_merges(file_path)
     tables: list[dict] = []
 
     for sheet_idx, (sheet_name, (rows, merges)) in enumerate(sheets.items(), start=1):
@@ -540,6 +626,7 @@ def build_tabular_data_dict(
     *,
     header_row: int = 0,
     multi_table: bool = False,
+    sheets_with_merges: dict | None = None,
 ) -> dict:
     """xlsx/csv → {"data":[{"sheet_name","sheet_index","title","data_rows":[...]}]} 중립 표현.
 
@@ -547,7 +634,8 @@ def build_tabular_data_dict(
     만든다. parser 의 _parse_tabular 와 동일 산출물(단일 소스). TabularCustomFieldsMapper.to_parse_format
     입력 형태.
     """
-    tables = load_tables(file_path, header_row=header_row, multi_table=multi_table)
+    tables = load_tables(file_path, header_row=header_row, multi_table=multi_table,
+                         sheets_with_merges=sheets_with_merges)
     data: list[dict] = []
     for t in tables:
         # 헤더가 빈 컬럼(이름 없이 값만 있는 열)은 위치 기반 이름으로 채운다. 빈 이름이 둘 이상이면

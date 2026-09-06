@@ -121,6 +121,7 @@ from genon.preprocessor.facade.common import runtime as rt
 from genon.preprocessor.facade.common import file_probe as fp
 from genon.preprocessor.facade.common import pdf_convert as pc
 from genon.preprocessor.facade.common import format_alias as fa
+from genon.preprocessor.converters import xlsx_processor as xp
 from genon.preprocessor.facade.common.docling_runtime import DoclingRuntimeBase
 from genon.preprocessor.facade.common.doc_meta import strip_enricher_meta
 from genon.preprocessor.facade.core.errors import GenosServiceException
@@ -793,7 +794,7 @@ class ParserCore:
             except Exception:
                 pass
 
-    def _parse_tabular(self, file_path: str) -> dict:
+    def _parse_tabular(self, file_path: str, sheets_with_merges: dict | None = None) -> dict:
         """xlsx/csv → {"data":[{"sheet_name","title","data_rows":[{col:val}]}]} (이슈 #288).
 
         표 감지(멀티헤더 자동 + 1시트 복수표)는 xlsx_processor.load_tables 에 위임한다.
@@ -807,6 +808,7 @@ class ParserCore:
             file_path,
             header_row=self._xlsx_cfg["header_row"],
             multi_table=self._xlsx_cfg["multi_table"],
+            sheets_with_merges=sheets_with_merges,
         )
 
     def _parse_other(self, file_path: str, **kwargs) -> list:
@@ -1152,7 +1154,8 @@ class ParserCore:
         return merge_parse_formats(results)
 
     async def _parse_tabular_records(
-        self, file_path: str, mappers: list, runtime_doc_type: Any
+        self, file_path: str, mappers: list, runtime_doc_type: Any,
+        sheets_with_merges: dict | None = None,
     ) -> dict:
         """엑셀/CSV 를 매퍼 목록으로 매핑해 합친다(매퍼가 하나면 종전과 동일).
 
@@ -1160,7 +1163,7 @@ class ParserCore:
         섞여 오는 원천 대응이다. 어느 매퍼도 안 맡은 표가 있으면 경고로 드러낸다.
         조용히 사라지면 "몇 건이 왜 없지"를 나중에 데이터에서 발견하게 된다.
         """
-        data_dict = self._parse_tabular(file_path)
+        data_dict = self._parse_tabular(file_path, sheets_with_merges)
         multi = len(mappers) > 1
         results: list = []
         # 표 단위로 맡았는지 본다. 건수 총합만 세면 매퍼 A 가 시트1을 맡은 순간 시트2가
@@ -1411,6 +1414,13 @@ class ParserCore:
                 resp["sensitive_infos"] = infos
         return resp
 
+    @classmethod
+    def cli(cls, argv=None) -> int:
+        """파일 단독 실행. 자세한 사용법은 facade/core/cli.py 참조."""
+        from genon.preprocessor.facade.core.cli import run_cli
+
+        return run_cli(cls, argv)
+
     def setup_logging(self, level_num: int):
         rt.setup_logging(level_num)
 
@@ -1445,9 +1455,45 @@ class ParserCore:
             mapper for mapper in self._tabular_custom_fields_mappers
             if mapper.matches(runtime_doc_type)
         ]
+        # 격자 훅. 세 갈래(레코드 매핑 / docling / tabular)가 모두 여기를 지난다.
+        # 훅을 안 덮어썼으면 openpyxl 로 읽는 비용조차 치르지 않는다.
+        with tempfile.TemporaryDirectory(prefix="parser_xlsx_") as work_dir:
+            sheets_with_merges, changed = self._hook_tabular_sheets(file_path, work_dir, **kwargs)
+            if changed and self._xlsx_cfg["processing_mode"] == "docling":
+                # docling 백엔드는 파일을 요구한다. 격자가 바뀐 경우에만 파생본을 쓴다.
+                file_path = xp.sheets_to_xlsx(
+                    {n: rows for n, (rows, _m) in sheets_with_merges.items()}, work_dir)
+            return await self._route_tabular_inner(
+                file_path, ctx, runtime_doc_type, matching_mappers, sheets_with_merges, **kwargs)
+
+    def _hook_tabular_sheets(self, file_path: str, work_dir: str, **kwargs):
+        """pre_source(.xlsx) 를 격자로 부른다. (격자, 바뀌었는지) 를 돌려준다.
+
+        훅에는 병합셀이 이미 펴진 `{시트명: 2차원 행}` 을 넘기고, 돌려받은 것은
+        normalize_sheets 로 표준형으로 되돌린 뒤 병합 정보를 다시 붙인다.
+
+        원본을 못 읽으면 훅을 건너뛴다 — 실제 오류는 아래 파싱 경로가 종전과 같은
+        형태로 낸다. 여기서 먼저 죽으면 오류 메시지와 시점이 달라진다.
+        """
+        if not self._pre_source_active():
+            return None, False
+        try:
+            original = xp._load_sheets_with_merges(file_path)
+        except Exception as exc:  # noqa: BLE001 - 읽기 실패는 아래 경로가 보고한다
+            _log.debug(f"[parser] xlsx 격자 훅 건너뜀({type(exc).__name__}): {file_path}")
+            return None, False
+        plain = {name: rows for name, (rows, _m) in original.items()}
+        hooked, changed = self._hook_pre_source(".xlsx", kwargs, plain, work_dir)
+        if not changed:
+            # 이미 읽었으니 그대로 넘겨 중복 읽기를 없앤다. 같은 함수의 산출이라 동일하다.
+            return original, False
+        return xp.merge_hook_sheets(original, xp.normalize_sheets(hooked)), True
+
+    async def _route_tabular_inner(self, file_path, ctx, runtime_doc_type,
+                                   matching_mappers, sheets_with_merges, **kwargs) -> dict:
         if matching_mappers:
             result = await self._parse_tabular_records(
-                file_path, matching_mappers, runtime_doc_type
+                file_path, matching_mappers, runtime_doc_type, sheets_with_merges
             )
             return await self._describe_record_tables(result, **kwargs)
         # docling 모드: MsExcel/Csv 백엔드로 DoclingDocument 생성 후 parse-JSON 직렬화.
@@ -1464,7 +1510,8 @@ class ParserCore:
         # (custom_fields 매핑 경로와 동일하게 맞춘다).
         # TODO(#315): PII 마스킹 미적용(보류) — tabular 산출은 별도 논의 후 적용.
         return await self._describe_record_tables(
-            self._tabular_to_parse_format(self._parse_tabular(file_path)), **kwargs,
+            self._tabular_to_parse_format(
+                self._parse_tabular(file_path, sheets_with_merges)), **kwargs,
         )
 
     async def route_hwp(self, file_path: str, ext: str, ctx: dict, **kwargs) -> dict:

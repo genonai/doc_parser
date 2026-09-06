@@ -325,7 +325,9 @@ doc_type 임을 확인했다(2026-09-06).** 조사 과정에서 함께 드러난
 | **08-A** | **완료** — 1차 ablation ([결과](08-A-ablation-results.md)). 하네스 결함 2건 수정, 메울 차이 8건 특정 | toolbox 요구 명세 산출 |
 | 08-1 | **완료** — `core/errors.py`+`core/parser.py`. facade 1,644 → **28줄** | 골든 차이 0 · 유닛 동일 |
 | 08-2 | **완료** — `core/chunker.py`. facade 1,223 → **88줄**. 08-3 의 "고객 표면 되돌리기"를 앞당겨 함께 넣었다(아래) | 골든 차이 0 · 유닛 40건 동일 |
-| 08-3 | 훅 4개 + `cli()` + toolbox + xlsx 데이터 훅 | 훅 미정의 시 골든 차이 0 |
+| 08-3a | **완료** — ROUTES 를 facade 로, `_route_*`→`route_*`, `__call__`→`run()` | 골든 차이 0 |
+| 08-3b | **완료** — 훅 4개 + 인코딩 폴백 + `ChunkInput` 분해 + toolbox 29항목 | 골든 차이 0 · 유닛 40건 동일 |
+| 08-3c | **완료** — 엑셀 격자 훅 + `cli()`. facade **92 / 100줄** | 골든 차이 0 |
 | **08-B** | **2차 ablation (리팩터링본)** | 합격 기준 4개 |
 | 08-4 | 신규 문서 드릴 — json(06 재실행) · xlsx · md · html | 포맷별 facade 1파일 · 30줄 이하 |
 | 08-5 | `preprocessor_template.py` · gitbook 갱신 · 릴리스 노트 규칙 | — |

@@ -7,6 +7,7 @@
 #   ROUTES      새 **확장자**를 받을 때. 표에 한 줄 + route_* 메서드 하나.
 #
 # 새 **doc_type** 을 추가하는 것뿐이라면 코드가 아니라 custom_field_*.yaml 이 먼저다.
+# 단독 실행:  python preprocessor.py <원천파일> --doc-type <타입> -o parsed.json
 # 어디까지 설정으로 되는지는 gitbook_doc/parser_processor.md 의 지원 매트릭스를 본다.
 from __future__ import annotations
 
@@ -70,8 +71,10 @@ class DocumentProcessor(ParserCore):
         data 의 형은 ext 가 정하고, 같은 형으로 돌려준다.
           .json          dict / list (깨진 JSON 이면 str)   매핑 전
           .md .html      str                              내장 전처리(flatten 등) 전
+          .xlsx .csv     dict[시트명, 2차원 행]             병합셀은 이미 펴진 상태
           그 밖           str(파일 경로)                    파생 파일은 work_dir 에
         건드릴 것이 없으면 data 를 **그대로** 돌려준다.
+        엑셀은 pandas·polars DataFrame 이나 list[dict] 로 돌려줘도 된다.
         """
         return data
 
@@ -83,3 +86,7 @@ class DocumentProcessor(ParserCore):
           result["metadata"]   문서 단위 메타      (dict)
         """
         return result
+
+
+if __name__ == "__main__":
+    DocumentProcessor.cli()

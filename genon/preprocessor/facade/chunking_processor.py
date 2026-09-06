@@ -8,6 +8,7 @@
 #   pre_chunk          파서 산출을 청킹 직전에 손볼 때.
 #   post_chunk         완성된 청크를 손볼 때.
 #
+# 단독 실행:  python preprocessor.py <파서결과.json> -o chunks.json
 # 청크 크기·모드·헤더 부착 여부는 코드가 아니라 chunking_processor_config.yaml 이다.
 from __future__ import annotations
 
@@ -63,20 +64,16 @@ class GenosSmartChunker(sc.SmartChunkerBase):
     # 경로 안 구분자(부모 → 자식). heading 에 콤마가 든 경우가 있어(실측 409건 중 20건)
     # 콤마로는 레벨을 되돌릴 수 없다. " > " 는 실측 충돌이 0 이다.
     CHUNK_HEADER_SEP = " > "
-    # 형제 경로 사이 구분자. 경로 안 구분자와 달라야 `A > B`(부모-자식)와 `A | B`(형제)가
-    # 구분된다.
+    # 형제 경로 사이 구분자. 위와 달라야 부모-자식과 형제가 구분된다.
     CHUNK_PATH_SEP = " | "
-    # 다경로 청크에서 나열할 리프 최대 개수. 초과분은 "… 외 N개" 로 접는다
-    # (실측: hwp 71경로 → 헤더 3,239자, chunk_size 를 30% 초과).
+    # 다경로 청크의 리프 최대 개수. 초과분은 "… 외 N개"(실측: hwp 71경로 → 3,239자).
     CHUNK_PATH_MAX_LEAVES = 5
 
 
 class DocumentProcessor(ChunkerCore):
-    """파싱 결과를 입력받아 청킹만 수행한다 (Chunk API, #284).
+    """파싱 결과를 입력받아 청킹만 수행한다 (Chunk API, #284)."""
 
-    IS_CHUNKER: main.py 가 이 프로세서가 /chunker API 전용임을 식별하는 데 사용.
-    """
-
+    # main.py 가 이 프로세서를 /chunker 전용으로 식별하는 데 쓴다.
     IS_CHUNKER: bool = True
 
     VECTOR_META = GenOSVectorMeta
@@ -91,11 +88,13 @@ class DocumentProcessor(ChunkerCore):
 
     def pre_chunk(self, kind, data, **kwargs):
         """[전처리] 분할 직전. 받은 형 그대로 돌려준다.
-
-        kind=="docling" 이면 data 는 DoclingDocument, "parse" 면 list[dict] 다.
-        """
+        kind=="docling" 이면 data 는 DoclingDocument, "parse" 면 list[dict] 다."""
         return data
 
     def post_chunk(self, vectors, **kwargs):
         """[후처리] 응답 직전. list[GenOSVectorMeta] 를 손본다(필드 추가·청크 제거)."""
         return vectors
+
+
+if __name__ == "__main__":
+    DocumentProcessor.cli()

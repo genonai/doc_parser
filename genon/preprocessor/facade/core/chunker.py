@@ -575,6 +575,13 @@ class ChunkerCore:
     def check_appendix_keywords(self, content: str, appendix_list: list) -> str:
         return apx.check_appendix_keywords(content, appendix_list)
 
+    @classmethod
+    def cli(cls, argv=None) -> int:
+        """파일 단독 실행. 자세한 사용법은 facade/core/cli.py 참조."""
+        from genon.preprocessor.facade.core.cli import run_cli
+
+        return run_cli(cls, argv)
+
     def setup_logging(self, level_num: int):
         rt.setup_logging(level_num)
 

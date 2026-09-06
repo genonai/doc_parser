@@ -177,3 +177,81 @@ async def test_post_parse_is_wired_into_call():
     # 확장자는 별칭이 반영되고(.parsed -> .md), doc_type 은 정규화(소문자)되어 온다.
     # 훅에서 doc_type 을 비교할 때 대문자로 적으면 영영 안 맞는다.
     assert out["metadata"]["src"] == ".md:t"
+
+
+# ---------------------------------------------------------------------------
+# 엑셀 격자 훅 — 라이브러리를 고르는 건 고객이다
+# ---------------------------------------------------------------------------
+
+xp = pytest.importorskip("genon.preprocessor.converters.xlsx_processor")
+
+
+def test_normalize_sheets_accepts_every_documented_shape():
+    grid = [["a", "b"], ["1", "2"]]
+    assert xp.normalize_sheets({"S": grid}) == {"S": grid}
+    assert xp.normalize_sheets(grid) == {"table_1": grid}
+    assert xp.normalize_sheets({"S": [{"a": 1, "b": 2}]}) == {"S": [["a", "b"], ["1", "2"]]}
+
+
+def test_normalize_sheets_accepts_dataframe_without_importing_it():
+    """core 는 pandas 를 import 하지 않는다 — 덕타이핑으로 받는다."""
+    pd = pytest.importorskip("pandas")
+    df = pd.DataFrame([[1, 2]], columns=["a", "b"])
+    assert xp.normalize_sheets({"S": df}) == {"S": [["a", "b"], ["1", "2"]]}
+    assert xp.normalize_sheets(df) == {"table_1": [["a", "b"], ["1", "2"]]}
+
+
+def test_normalize_sheets_rejects_unknown_shape():
+    with pytest.raises(TypeError):
+        xp.normalize_sheets(object())
+
+
+def test_merges_survive_value_only_edits_and_die_on_reshape():
+    """결정 D6 — 행·열 개수가 그대로면 병합 좌표가 유효하므로 유지한다.
+
+    "무조건 버린다" 로 하면 값만 고친 사용자가 멀티헤더 자동판정을 잃는다.
+    """
+    merges = [(0, 0, 0, 1)]
+    original = {"S": ([["연락처", "연락처"], ["전화", "팩스"], ["02-1", "02-2"]], merges)}
+
+    same_dims = {"S": [["연락처", "연락처"], ["전화", "팩스"], ["021", "022"]]}
+    assert xp.merge_hook_sheets(original, same_dims)["S"][1] == merges
+
+    fewer_rows = {"S": [["전화", "팩스"], ["021", "022"]]}
+    assert xp.merge_hook_sheets(original, fewer_rows)["S"][1] == []
+
+
+def test_sheets_to_xlsx_round_trips(tmp_path: Path):
+    """docling 모드는 파일을 요구한다. 격자 -> 파일 -> 격자가 같아야 한다."""
+    sheets = {"본문": [["a", "b"], ["1", "2"]]}
+    out = xp.sheets_to_xlsx(sheets, str(tmp_path))
+    assert xp.load_sheets(out) == sheets
+
+
+def test_injected_grid_reaches_load_tables(tmp_path: Path):
+    """훅이 돌려준 격자가 표 감지까지 실제로 흘러간다."""
+    src = xp.sheets_to_xlsx({"S": [["머리", "말"], ["진짜", "헤더"], ["1", "2"]]}, str(tmp_path))
+    # 앞 1행을 로고/안내문으로 보고 지운다 — 고객이 훅에서 하는 전형적인 일.
+    hooked = xp.merge_hook_sheets(
+        xp._load_sheets_with_merges(src), {"S": [["진짜", "헤더"], ["1", "2"]]})
+    tables = xp.load_tables(src, sheets_with_merges=hooked)
+    assert [t["headers"] for t in tables] == [["진짜", "헤더"]]
+
+
+def test_grid_hook_is_skipped_when_the_workbook_cannot_be_read():
+    """원본을 못 읽으면 훅을 건너뛰고 (None, False) 다.
+
+    여기서 먼저 죽으면 오류 메시지와 시점이 종전과 달라진다 — 실제 오류는
+    아래 파싱 경로가 낸다.
+    """
+    proc = _bare(parser_facade.DocumentProcessor)
+    assert proc._hook_tabular_sheets("없는파일.xlsx", "/tmp") == (None, False)
+
+
+def test_unchanged_grid_is_reused_to_avoid_a_second_read(tmp_path: Path):
+    """훅이 손대지 않아도 이미 읽은 격자를 넘긴다 — 같은 함수 산출이라 동일하다."""
+    src = xp.sheets_to_xlsx({"S": [["a", "b"], ["1", "2"]]}, str(tmp_path))
+    proc = _bare(parser_facade.DocumentProcessor)
+    sheets, changed = proc._hook_tabular_sheets(src, str(tmp_path))
+    assert changed is False
+    assert sheets == xp._load_sheets_with_merges(src)
