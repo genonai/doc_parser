@@ -35,7 +35,7 @@ class TestBodyFieldsSetting:
         """제어값이라 청크 필드로 새 나가면 안 된다 — 청커 예약 키에 들어 있어야 한다."""
         source = (
             __import__("pathlib").Path(__file__).resolve().parents[2]
-            / "facade" / "chunking_processor.py"
+            / "facade" / "core" / "chunker.py"
         ).read_text(encoding="utf-8")
         reserved_block = source.split("reserved_keys = {", 1)[1].split("consumed_keys", 1)[0]
         assert "cp.BODY_FIELDS_KEY" in reserved_block

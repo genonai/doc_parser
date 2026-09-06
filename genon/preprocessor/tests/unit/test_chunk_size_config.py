@@ -108,11 +108,19 @@ def _spy_split(mod, proc, **split_kwargs):
         def chunk(self, *a, **k):  # 실제 청킹은 생략
             return iter(())
 
+    # 청커를 어디서 집어오는지가 facade 마다 다르다. chunking 은 처리 본체(core)가
+    # CHUNKER ClassVar 를 읽고(#363 08-2), 나머지 둘은 아직 모듈 전역을 직접 쓴다.
+    # 실제 배선을 그대로 가로채야 하므로 둘 다 갈아 끼운다.
+    has_classvar = getattr(proc, "CHUNKER", None) is not None
     mod.GenosSmartChunker = _SpyChunker
+    if has_classvar:
+        type(proc).CHUNKER = _SpyChunker
     try:
         list(proc.split_documents(documents=None, **split_kwargs))
     finally:
         mod.GenosSmartChunker = OrigChunker
+        if has_classvar:
+            type(proc).CHUNKER = OrigChunker
     return captured
 
 

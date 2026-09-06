@@ -83,13 +83,13 @@ class TestChunkerAndProcessorContract:
         assert "return self.chunk_prefix_text + hp.build_header_line(" in source
 
     def test_control_keys_are_not_emitted_as_chunk_fields(self):
-        source = (_BASE / "facade" / "chunking_processor.py").read_text(encoding="utf-8")
+        source = (_BASE / "facade" / "core" / "chunker.py").read_text(encoding="utf-8")
         reserved_block = source.split("reserved_keys = {", 1)[1].split("consumed_keys", 1)[0]
         assert "cp.CHUNK_PREFIX_FIELDS_KEY" in reserved_block
         assert "cp.FIRST_CHUNK_FIELDS_KEY" in reserved_block
 
     def test_first_chunk_prefix_is_attached_only_to_chunk_zero(self):
-        source = (_BASE / "facade" / "chunking_processor.py").read_text(encoding="utf-8")
+        source = (_BASE / "facade" / "core" / "chunker.py").read_text(encoding="utf-8")
         assert '_first_prefix_text if chunk_idx == 0 else ""' in source
 
 

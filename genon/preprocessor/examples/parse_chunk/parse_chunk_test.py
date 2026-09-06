@@ -41,9 +41,10 @@ for path in (PREPROCESSOR_SRC, PROJECT_ROOT):
 from genon.preprocessor.facade.parser_processor import DocumentProcessor as ParserProcessor
 from genon.preprocessor.facade.chunking_processor import (
     DocumentProcessor as ChunkerProcessor,
-    _classify_payload,
     GenosServiceException,
 )
+# 입력 형태 판별기는 처리 본체(core)에 있다(#363 08-2).
+from genon.preprocessor.facade.core.chunker import _classify_payload
 
 mock_request = Request(scope={"type": "http"})
 

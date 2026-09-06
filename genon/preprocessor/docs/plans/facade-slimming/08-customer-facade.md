@@ -323,14 +323,44 @@ doc_type 임을 확인했다(2026-09-06).** 조사 과정에서 함께 드러난
 |---|---|---|
 | 08-0 | **완료** — 기본 집합 3계층 확정. `research_report` 는 dev 미등록으로 대상 제외(16종) | — |
 | **08-A** | **완료** — 1차 ablation ([결과](08-A-ablation-results.md)). 하네스 결함 2건 수정, 메울 차이 8건 특정 | toolbox 요구 명세 산출 |
-| 08-1 | `core/errors.py` + `core/parser.py` 이동 (훅 없이 순수 이동) | 골든 56 차이 0 |
-| 08-2 | `core/chunker.py` 이동 + 빌더 제거 | 골든 56 차이 0 |
+| 08-1 | **완료** — `core/errors.py`+`core/parser.py`. facade 1,644 → **28줄** | 골든 차이 0 · 유닛 동일 |
+| 08-2 | **완료** — `core/chunker.py`. facade 1,223 → **88줄**. 08-3 의 "고객 표면 되돌리기"를 앞당겨 함께 넣었다(아래) | 골든 차이 0 · 유닛 40건 동일 |
 | 08-3 | 훅 4개 + `cli()` + toolbox + xlsx 데이터 훅 | 훅 미정의 시 골든 차이 0 |
 | **08-B** | **2차 ablation (리팩터링본)** | 합격 기준 4개 |
 | 08-4 | 신규 문서 드릴 — json(06 재실행) · xlsx · md · html | 포맷별 facade 1파일 · 30줄 이하 |
 | 08-5 | `preprocessor_template.py` · gitbook 갱신 · 릴리스 노트 규칙 | — |
 
 08-1/08-2 는 순수 이동이라 위험이 낮다. **실질 판정은 08-B 와 08-4 다.**
+
+## 08-2 에서 계획과 달라진 것
+
+**08-3 의 "표면 되돌리기"를 08-2 로 앞당겼다.** 계획은 (1) 전부 core 로 옮기고 (2) 나중에
+고객 표면만 facade 로 되돌리는 2단계였는데, (1) 만 끝낸 중간 상태에서 **유닛 44건이 깨졌다.**
+대부분 `mod.GenosSmartChunker` / `mod.GenOSVectorMeta` 를 facade 모듈에서 꺼내 쓰는 자리라
+(2) 를 하면 어차피 되돌려야 하는 것들이었다. 함께 넣으니 44 → 8건으로 줄었다.
+
+그 결과 `GenOSVectorMeta`(23필드)와 `GenosSmartChunker`(옵션 2 + 구분자 3)는 처음부터
+facade 에 있고 **core 에는 사본이 없다** — `VECTOR_META: type = None` / `CHUNKER: type = None`
+이라 배포되는 facade 가 반드시 정해야 한다. 기본값을 두면 사본이 둘이 되어 조용히 어긋난다.
+
+덤으로 설계가 하나 좋아졌다. `_build_header_line` 이 모듈 상수 대신 **청커 클래스가 든
+구분자를 읽는다.** 원래 주석이 "크기 산정과 실제 부착이 반드시 같은 문자열을 봐야 한다" 고
+경고만 하던 것을 구조로 강제한다.
+
+### 이동에서 반복해 나온 함정 3가지
+
+01~06 에서는 안 나왔던 것들이라 08-3 에서도 같은 눈으로 봐야 한다.
+
+1. **`__file__` 상대 경로** — `parent` 기준 `../resource_dev` 가 `core/` 로 한 단계
+   깊어지며 깨졌다. parser·chunker 양쪽 같은 자리.
+2. **`import` 문이 아닌 모듈 속성 접근** — `pytest.importorskip("facade.…")` 로 잡은 모듈에서
+   `mod._classify_payload` 처럼 꺼내 쓰는 자리. import 문만 grep 하면 안 잡힌다.
+3. **파라미터화 테스트의 모듈 경로 문자열** — `["chunking_processor", "intelligent_processor",
+   "convert_processor"]` 처럼 facade 3종을 도는 테스트가 여럿이다.
+
+그리고 **간접화가 테스트의 패치 지점을 바꾼다.** `test_chunk_size_config.py` 는
+`mod.GenosSmartChunker` 를 갈아 끼워 생성 인자를 훔쳐보는데, `self.CHUNKER` 를 읽게 되면
+그 패치가 안 먹는다. 실제 배선도 함께 갈아 끼우도록 고쳤다.
 
 ## 알려진 결손 (08-A 가 확정한다)
 

@@ -28,6 +28,9 @@ from unittest.mock import AsyncMock
 
 import pytest
 
+# 청크 크기 하한 보정은 배관이라 처리 본체(core)에 있다(#363 08-2).
+from genon.preprocessor.facade.core.chunker import _clamp_chunk_size
+
 _SAMPLES = Path(__file__).resolve().parents[2] / "sample_files" / "monimo"
 
 CHUNK_SIZE = 1000
@@ -181,7 +184,7 @@ def test_cs_hpp_chunks_respect_chunk_size():
     source = _require("monimo_cs_hpp_chunksize_sample.html")
     rows = _parse_and_chunk(source, "cs_hpp", llm_stub=_CS_HPP_LLM_STUB)
 
-    effective = cp._clamp_chunk_size(CHUNK_SIZE)
+    effective = _clamp_chunk_size(CHUNK_SIZE)
     assert effective == 1024, "docling 경로의 하한 보정(_MIN_CHUNK_SIZE)이 바뀌었습니다"
 
     assert len(rows) > 1, f"분할되지 않았습니다(청크 {len(rows)}개)"
@@ -217,7 +220,7 @@ def test_cs_hpp_large_html_table_is_split_by_complete_rows(chunk_mode):
         source, "cs_hpp", llm_stub=_CS_HPP_LLM_STUB, chunk_mode=chunk_mode
     )
 
-    effective = cp._clamp_chunk_size(CHUNK_SIZE)
+    effective = _clamp_chunk_size(CHUNK_SIZE)
     table_rows = [r for r in rows if "<table>" in r["text"]]
     assert len(table_rows) > 1, "대형 단일 표가 여러 청크로 분할되지 않았습니다"
     assert len(table_rows) == len(rows), "표와 무관한 청크가 예기치 않게 추가됐습니다"
@@ -281,7 +284,7 @@ def test_cs_hpp_marker_sections_split_chunk_headers():
     assert start_idx.isdisjoint(qna_idx)
 
     # 상한 준수. cs_hpp 는 docling 경로라 _clamp_chunk_size 로 보정된 값이 유효 상한이다.
-    effective = cp._clamp_chunk_size(CHUNK_SIZE)
+    effective = _clamp_chunk_size(CHUNK_SIZE)
     over = [(i, len(r["text"])) for i, r in enumerate(rows) if len(r["text"]) > effective]
     assert not over, f"유효 상한={effective} 초과 청크: {over[:5]}"
 
@@ -340,7 +343,7 @@ def test_chunk_prefix_fields_repeat_on_every_chunk_within_chunk_size():
     assert rows[0]["text"].splitlines()[2].startswith("HEADER: ")
     assert all(r["text"].splitlines()[1].startswith("HEADER: ") for r in rows[1:])
 
-    effective = cp._clamp_chunk_size(CHUNK_SIZE)
+    effective = _clamp_chunk_size(CHUNK_SIZE)
     over = [(i, len(r["text"])) for i, r in enumerate(rows) if len(r["text"]) > effective]
     assert not over, f"접두 몫 예약 누락 — 유효 상한={effective} 초과 청크: {over[:5]}"
 
