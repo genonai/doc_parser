@@ -255,3 +255,38 @@ def test_unchanged_grid_is_reused_to_avoid_a_second_read(tmp_path: Path):
     sheets, changed = proc._hook_tabular_sheets(src, str(tmp_path))
     assert changed is False
     assert sheets == xp._load_sheets_with_merges(src)
+
+
+# ---------------------------------------------------------------------------
+# post_parse 가 청크에 닿는 통로 (08-B 가 드러낸 구멍)
+# ---------------------------------------------------------------------------
+
+tb = pytest.importorskip("facade.core.toolbox")
+
+
+def test_set_chunk_metadata_writes_into_elements_for_record_paths():
+    result = {"elements": [{"content": "a"}, {"content": "b", "metadata": {"x": 1}}]}
+    tb.set_chunk_metadata(result, {"GROUP_C": "SSS"})
+    assert [e["metadata"]["GROUP_C"] for e in result["elements"]] == ["SSS", "SSS"]
+    assert result["elements"][1]["metadata"]["x"] == 1   # 기존 값은 지우지 않는다
+
+
+def test_set_chunk_metadata_reaches_the_docling_document():
+    """봉투의 metadata 에만 쓰면 청커가 못 읽는다 — KeyValueItem 으로 실려야 경계를 넘는다."""
+    dc = pytest.importorskip("docling_core.types.doc")
+    ft = pytest.importorskip("genon.preprocessor.facade.enrichment.field_transforms")
+
+    doc = dc.DoclingDocument(name="s")
+    result = {"document": doc.model_dump(mode="json")}
+    tb.set_chunk_metadata(result, {"SRC": "CRM"})
+
+    restored = dc.DoclingDocument.model_validate(result["document"])
+    assert ft.extract_metadata_from_document(restored).get("SRC") == "CRM"
+
+
+def test_reserved_chunk_keys_are_exposed():
+    """body.once / body.fields 를 훅에서 지정하려면 이 이름이 필요하다."""
+    assert tb.FIRST_CHUNK_FIELDS_KEY == "first_chunk_fields"
+    assert tb.BODY_FIELDS_KEY == "body_fields"
+    assert tb.CHUNK_PREFIX_FIELDS_KEY == "chunk_prefix_fields"
+    assert tb.FIELD_LABELS_KEY == "field_labels"

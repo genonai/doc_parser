@@ -73,6 +73,41 @@ def unfence_text(text: str, **kw) -> str:
     return _unfence(text, **kw)[0]
 
 
+# ── 청커가 읽는 예약 키 ─────────────────────────────────────────────────────
+# post_parse 에서 result["metadata"] 에 이 키로 필드명 목록을 넣으면 청커가
+# 접두·본문필드로 쓴다. yaml 의 body.once / chunk_prefix / body.fields 와 같은 통로다.
+from genon.preprocessor.facade.common.config_parse import (
+    BODY_FIELDS_KEY,          # 값을 청크 본문과 동일하게 실을 필드
+    CHUNK_PREFIX_FIELDS_KEY,  # 모든 청크 앞에 붙일 필드
+    FIELD_LABELS_KEY,         # 접두에 쓸 라벨
+    FIRST_CHUNK_FIELDS_KEY,   # 첫 청크에만 붙일 필드 (yaml 의 body.once)
+)
+
+def set_chunk_metadata(result: dict, metadata: dict) -> dict:
+    """post_parse 에서 **청크에 실릴** 문서 메타를 넣는다.
+
+    `result["metadata"]` 에 직접 쓰면 청커가 읽지 않는다 — 파서와 청커는 별도 API 라
+    메타는 DoclingDocument 의 KeyValueItem 에 실려 경계를 넘는다(레코드/표 경로는
+    elements 각 항목의 metadata 다). 이 함수가 두 경로를 알아서 가른다.
+
+    docling 경로는 문서를 한 번 왕복시키므로 공짜가 아니다. 쓸 때만 부른다.
+    """
+    from genon.preprocessor.facade.enrichment.field_transforms import store_metadata_in_document
+
+    doc = result.get("document")
+    if isinstance(doc, dict):
+        from docling_core.types.doc import DoclingDocument
+
+        live = DoclingDocument.model_validate(doc)
+        store_metadata_in_document(live, metadata)
+        result["document"] = live.model_dump(mode="json")
+    for element in result.get("elements") or []:
+        if isinstance(element, dict):
+            element.setdefault("metadata", {}).update(metadata)
+    result.setdefault("metadata", {}).update(metadata)
+    return result
+
+
 # ── 판정 헬퍼 ───────────────────────────────────────────────────────────────
 from genon.preprocessor.facade.enrichment.custom_fields_enricher import normalize_doc_type
 from genon.preprocessor.facade.common.appendix import check_appendix_keywords
@@ -91,6 +126,7 @@ __all__ = [
     "sanitize", "tidy",
     "promote_markdown_marker_headings", "unfence_text",
     "marker_heading_match", "precheck_html",
-    "normalize_doc_type", "check_appendix_keywords",
+    "BODY_FIELDS_KEY", "CHUNK_PREFIX_FIELDS_KEY", "FIELD_LABELS_KEY", "FIRST_CHUNK_FIELDS_KEY",
+    "set_chunk_metadata", "normalize_doc_type", "check_appendix_keywords",
     "is_encrypted_pdf", "is_protected_hwp", "read_text_with_fallback",
 ]

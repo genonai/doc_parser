@@ -61,7 +61,10 @@ ADVANCED_PATHS = [
     ("source", "ignore_keys"),     # 2026-08-27 · 1파일
     ("source", "merge_rows"),      # 2026-09-03 · 1파일 (order_by 를 품는다)
     ("source", "sections"),        # 2026-08-27 · 1파일 (json_semantic 섹션 라벨)
-    ("source", "pre"),             # html/markdown 원천 전처리 일체
+    # 원천 전처리는 기능별로 쪼개서 잰다. 뭉뚱그리면 원인을 못 가른다.
+    ("source", "pre", "markdown", "text_fence"),
+    ("source", "pre", "markdown", "marker_headings"),
+    ("source", "pre", "html", "marker_headings"),
     ("body", "once"),
     ("body", "mirror_to"),         # 2026-09-03 · 1파일
 ]
@@ -106,16 +109,24 @@ def cases_for(only: list[str] | None) -> list[tuple]:
     return out
 
 
-def prune(node, paths: list[tuple], prefix: tuple = ()) -> list[str]:
-    """설정 트리에서 지정 경로를 지운다. 지운 경로 목록을 돌려준다."""
+def prune(node, paths: list[tuple]) -> list[str]:
+    """설정 트리에서 지정 경로를 지운다. 지운 경로 목록을 돌려준다.
+
+    경로는 임의 깊이다 — `source.pre` 처럼 뭉뚱그리면 그 안의 서로 다른 기능
+    (front_matter 승격 / text_fence / marker_headings)이 한꺼번에 사라져 무엇이
+    차이를 만들었는지 못 가른다(08-B 실측).
+    """
     removed: list[str] = []
-    if not isinstance(node, dict):
-        return removed
-    for parent, key in paths:
-        if prefix == () and parent in node and isinstance(node[parent], dict):
-            if key in node[parent]:
-                node[parent].pop(key)
-                removed.append(f"{parent}.{key}")
+    for path in paths:
+        cur = node
+        for seg in path[:-1]:
+            if not isinstance(cur, dict) or seg not in cur:
+                cur = None
+                break
+            cur = cur[seg]
+        if isinstance(cur, dict) and path[-1] in cur:
+            cur.pop(path[-1])
+            removed.append(".".join(path))
     return removed
 
 

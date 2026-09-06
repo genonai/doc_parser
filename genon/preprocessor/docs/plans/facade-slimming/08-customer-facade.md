@@ -328,7 +328,7 @@ doc_type 임을 확인했다(2026-09-06).** 조사 과정에서 함께 드러난
 | 08-3a | **완료** — ROUTES 를 facade 로, `_route_*`→`route_*`, `__call__`→`run()` | 골든 차이 0 |
 | 08-3b | **완료** — 훅 4개 + 인코딩 폴백 + `ChunkInput` 분해 + toolbox 29항목 | 골든 차이 0 · 유닛 40건 동일 |
 | 08-3c | **완료** — 엑셀 격자 훅 + `cli()`. facade **92 / 100줄** | 골든 차이 0 |
-| **08-B** | **2차 ablation (리팩터링본)** | 합격 기준 4개 |
+| **08-B** | **완료** — 5 doc_type / 13케이스를 훅 **26줄**로 차이 0 ([결과](08-B-ablation-results.md)). `post_parse` 가 청크에 닿지 않던 구멍을 잡았다 | 합격 기준 4개 중 3개 통과, 1개 조건부 |
 | 08-4 | 신규 문서 드릴 — json(06 재실행) · xlsx · md · html | 포맷별 facade 1파일 · 30줄 이하 |
 | 08-5 | `preprocessor_template.py` · gitbook 갱신 · 릴리스 노트 규칙 | — |
 
