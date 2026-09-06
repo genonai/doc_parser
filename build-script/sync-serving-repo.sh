@@ -88,6 +88,13 @@ EXCLUDE_PATHS=(
   # 사내 전용 문서 — 공개 배포본에 나갈 필요가 없고, 배포본에 없는 폴더(build-script/·docling/·docs/)를
   # 안내해 오히려 혼란을 준다. 코드서빙 사용/설치 안내는 배포본 root README.md 가 담당한다.
   "genon/README.md"                          # 사내 개발 문서(이미지 빌드·paddle·vllm)
+  # 고객 실 원천과 사내 계획 문서 (#363 08). whitelist 가 genon 전체라 여기 적지 않으면
+  # 공개 배포본으로 그대로 나간다.
+  #   sample_files/monimo  고객사 실 문서 48건. 일반 샘플(pdf_sample 등)은 남긴다 —
+  #                        고객이 parse_chunk_golden.py 로 자기 기준선을 찍을 때 쓴다.
+  #   docs                 리팩터링 계획·판정·미해결 결함 목록. 내부용이다.
+  "genon/preprocessor/sample_files/monimo"
+  "genon/preprocessor/docs"
   "genon/MAINTAINERS.md"                     # docling 원본 메인테이너 잔존물
   "genon/dotsocr_vllm_max_num_seqs.md"       # 사내 모델 서빙 튜닝 메모
   "genon/preprocessor/facade/README.md"      # 구버전 facade 문서(현재 트리와 불일치). 대체: gitbook_doc/

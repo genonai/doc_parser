@@ -139,6 +139,24 @@ examples/parse_chunk/parse_chunk_golden.py --record
 examples/parse_chunk/parse_chunk_golden.py --check
 ```
 
+## 릴리스 갱신 때 내 수정분 지키기
+
+**전처리기 갱신은 릴리스 단위 통째 갱신입니다** — `facade/parser_processor.py` 와
+`facade/chunking_processor.py` 도 함께 덮어써집니다. 그래서 갱신 전에 보관하고 뒤에 다시
+붙입니다.
+
+```bash
+# 실행 위치: gitea_repo
+git diff -- genon/preprocessor/facade/parser_processor.py \
+             genon/preprocessor/facade/chunking_processor.py > my_change.patch
+# … 릴리스 통째 갱신 …
+git apply my_change.patch          # 충돌하면 patch 를 보고 손으로 반영
+```
+
+훅 시그니처(`pre_source` / `post_parse` / `pre_chunk` / `post_chunk`)와 `ROUTES` 형태는
+**고정 API** 로 유지합니다. 그것이 안 바뀐 릴리스에서는 `git apply` 가 그대로 통합니다.
+릴리스 노트의 **"템플릿 변경 있음 / 없음"** 표시를 먼저 확인하세요.
+
 ## 훅으로 안 되는 것
 
 아래는 설정이 값 파이프라인 안쪽이나 순회 자체를 바꾸는 것들이라 훅으로 재현되지

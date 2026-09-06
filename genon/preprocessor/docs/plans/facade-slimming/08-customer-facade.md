@@ -31,7 +31,7 @@ README 의 원칙 2 는 "새 설정 키, 새 확장 메커니즘, 새 플러그�
 | D4 | 대상은 parser·chunker **2종만** | 5종을 한 번에 옮기면 골든 범위와 위험이 3배 |
 | D5 | 훅 호출을 **가능한 한 `__call__` 에서** 한다 | 아래 "훅 호출 위치" |
 | D6 | 엑셀 병합 정보는 **행·열 개수가 그대로일 때만** 유지 | 아래 "병합셀 규칙" |
-| D7 | **07-A 는 A3** — 고객 소유 `preprocessor.py` 를 배포 범위에서 분리 | facade 가 얇아져 비로소 가능 |
+| D7 | **07-A 는 A2** — 릴리스 전에 수정분을 patch 로 보관하고 뒤에 재적용 | 실행 형태가 루트 `main.py` 로 확정돼 A3 가 성립하지 않는다(아래) |
 
 ### 훅 호출 위치 (D5)
 
@@ -64,23 +64,36 @@ README 의 원칙 2 는 "새 설정 키, 새 확장 메커니즘, 새 플러그�
 "무조건 폐기"로 하면 값만 고친 사용자도 컬럼명이 나빠진다(`연락처_전화` → `전화`).
 좌표가 여전히 유효한 경우까지 버릴 이유가 없다.
 
-### A3 배포 (D7)
+### A2 배포 (D7) — 실측으로 A3 가 기각됐다
 
+**실행 형태는 루트 `main.py` 다.** `main.py` 가 `facade/parser_processor.py` 와
+`facade/chunking_processor.py` 를 각각 생성해 `/parser`·`/chunker` 에 붙인다. 즉 **고객이
+여는 파일이 벤더가 배포하는 그 파일이고**, 릴리스 통째 갱신이 그것을 덮어쓴다.
+
+A3 는 "고객이 벤더가 배포하지 않는 이름의 파일을 소유한다" 였다. 마운트 파일명을 고객이
+정할 수 있어야 성립하는데, `main.py` 형태에서는 파일명이 코드에 박혀 있다. **기각.**
+
+07 이 A3 의 근거로 본 `genon/preprocessor/src/preprocessor.py` 도 마운트 지점이 아니었다 —
+머리에 `[!!DEPRECATED!!]` 가 붙은 예시이고 "실제로는 DB의 값을 가져와서 사용한다" 고 적혀 있다.
+
+**A2 로 간다.**
+
+```bash
+git diff -- genon/preprocessor/facade/parser_processor.py \
+             genon/preprocessor/facade/chunking_processor.py > my_change.patch
+# … 릴리스 통째 갱신 …
+git apply my_change.patch
 ```
-1회차   벤더: core/** + preprocessor_template.py
-        고객: template → preprocessor.py 로 복사, 자기 코드 추가
-2회차~  벤더: core/** 덮어씀 + preprocessor_template.py 덮어씀
-        고객: preprocessor.py 그대로 — 아무것도 안 해도 된다
-```
 
-07 이 A3 를 "facade 는 파일 하나라 분리 불가"로 기각한 것은 벤더 로직과 고객 수정이 한
-파일에 섞여 있었기 때문이다. 벤더 로직이 `core/` 로 빠지면 분리가 성립한다.
+성립 조건은 하나다 — **훅 시그니처와 `ROUTES` 형태를 고정 API 로 유지**하면 그것이 안 바뀐
+릴리스에서 `git apply` 가 그대로 통한다. 릴리스 노트에 **"템플릿 변경 있음/없음"** 을 표시해
+고객이 먼저 확인할 수 있게 한다.
 
-**A3 의 대가 두 가지**
+절차는 [`gitbook_doc/facade_hooks.md`](../../../facade/gitbook_doc/facade_hooks.md) 의
+"릴리스 갱신 때 내 수정분 지키기" 절에 넣었다.
 
-1. **훅은 고정 API 가 된다.** `pre_source(ext, doc_type, data, work_dir)` 등의 시그니처를
-   나중에 바꾸면 고객 파일이 깨진다.
-2. 템플릿이 바뀌면 릴리스 노트에 **"템플릿 변경 있음/없음"** 을 표시한다.
+**07-C 서술도 정정했다.** "한 서빙이 파싱과 청킹을 둘 다 할 수 없다" 는 facade 한 개만
+`preprocessor.py` 로 마운트하는 형태에만 해당한다. `main.py` 형태는 한 서빙이 둘 다 한다.
 
 ## 산출 구조
 
@@ -330,7 +343,7 @@ doc_type 임을 확인했다(2026-09-06).** 조사 과정에서 함께 드러난
 | 08-3c | **완료** — 엑셀 격자 훅 + `cli()`. facade **92 / 100줄** | 골든 차이 0 |
 | **08-B** | **완료** — 5 doc_type / 13케이스를 훅 **26줄**로 차이 0 ([결과](08-B-ablation-results.md)). `post_parse` 가 청크에 닿지 않던 구멍을 잡았다 | 합격 기준 4개 중 3개 통과, 1개 조건부 |
 | 08-4 | **완료** — 7변형 2/7 → **7/7**, 훅 24줄([결과](08-4-format-drill-results.md)) | 포맷별 doc_type 당 1~3줄 |
-| 08-5 | **부분 완료** — `facade_hooks.md` 신설·링크, 의존성 3개 선언. A3 확정은 마운트 이름 지정 방법 확인 후 | — |
+| 08-5 | **완료** — `facade_hooks.md` 신설·링크, 의존성 3개 선언, **A2 확정**, 배포 제외 2건, 출고 yaml 배너 24개 정리 | precheck 기동실패 0·본문변화 0 |
 
 08-1/08-2 는 순수 이동이라 위험이 낮다. **실질 판정은 08-B 와 08-4 다.**
 

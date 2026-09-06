@@ -39,11 +39,16 @@
 > 지정하는 얇은 서브클래스이고, 실제 분할·병합 로직은 `facade/chunking/smart_chunker.py`
 > 한 벌에 있습니다. 거기를 고치면 `/chunker` 와 `/preprocess*`(적재)가 **함께** 바뀝니다.
 
-### 배포 단위가 파서와 다릅니다
+### 배포 형태에 따라 서빙 수가 다릅니다
 
-외부 사이트형 배포는 facade **한 개**만 `preprocessor.py` 로 마운트합니다. `IS_PARSER` 는
-파서에만, `IS_CHUNKER` 는 청커에만 있으므로 **한 서빙이 파싱과 청킹을 둘 다 할 수 없습니다.**
-파싱 서빙과 청킹 서빙 **두 개**를 운용하고, 설정도 두 벌을 각각 갱신합니다.
+**루트 `main.py` 로 올리는 형태(권장)** 는 한 서빙이 `/parser` 와 `/chunker` 를 **둘 다**
+제공합니다. `main.py` 가 `facade/parser_processor.py` 와 `facade/chunking_processor.py` 를
+각각 생성해 라우트에 붙이기 때문입니다. 설정은 `resource/parser_processor_config.yaml` 과
+`resource/chunking_processor_config.yaml` 두 벌을 읽습니다.
+
+**facade 한 개만 `preprocessor.py` 로 마운트하는 형태** 에서는 `IS_PARSER` 가 파서에만,
+`IS_CHUNKER` 가 청커에만 있으므로 **한 서빙이 둘 다 할 수 없습니다.** 그때는 파싱 서빙과
+청킹 서빙 두 개를 운용하고 설정도 두 벌을 각각 갱신합니다.
 
 특히 아래 둘은 **청커 쪽 yaml 에 적어야** 효과가 있습니다.
 
