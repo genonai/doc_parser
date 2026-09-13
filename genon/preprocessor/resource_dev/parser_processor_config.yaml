@@ -305,7 +305,7 @@ enrichment:
       enable: true
       doc_type: monimo_event
       config_file: custom_field_monimo_event.yaml   # resource_path 자동 = 이 yaml 파일 디렉토리
-  # 관심소식 — 이벤트와 같은 eventList 구조. TB_NEWS 컬럼(KEYW_CTGR_NM/CN_URL/NEWS_TO)로 매핑
+  # 관심소식 — JSON 의 content 에 담긴 상세 HTML 문서 단위 LLM 추출
   - custom_fields:
       enable: true
       doc_type: monimo_news
