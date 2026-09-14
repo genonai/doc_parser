@@ -1192,7 +1192,7 @@ Docling 파이프라인(PDF/HTML/HWP/HWPX/DOCX) 출력 기준:
 > 헷갈리는 동음이의 하나: `template`(필드 결합)의 내부 이름은 `derive` 입니다.
 > 내부에도 `template` 이 따로 있는데 그것은 llm 전용 프롬프트 변수 치환 모드로 뜻이 다릅니다.
 
-### extractor 4종
+### extractor 5종
 
 | kind | `extractor` (별칭) | 대상 | LLM |
 |---|---|---|---|
@@ -1201,10 +1201,43 @@ Docling 파이프라인(PDF/HTML/HWP/HWPX/DOCX) 출력 기준:
 | sections | `json_semantic` | json **트리 전체**(섹션 자동 순회) | 문서 1회 |
 | document | `llm` (`document_llm`) | 문서 전체(pdf/html/docx/md …) | 본체가 LLM |
 | document | `python` | 문서 전체. 값을 LLM 대신 고객 파이썬 함수가 만든다 | 없음 |
+| html | `html_select` | 문서 전체. 값을 **원문 HTML 의 CSS 선택자**가 만든다 | 없음 |
+
+#### `kind: html` — 마크업이 값을 이미 지목하고 있을 때
+
+뽑을 값이 class 나 속성으로 정확히 지목된 원천(크롤 산출물, CMS 상세 페이지)이 있습니다.
+그럴 때 LLM 에게 다시 찾게 할 이유가 없습니다.
+
+```yaml
+source:
+  kind: html
+  pre:
+    json:
+      body_from: [content]     # json 안에 HTML 이 들어 있는 원천이면
+fields:
+  TITLE:
+    select: .new-banner-headline        # 요소의 텍스트
+  CATEGORY:
+    select: .newsletter-article-wrap
+    attr: newsletter-title              # 요소의 **속성값**
+```
+
+- `select` 는 CSS 선택자입니다. 여러 개가 걸리면 **첫 번째**를 씁니다.
+- `attr` 을 주면 그 속성값을 문자열 그대로 씁니다. 없으면 요소 텍스트를
+  `transform: html_text` 와 같은 방식으로 평문화합니다(표·목록 구조가 남습니다).
+- 선택자 문법 오류는 **기동 시** 잡힙니다.
+- 선언한 필드는 못 찾아도 키가 남고 값이 `null` 이 됩니다(경고 로그에 어느 선택자가
+  안 걸렸는지 나옵니다).
+- **HTML 주석 안의 요소는 잡지 않습니다.** 주석은 원천이 꺼 둔 것이라는 뜻이라,
+  되살리는 판단은 파싱기가 하지 않습니다.
+
+> 원천이 `.html` 이면 그대로 쓰고, json 안에 HTML 문자열이 들어 있으면
+> `source.pre.json.body_from` 으로 그 값을 지목하면 됩니다. 선택자는 **파싱 전 원문**에
+> 걸리므로, docling 이 지워 버리는 class·속성·`alt` 를 모두 쓸 수 있습니다.
 
 > 등록 블록(`parser_processor_config.yaml`)의 `extractor` 는 **적지 않아도 됩니다.**
 > 생략하면 설정 파일의 `source.kind` 에서 정해집니다(문서형은 `python:` 블록이 있으면
-> `python`, 없으면 `llm`). 같은 정보를 두 파일에 적으면 어긋날 수 있고, 어긋나면 "이
+> `python`, 없으면 `llm`. `kind: html` 이면 `html_select`). 같은 정보를 두 파일에 적으면 어긋날 수 있고, 어긋나면 "이
 > extractor 가 읽지 않는 키" 라는 메시지로 기동이 실패합니다 — 설정에 그 키를 적은
 > 적이 없는데도 그렇습니다. 적어 둔 값이 있으면 그 값이 그대로 쓰입니다.
 
@@ -1443,7 +1476,7 @@ fields:
 | ⑤ | sections/document 에서 **표 구조를 살린 평문화**가 안 됨. `<table>…a…b…</table>` → `"ab"` 로 뭉갬 |
 | ⑥ | `merge_rows` 는 **연속 런만** 접음. 같은 키가 떨어져 오면 별개 레코드(의도된 안전장치) |
 | ⑦ | `values` 는 fail-open. "열거 밖은 전부 X 로" 를 표현할 수 없음 |
-| ⑧ | `source.pre.*` 는 문서형 extractor(`llm`/`python`)에서만 소비됨 |
+| ⑧ | `source.pre.*` 는 문서형 extractor(`llm`/`python`/`html_select`)에서만 소비됨 |
 
 ### 코드가 필요할 때 — 고칠 자리 3개
 

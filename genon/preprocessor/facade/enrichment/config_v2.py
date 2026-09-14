@@ -47,6 +47,9 @@ KIND_TO_EXTRACTOR = {
     "records": "json_mapping",
     "sections": "json_semantic",
     "document": "llm",
+    # 문서 단위인 것은 document 와 같다(docling 이 본문을 청킹한다). 다른 것은 값을 만드는
+    # 주체다 — LLM 대신 선택자가 원문 HTML 에서 직접 뽑는다.
+    "html": "html_select",
 }
 
 TOP_LEVEL_KEYS = frozenset({
@@ -61,6 +64,9 @@ TOP_LEVEL_KEYS = frozenset({
 FIELD_SPEC_KEYS = frozenset({
     "alias", "const", "default", "values", "transform", "collect", "template", "seq",
     "pack", "raw",
+    # kind: html 전용. `alias`(원천 key 이름)와 같은 역할의 같은 자리다 — 이 필드가
+    # 원천의 어디서 오는가. `attr` 은 그 요소의 속성값을 쓸 때만 곁들인다.
+    "select", "attr",
 })
 SOURCE_KEYS = frozenset({
     "kind", "records_at", "table_at", "on_missing", "merge_rows",
@@ -319,6 +325,24 @@ def _normalize_fields(fields: Any, kind: str, out: dict, label: str) -> None:
             out.setdefault(alias_block, {})[target] = _require_list(
                 spec["alias"], where, "alias"
             )
+        if "select" in spec:
+            if kind != "html":
+                raise ConfigV2Error(f"{where}: select 는 kind: html 전용입니다.")
+            css = spec["select"]
+            if not isinstance(css, str) or not css.strip():
+                raise ConfigV2Error(
+                    f"{where}: select 는 CSS 선택자 문자열이어야 합니다(예: `.new-banner-headline`)."
+                )
+            attr = spec.get("attr")
+            if attr is not None and (not isinstance(attr, str) or not attr.strip()):
+                raise ConfigV2Error(f"{where}: attr 은 속성 이름 문자열이어야 합니다.")
+            out.setdefault("select_map", {})[target] = {
+                "css": css.strip(), "attr": attr.strip() if attr else None,
+            }
+        elif "attr" in spec:
+            # `attr` 만 적은 설정은 원천을 지목하지 않은 것이라 값이 만들어지지 않는다.
+            # 조용히 무시하면 "설정에 적었는데 비어 있다"가 된다.
+            raise ConfigV2Error(f"{where}: attr 은 select 와 함께 써야 합니다.")
         if "collect" in spec:
             if kind != "records":
                 raise ConfigV2Error(f"{where}: collect 는 kind: records 전용입니다.")
@@ -489,5 +513,6 @@ COVERED_V1_KEYS = (
     | set(_LLM_ENDPOINT_KEYS) | set(_LLM_PARAM_KEYS) | set(_LLM_PROMPT_KEYS)
     | {"output_fields", "parser", "pages", "template", "table_text_description", "prompt"}
     | PYTHON_V1_KEYS
+    | {"select_map"}
     | set(PRE_KEYS)
 )

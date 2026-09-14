@@ -20,7 +20,7 @@ from genon.preprocessor.facade.common import config_parse as cp
 from genon.preprocessor.facade.enrichment import config_schema as cs
 
 from .base_enricher import BaseEnricher
-from . import plugin_loader
+from . import html_select, plugin_loader
 from .field_transforms import store_metadata_in_document
 from .prompt_files import read_prompt_file
 from .prompt_template import PromptTemplate
@@ -52,7 +52,9 @@ _DEFAULT_CUSTOM_FIELDS_SYSTEM_PROMPT = (
 # "무엇을 써야 하나"라는 질문만 만들었다(설정 개념 수를 줄인다는 원칙).
 # 문서 단위로 필드를 만드는 extractor. 값을 만드는 주체만 다르고(LLM / 고객 파이썬)
 # 그 뒤의 값 파이프라인·출력 필드·문서 저장은 완전히 같은 경로를 쓴다.
-DOCUMENT_CUSTOM_FIELD_EXTRACTORS = {"llm", "python"}
+# 문서 단위 3종 — docling 이 본문을 청킹하고, 값은 문서 전역 metadata 로 붙는다.
+# 셋의 차이는 값을 만드는 주체뿐이다(LLM 응답 / 고객 함수 / 원문 HTML 선택자).
+DOCUMENT_CUSTOM_FIELD_EXTRACTORS = {"llm", "python", "html_select"}
 TABULAR_CUSTOM_FIELD_EXTRACTORS = {"tabular_mapping"}
 # json_mapping/json_records(JsonRecordsMapper)와 json_semantic(SemanticJsonMapper)은 서로 다른
 # 빌더(json_records.build_json_records_mappers / json_semantic.build_semantic_json_mappers)로
@@ -472,6 +474,13 @@ class CustomFieldsEnricher(BaseEnricher):
                 callable or cfg.get("callable") or "extract",
                 label=f"custom_fields({config_file}) extractor: python",
             )
+        # extractor: html_select — 값을 만드는 것이 원문 HTML 의 선택자다. 문법 오류는
+        # 기동 시 드러낸다(요청 시점에 알면 "값이 안 나온다"로만 보인다).
+        self._selectors: dict[str, dict] = {}
+        if self._extractor == "html_select":
+            self._selectors = html_select.compile_selectors(
+                cfg, label=f"custom_fields({config_file})"
+            )
         self._table_description_options = self._resolve_table_text_description_options(
             merge_table_text_description(table_text_description, cfg.get("table_text_description"))
         )
@@ -796,6 +805,16 @@ class CustomFieldsEnricher(BaseEnricher):
         from genon.preprocessor.facade.common.markdown_export import export_markdown
 
         return export_markdown(document, pages=set(self._pages))
+
+    def wants_source_html(self, doc_type: Any = None) -> bool:
+        """이 enricher 가 파싱 전 원문 HTML 을 필요로 하는지.
+
+        파서가 이걸 보고 원문을 읽을지 정한다 — 필요 없는 문서유형에서 HTML 파일을 한 번
+        더 읽는 비용을 치르지 않기 위해서다.
+        """
+        if self._extractor != "html_select":
+            return False
+        return matches_doc_type(self._doc_types, doc_type)
 
     def wants_table_descriptions(self, **kwargs: Any) -> bool:
         """현재 요청에서 텍스트 표 설명 기능이 켜졌는지 반환한다.
@@ -1188,10 +1207,13 @@ class CustomFieldsEnricher(BaseEnricher):
     def is_configured(self) -> bool:
         """값을 만들 수단이 있는지. 없으면 추출 자체를 하지 않는다.
 
-        extractor: python 은 LLM 연결이 아니라 고객 함수가 그 수단이다.
+        extractor: python 은 LLM 연결이 아니라 고객 함수가, html_select 는 선택자가
+        그 수단이다.
         """
         if self._extractor == "python":
             return self._extract_callable is not None
+        if self._extractor == "html_select":
+            return bool(self._selectors)
         return bool(self._url and self._model)
 
     async def extract_fields_from_text(self, raw_text: str) -> dict:
@@ -1231,7 +1253,22 @@ class CustomFieldsEnricher(BaseEnricher):
             raw_text = f"{prompt_prefix}\n\n{raw_text}" if raw_text else prompt_prefix
 
         parsed: dict = {}
-        if self._extractor == "python":
+        if self._extractor == "html_select":
+            # 입력이 파싱된 평문이 아니라 **원문 HTML** 이다(파서가 ctx 에 실어 준다).
+            source_html = html_select.source_html_from(kwargs)
+            if source_html:
+                try:
+                    parsed = html_select.extract_fields(source_html, self._selectors)
+                except Exception as e:
+                    _log.warning(f"custom_fields 추출 실패(extractor: html_select): {e}")
+            else:
+                # HTML 이 아닌 원천이 이 문서유형으로 들어온 경우다. 값은 못 만들지만
+                # defaults/constants 는 아래에서 그대로 채워진다.
+                _log.warning(
+                    "custom_fields 추출 건너뜀(extractor: html_select): 원문 HTML 이 없습니다 "
+                    "— 이 문서유형은 HTML 원천(또는 json 의 HTML 값)에만 적용됩니다."
+                )
+        elif self._extractor == "python":
             try:
                 parsed = await self._call_python_extractor(raw_text, document, **kwargs)
             except Exception as e:

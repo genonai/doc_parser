@@ -495,7 +495,8 @@ _DATE_INT_FLEX_FIELDS = {
     "custom_field_menu.yaml": ["SRC_LAST_MOD_DT"],
     "custom_field_term.yaml": ["SRC_LAST_MOD_DT"],
     "custom_field_monimo_event.yaml": ["EVENT_FROM", "EVENT_TO"],
-    "custom_field_monimo_news.yaml": ["NEWS_TO"],
+    # 관심소식은 목록이 없다 - 원천이 상세 HTML 한 벌(`wcmsData.html.content`)로 바뀌면서
+    # 날짜 필드 자체가 사라졌다(예전 `NEWS_TO` 는 eventList 레코드의 `개시 종료일` 이었다).
     "custom_field_stock_insight.yaml": ["NEWS_DATE", "ANALYSIS_DATE"],
 }
 
@@ -550,6 +551,8 @@ def test_shipped_monimo_configs_cover_not_null_columns(resource_dir, config_name
     mapped |= set(cfg.get("defaults") or {})
     mapped |= {f for spec in (cfg.get("llm_fields") or []) for f in spec["output_fields"]}
     mapped |= set(cfg.get('transforms') or {})
+    # extractor: html_select — 원문 HTML 선택자가 값 확보 경로다(v2 `fields.<이름>.select`).
+    mapped |= set(cfg.get("select_map") or {})
 
     missing = [c for c in _REQUIRED_BY_DOC_TYPE[config_name]
                if c not in mapped and c not in _DB_DEFAULTED_COLUMNS]

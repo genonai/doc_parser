@@ -104,6 +104,14 @@ EXTRACTOR_KEYS: dict[str, frozenset[str]] = {
         "front_matter_map", "value_map", "transforms", "derive", "pack",
         "body_fields", "chunk_prefix_fields", "first_chunk_fields", "field_labels",
     }),
+    # 문서 단위인데 값을 만드는 것이 원문 HTML 의 선택자인 경우. 연결·프롬프트·파서 키가
+    # 통째로 없고 원천 지목은 `select_map` 하나다(v2 의 `fields.<이름>.select`/`attr`).
+    # 그 뒤의 값 파이프라인은 llm·python 과 같다 — 값을 만드는 방법만 다르다.
+    "html_select": frozenset({
+        "select_map", "constants", "defaults",
+        "value_map", "transforms", "derive", "pack",
+        "body_fields", "chunk_prefix_fields", "first_chunk_fields", "field_labels",
+    }),
     # 문서 단위인데 값을 만드는 것이 LLM 이 아니라 고객 파이썬 함수인 경우. 연결·프롬프트
     # 키가 없는 대신 file/callable 을 받고, 그 뒤의 값 파이프라인은 llm 과 같다.
     "python": frozenset({

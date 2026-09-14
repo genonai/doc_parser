@@ -45,6 +45,7 @@ from docling_core.types.doc import (
     ProvenanceItem,
 )
 
+from genon.preprocessor.facade.enrichment import html_select
 from genon.preprocessor.facade.enrichment.custom_fields_enricher import normalize_doc_type
 from genon.preprocessor.converters import delimited_text as dt
 from genon.preprocessor.converters.plain_text import text_to_html
@@ -712,6 +713,29 @@ class ParserCore:
     # 포맷별 파싱 메서드
     # ------------------------------------------------------------------
 
+    def _stash_source_html(self, file_path: str, **kwargs) -> None:
+        """원문 HTML 을 필요로 하는 custom_fields 추출기가 있으면 읽어서 넘긴다.
+
+        필요한 문서유형이 없으면 파일을 열지도 않는다. 읽기에 실패해도 파싱은 그대로
+        진행한다 — 이건 보조 입력이라, 없으면 그 필드가 비는 것으로 드러나면 된다.
+        """
+        if not str(file_path).lower().endswith((".html", ".htm")):
+            return
+        doc_type = kwargs.get("doc_type")
+        wanted = any(
+            getattr(enricher, "wants_source_html", None)
+            and enricher.wants_source_html(doc_type)
+            for enricher in (getattr(self._intel, "custom_fields_enrichers", None) or [])
+        )
+        if not wanted:
+            return
+        try:
+            html = read_text_with_fallback(file_path)
+        except Exception as exc:  # noqa: BLE001 - 인코딩·권한 등 어떤 실패든 보조 입력 부재로 본다
+            _log.warning(f"[parser] html_select 원문 읽기 실패({exc}) — 해당 필드는 비웁니다.")
+            return
+        html_select.stash_source_html(kwargs.get("_enrichment_context"), html)
+
     def _parse_docling(
         self, file_path: str, artifacts_from: str | None = None, **kwargs
     ) -> DoclingDocument:
@@ -723,6 +747,11 @@ class ParserCore:
             json 병합처럼 파싱 대상이 파생 임시 파일일 때, media_files 경로가 원본
             기준으로 유지되도록 원본 경로를 넘긴다. 미지정 시 file_path 를 쓴다.
         """
+        # extractor: html_select 는 파싱된 문서가 아니라 원문 HTML 에서 값을 뽑는다.
+        # docling 을 지나면 class·속성이 남지 않으므로 여기서 넘겨 둔다. json 안의
+        # HTML(_parse_json 이 병합한 파일)과 .html 원본이 모두 이 한 지점을 지난다.
+        self._stash_source_html(file_path, **kwargs)
+
         ocr_mode = getattr(self._intel, "ocr_mode", "auto")
 
         if ocr_mode == "force":
