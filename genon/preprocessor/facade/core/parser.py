@@ -1626,12 +1626,14 @@ class ParserCore:
             result["metadata"] = enrichment_context["metadata"]
         return result
 
-    async def route_audio(self, file_path: str, ext: str, ctx: dict, **kwargs) -> dict:
+    async def route_audio(self, job) -> dict:
+        file_path, kwargs = job.source, job.params
         # TODO(#315): PII 마스킹 미적용(보류) — 오디오 전사 텍스트는 별도 논의 후 적용.
         text = self._parse_audio(file_path, **kwargs)
         return self._audio_to_parse_format(text)
 
-    async def route_tabular(self, file_path: str, ext: str, ctx: dict, **kwargs) -> dict:
+    async def route_tabular(self, job) -> dict:
+        file_path, ctx, kwargs = job.source, job.ctx, job.params
         # doc_type 은 "행을 어떻게 나눌지"가 아니라 "행 컬럼을 어떤 목표필드로 매핑할지"에만
         # 쓴다. 행 분할 여부는 formats.xlsx.processing_mode 가 결정한다.
         # 단, enrichment.custom_fields 의 tabular_mapping 이 doc_type 과 매칭되면 행별 매핑이
@@ -1705,17 +1707,19 @@ class ParserCore:
         # .hml(HWPML)은 hwp_sdk 260713+ 에서 지원 — 같은 SDK 경로로 라우팅 (이슈 #323)
         return await self.document_to_response(job, self._parse_hwp_hwpx(job.source, **job.params))
 
-    async def route_docx(self, file_path: str, ext: str, ctx: dict, **kwargs) -> dict:
+    async def route_docx(self, job) -> dict:
+        file_path, ctx, kwargs = job.source, job.ctx, job.params
         return await self._docling_response(
             self._parse_docx(file_path, **kwargs), ctx, clear_coordinates=True, **kwargs
         )
 
-    async def route_docling(self, file_path: str, ext: str, ctx: dict, **kwargs):
+    async def route_docling(self, job):
         """pdf / html / htm / md 를 docling 으로 파싱한다.
 
         .md 는 formats.md.processing_mode=docling(기본)일 때만 여기서 처리하고,
         text 모드면 None 을 돌려 캐치올(TextLoader)로 넘긴다 — 레거시 동작 보존.
         """
+        file_path, ext, ctx, kwargs = job.source, job.ext, job.ctx, job.params
         if ext == ".md" and self._md_cfg["processing_mode"] != "docling":
             return None
 
@@ -1824,7 +1828,7 @@ class ParserCore:
         result = await self._parse_json_records(file_path, mappers, **kwargs)
         return await self._describe_record_tables(result, **kwargs)
 
-    async def route_json(self, file_path: str, ext: str, ctx: dict, **kwargs):
+    async def route_json(self, job):
         """enrichment.custom_fields 설정으로 두 모드가 갈린다.
 
           레코드 모드(extractor: json_mapping) — 레코드별 목표필드 element
@@ -1834,6 +1838,7 @@ class ParserCore:
         docling 으로 보내므로(route_other), 설정이 없는 .json 도 원문 그대로 docling 을
         탄다 — 예전처럼 PDF 렌더를 거치는 텍스트 경로로 빠지지 않는다.
         """
+        file_path, ctx, kwargs = job.source, job.ctx, job.params
         # 1순위: 레코드 매핑(json_mapping) — 레코드마다 청크/메타데이터를 따로 만든다.
         #        docling 을 거치지 않으므로 xlsx 의 tabular 조기 분기와 같은 성격이다.
         records_mappers = self._json_records_mappers_for(kwargs.get("doc_type"))
@@ -1857,11 +1862,12 @@ class ParserCore:
         )
         return None
 
-    async def route_ppt(self, file_path: str, ext: str, ctx: dict, **kwargs) -> dict:
+    async def route_ppt(self, job) -> dict:
         """PDF 변환 → 경량 docling 파싱 + 페이지 단위 image description(옵션).
 
         변환 실패 시에만 레거시 langchain 경로로 폴백한다. (파스 전용 — 청킹 없음)
         """
+        file_path, ctx, kwargs = job.source, job.ctx, job.params
         doc = self._parse_ppt_docling(file_path, **kwargs)
         if doc is not None:
             return await self._docling_response(doc, ctx, **kwargs)
@@ -1893,13 +1899,14 @@ class ParserCore:
         doc = dops.demote_code_items(doc)
         return await self._docling_response(doc, ctx, **kwargs)
 
-    async def route_other(self, file_path: str, ext: str, ctx: dict, **kwargs) -> dict:
+    async def route_other(self, job) -> dict:
         """캐치올: doc, txt, json, md, jpg, jpeg, png 등.
 
         내용이 텍스트면 docling 으로 보낸다. `.txt`, custom_fields 미매칭 `.json`,
         `formats.md.processing_mode=text`, 그리고 확장자를 모르지만 본문이 텍스트인
         파일이 모두 여기로 흘러든다. 나머지(doc/이미지 등)는 기존 langchain 경로다.
         """
+        file_path, ctx, kwargs = job.source, job.ctx, job.params
         if _file_looks_like_text(file_path):
             try:
                 text = read_text_with_fallback(file_path)
