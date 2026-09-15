@@ -128,7 +128,7 @@ class DocumentProcessor(ParserCore):
         """csv, xlsx, xlsm. 행 매핑 설정이 있으면 레코드로, 없으면 문서로 변환한다."""
         sheets = await self.read_sheets(job)         # {시트명: 셀 값 배열}
         if self.has_sheet_mapping(job):
-            return await self.records_to_response(job, self.map_sheet_records(job, sheets))
+            return await self.records_to_response(job, await self.map_sheet_records(job, sheets))
         if self.uses_sheet_as_document(job):         # 시트를 문서로 처리하는 설정
             return await self.document_to_response(job, self.parse_sheets(job, sheets))
         return await self.records_to_response(job, self.sheets_to_records(job, sheets))
@@ -145,7 +145,7 @@ class DocumentProcessor(ParserCore):
         return await self.document_to_response(job, self.parse_hwp(job))
 
     async def route_docx(self, job):    # docx
-        return await self.document_to_response(job, self.parse_docx(job))
+        return await self.document_to_response(job, self.parse_docx(job), clear_coordinates=True)
 
     async def route_ppt(self, job):
         """ppt, pptx. PDF 변환 후 분석하고, 변환 실패 시 텍스트만 추출한다."""
@@ -155,8 +155,11 @@ class DocumentProcessor(ParserCore):
         return await self.document_to_response(job, doc)
 
     async def route_other(self, job):
-        """catch-all. doc, txt, 이미지 등에서 텍스트만 추출한다."""
-        return self.parse_plain(job)
+        """catch-all. 본문이 텍스트면 docling 으로 파싱하고, doc·이미지 등은 텍스트만 추출한다."""
+        doc = self.parse_text(job)                   # 텍스트가 아니면 None
+        if doc is None:
+            return self.parse_plain(job)
+        return await self.document_to_response(job, doc)
 
     # --- 3. doc_type 별 설정 ---
     #
