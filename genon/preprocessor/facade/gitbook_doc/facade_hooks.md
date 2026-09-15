@@ -11,7 +11,7 @@
 
 | 파일 | 줄수 | 고칠 자리 |
 |---|---:|---|
-| `facade/parser_processor.py` | 101 | `ROUTES` · `pre_source` · `post_parse` |
+| `facade/parser_processor.py` | 101 | `ROUTES` · `pre_parse` · `post_parse` |
 | `facade/chunking_processor.py` | 123 | `GenOSVectorMeta` · `GenosSmartChunker` · `ROW_CATEGORIES` · `pre_chunk` · `on_chunk` · `post_chunk` |
 
 처리 본체는 `facade/core/` 에 있고 **열어 볼 일이 없습니다.** 열어야 했다면 그건 훅이
@@ -20,7 +20,7 @@
 ## 언제 무엇이 불리나
 
 ```
-파싱   요청 → 확장자 판정 → ROUTES → [pre_source] → 파싱 → [post_parse] → 응답
+파싱   요청 → 확장자 판정 → ROUTES → [pre_parse] → 파싱 → [post_parse] → 응답
 청킹   파서 결과 → 형태 판별 → [pre_chunk] → 분할 → [on_chunk] → 벡터 조합 → [post_chunk] → 응답
 ```
 
@@ -34,7 +34,7 @@
 원천시스템처럼 **요청마다 달라지는 값**은 이 통로로만 받으세요.
 
 ```python
-    def pre_source(self, ext, doc_type, data, work_dir=None, **kwargs):
+    def pre_parse(self, ext, doc_type, data, work_dir=None, **kwargs):
         if kwargs.get("tenant") == "CARD":
             ...
 ```
@@ -61,7 +61,7 @@
 **동기 함수 안에서 외부 호출을 하지 마세요.** 서버가 요청 하나를 처리하는 동안 다른
 문서의 요청까지 함께 멈춥니다(이벤트 루프가 막힙니다).
 
-## pre_source — 원천을 파싱 입력으로 바꾼다
+## pre_parse — 원천을 파싱 입력으로 바꾼다
 
 `data` 의 형은 확장자가 정하고, **같은 형으로 돌려줍니다.**
 
@@ -76,7 +76,7 @@
 `doc_type` 은 소문자로 정규화되어 옵니다 — `"MyType"` 으로 비교하면 영영 안 맞습니다.
 
 ```python
-    def pre_source(self, ext, doc_type, data, work_dir=None, **kwargs):
+    def pre_parse(self, ext, doc_type, data, work_dir=None, **kwargs):
         # JSONL/NDJSON — json.loads 가 실패하면 원문 str 로 옵니다.
         if ext == ".json" and isinstance(data, str):
             return {"rows": [json.loads(ln) for ln in data.splitlines() if ln.strip()]}
@@ -90,16 +90,16 @@
 
 ### 새 확장자를 받으려면 — ROUTES 한 줄
 
-`route_*` 메서드를 새로 만들 필요는 없습니다. `pre_source` 가 원천을 **이미 처리할 수 있는
+`route_*` 메서드를 새로 만들 필요는 없습니다. `pre_parse` 가 원천을 **이미 처리할 수 있는
 포맷으로 바꿔** 그 핸들러에 태우면 됩니다. `.md` `.html` `.json` 표 파일 말고 다른 확장자는
-`pre_source` 가 **파일 경로**를 받고 `work_dir`(요청이 끝나면 정리되는 임시 디렉터리)을
+`pre_parse` 가 **파일 경로**를 받고 `work_dir`(요청이 끝나면 정리되는 임시 디렉터리)을
 함께 받으므로, 거기에 변환 결과를 쓰고 그 경로를 돌려주면 됩니다.
 
 ```python
     ROUTES = (((".xml",), "route_json"),        # 표 맨 앞에 두 줄
               ((".tsv",), "route_tabular")) + (... 기존 표 그대로 ...)
 
-    def pre_source(self, ext, doc_type, data, work_dir=None, **kwargs):
+    def pre_parse(self, ext, doc_type, data, work_dir=None, **kwargs):
         if ext == ".xml" and doc_type == "monimo_event":
             events = [{c.tag: c.text for c in ev}
                       for ev in ET.parse(data).getroot().find("eventList")]
@@ -457,9 +457,13 @@ git diff -- genon/preprocessor/facade/parser_processor.py \
 git apply my_change.patch          # 충돌하면 patch 를 보고 손으로 반영
 ```
 
-훅 시그니처(`pre_source` / `post_parse` / `pre_chunk` / `post_chunk`)와 `ROUTES` 형태는
+훅 시그니처(`pre_parse` / `post_parse` / `pre_chunk` / `post_chunk`)와 `ROUTES` 형태는
 **고정 API** 로 유지합니다. 그것이 안 바뀐 릴리스에서는 `git apply` 가 그대로 통합니다.
 릴리스 노트의 **"템플릿 변경 있음 / 없음"** 표시를 먼저 확인하세요.
+
+> `pre_parse` 는 v2.2.0 까지 `pre_source` 라는 이름이었습니다. 옛 이름으로 덮어쓴 파일도
+> 그대로 동작하며, 서버 로그에 이름을 바꾸라는 경고가 한 번 남습니다. 두 이름을 함께
+> 정의하면 `pre_parse` 만 불립니다.
 
 ## 훅으로 안 되는 것
 

@@ -28,7 +28,7 @@ def _bare(cls):
 
 
 # ---------------------------------------------------------------------------
-# pre_source 게이트 — 안 건드리면 파생 입력을 만들지 않는다
+# pre_parse 게이트 — 안 건드리면 파생 입력을 만들지 않는다
 # ---------------------------------------------------------------------------
 
 @pytest.mark.asyncio
@@ -36,8 +36,8 @@ async def test_untouched_hook_reports_no_change():
     """core 기본 구현 그대로면 '비활성' 이고 값도 그대로다."""
     proc = _bare(core_parser.ParserCore)
     data = {"a": 1}
-    assert proc._pre_source_active() is False
-    assert await proc._hook_pre_source(".json", {}, data) == (data, False)
+    assert proc._pre_parse_active() is False
+    assert await proc._hook_pre_parse(".json", {}, data) == (data, False)
 
 
 @pytest.mark.asyncio
@@ -49,24 +49,24 @@ async def test_passthrough_override_is_active_but_reports_no_change():
     """
     proc = _bare(parser_facade.DocumentProcessor)
     data = {"a": 1}
-    assert proc._pre_source_active() is True
-    assert await proc._hook_pre_source(".json", {}, data) == (data, False)
+    assert proc._pre_parse_active() is True
+    assert await proc._hook_pre_parse(".json", {}, data) == (data, False)
 
 
 @pytest.mark.asyncio
 async def test_reshaping_hook_reports_change():
     class _P(parser_facade.DocumentProcessor):
-        def pre_source(self, ext, doc_type, data, work_dir=None):
+        def pre_parse(self, ext, doc_type, data, work_dir=None):
             if doc_type == "nested":
                 return {"items": [i for g in data["groups"] for i in g["items"]]}
             return data
 
     proc = _bare(_P)
     src = {"groups": [{"items": [1, 2]}, {"items": [3]}]}
-    out, changed = await proc._hook_pre_source(".json", {"doc_type": "nested"}, src)
+    out, changed = await proc._hook_pre_parse(".json", {"doc_type": "nested"}, src)
     assert changed is True and out == {"items": [1, 2, 3]}
     # 대상 doc_type 이 아니면 손대지 않는다 — 게이팅이 없으면 모든 JSON 이 바뀐다.
-    assert await proc._hook_pre_source(".json", {"doc_type": "other"}, src) == (src, False)
+    assert await proc._hook_pre_parse(".json", {"doc_type": "other"}, src) == (src, False)
 
 
 # ---------------------------------------------------------------------------
@@ -79,7 +79,7 @@ async def test_json_payload_hook_is_called_at_the_single_entry(tmp_path: Path):
     src.write_text(json.dumps({"groups": [{"items": [1]}, {"items": [2]}]}), encoding="utf-8")
 
     class _P(parser_facade.DocumentProcessor):
-        def pre_source(self, ext, doc_type, data, work_dir=None):
+        def pre_parse(self, ext, doc_type, data, work_dir=None):
             return {"items": [i for g in data["groups"] for i in g["items"]]}
 
     assert await _bare(_P)._load_json_payload(str(src), "any") == {"items": [1, 2]}
@@ -92,7 +92,7 @@ async def test_broken_json_reaches_the_hook_as_raw_text(tmp_path: Path):
     src.write_text('{"v":1}\n{"v":2}\n', encoding="utf-8")
 
     class _P(parser_facade.DocumentProcessor):
-        def pre_source(self, ext, doc_type, data, work_dir=None):
+        def pre_parse(self, ext, doc_type, data, work_dir=None):
             assert isinstance(data, str)
             return {"rows": [json.loads(ln) for ln in data.splitlines() if ln.strip()]}
 
@@ -352,17 +352,17 @@ def test_hook_with_var_keyword_receives_request_params_only():
 
 
 @pytest.mark.asyncio
-async def test_pre_source_receives_request_params(tmp_path: Path):
+async def test_pre_parse_receives_request_params(tmp_path: Path):
     src = tmp_path / "a.json"
     src.write_text(json.dumps({"v": 1}), encoding="utf-8")
     seen = {}
 
     class _P(parser_facade.DocumentProcessor):
-        def pre_source(self, ext, doc_type, data, work_dir=None, **kwargs):
+        def pre_parse(self, ext, doc_type, data, work_dir=None, **kwargs):
             seen.update(kwargs)
             return data
 
-    await _bare(_P)._hook_pre_source(".json", {"doc_type": "t", "tenant": "A"}, {"v": 1})
+    await _bare(_P)._hook_pre_parse(".json", {"doc_type": "t", "tenant": "A"}, {"v": 1})
     assert seen == {"tenant": "A"}
 
 
@@ -374,7 +374,7 @@ async def test_json_path_also_passes_request_params(tmp_path: Path):
     seen = {}
 
     class _P(parser_facade.DocumentProcessor):
-        def pre_source(self, ext, doc_type, data, work_dir=None, **kwargs):
+        def pre_parse(self, ext, doc_type, data, work_dir=None, **kwargs):
             seen.update(kwargs)
             return data
 
@@ -383,26 +383,57 @@ async def test_json_path_also_passes_request_params(tmp_path: Path):
 
 
 @pytest.mark.asyncio
-async def test_legacy_pre_source_signature_still_works():
+async def test_legacy_pre_parse_signature_still_works():
     """**kwargs 없는 기존 훅도 그대로 불린다(하위호환)."""
     class _P(parser_facade.DocumentProcessor):
-        def pre_source(self, ext, doc_type, data, work_dir=None):
+        def pre_parse(self, ext, doc_type, data, work_dir=None):
             return {"reshaped": True}
 
-    out, changed = await _bare(_P)._hook_pre_source(
+    out, changed = await _bare(_P)._hook_pre_parse(
         ".json", {"doc_type": "t", "tenant": "A"}, {"v": 1})
     assert (out, changed) == ({"reshaped": True}, True)
 
 
 @pytest.mark.asyncio
-async def test_async_pre_source_is_awaited():
+async def test_async_pre_parse_is_awaited():
     """사내 API 조회처럼 외부 호출이 필요한 훅을 동기로 쓰면 이벤트 루프가 막힌다."""
     class _P(parser_facade.DocumentProcessor):
-        async def pre_source(self, ext, doc_type, data, work_dir=None, **kwargs):
+        async def pre_parse(self, ext, doc_type, data, work_dir=None, **kwargs):
             return {"awaited": True}
 
-    out, changed = await _bare(_P)._hook_pre_source(".json", {"doc_type": "t"}, {"v": 1})
+    out, changed = await _bare(_P)._hook_pre_parse(".json", {"doc_type": "t"}, {"v": 1})
     assert (out, changed) == ({"awaited": True}, True)
+
+
+@pytest.mark.asyncio
+async def test_old_hook_name_pre_source_is_still_called(monkeypatch):
+    """v2.2.0 까지의 facade 는 pre_source 를 덮어썼다. 옛 파일을 그대로 올려도 불려야 한다."""
+    warned = []
+    monkeypatch.setattr(core_parser._log, "warning", lambda *a, **k: warned.append(a))
+
+    class _P(core_parser.ParserCore):
+        def pre_source(self, ext, doc_type, data, work_dir=None, **kwargs):
+            return {"tenant": kwargs.get("tenant")}
+
+    proc = _bare(_P)
+    assert proc._pre_parse_active() is True
+    out, changed = await proc._hook_pre_parse(".json", {"doc_type": "t", "tenant": "A"}, {"v": 1})
+    assert (out, changed) == ({"tenant": "A"}, True)
+    await proc._hook_pre_parse(".json", {"doc_type": "t"}, {"v": 1})
+    assert len(warned) == 1   # 요청마다가 아니라 클래스마다 한 번
+
+
+@pytest.mark.asyncio
+async def test_pre_parse_wins_when_both_hook_names_are_defined():
+    class _P(core_parser.ParserCore):
+        def pre_source(self, ext, doc_type, data, work_dir=None):
+            return {"from": "pre_source"}
+
+        def pre_parse(self, ext, doc_type, data, work_dir=None):
+            return {"from": "pre_parse"}
+
+    out, _ = await _bare(_P)._hook_pre_parse(".json", {"doc_type": "t"}, {"v": 1})
+    assert out == {"from": "pre_parse"}
 
 
 @pytest.mark.asyncio

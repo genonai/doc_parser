@@ -246,7 +246,7 @@ def normalize_sheets(obj) -> dict[str, list[list[str]]]:
     if isinstance(obj, list):
         return {"table_1": _rows_to_grid(obj)}
     if not isinstance(obj, dict):
-        raise TypeError(f"pre_source(.xlsx) 반환형을 알 수 없습니다: {type(obj).__name__}")
+        raise TypeError(f"pre_parse(.xlsx) 반환형을 알 수 없습니다: {type(obj).__name__}")
     out: dict[str, list[list[str]]] = {}
     for name, value in obj.items():
         if _is_frame(value):
@@ -255,7 +255,7 @@ def normalize_sheets(obj) -> dict[str, list[list[str]]]:
             out[str(name)] = _rows_to_grid(value)
         else:
             raise TypeError(
-                f"pre_source(.xlsx) 시트 '{name}' 의 형을 알 수 없습니다: {type(value).__name__}")
+                f"pre_parse(.xlsx) 시트 '{name}' 의 형을 알 수 없습니다: {type(value).__name__}")
     return out
 
 

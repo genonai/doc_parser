@@ -7,7 +7,7 @@
   적어도 읽지 않습니다.
 
 > **코드를 고쳐야 할 때는** [facade_hooks.md](facade_hooks.md) 를 보세요.
-> 설정으로 안 되는 원천은 전처리기 파일의 훅(`pre_source` / `post_parse` /
+> 설정으로 안 되는 원천은 전처리기 파일의 훅(`pre_parse` / `post_parse` /
 > `pre_chunk` / `post_chunk`)에서 처리합니다. 처리 본체(`facade/core/`)는 열지 않습니다.
 
 ## 목차

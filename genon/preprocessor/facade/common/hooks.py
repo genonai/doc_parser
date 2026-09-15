@@ -1,4 +1,4 @@
-"""고객 확장 훅(pre_source/post_parse/pre_chunk/post_chunk) 호출 규약.
+"""고객 확장 훅(pre_parse/post_parse/pre_chunk/post_chunk) 호출 규약.
 
 core 가 훅을 부르는 자리는 전부 이 모듈을 거친다. 규약은 두 가지다.
 

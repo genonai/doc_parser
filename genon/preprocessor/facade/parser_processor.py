@@ -43,7 +43,7 @@ class DocumentProcessor(ParserCore):
     #   (그 밖)             route_other      없음 — 캐치올
     #
     # 새 확장자는 **이 표에 한 줄**이면 된다. route_* 를 새로 만들 필요는 없다 —
-    # pre_source 가 원천을 이미 있는 포맷으로 바꿔 그 핸들러에 태우면 된다
+    # pre_parse 가 원천을 이미 있는 포맷으로 바꿔 그 핸들러에 태우면 된다
     # (실측: .xml -> route_json, .tsv -> route_tabular. 레시피는 gitbook_doc/facade_hooks.md).
     # **먼저 여기 등록한 다음 시험한다.** 등록 전에 넣으면 캐치올이 받아 결과가 달라진다.
     ROUTES = (
@@ -58,7 +58,7 @@ class DocumentProcessor(ParserCore):
     )
 
     async def __call__(self, request: Request, file_path: str, **kwargs) -> dict:
-        """① 원천 로드 → ② pre_source → ③ 파싱 → ④ post_parse
+        """① 원천 로드 → ② pre_parse → ③ 파싱 → ④ post_parse
 
         ①~③ 은 확장자마다 로드 시점이 달라 core 가 ROUTES 안에서 처리한다.
         (.json 은 custom_fields 가 매칭될 때만 읽히므로 여기서 미리 읽으면 동작이 바뀐다)
@@ -68,7 +68,7 @@ class DocumentProcessor(ParserCore):
         result = await self.run(request, file_path, **kwargs)
         return await self.run_post_parse(ext, doc_type, result, **kwargs)
 
-    def pre_source(self, ext, doc_type, data, work_dir=None, **kwargs):
+    def pre_parse(self, ext, doc_type, data, work_dir=None, **kwargs):
         """[전처리] 파싱 직전. 원천을 파싱 입력으로 바꾼다.
 
         data 의 형은 ext 가 정하고, 같은 형으로 돌려준다.
@@ -92,7 +92,7 @@ class DocumentProcessor(ParserCore):
           result["document"]   docling 경로 산출   (dict)
           result["metadata"]   문서 단위 메타      (dict)
 
-        pre_source 와 같이 kwargs(요청 파라미터)와 `async def` 를 쓸 수 있다.
+        pre_parse 와 같이 kwargs(요청 파라미터)와 `async def` 를 쓸 수 있다.
         """
         return result
 

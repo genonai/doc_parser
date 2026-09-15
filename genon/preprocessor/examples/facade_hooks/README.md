@@ -14,7 +14,7 @@ git diff -- genon/preprocessor/facade/parser_processor.py \
 git apply my_change.patch          # 충돌하면 patch 를 보고 손으로 반영
 ```
 
-훅 시그니처(`pre_source` / `post_parse` / `pre_chunk` / `post_chunk`)와 `ROUTES` 형태는
+훅 시그니처(`pre_parse` / `post_parse` / `pre_chunk` / `post_chunk`)와 `ROUTES` 형태는
 고정 API 라, 그것이 안 바뀐 릴리스에서는 `git apply` 가 그대로 통한다.
 
 ## 예시
@@ -52,7 +52,7 @@ SKIP_TABLE_DESC_DOC_TYPES = ("cs_hpp",)
         return self.post_parse(ext, doc_type, result)
 ```
 
-`pre_source` / `post_parse` 가 아니라 `__call__` 인 이유는 그 둘이 `kwargs` 를 받지 않기
+`pre_parse` / `post_parse` 가 아니라 `__call__` 인 이유는 그 둘이 `kwargs` 를 받지 않기
 때문이다. 런타임 플래그를 심을 수 있는 자리는 `self.run()` 앞뿐이다.
 
 이 예시는 요청이 `table_text_desc` 를 직접 보내도 덮어쓴다. 요청 쪽 지정을 살리려면

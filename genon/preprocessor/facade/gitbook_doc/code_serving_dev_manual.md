@@ -761,8 +761,8 @@ class DocumentProcessor:          # ← 클래스 이름 고정. main.py 가 이
 |---|---|---|
 | 파일 머리 주석 | **이 파일에서 고칠 자리** | **여기부터 읽으세요** |
 | `ROUTES` | 확장자 → 핸들러 표 | 새 확장자를 받을 때 |
-| `__call__` | ① 원천 로드 → ② `pre_source` → ③ 파싱 → ④ `post_parse` | 단계 순서를 볼 때 |
-| `pre_source` | **원천을 파싱 입력으로 바꾸는 훅** | 설정으로 안 될 때 (7.2 (h)) |
+| `__call__` | ① 원천 로드 → ② `pre_parse` → ③ 파싱 → ④ `post_parse` | 단계 순서를 볼 때 |
+| `pre_parse` | **원천을 파싱 입력으로 바꾸는 훅** | 설정으로 안 될 때 (7.2 (h)) |
 | `post_parse` | **산출을 손보는 훅** | 〃 |
 | `cli()` 호출 두 줄 | 파일 단독 실행 | 고친 뒤 확인할 때 |
 
@@ -1905,7 +1905,7 @@ doc_type 이 동작해야 한다면 아래 파일에 **같은 블록을 각각**
 
 | 훅 | 자리 | 받는 것 |
 |---|---|---|
-| `pre_source` | 파싱 **전** | `.json` dict/list · `.md .html` str · `.xlsx .csv` 시트 격자 · 그 밖 파일 경로 |
+| `pre_parse` | 파싱 **전** | `.json` dict/list · `.md .html` str · `.xlsx .csv` 시트 격자 · 그 밖 파일 경로 |
 | `post_parse` | 응답 확정 **직전** | 응답 dict(`elements` / `document` / `metadata`) |
 | `pre_chunk` · `post_chunk` | 청커 쪽 | 파서 산출 · 완성된 청크 |
 
@@ -1952,7 +1952,7 @@ genon/preprocessor/sample_files/drill/e2_detail_joined.json       변형 ②
 레코드에 심어 넣습니다.
 
 ```python
-    def pre_source(self, ext, doc_type, data, work_dir=None):
+    def pre_parse(self, ext, doc_type, data, work_dir=None):
         if ext == ".json" and doc_type == "monimo_event" and "companyList" in data:
             return {"eventList": [
                 {**event, "mnmFncoCd": company.get("mnmFncoCd")}

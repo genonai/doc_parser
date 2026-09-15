@@ -1,6 +1,6 @@
 """고객이 훅에서 쓰는 기존 기능 모음 (#363 08-3).
 
-facade/preprocessor.py 의 pre_source / post_parse / pre_chunk / post_chunk 안에서
+facade/preprocessor.py 의 pre_parse / post_parse / pre_chunk / post_chunk 안에서
 쓸 만한 것을 한 곳으로 모아 재수출한다. 여기 있는 것은 전부 **이미 있던 기능**이고
 새 구현은 없다 — 고객이 모듈 배치를 몰라도 쓸 수 있게 하는 것이 목적이다.
 

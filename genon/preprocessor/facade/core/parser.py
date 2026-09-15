@@ -96,6 +96,9 @@ except ImportError:
 
 _log = logging.getLogger(__name__)
 
+# 옛 훅 이름(pre_source)을 쓴 facade 클래스. 경고는 클래스마다 한 번만 남긴다.
+_LEGACY_PRE_SOURCE_WARNED: set = set()
+
 
 def _handle_stage_error(exc: Exception, stage: str) -> None:
     """enrichment 단계 실패 처리(#329).
@@ -199,7 +202,7 @@ for _n in ("fontTools", "fontTools.ttLib", "fontTools.ttLib.ttFont"):
     logging.getLogger().setLevel(logging.WARNING)
 
 # PDF 변환 대상 확장자
-# pre_source 를 **데이터 형태**로 받는 확장자. 나머지는 파일 경로로 받는다(#363 08-3).
+# pre_parse 를 **데이터 형태**로 받는 확장자. 나머지는 파일 경로로 받는다(#363 08-3).
 _DATA_HOOK_EXTS = {".json", ".md", ".html", ".htm", ".csv", ".xlsx", ".xlsm"}
 
 CONVERTIBLE_EXTENSIONS = ['.hwp', '.txt', '.json', '.md', '.ppt', '.pptx', '.docx']
@@ -470,7 +473,7 @@ class ParserCore:
     # 배포되는 facade 가 덮어쓴다. 기본 구현은 받은 값을 그대로 돌려주므로
     # 덮어쓰지 않으면 산출이 착수 전과 같다.
 
-    def pre_source(self, ext, doc_type, data, work_dir=None, **kwargs):
+    def pre_parse(self, ext, doc_type, data, work_dir=None, **kwargs):
         """[전처리] 파싱 직전. 원천을 파싱 입력으로 바꾼다.
 
         data 의 형은 ext 가 정하고, 같은 형으로 돌려준다.
@@ -492,7 +495,7 @@ class ParserCore:
           result["document"]   docling 경로 산출   (dict)
           result["metadata"]   문서 단위 메타      (dict)
 
-        pre_source 와 같이 `**kwargs`(요청 파라미터)와 `async def` 를 쓸 수 있다.
+        pre_parse 와 같이 `**kwargs`(요청 파라미터)와 `async def` 를 쓸 수 있다.
         """
         return result
 
@@ -505,19 +508,39 @@ class ParserCore:
             self.post_parse, ext, doc_type, result, request_kwargs=kwargs)
 
     # 훅을 덮어썼는지 본다. 안 덮어썼으면 원천을 읽는 비용조차 치르지 않는다.
-    def _pre_source_active(self) -> bool:
-        return type(self).pre_source is not ParserCore.pre_source
+    def _pre_parse_active(self) -> bool:
+        return self._pre_parse_hook() is not None
 
-    async def _hook_pre_source(self, ext, kwargs, data, work_dir=None):
+    def _pre_parse_hook(self):
+        """부를 전처리 훅. 덮어쓴 것이 없으면 None.
+
+        v2.2.0 까지 배포된 facade 는 같은 훅을 pre_source 라는 이름으로 덮어썼다. 고객이
+        보관한 옛 파일을 그대로 올려도 동작하도록 옛 이름을 찾아 부른다. core 에는 옛 이름을
+        정의하지 않는다 — 정의하면 덮어썼는지를 구분할 수 없다. 둘 다 있으면 pre_parse 가 이긴다.
+        """
+        cls = type(self)
+        if cls.pre_parse is not ParserCore.pre_parse:
+            return self.pre_parse
+        legacy = getattr(self, "pre_source", None)
+        if legacy is None:
+            return None
+        if cls not in _LEGACY_PRE_SOURCE_WARNED:
+            _LEGACY_PRE_SOURCE_WARNED.add(cls)
+            _log.warning("%s.pre_source 는 옛 이름입니다. 동작은 같으니 pre_parse 로 이름만 바꿔 주세요.",
+                         cls.__name__)
+        return legacy
+
+    async def _hook_pre_parse(self, ext, kwargs, data, work_dir=None):
         """훅을 부르고 (값, 바뀌었는지) 를 돌려준다.
 
         받은 객체를 그대로 돌려주면 '안 바뀜' 으로 본다. 그래야 훅을 정의만 하고
         해당 doc_type 을 다루지 않는 경우에 파생 입력이 생기지 않는다.
         """
-        if not self._pre_source_active():
+        hook = self._pre_parse_hook()
+        if hook is None:
             return data, False
         out = await hk.call_hook(
-            self.pre_source, ext, normalize_doc_type(kwargs.get("doc_type")), data, work_dir,
+            hook, ext, normalize_doc_type(kwargs.get("doc_type")), data, work_dir,
             request_kwargs=kwargs,
         )
         return out, out is not data
@@ -1068,14 +1091,14 @@ class ParserCore:
         except ValueError as exc:
             # 깨진 JSON 은 훅에 원문 str 을 넘겨 구제 기회를 준다(JSONL 등).
             # 훅이 없거나 손대지 않으면 종전대로 입력 오류로 끝난다.
-            payload, changed = await self._hook_pre_source(
+            payload, changed = await self._hook_pre_parse(
                 ".json", {**kwargs, "doc_type": doc_type}, text)
             if not changed:
                 raise GenosServiceException(
                     "1", f"JSON 파일을 읽을 수 없습니다: {os.path.basename(file_path)} ({exc})"
                 ) from exc
             return payload
-        payload, _ = await self._hook_pre_source(
+        payload, _ = await self._hook_pre_parse(
             ".json", {**kwargs, "doc_type": doc_type}, payload)
         return payload
 
@@ -1583,7 +1606,7 @@ class ParserCore:
                 file_path, ctx, runtime_doc_type, matching_mappers, sheets_with_merges, **kwargs)
 
     async def _hook_tabular_sheets(self, file_path: str, work_dir: str, **kwargs):
-        """pre_source(.xlsx) 를 격자로 부른다. (격자, 바뀌었는지) 를 돌려준다.
+        """pre_parse(.xlsx) 를 격자로 부른다. (격자, 바뀌었는지) 를 돌려준다.
 
         훅에는 병합셀이 이미 펴진 `{시트명: 2차원 행}` 을 넘기고, 돌려받은 것은
         normalize_sheets 로 표준형으로 되돌린 뒤 병합 정보를 다시 붙인다.
@@ -1591,7 +1614,7 @@ class ParserCore:
         원본을 못 읽으면 훅을 건너뛴다 — 실제 오류는 아래 파싱 경로가 종전과 같은
         형태로 낸다. 여기서 먼저 죽으면 오류 메시지와 시점이 달라진다.
         """
-        if not self._pre_source_active():
+        if not self._pre_parse_active():
             return None, False
         try:
             original = xp._load_sheets_with_merges(file_path)
@@ -1599,7 +1622,7 @@ class ParserCore:
             _log.debug(f"[parser] xlsx 격자 훅 건너뜀({type(exc).__name__}): {file_path}")
             return None, False
         plain = {name: rows for name, (rows, _m) in original.items()}
-        hooked, changed = await self._hook_pre_source(".xlsx", kwargs, plain, work_dir)
+        hooked, changed = await self._hook_pre_parse(".xlsx", kwargs, plain, work_dir)
         if not changed:
             # 이미 읽었으니 그대로 넘겨 중복 읽기를 없앤다. 같은 함수의 산출이라 동일하다.
             return original, False
@@ -1656,13 +1679,13 @@ class ParserCore:
         # 원문 텍스트 훅. 훅을 안 덮어썼으면 파일을 읽지도 않는다.
         # 훅이 텍스트를 바꾸면 파생 파일로 파싱하고 artifacts 기준은 원본으로 남긴다.
         hook_tmp = None
-        if ext in (".html", ".htm", ".md") and self._pre_source_active():
+        if ext in (".html", ".htm", ".md") and self._pre_parse_active():
             try:
                 _raw = read_text_with_fallback(file_path)
             except OSError:
                 _raw = None
             if _raw is not None:
-                _new, _changed = await self._hook_pre_source(ext, kwargs, _raw)
+                _new, _changed = await self._hook_pre_parse(ext, kwargs, _raw)
                 if _changed:
                     hook_tmp = tempfile.TemporaryDirectory(prefix="parser_hook_")
                     artifacts_source = artifacts_source or file_path
@@ -1861,7 +1884,7 @@ class ParserCore:
         # 확장자 별칭이 적용되면 표준 확장자 이름의 사본으로 파싱한다. 그 임시 디렉터리는
         # 요청이 끝날 때 정리한다(finally).
         alias_tmp: tempfile.TemporaryDirectory | None = None
-        # 경로형 pre_source 훅이 만든 파생 파일의 임시 디렉터리.
+        # 경로형 pre_parse 훅이 만든 파생 파일의 임시 디렉터리.
         hook_tmp: tempfile.TemporaryDirectory | None = None
         # 별칭 사본으로 파싱할 때 artifacts(이미지) 경로 기준이 되는 원본 경로.
         artifacts_source: str | None = None
@@ -1905,11 +1928,11 @@ class ParserCore:
                         "1", f"확장자 별칭 사본 생성 실패: {exc}"
                     ) from exc
 
-            # 경로형 pre_source 훅. 데이터형으로 넘기는 확장자(.json/.md/.html/표)는
+            # 경로형 pre_parse 훅. 데이터형으로 넘기는 확장자(.json/.md/.html/표)는
             # 각 라우트가 자기 자리에서 부르므로 여기서는 제외한다.
-            if ext not in _DATA_HOOK_EXTS and self._pre_source_active():
+            if ext not in _DATA_HOOK_EXTS and self._pre_parse_active():
                 hook_tmp = tempfile.TemporaryDirectory(prefix="parser_hookpath_")
-                new_path, changed = await self._hook_pre_source(
+                new_path, changed = await self._hook_pre_parse(
                     ext, kwargs, file_path, hook_tmp.name)
                 if changed:
                     artifacts_source = artifacts_source or file_path
