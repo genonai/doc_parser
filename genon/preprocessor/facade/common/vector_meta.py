@@ -17,14 +17,36 @@ from typing import Any, Optional
 from docling_core.types import DoclingDocument
 from docling_core.types.doc import PictureItem, TableItem
 
-# core_payload() 가 내보내는 공통 필드. build() 는 여기에 facade 고유 필드를 더한다.
-CORE_FIELDS = (
+# 본문과 통계·순번 필드. core 가 본문에서 계산하므로 on_chunk 의 info["fields"] 로 바꿀 수 없다.
+STAT_FIELDS = (
     "text", "n_char", "n_word", "n_line",
     "i_page", "e_page", "i_chunk_on_page", "n_chunk_of_page",
     "i_chunk_on_doc", "n_chunk_of_doc", "n_page",
+)
+
+# core_payload() 가 내보내는 공통 필드. build() 는 여기에 facade 고유 필드를 더한다.
+CORE_FIELDS = STAT_FIELDS + (
     "reg_date", "chunk_bboxes", "media_files", "guardrail_categories",
     "has_table", "table_refs", "table_split_index", "table_split_total",
 )
+
+
+def chunk_fields(value) -> dict:
+    """on_chunk 가 info["fields"] 에 남긴 청크별 값을 검사해 dict 로 돌려준다.
+
+    본문은 반환값으로 바꾸고 통계와 순번은 core 가 계산한다. fields 로 덮게 두면 본문과
+    통계가 어긋나므로 STAT_FIELDS 는 거부한다.
+    """
+    if not value:
+        return {}
+    if not isinstance(value, dict):
+        raise TypeError(f'on_chunk 의 info["fields"] 는 dict 여야 합니다: {type(value).__name__}')
+    reserved = sorted(set(STAT_FIELDS) & set(value))
+    if reserved:
+        raise ValueError(
+            f'on_chunk 의 info["fields"] 로 바꿀 수 없는 필드입니다: {reserved}. '
+            "본문은 반환값으로 바꾸고, 통계와 순번은 core 가 계산합니다.")
+    return dict(value)
 
 
 class VectorMetaBuilderBase:

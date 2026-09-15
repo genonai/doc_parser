@@ -106,9 +106,9 @@ class DocumentProcessor(ChunkerCore):
         """[중간] 청크 한 건이 만들어진 직후. 통계·순번이 붙기 전이다.
 
         돌려주는 값: 문자열=본문 교체 · None=그대로 · tb.DROP=이 청크를 버림.
-        info 는 {kind, page, index, headings, metadata} 이고 경로가 달라도 모양이 같다.
-        본문만 손보거나 청크를 버리는 일은 post_chunk 보다 여기가 낫다 —
-        refresh_stats 를 부를 필요가 없다."""
+        info 는 {kind, page, index, headings, metadata, fields} 이고 경로가 달라도 모양이 같다.
+        청크별 값은 info["fields"] 에 넣으면 GenOSVectorMeta 필드로 실린다(본문·통계 필드 제외).
+        본문 수정·청크 버리기·청크별 값은 post_chunk 보다 여기가 낫다 — refresh_stats 가 필요 없다."""
         return None
 
     def post_chunk(self, vectors, **kwargs):

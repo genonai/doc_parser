@@ -535,9 +535,10 @@ class ChunkerCore:
                        + headers_text + chunk.text)
 
             # [중간] on_chunk — 통계·순번이 붙기 전이라 고친 결과가 그대로 반영된다.
+            chunk_fields: dict = {}
             content, _drop = await self._hook_chunk(
                 content, kwargs, kind="docling", page=chunk_page, index=chunk_idx,
-                headings=chunk.meta.headings, metadata=merged_metadata)
+                headings=chunk.meta.headings, metadata=merged_metadata, fields=chunk_fields)
             if _drop:
                 _dropped += 1
                 continue
@@ -572,6 +573,8 @@ class ChunkerCore:
             # 그대로 실린다. 문서 단위로 뽑힌 같은 이름의 값은 여기서 덮인다.
             for field_name in _body_fields:
                 chunk_global_metadata[field_name] = content
+            # on_chunk 가 info["fields"] 로 넘긴 청크별 값. 문서 단위 값과 이름이 같으면 이것이 이긴다.
+            chunk_global_metadata.update(chunk_fields)
 
             vector = (GenOSVectorMetaBuilder()
                       .set_text(content)
@@ -787,8 +790,9 @@ class ChunkerCore:
             page = c.metadata.get("page", 1)
             text = c.page_content
             # [중간] on_chunk — 통계·순번이 붙기 전이다.
+            chunk_fields: dict = {}
             text, _drop = await self._hook_chunk(
-                text, kwargs, kind="text", page=page, index=idx)
+                text, kwargs, kind="text", page=page, index=idx, fields=chunk_fields)
             if _drop:
                 dropped += 1
                 continue
@@ -823,6 +827,7 @@ class ChunkerCore:
                 'i_chunk_on_doc': idx,
                 'guardrail_categories': sorted(chunk_cats) if chunk_cats else None,  # #315 민감정보 분류 라벨
                 **global_metadata,
+                **chunk_fields,  # on_chunk 가 info["fields"] 로 넘긴 청크별 값
             }))
             chunk_index_on_page += 1
         if dropped:
@@ -978,9 +983,10 @@ class ChunkerCore:
             page = _page_of(el)
             text = str(el.get("content", "") or "")
             # [중간] on_chunk — 레코드 metadata 를 함께 넘겨 doc_type 별 판정을 돕는다.
+            chunk_fields: dict = {}
             text, _drop = await self._hook_chunk(
                 text, kwargs, kind="row", page=page, index=idx,
-                metadata=el.get("metadata"))
+                metadata=el.get("metadata"), fields=chunk_fields)
             if _drop:
                 dropped += 1
                 continue
@@ -1025,12 +1031,13 @@ class ChunkerCore:
                     'chunk_bboxes': ".",
                     'media_files': ".",
                     'guardrail_categories': sorted(chunk_cats) if chunk_cats else None,
+                    **chunk_fields,  # on_chunk 가 info["fields"] 로 넘긴 청크별 값
                 }))
             except Exception as exc:
                 # 목표필드명이 예약 필드(title/created_date/appendix)와 겹치면 타입 검증에 걸린다.
                 # 그대로 두면 pydantic ValidationError 가 raw 로 올라가 stage 도 없고, ValueError
                 # 하위라 업로드 파일 문제(INPUT_ERROR)로 오분류된다 — 원인을 메시지에 담아 바꾼다.
-                collided = sorted(set(row_meta) & set(self.VECTOR_META.model_fields))
+                collided = sorted((set(row_meta) | set(chunk_fields)) & set(self.VECTOR_META.model_fields))
                 hint = f" 예약 필드와 겹치는 목표필드: {collided}." if collided else ""
                 raise GenosServiceException(
                     "1",
@@ -1177,7 +1184,9 @@ class ChunkerCore:
           page      1-based 페이지
           index     현재 순번(버리면 다시 매겨지므로 참고용)
           headings  섹션 경로 목록. docling 경로만 채워진다
-          metadata  행 경로는 레코드 metadata, docling 경로는 문서 메타
+          metadata  행 경로는 레코드 metadata, docling 경로는 문서 메타(복사본)
+          fields    청크별 값을 넣는 dict. 넣은 값은 VECTOR_META 필드로 실린다.
+                    본문과 통계·순번 필드는 넣을 수 없다(vector_meta.STAT_FIELDS)
 
         훅이 돌려준 본문에 마스킹·정제·표기형태 변형이 뒤이어 적용된다.
         """
@@ -1188,8 +1197,13 @@ class ChunkerCore:
         return type(self).on_chunk is not ChunkerCore.on_chunk
 
     async def _hook_chunk(self, text, kwargs, *, kind, page=1, index=0,
-                          headings=None, metadata=None):
-        """on_chunk 를 부르고 (본문, 버릴지) 를 돌려준다."""
+                          headings=None, metadata=None, fields=None):
+        """on_chunk 를 부르고 (본문, 버릴지) 를 돌려준다.
+
+        fields 를 넘기면 훅이 info["fields"] 에 넣은 청크별 값을 거기에 모은다. 호출부가 그
+        dict 를 청크 필드로 싣는다. info["metadata"] 는 복사본이라 쓰기 통로로 쓸 수 없어 따로 둔다.
+        훅이 info["fields"] 를 새 dict 로 바꿔 넣어도 되도록 호출 뒤 info 에서 다시 읽는다.
+        """
         if not self._on_chunk_active():
             return text, False
         info = {
@@ -1198,8 +1212,12 @@ class ChunkerCore:
             "index": index,
             "headings": list(headings) if headings else None,
             "metadata": dict(metadata) if metadata else {},
+            "fields": {},
         }
-        return await hk.call_chunk_hook(self.on_chunk, text, info, request_kwargs=kwargs)
+        out = await hk.call_chunk_hook(self.on_chunk, text, info, request_kwargs=kwargs)
+        if fields is not None:
+            fields.update(vm.chunk_fields(info.get("fields")))
+        return out
 
     async def run_pre_chunk(self, kind, data, /, **kwargs):
         """pre_chunk 훅 호출부. facade 의 __call__ 이 부른다."""

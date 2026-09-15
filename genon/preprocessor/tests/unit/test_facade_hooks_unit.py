@@ -855,8 +855,46 @@ async def test_on_chunk_info_shape_is_the_same_on_every_path():
     await _chunker(_P)._chunk_parse_format(
         [{"category": "text", "content": "평문 본문", "page": 2}])
     assert [i["kind"] for i in seen] == ["row", "text"]
-    assert all(set(i) == {"kind", "page", "index", "headings", "metadata"} for i in seen)
+    assert all(set(i) == {"kind", "page", "index", "headings", "metadata", "fields"} for i in seen)
     assert seen[0]["metadata"] == {"IDX": 0} and seen[1]["page"] == 2
+
+
+@pytest.mark.asyncio
+async def test_on_chunk_fields_are_attached_on_row_and_text_paths():
+    """청크별 값은 info["fields"] 로 싣는다 — vector_meta 조립을 오버라이드하지 않아도 된다."""
+    class _P(chunker_facade.DocumentProcessor):
+        def on_chunk(self, text, info, **kwargs):
+            info["fields"]["RISK"] = "high" if text.endswith("1") else "low"
+            return None
+
+    rows = await _chunker(_P)._chunk_parse_format(_rows(2))
+    assert [v.RISK for v in rows] == ["low", "high"]
+    texts = await _chunker(_P)._chunk_parse_format(
+        [{"category": "text", "content": "평문1", "page": 1}])
+    assert texts[0].RISK == "high"
+
+
+@pytest.mark.asyncio
+async def test_on_chunk_fields_may_be_replaced_with_a_new_dict():
+    class _P(chunker_facade.DocumentProcessor):
+        def on_chunk(self, text, info, **kwargs):
+            info["fields"] = {"TAG": "x"}
+            return None
+
+    vectors = await _chunker(_P)._chunk_parse_format(_rows(1))
+    assert vectors[0].TAG == "x"
+
+
+@pytest.mark.asyncio
+async def test_on_chunk_fields_cannot_override_text_or_stats():
+    """본문은 반환값으로 바꾼다. fields 로 덮게 두면 본문과 n_char 가 어긋난다."""
+    class _P(chunker_facade.DocumentProcessor):
+        def on_chunk(self, text, info, **kwargs):
+            info["fields"]["n_char"] = 0
+            return None
+
+    with pytest.raises(ValueError, match="n_char"):
+        await _chunker(_P)._chunk_parse_format(_rows(1))
 
 
 @pytest.mark.asyncio

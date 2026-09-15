@@ -247,7 +247,21 @@ API 라 그 값은 호출자용 정보로 끝납니다. `tb.set_chunk_metadata()
 | `page` | 1-based 페이지 |
 | `index` | 현재 순번. 버리면 다시 매겨지므로 참고용입니다 |
 | `headings` | 섹션 경로 목록. `docling` 경로만 채워집니다 |
-| `metadata` | `row` 는 레코드 metadata, `docling` 은 문서 메타 |
+| `metadata` | `row` 는 레코드 metadata, `docling` 은 문서 메타. 복사본이라 고쳐도 저장되지 않습니다 |
+| `fields` | 청크별 값을 넣는 dict. 넣은 값은 `GenOSVectorMeta` 필드로 실립니다 |
+
+청크마다 다른 값을 실으려면 `info["fields"]` 에 넣습니다. `GenOSVectorMeta` 에 필드를 선언해
+두면 타입도 검사됩니다.
+
+```python
+    def on_chunk(self, text, info, **kwargs):
+        if "손실" in text:
+            info["fields"]["RISK"] = "high"
+        return None
+```
+
+본문(`text`)과 통계·순번 필드(`n_char`, `i_chunk_on_doc` 등)는 `fields` 로 바꿀 수 없습니다.
+본문은 반환값으로 바꾸고, 통계와 순번은 코어가 계산합니다.
 
 `text` 는 접두와 `HEADER:` 라인까지 **붙은 뒤**의 본문입니다. 훅이 돌려준 값에 마스킹·정제·
 표기형태 변형이 뒤이어 적용됩니다.
