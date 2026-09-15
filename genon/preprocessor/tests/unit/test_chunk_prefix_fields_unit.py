@@ -95,11 +95,11 @@ class TestChunkerAndProcessorContract:
         버렸을 때 그 접두가 문서에서 통째로 사라지면 안 된다.
         """
         source = (_BASE / "facade" / "core" / "chunker.py").read_text(encoding="utf-8")
-        assert '_first_prefix_text if _first_prefix_pending else ""' in source
+        assert 'notes["first_prefix_text"] if notes["first_prefix_pending"] else ""' in source
         # 플래그는 청크를 실제로 유지한 뒤에만 내려간다(버린 청크는 continue 로 건너뛴다).
-        after_drop = source.split("_dropped += 1", 1)[1]
+        after_drop = source.split("dropped += 1", 1)[1]
         assert after_drop.lstrip().startswith("continue")
-        assert "_first_prefix_pending = False" in after_drop
+        assert 'notes["first_prefix_pending"] = False' in after_drop
 
 
 @pytest.mark.unit

@@ -440,8 +440,135 @@ class ChunkerCore:
 
     async def chunks_to_vector_metas(self, job, chunks: List[DocChunk],
                                      converted_pdf_path: Optional[str] = None) -> list[dict]:
-        """청크 목록을 vector_meta 목록으로 변환한다."""
-        document, file_path, request, kwargs = job.document, job.file_path, job.request, job.params
+        """청크 목록을 vector_meta 목록으로 변환한다.
+
+        메소드 호출 순서 유지 필수. 표기형태 변형은 마스킹 전 텍스트에서 만들고, 마스킹은
+        정제보다 앞이다 — 순서를 바꾸면 가려 놓은 값이 변형 필드나 통계로 새어 나간다.
+        """
+        self._prepare_chunk_context(job, chunks, converted_pdf_path)
+        notes = job.notes
+        vector_metas: list = []
+        upload_tasks: list = []
+        dropped = 0
+        for chunk_idx, chunk in enumerate(chunks):
+            notes["chunk_idx"] = chunk_idx
+            notes["chunk_page"] = (
+                chunk.meta.doc_items[0].prov[0].page_no if chunk.meta.doc_items[0].prov else 0)
+            notes["chunk_fields"] = {}
+            text = self.build_chunk_text(job, chunk)
+            text, drop = await self._call_on_chunk(job, chunk, text)
+            if drop:
+                dropped += 1
+                continue
+            # 첫 청크 전용 접두는 살아남은 첫 청크가 받는다(문서당 1회 계약).
+            notes["first_prefix_pending"] = False
+            self.collect_chunk_variants(job, chunk, text)
+            text = self.mask_sensitive(job, text)
+            text = self.clean_text(job, text)
+            vector_metas.append(self.chunk_to_vector_meta(job, chunk, text))
+            notes["chunk_index_on_page"] += 1
+            if upload_files:
+                file_list = self.get_media_files(
+                    chunk.meta.doc_items, include_tables=self.table_image_enabled)
+                upload_tasks.append(asyncio.create_task(
+                    upload_files(file_list, request=job.request)
+                ))
+
+        if upload_tasks:
+            await asyncio.gather(*upload_tasks)
+
+        if dropped:
+            # n_chunk_of_doc / page 개수는 루프 전에 계산해 둔 값이라 다시 맞춰야 한다.
+            _log.info(f"[chunker] on_chunk 가 청크 {dropped}건을 버렸습니다 → 순번 재계산")
+            vm.refresh_stats(vector_metas)
+        return vector_metas
+
+    async def _call_on_chunk(self, job, chunk, text) -> "tuple":
+        """on_chunk 훅을 부른다. (본문, 버릴지) 를 돌려준다."""
+        notes = job.notes
+        return await self._hook_chunk(
+            text, job.params, kind="docling", page=notes["chunk_page"],
+            index=notes["chunk_idx"], headings=chunk.meta.headings,
+            metadata=job.metadata, fields=notes["chunk_fields"],
+        )
+
+    def build_chunk_text(self, job, chunk) -> str:
+        """청크 텍스트를 조립한다: 문서 접두어 + 헤딩 경로 + 본문.
+
+        접두는 헤더 앞이다 — 문서 식별(카드명·문의유형)이 섹션 경로보다 앞에 와야
+        청크만 떼어 봤을 때 "무엇에 대한 글인지" 가 먼저 읽힌다.
+        """
+        notes = job.notes
+        # 청크 선두에 섹션 경로 부착 (HEADER: ). 여기가 유일한 부착 지점이며,
+        # 청커의 크기 산정도 같은 _build_header_line 을 쓴다(한도 초과 방지).
+        headers_text = _build_header_line(chunk.meta.headings, notes["include_header"], self.CHUNKER)
+        return (notes["prefix_text"]
+                + (notes["first_prefix_text"] if notes["first_prefix_pending"] else "")
+                + headers_text + chunk.text)
+
+    def collect_chunk_variants(self, job, chunk, text) -> None:
+        """표 표기형태별 변형 텍스트를 만들어 둔다. 마스킹 전 텍스트에서 만들어야 한다."""
+        notes = job.notes
+        table_variants = notes["table_variants"]
+        notes["variant_values"] = table_variants.field_values(
+            text, [getattr(item, "self_ref", "") for item in chunk.meta.doc_items],
+        ) if table_variants else {}
+
+    def mask_sensitive(self, job, text: str) -> str:
+        """#315 가드레일 분류 후처리: quote 매칭 → 라벨 부착(항상) + 마스킹 치환(옵션)."""
+        notes = job.notes
+        text, chunk_cats = gr.apply_to_text(text, notes["sensitive_infos"], notes["masking"])
+        notes["chunk_cats"] = chunk_cats
+        return text
+
+    def clean_text(self, job, text: str) -> str:
+        """벡터 생성 직전 표현 정리(text_cleanup=safe)."""
+        return tn.tidy(text) if job.notes["cleanup"] else text
+
+    def chunk_to_vector_meta(self, job, chunk, text: str):
+        """청크 1건을 vector_meta 1건으로 변환한다. 청크별 값은 여기서 합쳐진다."""
+        notes = job.notes
+        # appendix 추출 !! appendix feature (2025-09-30, geonhee kim) !!
+        chunk_global_metadata = notes["global_metadata"].copy()
+        chunk_global_metadata['appendix'] = self.check_appendix_keywords(
+            text, notes["appendix_list"])
+
+        if notes["chunk_page"] != notes["current_page"]:
+            notes["current_page"] = notes["chunk_page"]
+            notes["chunk_index_on_page"] = 0
+
+        # 변형에도 본문과 같은 후처리를 적용한다(마스킹 → 정제).
+        for field_name, variant_text in notes["variant_values"].items():
+            variant_text, _ = gr.apply_to_text(
+                variant_text, notes["sensitive_infos"], notes["masking"])
+            chunk_global_metadata[field_name] = (
+                tn.tidy(variant_text) if notes["cleanup"] else variant_text)
+        # 본문이 확정된 뒤에 넣어야 헤더 접두·가드레일 마스킹·정제까지 반영된 값이
+        # 그대로 실린다. 문서 단위로 뽑힌 같은 이름의 값은 여기서 덮인다.
+        for field_name in notes["body_fields"]:
+            chunk_global_metadata[field_name] = text
+        # on_chunk 가 info["fields"] 로 넘긴 청크별 값. 문서 단위 값과 이름이 같으면 이것이 이긴다.
+        chunk_global_metadata.update(notes["chunk_fields"])
+
+        return (GenOSVectorMetaBuilder()
+                .set_text(text)
+                .set_page_info(notes["chunk_page"], notes["chunk_index_on_page"],
+                               self.page_chunk_counts[notes["chunk_page"]])
+                .set_chunk_index(notes["chunk_idx"])
+                .set_global_metadata(**chunk_global_metadata)  #!! appendix feature (2025-09-30, geonhee kim) !!
+                .set_chunk_bboxes(chunk.meta.doc_items, job.document)
+                .set_media_files(chunk.meta.doc_items, include_tables=self.table_image_enabled)
+                .set_table_info(chunk.meta.doc_items,
+                                getattr(self, "_table_split_totals", {}),
+                                notes["table_piece_seen"])
+                .set_guardrail_categories(
+                    sorted(notes["chunk_cats"]) if notes["chunk_cats"] else None)
+                ).build(self.VECTOR_META)
+
+    def _prepare_chunk_context(self, job, chunks: List[DocChunk],
+                               converted_pdf_path: Optional[str] = None) -> None:
+        """문서 단위로 한 번만 계산하는 값들을 job.metadata·job.notes 에 담는다."""
+        document, kwargs = job.document, job.params
         title = ""
         _sensitive_infos: list = kwargs.get("_sensitive_infos") or []      # #315 분류 결과
         _gr_masking: bool = bool(kwargs.get("_guardrail_masking", False))   # #315 마스킹 치환 on/off
@@ -523,98 +650,28 @@ class ChunkerCore:
         if converted_pdf_path:
             global_metadata['file_path'] = converted_pdf_path
 
-        # 같은 표의 조각이 연속해서 나오는 순서가 곧 조각 번호다.
-        table_piece_seen: dict = {}
-        current_page = None
-        chunk_index_on_page = 0
-        vectors = []
-        upload_tasks = []
-        # 첫 청크 전용 접두를 아직 못 붙였는지. on_chunk 가 첫 청크를 버리면 그 접두가
-        # 문서에서 통째로 사라지므로, 살아남은 첫 청크가 받는다(문서당 1회 계약).
-        _first_prefix_pending = bool(_first_prefix_text)
-        _dropped = 0
-        for chunk_idx, chunk in enumerate(chunks):
-            chunk_page = chunk.meta.doc_items[0].prov[0].page_no if chunk.meta.doc_items[0].prov else 0
-            # 청크 선두에 섹션 경로 부착 (HEADER: ). 여기가 유일한 부착 지점이며,
-            # 청커의 크기 산정도 같은 _build_header_line 을 쓴다(한도 초과 방지).
-            headers_text = _build_header_line(chunk.meta.headings, _include_header, self.CHUNKER)
-            # 접두는 헤더 앞이다 — 문서 식별(카드명·문의유형)이 섹션 경로보다 앞에 와야
-            # 청크만 떼어 봤을 때 "무엇에 대한 글인지" 가 먼저 읽힌다.
-            content = (_prefix_text
-                       + (_first_prefix_text if _first_prefix_pending else "")
-                       + headers_text + chunk.text)
-
-            # [중간] on_chunk — 통계·순번이 붙기 전이라 고친 결과가 그대로 반영된다.
-            chunk_fields: dict = {}
-            content, _drop = await self._hook_chunk(
-                content, kwargs, kind="docling", page=chunk_page, index=chunk_idx,
-                headings=chunk.meta.headings, metadata=merged_metadata, fields=chunk_fields)
-            if _drop:
-                _dropped += 1
-                continue
-            _first_prefix_pending = False
-
-            # appendix 추출 !! appendix feature (2025-09-30, geonhee kim) !!
-            matched_appendices = self.check_appendix_keywords(content, appendix_list)
-            # print(appendix_list, matched_appendices)
-            chunk_global_metadata = global_metadata.copy()
-            chunk_global_metadata['appendix'] = matched_appendices  # Only matched ones
-            ###
-
-            if chunk_page != current_page:
-                current_page = chunk_page
-                chunk_index_on_page = 0
-
-            # 표 표기형태별 변형은 마스킹·정제 이전 텍스트에서 치환하고, 변형에도 같은
-            # 후처리를 적용한다. 순서를 바꾸면 가드레일로 가린 값이 변형 필드로 평문 유출된다.
-            variant_values = _table_variants.field_values(
-                content, [getattr(item, "self_ref", "") for item in chunk.meta.doc_items],
-            ) if _table_variants else {}
-
-            # #315 가드레일 분류 후처리: quote 매칭 → guardrail_categories 부착(항상) + 마스킹 치환(옵션)
-            content, chunk_cats = gr.apply_to_text(content, _sensitive_infos, _gr_masking)
-            if _cleanup_out:
-                content = tn.tidy(content)
-            for field_name, variant_text in variant_values.items():
-                variant_text, _ = gr.apply_to_text(variant_text, _sensitive_infos, _gr_masking)
-                chunk_global_metadata[field_name] = (
-                    tn.tidy(variant_text) if _cleanup_out else variant_text)
-            # 본문이 확정된 뒤에 넣어야 헤더 접두·가드레일 마스킹·정제까지 반영된 값이
-            # 그대로 실린다. 문서 단위로 뽑힌 같은 이름의 값은 여기서 덮인다.
-            for field_name in _body_fields:
-                chunk_global_metadata[field_name] = content
-            # on_chunk 가 info["fields"] 로 넘긴 청크별 값. 문서 단위 값과 이름이 같으면 이것이 이긴다.
-            chunk_global_metadata.update(chunk_fields)
-
-            vector = (GenOSVectorMetaBuilder()
-                      .set_text(content)
-                      .set_page_info(chunk_page, chunk_index_on_page, self.page_chunk_counts[chunk_page])
-                      .set_chunk_index(chunk_idx)
-                      .set_global_metadata(**chunk_global_metadata) #!! appendix feature (2025-09-30, geonhee kim) !!
-                      .set_chunk_bboxes(chunk.meta.doc_items, document)
-                      .set_media_files(chunk.meta.doc_items, include_tables=self.table_image_enabled)
-                      .set_table_info(chunk.meta.doc_items,
-                                      getattr(self, "_table_split_totals", {}),
-                                      table_piece_seen)
-                      .set_guardrail_categories(sorted(chunk_cats) if chunk_cats else None)
-                      ).build(self.VECTOR_META)
-            vectors.append(vector)
-
-            chunk_index_on_page += 1
-            if upload_files:
-                file_list = self.get_media_files(chunk.meta.doc_items, include_tables=self.table_image_enabled)
-                upload_tasks.append(asyncio.create_task(
-                    upload_files(file_list, request=request)
-                ))
-
-        if upload_tasks:
-            await asyncio.gather(*upload_tasks)
-
-        if _dropped:
-            # n_chunk_of_doc / page 개수는 루프 전에 계산해 둔 값이라 다시 맞춰야 한다.
-            _log.info(f"[chunker] on_chunk 가 청크 {_dropped}건을 버렸습니다 → 순번 재계산")
-            vm.refresh_stats(vectors)
-        return vectors
+        job.metadata = merged_metadata
+        job.notes.update(
+            sensitive_infos=_sensitive_infos,
+            masking=_gr_masking,
+            cleanup=_cleanup_out,
+            include_header=_include_header,
+            table_variants=_table_variants,
+            body_fields=_body_fields,
+            prefix_text=_prefix_text,
+            first_prefix_text=_first_prefix_text,
+            # 첫 청크 전용 접두를 아직 못 붙였는지. on_chunk 가 첫 청크를 버리면 그 접두가
+            # 문서에서 통째로 사라지므로, 살아남은 첫 청크가 받는다(문서당 1회 계약).
+            first_prefix_pending=bool(_first_prefix_text),
+            appendix_list=appendix_list,
+            global_metadata=global_metadata,
+            # 같은 표의 조각이 연속해서 나오는 순서가 곧 조각 번호다.
+            table_piece_seen={},
+            current_page=None,
+            chunk_index_on_page=0,
+            variant_values={},
+            chunk_cats=None,
+        )
 
     def get_media_files(self, doc_items: list, include_tables: bool = False):
         return dops.get_media_files(doc_items, include_tables)
