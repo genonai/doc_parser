@@ -64,6 +64,8 @@ source:
   # `columns` 순서가 곧 원천 각 줄의 필드 순서이고, 그 이름이 `fields.<목표>.alias` 가
   # 찾는 key 이름이 된다. `source.pre` 아래 블록 중 이것만 kind: records 전용이다
   # (`markdown`·`html` 은 반대로 document 전용이며 여기 적으면 조용히 무시된다).
+  # 이 블록이 있으면 입력 파일 확장자와 무관하게(.dtms/.md/.html/.txt 등 텍스트라면)
+  # 이 doc_type 요청은 확장자 라우팅보다 먼저 레코드 경로를 탄다.
   # pre:
   #   delimited:
   #     separator: "|@|"                     # [필수] 필드 구분자. 여러 글자도 된다

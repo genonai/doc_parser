@@ -1219,11 +1219,19 @@ class ParserCore:
         if spec is None:
             return await self._load_json_payload(file_path, doc_type, **kwargs)
         try:
-            return dt.read_records(file_path, spec)
+            records = dt.read_records(file_path, spec)
         except OSError as exc:
             raise GenosServiceException(
                 "1", f"원천을 읽을 수 없습니다: {os.path.basename(file_path)} ({exc})"
             ) from exc
+        # 확장자 무관으로 입구가 넓어졌으므로(_route_delimited_records), doc_type 을 잘못
+        # 짚은 원천(예: 진짜 마크다운)이 조용히 0건으로 끝나지 않게 막는다.
+        if not records and os.path.getsize(file_path) > 0:
+            raise GenosServiceException(
+                "1", f"구분자 {spec.separator!r} 로 나뉜 레코드가 없습니다: "
+                f"{os.path.basename(file_path)}. doc_type({doc_type}) 이 이 원천에 맞는지 확인하세요."
+            )
+        return records
 
     async def _parse_json_records(self, file_path: str, mappers: list, **kwargs) -> dict:
         """JSON 레코드 배열 → 레코드별 목표필드 element(parse-format).
@@ -1725,6 +1733,28 @@ class ParserCore:
             )
         return await self._docling_response(doc, ctx, **kwargs)
 
+    async def _route_delimited_records(self, file_path: str, ext: str, ctx: dict, **kwargs):
+        """`source.pre.delimited` 매핑을 ROUTES(확장자 분기)보다 먼저 가로챈다.
+
+        cs_ssf 류 원천은 원천 모양(구분자 텍스트)이 doc_type 설정에 선언되어 있을 뿐,
+        입력 확장자는 `.dtms`/`.md`/`.html`/`.txt` 등 텍스트 계열 무엇으로도 들어온다.
+        ROUTES 는 확장자로만 갈리므로 `.dtms`(별칭 .json) 가 아니면 route_json 을 타지
+        못해 원문이 그대로 docling 으로 넘어간다. extension_aliases 는 전역 설정이라
+        doc_type 별로 `.html` 만 골라 붙일 수 없어 여기서 doc_type 매칭으로 먼저 본다.
+
+        delimited 매퍼가 없거나(일반 doc_type) 파일이 텍스트가 아니면(바이너리 원본은
+        기존 경로로) None 을 돌려 ROUTES 로 폴스루한다.
+        """
+        if not getattr(self, "_json_records_mappers", None):
+            return None
+        mappers = self._json_records_mappers_for(kwargs.get("doc_type"))
+        if not any(getattr(m, "delimited", None) is not None for m in mappers):
+            return None
+        if not _file_looks_like_text(file_path):
+            return None
+        result = await self._parse_json_records(file_path, mappers, **kwargs)
+        return await self._describe_record_tables(result, **kwargs)
+
     async def route_json(self, file_path: str, ext: str, ctx: dict, **kwargs):
         """enrichment.custom_fields 설정으로 두 모드가 갈린다.
 
@@ -1890,6 +1920,12 @@ class ParserCore:
 
             # 분기 사이에 공유되는 상태. enrichment_context 는 후처리가 채워 응답 metadata 로 나간다.
             ctx = {"enrichment_context": {}, "artifacts_source": artifacts_source}
+
+            # ROUTES 는 확장자로만 가르므로, doc_type 이 원천 모양(구분자 텍스트)을
+            # 선언한 경우는 확장자보다 먼저 본다(_route_delimited_records 참고).
+            delimited_result = await self._route_delimited_records(file_path, ext, ctx, **kwargs)
+            if delimited_result is not None:
+                return self._normalize_response(delimited_result)
 
             for extensions, handler_name in self.ROUTES:
                 if extensions is not None and ext not in extensions:

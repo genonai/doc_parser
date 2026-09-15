@@ -580,7 +580,7 @@ metadata:
 | `source.pre.json` | `.json` 입력 | 본문 텍스트(markdown/html)가 담긴 원천 key 이름 목록(`body_from`). [기타 포맷](#기타-포맷-doc-ppt-pptx-txt-json-md-jpg-jpeg-png) 참고 |
 | `source.pre.markdown` | `.md` 입력 | front matter 승격·제외, ```text 펜스 복원, 마커 heading 승격. [Markdown](#markdown-md) 참고 |
 | `source.pre.html` | `.html` 입력 | 마커 heading 승격 |
-| `source.pre.delimited` | 구분자 텍스트 | 원천을 레코드 목록으로 바꾼다(`kind: records` 전용) |
+| `source.pre.delimited` | 구분자 텍스트 | 원천을 레코드 목록으로 바꾼다(`kind: records` 전용). 입력 확장자와 무관하게(.dtms/.md/.html/.txt 등 텍스트면) 확장자 라우팅보다 먼저 이 경로를 탄다 |
 
 `markdown`·`html` 은 등록 블록에 같은 이름을 적어 문서유형별로 덮어쓸 수 있고, `false` 를 주면 명시적 비활성입니다. `marker_headings` 는 md 와 html 이 판정 규칙을 공유하므로 `source.pre` 바로 아래 한 번만 적으면 둘 다 걸립니다.
 

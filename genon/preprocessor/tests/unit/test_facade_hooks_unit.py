@@ -589,6 +589,105 @@ async def test_route_returning_none_falls_through(tmp_path: Path):
     assert out["elements"][0]["content"] == "fallback"
 
 
+# ---------------------------------------------------------------------------
+# 구분자 레코드 라우팅 — doc_type 이 source.pre.delimited 를 선언했으면 확장자보다
+# 먼저 레코드 경로를 탄다(cs_ssf 류: 원천이 .dtms/.md/.html/.txt 어느 확장자로도 온다).
+# ---------------------------------------------------------------------------
+
+class _FakeDelimitedMapper:
+    """`_route_delimited_records` 가 보는 최소 매퍼. 실제 필드 매핑은 하지 않는다."""
+
+    records_key = "items"
+
+    def __init__(self, doc_type: str, delimited: bool = True):
+        self._doc_type = doc_type
+        self.delimited = object() if delimited else None
+
+    def matches(self, runtime_doc_type):
+        return runtime_doc_type == self._doc_type
+
+
+class _DelimitedRoutable(parser_facade.DocumentProcessor):
+    """route_docling 을 가로채 실제 docling 파싱 없이 호출 여부만 기록한다."""
+
+    async def route_docling(self, file_path, ext, ctx, **kwargs):
+        self.docling_called = True
+        return {"elements": tb.make_elements(["docling"])}
+
+    async def _parse_json_records(self, file_path, mappers, **kwargs):
+        self.records_called = True
+        return {"elements": tb.make_elements(["records"])}
+
+
+def _delimited_routable(mappers):
+    proc = _routable(_DelimitedRoutable)
+    proc._json_records_mappers = mappers
+    proc.docling_called = False
+    proc.records_called = False
+    return proc
+
+
+@pytest.mark.asyncio
+async def test_delimited_route_intercepts_before_extension_routes(tmp_path: Path):
+    """delimited 매퍼가 doc_type 에 매칭되면 .html 의 route_docling 보다 먼저 탄다."""
+    src = tmp_path / "notice.html"
+    src.write_text("a|@|b\n", encoding="utf-8")
+    proc = _delimited_routable([_FakeDelimitedMapper("cs_ssf")])
+
+    out = await proc(None, str(src), doc_type="cs_ssf")
+
+    assert proc.records_called is True
+    assert proc.docling_called is False
+    assert out["elements"][0]["content"] == "records"
+
+
+@pytest.mark.asyncio
+async def test_delimited_route_falls_through_when_doc_type_unmatched(tmp_path: Path):
+    """delimited 매퍼가 없거나 doc_type 이 안 맞으면 기존 확장자 라우팅 그대로다."""
+    src = tmp_path / "notice.html"
+    src.write_text("a|@|b\n", encoding="utf-8")
+    proc = _delimited_routable([_FakeDelimitedMapper("other_doc_type")])
+
+    out = await proc(None, str(src), doc_type="cs_ssf")
+
+    assert proc.records_called is False
+    assert proc.docling_called is True
+    assert out["elements"][0]["content"] == "docling"
+
+
+@pytest.mark.asyncio
+async def test_delimited_route_skips_binary_content(tmp_path: Path):
+    """매칭돼도 파일 내용이 텍스트가 아니면(바이너리 원본) 가로채지 않고 None 을 돌려준다."""
+    src = tmp_path / "notice.bin"
+    src.write_bytes(b"a|@|b\x00\x01\x02")
+    proc = _delimited_routable([_FakeDelimitedMapper("cs_ssf")])
+
+    result = await proc._route_delimited_records(str(src), ".bin", {}, doc_type="cs_ssf")
+
+    assert result is None
+    assert proc.records_called is False
+
+
+@pytest.mark.asyncio
+async def test_records_payload_rejects_zero_records(tmp_path: Path):
+    """확장자 무관으로 입구가 넓어진 만큼, doc_type 을 잘못 짚은 원천은 0건 대신 에러여야 한다."""
+    delimited_text = pytest.importorskip("genon.preprocessor.converters.delimited_text")
+    spec = delimited_text.parse_spec({"separator": "|@|", "columns": ["a", "b"]})
+    mapper = _FakeDelimitedMapper("cs_ssf")
+    mapper.delimited = spec
+    proc = _bare(core_parser.ParserCore)
+
+    bad = tmp_path / "bad.md"
+    bad.write_text("# 제목\n본문입니다\n", encoding="utf-8")
+    with pytest.raises(core_parser.GenosServiceException):
+        await proc._records_payload(str(bad), [mapper], "cs_ssf")
+
+    good = tmp_path / "good.txt"
+    good.write_text("v1|@|v2\n", encoding="utf-8")
+    records = await proc._records_payload(str(good), [mapper], "cs_ssf")
+    assert records == [{"a": "v1", "b": "v2"}]
+
+
 def test_register_transform_reaches_the_yaml_pipeline():
     """등록한 변환기를 yaml transforms: 가 이름으로 쓴다(같은 파이프라인)."""
     tcf = pytest.importorskip("genon.preprocessor.facade.enrichment.tabular_custom_fields")
