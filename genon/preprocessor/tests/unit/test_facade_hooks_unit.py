@@ -620,6 +620,53 @@ async def test_route_returning_none_falls_through(tmp_path: Path):
     assert out["elements"][0]["content"] == "fallback"
 
 
+@pytest.mark.asyncio
+async def test_route_with_job_signature_receives_the_job(tmp_path: Path):
+    """새 시그니처 route_x(self, job) 은 job 하나를 받는다. 옛 시그니처와 한 ROUTES 에 섞여도 된다."""
+    src = tmp_path / "app.log"
+    src.write_text("a\n", encoding="utf-8")
+    seen = {}
+
+    class _P(parser_facade.DocumentProcessor):
+        ROUTES = (((".log",), "route_log"),) + parser_facade.DocumentProcessor.ROUTES
+
+        async def route_log(self, job):
+            seen.update(ext=job.ext, file_path=job.file_path, source=job.source,
+                        doc_type=job.doc_type, tenant=job.params.get("tenant"),
+                        has_ctx="enrichment_context" in job.ctx)
+            return {"elements": tb.make_elements(["job"])}
+
+    out = await _routable(_P)(None, str(src), doc_type="notice", tenant="A")
+    assert out["elements"][0]["content"] == "job"
+    assert seen == {"ext": ".log", "file_path": str(src), "source": str(src),
+                    "doc_type": "notice", "tenant": "A", "has_ctx": True}
+
+
+@pytest.mark.asyncio
+async def test_route_hwp_passes_the_same_arguments_as_before(tmp_path: Path):
+    """route_hwp 는 job 시그니처로 옮겼다. 골든은 hwp 를 흔들리는 케이스로 빼므로 인자를 여기서 고정한다."""
+    calls = {}
+
+    class _P(parser_facade.DocumentProcessor):
+        def _parse_hwp_hwpx(self, file_path, **kwargs):
+            calls["parse"] = (file_path, kwargs)
+            return "DOC"
+
+        async def _docling_response(self, doc, ctx, clear_coordinates=False, **kwargs):
+            calls["response"] = (doc, ctx, clear_coordinates, kwargs)
+            return {"elements": tb.make_elements(["hwp"])}
+
+    params = {"doc_type": "t", "tenant": "A"}
+    job = core_parser.jb.ParseJob(
+        request=None, file_path=str(tmp_path / "a.hwp"), source=str(tmp_path / "alias.hwp"),
+        ext=".hwp", doc_type="t", params=params,
+        ctx={"enrichment_context": {}, "artifacts_source": None})
+    await _bare(_P).route_hwp(job)
+    # 파싱 대상은 원본이 아니라 source(별칭 사본·파생 파일)다 — 옛 run 이 넘기던 file_path 와 같다.
+    assert calls["parse"] == (str(tmp_path / "alias.hwp"), params)
+    assert calls["response"] == ("DOC", job.ctx, False, params)
+
+
 # ---------------------------------------------------------------------------
 # 구분자 레코드 라우팅 — doc_type 이 source.pre.delimited 를 선언했으면 확장자보다
 # 먼저 레코드 경로를 탄다(cs_ssf 류: 원천이 .dtms/.md/.html/.txt 어느 확장자로도 온다).

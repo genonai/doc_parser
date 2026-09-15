@@ -130,6 +130,7 @@ from genon.preprocessor.facade.common import file_probe as fp
 from genon.preprocessor.facade.common import pdf_convert as pc
 from genon.preprocessor.facade.common import format_alias as fa
 from genon.preprocessor.facade.common import hooks as hk
+from genon.preprocessor.facade.common import job as jb
 from genon.preprocessor.converters import xlsx_processor as xp
 from genon.preprocessor.facade.common.docling_runtime import DoclingRuntimeBase
 from genon.preprocessor.facade.common.doc_meta import strip_enricher_meta
@@ -1653,10 +1654,10 @@ class ParserCore:
                 self._parse_tabular(file_path, sheets_with_merges)), **kwargs,
         )
 
-    async def route_hwp(self, file_path: str, ext: str, ctx: dict, **kwargs) -> dict:
+    async def route_hwp(self, job) -> dict:
         # .hml(HWPML)은 hwp_sdk 260713+ 에서 지원 — 같은 SDK 경로로 라우팅 (이슈 #323)
         return await self._docling_response(
-            self._parse_hwp_hwpx(file_path, **kwargs), ctx, **kwargs
+            self._parse_hwp_hwpx(job.source, **job.params), job.ctx, **job.params
         )
 
     async def route_docx(self, file_path: str, ext: str, ctx: dict, **kwargs) -> dict:
@@ -1869,6 +1870,56 @@ class ParserCore:
         # TODO(#315): PII 마스킹 미적용(보류) — langchain 경로(doc/이미지 등)는 별도 논의 후 적용.
         return self._langchain_to_parse_format(self._parse_other(file_path, **kwargs))
 
+    def _start_job(self, request, file_path: str, **kwargs) -> "jb.ParseJob":
+        """요청 한 건의 job 을 만든다. 확장자 판별과 비정상 파일 차단까지 한다.
+
+        임시 사본처럼 정리가 필요한 자원은 만들지 않는다 — 그 수명은 run 의 finally 가 쥔다.
+        """
+        raw_ext = os.path.splitext(file_path)[-1].lower()
+        # __init__ 을 우회해 만든 인스턴스(단위 테스트)도 견디도록 getattr 로 읽는다.
+        ext = _resolve_ext(raw_ext, getattr(self, "_ext_aliases", {}))
+        if ext != raw_ext:
+            _log.info(
+                f"[DocumentProcessor] file_path={file_path}, ext={raw_ext} -> {ext} (확장자 별칭)"
+            )
+        else:
+            _log.info(f"[DocumentProcessor] file_path={file_path}, ext={ext}")
+
+        # 비정상/암호화 파일 사전 감지(이슈 #278/#307): 지원 포맷 매직헤더에 하나도 안 맞고
+        # 텍스트도 아니면(=DRM 암호화/손상 바이너리) 파싱/변환 단계의 garbage 처리를 유발하므로
+        # 진입부에서 컷한다. 확장자와 무관하게 실제 헤더로 판정.
+        bad_reason = _detect_unsupported_file(file_path)
+        if bad_reason:
+            _log.warning(f"[parser] 비정상 파일 감지({bad_reason}) — 처리 중단: {file_path}")
+            raise GenosServiceException(
+                "1", f"{bad_reason} 입니다. 정상 문서로 다시 업로드하세요: {os.path.basename(file_path)}"
+            )
+
+        return jb.ParseJob(request=request, file_path=file_path, ext=ext,
+                           doc_type=self.resolve_doc_type(**kwargs), params=kwargs)
+
+    async def _call_route(self, job) -> dict:
+        """ROUTES 에서 라우트를 골라 실행하고 응답을 정규화한다.
+
+        라우트는 새 시그니처 route_x(self, job) 과 옛 시그니처 (file_path, ext, ctx, **kwargs)
+        를 모두 받는다(common/job.call_route).
+        """
+        # ROUTES 는 확장자로만 가르므로, doc_type 이 원천 모양(구분자 텍스트)을
+        # 선언한 경우는 확장자보다 먼저 본다(_route_delimited_records 참고).
+        delimited_result = await self._route_delimited_records(
+            job.source, job.ext, job.ctx, **job.params)
+        if delimited_result is not None:
+            return self._normalize_response(delimited_result)
+
+        for extensions, handler_name in self.ROUTES:
+            if extensions is not None and job.ext not in extensions:
+                continue
+            result = await jb.call_route(getattr(self, handler_name), job)
+            if result is not None:
+                return self._normalize_response(result)
+        # ROUTES 의 마지막이 캐치올이라 여기 도달하지 않는다.
+        raise GenosServiceException("1", f"처리할 수 없는 형식입니다: {job.ext}")
+
     async def run(self, request: Request, file_path: str, **kwargs) -> dict:
         runtime_level = kwargs.get('log_level')
         self.setup_logging(runtime_level if runtime_level is not None else self._log_level)
@@ -1896,27 +1947,10 @@ class ParserCore:
         )
         kwargs["_pdf_policy"] = pdf_policy
         try:
-            raw_ext = os.path.splitext(file_path)[-1].lower()
-            # __init__ 을 우회해 만든 인스턴스(단위 테스트)도 견디도록 getattr 로 읽는다.
-            ext = _resolve_ext(raw_ext, getattr(self, "_ext_aliases", {}))
-            if ext != raw_ext:
-                _log.info(
-                    f"[DocumentProcessor] file_path={file_path}, ext={raw_ext} -> {ext} (확장자 별칭)"
-                )
-            else:
-                _log.info(f"[DocumentProcessor] file_path={file_path}, ext={ext}")
+            job = self._start_job(request, file_path, **kwargs)
+            ext = job.ext
 
-            # 비정상/암호화 파일 사전 감지(이슈 #278/#307): 지원 포맷 매직헤더에 하나도 안 맞고
-            # 텍스트도 아니면(=DRM 암호화/손상 바이너리) 파싱/변환 단계의 garbage 처리를 유발하므로
-            # 진입부에서 컷한다. 확장자와 무관하게 실제 헤더로 판정.
-            bad_reason = _detect_unsupported_file(file_path)
-            if bad_reason:
-                _log.warning(f"[parser] 비정상 파일 감지({bad_reason}) — 처리 중단: {file_path}")
-                raise GenosServiceException(
-                    "1", f"{bad_reason} 입니다. 정상 문서로 다시 업로드하세요: {os.path.basename(file_path)}"
-                )
-
-            if ext != raw_ext:
+            if ext != os.path.splitext(file_path)[-1].lower():
                 # docling 은 파일명 확장자로 포맷을 판정하므로 이름을 바꾼 사본을 넘긴다.
                 # 원본 경로는 artifacts_source 로 남겨 media_files 경로를 원본 기준으로 유지한다.
                 try:
@@ -1942,22 +1976,9 @@ class ParserCore:
                     hook_tmp = None
 
             # 분기 사이에 공유되는 상태. enrichment_context 는 후처리가 채워 응답 metadata 로 나간다.
-            ctx = {"enrichment_context": {}, "artifacts_source": artifacts_source}
-
-            # ROUTES 는 확장자로만 가르므로, doc_type 이 원천 모양(구분자 텍스트)을
-            # 선언한 경우는 확장자보다 먼저 본다(_route_delimited_records 참고).
-            delimited_result = await self._route_delimited_records(file_path, ext, ctx, **kwargs)
-            if delimited_result is not None:
-                return self._normalize_response(delimited_result)
-
-            for extensions, handler_name in self.ROUTES:
-                if extensions is not None and ext not in extensions:
-                    continue
-                result = await getattr(self, handler_name)(file_path, ext, ctx, **kwargs)
-                if result is not None:
-                    return self._normalize_response(result)
-            # ROUTES 의 마지막이 캐치올이라 여기 도달하지 않는다.
-            raise GenosServiceException("1", f"처리할 수 없는 형식입니다: {ext}")
+            job.source = file_path
+            job.ctx = {"enrichment_context": {}, "artifacts_source": artifacts_source}
+            return await self._call_route(job)
         finally:
             if alias_tmp is not None:
                 alias_tmp.cleanup()
