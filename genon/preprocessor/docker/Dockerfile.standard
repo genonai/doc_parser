@@ -44,12 +44,13 @@ ENV DEBIAN_FRONTEND=noninteractive \
     NLTK_DATA=/app/nltk_data
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
-    echo "deb http://deb.debian.org/debian sid main" > /etc/apt/sources.list.d/sid.list && \
-    printf "Package: python3.13 python3.13-minimal libpython3.13 libpython3.13-minimal libpython3.13-stdlib\nPin: release a=sid\nPin-Priority: 990\n\nPackage: *\nPin: release a=sid\nPin-Priority: 100\n" > /etc/apt/preferences.d/pin-python3.13 && \
-    apt-get update && \
+    mkdir -p "$TMPDIR" && apt-get update && \
     # CVE-2026-14456 등 openssl 22건, CVE-2026-2219(dpkg), CVE-2025-59375(expat), CVE-2026-26740(giflib),
     # CVE-2026-47063(openjdk-21): 베이스의 trixie 패키지를 보안 수정본으로 전체 상향한다.
-    # sid 소스는 우선순위 100이라 python3.13 계열 외에는 끌려오지 않는다.
+    # sid 소스는 두지 않는다. 이전에는 python3.13 계열만 sid에서 받으려는 핀이 있었으나 핀 파일 이름의 확장자(.13) 때문에 apt가 무시해
+    # 실제로는 sid가 우선순위 500으로 남아 libreoffice, imagemagick, glibc까지 sid 판이 섞여 들어갔고, 핀을 바로잡으면 sid python3.13이
+    # libc6 2.42 이상을 요구해 trixie glibc와 충돌한다. trixie에 python3.13(3.13.5-2+deb13uN)이 있어 LibreOffice의 python3-uno는 그것을 쓴다.
+    # TMPDIR(/app/tmp)은 dpkg postinst의 mktemp가 쓰므로 apt 전에 만든다.
     apt-get upgrade -y && \
     apt-get install -y --no-install-recommends \
       net-tools \
