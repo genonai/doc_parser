@@ -1705,13 +1705,18 @@ class ParserCore:
 
     async def route_hwp(self, job) -> dict:
         # .hml(HWPML)은 hwp_sdk 260713+ 에서 지원 — 같은 SDK 경로로 라우팅 (이슈 #323)
-        return await self.document_to_response(job, self._parse_hwp_hwpx(job.source, **job.params))
+        return await self.document_to_response(job, self.parse_hwp(job))
+
+    def parse_hwp(self, job) -> DoclingDocument:
+        """hwp, hwpx, hml 을 docling 문서로 파싱한다."""
+        return self._parse_hwp_hwpx(job.source, **job.params)
 
     async def route_docx(self, job) -> dict:
-        file_path, ctx, kwargs = job.source, job.ctx, job.params
-        return await self._docling_response(
-            self._parse_docx(file_path, **kwargs), ctx, clear_coordinates=True, **kwargs
-        )
+        return await self.document_to_response(job, self.parse_docx(job), clear_coordinates=True)
+
+    def parse_docx(self, job) -> DoclingDocument:
+        """docx 를 docling 문서로 파싱한다."""
+        return self._parse_docx(job.source, **job.params)
 
     async def route_docling(self, job):
         """pdf / html / htm / md 를 docling 으로 파싱한다.
@@ -1838,66 +1843,66 @@ class ParserCore:
         docling 으로 보내므로(route_other), 설정이 없는 .json 도 원문 그대로 docling 을
         탄다 — 예전처럼 PDF 렌더를 거치는 텍스트 경로로 빠지지 않는다.
         """
-        file_path, ctx, kwargs = job.source, job.ctx, job.params
         # 1순위: 레코드 매핑(json_mapping) — 레코드마다 청크/메타데이터를 따로 만든다.
         #        docling 을 거치지 않으므로 xlsx 의 tabular 조기 분기와 같은 성격이다.
-        records_mappers = self._json_records_mappers_for(kwargs.get("doc_type"))
-        if records_mappers:
-            result = await self._parse_json_records(file_path, records_mappers, **kwargs)
-            return await self._describe_record_tables(result, **kwargs)
+        if self.has_json_mapping(job):
+            return await self.records_to_response(job, await self.map_records(job))
 
         # 2순위: 문서 모드(json: text_fields) — 본문 텍스트를 합쳐 docling 으로 파싱.
-        json_spec = self._json_text_spec_for(kwargs.get("doc_type"))
-        if json_spec is not None:
-            with tempfile.TemporaryDirectory(prefix="parser_json_") as work_dir:
-                doc = await self._parse_json(
-                    file_path, json_spec, work_dir,
-                    _enrichment_context=ctx["enrichment_context"], **kwargs,
-                )
-            return await self._docling_response(doc, ctx, **kwargs)
+        if self.has_json_text_fields(job):
+            return await self.document_to_response(job, await self.parse_json_text(job))
 
         _log.info(
             "[parser] custom_fields json 매칭 설정 없음 — 원문을 그대로 docling 으로 처리: "
-            f"{os.path.basename(file_path)}"
+            f"{os.path.basename(job.source)}"
         )
         return None
+
+    def has_json_mapping(self, job) -> bool:
+        """doc_type 에 json_mapping(레코드 모드) 설정이 매칭되는가."""
+        return bool(self._json_records_mappers_for(job.params.get("doc_type")))
+
+    async def map_records(self, job) -> dict:
+        """json 레코드를 설정의 목표필드로 매핑한 행형 산출({"elements": [...]})을 만든다."""
+        mappers = self._json_records_mappers_for(job.params.get("doc_type"))
+        return await self._parse_json_records(job.source, mappers, **job.params)
+
+    def has_json_text_fields(self, job) -> bool:
+        """doc_type 에 json text_fields(문서 모드) 설정이 매칭되는가."""
+        return self._json_text_spec_for(job.params.get("doc_type")) is not None
+
+    async def parse_json_text(self, job) -> DoclingDocument:
+        """json 본문 항목을 합쳐 docling 문서로 파싱한다. 파생 파일은 파싱이 끝나면 지운다."""
+        spec = self._json_text_spec_for(job.params.get("doc_type"))
+        with tempfile.TemporaryDirectory(prefix="parser_json_") as work_dir:
+            return await self._parse_json(
+                job.source, spec, work_dir,
+                _enrichment_context=job.ctx["enrichment_context"], **job.params,
+            )
+
+    async def records_to_response(self, job, records: dict) -> dict:
+        """행형 산출의 표에 설명을 붙인다. 엑셀 행·JSON 레코드 경로가 공유한다."""
+        return await self._describe_record_tables(records, **job.params)
 
     async def route_ppt(self, job) -> dict:
         """PDF 변환 → 경량 docling 파싱 + 페이지 단위 image description(옵션).
 
         변환 실패 시에만 레거시 langchain 경로로 폴백한다. (파스 전용 — 청킹 없음)
         """
-        file_path, ctx, kwargs = job.source, job.ctx, job.params
-        doc = self._parse_ppt_docling(file_path, **kwargs)
+        doc = self.parse_ppt(job)
         if doc is not None:
-            return await self._docling_response(doc, ctx, **kwargs)
+            return await self.document_to_response(job, doc)
         # PDF 변환 실패 폴백
         # TODO(#315): PII 마스킹 미적용(보류) — langchain 폴백 경로. docling 아닌 파서 산출은 별도 논의.
-        return self._langchain_to_parse_format(self._parse_other(file_path, **kwargs))
+        return self.parse_plain(job)
 
-    async def _parse_text_docling(self, file_path: str, text: str, ctx: dict, **kwargs) -> dict:
-        """평문 텍스트 → `<pre>` HTML → docling. 캐치올에 떨어진 텍스트가 여기로 온다.
+    def parse_ppt(self, job) -> "Optional[DoclingDocument]":
+        """ppt, pptx 를 PDF 로 변환해 docling 문서로 파싱한다. 변환에 실패하면 None."""
+        return self._parse_ppt_docling(job.source, **job.params)
 
-        docling 에는 평문 백엔드가 없어 HTML 을 거친다(`converters/plain_text.py` 참고).
-        구조는 `_parse_json` 의 문서 모드와 같다 — 파생 HTML 은 요청 임시 디렉터리에만
-        쓰고, artifacts 경로는 원본 기준으로 유지한다.
-
-        docling 을 태우는 이유는 enrichment 다. 레거시 TextLoader 경로에는 후처리 훅이
-        없어 custom_fields·문서요약·표 설명이 텍스트 원천에만 적용되지 않았다.
-        """
-        stem = Path(file_path).stem
-        with tempfile.TemporaryDirectory(prefix="parser_text_") as work_dir:
-            html_path = os.path.join(work_dir, f"{stem}.html")
-            with open(html_path, "w", encoding="utf-8") as fp:
-                fp.write(text_to_html(text))
-            doc = self._parse_docling(
-                html_path, artifacts_from=file_path,
-                _enrichment_context=ctx["enrichment_context"], **kwargs,
-            )
-        # `<pre>` 를 코드 블록으로 읽은 것을 되돌린다. 후처리 enrichment 전에 해야
-        # custom_fields·문서요약 프롬프트가 본문을 코드로 보지 않는다.
-        doc = dops.demote_code_items(doc)
-        return await self._docling_response(doc, ctx, **kwargs)
+    def parse_plain(self, job) -> dict:
+        """레거시 langchain 경로로 텍스트만 뽑아 행형 산출을 만든다(doc, 이미지, ppt 변환 실패 등)."""
+        return self._langchain_to_parse_format(self._parse_other(job.source, **job.params))
 
     async def route_other(self, job) -> dict:
         """캐치올: doc, txt, json, md, jpg, jpeg, png 등.
@@ -1906,21 +1911,46 @@ class ParserCore:
         `formats.md.processing_mode=text`, 그리고 확장자를 모르지만 본문이 텍스트인
         파일이 모두 여기로 흘러든다. 나머지(doc/이미지 등)는 기존 langchain 경로다.
         """
-        file_path, ctx, kwargs = job.source, job.ctx, job.params
-        if _file_looks_like_text(file_path):
-            try:
-                text = read_text_with_fallback(file_path)
-            except UnicodeDecodeError as exc:
-                # 후보 인코딩(utf-8-sig/utf-8/cp949)이 전부 실패한 원천. 레거시 TextLoader 는
-                # chardet 감지와 errors="replace" 까지 있어 더 넓으므로 그쪽으로 넘긴다.
-                _log.warning(
-                    f"[parser] 텍스트 디코딩 실패({exc.encoding}) — 레거시 경로로 폴백: "
-                    f"{os.path.basename(file_path)}"
-                )
-            else:
-                return await self._parse_text_docling(file_path, text, ctx, **kwargs)
+        doc = self.parse_text(job)
+        if doc is not None:
+            return await self.document_to_response(job, doc)
         # TODO(#315): PII 마스킹 미적용(보류) — langchain 경로(doc/이미지 등)는 별도 논의 후 적용.
-        return self._langchain_to_parse_format(self._parse_other(file_path, **kwargs))
+        return self.parse_plain(job)
+
+    def parse_text(self, job) -> "Optional[DoclingDocument]":
+        """평문 텍스트 → `<pre>` HTML → docling. 텍스트가 아니거나 디코딩에 실패하면 None.
+
+        docling 에는 평문 백엔드가 없어 HTML 을 거친다(`converters/plain_text.py` 참고).
+        파생 HTML 은 요청 임시 디렉터리에만 쓰고, artifacts 경로는 원본 기준으로 유지한다.
+
+        docling 을 태우는 이유는 enrichment 다. 레거시 TextLoader 경로에는 후처리 훅이
+        없어 custom_fields·문서요약·표 설명이 텍스트 원천에만 적용되지 않았다.
+        """
+        file_path = job.source
+        if not _file_looks_like_text(file_path):
+            return None
+        try:
+            text = read_text_with_fallback(file_path)
+        except UnicodeDecodeError as exc:
+            # 후보 인코딩(utf-8-sig/utf-8/cp949)이 전부 실패한 원천. 레거시 TextLoader 는
+            # chardet 감지와 errors="replace" 까지 있어 더 넓으므로 그쪽으로 넘긴다.
+            _log.warning(
+                f"[parser] 텍스트 디코딩 실패({exc.encoding}) — 레거시 경로로 폴백: "
+                f"{os.path.basename(file_path)}"
+            )
+            return None
+        stem = Path(file_path).stem
+        with tempfile.TemporaryDirectory(prefix="parser_text_") as work_dir:
+            html_path = os.path.join(work_dir, f"{stem}.html")
+            with open(html_path, "w", encoding="utf-8") as fp:
+                fp.write(text_to_html(text))
+            doc = self._parse_docling(
+                html_path, artifacts_from=file_path,
+                _enrichment_context=job.ctx["enrichment_context"], **job.params,
+            )
+        # `<pre>` 를 코드 블록으로 읽은 것을 되돌린다. 후처리 enrichment 전에 해야
+        # custom_fields·문서요약 프롬프트가 본문을 코드로 보지 않는다.
+        return dops.demote_code_items(doc)
 
     def _start_job(self, request, file_path: str, **kwargs) -> "jb.ParseJob":
         """요청 한 건의 job 을 만든다. 확장자 판별과 비정상 파일 차단까지 한다.
