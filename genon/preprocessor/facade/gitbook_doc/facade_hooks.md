@@ -11,8 +11,8 @@
 
 | 파일 | 줄수 | 고칠 자리 |
 |---|---:|---|
-| `facade/parser_processor.py` | 101 | `ROUTES` · `pre_parse` · `post_parse` |
-| `facade/chunking_processor.py` | 123 | `GenOSVectorMeta` · `GenosSmartChunker` · `ROW_CATEGORIES` · `pre_chunk` · `on_chunk` · `post_chunk` |
+| `facade/parser_processor.py` | 293 | `ROUTES` · `CONFIG_BY_DOC_TYPE` · `pre_parse` · `on_docling_document` · `post_parse` |
+| `facade/chunking_processor.py` | 243 | `GenOSVectorMeta` · `GenosSmartChunker` · `ROW_CATEGORIES` · `CONFIG_BY_DOC_TYPE` · `pre_chunk` · `on_chunk` · `post_chunk` |
 
 처리 본체는 `facade/core/` 에 있고 **열어 볼 일이 없습니다.** 열어야 했다면 그건 훅이
 부족하다는 뜻이니 알려 주세요.
@@ -20,13 +20,16 @@
 ## 언제 무엇이 불리나
 
 ```
-파싱   요청 → 확장자 판정 → ROUTES → [pre_parse] → 파싱 → [on_docling_document] → enrichment → [post_parse] → 응답
-청킹   파서 결과 → 형태 판별 → [pre_chunk] → 분할 → [on_chunk] → 벡터 조합 → [post_chunk] → 응답
+파싱   요청 → 확장자 판정 → doc_type 별 설정 → [pre_parse] → ROUTES → 파싱 → [on_docling_document] → enrichment → [post_parse] → 응답
+청킹   파서 결과 → 형태 판별 → doc_type 별 설정 → [pre_chunk] → 분할 → [on_chunk] → vector_meta 조립 → [post_chunk] → 응답
 ```
 
 `__call__` 을 열어 보면 이 순서가 그대로 적혀 있습니다.
 
-## 네 훅에 공통인 두 가지
+`.json` · `.md` · `.html` · 엑셀은 파일 경로가 아니라 **로드된 데이터**를 훅에 넘겨야 해서
+`pre_parse` 가 해당 라우트 안에서 불립니다. 순서상 위치는 같습니다.
+
+## 모든 훅에 공통인 두 가지
 
 ### 요청 파라미터는 `**kwargs` 로 받습니다
 
@@ -215,6 +218,45 @@ API 라 그 값은 호출자용 정보로 끝납니다. `tb.set_chunk_metadata()
             tb.FIRST_CHUNK_FIELDS_KEY: ["PRODUCT_NM"],   # 첫 청크에만 붙일 필드
         })
 ```
+
+## doc_type 마다 설정을 다르게 — `CONFIG_BY_DOC_TYPE`
+
+설정 파일은 모든 문서에 똑같이 적용됩니다. **문서 종류마다 다르게 하고 싶으면** 훅을 쓰지
+말고 이 표에 적으세요. 두 파일 모두 같은 자리에 있습니다.
+
+```python
+    CONFIG_BY_DOC_TYPE = {
+        "press":  {"table_desc": 0},                 # 표가 없어 불필요한 LLM 호출
+        "manual": {"img_desc": 1, "chart_desc": 1},  # 이미지와 차트 설명이 중요
+    }
+```
+
+키는 **요청 파라미터 이름**입니다. 값을 적으면 요청이 그 값을 보낸 것과 같게 동작합니다.
+
+| 파서 | | 청커 | |
+|---|---|---|---|
+| `table_desc` | 표 설명 | `chunk_size` | 청크 최대 크기 |
+| `img_desc` · `chart_desc` | 이미지 · 차트 설명 | `chunk_overlap` | 청크 간 겹침 |
+| `doc_summary` · `toc` | 문서 요약 · 목차 보강 | `chunk_mode` | `split_only` / `resize_all` |
+| `keep_pdf` | 변환 PDF 보존 | | |
+
+**설정 파일 경로(점 표기)는 받지 않습니다.** `"enrichment.table_description.enable"` 처럼
+적으면 건너뛰고 로그에 경고가 남습니다. 위 표의 이름을 쓰세요. 청킹 설정은 파서가 아니라
+청커의 같은 표에 적습니다.
+
+표로 안 되는 조건은 `config_by_condition()` 에서 정합니다. 같은 형식의 dict 를 돌려주고,
+빈 dict 면 아무것도 바뀌지 않습니다.
+
+```python
+    def config_by_condition(self, job):
+        if job.params.get("dept") == "IR":
+            return {"doc_summary": 1}
+        return {}
+```
+
+우선순위는 뒤가 셉니다 — **설정 파일 → `CONFIG_BY_DOC_TYPE` → `config_by_condition()` →
+요청 파라미터.** 요청이 보낸 값은 절대 덮이지 않습니다. 실제로 적용된 값은 `job.config` 에
+남아 "이 문서가 어떤 설정으로 처리됐는지" 를 되짚을 수 있습니다.
 
 ## 코드가 아니라 값으로 바꾸는 것들 — 청킹
 
