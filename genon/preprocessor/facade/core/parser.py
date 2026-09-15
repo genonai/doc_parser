@@ -1989,10 +1989,30 @@ class ParserCore:
         job.config = applied
 
     def _start_job(self, request, file_path: str, **kwargs) -> "jb.ParseJob":
-        """요청 한 건의 job 을 만든다. 확장자 판별과 비정상 파일 차단까지 한다.
+        """요청 한 건의 job 을 만든다.
 
-        임시 사본처럼 정리가 필요한 자원은 만들지 않는다 — 그 수명은 run 의 finally 가 쥔다.
+        로깅·런타임 옵션·캐시 컨텍스트·변환 PDF 정책을 요청 스코프로 세우고, 확장자 판별과
+        비정상 파일 차단, 확장자 별칭 사본까지 한다. 정리는 _finish_job 이 맡는다.
         """
+        runtime_level = kwargs.get('log_level')
+        self.setup_logging(runtime_level if runtime_level is not None else self._log_level)
+
+        # 런타임 토글(img_desc/chart_desc/chart_detection/doc_summary)로 이미지·차트 description 재구성
+        # (실제 enrichment 는 self._intel 경유이므로 embed 프로세서에 반영한다)
+        kwargs = self._intel._normalize_runtime_kwargs(kwargs)
+        self._intel._configure_runtime_image_mode(kwargs)
+
+        # #329: LLM 캐시 / error_policy 컨텍스트를 요청 스코프로 설정(/parse 는 body 의
+        # workflow_id/run_id 로 스코프 유도). ThreadPool 워커엔 in_current_context 로 전파.
+        cache_token = _set_cache_context(_resolve_cache_context(kwargs))
+        # 변환 PDF 정책(요청 스코프). 프로세서는 싱글턴이라 요청마다 새로 만든다.
+        # kwargs 가 yaml 을 덮어쓴다: keep_pdf(0/1) / pdf_dir(경로).
+        pdf_policy = getattr(self, "_pdf_output", pa.PdfArtifactOptions()).for_request(
+            keep=_parse_optional_bool(kwargs.get("keep_pdf"), "keep_pdf"),
+            dir=(str(kwargs["pdf_dir"]).strip() if kwargs.get("pdf_dir") else None),
+        )
+        kwargs["_pdf_policy"] = pdf_policy
+
         raw_ext = os.path.splitext(file_path)[-1].lower()
         # __init__ 을 우회해 만든 인스턴스(단위 테스트)도 견디도록 getattr 로 읽는다.
         ext = _resolve_ext(raw_ext, getattr(self, "_ext_aliases", {}))
@@ -2003,20 +2023,85 @@ class ParserCore:
         else:
             _log.info(f"[DocumentProcessor] file_path={file_path}, ext={ext}")
 
-        # 비정상/암호화 파일 사전 감지(이슈 #278/#307): 지원 포맷 매직헤더에 하나도 안 맞고
-        # 텍스트도 아니면(=DRM 암호화/손상 바이너리) 파싱/변환 단계의 garbage 처리를 유발하므로
-        # 진입부에서 컷한다. 확장자와 무관하게 실제 헤더로 판정.
-        bad_reason = _detect_unsupported_file(file_path)
-        if bad_reason:
-            _log.warning(f"[parser] 비정상 파일 감지({bad_reason}) — 처리 중단: {file_path}")
-            raise GenosServiceException(
-                "1", f"{bad_reason} 입니다. 정상 문서로 다시 업로드하세요: {os.path.basename(file_path)}"
-            )
-
         job = jb.ParseJob(request=request, file_path=file_path, ext=ext,
                           doc_type=self.resolve_doc_type(**kwargs), params=kwargs)
+        # 분기 사이에 공유되는 상태. enrichment_context 는 후처리가 채워 응답 metadata 로 나간다.
+        job.ctx = {"enrichment_context": {}, "artifacts_source": None, "job": job}
+        job.notes["cache_token"] = cache_token
+        job.notes["pdf_policy"] = pdf_policy
         self._apply_config_overlay(job)
+        try:
+            # 비정상/암호화 파일 사전 감지(이슈 #278/#307): 지원 포맷 매직헤더에 하나도 안 맞고
+            # 텍스트도 아니면(=DRM 암호화/손상 바이너리) 파싱/변환 단계의 garbage 처리를 유발하므로
+            # 진입부에서 컷한다. 확장자와 무관하게 실제 헤더로 판정.
+            bad_reason = _detect_unsupported_file(file_path)
+            if bad_reason:
+                _log.warning(f"[parser] 비정상 파일 감지({bad_reason}) — 처리 중단: {file_path}")
+                raise GenosServiceException(
+                    "1", f"{bad_reason} 입니다. 정상 문서로 다시 업로드하세요: {os.path.basename(file_path)}"
+                )
+
+            if ext != raw_ext:
+                # docling 은 파일명 확장자로 포맷을 판정하므로 이름을 바꾼 사본을 넘긴다.
+                # 원본 경로는 artifacts_source 로 남겨 media_files 경로를 원본 기준으로 유지한다.
+                try:
+                    job.ctx["artifacts_source"] = file_path
+                    job.source = _materialize_alias_copy(
+                        file_path, ext, job.temp_dir("parser_alias_"))
+                except OSError as exc:
+                    raise GenosServiceException(
+                        "1", f"확장자 별칭 사본 생성 실패: {exc}"
+                    ) from exc
+        except BaseException:
+            self._finish_job(job)
+            raise
         return job
+
+    async def _call_pre_parse(self, job) -> str:
+        """경로형 pre_parse 훅을 적용하고 파싱할 입력 경로를 돌려준다.
+
+        데이터형으로 넘기는 확장자(.json/.md/.html/표)는 각 라우트가 자기 자리에서 부른다.
+        """
+        try:
+            if job.ext in _DATA_HOOK_EXTS or not self._pre_parse_active():
+                return job.source
+            new_path, changed = await self._hook_pre_parse(
+                job.ext, job.params, job.source, job.temp_dir("parser_hookpath_"))
+            if not changed:
+                return job.source
+            job.ctx["artifacts_source"] = job.ctx.get("artifacts_source") or job.source
+            return new_path
+        except BaseException:
+            self._finish_job(job)
+            raise
+
+    async def _call_post_parse(self, job, result) -> dict:
+        """post_parse 훅을 부르고 요청 자원을 정리한다(흐름의 마지막 단계)."""
+        try:
+            return await hk.call_hook(
+                self.post_parse, job.ext, job.doc_type, result, request_kwargs=job.params)
+        finally:
+            self._finish_job(job)
+
+    async def describe_tables(self, job, records: dict) -> dict:
+        """행형 산출의 표에 설명을 붙인다. records_to_response 가 부른다."""
+        return await self._describe_record_tables(records, **job.params)
+
+    def _finish_job(self, job) -> None:
+        """요청 스코프 자원을 정리한다. 두 번 불러도 안전하다."""
+        if job is None or job.notes.get("finished"):
+            return
+        job.notes["finished"] = True
+        job.close()   # 라우트가 job.temp_dir() 로 만든 파생 파일
+        # keep_pdf 가 아니면 이 요청이 만든 변환 PDF 를 지운다(뷰어가 쓰는 기존
+        # 파일은 대상이 아니다 — 정책이 이 요청의 산출물만 기억한다).
+        pdf_policy = job.notes.get("pdf_policy")
+        if pdf_policy is not None:
+            pdf_policy.cleanup()
+        _log_cache_summary()
+        cache_token = job.notes.get("cache_token")
+        if cache_token is not None:
+            _reset_cache_context(cache_token)
 
     async def _call_route(self, job) -> dict:
         """ROUTES 에서 라우트를 골라 실행하고 응답을 정규화한다.
@@ -2024,6 +2109,14 @@ class ParserCore:
         라우트는 새 시그니처 route_x(self, job) 과 옛 시그니처 (file_path, ext, ctx, **kwargs)
         를 모두 받는다(common/job.call_route).
         """
+        try:
+            return await self._route(job)
+        except BaseException:
+            self._finish_job(job)
+            raise
+
+    async def _route(self, job) -> dict:
+        """ROUTES 순회 본체. 예외 시 자원 정리는 _call_route 가 맡는다."""
         # ROUTES 는 확장자로만 가르므로, doc_type 이 원천 모양(구분자 텍스트)을
         # 선언한 경우는 확장자보다 먼저 본다(_route_delimited_records 참고).
         delimited_result = await self._route_delimited_records(
@@ -2041,76 +2134,13 @@ class ParserCore:
         raise GenosServiceException("1", f"처리할 수 없는 형식입니다: {job.ext}")
 
     async def run(self, request: Request, file_path: str, **kwargs) -> dict:
-        runtime_level = kwargs.get('log_level')
-        self.setup_logging(runtime_level if runtime_level is not None else self._log_level)
+        """옛 facade 입구. 새 흐름(_start_job → _call_pre_parse → _call_route)과 같은 일을 한다.
 
-        # 런타임 토글(img_desc/chart_desc/chart_detection/doc_summary)로 이미지·차트 description 재구성
-        # (실제 enrichment 는 self._intel 경유이므로 embed 프로세서에 반영한다)
-        kwargs = self._intel._normalize_runtime_kwargs(kwargs)
-        self._intel._configure_runtime_image_mode(kwargs)
-
-        # #329: LLM 캐시 / error_policy 컨텍스트를 요청 스코프로 설정(/parse 는 body 의
-        # workflow_id/run_id 로 스코프 유도). ThreadPool 워커엔 in_current_context 로 전파.
-        _cache_token = _set_cache_context(_resolve_cache_context(kwargs))
-        # 확장자 별칭이 적용되면 표준 확장자 이름의 사본으로 파싱한다. 그 임시 디렉터리는
-        # 요청이 끝날 때 정리한다(finally).
-        alias_tmp: tempfile.TemporaryDirectory | None = None
-        # 경로형 pre_parse 훅이 만든 파생 파일의 임시 디렉터리.
-        hook_tmp: tempfile.TemporaryDirectory | None = None
-        # 별칭 사본으로 파싱할 때 artifacts(이미지) 경로 기준이 되는 원본 경로.
-        artifacts_source: str | None = None
-        # 변환 PDF 정책(요청 스코프). 프로세서는 싱글턴이라 요청마다 새로 만든다.
-        # kwargs 가 yaml 을 덮어쓴다: keep_pdf(0/1) / pdf_dir(경로).
-        pdf_policy = getattr(self, "_pdf_output", pa.PdfArtifactOptions()).for_request(
-            keep=_parse_optional_bool(kwargs.get("keep_pdf"), "keep_pdf"),
-            dir=(str(kwargs["pdf_dir"]).strip() if kwargs.get("pdf_dir") else None),
-        )
-        kwargs["_pdf_policy"] = pdf_policy
-        job = None
+        post_parse 는 옛 facade 가 run_post_parse 로 따로 부르므로 여기서는 부르지 않는다.
+        """
+        job = self._start_job(request, file_path, **kwargs)
         try:
-            job = self._start_job(request, file_path, **kwargs)
-            # 아래 훅·정리 코드가 오버레이까지 반영된 파라미터를 보게 한다.
-            kwargs = job.params
-            ext = job.ext
-
-            if ext != os.path.splitext(file_path)[-1].lower():
-                # docling 은 파일명 확장자로 포맷을 판정하므로 이름을 바꾼 사본을 넘긴다.
-                # 원본 경로는 artifacts_source 로 남겨 media_files 경로를 원본 기준으로 유지한다.
-                try:
-                    alias_tmp = tempfile.TemporaryDirectory(prefix="parser_alias_")
-                    artifacts_source = file_path
-                    file_path = _materialize_alias_copy(file_path, ext, alias_tmp.name)
-                except OSError as exc:
-                    raise GenosServiceException(
-                        "1", f"확장자 별칭 사본 생성 실패: {exc}"
-                    ) from exc
-
-            # 경로형 pre_parse 훅. 데이터형으로 넘기는 확장자(.json/.md/.html/표)는
-            # 각 라우트가 자기 자리에서 부르므로 여기서는 제외한다.
-            if ext not in _DATA_HOOK_EXTS and self._pre_parse_active():
-                hook_tmp = tempfile.TemporaryDirectory(prefix="parser_hookpath_")
-                new_path, changed = await self._hook_pre_parse(
-                    ext, kwargs, file_path, hook_tmp.name)
-                if changed:
-                    artifacts_source = artifacts_source or file_path
-                    file_path = new_path
-                else:
-                    hook_tmp.cleanup()
-                    hook_tmp = None
-
-            # 분기 사이에 공유되는 상태. enrichment_context 는 후처리가 채워 응답 metadata 로 나간다.
-            job.source = file_path
-            job.ctx = {"enrichment_context": {}, "artifacts_source": artifacts_source, "job": job}
+            job.source = await self._call_pre_parse(job)
             return await self._call_route(job)
         finally:
-            if job is not None:
-                job.close()   # 라우트가 job.temp_dir() 로 만든 파생 파일
-            if alias_tmp is not None:
-                alias_tmp.cleanup()
-            if hook_tmp is not None:
-                hook_tmp.cleanup()
-            # keep_pdf 가 아니면 이 요청이 만든 변환 PDF 를 지운다(뷰어가 쓰는 기존
-            # 파일은 대상이 아니다 — 정책이 이 요청의 산출물만 기억한다).
-            pdf_policy.cleanup()
-            _log_cache_summary()
-            _reset_cache_context(_cache_token)
+            self._finish_job(job)

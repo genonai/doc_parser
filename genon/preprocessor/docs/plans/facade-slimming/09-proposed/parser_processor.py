@@ -60,14 +60,14 @@ class DocumentProcessor(ParserCore):
         result = await self._call_route(job)                 # ROUTES 에서 라우트 선택, 실행
         return await self._call_post_parse(job, result)      # post_parse() 호출
 
-    async def document_to_response(self, job, doc):
+    async def document_to_response(self, job, doc, clear_coordinates=False):
         """문서를 응답 JSON 으로 변환한다. 문서형 라우트 5개가 공유한다.
 
         메소드 호출 순서 유지 필수
         """
-        doc = self.on_docling_document(job, doc)  # enrichment 전 (훅 메소드 2)
-        doc = await self.enrich(job, doc)         # LLM enrichment: 표 설명, 이미지 설명, 항목 추출
-        return self.build_response(job, doc)      # {"document": ..., "metadata": ...}
+        doc = await self._call_on_docling_document(job, doc)  # on_docling_document() 호출
+        doc = await self.enrich(job, doc)                     # LLM enrichment: 표 설명, 이미지 설명, 항목 추출
+        return self.build_response(job, doc, clear_coordinates)   # {"document": ..., "metadata": ...}
 
     async def records_to_response(self, job, records):
         """엑셀 행이나 JSON 레코드 목록을 응답 JSON 으로 변환한다.

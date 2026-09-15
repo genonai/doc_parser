@@ -124,8 +124,8 @@
 ```python
     ROUTES = (((".log",), "route_log"),) + (... 기존 표 그대로 ...)
 
-    async def route_log(self, file_path, ext, ctx, **kwargs):
-        lines = [l for l in tb.read_text_with_fallback(file_path).splitlines() if l.strip()]
+    async def route_log(self, job):
+        lines = [l for l in tb.read_text_with_fallback(job.source).splitlines() if l.strip()]
         return {"elements": tb.make_elements(lines)}
 ```
 
@@ -133,9 +133,21 @@
 
 | | |
 |---|---|
-| 시그니처 | `async def route_<이름>(self, file_path, ext, ctx, **kwargs) -> dict \| None` |
+| 시그니처 | `async def route_<이름>(self, job) -> dict \| None` |
 | 응답 | `{"elements": [...]}` 만 채우면 됩니다. `content`·`usage` 는 core 가 채웁니다 |
 | 폴스루 | `None` 을 돌려주면 `ROUTES` 의 다음 후보로 넘어갑니다 |
+
+`job` 은 요청 한 건의 정보입니다. 자주 쓰는 것은 넷입니다.
+
+| 필드 | 값 |
+|---|---|
+| `job.source` | 실제로 파싱할 경로. 확장자 별칭 사본이나 `pre_parse` 파생 파일이면 원본과 다릅니다 |
+| `job.file_path` | 요청이 넘긴 원본 경로 |
+| `job.ext` / `job.doc_type` | 표준 확장자, 문서 유형 |
+| `job.params` | 요청 파라미터. `job.notes` 는 단계 사이 값 전달용입니다 |
+
+> 옛 시그니처 `async def route_<이름>(self, file_path, ext, ctx, **kwargs)` 로 쓴 라우트도
+> 그대로 불립니다. 새로 쓰는 라우트만 `job` 형태로 쓰면 됩니다.
 
 `tb.make_elements()` 가 `id`·`page`·`coordinates` 같은 배관 필드를 채웁니다. 원소는
 문자열이거나 dict 이고, **행 1개 = 청크 1개**로 적재하려면 category 를 바꿉니다.

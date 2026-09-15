@@ -190,18 +190,21 @@ async def test_pre_and_post_chunk_are_wired_into_call():
 
 
 @pytest.mark.asyncio
-async def test_post_parse_is_wired_into_call():
+async def test_post_parse_is_wired_into_call(tmp_path: Path):
     class _P(parser_facade.DocumentProcessor):
-        async def run(self, request, file_path, **kwargs):
+        async def _call_route(self, job):
             return {"elements": [], "metadata": {}}
 
         def post_parse(self, ext, doc_type, result):
             result["metadata"]["src"] = f"{ext}:{doc_type}"
             return result
 
-    proc = _bare(_P)
+    proc = _routable(_P)
     proc._ext_aliases = {".parsed": ".md"}
-    out = await proc(None, "/x/a.parsed", doc_type="T")
+    # 별칭이 적용되면 core 가 표준 확장자 사본을 만든다 — 실제 파일이 있어야 한다.
+    src = tmp_path / "a.parsed"
+    src.write_text("# hi\n", encoding="utf-8")
+    out = await proc(None, str(src), doc_type="T")
     # 확장자는 별칭이 반영되고(.parsed -> .md), doc_type 은 정규화(소문자)되어 온다.
     # 훅에서 doc_type 을 비교할 때 대문자로 적으면 영영 안 맞는다.
     assert out["metadata"]["src"] == ".md:t"
@@ -440,15 +443,14 @@ async def test_pre_parse_wins_when_both_hook_names_are_defined():
 @pytest.mark.asyncio
 async def test_async_post_parse_is_awaited():
     class _P(parser_facade.DocumentProcessor):
-        async def run(self, request, file_path, **kwargs):
+        async def _call_route(self, job):
             return {"elements": [], "metadata": {}}
 
         async def post_parse(self, ext, doc_type, result, **kwargs):
             result["metadata"]["tenant"] = kwargs.get("tenant")
             return result
 
-    proc = _bare(_P)
-    proc._ext_aliases = {}
+    proc = _routable(_P)
     out = await proc(None, "/x/a.md", doc_type="T", tenant="A")
     assert out["metadata"]["tenant"] == "A"
 
