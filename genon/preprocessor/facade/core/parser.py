@@ -1678,7 +1678,7 @@ class ParserCore:
         return bool(self._tabular_mappers(job))
 
     async def map_sheet_records(self, job, sheets) -> dict:
-        """시트 행을 설정의 목표필드로 매핑한 행형 산출을 만든다."""
+        """시트 행을 설정의 목표필드로 매핑한 요소형 산출을 만든다."""
         return await self._parse_tabular_records(
             job.source, self._tabular_mappers(job),
             normalize_doc_type(job.params.get("doc_type")), sheets,
@@ -1694,7 +1694,7 @@ class ParserCore:
         return build_docling_document(job.source)
 
     def sheets_to_records(self, job, sheets) -> dict:
-        """openpyxl 병합셀 처리 → 데이터 행마다 element 하나인 행형 산출."""
+        """openpyxl 병합셀 처리 → 데이터 행마다 element 하나인 요소형 산출."""
         return self._tabular_to_parse_format(self._parse_tabular(job.source, sheets))
 
     async def _hook_tabular_sheets(self, file_path: str, work_dir: str, **kwargs):
@@ -1867,7 +1867,7 @@ class ParserCore:
         return bool(self._json_records_mappers_for(job.params.get("doc_type")))
 
     async def map_records(self, job) -> dict:
-        """json 레코드를 설정의 목표필드로 매핑한 행형 산출({"elements": [...]})을 만든다."""
+        """json 레코드를 설정의 목표필드로 매핑한 요소형 산출({"elements": [...]})을 만든다."""
         mappers = self._json_records_mappers_for(job.params.get("doc_type"))
         return await self._parse_json_records(job.source, mappers, **job.params)
 
@@ -1885,7 +1885,7 @@ class ParserCore:
             )
 
     async def records_to_response(self, job, records: dict) -> dict:
-        """행형 산출의 표에 설명을 붙인다. 엑셀 행·JSON 레코드 경로가 공유한다."""
+        """요소형 산출의 표에 설명을 붙인다. 엑셀 행·JSON 레코드 경로가 공유한다."""
         return await self._describe_record_tables(records, **job.params)
 
     async def route_ppt(self, job) -> dict:
@@ -1905,7 +1905,7 @@ class ParserCore:
         return self._parse_ppt_docling(job.source, **job.params)
 
     def parse_plain(self, job) -> dict:
-        """레거시 langchain 경로로 텍스트만 뽑아 행형 산출을 만든다(doc, 이미지, ppt 변환 실패 등)."""
+        """레거시 langchain 경로로 텍스트만 뽑아 요소형 산출을 만든다(doc, 이미지, ppt 변환 실패 등)."""
         return self._langchain_to_parse_format(self._parse_other(job.source, **job.params))
 
     async def route_other(self, job) -> dict:
@@ -2093,7 +2093,7 @@ class ParserCore:
             self._finish_job(job)
 
     async def describe_tables(self, job, records: dict) -> dict:
-        """행형 산출의 표에 설명을 붙인다. records_to_response 가 부른다."""
+        """요소형 산출의 표에 설명을 붙인다. records_to_response 가 부른다."""
         return await self._describe_record_tables(records, **job.params)
 
     def _finish_job(self, job) -> None:

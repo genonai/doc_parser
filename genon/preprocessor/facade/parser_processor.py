@@ -15,7 +15,7 @@
 #
 # 결과 형식은 두 가지다.
 #   문서형 {"document": {...}}   pdf hwp docx ppt md html, 설정을 갖춘 json 과 엑셀
-#   행형   {"elements": [...]}   엑셀 행, JSON 레코드, 그 밖
+#   요소형 {"elements": [...]}   엑셀 행, JSON 레코드, 그 밖
 # 한 응답에 둘 다 있으면 청커는 document 만 사용한다. 표는 행, 본문은 문단으로 내보내려면
 # 한 형식으로 통일한다.
 #
@@ -255,7 +255,7 @@ class DocumentProcessor(ParserCore):
 
         result 구조
             result["document"]  문서형 결과 dict. 본문은 ["texts"][i]["text"]
-            result["elements"]  행형 결과 list[dict]. 1건은 {"content", "metadata"}
+            result["elements"]  요소형 결과 list[dict]. 1건은 {"content", "metadata"}
             result["metadata"]  문서 단위 메타데이터
 
         청크 메타데이터는 tb.set_chunk_metadata() 로 설정한다. result["metadata"] 에 직접

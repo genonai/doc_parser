@@ -472,7 +472,7 @@ class ChunkerCore:
         메소드 호출 순서 유지 필수. 표기형태 변형은 마스킹 전 텍스트에서 만들고, 마스킹은
         정제보다 앞이다 — 순서를 바꾸면 가려 놓은 값이 변형 필드나 통계로 새어 나간다.
 
-        문서형·행형·텍스트형이 같은 반복문을 지난다. 형식별로 다른 것은 각 단계 메소드가
+        문서·행·텍스트 세 종류가 같은 반복문을 지난다. 종류별로 다른 것은 각 단계 메소드가
         chunk.kind 로 가른다.
 
         고객용 facade 가 같은 반복문을 그대로 갖는다 — 이쪽은 facade 를 거치지 않는 옛
@@ -535,7 +535,7 @@ class ChunkerCore:
         text, drop = await self._hook_chunk(
             text, job.params, kind=chunk.kind, page=notes["chunk_page"],
             index=notes["chunk_idx"], headings=chunk.headings,
-            # 문서형은 문서 단위 metadata 를, 행형은 레코드 metadata 를 넘긴다.
+            # 문서 청크는 문서 단위 metadata 를, 행 청크는 레코드 metadata 를 넘긴다.
             metadata=(job.metadata if chunk.kind == "docling" else chunk.metadata),
             fields=notes["chunk_fields"],
         )
@@ -552,7 +552,7 @@ class ChunkerCore:
         접두는 헤더 앞이다 — 문서 식별(카드명·문의유형)이 섹션 경로보다 앞에 와야
         청크만 떼어 봤을 때 "무엇에 대한 글인지" 가 먼저 읽힌다.
 
-        행형·텍스트형은 파서가 만든 본문을 그대로 쓴다. 레코드 식별 값의 접두는 파서가
+        행·텍스트 청크는 파서가 만든 본문을 그대로 쓴다. 레코드 식별 값의 접두는 파서가
         element 의 chunk_prefix 로 이미 얹었다.
         """
         if chunk.kind != "docling":
@@ -568,8 +568,8 @@ class ChunkerCore:
     def collect_chunk_variants(self, job, chunk, text) -> None:
         """표 표기형태별 변형 텍스트를 만들어 둔다. 마스킹 전 텍스트에서 만들어야 한다.
 
-        문서형은 원문 그대로 담고 마스킹·정제를 chunk_to_vector_meta 가 뒤에 적용한다.
-        행형·텍스트형은 표 판정에 self_ref 가 없어 본문에서 바로 만들며, 같은 후처리를
+        문서 청크는 원문 그대로 담고 마스킹·정제를 chunk_to_vector_meta 가 뒤에 적용한다.
+        행·텍스트 청크는 표 판정에 self_ref 가 없어 본문에서 바로 만들며, 같은 후처리를
         여기서 함께 건다. 어느 쪽이든 "마스킹 전 텍스트에서 만들고 마스킹·정제를 거친다" 는
         같은 계약이다.
         """
@@ -614,9 +614,9 @@ class ChunkerCore:
         return vector_meta
 
     def _record_vector_meta(self, job, chunk, text: str):
-        """행형·텍스트형 청크 1건을 vector_meta 로 만든다.
+        """행·텍스트 청크 1건을 vector_meta 로 만든다.
 
-        문서형과 달리 bbox·미디어 파일·표 조각 순번이 없다. 행형은 레코드 metadata 가
+        문서 청크와 달리 bbox·미디어 파일·표 조각 순번이 없다. 행 청크는 레코드 metadata 가
         그대로 청크 property 가 된다(extra=allow).
         """
         notes = job.notes
@@ -665,7 +665,7 @@ class ChunkerCore:
             ) from exc
 
     def _docling_vector_meta(self, job, chunk, text: str):
-        """문서형 청크 1건을 vector_meta 로 만든다. bbox·미디어·표 조각 순번이 붙는다."""
+        """문서 청크 1건을 vector_meta 로 만든다. bbox·미디어·표 조각 순번이 붙는다."""
         notes = job.notes
         if upload_files:
             # 업로드는 기다리지 않고 걸어 두고, finish_chunk_loop 이 한꺼번에 기다린다.
@@ -716,7 +716,7 @@ class ChunkerCore:
             self._prepare_record_context(job, chunks)
 
     def _prepare_record_context(self, job, chunks: list) -> None:
-        """행형·텍스트형의 문서 단위 값. 문서형과 달리 DoclingDocument 가 없다.
+        """행·텍스트 청크의 문서 단위 값. 문서 청크와 달리 DoclingDocument 가 없다.
 
         헤딩 경로·문서 접두·appendix·표 조각 순번은 이 경로에 없으므로 빈 값으로 둔다 —
         반복문이 형식을 가리지 않고 같은 키를 읽게 하기 위해서다.
@@ -1350,7 +1350,7 @@ class ChunkerCore:
         return _docling_chunks(doc_chunks)
 
     def split_records(self, job) -> list:
-        """행형 입력(elements)을 공통 Chunk 목록으로 자른다.
+        """요소형 입력(elements)을 공통 Chunk 목록으로 자른다.
 
         형식은 확장자가 아니라 element 내용으로 식별한다.
           0) tabular_row/custom_fields_row 가 하나라도 있으면 → 행마다 청크 1개

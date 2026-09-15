@@ -100,7 +100,7 @@ class DocumentProcessor(ChunkerCore):
         """청커 진입점
 
         job 은 파서의 job 과 다른 객체이며 필드도 다르다.
-            job.kind      "docling" 은 문서형, "parse" 는 행형(행, 레코드)
+            job.kind      "docling" 은 문서형, "parse" 는 요소형(엑셀 행, JSON 레코드, 평문)
             job.data      파서 결과          job.doc_type  문서 유형
             job.metadata  문서 단위 메타데이터 job.params    요청 파라미터
             job.config    적용된 설정(2 참조) job.notes     단계 간 공유 dict
@@ -119,7 +119,7 @@ class DocumentProcessor(ChunkerCore):
         """입력 형식별 분할 전략을 선택하고, 결과를 공통 chunk 목록으로 반환한다.
 
         - 문서형(docling): GenosSmartChunker
-        - 행형(행, 레코드): 공통 분할기
+        - 요소형(엑셀 행, JSON 레코드, 평문): 공통 분할기
         chunk 필드는 아래 chunks_to_vector_metas 의 docstring 을 참조한다.
         """
         if job.kind == "docling":
@@ -133,7 +133,7 @@ class DocumentProcessor(ChunkerCore):
             chunk.text      본문 원문(접두어, 헤딩 경로 적용 전)
             chunk.kind      "docling" | "row"(엑셀 행, JSON 레코드) | "text"(그 밖)
             chunk.page      페이지 번호
-            chunk.headings  헤딩 경로(문서형)   chunk.metadata  레코드 메타데이터(행형)
+            chunk.headings  헤딩 경로(문서 청크)  chunk.metadata  레코드 메타데이터(행 청크)
             chunk.source    원본 객체. bbox, 표 조각 계산용
 
         메소드 호출 순서 유지 필수. 마스킹은 정제보다 앞이다 — 순서가 바뀌면 마스킹 전

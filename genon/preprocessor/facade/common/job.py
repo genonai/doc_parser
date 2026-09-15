@@ -69,8 +69,8 @@ def with_params(job: ParseJob, params: dict, ctx: Optional[dict] = None) -> Pars
 class ChunkJob:
     """청커 요청 한 건. 파서의 ParseJob 과 다른 객체다.
 
-    kind       "docling"(문서형) | "parse"(행형)
-    data       파서 결과. 문서형은 DoclingDocument 또는 직렬화한 dict, 행형은 list[dict]
+    kind       "docling"(문서형) | "parse"(요소형)
+    data       파서 결과. 문서형은 DoclingDocument 또는 직렬화한 dict, 요소형은 list[dict]
     params     요청 파라미터(kwargs)
     guardrail  민감정보 컨텍스트(#315). core 가 청킹 단계로 그대로 넘긴다
     doc_type   요청이 선언한 문서 유형
@@ -100,9 +100,9 @@ class Chunk:
     kind      "docling"(문서형) | "row"(엑셀 행·JSON 레코드) | "text"(그 밖) | "marker"(audio·[DA])
     page      페이지 번호. 문서형은 prov 가 없으면 0 이다
     headings  헤딩 경로. 문서형에만 있다
-    metadata  레코드 메타데이터. 행형에만 있다
+    metadata  레코드 메타데이터. 행 청크에만 있다
     source    원본 객체. bbox·표 조각 계산처럼 형식을 알아야 하는 자리에서만 쓴다
-              (문서형 DocChunk / 텍스트형 langchain Document / 행형 element dict)
+              (문서 청크 DocChunk / 텍스트 청크 langchain Document / 행 청크 element dict)
     """
 
     text: str = ""
