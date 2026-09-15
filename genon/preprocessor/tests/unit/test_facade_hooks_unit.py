@@ -765,6 +765,30 @@ async def test_config_overlay_skips_config_file_paths(tmp_path: Path, monkeypatc
     assert warned and "enrichment.table_description.enable" in str(warned[0])
 
 
+@pytest.mark.asyncio
+async def test_config_overlay_reaches_runtime_wiring(tmp_path: Path):
+    """오버레이는 런타임 토글 배선보다 먼저 얹혀야 한다.
+
+    순서가 뒤집히면 값이 job.params 에는 남지만 배선은 이미 지나간 뒤라 CONFIG_BY_DOC_TYPE 이
+    조용히 무시된다. params 만 보는 단정으로는 그 결함이 잡히지 않아 배선까지 확인한다.
+    """
+    src = tmp_path / "a.log"
+    src.write_text("a\n", encoding="utf-8")
+    cls = _overlay_processor({"notice": {"table_desc": 1, "keep_pdf": 1}})
+    proc = _routable(cls)
+
+    saw: dict = {}
+    proc._intel = type("_I", (), {
+        "_normalize_runtime_kwargs": staticmethod(lambda kw: dict(kw)),
+        "_configure_runtime_image_mode": staticmethod(saw.update),
+    })()
+
+    await proc(None, str(src), doc_type="notice")
+    assert saw.get("table_desc") == 1   # enrichment 배선이 오버레이 값을 봤다
+    # 변환 PDF 정책도 오버레이 뒤에 만들어져야 한다. 앞서 만들면 keep_pdf 가 무시된다.
+    assert cls.seen["_pdf_policy"].keep is True
+
+
 def test_chunker_config_overlay_lands_on_job_params():
     class _P(chunker_facade.DocumentProcessor):
         CONFIG_BY_DOC_TYPE = {"faq": {"chunk_size": 500, "chunk_mode": "resize_all"}}

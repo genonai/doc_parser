@@ -1971,8 +1971,9 @@ class ParserCore:
 
         요청이 보낸 값이 가장 세다 — 오버레이는 요청에 없는 키만 채운다. 적용된 값은
         job.config 에 남아 "이 문서가 어떤 설정으로 처리됐는지" 를 되짚을 수 있다.
-        키는 요청 파라미터 이름이다. 설정 파일 경로(점 표기)는 요청마다 yaml 을 다시 읽어야
-        해서 아직 받지 않는다 — 건너뛰고 경고만 남긴다.
+        키는 요청 파라미터 이름이다. 설정 파일 경로(점 표기)는 받지 않는다 — 설정은 __init__ 에서
+        파생 객체로 분해되어 원본 dict 가 남지 않으므로, 점 표기를 받으려면 요청마다 그 객체들을
+        다시 만들어야 한다. 건너뛰고 경고만 남긴다.
         """
         overlay = dict(self.CONFIG_BY_DOC_TYPE.get(job.doc_type or "", {}))
         overlay.update(self.config_by_condition(job) or {})
@@ -1997,22 +1998,6 @@ class ParserCore:
         runtime_level = kwargs.get('log_level')
         self.setup_logging(runtime_level if runtime_level is not None else self._log_level)
 
-        # 런타임 토글(img_desc/chart_desc/chart_detection/doc_summary)로 이미지·차트 description 재구성
-        # (실제 enrichment 는 self._intel 경유이므로 embed 프로세서에 반영한다)
-        kwargs = self._intel._normalize_runtime_kwargs(kwargs)
-        self._intel._configure_runtime_image_mode(kwargs)
-
-        # #329: LLM 캐시 / error_policy 컨텍스트를 요청 스코프로 설정(/parse 는 body 의
-        # workflow_id/run_id 로 스코프 유도). ThreadPool 워커엔 in_current_context 로 전파.
-        cache_token = _set_cache_context(_resolve_cache_context(kwargs))
-        # 변환 PDF 정책(요청 스코프). 프로세서는 싱글턴이라 요청마다 새로 만든다.
-        # kwargs 가 yaml 을 덮어쓴다: keep_pdf(0/1) / pdf_dir(경로).
-        pdf_policy = getattr(self, "_pdf_output", pa.PdfArtifactOptions()).for_request(
-            keep=_parse_optional_bool(kwargs.get("keep_pdf"), "keep_pdf"),
-            dir=(str(kwargs["pdf_dir"]).strip() if kwargs.get("pdf_dir") else None),
-        )
-        kwargs["_pdf_policy"] = pdf_policy
-
         raw_ext = os.path.splitext(file_path)[-1].lower()
         # __init__ 을 우회해 만든 인스턴스(단위 테스트)도 견디도록 getattr 로 읽는다.
         ext = _resolve_ext(raw_ext, getattr(self, "_ext_aliases", {}))
@@ -2027,9 +2012,30 @@ class ParserCore:
                           doc_type=self.resolve_doc_type(**kwargs), params=kwargs)
         # 분기 사이에 공유되는 상태. enrichment_context 는 후처리가 채워 응답 metadata 로 나간다.
         job.ctx = {"enrichment_context": {}, "artifacts_source": None, "job": job}
+
+        # doc_type 별 설정은 아래 런타임 배선보다 반드시 먼저 얹는다. 순서가 뒤집히면 토글이
+        # 이미 읽힌 뒤에 값이 채워져 CONFIG_BY_DOC_TYPE 이 조용히 무시된다.
+        # 정규화(_normalize_runtime_kwargs)보다도 앞이어야 한다 — 정규화는 토글 키를 빠짐없이
+        # 기본값으로 채우므로, 그 뒤에 얹으면 오버레이가 "요청이 보낸 값" 과 구분하지 못한다.
+        self._apply_config_overlay(job)
+
+        # 런타임 토글(img_desc/chart_desc/chart_detection/doc_summary)로 이미지·차트 description 재구성
+        # (실제 enrichment 는 self._intel 경유이므로 embed 프로세서에 반영한다)
+        job.params = self._intel._normalize_runtime_kwargs(job.params)
+        self._intel._configure_runtime_image_mode(job.params)
+
+        # #329: LLM 캐시 / error_policy 컨텍스트를 요청 스코프로 설정(/parse 는 body 의
+        # workflow_id/run_id 로 스코프 유도). ThreadPool 워커엔 in_current_context 로 전파.
+        cache_token = _set_cache_context(_resolve_cache_context(job.params))
+        # 변환 PDF 정책(요청 스코프). 프로세서는 싱글턴이라 요청마다 새로 만든다.
+        # kwargs 가 yaml 을 덮어쓴다: keep_pdf(0/1) / pdf_dir(경로).
+        pdf_policy = getattr(self, "_pdf_output", pa.PdfArtifactOptions()).for_request(
+            keep=_parse_optional_bool(job.params.get("keep_pdf"), "keep_pdf"),
+            dir=(str(job.params["pdf_dir"]).strip() if job.params.get("pdf_dir") else None),
+        )
+        job.params["_pdf_policy"] = pdf_policy
         job.notes["cache_token"] = cache_token
         job.notes["pdf_policy"] = pdf_policy
-        self._apply_config_overlay(job)
         try:
             # 비정상/암호화 파일 사전 감지(이슈 #278/#307): 지원 포맷 매직헤더에 하나도 안 맞고
             # 텍스트도 아니면(=DRM 암호화/손상 바이너리) 파싱/변환 단계의 garbage 처리를 유발하므로

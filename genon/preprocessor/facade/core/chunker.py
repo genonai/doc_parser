@@ -1320,8 +1320,9 @@ class ChunkerCore:
 
         요청이 보낸 값이 가장 세다 — 오버레이는 요청에 없는 키만 채운다. 적용된 값은
         job.config 에 남아 "이 문서가 어떤 설정으로 처리됐는지" 를 되짚을 수 있다.
-        키는 요청 파라미터 이름이다. 설정 파일 경로(점 표기)는 요청마다 yaml 을 다시 읽어야
-        해서 아직 받지 않는다 — 건너뛰고 경고만 남긴다.
+        키는 요청 파라미터 이름이다. 설정 파일 경로(점 표기)는 받지 않는다 — 설정은 __init__ 에서
+        파생 객체로 분해되어 원본 dict 가 남지 않으므로, 점 표기를 받으려면 요청마다 그 객체들을
+        다시 만들어야 한다. 건너뛰고 경고만 남긴다.
         """
         overlay = dict(self.CONFIG_BY_DOC_TYPE.get(job.doc_type or "", {}))
         overlay.update(self.config_by_condition(job) or {})

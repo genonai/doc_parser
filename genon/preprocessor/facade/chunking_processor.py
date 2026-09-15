@@ -132,16 +132,21 @@ class DocumentProcessor(ChunkerCore):
     # --- 2. doc_type 별 설정 ---
     #
     # 설정 파일(chunking_processor_config.yaml)은 모든 문서에 공통으로 적용된다.
-    # doc_type 마다 다르게 하려면 아래 표에 적는다. 키는 설정 파일 경로를 dot notation 으로 쓴다.
+    # doc_type 마다 다르게 하려면 아래 표에 적는다. 키는 요청 파라미터 이름이고, 값을 적으면
+    # 요청이 그 값을 보낸 것과 같게 동작한다. 설정 파일 경로(점 표기)는 받지 않는다 —
+    # 건너뛰고 경고를 남긴다.
+    #
+    # 청커에서 쓰는 주요 키
+    #   chunk_size     청크 최대 크기       chunk_overlap  청크 간 겹침
+    #   chunk_mode     split_only(섹션 단위 유지) / resize_all(크기에 맞춰 재분할)
     #
     # 설정 우선순위(뒤가 우선): 설정 파일, CONFIG_BY_DOC_TYPE, config_by_condition(), 요청 파라미터
     # 최종 값은 job.config 와 결과에 기록된다.
 
     CONFIG_BY_DOC_TYPE = {
-        # "faq":    {"chunking.chunk_size": 500,            # 문답 1건이 짧다
-        #            "chunking.min_chunk_size": 0},         # 0 이면 최소 크기 보정 비활성화
-        # "manual": {"chunking.chunk_mode": "split_only",   # 섹션 단위 유지
-        #            "chunking.chunk_size": 2000},
+        # "faq":    {"chunk_size": 500},          # 문답 1건이 짧다
+        # "manual": {"chunk_mode": "split_only",  # 섹션 단위 유지
+        #            "chunk_size": 2000},
     }
 
     def config_by_condition(self, job):
@@ -150,7 +155,7 @@ class DocumentProcessor(ChunkerCore):
         위 표와 같은 형식의 dict 를 반환하고, 빈 dict 면 아무것도 바뀌지 않는다.
 
             if job.metadata.get("GROUP_C") == "INS":
-                return {"guardrail.masking_enabled": True}
+                return {"chunk_size": 800}
         """
         return {}
 

@@ -166,17 +166,22 @@ class DocumentProcessor(ParserCore):
     # --- 3. doc_type 별 설정 ---
     #
     # 설정 파일(parser_processor_config.yaml)은 모든 문서에 공통으로 적용된다. doc_type 마다
-    # 다르게 하려면 아래 표에 적는다. 키는 설정 파일 경로를 dot notation 으로 쓰고, 설정 파일에
-    # 있는 항목이면 무엇이든 된다.
+    # 다르게 하려면 아래 표에 적는다. 키는 요청 파라미터 이름이고, 값을 적으면 요청이 그 값을
+    # 보낸 것과 같게 동작한다. 설정 파일 경로(점 표기)는 받지 않는다 — 건너뛰고 경고를 남긴다.
+    #
+    # 파서에서 쓰는 주요 키. 켜기는 1, 끄기는 0 이다.
+    #   table_desc   표 설명          img_desc     이미지 설명
+    #   chart_desc   차트 설명        doc_summary  문서 요약
+    #   toc          목차 보강        keep_pdf     변환 PDF 보존
+    # 청크 크기 같은 청킹 설정은 여기가 아니라 chunking_processor.py 의 같은 표에 적는다.
     #
     # 설정 우선순위(뒤가 우선): 설정 파일, CONFIG_BY_DOC_TYPE, config_by_condition(), 요청 파라미터
     # 최종 값은 job.config 와 결과에 기록되어 추적할 수 있다.
 
     CONFIG_BY_DOC_TYPE = {
-        # "press":    {"enrichment.table_description.enable": False,   # 표가 없어 불필요한 LLM 호출
-        #              "chunking.chunk_size": 500},
-        # "manual":   {"enrichment.image_description.enable": True},   # 이미지 설명이 중요
-        # "contract": {"ocr.ocr_mode": "force"},                       # 스캔본이 많다
+        # "press":  {"table_desc": 0},                 # 표가 없어 불필요한 LLM 호출
+        # "manual": {"img_desc": 1, "chart_desc": 1},  # 이미지와 차트 설명이 중요
+        # "report": {"doc_summary": 1},                # 문서 요약을 붙인다
     }
 
     def config_by_condition(self, job):
@@ -186,7 +191,7 @@ class DocumentProcessor(ParserCore):
         빈 dict 면 아무것도 바뀌지 않는다.
 
             if job.params.get("dept") == "IR":
-                return {"enrichment.doc_summary.enable": True}
+                return {"doc_summary": 1}
         """
         return {}
 
