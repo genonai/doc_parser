@@ -389,18 +389,12 @@ def test_product_markdown_parser_to_chunk_round_trip():
 
 
 @pytest.mark.unit
-@pytest.mark.xfail(
-    reason="출고 설정 결함: custom_field_product_slf.yaml 의 PRODUCT_C 가 `const: null` 이라 "
-           "LLM 이 뽑은 상품코드를 덮어 항상 null 이 된다. 같은 파일 주석은 'LLM 이 본문에서 "
-           "찾도록 두고 못 찾으면 null' 이라고 적고 있어 `default: null` 이 맞는 것으로 보인다. "
-           "NOT NULL 컬럼이라 적재에서 걸린다. 설정 변경은 운영 영향이 있어 별도 건으로 둔다.",
-    strict=False,
-)
 def test_product_code_from_llm_survives_to_chunks():
     """LLM 이 뽑은 PRODUCT_C 가 모든 청크 metadata 에 실려야 한다.
 
-    const 는 LLM 보다 우선한다는 계약 자체는 정상이다(custom_fields_enricher 의
-    default < LLM < front matter < const). 문제는 그 자리에 쓰인 설정값이다.
+    PRODUCT_C 는 NOT NULL 컬럼인데 front matter 에 상품코드가 없어 LLM 이 본문에서 찾는다.
+    설정이 `const: null` 이면 그 값을 덮어 항상 null 이 된다(default < LLM < front matter
+    < const). 값을 고정하려는 것이 아니라 "못 찾으면 null" 이므로 `default: null` 이다.
     """
     rows = _product_slf_round_trip()
     assert all(row["PRODUCT_C"] == "30387" for row in rows)

@@ -68,7 +68,9 @@ fields:
   # LLM 도 뽑지만 front matter 값이 이긴다(default < LLM < front matter < const).
   PRODUCT_C:
     alias: [product_code]
-    const: null
+    # const 는 LLM 결과를 덮는다(default < LLM < front matter < const). 여기 값을 고정하려는
+    # 것이 아니라 "못 찾으면 null" 이므로 default 여야 한다.
+    default: null
   GROUP_C:
     const: SLF
   SALE_STATUS:
