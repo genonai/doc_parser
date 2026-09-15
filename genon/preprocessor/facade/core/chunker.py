@@ -433,6 +433,15 @@ class ChunkerCore:
 
     async def compose_vectors(self, document: DoclingDocument, chunks: List[DocChunk], file_path: str, request: Request, converted_pdf_path: Optional[str] = None, **kwargs: dict) -> \
             list[dict]:
+        """옛 호출부용 입구. job 을 만들어 chunks_to_vector_metas 로 넘긴다."""
+        job = jb.ChunkJob(request=request, file_path=file_path, kind="docling", data=document,
+                          document=document, doc_type=kwargs.get("doc_type"), params=kwargs)
+        return await self.chunks_to_vector_metas(job, chunks, converted_pdf_path)
+
+    async def chunks_to_vector_metas(self, job, chunks: List[DocChunk],
+                                     converted_pdf_path: Optional[str] = None) -> list[dict]:
+        """청크 목록을 vector_meta 목록으로 변환한다."""
+        document, file_path, request, kwargs = job.document, job.file_path, job.request, job.params
         title = ""
         _sensitive_infos: list = kwargs.get("_sensitive_infos") or []      # #315 분류 결과
         _gr_masking: bool = bool(kwargs.get("_guardrail_masking", False))   # #315 마스킹 치환 on/off
@@ -1232,7 +1241,8 @@ class ChunkerCore:
         """load_input 산출과 요청 파라미터를 job 하나로 묶는다."""
         return jb.ChunkJob(
             request=request, file_path=file_path, kind=src.kind, data=src.data,
-            guardrail=src.guardrail, doc_type=params.get("doc_type"), params=params,
+            guardrail=src.guardrail, doc_type=params.get("doc_type"),
+            params={**params, **src.guardrail},
         )
 
     async def split(self, job) -> list:
@@ -1307,13 +1317,11 @@ class ChunkerCore:
             chunks = await self.split(job)
             if job.kind == "parse":
                 # parse-format(비-docling): legacy(attachment) 와 동일하게 공통 청킹.
-                vectors = await self._chunk_parse_format(chunks, **job.guardrail, **job.params)
+                vectors = await self._chunk_parse_format(chunks, **job.params)
                 if not vectors:
                     raise GenosServiceException(1, "chunk length is 0")
             else:
-                vectors: list[dict] = await self.compose_vectors(
-                    job.document, chunks, file_path, request, **job.guardrail, **job.params,
-                )
+                vectors: list[dict] = await self.chunks_to_vector_metas(job, chunks)
 
             # 벡터 file_path 메타를 입력 file_path 로 채운다(compose_vectors 는 변환 PDF 경우에만
             # 세팅하므로, chunker 입력 경로(인라인 시 메타용 경로 / 파일 입력 시 .json 경로)를 반영).
