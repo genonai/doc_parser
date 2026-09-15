@@ -90,6 +90,29 @@ class ChunkJob:
     notes: dict = field(default_factory=dict)
 
 
+@dataclass
+class Chunk:
+    """분할 결과 1건. 입력 형식과 관계없이 같은 필드를 갖는다.
+
+    필드 이름은 on_chunk 의 info 와 맞춘다 — 훅에서 보던 이름을 그대로 쓴다.
+
+    text      본문 원문(문서 접두어·헤딩 경로를 붙이기 전)
+    kind      "docling"(문서형) | "row"(엑셀 행·JSON 레코드) | "text"(그 밖) | "marker"(audio·[DA])
+    page      페이지 번호. 문서형은 prov 가 없으면 0 이다
+    headings  헤딩 경로. 문서형에만 있다
+    metadata  레코드 메타데이터. 행형에만 있다
+    source    원본 객체. bbox·표 조각 계산처럼 형식을 알아야 하는 자리에서만 쓴다
+              (문서형 DocChunk / 텍스트형 langchain Document / 행형 element dict)
+    """
+
+    text: str = ""
+    kind: str = ""
+    page: int = 1
+    headings: list = field(default_factory=list)
+    metadata: dict = field(default_factory=dict)
+    source: Any = None
+
+
 @lru_cache(maxsize=256)
 def _first_param(func: Callable) -> Optional[str]:
     try:

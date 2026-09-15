@@ -465,7 +465,7 @@ async def test_async_chunk_hooks_are_awaited():
             return vectors[:1]
 
         async def chunks_to_vector_metas(self, job, chunks, converted_pdf_path=None):
-            return [el["content"] for el in chunks]
+            return [c.text for c in chunks]
 
     proc = _bare(_P)
     proc.setup_logging = lambda *_a, **_k: None
@@ -531,15 +531,17 @@ def test_row_categories_are_extendable_from_the_facade():
     proc = _bare(_P)
     routed = {}
 
-    async def _fake_rows(els, **kw):
+    def _fake_rows(els, **kw):
         routed["rows"] = len(els)
         return []
 
-    proc._chunk_custom_fields_rows = _fake_rows
+    proc._split_rows = _fake_rows
     proc._text_variant_options = lambda **kw: {}
     proc._text_cleanup = "off"
     proc._text_cleanup_rules = ()
-    asyncio.run(proc._chunk_parse_format([{"category": "crm_row", "content": "a"}]))
+    job = core_chunker.jb.ChunkJob(
+        kind="parse", data=[{"category": "crm_row", "content": "a"}], params={})
+    proc.split_records(job)
     assert routed == {"rows": 1}
 
 

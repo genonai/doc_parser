@@ -941,7 +941,7 @@ async def test_row_metadata_validation_failure_is_wrapped_with_stage():
         "metadata": {"title": None, "GROUP_C": "SLF", "doc_type": "notice"},
     }]
     with pytest.raises(cp.GenosServiceException) as exc:
-        await cp.DocumentProcessor._chunk_custom_fields_rows(proc, elements)
+        await cp.DocumentProcessor._chunk_parse_format(proc, elements)
     assert exc.value.stage == "custom_fields"
     assert "title" in exc.value.error_msg
 

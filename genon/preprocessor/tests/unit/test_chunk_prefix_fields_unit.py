@@ -96,10 +96,11 @@ class TestChunkerAndProcessorContract:
         """
         source = (_BASE / "facade" / "core" / "chunker.py").read_text(encoding="utf-8")
         assert 'notes["first_prefix_text"] if notes["first_prefix_pending"] else ""' in source
-        # 플래그는 청크를 실제로 유지한 뒤에만 내려간다(버린 청크는 continue 로 건너뛴다).
-        after_drop = source.split("dropped += 1", 1)[1]
-        assert after_drop.lstrip().startswith("continue")
-        assert 'notes["first_prefix_pending"] = False' in after_drop
+        # 플래그는 청크를 실제로 유지했을 때만 내려간다. 버린 청크는 dropped 를 세고 끝이라
+        # 두 갈래가 _call_on_chunk 한 곳에서 갈린다 — 반복문이 어디에 있든 계약이 지켜진다.
+        branch = source.split('notes["dropped"] += 1', 1)[1].split("return text, drop", 1)[0]
+        assert branch.lstrip().startswith("else:")
+        assert 'notes["first_prefix_pending"] = False' in branch
 
 
 @pytest.mark.unit

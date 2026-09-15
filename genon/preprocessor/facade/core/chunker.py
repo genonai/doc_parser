@@ -57,6 +57,32 @@ def _build_header_line(headings, include_header: bool, chunker_cls) -> str:
         # 견디도록 getattr 로 읽는다.
         getattr(chunker_cls, "CHUNK_HEADER_PREFIX", hp.DEFAULT_HEADER_PREFIX))
 
+def _docling_chunks(doc_chunks) -> list:
+    """DocChunk 목록을 공통 Chunk 목록으로 감싼다.
+
+    docling 타입을 아는 자리는 여기와 벡터 조합(bbox·미디어) 뿐이다. 나머지 단계는
+    chunk.text / chunk.page / chunk.headings 만 본다.
+    """
+    return [jb.Chunk(
+        text=c.text, kind="docling",
+        # prov 가 없는 아이템은 종전대로 0 이다. 페이지 순번 집계가 이 값을 그대로 쓴다.
+        page=(c.meta.doc_items[0].prov[0].page_no if c.meta.doc_items[0].prov else 0),
+        headings=list(c.meta.headings or []), source=c,
+    ) for c in doc_chunks]
+
+
+def _element_page(el: dict) -> int:
+    """element 의 page 를 정수로 읽는다.
+
+    /chunk 는 호출자 인라인 payload 를 받으므로 손상·외부 JSON 의 비숫자 page 가 도달할 수
+    있다. 실패하면 1 로 폴백한다.
+    """
+    try:
+        return int((el or {}).get("page", 1) or 1)
+    except (TypeError, ValueError):
+        return 1
+
+
 def _clamp_chunk_size(size, minimum: int | None = None):
     return cp.clamp_chunk_size(size, _MIN_CHUNK_SIZE if minimum is None else minimum)
 
@@ -436,93 +462,134 @@ class ChunkerCore:
         """옛 호출부용 입구. job 을 만들어 chunks_to_vector_metas 로 넘긴다."""
         job = jb.ChunkJob(request=request, file_path=file_path, kind="docling", data=document,
                           document=document, doc_type=kwargs.get("doc_type"), params=kwargs)
-        return await self.chunks_to_vector_metas(job, chunks, converted_pdf_path)
+        return await self.chunks_to_vector_metas(
+            job, _docling_chunks(chunks), converted_pdf_path)
 
-    async def chunks_to_vector_metas(self, job, chunks: List[DocChunk],
+    async def chunks_to_vector_metas(self, job, chunks: list,
                                      converted_pdf_path: Optional[str] = None) -> list[dict]:
         """청크 목록을 vector_meta 목록으로 변환한다. 입력 형식과 관계없이 이 메소드가 입구다.
 
         메소드 호출 순서 유지 필수. 표기형태 변형은 마스킹 전 텍스트에서 만들고, 마스킹은
         정제보다 앞이다 — 순서를 바꾸면 가려 놓은 값이 변형 필드나 통계로 새어 나간다.
 
-        행형(엑셀 행·JSON 레코드·평문)은 아직 경로별 청킹이 분할과 필드 조립을 함께 한다.
-        공통 chunk 객체로 모으는 것은 다음 단계다.
-        """
-        if job.kind != "docling":
-            # parse-format(비-docling): legacy(attachment) 와 동일하게 공통 청킹.
-            vector_metas = await self._chunk_parse_format(chunks, **job.params)
-            if not vector_metas:
-                raise GenosServiceException(1, "chunk length is 0")
-            return vector_metas
+        문서형·행형·텍스트형이 같은 반복문을 지난다. 형식별로 다른 것은 각 단계 메소드가
+        chunk.kind 로 가른다.
 
-        self._prepare_chunk_context(job, chunks, converted_pdf_path)
-        notes = job.notes
+        고객용 facade 가 같은 반복문을 그대로 갖는다 — 이쪽은 facade 를 거치지 않는 옛
+        호출부(compose_vectors 등)용 기본 구현이다.
+        """
         vector_metas: list = []
-        upload_tasks: list = []
-        dropped = 0
-        for chunk_idx, chunk in enumerate(chunks):
-            notes["chunk_idx"] = chunk_idx
-            notes["chunk_page"] = (
-                chunk.meta.doc_items[0].prov[0].page_no if chunk.meta.doc_items[0].prov else 0)
-            notes["chunk_fields"] = {}
+        for chunk in self.start_chunk_loop(job, chunks, converted_pdf_path):
             text = self.build_chunk_text(job, chunk)
             text, drop = await self._call_on_chunk(job, chunk, text)
             if drop:
-                dropped += 1
                 continue
-            # 첫 청크 전용 접두는 살아남은 첫 청크가 받는다(문서당 1회 계약).
-            notes["first_prefix_pending"] = False
             self.collect_chunk_variants(job, chunk, text)
             text = self.mask_sensitive(job, text)
             text = self.clean_text(job, text)
             vector_metas.append(self.chunk_to_vector_meta(job, chunk, text))
-            notes["chunk_index_on_page"] += 1
-            if upload_files:
-                file_list = self.get_media_files(
-                    chunk.meta.doc_items, include_tables=self.table_image_enabled)
-                upload_tasks.append(asyncio.create_task(
-                    upload_files(file_list, request=job.request)
-                ))
+        return await self.finish_chunk_loop(job, vector_metas)
 
-        if upload_tasks:
-            await asyncio.gather(*upload_tasks)
+    def start_chunk_loop(self, job, chunks: list,
+                         converted_pdf_path: Optional[str] = None):
+        """청크 반복을 준비하고 청크를 하나씩 내준다.
 
-        if dropped:
+        문서 단위 값 계산과 청크별 순번·페이지 기록을 여기서 맡아 반복문이 부기를 지지 않게
+        한다. audio([AUDIO])·legacy tabular([DA]) 는 분할도 훅도 마스킹도 없는 단일 벡터라
+        반복문에 내주지 않고 여기서 만들어 둔다.
+        """
+        self._prepare_chunk_context(job, chunks, converted_pdf_path)
+        notes = job.notes
+        notes["dropped"] = 0
+        notes["upload_tasks"] = []
+        notes["marker_vectors"] = [
+            self._single_marker_vector(c.text, notes["cleanup"], **notes["variant_options"])
+            for c in chunks if c.kind == "marker"
+        ]
+        for chunk_idx, chunk in enumerate(chunks):
+            if chunk.kind == "marker":
+                continue
+            notes["chunk_idx"] = chunk_idx
+            notes["chunk_page"] = chunk.page
+            notes["chunk_fields"] = {}
+            yield chunk
+
+    async def finish_chunk_loop(self, job, vector_metas: list) -> list:
+        """청크 반복을 마무리한다. 미디어 업로드를 기다리고 버려진 만큼 순번을 다시 맞춘다."""
+        notes = job.notes
+        if notes["upload_tasks"]:
+            await asyncio.gather(*notes["upload_tasks"])
+        vector_metas = notes["marker_vectors"] + vector_metas
+        if not vector_metas and not notes["dropped"]:
+            raise GenosServiceException(1, "chunk length is 0")
+        if notes["dropped"]:
             # n_chunk_of_doc / page 개수는 루프 전에 계산해 둔 값이라 다시 맞춰야 한다.
-            _log.info(f"[chunker] on_chunk 가 청크 {dropped}건을 버렸습니다 → 순번 재계산")
+            _log.info(
+                f"[chunker] on_chunk 가 청크 {notes['dropped']}건을 버렸습니다 → 순번 재계산")
             vm.refresh_stats(vector_metas)
         return vector_metas
 
     async def _call_on_chunk(self, job, chunk, text) -> "tuple":
         """on_chunk 훅을 부른다. (본문, 버릴지) 를 돌려준다."""
         notes = job.notes
-        return await self._hook_chunk(
-            text, job.params, kind="docling", page=notes["chunk_page"],
-            index=notes["chunk_idx"], headings=chunk.meta.headings,
-            metadata=job.metadata, fields=notes["chunk_fields"],
+        text, drop = await self._hook_chunk(
+            text, job.params, kind=chunk.kind, page=notes["chunk_page"],
+            index=notes["chunk_idx"], headings=chunk.headings,
+            # 문서형은 문서 단위 metadata 를, 행형은 레코드 metadata 를 넘긴다.
+            metadata=(job.metadata if chunk.kind == "docling" else chunk.metadata),
+            fields=notes["chunk_fields"],
         )
+        if drop:
+            notes["dropped"] += 1
+        else:
+            # 첫 청크 전용 접두는 살아남은 첫 청크가 받는다(문서당 1회 계약).
+            notes["first_prefix_pending"] = False
+        return text, drop
 
     def build_chunk_text(self, job, chunk) -> str:
         """청크 텍스트를 조립한다: 문서 접두어 + 헤딩 경로 + 본문.
 
         접두는 헤더 앞이다 — 문서 식별(카드명·문의유형)이 섹션 경로보다 앞에 와야
         청크만 떼어 봤을 때 "무엇에 대한 글인지" 가 먼저 읽힌다.
+
+        행형·텍스트형은 파서가 만든 본문을 그대로 쓴다. 레코드 식별 값의 접두는 파서가
+        element 의 chunk_prefix 로 이미 얹었다.
         """
+        if chunk.kind != "docling":
+            return chunk.text
         notes = job.notes
         # 청크 선두에 섹션 경로 부착 (HEADER: ). 여기가 유일한 부착 지점이며,
         # 청커의 크기 산정도 같은 _build_header_line 을 쓴다(한도 초과 방지).
-        headers_text = _build_header_line(chunk.meta.headings, notes["include_header"], self.CHUNKER)
+        headers_text = _build_header_line(chunk.headings, notes["include_header"], self.CHUNKER)
         return (notes["prefix_text"]
                 + (notes["first_prefix_text"] if notes["first_prefix_pending"] else "")
                 + headers_text + chunk.text)
 
     def collect_chunk_variants(self, job, chunk, text) -> None:
-        """표 표기형태별 변형 텍스트를 만들어 둔다. 마스킹 전 텍스트에서 만들어야 한다."""
+        """표 표기형태별 변형 텍스트를 만들어 둔다. 마스킹 전 텍스트에서 만들어야 한다.
+
+        문서형은 원문 그대로 담고 마스킹·정제를 chunk_to_vector_meta 가 뒤에 적용한다.
+        행형·텍스트형은 표 판정에 self_ref 가 없어 본문에서 바로 만들며, 같은 후처리를
+        여기서 함께 건다. 어느 쪽이든 "마스킹 전 텍스트에서 만들고 마스킹·정제를 거친다" 는
+        같은 계약이다.
+        """
         notes = job.notes
-        table_variants = notes["table_variants"]
-        notes["variant_values"] = table_variants.field_values(
-            text, [getattr(item, "self_ref", "") for item in chunk.meta.doc_items],
-        ) if table_variants else {}
+        if chunk.kind == "docling":
+            table_variants = notes["table_variants"]
+            notes["variant_values"] = table_variants.field_values(
+                text, [getattr(item, "self_ref", "") for item in chunk.source.meta.doc_items],
+            ) if table_variants else {}
+            return
+        notes["variant_values"] = tv.field_values_for_text(
+            text,
+            mask=lambda value: gr.apply_to_text(
+                value, notes["sensitive_infos"], notes["masking"])[0],
+            tidy=tn.tidy if notes["cleanup"] else None,
+            **notes["variant_options"],
+        )
+        # 표 판정도 마스킹·정제 전 본문에서 한다. 뒤로 미루면 정제가 표 구분자를 건드린
+        # 청크에서 판정이 뒤집힌다.
+        notes["has_table"] = tbk.has_table(text)
 
     def mask_sensitive(self, job, text: str) -> str:
         """#315 가드레일 분류 후처리: quote 매칭 → 라벨 부착(항상) + 마스킹 치환(옵션)."""
@@ -538,14 +605,79 @@ class ChunkerCore:
     def chunk_to_vector_meta(self, job, chunk, text: str):
         """청크 1건을 vector_meta 1건으로 변환한다. 청크별 값은 여기서 합쳐진다."""
         notes = job.notes
+        if notes["chunk_page"] != notes["current_page"]:
+            notes["current_page"] = notes["chunk_page"]
+            notes["chunk_index_on_page"] = 0
+        vector_meta = (self._record_vector_meta(job, chunk, text) if chunk.kind != "docling"
+                       else self._docling_vector_meta(job, chunk, text))
+        notes["chunk_index_on_page"] += 1
+        return vector_meta
+
+    def _record_vector_meta(self, job, chunk, text: str):
+        """행형·텍스트형 청크 1건을 vector_meta 로 만든다.
+
+        문서형과 달리 bbox·미디어 파일·표 조각 순번이 없다. 행형은 레코드 metadata 가
+        그대로 청크 property 가 된다(extra=allow).
+        """
+        notes = job.notes
+        record_meta = dict(chunk.metadata or {})
+        row_only: dict = {}
+        if chunk.kind == "row":
+            # docling 경로와 같은 계약: body_fields 에 오른 필드는 청크 본문과 같은 값을 갖는다.
+            for field_name in cp.resolve_body_fields(job.params, record_meta):
+                record_meta[field_name] = text
+            record_meta.pop(cp.BODY_FIELDS_KEY, None)  # 제어값은 청크 필드로 내보내지 않는다
+            # 행 경로만 채워 온 값이다. 텍스트 경로는 종전대로 비워 둔다(null).
+            row_only = {'chunk_bboxes': ".", 'media_files': "."}
+        page = notes["chunk_page"]
+        try:
+            return self.VECTOR_META.model_validate({
+                **record_meta,  # 목표 필드(question/answer_text/...) + doc_type. extra=allow 로 보존.
+                **notes["variant_values"],
+                'has_table': notes["has_table"],
+                'text': text,
+                'n_char': len(text),
+                'n_word': len(text.split()),
+                'n_line': len(text.splitlines()),
+                'i_page': page,
+                'e_page': page,
+                'i_chunk_on_page': notes["chunk_index_on_page"],
+                'n_chunk_of_page': notes["page_chunk_counts"][page],
+                'i_chunk_on_doc': notes["chunk_idx"],
+                **row_only,
+                'guardrail_categories': (
+                    sorted(notes["chunk_cats"]) if notes["chunk_cats"] else None),
+                **notes["global_metadata"],
+                **notes["chunk_fields"],  # on_chunk 가 info["fields"] 로 넘긴 청크별 값
+            })
+        except Exception as exc:
+            # 목표필드명이 예약 필드(title/created_date/appendix)와 겹치면 타입 검증에 걸린다.
+            # 그대로 두면 pydantic ValidationError 가 raw 로 올라가 stage 도 없고, ValueError
+            # 하위라 업로드 파일 문제(INPUT_ERROR)로 오분류된다 — 원인을 메시지에 담아 바꾼다.
+            collided = sorted(
+                (set(record_meta) | set(notes["chunk_fields"])) & set(self.VECTOR_META.model_fields))
+            hint = f" 예약 필드와 겹치는 목표필드: {collided}." if collided else ""
+            raise GenosServiceException(
+                "1",
+                f"행 metadata 를 청크 property 로 변환하지 못했습니다"
+                f"(element #{notes['chunk_idx']}).{hint} {exc}",
+                stage="custom_fields",
+            ) from exc
+
+    def _docling_vector_meta(self, job, chunk, text: str):
+        """문서형 청크 1건을 vector_meta 로 만든다. bbox·미디어·표 조각 순번이 붙는다."""
+        notes = job.notes
+        if upload_files:
+            # 업로드는 기다리지 않고 걸어 두고, finish_chunk_loop 이 한꺼번에 기다린다.
+            file_list = self.get_media_files(
+                chunk.source.meta.doc_items, include_tables=self.table_image_enabled)
+            notes["upload_tasks"].append(asyncio.create_task(
+                upload_files(file_list, request=job.request)
+            ))
         # appendix 추출 !! appendix feature (2025-09-30, geonhee kim) !!
         chunk_global_metadata = notes["global_metadata"].copy()
         chunk_global_metadata['appendix'] = self.check_appendix_keywords(
             text, notes["appendix_list"])
-
-        if notes["chunk_page"] != notes["current_page"]:
-            notes["current_page"] = notes["chunk_page"]
-            notes["chunk_index_on_page"] = 0
 
         # 변형에도 본문과 같은 후처리를 적용한다(마스킹 → 정제).
         for field_name, variant_text in notes["variant_values"].items():
@@ -566,18 +698,63 @@ class ChunkerCore:
                                self.page_chunk_counts[notes["chunk_page"]])
                 .set_chunk_index(notes["chunk_idx"])
                 .set_global_metadata(**chunk_global_metadata)  #!! appendix feature (2025-09-30, geonhee kim) !!
-                .set_chunk_bboxes(chunk.meta.doc_items, job.document)
-                .set_media_files(chunk.meta.doc_items, include_tables=self.table_image_enabled)
-                .set_table_info(chunk.meta.doc_items,
+                .set_chunk_bboxes(chunk.source.meta.doc_items, job.document)
+                .set_media_files(chunk.source.meta.doc_items, include_tables=self.table_image_enabled)
+                .set_table_info(chunk.source.meta.doc_items,
                                 getattr(self, "_table_split_totals", {}),
                                 notes["table_piece_seen"])
                 .set_guardrail_categories(
                     sorted(notes["chunk_cats"]) if notes["chunk_cats"] else None)
                 ).build(self.VECTOR_META)
 
-    def _prepare_chunk_context(self, job, chunks: List[DocChunk],
+    def _prepare_chunk_context(self, job, chunks: list,
                                converted_pdf_path: Optional[str] = None) -> None:
         """문서 단위로 한 번만 계산하는 값들을 job.metadata·job.notes 에 담는다."""
+        if job.kind == "docling":
+            self._prepare_docling_context(job, chunks, converted_pdf_path)
+        else:
+            self._prepare_record_context(job, chunks)
+
+    def _prepare_record_context(self, job, chunks: list) -> None:
+        """행형·텍스트형의 문서 단위 값. 문서형과 달리 DoclingDocument 가 없다.
+
+        헤딩 경로·문서 접두·appendix·표 조각 순번은 이 경로에 없으므로 빈 값으로 둔다 —
+        반복문이 형식을 가리지 않고 같은 키를 읽게 하기 위해서다.
+        """
+        kwargs = job.params
+        pages = [c.page for c in chunks if c.kind != "marker"]
+        page_chunk_counts: dict = defaultdict(int)
+        for page in pages:
+            page_chunk_counts[page] += 1
+        job.notes.update(
+            sensitive_infos=kwargs.get("_sensitive_infos") or [],    # #315 분류 결과
+            masking=bool(kwargs.get("_guardrail_masking", False)),   # #315 마스킹 치환 on/off
+            cleanup=tn.enabled_for(kwargs, self),
+            variant_options=self._text_variant_options(**kwargs),
+            page_chunk_counts=page_chunk_counts,
+            global_metadata=dict(
+                n_chunk_of_doc=len(pages),
+                n_page=max(pages, default=1),
+                reg_date=datetime.now().isoformat(timespec='seconds') + 'Z',
+            ),
+            include_header=False,
+            table_variants=None,
+            body_fields=[],
+            prefix_text="",
+            first_prefix_text="",
+            first_prefix_pending=False,
+            appendix_list=[],
+            table_piece_seen={},
+            current_page=None,
+            chunk_index_on_page=0,
+            variant_values={},
+            has_table=False,
+            chunk_cats=None,
+        )
+
+    def _prepare_docling_context(self, job, chunks: list,
+                                 converted_pdf_path: Optional[str] = None) -> None:
+        """문서형의 문서 단위 값. 문서 메타·접두·표 변형 기록부를 세운다."""
         document, kwargs = job.document, job.params
         title = ""
         _sensitive_infos: list = kwargs.get("_sensitive_infos") or []      # #315 분류 결과
@@ -675,6 +852,10 @@ class ChunkerCore:
             first_prefix_pending=bool(_first_prefix_text),
             appendix_list=appendix_list,
             global_metadata=global_metadata,
+            # 문서형은 표 변형을 table_variants 기록부로 만든다. 반복문이 형식을 가리지 않게
+            # 같은 키를 두되 이 경로에서는 쓰이지 않는다.
+            variant_options={},
+            page_chunk_counts=self.page_chunk_counts,
             # 같은 표의 조각이 연속해서 나오는 순서가 곧 조각 번호다.
             table_piece_seen={},
             current_page=None,
@@ -795,123 +976,6 @@ class ChunkerCore:
         chunk_overlap = min(max(int(overlap), 0), chunk_size - 1)
         return chunk_size, chunk_overlap
 
-    async def _chunk_text_elements(self, elements: list, **kwargs: dict) -> list:
-        """parse-format element 들을 RecursiveCharacterTextSplitter 로 청킹한다.
-
-        legacy attachment_processor.split_documents/compose_vectors 와 동일한 동작.
-        parser 의 element page 는 이미 1-based 이므로 attachment 처럼 +1 하지 않는다.
-        """
-        from langchain_text_splitters import RecursiveCharacterTextSplitter
-        from langchain_core.documents import Document
-
-        chunk_size, chunk_overlap = self._resolve_recursive_split_params(**kwargs)
-
-        # #315 민감정보 분류: __call__ 에서 문서 전체 1회 분류한 결과를 청크별 quote 매칭에 사용.
-        _sensitive_infos: list = kwargs.get("_sensitive_infos") or []
-        _gr_masking: bool = bool(kwargs.get("_guardrail_masking", False))
-        # 벡터 생성 직전 표현 정리(text_cleanup=safe). 마스킹 뒤에 적용해야
-        # 임베딩 텍스트와 n_char/n_word/n_line 통계가 일치한다.
-        _cleanup_out: bool = tn.enabled_for(kwargs, self)
-
-        # 표를 독립 청크로 분리한다(table_as_chunk). 표 조각을 별 Document 로 두면
-        # splitter 가 표와 앞뒤 본문을 한 청크로 다시 묶지 못한다.
-        _isolate_tables: bool = self._isolate_tables_enabled(**kwargs)
-        _variant_options = self._text_variant_options(**kwargs)
-
-        # element → page 단위 Document 재구성 (빈 내용 제외)
-        docs: list = []
-        for el in elements:
-            content = str((el or {}).get("content", "") or "")
-            if not content.strip():
-                continue
-            page = (el or {}).get("page", 1)
-            try:
-                page = int(page)
-            except (TypeError, ValueError):
-                page = 1
-            parts = tbk.split_at_tables(content) if _isolate_tables else [content]
-            docs.extend(
-                Document(page_content=part, metadata={"page": page}) for part in parts
-            )
-
-        if not docs:
-            raise GenosServiceException(1, "chunk length is 0")
-
-        splitter = RecursiveCharacterTextSplitter(
-            chunk_size=chunk_size, chunk_overlap=chunk_overlap,
-        )
-        chunks = splitter.split_documents(docs)
-        # 정규화 시 공백만 남는 청크도 제거한다(페이지 카운트 집계 전이어야 한다).
-        if _cleanup_out:
-            chunks = tn.drop_blank_chunks(chunks, "page_content", rules=tn.rules_of(self))
-        else:
-            chunks = [c for c in chunks if c.page_content]
-        if not chunks:
-            raise GenosServiceException(1, "chunk length is 0")
-
-        page_chunk_counts: dict = defaultdict(int)
-        for c in chunks:
-            page_chunk_counts[c.metadata.get("page", 1)] += 1
-
-        global_metadata = dict(
-            n_chunk_of_doc=len(chunks),
-            n_page=max((c.metadata.get("page", 1) for c in chunks), default=1),
-            reg_date=datetime.now().isoformat(timespec='seconds') + 'Z',
-        )
-
-        vectors = []
-        current_page = None
-        chunk_index_on_page = 0
-        dropped = 0
-        for idx, c in enumerate(chunks):
-            page = c.metadata.get("page", 1)
-            text = c.page_content
-            # [중간] on_chunk — 통계·순번이 붙기 전이다.
-            chunk_fields: dict = {}
-            text, _drop = await self._hook_chunk(
-                text, kwargs, kind="text", page=page, index=idx, fields=chunk_fields)
-            if _drop:
-                dropped += 1
-                continue
-            if page != current_page:
-                current_page = page
-                chunk_index_on_page = 0
-            # 표기형태 변형은 마스킹·정제 이전 텍스트에서 만들고 같은 후처리를 거친다
-            # (순서를 바꾸면 가드레일로 가린 값이 변형 필드로 평문 유출된다).
-            variant_values = tv.field_values_for_text(
-                text,
-                mask=lambda value: gr.apply_to_text(
-                    value, _sensitive_infos, _gr_masking)[0],
-                tidy=tn.tidy if _cleanup_out else None,
-                **_variant_options,
-            )
-            has_table = tbk.has_table(text)
-            # #315 가드레일 분류 후처리: quote 매칭 → guardrail_categories 부착(항상) + 마스킹 치환(옵션)
-            text, chunk_cats = gr.apply_to_text(text, _sensitive_infos, _gr_masking)
-            if _cleanup_out:
-                text = tn.tidy(text)
-            vectors.append(self.VECTOR_META.model_validate({
-                **variant_values,
-                'has_table': has_table,
-                'text': text,
-                'n_char': len(text),
-                'n_word': len(text.split()),
-                'n_line': len(text.splitlines()),
-                'i_page': page,
-                'e_page': page,
-                'i_chunk_on_page': chunk_index_on_page,
-                'n_chunk_of_page': page_chunk_counts[page],
-                'i_chunk_on_doc': idx,
-                'guardrail_categories': sorted(chunk_cats) if chunk_cats else None,  # #315 민감정보 분류 라벨
-                **global_metadata,
-                **chunk_fields,  # on_chunk 가 info["fields"] 로 넘긴 청크별 값
-            }))
-            chunk_index_on_page += 1
-        if dropped:
-            _log.info(f"[chunker] on_chunk 가 청크 {dropped}건을 버렸습니다 → 순번 재계산")
-            vm.refresh_stats(vectors)
-        return vectors
-
     def _expand_table_rows(self, rows: list, **kwargs: dict) -> list:
         """표를 담은 행을 표 조각과 본문 조각으로 나눈다(table_as_chunk).
 
@@ -1000,180 +1064,14 @@ class ChunkerCore:
             )
         return expanded
 
-    async def _chunk_custom_fields_rows(self, elements: list, **kwargs: dict) -> list:
-        """행별 tabular/custom_fields element → 행마다 청크 1개.
-
-        일반 tabular_row는 원본 컬럼 metadata를, custom_fields_row는 목표필드 + doc_type metadata를
-        가진다. 이를 청크 extra 필드로 부착하고 text/인덱스/reg_date 등 표준 필드를 채운다.
-        intelligent 의 tabular(build_tabular_vectors)와 동일한 "행=청크" 의미다.
-        """
-        rows = [el for el in elements if el.get("category") in self.ROW_CATEGORIES]
-        if not rows:
-            raise GenosServiceException(1, "chunk length is 0")
-        # 행 element 가 하나라도 있으면 이 경로로 오므로, 섞여 온 비-행 element 는 버려진다.
-        # tabular_row 는 외부 파서도 만들 수 있는 일반 이름이라 조용한 축소를 로그로 드러낸다.
-        dropped = len(elements) - len(rows)
-        if dropped:
-            _log.warning(
-                f"[chunker] 행 기반 청킹 경로에서 비-행 element {dropped}개를 버렸습니다 "
-                f"(rows={len(rows)}, total={len(elements)})"
-            )
-
-        # 표를 독립 청크로 분리한다(table_as_chunk). 행 경로에는 TableItem 이 없으므로
-        # 청크 텍스트 안의 표 블록을 경계로 삼는다.
-        rows = self._expand_table_rows(rows, **kwargs)
-
-        # splittable=True element(json_mapping 레코드)만 chunk_size 기준으로 나눈다.
-        # 플래그가 없는 tabular_row/faq_row 는 종전대로 "행 1개 = 청크 1개" 다.
-        rows = self._expand_splittable_rows(rows, **kwargs)
-
-        _variant_options = self._text_variant_options(**kwargs)
-
-        # #315 민감정보 분류 결과(있으면 text 에 quote 매칭·라벨·마스킹 적용).
-        _sensitive_infos: list = kwargs.get("_sensitive_infos") or []
-        _gr_masking: bool = bool(kwargs.get("_guardrail_masking", False))
-        # 벡터 생성 직전 표현 정리(text_cleanup=safe). 마스킹 뒤에 적용해야
-        # 임베딩 텍스트와 n_char/n_word/n_line 통계가 일치한다.
-        _cleanup_out: bool = tn.enabled_for(kwargs, self)
-
-        def _page_of(el: dict) -> int:
-            # /chunk 는 호출자 인라인 payload 를 받으므로 손상/외부 JSON 의 비숫자 page 가 도달 가능.
-            # _chunk_text_elements 와 동일하게 실패 시 1 로 폴백한다.
-            try:
-                return int(el.get("page", 1) or 1)
-            except (TypeError, ValueError):
-                return 1
-
-        reg_date = datetime.now().isoformat(timespec='seconds') + 'Z'
-        n_chunk_of_doc = len(rows)
-        n_page = max((_page_of(el) for el in rows), default=1)
-
-        page_chunk_counts: dict = defaultdict(int)
-        for el in rows:
-            page_chunk_counts[_page_of(el)] += 1
-
-        vectors: list = []
-        current_page = None
-        chunk_index_on_page = 0
-        dropped = 0
-        for idx, el in enumerate(rows):
-            page = _page_of(el)
-            text = str(el.get("content", "") or "")
-            # [중간] on_chunk — 레코드 metadata 를 함께 넘겨 doc_type 별 판정을 돕는다.
-            chunk_fields: dict = {}
-            text, _drop = await self._hook_chunk(
-                text, kwargs, kind="row", page=page, index=idx,
-                metadata=el.get("metadata"), fields=chunk_fields)
-            if _drop:
-                dropped += 1
-                continue
-            if page != current_page:
-                current_page = page
-                chunk_index_on_page = 0
-            # 표기형태 변형은 마스킹·정제 이전 텍스트에서 만들고 같은 후처리를 거친다.
-            # 순서를 바꾸면 가드레일로 가린 값이 변형 필드로 평문 유출된다.
-            variant_values = tv.field_values_for_text(
-                text,
-                mask=lambda value: gr.apply_to_text(
-                    value, _sensitive_infos, _gr_masking)[0],
-                tidy=tn.tidy if _cleanup_out else None,
-                **_variant_options,
-            )
-            has_table = tbk.has_table(text)
-            text, chunk_cats = gr.apply_to_text(text, _sensitive_infos, _gr_masking)
-            if _cleanup_out:
-                text = tn.tidy(text)
-            row_meta = dict(el.get("metadata") or {})
-            # docling 경로와 같은 계약: body_fields 에 오른 필드는 청크 본문과 같은 값을 갖는다.
-            for field_name in cp.resolve_body_fields(kwargs, row_meta):
-                row_meta[field_name] = text
-            row_meta.pop(cp.BODY_FIELDS_KEY, None)  # 제어값은 청크 필드로 내보내지 않는다
-            try:
-                vectors.append(self.VECTOR_META.model_validate({
-                    **row_meta,  # 목표 필드(question/answer_text/...) + doc_type. extra=allow 로 보존.
-                    **variant_values,
-                    'has_table': has_table,
-                    'text': text,
-                    'n_char': len(text),
-                    'n_word': len(text.split()),
-                    'n_line': len(text.splitlines()),
-                    'i_page': page,
-                    'e_page': page,
-                    'i_chunk_on_page': chunk_index_on_page,
-                    'n_chunk_of_page': page_chunk_counts[page],
-                    'i_chunk_on_doc': idx,
-                    'n_chunk_of_doc': n_chunk_of_doc,
-                    'n_page': n_page,
-                    'reg_date': reg_date,
-                    'chunk_bboxes': ".",
-                    'media_files': ".",
-                    'guardrail_categories': sorted(chunk_cats) if chunk_cats else None,
-                    **chunk_fields,  # on_chunk 가 info["fields"] 로 넘긴 청크별 값
-                }))
-            except Exception as exc:
-                # 목표필드명이 예약 필드(title/created_date/appendix)와 겹치면 타입 검증에 걸린다.
-                # 그대로 두면 pydantic ValidationError 가 raw 로 올라가 stage 도 없고, ValueError
-                # 하위라 업로드 파일 문제(INPUT_ERROR)로 오분류된다 — 원인을 메시지에 담아 바꾼다.
-                collided = sorted((set(row_meta) | set(chunk_fields)) & set(self.VECTOR_META.model_fields))
-                hint = f" 예약 필드와 겹치는 목표필드: {collided}." if collided else ""
-                raise GenosServiceException(
-                    "1",
-                    f"행 metadata 를 청크 property 로 변환하지 못했습니다(element #{idx}).{hint} {exc}",
-                    stage="custom_fields",
-                ) from exc
-            chunk_index_on_page += 1
-        if dropped:
-            _log.info(f"[chunker] on_chunk 가 청크 {dropped}건을 버렸습니다 → 순번 재계산")
-            vm.refresh_stats(vectors)
-        return vectors
-
     async def _chunk_parse_format(self, elements: list, **kwargs: dict) -> list:
-        """parse-format( {"elements":[...]} ) 출력을 legacy 동작으로 청킹한다.
+        """parse-format( {"elements":[...]} ) 청킹의 옛 진입점. 단위 테스트가 직접 부른다.
 
-        포맷은 element 내용으로 식별(파일 확장자 불필요):
-          0) tabular_row/custom_fields_row: 행마다 벡터 1개.
-          1) audio: content 가 "[AUDIO]" 로 시작하는 element 가 있으면 → 단일 벡터.
-          2) legacy tabular([DA]): 비어있지 않은 element가 전부 category=="table"이면 → 단일 벡터.
-          3) 그 외: RecursiveCharacterTextSplitter 로 텍스트 청킹.
+        분할은 split_records 가, 조립은 chunks_to_vector_metas 가 한다.
         """
-        elements = elements or []
+        job = jb.ChunkJob(kind="parse", data=elements or [], params=kwargs)
+        return await self.chunks_to_vector_metas(job, self.split_records(job))
 
-        # 파서와 청커가 별개 요청이라 표 출력 설정은 프로세서 속성에만 있다. docling 경로
-        # (split_documents)와 마찬가지로 kwargs 로 옮겨, 이 아래 경로들도 같은 설정을 본다.
-        cp.apply_table_output_defaults(kwargs, self)
-
-        # 청크 텍스트 정규화(text_cleanup=safe): 분할 전에 문자 위생을 적용한다.
-        # 행 기반 경로는 metadata 가 그대로 청크 property 로 나가므로 함께 정규화한다
-        # (text 만 정규화하면 같은 내용이 두 표현으로 저장된다).
-        _cleanup_in = tn.enabled_for(kwargs, self)
-        if _cleanup_in:
-            elements = tn.sanitize_elements(elements, tn.rules_of(self))
-
-        # 0) 행 기반 tabular/custom_fields 가드. faq_row는 이전 산출물 하위 호환용이다.
-        non_empty_all = [el for el in elements if isinstance(el, dict)]
-        if non_empty_all and any(
-                el.get("category") in self.ROW_CATEGORIES for el in non_empty_all):
-            return await self._chunk_custom_fields_rows(non_empty_all, **kwargs)
-
-        # 1) audio 가드 — parser 전사 결과는 content 가 "[AUDIO]" 접두사로 시작한다.
-        for el in elements:
-            content = str((el or {}).get("content", "") or "")
-            if content.startswith("[AUDIO]"):
-                return [self._single_marker_vector(
-                    content, _cleanup_in, **self._text_variant_options(**kwargs))]
-
-        # 2) legacy tabular([DA]) 가드 — 이전 csv/xlsx parse payload 호환용.
-        non_empty = [
-            el for el in elements
-            if str((el or {}).get("content", "") or "").strip()
-        ]
-        if non_empty and all((el or {}).get("category") == "table" for el in non_empty):
-            joined = "\n".join(str(el.get("content", "")) for el in non_empty)
-            return [self._single_marker_vector(
-                "[DA] " + joined, _cleanup_in, **self._text_variant_options(**kwargs))]
-
-        # 3) 공통 텍스트 경로
-        return await self._chunk_text_elements(elements, **kwargs)
 
     async def __call__(self, request: Request, file_path: str = "", **kwargs: dict):
         """파싱 결과를 입력받아 청킹만 수행한다 (Chunk API, #284).
@@ -1406,12 +1304,12 @@ class ChunkerCore:
         return job
 
     async def split(self, job) -> list:
-        """입력 형식별 분할. 문서형은 DocChunk 목록, 행형은 element 목록을 돌려준다."""
+        """입력 형식별 분할. 어느 형식이든 공통 Chunk 목록을 돌려준다."""
         if job.kind == "docling":
             return self.split_document(job)
         return self.split_records(job)
 
-    def split_document(self, job) -> List[DocChunk]:
+    def split_document(self, job) -> list:
         """docling 산출을 DoclingDocument 로 복원해 GenosSmartChunker 로 자른다.
 
         복원한 문서는 벡터 조합이 다시 쓰므로 job.document 에 담는다.
@@ -1443,15 +1341,128 @@ class ChunkerCore:
             )
             document.add_text(label=DocItemLabel.TEXT, text=".", prov=prov)
 
-        chunks: List[DocChunk] = self.split_documents(document, **job.params)
-        if len(chunks) < 1:
+        doc_chunks: List[DocChunk] = self.split_documents(document, **job.params)
+        if len(doc_chunks) < 1:
             raise GenosServiceException(1, "chunk length is 0")
         job.document = document
-        return chunks
+        return _docling_chunks(doc_chunks)
 
     def split_records(self, job) -> list:
-        """행형 입력은 element 목록을 그대로 넘긴다 — 분할은 경로별 청킹이 맡는다."""
-        return job.data
+        """행형 입력(elements)을 공통 Chunk 목록으로 자른다.
+
+        형식은 확장자가 아니라 element 내용으로 식별한다.
+          0) tabular_row/custom_fields_row 가 하나라도 있으면 → 행마다 청크 1개
+          1) content 가 "[AUDIO]" 로 시작하면 → 분할하지 않는 단일 청크
+          2) 비어있지 않은 element 가 전부 category=="table" 이면 → 단일 청크(legacy [DA])
+          3) 그 밖 → RecursiveCharacterTextSplitter 로 텍스트 분할
+        """
+        elements = job.data or []
+        kwargs = job.params
+
+        # 파서와 청커가 별개 요청이라 표 출력 설정은 프로세서 속성에만 있다. docling 경로
+        # (split_documents)와 마찬가지로 kwargs 로 옮겨, 이 아래 경로들도 같은 설정을 본다.
+        cp.apply_table_output_defaults(kwargs, self)
+
+        # 청크 텍스트 정규화(text_cleanup=safe): 분할 전에 문자 위생을 적용한다.
+        # 행 기반 경로는 metadata 가 그대로 청크 property 로 나가므로 함께 정규화한다
+        # (text 만 정규화하면 같은 내용이 두 표현으로 저장된다).
+        if tn.enabled_for(kwargs, self):
+            elements = tn.sanitize_elements(elements, tn.rules_of(self))
+
+        # 0) 행 기반 tabular/custom_fields 가드. faq_row 는 이전 산출물 하위 호환용이다.
+        non_empty_all = [el for el in elements if isinstance(el, dict)]
+        if non_empty_all and any(
+                el.get("category") in self.ROW_CATEGORIES for el in non_empty_all):
+            return self._split_rows(non_empty_all, **kwargs)
+
+        # 1) audio 가드 — parser 전사 결과는 content 가 "[AUDIO]" 접두사로 시작한다.
+        for el in elements:
+            content = str((el or {}).get("content", "") or "")
+            if content.startswith("[AUDIO]"):
+                return [jb.Chunk(text=content, kind="marker")]
+
+        # 2) legacy tabular([DA]) 가드 — 이전 csv/xlsx parse payload 호환용.
+        non_empty = [
+            el for el in elements
+            if str((el or {}).get("content", "") or "").strip()
+        ]
+        if non_empty and all((el or {}).get("category") == "table" for el in non_empty):
+            joined = "\n".join(str(el.get("content", "")) for el in non_empty)
+            return [jb.Chunk(text="[DA] " + joined, kind="marker")]
+
+        # 3) 공통 텍스트 경로
+        return self._split_text_elements(elements, **kwargs)
+
+    def _split_rows(self, elements: list, **kwargs: dict) -> list:
+        """행 element 를 행마다 청크 1개로 만든다. 표 분리와 splittable 펼치기까지 한다."""
+        rows = [el for el in elements if el.get("category") in self.ROW_CATEGORIES]
+        if not rows:
+            raise GenosServiceException(1, "chunk length is 0")
+        # 행 element 가 하나라도 있으면 이 경로로 오므로, 섞여 온 비-행 element 는 버려진다.
+        # tabular_row 는 외부 파서도 만들 수 있는 일반 이름이라 조용한 축소를 로그로 드러낸다.
+        dropped = len(elements) - len(rows)
+        if dropped:
+            _log.warning(
+                f"[chunker] 행 기반 청킹 경로에서 비-행 element {dropped}개를 버렸습니다 "
+                f"(rows={len(rows)}, total={len(elements)})"
+            )
+
+        # 표를 독립 청크로 분리한다(table_as_chunk). 행 경로에는 TableItem 이 없으므로
+        # 청크 텍스트 안의 표 블록을 경계로 삼는다.
+        rows = self._expand_table_rows(rows, **kwargs)
+        # splittable=True element(json_mapping 레코드)만 chunk_size 기준으로 나눈다.
+        # 플래그가 없는 tabular_row/faq_row 는 종전대로 "행 1개 = 청크 1개" 다.
+        rows = self._expand_splittable_rows(rows, **kwargs)
+
+        return [jb.Chunk(
+            text=str(el.get("content", "") or ""), kind="row", page=_element_page(el),
+            metadata=dict(el.get("metadata") or {}), source=el,
+        ) for el in rows]
+
+    def _split_text_elements(self, elements: list, **kwargs: dict) -> list:
+        """element 들을 RecursiveCharacterTextSplitter 로 자른다.
+
+        legacy attachment_processor.split_documents 와 동일한 동작. parser 의 element page 는
+        이미 1-based 이므로 attachment 처럼 +1 하지 않는다.
+        """
+        from langchain_text_splitters import RecursiveCharacterTextSplitter
+        from langchain_core.documents import Document
+
+        chunk_size, chunk_overlap = self._resolve_recursive_split_params(**kwargs)
+        # 표를 독립 청크로 분리한다(table_as_chunk). 표 조각을 별 Document 로 두면
+        # splitter 가 표와 앞뒤 본문을 한 청크로 다시 묶지 못한다.
+        _isolate_tables: bool = self._isolate_tables_enabled(**kwargs)
+
+        # element → page 단위 Document 재구성 (빈 내용 제외)
+        docs: list = []
+        for el in elements:
+            content = str((el or {}).get("content", "") or "")
+            if not content.strip():
+                continue
+            page = _element_page(el)
+            parts = tbk.split_at_tables(content) if _isolate_tables else [content]
+            docs.extend(
+                Document(page_content=part, metadata={"page": page}) for part in parts
+            )
+
+        if not docs:
+            raise GenosServiceException(1, "chunk length is 0")
+
+        splitter = RecursiveCharacterTextSplitter(
+            chunk_size=chunk_size, chunk_overlap=chunk_overlap,
+        )
+        chunks = splitter.split_documents(docs)
+        # 정규화 시 공백만 남는 청크도 제거한다(페이지 카운트 집계 전이어야 한다).
+        if tn.enabled_for(kwargs, self):
+            chunks = tn.drop_blank_chunks(chunks, "page_content", rules=tn.rules_of(self))
+        else:
+            chunks = [c for c in chunks if c.page_content]
+        if not chunks:
+            raise GenosServiceException(1, "chunk length is 0")
+
+        return [jb.Chunk(
+            text=c.page_content, kind="text", page=c.metadata.get("page", 1), source=c,
+        ) for c in chunks]
 
     async def chunk(self, request: Request, file_path: str, src: "ChunkInput", **kwargs):
         """분할과 벡터 조합. 입력 판별은 load_input 이 이미 끝냈다."""

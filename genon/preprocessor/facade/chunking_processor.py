@@ -7,11 +7,8 @@
 #   청크가 생성될 때마다 on_chunk 를 호출한다.
 #
 # 용어
-#   chunk        분할 결과 1건. 문서형은 DocChunk, 행형은 파서가 만든 element dict 다
+#   chunk        분할 결과 1건. 입력 형식과 관계없이 같은 필드를 갖는다(chunks_to_vector_metas 참조)
 #   vector_meta  VECTOR_META(기본 GenOSVectorMeta) 인스턴스 1건. 벡터 DB 1행으로 적재된다
-#
-# 청크 1건을 vector_meta 1건으로 만드는 조립은 아직 core 안에 있다. 행형 경로가 분할과 조립을
-# 함께 하고 있어서다 — 그 경로를 나누면 이 파일에서도 보이게 된다.
 #
 # 구성
 #   1 처리 흐름          파이프라인 전체 호출 순서
@@ -123,11 +120,36 @@ class DocumentProcessor(ChunkerCore):
 
         - 문서형(docling): GenosSmartChunker
         - 행형(행, 레코드): 공통 분할기
-        chunk 필드는 chunk_to_vector_meta 의 docstring 을 참조한다.
+        chunk 필드는 아래 chunks_to_vector_metas 의 docstring 을 참조한다.
         """
         if job.kind == "docling":
             return self.split_document(job)      # core 의 분할은 동기다
         return self.split_records(job)
+
+    async def chunks_to_vector_metas(self, job, chunks, converted_pdf_path=None):
+        """chunk 목록을 vector_meta 목록으로 변환한다. chunk 1개가 벡터 DB 1행이 된다.
+
+        chunk 는 입력 형식과 관계없이 같은 필드를 갖는다.
+            chunk.text      본문 원문(접두어, 헤딩 경로 적용 전)
+            chunk.kind      "docling" | "row"(엑셀 행, JSON 레코드) | "text"(그 밖)
+            chunk.page      페이지 번호
+            chunk.headings  헤딩 경로(문서형)   chunk.metadata  레코드 메타데이터(행형)
+            chunk.source    원본 객체. bbox, 표 조각 계산용
+
+        메소드 호출 순서 유지 필수. 마스킹은 정제보다 앞이다 — 순서가 바뀌면 마스킹 전
+        PII 가 글자 수 통계나 표 변환본에 남는다.
+        """
+        vector_metas = []
+        for chunk in self.start_chunk_loop(job, chunks, converted_pdf_path):
+            text = self.build_chunk_text(job, chunk)         # 문서 접두어 + 헤딩 경로 + 본문
+            text, drop = await self._call_on_chunk(job, chunk, text)  # on_chunk() 호출
+            if drop:
+                continue                                     # tb.DROP 이면 제외
+            self.collect_chunk_variants(job, chunk, text)    # 표 표기형태 변형(마스킹 전 본문에서)
+            text = self.mask_sensitive(job, text)            # PII 라벨링, 마스킹
+            text = self.clean_text(job, text)                # 설정의 text_cleanup 적용
+            vector_metas.append(self.chunk_to_vector_meta(job, chunk, text))
+        return await self.finish_chunk_loop(job, vector_metas)
 
     # --- 2. doc_type 별 설정 ---
     #
@@ -230,10 +252,14 @@ class DocumentProcessor(ChunkerCore):
     # 기본 동작을 바꾸려면 메소드를 오버라이드한다.
     # 청크 크기나 분할 방식만 바꾸려면 2 의 설정을 우선 고려한다.
     #
-    #   지원     1 에 본문이 보이는 메소드(split 등)와 build_chunk_text·chunk_to_vector_meta
+    #   지원     1 에 본문이 보이는 메소드(split, chunks_to_vector_metas, build_chunk_text,
+    #            mask_sensitive, clean_text, chunk_to_vector_meta)
     #            릴리스가 바뀌어도 이름과 인자를 유지한다
-    #   비권장   그 밖의 core 메소드(split_document, mask_sensitive, clean_text, refresh_stats 등)
-    #            오버라이드는 가능하지만 릴리스에서 바뀔 수 있다
+    #   비권장   그 밖의 core 메소드(split_document, split_records, collect_chunk_variants,
+    #            refresh_stats 등) 오버라이드는 가능하지만 릴리스에서 바뀔 수 있다
+    #
+    # start_chunk_loop 과 finish_chunk_loop 은 순번·통계 부기를 맡는다. 반복문을 바꾸더라도
+    # 이 둘은 그대로 감싸 둔다 — 빼면 n_chunk_of_doc 와 청크 순번이 어긋난다.
     #
     #   def build_chunk_text(self, job, chunk):          # 청크 텍스트 조립을 바꾼다
     #       return f"[{job.metadata.get('title', '')}] " + chunk.text
