@@ -16,7 +16,7 @@
 #   3 훅 메소드          no-op 기본 구현을 채우는 메소드 3개
 #   4 오버라이드          기본 구현 자체를 바꿀 때
 #
-# CLI 실행 예시: python chunking_processor.py parsed.json -o chunks.json
+# 서버 없이 이 파일만 돌려 볼 수 있다. 사용법은 파일 끝 "파일 단독 실행" 참조.
 from typing import Optional
 
 from pydantic import BaseModel
@@ -268,5 +268,23 @@ class DocumentProcessor(ChunkerCore):
     #       return f"[{job.metadata.get('title', '')}] " + chunk.text
 
 
+# --- 파일 단독 실행 ---
+#
+# cli() 는 서버를 띄우지 않고 이 파일 하나를 직접 돌린다. 입력은 **파서가 만든 결과 JSON** 이다
+# (원본 문서가 아니다). 산출은 /chunker 응답과 같은 vector_meta 목록이다.
+#
+#   python -m genon.preprocessor.facade.parser_processor 계약서.pdf --doc-type contract -o parsed.json
+#   python -m genon.preprocessor.facade.chunking_processor parsed.json --doc-type contract -o chunks.json
+#
+# 경로로 바로 실행(python chunking_processor.py)하면 import 가 풀리지 않는다. 저장소 최상위에서
+# 위처럼 -m 으로 부른다.
+#
+#   --doc-type    doc_type 별 설정(2)과 훅 게이팅에 쓰인다. 파서에 넘긴 값과 같게 준다
+#   --config      프로세서 설정 yaml 경로. 미지정 시 기본 경로를 찾는다
+#   -o, --out     결과 JSON 경로. 생략하면 stdout 으로 나온다
+#   --log-level   5 DEBUG / 4 INFO / 3 WARNING / 2 ERROR / 1 CRITICAL / 0 끔
+#
+# 끝나면 저장 위치와 청크 건수, 걸린 시간을 stderr 로 알린다. 청크 크기나 분할 방식을 바꿔 보려면
+# 위 2 의 CONFIG_BY_DOC_TYPE 에 적고 다시 돌린다.
 if __name__ == "__main__":
     DocumentProcessor.cli()

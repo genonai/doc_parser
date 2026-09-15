@@ -16,7 +16,7 @@
 #   3 훅 메소드          no-op 기본 구현을 채우는 메소드 3개
 #   4 오버라이드          기본 구현 자체를 바꿀 때
 #
-# CLI 실행 예시: python chunking_processor.py parsed.json -o chunks.json
+# 서버 없이 이 파일만 돌려 볼 수 있다. 사용법은 파일 끝 "파일 단독 실행" 참조.
 from pydantic import BaseModel
 
 from genon.preprocessor.facade.chunking import smart_chunker as sc

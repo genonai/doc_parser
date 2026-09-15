@@ -19,7 +19,7 @@
 # 한 응답에 둘 다 있으면 청커는 document 만 사용한다. 표는 행, 본문은 문단으로 내보내려면
 # 한 형식으로 통일한다.
 #
-# CLI 실행 예시: python parser_processor.py 계약서.pdf --doc-type contract -o parsed.json
+# 서버 없이 이 파일만 돌려 볼 수 있다. 사용법은 파일 끝 "파일 단독 실행" 참조.
 from typing import TYPE_CHECKING
 
 from genon.preprocessor.facade.core import toolbox as tb  # noqa: F401
@@ -295,5 +295,23 @@ class DocumentProcessor(ParserCore):
     # 실행되지 않는다.
 
 
+# --- 파일 단독 실행 ---
+#
+# cli() 는 서버를 띄우지 않고 이 파일 하나를 직접 돌린다. 고친 훅이 의도대로 도는지 문서 한 건으로
+# 바로 확인할 때 쓴다. 산출은 /parser 응답과 같은 JSON 이다.
+#
+#   python -m genon.preprocessor.facade.parser_processor 계약서.pdf --doc-type contract -o parsed.json
+#
+# 경로로 바로 실행(python parser_processor.py)하면 import 가 풀리지 않는다. 저장소 최상위에서
+# 위처럼 -m 으로 부른다.
+#
+#   --doc-type    custom_fields 설정과 훅 게이팅에 쓰인다. 훅을 doc_type 으로 가르고 있으면
+#                 이것을 빼는 순간 그 코드가 통째로 안 돈다 — 사실상 필수다
+#   --config      프로세서 설정 yaml 경로. 미지정 시 기본 경로를 찾는다
+#   -o, --out     결과 JSON 경로. 생략하면 stdout 으로 나온다
+#   --log-level   5 DEBUG / 4 INFO / 3 WARNING / 2 ERROR / 1 CRITICAL / 0 끔
+#
+# 끝나면 저장 위치와 걸린 시간을 stderr 로 알린다. 여기서 만든 parsed.json 을 그대로
+# chunking_processor 에 넘기면 청킹까지 이어서 볼 수 있다.
 if __name__ == "__main__":
     DocumentProcessor.cli()

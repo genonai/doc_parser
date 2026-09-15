@@ -19,7 +19,7 @@
 # 한 응답에 둘 다 있으면 청커는 document 만 사용한다. 표는 행, 본문은 문단으로 내보내려면
 # 한 형식으로 통일한다.
 #
-# CLI 실행 예시: python parser_processor.py 계약서.pdf --doc-type contract -o parsed.json
+# 서버 없이 이 파일만 돌려 볼 수 있다. 사용법은 파일 끝 "파일 단독 실행" 참조.
 from typing import TYPE_CHECKING
 
 from genon.preprocessor.facade.core import toolbox as tb

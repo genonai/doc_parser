@@ -44,6 +44,26 @@ def _to_jsonable(result):
     return result
 
 
+def _summary(payload) -> str:
+    """산출 모양에 맞는 한 줄 요약.
+
+    세는 대상이 형식마다 다르다. 요소 개수만 세면 문서형 파싱이 늘 0건으로 보인다 —
+    정상 처리된 문서를 실패로 오해하게 된다.
+    """
+    if isinstance(payload, list):
+        return f"청크 {len(payload)}건"
+    if not isinstance(payload, dict):
+        return "산출 1건"
+    elements = payload.get("elements") or []
+    if elements:
+        return f"요소 {len(elements)}건"
+    document = payload.get("document") or {}
+    if document:
+        return (f"문서형 · 텍스트 {len(document.get('texts') or [])}개"
+                f" · 표 {len(document.get('tables') or [])}개")
+    return "산출 없음"
+
+
 def run_cli(processor_cls, argv=None) -> int:
     ap = argparse.ArgumentParser(
         description=f"{processor_cls.__module__}.{processor_cls.__name__} 단독 실행")
@@ -51,7 +71,8 @@ def run_cli(processor_cls, argv=None) -> int:
     ap.add_argument("--doc-type", default=None, help="custom_fields doc_type. 훅 게이팅에 쓰인다")
     ap.add_argument("--config", default=None, help="프로세서 설정 yaml. 미지정 시 기본 해석")
     ap.add_argument("-o", "--out", default=None, help="결과 JSON 경로. 미지정 시 stdout")
-    ap.add_argument("--log-level", type=int, default=None)
+    ap.add_argument("--log-level", type=int, default=None,
+                    help="5 DEBUG / 4 INFO / 3 WARNING / 2 ERROR / 1 CRITICAL / 0 끔")
     args = ap.parse_args(argv)
 
     proc = processor_cls(config_path=args.config) if args.config else processor_cls()
@@ -73,6 +94,5 @@ def run_cli(processor_cls, argv=None) -> int:
         json.dump(payload, sys.stdout, ensure_ascii=False, indent=2)
         where = "stdout"
 
-    n = len(payload) if isinstance(payload, list) else len(payload.get("elements") or [])
-    print(f"\n[cli] {where} · 항목 {n}건 · {time.time() - begin:.1f}초", file=sys.stderr)
+    print(f"\n[cli] {where} · {_summary(payload)} · {time.time() - begin:.1f}초", file=sys.stderr)
     return 0
