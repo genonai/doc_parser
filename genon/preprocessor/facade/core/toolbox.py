@@ -124,6 +124,15 @@ def set_chunk_metadata(result: dict, metadata: dict) -> dict:
 # ── 판정 헬퍼 ───────────────────────────────────────────────────────────────
 from genon.preprocessor.facade.enrichment.custom_fields_enricher import normalize_doc_type
 from genon.preprocessor.facade.common.appendix import check_appendix_keywords
+from genon.preprocessor.facade.common.vector_meta import (
+    drop_fields,
+    merge_small_chunks,
+    split_chunk,
+)
+# 구조 HTML(표·목록)을 평문화하는 콜백을 만든다 — json_to_markdown(html_renderer=) 에 넘긴다.
+from genon.preprocessor.facade.enrichment.tabular_custom_fields import (
+    structural_html_renderer as html_to_text,
+)
 from genon.preprocessor.facade.common.file_probe import (
     is_encrypted_pdf,
     is_protected_hwp,
@@ -155,5 +164,6 @@ __all__ = [
     "marker_heading_match", "precheck_html",
     "BODY_FIELDS_KEY", "CHUNK_PREFIX_FIELDS_KEY", "FIELD_LABELS_KEY", "FIRST_CHUNK_FIELDS_KEY",
     "set_chunk_metadata", "refresh_stats", "normalize_doc_type", "check_appendix_keywords",
+    "html_to_text", "split_chunk", "merge_small_chunks", "drop_fields",
     "is_encrypted_pdf", "is_protected_hwp", "read_text_with_fallback",
 ]

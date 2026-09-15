@@ -12,7 +12,7 @@ __init__ 에서 고유 필드를 더하고 build() 에서 core_payload() 와 합
 from __future__ import annotations
 
 import json
-from typing import Any, Optional
+from typing import Any, Callable, Optional
 
 from docling_core.types import DoclingDocument
 from docling_core.types.doc import PictureItem, TableItem
@@ -29,6 +29,84 @@ CORE_FIELDS = STAT_FIELDS + (
     "reg_date", "chunk_bboxes", "media_files", "guardrail_categories",
     "has_table", "table_refs", "table_split_index", "table_split_total",
 )
+
+
+def _split_text(text: str, separator: str = "\n") -> "tuple[str, str]":
+    """텍스트를 가운데에 가장 가까운 separator 경계에서 두 조각으로 나눈다.
+
+    경계를 찾지 못하면 글자 수 절반에서 자른다 — 그래야 구분자가 없는 원천도 나뉜다.
+    """
+    middle = len(text) // 2
+    cut = text.rfind(separator, 0, middle)
+    if cut <= 0:
+        cut = text.find(separator, middle)
+    if cut <= 0:
+        cut = middle
+    return text[:cut], text[cut:].lstrip(separator)
+
+
+def split_chunk(vector_metas: list, when: Callable[[Any], bool], *,
+                separator: str = "\n", max_pieces: int = 64) -> list:
+    """when(vector_meta) 이 참인 청크를 여러 건으로 나눈다(post_chunk 용).
+
+    조건이 거짓이 될 때까지 반으로 나눈다. 나뉜 조각은 원본 필드를 그대로 물려받는다.
+    통계와 순번은 바뀌므로 호출부가 refresh_stats 를 부른다.
+    """
+    out: list = []
+    for vector_meta in vector_metas:
+        pending = [vector_meta]
+        pieces = 0
+        while pending:
+            current = pending.pop(0)
+            text = getattr(current, "text", "") or ""
+            if not when(current) or len(text) < 2 or pieces >= max_pieces:
+                out.append(current)
+                continue
+            head, tail = _split_text(text, separator)
+            if not head or not tail:
+                out.append(current)
+                continue
+            pieces += 1
+            first = current.model_copy(deep=True)
+            first.text = head
+            second = current.model_copy(deep=True)
+            second.text = tail
+            pending[:0] = [first, second]
+    return out
+
+
+def merge_small_chunks(vector_metas: list, min_chars: int = 80, *,
+                       separator: str = "\n") -> list:
+    """min_chars 미만인 청크를 앞 청크에 이어 붙인다(post_chunk 용).
+
+    앞 청크가 없으면 뒤 청크와 합친다. 메타데이터는 남는 쪽(앞 청크)의 것을 쓴다.
+    통계와 순번은 바뀌므로 호출부가 refresh_stats 를 부른다.
+    """
+    out: list = []
+    for vector_meta in vector_metas:
+        text = getattr(vector_meta, "text", "") or ""
+        if out and len(text) < min_chars:
+            merged = out[-1]
+            merged.text = f"{merged.text}{separator}{text}" if merged.text else text
+            continue
+        out.append(vector_meta.model_copy(deep=True))
+    # 첫 청크가 짧고 뒤에 청크가 있으면 그 둘을 합친다.
+    if len(out) > 1 and len((getattr(out[0], "text", "") or "")) < min_chars:
+        head = out.pop(0)
+        out[0].text = f"{head.text}{separator}{out[0].text}" if head.text else out[0].text
+    return out
+
+
+def drop_fields(vector_meta, *names: str):
+    """청크에서 필드를 지운다. 선언된 필드는 None 으로, 추가 필드는 통째로 뺀다."""
+    declared = getattr(type(vector_meta), "model_fields", {})
+    extra = getattr(vector_meta, "__pydantic_extra__", None)
+    for name in names:
+        if name in declared:
+            setattr(vector_meta, name, None)
+        elif isinstance(extra, dict):
+            extra.pop(name, None)
+    return vector_meta
 
 
 def chunk_fields(value) -> dict:
