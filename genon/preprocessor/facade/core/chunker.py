@@ -1304,13 +1304,48 @@ class ChunkerCore:
         """post_chunk 훅 호출부. facade 의 __call__ 이 부른다."""
         return await hk.call_hook(self.post_chunk, vectors, request_kwargs=kwargs)
 
+    # --- doc_type 별 설정 오버레이 ---
+    # 배포되는 facade 가 표에 값을 적는다. 키는 요청 파라미터 이름이다(chunk_size 등).
+    CONFIG_BY_DOC_TYPE: dict = {}
+
+    def config_by_condition(self, job) -> dict:
+        """[훅 메소드] 조건부 설정. 위 표로 안 되는 경우 문서 내용이나 요청 파라미터로 결정한다.
+
+        위 표와 같은 형식의 dict 를 반환하고, 빈 dict 면 아무것도 바뀌지 않는다.
+        """
+        return {}
+
+    def _apply_config_overlay(self, job) -> None:
+        """CONFIG_BY_DOC_TYPE → config_by_condition() 순으로 요청 파라미터에 값을 얹는다.
+
+        요청이 보낸 값이 가장 세다 — 오버레이는 요청에 없는 키만 채운다. 적용된 값은
+        job.config 에 남아 "이 문서가 어떤 설정으로 처리됐는지" 를 되짚을 수 있다.
+        키는 요청 파라미터 이름이다. 설정 파일 경로(점 표기)는 요청마다 yaml 을 다시 읽어야
+        해서 아직 받지 않는다 — 건너뛰고 경고만 남긴다.
+        """
+        overlay = dict(self.CONFIG_BY_DOC_TYPE.get(job.doc_type or "", {}))
+        overlay.update(self.config_by_condition(job) or {})
+        applied: dict = {}
+        for key, value in overlay.items():
+            if "." in key:
+                _log.warning(
+                    f"[chunker] 설정 오버레이 키를 건너뜁니다(요청 파라미터 이름이 아닙니다): {key}")
+                continue
+            if key in job.params:   # 요청이 보낸 값이 우선
+                continue
+            job.params[key] = value
+            applied[key] = value
+        job.config = applied
+
     def _start_chunk_job(self, request, file_path: str, src: "ChunkInput", params: dict) -> "jb.ChunkJob":
         """load_input 산출과 요청 파라미터를 job 하나로 묶는다."""
-        return jb.ChunkJob(
+        job = jb.ChunkJob(
             request=request, file_path=file_path, kind=src.kind, data=src.data,
             guardrail=src.guardrail, doc_type=params.get("doc_type"),
             params={**params, **src.guardrail},
         )
+        self._apply_config_overlay(job)
+        return job
 
     async def split(self, job) -> list:
         """입력 형식별 분할. 문서형은 DocChunk 목록, 행형은 element 목록을 돌려준다."""

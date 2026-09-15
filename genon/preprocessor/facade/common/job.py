@@ -40,6 +40,7 @@ class ParseJob:
     params: dict
     source: str = ""
     ctx: dict = field(default_factory=dict)
+    config: dict = field(default_factory=dict)
     notes: dict = field(default_factory=dict)
     _temp_dirs: list = field(default_factory=list, repr=False)
 
@@ -85,6 +86,7 @@ class ChunkJob:
     guardrail: dict = field(default_factory=dict)
     doc_type: Optional[str] = None
     document: Any = None
+    config: dict = field(default_factory=dict)
     notes: dict = field(default_factory=dict)
 
 

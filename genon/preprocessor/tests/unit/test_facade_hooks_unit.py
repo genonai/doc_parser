@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import sys
 from pathlib import Path
 
 import pytest
@@ -706,6 +707,72 @@ async def test_job_temp_dirs_are_removed_when_the_request_ends(tmp_path: Path):
     with pytest.raises(RuntimeError):
         await _routable(_P)(None, str(src), fail=True)
     assert len(made) == 2 and not any(p.exists() for p in made)
+
+
+# ---------------------------------------------------------------------------
+# doc_type 별 설정 오버레이 — 요청이 보낸 값이 가장 세다
+# ---------------------------------------------------------------------------
+
+def _overlay_processor(table, condition=None):
+    class _P(parser_facade.DocumentProcessor):
+        CONFIG_BY_DOC_TYPE = table
+        ROUTES = (((".log",), "route_log"),) + parser_facade.DocumentProcessor.ROUTES
+
+        def config_by_condition(self, job):
+            return condition(job) if condition else {}
+
+        async def route_log(self, job):
+            _P.seen = dict(job.params)
+            _P.seen["_config"] = job.config
+            return {"elements": tb.make_elements(["x"])}
+
+    return _P
+
+
+@pytest.mark.asyncio
+async def test_config_overlay_fills_only_what_the_request_did_not_send(tmp_path: Path):
+    src = tmp_path / "a.log"
+    src.write_text("a\n", encoding="utf-8")
+    cls = _overlay_processor(
+        {"notice": {"chunk_size": 500, "ocr_mode": "force"}},
+        condition=lambda job: {"chunk_mode": "split_only"} if job.params.get("dept") == "IR" else {},
+    )
+
+    await _routable(cls)(None, str(src), doc_type="notice", dept="IR", ocr_mode="off")
+    assert cls.seen["chunk_size"] == 500            # 표가 채운다
+    assert cls.seen["chunk_mode"] == "split_only"   # 조건부 설정이 채운다
+    assert cls.seen["ocr_mode"] == "off"            # 요청이 보낸 값이 이긴다
+    # 적용된 값만 job.config 에 남는다 — 결과에서 되짚을 수 있어야 한다.
+    assert cls.seen["_config"] == {"chunk_size": 500, "chunk_mode": "split_only"}
+
+
+@pytest.mark.asyncio
+async def test_config_overlay_skips_config_file_paths(tmp_path: Path, monkeypatch):
+    """점 표기(설정 파일 경로)는 아직 받지 않는다 — 조용히 무시하지 말고 경고를 남긴다."""
+    warned = []
+    # 고객용 facade 는 genon. 절대경로로 core 를 import 한다 — 테스트가 짧은 경로로 잡은
+    # core_parser 와 다른 모듈 객체라, 실제로 실행되는 쪽의 로거를 가로챈다.
+    core_mod = sys.modules[parser_facade.DocumentProcessor.__mro__[1].__module__]
+    monkeypatch.setattr(core_mod._log, "warning", lambda *a, **k: warned.append(a))
+    src = tmp_path / "a.log"
+    src.write_text("a\n", encoding="utf-8")
+    cls = _overlay_processor({"notice": {"enrichment.table_description.enable": False}})
+
+    await _routable(cls)(None, str(src), doc_type="notice")
+    assert cls.seen["_config"] == {}
+    assert warned and "enrichment.table_description.enable" in str(warned[0])
+
+
+def test_chunker_config_overlay_lands_on_job_params():
+    class _P(chunker_facade.DocumentProcessor):
+        CONFIG_BY_DOC_TYPE = {"faq": {"chunk_size": 500, "chunk_mode": "resize_all"}}
+
+    src = core_chunker.ChunkInput("parse", [], {})
+    job = _bare(_P)._start_chunk_job(
+        None, "", src, {"doc_type": "faq", "chunk_mode": "split_only"})
+    assert job.params["chunk_size"] == 500
+    assert job.params["chunk_mode"] == "split_only"   # 요청이 이긴다
+    assert job.config == {"chunk_size": 500}
 
 
 # ---------------------------------------------------------------------------
