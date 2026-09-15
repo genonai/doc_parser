@@ -20,7 +20,7 @@
 ## 언제 무엇이 불리나
 
 ```
-파싱   요청 → 확장자 판정 → ROUTES → [pre_parse] → 파싱 → [post_parse] → 응답
+파싱   요청 → 확장자 판정 → ROUTES → [pre_parse] → 파싱 → [on_docling_document] → enrichment → [post_parse] → 응답
 청킹   파서 결과 → 형태 판별 → [pre_chunk] → 분할 → [on_chunk] → 벡터 조합 → [post_chunk] → 응답
 ```
 
@@ -166,6 +166,24 @@
 > **병합셀 주의.** 병합 정보는 (행,열) 좌표입니다. **행·열 개수를 그대로 두면** 유지되어
 > `연락처_전화` 같은 멀티헤더 자동판정이 계속 동작하고, **행을 지우거나 더하면** 버려집니다.
 > 그때는 `formats.xlsx.header_row` 로 헤더 위치를 알려 주세요.
+
+## on_docling_document — LLM enrichment 전에 문서 구조를 고친다
+
+pdf·hwp·docx·html·md 처럼 문서를 만드는 경로에서, 파싱이 끝나고 **LLM enrichment(표 설명,
+이미지 설명, 문서 요약, custom_fields 추출) 전**에 불립니다. `doc` 은 DoclingDocument 객체입니다.
+`post_parse` 의 `result["document"]` 는 enrichment 가 끝난 뒤 JSON 으로 바꾼 dict 라 형태가 다릅니다.
+
+```python
+    def on_docling_document(self, job, doc):
+        for item in doc.texts:
+            if item.text.startswith("부칙"):
+                item.label = "section_header"   # 헤딩 레벨 보정
+        return doc
+```
+
+돌려준 문서가 enrichment 로 넘어갑니다. `None` 을 돌려주면 받은 문서를 그대로 씁니다.
+enrichment 가 끝난 뒤(`post_parse`)에 표를 빼면 LLM 호출 비용은 이미 치른 뒤이므로,
+설명 대상에서 뺄 표는 여기서 손봅니다. `**kwargs` 와 `async def` 는 다른 훅과 같이 쓸 수 있습니다.
 
 ## post_parse — 산출을 손본다
 

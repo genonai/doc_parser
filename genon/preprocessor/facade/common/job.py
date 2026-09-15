@@ -11,7 +11,7 @@ docling 타입을 import 하지 않는다 — 배포본이 docling 버전에 묶
 from __future__ import annotations
 
 import inspect
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from functools import lru_cache
 from typing import Any, Callable, Optional
 
@@ -41,6 +41,11 @@ class ParseJob:
     def __post_init__(self):
         if not self.source:
             self.source = self.file_path
+
+
+def with_params(job: ParseJob, params: dict, ctx: Optional[dict] = None) -> ParseJob:
+    """params(와 ctx)만 바꾼 사본. 옛 시그니처 라우트가 넘긴 kwargs 를 그대로 쓰기 위해 둔다."""
+    return replace(job, params=params, ctx=job.ctx if ctx is None else ctx)
 
 
 @lru_cache(maxsize=256)

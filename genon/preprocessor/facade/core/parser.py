@@ -500,6 +500,25 @@ class ParserCore:
         """
         return result
 
+    def on_docling_document(self, job, doc):
+        """[훅 메소드] 파싱 후, LLM enrichment 전. DoclingDocument 를 손본다.
+
+        헤딩 레벨 보정이나 특정 표를 enrichment 대상에서 빼는 일을 여기서 한다.
+        돌려준 문서가 enrichment 로 넘어간다. None 을 돌려주면 받은 문서를 그대로 쓴다.
+        `**kwargs`(요청 파라미터)와 `async def` 를 쓸 수 있다.
+        """
+        return doc
+
+    def _on_docling_document_active(self) -> bool:
+        return type(self).on_docling_document is not ParserCore.on_docling_document
+
+    async def _call_on_docling_document(self, job, doc):
+        """on_docling_document 를 부른다. 덮어쓰지 않았으면 부르지 않는다."""
+        if not self._on_docling_document_active():
+            return doc
+        out = await hk.call_hook(self.on_docling_document, job, doc, request_kwargs=job.params)
+        return doc if out is None else out
+
     async def run_post_parse(self, ext, doc_type, result, /, **kwargs):
         """post_parse 훅 호출부. facade 의 __call__ 이 부른다.
 
@@ -1569,12 +1588,40 @@ class ParserCore:
 
     async def _docling_response(self, doc: DoclingDocument, ctx: dict,
                                 clear_coordinates: bool = False, **kwargs) -> dict:
-        """docling 문서 → 응답. docling 을 만드는 분기 5개가 공유하는 마무리다."""
-        enrichment_context = ctx["enrichment_context"]
-        doc = await self._apply_docling_post_enrichment(
-            doc, _enrichment_context=enrichment_context, **kwargs
+        """옛 라우트 시그니처용 입구. job 을 꺼내 document_to_response 로 넘긴다.
+
+        라우트가 넘긴 kwargs 를 그대로 쓰도록 job 의 params 만 바꾼 사본을 만든다.
+        run 을 거치지 않고 직접 부른 경우(단위 테스트)에는 ctx 로 job 을 새로 만든다.
+        """
+        base = ctx.get("job")
+        if base is None:
+            job = jb.ParseJob(request=None, file_path="", ext="",
+                              doc_type=self.resolve_doc_type(**kwargs), params=kwargs, ctx=ctx)
+        else:
+            job = jb.with_params(base, kwargs, ctx)
+        return await self.document_to_response(job, doc, clear_coordinates=clear_coordinates)
+
+    async def document_to_response(self, job, doc: DoclingDocument,
+                                   clear_coordinates: bool = False) -> dict:
+        """docling 문서 → 응답. 문서형 라우트가 공유하는 마무리다.
+
+        메소드 호출 순서 유지 필수. 훅 메소드가 enrichment 전에 문서를 손봐야 고친 헤딩이나
+        enrichment 대상에서 뺀 표가 LLM 호출에 반영된다.
+        """
+        doc = await self._call_on_docling_document(job, doc)
+        doc = await self.enrich(job, doc)
+        return self.build_response(job, doc, clear_coordinates=clear_coordinates)
+
+    async def enrich(self, job, doc: DoclingDocument) -> DoclingDocument:
+        """LLM enrichment. 문서 요약, 이미지·표 설명, custom_fields·metadata 추출."""
+        return await self._apply_docling_post_enrichment(
+            doc, _enrichment_context=job.ctx["enrichment_context"], **job.params
         )
-        result = self._build_docling_response(doc, clear_coordinates=clear_coordinates, **kwargs)
+
+    def build_response(self, job, doc: DoclingDocument, clear_coordinates: bool = False) -> dict:
+        """응답 dict 를 조립한다. enrichment 가 채운 문서 단위 metadata 를 응답에 싣는다."""
+        result = self._build_docling_response(doc, clear_coordinates=clear_coordinates, **job.params)
+        enrichment_context = job.ctx["enrichment_context"]
         if enrichment_context.get("metadata"):
             result["metadata"] = enrichment_context["metadata"]
         return result
@@ -1656,9 +1703,7 @@ class ParserCore:
 
     async def route_hwp(self, job) -> dict:
         # .hml(HWPML)은 hwp_sdk 260713+ 에서 지원 — 같은 SDK 경로로 라우팅 (이슈 #323)
-        return await self._docling_response(
-            self._parse_hwp_hwpx(job.source, **job.params), job.ctx, **job.params
-        )
+        return await self.document_to_response(job, self._parse_hwp_hwpx(job.source, **job.params))
 
     async def route_docx(self, file_path: str, ext: str, ctx: dict, **kwargs) -> dict:
         return await self._docling_response(
@@ -1977,7 +2022,7 @@ class ParserCore:
 
             # 분기 사이에 공유되는 상태. enrichment_context 는 후처리가 채워 응답 metadata 로 나간다.
             job.source = file_path
-            job.ctx = {"enrichment_context": {}, "artifacts_source": artifacts_source}
+            job.ctx = {"enrichment_context": {}, "artifacts_source": artifacts_source, "job": job}
             return await self._call_route(job)
         finally:
             if alias_tmp is not None:

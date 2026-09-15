@@ -652,8 +652,8 @@ async def test_route_hwp_passes_the_same_arguments_as_before(tmp_path: Path):
             calls["parse"] = (file_path, kwargs)
             return "DOC"
 
-        async def _docling_response(self, doc, ctx, clear_coordinates=False, **kwargs):
-            calls["response"] = (doc, ctx, clear_coordinates, kwargs)
+        async def document_to_response(self, job, doc, clear_coordinates=False):
+            calls["response"] = (job, doc, clear_coordinates)
             return {"elements": tb.make_elements(["hwp"])}
 
     params = {"doc_type": "t", "tenant": "A"}
@@ -664,7 +664,100 @@ async def test_route_hwp_passes_the_same_arguments_as_before(tmp_path: Path):
     await _bare(_P).route_hwp(job)
     # 파싱 대상은 원본이 아니라 source(별칭 사본·파생 파일)다 — 옛 run 이 넘기던 file_path 와 같다.
     assert calls["parse"] == (str(tmp_path / "alias.hwp"), params)
-    assert calls["response"] == ("DOC", job.ctx, False, params)
+    assert calls["response"] == (job, "DOC", False)
+
+
+@pytest.mark.asyncio
+async def test_legacy_route_ctx_carries_the_job(tmp_path: Path):
+    """옛 시그니처 라우트도 ctx["job"] 으로 같은 job 에 닿는다 — 문서형 응답이 이것으로 훅 메소드를 부른다."""
+    src = tmp_path / "app.log"
+    src.write_text("a\n", encoding="utf-8")
+    seen = {}
+
+    class _P(parser_facade.DocumentProcessor):
+        ROUTES = (((".log",), "route_log"),) + parser_facade.DocumentProcessor.ROUTES
+
+        async def route_log(self, file_path, ext, ctx, **kwargs):
+            seen["job"] = ctx.get("job")
+            return {"elements": tb.make_elements(["x"])}
+
+    await _routable(_P)(None, str(src), doc_type="notice")
+    assert seen["job"].ext == ".log" and seen["job"].ctx.get("job") is seen["job"]
+
+
+# ---------------------------------------------------------------------------
+# on_docling_document — 파싱 후 enrichment 전 문서를 손보는 훅 메소드
+# ---------------------------------------------------------------------------
+
+class _ResponseRecorder(parser_facade.DocumentProcessor):
+    """enrichment 와 응답 조립을 가로채 받은 인자와 호출 순서만 기록한다."""
+
+    async def _apply_docling_post_enrichment(self, document, **kwargs):
+        self.calls.append(("enrich", document, kwargs))
+        return document + "+enriched"
+
+    def _build_docling_response(self, doc, clear_coordinates=False, **kwargs):
+        self.calls.append(("build", doc, clear_coordinates, kwargs))
+        return {"doc": doc}
+
+
+def _recorder(cls=_ResponseRecorder):
+    proc = _bare(cls)
+    proc.calls = []
+    return proc
+
+
+@pytest.mark.asyncio
+async def test_docling_response_keeps_the_same_enrichment_and_build_arguments():
+    """옛 라우트가 부르는 _docling_response 는 enrichment·응답 조립에 분해 전과 같은 인자를 넘긴다."""
+    proc = _recorder()
+    ctx = {"enrichment_context": {"metadata": {"K": 1}}, "artifacts_source": None}
+    out = await proc._docling_response("DOC", ctx, clear_coordinates=True, doc_type="t", tenant="A")
+    assert proc.calls == [
+        ("enrich", "DOC", {"_enrichment_context": ctx["enrichment_context"],
+                           "doc_type": "t", "tenant": "A"}),
+        ("build", "DOC+enriched", True, {"doc_type": "t", "tenant": "A"}),
+    ]
+    assert out == {"doc": "DOC+enriched", "metadata": {"K": 1}}
+
+
+@pytest.mark.asyncio
+async def test_on_docling_document_runs_before_enrichment():
+    class _P(_ResponseRecorder):
+        def on_docling_document(self, job, doc):
+            self.calls.append(("hook", doc, job.params.get("tenant")))
+            return doc + "+hooked"
+
+    proc = _recorder(_P)
+    base = core_parser.jb.ParseJob(request=None, file_path="a.md", ext=".md", doc_type="t",
+                                   params={"tenant": "B"})
+    ctx = {"enrichment_context": {}, "artifacts_source": None, "job": base}
+    await proc._docling_response("DOC", ctx, tenant="A")
+    assert [c[0] for c in proc.calls] == ["hook", "enrich", "build"]
+    assert proc.calls[0] == ("hook", "DOC", "A")   # 라우트가 넘긴 kwargs 가 job.params 가 된다
+    assert proc.calls[1][1] == "DOC+hooked"
+
+
+@pytest.mark.asyncio
+async def test_on_docling_document_returning_none_keeps_the_document():
+    class _P(_ResponseRecorder):
+        def on_docling_document(self, job, doc):
+            pass
+
+    proc = _recorder(_P)
+    await proc._docling_response("DOC", {"enrichment_context": {}}, doc_type="t")
+    assert proc.calls[0][1] == "DOC"
+
+
+@pytest.mark.asyncio
+async def test_async_on_docling_document_is_awaited():
+    class _P(_ResponseRecorder):
+        async def on_docling_document(self, job, doc):
+            return doc + "+async"
+
+    proc = _recorder(_P)
+    await proc._docling_response("DOC", {"enrichment_context": {}}, doc_type="t")
+    assert proc.calls[0][1] == "DOC+async"
 
 
 # ---------------------------------------------------------------------------
