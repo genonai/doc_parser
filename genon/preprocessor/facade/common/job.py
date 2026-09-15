@@ -11,6 +11,7 @@ docling 타입을 import 하지 않는다 — 배포본이 docling 버전에 묶
 from __future__ import annotations
 
 import inspect
+import tempfile
 from dataclasses import dataclass, field, replace
 from functools import lru_cache
 from typing import Any, Callable, Optional
@@ -27,6 +28,9 @@ class ParseJob:
     params     요청 파라미터(kwargs)
     ctx        라우트 사이 공유 상태(enrichment_context, artifacts_source)
     notes      훅 메소드 사이 값 전달용 dict
+
+    temp_dir() 로 만든 임시 디렉터리는 요청이 끝날 때 close() 가 지운다. params 만 바꾼 사본
+    (with_params)과 목록을 공유하므로 사본에서 만든 디렉터리도 함께 지워진다.
     """
 
     request: Any
@@ -37,10 +41,22 @@ class ParseJob:
     source: str = ""
     ctx: dict = field(default_factory=dict)
     notes: dict = field(default_factory=dict)
+    _temp_dirs: list = field(default_factory=list, repr=False)
 
     def __post_init__(self):
         if not self.source:
             self.source = self.file_path
+
+    def temp_dir(self, prefix: str) -> str:
+        """요청이 끝날 때 지워지는 임시 디렉터리를 만든다."""
+        tmp = tempfile.TemporaryDirectory(prefix=prefix)
+        self._temp_dirs.append(tmp)
+        return tmp.name
+
+    def close(self) -> None:
+        """이 요청이 만든 임시 디렉터리를 모두 지운다."""
+        while self._temp_dirs:
+            self._temp_dirs.pop().cleanup()
 
 
 def with_params(job: ParseJob, params: dict, ctx: Optional[dict] = None) -> ParseJob:

@@ -685,6 +685,29 @@ async def test_legacy_route_ctx_carries_the_job(tmp_path: Path):
     assert seen["job"].ext == ".log" and seen["job"].ctx.get("job") is seen["job"]
 
 
+@pytest.mark.asyncio
+async def test_job_temp_dirs_are_removed_when_the_request_ends(tmp_path: Path):
+    """라우트가 job.temp_dir() 로 만든 파생 파일은 요청이 끝나면 지워진다 — 성공·실패 모두."""
+    src = tmp_path / "app.log"
+    src.write_text("a\n", encoding="utf-8")
+    made = []
+
+    class _P(parser_facade.DocumentProcessor):
+        ROUTES = (((".log",), "route_log"),) + parser_facade.DocumentProcessor.ROUTES
+
+        async def route_log(self, job):
+            made.append(Path(job.temp_dir("t_")))
+            assert made[-1].is_dir()
+            if job.params.get("fail"):
+                raise RuntimeError("boom")
+            return {"elements": tb.make_elements(["x"])}
+
+    await _routable(_P)(None, str(src))
+    with pytest.raises(RuntimeError):
+        await _routable(_P)(None, str(src), fail=True)
+    assert len(made) == 2 and not any(p.exists() for p in made)
+
+
 # ---------------------------------------------------------------------------
 # on_docling_document — 파싱 후 enrichment 전 문서를 손보는 훅 메소드
 # ---------------------------------------------------------------------------

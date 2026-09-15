@@ -1633,27 +1633,68 @@ class ParserCore:
         return self._audio_to_parse_format(text)
 
     async def route_tabular(self, job) -> dict:
-        file_path, ctx, kwargs = job.source, job.ctx, job.params
         # doc_type 은 "행을 어떻게 나눌지"가 아니라 "행 컬럼을 어떤 목표필드로 매핑할지"에만
         # 쓴다. 행 분할 여부는 formats.xlsx.processing_mode 가 결정한다.
         # 단, enrichment.custom_fields 의 tabular_mapping 이 doc_type 과 매칭되면 행별 매핑이
         # 목적이므로 processing_mode 와 무관하게 우선한다(intelligent._process_xlsx 와 동일).
-        runtime_doc_type = normalize_doc_type(kwargs.get("doc_type"))
-        matching_mappers = [
-            mapper for mapper in self._tabular_custom_fields_mappers
-            if mapper.matches(runtime_doc_type)
-        ]
-        # 격자 훅. 세 갈래(레코드 매핑 / docling / tabular)가 모두 여기를 지난다.
-        # 훅을 안 덮어썼으면 openpyxl 로 읽는 비용조차 치르지 않는다.
-        with tempfile.TemporaryDirectory(prefix="parser_xlsx_") as work_dir:
-            sheets_with_merges, changed = await self._hook_tabular_sheets(
-                file_path, work_dir, **kwargs)
-            if changed and self._xlsx_cfg["processing_mode"] == "docling":
-                # docling 백엔드는 파일을 요구한다. 격자가 바뀐 경우에만 파생본을 쓴다.
-                file_path = xp.sheets_to_xlsx(
-                    {n: rows for n, (rows, _m) in sheets_with_merges.items()}, work_dir)
-            return await self._route_tabular_inner(
-                file_path, ctx, runtime_doc_type, matching_mappers, sheets_with_merges, **kwargs)
+        sheets = await self.read_sheets(job)
+        if self.has_sheet_mapping(job):
+            return await self.records_to_response(job, await self.map_sheet_records(job, sheets))
+        # docling 모드: MsExcel/Csv 백엔드로 DoclingDocument 생성 후 parse-JSON 직렬화.
+        # 다른 문서 포맷과 같은 후처리 훅을 태운다 — 이 경로를 건너뛰면 xlsx 만
+        # 문서 단위 custom_fields(extractor: llm)·metadata·doc_type 스탬프를
+        # 설정으로 켤 수 없게 된다.
+        if self.uses_sheet_as_document(job):
+            return await self.document_to_response(job, self.parse_sheets(job, sheets))
+        # tabular 모드(기본): openpyxl 병합셀 처리 → 데이터 행마다 element 하나.
+        # docling 문서를 만들지 않으므로 표 설명만 레코드 경로와 같은 훅으로 넣는다
+        # (custom_fields 매핑 경로와 동일하게 맞춘다).
+        # TODO(#315): PII 마스킹 미적용(보류) — tabular 산출은 별도 논의 후 적용.
+        return await self.records_to_response(job, self.sheets_to_records(job, sheets))
+
+    async def read_sheets(self, job):
+        """엑셀·CSV 를 시트 격자로 읽고 pre_parse(.xlsx) 훅을 태운다.
+
+        훅을 안 덮어썼으면 읽지 않고 None 을 돌려준다 — 뒤 단계가 파일에서 직접 읽는다.
+        docling 모드에서 훅이 격자를 바꿨으면 파생 xlsx 를 job 임시 디렉터리에 쓰고
+        job.source 를 그 경로로 바꾼다(docling 백엔드는 파일을 요구한다).
+        """
+        work_dir = job.temp_dir("parser_xlsx_")
+        sheets_with_merges, changed = await self._hook_tabular_sheets(
+            job.source, work_dir, **job.params)
+        if changed and self._xlsx_cfg["processing_mode"] == "docling":
+            job.source = xp.sheets_to_xlsx(
+                {n: rows for n, (rows, _m) in sheets_with_merges.items()}, work_dir)
+        return sheets_with_merges
+
+    def _tabular_mappers(self, job) -> list:
+        runtime_doc_type = normalize_doc_type(job.params.get("doc_type"))
+        return [mapper for mapper in self._tabular_custom_fields_mappers
+                if mapper.matches(runtime_doc_type)]
+
+    def has_sheet_mapping(self, job) -> bool:
+        """doc_type 에 표 행 매핑(tabular_mapping) 설정이 매칭되는가."""
+        return bool(self._tabular_mappers(job))
+
+    async def map_sheet_records(self, job, sheets) -> dict:
+        """시트 행을 설정의 목표필드로 매핑한 행형 산출을 만든다."""
+        return await self._parse_tabular_records(
+            job.source, self._tabular_mappers(job),
+            normalize_doc_type(job.params.get("doc_type")), sheets,
+        )
+
+    def uses_sheet_as_document(self, job) -> bool:
+        """formats.xlsx.processing_mode=docling 이면 시트를 문서로 파싱한다."""
+        return self._xlsx_cfg["processing_mode"] == "docling"
+
+    def parse_sheets(self, job, sheets) -> DoclingDocument:
+        """시트를 docling 문서로 파싱한다(MsExcel/Csv 백엔드)."""
+        from genon.preprocessor.converters.xlsx_processor import build_docling_document
+        return build_docling_document(job.source)
+
+    def sheets_to_records(self, job, sheets) -> dict:
+        """openpyxl 병합셀 처리 → 데이터 행마다 element 하나인 행형 산출."""
+        return self._tabular_to_parse_format(self._parse_tabular(job.source, sheets))
 
     async def _hook_tabular_sheets(self, file_path: str, work_dir: str, **kwargs):
         """pre_parse(.xlsx) 를 격자로 부른다. (격자, 바뀌었는지) 를 돌려준다.
@@ -1678,31 +1719,6 @@ class ParserCore:
             return original, False
         return xp.merge_hook_sheets(original, xp.normalize_sheets(hooked)), True
 
-    async def _route_tabular_inner(self, file_path, ctx, runtime_doc_type,
-                                   matching_mappers, sheets_with_merges, **kwargs) -> dict:
-        if matching_mappers:
-            result = await self._parse_tabular_records(
-                file_path, matching_mappers, runtime_doc_type, sheets_with_merges
-            )
-            return await self._describe_record_tables(result, **kwargs)
-        # docling 모드: MsExcel/Csv 백엔드로 DoclingDocument 생성 후 parse-JSON 직렬화.
-        # 다른 문서 포맷과 같은 후처리 훅을 태운다 — 이 경로를 건너뛰면 xlsx 만
-        # 문서 단위 custom_fields(extractor: llm)·metadata·doc_type 스탬프를
-        # 설정으로 켤 수 없게 된다.
-        if self._xlsx_cfg["processing_mode"] == "docling":
-            from genon.preprocessor.converters.xlsx_processor import build_docling_document
-            return await self._docling_response(
-                build_docling_document(file_path), ctx, **kwargs
-            )
-        # tabular 모드(기본): openpyxl 병합셀 처리 → 데이터 행마다 element 하나.
-        # docling 문서를 만들지 않으므로 표 설명만 레코드 경로와 같은 훅으로 넣는다
-        # (custom_fields 매핑 경로와 동일하게 맞춘다).
-        # TODO(#315): PII 마스킹 미적용(보류) — tabular 산출은 별도 논의 후 적용.
-        return await self._describe_record_tables(
-            self._tabular_to_parse_format(
-                self._parse_tabular(file_path, sheets_with_merges)), **kwargs,
-        )
-
     async def route_hwp(self, job) -> dict:
         # .hml(HWPML)은 hwp_sdk 260713+ 에서 지원 — 같은 SDK 경로로 라우팅 (이슈 #323)
         return await self.document_to_response(job, self.parse_hwp(job))
@@ -1724,92 +1740,79 @@ class ParserCore:
         .md 는 formats.md.processing_mode=docling(기본)일 때만 여기서 처리하고,
         text 모드면 None 을 돌려 캐치올(TextLoader)로 넘긴다 — 레거시 동작 보존.
         """
-        file_path, ext, ctx, kwargs = job.source, job.ext, job.ctx, job.params
-        if ext == ".md" and self._md_cfg["processing_mode"] != "docling":
+        if job.ext == ".md" and not self.md_uses_layout(job):
             return None
+        prepared = await self.prepare_input(job)
+        doc = self.parse_document(job, prepared)
+        return await self.document_to_response(job, doc)
 
-        enrichment_context = ctx["enrichment_context"]
-        artifacts_source = ctx["artifacts_source"]
+    def md_uses_layout(self, job) -> bool:
+        """formats.md.processing_mode=docling 이면 md 를 레이아웃 분석 경로로 파싱한다."""
+        return self._md_cfg["processing_mode"] == "docling"
+
+    async def prepare_input(self, job) -> dict:
+        """docling 에 넘길 입력을 준비한다. 원문 훅(pre_parse), html flatten, md 전처리.
+
+        파생 파일은 job 임시 디렉터리에 쓰고 요청이 끝날 때 지운다. 반환값은 parse_document 가 받는다.
+          path            docling 에 넘길 경로
+          artifacts_from  이미지 artifacts 경로 기준(원본). None 이면 path 기준
+          origin          전처리 전 경로(원문 훅 반영 후)
+        md 전처리가 뽑은 front matter 는 job.params 에 실어 enrichment·응답까지 넘긴다.
+        """
+        path, ext = job.source, job.ext
+        artifacts_source = job.ctx["artifacts_source"]
+        doc_type = job.params.get("doc_type")
 
         # 원문 텍스트 훅. 훅을 안 덮어썼으면 파일을 읽지도 않는다.
         # 훅이 텍스트를 바꾸면 파생 파일로 파싱하고 artifacts 기준은 원본으로 남긴다.
-        hook_tmp = None
         if ext in (".html", ".htm", ".md") and self._pre_parse_active():
             try:
-                _raw = read_text_with_fallback(file_path)
+                raw = read_text_with_fallback(path)
             except OSError:
-                _raw = None
-            if _raw is not None:
-                _new, _changed = await self._hook_pre_parse(ext, kwargs, _raw)
-                if _changed:
-                    hook_tmp = tempfile.TemporaryDirectory(prefix="parser_hook_")
-                    artifacts_source = artifacts_source or file_path
-                    file_path = _write_derived(hook_tmp.name, file_path, ext, _new)
-        try:
-            return await self._route_docling_inner(
-                file_path, ext, ctx, enrichment_context, artifacts_source, **kwargs)
-        finally:
-            if hook_tmp is not None:
-                hook_tmp.cleanup()
+                raw = None
+            if raw is not None:
+                new, changed = await self._hook_pre_parse(ext, job.params, raw)
+                if changed:
+                    artifacts_source = artifacts_source or path
+                    path = _write_derived(job.temp_dir("parser_hook_"), path, ext, new)
 
-    async def _route_docling_inner(self, file_path, ext, ctx, enrichment_context,
-                                   artifacts_source, **kwargs):
         if ext in (".html", ".htm"):
-            # html 은 flatten 전처리를 거칠 수 있다(srcdoc 등). 파생 임시 파일은
-            # 파싱 후 정리하고, artifacts 경로는 원본 기준으로 유지한다.
-            with tempfile.TemporaryDirectory(prefix="parser_html_") as work_dir:
-                parse_path = self._prepare_html(
-                    file_path, work_dir,
-                    marker_headings=self._html_marker_headings_enabled(kwargs.get("doc_type")),
-                )
-                doc = self._parse_docling(
-                    parse_path,
-                    artifacts_from=artifacts_source or (
-                        file_path if parse_path != file_path else None
-                    ),
-                    _enrichment_context=enrichment_context,
-                    **kwargs,
-                )
-            self._warn_if_thin_html(file_path, doc)
+            # html 은 flatten 전처리를 거칠 수 있다(srcdoc 등). artifacts 경로는 원본 기준으로 유지한다.
+            parse_path = self._prepare_html(
+                path, job.temp_dir("parser_html_"),
+                marker_headings=self._html_marker_headings_enabled(doc_type),
+            )
+            artifacts_from = artifacts_source or (path if parse_path != path else None)
         elif ext == ".md":
-            fm_spec = self._markdown_front_matter_spec_for(kwargs.get("doc_type"))
-            fence_spec = self._markdown_text_fence_spec_for(kwargs.get("doc_type"))
-            marker_on = self._markdown_marker_headings_enabled(kwargs.get("doc_type"))
+            fm_spec = self._markdown_front_matter_spec_for(doc_type)
+            fence_spec = self._markdown_text_fence_spec_for(doc_type)
+            marker_on = self._markdown_marker_headings_enabled(doc_type)
             if fm_spec is None and fence_spec is None and not marker_on:
-                doc = self._parse_docling(
-                    file_path,
-                    artifacts_from=artifacts_source,
-                    _enrichment_context=enrichment_context,
-                    **kwargs,
-                )
+                parse_path, artifacts_from = path, artifacts_source
             else:
                 # front matter를 제외하거나 ```text 펜스를 단락으로 되돌린 파생
                 # Markdown은 임시 파일로만 사용한다. 선택 metadata와 제외된 원문은
                 # custom-fields 후처리에 별도 전달한다.
-                with tempfile.TemporaryDirectory(prefix="parser_md_") as work_dir:
-                    parse_path, front_matter_context = self._prepare_markdown(
-                        file_path, work_dir, fm_spec, fence_spec, marker_on
-                    )
-                    markdown_kwargs = dict(kwargs)
-                    markdown_kwargs["_markdown_front_matter"] = front_matter_context
-                    doc = self._parse_docling(
-                        parse_path,
-                        artifacts_from=artifacts_source or (
-                            file_path if parse_path != file_path else None
-                        ),
-                        _enrichment_context=enrichment_context,
-                        **markdown_kwargs,
-                    )
-                kwargs = dict(kwargs)
-                kwargs["_markdown_front_matter"] = front_matter_context
+                parse_path, front_matter_context = self._prepare_markdown(
+                    path, job.temp_dir("parser_md_"), fm_spec, fence_spec, marker_on
+                )
+                artifacts_from = artifacts_source or (path if parse_path != path else None)
+                job.params = {**job.params, "_markdown_front_matter": front_matter_context}
         else:
-            doc = self._parse_docling(
-                file_path,
-                artifacts_from=artifacts_source,
-                _enrichment_context=enrichment_context,
-                **kwargs,
-            )
-        return await self._docling_response(doc, ctx, **kwargs)
+            parse_path, artifacts_from = path, artifacts_source
+        return {"path": parse_path, "artifacts_from": artifacts_from, "origin": path}
+
+    def parse_document(self, job, prepared: dict) -> DoclingDocument:
+        """준비된 입력을 docling 으로 파싱한다(레이아웃 분석, OCR, 표 구조 인식)."""
+        doc = self._parse_docling(
+            prepared["path"],
+            artifacts_from=prepared["artifacts_from"],
+            _enrichment_context=job.ctx["enrichment_context"],
+            **job.params,
+        )
+        if job.ext in (".html", ".htm"):
+            self._warn_if_thin_html(prepared["origin"], doc)
+        return doc
 
     async def _route_delimited_records(self, file_path: str, ext: str, ctx: dict, **kwargs):
         """`source.pre.delimited` 매핑을 ROUTES(확장자 분기)보다 먼저 가로챈다.
@@ -2028,6 +2031,7 @@ class ParserCore:
             dir=(str(kwargs["pdf_dir"]).strip() if kwargs.get("pdf_dir") else None),
         )
         kwargs["_pdf_policy"] = pdf_policy
+        job = None
         try:
             job = self._start_job(request, file_path, **kwargs)
             ext = job.ext
@@ -2062,6 +2066,8 @@ class ParserCore:
             job.ctx = {"enrichment_context": {}, "artifacts_source": artifacts_source, "job": job}
             return await self._call_route(job)
         finally:
+            if job is not None:
+                job.close()   # 라우트가 job.temp_dir() 로 만든 파생 파일
             if alias_tmp is not None:
                 alias_tmp.cleanup()
             if hook_tmp is not None:
