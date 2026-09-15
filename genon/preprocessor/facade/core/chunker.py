@@ -107,6 +107,7 @@ from genon.preprocessor.facade.enrichment.field_transforms import (
 )
 from genon.preprocessor.facade.chunking import text_norm as tn
 from genon.preprocessor.facade.common import hooks as hk
+from genon.preprocessor.facade.common import job as jb
 
 try:
     import semchunk
@@ -1227,6 +1228,61 @@ class ChunkerCore:
         """post_chunk 훅 호출부. facade 의 __call__ 이 부른다."""
         return await hk.call_hook(self.post_chunk, vectors, request_kwargs=kwargs)
 
+    def _start_chunk_job(self, request, file_path: str, src: "ChunkInput", params: dict) -> "jb.ChunkJob":
+        """load_input 산출과 요청 파라미터를 job 하나로 묶는다."""
+        return jb.ChunkJob(
+            request=request, file_path=file_path, kind=src.kind, data=src.data,
+            guardrail=src.guardrail, doc_type=params.get("doc_type"), params=params,
+        )
+
+    async def split(self, job) -> list:
+        """입력 형식별 분할. 문서형은 DocChunk 목록, 행형은 element 목록을 돌려준다."""
+        if job.kind == "docling":
+            return self.split_document(job)
+        return self.split_records(job)
+
+    def split_document(self, job) -> List[DocChunk]:
+        """docling 산출을 DoclingDocument 로 복원해 GenosSmartChunker 로 자른다.
+
+        복원한 문서는 벡터 조합이 다시 쓰므로 job.document 에 담는다.
+        """
+        # docling 원본 JSON → DoclingDocument 복원 (parser output.format='docling' 와 round-trip).
+        try:
+            if isinstance(job.data, DoclingDocument):
+                document: DoclingDocument = job.data
+            else:
+                document: DoclingDocument = DoclingDocument.model_validate(job.data)
+        except Exception as exc:
+            raise GenosServiceException(1, f"docling document 복원 실패: {exc}") from exc
+
+        # 요청별 상태 초기화 (싱글턴 프로세서 재사용 간 page_chunk_counts 누적 방지).
+        self.page_chunk_counts = defaultdict(int)
+
+        has_text_items = False
+        for item, _ in document.iterate_items():
+            if (isinstance(item, (TextItem, ListItem, CodeItem, SectionHeaderItem)) and item.text and item.text.strip()) or (isinstance(item, TableItem) and item.data and len(item.data.table_cells) == 0):
+                has_text_items = True
+                break
+
+        if not has_text_items:
+            # text item 이 없으면 split 결과가 비므로 최소 text item 을 추가 (intelligent 와 동일 로직).
+            prov = ProvenanceItem(
+                page_no=1,
+                bbox=BoundingBox(l=0, t=0, r=1, b=1),  # 최소 bbox
+                charspan=(0, 1),
+            )
+            document.add_text(label=DocItemLabel.TEXT, text=".", prov=prov)
+
+        chunks: List[DocChunk] = self.split_documents(document, **job.params)
+        if len(chunks) < 1:
+            raise GenosServiceException(1, "chunk length is 0")
+        job.document = document
+        return chunks
+
+    def split_records(self, job) -> list:
+        """행형 입력은 element 목록을 그대로 넘긴다 — 분할은 경로별 청킹이 맡는다."""
+        return job.data
+
     async def chunk(self, request: Request, file_path: str, src: "ChunkInput", **kwargs):
         """분할과 벡터 조합. 입력 판별은 load_input 이 이미 끝냈다."""
 
@@ -1247,46 +1303,16 @@ class ChunkerCore:
         for _k in ("interim_ref", "interim_root", "llm_cache", "error_policy", "request_deadline", "workflow_id", "run_id"):
             kwargs.pop(_k, None)
         try:
-            kind, data, _gr_kwargs = src.kind, src.data, src.guardrail
-            if kind == "parse":
+            job = self._start_chunk_job(request, file_path, src, kwargs)
+            chunks = await self.split(job)
+            if job.kind == "parse":
                 # parse-format(비-docling): legacy(attachment) 와 동일하게 공통 청킹.
-                vectors = await self._chunk_parse_format(data, **_gr_kwargs, **kwargs)
+                vectors = await self._chunk_parse_format(chunks, **job.guardrail, **job.params)
                 if not vectors:
                     raise GenosServiceException(1, "chunk length is 0")
             else:
-                # docling 원본 JSON → DoclingDocument 복원 (parser output.format='docling' 와 round-trip).
-                try:
-                    if isinstance(data, DoclingDocument):
-                        document: DoclingDocument = data
-                    else:
-                        document: DoclingDocument = DoclingDocument.model_validate(data)
-                except Exception as exc:
-                    raise GenosServiceException(1, f"docling document 복원 실패: {exc}") from exc
-
-                # 요청별 상태 초기화 (싱글턴 프로세서 재사용 간 page_chunk_counts 누적 방지).
-                self.page_chunk_counts = defaultdict(int)
-
-                has_text_items = False
-                for item, _ in document.iterate_items():
-                    if (isinstance(item, (TextItem, ListItem, CodeItem, SectionHeaderItem)) and item.text and item.text.strip()) or (isinstance(item, TableItem) and item.data and len(item.data.table_cells) == 0):
-                        has_text_items = True
-                        break
-
-                if not has_text_items:
-                    # text item 이 없으면 split 결과가 비므로 최소 text item 을 추가 (intelligent 와 동일 로직).
-                    prov = ProvenanceItem(
-                        page_no=1,
-                        bbox=BoundingBox(l=0, t=0, r=1, b=1),  # 최소 bbox
-                        charspan=(0, 1),
-                    )
-                    document.add_text(label=DocItemLabel.TEXT, text=".", prov=prov)
-
-                chunks: List[DocChunk] = self.split_documents(document, **kwargs)
-                if len(chunks) < 1:
-                    raise GenosServiceException(1, "chunk length is 0")
-
                 vectors: list[dict] = await self.compose_vectors(
-                    document, chunks, file_path, request, **_gr_kwargs, **kwargs,
+                    job.document, chunks, file_path, request, **job.guardrail, **job.params,
                 )
 
             # 벡터 file_path 메타를 입력 file_path 로 채운다(compose_vectors 는 변환 PDF 경우에만

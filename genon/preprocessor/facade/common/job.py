@@ -64,6 +64,30 @@ def with_params(job: ParseJob, params: dict, ctx: Optional[dict] = None) -> Pars
     return replace(job, params=params, ctx=job.ctx if ctx is None else ctx)
 
 
+@dataclass
+class ChunkJob:
+    """청커 요청 한 건. 파서의 ParseJob 과 다른 객체다.
+
+    kind       "docling"(문서형) | "parse"(행형)
+    data       파서 결과. 문서형은 DoclingDocument 또는 직렬화한 dict, 행형은 list[dict]
+    params     요청 파라미터(kwargs)
+    guardrail  민감정보 컨텍스트(#315). core 가 청킹 단계로 그대로 넘긴다
+    doc_type   요청이 선언한 문서 유형
+    document   split_document 가 복원한 DoclingDocument. 벡터 조합이 다시 쓴다
+    notes      훅 메소드 사이 값 전달용 dict
+    """
+
+    request: Any = None
+    file_path: str = ""
+    kind: str = ""
+    data: Any = None
+    params: dict = field(default_factory=dict)
+    guardrail: dict = field(default_factory=dict)
+    doc_type: Optional[str] = None
+    document: Any = None
+    notes: dict = field(default_factory=dict)
+
+
 @lru_cache(maxsize=256)
 def _first_param(func: Callable) -> Optional[str]:
     try:
