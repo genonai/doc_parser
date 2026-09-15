@@ -440,11 +440,21 @@ class ChunkerCore:
 
     async def chunks_to_vector_metas(self, job, chunks: List[DocChunk],
                                      converted_pdf_path: Optional[str] = None) -> list[dict]:
-        """청크 목록을 vector_meta 목록으로 변환한다.
+        """청크 목록을 vector_meta 목록으로 변환한다. 입력 형식과 관계없이 이 메소드가 입구다.
 
         메소드 호출 순서 유지 필수. 표기형태 변형은 마스킹 전 텍스트에서 만들고, 마스킹은
         정제보다 앞이다 — 순서를 바꾸면 가려 놓은 값이 변형 필드나 통계로 새어 나간다.
+
+        행형(엑셀 행·JSON 레코드·평문)은 아직 경로별 청킹이 분할과 필드 조립을 함께 한다.
+        공통 chunk 객체로 모으는 것은 다음 단계다.
         """
+        if job.kind != "docling":
+            # parse-format(비-docling): legacy(attachment) 와 동일하게 공통 청킹.
+            vector_metas = await self._chunk_parse_format(chunks, **job.params)
+            if not vector_metas:
+                raise GenosServiceException(1, "chunk length is 0")
+            return vector_metas
+
         self._prepare_chunk_context(job, chunks, converted_pdf_path)
         notes = job.notes
         vector_metas: list = []
@@ -1372,13 +1382,7 @@ class ChunkerCore:
         try:
             job = self._start_chunk_job(request, file_path, src, kwargs)
             chunks = await self.split(job)
-            if job.kind == "parse":
-                # parse-format(비-docling): legacy(attachment) 와 동일하게 공통 청킹.
-                vectors = await self._chunk_parse_format(chunks, **job.params)
-                if not vectors:
-                    raise GenosServiceException(1, "chunk length is 0")
-            else:
-                vectors: list[dict] = await self.chunks_to_vector_metas(job, chunks)
+            vectors: list[dict] = await self.chunks_to_vector_metas(job, chunks)
 
             # 벡터 file_path 메타를 입력 file_path 로 채운다(compose_vectors 는 변환 PDF 경우에만
             # 세팅하므로, chunker 입력 경로(인라인 시 메타용 경로 / 파일 입력 시 .json 경로)를 반영).
