@@ -1337,6 +1337,63 @@ class ChunkerCore:
             applied[key] = value
         job.config = applied
 
+    def _start_job(self, request, file_path: str = "", **kwargs) -> "jb.ChunkJob":
+        """요청 한 건의 job 을 만든다. 입력 판별·캐시 컨텍스트·doc_type 별 설정까지 한다.
+
+        정리는 _call_post_chunk 가 맡는다(흐름의 마지막 단계).
+        """
+        src = self.load_input(file_path, **kwargs)
+        # 인라인 payload 는 load_input 이 이미 읽었다. 여기 남아 있으면 split/compose 로
+        # 흘러가므로 제거한다.
+        kwargs.pop("document", None)
+        kwargs.pop("docling_document", None)
+
+        # #329: /chunk 는 interim_ref(=workflow_id/run_id)로 캐시 스코프를 유도한다.
+        _wf, _run = _parse_interim_ref(kwargs.get("interim_ref"))
+        cache_token = _set_cache_context(
+            _resolve_cache_context(kwargs, workflow_id=_wf, run_id=_run)
+        )
+        # 캐시/정책 키가 split/chunks_to_vector_metas 로 누출되지 않도록 제거.
+        for _k in ("interim_ref", "interim_root", "llm_cache", "error_policy", "request_deadline", "workflow_id", "run_id"):
+            kwargs.pop(_k, None)
+
+        job = self._start_chunk_job(request, file_path, src, kwargs)
+        job.notes["cache_token"] = cache_token
+        return job
+
+    async def _call_pre_chunk(self, job):
+        """pre_chunk 훅을 부르고 분할 대상 데이터를 돌려준다."""
+        try:
+            return await hk.call_hook(
+                self.pre_chunk, job.kind, job.data, request_kwargs=job.params)
+        except BaseException:
+            self._finish_chunk_job(job)
+            raise
+
+    async def _call_post_chunk(self, job, vector_metas):
+        """post_chunk 훅을 부르고 요청 자원을 정리한다(흐름의 마지막 단계)."""
+        try:
+            # 벡터 file_path 메타를 입력 file_path 로 채운다(chunks_to_vector_metas 는 변환 PDF
+            # 경우에만 세팅하므로, chunker 입력 경로를 반영).
+            if job.file_path:
+                for vector_meta in vector_metas:
+                    if not getattr(vector_meta, "file_path", None):
+                        vector_meta.file_path = job.file_path
+            return await hk.call_hook(
+                self.post_chunk, vector_metas, request_kwargs=job.params)
+        finally:
+            self._finish_chunk_job(job)
+
+    def _finish_chunk_job(self, job) -> None:
+        """요청 스코프 자원을 정리한다. 두 번 불러도 안전하다."""
+        if job is None or job.notes.get("finished"):
+            return
+        job.notes["finished"] = True
+        _log_cache_summary()
+        cache_token = job.notes.get("cache_token")
+        if cache_token is not None:
+            _reset_cache_context(cache_token)
+
     def _start_chunk_job(self, request, file_path: str, src: "ChunkInput", params: dict) -> "jb.ChunkJob":
         """load_input 산출과 요청 파라미터를 job 하나로 묶는다."""
         job = jb.ChunkJob(

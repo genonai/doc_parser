@@ -96,8 +96,8 @@ class DocumentProcessor(ChunkerCore):
         chunk 필드는 chunk_to_vector_meta 의 docstring 을 참조한다.
         """
         if job.kind == "docling":
-            return await self.split_document(job)
-        return await self.split_records(job)
+            return self.split_document(job)      # core 의 분할은 동기다
+        return self.split_records(job)
 
     async def chunks_to_vector_metas(self, job, chunks):
         """chunk 목록을 vector_meta 목록으로 변환한다."""

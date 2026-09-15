@@ -175,8 +175,8 @@ async def test_pre_and_post_chunk_are_wired_into_call():
             seen["post"] = len(vectors)
             return vectors[:1]
 
-        async def chunk(self, request, file_path, src, **kwargs):
-            seen["to_chunk"] = len(src.data)
+        async def chunks_to_vector_metas(self, job, chunks, converted_pdf_path=None):
+            seen["to_chunk"] = len(chunks)
             return ["v1", "v2"]
 
     proc = _bare(_P)
@@ -464,8 +464,8 @@ async def test_async_chunk_hooks_are_awaited():
         async def post_chunk(self, vectors, **kwargs):
             return vectors[:1]
 
-        async def chunk(self, request, file_path, src, **kwargs):
-            return [el["content"] for el in src.data]
+        async def chunks_to_vector_metas(self, job, chunks, converted_pdf_path=None):
+            return [el["content"] for el in chunks]
 
     proc = _bare(_P)
     proc.setup_logging = lambda *_a, **_k: None
