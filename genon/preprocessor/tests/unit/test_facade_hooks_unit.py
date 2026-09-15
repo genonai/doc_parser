@@ -751,8 +751,26 @@ async def test_config_overlay_fills_only_what_the_request_did_not_send(tmp_path:
 
 
 @pytest.mark.asyncio
-async def test_config_overlay_skips_config_file_paths(tmp_path: Path, monkeypatch):
-    """점 표기(설정 파일 경로)는 아직 받지 않는다 — 조용히 무시하지 말고 경고를 남긴다."""
+async def test_config_overlay_accepts_config_file_paths(tmp_path: Path):
+    """점 표기(설정 파일 경로)는 요청 파라미터 이름으로 옮겨진다.
+
+    고객이 아는 이름은 매뉴얼에 적힌 설정 경로다. 그 이름으로 적어도 동작해야 한다.
+    """
+    src = tmp_path / "a.log"
+    src.write_text("a\n", encoding="utf-8")
+    cls = _overlay_processor({"notice": {
+        "enrichment.table_description.enable": False,   # -> table_desc
+        "ocr.ocr_mode": "force",                        # -> ocr_mode
+    }})
+
+    await _routable(cls)(None, str(src), doc_type="notice")
+    assert cls.seen["_config"] == {"table_desc": False, "ocr_mode": "force"}
+    assert cls.seen["ocr_mode"] == "force"
+
+
+@pytest.mark.asyncio
+async def test_config_overlay_warns_on_settings_it_cannot_change(tmp_path: Path, monkeypatch):
+    """요청마다 바꿀 수 없는 설정은 조용히 무시하지 말고 경고를 남긴다."""
     warned = []
     # 고객용 facade 는 genon. 절대경로로 core 를 import 한다 — 테스트가 짧은 경로로 잡은
     # core_parser 와 다른 모듈 객체라, 실제로 실행되는 쪽의 로거를 가로챈다.
@@ -760,11 +778,11 @@ async def test_config_overlay_skips_config_file_paths(tmp_path: Path, monkeypatc
     monkeypatch.setattr(core_mod._log, "warning", lambda *a, **k: warned.append(a))
     src = tmp_path / "a.log"
     src.write_text("a\n", encoding="utf-8")
-    cls = _overlay_processor({"notice": {"enrichment.table_description.enable": False}})
+    cls = _overlay_processor({"notice": {"ocr.paddle.ocr_endpoint": "http://x"}})
 
     await _routable(cls)(None, str(src), doc_type="notice")
     assert cls.seen["_config"] == {}
-    assert warned and "enrichment.table_description.enable" in str(warned[0])
+    assert warned and "ocr.paddle.ocr_endpoint" in str(warned[0])
 
 
 @pytest.mark.asyncio
@@ -789,6 +807,15 @@ async def test_config_overlay_reaches_runtime_wiring(tmp_path: Path):
     assert saw.get("table_desc") == 1   # enrichment 배선이 오버레이 값을 봤다
     # 변환 PDF 정책도 오버레이 뒤에 만들어져야 한다. 앞서 만들면 keep_pdf 가 무시된다.
     assert cls.seen["_pdf_policy"].keep is True
+
+
+def test_ocr_mode_request_parameter_beats_yaml():
+    """ocr_mode 는 기동 설정만 보던 값이었다 — 요청(그리고 오버레이)이 덮을 수 있어야 한다."""
+    resolve = core_parser.cp.resolve_ocr_mode
+    assert resolve({}, "auto") == "auto"                    # 안 보내면 yaml 값
+    assert resolve({"ocr_mode": "force"}, "auto") == "force"
+    assert resolve({"ocr_mode": "FORCE"}, "auto") == "force"  # 대소문자 무시
+    assert resolve({"ocr_mode": "zzz"}, "disable") == "disable"  # 모르는 값이면 yaml 값
 
 
 def test_chunker_config_overlay_lands_on_job_params():

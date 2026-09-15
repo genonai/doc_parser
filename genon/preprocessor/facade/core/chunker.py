@@ -1218,22 +1218,24 @@ class ChunkerCore:
 
         요청이 보낸 값이 가장 세다 — 오버레이는 요청에 없는 키만 채운다. 적용된 값은
         job.config 에 남아 "이 문서가 어떤 설정으로 처리됐는지" 를 되짚을 수 있다.
-        키는 요청 파라미터 이름이다. 설정 파일 경로(점 표기)는 받지 않는다 — 설정은 __init__ 에서
-        파생 객체로 분해되어 원본 dict 가 남지 않으므로, 점 표기를 받으려면 요청마다 그 객체들을
-        다시 만들어야 한다. 건너뛰고 경고만 남긴다.
+        키는 요청 파라미터 이름이거나 설정 파일 경로(점 표기)다. 점 표기는 cp.CONFIG_PATH_ALIASES
+        가 요청 파라미터 이름으로 옮긴다. 그 표에 없는 설정은 기동 시 파생 객체로 굳어 요청마다
+        바꿀 수 없으므로 건너뛰고 경고만 남긴다.
         """
         overlay = dict(self.CONFIG_BY_DOC_TYPE.get(job.doc_type or "", {}))
         overlay.update(self.config_by_condition(job) or {})
         applied: dict = {}
         for key, value in overlay.items():
-            if "." in key:
+            param = cp.resolve_overlay_key(key)
+            if param is None:
                 _log.warning(
-                    f"[chunker] 설정 오버레이 키를 건너뜁니다(요청 파라미터 이름이 아닙니다): {key}")
+                    f"[chunker] 설정 오버레이 키를 건너뜁니다"
+                    f"(요청마다 바꿀 수 없는 설정입니다): {key}")
                 continue
-            if key in job.params:   # 요청이 보낸 값이 우선
+            if param in job.params:   # 요청이 보낸 값이 우선
                 continue
-            job.params[key] = value
-            applied[key] = value
+            job.params[param] = value
+            applied[param] = value
         job.config = applied
 
     def _start_job(self, request, file_path: str = "", **kwargs) -> "jb.ChunkJob":

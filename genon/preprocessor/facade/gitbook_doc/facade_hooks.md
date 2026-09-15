@@ -226,23 +226,26 @@ API 라 그 값은 호출자용 정보로 끝납니다. `tb.set_chunk_metadata()
 
 ```python
     CONFIG_BY_DOC_TYPE = {
-        "press":  {"table_desc": 0},                 # 표가 없어 불필요한 LLM 호출
-        "manual": {"img_desc": 1, "chart_desc": 1},  # 이미지와 차트 설명이 중요
+        "press":    {"enrichment.table_description.enable": False},  # 표가 없어 불필요한 LLM 호출
+        "contract": {"ocr.ocr_mode": "force"},                       # 스캔본이 많다
     }
 ```
 
-키는 **요청 파라미터 이름**입니다. 값을 적으면 요청이 그 값을 보낸 것과 같게 동작합니다.
+키는 **설정 파일 경로(점 표기)** 로 씁니다. 설정 파일에 적던 이름 그대로입니다.
+같은 뜻의 요청 파라미터 이름(괄호 안)으로 써도 같게 동작합니다.
 
 | 파서 | | 청커 | |
 |---|---|---|---|
-| `table_desc` | 표 설명 | `chunk_size` | 청크 최대 크기 |
-| `img_desc` · `chart_desc` | 이미지 · 차트 설명 | `chunk_overlap` | 청크 간 겹침 |
-| `doc_summary` · `toc` | 문서 요약 · 목차 보강 | `chunk_mode` | `split_only` / `resize_all` |
-| `keep_pdf` | 변환 PDF 보존 | | |
+| `enrichment.table_description.enable` (`table_desc`) | 표 설명 | `chunking.chunk_size` (`chunk_size`) | 청크 최대 크기 |
+| `enrichment.image_description.enable` (`img_desc`) | 이미지 설명 | `chunking.recursive.chunk_overlap` (`chunk_overlap`) | 청크 간 겹침 |
+| `enrichment.doc_summary.enable` (`doc_summary`) | 문서 요약 | `chunking.chunk_mode` (`chunk_mode`) | `split_only` / `resize_all` |
+| `enrichment.toc.enable` (`toc`) | 목차 보강 | | |
+| `ocr.ocr_mode` | `auto` / `force` / `disable` | | |
+| `pdf_output.keep` (`keep_pdf`) | 변환 PDF 보존 | | |
 
-**설정 파일 경로(점 표기)는 받지 않습니다.** `"enrichment.table_description.enable"` 처럼
-적으면 건너뛰고 로그에 경고가 남습니다. 위 표의 이름을 쓰세요. 청킹 설정은 파서가 아니라
-청커의 같은 표에 적습니다.
+**모든 설정을 요청마다 바꿀 수 있는 것은 아닙니다.** 엔드포인트 주소, 프롬프트, 토크나이저
+경로처럼 기동 시 한 번 읽혀 굳는 설정은 이 표에 적어도 건너뛰고 로그에 경고가 남습니다.
+그런 값은 설정 파일에서 바꿉니다. 청킹 설정은 파서가 아니라 청커의 같은 표에 적습니다.
 
 표로 안 되는 조건은 `config_by_condition()` 에서 정합니다. 같은 형식의 dict 를 돌려주고,
 빈 dict 면 아무것도 바뀌지 않습니다.
@@ -250,7 +253,7 @@ API 라 그 값은 호출자용 정보로 끝납니다. `tb.set_chunk_metadata()
 ```python
     def config_by_condition(self, job):
         if job.params.get("dept") == "IR":
-            return {"doc_summary": 1}
+            return {"enrichment.doc_summary.enable": True}
         return {}
 ```
 

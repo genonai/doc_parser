@@ -333,6 +333,56 @@ def copy_enrichment_options(options, **updates):
         return cloned
 
 
+# ── doc_type 별 설정 오버레이 키(CONFIG_BY_DOC_TYPE) ─────────────────────────
+# 오버레이는 요청 파라미터에 값을 얹는 기구다. 그런데 고객이 아는 이름은 설정 파일의
+# 경로(점 표기)라, 매뉴얼에 쓰던 그 이름을 그대로 받아 요청 파라미터로 옮겨 준다.
+#
+# 여기 있는 것은 "요청마다 바꿀 수 있는 설정" 뿐이다. 설정 대부분은 기동 시 파생 객체로
+# 굳어(enricher, 옵션 객체, 매퍼) 요청마다 바꾸려면 그 객체를 다시 만들어야 하므로,
+# 이 표에 없는 점 표기 키는 받지 않고 경고를 남긴다.
+CONFIG_PATH_ALIASES = {
+    "enrichment.image_description.enable": "img_desc",
+    "enrichment.image_description.chart.enable": "chart_desc",
+    "enrichment.image_description.chart.detection": "chart_detection",
+    "enrichment.table_description.enable": "table_desc",
+    "enrichment.table_description.refine.enable": "table_refine",
+    "enrichment.doc_summary.enable": "doc_summary",
+    "enrichment.toc.enable": "toc",
+    "ocr.ocr_mode": "ocr_mode",
+    "chunking.chunk_size": "chunk_size",
+    "chunking.chunk_mode": "chunk_mode",
+    "chunking.recursive.chunk_overlap": "chunk_overlap",
+    "pdf_output.keep": "keep_pdf",
+    "pdf_output.dir": "pdf_dir",
+}
+
+
+def resolve_overlay_key(key: str) -> str | None:
+    """오버레이 키를 요청 파라미터 이름으로 바꾼다. 바꿀 수 없으면 None.
+
+    점이 없는 키는 이미 요청 파라미터 이름이므로 그대로 쓴다.
+    """
+    if "." not in key:
+        return key
+    return CONFIG_PATH_ALIASES.get(key)
+
+
+_OCR_MODES = ("auto", "force", "disable")
+
+
+def resolve_ocr_mode(kwargs: dict, yaml_default: str) -> str:
+    """요청 파라미터 ocr_mode 가 yaml 값을 덮는다. 모르는 값이면 yaml 값을 쓴다."""
+    raw = (kwargs or {}).get("ocr_mode")
+    if raw is None:
+        return yaml_default
+    mode = str(raw).strip().lower()
+    if mode in _OCR_MODES:
+        return mode
+    _log.warning(
+        f"[DocumentProcessor] 알 수 없는 ocr_mode '{raw}' — 설정값 '{yaml_default}' 를 씁니다")
+    return yaml_default
+
+
 # ── 청크 본문과 같은 값을 실을 메타 필드(body_fields) ────────────────────────
 # 소비계층 스키마가 "검색 대상 본문" 컬럼을 따로 두는 경우, 그 컬럼이 청크 본문과
 # 어긋나면(문서 단위 LLM 요약이 전 청크에 복사되는 등) 청크 단위 검색이 엉뚱한 청크를
