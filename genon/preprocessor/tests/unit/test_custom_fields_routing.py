@@ -553,6 +553,9 @@ def test_shipped_monimo_configs_cover_not_null_columns(resource_dir, config_name
     mapped |= set(cfg.get('transforms') or {})
     # extractor: html_select — 원문 HTML 선택자가 값 확보 경로다(v2 `fields.<이름>.select`).
     mapped |= set(cfg.get("select_map") or {})
+    # 다른 필드를 조합해 만드는 값도 확보 경로다(v2 `fields.<이름>.template`).
+    # 예: stock_insight 의 JONG_CODE = "{{JONG_CODE_ORG}}_{{NEWS_DATE}}".
+    mapped |= set(cfg.get("derive") or {})
 
     missing = [c for c in _REQUIRED_BY_DOC_TYPE[config_name]
                if c not in mapped and c not in _DB_DEFAULTED_COLUMNS]

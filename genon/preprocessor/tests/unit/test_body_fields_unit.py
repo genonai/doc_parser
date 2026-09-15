@@ -39,7 +39,7 @@ class TestBodyFieldsSetting:
         ).read_text(encoding="utf-8")
         reserved_block = source.split("reserved_keys = {", 1)[1].split("consumed_keys", 1)[0]
         assert "cp.BODY_FIELDS_KEY" in reserved_block
-        assert "row_meta.pop(cp.BODY_FIELDS_KEY, None)" in source
+        assert "record_meta.pop(cp.BODY_FIELDS_KEY, None)" in source
 
 
 @pytest.mark.unit

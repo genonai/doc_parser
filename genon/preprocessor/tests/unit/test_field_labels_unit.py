@@ -219,7 +219,9 @@ _LABEL_EXEMPT_FIELDS = {"CS_CATEGORY"}
 @pytest.mark.parametrize("name", [
     "custom_field_faq.yaml", "custom_field_faq_json.yaml", "custom_field_cs_sss.yaml",
     "custom_field_cs_slf.yaml", "custom_field_cs_ssf.yaml",
-    "custom_field_monimo_news.yaml", "custom_field_monimo_event.yaml",
+    # monimo_news 는 원천이 레코드 배열에서 HTML 문서 한 건으로 바뀌면서 본문 필드
+    # (text_fields)가 없는 `kind: html` 설정이 됐다. 검사 대상이 아니다.
+    "custom_field_monimo_event.yaml",
 ])
 def test_shipped_configs_name_every_body_field(name):
     """본문 필드는 모두 항목명을 갖는다 — 하나라도 빠지면 그 필드만 값으로 나가 불규칙해진다."""
