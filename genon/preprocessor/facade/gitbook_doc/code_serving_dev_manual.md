@@ -12,9 +12,9 @@ Genos 를 처음 접하는 개발자를 대상으로 합니다.
 - [4. 개발환경 준비](#4-개발환경-준비) — 인터넷 연결 환경 · 오프라인 환경 · 코드스페이스 · 모델 서빙 연결
 - [5. 코드 이해](#5-코드-이해) — 코드 지도 · `main.py` 처리 순서 · parser 읽기 · chunker 읽기 · 출력 스키마
 - [6. config yaml 옵션 설정](#6-config-yaml-옵션-설정) — 채워야 할 값 · 자주 바꾸는 옵션 · `params` 오버라이드
-- [7. 코드 수정 가이드](#7-코드-수정-가이드) — 개발 루프 · 수정 레시피(**확장 훅** 포함) · 알아둘 제약
+- [7. 코드 수정 가이드](#7-코드-수정-가이드) — 무엇으로 풀 것인가 · **새 문서 유형 추가** · **facade 훅 메소드** · 알아둘 제약
 - [8. 재배포](#8-재배포) — gitea push → 리비전 배포 → 호출 검증
-- [9. 퀵 가이드](#9-퀵-가이드) — 시나리오 A/B · 자주 쓰는 명령어
+- [9. 퀵 가이드](#9-퀵-가이드) — 시나리오 A(설정) / B(코드) / **C(새 문서 유형)** · 자주 쓰는 명령어
 - 부록 [A 용어집](#부록-a-용어집) · [B 환경값 확인 목록](#부록-b-환경값-확인-목록) · [C 컨테이너 경로·환경변수](#부록-c-컨테이너-경로환경변수) · [D 참고 문서](#부록-d-참고-문서) · [E 코드서빙·코드스페이스 신규 생성](#부록-e-코드서빙코드스페이스-신규-생성)
 
 ---
@@ -47,8 +47,9 @@ Genos 를 처음 접하는 개발자를 대상으로 합니다.
 1. **개발환경을 세팅**한다 — 로컬 또는 코드스페이스. (4장)
 2. **코드를 이해**한다 — 무엇이 어디에 있고, 무엇을 고치면 무엇이 바뀌는지. (5장)
 3. **config yaml 옵션을 조정**한다 — 코드를 안 고치고 동작을 바꾸는 방법. (6장)
-4. **코드를 수정**한다 — 주로 파싱(`/parser`)과 청킹(`/chunker`). (7장)
-5. **재배포하고 호출로 검증**한다. (8장)
+4. **새 문서 유형(doc_type)을 추가**한다 — `custom_field_*.yaml` 만으로. ([7.2 (a)](#a-새-문서-유형-추가하기--설정으로-먼저) · [9.3](#93-시나리오-c--새-문서-유형-추가))
+5. **코드를 수정**한다 — 설정으로 안 될 때 facade 2개의 훅 메소드를 고친다. ([7.2 (b)~(j)](#72-수정-레시피))
+6. **재배포하고 호출로 검증**한다. (8장)
 
 ### 0.4 이 문서가 다루지 않는 것
 
@@ -56,6 +57,8 @@ Genos 를 처음 접하는 개발자를 대상으로 합니다.
 |---|---|
 | 배포된 서빙을 **호출**하는 API 상세 (요청/응답 스키마, LLM 캐시 옵션) | [`code_serving.md`](code_serving.md) |
 | 프로세서별 config 옵션 **전체 레퍼런스** | [`parser_processor.md`](parser_processor.md) · [`intelligent_processor.md`](intelligent_processor.md) · [`convert_processor.md`](convert_processor.md) · [`attachment_processor.md`](attachment_processor.md) |
+| `custom_fields` 설정 **전체 매트릭스** (kind 별 지원 키 · `transform` 10종 · 별칭 탐색 범위 · 설정으로 안 되는 8가지) | [`parser_processor.md`](parser_processor.md) 의 "새 문서 유형 추가하기" (이 문서 [7.2 (a)](#a-새-문서-유형-추가하기--설정으로-먼저) 는 그 요약) |
+| 훅 메소드·`toolbox` **전체 계약**과 더 많은 예시 | [`facade_hooks.md`](facade_hooks.md) (이 문서 [7.2 (c)](#c-원천-모양이-설정으로-안-풀릴-때--훅-메소드) 는 그 요약) |
 | 개인정보 마스킹(가드레일) 구축 | [`guardrail_workflow_setup.md`](guardrail_workflow_setup.md) |
 | 도커 이미지 빌드 | 여러분의 작업 범위가 아닙니다. 이미 등록된 이미지를 사용합니다 |
 | Genos 플랫폼 자체의 설치·운영 | [Genos 공식 문서](https://genos-docs.gitbook.io/default) |
@@ -80,7 +83,10 @@ Genos 를 처음 접하는 개발자를 대상으로 합니다.
 - **처음이라면** 1장 → 2장 → 3장 순서로 개념을 잡고 4장으로 가세요.
 - **코드를 고치는 것이 목적이라면** 4장(환경) → 5장(코드 이해) → 7장(수정) → 8장(재배포).
 - **설정만 바꾸면 되는 경우** [9.1 시나리오 A](#91-시나리오-a--config-만-바꿔-재배포)로 바로 가세요.
-- **코드를 고치기 전에** [7.3 알아둘 제약](#73-알아둘-제약)을 먼저 읽으세요.
+- **새 문서 유형을 붙이는 것이 목적이라면** [9.3 시나리오 C](#93-시나리오-c--새-문서-유형-추가) 로
+  바로 가고, 막히면 [7.2 (a)](#a-새-문서-유형-추가하기--설정으로-먼저) 를 펴세요.
+- **코드를 고치기 전에** [7.1 무엇으로 풀 것인가](#71-개발-루프)와
+  [7.3 알아둘 제약](#73-알아둘-제약)을 먼저 읽으세요.
 
 ---
 
@@ -255,7 +261,7 @@ clone** 한 뒤 그 안의 `main.py` 를 실행합니다.
 게이트웨이는 `{route}` 를 **단일 세그먼트로만** 전달합니다. 그래서 `/preprocess/attachment` 같은 중첩
 경로는 호출할 수 없고, 전처리기는 `/preprocess_attachment` 처럼 **평탄한 이름**을 씁니다.
 
-> **새 엔드포인트를 추가할 때 반드시 지켜야 하는 규칙**입니다. [7.2 (c)](#c-새-엔드포인트-추가하기) 참고.
+> **새 엔드포인트를 추가할 때 반드시 지켜야 하는 규칙**입니다. [7.2 (h)](#h-새-엔드포인트-추가하기) 참고.
 
 ### 2.4 코드와 설정이 모두 git 저장소 안에 있다
 
@@ -649,20 +655,36 @@ python parse_chunk_test.py result_parse_chunk/pdf_sample.docling.json result_par
 LLM 캐시 등). 다만 그 주석의 일부 경로는 작성자 로컬 기준이라 그대로 동작하지 않습니다 — 명령 형태만
 참고하세요. 청크 크기는 `--chunk-size` 로 조절합니다(기본 10000).
 
-**직접 호출해 보기** — 코드를 고치면서 결과를 바로 확인할 때 편합니다.
+**③ facade 한 파일만 돌려 보기** — 훅 메소드나 `custom_field_*.yaml` 을 고쳤을 때 가장 빠릅니다.
+`examples/` 를 거치지 않고 facade 가 직접 실행됩니다.
+
+```bash
+# 실행 위치: 저장소 루트 (import 경로 때문에 반드시 -m 으로 부릅니다)
+python -m genon.preprocessor.facade.parser_processor 공지사항.xlsx --doc-type notice -o parsed.json
+python -m genon.preprocessor.facade.chunking_processor parsed.json --doc-type notice -o chunks.json
+```
+
+인자 설명은 [7.1](#71-개발-루프)에 있습니다. 청커의 입력은 **원본 문서가 아니라 파서가 만든
+결과 JSON** 입니다.
+
+**직접 호출해 보기** — 산출을 코드로 바로 들여다볼 때 편합니다.
 
 ```python
 # 실행 위치: 저장소 루트
 import asyncio, json, sys
 sys.path.insert(0, '.')
-from fastapi import Request
+from genon.preprocessor.processing.core import toolbox as tb
 from genon.preprocessor.facade.chunking_processor import DocumentProcessor
 
 p = DocumentProcessor(config_path='genon/preprocessor/resource/chunking_processor_config.yaml')
 doc = json.load(open('doc.json'))          # 파싱 결과 JSON
-chunks = asyncio.run(p(Request(scope={'type': 'http'}), '', document=doc))
-print(len(chunks), chunks[0].model_dump()['text'][:80])
+metas = asyncio.run(p(tb.mock_request(), '', document=doc))
+print(len(metas), metas[0].model_dump()['text'][:80])
 ```
+
+> 첫 인자는 FastAPI 의 `Request` 자리입니다. 청커가 미디어 업로드에 쓰므로 `None` 을 주면
+> 거기서 에러가 납니다 — `tb.mock_request()` 를 넘기세요. 청커의 산출은 `vector_meta` 객체
+> 목록이라 `json.dump` 에 바로 넣을 수 없고 `model_dump()` 를 거칩니다.
 
 ---
 
@@ -674,7 +696,7 @@ print(len(chunks), chunks[0].model_dump()['text'][:80])
 > 위치는 **파일 경로 + 함수·클래스 이름**으로만 적습니다. 찾을 때는 이렇게 합니다.
 > ```bash
 > # 실행 위치: 저장소 루트
-> grep -rn "def _build_docling_response" genon/preprocessor/facade/
+> grep -rn "def document_to_response" genon/preprocessor/
 > ```
 
 > **처리 본체는 facade 파일 안에 있지 않습니다.** facade(`parser_processor.py` ·
@@ -688,10 +710,10 @@ print(len(chunks), chunks[0].model_dump()['text'][:80])
 | 위치 | 역할 | 수정 대상인가 |
 |---|---|---|
 | `main.py` | FastAPI 앱. 라우트 정의 + 공통 예외/응답 처리 | 엔드포인트를 추가할 때만 |
-| `facade/parser_processor.py` | `/parser` **표면** (92줄) — 라우팅 표와 확장 훅 | **예. 여기만 고칩니다** |
-| `facade/chunking_processor.py` | `/chunker` **표면** (100줄) — 적재 컬럼·청킹 옵션·확장 훅 | **예. 여기만 고칩니다** |
+| `facade/parser_processor.py` | `/parser` **표면** (282줄) — 라우팅 표·doc_type 별 설정·훅 메소드 3종 | **예. 여기만 고칩니다** |
+| `facade/chunking_processor.py` | `/chunker` **표면** (264줄) — 적재 컬럼·청킹 옵션·doc_type 별 설정·훅 메소드 3종 | **예. 여기만 고칩니다** |
 | `processing/core/parser.py` · `core/chunker.py` | **처리 본체.** 로더·docling 배관·custom_fields·직렬화·분할 | **열 일이 없습니다** |
-| `processing/core/toolbox.py` | 훅에서 쓰는 기존 기능 모음(값 변환·표·엑셀·텍스트) | 훅을 쓸 때 |
+| `processing/core/toolbox.py` | 훅 메소드에서 쓰는 기존 기능 모음(값 변환·표·엑셀·텍스트) | 훅 메소드를 쓸 때 |
 | `processing/core/cli.py` · `core/errors.py` | 파일 단독 실행 · 공용 예외 | 거의 없음 |
 | `facade/intelligent_processor.py` · `convert_processor.py` · `attachment_processor.py` | `/preprocess*` 구현 | 해당 엔드포인트를 쓸 때만 |
 | `processing/enrichment/` | 목차·메타데이터·이미지/표 설명 등 공용 모듈 | enrichment 동작을 바꿀 때 |
@@ -754,164 +776,125 @@ class DocumentProcessor:          # ← 클래스 이름 고정. main.py 가 이
 
 ### 5.4 `parser_processor.py` 읽기
 
-#### 파일 구획
-
-**파일이 92줄입니다.** 처리 본체는 `processing/core/parser.py` 에 있고 열 일이 없습니다.
+**파일이 282줄입니다.** 처리 본체는 `processing/core/parser.py` 에 있고 열 일이 없습니다.
+파일은 **뒤로 갈수록 확장 지점**인 순서로 구획되어 있습니다.
 
 | 구획 | 내용 | 봐야 하나 |
 |---|---|---|
-| 파일 머리 주석 | **이 파일에서 고칠 자리** | **여기부터 읽으세요** |
-| `ROUTES` | 확장자 → 핸들러 표 | 새 확장자를 받을 때 |
-| `__call__` | ① 원천 로드 → ② `edit_input` → ③ 파싱 → ④ `edit_output` | 단계 순서를 볼 때 |
-| `edit_input` | **원천을 파싱 입력으로 바꾸는 훅** | 설정으로 안 될 때 (7.2 (h)) |
-| `edit_output` | **산출을 손보는 훅** | 〃 |
-| `cli()` 호출 두 줄 | 파일 단독 실행 | 고친 뒤 확인할 때 |
+| 파일 머리 주석 | 처리 흐름 한 장 요약과 결과 형식 2종 | **여기부터 읽으세요** |
+| 1 처리 흐름 | `__call__` · `document_to_response` · `records_to_response` | 단계 순서를 볼 때 |
+| 2 확장자별 라우팅 | `ROUTES` 와 `route_*` 8개 | 새 확장자를 받을 때 ([7.2 (d)](#d-새-확장자를-받기--routes)) |
+| 3 doc_type 별 설정 | `CONFIG_BY_DOC_TYPE` · `config_by_condition()` | 유형마다 옵션을 달리할 때 ([7.2 (b)](#b-문서-유형마다-설정을-다르게--config_by_doc_type)) |
+| 4 훅 메소드 | `edit_input` · `edit_document` · `edit_output` | 설정으로 안 될 때 ([7.2 (c)](#c-원천-모양이-설정으로-안-풀릴-때--훅-메소드)) |
+| 5 오버라이드 | 기본 동작 자체를 바꿀 때의 경계 | 마지막 수단 ([7.2 (j)](#j-기본-동작-자체를-바꾸기--오버라이드)) |
+| 파일 단독 실행 | `cli()` — 서버 없이 한 건 돌리기 | 고친 뒤 확인할 때 ([7.1](#71-개발-루프)) |
 
-본체 쪽에서 이름을 알아 둘 것:
+#### 처리 흐름
+
+```
+요청 → _start_job(확장자 판별, doc_type 별 설정 적용)
+     → edit_input       ← 훅
+     → ROUTES 에서 라우트 선택·실행
+         └ 문서형이면 document_to_response: edit_document ← 훅
+                                         → LLM enrichment → 응답 조립
+     → edit_output      ← 훅
+     → 응답
+```
+
+`_` 로 시작하는 메소드(`_start_job`, `_call_*`)는 **오버라이드하지 않습니다.** 훅 호출과 설정
+적용 순서를 맡고 있습니다.
+
+> **`edit_document` 가 enrichment 앞이라는 점이 중요합니다.** 표를 LLM 설명 대상에서 빼려면
+> 여기서 빼야 합니다. `edit_output` 은 enrichment 뒤라 비용은 이미 치른 뒤입니다.
+
+#### `job` — 요청 한 건의 정보
+
+훅 메소드에서는 `kwargs["job"]` 으로 꺼냅니다(시그니처에는 없습니다).
+
+| 필드 | 값 |
+|---|---|
+| `job.ext` · `job.doc_type` | 표준 확장자(소문자), 문서 유형(소문자) |
+| `job.file_path` | 요청이 넘긴 **원본** 경로 |
+| `job.source` | 실제로 처리할 입력. 확장자 별칭 사본이나 `edit_input` 파생물이면 원본과 다릅니다 |
+| `job.params` | 요청 파라미터 |
+| `job.config` | **실제로 적용된 설정.** 이 문서가 어떤 설정으로 처리됐는지 되짚을 수 있습니다 |
+| `job.work_dir` | 임시 디렉터리(요청이 끝나면 자동 삭제) |
+| `job.notes` | 단계 사이 값 전달용 dict. `self` 대신 여기를 씁니다 |
+
+`job.source` 는 확장자에 따라 **파일 경로가 아니라 로드된 데이터**입니다 — 엑셀은 2차원 셀 값
+배열, json 은 dict, md·html 은 str. 원본 경로가 필요하면 `job.file_path` 를 쓰세요.
+
+#### 결과 형식은 둘뿐입니다
+
+| 형식 | 내용 | 나오는 경로 |
+|---|---|---|
+| 문서형 `{"document": {...}}` | DoclingDocument 직렬화 | pdf · hwp · docx · ppt · md · html, 설정을 갖춘 json 과 엑셀 |
+| 요소형 `{"elements": [...]}` | element 배열 | 엑셀 행, JSON 레코드, 그 밖 |
+
+한 응답에 둘 다 있으면 청커는 `document` 만 쓰므로 하나로 통일합니다. element 는
+`{category, content, coordinates, id, page}` 5키이고, 행 기반 element 는 행 metadata 를 담은
+`metadata` 를 더해 6키입니다.
+
+#### `ROUTES` — 확장자 라우팅
+
+확장자가 맞는 첫 항목의 핸들러를 부르고, 핸들러가 응답을 돌려주면 끝, **`None` 을 돌려주면
+다음 후보로 넘어갑니다**(폴스루). 마지막 줄은 항상 캐치올입니다.
+
+| 확장자 | 핸들러 | 결과 | 폴스루 조건 |
+|---|---|---|---|
+| `.wav .mp3 .m4a` | `route_audio` | 전사 텍스트 | 없음 |
+| `.csv .xlsx .xlsm` | `route_tabular` | 3분기: 행 매핑 설정(우선) / 시트를 문서로 / 행 레코드 | 없음 |
+| `.hwp .hwpx .hml` | `route_hwp` | 문서형 | 없음 |
+| `.docx` | `route_docx` | 문서형 (`clear_coordinates=True`) | 없음 |
+| `.pdf .html .htm .md` | `route_docling` | 문서형 | `.md` 가 `formats.md.processing_mode: text` 일 때 |
+| `.json` | `route_json` | 레코드 매핑 → 문서 모드 순으로 판정 | 둘 다 매칭이 없을 때 |
+| `.ppt .pptx` | `route_ppt` | 문서형. PDF 변환 실패 시 텍스트만 | 없음 |
+| 그 외 | `route_other` | 텍스트면 문서형, 아니면 텍스트 추출 | 없음 — 캐치올 |
+
+핸들러 시그니처는 `async def route_<이름>(self, job)` 하나입니다. 문서를 만드는 핸들러라면
+마무리는 `await self.document_to_response(job, doc)` 한 줄이고, 그 안에 `edit_document` ·
+enrichment · 응답 조립이 들어 있습니다.
+
+> **`.json` 은 예외입니다.** `route_json` 은 `custom_field_*.yaml` 이 매칭될 때만 동작하고,
+> 매칭이 없으면 파일을 로드하지 않고 캐치올로 폴백합니다(종전 동작 보존). 설정 없이 코드로
+> 처리하려면 자기 라우트를 `ROUTES` 맨 위에 둡니다 — 파일 머리의 주석에 그 예가 있습니다.
+
+> **원천 JSON 의 구조가 설정으로 안 풀릴 때**(같은 이름 key 가 얕은 곳과 깊은 곳에 둘 다 있다,
+> 상품코드가 key 다, JSONL 이다, 한 겹 더 묶여 온다 …)는 공용 모듈이 아니라 **`edit_input`**
+> 에서 payload 모양을 바꿉니다. 실례는 [7.2 (c)](#c-원천-모양이-설정으로-안-풀릴-때--훅-메소드).
+
+#### `.html` 전처리
+
+docling 의 HTML 백엔드는 `<iframe srcdoc="...">` 속성값 안의 본문을 읽지 못합니다. 크롤
+산출물(`merged.html`)이 그 형태라 4MB 문서에서 641자·표 0개만 추출되므로, 파싱 전에 srcdoc 을
+펼쳐 heading 기반 단일 문서로 재조립합니다(실측: 641자 → 59,140자, 표 43개). 설정은
+`formats.html.flatten` = `auto`(기본, 원문 스캔으로 결함 감지 시에만) / `always` / `off`.
+
+> 정리 단계에서 `aria-hidden`/`display:none` 요소를 지우면 안 됩니다. 카드 혜택 텍스트가
+> `<span aria-hidden="true">` 안에, 약관 본문이 접힌 아코디언(`display:none`) 안에 있습니다.
+
+#### 본체 쪽에서 알아 둘 이름
 
 | 위치 | 내용 |
 |---|---|
-| `core/parser.py::ParserCore` | `/parser` 처리 본체. facade 의 `DocumentProcessor` 가 이것을 상속한다 |
-| `core/parser.py::GenericDocumentLoader` | 확장자 → langchain 로더 매핑(`get_loader`). 캐치올 포맷 |
-| `core/parser.py::IntelligentDocumentProcessor` | docling 런타임(합성으로 씀) |
-| `core/errors.py::GenosServiceException` | 공용 예외. facade 가 이름을 재수출한다 |
-| `core/toolbox.py` | 훅에서 쓰는 기존 기능 모음 |
-
-#### `__init__` 이 하는 일 (`core/parser.py`)
-
-1. config yaml 로드 → 2. `IntelligentDocumentProcessor` 생성(파싱·enrichment 전부 위임) →
-3. 확장자별 로더 생성 → 4. output·guardrail·PPT 페이지설명 정규화 →
-5. `custom_fields` 설정에서 spec/mapper 생성
-
-5번은 전부 `_guard("<라벨>", <빌더>, cf_cfgs)` 한 줄씩입니다. `_guard` 는 설정 오류를
-`GenosServiceException` 으로 바꿔 **어느 yaml 이 문제인지** 드러냅니다. 감싸지 않으면 raw 예외가
-서비스 import 자체를 죽입니다.
-
-주요 `self` 속성:
-
-| 속성 | 의미 |
-|---|---|
-| `self._intel` | 실제 파싱/enrichment 엔진(docling 런타임) |
-| `self._hwp` / `self._docx` / `self._generic` | 확장자별 로더 |
-| `self._output_format` | `json` / `html` / `markdown` / `docling` |
-| `self._table_format` · `self._compact_tables` | 표 출력 형식 |
-| `self._xlsx_cfg` · `self._md_cfg` · `self._ext_aliases` | 포맷별 처리 모드와 확장자 별칭 |
-| `self._gr_cfg` | 개인정보 분류 설정 |
-| `self._page_desc_options` | PPT 페이지 설명 옵션 |
-| `self._json_text_specs` · `self._json_records_mappers` · `self._tabular_custom_fields_mappers` · `self._markdown_*_specs` | custom_fields 설정에서 만든 spec/mapper |
-
-#### `__call__` — 확장자 라우팅
-
-```
-로깅 설정 → 런타임 kwargs 정규화 → 캐시 컨텍스트 설정 → 확장자 추출(별칭 적용)
-   → 입력 파일 검증(_detect_unsupported_file)  ← 암호화/DRM/손상이면 즉시 에러
-   → ROUTES 표를 위에서부터 훑어 핸들러 호출
-```
-
-**`DocumentProcessor.ROUTES` 가 라우팅 표입니다.** 확장자가 맞는 첫 항목의 핸들러를 부르고,
-핸들러가 응답을 돌려주면 끝, **`None` 을 돌려주면 다음 후보로 넘어갑니다**(폴스루).
-
-| 확장자 | 핸들러 | 파싱 결과 | 폴스루 조건 |
-|---|---|---|---|
-| `.wav .mp3 .m4a` | `route_audio` | 전사 텍스트 | 없음 |
-| `.csv .xlsx .xlsm` | `route_tabular` | 3분기: custom_fields 매칭(우선) / `docling` 모드 / `tabular` 모드 | 없음 |
-| `.hwp .hwpx .hml` | `route_hwp` | DoclingDocument | 없음 |
-| `.docx` | `route_docx` | DoclingDocument (`clear_coordinates=True`) | 없음 |
-| `.pdf .html .htm .md` | `route_docling` | DoclingDocument | `.md` 가 `formats.md.processing_mode: text` 일 때 |
-| `.json` | `route_json` | 2분기(아래) | custom_fields 에 매칭 설정이 없을 때 |
-| `.ppt .pptx` | `route_ppt` | DoclingDocument 또는 langchain 폴백 | 없음 |
-| 그 외 | `route_other` | langchain Document 리스트 | 없음 — 캐치올 |
-
-**새 확장자를 받으려면** `ROUTES` 에 한 줄, `route_*` 메서드 하나를 더합니다. 그게 전부입니다.
-docling 을 만드는 핸들러라면 마무리는 `self._docling_response(doc, ctx, **kwargs)` 한 줄입니다 —
-후처리 enrichment · 응답 조립 · metadata 부착이 그 안에 들어 있습니다.
-
-```python
-    async def route_myformat(self, file_path, ext, ctx, **kwargs):
-        doc = self._parse_myformat(file_path, **kwargs)
-        return await self._docling_response(doc, ctx, **kwargs)
-```
-
-**`.html` 전처리 (`_prepare_html`)** — docling 의 HTML 백엔드는 `<iframe srcdoc="...">`
-속성값 안의 본문을 읽지 못합니다. 크롤 산출물(`merged.html`)이 그 형태라 4MB 문서에서
-641자·표 0개만 추출되므로, 파싱 전에 srcdoc 을 펼쳐 heading 기반 단일 문서로 재조립합니다
-(실측: 641자 → 59,140자, 표 43개). 설정은 `formats.html.flatten` = `auto`(기본, 원문
-스캔으로 결함 감지 시에만) / `always` / `off`.
-
-> ⚠️ 정리 단계에서 `aria-hidden`/`display:none` 요소를 지우면 안 됩니다. monimo 카드의
-> 혜택 텍스트가 `<span aria-hidden="true">` 안에, 약관 본문이 접힌 아코디언
-> (`display:none`) 안에 있습니다. `hidden` 속성만 제거하는 것이 docling 과 같은 범위이고,
-> 이 규칙은 `tests/unit/test_html_flatten_unit.py` 가 고정합니다.
-
-**`.json` 경로 — 두 가지 모드**가 있고 `enrichment.custom_fields` 설정으로 갈립니다.
-둘 다 매칭되지 않으면 기존 텍스트 경로(캐치올)로 폴백해 종전 동작을 보존합니다.
-
-| | 레코드 모드 (`extractor: json_mapping`) | 문서 모드 (`source.pre.json`) |
-|---|---|---|
-| 우선순위 | **높음** (먼저 검사) | 레코드 모드 미매칭 시 |
-| 메서드 | `_parse_json_records` | `_parse_json` |
-| docling | **거치지 않음** | 거침(`_parse_docling` 재사용) |
-| 결과 | 레코드마다 `custom_fields_row` element | DoclingDocument 1개 |
-| 청크 | 레코드 1건 = 청크 1개(길면 분할) | 문서 전체를 길이 기준 청킹 |
-| metadata | **레코드마다 다름** | 문서 전역(모든 청크 동일) |
-
-**`_load_json_payload` 가 JSON 정규화 훅입니다.** 위 두 경로가 모두 이 한 곳으로 들어옵니다.
-원천 구조가 설정으로 안 풀릴 때(같은 이름 키가 얕은 곳과 깊은 곳에 둘 다 있다, 상품코드가
-key 다, JSONL 이다, BOM 이 붙어 있다 …) **공용 모듈이 아니라 여기서** payload 모양을 바꿉니다.
-
-```python
-    def _load_json_payload(self, file_path, doc_type=None):
-        ...
-        payload = json.load(fp)
-        if normalize_doc_type(doc_type) == "my_new_type":   # ← doc_type 게이팅 필수
-            payload = _reshape(payload)
-        return payload
-```
-
-> **doc_type 게이팅을 빠뜨리지 마세요.** 게이팅 없이 정규화를 넣으면 **모든** JSON doc_type 의
-> 산출이 바뀝니다. 바꾼 뒤에는 반드시 골든 대조(4.5절)로 기존 문서가 그대로인지 확인합니다.
-
-#### 응답 조립
-
-| 함수 | 있는 곳 | 만드는 것 |
-|---|---|---|
-| `_build_docling_response` | `parser_processor.py` | **`output.format` 분기 지점.** `docling`→`{"document": …}`(무손실 JSON), `json`→element 배열, `html`/`markdown`→문자열. 개인정보 분류(guardrail) 호출도 여기 |
-| `docling_to_parse_format` | `processing/serialize/parse_format.py` | **element 배열 생성기.** 문서를 순회해 `{category, content, coordinates, id, page}` 5키 dict 리스트 + `usage.pages` |
-| `normalize_response` | 〃 | `content`/`elements`/`usage` 키 존재 보장. **모든 반환 경로가 통과** |
-| `tabular_to_parse_format` | 〃 | 데이터 행 1개 = element 1개 (`category="tabular_row"`) |
-| `langchain_to_parse_format` | 〃 | Document 1개 = element 1개 (`category="paragraph"`) |
-
-> facade 에는 같은 이름의 `_docling_to_parse_format` 같은 **얇은 래퍼**가 남아 있습니다.
-> 고칠 때는 `processing/serialize/parse_format.py` 쪽 본체를 고칩니다.
-
-#### enrichment 연결
-
-`_apply_docling_post_enrichment` 가 아래 순서로 호출합니다. 각 단계는 실패해도
-`_handle_stage_error` 정책에 따라 계속 진행할 수 있습니다.
-
-```
-① doc_summary → ② image_description → ③ table_description → ④ metadata → ⑤ custom_fields → ⑥ doc_type 스탬프
-```
-
-> ⑤·⑥ 은 요청 `params` 의 `doc_type` 으로 켜집니다. 새 문서유형을 추가하는 방법은
-> [7.2 (g)](#g-새-doc_type-추가하기) 를 보세요.
-
-> **목차(TOC)와 docling 내장 metadata 는 이 훅이 아닙니다.** `_parse_docling` 내부에서
-> docling 파이프라인의 일부로 처리됩니다. TOC 동작을 바꾸려면 그쪽을 보세요.
+| `core/parser.py::ParserCore` | `/parser` 처리 본체. facade 의 `DocumentProcessor` 가 상속합니다 |
+| `core/toolbox.py` | 훅 메소드에서 쓰는 기존 기능 모음(`tb` 로 import). **새 구현을 두는 자리가 아닙니다** |
+| `core/errors.py::GenosServiceException` | 공용 예외. facade 가 이름을 재수출합니다 |
+| `core/cli.py` | 파일 단독 실행(`DocumentProcessor.cli()`) |
+| `serialize/parse_format.py` | element 배열 생성·정규화. 5키 스키마의 본체 |
 
 #### 여기를 고치면 무엇이 바뀌나
 
 | 목표 | 고칠 곳 | 주의점 |
 |---|---|---|
-| 확장자 추가·라우팅 변경 | `DocumentProcessor.ROUTES` + `route_*` | 표의 **순서에 의미**가 있습니다. docling 경로면 마무리는 `_docling_response` 한 줄 |
-| JSON 원천 구조 흡수 | `_load_json_payload` | **doc_type 게이팅 필수.** 없으면 모든 JSON doc_type 이 바뀝니다 |
-| element 카테고리·필드 변경 | `serialize/parse_format.py::docling_to_parse_format` | 5키 스키마는 `/chunker` 가 의존. **추가는 안전, 삭제·개명은 위험** |
-| 표 출력 형식 | `serialize/parse_format.py::export_table_content` | `[표 설명]` 구분자·시트명 접두를 바꾸면 다운스트림 파싱에 영향 |
-| 이미지 element 의 내용 | `docling_to_parse_format` 의 `PictureItem` 분기 | 현재 이미지 설명으로 `content` 를 덮어씀. 별도 필드로 빼려면 소비 측도 함께 확인 |
-| OCR / layout 옵션 | `processing/common/docling_runtime.py` | **공용 모듈입니다** — 파서·적재 프로세서가 함께 바뀝니다 |
-| enrichment 단계 추가 | `_apply_docling_post_enrichment` | `try/except → _handle_stage_error(exc, "<stage>")` 패턴 유지 |
-| 입력 검증 완화(새 포맷 허용) | `processing/common/file_probe.py::detect_unsupported_file` | 손상 파일을 통과시키면 뒤 단계에서 이상한 결과가 나옴 |
-| `output.format` 값 추가 | `_normalize_output_format` + `_build_docling_response` | **한쪽만 고치면 에러 없이 `json` 으로 폴백**됩니다 |
+| 새 확장자 받기 | `ROUTES` 한 줄 (+ 필요하면 `route_*`) | 표의 **순서에 의미**가 있습니다. 대개는 `edit_input` 으로 기존 핸들러에 태우는 편이 짧습니다 |
+| 원천 구조 흡수 | `edit_input` | **doc_type 게이팅 필수.** 없으면 같은 확장자의 모든 문서가 바뀝니다 |
+| LLM 설명 대상에서 표·이미지 빼기 | `edit_document` | `edit_output` 은 이미 비용을 치른 뒤입니다 |
+| 청크에 실을 값 추가 | `edit_output` + `tb.set_chunk_metadata` | `result["metadata"]` 에 직접 쓰면 이 API 응답에만 남습니다 |
+| 문서 유형별 옵션 | `CONFIG_BY_DOC_TYPE` | 기동 시 굳는 설정은 건너뛰고 경고가 남습니다 |
+| element 5키 스키마 변경 | `serialize/parse_format.py` | `/chunker` 가 의존합니다. **추가는 안전, 삭제·개명은 위험** |
+| OCR / layout 옵션 | 설정 yaml (`ocr.*` · `layout.*`) | 코드가 아닙니다. 6.3절 |
+| 입력 검증 완화(새 포맷 허용) | `processing/common/file_probe.py` | **공용 모듈입니다.** 손상 파일을 통과시키면 뒤 단계에서 이상한 결과가 납니다 |
 
 ### 5.5 `chunking_processor.py` 읽기
 
@@ -920,17 +903,20 @@ facade 의 `GenosSmartChunker` 는 동작 옵션(ClassVar)만 지정하는 얇�
 
 #### 봐야 하는 곳
 
-**파일이 100줄입니다.** 사이트마다 실제로 달라지는 것만 들어 있습니다.
+**파일이 264줄입니다.** 사이트마다 실제로 달라지는 것만 들어 있고, 파서와 같은 순서로
+구획되어 있습니다.
 
-| 위치 | 구획 | 설명 |
+| 구획 | 위치 | 설명 |
 |---|---|---|
-| `chunking_processor.py::GenOSVectorMeta` | **적재 DB 컬럼** | 청크 1건 = 1행. 선언에 없는 키도 실린다(`extra=allow`) |
-| `chunking_processor.py::GenosSmartChunker` | 동작 옵션 ClassVar | 그림 annotation·표 설명 모드·헤더 구분자 |
-| `chunking_processor.py::DocumentProcessor.__call__` | ① 입력 판별 → ② `edit_input` → ③ 분할·벡터 조합 → ④ `edit_output` | |
-| `chunking_processor.py::edit_input` · `edit_output` | **확장 훅** | 7.2 (h) |
-| `core/chunker.py::ChunkerCore.load_input` | 입력 채널 판별(인라인 / `.json`) | 열 일 없음 |
-| `core/chunker.py::ChunkerCore.chunk` · `compose_vectors` | 분할 실행 · 출력 스키마 조립 | 〃 |
-| `processing/chunking/smart_chunker.py` | **청킹 엔진 본체** | 섹션 판정·분할·병합 |
+| 적재 DB 컬럼 | `GenOSVectorMeta` | 청크 1건 = 1행. 선언에 없는 키도 실립니다(`extra=allow`) |
+| 청킹 옵션 | `GenosSmartChunker` ClassVar | 그림 annotation·표 설명 모드·헤더 구분자·`HEADER:` 라벨 |
+| 행 category | `ROW_CATEGORIES` | 분할하지 않고 1건 = 1청크로 볼 element category |
+| 1 처리 흐름 | `__call__` · `split` · `chunks_to_vector_metas` | 단계 순서를 볼 때 |
+| 2 doc_type 별 설정 | `CONFIG_BY_DOC_TYPE` · `config_by_condition()` | [7.2 (b)](#b-문서-유형마다-설정을-다르게--config_by_doc_type) |
+| 3 훅 메소드 | `edit_input` · `edit_chunk` · `edit_output` | [7.2 (c)](#c-원천-모양이-설정으로-안-풀릴-때--훅-메소드) |
+| 4 오버라이드 | `build_chunk_text` 등 | [7.2 (j)](#j-기본-동작-자체를-바꾸기--오버라이드) |
+| — | `core/chunker.py::ChunkerCore` | 입력 판별·분할 실행·출력 조립. **열 일 없음** |
+| — | `processing/chunking/smart_chunker.py` | **청킹 엔진 본체.** 섹션 판정·분할·병합 |
 
 > `VECTOR_META` 와 `CHUNKER` 는 facade 가 **반드시** 정합니다. core 에 기본값을 두지
 > 않았습니다 — 스키마 사본이 둘이 되면 조용히 어긋나기 때문입니다.
@@ -938,35 +924,65 @@ facade 의 `GenosSmartChunker` 는 동작 옵션(ClassVar)만 지정하는 얇�
 > 이 파일에는 더 이상 OCR·PDF 파이프라인·컨버터·enrichment 배선이 없습니다. `/chunker` 가
 > 한 번도 부르지 않는데 기동할 때마다 만들고 있어서 걷어냈습니다.
 
-#### `__call__` — 입력 판별과 분기
+#### 처리 흐름
 
 ```
-로깅 설정 → 캐시 컨텍스트 → 캐시/정책 키를 kwargs 에서 제거
-   │
-   ├─ 입력 채널 ① params["document"] (인라인)             ← 우선
-   ├─ 입력 채널 ② file_path 가 .json 파일이면 그 파일을 로드  ← 폴백
-   │    둘 다 없으면 에러
-   │
-   ├─ payload 형태 판별 (_classify_payload)
-   │    {"document": …} 또는 docling dict → docling 경로
-   │    {"elements": [...]}               → parse-format 경로
-   │
-   ├─ docling 경로:  split_documents → compose_vectors
-   └─ parse-format:  _chunk_parse_format
+파서 결과 → _start_job(입력 형식 판별, doc_type 별 설정 적용)
+          → edit_input        ← 훅
+          → split (문서형은 GenosSmartChunker, 요소형은 공통 분할기)
+          → 청크마다: 본문 조립 → edit_chunk ← 훅 → 표기형태 변형 → 마스킹 → 정제
+          → edit_output       ← 훅
+          → vector_meta 목록
 ```
 
-> `_classify_payload` 는 **`document` 를 `elements` 보다 먼저 검사**합니다. 파서 응답이 빈
-> `"elements": []` 를 함께 담기 때문입니다. 이 순서를 바꾸면 docling 문서가 문자 기반 splitter 로
-> 흘러가 청킹 품질이 크게 떨어집니다.
+용어 둘을 구분합니다. **chunk** 는 분할 결과 1건이고 입력 형식과 관계없이 같은 필드를 갖습니다.
+**vector_meta** 는 `GenOSVectorMeta` 인스턴스 1건이고 벡터 DB 1행으로 적재됩니다.
 
-#### `GenosSmartChunker` — 필드와 파이프라인
+| `job` 필드 | 값 |
+|---|---|
+| `job.kind` | `"docling"`(문서형) · `"parse"`(요소형 — 엑셀 행, JSON 레코드, 평문) |
+| `job.data` · `job.metadata` | 파서 결과 · 문서 단위 메타데이터 |
+| `job.doc_type` · `job.params` · `job.config` · `job.notes` | 파서와 같습니다 |
 
-| 필드 | 기본값 | 의미 |
+> `job.kind` 와 `edit_chunk` 의 `info["kind"]` 는 **값이 다릅니다** —
+> `"docling"` → `"docling"`, `"parse"` → `"row"`(행·레코드) 또는 `"text"`(그 밖).
+
+#### 입력 채널과 형태 판별
+
+| | |
+|---|---|
+| 입력 채널 ① | `params["document"]` (인라인) — 우선 |
+| 입력 채널 ② | `file_path` 가 `.json` 파일이면 그 파일을 로드 — 폴백 |
+| 형태 판별 | `{"document": …}` 또는 docling dict → docling 경로 / `{"elements": [...]}` → parse-format 경로 |
+
+> 판별은 **`document` 를 `elements` 보다 먼저** 검사합니다. 파서 응답이 빈 `"elements": []` 를
+> 함께 담기 때문입니다. 이 순서가 바뀌면 docling 문서가 문자 기반 splitter 로 흘러가 청킹
+> 품질이 크게 떨어집니다.
+
+#### `GenosSmartChunker` — facade 가 정하는 것과 설정에서 오는 것
+
+facade 의 ClassVar 는 **사이트 표기 취향**을 정합니다.
+
+| ClassVar | 출고값 | 의미 |
 |---|---|---|
-| `max_tokens` | `1024` | 청크 상한. **`0` = 분할하지 않음** |
+| `CHUNK_HEADER_PREFIX` | `"HEADER: "` | 청크 선두 라벨. 빈 문자열이면 경로만 붙습니다 |
+| `CHUNK_HEADER_SEP` | `" > "` | 섹션 경로 안 구분자(부모 → 자식) |
+| `CHUNK_PATH_SEP` | `" \| "` | 형제 경로 사이. 위와 달라야 부모-자식과 형제가 구분됩니다 |
+| `CHUNK_PATH_MAX_LEAVES` | `5` | 다경로 청크의 리프 상한. 초과분은 `… 외 N개` |
+| `PICTURE_ANNOTATION_TEXT` | `True` | 그림 annotation 을 청크 본문에 싣습니다 |
+| `TABLE_DESCRIPTION_MODE` | `prefix_only` | 표 설명은 검색용 접두만 |
+
+크기·병합 동작은 ClassVar 가 아니라 **설정에서** 옵니다.
+
+| 값 | 기본값 | 의미 |
+|---|---|---|
+| `chunk_size` | `10000` | 청크 상한. **`0` = 크기 기반 병합·분할 끄기** ([6.3](#63-자주-바꾸는-옵션)) |
 | `chunk_mode` | `split_only` | `split_only`=섹션 구조 보존 / `resize_all`=크기 기준 재조립 |
 | `tokenizer_type` | `char` | `char`=문자 수 / `huggingface`=토큰 수 |
-| `merge_peers` | `True` | **코드에서 읽지 않는 잔재 필드.** 바꿔도 동작이 변하지 않습니다 |
+
+> `merge_peers` 는 표준 청커가 **읽지 않는 잔재 필드**입니다. 바꿔도 동작이 변하지 않습니다.
+
+#### 분할 파이프라인
 
 `processing/chunking/smart_chunker.py` 안에서:
 `chunk()` → `preprocess()`(문서 순회·수집) → `_split_document_by_tokens()`(실제 파이프라인)
@@ -1035,13 +1051,15 @@ facade 의 `GenosSmartChunker` 는 동작 옵션(ClassVar)만 지정하는 얇�
 
 | 목표 | 고칠 곳 | 주의점 |
 |---|---|---|
-| 헤더 구분자·리프 상한 | `chunking_processor.py` 머리의 조정 지점 블록 | 크기 산정과 실제 부착이 **같은 문자열**을 봐야 합니다 |
+| 헤더 구분자·리프 상한·`HEADER:` 라벨 | `chunking_processor.py` 의 `GenosSmartChunker` ClassVar | 크기 산정과 실제 부착이 **같은 문자열**을 봐야 합니다 |
 | 그림 annotation·표 설명 모드 | `GenosSmartChunker` ClassVar | facade 안에서 끝납니다 |
+| 특정 doc_type 만 크기·모드를 다르게 | **코드 수정 불필요** — `CONFIG_BY_DOC_TYPE` ([7.2 (b)](#b-문서-유형마다-설정을-다르게--config_by_doc_type)) | 기동 시 굳는 설정은 건너뛰고 경고가 남습니다 |
+| 청크 본문 수정·특정 청크 제외 | `edit_chunk` ([7.2 (c)](#c-원천-모양이-설정으로-안-풀릴-때--훅-메소드)) | 통계·순번을 코어가 다시 맞춰 줍니다 |
 | 표를 항상 별도 청크로 | **코드 수정 불필요** — 요청 `params` 의 `table_as_chunk` | 켜면 1~6단계가 전부 우회됩니다 |
 | 청크 선두 헤더 on/off | **코드 수정 불필요** — `include_chunk_header` (yaml `chunking.include_chunk_header`) | off 면 순수 본문만(검색 시 섹션 문맥 소실). parse-format 경로는 no-op |
 | 청크 텍스트 노이즈 제거 | **코드 수정 불필요** — yaml `chunking.text_cleanup` | 규칙 정규식은 기동 시 컴파일되어 오타가 바로 드러납니다 |
 | 섹션 인식 규칙 변경 | `smart_chunker.py::_is_section_header` + `preprocess` + `_get_section_header_level` | **세 곳이 같은 판정을 중복 구현.** 하나만 고치면 헤더 스택과 레벨 계산이 어긋남 |
-| 청크 메타데이터 필드 추가 | 가장 안전: `set_global_metadata` 경유 (스키마는 `extra` 허용) | 정식 필드로 올리려면 스키마·빌더·조립부 3곳 + parse-format 경로 3곳을 함께 |
+| 청크 메타데이터 필드 추가 | 문서 전체는 파서의 `tb.set_chunk_metadata`, 청크마다 다르면 `edit_chunk` 의 `info["fields"]` ([7.2 (g)](#g-청크에-값-더-싣기)) | 스키마는 `extra` 허용이라 선언 없이도 실립니다. 정식 필드로 올리려면 `GenOSVectorMeta` 에 선언 |
 | 병합/분할 기준 변경 | `smart_chunker.py` 4·5·5.5단계 | 4단계 조건을 완화하면 조 단위가 장 단위로 뭉쳐집니다. 분할 구간은 **폭이 0 이 아니어야** 합니다 — 0 이면 그 청크가 에러 없이 사라집니다 |
 | 표 직렬화 형식 | `smart_chunker.py::_extract_table_text` / `_table_item_to_texts`, HTML 직렬화는 `processing/chunking/table_html.py` | 요청 `params` 의 `export_to_html: 0` 으로도 markdown 전환 가능(코드 수정 불필요). 다만 큰 표 분할 경로는 HTML 전제 |
 | `HEADER:` 접두 형식 | 조립은 `_build_header_line` **한 곳**, 부착은 `compose_vectors` 한 곳 | `chunk.meta.headings` 의 **원소 하나가 완전한 경로**입니다. **크기 산정(`_size` · 분할 예산 · 병합 재검증)도 같은 `_build_header_line` 을 써야 합니다.** 본문에 제목을 다시 넣던 옛 동작(제목이 3번, 청크의 30~56%)은 되살리지 마십시오 |
@@ -1135,7 +1153,8 @@ grep -rn "<함수명 또는 클래스명>" genon/preprocessor/facade/
 | `intelligent_processor_config.yaml` | `/preprocess`, `/preprocess_intelligent` |
 | `attachment_processor_config.yaml` | `/preprocess_attachment` |
 | `convert_processor_config.yaml` | `/preprocess_convert` |
-| `custom_field_card.yaml`, `custom_field_faq.yaml` | custom_fields enrichment 을 쓸 때 |
+| `custom_field_*.yaml` (출고 17개) | 문서 유형별 값 추출·청크 본문 설정 ([7.2 (a)](#a-새-문서-유형-추가하기--설정으로-먼저)) |
+| `templates/custom_field_TEMPLATE_*.yaml` | 새 문서 유형을 만들 때 복사할 원본 5종 (등록하지 않습니다) |
 
 프롬프트 md 파일(`prompt_*.md`)도 같은 폴더에 있고, yaml 안에서 파일명으로 참조합니다(6.4절).
 
@@ -1262,7 +1281,7 @@ facade 별로 받는 키가 다릅니다. 자주 쓰는 것만:
 
 | facade | 자주 쓰는 `params` 키 |
 |---|---|
-| parser | `toc`, `img_desc`, `chart_desc`, `table_desc`, `table_refine`, `doc_summary`, [`doc_type`](#g-새-doc_type-추가하기), `save_images`, `use_hwp_sdk`, `log_level` |
+| parser | `toc`, `img_desc`, `chart_desc`, `table_desc`, `table_refine`, `doc_summary`, [`doc_type`](#a-새-문서-유형-추가하기--설정으로-먼저), `save_images`, `use_hwp_sdk`, `log_level` |
 | chunking | `document`(`file_path` 가 서버 안의 `.json` 이면 생략 가능), `chunk_size`, `chunk_mode`, `include_chunk_header`, `chunk_overlap`, `table_as_chunk`, `export_to_html`, `log_level` |
 | intelligent / convert | 위 parser 키 + `chunk_size`, `chunk_mode`, `include_chunk_header`, `use_pdf_sdk`, `table_format`, `export_to_html` |
 | attachment | `chunker_type`, `chunk_size`, `chunk_overlap`, `use_pdf_sdk`, `use_hwp_sdk` |
@@ -1290,551 +1309,309 @@ facade 별로 받는 키가 다릅니다. 자주 쓰는 것만:
 
 ### 7.1 개발 루프
 
+#### 무엇으로 풀 것인가 — 순서가 정해져 있습니다
+
+새 요구가 들어오면 **위에서부터** 시도합니다. 순서를 뒤집으면 설정 한 줄로 될 일을 코드로 풀게
+되고, 그 코드는 릴리스가 바뀔 때마다 되붙여야 하는 짐이 됩니다.
+
+| 순서 | 수단 | 무엇이 바뀌나 | 고치는 곳 |
+|---|---|---|---|
+| ① | 요청 `params` | 그 요청 하나 | 없음 ([6.5](#65-yaml-을-안-고치고-값만-바꿔-보기--요청-params)) |
+| ② | 프로세서 설정 yaml | 모든 문서 공통 동작 | `resource/*_processor_config.yaml` ([6장](#6-config-yaml-옵션-설정)) |
+| ③ | `custom_field_*.yaml` | 그 **문서유형**의 값 추출과 청크 본문 | `resource/custom_field_<유형>.yaml` ([7.2 (a)](#a-새-문서-유형-추가하기--설정으로-먼저)) |
+| ④ | **facade 2개** | 설정으로 표현할 수 없는 처리 | `facade/parser_processor.py` · `facade/chunking_processor.py` ([7.2 (b)~(j)](#72-수정-레시피)) |
+| ⑤ | 그 밖 | 위 넷으로 안 될 때만 | `main.py`, `processing/` 공용 모듈 |
+
+- **④ 까지가 여러분의 자리**입니다. facade 두 파일(282줄·264줄)은 그러라고 열려 있고, 처리
+  본체(`processing/core/parser.py` · `core/chunker.py`)는 열 일이 없습니다. 본체를 고쳐야 할
+  것 같으면 ①~④ 중 하나를 놓쳤거나 훅 메소드가 부족한 것이니 알려 주세요.
+- ④ 는 릴리스 갱신 때 **덮어써집니다.** [7.3 ⑤](#73-알아둘-제약)의 패치 보관 절차를 함께 익히세요.
+
+#### 확인은 세 단계로
+
 | # | 방법 | 걸리는 시간 | 언제 쓰나 |
 |---|---|---|---|
-| ① | **로컬 in-process 호출** (4.5절) | 수십 초 | 파싱/청킹 로직 수정. 청킹만이면 모델 없이도 가능 |
-| ② | **재배포 후 게이트웨이 호출** (8장) | 5~15분 | 엔드포인트 확인, 모델 서빙이 필요한 기능, 최종 검증 |
+| ① | **facade 단독 실행** (아래) | 수 초 ~ 수십 초 | 훅 메소드·`custom_field_*.yaml` 을 고친 직후. 가장 빠릅니다 |
+| ② | **로컬 in-process 호출** ([4.5](#45-로컬에서-파싱청킹-돌려-보기)) | 수십 초 | 파싱 → 청킹 E2E. 청킹만이면 모델 없이도 가능 |
+| ③ | **재배포 후 게이트웨이 호출** ([8장](#8-재배포)) | 5~15분 | 엔드포인트 확인, 모델 서빙이 필요한 기능, 최종 검증 |
 
-로컬에서 최대한 확인하고, 마지막에 재배포로 검증하는 순서가 가장 빠릅니다.
+facade 두 파일은 **그 자체로 실행됩니다.** 서버를 띄우지 않고 문서 한 건을 돌려 볼 수 있습니다.
+
+```bash
+# 실행 위치: 저장소 루트 (import 경로 때문에 반드시 -m 으로 부릅니다)
+python -m genon.preprocessor.facade.parser_processor 계약서.pdf --doc-type contract -o parsed.json
+python -m genon.preprocessor.facade.chunking_processor parsed.json --doc-type contract -o chunks.json
+```
+
+| 인자 | 뜻 |
+|---|---|
+| `--doc-type` | `custom_field_*.yaml` 매칭과 훅 메소드 게이팅에 쓰입니다. **빼면 그 코드가 통째로 안 돕니다** |
+| `--config` | 프로세서 설정 yaml 경로. 미지정 시 기본 경로를 찾습니다 |
+| `-o, --out` | 결과 JSON 경로. 생략하면 stdout |
+| `--log-level` | `5` DEBUG / `4` INFO / `3` WARNING / `2` ERROR / `1` CRITICAL / `0` 끔 |
+
+청커의 입력은 **원본 문서가 아니라 파서가 만든 결과 JSON** 입니다. 로컬에서 최대한 ①·② 로
+확인하고 마지막에 ③ 으로 검증하는 순서가 가장 빠릅니다.
 
 ### 7.2 수정 레시피
 
-| | 하고 싶은 것 | 고칠 곳 |
-|---|---|---|
-| (a) | config 옵션 하나 추가 | `resource/*.yaml` + `__init__` |
-| (b) | 요청 파라미터 추가 | `params` 해석부 |
-| (c) | 새 엔드포인트 추가 | `main.py` |
-| (d) | 파싱 결과에 필드 추가 | 직렬화부 |
-| (e) | 청킹 동작 바꾸기 | `GenosSmartChunker` ClassVar 또는 청킹 설정 |
-| (f) | 예외와 로깅 | |
-| (g) | **새 doc_type 추가** | `custom_field_*.yaml` — **코드를 안 고칩니다** |
-| (h) | **원천 구조가 설정으로 안 될 때** | 전처리기 파일의 **확장 훅** |
+**위에 있는 것부터 봅니다.** (a) 로 되는 일을 (c) 로 풀지 마세요.
 
-**(g) 를 먼저 봅니다.** 새 문서 유형은 대부분 설정만으로 됩니다. 그것으로 안 될 때 (h) 입니다.
+| | 하고 싶은 것 | 고칠 곳 | 코드를 고치나 |
+|---|---|---|---|
+| (a) | **새 문서 유형(doc_type) 추가** | `custom_field_<유형>.yaml` + 등록 블록 | 아니오 |
+| (b) | 문서 유형마다 설정을 다르게 | facade 의 `CONFIG_BY_DOC_TYPE` | 표에 한 줄 |
+| (c) | **원천 모양이 설정으로 안 풀릴 때** | facade 의 훅 메소드 (`edit_*`) | 예 |
+| (d) | 새 확장자를 받기 | facade 의 `ROUTES` | 한 줄 + 라우트 |
+| (e) | 값 추출·변환을 파이썬으로 | 설정이 이름으로 부르는 파이썬 3자리 | 예 (facade 밖 파일) |
+| (f) | 청킹 동작 바꾸기 | 설정 → `GenosSmartChunker` ClassVar → `edit_chunk` | 대개 아니오 |
+| (g) | 청크에 값 더 싣기 | `tb.set_chunk_metadata` · `info["fields"]` · `GenOSVectorMeta` | 예 |
+| (h) | 새 엔드포인트 추가 | `main.py` | 예 |
+| (i) | 예외와 로깅 | `GenosServiceException` | 예 |
+| (j) | 기본 동작 자체를 바꾸기 | facade 에서 core 메소드 오버라이드 | 예 (마지막 수단) |
 
-#### (a) config 옵션 하나 추가하기
+> 빨리 끝내야 한다면 [9.3 시나리오 C — 새 문서 유형 추가](#93-시나리오-c--새-문서-유형-추가)가 (a) 의
+> 요약판입니다. 이 절은 그 각 단계가 **왜 그런지**를 설명합니다.
 
-예: `parser_processor_config.yaml` 에 `output.include_page_no: true` 를 추가한다고 합시다.
+#### (a) 새 문서 유형 추가하기 — 설정으로 먼저
 
-1. **yaml 에 키 추가**
-   ```yaml
-   output:
-     format: "docling"
-     include_page_no: true      # ← 추가
-   ```
-2. **facade 의 config 파싱부에서 읽기** — `parser_processor.py` 의 `DocumentProcessor.__init__` 안,
-   `output` 을 다루는 블록에 이어 붙입니다.
-   ```python
-   output_cfg = _as_dict(cfg.get("output"))
-   include_page_no = _parse_optional_bool(output_cfg.get("include_page_no"), "include_page_no")
-   self._include_page_no = False if include_page_no is None else include_page_no
-   ```
-
-   | 헬퍼 | 시그니처 | 동작 |
-   |---|---|---|
-   | `_as_dict(value)` | — | dict 가 아니면 `{}` 반환 |
-   | `_as_int_flag(value, default=0)` | 기본값 인자 있음 | `1/true/yes/y/on` → `1` |
-   | `_parse_optional_bool(value, key="")` | **기본값 인자 없음** | 값이 없거나 형식 오류면 `None`(+경고). 두 번째 인자는 경고에 찍을 키 이름 |
-   | `_parse_optional_int` · `_parse_optional_float` | 동일 | 동일 |
-
-   > `_parse_optional_*` 는 **기본값을 적용해 주지 않습니다.** `None` 을 돌려주므로 기본값 처리는
-   > 호출부에서 하세요. `default=` 같은 인자는 없습니다.
-   > `_clamp_chunk_size()` 는 chunking/intelligent/convert 에만 있고 **parser 에는 없습니다.**
-3. **사용처에서 참조**
-4. **확인**: 로컬 in-process 실행(4.5) → 값이 반영되는지 로그로 확인
-5. **복제본 확인**: 같은 옵션이 다른 facade 에도 필요한지 [5.8절](#58-수정-전-반드시-확인할-복제-범위) 기준으로 판단
-
-> 기본값은 반드시 **코드 쪽에** 두세요. yaml 에 키가 없어도 동작해야 합니다.
-
-#### (b) 요청 파라미터(`params`) 하나 추가하기
-
-`__call__(self, request, file_path, **kwargs)` 의 `kwargs` 에서 꺼냅니다. facade 마다 정규화 지점이
-정해져 있으니 거기에 맞추세요.
-
-| facade | 정규화 지점 |
-|---|---|
-| parser / convert / intelligent | `_normalize_runtime_kwargs()` — 0/1 플래그로 정규화 |
-| attachment | `_merge_runtime_kwargs()` — `None` 이 아닌 값만 기본값 위에 덮어씀 |
-| chunking | `__call__` 안에서 `kwargs > self._<옵션>` 순으로 직접 결정 |
-
-**우선순위는 항상 `params` > yaml > 코드 기본값** 입니다.
-
-> 값이 `0`/`False` 일 수 있는 옵션에 `kwargs.get(k) or default` 를 쓰면 안 됩니다. `0` 이 falsy 라서
-> 기본값으로 되돌아갑니다. `is not None` 으로 판별하세요.
-
-#### (c) 새 엔드포인트 추가하기
-
-1. facade 에 처리 메서드를 만들거나 새 facade 파일을 만듭니다.
-2. `main.py` 에 라우트를 추가합니다.
-   ```python
-   @app.post('/preprocess_myfeature')          # ← 슬래시 없는 단일 세그먼트
-   async def preprocess_myfeature(
-           request: Request,
-           file_path: str = Body(..., embed=True),
-           params: dict = Body(default_factory=dict)
-   ):
-       return await _run('preprocess_myfeature', my_processor, request, file_path, params)
-   ```
-3. 새 facade 를 쓴다면 `main.py` 상단의 import 와 인스턴스 생성부에 추가합니다.
-
-> **경로에 슬래시를 넣지 마세요.** `/preprocess/myfeature` 는 게이트웨이를 통과하지 못합니다(2.3절).
-
-#### (d) 파싱 결과에 필드 추가하기
-
-파싱 결과의 element 는 `{category, content, coordinates, id, page}` 5키입니다(행 기반 element —
-`tabular_row`/`custom_fields_row` — 는 행 metadata 를 담은 `metadata` 를 더해 6키). 필드를 추가하려면
-`processing/serialize/parse_format.py::docling_to_parse_format` 에서 dict 를 만드는 부분을 고칩니다
-(facade 의 같은 이름 메서드는 그 함수를 부르는 얇은 래퍼입니다).
-
-- **추가는 안전**하지만, 기존 키를 삭제·개명하면 `/chunker` 와 다운스트림이 깨집니다.
-- 응답 최상위(`data`)에 값을 싣고 싶다면 `_enrichment_context` 에 담아 `__call__` 의
-  `result["metadata"] = ...` 승격부를 확장하세요.
-
-#### (e) 청킹 동작 바꾸기
-
-- 레버는 **`chunk_mode`** 입니다. `split_only`(섹션 구조 유지) ↔ `resize_all`(크기 기준 재편성).
-- `chunk_size` 의 단위는 `tokenizer_type` 이 결정합니다.
-- 표를 별도 청크로 만들고 싶으면 **코드 수정 없이** `params` 의 `table_as_chunk` 로 켤 수 있습니다.
-- `merge_peers` 는 표준 청커에서 **읽지 않는 잔재 필드**입니다. 병합 동작은 `chunk_mode` 로 조절하세요.
-- 섹션 인식 규칙을 바꾸려면 [5.5절](#55-chunking_processorpy-읽기)의 세 곳을 함께 고쳐야 합니다.
-
-#### (f) 예외와 로깅
-
-```python
-raise GenosServiceException(
-    error_code='1',              # 응답의 error_code 로 그대로 나감
-    error_msg='읽을 수 없는 파일입니다.',
-    stage='parse',               # 선택: 실패 단계
-    error_type='permanent',      # 선택: transient / permanent / timeout
-)
-```
-
-`stage` 와 `error_type` 을 주면 응답에 `stage`·`error_kind` 로 실려, 호출 측이 재시도 여부를
-판단할 수 있습니다. 로깅은 facade 안의 로거를 쓰고, 레벨은 `log_level`(yaml 또는 `params`)로 조절합니다.
-
-#### (g) 새 doc_type 추가하기
-
-`doc_type` 은 요청 `params` 로 넘기는 **문서유형 키**입니다. "이 문서는 계약서다 / FAQ 엑셀이다" 를
-알려 주면 전처리기가 그 유형 전용 필드 추출을 켭니다.
-
-출고 `parser_processor_config.yaml` 에는 **17개 항목이 `enable: true` 로 등록**되어 있습니다
-(`card` · 모니모 15종 · `research_report`). 셋 다 모델 서빙 ID 가 `<ENRICHMENT_SERVING_ID>`
-placeholder 이므로, LLM 을 쓰는 항목은 그 값을 채우기 전까지 경고만 남기고 건너뜁니다
-(`url`/`model` 이 비어 있으면 호출하지 않습니다). 쓰지 않을 유형은 `enable: false` 로 내리세요.
-
-> **먼저 시작할 것** — 새 유형을 만들 때는 `resource/templates/` 의 extractor 별 템플릿을
-> 복사하는 편이 빠릅니다. 항목마다 `[필수]`/`[선택]` 표시와 뜻, 그리고 실제 원천 파일로
-> 결과를 확인하는 명령이 들어 있습니다. 이 절은 **그 설정이 코드에서 어떻게 소비되는지**
-> (분기 위치·실행 시점·경로별 제약·코드 수정이 필요한 예외)를 다룹니다.
+`doc_type` 은 요청 `params` 로 넘기는 **문서유형 키**입니다. "이 문서는 계약서다 / FAQ 엑셀이다"
+를 알려 주면 전처리기가 그 유형 전용 처리를 켭니다.
 
 **doc_type 이 하는 일은 세 가지입니다.**
 
-1. `enrichment.custom_fields` 항목 중 **doc_type 이 일치하는 것만** 동작시킵니다.
-2. csv/xlsx 는 일치하는 **행 매핑 설정이 있으면 행별로 파싱**합니다
-   (element `category="custom_fields_row"` → 청커에서 행 1개 = 청크 1개).
-3. 문서 metadata 에 `doc_type` 을 **스탬프**해 그 문서에서 나온 **모든 청크**에 실어 보냅니다
-   (docling 계열 포맷 — pdf/docx/hwp/html/ppt. 행 매핑 경로에서는 각 행 metadata 에 들어갑니다).
+1. `enrichment.custom_fields` 등록 중 **doc_type 이 일치하는 것만** 동작시킵니다.
+2. 엑셀·JSON 은 일치하는 매핑 설정이 있으면 **행(레코드)별로 파싱**합니다
+   (element `category="custom_fields_row"` → 청커에서 1건 = 청크 1개).
+3. 문서 metadata 에 `doc_type` 을 **스탬프**해 그 문서에서 나온 **모든 청크**에 실어 보냅니다.
 
-> **정상적인 doc_type 추가에는 파이썬 코드 수정이 필요 없습니다.** config yaml 과 프롬프트 md 만
-> 추가하면 됩니다. 코드가 필요한 예외 상황은 이 절 마지막에 정리했습니다.
+> **정상적인 doc_type 추가에 파이썬 코드는 필요 없습니다.** 설정 파일 하나와 등록 블록 네 줄이
+> 전부입니다. 코드가 필요한 경우는 (c)~(e) 이고, 그때도 고치는 것은 facade 한 파일입니다.
 
-> **설정 파일은 첫 줄에 `schema: v2` 를 적습니다.** 이 줄이 없으면 기동에 실패합니다.
-> 아래 표에 나오는 `column_map`·`key_map`·`text_fields` 같은 이름은 **내부 이름**이라
-> 설정에 그대로 적을 수 없습니다 — 설정에 적는 표기는 `parser_processor.md` 의 매트릭스를
-> 보세요(`fields.<목표>` 한 자리에 규칙을 모으는 형태입니다).
-> **어느 extractor 를 쓸지는 설정 파일의 `source.kind` 가 정합니다.**
-> kind 별로 되는 키가 다릅니다 — 전체 지원 매트릭스와 `transform` 9종, 별칭 탐색 범위,
-> 설정으로 안 되는 8가지는 [파싱용 전처리기 매뉴얼](parser_processor.md) 의
-> "새 문서 유형 추가하기" 절에 있습니다. 아래 표는 그 요약입니다.
+**① 원천의 모양을 보고 `kind` 를 고릅니다.** 이것이 첫 결정이고, 나머지는 여기서 따라옵니다.
 
-**extractor 5종(요약)** — 설정 파일의 `source.kind` 가 처리 방식을 정합니다.
-
-| `source.kind` | extractor(내부 이름) | 대상 | 무엇이 검색 1건인가 | LLM 호출 |
-|---|---|---|---|---|
-| `rows` | `tabular_mapping` | csv / xlsx / xlsm | **행 1개 = 청크 1개** | 안 함 (`llm:` 선언 시 행마다) |
-| `records` | `json_mapping` | json 의 레코드 배열 | **레코드 1개 = 청크 1개**(길면 분할) | 안 함 (`llm:` 선언 시 레코드마다) |
-| `sections` | `json_semantic` | 대상 하나를 설명하는 중첩 json | **섹션 1개 = 청크 1개** | 안 함 (`llm:` 선언 시 문서 1회) |
-| `document` | `llm`, 또는 `python:` 블록을 쓰면 `python` | 문서 전체 (pdf/html/docx/hwp/md …) | 문서 metadata → **모든 청크에 같은 값** | `llm` 은 문서 1회 / `python` 은 안 함 |
-| `html` | `html_select` | 원문 HTML (또는 HTML 을 품은 json) | 문서 metadata → **모든 청크에 같은 값** | 안 함 (CSS 선택자가 값을 만듦) |
-
-| `source.kind` | 실행 시점 | 복사할 템플릿 (`resource/templates/`) | 출고 실례 |
+| 원천 | `source.kind` | 무엇이 검색 1건인가 | LLM |
 |---|---|---|---|
-| `rows` | 파싱 **이전**, 확장자 분기에서 조기 반환 | `custom_field_TEMPLATE_rows.yaml` | `custom_field_faq.yaml`·`custom_field_term.yaml` |
-| `records` | 파싱 **이전**, 확장자 분기에서 조기 반환 | `custom_field_TEMPLATE_records.yaml` | `custom_field_monimo_event.yaml` |
-| `sections` | 파싱 **이전**, 확장자 분기에서 조기 반환 | `custom_field_TEMPLATE_sections.yaml` | `custom_field_product_hpp_semantic.yaml` |
-| `document` | 파싱 후 enrichment 단계 | `custom_field_TEMPLATE_document.yaml` | `custom_field_card.yaml` |
-| `html` | 파싱 후 enrichment 단계 (원문 HTML 은 파싱 전에 확보) | `custom_field_TEMPLATE_html.yaml` | `custom_field_monimo_news.yaml` |
+| 엑셀·CSV 한 행이 한 건 (FAQ, 용어사전, 메뉴) | `rows` | 행 1개 = 청크 1개 | 없음 |
+| JSON 배열의 한 요소가 한 건 (이벤트 목록, 공지) | `records` | 레코드 1개 = 청크 1개 | 없음 |
+| 대상 하나를 깊게 설명한 중첩 JSON (상품 상세) | `sections` | 섹션 1개 = 청크 1개 | 없음 |
+| 문서에서 필드 몇 개를 뽑는다 (계약서, 카드 안내) | `document` | 문서 metadata → 모든 청크에 같은 값 | **문서 1회** |
+| 값이 class·속성으로 이미 지목된 HTML (크롤 산출물) | `html` | 문서 metadata → 모든 청크에 같은 값 | 없음 |
 
-각 kind 가 받는 키의 전체 목록은 템플릿 파일 자체에 `[필수]`/`[선택]` 표시와 함께 적혀
-있고, 다른 kind 전용 키를 옮겨 적었을 때 무엇이 실패하는지도 템플릿 말미의
-"기동 시 자동 검사" 절에 정리돼 있습니다.
+`rows` · `records` · `sections` 는 파싱 **이전**에 확장자 분기에서 처리되고(docling 을 타지
+않습니다), `document` · `html` 은 파싱 후 enrichment 단계에서 붙습니다. 앞의 세 kind 는 `llm:`
+블록을 더하면 원천에 없는 필드(요약문 등)를 LLM 으로 만들어 붙일 수 있습니다 — `rows` 는 행마다,
+`records` 는 레코드마다, `sections` 는 문서 1회 호출합니다. `document` 는 본체가 LLM 이고,
+`html` 은 CSS 선택자가 값을 만들어 LLM 을 쓰지 않습니다.
 
-> 등록 블록에 `extractor` 를 **적지 않는 것이 기본**입니다 — 위 표의 내부 이름은 오류
-> 메시지에 나오는 이름이지 설정에 적는 이름이 아닙니다. 굳이 적었다면 `source.kind` 가
-> 유도하는 값과 같아야 하고, 어긋나면 기동이 실패합니다.
+**② 템플릿을 복사해 채웁니다.** 맨손으로 쓰지 마세요 — 템플릿에 항목마다 `[필수]`/`[선택]`
+표시와 뜻, 흔한 실수, 확인 명령이 들어 있습니다.
 
-문서형(`llm`·`python`·`html_select`)의 청크 본문 관련 키 3개는 값이 아니라 **규칙**입니다.
-프롬프트나 `output_fields` 에 넣지 않고, 파서가 문서 metadata 로 실어 청커가 소비합니다.
+| `kind` | 복사할 템플릿 (`resource/templates/`) | 출고 실례 (`resource/`) |
+|---|---|---|
+| `rows` | `custom_field_TEMPLATE_rows.yaml` | `custom_field_faq.yaml` · `custom_field_term.yaml` |
+| `records` | `custom_field_TEMPLATE_records.yaml` | `custom_field_monimo_event.yaml` |
+| `sections` | `custom_field_TEMPLATE_sections.yaml` | `custom_field_product_hpp_semantic.yaml` |
+| `document` | `custom_field_TEMPLATE_document.yaml` | `custom_field_card.yaml` |
+| `html` | `custom_field_TEMPLATE_html.yaml` | `custom_field_monimo_news.yaml` |
 
-| 키 | 하는 일 |
-|---|---|
-| `body_fields` | 여기 올린 필드가 **그 청크의 본문(text)과 글자 그대로 같은 값**을 받습니다. 소비계층의 검색 대상 본문 컬럼(`CONTENT`)용 |
-| `chunk_prefix_fields` | 필드 값을 **모든 청크 본문 앞에** 반복해 얹습니다. 매 청크가 단독으로 검색돼야 하는 식별자(카드명 `PRODUCT_NM`)용 |
-| `first_chunk_fields` | 필드 값을 **문서의 첫 청크에만 1회** 얹습니다. 매 청크에 반복하기엔 `chunk_size` 가 아까운 문서 단위 분류(`CS_CATEGORY`)용 |
-
-뒤의 두 키는 `body_fields` 의 반대 방향입니다(메타 → 본문). 문서 단위 값은 metadata
-컬럼에만 두면 필터 검색에만 걸리고 임베딩 검색에는 안 걸리므로, 청크 본문에 실어야
-`"삼성 iD ON 카드 연회비"` 같은 질의가 그 카드의 연회비 청크를 집습니다.
-
-> ⚠️ `first_chunk_fields` 만 쓰면 **그 값으로 임베딩 검색을 할 때 첫 청크만 걸립니다.**
-> 값 자체는 모든 청크의 metadata 에 그대로 실리므로 필터 검색은 전 청크에서 됩니다.
-> 두 목록에 같은 필드를 넣으면 `chunk_prefix_fields` 가 이깁니다(첫 청크에 두 번 넣지 않음).
->
-> 접두는 청크마다 `chunk_size` 를 그만큼 깎습니다(청커가 크기 산정에서 미리 예약합니다).
-> 짧은 식별 필드 1~2개로 제한하세요. 값이 비었거나 `PRODUCT_ATTRS` 같은 중첩 객체인
-> 필드는 조용히 건너뜁니다.
->
-> 행 매핑형·레코드 매핑형의 `chunk_prefix_fields` 는 이름만 같고 자리가 다릅니다 —
-> 그쪽은 `split: true` 로 쪼갠 조각마다 접두를 다시 붙이는 설정입니다.
-
-> ⚠️ **설정 파일의 모르는 키는 기동을 실패시킵니다.** 어느 스키마에도 없는 키(오타)는 가장
-> 가까운 이름을 제안하고, 다른 kind 전용 키는 어디 전용인지 알려줍니다 — `column_maps` 처럼
-> 한 글자만 틀려도 요청을 받기 전에 드러납니다. 예전에는 이런 키가 조용히 무시돼 "청크는
-> 나오는데 metadata 가 비어 있다"로만 나타났습니다.
-> 현장 설정을 미리 검사하지 못한 첫 릴리스에 한해 `GENOS_CUSTOM_FIELDS_VALIDATION=warn` 으로
-> 낮추면 경고만 남기고 기동합니다(그 설정은 무시됩니다). 배포 전에 미리 훑으려면
-> `examples/config_precheck/precheck_custom_fields.sh` 에 현장 설정 경로를 넘기세요.
->
-> 다만 **기동 검사가 못 잡는 것**이 남습니다 — 별칭이나 CSS 선택자가 원천과 어긋나 값이
-> 비는 경우는 키가 전부 올바르므로 통과합니다. 그래서 **작성 후 실제 원천 파일로 결과를
-> 확인하는 절차가 여전히 필요합니다**(아래 [검증](#검증)).
->
-> **등록 블록(entry)의 키**는 사정이 다릅니다 — `extractor: llm` 에서만 엄격합니다. `CustomFieldsEnricher`
-> 생성자가 `**kwargs` 를 받지 않아 모르는 키는 `TypeError` 로 기동 시 드러납니다.
-> `tabular_mapping`/`json_mapping` 은 `**_` 로 흡수하므로 `doc_types` 같은 오타가 조용히
-> 무시되고 `doc_type=None` → **wildcard(모든 문서에 매칭)** 로 격하됩니다.
-
-##### 경로 A — 문서형 (`extractor: llm`)
-
-예: 계약서에서 계약기간·당사자 같은 필드를 뽑는 `contract` 유형을 만든다고 합시다.
-
-**① `resource/custom_field_contract.yaml` 작성** — `resource/templates/custom_field_TEMPLATE_document.yaml`
-을 복사해 채웁니다(출고 실례는 `custom_field_card.yaml`).
-
-| 키 | 뜻 |
-|---|---|
-| `url` · `api_key` · `model` | enrichment LLM 모델 서빙 (1.3절·4.4절). `url` 또는 `model` 이 비면 호출을 건너뜁니다 |
-| `max_tokens` · `temperature` · `timeout` | LLM 생성 파라미터 (기본 1000 / 0.0 / 60) |
-| `pages` | 입력 페이지 범위. `null` 또는 미지정이면 문서 전체 |
-| `parser.type` | LLM 응답 파싱 방식. `json`(기본) 또는 `python`(`parser.file`+`parser.callable` 로 외부 함수 위임) |
-| `parser.extract_pattern` | 응답에서 JSON 을 뽑을 정규식. 미지정 시 3단 자동 fallback |
-| `system_prompt` · `user_prompt` | 프롬프트 본문을 **yaml 안에 직접** (YAML 블록 스칼라 `\|`) |
-| `system_prompt_file` · `user_prompt_file` | 프롬프트를 별도 md 로 뺄 때의 파일명 (위 인라인보다 **우선**) |
-| `prompt.system` · `prompt.user` | 위 두 방식의 하위 호환 형태(우선순위 가장 낮음) |
-| `output_fields` | 뽑아낼 필드 이름 목록. 여기 적은 키만 남고, 응답에 없으면 `null` 이 됩니다 |
-| `constants` | LLM 에 맡기지 않고 고정으로 채울 필드. **LLM 이 같은 키를 내놔도 이 값이 이깁니다** |
-| `variables` · `template.mode` | 프롬프트 변수 치환(6.4절). 정의되지 않은 `{{변수}}` 는 기동 시 실패(`strict` 기본) |
-
-> ⚠️ **`thinking` · `thinking_dialect` 는 이 파일에 써도 반영되지 않습니다.** 생성자 기본값
-> (`"off"` / `"standard"`)이 먼저 잡혀 `config_file` 값이 읽히지 않습니다. 추론 모드를 바꾸려면
-> 등록 블록에 직접 쓰세요.
->
-> ⚠️ **`max_tokens: 1000` · `temperature: 0.0` · `timeout: 60` 을 등록 블록에 쓰면 무효입니다.**
-> 그 값이 생성자 기본값과 같아 "미지정"과 구분되지 않고, `config_file` 쪽 값이 이깁니다
-> (`custom_fields_enricher.py` 의 `max_tokens if max_tokens != 1000 else cfg.get(...)`).
-> 등록 블록에서 덮어쓰려면 기본값과 다른 값을 쓰거나, config 파일에서 그 키를 지우세요.
-
-**② 프롬프트 작성** — 출고된 `custom_field_card.yaml` 처럼 **yaml 안에 인라인**하면 설정 파일
-하나만 관리하면 됩니다. user 프롬프트 안의 `{{raw_text}}` 가 문서 본문으로 치환됩니다(6.4절).
-
-```yaml
-system_prompt: |
-  너는 계약서 정보추출 전문가다. …
-user_prompt: |
-  …
-  <document>
-  {{raw_text}}
-  </document>
+```bash
+# 실행 위치: 저장소 루트
+cp genon/preprocessor/resource/templates/custom_field_TEMPLATE_rows.yaml \
+   genon/preprocessor/resource/custom_field_notice.yaml
 ```
 
-프롬프트가 아주 길거나 여러 doc_type 이 공유한다면 `resource/prompt_custom_fields_contract_{system,user}.md`
-로 빼고 `system_prompt_file`/`user_prompt_file` 을 쓰세요. **두 방식은 같은 코드 경로**이고, 둘 다 있으면
-파일 쪽이 이깁니다.
-
-> `output_fields` 는 **프롬프트가 내놓는 JSON 키와 이름이 같아야** 합니다. 어긋나면 에러 없이
-> 값이 비어서 나옵니다.
-
-**③ `parser_processor_config.yaml` 의 `enrichment` 에 블록 추가**
+**③ 설정의 뼈대는 네 블록입니다.** 어느 `kind` 든 모양이 같습니다.
 
 ```yaml
+schema: v2                    # 첫 줄. 이 줄이 없으면 기동에 실패합니다
+
+source:                       # 원천을 어떻게 볼 것인가
+  kind: rows
+
+fields:                       # 만들 목표필드(= 적재 DB 컬럼). 값은 언제나 object 입니다
+  QUESTION:
+    alias: [질문, 문의내용]                    # 원천의 컬럼·key 이름들. 흔들리면 여러 개
+  ANSWER:
+    alias: [답변]
+    transform: text                           # 값 변환(체이닝 가능)
+  REG_DT:
+    alias: [등록일]
+    transform: date_int_flex                  # "26.07.01" → 20260701
+  USE_YN:
+    alias: [노출여부]
+    values: {"Y": [노출, 사용], "N": [미노출]}  # 값 표기를 표준 코드로 접습니다
+    default: "N"
+  GROUP_C: {const: "IFP"}                      # 원천 값이 있어도 덮어씁니다
+
+require:                      # 이 필드가 비면 그 건은 건너뜁니다
+  fields: [QUESTION]
+
+body:                         # 청크 본문(= 임베딩 입력)을 어떻게 만들 것인가
+  fields: [QUESTION, ANSWER]
+  labels: {QUESTION: 질문, ANSWER: 답변}
+```
+
+| 블록 | 하는 일 |
+|---|---|
+| `source` | `kind`, 레코드 배열 위치(`records_at`), 행 접기(`merge_rows`), 포맷 전처리(`pre`) |
+| `fields` | **목표필드 하나의 규칙을 한 자리에** 모읍니다 — `alias` `const` `default` `values` `transform` `template` `pack` `meta` `seq` |
+| `require` · `filter` | 빈 값으로 거르기 / 값으로 거르기 |
+| `body` | 청크 본문 구성(`fields`), 항목명(`labels`), 과대 본문 분할(`split`), 접두(`repeat`·`once`) |
+| `llm` | 원천에 없는 필드를 LLM 으로 생성(`out`·`in` 필수) |
+
+값이 만들어지는 순서는 kind 공통입니다.
+
+```
+alias 매핑 → default(빈 값만) → const(덮어씀) → values → transform → template
+          → filter·require 선별 → seq 번호 → llm 필드 → pack 묶기
+```
+
+> **여기 적는 이름이 설정 표기입니다.** 오류 메시지에는 `column_map` · `text_fields` ·
+> `key_map` 같은 **내부 이름**이 나오는데, 그것은 설정에 적는 이름이 아닙니다. 둘의 대응표와
+> kind 별 지원 매트릭스(어느 키가 어느 kind 에서 되는지), `transform` 10종, 별칭 탐색 범위,
+> 설정으로 안 되는 8가지는 [`parser_processor.md`](parser_processor.md) 의
+> **"새 문서 유형 추가하기"** 절에 있습니다. 이 절은 그 요약입니다.
+
+**④ 등록 블록을 프로세서 설정에 추가합니다.**
+
+```yaml
+# genon/preprocessor/resource/parser_processor_config.yaml
 enrichment:
   # … 기존 항목 …
   - custom_fields:
       enable: true
-      doc_type: contract
-      extractor: llm
-      config_file: custom_field_contract.yaml   # 경로는 이 yaml 과 같은 폴더 기준
+      doc_type: notice                          # 요청 params 로 넘길 키
+      config_file: custom_field_notice.yaml     # 파일명만. 이 yaml 과 같은 폴더 기준
 ```
 
-**④ 호출** — `params` 에 `doc_type` 을 넣습니다.
+> **`extractor` 는 적지 않는 것이 기본**입니다. 설정 파일의 `source.kind` 가 정합니다.
+> 굳이 적으면 그 값과 일치해야 하고, 어긋나면 **설정에 적은 적도 없는 키 이름**으로 기동이
+> 실패해 원인을 짚기 어렵습니다.
+
+출고 `parser_processor_config.yaml` 에는 **17개 항목이 `enable: true` 로 등록**되어 있고,
+설정 파일 17개가 `kind` 5종을 모두 실례로 보여 줍니다. 쓰지 않을 유형은 `enable: false` 로
+내리세요. LLM 을 쓰는 항목은 모델 서빙 ID(`<ENRICHMENT_SERVING_ID>`)를 채우기 전까지 경고만
+남기고 건너뜁니다.
+
+**⑤ 호출합니다.**
 
 ```json
-{ "file_path": "/app/src/service/.../contract.pdf", "params": { "doc_type": "contract" } }
+{ "file_path": "/app/src/service/.../notice.xlsx", "params": { "doc_type": "notice" } }
 ```
 
-**⑤ 확인** — 응답 `data.metadata` 에 추출 필드가 있고, `/chunker` 를 태우면 **모든 청크**에
-그 필드와 `doc_type` 이 실립니다.
+**⑥ 값을 눈으로 확인합니다.** → 아래 [검증](#검증)
 
-##### 경로 B — 행 매핑형 (`extractor: tabular_mapping`)
+##### 청크 본문에 무엇을 실을지 — `body`
 
-예: 공지사항 엑셀을 행마다 청크 1개로 만드는 `notice` 유형. LLM 을 쓰지 않고 **엑셀 컬럼을 목표
-필드에 직접 매핑**합니다.
+metadata 컬럼에만 있는 값은 **필터 검색에만** 걸리고 임베딩 검색에는 안 걸립니다. 그래서
+검색어에 나올 값은 본문에 실어야 합니다.
 
-**① `resource/custom_field_notice.yaml` 작성** — `resource/templates/custom_field_TEMPLATE_rows.yaml`
-을 복사해 채웁니다(출고 실례는 `custom_field_faq.yaml`·`custom_field_term.yaml`).
+| 키 | 하는 일 | 쓰는 곳 |
+|---|---|---|
+| `body.fields` | 본문을 구성할 필드와 순서 (개행 결합) | rows · records 는 **본문의 전부** |
+| `body.labels` | `항목명: 값` 으로 냅니다 | 사람이 검색어로 쓰는 말을 적습니다(DB 컬럼명 금지) |
+| `body.split` | 본문이 `chunk_size` 를 넘으면 여러 청크로 나눕니다 | 긴 상세 HTML 을 가진 행·레코드 |
+| `body.repeat` | 나뉜 **모든** 조각 앞에 반복할 식별 필드 | `split: true` 일 때만. 제목·메뉴명 1~2개 |
+| `body.once` | **첫 청크에만 1회** 얹습니다 | 문서 단위 분류(sections · document) |
+| `body.mirror_to` | 본문과 **글자 그대로 같은 값**을 받을 메타 필드 | 소비계층의 본문 컬럼(`CONTENT`)용. document 전용 |
 
-| 키 | 뜻 |
+> 접두는 청크마다 `chunk_size` 를 그만큼 깎습니다(청커가 미리 예약합니다). 짧은 식별 필드
+> 1~2개로 제한하세요. `body.once` 만 쓰면 **그 값으로 임베딩 검색을 할 때 첫 청크만** 걸립니다
+> (값 자체는 모든 청크의 metadata 에 실리므로 필터 검색은 전 청크에서 됩니다).
+
+##### 조용히 실패하는 자리
+
+설정 파일의 **모르는 키는 기동을 실패시킵니다** — 오타는 가장 가까운 이름을 제안하고, 다른
+kind 전용 키는 어디 전용인지 알려 줍니다. 배포 전에 미리 훑으려면:
+
+```bash
+# 실행 위치: 저장소 루트. 현장 설정 경로를 인자로 줄 수 있습니다
+genon/preprocessor/examples/config_precheck/precheck_custom_fields.sh
+```
+
+> 현장 설정을 미리 검사하지 못한 첫 릴리스에 한해 `GENOS_CUSTOM_FIELDS_VALIDATION=warn` 으로
+> 낮추면 경고만 남기고 기동합니다(그 설정은 무시됩니다).
+
+**문제는 기동 검사가 못 잡는 것들입니다.** 키가 전부 올바른데 값만 비거나 틀립니다.
+
+| 상황 | 결과 |
 |---|---|
-| `column_map` | `목표필드: [허용 소스 컬럼 별칭 …]`. **목표필드명 자체도 자동 별칭**이고, 비교 시 BOM·공백·대소문자·`_`·`-`·`.` 차이를 정규화합니다 |
-| `value_map` | 컬럼명이 아니라 **값**의 표기를 표준 코드로 접습니다. `목표필드: {표준값: [별칭…]}`. 표준값 자신도 자동 별칭이라 이미 코드로 오는 원천은 그대로 통과하고, 표에 없는 값은 **원값을 두고 경고만** 남깁니다 |
-| `transforms` | `목표필드: 변환기이름`. 쓸 수 있는 것은 `date_int` · `date_int_flex` · `text_norm` 3개뿐이고, 없는 이름은 기동 시 실패합니다 |
-| `required` | 필수 목표필드 (동작은 아래 주의 참고) |
-| `defaults` | 대응 컬럼이 없거나 값이 비었을 때 채울 기본값 |
-| `nulls` | 대응 소스가 없어 `null` 로 **명시 출력**할 필드 (스키마 고정용). `column_map` 에 있는 필드는 매핑 루프가 항상 채우므로 적을 필요가 없습니다 |
-| `constants` | 모든 행에 같은 값으로 넣을 필드. `defaults` 와 달리 **원천 값이 있어도 덮어씁니다** |
-| `llm_fields` | 원천에 없는 필드를 **행마다 LLM 으로** 생성. 스키마는 경로 C 와 같습니다(아래 참고). ⚠️ parser 경로에서만 실행됩니다 |
-| `text_fields` | 청크 `text` 본문을 구성할 필드와 그 순서 (개행으로 이어붙임). 생략하면 행의 모든 값 |
-| `split` | `true` 면 행 본문이 `chunk_size` 를 넘을 때 여러 청크로 나눕니다(metadata 는 조각마다 동일). 생략하면 행 1개 = 청크 1개 |
-| `chunk_prefix_fields` | 분할된 **모든** 조각 앞에 반복할 식별 필드(예: `QUESTION`, `MENU_NM`). `split: true` 일 때만 유효. 접두는 본문 맨 앞으로 이동하고 `text_fields` 에서는 빠집니다(중복 방지) |
+| `alias`·CSS 선택자가 원천 표기와 어긋남 | 값이 `null`. 경고만 |
+| `body.fields` 에 **아무도 만들지 않는 필드** | 본문에서 조용히 빠짐 (`llm` 을 주석 처리하고 그 출력 필드를 남기는 실수가 가장 흔합니다) |
+| `require` 미충족 | 그 건만 skip. **전건이면 청크 0건인데 요청은 성공** |
+| `values` 에 없는 값 | 원값 통과 (fail-open), 경고만 |
+| 같은 이름 key 가 얕은 곳과 깊은 곳에 둘 다 | **얕은 쪽이 이깁니다.** 경고 없이 엉뚱한 값이 실립니다 |
+| 같은 이름의 레코드 배열이 여러 곳 | `records_at` 은 최초 매칭 **1개**만. 나머지가 말없이 빠집니다 |
 
-> ⚠️ **`text_fields` 에 아무도 만들지 않는 필드를 적으면 그 부분이 조용히 빠집니다.**
-> `column_map`·`constants`·`defaults`·`llm_fields[].output_fields` 중 어디에도 없는 이름을 쓰면
-> 에러·경고 없이 본문에서 누락됩니다. `llm_fields` 를 주석 처리하면서 그 출력 필드를
-> `text_fields` 에 남겨 두는 실수가 가장 흔합니다 — 출고
-> `custom_field_monimo_event.yaml` 이 실제로 그 상태입니다(`text_fields` 에 `SUMMARY_TEXT` 가
-> 있는데 `llm_fields` 는 주석). 값 확인은 아래 [검증](#검증) 절대로 하세요.
-
-> **`required` 는 두 가지로 다르게 동작합니다.**
-> - 시트에 **대응 컬럼 자체가 없으면**(그리고 `defaults` 도 없으면) → **파싱 전체가 입력 오류로 종료**
-> - 컬럼은 있는데 **특정 행의 값만 비었으면** → **그 행만 건너뛰고** WARN 로그에 몇 행을 건너뛰었는지 남김
->
-> 청크 수가 예상보다 적으면 로그에서 `skipped N/M rows (missing required)` 를 찾아 보세요.
-
-**② config 블록 추가**
-
-```yaml
-enrichment:
-  - custom_fields:
-      enable: true
-      doc_type: notice
-      extractor: tabular_mapping
-      config_file: custom_field_notice.yaml
-```
-
-**③ 결과** — 각 데이터 행이 아래 element 하나가 됩니다.
-
-```json
-{ "category": "custom_fields_row", "content": "<text_fields 를 개행으로 이어붙인 값>",
-  "coordinates": [], "id": 0, "page": 1,
-  "metadata": { "title": "…", "body": "…", "doc_type": "notice" } }
-```
-
-`/chunker` 는 이 `category` 를 보고 **행 1개 = 청크 1개**로 만들고, `metadata` 를 청크 property 로
-승격합니다([5.5절](#55-chunking_processorpy-읽기)의 행 기반 경로). 청크 스키마는 추가 필드를 허용하므로
-스키마를 고칠 필요가 없습니다.
-
-> **행 매핑이 매칭되면 `formats.xlsx.processing_mode` 보다 우선합니다.** `processing_mode` 는
-> "행으로 나눌지"만 정하고, `doc_type` 은 "행의 컬럼을 어떤 목표필드로 매핑할지"를 정합니다.
-> 매칭되는 매핑이 있으면 목적이 행별 매핑이므로 mode 와 무관하게 이 경로를 탑니다.
-
-##### 경로 C — 레코드 매핑형 (`extractor: json_mapping`)
-
-예: `eventList[*]` 처럼 레코드 배열이 오는 JSON 을 **레코드마다 청크 1개**로 만들고, 제목·기간·상세HTML 을
-그 청크의 metadata 로 싣는 `monimo_event` 유형. 경로 B(엑셀 행 매핑)의 JSON 판이고, 거기에 없던
-**JSON 에 없는 필드를 LLM 으로 만들어 붙이는 기능**이 추가돼 있습니다.
-
-**① `resource/custom_field_<유형>.yaml` 작성** — 출고된 `custom_field_monimo_event.yaml` 을 복사해 고칩니다.
-
-| 키 | 뜻 |
-|---|---|
-| `records` | 레코드 배열이 담긴 key **이름만**. JSON 임의 깊이에서 재귀 매칭. 생략하면 payload 전체가 레코드 1건 |
-| `key_map` | `목표필드: [허용 소스 key 별칭 …]`. 경로 B 의 `column_map` 과 같은 규칙이고, 값은 레코드 안 임의 깊이에서 찾되 **얕은 쪽이 우선**합니다(`wcmsHtml.htmlText` → `htmlText` 한 단어로 매칭). **같은 레벨 안에서는 별칭 선언 순서**가 우선순위이므로, 원천 표기가 여러 가지면 선호하는 키를 앞에 두고 나머지를 뒤에 덧붙이면 됩니다 |
-| `required` · `defaults` · `nulls` · `constants` | 경로 B 와 동일 |
-| `transforms` | `목표필드: 변환기이름`. 등록된 변환기만 쓸 수 있고(없는 이름은 기동 시 실패), `date_int_flex` 는 `"26.07.01"`·`"2026-07-01"` 을 모두 `20260701` 정수로 바꿉니다 |
-| `llm_fields` | JSON 에 없는 필드를 LLM 으로 생성. 아래 참고 |
-| `text_fields` | 청크 `text` 본문을 구성할 필드와 순서 (경로 B 와 동일) |
-| `split` | `true` 면 레코드 본문이 `chunk_size` 를 넘을 때 여러 청크로 나눕니다(metadata 는 조각마다 동일). 생략하면 레코드 1건 = 청크 1개 |
-| `chunk_prefix_fields` | 경로 B 와 동일 — 분할된 모든 조각 앞에 반복할 식별 필드(예: `TITLE`). `split: true` 일 때만 유효 |
-| `missing_policy` | `records` 키를 못 찾았을 때. `error`(기본, 즉시 실패) / `skip`(경고 후 0건) |
-
-**`llm_fields`** — 항목마다 레코드 1건당 LLM 을 1회 호출합니다.
-항목이 쓰는 키는 `input_fields`·`concurrency`·`on_error` 세 개뿐이고, **나머지는 전부 경로 A 와 같은
-`CustomFieldsEnricher` 설정 스키마**로 그대로 넘어갑니다. 그래서 LLM 연결과 프롬프트를 **항목에 직접
-써도 되고**(파일 하나로 끝남), `config_file` 로 외부 yaml 을 가리켜도 됩니다.
-
-```yaml
-llm_fields:
-  - # ① 무엇을 만들 것인가 — 이 세 키만 llm_fields 가 직접 소비합니다
-    output_fields: [SUMMARY_TEXT]   # 프롬프트가 내놓는 JSON 키와 같아야 함
-    input_fields: [TITLE, DETAIL_TEXT]   # 프롬프트 {{raw_text}} 로 들어갈 필드(순서대로 결합)
-    concurrency: 4                  # 레코드 동시 호출 상한
-    on_error: null                  # null(필드를 null 로 두고 진행) | skip_record
-
-    # ② 아래부터는 CustomFieldsEnricher 로 그대로 전달 (경로 A 의 yaml 키와 동일)
-    url: "http://llmops-gateway-api-service:8080/rep/serving/<ID>/v1/chat/completions"
-    api_key: ""
-    model: model
-    max_tokens: 1000
-    temperature: 0.0
-    timeout: 120
-    parser:
-      type: json
-    system_prompt: |
-      너는 이벤트 안내문 요약 전문가다. …
-    user_prompt: |
-      …
-      <event>
-      {{raw_text}}
-      </event>
-```
-
-**언제 파일로 뺄까** — 위처럼 인라인하면 설정 파일 하나만 관리하면 되고(출고된
-`custom_field_monimo_event.yaml` 이 이 형태), 프롬프트가 길거나 여러 doc_type 이 공유한다면
-`config_file: custom_field_<유형>.yaml` + `system_prompt_file`/`user_prompt_file` 로 쪼개는 편이
-낫습니다(경로 A 의 `custom_field_card.yaml` 이 이 형태). **두 방식은 같은 코드 경로**로 처리됩니다.
-
-> `url`/`model` 이 비어 있으면 호출하지 않고 해당 필드를 `null` 로 둡니다(경고 로그). 둘 다 없고
-> `config_file` 도 없으면 기동 시 `config_file 또는 url 중 하나가 필요합니다` 로 실패합니다.
-> 레코드 수만큼 호출이 나가므로 큰 파일에서는 `concurrency` 와 모델 서빙 처리량을 함께 보세요.
-
-**② config 블록 추가**
-
-```yaml
-enrichment:
-  - custom_fields:
-      enable: true
-      doc_type: monimo_event
-      extractor: json_mapping
-      config_file: custom_field_monimo_event.yaml
-```
-
-**③ 결과** — 각 레코드가 경로 B 와 **같은 element 형태**가 됩니다(`split: true` 면 `"splittable": true` 추가).
-따라서 청커 쪽은 새로 배울 게 없습니다 — 같은 행 기반 경로가 그대로 처리합니다.
-
-```json
-{ "category": "custom_fields_row", "content": "<text_fields 를 개행으로 이어붙인 값>",
-  "coordinates": [], "id": 0, "page": 1, "splittable": true,
-  "metadata": { "TITLE": "…", "EVENT_FROM": 20260701, "EVENT_TO": 20260731,
-                "DETAIL_HTML": "<div>…</div>", "SUMMARY_TEXT": "…", "doc_type": "monimo_event" } }
-```
-
-> ⚠️ **요약본문 필드명은 `SUMMARY_TEXT` 입니다.** 예전 문서·설정에 `CONTENT_HASH` 로 잘못 적힌
-> 적이 있는데, 적재 스키마의 `CONTENT_HASH` 는 RAW(32) **원문 검증 해시**라 임베딩 입력이
-> 아닙니다. `tests/unit/test_custom_fields_routing.py` 가 이 회귀를 막고 있습니다.
-
-> **본문이 빈 레코드는 element 로 내보내지 않습니다.** `text_fields` 값이 전부 비면 text 가 빈 벡터가
-> 적재되므로 그 레코드를 빼고 `본문이 빈 레코드 N/M건을 제외했습니다` 경고를 남깁니다. `text_fields` 가
-> LLM 생성 필드뿐인데 모델 서빙이 죽어 있으면 전부 빠져 `chunk length is 0` 이 됩니다 — 조용히 빈
-> 벡터가 들어가는 것보다 낫습니다.
-
-> **문서 모드(`source.pre.json`)와 함께 쓰지 마세요.** 같은 `doc_type` 에 둘 다 매칭되면 레코드
-> 모드가 이깁니다. 하나의 JSON 을 통짜 문서로 파싱하려면 경로 C 가 아니라 config_file 의
-> `source.pre.json.body_from` 을 쓰세요 (5.4절 `.json` 경로 표 참고).
-> 등록 블록에 `json: text_fields` 로 적던 옛 표기는 받지 않습니다.
+**그래서 "청크가 나왔다" 는 검증이 될 수 없습니다.** 새 doc_type 을 붙였으면 반드시 첫 몇 건의
+**값**을 눈으로 확인하세요.
 
 ##### 검증
 
-**① 설정만 컴파일해 값 확인** — 모르는 키가 조용히 무시되므로, 파싱을 돌리기 전에 **의도한
-목표필드가 실제로 잡혔는지** 먼저 봅니다. LLM·모델 서빙이 필요 없습니다.
+**① 값을 눈으로 본다** — facade 단독 실행이 가장 빠릅니다(7.1). LLM 을 쓰지 않는 `kind` 면
+모델 서빙 없이도 끝까지 돕니다.
 
 ```bash
-# 실행 위치: genon/preprocessor
-# (A) 문서형 — 프롬프트와 output_fields 정합
-python -c "
-import sys; sys.path.insert(0,'.'); sys.path.insert(0,'../..')
-from processing.enrichment.custom_fields_enricher import CustomFieldsEnricher as E
-e = E(config_file='custom_field_contract.yaml', resource_path='resource')
-print('연결:', e.is_configured, '| 출력필드:', e._output_fields)
-print('{{raw_text}} 포함:', '{{raw_text}}' in e._user_prompt)
-print('프롬프트에 없는 출력필드:',
-      [f for f in e._output_fields
-       if f not in e._system_prompt and f not in (e._constants or {})] or '없음')
-"
+# 실행 위치: 저장소 루트
+python -m genon.preprocessor.facade.parser_processor 공지사항.xlsx --doc-type notice -o parsed.json
+python -m genon.preprocessor.facade.chunking_processor parsed.json --doc-type notice -o chunks.json
 
-# (B) 행 매핑형 — 실제 엑셀 헤더와 매핑 결과
 python -c "
-import sys; sys.path.insert(0,'.'); sys.path.insert(0,'../..')
-from processing.enrichment.tabular_custom_fields import TabularCustomFieldsMapper as M
-from genon.preprocessor.processing.converters.xlsx_processor import build_tabular_data_dict
-m = M(config_file='custom_field_notice.yaml', resource_path='resource',
-      doc_type='notice', extractor='tabular_mapping')
-d = build_tabular_data_dict('sample_files/<파일>.xlsx')
-print('원천 컬럼:', list(d['data'][0]['data_rows'][0].keys()))
-for el in m.to_parse_format(d, 'notice')['elements'][:3]:
-    print(el['metadata']); print('본문:', repr(el['content'])[:120]); print()
-"
-
-# (C) 레코드 매핑형 — 레코드 수가 0 이면 key_map 별칭이 원천 키와 어긋난 것
-python -c "
-import sys, json; sys.path.insert(0,'.'); sys.path.insert(0,'../..')
-from processing.enrichment.json_records import JsonRecordsMapper as M
-m = M(config_file='custom_field_monimo_event.yaml', resource_path='resource',
-      doc_type='monimo_event', extractor='json_mapping')
-payload = json.load(open('sample_files/json/monimo_event_sample.json', encoding='utf-8'))
-rows = m.build_fields(payload, 'monimo_event')
-print(f'매핑된 레코드: {len(rows)}건')
-for el in m.to_parse_format(rows, 'monimo_event')['elements'][:3]:
-    print(el['metadata']); print('본문:', repr(el['content'])[:120]); print()
+import json
+r = json.load(open('parsed.json'))
+els = r.get('elements') or []
+if els:                                             # rows / records / sections
+    print('건수:', len(els))
+    for el in els[:3]:
+        print(el['category'], el.get('metadata'))   # 목표필드가 의도한 값인가
+        print('본문:', repr(el['content'])[:160], '\n')
+else:                                               # document / html — 문서 metadata 를 본다
+    print(r.get('metadata'))
 "
 ```
 
-여기서 볼 것 — **원천 컬럼/키 목록**(내가 안 쓴 컬럼이 없는지), **각 목표필드 값**(엉뚱한 컬럼이
-들어왔거나 `None` 인 필드), **청크 본문**(비었거나 일부가 빠졌는지).
+여기서 볼 것 — **건수**(예상보다 적으면 `require` 로 걸러진 것), **각 목표필드 값**(엉뚱한
+컬럼이 들어왔거나 `None` 인 필드), **본문**(비었거나 일부가 빠졌는지). `kind: document` ·
+`html` 은 element 가 아니라 **문서 metadata** 에 실리고, 청킹까지 돌리면 `chunks.json` 의
+모든 청크에 같은 값이 붙습니다.
 
-> **(B)·(C) 미리보기에는 `llm_fields` 생성 필드가 나타나지 않습니다.** parser 는
-> `build_fields` → LLM 호출 → `to_parse_format` 3단으로 도는데 위 명령은 가운데를 건너뛰기
-> 때문입니다. 그래서 **본문에 그 필드가 빠져 보이는 것이 정상**입니다.
->
-> 문제는 이 모습이 "`text_fields` 가 만들 수 없는 필드를 가리키는 실제 결함"과 **똑같이
-> 보인다**는 점입니다. 아래로 구분하세요 — `llm_fields` 에 선언돼 있으면 정상(런타임에 채워짐),
-> 없으면 결함입니다.
->
-> ```bash
-> # 실행 위치: genon/preprocessor
-> python -c "
-> import yaml
-> from genon.preprocessor.processing.enrichment import config_v2
-> raw = yaml.safe_load(open('resource/custom_field_<유형>.yaml', encoding='utf-8'))
-> c, _ = config_v2.load(raw, label='check')   # 설정 표기 → 내부 형태. 이 줄을 빼면 전부 빈 값이 된다
-> llm = {x for s in (c.get('llm_fields') or []) for x in (s.get('output_fields') or [])}
-> producible = (set(c.get('column_map') or {}) | set(c.get('key_map') or {})
->               | set(c.get('constants') or {}) | set(c.get('defaults') or {}) | llm)
-> print('llm_fields 로 채워질 필드:', sorted(llm) or '(없음/주석 처리)')
-> print('만들 수 없는 필드:',
->       [x for x in (c.get('text_fields') or []) if x not in producible] or '없음')
-> "
-> ```
->
-> `만들 수 없는 필드` 가 비어 있어야 합니다. 출고 `custom_field_monimo_event.yaml` 로 돌리면
-> `['SUMMARY_TEXT']` 가 나오고(= 결함), `custom_field_cs_slf.yaml` 은 `없음` 이 나옵니다
-> (= `llm_fields` 활성이라 런타임에 채워짐).
+**② 설정만 컴파일해 본다** — 원천 파일이 아직 없을 때 씁니다.
 
-**② 파싱+청킹 실행** — 로컬에서(4.5절) 돌려 봅니다.
+```bash
+# 실행 위치: 저장소 루트
+python -c "
+import yaml
+from genon.preprocessor.processing.enrichment import config_v2
+raw = yaml.safe_load(open('genon/preprocessor/resource/custom_field_notice.yaml', encoding='utf-8'))
+c, _ = config_v2.load(raw, label='check')   # 설정 표기 -> 내부 형태
+llm = {x for s in (c.get('llm_fields') or []) for x in (s.get('output_fields') or [])}
+producible = (set(c.get('column_map') or {}) | set(c.get('key_map') or {})
+              | set(c.get('constants') or {}) | set(c.get('defaults') or {}) | llm)
+print('llm 이 채울 필드:', sorted(llm) or '(없음)')
+print('만들 수 없는 필드:',
+      [x for x in (c.get('text_fields') or []) if x not in producible] or '없음')
+"
+```
+
+`만들 수 없는 필드` 가 **비어 있어야** 합니다. 이 스니펫이 내부 이름(`column_map`·`text_fields`)
+을 쓰는 것은 `config_v2.load` 가 설정 표기를 내부 형태로 바꾼 **뒤**를 보기 때문입니다.
+
+**③ 기존 문서가 안 깨졌는지 본다** — 자기 문서로 자기 골든을 만듭니다.
 
 ```bash
 # 실행 위치: genon/preprocessor/examples/parse_chunk
-python parse_chunk_test.py --doc_type notice ../../sample_files/<파일>.xlsx result_parse_chunk/
+cat > my_cases.yaml <<'EOF'
+- {doc_type: notice, path: /data/samples/notice.xlsx}
+- {doc_type: card,   path: /data/samples/card.pdf}
+EOF
 
-# 경로 C(레코드 매핑) 출고 픽스처 — 제목이 빈 레코드는 skip 되어 2청크가 나옵니다
-python parse_chunk_test.py --doc_type monimo_event \
-  ../../sample_files/json/monimo_event_sample.json result_parse_chunk/
-
-# 같은 config 로 실 payload 스키마(영문 camelCase 키) 픽스처 — 역시 2청크
-python parse_chunk_test.py --doc_type monimo_event \
-  ../../sample_files/monimo/monimo_event_real_sample.json result_parse_chunk/
+./parse_chunk_golden.py --record --cases my_cases.yaml --golden ~/my_golden   # 고치기 전
+# … 설정·코드 수정 …
+./parse_chunk_golden.py --check  --cases my_cases.yaml --golden ~/my_golden   # 차이 0 이어야 통과
 ```
 
-재배포한 뒤에는 게이트웨이로 확인합니다(8.7 ④). `--doc-type` 대신 `--param doc_type=notice` 도 됩니다.
+**④ 재배포 후 게이트웨이로 확인한다** (8.7 ④).
 
 ```bash
 # 실행 위치: genon/preprocessor/examples/code_serving
@@ -1842,134 +1619,185 @@ python serving_gateway_test.py --mode e2e $AUTHARGS \
   --file-path "$FILE_PATH" --doc-type notice --out /tmp/chunks.json --chunk-size 10000
 ```
 
-##### 복제 범위
+##### 복제 범위 — 다른 엔드포인트에도 필요하다면
 
-**facade 는 config 를 공유하지 않습니다.** `/preprocess`(적재용)·`/preprocess_convert` 에서도 같은
-doc_type 이 동작해야 한다면 아래 파일에 **같은 블록을 각각** 추가하세요([5.8절](#58-수정-전-반드시-확인할-복제-범위)).
+**설정 파일은 프로세서마다 따로 등록합니다.** `custom_field_*.yaml` 은 `resource/` 에 한 벌만
+두고, **등록 블록만** 각 프로세서 설정에 복사하면 됩니다.
 
-| 엔드포인트 | 추가할 config |
+| 엔드포인트 | 등록 블록을 추가할 config |
 |---|---|
 | `/parser` | `parser_processor_config.yaml` |
 | `/preprocess`, `/preprocess_intelligent` | `intelligent_processor_config.yaml` |
 | `/preprocess_convert` | `convert_processor_config.yaml` |
-| `/chunker` | **수정 불필요** — parser 결과를 그대로 승격합니다 |
+| `/chunker` | **수정 불필요** — 파서 결과를 그대로 승격합니다 |
 
-`custom_field_*.yaml` 과 프롬프트 md 는 `resource/` 에 한 벌만 두고 세 config 가 함께 참조하면 됩니다.
-
-> ⚠️ **블록을 복사해도 경로에 따라 동작하지 않는 것이 있습니다.** 적재용/변환용은 xlsx 를
-> 동기 경로로 벡터까지 만들기 때문에 async LLM 호출을 끼워 넣을 자리가 없습니다.
+> **블록을 복사해도 경로에 따라 동작하지 않는 것이 있습니다.** 적재용·변환용은 엑셀을 동기
+> 경로로 벡터까지 만들기 때문에 async LLM 호출을 끼워 넣을 자리가 없습니다.
 >
 > | 설정 | `/parser` | `/preprocess`(적재용) · `/preprocess_convert` |
 > |---|---|---|
-> | `extractor: llm` | 동작 | 동작 |
-> | `extractor: tabular_mapping` (매핑만) | 동작 | 동작 |
-> | `tabular_mapping` 의 `llm_fields` | 동작 | **미실행** — 기동 시 경고를 남기고 그 필드는 빈 채로 나갑니다 |
-> | `extractor: json_mapping` | 동작 | **미실행** — 매퍼를 아예 만들지 않아 **경고조차 없습니다** |
+> | `kind: document` · `html` | 동작 | 동작 |
+> | `kind: rows` (매핑만) | 동작 | 동작 |
+> | `kind: rows` 의 `llm:` | 동작 | **미실행** — 기동 시 경고를 남기고 그 필드는 빈 채로 나갑니다 |
+> | `kind: records` | 동작 | **미실행** — 매퍼를 아예 만들지 않아 **경고조차 없습니다** |
 >
-> 요약본문 같은 LLM 생성 필드나 `.json` 레코드 매핑이 필요하면 **`/parser` + `/chunker`** 조합을
-> 쓰세요. 적재용에서 요약이 비어 나오면 기동 로그의
-> `tabular custom_fields 의 llm_fields 는 이 프로세서에서 실행되지 않습니다` 경고를 확인하세요.
+> LLM 생성 필드나 JSON 레코드 매핑이 필요하면 **`/parser` + `/chunker`** 조합을 쓰세요.
 
 ##### 안 될 때
 
 | 증상 | 원인 |
 |---|---|
-| doc_type 을 줬는데 아무 일도 안 일어남 | 블록이 `enable: false` 이거나, doc_type **값**의 문자열 불일치. 값 오타는 에러 없이 무시됩니다(매칭이 안 될 뿐) |
-| doc_type 을 안 줬는데 custom_fields 가 동작함 | 블록에 `doc_type` 키가 없으면 **wildcard** — 모든 요청에 매칭됩니다. `doc_types` 처럼 **키 이름을 틀린 경우도 같습니다**(tabular/json 은 모르는 entry 키를 흡수합니다) |
-| 청크는 나오는데 metadata 가 비어 있음 | 설정 파일의 **최상위 키 오타**(`column_maps` 등). 조용히 무시되므로 에러가 없습니다 — 아래 [검증](#검증) 으로 실제 값을 확인하세요 |
-| 청크 본문의 일부가 빠져 있음 | `text_fields` 에 아무도 만들지 않는 필드가 있습니다(주석 처리한 `llm_fields` 의 출력 필드가 흔한 원인) |
-| 특정 필드만 계속 `null` | `output_fields` 이름과 프롬프트가 내놓는 JSON 키가 다릅니다. 이름을 맞추세요 |
-| 등록 블록의 `max_tokens`/`temperature`/`timeout` 이 안 먹음 | 기본값(1000/0.0/60)과 같은 값이면 "미지정"과 구분되지 않아 config 파일 값이 이깁니다(경로 A 주의 참고) |
-| config 파일의 `thinking` 이 안 먹음 | 이 파일에서는 읽히지 않습니다. 등록 블록에 쓰세요(경로 A 주의 참고) |
-| `동일 doc_type에 tabular custom_fields 설정이 여러 개입니다` | 같은 doc_type 에 `tabular_mapping` 블록이 2개 |
-| `동일 doc_type에 json_mapping custom_fields 설정이 여러 개입니다` | 같은 doc_type 에 `json_mapping` 블록이 2개 |
-| `tabular custom_fields config 없음: …` / `json custom_fields config 없음: …` | `config_file` 경로는 **config yaml 과 같은 폴더** 기준. 파일명만 적으세요 |
-| `지원하지 않는 custom_fields extractor: …` | `extractor` 값 오타 — `llm` / `python` / `tabular_mapping` / `json_mapping` / `json_semantic` |
-| `필수 Excel 컬럼 매핑 실패` | `required` 목표필드에 대응 컬럼이 없음. `column_map` 별칭을 늘리거나 `defaults` 를 주세요 |
-| `정규화 후 중복되는 Excel 컬럼이 있습니다` | 대소문자·공백만 다른 컬럼이 한 시트에 둘 이상 |
+| doc_type 을 줬는데 아무 일도 안 일어남 | 등록이 `enable: false` 이거나 doc_type **값**의 문자열 불일치. 값 오타는 에러 없이 무시됩니다(매칭이 안 될 뿐) |
+| doc_type 을 안 줬는데 custom_fields 가 동작함 | 등록 블록에 `doc_type` 키가 없으면 **wildcard** — 모든 요청에 매칭됩니다 |
+| 청크는 나오는데 metadata 가 비어 있음 | 매칭되는 등록이 없어 일반 경로로 빠진 것. 아니면 `alias` 가 원천과 어긋난 것 |
+| 청크 본문의 일부가 빠져 있음 | `body.fields` 에 아무도 만들지 않는 필드가 있습니다 |
+| 특정 필드만 계속 `null` | `llm` 의 `out` 이름과 프롬프트가 내놓는 JSON 키가 다릅니다. `kind: html` 이면 선택자가 안 걸린 것 |
+| 레코드가 **전건** skip 됨 | `skipped N/N records (missing required)` 경고 확인. 원천 표기가 `alias` 와 달라 `require` 필드가 null 이 된 경우입니다 |
+| 본문이 빈 레코드가 빠짐 | 정상입니다. 빈 벡터 적재를 막으려고 `본문이 빈 레코드 N/M건을 제외했습니다` 경고와 함께 제외합니다 |
 | xlsx 가 행별로 안 나뉨 | 매칭되는 매핑이 없으면 `formats.xlsx.processing_mode` 가 결정합니다 (`tabular` 인지 확인) |
-| json 레코드가 청크로 안 나옴 | `records` 키 이름 확인. 또는 `text_fields` 가 모두 비어 청크 본문이 없는 경우 — `본문이 빈 레코드 N/M건을 제외했습니다` 경고를 보세요(LLM 요약 실패가 흔한 원인) |
-| json 레코드가 **전건** skip 됨 | `skipped N/N records (missing required)` 경고 확인. 원천 키 표기가 `key_map` 별칭과 달라 `required` 필드가 null 이 된 경우입니다 — 별칭을 늘리거나, 원천에 아예 없는 필드면 `required` 에서 빼고 `defaults`/`constants` 로 채우세요 |
-| `등록되지 않은 transforms 변환기: …` | `transforms` 에 없는 변환기 이름. 출고 변환기이거나 `tb.register_transform` 으로 등록한 것만 쓸 수 있습니다 |
-| 필드는 안 붙는데 `doc_type` 만 모든 청크에 붙음 | 매칭되는 블록이 없는 상태. 스탬프(위 3번)는 docling 계열 포맷이면 매칭 여부와 무관하게 동작합니다 |
-| csv/xlsx 인데 `doc_type` 조차 안 붙음 | 정상입니다. csv/xlsx 는 **매칭되는 행 매핑이 있을 때만** `doc_type` 이 실립니다 |
+| `tabular custom_fields config 없음: …` | `config_file` 경로는 **프로세서 config 와 같은 폴더** 기준. 파일명만 적으세요 |
+| `등록되지 않은 transforms 변환기: …` | 출고 변환기 10종이거나 `tb.register_transform` 으로 등록한 것만 쓸 수 있습니다((e) 참고) |
+| 필드는 안 붙는데 `doc_type` 만 모든 청크에 붙음 | 매칭되는 등록이 없는 상태. 스탬프(위 3번)는 매칭 여부와 무관하게 동작합니다 |
+| csv/xlsx 인데 `doc_type` 조차 안 붙음 | 정상입니다. 엑셀은 **매칭되는 행 매핑이 있을 때만** `doc_type` 이 실립니다 |
 
-> **`doc_type` 비교는 `양끝 공백 제거 + 소문자화` 후 정확 일치**입니다. `"Contract "` 와 `contract`
-> 는 같지만, `contracts` 는 다릅니다. yaml 에는 리스트도 쓸 수 있습니다 — `doc_type: [notice, notice_v2]`.
+> **`doc_type` 비교는 `양끝 공백 제거 + 소문자화` 후 정확 일치**입니다. `"Contract "` 와
+> `contract` 는 같지만 `contracts` 는 다릅니다. 리스트도 됩니다 — `doc_type: [notice, notice_v2]`.
 
-> ⚠️ **`enrichment.toc.doc_type` 은 완전히 다른 값입니다.** 그쪽은 목차(TOC) 추출 알고리즘을 고르는
-> 옵션이라 `normal` / `law` 만 받습니다(출고 기본값 `law`). 요청 `params.doc_type` 과는 아무 관계가
-> 없으니 섞지 마세요.
+> **`enrichment.toc.doc_type` 은 완전히 다른 값입니다.** 그쪽은 목차 추출 알고리즘을 고르는
+> 옵션이라 `normal` / `law` 만 받습니다. 요청 `params.doc_type` 과 섞지 마세요.
 
-##### 코드를 고쳐야 하는 경우
+#### (b) 문서 유형마다 설정을 다르게 — `CONFIG_BY_DOC_TYPE`
 
-드물지만 아래 두 경우는 파이썬 수정이 필요합니다. [7.3 알아둘 제약](#73-알아둘-제약)의 ①·② 가 그대로 적용됩니다.
+설정 파일은 **모든 문서에 똑같이** 적용됩니다. "계약서만 OCR 을 강제로", "FAQ 만 청크를 짧게"
+는 훅 메소드가 아니라 이 표로 씁니다. 두 facade 모두 같은 자리에 있습니다.
 
-| 하고 싶은 것 | 고칠 곳 |
-|---|---|
-| 새 **추출 방법** (예: 정규식, 사내 마스터 조회) | 코드 수정이 아니라 `extractor: python` 을 씁니다 — 설정 폴더에 파이썬 파일을 두고 `python: {file, callable}` 로 가리킵니다([facade_hooks.md](facade_hooks.md)). 코어를 고쳐야 하는 것은 **행·레코드 단위** 추출기를 새로 만들 때뿐입니다(`TABULAR_CUSTOM_FIELD_EXTRACTORS` / `JSON_CUSTOM_FIELD_EXTRACTORS` + 빌더 함수) |
-| 새 **값 변환기** 추가 (예: 금액 파싱) | 코드 수정이 아니라 전처리기 파일에서 `tb.register_transform("won_to_int", fn)` 으로 등록하면 `transforms` 에서 이름으로 바로 쓸 수 있습니다([facade_hooks.md](facade_hooks.md) 참조). 저장소의 `field_transforms.py` 를 고치면 릴리스 갱신에서 사라집니다 |
-| 새 **element category** 추가 | 코드 수정이 아니라 `chunking_processor.py` 의 `ROW_CATEGORIES` 에 이름을 더하면 됩니다(예: `ROW_CATEGORIES = ChunkerCore.ROW_CATEGORIES | {"crm_row"}`) |
+```python
+# facade/parser_processor.py
+    CONFIG_BY_DOC_TYPE = {
+        "press":    {"enrichment.table_description.enable": False},  # 표가 없어 불필요한 LLM 호출
+        "contract": {"ocr.ocr_mode": "force"},                       # 스캔본이 많다
+    }
 
-> 새 category 를 만들기보다 **`custom_fields_row` 를 그대로 재사용**하는 쪽이 안전합니다.
-> 청커는 `doc_type` 을 전혀 보지 않고 `category` 로만 분기하므로, 기존 category 를 쓰면 청킹 쪽은
-> 손댈 일이 없습니다.
-
-#### (h) 원천 구조가 설정으로 안 될 때 — 확장 훅
-
-`custom_field_*.yaml` 은 **원천이 예상한 모양일 때** 값을 꺼냅니다. 원천 자체의 모양이
-어긋나면 설정으로는 못 풉니다. 그때 전처리기 파일의 **훅**에서 모양을 바로잡습니다.
-
-| 훅 | 자리 | 받는 것 |
-|---|---|---|
-| `edit_input` | 파싱 **전** | `.json` dict/list · `.md .html` str · `.xlsx .csv` 시트 격자 · 그 밖 파일 경로 |
-| `edit_output` | 응답 확정 **직전** | 응답 dict(`elements` / `document` / `metadata`) |
-| `edit_input` · `edit_output` | 청커 쪽 | 파서 산출 · 완성된 청크 |
-
-전체 계약과 `toolbox` 목록은 [`facade_hooks.md`](facade_hooks.md) 에 있습니다.
-아래는 **실제 doc_type(`monimo_event`)의 원천이 조금 바뀐 경우** 두 가지입니다.
-아래 숫자는 전부 실측이고, 원천은 저장소에 있어 그대로 재현할 수 있습니다.
-
-```
-genon/preprocessor/sample_files/drill/e1_nested_by_company.json   변형 ①
-genon/preprocessor/sample_files/drill/e2_detail_joined.json       변형 ②
+# facade/chunking_processor.py
+    CONFIG_BY_DOC_TYPE = {
+        "faq":    {"chunking.chunk_size": 500},                      # 문답 1건이 짧다
+        "manual": {"chunking.chunk_mode": "split_only"},
+    }
 ```
 
-##### 기준이 되는 원천
+키는 **설정 파일 경로(점 표기)** 로 씁니다. 같은 뜻의 요청 파라미터 이름(괄호)으로 써도 같게
+동작합니다.
+
+| 파서 | | 청커 | |
+|---|---|---|---|
+| `enrichment.table_description.enable` (`table_desc`) | 표 설명 | `chunking.chunk_size` (`chunk_size`) | 청크 최대 크기 |
+| `enrichment.image_description.enable` (`img_desc`) | 이미지 설명 | `chunking.recursive.chunk_overlap` (`chunk_overlap`) | 청크 간 겹침 |
+| `enrichment.doc_summary.enable` (`doc_summary`) | 문서 요약 | `chunking.chunk_mode` (`chunk_mode`) | `split_only` / `resize_all` |
+| `enrichment.toc.enable` (`toc`) | 목차 보강 | | |
+| `ocr.ocr_mode` | `auto` / `force` / `disable` | | |
+| `pdf_output.keep` (`keep_pdf`) | 변환 PDF 보존 | | |
+
+**청킹 설정은 파서가 아니라 청커의 표에 적습니다.** 표로 안 되는 조건은 `config_by_condition()`
+에서 정합니다 — 같은 형식의 dict 를 돌려주고, 빈 dict 면 아무것도 바뀌지 않습니다.
+
+```python
+    def config_by_condition(self, job):
+        if job.params.get("dept") == "IR":
+            return {"enrichment.doc_summary.enable": True}
+        return {}
+```
+
+우선순위는 **뒤가 셉니다** — 설정 파일 → `CONFIG_BY_DOC_TYPE` → `config_by_condition()` →
+요청 파라미터. 요청이 보낸 값은 절대 덮이지 않습니다. 실제로 적용된 값은 `job.config` 에 남아
+"이 문서가 어떤 설정으로 처리됐는지" 를 되짚을 수 있습니다.
+
+> **모든 설정을 요청마다 바꿀 수 있는 것은 아닙니다.** 엔드포인트 주소, 프롬프트, 토크나이저
+> 경로처럼 기동 시 한 번 읽혀 굳는 설정은 여기 적어도 건너뛰고 로그에 경고가 남습니다.
+> 그런 값은 설정 파일에서 바꿉니다.
+
+#### (c) 원천 모양이 설정으로 안 풀릴 때 — 훅 메소드
+
+`custom_field_*.yaml` 은 **원천이 예상한 모양일 때** 값을 꺼냅니다. 원천 자체의 모양이 어긋나면
+설정으로는 못 풉니다. 그때 facade 의 **훅 메소드**에서 모양을 바로잡습니다.
+
+**훅 메소드가 하는 일은 값을 만드는 것이 아니라, 설정이 값을 찾을 수 있는 모양으로 되돌리는
+것입니다.** `alias`·`transform`·`values`·`require` 는 그대로 동작하고 훅 메소드는 그 앞에서 모양만 맞춥니다.
+
+```
+파싱   요청 -> 확장자 판정 -> doc_type 별 설정 -> [edit_input] -> ROUTES -> 파싱
+            -> [edit_document] -> LLM enrichment -> [edit_output] -> 응답
+청킹   파서 결과 -> 형태 판별 -> doc_type 별 설정 -> [edit_input] -> 분할 -> [edit_chunk]
+            -> vector_meta 조립 -> [edit_output] -> 응답
+```
+
+| 파일 | 훅 메소드 | 자리 | 받는 것 |
+|---|---|---|---|
+| `parser_processor.py` | `edit_input(ext, doc_type, data, work_dir=None, **kwargs)` | 파싱 **전** | `.json` 은 dict/list, `.md .html` 은 str, 엑셀은 `{시트명: 2차원 행}`, 그 밖은 파일 경로 |
+| | `edit_document(job, doc)` | 파싱 후, **LLM enrichment 전** | `DoclingDocument` 객체 |
+| | `edit_output(ext, doc_type, result, **kwargs)` | 응답 직전 | 응답 dict (`document` / `elements` / `metadata`) |
+| `chunking_processor.py` | `edit_input(kind, data, **kwargs)` | 청킹 전 | `kind=="parse"` 면 `list[dict]`, `"docling"` 이면 **직렬화된 dict** |
+| | `edit_chunk(text, info, **kwargs)` | **청크 1건마다** | 본문 str + `info` dict |
+| | `edit_output(vector_metas, **kwargs)` | 응답 직전 | `GenOSVectorMeta` 목록 |
+
+훅 메소드 안에서 쓰는 `tb` 는 파일 상단에 이미 import 되어 있는 toolbox 입니다
+(`from genon.preprocessor.processing.core import toolbox as tb`). **직접 구현하기 전에 여기부터
+보세요** — 값 변환기는 yaml 의 `transform:` 이 부르는 것과 **같은 함수**라, 설정으로 하던 변환과
+코드로 하는 변환이 어긋나지 않습니다.
+
+**모든 훅 메소드에 공통인 규칙 넷**
+
+1. **`doc_type` 으로 게이팅합니다.** 안 하면 모든 문서의 산출이 바뀝니다. `doc_type` 은
+   **소문자로 정규화**되어 옵니다 — `"MyType"` 으로 비교하면 영영 안 맞습니다.
+2. **손댈 것이 없으면 받은 값을 그대로 돌려줍니다.** 그래야 core 가 파생 입력을 만들지 않고
+   기존 경로를 그대로 씁니다.
+3. **요청 파라미터가 필요하면 시그니처 끝에 `**kwargs` 를 붙입니다.** 요청의 `params` 가 그대로
+   들어오고, `kwargs["job"]` 으로 요청 컨텍스트도 꺼낼 수 있습니다. **`self` 에 담지 마세요** —
+   인스턴스 하나가 모든 요청을 받아 `await` 사이에 값이 섞입니다. 단계 간 전달은 `job.notes`.
+4. **외부 호출이 필요하면 `async def` 로 씁니다.** core 가 코루틴을 알아서 기다립니다. 동기
+   함수 안에서 외부 호출을 하면 이벤트 루프가 막혀 **다른 문서의 요청까지 함께 멈춥니다.**
+
+```python
+    async def edit_output(self, ext, doc_type, result, **kwargs):
+        if doc_type != "branch_list":
+            return result
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(f"{MASTER_API}/dept/{kwargs.get('dept_cd')}")
+        tb.set_chunk_metadata(result, {"DEPT_NM": resp.json()["name"]})
+        return result
+```
+
+##### 실례 — 원천이 조금 바뀐 두 경우
+
+아래는 실제 doc_type(`monimo_event`)에 대한 실측이고, 원천이 저장소에 있어 그대로 재현할 수
+있습니다(`genon/preprocessor/sample_files/drill/`). 기준 원천은 이렇게 생겼습니다.
 
 ```json
 { "resultCode": "0000",
   "eventList": [
-    { "cmpId": "M001", "mnmFncoCd": "1",
-      "evtTodayMainCopy": "카드 첫 결제 이벤트",
-      "evtPtrmStrtDt": "20260701", "evtPtrmEndDt": "20260731",
-      "htmlText": "<p>카드 혜택</p>" } ] }
+    { "cmpId": "M001", "mnmFncoCd": "1", "evtTodayMainCopy": "카드 첫 결제 이벤트",
+      "evtPtrmStrtDt": "20260701", "htmlText": "<p>카드 혜택</p>" } ] }
 ```
 
 설정은 `source.records_at: eventList` 로 레코드를 찾고, 각 필드는 `alias` 로 레코드 **안에서**
-이름을 찾습니다. 이 전제가 깨지는 두 경우를 봅니다.
+이름을 찾습니다. 이 전제가 깨지는 두 경우입니다.
 
-##### 변형 ① 관계사별로 한 겹 더 묶여 온다
+**변형 ① 관계사별로 한 겹 더 묶여 온다** (`e1_nested_by_company.json`)
 
 ```json
-{ "resultCode": "0000",
-  "companyList": [
-    { "mnmFncoCd": "1", "eventList": [ {…}, {…} ] },
-    { "mnmFncoCd": "3", "eventList": [ {…} ] } ] }
+{ "companyList": [ { "mnmFncoCd": "1", "eventList": [ {…}, {…} ] },
+                   { "mnmFncoCd": "3", "eventList": [ {…} ] } ] }
 ```
-
-**그대로 넣으면 두 가지가 조용히 틀립니다** (실측).
 
 | 증상 | 원인 |
 |---|---|
-| 이벤트 3건 중 **2건만** 청크가 된다 | `records_at` 은 이름이 맞는 **첫 배열만** 찾는다. 두 번째 관계사가 통째로 사라진다 |
-| `GROUP_C` 가 전부 `IFP`(기본값) | `mnmFncoCd` 가 레코드 **밖** 부모에 있어 `alias` 가 못 찾는다 |
+| 이벤트 3건 중 **2건만** 청크가 된다 | `records_at` 은 이름이 맞는 **첫 배열만** 찾는다 |
+| `GROUP_C` 가 전부 기본값 | `mnmFncoCd` 가 레코드 **밖** 부모에 있어 `alias` 가 못 찾는다 |
 
-에러가 나지 않으므로 **산출을 열어 보지 않으면 모릅니다.** 훅에서 평탄화하고 부모 값을
-레코드에 심어 넣습니다.
+에러가 나지 않으므로 **산출을 열어 보지 않으면 모릅니다.** 훅 메소드에서 평탄화하고 부모 값을 레코드에
+심어 넣습니다.
 
 ```python
-    def edit_input(self, ext, doc_type, data, work_dir=None):
+    def edit_input(self, ext, doc_type, data, work_dir=None, **kwargs):
         if ext == ".json" and doc_type == "monimo_event" and "companyList" in data:
             return {"eventList": [
                 {**event, "mnmFncoCd": company.get("mnmFncoCd")}
@@ -1980,20 +1808,17 @@ genon/preprocessor/sample_files/drill/e2_detail_joined.json       변형 ②
 ```
 
 `records_at: eventList` 를 그대로 쓰려면 **`eventList` 키를 가진 dict 로** 돌려줘야 합니다.
-목록만 돌려주면 `records_at` 이 그 이름을 못 찾아 `on_missing: error` 에 걸립니다.
-
+목록만 돌려주면 그 이름을 못 찾아 `source.on_missing` 정책에 걸립니다.
 적용 후 실측: 청크 **2건 → 3건**, `GROUP_C` **`IFP`/`IFP` → `HPP`/`HPP`/`SSF`**.
 
-##### 변형 ② 목록과 상세가 분리돼 온다
-
-API 가 목록과 상세를 나눠 주고 `cmpId` 로 연결되는 형태입니다.
+**변형 ② 목록과 상세가 분리돼 온다** (`e2_detail_joined.json`)
 
 ```json
 { "eventList":  [ { "cmpId": "M101", "evtTodayMainCopy": "여행자보험 가입 이벤트" } ],
   "detailList": [ { "cmpId": "M101", "htmlText": "<p>해외 여행자보험 <b>30%</b> 할인</p>" } ] }
 ```
 
-**증상**: `DETAIL_HTML`·`DETAIL_TEXT` 가 전부 빈다. `body.fields` 에 `DETAIL_TEXT` 가 있으므로
+증상: `DETAIL_HTML`·`DETAIL_TEXT` 가 전부 빕니다. `body.fields` 에 `DETAIL_TEXT` 가 있으므로
 **청크 본문이 제목만 남습니다.** `alias` 는 레코드 안에서만 찾고 `detailList` 는 그 밖입니다.
 
 ```python
@@ -2006,73 +1831,323 @@ API 가 목록과 상세를 나눠 주고 `cmpId` 로 연결되는 형태입니�
 ```
 
 적용 후 실측: `DETAIL_TEXT` 가 빈 값에서 `## 해외 여행자보험 **30%** 할인` 로 채워집니다 —
-설정의 `transform: html_text` 가 그때부터 동작합니다. **훅이 하는 일은 값을 만드는 것이
-아니라 설정이 값을 찾을 수 있는 모양으로 되돌리는 것입니다.**
+설정의 `transform: html_text` 가 그때부터 동작합니다.
 
-##### 두 예시가 공통으로 보여주는 것
+##### 청커 쪽 훅 — 청크 하나씩 손보기
 
-1. **`doc_type` 으로 게이팅합니다.** 안 하면 모든 JSON doc_type 의 산출이 바뀝니다.
-   `doc_type` 은 **소문자로 정규화**되어 옵니다.
-2. **손댈 것이 없으면 받은 값을 그대로 돌려줍니다.** 그러면 core 가 파생 입력을 만들지 않고
-   기존 경로를 그대로 씁니다.
-3. **설정을 대체하지 않습니다.** `alias`·`transform`·`values`·`require` 는 그대로 동작하고,
-   훅은 그 앞에서 모양만 맞춥니다.
+**본문을 고치거나 청크를 버리는 일은 `edit_output` 이 아니라 `edit_chunk` 에서 하세요.** 통계와
+순번이 붙기 전이라 코어가 알아서 맞춰 줍니다.
 
-##### 고친 뒤 확인
-
-전처리기 파일은 그 자체로 실행됩니다. 서버를 띄우지 않고 한 건만 돌려 볼 수 있습니다.
-
-```bash
-python preprocessor.py 변형원천.json --doc-type monimo_event -o parsed.json
-python preprocessor.py parsed.json -o chunks.json
+```python
+    def edit_chunk(self, text, info, **kwargs):
+        if "상담직원용" in text:
+            return tb.DROP                     # 이 청크를 버린다 (순번·개수는 코어가 재계산)
+        if "손실" in text:
+            info["fields"]["RISK"] = "high"    # 이 청크에만 실릴 값
+        return text.replace("■", "")           # 고친 본문을 돌려준다
 ```
 
-**기존 문서가 안 깨졌는지**는 자기 골든으로 봅니다 — 고치기 전에 `--record`, 고친 뒤 `--check`.
+| 반환값 | 뜻 |
+|---|---|
+| 문자열 | 그 문자열이 청크 본문이 됩니다 |
+| `None` | 손대지 않습니다. `return` 을 빠뜨려도 청크가 사라지지 않습니다 |
+| `tb.DROP` | 이 청크를 버립니다 (빈 문자열·공백만 돌려줘도 같습니다) |
 
-```bash
-examples/parse_chunk/parse_chunk_golden.py --record   # 고치기 전
-examples/parse_chunk/parse_chunk_golden.py --check    # 고친 뒤
-```
+`info` 는 **경로가 달라도 모양이 같습니다** — 문서·레코드·평문 어느 원천이든 훅 한 벌로
+처리됩니다.
 
-##### 훅으로 안 되는 것
+| 키 | 값 |
+|---|---|
+| `kind` | `"docling"`(문서) · `"row"`(레코드/표 행) · `"text"`(그 밖) |
+| `page` · `index` | 1-based 페이지 · 현재 순번(참고용) |
+| `headings` | 섹션 경로 목록. `docling` 경로만 채워집니다 |
+| `metadata` | 문서 또는 레코드 메타데이터. **복사본이라 고쳐도 저장되지 않습니다** |
+| `fields` | 이 청크에만 실을 값. `GenOSVectorMeta` 필드로 나갑니다 |
 
-아래는 설정이 값 파이프라인 **안쪽**이나 순회 자체를 바꾸는 것들이라 훅으로 재현되지
-않습니다. `custom_field_*.yaml` 에서 푸세요.
+`text` 는 접두와 `HEADER:` 라인까지 **붙은 뒤**의 본문입니다. 훅 메소드가 돌려준 값에 마스킹·정제가
+뒤이어 적용됩니다.
+
+> `edit_output` 에서 본문을 고쳤거나 청크를 지웠으면 통계를 다시 맞춰야 합니다 —
+> 개수가 바뀌었으면 `tb.refresh_stats(vector_metas)`, 본문만 고쳤으면 `reindex=False`.
+> 안 부르면 `n_char` 가 옛 값으로 남습니다(실측: 11건 중 9건이 실제 길이와 달랐습니다).
+
+##### 훅 메소드로 안 되는 것
+
+아래는 설정이 값 파이프라인 **안쪽**이나 순회 자체를 바꾸는 것들이라 훅 메소드로 재현되지 않습니다.
+`custom_field_*.yaml` 에서 푸세요.
 
 | 기능 | 이유 |
 |---|---|
 | `source.merge_rows` | 값 파이프라인 이전에 값을 이어붙여 렌더까지 바꿉니다 |
-| `source.sections` · `ignore_keys` | `json_semantic` 순회 자체를 좌우합니다 |
-| `markdown.front_matter` 승격 | 본문 제외는 되지만 metadata 승격은 안 됩니다 |
+| `source.sections` · `source.ignore_keys` | `kind: sections` 의 트리 순회 자체를 좌우합니다 |
+| `source.pre.markdown.front_matter` 승격 | 본문 제외는 되지만 metadata 승격은 안 됩니다 |
+
+전체 계약과 더 많은 예시는 [`facade_hooks.md`](facade_hooks.md) 에 있습니다.
+돌려 볼 수 있는 예시는 `genon/preprocessor/examples/facade_hooks/` 입니다.
+
+#### (d) 새 확장자를 받기 — `ROUTES`
+
+`route_*` 메서드를 새로 만들 필요는 **대개 없습니다.** `edit_input` 이 원천을 **이미 처리할 수
+있는 포맷으로** 바꿔 기존 핸들러에 태우면 됩니다. `.md` `.html` `.json` 엑셀 말고 다른 확장자는
+`edit_input` 이 **파일 경로**와 `work_dir`(요청이 끝나면 정리되는 임시 디렉터리)을 받으므로,
+거기에 변환 결과를 쓰고 그 경로를 돌려주면 됩니다.
+
+```python
+    ROUTES = (((".xml",), "route_json"),        # 새 확장자는 표 맨 앞에
+              ((".tsv",), "route_tabular")) + (
+        # ... 기존 ROUTES 표 그대로 ...
+    )
+
+    def edit_input(self, ext, doc_type, data, work_dir=None, **kwargs):
+        if ext == ".xml" and doc_type == "monimo_event":
+            events = [{c.tag: c.text for c in ev}
+                      for ev in ET.parse(data).getroot().find("eventList")]
+            out = os.path.join(work_dir, "converted.json")
+            json.dump({"eventList": events}, open(out, "w", encoding="utf-8"), ensure_ascii=False)
+            return out                          # 새 경로를 돌려주면 그것으로 파싱합니다
+        return data
+```
+
+실측으로 `.xml` → `monimo_event`(3청크, `GROUP_C` 정상), `.tsv` → `faq`(3청크)가 이 방식으로
+통했습니다. 등록 전에는 둘 다 캐치올이 받아 1청크에 목표필드가 비어 있었습니다.
+**먼저 `ROUTES` 에 등록한 다음 시험하세요.**
+
+로그·고정폭 텍스트·사내 전문 포맷처럼 **표준 포맷 어느 것으로도 못 바꾸는 원천**은 핸들러를
+직접 만듭니다. 그 핸들러도 **facade 파일에 둡니다** — core 는 여전히 안 고칩니다.
+
+```python
+    ROUTES = (((".log",), "route_log"),) + (
+        # ... 기존 ROUTES 표 그대로 ...
+    )
+
+    async def route_log(self, job):
+        lines = [l for l in tb.read_text_with_fallback(job.source).splitlines() if l.strip()]
+        return {"elements": tb.make_elements(lines)}
+```
+
+| 계약 | |
+|---|---|
+| 시그니처 | `async def route_<이름>(self, job) -> dict \| None` |
+| 응답 | `{"elements": [...]}` 만 채우면 됩니다. `content`·`usage` 는 core 가 채웁니다 |
+| 폴스루 | `None` 을 돌려주면 `ROUTES` 의 다음 후보로 넘어갑니다 |
+
+`tb.make_elements()` 가 `id`·`page`·`coordinates` 같은 배관 필드를 채웁니다. **행 1개 = 청크
+1개**로 적재하려면 category 를 바꿉니다.
+
+```python
+        return {"elements": tb.make_elements(
+            [{"content": row["본문"], "metadata": {"ORDER_NO": row["주문번호"]}} for row in rows],
+            category="custom_fields_row",   # 청커의 행 기반 경로로 보냅니다
+        )}
+```
+
+> 새 category 이름을 만들기보다 **`custom_fields_row` 를 그대로 재사용**하는 쪽이 안전합니다.
+> 청커는 `doc_type` 을 보지 않고 `category` 로만 분기하므로, 기존 이름을 쓰면 청커 쪽은 손댈
+> 일이 없습니다. 굳이 새 이름을 쓰려면 `chunking_processor.py` 의 `ROW_CATEGORIES` 에 더합니다
+> — `ROW_CATEGORIES = ChunkerCore.ROW_CATEGORIES | {"crm_row"}`.
+
+#### (e) 값 추출·변환을 파이썬으로 — 설정이 이름으로 부르는 3자리
+
+훅 메소드 말고도 **설정에서 이름을 부르면 실행되는** 자리가 셋 있습니다. 훅 메소드보다 좁고 정확해서,
+해당되면 이쪽이 먼저입니다. 세 자리 모두 파일은 **config yaml 과 같은 폴더 아래**에 둡니다
+(경로 탈출은 거부됩니다).
+
+| 자리 | 무엇을 꽂나 | 어떻게 |
+|---|---|---|
+| **값 추출 자체** | 정규식 추출, 사내 마스터 조회처럼 **LLM 이 아닌 방법** | `custom_field_*.yaml` 의 `python:` 블록 |
+| 값 변환기 | 금액 파싱, 사번 → 부서명처럼 **사이트 전용 값 변환** | facade 에서 `tb.register_transform()` 후 yaml `transform:` 에서 이름으로 |
+| LLM 출력 파서 | 표준 JSON 이 아닌 응답 해석 | `custom_field_*.yaml` 의 `parser: {type: python, file, callable}` |
+
+```yaml
+# custom_field_contract.yaml — 계약번호처럼 규칙이 분명한 값은 LLM 에 물을 이유가 없습니다
+schema: v2
+source: {kind: document}
+python:
+  file: contract_extract.py     # 이 yaml 과 같은 폴더
+  callable: extract             # 기본값 extract
+  out: [CONTRACT_NO, AMOUNT]
+fields:
+  AMOUNT: {transform: [to_int]} # 값 파이프라인은 LLM 경로와 완전히 같습니다
+```
+
+```python
+# contract_extract.py
+import re
+
+CONTRACT = re.compile(r"계약번호[:\s]*([A-Z0-9-]+)")
+
+def extract(text, document=None, output_fields=None, **kwargs):
+    m = CONTRACT.search(text or "")
+    return {"CONTRACT_NO": m.group(1) if m else None, "AMOUNT": ...}
+```
+
+- 돌려주는 것은 **dict 하나**입니다. 그 뒤는 LLM 경로와 **완전히 같은 파이프라인**을 탑니다.
+- `async def` 로 써도 됩니다(사내 API 조회). 파일이 없거나 함수 이름이 틀리면 **기동에서**
+  실패합니다 — 첫 요청까지 미루지 않습니다.
+- `url`·`system_prompt` 같은 LLM 전용 키는 이 자리에서 쓸 수 없습니다(기동 실패).
+
+사이트 전용 값 변환기는 **core 를 고치지 말고** facade 파일 최상위에서 등록합니다. core 를
+고치면 릴리스 갱신에서 사라집니다.
+
+```python
+tb.register_transform("won_to_int", lambda v: int(str(v).replace(",", "").replace("원", "")))
+```
+
+```yaml
+fields:
+  AMT: {alias: [연회비], transform: [won_to_int]}    # '1,200원' -> 1200
+```
+
+#### (f) 청킹 동작 바꾸기
+
+**코드를 고치기 전에 값으로 되는지 봅니다.** 아래는 한 줄이면 끝나는 것들입니다.
+
+| 하고 싶은 것 | 바꿀 것 | 자리 |
+|---|---|---|
+| 청크 크기·병합 방식 | `chunk_size` · `chunk_mode`(`split_only` ↔ `resize_all`) | 설정 yaml 또는 `params` |
+| 표를 항상 별도 청크로 | `table_as_chunk` | `params` |
+| 청크 선두 `HEADER:` 줄 끄기 | `chunking.include_chunk_header` | 설정 yaml |
+| 1024 보다 작은 청크 만들기 | `chunking.min_chunk_size` (`0` 이면 보정 안 함) | `chunking_processor_config.yaml` |
+| 본문에서 특수문자 걷어내기 | `chunking.text_cleanup` | 〃 |
+| `HEADER:` 라벨을 다른 말로 / 없애기 | `GenosSmartChunker.CHUNK_HEADER_PREFIX` (빈 문자열이면 경로만) | `chunking_processor.py` |
+| 섹션 경로 구분자·리프 상한 | `CHUNK_HEADER_SEP` · `CHUNK_PATH_SEP` · `CHUNK_PATH_MAX_LEAVES` | 〃 |
+| 특정 doc_type 만 크기를 다르게 | `CONFIG_BY_DOC_TYPE` | 〃 ((b) 참고) |
+| 특정 doc_type 만 본문 정제 | `edit_chunk` | 〃 ((c) 참고) |
+
+- `chunk_size` 의 단위는 `tokenizer_type` 이 정합니다(`char` = 문자 수, `huggingface` = 토큰 수).
+- `CHUNK_HEADER_PREFIX` 는 청크 크기 산정과 실제 부착이 **같은 값**을 보므로 여기만 바꾸면 됩니다.
+- `text_cleanup` 은 **청킹 입력**에 걸려 청크 경계와 `n_char` 까지 맞지만 doc_type 을 가리지
+  못합니다. 특정 유형만 정제할 때 `edit_chunk` 를 씁니다.
+- 어느 쪽이든 청크 본문·경계가 바뀌므로 **재색인이 필요합니다.**
+
+> `merge_peers` 는 표준 청커가 **읽지 않는 잔재 필드**입니다. 병합 동작은 `chunk_mode` 로
+> 조절하세요. 섹션 인식 규칙 자체를 바꾸려면 [5.5절](#55-chunking_processorpy-읽기)의 세 곳을
+> 함께 고쳐야 합니다 — 공용 모듈이라 `/preprocess*` 까지 함께 바뀝니다.
+
+#### (g) 청크에 값 더 싣기
+
+| 무엇을 | 어디에 | 비고 |
+|---|---|---|
+| 그 **문서의 모든 청크**에 같은 값 | 파서의 `edit_output` 에서 `tb.set_chunk_metadata(result, {...})` | `result["metadata"]` 에 직접 쓰면 **이 API 응답에만** 남고 청크에는 안 갑니다 |
+| **청크마다 다른 값** | 청커의 `edit_chunk` 에서 `info["fields"]["RISK"] = "high"` | 본문·통계·순번 필드는 넣을 수 없습니다 |
+| **적재 컬럼으로 선언** | `chunking_processor.py` 의 `GenOSVectorMeta` | 선언하면 타입까지 검사됩니다. 선언이 없어도 실립니다(`extra=allow`) |
+| 파싱 결과 element 의 필드 | 그대로 두세요 | `{category, content, coordinates, id, page}` 5키는 `/chunker` 가 의존합니다. **추가는 안전, 삭제·개명은 위험** |
+
+```python
+    def edit_output(self, ext, doc_type, result, **kwargs):
+        if doc_type == "contract":
+            tb.set_chunk_metadata(result, {
+                "SOURCE_SYSTEM": "CRM",
+                tb.FIRST_CHUNK_FIELDS_KEY: ["PRODUCT_NM"],   # 첫 청크에만 붙일 필드
+            })
+        return result
+```
+
+> 적재 스키마(`GenOSVectorMeta`)는 **추가는 안전, 삭제·타입 변경은 위험**합니다. 벡터 DB 적재
+> 형식과 같아서 필드를 지우거나 이름을 바꾸면 이미 적재된 데이터와 어긋납니다.
+> 같은 스키마가 다른 facade 에도 복제돼 있습니다 — [5.8절](#58-수정-전-반드시-확인할-복제-범위).
+
+#### (h) 새 엔드포인트 추가하기
+
+1. facade 에 처리 메서드를 만들거나 새 facade 파일을 만듭니다.
+2. `main.py` 에 라우트를 추가합니다.
+   ```python
+   @app.post('/preprocess_myfeature')          # 슬래시 없는 단일 세그먼트
+   async def preprocess_myfeature(
+           request: Request,
+           file_path: str = Body(..., embed=True),
+           params: dict = Body(default_factory=dict)
+   ):
+       return await _run('preprocess_myfeature', my_processor, request, file_path, params)
+   ```
+3. 새 facade 를 쓴다면 `main.py` 상단의 import 와 인스턴스 생성부에 추가합니다.
+
+> **경로에 슬래시를 넣지 마세요.** `/preprocess/myfeature` 는 게이트웨이를 통과하지 못합니다(2.3절).
+
+#### (i) 예외와 로깅
+
+```python
+raise GenosServiceException(
+    error_code='1',              # 응답의 error_code 로 그대로 나감
+    error_msg='읽을 수 없는 파일입니다.',
+    stage='parse',               # 선택: 실패 단계
+    error_type='permanent',      # 선택: transient / permanent / timeout
+)
+```
+
+`stage` 와 `error_type` 을 주면 응답에 `stage`·`error_kind` 로 실려, 호출 측이 재시도 여부를
+판단할 수 있습니다. 로깅은 facade 안의 로거를 쓰고, 레벨은 `log_level`(yaml 또는 `params`)로
+조절합니다. **부분 실패를 허용하려면** raise 하지 말고 그 건만 건너뛴 뒤 결과에 기록하세요.
+
+#### (j) 기본 동작 자체를 바꾸기 — 오버라이드
+
+(a)~(i) 로 안 되면 마지막 수단으로 core 메소드를 facade 에서 오버라이드합니다. `super()` 를
+부르지 않으면 기본 구현은 실행되지 않습니다.
+
+```python
+    async def enrich(self, job, doc):            # 표 설명을 자체 기준으로 검증
+        doc = await super().enrich(job, doc)     # 기본 구현 먼저 호출
+        for table in doc.tables:
+            caption = (table.captions or [""])[0]
+            if not all(k in caption for k in ("기준일", "연 %")):
+                table.captions = []              # 기준 미달이면 설명만 제거
+        return doc
+```
+
+| | 메소드 |
+|---|---|
+| **지원** (릴리스가 바뀌어도 이름·인자 유지) | facade 파일에 본문이 보이는 것 — 파서의 `route_*` · `enrich` · `parse_document` · `document_to_response`, 청커의 `split` · `chunks_to_vector_metas` · `build_chunk_text` · `mask_sensitive` · `clean_text` |
+| **비권장** (릴리스에서 바뀔 수 있음) | 그 밖의 core 메소드 — `prepare_input` · `read_sheets` · `describe_tables` · `split_document` 등 |
+| **금지** | `_` 로 시작하는 메소드. 훅 호출과 설정 적용 순서를 맡고 있습니다 |
 
 ### 7.3 알아둘 제약
 
 코드를 고치기 전에 알아 두면 시간을 아낄 수 있는 제약들입니다.
 
-**① facade 끼리 import 하지 마세요.**
-각 facade 는 **단일 파일로 자기완결**되도록 만들어져 있습니다(2,600~3,700줄). 다른 facade 를 import 하면
-파일 하나만 배포하는 사용 방식이 깨집니다. 공용 로직은 `processing/enrichment/` 같은 하위 모듈에 둡니다.
+**① 고칠 파일은 facade 2개입니다.**
+`facade/parser_processor.py`(282줄)와 `facade/chunking_processor.py`(264줄)가 여러분의 자리입니다.
+처리 본체는 `processing/core/` 에 한 벌씩 있고 **열 일이 없습니다** — 열어야 했다면 훅 메소드가 부족하다는
+뜻이니 알려 주세요. facade 끼리 **import 하지 마세요.** 파일 하나만 배포하는 사용 방식이 깨집니다.
 
 **② 복제된 코드는 함께 고쳐야 합니다.**
-①의 결과로 같은 코드가 여러 facade 에 복사되어 있습니다. 범위는 [5.8절](#58-수정-전-반드시-확인할-복제-범위) 표를 보세요.
-한 곳만 고치면 엔드포인트별로 결과가 달라집니다.
+`GenOSVectorMeta` 와 `GenosSmartChunker` 는 적재용·변환용·첨부용 facade 에도 복사되어 있습니다.
+`/chunker` 결과와 `/preprocess` 결과가 같아야 한다면 범위를 [5.8절](#58-수정-전-반드시-확인할-복제-범위)
+표에서 확인하세요. 한 곳만 고치면 엔드포인트별로 결과가 달라집니다.
 
-**③ `GenosServiceException` 은 facade 안의 로컬 사본입니다.**
-`main.py` 가 import 한 정본과는 다른 타입이라, 전용 예외 핸들러가 아니라 일반 예외 처리에서
-속성 이름(`error_code`, `error_msg`, `stage`, `error_type`)을 읽어 응답에 싣습니다.
-**로컬 사본의 속성 이름을 바꾸면 응답에서 해당 정보가 에러 없이 누락됩니다** — 예를 들어 `error_code`
-속성이 없어지면 응답의 `error_code` 는 타입 기반 자동 분류값(`INTERNAL_ERROR` 등)으로 바뀝니다.
+**③ `self` 에 요청 상태를 담지 마세요.**
+facade 인스턴스는 모듈 로드 시 **1회** 생성되어 프로세스 전역에서 재사용됩니다(5.3절). `__call__`
+에서 `self._tenant = ...` 로 담고 `edit_output` 에서 읽으면, 그 사이의 `await` 에 다른 요청이
+끼어들어 값이 섞입니다. 요청별 값은 `**kwargs` 로 받고, 단계 간 전달은 `job.notes` 를 씁니다.
 
 **④ docling 은 수정할 수 없습니다.**
 docling 은 소스가 아니라 `packages/*.whl` 로 들어옵니다. docling 내부 동작을 바꾸고 싶다면 facade
-레벨에서 후처리하거나, 필요하면 배포를 지원한 담당자에게 요청하세요.
+레벨에서 후처리하거나, 배포를 지원한 담당자에게 요청하세요.
 
-**⑤ 개발 산출물을 push 하지 마세요.**
-`.venv/`, `__pycache__/`, `result.json`, `offline-dev-kit/` 등은 `.gitignore` 대상입니다. 로컬 모델 서빙
-접속용 URL·API 키가 들어간 `resource/*.yaml`도 코드 변경 패치에 섞지 마세요(4.4절).
+**⑤ 릴리스 갱신은 facade 2개를 덮어씁니다.**
+전처리기 갱신은 릴리스 단위 통째 갱신이라 여러분이 고친 facade 도 함께 덮어써집니다. 갱신 전에
+보관하고 뒤에 다시 붙이세요.
 
-**⑥ facade 인스턴스는 프로세스 전역에서 1개입니다.**
-`self` 에 요청별 상태를 담으면 동시 요청 간에 섞일 수 있습니다(5.3절).
+```bash
+# 실행 위치: gitea 저장소 루트
+git diff -- genon/preprocessor/facade/parser_processor.py \
+             genon/preprocessor/facade/chunking_processor.py > my_change.patch
+# … 릴리스 통째 갱신 …
+git apply my_change.patch          # 충돌하면 patch 를 보고 손으로 반영
+```
+
+훅 메소드 시그니처(`edit_input` / `edit_document` / `edit_chunk` / `edit_output`)와 `ROUTES` 형태는
+**고정 API** 로 유지됩니다. 그것이 안 바뀐 릴리스에서는 `git apply` 가 그대로 통합니다. 릴리스
+노트의 **"템플릿 변경 있음 / 없음"** 표시를 먼저 확인하세요.
+
+> **`resource/` 의 사이트 설정도 갱신 범위 안에 있습니다.** 배포본에는 플레이스홀더 상태의
+> `*_processor_config.yaml` 과 `custom_field_*.yaml` 이 함께 들어 있어, 통째 갱신에 여러분이
+> 채운 값과 새로 만든 문서 유형 설정이 휩쓸릴 수 있습니다. 갱신 전에 그쪽 diff 도 함께
+> 떠 두세요 — 다만 **로컬 검증용 URL·API 키가 섞이지 않도록**(4.4절) 경로를 한정하고,
+> 붙인 뒤에는 [6.2](#62-채워야-하는-값-플레이스홀더)의 미치환 플레이스홀더 검사를 돌립니다.
+
+**⑥ 개발 산출물을 push 하지 마세요.**
+`.venv/`, `__pycache__/`, `result.json`, `offline-dev-kit/` 등은 `.gitignore` 대상입니다. 로컬 모델
+서빙 접속용 URL·API 키가 들어간 `resource/*.yaml` 도 코드 변경 패치에 섞지 마세요(4.4절).
 
 **⑦ 새 파이썬 패키지가 필요하면 `requirements.txt` 에 추가해야 합니다.**
 운영 런타임은 이 파일만 설치합니다. 코드서빙 런타임이 인터넷에 접근할 수 없다면 인터넷 연결 PC에서 대상
@@ -2442,17 +2517,110 @@ curl --location "${GW}/parser" \
 > ```
 >
 > **(나) 고친 파일만 업로드** — VSCode 파일 탐색기에서 해당 파일을 드래그해 덮어씁니다.
-> 파일이 2,000줄이 넘으므로 **파일 단위 교체가 부분 편집보다 안전**합니다.
+> facade 2개는 282줄·264줄이라 **파일 단위 교체가 부분 편집보다 안전**합니다.
 >
 > 어느 쪽이든 push 하기 전에 `git status` / `git diff --stat` 으로 **`resource/` 가 섞이지 않았는지**
 > 확인하세요. 이미 섞여 들어왔다면 `git checkout -- genon/preprocessor/resource` 로 되돌립니다.
 
-### 9.3 자주 쓰는 명령어
+### 9.3 시나리오 C — 새 문서 유형 추가
+
+새 원천(엑셀 FAQ, JSON 이벤트 목록, 계약서 PDF …)을 받았을 때의 최단 경로입니다.
+**대부분 설정만으로 끝납니다** — 자세한 설명은 [7.2 (a)](#a-새-문서-유형-추가하기--설정으로-먼저).
+
+**① 원천을 그대로 한 번 넣어 봅니다.** 지금 무엇이 나오는지가 기준선입니다.
+
+```bash
+# 실행 위치: 저장소 루트
+python -m genon.preprocessor.facade.parser_processor 공지사항.xlsx -o before.json
+```
+
+**② 원천의 모양으로 `kind` 를 고릅니다.**
+
+| 원천이 이렇게 생겼으면 | `source.kind` | 복사할 템플릿 |
+|---|---|---|
+| 엑셀·CSV 한 행이 검색 1건 | `rows` | `custom_field_TEMPLATE_rows.yaml` |
+| JSON 배열 한 요소가 검색 1건 | `records` | `custom_field_TEMPLATE_records.yaml` |
+| 대상 하나를 깊게 설명한 중첩 JSON | `sections` | `custom_field_TEMPLATE_sections.yaml` |
+| 문서에서 필드 몇 개를 LLM 으로 | `document` | `custom_field_TEMPLATE_document.yaml` |
+| 값이 class·속성으로 지목된 HTML | `html` | `custom_field_TEMPLATE_html.yaml` |
+
+**③ 템플릿을 복사해 채웁니다.** `<...>` 로 표시된 곳만 바꾸면 됩니다.
+
+```bash
+# 실행 위치: 저장소 루트
+cp genon/preprocessor/resource/templates/custom_field_TEMPLATE_rows.yaml \
+   genon/preprocessor/resource/custom_field_notice.yaml
+vi genon/preprocessor/resource/custom_field_notice.yaml
+#   schema: v2 / source.kind / fields(alias·transform·values·const) / require / body
+```
+
+**④ 프로세서 설정에 등록합니다.** `extractor` 는 적지 않습니다.
+
+```yaml
+# genon/preprocessor/resource/parser_processor_config.yaml 의 enrichment 목록 끝에
+  - custom_fields:
+      enable: true
+      doc_type: notice
+      config_file: custom_field_notice.yaml
+```
+
+**⑤ 설정을 미리 검사합니다** (파싱·LLM 없음 — 기동 실패를 여기서 잡습니다).
+
+```bash
+genon/preprocessor/examples/config_precheck/precheck_custom_fields.sh
+```
+
+**⑥ 실제 원천으로 돌려 보고 값을 눈으로 확인합니다.** 이 단계를 건너뛰지 마세요 —
+**"청크가 나왔다" 는 검증이 아닙니다.** 별칭이 어긋나면 키는 다 맞는데 값만 빕니다.
+
+```bash
+# 실행 위치: 저장소 루트
+python -m genon.preprocessor.facade.parser_processor 공지사항.xlsx --doc-type notice -o parsed.json
+python -m genon.preprocessor.facade.chunking_processor parsed.json --doc-type notice -o chunks.json
+
+python -c "
+import json
+els = json.load(open('parsed.json'))['elements']
+print('건수:', len(els))
+for el in els[:3]:
+    print(el['metadata']); print('본문:', repr(el['content'])[:160], '\n')
+"
+```
+
+볼 것 — **건수**(`require` 로 걸러졌나), **목표필드 값**(엉뚱한 컬럼이나 `None`), **본문**
+(비었거나 일부가 빠졌나). 기동 로그의 `WARNING` 도 함께 봅니다.
+
+**⑦ 기존 문서가 안 깨졌는지 확인합니다.**
+
+```bash
+# 실행 위치: genon/preprocessor/examples/parse_chunk
+./parse_chunk_golden.py --check --cases my_cases.yaml --golden ~/my_golden   # 차이 0 이어야 통과
+```
+
+**⑧ push → 리비전 생성 → 배포 → 호출 검증** — [9.1 시나리오 A](#91-시나리오-a--config-만-바꿔-재배포) 의
+③~⑥ 과 같습니다. 고친 경로는 `genon/preprocessor/resource/` 하나뿐입니다.
+
+```bash
+# 실행 위치: 게이트웨이가 열리는 곳
+curl --location "${GW}/parser" \
+  -H 'Content-Type: application/json' -H "Authorization: Bearer ${AUTH}" \
+  --data "{\"file_path\": \"${FILE_PATH}\", \"params\": {\"doc_type\": \"notice\"}}"
+```
+
+> **설정으로 안 되면** — 원천 자체의 모양이 어긋난 것입니다(레코드가 한 겹 더 묶여 있다,
+> 목록과 상세가 분리돼 온다, 확장자가 `.xml` 이다 …). 그때는 facade
+> `facade/parser_processor.py` 의 훅 메소드에서 **모양만 바로잡고** 나머지는 설정에 맡깁니다 —
+> [7.2 (c)](#c-원천-모양이-설정으로-안-풀릴-때--훅-메소드) · [(d)](#d-새-확장자를-받기--routes).
+> 그 뒤 절차는 [9.2 시나리오 B](#92-시나리오-b--parserchunker-코드-수정-후-재배포) 와 같습니다.
+
+### 9.4 자주 쓰는 명령어
 
 | 명령 | 실행 위치 |
 |---|---|
 | 로컬 환경 설치·확인 | 내 PC, 배포본 클론 루트 |
+| **facade 단독 실행** | 내 PC, 저장소 루트 |
 | 로컬 in-process 파싱/청킹 | 내 PC, `examples/parse_chunk` |
+| 설정 점검(custom_fields) | 내 PC, 저장소 루트 |
 | 미치환 플레이스홀더 확인 | 코드스페이스, gitea 저장소 루트 |
 | 커밋 해시 확인 | 코드스페이스, gitea 저장소 루트 |
 | 게이트웨이 호출 | 게이트웨이가 열리는 곳 |
@@ -2462,6 +2630,13 @@ curl --location "${GW}/parser" \
 # 로컬 환경 설치 (4.1)
 uv venv --python 3.11 && source .venv/bin/activate
 uv pip install -r requirements.txt && uv pip install -r requirements-dev.txt
+
+# facade 단독 실행 — 서버 없이 한 건 (7.1). 훅 메소드·설정을 고친 직후 가장 빠른 확인
+python -m genon.preprocessor.facade.parser_processor 공지사항.xlsx --doc-type notice -o parsed.json
+python -m genon.preprocessor.facade.chunking_processor parsed.json --doc-type notice -o chunks.json
+
+# custom_fields 설정 점검 — 파싱·LLM 없이 기동 실패를 미리 잡는다 (7.2 (a))
+genon/preprocessor/examples/config_precheck/precheck_custom_fields.sh
 
 # 로컬 파싱 → 청킹 (처음)
 python parse_chunk_test.py ../../sample_files/pdf_sample.pdf result_parse_chunk/
@@ -2483,6 +2658,10 @@ curl --location "${BASE}/api/gateway/code_serving/${SERVING_ID}/health" \
 python serving_gateway_test.py --mode e2e \
   --base-url "$BASE" --serving-id "$SERVING_ID" --auth-key "$AUTH" \
   --file-path "$FILE_PATH" --out /tmp/chunks.json --chunk-size 10000
+
+# 기존 문서가 안 깨졌는지 — 자기 골든 (7.2 (a) 검증 ③)
+examples/parse_chunk/parse_chunk_golden.py --record   # 고치기 전
+examples/parse_chunk/parse_chunk_golden.py --check    # 고친 뒤
 
 # 복제본 찾기 (코드 수정 전 — 5.8)
 grep -rn "<함수명>" genon/preprocessor/facade/
@@ -2507,14 +2686,17 @@ grep -rn "<함수명>" genon/preprocessor/facade/
 
 | 용어 | 뜻 |
 |---|---|
-| **facade** | 전처리기 한 종류를 구현한 단일 파일 (`*_processor.py`). 진입 클래스는 `DocumentProcessor` |
+| **facade** | 전처리기 한 종류의 **표면**을 담은 파일 (`facade/*_processor.py`). 진입 클래스는 `DocumentProcessor`. 파싱·청킹 2종은 처리 본체를 `processing/core/` 에서 상속하고 확장 지점만 갖습니다 |
+| **훅 메소드(hook)** | facade 에서 오버라이드하면 core 가 정해진 자리에서 불러 주는 메소드 — `edit_input` · `edit_document` · `edit_chunk` · `edit_output`. 설정으로 안 되는 원천을 처리하는 자리([7.2 (c)](#c-원천-모양이-설정으로-안-풀릴-때--훅-메소드)) |
+| **toolbox (`tb`)** | 훅 메소드에서 쓰라고 재수출해 둔 기능 모음(`processing/core/toolbox.py`). yaml `transform:` 이 부르는 것과 같은 함수입니다 |
+| **custom_fields** | 문서 유형별 값 추출 설정(`custom_field_*.yaml`). `source.kind` 5종(rows·records·sections·document·html)으로 갈립니다 |
 | **docling** | 문서 파싱 엔진. 파싱 결과는 `DoclingDocument` JSON |
 | **docling 포맷** | 구조 인식 파싱이 되는 포맷 — pdf/html/htm/docx/hwp/hwpx/hml/ppt/pptx (+ `docling` 모드의 xlsx). 응답은 `data.document` |
 | **parse-format** | 구조 인식이 안 되는 포맷(csv/txt/md/이미지 등)의 공통 파싱 결과 형태. 응답은 `data.elements` |
 | **element** | parse-format 결과의 한 조각. `{category, content, coordinates, id, page}` (행 기반 `tabular_row`/`custom_fields_row` 는 `metadata` 추가) |
 | **청크(chunk)** | 벡터 DB 에 넣을 텍스트 조각 |
 | **enrichment** | 목차·메타데이터·이미지/표 설명 등을 LLM 으로 덧붙이는 단계 |
-| **doc_type(문서유형)** | 요청 `params` 로 넘기는 문서유형 키. 일치하는 `custom_fields` 설정만 켜고, 그 문서의 모든 청크에 스탬프된다([7.2 (g)](#g-새-doc_type-추가하기)). `enrichment.toc.doc_type` 과는 다른 값 |
+| **doc_type(문서유형)** | 요청 `params` 로 넘기는 문서유형 키. 일치하는 `custom_fields` 설정만 켜고, 그 문서의 모든 청크에 스탬프된다([7.2 (a)](#a-새-문서-유형-추가하기--설정으로-먼저)). `enrichment.toc.doc_type` 과는 다른 값 |
 | **가드레일(guardrail)** | 개인정보 탐지·마스킹 기능 |
 
 **인프라 · 개발 도구**
@@ -2593,13 +2775,15 @@ grep -rn "<함수명>" genon/preprocessor/facade/
 | [`intro.md`](intro.md) | 전처리기 종류 소개 · 핵심 기술 |
 | [`parser_processor.md`](parser_processor.md) | 파싱용 전처리기 레퍼런스 |
 | [`chunking_processor.md`](chunking_processor.md) | 청킹용 전처리기 레퍼런스 |
-| [`facade_hooks.md`](facade_hooks.md) | **확장 훅** — 설정으로 안 되는 원천을 코드로 처리하기 |
+| [`facade_hooks.md`](facade_hooks.md) | **훅 메소드 레퍼런스** — 설정으로 안 되는 원천을 facade 에서 처리하기 |
 | [`intelligent_processor.md`](intelligent_processor.md) | 적재용(지능형) 레퍼런스 |
 | [`convert_processor.md`](convert_processor.md) | 변환용 레퍼런스 |
 | [`attachment_processor.md`](attachment_processor.md) | 첨부용 레퍼런스 |
 | [`guardrail_workflow_setup.md`](guardrail_workflow_setup.md) · [`guardrail_regex_filters.md`](guardrail_regex_filters.md) | 개인정보 마스킹 |
 | [`installation.md`](installation.md) | 도커 이미지형 전처리기 설치 (코드서빙과 다른 배포 방식) |
 
+새 문서 유형을 만들 때 복사하는 설정 템플릿 5종은 `genon/preprocessor/resource/templates/` 에
+있고, 항목마다 `[필수]`/`[선택]` 표시와 뜻이 주석으로 적혀 있습니다.
 저장소 루트의 `README.md` 에도 배포·호출 요약이 있습니다.
 
 > ⚠️ **배포본의 `README.md` 와 `examples/` 예제에 나오는 주소·`serving_id`·인증키는 다른 환경의
