@@ -1441,29 +1441,39 @@ placeholder 이므로, LLM 을 쓰는 항목은 그 값을 채우기 전까지 �
 > 아래 표에 나오는 `column_map`·`key_map`·`text_fields` 같은 이름은 **내부 이름**이라
 > 설정에 그대로 적을 수 없습니다 — 설정에 적는 표기는 `parser_processor.md` 의 매트릭스를
 > 보세요(`fields.<목표>` 한 자리에 규칙을 모으는 형태입니다).
-> **extractor 는 4종**(`llm` · `tabular_mapping` · `json_mapping` · `json_semantic`)이고,
+> **어느 extractor 를 쓸지는 설정 파일의 `source.kind` 가 정합니다.**
 > kind 별로 되는 키가 다릅니다 — 전체 지원 매트릭스와 `transform` 9종, 별칭 탐색 범위,
 > 설정으로 안 되는 8가지는 [파싱용 전처리기 매뉴얼](parser_processor.md) 의
-> "새 문서 유형 추가하기" 절에 있습니다. 아래 표는 자주 쓰는 3종의 요약입니다.
+> "새 문서 유형 추가하기" 절에 있습니다. 아래 표는 그 요약입니다.
 
-**extractor 3종(요약)** — `custom_fields` 블록의 `extractor` 값이 처리 방식을 정합니다.
+**extractor 5종(요약)** — 설정 파일의 `source.kind` 가 처리 방식을 정합니다.
 
-| | `llm` (문서형) | `tabular_mapping` (행 매핑형) | `json_mapping` (레코드 매핑형) |
+| `source.kind` | extractor(내부 이름) | 대상 | 무엇이 검색 1건인가 | LLM 호출 |
+|---|---|---|---|---|
+| `rows` | `tabular_mapping` | csv / xlsx / xlsm | **행 1개 = 청크 1개** | 안 함 (`llm:` 선언 시 행마다) |
+| `records` | `json_mapping` | json 의 레코드 배열 | **레코드 1개 = 청크 1개**(길면 분할) | 안 함 (`llm:` 선언 시 레코드마다) |
+| `sections` | `json_semantic` | 대상 하나를 설명하는 중첩 json | **섹션 1개 = 청크 1개** | 안 함 (`llm:` 선언 시 문서 1회) |
+| `document` | `llm`, 또는 `python:` 블록을 쓰면 `python` | 문서 전체 (pdf/html/docx/hwp/md …) | 문서 metadata → **모든 청크에 같은 값** | `llm` 은 문서 1회 / `python` 은 안 함 |
+| `html` | `html_select` | 원문 HTML (또는 HTML 을 품은 json) | 문서 metadata → **모든 청크에 같은 값** | 안 함 (CSS 선택자가 값을 만듦) |
+
+| `source.kind` | 실행 시점 | 복사할 템플릿 (`resource/templates/`) | 출고 실례 |
 |---|---|---|---|
-| 별칭 | `document_llm` | `tabular`, `column_mapping` | `json_records` |
-| 대상 | 문서 전체 (pdf/html/docx …) | csv / xlsx / xlsm | json (레코드 배열) |
-| LLM 호출 | **함** (항목당 1회) | **안 함** | `llm_fields` 선언 시 **레코드마다 1회** |
-| 실행 시점 | 파싱 후 enrichment 단계 | 파싱 **이전**, 확장자 분기에서 조기 반환 | 파싱 **이전**, 확장자 분기에서 조기 반환 |
-| 설정 파일 키(전체) | `url`·`api_key`·`model`·`max_tokens`·`temperature`·`timeout`·`system_prompt`·`user_prompt`·`system_prompt_file`·`user_prompt_file`·`prompt`·`output_fields`·`constants`·`parser`·`pages`·`variables`·`template`·`body_fields`·`chunk_prefix_fields`·`first_chunk_fields` | `column_map`·`value_map`·`constants`·`defaults`·`nulls`·`required`·`transforms`·`llm_fields`·`text_fields`·`split`·`chunk_prefix_fields` | 왼쪽 tabular 키에서 `column_map` → `key_map`, 그리고 `records`·`missing_policy` 추가 |
-| 결과 | 문서 metadata → 모든 청크에 부착 | 행별 `custom_fields_row` element → 행마다 청크 1개 | 레코드별 `custom_fields_row` element → 레코드마다 청크 1개(길면 분할) |
-| 복사할 템플릿 | `resource/templates/custom_field_TEMPLATE_document.yaml` | `..._TEMPLATE_rows.yaml` | `..._TEMPLATE_records.yaml` |
-| 출고 실례 | `custom_field_card.yaml` | `custom_field_faq.yaml`·`custom_field_term.yaml` | `custom_field_monimo_event.yaml` |
+| `rows` | 파싱 **이전**, 확장자 분기에서 조기 반환 | `custom_field_TEMPLATE_rows.yaml` | `custom_field_faq.yaml`·`custom_field_term.yaml` |
+| `records` | 파싱 **이전**, 확장자 분기에서 조기 반환 | `custom_field_TEMPLATE_records.yaml` | `custom_field_monimo_event.yaml` |
+| `sections` | 파싱 **이전**, 확장자 분기에서 조기 반환 | `custom_field_TEMPLATE_sections.yaml` | `custom_field_product_hpp_semantic.yaml` |
+| `document` | 파싱 후 enrichment 단계 | `custom_field_TEMPLATE_document.yaml` | `custom_field_card.yaml` |
+| `html` | 파싱 후 enrichment 단계 (원문 HTML 은 파싱 전에 확보) | `custom_field_TEMPLATE_html.yaml` | `custom_field_monimo_news.yaml` |
 
-> `extractor` 를 생략하면 `llm` 로 간주합니다. 표에 없는 값을 쓰면 기동 시
-> `지원하지 않는 custom_fields extractor: …` 로 실패합니다.
+각 kind 가 받는 키의 전체 목록은 템플릿 파일 자체에 `[필수]`/`[선택]` 표시와 함께 적혀
+있고, 다른 kind 전용 키를 옮겨 적었을 때 무엇이 실패하는지도 템플릿 말미의
+"기동 시 자동 검사" 절에 정리돼 있습니다.
 
-문서형(`llm`)의 청크 본문 관련 키 3개는 값이 아니라 **규칙**입니다. 프롬프트나
-`output_fields` 에 넣지 않고, 파서가 문서 metadata 로 실어 청커가 소비합니다.
+> 등록 블록에 `extractor` 를 **적지 않는 것이 기본**입니다 — 위 표의 내부 이름은 오류
+> 메시지에 나오는 이름이지 설정에 적는 이름이 아닙니다. 굳이 적었다면 `source.kind` 가
+> 유도하는 값과 같아야 하고, 어긋나면 기동이 실패합니다.
+
+문서형(`llm`·`python`·`html_select`)의 청크 본문 관련 키 3개는 값이 아니라 **규칙**입니다.
+프롬프트나 `output_fields` 에 넣지 않고, 파서가 문서 metadata 로 실어 청커가 소비합니다.
 
 | 키 | 하는 일 |
 |---|---|
@@ -1486,13 +1496,19 @@ placeholder 이므로, LLM 을 쓰는 항목은 그 값을 채우기 전까지 �
 > 행 매핑형·레코드 매핑형의 `chunk_prefix_fields` 는 이름만 같고 자리가 다릅니다 —
 > 그쪽은 `split: true` 로 쪼갠 조각마다 접두를 다시 붙이는 설정입니다.
 
-> ⚠️ **설정 파일의 모르는 키는 조용히 무시됩니다.** 위 표에 없는 최상위 키(오타 포함)를 쓰면
-> 에러도 경고도 없이 그냥 읽히지 않습니다 — `column_maps` 처럼 한 글자만 틀려도 매핑이 0개가
-> 되고, 그 결과는 "청크는 나오는데 metadata 가 비어 있다"로만 드러납니다.
-> extractor 를 잘못 골라 다른 계열 전용 키를 쓴 경우도 같습니다(tabular 설정의 `split` 등).
-> 그래서 **작성 후 실제 원천 파일로 결과를 확인하는 절차가 사실상 필수**입니다(아래 [검증](#검증)).
+> ⚠️ **설정 파일의 모르는 키는 기동을 실패시킵니다.** 어느 스키마에도 없는 키(오타)는 가장
+> 가까운 이름을 제안하고, 다른 kind 전용 키는 어디 전용인지 알려줍니다 — `column_maps` 처럼
+> 한 글자만 틀려도 요청을 받기 전에 드러납니다. 예전에는 이런 키가 조용히 무시돼 "청크는
+> 나오는데 metadata 가 비어 있다"로만 나타났습니다.
+> 현장 설정을 미리 검사하지 못한 첫 릴리스에 한해 `GENOS_CUSTOM_FIELDS_VALIDATION=warn` 으로
+> 낮추면 경고만 남기고 기동합니다(그 설정은 무시됩니다). 배포 전에 미리 훑으려면
+> `examples/config_precheck/precheck_custom_fields.sh` 에 현장 설정 경로를 넘기세요.
 >
-> 반면 **등록 블록(entry)의 키**는 `extractor: llm` 에서만 엄격합니다 — `CustomFieldsEnricher`
+> 다만 **기동 검사가 못 잡는 것**이 남습니다 — 별칭이나 CSS 선택자가 원천과 어긋나 값이
+> 비는 경우는 키가 전부 올바르므로 통과합니다. 그래서 **작성 후 실제 원천 파일로 결과를
+> 확인하는 절차가 여전히 필요합니다**(아래 [검증](#검증)).
+>
+> **등록 블록(entry)의 키**는 사정이 다릅니다 — `extractor: llm` 에서만 엄격합니다. `CustomFieldsEnricher`
 > 생성자가 `**kwargs` 를 받지 않아 모르는 키는 `TypeError` 로 기동 시 드러납니다.
 > `tabular_mapping`/`json_mapping` 은 `**_` 로 흡수하므로 `doc_types` 같은 오타가 조용히
 > 무시되고 `doc_type=None` → **wildcard(모든 문서에 매칭)** 로 격하됩니다.
