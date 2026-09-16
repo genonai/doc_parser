@@ -2,7 +2,7 @@
 
 수식은 파싱 과정에서 세 가지로 깨진다 — 세로줄이 표 모드를 켜서 본문이 통째로 사라지고,
 백슬래시 이스케이프가 해독되며 문단이 조각나고, `$$` 블록이 세 아이템으로 갈린다.
-`converters.md_math` 는 파싱 전에 수식을 감추고 파싱 후 되돌려 이 셋을 모두 피한다.
+`processing.converters.md_math` 는 파싱 전에 수식을 감추고 파싱 후 되돌려 이 셋을 모두 피한다.
 
 여기서는 네 가지를 고정한다.
 
@@ -16,7 +16,7 @@ from pathlib import Path
 
 import pytest
 
-from genon.preprocessor.converters.md_math import (
+from genon.preprocessor.processing.converters.md_math import (
     protect,
     restore_document,
 )
@@ -157,7 +157,7 @@ def test_document_without_formula_is_untouched():
 
 def test_text_fence_cannot_strip_pipes_inside_protected_formula():
     """수식 보호가 펜스 전처리보다 앞에 와야 절댓값 기호가 살아남는다."""
-    from genon.preprocessor.converters.md_text_fence import transform
+    from genon.preprocessor.processing.converters.md_text_fence import transform
 
     src = (
         "```text\n"
@@ -173,7 +173,7 @@ def test_text_fence_cannot_strip_pipes_inside_protected_formula():
 
 def test_text_fence_keeps_block_formula_as_its_own_paragraph():
     """수식이 앞 문장과 한 단락으로 접히면 줄 첫머리의 `$$` 를 잃어 감추기가 놓친다."""
-    from genon.preprocessor.converters.md_text_fence import transform
+    from genon.preprocessor.processing.converters.md_text_fence import transform
 
     src = (
         "```text\n"
@@ -195,7 +195,7 @@ def test_text_fence_keeps_block_formula_as_its_own_paragraph():
 
 def test_guard_passes_through_non_markdown():
     """md 가 아니면 파싱 입력이 종전과 같아야 한다."""
-    from genon.preprocessor.converters.md_math import guard_markdown
+    from genon.preprocessor.processing.converters.md_math import guard_markdown
 
     path = Path(tempfile.mkdtemp()) / "a.txt"
     path.write_text("본문 $a_i$ 입니다.\n", encoding="utf-8")
@@ -205,7 +205,7 @@ def test_guard_passes_through_non_markdown():
 
 def test_guard_passes_through_markdown_without_formula():
     """수식이 없으면 파생 파일을 만들지 않는다 — artifacts 경로가 종전과 같아야 한다."""
-    from genon.preprocessor.converters.md_math import guard_markdown
+    from genon.preprocessor.processing.converters.md_math import guard_markdown
 
     path = Path(tempfile.mkdtemp()) / "a.md"
     path.write_text("평범한 문단입니다.\n", encoding="utf-8")
@@ -215,7 +215,7 @@ def test_guard_passes_through_markdown_without_formula():
 
 def test_guard_hides_formula_and_keeps_basename():
     """docling 은 확장자로 백엔드를 고르고 파일명에서 origin 을 가져온다."""
-    from genon.preprocessor.converters.md_math import guard_markdown
+    from genon.preprocessor.processing.converters.md_math import guard_markdown
 
     path = Path(tempfile.mkdtemp()) / "product.md"
     path.write_text("조건 $\\left| S \\right|$ 입니다.\n", encoding="utf-8")

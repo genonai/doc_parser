@@ -197,7 +197,7 @@ def is_libreoffice_available() -> bool:
     가용성 판단 자체가 불가하면(import 실패 등) True 를 반환해 기존 동작을 유지한다.
     """
     try:
-        from genon.preprocessor.converters.hwp_to_pdf.availability import (
+        from genon.preprocessor.processing.converters.hwp_to_pdf.availability import (
             libreoffice_available,
         )
         return bool(libreoffice_available())
@@ -219,7 +219,7 @@ def has_any_pdf_converter() -> bool:
     가용성 판단 자체가 불가하면(import 실패 등) True 를 반환해 기존 동작을 유지한다.
     """
     try:
-        from genon.preprocessor.converters.hwp_to_pdf.availability import (
+        from genon.preprocessor.processing.converters.hwp_to_pdf.availability import (
             libreoffice_available,
             pdf_sdk_available,
             rhwp_available,

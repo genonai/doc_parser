@@ -154,7 +154,7 @@ def validate_target_field_names(targets: Any, *, label: str) -> None:
     """
     # facade → converters 단방향 import (parser_processor._parse_tabular 와 같은 방향).
     # 함수 안에서 import 하는 이유: 이 모듈은 converters 없이도 로드돼야 한다(enrichment 단독 테스트).
-    from genon.preprocessor.converters.xlsx_processor import _RESERVED_FIELDS, _VALID_KEY_RE
+    from genon.preprocessor.processing.converters.xlsx_processor import _RESERVED_FIELDS, _VALID_KEY_RE
 
     reserved, invalid = [], []
     for name in targets:

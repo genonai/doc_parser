@@ -192,7 +192,7 @@ def text_fields_hook(formats: Sequence[str] = (), *, compact_tables: bool = True
     """청크 텍스트 → 표 파생 필드(표기형태 변형 + `has_table`) 를 만드는 훅.
 
     청커를 거치지 않고 벡터를 직접 만드는 경로(xlsx tabular 직접 처리 등)가 쓴다. 그
-    경로의 구현체는 `converters/` 아래에 있어 facade 를 import 하지 않으므로(단방향
+    경로의 구현체는 `processing/converters/` 아래에 있어 facade 를 import 하지 않으므로(단방향
     규칙), 정책을 함수로 넘겨 같은 규칙을 공유한다.
     """
     from genon.preprocessor.processing.chunking import table_blocks as tbk

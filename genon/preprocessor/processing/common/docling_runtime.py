@@ -43,7 +43,7 @@ from docling.datamodel.pipeline_options import (
 from docling.datamodel.settings import settings as docling_settings
 from docling_core.types.doc import DoclingDocument
 
-from genon.preprocessor.converters.md_math import guard_markdown
+from genon.preprocessor.processing.converters.md_math import guard_markdown
 from genon.preprocessor.processing.common import config_parse as cp
 from genon.preprocessor.processing.common import docling_ops as dops
 from genon.preprocessor.processing.common import format_alias as fa
@@ -403,7 +403,7 @@ class DoclingRuntimeBase:
 
         # markdown 의 LaTeX 수식은 파싱 전에 감춰 둔다. 백엔드가 `$` 를 모르기 때문에
         # 세로줄이 표로 오인되고 백슬래시가 해독되며 `$$` 블록이 쪼개진다
-        # (converters/md_math 모듈 docstring 참조). md 가 아니면 원본 경로 그대로다.
+        # (processing/converters/md_math 모듈 docstring 참조). md 가 아니면 원본 경로 그대로다.
         with guard_markdown(file_path) as guard:
             try:
                 conv_result = self.converter.convert(guard.path, raises_on_error=True)

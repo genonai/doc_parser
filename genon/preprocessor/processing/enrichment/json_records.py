@@ -4,7 +4,7 @@
 
 `eventList[*]` 처럼 **레코드 배열 안에 구조화된 필드와 본문 HTML 이 함께** 오는 입력이 있다.
 적재 스키마가 "레코드 1건 = 1행"(제목/시작일/종료일/상세HTML/요약본문)이라 청크마다 서로 다른
-메타데이터가 필요한데, 기존 `.json` 경로(`converters/json_text.py`)는 전체를 하나의 HTML 로 병합해
+메타데이터가 필요한데, 기존 `.json` 경로(`processing/converters/json_text.py`)는 전체를 하나의 HTML 로 병합해
 docling 으로 파싱하는 **문서 모드**여서 청크별 메타데이터를 실을 수 없다(docling 경로의 extra 는
 문서 전역이다).
 
@@ -14,7 +14,7 @@ docling 으로 파싱하는 **문서 모드**여서 청크별 메타데이터를
 
 ## 키 지정 방식
 
-`converters/json_text.py` 와 동일하게 **키 이름만** 나열한다(JSONPath 등 경로 문법 없음).
+`processing/converters/json_text.py` 와 동일하게 **키 이름만** 나열한다(JSONPath 등 경로 문법 없음).
 레코드 안에서 임의 깊이를 BFS 로 훑어 얕은 쪽을 우선 채택하므로 `wcmsHtml.htmlText` 같은 중첩도
 `htmlText` 한 단어로 잡힌다. 비교는 tabular 와 같은 정규화(Unicode/BOM/대소문자/공백·구분자)를 거친다.
 
@@ -36,7 +36,7 @@ import yaml
 
 _log = logging.getLogger(__name__)
 
-from genon.preprocessor.converters.delimited_text import parse_spec as parse_delimited_spec
+from genon.preprocessor.processing.converters.delimited_text import parse_spec as parse_delimited_spec
 from genon.preprocessor.processing.chunking.rich_cells import collect_subtree_refs
 from genon.preprocessor.processing.chunking.table_html import (
     drop_blank_markdown_rows, render_table,
@@ -476,7 +476,7 @@ def html_to_text(
         return "\n\n".join(part for part in parts if part.strip())
     if not isinstance(value, str) or not value.strip():
         return ""
-    from genon.preprocessor.converters.html_flatten import (
+    from genon.preprocessor.processing.converters.html_flatten import (
         build_docling_document,
         extract_content,
     )

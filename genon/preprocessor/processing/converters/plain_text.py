@@ -5,7 +5,7 @@
 docling 에는 평문 텍스트 백엔드가 없다. 확장자 매핑상 `.txt` 는 XML_USPTO(특허 XML),
 `.json` 은 JSON_DOCLING(docling 자체 직렬화 형식)으로 가므로 원문을 그대로 넘길 수 없다.
 텍스트를 HTML 로 감싸 HTML 백엔드에 태우는 것이 유일한 경로이며, custom_fields 를 쓰는
-`.json`(`converters/json_text.py`)이 이미 같은 방식을 쓴다.
+`.json`(`processing/converters/json_text.py`)이 이미 같은 방식을 쓴다.
 
 ## 왜 `<pre>` 인가
 

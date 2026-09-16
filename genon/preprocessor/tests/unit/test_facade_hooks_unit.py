@@ -214,7 +214,7 @@ async def test_parser_edit_output_is_wired_into_call(tmp_path: Path):
 # 엑셀 격자 훅 — 라이브러리를 고르는 건 고객이다
 # ---------------------------------------------------------------------------
 
-xp = pytest.importorskip("genon.preprocessor.converters.xlsx_processor")
+xp = pytest.importorskip("genon.preprocessor.processing.converters.xlsx_processor")
 
 
 def test_normalize_sheets_accepts_every_documented_shape():
@@ -956,7 +956,7 @@ async def test_delimited_route_skips_binary_content(tmp_path: Path):
 @pytest.mark.asyncio
 async def test_records_payload_rejects_zero_records(tmp_path: Path):
     """확장자 무관으로 입구가 넓어진 만큼, doc_type 을 잘못 짚은 원천은 0건 대신 에러여야 한다."""
-    delimited_text = pytest.importorskip("genon.preprocessor.converters.delimited_text")
+    delimited_text = pytest.importorskip("genon.preprocessor.processing.converters.delimited_text")
     spec = delimited_text.parse_spec({"separator": "|@|", "columns": ["a", "b"]})
     mapper = _FakeDelimitedMapper("cs_ssf")
     mapper.delimited = spec

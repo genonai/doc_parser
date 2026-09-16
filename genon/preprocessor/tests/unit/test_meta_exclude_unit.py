@@ -240,7 +240,7 @@ def test_document_kind_attaches_the_control_key_after_the_value_pipeline(tmp_pat
 
 @pytest.mark.unit
 def test_sync_xlsx_path_applies_the_hook_to_row_metadata(tmp_path):
-    xp = pytest.importorskip("genon.preprocessor.converters.xlsx_processor")
+    xp = pytest.importorskip("genon.preprocessor.processing.converters.xlsx_processor")
     openpyxl = pytest.importorskip("openpyxl")
 
     path = tmp_path / "rows.xlsx"
@@ -268,7 +268,7 @@ def test_sync_xlsx_path_applies_the_hook_to_row_metadata(tmp_path):
 @pytest.mark.parametrize("module_name", ["intelligent_processor", "convert_processor"])
 async def test_facades_pass_the_hook_into_the_sync_path(module_name, tmp_path, monkeypatch):
     """facade 가 훅을 실제로 넘기는지 — 인자를 빠뜨리면 그 프로세서에서만 컬럼이 샌다."""
-    xp = pytest.importorskip("genon.preprocessor.converters.xlsx_processor")
+    xp = pytest.importorskip("genon.preprocessor.processing.converters.xlsx_processor")
     module = pytest.importorskip(f"genon.preprocessor.facade.{module_name}")
 
     captured: dict = {}

@@ -20,8 +20,8 @@ from typing import Iterable
 
 import pytest
 
-from genon.preprocessor.converters.hwp_to_pdf import convert_hwp_to_pdf
-from genon.preprocessor.converters.hwp_to_pdf.config import _AVAILABILITY
+from genon.preprocessor.processing.converters.hwp_to_pdf import convert_hwp_to_pdf
+from genon.preprocessor.processing.converters.hwp_to_pdf.config import _AVAILABILITY
 
 SAMPLE_DIR = Path(__file__).resolve().parents[2] / "sample_files"
 HWP_INPUTS = sorted(

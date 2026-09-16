@@ -37,7 +37,7 @@ PDF SDK의 사용 여부에 따라 `standard` 또는 `synap`로 분리됨.
 
 ## HWP → PDF 변환 chain (런타임 동작)
 
-`genon.preprocessor.converters.hwp_to_pdf.build_chain()` 이 가용한 backend 만 자동 등록한다. rhwp 는 이미지 안에 바이너리로 직접 포함되어 별도 외부 서비스 없이 동작한다.
+`genon.preprocessor.processing.converters.hwp_to_pdf.build_chain()` 이 가용한 backend 만 자동 등록한다. rhwp 는 이미지 안에 바이너리로 직접 포함되어 별도 외부 서비스 없이 동작한다.
 
 - synap: `pdf_sdk → rhwp → libreoffice` (PDF SDK 우선, 실패 시 자동 fallback)
 - standard: `rhwp → libreoffice` (PDF SDK 미포함)

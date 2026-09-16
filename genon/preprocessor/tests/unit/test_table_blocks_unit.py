@@ -285,7 +285,7 @@ def test_cs_ssf_sample_keeps_each_section_title_with_its_table():
     휴대품(보상불가)</b></p>` 와 표, Q&A 문단, 그리고 `<p><b>ㅁ 피해물이 상품인 경우
     보상 기준</b></p>` 와 두 번째 표. 원천 → 평문화 → 표 분리까지 실제 경로로 확인한다.
     """
-    from genon.preprocessor.converters.delimited_text import parse_spec, read_records
+    from genon.preprocessor.processing.converters.delimited_text import parse_spec, read_records
     from genon.preprocessor.processing.enrichment.json_records import html_to_text
 
     sample = (Path(__file__).resolve().parents[2]

@@ -357,11 +357,12 @@ clone** 한 뒤 그 안의 `main.py` 를 실행합니다.
     │   ├── intelligent_processor.py
     │   ├── convert_processor.py
     │   ├── attachment_processor.py
-    │   ├── enrichment/                 목차·메타데이터·이미지/표 설명 등 공용 모듈
-    │   ├── guardrail/                  개인정보 탐지·마스킹
     │   └── gitbook_doc/                이 문서를 포함한 매뉴얼
+    ├── processing/                     처리 라이브러리 (facade 가 상속·호출)
+    │   ├── converters/                 HWP→PDF, xlsx 처리
+    │   ├── enrichment/                 목차·메타데이터·이미지/표 설명 등 공용 모듈
+    │   └── guardrail/                  개인정보 탐지·마스킹
     ├── resource/                       ★ config yaml + 프롬프트 md  (설정 수정 대상)
-    ├── converters/                     HWP→PDF, xlsx 처리
     ├── examples/                       테스트 스크립트
     ├── sample_files/                   샘플 문서
     ├── src/                            로거·응답 유틸·설정 등 런타임 공통 코드
@@ -697,7 +698,7 @@ print(len(chunks), chunks[0].model_dump()['text'][:80])
 | `processing/guardrail/` | 개인정보 탐지·마스킹 | 가드레일을 쓸 때 |
 | `resource/*.yaml`, `resource/prompt_*.md` | 설정·프롬프트 | **예** (6장) |
 | `src/` | 로거, 응답 유틸, 설정 로딩 | 거의 없음 |
-| `converters/` | HWP→PDF, xlsx 처리 | 해당 포맷을 다룰 때 |
+| `processing/converters/` | HWP→PDF, xlsx 처리 | 해당 포맷을 다룰 때 |
 | `packages/*.whl` | docling 엔진 | **불가** — facade 에서 우회 |
 
 ### 5.2 `main.py` — 요청이 처리되는 순서
@@ -1764,7 +1765,7 @@ print('프롬프트에 없는 출력필드:',
 python -c "
 import sys; sys.path.insert(0,'.'); sys.path.insert(0,'../..')
 from processing.enrichment.tabular_custom_fields import TabularCustomFieldsMapper as M
-from genon.preprocessor.converters.xlsx_processor import build_tabular_data_dict
+from genon.preprocessor.processing.converters.xlsx_processor import build_tabular_data_dict
 m = M(config_file='custom_field_notice.yaml', resource_path='resource',
       doc_type='notice', extractor='tabular_mapping')
 d = build_tabular_data_dict('sample_files/<파일>.xlsx')
@@ -2150,7 +2151,7 @@ cd doc_parser_code_serving && git pull && cat VERSION               # 어느 릴
 `.git` 을 제외하고 압축해 올린 뒤 코드스페이스에서 풀어 **릴리스 단위로 통째 갱신**합니다.
 
 > ⚠️ **facade 몇 개만 골라 올리지 마세요.** facade 는 `packages/*.whl`(docling), `main.py`,
-> `enrichment/`, `converters/` 와 같은 릴리스를 전제로 동작합니다. 일부만 바꾸면 서로 다른 릴리스가
+> `enrichment/`, `processing/converters/` 와 같은 릴리스를 전제로 동작합니다. 일부만 바꾸면 서로 다른 릴리스가
 > 섞여 재현하기 어려운 오류가 납니다. 급히 한 파일만 바꿔야 한다면 `VERSION` 의 `source_commit` 이
 > 같은 배포본에서 가져온 것인지 먼저 확인하세요.
 
@@ -2427,7 +2428,7 @@ curl --location "${GW}/parser" \
 > ```bash
 > # 실행 위치: 내 PC, 로컬 클론
 > # 코드만 골라 패치 생성 — resource/ 는 제외된다
-> git diff -- genon/preprocessor/facade genon/preprocessor/converters \
+> git diff -- genon/preprocessor/facade genon/preprocessor/processing/converters \
 >            genon/preprocessor/src genon/preprocessor/examples \
 >            main.py requirements.txt > my_change.patch
 >

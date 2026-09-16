@@ -355,8 +355,8 @@ def audio_to_parse_format(text: str) -> dict:
 
 
 def tabular_to_parse_format(data_dict: dict) -> dict:
-    """tabular data_dict(converters.xlsx_processor 산출) → 행별 parse format."""
-    from genon.preprocessor.converters.xlsx_processor import tabular_data_to_parse_format
+    """tabular data_dict(processing.converters.xlsx_processor 산출) → 행별 parse format."""
+    from genon.preprocessor.processing.converters.xlsx_processor import tabular_data_to_parse_format
 
     return tabular_data_to_parse_format(data_dict)
 

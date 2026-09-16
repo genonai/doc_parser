@@ -17,7 +17,7 @@ OUT = PREPROCESSOR_DIR / "sample_files" / "drill"
 sys.path.insert(0, str(PREPROCESSOR_DIR.parent.parent))
 sys.path.insert(0, str(PREPROCESSOR_DIR))
 
-from genon.preprocessor.converters import xlsx_processor as xp  # noqa: E402
+from genon.preprocessor.processing.converters import xlsx_processor as xp  # noqa: E402
 
 
 def xlsx_fixtures() -> list[tuple[str, str]]:

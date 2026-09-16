@@ -47,8 +47,8 @@ from docling_core.types.doc import (
 
 from genon.preprocessor.processing.enrichment import html_select
 from genon.preprocessor.processing.enrichment.custom_fields_enricher import normalize_doc_type
-from genon.preprocessor.converters import delimited_text as dt
-from genon.preprocessor.converters.plain_text import text_to_html
+from genon.preprocessor.processing.converters import delimited_text as dt
+from genon.preprocessor.processing.converters.plain_text import text_to_html
 from genon.preprocessor.processing.enrichment.tabular_custom_fields import (
     build_tabular_custom_fields_mappers,
     claimed_row_pages,
@@ -128,7 +128,7 @@ from genon.preprocessor.processing.common import pdf_convert as pc
 from genon.preprocessor.processing.common import format_alias as fa
 from genon.preprocessor.processing.common import hooks as hk
 from genon.preprocessor.processing.common import job as jb
-from genon.preprocessor.converters import xlsx_processor as xp
+from genon.preprocessor.processing.converters import xlsx_processor as xp
 from genon.preprocessor.processing.common.docling_runtime import DoclingRuntimeBase
 from genon.preprocessor.processing.common.doc_meta import strip_enricher_meta
 from genon.preprocessor.processing.core.errors import GenosServiceException
@@ -896,7 +896,7 @@ class ParserCore:
         - multi_table=True 면 빈 행 기준 복수 표를 표별로 분리.
         헤더명(원본, 한글 가능)을 그대로 key 로 쓴다(HTML 셀 내용 — Weaviate 키 제약 무관).
         """
-        from genon.preprocessor.converters.xlsx_processor import build_tabular_data_dict
+        from genon.preprocessor.processing.converters.xlsx_processor import build_tabular_data_dict
 
         return build_tabular_data_dict(
             file_path,
@@ -958,7 +958,7 @@ class ParserCore:
 
         if marker_headings:
             # text_fence 뒤에 돈다 — 펜스를 단락으로 되돌린 뒤라야 그 안의 마커 줄도 후보가 된다.
-            from genon.preprocessor.converters.md_marker_headings import (
+            from genon.preprocessor.processing.converters.md_marker_headings import (
                 promote_markdown_marker_headings,
             )
 
@@ -1006,7 +1006,7 @@ class ParserCore:
         if self._html_flatten_mode == "off":
             return file_path
 
-        from genon.preprocessor.converters import html_flatten
+        from genon.preprocessor.processing.converters import html_flatten
 
         try:
             raw = Path(file_path).read_text(encoding="utf-8", errors="replace")
@@ -1044,7 +1044,7 @@ class ParserCore:
         JSON 에만 담은 경우는 flatten 으로도 복구되지 않으므로, 재파싱 대신 운영자가
         알아챌 수 있게 로그만 남긴다.
         """
-        from genon.preprocessor.converters import html_flatten
+        from genon.preprocessor.processing.converters import html_flatten
 
         try:
             raw_size = os.path.getsize(file_path)
@@ -1339,7 +1339,7 @@ class ParserCore:
         본체는 기존 `_parse_docling` 을 그대로 재사용하고, artifacts 경로는 원본 json
         기준으로 유지해 media_files 가 어긋나지 않게 한다.
         """
-        from genon.preprocessor.converters.json_text import json_payload_to_html
+        from genon.preprocessor.processing.converters.json_text import json_payload_to_html
 
         payload = await self._load_json_payload(file_path, kwargs.get("doc_type"), **kwargs)
         stem = Path(file_path).stem
@@ -1669,7 +1669,7 @@ class ParserCore:
 
     def parse_sheets(self, job, sheets) -> DoclingDocument:
         """시트를 docling 문서로 파싱한다(MsExcel/Csv 백엔드)."""
-        from genon.preprocessor.converters.xlsx_processor import build_docling_document
+        from genon.preprocessor.processing.converters.xlsx_processor import build_docling_document
         return build_docling_document(job.source)
 
     def sheets_to_records(self, job, sheets) -> dict:
@@ -1903,7 +1903,7 @@ class ParserCore:
     def parse_text(self, job) -> "Optional[DoclingDocument]":
         """평문 텍스트 → `<pre>` HTML → docling. 텍스트가 아니거나 디코딩에 실패하면 None.
 
-        docling 에는 평문 백엔드가 없어 HTML 을 거친다(`converters/plain_text.py` 참고).
+        docling 에는 평문 백엔드가 없어 HTML 을 거친다(`processing/converters/plain_text.py` 참고).
         파생 HTML 은 요청 임시 디렉터리에만 쓰고, artifacts 경로는 원본 기준으로 유지한다.
 
         docling 을 태우는 이유는 enrichment 다. 레거시 TextLoader 경로에는 후처리 훅이

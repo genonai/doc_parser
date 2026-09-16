@@ -32,7 +32,7 @@ def convert_to_pdf(file_path: str, use_pdf_sdk: bool = True) -> str | None:
       use_pdf_sdk=False → libreoffice
 
     구현은 processing/common/pdf_convert.py 에 있다(변환 backend 는
-    genon.preprocessor.converters.hwp_to_pdf).
+    genon.preprocessor.processing.converters.hwp_to_pdf).
     """
     return pc.convert_to_pdf(file_path, use_pdf_sdk=use_pdf_sdk)
 
@@ -180,7 +180,7 @@ except ImportError:
 
 # HWP/HWPX 품질 복구(선택적). 모듈 로드 실패 시 None → 복구 미적용(기존 동작 유지).
 try:
-    from genon.preprocessor.converters.hwp_recovery import HwpQualityRecovery
+    from genon.preprocessor.processing.converters.hwp_recovery import HwpQualityRecovery
 except ImportError:
     HwpQualityRecovery = None
 
@@ -747,7 +747,7 @@ class DocumentProcessor(DoclingRuntimeBase):
           - tabular: 데이터 행마다 1청크(벡터)로 만들어 즉시 반환
           - docling(기본): MsExcel 백엔드로 DoclingDocument 생성 후 공유 파이프라인으로 합류
         """
-        from genon.preprocessor.converters.xlsx_processor import (
+        from genon.preprocessor.processing.converters.xlsx_processor import (
             build_docling_document,
             build_tabular_custom_fields_vectors,
             build_tabular_vectors,

@@ -396,7 +396,7 @@ formats:
 <a id="41-convert"></a>
 ### 4.1 convert_to_pdf() — PDF 변환
 
-PPT/DOC/이미지/HWP 등을 PDF로 변환합니다. 실패해도 예외 없이 `None`을 반환하는 방어적 설계이며, 실제 변환 로직은 `genon.preprocessor.converters.hwp_to_pdf` 모듈로 일원화되어 있습니다. 변환 chain은 입력 확장자와 `use_pdf_sdk`(config `defaults.use_pdf_sdk`)로 결정되며, 앞 backend 실패 시 다음으로 자동 fallback합니다.
+PPT/DOC/이미지/HWP 등을 PDF로 변환합니다. 실패해도 예외 없이 `None`을 반환하는 방어적 설계이며, 실제 변환 로직은 `genon.preprocessor.processing.converters.hwp_to_pdf` 모듈로 일원화되어 있습니다. 변환 chain은 입력 확장자와 `use_pdf_sdk`(config `defaults.use_pdf_sdk`)로 결정되며, 앞 backend 실패 시 다음으로 자동 fallback합니다.
 
 | 입력 | `use_pdf_sdk=true` | `use_pdf_sdk=false` |
 |------|--------------------|---------------------|

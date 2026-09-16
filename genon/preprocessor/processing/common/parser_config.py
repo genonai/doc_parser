@@ -52,7 +52,7 @@ def build_json_text_specs(custom_fields_cfgs: Iterable[dict] | None) -> list:
     `false` 명시적 비활성은 json 에는 **없다** — 등록 블록의 `json:` 은 옛 자리라 아래에서
     막기 때문이다(`json: false` 도 그 자리이므로 함께 막힌다).
     """
-    from genon.preprocessor.converters.json_text import JsonTextSpec
+    from genon.preprocessor.processing.converters.json_text import JsonTextSpec
     from genon.preprocessor.processing.enrichment.markdown_front_matter import (
         resolve_format_cfg,
     )

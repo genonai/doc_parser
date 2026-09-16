@@ -308,7 +308,7 @@ def _news_sample_content() -> str:
     """`source.pre.json.body_from: [content]` 이 꺼내는 것과 같은 값을 얻는다."""
     import json
 
-    from genon.preprocessor.converters.json_text import collect_text_fields
+    from genon.preprocessor.processing.converters.json_text import collect_text_fields
 
     path = (
         Path(__file__).resolve().parents[2] / "sample_files" / "monimo" / NEWS_SAMPLE

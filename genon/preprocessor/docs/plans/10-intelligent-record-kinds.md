@@ -13,10 +13,10 @@
 | `kind: records` | `enrichment/json_records.py` | `parser_processor.py:1023`, `_parse_json_records` 1640 |
 | `kind: sections` | `enrichment/json_semantic.py` | `parser_processor.py:82` import, 매퍼 빌드 |
 | `source.pre.markdown.front_matter` | `enrichment/markdown_front_matter.py` | `parser_processor.py:999` |
-| `source.pre.markdown.text_fence` | `converters/md_text_fence.py` | `parser_processor.py:1006` |
-| `source.pre.html.marker_headings` | `converters/` | `parser_processor.py:1013` |
-| `json:` 블록 | `converters/json_text.py` | `parser_processor.py:995` |
-| `formats.html.flatten` | `converters/html_flatten.py` | `parser_processor.py:991` |
+| `source.pre.markdown.text_fence` | `processing/converters/md_text_fence.py` | `parser_processor.py:1006` |
+| `source.pre.html.marker_headings` | `processing/converters/` | `parser_processor.py:1013` |
+| `json:` 블록 | `processing/converters/json_text.py` | `parser_processor.py:995` |
+| `formats.html.flatten` | `processing/converters/html_flatten.py` | `parser_processor.py:991` |
 
 intelligent 는 이 중 **하나도 import 하지 않는다.**
 
@@ -80,7 +80,7 @@ parser 도 이 빌더를 쓰게 바꾼다. **parser 를 그대로 두고 intelli
 - `processing/enrichment/` 에 묶음 빌더 (신규)
 - `facade/parser_processor.py` (`__init__` 986~1029 을 호출 1줄로 축소)
 - `facade/intelligent_processor.py` (`__init__` 636~644, 09 가 만든 네이티브 경로)
-- `converters/` 는 읽기만 한다(단방향 유지 — `converters` 는 `facade` 를 import 하지 않는다)
+- `processing/converters/` 는 읽기만 한다(단방향 유지 — `converters` 는 `facade` 를 import 하지 않는다)
 - `resource/templates/custom_field_TEMPLATE_{json,semantic}.yaml` (지원 현황 주석)
 - `resource/intelligent_processor_config.yaml` + `resource_dev/` 사본 (`formats.html.flatten` 등)
 

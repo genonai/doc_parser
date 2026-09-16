@@ -113,7 +113,7 @@ def convert_to_pdf(file_path: str, use_pdf_sdk: bool = True) -> str | None:
       use_pdf_sdk=True  → pdf_sdk → libreoffice
       use_pdf_sdk=False → libreoffice
     """
-    from genon.preprocessor.converters.hwp_to_pdf import convert_hwp_to_pdf
+    from genon.preprocessor.processing.converters.hwp_to_pdf import convert_hwp_to_pdf
     ext = os.path.splitext(file_path)[1].lower()
     is_hwp = ext in (".hwp", ".hwpx")
     if use_pdf_sdk:

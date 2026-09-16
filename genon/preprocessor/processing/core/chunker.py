@@ -981,7 +981,7 @@ class ChunkerCore:
     def _expand_table_rows(self, rows: list, **kwargs: dict) -> list:
         """표를 담은 행을 표 조각과 본문 조각으로 나눈다(table_as_chunk).
 
-        분리 규칙은 공용 모듈 한 벌이다 — xlsx 직접 경로(converters/xlsx_processor)도
+        분리 규칙은 공용 모듈 한 벌이다 — xlsx 직접 경로(processing/converters/xlsx_processor)도
         같은 함수를 쓴다.
         """
         if not self._isolate_tables_enabled(**kwargs):

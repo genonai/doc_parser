@@ -5,7 +5,7 @@
 """
 import pytest
 
-from genon.preprocessor.converters.md_marker_headings import (
+from genon.preprocessor.processing.converters.md_marker_headings import (
     promote_markdown_marker_headings,
 )
 

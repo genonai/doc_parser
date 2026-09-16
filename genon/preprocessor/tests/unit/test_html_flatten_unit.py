@@ -14,7 +14,7 @@ from pathlib import Path
 
 import pytest
 
-from genon.preprocessor.converters.html_flatten import (
+from genon.preprocessor.processing.converters.html_flatten import (
     build_docling_document,
     document_title,
     extract_content,

@@ -12,7 +12,7 @@
 
 import pytest
 
-from genon.preprocessor.converters.delimited_text import (
+from genon.preprocessor.processing.converters.delimited_text import (
     DelimitedSpec,
     parse_spec,
     read_records,

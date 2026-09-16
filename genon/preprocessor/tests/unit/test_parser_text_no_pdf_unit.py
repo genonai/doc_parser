@@ -53,7 +53,7 @@ def test_textloader_without_render_leaves_no_sibling_pdf(tmp_path: Path):
 
 def test_text_to_html_escapes_and_preserves_whitespace():
     """`<`/`&` 는 이스케이프하고, 자동 줄바꿈 스타일을 유지한다(이슈 #333)."""
-    from genon.preprocessor.converters.plain_text import text_to_html
+    from genon.preprocessor.processing.converters.plain_text import text_to_html
 
     out = text_to_html("a < b & c\n  들여쓰기")
 
@@ -72,7 +72,7 @@ def test_demote_code_items_turns_pre_block_into_text():
     from docling.document_converter import DocumentConverter
     from docling_core.types.doc import CodeItem, DocItemLabel
 
-    from genon.preprocessor.converters.plain_text import text_to_html
+    from genon.preprocessor.processing.converters.plain_text import text_to_html
     from genon.preprocessor.processing.common import docling_ops as dops
 
     source = "제목: 결제 취소\n  - 환불: 3~5영업일"

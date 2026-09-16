@@ -19,10 +19,10 @@ async def _process_xlsx(self, request, file_path, **kwargs):
     vectors = build_tabular_custom_fields_vectors(file_path, matching_mappers[0], ...)  # 이것만 동기
 ```
 
-동기인 것은 `converters/xlsx_processor.py:626` 하나이고, 그 안에서 매퍼를 한 번에 부른다.
+동기인 것은 `processing/converters/xlsx_processor.py:626` 하나이고, 그 안에서 매퍼를 한 번에 부른다.
 
 ```python
-# converters/xlsx_processor.py:648
+# processing/converters/xlsx_processor.py:648
 result = mapper.to_parse_format(data_dict, runtime_doc_type)   # build_fields 를 안에서 한다
 ```
 
@@ -55,7 +55,7 @@ enricher 캐시). 캐시는 프로세서 인스턴스에 붙어 있으므로 **�
 
 ### 2) `build_tabular_custom_fields_vectors` 에서 elements 조립을 분리한다
 
-`converters/` 는 `facade/` 를 import 할 수 없다(단방향). 그래서 async LLM 적용은 facade 에서
+`processing/converters/` 는 `facade/` 를 import 할 수 없다(단방향). 그래서 async LLM 적용은 facade 에서
 하고, converter 에는 **이미 만들어진 elements 를 받는 입구**를 연다.
 `expand_elements` / `text_fields_hook` 을 함수로 주입받는 기존 선례와 같은 방식이다.
 
@@ -104,7 +104,7 @@ parser 는 `__init__`(1026~1029)에서 `llm_field_specs` 마다 enricher 를 만
 - `facade/parser_processor.py` (1520~1640 을 공용 함수 호출로 축소)
 - `facade/intelligent_processor.py` (`__init__` 641, `_process_xlsx` 1102~)
 - `facade/convert_processor.py` (`__init__` 612, `_process_xlsx` 1319~)
-- `converters/xlsx_processor.py` (626 `elements` 입구)
+- `processing/converters/xlsx_processor.py` (626 `elements` 입구)
 - `resource/templates/custom_field_TEMPLATE_tabular.yaml` (주석 정정)
 
 ## 검증

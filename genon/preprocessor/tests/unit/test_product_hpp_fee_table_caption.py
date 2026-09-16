@@ -32,7 +32,7 @@ def _document():
     import io
 
     from docling.datamodel.base_models import DocumentStream
-    from genon.preprocessor.converters.html_flatten import (
+    from genon.preprocessor.processing.converters.html_flatten import (
         build_docling_document,
         extract_content,
     )

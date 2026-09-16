@@ -26,7 +26,7 @@ import requests
 from langchain_community.document_loaders import DataFrameLoader, PyMuPDFLoader
 from langchain_core.documents import Document
 
-from genon.preprocessor.converters.plain_text import text_to_html
+from genon.preprocessor.processing.converters.plain_text import text_to_html
 from genon.preprocessor.processing.common.file_probe import get_pdf_path
 
 try:

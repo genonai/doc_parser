@@ -1034,7 +1034,7 @@ config 가 각 처리 단계에 어떻게 매핑되는지 요약합니다. 코�
 
 ### 4.4 convert_to_pdf
 
-`convert_to_pdf(file_path, use_pdf_sdk=True)` 는 다양한 포맷을 PDF 로 변환하는 한 줄 wrapper 로, 실제 로직은 `genon.preprocessor.converters.hwp_to_pdf.convert_hwp_to_pdf()` 에 위임됩니다.
+`convert_to_pdf(file_path, use_pdf_sdk=True)` 는 다양한 포맷을 PDF 로 변환하는 한 줄 wrapper 로, 실제 로직은 `genon.preprocessor.processing.converters.hwp_to_pdf.convert_hwp_to_pdf()` 에 위임됩니다.
 
 | 입력 | `use_pdf_sdk=True` | `use_pdf_sdk=False` |
 |------|--------------------|--------------------|

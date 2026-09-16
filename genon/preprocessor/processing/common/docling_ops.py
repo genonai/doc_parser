@@ -238,7 +238,7 @@ def get_media_files(doc_items: list, include_tables: bool = False) -> list:
 def demote_code_items(document: DoclingDocument) -> DoclingDocument:
     """CodeItem 을 같은 내용의 TextItem 으로 바꾼다(제자리 수정 후 같은 문서 반환).
 
-    평문 텍스트를 `<pre>` 로 감싸 HTML 백엔드에 태우면(`converters/plain_text.py`)
+    평문 텍스트를 `<pre>` 로 감싸 HTML 백엔드에 태우면(`processing/converters/plain_text.py`)
     docling 이 이를 코드 블록으로 읽는다. `<pre>` 는 줄바꿈·들여쓰기를 보존하는 유일한
     표현이라 감싸는 방식은 유지하고, 라벨만 여기서 되돌린다. 그대로 두면 마크다운
     출력이 원문을 ``` 펜스로 감싸고, 청크가 코드 블록 하나로 굳는다.

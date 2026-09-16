@@ -26,7 +26,7 @@ from facade.parser_processor import DocumentProcessor, GenosServiceException
 # 로더와 docling 런타임은 처리 본체(core)에 있다 — facade 는 얇은 서브클래스다(#363 08-1).
 from processing.core.parser import GenericDocumentLoader, IntelligentDocumentProcessor
 # check_sql_dtypes 는 공용 로더(processing/common/loaders.py)에 있다. parser 파이프라인은
-# tabular 입력을 converters.xlsx_processor 로 처리하므로 parser 쪽 사본은 없다.
+# tabular 입력을 processing.converters.xlsx_processor 로 처리하므로 parser 쪽 사본은 없다.
 from genon.preprocessor.processing.common.loaders import TabularLoaderBase
 from docling.prompts.prompt_manager import LLMApiError
 

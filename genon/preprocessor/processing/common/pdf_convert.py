@@ -1,6 +1,6 @@
 """비-PDF 입력을 PDF 로 변환하는 공용 진입점.
 
-실제 변환은 `genon.preprocessor.converters.hwp_to_pdf` 의 backend chain 이 한다.
+실제 변환은 `genon.preprocessor.processing.converters.hwp_to_pdf` 의 backend chain 이 한다.
 여기에는 facade 가 공유하는 두 가지만 있다.
 
   1. 입력 확장자와 use_pdf_sdk 로 backend 순서를 정하는 규칙
@@ -53,7 +53,7 @@ def convert_to_pdf(
     libreoffice_only=True 면 backend 순서를 ["libreoffice"] 로 고정하고 가용성도
     LibreOffice 만 따진다. rhwp/pdf_sdk 를 쓰지 않는 facade 용이다.
     """
-    from genon.preprocessor.converters.hwp_to_pdf import convert_hwp_to_pdf
+    from genon.preprocessor.processing.converters.hwp_to_pdf import convert_hwp_to_pdf
 
     if libreoffice_only:
         order = ["libreoffice"]

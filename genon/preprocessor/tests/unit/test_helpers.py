@@ -37,10 +37,10 @@ def test_get_pdf_path_pdf_input_is_unchanged():
 # ─── convert_to_pdf (subprocess argument verification) ───────────────────────
 # soffice 를 실제로 부르는 곳은 backend 모듈이다. facade 의 convert_to_pdf 는
 # processing/common/pdf_convert.py 를 거쳐 그 backend 로 위임하므로, subprocess 는
-# 호출이 일어나는 모듈(converters.hwp_to_pdf.libreoffice)에서 가로채야 한다.
+# 호출이 일어나는 모듈(processing.converters.hwp_to_pdf.libreoffice)에서 가로채야 한다.
 # 예전에는 facade.parser_processor.subprocess 를 patch 했고, 그 mock 을 유지하려고
 # parser 만 backend 를 안 쓰고 soffice 를 직접 부르는 사본을 들고 있었다(#199).
-_SOFFICE_RUN = "genon.preprocessor.converters.hwp_to_pdf.libreoffice.subprocess.run"
+_SOFFICE_RUN = "genon.preprocessor.processing.converters.hwp_to_pdf.libreoffice.subprocess.run"
 # soffice 가용성 관문이 두 곳이다. facade 의 convert_to_pdf 가 지나는 이슈 #286 사전 체크와,
 # backend chain 을 구성하는 hwp_to_pdf.config 의 _AVAILABILITY 다. 둘 다 두면 이 테스트가
 # "이 기계에 LibreOffice 가 깔려 있는가" 를 함께 보게 되어, 없는 환경에서는 subprocess mock 에
@@ -49,7 +49,7 @@ _SOFFICE_RUN = "genon.preprocessor.converters.hwp_to_pdf.libreoffice.subprocess.
 # 두 관문의 뿌리는 같은 `shutil.which("soffice")` 다. config 는 import 시점에 함수 객체를
 # _AVAILABILITY 에 담으므로 libreoffice_available 을 패치해도 잡히지 않는다 - OS probe 를
 # 패치해야 두 곳이 함께 잡힌다. 여기서 보려는 것은 확장자별 convert-to 인자뿐이다.
-_LO_WHICH = "genon.preprocessor.converters.hwp_to_pdf.availability.shutil.which"
+_LO_WHICH = "genon.preprocessor.processing.converters.hwp_to_pdf.availability.shutil.which"
 
 # 제거: test_convert_to_pdf_passes_correct_convert_arg (확장자 8종 파라미터)
 #
@@ -61,7 +61,7 @@ _LO_WHICH = "genon.preprocessor.converters.hwp_to_pdf.availability.shutil.which"
 # 낫다고 판단했다.
 #
 # 잃은 검증: 확장자 → convert-to 인자 매핑. 그 매핑 자체는
-# `converters/hwp_to_pdf/libreoffice.py` 의 `_convert_arg_for` 한 함수에 있으므로,
+# `processing/converters/hwp_to_pdf/libreoffice.py` 의 `_convert_arg_for` 한 함수에 있으므로,
 # 되살린다면 facade 왕복 대신 그 함수를 직접 부르는 편이 환경에 흔들리지 않는다.
 
 

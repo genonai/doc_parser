@@ -42,13 +42,13 @@ from genon.preprocessor.processing.serialize.parse_format import make_elements
 from genon.preprocessor.processing.common.hooks import DROP
 
 # ── 엑셀·CSV ────────────────────────────────────────────────────────────────
-from genon.preprocessor.converters.xlsx_processor import (
+from genon.preprocessor.processing.converters.xlsx_processor import (
     load_sheets,      # 파일 -> {시트명: 2차원 행}. 병합셀은 펴진 상태
     load_tables,      # 헤더 자동판정까지 끝낸 표 블록 목록
 )
 
 # ── JSON 본문 ───────────────────────────────────────────────────────────────
-from genon.preprocessor.converters.json_text import (
+from genon.preprocessor.processing.converters.json_text import (
     collect_text_fields,     # payload 에서 본문 키를 (라벨, 값) 으로 수집
     detect_format,           # 값이 html/markdown/평문 중 무엇인지
 )
@@ -67,11 +67,11 @@ from genon.preprocessor.processing.chunking.text_norm import (
 )
 
 # ── 마크다운·HTML 원문 손질 ─────────────────────────────────────────────────
-from genon.preprocessor.converters.md_marker_headings import (
+from genon.preprocessor.processing.converters.md_marker_headings import (
     promote_markdown_marker_headings,   # 도형 마커 줄을 섹션 헤더로 승격
 )
-from genon.preprocessor.converters.md_text_fence import transform as _unfence
-from genon.preprocessor.converters.html_flatten import (
+from genon.preprocessor.processing.converters.md_text_fence import transform as _unfence
+from genon.preprocessor.processing.converters.html_flatten import (
     marker_heading_match,   # 한 줄이 마커 소제목인지
     precheck_html,          # docling 이 놓칠 구조 결함 사전검사
 )

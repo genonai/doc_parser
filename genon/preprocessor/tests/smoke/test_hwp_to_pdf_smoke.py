@@ -13,8 +13,8 @@ from pathlib import Path
 
 import pytest
 
-from genon.preprocessor.converters.hwp_to_pdf import convert_hwp_to_pdf
-from genon.preprocessor.converters.hwp_to_pdf.config import _AVAILABILITY
+from genon.preprocessor.processing.converters.hwp_to_pdf import convert_hwp_to_pdf
+from genon.preprocessor.processing.converters.hwp_to_pdf.config import _AVAILABILITY
 
 ROOT = Path(__file__).resolve().parents[2]
 SAMPLES = ROOT / "sample_files"

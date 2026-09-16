@@ -11,7 +11,7 @@ import pytest
 # 이슈 #199 — pytest sys.path 보강.
 # pyproject.toml(rootdir=genon/preprocessor) 의 pythonpath 가 "src" 만이라
 # 로컬/일부 CI 환경에서 다음 두 가지 절대 import 가 깨질 수 있어 두 경로를 prepend:
-#   - `genon.preprocessor.converters.hwp_to_pdf.*` (신규 모듈, src/ 밖)  → repo root 필요
+#   - `genon.preprocessor.processing.converters.hwp_to_pdf.*` (신규 모듈, src/ 밖)  → repo root 필요
 #   - `facade.*` / `processing.*`                        (파사드·처리 라이브러리) → genon/preprocessor 필요
 _PREPROC = Path(__file__).resolve().parents[1]   # genon/preprocessor
 _REPO_ROOT = Path(__file__).resolve().parents[3]  # repo root

@@ -19,7 +19,7 @@ _log = logging.getLogger(__name__)
 # 구현은 processing/common/, processing/chunking/ 에 한 벌만 둔다. 여기서는 기존 이름을
 # 그대로 유지해 호출부를 건드리지 않는다. 사이트별 조정 대상 상수(구분자, 최소
 # 청크 크기, 토크나이저 경로)는 이 파일에 남아 있으므로 래퍼가 넘겨준다.
-from genon.preprocessor.converters.md_math import guard_markdown
+from genon.preprocessor.processing.converters.md_math import guard_markdown
 from genon.preprocessor.processing.common import config_parse as cp
 from genon.preprocessor.processing.enrichment.page_description import inject_page_descriptions
 from genon.preprocessor.processing.chunking import page_split
@@ -248,7 +248,7 @@ def convert_to_pdf(file_path: str, use_pdf_sdk: bool = True) -> str | None:
       use_pdf_sdk=False → libreoffice
 
     구현은 processing/common/pdf_convert.py 에 있다(변환 backend 는
-    genon.preprocessor.converters.hwp_to_pdf).
+    genon.preprocessor.processing.converters.hwp_to_pdf).
     """
     return pc.convert_to_pdf(file_path, use_pdf_sdk=use_pdf_sdk)
 
@@ -463,7 +463,7 @@ class DocumentProcessor(DoclingRuntimeBase):
         )
 
     def load_documents_with_docling(self, file_path: str, **kwargs: dict) -> DoclingDocument:
-        # markdown 수식은 파싱 전에 감춘다(converters/md_math 참조). md 가 아니면 원본 경로다.
+        # markdown 수식은 파싱 전에 감춘다(processing/converters/md_math 참조). md 가 아니면 원본 경로다.
         with guard_markdown(file_path) as guard:
             try:
                 conv_result: ConversionResult = self.converter.convert(guard.path, raises_on_error=True)
@@ -1020,7 +1020,7 @@ class DocumentProcessor(DoclingRuntimeBase):
           - tabular: 데이터 행마다 1청크(벡터)로 만들어 즉시 반환
           - docling(기본): MsExcel 백엔드로 DoclingDocument 생성 후 공유 파이프라인으로 합류
         """
-        from genon.preprocessor.converters.xlsx_processor import (
+        from genon.preprocessor.processing.converters.xlsx_processor import (
             build_docling_document,
             build_tabular_custom_fields_vectors,
             build_tabular_vectors,

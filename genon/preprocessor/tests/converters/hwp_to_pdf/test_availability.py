@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from genon.preprocessor.converters.hwp_to_pdf import availability
+from genon.preprocessor.processing.converters.hwp_to_pdf import availability
 
 
 @pytest.fixture

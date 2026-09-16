@@ -183,7 +183,7 @@ def _is_empty(value: Any) -> bool:
 def _is_rich(value: Any, detect_format: Any) -> bool:
     """이 값이 "제 스스로 섹션이 될 자격이 있는" 풍부한 콘텐츠인가(HTML 이거나 장문).
 
-    `detect_format` 은 `converters.json_text.detect_format` 을 그대로 받는다(지연 임포트로
+    `detect_format` 은 `processing.converters.json_text.detect_format` 을 그대로 받는다(지연 임포트로
     호출측이 넘겨준다 — 이 모듈이 converters 를 모듈 최상단에서 import 하지 않기 위해서다).
     """
     return isinstance(value, str) and (detect_format(value) == "html" or len(value) > 120)
@@ -757,7 +757,7 @@ class SemanticJsonMapper:
             _log.warning("[json_semantic] payload 최상위가 object 가 아니라 섹션을 만들 수 없습니다 — 0건.")
             return []
 
-        from genon.preprocessor.converters.json_text import (
+        from genon.preprocessor.processing.converters.json_text import (
             _LABEL_KEYS,
             _label_from_siblings,
             detect_format,

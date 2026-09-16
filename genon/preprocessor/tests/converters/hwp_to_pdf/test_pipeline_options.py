@@ -5,7 +5,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from genon.preprocessor.converters.hwp_to_pdf import (
+from genon.preprocessor.processing.converters.hwp_to_pdf import (
     config as cfg,
     convert_hwp_to_pdf_from_options,
 )
@@ -51,7 +51,7 @@ def test_helper_with_none_options(all_available, clear_env, tmp_path, monkeypatc
         return cfg.ConverterChain([])
 
     monkeypatch.setattr(
-        "genon.preprocessor.converters.hwp_to_pdf.build_chain", fake_build_chain
+        "genon.preprocessor.processing.converters.hwp_to_pdf.build_chain", fake_build_chain
     )
 
     convert_hwp_to_pdf_from_options(str(tmp_path / "x.hwp"), None)
@@ -69,7 +69,7 @@ def test_helper_forwards_pipeline_options_fields(all_available, clear_env, tmp_p
         return cfg.ConverterChain([])
 
     monkeypatch.setattr(
-        "genon.preprocessor.converters.hwp_to_pdf.build_chain", fake_build_chain
+        "genon.preprocessor.processing.converters.hwp_to_pdf.build_chain", fake_build_chain
     )
 
     opts = SimpleNamespace(

@@ -41,7 +41,7 @@ import re
 from dataclasses import dataclass
 from typing import Any
 
-from genon.preprocessor.converters.md_math import INLINE_MATH_RE
+from genon.preprocessor.processing.converters.md_math import INLINE_MATH_RE
 
 _log = logging.getLogger(__name__)
 

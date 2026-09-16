@@ -24,7 +24,7 @@ conversion_note 7줄을 갖는데, 그대로 두면 그 7줄만으로 이루어�
 
 `markdown:` 블록의 해석(`resolve_markdown_cfg`)과 하위 블록 빌더를 이 모듈이 소유한다 —
 `front_matter` 외에 `text_fence`(펜스 본문을 단락으로 복원, 변환 로직은
-`converters.md_text_fence`)도 같은 자리에서 컴파일한다.
+`processing.converters.md_text_fence`)도 같은 자리에서 컴파일한다.
 """
 from __future__ import annotations
 
@@ -36,7 +36,7 @@ from typing import Any
 
 import yaml
 
-from genon.preprocessor.converters.md_text_fence import MarkdownTextFenceSpec
+from genon.preprocessor.processing.converters.md_text_fence import MarkdownTextFenceSpec
 
 from .custom_fields_enricher import (
     DOCUMENT_CUSTOM_FIELD_EXTRACTORS,
@@ -595,7 +595,7 @@ def build_html_marker_heading_doc_types(configs: list[dict]) -> frozenset[str]:
     """``html.marker_headings`` 를 켠 문서 단위 custom_fields 의 doc_type 집합(기동 시 1회).
 
     스펙 객체를 만들지 않는 이유 — 이 전처리는 문서군마다 조정할 값이 없다(마커 집합·길이
-    상한·종결형 판정은 한국 기업문서 공통이고 converters/html_flatten.py 의 근거 주석과 함께
+    상한·종결형 판정은 한국 기업문서 공통이고 processing/converters/html_flatten.py 의 근거 주석과 함께
     코드 상수로 있다). 켜고 끄는 doc_type 목록 하나로 충분하므로 설정 개념을 늘리지 않는다.
     상위 ``html: false`` 또는 ``marker_headings: false`` 는 명시적 비활성화다.
     """

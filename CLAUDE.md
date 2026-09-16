@@ -11,10 +11,10 @@ docling(v2.41.0) 포크 위에 GenOn 전처리기(genon/preprocessor)를 올린 
 | `genon/preprocessor/processing/` | 파싱·청킹·보강 **처리 라이브러리**. facade 는 여기를 상속·호출만 한다 |
 | `genon/preprocessor/processing/core/` | 파싱·청킹 처리 본체(`parser.py`/`chunker.py`)와 고객용 `toolbox.py`·`cli.py`·`errors.py` |
 | `genon/preprocessor/processing/{common,chunking,enrichment,guardrail}/` | facade가 공유하는 공용 하위 모듈. 배포본에 포함된다 |
+| `genon/preprocessor/processing/converters/` | 입력 전처리 변환기 (`html_flatten`, `json_text`, `md_marker_headings` 등) |
 | `genon/preprocessor/facade/gitbook_doc/` | 고객·현장용 매뉴얼(`facade_hooks.md`, `parser_processor.md`, `code_serving_dev_manual.md` 등) |
 | `genon/preprocessor/src/` | 공통 모듈(`common`, `logger`, `config`, `utils`) + **기본 전처리기 서비스**의 진입점(`main.py`, facade 1개) |
 | `genon/preprocessor/resource/`, `resource_dev/` | 운영 / 로컬개발 YAML 설정 (프로세서 설정 + `custom_field_*.yaml`) |
-| `genon/preprocessor/converters/` | 입력 전처리 변환기 (`html_flatten`, `json_text`, `md_marker_headings` 등) |
 | `genon/preprocessor/tests/` | **전처리기 테스트** (`unit/`, `smoke/`, `regression/`) |
 | `genon/preprocessor/examples/` | 손으로 돌리는 검증 스크립트 (테스트 절 참조) |
 | `docling/` | 포크된 docling 본체. 백엔드·파이프라인 수정은 여기 |
