@@ -352,6 +352,20 @@ class TableTextDescriptionEnricher:
         return result
 
 
+def skip_table_stage(exc: Exception, stage: str) -> None:
+    """표 설명의 런타임 실패는 문서를 막지 않는다.
+
+    표 설명은 검색 품질을 올리는 부가 기능이고 본문 적재의 전제가 아니다. 그런데
+    error_policy=strict 에서는 LLM 호출 하나가 실패하면 문서 전체가 적재되지 않았다.
+    부가 기능의 실패를 본문 유실로 바꾸는 거래라 값이 맞지 않는다.
+
+    설정 오기입(conflict_policy=error 충돌)은 여기로 오지 않는다 — 그쪽은 facade 의
+    error_policy 를 그대로 타서 strict 면 실패한다. 조용히 넘기면 안 되는 종류이고,
+    배포 전에는 examples/config_precheck 가 같은 것을 미리 잡는다.
+    """
+    _log.warning(f"[{stage}] 표 설명을 건너뛰고 문서 처리를 계속합니다: {exc}")
+
+
 async def apply_table_description_stage(
     document: Any,
     *,
@@ -364,7 +378,8 @@ async def apply_table_description_stage(
     """표 설명 스테이지 하나를 결정해 실행한다(독립 → 융합 → 이미지 순).
 
     facade 3종이 같은 판정을 복제하지 않도록 여기 한 벌만 둔다. 인자로 받는 두 콜러블은
-    facade 마다 다른 것(자기 이미지 표 설명 호출, 자기 에러 정책)뿐이다.
+    facade 마다 다른 것(자기 이미지 표 설명 호출, 자기 에러 정책)뿐이다. `handle_error` 는
+    설정 충돌 전용이다 — 런타임 실패는 `skip_table_stage` 로 일원화되어 있다.
 
     `kwargs` 를 `**` 로 풀지 않고 dict 그대로 받는 이유는 독립 실행이 표 설명을 가져갔음을
     `_table_text_desc_owned` 로 남겨야 하기 때문이다 — 이 스테이지는 custom_fields 스테이지보다
@@ -382,7 +397,7 @@ async def apply_table_description_stage(
         try:
             return await standalone.enrich(document, **kwargs)
         except Exception as exc:
-            handle_error(exc, "table_text_description")
+            skip_table_stage(exc, "table_text_description")
             return document
 
     text_table_enricher = next((
@@ -409,5 +424,5 @@ async def apply_table_description_stage(
             result = await result
         return result if result is not None else document
     except Exception as exc:
-        handle_error(exc, "table_description")
+        skip_table_stage(exc, "table_description")
         return document

@@ -17,6 +17,7 @@ from .image_description import (
 from .table_text_description import (
     TableTextDescriptionEnricher,
     apply_table_description_stage,
+    skip_table_stage,
 )
 from .table_description import (
     TableDescriptionEnricher,
@@ -46,6 +47,7 @@ __all__ = [
     "resolve_runtime_image_options",
     "TableTextDescriptionEnricher",
     "apply_table_description_stage",
+    "skip_table_stage",
     "TableDescriptionEnricher",
     "TableDescriptionExtractor",
     "TableDescriptionOptions",

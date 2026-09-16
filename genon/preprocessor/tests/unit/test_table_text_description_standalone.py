@@ -163,6 +163,71 @@ def test_without_own_connection_the_fused_path_still_owns_it():
     assert custom_fields.wants_table_descriptions(**kwargs)
 
 
+# 표 설명 런타임 실패는 문서를 막지 않는다(부가 기능). 설정 충돌은 그대로 facade 정책을 탄다.
+
+@pytest.mark.unit
+def test_runtime_failure_does_not_reach_the_facade_error_policy():
+    """LLM 실패는 strict facade 에서도 문서를 죽이지 않는다 — handle_error 로 가지 않는다."""
+    doc = _document_with_table()
+    enricher = _standalone()
+    runner = enricher._get_runner()
+    runner._call_llm = AsyncMock(side_effect=RuntimeError("게이트웨이 오류"))
+    kwargs: dict = {}
+
+    result = asyncio.run(apply_table_description_stage(
+        doc,
+        custom_fields_enrichers=[],
+        standalone=enricher,
+        run_image_stage=lambda document, **_: document,
+        # strict facade 를 흉내낸다 — 여기로 오면 문서 전체가 실패한다.
+        handle_error=lambda exc, stage: pytest.fail(f"런타임 실패가 에러 정책을 탔다: {stage}"),
+        kwargs=kwargs,
+    ))
+
+    assert result is doc, "표 설명 없이도 문서는 그대로 흘러야 한다"
+    assert _retrieval(doc) == {}, "실패했으므로 설명은 붙지 않는다"
+
+
+@pytest.mark.unit
+def test_image_stage_runtime_failure_is_also_skipped():
+    """이미지 표 설명 경로의 런타임 실패도 같은 정책을 탄다."""
+    doc = _document_with_table()
+    enricher = _standalone(enabled=False)
+
+    def _boom(document, **_):
+        raise RuntimeError("이미지 표 설명 실패")
+
+    result = asyncio.run(apply_table_description_stage(
+        doc,
+        custom_fields_enrichers=[],
+        standalone=enricher,
+        run_image_stage=_boom,
+        handle_error=lambda exc, stage: pytest.fail(f"런타임 실패가 에러 정책을 탔다: {stage}"),
+        kwargs={},
+    ))
+
+    assert result is doc
+
+
+@pytest.mark.unit
+def test_config_conflict_still_reaches_the_facade_error_policy():
+    """설정 오기입(텍스트·이미지 동시 활성)은 조용히 넘기지 않는다."""
+    doc = _document_with_table()
+    enricher = _standalone(conflict_policy="error")
+    seen: list = []
+
+    asyncio.run(apply_table_description_stage(
+        doc,
+        custom_fields_enrichers=[],
+        standalone=enricher,
+        run_image_stage=lambda document, **_: document,
+        handle_error=lambda exc, stage: seen.append(stage),
+        kwargs={"table_desc": True},
+    ))
+
+    assert seen == ["table_description"], "설정 충돌은 facade 의 에러 정책으로 올라가야 한다"
+
+
 @pytest.mark.unit
 def test_falls_back_to_image_stage_when_no_text_path_applies():
     doc = _document_with_table()

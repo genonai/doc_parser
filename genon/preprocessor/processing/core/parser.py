@@ -76,6 +76,7 @@ from genon.preprocessor.processing.enrichment.page_description import (
 )
 from genon.preprocessor.processing.enrichment.table_text_description import (
     apply_table_description_stage,
+    skip_table_stage,
 )
 
 try:
@@ -1431,7 +1432,7 @@ class ParserCore:
         try:
             described = await enricher.describe_texts(contents, **kwargs)
         except Exception as exc:
-            _handle_stage_error(exc, "table_text_description")
+            skip_table_stage(exc, "table_text_description")
             return result
         for element, content in zip(elements, described):
             element["content"] = content
