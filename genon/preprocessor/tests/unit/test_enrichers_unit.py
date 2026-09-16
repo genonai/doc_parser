@@ -55,7 +55,7 @@ def _patch_async_client(module_path: str, captured: dict, content="{}", body=Non
         else {"choices": [{"message": {"content": content}}]}
     )
 
-    async def _post(url, json=None, headers=None):
+    async def _post(url, json=None, headers=None, **_kwargs):
         captured["url"] = url
         captured["json"] = json
         captured["headers"] = headers

@@ -14,7 +14,7 @@ from docling.utils.thinking import resolve_thinking_kwargs, strip_reasoning
 from genon.preprocessor.processing.common.markdown_export import export_markdown
 
 from .base_enricher import BaseEnricher
-from .llm_response import chat_completion_message
+from .llm_response import post_chat_completion
 from .prompt_template import PromptTemplate
 
 _log = logging.getLogger(__name__)
@@ -244,9 +244,9 @@ class MetadataEnricher(BaseEnricher):
         async def _produce() -> str:
             # #329: llm_cache opt-in 시 캐시 경유. 미사용 시 기존과 동일.
             async with httpx.AsyncClient(timeout=httpx.Timeout(remaining_timeout(self._timeout))) as client:
-                resp = await client.post(self._url, json=payload, headers=self._headers)
-                resp.raise_for_status()
-                message = chat_completion_message(resp.json())
+                message = await post_chat_completion(
+                    client, self._url, payload=payload, headers=self._headers, timeout=self._timeout
+                )
                 content = strip_reasoning(message)
                 return self._normalize_message_content(content)
 
