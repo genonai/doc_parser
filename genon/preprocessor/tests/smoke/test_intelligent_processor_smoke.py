@@ -7,10 +7,23 @@
 원래 파일에는 순수 단위 테스트(설정 해석, enricher 배선)가 남는다.
 """
 
+import os
 from pathlib import Path
 
 import pytest
 from unittest.mock import AsyncMock, Mock
+
+
+# PDF 는 기본 layout(genos_layout)이 사내 DotsOCR 엔드포인트를 실제로 호출한다.
+# 사내망에 닿지 않는 GitHub CI 에서는 연결 타임아웃으로 실패하므로, 다른 PDF smoke 와
+# 같은 GENOS_LAYOUT_AVAILABLE 규약으로 게이팅한다.
+PDF_SAMPLE = pytest.param(
+    "pdf_sample.pdf",
+    marks=pytest.mark.skipif(
+        not os.environ.get("GENOS_LAYOUT_AVAILABLE"),
+        reason="GENOS_LAYOUT_AVAILABLE 미설정 — dotsocr layout 엔드포인트 없음(CI). skip.",
+    ),
+)
 
 
 class TestIntelligentProcessorSmoke:
@@ -26,7 +39,7 @@ class TestIntelligentProcessorSmoke:
 
     @pytest.mark.smoke
     @pytest.mark.parametrize("filename", [
-        "pdf_sample.pdf",
+        PDF_SAMPLE,
         "hwpx_sample.hwpx",
         "docx_sample.docx",
         "md_sample.md"
@@ -72,7 +85,7 @@ class TestIntelligentProcessorSmoke:
 
     @pytest.mark.smoke
     @pytest.mark.parametrize("filename", [
-        "pdf_sample.pdf",
+        PDF_SAMPLE,
         "hwpx_sample.hwpx",
         "docx_sample.docx",
         "md_sample.md"
