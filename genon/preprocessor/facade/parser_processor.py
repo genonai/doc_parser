@@ -313,5 +313,18 @@ class DocumentProcessor(ParserCore):
 #
 # 끝나면 저장 위치와 걸린 시간을 stderr 로 알린다. 여기서 만든 parsed.json 을 그대로
 # chunking_processor 에 넘기면 청킹까지 이어서 볼 수 있다.
+#
+# cli() 를 거치지 않고 클래스를 직접 불러도 된다. 산출을 코드로 바로 들여다볼 때 쓴다.
+#
+#   import asyncio, json
+#   from genon.preprocessor.facade.parser_processor import DocumentProcessor
+#
+#   result = asyncio.run(DocumentProcessor()(tb.mock_request(), "계약서.pdf", doc_type="contract"))
+#   with open("parsed.json", "w", encoding="utf-8") as fp:
+#       json.dump(result, fp, ensure_ascii=False, indent=2)
+#
+# 설정 yaml 을 고르려면 DocumentProcessor(config_path="...yaml") 로 만든다.
+# 첫 인자는 FastAPI Request 자리다. 파서는 쓰지 않아 None 이어도 되지만, 같은 코드를
+# 청커로 옮기면 미디어 업로드에서 깨지므로 양쪽 다 tb.mock_request() 로 적어 둔다.
 if __name__ == "__main__":
     DocumentProcessor.cli()

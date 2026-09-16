@@ -511,6 +511,7 @@ from genon.preprocessor.facade.core import toolbox as tb
 | 청크 통계 | `refresh_stats` (post_chunk 로 본문을 고쳤을 때) |
 | 확장 등록 | `register_transform` (사이트 전용 값 변환기) · `make_elements` (커스텀 라우트 산출) |
 | on_chunk 반환 | `DROP` (이 청크를 버린다) |
+| 단독 실행 | `mock_request` (서버 없이 클래스를 직접 부를 때 첫 인자) |
 
 ## 고쳤으면 확인합니다
 
@@ -522,6 +523,30 @@ python preprocessor.py parsed.json -o chunks.json                            # �
 ```
 
 `--doc-type` 을 꼭 주세요. 훅이 전부 `doc_type` 게이팅이라 없으면 훅이 안 탑니다.
+
+산출을 코드로 바로 들여다보려면 클래스를 직접 불러도 됩니다.
+
+```python
+import asyncio, json
+from genon.preprocessor.facade.core import toolbox as tb
+from preprocessor import DocumentProcessor
+
+# 파서 — 산출은 dict 입니다
+result = asyncio.run(DocumentProcessor()(tb.mock_request(), "지점현황.xlsx",
+                                         doc_type="branch_list"))
+with open("parsed.json", "w", encoding="utf-8") as fp:
+    json.dump(result, fp, ensure_ascii=False, indent=2)
+
+# 청커 — 산출은 vector_meta 객체 목록이라 model_dump() 를 거칩니다
+metas = asyncio.run(DocumentProcessor()(tb.mock_request(), "parsed.json",
+                                        doc_type="branch_list"))
+with open("chunks.json", "w", encoding="utf-8") as fp:
+    json.dump([m.model_dump() for m in metas], fp, ensure_ascii=False, indent=2)
+```
+
+첫 인자는 FastAPI 의 `Request` 자리입니다. 청커가 미디어 업로드에 쓰므로 `None` 을 주면
+거기서 에러가 납니다. `tb.mock_request()` 를 넘기세요. 설정 yaml 을 고르려면
+`DocumentProcessor(config_path="...yaml")` 로 만듭니다.
 
 **기존 문서가 안 깨졌는지**는 자기 골든으로 확인합니다.
 

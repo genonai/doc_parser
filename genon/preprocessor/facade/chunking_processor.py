@@ -286,5 +286,17 @@ class DocumentProcessor(ChunkerCore):
 #
 # 끝나면 저장 위치와 청크 건수, 걸린 시간을 stderr 로 알린다. 청크 크기나 분할 방식을 바꿔 보려면
 # 위 2 의 CONFIG_BY_DOC_TYPE 에 적고 다시 돌린다.
+#
+# cli() 를 거치지 않고 클래스를 직접 불러도 된다. 파서와 다른 곳이 두 군데다.
+#
+#   import asyncio, json
+#   from genon.preprocessor.facade.chunking_processor import DocumentProcessor
+#
+#   metas = asyncio.run(DocumentProcessor()(tb.mock_request(), "parsed.json", doc_type="contract"))
+#   with open("chunks.json", "w", encoding="utf-8") as fp:
+#       json.dump([m.model_dump() for m in metas], fp, ensure_ascii=False, indent=2)
+#
+# 첫 인자에 None 을 주면 미디어 업로드에서 에러가 난다. 그리고 산출이 vector_meta 객체
+# 목록이라 json.dump 가 바로 받지 못하고 model_dump() 를 거쳐야 한다.
 if __name__ == "__main__":
     DocumentProcessor.cli()

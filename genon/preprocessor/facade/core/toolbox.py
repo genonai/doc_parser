@@ -121,6 +121,10 @@ def set_chunk_metadata(result: dict, metadata: dict) -> dict:
     return result
 
 
+# ── 파일 단독 실행 ──────────────────────────────────────────────────────────
+# 서버 없이 클래스를 직접 부를 때 첫 인자로 넘긴다. 전처리기 파일 끝의 사용법 참조.
+from genon.preprocessor.facade.core.cli import mock_request
+
 # ── 판정 헬퍼 ───────────────────────────────────────────────────────────────
 from genon.preprocessor.facade.enrichment.custom_fields_enricher import normalize_doc_type
 from genon.preprocessor.facade.common.appendix import check_appendix_keywords
@@ -164,6 +168,7 @@ __all__ = [
     "marker_heading_match", "precheck_html",
     "BODY_FIELDS_KEY", "CHUNK_PREFIX_FIELDS_KEY", "FIELD_LABELS_KEY", "FIRST_CHUNK_FIELDS_KEY",
     "set_chunk_metadata", "refresh_stats", "normalize_doc_type", "check_appendix_keywords",
+    "mock_request",
     "html_to_text", "split_chunk", "merge_small_chunks", "drop_fields",
     "is_encrypted_pdf", "is_protected_hwp", "read_text_with_fallback",
 ]

@@ -23,8 +23,12 @@ import sys
 import time
 
 
-def _mock_request():
-    """FastAPI Request 최소본. 프로세서는 업로드/취소 확인에만 쓴다."""
+def mock_request():
+    """FastAPI Request 최소본. 프로세서는 업로드/취소 확인에만 쓴다.
+
+    클래스를 직접 부를 때도 쓴다. 청커는 첫 인자를 미디어 업로드에 넘기므로 None 을 주면
+    거기서 실패한다. toolbox 가 tb.mock_request 로 재수출한다.
+    """
     from fastapi import Request
 
     async def _receive():
@@ -83,7 +87,7 @@ def run_cli(processor_cls, argv=None) -> int:
         kwargs["log_level"] = args.log_level
 
     begin = time.time()
-    result = asyncio.run(proc(_mock_request(), args.file, **kwargs))
+    result = asyncio.run(proc(mock_request(), args.file, **kwargs))
     payload = _to_jsonable(result)
 
     if args.out:
