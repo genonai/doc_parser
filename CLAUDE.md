@@ -7,7 +7,7 @@ docling(v2.41.0) 포크 위에 GenOn 전처리기(genon/preprocessor)를 올린 
 | 경로 | 역할 |
 |---|---|
 | `main.py` | **코드서빙 서비스**의 진입점(로컬 실행도 이것). FastAPI 앱, 업무 API 7개와 health·version |
-| `genon/preprocessor/facade/` | 최상위 `*_processor.py` 5종. 파싱·청킹 2종은 고객이 여는 얇은 파사드(101·123줄), 나머지 3종은 아직 처리 로직을 안고 있다 |
+| `genon/preprocessor/facade/` | 최상위 `*_processor.py` 5종. 파싱·청킹 2종은 고객이 여는 파사드(282·264줄, 대부분 주석), 나머지 3종은 아직 처리 로직을 안고 있다 |
 | `genon/preprocessor/processing/` | 파싱·청킹·보강 **처리 라이브러리**. facade 는 여기를 상속·호출만 한다 |
 | `genon/preprocessor/processing/core/` | 파싱·청킹 처리 본체(`parser.py`/`chunker.py`)와 고객용 `toolbox.py`·`cli.py`·`errors.py` |
 | `genon/preprocessor/processing/{common,chunking,enrichment,guardrail}/` | facade가 공유하는 공용 하위 모듈. 배포본에 포함된다 |
@@ -94,13 +94,13 @@ facade가 공유하는 로직은 아래에 한 벌씩만 둔다. 최상위 proce
 
 ## 큰 파일 취급 규칙 (중요)
 
-파싱·청킹 파사드는 처리 본체가 `processing/core/` 로 빠져 101·123줄이 됐지만(안심하고 읽어도 된다),
-그 본체와 나머지 파사드 3종은 여전히 크다(2026-09-08 기준 파사드 5종 합계 4,243줄 + core 3,087줄).
+파싱·청킹 파사드는 처리 본체가 `processing/core/` 로 빠져 282·264줄이 됐지만(대부분 주석이라 안심하고 읽어도 된다),
+그 본체와 나머지 파사드 3종은 여전히 크다(2026-09-16 기준 파사드 5종 합계 4,573줄 + core 3,955줄).
 아래는 전체 Read 가 **20k~50k 토큰**씩 드는 파일들이고, 다 읽으면 컨텍스트의 상당 부분이 날아간다.
 
 - `docling/backend/html_backend.py` (4,477줄, 단독 50k 토큰)
-- `processing/core/parser.py` (1,798줄), `processing/core/chunker.py` (1,289줄)
-- `processing/chunking/smart_chunker.py` (1,667줄)
+- `processing/core/parser.py` (2,135줄), `processing/core/chunker.py` (1,512줄)
+- `processing/chunking/smart_chunker.py` (1,679줄)
 - `facade/{attachment,convert,intelligent}_processor.py` (1,098~1,625줄)
 
 **통째로 Read 하지 말 것.** `Grep` 으로 심볼·문자열 위치를 먼저 찾고 `Read` 의 `offset`/`limit` 으로 해당 구간만 읽는다.
@@ -140,7 +140,7 @@ facade가 공유하는 로직은 아래에 한 벌씩만 둔다. 최상위 proce
 ## 아키텍처 제약
 
 - **배포 대상 `*_processor.py` 는 하나다.** 최상위 processor 파일끼리 서로 import하면 배포본에서 깨진다. 반면 `processing/core/` 와 공용 하위 모듈은 배포본에 함께 들어가므로 상속·import 해도 된다(파싱·청킹 파사드가 그렇게 한다). 무조건 복제하지 말고 `build-script/sync-serving-repo.sh` 의 배포 범위를 먼저 확인한다.
-- **파싱·청킹 파사드 2종은 고객이 여는 파일이다.** `parser_processor.py`(101줄)·`chunking_processor.py`(123줄)는 `ParserCore`/`ChunkerCore` 를 상속하고 확장 지점만 갖는다 — `ROUTES`·`GenOSVectorMeta`·`GenosSmartChunker` 상수·`ROW_CATEGORIES` 와 훅 5종(`pre_parse`/`post_parse`/`pre_chunk`/`on_chunk`/`post_chunk`). **여기에 처리 로직을 넣지 않는다.** 릴리스가 이 두 파일을 통째로 덮어쓰므로 고객 수정분과 충돌하고, 훅 시그니처·`ROUTES` 형태는 고정 API 다(`tests/unit/test_facade_hooks_unit.py` 가 고정한다).
+- **파싱·청킹 파사드 2종은 고객이 여는 파일이다.** `parser_processor.py`(282줄)·`chunking_processor.py`(264줄)는 `ParserCore`/`ChunkerCore` 를 상속하고 흐름이 보이는 호출부와 확장 지점만 갖는다 — `ROUTES`·`GenOSVectorMeta`·`GenosSmartChunker` 상수·`ROW_CATEGORIES`, `config_by_condition`, 훅 메소드(`edit_input`/`edit_output` 공통, 파서 `edit_document`, 청커 `edit_chunk`). 훅 이름은 2026-09-16 에 옛 `pre_parse`/`post_parse`/`pre_chunk`/`on_chunk`/`post_chunk` 에서 바뀌었고 옛 이름 호환은 없다. **여기에 처리 로직을 넣지 않는다.** 릴리스가 이 두 파일을 통째로 덮어쓰므로 고객 수정분과 충돌하고, 훅 시그니처·`ROUTES` 형태는 고정 API 다(`tests/unit/test_facade_hooks_unit.py` 가 고정한다).
   - 고객이 훅에서 쓸 기능은 `core/toolbox.py` 에 **재수출**한다. 새 구현은 공용 하위 모듈에 두고 toolbox 는 이름만 낸다.
   - 고객용 설명은 `facade/gitbook_doc/facade_hooks.md`. 훅·`ROUTES`·toolbox 를 바꾸면 여기도 함께 고친다.
 - **신규 기능은 공용 하위 모듈에 구현하고 facade는 호출만 한다.** 여러 facade가 쓸 수 있는 로직이면 processor 파일에 직접 쓰거나 복붙하지 말고 `processing/{common,chunking,enrichment,guardrail}/` 에 모듈을 만든다. facade에는 설정 읽기 한 줄과 호출부만 남긴다. 판정 기준은 "두 번째 facade에 같은 코드를 넣고 싶어지는가"이며, 그렇다면 이미 공용 모듈 대상이다.
