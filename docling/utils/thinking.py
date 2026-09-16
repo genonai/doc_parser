@@ -11,8 +11,9 @@ dialect:
 
 mode 미설정(None/auto)이면 아무것도 전송하지 않아 기존 동작을 보존한다.
 
-이 모듈은 모던 enricher, 레거시 docling 레이어(prompt_manager), 레거시 BOK facade가
-모두 단일 소스로 import 해 재사용한다.
+의존성 방향: docling 리프(prompts.prompt_manager)와 genon enricher 2종이 모두 import 하는
+하위 계층이므로 llm_cache 와 같은 자리에 둔다. 표준 라이브러리 외에는 아무것도 import 하지
+않으며, 특히 `genon.*` 를 import 하지 않는다.
 """
 from __future__ import annotations
 

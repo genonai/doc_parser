@@ -6,27 +6,10 @@ from pathlib import Path
 from typing import Dict, Any, List, Optional
 
 from docling.utils.llm_cache import cached_call, remaining_timeout
+# thinking(추론) 토글 공유 헬퍼. genon enricher 와 같은 단일 소스를 쓴다.
+from docling.utils.thinking import resolve_thinking_kwargs, strip_reasoning
 
 _log = logging.getLogger(__name__)
-
-# thinking(추론) 토글 공유 헬퍼. enrichment 패키지의 단일 소스를 재사용한다.
-# 일부 로컬 테스트 환경에서는 facade import 가 깨질 수 있어(no-op 폴백) 레거시 경로를 보호한다.
-try:
-    from genon.preprocessor.processing.enrichment.thinking import (
-        resolve_thinking_kwargs,
-        strip_reasoning,
-    )
-except Exception:  # pragma: no cover - import 환경에 따른 폴백
-    def resolve_thinking_kwargs(mode, dialect="standard"):
-        return None
-
-    def strip_reasoning(message):
-        import re
-        if isinstance(message, dict):
-            content = (message.get("content") or "").strip()
-        else:
-            content = (message or "").strip()
-        return re.sub(r"<think>.*?</think>", "", content, flags=re.DOTALL | re.IGNORECASE).strip()
 
 
 class LLMApiError(Exception):

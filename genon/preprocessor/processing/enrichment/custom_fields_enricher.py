@@ -15,6 +15,7 @@ from docling_core.types.doc import DescriptionAnnotation
 from docling_core.types.doc.document import MiscAnnotation
 
 from docling.utils.llm_cache import async_cached_call, remaining_timeout
+from docling.utils.thinking import resolve_thinking_kwargs, strip_reasoning
 
 from genon.preprocessor.processing.common import config_parse as cp
 from genon.preprocessor.processing.enrichment import config_schema as cs
@@ -24,7 +25,6 @@ from . import html_select, plugin_loader
 from .field_transforms import store_metadata_in_document
 from .prompt_files import read_prompt_file
 from .prompt_template import PromptTemplate
-from .thinking import resolve_thinking_kwargs, strip_reasoning
 from .table_description import TABLE_TEXT_DESCRIPTION_PROVENANCE, TableDescriptionExtractor
 from .table_text_context import (
     TableTextDescriptionOptions,

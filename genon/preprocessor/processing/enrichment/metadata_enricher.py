@@ -9,12 +9,12 @@ import httpx
 from docling_core.types import DoclingDocument
 
 from docling.utils.llm_cache import async_cached_call, remaining_timeout
+from docling.utils.thinking import resolve_thinking_kwargs, strip_reasoning
 
 from genon.preprocessor.processing.common.markdown_export import export_markdown
 
 from .base_enricher import BaseEnricher
 from .prompt_template import PromptTemplate
-from .thinking import resolve_thinking_kwargs, strip_reasoning
 
 _log = logging.getLogger(__name__)
 
