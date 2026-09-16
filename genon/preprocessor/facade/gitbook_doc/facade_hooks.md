@@ -1,4 +1,4 @@
-# 고객 확장 훅 — 설정으로 안 되는 원천 처리하기
+# 고객 확장 훅 메소드 — 설정으로 안 되는 원천 처리하기
 
 `custom_field_*.yaml` 로 안 풀리는 원천을 만났을 때, **코어를 고치지 않고** 전처리기 파일
 하나만 손봐서 해결하는 방법입니다.
@@ -11,10 +11,10 @@
 
 | 파일 | 줄수 | 고칠 자리 |
 |---|---:|---|
-| `facade/parser_processor.py` | 293 | `ROUTES` · `CONFIG_BY_DOC_TYPE` · `edit_input` · `edit_document` · `edit_output` |
-| `facade/chunking_processor.py` | 243 | `GenOSVectorMeta` · `GenosSmartChunker` · `ROW_CATEGORIES` · `CONFIG_BY_DOC_TYPE` · `edit_input` · `edit_chunk` · `edit_output` |
+| `facade/parser_processor.py` | 282 | `ROUTES` · `CONFIG_BY_DOC_TYPE` · `edit_input` · `edit_document` · `edit_output` |
+| `facade/chunking_processor.py` | 264 | `GenOSVectorMeta` · `GenosSmartChunker` · `ROW_CATEGORIES` · `CONFIG_BY_DOC_TYPE` · `edit_input` · `edit_chunk` · `edit_output` |
 
-처리 본체는 `processing/core/` 에 있고 **열어 볼 일이 없습니다.** 열어야 했다면 그건 훅이
+처리 본체는 `processing/core/` 에 있고 **열어 볼 일이 없습니다.** 열어야 했다면 그건 훅 메소드가
 부족하다는 뜻이니 알려 주세요.
 
 ## 언제 무엇이 불리나
@@ -26,14 +26,14 @@
 
 `__call__` 을 열어 보면 이 순서가 그대로 적혀 있습니다.
 
-`.json` · `.md` · `.html` · 엑셀은 파일 경로가 아니라 **로드된 데이터**를 훅에 넘겨야 해서
+`.json` · `.md` · `.html` · 엑셀은 파일 경로가 아니라 **로드된 데이터**를 훅 메소드에 넘겨야 해서
 `edit_input` 가 해당 라우트 안에서 불립니다. 순서상 위치는 같습니다.
 
-## 모든 훅에 공통인 두 가지
+## 모든 훅 메소드에 공통인 두 가지
 
 ### 요청 파라미터는 `**kwargs` 로 받습니다
 
-훅 시그니처 끝에 `**kwargs` 를 붙이면 요청의 `params` 가 그대로 들어옵니다. 부서·언어·
+훅 메소드 시그니처 끝에 `**kwargs` 를 붙이면 요청의 `params` 가 그대로 들어옵니다. 부서·언어·
 원천시스템처럼 **요청마다 달라지는 값**은 이 통로로만 받으세요.
 
 ```python
@@ -46,9 +46,9 @@
 `__call__` 에서 `self._tenant = ...` 로 담고 `edit_output` 에서 읽으면, 그 사이의 `await`
 에서 다른 요청이 끼어들어 값이 섞입니다.
 
-`**kwargs` 를 안 붙인 기존 훅은 인자가 늘지 않습니다 — 그대로 두어도 동작합니다.
+`**kwargs` 를 안 붙인 기존 훅 메소드는 인자가 늘지 않습니다 — 그대로 두어도 동작합니다.
 
-### 훅은 `async def` 로 써도 됩니다
+### 훅 메소드는 `async def` 로 써도 됩니다
 
 사내 API 조회처럼 외부 호출이 필요하면 `async def` 로 바꾸고 `await` 하세요. core 가
 코루틴을 알아서 기다립니다.
@@ -198,7 +198,7 @@ pdf·hwp·docx·html·md 처럼 문서를 만드는 경로에서, 파싱이 끝�
 
 돌려준 문서가 enrichment 로 넘어갑니다. `None` 을 돌려주면 받은 문서를 그대로 씁니다.
 enrichment 가 끝난 뒤(`edit_output`)에 표를 빼면 LLM 호출 비용은 이미 치른 뒤이므로,
-설명 대상에서 뺄 표는 여기서 손봅니다. `**kwargs` 와 `async def` 는 다른 훅과 같이 쓸 수 있습니다.
+설명 대상에서 뺄 표는 여기서 손봅니다. `**kwargs` 와 `async def` 는 다른 훅 메소드와 같이 쓸 수 있습니다.
 
 ## edit_output — 산출을 손본다
 
@@ -221,7 +221,7 @@ API 라 그 값은 호출자용 정보로 끝납니다. `tb.set_chunk_metadata()
 
 ## doc_type 마다 설정을 다르게 — `CONFIG_BY_DOC_TYPE`
 
-설정 파일은 모든 문서에 똑같이 적용됩니다. **문서 종류마다 다르게 하고 싶으면** 훅을 쓰지
+설정 파일은 모든 문서에 똑같이 적용됩니다. **문서 종류마다 다르게 하고 싶으면** 훅 메소드를 쓰지
 말고 이 표에 적으세요. 두 파일 모두 같은 자리에 있습니다.
 
 ```python
@@ -263,7 +263,7 @@ API 라 그 값은 호출자용 정보로 끝납니다. `tb.set_chunk_metadata()
 
 ## 코드가 아니라 값으로 바꾸는 것들 — 청킹
 
-훅을 쓰기 전에 이쪽부터 보세요. 한 줄이면 끝나는 것들입니다.
+훅 메소드를 쓰기 전에 이쪽부터 보세요. 한 줄이면 끝나는 것들입니다.
 
 | 하고 싶은 것 | 바꿀 것 | 자리 |
 |---|---|---|
@@ -313,7 +313,7 @@ API 라 그 값은 호출자용 정보로 끝납니다. `tb.set_chunk_metadata()
 
 빈 문자열이나 공백만 돌려줘도 버린 것으로 봅니다(빈 청크는 적재 의미가 없습니다).
 
-`info` 는 **경로가 달라도 모양이 같습니다.** 문서·레코드·평문 어느 원천이든 훅 한 벌로
+`info` 는 **경로가 달라도 모양이 같습니다.** 문서·레코드·평문 어느 원천이든 훅 메소드 한 벌로
 처리할 수 있습니다.
 
 | 키 | 값 |
@@ -338,13 +338,13 @@ API 라 그 값은 호출자용 정보로 끝납니다. `tb.set_chunk_metadata()
 본문(`text`)과 통계·순번 필드(`n_char`, `i_chunk_on_doc` 등)는 `fields` 로 바꿀 수 없습니다.
 본문은 반환값으로 바꾸고, 통계와 순번은 코어가 계산합니다.
 
-`text` 는 접두와 `HEADER:` 라인까지 **붙은 뒤**의 본문입니다. 훅이 돌려준 값에 마스킹·정제·
+`text` 는 접두와 `HEADER:` 라인까지 **붙은 뒤**의 본문입니다. 훅 메소드가 돌려준 값에 마스킹·정제·
 표기형태 변형이 뒤이어 적용됩니다.
 
 > 첫 청크 전용 접두(`body.once`)는 **살아남은 첫 청크**가 받습니다. 0번을 버려도 문서
 > 식별 정보가 사라지지 않습니다.
 >
-> 두 경로는 이 훅을 타지 않습니다 — 음성 전사(`[AUDIO]`)와 legacy tabular(`[DA]`)는
+> 두 경로는 이 훅 메소드를 타지 않습니다 — 음성 전사(`[AUDIO]`)와 legacy tabular(`[DA]`)는
 > 파일 하나가 청크 하나라 `edit_output` 로 충분합니다.
 
 ### edit_output 에서 본문을 고치면 refresh_stats 를 부르세요
@@ -353,7 +353,7 @@ API 라 그 값은 호출자용 정보로 끝납니다. `tb.set_chunk_metadata()
 
 `n_char`·`n_word`·`n_line` 과 청크 순번(`i_chunk_on_doc` 등)은 청킹이 끝날 때 계산됩니다.
 `edit_output` 는 그 뒤라서, 본문을 고치거나 청크를 버려도 이 값들이 **옛 값으로 남습니다**
-(실측: 마커만 지운 훅에서 11건 중 9건의 `n_char` 가 실제 길이와 달랐습니다).
+(실측: 마커만 지운 훅 메소드에서 11건 중 9건의 `n_char` 가 실제 길이와 달랐습니다).
 
 ```python
 tb.refresh_stats(vectors)                  # 청크를 버렸을 때 — 순번까지 다시 맞춥니다
@@ -369,12 +369,12 @@ RAG 검색용 정제는 **설정으로 하는 것이 기본**입니다. `chunkin
 |---|---|---|
 | yaml | `chunking.text_cleanup` | 전 문서 공통 |
 | `edit_chunk` | 이 파일 | 특정 doc_type 만 (통계가 자동으로 맞습니다) |
-| 둘 다 | 공통은 yaml, 예외만 훅 | 대부분의 실제 사이트 |
+| 둘 다 | 공통은 yaml, 예외만 훅 메소드 | 대부분의 실제 사이트 |
 
 설정 규칙은 **청킹 입력**에 걸리므로 삭제가 청크 경계와 `n_char` 에 반영되고, LLM 보강이
-보는 텍스트까지 같이 깨끗해집니다. 훅은 이미 잘린 청크를 손보므로 경계는 되돌리지 못합니다
+보는 텍스트까지 같이 깨끗해집니다. 훅 메소드는 이미 잘린 청크를 손보므로 경계는 되돌리지 못합니다
 (`edit_chunk` 는 `n_char` 까지는 맞춰 줍니다). 그래서 `text_cleanup` 이 doc_type 을 가릴 수
-없을 때만 훅을 씁니다.
+없을 때만 훅 메소드를 씁니다.
 
 **전부 지우면 안 됩니다.** 실측(상담 HTML 1건, 청크 11건 / 2,582자)에서 특수문자 225개 중
 지워서 이득인 것은 장식 마커(`■ ◈ ※ ☎`) 13개와 미해독 엔티티(`&gt;`) 3개뿐이었습니다.
@@ -391,7 +391,7 @@ RAG 검색용 정제는 **설정으로 하는 것이 기본**입니다. `chunkin
 
 ## 파이썬을 꽂을 수 있는 자리 3곳
 
-훅 말고도 **설정에서 이름을 부르면 실행되는** 자리가 셋 있습니다. 훅보다 좁고 정확해서,
+훅 메소드 말고도 **설정에서 이름을 부르면 실행되는** 자리가 셋 있습니다. 훅 메소드보다 좁고 정확해서,
 해당되면 이쪽이 먼저입니다.
 
 | 자리 | 무엇을 꽂나 | 어떻게 |
@@ -522,7 +522,7 @@ python preprocessor.py 지점현황.xlsx --doc-type branch_list -o parsed.json  
 python preprocessor.py parsed.json -o chunks.json                            # 청커
 ```
 
-`--doc-type` 을 꼭 주세요. 훅이 전부 `doc_type` 게이팅이라 없으면 훅이 안 탑니다.
+`--doc-type` 을 꼭 주세요. 훅 메소드가 전부 `doc_type` 게이팅이라 없으면 훅 메소드가 안 탑니다.
 
 산출을 코드로 바로 들여다보려면 클래스를 직접 불러도 됩니다.
 
@@ -571,13 +571,13 @@ git diff -- genon/preprocessor/facade/parser_processor.py \
 git apply my_change.patch          # 충돌하면 patch 를 보고 손으로 반영
 ```
 
-훅 시그니처(`edit_input` / `edit_document` / `edit_chunk` / `edit_output`)와 `ROUTES` 형태는
+훅 메소드 시그니처(`edit_input` / `edit_document` / `edit_chunk` / `edit_output`)와 `ROUTES` 형태는
 **고정 API** 로 유지합니다. 그것이 안 바뀐 릴리스에서는 `git apply` 가 그대로 통합니다.
 릴리스 노트의 **"템플릿 변경 있음 / 없음"** 표시를 먼저 확인하세요.
 
-## 훅으로 안 되는 것
+## 훅 메소드로 안 되는 것
 
-아래는 설정이 값 파이프라인 안쪽이나 순회 자체를 바꾸는 것들이라 훅으로 재현되지
+아래는 설정이 값 파이프라인 안쪽이나 순회 자체를 바꾸는 것들이라 훅 메소드로 재현되지
 않습니다. **`custom_field_*.yaml` 에서 푸세요.**
 
 | 기능 | 이유 |
