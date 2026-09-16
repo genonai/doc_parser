@@ -14,6 +14,8 @@ import httpx
 
 from docling.utils.llm_cache import cached_call, remaining_timeout
 
+from .llm_response import chat_completion_message
+
 _log = logging.getLogger(__name__)
 
 # {{full_text}} 를 본문으로 치환하는 기본 요약 프롬프트.
@@ -76,8 +78,9 @@ def summarize_body(
         with httpx.Client(timeout=httpx.Timeout(remaining_timeout(timeout))) as client:
             response = client.post(api_url, headers=req_headers, json=body)
         response.raise_for_status()
-        data = response.json()
-        return str(data["choices"][0]["message"]["content"] or "").strip()
+        message = chat_completion_message(response.json())
+        content = message.get("content") if isinstance(message, dict) else message
+        return str(content or "").strip()
 
     # 실패 시 ""(파이프라인 비차단)는 캐시 밖에 유지한다.
     try:

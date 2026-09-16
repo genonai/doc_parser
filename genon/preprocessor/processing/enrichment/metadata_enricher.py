@@ -14,6 +14,7 @@ from docling.utils.thinking import resolve_thinking_kwargs, strip_reasoning
 from genon.preprocessor.processing.common.markdown_export import export_markdown
 
 from .base_enricher import BaseEnricher
+from .llm_response import chat_completion_message
 from .prompt_template import PromptTemplate
 
 _log = logging.getLogger(__name__)
@@ -245,8 +246,7 @@ class MetadataEnricher(BaseEnricher):
             async with httpx.AsyncClient(timeout=httpx.Timeout(remaining_timeout(self._timeout))) as client:
                 resp = await client.post(self._url, json=payload, headers=self._headers)
                 resp.raise_for_status()
-                data = resp.json()
-                message = data["choices"][0]["message"]
+                message = chat_completion_message(resp.json())
                 content = strip_reasoning(message)
                 return self._normalize_message_content(content)
 
