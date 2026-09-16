@@ -1576,7 +1576,7 @@ JSONL·빈 배열·doc_type 충돌 등입니다.
 ```
 
 무엇이 설정으로 됐고 무엇이 코드가 필요했는지는
-`docs/plans/facade-slimming/06-drill-results.md` 에 있습니다. 새 원천이 이 중 하나를
+`examples/parse_chunk/drill/RESULTS.md` 에 있습니다. 새 원천이 이 중 하나를
 닮았다면 거기서 답을 먼저 찾으세요.
 
 ## 예외 처리

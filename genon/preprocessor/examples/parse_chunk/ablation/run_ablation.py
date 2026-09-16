@@ -50,8 +50,8 @@ if str(PARSE_CHUNK_DIR) not in sys.path:
 import parse_chunk_verify as verify  # noqa: E402  (DYLD 환경도 여기서 세워진다)
 
 # ── 제거 계층 ────────────────────────────────────────────────────────────────
-# 근거는 docs/plans/facade-slimming/08-customer-facade.md "기본 기능 집합" 절이다.
-# 최초 구현 시점(git log -S)과 사용 폭(출고 17파일) 두 실측으로 갈랐다.
+# 기본 기능과 고급 기능은 최초 구현 시점(git log -S)과 사용 폭(출고 17파일)
+# 두 실측으로 갈랐다.
 #
 # 경로로 지정한다 — 이름으로 지우면 `source.kind: sections`(값)와
 # `source.sections`(키)처럼 같은 낱말이 다른 뜻인 자리를 잘못 건드린다.

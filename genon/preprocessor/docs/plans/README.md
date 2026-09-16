@@ -1,13 +1,14 @@
 # custom_fields 정리 — 작업 계획
 
-두 갈래다.
-
-- **A. v2 스키마 정리** (01~06) — `schema: v2` 검토에서 나온 개선 7건.
-- **B. intelligent 기능 동등화** (07~10) — parser 의 custom_fields yaml 을 intelligent 도
-  전부 처리하게 만든다. 07 이 분석·로드맵이고 08~10 이 구현이다.
+**intelligent 기능 동등화** (07~10) — parser 의 custom_fields yaml 을 intelligent 도
+전부 처리하게 만든다. 07 이 분석·로드맵이고 08~10 이 구현이다.
 
 각 파일은 다른 세션에서 단독으로 열어 그것만 보고 진행할 수 있게 썼다.
-두 갈래는 건드리는 파일이 거의 겹치지 않아 병행할 수 있다(겹치는 곳은 아래 "의존과 순서" 참조).
+
+먼저 있던 **v2 스키마 정리**(01~06)는 2026-09 에 끝나 계획 문서를 걷어냈다
+(`task/360`). 같은 자리에 있던 facade 정리(#363) 계획도 마찬가지다 —
+실전 드릴 결과만 `examples/parse_chunk/drill/RESULTS.md` 로 옮겼다.
+둘 다 필요하면 git 이력에서 꺼낸다.
 
 ## 배경
 
@@ -19,20 +20,12 @@ v2(`processing/enrichment/config_v2.py`)는 v1 내부 dict 로 정규화하는 *
 옛 v1 표기와 그 이관 도구(`to_v2` / `migrate_to_v2.sh` / `verify_v2_equivalence.sh`)는
 2026-09-10 에 걷어냈다 — 표기는 `schema: v2` 한 가지뿐이다.
 
-검토에서 드러난 문제는 하나로 요약된다 — **같은 개념이 kind 마다 다르게 생겼다.**
+`kind` 마다 다르게 생겼던 스펙(`alias`·`values`·`transform`·`template`)은
+01~06 에서 rows/records/sections/document 네 종류에 같은 모양으로 맞춰 놓았다.
+현재 어느 kind 가 무엇을 받는지는 `facade/gitbook_doc/parser_processor.md` 의
+매트릭스가 단일 출처다.
 
-| 스펙 | 뜻 | rows | records | sections | document |
-|---|---|:-:|:-:|:-:|:-:|
-| `alias` | 원천의 어느 이름에서 가져올까 | O | O | O | **X → 04** |
-| `const` / `default` | 항상 이 값 / 비었을 때만 | O | O | O | O |
-| `values` | 값 접기(코드값 표준화) | O | O | **X → 03** | **X → 04** |
-| `transform` | 값 변환(정규식·정수·평문화) | O | O | **X → 03** | **X → 04** |
-| `template` | 다른 필드를 합쳐 만들기 | O | O | **X → 03** | **X → 04** |
-| `collect` | 여러 원천 키를 목록으로 | X | O | X | X |
-| `from` / `as` | 파생 사본 만들기 | O | O | X | X → **05 에서 삭제** |
-
-적용 순서는 rows/records 가 이미 이렇게 굳어 있다(실측 — `json_records.apply_value_pipeline`,
-`tabular_custom_fields` 3단계):
+값 적용 순서는 네 kind 가 같다.
 
 ```
 원천값 → default(빈 값만 채움) → const(덮어씀) → values → transform → template
@@ -41,9 +34,6 @@ v2(`processing/enrichment/config_v2.py`)는 v1 내부 dict 로 정규화하는 *
 `const` 가 `default` 보다 먼저 오는 것이 아니라 **`default` 를 덮는 위치**에 있고,
 값 파이프라인은 그 **뒤**다. `constants: {X: ""}` 로 빈 값을 못 박았을 때 default 가
 그것을 되살리지 않게 하려는 계약이다.
-
-sections 와 document 는 아직 `원천값 → default → const` 까지만이고 파이프라인이 없다.
-03·04 가 그 뒤에 파이프라인을 같은 순서로 붙인다.
 
 ## 다른 세션에서 쓰는 법
 
@@ -79,28 +69,9 @@ genon/preprocessor/docs/plans/README.md 와 <작업파일>.md 를 읽고 그 작
 
 ### 지금 바로 시작할 수 있는 것
 
-| 동시에 열어도 되는 조합 | 이유 |
-|---|---|
-| 01 → 02 → 03 (순차) | 셋 다 `json_semantic.py` |
-| 06, 07 | 다른 파일과 겹치지 않음 |
-| 04 와 05 | 서로 독립 |
-| 08 | 07 의 0단계가 끝난 뒤가 자연스럽지만 필수는 아님 |
+07 과 08 은 바로 열 수 있고 서로 독립이다. **10 은 09 없이 불가능**하다.
 
-선행이 필요한 것: **10 은 09 없이 불가능**, **04 는 10 보다 먼저**, **05 와 08 은 같은 파일**
-(`tabular_custom_fields.py`)이라 동시에 열지 않는다.
-
-## A. v2 스키마 정리
-
-| # | 파일 | 대상 | v2 전환 전 필수 | 상태 |
-|---|---|---|:-:|---|
-| 01 | [01-semantic-body-explicit.md](01-semantic-body-explicit.md) | sections 본문 포함 규칙 명시화 | | 완료 (task/360) |
-| 02 | [02-semantic-exclude-merge.md](02-semantic-exclude-merge.md) | `include: false` → `ignore_keys` 통합 | | 완료 (task/360) |
-| 03 | [03-semantic-field-pipeline.md](03-semantic-field-pipeline.md) | sections 에 값 파이프라인 개방 | | 완료 (task/360) |
-| 04 | [04-document-field-pipeline.md](04-document-field-pipeline.md) | document 에 값 파이프라인 + `alias` 개방 | | 완료 (task/360) |
-| 05 | [05-transform-html-text.md](05-transform-html-text.md) | `from`/`as` → `transform` 통합 | **O** | 완료 (task/360) |
-| 06 | [06-chunk-text-rules.md](06-chunk-text-rules.md) | 청크 텍스트 패턴 후처리 | 무관(v2 밖) | 완료 (task/360) |
-
-## B. intelligent 기능 동등화
+## intelligent 기능 동등화
 
 parser 가 처리하는 custom_fields yaml 중 intelligent 가 **무음으로 무시하는 것**이 7가지다
 (`records`·`sections`·`source.pre.*`·`json:`·`rows` 의 `llm:` 등). 근본 원인은 배선 누락이
@@ -117,33 +88,16 @@ parser 가 처리하는 custom_fields yaml 중 intelligent 가 **무음으로 �
 ## 의존과 순서
 
 ```
-A) 01 ─┐
-   02 ─┼─ json_semantic.py 를 함께 건드린다. 같은 파일의 다른 구역이라 병행 가능하지만
-   03 ─┘  머지 순서를 정해두는 편이 안전하다 (권장: 01 → 02 → 03).
-
-   04     독립 (custom_fields_enricher.py / markdown_front_matter.py)
-   05     독립 (tabular_custom_fields.py / field_transforms.py) — v2 출고 전에 끝내야 한다
-   06     완전 독립 (v2 와 무관)
-
-B) 07 (분석·0단계) ─→ 08 ─┐
-                          ├─ 08 과 09 는 서로 독립
-                     09 ──┴─→ 10   (10 은 09 없이는 불가능)
+07 (분석·0단계) ─→ 08 ─┐
+                       ├─ 08 과 09 는 서로 독립
+                  09 ──┴─→ 10   (10 은 09 없이는 불가능)
 ```
-
-**A 와 B 의 겹침**: 05 와 08 이 `tabular_custom_fields.py` 를 함께 건드린다(05 는
-`apply_transforms`/`text_from`, 08 은 `warn_tabular_llm_fields_unsupported` 와 매퍼 호출 순서).
-10 의 1단계(묶음 빌더 추출)는 01~04 가 고치는 `config_schema`/`config_v2` 를 읽기만 하므로
-충돌하지 않지만, 04 와 10 이 모두 `markdown_front_matter.py` 를 건드린다. **04 를 10 보다 먼저** 둔다.
-
-**05 만 시한이 있다.** 내부 표현에서 `text_from`/`html_text_fields` 블록이 사라지므로
-"v2 는 표기만 다르다" 불변식을 깨는 유일한 작업이고, 출고 설정이 v2 로 넘어간 뒤에는
-현장 설정까지 따라와야 해서 비용이 급증한다.
 
 ## 공통 규칙 (모든 작업)
 
 - **보고된 것만 고친다.** CLAUDE.md "수정 범위" 절의 5개 기준을 적용 전에 스스로 통과시킨다.
   조사 중 눈에 띈 다른 결함은 아래 "별도 이슈" 에 적고 이번 변경에 끌어들이지 않는다.
-- **docling 은 건드리지 않는다.** 6개 작업 모두 `genon/preprocessor/` 안에서 끝난다.
+- **docling 은 건드리지 않는다.** 네 작업 모두 `genon/preprocessor/` 안에서 끝난다.
   docling 수정이 필요해 보이면 그 판단 자체가 틀렸을 가능성이 높으니 먼저 보고한다.
 - **하위호환 흡수는 v1·v2 두 경로가 합류하는 지점에 한 벌만 둔다.** 초안은 `normalize()` 라고
   적었는데 틀렸다 — `config_v2.load` 는 `is_v2()` 로만 갈려서 **v1 표기 설정은 `normalize()` 를
@@ -151,9 +105,9 @@ B) 07 (분석·0단계) ─→ 08 ─┐
   지점에 사본이 또 필요해 두 벌이 된다.
   - 하위 표기(`sections.include`, `front_matter.metadata_fields`)는 `normalize()` 가
     안쪽을 보지 않고 통과시키는 자리에 있으므로 **소비 지점**(매퍼·spec 생성자)에서
-    흡수한다. 02·04 가 그렇게 했다.
+    흡수한다.
   - 최상위 표기면 `normalize()` 가 맞다.
-  - 어휘 자체를 없애는 경우(05 의 `from`/`as`)는 흡수하지 않고 **제거**한다 — 흡수하면
+  - 어휘 자체를 없애는 경우(선례: `from`/`as`)는 흡수하지 않고 **제거**한다 — 흡수하면
     매퍼가 두 벌을 계속 들고 있어야 해 정리의 목적이 사라진다. 없어진 최상위 키는
     `precheck_custom_fields.py` 의 `REMOVED_KEYS` 에 갈아탈 표기와 함께 적는다.
   - 템플릿(`resource/templates/custom_field_TEMPLATE_*.yaml`)에서는 어느 경우든 옛 표기를 지운다.
@@ -215,22 +169,22 @@ genon/preprocessor/examples/parse_chunk/parse_chunk_verify.sh --only <doc_type�
 
 ## 재색인 영향
 
-청크 본문이 바뀌면 이미 적재된 임베딩과 어긋난다. 02·05 가 그럴 수 있고 01 도 설정에 따라
-달라진다. 비교 전에 **같은 버전으로 2회 돌려 노이즈 기준선**을 먼저 잡는다
-(LLM 응답 흔들림 때문에 1회 비교로는 변경분과 노이즈를 구분할 수 없다).
+청크 본문이 바뀌면 이미 적재된 임베딩과 어긋난다. 비교 전에 **같은 버전으로 2회 돌려
+노이즈 기준선**을 먼저 잡는다(LLM 응답 흔들림 때문에 1회 비교로는 변경분과 노이즈를
+구분할 수 없다).
 
 **실측한 노이즈는 두 가지뿐이다**(01~05 에서 반복 확인): `reg_date`(생성 타임스탬프)와
 `[표 검색 설명]` 문단(LLM 이 표마다 새로 쓰는 설명, 그리고 그 길이 `n_char`/`n_word`).
 그 둘을 걷어내면 나머지는 완전히 결정적이라 `*.chunks.json` 전량 대조가 가능하다 —
 PASS/FAIL 은 사전 실패에 가려지므로 전량 대조 쪽이 신뢰할 만하다.
 
-## B 갈래의 검증 특이점
+## intelligent 경로의 검증 특이점
 
 `parse_chunk_verify.sh` 는 **parser 경로만** 돈다. intelligent 경로는 이것으로 확인할 수 없다.
 엔드포인트 확인은 새 pytest 를 만들기보다
 `examples/code_serving/serving_gateway_test.sh` 에 모드를 추가하는 방식을 쓴다.
 
-B 갈래의 최종 목표는 **같은 원천·같은 doc_type 이면 parser 와 intelligent 의 청크 본문이
+최종 목표는 **같은 원천·같은 doc_type 이면 parser 와 intelligent 의 청크 본문이
 같을 것**이다. 이 대조 자체를 게이트웨이 스크립트의 한 모드로 만들어 두면 이후 회귀망이 된다.
 
 ## 이번 범위에서 뺀 것 (별도 이슈)
@@ -238,8 +192,7 @@ B 갈래의 최종 목표는 **같은 원천·같은 doc_type 이면 parser 와 
 검토 중 나왔지만 보고된 요구에 필요하지 않아 제외한 것들이다. 해당 작업에 끌어들이지 말 것.
 
 - **`sections` 키에 fnmatch 허용** — 지금은 정확 일치라 `"*Img*": 이미지` 를 못 쓴다.
-  02 를 하면 `ignore_keys`(fnmatch)와 `sections`(정확 일치)의 매칭 규칙이 갈린 채 남는다.
-  02 의 목적은 "제외 수단 통합" 이므로 여기에 매칭 규칙 변경을 얹지 않는다.
+  `ignore_keys`(fnmatch)와 `sections`(정확 일치)의 매칭 규칙이 갈린 채 남아 있다.
 - **`collect` 를 `alias: [...] , multi: true` 로 통합** — records 전용으로 남는 유일한 스펙.
   `alias`(먼저 찾은 하나)와 개념이 겹치지만, 통합해도 표현력이 늘지 않고 출고 설정 전부의
   의미가 바뀐다.
