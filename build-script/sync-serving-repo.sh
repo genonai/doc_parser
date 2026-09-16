@@ -92,7 +92,8 @@ EXCLUDE_PATHS=(
   # 공개 배포본으로 그대로 나간다.
   #   sample_files/monimo  고객사 실 문서 48건. 일반 샘플(pdf_sample 등)은 남긴다 —
   #                        고객이 parse_chunk_golden.py 로 자기 기준선을 찍을 때 쓴다.
-  #   docs                 리팩터링 계획·판정·미해결 결함 목록. 내부용이다.
+  #   docs                 내부용 계획 문서 자리. 지금은 비어 있지만(2026-09-16 정리)
+  #                        다시 생기면 그대로 공개 배포본에 나가므로 제외를 남겨 둔다.
   "genon/preprocessor/sample_files/monimo"
   "genon/preprocessor/docs"
   "genon/MAINTAINERS.md"                     # docling 원본 메인테이너 잔존물
