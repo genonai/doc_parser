@@ -3,8 +3,8 @@
 # 파서 결과를 받아 청킹한다. 원본 문서를 로드하거나 분석하지 않는다.
 #
 # 처리 순서. 아래 __call__ 의 메소드 호출 순서와 같다.
-#   파서 결과 -> _start_job -> pre_chunk -> 청크 분할 -> vector_meta 생성 -> post_chunk -> vector_meta 목록
-#   청크가 생성될 때마다 on_chunk 를 호출한다.
+#   파서 결과 -> _start_job -> edit_input -> 청크 분할 -> vector_meta 생성 -> edit_output -> vector_meta 목록
+#   청크가 생성될 때마다 edit_chunk 를 호출한다.
 #
 # 용어
 #   chunk        분할 결과 1건. 입력 형식과 관계없이 같은 필드를 갖는다(chunks_to_vector_metas 참조)
@@ -91,7 +91,7 @@ class DocumentProcessor(ChunkerCore):
 
     # --- 1. 처리 흐름 ---
     #
-    # 훅 메소드는 _call_pre_chunk, _call_post_chunk 로 호출한다. _call_* 는
+    # 훅 메소드는 _call_edit_input, _call_edit_output 로 호출한다. _call_* 는
     # async def / def 를 모두 허용하고, **kwargs 를 선언한 경우에만 요청 파라미터를 넘긴다.
     # 그래서 훅 메소드는 필요한 만큼만 선언해 쓰면 된다.
     # _ 로 시작하는 메소드는 호출 규약과 설정 적용 순서를 담당하므로 오버라이드하지 않는다.
@@ -106,14 +106,14 @@ class DocumentProcessor(ChunkerCore):
             job.config    적용된 설정(2 참조) job.notes     단계 간 공유 dict
 
         훅 메소드에서는 job 을 kwargs["job"] 으로 꺼낸다.
-        job.kind 와 on_chunk 의 info["kind"] 는 값이 다르다.
+        job.kind 와 edit_chunk 의 info["kind"] 는 값이 다르다.
             "docling" -> "docling",  "parse" -> "row"(행, 레코드) 또는 "text"(그 밖)
         """
         job = self._start_job(request, file_path, **kwargs)            # 입력 형식 판별, doc_type 별 설정 적용
-        job.data = await self._call_pre_chunk(job)                     # pre_chunk() 호출
+        job.data = await self._call_edit_input(job)                     # edit_input() 호출
         chunks = await self.split(job)                                 # 청크 분할
         vector_metas = await self.chunks_to_vector_metas(job, chunks)  # chunk 를 vector_meta 로 변환
-        return await self._call_post_chunk(job, vector_metas)          # post_chunk() 호출
+        return await self._call_edit_output(job, vector_metas)          # edit_output() 호출
 
     async def split(self, job):
         """입력 형식별 분할 전략을 선택하고, 결과를 공통 chunk 목록으로 반환한다.
@@ -142,7 +142,7 @@ class DocumentProcessor(ChunkerCore):
         vector_metas = []
         for chunk in self.start_chunk_loop(job, chunks, converted_pdf_path):
             text = self.build_chunk_text(job, chunk)         # 문서 접두어 + 헤딩 경로 + 본문
-            text, drop = await self._call_on_chunk(job, chunk, text)  # on_chunk() 호출
+            text, drop = await self._call_edit_chunk(job, chunk, text)  # edit_chunk() 호출
             if drop:
                 continue                                     # tb.DROP 이면 제외
             self.collect_chunk_variants(job, chunk, text)    # 표 표기형태 변형(마스킹 전 본문에서)
@@ -191,9 +191,9 @@ class DocumentProcessor(ChunkerCore):
     #   2. 외부 API 호출은 async def 로 작성한다.
     #   3. self 에 요청 상태를 저장하지 않는다. 단계 간 전달은 job.notes 를 쓴다.
     #   4. 오류는 GenosServiceException 을 raise 한다. 부분 실패를 허용하려면 해당 건만
-    #      skip 하고 post_chunk 에서 결과에 기록한다.
+    #      skip 하고 edit_output 에서 결과에 기록한다.
 
-    def pre_chunk(self, kind, data, **kwargs):
+    def edit_input(self, kind, data, **kwargs):
         """[훅 메소드 1] 청킹 전 전처리.
 
             kind == "parse"    data 는 list[dict] (엑셀 행, JSON 레코드)
@@ -202,8 +202,10 @@ class DocumentProcessor(ChunkerCore):
         """
         return data
 
-    def on_chunk(self, text, info, **kwargs):
+    def edit_chunk(self, text, info, **kwargs):
         """[훅 메소드 2] 청크 생성 직후 호출된다.
+
+        edit_input, edit_output 과 달리 요청당 한 번이 아니라 청크마다 호출된다.
 
         반환값은 셋 중 하나다.
             str      청크 텍스트를 이 값으로 교체한다
@@ -226,7 +228,7 @@ class DocumentProcessor(ChunkerCore):
         """
         return None
 
-    def post_chunk(self, vector_metas, **kwargs):
+    def edit_output(self, vector_metas, **kwargs):
         """[훅 메소드 3] 청킹 결과 후처리.
 
         vector_metas 는 vector_meta(VECTOR_META 인스턴스) 목록이다.
@@ -246,7 +248,7 @@ class DocumentProcessor(ChunkerCore):
         - 개수 변경: tb.refresh_stats(vector_metas)
         - 텍스트만 수정: tb.refresh_stats(vector_metas, reindex=False)
 
-        참고: 텍스트 수정이나 청크 제외만 필요하면 on_chunk 를 쓴다. 통계가 자동 갱신된다.
+        참고: 텍스트 수정이나 청크 제외만 필요하면 edit_chunk 를 쓴다. 통계가 자동 갱신된다.
         """
         return vector_metas
 

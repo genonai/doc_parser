@@ -3,8 +3,8 @@
 # 파일 하나를 받아 파싱 후 JSON 으로 반환한다. 청킹은 하지 않는다.
 #
 # 처리 순서. 아래 __call__ 의 메소드 호출 순서와 같다.
-#   파일 -> _start_job -> pre_parse -> 라우팅 -> post_parse -> JSON
-#   문서형 라우트는 중간에 on_docling_document 를 거친다.
+#   파일 -> _start_job -> edit_input -> 라우팅 -> edit_output -> JSON
+#   문서형 라우트는 중간에 edit_document 를 거친다.
 #
 # 구성
 #   1 처리 흐름          파이프라인 전체 호출 순서
@@ -38,7 +38,7 @@ class DocumentProcessor(ParserCore):
 
     # --- 1. 처리 흐름 ---
     #
-    # 훅 메소드는 _call_pre_parse, _call_post_parse 로 호출한다. _call_* 는 async def / def 를
+    # 훅 메소드는 _call_edit_input, _call_edit_output 로 호출한다. _call_* 는 async def / def 를
     # 모두 허용하고, **kwargs 를 선언한 경우에만 요청 파라미터를 넘긴다. 그래서 훅 메소드는
     # 필요한 만큼만 선언해 쓰면 된다.
     # _ 로 시작하는 메소드는 호출 규약과 설정 적용 순서를 담당하므로 오버라이드하지 않는다.
@@ -57,16 +57,16 @@ class DocumentProcessor(ParserCore):
         훅 메소드에서는 job 을 kwargs["job"] 으로 꺼낸다. 훅 메소드 시그니처에는 없다.
         """
         job = self._start_job(request, file_path, **kwargs)  # 확장자 판별, doc_type 별 설정 적용
-        job.source = await self._call_pre_parse(job)         # pre_parse() 호출
+        job.source = await self._call_edit_input(job)         # edit_input() 호출
         result = await self._call_route(job)                 # ROUTES 에서 라우트 선택, 실행
-        return await self._call_post_parse(job, result)      # post_parse() 호출
+        return await self._call_edit_output(job, result)      # edit_output() 호출
 
     async def document_to_response(self, job, doc, clear_coordinates=False):
         """문서를 응답 JSON 으로 변환한다. 문서형 라우트 5개가 공유한다.
 
         메소드 호출 순서 유지 필수
         """
-        doc = await self._call_on_docling_document(job, doc)  # on_docling_document() 호출
+        doc = await self._call_edit_document(job, doc)  # edit_document() 호출
         doc = await self.enrich(job, doc)                     # LLM enrichment: 표 설명, 이미지 설명, 항목 추출
         return self.build_response(job, doc, clear_coordinates)   # {"document": ..., "metadata": ...}
 
@@ -91,11 +91,11 @@ class DocumentProcessor(ParserCore):
     #
     # 새 확장자 추가 방법은 아래와 같다.
     # 예를 들어 .tsv 를 표로 다루려면
-    # ((".tsv",), "route_tabular") 를 맨 위에 넣고 pre_parse 에서 표 형식으로 변환한다.
+    # ((".tsv",), "route_tabular") 를 맨 위에 넣고 edit_input 에서 표 형식으로 변환한다.
     #
     # json 은 예외다. 아래 route_json 은 custom_fields 설정이 매칭될 때만 동작한다.
     # 매칭이 없으면 파일을 로드하지 않고 폴백한다. 설정 없이 json 을 코드로 처리하려면
-    # pre_parse 가 아니라 ROUTES 에 라우트를 추가한다.
+    # edit_input 가 아니라 ROUTES 에 라우트를 추가한다.
     #
     #   ROUTES = (((".json",), "route_json_ours"),) + DocumentProcessor.ROUTES
     #
@@ -216,7 +216,7 @@ class DocumentProcessor(ParserCore):
     #      해당 건을 skip 한 뒤 결과에 기록한다.
     #        raise GenosServiceException("1", "건수가 맞지 않아 처리를 중단했습니다")
 
-    def pre_parse(self, ext, doc_type, data, work_dir=None, **kwargs):
+    def edit_input(self, ext, doc_type, data, work_dir=None, **kwargs):
         """[훅 메소드 1] 파싱 전 입력 전처리.
 
         입력 형식이 달라 기본 처리가 안 될 때 지원 형식으로 변환하면 기본 라우트가
@@ -232,10 +232,14 @@ class DocumentProcessor(ParserCore):
         """
         return data
 
-    def on_docling_document(self, job, doc: "DoclingDocument"):
+    def edit_document(self, job, doc: "DoclingDocument"):
         """[훅 메소드 2] 파싱 후, LLM enrichment 전에 호출된다.
 
-        doc 은 DoclingDocument 객체다. post_parse 의 result["document"] 는 이 객체를
+        문서형 라우트에서만 호출된다. 엑셀 행이나 JSON 레코드처럼 요소형으로 나가는
+        경로에는 DoclingDocument 가 없어 이 훅을 거치지 않는다 — 그 경로를 손보려면
+        edit_output 을 쓴다.
+
+        doc 은 DoclingDocument 객체다. edit_output 의 result["document"] 는 이 객체를
         enrichment 후 JSON 으로 직렬화한 dict 이므로 형태가 다르다.
 
         enrichment 는 표 설명, 이미지 설명, 문서 요약, custom_fields 항목 추출을 말한다.
@@ -250,7 +254,7 @@ class DocumentProcessor(ParserCore):
         """
         return doc
 
-    def post_parse(self, ext, doc_type, result, **kwargs):
+    def edit_output(self, ext, doc_type, result, **kwargs):
         """[훅 메소드 3] 파싱 결과 후처리.
 
         result 구조
@@ -260,16 +264,16 @@ class DocumentProcessor(ParserCore):
 
         청크 메타데이터는 tb.set_chunk_metadata() 로 설정한다. result["metadata"] 에 직접
         쓰면 이 API 응답에만 포함되고 청크에는 전달되지 않는다. 이 값은 해당 문서의
-        모든 청크에 동일하게 적용된다. 청크별 값은 chunking_processor.py 의 on_chunk 에서 info["fields"] 로 넣는다.
+        모든 청크에 동일하게 적용된다. 청크별 값은 chunking_processor.py 의 edit_chunk 에서 info["fields"] 로 넣는다.
 
-            async def post_parse(self, ext, doc_type, result, **kwargs):
+            async def edit_output(self, ext, doc_type, result, **kwargs):
                 emp_no = (result.get("metadata") or {}).get("EMP_NO")
                 if emp_no:
                     tb.set_chunk_metadata(result, {"DEPT_NM": await fetch_dept(emp_no)})
                 return result
 
         부분 실패를 허용할 때는 실패 건만 제외하고 결과에 기록한다.
-        pre_parse 에서 kwargs["job"].notes 에 저장한 값을 여기서 읽어 쓸 수 있다.
+        edit_input 에서 kwargs["job"].notes 에 저장한 값을 여기서 읽어 쓸 수 있다.
         """
         return result
 

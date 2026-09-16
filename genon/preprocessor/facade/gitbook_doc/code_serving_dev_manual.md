@@ -761,9 +761,9 @@ class DocumentProcessor:          # ← 클래스 이름 고정. main.py 가 이
 |---|---|---|
 | 파일 머리 주석 | **이 파일에서 고칠 자리** | **여기부터 읽으세요** |
 | `ROUTES` | 확장자 → 핸들러 표 | 새 확장자를 받을 때 |
-| `__call__` | ① 원천 로드 → ② `pre_parse` → ③ 파싱 → ④ `post_parse` | 단계 순서를 볼 때 |
-| `pre_parse` | **원천을 파싱 입력으로 바꾸는 훅** | 설정으로 안 될 때 (7.2 (h)) |
-| `post_parse` | **산출을 손보는 훅** | 〃 |
+| `__call__` | ① 원천 로드 → ② `edit_input` → ③ 파싱 → ④ `edit_output` | 단계 순서를 볼 때 |
+| `edit_input` | **원천을 파싱 입력으로 바꾸는 훅** | 설정으로 안 될 때 (7.2 (h)) |
+| `edit_output` | **산출을 손보는 훅** | 〃 |
 | `cli()` 호출 두 줄 | 파일 단독 실행 | 고친 뒤 확인할 때 |
 
 본체 쪽에서 이름을 알아 둘 것:
@@ -925,8 +925,8 @@ facade 의 `GenosSmartChunker` 는 동작 옵션(ClassVar)만 지정하는 얇�
 |---|---|---|
 | `chunking_processor.py::GenOSVectorMeta` | **적재 DB 컬럼** | 청크 1건 = 1행. 선언에 없는 키도 실린다(`extra=allow`) |
 | `chunking_processor.py::GenosSmartChunker` | 동작 옵션 ClassVar | 그림 annotation·표 설명 모드·헤더 구분자 |
-| `chunking_processor.py::DocumentProcessor.__call__` | ① 입력 판별 → ② `pre_chunk` → ③ 분할·벡터 조합 → ④ `post_chunk` | |
-| `chunking_processor.py::pre_chunk` · `post_chunk` | **확장 훅** | 7.2 (h) |
+| `chunking_processor.py::DocumentProcessor.__call__` | ① 입력 판별 → ② `edit_input` → ③ 분할·벡터 조합 → ④ `edit_output` | |
+| `chunking_processor.py::edit_input` · `edit_output` | **확장 훅** | 7.2 (h) |
 | `core/chunker.py::ChunkerCore.load_input` | 입력 채널 판별(인라인 / `.json`) | 열 일 없음 |
 | `core/chunker.py::ChunkerCore.chunk` · `compose_vectors` | 분할 실행 · 출력 스키마 조립 | 〃 |
 | `facade/chunking/smart_chunker.py` | **청킹 엔진 본체** | 섹션 판정·분할·병합 |
@@ -1905,9 +1905,9 @@ doc_type 이 동작해야 한다면 아래 파일에 **같은 블록을 각각**
 
 | 훅 | 자리 | 받는 것 |
 |---|---|---|
-| `pre_parse` | 파싱 **전** | `.json` dict/list · `.md .html` str · `.xlsx .csv` 시트 격자 · 그 밖 파일 경로 |
-| `post_parse` | 응답 확정 **직전** | 응답 dict(`elements` / `document` / `metadata`) |
-| `pre_chunk` · `post_chunk` | 청커 쪽 | 파서 산출 · 완성된 청크 |
+| `edit_input` | 파싱 **전** | `.json` dict/list · `.md .html` str · `.xlsx .csv` 시트 격자 · 그 밖 파일 경로 |
+| `edit_output` | 응답 확정 **직전** | 응답 dict(`elements` / `document` / `metadata`) |
+| `edit_input` · `edit_output` | 청커 쪽 | 파서 산출 · 완성된 청크 |
 
 전체 계약과 `toolbox` 목록은 [`facade_hooks.md`](facade_hooks.md) 에 있습니다.
 아래는 **실제 doc_type(`monimo_event`)의 원천이 조금 바뀐 경우** 두 가지입니다.
@@ -1952,7 +1952,7 @@ genon/preprocessor/sample_files/drill/e2_detail_joined.json       변형 ②
 레코드에 심어 넣습니다.
 
 ```python
-    def pre_parse(self, ext, doc_type, data, work_dir=None):
+    def edit_input(self, ext, doc_type, data, work_dir=None):
         if ext == ".json" and doc_type == "monimo_event" and "companyList" in data:
             return {"eventList": [
                 {**event, "mnmFncoCd": company.get("mnmFncoCd")}

@@ -1,7 +1,7 @@
 """doc_type 으로 표 설명(table_text_description)을 끄는 예시.
 
 아래 상수 한 줄과 `__call__` 의 두 줄을 facade/parser_processor.py 에 붙인다.
-나머지(ROUTES·pre_parse·post_parse)는 원본 그대로 둔다.
+나머지(ROUTES·edit_input·edit_output)는 원본 그대로 둔다.
 
 yaml 의 `enrichment.table_text_description` 은 프로세서 전역 스위치라 문서유형을 가려서
 끌 수 없다. 표가 아주 많은 문서는 한 번의 LLM 호출이 감당할 표 수를 넘겨 응답 JSON 이
@@ -25,4 +25,4 @@ class Hooks:
         if doc_type in SKIP_TABLE_DESC_DOC_TYPES:   # 추가 1
             kwargs["table_text_desc"] = 0           # 추가 2
         result = await self.run(request, file_path, **kwargs)
-        return self.post_parse(ext, doc_type, result)
+        return self.edit_output(ext, doc_type, result)

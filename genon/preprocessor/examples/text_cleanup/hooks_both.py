@@ -12,7 +12,7 @@ INTERNAL_ONLY = "상담직원용"
 
 
 class Hooks:
-    def post_chunk(self, vectors, **kwargs):
+    def edit_output(self, vectors, **kwargs):
         """[후처리] 응답 직전. cs_hpp 의 내부용 안내 청크를 버린다."""
         if kwargs.get("doc_type") != "cs_hpp":
             return vectors

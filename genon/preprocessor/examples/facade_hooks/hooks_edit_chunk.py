@@ -1,6 +1,6 @@
-"""on_chunk 로 청크를 손보거나 버리는 예시. 이 클래스 몸통을 chunking_processor.py 에 붙인다.
+"""edit_chunk 로 청크를 손보거나 버리는 예시. 이 클래스 몸통을 chunking_processor.py 에 붙인다.
 
-본문 수정과 청크 버리기는 `post_chunk` 가 아니라 여기서 한다. 통계(n_char 등)와 순번이
+본문 수정과 청크 버리기는 `edit_output` 가 아니라 여기서 한다. 통계(n_char 등)와 순번이
 확정되기 **전**이라 코어가 다시 맞춰 주므로 `refresh_stats` 를 부를 필요가 없다.
 
 전 문서 공통 정제는 설정(`chunking.text_cleanup`)이 먼저다 — 그쪽은 청킹 **입력**에 걸려
@@ -21,7 +21,7 @@ INTERNAL_ONLY = "상담직원용"
 
 
 class Hooks:
-    def on_chunk(self, text, info, **kwargs):
+    def edit_chunk(self, text, info, **kwargs):
         """[중간] 청크 한 건. cs_hpp 만 정제하고 내부용 안내는 버린다."""
         if tb.normalize_doc_type(kwargs.get("doc_type")) != "cs_hpp":
             return None                      # 손대지 않는다
@@ -32,10 +32,10 @@ class Hooks:
             cleaned = cleaned.replace(src, dst)
         return cleaned
 
-    def on_chunk_row_example(self, text, info, **kwargs):
+    def edit_chunk_row_example(self, text, info, **kwargs):
         """info 는 경로가 달라도 모양이 같다 — 훅 한 벌로 문서·레코드를 함께 다룬다.
 
-        (이 메서드는 설명용이다. 실제로는 위 on_chunk 하나만 둔다.)
+        (이 메서드는 설명용이다. 실제로는 위 edit_chunk 하나만 둔다.)
         """
         if info["kind"] == "row" and not info["metadata"].get("USE_YN"):
             return tb.DROP                   # 비활성 레코드는 적재하지 않는다

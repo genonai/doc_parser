@@ -91,13 +91,13 @@ class TestChunkerAndProcessorContract:
     def test_first_chunk_prefix_is_attached_exactly_once(self):
         """문서당 1회 계약.
 
-        기준은 "첫 번째 청크" 가 아니라 "살아남은 첫 번째 청크" 다 — on_chunk 이 첫 청크를
+        기준은 "첫 번째 청크" 가 아니라 "살아남은 첫 번째 청크" 다 — edit_chunk 이 첫 청크를
         버렸을 때 그 접두가 문서에서 통째로 사라지면 안 된다.
         """
         source = (_BASE / "facade" / "core" / "chunker.py").read_text(encoding="utf-8")
         assert 'notes["first_prefix_text"] if notes["first_prefix_pending"] else ""' in source
         # 플래그는 청크를 실제로 유지했을 때만 내려간다. 버린 청크는 dropped 를 세고 끝이라
-        # 두 갈래가 _call_on_chunk 한 곳에서 갈린다 — 반복문이 어디에 있든 계약이 지켜진다.
+        # 두 갈래가 _call_edit_chunk 한 곳에서 갈린다 — 반복문이 어디에 있든 계약이 지켜진다.
         branch = source.split('notes["dropped"] += 1', 1)[1].split("return text, drop", 1)[0]
         assert branch.lstrip().startswith("else:")
         assert 'notes["first_prefix_pending"] = False' in branch

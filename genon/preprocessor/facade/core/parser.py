@@ -96,9 +96,6 @@ except ImportError:
 
 _log = logging.getLogger(__name__)
 
-# 옛 훅 이름(pre_source)을 쓴 facade 클래스. 경고는 클래스마다 한 번만 남긴다.
-_LEGACY_PRE_SOURCE_WARNED: set = set()
-
 
 def _handle_stage_error(exc: Exception, stage: str) -> None:
     """enrichment 단계 실패 처리(#329).
@@ -203,7 +200,7 @@ for _n in ("fontTools", "fontTools.ttLib", "fontTools.ttLib.ttFont"):
     logging.getLogger().setLevel(logging.WARNING)
 
 # PDF 변환 대상 확장자
-# pre_parse 를 **데이터 형태**로 받는 확장자. 나머지는 파일 경로로 받는다(#363 08-3).
+# edit_input 를 **데이터 형태**로 받는 확장자. 나머지는 파일 경로로 받는다(#363 08-3).
 _DATA_HOOK_EXTS = {".json", ".md", ".html", ".htm", ".csv", ".xlsx", ".xlsm"}
 
 CONVERTIBLE_EXTENSIONS = ['.hwp', '.txt', '.json', '.md', '.ppt', '.pptx', '.docx']
@@ -474,7 +471,7 @@ class ParserCore:
     # 배포되는 facade 가 덮어쓴다. 기본 구현은 받은 값을 그대로 돌려주므로
     # 덮어쓰지 않으면 산출이 착수 전과 같다.
 
-    def pre_parse(self, ext, doc_type, data, work_dir=None, **kwargs):
+    def edit_input(self, ext, doc_type, data, work_dir=None, **kwargs):
         """[전처리] 파싱 직전. 원천을 파싱 입력으로 바꾼다.
 
         data 의 형은 ext 가 정하고, 같은 형으로 돌려준다.
@@ -489,78 +486,60 @@ class ParserCore:
         """
         return data
 
-    def post_parse(self, ext, doc_type, result, **kwargs):
+    def edit_output(self, ext, doc_type, result, **kwargs):
         """[후처리] 응답 확정 직전. 청킹으로 넘어가기 전 마지막 자리.
 
           result["elements"]   레코드/표 경로 산출 (list[dict])
           result["document"]   docling 경로 산출   (dict)
           result["metadata"]   문서 단위 메타      (dict)
 
-        pre_parse 와 같이 `**kwargs`(요청 파라미터)와 `async def` 를 쓸 수 있다.
+        edit_input 와 같이 `**kwargs`(요청 파라미터)와 `async def` 를 쓸 수 있다.
         """
         return result
 
-    def on_docling_document(self, job, doc):
-        """[훅 메소드] 파싱 후, LLM enrichment 전. DoclingDocument 를 손본다.
+    def edit_document(self, job, doc):
+        """[중간] 파싱 후, LLM enrichment 전. DoclingDocument 를 손본다.
 
+        문서형 라우트에서만 불린다. 엑셀 행이나 JSON 레코드처럼 요소형으로 나가는
+        경로에는 DoclingDocument 가 없어 이 훅을 거치지 않는다.
         헤딩 레벨 보정이나 특정 표를 enrichment 대상에서 빼는 일을 여기서 한다.
         돌려준 문서가 enrichment 로 넘어간다. None 을 돌려주면 받은 문서를 그대로 쓴다.
         `**kwargs`(요청 파라미터)와 `async def` 를 쓸 수 있다.
         """
         return doc
 
-    def _on_docling_document_active(self) -> bool:
-        return type(self).on_docling_document is not ParserCore.on_docling_document
+    def _edit_document_active(self) -> bool:
+        return type(self).edit_document is not ParserCore.edit_document
 
-    async def _call_on_docling_document(self, job, doc):
-        """on_docling_document 를 부른다. 덮어쓰지 않았으면 부르지 않는다."""
-        if not self._on_docling_document_active():
+    async def _call_edit_document(self, job, doc):
+        """edit_document 를 부른다. 덮어쓰지 않았으면 부르지 않는다."""
+        if not self._edit_document_active():
             return doc
-        out = await hk.call_hook(self.on_docling_document, job, doc, request_kwargs=job.params)
+        out = await hk.call_hook(self.edit_document, job, doc, request_kwargs=job.params)
         return doc if out is None else out
 
-    async def run_post_parse(self, ext, doc_type, result, /, **kwargs):
-        """post_parse 훅 호출부. facade 의 __call__ 이 부른다.
+    async def run_edit_output(self, ext, doc_type, result, /, **kwargs):
+        """edit_output 훅 호출부. facade 의 __call__ 이 부른다.
 
         요청 파라미터 전달과 async 훅 await 를 여기서 처리하므로 facade 는 한 줄이다.
         """
         return await hk.call_hook(
-            self.post_parse, ext, doc_type, result, request_kwargs=kwargs)
+            self.edit_output, ext, doc_type, result, request_kwargs=kwargs)
 
     # 훅을 덮어썼는지 본다. 안 덮어썼으면 원천을 읽는 비용조차 치르지 않는다.
-    def _pre_parse_active(self) -> bool:
-        return self._pre_parse_hook() is not None
+    def _edit_input_active(self) -> bool:
+        return type(self).edit_input is not ParserCore.edit_input
 
-    def _pre_parse_hook(self):
-        """부를 전처리 훅. 덮어쓴 것이 없으면 None.
-
-        v2.2.0 까지 배포된 facade 는 같은 훅을 pre_source 라는 이름으로 덮어썼다. 고객이
-        보관한 옛 파일을 그대로 올려도 동작하도록 옛 이름을 찾아 부른다. core 에는 옛 이름을
-        정의하지 않는다 — 정의하면 덮어썼는지를 구분할 수 없다. 둘 다 있으면 pre_parse 가 이긴다.
-        """
-        cls = type(self)
-        if cls.pre_parse is not ParserCore.pre_parse:
-            return self.pre_parse
-        legacy = getattr(self, "pre_source", None)
-        if legacy is None:
-            return None
-        if cls not in _LEGACY_PRE_SOURCE_WARNED:
-            _LEGACY_PRE_SOURCE_WARNED.add(cls)
-            _log.warning("%s.pre_source 는 옛 이름입니다. 동작은 같으니 pre_parse 로 이름만 바꿔 주세요.",
-                         cls.__name__)
-        return legacy
-
-    async def _hook_pre_parse(self, ext, kwargs, data, work_dir=None):
+    async def _hook_edit_input(self, ext, kwargs, data, work_dir=None):
         """훅을 부르고 (값, 바뀌었는지) 를 돌려준다.
 
         받은 객체를 그대로 돌려주면 '안 바뀜' 으로 본다. 그래야 훅을 정의만 하고
         해당 doc_type 을 다루지 않는 경우에 파생 입력이 생기지 않는다.
         """
-        hook = self._pre_parse_hook()
-        if hook is None:
+        if not self._edit_input_active():
             return data, False
         out = await hk.call_hook(
-            hook, ext, normalize_doc_type(kwargs.get("doc_type")), data, work_dir,
+            self.edit_input, ext, normalize_doc_type(kwargs.get("doc_type")), data, work_dir,
             request_kwargs=kwargs,
         )
         return out, out is not data
@@ -1112,14 +1091,14 @@ class ParserCore:
         except ValueError as exc:
             # 깨진 JSON 은 훅에 원문 str 을 넘겨 구제 기회를 준다(JSONL 등).
             # 훅이 없거나 손대지 않으면 종전대로 입력 오류로 끝난다.
-            payload, changed = await self._hook_pre_parse(
+            payload, changed = await self._hook_edit_input(
                 ".json", {**kwargs, "doc_type": doc_type}, text)
             if not changed:
                 raise GenosServiceException(
                     "1", f"JSON 파일을 읽을 수 없습니다: {os.path.basename(file_path)} ({exc})"
                 ) from exc
             return payload
-        payload, _ = await self._hook_pre_parse(
+        payload, _ = await self._hook_edit_input(
             ".json", {**kwargs, "doc_type": doc_type}, payload)
         return payload
 
@@ -1609,7 +1588,7 @@ class ParserCore:
         메소드 호출 순서 유지 필수. 훅 메소드가 enrichment 전에 문서를 손봐야 고친 헤딩이나
         enrichment 대상에서 뺀 표가 LLM 호출에 반영된다.
         """
-        doc = await self._call_on_docling_document(job, doc)
+        doc = await self._call_edit_document(job, doc)
         doc = await self.enrich(job, doc)
         return self.build_response(job, doc, clear_coordinates=clear_coordinates)
 
@@ -1654,7 +1633,7 @@ class ParserCore:
         return await self.records_to_response(job, self.sheets_to_records(job, sheets))
 
     async def read_sheets(self, job):
-        """엑셀·CSV 를 시트 격자로 읽고 pre_parse(.xlsx) 훅을 태운다.
+        """엑셀·CSV 를 시트 격자로 읽고 edit_input(.xlsx) 훅을 태운다.
 
         훅을 안 덮어썼으면 읽지 않고 None 을 돌려준다 — 뒤 단계가 파일에서 직접 읽는다.
         docling 모드에서 훅이 격자를 바꿨으면 파생 xlsx 를 job 임시 디렉터리에 쓰고
@@ -1698,7 +1677,7 @@ class ParserCore:
         return self._tabular_to_parse_format(self._parse_tabular(job.source, sheets))
 
     async def _hook_tabular_sheets(self, file_path: str, work_dir: str, **kwargs):
-        """pre_parse(.xlsx) 를 격자로 부른다. (격자, 바뀌었는지) 를 돌려준다.
+        """edit_input(.xlsx) 를 격자로 부른다. (격자, 바뀌었는지) 를 돌려준다.
 
         훅에는 병합셀이 이미 펴진 `{시트명: 2차원 행}` 을 넘기고, 돌려받은 것은
         normalize_sheets 로 표준형으로 되돌린 뒤 병합 정보를 다시 붙인다.
@@ -1706,7 +1685,7 @@ class ParserCore:
         원본을 못 읽으면 훅을 건너뛴다 — 실제 오류는 아래 파싱 경로가 종전과 같은
         형태로 낸다. 여기서 먼저 죽으면 오류 메시지와 시점이 달라진다.
         """
-        if not self._pre_parse_active():
+        if not self._edit_input_active():
             return None, False
         try:
             original = xp._load_sheets_with_merges(file_path)
@@ -1714,7 +1693,7 @@ class ParserCore:
             _log.debug(f"[parser] xlsx 격자 훅 건너뜀({type(exc).__name__}): {file_path}")
             return None, False
         plain = {name: rows for name, (rows, _m) in original.items()}
-        hooked, changed = await self._hook_pre_parse(".xlsx", kwargs, plain, work_dir)
+        hooked, changed = await self._hook_edit_input(".xlsx", kwargs, plain, work_dir)
         if not changed:
             # 이미 읽었으니 그대로 넘겨 중복 읽기를 없앤다. 같은 함수의 산출이라 동일하다.
             return original, False
@@ -1752,7 +1731,7 @@ class ParserCore:
         return self._md_cfg["processing_mode"] == "docling"
 
     async def prepare_input(self, job) -> dict:
-        """docling 에 넘길 입력을 준비한다. 원문 훅(pre_parse), html flatten, md 전처리.
+        """docling 에 넘길 입력을 준비한다. 원문 훅(edit_input), html flatten, md 전처리.
 
         파생 파일은 job 임시 디렉터리에 쓰고 요청이 끝날 때 지운다. 반환값은 parse_document 가 받는다.
           path            docling 에 넘길 경로
@@ -1766,13 +1745,13 @@ class ParserCore:
 
         # 원문 텍스트 훅. 훅을 안 덮어썼으면 파일을 읽지도 않는다.
         # 훅이 텍스트를 바꾸면 파생 파일로 파싱하고 artifacts 기준은 원본으로 남긴다.
-        if ext in (".html", ".htm", ".md") and self._pre_parse_active():
+        if ext in (".html", ".htm", ".md") and self._edit_input_active():
             try:
                 raw = read_text_with_fallback(path)
             except OSError:
                 raw = None
             if raw is not None:
-                new, changed = await self._hook_pre_parse(ext, job.params, raw)
+                new, changed = await self._hook_edit_input(ext, job.params, raw)
                 if changed:
                     artifacts_source = artifacts_source or path
                     path = _write_derived(job.temp_dir("parser_hook_"), path, ext, new)
@@ -2066,15 +2045,15 @@ class ParserCore:
             raise
         return job
 
-    async def _call_pre_parse(self, job) -> str:
-        """경로형 pre_parse 훅을 적용하고 파싱할 입력 경로를 돌려준다.
+    async def _call_edit_input(self, job) -> str:
+        """경로형 edit_input 훅을 적용하고 파싱할 입력 경로를 돌려준다.
 
         데이터형으로 넘기는 확장자(.json/.md/.html/표)는 각 라우트가 자기 자리에서 부른다.
         """
         try:
-            if job.ext in _DATA_HOOK_EXTS or not self._pre_parse_active():
+            if job.ext in _DATA_HOOK_EXTS or not self._edit_input_active():
                 return job.source
-            new_path, changed = await self._hook_pre_parse(
+            new_path, changed = await self._hook_edit_input(
                 job.ext, job.params, job.source, job.temp_dir("parser_hookpath_"))
             if not changed:
                 return job.source
@@ -2084,11 +2063,11 @@ class ParserCore:
             self._finish_job(job)
             raise
 
-    async def _call_post_parse(self, job, result) -> dict:
-        """post_parse 훅을 부르고 요청 자원을 정리한다(흐름의 마지막 단계)."""
+    async def _call_edit_output(self, job, result) -> dict:
+        """edit_output 훅을 부르고 요청 자원을 정리한다(흐름의 마지막 단계)."""
         try:
             return await hk.call_hook(
-                self.post_parse, job.ext, job.doc_type, result, request_kwargs=job.params)
+                self.edit_output, job.ext, job.doc_type, result, request_kwargs=job.params)
         finally:
             self._finish_job(job)
 
@@ -2143,13 +2122,13 @@ class ParserCore:
         raise GenosServiceException("1", f"처리할 수 없는 형식입니다: {job.ext}")
 
     async def run(self, request: Request, file_path: str, **kwargs) -> dict:
-        """옛 facade 입구. 새 흐름(_start_job → _call_pre_parse → _call_route)과 같은 일을 한다.
+        """옛 facade 입구. 새 흐름(_start_job → _call_edit_input → _call_route)과 같은 일을 한다.
 
-        post_parse 는 옛 facade 가 run_post_parse 로 따로 부르므로 여기서는 부르지 않는다.
+        edit_output 는 옛 facade 가 run_edit_output 로 따로 부르므로 여기서는 부르지 않는다.
         """
         job = self._start_job(request, file_path, **kwargs)
         try:
-            job.source = await self._call_pre_parse(job)
+            job.source = await self._call_edit_input(job)
             return await self._call_route(job)
         finally:
             self._finish_job(job)

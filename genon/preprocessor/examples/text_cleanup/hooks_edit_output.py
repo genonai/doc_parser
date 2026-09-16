@@ -1,4 +1,4 @@
-"""`post_chunk` 로 정제하는 예시. 이 클래스 몸통을 facade/chunking_processor.py 에 붙인다.
+"""`edit_output` 로 정제하는 예시. 이 클래스 몸통을 facade/chunking_processor.py 에 붙인다.
 
 설정(`chunking.text_cleanup`)은 프로세서 전체에 걸려 doc_type 을 가릴 수 없다. 특정
 doc_type 만 다르게 정제해야 할 때 이 자리를 쓴다.
@@ -17,7 +17,7 @@ ENTITIES = {"&gt;": ">", "&lt;": "<", "&amp;": "&", "&nbsp;": " "}
 
 
 class Hooks:
-    def post_chunk(self, vectors, **kwargs):
+    def edit_output(self, vectors, **kwargs):
         """[후처리] 응답 직전. cs_hpp 만 정제한다."""
         if kwargs.get("doc_type") != "cs_hpp":
             return vectors

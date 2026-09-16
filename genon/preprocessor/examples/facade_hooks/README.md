@@ -14,7 +14,7 @@ git diff -- genon/preprocessor/facade/parser_processor.py \
 git apply my_change.patch          # 충돌하면 patch 를 보고 손으로 반영
 ```
 
-훅 시그니처(`pre_parse` / `post_parse` / `pre_chunk` / `post_chunk`)와 `ROUTES` 형태는
+훅 시그니처(`edit_input` / `edit_document` / `edit_chunk` / `edit_output`)와 `ROUTES` 형태는
 고정 API 라, 그것이 안 바뀐 릴리스에서는 `git apply` 가 그대로 통한다.
 
 ## 예시
@@ -23,7 +23,7 @@ git apply my_change.patch          # 충돌하면 patch 를 보고 손으로 반
 |---|---|---|
 | `hooks_skip_table_desc.py` | `parser_processor.py` 의 `__call__` | 지정한 doc_type 에서만 표 설명을 끈다 |
 | `hooks_custom_route.py` | `parser_processor.py` 의 `ROUTES` + 새 메서드 | 표준 포맷으로 못 바꾸는 원천을 자기 라우트로 받는다 |
-| `hooks_on_chunk.py` | `chunking_processor.py` 의 `on_chunk` | 청크 한 건씩 정제하고 내부용 청크를 버린다 |
+| `hooks_edit_chunk.py` | `chunking_processor.py` 의 `edit_chunk` | 청크 한 건씩 정제하고 내부용 청크를 버린다 |
 | `custom_field_regex_demo.yaml` + `.py` | 설정 폴더 (코드 수정 없음) | `extractor: python` — 정규식으로 값을 뽑는다 |
 
 청킹 쪽 정제 예시 비교(설정 vs 훅)는 `../text_cleanup/` 에 있다.
@@ -49,10 +49,10 @@ SKIP_TABLE_DESC_DOC_TYPES = ("cs_hpp",)
         if doc_type in SKIP_TABLE_DESC_DOC_TYPES:   # 추가 1
             kwargs["table_text_desc"] = 0           # 추가 2
         result = await self.run(request, file_path, **kwargs)
-        return self.post_parse(ext, doc_type, result)
+        return self.edit_output(ext, doc_type, result)
 ```
 
-`pre_parse` / `post_parse` 가 아니라 `__call__` 인 이유는 그 둘이 `kwargs` 를 받지 않기
+`edit_input` / `edit_output` 가 아니라 `__call__` 인 이유는 그 둘이 `kwargs` 를 받지 않기
 때문이다. 런타임 플래그를 심을 수 있는 자리는 `self.run()` 앞뿐이다.
 
 이 예시는 요청이 `table_text_desc` 를 직접 보내도 덮어쓴다. 요청 쪽 지정을 살리려면

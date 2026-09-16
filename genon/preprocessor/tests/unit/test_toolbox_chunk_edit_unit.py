@@ -1,6 +1,6 @@
 """toolbox 청크 편집 4종 단위 테스트 (#363 09 단계 6).
 
-post_chunk 에서 고객이 쓰는 이름이다. 통계 재계산은 이 함수들이 하지 않는다 —
+edit_output 에서 고객이 쓰는 이름이다. 통계 재계산은 이 함수들이 하지 않는다 —
 refresh_stats 를 부르라는 안내가 문서·주석 계약이므로 그 경계도 함께 고정한다.
 """
 from __future__ import annotations

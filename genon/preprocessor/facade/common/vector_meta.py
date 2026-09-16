@@ -17,7 +17,7 @@ from typing import Any, Callable, Optional
 from docling_core.types import DoclingDocument
 from docling_core.types.doc import PictureItem, TableItem
 
-# 본문과 통계·순번 필드. core 가 본문에서 계산하므로 on_chunk 의 info["fields"] 로 바꿀 수 없다.
+# 본문과 통계·순번 필드. core 가 본문에서 계산하므로 edit_chunk 의 info["fields"] 로 바꿀 수 없다.
 STAT_FIELDS = (
     "text", "n_char", "n_word", "n_line",
     "i_page", "e_page", "i_chunk_on_page", "n_chunk_of_page",
@@ -47,7 +47,7 @@ def _split_text(text: str, separator: str = "\n") -> "tuple[str, str]":
 
 def split_chunk(vector_metas: list, when: Callable[[Any], bool], *,
                 separator: str = "\n", max_pieces: int = 64) -> list:
-    """when(vector_meta) 이 참인 청크를 여러 건으로 나눈다(post_chunk 용).
+    """when(vector_meta) 이 참인 청크를 여러 건으로 나눈다(edit_output 용).
 
     조건이 거짓이 될 때까지 반으로 나눈다. 나뉜 조각은 원본 필드를 그대로 물려받는다.
     통계와 순번은 바뀌므로 호출부가 refresh_stats 를 부른다.
@@ -77,7 +77,7 @@ def split_chunk(vector_metas: list, when: Callable[[Any], bool], *,
 
 def merge_small_chunks(vector_metas: list, min_chars: int = 80, *,
                        separator: str = "\n") -> list:
-    """min_chars 미만인 청크를 앞 청크에 이어 붙인다(post_chunk 용).
+    """min_chars 미만인 청크를 앞 청크에 이어 붙인다(edit_output 용).
 
     앞 청크가 없으면 뒤 청크와 합친다. 메타데이터는 남는 쪽(앞 청크)의 것을 쓴다.
     통계와 순번은 바뀌므로 호출부가 refresh_stats 를 부른다.
@@ -110,7 +110,7 @@ def drop_fields(vector_meta, *names: str):
 
 
 def chunk_fields(value) -> dict:
-    """on_chunk 가 info["fields"] 에 남긴 청크별 값을 검사해 dict 로 돌려준다.
+    """edit_chunk 가 info["fields"] 에 남긴 청크별 값을 검사해 dict 로 돌려준다.
 
     본문은 반환값으로 바꾸고 통계와 순번은 core 가 계산한다. fields 로 덮게 두면 본문과
     통계가 어긋나므로 STAT_FIELDS 는 거부한다.
@@ -118,11 +118,11 @@ def chunk_fields(value) -> dict:
     if not value:
         return {}
     if not isinstance(value, dict):
-        raise TypeError(f'on_chunk 의 info["fields"] 는 dict 여야 합니다: {type(value).__name__}')
+        raise TypeError(f'edit_chunk 의 info["fields"] 는 dict 여야 합니다: {type(value).__name__}')
     reserved = sorted(set(STAT_FIELDS) & set(value))
     if reserved:
         raise ValueError(
-            f'on_chunk 의 info["fields"] 로 바꿀 수 없는 필드입니다: {reserved}. '
+            f'edit_chunk 의 info["fields"] 로 바꿀 수 없는 필드입니다: {reserved}. '
             "본문은 반환값으로 바꾸고, 통계와 순번은 core 가 계산합니다.")
     return dict(value)
 
@@ -258,7 +258,7 @@ class VectorMetaBuilderBase:
 def refresh_stats(vectors, reindex: bool = True):
     """청크 목록의 파생 필드를 본문 기준으로 다시 계산한다(제자리 수정, 같은 목록 반환).
 
-    `post_chunk` 에서 본문을 고치거나 청크를 버리면 통계와 순번이 옛 값으로 남는다
+    `edit_output` 에서 본문을 고치거나 청크를 버리면 통계와 순번이 옛 값으로 남는다
     (실측: 마커만 지운 훅에서 11건 중 9건의 n_char 가 실제 길이와 달랐다). 파싱·청킹
     본체가 처음 계산할 때와 같은 식을 쓰므로 결과가 어긋나지 않는다.
 

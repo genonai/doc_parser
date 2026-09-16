@@ -481,7 +481,7 @@ class ChunkerCore:
         vector_metas: list = []
         for chunk in self.start_chunk_loop(job, chunks, converted_pdf_path):
             text = self.build_chunk_text(job, chunk)
-            text, drop = await self._call_on_chunk(job, chunk, text)
+            text, drop = await self._call_edit_chunk(job, chunk, text)
             if drop:
                 continue
             self.collect_chunk_variants(job, chunk, text)
@@ -525,12 +525,12 @@ class ChunkerCore:
         if notes["dropped"]:
             # n_chunk_of_doc / page 개수는 루프 전에 계산해 둔 값이라 다시 맞춰야 한다.
             _log.info(
-                f"[chunker] on_chunk 가 청크 {notes['dropped']}건을 버렸습니다 → 순번 재계산")
+                f"[chunker] edit_chunk 가 청크 {notes['dropped']}건을 버렸습니다 → 순번 재계산")
             vm.refresh_stats(vector_metas)
         return vector_metas
 
-    async def _call_on_chunk(self, job, chunk, text) -> "tuple":
-        """on_chunk 훅을 부른다. (본문, 버릴지) 를 돌려준다."""
+    async def _call_edit_chunk(self, job, chunk, text) -> "tuple":
+        """edit_chunk 훅을 부른다. (본문, 버릴지) 를 돌려준다."""
         notes = job.notes
         text, drop = await self._hook_chunk(
             text, job.params, kind=chunk.kind, page=notes["chunk_page"],
@@ -648,7 +648,7 @@ class ChunkerCore:
                 'guardrail_categories': (
                     sorted(notes["chunk_cats"]) if notes["chunk_cats"] else None),
                 **notes["global_metadata"],
-                **notes["chunk_fields"],  # on_chunk 가 info["fields"] 로 넘긴 청크별 값
+                **notes["chunk_fields"],  # edit_chunk 가 info["fields"] 로 넘긴 청크별 값
             })
         except Exception as exc:
             # 목표필드명이 예약 필드(title/created_date/appendix)와 겹치면 타입 검증에 걸린다.
@@ -689,7 +689,7 @@ class ChunkerCore:
         # 그대로 실린다. 문서 단위로 뽑힌 같은 이름의 값은 여기서 덮인다.
         for field_name in notes["body_fields"]:
             chunk_global_metadata[field_name] = text
-        # on_chunk 가 info["fields"] 로 넘긴 청크별 값. 문서 단위 값과 이름이 같으면 이것이 이긴다.
+        # edit_chunk 가 info["fields"] 로 넘긴 청크별 값. 문서 단위 값과 이름이 같으면 이것이 이긴다.
         chunk_global_metadata.update(notes["chunk_fields"])
 
         return (GenOSVectorMetaBuilder()
@@ -847,7 +847,7 @@ class ChunkerCore:
             body_fields=_body_fields,
             prefix_text=_prefix_text,
             first_prefix_text=_first_prefix_text,
-            # 첫 청크 전용 접두를 아직 못 붙였는지. on_chunk 가 첫 청크를 버리면 그 접두가
+            # 첫 청크 전용 접두를 아직 못 붙였는지. edit_chunk 가 첫 청크를 버리면 그 접두가
             # 문서에서 통째로 사라지므로, 살아남은 첫 청크가 받는다(문서당 1회 계약).
             first_prefix_pending=bool(_first_prefix_text),
             appendix_list=appendix_list,
@@ -914,7 +914,7 @@ class ChunkerCore:
             'n_page': 1,
             # 순번은 0 부터 센다 — 다른 세 경로(_chunk_text_elements 등)가 모두 그렇다.
             # legacy 는 1 로 넣었는데, 그러면 같은 적재 테이블에 두 규약이 섞이고
-            # post_chunk 훅이 toolbox.refresh_stats 를 부를 때 값이 1 에서 0 으로
+            # edit_output 훅이 toolbox.refresh_stats 를 부를 때 값이 1 에서 0 으로
             # 바뀌어 버린다. n_chunk_of_doc 도 이 경로만 비어 있었다.
             'i_chunk_on_page': 0,
             'n_chunk_of_page': 1,
@@ -1127,7 +1127,7 @@ class ChunkerCore:
             _guardrail_masking=self._gr_cfg.masking_enabled,
         ))
 
-    def pre_chunk(self, kind, data, **kwargs):
+    def edit_input(self, kind, data, **kwargs):
         """[전처리] 분할 직전. 받은 형 그대로 돌려준다.
 
           kind == "docling"   data = DoclingDocument (또는 그 dict)
@@ -1137,17 +1137,19 @@ class ChunkerCore:
         """
         return data
 
-    def post_chunk(self, vectors, **kwargs):
+    def edit_output(self, vectors, **kwargs):
         """[후처리] 응답 직전. list[VECTOR_META] 를 손본다.
 
-        pre_chunk 와 같이 `**kwargs`(요청 파라미터)와 `async def` 를 쓸 수 있다.
+        edit_input 와 같이 `**kwargs`(요청 파라미터)와 `async def` 를 쓸 수 있다.
         """
         return vectors
 
-    def on_chunk(self, text, info, **kwargs):
+    def edit_chunk(self, text, info, **kwargs):
         """[중간] 청크 한 건이 만들어진 직후. 본문을 고치거나 그 청크를 버린다.
 
-        post_chunk 와 달리 통계(n_char 등)와 순번이 확정되기 **전**이라, 고친 결과가
+        edit_input / edit_output 과 달리 요청당 한 번이 아니라 **청크마다** 불린다.
+
+        edit_output 와 달리 통계(n_char 등)와 순번이 확정되기 **전**이라, 고친 결과가
         그대로 반영된다. 돌려주는 값의 뜻은 셋이다.
 
           문자열     그 문자열이 청크 본문이 된다
@@ -1167,19 +1169,19 @@ class ChunkerCore:
         """
         return None
 
-    def _on_chunk_active(self) -> bool:
+    def _edit_chunk_active(self) -> bool:
         """훅을 덮어썼는지. 안 덮어썼으면 청크마다 호출하는 비용을 치르지 않는다."""
-        return type(self).on_chunk is not ChunkerCore.on_chunk
+        return type(self).edit_chunk is not ChunkerCore.edit_chunk
 
     async def _hook_chunk(self, text, kwargs, *, kind, page=1, index=0,
                           headings=None, metadata=None, fields=None):
-        """on_chunk 를 부르고 (본문, 버릴지) 를 돌려준다.
+        """edit_chunk 를 부르고 (본문, 버릴지) 를 돌려준다.
 
         fields 를 넘기면 훅이 info["fields"] 에 넣은 청크별 값을 거기에 모은다. 호출부가 그
         dict 를 청크 필드로 싣는다. info["metadata"] 는 복사본이라 쓰기 통로로 쓸 수 없어 따로 둔다.
         훅이 info["fields"] 를 새 dict 로 바꿔 넣어도 되도록 호출 뒤 info 에서 다시 읽는다.
         """
-        if not self._on_chunk_active():
+        if not self._edit_chunk_active():
             return text, False
         info = {
             "kind": kind,
@@ -1189,18 +1191,18 @@ class ChunkerCore:
             "metadata": dict(metadata) if metadata else {},
             "fields": {},
         }
-        out = await hk.call_chunk_hook(self.on_chunk, text, info, request_kwargs=kwargs)
+        out = await hk.call_chunk_hook(self.edit_chunk, text, info, request_kwargs=kwargs)
         if fields is not None:
             fields.update(vm.chunk_fields(info.get("fields")))
         return out
 
-    async def run_pre_chunk(self, kind, data, /, **kwargs):
-        """pre_chunk 훅 호출부. facade 의 __call__ 이 부른다."""
-        return await hk.call_hook(self.pre_chunk, kind, data, request_kwargs=kwargs)
+    async def run_edit_input(self, kind, data, /, **kwargs):
+        """edit_input 훅 호출부. facade 의 __call__ 이 부른다."""
+        return await hk.call_hook(self.edit_input, kind, data, request_kwargs=kwargs)
 
-    async def run_post_chunk(self, vectors, /, **kwargs):
-        """post_chunk 훅 호출부. facade 의 __call__ 이 부른다."""
-        return await hk.call_hook(self.post_chunk, vectors, request_kwargs=kwargs)
+    async def run_edit_output(self, vectors, /, **kwargs):
+        """edit_output 훅 호출부. facade 의 __call__ 이 부른다."""
+        return await hk.call_hook(self.edit_output, vectors, request_kwargs=kwargs)
 
     # --- doc_type 별 설정 오버레이 ---
     # 배포되는 facade 가 표에 값을 적는다. 키는 요청 파라미터 이름이다(chunk_size 등).
@@ -1241,7 +1243,7 @@ class ChunkerCore:
     def _start_job(self, request, file_path: str = "", **kwargs) -> "jb.ChunkJob":
         """요청 한 건의 job 을 만든다. 입력 판별·캐시 컨텍스트·doc_type 별 설정까지 한다.
 
-        정리는 _call_post_chunk 가 맡는다(흐름의 마지막 단계).
+        정리는 _call_edit_output 가 맡는다(흐름의 마지막 단계).
         """
         src = self.load_input(file_path, **kwargs)
         # 인라인 payload 는 load_input 이 이미 읽었다. 여기 남아 있으면 split/compose 로
@@ -1262,17 +1264,17 @@ class ChunkerCore:
         job.notes["cache_token"] = cache_token
         return job
 
-    async def _call_pre_chunk(self, job):
-        """pre_chunk 훅을 부르고 분할 대상 데이터를 돌려준다."""
+    async def _call_edit_input(self, job):
+        """edit_input 훅을 부르고 분할 대상 데이터를 돌려준다."""
         try:
             return await hk.call_hook(
-                self.pre_chunk, job.kind, job.data, request_kwargs=job.params)
+                self.edit_input, job.kind, job.data, request_kwargs=job.params)
         except BaseException:
             self._finish_chunk_job(job)
             raise
 
-    async def _call_post_chunk(self, job, vector_metas):
-        """post_chunk 훅을 부르고 요청 자원을 정리한다(흐름의 마지막 단계)."""
+    async def _call_edit_output(self, job, vector_metas):
+        """edit_output 훅을 부르고 요청 자원을 정리한다(흐름의 마지막 단계)."""
         try:
             # 벡터 file_path 메타를 입력 file_path 로 채운다(chunks_to_vector_metas 는 변환 PDF
             # 경우에만 세팅하므로, chunker 입력 경로를 반영).
@@ -1281,7 +1283,7 @@ class ChunkerCore:
                     if not getattr(vector_meta, "file_path", None):
                         vector_meta.file_path = job.file_path
             return await hk.call_hook(
-                self.post_chunk, vector_metas, request_kwargs=job.params)
+                self.edit_output, vector_metas, request_kwargs=job.params)
         finally:
             self._finish_chunk_job(job)
 

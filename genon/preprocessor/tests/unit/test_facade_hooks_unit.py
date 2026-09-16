@@ -29,7 +29,7 @@ def _bare(cls):
 
 
 # ---------------------------------------------------------------------------
-# pre_parse 게이트 — 안 건드리면 파생 입력을 만들지 않는다
+# edit_input 게이트 — 안 건드리면 파생 입력을 만들지 않는다
 # ---------------------------------------------------------------------------
 
 @pytest.mark.asyncio
@@ -37,8 +37,8 @@ async def test_untouched_hook_reports_no_change():
     """core 기본 구현 그대로면 '비활성' 이고 값도 그대로다."""
     proc = _bare(core_parser.ParserCore)
     data = {"a": 1}
-    assert proc._pre_parse_active() is False
-    assert await proc._hook_pre_parse(".json", {}, data) == (data, False)
+    assert proc._edit_input_active() is False
+    assert await proc._hook_edit_input(".json", {}, data) == (data, False)
 
 
 @pytest.mark.asyncio
@@ -50,24 +50,24 @@ async def test_passthrough_override_is_active_but_reports_no_change():
     """
     proc = _bare(parser_facade.DocumentProcessor)
     data = {"a": 1}
-    assert proc._pre_parse_active() is True
-    assert await proc._hook_pre_parse(".json", {}, data) == (data, False)
+    assert proc._edit_input_active() is True
+    assert await proc._hook_edit_input(".json", {}, data) == (data, False)
 
 
 @pytest.mark.asyncio
 async def test_reshaping_hook_reports_change():
     class _P(parser_facade.DocumentProcessor):
-        def pre_parse(self, ext, doc_type, data, work_dir=None):
+        def edit_input(self, ext, doc_type, data, work_dir=None):
             if doc_type == "nested":
                 return {"items": [i for g in data["groups"] for i in g["items"]]}
             return data
 
     proc = _bare(_P)
     src = {"groups": [{"items": [1, 2]}, {"items": [3]}]}
-    out, changed = await proc._hook_pre_parse(".json", {"doc_type": "nested"}, src)
+    out, changed = await proc._hook_edit_input(".json", {"doc_type": "nested"}, src)
     assert changed is True and out == {"items": [1, 2, 3]}
     # 대상 doc_type 이 아니면 손대지 않는다 — 게이팅이 없으면 모든 JSON 이 바뀐다.
-    assert await proc._hook_pre_parse(".json", {"doc_type": "other"}, src) == (src, False)
+    assert await proc._hook_edit_input(".json", {"doc_type": "other"}, src) == (src, False)
 
 
 # ---------------------------------------------------------------------------
@@ -80,7 +80,7 @@ async def test_json_payload_hook_is_called_at_the_single_entry(tmp_path: Path):
     src.write_text(json.dumps({"groups": [{"items": [1]}, {"items": [2]}]}), encoding="utf-8")
 
     class _P(parser_facade.DocumentProcessor):
-        def pre_parse(self, ext, doc_type, data, work_dir=None):
+        def edit_input(self, ext, doc_type, data, work_dir=None):
             return {"items": [i for g in data["groups"] for i in g["items"]]}
 
     assert await _bare(_P)._load_json_payload(str(src), "any") == {"items": [1, 2]}
@@ -93,7 +93,7 @@ async def test_broken_json_reaches_the_hook_as_raw_text(tmp_path: Path):
     src.write_text('{"v":1}\n{"v":2}\n', encoding="utf-8")
 
     class _P(parser_facade.DocumentProcessor):
-        def pre_parse(self, ext, doc_type, data, work_dir=None):
+        def edit_input(self, ext, doc_type, data, work_dir=None):
             assert isinstance(data, str)
             return {"rows": [json.loads(ln) for ln in data.splitlines() if ln.strip()]}
 
@@ -163,15 +163,15 @@ def test_load_input_classifies_both_shapes():
 
 
 @pytest.mark.asyncio
-async def test_pre_and_post_chunk_are_wired_into_call():
+async def test_chunker_edit_input_and_edit_output_are_wired_into_call():
     seen = {}
 
     class _P(chunker_facade.DocumentProcessor):
-        def pre_chunk(self, kind, data, **kwargs):
+        def edit_input(self, kind, data, **kwargs):
             seen["pre"] = kind
             return data + [{"content": "added"}]
 
-        def post_chunk(self, vectors, **kwargs):
+        def edit_output(self, vectors, **kwargs):
             seen["post"] = len(vectors)
             return vectors[:1]
 
@@ -190,12 +190,12 @@ async def test_pre_and_post_chunk_are_wired_into_call():
 
 
 @pytest.mark.asyncio
-async def test_post_parse_is_wired_into_call(tmp_path: Path):
+async def test_parser_edit_output_is_wired_into_call(tmp_path: Path):
     class _P(parser_facade.DocumentProcessor):
         async def _call_route(self, job):
             return {"elements": [], "metadata": {}}
 
-        def post_parse(self, ext, doc_type, result):
+        def edit_output(self, ext, doc_type, result):
             result["metadata"]["src"] = f"{ext}:{doc_type}"
             return result
 
@@ -291,7 +291,7 @@ async def test_unchanged_grid_is_reused_to_avoid_a_second_read(tmp_path: Path):
 
 
 # ---------------------------------------------------------------------------
-# post_parse 가 청크에 닿는 통로 (08-B 가 드러낸 구멍)
+# edit_output 가 청크에 닿는 통로 (08-B 가 드러낸 구멍)
 # ---------------------------------------------------------------------------
 
 tb = pytest.importorskip("facade.core.toolbox")
@@ -356,17 +356,17 @@ def test_hook_with_var_keyword_receives_request_params_only():
 
 
 @pytest.mark.asyncio
-async def test_pre_parse_receives_request_params(tmp_path: Path):
+async def test_edit_input_receives_request_params(tmp_path: Path):
     src = tmp_path / "a.json"
     src.write_text(json.dumps({"v": 1}), encoding="utf-8")
     seen = {}
 
     class _P(parser_facade.DocumentProcessor):
-        def pre_parse(self, ext, doc_type, data, work_dir=None, **kwargs):
+        def edit_input(self, ext, doc_type, data, work_dir=None, **kwargs):
             seen.update(kwargs)
             return data
 
-    await _bare(_P)._hook_pre_parse(".json", {"doc_type": "t", "tenant": "A"}, {"v": 1})
+    await _bare(_P)._hook_edit_input(".json", {"doc_type": "t", "tenant": "A"}, {"v": 1})
     assert seen == {"tenant": "A"}
 
 
@@ -378,7 +378,7 @@ async def test_json_path_also_passes_request_params(tmp_path: Path):
     seen = {}
 
     class _P(parser_facade.DocumentProcessor):
-        def pre_parse(self, ext, doc_type, data, work_dir=None, **kwargs):
+        def edit_input(self, ext, doc_type, data, work_dir=None, **kwargs):
             seen.update(kwargs)
             return data
 
@@ -387,66 +387,35 @@ async def test_json_path_also_passes_request_params(tmp_path: Path):
 
 
 @pytest.mark.asyncio
-async def test_legacy_pre_parse_signature_still_works():
+async def test_legacy_edit_input_signature_still_works():
     """**kwargs 없는 기존 훅도 그대로 불린다(하위호환)."""
     class _P(parser_facade.DocumentProcessor):
-        def pre_parse(self, ext, doc_type, data, work_dir=None):
+        def edit_input(self, ext, doc_type, data, work_dir=None):
             return {"reshaped": True}
 
-    out, changed = await _bare(_P)._hook_pre_parse(
+    out, changed = await _bare(_P)._hook_edit_input(
         ".json", {"doc_type": "t", "tenant": "A"}, {"v": 1})
     assert (out, changed) == ({"reshaped": True}, True)
 
 
 @pytest.mark.asyncio
-async def test_async_pre_parse_is_awaited():
+async def test_async_edit_input_is_awaited():
     """사내 API 조회처럼 외부 호출이 필요한 훅을 동기로 쓰면 이벤트 루프가 막힌다."""
     class _P(parser_facade.DocumentProcessor):
-        async def pre_parse(self, ext, doc_type, data, work_dir=None, **kwargs):
+        async def edit_input(self, ext, doc_type, data, work_dir=None, **kwargs):
             return {"awaited": True}
 
-    out, changed = await _bare(_P)._hook_pre_parse(".json", {"doc_type": "t"}, {"v": 1})
+    out, changed = await _bare(_P)._hook_edit_input(".json", {"doc_type": "t"}, {"v": 1})
     assert (out, changed) == ({"awaited": True}, True)
 
 
 @pytest.mark.asyncio
-async def test_old_hook_name_pre_source_is_still_called(monkeypatch):
-    """v2.2.0 까지의 facade 는 pre_source 를 덮어썼다. 옛 파일을 그대로 올려도 불려야 한다."""
-    warned = []
-    monkeypatch.setattr(core_parser._log, "warning", lambda *a, **k: warned.append(a))
-
-    class _P(core_parser.ParserCore):
-        def pre_source(self, ext, doc_type, data, work_dir=None, **kwargs):
-            return {"tenant": kwargs.get("tenant")}
-
-    proc = _bare(_P)
-    assert proc._pre_parse_active() is True
-    out, changed = await proc._hook_pre_parse(".json", {"doc_type": "t", "tenant": "A"}, {"v": 1})
-    assert (out, changed) == ({"tenant": "A"}, True)
-    await proc._hook_pre_parse(".json", {"doc_type": "t"}, {"v": 1})
-    assert len(warned) == 1   # 요청마다가 아니라 클래스마다 한 번
-
-
-@pytest.mark.asyncio
-async def test_pre_parse_wins_when_both_hook_names_are_defined():
-    class _P(core_parser.ParserCore):
-        def pre_source(self, ext, doc_type, data, work_dir=None):
-            return {"from": "pre_source"}
-
-        def pre_parse(self, ext, doc_type, data, work_dir=None):
-            return {"from": "pre_parse"}
-
-    out, _ = await _bare(_P)._hook_pre_parse(".json", {"doc_type": "t"}, {"v": 1})
-    assert out == {"from": "pre_parse"}
-
-
-@pytest.mark.asyncio
-async def test_async_post_parse_is_awaited():
+async def test_async_edit_output_is_awaited():
     class _P(parser_facade.DocumentProcessor):
         async def _call_route(self, job):
             return {"elements": [], "metadata": {}}
 
-        async def post_parse(self, ext, doc_type, result, **kwargs):
+        async def edit_output(self, ext, doc_type, result, **kwargs):
             result["metadata"]["tenant"] = kwargs.get("tenant")
             return result
 
@@ -458,10 +427,10 @@ async def test_async_post_parse_is_awaited():
 @pytest.mark.asyncio
 async def test_async_chunk_hooks_are_awaited():
     class _P(chunker_facade.DocumentProcessor):
-        async def pre_chunk(self, kind, data, **kwargs):
+        async def edit_input(self, kind, data, **kwargs):
             return data + [{"content": kwargs.get("tenant", "")}]
 
-        async def post_chunk(self, vectors, **kwargs):
+        async def edit_output(self, vectors, **kwargs):
             return vectors[:1]
 
         async def chunks_to_vector_metas(self, job, chunks, converted_pdf_path=None):
@@ -473,7 +442,7 @@ async def test_async_chunk_hooks_are_awaited():
     proc._gr_cfg = type("C", (), {"masking_enabled": False})()
 
     out = await proc(None, "", document={"elements": [{"content": "a"}]}, tenant="A")
-    assert out == ["a"]     # post_chunk 가 잘라낸 결과 — pre_chunk 는 "A" 를 더했다
+    assert out == ["a"]     # edit_output 가 잘라낸 결과 — edit_input 는 "A" 를 더했다
 
 
 # ---------------------------------------------------------------------------
@@ -831,7 +800,7 @@ def test_chunker_config_overlay_lands_on_job_params():
 
 
 # ---------------------------------------------------------------------------
-# on_docling_document — 파싱 후 enrichment 전 문서를 손보는 훅 메소드
+# edit_document — 파싱 후 enrichment 전 문서를 손보는 훅 메소드
 # ---------------------------------------------------------------------------
 
 class _ResponseRecorder(parser_facade.DocumentProcessor):
@@ -867,9 +836,9 @@ async def test_docling_response_keeps_the_same_enrichment_and_build_arguments():
 
 
 @pytest.mark.asyncio
-async def test_on_docling_document_runs_before_enrichment():
+async def test_edit_document_runs_before_enrichment():
     class _P(_ResponseRecorder):
-        def on_docling_document(self, job, doc):
+        def edit_document(self, job, doc):
             self.calls.append(("hook", doc, job.params.get("tenant")))
             return doc + "+hooked"
 
@@ -884,9 +853,9 @@ async def test_on_docling_document_runs_before_enrichment():
 
 
 @pytest.mark.asyncio
-async def test_on_docling_document_returning_none_keeps_the_document():
+async def test_edit_document_returning_none_keeps_the_document():
     class _P(_ResponseRecorder):
-        def on_docling_document(self, job, doc):
+        def edit_document(self, job, doc):
             pass
 
     proc = _recorder(_P)
@@ -895,9 +864,9 @@ async def test_on_docling_document_returning_none_keeps_the_document():
 
 
 @pytest.mark.asyncio
-async def test_async_on_docling_document_is_awaited():
+async def test_async_edit_document_is_awaited():
     class _P(_ResponseRecorder):
-        async def on_docling_document(self, job, doc):
+        async def edit_document(self, job, doc):
             return doc + "+async"
 
     proc = _recorder(_P)
@@ -1033,10 +1002,10 @@ def test_register_transform_rejects_bad_input():
 
 
 # ---------------------------------------------------------------------------
-# on_chunk — 청크 한 건씩 손보는 자리 (#363 09 B군 ③)
+# edit_chunk — 청크 한 건씩 손보는 자리 (#363 09 B군 ③)
 #
-# post_chunk 는 통계·순번이 확정된 뒤라 본문을 고치면 값이 어긋나고, 청크를 버리면
-# 순번을 손으로 다시 맞춰야 했다. on_chunk 는 그 앞이라 코어가 맞춰 준다.
+# edit_output 는 통계·순번이 확정된 뒤라 본문을 고치면 값이 어긋나고, 청크를 버리면
+# 순번을 손으로 다시 맞춰야 했다. edit_chunk 는 그 앞이라 코어가 맞춰 준다.
 # ---------------------------------------------------------------------------
 
 def _chunker(cls, **attrs):
@@ -1060,20 +1029,20 @@ def _rows(n):
 
 
 @pytest.mark.asyncio
-async def test_on_chunk_default_changes_nothing():
+async def test_edit_chunk_default_changes_nothing():
     """출고 템플릿의 훅은 활성이지만 None 을 돌려주므로 산출이 그대로다."""
     proc = _chunker(chunker_facade.DocumentProcessor)
     vectors = await proc._chunk_parse_format(_rows(3))
     assert [v.text for v in vectors] == ["본문0", "본문1", "본문2"]
     # 훅을 아예 두지 않은 코어는 청크마다 호출하는 비용조차 치르지 않는다.
-    assert _bare(core_chunker.ChunkerCore)._on_chunk_active() is False
+    assert _bare(core_chunker.ChunkerCore)._edit_chunk_active() is False
 
 
 @pytest.mark.asyncio
-async def test_on_chunk_edit_is_reflected_in_stats():
-    """본문을 고치면 n_char 가 따라온다 — post_chunk 였다면 옛 값이 남는다."""
+async def test_edit_chunk_change_is_reflected_in_stats():
+    """본문을 고치면 n_char 가 따라온다 — edit_output 였다면 옛 값이 남는다."""
     class _P(chunker_facade.DocumentProcessor):
-        def on_chunk(self, text, info, **kwargs):
+        def edit_chunk(self, text, info, **kwargs):
             return text + "!!!"
 
     vectors = await _chunker(_P)._chunk_parse_format(_rows(2))
@@ -1082,10 +1051,10 @@ async def test_on_chunk_edit_is_reflected_in_stats():
 
 
 @pytest.mark.asyncio
-async def test_on_chunk_drop_renumbers_the_rest():
+async def test_edit_chunk_drop_renumbers_the_rest():
     """버린 뒤 순번과 개수를 코어가 다시 맞춘다."""
     class _P(chunker_facade.DocumentProcessor):
-        def on_chunk(self, text, info, **kwargs):
+        def edit_chunk(self, text, info, **kwargs):
             return tb.DROP if info["metadata"].get("IDX") == 1 else None
 
     vectors = await _chunker(_P)._chunk_parse_format(_rows(4))
@@ -1096,10 +1065,10 @@ async def test_on_chunk_drop_renumbers_the_rest():
 
 
 @pytest.mark.asyncio
-async def test_on_chunk_returning_none_keeps_the_chunk():
+async def test_edit_chunk_returning_none_keeps_the_chunk():
     """return 을 빠뜨린 훅이 청크를 지우면 안 된다 — 버리는 것은 DROP 으로만."""
     class _P(chunker_facade.DocumentProcessor):
-        def on_chunk(self, text, info, **kwargs):
+        def edit_chunk(self, text, info, **kwargs):
             pass
 
     vectors = await _chunker(_P)._chunk_parse_format(_rows(2))
@@ -1107,9 +1076,9 @@ async def test_on_chunk_returning_none_keeps_the_chunk():
 
 
 @pytest.mark.asyncio
-async def test_on_chunk_blank_is_treated_as_drop():
+async def test_edit_chunk_blank_is_treated_as_drop():
     class _P(chunker_facade.DocumentProcessor):
-        def on_chunk(self, text, info, **kwargs):
+        def edit_chunk(self, text, info, **kwargs):
             return "   " if info["index"] == 0 else text
 
     vectors = await _chunker(_P)._chunk_parse_format(_rows(2))
@@ -1117,9 +1086,9 @@ async def test_on_chunk_blank_is_treated_as_drop():
 
 
 @pytest.mark.asyncio
-async def test_on_chunk_rejects_wrong_return_type():
+async def test_edit_chunk_rejects_wrong_return_type():
     class _P(chunker_facade.DocumentProcessor):
-        def on_chunk(self, text, info, **kwargs):
+        def edit_chunk(self, text, info, **kwargs):
             return 123
 
     with pytest.raises(TypeError):
@@ -1127,12 +1096,12 @@ async def test_on_chunk_rejects_wrong_return_type():
 
 
 @pytest.mark.asyncio
-async def test_on_chunk_info_shape_is_the_same_on_every_path():
+async def test_edit_chunk_info_shape_is_the_same_on_every_path():
     """경로가 달라도 훅이 보는 dict 모양이 같아야 한 벌로 쓸 수 있다."""
     seen = []
 
     class _P(chunker_facade.DocumentProcessor):
-        def on_chunk(self, text, info, **kwargs):
+        def edit_chunk(self, text, info, **kwargs):
             seen.append(info)
             return None
 
@@ -1145,10 +1114,10 @@ async def test_on_chunk_info_shape_is_the_same_on_every_path():
 
 
 @pytest.mark.asyncio
-async def test_on_chunk_fields_are_attached_on_row_and_text_paths():
+async def test_edit_chunk_fields_are_attached_on_row_and_text_paths():
     """청크별 값은 info["fields"] 로 싣는다 — vector_meta 조립을 오버라이드하지 않아도 된다."""
     class _P(chunker_facade.DocumentProcessor):
-        def on_chunk(self, text, info, **kwargs):
+        def edit_chunk(self, text, info, **kwargs):
             info["fields"]["RISK"] = "high" if text.endswith("1") else "low"
             return None
 
@@ -1160,9 +1129,9 @@ async def test_on_chunk_fields_are_attached_on_row_and_text_paths():
 
 
 @pytest.mark.asyncio
-async def test_on_chunk_fields_may_be_replaced_with_a_new_dict():
+async def test_edit_chunk_fields_may_be_replaced_with_a_new_dict():
     class _P(chunker_facade.DocumentProcessor):
-        def on_chunk(self, text, info, **kwargs):
+        def edit_chunk(self, text, info, **kwargs):
             info["fields"] = {"TAG": "x"}
             return None
 
@@ -1171,10 +1140,10 @@ async def test_on_chunk_fields_may_be_replaced_with_a_new_dict():
 
 
 @pytest.mark.asyncio
-async def test_on_chunk_fields_cannot_override_text_or_stats():
+async def test_edit_chunk_fields_cannot_override_text_or_stats():
     """본문은 반환값으로 바꾼다. fields 로 덮게 두면 본문과 n_char 가 어긋난다."""
     class _P(chunker_facade.DocumentProcessor):
-        def on_chunk(self, text, info, **kwargs):
+        def edit_chunk(self, text, info, **kwargs):
             info["fields"]["n_char"] = 0
             return None
 
@@ -1183,11 +1152,11 @@ async def test_on_chunk_fields_cannot_override_text_or_stats():
 
 
 @pytest.mark.asyncio
-async def test_on_chunk_receives_request_params():
+async def test_edit_chunk_receives_request_params():
     seen = {}
 
     class _P(chunker_facade.DocumentProcessor):
-        def on_chunk(self, text, info, **kwargs):
+        def edit_chunk(self, text, info, **kwargs):
             seen.update(kwargs)
             return None
 
@@ -1196,9 +1165,9 @@ async def test_on_chunk_receives_request_params():
 
 
 @pytest.mark.asyncio
-async def test_async_on_chunk_is_awaited():
+async def test_async_edit_chunk_is_awaited():
     class _P(chunker_facade.DocumentProcessor):
-        async def on_chunk(self, text, info, **kwargs):
+        async def edit_chunk(self, text, info, **kwargs):
             return text.upper()
 
     vectors = await _chunker(_P)._chunk_parse_format(

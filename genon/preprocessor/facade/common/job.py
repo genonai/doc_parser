@@ -1,6 +1,6 @@
 """요청 한 건의 파싱 상태를 담는 값 객체(job)와 라우트 호출 규약.
 
-흐름 메소드(_start_job → 라우트 → post_parse)가 인자 하나(job)를 주고받게 한다.
+흐름 메소드(_start_job → 라우트 → edit_output)가 인자 하나(job)를 주고받게 한다.
 라우트는 새 시그니처 `route_x(self, job)` 와 옛 시그니처 `route_x(self, file_path, ext, ctx,
 **kwargs)` 를 모두 받는다. 옛 시그니처로 작성한 고객 라우트가 릴리스 갱신 뒤에도 그대로 돌아야
 하기 때문이다.
@@ -22,7 +22,7 @@ class ParseJob:
     """파서 요청 한 건.
 
     file_path  요청이 넘긴 원본 경로. 처리 중에 바뀌지 않는다
-    source     실제로 파싱할 입력 경로. 확장자 별칭 사본이나 pre_parse 파생 파일이면 원본과 다르다
+    source     실제로 파싱할 입력 경로. 확장자 별칭 사본이나 edit_input 파생 파일이면 원본과 다르다
     ext        표준 확장자(별칭 적용 후, 소문자)
     doc_type   정규화된 문서 유형
     params     요청 파라미터(kwargs)
@@ -94,7 +94,7 @@ class ChunkJob:
 class Chunk:
     """분할 결과 1건. 입력 형식과 관계없이 같은 필드를 갖는다.
 
-    필드 이름은 on_chunk 의 info 와 맞춘다 — 훅에서 보던 이름을 그대로 쓴다.
+    필드 이름은 edit_chunk 의 info 와 맞춘다 — 훅에서 보던 이름을 그대로 쓴다.
 
     text      본문 원문(문서 접두어·헤딩 경로를 붙이기 전)
     kind      "docling"(문서형) | "row"(엑셀 행·JSON 레코드) | "text"(그 밖) | "marker"(audio·[DA])

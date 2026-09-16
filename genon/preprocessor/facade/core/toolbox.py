@@ -1,6 +1,6 @@
 """고객이 훅에서 쓰는 기존 기능 모음 (#363 08-3).
 
-facade/preprocessor.py 의 pre_parse / post_parse / pre_chunk / post_chunk 안에서
+facade 의 확장 훅(edit_input / edit_document / edit_chunk / edit_output) 안에서
 쓸 만한 것을 한 곳으로 모아 재수출한다. 여기 있는 것은 전부 **이미 있던 기능**이고
 새 구현은 없다 — 고객이 모듈 배치를 몰라도 쓸 수 있게 하는 것이 목적이다.
 
@@ -37,7 +37,7 @@ from genon.preprocessor.facade.enrichment.field_transforms import register_trans
 # ROUTES 에 자기 route_* 를 만들었을 때 응답 element 를 만드는 데 쓴다.
 from genon.preprocessor.facade.serialize.parse_format import make_elements
 
-# ── on_chunk 반환값 ─────────────────────────────────────────────────────────
+# ── edit_chunk 반환값 ─────────────────────────────────────────────────────────
 # 이 청크를 버린다는 표식. None 은 "안 바꿈" 이라 버리는 것은 명시해야 한다.
 from genon.preprocessor.facade.common.hooks import DROP
 
@@ -87,7 +87,7 @@ def unfence_text(text: str, **kw) -> str:
 
 
 # ── 청커가 읽는 예약 키 ─────────────────────────────────────────────────────
-# post_parse 에서 result["metadata"] 에 이 키로 필드명 목록을 넣으면 청커가
+# edit_output 에서 result["metadata"] 에 이 키로 필드명 목록을 넣으면 청커가
 # 접두·본문필드로 쓴다. yaml 의 body.once / chunk_prefix / body.fields 와 같은 통로다.
 from genon.preprocessor.facade.common.config_parse import (
     BODY_FIELDS_KEY,          # 값을 청크 본문과 동일하게 실을 필드
@@ -97,7 +97,7 @@ from genon.preprocessor.facade.common.config_parse import (
 )
 
 def set_chunk_metadata(result: dict, metadata: dict) -> dict:
-    """post_parse 에서 **청크에 실릴** 문서 메타를 넣는다.
+    """edit_output 에서 **청크에 실릴** 문서 메타를 넣는다.
 
     `result["metadata"]` 에 직접 쓰면 청커가 읽지 않는다 — 파서와 청커는 별도 API 라
     메타는 DoclingDocument 의 KeyValueItem 에 실려 경계를 넘는다(레코드/표 경로는
@@ -145,7 +145,7 @@ from genon.preprocessor.facade.common.file_probe import (
 
 
 def refresh_stats(vectors, reindex: bool = True):
-    """post_chunk 에서 본문을 고치거나 청크를 버린 뒤 통계·순번을 다시 맞춘다.
+    """edit_output 에서 본문을 고치거나 청크를 버린 뒤 통계·순번을 다시 맞춘다.
 
     부르지 않으면 n_char/n_word/n_line 과 청크 순번이 옛 값으로 남는다
     (실측: 마커만 지운 훅에서 11건 중 9건 불일치). 청크를 버리지 않았다면

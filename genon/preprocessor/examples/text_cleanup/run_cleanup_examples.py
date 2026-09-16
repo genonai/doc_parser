@@ -5,11 +5,11 @@
 
   baseline    정제 없음     설정을 끈 사본으로 돌린다
   yaml        설정만        운영 설정 그대로(chunking.text_cleanup 이 켜져 있다)
-  post_chunk  훅만          설정은 끄고 hooks_post_chunk.py 의 Hooks 를 파사드에 얹는다
+  edit_output  훅만          설정은 끄고 hooks_edit_output.py 의 Hooks 를 파사드에 얹는다
   both        설정 + 훅     운영 설정 + hooks_both.py — 공통은 설정, 예외만 훅
 
 단정
-  - yaml / post_chunk / both 에서 장식 마커와 미해독 엔티티가 0 이어야 한다.
+  - yaml / edit_output / both 에서 장식 마커와 미해독 엔티티가 0 이어야 한다.
   - 네 경우 모두 n_char 가 실제 본문 길이와 일치해야 한다(훅이 refresh_stats 를 부르는지).
   - both 는 내부용 안내 청크를 버리므로 baseline 보다 청크가 적어야 한다.
 
@@ -42,12 +42,12 @@ DOC_TYPE = "cs_hpp"
 GLYPHS = re.compile(r"[■◈※☎▶●◆▲☞]")
 ENTITIES = re.compile(r"&(?:gt|lt|amp|nbsp);")
 
-CASES = ("baseline", "yaml", "post_chunk", "both")
-HOOKS = {"post_chunk": "hooks_post_chunk.py", "both": "hooks_both.py"}
+CASES = ("baseline", "yaml", "edit_output", "both")
+HOOKS = {"edit_output": "hooks_edit_output.py", "both": "hooks_both.py"}
 
 # parse_chunk_test.py 를 그대로 재사용하면서 파사드에만 훅을 얹는 자식 스크립트.
 # 서브클래스 오버라이드는 파사드 파일을 직접 고치는 것과 같은 경로를 탄다
-# (core 가 `type(self).post_chunk is not ChunkerCore.post_chunk` 로 판정하지 않고
+# (core 가 `type(self).edit_output is not ChunkerCore.edit_output` 로 판정하지 않고
 #  항상 부르므로, 여기서는 클래스만 갈아 끼우면 된다).
 CHILD = '''
 import importlib.util, os, sys
@@ -61,7 +61,7 @@ if hooks:
     sys.modules["cleanup_hooks"] = mod
     spec.loader.exec_module(mod)
     methods = {n: v for n, v in vars(mod.Hooks).items()
-               if n in ("pre_chunk", "post_chunk")}
+               if n in ("edit_input", "edit_output")}
     t.ChunkerProcessor = type("HookedChunker", (t.ChunkerProcessor,), methods)
 os.chdir(os.environ["PC_DIR"])
 sys.argv = ["parse_chunk_test.py"] + sys.argv[1:]
@@ -70,7 +70,7 @@ raise SystemExit(t.main() or 0)
 
 
 def build_off_config(work: Path) -> Path:
-    """정제를 끈 설정 사본. 기준선과 `post_chunk` 만 쓰는 예시가 이것을 쓴다.
+    """정제를 끈 설정 사본. 기준선과 `edit_output` 만 쓰는 예시가 이것을 쓴다.
 
     운영 설정은 `text_cleanup` 이 켜져 있으므로(#363), "정제 없음" 을 보려면 끈 사본이
     필요하다. 예시용 설정을 통째로 따로 두지 않는 이유는 설정이 두 벌이 되면 실제
@@ -106,7 +106,7 @@ def run(case: str, python: str, child: Path, cfg: Path, src: Path, out_dir: Path
     else:
         env.pop("HOOKS_FILE", None)
     cmd = [python, str(child), "--doc_type", DOC_TYPE, "--llm_cache"]
-    if case in ("baseline", "post_chunk"):
+    if case in ("baseline", "edit_output"):
         cmd += ["--chunker-config", str(cfg)]   # 정제 끈 사본
     cmd += [str(src), str(out_dir) + "/"]
     proc = subprocess.run(cmd, cwd=str(out_dir), capture_output=True, text=True, env=env)

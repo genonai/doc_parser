@@ -829,11 +829,11 @@ def test_carry_over_section_headings_noop_without_headings():
 
 
 # ---------------------------------------------------------------------------
-# on_chunk — docling 경로 (#363 09 B군 ③)
+# edit_chunk — docling 경로 (#363 09 B군 ③)
 # ---------------------------------------------------------------------------
 
 @pytest.mark.asyncio
-async def test_on_chunk_drop_moves_the_once_prefix_to_the_first_survivor():
+async def test_edit_chunk_drop_moves_the_once_prefix_to_the_first_survivor():
     """첫 청크 전용 접두는 '살아남은 첫 청크' 가 받는다.
 
     chunk_idx == 0 기준이면 그 청크를 버렸을 때 문서 식별 접두가 통째로 사라진다.
@@ -842,7 +842,7 @@ async def test_on_chunk_drop_moves_the_once_prefix_to_the_first_survivor():
     cf = pytest.importorskip("facade.chunking_processor")
 
     class _P(cf.DocumentProcessor):
-        def on_chunk(self, text, info, **kwargs):
+        def edit_chunk(self, text, info, **kwargs):
             return tb.DROP if info["index"] == 0 else None
 
     # 접두 값은 문서 metadata 로 넘어간다(파서와 청커가 별도 API 라 KeyValueItem 경유).
