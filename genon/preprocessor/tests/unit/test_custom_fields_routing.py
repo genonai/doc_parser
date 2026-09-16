@@ -475,17 +475,16 @@ _RESOURCE_DIRS = ["resource", "resource_dev"]
 # 경로가 있어야 한다"는 뜻이다 — column_map/key_map 매핑, constants 고정, defaults 기본값
 # 중 하나로는 채워져야 하고, nulls 에만 선언돼 있으면 적재 시 터진다.
 _REQUIRED_BY_DOC_TYPE = {
-    "custom_field_menu.yaml":          ["GROUP_C", "MENU_NM", "SEARCHABLE_YN"],
+    "custom_field_menu.yaml":          ["GROUP_C", "MENU_NM"],
     "custom_field_term.yaml":          ["GROUP_C", "TERM", "TERM_NORM", "DEFINITION", "STATUS"],
     "custom_field_faq.yaml":           ["GROUP_C", "QUESTION", "ANSWER", "STATUS"],
     "custom_field_faq_json.yaml":      ["GROUP_C", "QUESTION", "ANSWER", "STATUS"],
-    "custom_field_monimo_event.yaml":  ["GROUP_C", "TITLE", "SEARCHABLE_YN"],
-    "custom_field_monimo_news.yaml":   ["GROUP_C", "TITLE", "SEARCHABLE_YN"],
-    "custom_field_cs_slf.yaml":        ["GROUP_C", "TITLE", "SEARCHABLE_YN"],
-    "custom_field_cs_ssf.yaml":        ["GROUP_C", "TITLE", "SEARCHABLE_YN"],
-    "custom_field_cs_sss.yaml":        ["GROUP_C", "TITLE", "SEARCHABLE_YN"],
-    "custom_field_stock_insight.yaml": ["GROUP_C", "JONG_CODE", "JONG_NM", "ANALYSIS_DATE",
-                                        "SEARCHABLE_YN"],
+    "custom_field_monimo_event.yaml":  ["GROUP_C", "TITLE"],
+    "custom_field_monimo_news.yaml":   ["GROUP_C", "TITLE"],
+    "custom_field_cs_slf.yaml":        ["GROUP_C", "TITLE"],
+    "custom_field_cs_ssf.yaml":        ["GROUP_C", "TITLE"],
+    "custom_field_cs_sss.yaml":        ["GROUP_C", "TITLE"],
+    "custom_field_stock_insight.yaml": ["GROUP_C", "JONG_CODE", "JONG_NM", "ANALYSIS_DATE"],
 }
 
 # 날짜 메타데이터는 원천의 YYMMDD·YYYYMMDD·구분자 표기를 모두 YYYYMMDD 정수로 고정한다.
@@ -501,15 +500,12 @@ _DATE_INT_FLEX_FIELDS = {
 }
 
 # TB_* 쪽에 컬럼 기본값이 있어 config 가 값을 주지 않아도 적재가 되는 NOT NULL 컬럼.
-# SEARCHABLE_YN 은 전 TB 가 'N' 을 기본값으로 갖는다("TB_EVENT 기본값과 같은 'N' 으로 두고,
-# 적재 측에서 게시 승인 시 올리는 것을 전제로 한다" — 각 yaml 주석 참고). 그래서 출고 설정이
-# 노출 게이트를 잠정 보류(주석)해 둔 상태도 적재 실패가 아니다.
-# 단, `defaults: {X: null}` 로 명시 선언하면 기본값을 덮어 null 이 들어가므로 아래 두 번째
+# `defaults: {X: null}` 로 명시 선언하면 기본값을 덮어 null 이 들어가므로 아래 두 번째
 # 검사는 그대로 적용한다(예전 `nulls:` 목록이 이 형태로 통합됐다).
 # STATUS 는 사이트 운영 설정(커밋 263f53ea)이 선언을 걷어냈다. 걷어내도 되는 근거는
 # 그 전 설정의 주석 자체다 - `STATUS: "PUBLISHED"  # TB_FAQ 기본값과 동일` 이라, 설정이
 # 주던 값이 테이블 기본값과 같았다. 그래서 미선언이 적재 실패로 이어지지 않는다.
-_DB_DEFAULTED_COLUMNS = {"SEARCHABLE_YN", "STATUS"}
+_DB_DEFAULTED_COLUMNS = {"STATUS"}
 
 
 

@@ -53,8 +53,6 @@ fields:
   SRC_LAST_MOD_DT:
     alias: [최종수정일]
     transform: date_int_flex
-  SEARCHABLE_YN:
-    default: N
   KEYWORDS:
     default: null
   OPEN_NATIVE_APP_C:
