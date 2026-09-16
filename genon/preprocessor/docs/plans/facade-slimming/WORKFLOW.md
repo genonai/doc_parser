@@ -94,7 +94,7 @@ A/B 대조기는 단계가 끝나면 지운다. 남기면 곧 실제 코드와 �
   복사하므로, 임시본이 커밋된 상태에서 번들을 만들면 함께 들어간다.
   임시본이 트리에 있는 동안에는 번들을 만들지 않는다.
 - **배포 동기화 대상이다.** `sync-serving-repo.sh` 의 제외 목록에 `facade/legacy/`,
-  `facade/legal_parser/`, `facade/README.md` 만 있으므로 `*_wip.py` 도 복사된다.
+  `facade/README.md` 만 있으므로 `*_wip.py` 도 복사된다.
   PR 전에 반드시 사라져 있어야 한다.
 
 ## 단계 종료 조건

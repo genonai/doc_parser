@@ -80,8 +80,8 @@ EXCLUDE_PATHS=(
   "genon/preprocessor/facade/legacy"
   "genon/serving"
   "genon/train"
+  "genon/legal_parser"                       # 전처리기와 무관한 독립 법령 수집기
   # 2차 검토 추가 (활성 facade/main.py 무의존 검증됨)
-  "genon/preprocessor/facade/legal_parser"   # 미사용 독립 파서
   "genon/tools"                              # CLI 도구(런타임 무관)
   "genon/preprocessor/resources"             # 폰트·tessdata tar (베이스 이미지에 이미 포함)
   "genon/preprocessor/scripts"               # 이미지 등록 스크립트
