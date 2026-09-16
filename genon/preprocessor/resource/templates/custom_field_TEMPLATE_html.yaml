@@ -99,6 +99,10 @@ source:
 #               적재 DB 의 JSON 컬럼에 넣을 필드는 `[{name: to_json}]` 을 맨 뒤에 건다
 #   template  : 다른 필드를 합쳐 만든다 (`"{{CATEGORY}} {{TITLE}}"`)
 #   pack      : 여러 필드를 JSON 한 칸에 담는다 (`[CATEGORY, TITLE]`)
+#   meta      : 이 필드를 청크 메타(적재 컬럼)에 실을지. 안 적으면 실린다(기본 true).
+#               template·pack 재료나 require·filter 조건처럼 값 조립에만 쓰는 중간
+#               필드에 `meta: false` 를 적어 컬럼에서 뺀다. 값은 그대로 만들어지므로
+#               본문(body)·파생·선별은 정상으로 돌고, 빠지는 곳은 청크 메타 하나다
 #
 # 쓸 수 없는 키 — 적으면 기동이 실패한다.
 #   alias : 레코드/문서형의 원천 지목이다. 이 kind 의 지목은 `select` 하나다

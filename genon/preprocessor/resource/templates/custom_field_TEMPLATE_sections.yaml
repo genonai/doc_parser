@@ -113,6 +113,10 @@ source:
 #   pack      : 여러 필드를 JSON 한 칸에 담는다 (`[BRAND_NM, ANNUAL_FEE]` →
 #               `{"BRAND_NM": ..., "ANNUAL_FEE": ...}` 문자열). 값이 없는 키도 null 로
 #               남고 원천 필드는 그대로 남는다. 본문 관련 키에는 쓸 수 없다
+#   meta      : 이 필드를 청크 메타(적재 컬럼)에 실을지. 안 적으면 실린다(기본 true).
+#               template·pack 재료나 require·filter 조건처럼 값 조립에만 쓰는 중간
+#               필드에 `meta: false` 를 적어 컬럼에서 뺀다. 값은 그대로 만들어지므로
+#               본문(body)·파생·선별은 정상으로 돌고, 빠지는 곳은 청크 메타 하나다
 #
 # `collect`·`seq` 는 이 kind 가 **읽지 않는다**(적으면 기동 시 실패한다) — collect 는
 # records 전용, seq 는 레코드 루프가 있는 rows/records 전용이다(섹션형에는 "항목 N번째"가
