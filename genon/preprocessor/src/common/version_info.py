@@ -15,6 +15,9 @@
 
 알려진 한계: 핫픽스 패치 번들(build-script/create-patch-bundle.sh)은 코드만 덮어쓰고
 VERSION 스탬프를 갱신하지 않는다. 패치를 얹은 서버는 패치 이전 릴리스 버전을 그대로 보고한다.
+폐쇄망 현장처럼 소스를 손으로 갱신하는 경우를 위해, 루트의 평문 `UPDATED_AT` 파일에
+적힌 첫 줄을 manual_updated_at 으로 그대로 노출한다. VERSION(JSON)과 분리한 것은 수기
+편집 실수가 릴리스 스탬프까지 깨뜨리지 않게 하려는 것이다.
 """
 
 import json
@@ -28,6 +31,8 @@ from pathlib import Path
 _DEFAULT_ROOT = Path(__file__).resolve().parents[4]
 
 _STAMP_FILE = 'VERSION'
+_MANUAL_FILE = 'UPDATED_AT'
+_MANUAL_MAX_LEN = 100
 _GIT_TIMEOUT = 3  # 초. git 이 없거나 느린 환경에서 기동/요청이 매달리지 않게 한다.
 
 # 프로세스 기동 시각(모듈 로딩 시점). 재배포가 실제로 반영됐는지 확인하는 용도이며,
@@ -43,6 +48,17 @@ def _read_stamp(root: Path) -> dict:
     except (OSError, ValueError):
         return {}
     return data if isinstance(data, dict) else {}
+
+
+def _read_manual(root: Path):
+    """현장에서 손으로 적은 갱신 시각. 형식은 검사하지 않고 첫 줄을 그대로 돌려준다.
+    파일이 없거나 비었으면 None."""
+    try:
+        with open(root / _MANUAL_FILE, encoding='utf-8-sig', errors='replace') as f:
+            first = f.readline(_MANUAL_MAX_LEN + 1)
+    except OSError:
+        return None
+    return first.strip()[:_MANUAL_MAX_LEN] or None
 
 
 def _git(root: Path, *args: str):
@@ -111,4 +127,6 @@ def get_version_info(base_dir=None) -> dict:
     root = Path(base_dir) if base_dir else _DEFAULT_ROOT
     info = dict(_resolve(str(root)))
     info['started_at'] = _STARTED_AT   # 기동 시각은 캐시 대상이지만 의미상 매 응답에 싣는다
+    # 수기 갱신 시각은 캐시하지 않는다. started_at 보다 늦으면 아직 재기동되지 않았다는 뜻이다.
+    info['manual_updated_at'] = _read_manual(root)
     return info

@@ -2260,6 +2260,20 @@ cd ../gitea_repo
 > `cd` 와 `tar` 는 그대로 성공합니다. 그러면 **예전 소스가 복사**되고 커밋도 정상적으로 생겨서 원인을
 > 찾기 어렵습니다. 위처럼 `git pull` 과 `cat VERSION` 으로 최신인지 확인하세요.
 
+**갱신 시각 기록 (폐쇄망 권장)**
+
+소스를 손으로 올린 경우 `VERSION` 만으로는 언제 반영했는지 알 수 없습니다. 복사가 끝나면 루트
+(`main.py` 와 같은 위치)의 `UPDATED_AT` 파일에 갱신 시각을 한 줄로 적으세요. `/version` 응답의
+`manual_updated_at` 에 첫 줄이 그대로 나옵니다(형식 자유, 100자까지). 배포본에는 이 파일이 없으므로
+릴리스를 다시 덮어써도 지워지지 않습니다 — 갱신할 때마다 새로 적으세요.
+
+```bash
+echo "2026-09-16 14:30 핫픽스 반영" > UPDATED_AT
+```
+
+> `VERSION` 파일은 손으로 고치지 마세요. JSON 이 깨지면 `version` 까지 `unknown` 으로 나옵니다.
+> 응답의 `manual_updated_at` 이 `started_at`(서버 기동 시각)보다 늦으면 아직 재기동되지 않은 것입니다.
+
 ### 8.4 코드 / config 수정
 
 - 코드: `genon/preprocessor/facade/*_processor.py` (5장·7장)
