@@ -1,22 +1,14 @@
-# 청킹용 전처리기
+# 청킹용 전처리기 — 파서 결과를 받아 청킹한다. 원본 문서를 로드하거나 분석하지 않는다.
 #
-# 파서 결과를 받아 청킹한다. 원본 문서를 로드하거나 분석하지 않는다.
-#
-# 처리 순서. 아래 __call__ 의 메소드 호출 순서와 같다.
-#   파서 결과 -> _start_job -> edit_input -> 청크 분할 -> vector_meta 생성 -> edit_output -> vector_meta 목록
+#   파서 결과 -> _start_job -> edit_input -> 청크 분할 -> vector_meta 생성 -> edit_output -> 목록
 #   청크가 생성될 때마다 edit_chunk 를 호출한다.
 #
-# 용어
-#   chunk        분할 결과 1건. 입력 형식과 관계없이 같은 필드를 갖는다(chunks_to_vector_metas 참조)
-#   vector_meta  VECTOR_META(기본 GenOSVectorMeta) 인스턴스 1건. 벡터 DB 1행으로 적재된다
+# 용어. chunk 는 분할 결과 1건이고 입력 형식과 관계없이 같은 필드를 갖는다(아래
+# chunks_to_vector_metas 참조). vector_meta 는 VECTOR_META(기본 GenOSVectorMeta) 인스턴스
+# 1건이고 벡터 DB 1행으로 적재된다.
 #
-# 구성
-#   1 처리 흐름          파이프라인 전체 호출 순서
-#   2 doc_type 별 설정   청크 크기 등 doc_type 별 설정. 코드 수정보다 우선
-#   3 훅 메소드          no-op 기본 구현을 채우는 메소드 3개
-#   4 오버라이드          기본 구현 자체를 바꿀 때
-#
-# 서버 없이 이 파일만 돌려 볼 수 있다. 사용법은 파일 끝 "파일 단독 실행" 참조.
+# 구성(뒤로 갈수록 확장 지점). 1 처리 흐름  2 doc_type 별 설정  3 훅 메소드
+#                            4 오버라이드  그리고 파일 끝 "파일 단독 실행"
 from typing import Optional
 
 from pydantic import BaseModel
@@ -57,7 +49,6 @@ class GenOSVectorMeta(BaseModel):
     table_refs: Optional[str] = None
     table_split_index: Optional[int] = None
     table_split_total: Optional[int] = None
-    # 기존 필드 그대로 (n_char, i_page, title, appendix, has_table 등)
 
 
 class GenosSmartChunker(sc.SmartChunkerBase):
@@ -69,12 +60,10 @@ class GenosSmartChunker(sc.SmartChunkerBase):
     # 경로 안 구분자(부모 → 자식). heading 에 콤마가 든 경우가 있어(실측 409건 중 20건)
     # 콤마로는 레벨을 되돌릴 수 없다. " > " 는 실측 충돌이 0 이다.
     CHUNK_HEADER_SEP = " > "
-    # 형제 경로 사이 구분자. 위와 달라야 부모-자식과 형제가 구분된다.
-    CHUNK_PATH_SEP = " | "
-    # 다경로 청크의 리프 최대 개수. 초과분은 "… 외 N개"(실측: hwp 71경로 → 3,239자).
+    CHUNK_PATH_SEP = " | "        # 형제 경로 사이. 위와 달라야 부모-자식과 형제가 구분된다
+    # 다경로 청크의 리프 상한. 초과분은 "… 외 N개"(실측: hwp 71경로 → 3,239자).
     CHUNK_PATH_MAX_LEAVES = 5
-    # 경로 앞에 붙는 라벨. 빈 문자열이면 경로만 붙는다. 크기 산정과 실제 부착이
-    # 같은 값을 보므로 여기만 바꾸면 된다.
+    # 경로 앞 라벨. 빈 문자열이면 경로만 붙는다. 크기 산정과 실제 부착이 같은 값을 본다.
     CHUNK_HEADER_PREFIX = "HEADER: "
 
 
@@ -91,36 +80,33 @@ class DocumentProcessor(ChunkerCore):
 
     # --- 1. 처리 흐름 ---
     #
-    # 훅 메소드는 _call_edit_input, _call_edit_output 로 호출한다. _call_* 는
-    # async def / def 를 모두 허용하고, **kwargs 를 선언한 경우에만 요청 파라미터를 넘긴다.
-    # 그래서 훅 메소드는 필요한 만큼만 선언해 쓰면 된다.
-    # _ 로 시작하는 메소드는 호출 규약과 설정 적용 순서를 담당하므로 오버라이드하지 않는다.
+    # 훅 메소드는 _call_* 가 부른다 — async def / def 를 모두 허용하고, **kwargs 를 선언한
+    # 훅 메소드에만 요청 파라미터를 넘긴다. _call_* 는 설정 적용 순서도 맡으므로,
+    # _ 로 시작하는 메소드는 오버라이드하지 않는다.
 
     async def __call__(self, request, file_path="", **kwargs):
         """청커 진입점
 
-        job 은 파서의 job 과 다른 객체이며 필드도 다르다.
+        job 은 파서의 job 과 다른 객체다. 훅 메소드에서는 kwargs["job"] 으로 꺼낸다.
             job.kind      "docling" 은 문서형, "parse" 는 요소형(엑셀 행, JSON 레코드, 평문)
             job.data      파서 결과          job.doc_type  문서 유형
             job.metadata  문서 단위 메타데이터 job.params    요청 파라미터
             job.config    적용된 설정(2 참조) job.notes     단계 간 공유 dict
 
-        훅 메소드에서는 job 을 kwargs["job"] 으로 꺼낸다.
         job.kind 와 edit_chunk 의 info["kind"] 는 값이 다르다.
             "docling" -> "docling",  "parse" -> "row"(행, 레코드) 또는 "text"(그 밖)
         """
         job = self._start_job(request, file_path, **kwargs)            # 입력 형식 판별, doc_type 별 설정 적용
-        job.data = await self._call_edit_input(job)                     # edit_input() 호출
+        job.data = await self._call_edit_input(job)                    # edit_input() 호출
         chunks = await self.split(job)                                 # 청크 분할
         vector_metas = await self.chunks_to_vector_metas(job, chunks)  # chunk 를 vector_meta 로 변환
-        return await self._call_edit_output(job, vector_metas)          # edit_output() 호출
+        return await self._call_edit_output(job, vector_metas)         # edit_output() 호출
 
     async def split(self, job):
-        """입력 형식별 분할 전략을 선택하고, 결과를 공통 chunk 목록으로 반환한다.
+        """분할 전략을 고르고 결과를 공통 chunk 목록으로 반환한다.
 
-        - 문서형(docling): GenosSmartChunker
-        - 요소형(엑셀 행, JSON 레코드, 평문): 공통 분할기
-        chunk 필드는 아래 chunks_to_vector_metas 의 docstring 을 참조한다.
+        문서형(docling)은 GenosSmartChunker, 요소형(엑셀 행, JSON 레코드, 평문)은 공통
+        분할기를 쓴다. 어느 쪽이든 chunk 필드는 같다 — 아래 chunks_to_vector_metas 참조.
         """
         if job.kind == "docling":
             return self.split_document(job)      # core 의 분할은 동기다
@@ -129,15 +115,17 @@ class DocumentProcessor(ChunkerCore):
     async def chunks_to_vector_metas(self, job, chunks, converted_pdf_path=None):
         """chunk 목록을 vector_meta 목록으로 변환한다. chunk 1개가 벡터 DB 1행이 된다.
 
-        chunk 는 입력 형식과 관계없이 같은 필드를 갖는다.
+        chunk 필드는 입력 형식과 무관하게 같고, 이름은 edit_chunk 의 info 와 같다.
             chunk.text      본문 원문(접두어, 헤딩 경로 적용 전)
             chunk.kind      "docling" | "row"(엑셀 행, JSON 레코드) | "text"(그 밖)
             chunk.page      페이지 번호
             chunk.headings  헤딩 경로(문서 청크)  chunk.metadata  레코드 메타데이터(행 청크)
             chunk.source    원본 객체. bbox, 표 조각 계산용
 
-        메소드 호출 순서 유지 필수. 마스킹은 정제보다 앞이다 — 순서가 바뀌면 마스킹 전
-        PII 가 글자 수 통계나 표 변환본에 남는다.
+        호출 순서 유지 필수 — 마스킹이 정제보다 앞이다. 바뀌면 마스킹 전 PII 가 글자 수
+        통계나 표 변환본에 남는다. start_chunk_loop / finish_chunk_loop 은 순번·통계·미디어
+        업로드 부기를 맡는다 — 반복문을 바꾸더라도 이 둘로 감싼 채 둔다. 빼면 n_chunk_of_doc
+        와 청크 순번이 어긋난다.
         """
         vector_metas = []
         for chunk in self.start_chunk_loop(job, chunks, converted_pdf_path):
@@ -153,19 +141,16 @@ class DocumentProcessor(ChunkerCore):
 
     # --- 2. doc_type 별 설정 ---
     #
-    # 설정 파일(chunking_processor_config.yaml)은 모든 문서에 공통으로 적용된다.
-    # doc_type 마다 다르게 하려면 아래 표에 적는다. 키는 설정 파일 경로를 dot notation 으로
-    # 쓰거나 같은 뜻의 요청 파라미터 이름으로 쓴다. 둘 다 같게 동작한다.
-    #
-    # 청커에서 쓰는 주요 키
+    # 설정 파일(chunking_processor_config.yaml)은 모든 문서에 공통이다. doc_type 마다 다르게
+    # 하려면 아래 표에 적는다. 키는 설정 파일 경로(점 표기)나 같은 뜻의 요청 파라미터
+    # 이름(괄호)을 쓴다 — 둘 다 같게 동작한다.
     #   chunking.chunk_size               청크 최대 크기  (= chunk_size)
     #   chunking.recursive.chunk_overlap  청크 간 겹침    (= chunk_overlap)
     #   chunking.chunk_mode               split_only(섹션 단위 유지) / resize_all(크기에 맞춰 재분할)
     #
-    # 요청마다 바꿀 수 없는 설정(토크나이저 경로, min_chunk_size 등)은 건너뛰고 경고를 남긴다.
-    # 그 설정들은 기동 시 한 번 읽혀 굳으므로 설정 파일에서 바꾼다.
-    #
-    # 설정 우선순위(뒤가 우선): 설정 파일, CONFIG_BY_DOC_TYPE, config_by_condition(), 요청 파라미터
+    # 기동 시 한 번 읽혀 굳는 설정(토크나이저 경로, min_chunk_size 등)은 여기 적어도 건너뛰고
+    # 경고가 남는다 — 그 값은 설정 파일에서 바꾼다.
+    # 우선순위(뒤가 우선). 설정 파일, CONFIG_BY_DOC_TYPE, config_by_condition(), 요청 파라미터.
     # 최종 값은 job.config 와 결과에 기록된다.
 
     CONFIG_BY_DOC_TYPE = {
@@ -175,9 +160,7 @@ class DocumentProcessor(ChunkerCore):
     }
 
     def config_by_condition(self, job):
-        """[훅 메소드 0] 조건부 설정. 위 표로 안 되는 경우 문서 내용이나 요청 파라미터로 결정한다.
-
-        위 표와 같은 형식의 dict 를 반환하고, 빈 dict 면 아무것도 바뀌지 않는다.
+        """[훅 메소드 0] 위 표로 안 되는 조건부 설정. 같은 형식의 dict 를 반환하고, 빈 dict 면 그대로다.
 
             if job.metadata.get("GROUP_C") == "INS":
                 return {"chunking.chunk_size": 800}
@@ -186,12 +169,12 @@ class DocumentProcessor(ChunkerCore):
 
     # --- 3. 훅 메소드 ---
     #
-    # 공통 규칙은 파서와 같다.
-    #   1. 요청 파라미터가 필요하면 **kwargs 를 추가한다. job 은 kwargs["job"] 으로 꺼낸다.
-    #   2. 외부 API 호출은 async def 로 작성한다.
-    #   3. self 에 요청 상태를 저장하지 않는다. 단계 간 전달은 job.notes 를 쓴다.
-    #   4. 오류는 GenosServiceException 을 raise 한다. 부분 실패를 허용하려면 해당 건만
-    #      skip 하고 edit_output 에서 결과에 기록한다.
+    # 오버라이드하지 않으면 입력을 그대로 돌려준다(no-op). 공통 규칙은 파서와 같다.
+    #   1. 요청 파라미터가 필요하면 **kwargs 를 붙인다. job 은 kwargs["job"] 으로 꺼낸다.
+    #   2. 외부 API 호출은 async def 로 쓴다. 동기 호출은 이벤트 루프를 막는다.
+    #   3. self 에 요청 상태를 담지 않는다. 단계 간 전달은 job.notes 를 쓴다.
+    #   4. 오류는 raise GenosServiceException("1", "메시지"). 부분 실패를 허용하려면 그 건만
+    #      건너뛰고 edit_output 에서 결과에 기록한다.
 
     def edit_input(self, kind, data, **kwargs):
         """[훅 메소드 1] 청킹 전 전처리.
@@ -203,14 +186,10 @@ class DocumentProcessor(ChunkerCore):
         return data
 
     def edit_chunk(self, text, info, **kwargs):
-        """[훅 메소드 2] 청크 생성 직후 호출된다.
+        """[훅 메소드 2] 청크 생성 직후. 요청당 한 번이 아니라 청크마다 호출된다.
 
-        edit_input, edit_output 과 달리 요청당 한 번이 아니라 청크마다 호출된다.
-
-        반환값은 셋 중 하나다.
-            str      청크 텍스트를 이 값으로 교체한다
-            None     변경 없음. return 을 생략해도 청크는 유지된다
-            tb.DROP  청크를 제외한다. 인덱스는 재계산된다
+        반환값은 셋 중 하나다. str 이면 청크 텍스트를 그 값으로 교체하고, None 이면 변경
+        없음(return 을 생략해도 청크는 유지된다), tb.DROP 이면 제외하고 인덱스를 재계산한다.
 
         info 구조
             kind      "docling"(문서형), "row"(행, 레코드), "text"(그 밖)
@@ -229,13 +208,10 @@ class DocumentProcessor(ChunkerCore):
         return None
 
     def edit_output(self, vector_metas, **kwargs):
-        """[훅 메소드 3] 청킹 결과 후처리.
+        """[훅 메소드 3] 응답 반환 직전. vector_metas 는 VECTOR_META 인스턴스 목록이다.
 
-        vector_metas 는 vector_meta(VECTOR_META 인스턴스) 목록이다.
-
-        용도
-        - 청크 분할, 병합
-        - 필드 값 일괄 변환, 삭제
+        청크 분할·병합, 필드 값 일괄 변환·삭제에 쓴다. 텍스트 수정이나 청크 제외만 필요하면
+        edit_chunk 쪽이 낫다 — 통계가 자동으로 갱신된다.
 
             vector_metas = tb.split_chunk(vector_metas, when=lambda vm: len(vm.text) > 4000)
             vector_metas = tb.merge_small_chunks(vector_metas, min_chars=80)
@@ -244,27 +220,19 @@ class DocumentProcessor(ChunkerCore):
                 tb.drop_fields(vm, "INTERNAL_URL")
             tb.refresh_stats(vector_metas)
 
-        텍스트를 수정했거나 vector_meta 를 삭제했으면 통계를 재계산한다.
-        - 개수 변경: tb.refresh_stats(vector_metas)
-        - 텍스트만 수정: tb.refresh_stats(vector_metas, reindex=False)
-
-        참고: 텍스트 수정이나 청크 제외만 필요하면 edit_chunk 를 쓴다. 통계가 자동 갱신된다.
+        여기서 텍스트를 고쳤거나 vector_meta 를 지웠으면 통계를 다시 맞춘다.
+        개수가 바뀌었으면 tb.refresh_stats(vector_metas), 텍스트만 고쳤으면 reindex=False.
         """
         return vector_metas
 
     # --- 4. 오버라이드 ---
     #
-    # 기본 동작을 바꾸려면 메소드를 오버라이드한다.
-    # 청크 크기나 분할 방식만 바꾸려면 2 의 설정을 우선 고려한다.
-    #
+    # 기본 동작 자체를 바꿀 때 쓴다. 청크 크기나 분할 방식만 바꾸려면 2 의 설정을 먼저 본다.
     #   지원     1 에 본문이 보이는 메소드(split, chunks_to_vector_metas, build_chunk_text,
     #            mask_sensitive, clean_text, chunk_to_vector_meta)
     #            릴리스가 바뀌어도 이름과 인자를 유지한다
     #   비권장   그 밖의 core 메소드(split_document, split_records, collect_chunk_variants,
-    #            refresh_stats 등) 오버라이드는 가능하지만 릴리스에서 바뀔 수 있다
-    #
-    # start_chunk_loop 과 finish_chunk_loop 은 순번·통계 부기를 맡는다. 반복문을 바꾸더라도
-    # 이 둘은 그대로 감싸 둔다 — 빼면 n_chunk_of_doc 와 청크 순번이 어긋난다.
+    #            refresh_stats 등) 오버라이드는 되지만 릴리스에서 바뀔 수 있다
     #
     #   def build_chunk_text(self, job, chunk):          # 청크 텍스트 조립을 바꾼다
     #       return f"[{job.metadata.get('title', '')}] " + chunk.text
@@ -272,33 +240,25 @@ class DocumentProcessor(ChunkerCore):
 
 # --- 파일 단독 실행 ---
 #
-# cli() 는 서버를 띄우지 않고 이 파일 하나를 직접 돌린다. 입력은 **파서가 만든 결과 JSON** 이다
-# (원본 문서가 아니다). 산출은 /chunker 응답과 같은 vector_meta 목록이다.
+# cli() 는 서버를 띄우지 않고 이 파일 하나를 돌린다. 입력은 **파서가 만든 결과 JSON** 이고
+# (원본 문서가 아니다) 산출은 /chunker 응답과 같은 vector_meta 목록이다. 저장 위치와 청크
+# 건수, 걸린 시간은 stderr 로 알린다. 경로 실행(python chunking_processor.py)은 import 가
+# 풀리지 않는다 — 저장소 최상위에서 -m 으로 부른다.
 #
 #   python -m genon.preprocessor.facade.parser_processor 계약서.pdf --doc-type contract -o parsed.json
 #   python -m genon.preprocessor.facade.chunking_processor parsed.json --doc-type contract -o chunks.json
 #
-# 경로로 바로 실행(python chunking_processor.py)하면 import 가 풀리지 않는다. 저장소 최상위에서
-# 위처럼 -m 으로 부른다.
-#
-#   --doc-type    doc_type 별 설정(2)과 훅 게이팅에 쓰인다. 파서에 넘긴 값과 같게 준다
+#   --doc-type    doc_type 별 설정(2)과 훅 메소드 게이팅에 쓰인다. 파서에 넘긴 값과 같게 준다
 #   --config      프로세서 설정 yaml 경로. 미지정 시 기본 경로를 찾는다
 #   -o, --out     결과 JSON 경로. 생략하면 stdout 으로 나온다
 #   --log-level   5 DEBUG / 4 INFO / 3 WARNING / 2 ERROR / 1 CRITICAL / 0 끔
 #
-# 끝나면 저장 위치와 청크 건수, 걸린 시간을 stderr 로 알린다. 청크 크기나 분할 방식을 바꿔 보려면
-# 위 2 의 CONFIG_BY_DOC_TYPE 에 적고 다시 돌린다.
-#
-# cli() 를 거치지 않고 클래스를 직접 불러도 된다. 파서와 다른 곳이 두 군데다.
-#
-#   import asyncio, json
-#   from genon.preprocessor.facade.chunking_processor import DocumentProcessor
+# cli() 를 거치지 않고 클래스를 직접 불러도 된다. 파서와 다른 곳이 둘이다. 첫 인자에 None 을
+# 주면 미디어 업로드에서 에러가 나므로 tb.mock_request() 를 넘기고, 산출이 vector_meta 객체
+# 목록이라 json.dump 가 바로 받지 못해 model_dump() 를 거친다.
 #
 #   metas = asyncio.run(DocumentProcessor()(tb.mock_request(), "parsed.json", doc_type="contract"))
-#   with open("chunks.json", "w", encoding="utf-8") as fp:
-#       json.dump([m.model_dump() for m in metas], fp, ensure_ascii=False, indent=2)
-#
-# 첫 인자에 None 을 주면 미디어 업로드에서 에러가 난다. 그리고 산출이 vector_meta 객체
-# 목록이라 json.dump 가 바로 받지 못하고 model_dump() 를 거쳐야 한다.
+#   json.dump([m.model_dump() for m in metas], open("chunks.json", "w", encoding="utf-8"),
+#             ensure_ascii=False, indent=2)
 if __name__ == "__main__":
     DocumentProcessor.cli()
