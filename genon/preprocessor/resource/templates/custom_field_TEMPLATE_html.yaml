@@ -62,6 +62,8 @@ source:
   #   html : 원천이 .html 일 때의 판정 스위치
   # `pre` 아래 나머지 둘(`markdown`·`delimited`)은 각각 .md 원천과 구분자 텍스트 원천의
   # 기구라 이 kind 에서는 쓸 일이 없다 — 적어도 기동은 통과하고 조용히 무시된다.
+  # 이 전처리는 **parser 경로에서만** 소비된다 — 적재용(intelligent)/변환용(convert) 은 원천을
+  # PDF 로 바꿔 읽어 걸릴 자리가 없고, 등록하면 기동 시 경고가 남는다.
   # pre:
   #   marker_headings: true         # `◈ 기본내용` 같은 마커 줄을 heading 으로 승격.
   #                                 # md·html 이 판정 규칙을 공유하므로 여기 한 번만 적으면

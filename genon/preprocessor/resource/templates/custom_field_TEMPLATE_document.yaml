@@ -50,6 +50,8 @@ source:
   # 기동은 통과하고 **조용히 무시된다**(그 kind 의 파서가 읽지 않는다).
   # `pre` 아래 나머지 하나인 `delimited` 는 반대로 kind: records 전용이다(구분자 텍스트
   # 원천. custom_field_TEMPLATE_records.yaml 의 같은 이름 블록 참고).
+  # 이 전처리는 **parser 경로에서만** 소비된다 — 적재용(intelligent)/변환용(convert) 은 원천을
+  # PDF 로 바꿔 읽어 걸릴 자리가 없고, 등록하면 기동 시 경고가 남는다.
   # 세 블록은 같은 일을 한다 — 원천을 docling 이 읽을 문서 한 벌로 만든다.
   # `markdown`·`html` 두 블록은 이 파일이 기본값이고, 등록 블록에 같은 이름을 적으면
   # 그쪽이 덮어쓰며, `markdown: false` 처럼 false 를 주면 명시적 비활성이다.

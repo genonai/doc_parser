@@ -315,3 +315,26 @@ def test_ppt_page_merge_keeps_header_paths(module_name):
     joined = "\n".join(ch.text for ch in chunks)
     for page in (1, 2, 3):
         assert f"{page}쪽 본문입니다." in joined
+
+
+@pytest.mark.unit
+def test_post_runtime_setup_warns_on_unread_custom_fields(caplog):
+    """기동 배선이 실제로 경고를 낸다 — 함수가 있는 것과 불리는 것은 다른 문제다.
+
+    intelligent 는 `kind: records`/`sections` 를 배선하지 않는다. 등록만 되고 아무 필드도
+    채워지지 않는 상태를 여기서 드러내지 못하면 적재된 데이터에서야 발견하게 된다.
+    """
+    from unittest.mock import MagicMock
+    from facade.intelligent_processor import DocumentProcessor
+
+    proc = object.__new__(DocumentProcessor)  # __init__(네트워크/모델) 우회
+    ec = MagicMock()
+    ec.custom_fields_cfgs = [
+        {"enable": True, "doc_type": "faq_json", "extractor": "json_mapping"},
+    ]
+    ec.metadata.field_transforms = None
+
+    with caplog.at_level("WARNING"):
+        proc._post_runtime_setup({}, ec)
+
+    assert any("faq_json" in r.getMessage() for r in caplog.records)

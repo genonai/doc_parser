@@ -49,6 +49,10 @@ schema: v2
 source:
   kind: records
 
+  # 이 kind 는 **parser 경로 전용**이다. 적재용(intelligent)/변환용(convert) 은 원천을 PDF 로
+  # 바꿔 읽어 레코드 구조가 남지 않으므로, 거기 등록하면 기동 시 경고가 남고 아무 필드도
+  # 채워지지 않는다.
+
   # ── [선택] 레코드 배열이 담긴 key ─────────────────────────────────────────
   # 키 이름만 쓴다(임의 깊이에서 찾는다). 예: {"eventList": [ {...}, {...} ]} → eventList
   # 생략하면 payload 가 배열이면 원소마다 1건, 단일 object 면 그 자체가 1건이 된다.
@@ -218,8 +222,9 @@ body:
 #
 # out 의 이름은 프롬프트가 내놓는 JSON 키와 **정확히 같아야** 한다.
 #    어긋나면 에러 없이 값이 null 로 채워진다.
-# **parser 경로에서만 실행된다.** kind: records 자체가 parser 의 .json 분기 전용이므로
-#    적재용(intelligent)/변환용(convert) 설정에 넣으면 **경고도 없이 아무 일도 일어나지 않는다.**
+# **parser 경로에서만 실행된다.** kind: records 자체가 parser 의 .json 분기 전용이라
+#    적재용(intelligent)/변환용(convert) 에 등록하면 **아무 필드도 채워지지 않는다**
+#    (기동 시 경고가 남는다).
 # llm:
 #   - out: [<GENERATED_FIELD>]
 #     in:  [<TARGET_FIELD_1>]               # [필수] 프롬프트 {{raw_text}} 로 넣을 필드

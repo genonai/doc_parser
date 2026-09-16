@@ -149,6 +149,7 @@ from genon.preprocessor.processing.enrichment.field_transforms import (
 )
 from genon.preprocessor.processing.enrichment.custom_fields_enricher import (
     normalize_doc_type,
+    warn_unsupported_custom_fields as _warn_unsupported_custom_fields,
 )
 from genon.preprocessor.processing.enrichment.tabular_custom_fields import (
     build_tabular_custom_fields_mappers,
@@ -455,6 +456,8 @@ class DocumentProcessor(DoclingRuntimeBase):
             build_tabular_custom_fields_mappers(ec.custom_fields_cfgs)
         )
         _warn_tabular_llm_fields_unsupported(self._tabular_custom_fields_mappers, "convert")
+        # 이 프로세서가 아예 읽지 않는 등록(kind: records/sections, source.pre 전처리)을 드러낸다.
+        _warn_unsupported_custom_fields(ec.custom_fields_cfgs, "convert")
 
         # 추출 메타데이터 → typed 벡터 필드 매핑(설정 기반). 설정이 비어있으면
         # 기존 created_date 동작을 그대로 재현한다(하위 호환).

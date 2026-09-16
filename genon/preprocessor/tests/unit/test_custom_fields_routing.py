@@ -1602,3 +1602,83 @@ def test_old_derived_blocks_are_rejected_at_startup(tmp_path):
             config_file="custom_field_t.yaml", resource_path=str(tmp_path),
             doc_type="t", extractor="tabular_mapping",
         )
+
+
+@pytest.mark.unit
+def test_unread_extractor_warns_with_doc_type(caplog):
+    """이 프로세서가 배선하지 않은 extractor 는 기동 시 경고로 드러난다.
+
+    무음 무시가 가장 나쁜 실패 모드다 — 설정은 필드를 약속했는데 결과에는 없고, 대개
+    적재된 데이터를 보고서야 발견한다. 문구가 아니라 "경고가 났다" 와 대상 doc_type 을 고정한다.
+    """
+    configs = [
+        {"enable": True, "doc_type": "faq_json", "extractor": "json_mapping"},
+        {"enable": True, "doc_type": "product_hpp_semantic", "extractor": "json_semantic"},
+        {"enable": True, "doc_type": "card", "extractor": "llm"},
+        {"enable": True, "doc_type": "faq", "extractor": "tabular_mapping"},
+    ]
+
+    with caplog.at_level("WARNING"):
+        cfe.warn_unsupported_custom_fields(configs, "intelligent")
+    warned = [r.getMessage() for r in caplog.records]
+    assert any("faq_json" in m for m in warned)
+    assert any("product_hpp_semantic" in m for m in warned)
+    # 배선된 두 종류(document/rows)는 경고 대상이 아니다.
+    assert not any("doc_type=card" in m for m in warned)
+    assert not any("doc_type=faq)" in m for m in warned)
+
+    # parser 는 전부 읽으므로 같은 설정에서 한 건도 나오지 않는다.
+    caplog.clear()
+    with caplog.at_level("WARNING"):
+        cfe.warn_unsupported_custom_fields(configs, "parser")
+    assert caplog.records == []
+
+
+@pytest.mark.unit
+def test_source_pre_warns_only_where_it_is_not_consumed(tmp_path, caplog):
+    """`source.pre.*` 는 원천을 그 포맷으로 읽는 parser 에서만 뜻이 있다."""
+    child = tmp_path / "custom_field_doc.yaml"
+    child.write_text(
+        "schema: v2\n"
+        "source:\n"
+        "  kind: document\n"
+        "  pre:\n"
+        "    markdown:\n"
+        "      front_matter:\n"
+        "        metadata_fields: [source_file]\n",
+        encoding="utf-8",
+    )
+    config = {
+        "enable": True,
+        "doc_type": "product_slf",
+        "extractor": "llm",
+        "config_file": child.name,
+        "resource_path": str(tmp_path),
+    }
+
+    with caplog.at_level("WARNING"):
+        cfe.warn_unsupported_custom_fields([config], "intelligent")
+    assert any(
+        "product_slf" in r.getMessage() and "source.pre.markdown" in r.getMessage()
+        for r in caplog.records
+    )
+
+    caplog.clear()
+    with caplog.at_level("WARNING"):
+        cfe.warn_unsupported_custom_fields([config], "parser")
+    assert caplog.records == []
+
+
+@pytest.mark.unit
+def test_warning_never_breaks_startup(caplog):
+    """판정에 실패하는 설정이 있어도 예외로 나가지 않는다(경고이지 오류가 아니다)."""
+    configs = [
+        {"enable": True, "doc_type": "broken", "extractor": "llm",
+         "config_file": "없는파일.yaml", "resource_path": "/does/not/exist"},
+        {"enable": True, "doc_type": "records_one", "extractor": "json_mapping"},
+    ]
+
+    with caplog.at_level("WARNING"):
+        cfe.warn_unsupported_custom_fields(configs, "intelligent")
+    # 앞 항목에서 터지지 않고 뒤 항목의 경고까지 도달한다.
+    assert any("records_one" in r.getMessage() for r in caplog.records)

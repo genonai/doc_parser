@@ -70,6 +70,21 @@ SUPPORTED_CUSTOM_FIELD_EXTRACTORS = (
     | JSON_CUSTOM_FIELD_EXTRACTORS
 )
 
+# 프로세서가 **실제로 배선한** extractor. 여기 없는 extractor 로 등록된 설정은 그 프로세서에서
+# 아무 일도 일어나지 않는다 — 설정은 필드를 약속했는데 결과에는 없는 상태가 조용히 만들어지고,
+# 대개 적재된 데이터를 보고서야 발견한다. 그래서 기동 시 경고로 드러낸다.
+# 배선을 넓히면(예: intelligent 에 json_mapping) 이 표도 함께 넓힌다.
+PROCESSOR_CUSTOM_FIELD_EXTRACTORS: dict[str, frozenset[str]] = {
+    "parser": frozenset(SUPPORTED_CUSTOM_FIELD_EXTRACTORS),
+    "intelligent": frozenset(DOCUMENT_CUSTOM_FIELD_EXTRACTORS | TABULAR_CUSTOM_FIELD_EXTRACTORS),
+    "convert": frozenset(DOCUMENT_CUSTOM_FIELD_EXTRACTORS | TABULAR_CUSTOM_FIELD_EXTRACTORS),
+}
+
+# `source.pre.*` 는 원천을 그 포맷 그대로 읽어야 뜻이 있다. parser 만 확장자별 네이티브 경로를
+# 갖고, intelligent/convert 는 xlsx 와 PDF 를 뺀 전부를 PDF 로 바꿔 읽으므로 소비하지 않는다.
+PROCESSOR_READS_SOURCE_PRE = frozenset({"parser"})
+_SOURCE_PRE_BLOCKS = ("json", "markdown", "html")
+
 
 def normalize_doc_type(value: Any) -> str:
     """런타임/config 문서유형을 비교 가능한 canonical 문자열로 정규화한다."""
@@ -135,6 +150,53 @@ def custom_fields_extractor(config: dict) -> str:
         str(config.get("resource_path") or "") or None,
     )
     return derived or "llm"
+
+
+def warn_unsupported_custom_fields(configs: list[dict] | None, processor: str) -> None:
+    """이 프로세서가 읽지 않는 custom_fields 등록을 기동 시 경고한다.
+
+    두 가지를 본다.
+      1. 이 프로세서가 배선하지 않은 extractor (예: intelligent 에 등록한 `kind: records`)
+      2. 이 프로세서가 소비하지 않는 `source.pre.*` 블록 (parser 의 포맷 전처리)
+
+    경고이지 오류가 아니다 — 지금 돌아가는 설정을 막지 않는다. `GENOS_CUSTOM_FIELDS_VALIDATION`
+    의 키 검증과는 판정이 다르다. 그쪽은 "이 extractor 가 쓸 수 없는 키" 이고, 이쪽은
+    "쓸 수 있는 설정인데 이 프로세서가 읽지 않는다" 다.
+
+    판정에 실패한 항목은 조용히 넘어간다. 경고를 만들려다 기동을 흔들면 목적과 반대가 된다.
+    """
+    supported = PROCESSOR_CUSTOM_FIELD_EXTRACTORS.get(processor)
+    if supported is None:
+        return
+    from .markdown_front_matter import resolve_format_cfg
+
+    for config in configs or []:
+        doc_type = config.get("doc_type")
+        try:
+            extractor = custom_fields_extractor(config)
+        except Exception:
+            continue
+        if extractor not in supported:
+            _log.warning(
+                f"[{processor}] custom_fields 설정(doc_type={doc_type})의 extractor="
+                f"{extractor} 는 이 프로세서가 읽지 않습니다 — 등록돼 있어도 아무 필드도 "
+                f"채워지지 않습니다. 이 문서유형은 parser 경로로 보내세요."
+            )
+            continue
+        if processor in PROCESSOR_READS_SOURCE_PRE:
+            continue
+        for block in _SOURCE_PRE_BLOCKS:
+            try:
+                block_cfg = resolve_format_cfg(config, block)
+            except Exception:
+                continue
+            if block_cfg:
+                _log.warning(
+                    f"[{processor}] custom_fields 설정(doc_type={doc_type})의 "
+                    f"`source.pre.{block}` 는 이 프로세서가 소비하지 않습니다 — 원천을 PDF 로 "
+                    f"바꿔 읽으므로 이 전처리가 걸릴 자리가 없습니다. 이 문서유형은 parser "
+                    f"경로로 보내세요."
+                )
 
 
 def resolve_custom_fields_config_path(
