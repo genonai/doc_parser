@@ -11,6 +11,7 @@ import time
 
 import pytest
 
+from docling.utils.llm_cache import CacheDeadlineExceeded
 from genon.preprocessor.processing.enrichment.custom_fields_enricher import CustomFieldsEnricher
 from genon.preprocessor.processing.enrichment.table_text_context import (
     TableTextDescriptionOptions,
@@ -160,8 +161,11 @@ def test_batch_is_not_lost_whole_when_the_response_is_cut():
     assert all(table_id.startswith("table_") for table_id in described)
 
 
+# 배치 하나의 실패가 문서 전체를 죽이지 않는다. 표 설명은 부가 기능인데 예외를 그대로
+# 올리면 error_policy=strict 에서 이미 만들어 둔 나머지 설명까지 함께 버려진다.
+
 @pytest.mark.unit
-def test_one_failed_batch_keeps_the_others_and_still_raises():
+def test_one_failed_batch_keeps_the_others_without_raising():
     enricher = _enricher()
     calls = {"n": 0}
 
@@ -172,6 +176,38 @@ def test_one_failed_batch_keeps_the_others_and_still_raises():
         return _echo_response(user_suffix)
 
     enricher._call_llm = _flaky
+    described = asyncio.run(enricher.describe_table_targets(_targets(200), document=None))
+
+    assert calls["n"] > 2, "실패 배치에서 멈추지 않고 나머지도 호출해야 한다"
+    assert described, "성공한 배치의 설명은 남아야 한다"
+    assert len(described) < 200, "실패한 배치의 표만 설명 없이 빠진다"
+
+
+@pytest.mark.unit
+def test_all_batches_failing_still_raises():
+    """전량 실패는 건진 것이 없으므로 기존대로 예외다 — 조용한 무설명을 만들지 않는다."""
+    enricher = _enricher()
+
+    async def _always_fail(raw, document=None, user_suffix=""):
+        raise RuntimeError("서버 오류")
+
+    enricher._call_llm = _always_fail
     with pytest.raises(RuntimeError):
         asyncio.run(enricher.describe_table_targets(_targets(200), document=None))
-    assert calls["n"] > 2, "실패 배치에서 멈추지 않고 나머지도 호출해야 한다"
+
+
+@pytest.mark.unit
+def test_deadline_exceeded_is_raised_even_with_partial_success():
+    """요청 deadline 소진은 부분 성공이어도 올린다 — 삼키면 남은 단계가 행잉으로 돌아간다."""
+    enricher = _enricher()
+    calls = {"n": 0}
+
+    async def _deadline(raw, document=None, user_suffix=""):
+        calls["n"] += 1
+        if calls["n"] >= 2:
+            raise CacheDeadlineExceeded("request deadline exceeded before LLM call")
+        return _echo_response(user_suffix)
+
+    enricher._call_llm = _deadline
+    with pytest.raises(CacheDeadlineExceeded):
+        asyncio.run(enricher.describe_table_targets(_targets(200), document=None))

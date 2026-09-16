@@ -270,6 +270,44 @@ def test_custom_fields_survive_table_batch_failure():
 
 
 @pytest.mark.unit
+def test_document_keeps_descriptions_when_one_batch_fails():
+    """문서 경로(describe_tables_only)에서 배치 하나가 실패해도 성공분은 문서에 남는다.
+
+    strict 정책에서는 여기서 예외가 올라가면 문서 전체가 실패해, 이미 부착한 설명까지
+    함께 버려진다. 표 설명은 부가 기능이므로 부분 성공으로 진행한다.
+    """
+    doc = _document_with_two_tables()
+    enricher = CustomFieldsEnricher(
+        url="http://llm.invalid", model="test-model", output_fields=[],
+        table_text_description={
+            "enabled": True, "prompt_template": TEST_TABLE_PROMPT,
+            "max_context_tokens": 1200, "completion_reserved_tokens": 0,
+        },
+    )
+    calls = {"n": 0}
+
+    async def fake_call(raw_text, document=None, user_suffix=""):
+        calls["n"] += 1
+        if calls["n"] == 2:
+            raise RuntimeError("표 배치 호출 실패")
+        ids = re.findall(r'id="(table_\d+)"', user_suffix or "")
+        return json.dumps({"_table_descriptions": [
+            {"table_id": table_id, "retrieval_context": f"{table_id} 설명",
+             "key_facts": [], "search_terms": []}
+            for table_id in ids
+        ]}, ensure_ascii=False)
+
+    enricher._call_llm = fake_call
+    asyncio.run(enricher.describe_tables_only(doc))  # 예외 없이 끝나야 한다
+
+    described = [
+        bool(TableDescriptionExtractor.retrieval_text(table)) for table in doc.tables
+    ]
+    assert calls["n"] == 2, "표 2개가 배치 2개로 나뉘어야 하는 전제"
+    assert sum(described) == 1, "성공한 배치의 설명만 남는다"
+
+
+@pytest.mark.unit
 def test_oversized_single_table_is_skipped_instead_of_being_sent():
     """표 하나가 예산을 넘으면 그 표만 건너뛰고 나머지 표는 배치로 처리한다."""
     doc = _document_with_two_tables()

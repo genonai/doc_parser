@@ -14,7 +14,7 @@ from docling_core.types import DoclingDocument
 from docling_core.types.doc import DescriptionAnnotation
 from docling_core.types.doc.document import MiscAnnotation
 
-from docling.utils.llm_cache import async_cached_call, remaining_timeout
+from docling.utils.llm_cache import CacheDeadlineExceeded, async_cached_call, remaining_timeout
 from docling.utils.thinking import resolve_thinking_kwargs, strip_reasoning
 
 from genon.preprocessor.processing.common import config_parse as cp
@@ -41,6 +41,10 @@ _log = logging.getLogger(__name__)
 _TOKENS_PER_CHAR = 1.5
 
 _CONFIG_DIR = Path(__file__).parent.parent / "configs" / "enrich" / "custom_fields"
+
+# 배치 하나가 실패해도 나머지로 진행하지만, 아래 둘은 요청 전체가 끝난 신호라 그대로 올린다.
+# (deadline 소진은 남은 배치도 전부 같은 이유로 실패한다 — 삼키면 행잉으로 돌아간다.)
+_FATAL_BATCH_ERRORS = (asyncio.CancelledError, CacheDeadlineExceeded)
 
 # user 가 user_prompt 만 지정한 경우 사용할 built-in default system prompt.
 _DEFAULT_CUSTOM_FIELDS_SYSTEM_PROMPT = (
@@ -1129,8 +1133,13 @@ class CustomFieldsEnricher(BaseEnricher):
 
         배치끼리는 서로 다른 표를 다루므로 호출 순서가 결과를 바꾸지 않는다. 표가 수백 개인
         문서에서는 배치 수가 그만큼 늘어나 순차 호출이 그대로 처리 시간이 되므로 동시에
-        띄운다(`concurrency`). 실패한 배치는 건너뛰고 나머지를 살리되, 순차 실행과 같은
-        지점에서 오류가 드러나도록 첫 예외를 함께 돌려준다(호출부가 성공분을 붙인 뒤 올린다).
+        띄운다(`concurrency`).
+
+        실패를 돌려주는 기준은 "하나라도 건졌는가"다. 표 설명은 부가 기능인데 배치 하나의
+        실패를 그대로 올리면 error_policy=strict 에서 문서 전체가 실패해, 이미 만들어 둔
+        나머지 배치의 설명까지 함께 버려진다. 그래서 부분 성공은 경고만 남기고 성공분으로
+        진행하고, 전량 실패일 때만 첫 예외를 돌려준다. 다만 요청 deadline 소진과 취소는
+        부분 성공이어도 그대로 올린다 — 남은 작업을 계속할 근거가 사라진 것이기 때문이다.
         """
         if not batches:
             return [], None
@@ -1144,14 +1153,23 @@ class CustomFieldsEnricher(BaseEnricher):
             *(_one(batch) for batch in batches), return_exceptions=True
         )
         results: list[tuple[list[TableTextTarget], dict]] = []
-        failure: BaseException | None = None
+        failures: list[BaseException] = []
         for batch, outcome in zip(batches, outcomes):
             if isinstance(outcome, BaseException):
                 _log.warning(f"표 설명 배치 호출 실패({len(batch)}개 표): {outcome}")
-                failure = failure or outcome
+                failures.append(outcome)
                 continue
             results.append((batch, outcome))
-        return results, failure
+        if not failures:
+            return results, None
+        fatal = next((exc for exc in failures if isinstance(exc, _FATAL_BATCH_ERRORS)), None)
+        if fatal is not None or not results:
+            return results, fatal or failures[0]
+        _log.warning(
+            f"표 설명 배치 {len(batches)}개 중 {len(failures)}개가 실패해 "
+            f"나머지 {len(results)}개의 설명으로 진행합니다: {failures[0]}"
+        )
+        return results, None
 
     async def _extract_with_table_descriptions(
         self,
