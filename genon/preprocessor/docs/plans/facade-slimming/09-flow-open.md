@@ -194,11 +194,11 @@ examples/parse_chunk/parse_chunk_golden.py --record    # 어긋나면 HEAD 기�
 | 무엇 | 어디 |
 |---|---|
 | 현행 파사드 | `facade/parser_processor.py`(101줄) · `facade/chunking_processor.py`(123줄) |
-| 처리 본체 | `facade/core/parser.py`(1,798) · `facade/core/chunker.py`(1,289) |
+| 처리 본체 | `processing/core/parser.py`(1,798) · `processing/core/chunker.py`(1,289) |
 | 분해 대상 | `core/parser.py` `_docling_response`(1477) · `core/chunker.py` `compose_vectors`(433~606) |
-| 훅 호출 규약 | `facade/common/hooks.py` — `hook_kwargs()` 가 사본을 만든다(약점 근거) |
-| 확장자 별칭 | `facade/common/format_alias.py` `_normalize_ext` |
-| 설정 해석 | `facade/common/config_parse.py` — `resolve_*` 화이트리스트 |
+| 훅 호출 규약 | `processing/common/hooks.py` — `hook_kwargs()` 가 사본을 만든다(약점 근거) |
+| 확장자 별칭 | `processing/common/format_alias.py` `_normalize_ext` |
+| 설정 해석 | `processing/common/config_parse.py` — `resolve_*` 화이트리스트 |
 | 고객 매뉴얼 | `facade/gitbook_doc/facade_hooks.md`(473줄) — 7단계에서 갱신 |
 | 훅 계약 테스트 | `tests/unit/test_facade_hooks_unit.py`(753줄) — 단계마다 늘린다 |
 | 요건 14건 | [09-requirements.md](09-requirements.md) |

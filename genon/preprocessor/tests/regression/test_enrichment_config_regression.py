@@ -17,7 +17,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-from facade.enrichment.enrichment_config import EnrichmentConfig
+from processing.enrichment.enrichment_config import EnrichmentConfig
 
 # enrichment 을 사용하는 설정(메타데이터/TOC 추출)
 ENRICHMENT_CONFIGS = [

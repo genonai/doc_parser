@@ -9,8 +9,8 @@ import textwrap
 
 import pytest
 
-from genon.preprocessor.facade.enrichment.json_records import JsonRecordsMapper
-from genon.preprocessor.facade.enrichment.tabular_custom_fields import (
+from genon.preprocessor.processing.enrichment.json_records import JsonRecordsMapper
+from genon.preprocessor.processing.enrichment.tabular_custom_fields import (
     TabularCustomFieldsMapper,
     claimed_row_pages,
     merge_parse_formats,
@@ -164,7 +164,7 @@ def test_json_mapper_list_tolerates_semantic_mappers():
     담기 때문이다. 그쪽은 `records_key` 가 없어, 속성을 그냥 읽으면 product_hpp 처리가
     통째로 죽는다(실제로 그렇게 깨뜨렸다가 doc_type 검증에서 잡혔다).
     """
-    from genon.preprocessor.facade.enrichment.json_semantic import SemanticJsonMapper
+    from genon.preprocessor.processing.enrichment.json_semantic import SemanticJsonMapper
 
     semantic = object.__new__(SemanticJsonMapper)   # __init__ 우회 — 속성 부재 상황 재현
     assert getattr(semantic, "records_key", None) is None

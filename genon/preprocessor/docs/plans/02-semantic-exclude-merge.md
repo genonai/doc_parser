@@ -13,7 +13,7 @@
 둘 다 같은 루프 안에서 앞뒤로 서브트리를 통째로 건너뛴다.
 
 ```python
-# facade/enrichment/json_semantic.py  _walk() 안
+# processing/enrichment/json_semantic.py  _walk() 안
 if _ignored(key, ctx.ignore_keys):        # 464행 — fnmatch(glob), 대소문자 구분
     continue
 ...
@@ -94,7 +94,7 @@ source:
 
 ## 영향 파일
 
-- `facade/enrichment/json_semantic.py` (sections_cfg 파싱 609~622, `_resolve_child_context` 306~322)
+- `processing/enrichment/json_semantic.py` (sections_cfg 파싱 609~622, `_resolve_child_context` 306~322)
 - `resource/custom_field_product_hpp_semantic.yaml` + `resource_dev/` 사본
 - `resource/templates/custom_field_TEMPLATE_semantic.yaml`
 

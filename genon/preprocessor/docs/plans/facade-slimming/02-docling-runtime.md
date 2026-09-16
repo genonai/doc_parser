@@ -1,7 +1,7 @@
 # 02. docling 런타임을 공용 모듈로 추출
 
 
-> **상태: 완료 (2026-09-06).** `facade/common/docling_runtime.py`(523줄) 신설 +
+> **상태: 완료 (2026-09-06).** `processing/common/docling_runtime.py`(523줄) 신설 +
 > facade 3종 배선 교체. 커밋 3개(모듈 → 계약 테스트 → 배선)로 나눴다.
 >
 > base 모양은 계획대로 **(A) parser 모양 + 훅**이다. 훅은 3개가 됐다 —
@@ -72,7 +72,7 @@ intelligent/convert 는 `(config_path: str|None)` 로 yaml 을 스스로 읽는�
 
 ## 만들 것
 
-`facade/common/docling_runtime.py` — `DoclingRuntimeBase`
+`processing/common/docling_runtime.py` — `DoclingRuntimeBase`
 
 담는 것(위 공통 21개):
 
@@ -157,7 +157,7 @@ intelligent(759)는 2줄이지만 **convert(746-793)는 48줄** — HWP/HWPX 레
   바꿔도 더 이상 효과가 없다. **facade 한 파일을 열어 사이트별로 손보는 운용 방식(04·05)과
   정면으로 부딪히므로**, 어떤 이름이 더 이상 facade 에서 조정 불가가 되는지 04 에 기록한다.
   로그 레코드의 `name` 도 `...facade.intelligent_processor` →
-  `...facade.common.docling_runtime` 로 바뀌어 운영 로그 grep 이 깨진다.
+  `...processing.common.docling_runtime` 로 바뀌어 운영 로그 grep 이 깨진다.
 - **`generate_page_images` 강제 보정의 순서 의존** — intelligent·convert 는
   `if table_image_enabled or page_desc.enabled: generate_page_images = True` 를
   `ocr_pipe_line_options = ...model_copy(deep=True)` **보다 먼저** 실행한다.

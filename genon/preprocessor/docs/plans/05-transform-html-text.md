@@ -14,12 +14,12 @@
 `from`/`as` 는 **항상 파생 필드를 새로 만든다.** 제자리 변환이 불가능하다.
 
 ```python
-# facade/enrichment/config_v2.py
+# processing/enrichment/config_v2.py
 _AS_TO_BLOCK = {"auto": "text_from", "html": "html_text_fields"}
 ```
 
 ```python
-# facade/enrichment/tabular_custom_fields.py:357
+# processing/enrichment/tabular_custom_fields.py:357
 def apply_text_from(fields, specs, html_renderer=None):
     for target, source, forced in specs:
         fields[target] = render_field_text(fields.get(source), kind=forced, html_renderer=html_renderer)
@@ -110,12 +110,12 @@ DETAIL_DESC: {alias: [cmp_desc, htmlText], transform: html_text}
 
 ## 영향 파일
 
-- `facade/enrichment/field_transforms.py` (`PARAM_TRANSFORMS` / `VALUE_TRANSFORMS` 등록)
-- `facade/enrichment/tabular_custom_fields.py` (`apply_transforms` 593, `compile/apply_text_from`
+- `processing/enrichment/field_transforms.py` (`PARAM_TRANSFORMS` / `VALUE_TRANSFORMS` 등록)
+- `processing/enrichment/tabular_custom_fields.py` (`apply_transforms` 593, `compile/apply_text_from`
   335~365, `collect_target_field_names` 390, 호출부 1106~1111)
-- `facade/enrichment/json_records.py` (호출부 645~652, `__init__` 517~522)
-- `facade/enrichment/config_v2.py` (`FIELD_SPEC_KEYS`, `_AS_TO_BLOCK`, `COVERED_V1_KEYS`)
-- `facade/enrichment/config_schema.py` (`_RECORD_COMMON` 에서 두 블록 제거)
+- `processing/enrichment/json_records.py` (호출부 645~652, `__init__` 517~522)
+- `processing/enrichment/config_v2.py` (`FIELD_SPEC_KEYS`, `_AS_TO_BLOCK`, `COVERED_V1_KEYS`)
+- `processing/enrichment/config_schema.py` (`_RECORD_COMMON` 에서 두 블록 제거)
 - `resource/custom_field_{stock_insight,monimo_event,monimo_news,cs_sss}.yaml` + `resource_dev/` 사본
 - `resource/templates/custom_field_TEMPLATE_{json,tabular}.yaml`
 

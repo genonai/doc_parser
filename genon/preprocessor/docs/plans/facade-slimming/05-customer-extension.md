@@ -193,7 +193,7 @@ key 이름을 모른 채 전수 순회하고 key 를 섹션명으로 쓴다. 초
 
 **여기서 payload 모양을 바꾸면 경계 ①②③ 이 10~15줄 facade 변경으로 풀린다.**
 이 사실이 이 문서의 가장 중요한 내용이다 — 안내가 없으면 고객은 경계 조사가 지목한
-"이름 검색" 을 따라 `facade/enrichment/json_records.py`(공용 모듈)로 가게 된다.
+"이름 검색" 을 따라 `processing/enrichment/json_records.py`(공용 모듈)로 가게 된다.
 
 참고로 JSON 처리 로직의 실질 총량은 공용 모듈 쪽이 훨씬 크다
 (`json_records.py` 786 + `json_semantic.py` 1,014 + `converters/json_text.py` 213 +

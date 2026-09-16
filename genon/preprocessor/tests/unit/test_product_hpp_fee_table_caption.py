@@ -16,7 +16,7 @@ from pathlib import Path
 
 import pytest
 
-from genon.preprocessor.facade.enrichment.json_records import html_to_text
+from genon.preprocessor.processing.enrichment.json_records import html_to_text
 
 FIXTURE = Path(__file__).resolve().parents[1] / "fixtures" / "product_hpp_fee_table.json"
 CAPTION = "본인카드의 해외겸용, 국내전용 별 연회비 정보를 확인할 수 있는 표입니다."
@@ -36,7 +36,7 @@ def _document():
         build_docling_document,
         extract_content,
     )
-    from genon.preprocessor.facade.enrichment.json_records import _get_html_converter
+    from genon.preprocessor.processing.enrichment.json_records import _get_html_converter
 
     doc_html = build_docling_document("", [("", extract_content(_fee_html()))])
     return _get_html_converter().convert(

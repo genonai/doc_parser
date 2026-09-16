@@ -18,7 +18,7 @@ PREPROCESSOR_DIR = Path(__file__).resolve().parents[2]
 
 def load_shipped(path: Path) -> dict:
     """설정 파일 하나를 v1 형태 dict 로 읽는다."""
-    from genon.preprocessor.facade.enrichment import config_v2 as cv2
+    from genon.preprocessor.processing.enrichment import config_v2 as cv2
 
     raw = yaml.safe_load(Path(path).read_text(encoding="utf-8")) or {}
     return cv2.load(raw, label=Path(path).name)[0]

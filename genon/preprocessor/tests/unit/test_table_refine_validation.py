@@ -9,7 +9,7 @@ table_description refine 재구성 HTML 의 구조 유효성 검증 단위 테�
 
 import pytest
 
-_MOD = "facade.enrichment.table_description"
+_MOD = "processing.enrichment.table_description"
 
 
 def _mod():

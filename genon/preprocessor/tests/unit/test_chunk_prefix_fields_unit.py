@@ -12,8 +12,8 @@ import pathlib
 import pytest
 import yaml as _yaml
 
-from genon.preprocessor.facade.chunking import doc_prefix as dpx
-from genon.preprocessor.facade.common import config_parse as cp
+from genon.preprocessor.processing.chunking import doc_prefix as dpx
+from genon.preprocessor.processing.common import config_parse as cp
 
 _BASE = pathlib.Path(__file__).resolve().parents[2]
 
@@ -78,12 +78,12 @@ class TestPrefixText:
 class TestChunkerAndProcessorContract:
     def test_chunker_reserves_prefix_in_size_calculation(self):
         """접두 몫을 헤더 라인과 같은 자리에서 예약해야 산출 청크가 chunk_size 를 지킨다."""
-        source = (_BASE / "facade" / "chunking" / "smart_chunker.py").read_text(encoding="utf-8")
+        source = (_BASE / "processing" / "chunking" / "smart_chunker.py").read_text(encoding="utf-8")
         assert "chunk_prefix_text: str = \"\"" in source
         assert "return self.chunk_prefix_text + hp.build_header_line(" in source
 
     def test_control_keys_are_not_emitted_as_chunk_fields(self):
-        source = (_BASE / "facade" / "core" / "chunker.py").read_text(encoding="utf-8")
+        source = (_BASE / "processing" / "core" / "chunker.py").read_text(encoding="utf-8")
         reserved_block = source.split("reserved_keys = {", 1)[1].split("consumed_keys", 1)[0]
         assert "cp.CHUNK_PREFIX_FIELDS_KEY" in reserved_block
         assert "cp.FIRST_CHUNK_FIELDS_KEY" in reserved_block
@@ -94,7 +94,7 @@ class TestChunkerAndProcessorContract:
         기준은 "첫 번째 청크" 가 아니라 "살아남은 첫 번째 청크" 다 — edit_chunk 이 첫 청크를
         버렸을 때 그 접두가 문서에서 통째로 사라지면 안 된다.
         """
-        source = (_BASE / "facade" / "core" / "chunker.py").read_text(encoding="utf-8")
+        source = (_BASE / "processing" / "core" / "chunker.py").read_text(encoding="utf-8")
         assert 'notes["first_prefix_text"] if notes["first_prefix_pending"] else ""' in source
         # 플래그는 청크를 실제로 유지했을 때만 내려간다. 버린 청크는 dropped 를 세고 끝이라
         # 두 갈래가 _call_edit_chunk 한 곳에서 갈린다 — 반복문이 어디에 있든 계약이 지켜진다.
@@ -125,7 +125,7 @@ def test_operational_yaml_declares_prefix_fields(yaml_name, key, expected):
 @pytest.mark.unit
 def test_enricher_ships_rules_into_document_metadata():
     """규칙은 값이 아니므로 enricher 가 이름만 문서 metadata 로 실어 청커에 넘긴다."""
-    source = (_BASE / "facade" / "enrichment" / "custom_fields_enricher.py").read_text(
+    source = (_BASE / "processing" / "enrichment" / "custom_fields_enricher.py").read_text(
         encoding="utf-8")
     assert "cp.CHUNK_PREFIX_FIELDS_KEY: list(self._chunk_prefix_fields)" in source
     assert "cp.FIRST_CHUNK_FIELDS_KEY: list(self._first_chunk_fields)" in source

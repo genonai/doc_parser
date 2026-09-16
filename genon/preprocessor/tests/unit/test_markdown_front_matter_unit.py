@@ -8,11 +8,11 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from genon.preprocessor.facade.enrichment import custom_fields_enricher as cfe
-from genon.preprocessor.facade.enrichment.custom_fields_enricher import (
+from genon.preprocessor.processing.enrichment import custom_fields_enricher as cfe
+from genon.preprocessor.processing.enrichment.custom_fields_enricher import (
     CustomFieldsEnricher,
 )
-from genon.preprocessor.facade.enrichment.markdown_front_matter import (
+from genon.preprocessor.processing.enrichment.markdown_front_matter import (
     MarkdownFrontMatterSpec,
     build_markdown_front_matter_specs,
 )

@@ -15,9 +15,9 @@ from docling_core.types.doc import (
     TableData,
 )
 
-from genon.preprocessor.facade.enrichment.custom_fields_enricher import CustomFieldsEnricher
-from genon.preprocessor.facade.enrichment.field_transforms import extract_metadata_from_document
-from genon.preprocessor.facade.enrichment.table_description import TableDescriptionExtractor
+from genon.preprocessor.processing.enrichment.custom_fields_enricher import CustomFieldsEnricher
+from genon.preprocessor.processing.enrichment.field_transforms import extract_metadata_from_document
+from genon.preprocessor.processing.enrichment.table_description import TableDescriptionExtractor
 
 
 SAMPLE_DIR = Path(__file__).resolve().parents[1] / "fixtures" / "table_text_description"

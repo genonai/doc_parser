@@ -1,4 +1,4 @@
-"""청크 텍스트 정규화(facade/chunking/text_norm.py) 단위 테스트.
+"""청크 텍스트 정규화(processing/chunking/text_norm.py) 단위 테스트.
 
 정규화가 "의도한 문자만 바꾼다"를 단정문으로 고정한다. 본문 전문은 출력하지 않는다.
 text_norm 자체는 docling 의존이 없으므로 importorskip 없이 항상 실행된다.
@@ -6,7 +6,7 @@ text_norm 자체는 docling 의존이 없으므로 importorskip 없이 항상 �
 
 import pytest
 
-from genon.preprocessor.facade.chunking import text_norm as tn
+from genon.preprocessor.processing.chunking import text_norm as tn
 
 pytestmark = pytest.mark.unit
 

@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import pytest
 
-from genon.preprocessor.facade.common.vector_meta import refresh_stats
+from genon.preprocessor.processing.common.vector_meta import refresh_stats
 
 pytestmark = pytest.mark.unit
 

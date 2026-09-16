@@ -76,7 +76,7 @@ def test_shipped_default_mode(tmp_path, module_name):
 
 def test_shipped_chunker_rules_strip_decorative_glyphs(tmp_path):
     """청커 출고 설정의 규칙이 실제로 장식 마커를 지운다."""
-    from genon.preprocessor.facade.chunking import text_norm as tn
+    from genon.preprocessor.processing.chunking import text_norm as tn
 
     proc = _init_processor("chunking_processor", _make_config(tmp_path, "chunking_processor"))
     rules = tn.rules_of(proc)
@@ -106,7 +106,7 @@ def test_yaml_typo_falls_back_to_off(tmp_path, module_name):
 @pytest.mark.parametrize("module_name", _MODULES)
 def test_kwargs_override_yaml(tmp_path, module_name):
     """요청 kwargs 의 text_cleanup 이 yaml 보다 우선한다(공용 tn.mode_for)."""
-    from genon.preprocessor.facade.chunking import text_norm as tn
+    from genon.preprocessor.processing.chunking import text_norm as tn
 
     proc = _init_processor(module_name, _make_config(tmp_path, module_name, "off"))
     assert tn.mode_for({"text_cleanup": "safe"}, proc._text_cleanup) == "safe"

@@ -11,18 +11,18 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 import yaml
 
-from genon.preprocessor.facade.enrichment import custom_fields_enricher as cfe
-from genon.preprocessor.facade.enrichment.custom_fields_enricher import (
+from genon.preprocessor.processing.enrichment import custom_fields_enricher as cfe
+from genon.preprocessor.processing.enrichment.custom_fields_enricher import (
     CustomFieldsEnricher,
     build_document_custom_fields_enrichers,
     matches_doc_type,
 )
-from genon.preprocessor.facade.enrichment.enrichment_config import EnrichmentConfig
-from genon.preprocessor.facade.enrichment.field_transforms import (
+from genon.preprocessor.processing.enrichment.enrichment_config import EnrichmentConfig
+from genon.preprocessor.processing.enrichment.field_transforms import (
     detect_payload_kind,
     render_field_text,
 )
-from genon.preprocessor.facade.enrichment.tabular_custom_fields import (
+from genon.preprocessor.processing.enrichment.tabular_custom_fields import (
     TabularCustomFieldsMapper,
     build_tabular_custom_fields_mappers,
 )
@@ -311,7 +311,7 @@ def test_value_map_folds_aliases_and_keeps_unmapped_value(tmp_path, caplog):
     매핑표에 없는 값은 조용히 null 로 만들지 않고 원값 유지 + 경고 — 그래야 표준화 누락이
     적재 직전이 아니라 파싱 로그에서 드러난다.
     """
-    from genon.preprocessor.facade.enrichment.tabular_custom_fields import (
+    from genon.preprocessor.processing.enrichment.tabular_custom_fields import (
         apply_value_map,
         compile_value_map,
     )
@@ -335,7 +335,7 @@ def test_value_map_folds_aliases_and_keeps_unmapped_value(tmp_path, caplog):
 
 @pytest.mark.unit
 def test_value_map_rejects_alias_claimed_by_two_canonicals():
-    from genon.preprocessor.facade.enrichment.tabular_custom_fields import compile_value_map
+    from genon.preprocessor.processing.enrichment.tabular_custom_fields import compile_value_map
 
     with pytest.raises(ValueError, match="양쪽에 있습니다"):
         compile_value_map({"GROUP_C": {"SLF": ["생명"], "SSF": ["생명"]}})
@@ -1076,7 +1076,7 @@ def test_unproducible_text_field_warns_but_loads(tmp_path, caplog):
 def test_shipped_configs_pass_startup_validation():
     """출고 매핑 설정은 새 검증을 모두 통과해야 한다(오탐 방지)."""
     import yaml as _yaml
-    from genon.preprocessor.facade.enrichment.custom_fields_enricher import (
+    from genon.preprocessor.processing.enrichment.custom_fields_enricher import (
         custom_fields_extractor,
     )
 
@@ -1094,11 +1094,11 @@ def test_shipped_configs_pass_startup_validation():
                 cls = TabularCustomFieldsMapper
             elif extractor == "json_semantic":
                 cls = pytest.importorskip(
-                    "genon.preprocessor.facade.enrichment.json_semantic"
+                    "genon.preprocessor.processing.enrichment.json_semantic"
                 ).SemanticJsonMapper
             elif extractor.startswith("json"):
                 cls = pytest.importorskip(
-                    "genon.preprocessor.facade.enrichment.json_records"
+                    "genon.preprocessor.processing.enrichment.json_records"
                 ).JsonRecordsMapper
             else:
                 continue
@@ -1116,7 +1116,7 @@ def test_registration_block_accepts_html_preprocess_block():
     `build_html_marker_heading_doc_types` 가 이 위치의 블록을 읽도록 만들어져 있는데도
     그 코드에 도달하지 못했다(json/markdown 은 처음부터 제외돼 있었다).
     """
-    from genon.preprocessor.facade.enrichment.markdown_front_matter import (
+    from genon.preprocessor.processing.enrichment.markdown_front_matter import (
         build_html_marker_heading_doc_types,
     )
 
@@ -1146,7 +1146,7 @@ def test_registration_block_still_rejects_unknown_keys():
 @pytest.mark.unit
 def test_unknown_key_is_rejected_with_suggestion(tmp_path):
     """모르는 최상위 키는 지금까지 완전 무증상이었다 — `column_maps` 한 글자로 매핑이 사라졌다."""
-    from genon.preprocessor.facade.enrichment.tabular_custom_fields import (
+    from genon.preprocessor.processing.enrichment.tabular_custom_fields import (
         TabularCustomFieldsMapper,
     )
 
@@ -1169,7 +1169,7 @@ def test_key_of_another_extractor_is_rejected(tmp_path):
     특히 json_semantic 은 chunk_prefix_fields 를 읽지 않는데, 예전에는 이름이 맞으면
     무시하고 틀리면 기동을 실패시켜 신호가 정반대로 나갔다.
     """
-    from genon.preprocessor.facade.enrichment.json_semantic import SemanticJsonMapper
+    from genon.preprocessor.processing.enrichment.json_semantic import SemanticJsonMapper
 
     cfg = tmp_path / "custom_field_s.yaml"
     cfg.write_text(
@@ -1190,7 +1190,7 @@ def test_key_of_another_extractor_is_rejected(tmp_path):
 @pytest.mark.unit
 def test_llm_config_rejects_output_field_typo(tmp_path):
     """템플릿이 오래 경고만 하던 오타다 — 이제 기동 시에 잡는다."""
-    from genon.preprocessor.facade.enrichment.custom_fields_enricher import (
+    from genon.preprocessor.processing.enrichment.custom_fields_enricher import (
         CustomFieldsEnricher,
     )
 
@@ -1219,8 +1219,8 @@ def test_shipped_configs_match_declared_keys(resource_dir):
 
     import yaml
 
-    from genon.preprocessor.facade.enrichment import config_schema as cs
-    from genon.preprocessor.facade.enrichment.custom_fields_enricher import (
+    from genon.preprocessor.processing.enrichment import config_schema as cs
+    from genon.preprocessor.processing.enrichment.custom_fields_enricher import (
         custom_fields_extractor,
     )
 
@@ -1261,7 +1261,7 @@ def test_column_map_can_reference_sheet_name(tmp_path):
 
     시트명·표 제목은 그동안 로그·에러 메시지에만 쓰여 목표필드로 만들 방법이 없었다.
     """
-    from genon.preprocessor.facade.enrichment.tabular_custom_fields import (
+    from genon.preprocessor.processing.enrichment.tabular_custom_fields import (
         TabularCustomFieldsMapper,
     )
 
@@ -1289,7 +1289,7 @@ def test_column_map_can_reference_sheet_name(tmp_path):
 @pytest.mark.unit
 def test_real_column_wins_over_sheet_context(tmp_path):
     """컨텍스트가 진짜 데이터를 가리면 안 된다 — 같은 이름의 실제 컬럼이 우선한다."""
-    from genon.preprocessor.facade.enrichment.tabular_custom_fields import (
+    from genon.preprocessor.processing.enrichment.tabular_custom_fields import (
         TabularCustomFieldsMapper,
     )
 
@@ -1320,7 +1320,7 @@ def test_removed_keys_are_rejected(tmp_path, key):
     nulls 는 `defaults: {X: null}` 과 결과가 완전히 같아 개념 하나를 줄였고,
     json_text_fields 는 순효과가 경고 한 줄뿐이라 `transform: text` 로 접었다.
     """
-    from genon.preprocessor.facade.enrichment.tabular_custom_fields import (
+    from genon.preprocessor.processing.enrichment.tabular_custom_fields import (
         TabularCustomFieldsMapper,
     )
 
@@ -1340,7 +1340,7 @@ def test_removed_keys_are_rejected(tmp_path, key):
 @pytest.mark.unit
 def test_defaults_null_declares_field_without_mapping(tmp_path):
     """`defaults: {X: null}` 이 예전 `nulls: [X]` 와 같은 결과를 낸다."""
-    from genon.preprocessor.facade.enrichment.tabular_custom_fields import (
+    from genon.preprocessor.processing.enrichment.tabular_custom_fields import (
         TabularCustomFieldsMapper,
     )
 
@@ -1374,7 +1374,7 @@ def test_extractor_aliases_are_gone(alias):
 @pytest.mark.unit
 def test_thinking_falls_back_to_config_file(tmp_path):
     """문서유형 yaml 의 thinking 값이 반영돼야 한다(생성자 기본값이 먼저 잡히던 버그)."""
-    from genon.preprocessor.facade.enrichment.custom_fields_enricher import (
+    from genon.preprocessor.processing.enrichment.custom_fields_enricher import (
         CustomFieldsEnricher,
     )
 
@@ -1423,7 +1423,7 @@ def test_registration_block_wins_even_with_default_looking_values(tmp_path):
     예전에는 sentinel 비교(`max_tokens != 1000`)라 "미지정"과 구분되지 않아 config_file
     값이 이겼다. `temperature: 0.0` 이 가장 자주 밟혔다.
     """
-    from genon.preprocessor.facade.enrichment.custom_fields_enricher import (
+    from genon.preprocessor.processing.enrichment.custom_fields_enricher import (
         CustomFieldsEnricher,
     )
 
@@ -1438,7 +1438,7 @@ def test_registration_block_wins_even_with_default_looking_values(tmp_path):
 @pytest.mark.unit
 def test_constants_merge_per_key(tmp_path):
     """전체 치환이면 등록 블록에 상수 하나만 덧붙여도 config_file 상수가 통째로 사라진다."""
-    from genon.preprocessor.facade.enrichment.custom_fields_enricher import (
+    from genon.preprocessor.processing.enrichment.custom_fields_enricher import (
         CustomFieldsEnricher,
     )
 
@@ -1451,7 +1451,7 @@ def test_constants_merge_per_key(tmp_path):
 @pytest.mark.unit
 def test_registration_inline_prompt_beats_config_file_prompt_file(tmp_path):
     """프롬프트만 방향이 반대였다 — config_file 의 `*_prompt_file` 이 등록 블록을 이겼다."""
-    from genon.preprocessor.facade.enrichment.custom_fields_enricher import (
+    from genon.preprocessor.processing.enrichment.custom_fields_enricher import (
         CustomFieldsEnricher,
     )
 
@@ -1471,8 +1471,8 @@ def test_constants_beat_defaults_even_when_empty(tmp_path):
 
     세 extractor 가 같은 순서(defaults → constants)를 쓰는지 고정한다.
     """
-    from genon.preprocessor.facade.enrichment.json_records import JsonRecordsMapper
-    from genon.preprocessor.facade.enrichment.tabular_custom_fields import (
+    from genon.preprocessor.processing.enrichment.json_records import JsonRecordsMapper
+    from genon.preprocessor.processing.enrichment.tabular_custom_fields import (
         TabularCustomFieldsMapper,
     )
 
@@ -1512,7 +1512,7 @@ def test_html_text_transform_forces_html_and_receives_the_runtime_renderer(tmp_p
     렌더러는 요청의 table_format/compact_tables 를 물고 있어 yaml 로 표현할 수 없다 —
     설정이 아니라 적용 시점에 주입된다.
     """
-    from genon.preprocessor.facade.enrichment.tabular_custom_fields import (
+    from genon.preprocessor.processing.enrichment.tabular_custom_fields import (
         apply_transforms, compile_transforms,
     )
 
@@ -1527,7 +1527,7 @@ def test_html_text_transform_forces_html_and_receives_the_runtime_renderer(tmp_p
 @pytest.mark.unit
 def test_text_transform_auto_detects_json(tmp_path):
     """`text` 는 값의 종류를 자동 판별한다 — JSON 은 마크다운 헤딩으로 편다."""
-    from genon.preprocessor.facade.enrichment.tabular_custom_fields import (
+    from genon.preprocessor.processing.enrichment.tabular_custom_fields import (
         apply_transforms, compile_transforms,
     )
 
@@ -1540,7 +1540,7 @@ def test_text_transform_auto_detects_json(tmp_path):
 @pytest.mark.unit
 def test_renderer_is_only_injected_into_renderer_transforms():
     """렌더러가 필요 없는 변환기에는 주입하지 않는다 — 인자를 안 받는 함수가 터진다."""
-    from genon.preprocessor.facade.enrichment.tabular_custom_fields import (
+    from genon.preprocessor.processing.enrichment.tabular_custom_fields import (
         apply_transforms, compile_transforms,
     )
 
@@ -1553,7 +1553,7 @@ def test_renderer_is_only_injected_into_renderer_transforms():
 @pytest.mark.unit
 def test_duplicate_alias_keeps_source_and_derives_in_one_pass(tmp_path):
     """같은 alias 를 두 필드에 붙이면 원본과 평문 사본을 함께 얻는다(옛 from/as 대체)."""
-    from genon.preprocessor.facade.enrichment.tabular_custom_fields import (
+    from genon.preprocessor.processing.enrichment.tabular_custom_fields import (
         TabularCustomFieldsMapper,
     )
 
@@ -1585,7 +1585,7 @@ def test_old_derived_blocks_are_rejected_at_startup(tmp_path):
     v2 에는 대응 표기가 없으므로 최상위 키 검증이 잡는다(같은 alias 를 두 필드에 붙이고
     `transform` 을 거는 것이 그 자리를 대신한다 — 바로 위 테스트).
     """
-    from genon.preprocessor.facade.enrichment.tabular_custom_fields import (
+    from genon.preprocessor.processing.enrichment.tabular_custom_fields import (
         TabularCustomFieldsMapper,
     )
 

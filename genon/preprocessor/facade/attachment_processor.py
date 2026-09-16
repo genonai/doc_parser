@@ -16,17 +16,17 @@ _log = logging.getLogger(__name__)
 
 
 # ── 공용 하위 모듈로 옮긴 헬퍼들의 별칭 ──────────────────────────────
-# 구현은 facade/common/, facade/chunking/ 에 한 벌만 둔다. 여기서는 기존 이름을
+# 구현은 processing/common/, processing/chunking/ 에 한 벌만 둔다. 여기서는 기존 이름을
 # 그대로 유지해 호출부를 건드리지 않는다. 사이트별 조정 대상 상수(구분자, 최소
 # 청크 크기, 토크나이저 경로)는 이 파일에 남아 있으므로 래퍼가 넘겨준다.
 from genon.preprocessor.converters.md_math import guard_markdown
-from genon.preprocessor.facade.common import config_parse as cp
-from genon.preprocessor.facade.common import loaders as ld
-from genon.preprocessor.facade.common import vector_meta as vm
-from genon.preprocessor.facade.common import runtime as rt
-from genon.preprocessor.facade.common import file_probe as fp
-from genon.preprocessor.facade.common import pdf_convert as pc
-from genon.preprocessor.facade.chunking import hybrid_chunker as hc
+from genon.preprocessor.processing.common import config_parse as cp
+from genon.preprocessor.processing.common import loaders as ld
+from genon.preprocessor.processing.common import vector_meta as vm
+from genon.preprocessor.processing.common import runtime as rt
+from genon.preprocessor.processing.common import file_probe as fp
+from genon.preprocessor.processing.common import pdf_convert as pc
+from genon.preprocessor.processing.chunking import hybrid_chunker as hc
 
 _as_dict = cp.as_dict
 _detect_unsupported_file = fp.detect_unsupported_file
@@ -83,17 +83,17 @@ from docling.pipeline.simple_pipeline import SimplePipeline
 from docling.document_converter import (
     DocumentConverter, HwpxFormatOption, WordFormatOption,
 )
-from genon.preprocessor.facade.enrichment.page_description import (
+from genon.preprocessor.processing.enrichment.page_description import (
     PageDescriptionOptions,
     describe_page_images,
     should_describe,
 )
-from genon.preprocessor.facade.chunking.table_splitter import (
+from genon.preprocessor.processing.chunking.table_splitter import (
     leading_header_row_count,
     split_table_rows,
 )
 from docling_core.transforms.chunker import DocChunk
-from genon.preprocessor.facade.common.markdown_export import (
+from genon.preprocessor.processing.common.markdown_export import (
     export_markdown,
     markdown_params,
 )
@@ -151,7 +151,7 @@ def convert_to_pdf(file_path: str, use_pdf_sdk: bool = True) -> str | None:
       use_pdf_sdk=True  → pdf_sdk → libreoffice
       use_pdf_sdk=False → libreoffice
 
-    구현은 facade/common/pdf_convert.py 에 있다(변환 backend 는
+    구현은 processing/common/pdf_convert.py 에 있다(변환 backend 는
     genon.preprocessor.converters.hwp_to_pdf).
     """
     return pc.convert_to_pdf(file_path, use_pdf_sdk=use_pdf_sdk)
@@ -162,13 +162,13 @@ def _has_any_pdf_converter() -> bool:
 
 
 def _get_pdf_path(file_path: str) -> str:
-    """변환 가능한 확장자면 PDF 경로로 바꾼다(구현은 facade/common/file_probe.py)."""
+    """변환 가능한 확장자면 PDF 경로로 바꾼다(구현은 processing/common/file_probe.py)."""
     return fp.get_pdf_path(file_path, CONVERTIBLE_EXTENSIONS)
 
 
 install_packages = ld.install_packages
-# 민감정보 분류/마스킹(#315)은 facade/guardrail 모듈로 분리 — gr.* 로 사용.
-from genon.preprocessor.facade import guardrail as gr
+# 민감정보 분류/마스킹(#315)은 processing/guardrail 모듈로 분리 — gr.* 로 사용.
+from genon.preprocessor.processing import guardrail as gr
 
 
 class GenOSVectorMeta(BaseModel):
@@ -196,7 +196,7 @@ class GenOSVectorMeta(BaseModel):
 
 
 class GenOSVectorMetaBuilder(vm.VectorMetaBuilderBase):
-    """공통 세터는 facade/common/vector_meta.py 에 있다.
+    """공통 세터는 processing/common/vector_meta.py 에 있다.
 
     첨부 프로세서는 벡터 고유 필드가 없고, 미디어 파일 처리만 다르다."""
 
@@ -267,7 +267,7 @@ class AudioLoader(ld.AudioLoaderBase):
 #  * GenosServiceException      #
 
 # HierarchicalChunker / HybridChunker 는 docling_core 포크본이라
-# facade/chunking/hybrid_chunker.py 로 옮겼다. 아래는 호출부를 그대로 두기 위한 별칭이다.
+# processing/chunking/hybrid_chunker.py 로 옮겼다. 아래는 호출부를 그대로 두기 위한 별칭이다.
 # 이름을 바꾼 이유와 업스트림과 갈라진 지점은 그 모듈 docstring 에 있다.
 HierarchicalChunker = hc.HierarchicalDocChunker
 HybridChunker = hc.TokenAwareHybridChunker

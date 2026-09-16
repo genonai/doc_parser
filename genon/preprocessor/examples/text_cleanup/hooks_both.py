@@ -5,7 +5,7 @@
 """
 from __future__ import annotations
 
-from genon.preprocessor.facade.core import toolbox as tb
+from genon.preprocessor.processing.core import toolbox as tb
 
 # 이 문구가 든 청크는 상담직원용 안내라 검색 대상이 아니다.
 INTERNAL_ONLY = "상담직원용"

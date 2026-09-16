@@ -19,10 +19,10 @@
 # 서버 없이 이 파일만 돌려 볼 수 있다. 사용법은 파일 끝 "파일 단독 실행" 참조.
 from pydantic import BaseModel
 
-from genon.preprocessor.facade.chunking import smart_chunker as sc
-from genon.preprocessor.facade.core import toolbox as tb
-from genon.preprocessor.facade.core.chunker import ChunkerCore
-from genon.preprocessor.facade.core.errors import GenosServiceException
+from genon.preprocessor.processing.chunking import smart_chunker as sc
+from genon.preprocessor.processing.core import toolbox as tb
+from genon.preprocessor.processing.core.chunker import ChunkerCore
+from genon.preprocessor.processing.core.errors import GenosServiceException
 
 
 class GenOSVectorMeta(BaseModel):
@@ -41,7 +41,7 @@ class GenOSVectorMeta(BaseModel):
 
 
 class GenosSmartChunker(sc.SmartChunkerBase):
-    """청킹 옵션. 구현은 facade/chunking/smart_chunker.py 에 있다."""
+    """청킹 옵션. 구현은 processing/chunking/smart_chunker.py 에 있다."""
 
     PICTURE_ANNOTATION_TEXT = True          # 이미지 설명을 청크 텍스트에 포함
     TABLE_DESCRIPTION_MODE = "prefix_only"  # 표 설명은 표 청크 앞에만 추가. full 이면 본문에도 추가

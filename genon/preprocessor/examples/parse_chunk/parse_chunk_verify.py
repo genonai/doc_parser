@@ -371,7 +371,7 @@ def check_no_markdown_links(chunks: list) -> list[str]:
 
     docling HTML 백엔드는 `<a href>` 를 hyperlink 로 보존하고 markdown serializer 가
     `[라벨](URL)` 로 찍는다. URL 은 검색에 기여하지 않으면서 청크 예산만 먹으므로
-    `facade/common/markdown_export` 가 라벨만 남기고 버린다. 라벨 보존은
+    `processing/common/markdown_export` 가 라벨만 남기고 버린다. 라벨 보존은
     케이스별 단정(check_product_hpp_link_labels)에서 따로 본다.
     """
     problems = []

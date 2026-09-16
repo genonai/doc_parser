@@ -7,8 +7,8 @@ import textwrap
 
 import pytest
 
-from genon.preprocessor.facade.enrichment.field_transforms import transform_date_int_flex
-from genon.preprocessor.facade.enrichment.json_records import (
+from genon.preprocessor.processing.enrichment.field_transforms import transform_date_int_flex
+from genon.preprocessor.processing.enrichment.json_records import (
     JsonRecordsMapper,
     build_json_records_mappers,
     collect_records,
@@ -580,7 +580,7 @@ def test_llm_field_enricher_kwargs_passthrough(tmp_path):
 
 def test_llm_field_inline_config_builds_real_enricher(tmp_path):
     """인라인 설정만으로 실제 CustomFieldsEnricher 가 만들어진다(LLM 호출은 하지 않음)."""
-    from genon.preprocessor.facade.enrichment.custom_fields_enricher import CustomFieldsEnricher
+    from genon.preprocessor.processing.enrichment.custom_fields_enricher import CustomFieldsEnricher
 
     spec = write_mapper(tmp_path, BASE_CONFIG + INLINE_LLM_CONFIG).llm_field_specs[0]
     enricher = CustomFieldsEnricher(resource_path=str(tmp_path), **spec.enricher_kwargs)

@@ -678,7 +678,7 @@ print(len(chunks), chunks[0].model_dump()['text'][:80])
 
 > **처리 본체는 facade 파일 안에 있지 않습니다.** facade(`parser_processor.py` ·
 > `chunking_processor.py`)는 "어떤 입력을 어느 경로로 보내는가" 와 사이트 조정 지점만 갖고,
-> docling 배관·청킹 엔진·직렬화는 `facade/common/` · `facade/chunking/` · `facade/serialize/` 에
+> docling 배관·청킹 엔진·직렬화는 `processing/common/` · `processing/chunking/` · `processing/serialize/` 에
 > **한 벌씩** 있습니다. 그래서 **고칠 자리는 대부분 facade 안**이고, 공용 모듈까지 가야 한다면
 > 그건 설정이나 facade 로 풀 수 있는 일을 놓쳤다는 신호입니다.
 
@@ -689,12 +689,12 @@ print(len(chunks), chunks[0].model_dump()['text'][:80])
 | `main.py` | FastAPI 앱. 라우트 정의 + 공통 예외/응답 처리 | 엔드포인트를 추가할 때만 |
 | `facade/parser_processor.py` | `/parser` **표면** (92줄) — 라우팅 표와 확장 훅 | **예. 여기만 고칩니다** |
 | `facade/chunking_processor.py` | `/chunker` **표면** (100줄) — 적재 컬럼·청킹 옵션·확장 훅 | **예. 여기만 고칩니다** |
-| `facade/core/parser.py` · `core/chunker.py` | **처리 본체.** 로더·docling 배관·custom_fields·직렬화·분할 | **열 일이 없습니다** |
-| `facade/core/toolbox.py` | 훅에서 쓰는 기존 기능 모음(값 변환·표·엑셀·텍스트) | 훅을 쓸 때 |
-| `facade/core/cli.py` · `core/errors.py` | 파일 단독 실행 · 공용 예외 | 거의 없음 |
+| `processing/core/parser.py` · `core/chunker.py` | **처리 본체.** 로더·docling 배관·custom_fields·직렬화·분할 | **열 일이 없습니다** |
+| `processing/core/toolbox.py` | 훅에서 쓰는 기존 기능 모음(값 변환·표·엑셀·텍스트) | 훅을 쓸 때 |
+| `processing/core/cli.py` · `core/errors.py` | 파일 단독 실행 · 공용 예외 | 거의 없음 |
 | `facade/intelligent_processor.py` · `convert_processor.py` · `attachment_processor.py` | `/preprocess*` 구현 | 해당 엔드포인트를 쓸 때만 |
-| `facade/enrichment/` | 목차·메타데이터·이미지/표 설명 등 공용 모듈 | enrichment 동작을 바꿀 때 |
-| `facade/guardrail/` | 개인정보 탐지·마스킹 | 가드레일을 쓸 때 |
+| `processing/enrichment/` | 목차·메타데이터·이미지/표 설명 등 공용 모듈 | enrichment 동작을 바꿀 때 |
+| `processing/guardrail/` | 개인정보 탐지·마스킹 | 가드레일을 쓸 때 |
 | `resource/*.yaml`, `resource/prompt_*.md` | 설정·프롬프트 | **예** (6장) |
 | `src/` | 로거, 응답 유틸, 설정 로딩 | 거의 없음 |
 | `converters/` | HWP→PDF, xlsx 처리 | 해당 포맷을 다룰 때 |
@@ -755,7 +755,7 @@ class DocumentProcessor:          # ← 클래스 이름 고정. main.py 가 이
 
 #### 파일 구획
 
-**파일이 92줄입니다.** 처리 본체는 `facade/core/parser.py` 에 있고 열 일이 없습니다.
+**파일이 92줄입니다.** 처리 본체는 `processing/core/parser.py` 에 있고 열 일이 없습니다.
 
 | 구획 | 내용 | 봐야 하나 |
 |---|---|---|
@@ -875,13 +875,13 @@ key 다, JSONL 이다, BOM 이 붙어 있다 …) **공용 모듈이 아니라 �
 | 함수 | 있는 곳 | 만드는 것 |
 |---|---|---|
 | `_build_docling_response` | `parser_processor.py` | **`output.format` 분기 지점.** `docling`→`{"document": …}`(무손실 JSON), `json`→element 배열, `html`/`markdown`→문자열. 개인정보 분류(guardrail) 호출도 여기 |
-| `docling_to_parse_format` | `facade/serialize/parse_format.py` | **element 배열 생성기.** 문서를 순회해 `{category, content, coordinates, id, page}` 5키 dict 리스트 + `usage.pages` |
+| `docling_to_parse_format` | `processing/serialize/parse_format.py` | **element 배열 생성기.** 문서를 순회해 `{category, content, coordinates, id, page}` 5키 dict 리스트 + `usage.pages` |
 | `normalize_response` | 〃 | `content`/`elements`/`usage` 키 존재 보장. **모든 반환 경로가 통과** |
 | `tabular_to_parse_format` | 〃 | 데이터 행 1개 = element 1개 (`category="tabular_row"`) |
 | `langchain_to_parse_format` | 〃 | Document 1개 = element 1개 (`category="paragraph"`) |
 
 > facade 에는 같은 이름의 `_docling_to_parse_format` 같은 **얇은 래퍼**가 남아 있습니다.
-> 고칠 때는 `facade/serialize/parse_format.py` 쪽 본체를 고칩니다.
+> 고칠 때는 `processing/serialize/parse_format.py` 쪽 본체를 고칩니다.
 
 #### enrichment 연결
 
@@ -907,14 +907,14 @@ key 다, JSONL 이다, BOM 이 붙어 있다 …) **공용 모듈이 아니라 �
 | element 카테고리·필드 변경 | `serialize/parse_format.py::docling_to_parse_format` | 5키 스키마는 `/chunker` 가 의존. **추가는 안전, 삭제·개명은 위험** |
 | 표 출력 형식 | `serialize/parse_format.py::export_table_content` | `[표 설명]` 구분자·시트명 접두를 바꾸면 다운스트림 파싱에 영향 |
 | 이미지 element 의 내용 | `docling_to_parse_format` 의 `PictureItem` 분기 | 현재 이미지 설명으로 `content` 를 덮어씀. 별도 필드로 빼려면 소비 측도 함께 확인 |
-| OCR / layout 옵션 | `facade/common/docling_runtime.py` | **공용 모듈입니다** — 파서·적재 프로세서가 함께 바뀝니다 |
+| OCR / layout 옵션 | `processing/common/docling_runtime.py` | **공용 모듈입니다** — 파서·적재 프로세서가 함께 바뀝니다 |
 | enrichment 단계 추가 | `_apply_docling_post_enrichment` | `try/except → _handle_stage_error(exc, "<stage>")` 패턴 유지 |
-| 입력 검증 완화(새 포맷 허용) | `facade/common/file_probe.py::detect_unsupported_file` | 손상 파일을 통과시키면 뒤 단계에서 이상한 결과가 나옴 |
+| 입력 검증 완화(새 포맷 허용) | `processing/common/file_probe.py::detect_unsupported_file` | 손상 파일을 통과시키면 뒤 단계에서 이상한 결과가 나옴 |
 | `output.format` 값 추가 | `_normalize_output_format` + `_build_docling_response` | **한쪽만 고치면 에러 없이 `json` 으로 폴백**됩니다 |
 
 ### 5.5 `chunking_processor.py` 읽기
 
-**청킹 엔진 본체는 이 파일에 없습니다.** `facade/chunking/smart_chunker.py` 에 한 벌 있고,
+**청킹 엔진 본체는 이 파일에 없습니다.** `processing/chunking/smart_chunker.py` 에 한 벌 있고,
 facade 의 `GenosSmartChunker` 는 동작 옵션(ClassVar)만 지정하는 얇은 서브클래스입니다.
 
 #### 봐야 하는 곳
@@ -929,7 +929,7 @@ facade 의 `GenosSmartChunker` 는 동작 옵션(ClassVar)만 지정하는 얇�
 | `chunking_processor.py::edit_input` · `edit_output` | **확장 훅** | 7.2 (h) |
 | `core/chunker.py::ChunkerCore.load_input` | 입력 채널 판별(인라인 / `.json`) | 열 일 없음 |
 | `core/chunker.py::ChunkerCore.chunk` · `compose_vectors` | 분할 실행 · 출력 스키마 조립 | 〃 |
-| `facade/chunking/smart_chunker.py` | **청킹 엔진 본체** | 섹션 판정·분할·병합 |
+| `processing/chunking/smart_chunker.py` | **청킹 엔진 본체** | 섹션 판정·분할·병합 |
 
 > `VECTOR_META` 와 `CHUNKER` 는 facade 가 **반드시** 정합니다. core 에 기본값을 두지
 > 않았습니다 — 스키마 사본이 둘이 되면 조용히 어긋나기 때문입니다.
@@ -967,7 +967,7 @@ facade 의 `GenosSmartChunker` 는 동작 옵션(ClassVar)만 지정하는 얇�
 | `tokenizer_type` | `char` | `char`=문자 수 / `huggingface`=토큰 수 |
 | `merge_peers` | `True` | **코드에서 읽지 않는 잔재 필드.** 바꿔도 동작이 변하지 않습니다 |
 
-`facade/chunking/smart_chunker.py` 안에서:
+`processing/chunking/smart_chunker.py` 안에서:
 `chunk()` → `preprocess()`(문서 순회·수집) → `_split_document_by_tokens()`(실제 파이프라인)
 
 ```
@@ -991,7 +991,7 @@ facade 의 `GenosSmartChunker` 는 동작 옵션(ClassVar)만 지정하는 얇�
 **섹션 인식은 정규식이 아닙니다.** `_is_section_header` 가 docling 이 붙인 라벨
 (`SECTION_HEADER`/`TITLE`)로 판정합니다. "제N조" 같은 텍스트 패턴으로 자르고 싶다면
 이 함수에 정규식을 추가하고, **`preprocess` 안의 같은 판정과 `_get_section_header_level`
-까지 세 곳을 함께** 고쳐야 합니다. 셋 다 `facade/chunking/smart_chunker.py` 에 있습니다.
+까지 세 곳을 함께** 고쳐야 합니다. 셋 다 `processing/chunking/smart_chunker.py` 에 있습니다.
 
 #### 두 경로의 차이
 
@@ -1042,14 +1042,14 @@ facade 의 `GenosSmartChunker` 는 동작 옵션(ClassVar)만 지정하는 얇�
 | 섹션 인식 규칙 변경 | `smart_chunker.py::_is_section_header` + `preprocess` + `_get_section_header_level` | **세 곳이 같은 판정을 중복 구현.** 하나만 고치면 헤더 스택과 레벨 계산이 어긋남 |
 | 청크 메타데이터 필드 추가 | 가장 안전: `set_global_metadata` 경유 (스키마는 `extra` 허용) | 정식 필드로 올리려면 스키마·빌더·조립부 3곳 + parse-format 경로 3곳을 함께 |
 | 병합/분할 기준 변경 | `smart_chunker.py` 4·5·5.5단계 | 4단계 조건을 완화하면 조 단위가 장 단위로 뭉쳐집니다. 분할 구간은 **폭이 0 이 아니어야** 합니다 — 0 이면 그 청크가 에러 없이 사라집니다 |
-| 표 직렬화 형식 | `smart_chunker.py::_extract_table_text` / `_table_item_to_texts`, HTML 직렬화는 `facade/chunking/table_html.py` | 요청 `params` 의 `export_to_html: 0` 으로도 markdown 전환 가능(코드 수정 불필요). 다만 큰 표 분할 경로는 HTML 전제 |
+| 표 직렬화 형식 | `smart_chunker.py::_extract_table_text` / `_table_item_to_texts`, HTML 직렬화는 `processing/chunking/table_html.py` | 요청 `params` 의 `export_to_html: 0` 으로도 markdown 전환 가능(코드 수정 불필요). 다만 큰 표 분할 경로는 HTML 전제 |
 | `HEADER:` 접두 형식 | 조립은 `_build_header_line` **한 곳**, 부착은 `compose_vectors` 한 곳 | `chunk.meta.headings` 의 **원소 하나가 완전한 경로**입니다. **크기 산정(`_size` · 분할 예산 · 병합 재검증)도 같은 `_build_header_line` 을 써야 합니다.** 본문에 제목을 다시 넣던 옛 동작(제목이 3번, 청크의 30~56%)은 되살리지 마십시오 |
 | 헤더-only 청크 병합 | `smart_chunker.py::_merge_heading_only_chunks` | 판정은 **아이템 유형**(`_is_section_header`)입니다. 문자열 replace 로 되돌리지 마십시오 — 본문이 헤더 문자열로만 구성된 정상 청크를 오판해 본문이 사라졌습니다 |
 | chunk_size 예산 (알려진 한계) | — | **표 분할 경로는 아직 헤더 몫을 예약하지 않습니다.** 그 경로에서는 청크가 헤더 길이만큼 chunk_size 를 넘을 수 있습니다 |
 
 ### 5.6 enrichment 모듈
 
-`facade/enrichment/` 의 모듈이 config 의 `enrichment` 항목과 대응됩니다.
+`processing/enrichment/` 의 모듈이 config 의 `enrichment` 항목과 대응됩니다.
 
 | 모듈 | config 항목 | 프롬프트 파일 |
 |---|---|---|
@@ -1096,20 +1096,20 @@ facade 는 **한 파일씩 배포**되므로 서로 import 하지 않습니다. 
 |---|---|
 | 청크 출력 스키마 `GenOSVectorMeta` | `chunking_processor.py` · `intelligent_processor.py` · `convert_processor.py` · `attachment_processor.py` |
 | `GenosSmartChunker` | 〃 (청커만 `core` 의 `CHUNKER` ClassVar 를 거칩니다) |
-| `GenosServiceException` | `src/common/exception.py`(정본) · `facade/core/errors.py`(parser·chunker 공용) + 나머지 facade 의 로컬 사본 |
+| `GenosServiceException` | `src/common/exception.py`(정본) · `processing/core/errors.py`(parser·chunker 공용) + 나머지 facade 의 로컬 사본 |
 | `enrichment()` | `core/parser.py` + `intelligent_processor.py` · `convert_processor.py` (로그 태그·PPT 처리·예외 스탬프가 서로 다릅니다) |
 
 반대로 **아래는 이제 한 벌뿐입니다.** 여기를 고치면 관련 facade 전부가 함께 바뀝니다.
 
 | 한 벌인 것 | 어디에 |
 |---|---|
-| **`/parser` 처리 본체** | `facade/core/parser.py` |
-| **`/chunker` 처리 본체** | `facade/core/chunker.py` |
-| 청킹 엔진 | `facade/chunking/smart_chunker.py` |
-| docling 런타임(OCR·파이프라인·컨버터·enricher 생성) | `facade/common/docling_runtime.py` |
-| docling 배관(OCR 옵션·컨버터 생성·글리프 검사·표 셀 재OCR·포맷 로더) | `facade/common/docling_ops.py` |
-| 파서 응답 직렬화 | `facade/serialize/parse_format.py` |
-| 설정 해석·custom_fields spec 빌더 | `facade/common/config_parse.py` · `facade/common/parser_config.py` |
+| **`/parser` 처리 본체** | `processing/core/parser.py` |
+| **`/chunker` 처리 본체** | `processing/core/chunker.py` |
+| 청킹 엔진 | `processing/chunking/smart_chunker.py` |
+| docling 런타임(OCR·파이프라인·컨버터·enricher 생성) | `processing/common/docling_runtime.py` |
+| docling 배관(OCR 옵션·컨버터 생성·글리프 검사·표 셀 재OCR·포맷 로더) | `processing/common/docling_ops.py` |
+| 파서 응답 직렬화 | `processing/serialize/parse_format.py` |
+| 설정 해석·custom_fields spec 빌더 | `processing/common/config_parse.py` · `processing/common/parser_config.py` |
 
 수정 전에 아래로 복제본을 찾으세요.
 
@@ -1382,7 +1382,7 @@ facade 별로 받는 키가 다릅니다. 자주 쓰는 것만:
 
 파싱 결과의 element 는 `{category, content, coordinates, id, page}` 5키입니다(행 기반 element —
 `tabular_row`/`custom_fields_row` — 는 행 metadata 를 담은 `metadata` 를 더해 6키). 필드를 추가하려면
-`facade/serialize/parse_format.py::docling_to_parse_format` 에서 dict 를 만드는 부분을 고칩니다
+`processing/serialize/parse_format.py::docling_to_parse_format` 에서 dict 를 만드는 부분을 고칩니다
 (facade 의 같은 이름 메서드는 그 함수를 부르는 얇은 래퍼입니다).
 
 - **추가는 안전**하지만, 기존 키를 삭제·개명하면 `/chunker` 와 다운스트림이 깨집니다.
@@ -1751,7 +1751,7 @@ enrichment:
 # (A) 문서형 — 프롬프트와 output_fields 정합
 python -c "
 import sys; sys.path.insert(0,'.'); sys.path.insert(0,'../..')
-from facade.enrichment.custom_fields_enricher import CustomFieldsEnricher as E
+from processing.enrichment.custom_fields_enricher import CustomFieldsEnricher as E
 e = E(config_file='custom_field_contract.yaml', resource_path='resource')
 print('연결:', e.is_configured, '| 출력필드:', e._output_fields)
 print('{{raw_text}} 포함:', '{{raw_text}}' in e._user_prompt)
@@ -1763,7 +1763,7 @@ print('프롬프트에 없는 출력필드:',
 # (B) 행 매핑형 — 실제 엑셀 헤더와 매핑 결과
 python -c "
 import sys; sys.path.insert(0,'.'); sys.path.insert(0,'../..')
-from facade.enrichment.tabular_custom_fields import TabularCustomFieldsMapper as M
+from processing.enrichment.tabular_custom_fields import TabularCustomFieldsMapper as M
 from genon.preprocessor.converters.xlsx_processor import build_tabular_data_dict
 m = M(config_file='custom_field_notice.yaml', resource_path='resource',
       doc_type='notice', extractor='tabular_mapping')
@@ -1776,7 +1776,7 @@ for el in m.to_parse_format(d, 'notice')['elements'][:3]:
 # (C) 레코드 매핑형 — 레코드 수가 0 이면 key_map 별칭이 원천 키와 어긋난 것
 python -c "
 import sys, json; sys.path.insert(0,'.'); sys.path.insert(0,'../..')
-from facade.enrichment.json_records import JsonRecordsMapper as M
+from processing.enrichment.json_records import JsonRecordsMapper as M
 m = M(config_file='custom_field_monimo_event.yaml', resource_path='resource',
       doc_type='monimo_event', extractor='json_mapping')
 payload = json.load(open('sample_files/json/monimo_event_sample.json', encoding='utf-8'))
@@ -1802,7 +1802,7 @@ for el in m.to_parse_format(rows, 'monimo_event')['elements'][:3]:
 > # 실행 위치: genon/preprocessor
 > python -c "
 > import yaml
-> from genon.preprocessor.facade.enrichment import config_v2
+> from genon.preprocessor.processing.enrichment import config_v2
 > raw = yaml.safe_load(open('resource/custom_field_<유형>.yaml', encoding='utf-8'))
 > c, _ = config_v2.load(raw, label='check')   # 설정 표기 → 내부 형태. 이 줄을 빼면 전부 빈 값이 된다
 > llm = {x for s in (c.get('llm_fields') or []) for x in (s.get('output_fields') or [])}
@@ -2050,7 +2050,7 @@ examples/parse_chunk/parse_chunk_golden.py --check    # 고친 뒤
 
 **① facade 끼리 import 하지 마세요.**
 각 facade 는 **단일 파일로 자기완결**되도록 만들어져 있습니다(2,600~3,700줄). 다른 facade 를 import 하면
-파일 하나만 배포하는 사용 방식이 깨집니다. 공용 로직은 `facade/enrichment/` 같은 하위 모듈에 둡니다.
+파일 하나만 배포하는 사용 방식이 깨집니다. 공용 로직은 `processing/enrichment/` 같은 하위 모듈에 둡니다.
 
 **② 복제된 코드는 함께 고쳐야 합니다.**
 ①의 결과로 같은 코드가 여러 facade 에 복사되어 있습니다. 범위는 [5.8절](#58-수정-전-반드시-확인할-복제-범위) 표를 보세요.

@@ -11,8 +11,8 @@ import time
 
 import pytest
 
-from genon.preprocessor.facade.enrichment.custom_fields_enricher import CustomFieldsEnricher
-from genon.preprocessor.facade.enrichment.table_text_context import (
+from genon.preprocessor.processing.enrichment.custom_fields_enricher import CustomFieldsEnricher
+from genon.preprocessor.processing.enrichment.table_text_context import (
     TableTextDescriptionOptions,
     TableTextTarget,
 )
@@ -122,7 +122,7 @@ def test_batches_run_concurrently_and_describe_every_table():
 @pytest.mark.parametrize("keep_ratio,expected", [(1.0, 10), (0.7, 6), (0.05, 0)])
 def test_truncated_response_recovers_the_complete_entries(keep_ratio, expected):
     """잘린 JSON 에서도 완결된 항목은 살린다 — 예전에는 배치 전체가 전손이었다."""
-    from genon.preprocessor.facade.enrichment.custom_fields_enricher import (
+    from genon.preprocessor.processing.enrichment.custom_fields_enricher import (
         _recover_table_descriptions,
     )
 
@@ -137,7 +137,7 @@ def test_truncated_response_recovers_the_complete_entries(keep_ratio, expected):
 @pytest.mark.unit
 @pytest.mark.parametrize("payload", [None, "", "죄송합니다 응답할 수 없습니다", '{"document_kind":"안내"}'])
 def test_recovery_returns_nothing_for_responses_without_table_descriptions(payload):
-    from genon.preprocessor.facade.enrichment.custom_fields_enricher import (
+    from genon.preprocessor.processing.enrichment.custom_fields_enricher import (
         _recover_table_descriptions,
     )
 

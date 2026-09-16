@@ -3,7 +3,7 @@
 intelligent_processor / parser_processor / attachment_processor 가 사용하는 yaml 설정과
 그로부터 만들어지는 EnrichmentConfig 를 검증한다.
 
-이 파일은 순수 로직(facade.enrichment.* 는 stdlib 만 의존)만 import 하므로 docling/httpx
+이 파일은 순수 로직(processing.enrichment.* 는 stdlib 만 의존)만 import 하므로 docling/httpx
 등 무거운 의존성이나 내부 서버 요청 없이 어디서든(로컬/GitHub CI) 실행된다.
 """
 
@@ -12,8 +12,8 @@ from pathlib import Path
 import pytest
 import yaml
 
-from facade.enrichment.enrichment_config import EnrichmentConfig, _MetadataConfig, _TocConfig
-from facade.enrichment.field_transforms import DEFAULT_METADATA_FIELD_TRANSFORMS
+from processing.enrichment.enrichment_config import EnrichmentConfig, _MetadataConfig, _TocConfig
+from processing.enrichment.field_transforms import DEFAULT_METADATA_FIELD_TRANSFORMS
 
 
 # 실제 배포되는 설정 파일들 (repo_root = genon/preprocessor 기준 상대 경로)

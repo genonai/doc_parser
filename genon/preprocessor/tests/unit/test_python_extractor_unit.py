@@ -21,10 +21,10 @@ import yaml
 
 pytestmark = pytest.mark.unit
 
-cfe = pytest.importorskip("genon.preprocessor.facade.enrichment.custom_fields_enricher")
-cs = pytest.importorskip("genon.preprocessor.facade.enrichment.config_schema")
-cv2 = pytest.importorskip("genon.preprocessor.facade.enrichment.config_v2")
-pl = pytest.importorskip("genon.preprocessor.facade.enrichment.plugin_loader")
+cfe = pytest.importorskip("genon.preprocessor.processing.enrichment.custom_fields_enricher")
+cs = pytest.importorskip("genon.preprocessor.processing.enrichment.config_schema")
+cv2 = pytest.importorskip("genon.preprocessor.processing.enrichment.config_v2")
+pl = pytest.importorskip("genon.preprocessor.processing.enrichment.plugin_loader")
 
 _EXTRACTOR_PY = '''
 def extract(text, document=None, output_fields=None, **kwargs):

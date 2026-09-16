@@ -100,7 +100,7 @@ parser 는 반대다 — 확장자별 네이티브 경로로 먼저 보내고 PD
    본다. 이 프로세서가 **읽지 않는 extractor 로 등록된 custom_fields 항목 전체**를 기동 시
    경고하도록 넓힌다.
    - 판정은 `config_schema.canonical_extractor` 와 "이 프로세서가 지원하는 extractor 집합" 으로 한다.
-   - 새 함수는 `facade/enrichment/` 에 둔다. facade 3곳이 각 1줄로 호출한다.
+   - 새 함수는 `processing/enrichment/` 에 둔다. facade 3곳이 각 1줄로 호출한다.
 2. `source.pre` / `json:` 블록이 있는데 그 프로세서가 소비하지 않으면 같은 방식으로 경고한다.
 3. 템플릿 4개의 주석을 실측에 맞춘다.
    - "동기 처리라 LLM 호출 자리가 없어" → 사실이 아니므로 지운다(08 에서 실제로 지원한다).
@@ -118,8 +118,8 @@ parser 는 반대다 — 확장자별 네이티브 경로로 먼저 보내고 PD
 
 ### 0단계 영향 파일
 
-- `facade/enrichment/tabular_custom_fields.py` (`warn_tabular_llm_fields_unsupported` 일반화)
-  또는 `facade/enrichment/config_schema.py` (판정을 여기 두는 편이 자연스러우면)
+- `processing/enrichment/tabular_custom_fields.py` (`warn_tabular_llm_fields_unsupported` 일반화)
+  또는 `processing/enrichment/config_schema.py` (판정을 여기 두는 편이 자연스러우면)
 - `facade/intelligent_processor.py:644`, `convert_processor.py:615`, `chunking_processor.py` (각 1줄)
 - `resource/templates/custom_field_TEMPLATE_{json,tabular,semantic,llm}.yaml`
 

@@ -86,7 +86,7 @@
 #      SP=$(ls -d genon/preprocessor/.venv/lib/python*/site-packages)
 #      PYTHONPATH="$PWD:$SP" .venv/bin/python -c "
 #    import json
-#    from genon.preprocessor.facade.enrichment.json_semantic import SemanticJsonMapper as M
+#    from genon.preprocessor.processing.enrichment.json_semantic import SemanticJsonMapper as M
 #    m = M(config_file='custom_field_product_hpp_semantic.yaml',
 #          resource_path='genon/preprocessor/resource',
 #          doc_type='product_hpp', extractor='json_semantic')

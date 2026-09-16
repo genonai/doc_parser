@@ -10,7 +10,7 @@
 
 ## 현재 동작
 
-`facade/chunking/text_norm.py` 가 이미 "결정적 후처리" 자리를 잡고 있다. 두 단계다.
+`processing/chunking/text_norm.py` 가 이미 "결정적 후처리" 자리를 잡고 있다. 두 단계다.
 
 | 함수 | 하는 일 | 적용 지점 |
 |---|---|---|
@@ -87,7 +87,7 @@ self._text_cleanup_rules = tn.rules_from_cfg(chunking_cfg)
 
 ## 영향 파일
 
-- `facade/chunking/text_norm.py` (`rules_from_cfg`, 규칙 적용, `__all__`)
+- `processing/chunking/text_norm.py` (`rules_from_cfg`, 규칙 적용, `__all__`)
 - `facade/chunking_processor.py:445`, `intelligent_processor.py:442`, `convert_processor.py:420`
   (각 1줄)
 - `resource/chunking_processor_config.yaml` + `intelligent`·`convert` + `resource_dev/` 사본

@@ -154,10 +154,10 @@ post_parse   매핑 "후"  — 목표 필드명·최종 값
 
 | 대상 | 작업 |
 |---|---|
-| `facade/core/parser.py` | 신설. 이동 + `run()` `cli()` `resolve_ext()` `resolve_doc_type()` + 훅 호출부 4곳 |
-| `facade/core/chunker.py` | 신설. 이동 + `run()` `cli()` `load_input()` |
-| `facade/core/errors.py` | 신설 |
-| `facade/core/toolbox.py` | 신설. **내용은 08-A 가 결정한다** |
+| `processing/core/parser.py` | 신설. 이동 + `run()` `cli()` `resolve_ext()` `resolve_doc_type()` + 훅 호출부 4곳 |
+| `processing/core/chunker.py` | 신설. 이동 + `run()` `cli()` `load_input()` |
+| `processing/core/errors.py` | 신설 |
+| `processing/core/toolbox.py` | 신설. **내용은 08-A 가 결정한다** |
 | `converters/xlsx_processor.py` | `normalize_sheets()` `sheets_to_xlsx()` 추가, `load_tables(sheets=)` 주입 인자 |
 | `common/` | JSON 인코딩 폴백 `read_text_with_fallback()` (utf-8-sig → utf-8 → cp949) |
 | `pyproject.toml` | `openpyxl` `pandas` `beautifulsoup4` 명시 선언 — 셋 다 미선언인데 코드가 직접 import 한다 |
@@ -204,7 +204,7 @@ facade 와 toolbox 만으로(+ 고객 코드 약간) 같은 산출이 나오는�
 
 자의적으로 정하면 결론도 자의적이 된다. 두 실측으로 정했다.
 
-**기준 A — 최초 구현 시점** (`git log -S'<키>' -- facade/enrichment/`)
+**기준 A — 최초 구현 시점** (`git log -S'<키>' -- processing/enrichment/`)
 
 ```
 2026-05-29  alias  fields  default  transform  values      ← 최초 커밋일
@@ -262,7 +262,7 @@ records_at 3  merge_rows 1  order_by 1  mirror_to 1  ignore_keys 1  sections 1
 |---|---|
 | 산출 동일성 | 파싱 **및 청킹**까지 차이 0 |
 | 고객 코드량 | doc_type 당 30줄 이하 |
-| **toolbox 밖 import 0** | `facade.enrichment.*` 를 직접 import 했다면 **toolbox 결손** |
+| **toolbox 밖 import 0** | `processing.enrichment.*` 를 직접 import 했다면 **toolbox 결손** |
 | core 수정 0 | 고쳐야 했다면 그 기능은 yaml 에 되돌린다 |
 
 세 번째가 toolbox 완성도를 재는 유일한 지표다.
@@ -431,7 +431,7 @@ D7 에서 A3(고객 소유 파일을 배포 범위에서 분리)를 골랐다. �
 
 | 절 | 갱신 |
 |---|---|
-| 5.1 코드 지도 | `facade/core/` 추가. parser·chunker 를 "표면(92/100줄)" 로 |
+| 5.1 코드 지도 | `processing/core/` 추가. parser·chunker 를 "표면(92/100줄)" 로 |
 | 5.4 parser 읽기 | 파일 구획 표를 훅·`ROUTES` 기준으로 재작성. 로더·런타임·예외의 새 위치 표 추가. `_route_*` → `route_*` |
 | 5.5 chunker 읽기 | `GenOSVectorMeta`·`GenosSmartChunker`·훅 기준으로 재작성. `VECTOR_META`/`CHUNKER` 를 facade 가 반드시 정한다는 사실 명시 |
 | 5.8 복제 범위 | parser·chunker 본체가 한 벌로 모인 것 반영. `GenosSmartChunker` 사본 3곳 명시 |

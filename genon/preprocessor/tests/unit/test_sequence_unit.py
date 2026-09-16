@@ -8,9 +8,9 @@ import textwrap
 
 import pytest
 
-from genon.preprocessor.facade.enrichment import config_v2
-from genon.preprocessor.facade.enrichment.json_records import JsonRecordsMapper
-from genon.preprocessor.facade.enrichment.tabular_custom_fields import (
+from genon.preprocessor.processing.enrichment import config_v2
+from genon.preprocessor.processing.enrichment.json_records import JsonRecordsMapper
+from genon.preprocessor.processing.enrichment.tabular_custom_fields import (
     TabularCustomFieldsMapper,
 )
 
@@ -213,7 +213,7 @@ def test_v2_seq_normalizes():
 
 def test_seq_on_a_document_kind_fails_at_startup():
     """문서형·섹션형에는 "항목 N번째"가 없다 — 조용히 무시되지 않게 지원 키 표가 막는다."""
-    from genon.preprocessor.facade.enrichment.config_schema import validate_known_keys
+    from genon.preprocessor.processing.enrichment.config_schema import validate_known_keys
 
     v1, extractor = config_v2.normalize(
         {"schema": "v2", "source": {"kind": "document"},

@@ -14,7 +14,7 @@
 | `facade/parser_processor.py` | 293 | `ROUTES` · `CONFIG_BY_DOC_TYPE` · `edit_input` · `edit_document` · `edit_output` |
 | `facade/chunking_processor.py` | 243 | `GenOSVectorMeta` · `GenosSmartChunker` · `ROW_CATEGORIES` · `CONFIG_BY_DOC_TYPE` · `edit_input` · `edit_chunk` · `edit_output` |
 
-처리 본체는 `facade/core/` 에 있고 **열어 볼 일이 없습니다.** 열어야 했다면 그건 훅이
+처리 본체는 `processing/core/` 에 있고 **열어 볼 일이 없습니다.** 열어야 했다면 그건 훅이
 부족하다는 뜻이니 알려 주세요.
 
 ## 언제 무엇이 불리나
@@ -493,7 +493,7 @@ def parse(llm_output, output_fields=None, **kwargs) -> dict:
 ## toolbox — 이미 있는 기능을 씁니다
 
 ```python
-from genon.preprocessor.facade.core import toolbox as tb
+from genon.preprocessor.processing.core import toolbox as tb
 ```
 
 **직접 구현하기 전에 여기부터 보세요.** 값 변환기는 yaml 의 `transform:` 이 부르는 것과
@@ -528,7 +528,7 @@ python preprocessor.py parsed.json -o chunks.json                            # �
 
 ```python
 import asyncio, json
-from genon.preprocessor.facade.core import toolbox as tb
+from genon.preprocessor.processing.core import toolbox as tb
 from preprocessor import DocumentProcessor
 
 # 파서 — 산출은 dict 입니다

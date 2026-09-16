@@ -196,7 +196,7 @@ class TestIntelligentProcessor:
     @pytest.mark.unit
     def test_metadata_field_transforms_default_when_yaml_omits_it(self, processor):
         """yaml 에 field_transforms 가 없으면 DEFAULT 가 적용되는지 (벡터 합성 created_date 동작 보존)."""
-        from facade.enrichment.field_transforms import DEFAULT_METADATA_FIELD_TRANSFORMS
+        from processing.enrichment.field_transforms import DEFAULT_METADATA_FIELD_TRANSFORMS
         assert processor._metadata_field_transforms == DEFAULT_METADATA_FIELD_TRANSFORMS
 
     @pytest.mark.unit
@@ -237,7 +237,7 @@ def test_metadata_config_parses_field_transforms():
     """enrichment 설정에서 field_transforms 가 list/dict 두 포맷 모두 파싱되고,
     미지정 시 빈 list 로 기본화되는지 확인."""
     from pathlib import Path
-    from facade.enrichment.enrichment_config import EnrichmentConfig
+    from processing.enrichment.enrichment_config import EnrichmentConfig
 
     transforms = [{"source": ["doc_date"], "target": "created_date", "type": "date_int"}]
 

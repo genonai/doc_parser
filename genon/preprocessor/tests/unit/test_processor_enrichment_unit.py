@@ -34,7 +34,7 @@ _intel_mod = _try_import("facade.intelligent_processor")
 _convert_mod = _try_import("facade.convert_processor")
 _parser_mod = _try_import("facade.parser_processor")
 # 파서가 합성으로 쓰는 docling 런타임은 처리 본체(core)에 있다(#363 08-1).
-_parser_core_mod = _try_import("facade.core.parser")
+_parser_core_mod = _try_import("processing.core.parser")
 _attach_mod = _try_import("facade.attachment_processor")
 
 if _intel_mod is None or _convert_mod is None or _parser_mod is None or _parser_core_mod is None:

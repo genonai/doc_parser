@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import re
 
-from genon.preprocessor.facade.chunking.table_shape import cell_text, flatten_header_rows
+from genon.preprocessor.processing.chunking.table_shape import cell_text, flatten_header_rows
 
 _ROW_MARKER = re.compile(r"ROW-(\d{2})-(START|END)")
 

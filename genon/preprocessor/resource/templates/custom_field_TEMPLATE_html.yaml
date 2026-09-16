@@ -218,8 +218,8 @@ fields:
 #     실행 위치: genon/preprocessor  (그 폴더의 .venv 로 돌린다)
 #       .venv/bin/python -c "
 #     import sys; sys.path.insert(0,'.'); sys.path.insert(0,'../..')
-#     from facade.enrichment.custom_fields_enricher import CustomFieldsEnricher as E
-#     from facade.enrichment import html_select
+#     from processing.enrichment.custom_fields_enricher import CustomFieldsEnricher as E
+#     from processing.enrichment import html_select
 #     e = E(config_file='custom_field_<유형>.yaml', resource_path='resource',
 #           doc_type='<유형>', extractor='html_select')
 #     html = open('<내_원천.html>', encoding='utf-8').read()

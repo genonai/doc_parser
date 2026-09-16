@@ -13,7 +13,7 @@ from pathlib import Path
 
 import pytest
 
-from genon.preprocessor.facade.enrichment.json_semantic import (
+from genon.preprocessor.processing.enrichment.json_semantic import (
     SemanticJsonMapper,
     build_semantic_json_mappers,
 )
@@ -847,7 +847,7 @@ def test_required_shared_fields_missing_with_skip_policy_returns_empty(tmp_path,
 
 def test_build_json_records_mappers_ignores_json_semantic_configs(tmp_path):
     """공개 빌더 build_json_records_mappers 에 json_semantic 설정을 넣어도 무시된다."""
-    from genon.preprocessor.facade.enrichment.json_records import build_json_records_mappers
+    from genon.preprocessor.processing.enrichment.json_records import build_json_records_mappers
 
     path = tmp_path / "custom_field_semantic.yaml"
     path.write_text(textwrap.dedent(BASE_CONFIG), encoding="utf-8")
@@ -884,7 +884,7 @@ def test_semantic_mapper_rejects_json_mapping_extractor(tmp_path):
 
 
 def test_json_records_mapper_rejects_json_semantic_extractor(tmp_path):
-    from genon.preprocessor.facade.enrichment.json_records import JsonRecordsMapper
+    from genon.preprocessor.processing.enrichment.json_records import JsonRecordsMapper
 
     path = tmp_path / "custom_field_records.yaml"
     path.write_text("key_map:\n  TITLE: [title]\ntext_fields: [TITLE]\n", encoding="utf-8")

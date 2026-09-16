@@ -21,11 +21,11 @@ from typing import Optional
 
 from pydantic import BaseModel
 
-from genon.preprocessor.facade.chunking import smart_chunker as sc
-from genon.preprocessor.facade.core import toolbox as tb  # noqa: F401
-from genon.preprocessor.facade.core.chunker import ChunkerCore
+from genon.preprocessor.processing.chunking import smart_chunker as sc
+from genon.preprocessor.processing.core import toolbox as tb  # noqa: F401
+from genon.preprocessor.processing.core.chunker import ChunkerCore
 # main.py 의 예외 핸들러가 이 이름으로 잡는다. core 가 던지는 것과 같은 클래스다.
-from genon.preprocessor.facade.core.errors import GenosServiceException  # noqa: F401
+from genon.preprocessor.processing.core.errors import GenosServiceException  # noqa: F401
 
 
 class GenOSVectorMeta(BaseModel):
@@ -61,7 +61,7 @@ class GenOSVectorMeta(BaseModel):
 
 
 class GenosSmartChunker(sc.SmartChunkerBase):
-    """청킹 본체는 facade/chunking/smart_chunker.py 다. 여기엔 고른 옵션만 둔다."""
+    """청킹 본체는 processing/chunking/smart_chunker.py 다. 여기엔 고른 옵션만 둔다."""
 
     PICTURE_ANNOTATION_TEXT = True          # 그림 annotation 을 청크 본문에 싣는다
     TABLE_DESCRIPTION_MODE = "prefix_only"  # 표 설명은 검색용 접두만

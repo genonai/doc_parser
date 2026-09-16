@@ -14,7 +14,7 @@
 **(1) 특정 고객 필드명이 범용 매퍼에 하드코딩되어 있다.**
 
 ```python
-# facade/enrichment/json_semantic.py:109
+# processing/enrichment/json_semantic.py:109
 _SHARED_FIELD_LABELS = {
     "PRODUCT_NM": "상품명",
     "PRODUCT_C": "상품코드",
@@ -85,9 +85,9 @@ body:
 
 ## 영향 파일
 
-- `facade/enrichment/json_semantic.py` (상수 109, 라벨 조립 588, 접두 조립 791~799)
-- `facade/enrichment/config_schema.py` (`EXTRACTOR_KEYS["json_semantic"]`)
-- `facade/enrichment/config_v2.py` (`COVERED_V1_KEYS` 확인만. `_normalize_body` 는 손대지 않는다)
+- `processing/enrichment/json_semantic.py` (상수 109, 라벨 조립 588, 접두 조립 791~799)
+- `processing/enrichment/config_schema.py` (`EXTRACTOR_KEYS["json_semantic"]`)
+- `processing/enrichment/config_v2.py` (`COVERED_V1_KEYS` 확인만. `_normalize_body` 는 손대지 않는다)
 - `resource/custom_field_product_hpp_semantic.yaml` + `resource_dev/` 사본
 - `resource/templates/custom_field_TEMPLATE_semantic.yaml`
 

@@ -3,7 +3,7 @@
 attachment_processor 가 markdown 을 만드는 경로는 두 곳뿐이며 둘 다 검증한다:
   1) `_split_with_recursive_chunker` — 기본 `chunker_type: recursive`. 전체 문서.
   2) `HierarchicalChunker.chunk` — `chunker_type: hybrid` 전용. 구현은
-     facade/chunking/hybrid_chunker.py 의 `HierarchicalDocChunker` 이고
+     processing/chunking/hybrid_chunker.py 의 `HierarchicalDocChunker` 이고
      attachment_processor 는 별칭만 갖는다.
 둘 다 `common/markdown_export.export_markdown` 을 거친다 - docling 의
 `export_to_markdown()` 은 compact 도 링크 억제도 인자로 받지 않기 때문이다.

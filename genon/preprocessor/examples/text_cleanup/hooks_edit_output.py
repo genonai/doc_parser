@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import re
 
-from genon.preprocessor.facade.core import toolbox as tb
+from genon.preprocessor.processing.core import toolbox as tb
 
 # 장식 마커. 구조를 나타내던 역할은 마커 승격(`source.pre.marker_headings`)이 이미
 # 끝냈으므로 청크 본문에서는 지워도 계층이 사라지지 않는다.

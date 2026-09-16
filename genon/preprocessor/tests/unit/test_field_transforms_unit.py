@@ -1,4 +1,4 @@
-"""facade/enrichment/field_transforms.py 에 대한 unit test.
+"""processing/enrichment/field_transforms.py 에 대한 unit test.
 
 순수 stdlib 모듈이라 docling/fastapi 없이 로컬에서도 실제 실행된다.
 """
@@ -8,7 +8,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from facade.enrichment.field_transforms import (
+from processing.enrichment.field_transforms import (
     DEFAULT_METADATA_FIELD_TRANSFORMS,
     JSON_VALUE_SENTINEL,
     apply_field_transforms,

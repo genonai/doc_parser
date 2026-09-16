@@ -23,8 +23,8 @@ import pytest
 
 pytest.importorskip("httpx")
 pytest.importorskip("docling_core")
-_me = pytest.importorskip("facade.enrichment.metadata_enricher")
-_cf = pytest.importorskip("facade.enrichment.custom_fields_enricher")
+_me = pytest.importorskip("processing.enrichment.metadata_enricher")
+_cf = pytest.importorskip("processing.enrichment.custom_fields_enricher")
 
 from docling_core.types.doc import (  # noqa: E402
     BoundingBox,
@@ -100,8 +100,8 @@ def _make_custom_fields_enricher(**overrides):
 
 # 두 enricher 모두에서 동일하게 검증할 (생성자, 모듈경로) 쌍
 _ENRICHERS = [
-    pytest.param(_make_metadata_enricher, "facade.enrichment.metadata_enricher", id="metadata"),
-    pytest.param(_make_custom_fields_enricher, "facade.enrichment.custom_fields_enricher", id="custom_fields"),
+    pytest.param(_make_metadata_enricher, "processing.enrichment.metadata_enricher", id="metadata"),
+    pytest.param(_make_custom_fields_enricher, "processing.enrichment.custom_fields_enricher", id="custom_fields"),
 ]
 
 
@@ -405,7 +405,7 @@ class TestCustomFieldsPromptFiles:
         assert enr._system_prompt == "FROM_FILE"
 
     def test_default_system_prompt_when_unset(self, tmp_path):
-        from facade.enrichment.custom_fields_enricher import _DEFAULT_CUSTOM_FIELDS_SYSTEM_PROMPT
+        from processing.enrichment.custom_fields_enricher import _DEFAULT_CUSTOM_FIELDS_SYSTEM_PROMPT
         enr = _make_custom_fields_enricher(
             system_prompt="", user_prompt="USER", resource_path=str(tmp_path),
         )
@@ -451,7 +451,7 @@ class TestShippedCardConfigSelfContained:
         )
 
     def test_prompts_are_inline(self, resource_dir):
-        from facade.enrichment.custom_fields_enricher import (
+        from processing.enrichment.custom_fields_enricher import (
             _DEFAULT_CUSTOM_FIELDS_SYSTEM_PROMPT,
         )
         enr = self._enricher(resource_dir)

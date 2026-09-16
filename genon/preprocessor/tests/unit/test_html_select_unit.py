@@ -12,9 +12,9 @@ from pathlib import Path
 import pytest
 import yaml
 
-from genon.preprocessor.facade.enrichment import config_schema as cs
-from genon.preprocessor.facade.enrichment import config_v2 as cv2
-from genon.preprocessor.facade.enrichment import html_select
+from genon.preprocessor.processing.enrichment import config_schema as cs
+from genon.preprocessor.processing.enrichment import config_v2 as cv2
+from genon.preprocessor.processing.enrichment import html_select
 
 pytestmark = pytest.mark.unit
 

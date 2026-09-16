@@ -21,7 +21,7 @@ LLM 에 맡기게 된다.
 값 확정 지점은 이미 한 곳에 모여 있다.
 
 ```python
-# facade/enrichment/json_semantic.py:711~724
+# processing/enrichment/json_semantic.py:711~724
 identity = {target: None for target in self.shared_fields}
 for target, aliases in self.shared_fields.items():
     value = _find_root_field(payload, aliases)          # 원천값
@@ -97,9 +97,9 @@ fields:
 
 ## 영향 파일
 
-- `facade/enrichment/json_semantic.py` (`__init__` 577~630, identity 확정 706~726)
-- `facade/enrichment/config_schema.py` (`EXTRACTOR_KEYS["json_semantic"]`)
-- `facade/enrichment/config_v2.py` (`COVERED_V1_KEYS` 확인)
+- `processing/enrichment/json_semantic.py` (`__init__` 577~630, identity 확정 706~726)
+- `processing/enrichment/config_schema.py` (`EXTRACTOR_KEYS["json_semantic"]`)
+- `processing/enrichment/config_v2.py` (`COVERED_V1_KEYS` 확인)
 - `resource/templates/custom_field_TEMPLATE_semantic.yaml`
 
 `compile_*`/`apply_*` 는 `tabular_custom_fields.py` 에 있는 순수 함수다. **시그니처를 바꾸지 않는다**

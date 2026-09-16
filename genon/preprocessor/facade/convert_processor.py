@@ -16,23 +16,23 @@ _log = logging.getLogger(__name__)
 
 
 # ── 공용 하위 모듈로 옮긴 헬퍼들의 별칭 ──────────────────────────────
-# 구현은 facade/common/, facade/chunking/ 에 한 벌만 둔다. 여기서는 기존 이름을
+# 구현은 processing/common/, processing/chunking/ 에 한 벌만 둔다. 여기서는 기존 이름을
 # 그대로 유지해 호출부를 건드리지 않는다. 사이트별 조정 대상 상수(구분자, 최소
 # 청크 크기, 토크나이저 경로)는 이 파일에 남아 있으므로 래퍼가 넘겨준다.
 from genon.preprocessor.converters.md_math import guard_markdown
-from genon.preprocessor.facade.common import config_parse as cp
-from genon.preprocessor.facade.enrichment.page_description import inject_page_descriptions
-from genon.preprocessor.facade.chunking import page_split
-from genon.preprocessor.facade.chunking import smart_chunker as sc
-from genon.preprocessor.facade.common import vector_meta as vm
-from genon.preprocessor.facade.common import docling_ops as dops
-from genon.preprocessor.facade.common.docling_runtime import DoclingRuntimeBase
-from genon.preprocessor.facade.common import runtime as rt
-from genon.preprocessor.facade.common import file_probe as fp
-from genon.preprocessor.facade.common import pdf_convert as pc
-from genon.preprocessor.facade.chunking import header_path as hp
-from genon.preprocessor.facade.chunking import table_blocks as tbk
-from genon.preprocessor.facade.chunking import table_variants as tv
+from genon.preprocessor.processing.common import config_parse as cp
+from genon.preprocessor.processing.enrichment.page_description import inject_page_descriptions
+from genon.preprocessor.processing.chunking import page_split
+from genon.preprocessor.processing.chunking import smart_chunker as sc
+from genon.preprocessor.processing.common import vector_meta as vm
+from genon.preprocessor.processing.common import docling_ops as dops
+from genon.preprocessor.processing.common.docling_runtime import DoclingRuntimeBase
+from genon.preprocessor.processing.common import runtime as rt
+from genon.preprocessor.processing.common import file_probe as fp
+from genon.preprocessor.processing.common import pdf_convert as pc
+from genon.preprocessor.processing.chunking import header_path as hp
+from genon.preprocessor.processing.chunking import table_blocks as tbk
+from genon.preprocessor.processing.chunking import table_variants as tv
 
 _as_dict = cp.as_dict
 _as_int_flag = cp.as_int_flag
@@ -140,28 +140,28 @@ try:
 except ImportError:
     upload_files = None
 
-from genon.preprocessor.facade.enrichment.field_transforms import (
+from genon.preprocessor.processing.enrichment.field_transforms import (
     DEFAULT_METADATA_FIELD_TRANSFORMS,
     apply_field_transforms,
     extract_metadata_from_document,
     serialize_metadata_value_for_output,
     store_metadata_in_document,
 )
-from genon.preprocessor.facade.enrichment.custom_fields_enricher import (
+from genon.preprocessor.processing.enrichment.custom_fields_enricher import (
     normalize_doc_type,
 )
-from genon.preprocessor.facade.enrichment.tabular_custom_fields import (
+from genon.preprocessor.processing.enrichment.tabular_custom_fields import (
     build_tabular_custom_fields_mappers,
     warn_tabular_llm_fields_unsupported as _warn_tabular_llm_fields_unsupported,
 )
 
-from genon.preprocessor.facade.enrichment.page_description import (
+from genon.preprocessor.processing.enrichment.page_description import (
     PageDescriptionOptions,
 )
-from genon.preprocessor.facade.enrichment.table_text_description import (
+from genon.preprocessor.processing.enrichment.table_text_description import (
     apply_table_description_stage,
 )
-from genon.preprocessor.facade.chunking import text_norm as tn
+from genon.preprocessor.processing.chunking import text_norm as tn
 
 
 # ============================================================
@@ -247,7 +247,7 @@ def convert_to_pdf(file_path: str, use_pdf_sdk: bool = True) -> str | None:
       use_pdf_sdk=True  → pdf_sdk → libreoffice
       use_pdf_sdk=False → libreoffice
 
-    구현은 facade/common/pdf_convert.py 에 있다(변환 backend 는
+    구현은 processing/common/pdf_convert.py 에 있다(변환 backend 는
     genon.preprocessor.converters.hwp_to_pdf).
     """
     return pc.convert_to_pdf(file_path, use_pdf_sdk=use_pdf_sdk)
@@ -258,12 +258,12 @@ def _has_any_pdf_converter() -> bool:
 
 
 def _get_pdf_path(file_path: str) -> str:
-    """변환 가능한 확장자면 PDF 경로로 바꾼다(구현은 facade/common/file_probe.py)."""
+    """변환 가능한 확장자면 PDF 경로로 바꾼다(구현은 processing/common/file_probe.py)."""
     return fp.get_pdf_path(file_path, CONVERTIBLE_EXTENSIONS)
 
 
 class GenosSmartChunker(sc.SmartChunkerBase):
-    """청킹 본체는 facade/chunking/smart_chunker.py 에 있다.
+    """청킹 본체는 processing/chunking/smart_chunker.py 에 있다.
 
     여기에는 이 facade 가 고른 동작 옵션과 헤더 구분자만 둔다. 값을 바꾸면 청킹
     동작이 바로 달라지므로, 사이트에서 손댈 지점은 사실상 이 블록이다.
@@ -279,8 +279,8 @@ class GenosSmartChunker(sc.SmartChunkerBase):
     CHUNK_HEADER_SEP = _CHUNK_HEADER_SEP
     CHUNK_PATH_SEP = _CHUNK_PATH_SEP
     CHUNK_PATH_MAX_LEAVES = _CHUNK_PATH_MAX_LEAVES
-# 민감정보 분류/마스킹(#315)은 facade/guardrail 모듈로 분리 — gr.* 로 사용.
-from genon.preprocessor.facade import guardrail as gr
+# 민감정보 분류/마스킹(#315)은 processing/guardrail 모듈로 분리 — gr.* 로 사용.
+from genon.preprocessor.processing import guardrail as gr
 
 
 class GenOSVectorMeta(BaseModel):
@@ -313,7 +313,7 @@ class GenOSVectorMeta(BaseModel):
 
 class GenOSVectorMetaBuilder(vm.VectorMetaBuilderBase):
     """공통 세터(텍스트 통계·페이지·bbox·미디어·글로벌 메타데이터)는
-    facade/common/vector_meta.py 에 있다. 여기에는 이 facade 고유 필드만 둔다."""
+    processing/common/vector_meta.py 에 있다. 여기에는 이 facade 고유 필드만 둔다."""
 
     def __init__(self):
         """빌더 초기화"""
@@ -670,7 +670,7 @@ class DocumentProcessor(DoclingRuntimeBase):
         return chunks
 
     def split_documents_by_page(self, documents: DoclingDocument, **kwargs: dict) -> List[DocChunk]:
-        """PPT 전용 페이지 기반 청킹. 본체는 facade/chunking/page_split.py 에 있다."""
+        """PPT 전용 페이지 기반 청킹. 본체는 processing/chunking/page_split.py 에 있다."""
         return page_split.split_documents_by_page(
             self, documents, GenosSmartChunker, min_chunk_size=_MIN_CHUNK_SIZE, **kwargs)
 

@@ -17,8 +17,8 @@ import pytest
 
 pytestmark = pytest.mark.unit
 
-core_parser = pytest.importorskip("facade.core.parser")
-core_chunker = pytest.importorskip("facade.core.chunker")
+core_parser = pytest.importorskip("processing.core.parser")
+core_chunker = pytest.importorskip("processing.core.chunker")
 parser_facade = pytest.importorskip("facade.parser_processor")
 chunker_facade = pytest.importorskip("facade.chunking_processor")
 
@@ -294,7 +294,7 @@ async def test_unchanged_grid_is_reused_to_avoid_a_second_read(tmp_path: Path):
 # edit_output 가 청크에 닿는 통로 (08-B 가 드러낸 구멍)
 # ---------------------------------------------------------------------------
 
-tb = pytest.importorskip("facade.core.toolbox")
+tb = pytest.importorskip("processing.core.toolbox")
 
 
 def test_set_chunk_metadata_writes_into_elements_for_record_paths():
@@ -307,7 +307,7 @@ def test_set_chunk_metadata_writes_into_elements_for_record_paths():
 def test_set_chunk_metadata_reaches_the_docling_document():
     """봉투의 metadata 에만 쓰면 청커가 못 읽는다 — KeyValueItem 으로 실려야 경계를 넘는다."""
     dc = pytest.importorskip("docling_core.types.doc")
-    ft = pytest.importorskip("genon.preprocessor.facade.enrichment.field_transforms")
+    ft = pytest.importorskip("genon.preprocessor.processing.enrichment.field_transforms")
 
     doc = dc.DoclingDocument(name="s")
     result = {"document": doc.model_dump(mode="json")}
@@ -335,7 +335,7 @@ def test_reserved_chunk_keys_are_exposed():
 #     릴리스 갱신에서 깨지면 안 된다)
 # ---------------------------------------------------------------------------
 
-hooks_mod = pytest.importorskip("genon.preprocessor.facade.common.hooks")
+hooks_mod = pytest.importorskip("genon.preprocessor.processing.common.hooks")
 
 
 def test_hook_without_var_keyword_receives_nothing_extra():
@@ -449,7 +449,7 @@ async def test_async_chunk_hooks_are_awaited():
 # 사이트가 바꾸는 값이 facade 에 있는가 (#363 09)
 # ---------------------------------------------------------------------------
 
-hp = pytest.importorskip("genon.preprocessor.facade.chunking.header_path")
+hp = pytest.importorskip("genon.preprocessor.processing.chunking.header_path")
 
 
 def test_header_prefix_comes_from_the_chunker_class():
@@ -975,8 +975,8 @@ async def test_records_payload_rejects_zero_records(tmp_path: Path):
 
 def test_register_transform_reaches_the_yaml_pipeline():
     """등록한 변환기를 yaml transforms: 가 이름으로 쓴다(같은 파이프라인)."""
-    tcf = pytest.importorskip("genon.preprocessor.facade.enrichment.tabular_custom_fields")
-    ft = pytest.importorskip("genon.preprocessor.facade.enrichment.field_transforms")
+    tcf = pytest.importorskip("genon.preprocessor.processing.enrichment.tabular_custom_fields")
+    ft = pytest.importorskip("genon.preprocessor.processing.enrichment.field_transforms")
 
     tb.register_transform("won_to_int_test", lambda v: int(str(v).replace(",", "")))
     try:
@@ -990,7 +990,7 @@ def test_register_transform_reaches_the_yaml_pipeline():
 
 
 def test_register_transform_rejects_bad_input():
-    ft = pytest.importorskip("genon.preprocessor.facade.enrichment.field_transforms")
+    ft = pytest.importorskip("genon.preprocessor.processing.enrichment.field_transforms")
     with pytest.raises(ValueError):
         tb.register_transform("", lambda v: v)
     with pytest.raises(TypeError):

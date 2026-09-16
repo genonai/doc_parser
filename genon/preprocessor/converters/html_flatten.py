@@ -230,7 +230,7 @@ def precheck_html(raw: str, *, detect_marker_headings: bool = False) -> list[str
 
     `detect_marker_headings` 는 opt-in 이고 기본값은 False 다. 이게 핵심이다 —
     기존 호출부와 테스트(tests/unit/test_html_flatten_unit.py) 계약이 그대로
-    유지되고, facade/enrichment/json_records.py:309-318 의 extract_content
+    유지되고, processing/enrichment/json_records.py:309-318 의 extract_content
     경로와 다른 doc_type 의 auto 모드 동작이 이 인자로 전혀 바뀌지 않는다.
     모니모 cs_hpp 처럼 마커 승격을 원하는 호출측만 명시적으로 켠다.
 
@@ -610,7 +610,7 @@ def build_docling_document(title: str, sections: list[tuple[str, Tag]]) -> str:
     거치는 첫 청크를 만든다. 라벨이 제목과 같은 한 섹션짜리 문서에서는 <h2> 를
     생략한다. 이미 주입한 <h1> 이 첫 non-table heading 이므로 BODY 전환 보장은
     그대로다. `label` 이 비어 있지 않을 것을 조건에 넣어, 라벨과 제목을 모두 빈
-    문자열로 넘기는 `facade/enrichment/json_records.py` 경로는 건드리지 않는다.
+    문자열로 넘기는 `processing/enrichment/json_records.py` 경로는 건드리지 않는다.
     """
     parts = [
         '<!doctype html><html lang="ko"><head><meta charset="utf-8">',

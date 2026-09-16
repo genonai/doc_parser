@@ -12,7 +12,7 @@ _log = logging.getLogger(__name__)
 # thinking(추론) 토글 공유 헬퍼. enrichment 패키지의 단일 소스를 재사용한다.
 # 일부 로컬 테스트 환경에서는 facade import 가 깨질 수 있어(no-op 폴백) 레거시 경로를 보호한다.
 try:
-    from genon.preprocessor.facade.enrichment.thinking import (
+    from genon.preprocessor.processing.enrichment.thinking import (
         resolve_thinking_kwargs,
         strip_reasoning,
     )

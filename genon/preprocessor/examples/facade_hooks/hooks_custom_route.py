@@ -15,7 +15,7 @@
 """
 from __future__ import annotations
 
-from genon.preprocessor.facade.core import toolbox as tb
+from genon.preprocessor.processing.core import toolbox as tb
 
 
 class Hooks:

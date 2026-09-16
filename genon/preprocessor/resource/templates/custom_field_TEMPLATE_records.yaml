@@ -306,7 +306,7 @@ body:
 #     실행 위치: genon/preprocessor  (그 폴더의 .venv 로 돌린다)
 #       .venv/bin/python -c "
 #     import sys, json; sys.path.insert(0,'.'); sys.path.insert(0,'../..')
-#     from facade.enrichment.json_records import JsonRecordsMapper as M
+#     from processing.enrichment.json_records import JsonRecordsMapper as M
 #     m = M(config_file='custom_field_<유형>.yaml', resource_path='resource',
 #           doc_type='<유형>', extractor='json_mapping')
 #     payload = json.load(open('<내_데이터.json>', encoding='utf-8'))

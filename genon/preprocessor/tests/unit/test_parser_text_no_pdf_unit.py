@@ -25,8 +25,8 @@ pytestmark = pytest.mark.unit
 
 def test_parser_textloader_does_not_render_pdf():
     """parser 의 TextLoader 는 렌더를 끈다. attachment 는 켜 둔 채로 남는다."""
-    from genon.preprocessor.facade.common.loaders import TextLoaderBase
-    from genon.preprocessor.facade.core.parser import TextLoader
+    from genon.preprocessor.processing.common.loaders import TextLoaderBase
+    from genon.preprocessor.processing.core.parser import TextLoader
 
     assert TextLoader.RENDER_PDF is False
     assert TextLoaderBase.RENDER_PDF is True, "attachment 는 페이지 메타가 필요하다"
@@ -34,7 +34,7 @@ def test_parser_textloader_does_not_render_pdf():
 
 def test_textloader_without_render_leaves_no_sibling_pdf(tmp_path: Path):
     """렌더를 끄면 입력 파일 옆에 파생 PDF 가 생기지 않고, 원문이 그대로 나온다."""
-    from genon.preprocessor.facade.common.loaders import TextLoaderBase
+    from genon.preprocessor.processing.common.loaders import TextLoaderBase
 
     src = tmp_path / "notice.json"
     src.write_text('{"body": "line-1\\nline-2"}', encoding="utf-8")
@@ -73,7 +73,7 @@ def test_demote_code_items_turns_pre_block_into_text():
     from docling_core.types.doc import CodeItem, DocItemLabel
 
     from genon.preprocessor.converters.plain_text import text_to_html
-    from genon.preprocessor.facade.common import docling_ops as dops
+    from genon.preprocessor.processing.common import docling_ops as dops
 
     source = "제목: 결제 취소\n  - 환불: 3~5영업일"
 

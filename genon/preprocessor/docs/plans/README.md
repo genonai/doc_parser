@@ -11,7 +11,7 @@
 
 ## 배경
 
-v2(`facade/enrichment/config_v2.py`)는 v1 내부 dict 로 정규화하는 **번역 계층**이고,
+v2(`processing/enrichment/config_v2.py`)는 v1 내부 dict 로 정규화하는 **번역 계층**이고,
 매퍼 4종(tabular / json_records / json_semantic / custom_fields_enricher)은 그대로다.
 그래서 "표기만 다르다"가 구조로 보장된다. 번역 결함은 `config_v2.COVERED_V1_KEYS` 드리프트
 가드(`test_config_v2_unit.py`)와 `precheck_custom_fields.sh` 가 잡는다.

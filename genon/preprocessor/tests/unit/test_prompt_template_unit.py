@@ -1,13 +1,13 @@
 """PromptTemplate 단위 테스트 — 변수 치환 / escape / strict·lenient / doc_context.
 
-순수 로직(facade.enrichment.prompt_template)만 import 한다.
+순수 로직(processing.enrichment.prompt_template)만 import 한다.
 """
 import logging
 from unittest.mock import MagicMock
 
 import pytest
 
-from facade.enrichment.prompt_template import (
+from processing.enrichment.prompt_template import (
     PromptTemplate,
     RESERVED_VAR_NAMES,
     DOC_RESERVED,

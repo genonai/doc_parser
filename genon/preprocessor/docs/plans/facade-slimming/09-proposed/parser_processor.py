@@ -22,9 +22,9 @@
 # 서버 없이 이 파일만 돌려 볼 수 있다. 사용법은 파일 끝 "파일 단독 실행" 참조.
 from typing import TYPE_CHECKING
 
-from genon.preprocessor.facade.core import toolbox as tb
-from genon.preprocessor.facade.core.errors import GenosServiceException
-from genon.preprocessor.facade.core.parser import ParserCore
+from genon.preprocessor.processing.core import toolbox as tb
+from genon.preprocessor.processing.core.errors import GenosServiceException
+from genon.preprocessor.processing.core.parser import ParserCore
 
 if TYPE_CHECKING:  # 타입 힌트 전용. 실행 시에는 docling 을 불러오지 않는다
     from docling_core.types.doc.document import DoclingDocument

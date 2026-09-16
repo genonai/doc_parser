@@ -11,16 +11,16 @@ import os
 import pytest
 import yaml
 
-from genon.preprocessor.facade.enrichment import config_schema as cs
-from genon.preprocessor.facade.enrichment import config_v2 as cv2
-from genon.preprocessor.facade.enrichment.enrichment_config import (
+from genon.preprocessor.processing.enrichment import config_schema as cs
+from genon.preprocessor.processing.enrichment import config_v2 as cv2
+from genon.preprocessor.processing.enrichment.enrichment_config import (
     build_table_text_description_overrides,
 )
-from genon.preprocessor.facade.enrichment.table_text_context import (
+from genon.preprocessor.processing.enrichment.table_text_context import (
     TableTextDescriptionOptions,
     merge_table_text_description,
 )
-from genon.preprocessor.facade.enrichment.table_text_description import (
+from genon.preprocessor.processing.enrichment.table_text_description import (
     TableTextDescriptionEnricher,
     apply_table_description_stage,
 )

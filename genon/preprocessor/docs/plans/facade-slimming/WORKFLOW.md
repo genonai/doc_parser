@@ -16,7 +16,7 @@
 A 쪽도 현재 트리를 읽는다.**
 
 - 02 는 `intelligent_processor.py`/`convert_processor.py` 를 **제자리에서** 고친다(wip 대상이 아니다)
-- **어떤 단계가 `facade/common/*` 이나 `facade/chunking/*` 을 편집하면 원본과 wip 이 같은 모듈
+- **어떤 단계가 `processing/common/*` 이나 `processing/chunking/*` 을 편집하면 원본과 wip 이 같은 모듈
   객체를 공유한다**(둘 다 `genon.preprocessor.facade.*` 절대 import). 그 순간 A 도 함께 바뀌어
   **A/B 차이 0 인데 골든은 차이 발생** 이 된다
 

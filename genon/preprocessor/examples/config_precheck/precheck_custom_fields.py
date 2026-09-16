@@ -7,7 +7,7 @@
 그 시점에 알면 이미 서비스가 안 뜬다.
 
 이 스크립트는 **파싱과 LLM 호출 없이 yaml 만 읽어** 그 위험을 미리 드러낸다.
-판정은 `facade/enrichment/config_schema.py` 를 그대로 import 해서 쓰므로 검증기와
+판정은 `processing/enrichment/config_schema.py` 를 그대로 import 해서 쓰므로 검증기와
 규칙이 갈리지 않는다(스크립트가 규칙을 다시 구현하면 반드시 갈린다).
 
 ## 무엇을 잡나
@@ -36,8 +36,8 @@ import yaml
 REPO_ROOT = Path(__file__).resolve().parents[4]
 sys.path.insert(0, str(REPO_ROOT))
 
-from genon.preprocessor.facade.enrichment import config_schema as cs  # noqa: E402
-from genon.preprocessor.facade.enrichment import config_v2 as cv2  # noqa: E402
+from genon.preprocessor.processing.enrichment import config_schema as cs  # noqa: E402
+from genon.preprocessor.processing.enrichment import config_v2 as cv2  # noqa: E402
 
 # 이번 정리에서 없앤 키 → 대신 쓸 것.
 REMOVED_KEYS = {

@@ -15,10 +15,10 @@ import pytest
 import yaml
 
 from genon.preprocessor.facade.chunking_processor import DocumentProcessor as ChunkProcessor
-from genon.preprocessor.facade.common import config_parse as cp
-from genon.preprocessor.facade.enrichment import config_schema as cs
-from genon.preprocessor.facade.enrichment import config_v2 as cv2
-from genon.preprocessor.facade.enrichment.tabular_custom_fields import (
+from genon.preprocessor.processing.common import config_parse as cp
+from genon.preprocessor.processing.enrichment import config_schema as cs
+from genon.preprocessor.processing.enrichment import config_v2 as cv2
+from genon.preprocessor.processing.enrichment.tabular_custom_fields import (
     TabularCustomFieldsMapper,
     compile_meta_exclude,
 )
@@ -205,7 +205,7 @@ def test_document_kind_normalizes_the_same_way():
 @pytest.mark.unit
 def test_document_kind_attaches_the_control_key_after_the_value_pipeline(tmp_path):
     """문서형도 값은 다 만든 뒤 제어키만 실어 보낸다 — 파생값은 재료를 그대로 쓴다."""
-    from genon.preprocessor.facade.enrichment.custom_fields_enricher import (
+    from genon.preprocessor.processing.enrichment.custom_fields_enricher import (
         CustomFieldsEnricher,
     )
 

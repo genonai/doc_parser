@@ -13,7 +13,7 @@ from pathlib import Path
 
 import pytest
 
-from genon.preprocessor.facade.core.chunker import (
+from genon.preprocessor.processing.core.chunker import (
     _carry_over_section_headings,
     _classify_payload,
     _clamp_chunk_size,
@@ -838,7 +838,7 @@ async def test_edit_chunk_drop_moves_the_once_prefix_to_the_first_survivor():
 
     chunk_idx == 0 기준이면 그 청크를 버렸을 때 문서 식별 접두가 통째로 사라진다.
     """
-    tb = pytest.importorskip("facade.core.toolbox")
+    tb = pytest.importorskip("processing.core.toolbox")
     cf = pytest.importorskip("facade.chunking_processor")
 
     class _P(cf.DocumentProcessor):

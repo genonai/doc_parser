@@ -4,7 +4,7 @@ import json
 
 import pytest
 
-from genon.preprocessor.facade.common.vector_meta import VectorMetaBuilderBase
+from genon.preprocessor.processing.common.vector_meta import VectorMetaBuilderBase
 
 
 class _Builder(VectorMetaBuilderBase):
@@ -79,7 +79,7 @@ def test_missing_split_totals_still_fills_refs():
 
 # ─── 설정 해석 ────────────────────────────────────────────────────────────────
 
-from genon.preprocessor.facade.common import config_parse as cp
+from genon.preprocessor.processing.common import config_parse as cp
 
 
 @pytest.mark.unit

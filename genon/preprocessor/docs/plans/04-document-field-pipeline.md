@@ -14,7 +14,7 @@
 ## 현재 동작
 
 ```python
-# facade/enrichment/config_v2.py:69
+# processing/enrichment/config_v2.py:69
 DOCUMENT_FIELD_SPEC_KEYS = frozenset({"const", "default"})
 ```
 
@@ -22,14 +22,14 @@ DOCUMENT_FIELD_SPEC_KEYS = frozenset({"const", "default"})
 인데, **그 전제가 틀렸다.** front matter 가 두 번째 원천이고 우선순위까지 이미 구현돼 있다.
 
 ```python
-# facade/enrichment/custom_fields_enricher.py:605~629
+# processing/enrichment/custom_fields_enricher.py:605~629
 # 우선순위: default < LLM < front matter < const
 ```
 
 그리고 front matter 의 `metadata_fields` 는 **이름만 다른 alias 맵**이다.
 
 ```python
-# facade/enrichment/markdown_front_matter.py:145
+# processing/enrichment/markdown_front_matter.py:145
 """`metadata_fields` -> `{원천키: [목표필드…]}`."""
 ```
 
@@ -128,11 +128,11 @@ specs.append(MarkdownFrontMatterSpec.from_config(effective_config))
 
 ## 영향 파일
 
-- `facade/enrichment/config_v2.py` (`DOCUMENT_FIELD_SPEC_KEYS` 제거, `_ALIAS_BLOCK`,
+- `processing/enrichment/config_v2.py` (`DOCUMENT_FIELD_SPEC_KEYS` 제거, `_ALIAS_BLOCK`,
   `metadata_fields` 번역, `COVERED_V1_KEYS`)
-- `facade/enrichment/custom_fields_enricher.py` (`__init__` 269~343, 값 병합 605~641)
-- `facade/enrichment/markdown_front_matter.py` (`metadata_fields` 소비부 145~184, 340~370)
-- `facade/enrichment/config_schema.py` (`EXTRACTOR_KEYS["llm"]`)
+- `processing/enrichment/custom_fields_enricher.py` (`__init__` 269~343, 값 병합 605~641)
+- `processing/enrichment/markdown_front_matter.py` (`metadata_fields` 소비부 145~184, 340~370)
+- `processing/enrichment/config_schema.py` (`EXTRACTOR_KEYS["llm"]`)
 - `resource/custom_field_product_slf.yaml`, `product_ssf.yaml` + `resource_dev/` 사본
 - `resource/templates/custom_field_TEMPLATE_llm.yaml`
 

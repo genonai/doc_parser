@@ -28,7 +28,7 @@ parser 의 `__init__` 995~1029 은 "custom_fields 설정 목록 → spec/매퍼 
 연속된 블록이다. 이것을 intelligent 에 복사하면 두 facade 가 lockstep 이 되고,
 설정 키를 하나 늘릴 때마다 두 곳을 고쳐야 한다.
 
-`facade/enrichment/` 에 **묶음 빌더 하나**를 두고 두 facade 가 각 1줄로 호출한다.
+`processing/enrichment/` 에 **묶음 빌더 하나**를 두고 두 facade 가 각 1줄로 호출한다.
 
 ```python
 # 예 — 이름과 필드는 구현 시 정한다
@@ -77,7 +77,7 @@ parser 도 이 빌더를 쓰게 바꾼다. **parser 를 그대로 두고 intelli
 
 ## 영향 파일
 
-- `facade/enrichment/` 에 묶음 빌더 (신규)
+- `processing/enrichment/` 에 묶음 빌더 (신규)
 - `facade/parser_processor.py` (`__init__` 986~1029 을 호출 1줄로 축소)
 - `facade/intelligent_processor.py` (`__init__` 636~644, 09 가 만든 네이티브 경로)
 - `converters/` 는 읽기만 한다(단방향 유지 — `converters` 는 `facade` 를 import 하지 않는다)

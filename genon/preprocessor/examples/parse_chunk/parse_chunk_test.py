@@ -44,7 +44,7 @@ from genon.preprocessor.facade.chunking_processor import (
     GenosServiceException,
 )
 # 입력 형태 판별기는 처리 본체(core)에 있다(#363 08-2).
-from genon.preprocessor.facade.core.chunker import _classify_payload
+from genon.preprocessor.processing.core.chunker import _classify_payload
 
 mock_request = Request(scope={"type": "http"})
 
@@ -65,9 +65,9 @@ def _alias_extensions(config_path: str | None = None) -> set[str]:
     막는다. 목록을 파서 설정에서 끌어와 그 어긋남을 없앤다.
     """
     try:
-        from genon.preprocessor.facade.common import config_parse as cp
-        from genon.preprocessor.facade.common import format_alias as fa
-        from genon.preprocessor.facade.core.parser import (
+        from genon.preprocessor.processing.common import config_parse as cp
+        from genon.preprocessor.processing.common import format_alias as fa
+        from genon.preprocessor.processing.core.parser import (
             _resolve_default_parser_config_path,
         )
 

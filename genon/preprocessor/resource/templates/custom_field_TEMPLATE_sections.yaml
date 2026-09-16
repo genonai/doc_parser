@@ -298,7 +298,7 @@ fields:
 #     실행 위치: genon/preprocessor  (그 폴더의 .venv 로 돌린다)
 #       .venv/bin/python -c "
 #     import sys, json; sys.path.insert(0,'.'); sys.path.insert(0,'../..')
-#     from facade.enrichment.json_semantic import SemanticJsonMapper as M
+#     from processing.enrichment.json_semantic import SemanticJsonMapper as M
 #     m = M(config_file='custom_field_<유형>.yaml', resource_path='resource',
 #           doc_type='<유형>', extractor='json_semantic')
 #     payload = json.load(open('<내_데이터.json>', encoding='utf-8'))

@@ -13,7 +13,7 @@ from pathlib import Path
 
 import pytest
 
-from genon.preprocessor.facade.common import pdf_artifact as pa
+from genon.preprocessor.processing.common import pdf_artifact as pa
 
 pytestmark = pytest.mark.unit
 
@@ -160,7 +160,7 @@ def stub_parser(monkeypatch):
     """__init__ 을 우회한 최소 parser 인스턴스 + 가짜 변환기."""
     from unittest.mock import MagicMock
 
-    import genon.preprocessor.facade.core.parser as core
+    import genon.preprocessor.processing.core.parser as core
     from facade.parser_processor import DocumentProcessor
 
     monkeypatch.setattr(core.pc, "convert_to_pdf",

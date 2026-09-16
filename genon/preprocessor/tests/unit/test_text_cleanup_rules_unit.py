@@ -17,7 +17,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-from genon.preprocessor.facade.chunking import text_norm as tn
+from genon.preprocessor.processing.chunking import text_norm as tn
 
 pytestmark = pytest.mark.unit
 

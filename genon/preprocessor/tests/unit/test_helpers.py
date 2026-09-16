@@ -18,25 +18,25 @@ def test_safe_join():
 @pytest.mark.unit
 @pytest.mark.parametrize("ext", [".hwp", ".txt", ".json", ".md", ".ppt", ".pptx", ".docx"])
 def test_get_pdf_path_returns_pdf_for_convertible_ext(ext):
-    from facade.core.parser import _get_pdf_path
+    from processing.core.parser import _get_pdf_path
     assert _get_pdf_path(f"/path/to/file{ext}") == "/path/to/file.pdf"
 
 
 @pytest.mark.unit
 def test_get_pdf_path_preserves_directory_structure():
-    from facade.core.parser import _get_pdf_path
+    from processing.core.parser import _get_pdf_path
     assert _get_pdf_path("/some/deep/dir/document.docx") == "/some/deep/dir/document.pdf"
 
 
 @pytest.mark.unit
 def test_get_pdf_path_pdf_input_is_unchanged():
-    from facade.core.parser import _get_pdf_path
+    from processing.core.parser import _get_pdf_path
     assert _get_pdf_path("/path/to/file.pdf") == "/path/to/file.pdf"
 
 
 # ─── convert_to_pdf (subprocess argument verification) ───────────────────────
 # soffice 를 실제로 부르는 곳은 backend 모듈이다. facade 의 convert_to_pdf 는
-# facade/common/pdf_convert.py 를 거쳐 그 backend 로 위임하므로, subprocess 는
+# processing/common/pdf_convert.py 를 거쳐 그 backend 로 위임하므로, subprocess 는
 # 호출이 일어나는 모듈(converters.hwp_to_pdf.libreoffice)에서 가로채야 한다.
 # 예전에는 facade.parser_processor.subprocess 를 patch 했고, 그 mock 을 유지하려고
 # parser 만 backend 를 안 쓰고 soffice 를 직접 부르는 사본을 들고 있었다(#199).
@@ -67,7 +67,7 @@ _LO_WHICH = "genon.preprocessor.converters.hwp_to_pdf.availability.shutil.which"
 
 @pytest.mark.unit
 def test_convert_to_pdf_returns_none_when_soffice_fails(tmp_path):
-    from facade.core.parser import convert_to_pdf
+    from processing.core.parser import convert_to_pdf
 
     in_file = tmp_path / "test.docx"
     in_file.write_bytes(b"fake content")

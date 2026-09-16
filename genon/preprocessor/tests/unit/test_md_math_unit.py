@@ -231,7 +231,7 @@ def test_guard_hides_formula_and_keeps_basename():
 
 def test_chunk_text_wraps_block_formula_with_delimiters():
     """구분자가 없으면 청크를 받는 쪽이 수식을 본문 문장으로 읽는다."""
-    from genon.preprocessor.facade.chunking.formula_text import item_text
+    from genon.preprocessor.processing.chunking.formula_text import item_text
 
     class _Item:
         label = "formula"
@@ -241,7 +241,7 @@ def test_chunk_text_wraps_block_formula_with_delimiters():
 
 
 def test_chunk_text_does_not_double_wrap():
-    from genon.preprocessor.facade.chunking.formula_text import item_text
+    from genon.preprocessor.processing.chunking.formula_text import item_text
 
     class _Item:
         label = "formula"
@@ -251,7 +251,7 @@ def test_chunk_text_does_not_double_wrap():
 
 
 def test_chunk_text_leaves_plain_text_alone():
-    from genon.preprocessor.facade.chunking.formula_text import item_text
+    from genon.preprocessor.processing.chunking.formula_text import item_text
 
     class _Item:
         label = "text"

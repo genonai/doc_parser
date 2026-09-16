@@ -308,7 +308,7 @@ body:
 #     실행 위치: genon/preprocessor  (그 폴더의 .venv 로 돌린다)
 #       .venv/bin/python -c "
 #     import sys; sys.path.insert(0,'.'); sys.path.insert(0,'../..')
-#     from facade.enrichment.tabular_custom_fields import TabularCustomFieldsMapper as M
+#     from processing.enrichment.tabular_custom_fields import TabularCustomFieldsMapper as M
 #     from genon.preprocessor.converters.xlsx_processor import build_tabular_data_dict
 #     m = M(config_file='custom_field_<유형>.yaml', resource_path='resource',
 #           doc_type='<유형>', extractor='tabular_mapping')

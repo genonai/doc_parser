@@ -6,7 +6,7 @@ primary 표기로 남기고 그 수만 센다 — 내용이 사라지는 경로�
 
 import pytest
 
-from genon.preprocessor.facade.chunking import table_variants as tv
+from genon.preprocessor.processing.chunking import table_variants as tv
 
 
 HTML = "<table><tbody><tr><td>값</td></tr></tbody></table>"

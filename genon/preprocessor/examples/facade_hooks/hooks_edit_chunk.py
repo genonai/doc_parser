@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import re
 
-from genon.preprocessor.facade.core import toolbox as tb
+from genon.preprocessor.processing.core import toolbox as tb
 
 # 장식 마커. 구조를 나타내던 역할은 마커 승격이 이미 끝냈으므로 지워도 계층이 남는다.
 GLYPHS = re.compile(r"[■◈※☎▶●◆▲☞]\s*")

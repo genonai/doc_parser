@@ -8,7 +8,7 @@
 
 > **코드를 고쳐야 할 때는** [facade_hooks.md](facade_hooks.md) 를 보세요.
 > 설정으로 안 되는 원천은 전처리기 파일의 훅(`edit_input` / `edit_output` /
-> `edit_input` / `edit_output`)에서 처리합니다. 처리 본체(`facade/core/`)는 열지 않습니다.
+> `edit_input` / `edit_output`)에서 처리합니다. 처리 본체(`processing/core/`)는 열지 않습니다.
 
 ## 목차
 
@@ -33,10 +33,10 @@
 | 파일 | `genon/preprocessor/facade/chunking_processor.py` |
 | 마커 | `IS_CHUNKER = True` (이게 없으면 `/chunker` 요청이 거부됩니다) |
 | 설정 | `resource/chunking_processor_config.yaml` (개발 시 `resource_dev/` 가 우선) |
-| 청킹 엔진 본체 | `facade/chunking/smart_chunker.py` — **공용 모듈** |
+| 청킹 엔진 본체 | `processing/chunking/smart_chunker.py` — **공용 모듈** |
 
 > **엔진은 이 파일 안에 없습니다.** facade 의 `GenosSmartChunker` 는 동작 옵션(ClassVar)만
-> 지정하는 얇은 서브클래스이고, 실제 분할·병합 로직은 `facade/chunking/smart_chunker.py`
+> 지정하는 얇은 서브클래스이고, 실제 분할·병합 로직은 `processing/chunking/smart_chunker.py`
 > 한 벌에 있습니다. 거기를 고치면 `/chunker` 와 `/preprocess*`(적재)가 **함께** 바뀝니다.
 
 ### 배포 형태에 따라 서빙 수가 다릅니다
@@ -287,11 +287,11 @@ parse-format 입력은 element 의 `category` 로 경로가 갈립니다. **여�
 | 헤더 구분자(` > ` · ` | `)·리프 상한·최소 청크 크기·토크나이저 기본 경로 | `chunking_processor.py` **파일 머리의 사이트 조정 지점 블록** |
 | 그림 annotation 을 청크에 실을지, 표 설명 반영 범위 | `chunking_processor.py::GenosSmartChunker` 의 ClassVar |
 | 청크 metadata 필드 추가 | 가장 안전한 것은 문서 metadata 경유(스키마가 `extra` 허용). 정식 필드로 올리려면 스키마·빌더·조립부 + parse-format 경로를 함께 |
-| 섹션 인식 규칙("제N조" 등) | `facade/chunking/smart_chunker.py` 의 `_is_section_header` + `preprocess` 안의 같은 판정 + `_get_section_header_level` — **세 곳이 같은 판정을 중복 구현합니다** |
-| 병합·분할 기준 | `facade/chunking/smart_chunker.py` 4·5·5.5단계 |
-| 표 직렬화 | `facade/chunking/smart_chunker.py::_extract_table_text` · `_table_item_to_texts`, HTML 은 `facade/chunking/table_html.py` |
+| 섹션 인식 규칙("제N조" 등) | `processing/chunking/smart_chunker.py` 의 `_is_section_header` + `preprocess` 안의 같은 판정 + `_get_section_header_level` — **세 곳이 같은 판정을 중복 구현합니다** |
+| 병합·분할 기준 | `processing/chunking/smart_chunker.py` 4·5·5.5단계 |
+| 표 직렬화 | `processing/chunking/smart_chunker.py::_extract_table_text` · `_table_item_to_texts`, HTML 은 `processing/chunking/table_html.py` |
 
-> `facade/chunking/` 는 **공용 모듈**입니다. 고치면 `/chunker` 와 `/preprocess*`(적재)가 함께
+> `processing/chunking/` 는 **공용 모듈**입니다. 고치면 `/chunker` 와 `/preprocess*`(적재)가 함께
 > 바뀝니다. 한쪽만 바꾸려던 것이면 다른 방법을 찾으세요.
 
 ### 고치기 전에 내 기준선을 만드세요

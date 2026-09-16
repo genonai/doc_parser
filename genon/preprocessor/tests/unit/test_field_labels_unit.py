@@ -13,10 +13,10 @@ from pathlib import Path
 import pytest
 import yaml
 
-from genon.preprocessor.facade.chunking import doc_prefix as dpx
-from genon.preprocessor.facade.common import config_parse as cp
-from genon.preprocessor.facade.enrichment.json_records import JsonRecordsMapper
-from genon.preprocessor.facade.enrichment.tabular_custom_fields import (
+from genon.preprocessor.processing.chunking import doc_prefix as dpx
+from genon.preprocessor.processing.common import config_parse as cp
+from genon.preprocessor.processing.enrichment.json_records import JsonRecordsMapper
+from genon.preprocessor.processing.enrichment.tabular_custom_fields import (
     TabularCustomFieldsMapper,
     build_chunk_text,
 )

@@ -8,12 +8,12 @@ import textwrap
 import pytest
 import yaml
 
-from genon.preprocessor.facade.enrichment import config_schema as cs
-from genon.preprocessor.facade.enrichment import config_v2 as cv2
-from genon.preprocessor.facade.enrichment.custom_fields_enricher import (
+from genon.preprocessor.processing.enrichment import config_schema as cs
+from genon.preprocessor.processing.enrichment import config_v2 as cv2
+from genon.preprocessor.processing.enrichment.custom_fields_enricher import (
     custom_fields_extractor,
 )
-from genon.preprocessor.facade.enrichment.tabular_custom_fields import (
+from genon.preprocessor.processing.enrichment.tabular_custom_fields import (
     TabularCustomFieldsMapper,
 )
 
@@ -88,7 +88,7 @@ def test_v2_covers_every_v1_key():
     두 층이 갈리는 가장 흔한 경로다 — 매퍼가 읽는 키를 추가하고 config_v2 의 매핑 표를
     갱신하지 않으면, 그 키는 어떤 설정으로도 만들 수 없는데 아무도 모른다.
     """
-    from genon.preprocessor.facade.enrichment import config_schema as cs
+    from genon.preprocessor.processing.enrichment import config_schema as cs
 
     v1_keys = set().union(*cs.EXTRACTOR_KEYS.values())
     missing = sorted(v1_keys - cv2.COVERED_V1_KEYS)
@@ -99,7 +99,7 @@ def test_v2_covers_every_v1_key():
 
 def test_covered_set_has_no_phantom_keys():
     """반대 방향 — 없어진 내부 키가 covered 에 남으면 위 검사가 헛돈다."""
-    from genon.preprocessor.facade.enrichment import config_schema as cs
+    from genon.preprocessor.processing.enrichment import config_schema as cs
 
     v1_keys = set().union(*cs.EXTRACTOR_KEYS.values()) | set(cs.WIRING_KEYS)
     phantom = sorted(cv2.COVERED_V1_KEYS - v1_keys)
@@ -112,7 +112,7 @@ def test_v2_config_still_gets_extractor_level_validation(tmp_path):
     json_semantic 은 chunk_prefix_fields 를 읽지 않으므로, v2 의 body.repeat 로 그 키를
     만들면 번역 결과가 extractor 지원키 검사에서 걸려야 한다.
     """
-    from genon.preprocessor.facade.enrichment.json_semantic import SemanticJsonMapper
+    from genon.preprocessor.processing.enrichment.json_semantic import SemanticJsonMapper
 
     cfg = tmp_path / "custom_field_s.yaml"
     cfg.write_text(
@@ -203,7 +203,7 @@ def test_omitted_extractor_reaches_the_enricher(tmp_path):
     때문에 기동에서 막힌다 — 템플릿이 "extractor 를 적지 말라"고 안내하는 만큼 이 배선이
     끊기면 안내가 곧 기동 실패가 된다.
     """
-    from genon.preprocessor.facade.enrichment.custom_fields_enricher import (
+    from genon.preprocessor.processing.enrichment.custom_fields_enricher import (
         build_document_custom_fields_enrichers,
     )
 
@@ -223,7 +223,7 @@ def test_omitted_extractor_reaches_the_enricher(tmp_path):
 
 def test_omitted_extractor_keeps_row_configs_out_of_document_builder(tmp_path):
     """유도가 문서형 빌더의 필터 판정을 넓히지 않는다(rows 설정은 계속 제외)."""
-    from genon.preprocessor.facade.enrichment.custom_fields_enricher import (
+    from genon.preprocessor.processing.enrichment.custom_fields_enricher import (
         build_document_custom_fields_enrichers,
     )
 
@@ -315,7 +315,7 @@ def test_shipped_blocks_derive_their_extractor():
     None 이 되고 하위호환 폴백으로 `llm` 이 된다. rows/records 설정이 그렇게 되면 기동이
     실패하는데, 원인이 "설정 파일을 못 읽었다" 로 드러나지 않아 짚기 어렵다.
     """
-    from genon.preprocessor.facade.enrichment.custom_fields_enricher import (
+    from genon.preprocessor.processing.enrichment.custom_fields_enricher import (
         _derive_extractor,
     )
     from shipped_config import PREPROCESSOR_DIR
@@ -400,7 +400,7 @@ def test_pre_json_refuses_internal_names(old_key):
 
 def test_pre_json_reaches_the_spec(tmp_path):
     """설정 파일에 적은 json 이 파싱 라우팅이 쓰는 스펙까지 닿는다."""
-    from genon.preprocessor.facade.common.parser_config import build_json_text_specs
+    from genon.preprocessor.processing.common.parser_config import build_json_text_specs
 
     _write(tmp_path, "custom_field_x.yaml", """\
         schema: v2
@@ -424,7 +424,7 @@ def test_registered_block_json_is_refused(tmp_path):
     등록 블록은 기동 시 키 검증을 받지 않아(설정 파일만 받는다) 그대로 두면 오류가 아니라
     조용히 무시되고, 본문이 캐치올로 빠져 표·heading 구조가 소실된다.
     """
-    from genon.preprocessor.facade.common.parser_config import build_json_text_specs
+    from genon.preprocessor.processing.common.parser_config import build_json_text_specs
 
     _write(tmp_path, "custom_field_x.yaml", """\
         schema: v2
@@ -462,7 +462,7 @@ def test_shipped_configs_keep_json_body_keys(resource_dir, name, doc_types):
 
 def test_pre_json_is_document_only(tmp_path):
     """공용 해석기로 옮긴 덕에 문서형 게이트가 붙는다(전에는 rows 에 붙여도 통과했다)."""
-    from genon.preprocessor.facade.common.parser_config import build_json_text_specs
+    from genon.preprocessor.processing.common.parser_config import build_json_text_specs
 
     _write(tmp_path, "custom_field_r.yaml", """\
         schema: v2

@@ -13,7 +13,7 @@ from pathlib import Path
 
 import pytest
 
-from genon.preprocessor.facade.chunking import table_blocks as tb
+from genon.preprocessor.processing.chunking import table_blocks as tb
 
 pytestmark = pytest.mark.unit
 
@@ -286,7 +286,7 @@ def test_cs_ssf_sample_keeps_each_section_title_with_its_table():
     보상 기준</b></p>` 와 두 번째 표. 원천 → 평문화 → 표 분리까지 실제 경로로 확인한다.
     """
     from genon.preprocessor.converters.delimited_text import parse_spec, read_records
-    from genon.preprocessor.facade.enrichment.json_records import html_to_text
+    from genon.preprocessor.processing.enrichment.json_records import html_to_text
 
     sample = (Path(__file__).resolve().parents[2]
               / "sample_files" / "monimo" / "monimo_cs_ssf_table_title_sample.dtms")

@@ -11,8 +11,8 @@ from pathlib import Path
 import pytest
 import yaml
 
-from genon.preprocessor.facade.enrichment import config_schema as cs
-from genon.preprocessor.facade.enrichment.tabular_custom_fields import (
+from genon.preprocessor.processing.enrichment import config_schema as cs
+from genon.preprocessor.processing.enrichment.tabular_custom_fields import (
     TabularCustomFieldsMapper,
 )
 

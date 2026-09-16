@@ -44,7 +44,7 @@ results.append(mapper.to_parse_format_from_fields(fields_list, runtime_doc_type)
 
 지금은 `parser_processor.py:1546` 의 메서드다. intelligent 에 복사하면
 "facade 끼리 import 금지" 를 우회한 복제가 되고 그 자체가 새 lockstep 부채다
-(CLAUDE.md 아키텍처 제약). `facade/enrichment/` 에 순수 함수로 옮긴다.
+(CLAUDE.md 아키텍처 제약). `processing/enrichment/` 에 순수 함수로 옮긴다.
 
 함께 옮길 것: `_apply_llm_fields_document_scope`(1607), `_llm_field_enricher`(1520,
 enricher 캐시). 캐시는 프로세서 인스턴스에 붙어 있으므로 **캐시 dict 를 인자로 받는 형태**로
@@ -100,7 +100,7 @@ parser 는 `__init__`(1026~1029)에서 `llm_field_specs` 마다 enricher 를 만
 
 ## 영향 파일
 
-- `facade/enrichment/` 에 새 모듈(또는 기존 `custom_fields_enricher.py` 에 함수 추가)
+- `processing/enrichment/` 에 새 모듈(또는 기존 `custom_fields_enricher.py` 에 함수 추가)
 - `facade/parser_processor.py` (1520~1640 을 공용 함수 호출로 축소)
 - `facade/intelligent_processor.py` (`__init__` 641, `_process_xlsx` 1102~)
 - `facade/convert_processor.py` (`__init__` 612, `_process_xlsx` 1319~)

@@ -11,7 +11,7 @@ check_empty_text 가 빠진 채로 남았고 크래시로 드러났다.
 
 import pytest
 
-from genon.preprocessor.facade.common.docling_runtime import DoclingRuntimeBase
+from genon.preprocessor.processing.common.docling_runtime import DoclingRuntimeBase
 
 
 @pytest.fixture(scope="module")

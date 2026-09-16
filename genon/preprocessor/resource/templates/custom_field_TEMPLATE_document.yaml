@@ -308,7 +308,7 @@ llm:
 #     실행 위치: genon/preprocessor  (그 폴더의 .venv 로 돌린다)
 #       .venv/bin/python -c "
 #     import sys; sys.path.insert(0,'.'); sys.path.insert(0,'../..')
-#     from facade.enrichment.custom_fields_enricher import CustomFieldsEnricher as E
+#     from processing.enrichment.custom_fields_enricher import CustomFieldsEnricher as E
 #     e = E(config_file='custom_field_<유형>.yaml', resource_path='resource')
 #     print('연결 설정 :', e.is_configured, e._model, e._max_tokens, e._timeout)
 #     print('출력 필드 :', e._output_fields)

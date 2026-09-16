@@ -9,7 +9,7 @@ import pytest
 
 pytestmark = pytest.mark.unit
 
-tb = pytest.importorskip("facade.core.toolbox")
+tb = pytest.importorskip("processing.core.toolbox")
 chunker_facade = pytest.importorskip("facade.chunking_processor")
 
 META = chunker_facade.GenOSVectorMeta

@@ -15,7 +15,7 @@
 >   포집 예외를 셋 중 가장 넓은 것으로 통일했고(좁던 자리에선 설정 오류가 raw 로 샜다),
 >   기동 오류(`stage="custom_fields"`)와 요청 중 doc_type 매칭 오류(stage 없음)는
 >   팩토리를 둘로 나눠 원래 envelope 을 유지했다.
-> - **3c**: `facade/serialize/parse_format.py`(340줄) 신설. `_item_to_html` 은 지웠다(죽은 코드).
+> - **3c**: `processing/serialize/parse_format.py`(340줄) 신설. `_item_to_html` 은 지웠다(죽은 코드).
 >   `_build_docling_response` 는 계획대로 facade 에 남겼다(설정 4종 + 문서 변이 + guardrail HTTP).
 >   facade 에는 `staticmethod(pf.…)` 래퍼 12개가 남는다 — 유닛이 클래스 경유로 부르고
 >   `patch.object` 로 갈아끼운다. `patch("facade.parser_processor.export_markdown")` 4곳은
@@ -55,7 +55,7 @@
 
 1. `common/loaders.py` 는 현재 **docling import 가 없다.** `HwpDocumentLoader` 를 옮기면
    `DocumentConverter` / `HwpxFormatOption` / `GenosHwpDocumentBackend` 등 8개 심볼이 들어와
-   "공용 모듈은 docling 무의존" 원칙과 충돌한다(`facade/enrichment/*` 는 이미 `docling_core` 를
+   "공용 모듈은 docling 무의존" 원칙과 충돌한다(`processing/enrichment/*` 는 이미 `docling_core` 를
    직접 import 하므로 절대 금칙은 아니다 — 결정을 명시하면 된다).
 2. `GenericDocumentLoader.load_documents`(852)가 **facade 로컬 `GenosServiceException`**(876)을
    raise 한다. 공용 모듈에서 어느 예외를 쓸지 정해야 한다(22곳에 복제돼 있다).
@@ -123,7 +123,7 @@
 **디렉터리 이름**
 
 `facade/output/` 은 쓰지 않는다 — `output:` 은 프로세서 설정 YAML **12곳의 최상위 섹션명**이라
-"output 을 고쳐라" 가 코드인지 설정인지 모호해진다. **`facade/serialize/`** 를 쓴다.
+"output 을 고쳐라" 가 코드인지 설정인지 모호해진다. **`processing/serialize/`** 를 쓴다.
 
 배포 범위는 문제없다. `sync-serving-repo.sh:170` 이 `git archive` 로 `genon` 전체를 뽑은 뒤
 `EXCLUDE_PATHS` 만 지우므로 **신규 하위 디렉터리는 스크립트 수정 없이 자동 포함**된다.

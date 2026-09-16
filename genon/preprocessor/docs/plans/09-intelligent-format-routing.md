@@ -75,7 +75,7 @@ if native is not None:
 ## 영향 파일
 
 - `facade/intelligent_processor.py` (`__call__` 1377~1432)
-- 판정 헬퍼는 `facade/common/` 또는 `facade/enrichment/` 에 둔다 — 09 시점에는 intelligent
+- 판정 헬퍼는 `processing/common/` 또는 `processing/enrichment/` 에 둔다 — 09 시점에는 intelligent
   한 곳만 쓰지만, convert 가 뒤따를 것이 이미 보이므로 facade 안에 `_resolve_*` 로 두지 않는다
   (CLAUDE.md: facade 마다 헬퍼를 복제하면 그 자체가 새 lockstep 부채)
 

@@ -100,7 +100,7 @@ docling 분기와 캐치올로 갈리고, `.csv/.xlsx` 는 `tabular_mapping` 매
 | 문서 주장 | 실제 |
 |---|---|
 | `chunking_processor.py` 2,900줄, `GenosSmartChunker` 342-1376 | 파일 1,536줄, 클래스는 **243** 이고 본체가 아니라 얇은 서브클래스 |
-| `_is_section_header(827)` 를 `chunking_processor.py` 에서 고쳐라 | 그 함수는 `facade/chunking/smart_chunker.py:896` — **파일 지목 자체가 틀렸다** |
+| `_is_section_header(827)` 를 `chunking_processor.py` 에서 고쳐라 | 그 함수는 `processing/chunking/smart_chunker.py:896` — **파일 지목 자체가 틀렸다** |
 | `parser_processor.py` 2,700줄, `DocumentProcessor` 1858- | 2,497줄, 클래스는 **896** |
 | 각 facade 는 "2,600~3,700줄" | 5개 중 4개가 2,000줄 미만 |
 

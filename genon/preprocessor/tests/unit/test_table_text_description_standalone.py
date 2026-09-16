@@ -19,9 +19,9 @@ from docling_core.types.doc import (
     TableData,
 )
 
-from genon.preprocessor.facade.enrichment.custom_fields_enricher import CustomFieldsEnricher
-from genon.preprocessor.facade.enrichment.table_description import TableDescriptionExtractor
-from genon.preprocessor.facade.enrichment.table_text_description import (
+from genon.preprocessor.processing.enrichment.custom_fields_enricher import CustomFieldsEnricher
+from genon.preprocessor.processing.enrichment.table_description import TableDescriptionExtractor
+from genon.preprocessor.processing.enrichment.table_text_description import (
     TableTextDescriptionEnricher,
     apply_table_description_stage,
     build_text_table_targets,

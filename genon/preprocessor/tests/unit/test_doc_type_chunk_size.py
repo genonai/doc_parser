@@ -33,7 +33,7 @@ from unittest.mock import AsyncMock
 import pytest
 
 # 청크 크기 하한 보정은 배관이라 처리 본체(core)에 있다(#363 08-2).
-from genon.preprocessor.facade.core.chunker import _clamp_chunk_size
+from genon.preprocessor.processing.core.chunker import _clamp_chunk_size
 
 _SAMPLES = Path(__file__).resolve().parents[2] / "sample_files" / "monimo"
 

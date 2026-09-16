@@ -6,7 +6,7 @@
 
 import pytest
 
-from genon.preprocessor.facade.enrichment.json_records import (
+from genon.preprocessor.processing.enrichment.json_records import (
     html_to_text,
     normalize_table_format,
 )
@@ -83,7 +83,7 @@ def test_rows_path_honors_table_format(tmp_path, fmt, expect_md):
     """
     import textwrap
 
-    from genon.preprocessor.facade.enrichment.tabular_custom_fields import (
+    from genon.preprocessor.processing.enrichment.tabular_custom_fields import (
         TabularCustomFieldsMapper,
     )
 

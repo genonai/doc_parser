@@ -8,9 +8,9 @@ import textwrap
 
 import pytest
 
-from genon.preprocessor.facade.enrichment.json_records import JsonRecordsMapper
-from genon.preprocessor.facade.enrichment.json_semantic import SemanticJsonMapper
-from genon.preprocessor.facade.enrichment.tabular_custom_fields import (
+from genon.preprocessor.processing.enrichment.json_records import JsonRecordsMapper
+from genon.preprocessor.processing.enrichment.json_semantic import SemanticJsonMapper
+from genon.preprocessor.processing.enrichment.tabular_custom_fields import (
     TabularCustomFieldsMapper,
 )
 
