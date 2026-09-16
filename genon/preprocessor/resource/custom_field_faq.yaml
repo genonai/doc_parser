@@ -18,7 +18,7 @@
 #
 # 목표필드명은 TB_FAQ 컬럼명(대문자)을 그대로 쓴다.
 # 한 필드의 규칙(별칭·값 접기·기본값·변환)은 fields 아래 그 필드 자리에 모두 모여 있다.
-# 작성법은 templates/custom_field_TEMPLATE_tabular.yaml 을 참고한다.
+# 작성법은 templates/custom_field_TEMPLATE_rows.yaml 을 참고한다.
 
 schema: v2
 source:

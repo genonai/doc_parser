@@ -7,12 +7,13 @@
 #              아래 목표필드가 그 청크의 metadata 로 실린다.
 #  LLM 호출  : 없음. 원천에 없는 필드가 필요할 때만 맨 아래 `llm` 을 쓴다(레코드 1건당 1회).
 #
-#  ── 4종 중 어느 템플릿인가 ───────────────────────────────────────────────
-#   rows     · 엑셀/CSV 한 행 = 검색 1건           custom_field_TEMPLATE_tabular.yaml
-#   records  · JSON 배열 한 요소 = 검색 1건        custom_field_TEMPLATE_json.yaml  ← 이 파일
-#   sections · 대상 하나를 깊게 설명한 중첩 JSON   custom_field_TEMPLATE_semantic.yaml
-#   document · 문서 1건에서 필드 몇 개를 LLM 으로  custom_field_TEMPLATE_llm.yaml
-#   더 자세한 비교는 facade/gitbook_doc/parser_processor.md 의 "extractor 4종" 표.
+#  ── 5종 중 어느 템플릿인가 ───────────────────────────────────────────────
+#   rows     · 엑셀/CSV 한 행 = 검색 1건           custom_field_TEMPLATE_rows.yaml
+#   records  · JSON 배열 한 요소 = 검색 1건        custom_field_TEMPLATE_records.yaml  ← 이 파일
+#   sections · 대상 하나를 깊게 설명한 중첩 JSON   custom_field_TEMPLATE_sections.yaml
+#   document · 문서 1건에서 필드 몇 개를 LLM 으로  custom_field_TEMPLATE_document.yaml
+#   html     · 마크업이 값을 이미 지목한 HTML      custom_field_TEMPLATE_html.yaml
+#   더 자세한 비교는 facade/gitbook_doc/parser_processor.md 의 "extractor 5종" 표.
 #
 #  rows(엑셀) 와의 차이 — 나머지는 전부 같다
 #   · `alias` 가 **엑셀 헤더**가 아니라 **JSON key 이름**이다.
@@ -252,7 +253,7 @@ body:
 # ── [선택] 표 설명(table_text_description)을 이 문서유형에서만 바꾼다 ────────
 # 프로세서 config 의 공통 `table_text_description` 값이 기본이고, 여기 적은 키만 덮어쓴다.
 # **최상위 키**이며 kind 와 무관하다 — 레코드 본문 안의 <table> 에도 표 설명이 붙는다.
-# 키 구성은 custom_field_TEMPLATE_llm.yaml 의 같은 이름 블록에 전부 적혀 있다.
+# 키 구성은 custom_field_TEMPLATE_document.yaml 의 같은 이름 블록에 전부 적혀 있다.
 # table_text_description:
 #   rag:
 #     key_fact_limit: 5

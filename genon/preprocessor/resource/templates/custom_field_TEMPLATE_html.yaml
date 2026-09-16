@@ -1,0 +1,234 @@
+# ═══════════════════════════════════════════════════════════════════════════
+#  템플릿 — 원문 HTML 선택자 추출 (source.kind: html)
+#
+#  언제 쓰나 : 뽑아야 할 값이 원천 마크업의 **class 나 속성으로 이미 정확히 지목**되어
+#              있을 때 (CMS 상세 페이지, 크롤 산출물, WCMS 계열 원천 …)
+#  결과      : 문서 metadata → 그 문서에서 나온 **모든 청크에 같은 값**이 붙는다.
+#              청크 본문은 docling 이 만든다(이 설정이 본문을 조립하지 않는다).
+#  LLM 호출  : 없음. 선택자가 값을 만드므로 연결 설정도 프롬프트도 필요 없다.
+#
+#  ── 5종 중 어느 템플릿인가 ───────────────────────────────────────────────
+#   rows     · 엑셀/CSV 한 행 = 검색 1건           custom_field_TEMPLATE_rows.yaml
+#   records  · JSON 배열 한 요소 = 검색 1건        custom_field_TEMPLATE_records.yaml
+#   sections · 대상 하나를 깊게 설명한 중첩 JSON   custom_field_TEMPLATE_sections.yaml
+#   document · 문서 1건에서 필드 몇 개를 LLM 으로  custom_field_TEMPLATE_document.yaml
+#   html     · 마크업이 값을 이미 지목한 HTML      custom_field_TEMPLATE_html.yaml  ← 이 파일
+#   더 자세한 비교는 facade/gitbook_doc/parser_processor.md 의 "extractor 5종" 표.
+#
+#  document(LLM) 와의 차이 — 나머지는 전부 같다
+#   · 값을 만드는 주체가 LLM 이 아니라 **CSS 선택자**다. 그 뒤의 값 파이프라인
+#     (default → const → values → transform → template → pack)은 완전히 같다.
+#   · 문서 단위인 것도 같다. 그래서 `body.fields`·`split` 처럼 본문을 조립하는 키가 없다.
+#   · 왜 LLM 이 아닌가: docling 이 파싱을 마치면 class 도 사용자 속성도 HTML 주석도
+#     남지 않는다(텍스트와 img 의 alt 만 남는다). 그래서 LLM 으로 같은 요건을 풀면
+#     프롬프트가 "몇 번째 줄" 같은 순서에 기대게 되고, 마크업이 바뀌면 조용히 틀린다.
+#     근거가 마크업에 있는 값은 마크업에서 뽑는 것이 맞다.
+#
+#  ── 전제: 원문 HTML 이 파서에 닿아야 한다 (가장 흔한 실패) ────────────────
+#  선택자는 **파싱 전 원문 HTML** 에 걸린다. 그 원문이 없으면 선언한 필드가 전부 빈 값이
+#  되고 로그에 "원문 HTML 이 없습니다" 가 남는다. 닿는 경로는 둘뿐이다.
+#   ① 원천이 `.html` / `.htm` 파일인 경우 — 그대로 닿는다.
+#   ② 원천이 `.json` 이고 그 안의 값이 HTML 인 경우 — 아래 `source.pre.json.body_from`
+#      으로 그 값을 꺼내야 한다. 꺼낸 HTML 이 문서가 되면서 선택자도 거기 걸린다.
+#      이 블록을 빠뜨리면 json 이 원문 그대로 파싱돼 선택자가 걸릴 HTML 이 없다.
+#  pdf·docx·xlsx 등 나머지 원천에는 원문 HTML 이라는 것이 없으므로 이 kind 를 쓰지 않는다.
+#
+#  ── 쓰는 순서 ────────────────────────────────────────────────────────────
+#  ① 이 파일을 resource/custom_field_<유형>.yaml 로 복사한다.
+#  ② <...> 로 표시된 곳을 채운다. 필요 없는 [선택] 항목은 지운다.
+#  ③ resource/parser_processor_config.yaml 의 enrichment 목록에 아래를 추가한다.
+#        - custom_fields:
+#            enable: true
+#            doc_type: <유형>
+#            # extractor 는 적지 않는다 — 설정 파일의 `source.kind: html` 에서 정해진다.
+#            #   굳이 적겠다면 `html_select` 여야 한다. 어긋나면 기동이 실패하고,
+#            #   메시지에는 설정에 적은 적 없는 내부 키 이름이 나와 원인을 짚기 어렵다.
+#            config_file: custom_field_<유형>.yaml   # 파일명만. 이 yaml 과 같은 폴더 기준
+#  ④ 실제 원천 파일로 결과를 확인한다(아래 "확인 방법" 참고).
+#
+#  이 템플릿은 참고용이므로 parser_processor_config.yaml 에 등록하지 않는다.
+#     <...> 가 남은 상태로 등록하면 선택자가 원천과 맞지 않아 값이 비어서 나온다.
+# ═══════════════════════════════════════════════════════════════════════════
+
+schema: v2
+
+# ── [필수] 레코드 소스 ──────────────────────────────────────────────────────
+source:
+  kind: html
+
+  # ── [선택] 원천 포맷 전처리 ───────────────────────────────────────────────
+  # docling 파싱 **전에** 원문을 손보는 규칙이다. 이 kind 에서 뜻이 있는 것은 아래 둘이다.
+  #   json : 원천이 .json 인데 본문이 그 안의 값으로 올 때 (위 "전제" 의 ② 경로)
+  #   html : 원천이 .html 일 때의 판정 스위치
+  # `pre` 아래 나머지 둘(`markdown`·`delimited`)은 각각 .md 원천과 구분자 텍스트 원천의
+  # 기구라 이 kind 에서는 쓸 일이 없다 — 적어도 기동은 통과하고 조용히 무시된다.
+  # pre:
+  #   marker_headings: true         # `◈ 기본내용` 같은 마커 줄을 heading 으로 승격.
+  #                                 # md·html 이 판정 규칙을 공유하므로 여기 한 번만 적으면
+  #                                 # 둘 다 걸린다(블록 안에 다시 적으면 그쪽이 이긴다)
+  #   json:                         # 원천이 .json 이고 본문이 그 안의 값일 때 [이 kind 의 핵심]
+  #     # 본문(html 문자열)이 담긴 원천 key 이름들. 경로가 아니라 **이름만** 적고 임의
+  #     # 깊이에서 문서 순서대로 모으므로 `wcmsData.html.content` 도 `content` 한 단어로 잡힌다.
+  #     # 항목이 여러 개면 항목별 <h2> 섹션을 가진 단일 문서로 병합된다 — 선택자는 그
+  #     # **병합된 HTML** 에 걸리므로, 값이 한 항목에만 있어야 하면 선택자로 범위를 좁힌다.
+  #     body_from: [<본문_KEY>]       # [필수]
+  #     format: auto                # auto(기본, 값 내용으로 판별) | html | markdown
+  #     on_missing: skip            # skip(기본, 경고만) | error
+
+# ── [필수] 필드 선언 ────────────────────────────────────────────────────────
+# `select` 가 이 kind 의 원천 지목 자리다 — 레코드형의 `alias`(원천 key 이름)와 같은 역할의
+# 같은 자리이고, 값이 CSS 선택자라는 것만 다르다. 첫 번째로 걸린 요소 하나를 쓴다.
+#
+#   select    : 값이 있는 요소의 CSS 선택자 (`.new-banner-headline`, `#detail > p` …)
+#               문법 오류는 **기동 시** 실패한다(요청 때까지 끌고 가지 않는다).
+#               걸린 요소의 안쪽 내용을 `transform: html_text` 와 **같은 렌더러**로
+#               평문화한다 — 표·목록 구조가 남고 짧은 값은 한 줄로 나온다.
+#               그래서 모양 스위치를 따로 두지 않았다(이미 있는 변환기와 결과가 같다).
+#   attr      : 값이 텍스트가 아니라 그 요소의 **속성**에 있을 때만 곁들인다.
+#               속성값을 문자열 그대로 쓴다(평문화하지 않는다).
+#               `attr` 만 적고 `select` 를 빠뜨리면 기동이 실패한다 — 원천을 지목하지
+#               않은 설정이라 값이 만들어지지 않는데 조용히 통과하면 안 되기 때문이다.
+#
+# 원천과 무관하게 값을 만드는 키도 같이 쓴다 — 원천에 없는 값은 `select` 없이 선언한다.
+#   const     : 항상 같은 값. 선택자가 다른 값을 물어와도 이긴다
+#   default   : 선택자가 값을 못 준 자리만 채운다
+#   values    : 코드값·표기 흔들림을 표준값으로 접는다 (`SALE: ["1", Y, 판매중]`)
+#               별칭에 영문 `yes`/`no`/`on`/`off` 를 쓸 때는 **따옴표로 감싼다** — YAML 이
+#               참/거짓으로 바꿔 버려 원천의 "yes" 와 영영 안 맞는다(`Y`/`N` 은 그대로다)
+#   transform : 값 변환 체인 (`date_int_flex`, `[{name: regex_sub, pattern: ...}]`)
+#               적재 DB 의 JSON 컬럼에 넣을 필드는 `[{name: to_json}]` 을 맨 뒤에 건다
+#   template  : 다른 필드를 합쳐 만든다 (`"{{CATEGORY}} {{TITLE}}"`)
+#   pack      : 여러 필드를 JSON 한 칸에 담는다 (`[CATEGORY, TITLE]`)
+#
+# 쓸 수 없는 키 — 적으면 기동이 실패한다.
+#   alias : 레코드/문서형의 원천 지목이다. 이 kind 의 지목은 `select` 하나다
+#   collect · seq · raw : 각각 records · rows/records · JSON 원천 2종 전용
+#   뒤의 둘은 오류 메시지가 **내부 이름**(`sequence`·`raw_fields`)으로 나온다.
+#
+# 적재 DB 컬럼명(대문자)으로 쓰면 적재 매핑이 1:1 이 된다.
+fields:
+  <TITLE>:
+    select: <.제목_class>
+  <CATEGORY>:
+    # 값이 텍스트가 아니라 감싸는 요소의 속성에 있는 경우.
+    select: <.바깥_wrap_class>
+    attr: <속성이름>
+  <DETAIL>:
+    select: <.본문_class>
+  # 원천에 없어서 선택자로 못 뽑는 값은 select 없이 선언한다.
+  <GROUP_C>:
+    const: <고정값>
+  <BIZ_ID>:
+    default: null
+
+# ── [참고] 값 적용 순서 ──────────────────────────────────────────────────────
+# 필드 하나가 확정되기까지 이 순서로 처리된다:
+#   default < 선택자 < const  →  values → transform → template → pack
+# 값 파이프라인은 이 병합이 끝난 뒤에 도는 후처리라, 선택자가 물어온 값도 const 로 못 박은
+# 값도 똑같이 지나간다. 순서는 rows/records/sections/document 와 같다.
+#
+# 선언한 필드는 **선택자에 안 걸려도 키가 남는다**(값 null). 키가 사라지면 그 필드는
+# 청크에서 조용히 빠지고, 나중에 "왜 없지" 를 적재 데이터에서 발견하게 된다.
+
+# ── [선택] 청크 본문 관련 규칙 ──────────────────────────────────────────────
+# 값이 아니라 규칙이다. 파서가 문서 metadata 로 실어 보내고 청커가 소비한다.
+#
+#   mirror_to : 그 청크의 본문(text)과 글자 그대로 같은 값을 받는 필드
+#               (소비계층의 검색 대상 본문 컬럼용)
+#   repeat    : 모든 청크 본문 앞에 반복해 얹을 필드
+#               (매 청크가 단독으로 검색돼야 하는 식별자 — 제목 등)
+#   once      : 문서의 첫 청크에만 1회 얹을 필드
+#               (매 청크에 반복하기엔 chunk_size 가 아까운 문서 단위 분류·작성일 등)
+#   labels    : 위 규칙으로 얹는 값 앞에 붙일 사람이 읽는 항목명(`항목명: 값`).
+#               목표필드명(예: CATEGORY)은 적재 DB 컬럼명이라 그대로 노출하면 임베딩에
+#               안 쓰는 토큰이 섞이므로, 이름이 있는 필드만 라벨을 붙이고 없으면 값만 낸다.
+#
+# repeat/once 는 접두만큼 chunk_size 를 깎으므로 짧은 필드 1~2개로 제한한다. 값이 비었거나
+# 중첩 객체인 필드는 조용히 건너뛴다. once 만 쓴 값은 임베딩 검색에서 첫 청크만 걸린다
+# (값 자체는 모든 청크의 metadata 에 실리므로 필터 검색은 전 청크에서 된다).
+# `fields`·`split` 은 이 kind 에 없다 — 본문을 docling 이 만들기 때문이다(적으면 기동 실패).
+# body:
+#   once:   [<CATEGORY>, <TITLE>]
+#   repeat: [<TITLE>]
+#   mirror_to: [<BODY_COLUMN>]
+#   labels:
+#     <CATEGORY>: <사람이 읽는 이름>
+#     <TITLE>: <사람이 읽는 이름>
+
+# ── [선택] 표 설명(table_text_description)을 이 문서유형에서만 바꾼다 ────────
+# 프로세서 config 의 공통 `table_text_description` 값이 기본이며, 아래처럼 필요한 키만 쓰면
+# 이 문서유형에서만 덮어쓴다(rag 하위도 키 단위 병합).
+# **최상위 키**이며 kind 와 무관하다 — 다른 kind 설정에도 똑같이 쓸 수 있다.
+# 이 kind 는 LLM 연결을 갖지 않으므로, 표 설명을 켜려면 그 호출에 쓸 연결이 프로세서
+# 공통 설정 쪽에 있어야 한다.
+# table_text_description:
+#   prompt_template_file: prompt_table_text_description_rag.md
+#   input_format: auto
+#   before_items: 4
+#   after_items: 3
+
+# ═══════════════════════════════════════════════════════════════════════════
+#  기동 시 자동 검사 — 무엇을 잡아주고 무엇을 못 잡나
+#
+#  실패시킨다(요청 전에 바로 안다)
+#   · **해석할 수 없는 CSS 선택자**, 또는 `select` 값이 비어 있는 경우
+#   · `attr` 만 적고 `select` 를 빠뜨린 경우
+#   · **이 kind 가 읽지 않는 키를 적은 경우.** 어느 스키마에도 없는 키(오타)는 가장 가까운
+#     이름을 제안하고, 다른 kind 의 키는 어디 전용인지 알려준다.
+#     html 이 **읽지 않는** 대표 키는 아래와 같다(다른 템플릿에서 옮겨 적으면 안 된다).
+#       require · filter · llm · python
+#       body.fields · body.split
+#       source.records_at · source.sections · source.ignore_keys · source.merge_rows
+#       필드 스펙의 alias · collect · seq · raw
+#   · `transform` 의 변환기 이름이 틀렸거나 필수 인자가 빠진 경우, 안 되는 정규식
+#   · `template` 이 아무도 만들지 않는 필드를 참조하는 경우
+#   · 목표필드명이 벡터 예약 필드(text·title·n_char·i_page·created_date·appendix …)와
+#     겹치거나 property 이름 규칙 `/[_A-Za-z][_0-9A-Za-z]*/` 을 벗어난 경우(한글·공백·기호)
+#
+#  경고만 남긴다(로그를 봐야 안다)
+#   · **선택자가 아무것도 못 잡을 때** — `[html_select] 선택자에 걸리지 않아 값이
+#     비었습니다: TITLE(.foo)` 로 어느 필드가 왜 비었는지 이름까지 남는다.
+#     원천 마크업이 바뀌었거나, 그 요소가 원천에서 **HTML 주석 처리**되어 온 경우다
+#     (주석 안쪽은 잡지 않는다 — 원천이 "꺼 둔 것" 이라는 뜻이기 때문이다).
+#   · 원문 HTML 자체가 없을 때 — `원문 HTML 이 없습니다` 가 남고 전 필드가 빈다.
+#     위 "전제" 절의 두 경로를 확인한다.
+#   · `values` 에 없는 값이 들어올 때 — 원값을 그대로 두고 경고만 남긴다
+#
+#  못 잡는다(아래 "확인 방법"으로 직접 봐야 한다)
+#   · 선택자가 **엉뚱한 요소를 잡는** 경우 — 문법이 맞고 무언가 걸리므로 경고도 안 난다.
+#     같은 class 를 본문 문단이 함께 쓰는 원천에서 흔하다(범위를 좁히는 선택자로 푼다).
+#   · `source.pre.markdown`·`source.pre.delimited` 를 적은 경우 — 조용히 무시된다
+#
+#  오류 메시지는 설정에 적는 이름이 아니라 **내부 이름**으로 나온다
+#   (`select`→`select_map`, `body.repeat`→`chunk_prefix_fields`,
+#    `body.once`→`first_chunk_fields`, `values`→`value_map`, `transform`→`transforms` …).
+#   못 보던 이름이 나오면 facade/gitbook_doc/parser_processor.md 의 매트릭스에서 되짚는다.
+#
+# ═══════════════════════════════════════════════════════════════════════════
+#  확인 방법
+#
+#  1) 설정만 검사 — 파싱·LLM 없이 yaml 만 읽는다.
+#       genon/preprocessor/examples/config_precheck/precheck_custom_fields.sh
+#
+#  2) 실제 HTML 로 선택자 결과 보기 — 가장 확실하다(LLM 호출 없음).
+#     실행 위치: genon/preprocessor  (그 폴더의 .venv 로 돌린다)
+#       .venv/bin/python -c "
+#     import sys; sys.path.insert(0,'.'); sys.path.insert(0,'../..')
+#     from facade.enrichment.custom_fields_enricher import CustomFieldsEnricher as E
+#     from facade.enrichment import html_select
+#     e = E(config_file='custom_field_<유형>.yaml', resource_path='resource',
+#           doc_type='<유형>', extractor='html_select')
+#     html = open('<내_원천.html>', encoding='utf-8').read()
+#     print('선택자:', {k: v['css'] for k, v in e._selectors.items()})
+#     for k, v in html_select.extract_fields(html, e._selectors).items():
+#         print(f'{k:12}', repr(v)[:80])
+#     "
+#     → 값이 None 인 필드와 그 선택자가 바로 드러난다. 원천이 .json 이면 `body_from` 이
+#       꺼내는 HTML 문자열을 같은 방식으로 넣어 본다(원문 json 을 그대로 넣으면 안 된다).
+#
+#  3) doc_type 자동 검증 — 파싱·청킹까지 태워 약속한 필드가 실제 청크에 실렸는지 본다.
+#       genon/preprocessor/examples/parse_chunk/parse_chunk_verify.sh --only <유형>
+#
+#  위 "기동 시 자동 검사"가 못 잡는 것(엉뚱한 요소를 잡는 선택자)은 2번에서만 드러난다 —
+#     선택자를 바꿨으면 꼭 돌려볼 것.
+# ═══════════════════════════════════════════════════════════════════════════

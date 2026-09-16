@@ -66,7 +66,7 @@
 # 여기는 "원천에 없어서 판단이 필요한 것"만 적는다.
 #
 # 호출 횟수는 **문서 1건당 1회**다(청크 개수와 무관하다).
-# url·api_key·프롬프트 작성법은 templates/custom_field_TEMPLATE_json.yaml 을 참고한다.
+# url·api_key·프롬프트 작성법은 templates/custom_field_TEMPLATE_records.yaml 을 참고한다.
 #
 # input_fields 에는 shared_fields 의 목표필드명, 문서 전체(`PRODUCT_INFO`), 또는
 # **JSON 의 key 이름**(`feeUrl`, `htmlList` …)을 적는다. 세 번째가 보통 정답이다 —

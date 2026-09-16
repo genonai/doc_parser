@@ -14,12 +14,13 @@
 #   · kind: sections : **대상 하나를 깊게 설명하는 JSON**용. 파일 1건 = 청크 여러 개.
 #     판단 기준: "1파일 = N개 평평한 레코드" 면 records, "역할이 섞인 중첩 JSON" 이면 sections.
 #
-#  ── 4종 중 어느 템플릿인가 ───────────────────────────────────────────────
-#   rows     · 엑셀/CSV 한 행 = 검색 1건           custom_field_TEMPLATE_tabular.yaml
-#   records  · JSON 배열 한 요소 = 검색 1건        custom_field_TEMPLATE_json.yaml
-#   sections · 대상 하나를 깊게 설명한 중첩 JSON   custom_field_TEMPLATE_semantic.yaml  ← 이 파일
-#   document · 문서 1건에서 필드 몇 개를 LLM 으로  custom_field_TEMPLATE_llm.yaml
-#   더 자세한 비교는 facade/gitbook_doc/parser_processor.md 의 "extractor 4종" 표.
+#  ── 5종 중 어느 템플릿인가 ───────────────────────────────────────────────
+#   rows     · 엑셀/CSV 한 행 = 검색 1건           custom_field_TEMPLATE_rows.yaml
+#   records  · JSON 배열 한 요소 = 검색 1건        custom_field_TEMPLATE_records.yaml
+#   sections · 대상 하나를 깊게 설명한 중첩 JSON   custom_field_TEMPLATE_sections.yaml  ← 이 파일
+#   document · 문서 1건에서 필드 몇 개를 LLM 으로  custom_field_TEMPLATE_document.yaml
+#   html     · 마크업이 값을 이미 지목한 HTML      custom_field_TEMPLATE_html.yaml
+#   더 자세한 비교는 facade/gitbook_doc/parser_processor.md 의 "extractor 5종" 표.
 #
 #  ── 이 파일에서 정하는 것은 세 가지뿐이다 ─────────────────────────────────
 #    ① fields             : 모든 청크에 함께 넣을 공통 정보 (상품명·상품코드 …)
@@ -33,7 +34,7 @@
 #    · 여기 적지 않은 key 도 알아서 검색에 들어간다(빠뜨려서 누락될 일이 없다)
 #
 #  ── 쓰는 순서 ────────────────────────────────────────────────────────────
-#  ① 이 파일을 resource/custom_field_<유형>_semantic.yaml 로 복사한다.
+#  ① 이 파일을 resource/custom_field_<유형>.yaml 로 복사한다.
 #  ② <...> 로 표시된 곳을 채운다. 필요 없는 [선택] 항목은 지운다.
 #  ③ resource/parser_processor_config.yaml 의 enrichment 목록에 아래를 추가한다.
 #        - custom_fields:
@@ -42,7 +43,7 @@
 #            # extractor 는 적지 않는다 — 설정 파일의 `source.kind: sections` 에서 정해진다.
 #            #   굳이 적겠다면 `json_semantic` 이어야 한다. 어긋나면 기동이 실패하고,
 #            #   메시지에는 설정에 적은 적 없는 내부 키 이름이 나와 원인을 짚기 어렵다.
-#            config_file: custom_field_<유형>_semantic.yaml
+#            config_file: custom_field_<유형>.yaml
 #  ④ 실제 원천 파일로 결과를 확인한다(아래 "확인 방법" 참고).
 #
 #  이 템플릿은 참고용이므로 parser_processor_config.yaml 에 등록하지 않는다.
@@ -241,7 +242,7 @@ fields:
 # ── [선택] 표 설명(table_text_description)을 이 문서유형에서만 바꾼다 ────────
 # 프로세서 config 의 공통 `table_text_description` 값이 기본이고, 여기 적은 키만 덮어쓴다.
 # **최상위 키**이며 kind 와 무관하다 — 섹션 본문 안의 <table> 에도 표 설명이 붙는다.
-# 키 구성은 custom_field_TEMPLATE_llm.yaml 의 같은 이름 블록에 전부 적혀 있다.
+# 키 구성은 custom_field_TEMPLATE_document.yaml 의 같은 이름 블록에 전부 적혀 있다.
 # table_text_description:
 #   rag:
 #     key_fact_limit: 5
@@ -294,7 +295,7 @@ fields:
 #       .venv/bin/python -c "
 #     import sys, json; sys.path.insert(0,'.'); sys.path.insert(0,'../..')
 #     from facade.enrichment.json_semantic import SemanticJsonMapper as M
-#     m = M(config_file='custom_field_<유형>_semantic.yaml', resource_path='resource',
+#     m = M(config_file='custom_field_<유형>.yaml', resource_path='resource',
 #           doc_type='<유형>', extractor='json_semantic')
 #     payload = json.load(open('<내_데이터.json>', encoding='utf-8'))
 #     out = m.to_parse_format(m.build_fields(payload, '<유형>'), '<유형>')

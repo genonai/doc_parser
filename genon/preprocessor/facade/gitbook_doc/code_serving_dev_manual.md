@@ -1456,7 +1456,7 @@ placeholder 이므로, LLM 을 쓰는 항목은 그 값을 채우기 전까지 �
 | 실행 시점 | 파싱 후 enrichment 단계 | 파싱 **이전**, 확장자 분기에서 조기 반환 | 파싱 **이전**, 확장자 분기에서 조기 반환 |
 | 설정 파일 키(전체) | `url`·`api_key`·`model`·`max_tokens`·`temperature`·`timeout`·`system_prompt`·`user_prompt`·`system_prompt_file`·`user_prompt_file`·`prompt`·`output_fields`·`constants`·`parser`·`pages`·`variables`·`template`·`body_fields`·`chunk_prefix_fields`·`first_chunk_fields` | `column_map`·`value_map`·`constants`·`defaults`·`nulls`·`required`·`transforms`·`llm_fields`·`text_fields`·`split`·`chunk_prefix_fields` | 왼쪽 tabular 키에서 `column_map` → `key_map`, 그리고 `records`·`missing_policy` 추가 |
 | 결과 | 문서 metadata → 모든 청크에 부착 | 행별 `custom_fields_row` element → 행마다 청크 1개 | 레코드별 `custom_fields_row` element → 레코드마다 청크 1개(길면 분할) |
-| 복사할 템플릿 | `resource/templates/custom_field_TEMPLATE_llm.yaml` | `..._TEMPLATE_tabular.yaml` | `..._TEMPLATE_json.yaml` |
+| 복사할 템플릿 | `resource/templates/custom_field_TEMPLATE_document.yaml` | `..._TEMPLATE_rows.yaml` | `..._TEMPLATE_records.yaml` |
 | 출고 실례 | `custom_field_card.yaml` | `custom_field_faq.yaml`·`custom_field_term.yaml` | `custom_field_monimo_event.yaml` |
 
 > `extractor` 를 생략하면 `llm` 로 간주합니다. 표에 없는 값을 쓰면 기동 시
@@ -1501,7 +1501,7 @@ placeholder 이므로, LLM 을 쓰는 항목은 그 값을 채우기 전까지 �
 
 예: 계약서에서 계약기간·당사자 같은 필드를 뽑는 `contract` 유형을 만든다고 합시다.
 
-**① `resource/custom_field_contract.yaml` 작성** — `resource/templates/custom_field_TEMPLATE_llm.yaml`
+**① `resource/custom_field_contract.yaml` 작성** — `resource/templates/custom_field_TEMPLATE_document.yaml`
 을 복사해 채웁니다(출고 실례는 `custom_field_card.yaml`).
 
 | 키 | 뜻 |
@@ -1573,7 +1573,7 @@ enrichment:
 예: 공지사항 엑셀을 행마다 청크 1개로 만드는 `notice` 유형. LLM 을 쓰지 않고 **엑셀 컬럼을 목표
 필드에 직접 매핑**합니다.
 
-**① `resource/custom_field_notice.yaml` 작성** — `resource/templates/custom_field_TEMPLATE_tabular.yaml`
+**① `resource/custom_field_notice.yaml` 작성** — `resource/templates/custom_field_TEMPLATE_rows.yaml`
 을 복사해 채웁니다(출고 실례는 `custom_field_faq.yaml`·`custom_field_term.yaml`).
 
 | 키 | 뜻 |

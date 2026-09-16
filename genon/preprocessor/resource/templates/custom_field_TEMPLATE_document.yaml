@@ -8,12 +8,13 @@
 #  LLM 호출  : 문서당 1회. (값을 LLM 이 아니라 고객 파이썬 함수로 만들려면 맨 아래
 #              `python:` 블록을 쓴다 — 연결·프롬프트가 필요 없다)
 #
-#  ── 4종 중 어느 템플릿인가 ───────────────────────────────────────────────
-#   rows     · 엑셀/CSV 한 행 = 검색 1건           custom_field_TEMPLATE_tabular.yaml
-#   records  · JSON 배열 한 요소 = 검색 1건        custom_field_TEMPLATE_json.yaml
-#   sections · 대상 하나를 깊게 설명한 중첩 JSON   custom_field_TEMPLATE_semantic.yaml
-#   document · 문서 1건에서 필드 몇 개를 LLM 으로  custom_field_TEMPLATE_llm.yaml  ← 이 파일
-#   더 자세한 비교는 facade/gitbook_doc/parser_processor.md 의 "extractor 4종" 표.
+#  ── 5종 중 어느 템플릿인가 ───────────────────────────────────────────────
+#   rows     · 엑셀/CSV 한 행 = 검색 1건           custom_field_TEMPLATE_rows.yaml
+#   records  · JSON 배열 한 요소 = 검색 1건        custom_field_TEMPLATE_records.yaml
+#   sections · 대상 하나를 깊게 설명한 중첩 JSON   custom_field_TEMPLATE_sections.yaml
+#   document · 문서 1건에서 필드 몇 개를 LLM 으로  custom_field_TEMPLATE_document.yaml  ← 이 파일
+#   html     · 마크업이 값을 이미 지목한 HTML      custom_field_TEMPLATE_html.yaml
+#   더 자세한 비교는 facade/gitbook_doc/parser_processor.md 의 "extractor 5종" 표.
 #
 #  ── 쓰는 순서 ────────────────────────────────────────────────────────────
 #  ① 이 파일을 resource/custom_field_<유형>.yaml 로 복사한다.
@@ -48,7 +49,7 @@ source:
   # 문서 단위(kind: document)에서만 소비된다 — rows/records/sections 설정에 적으면
   # 기동은 통과하고 **조용히 무시된다**(그 kind 의 파서가 읽지 않는다).
   # `pre` 아래 나머지 하나인 `delimited` 는 반대로 kind: records 전용이다(구분자 텍스트
-  # 원천. custom_field_TEMPLATE_json.yaml 의 같은 이름 블록 참고).
+  # 원천. custom_field_TEMPLATE_records.yaml 의 같은 이름 블록 참고).
   # 세 블록은 같은 일을 한다 — 원천을 docling 이 읽을 문서 한 벌로 만든다.
   # `markdown`·`html` 두 블록은 이 파일이 기본값이고, 등록 블록에 같은 이름을 적으면
   # 그쪽이 덮어쓰며, `markdown: false` 처럼 false 를 주면 명시적 비활성이다.
