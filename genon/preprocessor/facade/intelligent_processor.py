@@ -777,6 +777,7 @@ class DocumentProcessor(DoclingRuntimeBase):
                     text_fields_hook=tv.text_fields_hook(
                         getattr(self, "_table_text_formats", ()),
                         compact_tables=getattr(self, "_compact_tables", True)),
+                    row_meta_hook=cp.strip_meta_excluded,
                 )
             except (FileNotFoundError, TypeError, ValueError) as exc:
                 raise GenosServiceException(1, str(exc)) from exc

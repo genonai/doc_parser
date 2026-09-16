@@ -721,6 +721,7 @@ def build_tabular_custom_fields_vectors(
     reg_date: Optional[str] = None,
     expand_elements: Any = None,
     text_fields_hook: Any = None,
+    row_meta_hook: Any = None,
 ) -> list[GenOSVectorMeta]:
     """xlsx/csv 를 tabular custom_fields 매핑으로 행별 벡터(GenOSVectorMeta)로 변환한다.
 
@@ -762,6 +763,10 @@ def build_tabular_custom_fields_vectors(
             chunk_index_on_page = 0
         text = str(el.get("content", "") or "")
         row_meta = el.get("metadata") or {}
+        # meta: false 필드와 그 제어키를 걷어낸다. 판정 규칙은 facade 공용 모듈에 있어
+        # (converters → facade 단방향 금지) expand_elements 와 같이 함수로 주입받는다.
+        if row_meta_hook is not None:
+            row_meta = row_meta_hook(row_meta)
         vectors.append(
             GenOSVectorMeta.model_validate({
                 **row_meta,  # 목표 필드(question/answer_text/...) + doc_type. extra=allow 로 보존.

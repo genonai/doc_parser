@@ -421,7 +421,8 @@ class CustomFieldsEnricher(BaseEnricher):
         #
         # 지연 import 인 이유: tabular_custom_fields 가 이 모듈을 import 한다(순환).
         from .tabular_custom_fields import (
-            compile_derive, compile_pack, compile_transforms, compile_value_map,
+            compile_derive, compile_meta_exclude, compile_pack, compile_transforms,
+            compile_value_map,
         )
 
         pipeline_label = f"custom_fields({config_file})"
@@ -431,6 +432,7 @@ class CustomFieldsEnricher(BaseEnricher):
         )
         self._derive = compile_derive(cfg, label=pipeline_label)
         self._pack = compile_pack(cfg, label=pipeline_label)
+        self._meta_exclude = compile_meta_exclude(cfg, label=pipeline_label)
         # 청크 본문(text)과 같은 값을 실을 필드 이름(검색 대상 본문 컬럼). 값 자체는 청커가
         # 청크 단위로 채우므로 여기서는 이름만 문서 metadata 에 실어 넘긴다.
         self._body_fields = cp.parse_field_name_list(cfg.get(cp.BODY_FIELDS_KEY))
@@ -797,6 +799,8 @@ class CustomFieldsEnricher(BaseEnricher):
                 **normalized, cp.FIRST_CHUNK_FIELDS_KEY: list(self._first_chunk_fields)}
         if self._field_labels:
             normalized = {**normalized, cp.FIELD_LABELS_KEY: dict(self._field_labels)}
+        # 같은 성격의 규칙 — 값은 여기까지 다 만들어졌고, 청커가 청크 메타를 조립할 때만 뺀다.
+        normalized = cp.attach_meta_exclude(normalized, self._meta_exclude)
         return normalized
 
     def _extract_raw_text(self, document: DoclingDocument) -> str:

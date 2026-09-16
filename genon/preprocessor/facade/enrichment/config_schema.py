@@ -66,7 +66,7 @@ WIRING_KEYS = frozenset({
 _RECORD_COMMON = frozenset({
     "required", "defaults", "constants",
     "value_map", "transforms", "derive", "pack", "filter",
-    "llm_fields",
+    "llm_fields", "meta_include",
     "text_fields", "split", "chunk_prefix_fields", "field_labels",
 })
 
@@ -89,7 +89,7 @@ EXTRACTOR_KEYS: dict[str, frozenset[str]] = {
         "shared_fields", "sections", "ignore_keys", "raw_fields",
         "required_shared_fields", "missing_policy",
         "defaults", "constants", "llm_fields",
-        "value_map", "transforms", "derive", "pack",
+        "value_map", "transforms", "derive", "pack", "meta_include",
         "text_fields", "field_labels", "first_chunk_fields",
     }),
     # 문서 단위 LLM 추출. 프롬프트·연결·출력필드가 중심이지만 원천이 하나는 아니다 —
@@ -101,7 +101,7 @@ EXTRACTOR_KEYS: dict[str, frozenset[str]] = {
         "system_prompt", "user_prompt", "system_prompt_file", "user_prompt_file", "prompt",
         "output_fields", "constants", "defaults", "parser", "pages", "variables", "template",
         "thinking", "thinking_dialect",
-        "front_matter_map", "value_map", "transforms", "derive", "pack",
+        "front_matter_map", "value_map", "transforms", "derive", "pack", "meta_include",
         "body_fields", "chunk_prefix_fields", "first_chunk_fields", "field_labels",
     }),
     # 문서 단위인데 값을 만드는 것이 원문 HTML 의 선택자인 경우. 연결·프롬프트·파서 키가
@@ -109,7 +109,7 @@ EXTRACTOR_KEYS: dict[str, frozenset[str]] = {
     # 그 뒤의 값 파이프라인은 llm·python 과 같다 — 값을 만드는 방법만 다르다.
     "html_select": frozenset({
         "select_map", "constants", "defaults",
-        "value_map", "transforms", "derive", "pack",
+        "value_map", "transforms", "derive", "pack", "meta_include",
         "body_fields", "chunk_prefix_fields", "first_chunk_fields", "field_labels",
     }),
     # 문서 단위인데 값을 만드는 것이 LLM 이 아니라 고객 파이썬 함수인 경우. 연결·프롬프트
@@ -117,7 +117,7 @@ EXTRACTOR_KEYS: dict[str, frozenset[str]] = {
     "python": frozenset({
         "file", "callable",
         "output_fields", "constants", "defaults",
-        "value_map", "transforms", "derive", "pack",
+        "value_map", "transforms", "derive", "pack", "meta_include",
         "body_fields", "chunk_prefix_fields", "first_chunk_fields", "field_labels",
     }),
 }

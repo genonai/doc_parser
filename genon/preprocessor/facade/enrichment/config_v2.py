@@ -63,7 +63,7 @@ TOP_LEVEL_KEYS = frozenset({
 # `TARGET_A:` 처럼 값을 빠뜨린 오타가 null 로 파싱돼 조용히 통과하는 것을 막기 위해서다.
 FIELD_SPEC_KEYS = frozenset({
     "alias", "const", "default", "values", "transform", "collect", "template", "seq",
-    "pack", "raw",
+    "pack", "raw", "meta",
     # kind: html 전용. `alias`(원천 key 이름)와 같은 역할의 같은 자리다 — 이 필드가
     # 원천의 어디서 오는가. `attr` 은 그 요소의 속성값을 쓸 때만 곁들인다.
     "select", "attr",
@@ -128,6 +128,9 @@ _SPEC_TO_BLOCK = {
     "seq": "sequence",
     "pack": "pack",
     "raw": "raw_fields",
+    # `meta: false` 는 이 필드를 청크 메타에서 뺀다. 값은 그대로 만들어지므로 template·pack
+    # 재료나 require·filter 조건으로는 계속 쓸 수 있다(적용 지점은 청크 메타 조립 직전이다).
+    "meta": "meta_include",
 }
 
 # body 블록 키 → v1 키.

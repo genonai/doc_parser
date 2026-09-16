@@ -629,6 +629,8 @@ class ChunkerCore:
             record_meta.pop(cp.BODY_FIELDS_KEY, None)  # 제어값은 청크 필드로 내보내지 않는다
             # 행 경로만 채워 온 값이다. 텍스트 경로는 종전대로 비워 둔다(null).
             row_only = {'chunk_bboxes': ".", 'media_files': "."}
+        # meta: false 필드를 여기서 뺀다 — 값 조립은 이미 끝났고 남은 것은 적재뿐이다.
+        record_meta = cp.strip_meta_excluded(record_meta)
         page = notes["chunk_page"]
         try:
             return self.VECTOR_META.model_validate({
@@ -808,7 +810,7 @@ class ChunkerCore:
         else:
             appendix_list = []
 
-        passthrough_metadata = dict(merged_metadata)
+        passthrough_metadata = cp.strip_meta_excluded(merged_metadata)
         # GenOSVectorMeta 스키마 예약 필드 + transform 이 소비한 source/target 키는 passthrough 제외.
         reserved_keys = {
             "text", "n_char", "n_word", "n_line", "e_page", "i_page",

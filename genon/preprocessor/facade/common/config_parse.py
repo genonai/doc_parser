@@ -498,3 +498,43 @@ def resolve_first_chunk_fields(kwargs: dict, metadata: Any = None) -> list[str]:
     fields = _resolve_field_rule(FIRST_CHUNK_FIELDS_KEY, kwargs, metadata)
     repeated = set(resolve_chunk_prefix_fields(kwargs, metadata))
     return [name for name in fields if name not in repeated]
+
+
+# ── 청크 메타에서 뺄 필드(meta_exclude) ──────────────────────────────────────
+# `template`(derive) 재료, `pack` 재료, `require`/`filter` 조건용 필드처럼 값 조립에만
+# 쓰이는 중간 필드는 적재 컬럼이 될 이유가 없다. 그렇다고 선언을 지울 수도 없다 —
+# 그 필드를 만들지 않으면 파생값도 만들어지지 않는다.
+#
+# 그래서 **값을 만드는 쪽이 아니라 쓰는 쪽에서** 막는다. 필드는 정상적으로 만들어져
+# 파이프라인 전체(값 변환·파생·묶기·선별·본문 조립)가 그대로 쓰고, 청크 메타를 조립하는
+# 마지막 지점에서만 빠진다. 그래서 `body.fields` 에 실린 필드를 메타에서만 빼는 조합
+# (본문에만 노출)이 그대로 성립한다.
+#
+# 설정 자리와 전달 경로는 body_fields 와 같다(custom_fields yaml → metadata 제어키).
+META_EXCLUDE_KEY = "meta_exclude"
+
+
+def attach_meta_exclude(metadata: dict, excluded: Any) -> dict:
+    """제외 목록을 제어키로 실어 보낸다. 뺄 것이 없으면 키를 만들지 않는다.
+
+    값이 아니라 규칙이므로 청크 필드로는 나가지 않는다(소비 지점이 걷어낸다).
+    """
+    names = parse_field_name_list(excluded)
+    if not names:
+        return metadata
+    return {**metadata, META_EXCLUDE_KEY: names}
+
+
+def strip_meta_excluded(metadata: Any) -> dict:
+    """제외 지정된 필드와 제어키 자체를 뺀 metadata 를 돌려준다.
+
+    행 경로 3곳(청커 행 청크, intelligent/convert 의 동기 xlsx)이 이 함수 하나를 쓴다.
+    문서 경로는 예약 키를 한 자리에서 걸러 내는 구조라 그쪽 목록에 더한다.
+    """
+    if not isinstance(metadata, dict):
+        return {}
+    excluded = set(parse_field_name_list(metadata.get(META_EXCLUDE_KEY)))
+    return {
+        key: value for key, value in metadata.items()
+        if key != META_EXCLUDE_KEY and key not in excluded
+    }

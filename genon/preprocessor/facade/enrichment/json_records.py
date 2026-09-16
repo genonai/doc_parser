@@ -68,6 +68,7 @@ from .tabular_custom_fields import (
     compile_chunk_prefix_fields,
     compile_derive,
     compile_filter,
+    compile_meta_exclude,
     compile_pack,
     compile_row_merge,
     compile_sequence,
@@ -584,6 +585,7 @@ class JsonRecordsMapper:
         self.transforms = compile_transforms(cfg.get("transforms"), label=label, cfg=cfg)
         self.derive = compile_derive(cfg, label=label)
         self.pack = compile_pack(cfg, label=label)
+        self.meta_exclude = compile_meta_exclude(cfg, label=label)
         self.filter = compile_filter(cfg, label=label)
         self.sequence = compile_sequence(cfg, label=label)
 
@@ -832,7 +834,7 @@ class JsonRecordsMapper:
                 "coordinates": [],
                 "id": len(elements),
                 "page": len(elements) + 1,
-                "metadata": fields,
+                "metadata": cp.attach_meta_exclude(fields, self.meta_exclude),
             }
             if self.split:
                 # 청커가 chunk_size 초과 시 이 element 만 여러 청크로 나눈다

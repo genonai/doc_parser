@@ -783,6 +783,78 @@ def repack_records(mapper: Any, fields_list: list) -> list:
     return fields_list
 
 
+# ── 청크 메타에서 빼기(meta_exclude) ────────────────────────────────────────
+#
+#   fields:
+#     CS_CTGR_L1: {alias: [대분류], meta: false}
+#
+# 값 조립에만 쓰이는 중간 필드(template·pack 재료, require·filter 조건)가 적재 컬럼까지
+# 나가는 것을 막는다. 선언을 지우는 것과는 다르다 — 값은 그대로 만들어지고, 빠지는 것은
+# 청크 메타 조립 시점 하나뿐이다.
+
+
+def compile_meta_exclude(cfg: dict, *, label: str) -> list[str]:
+    """`meta_include`(v2 `fields.<이름>.meta`)에서 제외 필드 목록을 만든다.
+
+    모르는 필드를 지목하면 기동을 막는다. 값이 만들어지지 않는 이름을 적은 것은 오타이고,
+    조용히 무시하면 "빼려던 필드가 그대로 나온다".
+    """
+    spec = cfg.get("meta_include")
+    if not spec:
+        return []
+    if not isinstance(spec, dict):
+        raise ValueError(
+            f"{label}: meta_include 는 '필드명: true/false' 형태의 object 여야 합니다."
+        )
+
+    known = collect_target_field_names(cfg)
+    excluded: list[str] = []
+    for name, include in spec.items():
+        target = str(name)
+        if not isinstance(include, bool):
+            raise ValueError(
+                f"{label}: fields.{target}.meta 는 true 또는 false 여야 합니다: {include!r}"
+            )
+        if target not in known:
+            raise ValueError(
+                f"{label}: fields.{target}.meta 를 적었지만 {target} 를 만드는 설정이 없습니다."
+            )
+        if not include:
+            excluded.append(target)
+
+    unused = sorted(set(excluded) - _fields_used_outside_meta(cfg))
+    if unused:
+        # 기동을 막지는 않는다. 값이 만들어지는 것은 사실이고, 원천 점검용으로 잠시 빼 두는
+        # 쓰임도 있다. 다만 어디에도 쓰이지 않는 필드는 선언 자체가 죽은 설정이다.
+        _log.warning(
+            f"[custom_fields] {label}: {unused} 는 meta: false 인데 본문·선별·파생 어디에도 "
+            f"쓰이지 않습니다 — 값을 만들기만 하고 버립니다. 선언을 지워도 됩니다."
+        )
+    return excluded
+
+
+def _fields_used_outside_meta(cfg: dict) -> set[str]:
+    """청크 메타 말고 다른 곳에서 읽히는 필드 이름. meta: false 의 죽은 설정 판정에 쓴다."""
+    used: set[str] = set()
+    for key in (
+        "text_fields", cp.CHUNK_PREFIX_FIELDS_KEY, cp.FIRST_CHUNK_FIELDS_KEY,
+        cp.BODY_FIELDS_KEY, "required", "required_shared_fields",
+    ):
+        used |= {str(name) for name in (cfg.get(key) or [])}
+    for rule in (cfg.get("filter") or []):
+        if isinstance(rule, dict) and rule.get("field") is not None:
+            used.add(str(rule["field"]))
+    for template in (cfg.get("derive") or {}).values():
+        if isinstance(template, str):
+            used |= set(_DERIVE_VAR_RE.findall(template))
+    for sources in (cfg.get("pack") or {}).values():
+        if isinstance(sources, (list, tuple)):
+            used |= {str(name) for name in sources}
+    for spec in (cfg.get("llm_fields") or []):
+        used |= {str(name) for name in ((spec or {}).get("input_fields") or [])}
+    return used
+
+
 # ── 항목 순번(sequence) ──────────────────────────────────────────────────────
 #
 #   sequence:
@@ -1125,6 +1197,8 @@ class TabularCustomFieldsMapper:
         )
         self.derive = compile_derive(self.config, label=f"tabular custom_fields({config_file})")
         self.pack = compile_pack(self.config, label=f"tabular custom_fields({config_file})")
+        self.meta_exclude = compile_meta_exclude(
+            self.config, label=f"tabular custom_fields({config_file})")
         self.filter = compile_filter(self.config, label=f"tabular custom_fields({config_file})")
         self.sequence = compile_sequence(
             self.config, label=f"tabular custom_fields({config_file})"
@@ -1431,7 +1505,7 @@ class TabularCustomFieldsMapper:
                 "coordinates": [],
                 "id": len(elements),
                 "page": page,
-                "metadata": fields,
+                "metadata": cp.attach_meta_exclude(fields, self.meta_exclude),
             }
             if self.split:
                 element["splittable"] = True

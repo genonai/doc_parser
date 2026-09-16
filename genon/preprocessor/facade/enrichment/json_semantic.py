@@ -102,6 +102,7 @@ from .tabular_custom_fields import (
     apply_transforms,
     apply_value_map,
     compile_derive,
+    compile_meta_exclude,
     compile_pack,
     compile_transforms,
     compile_value_map,
@@ -682,6 +683,7 @@ class SemanticJsonMapper:
         self.transforms = compile_transforms(cfg.get("transforms"), label=label, cfg=cfg)
         self.derive = compile_derive(cfg, label=label)
         self.pack = compile_pack(cfg, label=label)
+        self.meta_exclude = compile_meta_exclude(cfg, label=label)
 
         # 본문 접두에 실릴 수 있는 공통 필드 이름(선언 순서). alias 로 원천에서 찾는 필드만이
         # 공통 필드가 아니다 — `default`/`const` 로만 만드는 필드나 `template` 으로 합쳐
@@ -949,7 +951,7 @@ class SemanticJsonMapper:
                 "coordinates": [],
                 "id": len(elements),
                 "page": len(elements) + 1,
-                "metadata": metadata,
+                "metadata": cp.attach_meta_exclude(metadata, self.meta_exclude),
                 "splittable": True,
                 "chunk_prefix": self._chunk_prefix(fields),
             })
