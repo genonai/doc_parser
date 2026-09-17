@@ -172,16 +172,17 @@ def _stub_vlm_for_unit_tests(request, monkeypatch):
         return
 
     try:
-        # 이미지 설명 VLM 호출부는 enrichment.image_description 로 이동했다.
-        # facade 는 절대경로(genon.preprocessor.facade.*)로 이 모듈을 로드하므로
-        # 같은 모듈 객체를 얻으려면 동일 경로로 import 해야 한다(이중 import 방지).
-        import genon.preprocessor.processing.enrichment.image_description as image_desc_mod
+        # page/image/table description 세 곳의 VLM 호출은 모두 enrichment.image_request
+        # (공용 함수 request_image_description)를 지난다. facade 는 절대경로
+        # (genon.preprocessor.facade.*)로 이 모듈을 로드하므로 같은 모듈 객체를 얻으려면
+        # 동일 경로로 import 해야 한다(이중 import 방지, 이슈 #199).
+        import genon.preprocessor.processing.enrichment.image_request as image_request_mod
     except Exception:
-        # image_description 을 사용하지 않는 unit 테스트도 있으므로 조용히 패스
+        # image_request 를 사용하지 않는 unit 테스트도 있으므로 조용히 패스
         return
 
     monkeypatch.setattr(
-        image_desc_mod,
+        image_request_mod,
         "api_image_request",
         lambda *args, **kwargs: "",
         raising=False,

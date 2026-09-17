@@ -416,6 +416,11 @@ llm:
   `stop`)를 보내야 할 때 쓰는 통로이며, 같은 이름이 양쪽에 있으면 `params` 가 이깁니다.
 - `headers` 에 `Authorization` 을 직접 적으면 `api_key` 로 덮어쓰지 않습니다. Bearer 가 아닌
   인증을 쓰는 게이트웨이를 위한 것입니다.
+- `thinking`·`thinking_dialect` 도 모든 항목이 받습니다. 다만 **기본값이 갈립니다** — 텍스트
+  계열(`toc`·`metadata`·`doc_summary`·`custom_fields`)은 `off`(추론 차단 토큰을 보냄),
+  이미지 계열(`image_description`·`table_description`·`page_description`)은 `auto`(아무것도
+  보내지 않음)입니다. 이미지 모델은 별도 서빙을 쓰는 현장이 많고 그 채팅 템플릿이 모르는
+  값을 받으면 요청이 실패할 수 있어, 명시하지 않으면 보내지 않습니다.
 - 예외가 둘 있습니다. `toc` 는 `params`·`headers`·`timeout` 을 받지 않고(호출이 docling 안에
   있습니다), `concurrency` 는 설명 계열(이미지·표·페이지)만 읽습니다.
 - `max_tokens` 는 프리셋보다 각 블록에 두는 편이 안전합니다 — `table_text_description` 은

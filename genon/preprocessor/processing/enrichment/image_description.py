@@ -29,13 +29,13 @@ from docling_core.types.doc import (
     PictureItem,
 )
 from docling_core.types.doc.document import ContentLayer
-from docling.utils.api_image_request import api_image_request
 from docling.utils.llm_cache import in_current_context
 
 from genon.preprocessor.processing.common.model_params import (
     collect_generation_params,
-    resolve_headers,
+    resolve_thinking,
 )
+from genon.preprocessor.processing.enrichment.image_request import request_image_description
 from genon.preprocessor.processing.enrichment.prompt_files import read_prompt_file
 from genon.preprocessor.processing.enrichment.prompt_template import PromptTemplate
 from genon.preprocessor.processing.enrichment.chart_detection import is_chart
@@ -141,6 +141,10 @@ class ImageDescriptionOptions:
     chart_enabled: bool = False
     chart_detection: str = "auto"  # "auto"=docling 자동판별 | "all"=모든 이미지를 차트로 처리
     chart_prompt_template: str = ""
+    # thinking 기본값은 텍스트 섹션("off")과 다르게 "auto"(미전송)다 — image_request.py
+    # 모듈 docstring 참조(dots-mocr 등 다른 서빙이 모르는 kwarg 를 거부할 수 있다).
+    thinking: str = "auto"
+    thinking_dialect: str = "standard"
 
     @classmethod
     def from_config(
@@ -223,6 +227,12 @@ class ImageDescriptionOptions:
         # dict 가 이긴다). table_description.py 와 동일 컨벤션.
         params = collect_generation_params(image_desc_cfg, label="image_description")
 
+        # 미설정 기본값은 "auto"(=chat_template_kwargs 미전송). resolve_thinking 자체의
+        # 기본값("off")과 다르므로 cfg.get 에 명시적으로 "auto" 를 준다(image_request.py 참조).
+        thinking, thinking_dialect = resolve_thinking(
+            image_desc_cfg.get("thinking", "auto"), image_desc_cfg.get("thinking_dialect", "standard")
+        )
+
         return cls(
             enabled=False if enabled is None else enabled,
             api_url=str(image_desc_cfg.get("api_url") or image_desc_cfg.get("url") or fallback_api_url or "").strip(),
@@ -248,6 +258,8 @@ class ImageDescriptionOptions:
             chart_enabled=False if chart_enabled is None else chart_enabled,
             chart_detection=chart_detection,
             chart_prompt_template=chart_prompt_template,
+            thinking=thinking,
+            thinking_dialect=thinking_dialect,
         )
 
     @classmethod
@@ -522,19 +534,17 @@ class ImageDescriptionEnricher:
         if image is None:
             return None
 
-        headers = resolve_headers(None, self.options.api_key, base=self.options.headers)
-
-        params = dict(self.options.params)
-        if self.options.model and "model" not in params:
-            params["model"] = self.options.model
-
-        output = api_image_request(
+        output = request_image_description(
             image=image,
             prompt=prompt,
             url=self.options.api_url,
+            api_key=self.options.api_key,
+            model=self.options.model,
+            headers=self.options.headers,
+            params=self.options.params,
             timeout=self.options.timeout,
-            headers=headers,
-            **params,
+            thinking=self.options.thinking,
+            thinking_dialect=self.options.thinking_dialect,
         )
         output_text = str(output or "").strip()
         if not output_text:

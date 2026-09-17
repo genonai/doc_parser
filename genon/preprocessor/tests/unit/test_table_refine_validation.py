@@ -8,6 +8,9 @@ table_description refine 재구성 HTML 의 구조 유효성 검증 단위 테�
 """
 
 import pytest
+import requests
+
+from genon.preprocessor.processing.enrichment import llm_response as lr
 
 _MOD = "processing.enrichment.table_description"
 
@@ -125,6 +128,17 @@ def _image_mod():
 
 def _page_mod():
     return pytest.importorskip("processing.enrichment.page_description")
+
+
+def _image_request_mod():
+    """세 모듈이 공유하는 요청 경로. 3단계부터 api_image_request 는 여기서만 불린다.
+
+    page/image/table_description 은 이 모듈을 `genon.preprocessor.processing...` 절대
+    경로로 import 한다(파일 내부 컨벤션). "processing.enrichment.image_request" 로 임포트하면
+    sys.modules 에 별도 인스턴스가 생겨(이슈 #199) 여기서 patch 해도 실제 호출부에 반영되지
+    않으므로, 반드시 같은 절대 경로로 가져와야 한다.
+    """
+    return pytest.importorskip("genon.preprocessor.processing.enrichment.image_request")
 
 
 @pytest.mark.unit
@@ -360,7 +374,8 @@ def test_describe_page_images_max_tokens_default_not_sent(monkeypatch):
         captured["_headers"] = headers
         return "설명"
 
-    monkeypatch.setattr(m, "api_image_request", _fake_api_image_request)
+    # 3단계부터 api_image_request 는 각 모듈이 아니라 공용 image_request.py 에서만 불린다.
+    monkeypatch.setattr(_image_request_mod(), "api_image_request", _fake_api_image_request)
 
     opt = m.PageDescriptionOptions.from_config(
         {"enable": True, "url": "http://example.invalid/vlm"}, config_dir=None
@@ -382,7 +397,8 @@ def test_describe_page_images_max_tokens_configured_is_sent(monkeypatch):
         captured.update(params)
         return "설명"
 
-    monkeypatch.setattr(m, "api_image_request", _fake_api_image_request)
+    # 3단계부터 api_image_request 는 각 모듈이 아니라 공용 image_request.py 에서만 불린다.
+    monkeypatch.setattr(_image_request_mod(), "api_image_request", _fake_api_image_request)
 
     opt = m.PageDescriptionOptions.from_config(
         {"enable": True, "url": "http://example.invalid/vlm", "max_tokens": 256},
@@ -405,7 +421,8 @@ def test_describe_page_images_seed_and_headers_configured(monkeypatch):
         captured["_headers"] = headers
         return "설명"
 
-    monkeypatch.setattr(m, "api_image_request", _fake_api_image_request)
+    # 3단계부터 api_image_request 는 각 모듈이 아니라 공용 image_request.py 에서만 불린다.
+    monkeypatch.setattr(_image_request_mod(), "api_image_request", _fake_api_image_request)
 
     opt = m.PageDescriptionOptions.from_config(
         {
@@ -435,7 +452,8 @@ def test_describe_page_images_config_authorization_not_overwritten(monkeypatch):
         captured["_headers"] = headers
         return "설명"
 
-    monkeypatch.setattr(m, "api_image_request", _fake_api_image_request)
+    # 3단계부터 api_image_request 는 각 모듈이 아니라 공용 image_request.py 에서만 불린다.
+    monkeypatch.setattr(_image_request_mod(), "api_image_request", _fake_api_image_request)
 
     opt = m.PageDescriptionOptions.from_config(
         {
@@ -476,7 +494,8 @@ def test_image_description_headers_reach_request(monkeypatch):
         captured["_headers"] = headers
         return "설명"
 
-    monkeypatch.setattr(m, "api_image_request", _fake_api_image_request)
+    # 3단계부터 api_image_request 는 각 모듈이 아니라 공용 image_request.py 에서만 불린다.
+    monkeypatch.setattr(_image_request_mod(), "api_image_request", _fake_api_image_request)
 
     opt = m.ImageDescriptionOptions.from_config(
         image_desc_cfg={
@@ -505,7 +524,8 @@ def test_table_description_headers_reach_request(monkeypatch):
         captured["_headers"] = headers
         return "설명"
 
-    monkeypatch.setattr(m, "api_image_request", _fake_api_image_request)
+    # 3단계부터 api_image_request 는 각 모듈이 아니라 공용 image_request.py 에서만 불린다.
+    monkeypatch.setattr(_image_request_mod(), "api_image_request", _fake_api_image_request)
 
     opt = m.TableDescriptionOptions.from_config(
         table_desc_cfg={
@@ -522,3 +542,262 @@ def test_table_description_headers_reach_request(monkeypatch):
     assert result is not None
     assert captured["_headers"]["X-Tenant"] == "kb"
     assert captured["_headers"]["Authorization"] == "Bearer secret"
+
+
+# ── 3단계: thinking 기본값 auto(미전송), 명시 시에만 chat_template_kwargs 가 실린다 ──
+# 텍스트 3곳(metadata/custom_fields/body_summary)의 기본값 "off" 와 다르다 — VLM 은
+# dots-mocr 등 다른 서빙을 쓰는 현장이 있어 모르는 kwarg 를 받으면 요청이 실패할 수 있다.
+# 그래서 설정을 안 바꾼 현장 세 곳의 요청이 이번 변경으로 달라지지 않도록 기본을 "auto" 로 둔다.
+
+
+@pytest.mark.unit
+def test_page_description_thinking_defaults_to_auto():
+    m = _page_mod()
+    opt = m.PageDescriptionOptions.from_config({}, config_dir=None)
+    assert opt.thinking == "auto"
+    assert opt.thinking_dialect == "standard"
+
+
+@pytest.mark.unit
+def test_image_description_thinking_defaults_to_auto():
+    m = _image_mod()
+    opt = m.ImageDescriptionOptions.from_config(
+        image_desc_cfg={}, fallback_api_url="", fallback_api_key="", fallback_model="model",
+    )
+    assert opt.thinking == "auto"
+    assert opt.thinking_dialect == "standard"
+
+
+@pytest.mark.unit
+def test_table_description_thinking_defaults_to_auto():
+    m = _mod()
+    opt = m.TableDescriptionOptions.from_config(
+        table_desc_cfg={}, fallback_api_url="", fallback_api_key="", fallback_model="model",
+    )
+    assert opt.thinking == "auto"
+    assert opt.thinking_dialect == "standard"
+
+
+@pytest.mark.unit
+def test_page_description_thinking_off_is_resolved():
+    m = _page_mod()
+    opt = m.PageDescriptionOptions.from_config({"thinking": "off"}, config_dir=None)
+    assert opt.thinking == "off"
+
+
+@pytest.mark.unit
+def test_describe_page_images_thinking_unset_sends_no_chat_template_kwargs(monkeypatch):
+    """설정을 안 바꾼 현장: 요청에 chat_template_kwargs 자체가 없어야 한다(하위 호환)."""
+    m = _page_mod()
+    from PIL import Image
+
+    captured = {}
+
+    def _fake_api_image_request(*, image, prompt, url, timeout, headers, **params):
+        captured.update(params)
+        return "설명"
+
+    monkeypatch.setattr(_image_request_mod(), "api_image_request", _fake_api_image_request)
+
+    opt = m.PageDescriptionOptions.from_config(
+        {"enable": True, "url": "http://example.invalid/vlm"}, config_dir=None
+    )
+    m.describe_page_images({1: Image.new("RGB", (2, 2))}, opt)
+    assert "chat_template_kwargs" not in captured
+
+
+@pytest.mark.unit
+def test_describe_page_images_thinking_off_sends_chat_template_kwargs(monkeypatch):
+    """thinking: off 를 명시하면 실제 요청에 chat_template_kwargs 가 실린다."""
+    m = _page_mod()
+    from PIL import Image
+
+    captured = {}
+
+    def _fake_api_image_request(*, image, prompt, url, timeout, headers, **params):
+        captured.update(params)
+        return "설명"
+
+    monkeypatch.setattr(_image_request_mod(), "api_image_request", _fake_api_image_request)
+
+    opt = m.PageDescriptionOptions.from_config(
+        {"enable": True, "url": "http://example.invalid/vlm", "thinking": "off"}, config_dir=None
+    )
+    m.describe_page_images({1: Image.new("RGB", (2, 2))}, opt)
+    assert captured["chat_template_kwargs"] == {"enable_thinking": False}
+
+
+@pytest.mark.unit
+def test_image_description_thinking_off_sends_chat_template_kwargs(monkeypatch):
+    m = _image_mod()
+
+    captured = {}
+
+    def _fake_api_image_request(*, image, prompt, url, timeout, headers, **params):
+        captured.update(params)
+        return "설명"
+
+    monkeypatch.setattr(_image_request_mod(), "api_image_request", _fake_api_image_request)
+
+    opt = m.ImageDescriptionOptions.from_config(
+        image_desc_cfg={
+            "enabled": True,
+            "api_url": "http://example.invalid/vlm",
+            "thinking": "on",
+            "thinking_dialect": "hcx",
+        },
+        fallback_api_url="", fallback_api_key="", fallback_model="model",
+    )
+    enricher = m.ImageDescriptionEnricher(opt)
+    enricher._annotate_single_picture(None, _FakeVlmItem(), "설명해줘")
+    assert captured["chat_template_kwargs"] == {"force_reasoning": True}
+
+
+@pytest.mark.unit
+def test_table_description_thinking_unset_sends_no_chat_template_kwargs(monkeypatch):
+    m = _mod()
+
+    captured = {}
+
+    def _fake_api_image_request(*, image, prompt, url, timeout, headers, **params):
+        captured.update(params)
+        return "설명"
+
+    monkeypatch.setattr(_image_request_mod(), "api_image_request", _fake_api_image_request)
+
+    opt = m.TableDescriptionOptions.from_config(
+        table_desc_cfg={"enabled": True, "api_url": "http://example.invalid/vlm"},
+        fallback_api_url="", fallback_api_key="", fallback_model="model",
+    )
+    enricher = m.TableDescriptionEnricher(opt)
+    enricher._annotate_single_table(None, _FakeVlmItem(), "설명해줘", False)
+    assert "chat_template_kwargs" not in captured
+
+
+# ── 3단계: model 이 실제 api_image_request 호출에 그대로 도달한다 ────────────────
+
+
+@pytest.mark.unit
+def test_describe_page_images_model_reaches_request(monkeypatch):
+    m = _page_mod()
+    from PIL import Image
+
+    captured = {}
+
+    def _fake_api_image_request(*, image, prompt, url, timeout, headers, **params):
+        captured.update(params)
+        return "설명"
+
+    monkeypatch.setattr(_image_request_mod(), "api_image_request", _fake_api_image_request)
+
+    opt = m.PageDescriptionOptions.from_config(
+        {"enable": True, "url": "http://example.invalid/vlm", "model": "vlm-model"},
+        config_dir=None,
+    )
+    m.describe_page_images({1: Image.new("RGB", (2, 2))}, opt)
+    assert captured["model"] == "vlm-model"
+
+
+@pytest.mark.unit
+def test_image_description_model_reaches_request(monkeypatch):
+    m = _image_mod()
+
+    captured = {}
+
+    def _fake_api_image_request(*, image, prompt, url, timeout, headers, **params):
+        captured.update(params)
+        return "설명"
+
+    monkeypatch.setattr(_image_request_mod(), "api_image_request", _fake_api_image_request)
+
+    opt = m.ImageDescriptionOptions.from_config(
+        image_desc_cfg={
+            "enabled": True,
+            "api_url": "http://example.invalid/vlm",
+            "model": "vlm-model",
+        },
+        fallback_api_url="", fallback_api_key="", fallback_model="ignored",
+    )
+    enricher = m.ImageDescriptionEnricher(opt)
+    enricher._annotate_single_picture(None, _FakeVlmItem(), "설명해줘")
+    assert captured["model"] == "vlm-model"
+
+
+# ── 3단계: 재시도(retry_once_sync)가 VLM 경로에서 실제로 동작한다 ─────────────────
+
+
+@pytest.mark.unit
+def test_describe_page_images_retries_once_on_transient_failure(monkeypatch):
+    """일시적 실패(requests 의 502) 후 한 번 더 불러 성공하면 그 결과를 쓴다."""
+    m = _page_mod()
+    from PIL import Image
+
+    calls: list = []
+
+    def _fake_api_image_request(*, image, prompt, url, timeout, headers, **params):
+        calls.append(1)
+        if len(calls) == 1:
+            resp = requests.Response()
+            resp.status_code = 502
+            raise requests.exceptions.HTTPError(response=resp)
+        return "재시도 후 성공"
+
+    monkeypatch.setattr(_image_request_mod(), "api_image_request", _fake_api_image_request)
+    monkeypatch.setattr(lr.time, "sleep", lambda *_: None)
+
+    opt = m.PageDescriptionOptions.from_config(
+        {"enable": True, "url": "http://example.invalid/vlm"}, config_dir=None
+    )
+    result = m.describe_page_images({1: Image.new("RGB", (2, 2))}, opt)
+    assert result == {1: "재시도 후 성공"}
+    assert len(calls) == 2
+
+
+@pytest.mark.unit
+def test_table_description_retries_once_on_connection_error(monkeypatch):
+    """requests.ConnectionError 도 재시도 대상이다(테이블 경로에서 end-to-end 확인)."""
+    m = _mod()
+
+    calls: list = []
+
+    def _fake_api_image_request(*, image, prompt, url, timeout, headers, **params):
+        calls.append(1)
+        if len(calls) == 1:
+            raise requests.exceptions.ConnectionError("일시적 연결 실패")
+        return "재시도 후 성공"
+
+    monkeypatch.setattr(_image_request_mod(), "api_image_request", _fake_api_image_request)
+    monkeypatch.setattr(lr.time, "sleep", lambda *_: None)
+
+    opt = m.TableDescriptionOptions.from_config(
+        table_desc_cfg={"enabled": True, "api_url": "http://example.invalid/vlm"},
+        fallback_api_url="", fallback_api_key="", fallback_model="model",
+    )
+    enricher = m.TableDescriptionEnricher(opt)
+    result = enricher._annotate_single_table(None, _FakeVlmItem(), "설명해줘", False)
+    assert result == ("재시도 후 성공", "")
+    assert len(calls) == 2
+
+
+# ── 3단계: 계속 실패해도 그 항목만 건너뛰고 문서 처리는 계속된다(fail-open 유지) ──
+
+
+@pytest.mark.unit
+def test_describe_page_images_fail_open_on_persistent_failure(monkeypatch):
+    """재시도까지 소진해도 실패하면 해당 페이지만 빠지고 예외는 올라오지 않는다."""
+    m = _page_mod()
+    from PIL import Image
+
+    def _always_fails(*, image, prompt, url, timeout, headers, **params):
+        raise requests.exceptions.ConnectionError("계속 실패")
+
+    monkeypatch.setattr(_image_request_mod(), "api_image_request", _always_fails)
+    monkeypatch.setattr(lr.time, "sleep", lambda *_: None)
+
+    opt = m.PageDescriptionOptions.from_config(
+        {"enable": True, "url": "http://example.invalid/vlm"}, config_dir=None
+    )
+    result = m.describe_page_images(
+        {1: Image.new("RGB", (2, 2)), 2: Image.new("RGB", (2, 2))}, opt
+    )
+    assert result == {}

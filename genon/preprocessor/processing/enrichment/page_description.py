@@ -23,13 +23,13 @@ from typing import Any, Optional
 
 from PIL import Image
 
-from docling.utils.api_image_request import api_image_request
 from docling.utils.llm_cache import in_current_context
 
 from genon.preprocessor.processing.common.model_params import (
     collect_generation_params,
-    resolve_headers,
+    resolve_thinking,
 )
+from genon.preprocessor.processing.enrichment.image_request import request_image_description
 from genon.preprocessor.processing.enrichment.prompt_files import read_prompt_file
 from genon.preprocessor.processing.enrichment.prompt_template import PromptTemplate
 
@@ -87,6 +87,10 @@ class PageDescriptionOptions:
     max_image_side: int = 0       # 전송 전 이미지 최대 변(px)으로 다운스케일(payload↓). 0=원본
     params: dict = field(default_factory=dict)  # 임의 VLM 파라미터 passthrough
     headers: dict = field(default_factory=dict)  # 임의 요청 헤더(image/table description 과 동일)
+    # thinking 기본값은 텍스트 섹션("off")과 다르게 "auto"(미전송)다 — image_request.py
+    # 모듈 docstring 참조(dots-mocr 등 다른 서빙이 모르는 kwarg 를 거부할 수 있다).
+    thinking: str = "auto"
+    thinking_dialect: str = "standard"
 
     @classmethod
     def from_config(cls, cfg: Optional[dict], config_dir: Optional[Path]) -> "PageDescriptionOptions":
@@ -129,6 +133,12 @@ class PageDescriptionOptions:
         headers = cfg.get("headers")
         headers = dict(headers) if isinstance(headers, dict) else {}
 
+        # 미설정 기본값은 "auto"(=chat_template_kwargs 미전송). resolve_thinking 자체의
+        # 기본값("off")과 다르므로 cfg.get 에 명시적으로 "auto" 를 준다(image_request.py 참조).
+        thinking, thinking_dialect = resolve_thinking(
+            cfg.get("thinking", "auto"), cfg.get("thinking_dialect", "standard")
+        )
+
         def _nonneg_int(v: Any) -> int:
             try:
                 iv = int(v)
@@ -150,6 +160,8 @@ class PageDescriptionOptions:
             max_image_side=_nonneg_int(cfg.get("max_image_side")),
             params=params,
             headers=headers,
+            thinking=thinking,
+            thinking_dialect=thinking_dialect,
         )
 
 
@@ -224,11 +236,9 @@ def describe_page_images(
         allowed_names={"page_text"},
     )
 
-    req_headers = resolve_headers(None, options.api_key, base=options.headers)
-    # 모델 + 임의 passthrough 파라미터 + (있으면) 출력 토큰 상한.
+    # 임의 passthrough 파라미터 + (있으면) 출력 토큰 상한. model/헤더/재시도/thinking 은
+    # request_image_description(공용 함수)이 맡는다.
     req_params = dict(options.params or {})
-    if options.model and "model" not in req_params:
-        req_params["model"] = options.model
     if options.max_tokens and options.max_tokens > 0 and "max_tokens" not in req_params:
         req_params["max_tokens"] = options.max_tokens
 
@@ -243,13 +253,17 @@ def describe_page_images(
         page_text = (page_texts.get(page_no) or "").strip() or _EMPTY_PAGE_TEXT
         prompt = tpl.render(page_text=page_text)
         try:
-            output = api_image_request(
+            output = request_image_description(
                 image=image,
                 prompt=prompt,
                 url=options.url,
+                api_key=options.api_key,
+                model=options.model,
+                headers=options.headers,
+                params=req_params,
                 timeout=options.timeout,
-                headers=req_headers,
-                **req_params,
+                thinking=options.thinking,
+                thinking_dialect=options.thinking_dialect,
             )
         except Exception as exc:
             _log.warning(f"[page_description] page={page_no} 설명 실패: {exc}")

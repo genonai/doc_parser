@@ -19,6 +19,14 @@ body_summary 는 동기 호출이라 이미 HTTP 응답을 기다리는 동안(�
 루프를 막고 있다. 재시도 대기(1~2초)가 그 위에 더해져도 성격이 바뀌지 않는다. 반대로
 재시도가 없으면 일시적 실패 하나로 문서 요약이 통째로 비고, 그 결과가 이미지·표 설명
 프롬프트의 `{{doc_summary}}` 로 전파된다 — 그래서 body_summary 도 이 재시도 경로를 쓴다.
+
+`retry_once_sync` 는 동기 재시도 정책(1회, 대상 상태 번호, deadline 확인, 대기 계산)만 뽑아
+낸 헬퍼다. `post_chat_completion_sync` 가 이걸 쓰고, VLM 이미지 설명 공용 함수
+(`enrichment/image_request.py`)도 같은 정책을 쓴다 — 요청을 만드는 방식(chat completion vs
+이미지 프롬프트)이 다를 뿐 "일시적 실패면 한 번만 더" 라는 판정은 완전히 같다.
+
+VLM 쪽(`docling.utils.api_image_request`)은 httpx 가 아니라 `requests` 를 쓰므로
+`is_retryable` 도 `requests` 의 예외를 함께 안다.
 """
 
 import asyncio
@@ -26,9 +34,10 @@ import json
 import logging
 import random
 import time
-from typing import Any, Optional
+from typing import Any, Callable, Optional
 
 import httpx
+import requests
 
 from docling.utils.llm_cache import CacheDeadlineExceeded, remaining_timeout
 
@@ -106,18 +115,37 @@ def post_chat_completion_sync(
     """`post_chat_completion` 의 동기 판. body_summary 처럼 sync 호출부가 쓴다.
 
     판정은 async 판과 완전히 같다(재시도 1회, 대상 상태 번호, deadline 확인). 차이는
-    `client.post` 를 기다리지 않는 것과 `time.sleep` 을 쓰는 것뿐이다.
+    `client.post` 를 기다리지 않는 것과 `time.sleep` 을 쓰는 것뿐이다. 재시도 정책 자체는
+    `retry_once_sync` 로 뽑아 뒀다.
+    """
+    def _send() -> Any:
+        resp = client.post(
+            url, json=payload, headers=headers,
+            timeout=httpx.Timeout(remaining_timeout(timeout)),
+        )
+        resp.raise_for_status()
+        return chat_completion_message(resp.json())
+
+    return retry_once_sync(_send)
+
+
+def retry_once_sync(send: Callable[[], Any]) -> Any:
+    """`send()` 를 부르고, 일시적 실패면 한 번만 다시 부른다. 결과(또는 예외)를 그대로 돌려준다.
+
+    `send` 는 인자 없는 호출 가능 객체다 — 재시도마다 같은 호출을 그대로 반복해야 하므로
+    호출부가 자신의 요청 조립(payload/timeout 재계산 등)을 클로저에 담아 넘긴다.
+
+    정책은 `post_chat_completion`/`post_chat_completion_sync` 와 완전히 같다: 재시도는
+    한 번뿐이고, `is_retryable` 이 참일 때만, 대기(`_retry_delay`) 후에도 요청 deadline 이
+    남아 있을 때만(`_deadline_allows`) 다시 부른다. `time.sleep` 을 쓰므로 호출 스레드를
+    막는다 — 동기 호출부(표/이미지/페이지 설명, body_summary)가 이미 그렇게 동작하는 이유는
+    모듈 docstring 을 참조.
     """
     attempt = 0
     while True:
         attempt += 1
         try:
-            resp = client.post(
-                url, json=payload, headers=headers,
-                timeout=httpx.Timeout(remaining_timeout(timeout)),
-            )
-            resp.raise_for_status()
-            return chat_completion_message(resp.json())
+            return send()
         except Exception as exc:
             if attempt > 1 or not is_retryable(exc):
                 raise
@@ -133,6 +161,11 @@ def is_retryable(exc: BaseException) -> bool:
 
     시간 초과는 모두 뺀다. 호출 제한시간이 연결 대기에도 똑같이 걸려 있어(최대 600초)
     한 번만 재시도해도 호출 하나가 두 배로 늘어난다.
+
+    텍스트 chat 경로는 httpx, VLM 이미지 요청(`api_image_request`)은 requests 를 쓰므로
+    양쪽 예외 타입을 모두 안다. `requests.exceptions.ConnectTimeout` 은 `Timeout` 과
+    `ConnectionError` 를 동시에 상속하므로(다중 상속), Timeout 검사를 ConnectionError 검사보다
+    먼저 해야 시간 초과가 ConnectionError 로 새서 재시도되는 것을 막는다.
     """
     if isinstance(exc, (httpx.ConnectError, httpx.RemoteProtocolError)):
         return True
@@ -140,6 +173,14 @@ def is_retryable(exc: BaseException) -> bool:
         return exc.response.status_code in RETRY_STATUS
     if isinstance(exc, LLMResponseError):
         return exc.status_code in RETRY_STATUS
+    if isinstance(exc, requests.exceptions.Timeout):
+        # ConnectTimeout 이 ConnectionError 도 상속하므로 반드시 이 분기가 먼저 와야 한다.
+        return False
+    if isinstance(exc, requests.exceptions.HTTPError):
+        response = exc.response
+        return response is not None and response.status_code in RETRY_STATUS
+    if isinstance(exc, requests.exceptions.ConnectionError):
+        return True
     return False
 
 
