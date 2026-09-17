@@ -88,8 +88,8 @@ def test_precheck_passes_on_shipped_resource():
     blocks = precheck.registered_blocks(root)
     assert len(blocks) >= 15
     seen: set = set()
-    problems = [p for source, block in blocks
-                for p in precheck.check_block(source, block, root, seen)]
+    problems = [p for source, block, presets in blocks
+                for p in precheck.check_block(source, block, root, seen, presets)]
     assert not problems, problems
 
 
@@ -143,3 +143,56 @@ def test_precheck_flags_chunk_body_change(tmp_path):
         "text_fields": ["Q", "SUMMARY_TEXT"],
         "field_labels": {"SUMMARY_TEXT": "안내요약"},
     })
+
+
+# ── 모델 프리셋 ───────────────────────────────────────────────────────────────
+
+def _write_preset_site(tmp_path, preset_ref: str) -> None:
+    """프리셋을 정의한 프로세서 config 와 그것을 참조하는 자식 설정을 쓴다."""
+    (tmp_path / "parser_processor_config.yaml").write_text(
+        "model_presets:\n"
+        "  기본:\n"
+        "    url: http://m/v1\n"
+        "    api_key: ''\n"
+        "    model: model\n"
+        "    top_p: 0.9\n"          # llm extractor 가 읽지 않는 키
+        "enrichment:\n"
+        "  - custom_fields:\n"
+        "      enable: true\n"
+        "      doc_type: demo\n"
+        "      config_file: custom_field_demo.yaml\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "custom_field_demo.yaml").write_text(
+        "schema: v2\nsource: {kind: document}\n"
+        "llm:\n- out: [name]\n"
+        f"  endpoint:\n    model_preset: {preset_ref}\n"
+        "  prompt:\n    system: x\n    user: y\n",
+        encoding="utf-8",
+    )
+
+
+def test_precheck_passes_when_preset_is_used_correctly(tmp_path):
+    """프리셋을 제대로 쓴 설정에 오탐을 내면 안 된다.
+
+    자식 설정 검증은 `model_preset:` 을 기동과 같은 순서로 펼쳐야 한다 — 안 펼치면
+    그 키가 "이 extractor 가 모르는 키" 로 잡힌다. extractor 가 안 읽는 프리셋 키
+    (`top_p`)도 걸러져서 기동을 막지 않아야 한다.
+    """
+    precheck = _load_precheck()
+    _write_preset_site(tmp_path, "기본")
+    blocks = precheck.registered_blocks(tmp_path)
+    seen: set = set()
+    problems = [p for source, block, presets in blocks
+                for p in precheck.check_block(source, block, tmp_path, seen, presets)]
+    problems += precheck.check_model_presets(tmp_path)
+    assert not [p for p in problems if p.startswith("[기동실패]")], problems
+
+
+def test_precheck_detects_undefined_preset(tmp_path):
+    """없는 프리셋 이름은 기동을 막으므로 배포 전에 잡아야 한다(자식 설정 참조 포함)."""
+    precheck = _load_precheck()
+    _write_preset_site(tmp_path, "기븐")
+    problems = precheck.check_model_presets(tmp_path)
+    blocking = [p for p in problems if p.startswith("[기동실패]")]
+    assert any("기븐" in p and "custom_field_demo.yaml" in p for p in blocking), problems
