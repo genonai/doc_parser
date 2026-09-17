@@ -17,6 +17,8 @@
 3. **청크 본문이 바뀌는 것** — `column_map` 에도 `field_labels` 에도 없는 필드를
    `text_fields` 에 쓴 경우. 예전에는 목표필드명이 라벨로 붙었고 이제는 값만 나간다.
    본문이 바뀌면 임베딩이 바뀌므로 재색인 판단이 필요하다.
+4. **없는 모델 프리셋을 부르는 것** — `model_preset:` 이 가리키는 이름이 그 프로세서
+   config 의 `model_presets` 에 없는 경우. 자식 custom_field yaml 의 참조도 함께 본다.
 
 ## 쓰는 법
 
@@ -36,6 +38,7 @@ import yaml
 REPO_ROOT = Path(__file__).resolve().parents[4]
 sys.path.insert(0, str(REPO_ROOT))
 
+from genon.preprocessor.processing.common import model_preset as mp  # noqa: E402
 from genon.preprocessor.processing.enrichment import config_schema as cs  # noqa: E402
 from genon.preprocessor.processing.enrichment import config_v2 as cv2  # noqa: E402
 
@@ -79,17 +82,24 @@ def load_yaml(path: Path) -> dict:
         raise SystemExit(f"[치명] {path} 를 읽을 수 없습니다: {exc}")
 
 
-def registered_blocks(root: Path) -> list[tuple[str, dict]]:
-    """(프로세서 config 이름, custom_fields 등록 블록) 목록."""
-    blocks: list[tuple[str, dict]] = []
+def registered_blocks(root: Path) -> list[tuple[str, dict, dict]]:
+    """(프로세서 config 이름, custom_fields 등록 블록, 그 config 의 모델 프리셋) 목록.
+
+    프리셋을 함께 들고 다니는 이유는 자식 설정 검증 때문이다 — 자식 yaml 의
+    `model_preset:` 은 기동 시 이 프리셋으로 펼쳐지므로, 점검도 같은 재료로 해야 한다.
+    """
+    blocks: list[tuple[str, dict, dict]] = []
     for name in PROCESSOR_CONFIGS:
         path = root / name
         if not path.exists():
             continue
-        for item in (load_yaml(path).get("enrichment") or []):
+        cfg = load_yaml(path)
+        raw_presets = cfg.get(mp.PRESETS_KEY)
+        presets = raw_presets if isinstance(raw_presets, dict) else {}
+        for item in (cfg.get("enrichment") or []):
             block = (item or {}).get("custom_fields")
             if isinstance(block, dict):
-                blocks.append((name, block))
+                blocks.append((name, block, presets))
     return blocks
 
 
@@ -109,7 +119,10 @@ def _derive_extractor(path: Path) -> str | None:
     return extractor
 
 
-def check_block(source: str, block: dict, root: Path, seen_files: set[str]) -> list[str]:
+def check_block(
+    source: str, block: dict, root: Path, seen_files: set[str],
+    presets: dict | None = None,
+) -> list[str]:
     """등록 블록 하나와 그것이 가리키는 config_file 을 검사한다.
 
     같은 config_file 이 여러 프로세서에 등록되는 것이 정상이라(같은 doc_type 을 parser 와
@@ -117,6 +130,14 @@ def check_block(source: str, block: dict, root: Path, seen_files: set[str]) -> l
     자체는 프로세서마다 다를 수 있으므로 매번 검사한다.
     """
     problems: list[str] = []
+    presets = presets if isinstance(presets, dict) else {}
+    # 등록 블록의 `model_preset:` 은 기동 시 load_config 가 먼저 펼친다. 여기서도 같은
+    # 순서로 펴야 지원키 대조가 기동과 어긋나지 않는다 — 안 펴면 정상 설정이 오탐으로
+    # 잡히고, 반대로 프리셋이 이 extractor 가 못 받는 키를 실어 보내는 진짜 사고는 놓친다.
+    try:
+        block = mp.expand_block(block, presets, label=source)
+    except mp.ModelPresetError as exc:
+        return [f"[기동실패] {exc}"]
     where = f"{source} [doc_type={block.get('doc_type')}]"
     # 등록 블록에 적혀 있으면 그 값, 없으면 config_file 의 source.kind 에서 유도한다 —
     # 기동 시 `custom_fields_extractor` 가 하는 판정과 같은 순서다.
@@ -180,9 +201,11 @@ def check_block(source: str, block: dict, root: Path, seen_files: set[str]) -> l
         # 있으면 기동은 그 값으로 지원키를 대조하므로(매퍼·enricher 생성자 인자로 넘어간다),
         # 여기서 파생값으로 갈아타면 점검과 기동의 판정이 갈린다. 적혀 있지 않은 경우의
         # 파생은 위에서 이미 했다.
+        # 번역과 함께 `model_preset:` 도 편다. 기동은 같은 순서로 하므로, 여기서 안 펴면
+        # 프리셋을 제대로 쓴 설정에서 model_preset 이 "모르는 키" 로 잡히는 오탐이 난다.
         try:
-            cfg, _derived_extractor = cv2.normalize(cfg, label=label)
-        except cv2.ConfigV2Error as exc:
+            cfg, _derived_extractor = cv2.load(cfg, label=label, presets=presets)
+        except (cv2.ConfigV2Error, mp.ModelPresetError) as exc:
             problems.append(f"[기동실패] {exc}")
             return problems
     diagnosis = cs.diagnose_keys(cfg, extractor)
@@ -219,6 +242,77 @@ def check_body_label_change(label: str, cfg: dict) -> list[str]:
     ]
 
 
+def check_model_presets(root: Path) -> list[str]:
+    """`model_presets` 정의와 그것을 부르는 `model_preset:` 참조를 대조한다.
+
+    기동 시에는 `load_config` 가 같은 판정을 하고 없는 이름이면 서비스가 뜨지 않는다.
+    여기서 미리 드러내 배포 전에 잡는다. 참조를 찾는 규칙은 `model_preset.iter_refs` 를
+    그대로 쓴다 — 스크립트가 다시 구현하면 반드시 갈린다.
+
+    자식 custom_field yaml 의 참조는 **그 파일을 등록한 프로세서 config** 의 프리셋으로
+    푼다. 자식 파일에는 프리셋 정의가 없고 등록 블록을 통해 전달받기 때문이다.
+    """
+    problems: list[str] = []
+    for name in PROCESSOR_CONFIGS:
+        path = root / name
+        if not path.exists():
+            continue
+        cfg = load_yaml(path)
+        raw = cfg.get(mp.PRESETS_KEY)
+        if raw is not None and not isinstance(raw, dict):
+            problems.append(
+                f"[기동실패] {name}: `{mp.PRESETS_KEY}` 는 {{이름: 설정}} 매핑이어야 합니다 "
+                f"(지금은 {type(raw).__name__})."
+            )
+            continue
+        presets: dict = raw if isinstance(raw, dict) else {}
+        for preset_name, value in presets.items():
+            if not isinstance(value, dict):
+                problems.append(
+                    f"[기동실패] {name}: `{mp.PRESETS_KEY}.{preset_name}` 은 매핑이어야 합니다 "
+                    f"(지금은 {type(value).__name__})."
+                )
+
+        # 참조를 찾을 곳: 프로세서 config 자신 + 그것이 등록한 자식 설정 파일들.
+        targets: list[tuple[str, dict]] = [(name, cfg)]
+        for item in (cfg.get("enrichment") or []):
+            block = (item or {}).get("custom_fields")
+            if not isinstance(block, dict):
+                continue
+            child_name = str(block.get("config_file") or "").strip()
+            if child_name and (root / child_name).exists():
+                targets.append((f"{name} → {child_name}", load_yaml(root / child_name)))
+
+        used: set[str] = set()
+        for where, node in targets:
+            for place, ref in mp.iter_refs(node):
+                if not isinstance(ref, str) or not ref.strip():
+                    problems.append(
+                        f"[기동실패] {where} [{place}]: 프리셋 이름이 비어 있습니다."
+                    )
+                    continue
+                ref = ref.strip()
+                used.add(ref)
+                if ref not in presets:
+                    known = ", ".join(sorted(presets)) or "(정의된 프리셋 없음)"
+                    problems.append(
+                        f"[기동실패] {where} [{place}]: `{ref}` 프리셋이 "
+                        f"{name} 의 `{mp.PRESETS_KEY}` 에 없습니다. 정의된 이름: {known}"
+                    )
+
+        unused = sorted(set(presets) - used)
+        if unused:
+            problems.append(f"[정보] {name}: 아무도 참조하지 않는 프리셋 {unused}")
+        blocked = sorted({k for v in presets.values() if isinstance(v, dict) for k in v
+                          if k in mp.BLOCKED_KEYS})
+        if blocked:
+            problems.append(
+                f"[정보] {name}: 프리셋의 {blocked} 는 배선 키라 주입되지 않습니다 "
+                f"(쓰는 블록에 직접 적으세요)."
+            )
+    return problems
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description="배포 전 custom_fields 설정 점검")
     ap.add_argument(
@@ -241,17 +335,22 @@ def main() -> int:
 
     problems: list[str] = []
     seen_files: set[str] = set()
-    for source, block in blocks:
-        problems.extend(check_block(source, block, root, seen_files))
+    for source, block, presets in blocks:
+        problems.extend(check_block(source, block, root, seen_files, presets))
+    # 모델 프리셋은 등록 블록과 무관하게 설정 파일 단위로 본다(자식 yaml 참조 포함).
+    problems.extend(check_model_presets(root))
 
     # 등록되지 않은 custom_field yaml 은 배포되지만 쓰이지 않는다(정보성).
-    registered_files = {str(b.get("config_file")) for _source, b in blocks if b.get("config_file")}
+    registered_files = {
+        str(b.get("config_file")) for _source, b, _presets in blocks if b.get("config_file")
+    }
     orphans = sorted(
         p.name for p in root.glob("custom_field_*.yaml") if p.name not in registered_files
     )
 
     blocking = [p for p in problems if p.startswith("[기동실패]")]
     body = [p for p in problems if p.startswith("[본문변화]")]
+    info = [p for p in problems if p.startswith("[정보]")]
 
     for line in blocking:
         print(line)
@@ -260,6 +359,10 @@ def main() -> int:
     for line in body:
         print(line)
     if body:
+        print()
+    for line in info:
+        print(line)
+    if info:
         print()
     if orphans:
         print(f"[정보] 어느 프로세서에도 등록되지 않은 설정 {len(orphans)}건: {orphans}\n")

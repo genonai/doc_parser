@@ -9,6 +9,7 @@ import time
 
 import httpx
 import pytest
+import requests
 
 from docling.utils.llm_cache import build_context, classify_error, reset_context, set_context
 from genon.preprocessor.processing.enrichment import llm_response as lr
@@ -245,3 +246,149 @@ def test_enricher_llm_call_recovers_from_a_transient_failure(factory, monkeypatc
 
     assert asyncio.run(factory()._call_llm("X")) == "정상"
     assert len(requests) == 2
+
+
+# ── 동기 경로(post_chat_completion_sync) ─────────────────────────────────────
+# body_summary 가 쓰는 경로. 판정은 async 판과 동일해야 하므로 같은 실패·재시도
+# 조합을 그대로 반복한다 — 차이는 client.post/time.sleep 이 sync 라는 것뿐이다.
+
+@pytest.fixture(autouse=True)
+def slept_sync(monkeypatch):
+    """동기 경로의 재시도 대기를 실제로 하지 않고 대기 시간만 모은다."""
+    waits: list = []
+
+    def _sleep(seconds):
+        waits.append(seconds)
+
+    monkeypatch.setattr(lr.time, "sleep", _sleep)
+    return waits
+
+
+def _run_sync(*steps):
+    """steps 를 차례로 응답하는 서버에 동기 경로로 한 번 호출한다."""
+    requests: list = []
+    queue = list(steps)
+
+    def handler(request):
+        requests.append(request)
+        return queue.pop(0)(request)
+
+    try:
+        with httpx.Client(transport=httpx.MockTransport(handler)) as client:
+            return lr.post_chat_completion_sync(
+                client, URL, payload={}, headers={}, timeout=600.0
+            ), requests
+    except Exception as exc:  # noqa: BLE001 — 테스트가 예외 종류를 직접 단정한다
+        return exc, requests
+
+
+@pytest.mark.unit
+def test_sync_transient_failure_is_retried_once_and_recovers(slept_sync):
+    result, requests = _run_sync(_status(502), _ok)
+    assert result == {"content": "정상"}
+    assert len(requests) == 2
+    assert len(slept_sync) == 1
+
+
+@pytest.mark.unit
+def test_sync_timeout_is_not_retried(slept_sync):
+    result, requests = _run_sync(_raise(httpx.ReadTimeout), _ok)
+    assert isinstance(result, httpx.ReadTimeout)
+    assert len(requests) == 1
+    assert slept_sync == []
+
+
+@pytest.mark.unit
+def test_sync_retries_only_once():
+    result, requests = _run_sync(_status(503), _status(503), _ok)
+    assert isinstance(result, httpx.HTTPStatusError)
+    assert result.response.status_code == 503
+
+
+# ── retry_once_sync: post_chat_completion_sync 가 위임하는 재시도 정책 그 자체 ───
+# VLM 이미지 요청(enrichment/image_request.py)도 이 헬퍼를 쓴다. `send` 는 인자 없는
+# 호출 가능 객체이고, 판정(1회, 대상 상태 번호, deadline 확인, 대기 계산)은 post_chat_completion_sync
+# 와 완전히 같아야 한다 — 여기서는 chat completion 이 아닌 임의의 `send()` 로 그 정책만 고정한다.
+
+@pytest.mark.unit
+def test_retry_once_sync_recovers_from_a_transient_failure(slept_sync):
+    calls: list = []
+
+    def send():
+        calls.append(1)
+        if len(calls) == 1:
+            raise requests.exceptions.ConnectionError("일시적 연결 실패")
+        return "ok"
+
+    assert lr.retry_once_sync(send) == "ok"
+    assert len(calls) == 2
+    assert len(slept_sync) == 1
+
+
+@pytest.mark.unit
+def test_retry_once_sync_raises_after_the_second_failure(slept_sync):
+    calls: list = []
+
+    def send():
+        calls.append(1)
+        raise requests.exceptions.ConnectionError("계속 실패")
+
+    with pytest.raises(requests.exceptions.ConnectionError):
+        lr.retry_once_sync(send)
+    assert len(calls) == 2
+
+
+@pytest.mark.unit
+def test_retry_once_sync_does_not_retry_a_permanent_failure(slept_sync):
+    calls: list = []
+
+    def send():
+        calls.append(1)
+        raise ValueError("permanent")
+
+    with pytest.raises(ValueError):
+        lr.retry_once_sync(send)
+    assert len(calls) == 1
+    assert slept_sync == []
+
+
+# ── is_retryable: requests 예외(VLM 경로가 실제로 쓰는 것)도 인식한다 ─────────────
+# api_image_request 는 httpx 가 아니라 requests 를 쓰므로(requests.post + raise_for_status),
+# 이 분기가 없으면 VLM 경로에서는 재시도가 절대 걸리지 않았다.
+
+def _requests_http_error(status: int) -> requests.exceptions.HTTPError:
+    resp = requests.Response()
+    resp.status_code = status
+    return requests.exceptions.HTTPError(response=resp)
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("status", [429, 502, 503, 504])
+def test_is_retryable_requests_http_error_transient_status(status):
+    assert lr.is_retryable(_requests_http_error(status)) is True
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("status", [400, 401, 500])
+def test_is_retryable_requests_http_error_permanent_status(status):
+    assert lr.is_retryable(_requests_http_error(status)) is False
+
+
+@pytest.mark.unit
+def test_is_retryable_requests_connection_error():
+    assert lr.is_retryable(requests.exceptions.ConnectionError("연결 실패")) is True
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("exc", [
+    requests.exceptions.Timeout("t"),
+    requests.exceptions.ReadTimeout("t"),
+    requests.exceptions.ConnectTimeout("t"),
+], ids=["timeout", "read-timeout", "connect-timeout"])
+def test_is_retryable_requests_timeout_is_never_retried(exc):
+    """ConnectTimeout 은 ConnectionError 도 다중 상속하므로 특히 확인해야 한다.
+
+    (requests.exceptions.ConnectTimeout(ConnectionError, Timeout)) — Timeout 검사가
+    ConnectionError 검사보다 먼저 오지 않으면 시간 초과가 재시도 대상으로 샌다.
+    """
+    assert lr.is_retryable(exc) is False

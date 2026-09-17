@@ -18,6 +18,12 @@ from docling.utils.llm_cache import CacheDeadlineExceeded, async_cached_call, re
 from docling.utils.thinking import resolve_thinking_kwargs, strip_reasoning
 
 from genon.preprocessor.processing.common import config_parse as cp
+from genon.preprocessor.processing.common.model_params import (
+    build_chat_payload,
+    collect_generation_params,
+    resolve_headers,
+    resolve_thinking,
+)
 from genon.preprocessor.processing.enrichment import config_schema as cs
 
 from .base_enricher import BaseEnricher
@@ -405,10 +411,16 @@ class CustomFieldsEnricher(BaseEnricher):
         api_key: str = "",
         config_file: str = "",
         resource_path: str | None = None,
+        model_presets: dict | None = None,
         url: str = "",
         model: str = "",
         max_tokens: int | None = None,
         temperature: float | None = None,
+        top_p: float | None = None,
+        seed: int | None = None,
+        repetition_penalty: float | None = None,
+        params: dict | None = None,
+        headers: dict | None = None,
         timeout: int | None = None,
         system_prompt: str = "",
         user_prompt: str = "",
@@ -430,7 +442,7 @@ class CustomFieldsEnricher(BaseEnricher):
         file: str = "",
         callable: str = "",
     ):
-        cfg = self._load_config(config_file, resource_path)
+        cfg = self._load_config(config_file, resource_path, model_presets)
         # 모르는 키는 지금까지 조용히 무시됐다 — `output_field`(오타)처럼 한 글자만 틀려도
         # 그 필드가 결과에서 사라질 뿐 아무 신호가 없었다. 키 소비 전에 대조한다.
         cs.validate_known_keys(
@@ -451,6 +463,27 @@ class CustomFieldsEnricher(BaseEnricher):
             temperature if temperature is not None else cfg.get("temperature", 0.0)
         )
         self._timeout = timeout if timeout is not None else cfg.get("timeout", 60)
+        pipeline_label = f"custom_fields({config_file})"
+        # top_p/seed/repetition_penalty/params: config_file 과 등록 블록 양쪽에 적을 수
+        # 있다. 우선순위는 다른 키와 같다(등록 블록 > config_file) — 이름 있는 키는 키 단위로,
+        # `params` 임의 키 통로는 collect_generation_params 안에서 한 번 더 그 소스의
+        # 이름 있는 키를 이긴 뒤, 여기서 등록 블록 결과가 config_file 결과를 이긴다.
+        _registration_gen_cfg: dict = {}
+        for _key, _value in (
+            ("temperature", temperature),
+            ("top_p", top_p),
+            ("repetition_penalty", repetition_penalty),
+            ("max_tokens", max_tokens),
+            ("seed", seed),
+        ):
+            if _value is not None:
+                _registration_gen_cfg[_key] = _value
+        if params is not None:
+            _registration_gen_cfg["params"] = params
+        self._params = {
+            **collect_generation_params(cfg, label=pipeline_label),
+            **collect_generation_params(_registration_gen_cfg, label=pipeline_label),
+        }
         # 우선순위: 등록 블록(file > 인라인) > config_file(file > 인라인 > prompt 블록) > 기본값.
         # 등록 블록이 config_file 을 이기는 것은 다른 모든 키와 같다 — 예전에는 config_file 의
         # `*_prompt_file` 이 등록 블록 인라인 프롬프트를 이겨 이 키만 방향이 반대였다.
@@ -492,7 +525,6 @@ class CustomFieldsEnricher(BaseEnricher):
             compile_value_map,
         )
 
-        pipeline_label = f"custom_fields({config_file})"
         self._value_map = compile_value_map(cfg.get("value_map"))
         self._transforms = compile_transforms(
             cfg.get("transforms"), label=pipeline_label, cfg=cfg
@@ -510,10 +542,9 @@ class CustomFieldsEnricher(BaseEnricher):
         self._first_chunk_fields = cp.parse_field_name_list(cfg.get(cp.FIRST_CHUNK_FIELDS_KEY))
         # 위 두 규칙으로 얹힌 값 앞에 붙일 사람이 읽는 항목명. 이름이 있는 필드만 붙는다.
         self._field_labels = cp.parse_field_labels(cfg.get(cp.FIELD_LABELS_KEY))
-        self._headers: dict[str, str] = {"Content-Type": "application/json"}
         resolved_key = api_key or cfg.get("api_key", "")
-        if resolved_key:
-            self._headers["Authorization"] = f"Bearer {resolved_key}"
+        resolved_headers_cfg = headers if headers is not None else cfg.get("headers")
+        self._headers = resolve_headers({"headers": resolved_headers_cfg}, resolved_key)
 
         self._parser_cfg = parser or cfg.get("parser", {}) or {}
         self._parser_callable = self._build_parser_callable()
@@ -523,14 +554,12 @@ class CustomFieldsEnricher(BaseEnricher):
         # 생성자 기본값을 None 으로 두는 것이 중요하다 — 다른 키와 같은 우선순위
         # (등록 블록 > config_file > 기본값)를 갖는다. 예전에는 기본값이 truthy 라
         # cfg 까지 도달하지 못해 문서유형 yaml 의 값이 조용히 무시됐다.
-        self._thinking = str(
-            thinking if thinking is not None else cfg.get("thinking") or "off"
-        ).strip().lower()
-        self._thinking_dialect = str(
-            thinking_dialect
-            if thinking_dialect is not None
-            else cfg.get("thinking_dialect") or "standard"
-        ).strip().lower()
+        # dialect 검증은 model_params.resolve_thinking 한 벌로 모은다(오타가 그대로
+        # 나가던 결함을 여기서도 잡는다 — enrichment_config._parse_thinking 과 동일 규칙).
+        self._thinking, self._thinking_dialect = resolve_thinking(
+            thinking if thinking is not None else cfg.get("thinking") or "off",
+            thinking_dialect if thinking_dialect is not None else cfg.get("thinking_dialect") or "standard",
+        )
         self._doc_types = normalize_doc_types(doc_type)
         self._extractor = str(extractor or "llm").strip().lower()
         # extractor: python — 값을 만드는 것이 LLM 이 아니라 고객 함수다. 로딩 규칙은
@@ -584,12 +613,19 @@ class CustomFieldsEnricher(BaseEnricher):
             TableTextDescriptionOptions.from_config(cfg), prompt_template=prompt
         )
 
-    def _load_config(self, config_file: str, resource_path: str | None = None) -> dict:
+    def _load_config(
+        self,
+        config_file: str,
+        resource_path: str | None = None,
+        presets: dict | None = None,
+    ) -> dict:
         loaded = load_custom_fields_config(config_file, resource_path)
         # 설정 표기를 내부 형태로 번역해 넘긴다 — 아래 코드는 표기를 신경 쓰지 않는다.
         from . import config_v2 as cv2
 
-        normalized, _ = cv2.load(loaded, label=f"custom_fields({config_file})")
+        normalized, _ = cv2.load(
+            loaded, label=f"custom_fields({config_file})", presets=presets
+        )
         return normalized
 
     @staticmethod
@@ -741,15 +777,15 @@ class CustomFieldsEnricher(BaseEnricher):
             messages.append({"role": "system", "content": system})
         messages.append({"role": "user", "content": prompt})
 
-        payload = {
-            "model": self._model,
-            "max_tokens": self._max_tokens,
-            "temperature": self._temperature,
-            "messages": messages,
-        }
         ctk = resolve_thinking_kwargs(self._thinking, self._thinking_dialect)
-        if ctk:
-            payload["chat_template_kwargs"] = ctk
+        payload = build_chat_payload(
+            model=self._model,
+            messages=messages,
+            max_tokens=self._max_tokens,
+            temperature=self._temperature,
+            params=self._params,
+            thinking_kwargs=ctk,
+        )
 
         async def _produce() -> str:
             # #329: llm_cache opt-in 시 캐시 경유. 미사용 시 기존과 동일.

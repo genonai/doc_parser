@@ -31,10 +31,14 @@ from docling_core.types.doc import (
     TableItem,
 )
 from docling_core.types.doc.document import ContentLayer, MiscAnnotation
-from docling.utils.api_image_request import api_image_request
 from docling.utils.llm_cache import in_current_context
 
 from genon.preprocessor.processing.chunking.table_html import sanitize_table_html
+from genon.preprocessor.processing.common.model_params import (
+    collect_generation_params,
+    resolve_thinking,
+)
+from genon.preprocessor.processing.enrichment.image_request import request_image_description
 from genon.preprocessor.processing.enrichment.prompt_files import read_prompt_file
 from genon.preprocessor.processing.enrichment.prompt_template import PromptTemplate
 
@@ -159,6 +163,10 @@ class TableDescriptionOptions:
     # 구조 재구성(refine): enabled 이면 통합 프롬프트로 재구성 HTML + 요약을 함께 생성
     refine_enabled: bool = False
     refine_prompt_template: str = ""
+    # thinking 기본값은 텍스트 섹션("off")과 다르게 "auto"(미전송)다 — image_request.py
+    # 모듈 docstring 참조(dots-mocr 등 다른 서빙이 모르는 kwarg 를 거부할 수 있다).
+    thinking: str = "auto"
+    thinking_dialect: str = "standard"
 
     @classmethod
     def from_config(
@@ -230,6 +238,17 @@ class TableDescriptionOptions:
             base_dir, refine_cfg.get("prompt_file"), default=""
         )
 
+        # 생성 파라미터(temperature/top_p/max_tokens/seed/repetition_penalty)는 블록
+        # 최상위 표기도 허용한다(model_params.collect_generation_params; params 하위
+        # dict 가 이긴다). image_description.py 와 동일 컨벤션.
+        params = collect_generation_params(table_desc_cfg, label="table_description")
+
+        # 미설정 기본값은 "auto"(=chat_template_kwargs 미전송). resolve_thinking 자체의
+        # 기본값("off")과 다르므로 cfg.get 에 명시적으로 "auto" 를 준다(image_request.py 참조).
+        thinking, thinking_dialect = resolve_thinking(
+            table_desc_cfg.get("thinking", "auto"), table_desc_cfg.get("thinking_dialect", "standard")
+        )
+
         return cls(
             enabled=False if enabled is None else enabled,
             api_url=str(table_desc_cfg.get("api_url") or table_desc_cfg.get("url") or fallback_api_url or "").strip(),
@@ -251,9 +270,11 @@ class TableDescriptionOptions:
             template_mode=str(tbl_mode).strip().lower(),
             variables=tbl_variables,
             headers=_as_dict(table_desc_cfg.get("headers")),
-            params=_as_dict(table_desc_cfg.get("params")),
+            params=params,
             refine_enabled=False if refine_enabled is None else refine_enabled,
             refine_prompt_template=refine_prompt_template,
+            thinking=thinking,
+            thinking_dialect=thinking_dialect,
         )
 
 
@@ -695,21 +716,17 @@ class TableDescriptionEnricher:
         if image is None:
             return None
 
-        headers = dict(self.options.headers)
-        if self.options.api_key and "Authorization" not in headers:
-            headers["Authorization"] = f"Bearer {self.options.api_key}"
-
-        params = dict(self.options.params)
-        if self.options.model and "model" not in params:
-            params["model"] = self.options.model
-
-        output = api_image_request(
+        output = request_image_description(
             image=image,
             prompt=prompt,
             url=self.options.api_url,
+            api_key=self.options.api_key,
+            model=self.options.model,
+            headers=self.options.headers,
+            params=self.options.params,
             timeout=self.options.timeout,
-            headers=headers,
-            **params,
+            thinking=self.options.thinking,
+            thinking_dialect=self.options.thinking_dialect,
         )
         output_text = str(output or "").strip()
         if not output_text:

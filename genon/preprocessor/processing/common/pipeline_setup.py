@@ -30,6 +30,7 @@ from genon.preprocessor.processing.common.config_parse import (
     parse_optional_float,
     parse_optional_int,
 )
+from genon.preprocessor.processing.enrichment.llm_response import retry_sync
 
 _log = logging.getLogger(__name__)
 
@@ -260,6 +261,9 @@ def apply_layout_settings(pipe_line_options, settings: LayoutSettings) -> None:
     genos.model = settings.model
     genos.timeout = settings.timeout
     genos.retry_count = settings.retry_count
+    # 재시도 판정·대기는 다른 모델 호출과 같은 정책을 쓴다. docling 은 횟수만 알고
+    # "무엇이 일시적 실패인가" 는 모른다 — 그 판정이 여기 한 벌만 있어야 갈리지 않는다.
+    genos.retry_runner = retry_sync
     genos.temperature = settings.temperature
     genos.top_p = settings.top_p
     genos.repetition_penalty = settings.repetition_penalty

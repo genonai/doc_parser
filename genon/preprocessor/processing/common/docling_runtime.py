@@ -56,6 +56,7 @@ from genon.preprocessor.processing.enrichment.doc_summary import (
     DocSummaryEnricher,
     DocSummaryOptions,
 )
+from genon.preprocessor.processing.enrichment.docling_sender import sender_from_config
 from genon.preprocessor.processing.enrichment.enrichment_config import EnrichmentConfig
 from genon.preprocessor.processing.enrichment.image_description import (
     ImageDescriptionEnricher,
@@ -281,6 +282,14 @@ class DoclingRuntimeBase:
             toc_thinking_dialect=ec.toc.thinking_dialect,
             metadata_thinking=ec.metadata.thinking,
             metadata_thinking_dialect=ec.metadata.thinking_dialect,
+            # 임의 파라미터는 docling 이 payload 를 만들 때 합친다 - 캐시 키가 (url, payload)
+            # 라서 전송 단계에서 더하면 서로 다른 설정이 같은 캐시 항목을 나눠 쓴다.
+            toc_params=ec.toc.params or None,
+            metadata_params=ec.metadata.params or None,
+            # 전송은 전처리기가 맡는다. docling 은 무엇을 물어볼지만 정하고 헤더·타임아웃·
+            # 재시도·응답 해석은 나머지 섹션과 같은 공용 경로를 쓴다.
+            toc_chat_sender=sender_from_config(ec.toc),
+            metadata_chat_sender=sender_from_config(ec.metadata),
         )
 
         self._post_runtime_setup(cfg, ec)
@@ -318,6 +327,8 @@ class DoclingRuntimeBase:
             config_dir=self._config_dir,
             variables=ec.metadata.variables,
             template_mode=ec.metadata.template_mode,
+            params=ec.metadata.params,
+            headers=ec.metadata.headers,
         )
         if self._metadata_enricher_passes_thinking:
             kwargs["thinking"] = ec.metadata.thinking

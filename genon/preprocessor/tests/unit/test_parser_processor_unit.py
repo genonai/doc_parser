@@ -413,7 +413,7 @@ class TestEnrichImageDescriptions:
         doc = MagicMock()
         doc.iterate_items.return_value = []
 
-        with patch("genon.preprocessor.processing.enrichment.image_description.api_image_request") as mock_api:
+        with patch("genon.preprocessor.processing.enrichment.image_request.api_image_request") as mock_api:
             result = intel.enrich_image_descriptions(doc)
 
         assert result is doc
@@ -431,7 +431,7 @@ class TestEnrichImageDescriptions:
             "get_image",
             return_value=Image.new("RGB", (8, 8), color="white"),
         ), patch(
-            "genon.preprocessor.processing.enrichment.image_description.api_image_request",
+            "genon.preprocessor.processing.enrichment.image_request.api_image_request",
             return_value="문맥 기반 설명 결과",
         ) as mock_api:
             result = intel.enrich_image_descriptions(doc)
@@ -462,7 +462,7 @@ class TestEnrichImageDescriptions:
             "get_image",
             return_value=Image.new("RGB", (8, 8), color="white"),
         ), patch(
-            "genon.preprocessor.processing.enrichment.image_description.api_image_request",
+            "genon.preprocessor.processing.enrichment.image_request.api_image_request",
             side_effect=RuntimeError("VLM endpoint is unreachable"),
         ):
             result = intel.enrich_image_descriptions(doc)

@@ -2,6 +2,52 @@ defaults:
   # 5=DEBUG, 4=INFO, 3=WARNING, 2=ERROR, 1=CRITICAL, 0=NOLOG
   log_level: 4
 
+# ── 모델 프리셋 ───────────────────────────────────────────────────────────────
+# 모델 한 벌(접속 정보 + 그 모델의 성질)을 이름 붙여 여기 두고, 쓰는 자리에서는
+# `model_preset: <이름>` 한 줄로 부른다. 서빙 ID 나 키가 바뀌면 여기만 고치면 된다.
+#
+#   enrichment:
+#     - toc:
+#         model_preset: default
+#         temperature: 0.2      # 이 블록만 다르게 — 직접 쓴 값이 프리셋을 이긴다
+#
+# 프리셋을 안 쓰고 블록마다 url/api_key/model 을 직접 적는 기존 방식도 그대로 된다.
+# 없는 이름을 부르면 기동이 실패한다(오타를 조용히 넘기면 인증 없이 호출이 나간다).
+#
+# 담을 수 있는 값
+#   접속    url, api_key, model
+#   생성    temperature, top_p, max_tokens, thinking, thinking_dialect, repetition_penalty, seed
+#   호출    timeout, concurrency, headers, params
+#   ※ 생성 5종과 params/headers/thinking 은 모든 enrichment 항목과 page_description 이 같게 읽는다.
+#      단 thinking 기본값은 갈린다 - 텍스트 계열은 off(차단 토큰 전송), 이미지 계열은
+#      auto(미전송)다. 이미지 모델은 별도 서빙을 쓰는 현장이 많아 명시할 때만 보낸다.
+#      concurrency 만 예외로 설명 계열(이미지·표·페이지)에서만 읽는다 - 나머지는 문서당
+#      1회 호출이라 동시 실행 개념이 없다.
+#   ※ max_tokens 는 블록에 두는 편이 안전하다 — table_text_description 은
+#      completion_reserved_tokens 와 짝을 맞춰야 배치 계산이 맞는다.
+#   ※ enable/enabled, doc_type, config_file 은 배선 키라 프리셋에 적어도 주입되지 않는다.
+#      특히 enable 이 새어 나가면 그 프리셋을 쓰는 섹션이 전부 켜진다.
+#
+# 아래 <..._SERVING_ID> 는 Genos에 등록한 모델서빙 ID로 변경 필요.
+# api_key 는 k8s 내부 통신 기반 모델 호출 시 불필요.
+model_presets:
+  # 텍스트 LLM. 목차/메타데이터/문서요약/텍스트 표 설명이 함께 쓴다.
+  default:
+    url: "http://llmops-gateway-api-service:8080/rep/serving/<ENRICHMENT_SERVING_ID>/v1/chat/completions"
+    api_key: ""
+    model: "model"
+  # 이미지 이해 모델(VLM). 그림 설명과 이미지 표 설명이 함께 쓴다.
+  image:
+    url: "http://llmops-gateway-api-service:8080/rep/serving/<IMAGE_DESCRIPTION_SERVING_ID>/v1/chat/completions"
+    api_key: ""
+    model: "model"
+  # PPT 페이지 전체를 그림으로 설명하는 모델. 위 image 와 같은 서빙을 쓸 수도 있다.
+  page:
+    url: "http://llmops-gateway-api-service:8080/rep/serving/<PAGE_DESCRIPTION_SERVING_ID>/v1/chat/completions"
+    api_key: ""
+    model: "model"
+    timeout: 360
+
 formats:
   # 비표준 확장자 별칭: "이 확장자는 어떤 포맷으로 볼 것인가" 를 한 줄로 지정한다.
   # 원천이 표준 확장자를 안 쓰는 경우(예: 마크다운+HTML 혼합 산출물이 *.parsed 로 옴)에
@@ -31,10 +77,7 @@ formats:
   ppt:
     page_description:
       enable: true
-      url: "http://llmops-gateway-api-service:8080/rep/serving/<PAGE_DESCRIPTION_SERVING_ID>/v1/chat/completions"
-      api_key: ""
-      model: "model"
-      timeout: 360
+      model_preset: page
       concurrency: 16          # 페이지 설명 요청 병렬 수
       # 선택 튜닝: images_scale(렌더 배율) / max_image_side(전송 이미지 최대 변) / max_tokens(출력 상한) / params(추가 VLM 파라미터)
       prompt_template_file: prompt_page_image_description_default.md
@@ -108,7 +151,7 @@ layout:
     max_completion_tokens: 16384
     model: "dots-mocr"          # 서빙 모델명
     timeout: 3600               # VLM 요청 타임아웃(초)
-    retry_count: 2              # 비정상 VLM 응답 재시도 횟수
+    retry_count: 2              # 일시적 전송 실패(502 등) 재시도 횟수. 폭주·타임아웃은 재시도 대신 폴백
     temperature: 0.1            # 생성 temperature
     top_p: 0.9                  # 생성 top_p (0<top_p<=1)
     repetition_penalty: 1.15    # >1.0, 토큰 반복(degeneration) 억제
@@ -125,14 +168,12 @@ pdf_pipeline:
 # enrichment
 # 각 항목은 {이름: {옵션}} 형식의 list.
 # 비활성화: ① 항목 삭제  ② 항목 주석 처리  ③ enable: false
-# 모든 url 의 <ENRICHMENT_SERVING_ID> 는 Genos에 등록한 모델서빙 ID로 변경 필요.
-# api_key 는 k8s 내부 통신 기반 모델 호출 시 불필요.
+# 접속 정보는 맨 위 model_presets 에 모아 두고 여기서는 `model_preset:` 으로 부른다.
+# 특정 항목만 다른 모델을 쓰려면 그 항목에 url/api_key/model 을 직접 적으면 된다(프리셋보다 우선).
 enrichment:
   - toc:
       enable: false
-      url: "http://llmops-gateway-api-service:8080/rep/serving/<ENRICHMENT_SERVING_ID>/v1/chat/completions"
-      api_key: ""
-      model: "model"
+      model_preset: default
       temperature: 0.0
       top_p: 0.00001
       seed: 33
@@ -159,9 +200,7 @@ enrichment:
 
   - metadata:
       enable: false
-      url: "http://llmops-gateway-api-service:8080/rep/serving/<ENRICHMENT_SERVING_ID>/v1/chat/completions"
-      api_key: ""
-      model: "model"
+      model_preset: default
       max_tokens: 10000
       temperature: 0.0
       timeout: 3600
@@ -183,16 +222,12 @@ enrichment:
 
   - doc_summary:
       enable: false          # 기본 off. true 또는 런타임 doc_summary=1 로 활성화. image/table 이 공유
-      url: "http://llmops-gateway-api-service:8080/rep/serving/<ENRICHMENT_SERVING_ID>/v1/chat/completions"
-      api_key: ""
-      model: "model"
+      model_preset: default
       prompt_file: prompt_doc_summary.md   # {{full_text}} 기반 문서 본문요약
       max_chars: 6000
   - image_description:
       enable: false
-      url: "http://llmops-gateway-api-service:8080/rep/serving/<IMAGE_DESCRIPTION_SERVING_ID>/v1/chat/completions"
-      api_key: ""
-      model: "model"
+      model_preset: image
       concurrency: 16        # 이미지 설명 요청 병렬 수
       before_items: 3
       after_items: 2
@@ -205,9 +240,7 @@ enrichment:
         chart_prompt_file: prompt_chart_description_default.md
   - table_description:
       enable: false          # 기본 off(회귀 없음). true 또는 런타임 table_desc=1 로 활성화
-      url: "http://llmops-gateway-api-service:8080/rep/serving/<IMAGE_DESCRIPTION_SERVING_ID>/v1/chat/completions"
-      api_key: ""
-      model: "model"
+      model_preset: image
       concurrency: 8         # 표 설명 요청 병렬 수
       before_items: 3
       after_items: 2
@@ -233,9 +266,7 @@ enrichment:
   # 표당 산출량(아래 rag 값)을 늘리면 배치가 작아지고 호출 수가 늘어난다.
   - table_text_description:
       enable: true
-      url: "http://llmops-gateway-api-service:8080/rep/serving/<ENRICHMENT_SERVING_ID>/v1/chat/completions"
-      api_key: ""
-      model: "model"
+      model_preset: default
       max_tokens: 16000       # 응답 상한. 배치당 표 개수는 이 값이 정한다
       concurrency: 8          # 표 설명 배치 병렬 호출 수
       temperature: 0.0

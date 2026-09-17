@@ -119,6 +119,20 @@ defaults:
   log_level: 4
 
 # ───────────────────────────────────────────────
+# 모델 프리셋 (아래 "모델 프리셋으로 접속 정보 모으기" 참고)
+# 모델 한 벌을 이름 붙여 두고, 쓰는 자리에서 `model_preset: <이름>` 으로 부릅니다.
+# ───────────────────────────────────────────────
+model_presets:
+  default:
+    url: "http://llmops-gateway-api-service:8080/rep/serving/<ENRICHMENT_SERVING_ID>/v1/chat/completions"
+    api_key: ""
+    model: "model"
+  image:
+    url: "http://llmops-gateway-api-service:8080/rep/serving/<IMAGE_DESCRIPTION_SERVING_ID>/v1/chat/completions"
+    api_key: ""
+    model: "model"
+
+# ───────────────────────────────────────────────
 # 포맷별 처리 옵션 (xlsx/csv — "지원 파일 형식 > CSV / XLSX", md — "지원 파일 형식 > Markdown" 참고)
 # ───────────────────────────────────────────────
 formats:
@@ -182,7 +196,7 @@ layout:
     max_completion_tokens: 16384
     model: "dots-mocr"          # 서빙 모델명
     timeout: 3600               # VLM 요청 타임아웃(초)
-    retry_count: 2              # 비정상 VLM 응답 재시도 횟수
+    retry_count: 2              # 일시적 전송 실패(502 등) 재시도 횟수. 폭주·타임아웃은 재시도 대신 폴백
     temperature: 0.1            # 생성 temperature
     top_p: 0.9                  # 생성 top_p (0<top_p<=1)
     repetition_penalty: 1.15    # >1.0, 토큰 반복(degeneration) 억제 (아래 가이드 참조)
@@ -203,8 +217,10 @@ pdf_pipeline:
 # 각 항목은 {이름: {옵션}} 형식의 list 입니다.
 #   이름 ∈ {toc, metadata, doc_summary, image_description, table_description, custom_fields}
 #   비활성화: ① 항목 삭제  ② 항목 주석 처리  ③ enable: false
-#   모든 url 의 <ENRICHMENT_SERVING_ID> / <IMAGE_DESCRIPTION_SERVING_ID> 는
-#   Genos에 등록한 모델서빙 ID로 변경 필요. api_key 는 k8s 내부 통신 시 불필요.
+#   접속 정보는 위 model_presets 에 모아 두고 `model_preset: <이름>` 으로 부릅니다.
+#   항목마다 url/api_key/model 을 직접 적는 방식도 그대로 동작합니다(프리셋보다 우선).
+#   <ENRICHMENT_SERVING_ID> / <IMAGE_DESCRIPTION_SERVING_ID> 는 Genos에 등록한
+#   모델서빙 ID로 변경 필요. api_key 는 k8s 내부 통신 시 불필요.
 #   프롬프트는 별도 .md 파일로 분리합니다(아래 "프롬프트 파일 분리 & 변수 치환" 참고).
 #   *_file 경로는 이 config 파일과 같은 디렉토리 기준이며, 파일명만 적습니다.
 # ───────────────────────────────────────────────
@@ -340,6 +356,85 @@ whisper:
 
 > **호환성 안내:** `enrichment`는 위와 같은 **list 형식(권장)** 외에 구버전 **dict 형식**(`enrichment: {do_toc, do_metadata, api_url, toc, image_description, ...}`)도 그대로 수용됩니다. 신규 등록 시에는 list 형식을 사용해 주세요.
 
+### 모델 프리셋으로 접속 정보 모으기
+
+같은 모델 서빙 주소와 인증키를 설정 파일 곳곳에 되풀이 적지 않도록, 모델 한 벌을
+최상위 `model_presets:` 에 이름 붙여 두고 쓰는 자리에서 `model_preset:` 으로 부릅니다.
+서빙 ID 나 키가 바뀌면 프리셋 한 곳만 고치면 됩니다.
+
+```yaml
+model_presets:
+  default:
+    url: "http://llmops-gateway-api-service:8080/rep/serving/<ENRICHMENT_SERVING_ID>/v1/chat/completions"
+    api_key: ""
+    model: "model"
+    temperature: 0.0       # 그 모델의 성질은 여기에 같이 둘 수 있습니다
+
+enrichment:
+  - toc:
+      enable: true
+      model_preset: default
+  - metadata:
+      enable: true
+      model_preset: default
+      temperature: 0.2     # 이 항목만 다르게 — 직접 적은 값이 프리셋을 이깁니다
+```
+
+`enrichment` 뿐 아니라 `formats.ppt.page_description`, `whisper` 처럼 접속 정보를 쓰는
+어느 블록에서나 같은 방식으로 동작하고, `custom_fields` 가 가리키는
+`custom_field_*.yaml` 의 `llm` 블록에서도 씁니다.
+
+```yaml
+# custom_field_<유형>.yaml
+llm:
+  - out: [...]
+    endpoint:
+      model_preset: default    # url/api_key/model 을 여기 다시 적지 않습니다
+```
+
+**규칙**
+
+- 블록에 직접 적은 값이 항상 이깁니다. 프리셋은 **비어 있는 키만** 채웁니다.
+- `params` 처럼 값이 목록형인 키는 통째로 덮이지 않고 항목 단위로 합쳐집니다.
+- 프리셋을 쓰지 않고 지금처럼 블록마다 `url`/`api_key`/`model` 을 직접 적어도 됩니다.
+- **없는 이름을 부르면 전처리기가 뜨지 않습니다.** 오타를 조용히 넘기면 인증 없이
+  모델 호출이 나가 문서 처리 중에 실패하기 때문입니다.
+
+**프리셋에 담을 수 있는 값**
+
+| 갈래 | 키 |
+|------|----|
+| 접속 | `url`, `api_key`, `model` |
+| 생성 | `temperature`, `top_p`, `max_tokens`, `thinking`, `thinking_dialect`, `repetition_penalty`, `seed` |
+| 호출 | `timeout`, `concurrency`, `headers`, `params` |
+
+**생성 파라미터 5종(`temperature`·`top_p`·`max_tokens`·`seed`·`repetition_penalty`)과
+`params`·`headers` 는 모든 enrichment 항목과 `page_description` 이 같은 규칙으로 읽습니다.**
+그래서 프리셋에 한 번 적으면 어느 항목에서나 그대로 동작합니다.
+
+- `params` 에 적은 값은 검사 없이 그대로 전송됩니다. 위 5종에 없는 키(예: `presence_penalty`,
+  `stop`)를 보내야 할 때 쓰는 통로이며, 같은 이름이 양쪽에 있으면 `params` 가 이깁니다.
+- `headers` 에 `Authorization` 을 직접 적으면 `api_key` 로 덮어쓰지 않습니다. Bearer 가 아닌
+  인증을 쓰는 게이트웨이를 위한 것입니다.
+- `thinking`·`thinking_dialect` 도 모든 항목이 받습니다. 다만 **기본값이 갈립니다** — 텍스트
+  계열(`toc`·`metadata`·`doc_summary`·`custom_fields`)은 `off`(추론 차단 토큰을 보냄),
+  이미지 계열(`image_description`·`table_description`·`page_description`)은 `auto`(아무것도
+  보내지 않음)입니다. 이미지 모델은 별도 서빙을 쓰는 현장이 많고 그 채팅 템플릿이 모르는
+  값을 받으면 요청이 실패할 수 있어, 명시하지 않으면 보내지 않습니다.
+- `concurrency` 만 예외입니다 — 설명 계열(이미지·표·페이지)만 읽습니다. 나머지 섹션은
+  문서 하나에 한 번씩만 호출하므로 동시 실행이라는 개념이 없습니다.
+- `max_tokens` 는 프리셋보다 각 블록에 두는 편이 안전합니다 — `table_text_description` 은
+  `completion_reserved_tokens` 와 짝을 맞춰야 배치 계산이 맞습니다. `page_description` 에서는
+  `0` 이 "상한 없음"이라 값을 보내지 않습니다.
+
+`enable`/`enabled`, `doc_type`, `config_file` 은 "이 블록을 어떻게 쓸지" 를 정하는 값이라
+프리셋에 적어도 주입되지 않습니다. 특히 `enable` 이 프리셋을 통해 퍼지면 그 프리셋을
+쓰는 항목이 한꺼번에 켜지기 때문입니다.
+
+> `layout.genos_layout` 과 `ocr.upstage` 는 주소 키 이름이 각각 `endpoint`,
+> `api_endpoint` 로 달라서 위 프리셋을 그대로 공유하지 않습니다. 그쪽 전용 프리셋을
+> 따로 정의하면 같은 방식으로 쓸 수 있습니다.
+
 ### 설정 항목 상세
 
 **OCR / 레이아웃 / PDF 파이프라인**
@@ -366,7 +461,7 @@ whisper:
 | `layout.genos_layout` | `max_completion_tokens` | `16384` | Layout LLM 최대 생성 토큰. 양의 정수, 유효하지 않거나 0 이하이면 16384로 대체 |
 | `layout.genos_layout` | `model` | `"dots-mocr"` | 서빙 모델명. 비어있으면 `dots-mocr` 폴백 |
 | `layout.genos_layout` | `timeout` | `3600` | VLM 요청 HTTP 타임아웃(초). 유효하지 않거나 0 이하이면 3600 폴백 |
-| `layout.genos_layout` | `retry_count` | `2` | 비정상(스키마 불일치 등) VLM 응답 재시도 횟수. 음수/오류 시 2 폴백 |
+| `layout.genos_layout` | `retry_count` | `2` | 일시적 전송 실패(429/502/503/504·연결 실패) 재시도 횟수. 폭주(`finish_reason=="length"`)와 읽기 타임아웃은 재시도하지 않고 `layout_only` 로 폴백합니다. 음수/오류 시 2 폴백 |
 | `layout.genos_layout` | `temperature` | `0.1` | 생성 샘플링 temperature. 음수/오류 시 0.1 폴백 |
 | `layout.genos_layout` | `top_p` | `0.9` | nucleus 샘플링 top_p. `0<top_p<=1` 아니면 0.9 폴백 |
 | `layout.genos_layout` | `repetition_penalty` | `1.15` | 토큰 반복(degeneration) 억제. `>0`, 유효하지 않으면 1.15 폴백. **자세한 사용은 아래 가이드 참조** |
@@ -379,7 +474,7 @@ whisper:
 
 #### `repetition_penalty` 사용 가이드
 
-**무엇을 막는가** — DotsOCR(VLM)이 OCR 도중 특정 토큰·구절에 갇혀, 같은 내용을 `max_completion_tokens`(기본 16384)에 도달할 때까지 끝없이 반복 생성하는 현상(*degeneration*, 반복 붕괴)을 억제합니다. 증상은 DEBUG 로그(`defaults.log_level: 5`)의 `dotsocr raw response (page=N, ...)` 출력에서 한 `text` 필드가 `"휴식, 휴식, 휴식, ..."`처럼 무한 반복되는 형태로 나타납니다. 이 반복이 **유효한 JSON 문자열 안**에 들어가면 파싱이 성공해 `retry_count` 재시도로도 걸러지지 않으므로, 생성 단계에서 억제하는 `repetition_penalty`가 1차 방어선입니다.
+**무엇을 막는가** — DotsOCR(VLM)이 OCR 도중 특정 토큰·구절에 갇혀, 같은 내용을 `max_completion_tokens`(기본 16384)에 도달할 때까지 끝없이 반복 생성하는 현상(*degeneration*, 반복 붕괴)을 억제합니다. 증상은 DEBUG 로그(`defaults.log_level: 5`)의 `dotsocr raw response (page=N, ...)` 출력에서 한 `text` 필드가 `"휴식, 휴식, 휴식, ..."`처럼 무한 반복되는 형태로 나타납니다. 이 반복이 **유효한 JSON 문자열 안**에 들어가면 파싱이 성공합니다. `retry_count` 재시도는 전송 실패에만 걸리므로 이 경우를 잡지 못하고, 생성 단계에서 억제하는 `repetition_penalty`가 1차 방어선입니다.
 
 **동작 원리** — 이미 생성된 토큰이 다시 나올 확률(logit)을 나눠 낮춥니다. `1.0`이면 페널티 없음(원본 모델 그대로), `1.0`보다 클수록 반복 억제가 강해집니다.
 

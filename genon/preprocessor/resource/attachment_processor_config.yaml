@@ -9,6 +9,17 @@ defaults:
   use_pdf_sdk: true
 
 # 포맷별 옵션 컨테이너
+# ── 모델 프리셋 ───────────────────────────────────────────────────────────────
+# 모델 한 벌(접속 정보 + 그 모델의 성질)을 이름 붙여 두고, 쓰는 자리에서는
+# `model_preset: <이름>` 한 줄로 부른다. 서빙 ID 나 키가 바뀌면 여기만 고치면 된다.
+# 블록에 url/api_key/model 을 직접 적는 기존 방식도 그대로 되며, 직접 적은 값이 우선한다.
+# 담을 수 있는 값과 자세한 규칙은 gitbook_doc/parser_processor.md 의 "모델 프리셋" 절 참고.
+model_presets:
+  page:
+    url: "http://llmops-gateway-api-service:8080/rep/serving/<PAGE_DESCRIPTION_SERVING_ID>/v1/chat/completions"
+    api_key: ""
+    model: "model"
+
 formats:
   # HWP/HWPX: SDK 백엔드 파싱 옵션
   hwp:
@@ -28,9 +39,7 @@ formats:
       # true 면 각 페이지를 렌더링해 VLM 설명(+native text 프롬프트 포함). false 면 파싱만 수행.
       enable: false
       # VLM(chat/completions) 엔드포인트
-      url: "http://llmops-gateway-api-service:8080/rep/serving/<PAGE_DESCRIPTION_SERVING_ID>/v1/chat/completions"
-      api_key: ""
-      model: "model"
+      model_preset: page
       timeout: 360
       concurrency: 32          # 페이지 설명 요청 병렬 수(속도↑; VLM 서버 처리량 한도 내)
       images_scale: 1.0        # 페이지 렌더 배율↓(payload·image token↓ → 추론↓)

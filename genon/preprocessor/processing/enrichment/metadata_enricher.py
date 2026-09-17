@@ -12,6 +12,7 @@ from docling.utils.llm_cache import async_cached_call, remaining_timeout
 from docling.utils.thinking import resolve_thinking_kwargs, strip_reasoning
 
 from genon.preprocessor.processing.common.markdown_export import export_markdown
+from genon.preprocessor.processing.common.model_params import build_chat_payload, resolve_headers
 
 from .base_enricher import BaseEnricher
 from .llm_response import post_chat_completion
@@ -49,12 +50,15 @@ class MetadataEnricher(BaseEnricher):
         template_mode: str = "strict",
         thinking: Optional[str] = "off",
         thinking_dialect: str = "standard",
+        params: Optional[dict] = None,
+        headers: Optional[dict] = None,
     ):
         self._url = url
         self._model = model
         self._max_tokens = max_tokens
         self._temperature = temperature
         self._timeout = timeout
+        self._params = dict(params or {})
         # thinking(추론) 모드. 기본 "off"(차단 토큰 전송). "auto"면 미전송(모델 자동 판단).
         self._thinking = str(thinking or "off").strip().lower()
         self._thinking_dialect = str(thinking_dialect or "standard").strip().lower()
@@ -73,9 +77,7 @@ class MetadataEnricher(BaseEnricher):
         )
         self._pages = pages  # None → 첫 4페이지 (docling 기존 동작)
 
-        self._headers: dict[str, str] = {"Content-Type": "application/json"}
-        if api_key:
-            self._headers["Authorization"] = f"Bearer {api_key}"
+        self._headers = resolve_headers({"headers": headers}, api_key)
 
         self._parser_base_dir = Path(config_dir).resolve() if config_dir else Path.cwd().resolve()
         self._parser_cfg = dict(parser or {})
@@ -231,15 +233,15 @@ class MetadataEnricher(BaseEnricher):
             messages.append({"role": "system", "content": system})
         messages.append({"role": "user", "content": prompt})
 
-        payload = {
-            "model": self._model,
-            "max_tokens": self._max_tokens,
-            "temperature": self._temperature,
-            "messages": messages,
-        }
         ctk = resolve_thinking_kwargs(self._thinking, self._thinking_dialect)
-        if ctk:
-            payload["chat_template_kwargs"] = ctk
+        payload = build_chat_payload(
+            model=self._model,
+            messages=messages,
+            max_tokens=self._max_tokens,
+            temperature=self._temperature,
+            params=self._params,
+            thinking_kwargs=ctk,
+        )
 
         async def _produce() -> str:
             # #329: llm_cache opt-in 시 캐시 경유. 미사용 시 기존과 동일.

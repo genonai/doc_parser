@@ -13,6 +13,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Optional
 
+from genon.preprocessor.processing.common.model_params import (
+    collect_generation_params,
+    resolve_thinking,
+)
+
 from .prompt_files import read_prompt_file
 from .table_text_context import merge_table_text_description
 
@@ -130,13 +135,11 @@ def _parse_thinking(opts: dict) -> "tuple[str, str]":
 
     thinking 미지정 → ("off", "standard"): 기본적으로 추론을 끈다(차단 토큰 전송).
     아무것도 안 보내려면(모델 자동 판단) thinking: auto 로 명시.
+
+    단위 테스트가 이 이름을 모듈 속성으로 참조하므로 남겨 두되, 실제 판정은
+    `model_params.resolve_thinking` 한 벌로 모은다(custom_fields_enricher/doc_summary 와 공유).
     """
-    raw = opts.get("thinking")
-    thinking = "off" if raw is None else str(raw).strip().lower()
-    dialect = str(opts.get("thinking_dialect", "standard") or "standard").strip().lower()
-    if dialect not in {"standard", "hcx"}:
-        dialect = "standard"
-    return thinking, dialect
+    return resolve_thinking(opts.get("thinking"), opts.get("thinking_dialect", "standard"))
 
 
 # enricher 이름 alias 매핑
@@ -218,7 +221,11 @@ def build_table_text_description_overrides(
                 loaded = load_custom_fields_config(
                     config_file, entry.get("resource_path") or str(config_dir)
                 )
-                normalized, _ = cv2.load(loaded, label=f"custom_fields({config_file})")
+                normalized, _ = cv2.load(
+                    loaded,
+                    label=f"custom_fields({config_file})",
+                    presets=entry.get("model_presets"),
+                )
                 local = merge_table_text_description(
                     local, _as_dict(normalized.get("table_text_description"))
                 )
@@ -260,6 +267,16 @@ class _TocConfig:
     split_pages_per_chunk: Optional[int] = None
     split_page_overlap: Optional[int] = None
     split_carryover_max_tokens: Optional[int] = None
+    # 나머지 섹션과 같은 공통 옵션. 호출이 docling 안에 있어 마지막까지 빠져 있었다.
+    params: dict = None
+    headers: dict = None
+    timeout: Optional[int] = None
+
+    def __post_init__(self):
+        if self.params is None:
+            self.params = {}
+        if self.headers is None:
+            self.headers = {}
 
 
 @dataclass
@@ -287,6 +304,8 @@ class _MetadataConfig:
     # 아무것도 안 보내려면(모델 자동 판단) thinking="auto".
     thinking: str = "off"
     thinking_dialect: str = "standard"
+    params: dict = None
+    headers: dict = None
 
     def __post_init__(self):
         if self.parser is None:
@@ -297,6 +316,10 @@ class _MetadataConfig:
             self.field_transforms = []
         if self.variables is None:
             self.variables = {}
+        if self.params is None:
+            self.params = {}
+        if self.headers is None:
+            self.headers = {}
 
 
 # ── Main dataclass ────────────────────────────────────────────────────────────
@@ -338,13 +361,13 @@ class EnrichmentConfig:
             parent_cfg: 최상위 config dict. Format A 에서 legacy top-level 키 fallback에 사용.
         """
         if isinstance(raw, list):
-            return cls._from_list(raw, config_dir)
+            return cls._from_list(raw, config_dir, _as_dict(parent_cfg))
         return cls._from_dict(_as_dict(raw), config_dir, _as_dict(parent_cfg))
 
     # ── Format B (list) ───────────────────────────────────────────────────────
 
     @classmethod
-    def _from_list(cls, items: list, config_dir: Path) -> "EnrichmentConfig":
+    def _from_list(cls, items: list, config_dir: Path, parent_cfg: dict) -> "EnrichmentConfig":
         toc_opts: dict = {}
         toc_enabled = False
         toc_precheck: dict = {}
@@ -410,6 +433,9 @@ class EnrichmentConfig:
                 if enabled and opts:
                     if "resource_path" not in opts:
                         opts["resource_path"] = str(config_dir)
+                    presets = parent_cfg.get("model_presets")
+                    if presets and "model_presets" not in opts:
+                        opts["model_presets"] = presets
                     custom_fields_cfgs.append(opts)
 
         # toc 는 별도 built-in default 가 없다 (없으면 docling 레이어가 자체 기본값 사용).
@@ -489,6 +515,9 @@ class EnrichmentConfig:
                 split_carryover_max_tokens=_parse_optional_int(
                     _as_dict(toc_opts.get("split")).get("carryover_max_tokens")
                 ),
+                params=collect_generation_params(toc_opts, label="toc"),
+                headers=_as_dict(toc_opts.get("headers")),
+                timeout=_parse_optional_int(toc_opts.get("timeout"), "toc.timeout"),
             ),
             metadata=_MetadataConfig(
                 do_metadata=metadata_enabled,
@@ -516,6 +545,8 @@ class EnrichmentConfig:
                 template_mode=meta_mode,
                 thinking=meta_thinking,
                 thinking_dialect=meta_thinking_dialect,
+                params=collect_generation_params(metadata_opts, label="metadata"),
+                headers=_as_dict(metadata_opts.get("headers")),
             ),
             doc_summary_cfg=doc_summary_cfg,
             image_description_cfg=image_desc_cfg,
@@ -571,9 +602,12 @@ class EnrichmentConfig:
             cf_list = [dict(_as_dict(c)) for c in raw_cf if isinstance(c, dict) and c]
         else:
             cf_list = []
+        _presets = parent_cfg.get("model_presets")
         for _cf in cf_list:
             if "resource_path" not in _cf:
                 _cf["resource_path"] = str(config_dir)
+            if _presets and "model_presets" not in _cf:
+                _cf["model_presets"] = _presets
         table_text_desc_cfg = _as_dict(cfg.get("table_text_description"))
         if table_text_desc_cfg:
             table_text_desc_cfg = dict(table_text_desc_cfg)
@@ -662,6 +696,9 @@ class EnrichmentConfig:
                 split_carryover_max_tokens=_parse_optional_int(
                     _as_dict(toc_cfg.get("split")).get("carryover_max_tokens")
                 ),
+                params=collect_generation_params(toc_cfg, label="toc"),
+                headers=_as_dict(toc_cfg.get("headers")),
+                timeout=_parse_optional_int(toc_cfg.get("timeout"), "toc.timeout"),
             ),
             metadata=_MetadataConfig(
                 do_metadata=bool(cfg.get("do_metadata", parent_cfg.get("do_metadata", True))),
@@ -700,6 +737,8 @@ class EnrichmentConfig:
                 template_mode=meta_mode,
                 thinking=meta_thinking,
                 thinking_dialect=meta_thinking_dialect,
+                params=collect_generation_params(meta_cfg, label="metadata"),
+                headers=_as_dict(meta_cfg.get("headers")),
             ),
             doc_summary_cfg=_as_dict(cfg.get("doc_summary")),
             image_description_cfg=_as_dict(cfg.get("image_description")),

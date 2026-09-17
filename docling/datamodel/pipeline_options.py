@@ -396,7 +396,15 @@ class GenosLayoutOptions(BaseModel):
     # 큐 대기 시간까지 포함되므로 너무 짧으면 정상 다(多)페이지 문서가 죽을 수 있어
     # 500~600 은 위험. 출력 잘림은 max_completion_tokens 가 정하지 timeout 이 아님.
     timeout: int = 1200
-    retry_count: int = 2  # Number of retries on abnormal VLM responses
+    # Retries on transient transport failures (429/502/503/504, connection errors).
+    # A runaway response (finish_reason == "length") or a read timeout is NOT retried - the
+    # same prompt would run away again, so those fall back to layout_only instead (#278).
+    retry_count: int = 2
+    # Retry policy hook. When set, the VLM call is run through this callable so the host
+    # application decides what counts as transient and how long to wait.
+    # Signature: (send: Callable[[], T], *, retries: int) -> T
+    # Left unset, the call runs once exactly as before.
+    retry_runner: Optional[Any] = None
     temperature: float = 0.1
     top_p: float = 0.9
     repetition_penalty: float = 1.15  # >1.0 to suppress VLM token-repetition degeneration
@@ -495,6 +503,17 @@ class DataEnrichmentOptions(BaseModel):
     # Use "auto" to send nothing (let the model decide).
     toc_thinking: Optional[str] = "off"
     toc_thinking_dialect: str = "standard"
+    # Extra request parameters merged into the payload verbatim. This has to live here rather
+    # than in the transport hook because the LLM cache key is (url, payload) - a sender that
+    # mutated the payload would let two different settings share one cache entry.
+    toc_params: Optional[Dict[str, Any]] = None
+    # Transport hook. When set, PromptManager hands the finished request to this callable
+    # instead of posting it itself, so the host application owns headers, timeout, retry and
+    # response handling while docling keeps deciding what to ask. Per category because the
+    # connection settings (key, headers, timeout) differ between TOC and metadata.
+    # Signature: (url: str, payload: dict, headers: dict) -> Optional[str]
+    # Left unset, the built-in requests path runs exactly as before.
+    toc_chat_sender: Optional[Any] = None
     # Preflight prompt-token guard options (TOC)
     toc_precheck_enabled: Optional[bool] = None
     toc_max_context_tokens: Optional[int] = None
@@ -526,6 +545,9 @@ class DataEnrichmentOptions(BaseModel):
     # Thinking(reasoning) mode. Default "off" (send the disable token). "auto" = send nothing.
     metadata_thinking: Optional[str] = "off"
     metadata_thinking_dialect: str = "standard"
+    # Extra request parameters merged into the payload verbatim (see toc_params).
+    metadata_params: Optional[Dict[str, Any]] = None
+    metadata_chat_sender: Optional[Any] = None  # see toc_chat_sender
     # Preflight prompt-token guard options (Metadata)
     metadata_precheck_enabled: Optional[bool] = None
     metadata_max_context_tokens: Optional[int] = None
