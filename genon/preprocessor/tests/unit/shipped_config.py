@@ -16,12 +16,25 @@ import yaml
 PREPROCESSOR_DIR = Path(__file__).resolve().parents[2]
 
 
+def _sibling_presets(path: Path) -> dict:
+    """같은 폴더의 프로세서 설정에서 `model_presets:` 를 읽는다.
+
+    자식 yaml 의 `model_preset:` 참조는 기동 때 프로세서 설정의 프리셋으로 펼쳐진다
+    (`EnrichmentConfig` 가 등록 블록에 실어 매퍼로 내린다). 여기서 프리셋을 주지 않으면
+    참조가 그대로 남아 "url 이 없다" 로 갈리므로, 검사도 같은 것을 보게 맞춘다.
+    """
+    config = Path(path).parent / "parser_processor_config.yaml"
+    if not config.exists():
+        return {}
+    return (yaml.safe_load(config.read_text(encoding="utf-8")) or {}).get("model_presets") or {}
+
+
 def load_shipped(path: Path) -> dict:
     """설정 파일 하나를 v1 형태 dict 로 읽는다."""
     from genon.preprocessor.processing.enrichment import config_v2 as cv2
 
     raw = yaml.safe_load(Path(path).read_text(encoding="utf-8")) or {}
-    return cv2.load(raw, label=Path(path).name)[0]
+    return cv2.load(raw, label=Path(path).name, presets=_sibling_presets(path))[0]
 
 
 def load_shipped_named(name: str, resource_dir: str = "resource") -> dict:

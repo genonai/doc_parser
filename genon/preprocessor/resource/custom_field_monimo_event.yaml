@@ -72,10 +72,9 @@
 #     concurrency: 4                       # 레코드 동시 호출 상한
 #     on_error: null                       # null(필드를 null 로 두고 진행) | skip_record
 #     # ── LLM 연결 ────────────────────────────────────────────────────────────
-#     # <ENRICHMENT_SERVING_ID>: Genos에 등록한 모델서빙 ID로 변경 필요. api_key 도 배포 시 설정.
-#     url: "http://llmops-gateway-api-service:8080/rep/serving/<ENRICHMENT_SERVING_ID>/v1/chat/completions"
-#     api_key: ""
-#     model: model
+#     # 접속 정보는 프로세서 설정 최상위 model_presets 에 모아 두고 여기서는 이름만 부른다.
+#     # 이 항목만 다른 모델을 쓰려면 url/api_key/model 을 직접 적는다(직접 적은 값이 이긴다).
+#     model_preset: default
 #     # ── LLM 생성 파라미터 ───────────────────────────────────────────────────
 #     # 요약본문이 임베딩 입력이므로 과도하게 길지 않게 잡는다.
 #     max_tokens: 1000

@@ -1103,7 +1103,8 @@ def test_shipped_configs_pass_startup_validation():
             else:
                 continue
             cls(config_file=opts["config_file"], resource_path=str(base),
-                doc_type=opts.get("doc_type"), extractor=extractor)
+                doc_type=opts.get("doc_type"), extractor=extractor,
+                model_presets=raw.get("model_presets"))
             built += 1
     assert built >= 10, f"검증 대상 매핑 설정이 너무 적다({built}개) — 등록을 확인하라"
 

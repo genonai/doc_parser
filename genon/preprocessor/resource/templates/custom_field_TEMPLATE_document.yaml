@@ -194,13 +194,11 @@ llm:
     type: json
 
   # ── LLM 연결 ─────────────────────────────────────────────────────────────
-  # <ENRICHMENT_SERVING_ID>: Genos에 등록한 모델서빙 ID 로 변경 필요.
-  # api_key 는 k8s 내부 통신 기반 모델 호출 시 불필요하다(배포 환경에 맞춰 설정).
+  # 접속 정보는 프로세서 설정 최상위 model_presets 에 모아 두고 여기서는 이름만 부른다.
+  # 이 항목만 다른 모델을 쓰려면 url/api_key/model 을 직접 적는다(직접 적은 값이 이긴다).
   # url 또는 model 이 비어 있으면 실행 시 경고를 남기고 이 enricher 를 건너뛴다.
   endpoint:
-    url: "http://llmops-gateway-api-service:8080/rep/serving/<ENRICHMENT_SERVING_ID>/v1/chat/completions"
-    api_key: ""
-    model: model
+    model_preset: default
 
   # ── 생성 파라미터 ────────────────────────────────────────────────────────
   # 생략 시 기본값: max_tokens 1000 / temperature 0.0 / timeout 60

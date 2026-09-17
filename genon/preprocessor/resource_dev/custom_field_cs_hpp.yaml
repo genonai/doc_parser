@@ -37,9 +37,7 @@ llm:
   parser:
     type: json
   endpoint:
-    url: https://genos.genon.ai/api/gateway/rep/serving/752/v1/chat/completions
-    api_key: d1a9e0acab6243019008a96cd8af868e
-    model: model
+    model_preset: default
   params:
     max_tokens: 4000
     temperature: 0.0

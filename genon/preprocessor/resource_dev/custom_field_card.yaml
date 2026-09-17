@@ -19,7 +19,8 @@
 # 이 파일은 parser_processor_config.yaml 과 동일 폴더(resource/)에 위치.
 # 인라인 블록에서 null 이 아닌 값을 지정하면 이 파일 값보다 우선한다.
 # ── LLM 연결 ────────────────────────────────────────────────────────────────
-# <ENRICHMENT_SERVING_ID>: Genos에 등록한 모델서빙 ID로 변경 필요. api_key 도 배포 시 설정.
+# 접속 정보는 프로세서 설정 최상위 model_presets 에 모아 두고 여기서는 이름만 부른다.
+# 이 항목만 다른 모델을 쓰려면 url/api_key/model 을 직접 적는다(직접 적은 값이 이긴다).
 # ── LLM 생성 파라미터 ────────────────────────────────────────────────────────
 # _text(원문) 필드가 길 수 있어 max_tokens 를 넉넉히 잡는다.
 # ── 입력 페이지 범위 ─────────────────────────────────────────────────────────
@@ -52,9 +53,7 @@ llm:
   parser:
     type: json
   endpoint:
-    url: https://genos.genon.ai/api/gateway/rep/serving/752/v1/chat/completions
-    api_key: d1a9e0acab6243019008a96cd8af868e
-    model: model
+    model_preset: default
   params:
     max_tokens: 4000
     temperature: 0.0
