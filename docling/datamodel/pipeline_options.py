@@ -495,6 +495,17 @@ class DataEnrichmentOptions(BaseModel):
     # Use "auto" to send nothing (let the model decide).
     toc_thinking: Optional[str] = "off"
     toc_thinking_dialect: str = "standard"
+    # Extra request parameters merged into the payload verbatim. This has to live here rather
+    # than in the transport hook because the LLM cache key is (url, payload) - a sender that
+    # mutated the payload would let two different settings share one cache entry.
+    toc_params: Optional[Dict[str, Any]] = None
+    # Transport hook. When set, PromptManager hands the finished request to this callable
+    # instead of posting it itself, so the host application owns headers, timeout, retry and
+    # response handling while docling keeps deciding what to ask. Per category because the
+    # connection settings (key, headers, timeout) differ between TOC and metadata.
+    # Signature: (url: str, payload: dict, headers: dict) -> Optional[str]
+    # Left unset, the built-in requests path runs exactly as before.
+    toc_chat_sender: Optional[Any] = None
     # Preflight prompt-token guard options (TOC)
     toc_precheck_enabled: Optional[bool] = None
     toc_max_context_tokens: Optional[int] = None
@@ -526,6 +537,9 @@ class DataEnrichmentOptions(BaseModel):
     # Thinking(reasoning) mode. Default "off" (send the disable token). "auto" = send nothing.
     metadata_thinking: Optional[str] = "off"
     metadata_thinking_dialect: str = "standard"
+    # Extra request parameters merged into the payload verbatim (see toc_params).
+    metadata_params: Optional[Dict[str, Any]] = None
+    metadata_chat_sender: Optional[Any] = None  # see toc_chat_sender
     # Preflight prompt-token guard options (Metadata)
     metadata_precheck_enabled: Optional[bool] = None
     metadata_max_context_tokens: Optional[int] = None

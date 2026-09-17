@@ -267,6 +267,16 @@ class _TocConfig:
     split_pages_per_chunk: Optional[int] = None
     split_page_overlap: Optional[int] = None
     split_carryover_max_tokens: Optional[int] = None
+    # 나머지 섹션과 같은 공통 옵션. 호출이 docling 안에 있어 마지막까지 빠져 있었다.
+    params: dict = None
+    headers: dict = None
+    timeout: Optional[int] = None
+
+    def __post_init__(self):
+        if self.params is None:
+            self.params = {}
+        if self.headers is None:
+            self.headers = {}
 
 
 @dataclass
@@ -505,6 +515,9 @@ class EnrichmentConfig:
                 split_carryover_max_tokens=_parse_optional_int(
                     _as_dict(toc_opts.get("split")).get("carryover_max_tokens")
                 ),
+                params=collect_generation_params(toc_opts, label="toc"),
+                headers=_as_dict(toc_opts.get("headers")),
+                timeout=_parse_optional_int(toc_opts.get("timeout"), "toc.timeout"),
             ),
             metadata=_MetadataConfig(
                 do_metadata=metadata_enabled,
@@ -683,6 +696,9 @@ class EnrichmentConfig:
                 split_carryover_max_tokens=_parse_optional_int(
                     _as_dict(toc_cfg.get("split")).get("carryover_max_tokens")
                 ),
+                params=collect_generation_params(toc_cfg, label="toc"),
+                headers=_as_dict(toc_cfg.get("headers")),
+                timeout=_parse_optional_int(toc_cfg.get("timeout"), "toc.timeout"),
             ),
             metadata=_MetadataConfig(
                 do_metadata=bool(cfg.get("do_metadata", parent_cfg.get("do_metadata", True))),

@@ -421,8 +421,8 @@ llm:
   이미지 계열(`image_description`·`table_description`·`page_description`)은 `auto`(아무것도
   보내지 않음)입니다. 이미지 모델은 별도 서빙을 쓰는 현장이 많고 그 채팅 템플릿이 모르는
   값을 받으면 요청이 실패할 수 있어, 명시하지 않으면 보내지 않습니다.
-- 예외가 둘 있습니다. `toc` 는 `params`·`headers`·`timeout` 을 받지 않고(호출이 docling 안에
-  있습니다), `concurrency` 는 설명 계열(이미지·표·페이지)만 읽습니다.
+- `concurrency` 만 예외입니다 — 설명 계열(이미지·표·페이지)만 읽습니다. 나머지 섹션은
+  문서 하나에 한 번씩만 호출하므로 동시 실행이라는 개념이 없습니다.
 - `max_tokens` 는 프리셋보다 각 블록에 두는 편이 안전합니다 — `table_text_description` 은
   `completion_reserved_tokens` 와 짝을 맞춰야 배치 계산이 맞습니다. `page_description` 에서는
   `0` 이 "상한 없음"이라 값을 보내지 않습니다.

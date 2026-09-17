@@ -148,6 +148,11 @@ class DocumentEnrichmentUtils:
                 toc_config["thinking"] = self.enrichment_options.toc_thinking
                 toc_config["thinking_dialect"] = self.enrichment_options.toc_thinking_dialect
 
+            if self.enrichment_options.toc_params:
+                toc_config["params"] = dict(self.enrichment_options.toc_params)
+            if self.enrichment_options.toc_chat_sender is not None:
+                toc_config["chat_sender"] = self.enrichment_options.toc_chat_sender
+
             custom_api_configs["toc_extraction"] = toc_config
 
         # Metadata API 설정
@@ -189,6 +194,11 @@ class DocumentEnrichmentUtils:
             if self.enrichment_options.metadata_thinking is not None:
                 metadata_config["thinking"] = self.enrichment_options.metadata_thinking
                 metadata_config["thinking_dialect"] = self.enrichment_options.metadata_thinking_dialect
+
+            if self.enrichment_options.metadata_params:
+                metadata_config["params"] = dict(self.enrichment_options.metadata_params)
+            if self.enrichment_options.metadata_chat_sender is not None:
+                metadata_config["chat_sender"] = self.enrichment_options.metadata_chat_sender
 
             custom_api_configs["metadata_extraction"] = metadata_config
             custom_api_configs["document_checking"] = metadata_config # 문서 품질 검사도 같은 설정 사용
