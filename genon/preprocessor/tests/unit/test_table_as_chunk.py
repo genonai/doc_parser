@@ -185,3 +185,26 @@ def test_sheet_tables_stay_one_chunk_each(module_name):
     # 서로 다른 시트의 표가 한 청크로 합쳐지지 않는다.
     assert not [t for t in texts
                 if f"{TABLE_MARKER}-1분기" in t and f"{TABLE_MARKER}-2분기" in t]
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("module_name", _CHUNKER_MODULES)
+def test_short_title_above_table_stays_with_it(module_name):
+    """표 바로 위 한 줄 제목 문단은 표 청크에 남는다(제목만 담긴 고아 청크 방지).
+
+    md/html 원천에서 섹션 제목이 `**제목**`/`<p><b>제목</b></p>` 로 오면 docling 이
+    섹션 헤더가 아니라 문단으로 내보내, 표와 갈라진 19자 청크가 생겼다.
+    """
+    module = pytest.importorskip(module_name, exc_type=ImportError)
+    core = pytest.importorskip("docling_core.types.doc", exc_type=ImportError)
+    doc = _text_table_text_doc()
+    title = "ㅁ 피해물이 상품인 경우 보상 기준"
+    doc.add_text(label=core.DocItemLabel.TEXT, text=title)
+    doc.add_table(data=doc.tables[0].data)
+    chunker = module.GenosSmartChunker(
+        max_tokens=4000, chunk_mode="split_only", tokenizer_type="char",
+        include_chunk_header=False)
+    texts = [chunk.text for chunk in chunker.chunk(dl_doc=doc, export_to_html=1)]
+
+    assert not [t for t in texts if t.strip() == title], "제목만 담긴 청크가 남았다"
+    assert [t for t in texts if title in t and TABLE_MARKER in t], "제목이 표와 분리됐다"

@@ -7,8 +7,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from genon.preprocessor.converters.hwp_to_pdf import rhwp as rhwp_mod
-from genon.preprocessor.converters.hwp_to_pdf.rhwp import RhwpConverter
+from genon.preprocessor.processing.converters.hwp_to_pdf import rhwp as rhwp_mod
+from genon.preprocessor.processing.converters.hwp_to_pdf.rhwp import RhwpConverter
 
 
 @pytest.fixture

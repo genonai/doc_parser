@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""main.py(/health, /parser, /chunker) 게이트웨이 테스트 스크립트.
+"""main.py(/health, /version, /parser, /chunker) 게이트웨이 테스트 스크립트.
 
 배포된 코드서빙(단일 서빙)의 게이트웨이를 통해 파싱·청킹 엔드포인트를 호출한다.
 게이트웨이 URL 패턴은 health curl 과 동일하다:
@@ -27,6 +27,9 @@ requests 등 외부 의존 없이 표준 라이브러리(urllib)만 사용한다
 실행 예:
     # 1) 헬스체크
     python serving_gateway_test.py --mode health
+
+    # 배포된 산출물의 버전/갱신일 확인
+    python serving_gateway_test.py --mode version
 
     # 2) 파싱 → 청킹 E2E (서버 접근 가능 경로 필요)
     python serving_gateway_test.py --mode e2e \
@@ -210,6 +213,14 @@ def do_health(args) -> int:
     return 0
 
 
+def do_version(args) -> int:
+    """배포된 산출물의 버전 스탬프 확인. source=file 이면 VERSION 스탬프,
+    git 이면 소스 저장소에서 직접 띄운 것, unknown 이면 스탬프가 실리지 않은 배포다."""
+    body = _request(args, "GET", "version")
+    print(f"[version] {json.dumps(body, ensure_ascii=False)}")
+    return 0
+
+
 def _handle_parser_data(args, data) -> dict:
     """파싱 응답(data)을 검증·출력하고(옵션 저장) chunker 로 forward 할 payload 를 반환한다.
 
@@ -365,10 +376,10 @@ def do_e2e(args) -> int:
 
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
-        description="main.py /health·/parser·/chunker 게이트웨이 테스트",
+        description="main.py /health·/version·/parser·/chunker 게이트웨이 테스트",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
-    p.add_argument("--mode", choices=["health", "run", "parser", "parser_upload", "chunker", "e2e"],
+    p.add_argument("--mode", choices=["health", "version", "run", "parser", "parser_upload", "chunker", "e2e"],
                    default="e2e", help="실행 모드")
     p.add_argument("--base-url", default=DEFAULT_BASE_URL, help="게이트웨이 base URL")
     p.add_argument("--serving-id", default=DEFAULT_SERVING_ID, help="코드서빙 id")
@@ -412,6 +423,8 @@ def main(argv=None) -> int:
         return 2
     if args.mode == "health":
         return do_health(args)
+    if args.mode == "version":
+        return do_version(args)
     if args.mode == "run":
         do_run(args)
         return 0

@@ -4,7 +4,7 @@ from dataclasses import dataclass
 
 import pytest
 
-from genon.preprocessor.facade.chunking.table_splitter import (
+from genon.preprocessor.processing.chunking.table_splitter import (
     ROW_LINES_LABEL,
     leading_header_row_count,
     split_entries_preserving_tables,
@@ -318,7 +318,7 @@ def test_render_table_emits_rowspan_once_instead_of_repeating_the_value():
     전체 표를 렌더할 때 그 복제를 그대로 내면 같은 값이 행마다 반복된다. 시작 행에서만
     ``rowspan`` 과 함께 내고 이어지는 행은 건너뛴다.
     """
-    from genon.preprocessor.facade.chunking.table_html import render_table
+    from genon.preprocessor.processing.chunking.table_html import render_table
 
     merged = Cell("연회비", 0, row_span=2, start_row_offset_idx=1)
     grid = [

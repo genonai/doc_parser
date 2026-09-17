@@ -9,10 +9,11 @@
 """
 
 import re
+from pathlib import Path
 
 import pytest
 
-from genon.preprocessor.facade.chunking import table_blocks as tb
+from genon.preprocessor.processing.chunking import table_blocks as tb
 
 pytestmark = pytest.mark.unit
 
@@ -201,3 +202,106 @@ def test_isolated_pieces_carry_the_section_heading():
     assert len(pieces) == 2
     assert pieces[0]["content"].startswith("## 일별 시세")
     assert pieces[1]["content"].startswith("## 일별 시세 (이어서)")
+
+
+# ── 표 바로 위 섹션 제목은 표와 같은 조각에 남는다 ──────────────────────────
+# 고객센터(화재) 원천의 `<p><b>ㅁ 소지품(보상가능)</b></p>` 처럼, 표를 설명하는 유일한
+# 문장이 표와 갈라진 청크로 나오던 결함을 고정한다.
+
+def test_bold_section_title_above_table_stays_with_the_table():
+    """줄 전체가 굵은 글씨인 제목은 표 조각의 선두로 옮긴다."""
+    body = f"휴대품\n\n**소지품(보상가능)**\n{MD_TABLE}"
+    pieces = tb.split_at_tables(body)
+    assert len(pieces) == 2
+    assert pieces[0] == "휴대품"
+    assert pieces[1].startswith("**소지품(보상가능)**")
+    assert MD_TABLE in pieces[1]
+
+
+def test_section_title_only_body_leaves_no_orphan_piece():
+    """제목이 표 앞 본문의 전부면 제목만 담긴 조각 자체가 생기지 않는다."""
+    pieces = tb.split_at_tables(f"**소지품(보상가능)**\n{HTML_TABLE}")
+    assert len(pieces) == 1
+    assert pieces[0].startswith("**소지품(보상가능)**")
+    assert HTML_TABLE in pieces[0]
+
+
+def test_markdown_heading_above_table_stays_with_the_table():
+    pieces = tb.split_at_tables(f"앞 문단입니다.\n## 일별 시세\n{MD_TABLE}")
+    assert pieces[0] == "앞 문단입니다."
+    assert pieces[1].startswith("## 일별 시세")
+
+
+def test_prose_line_above_table_is_not_taken_as_a_title():
+    """굵은 글씨가 섞인 본문 문장은 제목이 아니다 — 표 조각으로 끌어오지 않는다."""
+    body = f"**국내전용** 과 **해외겸용** 의 연회비는 아래와 같습니다.\n{MD_TABLE}"
+    pieces = tb.split_at_tables(body)
+    assert len(pieces) == 2
+    assert pieces[0].startswith("**국내전용**")
+    assert pieces[1] == MD_TABLE
+
+
+def test_long_bold_line_above_table_is_not_taken_as_a_title():
+    """제목이라기엔 긴 굵은 글씨 문단은 그대로 본문 조각에 둔다."""
+    body = f"**{'가' * 90}**\n{MD_TABLE}"
+    pieces = tb.split_at_tables(body)
+    assert len(pieces) == 2
+    assert pieces[1] == MD_TABLE
+
+
+def test_section_title_precedes_the_table_search_description():
+    """제목·설명이 함께 있으면 문서 순서대로 제목 → 설명 → 표."""
+    body = ("연회비 안내 문단입니다.\n"
+            "**연회비 비교**\n"
+            "[표 검색 설명]\n연회비 비교 표입니다.\n"
+            f"{HTML_TABLE}")
+    pieces = tb.split_at_tables(body)
+    assert len(pieces) == 2
+    assert pieces[0] == "연회비 안내 문단입니다."
+    assert pieces[1].startswith("**연회비 비교**\n[표 검색 설명]")
+    assert HTML_TABLE in pieces[1]
+
+
+def test_expand_elements_keeps_the_title_with_the_table_row():
+    """행 경로(custom_fields)에서도 같은 규칙이 성립한다 — chunk_prefix 는 조각마다 재부착."""
+    prefix = "카테고리: 자동차_담보\n제목: [보상콜] 휴대품과 소지품 보상 여부"
+    element = {
+        "category": "custom_fields_row",
+        "content": f"{prefix}\n휴대품\n\n**소지품(보상가능)**\n{MD_TABLE}",
+        "chunk_prefix": prefix,
+        "metadata": {},
+    }
+    pieces = tb.expand_elements([element])
+    assert len(pieces) == 2
+    assert pieces[0]["content"] == f"{prefix}\n휴대품"
+    assert pieces[1]["content"].startswith(f"{prefix}\n**소지품(보상가능)**")
+    assert MD_TABLE in pieces[1]["content"]
+
+
+def test_cs_ssf_sample_keeps_each_section_title_with_its_table():
+    """원천 샘플(고객센터 화재)에서 `ㅁ …` 제목 두 개가 각자의 표 조각에 실린다.
+
+    캡쳐로 보고된 결함 그대로의 문서다 — 탭 상자 아래 `<p><b>ㅁ 소지품(보상가능) 과
+    휴대품(보상불가)</b></p>` 와 표, Q&A 문단, 그리고 `<p><b>ㅁ 피해물이 상품인 경우
+    보상 기준</b></p>` 와 두 번째 표. 원천 → 평문화 → 표 분리까지 실제 경로로 확인한다.
+    """
+    from genon.preprocessor.processing.converters.delimited_text import parse_spec, read_records
+    from genon.preprocessor.processing.enrichment.json_records import html_to_text
+
+    sample = (Path(__file__).resolve().parents[2]
+              / "sample_files" / "monimo" / "monimo_cs_ssf_table_title_sample.dtms")
+    spec = parse_spec({"separator": "|@|",
+                       "columns": ["대분류", "중분류", "소분류", "제목", "내용"]})
+    records = read_records(str(sample), spec)
+    assert len(records) == 1
+
+    text = html_to_text(records[0]["내용"], table_format="markdown")
+    pieces = tb.split_at_tables(text)
+    table_pieces = [p for p in pieces if tb.has_table(p)]
+    assert len(table_pieces) == 2
+    assert table_pieces[0].startswith("**ㅁ 소지품")
+    assert "소지품(보상가능)" in table_pieces[0].replace(" ", "")
+    assert table_pieces[1].startswith("**ㅁ 피해물이 상품인 경우 보상 기준**")
+    # 제목만 담긴 조각이 남지 않는다 — 탭 이름 줄과 Q&A 문단만 표 밖에 있다.
+    assert all("ㅁ 소지품" not in p and "ㅁ 피해물이" not in p
+               for p in pieces if p not in table_pieces)

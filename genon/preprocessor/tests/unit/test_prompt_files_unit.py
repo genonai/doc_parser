@@ -5,14 +5,14 @@
 - built-in default system prompt fallback
 - has_custom_metadata 게이트 플래그
 
-순수 로직(facade.enrichment.*)만 import 하므로 docling/httpx 없이 실행된다.
+순수 로직(processing.enrichment.*)만 import 하므로 docling/httpx 없이 실행된다.
 """
 from pathlib import Path
 
 import pytest
 
-from facade.enrichment.prompt_files import resolve_prompt_path, read_prompt_file
-from facade.enrichment.enrichment_config import (
+from processing.enrichment.prompt_files import resolve_prompt_path, read_prompt_file
+from processing.enrichment.enrichment_config import (
     EnrichmentConfig,
     _resolve_prompt,
     _DEFAULT_METADATA_SYSTEM_PROMPT,

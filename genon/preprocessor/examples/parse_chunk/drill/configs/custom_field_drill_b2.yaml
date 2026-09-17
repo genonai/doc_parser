@@ -1,0 +1,9 @@
+# B2 동적 키 — 상품코드가 key. json_semantic 은 key 이름을 모른 채 전수 순회한다.
+schema: v2
+source:
+  kind: sections
+fields:
+  DOC_TITLE: {const: "상품 목록"}
+  BIZ_ID:    {alias: [id, productId], default: null}
+body:
+  labels: {DOC_TITLE: 문서}

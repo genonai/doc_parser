@@ -17,7 +17,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-from genon.preprocessor.facade.chunking import text_norm as tn
+from genon.preprocessor.processing.chunking import text_norm as tn
 
 pytestmark = pytest.mark.unit
 
@@ -210,14 +210,15 @@ def _make_processor(tmp_path: Path, text_cleanup):
         pytest.skip(f"DocumentProcessor init unavailable: {e}")
 
 
-def test_rules_are_reflected_in_chunk_text_and_stats(tmp_path):
+@pytest.mark.asyncio
+async def test_rules_are_reflected_in_chunk_text_and_stats(tmp_path):
     """규칙은 청킹 **입력**에 걸린다 — 삭제가 청크 본문과 n_char 에 반영돼야 한다.
 
     출력 직전에 걸면 경계와 통계가 이미 확정된 뒤라 삭제량만큼 청크가 작아지고
     통계가 본문과 어긋난다.
     """
     proc = _make_processor(tmp_path, RULES_CFG)
-    vectors = proc._chunk_parse_format(
+    vectors = await proc._chunk_parse_format(
         [{"content": "목차\n본문 [이미지1] 끝", "page": 1, "category": "text"}]
     )
 
@@ -227,10 +228,11 @@ def test_rules_are_reflected_in_chunk_text_and_stats(tmp_path):
     assert vectors[0].n_char == len(text)
 
 
-def test_chunk_rule_drops_the_whole_chunk(tmp_path):
+@pytest.mark.asyncio
+async def test_chunk_rule_drops_the_whole_chunk(tmp_path):
     """`chunk` 규칙에 걸린 청크는 벡터가 되지 않고, 남은 인덱스도 연속이다."""
     proc = _make_processor(tmp_path, RULES_CFG)
-    vectors = proc._chunk_parse_format([
+    vectors = await proc._chunk_parse_format([
         {"content": "첫 청크", "page": 1, "category": "text"},
         {"content": "본 문서는 참고용이며 실제 적용은 인사규정을 따른다.", "page": 2, "category": "text"},
         {"content": "셋째 청크", "page": 3, "category": "text"},
@@ -241,10 +243,11 @@ def test_chunk_rule_drops_the_whole_chunk(tmp_path):
     assert all(v.n_chunk_of_doc == 2 for v in vectors)
 
 
-def test_no_rules_leaves_output_unchanged(tmp_path):
+@pytest.mark.asyncio
+async def test_no_rules_leaves_output_unchanged(tmp_path):
     """기본(규칙 없음)이면 산출이 바뀌지 않는다 — 재색인 영향 없음의 근거다."""
     proc = _make_processor(tmp_path, "safe")
-    vectors = proc._chunk_parse_format(
+    vectors = await proc._chunk_parse_format(
         [{"content": "목차\n본문 [이미지1] 끝", "page": 1, "category": "text"}]
     )
 

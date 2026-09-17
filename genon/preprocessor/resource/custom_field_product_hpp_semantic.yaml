@@ -1,10 +1,3 @@
-# ─────────────────────────────────────────────────────────────────────────
-#  v2 스키마로 자동 변환된 설정입니다.
-#
-#  자동 변환은 **값만** 옮깁니다. 아래는 원본 v1 의 주석 전문이며, 필요한 설명을 각
-#  필드 스펙 옆으로 손수 옮긴 뒤 이 블록을 지우세요. 주석이 사라지면 왜 그런 설정인지
-#  아는 사람이 없어집니다.
-# ─────────────────────────────────────────────────────────────────────────
 # ═══════════════════════════════════════════════════════════════════════════
 #  삼성카드 WCMS 상품 JSON → 검색 청크   (extractor: json_semantic)
 #
@@ -73,7 +66,7 @@
 # 여기는 "원천에 없어서 판단이 필요한 것"만 적는다.
 #
 # 호출 횟수는 **문서 1건당 1회**다(청크 개수와 무관하다).
-# url·api_key·프롬프트 작성법은 templates/custom_field_TEMPLATE_json.yaml 을 참고한다.
+# url·api_key·프롬프트 작성법은 templates/custom_field_TEMPLATE_records.yaml 을 참고한다.
 #
 # input_fields 에는 shared_fields 의 목표필드명, 문서 전체(`PRODUCT_INFO`), 또는
 # **JSON 의 key 이름**(`feeUrl`, `htmlList` …)을 적는다. 세 번째가 보통 정답이다 —
@@ -93,7 +86,7 @@
 #      SP=$(ls -d genon/preprocessor/.venv/lib/python*/site-packages)
 #      PYTHONPATH="$PWD:$SP" .venv/bin/python -c "
 #    import json
-#    from genon.preprocessor.facade.enrichment.json_semantic import SemanticJsonMapper as M
+#    from genon.preprocessor.processing.enrichment.json_semantic import SemanticJsonMapper as M
 #    m = M(config_file='custom_field_product_hpp_semantic.yaml',
 #          resource_path='genon/preprocessor/resource',
 #          doc_type='product_hpp', extractor='json_semantic')

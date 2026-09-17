@@ -35,8 +35,8 @@ import pytest
 # monkeypatch 대상 모듈 객체가 필요하므로 fixture 가 아니라 모듈 단위로 import 한다.
 attachment = pytest.importorskip("facade.attachment_processor")
 
-from genon.preprocessor.converters.hwp_to_pdf import convert_hwp_to_pdf  # noqa: E402
-from genon.preprocessor.converters.hwp_to_pdf.config import _AVAILABILITY  # noqa: E402
+from genon.preprocessor.processing.converters.hwp_to_pdf import convert_hwp_to_pdf  # noqa: E402
+from genon.preprocessor.processing.converters.hwp_to_pdf.config import _AVAILABILITY  # noqa: E402
 
 _PREPROC = Path(__file__).resolve().parents[2]
 SAMPLE = _PREPROC / "sample_files" / "hwp_sample_table.hwp"

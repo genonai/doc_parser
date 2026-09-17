@@ -1,0 +1,14 @@
+# B13 null 값과 결측 키 — default / require 상호작용.
+schema: v2
+source:
+  kind: records
+  records_at: rows
+fields:
+  NAME:  {alias: [name]}
+  MEMO:  {alias: [memo], default: "(메모 없음)"}
+  STATE: {alias: [state], values: {"Y": [사용], "N": [미사용]}}
+require:
+  fields: [NAME]
+body:
+  fields: [NAME, MEMO]
+  labels: {NAME: 이름, MEMO: 메모}

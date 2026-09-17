@@ -9,8 +9,8 @@ import textwrap
 
 import pytest
 
-from genon.preprocessor.facade.enrichment.json_records import JsonRecordsMapper
-from genon.preprocessor.facade.enrichment.tabular_custom_fields import (
+from genon.preprocessor.processing.enrichment.json_records import JsonRecordsMapper
+from genon.preprocessor.processing.enrichment.tabular_custom_fields import (
     TabularCustomFieldsMapper,
     claimed_row_pages,
     merge_parse_formats,
@@ -36,10 +36,15 @@ _TWO_SHEETS = {"data": [
 def test_mapper_skips_tables_it_cannot_handle(tmp_path):
     """매퍼가 여럿일 때 못 맡는 표는 건너뛴다 — 다른 매퍼가 맡는다."""
     faq = _tabular(tmp_path, "custom_field_faq.yaml", """
-        column_map: {QUESTION: [질문], ANSWER: [답변]}
-        required: [QUESTION]
-        constants: {KIND: FAQ}
-        text_fields: [QUESTION]
+        schema: v2
+        source: {kind: rows}
+        fields:
+          QUESTION: {alias: [질문]}
+          ANSWER:   {alias: [답변]}
+          KIND:     {const: FAQ}
+        require: {fields: [QUESTION]}
+        body:
+          fields: [QUESTION]
     """)
     rows = faq.build_fields(_TWO_SHEETS, "mixed", skip_unmapped=True)
     assert [r["KIND"] for r in rows] == ["FAQ"]
@@ -49,9 +54,13 @@ def test_mapper_skips_tables_it_cannot_handle(tmp_path):
 def test_single_mapper_still_fails_on_missing_required_column(tmp_path):
     """매퍼가 하나면 종전대로 하드 에러다 — 원천 스키마가 바뀐 신호를 삼키면 안 된다."""
     faq = _tabular(tmp_path, "custom_field_faq.yaml", """
-        column_map: {QUESTION: [질문]}
-        required: [QUESTION]
-        text_fields: [QUESTION]
+        schema: v2
+        source: {kind: rows}
+        fields:
+          QUESTION: {alias: [질문]}
+        require: {fields: [QUESTION]}
+        body:
+          fields: [QUESTION]
     """)
     with pytest.raises(ValueError, match="필수 Excel 컬럼"):
         faq.build_fields(_TWO_SHEETS, "mixed")
@@ -60,16 +69,26 @@ def test_single_mapper_still_fails_on_missing_required_column(tmp_path):
 def test_two_mappers_cover_two_schemas(tmp_path):
     """각 매퍼가 자기 표만 맡고 결과가 합쳐진다."""
     faq = _tabular(tmp_path, "custom_field_faq.yaml", """
-        column_map: {QUESTION: [질문], ANSWER: [답변]}
-        required: [QUESTION]
-        constants: {KIND: FAQ}
-        text_fields: [QUESTION, ANSWER]
+        schema: v2
+        source: {kind: rows}
+        fields:
+          QUESTION: {alias: [질문]}
+          ANSWER:   {alias: [답변]}
+          KIND:     {const: FAQ}
+        require: {fields: [QUESTION]}
+        body:
+          fields: [QUESTION, ANSWER]
     """)
     term = _tabular(tmp_path, "custom_field_term.yaml", """
-        column_map: {TERM: [용어], DEFINITION: [정의]}
-        required: [TERM]
-        constants: {KIND: TERM}
-        text_fields: [TERM, DEFINITION]
+        schema: v2
+        source: {kind: rows}
+        fields:
+          TERM:       {alias: [용어]}
+          DEFINITION: {alias: [정의]}
+          KIND:       {const: TERM}
+        require: {fields: [TERM]}
+        body:
+          fields: [TERM, DEFINITION]
     """)
     merged = merge_parse_formats([
         m.to_parse_format_from_fields(
@@ -95,16 +114,23 @@ def test_json_mappers_split_by_records_key(tmp_path):
         "noticeList": [{"title": "점검 안내"}],
     }
     faq = build("custom_field_faq.yaml", """
-        records: faqList
-        key_map: {QUESTION: [question], ANSWER: [answer]}
-        constants: {KIND: FAQ}
-        text_fields: [QUESTION]
+        schema: v2
+        source: {kind: records, records_at: faqList}
+        fields:
+          QUESTION: {alias: [question]}
+          ANSWER:   {alias: [answer]}
+          KIND:     {const: FAQ}
+        body:
+          fields: [QUESTION]
     """)
     notice = build("custom_field_notice.yaml", """
-        records: noticeList
-        key_map: {TITLE: [title]}
-        constants: {KIND: NOTICE}
-        text_fields: [TITLE]
+        schema: v2
+        source: {kind: records, records_at: noticeList}
+        fields:
+          TITLE: {alias: [title]}
+          KIND:  {const: NOTICE}
+        body:
+          fields: [TITLE]
     """)
     merged = merge_parse_formats([
         m.to_parse_format(m.build_fields(payload, "mixed"), "mixed") for m in (faq, notice)
@@ -138,7 +164,7 @@ def test_json_mapper_list_tolerates_semantic_mappers():
     담기 때문이다. 그쪽은 `records_key` 가 없어, 속성을 그냥 읽으면 product_hpp 처리가
     통째로 죽는다(실제로 그렇게 깨뜨렸다가 doc_type 검증에서 잡혔다).
     """
-    from genon.preprocessor.facade.enrichment.json_semantic import SemanticJsonMapper
+    from genon.preprocessor.processing.enrichment.json_semantic import SemanticJsonMapper
 
     semantic = object.__new__(SemanticJsonMapper)   # __init__ 우회 — 속성 부재 상황 재현
     assert getattr(semantic, "records_key", None) is None
@@ -177,9 +203,14 @@ def test_claimed_row_pages_reports_only_tables_that_produced_records(tmp_path):
     않는데 로그에 아무 흔적이 없어서, 나중에 데이터에서 "몇 건이 왜 없지"로 발견하게 된다.
     """
     faq = _tabular(tmp_path, "custom_field_faq.yaml", """
-        column_map: {QUESTION: [질문], ANSWER: [답변]}
-        required: [QUESTION]
-        text_fields: [QUESTION]
+        schema: v2
+        source: {kind: rows}
+        fields:
+          QUESTION: {alias: [질문]}
+          ANSWER:   {alias: [답변]}
+        require: {fields: [QUESTION]}
+        body:
+          fields: [QUESTION]
     """)
     rows = faq.build_fields(_TWO_SHEETS, "mixed", skip_unmapped=True)
 
@@ -188,9 +219,13 @@ def test_claimed_row_pages_reports_only_tables_that_produced_records(tmp_path):
 
     # 두 표를 다 맡는 매퍼라면 두 페이지가 모두 잡힌다.
     both = _tabular(tmp_path, "custom_field_both.yaml", """
-        column_map: {A: [질문, 용어]}
-        required: [A]
-        text_fields: [A]
+        schema: v2
+        source: {kind: rows}
+        fields:
+          A: {alias: [질문, 용어]}
+        require: {fields: [A]}
+        body:
+          fields: [A]
     """)
     assert claimed_row_pages(both.build_fields(_TWO_SHEETS, "mixed", skip_unmapped=True)) == {1, 2}
 

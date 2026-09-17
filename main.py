@@ -26,6 +26,7 @@ from utils import make_success_response
 from config import cors_config
 from common.exception import GenosServiceException
 from common.settings import settings
+from common.version_info import get_version_info
 from util.minio_resource import download_resource_files
 
 sys.path.append(os.path.dirname(__file__) + '/util')
@@ -120,6 +121,14 @@ async def exception_handler(request, exc: Exception):
 @app.get('/health')
 async def health() -> object:
     return {'status': 'ok'}
+
+
+# 배포된 산출물이 자기 버전을 보고한다. 값은 배포 시 생성되는 루트 VERSION 스탬프에서 읽고,
+# 소스 저장소에서 직접 띄운 경우엔 git 으로 폴백한다(common/version_info.py).
+# /health 는 프로브가 자주 때리므로 응답 계약을 늘리지 않고 별도 경로로 분리한다.
+@app.get('/version')
+async def version() -> object:
+    return get_version_info(BASE_DIR)
 
 
 if settings.PREPROCESSOR_ID:

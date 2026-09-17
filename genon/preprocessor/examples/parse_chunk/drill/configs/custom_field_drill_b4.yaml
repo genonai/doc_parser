@@ -1,0 +1,16 @@
+# B4 조건부 선택 — 형제 type 값에 따라 본문이 plainBody / htmlBody 로 갈린다.
+# 배타적(하나는 항상 null)이므로 template 결합으로 우회할 수 있는지 본다.
+schema: v2
+source:
+  kind: records
+  records_at: noticeList
+fields:
+  SUBJECT:    {alias: [subject]}
+  KIND:       {alias: [type]}
+  PLAIN:      {alias: [plainBody]}
+  HTML_RAW:   {alias: [htmlBody]}
+  HTML_TEXT:  {alias: [htmlBody], transform: html_text}
+  BODY:       {template: "{{PLAIN}}{{HTML_TEXT}}"}
+body:
+  fields: [SUBJECT, BODY]
+  labels: {SUBJECT: 제목, BODY: 본문}

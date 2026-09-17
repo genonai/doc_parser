@@ -15,9 +15,9 @@ from docling_core.types.doc import (
     TableData,
 )
 
-from genon.preprocessor.facade.enrichment.custom_fields_enricher import CustomFieldsEnricher
-from genon.preprocessor.facade.enrichment.field_transforms import extract_metadata_from_document
-from genon.preprocessor.facade.enrichment.table_description import TableDescriptionExtractor
+from genon.preprocessor.processing.enrichment.custom_fields_enricher import CustomFieldsEnricher
+from genon.preprocessor.processing.enrichment.field_transforms import extract_metadata_from_document
+from genon.preprocessor.processing.enrichment.table_description import TableDescriptionExtractor
 
 
 SAMPLE_DIR = Path(__file__).resolve().parents[1] / "fixtures" / "table_text_description"
@@ -61,6 +61,9 @@ def test_multiple_tables_share_one_custom_fields_llm_call_and_are_annotated():
         url="http://llm.invalid/v1/chat/completions",
         model="test-model",
         output_fields=["document_kind"],
+        # 표 2개가 한 호출을 공유하려면 그만한 응답 예산이 있어야 한다 — 배치 크기는
+        # 입력뿐 아니라 max_tokens 가 감당하는 표 개수로도 끊긴다.
+        max_tokens=8000,
         table_text_description={
             "enabled": True, "before_items": 2, "after_items": 1,
             "prompt_template": TEST_TABLE_PROMPT,
@@ -149,6 +152,7 @@ def test_actual_md_html_samples_parse_describe_once_and_chunk(
         url="http://llm.invalid/v1/chat/completions",
         model="test-model",
         output_fields=["document_kind"],
+        max_tokens=8000,   # 표 2개를 한 호출에 담을 응답 예산
         table_text_description={
             "enabled": True, "input_format": input_format,
             "prompt_template": TEST_TABLE_PROMPT,
@@ -196,9 +200,13 @@ def test_actual_md_html_samples_parse_describe_once_and_chunk(
 def test_doc_type_yaml_overrides_processor_common_table_text_description(tmp_path):
     """문서유형 YAML 값이 프로세서 공통값을 덮고, rag 하위는 키 단위로 병합된다."""
     (tmp_path / "cf.yaml").write_text(
-        "url: http://llm.invalid\n"
-        "model: test-model\n"
-        "output_fields: [document_kind]\n"
+        "schema: v2\n"
+        "source:\n  kind: document\n"
+        "llm:\n"
+        "  - endpoint:\n"
+        "      url: http://llm.invalid\n"
+        "      model: test-model\n"
+        "    out: [document_kind]\n"
         "table_text_description:\n"
         "  enabled: true\n"
         "  prompt_template: 문서유형 프롬프트\n"
@@ -259,6 +267,44 @@ def test_custom_fields_survive_table_batch_failure():
 
     assert extract_metadata_from_document(doc)["document_kind"] == "상품 안내"
     assert TableDescriptionExtractor.retrieval_text(doc.tables[0]) == ""
+
+
+@pytest.mark.unit
+def test_document_keeps_descriptions_when_one_batch_fails():
+    """문서 경로(describe_tables_only)에서 배치 하나가 실패해도 성공분은 문서에 남는다.
+
+    strict 정책에서는 여기서 예외가 올라가면 문서 전체가 실패해, 이미 부착한 설명까지
+    함께 버려진다. 표 설명은 부가 기능이므로 부분 성공으로 진행한다.
+    """
+    doc = _document_with_two_tables()
+    enricher = CustomFieldsEnricher(
+        url="http://llm.invalid", model="test-model", output_fields=[],
+        table_text_description={
+            "enabled": True, "prompt_template": TEST_TABLE_PROMPT,
+            "max_context_tokens": 1200, "completion_reserved_tokens": 0,
+        },
+    )
+    calls = {"n": 0}
+
+    async def fake_call(raw_text, document=None, user_suffix=""):
+        calls["n"] += 1
+        if calls["n"] == 2:
+            raise RuntimeError("표 배치 호출 실패")
+        ids = re.findall(r'id="(table_\d+)"', user_suffix or "")
+        return json.dumps({"_table_descriptions": [
+            {"table_id": table_id, "retrieval_context": f"{table_id} 설명",
+             "key_facts": [], "search_terms": []}
+            for table_id in ids
+        ]}, ensure_ascii=False)
+
+    enricher._call_llm = fake_call
+    asyncio.run(enricher.describe_tables_only(doc))  # 예외 없이 끝나야 한다
+
+    described = [
+        bool(TableDescriptionExtractor.retrieval_text(table)) for table in doc.tables
+    ]
+    assert calls["n"] == 2, "표 2개가 배치 2개로 나뉘어야 하는 전제"
+    assert sum(described) == 1, "성공한 배치의 설명만 남는다"
 
 
 @pytest.mark.unit

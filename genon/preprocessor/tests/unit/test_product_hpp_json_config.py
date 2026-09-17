@@ -10,7 +10,7 @@ config_file: custom_field_product_hpp_semantic.yaml 을 가리키도록 바뀌�
 import json
 from pathlib import Path
 
-from genon.preprocessor.facade.enrichment.json_semantic import SemanticJsonMapper
+from genon.preprocessor.processing.enrichment.json_semantic import SemanticJsonMapper
 
 PREPROCESSOR_DIR = Path(__file__).resolve().parents[2]
 RESOURCE_DIR = PREPROCESSOR_DIR / "resource"

@@ -43,5 +43,8 @@ require:
   fields: [GROUP_C, TERM, TERM_NORM, DEFINITION]
 body:
   fields: [TERM, DEFINITION]
+  labels:
+    TERM: 용어
+    DEFINITION: 설명
   split: true
   repeat: [TERM]

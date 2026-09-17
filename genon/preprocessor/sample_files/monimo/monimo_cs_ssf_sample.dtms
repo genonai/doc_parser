@@ -1,0 +1,63 @@
+자동차|@|담보|@||@|[보상콜] 휴대품과 소지품 보상 여부 및 미수선/추정 수리비|@|"<style> .tab-box { WIDTH: 1000px; MARGIN-TOP: 15px; POSITION: relative }
+</style>
+<div class=""tab-box""><a class=""tabLk activeLk"" href=""#"">휴대품</a></div>
+<p style=""margin: 0px;""><b><span style=""font-size: 10pt;"">소지품(보상가능)</span></b></p>
+<table style=""background: white; border-collapse: collapse;"" border=""1"" cellspacing=""0"">
+<tbody>
+<tr style=""height: 37px;"">
+<td style=""background: rgb(91, 194, 231); padding: 2px; width: 81px;"">
+<p align=""center"" style=""margin: 0px;""><b><span style=""font-size: 10pt;"">구 분</span></b></p></td>
+<td style=""background: rgb(91, 194, 231); padding: 2px;"">
+<p align=""center"" style=""margin: 0px;""><b><span style=""font-size: 10pt;"">내&nbsp;용</span></b></p></td>
+</tr>
+<tr style=""height: 118px;"">
+<td style=""padding: 2px; width: 81px;"">
+<p align=""center"" style=""margin: 0px;""><b><span style=""font-size: 10pt;"">소지품</span></b></p></td>
+<td style=""padding: 2px; width: 818px;"">
+<p style=""margin: 0px; line-height: 150%;""><span style=""font-size: 10pt;"">휴대품을 제외한 물품으로 장착되어 있지 않고 휴대가 쉽게 분리될 수 없는 상태</span></p></td>
+</tr>
+<tr style=""height: 93px;"">
+<td style=""padding: 2px; width: 81px;"">
+<p align=""center"" style=""margin: 0px;""><b><span style=""font-size: 10pt;"">면책</span></b></p></td>
+<td style=""padding: 2px; width: 818px;"">
+<p style=""margin: 0px; line-height: 150%;""><span style=""font-size: 10pt;"">상품 판매를 목적으로 한 탑승자와 통행인의 훼손된 소지품</span></p></td>
+</tr>
+</tbody>
+</table>
+"
+화재|@|보상|@|누수|@|[보상콜] 누수 사고 보상 범위|@|"<style> .tab-box { WIDTH: 1000px; MARGIN-TOP: 15px; POSITION: relative }
+</style>
+<div class=""tab-box""><a class=""tabLk activeLk"" href=""#"">누수</a></div>
+<p style=""margin: 0px;""><b><span style=""font-size: 10pt;"">누수피해(보상가능)</span></b></p>
+<table style=""background: white; border-collapse: collapse;"" border=""1"" cellspacing=""0"">
+<tbody>
+<tr style=""height: 37px;"">
+<td style=""background: rgb(91, 194, 231); padding: 2px; width: 81px;"">
+<p align=""center"" style=""margin: 0px;""><b><span style=""font-size: 10pt;"">구 분</span></b></p></td>
+<td style=""background: rgb(91, 194, 231); padding: 2px;"">
+<p align=""center"" style=""margin: 0px;""><b><span style=""font-size: 10pt;"">내&nbsp;용</span></b></p></td>
+</tr>
+<tr style=""height: 118px;"">
+<td style=""padding: 2px; width: 81px;"">
+<p align=""center"" style=""margin: 0px;""><b><span style=""font-size: 10pt;"">보상</span></b></p></td>
+<td style=""padding: 2px; width: 818px;"">
+<p style=""margin: 0px; line-height: 150%;""><span style=""font-size: 10pt;"">배관 노후로 인한 누수로 아래층에 발생한 재산 피해</span></p></td>
+</tr>
+<tr style=""height: 93px;"">
+<td style=""padding: 2px; width: 81px;"">
+<p align=""center"" style=""margin: 0px;""><b><span style=""font-size: 10pt;"">면책</span></b></p></td>
+<td style=""padding: 2px; width: 818px;"">
+<p style=""margin: 0px; line-height: 150%;""><span style=""font-size: 10pt;"">관리 소홀이 명백하거나 고의로 방치한 경우</span></p></td>
+</tr>
+</tbody>
+</table>
+"
+일반|@|계약|@|해지|@|[계약] 중도 해지 시 환급금 안내|@|"<p>중도 해지 시 환급금은 <b>해지환급금표</b>에 따라 산출됩니다.</p>
+"
+자동차|@|사고|@|접수|@|[안내] 사고 접수 시 필요 서류|@|"<p>접수 시 <span style=""color: red;"">""사고사실확인원""</span> 이 필요합니다.</p>
+<ul>
+<li>보험금청구서</li>
+<li>신분증 사본</li>
+<li>수리 견적서</li>
+</ul>
+"

@@ -9,6 +9,9 @@ formats:
   # 파싱용 사본을 오른쪽 확장자 이름으로 만들어 넘기므로 이후 처리는 그 포맷과 동일하다.
   extension_aliases:
     ".parsed": ".md"
+    # 고객센터(화재) 구분자 원천. 내용은 |@| 구분 텍스트지만 레코드 매핑 경로를 타야 하므로
+    # json 으로 본다(실제 파싱은 custom_field_cs_ssf.yaml 의 source.pre.delimited 가 한다).
+    ".dtms": ".json"
 
   # 엑셀(xlsx/xlsm), csv는 PDF 변환 없이 처리
   xlsx:
@@ -52,6 +55,18 @@ formats:
   #   text          : 레거시 TextLoader 경로(구조 없음, enrichment 미적용)
   md:
     processing_mode: docling
+
+# 변환 PDF: HWP/PPT/DOC/DOCX/이미지처럼 PDF 변환이 반드시 필요한 포맷에서 나온다.
+# GenOS 문서 뷰어는 이렇게 만들어진 PDF 를 참조한다.
+# (텍스트 원천(.txt/.json 등)은 PDF 를 만들지 않는다 — docling 이 직접 읽는다.)
+# 요청 파라미터 keep_pdf / pdf_dir 로 요청마다 덮어쓸 수 있다.
+pdf_output:
+  # 변환 PDF 를 남길지. false(기본)면 파싱에만 쓰고 요청이 끝날 때 지운다.
+  # 문서 뷰잉을 쓰는 현장은 true 로 켠다.
+  keep: false
+  # 변환 PDF 를 만들 폴더. 비우면(기본) 원본 파일과 같은 폴더.
+  # 원천 디렉터리에 파생물을 남기고 싶지 않으면 별도 경로를 지정한다.
+  dir: ""
 
 ocr:
   ocr_mode: "auto" # "auto"(default), "force", "disable"
@@ -217,48 +232,48 @@ enrichment:
   # 직접 만든다(권장). 그래야 custom_fields 가 LLM 을 쓰지 않는 문서유형(tabular/json 매핑)이나
   # 매칭 설정이 없는 문서에도 표 설명이 붙는다.
   # 비워 두면 예전처럼 매칭된 문서형 custom_fields YAML 의 연결을 빌려 쓴다(그 경우 위 문서들은 제외).
+  #
+  # 한 번의 호출에 표를 몇 개 담을지는 입력(max_context_tokens)과 출력(max_tokens) 중
+  # 먼저 걸리는 쪽이 정하고, 넘치면 배치를 나눠 concurrency 만큼 동시에 부른다.
+  #   출력 기준 상한 = max_tokens / ((retrieval_context_max_chars
+  #                    + key_fact_limit x key_fact_max_chars + search_terms 몫) x 1.5)
+  # 표당 산출량(아래 rag 값)을 늘리면 배치가 작아지고 호출 수가 늘어난다.
   - table_text_description:
       enable: true
       url: "https://genos.genon.ai/api/gateway/rep/serving/752/v1/chat/completions"
       api_key: "d1a9e0acab6243019008a96cd8af868e"
       model: "model"
-      max_tokens: 4000
+      max_tokens: 16000       # 응답 상한. 배치당 표 개수는 이 값이 정한다
+      concurrency: 8          # 표 설명 배치 병렬 호출 수
       temperature: 0.0
-      timeout: 300
+      timeout: 600             # 배치당 생성량이 늘어난 만큼 호출 타임아웃도 올린다
       prompt_template_file: prompt_table_text_description_rag.md
       input_format: auto       # auto=HTML 원본은 html, 그 외 markdown | markdown | html
-      before_items: 3          # 표 앞쪽 본문 아이템 수
-      after_items: 2           # 표 뒤쪽 본문 아이템 수
-      max_context_chars: 1500  # 앞/뒤 문맥 각각의 최대 문자 수
-      max_context_tokens: 128000       # 프롬프트 허용 상한(토크나이저 없이 문자 수로 보수 판정)
-      completion_reserved_tokens: 8000 # 응답 생성을 위해 남겨둘 여유
+      before_items: 2          # 표 앞쪽 본문 아이템 수
+      after_items: 1           # 표 뒤쪽 본문 아이템 수
+      max_context_chars: 400   # 앞/뒤 문맥 각각의 최대 문자 수
+      max_context_tokens: 40000        # 프롬프트 허용 상한(토크나이저 없이 문자 수로 보수 판정)
+      completion_reserved_tokens: 16000 # 응답 생성을 위해 남겨둘 여유. max_tokens 와 맞춘다
       overflow_policy: batch   # batch=최소 추가 호출 | skip=표 설명 생략 | error=실패
       conflict_policy: prefer_text # 기존 이미지 표 설명과 충돌 시 prefer_text | prefer_image | error
       rag:
-        retrieval_context_max_chars: 350 # 모든 분할 표 청크에 반복할 독립 검색 문맥
-        key_fact_limit: 3                # 원표에서 직접 확인되는 핵심 사실 최대 개수
-        key_fact_max_chars: 160          # 핵심 사실 1개당 최대 문자 수
-        search_terms_limit: 8            # 질의 확장용 검색 표현 최대 개수
+        retrieval_context_max_chars: 250 # 모든 분할 표 청크에 반복할 독립 검색 문맥
+        key_fact_limit: 2                # 원표에서 직접 확인되는 핵심 사실 최대 개수
+        key_fact_max_chars: 120          # 핵심 사실 1개당 최대 문자 수
+        search_terms_limit: 3            # 질의 확장용 검색 표현 최대 개수
         include_search_terms: false      # true면 검색어도 청크 텍스트에 노출
         repeat_context_on_split: true    # 큰 표 분할 시 retrieval_context를 모든 조각에 반복
 
   # ── 문서유형별 custom_fields 추출 ──────────────────────────────────────────
-  # extractor=llm은 문서 단위 LLM 추출, tabular_mapping은 Excel/CSV 행별 직접 매핑,
-  # json_mapping은 JSON 레코드 배열의 레코드별 직접 매핑(+ 필요 시 LLM 생성 필드).
+  # extractor 는 적지 않는다 — 설정 파일(config_file)의 `source.kind` 에서 정해진다.
+  #   document → 문서 단위 LLM 추출          rows     → Excel·CSV 행별 직접 매핑
+  #   records  → JSON 레코드별 직접 매핑      sections → 중첩 JSON 을 성격별 섹션으로 나눔
+  #   (레코드형은 필요 시 llm 블록으로 생성 필드를 더한다)
   # 카드 상품 메타데이터(12필드) 추출 — monimo 카드 HTML(flatten 후) 대상
   - custom_fields:
       enable: true
       doc_type: card
-      extractor: llm
       config_file: custom_field_card.yaml   # resource_path 자동 = 이 yaml 파일 디렉토리
-      # .json 입력 처리: 본문 텍스트(markdown/html)가 담긴 key 이름을 나열한다.
-      # 키는 JSON 임의 깊이에서 재귀 매칭되므로 pages[*].html 같은 배열 구조도 그대로 처리된다.
-      # 항목이 여러 개면 항목별 <h2> 섹션을 가진 단일 문서로 병합해 docling 을 1회 호출한다.
-      # 이 블록이 없으면 .json 은 기존 텍스트 경로로 처리된다(동작 변경 없음).
-      json:
-        text_fields: [html, summary_md]
-        format: auto             # auto(기본, 값 내용으로 판별) | html | markdown
-        missing_policy: skip     # skip(기본, 경고만) | error
 
   # ── 모니모 15종 문서유형 custom_fields (2026-08-16 추가) ────────────────────
   # 출력 필드명은 모니모 적재 스키마(TB_*)의 DB 컬럼명(대문자)을 그대로 쓴다.
@@ -269,95 +284,74 @@ enrichment:
   - custom_fields:
       enable: true
       doc_type: menu
-      extractor: tabular_mapping
       config_file: custom_field_menu.yaml   # resource_path 자동 = 이 yaml 파일 디렉토리
   # 용어사전 — 공통 xlsx 행별 매핑 (TERM_NORM 은 text_norm transform, SYNONYMS 는 llm_fields)
   - custom_fields:
       enable: true
       doc_type: term
-      extractor: tabular_mapping
       config_file: custom_field_term.yaml   # resource_path 자동 = 이 yaml 파일 디렉토리
   # FAQ — 원천 확장자 미정이라 xlsx/json 두 경로를 같은 doc_type 으로 함께 등록한다.
   # 파서가 확장자로 분기하므로 충돌하지 않는다. 포맷 확정 후 안 쓰는 쪽을 enable:false 로 내릴 것.
   - custom_fields:
       enable: true
       doc_type: faq
-      extractor: tabular_mapping
       config_file: custom_field_faq.yaml   # resource_path 자동 = 이 yaml 파일 디렉토리
   - custom_fields:
       enable: true
       doc_type: faq
-      extractor: json_mapping
       config_file: custom_field_faq_json.yaml   # resource_path 자동 = 이 yaml 파일 디렉토리
   # 이벤트 — JSON 레코드별 매핑. 레코드 1건 = 청크 1개, 요약본문(SUMMARY_TEXT)은 LLM 생성
   - custom_fields:
       enable: true
       doc_type: monimo_event
-      extractor: json_mapping
       config_file: custom_field_monimo_event.yaml   # resource_path 자동 = 이 yaml 파일 디렉토리
-  # 관심소식 — 이벤트와 같은 eventList 구조. TB_NEWS 컬럼(KEYW_CTGR_NM/CN_URL/NEWS_TO)로 매핑
+  # 관심소식 — JSON 의 content 에 담긴 상세 HTML 에서 선택자로 추출(kind: html)
   - custom_fields:
       enable: true
       doc_type: monimo_news
-      extractor: json_mapping
       config_file: custom_field_monimo_news.yaml   # resource_path 자동 = 이 yaml 파일 디렉토리
   # 상품설명서 생명/화재 — 전처리된 MD 문서 단위 LLM 추출
   - custom_fields:
       enable: true
       doc_type: product_slf
-      extractor: llm
       config_file: custom_field_product_slf.yaml   # resource_path 자동 = 이 yaml 파일 디렉토리
   - custom_fields:
       enable: true
       doc_type: product_ssf
-      extractor: llm
       config_file: custom_field_product_ssf.yaml   # resource_path 자동 = 이 yaml 파일 디렉토리
   # 상품설명서 카드 — custom_field_card.yaml 의 TB_PRODUCT 정합 후속본
   - custom_fields:
       enable: true
       doc_type: product_hpp
-      extractor: llm
       config_file: custom_field_product_hpp.yaml   # resource_path 자동 = 이 yaml 파일 디렉토리
-      # .json 입력 처리: 본문 텍스트(markdown/html)가 담긴 key 이름을 나열한다.
-      # 원천이 json 으로 확정되면 카드WCMS 실제 스키마의 본문 키로 교체할 것.
-      json:
-        text_fields: [html, summary_md]
-        format: auto             # auto(기본, 값 내용으로 판별) | html | markdown
-        missing_policy: skip     # skip(기본, 경고만) | error
   # 삼성카드 WCMS JSON — 상품별 성격별 섹션 매핑(로컬/E2E 검증용).
   - custom_fields:
       enable: true
       doc_type: product_hpp
-      extractor: json_semantic
       config_file: custom_field_product_hpp_semantic.yaml
   # 고객센터 생명/화재 — xlsx 행별 매핑 (원천 확장자 '미정' — 확정 시 재검토)
   - custom_fields:
       enable: true
       doc_type: cs_slf
-      extractor: tabular_mapping
       config_file: custom_field_cs_slf.yaml   # resource_path 자동 = 이 yaml 파일 디렉토리
   - custom_fields:
       enable: true
       doc_type: cs_ssf
-      extractor: tabular_mapping
       config_file: custom_field_cs_ssf.yaml   # resource_path 자동 = 이 yaml 파일 디렉토리
   # 고객센터 카드 — html 문서 단위 LLM 추출
   - custom_fields:
       enable: true
       doc_type: cs_hpp
-      extractor: llm
       config_file: custom_field_cs_hpp.yaml   # resource_path 자동 = 이 yaml 파일 디렉토리
   # 고객센터 증권 — JSON 레코드별 매핑
   - custom_fields:
       enable: true
       doc_type: cs_sss
-      extractor: json_mapping
       config_file: custom_field_cs_sss.yaml   # resource_path 자동 = 이 yaml 파일 디렉토리
   # AI 차트뷰 — xlsx 행별 매핑. 세부내용 JSON 을 요약해 SUMMARY_TEXT 생성
   - custom_fields:
       enable: true
       doc_type: stock_insight
-      extractor: tabular_mapping
       config_file: custom_field_stock_insight.yaml   # resource_path 자동 = 이 yaml 파일 디렉토리
 
   # ── authors 데모(기존) — 카드 추출 데모용 임시 off ──

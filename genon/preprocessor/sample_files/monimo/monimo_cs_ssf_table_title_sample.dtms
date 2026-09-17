@@ -1,0 +1,79 @@
+자동차|@|담보|@||@|[보상콜] 휴대품과 소지품 보상 여부 및 미수선/추정 수리비|@|"<style> .tab-box { WIDTH: 1000px; MARGIN-TOP: 15px; POSITION: relative }
+.tabcontent { WIDTH: 1000px }
+</style>
+<div class=""tab-box""><a class=""tabLk activeLk"" id=""cont-1"" href=""#"">휴대폰</a> <a class=""tabLk"" id=""cont-2"" href=""#"">피해물</a> <a class=""tabLk"" id=""cont-3"" href=""#"">미수선/추정 수리비</a></div>
+<div class=""tabcontent"" id=""cont-1-1"" style=""left: 1px; top: 8px; width: 1000px; height: 36px; background-color: rgb(255, 255, 255);"">
+<p style=""margin: 0px;""><b><span style=""font-size: 10pt;"">ㅁ&nbsp;소지품<span style=""color: blue;"">(</span>보상가능<span style=""color: blue;"">)</span> 과 휴대품(보상불가)</span></b></p>
+<p style=""margin: 0px;""><b><span style=""font-size: 10pt;""><br></span></b></p>
+<table style=""background: white; border: black; border-image: none; width: 100%; border-collapse: collapse;"" border=""1"" cellspacing=""0"">
+<tbody>
+<tr style=""height: 37px;"">
+<td style=""background: rgb(91, 194, 231); padding: 2px; border: 1px solid black; width: 81px; height: 37px;"">
+<p align=""center"" style=""margin: 0px; text-align: center;""><b><span style=""font-size: 10pt;"">구 분</span></b></p></td>
+<td style=""background: rgb(91, 194, 231); border-width: 1px 1px 1px 0px; border-style: solid solid solid none;"">
+<p align=""center"" style=""margin: 0px; text-align: center;""><b><span style=""font-size: 10pt;"">내&nbsp;용</span></b></p></td>
+</tr>
+<tr style=""height: 118px;"">
+<td style=""background: rgb(234, 246, 251); border-width: 0px 1px 1px; border-style: none solid solid;"">
+<p align=""center"" style=""margin: 0px; text-align: center;""><b><span style=""font-size: 10pt;"">소지품</span></b></p></td>
+<td style=""border-width: 0px 1px 1px 0px; border-style: none solid solid none;"">
+<p style=""margin: 0px; line-height: 150%;""><span style=""font-size: 10pt;"">&nbsp;- </span><span style=""color: red; font-size: 10pt;"">휴대품을 제외한 물품으로 장착되어있지 않고 휴대할 수 있는 물품</span></p>
+<p style=""margin: 0px; line-height: 150%; text-indent: 60pt;""><span style=""font-size: 10pt;"">장착 : 볼트 너트 등으로 고정되어 있어서 공구등을 사용하지 않으면 쉽게 분리 될 수 없는 상태</span></p>
+<p style=""margin: 0px 0px 0px 16px; line-height: 150%;""><b><span style=""color: blue; font-size: 10pt;"">휴대폰, 노트북, 캠코더, 카메라, CD플레이어, MP3, 워크맨, 녹음기</span></b></p></td>
+</tr>
+<tr style=""height: 93px;"">
+<td style=""background: rgb(234, 246, 251); border-width: 0px 1px 1px; border-style: none solid solid;"">
+<p align=""center"" style=""margin: 0px; text-align: center;""><b><span style=""font-size: 10pt;"">보 상</span></b></p></td>
+<td style=""border-width: 0px 1px 1px 0px; border-style: none solid solid none;"">
+<p style=""margin: 0px; line-height: 150%;""><span style=""font-size: 10pt;"">&nbsp;- 피보험자의 가족을 제외한 자차·타차 탑승자와 통행인의 훼손된 소지품 </span><b><span style=""color: blue; font-size: 10pt;"">1인당 200만원 한도 보상</span></b></p></td>
+</tr>
+<tr style=""height: 74px;"">
+<td style=""background: rgb(234, 246, 251); border-width: 0px 1px 1px; border-style: none solid solid;"">
+<p align=""center"" style=""margin: 0px; text-align: center;""><b><span style=""font-size: 10pt;"">예시</span></b></p></td>
+<td style=""border-width: 0px 1px 1px 0px; border-style: none solid solid none;"">
+<p style=""margin: 0px; line-height: 150%;""><span style=""font-size: 10pt;"">&nbsp;- 입고 있거나 신고 있던 옷이나 신발을 차량에 싣고 있는 경우 보상 여부 &rarr; 상품으로 판단되는 경우 보상 하여야 하나 </span><b><span style=""color: blue;"">사용중인 물품은 휴대품으로 판단</span></b></p></td>
+</tr>
+<tr style=""height: 78px;"">
+<td style=""background: rgb(234, 246, 251); border-width: 0px 1px 1px; border-style: none solid solid;"">
+<p align=""center"" style=""margin: 0px; text-align: center;""><b><span style=""font-size: 10pt;"">면 책</span></b></p></td>
+<td style=""border-width: 0px 1px 1px 0px; border-style: none solid solid none;"">
+<p style=""margin: 0px; line-height: 150%;""><span style=""font-size: 10pt;"">&nbsp;(1) 탑승자와 통행인의 분실 또는 도난 으로 인한 소지품에 생긴 손해는 보상불가</span></p>
+<p style=""margin: 0px; line-height: 150%;""><span style=""font-size: 10pt;"">&nbsp;(2) 자차에 타인의 소지품만 싣고 운행하다가 손상된 손해에 대해서는 보상불가</span></p></td>
+</tr>
+<tr style=""height: 99px;"">
+<td style=""background: rgb(234, 246, 251); border-width: 0px 1px 1px; border-style: none solid solid;"">
+<p align=""center"" style=""margin: 0px; text-align: center;""><b><span style=""font-size: 10pt;"">휴대품</span></b></p></td>
+<td style=""border-width: 0px 1px 1px 0px; border-style: none solid solid none;"">
+<p style=""margin: 0px; line-height: 150%;""><span style=""font-size: 10pt;"">&nbsp;- 통상 몸에 지니고 있는 물품 - </span><b><span style=""color: blue; font-size: 10pt;"">현금, 유가증권, 지갑, 만년필, 라이터, 손목시계, 귀금속, 기타 장신구 및 이와 유사한 물품</span></b><span style=""font-size: 10pt;""> - 보상불가</span></p></td>
+</tr>
+</tbody>
+</table>
+<p style=""margin: 0px;""><b><span style=""font-size: 10pt;"">ㅁ Q&amp;A</span></b></p>
+<p style=""margin: 0px; line-height: 150%;""><span style=""font-size: 10pt;"">Q1) 소지품에 대한 감가상각은 어떻게 진행하나요? - 시가 확인이 가능한 경우는 매매 사례법에 의하여 처리하고 불가능한 경우는 재조달원가에 감가상각을 적용하여 처리 합니다.</span></p>
+<p style=""margin: 0px; line-height: 150%;""><span style=""font-size: 10pt;"">Q2) 자차 적재함에 물건을 싣고 가던 중 전복사고로 인해 물건이 파손되어 보상처리가 가능한가요? - 적재함에 실린 물건은 보상 불가능하고 자차 파손이 있다면 '자차' 담보 가입 시 자차만 보상 처리가 가능합니다.</span></p>
+</div>
+<div class=""tabcontent"" id=""cont-2-1"">
+<p style=""margin: 0px;""><b><span style=""font-size: 10pt;"">ㅁ 피해물이 상품인 경우 보상 기준</span></b></p>
+<table style=""background: white; border-collapse: collapse;"" border=""1"" cellspacing=""0"">
+<tbody>
+<tr>
+<td style=""background: rgb(91, 194, 231); padding: 2px;"">
+<p align=""center"" style=""margin: 0px;""><b><span style=""font-size: 10pt;"">구 분</span></b></p></td>
+<td style=""background: rgb(91, 194, 231); padding: 2px;"">
+<p align=""center"" style=""margin: 0px;""><b><span style=""font-size: 10pt;"">내&nbsp;용</span></b></p></td>
+</tr>
+<tr>
+<td style=""padding: 2px;"">
+<p align=""center"" style=""margin: 0px;""><b><span style=""font-size: 10pt;"">원상태 복구</span></b></p></td>
+<td style=""padding: 2px;"">
+<p style=""margin: 0px; line-height: 150%;""><span style=""font-size: 10pt;"">피해물이 사고직전의 원상태로 복구가 가능한 품목에 대하여는 수리비용을 보상</span></p></td>
+</tr>
+<tr>
+<td style=""padding: 2px;"">
+<p align=""center"" style=""margin: 0px;""><b><span style=""font-size: 10pt;"">수리비 초과</span></b></p></td>
+<td style=""padding: 2px;"">
+<p style=""margin: 0px; line-height: 150%;""><span style=""font-size: 10pt;"">수리비가 사고직전 가액을 초과하는 경우는 사고직전 가액 보상</span></p></td>
+</tr>
+</tbody>
+</table>
+</div>"

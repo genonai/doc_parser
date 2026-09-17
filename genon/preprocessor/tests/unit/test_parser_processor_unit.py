@@ -5,6 +5,7 @@ Covers static/pure helpers and __call__ routing logic.
 All external services and file I/O are mocked; no real documents required.
 """
 import asyncio
+import json
 from unittest.mock import MagicMock, patch
 
 import pandas as pd
@@ -21,15 +22,12 @@ from docling_core.types.doc import (
 from docling_core.types.doc.base import CoordOrigin
 from langchain_core.documents import Document
 
-from facade.parser_processor import (
-    DocumentProcessor,
-    GenosServiceException,
-    GenericDocumentLoader,
-    IntelligentDocumentProcessor,
-)
-# check_sql_dtypes 는 공용 로더(facade/common/loaders.py)에 있다. parser 파이프라인은
-# tabular 입력을 converters.xlsx_processor 로 처리하므로 parser 쪽 사본은 없다.
-from genon.preprocessor.facade.common.loaders import TabularLoaderBase
+from facade.parser_processor import DocumentProcessor, GenosServiceException
+# 로더와 docling 런타임은 처리 본체(core)에 있다 — facade 는 얇은 서브클래스다(#363 08-1).
+from processing.core.parser import GenericDocumentLoader, IntelligentDocumentProcessor
+# check_sql_dtypes 는 공용 로더(processing/common/loaders.py)에 있다. parser 파이프라인은
+# tabular 입력을 processing.converters.xlsx_processor 로 처리하므로 parser 쪽 사본은 없다.
+from genon.preprocessor.processing.common.loaders import TabularLoaderBase
 from docling.prompts.prompt_manager import LLMApiError
 
 
@@ -415,7 +413,7 @@ class TestEnrichImageDescriptions:
         doc = MagicMock()
         doc.iterate_items.return_value = []
 
-        with patch("genon.preprocessor.facade.enrichment.image_description.api_image_request") as mock_api:
+        with patch("genon.preprocessor.processing.enrichment.image_description.api_image_request") as mock_api:
             result = intel.enrich_image_descriptions(doc)
 
         assert result is doc
@@ -433,7 +431,7 @@ class TestEnrichImageDescriptions:
             "get_image",
             return_value=Image.new("RGB", (8, 8), color="white"),
         ), patch(
-            "genon.preprocessor.facade.enrichment.image_description.api_image_request",
+            "genon.preprocessor.processing.enrichment.image_description.api_image_request",
             return_value="문맥 기반 설명 결과",
         ) as mock_api:
             result = intel.enrich_image_descriptions(doc)
@@ -464,7 +462,7 @@ class TestEnrichImageDescriptions:
             "get_image",
             return_value=Image.new("RGB", (8, 8), color="white"),
         ), patch(
-            "genon.preprocessor.facade.enrichment.image_description.api_image_request",
+            "genon.preprocessor.processing.enrichment.image_description.api_image_request",
             side_effect=RuntimeError("VLM endpoint is unreachable"),
         ):
             result = intel.enrich_image_descriptions(doc)
@@ -485,7 +483,7 @@ def test_enrichment_provider_error_is_rethrown_as_genos_exception(intel):
     dummy_doc = MagicMock()
 
     with patch(
-        "facade.parser_processor.enrich_document",
+        "processing.core.parser.enrich_document",
         side_effect=LLMApiError(raw_error, status_code=400),
     ):
         with pytest.raises(GenosServiceException) as exc_info:
@@ -571,7 +569,7 @@ class TestExportTableContent:
         # 표 markdown 은 공용 관문을 거친다 - 링크 URL 억제가 여기 한 벌로 걸린다.
         item = _make_table_item()
         doc = MagicMock()
-        with patch("facade.parser_processor.export_markdown", return_value="| a |") as em:
+        with patch("genon.preprocessor.processing.serialize.parse_format.export_markdown", return_value="| a |") as em:
             result = DocumentProcessor._export_table_content(
                 item, doc, table_format="markdown", compact_tables=False
             )
@@ -582,7 +580,7 @@ class TestExportTableContent:
     def test_markdown_format_passes_compact_tables_through(self):
         item = _make_table_item()
         doc = MagicMock()
-        with patch("facade.parser_processor.export_markdown", return_value="| a |") as em:
+        with patch("genon.preprocessor.processing.serialize.parse_format.export_markdown", return_value="| a |") as em:
             DocumentProcessor._export_table_content(item, doc, table_format="markdown")
         assert em.call_args.kwargs["compact_tables"] is True
 
@@ -644,7 +642,7 @@ class TestDoclingToContent:
     def test_markdown_format_with_markdown_table_uses_shared_export_markdown(self):
         proc = _make_proc_with_format("markdown", "markdown")
         doc = MagicMock()
-        with patch("facade.parser_processor.export_markdown",
+        with patch("genon.preprocessor.processing.serialize.parse_format.export_markdown",
                    return_value="# heading\n| a | b |") as em:
             result = proc._docling_to_content(doc)
         em.assert_called_once()
@@ -655,7 +653,7 @@ class TestDoclingToContent:
         proc = _make_proc_with_format("markdown", "html")
         doc = MagicMock()
         doc.iterate_items.return_value = []
-        with patch("facade.parser_processor.export_markdown",
+        with patch("genon.preprocessor.processing.serialize.parse_format.export_markdown",
                    return_value="# heading\n| a | b |") as em:
             result = proc._docling_to_content(doc)
         em.assert_called_once()
@@ -932,7 +930,7 @@ class TestBuildOcrOptions:
 # 테스트 스크립트가 실제 호출을 담당한다), "호출 횟수를 섹션 수와 무관하게 1회로 제어하는
 # 로직" 자체를 검증하는 것이 목적이라 스텁을 쓴다.
 
-from facade.enrichment.custom_fields_enricher import LlmFieldSpec  # noqa: E402
+from processing.enrichment.custom_fields_enricher import LlmFieldSpec  # noqa: E402
 
 
 class _CountingStubEnricher:
@@ -1011,3 +1009,64 @@ def test_apply_llm_fields_document_scope_routes_from_apply_llm_fields(dp):
 
     assert stub_enricher.calls == 1
     assert len(result) == 3
+
+
+# ─── pack 재적용 — llm_fields 산출도 JSON 한 칸에 담긴다 ──────────────────────
+#
+# 묶기는 "파이프라인 맨 뒤" 라는 계약인데 매퍼의 build_fields 는 llm_fields 보다 먼저
+# 끝난다. 재적용하지 않으면 요약 같은 LLM 산출이 JSON 안에서 영구히 null 로 남고, 문서형
+# (extractor: llm)에서는 LLM 응답이 파이프라인 입력이라 되던 것이 레코드형에서만 조용히
+# 안 되는 비대칭이 된다.
+
+
+class _StubRecordScopeMapper:
+    """레코드 스코프 계약(llm_field_specs)만 흉내 낸 최소 스텁."""
+
+    def __init__(self, llm_field_specs, pack=None):
+        self.llm_field_specs = llm_field_specs
+        self.resource_path = None
+        if pack is not None:
+            self.pack = pack
+
+
+def test_pack_is_reapplied_after_document_scope_llm_fields(dp):
+    mapper = _StubDocumentScopeMapper(llm_field_specs=[_make_llm_field_spec()])
+    mapper.llm_fields_scope = "document"
+    mapper.pack = {"DETAIL_JSON": ["SECTION_NM", "SALE_STATUS"]}
+    dp._llm_field_enricher = MagicMock(return_value=_CountingStubEnricher())
+
+    result = asyncio.run(dp._apply_llm_fields(
+        mapper, [{"SECTION_NM": "섹션0", "DETAIL_JSON": '{"SECTION_NM": "섹션0", "SALE_STATUS": null}'}]
+    ))
+
+    assert json.loads(result[0]["DETAIL_JSON"]) == {
+        "SECTION_NM": "섹션0", "SALE_STATUS": "판매중",
+    }
+
+
+def test_pack_is_reapplied_after_record_scope_llm_fields(dp):
+    mapper = _StubRecordScopeMapper(
+        llm_field_specs=[_make_llm_field_spec()],
+        pack={"DETAIL_JSON": ["PRODUCT_INFO", "SALE_STATUS"]},
+    )
+    dp._llm_field_enricher = MagicMock(return_value=_CountingStubEnricher())
+
+    result = asyncio.run(dp._apply_llm_fields(
+        mapper, [{"PRODUCT_INFO": "상품A"}, {"PRODUCT_INFO": "상품B"}]
+    ))
+
+    assert [json.loads(r["DETAIL_JSON"]) for r in result] == [
+        {"PRODUCT_INFO": "상품A", "SALE_STATUS": "판매중"},
+        {"PRODUCT_INFO": "상품B", "SALE_STATUS": "판매중"},
+    ]
+
+
+def test_pack_absent_mapper_is_untouched(dp):
+    """pack 속성이 없는 매퍼(object.__new__ 로 만든 인스턴스 포함)에서도 견딘다."""
+    mapper = _StubRecordScopeMapper(llm_field_specs=[_make_llm_field_spec()])
+    dp._llm_field_enricher = MagicMock(return_value=_CountingStubEnricher())
+
+    result = asyncio.run(dp._apply_llm_fields(mapper, [{"PRODUCT_INFO": "상품A"}]))
+
+    assert result[0]["SALE_STATUS"] == "판매중"
+    assert "DETAIL_JSON" not in result[0]

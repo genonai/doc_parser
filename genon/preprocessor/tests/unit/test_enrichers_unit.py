@@ -23,8 +23,8 @@ import pytest
 
 pytest.importorskip("httpx")
 pytest.importorskip("docling_core")
-_me = pytest.importorskip("facade.enrichment.metadata_enricher")
-_cf = pytest.importorskip("facade.enrichment.custom_fields_enricher")
+_me = pytest.importorskip("processing.enrichment.metadata_enricher")
+_cf = pytest.importorskip("processing.enrichment.custom_fields_enricher")
 
 from docling_core.types.doc import (  # noqa: E402
     BoundingBox,
@@ -41,19 +41,21 @@ CustomFieldsEnricher = _cf.CustomFieldsEnricher
 
 # ── httpx.AsyncClient mock 헬퍼 ────────────────────────────────────────────────
 
-def _patch_async_client(module_path: str, captured: dict, content="{}"):
+def _patch_async_client(module_path: str, captured: dict, content="{}", body=None):
     """`<module>.httpx.AsyncClient` 를 async context manager mock 으로 패치한다.
 
     실제 전송 대신 post() 호출 인자를 captured 에 기록하고, LLM 응답 스키마를 흉내낸
-    가짜 response 를 돌려준다.
+    가짜 response 를 돌려준다. body 를 주면 그 JSON 을 그대로 돌려준다 — 게이트웨이가
+    HTTP 200 으로 다른 형식을 돌려주는 경우를 재현하는 용도다.
     """
     resp = MagicMock()
     resp.raise_for_status = MagicMock()
     resp.json = MagicMock(
-        return_value={"choices": [{"message": {"content": content}}]}
+        return_value=body if body is not None
+        else {"choices": [{"message": {"content": content}}]}
     )
 
-    async def _post(url, json=None, headers=None):
+    async def _post(url, json=None, headers=None, **_kwargs):
         captured["url"] = url
         captured["json"] = json
         captured["headers"] = headers
@@ -100,8 +102,8 @@ def _make_custom_fields_enricher(**overrides):
 
 # 두 enricher 모두에서 동일하게 검증할 (생성자, 모듈경로) 쌍
 _ENRICHERS = [
-    pytest.param(_make_metadata_enricher, "facade.enrichment.metadata_enricher", id="metadata"),
-    pytest.param(_make_custom_fields_enricher, "facade.enrichment.custom_fields_enricher", id="custom_fields"),
+    pytest.param(_make_metadata_enricher, "processing.enrichment.metadata_enricher", id="metadata"),
+    pytest.param(_make_custom_fields_enricher, "processing.enrichment.custom_fields_enricher", id="custom_fields"),
 ]
 
 
@@ -242,6 +244,46 @@ class TestCallLlmPromptBuild:
         assert result == "MODEL_OUTPUT"
 
 
+# ── chat completion 형식이 아닌 200 응답 ──────────────────────────────────────
+# 게이트웨이가 에러 봉투를 HTTP 200 으로 돌려주면 raise_for_status 를 통과한다. 그대로
+# 인덱싱하면 KeyError('choices') 만 남아 서버가 준 사유를 알 수 없으므로, 응답 본문을
+# 실은 오류로 바꾼다. 판정은 llm_response 한 벌이고 세 호출부가 그것을 거친다.
+
+@pytest.mark.unit
+@pytest.mark.parametrize("factory,modpath", _ENRICHERS)
+class TestNonChatCompletionResponse:
+    def test_error_envelope_raises_with_server_reason(self, factory, modpath):
+        enr = factory()
+        envelope = {
+            "object": "error",
+            "message": "maximum context length exceeded",
+            "code": 400,
+        }
+        captured = {}
+        with _patch_async_client(modpath, captured, body=envelope):
+            with pytest.raises(ValueError) as excinfo:
+                asyncio.run(enr._call_llm("X"))
+        # 서버가 준 사유가 메시지에 실려야 오류 로그만으로 원인을 되짚을 수 있다.
+        assert "maximum context length exceeded" in str(excinfo.value)
+
+    def test_oversized_body_is_truncated_in_message(self, factory, modpath):
+        enr = factory()
+        captured = {}
+        with _patch_async_client(modpath, captured, body={"detail": "가" * 5000}):
+            with pytest.raises(ValueError) as excinfo:
+                asyncio.run(enr._call_llm("X"))
+        message = str(excinfo.value)
+        assert "이하 생략" in message
+        assert len(message) < 700
+
+    def test_empty_choices_list_raises_instead_of_index_error(self, factory, modpath):
+        enr = factory()
+        captured = {}
+        with _patch_async_client(modpath, captured, body={"choices": []}):
+            with pytest.raises(ValueError):
+                asyncio.run(enr._call_llm("X"))
+
+
 # ── enrich() 비활성 no-op (url/model 미설정 → 네트워크 호출 없음) ──────────────
 
 @pytest.mark.unit
@@ -356,14 +398,21 @@ class TestCustomFieldsLoadConfig:
 
     def test_yaml_with_resource_path(self, tmp_path):
         cfg = tmp_path / "fields.yaml"
-        cfg.write_text("url: http://x\nmodel: m\n", encoding="utf-8")
+        cfg.write_text(
+            "schema: v2\nsource:\n  kind: document\n"
+            "llm:\n  - endpoint:\n      url: http://x\n      model: m\n",
+            encoding="utf-8",
+        )
         enr = object.__new__(CustomFieldsEnricher)
         loaded = enr._load_config("fields.yaml", str(tmp_path))
         assert loaded == {"url": "http://x", "model": "m"}
 
     def test_bare_name_with_resource_path(self, tmp_path):
         cfg = tmp_path / "authors.yaml"
-        cfg.write_text("output_fields: [authors]\n", encoding="utf-8")
+        cfg.write_text(
+            "schema: v2\nsource:\n  kind: document\nllm:\n  - out: [authors]\n",
+            encoding="utf-8",
+        )
         enr = object.__new__(CustomFieldsEnricher)
         loaded = enr._load_config("authors", str(tmp_path))
         assert loaded == {"output_fields": ["authors"]}
@@ -398,7 +447,7 @@ class TestCustomFieldsPromptFiles:
         assert enr._system_prompt == "FROM_FILE"
 
     def test_default_system_prompt_when_unset(self, tmp_path):
-        from facade.enrichment.custom_fields_enricher import _DEFAULT_CUSTOM_FIELDS_SYSTEM_PROMPT
+        from processing.enrichment.custom_fields_enricher import _DEFAULT_CUSTOM_FIELDS_SYSTEM_PROMPT
         enr = _make_custom_fields_enricher(
             system_prompt="", user_prompt="USER", resource_path=str(tmp_path),
         )
@@ -413,7 +462,9 @@ class TestCustomFieldsPromptFiles:
     def test_inline_yaml_prompt_loaded(self, tmp_path):
         """프롬프트를 config yaml 안에 직접 써도 파일과 동일하게 로드된다(자족 설정)."""
         (tmp_path / "cf.yaml").write_text(
-            'system_prompt: |\n  SYS_INLINE\nuser_prompt: |\n  USER_INLINE {{raw_text}}\n',
+            "schema: v2\nsource:\n  kind: document\nllm:\n  - prompt:\n"
+            "      system: |\n        SYS_INLINE\n"
+            "      user: |\n        USER_INLINE {{raw_text}}\n",
             encoding="utf-8",
         )
         enr = _make_custom_fields_enricher(
@@ -442,7 +493,7 @@ class TestShippedCardConfigSelfContained:
         )
 
     def test_prompts_are_inline(self, resource_dir):
-        from facade.enrichment.custom_fields_enricher import (
+        from processing.enrichment.custom_fields_enricher import (
             _DEFAULT_CUSTOM_FIELDS_SYSTEM_PROMPT,
         )
         enr = self._enricher(resource_dir)

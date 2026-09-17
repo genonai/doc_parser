@@ -15,7 +15,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from genon.preprocessor.facade.common import format_alias as fa
+from genon.preprocessor.processing.common import format_alias as fa
 
 
 # 캡처 원천과 같은 형태 — 마크다운 본문에 HTML 표가 섞여 있다.
@@ -180,20 +180,29 @@ async def test_plain_md_is_unchanged_by_alias_support(parser_processor, tmp_path
 
 @pytest.mark.unit
 @pytest.mark.asyncio
-async def test_unaliased_unknown_extension_falls_back_to_catchall(parser_processor, tmp_path: Path):
-    """별칭 설정이 없으면 기존 캐치올 경로 그대로다(회귀 방지)."""
+async def test_unaliased_unknown_extension_is_not_treated_as_markdown(parser_processor, tmp_path: Path):
+    """별칭 설정이 없으면 md 로 해석하지 않는다(회귀 방지).
+
+    캐치올은 내용이 텍스트인 파일을 `<pre>` 로 감싸 docling 에 태운다. 그래도 별칭
+    경로와는 구분돼야 한다 — 별칭이면 `.md` 이름의 원문 사본이 docling 입력이 되어
+    heading·표가 살지만, 별칭이 없으면 원문이 평문 한 덩어리로 남아야 한다.
+    """
     src = tmp_path / "sample.parsed"
     src.write_text(MIXED_MD_HTML, encoding="utf-8")
 
     dp = _stub_processor(parser_processor, {})
-    dp._parse_docling = MagicMock()
-    dp._parse_other = MagicMock(return_value=[])
-    dp._langchain_to_parse_format = MagicMock(return_value={"elements": []})
+    seen = _record_parse_docling(dp)
 
     await dp(MagicMock(), str(src))
 
-    dp._parse_docling.assert_not_called()
-    dp._parse_other.assert_called_once()
+    # 별칭 사본(.md)이 아니라 <pre> 로 감싼 평문 HTML 이 입력이다.
+    assert Path(seen["path"]).suffix == ".html"
+    assert "<pre" in seen["content"]
+    # 원문은 이스케이프돼 태그가 아니라 글자로 들어간다(md/html 로 해석되지 않는다).
+    assert "&lt;table&gt;" in seen["content"]
+    assert MIXED_MD_HTML not in seen["content"]
+    # artifacts(이미지) 경로 기준은 파생 파일이 아니라 원본이어야 한다.
+    assert seen["artifacts_from"] == str(src)
 
 
 # ---------------------------------------------------------------------------
@@ -207,7 +216,7 @@ def test_unknown_text_extension_uses_textloader_not_unstructured(tmp_path: Path)
     unstructured 는 무거운 선택 의존이라 오프라인 배포본에는 없을 수 있다. 예전에는
     이 경로가 UnstructuredFileLoader 를 만들다 ImportError 로 죽었다.
     """
-    from facade.parser_processor import GenericDocumentLoader, TextLoader
+    from processing.core.parser import GenericDocumentLoader, TextLoader
 
     src = tmp_path / "sample.parsed"
     src.write_text(MIXED_MD_HTML, encoding="utf-8")
@@ -220,7 +229,7 @@ def test_unknown_text_extension_uses_textloader_not_unstructured(tmp_path: Path)
 @pytest.mark.unit
 def test_unknown_binary_extension_still_goes_to_unstructured(tmp_path: Path):
     """텍스트가 아니면 기존대로 Unstructured 로 보낸다(동작 보존)."""
-    from facade.parser_processor import GenericDocumentLoader, TextLoader
+    from processing.core.parser import GenericDocumentLoader, TextLoader
 
     src = tmp_path / "sample.bin"
     src.write_bytes(b"\x00\x01\x02\x03" * 64)
@@ -233,7 +242,8 @@ def test_unknown_binary_extension_still_goes_to_unstructured(tmp_path: Path):
 @pytest.mark.unit
 def test_missing_unstructured_becomes_actionable_error(tmp_path: Path, monkeypatch):
     """unstructured 미설치 ImportError 는 조치가 적힌 서비스 예외로 바뀐다."""
-    from facade import parser_processor as pp
+    # 로더와 예외는 처리 본체(core)에 있다(#363 08-1).
+    from processing.core import parser as pp
 
     src = tmp_path / "sample.bin"
     src.write_bytes(b"\x00\x01\x02\x03" * 64)

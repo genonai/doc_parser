@@ -11,8 +11,8 @@ from pathlib import Path
 import pytest
 import yaml
 
-from genon.preprocessor.facade.enrichment import config_schema as cs
-from genon.preprocessor.facade.enrichment.tabular_custom_fields import (
+from genon.preprocessor.processing.enrichment import config_schema as cs
+from genon.preprocessor.processing.enrichment.tabular_custom_fields import (
     TabularCustomFieldsMapper,
 )
 
@@ -31,9 +31,18 @@ def _load_precheck():
 
 
 def _bad_mapper(tmp_path):
+    """다른 extractor 의 키가 섞인 설정 — 검증 정책 스위치의 대상이다.
+
+    오타 키(`column_maps`)가 아니라 오배치 키(`raw` → 내부 `raw_fields`, JSON 원천 전용)를
+    쓴다. v2 는 최상위 오타를 normalize 단계에서 ConfigV2Error 로 막는데, 그 경로는
+    `GENOS_CUSTOM_FIELDS_VALIDATION` 이 낮출 수 있는 대상이 아니다 — 번역이 실패하면
+    쓸 설정 자체가 없기 때문이다. 정책이 실제로 갈리는 것은 extractor 지원키 대조다.
+    """
     cfg = tmp_path / "custom_field_x.yaml"
     cfg.write_text(
-        "column_maps:\n  Q: [질문]\ncolumn_map:\n  Q: [질문]\ntext_fields: [Q]\n",
+        "schema: v2\nsource: {kind: rows}\n"
+        "fields:\n  Q: {alias: [질문], raw: true}\n"
+        "body: {fields: [Q]}\n",
         encoding="utf-8",
     )
     return TabularCustomFieldsMapper(
@@ -46,7 +55,7 @@ def _bad_mapper(tmp_path):
 
 def test_default_policy_blocks_startup(tmp_path, monkeypatch):
     monkeypatch.delenv(cs.VALIDATION_POLICY_ENV, raising=False)
-    with pytest.raises(ValueError, match="column_maps"):
+    with pytest.raises(ValueError, match="raw_fields"):
         _bad_mapper(tmp_path)
 
 
@@ -55,7 +64,7 @@ def test_warn_policy_starts_and_keeps_working(tmp_path, monkeypatch, caplog):
     monkeypatch.setenv(cs.VALIDATION_POLICY_ENV, "warn")
     with caplog.at_level("WARNING"):
         mapper = _bad_mapper(tmp_path)
-    assert "column_maps" in caplog.text
+    assert "raw_fields" in caplog.text
     rows = mapper.build_fields(
         {"data": [{"sheet_name": "S", "data_rows": [{"질문": "Q1"}]}]}, "t"
     )
@@ -96,7 +105,8 @@ def test_precheck_passes_on_shipped_resource():
 )
 def test_precheck_detects_blocking_problems(tmp_path, mutate, expect):
     precheck = _load_precheck()
-    cfg = {"column_map": {"Q": ["질문"]}, "text_fields": ["Q"]}
+    cfg = {"schema": "v2", "source": {"kind": "rows"},
+           "fields": {"Q": {"alias": ["질문"]}}, "body": {"fields": ["Q"]}}
     mutate(cfg)
     (tmp_path / "custom_field_x.yaml").write_text(
         yaml.safe_dump(cfg, allow_unicode=True), encoding="utf-8"
@@ -110,7 +120,8 @@ def test_precheck_detects_blocking_problems(tmp_path, mutate, expect):
 def test_precheck_detects_removed_extractor_alias(tmp_path):
     precheck = _load_precheck()
     (tmp_path / "custom_field_x.yaml").write_text(
-        "column_map:\n  Q: [질문]\ntext_fields: [Q]\n", encoding="utf-8"
+        "schema: v2\nsource: {kind: rows}\n"
+        "fields: {Q: {alias: [질문]}}\nbody: {fields: [Q]}\n", encoding="utf-8"
     )
     block = {"doc_type": "t", "extractor": "column_mapping",
              "config_file": "custom_field_x.yaml"}

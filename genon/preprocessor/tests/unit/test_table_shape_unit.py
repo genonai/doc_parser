@@ -4,7 +4,7 @@ from dataclasses import dataclass
 
 import pytest
 
-from genon.preprocessor.facade.chunking.table_shape import (
+from genon.preprocessor.processing.chunking.table_shape import (
     DEGENERATE_NO_DATA_ROWS,
     DEGENERATE_SINGLE_VALUE,
     analyze_grid,

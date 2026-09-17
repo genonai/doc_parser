@@ -34,17 +34,21 @@ source:
 fields:
   created_date:
     alias: [created_at]
+    transform: date_int_flex
   PRODUCT_C:
     alias: [product_code]
+    # const 는 LLM 결과를 덮는다(default < LLM < front matter < const). 여기 값을 고정하려는
+    # 것이 아니라 "못 찾으면 null" 이므로 default 여야 한다.
+    default: null
   GROUP_C:
     const: SLF
   SALE_STATUS:
     const: SALE
   BIZ_ID:
     const: null
-  # PRODUCT_ATTRS:
-  #   alias: [created_at]
-  #   transform: date_int_flex
+  PRODUCT_ATTRS:
+    alias: [created_at]
+    transform: date_int_flex
 # 작성일은 문서 1건에 하나뿐이라 청크마다 반복할 이유가 없다. 첫 청크에만 1회 싣는다 —
 # 값 자체는 모든 청크 metadata 에 실리므로 필터 검색은 전 청크에서 된다.
 body:

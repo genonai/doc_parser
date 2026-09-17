@@ -21,7 +21,7 @@ _CONFIG = _PREPROC / "resource" / "intelligent_processor_config.yaml"
 
 def _xp():
     """헬퍼 모듈 로드(openpyxl 등 미가용 시 skip)."""
-    return pytest.importorskip("genon.preprocessor.converters.xlsx_processor")
+    return pytest.importorskip("genon.preprocessor.processing.converters.xlsx_processor")
 
 
 def _make_xlsx(path: Path, rows, merges=None, sheet_name="Sheet1"):

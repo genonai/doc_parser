@@ -1,0 +1,11 @@
+# B14 값이 이스케이프된 JSON 문자열 — transform: text 가 자동 판별하는가.
+schema: v2
+source:
+  kind: records
+  records_at: items
+fields:
+  ITEM_NAME:   {alias: [itemName]}
+  DETAIL_TEXT: {alias: [detail], transform: text}
+body:
+  fields: [ITEM_NAME, DETAIL_TEXT]
+  labels: {ITEM_NAME: 항목, DETAIL_TEXT: 상세}

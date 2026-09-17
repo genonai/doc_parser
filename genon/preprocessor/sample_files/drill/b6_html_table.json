@@ -1,0 +1,12 @@
+{
+  "cards": [
+    {
+      "cardName": "生활 체크카드",
+      "detail": "<table><thead><tr><th>구분</th><th>연회비</th><th>적립</th></tr></thead><tbody><tr><td>국내전용</td><td>15,000원</td><td>0.5%</td></tr><tr><td>해외겸용</td><td>18,000원</td><td>0.8%</td></tr></tbody></table>"
+    },
+    {
+      "cardName": "여행 신용카드",
+      "detail": "<ul><li>공항라운지 연 2회</li><li>해외 이용 수수료 면제</li></ul>"
+    }
+  ]
+}

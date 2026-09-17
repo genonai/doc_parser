@@ -57,31 +57,35 @@ def _assert_stats_match(vector):
 # recursive 경로
 # ---------------------------------------------------------------------------
 
-def test_recursive_path_normalized(tmp_path):
+@pytest.mark.asyncio
+async def test_recursive_path_normalized(tmp_path):
     proc = _make_processor(tmp_path, "safe")
-    vectors = proc._chunk_parse_format([{"content": _NOISY, "page": 1, "category": "text"}])
+    vectors = await proc._chunk_parse_format([{"content": _NOISY, "page": 1, "category": "text"}])
     assert len(vectors) == 1
     _assert_clean(vectors[0].text)
     _assert_stats_match(vectors[0])
 
 
-def test_recursive_path_off_keeps_original(tmp_path):
+@pytest.mark.asyncio
+async def test_recursive_path_off_keeps_original(tmp_path):
     """기본 off 에서는 기존 산출물이 그대로여야 한다."""
     proc = _make_processor(tmp_path, "off")
-    vectors = proc._chunk_parse_format([{"content": _NOISY, "page": 1, "category": "text"}])
+    vectors = await proc._chunk_parse_format([{"content": _NOISY, "page": 1, "category": "text"}])
     assert "​" in vectors[0].text
 
 
-def test_recursive_path_kwargs_override(tmp_path):
+@pytest.mark.asyncio
+async def test_recursive_path_kwargs_override(tmp_path):
     """yaml 이 off 여도 요청 kwargs 로 켤 수 있다."""
     proc = _make_processor(tmp_path, "off")
-    vectors = proc._chunk_parse_format(
+    vectors = await proc._chunk_parse_format(
         [{"content": _NOISY, "page": 1, "category": "text"}], text_cleanup="safe"
     )
     _assert_clean(vectors[0].text)
 
 
-def test_recursive_path_drops_blank_chunks(tmp_path):
+@pytest.mark.asyncio
+async def test_recursive_path_drops_blank_chunks(tmp_path):
     """공백만 남는 element 는 벡터가 되지 않고, 남은 청크 인덱스도 연속이다."""
     proc = _make_processor(tmp_path, "safe")
     elements = [
@@ -89,7 +93,7 @@ def test_recursive_path_drops_blank_chunks(tmp_path):
         {"content": "​    ", "page": 2, "category": "text"},
         {"content": "셋째 청크", "page": 3, "category": "text"},
     ]
-    vectors = proc._chunk_parse_format(elements)
+    vectors = await proc._chunk_parse_format(elements)
     assert len(vectors) == 2
     assert [v.i_chunk_on_doc for v in vectors] == [0, 1]
     assert all(v.n_chunk_of_doc == 2 for v in vectors)
@@ -99,10 +103,11 @@ def test_recursive_path_drops_blank_chunks(tmp_path):
 # row 경로
 # ---------------------------------------------------------------------------
 
-def test_row_path_normalizes_text_and_property(tmp_path):
+@pytest.mark.asyncio
+async def test_row_path_normalizes_text_and_property(tmp_path):
     """행 metadata 는 청크 property 로 나가므로 text 와 같은 표현이어야 한다."""
     proc = _make_processor(tmp_path, "safe")
-    vectors = proc._chunk_parse_format([{
+    vectors = await proc._chunk_parse_format([{
         "content": _NOISY,
         "page": 1,
         "category": "custom_fields_row",
@@ -118,19 +123,21 @@ def test_row_path_normalizes_text_and_property(tmp_path):
 # marker 경로
 # ---------------------------------------------------------------------------
 
-def test_marker_path_audio_normalized_and_stats_fixed(tmp_path):
+@pytest.mark.asyncio
+async def test_marker_path_audio_normalized_and_stats_fixed(tmp_path):
     """legacy 는 n_char/n_word/n_line 을 1 로 고정했다 — 실제 값이어야 한다."""
     proc = _make_processor(tmp_path, "safe")
-    vectors = proc._chunk_parse_format([{"content": "[AUDIO] " + _NOISY, "page": 1}])
+    vectors = await proc._chunk_parse_format([{"content": "[AUDIO] " + _NOISY, "page": 1}])
     assert len(vectors) == 1
     _assert_clean(vectors[0].text)
     _assert_stats_match(vectors[0])
     assert vectors[0].n_char > 1
 
 
-def test_marker_path_tabular_normalized(tmp_path):
+@pytest.mark.asyncio
+async def test_marker_path_tabular_normalized(tmp_path):
     proc = _make_processor(tmp_path, "safe")
-    vectors = proc._chunk_parse_format([{"content": _NOISY, "page": 1, "category": "table"}])
+    vectors = await proc._chunk_parse_format([{"content": _NOISY, "page": 1, "category": "table"}])
     assert len(vectors) == 1
     assert vectors[0].text.startswith("[DA]")
     _assert_clean(vectors[0].text)

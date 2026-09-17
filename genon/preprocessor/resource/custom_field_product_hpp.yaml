@@ -1,10 +1,3 @@
-# ─────────────────────────────────────────────────────────────────────────
-#  v2 스키마로 자동 변환된 설정입니다.
-#
-#  자동 변환은 **값만** 옮깁니다. 아래는 원본 v1 의 주석 전문이며, 필요한 설명을 각
-#  필드 스펙 옆으로 손수 옮긴 뒤 이 블록을 지우세요. 주석이 사라지면 왜 그런 설정인지
-#  아는 사람이 없어집니다.
-# ─────────────────────────────────────────────────────────────────────────
 # CustomFieldsEnricher 외부 config — 상품설명서(카드) 문서 단위 메타데이터 추출
 #
 # 사용 (parser_processor_config.yaml):
@@ -13,10 +6,8 @@
 #       doc_type: product_hpp
 #       extractor: llm
 #       config_file: custom_field_product_hpp.yaml   # resource_path 자동 = 이 yaml 디렉토리
-#       json:
-#         text_fields: [html, summary_md]
-#         format: auto
-#         missing_policy: skip
+#
+# .json 입력의 본문 키는 아래 `source.pre.json` 에 있다(등록 블록이 아니다).
 #
 # 원천: ssc_rag_adpr_yyyymmdd_xxxxx_001.json (/data/raw/WCM/ADPR, 확장자 "json(희망)")
 #
@@ -31,7 +22,7 @@
 #   - json 과 html n종으로 분리된 데이터를 하나로 통합 가능한지 확인 필요
 #   - 단순 통합하면 중복 내용이 많고, 카드 상품 특성상 이미지가 많다
 #   - 정형화 레이아웃 권장: ID, 제목, 문서 개요, 혜택, 추가정보(발급기준 등), 유의사항, 출처
-#   원천이 json 으로 확정되면 위 `json.text_fields` 를 카드WCMS 실제 스키마의 본문 키로 교체할 것.
+#   원천이 json 으로 확정되면 아래 `source.pre.json.body_from` 을 카드WCMS 실제 스키마의 본문 키로 교체할 것.
 #
 # PRODUCT_C(상품코드)는 NOT NULL 이다. 카드는 상품코드가 페이지에 노출되는 경우가 있어
 #    LLM 추출을 시도하되, 안정적으로 확보하려면 원천이 별도 필드로 주는 편이 낫다.
@@ -68,6 +59,12 @@ source:
         enable: true
         langs: ['', text]
         min_hangul_ratio: 0.3
+    # 원천이 .json 으로 올 때 본문 텍스트가 담긴 key 이름들(경로 아니라 이름만, 임의 깊이).
+    # 원천이 json 으로 확정되면 카드WCMS 실제 스키마의 본문 키로 교체할 것.
+    json:
+      body_from: [html, summary_md]
+      format: auto             # auto(기본, 값 내용으로 판별) | html | markdown
+      on_missing: skip         # skip(기본, 경고만) | error
 fields:
   GROUP_C:
     const: HPP

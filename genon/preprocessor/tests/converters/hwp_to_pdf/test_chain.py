@@ -5,8 +5,8 @@ from typing import ClassVar
 
 import pytest
 
-from genon.preprocessor.converters.hwp_to_pdf.base import BackendName
-from genon.preprocessor.converters.hwp_to_pdf.chain import ConverterChain
+from genon.preprocessor.processing.converters.hwp_to_pdf.base import BackendName
+from genon.preprocessor.processing.converters.hwp_to_pdf.chain import ConverterChain
 
 
 class _StubConverter:

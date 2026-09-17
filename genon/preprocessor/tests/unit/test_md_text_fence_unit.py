@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import pytest
 
-from genon.preprocessor.converters.md_text_fence import (
+from genon.preprocessor.processing.converters.md_text_fence import (
     MarkdownTextFenceSpec,
     transform,
 )

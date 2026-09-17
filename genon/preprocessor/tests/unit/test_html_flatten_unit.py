@@ -14,7 +14,7 @@ from pathlib import Path
 
 import pytest
 
-from genon.preprocessor.converters.html_flatten import (
+from genon.preprocessor.processing.converters.html_flatten import (
     build_docling_document,
     document_title,
     extract_content,
@@ -592,7 +592,7 @@ def test_flatten_html_promotes_marker_sections_only_when_reason_present():
 def test_build_docling_document_skips_duplicate_single_section_label():
     """단일 섹션 라벨이 제목과 같으면 <h2> 중복을 생략하고, 다르면 <h2>라벨</h2> 을 넣는다.
 
-    라벨·제목이 둘 다 빈 문자열이면(facade/enrichment/json_records.py:309-318 이
+    라벨·제목이 둘 다 빈 문자열이면(processing/enrichment/json_records.py:309-318 이
     build_docling_document("", [("", node)]) 로 호출하는 경로) <h2></h2> 를 그대로
     유지한다 — "라벨이 비어있지 않을 것"을 skip 조건에 넣어 이 경로를 건드리지 않는다.
     """

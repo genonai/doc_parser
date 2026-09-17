@@ -15,7 +15,7 @@ from docling_core.transforms.chunker import DocChunk, DocMeta
 from docling_core.types import DoclingDocument
 from docling_core.types.doc.labels import DocItemLabel
 
-from genon.preprocessor.facade.chunking.smart_chunker import SmartChunkerBase
+from genon.preprocessor.processing.chunking.smart_chunker import SmartChunkerBase
 
 # 3단계 병합 임계(30자)를 넘는 제목. 실제 문제 문서의 H1 과 같은 길이대다.
 _LONG_TITLE = "삼성 1540 청춘대표·4180 인생대표·팩 건강보험(2607) 상품요약서"

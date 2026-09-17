@@ -1,3 +1,4 @@
+import html
 import logging
 import re
 import warnings
@@ -163,7 +164,9 @@ class MarkdownDocumentBackend(DeclarativeDocumentBackend):
                         1  # currently supporting just simple tables (without spans)
                     )
                     icell = TableCell(
-                        text=cellval.strip(),
+                        # 본문과 같은 규칙으로 엔티티를 해독한다. 칸이 이미 `|` 로
+                        # 갈린 뒤라 `&#124;` 해독이 표 구조를 흔들지 않는다.
+                        text=html.unescape(cellval.strip()),
                         row_span=row_span,
                         col_span=col_span,
                         start_row_offset_idx=trow_ind,
@@ -385,6 +388,14 @@ class MarkdownDocumentBackend(DeclarativeDocumentBackend):
                 else:
                     self.md_table_buffer.append(snippet_text)
             elif snippet_text:
+                # CommonMark 는 본문 텍스트의 엔티티 참조를 문자로 해독한다. marko 는
+                # 원문 그대로 넘기므로 여기서 되돌린다. 안 하면 `&gt;` 가 본문에 리터럴로
+                # 남고, HTML 블록이 섞인 문서는 export_to_html -> HTML 백엔드 왕복에서
+                # 그대로 굳어 청크까지 실린다(실측: 모니모 상담 문서).
+                # 코드 스팬/코드 블록은 다른 분기가 다루므로 해독되지 않는다(사양대로).
+                # 마크다운 표 버퍼로 가는 분기는 건드리지 않는다 — `&#124;` 해독이 칸
+                # 구분자를 만들어 표를 쪼갤 수 있다.
+                snippet_text = html.unescape(snippet_text)
                 self._close_table(doc)
 
                 if creation_stack:

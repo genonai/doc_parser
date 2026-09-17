@@ -669,7 +669,7 @@ metadata:
 - **키 이름이 달라진 경우**: 프롬프트를 고쳐 추출 키가 `doc_date` 가 되면 `source: [doc_date]` 로만 바꾸면 동일하게 `created_date` 가 채워집니다.
 - **fallback 동작**: 추출이 비었을 때 본문에 `"보고자료 2024-01-15 기준"` 이 있으면 `created_date: 20240115` 로 보강됩니다.
 
-convert 의 기본 변환 대상은 `created_date`이며 `authors` 등 나머지는 passthrough 됩니다. 신규 변환기/보조추출은 `field_transforms.py` 의 `VALUE_TRANSFORMS`/`FALLBACK_STRATEGIES` 에 등록하면 설정에서 바로 사용할 수 있습니다.
+convert 의 기본 변환 대상은 `created_date`이며 `authors` 등 나머지는 passthrough 됩니다. 신규 변환기/보조추출은 `field_transforms.py` 의 `VALUE_TRANSFORMS`/`FALLBACK_STRATEGIES` 에 등록하면 설정에서 바로 사용할 수 있습니다. 사이트 전용 변환기는 저장소를 고치지 말고 전처리기 파일에서 `tb.register_transform()` 으로 등록합니다.
 
 #### doc_summary
 
@@ -1034,7 +1034,7 @@ config 가 각 처리 단계에 어떻게 매핑되는지 요약합니다. 코�
 
 ### 4.4 convert_to_pdf
 
-`convert_to_pdf(file_path, use_pdf_sdk=True)` 는 다양한 포맷을 PDF 로 변환하는 한 줄 wrapper 로, 실제 로직은 `genon.preprocessor.converters.hwp_to_pdf.convert_hwp_to_pdf()` 에 위임됩니다.
+`convert_to_pdf(file_path, use_pdf_sdk=True)` 는 다양한 포맷을 PDF 로 변환하는 한 줄 wrapper 로, 실제 로직은 `genon.preprocessor.processing.converters.hwp_to_pdf.convert_hwp_to_pdf()` 에 위임됩니다.
 
 | 입력 | `use_pdf_sdk=True` | `use_pdf_sdk=False` |
 |------|--------------------|--------------------|

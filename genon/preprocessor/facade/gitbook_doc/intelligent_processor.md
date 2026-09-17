@@ -84,7 +84,7 @@ RAG 지식베이스 구축을 위한 **품질 최우선** 전처리기입니다.
 | **LLM Enrichment** | 목차(TOC) 자동 생성·메타데이터 추출·이미지 설명·커스텀 필드 (`enrichment` 섹션) |
 | **부록 자동 연결** | 본문의 '별지/별표' 참조를 실제 부록 파일과 자동 매칭 (intelligent 고유) |
 | **섹션 기반 순수 분할** | 토큰 제한 없이 문서 구조(섹션 헤더)를 100% 존중하는 청킹 (`max_tokens=0`) |
-| **HWP/HWPX 품질 복구** | HWP→PDF 변환이 내용을 잃으면(추출 텍스트 점수 낮음) rhwp 재변환·네이티브 HWPX 추출로 **자동 복구** (별도 설정 불필요, `converters/hwp_recovery`) |
+| **HWP/HWPX 품질 복구** | HWP→PDF 변환이 내용을 잃으면(추출 텍스트 점수 낮음) rhwp 재변환·네이티브 HWPX 추출로 **자동 복구** (별도 설정 불필요, `processing/converters/hwp_recovery`) |
 
 ### 세 전처리기 비교
 
@@ -636,7 +636,7 @@ field_transforms:
 - **키 이름 변경**: 프롬프트가 `doc_date` 로 추출하면 `source: [doc_date]` 로만 바꿔도 `created_date` 가 동일하게 채워집니다.
 - **fallback**: 추출이 비고 본문에 `"보고자료 2024-01-15 기준"` 이 있으면 `created_date: 20240115` 로 보강됩니다.
 - intelligent 의 기본 변환은 `created_date` 입니다 (convert 는 `created_date` + `authors`).
-- 신규 변환기/보조추출은 `field_transforms.py` 의 `VALUE_TRANSFORMS` / `FALLBACK_STRATEGIES` 에 등록하면 YAML 에서 바로 사용 가능합니다.
+- 신규 변환기/보조추출은 `field_transforms.py` 의 `VALUE_TRANSFORMS` / `FALLBACK_STRATEGIES` 에 등록하면 YAML 에서 바로 사용 가능합니다. 사이트 전용 변환기는 저장소를 고치지 말고 전처리기 파일에서 `tb.register_transform()` 으로 등록합니다.
 
 #### doc_summary
 
@@ -1027,7 +1027,7 @@ skip 합니다. 문서 적재 자체가 막히는 것보다 낫다는 판단입�
   └─ TableFormer (accurate/fast)
   ▼
 ①' HWP/HWPX 품질 복구 (자동)        ← HWP/HWPX 원본 & 추출 점수<20 일 때만
-  └─ rhwp 재변환 재시도 / 네이티브 HWPX 추출 폴백 (converters/hwp_recovery)
+  └─ rhwp 재변환 재시도 / 네이티브 HWPX 추출 폴백 (processing/converters/hwp_recovery)
   ▼
 ② 품질 검사 / GLYPH 감지            ← ocr 섹션 (ocr_mode, glyph_detection)
   └─ 필요 시 전체 페이지 OCR 재처리
@@ -1279,12 +1279,12 @@ async def __call__(self, request, file_path, **kwargs):
 ```
 
 - `auto_convert_to_pdf` (기본 `True`): 비-PDF 입력 자동 변환. `False` 면 변환 생략(PDF 가정, 변경 전 동작).
-- `use_pdf_sdk` (기본 `True`): 변환 엔진 — `True`=PDF SDK, `False`=LibreOffice. `convert_to_pdf()` 는 세 facade 공통 wrapper 로 `converters/hwp_to_pdf/` 에 위임.
+- `use_pdf_sdk` (기본 `True`): 변환 엔진 — `True`=PDF SDK, `False`=LibreOffice. `convert_to_pdf()` 는 세 facade 공통 wrapper 로 `processing/converters/hwp_to_pdf/` 에 위임.
 
 #### HWP/HWPX 품질 복구 (자동)
 
 HWP/HWPX 원본을 PDF 로 변환·로딩한 결과가 내용을 잃는 경우가 있어, `_process_pdf` 는 로딩
-직후 `HwpQualityRecovery.recover()`(`converters/hwp_recovery.py`)로 품질을 자동 점검·복구합니다.
+직후 `HwpQualityRecovery.recover()`(`processing/converters/hwp_recovery.py`)로 품질을 자동 점검·복구합니다.
 
 - **판정**: 추출 텍스트 품질 점수(표 셀 포함 alnum 문자 수)가 `20` 미만이면 "저품질"로 간주.
 - **복구 1 — rhwp 재변환**: `convert_hwp_to_pdf(order=["rhwp"])` 로 재변환 후 재로딩, 점수가

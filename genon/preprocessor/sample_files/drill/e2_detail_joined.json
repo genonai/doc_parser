@@ -1,0 +1,27 @@
+{
+ "resultCode": "0000",
+ "eventList": [
+  {
+   "cmpId": "M101",
+   "evtTodayMainCopy": "여행자보험 가입 이벤트",
+   "evtPtrmStrtDt": "20260701",
+   "evtPtrmEndDt": "20260731"
+  },
+  {
+   "cmpId": "M102",
+   "evtTodayMainCopy": "건강검진 할인 이벤트",
+   "evtPtrmStrtDt": "20260801",
+   "evtPtrmEndDt": "20260831"
+  }
+ ],
+ "detailList": [
+  {
+   "cmpId": "M101",
+   "htmlText": "<p>해외 여행자보험 <b>30%</b> 할인</p>"
+  },
+  {
+   "cmpId": "M102",
+   "htmlText": "<p>제휴 검진센터 <b>20%</b> 할인</p>"
+  }
+ ]
+}

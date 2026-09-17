@@ -212,9 +212,9 @@ def convert_to_pdf(file_path: str, use_pdf_sdk: bool = True) -> str | None:
 
     rhwp 는 HWP/HWPX 전용이라 비-HWP 입력에는 chain 에 들어가지 않는다. HWP/HWPX
     변환은 rhwp 를 libreoffice 보다 우선한다 (pdf_sdk 가 있으면 그 다음 순위).
-    내부 구현은 `genon.preprocessor.converters.hwp_to_pdf` 모듈에 통합되어 있다.
+    내부 구현은 `genon.preprocessor.processing.converters.hwp_to_pdf` 모듈에 통합되어 있다.
     """
-    from genon.preprocessor.converters.hwp_to_pdf import convert_hwp_to_pdf
+    from genon.preprocessor.processing.converters.hwp_to_pdf import convert_hwp_to_pdf
     ext = os.path.splitext(file_path)[1].lower()
     is_hwp = ext in (".hwp", ".hwpx")
     if use_pdf_sdk:

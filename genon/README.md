@@ -8,25 +8,27 @@
 ├── docling
 ├── docs
 ├── genon
+│   ├── legal_parser # 법령 수집·파싱 독립 서비스 (전처리기와 무관)
+│   │   ├── api
+│   │   ├── commons
+│   │   ├── parsers
+│   │   ├── schemas
+│   │   └── services
 │   ├── preprocessor # genos에서 실행 될 전처리기 이미지 및 facade 관련
 │   │   ├── configs # gunicorn, supervisor 설정
 │   │   ├── docker # 도커파일 위치
 │   │   ├── env # 개발 시 설정 파일들
-│   │   ├── facade # facade 코드
-│   │   │   ├── evaluation
-│   │   │   │   └── test_files
-│   │   │   │       ├── annotated
-│   │   │   │       ├── pdf
-│   │   │   │       └── result
+│   │   ├── facade # facade 코드(*_processor.py)
 │   │   │   ├── gitbook_doc
 │   │   │   │   └── images
-│   │   │   ├── legacy
-│   │   │   └── legal_parser
-│   │   │       ├── api
-│   │   │       ├── commons
-│   │   │       ├── parsers
-│   │   │       ├── schemas
-│   │   │       └── services
+│   │   │   └── legacy
+│   │   ├── processing # 파싱·청킹·보강 처리 라이브러리(facade 가 상속·호출)
+│   │   │   ├── chunking
+│   │   │   ├── common
+│   │   │   ├── core
+│   │   │   ├── enrichment
+│   │   │   ├── guardrail
+│   │   │   └── serialize
 │   │   ├── scripts # 도커 이미지 push 및 디비 등록 관련 스크립트 위치
 │   │   ├── resources # 폰트 및 기타 리소스 파일들
 │   │   ├── sample_files

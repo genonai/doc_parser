@@ -1,0 +1,327 @@
+# ═══════════════════════════════════════════════════════════════════════════
+#  템플릿 — 역할이 섞인 중첩 JSON → 의미 기반 섹션 청크 (source.kind: sections)
+#
+#  언제 쓰나 : JSON 파일 하나가 **대상 하나**(상품 1건, 카드 1장, 문서 1건)를 설명하는데,
+#              그 안에 성격이 다른 내용(기본정보 · 혜택 · 안내문 · 추천상품 …)이 섞여 있을 때.
+#  결과      : 성격별로 나뉜 "섹션" 하나가 검색 청크 하나가 된다(element category=
+#              `custom_fields_row`). 모든 청크에 공통 정보(상품명·상품코드 등)가 함께
+#              들어가므로, 어떤 청크가 검색돼도 "무엇에 대한 이야기인지" 알 수 있다.
+#
+#  LLM 호출  : 없음. 원천에 없는 필드가 필요할 때만 맨 아래 `llm` 을 쓴다(문서 1건당 1회).
+#
+#  records(레코드 매핑)와 무엇이 다른가
+#   · kind: records  : {"eventList": [건, 건, 건]} 처럼 **나열된 목록**용. 1건 = 청크 1개.
+#   · kind: sections : **대상 하나를 깊게 설명하는 JSON**용. 파일 1건 = 청크 여러 개.
+#     판단 기준: "1파일 = N개 평평한 레코드" 면 records, "역할이 섞인 중첩 JSON" 이면 sections.
+#
+#  ── 5종 중 어느 템플릿인가 ───────────────────────────────────────────────
+#   rows     · 엑셀/CSV 한 행 = 검색 1건           custom_field_TEMPLATE_rows.yaml
+#   records  · JSON 배열 한 요소 = 검색 1건        custom_field_TEMPLATE_records.yaml
+#   sections · 대상 하나를 깊게 설명한 중첩 JSON   custom_field_TEMPLATE_sections.yaml  ← 이 파일
+#   document · 문서 1건에서 필드 몇 개를 LLM 으로  custom_field_TEMPLATE_document.yaml
+#   html     · 마크업이 값을 이미 지목한 HTML      custom_field_TEMPLATE_html.yaml
+#   더 자세한 비교는 facade/gitbook_doc/parser_processor.md 의 "extractor 5종" 표.
+#
+#  ── 이 파일에서 정하는 것은 세 가지뿐이다 ─────────────────────────────────
+#    ① fields             : 모든 청크에 함께 넣을 공통 정보 (상품명·상품코드 …)
+#    ② source.sections    : JSON key 별 표시 이름 (선택 — 안 붙이면 자동)
+#    ③ source.ignore_keys : 검색에서 뺄 key (다른 대상의 내용, 이미지 경로, 화면 색상 …)
+#
+#  나머지는 **자동**이다 — 적을 필요가 없다.
+#    · HTML 값은 알아서 표·목록이 살아 있는 글자로 바뀐다
+#    · 빈 값(null, "", [], {})은 알아서 빠진다
+#    · 섹션 제목은 값 안에 들어 있는 제목을 찾아 알아서 붙인다
+#    · 여기 적지 않은 key 도 알아서 검색에 들어간다(빠뜨려서 누락될 일이 없다)
+#
+#  ── 쓰는 순서 ────────────────────────────────────────────────────────────
+#  ① 이 파일을 resource/custom_field_<유형>.yaml 로 복사한다.
+#  ② <...> 로 표시된 곳을 채운다. 필요 없는 [선택] 항목은 지운다.
+#  ③ resource/parser_processor_config.yaml 의 enrichment 목록에 아래를 추가한다.
+#        - custom_fields:
+#            enable: true
+#            doc_type: <유형>
+#            # extractor 는 적지 않는다 — 설정 파일의 `source.kind: sections` 에서 정해진다.
+#            #   굳이 적겠다면 `json_semantic` 이어야 한다. 어긋나면 기동이 실패하고,
+#            #   메시지에는 설정에 적은 적 없는 내부 키 이름이 나와 원인을 짚기 어렵다.
+#            config_file: custom_field_<유형>.yaml
+#  ④ 실제 원천 파일로 결과를 확인한다(아래 "확인 방법" 참고).
+#
+#  이 템플릿은 참고용이므로 parser_processor_config.yaml 에 등록하지 않는다.
+#     <...> 가 남은 상태로 등록하면 매핑이 원천과 맞지 않아 값이 비어서 나온다.
+# ═══════════════════════════════════════════════════════════════════════════
+
+schema: v2
+
+# ── [필수] 레코드 소스 ──────────────────────────────────────────────────────
+source:
+  kind: sections
+
+  # 이 kind 는 **parser 경로 전용**이다. 적재용(intelligent)/변환용(convert) 은 원천을 PDF 로
+  # 바꿔 읽어 JSON 구조가 남지 않으므로, 거기 등록하면 기동 시 경고가 남고 아무 필드도
+  # 채워지지 않는다.
+
+  # ── [선택] ② JSON key 별 표시 이름 ────────────────────────────────────────
+  # 왼쪽  = JSON 의 key 이름(경로가 아니라 이름만 — 깊이가 달라져도 계속 동작한다)
+  # 오른쪽 = 청크 본문 앞에 `[<이름>]` 처럼 표시될 이름. 하위 key 에 별도 설정이 없으면
+  #          그 아래 자식들도 전부 이 이름을 물려받는다(컨테이너 하나 = SECTION_NM 하나).
+  #
+  # 여기 적지 않은 key 도 자동으로 검색에 들어간다(제목은 값 안의 제목이 있으면 그걸,
+  # 없으면 key 이름 그대로 쓴다). 이 블록은 **"이름을 보기 좋게 붙일 key"** 만 적는 곳이고,
+  # 이름을 안 붙일 거면 블록 자체를 생략해도 된다.
+  #
+  # 원천에 없는 key 이름을 적어도 기동 검사가 잡아주지 못한다(아래 "못 잡는다" 참고) —
+  # <...> 를 지우지 않은 채로 두면 아무 효과 없이 조용히 통과하므로, 쓸 때만 주석을 푼다.
+  # sections:
+  #   <SECTION_KEY_1>: <섹션 표시 이름>
+  #   <SECTION_KEY_2>: <섹션 표시 이름>
+
+  # ── [선택] ③ 검색에서 뺄 key ──────────────────────────────────────────────
+  # **제외 수단은 이것 하나다.** 두 종류를 여기 함께 적는다.
+  #
+  #  ① 이 대상이 아닌 내용 — 이 JSON 이 자기 자신 말고 "다른 대상"(추천 상품, 관련 문서 등)을
+  #     함께 담고 있을 때. 그대로 두면 다른 대상의 내용이 이 대상의 내용으로 검색되어 오답이
+  #     된다. JSON 구조만 봐서는 알 수 없어서 **사람이 알려줘야 하는 유일한 부분**이다.
+  #  ② 쓸모없는 값 — 이미지 경로·화면 색상·정렬 순서처럼 사람이 검색할 일이 없는 값.
+  #     빼지 않으면 그 값이 그대로 청크 본문 줄로 섞여 검색 정확도를 떨어뜨린다.
+  #
+  # `*` 로 부분 일치를 쓸 수 있다 — `*Img*` 한 줄이 pcImg1·moImg1·bgImgUrl 을 모두 잡는다.
+  # fnmatch 매칭이라 **대소문자를 구분한다**(alias 와 다르다) — `*img*` 로 적으면 `pcImg1` 은
+  # 안 잡힌다. 원천 key 의 대소문자 그대로 적는다.
+  # ignore_keys:
+  #   - <RELATED_ITEM_KEY>   # 이 대상이 아닌 내용
+  #   - "*Img*"
+  #   - <제외할_key>
+
+  # ── [선택] require 를 못 채웠을 때 ────────────────────────────────────────
+  # error(기본) = 요청 실패 / skip = 경고 후 섹션 0건
+  # on_missing: error
+
+# ── [필수] ① 모든 청크에 함께 넣을 공통 정보 ────────────────────────────────
+# 왼쪽  = 만들 목표필드명. 적재 DB 컬럼명(대문자)으로 쓴다.
+# 값은 **항상 object** 다.
+#
+# 쓸 수 있는 키
+#   alias     : 그 값이 들어 있는 **루트 JSON key 이름들**. 먼저 찾은 것을 쓴다(경로 아님).
+#               관련 객체의 `code`/`name` 이 대상 식별자로 섞이지 않도록 **중첩 안쪽은 찾지
+#               않는다**. 대소문자와 `_ - . /` 차이는 무시한다.
+#   const     : 원천 값과 무관하게 항상 같은 값(파일 단위로 고정일 때만)
+#   default   : 원천 값이 없거나 빈 문자열일 때만 채운다
+#   values    : 코드값·표기 흔들림을 표준값으로 접는다 (`ON_SALE: ["1", Y, 판매중]`)
+#               별칭에 영문 `yes`/`no`/`on`/`off` 를 쓸 때는 **따옴표로 감싼다** — YAML 이
+#               참/거짓으로 바꿔 버려 원천의 "yes" 와 영영 안 맞는다(`Y`/`N` 은 그대로다)
+#   transform : 값 변환 체인 (`[{name: regex_sub, pattern: "[^0-9]"}, {name: to_int}]`)
+#               적재 DB 의 JSON 컬럼에 넣을 필드는 `[{name: to_json}]` 을 맨 뒤에 건다
+#   raw       : 원천의 객체를 값으로 받는다(기본은 구조로 보고 파고들어 null 이 된다).
+#               루트 전용 탐색은 그대로다 — 깊은 동명 키는 여전히 승격되지 않는다
+#   template  : 다른 필드를 합쳐 만든다 (`"{{BRAND_NM}} {{PRODUCT_NM}}"`)
+#   pack      : 여러 필드를 JSON 한 칸에 담는다 (`[BRAND_NM, ANNUAL_FEE]` →
+#               `{"BRAND_NM": ..., "ANNUAL_FEE": ...}` 문자열). 값이 없는 키도 null 로
+#               남고 원천 필드는 그대로 남는다. 본문 관련 키에는 쓸 수 없다
+#   meta      : 이 필드를 청크 메타(적재 컬럼)에 실을지. 안 적으면 실린다(기본 true).
+#               template·pack 재료나 require·filter 조건처럼 값 조립에만 쓰는 중간
+#               필드에 `meta: false` 를 적어 컬럼에서 뺀다. 값은 그대로 만들어지므로
+#               본문(body)·파생·선별은 정상으로 돌고, 빠지는 곳은 청크 메타 하나다
+#
+# `collect`·`seq` 는 이 kind 가 **읽지 않는다**(적으면 기동 시 실패한다) — collect 는
+# records 전용, seq 는 레코드 루프가 있는 rows/records 전용이다(섹션형에는 "항목 N번째"가
+# 정의되지 않는다). `seq` 는 오류 메시지가 내부 이름 `sequence` 로 나온다.
+#
+# 여기 적은 값은 두 곳에 들어간다.
+#   · 청크 본문 맨 앞  → "상품명: <값>" 처럼 라벨과 함께 붙어 검색이 잘 되게 한다
+#     (**`body.fields` 에 적은 필드만** 실린다. 기본으로 실리는 필드는 없다 —
+#      적지 않은 필드는 metadata 에만 남는다. `alias` 없이 `const`/`default` 로만 만든
+#      필드도 `body.fields` 에 적으면 똑같이 본문에 실린다)
+#   · 청크 metadata    → 적재 시 DB 컬럼이 된다
+fields:
+  <TARGET_FIELD_1>:
+    alias: [<json key>, <다른 표기>]
+  <TARGET_FIELD_2>:
+    alias: [<json key>]
+  # 값이 스칼라 배열(문자열 목록 등)이면 본문에서 억제되지 않는다 — 배열은 정체성이 아니라
+  # 콘텐츠라 그 원천 key 의 목록 섹션이 그대로 남는다(예: 혜택 제목 목록).
+  # <GROUP_C>: {const: "<고정값>"}
+  # <SALE_STATUS>: {alias: [saleStatus], default: ON_SALE}
+  #
+  # 값을 손봐야 할 때(rows/records 와 같은 스펙이다)
+  # <SALE_STATUS>:
+  #   alias: [saleStatus]
+  #   values: {ON_SALE: ["1", Y, 판매중], OFF_SALE: ["0", N, 판매중지]}
+  # <ANNUAL_FEE>:
+  #   alias: [feeAmount]                                  # "18,000원" -> 18000
+  #   transform: [{name: regex_sub, pattern: "[^0-9]", repl: ""}, {name: to_int}]
+  # <DISPLAY_NM>:
+  #   template: "{{<BRAND_NM>}} {{<TARGET_FIELD_1>}}"      # 다른 필드를 합쳐 만든다
+
+# ── [참고] 값 적용 순서 ──────────────────────────────────────────────────────
+# 공통 필드 하나가 확정되기까지 이 순서로 처리된다(rows/records 와 같다):
+#   원천값 → default(빈 값만) → const(덮어씀) → values → transform → template
+#   → llm 필드 채움 → pack 묶기(값이 다 확정된 뒤라 llm 산출까지 담긴다)
+# default 가 빈 값을 채운 **뒤에** const 가 덮어쓴다 — 둘 다 선언했다면 언제나 const 가 이긴다.
+# `require` 검사는 이 모든 단계의 **뒤**라, const/template 으로 채운 필드도 정상 통과한다.
+
+# ── [선택] 필수 공통 필드 ───────────────────────────────────────────────────
+# 여기 적은 필드가 문서 루트에서 하나라도 안 잡히면(원천에 아예 없거나 key 이름이 어긋나면)
+# `source.on_missing` 에 따라 처리한다. 기본은 error(요청 실패) — skip 이면 경고 후 섹션 0건.
+# 기동이 아니라 **요청 시점**에 걸러진다.
+# require:
+#   fields: [<TARGET_FIELD_1>]
+
+# ── [선택] 청크 본문에 실을 공통 필드와 항목명 ──────────────────────────────
+# fields : 청크 접두(본문 맨 앞)에 실을 공통 필드. **본문에 나가는 것이 전부 여기 적힌다** —
+#          적지 않은 필드는 metadata(적재 컬럼)에만 남으므로 BIZ_ID 처럼 사람이 검색어로
+#          쓰지 않는 내부 식별자는 그냥 빼 두면 잡음이 줄어든다.
+#          `fields` 를 아예 쓰지 않으면 하위호환으로 `labels` 에 이름이 있는 필드가 실린다.
+# labels : 그 필드를 본문에서 뭐라고 부를지. 없으면 값만 실린다.
+#          섹션 본문(자동 생성)에는 관여하지 않는다 — 접두에 실리는 공통 필드에만 붙는다.
+# once   : 문서 1건에 하나뿐인 값(연회비·작성일 등)을 **첫 청크에만 1회** 싣는다.
+#          공통 정보처럼 모든 청크에 붙이면 chunk_size 를 그만큼 깎고 같은 문장이 섹션 수만큼
+#          임베딩에 들어간다. 값 자체는 모든 청크 metadata 에 실리므로 필터 검색은 전 청크에서 된다.
+#          접두 **뒤**에 들어간다 — 청커의 `content.startswith(chunk_prefix)` 재부착 계약 때문이다.
+#          `fields` 로 원천에서 찾는 필드를 여기 적어도 된다 — 그 필드는 매 청크 접두에서
+#          자동으로 빠지고 첫 청크에만 실린다(둘이 겹쳐 두 번 나오지 않는다).
+#
+# `split`·`repeat`·`mirror_to` 는 이 kind 가 **읽지 않는다**(적으면 기동 시 실패).
+# 섹션 본문은 섹션 워커가 만들고, 과대 섹션 분할은 항상 켜져 있다.
+# body:
+#   fields: [<TARGET_FIELD_1>, <TARGET_FIELD_2>]
+#   labels:
+#     <TARGET_FIELD_1>: <항목명>
+#     <TARGET_FIELD_2>: <항목명>
+#   once: [<ANNUAL_FEE>]
+
+# ── [선택] JSON 에 아예 없는 값만 LLM 으로 만든다 ───────────────────────────
+# 규칙으로 뽑을 수 있는 값(코드·금액·본문)은 **LLM 에 맡기지 않는다** — 값이 틀리거나
+# 빠질 수 있고, 실행할 때마다 결과가 달라진다. 여기는 "원천에 없어서 판단이 필요한 것"만 적는다.
+#
+# 호출 횟수는 **문서(파일) 1건당 1회**다 — 섹션/청크 개수와 무관하고, 결과가 그 파일의 모든
+# 섹션에 같은 값으로 복사된다. 호출 단위는 `source.kind` 가 정하므로 `scope` 를 적지 않는다.
+#
+# 블록 자체는 선택이지만 **쓰기로 했다면 `out` 과 `in` 은 둘 다 필수**다(비우면 기동 실패).
+#
+# `in` 에는 세 가지를 쓸 수 있다.
+#   · `fields` 의 목표필드명 (`PRODUCT_NM` …)   — 짧은 사실값
+#   · `PRODUCT_INFO`                             — 문서 전체(모든 섹션 본문을 이어붙인 것)
+#   · **JSON 의 key 이름** (`htmlList`, `feeUrl` …) — 그 key 를 경로에 가진 섹션 본문만
+#
+# 세 번째가 보통 정답이다. 예를 들어 연회비 표는 `htmlList.feeUrl` 안에만 있는데,
+# `PRODUCT_INFO` 로 카드 전체를 넣으면 토큰이 크고 다른 이야기가 섞여 추출이 흔들린다.
+#   in: [feeUrl]      ← 연회비 표만 (권장)
+#   in: [htmlList]    ← 그 컨테이너 아래 문서 전부
+# 경로(`htmlList.feeUrl`)가 아니라 **이름만** 적는다. 같은 이름의 섹션이 여럿이면 전부 이어붙인다.
+# 여기 적은 이름은 원문 HTML 이 아니라 **청크에 실제로 실리는 평문**으로 들어간다 —
+# 추출값이 이상할 때 청크만 보고 원인을 짚을 수 있어야 하기 때문이다.
+#
+# 이름을 못 찾으면 경고 로그가 남고 그 입력은 빠진다. `in` 이 전부 빠지면 LLM 은 빈 문서를
+# 받으므로 결과가 null 이 된다 — "모델이 못 뽑는다" 싶으면 로그를 먼저 본다.
+#
+# `out` 이름을 `fields` 목표필드와 겹치게 두면 **LLM 결과가 원천 값을 덮어쓴다**(실패해도
+# null 로 덮으므로 그 필드는 사실상 LLM 전용이 된다). 의도한 경우가 아니면 다른 이름을 쓴다.
+# `out` 의 이름은 프롬프트가 내놓는 JSON 키와 **정확히 같아야** 한다 — 어긋나면 에러 없이 null.
+# llm:
+#   - out: [<GENERATED_FIELD>]
+#     in:  [feeUrl]                           # [필수] 필요한 부분만 — 문서 전체는 PRODUCT_INFO
+#     parser: {type: json}
+#     # <ENRICHMENT_SERVING_ID>: Genos에 등록한 모델서빙 ID 로 변경. api_key 도 배포 시 설정.
+#     endpoint:
+#       url: "http://llmops-gateway-api-service:8080/rep/serving/<ENRICHMENT_SERVING_ID>/v1/chat/completions"
+#       api_key: ""
+#       model: model
+#     params:
+#       max_tokens: 1000
+#       temperature: 0.0
+#       timeout: 120
+#     prompt:
+#       system: |
+#         <역할>. 반드시 하나의 JSON 객체만 반환한다. 설명 문구·코드펜스 없이 순수 JSON 만 출력한다.
+#         키는 `<GENERATED_FIELD>` 하나다.
+#         원문에 없는 내용을 지어내지 않는다(환각 금지). 만들 것이 없으면 값을 null 로 둔다.
+#
+#         출력 예시 형식(값은 예시):
+#         {"<GENERATED_FIELD>": "<예시 값>"}
+#       user: |
+#         <지시문>
+#
+#         반드시 `<GENERATED_FIELD>` 키를 가진 JSON 객체로만 반환하라.
+#
+#         <document>
+#         {{raw_text}}
+#         </document>
+
+# ── [선택] 표 설명(table_text_description)을 이 문서유형에서만 바꾼다 ────────
+# 프로세서 config 의 공통 `table_text_description` 값이 기본이고, 여기 적은 키만 덮어쓴다.
+# **최상위 키**이며 kind 와 무관하다 — 섹션 본문 안의 <table> 에도 표 설명이 붙는다.
+# 키 구성은 custom_field_TEMPLATE_document.yaml 의 같은 이름 블록에 전부 적혀 있다.
+# table_text_description:
+#   rag:
+#     key_fact_limit: 5
+
+# ═══════════════════════════════════════════════════════════════════════════
+#  기동 시 자동 검사 — 무엇을 잡아주고 무엇을 못 잡나
+#
+#  실패시킨다(요청 전에 바로 안다)
+#   · **이 kind 가 읽지 않는 키를 적은 경우.** 어느 스키마에도 없는 키(오타)는 가장 가까운
+#     이름을 제안하고, 다른 kind 의 키는 어디 전용인지 알려준다. 지원 키 매트릭스는
+#     facade/gitbook_doc/parser_processor.md 에 있다.
+#     sections 가 **읽지 않는** 대표 키는 아래와 같다(다른 템플릿에서 옮겨 적으면 안 된다).
+#       body.split · body.repeat · body.mirror_to
+#       필드 스펙의 collect · seq
+#       filter · source.records_at · source.merge_rows
+#   · `transform` 의 변환기 이름이 틀렸거나 필수 인자가 빠진 경우, 안 되는 정규식
+#   · `template` 이 아무도 만들지 않는 필드를 참조하는 경우
+#   · `fields` 의 값이 object 가 아닌 경우(값을 빠뜨린 오타 포함)
+#   · 목표필드명이 벡터 예약 필드(text·title·n_char·i_page·created_date·appendix …)와
+#     겹치거나 property 이름 규칙 `/[_A-Za-z][_0-9A-Za-z]*/` 을 벗어난 경우
+#
+#  경고만 남긴다(로그를 봐야 안다)
+#   · `body.fields` 가 아무도 만들지 않는 필드를 가리킬 때 — 그 줄이 조용히 빠진다
+#   · `body.labels` 가 아무도 만들지 않는 필드를 가리킬 때 — 라벨만 조용히 사라진다
+#   · `values` 에 없는 값이 원천에 들어올 때 — 원값을 그대로 두고 경고만 남긴다
+#     (조용히 null 로 바꾸면 NOT NULL 컬럼이 적재 직전에야 터진다)
+#   · `llm.in` 의 이름을 못 찾을 때 — 그 입력이 빠진다
+#
+#  못 잡는다(아래 "확인 방법"으로 직접 봐야 한다)
+#   · `require.fields` 에 `llm` 이 만드는 필드를 적은 경우
+#     (그 필드는 identity 확정 시점에 항상 비어 있어 on_missing 대로 전건이 걸러진다)
+#   · alias 가 원천과 어긋나 값이 전부 비는 경우
+#   · `sections`·`ignore_keys` 의 key 이름 오타 — 원천에 없는 이름이라 아무 일도 일어나지 않는다
+#   · `source.pre` 를 이 kind 에 적은 경우 — 기동은 통과하고 **조용히 무시된다**
+#     (`markdown`·`html` 은 document 전용, `delimited` 는 records 전용이다)
+#
+#  오류 메시지는 설정에 적는 이름이 아니라 **내부 이름**으로 나온다
+#   (`body.fields`→`text_fields`, `body.once`→`first_chunk_fields`, `values`→`value_map`,
+#    `require.fields`→`required_shared_fields`, `seq`→`sequence`, `raw`→`raw_fields` …).
+#   못 보던 이름이 나오면 facade/gitbook_doc/parser_processor.md 의 매트릭스에서 되짚는다.
+#
+# ═══════════════════════════════════════════════════════════════════════════
+#  확인 방법
+#
+#  1) 설정만 검사 — 파싱·LLM 없이 yaml 만 읽는다.
+#       genon/preprocessor/examples/config_precheck/precheck_custom_fields.sh
+#
+#  2) 실제 json 으로 섹션 결과 보기 — 가장 확실하다(LLM 호출 없음).
+#     실행 위치: genon/preprocessor  (그 폴더의 .venv 로 돌린다)
+#       .venv/bin/python -c "
+#     import sys, json; sys.path.insert(0,'.'); sys.path.insert(0,'../..')
+#     from processing.enrichment.json_semantic import SemanticJsonMapper as M
+#     m = M(config_file='custom_field_<유형>.yaml', resource_path='resource',
+#           doc_type='<유형>', extractor='json_semantic')
+#     payload = json.load(open('<내_데이터.json>', encoding='utf-8'))
+#     out = m.to_parse_format(m.build_fields(payload, '<유형>'), '<유형>')
+#     print(f'섹션 {len(out[\"elements\"])}건')
+#     for e in out['elements']:
+#         print('=' * 60); print(e['content'])
+#         print(' ->', {k: e['metadata'].get(k) for k in ('SECTION_NM', 'SOURCE_JSON_PATH')})
+#     "
+#
+#  3) doc_type 자동 검증 — 파싱·청킹까지 태워 약속한 필드가 실제 청크에 실렸는지 본다.
+#       genon/preprocessor/examples/parse_chunk/parse_chunk_verify.sh --only <유형>
+#
+#  · require.fields 를 못 찾으면(기본 on_missing: error) 위 2번 스크립트가 ValueError 로 죽는다 —
+#    `fields` 의 alias 가 원천과 어긋난 것이다. require 를 안 쓰는 경우 섹션이 0건이면
+#    같은 원인을 의심한다.
+#  · 관계없는 대상의 내용이나 이상한 값(색상·경로·코드뿐인 짧은 줄)이 섞여 나오면
+#    ignore_keys 에 그 key 를 추가한다.
+#  · 섹션 제목이 원문 key 이름(feeUrl 등) 그대로 나오면, 그 값 안에 진짜 제목(h1~h6/헤딩)이
+#    없다는 뜻이다 — sections 에 표시 이름을 명시해 대체한다.
+#  · SOURCE_JSON_PATH 의 배열 인덱스는 0-base 다(JSONPath 규약) — `$.bubble[0]` 이 첫 원소.
+# ═══════════════════════════════════════════════════════════════════════════

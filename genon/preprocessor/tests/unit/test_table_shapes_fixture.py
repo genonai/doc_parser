@@ -8,9 +8,9 @@ from pathlib import Path
 
 import pytest
 
-from genon.preprocessor.facade.chunking.table_shape import (
+from genon.preprocessor.processing.chunking.table_shape import (
     analyze_grid, resolve_table_format)
-from genon.preprocessor.facade.chunking.table_splitter import split_table_rows
+from genon.preprocessor.processing.chunking.table_splitter import split_table_rows
 from table_invariants import assert_table_invariants, looks_like_markdown_table
 
 FIXTURES = Path(__file__).resolve().parents[1] / "fixtures" / "table_shapes"

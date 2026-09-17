@@ -8,11 +8,11 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from genon.preprocessor.facade.enrichment import custom_fields_enricher as cfe
-from genon.preprocessor.facade.enrichment.custom_fields_enricher import (
+from genon.preprocessor.processing.enrichment import custom_fields_enricher as cfe
+from genon.preprocessor.processing.enrichment.custom_fields_enricher import (
     CustomFieldsEnricher,
 )
-from genon.preprocessor.facade.enrichment.markdown_front_matter import (
+from genon.preprocessor.processing.enrichment.markdown_front_matter import (
     MarkdownFrontMatterSpec,
     build_markdown_front_matter_specs,
 )
@@ -144,12 +144,16 @@ def test_builder_routes_by_document_extractor_only():
 def test_builder_loads_child_markdown_config_and_applies_inline_override(tmp_path: Path):
     child = tmp_path / "product.yaml"
     child.write_text(
-        "markdown:\n"
-        "  front_matter:\n"
-        "    metadata_fields:\n"
-        "      source_file: source_file\n"
-        "      created_at: created_date\n"
-        "    exclude_text_fields: ['*']\n",
+        "schema: v2\n"
+        "source:\n"
+        "  kind: document\n"
+        "  pre:\n"
+        "    markdown:\n"
+        "      front_matter:\n"
+        "        metadata_fields:\n"
+        "          source_file: source_file\n"
+        "          created_at: created_date\n"
+        "        exclude_text_fields: ['*']\n",
         encoding="utf-8",
     )
     config = {
@@ -179,9 +183,13 @@ def test_builder_loads_child_markdown_config_and_applies_inline_override(tmp_pat
 def test_inline_markdown_false_disables_child_config(tmp_path: Path):
     child = tmp_path / "product.yaml"
     child.write_text(
-        "markdown:\n"
-        "  front_matter:\n"
-        "    metadata_fields: [source_file]\n",
+        "schema: v2\n"
+        "source:\n"
+        "  kind: document\n"
+        "  pre:\n"
+        "    markdown:\n"
+        "      front_matter:\n"
+        "        metadata_fields: [source_file]\n",
         encoding="utf-8",
     )
     config = {
@@ -321,9 +329,8 @@ def test_front_matter_wins_over_llm_and_is_added_to_prompt(monkeypatch):
     assert raw_text_arg.endswith("본문")
 
 
-@pytest.mark.unit
-def test_product_markdown_parser_to_chunk_round_trip():
-    """출고 설정/샘플로 front matter 제거와 Docling JSON metadata 왕복을 검증."""
+def _product_slf_round_trip() -> list[dict]:
+    """출고 설정/샘플로 product_slf 파서→청커 왕복을 실제로 돌린다."""
     from fastapi import Request
 
     from genon.preprocessor.facade.chunking_processor import (
@@ -359,7 +366,13 @@ def test_product_markdown_parser_to_chunk_round_trip():
         )
         return [vector.model_dump() for vector in vectors]
 
-    rows = asyncio.run(_run())
+    return asyncio.run(_run())
+
+
+@pytest.mark.unit
+def test_product_markdown_parser_to_chunk_round_trip():
+    """출고 설정/샘플로 front matter 제거와 Docling JSON metadata 왕복을 검증."""
+    rows = _product_slf_round_trip()
     forbidden = ("source_file:", "source_pages:", "created_at:", "conversion_note:")
     assert len(rows) == 7
     assert all(not any(token in row["text"] for token in forbidden) for row in rows)
@@ -369,9 +382,22 @@ def test_product_markdown_parser_to_chunk_round_trip():
     # 걷어냈다. 그래서 여기서는 남아 있는 선언만 단정한다 — 위 `forbidden` 검사가
     # "걷어낸 값이 본문으로 새지도 않는다" 를 함께 지킨다.
     assert all(row["created_date"] == 20260112 for row in rows)
-    assert all(row["PRODUCT_C"] == "30387" for row in rows)
     assert all(row["GROUP_C"] == "SLF" for row in rows)
     assert all(row["doc_type"] == "product_slf" for row in rows)
+    # PRODUCT_C 는 아래 xfail 테스트가 따로 본다 — 지금은 출고 설정 때문에 항상 null 이다.
+    assert all(row["PRODUCT_NM"] == "삼성 s교통상해보험(2501)(무배당)" for row in rows)
+
+
+@pytest.mark.unit
+def test_product_code_from_llm_survives_to_chunks():
+    """LLM 이 뽑은 PRODUCT_C 가 모든 청크 metadata 에 실려야 한다.
+
+    PRODUCT_C 는 NOT NULL 컬럼인데 front matter 에 상품코드가 없어 LLM 이 본문에서 찾는다.
+    설정이 `const: null` 이면 그 값을 덮어 항상 null 이 된다(default < LLM < front matter
+    < const). 값을 고정하려는 것이 아니라 "못 찾으면 null" 이므로 `default: null` 이다.
+    """
+    rows = _product_slf_round_trip()
+    assert all(row["PRODUCT_C"] == "30387" for row in rows)
 
 
 @pytest.mark.unit

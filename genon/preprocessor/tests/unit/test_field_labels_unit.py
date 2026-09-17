@@ -13,10 +13,10 @@ from pathlib import Path
 import pytest
 import yaml
 
-from genon.preprocessor.facade.chunking import doc_prefix as dpx
-from genon.preprocessor.facade.common import config_parse as cp
-from genon.preprocessor.facade.enrichment.json_records import JsonRecordsMapper
-from genon.preprocessor.facade.enrichment.tabular_custom_fields import (
+from genon.preprocessor.processing.chunking import doc_prefix as dpx
+from genon.preprocessor.processing.common import config_parse as cp
+from genon.preprocessor.processing.enrichment.json_records import JsonRecordsMapper
+from genon.preprocessor.processing.enrichment.tabular_custom_fields import (
     TabularCustomFieldsMapper,
     build_chunk_text,
 )
@@ -25,7 +25,7 @@ RESOURCE_DIR = Path(__file__).resolve().parents[2] / "resource"
 
 
 def _load_shipped(name: str) -> dict:
-    """출고 설정을 내부(v1) 형태로 읽는다(출고는 v2 표기다).
+    """출고 설정을 내부 형태로 읽는다(출고는 v2 표기다).
 
     번역 없이 raw 로 읽으면 v2 파일에서 `text_fields`/`field_labels` 가 빈 값이 되어
     검사가 **조용히 무력해진다** — 통과하지만 아무것도 보지 않는 상태가 된다.
@@ -93,11 +93,25 @@ def test_json_path_without_labels_stays_value_only():
 
 
 @pytest.mark.unit
-def test_multiline_block_keeps_no_label():
-    """여러 줄 블록은 자기 제목을 이미 갖고 있어 항목명을 붙이지 않는다."""
+def test_multiline_value_keeps_the_named_label_on_its_own_line():
+    """사람이 적어 준 항목명은 여러 줄 값에도 나간다 — 첫 줄에 붙이지 않고 따로 낸다.
+
+    `html_text` 가 만드는 값은 표·목록으로 시작해 자기 제목이 없는 경우가 대부분이라,
+    여러 줄이면 라벨을 버리는 종전 규칙에서는 설정의 `labels` 가 조용히 무시됐다.
+    """
+    content, _ = build_chunk_text(
+        {"CONTENT": "| 구 분 | 내 용 |\n| - | - |"}, ["CONTENT"], [],
+        field_labels={"CONTENT": "내용"},
+    )
+    assert content == "내용:\n| 구 분 | 내 용 |\n| - | - |"
+
+
+@pytest.mark.unit
+def test_multiline_value_drops_the_fallback_header_label():
+    """원천 헤더로 폴백한 이름은 종전대로 여러 줄 값에 붙이지 않는다."""
     content, _ = build_chunk_text(
         {"DETAIL_TEXT": "## 혜택\n- 5% 적립"}, ["DETAIL_TEXT"], [],
-        field_labels={"DETAIL_TEXT": "상세내용"},
+        column_map={"DETAIL_TEXT": ["상세설명"]},
     )
     assert content == "## 혜택\n- 5% 적립"
 
@@ -135,12 +149,16 @@ def test_resolve_field_labels_prefers_kwargs_over_document_metadata():
 def test_unknown_field_label_warns_but_does_not_fail(tmp_path, caplog):
     """이름을 잘못 적으면 라벨만 조용히 사라진다 — 기동 시 경고로 드러낸다."""
     cfg = """
-    key_map:
-      TITLE: [title]
-    field_labels:
-      TITLE: 제목
-      TITEL: 제목
-    text_fields: [TITLE]
+    schema: v2
+    source:
+      kind: records
+    fields:
+      TITLE: {alias: [title]}
+    body:
+      fields: [TITLE]
+      labels:
+        TITLE: 제목
+        TITEL: 제목
     """
     path = tmp_path / "custom_field_json.yaml"
     path.write_text(textwrap.dedent(cfg), encoding="utf-8")
@@ -201,7 +219,9 @@ _LABEL_EXEMPT_FIELDS = {"CS_CATEGORY"}
 @pytest.mark.parametrize("name", [
     "custom_field_faq.yaml", "custom_field_faq_json.yaml", "custom_field_cs_sss.yaml",
     "custom_field_cs_slf.yaml", "custom_field_cs_ssf.yaml",
-    "custom_field_monimo_news.yaml", "custom_field_monimo_event.yaml",
+    # monimo_news 는 원천이 레코드 배열에서 HTML 문서 한 건으로 바뀌면서 본문 필드
+    # (text_fields)가 없는 `kind: html` 설정이 됐다. 검사 대상이 아니다.
+    "custom_field_monimo_event.yaml",
 ])
 def test_shipped_configs_name_every_body_field(name):
     """본문 필드는 모두 항목명을 갖는다 — 하나라도 빠지면 그 필드만 값으로 나가 불규칙해진다."""
@@ -218,7 +238,7 @@ def test_shipped_configs_name_every_body_field(name):
 def test_faq_xlsx_and_faq_json_agree_on_labels():
     """같은 doc_type 이 원천 포맷에 따라 다른 본문 모양을 내지 않는다(이 작업의 출발점)."""
     # 출고 설정은 v2 표기다. 이 검사는 "무엇을 만드는가"를 보는 것이라 표기와 무관해야
-    # 하므로, 매퍼가 하는 것과 같은 번역을 거쳐 내부(v1) 형태로 맞춘 뒤 비교한다.
+    # 하므로, 매퍼가 하는 것과 같은 번역을 거쳐 내부 형태로 맞춘 뒤 비교한다.
     tabular = _load_shipped("custom_field_faq.yaml")
     json_cfg = _load_shipped("custom_field_faq_json.yaml")
     assert tabular["field_labels"] == json_cfg["field_labels"]

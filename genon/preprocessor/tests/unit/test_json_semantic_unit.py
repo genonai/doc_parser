@@ -13,7 +13,7 @@ from pathlib import Path
 
 import pytest
 
-from genon.preprocessor.facade.enrichment.json_semantic import (
+from genon.preprocessor.processing.enrichment.json_semantic import (
     SemanticJsonMapper,
     build_semantic_json_mappers,
 )
@@ -22,23 +22,35 @@ pytestmark = pytest.mark.unit
 
 
 BASE_CONFIG = """
-shared_fields:
-  BIZ_ID:     [wcmsId]
-  PRODUCT_C:  [code]
-  PRODUCT_NM: [cardTitle]
-sections:
-  bubble:   혜택 상세
-  ksp:      주요 혜택 요약
-  htmlList: 상품 문서
-ignore_keys:
+schema: v2
+source:
+  kind: sections
+  sections:
+    bubble: 혜택 상세
+    ksp: 주요 혜택 요약
+    htmlList: 상품 문서
+  ignore_keys:
   - mpo
-  - "*Img*"
-constants:
-  GROUP_C: "HPP"
-text_fields: [PRODUCT_C, PRODUCT_NM]
-field_labels:
-  PRODUCT_C:  상품코드
-  PRODUCT_NM: 상품명
+  - '*Img*'
+fields:
+  BIZ_ID:
+    alias:
+    - wcmsId
+  PRODUCT_C:
+    alias:
+    - code
+  PRODUCT_NM:
+    alias:
+    - cardTitle
+  GROUP_C:
+    const: HPP
+body:
+  fields:
+  - PRODUCT_C
+  - PRODUCT_NM
+  labels:
+    PRODUCT_C: 상품코드
+    PRODUCT_NM: 상품명
 """
 
 
@@ -232,10 +244,17 @@ def test_legacy_include_false_still_excludes_the_same_subtree(tmp_path):
     다른 대상의 내용이 이 대상의 청크로 새어 나간다.
     """
     legacy = """
-shared_fields:
-  PRODUCT_NM: [cardTitle]
-sections:
-  mpo: { name: 추천 상품, include: false }
+schema: v2
+source:
+  kind: sections
+  sections:
+    mpo:
+      name: 추천 상품
+      include: false
+fields:
+  PRODUCT_NM:
+    alias:
+    - cardTitle
 """
     mapper = write_mapper(tmp_path, legacy)
     full_text = "\n".join(_texts(mapper, mapper.build_fields(_OTHER_TARGET_PAYLOAD, "product_hpp")))
@@ -249,10 +268,17 @@ sections:
 def test_legacy_object_form_keeps_the_display_name(tmp_path):
     """`{name: X, include: true}` 는 문자열 `X` 와 같게 해석된다."""
     legacy = """
-shared_fields:
-  PRODUCT_NM: [cardTitle]
-sections:
-  htmlList: { name: 상품 문서, include: true }
+schema: v2
+source:
+  kind: sections
+  sections:
+    htmlList:
+      name: 상품 문서
+      include: true
+fields:
+  PRODUCT_NM:
+    alias:
+    - cardTitle
 """
     mapper = write_mapper(tmp_path, legacy)
 
@@ -262,10 +288,15 @@ sections:
 def test_sections_is_optional(tmp_path):
     """이름을 안 붙이고 제외만 하는 설정도 정상이다 — 예전에는 기동이 실패했다."""
     config = """
-shared_fields:
-  PRODUCT_NM: [cardTitle]
-ignore_keys:
+schema: v2
+source:
+  kind: sections
+  ignore_keys:
   - mpo
+fields:
+  PRODUCT_NM:
+    alias:
+    - cardTitle
 """
     payload = {**_OTHER_TARGET_PAYLOAD,
                "htmlList": {"noticeUrl": "<h3>이용 유의사항</h3><p>유의사항 본문.</p>"}}
@@ -283,10 +314,15 @@ ignore_keys:
 def test_section_name_without_a_label_falls_back_to_the_key(tmp_path):
     """`sections` 에 값을 빠뜨려도(`key:` 만) key 이름을 표시 이름으로 쓴다."""
     config = """
-shared_fields:
-  PRODUCT_NM: [cardTitle]
-sections:
-  htmlList:
+schema: v2
+source:
+  kind: sections
+  sections:
+    htmlList: null
+fields:
+  PRODUCT_NM:
+    alias:
+    - cardTitle
 """
     mapper = write_mapper(tmp_path, config)
 
@@ -301,10 +337,15 @@ def test_sections_rejects_a_non_string_display_name(tmp_path, value):
     통과시키면 이름이 `"True"` 인 섹션이 조용히 생긴다.
     """
     config = f"""
-shared_fields:
-  PRODUCT_NM: [cardTitle]
-sections:
-  htmlList: {value}
+schema: v2
+source:
+  kind: sections
+  sections:
+    htmlList: {value}
+fields:
+  PRODUCT_NM:
+    alias:
+    - cardTitle
 """
     with pytest.raises(ValueError, match="sections.htmlList"):
         write_mapper(tmp_path, config)
@@ -412,15 +453,24 @@ def test_body_fields_is_the_only_switch_even_with_a_label(tmp_path):
     metadata 전용에서 임베딩 대상으로 조용히 올라왔다.
     """
     config = """
-shared_fields:
-  PRODUCT_NM: [cardTitle]
-  BIZ_ID:     [wcmsId]
-sections:
-  htmlList: 상품 문서
-text_fields: [PRODUCT_NM]
-field_labels:
-  PRODUCT_NM: 상품명
-  BIZ_ID:     사업자
+schema: v2
+source:
+  kind: sections
+  sections:
+    htmlList: 상품 문서
+fields:
+  PRODUCT_NM:
+    alias:
+    - cardTitle
+  BIZ_ID:
+    alias:
+    - wcmsId
+body:
+  fields:
+  - PRODUCT_NM
+  labels:
+    PRODUCT_NM: 상품명
+    BIZ_ID: 사업자
 """
     mapper = write_mapper(tmp_path, config)
     payload = {"wcmsId": "W1", "cardTitle": "테스트카드",
@@ -434,13 +484,19 @@ field_labels:
 def test_empty_body_fields_drops_every_shared_field_from_prefix(tmp_path):
     """`body.fields: []` 는 "접두에 공통 필드를 싣지 않는다" 는 명시적 선언이다."""
     config = """
-shared_fields:
-  PRODUCT_NM: [cardTitle]
-sections:
-  htmlList: 상품 문서
-text_fields: []
-field_labels:
-  PRODUCT_NM: 상품명
+schema: v2
+source:
+  kind: sections
+  sections:
+    htmlList: 상품 문서
+fields:
+  PRODUCT_NM:
+    alias:
+    - cardTitle
+body:
+  fields: []
+  labels:
+    PRODUCT_NM: 상품명
 """
     mapper = write_mapper(tmp_path, config)
     payload = {"cardTitle": "테스트카드",
@@ -454,13 +510,21 @@ field_labels:
 def test_without_body_fields_labels_still_decide_inclusion(tmp_path):
     """`body.fields` 선언이 없는 옛 설정은 종전대로 라벨이 포함 여부를 정한다(하위호환)."""
     config = """
-shared_fields:
-  PRODUCT_NM: [cardTitle]
-  BIZ_ID:     [wcmsId]
-sections:
-  htmlList: 상품 문서
-field_labels:
-  PRODUCT_NM: 상품명
+schema: v2
+source:
+  kind: sections
+  sections:
+    htmlList: 상품 문서
+fields:
+  PRODUCT_NM:
+    alias:
+    - cardTitle
+  BIZ_ID:
+    alias:
+    - wcmsId
+body:
+  labels:
+    PRODUCT_NM: 상품명
 """
     mapper = write_mapper(tmp_path, config)
     payload = {"wcmsId": "W1", "cardTitle": "테스트카드",
@@ -478,11 +542,18 @@ def test_no_field_is_in_the_body_by_default(tmp_path):
     그 이름을 쓰는 사이트에서는 접두 2줄이 생겼다.
     """
     config = """
-shared_fields:
-  PRODUCT_NM: [cardTitle]
-  PRODUCT_C:  [code]
-sections:
-  htmlList: 상품 문서
+schema: v2
+source:
+  kind: sections
+  sections:
+    htmlList: 상품 문서
+fields:
+  PRODUCT_NM:
+    alias:
+    - cardTitle
+  PRODUCT_C:
+    alias:
+    - code
 """
     mapper = write_mapper(tmp_path, config)
     payload = {"code": "C1", "cardTitle": "테스트카드",
@@ -570,7 +641,7 @@ def test_node_count_limit_exceeded_warns(tmp_path, caplog):
 # ── shared_fields 누락 시 기동 실패 ──────────────────────────────────────────
 
 def test_shared_fields_is_required(tmp_path):
-    config = "sections:\n  bubble: 혜택\n"
+    config = "schema: v2\nsource:\n  kind: sections\n  sections:\n    bubble: 혜택\n"
     with pytest.raises(ValueError, match="shared_fields"):
         write_mapper(tmp_path, config)
 
@@ -641,7 +712,41 @@ def test_excluded_nested_product_cannot_fill_missing_root_identity(tmp_path):
         "bubble": [{"title": "루트 혜택", "description": "정상 혜택 본문입니다"}],
         "mpo": [{"code": "OTHER-CARD", "name": "다른 카드"}],
     }
-    config = BASE_CONFIG + "required_shared_fields: [PRODUCT_C, PRODUCT_NM]\n"
+    config = """
+schema: v2
+source:
+  kind: sections
+  sections:
+    bubble: 혜택 상세
+    ksp: 주요 혜택 요약
+    htmlList: 상품 문서
+  ignore_keys:
+  - mpo
+  - '*Img*'
+fields:
+  BIZ_ID:
+    alias:
+    - wcmsId
+  PRODUCT_C:
+    alias:
+    - code
+  PRODUCT_NM:
+    alias:
+    - cardTitle
+  GROUP_C:
+    const: HPP
+require:
+  fields:
+  - PRODUCT_C
+  - PRODUCT_NM
+body:
+  fields:
+  - PRODUCT_C
+  - PRODUCT_NM
+  labels:
+    PRODUCT_C: 상품코드
+    PRODUCT_NM: 상품명
+"""
     mapper = write_mapper(tmp_path, config)
 
     with pytest.raises(ValueError, match="PRODUCT_C"):
@@ -650,8 +755,75 @@ def test_excluded_nested_product_cannot_fill_missing_root_identity(tmp_path):
 
 # ── required_shared_fields / missing_policy ──────────────────────────────────
 
-REQUIRED_CONFIG = BASE_CONFIG + "required_shared_fields: [PRODUCT_NM]\n"
-REQUIRED_CONFIG_SKIP = REQUIRED_CONFIG + "missing_policy: skip\n"
+REQUIRED_CONFIG = """
+schema: v2
+source:
+  kind: sections
+  sections:
+    bubble: 혜택 상세
+    ksp: 주요 혜택 요약
+    htmlList: 상품 문서
+  ignore_keys:
+  - mpo
+  - '*Img*'
+fields:
+  BIZ_ID:
+    alias:
+    - wcmsId
+  PRODUCT_C:
+    alias:
+    - code
+  PRODUCT_NM:
+    alias:
+    - cardTitle
+  GROUP_C:
+    const: HPP
+require:
+  fields:
+  - PRODUCT_NM
+body:
+  fields:
+  - PRODUCT_C
+  - PRODUCT_NM
+  labels:
+    PRODUCT_C: 상품코드
+    PRODUCT_NM: 상품명
+"""
+REQUIRED_CONFIG_SKIP = """
+schema: v2
+source:
+  kind: sections
+  on_missing: skip
+  sections:
+    bubble: 혜택 상세
+    ksp: 주요 혜택 요약
+    htmlList: 상품 문서
+  ignore_keys:
+  - mpo
+  - '*Img*'
+fields:
+  BIZ_ID:
+    alias:
+    - wcmsId
+  PRODUCT_C:
+    alias:
+    - code
+  PRODUCT_NM:
+    alias:
+    - cardTitle
+  GROUP_C:
+    const: HPP
+require:
+  fields:
+  - PRODUCT_NM
+body:
+  fields:
+  - PRODUCT_C
+  - PRODUCT_NM
+  labels:
+    PRODUCT_C: 상품코드
+    PRODUCT_NM: 상품명
+"""
 
 
 def test_required_shared_fields_missing_raises_by_default(tmp_path):
@@ -675,7 +847,7 @@ def test_required_shared_fields_missing_with_skip_policy_returns_empty(tmp_path,
 
 def test_build_json_records_mappers_ignores_json_semantic_configs(tmp_path):
     """공개 빌더 build_json_records_mappers 에 json_semantic 설정을 넣어도 무시된다."""
-    from genon.preprocessor.facade.enrichment.json_records import build_json_records_mappers
+    from genon.preprocessor.processing.enrichment.json_records import build_json_records_mappers
 
     path = tmp_path / "custom_field_semantic.yaml"
     path.write_text(textwrap.dedent(BASE_CONFIG), encoding="utf-8")
@@ -712,7 +884,7 @@ def test_semantic_mapper_rejects_json_mapping_extractor(tmp_path):
 
 
 def test_json_records_mapper_rejects_json_semantic_extractor(tmp_path):
-    from genon.preprocessor.facade.enrichment.json_records import JsonRecordsMapper
+    from genon.preprocessor.processing.enrichment.json_records import JsonRecordsMapper
 
     path = tmp_path / "custom_field_records.yaml"
     path.write_text("key_map:\n  TITLE: [title]\ntext_fields: [TITLE]\n", encoding="utf-8")
@@ -726,30 +898,72 @@ def test_json_records_mapper_rejects_json_semantic_extractor(tmp_path):
 # ── SALE_STATUS / PRODUCT_ATTRS 복원(리뷰 지적 4) ─────────────────────────────
 
 ATTRS_CONFIG = """
-shared_fields:
-  PRODUCT_NM:    [cardTitle]
-  PRODUCT_ATTRS: [benefit]
-sections:
-  benefit: 주요 혜택
+schema: v2
+source:
+  kind: sections
+  sections:
+    benefit: 주요 혜택
+fields:
+  PRODUCT_NM:
+    alias:
+    - cardTitle
+  PRODUCT_ATTRS:
+    alias:
+    - benefit
 """
 
 SALE_STATUS_CONFIG = """
-shared_fields:
-  PRODUCT_NM:  [cardTitle]
-  SALE_STATUS: [saleStatus]
-sections:
-  htmlList: 상품 문서
+schema: v2
+source:
+  kind: sections
+  sections:
+    htmlList: 상품 문서
+fields:
+  PRODUCT_NM:
+    alias:
+    - cardTitle
+  SALE_STATUS:
+    alias:
+    - saleStatus
 """
 
-SALE_STATUS_DEFAULT_CONFIG = SALE_STATUS_CONFIG + """
-defaults:
-  SALE_STATUS: ON_SALE
-required_shared_fields: [SALE_STATUS]
+SALE_STATUS_DEFAULT_CONFIG = """
+schema: v2
+source:
+  kind: sections
+  sections:
+    htmlList: 상품 문서
+fields:
+  PRODUCT_NM:
+    alias:
+    - cardTitle
+  SALE_STATUS:
+    alias:
+    - saleStatus
+    default: ON_SALE
+require:
+  fields:
+  - SALE_STATUS
 """
 
-SALE_STATUS_CONSTANT_CONFIG = SALE_STATUS_DEFAULT_CONFIG + """
-constants:
-  SALE_STATUS: FIXED
+SALE_STATUS_CONSTANT_CONFIG = """
+schema: v2
+source:
+  kind: sections
+  sections:
+    htmlList: 상품 문서
+fields:
+  PRODUCT_NM:
+    alias:
+    - cardTitle
+  SALE_STATUS:
+    alias:
+    - saleStatus
+    const: FIXED
+    default: ON_SALE
+require:
+  fields:
+  - SALE_STATUS
 """
 
 
@@ -814,15 +1028,26 @@ def test_product_attrs_and_sale_status_absent_from_chunk_prefix(tmp_path):
     """청크 접두(본문 첫 줄들)에는 `body.fields` 에 적은 상품명만 실리고, 적지 않은
     PRODUCT_ATTRS/SALE_STATUS 는 metadata 에만 남는다(규칙 10)."""
     config = """
-shared_fields:
-  PRODUCT_NM:    [cardTitle]
-  PRODUCT_ATTRS: [benefit]
-  SALE_STATUS:   [saleStatus]
-sections:
-  htmlList: 상품 문서
-text_fields: [PRODUCT_NM]
-field_labels:
-  PRODUCT_NM: 상품명
+schema: v2
+source:
+  kind: sections
+  sections:
+    htmlList: 상품 문서
+fields:
+  PRODUCT_NM:
+    alias:
+    - cardTitle
+  PRODUCT_ATTRS:
+    alias:
+    - benefit
+  SALE_STATUS:
+    alias:
+    - saleStatus
+body:
+  fields:
+  - PRODUCT_NM
+  labels:
+    PRODUCT_NM: 상품명
 """
     payload = {
         "cardTitle": "테스트카드", "saleStatus": "판매중",
@@ -940,13 +1165,20 @@ def test_first_chunk_fields_appear_once(tmp_path):
 
     cfg = tmp_path / "custom_field_s.yaml"
     cfg.write_text(textwrap.dedent("""
-        shared_fields:
-          PRODUCT_NM: [prodNm]
-        sections:
-          ksp: 주요 혜택
-        first_chunk_fields: [ANNUAL_FEE]
-        field_labels:
-          ANNUAL_FEE: 연회비
+        schema: v2
+        source:
+          kind: sections
+          sections:
+            ksp: 주요 혜택
+        fields:
+          PRODUCT_NM:
+            alias:
+            - prodNm
+        body:
+          labels:
+            ANNUAL_FEE: 연회비
+          once:
+          - ANNUAL_FEE
     """), encoding="utf-8")
     mapper = SemanticJsonMapper(
         config_file=cfg.name, resource_path=str(tmp_path),
@@ -974,11 +1206,18 @@ def test_first_chunk_field_keeps_prefix_contract(tmp_path):
 
     cfg = tmp_path / "custom_field_s.yaml"
     cfg.write_text(textwrap.dedent("""
-        shared_fields:
-          PRODUCT_NM: [prodNm]
-        sections:
-          ksp: 주요 혜택
-        first_chunk_fields: [ANNUAL_FEE]
+        schema: v2
+        source:
+          kind: sections
+          sections:
+            ksp: 주요 혜택
+        fields:
+          PRODUCT_NM:
+            alias:
+            - prodNm
+        body:
+          once:
+          - ANNUAL_FEE
     """), encoding="utf-8")
     mapper = SemanticJsonMapper(
         config_file=cfg.name, resource_path=str(tmp_path),
@@ -1000,14 +1239,23 @@ def test_first_chunk_field_declared_as_shared_is_not_repeated_in_prefix(tmp_path
     1회 줄이 겹쳐 같은 문장이 두 번 나왔다.
     """
     config = """
-shared_fields:
-  PRODUCT_NM: [prodNm]
-  ANNUAL_FEE: [fee]
-sections:
-  ksp: 주요 혜택
-first_chunk_fields: [ANNUAL_FEE]
-field_labels:
-  ANNUAL_FEE: 연회비
+schema: v2
+source:
+  kind: sections
+  sections:
+    ksp: 주요 혜택
+fields:
+  PRODUCT_NM:
+    alias:
+    - prodNm
+  ANNUAL_FEE:
+    alias:
+    - fee
+body:
+  labels:
+    ANNUAL_FEE: 연회비
+  once:
+  - ANNUAL_FEE
 """
     mapper = write_mapper(tmp_path, config)
     payload = {"prodNm": "카드", "fee": "국내전용 18,000원",
@@ -1032,16 +1280,22 @@ def test_const_only_field_can_be_put_in_body_with_a_label(tmp_path):
     `GROUP_C: {const: HPP}` 같은 필드는 라벨을 붙여도 metadata 에만 남았다.
     """
     config = """
-shared_fields:
-  PRODUCT_NM: [prodNm]
-sections:
-  ksp: 주요 혜택
-constants:
-  GROUP_C: HPP
-defaults:
-  SALE_STATUS: ON_SALE
-field_labels:
-  GROUP_C: 그룹코드
+schema: v2
+source:
+  kind: sections
+  sections:
+    ksp: 주요 혜택
+fields:
+  PRODUCT_NM:
+    alias:
+    - prodNm
+  GROUP_C:
+    const: HPP
+  SALE_STATUS:
+    default: ON_SALE
+body:
+  labels:
+    GROUP_C: 그룹코드
 """
     mapper = write_mapper(tmp_path, config)
     fields_list = mapper.build_fields({"prodNm": "카드", "ksp": {"a": "혜택 하나"}}, "product_hpp")
@@ -1065,28 +1319,47 @@ FIELDS_SAMPLE = (
 )
 
 PIPELINE_CONFIG = """
-shared_fields:
-  PRODUCT_C:   [productCode]
-  PRODUCT_NM:  [cardTitle]
-  BRAND_NM:    [brandName]
-  SALE_STATUS: [saleStatus]
-  ANNUAL_FEE:  [feeAmount]
-sections:
-  htmlList: 상품 문서
-ignore_keys:
+schema: v2
+source:
+  kind: sections
+  sections:
+    htmlList: 상품 문서
+  ignore_keys:
   - mpo
-  - "*Img*"
+  - '*Img*'
   - fontColor
-value_map:
+fields:
+  PRODUCT_C:
+    alias:
+    - productCode
+  PRODUCT_NM:
+    alias:
+    - cardTitle
+  BRAND_NM:
+    alias:
+    - brandName
   SALE_STATUS:
-    ON_SALE:  ["1", "Y", 판매중]
-    OFF_SALE: ["0", "N", 판매중지]
-transforms:
+    alias:
+    - saleStatus
+    values:
+      ON_SALE:
+      - '1'
+      - Y
+      - 판매중
+      OFF_SALE:
+      - '0'
+      - N
+      - 판매중지
   ANNUAL_FEE:
-    - {name: regex_sub, pattern: "[^0-9]", repl: ""}
-    - {name: to_int}
-derive:
-  DISPLAY_NM: "{{BRAND_NM}} {{PRODUCT_NM}}"
+    alias:
+    - feeAmount
+    transform:
+    - name: regex_sub
+      pattern: '[^0-9]'
+      repl: ''
+    - name: to_int
+  DISPLAY_NM:
+    template: '{{BRAND_NM}} {{PRODUCT_NM}}'
 """
 
 
@@ -1129,24 +1402,42 @@ def test_pipeline_order_matches_rows_and_records(tmp_path):
       · DISPLAY_GRADE: template 이 values/transform 를 지난 값을 읽는다(파이프라인 마지막)
     """
     config = """
-shared_fields:
-  PRODUCT_NM:  [cardTitle]
-  SALE_STATUS: [saleStatus]
-  GRADE:       [gradeCode]
-  GROUP_C:     [brandName]
-defaults:
-  SALE_STATUS: "0"
-  GRADE: "2"
-constants:
-  GROUP_C: "1"
-sections:
-  htmlList: 상품 문서
-value_map:
-  SALE_STATUS: {ON_SALE: ["1"], OFF_SALE: ["0"]}
-  GRADE:       {GOLD: ["1"], SILVER: ["2"]}
-  GROUP_C:     {HPP: ["1"]}
-derive:
-  DISPLAY_GRADE: "{{GROUP_C}}/{{GRADE}}"
+schema: v2
+source:
+  kind: sections
+  sections:
+    htmlList: 상품 문서
+fields:
+  PRODUCT_NM:
+    alias:
+    - cardTitle
+  SALE_STATUS:
+    alias:
+    - saleStatus
+    default: '0'
+    values:
+      ON_SALE:
+      - '1'
+      OFF_SALE:
+      - '0'
+  GRADE:
+    alias:
+    - gradeCode
+    default: '2'
+    values:
+      GOLD:
+      - '1'
+      SILVER:
+      - '2'
+  GROUP_C:
+    alias:
+    - brandName
+    const: '1'
+    values:
+      HPP:
+      - '1'
+  DISPLAY_GRADE:
+    template: '{{GROUP_C}}/{{GRADE}}'
 """
     _mapper, fields = pipeline_fields(tmp_path, config)
 
@@ -1163,14 +1454,23 @@ derive:
 def test_pipeline_runs_before_required_check(tmp_path):
     """`require` 는 파이프라인 뒤에 본다 — const/template 으로 채운 필드가 통과해야 한다."""
     config = """
-shared_fields:
-  PRODUCT_NM: [cardTitle]
-  BRAND_NM:   [brandName]
-sections:
-  htmlList: 상품 문서
-derive:
-  DISPLAY_NM: "{{BRAND_NM}} {{PRODUCT_NM}}"
-required_shared_fields: [DISPLAY_NM]
+schema: v2
+source:
+  kind: sections
+  sections:
+    htmlList: 상품 문서
+fields:
+  PRODUCT_NM:
+    alias:
+    - cardTitle
+  BRAND_NM:
+    alias:
+    - brandName
+  DISPLAY_NM:
+    template: '{{BRAND_NM}} {{PRODUCT_NM}}'
+require:
+  fields:
+  - DISPLAY_NM
 """
     _mapper, fields = pipeline_fields(tmp_path, config)
 
@@ -1183,10 +1483,53 @@ def test_derive_target_can_be_carried_in_the_chunk_body(tmp_path):
     접두는 `shared_fields`+`defaults`+`constants`+`derive` 를 훑는다 — derive 를 빼면
     파생 필드는 body.fields 에 적어도 metadata 에만 남았다.
     """
-    config = PIPELINE_CONFIG + """
-text_fields: [DISPLAY_NM]
-field_labels:
-  DISPLAY_NM: 상품명
+    config = """
+schema: v2
+source:
+  kind: sections
+  sections:
+    htmlList: 상품 문서
+  ignore_keys:
+  - mpo
+  - '*Img*'
+  - fontColor
+fields:
+  PRODUCT_C:
+    alias:
+    - productCode
+  PRODUCT_NM:
+    alias:
+    - cardTitle
+  BRAND_NM:
+    alias:
+    - brandName
+  SALE_STATUS:
+    alias:
+    - saleStatus
+    values:
+      ON_SALE:
+      - '1'
+      - Y
+      - 판매중
+      OFF_SALE:
+      - '0'
+      - N
+      - 판매중지
+  ANNUAL_FEE:
+    alias:
+    - feeAmount
+    transform:
+    - name: regex_sub
+      pattern: '[^0-9]'
+      repl: ''
+    - name: to_int
+  DISPLAY_NM:
+    template: '{{BRAND_NM}} {{PRODUCT_NM}}'
+body:
+  fields:
+  - DISPLAY_NM
+  labels:
+    DISPLAY_NM: 상품명
 """
     mapper, fields = pipeline_fields(tmp_path, config)
     prefix = mapper._chunk_prefix(fields)
@@ -1197,27 +1540,114 @@ field_labels:
 def test_bad_transform_name_fails_at_startup(tmp_path):
     """잘못된 변환기 이름은 요청 때가 아니라 기동 시에 잡는다(rows/records 와 동일)."""
     config = """
-shared_fields:
-  PRODUCT_NM: [cardTitle]
-sections:
-  htmlList: 상품 문서
-transforms:
+schema: v2
+source:
+  kind: sections
+  sections:
+    htmlList: 상품 문서
+fields:
   PRODUCT_NM:
-    - {name: no_such_transform}
+    alias:
+    - cardTitle
+    transform:
+    - name: no_such_transform
 """
     with pytest.raises(ValueError, match="no_such_transform"):
+        write_mapper(tmp_path, config)
+
+
+def test_pack_bundles_shared_fields_into_json(tmp_path):
+    """`pack` — 공통 필드 여럿을 적재 컬럼 하나에 JSON 으로 담는다(rows/records 와 같은 자리)."""
+    _mapper, fields = pipeline_fields(tmp_path, """
+schema: v2
+source:
+  kind: sections
+  sections:
+    htmlList: 상품 문서
+  ignore_keys:
+  - mpo
+  - '*Img*'
+  - fontColor
+fields:
+  PRODUCT_C:
+    alias:
+    - productCode
+  PRODUCT_NM:
+    alias:
+    - cardTitle
+  BRAND_NM:
+    alias:
+    - brandName
+  SALE_STATUS:
+    alias:
+    - saleStatus
+    values:
+      ON_SALE:
+      - '1'
+      - Y
+      - 판매중
+      OFF_SALE:
+      - '0'
+      - N
+      - 판매중지
+  ANNUAL_FEE:
+    alias:
+    - feeAmount
+    transform:
+    - name: regex_sub
+      pattern: '[^0-9]'
+      repl: ''
+    - name: to_int
+  DISPLAY_NM:
+    template: '{{BRAND_NM}} {{PRODUCT_NM}}'
+  DETAIL_JSON:
+    pack:
+    - BRAND_NM
+    - ANNUAL_FEE
+    - DISPLAY_NM
+""")
+
+    # 파이프라인 마지막이므로 transform 을 지난 값(정수)과 derive 산출까지 담긴다.
+    assert json.loads(fields["DETAIL_JSON"]) == {
+        "BRAND_NM": "다올신협",
+        "ANNUAL_FEE": 18000,
+        "DISPLAY_NM": "다올신협 다올신협 체크카드",
+    }
+
+
+def test_pack_referencing_an_unknown_field_fails_at_startup(tmp_path):
+    config = """
+schema: v2
+source:
+  kind: sections
+  sections:
+    htmlList: 상품 문서
+fields:
+  PRODUCT_NM:
+    alias:
+    - cardTitle
+  DETAIL_JSON:
+    pack:
+    - NO_SUCH_FIELD
+"""
+    with pytest.raises(ValueError, match="NO_SUCH_FIELD"):
         write_mapper(tmp_path, config)
 
 
 def test_derive_referencing_an_unknown_field_fails_at_startup(tmp_path):
     """`template` 이 아무도 만들지 않는 필드를 참조하면 기동 시에 잡는다."""
     config = """
-shared_fields:
-  PRODUCT_NM: [cardTitle]
-sections:
-  htmlList: 상품 문서
-derive:
-  DISPLAY_NM: "{{NO_SUCH_FIELD}} {{PRODUCT_NM}}"
+schema: v2
+source:
+  kind: sections
+  sections:
+    htmlList: 상품 문서
+fields:
+  PRODUCT_NM:
+    alias:
+    - cardTitle
+  DISPLAY_NM:
+    template: '{{NO_SUCH_FIELD}} {{PRODUCT_NM}}'
 """
     with pytest.raises(ValueError, match="NO_SUCH_FIELD"):
         write_mapper(tmp_path, config)

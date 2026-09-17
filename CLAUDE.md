@@ -6,12 +6,15 @@ docling(v2.41.0) 포크 위에 GenOn 전처리기(genon/preprocessor)를 올린 
 
 | 경로 | 역할 |
 |---|---|
-| `main.py` | 통합·로컬 실행 진입점. FastAPI 앱, 업무 API 7개와 health |
-| `genon/preprocessor/facade/` | 처리 로직 본체 — 최상위 `*_processor.py` 5종 |
-| `genon/preprocessor/facade/{common,chunking,enrichment,guardrail}/` | facade가 공유하는 공용 하위 모듈. 배포본에 포함된다 |
-| `genon/preprocessor/src/` | 공통 모듈(`common`, `logger`, `config`, `utils`) + 단일 프로세서 진입점 |
+| `main.py` | **코드서빙 서비스**의 진입점(로컬 실행도 이것). FastAPI 앱, 업무 API 7개와 health·version |
+| `genon/preprocessor/facade/` | 최상위 `*_processor.py` 5종. 파싱·청킹 2종은 고객이 여는 파사드(282·264줄, 대부분 주석), 나머지 3종은 아직 처리 로직을 안고 있다 |
+| `genon/preprocessor/processing/` | 파싱·청킹·보강 **처리 라이브러리**. facade 는 여기를 상속·호출만 한다 |
+| `genon/preprocessor/processing/core/` | 파싱·청킹 처리 본체(`parser.py`/`chunker.py`)와 고객용 `toolbox.py`·`cli.py`·`errors.py` |
+| `genon/preprocessor/processing/{common,chunking,enrichment,guardrail}/` | facade가 공유하는 공용 하위 모듈. 배포본에 포함된다 |
+| `genon/preprocessor/processing/converters/` | 입력 전처리 변환기 (`html_flatten`, `json_text`, `md_marker_headings` 등) |
+| `genon/preprocessor/facade/gitbook_doc/` | 고객·현장용 매뉴얼(`facade_hooks.md`, `parser_processor.md`, `code_serving_dev_manual.md` 등) |
+| `genon/preprocessor/src/` | 공통 모듈(`common`, `logger`, `config`, `utils`) + **기본 전처리기 서비스**의 진입점(`main.py`, facade 1개) |
 | `genon/preprocessor/resource/`, `resource_dev/` | 운영 / 로컬개발 YAML 설정 (프로세서 설정 + `custom_field_*.yaml`) |
-| `genon/preprocessor/converters/` | 입력 전처리 변환기 (`html_flatten`, `json_text`, `md_marker_headings` 등) |
 | `genon/preprocessor/tests/` | **전처리기 테스트** (`unit/`, `smoke/`, `regression/`) |
 | `genon/preprocessor/examples/` | 손으로 돌리는 검증 스크립트 (테스트 절 참조) |
 | `docling/` | 포크된 docling 본체. 백엔드·파이프라인 수정은 여기 |
@@ -33,9 +36,14 @@ rg '<pattern>' main.py genon docling tests build-script
 그 안을 봐야 하면 `rg --no-ignore-dot` 을 쓴다 — `-u`/`--no-ignore` 는 gitignore 까지 풀려
 `shkim_labs`(5.0G) 를 훑으므로 쓰지 않는다.
 
-## 진입점 2개
+## 배포 형태 2가지
 
-**루트 `main.py`** — facade 5종을 한 서버에 올리는 통합·로컬 실행 형태. 라우트별 대응 facade:
+**서비스 형태에 따라 진입점이 갈린다. 둘 다 실제 운영 배포다** — 어느 쪽으로 나가느냐에 따라
+올라가는 facade 개수와 API 표면이 달라진다.
+
+### ① 코드서빙 서비스 — 루트 `main.py`
+
+facade 5종을 한 서버에 올리고 라우트로 가른다(로컬 실행도 이 파일로 한다). 라우트별 대응 facade:
 
 | 라우트 | facade |
 |---|---|
@@ -45,13 +53,21 @@ rg '<pattern>' main.py genon docling tests build-script
 | `/parser`, `/parser_upload` | `parser_processor.py` |
 | `/chunker` | `chunking_processor.py` |
 
-**`genon/preprocessor/src/main.py`** — **실제 외부 사이트 적용 환경**은 이쪽이다.
+그 밖에 `/health`, `/version`(배포 시 생성되는 루트 VERSION 스탬프, 없으면 git 폴백)을 노출한다.
+
+### ② 기본 전처리기 서비스 — `genon/preprocessor/src/main.py`
+
+GenOS 에 전처리기 리소스로 등록되는 형태. **facade 가 하나만 쓰인다.**
 
 - 배포 대상 facade **한 개**만 `preprocessor.py` 로 이름이 바뀌어 마운트되고, `from preprocessor import DocumentProcessor` 로 로드되어 `/run` 으로 진입한다.
 - `/parser`, `/chunker` 는 프로세서의 `IS_PARSER` / `IS_CHUNKER` 속성으로 게이팅된다. 속성이 없으면 "지원하지 않습니다" 응답.
+- 헬스 경로가 `/healthcheck` 로 다르고 `/version` 은 없다.
 - `legacy/` 코드들(BOK 적재용, 법령, 코레일 등)은 로컬 진입점이 없고 이 경로로만 배포·실행된다.
 
-이 구조가 아래 "아키텍처 제약"의 근거다. 특히 `main.py` 계층 기능(요청 deadline, 에러 envelope 의 `stage`/`error_kind` 등)을 바꿀 때는 **두 파일 모두** 확인해야 한다.
+이 구조가 아래 "아키텍처 제약"의 근거다 — 배포본에 facade 가 하나뿐인 형태가 있으므로 facade 끼리
+import 할 수 없다. 특히 `main.py` 계층 기능(요청 deadline, 에러 envelope 의 `stage`/`error_kind` 등)을
+바꿀 때는 **두 파일 모두** 확인해야 한다. 실제로 어긋난 자리가 있다 — 에러 응답 형태(루트는
+`_error_response` 로 `tag`/`traceback` 까지 싣고, src 는 `failure_response_from_exc`)와 위 헬스·버전 경로.
 
 ## 공용 하위 모듈 지도
 
@@ -60,6 +76,9 @@ facade가 공유하는 로직은 아래에 한 벌씩만 둔다. 최상위 proce
 
 | 모듈 | 역할 |
 |---|---|
+| `core/parser.py`, `core/chunker.py` | 파싱·청킹 처리 본체(`ParserCore`/`ChunkerCore`). 두 파사드는 상속만 한다 |
+| `core/toolbox.py` | 고객이 훅에서 쓰는 기능 재수출 38종(값 변환·엑셀·JSON·표·청크 메타). **새 구현을 두는 자리가 아니다** |
+| `core/cli.py`, `core/errors.py` | 파일 단독 실행 진입점(`DocumentProcessor.cli()`), 공용 `GenosServiceException` |
 | `common/config_parse.py` | yaml/kwargs 값 파싱(`parse_optional_bool/int/float`), `load_config`, 토크나이저·청크크기·`compact_tables` 등 설정 해석 |
 | `common/file_probe.py`, `format_alias.py` | 파일 종류 판별(PDF/텍스트/암호화/HWP 보호), PDF 경로 변환, 확장자 별칭 |
 | `common/pdf_convert.py` | 비-PDF 입력의 PDF 변환 진입점. backend chain 순서 + 이슈 #286 사전 체크 |
@@ -75,12 +94,14 @@ facade가 공유하는 로직은 아래에 한 벌씩만 둔다. 최상위 proce
 
 ## 큰 파일 취급 규칙 (중요)
 
-facade 프로세서는 공용 모듈 추출로 절반 이하로 줄었지만(2026-09-04 기준 5종 합계 8,702줄) 여전히 크다.
-아래는 전체 Read 가 **20k~50k 토큰**씩 드는 파일들이고, 다 읽으면 190k 토큰으로 컨텍스트의 상당 부분이 날아간다.
+파싱·청킹 파사드는 처리 본체가 `processing/core/` 로 빠져 282·264줄이 됐지만(대부분 주석이라 안심하고 읽어도 된다),
+그 본체와 나머지 파사드 3종은 여전히 크다(2026-09-16 기준 파사드 5종 합계 4,573줄 + core 3,955줄).
+아래는 전체 Read 가 **20k~50k 토큰**씩 드는 파일들이고, 다 읽으면 컨텍스트의 상당 부분이 날아간다.
 
-- `docling/backend/html_backend.py` (~4,500줄, 단독 50k 토큰)
-- `facade/parser_processor.py` (~2,500줄)
-- `facade/chunking/smart_chunker.py`, `facade/{convert,attachment,intelligent,chunking}_processor.py` (각 ~1,500줄)
+- `docling/backend/html_backend.py` (4,477줄, 단독 50k 토큰)
+- `processing/core/parser.py` (2,135줄), `processing/core/chunker.py` (1,512줄)
+- `processing/chunking/smart_chunker.py` (1,679줄)
+- `facade/{attachment,convert,intelligent}_processor.py` (1,098~1,625줄)
 
 **통째로 Read 하지 말 것.** `Grep` 으로 심볼·문자열 위치를 먼저 찾고 `Read` 의 `offset`/`limit` 으로 해당 구간만 읽는다.
 
@@ -118,14 +139,17 @@ facade 프로세서는 공용 모듈 추출로 절반 이하로 줄었지만(202
 
 ## 아키텍처 제약
 
-- **최상위 processor는 self-contained.** 배포 대상 `*_processor.py` 는 하나이므로 최상위 processor 파일끼리 서로 import하면 배포본에서 깨진다. 배포본에 포함되는 공용 하위 모듈은 공유할 수 있으니 무조건 복제하지 말고 `build-script/sync-serving-repo.sh` 의 배포 범위를 먼저 확인한다.
-- **신규 기능은 공용 하위 모듈에 구현하고 facade는 호출만 한다.** 여러 facade가 쓸 수 있는 로직이면 processor 파일에 직접 쓰거나 복붙하지 말고 `facade/{common,chunking,enrichment,guardrail}/` 에 모듈을 만든다. facade에는 설정 읽기 한 줄과 호출부만 남긴다. 판정 기준은 "두 번째 facade에 같은 코드를 넣고 싶어지는가"이며, 그렇다면 이미 공용 모듈 대상이다.
+- **배포 대상 `*_processor.py` 는 하나다.** 최상위 processor 파일끼리 서로 import하면 배포본에서 깨진다. 반면 `processing/core/` 와 공용 하위 모듈은 배포본에 함께 들어가므로 상속·import 해도 된다(파싱·청킹 파사드가 그렇게 한다). 무조건 복제하지 말고 `build-script/sync-serving-repo.sh` 의 배포 범위를 먼저 확인한다.
+- **파싱·청킹 파사드 2종은 고객이 여는 파일이다.** `parser_processor.py`(282줄)·`chunking_processor.py`(264줄)는 `ParserCore`/`ChunkerCore` 를 상속하고 흐름이 보이는 호출부와 확장 지점만 갖는다 — `ROUTES`·`GenOSVectorMeta`·`GenosSmartChunker` 상수·`ROW_CATEGORIES`, `config_by_condition`, 훅 메소드(`edit_input`/`edit_output` 공통, 파서 `edit_document`, 청커 `edit_chunk`). 훅 이름은 2026-09-16 에 옛 `pre_parse`/`post_parse`/`pre_chunk`/`on_chunk`/`post_chunk` 에서 바뀌었고 옛 이름 호환은 없다. **여기에 처리 로직을 넣지 않는다.** 릴리스가 이 두 파일을 통째로 덮어쓰므로 고객 수정분과 충돌하고, 훅 시그니처·`ROUTES` 형태는 고정 API 다(`tests/unit/test_facade_hooks_unit.py` 가 고정한다).
+  - 고객이 훅에서 쓸 기능은 `core/toolbox.py` 에 **재수출**한다. 새 구현은 공용 하위 모듈에 두고 toolbox 는 이름만 낸다.
+  - 고객용 설명은 `facade/gitbook_doc/facade_hooks.md`. 훅·`ROUTES`·toolbox 를 바꾸면 여기도 함께 고친다.
+- **신규 기능은 공용 하위 모듈에 구현하고 facade는 호출만 한다.** 여러 facade가 쓸 수 있는 로직이면 processor 파일에 직접 쓰거나 복붙하지 말고 `processing/{common,chunking,enrichment,guardrail}/` 에 모듈을 만든다. facade에는 설정 읽기 한 줄과 호출부만 남긴다. 판정 기준은 "두 번째 facade에 같은 코드를 넣고 싶어지는가"이며, 그렇다면 이미 공용 모듈 대상이다.
   - 설정 해석(yaml/kwargs 우선순위), 판정 헬퍼, 텍스트 변환 같은 부수 로직도 함께 공용 모듈에 둔다. facade마다 `_resolve_*` 헬퍼를 복제하면 그 자체가 새 lockstep 부채다.
   - 공용 모듈은 docling 타입 import를 피하고 duck typing으로 처리한다. 배포본이 docling 버전에 묶이지 않게 한다.
   - `object.__new__` 로 `__init__` 을 우회해 만든 인스턴스를 쓰는 단위 테스트가 있다. processor 속성을 읽는 공용 헬퍼는 `getattr(..., 기본값)` 으로 속성 부재를 견뎌야 한다.
-  - 예: `facade/chunking/text_norm.py`(청크 텍스트 정제) — 활성 processor 3종의 출력 경로 9곳이 이 모듈 하나를 호출한다.
-- **청킹 파이프라인은 `facade/chunking/smart_chunker.py` 한 벌이다.** 활성 3종은 ClassVar 플래그만 다른 얇은 서브클래스이므로 여기만 고치면 된다. `legacy/BOK_적재용_*` 3종은 별도 배포 단위라 자체 사본과 모듈 상수 설정을 유지하니, 변경이 거기까지 반영돼야 하는지 먼저 판단한다.
-- **`GenosServiceException` 은 활성 경로 7곳과 legacy 포함 총 22곳에 복제**되어 있다. 고정 개수를 가정하지 말고 시그니처 변경 전에 `rg -n '^class GenosServiceException' genon/preprocessor/src genon/preprocessor/facade --glob '*.py'` 로 전체 대상을 확인한다. facade가 던진 로컬 예외는 `main.py` 의 제네릭 핸들러가 받는다.
+  - 예: `processing/chunking/text_norm.py`(청크 텍스트 정제) — 활성 processor 3종의 출력 경로 9곳이 이 모듈 하나를 호출한다.
+- **청킹 파이프라인은 `processing/chunking/smart_chunker.py` 한 벌이다.** 활성 3종은 ClassVar 플래그만 다른 얇은 서브클래스이므로 여기만 고치면 된다. `legacy/BOK_적재용_*` 3종은 별도 배포 단위라 자체 사본과 모듈 상수 설정을 유지하니, 변경이 거기까지 반영돼야 하는지 먼저 판단한다.
+- **`GenosServiceException` 은 활성 경로 6곳과 legacy 15곳, 총 21곳에 복제**되어 있다(파싱·청킹은 `core/errors.py` 한 벌을 공유하고 이름만 재수출한다). 고정 개수를 가정하지 말고 시그니처 변경 전에 `rg -n '^class GenosServiceException' genon/preprocessor/src genon/preprocessor/facade genon/preprocessor/processing --glob '*.py'` 로 전체 대상을 확인한다. facade가 던진 로컬 예외는 `main.py` 의 제네릭 핸들러가 받는다.
 - **docling 은 되도록 수정하지 않는다.** 포크 본체를 건드리면 영향 범위가 그 백엔드를 쓰는 모든 문서로 퍼지고 배포에 wheel 재빌드가 강제된다(핫픽스 overlay 는 genon 전용). **그 docling 결함을 고치는 것이 이번 작업의 목표일 때만** 손댄다. 조사 중 우연히 발견한 docling 결함은 별도 이슈로 분리한다.
   - 고쳐야 할 때가 되면 **genon 우회책이 아니라 docling 안에서** 고친다 — 우회책을 기본 해법으로 삼으면 나중에 진짜 수정을 가로챈다. 백엔드가 고쳐지면 그 자리를 메우던 우회책은 걷어낸다.
   - 실례: `html_flatten._lift_table_captions` 가 `<caption>` 을 표 앞 `<p>` 로 옮기는 바람에 백엔드가 만든 `TableItem.captions` 가 계속 비었고, 표 설명이 사라졌다.
@@ -156,14 +180,14 @@ genon/preprocessor/examples/parse_chunk/parse_chunk_verify.sh          # 케이�
 genon/preprocessor/examples/parse_chunk/parse_chunk_verify.sh --only faq menu
 ```
 
-**설정 점검(파싱·LLM 없음)** — 설정만 바꿨거나 **배포 전 현장 설정을 검사할 때** 쓴다. extractor 별 지원 키(`facade/enrichment/config_schema.py`)와 같은 판정을 공유하므로 기동 실패를 미리 드러내고, 청크 본문이 바뀌는 필드(재색인 판단)도 알려준다.
+**설정 점검(파싱·LLM 없음)** — 설정만 바꿨거나 **배포 전 현장 설정을 검사할 때** 쓴다. extractor 별 지원 키(`processing/enrichment/config_schema.py`)와 같은 판정을 공유하므로 기동 실패를 미리 드러내고, 청크 본문이 바뀌는 필드(재색인 판단)도 알려준다.
 
 ```bash
 genon/preprocessor/examples/config_precheck/precheck_custom_fields.sh   # 인자로 현장 설정 경로 지정 가능
-genon/preprocessor/examples/config_precheck/verify_v2_equivalence.sh    # v1↔v2 왕복·매퍼 산출 대조
 ```
 
-v2 스키마(`schema: v2`)는 아직 **병행 검증 단계다. 전환하지 말 것** — 위 검증이 전부 통과한 뒤에 출고 설정을 옮긴다.
+custom_fields yaml 은 **`schema: v2` 표기 한 가지뿐이다.** 이 줄이 없으면 `config_v2.load` 가 기동을 막는다(빈 설정은 예외 — `config_file` 을 안 쓰는 등록 블록이다). 폐기된 옛 표기는 2026-09-10 에 걷어냈다.
+매퍼가 읽는 **내부 형태는 여전히 옛 키 이름**(`column_map`·`text_fields` …)이다. 설정에 적는 이름이 아니라 오류 메시지에 나오는 이름이므로, 기동 실패 로그는 `gitbook_doc/parser_processor.md` 의 매트릭스에서 되짚는다.
 설정 오기입은 기본적으로 **기동 실패**다. 현장 설정을 미리 검사하지 못한 첫 릴리스에 한해 `GENOS_CUSTOM_FIELDS_VALIDATION=warn` 으로 낮추면 경고만 남기고 기동한다(그 설정은 무시된다).
 
 같은 디렉터리의 `parse_chunk_test.sh` 는 손으로 돌려보는 놀이터다. 대부분 주석 상태이고 개인 경로에 의존하므로, 자동 검증에 넣을 것은 `parse_chunk_verify.py` 쪽에 단정문으로 옮긴다.
@@ -206,7 +230,7 @@ conventional prefix 없음, PR 대상은 `develop`, 본문에 `Resolves #N` 을 
 - `.ignore` — `rg`/`Grep` 전용 제외 목록. 위 "저장소 지도" 절 참조.
 - `hooks/pytest-filter.sh` — PreToolUse(Bash) 훅. 단순한 pytest 명령에 `--color=no -p no:randomly` 를 붙이고 PASSED/SKIPPED 줄을 걷어낸다(실측 11,949→653바이트, 종료 코드는 `pipefail` 로 보존). 파이프·`&&` 가 섞인 복합 명령은 건드리지 않는다.
   - 실행 위치도 교정한다. `tests/unit|smoke|regression` 인자가 실행 기준 디렉터리에 없고 `genon/preprocessor` 아래에 있으면 절대경로 `cd` 를 앞에 붙인다. 훅은 Bash 툴이 유지하는 cwd 를 볼 수 없어서(입력의 `cwd` 는 늘 루트) 차단 대신 교정으로 처리한다 — 차단 방식은 cwd 가 이미 `genon/preprocessor` 인 정상 명령을 막았다. 복합 명령에는 적용되지 않는다.
-- `hooks/large-file-read-guard.sh` — PreToolUse(Read) 훅. 1,200줄 초과 텍스트 파일을 `offset`/`limit` 없이 Read 하려 하면 거부하고 Grep 선행을 요구한다. 활성 `.py` 393개 중 26개가 대상이며 "큰 파일 취급 규칙" 절의 7개 파일이 모두 포함된다. 전체가 정말 필요하면 `offset=1 limit=<줄수>` 로 의도를 명시하면 통과한다.
+- `hooks/large-file-read-guard.sh` — PreToolUse(Read) 훅. 1,200줄 초과 텍스트 파일을 `offset`/`limit` 없이 Read 하려 하면 거부하고 Grep 선행을 요구한다. 활성 `.py` 470개 중 25개가 대상이며 "큰 파일 취급 규칙" 절의 7개 파일이 모두 포함된다. 전체가 정말 필요하면 `offset=1 limit=<줄수>` 로 의도를 명시하면 통과한다.
 - `agents/scope-check.md` — "수정 범위" 절의 판정 기준 5개를 고정한 서브에이전트. 변경 적용 전이나 PR 직전에 diff/계획의 범위 과잉만 판정한다(버그 사냥은 범위 밖).
 - 스킬 — `deploy-code-serving`, `create-patch-bundle`(배포·패치 절차), `issue-start`/`wip`/`open-pr`(위 GitHub 흐름). 필요할 때만 로드된다.
 - `pyright-lsp` 플러그인(선택, 개인 설정이라 미공유). 설치되어 있으면 심볼 정의 탐색에 Grep 대신 LSP 를 우선한다. `npm install -g pyright` 후 `claude plugin install pyright-lsp@claude-plugins-official --scope local`.

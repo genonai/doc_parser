@@ -1,0 +1,31 @@
+# extractor: python 예시 — 정규식으로 값을 뽑는다 (LLM 을 부르지 않는다)
+#
+# 프로세서 설정에 아래 등록 블록을 더하고, 이 파일과 custom_field_regex_demo.py 를
+# 프로세서 설정 yaml 과 **같은 폴더**에 둔다.
+#
+#   - custom_fields:
+#       enable: true
+#       doc_type: regex_demo
+#       extractor: python
+#       config_file: custom_field_regex_demo.yaml
+#
+# 확인:
+#   python preprocessor.py 계약안내.md --doc-type regex_demo -o parsed.json
+#   python preprocessor.py parsed.json -o chunks.json
+schema: v2
+
+source:
+  kind: document          # 문서 1건에서 값을 뽑는다(행·레코드 매핑이 아니다)
+
+# 값을 만드는 주체. llm 블록 자리에 오는 다른 선택지다(둘을 함께 쓸 수 없다).
+python:
+  file: custom_field_regex_demo.py   # 이 yaml 과 같은 폴더 기준
+  callable: extract                  # 기본값 extract
+  out: [CONTRACT_NO, AMOUNT]         # 이 이름만 청크에 실린다
+
+# 뽑은 값을 다듬는 규칙. extractor: llm 과 완전히 같은 파이프라인이다.
+fields:
+  AMOUNT:
+    transform: [to_int]   # "1,250,000" -> 1250000
+  SRC:
+    const: REGEX          # 추출과 무관한 고정값

@@ -6,7 +6,7 @@
 
 import pytest
 
-from genon.preprocessor.facade.enrichment.json_records import (
+from genon.preprocessor.processing.enrichment.json_records import (
     html_to_text,
     normalize_table_format,
 )
@@ -83,15 +83,18 @@ def test_rows_path_honors_table_format(tmp_path, fmt, expect_md):
     """
     import textwrap
 
-    from genon.preprocessor.facade.enrichment.tabular_custom_fields import (
+    from genon.preprocessor.processing.enrichment.tabular_custom_fields import (
         TabularCustomFieldsMapper,
     )
 
     (tmp_path / "custom_field_t.yaml").write_text(textwrap.dedent("""
-        column_map: {RAW: [내용], DETAIL: [내용]}
-        required: [RAW]
-        transforms: {DETAIL: html_text}
-        text_fields: [DETAIL]
+        schema: v2
+        source: {kind: rows}
+        fields:
+          RAW: {alias: [내용]}
+          DETAIL: {alias: [내용], transform: html_text}
+        require: {fields: [RAW]}
+        body: {fields: [DETAIL]}
     """), encoding="utf-8")
     mapper = TabularCustomFieldsMapper(
         config_file="custom_field_t.yaml", resource_path=str(tmp_path),

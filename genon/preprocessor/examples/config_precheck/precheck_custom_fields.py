@@ -7,7 +7,7 @@
 그 시점에 알면 이미 서비스가 안 뜬다.
 
 이 스크립트는 **파싱과 LLM 호출 없이 yaml 만 읽어** 그 위험을 미리 드러낸다.
-판정은 `facade/enrichment/config_schema.py` 를 그대로 import 해서 쓰므로 검증기와
+판정은 `processing/enrichment/config_schema.py` 를 그대로 import 해서 쓰므로 검증기와
 규칙이 갈리지 않는다(스크립트가 규칙을 다시 구현하면 반드시 갈린다).
 
 ## 무엇을 잡나
@@ -36,8 +36,8 @@ import yaml
 REPO_ROOT = Path(__file__).resolve().parents[4]
 sys.path.insert(0, str(REPO_ROOT))
 
-from genon.preprocessor.facade.enrichment import config_schema as cs  # noqa: E402
-from genon.preprocessor.facade.enrichment import config_v2 as cv2  # noqa: E402
+from genon.preprocessor.processing.enrichment import config_schema as cs  # noqa: E402
+from genon.preprocessor.processing.enrichment import config_v2 as cv2  # noqa: E402
 
 # 이번 정리에서 없앤 키 → 대신 쓸 것.
 REMOVED_KEYS = {
@@ -45,6 +45,14 @@ REMOVED_KEYS = {
     "json_text_fields": "`transform: text` 로 옮긴다(값 종류를 자동 판별한다)",
     "text_from": "같은 alias 를 목표필드에 한 번 더 붙이고 `transform: text` 를 건다",
     "html_text_fields": "같은 alias 를 목표필드에 한 번 더 붙이고 `transform: html_text` 를 건다",
+}
+# 등록 블록에서 없앤 키 → 대신 쓸 것. 등록 블록은 기동 시 키 검증을 받지 않으므로
+# (설정 파일만 받는다) 여기서 잡지 못하면 조용히 무시된다.
+REMOVED_BLOCK_KEYS = {
+    "json": "config_file 의 `source.pre.json` 으로 옮겼습니다"
+            "(안쪽 키도 text_fields → body_from, missing_policy → on_missing)."
+            " 파서 프로세서에서는 기동이 실패하고, 그 밖의 프로세서에서는 소비자가 없어"
+            " 조용히 무시됩니다 — 어느 쪽이든 옮겨야 합니다",
 }
 REMOVED_EXTRACTORS = {
     "document_llm": "llm",
@@ -85,6 +93,22 @@ def registered_blocks(root: Path) -> list[tuple[str, dict]]:
     return blocks
 
 
+def _derive_extractor(path: Path) -> str | None:
+    """설정 파일의 `source.kind` 에서 extractor 를 유도한다(못 하면 None).
+
+    판정은 `config_v2.normalize` 에 맡긴다 — 규칙을 여기 다시 구현하면 반드시 갈린다.
+    읽을 수 없거나 v2 가 아니면 None 이고, 그 오류는 아래 본 검사에서 제대로 보고된다.
+    """
+    try:
+        loaded = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+        if not isinstance(loaded, dict) or not cv2.is_v2(loaded):
+            return None
+        _internal, extractor = cv2.normalize(loaded, label=str(path.name))
+    except Exception:  # noqa: BLE001 - 어떤 실패든 "유도 못 함"으로 흡수한다
+        return None
+    return extractor
+
+
 def check_block(source: str, block: dict, root: Path, seen_files: set[str]) -> list[str]:
     """등록 블록 하나와 그것이 가리키는 config_file 을 검사한다.
 
@@ -93,8 +117,12 @@ def check_block(source: str, block: dict, root: Path, seen_files: set[str]) -> l
     자체는 프로세서마다 다를 수 있으므로 매번 검사한다.
     """
     problems: list[str] = []
-    extractor = block.get("extractor") or "llm"
     where = f"{source} [doc_type={block.get('doc_type')}]"
+    # 등록 블록에 적혀 있으면 그 값, 없으면 config_file 의 source.kind 에서 유도한다 —
+    # 기동 시 `custom_fields_extractor` 가 하는 판정과 같은 순서다.
+    extractor = str(block.get("extractor") or "").strip().lower() or _derive_extractor(
+        root / str(block.get("config_file") or "")
+    ) or "llm"
 
     if extractor in REMOVED_EXTRACTORS:
         problems.append(
@@ -102,6 +130,12 @@ def check_block(source: str, block: dict, root: Path, seen_files: set[str]) -> l
             f"→ '{REMOVED_EXTRACTORS[extractor]}' 로 바꾸세요."
         )
         extractor = REMOVED_EXTRACTORS[extractor]
+
+    for key, hint in REMOVED_BLOCK_KEYS.items():
+        if block.get(key) is not None:
+            problems.append(
+                f"[기동실패] {where}: 등록 블록의 `{key}` 는 없어졌습니다 → {hint}."
+            )
 
     # 등록 블록 자체도 같은 규칙으로 본다(여기 오타도 기동을 막는다).
     item_cfg = {k: v for k, v in block.items() if k != "enable"}
@@ -123,21 +157,37 @@ def check_block(source: str, block: dict, root: Path, seen_files: set[str]) -> l
 
     cfg = load_yaml(path)
     label = f"{config_file}"
-    if cv2.is_v2(cfg):
-        # v2 는 내부(v1) 형태로 번역된 뒤에야 extractor 지원키와 대조할 수 있다.
+    # 없어진 키는 **번역 전** 원본에서 본다. 번역기가 먼저 "모르는 키"로 막아 버리면
+    # 무엇으로 갈아타야 하는지 알려 줄 기회가 사라진다 — 안내가 필요한 쪽은 옛 설정이다.
+    for key, hint in REMOVED_KEYS.items():
+        if key in (cfg or {}):
+            problems.append(f"[기동실패] {label}: `{key}` 는 없어졌습니다 → {hint}.")
+    if problems:
+        return problems
+
+    if cfg and not cv2.is_v2(cfg):
+        # 폐기된 v1 표기. 기동에서 막히므로 여기서도 같은 판정을 낸다.
+        problems.append(
+            f"[기동실패] {label}: 최상위에 `schema: v2` 가 없습니다. "
+            f"v1 표기는 더 이상 지원하지 않습니다."
+        )
+        return problems
+    if cfg:
+        # 내부 형태로 번역된 뒤에야 extractor 지원키와 대조할 수 있다.
         # 번역 전 원본을 그대로 검사하면 v2 키가 전부 "모르는 키"로 잡힌다.
+        #
+        # 번역이 돌려주는 extractor(파생값)로 **덮어쓰지 않는다.** 등록 블록에 적힌 값이
+        # 있으면 기동은 그 값으로 지원키를 대조하므로(매퍼·enricher 생성자 인자로 넘어간다),
+        # 여기서 파생값으로 갈아타면 점검과 기동의 판정이 갈린다. 적혀 있지 않은 경우의
+        # 파생은 위에서 이미 했다.
         try:
-            cfg, extractor = cv2.normalize(cfg, label=label)
+            cfg, _derived_extractor = cv2.normalize(cfg, label=label)
         except cv2.ConfigV2Error as exc:
             problems.append(f"[기동실패] {exc}")
             return problems
     diagnosis = cs.diagnose_keys(cfg, extractor)
     if diagnosis:
         problems.append(f"[기동실패] {cs.format_diagnosis(label, diagnosis)}")
-
-    for key, hint in REMOVED_KEYS.items():
-        if key in cfg:
-            problems.append(f"[기동실패] {label}: `{key}` 는 없어졌습니다 → {hint}.")
 
     problems.extend(check_body_label_change(label, cfg))
     return problems

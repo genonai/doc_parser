@@ -3,7 +3,7 @@ import json
 
 import pytest
 
-from genon.preprocessor.converters.json_text import (
+from genon.preprocessor.processing.converters.json_text import (
     JsonTextSpec,
     build_merged_html,
     collect_text_fields,

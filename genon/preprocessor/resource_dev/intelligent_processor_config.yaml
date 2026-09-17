@@ -267,20 +267,19 @@ enrichment:
         repeat_context_on_split: true
 
   # ── 문서유형별 custom_fields 추출 ──────────────────────────────────────────
-  # extractor=llm은 문서 단위 LLM 추출, tabular_mapping은 Excel/CSV 행별 직접 매핑.
+  # extractor 는 적지 않는다 — 설정 파일(config_file)의 `source.kind` 에서 정해진다
+  #   (document → 문서 단위 LLM 추출, rows → Excel·CSV 행별 직접 매핑).
   # doc_type(요청 kwargs)과 일치하는 설정만 동작. config_file 은 resource_dev 공유본.
   # 카드 상품 메타데이터(12필드) 추출 — monimo 카드 HTML(flatten 후) 대상
   - custom_fields:
       enable: true
       doc_type: card
-      extractor: llm
       config_file: custom_field_card.yaml   # resource_path 자동 = 이 yaml 파일 디렉토리
 
   # FAQ Excel/CSV 행별 메타데이터 매핑 — LLM 호출 없음
   - custom_fields:
       enable: true
       doc_type: faq
-      extractor: tabular_mapping
       config_file: custom_field_faq.yaml   # resource_path 자동 = 이 yaml 파일 디렉토리
 
   # ── authors 데모(기존) ──
@@ -344,8 +343,9 @@ chunking:
   #
   # line/find 는 **청킹 입력**에 적용된다 — 그래야 삭제가 청크 경계와 n_char 에 반영된다.
   # chunk 만 출력 단계에서 판정한다.
-  # 코드 블록(``` 펜스·인라인 백틱)과 마크다운 표 행은 규칙을 타지 않는다. 표가 깨지거나
-  # 예제 코드가 훼손되는 것을 막기 위해서다.
+  # 코드 블록(``` 펜스·인라인 백틱)은 규칙을 타지 않는다 — 예제 코드가 훼손되는 것을 막는다.
+  # 마크다운 표 행을 건너뛰는 것은 `line` 뿐이다. `find` 는 표 안에서도 치환하므로
+  # `- {find: "\\|"}` 같은 규칙은 표를 통째로 깨뜨린다. 표 셀의 글자를 지울 때만 쓴다.
   # 잘못된 정규식·모르는 액션 키는 요청 때가 아니라 **기동 시** 실패한다.
   # 규칙을 켜면 청크 본문이 바뀌므로 재색인이 필요하다.
   # 토큰 수 계산 방식. "char"(default)=문자 수 기준 | "huggingface"=HF 토크나이저 기준

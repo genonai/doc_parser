@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import pytest
 
-from genon.preprocessor.converters.hwp_to_pdf import config as cfg
+from genon.preprocessor.processing.converters.hwp_to_pdf import config as cfg
 
 
 @pytest.fixture

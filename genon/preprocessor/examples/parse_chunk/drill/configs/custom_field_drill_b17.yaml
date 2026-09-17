@@ -1,0 +1,11 @@
+# B17 레코드 5,000건 — 비용·지연 축(LLM 없음).
+schema: v2
+source:
+  kind: records
+  records_at: rows
+fields:
+  NAME: {alias: [name]}
+  BODY: {alias: [body]}
+body:
+  fields: [NAME, BODY]
+  labels: {NAME: 이름, BODY: 본문}

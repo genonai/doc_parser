@@ -13,7 +13,13 @@ from pathlib import Path
 
 import pytest
 
-from genon.preprocessor.facade.chunking_processor import _carry_over_section_headings
+from genon.preprocessor.processing.core.chunker import (
+    _carry_over_section_headings,
+    _classify_payload,
+    _clamp_chunk_size,
+)
+# 헤더 구분자는 사이트가 정하는 값이라 배포되는 facade 가 든다(#363 08-2).
+from genon.preprocessor.facade.chunking_processor import GenosSmartChunker
 from docling_core.types import DoclingDocument
 from docling_core.types.doc import DocItemLabel, DocumentOrigin
 
@@ -90,16 +96,16 @@ def test_classify_payload_shapes():
     """payload 형태 판별: docling/parse-format/envelope/garbage."""
     cp = pytest.importorskip("facade.chunking_processor")
 
-    assert cp._classify_payload({"document": {"x": 1}}) == ("docling", {"x": 1})
-    assert cp._classify_payload({"elements": [{"content": "a"}]}) == ("parse", [{"content": "a"}])
+    assert _classify_payload({"document": {"x": 1}}) == ("docling", {"x": 1})
+    assert _classify_payload({"elements": [{"content": "a"}]}) == ("parse", [{"content": "a"}])
     # docling 우선: parser docling 응답은 _normalize_response 로 빈 elements 도 함께 가질 수 있음
-    assert cp._classify_payload({"document": {"x": 1}, "elements": []})[0] == "docling"
+    assert _classify_payload({"document": {"x": 1}, "elements": []})[0] == "docling"
     # envelope
-    assert cp._classify_payload({"code": 0, "data": {"elements": [{"content": "a"}]}})[0] == "parse"
+    assert _classify_payload({"code": 0, "data": {"elements": [{"content": "a"}]}})[0] == "parse"
     # raw docling dict
-    assert cp._classify_payload({"schema_name": "DoclingDocument", "body": {}})[0] == "docling"
+    assert _classify_payload({"schema_name": "DoclingDocument", "body": {}})[0] == "docling"
     with pytest.raises(cp.GenosServiceException):
-        cp._classify_payload({"unknown": 1})
+        _classify_payload({"unknown": 1})
 
 
 def test_chunker_parse_format_audio_single_vector():
@@ -536,7 +542,7 @@ def test_chunk_never_exceeds_chunk_size(chunk_size):
     """헤더 포함 최종 텍스트가 chunk_size 를 넘지 않는다(헤더 on/off 모두)."""
     cp = pytest.importorskip("facade.chunking_processor")
     doc = _sample_docling_doc()
-    effective = cp._clamp_chunk_size(chunk_size)  # 0 초과면 최소 1024 로 보정된다
+    effective = _clamp_chunk_size(chunk_size)  # 0 초과면 최소 1024 로 보정된다
 
     for kwargs in ({}, {"include_chunk_header": 0}):
         vectors = _chunk(doc, chunk_size=chunk_size, **kwargs)
@@ -760,7 +766,7 @@ def test_many_sibling_paths_are_capped():
     header = _header_of(_chunk(doc.model_dump(mode="json"),
                                chunk_mode="resize_all", chunk_size=100000)[0])
     assert "외" in header and "개" in header, header
-    assert header.count(PATH_SEP) < cp._CHUNK_PATH_MAX_LEAVES, header
+    assert header.count(PATH_SEP) < GenosSmartChunker.CHUNK_PATH_MAX_LEAVES, header
 
 
 @pytest.mark.unit
@@ -768,7 +774,7 @@ def test_many_sibling_paths_are_capped():
 def test_single_oversized_text_item_is_split(chunk_size):
     """아이템 하나가 예산보다 커도 내부 분할되어 chunk_size 를 지킨다."""
     cp = pytest.importorskip("facade.chunking_processor")
-    effective = cp._clamp_chunk_size(chunk_size)
+    effective = _clamp_chunk_size(chunk_size)
 
     doc = DoclingDocument(name="huge_item")
     section = doc.add_heading(text="제1조 목적", level=1)
@@ -820,3 +826,43 @@ def test_carry_over_section_headings_noop_without_headings():
     """헤딩이 없는 평문 입력에서는 아무것도 하지 않는다(회귀 가드)."""
     pieces = ["첫 문단입니다.", "둘째 문단입니다."]
     assert _carry_over_section_headings(list(pieces)) == pieces
+
+
+# ---------------------------------------------------------------------------
+# edit_chunk — docling 경로 (#363 09 B군 ③)
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_edit_chunk_drop_moves_the_once_prefix_to_the_first_survivor():
+    """첫 청크 전용 접두는 '살아남은 첫 청크' 가 받는다.
+
+    chunk_idx == 0 기준이면 그 청크를 버렸을 때 문서 식별 접두가 통째로 사라진다.
+    """
+    tb = pytest.importorskip("processing.core.toolbox")
+    cf = pytest.importorskip("facade.chunking_processor")
+
+    class _P(cf.DocumentProcessor):
+        def edit_chunk(self, text, info, **kwargs):
+            return tb.DROP if info["index"] == 0 else None
+
+    # 접두 값은 문서 metadata 로 넘어간다(파서와 청커가 별도 API 라 KeyValueItem 경유).
+    result = {"document": _build_doc().model_dump(mode="json")}
+    tb.set_chunk_metadata(result, {
+        "DOC_NM": "약관문서식별",
+        tb.FIRST_CHUNK_FIELDS_KEY: ["DOC_NM"],
+    })
+    payload = result["document"]
+
+    base = await cf.DocumentProcessor()(None, "", document=payload)
+    assert len(base) >= 2, "접두 이동을 보려면 청크가 둘 이상이어야 한다"
+    kept = await _P()(None, "", document=payload)
+
+    # 버리기 전에는 0번만, 버린 뒤에는 새 0번만 접두를 갖는다(문서당 1회).
+    assert sum("약관문서식별" in v.text for v in base) == 1
+    assert base[0].text.startswith("약관문서식별")
+    assert len(kept) == len(base) - 1
+    assert sum("약관문서식별" in v.text for v in kept) == 1
+    assert kept[0].text.startswith("약관문서식별")
+    # 순번·개수는 코어가 다시 맞춘다.
+    assert [v.i_chunk_on_doc for v in kept] == list(range(len(kept)))
+    assert all(v.n_chunk_of_doc == len(kept) for v in kept)

@@ -27,7 +27,8 @@ if [ -z "${PYTHON:-}" ]; then
   fi
 fi
 
-export DYLD_FALLBACK_LIBRARY_PATH="/opt/homebrew/lib:/usr/local/lib:/usr/lib"
+# DYLD_FALLBACK_LIBRARY_PATH(WeasyPrint 네이티브 의존)는 parse_chunk_verify.py 가
+# os.environ.setdefault 로 세운다. 골든 하네스도 같은 값을 받아야 해서 .py 로 옮겼다.
 
 cd "${SCRIPT_DIR}"
 exec "${PYTHON}" parse_chunk_verify.py --python "${PYTHON}" "$@"

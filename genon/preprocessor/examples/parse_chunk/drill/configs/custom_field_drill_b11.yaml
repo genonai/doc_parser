@@ -1,0 +1,11 @@
+# B11 인코딩(BOM / CP949) — 파싱 이전 단계에서 갈린다.
+schema: v2
+source:
+  kind: records
+  records_at: rows
+fields:
+  NAME: {alias: [name]}
+  BODY: {alias: [body]}
+body:
+  fields: [NAME, BODY]
+  labels: {NAME: 이름, BODY: 본문}

@@ -1,0 +1,9 @@
+# B8 깊은 중첩(depth 8) — sections 는 트리를 자동 전수 순회한다.
+schema: v2
+source:
+  kind: sections
+fields:
+  DOC_TITLE:  {const: "심층 문서"}
+  LEAF_TITLE: {alias: [leafTitle], default: null}
+body:
+  labels: {DOC_TITLE: 문서, LEAF_TITLE: 항목}

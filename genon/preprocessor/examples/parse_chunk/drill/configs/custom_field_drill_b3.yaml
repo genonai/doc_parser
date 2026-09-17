@@ -1,0 +1,11 @@
+# B3 2단 중첩 레코드 — groups[].items[]. records_at 은 이름으로 찾는다.
+schema: v2
+source:
+  kind: records
+  records_at: items
+fields:
+  TITLE: {alias: [itemTitle]}
+  BODY:  {alias: [itemBody]}
+body:
+  fields: [TITLE, BODY]
+  labels: {TITLE: 제목, BODY: 본문}

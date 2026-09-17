@@ -196,7 +196,7 @@ class TestIntelligentProcessor:
     @pytest.mark.unit
     def test_metadata_field_transforms_default_when_yaml_omits_it(self, processor):
         """yaml 에 field_transforms 가 없으면 DEFAULT 가 적용되는지 (벡터 합성 created_date 동작 보존)."""
-        from facade.enrichment.field_transforms import DEFAULT_METADATA_FIELD_TRANSFORMS
+        from processing.enrichment.field_transforms import DEFAULT_METADATA_FIELD_TRANSFORMS
         assert processor._metadata_field_transforms == DEFAULT_METADATA_FIELD_TRANSFORMS
 
     @pytest.mark.unit
@@ -237,7 +237,7 @@ def test_metadata_config_parses_field_transforms():
     """enrichment 설정에서 field_transforms 가 list/dict 두 포맷 모두 파싱되고,
     미지정 시 빈 list 로 기본화되는지 확인."""
     from pathlib import Path
-    from facade.enrichment.enrichment_config import EnrichmentConfig
+    from processing.enrichment.enrichment_config import EnrichmentConfig
 
     transforms = [{"source": ["doc_date"], "target": "created_date", "type": "date_int"}]
 
@@ -315,3 +315,26 @@ def test_ppt_page_merge_keeps_header_paths(module_name):
     joined = "\n".join(ch.text for ch in chunks)
     for page in (1, 2, 3):
         assert f"{page}쪽 본문입니다." in joined
+
+
+@pytest.mark.unit
+def test_post_runtime_setup_warns_on_unread_custom_fields(caplog):
+    """기동 배선이 실제로 경고를 낸다 — 함수가 있는 것과 불리는 것은 다른 문제다.
+
+    intelligent 는 `kind: records`/`sections` 를 배선하지 않는다. 등록만 되고 아무 필드도
+    채워지지 않는 상태를 여기서 드러내지 못하면 적재된 데이터에서야 발견하게 된다.
+    """
+    from unittest.mock import MagicMock
+    from facade.intelligent_processor import DocumentProcessor
+
+    proc = object.__new__(DocumentProcessor)  # __init__(네트워크/모델) 우회
+    ec = MagicMock()
+    ec.custom_fields_cfgs = [
+        {"enable": True, "doc_type": "faq_json", "extractor": "json_mapping"},
+    ]
+    ec.metadata.field_transforms = None
+
+    with caplog.at_level("WARNING"):
+        proc._post_runtime_setup({}, ec)
+
+    assert any("faq_json" in r.getMessage() for r in caplog.records)

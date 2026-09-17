@@ -1,13 +1,14 @@
-"""facade/enrichment/field_transforms.py 에 대한 unit test.
+"""processing/enrichment/field_transforms.py 에 대한 unit test.
 
 순수 stdlib 모듈이라 docling/fastapi 없이 로컬에서도 실제 실행된다.
 """
 
+import json
 from unittest.mock import MagicMock
 
 import pytest
 
-from facade.enrichment.field_transforms import (
+from processing.enrichment.field_transforms import (
     DEFAULT_METADATA_FIELD_TRANSFORMS,
     JSON_VALUE_SENTINEL,
     apply_field_transforms,
@@ -208,6 +209,23 @@ def test_store_metadata_types_only_typed_keys():
         "PRODUCT_ATTRS": {"a": 1},
         "issuer_name": "삼성카드",
     }
+
+
+@pytest.mark.unit
+def test_packed_json_string_survives_the_document_roundtrip():
+    """`pack` 산출(JSON 문자열)이 문서형 경로를 왕복해도 같은 문자열로 나간다.
+
+    문서형은 값을 문서 KeyValueItem 에 실어 chunk API 경계를 넘는데, 읽는 쪽이 `{`…`}` 를
+    dict 로 복원한다(`normalize_metadata_value`). 청크 출력 직전 다시 직렬화되므로 최종
+    property 는 같은 문자열이어야 한다 — 여기가 어긋나면 적재 값이 조용히 바뀐다.
+    """
+    packed = json.dumps({"A": '연 18,000원 "무이자"', "B": None, "C": 18000},
+                        ensure_ascii=False)
+    doc = _make_document(list(dict(_stored_pairs(
+        {"DETAIL_JSON": packed}, preserve_nulls=True)).items()))
+
+    restored = extract_metadata_from_document(doc)
+    assert serialize_metadata_value_for_output(restored["DETAIL_JSON"]) == packed
 
 
 @pytest.mark.unit

@@ -3,6 +3,10 @@
 > **역할:** 다양한 문서 포맷을 파싱하여 element 단위 구조화 데이터를 반환하는 전용 파서.
 > 청킹·벡터 조합은 수행하지 않습니다.
 
+> **코드를 고쳐야 할 때는** [facade_hooks.md](facade_hooks.md) 를 보세요.
+> 설정으로 안 되는 원천은 전처리기 파일의 훅 메소드(`edit_input` / `edit_output` /
+> `edit_input` / `edit_output`)에서 처리합니다. 처리 본체(`processing/core/`)는 열지 않습니다.
+
 ---
 
 ## 목차
@@ -559,7 +563,7 @@ metadata:
 
 - **키 이름 변경**: 프롬프트가 `doc_date` 로 추출하면 `source: [doc_date]` 로만 바꿔도 `created_date` 가 동일하게 채워집니다.
 - **fallback**: 추출이 비고 본문에 `"보고자료 2024-01-15 기준"` 이 있으면 `created_date: 20240115` 로 보강됩니다.
-- `field_transforms` 미지정 시 위 `created_date` 기본 변환(`DEFAULT_METADATA_FIELD_TRANSFORMS`)이 적용되어 기존 동작을 보존합니다. 신규 변환기/보조추출은 `field_transforms.py` 의 `VALUE_TRANSFORMS`/`FALLBACK_STRATEGIES` 에 등록하면 YAML 에서 바로 사용할 수 있습니다.
+- `field_transforms` 미지정 시 위 `created_date` 기본 변환(`DEFAULT_METADATA_FIELD_TRANSFORMS`)이 적용되어 기존 동작을 보존합니다. 신규 변환기/보조추출은 `field_transforms.py` 의 `VALUE_TRANSFORMS`/`FALLBACK_STRATEGIES` 에 등록하면 YAML 에서 바로 사용할 수 있습니다. 사이트 전용 변환기는 저장소를 고치지 말고 전처리기 파일에서 `tb.register_transform()` 으로 등록합니다.
 
 #### 커스텀 필드 enricher
 
@@ -569,12 +573,29 @@ metadata:
 - **외부 config:** `config_file: "이름.yaml"`로 분리할 수 있습니다. 상대 경로는 config 파일과 동일한 디렉터리(resource_path) 기준으로 해석됩니다. 외부 파일에도 `system_prompt_file`/`user_prompt_file`(또는 `system_prompt`/`user_prompt`, `prompt.system`/`prompt.user`)/`url`/`model`/`output_fields`/`parser`/`pages` 등을 둘 수 있으며, 항목에 직접 지정한 값이 외부 config보다 우선합니다. `*_file` 경로는 외부 config 파일이 위치한 디렉터리 기준으로 해석됩니다.
 - `parser.type`은 `json`(기본값) 또는 `python`(외부 파일 위임)을 지원합니다.
 
-**입력 포맷별 전처리 블록** — LLM 호출 설정과 별개로, 항목(또는 `config_file`) 안에 입력 포맷 전처리를 함께 선언할 수 있습니다. 이 두 블록은 enricher 생성자로 넘어가지 않고 파서가 소비합니다.
+**입력 포맷별 전처리 블록** — LLM 호출 설정과 별개로, `config_file` 의 `source.pre` 아래에 입력 포맷 전처리를 선언합니다. 이 블록들은 enricher 생성자로 넘어가지 않고 파서가 소비합니다.
 
 | 블록 | 대상 | 설명 |
 |------|------|------|
-| `json:` | `.json` 입력 | 본문 텍스트(markdown/html)가 담긴 key 이름 목록. [기타 포맷](#기타-포맷-doc-ppt-pptx-txt-json-md-jpg-jpeg-png) 참고 |
-| `markdown.front_matter:` | `.md` 입력 | YAML front matter 를 청크 metadata 로 승격 / 청크 텍스트에서 제외. [Markdown](#markdown-md) 참고 |
+| `source.pre.json` | `.json` 입력 | 본문 텍스트(markdown/html)가 담긴 원천 key 이름 목록(`body_from`). [기타 포맷](#기타-포맷-doc-ppt-pptx-txt-json-md-jpg-jpeg-png) 참고 |
+| `source.pre.markdown` | `.md` 입력 | front matter 승격·제외, ```text 펜스 복원, 마커 heading 승격. [Markdown](#markdown-md) 참고 |
+| `source.pre.html` | `.html` 입력 | 마커 heading 승격 |
+| `source.pre.delimited` | 구분자 텍스트 | 원천을 레코드 목록으로 바꾼다(`kind: records` 전용). 입력 확장자와 무관하게(.dtms/.md/.html/.txt 등 텍스트면) 확장자 라우팅보다 먼저 이 경로를 탄다 |
+
+`markdown`·`html` 은 등록 블록에 같은 이름을 적어 문서유형별로 덮어쓸 수 있고, `false` 를 주면 명시적 비활성입니다. `marker_headings` 는 md 와 html 이 판정 규칙을 공유하므로 `source.pre` 바로 아래 한 번만 적으면 둘 다 걸립니다.
+
+> `json:` 을 **등록 블록에 적던 옛 표기는 받지 않습니다.** `config_file` 의 `source.pre.json` 으로 옮기고, 안쪽 키도 `text_fields` → `body_from`, `missing_policy` → `on_missing` 으로 바뀌었습니다. 등록 블록은 기동 시 키 검증을 받지 않아 그대로 두면 오류가 아니라 조용히 무시되므로(본문이 캐치올로 빠져 표·heading 구조가 소실됩니다) 파서 기동과 배포 전 점검 양쪽에서 막습니다.
+
+```yaml
+# config_file 안
+source:
+  kind: document
+  pre:
+    json:
+      body_from: [html, summary_md]   # [필수] 경로가 아니라 key 이름. 임의 깊이에서 찾는다
+      format: auto                    # auto(기본, 값 내용으로 판별) | html | markdown
+      on_missing: skip                # skip(기본, 경고만) | error
+```
 
 #### 프롬프트 파일 분리 & 변수 치환
 
@@ -875,7 +896,7 @@ formats:
 
 #### YAML front matter 처리 (`custom_fields.markdown.front_matter`)
 
-docling 의 Markdown 백엔드는 `---` 로 감싼 front matter 를 **일반 본문 텍스트**로 읽습니다. 그대로 두면 front matter 만으로 이루어진 청크가 하나 생겨(실측 283자) 검색 노이즈가 됩니다. `custom_fields` 항목의 `markdown.front_matter` 블록으로 **청크 metadata 로 승격할 키**와 **청크 텍스트에서 제외할 키**를 서로 독립적으로 선택합니다(`json:` 블록과 같은 위치·같은 방식).
+docling 의 Markdown 백엔드는 `---` 로 감싼 front matter 를 **일반 본문 텍스트**로 읽습니다. 그대로 두면 front matter 만으로 이루어진 청크가 하나 생겨(실측 283자) 검색 노이즈가 됩니다. `config_file` 의 `source.pre.markdown.front_matter` 블록으로 **청크 metadata 로 승격할 키**와 **청크 텍스트에서 제외할 키**를 서로 독립적으로 선택합니다(`source.pre.json` 과 같은 위치·같은 방식).
 
 기본값은 `config_file` 이 가리키는 doc_type yaml 에 두고, 상위 `custom_fields` 항목에 같은 블록을 쓰면 재귀 병합으로 덮어씁니다. 상위에서 `markdown: false` 또는 `front_matter: false` 로 명시적으로 끌 수 있습니다.
 
@@ -1156,6 +1177,407 @@ Docling 파이프라인(PDF/HTML/HWP/HWPX/DOCX) 출력 기준:
 - `metadata` 의 컬럼 KEY 는 헤더 텍스트에서 결정론적으로 생성됩니다 — ASCII 헤더는 그대로, 그 외(한글 등)와 예약어 충돌은 `field_<hash>`. 원본 헤더명은 `column_map` 에 보존됩니다.
 
 ---
+
+## 새 문서 유형 추가하기 — 어디까지 설정이고 어디서부터 코드인가
+
+새 원천을 받았을 때 순서는 하나입니다. **① 그대로 넣어 본다 → ② 설정(`custom_field_*.yaml`)으로
+시도한다 → ③ 그래도 안 되면 코드를 고친다.** 순서를 뒤집으면 설정으로 되는 것도 코드로 풀게 됩니다.
+
+> 설정 파일은 첫 줄에 **`schema: v2`** 를 적습니다. 이 줄이 없으면 기동에 실패합니다 —
+> 폐기된 옛 표기를 다른 해석 모드로 조용히 받지 않기 위해서입니다.
+>
+> 표의 괄호 안은 **내부 이름**입니다. 설정에 적는 이름이 아니라 오류 메시지에 나오는
+> 이름이므로, 기동 실패 로그를 읽을 때 이 표에서 되짚으면 됩니다.
+>
+> 헷갈리는 동음이의 하나: `template`(필드 결합)의 내부 이름은 `derive` 입니다.
+> 내부에도 `template` 이 따로 있는데 그것은 llm 전용 프롬프트 변수 치환 모드로 뜻이 다릅니다.
+
+### extractor 5종
+
+| kind | `extractor` (별칭) | 대상 | LLM |
+|---|---|---|---|
+| rows | `tabular_mapping` (`tabular`, `column_mapping`) | csv / xlsx / xlsm 의 **행** | `llm:` 선언 시 행마다 |
+| records | `json_mapping` (`json_records`) | json 의 **레코드 배열** | `llm:` 선언 시 레코드마다 |
+| sections | `json_semantic` | json **트리 전체**(섹션 자동 순회) | 문서 1회 |
+| document | `llm` (`document_llm`) | 문서 전체(pdf/html/docx/md …) | 본체가 LLM |
+| document | `python` | 문서 전체. 값을 LLM 대신 고객 파이썬 함수가 만든다 | 없음 |
+| html | `html_select` | 문서 전체. 값을 **원문 HTML 의 CSS 선택자**가 만든다 | 없음 |
+
+#### `kind: html` — 마크업이 값을 이미 지목하고 있을 때
+
+뽑을 값이 class 나 속성으로 정확히 지목된 원천(크롤 산출물, CMS 상세 페이지)이 있습니다.
+그럴 때 LLM 에게 다시 찾게 할 이유가 없습니다.
+
+```yaml
+source:
+  kind: html
+  pre:
+    json:
+      body_from: [content]     # json 안에 HTML 이 들어 있는 원천이면
+fields:
+  TITLE:
+    select: .new-banner-headline        # 요소의 텍스트
+  CATEGORY:
+    select: .newsletter-article-wrap
+    attr: newsletter-title              # 요소의 **속성값**
+```
+
+- `select` 는 CSS 선택자입니다. 여러 개가 걸리면 **첫 번째**를 씁니다.
+- `attr` 을 주면 그 속성값을 문자열 그대로 씁니다. 없으면 요소 텍스트를
+  `transform: html_text` 와 같은 방식으로 평문화합니다(표·목록 구조가 남습니다).
+- 선택자 문법 오류는 **기동 시** 잡힙니다.
+- 선언한 필드는 못 찾아도 키가 남고 값이 `null` 이 됩니다(경고 로그에 어느 선택자가
+  안 걸렸는지 나옵니다).
+- **HTML 주석 안의 요소는 잡지 않습니다.** 주석은 원천이 꺼 둔 것이라는 뜻이라,
+  되살리는 판단은 파싱기가 하지 않습니다.
+
+> 원천이 `.html` 이면 그대로 쓰고, json 안에 HTML 문자열이 들어 있으면
+> `source.pre.json.body_from` 으로 그 값을 지목하면 됩니다. 선택자는 **파싱 전 원문**에
+> 걸리므로, docling 이 지워 버리는 class·속성·`alt` 를 모두 쓸 수 있습니다.
+
+> 등록 블록(`parser_processor_config.yaml`)의 `extractor` 는 **적지 않아도 됩니다.**
+> 생략하면 설정 파일의 `source.kind` 에서 정해집니다(문서형은 `python:` 블록이 있으면
+> `python`, 없으면 `llm`. `kind: html` 이면 `html_select`). 같은 정보를 두 파일에 적으면 어긋날 수 있고, 어긋나면 "이
+> extractor 가 읽지 않는 키" 라는 메시지로 기동이 실패합니다 — 설정에 그 키를 적은
+> 적이 없는데도 그렇습니다. 적어 둔 값이 있으면 그 값이 그대로 쓰입니다.
+
+### 지원 매트릭스
+
+✔ = 됨 / ✗ = 그 키를 적으면 **기동 실패** / ⚠ = 통과하지만 무효이거나 제한
+
+**원천에서 값 가져오기 (`fields:`)**
+
+| 기능 | 설정 키 (내부 이름) | rows | records | sections | document |
+|---|---|:-:|:-:|:-:|:-:|
+| 별칭 | `alias` | ✔ | ✔ | ✔ | ✔ |
+| 반복 key 전부 수집 | `collect` (`collect_key_map`) | ✗ | ✔ | ✗ | ✗ |
+| 상수 | `const` (`constants`) | ✔ | ✔ | ✔ | ✔ |
+| 기본값(빈 값만) | `default` (`defaults`) | ✔ | ✔ | ✔ | ✔ |
+| 값 접기 | `values` (`value_map`) | ✔ | ✔ | ✔ | ✔ |
+| 변환(9종 체이닝) | `transform` (`transforms`) | ✔ | ✔ | ⚠ 표 뭉갬 | ⚠ 표 뭉갬 |
+| 필드 결합 | `template` (**`derive`**) | ✔ | ✔ | ✔ | ✔ |
+| JSON 한 칸에 묶기 | `pack` | ✔ | ✔ | ✔ | ✔ |
+| 청크 메타에서 빼기 | `meta: false` (`meta_include`) | ✔ | ✔ | ✔ | ✔ |
+
+적용 순서는 kind 공통입니다: `default`(빈 값만) → `const`(덮어씀) → `values` → `transform` → `template` → `pack`
+
+`pack` 만은 **정말 맨 뒤**입니다 — `seq` 로 매긴 순번과 `llm` 이 채운 값까지 다 확정된 뒤에
+묶습니다. 그래서 `kind: rows`/`records` 에서는 `require.fields`/`filter` 로 `pack` 산출을
+고를 수 없습니다(기동 실패) — 레코드 선별이 묶기보다 먼저 돌기 때문입니다.
+
+`pack` 은 값 여럿을 적재 컬럼 **하나**에 JSON 으로 담습니다. 컬럼을 늘리지 않고 부가정보를
+실을 때 씁니다.
+
+```yaml
+fields:
+  DETAIL_JSON: {pack: [BENEFIT, LIMIT, PERIOD]}
+  # → '{"BENEFIT": "…", "LIMIT": null, "PERIOD": "…"}' (항상 문자열)
+```
+
+- 값이 없는 키도 `null` 로 남습니다 — 적재쪽이 보는 키 집합이 문서마다 바뀌지 않습니다.
+- 묶은 원천 필드는 결과에 **그대로 남습니다**(빠지지 않습니다).
+- 파이프라인 맨 뒤라 `template`·`seq`·`llm` 산출까지 담을 수 있고, `pack` 으로 만든 필드를
+  다시 묶는 것은 기동에서 막습니다.
+- `body.fields`/`body.repeat`/`body.once`/`body.mirror_to` 에는 쓸 수 없습니다(기동 실패).
+  JSON 덩어리는 청크 본문에 실을 모양이 아닙니다.
+- `kind: rows`/`records` 의 `require.fields`/`filter` 에도 쓸 수 없습니다(기동 실패) —
+  레코드 선별은 묶기보다 먼저 돌아 그 시점에는 값이 없습니다. 선별에는 묶기 전 필드를
+  그대로 씁니다(`kind: sections` 의 `require` 는 묶기 앞이라 해당하지 않습니다).
+- `template` 로도 흉내 낼 수 있어 보이지만 그것은 문자열 치환이라 값에 따옴표·줄바꿈이
+  섞이면 깨진 JSON 이 조용히 만들어집니다. 직렬화는 `pack` 이 맡습니다.
+- 필드 **하나**의 모양만 JSON 으로 보장하려면 `pack` 이 아니라 `transform` 의 `to_json` 을
+  씁니다(묶을 원천이 하나뿐이면 `pack` 은 이름을 한 겹 더 씌웁니다).
+
+`meta` 는 그 필드를 **청크 메타(적재 컬럼)에 실을지**를 정합니다. 적지 않으면 실립니다
+(기본값 `true`) — 빼려는 필드에만 `meta: false` 를 적습니다.
+
+```yaml
+fields:
+  BRAND: {alias: [브랜드], meta: false}     # 재료로만 쓰고 컬럼으로는 내보내지 않는다
+  NAME:  {alias: [상품명], meta: false}
+  DISPLAY_NM: {template: "{{BRAND}} {{NAME}}"}
+```
+
+`template`·`pack` 의 재료, `require.fields`·`filter` 의 조건처럼 **값 조립에만 쓰이는 중간
+필드**가 적재 컬럼까지 나가는 것을 막습니다. 선언을 지우는 것과는 다릅니다 — 지우면 그 값을
+쓰는 파생 필드도 만들어지지 않습니다.
+
+- 빠지는 곳은 **청크 메타 하나**입니다. 값은 그대로 만들어져 값 변환·파생·묶기·선별·본문
+  조립이 전부 정상적으로 씁니다.
+- `body.fields` 와는 독립입니다. 둘을 함께 쓰면 그 값은 **청크 본문에만** 실리고 컬럼으로는
+  나가지 않습니다.
+- 값을 만들지 않는 이름을 적으면 기동이 실패합니다(오타를 조용히 넘기면 빼려던 필드가
+  그대로 나갑니다).
+- `meta: false` 인데 본문·선별·파생 어디에도 쓰이지 않으면 경고만 남기고 기동합니다 —
+  값을 만들기만 하고 버리는 죽은 설정입니다.
+
+**청크 본문에 싣기 (`body:`)**
+
+| 기능 | 설정 키 (내부 이름) | rows | records | sections | document |
+|---|---|:-:|:-:|:-:|:-:|
+| 본문 구성 필드 | `body.fields` (`text_fields`) | ✔ 선택 | ✔ **필수** | ⚠ 뜻이 다름¹ | ✗ |
+| 항목명 | `body.labels` (`field_labels`) | ✔ | ✔ | ✔ | ✔ |
+| 과대 본문 분할 | `body.split` (`split`) | ✔ | ✔ | ⚠ 항상 분할 | ✗ |
+| 모든 청크에 반복 접두 | `body.repeat` (`chunk_prefix_fields`) | ✔ split 시만 | ✔ split 시만 | ⚠ 자동 생성 | ✔ |
+| 첫 청크에만 1회 | `body.once` (`first_chunk_fields`) | ✗ | ✗ | ✔ | ✔ |
+| 본문을 메타 필드에 복사 | `body.mirror_to` (`body_fields`) | ✗ | ✗ | ✗ | ✔ |
+
+¹ sections 의 `body.fields` 는 본문 구성이 아니라 **공통 필드를 청크 접두에 실을지 정하는 스위치**입니다.
+본문은 트리 순회가 만듭니다.
+
+**원천 구조 · 필터 · LLM**
+
+| 기능 | 설정 키 (내부 이름) | rows | records | sections | document |
+|---|---|:-:|:-:|:-:|:-:|
+| 레코드 배열 위치 | `source.records_at` (`records`) | ✗ | ✔ | ✗ | ✗ |
+| 못 찾을 때 정책 | `source.on_missing` (`missing_policy`) | ✗ | ✔ | ✔ | ✗ |
+| 여러 행 접기 | `source.merge_rows` (`row_merge`) | ✔ | ✔ | ✗ | ✗ |
+| 섹션 표시 이름 | `source.sections` | ✗ | ✗ | ✔ | ✗ |
+| 서브트리 제외 | `source.ignore_keys` | ✗ | ✗ | ✔ | ✗ |
+| 포맷 전처리 | `source.pre.markdown` / `.html` | ⚠ **무시** | ⚠ **무시** | ⚠ **무시** | ✔ |
+| 필수값(빈 값 제외) | `require.fields` (`required`) | ✔ 건별 | ✔ 건별 | ✔ 문서 전체 | ✗ |
+| 값 기반 제외 | `filter` | ✔ | ✔ | ✗ | ✗ |
+| 필드별 LLM 생성 | `llm:` (`llm_fields`) | ✔ 행별² | ✔ 레코드별 | ✔ 문서 1회 | (본체가 LLM) |
+
+² rows 의 LLM 필드는 **파서 경로에서만** 실행됩니다. 적재 프로세서는 기동 시 경고만 남깁니다.
+
+> **청크 텍스트 정제(`chunking.text_cleanup`)는 doc_type 별 설정이 아니라 프로세서 config** 입니다.
+> `parser_processor_config.yaml` 에는 없습니다 — 파서와 청커를 나눠 배포했다면 **청커 쪽 yaml** 에 적습니다.
+
+### `transform` 10종 — 체이닝됩니다
+
+| 이름 | 인자 | 하는 일 |
+|---|---|---|
+| `date_int` | — | 날짜 텍스트 → `YYYYMMDD` 정수 |
+| `date_int_flex` | — | 위 + 2자리 연도(`26.07.01`)·구분자 없는 `260701` |
+| `text_norm` | — | NFKC + 공백 축약 + casefold (중복 판정용) |
+| `regex_sub` | `pattern`, `repl` | 정규식 치환 (`"18,000원"` → `"18000"`) |
+| `regex_extract` | `pattern`, `group` | 정규식 오려내기. 미매칭 시 `None` |
+| `to_int` | `on_error` | 숫자만 남겨 정수화 |
+| `truncate` | `length`, `suffix` | 길이 자르기(적재 컬럼 길이 맞춤) |
+| `html_text` | — | HTML 로 **강제** 평문화. 표·목록 유지 |
+| `text` | — | JSON/HTML/평문 **자동 판별** 후 평문화 |
+| `to_json` | `on_scalar`, `key` | 값을 **유효한 JSON 문자열**로 맞춤(적재 DB 의 JSON 컬럼용) |
+
+체이닝이 "새 요건 = 코드 수정" 을 막는 핵심 수단입니다.
+
+```yaml
+fields:
+  FEE_AMT:
+    alias: [수수료]
+    transform:
+      - {name: regex_sub, pattern: "[^0-9]", repl: ""}
+      - {name: to_int}
+```
+
+잘못된 이름·빠진 인자·컴파일 안 되는 정규식은 **기동 시** 잡힙니다.
+
+**`to_json` — 적재 DB 의 JSON 컬럼에 넣을 필드**
+
+오라클의 JSON 타입 컬럼은 `"hello"` 나 `20260101` 같은 스칼라도 문법상 받지만, 그 순간
+컬럼을 JSON 으로 잡은 목적이 사라집니다 — `JSON_VALUE(col, '$.키')` 가 NULL 이 되고
+`JSON_TABLE` 은 행을 내지 않습니다. 값을 만드는 쪽(LLM 추출)이 문서마다 객체를 줬다
+문자열을 줬다 하는 것이 실제 상황이라, 쓰는 쪽에서 모양을 한 번 고정합니다.
+
+```yaml
+fields:
+  PRODUCT_ATTRS:
+    llm: true
+    transform: [{name: to_json, key: fee_text}]
+```
+
+| 값 | 산출 |
+|---|---|
+| 객체·배열 | 그대로 JSON 문자열로 |
+| JSON 텍스트 `'{"a":1}'` | 파싱 후 재직렬화(표기 통일) |
+| 스칼라 `"국내전용 18,000원"`·`20260101` | `on_scalar: wrap`(기본) → `{"fee_text": …}` / `on_scalar: drop` → `null` |
+| 빈 값 | `null` (빈 문자열도 — `""` 는 유효한 JSON 이 아닙니다) |
+| 파싱 안 되는 JSON 조각 | `null` + 경고 로그 |
+
+- `key` 는 `wrap` 이 쓸 키 이름입니다(기본 `value`). 값이 무엇인지 아는 이름을 주세요.
+- `on_scalar` 는 `wrap` · `drop` 두 가지입니다. yaml 에서 `null` 은 널 값으로 파싱되므로
+  이름을 `drop` 으로 뒀습니다.
+- 체인 **맨 뒤**여야 합니다. 뒤에 `truncate` 가 오면 JSON 이 잘려 깨집니다(기동 실패).
+- `body.fields`/`body.repeat`/`body.once`/`body.mirror_to` 에 쓸 수 없고, `pack` 이 다시
+  묶을 수도 없습니다(기동 실패) — 둘 다 JSON 안에 JSON 이 중첩되거나 본문에 JSON 덩어리가
+  실리는 경우입니다.
+
+`pack` 과는 역할이 다릅니다 — `pack` 은 필드 **여럿**을 컬럼 하나에 담고, `to_json` 은 필드
+**하나**의 모양을 보장합니다. 출처가 하나뿐인 필드(LLM 결과가 곧 그 컬럼인 경우)는 묶을
+원천이 없어 `pack` 으로 표현되지 않습니다.
+
+### 별칭이 원천을 찾는 범위 — 이름으로 찾습니다, 경로로는 못 찾습니다
+
+| 대상 | 탐색 범위 | 우선순위 |
+|---|---|---|
+| records `source.records_at` | 문서 **임의 깊이 BFS** | 최초 매칭 1개 |
+| records `alias` | **레코드 안 임의 깊이 BFS** | **깊이 우선**, 같은 레벨에서만 선언 순서 |
+| records `collect` | 레코드 안 BFS **레벨 순서**, 중복 제거 | 전부(중복 제외) |
+| sections `alias` | **문서 루트의 스칼라만** | 루트 1회 확정 후 불변 |
+| sections 본문 | 트리 **자동 전수 순회**(깊이≤12, 노드≤5000) | 미설정 key 도 자동 포함 |
+| sections `ignore_keys` | **key 이름 glob**, 경로 아님 | 매칭 시 서브트리 통째 제외 |
+| rows `alias` | **시트 첫 행 헤더**(깊이 없음) + 시트 컨텍스트 | 선언 순서, 실제 컬럼 우선 |
+| document `alias` | **front matter 최상위 키만**(중첩 미탐색) | **순수 선언 순서** |
+
+> "여러 개 적으면 먼저 찾은 것" 이라는 설명은 **document 에만** 문자 그대로 맞습니다.
+> records/rows/sections 는 깊이·헤더가 먼저 좌우합니다.
+
+**`raw` — 원천 JSON 의 객체를 값으로 받습니다 (records · sections)**
+
+기본 규칙은 "중괄호로 묶인 객체는 값이 아니라 **더 파고들 구조**" 입니다. 그래야
+`eventList` 같은 레코드 배열이 필드 하나의 값으로 잘못 잡히지 않습니다. 그래서 아래 원천의
+`attrs` 는 `alias` 만으로는 **`null` 로 나옵니다.**
+
+```json
+{ "title": "삼성 iD ON 카드",
+  "attrs": { "annual_fee": 18000, "benefits": ["온라인 5% 할인"] } }
+```
+
+객체를 통째로 적재 컬럼에 담아야 하면 그 필드에만 판정을 끕니다.
+
+```yaml
+fields:
+  PRODUCT_ATTRS:
+    alias: [attrs]
+    raw: true
+    transform: [{name: to_json}]   # 적재 DB 의 JSON 컬럼에 넣을 것이라면 함께
+```
+
+- **필드 이름으로 명시한 자리에서만** 열립니다 — 다른 필드의 `eventList` 오인식 방지는 그대로입니다.
+- sections 의 **루트 전용** 계약은 `raw` 에서도 유지됩니다. `mpo[].attrs` 같은 깊은 동명 키는
+  여전히 승격되지 않습니다.
+- `alias` 로 원천을 찾는 필드에만 쓸 수 있습니다(`const`·`default` 로만 만드는 필드에 걸면 기동 실패).
+- rows(엑셀 칸)와 document(LLM 응답)에는 없습니다 — 객체를 구조로 볼지 값으로 볼지라는
+  판정 자체가 없습니다. LLM 이 만든 객체는 처음부터 그대로 들어옵니다.
+- `raw` 만 쓰면 값이 **객체 그대로** 실립니다. 청크 출력 모양이 경로마다 갈리므로
+  (문서형은 문자열로 낮추고 행 경로는 객체를 그대로 싣습니다), 적재 컬럼에 넣을 값이라면
+  `to_json` 이나 `pack` 을 함께 거세요.
+
+### 조용히 실패하는 자리 — 가장 오래 헤매는 지점
+
+"오타는 기동 실패로 드러난다" 는 절반만 맞습니다. 아래는 **경고만 남기고 진행**합니다.
+
+| 상황 | 결과 |
+|---|---|
+| `body.fields` 에 없는 필드 | 경고만, 본문에서 조용히 빠짐 |
+| `body.labels` 에 없는 필드 | 경고만, 라벨 없이 값만 |
+| rows/records 의 `require` 미충족 | 그 건만 skip. **전건이면 청크 0건인데 요청은 성공** |
+| `values` 미등록 값 | 경고만, 원값 통과 (fail-open) |
+| `source.pre.*` 를 llm 아닌 kind 에 | 검증 통과 + 무시 |
+| `GENOS_CUSTOM_FIELDS_VALIDATION=warn` | 모든 키 검증이 경고로 격하 |
+
+청크가 0건이거나 필드가 빈 채로 나오면 **먼저 기동 로그의 WARNING 을 확인**하세요.
+
+### 더 나쁜 것 — 경고조차 없이 **틀린 값**이 실리는 자리
+
+위 표는 "빠지거나 비는" 경우입니다. 아래 둘은 **청크도 나오고 필드도 채워지는데 값이
+틀립니다.** 로그에 아무것도 남지 않으므로 산출을 눈으로 봐야만 잡힙니다(실전 드릴 실측).
+
+| 상황 | 무슨 일이 일어나나 |
+|---|---|
+| 같은 이름 키가 레코드 안 얕은 곳과 깊은 곳에 둘 다 있다 | **얕은 쪽이 이깁니다.** 원하던 깊은 값 대신 엉뚱한 값이 조용히 실립니다 |
+| 같은 이름의 레코드 배열이 여러 곳에 있다(`groups[].items[]`) | `source.records_at` 은 **최초 매칭 1개**만 씁니다. 나머지 배열의 레코드가 말없이 빠집니다 |
+
+> **"청크가 나왔다" 는 검증 기준이 될 수 없습니다.** 새 doc_type 을 붙였다면 반드시
+> 첫 청크 몇 건의 **값**을 눈으로 확인하세요. 둘 다 설정으로는 우회가 막히고
+> `_load_json_payload` 에서 payload 모양을 바꾸는 것이 정답입니다(아래 "고칠 자리").
+
+### 설정으로 안 되는 8가지와 우회법
+
+**우회 가능**
+
+| # | 상황 | 우회 |
+|---|---|---|
+| ① | **동명 키 충돌** — 얕은 것이 이겨서 깊은 것을 못 고름 | 원하는 값의 컨테이너가 이름 있는 배열/객체면 `source.records_at` 을 그쪽으로 내린다(대가: 상위 레벨 필드를 못 읽음). 또는 `records_at` 이 다른 매퍼를 2개 등록. **같은 배열 안 같은 이름이거나 컨테이너가 무명이면 남는 경계** |
+| ② | **동적 키**(`{"P001":{…},"P002":{…}}`) | `json_semantic` 이면 **설정 0줄로 본문이 들어옵니다.** key 이름을 모른 채 전수 순회하고 key 를 섹션명으로 씁니다. "동적 키마다 레코드 1건 + 그 키에 딸린 메타데이터" 형태만 남는 경계 |
+| ③ | **조건부 선택** — 형제 값에 따라 갈림 | 배타적일 때만 `template: "{{A}}{{B}}"`(**둘 다 있으면 붙어버립니다**). 또는 `filter` + `records_at` 이 다른 매퍼 2개. `filter` 는 `in`/`not_in` 뿐이고 AND 만 됩니다 |
+
+**우회 불가**
+
+| # | 상황 |
+|---|---|
+| ④ | json_semantic 의 **루트 밖 공통 필드** — "1 파일 = 1 대상" 전제를 지키려는 의도된 제약 |
+| ⑤ | sections/document 에서 **표 구조를 살린 평문화**가 안 됨. `<table>…a…b…</table>` → `"ab"` 로 뭉갬 |
+| ⑥ | `merge_rows` 는 **연속 런만** 접음. 같은 키가 떨어져 오면 별개 레코드(의도된 안전장치) |
+| ⑦ | `values` 는 fail-open. "열거 밖은 전부 X 로" 를 표현할 수 없음 |
+| ⑧ | `source.pre.*` 는 문서형 extractor(`llm`/`python`/`html_select`)에서만 소비됨 |
+
+### 코드가 필요할 때 — 고칠 자리 3개
+
+`parser_processor.py` 파일 머리 주석에 같은 목록이 있습니다. **그 밖으로 나가야 한다면
+설정이나 facade 로 풀 수 있는 일을 놓친 것입니다.**
+
+| # | 자리 | 언제 |
+|---|---|---|
+| 1 | `DocumentProcessor.ROUTES` | 새 **확장자**를 받을 때. 표에 한 줄 + `_route_*` 하나 |
+| 2 | `DocumentProcessor._route_*` | 그 확장자를 어떻게 파싱할지 |
+| 3 | `DocumentProcessor._load_json_payload` | `.json` 원천의 **구조**가 설정으로 안 풀릴 때 |
+
+**`_load_json_payload` 가 JSON 정규화 훅입니다.** `.json` 두 경로(레코드 모드·문서 모드)가
+모두 이 한 곳으로 들어옵니다. 위 경계 ①②③ 과 JSONL·BOM·이스케이프된 중첩 JSON 같은 것이
+여기서 10~15줄로 풀립니다.
+
+```python
+    def _load_json_payload(self, file_path, doc_type=None):
+        ...
+        payload = json.load(fp)
+        if normalize_doc_type(doc_type) == "my_new_type":   # ← 게이팅 필수
+            payload = _reshape(payload)
+        return payload
+```
+
+> **doc_type 게이팅을 반드시 넣으세요.** 없으면 **모든** JSON doc_type 의 산출이 바뀝니다.
+
+### 파서 → 청커 element 계약
+
+새 JSON 경로를 만들면 결국 청커가 그것을 소비합니다. 계약은 `category` 문자열 하나입니다.
+
+- element 의 `category` 가 `tabular_row` / `custom_fields_row` / `faq_row` 중 하나면
+  **행 기반 경로**로 갑니다 — 행 1개 = 청크 1개, element `metadata` 가 청크 property 로 승격.
+- 그 경로는 **섞여 온 비-행 element 를 경고 한 줄 남기고 버립니다.**
+- 그 category 가 아니면 **조용히 일반 텍스트 분할**로 빠지고 metadata 는 청크에 실리지 않습니다.
+
+**category 문자열 하나를 잘못 쓰면 metadata 가 사라지거나 element 가 통째로 버려집니다.**
+
+### 고치기 전에 내 기준선을 만드세요
+
+수정이 **기존 문서의 산출을 바꾸지 않았는지** 확인하는 절차입니다. 벤더 골든은 배포되지
+않으므로 **자기 문서로 자기 골든을 만듭니다.**
+
+```bash
+# 실행 위치: genon/preprocessor/examples/parse_chunk
+# ① 내 문서 목록을 yaml 로 적는다
+cat > my_cases.yaml <<'EOF'
+- {doc_type: my_type, path: /data/samples/a.json}
+- {doc_type: my_type, path: /data/samples/b.json}
+EOF
+
+# ② 고치기 전에 기준선을 찍는다
+./parse_chunk_golden.py --record --cases my_cases.yaml --golden ~/my_golden
+
+# ③ 코드/설정을 고친다
+
+# ④ 달라진 게 있는지 본다 — "차이 0" 이어야 통과
+./parse_chunk_golden.py --check --cases my_cases.yaml --golden ~/my_golden
+```
+
+`--noise` 로 같은 코드를 2회 돌려 흔들리는 필드가 없는지 먼저 확인할 수도 있습니다.
+
+### 실전 드릴 — 남이 이미 밟아 본 지뢰
+
+`examples/parse_chunk/drill/` 에 **일부러 어려운 JSON 15종**과 그 결과 기록이 있습니다.
+동명 키 충돌·동적 키·2단 중첩 레코드·조건부 선택·타입 흔들림·HTML 표 문자열·BOM/CP949·
+JSONL·빈 배열·doc_type 충돌 등입니다.
+
+```bash
+# 실행 위치: genon/preprocessor
+.venv/bin/python examples/parse_chunk/drill/make_drill_fixtures.py
+.venv/bin/python examples/parse_chunk/drill/run_drill.py --step config
+```
+
+무엇이 설정으로 됐고 무엇이 코드가 필요했는지는
+`examples/parse_chunk/drill/RESULTS.md` 에 있습니다. 새 원천이 이 중 하나를
+닮았다면 거기서 답을 먼저 찾으세요.
 
 ## 예외 처리
 

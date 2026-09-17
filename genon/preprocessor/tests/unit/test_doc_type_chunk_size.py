@@ -1,17 +1,21 @@
-"""monimo_news / cs_sss / cs_hpp 가 지정한 chunk_size 로 청크를 만드는지 검증.
+"""cs_sss / cs_hpp 가 지정한 chunk_size 로 청크를 만드는지 검증.
 
 실제 호출 기반(mock 금지)이 원칙이나, LLM 서빙 호출만은 예외로 AsyncMock 으로 대체한다
 (tests/unit/test_md_text_fence_unit.py 와 같은 방식). cs_hpp 는 문서 단위 extractor=llm 이라
 LLM 없이는 파싱이 끝나지 않는데, LLM 결과는 문서 전역 metadata 로만 실리고 청크 경계에는
 영향을 주지 않으므로 chunk_size 검증에는 손실이 없다.
 
-세 doc_type 은 서로 다른 청킹 경로를 타고, 같은 chunk_size 설정에서 유효 상한이 달라진다:
+두 doc_type 은 서로 다른 청킹 경로를 타고, 같은 chunk_size 설정에서 유효 상한이 달라진다:
 
-  monimo_news / cs_sss : json_mapping(split: true) → custom_fields_row 경로
-                         → _expand_splittable_rows → RecursiveCharacterTextSplitter
-                         → 상한 = chunk_size 그대로 (보정 없음)
-  cs_hpp               : 문서 단위 llm → docling 산출물 → GenosSmartChunker
-                         → 상한 = _clamp_chunk_size(chunk_size) (1024 미만은 1024 로 상향)
+  cs_sss : json_mapping(split: true) → custom_fields_row 경로
+           → _expand_splittable_rows → RecursiveCharacterTextSplitter
+           → 상한 = chunk_size 그대로 (보정 없음)
+  cs_hpp : 문서 단위 llm → docling 산출물 → GenosSmartChunker
+           → 상한 = _clamp_chunk_size(chunk_size) (1024 미만은 1024 로 상향)
+
+monimo_news 도 행 경로였으나 원천이 레코드 배열에서 HTML 문서 한 건으로 바뀌면서
+`kind: html` 설정이 됐다(custom_field_monimo_news.yaml). 행 경로 계약은 cs_sss 가 덮고,
+monimo_news 자체 산출은 골든 대조가 덮는다.
 
 이 비대칭이 의도된 동작임을 테스트가 그대로 문서화한다 — 상한을 상수로 박지 않고
 경로별 계산식으로 쓴다.
@@ -28,6 +32,9 @@ from unittest.mock import AsyncMock
 
 import pytest
 
+# 청크 크기 하한 보정은 배관이라 처리 본체(core)에 있다(#363 08-2).
+from genon.preprocessor.processing.core.chunker import _clamp_chunk_size
+
 _SAMPLES = Path(__file__).resolve().parents[2] / "sample_files" / "monimo"
 
 CHUNK_SIZE = 1000
@@ -35,6 +42,11 @@ CHUNK_MODE = "split_only"
 
 # cs_hpp custom_field yaml 의 output_fields 6개를 모두 채운다 — 누락되면 missing_policy 에 걸린다.
 _CS_HPP_CATEGORY = "이용안내 > 상세 이용 조건"
+_CS_HPP_TITLE = "상세 이용 조건 안내"
+# 접두 줄에는 yaml `body.labels` 가 정한 사람이 읽는 항목명이 앞에 붙는다. 값만 단정하면
+# 라벨이 붙은 순간 테스트가 깨지므로, 설정이 만드는 줄 전체를 기준으로 둔다.
+_CS_HPP_CATEGORY_LINE = f"문의유형: {_CS_HPP_CATEGORY}"
+_CS_HPP_TITLE_LINE = f"제목: {_CS_HPP_TITLE}"
 
 # 접두 구역으로 볼 선두 줄 수. 접두는 `chunk_prefix_fields`(반복) + `first_chunk_fields`
 # (첫 청크 1회) 로 이뤄지고 출고 설정 어디에도 3개를 넘는 조합이 없다. HEADER 라인까지
@@ -158,21 +170,6 @@ def _assert_row_path_record_split(rows: list[dict], long_id: str, short_id: str,
 
 
 @pytest.mark.unit
-def test_monimo_news_chunks_respect_chunk_size():
-    """monimo_news(json_mapping, split: true) — 상한 = chunk_size 그대로."""
-    source = _require("monimo_news_chunksize_sample.json")
-    rows = _parse_and_chunk(source, "monimo_news")
-
-    _assert_row_path_record_split(rows, "CM26070001", "CM26070002", "monimo_news")
-
-    # 본문 유실 없음 — 긴 레코드의 처음과 끝 marker 가 조각들 안에 살아있다.
-    joined = "\n".join(r["text"] for r in _by_biz_id(rows, "CM26070001"))
-    assert "제휴 혜택 상세 안내를 시작합니다." in joined
-    assert "제휴 혜택 상세 안내를 마칩니다." in joined
-    assert "단문 소식 본문입니다." in _by_biz_id(rows, "CM26070002")[0]["text"]
-
-
-@pytest.mark.unit
 def test_cs_sss_chunks_respect_chunk_size():
     """cs_sss(json_mapping, split: true) — 상한 = chunk_size 그대로."""
     source = _require("monimo_cs_sss_chunksize_sample.json")
@@ -193,7 +190,7 @@ def test_cs_hpp_chunks_respect_chunk_size():
     source = _require("monimo_cs_hpp_chunksize_sample.html")
     rows = _parse_and_chunk(source, "cs_hpp", llm_stub=_CS_HPP_LLM_STUB)
 
-    effective = cp._clamp_chunk_size(CHUNK_SIZE)
+    effective = _clamp_chunk_size(CHUNK_SIZE)
     assert effective == 1024, "docling 경로의 하한 보정(_MIN_CHUNK_SIZE)이 바뀌었습니다"
 
     assert len(rows) > 1, f"분할되지 않았습니다(청크 {len(rows)}개)"
@@ -236,7 +233,7 @@ def test_cs_hpp_large_html_table_is_split_by_complete_rows(chunk_mode):
         extra_kwargs={"table_format": "html"},
     )
 
-    effective = cp._clamp_chunk_size(CHUNK_SIZE)
+    effective = _clamp_chunk_size(CHUNK_SIZE)
     table_rows = [r for r in rows if "<table>" in r["text"]]
     assert len(table_rows) > 1, "대형 단일 표가 여러 청크로 분할되지 않았습니다"
     assert len(table_rows) == len(rows), "표와 무관한 청크가 예기치 않게 추가됐습니다"
@@ -268,7 +265,7 @@ def test_cs_hpp_large_html_table_is_split_by_complete_rows(chunk_mode):
 
 @pytest.mark.unit
 def test_cs_hpp_marker_sections_split_chunk_headers():
-    """cs_hpp 마커 승격 — 도형 마커(◈/▣)가 청커 breadcrumb 의 섹션 경계로 되살아난다.
+    """cs_hpp 마커 승격 — 도형 마커(◈/▣)로만 표현된 소제목이 청커 breadcrumb 의 섹션 경계가 된다.
 
     개선 전(대조군은 test_marker_promotion_is_gated_by_doc_type, doc_type=faq)은
     distinct HEADER 가 2개뿐이라 chunk_size 로만 절단됐다. distinct >= 3 단정이
@@ -285,22 +282,32 @@ def test_cs_hpp_marker_sections_split_chunk_headers():
     assert len(set(headers)) >= 3, f"distinct HEADER 부족: {headers}"
 
     # first_chunk_fields 계약 — 문의유형은 첫 청크에만 1회 실린다(반복 접두가 아니다).
-    leading = [i for i, r in enumerate(rows) if r["text"].startswith(_CS_HPP_CATEGORY + "\n")]
+    leading = [i for i, r in enumerate(rows)
+               if r["text"].startswith(_CS_HPP_CATEGORY_LINE + "\n")]
     assert leading == [0], f"첫 청크에만 붙어야 합니다: {leading}"
     # 값 자체는 모든 청크의 metadata 에 그대로 남아 필터 검색이 된다.
     assert all(r.get("CS_CATEGORY") == _CS_HPP_CATEGORY for r in rows)
 
-    assert any("◈ 기본내용 > ▣ 네이버페이 간편결제 이용방법" in h for h in headers)
-    assert any("◈ 예상Q&A" in h for h in headers)
+    # 마커 글리프는 breadcrumb 에 남지 않는다 — 출고 chunking 설정의 text_cleanup 규칙
+    # `{find: "[■◈※☎▶●◆▲☞]\\s*", replace: ""}` 이 승격 뒤에 ◈/◆ 를 장식으로 지운다.
+    # 승격 자체는 정상이다(html_flatten 직후 heading 은 `◈ 기본내용` 이고, 정제를 끄면
+    # breadcrumb 에도 그대로 나온다). 그래서 여기서는 글리프가 아니라 **승격이 만든 구조**를
+    # 본다 — `기본내용` 이 자기 레벨을 갖고 그 아래 `▣ …` 가 매달리는 형태.
+    #
+    # ▣ 는 그 규칙의 문자 집합에 없어 살아남는다. 같은 문서의 형제 마커가 다르게 처리되는
+    # 셈이고, 두 문자 집합(html_flatten._MARKER_CHARS 와 위 규칙)이 ■▶◆◈● 5자에서
+    # 겹치는 것이 그 원인이다. 설정 쪽 판단이 서면 기대값을 다시 조정한다.
+    assert any("기본내용 > ▣ 네이버페이 간편결제 이용방법" in h for h in headers)
+    assert any("예상Q&A" in h for h in headers)
 
-    # 섹션 경계가 실제로 서로 다른 청크를 만든다(◈ 시행일자 청크와 ◈ 예상Q&A 청크가 다르다).
-    start_idx = {i for i, h in enumerate(headers) if "◈ 시행일자" in h}
-    qna_idx = {i for i, h in enumerate(headers) if "◈ 예상Q&A" in h}
+    # 섹션 경계가 실제로 서로 다른 청크를 만든다(시행일자 청크와 예상Q&A 청크가 다르다).
+    start_idx = {i for i, h in enumerate(headers) if "시행일자" in h}
+    qna_idx = {i for i, h in enumerate(headers) if "예상Q&A" in h}
     assert start_idx and qna_idx
     assert start_idx.isdisjoint(qna_idx)
 
     # 상한 준수. cs_hpp 는 docling 경로라 _clamp_chunk_size 로 보정된 값이 유효 상한이다.
-    effective = cp._clamp_chunk_size(CHUNK_SIZE)
+    effective = _clamp_chunk_size(CHUNK_SIZE)
     over = [(i, len(r["text"])) for i, r in enumerate(rows) if len(r["text"]) > effective]
     assert not over, f"유효 상한={effective} 초과 청크: {over[:5]}"
 
@@ -327,7 +334,8 @@ def test_cs_hpp_nospace_marker_sections_split_chunk_headers():
 
     headers = [_chunk_header(r["text"]) for r in rows]
     assert all(h.startswith("HEADER: ") for h in headers)
-    assert any("◆처리방법 > ▣[홈페이지]서비스 신청 및 해지 방법" in h for h in headers)
+    # 위 테스트와 같은 이유로 ◆ 는 breadcrumb 에 남지 않는다(text_cleanup 규칙).
+    assert any("처리방법 > ▣[홈페이지]서비스 신청 및 해지 방법" in h for h in headers)
     assert len(set(headers)) >= 3, f"distinct HEADER 부족: {headers}"
 
 
@@ -349,17 +357,17 @@ def test_chunk_prefix_fields_repeat_on_every_chunk_within_chunk_size():
         extra_kwargs={"chunk_prefix_fields": "TITLE"},
     )
 
-    title = "상세 이용 조건 안내"
     assert len(rows) > 1
-    assert all(r["text"].startswith(title + "\n") for r in rows), "모든 청크에 반복돼야 합니다"
+    assert all(r["text"].startswith(_CS_HPP_TITLE_LINE + "\n") for r in rows), \
+        "모든 청크에 반복돼야 합니다"
 
     # 선두 조립 순서 계약: 반복 접두 → 첫 청크 전용 접두 → HEADER → 본문.
     # (yaml 의 first_chunk_fields=CS_CATEGORY 가 그대로 살아 있어 첫 청크만 한 줄 더 길다)
-    assert rows[0]["text"].splitlines()[:2] == [title, _CS_HPP_CATEGORY]
+    assert rows[0]["text"].splitlines()[:2] == [_CS_HPP_TITLE_LINE, _CS_HPP_CATEGORY_LINE]
     assert rows[0]["text"].splitlines()[2].startswith("HEADER: ")
     assert all(r["text"].splitlines()[1].startswith("HEADER: ") for r in rows[1:])
 
-    effective = cp._clamp_chunk_size(CHUNK_SIZE)
+    effective = _clamp_chunk_size(CHUNK_SIZE)
     over = [(i, len(r["text"])) for i, r in enumerate(rows) if len(r["text"]) > effective]
     assert not over, f"접두 몫 예약 누락 — 유효 상한={effective} 초과 청크: {over[:5]}"
 
@@ -378,4 +386,7 @@ def test_marker_promotion_is_gated_by_doc_type():
 
     headers = [r["text"].splitlines()[0] for r in rows]
     assert len(set(headers)) < 3, f"distinct HEADER 가 예상보다 많습니다: {headers}"
-    assert not any("◈" in h for h in headers)
+    # ◈ 로 보면 안 된다 — 승격이 일어나도 text_cleanup 규칙이 지우므로 이 대조군이
+    # "봉인됐다" 와 "승격됐는데 글리프만 지워졌다" 를 구분하지 못한다. ▣ 는 그 규칙을
+    # 타지 않아 승격이 일어났을 때만 breadcrumb 에 나타난다(실측: 봉인 시 0건).
+    assert not any("▣" in h for h in headers)

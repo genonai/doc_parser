@@ -18,3 +18,9 @@ ppt_sample.pdf
 docx_sample/
 pdf_sample/
 hwpx_sample/
+# 드릴 대량 픽스처(레코드 5,000건, 약 500K). 생성 스크립트로 언제든 다시 만든다:
+#   examples/parse_chunk/drill/make_drill_fixtures.py
+preprocessor/sample_files/drill/b17_many_records.json
+
+# 드릴 실행 중 원천 옆에 생기는 파생 PDF(1단계 캐치올 경로가 만든다)
+preprocessor/sample_files/drill/*.pdf

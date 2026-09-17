@@ -80,14 +80,22 @@ EXCLUDE_PATHS=(
   "genon/preprocessor/facade/legacy"
   "genon/serving"
   "genon/train"
+  "genon/legal_parser"                       # 전처리기와 무관한 독립 법령 수집기
   # 2차 검토 추가 (활성 facade/main.py 무의존 검증됨)
-  "genon/preprocessor/facade/legal_parser"   # 미사용 독립 파서
   "genon/tools"                              # CLI 도구(런타임 무관)
   "genon/preprocessor/resources"             # 폰트·tessdata tar (베이스 이미지에 이미 포함)
   "genon/preprocessor/scripts"               # 이미지 등록 스크립트
   # 사내 전용 문서 — 공개 배포본에 나갈 필요가 없고, 배포본에 없는 폴더(build-script/·docling/·docs/)를
   # 안내해 오히려 혼란을 준다. 코드서빙 사용/설치 안내는 배포본 root README.md 가 담당한다.
   "genon/README.md"                          # 사내 개발 문서(이미지 빌드·paddle·vllm)
+  # 고객 실 원천과 사내 계획 문서 (#363 08). whitelist 가 genon 전체라 여기 적지 않으면
+  # 공개 배포본으로 그대로 나간다.
+  #   sample_files/monimo  고객사 실 문서 48건. 일반 샘플(pdf_sample 등)은 남긴다 —
+  #                        고객이 parse_chunk_golden.py 로 자기 기준선을 찍을 때 쓴다.
+  #   docs                 내부용 계획 문서 자리. 지금은 비어 있지만(2026-09-16 정리)
+  #                        다시 생기면 그대로 공개 배포본에 나가므로 제외를 남겨 둔다.
+  "genon/preprocessor/sample_files/monimo"
+  "genon/preprocessor/docs"
   "genon/MAINTAINERS.md"                     # docling 원본 메인테이너 잔존물
   "genon/dotsocr_vllm_max_num_seqs.md"       # 사내 모델 서빙 튜닝 메모
   "genon/preprocessor/facade/README.md"      # 구버전 facade 문서(현재 트리와 불일치). 대체: gitbook_doc/
