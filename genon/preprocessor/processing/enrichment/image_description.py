@@ -214,6 +214,14 @@ class ImageDescriptionOptions:
             base_dir, chart_cfg.get("chart_prompt_file"), default=""
         )
 
+        # temperature/top_p 는 블록 최상위 표기도 허용한다(params passthrough 우선).
+        params = dict(_as_dict(image_desc_cfg.get("params")))
+        for _key in ("temperature", "top_p"):
+            if _key not in params:
+                _val = _parse_optional_float(image_desc_cfg.get(_key), _key)
+                if _val is not None:
+                    params[_key] = _val
+
         return cls(
             enabled=False if enabled is None else enabled,
             api_url=str(image_desc_cfg.get("api_url") or image_desc_cfg.get("url") or fallback_api_url or "").strip(),
@@ -235,7 +243,7 @@ class ImageDescriptionOptions:
             template_mode=str(img_mode).strip().lower(),
             variables=img_variables,
             headers=_as_dict(image_desc_cfg.get("headers")),
-            params=_as_dict(image_desc_cfg.get("params")),
+            params=params,
             chart_enabled=False if chart_enabled is None else chart_enabled,
             chart_detection=chart_detection,
             chart_prompt_template=chart_prompt_template,

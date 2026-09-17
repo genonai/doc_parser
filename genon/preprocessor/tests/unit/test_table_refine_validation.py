@@ -112,3 +112,99 @@ def test_valid_table_summary():
 def test_invalid_table_summary(summary):
     m = _mod()
     assert m.is_valid_table_summary(summary) is False
+
+
+# ── params passthrough: 블록 최상위 temperature/top_p 승격 ────────────────────
+# table_description/image_description/page_description 은 서로 컨벤션을 공유하는
+# sibling 모듈이다(각 모듈 docstring 참조). 세 곳 모두 이전에는 params dict passthrough 만
+# 읽어 블록 최상위 temperature/top_p 를 조용히 무시했다.
+
+def _image_mod():
+    return pytest.importorskip("processing.enrichment.image_description")
+
+
+def _page_mod():
+    return pytest.importorskip("processing.enrichment.page_description")
+
+
+@pytest.mark.unit
+def test_table_description_promotes_top_level_temperature():
+    m = _mod()
+    opt = m.TableDescriptionOptions.from_config(
+        table_desc_cfg={"temperature": 0.1},
+        fallback_api_url="", fallback_api_key="", fallback_model="model",
+    )
+    assert opt.params["temperature"] == 0.1
+
+
+@pytest.mark.unit
+def test_table_description_existing_params_temperature_wins():
+    m = _mod()
+    opt = m.TableDescriptionOptions.from_config(
+        table_desc_cfg={"temperature": 0.9, "params": {"temperature": 0.2}},
+        fallback_api_url="", fallback_api_key="", fallback_model="model",
+    )
+    assert opt.params["temperature"] == 0.2
+
+
+@pytest.mark.unit
+def test_table_description_no_temperature_no_params_key():
+    m = _mod()
+    opt = m.TableDescriptionOptions.from_config(
+        table_desc_cfg={},
+        fallback_api_url="", fallback_api_key="", fallback_model="model",
+    )
+    assert "temperature" not in opt.params
+
+
+@pytest.mark.unit
+def test_image_description_promotes_top_level_temperature():
+    m = _image_mod()
+    opt = m.ImageDescriptionOptions.from_config(
+        image_desc_cfg={"temperature": 0.1},
+        fallback_api_url="", fallback_api_key="", fallback_model="model",
+    )
+    assert opt.params["temperature"] == 0.1
+
+
+@pytest.mark.unit
+def test_image_description_existing_params_temperature_wins():
+    m = _image_mod()
+    opt = m.ImageDescriptionOptions.from_config(
+        image_desc_cfg={"temperature": 0.9, "params": {"temperature": 0.2}},
+        fallback_api_url="", fallback_api_key="", fallback_model="model",
+    )
+    assert opt.params["temperature"] == 0.2
+
+
+@pytest.mark.unit
+def test_image_description_no_temperature_no_params_key():
+    m = _image_mod()
+    opt = m.ImageDescriptionOptions.from_config(
+        image_desc_cfg={},
+        fallback_api_url="", fallback_api_key="", fallback_model="model",
+    )
+    assert "temperature" not in opt.params
+
+
+@pytest.mark.unit
+def test_page_description_promotes_top_level_temperature():
+    m = _page_mod()
+    opt = m.PageDescriptionOptions.from_config({"temperature": 0.1}, config_dir=None)
+    assert opt.params["temperature"] == 0.1
+
+
+@pytest.mark.unit
+def test_page_description_existing_params_temperature_wins():
+    m = _page_mod()
+    opt = m.PageDescriptionOptions.from_config(
+        {"temperature": 0.9, "params": {"temperature": 0.2}}, config_dir=None
+    )
+    assert opt.params["temperature"] == 0.2
+
+
+@pytest.mark.unit
+def test_page_description_no_temperature_no_params_key():
+    m = _page_mod()
+    opt = m.PageDescriptionOptions.from_config({}, config_dir=None)
+    assert "temperature" not in opt.params

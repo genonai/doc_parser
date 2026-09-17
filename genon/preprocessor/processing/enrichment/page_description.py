@@ -116,6 +116,16 @@ class PageDescriptionOptions:
         params = cfg.get("params")
         params = dict(params) if isinstance(params, dict) else {}
 
+        # temperature/top_p 는 블록 최상위 표기도 허용한다(params passthrough 우선).
+        for _key in ("temperature", "top_p"):
+            if _key not in params and _key in cfg:
+                try:
+                    params[_key] = float(cfg[_key])
+                except (TypeError, ValueError):
+                    _log.warning(
+                        f"[page_description] '{_key}' 값을 float 로 변환할 수 없어 무시합니다: {cfg[_key]!r}"
+                    )
+
         def _nonneg_int(v: Any) -> int:
             try:
                 iv = int(v)
