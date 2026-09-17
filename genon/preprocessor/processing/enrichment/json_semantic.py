@@ -609,6 +609,7 @@ class SemanticJsonMapper:
         *,
         config_file: str = "",
         resource_path: str | None = None,
+        model_presets: dict | None = None,
         doc_type: str | list[str] | None = None,
         extractor: str = "json_semantic",
         **_: Any,
@@ -618,7 +619,7 @@ class SemanticJsonMapper:
         self.doc_types = normalize_doc_types(doc_type)
         # 프롬프트/LLM config 파일 경로 해석 기준(= 이 config 파일과 같은 디렉토리).
         self.resource_path = resource_path
-        cfg = self._load_config(config_file, resource_path)
+        cfg = self._load_config(config_file, resource_path, model_presets)
 
         shared_fields_cfg = cfg.get("shared_fields")
         if not isinstance(shared_fields_cfg, dict) or not shared_fields_cfg:
@@ -707,7 +708,9 @@ class SemanticJsonMapper:
 
     # ── 설정 로딩 ────────────────────────────────────────────────────────────
     @staticmethod
-    def _load_config(config_file: str, resource_path: str | None) -> dict:
+    def _load_config(
+        config_file: str, resource_path: str | None, presets: dict | None = None
+    ) -> dict:
         if not config_file:
             raise ValueError("json_semantic custom_fields 에는 config_file 이 필요합니다.")
         path = Path(config_file)
@@ -720,7 +723,9 @@ class SemanticJsonMapper:
         if not isinstance(loaded, dict):
             raise ValueError(f"json_semantic custom_fields config 는 object 여야 합니다: {path}")
         # 설정 표기를 내부 형태로 번역해 넘긴다 — 아래 코드는 표기를 신경 쓰지 않는다.
-        normalized, _ = cv2.load(loaded, label=f"json_semantic custom_fields({config_file})")
+        normalized, _ = cv2.load(
+            loaded, label=f"json_semantic custom_fields({config_file})", presets=presets
+        )
         return normalized
 
     @staticmethod

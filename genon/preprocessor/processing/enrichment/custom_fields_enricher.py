@@ -405,6 +405,7 @@ class CustomFieldsEnricher(BaseEnricher):
         api_key: str = "",
         config_file: str = "",
         resource_path: str | None = None,
+        model_presets: dict | None = None,
         url: str = "",
         model: str = "",
         max_tokens: int | None = None,
@@ -430,7 +431,7 @@ class CustomFieldsEnricher(BaseEnricher):
         file: str = "",
         callable: str = "",
     ):
-        cfg = self._load_config(config_file, resource_path)
+        cfg = self._load_config(config_file, resource_path, model_presets)
         # 모르는 키는 지금까지 조용히 무시됐다 — `output_field`(오타)처럼 한 글자만 틀려도
         # 그 필드가 결과에서 사라질 뿐 아무 신호가 없었다. 키 소비 전에 대조한다.
         cs.validate_known_keys(
@@ -584,12 +585,19 @@ class CustomFieldsEnricher(BaseEnricher):
             TableTextDescriptionOptions.from_config(cfg), prompt_template=prompt
         )
 
-    def _load_config(self, config_file: str, resource_path: str | None = None) -> dict:
+    def _load_config(
+        self,
+        config_file: str,
+        resource_path: str | None = None,
+        presets: dict | None = None,
+    ) -> dict:
         loaded = load_custom_fields_config(config_file, resource_path)
         # 설정 표기를 내부 형태로 번역해 넘긴다 — 아래 코드는 표기를 신경 쓰지 않는다.
         from . import config_v2 as cv2
 
-        normalized, _ = cv2.load(loaded, label=f"custom_fields({config_file})")
+        normalized, _ = cv2.load(
+            loaded, label=f"custom_fields({config_file})", presets=presets
+        )
         return normalized
 
     @staticmethod

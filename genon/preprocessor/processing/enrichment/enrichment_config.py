@@ -218,7 +218,11 @@ def build_table_text_description_overrides(
                 loaded = load_custom_fields_config(
                     config_file, entry.get("resource_path") or str(config_dir)
                 )
-                normalized, _ = cv2.load(loaded, label=f"custom_fields({config_file})")
+                normalized, _ = cv2.load(
+                    loaded,
+                    label=f"custom_fields({config_file})",
+                    presets=entry.get("model_presets"),
+                )
                 local = merge_table_text_description(
                     local, _as_dict(normalized.get("table_text_description"))
                 )
@@ -338,13 +342,13 @@ class EnrichmentConfig:
             parent_cfg: 최상위 config dict. Format A 에서 legacy top-level 키 fallback에 사용.
         """
         if isinstance(raw, list):
-            return cls._from_list(raw, config_dir)
+            return cls._from_list(raw, config_dir, _as_dict(parent_cfg))
         return cls._from_dict(_as_dict(raw), config_dir, _as_dict(parent_cfg))
 
     # ── Format B (list) ───────────────────────────────────────────────────────
 
     @classmethod
-    def _from_list(cls, items: list, config_dir: Path) -> "EnrichmentConfig":
+    def _from_list(cls, items: list, config_dir: Path, parent_cfg: dict) -> "EnrichmentConfig":
         toc_opts: dict = {}
         toc_enabled = False
         toc_precheck: dict = {}
@@ -410,6 +414,9 @@ class EnrichmentConfig:
                 if enabled and opts:
                     if "resource_path" not in opts:
                         opts["resource_path"] = str(config_dir)
+                    presets = parent_cfg.get("model_presets")
+                    if presets and "model_presets" not in opts:
+                        opts["model_presets"] = presets
                     custom_fields_cfgs.append(opts)
 
         # toc 는 별도 built-in default 가 없다 (없으면 docling 레이어가 자체 기본값 사용).
@@ -571,9 +578,12 @@ class EnrichmentConfig:
             cf_list = [dict(_as_dict(c)) for c in raw_cf if isinstance(c, dict) and c]
         else:
             cf_list = []
+        _presets = parent_cfg.get("model_presets")
         for _cf in cf_list:
             if "resource_path" not in _cf:
                 _cf["resource_path"] = str(config_dir)
+            if _presets and "model_presets" not in _cf:
+                _cf["model_presets"] = _presets
         table_text_desc_cfg = _as_dict(cfg.get("table_text_description"))
         if table_text_desc_cfg:
             table_text_desc_cfg = dict(table_text_desc_cfg)

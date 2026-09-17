@@ -467,7 +467,9 @@ def resolve_child_cfg(config: dict) -> dict:
         str(config.get("resource_path") or "") or None,
     )
     child_cfg, _extractor = cv2.load(
-        child_cfg, label=f"custom_fields({config.get('config_file')})"
+        child_cfg,
+        label=f"custom_fields({config.get('config_file')})",
+        presets=config.get("model_presets"),
     )
     return child_cfg
 

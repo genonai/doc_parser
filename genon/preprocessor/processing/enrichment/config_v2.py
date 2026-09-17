@@ -38,6 +38,9 @@ from __future__ import annotations
 import difflib
 from typing import Any
 
+from ..common import model_preset
+from . import config_schema
+
 SCHEMA_KEY = "schema"
 SCHEMA_V2 = "v2"
 
@@ -485,7 +488,9 @@ _LLM_PROMPT_KEYS = {
 }
 
 
-def load(loaded: dict, *, label: str) -> tuple[dict, str | None]:
+def load(
+    loaded: dict, *, label: str, presets: dict | None = None
+) -> tuple[dict, str | None]:
     """설정 파일 내용 → `(내부 형태, extractor 이름)`.
 
     매퍼의 `_load_config` 끝에서 이 함수를 한 번 거치게 하면, 그 아래 코드는 표기를
@@ -494,6 +499,13 @@ def load(loaded: dict, *, label: str) -> tuple[dict, str | None]:
     설정이 비어 있으면(`config_file` 미지정) 번역할 것이 없으므로 그대로 통과시킨다.
     그 밖에 `schema: v2` 가 없으면 **기동을 막는다** — 폐기된 v1 표기를 조용히 다른
     해석 모드로 받으면, `schema` 줄의 사소한 사고가 에러가 아니라 스키마 전환이 된다.
+
+    Args:
+        presets: 프로세서 설정 최상위 `model_presets:`. `None` 이면(기본) 프리셋 펼치기를
+            건너뛴다 — 연결 정보와 무관하게 설정을 훑기만 하는 호출부(`_derive_extractor`)가
+            이 경로를 쓴다. 빈 dict 를 주면(프리셋 정의가 없는 프로세서) 펼치기는 시도하되
+            정의가 없으므로, `model_preset:` 을 참조한 설정은 "그런 프리셋 없음" 오류로
+            제대로 막힌다.
     """
     if not loaded:
         return {}, None
@@ -502,7 +514,43 @@ def load(loaded: dict, *, label: str) -> tuple[dict, str | None]:
             f"{label}: 최상위에 `schema: v2` 가 없습니다. v1 표기는 더 이상 지원하지 "
             f"않습니다(필드 규칙은 `fields.<목표>` 한 자리에 모읍니다)."
         )
-    return normalize(loaded, label=label)
+    out, extractor = normalize(loaded, label=label)
+    if presets is not None:
+        out = _expand_presets(out, extractor, presets, label=label)
+    return out, extractor
+
+
+def _expand_presets(out: dict, extractor: str | None, presets: dict, *, label: str) -> dict:
+    """정규화 결과에서 `model_preset:` 참조가 있을 수 있는 세 자리만 명시적으로 편다.
+
+    블라인드 재귀 walk 를 쓰지 않는다 — 설정 깊은 곳의 사용자 dict(예: llm 프롬프트의
+    `variables`)가 우연히 같은 이름의 키를 가진 경우까지 프리셋 참조로 오인하지 않기
+    위해서다. 세 자리는 다음과 같다.
+
+    1. 정규화된 최상위 dict(document/llm 의 url·api_key·model 이 여기 평평하게 있다).
+    2. `llm_fields` 목록의 각 항목(rows/records/sections 의 필드별 LLM 호출).
+    3. `table_text_description`(값을 걸러 받지 않는다 — 모르는 키는 받는 쪽이 무시한다).
+    """
+    name = config_schema.canonical_extractor(extractor)
+    allowed_top = config_schema.EXTRACTOR_KEYS.get(name)
+    result = dict(model_preset.expand_block(out, presets, label=label, allowed=allowed_top))
+
+    llm_fields = result.get("llm_fields")
+    if isinstance(llm_fields, list):
+        allowed_llm = config_schema.EXTRACTOR_KEYS["llm"]
+        result["llm_fields"] = [
+            model_preset.expand_block(
+                item, presets, label=f"{label}.llm_fields[{index}]", allowed=allowed_llm,
+            ) if isinstance(item, dict) else item
+            for index, item in enumerate(llm_fields)
+        ]
+
+    table_desc = result.get("table_text_description")
+    if isinstance(table_desc, dict):
+        result["table_text_description"] = model_preset.expand_block(
+            table_desc, presets, label=f"{label}.table_text_description", allowed=None,
+        )
+    return result
 
 
 # v2 가 표현할 수 있는 v1 키 전체. 위 단일 표에서 파생하므로 표를 고치면 여기도 따라온다.

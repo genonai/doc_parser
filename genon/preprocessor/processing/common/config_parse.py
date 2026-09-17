@@ -16,6 +16,8 @@ from typing import Any, Optional
 
 import yaml
 
+from . import model_preset
+
 _log = logging.getLogger(__name__)
 
 # 청킹 토크나이저 기본값. 로컬 경로가 있으면 그쪽을, 없으면 HF id 로 폴백한다.
@@ -140,8 +142,10 @@ def load_config(config_path: str, *, strict: bool = True) -> dict:
             f"(expected mapping, got {type(cfg).__name__}). Using defaults."
         )
         return {}
+    # 플레이스홀더 경고는 펼치기 전에 한다 — 펼친 뒤에는 프리셋 하나의 미치환 주소가
+    # 그것을 참조하는 블록 수만큼 되풀이 보고된다.
     warn_unresolved_placeholders(cfg, config_path)
-    return cfg
+    return model_preset.apply(cfg, label=config_path, strict=strict)
 
 
 def resolve_compact_tables(source: dict, default: bool = True) -> bool:

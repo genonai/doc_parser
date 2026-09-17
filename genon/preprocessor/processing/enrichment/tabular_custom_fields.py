@@ -1172,6 +1172,7 @@ class TabularCustomFieldsMapper:
         *,
         config_file: str,
         resource_path: str | None = None,
+        model_presets: dict | None = None,
         doc_type: str | list[str] | None = None,
         extractor: str = "tabular_mapping",
         **_: Any,
@@ -1181,7 +1182,7 @@ class TabularCustomFieldsMapper:
         self.doc_types = normalize_doc_types(doc_type)
         # llm_fields 의 프롬프트/LLM config 파일 경로 해석 기준(= 이 config 파일과 같은 디렉토리).
         self.resource_path = resource_path
-        self.config = self._load_config(config_file, resource_path)
+        self.config = self._load_config(config_file, resource_path, model_presets)
         # 설정 오기입을 **키를 소비하기 전에** 막는다 — 런타임 크래시·조용한 전건 skip 예방.
         validate_custom_field_config(
             self.config, label=f"tabular custom_fields({config_file})", extractor=extractor
@@ -1216,7 +1217,9 @@ class TabularCustomFieldsMapper:
         )
 
     @staticmethod
-    def _load_config(config_file: str, resource_path: str | None) -> dict:
+    def _load_config(
+        config_file: str, resource_path: str | None, presets: dict | None = None
+    ) -> dict:
         if not config_file:
             raise ValueError("tabular_mapping custom_fields에는 config_file이 필요합니다.")
         path = Path(config_file)
@@ -1229,7 +1232,9 @@ class TabularCustomFieldsMapper:
         if not isinstance(loaded, dict):
             raise ValueError(f"tabular custom_fields config는 object여야 합니다: {path}")
         # 설정 표기를 내부 형태로 번역해 넘긴다 — 아래 코드는 표기를 신경 쓰지 않는다.
-        normalized, _ = cv2.load(loaded, label=f"tabular custom_fields({config_file})")
+        normalized, _ = cv2.load(
+            loaded, label=f"tabular custom_fields({config_file})", presets=presets
+        )
         return normalized
 
     def matches(self, runtime_doc_type: Any) -> bool:

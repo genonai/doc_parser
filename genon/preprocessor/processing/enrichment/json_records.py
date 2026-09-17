@@ -513,6 +513,7 @@ class JsonRecordsMapper:
         *,
         config_file: str = "",
         resource_path: str | None = None,
+        model_presets: dict | None = None,
         doc_type: str | list[str] | None = None,
         extractor: str = "json_mapping",
         **_: Any,
@@ -522,7 +523,7 @@ class JsonRecordsMapper:
         self.doc_types = normalize_doc_types(doc_type)
         # 프롬프트/LLM config 파일 경로 해석 기준(= 이 config 파일과 같은 디렉토리).
         self.resource_path = resource_path
-        cfg = self._load_config(config_file, resource_path)
+        cfg = self._load_config(config_file, resource_path, model_presets)
 
         # 설정 오기입을 키 소비 **전에** 막는다(tabular 와 같은 순서). 뒤로 미루면
         # `transforms` 를 리스트로 쓴 경우 파일명도 키 이름도 없는 AttributeError 가 먼저 난다.
@@ -612,7 +613,9 @@ class JsonRecordsMapper:
 
     # ── 설정 로딩 ────────────────────────────────────────────────────────────
     @staticmethod
-    def _load_config(config_file: str, resource_path: str | None) -> dict:
+    def _load_config(
+        config_file: str, resource_path: str | None, presets: dict | None = None
+    ) -> dict:
         if not config_file:
             raise ValueError("json_mapping custom_fields 에는 config_file 이 필요합니다.")
         path = Path(config_file)
@@ -625,7 +628,9 @@ class JsonRecordsMapper:
         if not isinstance(loaded, dict):
             raise ValueError(f"json custom_fields config 는 object 여야 합니다: {path}")
         # 설정 표기를 내부 형태로 번역해 넘긴다 — 아래 코드는 표기를 신경 쓰지 않는다.
-        normalized, _ = cv2.load(loaded, label=f"json custom_fields({config_file})")
+        normalized, _ = cv2.load(
+            loaded, label=f"json custom_fields({config_file})", presets=presets
+        )
         return normalized
 
     @staticmethod
