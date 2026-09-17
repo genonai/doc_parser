@@ -22,6 +22,7 @@ from genon.preprocessor.processing.common.model_params import (
     build_chat_payload,
     collect_generation_params,
     resolve_headers,
+    resolve_thinking,
 )
 from genon.preprocessor.processing.enrichment import config_schema as cs
 
@@ -553,14 +554,12 @@ class CustomFieldsEnricher(BaseEnricher):
         # 생성자 기본값을 None 으로 두는 것이 중요하다 — 다른 키와 같은 우선순위
         # (등록 블록 > config_file > 기본값)를 갖는다. 예전에는 기본값이 truthy 라
         # cfg 까지 도달하지 못해 문서유형 yaml 의 값이 조용히 무시됐다.
-        self._thinking = str(
-            thinking if thinking is not None else cfg.get("thinking") or "off"
-        ).strip().lower()
-        self._thinking_dialect = str(
-            thinking_dialect
-            if thinking_dialect is not None
-            else cfg.get("thinking_dialect") or "standard"
-        ).strip().lower()
+        # dialect 검증은 model_params.resolve_thinking 한 벌로 모은다(오타가 그대로
+        # 나가던 결함을 여기서도 잡는다 — enrichment_config._parse_thinking 과 동일 규칙).
+        self._thinking, self._thinking_dialect = resolve_thinking(
+            thinking if thinking is not None else cfg.get("thinking") or "off",
+            thinking_dialect if thinking_dialect is not None else cfg.get("thinking_dialect") or "standard",
+        )
         self._doc_types = normalize_doc_types(doc_type)
         self._extractor = str(extractor or "llm").strip().lower()
         # extractor: python — 값을 만드는 것이 LLM 이 아니라 고객 함수다. 로딩 규칙은

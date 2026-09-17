@@ -1395,6 +1395,21 @@ def test_thinking_falls_back_to_config_file(tmp_path):
     assert (explicit._thinking, explicit._thinking_dialect) == ("off", "standard")
 
 
+@pytest.mark.unit
+def test_unknown_thinking_dialect_falls_back_to_standard():
+    """enrichment_config._parse_thinking 은 오타 dialect 를 standard 로 떨어뜨리는데
+    custom_fields_enricher 는 그 검증이 없어 오타를 그대로 내보냈다(issue/372 2단계 결함)."""
+    from genon.preprocessor.processing.enrichment.custom_fields_enricher import (
+        CustomFieldsEnricher,
+    )
+
+    enricher = CustomFieldsEnricher(
+        url="u", model="m", output_fields=["x"], user_prompt="{{raw_text}}",
+        parser={"type": "json"}, thinking="on", thinking_dialect="hxc",
+    )
+    assert enricher._thinking_dialect == "standard"
+
+
 # ── 등록 블록 ↔ config_file 병합 규칙 (B3) ──────────────────────────────────
 # 규칙은 하나다 — 등록 블록이 config_file 을 이기고, 미지정이면 config_file 을 쓴다.
 

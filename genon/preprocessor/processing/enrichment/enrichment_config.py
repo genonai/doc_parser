@@ -13,7 +13,10 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Optional
 
-from genon.preprocessor.processing.common.model_params import collect_generation_params
+from genon.preprocessor.processing.common.model_params import (
+    collect_generation_params,
+    resolve_thinking,
+)
 
 from .prompt_files import read_prompt_file
 from .table_text_context import merge_table_text_description
@@ -132,13 +135,11 @@ def _parse_thinking(opts: dict) -> "tuple[str, str]":
 
     thinking 미지정 → ("off", "standard"): 기본적으로 추론을 끈다(차단 토큰 전송).
     아무것도 안 보내려면(모델 자동 판단) thinking: auto 로 명시.
+
+    단위 테스트가 이 이름을 모듈 속성으로 참조하므로 남겨 두되, 실제 판정은
+    `model_params.resolve_thinking` 한 벌로 모은다(custom_fields_enricher/doc_summary 와 공유).
     """
-    raw = opts.get("thinking")
-    thinking = "off" if raw is None else str(raw).strip().lower()
-    dialect = str(opts.get("thinking_dialect", "standard") or "standard").strip().lower()
-    if dialect not in {"standard", "hcx"}:
-        dialect = "standard"
-    return thinking, dialect
+    return resolve_thinking(opts.get("thinking"), opts.get("thinking_dialect", "standard"))
 
 
 # enricher 이름 alias 매핑

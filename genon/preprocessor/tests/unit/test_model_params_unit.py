@@ -17,6 +17,7 @@ from processing.common.model_params import (
     build_chat_payload,
     collect_generation_params,
     resolve_headers,
+    resolve_thinking,
 )
 
 pytestmark = pytest.mark.unit
@@ -126,3 +127,30 @@ def test_thinking_kwargs_key_absent_when_empty():
 def test_empty_model_falls_back_to_literal_model():
     """기존 호출부들이 모두 쓰던 폴백이다(설정 model 이 비어도 요청은 나간다)."""
     assert build_chat_payload(model="", messages=[])["model"] == "model"
+
+
+# ── resolve_thinking (issue/372 2단계) ────────────────────────────────────────
+# enrichment_config._parse_thinking 와 custom_fields_enricher.__init__ 이 같은 판정을
+# 따로 구현하고 있었다 — dialect 검증이 custom_fields 쪽에서 빠져 있었다. 이 공용 함수가
+# 그 판정 한 벌이다.
+
+def test_missing_thinking_defaults_to_off():
+    assert resolve_thinking(None, "standard") == ("off", "standard")
+
+
+def test_thinking_value_is_normalized():
+    assert resolve_thinking("  ON  ", "standard") == ("on", "standard")
+
+
+def test_unknown_dialect_falls_back_to_standard():
+    """오타(예: 'hxc')를 그대로 내보내면 게이트웨이가 못 알아듣는 키로 요청이 나간다."""
+    assert resolve_thinking("on", "hxc") == ("on", "standard")
+
+
+def test_known_dialects_are_preserved():
+    assert resolve_thinking("on", "hcx") == ("on", "hcx")
+    assert resolve_thinking("on", "standard") == ("on", "standard")
+
+
+def test_missing_dialect_defaults_to_standard():
+    assert resolve_thinking("on", None) == ("on", "standard")

@@ -10,13 +10,22 @@
 않으므로, 여기가 그 경로들의 유일한 재시도 수단이다.
 
 같은 판정이 필요한 곳이 셋(custom_fields / metadata / body_summary)이라 여기 한 벌만 둔다.
-body_summary 는 동기 호출이라 기다리는 동안 이벤트 루프를 막으므로 재시도는 쓰지 않는다.
+async 판(`post_chat_completion`)과 동기 판(`post_chat_completion_sync`)을 함께 두고,
+`chat_completion_message`/`is_retryable`/`_retry_delay`/`_deadline_allows` 판정 헬퍼를
+공유한다 — 두 함수의 차이는 `await client.post` vs `client.post`, `await asyncio.sleep` vs
+`time.sleep` 뿐이다.
+
+body_summary 는 동기 호출이라 이미 HTTP 응답을 기다리는 동안(설정 기본 360초) 이벤트
+루프를 막고 있다. 재시도 대기(1~2초)가 그 위에 더해져도 성격이 바뀌지 않는다. 반대로
+재시도가 없으면 일시적 실패 하나로 문서 요약이 통째로 비고, 그 결과가 이미지·표 설명
+프롬프트의 `{{doc_summary}}` 로 전파된다 — 그래서 body_summary 도 이 재시도 경로를 쓴다.
 """
 
 import asyncio
 import json
 import logging
 import random
+import time
 from typing import Any, Optional
 
 import httpx
@@ -89,6 +98,34 @@ async def post_chat_completion(
                 raise
             _log.warning(f"[llm] 일시적 실패로 {delay:.1f}초 후 한 번 더 호출합니다: {exc}")
             await asyncio.sleep(delay)
+
+
+def post_chat_completion_sync(
+    client: Any, url: str, *, payload: dict, headers: dict, timeout: float
+) -> Any:
+    """`post_chat_completion` 의 동기 판. body_summary 처럼 sync 호출부가 쓴다.
+
+    판정은 async 판과 완전히 같다(재시도 1회, 대상 상태 번호, deadline 확인). 차이는
+    `client.post` 를 기다리지 않는 것과 `time.sleep` 을 쓰는 것뿐이다.
+    """
+    attempt = 0
+    while True:
+        attempt += 1
+        try:
+            resp = client.post(
+                url, json=payload, headers=headers,
+                timeout=httpx.Timeout(remaining_timeout(timeout)),
+            )
+            resp.raise_for_status()
+            return chat_completion_message(resp.json())
+        except Exception as exc:
+            if attempt > 1 or not is_retryable(exc):
+                raise
+            delay = _retry_delay(exc)
+            if not _deadline_allows(delay):
+                raise
+            _log.warning(f"[llm] 일시적 실패로 {delay:.1f}초 후 한 번 더 호출합니다: {exc}")
+            time.sleep(delay)
 
 
 def is_retryable(exc: BaseException) -> bool:

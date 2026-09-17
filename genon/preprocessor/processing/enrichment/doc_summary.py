@@ -19,7 +19,10 @@ from typing import Any, Optional
 
 from docling_core.types import DoclingDocument
 
-from genon.preprocessor.processing.common.model_params import collect_generation_params
+from genon.preprocessor.processing.common.model_params import (
+    collect_generation_params,
+    resolve_thinking,
+)
 from genon.preprocessor.processing.enrichment.prompt_files import read_prompt_file
 from genon.preprocessor.processing.enrichment.body_summary import (
     DEFAULT_BODY_SUMMARY_PROMPT,
@@ -88,6 +91,9 @@ class DocSummaryOptions:
     headers: dict[str, str] = field(default_factory=dict)
     provenance: str = "facade_doc_summary"
     params: dict = field(default_factory=dict)
+    # thinking(추론) 모드. metadata/custom_fields 와 같은 기본값("off"/"standard")이다.
+    thinking: str = "off"
+    thinking_dialect: str = "standard"
 
     @classmethod
     def from_config(
@@ -125,6 +131,10 @@ class DocSummaryOptions:
         timeout = _parse_optional_float(doc_summary_cfg.get("timeout"), "timeout")
         timeout = 360.0 if timeout is None or timeout <= 0 else timeout
 
+        thinking, thinking_dialect = resolve_thinking(
+            doc_summary_cfg.get("thinking"), doc_summary_cfg.get("thinking_dialect", "standard")
+        )
+
         return cls(
             enabled=False if enabled is None else enabled,
             api_url=str(doc_summary_cfg.get("api_url") or doc_summary_cfg.get("url") or fallback_api_url or "").strip(),
@@ -139,6 +149,8 @@ class DocSummaryOptions:
             ).strip()
             or "facade_doc_summary",
             params=collect_generation_params(doc_summary_cfg, label="doc_summary"),
+            thinking=thinking,
+            thinking_dialect=thinking_dialect,
         )
 
 
@@ -191,6 +203,8 @@ class DocSummaryEnricher:
             timeout=self.options.timeout,
             headers=self.options.headers,
             params=self.options.params,
+            thinking=self.options.thinking,
+            thinking_dialect=self.options.thinking_dialect,
         )
         context[DOC_SUMMARY_CONTEXT_KEY] = summary
         # 계산된 요약을 출력 metadata 에도 노출(metadata enricher 의 setdefault().update() 와 병합됨).

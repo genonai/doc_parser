@@ -91,6 +91,25 @@ def resolve_headers(
     return headers
 
 
+def resolve_thinking(thinking: Optional[str] = None, dialect: Optional[str] = "standard") -> tuple:
+    """thinking / thinking_dialect 원값을 정규화한다. `(thinking, dialect)` 로 돌려준다.
+
+    같은 판정이 세 곳(enrichment_config._parse_thinking, custom_fields_enricher,
+    doc_summary)에 필요했는데 dialect 검증이 빠진 채 복제된 자리가 있었다(custom_fields).
+    여기 한 벌만 두고 나머지는 이 함수를 부른다.
+
+    Args:
+        thinking: "on"/"off"/"auto" 등 원값. `None` 이면 "off"(추론 차단이 기본값).
+        dialect: "standard"(기본) | "hcx". 이 둘이 아니면 "standard" 로 떨어뜨린다 —
+            오타를 그대로 내보내면 게이트웨이가 모르는 키로 요청이 나간다.
+    """
+    resolved_thinking = "off" if thinking is None else str(thinking).strip().lower()
+    resolved_dialect = str(dialect or "standard").strip().lower()
+    if resolved_dialect not in {"standard", "hcx"}:
+        resolved_dialect = "standard"
+    return resolved_thinking, resolved_dialect
+
+
 def build_chat_payload(
     *,
     model: str,

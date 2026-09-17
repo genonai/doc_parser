@@ -245,3 +245,61 @@ def test_enricher_llm_call_recovers_from_a_transient_failure(factory, monkeypatc
 
     assert asyncio.run(factory()._call_llm("X")) == "정상"
     assert len(requests) == 2
+
+
+# ── 동기 경로(post_chat_completion_sync) ─────────────────────────────────────
+# body_summary 가 쓰는 경로. 판정은 async 판과 동일해야 하므로 같은 실패·재시도
+# 조합을 그대로 반복한다 — 차이는 client.post/time.sleep 이 sync 라는 것뿐이다.
+
+@pytest.fixture(autouse=True)
+def slept_sync(monkeypatch):
+    """동기 경로의 재시도 대기를 실제로 하지 않고 대기 시간만 모은다."""
+    waits: list = []
+
+    def _sleep(seconds):
+        waits.append(seconds)
+
+    monkeypatch.setattr(lr.time, "sleep", _sleep)
+    return waits
+
+
+def _run_sync(*steps):
+    """steps 를 차례로 응답하는 서버에 동기 경로로 한 번 호출한다."""
+    requests: list = []
+    queue = list(steps)
+
+    def handler(request):
+        requests.append(request)
+        return queue.pop(0)(request)
+
+    try:
+        with httpx.Client(transport=httpx.MockTransport(handler)) as client:
+            return lr.post_chat_completion_sync(
+                client, URL, payload={}, headers={}, timeout=600.0
+            ), requests
+    except Exception as exc:  # noqa: BLE001 — 테스트가 예외 종류를 직접 단정한다
+        return exc, requests
+
+
+@pytest.mark.unit
+def test_sync_transient_failure_is_retried_once_and_recovers(slept_sync):
+    result, requests = _run_sync(_status(502), _ok)
+    assert result == {"content": "정상"}
+    assert len(requests) == 2
+    assert len(slept_sync) == 1
+
+
+@pytest.mark.unit
+def test_sync_timeout_is_not_retried(slept_sync):
+    result, requests = _run_sync(_raise(httpx.ReadTimeout), _ok)
+    assert isinstance(result, httpx.ReadTimeout)
+    assert len(requests) == 1
+    assert slept_sync == []
+
+
+@pytest.mark.unit
+def test_sync_retries_only_once():
+    result, requests = _run_sync(_status(503), _status(503), _ok)
+    assert isinstance(result, httpx.HTTPStatusError)
+    assert result.response.status_code == 503
+    assert len(requests) == 2

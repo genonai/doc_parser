@@ -3,6 +3,12 @@
 이미지·차트 description 의 공통 컨텍스트({{doc_summary}} 변수)로 쓰기 위해, 문서 BODY
 텍스트를 LLM 으로 1회 요약한다. page_description.py 와 동일하게 "옵션 없이 명시 인자를
 받는 sync 함수" 스타일.
+
+호출·재시도·thinking 처리는 metadata/custom_fields 와 같은 공용 경로를 쓴다
+(`llm_response.post_chat_completion_sync`, `model_params.build_chat_payload`,
+`docling.utils.thinking`). 이 함수만 sync 인 이유는 호출부(`DocSummaryEnricher.enrich` →
+docling_runtime → facade)가 전부 sync 이기 때문이며, 그 사슬을 async 로 바꾸는 것은
+별도 과제다.
 """
 from __future__ import annotations
 
@@ -13,10 +19,11 @@ from typing import Any, Optional
 import httpx
 
 from docling.utils.llm_cache import cached_call, remaining_timeout
+from docling.utils.thinking import resolve_thinking_kwargs, strip_reasoning
 
 from genon.preprocessor.processing.common.model_params import build_chat_payload, resolve_headers
 
-from .llm_response import chat_completion_message
+from .llm_response import post_chat_completion_sync
 
 _log = logging.getLogger(__name__)
 
@@ -59,6 +66,8 @@ def summarize_body(
     timeout: float = 360.0,
     headers: Optional[dict] = None,
     params: Optional[dict] = None,
+    thinking: Optional[str] = "off",
+    thinking_dialect: str = "standard",
 ) -> str:
     """문서 본문을 1회 LLM(text-only chat) 호출로 요약. 실패 시 "" (파이프라인 비차단)."""
     full_text = collect_body_text(document, max_chars)
@@ -69,19 +78,22 @@ def summarize_body(
     prompt = prompt_tmpl.replace("{{full_text}}", full_text)
 
     req_headers = resolve_headers({"headers": headers}, api_key)
+    ctk = resolve_thinking_kwargs(thinking, thinking_dialect)
     body = build_chat_payload(
         model=model or "model",
         messages=[{"role": "user", "content": prompt}],
         params=params,
+        thinking_kwargs=ctk,
     )
     def _produce() -> str:
         # #329: llm_cache opt-in 시 캐시 경유. 빈 결과("")는 cached_call 이 저장하지 않는다.
+        # metadata/custom_fields 와 같은 재시도 경로(post_chat_completion_sync)를 쓴다 —
+        # 예전에는 body_summary 만 httpx.Client 로 직접 호출해 재시도가 없었다.
         with httpx.Client(timeout=httpx.Timeout(remaining_timeout(timeout))) as client:
-            response = client.post(api_url, headers=req_headers, json=body)
-        response.raise_for_status()
-        message = chat_completion_message(response.json())
-        content = message.get("content") if isinstance(message, dict) else message
-        return str(content or "").strip()
+            message = post_chat_completion_sync(
+                client, api_url, payload=body, headers=req_headers, timeout=timeout
+            )
+        return strip_reasoning(message)
 
     # 실패 시 ""(파이프라인 비차단)는 캐시 밖에 유지한다.
     try:
