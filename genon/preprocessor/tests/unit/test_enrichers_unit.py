@@ -244,6 +244,52 @@ class TestCallLlmPromptBuild:
         assert result == "MODEL_OUTPUT"
 
 
+# ── model_params 경유 생성 파라미터 · 헤더 (issue/372) ────────────────────────
+# top_p/seed/repetition_penalty 는 params 통로로만 지원한다(둘 다 생성자에 params: dict
+# 를 받는다). 미설정 시 payload 에 그 키가 없어야 기존 현장 payload 가 그대로 유지된다.
+
+@pytest.mark.unit
+@pytest.mark.parametrize("factory,modpath", _ENRICHERS)
+class TestGenerationParamsAndHeaders:
+    def test_params_dict_keys_land_in_payload(self, factory, modpath):
+        enr = factory(params={"top_p": 0.7, "seed": 42, "repetition_penalty": 1.1})
+        captured = {}
+        with _patch_async_client(modpath, captured):
+            asyncio.run(enr._call_llm("X"))
+        payload = captured["json"]
+        assert payload["top_p"] == 0.7
+        assert payload["seed"] == 42
+        assert payload["repetition_penalty"] == 1.1
+
+    def test_unset_params_keys_absent_from_payload(self, factory, modpath):
+        enr = factory()
+        captured = {}
+        with _patch_async_client(modpath, captured):
+            asyncio.run(enr._call_llm("X"))
+        payload = captured["json"]
+        assert "top_p" not in payload
+        assert "seed" not in payload
+        assert "repetition_penalty" not in payload
+
+    def test_params_dict_wins_over_named_value(self, factory, modpath):
+        enr = factory(temperature=0.2, params={"temperature": 0.9})
+        captured = {}
+        with _patch_async_client(modpath, captured):
+            asyncio.run(enr._call_llm("X"))
+        assert captured["json"]["temperature"] == 0.9
+
+    def test_headers_config_carried_and_authorization_not_overwritten(self, factory, modpath):
+        enr = factory(
+            api_key="ignored-key",
+            headers={"Authorization": "Bearer explicit", "X-Custom": "v"},
+        )
+        captured = {}
+        with _patch_async_client(modpath, captured):
+            asyncio.run(enr._call_llm("X"))
+        assert captured["headers"]["Authorization"] == "Bearer explicit"
+        assert captured["headers"]["X-Custom"] == "v"
+
+
 # ── chat completion 형식이 아닌 200 응답 ──────────────────────────────────────
 # 게이트웨이가 에러 봉투를 HTTP 200 으로 돌려주면 raise_for_status 를 통과한다. 그대로
 # 인덱싱하면 KeyError('choices') 만 남아 서버가 준 사유를 알 수 없으므로, 응답 본문을

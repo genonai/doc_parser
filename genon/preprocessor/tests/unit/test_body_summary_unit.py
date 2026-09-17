@@ -16,14 +16,24 @@ _bs = pytest.importorskip("processing.enrichment.body_summary")
 summarize_body = _bs.summarize_body
 
 
-def _patch_client(body):
-    """`body_summary.httpx.Client` 를 context manager mock 으로 패치한다."""
+def _patch_client(body, captured=None):
+    """`body_summary.httpx.Client` 를 context manager mock 으로 패치한다.
+
+    captured 를 주면 post() 에 실린 json/headers 를 기록한다(payload/헤더 조립 검증용).
+    """
     resp = MagicMock()
     resp.raise_for_status = MagicMock()
     resp.json = MagicMock(return_value=body)
 
+    def _post(url, headers=None, json=None, **_kwargs):
+        if captured is not None:
+            captured["url"] = url
+            captured["headers"] = headers
+            captured["json"] = json
+        return resp
+
     client = MagicMock()
-    client.post = MagicMock(return_value=resp)
+    client.post = MagicMock(side_effect=_post)
 
     ctx = MagicMock()
     ctx.__enter__ = MagicMock(return_value=client)
@@ -56,3 +66,50 @@ def test_normal_response_still_returns_content():
     with _patch_client(body):
         result = summarize_body(_Doc(), api_url="http://llm.internal/v1/chat/completions")
     assert result == "요약문"
+
+
+# ── model_params 경유 생성 파라미터 · 헤더 (issue/372) ────────────────────────
+
+_OK_BODY = {"choices": [{"message": {"content": "요약"}}]}
+
+
+@pytest.mark.unit
+def test_params_dict_keys_land_in_payload():
+    captured = {}
+    with _patch_client(_OK_BODY, captured):
+        summarize_body(
+            _Doc(),
+            api_url="http://llm.internal/v1/chat/completions",
+            params={"top_p": 0.7, "seed": 42, "repetition_penalty": 1.1},
+        )
+    payload = captured["json"]
+    assert payload["top_p"] == 0.7
+    assert payload["seed"] == 42
+    assert payload["repetition_penalty"] == 1.1
+
+
+@pytest.mark.unit
+def test_unset_params_keys_absent_from_payload():
+    captured = {}
+    with _patch_client(_OK_BODY, captured):
+        summarize_body(_Doc(), api_url="http://llm.internal/v1/chat/completions")
+    payload = captured["json"]
+    assert "top_p" not in payload
+    assert "seed" not in payload
+    assert "repetition_penalty" not in payload
+    # 기존 현장 payload 는 model/messages 두 키뿐이었다 — 그대로 유지된다.
+    assert set(payload.keys()) == {"model", "messages"}
+
+
+@pytest.mark.unit
+def test_headers_config_carried_and_authorization_not_overwritten():
+    captured = {}
+    with _patch_client(_OK_BODY, captured):
+        summarize_body(
+            _Doc(),
+            api_url="http://llm.internal/v1/chat/completions",
+            api_key="ignored-key",
+            headers={"Authorization": "Bearer explicit", "X-Custom": "v"},
+        )
+    assert captured["headers"]["Authorization"] == "Bearer explicit"
+    assert captured["headers"]["X-Custom"] == "v"

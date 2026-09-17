@@ -408,9 +408,19 @@ llm:
 | 생성 | `temperature`, `top_p`, `max_tokens`, `thinking`, `thinking_dialect`, `repetition_penalty`, `seed` |
 | 호출 | `timeout`, `concurrency`, `headers`, `params` |
 
-읽는 쪽이 모르는 키는 무시됩니다(예: `seed` 는 `toc` 만, `concurrency` 는 설명 계열만 읽습니다).
-`max_tokens` 는 프리셋보다 각 블록에 두는 편이 안전합니다 — `table_text_description` 은
-`completion_reserved_tokens` 와 짝을 맞춰야 배치 계산이 맞습니다.
+**생성 파라미터 5종(`temperature`·`top_p`·`max_tokens`·`seed`·`repetition_penalty`)과
+`params`·`headers` 는 모든 enrichment 항목과 `page_description` 이 같은 규칙으로 읽습니다.**
+그래서 프리셋에 한 번 적으면 어느 항목에서나 그대로 동작합니다.
+
+- `params` 에 적은 값은 검사 없이 그대로 전송됩니다. 위 5종에 없는 키(예: `presence_penalty`,
+  `stop`)를 보내야 할 때 쓰는 통로이며, 같은 이름이 양쪽에 있으면 `params` 가 이깁니다.
+- `headers` 에 `Authorization` 을 직접 적으면 `api_key` 로 덮어쓰지 않습니다. Bearer 가 아닌
+  인증을 쓰는 게이트웨이를 위한 것입니다.
+- 예외가 둘 있습니다. `toc` 는 `params`·`headers`·`timeout` 을 받지 않고(호출이 docling 안에
+  있습니다), `concurrency` 는 설명 계열(이미지·표·페이지)만 읽습니다.
+- `max_tokens` 는 프리셋보다 각 블록에 두는 편이 안전합니다 — `table_text_description` 은
+  `completion_reserved_tokens` 와 짝을 맞춰야 배치 계산이 맞습니다. `page_description` 에서는
+  `0` 이 "상한 없음"이라 값을 보내지 않습니다.
 
 `enable`/`enabled`, `doc_type`, `config_file` 은 "이 블록을 어떻게 쓸지" 를 정하는 값이라
 프리셋에 적어도 주입되지 않습니다. 특히 `enable` 이 프리셋을 통해 퍼지면 그 프리셋을

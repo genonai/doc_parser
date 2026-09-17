@@ -98,6 +98,7 @@ EXTRACTOR_KEYS: dict[str, frozenset[str]] = {
     # 파이프라인(`value_map`/`transforms`/`derive`)을 같은 순서로 건다.
     "llm": frozenset({
         "url", "api_key", "model", "max_tokens", "temperature", "timeout",
+        "top_p", "seed", "repetition_penalty", "params", "headers",
         "system_prompt", "user_prompt", "system_prompt_file", "user_prompt_file", "prompt",
         "output_fields", "constants", "defaults", "parser", "pages", "variables", "template",
         "thinking", "thinking_dialect",

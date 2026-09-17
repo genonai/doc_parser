@@ -19,6 +19,7 @@ from typing import Any, Optional
 
 from docling_core.types import DoclingDocument
 
+from genon.preprocessor.processing.common.model_params import collect_generation_params
 from genon.preprocessor.processing.enrichment.prompt_files import read_prompt_file
 from genon.preprocessor.processing.enrichment.body_summary import (
     DEFAULT_BODY_SUMMARY_PROMPT,
@@ -86,6 +87,7 @@ class DocSummaryOptions:
     timeout: float = 360.0
     headers: dict[str, str] = field(default_factory=dict)
     provenance: str = "facade_doc_summary"
+    params: dict = field(default_factory=dict)
 
     @classmethod
     def from_config(
@@ -136,6 +138,7 @@ class DocSummaryOptions:
                 doc_summary_cfg.get("provenance", "facade_doc_summary")
             ).strip()
             or "facade_doc_summary",
+            params=collect_generation_params(doc_summary_cfg, label="doc_summary"),
         )
 
 
@@ -187,6 +190,7 @@ class DocSummaryEnricher:
             max_chars=self.options.max_chars,
             timeout=self.options.timeout,
             headers=self.options.headers,
+            params=self.options.params,
         )
         context[DOC_SUMMARY_CONTEXT_KEY] = summary
         # 계산된 요약을 출력 metadata 에도 노출(metadata enricher 의 setdefault().update() 와 병합됨).

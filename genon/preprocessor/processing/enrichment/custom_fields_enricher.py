@@ -18,6 +18,11 @@ from docling.utils.llm_cache import CacheDeadlineExceeded, async_cached_call, re
 from docling.utils.thinking import resolve_thinking_kwargs, strip_reasoning
 
 from genon.preprocessor.processing.common import config_parse as cp
+from genon.preprocessor.processing.common.model_params import (
+    build_chat_payload,
+    collect_generation_params,
+    resolve_headers,
+)
 from genon.preprocessor.processing.enrichment import config_schema as cs
 
 from .base_enricher import BaseEnricher
@@ -410,6 +415,11 @@ class CustomFieldsEnricher(BaseEnricher):
         model: str = "",
         max_tokens: int | None = None,
         temperature: float | None = None,
+        top_p: float | None = None,
+        seed: int | None = None,
+        repetition_penalty: float | None = None,
+        params: dict | None = None,
+        headers: dict | None = None,
         timeout: int | None = None,
         system_prompt: str = "",
         user_prompt: str = "",
@@ -452,6 +462,27 @@ class CustomFieldsEnricher(BaseEnricher):
             temperature if temperature is not None else cfg.get("temperature", 0.0)
         )
         self._timeout = timeout if timeout is not None else cfg.get("timeout", 60)
+        pipeline_label = f"custom_fields({config_file})"
+        # top_p/seed/repetition_penalty/params: config_file 과 등록 블록 양쪽에 적을 수
+        # 있다. 우선순위는 다른 키와 같다(등록 블록 > config_file) — 이름 있는 키는 키 단위로,
+        # `params` 임의 키 통로는 collect_generation_params 안에서 한 번 더 그 소스의
+        # 이름 있는 키를 이긴 뒤, 여기서 등록 블록 결과가 config_file 결과를 이긴다.
+        _registration_gen_cfg: dict = {}
+        for _key, _value in (
+            ("temperature", temperature),
+            ("top_p", top_p),
+            ("repetition_penalty", repetition_penalty),
+            ("max_tokens", max_tokens),
+            ("seed", seed),
+        ):
+            if _value is not None:
+                _registration_gen_cfg[_key] = _value
+        if params is not None:
+            _registration_gen_cfg["params"] = params
+        self._params = {
+            **collect_generation_params(cfg, label=pipeline_label),
+            **collect_generation_params(_registration_gen_cfg, label=pipeline_label),
+        }
         # 우선순위: 등록 블록(file > 인라인) > config_file(file > 인라인 > prompt 블록) > 기본값.
         # 등록 블록이 config_file 을 이기는 것은 다른 모든 키와 같다 — 예전에는 config_file 의
         # `*_prompt_file` 이 등록 블록 인라인 프롬프트를 이겨 이 키만 방향이 반대였다.
@@ -493,7 +524,6 @@ class CustomFieldsEnricher(BaseEnricher):
             compile_value_map,
         )
 
-        pipeline_label = f"custom_fields({config_file})"
         self._value_map = compile_value_map(cfg.get("value_map"))
         self._transforms = compile_transforms(
             cfg.get("transforms"), label=pipeline_label, cfg=cfg
@@ -511,10 +541,9 @@ class CustomFieldsEnricher(BaseEnricher):
         self._first_chunk_fields = cp.parse_field_name_list(cfg.get(cp.FIRST_CHUNK_FIELDS_KEY))
         # 위 두 규칙으로 얹힌 값 앞에 붙일 사람이 읽는 항목명. 이름이 있는 필드만 붙는다.
         self._field_labels = cp.parse_field_labels(cfg.get(cp.FIELD_LABELS_KEY))
-        self._headers: dict[str, str] = {"Content-Type": "application/json"}
         resolved_key = api_key or cfg.get("api_key", "")
-        if resolved_key:
-            self._headers["Authorization"] = f"Bearer {resolved_key}"
+        resolved_headers_cfg = headers if headers is not None else cfg.get("headers")
+        self._headers = resolve_headers({"headers": resolved_headers_cfg}, resolved_key)
 
         self._parser_cfg = parser or cfg.get("parser", {}) or {}
         self._parser_callable = self._build_parser_callable()
@@ -749,15 +778,15 @@ class CustomFieldsEnricher(BaseEnricher):
             messages.append({"role": "system", "content": system})
         messages.append({"role": "user", "content": prompt})
 
-        payload = {
-            "model": self._model,
-            "max_tokens": self._max_tokens,
-            "temperature": self._temperature,
-            "messages": messages,
-        }
         ctk = resolve_thinking_kwargs(self._thinking, self._thinking_dialect)
-        if ctk:
-            payload["chat_template_kwargs"] = ctk
+        payload = build_chat_payload(
+            model=self._model,
+            messages=messages,
+            max_tokens=self._max_tokens,
+            temperature=self._temperature,
+            params=self._params,
+            thinking_kwargs=ctk,
+        )
 
         async def _produce() -> str:
             # #329: llm_cache opt-in 시 캐시 경유. 미사용 시 기존과 동일.

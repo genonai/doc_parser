@@ -13,6 +13,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Optional
 
+from genon.preprocessor.processing.common.model_params import collect_generation_params
+
 from .prompt_files import read_prompt_file
 from .table_text_context import merge_table_text_description
 
@@ -291,6 +293,8 @@ class _MetadataConfig:
     # 아무것도 안 보내려면(모델 자동 판단) thinking="auto".
     thinking: str = "off"
     thinking_dialect: str = "standard"
+    params: dict = None
+    headers: dict = None
 
     def __post_init__(self):
         if self.parser is None:
@@ -301,6 +305,10 @@ class _MetadataConfig:
             self.field_transforms = []
         if self.variables is None:
             self.variables = {}
+        if self.params is None:
+            self.params = {}
+        if self.headers is None:
+            self.headers = {}
 
 
 # ── Main dataclass ────────────────────────────────────────────────────────────
@@ -523,6 +531,8 @@ class EnrichmentConfig:
                 template_mode=meta_mode,
                 thinking=meta_thinking,
                 thinking_dialect=meta_thinking_dialect,
+                params=collect_generation_params(metadata_opts, label="metadata"),
+                headers=_as_dict(metadata_opts.get("headers")),
             ),
             doc_summary_cfg=doc_summary_cfg,
             image_description_cfg=image_desc_cfg,
@@ -710,6 +720,8 @@ class EnrichmentConfig:
                 template_mode=meta_mode,
                 thinking=meta_thinking,
                 thinking_dialect=meta_thinking_dialect,
+                params=collect_generation_params(meta_cfg, label="metadata"),
+                headers=_as_dict(meta_cfg.get("headers")),
             ),
             doc_summary_cfg=_as_dict(cfg.get("doc_summary")),
             image_description_cfg=_as_dict(cfg.get("image_description")),

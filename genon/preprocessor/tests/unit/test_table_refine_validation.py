@@ -208,3 +208,317 @@ def test_page_description_no_temperature_no_params_key():
     m = _page_mod()
     opt = m.PageDescriptionOptions.from_config({}, config_dir=None)
     assert "temperature" not in opt.params
+
+
+# ── collect_generation_params 일반화: seed/repetition_penalty/max_tokens 도 흡수 ──
+# temperature/top_p 만 승격하던 인라인 코드를 model_params.collect_generation_params
+# 호출로 바꾼 뒤, 나머지 생성 파라미터도 같은 규칙으로 흡수되는지 고정한다.
+
+
+@pytest.mark.unit
+def test_table_description_absorbs_seed_repetition_penalty_max_tokens():
+    m = _mod()
+    opt = m.TableDescriptionOptions.from_config(
+        table_desc_cfg={"seed": 7, "repetition_penalty": 1.1, "max_tokens": 512},
+        fallback_api_url="", fallback_api_key="", fallback_model="model",
+    )
+    assert opt.params["seed"] == 7
+    assert opt.params["repetition_penalty"] == 1.1
+    assert opt.params["max_tokens"] == 512
+
+
+@pytest.mark.unit
+def test_table_description_params_dict_wins_over_top_level():
+    m = _mod()
+    opt = m.TableDescriptionOptions.from_config(
+        table_desc_cfg={"seed": 7, "params": {"seed": 99}},
+        fallback_api_url="", fallback_api_key="", fallback_model="model",
+    )
+    assert opt.params["seed"] == 99
+
+
+@pytest.mark.unit
+def test_table_description_unset_generation_keys_absent():
+    m = _mod()
+    opt = m.TableDescriptionOptions.from_config(
+        table_desc_cfg={},
+        fallback_api_url="", fallback_api_key="", fallback_model="model",
+    )
+    assert "seed" not in opt.params
+    assert "repetition_penalty" not in opt.params
+    assert "max_tokens" not in opt.params
+
+
+@pytest.mark.unit
+def test_image_description_absorbs_seed_repetition_penalty_max_tokens():
+    m = _image_mod()
+    opt = m.ImageDescriptionOptions.from_config(
+        image_desc_cfg={"seed": 7, "repetition_penalty": 1.1, "max_tokens": 512},
+        fallback_api_url="", fallback_api_key="", fallback_model="model",
+    )
+    assert opt.params["seed"] == 7
+    assert opt.params["repetition_penalty"] == 1.1
+    assert opt.params["max_tokens"] == 512
+
+
+@pytest.mark.unit
+def test_image_description_params_dict_wins_over_top_level():
+    m = _image_mod()
+    opt = m.ImageDescriptionOptions.from_config(
+        image_desc_cfg={"seed": 7, "params": {"seed": 99}},
+        fallback_api_url="", fallback_api_key="", fallback_model="model",
+    )
+    assert opt.params["seed"] == 99
+
+
+@pytest.mark.unit
+def test_image_description_unset_generation_keys_absent():
+    m = _image_mod()
+    opt = m.ImageDescriptionOptions.from_config(
+        image_desc_cfg={},
+        fallback_api_url="", fallback_api_key="", fallback_model="model",
+    )
+    assert "seed" not in opt.params
+    assert "repetition_penalty" not in opt.params
+    assert "max_tokens" not in opt.params
+
+
+@pytest.mark.unit
+def test_page_description_absorbs_seed_and_repetition_penalty():
+    m = _page_mod()
+    opt = m.PageDescriptionOptions.from_config(
+        {"seed": 7, "repetition_penalty": 1.1}, config_dir=None
+    )
+    assert opt.params["seed"] == 7
+    assert opt.params["repetition_penalty"] == 1.1
+
+
+@pytest.mark.unit
+def test_page_description_params_dict_wins_over_top_level():
+    m = _page_mod()
+    opt = m.PageDescriptionOptions.from_config(
+        {"seed": 7, "params": {"seed": 99}}, config_dir=None
+    )
+    assert opt.params["seed"] == 99
+
+
+# ── page_description 의 max_tokens: typed 필드가 '0=상한 없음(키 미전송)' 을 계속 지킨다 ──
+# collect_generation_params 는 설정에 적힌 값을 그대로 담는 일반 규칙이라 max_tokens=0 도
+# 그대로 담아버리면 기존 '0=상한 없음' 의미가 깨진다. 그래서 top-level max_tokens 는
+# typed 필드(+조건부 주입)가 계속 전담하고, collect_generation_params 입력에서는 뺀다.
+
+
+@pytest.mark.unit
+def test_page_description_max_tokens_unset_not_sent():
+    """설정에 max_tokens 를 안 적으면(기존 현장) req_params 에 키 자체가 없다."""
+    m = _page_mod()
+    opt = m.PageDescriptionOptions.from_config({}, config_dir=None)
+    assert opt.max_tokens == 0
+    assert "max_tokens" not in opt.params
+
+
+@pytest.mark.unit
+def test_page_description_max_tokens_zero_means_unlimited_not_sent():
+    """max_tokens: 0 을 명시해도(상한 없음) params 에 실리지 않는다."""
+    m = _page_mod()
+    opt = m.PageDescriptionOptions.from_config({"max_tokens": 0}, config_dir=None)
+    assert opt.max_tokens == 0
+    assert "max_tokens" not in opt.params
+
+
+@pytest.mark.unit
+def test_page_description_max_tokens_positive_is_typed_field():
+    """양수 max_tokens 는 typed 필드에 실린다(요청 조립은 describe_page_images 가 담당)."""
+    m = _page_mod()
+    opt = m.PageDescriptionOptions.from_config({"max_tokens": 300}, config_dir=None)
+    assert opt.max_tokens == 300
+
+
+@pytest.mark.unit
+def test_page_description_max_tokens_via_params_escape_hatch():
+    """params.max_tokens 는 탈출구라 0 을 포함해 그대로 전송 대상에 실린다."""
+    m = _page_mod()
+    opt = m.PageDescriptionOptions.from_config(
+        {"params": {"max_tokens": 0}}, config_dir=None
+    )
+    assert opt.params["max_tokens"] == 0
+
+
+# ── describe_page_images: 실제 요청 파라미터 조립(하위 호환 고정) ────────────────
+
+
+@pytest.mark.unit
+def test_describe_page_images_max_tokens_default_not_sent(monkeypatch):
+    """기존 현장 무변경: max_tokens 미설정이면 req_params 에 키가 없다."""
+    m = _page_mod()
+    from PIL import Image
+
+    captured = {}
+
+    def _fake_api_image_request(*, image, prompt, url, timeout, headers, **params):
+        captured.update(params)
+        captured["_headers"] = headers
+        return "설명"
+
+    monkeypatch.setattr(m, "api_image_request", _fake_api_image_request)
+
+    opt = m.PageDescriptionOptions.from_config(
+        {"enable": True, "url": "http://example.invalid/vlm"}, config_dir=None
+    )
+    images = {1: Image.new("RGB", (2, 2))}
+    result = m.describe_page_images(images, opt)
+    assert result == {1: "설명"}
+    assert "max_tokens" not in captured
+
+
+@pytest.mark.unit
+def test_describe_page_images_max_tokens_configured_is_sent(monkeypatch):
+    m = _page_mod()
+    from PIL import Image
+
+    captured = {}
+
+    def _fake_api_image_request(*, image, prompt, url, timeout, headers, **params):
+        captured.update(params)
+        return "설명"
+
+    monkeypatch.setattr(m, "api_image_request", _fake_api_image_request)
+
+    opt = m.PageDescriptionOptions.from_config(
+        {"enable": True, "url": "http://example.invalid/vlm", "max_tokens": 256},
+        config_dir=None,
+    )
+    images = {1: Image.new("RGB", (2, 2))}
+    m.describe_page_images(images, opt)
+    assert captured["max_tokens"] == 256
+
+
+@pytest.mark.unit
+def test_describe_page_images_seed_and_headers_configured(monkeypatch):
+    m = _page_mod()
+    from PIL import Image
+
+    captured = {}
+
+    def _fake_api_image_request(*, image, prompt, url, timeout, headers, **params):
+        captured.update(params)
+        captured["_headers"] = headers
+        return "설명"
+
+    monkeypatch.setattr(m, "api_image_request", _fake_api_image_request)
+
+    opt = m.PageDescriptionOptions.from_config(
+        {
+            "enable": True,
+            "url": "http://example.invalid/vlm",
+            "api_key": "secret",
+            "seed": 7,
+            "headers": {"X-Tenant": "kb"},
+        },
+        config_dir=None,
+    )
+    images = {1: Image.new("RGB", (2, 2))}
+    m.describe_page_images(images, opt)
+    assert captured["seed"] == 7
+    assert captured["_headers"]["X-Tenant"] == "kb"
+    assert captured["_headers"]["Authorization"] == "Bearer secret"
+
+
+@pytest.mark.unit
+def test_describe_page_images_config_authorization_not_overwritten(monkeypatch):
+    m = _page_mod()
+    from PIL import Image
+
+    captured = {}
+
+    def _fake_api_image_request(*, image, prompt, url, timeout, headers, **params):
+        captured["_headers"] = headers
+        return "설명"
+
+    monkeypatch.setattr(m, "api_image_request", _fake_api_image_request)
+
+    opt = m.PageDescriptionOptions.from_config(
+        {
+            "enable": True,
+            "url": "http://example.invalid/vlm",
+            "api_key": "secret",
+            "headers": {"Authorization": "Basic zzz"},
+        },
+        config_dir=None,
+    )
+    images = {1: Image.new("RGB", (2, 2))}
+    m.describe_page_images(images, opt)
+    assert captured["_headers"]["Authorization"] == "Basic zzz"
+
+
+# ── image/table description: headers 가 api_image_request 호출에 실제로 실린다 ──
+
+
+class _FakeVlmItem:
+    """picture_item.get_image(document, prov_index=0) 만 흉내내는 최소 더블.
+
+    pydantic 모델(PictureItem/TableItem)은 임의 속성 할당을 막으므로, 실제 docling
+    문서를 짓는 대신 헤더 배선만 검증하는 이 더블을 쓴다.
+    """
+
+    def get_image(self, document, prov_index=0):
+        from PIL import Image as PILImage
+        return PILImage.new("RGB", (2, 2))
+
+
+@pytest.mark.unit
+def test_image_description_headers_reach_request(monkeypatch):
+    m = _image_mod()
+
+    captured = {}
+
+    def _fake_api_image_request(*, image, prompt, url, timeout, headers, **params):
+        captured["_headers"] = headers
+        return "설명"
+
+    monkeypatch.setattr(m, "api_image_request", _fake_api_image_request)
+
+    opt = m.ImageDescriptionOptions.from_config(
+        image_desc_cfg={
+            "enabled": True,
+            "api_url": "http://example.invalid/vlm",
+            "api_key": "secret",
+            "headers": {"X-Tenant": "kb"},
+        },
+        fallback_api_url="", fallback_api_key="", fallback_model="model",
+    )
+    enricher = m.ImageDescriptionEnricher(opt)
+
+    result = enricher._annotate_single_picture(None, _FakeVlmItem(), "설명해줘")
+    assert result is not None
+    assert captured["_headers"]["X-Tenant"] == "kb"
+    assert captured["_headers"]["Authorization"] == "Bearer secret"
+
+
+@pytest.mark.unit
+def test_table_description_headers_reach_request(monkeypatch):
+    m = _mod()
+
+    captured = {}
+
+    def _fake_api_image_request(*, image, prompt, url, timeout, headers, **params):
+        captured["_headers"] = headers
+        return "설명"
+
+    monkeypatch.setattr(m, "api_image_request", _fake_api_image_request)
+
+    opt = m.TableDescriptionOptions.from_config(
+        table_desc_cfg={
+            "enabled": True,
+            "api_url": "http://example.invalid/vlm",
+            "api_key": "secret",
+            "headers": {"X-Tenant": "kb"},
+        },
+        fallback_api_url="", fallback_api_key="", fallback_model="model",
+    )
+    enricher = m.TableDescriptionEnricher(opt)
+
+    result = enricher._annotate_single_table(None, _FakeVlmItem(), "설명해줘", False)
+    assert result is not None
+    assert captured["_headers"]["X-Tenant"] == "kb"
+    assert captured["_headers"]["Authorization"] == "Bearer secret"

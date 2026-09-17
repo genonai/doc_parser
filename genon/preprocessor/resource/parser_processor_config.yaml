@@ -18,7 +18,9 @@ defaults:
 #   접속    url, api_key, model
 #   생성    temperature, top_p, max_tokens, thinking, thinking_dialect, repetition_penalty, seed
 #   호출    timeout, concurrency, headers, params
-#   ※ 읽는 쪽이 모르는 키는 무시된다. 예를 들어 seed 는 toc 만, concurrency 는 설명 계열만 읽는다.
+#   ※ 생성 5종과 params/headers 는 모든 enrichment 항목과 page_description 이 같게 읽는다.
+#      예외는 둘 - toc 는 params/headers/timeout 을 안 받고(호출이 docling 안에 있다),
+#      concurrency 는 설명 계열(이미지·표·페이지)만 읽는다.
 #   ※ max_tokens 는 블록에 두는 편이 안전하다 — table_text_description 은
 #      completion_reserved_tokens 와 짝을 맞춰야 배치 계산이 맞는다.
 #   ※ enable/enabled, doc_type, config_file 은 배선 키라 프리셋에 적어도 주입되지 않는다.

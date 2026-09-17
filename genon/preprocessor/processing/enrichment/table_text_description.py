@@ -292,6 +292,8 @@ class TableTextDescriptionEnricher:
             resource_path=cfg.get("resource_path"),
             output_fields=[],
             table_text_description=cfg,
+            params=cfg.get("params"),
+            headers=cfg.get("headers"),
         )
         return self._runners[key]
 

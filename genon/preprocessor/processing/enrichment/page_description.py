@@ -26,6 +26,10 @@ from PIL import Image
 from docling.utils.api_image_request import api_image_request
 from docling.utils.llm_cache import in_current_context
 
+from genon.preprocessor.processing.common.model_params import (
+    collect_generation_params,
+    resolve_headers,
+)
 from genon.preprocessor.processing.enrichment.prompt_files import read_prompt_file
 from genon.preprocessor.processing.enrichment.prompt_template import PromptTemplate
 
@@ -82,6 +86,7 @@ class PageDescriptionOptions:
     max_tokens: int = 0           # VLM 출력 토큰 상한(생성 시간↓). 0=상한 없음
     max_image_side: int = 0       # 전송 전 이미지 최대 변(px)으로 다운스케일(payload↓). 0=원본
     params: dict = field(default_factory=dict)  # 임의 VLM 파라미터 passthrough
+    headers: dict = field(default_factory=dict)  # 임의 요청 헤더(image/table description 과 동일)
 
     @classmethod
     def from_config(cls, cfg: Optional[dict], config_dir: Optional[Path]) -> "PageDescriptionOptions":
@@ -113,18 +118,16 @@ class PageDescriptionOptions:
         mode = (_tmpl_cfg.get("mode") if isinstance(_tmpl_cfg, dict) else None) \
             or cfg.get("template_mode") or "lenient"
 
-        params = cfg.get("params")
-        params = dict(params) if isinstance(params, dict) else {}
+        # 생성 파라미터(temperature/top_p/seed/repetition_penalty)는 블록 최상위 표기도
+        # 허용한다(model_params.collect_generation_params; params 하위 dict 가 이긴다).
+        # max_tokens 만은 예외다 — 아래 typed 필드가 "0=상한 없음(키 미전송)" 을 전담하므로,
+        # top-level max_tokens 는 여기서 빼고 typed 필드+조건부 주입(describe_page_images)에
+        # 맡긴다. params 하위 dict 로 명시한 max_tokens 는 탈출구라 그대로 흡수한다.
+        _gen_cfg = {k: v for k, v in cfg.items() if k != "max_tokens"}
+        params = collect_generation_params(_gen_cfg, label="page_description")
 
-        # temperature/top_p 는 블록 최상위 표기도 허용한다(params passthrough 우선).
-        for _key in ("temperature", "top_p"):
-            if _key not in params and _key in cfg:
-                try:
-                    params[_key] = float(cfg[_key])
-                except (TypeError, ValueError):
-                    _log.warning(
-                        f"[page_description] '{_key}' 값을 float 로 변환할 수 없어 무시합니다: {cfg[_key]!r}"
-                    )
+        headers = cfg.get("headers")
+        headers = dict(headers) if isinstance(headers, dict) else {}
 
         def _nonneg_int(v: Any) -> int:
             try:
@@ -146,6 +149,7 @@ class PageDescriptionOptions:
             max_tokens=_nonneg_int(cfg.get("max_tokens")),
             max_image_side=_nonneg_int(cfg.get("max_image_side")),
             params=params,
+            headers=headers,
         )
 
 
@@ -220,9 +224,7 @@ def describe_page_images(
         allowed_names={"page_text"},
     )
 
-    req_headers = {}
-    if options.api_key:
-        req_headers["Authorization"] = f"Bearer {options.api_key}"
+    req_headers = resolve_headers(None, options.api_key, base=options.headers)
     # 모델 + 임의 passthrough 파라미터 + (있으면) 출력 토큰 상한.
     req_params = dict(options.params or {})
     if options.model and "model" not in req_params:

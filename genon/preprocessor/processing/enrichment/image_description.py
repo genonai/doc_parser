@@ -32,6 +32,10 @@ from docling_core.types.doc.document import ContentLayer
 from docling.utils.api_image_request import api_image_request
 from docling.utils.llm_cache import in_current_context
 
+from genon.preprocessor.processing.common.model_params import (
+    collect_generation_params,
+    resolve_headers,
+)
 from genon.preprocessor.processing.enrichment.prompt_files import read_prompt_file
 from genon.preprocessor.processing.enrichment.prompt_template import PromptTemplate
 from genon.preprocessor.processing.enrichment.chart_detection import is_chart
@@ -214,13 +218,10 @@ class ImageDescriptionOptions:
             base_dir, chart_cfg.get("chart_prompt_file"), default=""
         )
 
-        # temperature/top_p 는 블록 최상위 표기도 허용한다(params passthrough 우선).
-        params = dict(_as_dict(image_desc_cfg.get("params")))
-        for _key in ("temperature", "top_p"):
-            if _key not in params:
-                _val = _parse_optional_float(image_desc_cfg.get(_key), _key)
-                if _val is not None:
-                    params[_key] = _val
+        # 생성 파라미터(temperature/top_p/max_tokens/seed/repetition_penalty)는 블록
+        # 최상위 표기도 허용한다(model_params.collect_generation_params; params 하위
+        # dict 가 이긴다). table_description.py 와 동일 컨벤션.
+        params = collect_generation_params(image_desc_cfg, label="image_description")
 
         return cls(
             enabled=False if enabled is None else enabled,
@@ -521,9 +522,7 @@ class ImageDescriptionEnricher:
         if image is None:
             return None
 
-        headers = dict(self.options.headers)
-        if self.options.api_key and "Authorization" not in headers:
-            headers["Authorization"] = f"Bearer {self.options.api_key}"
+        headers = resolve_headers(None, self.options.api_key, base=self.options.headers)
 
         params = dict(self.options.params)
         if self.options.model and "model" not in params:

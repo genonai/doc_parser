@@ -14,6 +14,8 @@ import httpx
 
 from docling.utils.llm_cache import cached_call, remaining_timeout
 
+from genon.preprocessor.processing.common.model_params import build_chat_payload, resolve_headers
+
 from .llm_response import chat_completion_message
 
 _log = logging.getLogger(__name__)
@@ -56,6 +58,7 @@ def summarize_body(
     max_chars: int = 6000,
     timeout: float = 360.0,
     headers: Optional[dict] = None,
+    params: Optional[dict] = None,
 ) -> str:
     """문서 본문을 1회 LLM(text-only chat) 호출로 요약. 실패 시 "" (파이프라인 비차단)."""
     full_text = collect_body_text(document, max_chars)
@@ -65,14 +68,12 @@ def summarize_body(
     prompt_tmpl = prompt_template or DEFAULT_BODY_SUMMARY_PROMPT
     prompt = prompt_tmpl.replace("{{full_text}}", full_text)
 
-    req_headers = dict(headers or {})
-    req_headers.setdefault("Content-Type", "application/json")
-    if api_key and "Authorization" not in req_headers:
-        req_headers["Authorization"] = f"Bearer {api_key}"
-    body = {
-        "model": model or "model",
-        "messages": [{"role": "user", "content": prompt}],
-    }
+    req_headers = resolve_headers({"headers": headers}, api_key)
+    body = build_chat_payload(
+        model=model or "model",
+        messages=[{"role": "user", "content": prompt}],
+        params=params,
+    )
     def _produce() -> str:
         # #329: llm_cache opt-in 시 캐시 경유. 빈 결과("")는 cached_call 이 저장하지 않는다.
         with httpx.Client(timeout=httpx.Timeout(remaining_timeout(timeout))) as client:

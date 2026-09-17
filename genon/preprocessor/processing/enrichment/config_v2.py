@@ -480,7 +480,10 @@ def _flatten_llm_item(item: dict, where: str) -> dict:
 # llm 문서형 설정의 최상위 키 → llm 항목 안에서의 자리. 지금은 아래 커버리지 집합만
 # 이 표를 읽는다 — 새 llm 키를 코드에 더하면 여기에도 넣어야 드리프트 검사가 잡는다.
 _LLM_ENDPOINT_KEYS = ("url", "api_key", "model")
-_LLM_PARAM_KEYS = ("max_tokens", "temperature", "timeout", "thinking", "thinking_dialect")
+_LLM_PARAM_KEYS = (
+    "max_tokens", "temperature", "timeout", "thinking", "thinking_dialect",
+    "top_p", "seed", "repetition_penalty", "params", "headers",
+)
 _LLM_PROMPT_KEYS = {
     "system_prompt": "system", "user_prompt": "user",
     "system_prompt_file": "system_file", "user_prompt_file": "user_file",

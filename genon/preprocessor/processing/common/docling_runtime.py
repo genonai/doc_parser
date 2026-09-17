@@ -318,6 +318,8 @@ class DoclingRuntimeBase:
             config_dir=self._config_dir,
             variables=ec.metadata.variables,
             template_mode=ec.metadata.template_mode,
+            params=ec.metadata.params,
+            headers=ec.metadata.headers,
         )
         if self._metadata_enricher_passes_thinking:
             kwargs["thinking"] = ec.metadata.thinking
