@@ -2,6 +2,17 @@ defaults:
   # 5=DEBUG, 4=INFO, 3=WARNING, 2=ERROR, 1=CRITICAL, 0=NOLOG
   log_level: 4
 
+# ── 모델 프리셋 ───────────────────────────────────────────────────────────────
+# 모델 한 벌(접속 정보 + 그 모델의 성질)을 이름 붙여 두고, 쓰는 자리에서는
+# `model_preset: <이름>` 한 줄로 부른다. 서빙 ID 나 키가 바뀌면 여기만 고치면 된다.
+# 블록에 url/api_key/model 을 직접 적는 기존 방식도 그대로 되며, 직접 적은 값이 우선한다.
+# 담을 수 있는 값과 자세한 규칙은 gitbook_doc/parser_processor.md 의 "모델 프리셋" 절 참고.
+model_presets:
+  default:
+    url: "https://genos.genon.ai/api/gateway/rep/serving/752/v1/chat/completions"
+    api_key: "d1a9e0acab6243019008a96cd8af868e"
+    model: "model"
+
 formats:
   # 비표준 확장자 별칭: "이 확장자는 어떤 포맷으로 볼 것인가" 를 한 줄로 지정한다.
   # 원천이 표준 확장자를 안 쓰는 경우(예: 마크다운+HTML 혼합 산출물이 *.parsed 로 옴)에
@@ -31,9 +42,7 @@ formats:
   ppt:
     page_description:
       enable: true
-      url: "https://genos.genon.ai/api/gateway/rep/serving/752/v1/chat/completions"
-      api_key: "d1a9e0acab6243019008a96cd8af868e"
-      model: "model"
+      model_preset: default
       timeout: 360
       concurrency: 16          # 페이지 설명 요청 병렬 수
       # 선택 튜닝: images_scale(렌더 배율) / max_image_side(전송 이미지 최대 변) / max_tokens(출력 상한) / params(추가 VLM 파라미터)
@@ -130,9 +139,7 @@ pdf_pipeline:
 enrichment:
   - toc:
       enable: false
-      url: "https://genos.genon.ai/api/gateway/rep/serving/752/v1/chat/completions"
-      api_key: "d1a9e0acab6243019008a96cd8af868e"
-      model: "model"
+      model_preset: default
       temperature: 0.0
       top_p: 0.00001
       seed: 33
@@ -159,9 +166,7 @@ enrichment:
 
   - metadata:
       enable: false
-      url: "https://genos.genon.ai/api/gateway/rep/serving/752/v1/chat/completions"
-      api_key: "d1a9e0acab6243019008a96cd8af868e"
-      model: "model"
+      model_preset: default
       max_tokens: 10000
       temperature: 0.0
       timeout: 3600
@@ -187,17 +192,13 @@ enrichment:
 
   - doc_summary:
       enable: false          # 기본 off. true 또는 런타임 doc_summary=1 로 활성화. image/table 이 공유
-      url: "https://genos.genon.ai/api/gateway/rep/serving/752/v1/chat/completions"
-      api_key: "d1a9e0acab6243019008a96cd8af868e"
-      model: "model"
+      model_preset: default
       prompt_file: prompt_doc_summary.md   # {{full_text}} 기반 문서 본문요약
       max_chars: 6000
 
   - image_description:
       enable: false
-      url: "https://genos.genon.ai/api/gateway/rep/serving/752/v1/chat/completions"
-      api_key: "d1a9e0acab6243019008a96cd8af868e"
-      model: "model"
+      model_preset: default
       # 이미지 설명 요청 병렬 수 (기본 16, 문서 내 이미지가 많을 때 처리속도에 영향)
       concurrency: 16
       before_items: 3
@@ -212,9 +213,7 @@ enrichment:
 
   - table_description:
       enable: false          # 기본 off(회귀 없음). true 또는 런타임 table_desc=1 로 활성화
-      url: "https://genos.genon.ai/api/gateway/rep/serving/752/v1/chat/completions"
-      api_key: "d1a9e0acab6243019008a96cd8af868e"
-      model: "model"
+      model_preset: default
       concurrency: 8         # 표 설명 요청 병렬 수
       before_items: 3
       after_items: 2
@@ -240,9 +239,7 @@ enrichment:
   # 표당 산출량(아래 rag 값)을 늘리면 배치가 작아지고 호출 수가 늘어난다.
   - table_text_description:
       enable: true
-      url: "https://genos.genon.ai/api/gateway/rep/serving/752/v1/chat/completions"
-      api_key: "d1a9e0acab6243019008a96cd8af868e"
-      model: "model"
+      model_preset: default
       max_tokens: 16000       # 응답 상한. 배치당 표 개수는 이 값이 정한다
       concurrency: 8          # 표 설명 배치 병렬 호출 수
       temperature: 0.0
@@ -357,9 +354,7 @@ enrichment:
   # ── authors 데모(기존) — 카드 추출 데모용 임시 off ──
   - custom_fields:
       enable: false
-      url: "https://genos.genon.ai/api/gateway/rep/serving/752/v1/chat/completions"
-      api_key: "d1a9e0acab6243019008a96cd8af868e"
-      model: "model"
+      model_preset: default
       max_tokens: 1000
       temperature: 0.0
       timeout: 60
