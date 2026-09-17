@@ -396,7 +396,15 @@ class GenosLayoutOptions(BaseModel):
     # 큐 대기 시간까지 포함되므로 너무 짧으면 정상 다(多)페이지 문서가 죽을 수 있어
     # 500~600 은 위험. 출력 잘림은 max_completion_tokens 가 정하지 timeout 이 아님.
     timeout: int = 1200
-    retry_count: int = 2  # Number of retries on abnormal VLM responses
+    # Retries on transient transport failures (429/502/503/504, connection errors).
+    # A runaway response (finish_reason == "length") or a read timeout is NOT retried - the
+    # same prompt would run away again, so those fall back to layout_only instead (#278).
+    retry_count: int = 2
+    # Retry policy hook. When set, the VLM call is run through this callable so the host
+    # application decides what counts as transient and how long to wait.
+    # Signature: (send: Callable[[], T], *, retries: int) -> T
+    # Left unset, the call runs once exactly as before.
+    retry_runner: Optional[Any] = None
     temperature: float = 0.1
     top_p: float = 0.9
     repetition_penalty: float = 1.15  # >1.0 to suppress VLM token-repetition degeneration

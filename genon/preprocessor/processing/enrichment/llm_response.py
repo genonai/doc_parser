@@ -20,10 +20,11 @@ body_summary 는 동기 호출이라 이미 HTTP 응답을 기다리는 동안(�
 재시도가 없으면 일시적 실패 하나로 문서 요약이 통째로 비고, 그 결과가 이미지·표 설명
 프롬프트의 `{{doc_summary}}` 로 전파된다 — 그래서 body_summary 도 이 재시도 경로를 쓴다.
 
-`retry_once_sync` 는 동기 재시도 정책(1회, 대상 상태 번호, deadline 확인, 대기 계산)만 뽑아
-낸 헬퍼다. `post_chat_completion_sync` 가 이걸 쓰고, VLM 이미지 설명 공용 함수
-(`enrichment/image_request.py`)도 같은 정책을 쓴다 — 요청을 만드는 방식(chat completion vs
-이미지 프롬프트)이 다를 뿐 "일시적 실패면 한 번만 더" 라는 판정은 완전히 같다.
+`retry_sync` 는 동기 재시도 정책(대상 상태 번호, deadline 확인, 대기 계산)만 뽑아 낸
+헬퍼다. `post_chat_completion_sync` 와 VLM 이미지 설명 공용 함수
+(`enrichment/image_request.py`)가 이걸 쓴다 — 요청을 만드는 방식(chat completion vs 이미지
+프롬프트)이 다를 뿐 "일시적 실패면 다시 부른다" 라는 판정은 완전히 같다. 횟수만 인자로
+받는다(기본 1회). 설정으로 횟수를 받는 호출부가 있어서다 — layout 의 `retry_count`.
 
 VLM 쪽(`docling.utils.api_image_request`)은 httpx 가 아니라 `requests` 를 쓰므로
 `is_retryable` 도 `requests` 의 예외를 함께 안다.
@@ -129,31 +130,42 @@ def post_chat_completion_sync(
     return retry_once_sync(_send)
 
 
-def retry_once_sync(send: Callable[[], Any]) -> Any:
-    """`send()` 를 부르고, 일시적 실패면 한 번만 다시 부른다. 결과(또는 예외)를 그대로 돌려준다.
+def retry_sync(send: Callable[[], Any], *, retries: int = 1) -> Any:
+    """`send()` 를 부르고, 일시적 실패면 최대 `retries` 번 다시 부른다.
 
     `send` 는 인자 없는 호출 가능 객체다 — 재시도마다 같은 호출을 그대로 반복해야 하므로
     호출부가 자신의 요청 조립(payload/timeout 재계산 등)을 클로저에 담아 넘긴다.
 
-    정책은 `post_chat_completion`/`post_chat_completion_sync` 와 완전히 같다: 재시도는
-    한 번뿐이고, `is_retryable` 이 참일 때만, 대기(`_retry_delay`) 후에도 요청 deadline 이
-    남아 있을 때만(`_deadline_allows`) 다시 부른다. `time.sleep` 을 쓰므로 호출 스레드를
-    막는다 — 동기 호출부(표/이미지/페이지 설명, body_summary)가 이미 그렇게 동작하는 이유는
-    모듈 docstring 을 참조.
+    판정은 `post_chat_completion`(async 판)과 완전히 같다: `is_retryable` 이 참일 때만,
+    대기(`_retry_delay`) 후에도 요청 deadline 이 남아 있을 때만(`_deadline_allows`) 다시
+    부른다. `time.sleep` 을 쓰므로 호출 스레드를 막는다 — 동기 호출부(표/이미지/페이지 설명,
+    body_summary)가 이미 그렇게 동작하는 이유는 모듈 docstring 을 참조.
+
+    Args:
+        retries: 재시도 **횟수**(총 호출 수가 아니다). 기본 1 이라 인자를 안 주면 종전과 같다.
+            0 이면 재시도하지 않는다. layout 처럼 설정으로 횟수를 받는 호출부가 이 값을 넘긴다.
     """
+    limit = max(0, int(retries))
     attempt = 0
     while True:
         attempt += 1
         try:
             return send()
         except Exception as exc:
-            if attempt > 1 or not is_retryable(exc):
+            if attempt > limit or not is_retryable(exc):
                 raise
             delay = _retry_delay(exc)
             if not _deadline_allows(delay):
                 raise
-            _log.warning(f"[llm] 일시적 실패로 {delay:.1f}초 후 한 번 더 호출합니다: {exc}")
+            _log.warning(
+                f"[llm] 일시적 실패로 {delay:.1f}초 후 다시 호출합니다"
+                f"({attempt}/{limit}): {exc}"
+            )
             time.sleep(delay)
+
+
+#: 옛 이름. 재시도 1회가 기본이라 동작이 같다.
+retry_once_sync = retry_sync
 
 
 def is_retryable(exc: BaseException) -> bool:

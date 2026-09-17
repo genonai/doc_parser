@@ -125,6 +125,8 @@ class GenosDotsOCRLayoutModel(BasePageModel):
             )
             retry_count = 2
         self.retry_count = max(0, retry_count)
+        # 재시도 판정·대기는 호스트가 쥔다(genon 전처리기의 공용 정책). 미설정이면 1회 호출.
+        self.retry_runner = getattr(self.dotsocr_options, "retry_runner", None)
         self.temperature = getattr(self.dotsocr_options, "temperature", 0.1)
         self.top_p = getattr(self.dotsocr_options, "top_p", 0.9)
         self.repetition_penalty = getattr(
@@ -628,6 +630,34 @@ class GenosDotsOCRLayoutModel(BasePageModel):
             )
             placed_badges.append(selected_box)
 
+    def _call_vlm(self, prompt: str, base64_image: str):
+        """VLM 을 부른다. 통합 프롬프트와 layout_only 폴백이 같은 이 자리를 지난다.
+
+        일시적 전송 실패(429/502/503/504·연결 실패)는 `retry_count` 만큼 다시 부른다.
+        판정과 대기는 호스트가 넣어 준 `retry_runner` 가 한다 — 전처리기의 다른 모델 호출과
+        같은 정책을 쓰기 위해서다. 미설정이면 1회만 부른다(업스트림·단독 사용 보존).
+
+        폭주(`finish_reason == "length"`)와 read timeout 은 여기서 재시도하지 않는다.
+        같은 프롬프트로 다시 보내면 또 폭주하므로 호출부가 layout_only 로 폴백한다(#278).
+        """
+        def _send():
+            return call_vlm_server(
+                prompt=prompt,
+                base64_image=base64_image,
+                url=self.dotocr_endpoint,
+                api_key=self.api_key,
+                model=self.model,
+                max_completion_tokens=self.max_completion_tokens,
+                timeout=self.timeout,
+                temperature=self.temperature,
+                top_p=self.top_p,
+                repetition_penalty=self.repetition_penalty,
+            )
+
+        if self.retry_runner is None or self.retry_count <= 0:
+            return _send()
+        return self.retry_runner(_send, retries=self.retry_count)
+
     def _process_page(self, conv_res: ConversionResult, page: Page) -> Page:
         assert page._backend is not None
         if not page._backend.is_valid():
@@ -658,18 +688,7 @@ class GenosDotsOCRLayoutModel(BasePageModel):
             do_fallback = False
             _vlm_started_at = time.monotonic()
             try:
-                response_text, usage, finish_reason = call_vlm_server(
-                    prompt=prompt,
-                    base64_image=base64_image,
-                    url=self.dotocr_endpoint,
-                    api_key=self.api_key,
-                    model=self.model,
-                    max_completion_tokens=self.max_completion_tokens,
-                    timeout=self.timeout,
-                    temperature=self.temperature,
-                    top_p=self.top_p,
-                    repetition_penalty=self.repetition_penalty,
-                )
+                response_text, usage, finish_reason = self._call_vlm(prompt, base64_image)
                 if not isinstance(response_text, str) or not response_text.strip():
                     raise ValueError("Empty VLM response text")
                 if finish_reason == "length":
@@ -978,18 +997,7 @@ class GenosDotsOCRLayoutModel(BasePageModel):
             buf.seek(0)
             fb_b64 = base64.b64encode(buf.getvalue()).decode("utf-8")
 
-            text, _usage, _fr = call_vlm_server(
-                prompt=prompt_layout_only,
-                base64_image=fb_b64,
-                url=self.dotocr_endpoint,
-                api_key=self.api_key,
-                model=self.model,
-                max_completion_tokens=self.max_completion_tokens,
-                timeout=self.timeout,
-                temperature=self.temperature,
-                top_p=self.top_p,
-                repetition_penalty=self.repetition_penalty,
-            )
+            text, _usage, _fr = self._call_vlm(prompt_layout_only, fb_b64)
             items = _extract_layout_result_items(_parse_vlm_json_response(text))
             if not isinstance(items, list):
                 return None, None
@@ -1140,7 +1148,11 @@ prompt_layout_only = """Please output the layout information from this PDF image
 
 
 class VLMReadTimeout(Exception):
-    """VLM 응답이 read timeout 내 안 옴(엔드포인트는 살아있음). 폴백 트리거용."""
+    """VLM 응답이 read timeout 내 안 옴(엔드포인트는 살아있음). 폴백 트리거용.
+
+    이 예외는 재시도 대상이 아니다 — 같은 프롬프트를 다시 보내면 또 같은 시간을 쓴다.
+    호스트가 넣어 주는 재시도 판정(`retry_runner`)도 이 타입을 모르므로 그대로 올라간다.
+    """
 
 
 def call_vlm_server(

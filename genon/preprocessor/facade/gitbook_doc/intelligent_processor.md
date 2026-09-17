@@ -187,7 +187,7 @@ layout:
     max_completion_tokens: 16384
     model: "dots-mocr"          # 서빙 모델명
     timeout: 3600               # VLM 요청 타임아웃(초)
-    retry_count: 2              # 비정상 VLM 응답 재시도 횟수
+    retry_count: 2              # 일시적 전송 실패(502 등) 재시도 횟수. 폭주·타임아웃은 재시도 대신 폴백
     temperature: 0.1            # 생성 temperature
     top_p: 0.9                  # 생성 top_p (0<top_p<=1)
     repetition_penalty: 1.15    # >1.0, 토큰 반복(degeneration) 억제 (아래 가이드 참조)
@@ -348,7 +348,7 @@ enrichment:
 | `layout.genos_layout.max_completion_tokens` | layout LLM 최대 생성 토큰. 양의 정수, 유효하지 않거나 0 이하이면 16384 폴백 | 16384 |
 | `layout.genos_layout.model` | 서빙 모델명. 비어있으면 `dots-mocr` 폴백 | `"dots-mocr"` |
 | `layout.genos_layout.timeout` | VLM 요청 HTTP 타임아웃(초). 유효하지 않거나 0 이하이면 3600 폴백 | 3600 |
-| `layout.genos_layout.retry_count` | 비정상(스키마 불일치 등) VLM 응답 재시도 횟수. 음수/오류 시 2 폴백 | 2 |
+| `layout.genos_layout.retry_count` | 일시적 전송 실패(429/502/503/504·연결 실패) 재시도 횟수. 폭주(`finish_reason=="length"`)와 읽기 타임아웃은 재시도하지 않고 `layout_only` 로 폴백합니다. 음수/오류 시 2 폴백 | 2 |
 | `layout.genos_layout.temperature` | 생성 샘플링 temperature. 음수/오류 시 0.1 폴백 | 0.1 |
 | `layout.genos_layout.top_p` | nucleus 샘플링 top_p. `0<top_p<=1` 아니면 0.9 폴백 | 0.9 |
 | `layout.genos_layout.repetition_penalty` | 토큰 반복(degeneration) 억제. `>0`, 유효하지 않으면 1.15 폴백. **자세한 사용은 아래 가이드 참조** | 1.15 |
@@ -358,7 +358,7 @@ enrichment:
 
 #### `repetition_penalty` 사용 가이드
 
-**무엇을 막는가** — DotsOCR(VLM)이 OCR 도중 특정 토큰·구절에 갇혀, 같은 내용을 `max_completion_tokens`(기본 16384)에 도달할 때까지 끝없이 반복 생성하는 현상(*degeneration*, 반복 붕괴)을 억제합니다. 증상은 DEBUG 로그(`defaults.log_level: 5`)의 `dotsocr raw response (page=N, ...)` 출력에서 한 `text` 필드가 `"휴식, 휴식, 휴식, ..."`처럼 무한 반복되는 형태로 나타납니다. 이 반복이 **유효한 JSON 문자열 안**에 들어가면 파싱이 성공해 `retry_count` 재시도로도 걸러지지 않으므로, 생성 단계에서 억제하는 `repetition_penalty`가 1차 방어선입니다.
+**무엇을 막는가** — DotsOCR(VLM)이 OCR 도중 특정 토큰·구절에 갇혀, 같은 내용을 `max_completion_tokens`(기본 16384)에 도달할 때까지 끝없이 반복 생성하는 현상(*degeneration*, 반복 붕괴)을 억제합니다. 증상은 DEBUG 로그(`defaults.log_level: 5`)의 `dotsocr raw response (page=N, ...)` 출력에서 한 `text` 필드가 `"휴식, 휴식, 휴식, ..."`처럼 무한 반복되는 형태로 나타납니다. 이 반복이 **유효한 JSON 문자열 안**에 들어가면 파싱이 성공합니다. `retry_count` 재시도는 전송 실패에만 걸리므로 이 경우를 잡지 못하고, 생성 단계에서 억제하는 `repetition_penalty`가 1차 방어선입니다.
 
 **동작 원리** — 이미 생성된 토큰이 다시 나올 확률(logit)을 나눠 낮춥니다. `1.0`이면 페널티 없음(원본 모델 그대로), `1.0`보다 클수록 반복 억제가 강해집니다.
 
