@@ -31,7 +31,7 @@ def test_chunk_without_table_is_marked_false():
     builder = _Builder().set_table_info([_text()])
     assert builder.has_table is False
     assert builder.table_refs is None
-    assert builder.table_split_index is None
+    assert builder.table_split_index == -1
 
 
 @pytest.mark.unit
@@ -57,7 +57,7 @@ def test_split_pieces_get_increasing_index_within_one_document():
 def test_unsplit_table_has_no_piece_index():
     builder = _Builder().set_table_info([_table("#/tables/0")], {"#/tables/0": 1}, {})
     assert builder.has_table is True
-    assert (builder.table_split_index, builder.table_split_total) == (None, None)
+    assert (builder.table_split_index, builder.table_split_total) == (-1, -1)
 
 
 @pytest.mark.unit
@@ -66,7 +66,7 @@ def test_multiple_tables_in_one_chunk_have_no_piece_index():
     builder = _Builder().set_table_info(
         [_table("#/tables/0"), _table("#/tables/1")], {"#/tables/0": 2}, {})
     assert json.loads(builder.table_refs) == ["#/tables/0", "#/tables/1"]
-    assert builder.table_split_index is None
+    assert builder.table_split_index == -1
 
 
 @pytest.mark.unit
@@ -74,7 +74,7 @@ def test_missing_split_totals_still_fills_refs():
     """청커가 기록을 남기지 않는 경로(첨부 등)에서도 표 식별은 된다."""
     builder = _Builder().set_table_info([_table("#/tables/0")])
     assert builder.has_table is True
-    assert builder.table_split_total is None
+    assert builder.table_split_total == -1
 
 
 # ─── 설정 해석 ────────────────────────────────────────────────────────────────
