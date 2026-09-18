@@ -533,13 +533,13 @@ class TestShippedCardConfigSelfContained:
 
     def _enricher(self, resource_dir):
         from pathlib import Path
-        from shipped_config import _sibling_presets
+        from shipped_config import sibling_presets
         base = Path(__file__).resolve().parents[2] / resource_dir
         # 기동 경로와 같게 프리셋을 함께 넘긴다 — 카드 설정의 접속 정보는
         # 프로세서 설정의 `model_presets.default` 에서 온다.
         return CustomFieldsEnricher(
             config_file="custom_field_card.yaml", resource_path=str(base),
-            model_presets=_sibling_presets(base / "custom_field_card.yaml"),
+            model_presets=sibling_presets(base / "custom_field_card.yaml"),
         )
 
     def test_prompts_are_inline(self, resource_dir):

@@ -1,36 +1,9 @@
-# 이벤트 JSON 레코드 → TB_EVENT 목표필드 직접 매핑 (모니모)
+# 이벤트 JSON 레코드
 #
-# 사용 (parser_processor_config.yaml):
-#   - custom_fields:
-#       enable: true
-#       doc_type: monimo_event
-#       extractor: json_mapping
-#       config_file: custom_field_monimo_event.yaml
-#
-# 원천: monimo_rag_adev_yyyymmdd_full_001.json (공통, 전 관계사 혼재)
-#
-# 이 파일 하나로 자족한다 — 별도 프롬프트 md 나 LLM config yaml 이 필요 없다.
-#   요약 생성에 쓰는 LLM 연결/프롬프트까지 아래 llm_fields 안에 인라인되어 있다.
-#   (프롬프트가 길거나 여러 doc_type 이 공유한다면 llm_fields 항목에 config_file 을 대신 써도 된다
-#    — custom_field_card.yaml 과 같은 방식. 두 방식은 같은 코드 경로로 처리된다.)
-#
-# 목표필드명은 TB_EVENT 컬럼명(대문자)을 그대로 쓴다.
-#
-# 입력 예시(협의용 한글 키 표기):
-#   {"eventList": [{"ID": "CM26061182", "회사명": "모니모", "제목": "…",
-#                   "이벤트 시작일": "26.07.01", "이벤트 종료일": "26.07.31",
+# 입력 예시:
+#   {"eventList": [{"cmpCntsId": "CM26061182", "mnmFncoCd": "모니모", "evtTodayMainCopy": "…",
+#                   "evtPtrmStrtDt": "26.07.01", "evtPtrmEndDt": "26.07.31",
 #                   "wcmsHtml": {"htmlText": "<div>이벤트 상세 …</div>"}}]}
-#
-# 실 payload(원천 화면에서 확인): 키가 영문 camelCase 이고 회사명 필드가 없다.
-#   {"resultCode": "0000", "eventList": [
-#     {"cmpId": "M261106191", "cmsId": "3750598", "evtTodayMainCopy": "하이마트 구독을 …",
-#      "evtHeaderTopTitle": "하이마트 구독을 가볍게 ", "evtHeaderTitle": "… <br/>…",
-#      "evtTodaySubCopy": "26.07.01~26.07.31", "evtPtrmStrtDt": "20260710",
-#      "evtPtrmEndDt": "20261111", "evtDvC": "F", "buttonLink": "https://…",
-#      "wcmsHtml": {"htmlText": "<div class=\"box940 mt0\">…"}}]}
-#   → 두 표기를 모두 받도록 key_map 별칭에 실 payload 키를 함께 등록해 두었다.
-#      샘플: sample_files/monimo/monimo_event_real_sample.json (실 스키마)
-#            sample_files/json/monimo_event_sample.json        (한글 키 표기)
 
 schema: v2
 source:
@@ -67,9 +40,6 @@ fields:
     alias: [evnKndCd]
   CAMPAIGN_C:
     alias: [cmpCode]
-  # DETAIL_HTML 과 **같은 원천**을 한 번 더 읽어 평문 사본을 만든다. 원본 HTML 은
-  # metadata 로만 싣고 임베딩 입력은 이 평문을 쓴다.
-  # `html_text` 는 HTML 로 강제 평문화한다(표·목록 구조 유지).
   DETAIL_TEXT:
     alias: [cmp_desc, htmlText, 상세내용]
     transform: html_text

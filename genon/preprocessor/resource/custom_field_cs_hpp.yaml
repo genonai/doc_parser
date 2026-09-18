@@ -59,69 +59,54 @@
 # 그대로 실리므로 필터 검색은 전 청크에서 된다).
 
 schema: v2
+# 고객센터(카드) 문서구조 v2
 source:
-  kind: document
-  pre:
-    # 이 원천은 h태그가 h1 하나뿐이고 화면상 계층을 도형 마커(◈ ▣ ■)로만 표현한다.
-    # 켜 두면 표 밖 마커 소제목을 heading 으로 승격해 섹션 경계를 되살린다.
-    # 같은 문서가 html 로도, 그 md 산출물(*.parsed)로도 들어오므로 두 포맷에 모두 건다.
-    html:
-      marker_headings: true
-    markdown:
-      marker_headings: true
+  kind: records
+  on_missing: error
 fields:
+  BIZ_ID:
+    alias: [ID, id]
+    default: null
   GROUP_C:
+    alias: [회사명, company, corp_code]
     const: HPP
+    values:
+      IFP: [모니모]
+      SLF: [삼성생명, 생명]
+      SSF: [삼성화재, 화재]
+      HPP: [삼성카드, 카드]
+      SSS: [삼성증권, 증권]
+  CS_CTGR_L1:
+    alias: [ORN_NM, 대분류]
+    default: null
+  CS_CTGR_L2:
+    alias: [LV2_THEMA_TERY_NM, 중분류]
+    default: null
+  CS_CTGR_L3:
+    alias: [소분류]
+    default: null
+  TITLE:
+    alias: [TIT_NM, 제목, 대표질문]
+  CONTENT:
+    alias: [CONT, 안내본문, 답변]
+    transform: html_text
+  RELATED_KEYWORDS:
+    alias: [KEYW_LIS]
+    default: null
+    transform: [{name: to_json, key: "KEYW_LIS"}]
+  DEEP_LINK_URL:
+    alias: [딥링크, 앱 딥링크]
+    default: null
+  SRC_LAST_MOD_DT:
+    alias: [UD_DTM]
+    default: null
+require:
+  fields: [TITLE]
 body:
-  once: [CS_CATEGORY, TITLE]
+  fields: [CS_CTGR_L1, TITLE, CONTENT]
   labels:
-    CS_CATEGORY: 문의유형
+    CS_CTGR_L1: 문의유형
     TITLE: 제목
-  mirror_to: [CONTENT]
-llm:
-- out: [BIZ_ID, CS_CATEGORY, TITLE, DEEP_LINK_URL, RELATED_KEYWORDS, SRC_LAST_MOD_DT]
-  parser:
-    type: json
-  endpoint:
-    model_preset: default
-  params:
-    max_tokens: 4000
-    temperature: 0.0
-    timeout: 300
-  prompt:
-    system: |
-      너는 카드 고객센터 안내문 정보추출 전문가다. 주어진 고객센터 안내 페이지에서 요청한 필드를 정확하게 추출한다.
-
-      규칙:
-      - 반드시 하나의 JSON 객체만 반환한다. 설명 문구·마크다운 코드펜스 없이 순수 JSON 만 출력한다.
-      - 요청된 6개 키를 모두 포함한다. 문서에서 근거를 찾을 수 없는 값은 null 로 둔다.
-      - 문서에 없는 정보를 지어내지 않는다(환각 금지). 금액·기간·비율은 원문 숫자를 그대로 쓴다.
-
-      필드별 형식:
-      - `BIZ_ID`: 문서 상단 메타정보의 문서ID 문자열. 없으면 null.
-      - `CS_CATEGORY`: 문의유형(카테고리) 문자열. "결제/환불 > 카드 결제 취소" 처럼 상위>하위 표기가
-        있으면 그대로 유지한다. 없으면 null.
-      - `TITLE`: 대표질문 한 문장. 검색 결과 목록에 그대로 노출되는 제목이다. 반드시 채운다.
-      - `DEEP_LINK_URL`: 앱에서 여는 화면 주소(딥링크). 문서에 URL 이나 앱 경로가 있으면 그 값.
-        없으면 null.
-      - `RELATED_KEYWORDS`: 이 항목을 찾을 때 쓸 연관 검색어 문자열 배열. 3~8개.
-        동의어·구어체 표현을 포함하고, 문서에 근거가 없는 상품명을 지어내지 않는다.
-      - `SRC_LAST_MOD_DT`: 최종 수정일. 문서에 최종 수정이 있으면 추출.
-
-      출력 예시 형식(값은 예시):
-      {"BIZ_ID": "CS-HPP-0012", "CS_CATEGORY": "결제/환불 > 카드 결제 취소", "TITLE": "카드 결제를 취소했는데 언제 환불되나요?", "DEEP_LINK_URL": null, "RELATED_KEYWORDS": ["결제취소", "환불 기간", "승인취소"], "SRC_LAST_MOD_DT": 20240601}
-    user: |
-      아래 카드 고객센터 안내 문서에서 다음 6개 필드를 추출하라.
-
-      - BIZ_ID (문서ID)
-      - CS_CATEGORY (문의유형)
-      - TITLE (대표질문) — 필수
-      - DEEP_LINK_URL (앱 딥링크)
-      - RELATED_KEYWORDS (연관 키워드 배열)
-      - SRC_LAST_MOD_DT (최종 수정일)
-
-      반드시 위 6개 키를 모두 가진 하나의 JSON 객체로만 반환하라.
-
-      <document>
-      {{raw_text}}
-      </document>
+    CONTENT: 내용
+  split: true
+  repeat: [CS_CTGR_L1, TITLE]

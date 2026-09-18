@@ -478,7 +478,6 @@ _REQUIRED_BY_DOC_TYPE = {
     "custom_field_menu.yaml":          ["GROUP_C", "MENU_NM"],
     "custom_field_term.yaml":          ["GROUP_C", "TERM", "TERM_NORM", "DEFINITION", "STATUS"],
     "custom_field_faq.yaml":           ["GROUP_C", "QUESTION", "ANSWER", "STATUS"],
-    "custom_field_faq_json.yaml":      ["GROUP_C", "QUESTION", "ANSWER", "STATUS"],
     "custom_field_monimo_event.yaml":  ["GROUP_C", "TITLE"],
     "custom_field_monimo_news.yaml":   ["GROUP_C", "TITLE"],
     "custom_field_cs_slf.yaml":        ["GROUP_C", "TITLE"],

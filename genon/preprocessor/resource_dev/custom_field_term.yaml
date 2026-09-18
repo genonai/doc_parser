@@ -1,16 +1,6 @@
-# 금융용어사전 Excel 행 → TB_TERM 목표필드 직접 매핑 (모니모)
+# 금융용어사전 Excel 행
 #
-# 사용 (parser_processor_config.yaml):
-#   - custom_fields:
-#       enable: true
-#       doc_type: term
-#       extractor: tabular_mapping
-#       config_file: custom_field_term.yaml   # resource_path 자동 = 이 yaml 파일 디렉토리
-#
-# 원천: monimo_rag_adfg_yyyymmdd_full_001.xlsx (공통, 전 관계사 혼재)
-# 헤더: ID | 회사명 | 용어(국문) | 정의·설명 | 최종수정일 | 노출여부
-#       정의 컬럼은 가운뎃점("정의·설명")이다. 아래 별칭에 두 표기를 모두 넣어둔다.
-#       메뉴 시트와 마찬가지로 실제 헤더가 6행이다(1~5행은 메타 영역).
+# 헤더: ID | 회사명 | 용어(국문) | 정의·설명 | 최종수정일
 
 schema: v2
 source:

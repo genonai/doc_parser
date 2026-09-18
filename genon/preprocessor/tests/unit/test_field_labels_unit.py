@@ -217,7 +217,7 @@ _LABEL_EXEMPT_FIELDS = {"CS_CATEGORY"}
 
 @pytest.mark.unit
 @pytest.mark.parametrize("name", [
-    "custom_field_faq.yaml", "custom_field_faq_json.yaml", "custom_field_cs_sss.yaml",
+    "custom_field_faq.yaml", "custom_field_cs_sss.yaml",
     "custom_field_cs_slf.yaml", "custom_field_cs_ssf.yaml",
     # monimo_news 는 원천이 레코드 배열에서 HTML 문서 한 건으로 바뀌면서 본문 필드
     # (text_fields)가 없는 `kind: html` 설정이 됐다. 검사 대상이 아니다.
@@ -232,39 +232,3 @@ def test_shipped_configs_name_every_body_field(name):
     missing = [f for f in body_fields
                if f not in labels and f not in _LABEL_EXEMPT_FIELDS]
     assert not missing, f"{name}: {missing} 에 항목명이 없습니다."
-
-
-@pytest.mark.unit
-def test_faq_xlsx_and_faq_json_agree_on_labels():
-    """같은 doc_type 이 원천 포맷에 따라 다른 본문 모양을 내지 않는다(이 작업의 출발점)."""
-    # 출고 설정은 v2 표기다. 이 검사는 "무엇을 만드는가"를 보는 것이라 표기와 무관해야
-    # 하므로, 매퍼가 하는 것과 같은 번역을 거쳐 내부 형태로 맞춘 뒤 비교한다.
-    tabular = _load_shipped("custom_field_faq.yaml")
-    json_cfg = _load_shipped("custom_field_faq_json.yaml")
-    assert tabular["field_labels"] == json_cfg["field_labels"]
-    assert tabular["text_fields"] == json_cfg["text_fields"]
-
-
-@pytest.mark.unit
-def test_shipped_faq_configs_produce_the_same_chunk_text():
-    """설정만이 아니라 두 매퍼의 실제 산출 본문이 같은지 확인한다."""
-    record = {"id": "1", "corp_code": "IFP", "depth3": "가입",
-              "depth4": "가입은 어떻게 하나요?", "description": "앱에서 가입할 수 있습니다."}
-    json_mapper = JsonRecordsMapper(
-        config_file="custom_field_faq_json.yaml", resource_path=str(RESOURCE_DIR),
-        doc_type="faq", extractor="json_mapping",
-    )
-    # 출고 설정의 records 키(faqMenuList)로 감싼다 — 원천 JSON 과 같은 모양.
-    json_rows = json_mapper.build_fields({"faqMenuList": [record]}, "faq")
-    json_text = json_mapper.to_parse_format(json_rows, "faq")["elements"][0]["content"]
-
-    tabular_mapper = TabularCustomFieldsMapper(
-        doc_type="faq", extractor="tabular_mapping",
-        config_file="custom_field_faq.yaml", resource_path=str(RESOURCE_DIR),
-    )
-    tabular_out = tabular_mapper.to_parse_format(
-        {"data": [{"sheet_name": "FAQ", "data_rows": [record]}]}, "faq")
-    tabular_text = tabular_out["elements"][0]["content"]
-
-    assert json_text == tabular_text
-    assert json_text == "질문: 가입은 어떻게 하나요?\n답변: 앱에서 가입할 수 있습니다."

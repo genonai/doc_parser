@@ -57,7 +57,6 @@ CASES = [
     ("menu",          MONIMO / "monimo_menu_sample.xlsx",              "행 1개 = 청크 1개"),
     ("term",          MONIMO / "monimo_term_sample.xlsx",              "행 1개 = 청크 1개"),
     ("faq",           MONIMO / "monimo_faq_sample.xlsx",               "tabular_mapping"),
-    ("faq",           MONIMO / "monimo_faq_json_sample.json",          "json_mapping"),
     ("monimo_event",  SAMPLES / "json" / "monimo_event_sample.json",   "협의용 한글 키 표기"),
     ("monimo_event",  MONIMO / "monimo_event_real_sample.json",        "실 payload 스키마"),
     ("monimo_event",  MONIMO / "monimo_event_table_sample.json",       "5열 표 빈 셀 보존"),

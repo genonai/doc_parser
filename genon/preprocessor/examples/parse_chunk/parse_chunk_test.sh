@@ -59,7 +59,6 @@ MONIMO_CASES=(
   "menu:${MONIMO}/monimo_menu_sample.xlsx"
   "term:${MONIMO}/monimo_term_sample.xlsx"
   "faq:${MONIMO}/monimo_faq_sample.xlsx"
-  "faq:${MONIMO}/monimo_faq_json_sample.json"
   "monimo_event:../../sample_files/json/monimo_event_sample.json"
   "monimo_event:${MONIMO}/monimo_event_real_sample.json"
   # 실 WCMS 마크업(evant.html) 재현 — 5열 표의 빈 셀까지 살아나오는지 본다.

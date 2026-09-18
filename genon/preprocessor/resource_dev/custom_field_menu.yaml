@@ -1,21 +1,6 @@
-# 메뉴서비스 Excel 행 → TB_MENU 목표필드 직접 매핑 (모니모)
-#
-# 사용 (parser_processor_config.yaml):
-#   - custom_fields:
-#       enable: true
-#       doc_type: menu
-#       extractor: tabular_mapping
-#       config_file: custom_field_menu.yaml   # resource_path 자동 = 이 yaml 파일 디렉토리
-#
-# 원천: monimo_rag_adme_yyyymmdd_full_001.xlsx (공통, 전 관계사 혼재)
+# 메뉴서비스 Excel 행
 # 헤더: ID | 회사명 | 메뉴 중분류 | 메뉴 소분류 | 메뉴명 | 서비스 개요 | 서비스 주요 기능 |
-#       서비스 이용가능 대상 | 서비스 이용방법 | 접근 경로 | 서비스 URL | 개발계 URL |
-#       최종수정일 | 노출여부
-#
-# 원천 xlsx 는 1~5행이 메타 영역(검토 및 요청사항 / 예상 파일명 / 임베딩컬럼여부)이고
-#    실제 헤더가 6행이다. xlsx_processor 의 헤더 자동판정이 이를 잡지 못하면
-#    formats.xlsx.tabular.header_row 로 지정해야 한다(프로세서 전역 설정).
-
+#       서비스 이용가능 대상 | 서비스 이용방법 | 접근 경로 | 서비스 URL | 개발계 URL | 최종수정일 | 노출여부
 schema: v2
 source:
   kind: rows
@@ -60,6 +45,12 @@ fields:
 require:
   fields: [GROUP_C, MENU_NM]
 body:
-  fields: [MENU_NM, SERVICE_DESC, SERVICE_FEATURES, ELIGIBLE_TARGET, USAGE_METHOD]
+  fields: [MENU_NM, SERVICE_DESC, SERVICE_FEATURES, USAGE_METHOD, ACCESS_PATH]
   split: true
+  labels:
+    MENU_NM: 메뉴명
+    SERVICE_DESC: 서비스 개요
+    SERVICE_FEATURES: 주요기능
+    USAGE_METHOD: 이용방법
+    ACCESS_PATH: 접근경로
   repeat: [MENU_NM]

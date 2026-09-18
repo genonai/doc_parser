@@ -437,12 +437,12 @@ def test_registered_block_json_is_refused(tmp_path):
         build_json_text_specs([block])
 
 
+# product_hpp 는 빠졌다 — 사이트 설정이 `kind: sections` 로 바뀌어 JSON 을 섹션 매퍼가
+# 직접 읽는다. 문서형 본문 키(`source.pre.json`)를 쓰지 않으므로 검사 대상이 아니다.
 @pytest.mark.parametrize("resource_dir, name, doc_types", [
     ("resource", "custom_field_card.yaml", ("card",)),
-    ("resource", "custom_field_product_hpp.yaml", ("product_hpp",)),
     ("resource", "custom_field_research_report.yaml", ("research_report",)),
     ("resource_dev", "custom_field_card.yaml", ("card",)),
-    ("resource_dev", "custom_field_product_hpp.yaml", ("product_hpp",)),
 ])
 def test_shipped_configs_keep_json_body_keys(resource_dir, name, doc_types):
     """등록 블록에서 옮겨 온 본문 키가 출고 설정에 그대로 남아 있어야 한다.

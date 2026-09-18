@@ -1,15 +1,6 @@
-# CustomFieldsEnricher 외부 config — 상품설명서(생명) 문서 단위 메타데이터 추출
+# 상품설명서(생명) 문서 단위 메타데이터 추출
 #
-# 사용 (parser_processor_config.yaml):
-#   - custom_fields:
-#       enable: true
-#       doc_type: product_slf
-#       extractor: llm
-#       config_file: custom_field_product_slf.yaml   # resource_path 자동 = 이 yaml 디렉토리
-#
-# 원천: slf_rag_adpr_yyyymmdd_xxxxx_001.md (S3://os-tifa-slf/FAO/ADPR)
-#
-# MD 표준안(상품 시트 "표준안 GPT 5.6 sol"):
+# MD 표준안:
 #   frontmatter(file / document_type / source_file / source_pages / author / created_at /
 #               conversion_note)
 #   → `# {상품명} 상품요약서`
@@ -18,13 +9,13 @@
 #   → `## 내용 색인`
 #   → `원문 전사` / `원문 N쪽 - {소제목}`
 #
+
 schema: v2
 source:
   kind: document
   pre:
     markdown:
       front_matter:
-        # 어느 front matter 키에서 가져올지는 아래 `fields.<목표>.alias` 에 적는다.
         exclude_text_fields: ['*']
         on_missing: warn
       text_fence:
@@ -35,26 +26,23 @@ fields:
   created_date:
     alias: [created_at]
     transform: date_int_flex
+  # LLM 도 뽑지만 front matter 값이 우선(default < LLM < front matter < const).
   PRODUCT_C:
     alias: [product_code]
-    # const 는 LLM 결과를 덮는다(default < LLM < front matter < const). 여기 값을 고정하려는
-    # 것이 아니라 "못 찾으면 null" 이므로 default 여야 한다.
     default: null
   GROUP_C:
     const: SLF
   SALE_STATUS:
     const: SALE
   BIZ_ID:
-    const: null
+    default: null
   PRODUCT_ATTRS:
     alias: [created_at]
-    transform: date_int_flex
-# 작성일은 문서 1건에 하나뿐이라 청크마다 반복할 이유가 없다. 첫 청크에만 1회 싣는다 —
-# 값 자체는 모든 청크 metadata 에 실리므로 필터 검색은 전 청크에서 된다.
+    transform: [date_int_flex, {name: to_json, key: "created_at"}]
 body:
-  once: [PRODUCT_ATTRS]
+  once: [created_date]
   labels:
-    PRODUCT_ATTRS: 출시일
+    created_date: 출시일
 llm:
 - out: [PRODUCT_C, PRODUCT_NM, PRODUCT_ATTRS]
   parser:
@@ -80,16 +68,16 @@ llm:
       - `PRODUCT_NM`: 상품명 문자열. 문서 제목(H1)의 상품명을 쓰되 "상품요약서" 같은 문서종류
         표기는 뺀다. 예: "# 삼성 s교통상해보험(2501)(무배당) 상품요약서" → "삼성 s교통상해보험(2501)(무배당)".
         반드시 채운다.
-      - `PRODUCT_ATTRS`: 출시일 문자열. frontmatter 나 본문에서 created_at 있으면 그 값.
+      - `PRODUCT_ATTRS`: 상품의 출시일. 본문에 created_at가 있는 날짜를 추출한다.
 
       출력 예시 형식(값은 예시):
-      {"PRODUCT_C": "30387", "PRODUCT_NM": "삼성 s교통상해보험(2501)(무배당)", "PRODUCT_ATTRS": 20260710}
+      {"PRODUCT_C": "30387", "PRODUCT_NM": "삼성 s교통상해보험(2501)(무배당)", "PRODUCT_ATTRS": 20060305}
     user: |
       아래 보험 상품요약서에서 다음 3개 필드를 추출하라.
 
-      - PRODUCT_C (상품코드)
+      - PRODUCT_C (상품코드) — 필수
       - PRODUCT_NM (상품명) — 필수
-      - PRODUCT_ATTRS (출시일)
+      - PRODUCT_ATTRS (출시일) — 필수
 
       반드시 위 3개 키를 모두 가진 하나의 JSON 객체로만 반환하라.
 

@@ -91,9 +91,9 @@ def resource_dir() -> Path:
 def cases_for(only: list[str] | None) -> list[tuple]:
     """(doc_type, 샘플, 비고, 이 샘플을 지배하는 custom_field yaml stem).
 
-    doc_type 하나에 yaml 이 둘인 경우가 있어(faq: xlsx->faq / json->faq_json,
-    product_hpp: md->llm / json->json_semantic) 확장자로 고른다. 이것을 빼먹으면
-    "이 doc_type 은 최소화 대상이 아니다" 라는 보고가 틀린다.
+    doc_type 하나에 yaml 이 둘 등록될 수 있어(원천 확장자별 분기) 확장자로 고른다.
+    지금 출고 설정에는 그런 doc_type 이 없지만, 생겼을 때 "이 doc_type 은 최소화
+    대상이 아니다" 라는 보고가 틀리지 않게 규칙은 그대로 둔다.
     """
     blocks = verify.load_custom_field_blocks()
     out = []

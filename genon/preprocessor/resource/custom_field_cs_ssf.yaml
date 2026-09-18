@@ -1,46 +1,15 @@
-# 고객센터(화재) 구분자 원천 → TB_CS_ITEM 목표필드 매핑 (모니모)
-#
-# 사용 (parser_processor_config.yaml):
-#   - custom_fields:
-#       enable: true
-#       doc_type: cs_ssf
-#       extractor: json_mapping
-#       config_file: custom_field_cs_ssf.yaml
-#
-# 원천: NCCO.ANYBOO.KLIST_YYYYMMDD.CSV.dtms (약 200MB, 레코드 약 3만 건)
-#   확장자 .dtms 는 parser_processor_config.yaml 의 formats.extension_aliases 로 받는다.
+# 고객센터(화재) 구분자 원천
 #
 # 원천 한 줄의 모양 — 헤더 없이 데이터부터 시작한다.
 #   대분류|@|중분류|@|소분류|@|제목|@|"<style>…<table>…</table>"
-#   · 필드 구분자는 쉼표가 아니라 |@| 다(본문 HTML 에 쉼표가 대량으로 들어 있다).
-#   · 마지막 내용 필드만 큰따옴표로 인용되고, 그 안의 개행은 레코드 내부 개행이다.
-#   · 소분류는 비어 있을 수 있다(대분류|@|중분류|@||@|제목 … 형태).
-#
-# 앞선 판(xlsx 행 매핑)에서 바뀐 점
-#   원천이 xlsx 가 아니라 구분자 텍스트로 확정되어 kind 를 rows -> records 로 옮겼다.
-#   컬럼 별칭도 문서 구조에서 유추한 잠정값(대표질문·안내본문 등) 대신 실제 필드명을 쓴다.
-#
-# 요약본문(SUMMARY_TEXT) LLM 생성은 뺐다.
-#   llm 블록은 레코드마다 1회 호출이라 3만 건이면 3만 회가 된다. 되살리려면 아래 body 에
-#   SUMMARY_TEXT 를 넣고 llm 블록을 추가하되, 먼저 호출량과 비용을 산정할 것.
-#   표 검색 설명은 파서의 table_text_description 이 배치로 붙이므로 이와 무관하게 동작한다.
-#
-# 확인 필요: 원천에 레코드 식별자(PK)가 없다. 재적재 시 중복 판정 기준을 세울 수 없으므로
-#   원천에 ID 컬럼을 요청하거나 대체 키를 합의해야 한다.
 
 schema: v2
-
-# 표 설명(프로세서 공통 table_text_description)을 이 문서유형에서만 끈다.
-# 원천이 200MB / 레코드 약 3만 건이라 표가 수만 개다. 켜 두면 LLM 호출이 수천 건이 되어
-# 적재 시간이 몇 시간 단위로 늘어난다. 필요하면 요청 kwargs `table_text_desc=1` 로 그때만 켠다.
-table_text_description:
-  enable: false
-
+# table_text_description:
+#   enable: false
 source:
   kind: records
   # 원천을 레코드 목록으로 바꾸는 전처리. columns 순서가 곧 원천의 필드 순서다.
   # 파일을 통째로 메모리에 올리지 않고 줄 단위로 읽는다.
-  # 인코딩은 utf-8-sig -> utf-8 -> cp949 순으로 자동 판정한다(encoding 으로 고정 가능).
   pre:
     delimited:
       separator: "|@|"
@@ -53,7 +22,6 @@ fields:
     const: SSF
   CS_CTGR_L1:
     alias: [대분류]
-    default: null
   CS_CTGR_L2:
     alias: [중분류]
     default: null
@@ -63,11 +31,6 @@ fields:
   TITLE:
     alias: [제목]
     transform: text_norm
-  # 원본 HTML. 청크마다 복제되면 산출이 크게 부풀므로 본문에는 싣지 않는다.
-  # DETAIL_HTML:
-  #   alias: [내용]
-  # 같은 원천을 한 번 더 읽어 평문 사본을 만든다. html_text 는 표·목록 구조를 유지한다.
-  # 임베딩 입력은 이쪽을 쓴다.
   CONTENT:
     alias: [내용]
     transform: html_text
@@ -80,7 +43,7 @@ fields:
   SRC_LAST_MOD_DT:
     default: null
 require:
-  fields: [GROUP_C, TITLE]
+  fields: [GROUP_C]
 body:
   fields: [CS_CTGR_L1, TITLE, CONTENT]
   labels:

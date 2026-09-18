@@ -106,89 +106,74 @@ enrichment:
         include_search_terms: false
         repeat_context_on_split: true
 
-  # ── 모니모 15종 문서유형 custom_fields (2026-08-16 추가) ────────────────────
-  # 출력 필드명은 모니모 적재 스키마(TB_*)의 DB 컬럼명(대문자)을 그대로 쓴다.
-  # 공통 파일(메뉴·용어사전·FAQ·이벤트·관심소식)은 회사명 컬럼 + value_map 으로 GROUP_C 를
-  # 코드화하고, 관계사 전용 파일은 config 의 constants 로 GROUP_C 를 고정한다.
-  # 각 doc_type 의 추출항목 근거는 shkim_labs/_prompt/20260813_monimo_json.md 참고.
-  # 메뉴서비스 — 공통 xlsx 행별 매핑 (KEYWORDS/SUMMARY_TEXT 는 llm_fields 로 생성)
+  # ── 모니모 13종 문서유형 custom_fields (2026-08-16 추가) ────────────────────
+  # 메뉴서비스
   - custom_fields:
       enable: true
       doc_type: menu
-      config_file: custom_field_menu.yaml   # resource_path 자동 = 이 yaml 파일 디렉토리
-  # 용어사전 — 공통 xlsx 행별 매핑 (TERM_NORM 은 text_norm transform, SYNONYMS 는 llm_fields)
+      config_file: custom_field_menu.yaml
+  # 용어사전
   - custom_fields:
       enable: true
       doc_type: term
-      config_file: custom_field_term.yaml   # resource_path 자동 = 이 yaml 파일 디렉토리
-  # FAQ — 원천 확장자 미정이라 xlsx/json 두 경로를 같은 doc_type 으로 함께 등록한다.
-  # 파서가 확장자로 분기하므로 충돌하지 않는다. 포맷 확정 후 안 쓰는 쪽을 enable:false 로 내릴 것.
+      config_file: custom_field_term.yaml
+  # FAQ
   - custom_fields:
       enable: true
       doc_type: faq
-      config_file: custom_field_faq.yaml   # resource_path 자동 = 이 yaml 파일 디렉토리
-  - custom_fields:
-      enable: true
-      doc_type: faq
-      config_file: custom_field_faq_json.yaml   # resource_path 자동 = 이 yaml 파일 디렉토리
-  # 이벤트 — JSON 레코드별 매핑. 레코드 1건 = 청크 1개, 요약본문(SUMMARY_TEXT)은 LLM 생성
+      config_file: custom_field_faq.yaml
+  # 이벤트
   - custom_fields:
       enable: true
       doc_type: monimo_event
-      config_file: custom_field_monimo_event.yaml   # resource_path 자동 = 이 yaml 파일 디렉토리
-  # 관심소식 — 이벤트와 같은 eventList 구조. TB_NEWS 컬럼(KEYW_CTGR_NM/CN_URL/NEWS_TO)로 매핑
+      config_file: custom_field_monimo_event.yaml
+  # 관심소식
   - custom_fields:
       enable: true
       doc_type: monimo_news
-      config_file: custom_field_monimo_news.yaml   # resource_path 자동 = 이 yaml 파일 디렉토리
-  # 상품설명서 생명/화재 — 전처리된 MD 문서 단위 LLM 추출
+      config_file: custom_field_monimo_news.yaml
+  # 상품설명서 생명/화재
   - custom_fields:
       enable: true
       doc_type: product_slf
-      config_file: custom_field_product_slf.yaml   # resource_path 자동 = 이 yaml 파일 디렉토리
+      config_file: custom_field_product_slf.yaml
   - custom_fields:
       enable: true
       doc_type: product_ssf
-      config_file: custom_field_product_ssf.yaml   # resource_path 자동 = 이 yaml 파일 디렉토리
-  # 상품설명서 카드 — custom_field_card.yaml 의 TB_PRODUCT 정합 후속본
+      config_file: custom_field_product_ssf.yaml
+  # 상품설명서 카드
   - custom_fields:
       enable: true
       doc_type: product_hpp
-      config_file: custom_field_product_hpp.yaml   # resource_path 자동 = 이 yaml 파일 디렉토리
-  # 삼성카드 WCMS JSON — 상품 1건(JSON 파일 1개)을 성격별 섹션(혜택 상세/상품 문서 …)으로
-  # 나눠 섹션마다 검색 청크 1건을 만든다.
-  - custom_fields:
-      enable: true
-      doc_type: product_hpp
-      config_file: custom_field_product_hpp_semantic.yaml
-  # 고객센터 생명/화재 — xlsx 행별 매핑 (원천 확장자 '미정' — 확정 시 재검토)
+      config_file: custom_field_product_hpp.yaml
+  # 고객센터 생명/화재
   - custom_fields:
       enable: true
       doc_type: cs_slf
-      config_file: custom_field_cs_slf.yaml   # resource_path 자동 = 이 yaml 파일 디렉토리
+      config_file: custom_field_cs_slf.yaml
   - custom_fields:
       enable: true
       doc_type: cs_ssf
-      config_file: custom_field_cs_ssf.yaml   # resource_path 자동 = 이 yaml 파일 디렉토리
-  # 고객센터 카드 — html 문서 단위 LLM 추출
+      config_file: custom_field_cs_ssf.yaml
+  # 고객센터 카드
   - custom_fields:
       enable: true
       doc_type: cs_hpp
-      config_file: custom_field_cs_hpp.yaml   # resource_path 자동 = 이 yaml 파일 디렉토리
-  # 고객센터 증권 — JSON 레코드별 매핑
+      config_file: custom_field_cs_hpp.yaml
+  # 고객센터 증권
   - custom_fields:
       enable: true
       doc_type: cs_sss
-      config_file: custom_field_cs_sss.yaml   # resource_path 자동 = 이 yaml 파일 디렉토리
-  # AI 차트뷰 — xlsx 행별 매핑. 세부내용 JSON 을 요약해 SUMMARY_TEXT 생성
+      config_file: custom_field_cs_sss.yaml
+  # AI 차트뷰
   - custom_fields:
       enable: true
       doc_type: stock_insight
-      config_file: custom_field_stock_insight.yaml   # resource_path 자동 = 이 yaml 파일 디렉토리
+      config_file: custom_field_stock_insight.yaml
   - custom_fields:
       enable: true
       doc_type: research_report
-      config_file: custom_field_research_report.yaml   # resource_path 자동 = 이 yaml 파일 디렉토리
+      config_file: custom_field_research_report.yaml
 
 output:
   format: "docling" # "json" (default), "html", "markdown", "docling"

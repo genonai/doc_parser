@@ -1,10 +1,10 @@
-"""출고 삼성카드 WCMS 상품 설정(custom_field_product_hpp_semantic.yaml)의 실제 매핑 회귀 테스트.
+"""출고 삼성카드 WCMS 상품 설정(custom_field_product_hpp.yaml)의 실제 매핑 회귀 테스트.
 
 이 파일은 예전에 json_mapping(레코드 모드) 시절의 custom_field_product_hpp_json.yaml 을
 검증했다. 그 설정은 삭제됐고(레코드 1건 = 상품 1건이라는 전제가, 성격이 다른 내용이 섞인
 카드 WCMS JSON 에는 맞지 않아 json_semantic 으로 교체됐다 — json_semantic.py 모듈 docstring
 참고) parser_processor_config*.yaml 의 product_hpp 항목도 extractor: json_semantic +
-config_file: custom_field_product_hpp_semantic.yaml 을 가리키도록 바뀌었다. 이 파일은 그
+config_file: custom_field_product_hpp.yaml 을 가리키도록 바뀌었다. 이 파일은 그
 출고 설정을 실제 두 샘플로 재검증한다.
 """
 import json
@@ -18,10 +18,18 @@ SAMPLE = PREPROCESSOR_DIR / "sample_files/monimo/monimo_product_hpp_wcms_sample.
 MINIMAL_SAMPLE = PREPROCESSOR_DIR / "sample_files/monimo/monimo_product_hpp_sample.json"
 
 
+CONFIG_NAME = "custom_field_product_hpp.yaml"
+
+
 def _build_result(sample_path: Path):
+    from shipped_config import sibling_presets
+
+    # 설정의 `endpoint.model_preset` 은 기동 때 프로세서 설정의 `model_presets:` 로 펼쳐진다.
+    # 여기서 주지 않으면 참조가 그대로 남아 "config_file 또는 url 이 필요하다" 로 갈린다.
     mapper = SemanticJsonMapper(
-        config_file="custom_field_product_hpp_semantic.yaml",
+        config_file=CONFIG_NAME,
         resource_path=str(RESOURCE_DIR),
+        model_presets=sibling_presets(RESOURCE_DIR / CONFIG_NAME),
         doc_type="product_hpp",
         extractor="json_semantic",
     )
@@ -91,12 +99,15 @@ def test_product_hpp_wcms_sample_maps_to_sections():
         assert metadata.get("PRODUCT_C") == "AAP1344"
         assert metadata.get("BIZ_ID") == "1202631"
         assert metadata.get("GROUP_C") == "HPP"
-        # SALE_STATUS는 원천 유무와 무관하게 기존 적재 계약의 고정값을 유지한다.
-        assert metadata.get("SALE_STATUS") == "ON_SALE"
-        # PRODUCT_ATTRS 는 llm 이 유일한 출처다 — 설정의 fields 에 두지 않으므로
-        # LLM 을 부르지 않는 이 경로에서는 값이 실리지 않는다. 원천 benefit 배열로
-        # 되채우면 "원천 값이 먼저 채워졌다가 llm 결과에 덮이는" 순서 의존이 되살아난다.
-        assert metadata.get("PRODUCT_ATTRS") is None
+        # SALE_STATUS 는 원천에 값이 없을 때 채우는 기본값이다. 사이트 설정이 적재 코드값
+        # `SALE` 로 바꿨다(custom_field_product_hpp.yaml 의 `defaults`).
+        assert metadata.get("SALE_STATUS") == "SALE"
+        # PRODUCT_ATTRS 는 llm 이 만든 FEE 를 `pack` 으로 묶은 값이다. 원천에서 채우지
+        # 않으므로(설정의 shared_fields 에 없다) LLM 을 부르지 않는 이 경로에서는 키만
+        # 있고 값이 null 인 JSON 이 실린다 — pack 은 적재 스키마를 고정하는 자리라
+        # 값이 없다고 키를 빼지 않는다. 원천 benefit 배열로 되채우면 "원천 값이 먼저
+        # 채워졌다가 llm 결과에 덮이는" 순서 의존이 되살아난다.
+        assert metadata.get("PRODUCT_ATTRS") == '{"FEE": null}'
 
 
 def test_product_hpp_minimal_sample_yields_sections():

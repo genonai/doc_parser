@@ -107,9 +107,11 @@ class TestChunkerAndProcessorContract:
 @pytest.mark.parametrize(
     "yaml_name,key,expected",
     [
-        # TITLE 은 사이트 운영 설정(263f53ea)이 첫 청크 접두에 함께 넣었다.
-        ("custom_field_cs_hpp.yaml", "first_chunk_fields", ["CS_CATEGORY", "TITLE"]),
-        ("custom_field_product_hpp.yaml", "chunk_prefix_fields", ["PRODUCT_NM"]),
+        # cs_hpp 는 JSON 레코드 매핑으로 바뀌면서 분류·제목을 매 청크에 반복한다
+        # (yaml `body.repeat`). 레코드마다 값이 달라 첫 청크 1회로는 식별이 안 된다.
+        ("custom_field_cs_hpp.yaml", "chunk_prefix_fields", ["CS_CTGR_L1", "TITLE"]),
+        # product_hpp 는 연회비를 첫 섹션 청크에만 1회 싣는다(yaml `body.once`).
+        ("custom_field_product_hpp.yaml", "first_chunk_fields", ["FEE"]),
     ],
 )
 def test_operational_yaml_declares_prefix_fields(yaml_name, key, expected):

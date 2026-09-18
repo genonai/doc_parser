@@ -75,6 +75,14 @@ schema: v2
 #   repeat: [TITLE]
 # ── 참고 끝 ──────────────────────────────────────────────────────────────────
 
+# 문서구조 v3, html 방식{
+#   "wcmsData": {
+#     "html": {
+#       "content": "<div> ... </div>"
+#     },
+#     "json": {}
+#   }
+# }
 source:
   kind: html
   pre:
@@ -84,12 +92,10 @@ source:
       body_from: [content]
       format: auto
       # skip: 경고만 남기고 빈 문서로 진행 / error: 그 문서의 파싱을 실패시킨다.
-      # 이 원천은 content 가 곧 문서 전체라, 비어 있는 건을 조용히 색인하는 것이 문제가
-      # 된다면 error 로 올린다.
       on_missing: skip
 
-# `select` 는 원천 HTML 의 어디서 값을 가져올지 적는 자리다(레코드 원천의 `alias` 와 같은
-# 역할). 요건표가 지목한 class 와 속성을 그대로 쓴다 - 아래 이름은 전부 원천 마크업에
+# `select` 는 원천 HTML 의 어디서 값을 가져올지 적는 자리다(레코드 원천의 `alias` 와 같은 역할).
+# 요건표가 지목한 class 와 속성을 그대로 쓴다 - 아래 이름은 전부 원천 마크업에
 # 있는 그대로이고, `newslertter-` 의 오타도 원천 그대로다.
 fields:
   BIZ_ID:
@@ -111,10 +117,8 @@ fields:
   DETAIL:
     select: .newslertter-article-content
   SOURCE:
-    # 원천에서 주석 처리되어 오는 문서가 있다. 그 경우 값은 비고 경고가 남는다.
     select: .newsletter-source
 body:
-  # 첫 청크 앞에 카테고리·제목을 한 번 붙여 검색어가 본문과 같은 청크에 있게 한다.
   once: [CATEGORY, TITLE]
   labels:
     CATEGORY: 카테고리
