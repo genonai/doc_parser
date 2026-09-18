@@ -89,7 +89,6 @@ class DocumentProcessor(ParserCore):
     #       return await self.document_to_response(job, doc)
 
     ROUTES = (
-        ((".wav", ".mp3", ".m4a"),         "route_audio"),    # 음성 전사
         ((".csv", ".xlsx", ".xlsm"),       "route_tabular"),  # 표 파일
         ((".hwp", ".hwpx", ".hml"),        "route_hwp"),
         ((".docx",),                       "route_docx"),
