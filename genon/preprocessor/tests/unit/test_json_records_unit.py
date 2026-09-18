@@ -654,12 +654,12 @@ def test_shipped_monimo_event_config_loads(resource_dir):
     assert mapper.records_key == "eventList"
     # LLM 요약 설정이 비활성화된 현재 출고 설정은 평문화한 상세 원문을 검색 본문으로 쓴다.
     # TB_* 의 CONTENT_HASH 는 RAW(32) 원문 검증 해시이므로 임베딩 입력이 아니다.
-    assert mapper.text_fields == ["TITLE", "DETAIL_TEXT"]
-    assert mapper.chunk_prefix_fields == ["TITLE"]
+    assert mapper.text_fields == ["CUSTOM_TITLE", "DETAIL_TEXT"]
+    assert mapper.chunk_prefix_fields == ["CUSTOM_TITLE"]
     assert "CONTENT_HASH" not in mapper.key_map
 
     # llm_fields 는 모델서빙이 배정되기 전까지 주석으로 내려둘 수 있다(현재 resource/ 가 그 상태).
-    # 그때는 SUMMARY_TEXT 가 비고 text_fields 의 TITLE 만 본문에 남는다 — yaml 주석이 그 상황을
+    # 그때는 SUMMARY_TEXT 가 비고 text_fields 의 CUSTOM_TITLE 만 본문에 남는다 — yaml 주석이 그 상황을
     # 전제로 제목을 앞에 두고 있고, 로더도 경고만 남기고 통과한다
     # (test_custom_fields_routing.test_unproducible_text_field_warns_but_loads).
     # 선언되어 있다면 자족해야 한다 — LLM 연결·프롬프트가 이 파일 안에 인라인되어 있고
@@ -680,7 +680,7 @@ def test_shipped_monimo_event_config_maps_real_payload_schema(resource_dir):
     """출고 yaml 이 실 payload(영문 camelCase 키) 스키마를 매핑하는지.
 
     원천 화면에서 확인한 키(cmpId / evtTodayMainCopy / evtHeaderTopTitle / evtPtrmStrtDt …)는
-    협의용 한글 키와 표기가 다르고 회사명 필드가 없다. 별칭이 빠지면 TITLE 이 null 이 되어
+    협의용 한글 키와 표기가 다르고 회사명 필드가 없다. 별칭이 빠지면 CUSTOM_TITLE 이 null 이 되어
     전 레코드가 조용히 skip 되므로(그러면 청크 0건) 여기서 고정한다.
     샘플 파일을 그대로 읽어 config 와 픽스처가 따로 흘러가지 않게 한다.
     """
@@ -700,17 +700,17 @@ def test_shipped_monimo_event_config_maps_real_payload_schema(resource_dir):
 
     fields_list = mapper.build_fields(payload, "monimo_event")
 
-    # 3번째 레코드는 어느 설정에서든 제목 계열 키가 없어 required(TITLE) 로 skip 된다.
+    # 3번째 레코드는 어느 설정에서든 제목 계열 키가 없어 required(CUSTOM_TITLE) 로 skip 된다.
     # 2번째는 evtTodayMainCopy 가 없어 evtHeaderTopTitle 별칭이 있어야 잡힌다 — 그 별칭을
     # 선언하지 않은 설정에서는 함께 skip 되는 것이 설정대로의 동작이므로 기대값을 설정에서 뽑는다.
     has_header_fallback = bool(
-        set(mapper.key_map["TITLE"]) & {"evtHeaderTopTitle", "evtHeaderTitle"}
+        set(mapper.key_map["CUSTOM_TITLE"]) & {"evtHeaderTopTitle", "evtHeaderTitle"}
     )
     assert len(fields_list) == (2 if has_header_fallback else 1)
 
     first = fields_list[0]
     # BIZ_ID 별칭은 사이트 운영 설정(커밋 263f53ea)이 cmpCntsId 로 바꿨다. 실 payload 에는
-    # 그 키가 없어 값이 비는데, 어느 원천 키를 업무키로 쓸지는 설정의 소관이므로 위 TITLE
+    # 그 키가 없어 값이 비는데, 어느 원천 키를 업무키로 쓸지는 설정의 소관이므로 위 CUSTOM_TITLE
     # 별칭과 같은 방식으로 기대값을 설정에서 뽑는다.
     src_record = next(v for v in payload.values() if isinstance(v, list))[0]
     biz_expected = next(
@@ -719,7 +719,7 @@ def test_shipped_monimo_event_config_maps_real_payload_schema(resource_dir):
         None,
     )
     assert first["BIZ_ID"] == biz_expected
-    assert first["TITLE"] == "하이마트 구독을 가볍게 매월 최대2만원 까지 혜택"   # evtTodayMainCopy 우선
+    assert first["CUSTOM_TITLE"] == "하이마트 구독을 가볍게 매월 최대2만원 까지 혜택"   # evtTodayMainCopy 우선
     assert first["EVENT_FROM"] == 20260710                 # evtPtrmStrtDt (8자리 압축)
     assert first["EVENT_TO"] == 20261111                   # evtPtrmEndDt
     # 실 payload 에 회사명이 없어도 defaults→value_map 으로 표준 코드가 채워진다.
@@ -739,7 +739,7 @@ def test_shipped_monimo_event_config_maps_real_payload_schema(resource_dir):
     # evtTodayMainCopy 가 없으면 evtHeaderTopTitle 로 내려가고, 시작일이 없으면 0 이다.
     if has_header_fallback:
         second = fields_list[1]
-        assert second["TITLE"] == "여름 휴가 주유 캐시백"
+        assert second["CUSTOM_TITLE"] == "여름 휴가 주유 캐시백"
         assert second["EVENT_FROM"] == 0
         assert second["EVENT_TO"] == 20260831
 

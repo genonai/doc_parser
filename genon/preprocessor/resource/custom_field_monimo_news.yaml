@@ -105,7 +105,7 @@ fields:
     default: IFP
   USE_YN:
     default: Y
-  TITLE:
+  CUSTOM_TITLE:
     select: .new-banner-headline
   CATEGORY:
     # 이 값만 텍스트가 아니라 wrap div 의 속성에 있다.
@@ -119,7 +119,7 @@ fields:
   SOURCE:
     select: .newsletter-source
 body:
-  once: [CATEGORY, TITLE]
+  once: [CATEGORY, CUSTOM_TITLE]
   labels:
     CATEGORY: 카테고리
-    TITLE: 제목
+    CUSTOM_TITLE: 제목

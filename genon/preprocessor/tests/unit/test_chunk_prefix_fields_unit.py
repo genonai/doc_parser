@@ -109,7 +109,7 @@ class TestChunkerAndProcessorContract:
     [
         # cs_hpp 는 JSON 레코드 매핑으로 바뀌면서 분류·제목을 매 청크에 반복한다
         # (yaml `body.repeat`). 레코드마다 값이 달라 첫 청크 1회로는 식별이 안 된다.
-        ("custom_field_cs_hpp.yaml", "chunk_prefix_fields", ["CS_CTGR_L1", "TITLE"]),
+        ("custom_field_cs_hpp.yaml", "chunk_prefix_fields", ["CS_CTGR_L1", "CUSTOM_TITLE"]),
         # product_hpp 는 연회비를 첫 섹션 청크에만 1회 싣는다(yaml `body.once`).
         ("custom_field_product_hpp.yaml", "first_chunk_fields", ["FEE"]),
     ],

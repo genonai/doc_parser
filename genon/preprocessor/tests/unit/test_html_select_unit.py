@@ -187,7 +187,7 @@ def test_shipped_monimo_news_selectors_compile_and_cover_the_requirement(resourc
 
     assert extractor == "html_select"
     compiled = html_select.compile_selectors(internal, label="monimo_news")
-    assert set(compiled) == {"TITLE", "CATEGORY", "SUMMARY", "DETAIL", "SOURCE"}
+    assert set(compiled) == {"CUSTOM_TITLE", "CATEGORY", "SUMMARY", "DETAIL", "SOURCE"}
     # 카테고리만 속성에서 온다. 나머지는 요소 텍스트다.
     assert compiled["CATEGORY"]["attr"] == "newsletter-title"
     assert [t for t, s in compiled.items() if s["attr"]] == ["CATEGORY"]
@@ -207,7 +207,7 @@ def test_shipped_monimo_news_extracts_from_the_source_shape(resource_dir):
         SAMPLE, html_select.compile_selectors(internal, label="monimo_news")
     )
 
-    assert values["TITLE"] == "계산대 없는 무인가게"
+    assert values["CUSTOM_TITLE"] == "계산대 없는 무인가게"
     assert values["CATEGORY"] == "이슈산책"
     assert values["SUMMARY"] == "요약 문단이다."
     assert "소제목" in values["DETAIL"]
@@ -328,7 +328,7 @@ def test_shipped_selectors_extract_from_the_sample_file():
     """출고 선택자를 원천 샘플에 그대로 걸어 다섯 값을 확인한다."""
     values = html_select.extract_fields(_news_sample_content(), _shipped_selectors())
 
-    assert values["TITLE"] == "계산대 없는 무인가게, 누가 열고 누가 찾을까요?"
+    assert values["CUSTOM_TITLE"] == "계산대 없는 무인가게, 누가 열고 누가 찾을까요?"
     assert values["CATEGORY"] == "이슈산책"
     assert values["SUMMARY"].startswith("삼성카드 데이터랩이 2022년 6월부터")
     assert len(values["SUMMARY"]) == 182

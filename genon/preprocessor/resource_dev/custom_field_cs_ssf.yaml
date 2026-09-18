@@ -28,7 +28,7 @@ fields:
   CS_CTGR_L3:
     alias: [소분류]
     default: null
-  TITLE:
+  CUSTOM_TITLE:
     alias: [제목]
     transform: text_norm
   CONTENT:
@@ -45,10 +45,10 @@ fields:
 require:
   fields: [GROUP_C]
 body:
-  fields: [CS_CTGR_L1, TITLE, CONTENT]
+  fields: [CS_CTGR_L1, CUSTOM_TITLE, CONTENT]
   labels:
     CS_CTGR_L1: 문의유형
-    TITLE: 제목
+    CUSTOM_TITLE: 제목
     CONTENT: 내용
   split: true
-  repeat: [CS_CTGR_L1, TITLE]
+  repeat: [CS_CTGR_L1, CUSTOM_TITLE]

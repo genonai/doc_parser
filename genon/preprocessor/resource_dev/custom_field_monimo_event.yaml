@@ -23,7 +23,7 @@ fields:
       SLF: [2, "02", 삼성생명, 생명]
       SSF: [3, "03", 삼성화재, 화재]
       SSS: [4, "04", 삼성증권, 증권]
-  TITLE:
+  CUSTOM_TITLE:
     alias: [text, 제목, title, evtTodayMainCopy]
     transform: text_norm
   EVENT_FROM:
@@ -44,11 +44,11 @@ fields:
     alias: [cmp_desc, htmlText, 상세내용]
     transform: html_text
 require:
-  fields: [TITLE]
+  fields: [CUSTOM_TITLE]
 body:
-  fields: [TITLE, DETAIL_TEXT]
+  fields: [CUSTOM_TITLE, DETAIL_TEXT]
   labels:
-    TITLE: 제목
+    CUSTOM_TITLE: 제목
     DETAIL_TEXT: 상세내용
   split: true
-  repeat: [TITLE]
+  repeat: [CUSTOM_TITLE]

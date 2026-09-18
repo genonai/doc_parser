@@ -161,23 +161,23 @@ def _assert_row_path_record_split(rows: list[dict], long_id: str, short_id: str,
 
     # 4) 분할 조각은 원 레코드의 metadata 를 그대로 물려받는다(적재 측이 조각을 묶는 근거).
     assert all(r.get("doc_type") == doc_type for r in rows)
-    for key in ("GROUP_C", "TITLE"):
+    for key in ("GROUP_C", "CUSTOM_TITLE"):
         values = {r.get(key) for r in long_rows}
         assert len(values) == 1, f"{long_id} 조각들의 {key} 가 갈렸습니다: {values}"
 
     # 제목은 metadata 에만 남아서는 안 된다. 각 청크 접두에 반복돼 독립 검색 결과로도
-    # 무엇에 대한 본문인지 식별할 수 있어야 한다. 출고 설정이 TITLE 에 항목명을 주므로
-    # 접두 줄은 `제목: <TITLE>` 형태다(field_labels).
+    # 무엇에 대한 본문인지 식별할 수 있어야 한다. 출고 설정이 CUSTOM_TITLE 에 항목명을 주므로
+    # 접두 줄은 `제목: <CUSTOM_TITLE>` 형태다(field_labels).
     #
-    # 접두 안에서 TITLE 이 몇 번째 줄인지는 설정의 `body.repeat` 순서가 정한다
-    # (cs_sss 는 [CS_CATEGORY, TITLE] 이라 1행이 분류다). 그래서 선두 고정이 아니라
+    # 접두 안에서 CUSTOM_TITLE 이 몇 번째 줄인지는 설정의 `body.repeat` 순서가 정한다
+    # (cs_sss 는 [CS_CATEGORY, CUSTOM_TITLE] 이라 1행이 분류다). 그래서 선두 고정이 아니라
     # 접두 구역 안에 있는지를 본다 - 설정이 접두 필드 순서를 바꿔도 끌려다니지 않는다.
-    title = long_rows[0]["TITLE"]
+    title = long_rows[0]["CUSTOM_TITLE"]
     title_lines = {title, f"제목: {title}"}
     assert all(
         title_lines & set(r["text"].splitlines()[:_PREFIX_SCAN_LINES])
         for r in long_rows
-    ), f"{long_id} 분할 조각 중 TITLE 접두가 없는 청크가 있습니다"
+    ), f"{long_id} 분할 조각 중 CUSTOM_TITLE 접두가 없는 청크가 있습니다"
 
 
 @pytest.mark.unit
@@ -206,14 +206,14 @@ def test_cs_hpp_chunks_respect_chunk_size():
 
     # 원천에 레코드 식별자가 없어(BIZ_ID 별칭 `ID`/`id` 미제공) 제목으로 가른다.
     _assert_row_path_record_split(
-        rows, _CS_HPP_LONG_TITLE, _CS_HPP_SHORT_TITLE, "cs_hpp", id_key="TITLE",
+        rows, _CS_HPP_LONG_TITLE, _CS_HPP_SHORT_TITLE, "cs_hpp", id_key="CUSTOM_TITLE",
     )
 
-    long_rows = _by_field(rows, "TITLE", _CS_HPP_LONG_TITLE)
+    long_rows = _by_field(rows, "CUSTOM_TITLE", _CS_HPP_LONG_TITLE)
     joined = "\n".join(r["text"] for r in long_rows)
     assert "카드 안내 본문을 시작합니다." in joined
     assert "카드 안내 본문을 마칩니다." in joined
-    short_text = _by_field(rows, "TITLE", _CS_HPP_SHORT_TITLE)[0]["text"]
+    short_text = _by_field(rows, "CUSTOM_TITLE", _CS_HPP_SHORT_TITLE)[0]["text"]
     assert "단문 안내 본문입니다." in short_text
 
     # 분류(ORN_NM)는 매 청크 접두에 반복된다(yaml `body.repeat`).
