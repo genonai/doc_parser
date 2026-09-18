@@ -1676,6 +1676,8 @@ JSONL·빈 배열·doc_type 충돌 등입니다.
 
 ## 예외 처리
 
+> custom_fields 경로의 예외 전체 목록: [custom_fields_exceptions.md](custom_fields_exceptions.md)
+
 ### FastAPI 레벨 예외
 
 | 예외 타입 | 발생 상황 | HTTP 응답 | 응답 형식 |
