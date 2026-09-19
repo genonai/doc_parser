@@ -295,8 +295,8 @@ genon/preprocessor/examples/config_precheck/precheck_custom_fields.sh
 
 ```bash
 # 실행 위치: 저장소 루트
-python -m genon.preprocessor.facade.parser_processor 공지사항.xlsx --doc-type notice -o parsed.json
-python -m genon.preprocessor.facade.chunking_processor parsed.json --doc-type notice -o chunks.json
+python -m genon.preprocessor.facade.parser_processor --config genon/preprocessor/resource/parser_processor_config.yaml 공지사항.xlsx --doc-type notice -o parsed.json
+python -m genon.preprocessor.facade.chunking_processor --config genon/preprocessor/resource/chunking_processor_config.yaml parsed.json --doc-type notice -o chunks.json
 
 python - <<'PY'
 import json
@@ -370,8 +370,8 @@ cat > notice.csv <<'EOF'
 질문,답변,등록일,노출여부
 앱 알림은 어디서 설정하나요?,앱 설정에서 알림을 변경할 수 있습니다.,26.07.01,노출
 EOF
-python -m genon.preprocessor.facade.parser_processor notice.csv --doc-type notice -o parsed.json
-python -m genon.preprocessor.facade.chunking_processor parsed.json --doc-type notice -o chunks.json
+python -m genon.preprocessor.facade.parser_processor --config genon/preprocessor/resource/parser_processor_config.yaml notice.csv --doc-type notice -o parsed.json
+python -m genon.preprocessor.facade.chunking_processor --config genon/preprocessor/resource/chunking_processor_config.yaml parsed.json --doc-type notice -o chunks.json
 ```
 
 `parsed.json`은 요소형이며 `elements`에 1건이 있어야 합니다. 해당 요소의 `metadata`와 최종 청크의
@@ -473,8 +473,11 @@ PY
 처리 흐름에서 훅이 호출되는 자리는 다음과 같습니다.
 
 ```
-파싱   요청 -> 확장자 판정 -> doc_type별 설정 -> [edit_input] -> ROUTES -> 파싱
-            -> [edit_document] -> LLM enrichment -> [edit_output] -> 응답
+파싱   요청 -> 확장자 판정 -> doc_type별 설정 -> ROUTES -> 입력 읽기/변환 -> 파싱
+            -> 문서 경로: [edit_document] -> enrichment -> [edit_output] -> 응답
+            -> 행·레코드 경로: 매핑/선택적 보강 -> [edit_output] -> 응답
+
+       edit_input: 경로형 입력은 ROUTES 앞, JSON·표·Markdown·HTML은 해당 처리 경로 안에서 호출
 
 청킹   파서 결과 -> 형태 판별 -> doc_type별 설정 -> [edit_input] -> 분할 -> [edit_chunk]
             -> vector_meta 조립 -> [edit_output] -> 응답
@@ -528,8 +531,10 @@ PY
 우선순위는 뒤에 있는 항목일수록 높습니다. 설정 파일 → `CONFIG_BY_DOC_TYPE` → `config_by_condition()` → 요청
 파라미터 순서입니다. 요청 파라미터로 전달한 값은 다른 설정으로 덮어쓰지 않습니다.
 
-> 모든 설정을 요청마다 바꿀 수 있는 것은 아닙니다. 엔드포인트 주소, 프롬프트, 토크나이저
-> 경로처럼 기동 시 한 번 읽혀 고정되는 설정은 여기 적어도 무시되고 로그에 경고가 남습니다.
+> 모든 설정을 요청마다 바꿀 수 있는 것은 아닙니다. 점 표기 키는 `CONFIG_PATH_ALIASES`에 등록된 것만
+> 변환되며, 없는 점 표기 키는 경고 후 건너뜁니다. 점이 없는 이름은 요청 인자로 전달되므로 **오타여도 경고 없이
+> 사용되지 않을 수 있습니다.** 아래 표나 5.3에 제시된 소비 가능한 키를 사용하세요. 엔드포인트·프롬프트·토크나이저
+> 경로·`min_chunk_size` 등 초기화 시 읽는 값은 YAML에서 수정하고 프로세스를 다시 시작해야 합니다.
 
 ### 2.4 설정만으로 입력 데이터 구조를 처리할 수 없는 경우 — 훅 메소드
 
@@ -557,40 +562,62 @@ PY
 
 #### 공통 규칙 네 가지
 
-1. `doc_type`으로 처리 대상을 제한합니다. 그렇지 않으면 해당 확장자의 모든 문서 결과가 변경됩니다. `doc_type`은
-   소문자로 정규화되어 전달되므로 `"MyType"`과 비교하면 일치하지 않습니다.
+1. `doc_type`으로 처리 대상을 제한합니다. 파서 훅의 명시적 `doc_type` 인자는 소문자로 정규화됩니다.
+   청커 훅에서는 `tb.normalize_doc_type(kwargs.get("doc_type"))`으로 정규화한 값을 비교하세요.
+   파서 결과의 메타데이터에 문서 유형이 있더라도 청커 요청의 `params.doc_type`을 생략하지 않습니다.
 2. **`edit_input`에서 수정이 필요하지 않으면 입력값을 그대로 반환합니다.** 그래야 core가 불필요한
    파생 입력을 만들지 않습니다. 다른 훅의 반환 규칙은 해당 훅 설명을 따릅니다.
-3. **요청 파라미터가 필요하면 시그니처 끝에 `**kwargs`를 붙입니다.** 요청의 `params`가 그대로
-   전달되며 `kwargs["job"]`으로 요청 컨텍스트도 조회할 수 있습니다. 요청별 상태를 `self`에 저장하지 마세요.
-   인스턴스 하나가 모든 요청을 처리하므로 `await` 사이에 값이 섞일 수 있습니다. 단계 간 값 전달에는 `job.notes`를 사용합니다.
+3. **요청 파라미터가 필요하면 시그니처 끝에 `**kwargs`를 붙입니다.** 이름이 명시적 인자와 겹치거나
+   내부 처리용으로 제외된 키를 빼고 전달합니다. **현재 구현은 일반 훅의 `kwargs`에 `job`을 자동으로 넣지 않습니다.**
+   `kwargs["job"]`에 의존하지 마세요. 요청별 상태를 `self`에 저장하면 동시 요청 사이에 값이 섞일 수 있습니다.
 4. **외부 호출이 필요하면 `async def`와 비동기 클라이언트를 사용하고 호출을 `await`합니다.**
    `async def` 안에서도 동기 HTTP·파일 작업이 오래 걸리면 이벤트 루프가 차단됩니다. 동기 라이브러리만
    지원되는 I/O는 `await asyncio.to_thread(...)`로 별도 스레드에서 실행하는 방법을 검토하세요.
 
-#### `job` — 요청별 정보
+#### `job` — 명시적으로 전달받는 위치에서만 사용
 
-`edit_document(job, doc)`에서는 명시적 `job` 인자를 사용합니다. `**kwargs`를 받는 다른 훅에서는
-`kwargs["job"]`으로 조회합니다.
+`config_by_condition(job)`, 파서의 `edit_document(job, doc)`, 직접 구현하는 `route_*(job)`처럼
+**시그니처에 `job`이 있는 메소드**에서는 요청 객체를 사용할 수 있습니다. 일반 `edit_input`·`edit_output`·
+`edit_chunk`의 `**kwargs`에는 자동 전달되지 않습니다. facade 주석의 `kwargs["job"]` 안내와 현재 호출부가
+일치하지 않으므로, 이 문서는 실행 코드를 기준으로 설명합니다.
 
-**파서의 `job`과 청커의 `job`은 다른 객체입니다.** 아래 표에서 자기 쪽에 없는 필드를 읽으면
-`AttributeError`가 납니다.
-
-| 필드 | 파서 | 청커 | 값 |
+| 필드 | 파서 | 청커 | 실제 의미 |
 |---|:-:|:-:|---|
-| `job.doc_type` | ✔ | ✔ | 문서 유형(소문자) |
-| `job.file_path` | ✔ | ✔ | 요청이 넘긴 **원본** 경로 |
-| `job.params` | ✔ | ✔ | 요청 `params` |
-| `job.config` | ✔ | ✔ | **실제로 적용된 설정.** 해당 문서에 적용된 설정을 추적할 수 있습니다 |
-| `job.notes` | ✔ | ✔ | 단계 간 값 전달용 dict. `self` 대신 사용합니다 |
-| `job.ext` | ✔ | ✗ | 표준 확장자(소문자) |
-| `job.source` | ✔ | ✗ | 실제로 처리할 입력. `edit_input`이 만든 파생 입력이면 원본과 다릅니다 |
-| `job.temp_dir("접두")` | ✔ | ✗ | 요청이 끝나면 자동 삭제되는 임시 디렉터리를 만듭니다 |
-| `job.kind` · `job.data` | ✗ | ✔ | 입력 형태(`docling` / `parse`)와 파서 결과 |
+| `job.doc_type` | ✔ | ✔ | 파서는 정규화된 값, 청커는 요청에서 받은 값. 청커 요청도 소문자 표준값으로 전달합니다. |
+| `job.file_path` | ✔ | ✔ | 해당 요청의 `file_path`. 청커에서는 파싱 결과 JSON 경로나 인라인 입력의 식별값일 수 있습니다. |
+| `job.params` | ✔ | ✔ | 요청 인자와 적용된 런타임 값. 사용자가 보낸 원본 dict와 완전히 같지는 않습니다. |
+| `job.config` | ✔ | ✔ | **문서 유형·조건별 설정 중 요청 인자로 실제 추가한 값만** 담습니다. YAML 전체와 최종 설정 전체의 스냅샷이 아닙니다. |
+| `job.notes` | ✔ | ✔ | 내부 처리에도 쓰는 요청별 dict. `job`을 명시적으로 받는 단계 사이에서만 사용하고 내부 키와 겹치지 않는 이름을 씁니다. |
+| `job.ext` | ✔ | ✗ | 별칭 처리 후 소문자 확장자 |
+| `job.source` | ✔ | ✗ | 실제 파싱할 **파일 경로**. 훅의 `data` 인자와 구별합니다. |
+| `job.temp_dir("접두")` | ✔ | ✗ | 파서 요청 종료 시 정리하는 임시 디렉터리 생성 |
+| `job.kind` · `job.data` | ✗ | ✔ | `docling` / `parse`와 해당 파싱 결과 |
 
-> 파서의 `edit_input`은 `job.temp_dir()`이 만드는 것과 같은 디렉터리를 `work_dir` 인자로 미리 받습니다.
-> 청커에는 임시 디렉터리 기능이 없으므로 파일을 만들어야 하면 표준 `tempfile`을 직접 사용하고
-> 정리까지 책임집니다.
+`config_by_condition`은 파싱·청킹 전 실행됩니다. 청커의 `job.metadata`는 이 시점에 만들어져 있지 않으므로
+읽지 마세요. 요청 조건은 `job.params`를 사용하고, 청크의 문서·행 메타데이터는 `edit_chunk`의
+`info["metadata"]`에서 읽습니다. 일반 훅 여러 단계가 별도 요청 상태를 공유해야 한다면 같은 훅 안에서
+처리할 수 있는지 먼저 검토하고, 공통 코드의 명시적 상태 전달 지원은 솔루션 개발자에게 요청하세요.
+
+#### `edit_input`의 타입·임시 경로·변경 판정
+
+| 실제 처리 경로 | 훅의 `ext`와 `data` | `work_dir` |
+|---|---|---|
+| JSON 매핑·본문 추출 | `.json`, dict/list. JSON 구문 해석 실패 시 복구 기회로 원문 str 전달 | **없음(`None`)** |
+| 엑셀·CSV 표 로더 | CSV·XLSM도 훅에는 `.xlsx`로 전달, `{시트명: 2차원 행}` | 제공 |
+| Markdown·HTML 전처리 | 해당 확장자와 원문 str | **없음(`None`)** |
+| 그 밖의 경로형 처리 | 확장자와 파일 경로 str | 제공 |
+
+`work_dir`은 표 로더와 경로형 처리에만 전달됩니다. 데이터형 훅에서는 **항상 `None`이므로** 그 값을 쓰는
+코드를 두지 마세요.
+
+설정에 따라 훅을 아예 거치지 않는 폴백이 있습니다. JSON에 매핑·본문 추출 설정이 없으면 일반 텍스트
+경로로 넘어가 JSON 데이터 훅을 거치지 않고, `formats.md.processing_mode`가 `text`이면 Markdown 훅도
+호출되지 않습니다. 모든 확장자가 같은 위치에서 같은 횟수로 훅을 호출한다고 가정하지 마세요.
+
+파서의 변경 판정은 값 비교가 아니라 **객체 동일성(`out is not data`)** 검사입니다. 내용을 바꿀 때는 새 dict·list·
+문자열을 반환하세요. 입력 객체를 제자리에서 고친 뒤 그대로 반환하면 경로에 따라 변경이 반영되지 않을 수 있습니다.
+변경하지 않을 때는 받은 객체를 그대로 반환합니다. `work_dir`이 없는 데이터형 훅은 가능한 한 메모리에서
+수정하고, 직접 임시 파일을 만들면 읽기가 끝날 때까지 유지한 뒤 정리해야 합니다.
 
 #### 예시 — 입력 데이터 구조가 변경된 두 경우
 
@@ -657,7 +684,7 @@ PY
 
 ```python
     def edit_chunk(self, text, info, **kwargs):
-        if kwargs["job"].doc_type != "contract":
+        if tb.normalize_doc_type(kwargs.get("doc_type")) != "contract":
             return text
         if "상담직원용" in text:
             return tb.DROP                     # 이 청크를 버린다 (순번·개수는 코어가 재계산)
@@ -672,13 +699,15 @@ PY
 | `None` | 손대지 않습니다. `return`을 빠뜨려도 청크가 사라지지 않습니다 |
 | `tb.DROP` | 이 청크를 버립니다 (빈 문자열·공백만 돌려줘도 같습니다) |
 
-`info`는 **처리 경로와 관계없이 구조가 동일합니다.** 문서·레코드·평문 등 어떤 입력 데이터에도 동일한 훅을 사용할 수 있습니다.
+`info`의 키 구조는 일반 문서·행·텍스트 경로에서 같습니다. 다만 오디오 `[AUDIO]`와 레거시 표 `[DA]`를
+단일 청크로 만드는 특수 경로는 `edit_chunk`를 건너뜁니다. 해당 결과도 수정해야 한다면 `edit_output`에서
+처리하고 통계를 갱신하세요.
 
 | 키 | 값 |
 |---|---|
 | `kind` | `"docling"`(문서) · `"row"`(레코드/표 행) · `"text"`(그 밖) |
-| `page` · `index` | 1-based 페이지 · 현재 순번(참고용) |
-| `headings` | 섹션 경로 목록. `docling` 경로만 채워집니다 |
+| `page` · `index` | 페이지는 보통 1부터 시작하며 문서 위치 정보가 없으면 0일 수 있습니다. `index`는 0부터 시작하는 분할 결과 순번으로, 청크 제외 후 최종 순번과 다를 수 있습니다. |
+| `headings` | 문서형의 섹션 경로 목록. 없으면 `None`일 수 있으므로 순회할 때 `info.get("headings") or []`를 사용합니다 |
 | `metadata` | 문서 또는 레코드 메타데이터. **복사본이라 고쳐도 저장되지 않습니다** |
 | `fields` | 이 청크에만 실을 값. `GenOSVectorMeta` 필드로 나갑니다 |
 
@@ -686,7 +715,7 @@ PY
 뒤이어 적용됩니다.
 
 > `edit_output`에서 본문을 고쳤거나 청크를 지웠으면 통계를 다시 맞춰야 합니다. 개수가 바뀌었으면
-> `tb.refresh_stats(vector_metas)`, 본문만 고쳤으면 `reindex=False`. 호출하지 않으면 `n_char`가
+> `tb.refresh_stats(vector_metas)`, 본문만 고쳤으면 `tb.refresh_stats(vector_metas, reindex=False)`. 호출하지 않으면 `n_char`가
 > 예전 값으로 남습니다.
 
 #### 훅보다 설정을 우선할 기능
@@ -740,6 +769,13 @@ PY
 위 XML 예제는 파일 상단에 `import xml.etree.ElementTree as ET`, `import os`, `import json`이 필요합니다.
 `ROUTES`와 `edit_input`은 기존 클래스의 해당 정의에 반영하고, 중복 정의하지 않습니다.
 동작을 검증하기 전에 **먼저 `ROUTES`에 등록**하세요. 등록하지 않으면 캐치올이 처리하여 목표필드가 비어 있는 청크 1개만 생성됩니다.
+
+> **새 확장자를 표·JSON 라우트에 붙이면 `edit_input`이 한 요청에서 두 번 호출됩니다.** 처음은
+> `ROUTES` 앞에서 원래 확장자와 파일 경로로, 두 번째는 라우트 안에서 변환된 형식으로 호출됩니다.
+> 위 예제에서 `.xml → route_json`은 `.xml`(경로)과 `.json`(dict) 두 번, `.tsv → route_tabular`는
+> `.tsv`(경로)와 `.xlsx`(시트 dict) 두 번입니다. **위 예제가 안전한 이유는 `ext == ".xml"`로
+> 게이팅했기 때문입니다** — 두 번째 호출은 조건에 걸리지 않아 입력을 그대로 돌려줍니다.
+> 확장자 조건 없이 훅을 쓰면 두 번째 호출에서 이미 변환된 데이터를 다시 변환하려다 실패합니다.
 
 표준 형식으로 변환할 수 없는 입력 데이터(로그, 고정폭 텍스트, 사내 전문)에 한해서만 핸들러를 직접
 구현합니다. 해당 핸들러도 facade 파일에 정의합니다.
@@ -843,7 +879,7 @@ fields:
 | | 왜 |
 |---|---|
 | facade끼리 import | 각 facade의 독립 실행과 교체가 어려워집니다. 공통 기능은 제공된 toolbox를 사용합니다 |
-| `self`에 요청 상태 저장 | 인스턴스는 **프로세스당 1개**입니다. `await` 사이에 다른 요청의 값이 섞입니다. 단계 간 전달은 `job.notes` |
+| `self`에 요청 상태 저장 | 인스턴스는 **프로세스당 1개**입니다. `await` 사이에 다른 요청의 값이 섞입니다. `job`을 명시적으로 받는 단계에서는 `job.notes`를 사용할 수 있습니다. 일반 훅에는 `job`이 자동 전달되지 않습니다 |
 | `_`로 시작하는 메소드 오버라이드 | 훅 호출과 설정 적용 순서를 맡고 있습니다 |
 | `processing/core/` 수정 | 릴리스 갱신에서 사라집니다. 필요하면 솔루션 개발자에게 훅 추가를 요청하세요 |
 | docling 수정 | 소스가 아니라 wheel로 들어옵니다. 수정할 수 없습니다 |
@@ -920,8 +956,8 @@ facade 두 파일은 **독립적으로 실행할 수 있습니다.** 서버를 �
 
 ```bash
 # 실행 위치: 저장소 루트 (import 경로 때문에 반드시 -m으로 실행합니다)
-python -m genon.preprocessor.facade.parser_processor 계약서.pdf --doc-type contract -o parsed.json
-python -m genon.preprocessor.facade.chunking_processor parsed.json --doc-type contract -o chunks.json
+python -m genon.preprocessor.facade.parser_processor --config genon/preprocessor/resource/parser_processor_config.yaml 계약서.pdf --doc-type contract -o parsed.json
+python -m genon.preprocessor.facade.chunking_processor --config genon/preprocessor/resource/chunking_processor_config.yaml parsed.json --doc-type contract -o chunks.json
 ```
 
 위 명령은 **제공된 코드스페이스의 파이썬 환경을 전제로 합니다**([3.2](#32-사전-구성-항목)). 개인 PC처럼
@@ -930,9 +966,13 @@ python -m genon.preprocessor.facade.chunking_processor parsed.json --doc-type co
 | 인자 | 뜻 |
 |---|---|
 | `--doc-type` | 유형별 설정 매칭과 훅의 처리 대상 제한에 쓰입니다. 생략하면 특정 유형 전용 처리는 적용되지 않지만, 조건 없는 등록과 공통 처리는 실행될 수 있습니다 |
-| `--config` | 프로세서 설정 yaml 경로. 미지정 시 기본 경로를 찾습니다 |
+| `--config` | 프로세서 설정 YAML 경로. 생략하면 `resource_dev/` 우선, 없으면 `resource/`. 배포 설정과 비교할 때는 명시합니다 |
 | `-o, --out` | 결과 JSON 경로. 생략하면 stdout |
 | `--log-level` | `5` DEBUG / `4` INFO / `3` WARNING / `2` ERROR / `1` CRITICAL / `0` 로그 없음 |
+
+**설정 파일을 명시하세요.** facade 단독 실행은 `--config`가 없으면 `resource_dev/`의 같은 이름 파일을 먼저
+찾고, 없을 때 `resource/`를 사용합니다. 반면 루트 `main.py`는 `resource/`를 명시합니다.
+`resource/`를 고쳤는데 테스트에 반영되지 않으면 가장 먼저 이 차이를 확인하세요.
 
 청커의 입력은 원본 문서가 아니라 **파서가 생성한 결과 JSON**입니다. 청킹만 반복해서 검증하는
 경우에는 파싱을 다시 실행하지 말고 저장한 `parsed.json`을 재사용하세요. 모델 서빙을 호출하지
@@ -1296,7 +1336,7 @@ git diff
 | `chunking.chunk_mode` | chunking | `split_only` | `split_only` / `resize_all` | `split_only`는 섹션 구조 유지(작은 청크 다수), `resize_all`은 크기 기준 재조립(균일) |
 | `chunking.tokenizer_type` | chunking | `char` | `char` / `huggingface` | `chunk_size`의 **단위가 바뀝니다** |
 | `chunking.include_chunk_header` | chunking | 켜짐 | `0` / `1` | 청크 선두의 `HEADER:` 줄이 필요 없을 때 `0` |
-| `chunking.text_cleanup` | chunking | 없음 | 정규식 규칙 | 본문에서 특수문자·노이즈를 걷어냅니다 |
+| `chunking.text_cleanup` | chunking | 코드 기본 `off`; 현재 제공 YAML은 `mode: safe`와 규칙 지정 | `off` / `safe` 또는 `{mode, rules}` | 문자 정규화와 선택적 정규식 정제. 실제 설정 파일의 값을 확인합니다 |
 | `enrichment` 각 항목의 `enable` | parser | 항목별 상이 | `true` / `false` | LLM 호출 비용과 시간을 줄일 때 |
 | `formats.xlsx.processing_mode` | parser | `tabular` | `tabular` / `docling` | 엑셀을 표로 다룰지 문서로 다룰지 |
 | `defaults.log_level` | 전부 | `4` | `5`=DEBUG ~ `1`=CRITICAL, `0`=NOLOG | 디버깅할 때 `5` |
@@ -1304,6 +1344,8 @@ git diff
 > `chunk_size: 0`은 "청크 1개"가 아닙니다. 크기 기반 **병합과 분할을 끄는** 값입니다.
 > docling 문서 입력이면 섹션 구조 기준 청크가 그대로 남아 오히려 더 많아질 수 있습니다.
 > 청크를 크게 합치려는 목적이라면 `0`이 아니라 충분히 큰 값을 주세요.
+> 일반 요소형·분할 가능한 행 경로에서 `0` 또는 음수는 내부적으로 1,000,000자 기준으로 처리됩니다.
+> 크기 분할이 절대 일어나지 않는다는 보장은 아니며, 표 분리도 별도 설정에 따라 계속 적용됩니다.
 
 > `tokenizer_type`을 바꾸면 **`chunk_size`의 단위가 바뀝니다.** `10000`은 `char`에서 1만 자,
 > `huggingface`에서 1만 토큰입니다. 토큰당 글자 수는 언어와 토크나이저에 따라 달라집니다.
@@ -1325,6 +1367,10 @@ curl "${CS}/parser" -H 'Content-Type: application/json' \
 | 공통 | `llm_cache`, `error_policy`(`strict`/`lenient`), `request_deadline`(초) — 의미는 [부록 C.5](#c5-공통-요청-params) |
 
 0/1 플래그 형태의 키는 `0`/`1` 또는 `true`/`false` 둘 다 받습니다.
+
+**파서와 청커는 별도 요청입니다.** 파서 결과에 기록된 `doc_type`이 청커의 요청 인자로 자동 승격되지는 않습니다.
+청커의 `CONFIG_BY_DOC_TYPE`과 유형별 훅을 적용하려면 청커 요청에도 같은 `params.doc_type`을 명시합니다.
+현재 청커의 설정표 조회는 전달받은 문자열 그대로 수행하므로 양쪽 모두 공백 없는 소문자 표준값을 사용하세요.
 
 `/chunker`가 입력을 받는 통로는 두 가지입니다. `params.document`에 파싱 결과를 **인라인 전달**하는 것이
 우선이고, 없으면 `file_path`가 가리키는 **서버 내부의 `.json` 파일**을 읽습니다.
@@ -1406,10 +1452,10 @@ facade의 `GenosSmartChunker` ClassVar는 청크 표기 방식을 정합니다.
 
 | 분류 | 필드 |
 |---|---|
-| 본문 | `text` (앞에 `HEADER: <섹션 제목들>` 줄이 붙습니다) |
+| 본문 | `text` (문서형에서 헤더 설정이 켜져 있고 섹션 경로가 있을 때 `HEADER:` 줄이 붙습니다) |
 | 통계 | `n_char` · `n_word` · `n_line` (본문에서 자동 계산) |
 | 위치 | `i_page` · `e_page` · `n_page` · `i_chunk_on_page` · `n_chunk_of_page` · `i_chunk_on_doc` · `n_chunk_of_doc` |
-| 참조 | `chunk_bboxes` · `media_files` (**둘 다 JSON 문자열**입니다) |
+| 참조 | `chunk_bboxes` · `media_files` (문서형에서는 JSON 문자열, 요소형 등의 미제공 경로에서는 `"."` 표식일 수 있습니다) |
 | 문서 메타 | `title` · `reg_date` · `created_date` · `appendix` · `file_path` · `guardrail_categories`(마스킹 미사용 환경에서는 빈 값) |
 | 표 메타 | `has_table` · `table_refs` · `table_split_index` · `table_split_total` |
 
@@ -1579,13 +1625,18 @@ HTML 원문이 입력으로 전달되어야 하며, JSON 안에 HTML이 들어 �
 | `date_int` | — | 날짜 텍스트 → `YYYYMMDD` 정수 |
 | `date_int_flex` | — | 위 + 2자리 연도(`26.07.01`)·구분자 없는 `260701` |
 | `text_norm` | — | NFKC + 공백 축약 + casefold (중복 판정용) |
-| `regex_sub` | `pattern`, `repl` | 정규식 치환 (`"18,000원"` → `"18000"`) |
-| `regex_extract` | `pattern`, `group` | 정규식 오려내기. 미매칭 시 `None` |
-| `to_int` | `on_error` | 숫자만 남겨 정수화 |
-| `truncate` | `length`, `suffix` | 길이 자르기(적재 컬럼 길이 맞춤) |
+| `regex_sub` | `pattern` 필수, `repl` 기본 `""` | 정규식 치환 (`"18,000원"` → `"18000"`) |
+| `regex_extract` | `pattern` 필수, `group` 기본 `1` | 정규식 오려내기. 미매칭 시 `None` |
+| `to_int` | `on_error` 기본 `null` | 숫자와 `-`를 남겨 정수화. 소수점 단위 변환은 하지 않음 |
+| `truncate` | `length` 필수, `suffix` 기본 `""` | 길이 자르기(적재 컬럼 길이 맞춤) |
 | `html_text` | — | HTML로 **강제** 평문화. 표·목록 유지 |
 | `text` | — | JSON/HTML/평문 **자동 판별** 후 평문화 |
 | `to_json` | `on_scalar`, `key` | 값을 **유효한 JSON 문자열**로 맞춤(적재 DB의 JSON 컬럼용) |
+
+`regex_extract`의 기본 `group: 1`은 첫 번째 캡처 그룹을 뜻합니다. 패턴에 그룹이 없으면 매칭되어도 `None`이
+나오므로 전체 매칭값을 원하면 `group: 0`을 지정합니다. `to_int("1.5")`는 `15`이므로 소수 금액·비율의
+변환에는 사용하지 마세요. `truncate`는 `suffix`가 `length`보다 길면 길이 상한을 넘을 수 있으므로 접미사는
+제한 길이 이하로 설정합니다.
 
 인자가 있는 변환기는 `{name: ...}` 형태로 적고, 여러 개를 이어 붙일 수 있습니다.
 
@@ -1686,9 +1737,9 @@ fields:
 
 | 키 | 값 | 하는 일 |
 |---|---|---|
-| `llm_cache` | `0` / `1` | 같은 입력에 대한 LLM 응답을 재사용합니다. 설정을 바꿔 가며 비교할 때 켜면 호출 비용과 시간이 줄어듭니다. **`workflow_id`가 함께 있을 때만 켜집니다**(아래 참조) |
+| `llm_cache` | `0` / `1` | 파싱 단계의 LLM 응답 캐시 사용 여부. 같은 입력·모델·프롬프트 등 캐시 조건이 일치할 때 재사용합니다. 청커 자체가 LLM을 호출하도록 만드는 옵션은 아닙니다. `workflow_id` 조건은 아래 참조 |
 | `error_policy` | `strict` / `lenient` | `strict`는 보강 단계 실패를 요청 실패로 올리고, `lenient`는 경고만 남기고 계속합니다 |
-| `request_deadline` | 초 | 요청 전체의 시간 상한. 넘으면 타임아웃으로 끊고 `error_kind`에 `timeout`이 실립니다 |
+| `request_deadline` | 양수 초 | HTTP 처리 래퍼가 제한 시간을 적용하며 타임아웃 시 `error_kind: timeout`을 반환합니다. 생략·0 이하·숫자 변환 불가는 이 래퍼의 제한을 설정하지 않습니다. 단독 CLI에는 같은 HTTP 래퍼가 없으며, 동기 코드가 이벤트 루프를 점유하면 취소 응답이 지연될 수 있습니다 |
 
 > `llm_cache`는 **`params.workflow_id`가 함께 전달될 때만** 동작합니다. 캐시 디렉터리를
 > `<interim_root>/<workflow_id>/<run_id 또는 default>/llm_cache`로 잡기 때문입니다.
@@ -1883,6 +1934,34 @@ def parse(llm_output, **kwargs):
         raise ValueError('LLM 출력은 객체여야 합니다.')
     return result
 ```
+
+### C.8 구현 확인 위치와 현재 제약
+
+아래 경로는 저장소 루트 기준입니다. 주석·예제와 실행 코드가 다르면 실제 호출부와 결과를 먼저 확인합니다.
+이 절의 내용은 문서 작성 시 확인한 로컬 소스 기준이며, 배포 서버가 동일한 리비전인지는 `/version`과 배포 이력으로 확인합니다.
+
+| 확인할 내용 | 소스와 진입점 |
+|---|---|
+| HTTP 입력·응답, 설정 경로, 요청 제한 시간 | `main.py`: `_cfg`, `_run`, `parse`, `parse_upload`, `chunker` |
+| facade의 변경 가능한 처리 흐름 | `genon/preprocessor/facade/parser_processor.py`, `chunking_processor.py` |
+| 파서 훅의 실제 인자·호출 위치 | `processing/core/parser.py`: `_hook_edit_input`, `_call_edit_document`, `_load_json_payload`, `_hook_tabular_sheets` 등 |
+| 청커 문서 유형·설정 덮어쓰기 | `processing/core/chunker.py`: `_start_chunk_job`, `_apply_config_overlay` |
+| 훅 kwargs·반환값 처리 | `processing/common/hooks.py`: `hook_kwargs`, `call_hook`, `call_chunk_hook` |
+| job 필드·임시 파일 | `processing/common/job.py`: `ParseJob`, `ChunkJob` |
+| 점 표기 설정 이름 | `processing/common/config_parse.py`: `CONFIG_PATH_ALIASES`, `resolve_overlay_key` |
+| v2 설정과 유형별 허용 키 | `processing/enrichment/config_v2.py`, `config_schema.py` |
+| 값 변환과 인자 기본값 | `processing/enrichment/field_transforms.py` |
+| 청크 메타데이터 전달·통계 보정 | `processing/core/toolbox.py`, `processing/common/vector_meta.py` |
+
+`processing/`로 시작하는 경로에는 앞에 `genon/preprocessor/`를 붙입니다. 확인용 위치이며 수정 허용 범위를 넓히는 뜻은 아닙니다.
+
+현재 구현에서 주의할 점은 다음과 같습니다.
+
+- 일반 훅에는 `job`이 자동 전달되지 않습니다. `kwargs["job"]`을 사용하는 예제를 그대로 실행하지 않습니다.
+- `job.config`는 전체 설정이 아닙니다. 초기화 YAML, 요청 params, 덮어쓴 값을 함께 확인합니다.
+- CLI와 HTTP 서버의 기본 설정 탐색 경로가 다릅니다. 비교 실행 시 `--config`를 명시합니다.
+- `request_deadline`은 이벤트 루프를 차단하는 동기 작업까지 즉시 강제 종료하는 장치가 아닙니다.
+- 청크 순번은 0부터 시작하며 좌표·미디어 미제공 표식 `"."`은 JSON으로 해석하지 않습니다.
 
 ---
 
