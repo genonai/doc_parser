@@ -274,9 +274,6 @@ _MOCK_RESULT = {"elements": [], "usage": {"pages": 1}}
 
 @pytest.mark.unit
 @pytest.mark.parametrize("filename,expected_method", [
-    ("a.wav",  "_parse_audio"),
-    ("a.mp3",  "_parse_audio"),
-    ("a.m4a",  "_parse_audio"),
     ("a.csv",  "_parse_tabular"),
     ("a.xlsx", "_parse_tabular"),
     ("a.hwp",  "_parse_hwp_hwpx"),
@@ -289,7 +286,6 @@ _MOCK_RESULT = {"elements": [], "usage": {"pages": 1}}
 def test_call_routes_to_correct_method(dp, filename, expected_method):
     """__call__ dispatches each file extension to the right internal method."""
     parse_mocks = {
-        "_parse_audio":    MagicMock(return_value="transcript"),
         "_parse_tabular":  MagicMock(return_value={"data": []}),
         "_parse_hwp_hwpx": MagicMock(return_value=MagicMock()),
         "_parse_docx":     MagicMock(return_value=MagicMock()),
@@ -300,7 +296,6 @@ def test_call_routes_to_correct_method(dp, filename, expected_method):
         setattr(dp, name, mock)
 
     with patch.object(DocumentProcessor, "_docling_to_parse_format",   return_value=_MOCK_RESULT), \
-         patch.object(DocumentProcessor, "_audio_to_parse_format",     return_value=_MOCK_RESULT), \
          patch.object(DocumentProcessor, "_tabular_to_parse_format",   return_value=_MOCK_RESULT), \
          patch.object(DocumentProcessor, "_langchain_to_parse_format", return_value=_MOCK_RESULT):
         result = asyncio.run(dp(None, filename))
