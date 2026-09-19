@@ -336,10 +336,31 @@ enrichment:
 |---|---|
 | `alias`·CSS 선택자가 입력 데이터 표기와 어긋남 | 값이 `null`. 경고만 |
 | `body.fields`에 **어디서도 만들어지지 않는 필드** | 본문에서 조용히 빠짐. `llm`을 주석 처리하고 그 출력 필드를 남기는 실수가 가장 흔합니다 |
-| `require` 미충족 | 그 건만 skip. **모든 건이 걸러지면 청크 0건인데 요청은 성공** |
+| `require` 미충족 | rows·records는 그 건만 제외합니다. sections는 `source.on_missing: error`가 기본이라 요청이 실패하고, `skip`이면 경고 후 0건입니다. **파서는 요소 0건으로 성공할 수 있습니다** |
 | `values`에 없는 값 | 원값 통과(fail-open), 경고만 |
 | 같은 이름 key가 얕은 곳과 깊은 곳에 모두 있음 | **얕은 쪽이 우선합니다.** 경고 없이 엉뚱한 값이 실립니다 |
 | 같은 이름의 레코드 배열이 여러 곳에 있음 | `records_at`은 최초 매칭 **1개**만 찾습니다. 나머지는 경고 없이 빠집니다 |
+| 보강 단계가 예외로 실패함 | **기본값 `lenient`에서는 경고만 남기고 성공 응답을 냅니다** (아래) |
+
+#### 보강 실패는 기본적으로 요청을 실패시키지 않습니다
+
+`error_policy`의 기본값은 `lenient`입니다. **보강 단계의 상위 오류 처리까지 전달된 예외**는 경고를
+남기고 처리를 계속하므로, 요청이 `code: 0`이어도 일부 필드는 비어 있을 수 있습니다. 설정 로딩 중
+발견된 프롬프트·스키마 오류는 별개이며 기동 실패로 처리됩니다.
+
+이 정책이 적용되는 단계는 다음과 같습니다. 파싱 자체의 실패는 해당하지 않고 그대로 요청 실패가 됩니다.
+
+| `stage` | 단계 |
+|---|---|
+| `custom_fields` | 목표필드 추출 |
+| `doc_summary` · `image_description` | 문서 요약 · 이미지 설명 |
+| `metadata` · `doc_type_stamp` | 문서 메타데이터 · 문서 유형 기록 |
+
+> **검증할 때는 `error_policy: strict`와 결과값 검사를 함께 쓰세요.** 상위 오류 처리까지 전달된 예외는
+> `stage`가 포함된 요청 실패로 올라옵니다. 다만 목표필드 추출기의 LLM·Python·HTML 경로는 내부에서
+> 일부 예외를 잡고 경고만 남기므로, `strict`에서도 필드가 `null`인 채 정상 반환할 수 있습니다.
+> 필수 필드의 값, 요소·청크 수, 경고 로그를 별도로 확인해야 합니다. 이 설정은 `workflow_id` 없이도
+> 적용됩니다.
 
 #### 검증 세 단계
 
@@ -863,6 +884,26 @@ raise GenosServiceException(
 
 `stage`와 `error_type`을 주면 응답에 `stage`·`error_kind`로 실려 호출 측이 재시도 여부를 판단할
 수 있습니다. **부분 실패를 허용하려면** raise 하지 말고 그 건만 건너뛴 뒤 결과에 기록하세요.
+
+#### 훅에서 던진 예외가 가는 곳
+
+**훅이 던진 예외는 그 요청 전체를 실패시킵니다.** core가 대신 삼켜 주지 않습니다.
+`error_policy: lenient`는 보강 단계에만 적용되고 훅 예외에는 적용되지 않습니다.
+
+| 던진 것 | 응답 |
+|---|---|
+| `GenosServiceException` | `error_code`가 그대로 보존되고, 지정했다면 `stage`·`error_kind`도 함께 실립니다 |
+| 그 밖의 예외 | 타입에 따라 `INPUT_ERROR` / `TIMEOUT_ERROR` / `INTERNAL_ERROR`로 자동 분류됩니다. `error_type`에는 예외 클래스명이 들어갑니다 |
+
+`error_code`는 문자열로 그대로 전달되므로 현장의 코드 체계가 있으면 그 값을 넣습니다. 예제의 `'1'`은
+특별한 뜻이 없는 기본값입니다. 여러 건을 처리하는 훅에서는 실패한 건만 걸러 내되, 전부 실패하면
+멈추는 편이 원인을 빨리 드러냅니다.
+
+> `custom_field_*.yaml`의 목표필드가 `title`·`created_date`·`appendix` 같은 **예약 필드와 겹치면
+> 설정 로딩 단계에서 거부됩니다**(kind 5종 공통). 훅에서 직접 넣은 행 메타데이터는 청킹 중 타입
+> 검증에 실패하면 `stage: custom_fields`로 요청이 실패합니다. 이름이 겹쳐도 타입이 맞으면 통과하거나
+> 값이 덮어써질 수 있으므로, 오류 발생 여부로 충돌을 판단하지 마세요. 예약 필드 목록은
+> [6.3](#63-출력-스키마-청크)에 있습니다.
 
 ---
 
@@ -1459,6 +1500,12 @@ curl --location "${GW}/parser" \
 0/1 플래그 형태의 키는 `0`/`1` 또는 `true`/`false` 둘 다 받습니다. 공통 키의 의미는
 `code_serving.md`에 상세히 있습니다.
 
+| 공통 키 | 값 | 하는 일 |
+|---|---|---|
+| `error_policy` | `strict` / `lenient` | **기본 `lenient`.** 보강 단계(`custom_fields` · `doc_summary` · `image_description` · `metadata` · `doc_type_stamp`)에서 상위 오류 처리로 전달된 예외를 `strict`는 요청 실패로 올리고, `lenient`는 경고 후 계속합니다. 추출기 내부에서 처리된 예외·빈 결과까지 검출하지는 않으므로 필수 결과값을 별도로 검사합니다. 훅이 던진 예외와 파싱 실패에는 적용되지 않으며 `workflow_id` 없이도 항상 적용됩니다 |
+| `llm_cache` | `0` / `1` | 같은 입력에 대한 LLM 응답을 재사용합니다. **`workflow_id`가 함께 있을 때만 켜집니다** — 캐시 디렉터리를 `<interim_root>/<workflow_id>/<run_id 또는 default>/llm_cache`로 잡기 때문입니다. `workflow_id` 없이 `llm_cache: 1`만 주면 경고 없이 캐시가 꺼진 채 처리됩니다 |
+| `request_deadline` | 양수 초 | HTTP 처리 래퍼가 요청 전체에 제한 시간을 겁니다. 초과하면 `error_kind: timeout`으로 끊습니다. 생략·0 이하·숫자 변환 불가는 제한을 걸지 않으며, facade 단독 실행에는 이 래퍼가 없습니다 |
+
 `/chunker`는 입력을 두 채널로 받습니다. `params.document`에 파싱 결과를 **인라인 전달**하는 것이
 우선이고, 없으면 `file_path`가 가리키는 **서버 내부의 `.json` 파일**을 읽습니다.
 
@@ -1567,6 +1614,10 @@ facade의 `GenosSmartChunker` ClassVar는 청크 표기 방식을 정합니다.
   준 `error_type` 인자는 응답에서 `error_kind`로 나갑니다.
 - facade가 `GenosServiceException`으로 던진 오류는 `error_code`가 보존됩니다. 그 외 예외는
   타입에 따라 `INPUT_ERROR` / `TIMEOUT_ERROR` / `INTERNAL_ERROR`로 자동 분류됩니다.
+- core가 넣는 `stage` 값은 `custom_fields` · `doc_summary` · `image_description` · `metadata` ·
+  `doc_type_stamp`(보강 단계의 상위 오류 처리로 전달된 예외, `error_policy: strict`일 때)와
+  `request`(요청 제한 시간 초과)입니다. 행 메타데이터의 청킹 중 타입 검증 실패도 정책과 무관하게
+  `stage: custom_fields`로 반환됩니다. 훅에서 직접 지정한 값은 그대로 나갑니다.
 - 요청 `params.request_deadline`(초)을 주면 요청 전체에 상한이 걸립니다.
 
 **응답이 예상과 다를 때**
