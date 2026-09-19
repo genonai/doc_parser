@@ -57,19 +57,14 @@ def _separator_line(md: str) -> str:
 class TestRecursiveChunkerCompactTables:
     """기본 recursive 경로: DoclingDocument.export_to_markdown 에 인자가 전달되는지."""
 
-    def test_default_is_compact(self):
-        """인자 미지정 시 기본 compact(패딩 없음) — 구분선이 '| - |' 형태."""
-        chunks = _split_with_recursive_chunker(_build_table_doc(), chunk_size=0)
+    @pytest.mark.parametrize("kwargs", [{}, {"compact_tables": True}],
+                             ids=["default", "explicit-true"])
+    def test_compact_is_the_default_and_removes_padding(self, kwargs):
+        """인자 미지정과 compact_tables=True 모두 구분선이 '| - |' 형태다."""
+        chunks = _split_with_recursive_chunker(_build_table_doc(), chunk_size=0, **kwargs)
         assert len(chunks) == 1
         assert _separator_line(chunks[0]["text"]) == "| - | - | - |"
-
-    def test_compact_true_removes_padding(self):
-        chunks = _split_with_recursive_chunker(
-            _build_table_doc(), chunk_size=0, compact_tables=True
-        )
-        text = chunks[0]["text"]
-        assert _separator_line(text) == "| - | - | - |"
-        assert "|--------|" not in text
+        assert "|--------|" not in chunks[0]["text"]
 
     def test_compact_false_keeps_padding(self):
         """off 스위치: 기존(패딩 있는) 형식이 그대로 나와야 한다."""
@@ -80,8 +75,8 @@ class TestRecursiveChunkerCompactTables:
         assert "|--------|" in text
         assert _separator_line(text) != "| - | - | - |"
 
-    def test_cell_contents_are_identical(self):
-        """패딩만 사라지고 셀 내용은 동일해야 한다."""
+    def test_only_padding_differs_between_modes(self):
+        """패딩만 사라지고 셀 내용은 동일하며, 그래서 compact 쪽이 더 짧다."""
         doc = _build_table_doc()
         compact = _split_with_recursive_chunker(doc, chunk_size=0, compact_tables=True)[0]["text"]
         padded = _split_with_recursive_chunker(doc, chunk_size=0, compact_tables=False)[0]["text"]
@@ -96,11 +91,6 @@ class TestRecursiveChunkerCompactTables:
 
         assert cells(compact) == cells(padded)
         assert cells(compact) == [["구분", "사장", "임원"], ["갑지", "$ 389", "$ 282"]]
-
-    def test_compact_is_shorter(self):
-        doc = _build_table_doc()
-        compact = _split_with_recursive_chunker(doc, chunk_size=0, compact_tables=True)[0]["text"]
-        padded = _split_with_recursive_chunker(doc, chunk_size=0, compact_tables=False)[0]["text"]
         assert len(compact) < len(padded)
 
 
@@ -152,22 +142,16 @@ class TestConfigWiring:
         cfg.write_text(body, encoding="utf-8")
         return DocumentProcessor(config_path=str(cfg))
 
-    def test_default_true_when_output_section_absent(self, tmp_path):
-        """output: 섹션이 아예 없는 구버전 config 도 기본 True."""
-        dp = self._processor_with(tmp_path, "defaults:\n  log_level: 4\n")
-        assert dp._default_kwargs["compact_tables"] is True
-
-    def test_explicit_true(self, tmp_path):
-        dp = self._processor_with(tmp_path, "output:\n  compact_tables: true\n")
-        assert dp._default_kwargs["compact_tables"] is True
-
-    def test_explicit_false(self, tmp_path):
-        dp = self._processor_with(tmp_path, "output:\n  compact_tables: false\n")
-        assert dp._default_kwargs["compact_tables"] is False
-
-    def test_invalid_value_falls_back_to_true(self, tmp_path):
-        dp = self._processor_with(tmp_path, "output:\n  compact_tables: bogus\n")
-        assert dp._default_kwargs["compact_tables"] is True
+    @pytest.mark.parametrize("body,expected", [
+        # output: 섹션이 아예 없는 구버전 config 도 기본 True
+        ("defaults:\n  log_level: 4\n", True),
+        ("output:\n  compact_tables: true\n", True),
+        ("output:\n  compact_tables: false\n", False),
+        ("output:\n  compact_tables: bogus\n", True),   # 잘못된 값은 True 폴백
+    ], ids=["no-output-section", "true", "false", "invalid-falls-back"])
+    def test_config_value_lands_in_default_kwargs(self, tmp_path, body, expected):
+        dp = self._processor_with(tmp_path, body)
+        assert dp._default_kwargs["compact_tables"] is expected
 
     def test_runtime_kwarg_overrides_config(self, tmp_path):
         """_merge_runtime_kwargs 는 None 이 아닌 런타임 값만 덮어쓴다 (False 포함)."""
@@ -222,19 +206,20 @@ class TestRuntimeValueParsing:
 class TestStringRuntimeValueReachesOutput:
     """소비 지점 검증: 문자열 런타임 값이 실제 markdown 출력까지 반영되는지."""
 
-    def test_string_false_keeps_padding_in_hybrid_path(self):
+    @pytest.mark.parametrize("value,compact_expected", [
+        ("false", False),
+        ("true", True),
+        ("bogus", True),      # 잘못된 값은 compact 유지
+    ], ids=["string-false", "string-true", "string-invalid"])
+    def test_string_value_reaches_hybrid_output(self, value, compact_expected):
         """HierarchicalChunker.chunk 는 런타임 kwargs 를 그대로 받는다(L1475/1681 경로)."""
-        chunks = list(HierarchicalChunker().chunk(dl_doc=_build_table_doc(), compact_tables="false"))
-        assert "|--------|" in chunks[0].text
-        assert _separator_line(chunks[0].text) != "| - | - | - |"
-
-    def test_string_true_removes_padding_in_hybrid_path(self):
-        chunks = list(HierarchicalChunker().chunk(dl_doc=_build_table_doc(), compact_tables="true"))
-        assert _separator_line(chunks[0].text) == "| - | - | - |"
-
-    def test_invalid_string_stays_compact_in_hybrid_path(self):
-        chunks = list(HierarchicalChunker().chunk(dl_doc=_build_table_doc(), compact_tables="bogus"))
-        assert _separator_line(chunks[0].text) == "| - | - | - |"
+        text = list(HierarchicalChunker().chunk(
+            dl_doc=_build_table_doc(), compact_tables=value))[0].text
+        if compact_expected:
+            assert _separator_line(text) == "| - | - | - |"
+        else:
+            assert "|--------|" in text
+            assert _separator_line(text) != "| - | - | - |"
 
     def test_recursive_path_receives_parsed_bool(self):
         """DocxProcessor/HwpProcessor 가 넘기는 값과 동일하게 파싱된 bool 로 분기되는지."""

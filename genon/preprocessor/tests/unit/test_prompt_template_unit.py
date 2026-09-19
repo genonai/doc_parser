@@ -17,28 +17,21 @@ from processing.enrichment.prompt_template import (
 
 @pytest.mark.unit
 class TestRender:
-    def test_double_brace_substituted(self):
-        t = PromptTemplate("hi {{raw_text}}", allowed_names=[])
-        assert t.render(raw_text="X") == "hi X"
-
-    def test_escape_literal_braces(self):
-        t = PromptTemplate("{{{{literal}}}}", allowed_names=[])
-        assert t.render() == "{{literal}}"
-
-    def test_json_body_untouched(self):
+    @pytest.mark.parametrize("template,kwargs,expected", [
+        # 이중 중괄호 토큰 치환
+        ("hi {{raw_text}}", {"raw_text": "X"}, "hi X"),
+        # 네 겹은 리터럴 중괄호로 이스케이프
+        ("{{{{literal}}}}", {}, "{{literal}}"),
         # single-brace JSON 은 토큰이 아니므로 그대로 통과 (str.format KeyError 회피)
-        t = PromptTemplate('result {{raw_text}} fmt {"created_date": "Y"}', allowed_names=[])
-        out = t.render(raw_text="DOC")
-        assert out == 'result DOC fmt {"created_date": "Y"}'
-
-    def test_no_re_expansion_of_inserted_value(self):
+        ('result {{raw_text}} fmt {"created_date": "Y"}', {"raw_text": "DOC"},
+         'result DOC fmt {"created_date": "Y"}'),
         # 치환된 값 안의 {{table_count}} 는 재확장되지 않아야 한다
-        t = PromptTemplate("{{raw_text}}", allowed_names=[])
-        assert t.render(raw_text="{{table_count}}", table_count="99") == "{{table_count}}"
-
-    def test_whitespace_in_token(self):
-        t = PromptTemplate("[{{ raw_text }}]", allowed_names=[])
-        assert t.render(raw_text="Z") == "[Z]"
+        ("{{raw_text}}", {"raw_text": "{{table_count}}", "table_count": "99"}, "{{table_count}}"),
+        # 토큰 안쪽 공백은 무시된다
+        ("[{{ raw_text }}]", {"raw_text": "Z"}, "[Z]"),
+    ], ids=["substitute", "escape", "json-body", "no-re-expansion", "inner-whitespace"])
+    def test_render(self, template, kwargs, expected):
+        assert PromptTemplate(template, allowed_names=[]).render(**kwargs) == expected
 
     def test_referenced_excludes_escaped(self):
         t = PromptTemplate("{{{{filename}}}} {{page_count}}")

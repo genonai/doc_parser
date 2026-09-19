@@ -112,44 +112,27 @@ _ENRICHERS = [
 @pytest.mark.unit
 @pytest.mark.parametrize("factory,_modpath", _ENRICHERS)
 class TestDefaultParse:
-    def test_direct_json_object(self, factory, _modpath):
-        enr = factory()
-        assert enr._default_parse('{"a": 1}') == {"a": 1}
+    @pytest.mark.parametrize("raw,expected", [
+        ('{"a": 1}', {"a": 1}),                                      # 본문이 그대로 JSON
+        ('[1, 2, 3]', {}),                                           # 배열은 dict 가 아니라 버린다
+        ('설명입니다.\n```json\n{"created_date": "2025-01-01"}\n```\n끝.',
+         {"created_date": "2025-01-01"}),                            # markdown 코드블록
+        ('결과는 다음과 같습니다 {"k": "v"} 이상입니다.', {"k": "v"}),    # 산문 사이 raw decode 스캔
+        (12345, {}),                                                 # 문자열도 dict 도 아님
+        ({"x": 1}, {"x": 1}),                                        # dict 는 그대로 통과
+        ('그냥 평범한 텍스트, JSON 없음', {}),
+    ], ids=["json-object", "json-array", "code-block", "amid-prose",
+            "non-string", "dict-passthrough", "garbage"])
+    def test_default_parse(self, factory, _modpath, raw, expected):
+        assert factory()._default_parse(raw) == expected
 
-    def test_json_array_is_not_dict_returns_empty(self, factory, _modpath):
-        enr = factory()
-        assert enr._default_parse('[1, 2, 3]') == {}
-
-    def test_markdown_code_block(self, factory, _modpath):
-        enr = factory()
-        out = "설명입니다.\n```json\n{\"created_date\": \"2025-01-01\"}\n```\n끝."
-        assert enr._default_parse(out) == {"created_date": "2025-01-01"}
-
-    def test_raw_decode_scan_amid_prose(self, factory, _modpath):
-        enr = factory()
-        out = "결과는 다음과 같습니다 {\"k\": \"v\"} 이상입니다."
-        assert enr._default_parse(out) == {"k": "v"}
-
-    def test_non_string_non_dict_returns_empty(self, factory, _modpath):
-        enr = factory()
-        assert enr._default_parse(12345) == {}
-
-    def test_dict_input_passthrough(self, factory, _modpath):
-        enr = factory()
-        assert enr._default_parse({"x": 1}) == {"x": 1}
-
-    def test_garbage_returns_empty(self, factory, _modpath):
-        enr = factory()
-        assert enr._default_parse("그냥 평범한 텍스트, JSON 없음") == {}
-
-    def test_extract_pattern_applied(self, factory, _modpath):
+    @pytest.mark.parametrize("raw,expected", [
+        ('blah <json>{"a": 2}</json> blah', {"a": 2}),
+        ('no markers here {"a": 2}', {}),    # 마커가 없으면 본문을 쓰지 않는다
+    ], ids=["match", "no-match"])
+    def test_extract_pattern(self, factory, _modpath, raw, expected):
         enr = factory(parser={"type": "json", "extract_pattern": r"<json>([\s\S]*?)</json>"})
-        out = "blah <json>{\"a\": 2}</json> blah"
-        assert enr._default_parse(out) == {"a": 2}
-
-    def test_extract_pattern_no_match_returns_empty(self, factory, _modpath):
-        enr = factory(parser={"type": "json", "extract_pattern": r"<json>([\s\S]*?)</json>"})
-        assert enr._default_parse("no markers here {\"a\": 2}") == {}
+        assert enr._default_parse(raw) == expected
 
 
 # ── _normalize_message_content ───────────────────────────────────────────────
@@ -157,22 +140,14 @@ class TestDefaultParse:
 @pytest.mark.unit
 @pytest.mark.parametrize("factory,_modpath", _ENRICHERS)
 class TestNormalizeMessageContent:
-    def test_plain_string(self, factory, _modpath):
-        enr = factory()
-        assert enr._normalize_message_content("hello") == "hello"
-
-    def test_list_of_text_dicts(self, factory, _modpath):
-        enr = factory()
-        content = [{"text": "a"}, {"text": "b"}]
-        assert enr._normalize_message_content(content) == "a\nb"
-
-    def test_list_of_strings(self, factory, _modpath):
-        enr = factory()
-        assert enr._normalize_message_content(["x", "y"]) == "x\ny"
-
-    def test_other_type_str_cast(self, factory, _modpath):
-        enr = factory()
-        assert enr._normalize_message_content(123) == "123"
+    @pytest.mark.parametrize("content,expected", [
+        ("hello", "hello"),
+        ([{"text": "a"}, {"text": "b"}], "a\nb"),   # text 키를 가진 dict 목록
+        (["x", "y"], "x\ny"),                       # 문자열 목록
+        (123, "123"),                                # 그 밖의 타입은 str 캐스트
+    ], ids=["plain-string", "text-dicts", "strings", "other-type"])
+    def test_normalize_message_content(self, factory, _modpath, content, expected):
+        assert factory()._normalize_message_content(content) == expected
 
 
 # ── _preprocess_text (MetadataEnricher 전용) ──────────────────────────────────
@@ -182,42 +157,44 @@ def test_metadata_preprocess_removes_image_tags():
     assert MetadataEnricher._preprocess_text("a <!-- image --> b <!--image--> c") == "a  b  c"
 
 
+def _last_user_message(factory, modpath, raw_text="DOC", document=None, **factory_kwargs):
+    """enricher 를 만들어 _call_llm 을 태우고 LLM payload 의 마지막 메시지를 돌려준다.
+
+    프롬프트 렌더 결과를 보는 테스트가 여럿이라 네 줄짜리 배관을 여기 한 벌만 둔다.
+    """
+    enr = factory(**factory_kwargs)
+    captured = {}
+    with _patch_async_client(modpath, captured):
+        if document is None:
+            asyncio.run(enr._call_llm(raw_text))
+        else:
+            asyncio.run(enr._call_llm(raw_text, document))
+    return captured["json"]["messages"][-1]
+
+
 # ── _call_llm 프롬프트 빌드 (httpx mock, 실제 전송 없음) ───────────────────────
 
 @pytest.mark.unit
 @pytest.mark.parametrize("factory,modpath", _ENRICHERS)
 class TestCallLlmPromptBuild:
-    def test_double_brace_placeholder_substituted(self, factory, modpath):
-        enr = factory(user_prompt="문서 내용: {{raw_text}}")
-        captured = {}
-        with _patch_async_client(modpath, captured):
-            asyncio.run(enr._call_llm("RAWDOC"))
-        messages = captured["json"]["messages"]
-        user_msg = messages[-1]
-        assert user_msg["role"] == "user"
-        assert user_msg["content"] == "문서 내용: RAWDOC"
-
-    def test_single_brace_placeholder_substituted(self, factory, modpath):
-        enr = factory(user_prompt="내용={raw_text}")
-        captured = {}
-        with _patch_async_client(modpath, captured):
-            asyncio.run(enr._call_llm("RAWDOC"))
-        assert captured["json"]["messages"][-1]["content"] == "내용=RAWDOC"
+    @pytest.mark.parametrize("user_prompt,raw_text,expected", [
+        ("문서 내용: {{raw_text}}", "RAWDOC", "문서 내용: RAWDOC"),   # 이중 중괄호
+        ("내용={raw_text}", "RAWDOC", "내용=RAWDOC"),                 # 단일 중괄호
+        ("", "RAWONLY", "RAWONLY"),                                   # 빈 프롬프트는 본문만
+    ], ids=["double-brace", "single-brace", "empty-falls-back-to-raw"])
+    def test_user_prompt_placeholder_substituted(
+        self, factory, modpath, user_prompt, raw_text, expected
+    ):
+        msg = _last_user_message(factory, modpath, raw_text, user_prompt=user_prompt)
+        assert msg["role"] == "user"
+        assert msg["content"] == expected
 
     def test_system_prompt_included_first(self, factory, modpath):
         enr = factory(system_prompt="SYSTEM")
         captured = {}
         with _patch_async_client(modpath, captured):
             asyncio.run(enr._call_llm("X"))
-        messages = captured["json"]["messages"]
-        assert messages[0] == {"role": "system", "content": "SYSTEM"}
-
-    def test_empty_user_prompt_falls_back_to_raw_text(self, factory, modpath):
-        enr = factory(user_prompt="")
-        captured = {}
-        with _patch_async_client(modpath, captured):
-            asyncio.run(enr._call_llm("RAWONLY"))
-        assert captured["json"]["messages"][-1]["content"] == "RAWONLY"
+        assert captured["json"]["messages"][0] == {"role": "system", "content": "SYSTEM"}
 
     def test_payload_carries_model_and_sampling(self, factory, modpath):
         enr = factory(model="my-model")
@@ -575,37 +552,27 @@ class TestTemplateVariablesAndMode:
         with pytest.raises(ValueError):
             factory(user_prompt="안녕 {{unknown_var}}")
 
-    def test_user_defined_variable_substituted(self, factory, modpath):
-        enr = factory(
-            user_prompt="회사={{company}} 문서={{raw_text}}",
-            variables={"company": "GenON"},
-        )
-        captured = {}
-        with _patch_async_client(modpath, captured):
-            asyncio.run(enr._call_llm("DOC"))
-        assert captured["json"]["messages"][-1]["content"] == "회사=GenON 문서=DOC"
-
-    def test_lenient_unknown_variable_renders_empty(self, factory, modpath):
-        enr = factory(user_prompt="[{{unknown_var}}] {{raw_text}}", template_mode="lenient")
-        captured = {}
-        with _patch_async_client(modpath, captured):
-            asyncio.run(enr._call_llm("DOC"))
-        assert captured["json"]["messages"][-1]["content"] == "[] DOC"
-
-    def test_json_braces_in_prompt_preserved(self, factory, modpath):
-        enr = factory(user_prompt='추출: {{raw_text}} 형식: {"date": "Y"}')
-        captured = {}
-        with _patch_async_client(modpath, captured):
-            asyncio.run(enr._call_llm("DOC"))
-        assert captured["json"]["messages"][-1]["content"] == '추출: DOC 형식: {"date": "Y"}'
+    @pytest.mark.parametrize("factory_kwargs,expected", [
+        # user-defined 변수는 variables 로 주입된다
+        ({"user_prompt": "회사={{company}} 문서={{raw_text}}",
+          "variables": {"company": "GenON"}}, "회사=GenON 문서=DOC"),
+        # lenient 모드에서 미지의 변수는 빈 문자열로 렌더된다
+        ({"user_prompt": "[{{unknown_var}}] {{raw_text}}",
+          "template_mode": "lenient"}, "[] DOC"),
+        # 단일 중괄호 JSON 은 토큰이 아니므로 그대로 보존된다
+        ({"user_prompt": '추출: {{raw_text}} 형식: {"date": "Y"}'},
+         '추출: DOC 형식: {"date": "Y"}'),
+    ], ids=["user-defined-variable", "lenient-unknown", "json-braces-preserved"])
+    def test_prompt_renders(self, factory, modpath, factory_kwargs, expected):
+        assert _last_user_message(factory, modpath, "DOC", **factory_kwargs)["content"] == expected
 
     def test_doc_context_fills_reserved(self, factory, modpath):
         """document 이 주어지면 filename/page_count 등 reserved 가 채워진다."""
-        enr = factory(user_prompt="{{filename}} p{{page_count}} {{raw_text}}")
         doc = MagicMock()
         doc.origin.filename = "a.pdf"
         doc.num_pages.return_value = 3
-        captured = {}
-        with _patch_async_client(modpath, captured):
-            asyncio.run(enr._call_llm("DOC", doc))
-        assert captured["json"]["messages"][-1]["content"] == "a.pdf p3 DOC"
+        msg = _last_user_message(
+            factory, modpath, "DOC", document=doc,
+            user_prompt="{{filename}} p{{page_count}} {{raw_text}}",
+        )
+        assert msg["content"] == "a.pdf p3 DOC"
