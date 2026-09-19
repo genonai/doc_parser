@@ -45,15 +45,8 @@ rg '<pattern>' main.py genon docling tests build-script
 
 facade 5종을 한 서버에 올리고 라우트로 가른다(로컬 실행도 이 파일로 한다).
 
-| 라우트 | facade |
-|---|---|
-| `/preprocess`, `/preprocess_intelligent` | `intelligent_processor.py` (전자는 하위호환 별칭) |
-| `/preprocess_attachment` | `attachment_processor.py` |
-| `/preprocess_convert` | `convert_processor.py` |
-| `/parser`, `/parser_upload` | `parser_processor.py` |
-| `/chunker` | `chunking_processor.py` |
-
-그 밖에 `/health`, `/version`(배포 시 생성되는 루트 VERSION 스탬프, 없으면 git 폴백)을 노출한다.
+라우트와 facade 의 대응은 `main.py` 의 등록부에서 확인한다. `/preprocess` 는 `/preprocess_intelligent` 의
+하위호환 별칭이다. 그 밖에 `/health`, `/version`(배포 시 생성되는 루트 VERSION 스탬프, 없으면 git 폴백)을 노출한다.
 
 ### ② 기본 전처리기 서비스 — `genon/preprocessor/src/main.py`
 
@@ -72,25 +65,16 @@ GenOS 에 전처리기 리소스로 등록되는 형태. **facade 가 하나만 
 ## 공용 하위 모듈 지도
 
 facade가 공유하는 로직은 아래에 한 벌씩만 둔다. 최상위 processor는 별칭이나 얇은 호출부만 갖는다.
-새 로직을 어디 둘지 고민되면 이 표에서 가장 가까운 모듈을 먼저 찾는다 (표는 요약이므로 실제 파일 목록은 `ls` 로 확인).
+새 로직을 어디 둘지 고민되면 가장 가까운 모듈을 먼저 찾는다.
 
 | 모듈 | 역할 |
 |---|---|
-| `core/parser.py`, `core/chunker.py` | 파싱·청킹 처리 본체(`ParserCore`/`ChunkerCore`). 두 파사드는 상속만 한다 |
-| `core/toolbox.py` | 고객이 훅에서 쓰는 기능 재수출(값 변환·엑셀·JSON·표·청크 메타). **새 구현을 두는 자리가 아니다** |
-| `core/cli.py`, `core/errors.py` | 파일 단독 실행 진입점(`DocumentProcessor.cli()`), 공용 `GenosServiceException` |
-| `common/config_parse.py` | yaml/kwargs 값 파싱, `load_config`, 토크나이저·청크크기·`compact_tables` 등 설정 해석 |
-| `common/file_probe.py`, `format_alias.py` | 파일 종류 판별(PDF/텍스트/암호화/HWP 보호), PDF 경로 변환, 확장자 별칭 |
-| `common/pdf_convert.py` | 비-PDF 입력의 PDF 변환 진입점. backend chain 순서 + 이슈 #286 사전 체크 |
-| `common/docling_ops.py` | docling 배관 — OCR 옵션, 컨버터 생성, 표 이미지 저장, 글리프·빈 텍스트 검사 |
-| `common/pipeline_setup.py`, `runtime_kwargs.py` | `__init__` 의 OCR·PDF·layout 해석 / 런타임 kwargs 정규화·이미지 모드 배선 |
-| `common/vector_meta.py`, `doc_meta.py` | `GenOSVectorMeta` 빌더 공통 코어, 문서 메타 |
-| `common/loaders.py`, `markdown_export.py`, `runtime.py`, `appendix.py` | 로더(`install_packages`, Text/Tabular/Audio), 마크다운 내보내기, 로깅 초기화, 별첨 키워드 판정 |
-| `chunking/smart_chunker.py` | `GenosSmartChunker` 본체. 활성 3종이 ClassVar 플래그만 다른 서브클래스로 상속 |
-| `chunking/hybrid_chunker.py` | docling_core `HybridChunker`/`HierarchicalChunker` 포크본(`TokenAwareHybridChunker`/`HierarchicalDocChunker` 로 개명해 업스트림과 구분). 갈라진 축은 모듈 docstring 참조 |
-| `chunking/table_*.py`, `rich_cells.py` | 표 행 분할·모양 판정·HTML 표 직렬화·변형 처리 |
-| `chunking/header_path.py`, `page_split.py`, `doc_prefix.py`, `text_norm.py` | 청크 헤더 경로, 페이지 분할, 문서 접두, 청크 텍스트 정제 |
+| `core/` | 파싱·청킹 처리 본체(`ParserCore`/`ChunkerCore`), 고객용 `toolbox.py`(재수출 전용), `cli.py`, `errors.py` |
+| `common/` | 설정 해석, 파일 종류 판별, PDF 변환, docling 배관, 파이프라인 배선, 벡터·문서 메타, 로더 |
+| `chunking/` | `GenosSmartChunker` 본체와 docling_core 청커 포크본, 표 처리, 헤더 경로·페이지 분할·텍스트 정제 |
 | `enrichment/`, `guardrail/` | custom_fields·LLM 보강, 민감정보 처리 |
+
+파일 단위 역할표는 `genon/preprocessor/processing/README.md` 에 있다.
 
 ## 큰 파일 취급 규칙 (중요)
 
@@ -119,9 +103,7 @@ facade가 공유하는 로직은 아래에 한 벌씩만 둔다. 최상위 proce
 4. **영향 범위가 결함 범위보다 넓지 않은가** — doc_type 하나를 고치는데 모든 문서의 파싱 결과가 바뀌면 과하다.
 5. **일반화가 새 위험을 만들지 않는가** — "무조건 처리" 류는 의도하지 않은 입력까지 끌어온다. 설정 한 줄로 되는 일을 코드 판정 로직으로 풀지 않는다(`formats.extension_aliases` 가 그 기구다).
 
-실례(2026-09-04, `*.parsed` 확장자): 실제 원인은 한 줄이었는데 곁가지까지 고쳐 205줄이 됐고,
-축소 후 최종은 `parser_processor.py` 11줄 + yaml 설정이었다. 되돌린 4건 중 3건은 자체 검토에서
-놓쳤다 — **적용 전에 `scope-check` 서브에이전트로 한 번 판정받는다.** 판정 기준의 전문과 사례는
+**적용 전에 `scope-check` 서브에이전트로 한 번 판정받는다.** 판정 기준의 전문과 사례는
 `.claude/agents/scope-check.md` 에 있다.
 
 ## 아키텍처 제약
@@ -185,11 +167,9 @@ cd genon/preprocessor
 .venv/bin/python -m pytest tests/unit -q -p no:randomly --color=no
 ```
 
-**`tests/unit` 전체가 실측 24초 / 2,145 passed / 0 failed 다(2026-09-19).** 사전 실패는 없으므로
-새로 뜨는 실패는 회귀로 의심한다. 반복 실행 중에는 바꾼 모듈을 쓰는 파일만 지정해도 되지만,
-**core 심볼 이름을 바꿨으면 전체를 돌린다** — 소스 문자열을 단정하는 테스트는 "바꾼 모듈을 쓰는
-테스트" 목록에 걸리지 않는다(`row_meta`→`record_meta` 개명이 표적 실행 3회를 통과하고 전체
-실행에서야 드러난 전례가 있다).
+**`tests/unit` 에 사전 실패는 없다.** 새로 뜨는 실패는 회귀로 의심한다. 반복 실행 중에는 바꾼
+모듈을 쓰는 파일만 지정해도 되지만, **core 심볼 이름을 바꿨으면 전체를 돌린다** — 소스 문자열을
+단정하는 테스트는 "바꾼 모듈을 쓰는 테스트" 목록에 걸리지 않는다.
 
 주의:
 - `addopts` 에 `-p no:cacheprovider` 가 있어 **`--lf` 를 쓸 수 없다.**
@@ -236,9 +216,8 @@ PYTHONPATH=<repo>:<repo>/genon/preprocessor:<repo>/genon/preprocessor/src:<repo>
 ## 배포 (code-serving)
 
 - 배포본은 별도 Private 저장소(`doc_parser_code_serving`)이며 로컬 `code-serving/` 은 그 클론이다(gitignore).
-- 동기화는 `build-script/sync-serving-repo.sh`. **클론이 이미 존재하면 dry-run이 아니라 실제 커밋이 남는다** — 검증은 throwaway `SERVING_DIR` 로 할 것.
-- docling은 wheel로 `packages/` 에 동봉된다. 핫픽스 overlay(`apply-patch.sh`)는 genon 전용이므로, docling을 고쳤다면 wheel 재빌드가 필수다.
-- 절차 전체는 `deploy-code-serving`·`create-patch-bundle` 스킬에 있다.
+- 절차 전체와 주의사항(동기화 시 실제 커밋이 남는 점, docling 수정 시 wheel 재빌드 강제)은
+  `deploy-code-serving`·`create-patch-bundle` 스킬에 있다.
 
 ## 작업 방식
 
@@ -260,15 +239,10 @@ conventional prefix 없음, 이슈 제목은 명사형("~추가"), PR 대상은 
 
 ## .claude/ 도구 설정
 
-각 파일의 상세 동작과 근거는 해당 파일 상단 주석에 있다. 여기서는 존재와 용도만 적는다.
+각 파일의 상세 동작과 근거는 해당 파일 상단 주석에 있다.
 
-- `settings.json` — 빌드 산출물·캐시·`code-serving/`·`shkim_labs/` 를 Read 에서 차단하고, `reference/` 와 `code-serving/` 은 Edit 에서 차단한다.
-- `.ignore` — `rg`/`Grep` 전용 제외 목록. "저장소 지도" 절 참조.
-- `hooks/pytest-filter.sh` — 단순한 pytest 명령에 `--color=no -p no:randomly` 를 붙이고 통과 줄을 걷어낸다. 실행 위치도 절대경로 `cd` 로 교정한다. 복합 명령은 건드리지 않는다.
-- `hooks/large-file-read-guard.sh` — 1,200줄 초과 파일을 `offset`/`limit` 없이 Read 하면 거부한다. 전체가 정말 필요하면 `offset=1 limit=<줄수>` 로 의도를 명시한다.
-- `agents/scope-check.md` — "수정 범위" 5기준을 고정한 서브에이전트. 범위 과잉만 판정한다(버그 사냥은 범위 밖).
-- `agents/test-scope-check.md` — "테스트 작성 기준" 6기준을 고정한 서브에이전트. 테스트 과잉만 판정한다(커버리지 구멍 찾기는 범위 밖).
-- 스킬 — `deploy-code-serving`, `create-patch-bundle`(배포·패치 절차), `issue-start`/`wip`/`open-pr`(위 GitHub 흐름). 필요할 때만 로드된다.
+- `settings.json`(Read·Edit 차단 범위), `.ignore`(검색 제외 목록), 훅 2종(`pytest-filter.sh`, `large-file-read-guard.sh`)
+- 서브에이전트 `scope-check`·`test-scope-check`, 스킬 `deploy-code-serving`·`create-patch-bundle`·`issue-start`·`wip`·`open-pr`
 - `pyright-lsp` 플러그인(선택, 개인 설정이라 미공유). 설치되어 있으면 심볼 정의 탐색에 Grep 대신 LSP 를 우선한다.
 
 ## Compact instructions
