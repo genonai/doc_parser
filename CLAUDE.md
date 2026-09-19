@@ -155,6 +155,56 @@ facade가 공유하는 로직은 아래에 한 벌씩만 둔다. 최상위 proce
   - 실례: `html_flatten._lift_table_captions` 가 `<caption>` 을 표 앞 `<p>` 로 옮기는 바람에 백엔드가 만든 `TableItem.captions` 가 계속 비었고, 표 설명이 사라졌다.
 - 설정은 스키마별 키를 늘리기보다 일반화된 메커니즘으로 푼다. allowlist보다 blocklist. YAML은 초보자가 읽을 수 있게 개념 수를 줄인다.
 
+## 테스트 작성 기준 (중요)
+
+**기능 하나에 테스트를 몇 건 붙일지 먼저 정한다.** 2026-03 에 1,985줄이던 테스트가 2026-09 에
+32,614줄이 되어 프로덕션(legacy 제외) 35,686줄에 육박한다. 최근 커밋의 소스:테스트 변경줄
+비율은 대체로 1:2~1:3 이고, 늘어난 분량의 상당 부분은 새 보장이 아니라 같은 단정의 사본이다.
+아래 6개는 이 저장소에서 실측으로 확인된 낭비 유형이며, 테스트를 쓰기 전과 커밋 전에 스스로 판정한다.
+
+1. **한 번의 호출에는 테스트 하나.** 같은 함수를 같은 인자로 여러 번 호출해 결과의 필드를 하나씩
+   단정하지 않는다. 딕셔너리·리스트는 통째로 비교하거나 한 테스트 안에서 연속 단정한다.
+   실측으로 단정 1개·본문 5줄 이하인 테스트가 358건, 병합 후보 클래스가 21개(109건) 있다.
+   `test_parser_processor_unit.py::TestAudioToParseFormat` 은 같은 호출을 여섯 번 반복해 필드를
+   하나씩 본다 — 한 건이면 된다.
+2. **입력값 변형은 parametrize 한 건으로.** 대소문자·앞뒤 공백·빈 문자열·미지원 값 폴백처럼 같은
+   코드 경로를 타는 변형은 테스트를 나누지 말고 `@pytest.mark.parametrize` 표 하나에 넣는다.
+3. **설정 배선은 배선하는 함수에서 검증한다.** yaml 키가 사설 속성에 실렸는지 보려고
+   `DocumentProcessor(config_path=...)` 를 기동하지 않는다. 기동은 유닛 기준으로 가장 느리고,
+   `__init__` 실패를 `pytest.skip` 으로 삼키면 환경이 어긋났을 때 조용히 통과한다. 설정 해석은
+   `common/config_parse.py` 의 순수 함수 단위로 검증하고, 배선 자체는 파라미터 표 한 건으로 묶는다.
+   실측으로 배선만 확인하는 파일이 6개(860줄 43건) 있다.
+4. **같은 로직의 사본마다 테스트를 복제하지 않는다.** 두 번째 파사드나 두 번째 클래스에 같은
+   테스트를 붙이고 싶어지면 그것은 프로덕션 코드가 복제됐다는 신호다. 공용 하위 모듈로 합치고
+   테스트도 한 벌만 둔다. 합칠 수 없으면 그 이유를 테스트 docstring 에 남긴다. 실례로
+   `tokenizer_type` 정규화가 `chunking/smart_chunker.py`·`chunking/hybrid_chunker.py`·`core/chunker.py`
+   세 곳에 복제돼 동일 이름 테스트가 3쌍 생겼고, 다섯 줄짜리 정규화에 실행 9건이 걸려 있다.
+5. **새 테스트 파일을 만들기 전에 기존 파일을 찾는다.** 대상 모듈을 이미 겨냥하는 파일이 있으면
+   거기에 넣는다. `rg -l '<모듈명>' genon/preprocessor/tests` 로 먼저 확인한다. 실측으로 `enrichment`
+   계열 한 모듈군을 11개 파일이 겨냥하고, `_load_processor`·`_make_config`·`_init_processor` 같은
+   헬퍼가 파일마다 복제돼 있다.
+6. **사설 속성 대신 공개 동작을 단정한다.** `proc._default_kwargs[...]` 처럼 내부 이름에 기대면
+   리팩터링할 때마다 테스트를 함께 고쳐야 한다. 공개 경로로 확인할 수 없을 때만 쓰고, 그때는 왜
+   그런지 한 줄 남긴다. 실측으로 사설 속성을 단정하는 테스트가 153건이다.
+
+**추가하지 않는 테스트.**
+
+- 이미 있는 테스트가 같은 코드 경로를 지나가며 같은 것을 보장하는 경우
+- 타입 시그니처, 상수 값, `dataclass` 기본값처럼 코드를 읽으면 드러나는 것
+- 실제로 발생할 수 없는 입력에 대한 방어 분기(호출부가 이미 막고 있는 None 처리 등)
+- 목을 세워 두고 그 목이 호출됐는지만 확인하는 테스트
+
+**결함 수정에는 재현 테스트 한 건이 기본이다.** 고친 결함을 재현하는 테스트 한 건을 남기고,
+수정하는 과정에서 읽은 주변 코드에 테스트가 없다는 이유로 함께 채우지 않는다. "수정 범위" 절의
+기준 1("이걸 빼면 보고된 증상이 남는가")이 테스트에도 그대로 적용된다.
+
+**검증을 늘리는 대신 옮긴다.** 같은 보장을 더 싸게 살 자리가 있으면 그쪽을 쓴다. custom_fields
+yaml 이 약속한 필드가 실제로 실리는지는 유닛을 늘리는 것보다 `examples/parse_chunk/parse_chunk_verify.sh`
+에 케이스를 한 줄 더하는 편이 싸고, 설정 오기입은 `examples/config_precheck/precheck_custom_fields.sh`
+가 이미 잡는다.
+
+계획을 세운 뒤 적용 전에, 또는 PR 직전에 `test-scope-check` 서브에이전트로 한 번 판정받는다.
+
 ## 테스트
 
 전처리기 테스트는 `genon/preprocessor/` 에서 실행한다 (루트 `pytest.ini` 는 docling 업스트림용이며 `testpaths` 가 존재하지 않는 디렉터리를 가리킨다). 마커는 `unit`, `smoke`, `regression`, `update_baseline`(일반 실행 제외).
@@ -233,6 +283,7 @@ conventional prefix 없음, PR 대상은 `develop`, 본문에 `Resolves #N` 을 
   - 실행 위치도 교정한다. `tests/unit|smoke|regression` 인자가 실행 기준 디렉터리에 없고 `genon/preprocessor` 아래에 있으면 절대경로 `cd` 를 앞에 붙인다. 훅은 Bash 툴이 유지하는 cwd 를 볼 수 없어서(입력의 `cwd` 는 늘 루트) 차단 대신 교정으로 처리한다 — 차단 방식은 cwd 가 이미 `genon/preprocessor` 인 정상 명령을 막았다. 복합 명령에는 적용되지 않는다.
 - `hooks/large-file-read-guard.sh` — PreToolUse(Read) 훅. 1,200줄 초과 텍스트 파일을 `offset`/`limit` 없이 Read 하려 하면 거부하고 Grep 선행을 요구한다. 활성 `.py` 470개 중 25개가 대상이며 "큰 파일 취급 규칙" 절의 7개 파일이 모두 포함된다. 전체가 정말 필요하면 `offset=1 limit=<줄수>` 로 의도를 명시하면 통과한다.
 - `agents/scope-check.md` — "수정 범위" 절의 판정 기준 5개를 고정한 서브에이전트. 변경 적용 전이나 PR 직전에 diff/계획의 범위 과잉만 판정한다(버그 사냥은 범위 밖).
+- `agents/test-scope-check.md` — "테스트 작성 기준" 절의 판정 기준 6개를 고정한 서브에이전트. 테스트를 쓴 직후나 PR 직전에 테스트 diff 의 과잉만 판정한다(커버리지 구멍 찾기는 범위 밖).
 - 스킬 — `deploy-code-serving`, `create-patch-bundle`(배포·패치 절차), `issue-start`/`wip`/`open-pr`(위 GitHub 흐름). 필요할 때만 로드된다.
 - `pyright-lsp` 플러그인(선택, 개인 설정이라 미공유). 설치되어 있으면 심볼 정의 탐색에 Grep 대신 LSP 를 우선한다. `npm install -g pyright` 후 `claude plugin install pyright-lsp@claude-plugins-official --scope local`.
 

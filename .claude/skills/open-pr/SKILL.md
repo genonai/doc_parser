@@ -31,14 +31,26 @@ cd genon/preprocessor && .venv/bin/python -m pytest tests/unit -q -p no:randomly
 실패하면 실패한 테스트 목록만 보고하고 **PR 을 만들지 않고 중단한다**.
 `.claude/hooks/pytest-filter.sh` 가 출력에서 PASSED/SKIPPED 줄을 걷어내므로 별도 필터링은 하지 않는다.
 
-### 3. 변경 요약 수집
+### 3. 테스트 범위 점검
+
+```bash
+git diff develop...HEAD --stat -- genon/preprocessor/tests
+```
+
+테스트 변경이 있으면 `test-scope-check` 서브에이전트에 테스트 diff 와 프로덕션 diff 를 함께 넘겨
+과잉 여부를 판정받는다. 판정이 "과잉"이면 지적된 테스트를 합치거나 빼고 다시 커밋한 뒤 진행한다.
+판정 결과는 PR 본문의 "검증" 절에 한 줄로 남긴다.
+
+테스트 변경이 없으면 이 단계를 건너뛴다.
+
+### 4. 변경 요약 수집
 
 ```bash
 git log develop..HEAD --format='%s'
 git diff develop...HEAD --stat
 ```
 
-### 4. PR 본문 작성
+### 5. PR 본문 작성
 
 `.github/PULL_REQUEST_TEMPLATE.md` 는 docling 업스트림 잔재(영문)이므로 쓰지 않는다.
 아래 한국어 구조로 직접 만든다.
@@ -69,7 +81,7 @@ Resolves #<N>
 
 해당 없으면 "해당 없음" 한 줄로 적는다.
 
-### 5. 승인 후 생성
+### 6. 승인 후 생성
 
 제목(한국어)과 본문을 보여주고 승인받은 뒤, 본문을 스크래치패드에 임시 파일로 쓰고 생성한다.
 
@@ -82,7 +94,7 @@ gh pr create --repo genonai/doc_parser \
 
 호출 인자에 `--draft` 가 있으면 플래그를 붙인다.
 
-### 6. CI 대기
+### 7. CI 대기
 
 ```bash
 gh pr checks --watch --fail-fast
@@ -97,6 +109,6 @@ gh run view <run-id> --log-failed
 
 로그 전문을 출력하지 않는다. 실패 원인 한두 줄과 해당 테스트/단계만 정리한다.
 
-### 7. 보고
+### 8. 보고
 
 PR URL, CI 결과, 실패가 있으면 원인 요약.
