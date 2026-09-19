@@ -279,6 +279,31 @@ enrichment:
 | `values`에 없는 값 | 원값 통과(fail-open), 경고만 |
 | 같은 이름 key가 얕은 곳과 깊은 곳에 모두 있음 | **얕은 쪽이 우선합니다.** 경고 없이 엉뚱한 값이 실립니다 |
 | 같은 이름의 레코드 배열이 여러 곳에 있음 | `records_at`은 최초 매칭 **1개**만 찾습니다. 나머지는 경고 없이 빠집니다 |
+| 보강 단계가 예외로 실패함 | **기본값 `lenient`에서는 경고만 남기고 그 단계를 건너뛴 채 성공 응답을 냅니다** (아래) |
+
+#### 보강 실패는 기본적으로 요청을 실패시키지 않습니다
+
+`error_policy`의 기본값은 `lenient`입니다. 모델 서버 장애, 프롬프트 오류, 추출 예외처럼 **보강 단계에서
+발생한 예외는 경고 로그만 남기고 그 단계를 건너뜁니다.** 요청은 `code: 0`으로 성공하고 해당 필드만
+비어 있으므로, 응답만 보면 설정 오류와 구분되지 않습니다.
+
+이 정책이 적용되는 단계는 다음과 같습니다. 파싱 자체의 실패는 해당하지 않으며 그대로 요청 실패가 됩니다.
+
+| `stage` | 단계 |
+|---|---|
+| `custom_fields` | 목표필드 추출 |
+| `doc_summary` · `image_description` | 문서 요약 · 이미지 설명 |
+| `metadata` · `doc_type_stamp` | 문서 메타데이터 · 문서 유형 기록 |
+
+> **검증할 때는 `error_policy: strict`로 실행하세요.** 보강 실패가 조용히 넘어가지 않고 `stage`가 실린
+> 오류로 올라오므로, 설정이 틀린 것인지 모델 호출이 실패한 것인지 바로 구분됩니다. 운영 요청은 기본값
+> `lenient`를 유지해 일부 보강 실패로 적재 전체가 멈추지 않게 합니다. `llm_cache`와 달리
+> `workflow_id` 없이도 항상 적용됩니다.
+
+```bash
+curl "${CS}/parser" -H 'Content-Type: application/json' \
+  --data '{"file_path": "...", "params": {"doc_type": "notice", "error_policy": "strict"}}'
+```
 
 #### 세 단계 검증 절차
 
@@ -899,6 +924,43 @@ raise GenosServiceException(
 `stage`와 `error_type`을 지정하면 응답의 `stage`·`error_kind`에 포함되어 호출 측에서 재시도 여부를 판단할
 수 있습니다. **부분 실패를 허용하려면** 예외를 발생시키지 않고 해당 항목만 제외한 뒤 결과에 기록하세요.
 
+#### 훅에서 발생한 예외가 가는 곳
+
+**훅이 던진 예외는 그 요청 전체를 실패시킵니다.** core가 대신 삼켜 주지 않으므로, 문서 한 건이
+아니라 요청 하나가 통째로 실패합니다. `error_policy: lenient`는 보강 단계에만 적용되며 훅 예외에는
+적용되지 않습니다.
+
+| 던진 것 | 응답 |
+|---|---|
+| `GenosServiceException` | `error_code`가 그대로 보존되고, 지정했다면 `stage`·`error_kind`도 함께 실립니다 |
+| 그 밖의 예외 | 타입에 따라 `INPUT_ERROR` / `TIMEOUT_ERROR` / `INTERNAL_ERROR`로 자동 분류됩니다. `error_type`에는 예외 클래스명이 들어갑니다 |
+
+`error_code`는 문자열로 그대로 전달되므로 현장에서 쓰는 코드 체계가 있으면 그 값을 넣습니다.
+예제의 `'1'`은 특별한 뜻이 없는 기본값입니다.
+
+여러 건을 처리하는 훅에서 일부만 실패했을 때는 다음과 같이 나눠 판단합니다.
+
+```python
+    def edit_input(self, ext, doc_type, data, work_dir=None, **kwargs):
+        if ext != ".json" or doc_type != "notice":
+            return data
+        kept, dropped = [], []
+        for item in data.get("items") or []:
+            try:
+                kept.append(self.normalize(item))
+            except ValueError as exc:
+                dropped.append((item.get("id"), str(exc)))   # 그 건만 제외하고 계속
+        if not kept:                                          # 전부 실패하면 멈춘다
+            raise GenosServiceException(
+                error_code='1', error_msg=f'처리할 수 있는 항목이 없습니다: {dropped}',
+                stage='edit_input', error_type='permanent')
+        return {"items": kept}
+```
+
+> 목표필드 이름이 `title`·`created_date`·`appendix` 같은 **예약 필드와 겹치면** 청킹 단계에서
+> `stage: custom_fields`로 요청이 실패합니다. 오류 메시지가 겹친 필드 이름을 알려 주므로 그 이름을
+> 바꾸면 됩니다. 예약 필드 목록은 [6.3](#63-출력-스키마-청크)에 있습니다.
+
 ---
 
 ## 3. 개발 환경
@@ -1473,6 +1535,7 @@ facade의 `GenosSmartChunker` ClassVar는 청크 표기 방식을 정합니다.
 - 애플리케이션이 처리한 성공·실패는 HTTP 200으로 반환되며 `code: 0`이 성공입니다. 요청 형식 검증·네트워크·게이트웨이 오류는 비-200일 수 있으므로 HTTP 상태와 JSON 본문을 모두 검사합니다.
 - 공통 오류 응답의 `error_type`은 예외 클래스명입니다. `error_code`, `traceback`도 포함됩니다.
 - `stage`는 실패 단계, `error_kind`는 `transient` / `permanent` / `timeout`과 같은 실패 성격이며, 정보가 있을 때만 포함됩니다. 예외 생성자의 `error_type` 인자는 응답에서 `error_kind`로 나갑니다.
+- core가 넣는 `stage` 값은 `custom_fields` · `doc_summary` · `image_description` · `metadata` · `doc_type_stamp`(보강 단계, `error_policy: strict`일 때)와 `request`(요청 제한 시간 초과)입니다. 훅에서 직접 지정한 값은 그대로 나갑니다.
 - facade가 `GenosServiceException`으로 던진 오류는 `error_code`가 보존됩니다. 그 외 예외는
   타입에 따라 `INPUT_ERROR` / `TIMEOUT_ERROR` / `INTERNAL_ERROR`로 자동 분류됩니다.
 
@@ -1738,7 +1801,7 @@ fields:
 | 키 | 값 | 하는 일 |
 |---|---|---|
 | `llm_cache` | `0` / `1` | 파싱 단계의 LLM 응답 캐시 사용 여부. 같은 입력·모델·프롬프트 등 캐시 조건이 일치할 때 재사용합니다. 청커 자체가 LLM을 호출하도록 만드는 옵션은 아닙니다. `workflow_id` 조건은 아래 참조 |
-| `error_policy` | `strict` / `lenient` | `strict`는 보강 단계 실패를 요청 실패로 올리고, `lenient`는 경고만 남기고 계속합니다 |
+| `error_policy` | `strict` / `lenient` | **기본 `lenient`.** 보강 단계(`custom_fields` · `doc_summary` · `image_description` · `metadata` · `doc_type_stamp`) 실패를 `strict`는 요청 실패로 올리고, `lenient`는 경고만 남기고 그 단계를 건너뜁니다. 훅이 던진 예외와 파싱 실패에는 적용되지 않습니다. `workflow_id` 없이도 항상 적용됩니다 |
 | `request_deadline` | 양수 초 | HTTP 처리 래퍼가 제한 시간을 적용하며 타임아웃 시 `error_kind: timeout`을 반환합니다. 생략·0 이하·숫자 변환 불가는 이 래퍼의 제한을 설정하지 않습니다. 단독 CLI에는 같은 HTTP 래퍼가 없으며, 동기 코드가 이벤트 루프를 점유하면 취소 응답이 지연될 수 있습니다 |
 
 > `llm_cache`는 **`params.workflow_id`가 함께 전달될 때만** 동작합니다. 캐시 디렉터리를

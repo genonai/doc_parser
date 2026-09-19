@@ -34,14 +34,17 @@ class DocumentProcessor(ParserCore):
     async def __call__(self, request, file_path, **kwargs):
         """파서 진입점
 
-        job 은 요청 컨텍스트다. 훅 메소드에서는 kwargs["job"] 으로 꺼낸다(시그니처에는 없다).
+        job 은 요청 컨텍스트다. 시그니처에 job 이 있는 메소드에서만 쓸 수 있다 —
+        config_by_condition(job), edit_document(job, doc), 직접 구현한 route_*(job).
+        edit_input·edit_output 의 **kwargs 에는 job 이 들어오지 않는다.
             job.ext        확장자(소문자)          job.doc_type  문서 유형(소문자)
-            job.file_path  원본 파일 경로          job.source    현재 처리할 입력
-            job.params     요청 파라미터           job.config    적용된 설정(3 참조)
-            job.work_dir   임시 디렉터리(자동 삭제) job.notes     단계 간 공유 dict
+            job.file_path  원본 파일 경로          job.source    실제로 파싱할 파일 경로
+            job.params     요청 파라미터           job.config    요청 인자로 덧씌운 값(3 참조)
+            job.notes      단계 간 공유 dict       job.temp_dir("접두")  임시 디렉터리(자동 삭제)
 
-        job.source 는 확장자에 따라 파일 경로가 아니라 로드된 데이터다 — 엑셀은 2차원 셀 값
-        배열, json 은 dict, md 와 html 은 str. 원본 경로가 필요하면 job.file_path 를 쓴다.
+        job.source 는 언제나 파일 경로다. 확장자 별칭 사본이나 edit_input 이 만든 파생 파일이면
+        원본과 다르고, 그때 원본 경로는 job.file_path 에 남는다. 훅이 dict 나 str 로 받는
+        로드된 데이터는 훅의 data 인자이지 job.source 가 아니다.
         """
         job = self._start_job(request, file_path, **kwargs)  # 확장자 판별, doc_type 별 설정 적용
         job.source = await self._call_edit_input(job)        # edit_input() 호출
@@ -178,10 +181,11 @@ class DocumentProcessor(ParserCore):
     # --- 4. 훅 메소드 ---
     #
     # 오버라이드하지 않으면 입력을 그대로 돌려준다(no-op). 공통 규칙 넷.
-    #   1. 요청 파라미터가 필요하면 시그니처 끝에 **kwargs 를 붙인다. job 도 이리로 온다.
+    #   1. 요청 파라미터가 필요하면 시그니처 끝에 **kwargs 를 붙인다. 자리 인자와 이름이 겹치는
+    #      키는 빠진다. job 은 여기로 오지 않는다 — 1 의 job 설명을 본다.
     #   2. 외부 API 호출은 async def 로 쓴다. 동기 호출은 이벤트 루프를 막아 다른 요청까지 멈춘다.
-    #   3. self 에 요청 상태를 담지 않는다 — 인스턴스 하나가 모든 요청을 받아 값이 섞인다.
-    #      단계 간 전달은 kwargs["job"].notes 를 쓴다(클래스 상수는 괜찮다).
+    #   3. self 에 요청 상태를 담지 않는다 — 인스턴스 하나가 모든 요청을 받아 값이 섞인다
+    #      (클래스 상수는 괜찮다). 훅 사이로 값을 넘겨야 하면 한 훅 안에서 끝낼 수 있는지 먼저 본다.
     #   4. 오류는 raise GenosServiceException("1", "건수가 맞지 않아 처리를 중단했습니다").
     #      부분 실패를 허용하려면 raise 하지 말고 그 건만 건너뛴 뒤 결과에 기록한다.
 
@@ -233,8 +237,8 @@ class DocumentProcessor(ParserCore):
                     tb.set_chunk_metadata(result, {"DEPT_NM": await fetch_dept(emp_no)})
                 return result
 
-        부분 실패는 실패 건만 빼고 결과에 기록한다. edit_input 에서 kwargs["job"].notes 에
-        저장한 값을 여기서 읽어 쓸 수 있다.
+        부분 실패는 실패 건만 빼고 결과에 기록한다. 이 훅에는 job 이 오지 않으므로 edit_input
+        에서 넘긴 값을 여기서 읽을 수 없다 — 필요한 값은 result 안에서 찾는다.
         """
         return result
 
