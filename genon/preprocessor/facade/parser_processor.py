@@ -81,14 +81,25 @@ class DocumentProcessor(ParserCore):
     # json 만 예외다. route_json 은 custom_fields 설정이 매칭될 때만 동작하고, 매칭이 없으면
     # 파일을 로드하지 않고 폴백한다. 설정 없이 코드로 처리하려면 자기 라우트를 맨 위에 둔다.
     #
-    #   ROUTES = (((".json",), "route_json_ours"),) + DocumentProcessor.ROUTES
+    #   아래 ROUTES 표의 첫 항목으로 ((".json",), "route_json_ours") 를 추가한다.
+    #   클래스 안에 ROUTES 를 중복 정의하지 않는다. 메소드는 아래 예제처럼 추가한다.
     #
     #   async def route_json_ours(self, job):
+    #       import json
+    #       from pathlib import Path
+    #
     #       if job.doc_type != "ins_api":
-    #           return None                                  # 다른 doc_type 은 기본 라우트로 폴백
-    #       picked = [x for x in job.source["items"] if x["type"] == "product"]
+    #           return None                         # 다른 문서 유형은 기본 라우트로 폴백
+    #       payload = json.loads(tb.read_text_with_fallback(job.source))
+    #       if not isinstance(payload, dict) or not isinstance(payload.get("items"), list):
+    #           raise ValueError("items 배열이 필요합니다")
+    #       picked = [x for x in payload["items"]
+    #                 if isinstance(x, dict) and x.get("type") == "product"]
     #       md = tb.json_to_markdown(picked, html_renderer=tb.html_to_text())
-    #       doc = self.parse_document(job, md, ext=".md")     # 마크다운으로 파싱
+    #       path = Path(job.temp_dir("route_json_ours")) / "products.md"
+    #       path.write_text(md, encoding="utf-8")   # 요청 종료 시 임시 파일 자동 삭제
+    #       prepared = {"path": str(path), "artifacts_from": None, "origin": job.source}
+    #       doc = self.parse_document(job, prepared)
     #       return await self.document_to_response(job, doc)
 
     ROUTES = (

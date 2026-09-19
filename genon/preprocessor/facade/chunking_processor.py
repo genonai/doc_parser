@@ -95,7 +95,8 @@ class DocumentProcessor(ChunkerCore):
             job.params    요청 파라미터      job.config    요청 인자로 덧씌운 값(2 참조)
             job.notes     단계 간 공유 dict
 
-        job.metadata 는 분할이 시작될 때 만들어진다. config_by_condition 시점에는 아직 없다.
+        job.metadata 는 문서형 청크의 vector_meta 변환 준비 중에만 만들어진다.
+        행 메타데이터는 chunk.metadata 에 있다. config_by_condition 시점에는 job.metadata 가 없다.
 
         job.kind 와 edit_chunk 의 info["kind"] 는 값이 다르다.
             "docling" -> "docling",  "parse" -> "row"(행, 레코드) 또는 "text"(그 밖)
@@ -244,7 +245,10 @@ class DocumentProcessor(ChunkerCore):
     #            refresh_stats 등) 오버라이드는 되지만 릴리스에서 바뀔 수 있다
     #
     #   def build_chunk_text(self, job, chunk):          # 청크 텍스트 조립을 바꾼다
-    #       return f"[{job.metadata.get('title', '')}] " + chunk.text
+    #       metadata = job.metadata if chunk.kind == "docling" else chunk.metadata
+    #       text = super().build_chunk_text(job, chunk)  # 기본 헤딩·접두어 조립 유지
+    #       title = metadata.get("title")
+    #       return f"[{title}] {text}" if title else text
 
 
 # --- 파일 단독 실행 ---

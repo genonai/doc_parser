@@ -322,7 +322,12 @@ body:
 #     "
 #     → 레코드 수가 0 이면 alias 가 원천 키와 어긋난 것이다(require 로 전건 skip).
 #
-#  3) doc_type 자동 검증 — 파싱·청킹까지 태워 약속한 필드가 실제 청크에 실렸는지 본다.
+#  3) 등록된 사례 자동 검증 — 파싱·청킹까지 실행해 필드와 결과를 확인한다.
+#     신규 유형은 examples/parse_chunk/parse_chunk_verify.py 의 CASES 에
+#     (doc_type, 샘플 경로, 설명)을 추가하고 resource_dev/parser_processor_config.yaml 에
+#     해당 유형의 설정을 등록한다. --only 는 등록된 CASES 를 고르는 옵션이다.
+#     미등록 유형·검사 대상 0건·실행 결과 전부 SKIP 은 실패로 종료된다.
+#     PASS 건수와 SKIP 사유를 확인하고, 새 필드의 기대값 검증은 verify() 에 추가한다.
 #       genon/preprocessor/examples/parse_chunk/parse_chunk_verify.sh --only <유형>
 #
 #  위 "기동 시 자동 검사"가 못 잡는 것(어긋난 alias)은 2번에서만 드러난다 —
