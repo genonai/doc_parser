@@ -245,8 +245,8 @@ alias 매핑 -> default(빈 값만) -> const(덮어씀) -> values -> transform -
 ```
 
 변환기는 인자 없이 쓰는 5종(`date_int` `date_int_flex` `text_norm` `html_text` `text`)과 인자를
-받는 5종(`regex_sub` `regex_extract` `to_int` `truncate` `to_json`), 합쳐서 10종입니다.
-뒤 5종 중 `regex_sub`·`regex_extract`의 `pattern`과 `truncate`의 `length`는 **필수 인자**이며,
+받는 6종(`regex_sub` `regex_extract` `hash` `to_int` `truncate` `to_json`), 합쳐서 11종입니다.
+뒤 6종 중 `regex_sub`·`regex_extract`의 `pattern`과 `truncate`의 `length`는 **필수 인자**이며,
 빠지면 기동에 실패합니다.
 목록에 없는 이름을 적으면 기동에 실패합니다. 사이트 전용 변환기를 더하는 방법은 [2.6](#26-설정에서-이름으로-불러-쓰는-세-가지-확장-지점)에 있습니다.
 

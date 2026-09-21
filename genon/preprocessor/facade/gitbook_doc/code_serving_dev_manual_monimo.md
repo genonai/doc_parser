@@ -1626,6 +1626,7 @@ facade의 `GenosSmartChunker` ClassVar는 청크 표기 방식을 정합니다.
 | 기능 | 설정 키 (내부 이름) | rows | records | sections | document | html |
 |---|---|:-:|:-:|:-:|:-:|:-:|
 | 별칭 | `alias` | ✔ | ✔ | ✔ | ✔ | ✗ (`select` 사용) |
+| 파일명에서 가져오기 | `alias: [$file]` (`file_fields`) | ✗ | ✔ | ✗ | ✔ | ✔ |
 | 반복 key 전부 수집 | `collect` (`collect_key_map`) | ✗ | ✔ | ✗ | ✗ | ✗ |
 | 상수 | `const` (`constants`) | ✔ | ✔ | ✔ | ✔ | ✔ |
 | 기본값(빈 값만) | `default` (`defaults`) | ✔ | ✔ | ✔ | ✔ | ✔ |
@@ -1706,6 +1707,7 @@ HTML 원문이 입력으로 전달되어야 하며, JSON 안에 HTML이 들어 �
 | `text_norm` | — | NFKC + 공백 축약 + casefold (중복 판정용) |
 | `regex_sub` | `pattern` 필수, `repl` 기본 `""` | 정규식 치환 (`"18,000원"` → `"18000"`) |
 | `regex_extract` | `pattern` 필수, `group` 기본 `1` | 정규식 오려내기. 미매칭 시 `None` |
+| `hash` | `length` 기본 `16`, `prefix` 기본 `""` | SHA-1 16진 코드화. 같은 값이면 같은 코드 |
 | `to_int` | `on_error` 기본 `null` | 숫자와 `-`를 남겨 정수화. 소수점 단위 변환은 하지 않음 |
 | `truncate` | `length` 필수, `suffix` 기본 `""` | 길이 자르기(적재 컬럼 길이 맞춤) |
 | `html_text` | — | HTML로 **강제** 평문화. 표·목록 유지 |
