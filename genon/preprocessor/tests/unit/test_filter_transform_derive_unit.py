@@ -569,9 +569,81 @@ def test_json_path_gets_the_same_features(tmp_path):
         ('schema: v2\nsource: {kind: rows}\n'
          'fields: {T: {alias: [제목], transform: [{name: to_json, on_scalar: 널}]}}\n'
          'body: {fields: [T]}\n', "wrap"),
+        # 파일명과 원천 key 를 섞으면 어느 쪽이 우선인지 모호하다.
+        ("schema: v2\nsource: {kind: rows}\n"
+         "fields: {T: {alias: [제목]}, B: {alias: [$file, ID]}}\n"
+         "body: {fields: [T]}\n", "함께 쓸 수 없습니다"),
+        # 파일명 원천은 document/html/records 만 채운다. 다른 kind 에서 조용히 비지 않게 막는다.
+        ("schema: v2\nsource: {kind: rows}\n"
+         "fields: {T: {alias: [제목]}, B: {alias: [$file]}}\n"
+         "body: {fields: [T]}\n", "file_fields"),
     ],
 )
 def test_misconfiguration_is_caught_at_startup(tmp_path, body, expect):
     """요청 때 터지면 어느 설정이 문제인지 로그만 보고는 알 수 없다."""
     with pytest.raises(ValueError, match=expect):
         _rows(tmp_path, body, [{"제목": "x"}])
+
+
+@pytest.mark.parametrize(
+    "filename, expected",
+    [
+        ("hpp_rag_adcc_237219_init.json", "hpp_rag_adcc_237219"),
+        ("hpp_rag_adcc_237219_delta_001.json", "hpp_rag_adcc_237219"),
+        # 규칙에 맞지 않는 파일명은 파싱을 막지 않고 비운다(경고는 file_source 가 남긴다).
+        ("export.json", None),
+    ],
+)
+def test_file_alias_takes_value_from_filename(tmp_path, filename, expected):
+    """`alias: [$file]` — 원천 본문에 없는 식별자를 파일명에서 가져온다.
+
+    파일명은 원천값과 같은 층이라 transform 이 그대로 걸리고, 레코드 안의 ID 는 보지 않는다.
+    """
+    path = tmp_path / "custom_field_x.yaml"
+    path.write_text(textwrap.dedent("""
+        schema: v2
+        source: {kind: records}
+        fields:
+          T: {alias: [제목]}
+          BIZ_ID:
+            alias: [$file]
+            transform: {name: regex_extract, pattern: '^(.+?_\\d+)(?=[_.])'}
+            default: null
+        body: {fields: [T]}
+    """), encoding="utf-8")
+    mapper = JsonRecordsMapper(
+        config_file=path.name, resource_path=str(tmp_path),
+        doc_type="t", extractor="json_mapping",
+    )
+    rows = mapper.build_fields(
+        [{"제목": "a", "ID": "rec-1"}, {"제목": "b"}], "t", source_filename=filename)
+    assert [r["BIZ_ID"] for r in rows] == [expected, expected]
+
+
+def test_hash_applies_to_template_result(tmp_path):
+    """결합 키를 해시로 코드화한다(원천에 ID 가 없는 cs_ssf).
+
+    변환은 결합보다 먼저 돌기 때문에, template 결과에 걸지 않으면 결합이 해시를 덮는다.
+    빈 칸도 구분자 자리를 남겨 `A||B` 와 `A|B|` 가 다른 코드가 된다.
+    """
+    import hashlib
+
+    rows = _rows(tmp_path, """
+        schema: v2
+        source: {kind: rows}
+        fields:
+          L1: {alias: [대분류]}
+          L2: {alias: [중분류], default: null}
+          TITLE: {alias: [제목]}
+          BIZ_ID:
+            template: "{{L1}}|{{L2}}|{{TITLE}}"
+            transform: {name: hash, prefix: SSF_CS_, length: 16}
+        body:
+          fields: [TITLE]
+    """, [{"대분류": "자동차", "중분류": "", "제목": "담보"},
+          {"대분류": "자동차", "중분류": "담보", "제목": ""}])
+    expect = [
+        "SSF_CS_" + hashlib.sha1(key.encode("utf-8")).hexdigest()[:16]
+        for key in ("자동차||담보", "자동차|담보|")
+    ]
+    assert [r["BIZ_ID"] for r in rows] == expect

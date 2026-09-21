@@ -16,8 +16,10 @@ source:
       columns: [대분류, 중분류, 소분류, 제목, 내용]
 fields:
   BIZ_ID:
-    alias: [ID, id]
-    default: null
+    # 원천에 ID 가 없어 행의 분류·제목을 결합해 해시로 코드화한다. 같은 행이면 다시 적재해도
+    # 같은 값이다(제목이 바뀌면 새 ID). 빈 소분류도 구분자 자리를 남겨 `A||B` 와 `A|B|` 를 가른다.
+    template: "{{CS_CTGR_L1}}|{{CS_CTGR_L2}}|{{CS_CTGR_L3}}|{{CUSTOM_TITLE}}"
+    transform: {name: hash, prefix: SSF_CS_, length: 16}
   GROUP_C:
     const: SSF
   CS_CTGR_L1:

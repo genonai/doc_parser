@@ -45,7 +45,7 @@ from docling_core.types.doc import (
     ProvenanceItem,
 )
 
-from genon.preprocessor.processing.enrichment import html_select
+from genon.preprocessor.processing.enrichment import file_source, html_select
 from genon.preprocessor.processing.enrichment.custom_fields_enricher import normalize_doc_type
 from genon.preprocessor.processing.converters import delimited_text as dt
 from genon.preprocessor.processing.converters.plain_text import text_to_html
@@ -1267,6 +1267,12 @@ class ParserCore:
         payload = await self._records_payload(file_path, mappers, doc_type, **kwargs)
         results = []
         for mapper in mappers:
+            # 파일명 원천(`alias: [$file]`)은 json_mapping 만 받는다. json_semantic 매퍼도 이
+            # 목록에 섞이므로 선언한 매퍼에만 넘긴다.
+            file_kwargs = (
+                {"source_filename": kwargs.get(file_source.PARAM_KEY)}
+                if getattr(mapper, "file_fields", None) else {}
+            )
             try:
                 # custom_fields 의 html_text/text 변환 표 모양을 docling 경로와 같은 설정으로 맞춘다
                 # (output.table_format: html=<table> / markdown=파이프 표).
@@ -1274,6 +1280,7 @@ class ParserCore:
                     payload, doc_type,
                     table_format=getattr(self, "_table_format", "html"),
                     compact_tables=bool(getattr(self, "_compact_tables", True)),
+                    **file_kwargs,
                 )
             except ValueError as exc:
                 raise GenosServiceException("1", str(exc), stage="custom_fields") from exc
@@ -2017,6 +2024,10 @@ class ParserCore:
             dir=(str(job.params["pdf_dir"]).strip() if job.params.get("pdf_dir") else None),
         )
         job.params["_pdf_policy"] = pdf_policy
+        # custom_fields 의 `alias: [$file]` 이 읽는 파일명. 확장자 별칭 사본·전처리 파생 파일의
+        # 이름이 끼어들지 않도록 원본 경로 기준으로 여기서 한 번 정한다.
+        job.params[file_source.PARAM_KEY] = file_source.resolve_source_filename(
+            job.params, file_path)
         job.notes["cache_token"] = cache_token
         job.notes["pdf_policy"] = pdf_policy
         try:

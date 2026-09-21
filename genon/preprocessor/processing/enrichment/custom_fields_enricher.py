@@ -27,7 +27,7 @@ from genon.preprocessor.processing.common.model_params import (
 from genon.preprocessor.processing.enrichment import config_schema as cs
 
 from .base_enricher import BaseEnricher
-from . import html_select, plugin_loader
+from . import file_source, html_select, plugin_loader
 from .field_transforms import store_metadata_in_document
 from .llm_response import post_chat_completion
 from .prompt_files import read_prompt_file
@@ -515,6 +515,8 @@ class CustomFieldsEnricher(BaseEnricher):
         # (적재 스키마에 컬럼은 있어야 하는데 문서에서 뽑을 근거가 없는 경우).
         # 병합 규칙은 constants 와 같다(키 단위, 등록 블록 우선).
         self._defaults = {**(cfg.get("defaults") or {}), **(defaults or {})}
+        # `alias: [$file]` 로 선언한 목표필드. front matter 와 같은 층의 원천값으로 채운다.
+        self._file_fields = list(cfg.get(file_source.FILE_FIELDS_KEY) or [])
         # 값 접기·변환·결합. 다른 kind 와 같은 순수 함수를 같은 순서로 쓴다 — 이 kind 의
         # 원천은 LLM 응답과 markdown front matter 둘이고, 둘 다 표기가 흔들리는 값을 준다.
         # 기동 시 컴파일해 잘못된 변환기 이름·안 되는 정규식·없는 참조 필드를 먼저 잡는다.
@@ -886,7 +888,7 @@ class CustomFieldsEnricher(BaseEnricher):
             normalized = dict(normalized)
             apply_value_map(normalized, self._value_map)
             apply_transforms(normalized, self._transforms)
-            apply_derive(normalized, self._derive)
+            apply_derive(normalized, self._derive, self._transforms)
             # 묶기는 맨 뒤에 — derive 로 만든 필드까지 담을 수 있어야 한다.
             apply_pack(normalized, self._pack)
         # 값이 아니라 규칙이다. 청커가 읽어 청크 본문으로 채우고 청크 필드에서는 뺀다.
@@ -1358,6 +1360,18 @@ class CustomFieldsEnricher(BaseEnricher):
         structured_fields = front_matter.get("metadata")
         if not isinstance(structured_fields, dict):
             structured_fields = {}
+        file_fields = getattr(self, "_file_fields", ())
+        # 파서 진입점을 거치지 않는 facade(intelligent/convert)는 `_source_filename` 을 싣지
+        # 않으므로 요청의 org_filename, 그다음 문서 origin 의 파일 이름으로 되짚는다.
+        source_filename = kwargs.get(file_source.PARAM_KEY) or (
+            file_source.resolve_source_filename(
+                kwargs, getattr(getattr(document, "origin", None), "filename", "") or "")
+            if file_fields else None
+        )
+        if file_fields and source_filename:
+            # 파일명도 LLM 추론값이 아니라 구조화된 원천값이다(front matter 와 같은 우선순위).
+            structured_fields = dict(structured_fields)
+            file_source.fill_file_fields(structured_fields, file_fields, source_filename)
         prompt_prefix = str(front_matter.get("prompt_prefix") or "").strip()
 
         # LLM 도 없고 LLM 과 무관한 산출물(front matter/constants)도 없으면 예전처럼 아무것도
@@ -1416,6 +1430,8 @@ class CustomFieldsEnricher(BaseEnricher):
             )
 
         normalized = self._normalize_output_fields(parsed, structured_fields)
+        file_source.warn_unmatched(
+            normalized, file_fields, source_filename, f"doc_type={kwargs.get('doc_type')}")
 
         # 문서에 저장 → 별도 chunk API 경계를 넘어 청커 passthrough 가 각 청크에 부착
         # (created_date/MetadataEnricher 와 동일 경로). 선언된 output_fields 는 값이 null 이어도

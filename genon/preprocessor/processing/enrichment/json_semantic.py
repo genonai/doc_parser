@@ -795,7 +795,7 @@ class SemanticJsonMapper:
         # 표기가 흔들리지 않는다.
         apply_value_map(identity, self.value_map)
         apply_transforms(identity, self.transforms)
-        apply_derive(identity, self.derive)
+        apply_derive(identity, self.derive, self.transforms)
         # 묶기는 맨 뒤에 — derive 로 만든 필드까지 담을 수 있어야 한다. llm_fields 산출은
         # 파서가 채운 뒤 repack_records 로 한 번 더 걸린다(레코드형 3종 공통).
         apply_pack(identity, self.pack)

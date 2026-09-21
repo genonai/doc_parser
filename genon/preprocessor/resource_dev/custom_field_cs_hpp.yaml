@@ -65,7 +65,10 @@ source:
   on_missing: error
 fields:
   BIZ_ID:
-    alias: [ID, id]
+    # 파일명의 첫 숫자 구간까지. 뒤에 붙는 _init / _delta_001 등은 버린다.
+    # 예: hpp_rag_adcc_237219_init.json → hpp_rag_adcc_237219 (한 파일의 레코드가 모두 같은 값)
+    alias: [$file]
+    transform: {name: regex_extract, pattern: '^(.+?_\d+)(?=[_.])'}
     default: null
   GROUP_C:
     alias: [회사명, company, corp_code]

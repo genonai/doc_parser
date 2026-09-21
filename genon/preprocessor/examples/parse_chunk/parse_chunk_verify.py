@@ -61,6 +61,7 @@ CASES = [
     ("monimo_event",  MONIMO / "monimo_event_real_sample.json",        "실 payload 스키마"),
     ("monimo_event",  MONIMO / "monimo_event_table_sample.json",       "5열 표 빈 셀 보존"),
     ("monimo_news",   MONIMO / "monimo_news_sample.json",              "json_mapping"),
+    ("monimo_news",   MONIMO / "TD00008415_d_5199.html.json",          "실 파일명 → BIZ_ID"),
     ("cs_slf",        MONIMO / "monimo_cs_slf_sample.xlsx",            "tabular_mapping"),
     ("cs_ssf",        MONIMO / "monimo_cs_ssf_sample.dtms",            "|@| 구분 레코드"),
     ("cs_sss",        MONIMO / "monimo_cs_sss_sample.json",            "json_mapping"),
@@ -546,6 +547,14 @@ def check_cs_ssf_delimited(chunks: list) -> list[str]:
     return problems
 
 
+def check_biz_id_from_filename(expected: str):
+    """파일명 원천(`alias: [$file]`)으로 만든 BIZ_ID 가 모든 청크에 실렸는가."""
+    def _check(chunks: list) -> list[str]:
+        found = {chunk.get("BIZ_ID") for chunk in chunks}
+        return [] if found == {expected} else [f"BIZ_ID 가 {expected} 가 아닙니다: {sorted(map(str, found))}"]
+    return _check
+
+
 EXTRA_CHECKS = {
     ("product_slf", "monimo_product_slf_sample.md"):
         lambda chunks: check_front_matter(chunks) + check_product_attrs_once(chunks),
@@ -559,6 +568,7 @@ EXTRA_CHECKS = {
     ("product_hpp", "monimo_product_hpp_rich_table_sample.json"): check_product_hpp_link_labels,
     ("stock_insight", "monimo_stock_insight_sample.xlsx"): check_stock_insight_row_merge,
     ("cs_ssf", "monimo_cs_ssf_sample.dtms"): check_cs_ssf_delimited,
+    ("monimo_news", "TD00008415_d_5199.html.json"): check_biz_id_from_filename("TD00008415"),
 }
 
 # 입력 확장자로 extractor 를 고른다. 같은 doc_type 에 블록이 둘인 경우가 있다

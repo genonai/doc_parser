@@ -1345,6 +1345,7 @@ fields:
 | 기능 | 설정 키 (내부 이름) | rows | records | sections | document |
 |---|---|:-:|:-:|:-:|:-:|
 | 별칭 | `alias` | ✔ | ✔ | ✔ | ✔ |
+| 파일명에서 가져오기 | `alias: [$file]` (`file_fields`) | ✗ | ✔ | ✗ | ✔ |
 | 반복 key 전부 수집 | `collect` (`collect_key_map`) | ✗ | ✔ | ✗ | ✗ |
 | 상수 | `const` (`constants`) | ✔ | ✔ | ✔ | ✔ |
 | 기본값(빈 값만) | `default` (`defaults`) | ✔ | ✔ | ✔ | ✔ |
@@ -1355,6 +1356,30 @@ fields:
 | 청크 메타에서 빼기 | `meta: false` (`meta_include`) | ✔ | ✔ | ✔ | ✔ |
 
 적용 순서는 kind 공통입니다: `default`(빈 값만) → `const`(덮어씀) → `values` → `transform` → `template` → `pack`
+
+**파일명에서 값 가져오기 (`alias: [$file]`).** 원천 본문에 식별자가 없고 파일명에만 있을 때
+예약어 `$file` 을 `alias` 의 **유일한 항목**으로 적습니다. 파일명은 원천값과 같은 자리에 들어가므로
+`transform` 으로 필요한 부분만 잘라냅니다. 파일명은 요청의 `org_filename` 을 먼저 쓰고, 없으면
+입력 경로의 파일 이름을 씁니다. 패턴이 맞지 않으면 값은 `null` 이 되고 경고 로그가 남습니다
+(파싱은 계속됩니다). `kind: document`·`html`·`records` 에서만 쓸 수 있습니다.
+
+```yaml
+fields:
+  BIZ_ID:   # 20071_20260611_file3_자동차개인용.md → 20071_20260611
+    alias: [$file]
+    transform: {name: regex_extract, pattern: '^(\d+_\d{8})(?!\d)'}
+    default: null
+```
+
+`template` 으로 만든 필드에 `transform` 을 함께 적으면 변환은 **결합 뒤에** 적용됩니다.
+원천에 식별자가 없을 때 여러 필드를 결합해 `hash` 로 코드화하는 용도입니다.
+
+```yaml
+fields:
+  BIZ_ID:   # 자동차|담보||[보상콜] … → SSF_CS_4b699048eccb7034
+    template: "{{CS_CTGR_L1}}|{{CS_CTGR_L2}}|{{CS_CTGR_L3}}|{{CUSTOM_TITLE}}"
+    transform: {name: hash, prefix: SSF_CS_, length: 16}
+```
 
 `pack` 만은 **정말 맨 뒤**입니다 — `seq` 로 매긴 순번과 `llm` 이 채운 값까지 다 확정된 뒤에
 묶습니다. 그래서 `kind: rows`/`records` 에서는 `require.fields`/`filter` 로 `pack` 산출을
@@ -1448,7 +1473,7 @@ fields:
 > **청크 텍스트 정제(`chunking.text_cleanup`)는 doc_type 별 설정이 아니라 프로세서 config** 입니다.
 > `parser_processor_config.yaml` 에는 없습니다 — 파서와 청커를 나눠 배포했다면 **청커 쪽 yaml** 에 적습니다.
 
-### `transform` 10종 — 체이닝됩니다
+### `transform` 11종 — 체이닝됩니다
 
 | 이름 | 인자 | 하는 일 |
 |---|---|---|
@@ -1457,6 +1482,7 @@ fields:
 | `text_norm` | — | NFKC + 공백 축약 + casefold (중복 판정용) |
 | `regex_sub` | `pattern`, `repl` | 정규식 치환 (`"18,000원"` → `"18000"`) |
 | `regex_extract` | `pattern`, `group` | 정규식 오려내기. 미매칭 시 `None` |
+| `hash` | `length`, `prefix` | SHA-1 16진 코드화(기본 16자리). 같은 값이면 같은 코드 |
 | `to_int` | `on_error` | 숫자만 남겨 정수화 |
 | `truncate` | `length`, `suffix` | 길이 자르기(적재 컬럼 길이 맞춤) |
 | `html_text` | — | HTML 로 **강제** 평문화. 표·목록 유지 |
