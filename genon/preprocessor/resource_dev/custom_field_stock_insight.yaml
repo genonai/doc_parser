@@ -21,7 +21,7 @@ source:
     concat: [DETAIL_DESC, DETAIL_TEXT]
 fields:
   BIZ_ID:
-    alias: [ID, 아이디]
+    template: "{{JONG_CODE}}_{{NEWS_DATE}}"
     default: null
   REGT_NO:
     alias: [등록번호, REGT_NO, regt_no]
@@ -38,8 +38,6 @@ fields:
   NEWS_DATE:
     alias: [뉴스일자, NEWS_DATE, news_date]
     transform: date_int_flex
-  JONG_CODE_DATE:
-    template: "{{JONG_CODE}}_{{NEWS_DATE}}"
   DETAIL_DESC:
     alias: [상세내용, DETAIL_DESC, detail_desc]
     default: null
