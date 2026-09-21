@@ -9,6 +9,7 @@ product_name: "든든한 여행상해보험(2601)(무배당)"
 product_code: "90001"
 sale_state: "1"
 created_at: "2026.01.12"
+기간: "2025-12-1 ~ 진행중"
 conversion_note: "AI 검색요약용 Markdown 변환본."
 ---
 
