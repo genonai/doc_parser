@@ -555,7 +555,15 @@ def check_biz_id_from_filename(expected: str):
     return _check
 
 
+def check_sale_period(chunks: list) -> list[str]:
+    """product_slf — front matter `기간: 2025-12-1 ~ 진행중` 이 시작일/열린 종료일로 나뉘었는가."""
+    found = {(chunk.get("SALE_FROM"), chunk.get("SALE_TO")) for chunk in chunks}
+    expected = {(20251201, 99991231)}
+    return [] if found == expected else [f"SALE_FROM/SALE_TO 가 {expected} 가 아닙니다: {sorted(map(str, found))}"]
+
+
 EXTRA_CHECKS = {
+    ("product_slf", "monimo_product_slf_fields_sample.md"): check_sale_period,
     ("product_slf", "monimo_product_slf_sample.md"):
         lambda chunks: check_front_matter(chunks) + check_product_attrs_once(chunks),
     ("product_ssf", "monimo_product_ssf_sample.md"): check_product_attrs_once,
