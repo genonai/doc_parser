@@ -1,13 +1,16 @@
 """
 청커 3종의 tokenizer_type(문자 수 기반 vs HF 토크나이저) 선택 기능 단위 테스트.
 
-대상은 intelligent_processor / convert_processor 의 GenosSmartChunker 와
-attachment_processor 의 HybridChunker 다.
+대상은 intelligent_processor 의 GenosSmartChunker 와 attachment_processor 의
+HybridChunker 다. convert_processor 의 GenosSmartChunker 는 intelligent 쪽과 마찬가지로
+chunking/smart_chunker.py 의 SmartChunkerBase 를 그대로 상속한 얇은 서브클래스라 따로 검사하지 않는다.
 
-정규화 규칙(기본값 char, 대소문자·앞뒤 공백 정규화, 미지원 값 폴백)은 세 클래스가 같은
+정규화 규칙(기본값 char, 대소문자·앞뒤 공백 정규화, 미지원 값 폴백)은 두 클래스가 같은
 규칙을 각자 복제하고 있어 한 벌로 묶어 검증한다. 클래스마다 같은 테스트를 따로 두면
 프로덕션 복제가 테스트 복제로 증폭된다. 프로덕션 쪽 복제 자체는 별도 과제다 —
-chunking/smart_chunker.py, chunking/hybrid_chunker.py, core/chunker.py 세 곳에 같은 코드가 있다.
+클래스 쪽 정규화는 chunking/smart_chunker.py 와 chunking/hybrid_chunker.py 두 곳에 있고,
+설정(chunking.tokenizer_type) 해석 사본은 core/chunker.py 와 facade 의 intelligent·convert·attachment
+processor 네 곳에 따로 있다.
 
 의존성(docling 등)이 없는 환경에서는 importorskip 으로 자동 skip 된다(CI gate).
 """
@@ -25,17 +28,11 @@ def _hybrid_chunker():
     return mod.HybridChunker
 
 
-_SMART_MODULES = ["intelligent_processor", "convert_processor"]
-
-# 세 청커를 같은 방식으로 만들어 주는 팩토리. 정규화 규칙은 셋이 동일하다.
+# 두 청커를 같은 방식으로 만들어 주는 팩토리. 정규화 규칙은 둘이 동일하다.
 _CHUNKERS = [
     pytest.param(
         lambda **kw: _smart_chunker("intelligent_processor")(max_tokens=100, **kw),
         id="smart-intelligent",
-    ),
-    pytest.param(
-        lambda **kw: _smart_chunker("convert_processor")(max_tokens=100, **kw),
-        id="smart-convert",
     ),
     pytest.param(
         lambda **kw: _hybrid_chunker()(max_tokens=100, **kw),
@@ -58,20 +55,18 @@ def test_tokenizer_type_resolves_to_char_without_loading_hf(make_chunker, kwargs
 
 
 @pytest.mark.unit
-@pytest.mark.parametrize("module_name", _SMART_MODULES)
-def test_smart_chunker_char_mode_counts_characters(module_name):
+def test_smart_chunker_char_mode_counts_characters():
     """char 모드에서 _count_tokens 는 문자 수(len)를 반환한다."""
-    chunker = _smart_chunker(module_name)(max_tokens=100)
+    chunker = _smart_chunker("intelligent_processor")(max_tokens=100)
     assert chunker._count_tokens("") == 0
     assert chunker._count_tokens("가나다라") == 4
     assert chunker._count_tokens("abcde\nfghij") == len("abcde\nfghij")
 
 
 @pytest.mark.unit
-@pytest.mark.parametrize("module_name", _SMART_MODULES)
-def test_smart_chunker_splits_table_text_by_chars(module_name):
+def test_smart_chunker_splits_table_text_by_chars():
     """char 모드 테이블 분할은 문자 수 기준으로 chunk_size 를 넘지 않는다."""
-    chunker = _smart_chunker(module_name)(max_tokens=100)
+    chunker = _smart_chunker("intelligent_processor")(max_tokens=100)
     text = "a" * 250
     parts = chunker._split_table_text(text, max_tokens=100)
     assert all(len(p) <= 100 for p in parts)

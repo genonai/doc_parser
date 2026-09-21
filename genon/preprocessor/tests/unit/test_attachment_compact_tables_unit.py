@@ -142,16 +142,13 @@ class TestConfigWiring:
         cfg.write_text(body, encoding="utf-8")
         return DocumentProcessor(config_path=str(cfg))
 
-    @pytest.mark.parametrize("body,expected", [
-        # output: 섹션이 아예 없는 구버전 config 도 기본 True
-        ("defaults:\n  log_level: 4\n", True),
-        ("output:\n  compact_tables: true\n", True),
-        ("output:\n  compact_tables: false\n", False),
-        ("output:\n  compact_tables: bogus\n", True),   # 잘못된 값은 True 폴백
-    ], ids=["no-output-section", "true", "false", "invalid-falls-back"])
-    def test_config_value_lands_in_default_kwargs(self, tmp_path, body, expected):
-        dp = self._processor_with(tmp_path, body)
-        assert dp._default_kwargs["compact_tables"] is expected
+    def test_config_value_lands_in_default_kwargs(self, tmp_path):
+        """output: 섹션을 읽는 배선만 검증한다. 값 해석은 TestRuntimeValueParsing 이 맡는다.
+
+        기본값 True 와 구별되도록 false 를 쓴다. 공개 경로로 확인할 수 없어 _default_kwargs 를 본다.
+        """
+        dp = self._processor_with(tmp_path, "output:\n  compact_tables: false\n")
+        assert dp._default_kwargs["compact_tables"] is False
 
     def test_runtime_kwarg_overrides_config(self, tmp_path):
         """_merge_runtime_kwargs 는 None 이 아닌 런타임 값만 덮어쓴다 (False 포함)."""
