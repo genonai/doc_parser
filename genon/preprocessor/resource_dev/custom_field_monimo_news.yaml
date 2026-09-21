@@ -99,7 +99,10 @@ source:
 # 있는 그대로이고, `newslertter-` 의 오타도 원천 그대로다.
 fields:
   BIZ_ID:
-    # 새 원천(content 하나뿐)에는 ID 가 없다. 원천이 실어 주기 전까지 비어 있다.
+    # 원천(content 하나뿐)에는 ID 가 없어 파일명 앞의 `TD…` 를 쓴다.
+    # 예: TD00008415_d_5199.html.json → TD00008415
+    alias: [$file]
+    transform: {name: regex_extract, pattern: '^(TD\d+)'}
     default: null
   GROUP_C:
     default: IFP
