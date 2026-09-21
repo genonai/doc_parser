@@ -40,6 +40,7 @@ from typing import Any
 
 from ..common import model_preset
 from . import config_schema
+from .file_source import FILE_ALIAS, FILE_FIELDS_KEY
 
 SCHEMA_KEY = "schema"
 SCHEMA_V2 = "v2"
@@ -325,7 +326,17 @@ def _normalize_fields(fields: Any, kind: str, out: dict, label: str) -> None:
                 f"값을 빠뜨리면 조용히 무시되므로 단축 표기를 받지 않습니다."
             )
         _check_unknown(spec, FIELD_SPEC_KEYS, where, "필드 스펙")
-        if "alias" in spec:
+        aliases = spec.get("alias")
+        if isinstance(aliases, list) and FILE_ALIAS in aliases:
+            # 파일명은 원천 key 가 아니므로 alias 블록이 아니라 별도 목록으로 옮긴다.
+            # 다른 이름과 섞으면 우선순위가 모호해지므로 단독으로만 받는다. 이 키를 읽지
+            # 않는 extractor 는 config_schema 의 지원 키 검사가 거부한다.
+            if aliases != [FILE_ALIAS]:
+                raise ConfigV2Error(
+                    f"{where}: alias 의 {FILE_ALIAS} 는 다른 원천명과 함께 쓸 수 없습니다: {aliases}"
+                )
+            out.setdefault(FILE_FIELDS_KEY, []).append(target)
+        elif "alias" in spec:
             if alias_block is None:  # _ALIAS_BLOCK 에 없는 kind (지금은 없다)
                 raise ConfigV2Error(f"{where}: kind: {kind} 에는 alias 를 쓸 수 없습니다.")
             out.setdefault(alias_block, {})[target] = _require_list(
@@ -567,6 +578,6 @@ COVERED_V1_KEYS = (
     | set(_LLM_ENDPOINT_KEYS) | set(_LLM_PARAM_KEYS) | set(_LLM_PROMPT_KEYS)
     | {"output_fields", "parser", "pages", "template", "table_text_description", "prompt"}
     | PYTHON_V1_KEYS
-    | {"select_map"}
+    | {"select_map", FILE_FIELDS_KEY}
     | set(PRE_KEYS)
 )

@@ -357,6 +357,8 @@ def collect_target_field_names(cfg: dict) -> set[str]:
     # 필드다. 넣지 않으면 그 이름을 `template` 이 참조할 때 "만들 수 없는 필드" 로 막힌다.
     names |= {str(f) for f in (cfg.get("output_fields") or [])}
     names |= set(cfg.get("front_matter_map") or {})
+    # 파일명에서 오는 필드(v2 `alias: [$file]`). 원천 key 가 아닐 뿐 목표필드인 것은 같다.
+    names |= {str(f) for f in (cfg.get("file_fields") or [])}
     # 순번 필드는 값 파이프라인 뒤에 붙지만 목표필드인 것은 같다. 여기 넣지 않으면 그 이름을
     # body.fields 에 쓸 때 오탐 경고가 나고, body.repeat/filter 에 쓰면 기동이 실패한다.
     names |= set(cfg.get("sequence") or {})
@@ -657,8 +659,15 @@ def compile_derive(cfg: dict, *, label: str) -> dict[str, str]:
     return compiled
 
 
-def apply_derive(fields: dict, compiled: dict[str, str]) -> None:
-    """템플릿을 채워 파생 필드를 만든다. 값이 없는 자리는 빈 문자열로 두고 양끝을 다듬는다."""
+def apply_derive(
+    fields: dict, compiled: dict[str, str], transforms: dict[str, list] | None = None
+) -> None:
+    """템플릿을 채워 파생 필드를 만든다. 값이 없는 자리는 빈 문자열로 두고 양끝을 다듬는다.
+
+    `transforms` 에 그 필드의 체인이 있으면 **결합한 결과에** 건다(`template` + `hash` 로
+    결합 키를 코드화하는 경우). 값 파이프라인에서 변환은 결합보다 먼저 돌기 때문에, 이것이
+    없으면 파생 필드의 변환 결과를 결합이 덮어써 변환이 조용히 사라진다.
+    """
     for target, template in compiled.items():
         def _sub(match: "re.Match") -> str:
             value = fields.get(match.group(1))
@@ -666,6 +675,8 @@ def apply_derive(fields: dict, compiled: dict[str, str]) -> None:
 
         text = _DERIVE_VAR_RE.sub(_sub, template).strip()
         fields[target] = text or None
+        if transforms and target in transforms:
+            apply_transforms(fields, {target: transforms[target]})
 
 
 # ── 필드 묶기(pack) ─────────────────────────────────────────
@@ -1426,7 +1437,7 @@ class TabularCustomFieldsMapper:
                 )
                 apply_transforms(fields, self.transforms, html_renderer)
                 # 결합은 변환 뒤에 — 정규화된 값으로 합쳐야 표기가 흔들리지 않는다.
-                apply_derive(fields, self.derive)
+                apply_derive(fields, self.derive, self.transforms)
 
                 # 대상이 아닌 레코드는 여기서 빠진다. required 보다 **먼저** 보는 것이 중요하다 —
                 # 뒤에 두면 정상 제외가 "필수값 누락" 경고로 찍혀 데이터 사고처럼 보인다.

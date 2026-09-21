@@ -58,6 +58,7 @@ from .custom_fields_enricher import (
     normalize_doc_type,
     normalize_doc_types,
 )
+from . import file_source
 from .field_transforms import VALUE_TRANSFORMS
 from .tabular_custom_fields import (
     apply_derive,
@@ -576,6 +577,8 @@ class JsonRecordsMapper:
         }
 
         self.required = list(cfg.get("required") or [])
+        # `alias: [$file]` 로 선언한 목표필드. 원시 매핑 직후 파일명으로 채운다.
+        self.file_fields = list(cfg.get(file_source.FILE_FIELDS_KEY) or [])
         self.defaults = dict(cfg.get("defaults") or {})
         self.constants = dict(cfg.get("constants") or {})
 
@@ -727,7 +730,7 @@ class JsonRecordsMapper:
             ),
         )
         # 결합은 변환 뒤에 — 정규화된 값으로 합쳐야 표기가 흔들리지 않는다.
-        apply_derive(fields, self.derive)
+        apply_derive(fields, self.derive, self.transforms)
 
         return fields
 
@@ -741,6 +744,7 @@ class JsonRecordsMapper:
         *,
         table_format: str = DEFAULT_TABLE_FORMAT,
         compact_tables: bool = True,
+        source_filename: str | None = None,
     ) -> list[dict]:
         """payload → 레코드별 목표필드 목록. 필수값 누락 레코드는 skip(요약 경고)."""
         records = self.extract_records(payload)
@@ -768,10 +772,16 @@ class JsonRecordsMapper:
         # 3단계 — 값 파이프라인 → 필수값 검사.
         mapped: list[dict] = []
         skipped = filtered = 0
+        file_fields = getattr(self, "file_fields", ())
         for index, (fields, _record) in enumerate(raw):
+            # 파일명은 원천값과 같은 층이다 — 값 파이프라인(transform 등)을 똑같이 탄다.
+            file_source.fill_file_fields(fields, file_fields, source_filename)
             fields = self.apply_value_pipeline(
                 fields, table_format=table_format, compact_tables=compact_tables
             )
+            if index == 0:  # 파일명은 레코드마다 같아 경고도 한 번이면 된다
+                file_source.warn_unmatched(
+                    fields, file_fields, source_filename, "json_mapping")
             # 대상이 아닌 레코드는 여기서 빠진다. required 보다 **먼저** 보는 것이 중요하다 —
             # 뒤에 두면 정상 제외가 "필수값 누락" 경고로 찍혀 데이터 사고처럼 보인다.
             if not passes_filter(fields, self.filter):

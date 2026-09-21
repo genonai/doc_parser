@@ -12,6 +12,7 @@ docling 타입은 타입 힌트 용도로만 참조하므로 TYPE_CHECKING 으�
 """
 from __future__ import annotations
 
+import hashlib
 import html
 import json
 import logging
@@ -494,6 +495,18 @@ def transform_regex_extract(value: Any, *, pattern: str, group: int = 1) -> Any:
         return None
 
 
+def transform_hash(value: Any, *, length: int = 16, prefix: str = "") -> Any:
+    """값을 SHA-1 16진 문자열로 줄인다. 원천에 식별자가 없을 때 여러 값을 결합해 코드로 쓴다.
+
+    같은 값이면 다시 적재해도 같은 코드가 나온다. `template` 으로 결합한 결과에 걸 때는
+    빈 자리를 구분자로 남겨야 `A||B` 와 `A|B|` 가 갈린다(apply_derive 는 구분자를 지우지 않는다).
+    """
+    if value in (None, ""):
+        return value
+    digest = hashlib.sha1(str(value).encode("utf-8")).hexdigest()
+    return f"{prefix}{digest[: max(1, int(length))]}"
+
+
 def transform_to_int(value: Any, *, on_error: Any = None) -> Any:
     """숫자만 남겨 정수로. 콤마·단위가 섞인 금액에 쓴다(`"18,000원"` → 18000)."""
     if value in (None, ""):
@@ -579,6 +592,7 @@ def transform_to_json(value: Any, *, on_scalar: str = "wrap", key: str = "value"
 PARAM_TRANSFORMS: dict[str, Callable[..., Any]] = {
     "regex_sub": transform_regex_sub,
     "regex_extract": transform_regex_extract,
+    "hash": transform_hash,
     "to_int": transform_to_int,
     "truncate": transform_truncate,
     "html_text": transform_html_text,
@@ -590,6 +604,7 @@ PARAM_TRANSFORMS: dict[str, Callable[..., Any]] = {
 PARAM_TRANSFORM_REQUIRED: dict[str, tuple[str, ...]] = {
     "regex_sub": ("pattern",),
     "regex_extract": ("pattern",),
+    "hash": (),
     "to_int": (),
     "truncate": ("length",),
     "html_text": (),

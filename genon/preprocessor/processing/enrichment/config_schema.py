@@ -79,7 +79,7 @@ EXTRACTOR_KEYS: dict[str, frozenset[str]] = {
     # "객체를 구조로 볼지 값으로 볼지" 라는 판정 자체가 없다.
     "json_mapping": _RECORD_COMMON | {
         "records", "key_map", "collect_key_map", "missing_policy", "row_merge", "sequence",
-        "raw_fields",
+        "raw_fields", "file_fields",
     },
     # json_semantic 은 섹션 본문을 섹션 워커가 만들지만, 공통 필드(적재 DB 컬럼이 되는 값)의
     # 파이프라인은 레코드형과 같다 — `value_map`/`transforms`/`derive` 를 같은 순서로 읽는다.
@@ -102,14 +102,14 @@ EXTRACTOR_KEYS: dict[str, frozenset[str]] = {
         "system_prompt", "user_prompt", "system_prompt_file", "user_prompt_file", "prompt",
         "output_fields", "constants", "defaults", "parser", "pages", "variables", "template",
         "thinking", "thinking_dialect",
-        "front_matter_map", "value_map", "transforms", "derive", "pack", "meta_include",
-        "body_fields", "chunk_prefix_fields", "first_chunk_fields", "field_labels",
+        "front_matter_map", "file_fields", "value_map", "transforms", "derive", "pack",
+        "meta_include", "body_fields", "chunk_prefix_fields", "first_chunk_fields", "field_labels",
     }),
     # 문서 단위인데 값을 만드는 것이 원문 HTML 의 선택자인 경우. 연결·프롬프트·파서 키가
     # 통째로 없고 원천 지목은 `select_map` 하나다(v2 의 `fields.<이름>.select`/`attr`).
     # 그 뒤의 값 파이프라인은 llm·python 과 같다 — 값을 만드는 방법만 다르다.
     "html_select": frozenset({
-        "select_map", "constants", "defaults",
+        "select_map", "file_fields", "constants", "defaults",
         "value_map", "transforms", "derive", "pack", "meta_include",
         "body_fields", "chunk_prefix_fields", "first_chunk_fields", "field_labels",
     }),
