@@ -1412,13 +1412,17 @@ fields:
 |---|---|:-:|:-:|:-:|:-:|
 | 본문 구성 필드 | `body.fields` (`text_fields`) | ✔ 선택 | ✔ **필수** | ⚠ 뜻이 다름¹ | ✗ |
 | 항목명 | `body.labels` (`field_labels`) | ✔ | ✔ | ✔ | ✔ |
-| 과대 본문 분할 | `body.split` (`split`) | ✔ | ✔ | ⚠ 항상 분할 | ✗ |
-| 모든 청크에 반복 접두 | `body.repeat` (`chunk_prefix_fields`) | ✔ split 시만 | ✔ split 시만 | ⚠ 자동 생성 | ✔ |
+| 과대 본문 분할 | `body.split` (`split`) | ✔ | ✔ | ✗ 주의³ | ✗ |
+| 모든 청크에 반복 접두 | `body.repeat` (`chunk_prefix_fields`) | ✔ split 시만 | ✔ split 시만 | ✗ 주의³ | ✔ |
 | 첫 청크에만 1회 | `body.once` (`first_chunk_fields`) | ✗ | ✗ | ✔ | ✔ |
 | 본문을 메타 필드에 복사 | `body.mirror_to` (`body_fields`) | ✗ | ✗ | ✗ | ✔ |
 
 ¹ sections 의 `body.fields` 는 본문 구성이 아니라 **공통 필드를 청크 접두에 실을지 정하는 스위치**입니다.
 본문은 트리 순회가 만듭니다.
+
+³ sections 는 과대 본문을 **항상 분할**하고 접두도 **자동 생성**하므로 설정할 것이 없습니다. 동작이
+그렇다는 것이지 키를 적어도 된다는 뜻이 아닙니다. `body.split`·`body.repeat` 을 적으면 sections 가
+읽지 않는 키이므로 **기동에 실패합니다**(`json_semantic` 지원 키 집합에 없음).
 
 **원천 구조 · 필터 · LLM**
 
@@ -1430,11 +1434,16 @@ fields:
 | 섹션 표시 이름 | `source.sections` | ✗ | ✗ | ✔ | ✗ |
 | 서브트리 제외 | `source.ignore_keys` | ✗ | ✗ | ✔ | ✗ |
 | 포맷 전처리 | `source.pre.markdown` / `.html` | ⚠ **무시** | ⚠ **무시** | ⚠ **무시** | ✔ |
-| 필수값(빈 값 제외) | `require.fields` (`required`) | ✔ 건별 | ✔ 건별 | ✔ 문서 전체 | ✗ |
+| 필수값(빈 값 제외) | `require.fields` (`required`⁴) | ✔ 건별 | ✔ 건별 | ✔ 문서 전체 | ✗ |
 | 값 기반 제외 | `filter` | ✔ | ✔ | ✗ | ✗ |
-| 필드별 LLM 생성 | `llm:` (`llm_fields`) | ✔ 행별² | ✔ 레코드별 | ✔ 문서 1회 | (본체가 LLM) |
+| 필드별 LLM 생성 | `llm:` (`llm_fields`⁵) | ✔ 행별² | ✔ 레코드별 | ✔ 문서 1회 | (본체가 LLM) |
 
 ² rows 의 LLM 필드는 **파서 경로에서만** 실행됩니다. 적재 프로세서는 기동 시 경고만 남깁니다.
+
+⁴ sections 만 내부 이름이 `required` 가 아니라 **`required_shared_fields`** 입니다.
+
+⁵ `llm_fields` 로 묶이는 것은 rows·records·sections 뿐입니다. document 는 항목이 **최상위 키로
+펼쳐져** `output_fields`·`system_prompt`·`user_prompt` 같은 이름으로 오류 메시지에 나옵니다.
 
 > **청크 텍스트 정제(`chunking.text_cleanup`)는 doc_type 별 설정이 아니라 프로세서 config** 입니다.
 > `parser_processor_config.yaml` 에는 없습니다 — 파서와 청커를 나눠 배포했다면 **청커 쪽 yaml** 에 적습니다.

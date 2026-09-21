@@ -726,11 +726,17 @@ def main() -> int:
     ap.add_argument("--python", default=sys.executable, help="parse_chunk_test.py 실행 인터프리터")
     args = ap.parse_args()
 
+    known_types = {case[0] for case in CASES}
+    unknown_types = sorted(set(args.only or []) - known_types)
+    if unknown_types:
+        ap.error(f"CASES 에 등록되지 않은 doc_type: {', '.join(unknown_types)}")
+    cases = [c for c in CASES if not args.only or c[0] in args.only]
+    if not cases:
+        ap.error("검사 대상이 0건입니다. CASES 에 doc_type 과 샘플 경로를 등록하세요.")
+
     blocks = load_custom_field_blocks()
     out_root = Path(args.out) if args.out else Path(tempfile.mkdtemp(prefix="parse_chunk_verify_"))
     out_root.mkdir(parents=True, exist_ok=True)
-
-    cases = [c for c in CASES if not args.only or c[0] in args.only]
     rows, failed, skipped = [], 0, 0
 
     for doc_type, src, note in cases:
@@ -771,7 +777,9 @@ def main() -> int:
         shutil.rmtree(out_root, ignore_errors=True)
     else:
         print(f"산출물: {out_root}")
-    return 1 if failed else 0
+    if not passed and not failed:
+        print("FAIL: 실행된 검사가 없습니다. SKIP 사유와 샘플·설정 등록을 확인하세요.", file=sys.stderr)
+    return 1 if failed or not passed else 0
 
 
 if __name__ == "__main__":

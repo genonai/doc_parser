@@ -56,24 +56,20 @@ class TestPromptFiles:
 
 @pytest.mark.unit
 class TestResolvePrompt:
-    def test_file_beats_inline_and_default(self, tmp_path):
-        f = tmp_path / "p.md"
-        f.write_text("FROM_FILE", encoding="utf-8")
-        out = _resolve_prompt("INLINE", "p.md", "DEFAULT", tmp_path)
-        assert out == "FROM_FILE"
-
-    def test_inline_beats_default(self, tmp_path):
-        out = _resolve_prompt("INLINE", None, "DEFAULT", tmp_path)
-        assert out == "INLINE"
-
-    def test_default_when_no_inline_no_file(self, tmp_path):
-        out = _resolve_prompt(None, None, "DEFAULT", tmp_path)
-        assert out == "DEFAULT"
-
-    def test_user_prompt_default_none(self, tmp_path):
-        # user prompt 는 built-in default 가 None
-        out = _resolve_prompt("  ", "", None, tmp_path)
-        assert out is None
+    @pytest.mark.parametrize("file_content,inline,file_name,default,expected", [
+        # 우선순위: 파일 > inline > built-in default
+        ("FROM_FILE", "INLINE", "p.md", "DEFAULT", "FROM_FILE"),
+        (None, "INLINE", None, "DEFAULT", "INLINE"),
+        (None, None, None, "DEFAULT", "DEFAULT"),
+        # user prompt 는 built-in default 가 None — 공백 inline 은 값으로 치지 않는다
+        (None, "  ", "", None, None),
+    ], ids=["file-wins", "inline-wins", "default", "user-prompt-none"])
+    def test_resolve_prompt_priority(
+        self, tmp_path, file_content, inline, file_name, default, expected
+    ):
+        if file_content is not None:
+            (tmp_path / file_name).write_text(file_content, encoding="utf-8")
+        assert _resolve_prompt(inline, file_name, default, tmp_path) == expected
 
 
 # ── EnrichmentConfig 통합: file 파싱 + default system + has_custom_metadata ──────

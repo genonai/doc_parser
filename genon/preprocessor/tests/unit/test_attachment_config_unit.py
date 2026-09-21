@@ -22,31 +22,19 @@ class TestLoadConfig:
     def test_valid_yaml_returns_dict(self, tmp_path):
         cfg_file = tmp_path / "cfg.yaml"
         cfg_file.write_text("defaults:\n  chunker_type: recursive\n", encoding="utf-8")
-        cfg = _load_config(str(cfg_file))
-        assert cfg == {"defaults": {"chunker_type": "recursive"}}
+        assert _load_config(str(cfg_file)) == {"defaults": {"chunker_type": "recursive"}}
 
-    def test_missing_file_returns_empty_dict(self, tmp_path):
-        cfg = _load_config(str(tmp_path / "does_not_exist.yaml"))
-        assert cfg == {}
-
-    def test_invalid_yaml_returns_empty_dict(self, tmp_path):
-        cfg_file = tmp_path / "bad.yaml"
-        # 깨진 YAML (탭/구문 오류) → 예외 대신 기본값 {}
-        cfg_file.write_text("defaults: [unclosed\n  : :\n", encoding="utf-8")
-        cfg = _load_config(str(cfg_file))
-        assert cfg == {}
-
-    def test_non_mapping_yaml_returns_empty_dict(self, tmp_path):
-        cfg_file = tmp_path / "list.yaml"
-        cfg_file.write_text("- a\n- b\n", encoding="utf-8")  # mapping 이 아닌 list
-        cfg = _load_config(str(cfg_file))
-        assert cfg == {}
-
-    def test_empty_file_returns_empty_dict(self, tmp_path):
-        cfg_file = tmp_path / "empty.yaml"
-        cfg_file.write_text("", encoding="utf-8")
-        cfg = _load_config(str(cfg_file))
-        assert cfg == {}
+    @pytest.mark.parametrize("content", [
+        None,                          # 파일 자체가 없음
+        "defaults: [unclosed\n  : :\n",  # 깨진 YAML (탭/구문 오류) → 예외 대신 기본값
+        "- a\n- b\n",                  # mapping 이 아닌 list
+        "",                            # 빈 파일
+    ], ids=["missing-file", "invalid-yaml", "non-mapping", "empty-file"])
+    def test_unusable_config_returns_empty_dict(self, tmp_path, content):
+        cfg_file = tmp_path / "cfg.yaml"
+        if content is not None:
+            cfg_file.write_text(content, encoding="utf-8")
+        assert _load_config(str(cfg_file)) == {}
 
 
 @pytest.mark.unit

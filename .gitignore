@@ -479,3 +479,6 @@ shkim_labs/
 
 # 임시
 paddle/
+
+# understand-anything 지식 그래프 산출물
+.ua/

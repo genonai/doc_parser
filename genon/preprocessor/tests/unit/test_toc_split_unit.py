@@ -95,24 +95,16 @@ class TestChunkByPages:
 
 @pytest.mark.unit
 class TestIsTokenOverflow:
-    def test_status_400_is_overflow(self):
-        util = _make_util()
-        assert util._is_token_overflow(LLMApiError("bad", status_code=400)) is True
-
-    def test_message_signal_is_overflow(self):
-        util = _make_util()
-        assert util._is_token_overflow(
-            LLMApiError("maximum context length exceeded", status_code=500)) is True
-
-    def test_korean_signal_is_overflow(self):
+    @pytest.mark.parametrize("message,status_code,expected", [
+        ("bad", 400, True),                                   # 상태코드 400
+        ("maximum context length exceeded", 500, True),       # 영문 메시지 신호
+        ("프롬프트 입력 토큰 초과 하였습니다", None, True),        # 한국어 메시지 신호
+        ("connection reset", 502, False),                     # 토큰 초과가 아닌 오류
+    ], ids=["status-400", "english-signal", "korean-signal", "not-overflow"])
+    def test_is_token_overflow(self, message, status_code, expected):
         util = _make_util()
         assert util._is_token_overflow(
-            LLMApiError("프롬프트 입력 토큰 초과 하였습니다", status_code=None)) is True
-
-    def test_non_overflow_error(self):
-        util = _make_util()
-        assert util._is_token_overflow(
-            LLMApiError("connection reset", status_code=502)) is False
+            LLMApiError(message, status_code=status_code)) is expected
 
 
 # ── _build_continuation_user ───────────────────────────────────────────────────

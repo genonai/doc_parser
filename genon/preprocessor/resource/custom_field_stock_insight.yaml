@@ -21,23 +21,23 @@ source:
     concat: [DETAIL_DESC, DETAIL_TEXT]
 fields:
   BIZ_ID:
-    alias: [ID, 아이디]
+    template: "{{JONG_CODE}}_{{NEWS_DATE}}"
     default: null
   REGT_NO:
     alias: [등록번호, REGT_NO, regt_no]
     default: null
+    meta: false
   NTC_OBJLINE_NO:
     alias: [NTC_OBJLINE_NO, ntc_objline, ntc_objline_no, 게시물 라인번호]
     default: null
-  JONG_CODE_ORG:
+    meta: false
+  JONG_CODE:
     alias: [종목코드, jong_code, JONG_CODE]
   JONG_NM:
     alias: [종목명, jong_name, jong_nm, JONG_NAME]
   NEWS_DATE:
     alias: [뉴스일자, NEWS_DATE, news_date]
     transform: date_int_flex
-  JONG_CODE:
-    template: "{{JONG_CODE_ORG}}_{{NEWS_DATE}}"
   DETAIL_DESC:
     alias: [상세내용, DETAIL_DESC, detail_desc]
     default: null

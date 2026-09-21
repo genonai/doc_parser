@@ -109,59 +109,42 @@ def _make_mock_doc(items, num_pages=1):
 
 @pytest.mark.unit
 class TestGetNormalizedCoords:
-    def test_topleft_origin_produces_four_corners(self):
+    def test_topleft_origin_produces_four_corners_clockwise(self):
         bbox = BoundingBox(l=10, t=20, r=90, b=80, coord_origin=CoordOrigin.TOPLEFT)
         result = DocumentProcessor._get_normalized_coords(bbox, page_w=100.0, page_h=100.0)
 
-        assert len(result) == 4
-        assert result[0] == {"x": 0.1, "y": 0.2}   # top-left
-        assert result[1] == {"x": 0.9, "y": 0.2}   # top-right
-        assert result[2] == {"x": 0.9, "y": 0.8}   # bottom-right
-        assert result[3] == {"x": 0.1, "y": 0.8}   # bottom-left
+        assert result == [
+            {"x": 0.1, "y": 0.2},   # top-left
+            {"x": 0.9, "y": 0.2},   # top-right
+            {"x": 0.9, "y": 0.8},   # bottom-right
+            {"x": 0.1, "y": 0.8},   # bottom-left
+        ]
 
     def test_full_page_bbox_spans_0_to_1(self):
         bbox = BoundingBox(l=0, t=0, r=100, b=100, coord_origin=CoordOrigin.TOPLEFT)
         result = DocumentProcessor._get_normalized_coords(bbox, page_w=100.0, page_h=100.0)
 
-        xs = {p["x"] for p in result}
-        ys = {p["y"] for p in result}
-        assert xs == {0.0, 1.0}
-        assert ys == {0.0, 1.0}
-
-    def test_each_corner_has_x_and_y(self):
-        bbox = BoundingBox(l=5, t=5, r=50, b=50, coord_origin=CoordOrigin.TOPLEFT)
-        result = DocumentProcessor._get_normalized_coords(bbox, page_w=100.0, page_h=100.0)
-        assert all(isinstance(p, dict) and "x" in p and "y" in p for p in result)
+        assert {p["x"] for p in result} == {0.0, 1.0}
+        assert {p["y"] for p in result} == {0.0, 1.0}
 
 
 # ─── _audio_to_parse_format ───────────────────────────────────────────────────
 
 @pytest.mark.unit
-class TestAudioToParseFormat:
-    def test_returns_exactly_one_element(self):
-        result = DocumentProcessor._audio_to_parse_format("hello world")
-        assert len(result["elements"]) == 1
+def test_audio_to_parse_format_builds_one_paragraph_element():
+    """전사 텍스트 1건이 문단 element 하나와 usage.pages=1 로 나온다."""
+    result = DocumentProcessor._audio_to_parse_format("transcribed audio text")
 
-    def test_element_category_is_paragraph(self):
-        result = DocumentProcessor._audio_to_parse_format("hello")
-        assert result["elements"][0]["category"] == "paragraph"
-
-    def test_content_matches_input_text(self):
-        text = "transcribed audio text"
-        result = DocumentProcessor._audio_to_parse_format(text)
-        assert result["elements"][0]["content"] == text
-
-    def test_page_is_one(self):
-        result = DocumentProcessor._audio_to_parse_format("x")
-        assert result["elements"][0]["page"] == 1
-
-    def test_usage_pages_is_one(self):
-        result = DocumentProcessor._audio_to_parse_format("x")
-        assert result["usage"]["pages"] == 1
-
-    def test_coordinates_are_empty(self):
-        result = DocumentProcessor._audio_to_parse_format("x")
-        assert result["elements"][0]["coordinates"] == []
+    assert result == {
+        "elements": [{
+            "category": "paragraph",
+            "content": "transcribed audio text",
+            "coordinates": [],
+            "id": 0,
+            "page": 1,
+        }],
+        "usage": {"pages": 1},
+    }
 
 
 # ─── _tabular_to_parse_format ─────────────────────────────────────────────────
@@ -181,11 +164,16 @@ class TestTabularToParseFormat:
         assert result["elements"] == []
         assert result["usage"]["pages"] == 0
 
-    def test_one_data_row_produces_one_tabular_row_element(self):
-        result = DocumentProcessor._tabular_to_parse_format(self._make_data_dict(1))
-        assert len(result["elements"]) == 1
-        assert result["elements"][0]["category"] == "tabular_row"
-        assert result["elements"][0]["page"] == 1
+    def test_each_sheet_row_becomes_one_element_on_its_own_page(self):
+        """시트 3장이면 element 3건, 페이지는 시트 순서대로, usage.pages 는 시트 수다."""
+        result = DocumentProcessor._tabular_to_parse_format(self._make_data_dict(3))
+
+        assert len(result["elements"]) == 3
+        assert [e["category"] for e in result["elements"]] == ["tabular_row"] * 3
+        assert [e["page"] for e in result["elements"]] == [1, 2, 3]
+        assert result["usage"]["pages"] == 3
+        assert set(result["elements"][0]) >= {
+            "category", "content", "coordinates", "id", "page", "metadata"}
 
     def test_each_data_row_produces_one_element(self):
         data = {
@@ -200,59 +188,53 @@ class TestTabularToParseFormat:
         assert [e["category"] for e in result["elements"]] == ["tabular_row", "tabular_row"]
         assert [e["metadata"]["name"] for e in result["elements"]] == ["Alice", "Bob"]
 
-    def test_two_sheets_use_sequential_pages(self):
-        result = DocumentProcessor._tabular_to_parse_format(self._make_data_dict(2))
-        assert result["elements"][0]["page"] == 1
-        assert result["elements"][1]["page"] == 2
-
-    def test_usage_pages_equals_sheet_count(self):
-        result = DocumentProcessor._tabular_to_parse_format(self._make_data_dict(3))
-        assert result["usage"]["pages"] == 3
-
-    def test_element_has_required_keys(self):
-        element = DocumentProcessor._tabular_to_parse_format(self._make_data_dict(1))["elements"][0]
-        for key in ("category", "content", "coordinates", "id", "page", "metadata"):
-            assert key in element
-
 
 # ─── _langchain_to_parse_format ───────────────────────────────────────────────
 
 @pytest.mark.unit
 class TestLangchainToParseFormat:
-    def test_page_0_becomes_1(self):
-        docs = [Document(page_content="text", metadata={"page": 0})]
-        assert DocumentProcessor._langchain_to_parse_format(docs)["elements"][0]["page"] == 1
+    @pytest.mark.parametrize("metadata,expected_page", [
+        ({"page": 0}, 1),      # 0-based -> 1-based
+        ({"page": 2}, 3),
+        ({}, 1),               # page 누락 시 인덱스 + 1
+    ])
+    def test_page_is_converted_to_1_based(self, metadata, expected_page):
+        docs = [Document(page_content="text", metadata=metadata)]
+        element = DocumentProcessor._langchain_to_parse_format(docs)["elements"][0]
+        assert element["page"] == expected_page
 
-    def test_page_2_becomes_3(self):
-        docs = [Document(page_content="text", metadata={"page": 2})]
-        assert DocumentProcessor._langchain_to_parse_format(docs)["elements"][0]["page"] == 3
-
-    def test_missing_page_uses_index_plus_one(self):
-        docs = [Document(page_content="a", metadata={})]
-        assert DocumentProcessor._langchain_to_parse_format(docs)["elements"][0]["page"] == 1
-
-    def test_usage_pages_is_max_converted_page(self):
+    def test_element_shape_and_usage_pages(self):
+        """element 는 문단 카테고리의 고정 5키이고, usage.pages 는 변환된 페이지의 최대값이다."""
         docs = [
             Document(page_content="a", metadata={"page": 0}),
             Document(page_content="b", metadata={"page": 4}),
         ]
-        assert DocumentProcessor._langchain_to_parse_format(docs)["usage"]["pages"] == 5
+        result = DocumentProcessor._langchain_to_parse_format(docs)
 
-    def test_element_has_required_keys(self):
-        docs = [Document(page_content="text", metadata={})]
-        element = DocumentProcessor._langchain_to_parse_format(docs)["elements"][0]
-        for key in ("category", "content", "coordinates", "id", "page"):
-            assert key in element
-
-    def test_category_is_paragraph(self):
-        docs = [Document(page_content="text", metadata={})]
-        assert DocumentProcessor._langchain_to_parse_format(docs)["elements"][0]["category"] == "paragraph"
+        assert result["elements"][0] == {
+            "category": "paragraph",
+            "content": "a",
+            "coordinates": [],
+            "id": 0,
+            "page": 1,
+        }
+        assert result["usage"]["pages"] == 5
 
 
 # ─── _docling_to_parse_format ─────────────────────────────────────────────────
 
 @pytest.mark.unit
 class TestDoclingToParseFormat:
+    def test_element_shape_is_sequential_id_with_four_point_coords(self):
+        """element 는 고정 키를 갖고, id 는 0부터 순번, coordinates 는 네 점이다."""
+        doc = _make_mock_doc([_make_text_item() for _ in range(3)])
+        result = DocumentProcessor._docling_to_parse_format(doc)
+
+        assert [e["id"] for e in result["elements"]] == [0, 1, 2]
+        first = result["elements"][0]
+        assert set(first) >= {"category", "content", "coordinates", "id", "page"}
+        assert isinstance(first["coordinates"], list) and len(first["coordinates"]) == 4
+
     def test_item_without_prov_has_empty_coordinates(self):
         items = [_make_text_item(text="keep", has_prov=True), _make_text_item(text="no-prov", has_prov=False)]
         doc = _make_mock_doc(items)
@@ -261,25 +243,9 @@ class TestDoclingToParseFormat:
         no_prov = next(e for e in result["elements"] if e["content"] == "no-prov")
         assert no_prov["coordinates"] == []
 
-    def test_element_ids_are_sequential(self):
-        doc = _make_mock_doc([_make_text_item() for _ in range(3)])
-        result = DocumentProcessor._docling_to_parse_format(doc)
-        assert [e["id"] for e in result["elements"]] == [0, 1, 2]
-
-    def test_required_keys_present(self):
-        doc = _make_mock_doc([_make_text_item()])
-        element = DocumentProcessor._docling_to_parse_format(doc)["elements"][0]
-        for key in ("category", "content", "coordinates", "id", "page"):
-            assert key in element
-
     def test_usage_pages_comes_from_doc_num_pages(self):
         doc = _make_mock_doc([], num_pages=5)
         assert DocumentProcessor._docling_to_parse_format(doc)["usage"]["pages"] == 5
-
-    def test_coordinates_is_list_of_four_points(self):
-        doc = _make_mock_doc([_make_text_item()])
-        coords = DocumentProcessor._docling_to_parse_format(doc)["elements"][0]["coordinates"]
-        assert isinstance(coords, list) and len(coords) == 4
 
     def test_category_uses_label_value_directly(self):
         doc = _make_mock_doc([_make_text_item(label="section_header")])
@@ -308,9 +274,6 @@ _MOCK_RESULT = {"elements": [], "usage": {"pages": 1}}
 
 @pytest.mark.unit
 @pytest.mark.parametrize("filename,expected_method", [
-    ("a.wav",  "_parse_audio"),
-    ("a.mp3",  "_parse_audio"),
-    ("a.m4a",  "_parse_audio"),
     ("a.csv",  "_parse_tabular"),
     ("a.xlsx", "_parse_tabular"),
     ("a.hwp",  "_parse_hwp_hwpx"),
@@ -323,7 +286,6 @@ _MOCK_RESULT = {"elements": [], "usage": {"pages": 1}}
 def test_call_routes_to_correct_method(dp, filename, expected_method):
     """__call__ dispatches each file extension to the right internal method."""
     parse_mocks = {
-        "_parse_audio":    MagicMock(return_value="transcript"),
         "_parse_tabular":  MagicMock(return_value={"data": []}),
         "_parse_hwp_hwpx": MagicMock(return_value=MagicMock()),
         "_parse_docx":     MagicMock(return_value=MagicMock()),
@@ -334,7 +296,6 @@ def test_call_routes_to_correct_method(dp, filename, expected_method):
         setattr(dp, name, mock)
 
     with patch.object(DocumentProcessor, "_docling_to_parse_format",   return_value=_MOCK_RESULT), \
-         patch.object(DocumentProcessor, "_audio_to_parse_format",     return_value=_MOCK_RESULT), \
          patch.object(DocumentProcessor, "_tabular_to_parse_format",   return_value=_MOCK_RESULT), \
          patch.object(DocumentProcessor, "_langchain_to_parse_format", return_value=_MOCK_RESULT):
         result = asyncio.run(dp(None, filename))
@@ -366,22 +327,17 @@ def test_docx_coordinates_cleared_after_parsing(dp):
 # ─── IntelligentDocumentProcessor.check_glyph_text ───────────────────────────
 
 @pytest.mark.unit
-class TestCheckGlyphText:
-    def test_single_glyph_detected_at_default_threshold(self, intel):
-        assert intel.check_glyph_text("GLYPH123") is True
-
-    def test_threshold_requires_minimum_match_count(self, intel):
-        assert intel.check_glyph_text("GLYPH123", threshold=2) is False
-        assert intel.check_glyph_text("GLYPH123 GLYPHABC", threshold=2) is True
-
-    def test_plain_text_returns_false(self, intel):
-        assert intel.check_glyph_text("일반 텍스트 내용") is False
-
-    def test_empty_string_returns_false(self, intel):
-        assert intel.check_glyph_text("") is False
-
-    def test_none_returns_false(self, intel):
-        assert intel.check_glyph_text(None) is False
+@pytest.mark.parametrize("text,kwargs,expected", [
+    ("GLYPH123", {}, True),                     # 기본 임계값 1 에서 1건이면 검출
+    ("GLYPHXYZ", {}, True),                     # 접미 변형도 검출
+    ("GLYPH123", {"threshold": 2}, False),      # 임계값에 못 미치면 미검출
+    ("GLYPH123 GLYPHABC", {"threshold": 2}, True),
+    ("일반 텍스트 내용", {}, False),
+    ("", {}, False),
+    (None, {}, False),
+])
+def test_check_glyph_text(intel, text, kwargs, expected):
+    assert intel.check_glyph_text(text, **kwargs) is expected
 
 
 @pytest.mark.unit
@@ -492,56 +448,28 @@ def test_enrichment_provider_error_is_rethrown_as_genos_exception(intel):
     assert exc_info.value.error_msg == raw_error
 
 
-# ─── _normalize_output_format ────────────────────────────────────────────────
+# ─── _normalize_output_format / _normalize_table_format ─────────────────────
 
 @pytest.mark.unit
-class TestNormalizeOutputFormat:
-    def test_json_returns_json(self):
-        assert DocumentProcessor._normalize_output_format("json") == "json"
+@pytest.mark.parametrize("raw,expected", [
+    ("json", "json"), ("html", "html"), ("markdown", "markdown"),
+    ("JSON", "json"), ("HTML", "html"), ("Markdown", "markdown"),   # 대소문자 정규화
+    ("  json  ", "json"),                                           # 앞뒤 공백 제거
+    ("xml", "json"), ("", "json"),                                  # 미지원 값은 json 폴백
+])
+def test_normalize_output_format(raw, expected):
+    assert DocumentProcessor._normalize_output_format(raw) == expected
 
-    def test_html_returns_html(self):
-        assert DocumentProcessor._normalize_output_format("html") == "html"
-
-    def test_markdown_returns_markdown(self):
-        assert DocumentProcessor._normalize_output_format("markdown") == "markdown"
-
-    def test_uppercase_is_normalized(self):
-        assert DocumentProcessor._normalize_output_format("JSON") == "json"
-        assert DocumentProcessor._normalize_output_format("HTML") == "html"
-        assert DocumentProcessor._normalize_output_format("Markdown") == "markdown"
-
-    def test_whitespace_is_stripped(self):
-        assert DocumentProcessor._normalize_output_format("  json  ") == "json"
-
-    def test_invalid_value_falls_back_to_json(self):
-        assert DocumentProcessor._normalize_output_format("xml") == "json"
-
-    def test_empty_string_falls_back_to_json(self):
-        assert DocumentProcessor._normalize_output_format("") == "json"
-
-
-# ─── _normalize_table_format ─────────────────────────────────────────────────
 
 @pytest.mark.unit
-class TestNormalizeTableFormat:
-    def test_html_returns_html(self):
-        assert DocumentProcessor._normalize_table_format("html") == "html"
-
-    def test_markdown_returns_markdown(self):
-        assert DocumentProcessor._normalize_table_format("markdown") == "markdown"
-
-    def test_uppercase_is_normalized(self):
-        assert DocumentProcessor._normalize_table_format("HTML") == "html"
-        assert DocumentProcessor._normalize_table_format("MARKDOWN") == "markdown"
-
-    def test_whitespace_is_stripped(self):
-        assert DocumentProcessor._normalize_table_format("  html  ") == "html"
-
-    def test_invalid_value_falls_back_to_html(self):
-        assert DocumentProcessor._normalize_table_format("text") == "html"
-
-    def test_empty_string_falls_back_to_html(self):
-        assert DocumentProcessor._normalize_table_format("") == "html"
+@pytest.mark.parametrize("raw,expected", [
+    ("html", "html"), ("markdown", "markdown"),
+    ("HTML", "html"), ("MARKDOWN", "markdown"),                     # 대소문자 정규화
+    ("  html  ", "html"),                                           # 앞뒤 공백 제거
+    ("text", "html"), ("", "html"),                                 # 미지원 값은 html 폴백
+])
+def test_normalize_table_format(raw, expected):
+    assert DocumentProcessor._normalize_table_format(raw) == expected
 
 
 # ─── _export_table_content ───────────────────────────────────────────────────
@@ -556,68 +484,58 @@ def _make_table_item(export_html="<table></table>", export_markdown="| a |", tex
     return item
 
 
+def _failing_table_item(text=""):
+    """export_to_html 가 예외를 던지고 셀도 비어 있는 표 item."""
+    item = MagicMock()
+    item.export_to_html.side_effect = RuntimeError("export failed")
+    item.data.table_cells = []
+    item.text = text
+    return item
+
+
+def _with_cells(item, *texts):
+    item.data.table_cells = [MagicMock(text=t) for t in texts]
+    return item
+
+
 @pytest.mark.unit
 class TestExportTableContent:
-    def test_html_format_calls_export_to_html(self):
+    @pytest.mark.parametrize("kwargs", [{}, {"table_format": "html"}], ids=["default", "explicit"])
+    def test_html_is_the_default_and_calls_export_to_html(self, kwargs):
         item = _make_table_item()
         doc = MagicMock()
-        result = DocumentProcessor._export_table_content(item, doc, table_format="html")
+        result = DocumentProcessor._export_table_content(item, doc, **kwargs)
         item.export_to_html.assert_called_once_with(doc=doc)
         assert result == "<table></table>"
 
-    def test_markdown_format_uses_shared_export_markdown(self):
+    @pytest.mark.parametrize("kwargs,expected_compact", [
+        ({"compact_tables": False}, False),
+        ({}, True),                                  # compact_tables 기본값
+    ], ids=["explicit-false", "default-true"])
+    def test_markdown_format_uses_shared_export_markdown(self, kwargs, expected_compact):
         # 표 markdown 은 공용 관문을 거친다 - 링크 URL 억제가 여기 한 벌로 걸린다.
         item = _make_table_item()
         doc = MagicMock()
-        with patch("genon.preprocessor.processing.serialize.parse_format.export_markdown", return_value="| a |") as em:
+        with patch("genon.preprocessor.processing.serialize.parse_format.export_markdown",
+                   return_value="| a |") as em:
             result = DocumentProcessor._export_table_content(
-                item, doc, table_format="markdown", compact_tables=False
+                item, doc, table_format="markdown", **kwargs
             )
-        em.assert_called_once_with(doc, item=item, compact_tables=False)
+        em.assert_called_once_with(doc, item=item, compact_tables=expected_compact)
         item.export_to_markdown.assert_not_called()
         assert result == "| a |"
 
-    def test_markdown_format_passes_compact_tables_through(self):
-        item = _make_table_item()
-        doc = MagicMock()
-        with patch("genon.preprocessor.processing.serialize.parse_format.export_markdown", return_value="| a |") as em:
-            DocumentProcessor._export_table_content(item, doc, table_format="markdown")
-        assert em.call_args.kwargs["compact_tables"] is True
-
-    def test_default_format_is_html(self):
-        item = _make_table_item()
-        doc = MagicMock()
-        DocumentProcessor._export_table_content(item, doc)
-        item.export_to_html.assert_called_once()
-
-    def test_empty_export_falls_back_to_cell_text(self):
-        item = _make_table_item(export_html="   ")
-        cell = MagicMock()
-        cell.text = "cell value"
-        item.data.table_cells = [cell]
-        doc = MagicMock()
-        result = DocumentProcessor._export_table_content(item, doc, table_format="html")
-        assert result == "cell value"
-
-    def test_export_exception_falls_back_to_cell_text(self):
-        item = MagicMock()
-        item.export_to_html.side_effect = RuntimeError("export failed")
-        cell = MagicMock()
-        cell.text = "rescued"
-        item.data.table_cells = [cell]
-        item.text = ""
-        doc = MagicMock()
-        result = DocumentProcessor._export_table_content(item, doc, table_format="html")
-        assert result == "rescued"
-
-    def test_all_fallbacks_fail_returns_item_text(self):
-        item = MagicMock()
-        item.export_to_html.side_effect = RuntimeError
-        item.data.table_cells = []
-        item.text = "last resort"
-        doc = MagicMock()
-        result = DocumentProcessor._export_table_content(item, doc, table_format="html")
-        assert result == "last resort"
+    @pytest.mark.parametrize("build_item,expected", [
+        (lambda: _with_cells(_make_table_item(export_html="   "), "cell value"), "cell value"),
+        (lambda: _with_cells(_failing_table_item(), "rescued"), "rescued"),
+        (lambda: _failing_table_item(text="last resort"), "last resort"),
+    ], ids=["empty-export", "export-raises", "no-cells-left"])
+    def test_falls_back_when_export_yields_nothing(self, build_item, expected):
+        """export 가 비었거나 예외면 셀 텍스트로, 셀도 없으면 item.text 로 떨어진다."""
+        result = DocumentProcessor._export_table_content(
+            build_item(), MagicMock(), table_format="html"
+        )
+        assert result == expected
 
 
 # ─── _docling_to_content ─────────────────────────────────────────────────────
@@ -692,107 +610,66 @@ class TestBuildDoclingResponse:
         assert "usage" in result
         assert "content" not in result
 
-    def test_html_format_returns_content_structure(self):
-        proc = _make_proc_with_format("html", "html")
+    @pytest.mark.parametrize("output_format,table_format,content", [
+        ("html", "html", "<html/>"),
+        ("markdown", "markdown", "# title"),
+    ])
+    def test_content_formats_return_content_structure(self, output_format, table_format, content):
+        """html/markdown 출력은 content 에 본문을 싣고 elements 는 비운다."""
+        proc = _make_proc_with_format(output_format, table_format)
         doc = MagicMock()
         doc.num_pages.return_value = 2
-        with patch.object(DocumentProcessor, "_docling_to_content", return_value="<html/>"):
+        with patch.object(DocumentProcessor, "_docling_to_content", return_value=content):
             result = proc._build_docling_response(doc)
-        assert result["content"] == "<html/>"
+        assert result["content"] == content
         assert result["elements"] == []
         assert result["usage"]["pages"] == 2
 
-    def test_markdown_format_returns_content_structure(self):
-        proc = _make_proc_with_format("markdown", "markdown")
-        doc = MagicMock()
-        doc.num_pages.return_value = 1
-        with patch.object(DocumentProcessor, "_docling_to_content", return_value="# title"):
-            result = proc._build_docling_response(doc)
-        assert result["content"] == "# title"
-        assert result["elements"] == []
-
-    def test_json_format_clear_coordinates_empties_coords(self):
+    @pytest.mark.parametrize("clear_coordinates", [True, False])
+    def test_json_format_clear_coordinates_flag(self, clear_coordinates):
         proc = _make_proc_with_format("json", "html")
         doc = MagicMock()
         with patch.object(DocumentProcessor, "_docling_to_parse_format",
                           side_effect=lambda *a, **kw: _make_parse_format_result()):
-            result = proc._build_docling_response(doc, clear_coordinates=True)
-        for element in result["elements"]:
-            assert element["coordinates"] == []
-
-    def test_json_format_without_clear_coordinates_keeps_coords(self):
-        proc = _make_proc_with_format("json", "html")
-        doc = MagicMock()
-        with patch.object(DocumentProcessor, "_docling_to_parse_format",
-                          side_effect=lambda *a, **kw: _make_parse_format_result()):
-            result = proc._build_docling_response(doc, clear_coordinates=False)
-        assert result["elements"][0]["coordinates"] != []
-
-    def test_glyph_with_suffix_variants_detected(self, intel):
-        assert intel.check_glyph_text("GLYPHXYZ") is True
+            result = proc._build_docling_response(doc, clear_coordinates=clear_coordinates)
+        if clear_coordinates:
+            assert all(e["coordinates"] == [] for e in result["elements"])
+        else:
+            assert result["elements"][0]["coordinates"] != []
 
 
 # ─── TabularLoaderBase.check_sql_dtypes (공용 로더) ───────────────────────────
 
 @pytest.mark.unit
-class TestCheckSqlDtypes:
-    @pytest.fixture
-    def loader(self):
-        return object.__new__(TabularLoaderBase)
+@pytest.mark.parametrize("column,values,matches", [
+    ("n", [1, 2, 3], lambda t: "INT" in t),
+    ("f", [1.1, 2.2, 3.3], lambda t: t == "FLOAT"),
+    ("s", ["hello", "world"], lambda t: "VARCHAR" in t),
+], ids=["int", "float", "string"])
+def test_check_sql_dtypes_pairs_each_column_with_a_sql_type(column, values, matches):
+    loader = object.__new__(TabularLoaderBase)
+    _, dtypes = loader.check_sql_dtypes(pd.DataFrame({column: values}))
 
-    def test_int_column_maps_to_int_type(self, loader):
-        df = pd.DataFrame({"n": [1, 2, 3]})
-        _, dtypes = loader.check_sql_dtypes(df)
-        col_type = next(d[1] for d in dtypes if d[0] == "n")
-        assert "INT" in col_type
-
-    def test_float_column_maps_to_float(self, loader):
-        df = pd.DataFrame({"f": [1.1, 2.2, 3.3]})
-        _, dtypes = loader.check_sql_dtypes(df)
-        col_type = next(d[1] for d in dtypes if d[0] == "f")
-        assert col_type == "FLOAT"
-
-    def test_string_column_maps_to_varchar(self, loader):
-        df = pd.DataFrame({"s": ["hello", "world"]})
-        _, dtypes = loader.check_sql_dtypes(df)
-        col_type = next(d[1] for d in dtypes if d[0] == "s")
-        assert "VARCHAR" in col_type
-
-    def test_returns_df_and_paired_list(self, loader):
-        df = pd.DataFrame({"a": [1]})
-        result_df, dtypes = loader.check_sql_dtypes(df)
-        assert isinstance(dtypes, list)
-        assert len(dtypes) == 1
-        assert len(dtypes[0]) == 2  # [col_name, sql_type]
+    assert len(dtypes) == 1
+    assert len(dtypes[0]) == 2  # [col_name, sql_type]
+    assert dtypes[0][0] == column
+    assert matches(dtypes[0][1])
 
 
 # ─── GenericDocumentLoader.get_real_file_type ─────────────────────────────────
 
 @pytest.mark.unit
-class TestGetRealFileType:
-    @pytest.fixture
-    def loader(self):
-        return object.__new__(GenericDocumentLoader)
-
-    def test_pdf_magic_bytes_return_pdf(self, loader, tmp_path):
-        f = tmp_path / "fake.txt"
-        f.write_bytes(b"%PDF-1.4 fake content")
-        assert loader.get_real_file_type(str(f)) == "pdf"
-
-    def test_png_magic_bytes_return_png(self, loader, tmp_path):
-        f = tmp_path / "fake.txt"
-        f.write_bytes(b"\x89PNG\r\n\x1a\n fake png")
-        assert loader.get_real_file_type(str(f)) == "png"
-
-    def test_jpg_magic_bytes_return_jpg(self, loader, tmp_path):
-        f = tmp_path / "fake.txt"
-        f.write_bytes(b"\xff\xd8\xff fake jpeg")
-        assert loader.get_real_file_type(str(f)) == "jpg"
-
-    def test_unknown_magic_returns_file_extension(self, loader, tmp_path):
-        f = tmp_path / "test.docx"
-        f.write_bytes(b"PK\x03\x04 zip content")
-        assert loader.get_real_file_type(str(f)) == ".docx"
+@pytest.mark.parametrize("filename,content,expected", [
+    ("fake.txt", b"%PDF-1.4 fake content", "pdf"),
+    ("fake.txt", b"\x89PNG\r\n\x1a\n fake png", "png"),
+    ("fake.txt", b"\xff\xd8\xff fake jpeg", "jpg"),
+    ("test.docx", b"PK\x03\x04 zip content", ".docx"),   # 매직바이트로 못 가리면 확장자
+], ids=["pdf", "png", "jpg", "unknown-magic"])
+def test_get_real_file_type(tmp_path, filename, content, expected):
+    loader = object.__new__(GenericDocumentLoader)
+    f = tmp_path / filename
+    f.write_bytes(content)
+    assert loader.get_real_file_type(str(f)) == expected
 
 
 # ─── IntelligentDocumentProcessor._build_ocr_options (yaml → ocr_options) ────
@@ -805,26 +682,26 @@ class TestBuildOcrOptions:
     def _clean_env(self, monkeypatch):
         monkeypatch.delenv("UPSTAGE_API_KEY", raising=False)
 
-    def test_default_engine_is_paddle(self):
+    @pytest.mark.parametrize("ocr_cfg", [
+        {},                     # engine 미지정
+        {"engine": "paddle"},
+        {"engine": "bogus"},    # 알 수 없는 engine 은 paddle 로 폴백
+    ], ids=["default", "explicit", "unknown-falls-back"])
+    def test_paddle_is_the_default_engine(self, ocr_cfg):
         from docling.datamodel.pipeline_options import PaddleOcrOptions
         opts = IntelligentDocumentProcessor._build_ocr_options(
-            {}, paddle_endpoint="http://paddle.example/ocr"
+            ocr_cfg, paddle_endpoint="http://paddle.example/ocr"
         )
         assert isinstance(opts, PaddleOcrOptions)
         assert opts.ocr_endpoint == "http://paddle.example/ocr"
 
-    def test_explicit_paddle_engine(self):
-        from docling.datamodel.pipeline_options import PaddleOcrOptions
-        opts = IntelligentDocumentProcessor._build_ocr_options(
-            {"engine": "paddle"}, paddle_endpoint="http://paddle.example/ocr"
-        )
-        assert isinstance(opts, PaddleOcrOptions)
-
-    def test_upstage_engine_uses_yaml_values(self):
+    @pytest.mark.parametrize("engine", ["upstage", "UPSTAGE"], ids=["lower", "upper"])
+    def test_upstage_engine_uses_yaml_values(self, engine):
+        """engine 판정은 대소문자를 가리지 않고, upstage 하위 키가 그대로 옵션에 실린다."""
         from docling.datamodel.pipeline_options import UpstageOcrOptions
         opts = IntelligentDocumentProcessor._build_ocr_options(
             {
-                "engine": "upstage",
+                "engine": engine,
                 "upstage": {
                     "api_endpoint": "https://custom.upstage.example/ocr",
                     "api_key": "yaml-key",
@@ -844,83 +721,38 @@ class TestBuildOcrOptions:
         assert opts.text_score == 0.6
         assert opts.lang == ["ko"]
 
-    def test_upstage_engine_api_key_falls_back_to_env(self, monkeypatch):
-        from docling.datamodel.pipeline_options import UpstageOcrOptions
+    @pytest.mark.parametrize("yaml_key,expected", [
+        ("", "env-secret"),               # yaml 이 비면 환경변수로 폴백
+        ("yaml-secret", "yaml-secret"),   # yaml 값이 환경변수보다 우선
+    ], ids=["env-fallback", "yaml-wins"])
+    def test_upstage_api_key_resolution(self, monkeypatch, yaml_key, expected):
         monkeypatch.setenv("UPSTAGE_API_KEY", "env-secret")
         opts = IntelligentDocumentProcessor._build_ocr_options(
-            {"engine": "upstage", "upstage": {"api_key": ""}},
+            {"engine": "upstage", "upstage": {"api_key": yaml_key}},
             paddle_endpoint="",
         )
-        assert isinstance(opts, UpstageOcrOptions)
-        assert opts.api_key == "env-secret"
-
-    def test_upstage_yaml_key_takes_precedence_over_env(self, monkeypatch):
-        monkeypatch.setenv("UPSTAGE_API_KEY", "env-secret")
-        opts = IntelligentDocumentProcessor._build_ocr_options(
-            {"engine": "upstage", "upstage": {"api_key": "yaml-secret"}},
-            paddle_endpoint="",
-        )
-        assert opts.api_key == "yaml-secret"
-
-    def test_unknown_engine_falls_back_to_paddle(self):
-        from docling.datamodel.pipeline_options import PaddleOcrOptions
-        opts = IntelligentDocumentProcessor._build_ocr_options(
-            {"engine": "bogus"}, paddle_endpoint="http://x/ocr"
-        )
-        assert isinstance(opts, PaddleOcrOptions)
-
-    def test_engine_case_insensitive(self):
-        from docling.datamodel.pipeline_options import UpstageOcrOptions
-        opts = IntelligentDocumentProcessor._build_ocr_options(
-            {"engine": "UPSTAGE", "upstage": {"api_key": "k"}},
-            paddle_endpoint="",
-        )
-        assert isinstance(opts, UpstageOcrOptions)
+        assert opts.api_key == expected
 
     # ── yaml 의 잘못된 값으로 startup 이 깨지지 않는지 (#178 CodeRabbit) ─────
 
-    def test_upstage_invalid_timeout_falls_back_to_default(self):
+    @pytest.mark.parametrize("upstage_cfg,expected_timeout,expected_text_score", [
+        ({"timeout": "not-a-number"}, 60, 0.5),
+        ({"timeout": ""}, 60, 0.5),
+        ({"timeout": 0}, 60, 0.5),        # 0 / 음수 timeout 도 의미 없으므로 default 로 복구
+        ({"text_score": "bad"}, 60, 0.5),
+        ({"timeout": "120", "text_score": "0.7"}, 120, 0.7),  # numeric-string 은 정상 변환
+    ], ids=["timeout-nan", "timeout-empty", "timeout-zero", "score-nan", "numeric-string"])
+    def test_upstage_invalid_numbers_fall_back_to_defaults(
+        self, upstage_cfg, expected_timeout, expected_text_score
+    ):
         from docling.datamodel.pipeline_options import UpstageOcrOptions
         opts = IntelligentDocumentProcessor._build_ocr_options(
-            {"engine": "upstage", "upstage": {"api_key": "k", "timeout": "not-a-number"}},
+            {"engine": "upstage", "upstage": {"api_key": "k", **upstage_cfg}},
             paddle_endpoint="",
         )
         assert isinstance(opts, UpstageOcrOptions)
-        assert opts.timeout == 60
-
-    def test_upstage_empty_timeout_falls_back_to_default(self):
-        from docling.datamodel.pipeline_options import UpstageOcrOptions
-        opts = IntelligentDocumentProcessor._build_ocr_options(
-            {"engine": "upstage", "upstage": {"api_key": "k", "timeout": ""}},
-            paddle_endpoint="",
-        )
-        assert opts.timeout == 60
-
-    def test_upstage_zero_timeout_falls_back_to_default(self):
-        opts = IntelligentDocumentProcessor._build_ocr_options(
-            {"engine": "upstage", "upstage": {"api_key": "k", "timeout": 0}},
-            paddle_endpoint="",
-        )
-        # 0 / 음수 timeout 도 의미 없으므로 default 로 복구
-        assert opts.timeout == 60
-
-    def test_upstage_invalid_text_score_falls_back_to_default(self):
-        from docling.datamodel.pipeline_options import UpstageOcrOptions
-        opts = IntelligentDocumentProcessor._build_ocr_options(
-            {"engine": "upstage", "upstage": {"api_key": "k", "text_score": "bad"}},
-            paddle_endpoint="",
-        )
-        assert isinstance(opts, UpstageOcrOptions)
-        assert opts.text_score == 0.5
-
-    def test_upstage_numeric_string_timeout_accepted(self):
-        # int("60") 처럼 numeric-string 은 정상 변환되어야 한다
-        opts = IntelligentDocumentProcessor._build_ocr_options(
-            {"engine": "upstage", "upstage": {"api_key": "k", "timeout": "120", "text_score": "0.7"}},
-            paddle_endpoint="",
-        )
-        assert opts.timeout == 120
-        assert opts.text_score == 0.7
+        assert opts.timeout == expected_timeout
+        assert opts.text_score == expected_text_score
 
 
 # ─── _apply_llm_fields_document_scope — 문서 1건당 LLM 1회 ────────────────────

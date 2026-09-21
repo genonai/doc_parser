@@ -87,11 +87,16 @@ class DocumentProcessor(ChunkerCore):
     async def __call__(self, request, file_path="", **kwargs):
         """청커 진입점
 
-        job 은 파서의 job 과 다른 객체다. 훅 메소드에서는 kwargs["job"] 으로 꺼낸다.
+        job 은 파서의 job 과 다른 객체다. 시그니처에 job 이 있는 메소드에서만 쓸 수 있다 —
+        config_by_condition(job) 과 오버라이드하는 core 메소드(4 참조).
+        edit_input·edit_chunk·edit_output 의 **kwargs 에는 job 이 들어오지 않는다.
             job.kind      "docling" 은 문서형, "parse" 는 요소형(엑셀 행, JSON 레코드, 평문)
-            job.data      파서 결과          job.doc_type  문서 유형
-            job.metadata  문서 단위 메타데이터 job.params    요청 파라미터
-            job.config    적용된 설정(2 참조) job.notes     단계 간 공유 dict
+            job.data      파서 결과          job.doc_type  요청이 준 문자열 그대로(정규화 안 함)
+            job.params    요청 파라미터      job.config    요청 인자로 덧씌운 값(2 참조)
+            job.notes     단계 간 공유 dict
+
+        job.metadata 는 문서형 청크의 vector_meta 변환 준비 중에만 만들어진다.
+        행 메타데이터는 chunk.metadata 에 있다. config_by_condition 시점에는 job.metadata 가 없다.
 
         job.kind 와 edit_chunk 의 info["kind"] 는 값이 다르다.
             "docling" -> "docling",  "parse" -> "row"(행, 레코드) 또는 "text"(그 밖)
@@ -162,17 +167,22 @@ class DocumentProcessor(ChunkerCore):
     def config_by_condition(self, job):
         """[훅 메소드 0] 위 표로 안 되는 조건부 설정. 같은 형식의 dict 를 반환하고, 빈 dict 면 그대로다.
 
-            if job.metadata.get("GROUP_C") == "INS":
+            if job.params.get("dept") == "INS":
                 return {"chunking.chunk_size": 800}
+
+        분할 전에 불리므로 job.metadata 는 아직 없다. 요청 조건은 job.params 로 판정하고,
+        문서·행 메타데이터로 갈라야 하면 edit_chunk 의 info["metadata"] 에서 읽는다.
         """
         return {}
 
     # --- 3. 훅 메소드 ---
     #
     # 오버라이드하지 않으면 입력을 그대로 돌려준다(no-op). 공통 규칙은 파서와 같다.
-    #   1. 요청 파라미터가 필요하면 **kwargs 를 붙인다. job 은 kwargs["job"] 으로 꺼낸다.
+    #   1. 요청 파라미터가 필요하면 **kwargs 를 붙인다. 자리 인자와 이름이 겹치는 키는 빠지고,
+    #      job 은 여기로 오지 않는다. 문서 유형은 tb.normalize_doc_type(kwargs.get("doc_type")).
     #   2. 외부 API 호출은 async def 로 쓴다. 동기 호출은 이벤트 루프를 막는다.
-    #   3. self 에 요청 상태를 담지 않는다. 단계 간 전달은 job.notes 를 쓴다.
+    #   3. self 에 요청 상태를 담지 않는다. 훅 사이로 값을 넘겨야 하면 한 훅 안에서 끝낼 수
+    #      있는지 먼저 본다.
     #   4. 오류는 raise GenosServiceException("1", "메시지"). 부분 실패를 허용하려면 그 건만
     #      건너뛰고 edit_output 에서 결과에 기록한다.
 
@@ -235,7 +245,10 @@ class DocumentProcessor(ChunkerCore):
     #            refresh_stats 등) 오버라이드는 되지만 릴리스에서 바뀔 수 있다
     #
     #   def build_chunk_text(self, job, chunk):          # 청크 텍스트 조립을 바꾼다
-    #       return f"[{job.metadata.get('title', '')}] " + chunk.text
+    #       metadata = job.metadata if chunk.kind == "docling" else chunk.metadata
+    #       text = super().build_chunk_text(job, chunk)  # 기본 헤딩·접두어 조립 유지
+    #       title = metadata.get("title")
+    #       return f"[{title}] {text}" if title else text
 
 
 # --- 파일 단독 실행 ---

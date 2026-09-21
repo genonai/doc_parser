@@ -3,16 +3,6 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 
-@pytest.mark.unit
-def test_parse_created_date():
-    pass
-
-
-@pytest.mark.unit
-def test_safe_join():
-    pass
-
-
 # ─── _get_pdf_path ────────────────────────────────────────────────────────────
 
 @pytest.mark.unit
