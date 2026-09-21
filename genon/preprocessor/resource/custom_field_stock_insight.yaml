@@ -26,11 +26,11 @@ fields:
   REGT_NO:
     alias: [등록번호, REGT_NO, regt_no]
     default: null
-    meat: false
+    meta: false
   NTC_OBJLINE_NO:
     alias: [NTC_OBJLINE_NO, ntc_objline, ntc_objline_no, 게시물 라인번호]
     default: null
-    meat: false
+    meta: false
   JONG_CODE:
     alias: [종목코드, jong_code, JONG_CODE]
   JONG_NM:
