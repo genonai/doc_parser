@@ -36,8 +36,9 @@ fields:
     const: SALE
   BIZ_ID:
     # 파일명 앞의 `상품코드_출시일(YYYYMMDD)`. 예: 20071_20260611_file3_자동차개인용.md → 20071_20260611
+    # 상품코드는 숫자로 한정하지 않는다. 첫 `_YYYYMMDD` 까지를 취한다.
     alias: [$file]
-    transform: {name: regex_extract, pattern: '^(\d+_\d{8})(?!\d)'}
+    transform: {name: regex_extract, pattern: '^(.+?_\d{8})(?!\d)'}
     default: null
   PRODUCT_ATTRS:
     alias: [created_at]

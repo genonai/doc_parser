@@ -1,16 +1,18 @@
-# FAQ Excel 행
+# FAQ, json
 #
-#   - 표 형태(카드 FAQ)   : id | corp_code | depth3 | depth4 | description | 최종수정일
+#   - `faqMenuList` 레코드 : id | logo | depth3 | depth4 | description
 
 schema: v2
 source:
-  kind: rows
+  kind: records
+  on_missing: error
+  records_at: faqMenuList
 fields:
   BIZ_ID:
     alias: [id, 아이디]
     default: null
   GROUP_C:
-    alias: [회사, corp_code, 회사명, 고객사]
+    alias: [logo, 회사, corp_code, 회사명, 고객사]
     values:
       IFP: [모니모]
       SLF: [삼성생명, 생명]

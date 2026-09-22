@@ -46,8 +46,8 @@ cd "${SCRIPT_DIR}"
 # 산출물: result_parse_chunk/<stem>.chunks.json  (+ docling 경로는 <stem>.docling.json)
 #
 # doc_type 별 경로:
-#   tabular_mapping (xlsx) : menu term faq cs_slf cs_ssf stock_insight   → 행 1개 = 청크 1개
-#   json_mapping    (json) : faq monimo_event monimo_news cs_sss link    → 레코드 1개 = 청크 1개
+#   tabular_mapping (xlsx) : menu term cs_ssf stock_insight              → 행 1개 = 청크 1개
+#   json_mapping    (json) : faq cs_slf monimo_event monimo_news cs_sss link → 레코드 1개 = 청크 1개
 #   json_semantic   (json) : product_hpp                                 → 섹션 1개 = 청크 1개
 #                            (성격별로 나뉜 섹션마다 SECTION_NM/SOURCE_JSON_PATH + 공통 정보)
 #   llm (문서 단위)        : product_slf product_ssf cs_hpp card
@@ -58,7 +58,7 @@ OUT="result_parse_chunk"
 MONIMO_CASES=(
   "menu:${MONIMO}/monimo_menu_sample.xlsx"
   "term:${MONIMO}/monimo_term_sample.xlsx"
-  "faq:${MONIMO}/monimo_faq_sample.xlsx"
+  "faq:${MONIMO}/monimo_faq_json_sample.json"
   "monimo_event:../../sample_files/json/monimo_event_sample.json"
   "monimo_event:${MONIMO}/monimo_event_real_sample.json"
   # 실 WCMS 마크업(evant.html) 재현 — 5열 표의 빈 셀까지 살아나오는지 본다.
@@ -66,7 +66,7 @@ MONIMO_CASES=(
   # 구 코드는 셀 하나당 한 줄로 뭉개 빈 셀이 사라졌고 열 대응을 복원할 수 없었다.
   "monimo_event:${MONIMO}/monimo_event_table_sample.json"
   "monimo_news:${MONIMO}/monimo_news_sample.json"
-  "cs_slf:${MONIMO}/monimo_cs_slf_sample.xlsx"
+  "cs_slf:${MONIMO}/monimo_cs_slf_sample.json"
   "cs_ssf:${MONIMO}/monimo_cs_ssf_sample.xlsx"
   "cs_sss:${MONIMO}/monimo_cs_sss_sample.json"
   "cs_hpp:${MONIMO}/monimo_cs_hpp_sample.html"

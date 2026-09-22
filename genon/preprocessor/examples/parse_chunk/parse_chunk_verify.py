@@ -56,13 +56,13 @@ MONIMO = SAMPLES / "monimo"
 CASES = [
     ("menu",          MONIMO / "monimo_menu_sample.xlsx",              "행 1개 = 청크 1개"),
     ("term",          MONIMO / "monimo_term_sample.xlsx",              "행 1개 = 청크 1개"),
-    ("faq",           MONIMO / "monimo_faq_sample.xlsx",               "tabular_mapping"),
+    ("faq",           MONIMO / "monimo_faq_json_sample.json",          "json_mapping"),
     ("monimo_event",  SAMPLES / "json" / "monimo_event_sample.json",   "협의용 한글 키 표기"),
     ("monimo_event",  MONIMO / "monimo_event_real_sample.json",        "실 payload 스키마"),
     ("monimo_event",  MONIMO / "monimo_event_table_sample.json",       "5열 표 빈 셀 보존"),
     ("monimo_news",   MONIMO / "monimo_news_sample.json",              "json_mapping"),
     ("monimo_news",   MONIMO / "TD00008415_d_5199.html.json",          "실 파일명 → BIZ_ID"),
-    ("cs_slf",        MONIMO / "monimo_cs_slf_sample.xlsx",            "tabular_mapping"),
+    ("cs_slf",        MONIMO / "monimo_cs_slf_sample.json",            "json_mapping"),
     ("cs_ssf",        MONIMO / "monimo_cs_ssf_sample.dtms",            "|@| 구분 레코드"),
     ("cs_sss",        MONIMO / "monimo_cs_sss_sample.json",            "json_mapping"),
     ("cs_hpp",        MONIMO / "monimo_cs_hpp_sample.html",            "llm(문서 단위)"),
@@ -580,7 +580,7 @@ EXTRA_CHECKS = {
 }
 
 # 입력 확장자로 extractor 를 고른다. 같은 doc_type 에 블록이 둘인 경우가 있다
-# (faq: xlsx→tabular_mapping / json→json_mapping, product_hpp: md→llm / json→json_semantic).
+# (product_hpp: md→llm / json→json_semantic).
 EXTRACTOR_BY_SUFFIX = {
     ".xlsx": {"tabular_mapping"},
     # 구분자 텍스트. 레코드 매핑으로 가고 실제 파싱은 source.pre.delimited 가 한다.

@@ -39,8 +39,13 @@ fields:
     pack: [FEE]
   GROUP_C:
     const: HPP
+  # 원천에 기간 정보가 없으므로 0 으로 고정한다(date_int 계열의 "날짜 없음" 관례).
+  VALID_FROM:
+    const: 0
+  VALID_TO:
+    const: 0
 require:
-  fields: [PRODUCT_C, PRODUCT_NM]
+  fields: [PRODUCT_NM]
 body:
   fields: [PRODUCT_C, PRODUCT_NM]
   once: [FEE]
