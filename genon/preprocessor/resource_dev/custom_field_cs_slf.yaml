@@ -1,26 +1,27 @@
-# 고객센터 생명, Excel
+# 고객센터 생명, json
 
 schema: v2
 source:
-  kind: rows
+  kind: records
+  records_at: faq_list
 fields:
   BIZ_ID:
-    alias: [ID, 아이디, 번호]
+    alias: [faqId, ID, 아이디, 번호]
   GROUP_C:
     const: SLF
   CS_CTGR_L1:
-    alias: [대분류, 분류(대)]
+    alias: [category1, 대분류, 분류(대)]
   CS_CTGR_L2:
-    alias: [중분류, 분류(중)]
+    alias: [category2, 중분류, 분류(중)]
     default: null
   CS_CTGR_L3:
-    alias: [소분류, 분류(소)]
+    alias: [category3, 소분류, 분류(소)]
     default: null
   CUSTOM_TITLE:
-    alias: [질문]
+    alias: [question, 질문]
     transform: text_norm
   CONTENT:
-    alias: [내용, 답변]
+    alias: [answer, 내용, 답변]
     # transform: html_text
   RELATED_KEYWORDS:
     alias: [related_keywords, 연관 키워드]
