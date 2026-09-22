@@ -1,5 +1,5 @@
 {
-  "_note": "parser .json 레코드 모드 + doc_type=faq 원천 샘플. 대응 설정(custom_field_faq_json.yaml)은 원천이 xlsx 로 확정되어 제거됐다. FAQ 를 다시 json 으로 받게 되면 이 샘플로 records: faqMenuList 설정을 되살린다.",
+  "_note": "doc_type=faq 원천 샘플(json). 레코드는 `faqMenuList` 아래에 있고 custom_field_faq.yaml 이 records 모드로 읽는다.",
   "faqMenuList": [
     {
       "depth1": "더보기",
