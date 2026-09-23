@@ -1439,10 +1439,15 @@ class CustomFieldsEnricher(BaseEnricher):
         # 문서에 저장 → 별도 chunk API 경계를 넘어 청커 passthrough 가 각 청크에 부착
         # (created_date/MetadataEnricher 와 동일 경로). 선언된 output_fields 는 값이 null 이어도
         # 결과에 모두 남겨야 하므로 preserve_nulls=True(sentinel 왕복)로 저장한다.
-        # typed_keys 는 front matter 유래 키로 한정한다 — 전 필드에 적용하면 기존 doc_type 의
-        # 청크 property 타입까지 바뀐다(field_transforms.store_metadata_in_document 주석 참고).
+        # typed_keys 는 front matter 유래 키와 설정이 값을 정하는 키(const/default/transform)로
+        # 한정한다. 후자를 빼면 front matter 에 값이 없는 문서만 `VALID_FROM: "0"` 처럼 문자열이
+        # 되어 같은 필드의 타입이 문서마다 갈린다. LLM 필드까지 넓히면 기존 doc_type 의 청크
+        # property 타입이 바뀐다(field_transforms.store_metadata_in_document 주석 참고).
+        typed_keys = {
+            *structured_fields, *self._constants, *self._defaults, *self._transforms,
+        }
         store_metadata_in_document(
-            document, normalized, preserve_nulls=True, typed_keys=set(structured_fields)
+            document, normalized, preserve_nulls=True, typed_keys=typed_keys
         )
 
         context = kwargs.get("_enrichment_context")
