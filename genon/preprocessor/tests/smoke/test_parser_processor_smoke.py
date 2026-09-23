@@ -6,9 +6,11 @@ the output schema. Each parametrized case is skipped when no matching
 sample files are found in sample_files/.
 """
 import os
+import shutil
 from pathlib import Path
 
 import pytest
+import yaml
 
 SAMPLE_DIR = Path(__file__).resolve().parents[2] / "sample_files"
 REQUIRED_KEYS = {"elements", "usage"}
@@ -34,8 +36,26 @@ def _validate_result(result: dict) -> None:
 
 
 @pytest.fixture(scope="module")
-def dp(parser_processor):
-    return parser_processor()
+def dp(parser_processor, tmp_path_factory):
+    """기본 설정에서 표 설명 LLM 호출(table_text_description)만 끈 파서.
+
+    스모크는 출력 스키마만 본다. 기본 설정 그대로면 표가 있는 샘플마다 실제 LLM 게이트웨이를
+    호출해 CI 시간의 대부분이 응답 대기가 된다(표 71개 샘플 한 건이 약 100초). LLM 경로는
+    examples/parse_chunk/parse_chunk_verify.sh 가 검증한다. 설정이 프롬프트·custom_fields
+    파일을 상대 경로로 읽으므로 설정 디렉터리째 복사한 뒤 사본만 고친다.
+    """
+    from genon.preprocessor.processing.core.parser import _resolve_default_parser_config_path
+
+    source = Path(_resolve_default_parser_config_path())
+    config_dir = tmp_path_factory.mktemp("parser_config")
+    shutil.copytree(source.parent, config_dir, dirs_exist_ok=True)
+    cfg = yaml.safe_load(source.read_text(encoding="utf-8"))
+    for block in cfg.get("enrichment") or []:
+        if isinstance(block, dict) and isinstance(block.get("table_text_description"), dict):
+            block["table_text_description"]["enable"] = False
+    config_path = config_dir / source.name
+    config_path.write_text(yaml.safe_dump(cfg, allow_unicode=True), encoding="utf-8")
+    return parser_processor(config_path=str(config_path))
 
 
 # ─── DOCX ─────────────────────────────────────────────────────────────────────
