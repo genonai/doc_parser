@@ -96,6 +96,15 @@ def test_enable_and_enabled_spellings_override_each_other(common_key, local_key)
 
 
 @pytest.mark.unit
+@pytest.mark.parametrize("common_key", ["model_context_tokens", "max_context_tokens"])
+@pytest.mark.parametrize("local_key", ["model_context_tokens", "max_context_tokens", "max_context"])
+def test_context_tokens_old_and_new_names_override_each_other(common_key, local_key):
+    """옛 이름(max_context_tokens)으로 적은 문서유형 값도 새 이름의 공통값을 이긴다."""
+    merged = merge_table_text_description({common_key: 128000}, {local_key: 32000})
+    assert TableTextDescriptionOptions.from_config(merged).max_context_tokens == 32000
+
+
+@pytest.mark.unit
 def test_doc_type_yaml_switches_the_standalone_runner(configured):
     assert configured.wants(doc_type="prod") is False      # llm 문서유형이 껐다
     assert configured.wants(doc_type="cs_ssf") is False    # 레코드 문서유형이 껐다

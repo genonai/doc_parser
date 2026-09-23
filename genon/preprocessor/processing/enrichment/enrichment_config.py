@@ -13,6 +13,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Optional
 
+from genon.preprocessor.processing.common.config_parse import resolve_model_context_tokens
 from genon.preprocessor.processing.common.model_params import (
     collect_generation_params,
     resolve_thinking,
@@ -492,7 +493,7 @@ class EnrichmentConfig:
                 max_tokens=int(toc_opts.get("max_tokens", 10000)),
                 precheck_enabled=_parse_optional_bool(toc_precheck.get("enabled")),
                 precheck_max_context_tokens=_parse_optional_int(
-                    toc_precheck.get("max_context_tokens", toc_precheck.get("max_context"))
+                    resolve_model_context_tokens(toc_precheck)
                 ),
                 precheck_completion_reserved_tokens=_parse_optional_int(
                     toc_precheck.get("completion_reserved_tokens")
@@ -526,7 +527,7 @@ class EnrichmentConfig:
                 model=str(metadata_opts.get("model") or "model"),
                 precheck_enabled=_parse_optional_bool(metadata_precheck.get("enabled")),
                 precheck_max_context_tokens=_parse_optional_int(
-                    metadata_precheck.get("max_context_tokens", metadata_precheck.get("max_context"))
+                    resolve_model_context_tokens(metadata_precheck)
                 ),
                 precheck_completion_reserved_tokens=_parse_optional_int(
                     metadata_precheck.get("completion_reserved_tokens")
@@ -583,9 +584,8 @@ class EnrichmentConfig:
         meta_precheck_cfg = _as_dict(precheck_cfg.get("metadata"))
 
         common_max_context_tokens = _parse_optional_int(
-            precheck_cfg.get(
-                "max_context_tokens",
-                precheck_cfg.get("max_context", parent_cfg.get("enrichment_max_context_tokens")),
+            resolve_model_context_tokens(
+                precheck_cfg, parent_cfg.get("enrichment_max_context_tokens")
             )
         )
         common_reserved_tokens = _parse_optional_int(
@@ -670,10 +670,7 @@ class EnrichmentConfig:
                     )
                 ),
                 precheck_max_context_tokens=_parse_optional_int(
-                    toc_precheck_cfg.get(
-                        "max_context_tokens",
-                        toc_precheck_cfg.get("max_context", common_max_context_tokens),
-                    )
+                    resolve_model_context_tokens(toc_precheck_cfg, common_max_context_tokens)
                 ),
                 precheck_completion_reserved_tokens=_parse_optional_int(
                     toc_precheck_cfg.get("completion_reserved_tokens", common_reserved_tokens)
@@ -712,10 +709,7 @@ class EnrichmentConfig:
                     )
                 ),
                 precheck_max_context_tokens=_parse_optional_int(
-                    meta_precheck_cfg.get(
-                        "max_context_tokens",
-                        meta_precheck_cfg.get("max_context", common_max_context_tokens),
-                    )
+                    resolve_model_context_tokens(meta_precheck_cfg, common_max_context_tokens)
                 ),
                 precheck_completion_reserved_tokens=_parse_optional_int(
                     meta_precheck_cfg.get(

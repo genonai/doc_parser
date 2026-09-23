@@ -241,7 +241,7 @@ enrichment:
       max_tokens: 10000
       precheck:
         enabled: true
-        max_context_tokens: 128000
+        model_context_tokens: 128000
         completion_reserved_tokens: 12000
       system_prompt_file: prompt_toc_default_system.md
       user_prompt_file: prompt_toc_default_user.md   # 파일 안에서 {{raw_text}} 치환
@@ -261,7 +261,7 @@ enrichment:
       user_prompt_file: prompt_metadata_default_user.md   # 파일 안에서 {{raw_text}} 치환
       precheck:
         enabled: true
-        max_context_tokens: 128000
+        model_context_tokens: 128000
         completion_reserved_tokens: 12000
   - doc_summary:            # 문서 본문요약 1회 → image/table description 공용 {{doc_summary}}
       enable: false
@@ -527,7 +527,7 @@ output:
 | `temperature` / `top_p` / `seed` | 샘플링 파라미터 | 0.0 / 0.00001 / 33 |
 | `max_tokens` | 생성 최대 토큰 | 10000 |
 | `precheck.enabled` | 입력 토큰 사전 추정 차단 | true |
-| `precheck.max_context_tokens` / `precheck.completion_reserved_tokens` | 컨텍스트 한도 / 예약 토큰 | 128000 / 12000 |
+| `precheck.model_context_tokens` / `precheck.completion_reserved_tokens` | 컨텍스트 한도(옛 이름 `max_context_tokens` 도 인식) / 예약 토큰 | 128000 / 12000 |
 | `system_prompt_file` / `user_prompt_file` | 프롬프트 `.md` 파일 경로(권장, config 디렉토리 기준). `user_prompt` 의 `{{raw_text}}` 치환 | — |
 | `system_prompt` / `user_prompt` | inline 프롬프트(`*_file` 미지정 시 fallback) | — |
 | `split.enabled` | 긴 문서 **분할(Split) TOC 추출** 수행 여부(아래 참고) | false |
@@ -898,7 +898,7 @@ chunking:
 | 처리 속도 우선 | `pdf_pipeline.table_structure_mode: fast`, `images_scale: 1` |
 | 이미지 설명 끄기 | `image_description` 항목 삭제/`enable: false` 또는 `generate_picture_images: false` |
 | 목차/메타데이터 끄기 | `toc` / `metadata` 항목 삭제·주석·`enable: false` |
-| 토큰 초과 문서 차단 완화 | `precheck.enabled: false` 또는 `max_context_tokens` 상향 |
+| 토큰 초과 문서 차단 완화 | `precheck.enabled: false` 또는 `model_context_tokens` 상향 |
 | 작성일 외 추가 메타 필드 | `metadata.output_fields` 추가 + 프롬프트 JSON 키 일치 (+ 필요 시 `field_transforms`) |
 
 ### 3.10 민감정보 분류/마스킹 (개인정보 비식별화, `guardrail_call`)
@@ -1153,7 +1153,7 @@ class GenOSVectorMeta(BaseModel):
 | 증상 | 원인 | 조치 |
 |------|------|------|
 | `chunk length is 0` | 분할 결과 청크 0개 | 빈 문서 폴백이 더미 텍스트를 삽입하므로 통상 발생 안 함. 발생 시 입력/변환 결과 확인 |
-| Enrichment 토큰 초과 | `precheck.enabled=true` + 입력 토큰 추정치가 `max_context_tokens - completion_reserved_tokens` 초과 | 문서 분할/축소, `max_context_tokens` 상향, 또는 해당 항목 `precheck.enabled: false` |
+| Enrichment 토큰 초과 | `precheck.enabled=true` + 입력 토큰 추정치가 `model_context_tokens - completion_reserved_tokens` 초과 | 문서 분할/축소, `model_context_tokens` 상향, 또는 해당 항목 `precheck.enabled: false` |
 | 이미지 설명이 안 나옴 | `generate_picture_images: false` 또는 `image_description.enable: false` | `pdf_pipeline.generate_picture_images: true` + 항목 enable |
 | 표가 깨짐 | 글리프 깨짐 미감지 | `ocr.ocr_mode: force`, `glyph_detection.table_cell_threshold` 하향 |
 | layout/OCR 호출 실패 | endpoint/serving ID 오설정 | `<...>` placeholder 치환 확인, k8s 통신 시 api_key 공란 확인 |

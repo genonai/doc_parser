@@ -139,7 +139,7 @@ enrichment:
       max_tokens: 10000
       precheck:
         enabled: true
-        max_context_tokens: 128000
+        model_context_tokens: 128000
         completion_reserved_tokens: 12000
       # 반복(degeneration) 억제. 미설정 시 미전송.
       repetition_penalty: 1.1
@@ -176,7 +176,7 @@ enrichment:
       user_prompt_file: prompt_metadata_default_user.md
       precheck:
         enabled: true
-        max_context_tokens: 128000
+        model_context_tokens: 128000
         completion_reserved_tokens: 12000
 
   - doc_summary:
@@ -224,7 +224,7 @@ enrichment:
       before_items: 3
       after_items: 2
       max_context_chars: 1500
-      max_context_tokens: 128000  # 모델 context 크기. 모델이 바뀌면 이 값만 수정
+      model_context_tokens: 128000  # 모델 context 크기. 모델이 바뀌면 이 값만 수정
       overflow_policy: batch  # batch | skip | error
       conflict_policy: prefer_text # prefer_text | prefer_image | error
       rag:

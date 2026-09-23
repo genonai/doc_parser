@@ -237,7 +237,7 @@ enrichment:
       precheck:
         # true 로 설정하면 LLM 호출 전 입력 토큰을 추정하여 초과 시 즉시 400 에러 반환
         enabled: true
-        max_context_tokens: 128000        # 모델 전체 컨텍스트 한도 (입력 + 출력 합산)
+        model_context_tokens: 128000        # 모델 전체 컨텍스트 한도 (입력 + 출력 합산)
         completion_reserved_tokens: 12000 # 출력용 예약 토큰 수
       system_prompt_file: prompt_toc_default_system.md
       user_prompt_file: prompt_toc_default_user.md   # 파일 안에서 {{raw_text}} 치환
@@ -266,7 +266,7 @@ enrichment:
       user_prompt_file: prompt_metadata_default_user.md   # 파일 안에서 {{raw_text}} 치환
       precheck:
         enabled: true
-        max_context_tokens: 128000
+        model_context_tokens: 128000
         completion_reserved_tokens: 12000
 
   # 문서 본문요약 1회 → image/table description 공용 {{doc_summary}} 컨텍스트
@@ -512,8 +512,8 @@ llm:
 | `toc` | `system_prompt_file` / `user_prompt_file` | — | TOC 프롬프트 `.md` 파일 경로(config 디렉토리 기준). 권장 방식 |
 | `toc` | `system_prompt` / `user_prompt` | — | inline 프롬프트(`*_file` 미지정 시 fallback). `user_prompt` 의 `{{raw_text}}` 치환 |
 | `toc.precheck` | `enabled` | (미설정) | 사전 토큰 검사. `true`면 LLM 호출 전 토큰 추정하여 초과 시 즉시 에러 |
-| `toc.precheck` | `max_context_tokens` | `128000` | 모델 전체 컨텍스트 한도 (입력 + 출력 합산) |
-| `toc.precheck` | `completion_reserved_tokens` | `12000` | 출력용 예약 토큰 수. 허용 입력 = `max_context_tokens` − `completion_reserved_tokens` |
+| `toc.precheck` | `model_context_tokens` | `128000` | 모델 전체 컨텍스트 한도 (입력 + 출력 합산) |
+| `toc.precheck` | `completion_reserved_tokens` | `12000` | 출력용 예약 토큰 수. 허용 입력 = `model_context_tokens` − `completion_reserved_tokens` |
 | `toc.split` | `enabled` | `false` | 긴 문서 **분할(Split) TOC 추출**(carry-over refine) 수행 여부(아래 참고) |
 | `toc.split` | `pages_per_chunk` / `page_overlap` | `100` / `1` | 청크당 페이지 수 / 청크 경계 중복 페이지 수 |
 | `toc.split` | `carryover_max_tokens` | `1500` | 다음 청크에 주입할 누적 목차(outline) 토큰 상한 |
@@ -532,7 +532,7 @@ llm:
 | `metadata.parser` | `type` | `"json"` | 파서 종류. `json`(자동 fallback 파싱) / `python`(외부 파일). `python`이면 `file`/`callable` 필요 |
 | `metadata.field_transforms` | — | 내장 기본값 | 추출 키 → 벡터 메타 필드/타입 변환 목록(선택). 아래 [메타데이터 enricher](#메타데이터-enricher) 참고 |
 | `metadata` | `thinking` / `thinking_dialect` | `off` / `standard` | 추론(thinking) 모드 / 방언. 아래 [thinking(추론) 모드](#thinking추론-모드) 참고 |
-| `metadata.precheck` | `enabled` / `max_context_tokens` / `completion_reserved_tokens` | `/ 128000 / 12000` | TOC와 동일 의미 |
+| `metadata.precheck` | `enabled` / `model_context_tokens` / `completion_reserved_tokens` | `/ 128000 / 12000` | TOC와 동일 의미 |
 | `doc_summary` | `enable` | `false` | 문서 본문요약 1회 생성(image·table description 공용 `{{doc_summary}}`). 런타임 `doc_summary=1` 로도 활성화 |
 | `doc_summary` | `url` / `api_key` / `model` | `""` / `""` / `"model"` | 요약 LLM API URL / 키 / 모델명 |
 | `doc_summary` | `prompt_file` | `prompt_doc_summary.md` | 요약 프롬프트 `.md`(`{{full_text}}` 치환) |
@@ -563,9 +563,11 @@ llm:
 
 > **표 설명(table_description)**: `enable`(또는 `table_desc=1`) 이면 각 표 뒤에 `[표 설명]` 요약을 병기하고, `refine.enable`(또는 `table_refine=1`) 이면 표 구조를 재구성 HTML 로 만들어 표 본체를 교체합니다. 재구성/요약은 **element(parse) 및 markdown 출력**에 반영되며, `output.format: docling`(원본 보존)에서는 적용되지 않습니다. refine 표를 `table_format: markdown` 으로 낼 때 `compact_tables` 설정이 반영됩니다.
 
-> **텍스트 표 설명(table_text_description)의 context 설정**: 모델 context 크기가 바뀌면 표 설명 블록의 `max_context_tokens` 만 고칩니다. 값은 모델 사양의 최대치가 아니라 현재 모델 서버의 context 한도(토큰, 정수)입니다. 입력 예산은 `max_context_tokens` 에서 응답 몫을 뺀 값이며, 응답 몫(`completion_reserved_tokens`)은 생략을 권장합니다. 생략하면 그 호출의 `max_tokens` 만큼 자동으로 예약합니다(전용 연결은 표 설명 블록, custom_fields 통합 모드는 custom_fields 블록의 `max_tokens`). 값을 명시하면(`0` 포함) 그 값을 그대로 씁니다.
+> **텍스트 표 설명(table_text_description)의 context 설정**: 모델 context 크기가 바뀌면 표 설명 블록의 `model_context_tokens` 만 고칩니다. 값은 모델 사양의 최대치가 아니라 현재 모델 서버의 context 한도(토큰, 정수)입니다. 입력 예산은 `model_context_tokens` 에서 응답 몫을 뺀 값이며, 응답 몫(`completion_reserved_tokens`)은 생략을 권장합니다. 생략하면 그 호출의 `max_tokens` 만큼 자동으로 예약합니다(전용 연결은 표 설명 블록, custom_fields 통합 모드는 custom_fields 블록의 `max_tokens`). 값을 명시하면(`0` 포함) 그 값을 그대로 씁니다.
 >
 > **기본값 변경 안내**: 예약량을 적지 않은 기존 설정은 업그레이드만으로 예약량이 `8000` 에서 `max_tokens` 값으로 바뀝니다. `max_tokens` 가 8000보다 크면 입력 예산이 줄어 표가 더 여러 번에 나뉘어 호출될 수 있고, 8000보다 작으면 입력 예산이 늘어 한 번에 담기는 표가 많아집니다. 이전 동작이 필요하면 `completion_reserved_tokens: 8000` 을 명시합니다.
+>
+> **이름 변경 안내**: 모델 context 한도 키 `max_context_tokens` 는 `model_context_tokens` 로 이름이 바뀌었습니다. 같은 블록의 `max_context_chars`(표 앞뒤 본문 길이)와 혼동되기 때문입니다. 옛 이름(`max_context_tokens`, `max_context`)도 계속 읽으므로 기존 설정은 그대로 동작하며, 한 블록에 둘 다 적으면 새 이름이 우선합니다. 적용 위치는 `precheck` 계열과 `table_text_description` 입니다.
 
 > 이미지 설명 enrichment는 `pdf_pipeline.generate_picture_images: false`인 경우 동작하지 않습니다 (그림 이미지가 생성되지 않으므로).
 
@@ -1740,7 +1742,7 @@ JSONL·빈 배열·doc_type 충돌 등입니다.
 | 레이아웃 서버 연결 오류 | `layout.genos_layout.endpoint` 미응답 | 예외 발생, 처리 중단 |
 | OCR 서버 연결 오류 | `ocr.paddle.ocr_endpoint` 미응답 | `ocr_all_table_cells`에서 예외를 캐치하고 OCR 없이 진행 |
 | Enrichment LLM 연결 오류 | `enrichment` 항목의 `url` 미응답 | enrichment 단계에서 예외 발생 |
-| Enrichment 입력 토큰 초과 | `precheck.enabled: true` 상태에서 추정 토큰 수가 `max_context_tokens - completion_reserved_tokens` 초과 | LLM 호출 없이 즉시 `GenosServiceException` 발생. `errMsg`에 JSON 페이로드 포함 (아래 참고) |
+| Enrichment 입력 토큰 초과 | `precheck.enabled: true` 상태에서 추정 토큰 수가 `model_context_tokens - completion_reserved_tokens` 초과 | LLM 호출 없이 즉시 `GenosServiceException` 발생. `errMsg`에 JSON 페이로드 포함 (아래 참고) |
 
 #### HWP / HWPX
 
@@ -1783,7 +1785,7 @@ JSONL·빈 배열·doc_type 충돌 등입니다.
 | Layout 서버 미응답 | Connection refused to `<endpoint>` | `parser_processor_config.yaml`의 `layout.genos_layout.endpoint` 확인 |
 | OCR 서버 미응답 | `OCR HTTP 502` | `parser_processor_config.yaml`의 `ocr.paddle.ocr_endpoint` 및 서버 상태 확인 |
 | Enrichment LLM 오류 | LLM API timeout | `parser_processor_config.yaml`의 `enrichment` 항목 `url` 확인 |
-| Enrichment 입력 토큰 초과 | `프롬프트 입력 토큰 (N) 초과 하였습니다. (128000 - reserved 12000).` | 문서 크기를 줄이거나 해당 항목 `precheck.max_context_tokens` 값 조정. 비활성화는 `precheck.enabled: false` |
+| Enrichment 입력 토큰 초과 | `프롬프트 입력 토큰 (N) 초과 하였습니다. (128000 - reserved 12000).` | 문서 크기를 줄이거나 해당 항목 `precheck.model_context_tokens` 값 조정. 비활성화는 `precheck.enabled: false` |
 | HWP SDK 실패 | `HWP SDK 실패: ...` | 로그 확인 후 `use_hwp_sdk=false` 파라미터로 재시도 |
 | Whisper 미설정 | Connection error | `parser_processor_config.yaml`의 `whisper.url` 설정 확인 |
 | `soffice` 미설치 | `FileNotFoundError: soffice` | LibreOffice 설치 후 PATH 등록 |

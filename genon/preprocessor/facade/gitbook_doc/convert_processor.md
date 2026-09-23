@@ -230,7 +230,7 @@ enrichment:
       max_tokens: 10000
       precheck:
         enabled: false
-        max_context_tokens: 128000
+        model_context_tokens: 128000
         completion_reserved_tokens: 12000
       system_prompt_file: prompt_toc_default_system.md
       user_prompt_file: prompt_toc_default_user.md   # 파일 안에서 {{raw_text}} 치환
@@ -254,7 +254,7 @@ enrichment:
       user_prompt_file: prompt_metadata_default_user.md   # 파일 안에서 {{raw_text}} 치환
       precheck:
         enabled: false
-        max_context_tokens: 128000
+        model_context_tokens: 128000
         completion_reserved_tokens: 12000
 
   # doc_summary / image_description / table_description / custom_fields 는 facade 후처리 enricher.
@@ -554,7 +554,7 @@ output:
 | `temperature` / `top_p` / `seed` | `0.0` / `0.00001` / `33` | 생성 파라미터 |
 | `max_tokens` | `10000` | 생성 최대 토큰 |
 | `precheck.enabled` | `false` | 컨텍스트 길이 사전 검사 활성화 |
-| `precheck.max_context_tokens` | `128000` | 모델 컨텍스트 상한 |
+| `precheck.model_context_tokens` | `128000` | 모델 컨텍스트 상한(옛 이름 `max_context_tokens` 도 인식) |
 | `precheck.completion_reserved_tokens` | `12000` | 응답용 예약 토큰 |
 | `system_prompt_file` / `user_prompt_file` | `.md` 파일 | 프롬프트 파일 경로(권장, config 디렉토리 기준). `user_prompt` 의 `{{raw_text}}` 치환 |
 | `system_prompt` / `user_prompt` | (YAML 본문) | inline 프롬프트(`*_file` 미지정 시 fallback). 둘 다 비어있으면 docling 내장 기본 프롬프트 사용 |
@@ -1252,7 +1252,7 @@ class GenosSmartChunker(BaseChunker):
 
 ### G. 예외 클래스
 
-- `GenosServiceException(error_code, error_msg)`: Genos 적재 실패 메시지 전달용. enrichment 의 `LLMApiError`(예: `precheck.enabled=true` 상태에서 입력 토큰이 `max_context_tokens - completion_reserved_tokens` 초과)는 provider payload 를 보존해 이 예외로 재던집니다. 청크가 0개면 `GenosServiceException("1", "chunk length is 0")`.
+- `GenosServiceException(error_code, error_msg)`: Genos 적재 실패 메시지 전달용. enrichment 의 `LLMApiError`(예: `precheck.enabled=true` 상태에서 입력 토큰이 `model_context_tokens - completion_reserved_tokens` 초과)는 provider payload 를 보존해 이 예외로 재던집니다. 청크가 0개면 `GenosServiceException("1", "chunk length is 0")`.
 - `assert_cancelled(request)`: 클라이언트 연결이 끊기면 취소 예외를 던지는 유틸(현재 호출부는 주석 처리).
 
 ### H. TOC 프롬프트 (config 유래)

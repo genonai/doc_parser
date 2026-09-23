@@ -147,7 +147,7 @@ raw 예외**(마크다운 머리말 오류 등)뿐입니다.
 
 - 마크다운 머리말 오류 3종은 감싸지 않고 올라와 **`stage` 가 없고 `error_code` 가 `INPUT_ERROR`** 입니다. 나머지 parser 런타임 예외는 `stage: custom_fields` 를 싣습니다.
 - 일시적 실패는 전처리기가 1회만 자체 재호출합니다(`Retry-After` 존중, 최대 10초).
-- 표 설명 프롬프트가 `max_context_tokens` 를 넘는 경우도 `ValueError` 로 나지만, 기본 설정은 내용을 나눠 여러 번 호출하므로 발생하지 않습니다.
+- 표 설명 프롬프트가 `model_context_tokens` 를 넘는 경우도 `ValueError` 로 나지만, 기본 설정은 내용을 나눠 여러 번 호출하므로 발생하지 않습니다.
 
 ---
 

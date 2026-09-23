@@ -146,7 +146,7 @@ enrichment:
       max_tokens: 10000
       precheck:
         enabled: true
-        max_context_tokens: 128000
+        model_context_tokens: 128000
         completion_reserved_tokens: 12000
       # 반복(degeneration) 억제. 미설정 시 미전송.
       repetition_penalty: 1.1
@@ -187,7 +187,7 @@ enrichment:
       user_prompt_file: prompt_metadata_default_user.md
       precheck:
         enabled: true
-        max_context_tokens: 128000
+        model_context_tokens: 128000
         completion_reserved_tokens: 12000
 
   - doc_summary:
@@ -232,7 +232,7 @@ enrichment:
   # 매칭 설정이 없는 문서에도 표 설명이 붙는다.
   # 비워 두면 예전처럼 매칭된 문서형 custom_fields YAML 의 연결을 빌려 쓴다(그 경우 위 문서들은 제외).
   #
-  # 한 번의 호출에 표를 몇 개 담을지는 입력(max_context_tokens)과 출력(max_tokens) 중
+  # 한 번의 호출에 표를 몇 개 담을지는 입력(model_context_tokens)과 출력(max_tokens) 중
   # 먼저 걸리는 쪽이 정하고, 넘치면 배치를 나눠 concurrency 만큼 동시에 부른다.
   #   출력 기준 상한 = max_tokens / ((retrieval_context_max_chars
   #                    + key_fact_limit x key_fact_max_chars + search_terms 몫) x 1.5)
@@ -249,7 +249,7 @@ enrichment:
       before_items: 2          # 표 앞쪽 본문 아이템 수
       after_items: 1           # 표 뒤쪽 본문 아이템 수
       max_context_chars: 400   # 앞/뒤 문맥 각각의 최대 문자 수
-      max_context_tokens: 40000  # 모델 context 크기. 모델이 바뀌면 이 값만 수정
+      model_context_tokens: 40000  # 모델 context 크기. 모델이 바뀌면 이 값만 수정
       overflow_policy: batch   # batch=최소 추가 호출 | skip=표 설명 생략 | error=실패
       conflict_policy: prefer_text # 기존 이미지 표 설명과 충돌 시 prefer_text | prefer_image | error
       rag:

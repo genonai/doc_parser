@@ -1240,7 +1240,7 @@ class CustomFieldsEnricher(BaseEnricher):
             return parsed
 
         if policy == "error":
-            raise ValueError("custom_fields + 표 설명 프롬프트가 max_context_tokens를 초과했습니다.")
+            raise ValueError("custom_fields + 표 설명 프롬프트가 model_context_tokens를 초과했습니다.")
         output = await self._call_llm(raw_text, document)
         parsed = self._parse_with_custom_parser(output, document, **kwargs)
         if policy == "skip":
@@ -1316,7 +1316,7 @@ class CustomFieldsEnricher(BaseEnricher):
 
         policy = self._table_description_options.overflow_policy
         if policy == "error":
-            raise ValueError("표 설명 프롬프트가 max_context_tokens 를 초과했습니다.")
+            raise ValueError("표 설명 프롬프트가 model_context_tokens 를 초과했습니다.")
         if policy == "skip":
             _log.warning("표 설명 프롬프트가 한도를 초과해 표 설명을 건너뜁니다.")
             return

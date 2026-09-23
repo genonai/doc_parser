@@ -62,6 +62,20 @@ def parse_optional_int(value: Any, key: str = "") -> Optional[int]:
         return None
 
 
+# 모델 context 한도(입력 + 출력 토큰) 키. 첫 항목이 현재 이름이고 나머지는 하위호환 별칭이다.
+# `max_context_tokens` 는 같은 블록의 `max_context_chars`(표 앞뒤 본문 길이)와 혼동되어 이름을 바꿨다.
+MODEL_CONTEXT_TOKENS_KEYS = ("model_context_tokens", "max_context_tokens", "max_context")
+
+
+def resolve_model_context_tokens(cfg: Any, default: Any = None) -> Any:
+    """모델 context 한도를 현재 이름 우선으로 읽는다. 셋 다 없으면 default."""
+    if isinstance(cfg, dict):
+        for key in MODEL_CONTEXT_TOKENS_KEYS:
+            if cfg.get(key) is not None:
+                return cfg[key]
+    return default
+
+
 def parse_optional_float(value: Any, key: str = "") -> Optional[float]:
     if value is None or value == "":
         return None
