@@ -22,7 +22,7 @@ fields:
     transform: text_norm
   CONTENT:
     alias: [answer, 내용, 답변]
-    # transform: html_text
+    transform: html_text
   RELATED_KEYWORDS:
     alias: [related_keywords, 연관 키워드]
     default: null
