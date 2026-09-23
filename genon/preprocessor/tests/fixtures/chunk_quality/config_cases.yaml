@@ -1,0 +1,40 @@
+# chunking.validation 설정 샘플.
+#
+# 각 항목의 chunking 은 chunking_processor_config.yaml 의 `chunking:` 섹션과 같은 모양이다.
+#   expect: ok      기동 성공
+#   expect: error   기동 실패. error 에 적은 문자열(키 경로)이 메시지에 들어 있어야 한다
+#   enabled         기동 성공일 때 검증이 켜지는지
+
+cases:
+  - {id: C01, name: 미설정, chunking: {}, expect: ok, enabled: false}
+  - {id: C02, name: enable false, chunking: {validation: {enable: false, action: drop}}, expect: ok, enabled: false}
+  - {id: C03, name: 하한 0, chunking: {validation: {enable: true, min_chars: 0, row_min_chars: 0}}, expect: ok, enabled: true}
+  - id: C04
+    name: 전체 키
+    chunking:
+      validation:
+        enable: true
+        action: drop
+        fail_on_any: false
+        min_chars: 4
+        row_min_chars: 0
+        repeat_min_count: 10
+        repeat_max_share: 0.5
+        broken_max_share: 0.3
+        broken_min_count: 3
+        table_min_chars: false
+        by_doc_type:
+          faq: {min_chars: 0}
+          Menu: {min_chars: 0, action: report}
+    expect: ok
+    enabled: true
+  - {id: C05, name: 음수, chunking: {validation: {enable: true, min_chars: -1}}, expect: error, error: chunking.validation.min_chars}
+  - {id: C06, name: 정수 자리 bool, chunking: {validation: {enable: true, repeat_min_count: true}}, expect: error, error: chunking.validation.repeat_min_count}
+  - {id: C07, name: 문자열, chunking: {validation: {enable: true, broken_min_count: "3"}}, expect: error, error: chunking.validation.broken_min_count}
+  - {id: C08, name: 1.5 비율, chunking: {validation: {enable: true, repeat_max_share: 1.5}}, expect: error, error: chunking.validation.repeat_max_share}
+  - {id: C09, name: 모르는 키, chunking: {validation: {enable: true, min_char: 4}}, expect: error, error: chunking.validation.min_char}
+  - {id: C10, name: 모르는 action, chunking: {validation: {enable: true, action: delete}}, expect: error, error: chunking.validation.action}
+  - {id: C11, name: doc_type 값이 object 가 아님, chunking: {validation: {enable: true, by_doc_type: {faq: 0}}}, expect: error, error: chunking.validation.by_doc_type.faq}
+  - {id: C12, name: doc_type 안의 잘못된 값, chunking: {validation: {enable: true, by_doc_type: {faq: {min_chars: -2}}}}, expect: error, error: chunking.validation.by_doc_type.faq.min_chars}
+  - {id: C13, name: enable 이 bool 이 아님, chunking: {validation: {enable: "yes"}}, expect: error, error: chunking.validation.enable}
+  - {id: C14, name: 블록이 object 가 아님, chunking: {validation: true}, expect: error, error: chunking.validation}

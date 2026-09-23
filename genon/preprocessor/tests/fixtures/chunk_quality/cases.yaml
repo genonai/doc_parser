@@ -1,0 +1,116 @@
+# 청크 품질 판정 샘플(chunking.validation).
+#
+# 단위 테스트(tests/unit/test_chunk_quality_unit.py)와 실측 스크립트
+# (examples/chunk_validation/measure.py)가 이 파일을 함께 읽는다. 고객에게 판정 기준을
+# 설명하는 자료로도 그대로 쓴다. 실제 고객 데이터는 쓰지 않는다.
+#
+# 항목 필드
+#   id         E(오류, 제외돼야 함) / N(정상, 보존돼야 함) / B(경계)
+#   kind       docling | text | row                     (기본 docling)
+#   code_like  코드·수식 청크 여부                         (기본 false)
+#   prefix     코어가 붙인 접두. 본문 앞에 붙이고 판정에서는 뺀다(선택)
+#   text       문자열이거나 조각 목록. 조각은 아래 중 하나다
+#                "문자열"                        그대로
+#                {repeat: "단위", times: N}      단위를 N번 잇는다
+#                {distinct: N}                   서로 다른 한글 음절 N자(가, 각, 갂 …)
+#   expect     keep | blank | no_content | broken_chars | repetition | min_chars
+#
+# 판정 설정은 모듈 기본값(chunk_validation_plan.md 3.6 실측값)이다.
+
+cases:
+  # --- 오류 샘플: 전부 제외돼야 한다 ---
+  - {id: E01, text: "", expect: blank}
+  - {id: E02, text: "  \n\t\n   ", expect: blank}
+  - {id: E03, text: [{repeat: "<div></div>", times: 10}], expect: no_content}
+  - {id: E04, kind: row, text: "- - - * * * ###", expect: no_content}
+  - {id: E05, text: "1.", expect: min_chars}
+  - {id: E06, text: [{repeat: "처리 중 오류가 발생했습니다. ", times: 30}], expect: repetition}
+  - {id: E07, kind: text, text: [{repeat: "ㅁ", times: 200}], expect: repetition}
+  - {id: E08, text: [{repeat: "페이지를 표시할 수 없습니다\n", times: 15}], expect: repetition}
+  - id: E09
+    text:
+      - "| 구분 | 내용 |\n| --- | --- |\n| 연회비 | 1만원 |\n\n"
+      - {repeat: "처리 중 오류가 발생했습니다. ", times: 30}
+    expect: repetition
+  - {id: E10, text: [{repeat: "\uFFFD ", times: 100}, "A"], expect: broken_chars}
+  - {id: E11, text: [{repeat: "GLYPH<c=3,font=/AAA>", times: 20}], expect: broken_chars}
+  - {id: E12, text: [{repeat: "GLYPH<c=1,font=/B>", times: 3}], expect: broken_chars}
+  - {id: E13, kind: text, text: [{repeat: "\x01", times: 50}, "가"], expect: broken_chars}
+  - {id: E14, text: [{repeat: "오류오류오류", times: 40}], expect: repetition}
+
+  # --- 정상 샘플: 전부 보존돼야 한다 ---
+  - {id: N01, text: "本契約は、会員がサービスを利用する際の条件を定めるものです。", expect: keep}
+  - {id: N02, text: "本条款规定了会员使用本服务时应遵守的条件。", expect: keep}
+  - id: N03
+    text:
+      - "제1조 이 약관은 서비스 이용 조건을 정한다.\n"
+      - {repeat: "*", times: 30}
+      - "\n제2조 회원은 약관에 동의한 자를 말한다."
+    expect: keep
+  - id: N04
+    text:
+      - "카드 이용 안내\n"
+      - {repeat: "-", times: 60}
+      - "\n결제일은 매월 14일이며 자동이체로 납부한다."
+    expect: keep
+  - id: N05
+    text:
+      - "| 번호 | 상품명 | 연회비 | 적립률 | 비고 |\n| --- | --- | --- | --- | --- |\n"
+      - "| 1 | 가온카드 | 10000 | 0.5 | 기본 |\n| 2 | 나래카드 | 15000 | 0.7 | 여행 |\n"
+      - "| 3 | 다솜카드 | 20000 | 1.0 | 쇼핑 |\n| 4 | 라온카드 | 5000 | 0.3 | 학생 |\n"
+      - "| 5 | 마루카드 | 30000 | 1.2 | 프리미엄 |\n| 6 | 바다카드 | 12000 | 0.6 | 주유 |\n"
+      - "| 7 | 사랑카드 | 8000 | 0.4 | 통신 |\n| 8 | 아라카드 | 25000 | 1.1 | 항공 |\n"
+      - "| 9 | 자람카드 | 7000 | 0.3 | 교통 |\n| 10 | 차오카드 | 18000 | 0.8 | 외식 |\n"
+      - "| 11 | 카라카드 | 9000 | 0.4 | 편의점 |\n| 12 | 타래카드 | 11000 | 0.5 | 마트 |\n"
+      - "| 13 | 파랑카드 | 22000 | 0.9 | 해외 |\n| 14 | 하늘카드 | 16000 | 0.7 | 문화 |\n"
+      - "| 15 | 가람카드 | 6000 | 0.3 | 커피 |\n| 16 | 누리카드 | 14000 | 0.6 | 병원 |\n"
+      - "| 17 | 다온카드 | 27000 | 1.0 | 골프 |\n| 18 | 로아카드 | 4000 | 0.2 | 청년 |\n"
+      - "| 19 | 미르카드 | 19000 | 0.8 | 교육 |\n| 20 | 보람카드 | 13000 | 0.5 | 생활 |"
+    expect: keep
+  - id: N06
+    text: "| 구분 | 한도 | 수수료 |\n| --- | --- | --- |\n| 일시불 | 500만원 | 없음 |\n| 할부 | 300만원 | 연 12% |\n| 현금서비스 | 100만원 | 연 18% |"
+    expect: keep
+  - id: N07
+    text:
+      - "| 항목 | 적용 |\n| --- | --- |\n"
+      - "| 해외 결제 | 해당 없음 |\n| 할부 전환 | 해당 없음 |\n| 리볼빙 | 해당 없음 |\n"
+      - "| 포인트 전환 | 해당 없음 |\n| 가족 카드 | 해당 없음 |\n| 후불 교통 | 해당 없음 |\n"
+      - "| 공항 라운지 | 해당 없음 |\n| 발레 파킹 | 해당 없음 |\n| 영화 할인 | 해당 없음 |\n"
+      - "| 통신비 할인 | 해당 없음 |"
+    expect: keep
+  - {id: N08, kind: row, text: "Q: 영업시간? A: 9시~18시", expect: keep}
+  - {id: N09, kind: row, text: "카드 > 결제", expect: keep}
+  - {id: N10, code_like: true, text: "<div class=\"card\">\n  <span>{{ name }}</span>\n</div>", expect: keep}
+  - {id: N11, code_like: true, text: "∑ x = 0", expect: keep}
+  - {id: N12, text: [{repeat: "성명: ___ 주소: ___\n", times: 3}], expect: keep}
+  - {id: N13, text: "결제일은 매월 14일이며 \uFFFD 자동이체 계좌에서 출금된다.", expect: keep}
+  - {id: N14, text: "제1조(목적) 이 약관은 회사와 회원 사이의 권리와 의무를 정한다.", expect: keep}
+  - {id: N15, prefix: "HEADER: 1. 메인 페이지\n", text: "삼성카드", expect: keep}
+  - {id: N16, text: "| 구분 | 값 |\n| --- | --- |\n| 연회비 | 1만 |", expect: keep}
+  - id: N17
+    text:
+      - "| 번호 | 값 |\n| --- | --- |\n"
+      - "| 1 | 101 |\n| 2 | 102 |\n| 3 | 103 |\n| 4 | 104 |\n| 5 | 105 |\n| 6 | 106 |\n"
+      - "| 7 | 107 |\n| 8 | 108 |\n| 9 | 109 |\n| 10 | 110 |\n| 11 | 111 |\n| 12 | 112 |\n"
+      - "| 13 | 113 |\n| 14 | 114 |\n| 15 | 115 |\n| 16 | 116 |\n| 17 | 117 |\n| 18 | 118 |\n"
+      - "| 19 | 119 |\n| 20 | 120 |\n| 21 | 121 |\n| 22 | 122 |\n| 23 | 123 |\n| 24 | 124 |\n"
+      - "| 25 | 125 |\n| 26 | 126 |\n| 27 | 127 |\n| 28 | 128 |\n| 29 | 129 |\n| 30 | 130 |"
+    expect: keep
+
+  # --- 경계 샘플: 임계값 바로 아래·같음·바로 위 ---
+  # 내용 문자 하한 4자(min_chars: 내용 문자 수 < 하한 이면 제외)
+  - {id: B01, text: "가나다", expect: min_chars}
+  - {id: B02, text: "가나다라", expect: keep}
+  - {id: B03, text: "가나다라마", expect: keep}
+  # 반복 횟수 하한 10회(동일 문자 연속 ≥ 10 이면서 중복 점유율 ≥ 0.5)
+  - {id: B04, text: [{repeat: "ㅁ", times: 9}], expect: keep}
+  - {id: B05, text: [{repeat: "ㅁ", times: 10}], expect: repetition}
+  - {id: B06, text: [{repeat: "ㅁ", times: 11}], expect: repetition}
+  # 손상 점유율 0.3(손상 문자 / 공백 제외 문자 ≥ 0.3)
+  - {id: B07, text: [{distinct: 71}, {repeat: "\uFFFD", times: 29}], expect: keep}
+  - {id: B08, text: [{distinct: 70}, {repeat: "\uFFFD", times: 30}], expect: broken_chars}
+  - {id: B09, text: [{distinct: 69}, {repeat: "\uFFFD", times: 31}], expect: broken_chars}
+  # 손상 문자 최소 개수 3개(개수 ≥ 3 이면서 점유율 ≥ 0.3)
+  - {id: B10, text: [{repeat: "\uFFFD", times: 2}, "가나다라"], expect: keep}
+  - {id: B11, text: [{repeat: "\uFFFD", times: 3}, "가나다라"], expect: broken_chars}
+  - {id: B12, text: [{repeat: "\uFFFD", times: 4}, "가나다라"], expect: broken_chars}
