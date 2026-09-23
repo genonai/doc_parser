@@ -267,6 +267,7 @@ enrichment:
   - table_text_description:
       enable: true
       model_preset: default
+      model_context_tokens: 40000  # 모델 context 크기. 모델이 바뀌면 이 값만 수정
       max_tokens: 16000       # 응답 상한. 배치당 표 개수는 이 값이 정한다
       concurrency: 8          # 표 설명 배치 병렬 호출 수
       temperature: 0.0
@@ -276,7 +277,6 @@ enrichment:
       before_items: 2          # 표 앞쪽 본문 아이템 수
       after_items: 1           # 표 뒤쪽 본문 아이템 수
       max_context_chars: 400   # 앞/뒤 문맥 각각의 최대 문자 수
-      model_context_tokens: 40000  # 모델 context 크기. 모델이 바뀌면 이 값만 수정
       overflow_policy: batch   # batch=최소 추가 호출 | skip=표 설명 생략 | error=실패
       conflict_policy: prefer_text # 기존 이미지 표 설명과 충돌 시 prefer_text | prefer_image | error
       rag:

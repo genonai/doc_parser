@@ -85,25 +85,27 @@ enrichment:
   # 텍스트 기반(HTML/Markdown) 표 RAG 설명.
   # url/model 을 채우면 이 연결로 직접 만들고, 비워 두면 문서형 custom_fields 호출에 통합된다.
   - table_text_description:
-      enable: false           # true 또는 런타임 table_text_desc=1
-      url: ""
-      api_key: ""
-      model: ""
+      enable: false
+      model_preset: default
+      model_context_tokens: 40000  # 모델 context 크기. 모델이 바뀌면 이 값만 수정
+      max_tokens: 16000       # 응답 상한. 배치당 표 개수는 이 값이 정한다
+      concurrency: 8          # 표 설명 배치 병렬 호출 수
+      temperature: 0.0
+      timeout: 600             # 배치당 생성량이 늘어난 만큼 호출 타임아웃도 올린다
       prompt_template_file: prompt_table_text_description_rag.md
-      input_format: auto      # auto | markdown | html
-      before_items: 3
-      after_items: 2
-      max_context_chars: 1500
-      model_context_tokens: 128000  # 모델 context 크기. 모델이 바뀌면 이 값만 수정
-      overflow_policy: batch  # batch | skip | error
-      conflict_policy: prefer_text # prefer_text | prefer_image | error
+      input_format: auto       # auto=HTML 원본은 html, 그 외 markdown | markdown | html
+      before_items: 2          # 표 앞쪽 본문 아이템 수
+      after_items: 1           # 표 뒤쪽 본문 아이템 수
+      max_context_chars: 400   # 앞/뒤 문맥 각각의 최대 문자 수
+      overflow_policy: batch   # batch=최소 추가 호출 | skip=표 설명 생략 | error=실패
+      conflict_policy: prefer_text # 기존 이미지 표 설명과 충돌 시 prefer_text | prefer_image | error
       rag:
-        retrieval_context_max_chars: 350
-        key_fact_limit: 3
-        key_fact_max_chars: 160
-        search_terms_limit: 8
-        include_search_terms: false
-        repeat_context_on_split: true
+        retrieval_context_max_chars: 250 # 모든 분할 표 청크에 반복할 독립 검색 문맥
+        key_fact_limit: 2                # 원표에서 직접 확인되는 핵심 사실 최대 개수
+        key_fact_max_chars: 120          # 핵심 사실 1개당 최대 문자 수
+        search_terms_limit: 3            # 질의 확장용 검색 표현 최대 개수
+        include_search_terms: false      # true면 검색어도 청크 텍스트에 노출
+        repeat_context_on_split: true    # 큰 표 분할 시 retrieval_context를 모든 조각에 반복
 
   # ── 모니모 13종 문서유형 custom_fields (2026-08-16 추가) ────────────────────
   # 메뉴서비스
