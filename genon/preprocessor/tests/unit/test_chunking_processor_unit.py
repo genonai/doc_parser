@@ -20,6 +20,8 @@ from genon.preprocessor.processing.core.chunker import (
 )
 # 헤더 구분자는 사이트가 정하는 값이라 배포되는 facade 가 든다(#363 08-2).
 from genon.preprocessor.facade.chunking_processor import GenosSmartChunker
+# 코어가 import 하는 경로와 같아야 monkeypatch 가 코어에 닿는다.
+from genon.preprocessor.processing.chunking import chunk_quality as cq
 from docling_core.types import DoclingDocument
 from docling_core.types.doc import DocItemLabel, DocumentOrigin
 
@@ -866,3 +868,152 @@ async def test_edit_chunk_drop_moves_the_once_prefix_to_the_first_survivor():
     # 순번·개수는 코어가 다시 맞춘다.
     assert [v.i_chunk_on_doc for v in kept] == list(range(len(kept)))
     assert all(v.n_chunk_of_doc == len(kept) for v in kept)
+
+
+# ---------------------------------------------------------------------------
+# 이상 청크 검증(chunking.validation) — 코어 연결
+#
+# 판정 기준은 test_chunk_quality_unit.py 가, 설정 해석은 같은 파일의 config_from_cfg 표가
+# 다룬다. 여기서는 청크 반복문·훅·순번과의 연결만 본다.
+# ---------------------------------------------------------------------------
+
+_BAD = "처리 중 오류가 발생했습니다. " * 30          # repetition
+_GOOD = "결제일은 매월 14일이며 등록한 자동이체 계좌에서 출금된다."
+
+
+def _quality_doc(*bodies) -> dict:
+    doc = DoclingDocument(name="quality")
+    for number, body in enumerate(bodies, start=1):
+        heading = doc.add_heading(text=f"섹션 {number}", level=1)
+        doc.add_text(label=DocItemLabel.TEXT, text=body, parent=heading)
+    return doc.model_dump(mode="json")
+
+
+def _validating(proc, action="drop", **values):
+    # yaml 로 기동하지 않고 해석 결과를 바로 싣는다. 설정 해석(config_from_cfg)은 따로 검증한다.
+    proc._chunk_validation = cq.config_from_cfg(
+        {"validation": {"enable": True, "action": action, **values}})
+    return proc
+
+
+@pytest.mark.asyncio
+async def test_validation_drops_bad_chunks_and_renumbers():
+    """걸린 청크만 빠지고 순번·개수가 생존 청크 기준으로 맞는다.
+
+    첫 청크가 초기 검사에서 빠지면 첫 청크 전용 접두는 살아남은 첫 청크가 받는다.
+    text_cleanup=off 요청으로도 검증은 꺼지지 않는다.
+    """
+    tb = pytest.importorskip("processing.core.toolbox")
+    cf = pytest.importorskip("facade.chunking_processor")
+    result = {"document": _quality_doc(_BAD, _GOOD, _BAD, _GOOD)}
+    tb.set_chunk_metadata(result, {"DOC_NM": "약관문서식별", tb.FIRST_CHUNK_FIELDS_KEY: ["DOC_NM"]})
+
+    vectors = await _validating(cf.DocumentProcessor())(
+        None, "", document=result["document"], text_cleanup="off")
+
+    assert len(vectors) == 2 and not any("처리 중 오류" in v.text for v in vectors)
+    assert [v.i_chunk_on_doc for v in vectors] == [0, 1]
+    assert all(v.n_chunk_of_doc == 2 for v in vectors)
+    assert sum(v.n_chunk_of_page for v in vectors if v.i_chunk_on_page == 0) == 2
+    assert vectors[0].text.startswith("약관문서식별")
+    assert sum("약관문서식별" in v.text for v in vectors) == 1
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("hook", ["edit_chunk_repeats", "edit_output_adds_blank", "edit_chunk_prefix_only"])
+async def test_validation_final_check_covers_hook_output(hook):
+    """훅이 본문을 불량으로 바꾸거나 불량 청크를 더해도 최종 검사가 뺀다."""
+    cf = pytest.importorskip("facade.chunking_processor")
+
+    class _P(cf.DocumentProcessor):
+        def edit_chunk(self, text, info, **kwargs):
+            if info["index"] != 0:
+                return None
+            if hook == "edit_chunk_repeats":
+                return _BAD
+            if hook == "edit_chunk_prefix_only":
+                return text.split("\n", 1)[0] + "\n"    # HEADER 줄(코어 접두)만 남긴다
+            return None
+
+        def edit_output(self, vector_metas, **kwargs):
+            if hook == "edit_output_adds_blank":
+                vector_metas.append(vector_metas[0].model_copy(update={"text": "  \n"}))
+            return vector_metas
+
+    vectors = await _validating(_P())(None, "", document=_quality_doc(_GOOD, _GOOD + " 둘째"),
+                                      include_chunk_header=1)
+
+    assert len(vectors) == (2 if hook == "edit_output_adds_blank" else 1)
+    assert all(v.text.strip() and "처리 중 오류" not in v.text for v in vectors)
+    assert [v.i_chunk_on_doc for v in vectors] == list(range(len(vectors)))
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("values,code", [
+    ({}, "CHUNK_ALL_REJECTED"),
+    ({"fail_on_any": True}, "CHUNK_REJECTED"),
+])
+async def test_validation_fails_document(values, code):
+    """전부 제외되면 문서 실패, fail_on_any 면 불량 청크 하나로 문서 실패."""
+    cf = pytest.importorskip("facade.chunking_processor")
+    document = _quality_doc(_BAD, _BAD) if not values else _quality_doc(_GOOD, _BAD)
+
+    with pytest.raises(cf.GenosServiceException) as exc:
+        await _validating(cf.DocumentProcessor(), **values)(None, "", document=document)
+
+    assert exc.value.error_msg.startswith(code) and exc.value.error_type == "permanent"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("action", ["drop", "report"])
+async def test_validation_judge_error(monkeypatch, action):
+    """판정기가 실패하면 drop 은 문서를 실패 처리하고, report 는 기록만 하고 그대로 돌려준다.
+
+    drop 은 검증하지 않은 결과를 적재하지 않기 위해, report 는 관측용 기능이 적재를 막지
+    않기 위해서다.
+    """
+    cf = pytest.importorskip("facade.chunking_processor")
+
+    def _boom(*args, **kwargs):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(cq, "judge", _boom)
+    proc = _validating(cf.DocumentProcessor(), action=action)
+    if action == "drop":
+        with pytest.raises(cf.GenosServiceException, match="CHUNK_VALIDATION_ERROR"):
+            await proc(None, "", document=_quality_doc(_GOOD))
+    else:
+        assert len(await proc(None, "", document=_quality_doc(_GOOD))) == 1
+
+
+@pytest.mark.asyncio
+async def test_validation_report_mode_keeps_all_and_logs(caplog):
+    """report 모드는 청크를 그대로 두고 판정만 로그에 남긴다."""
+    cf = pytest.importorskip("facade.chunking_processor")
+
+    with caplog.at_level(logging.INFO):
+        vectors = await _validating(cf.DocumentProcessor(), action="report")(
+            None, "/data/q.pdf", document=_quality_doc(_GOOD, _BAD))
+
+    assert len(vectors) == 2
+    assert "[chunk_validation] report file=q.pdf" in caplog.text and "reason=repetition" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_validation_skips_markers_and_checks_rows():
+    """마커 청크(오디오·legacy 표)는 판정하지 않는다. 행 청크는 판정해 빈 행을 뺀다.
+
+    행 판정 기준 자체는 cases.yaml(E04·N08·N09)이, 행 경로 순번은 parse_chunk_verify 의
+    chunk_quality_rows.json 케이스가 확인한다.
+    """
+    cf = pytest.importorskip("facade.chunking_processor")
+    proc = _validating(cf.DocumentProcessor())
+    rows = [{"category": "tabular_row", "content": content, "page": 1, "id": i, "metadata": {}}
+            for i, content in enumerate(["카드 > 결제", ""])]
+
+    vectors = await proc(None, "", document={"elements": rows})
+    audio = await proc(None, "", document={"elements": [
+        {"category": "paragraph", "content": "[AUDIO] " + "ㅁ" * 50, "page": 1, "id": 0}]})
+
+    assert [v.text for v in vectors] == ["카드 > 결제"]
+    assert len(audio) == 1
