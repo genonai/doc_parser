@@ -22,5 +22,6 @@
 | `chunking/hybrid_chunker.py` | docling_core `HybridChunker`/`HierarchicalChunker` 포크본(`TokenAwareHybridChunker`/`HierarchicalDocChunker` 로 개명해 업스트림과 구분). 갈라진 축은 모듈 docstring 참조 |
 | `chunking/table_*.py`, `rich_cells.py` | 표 행 분할·모양 판정·HTML 표 직렬화·변형 처리 |
 | `chunking/header_path.py`, `page_split.py`, `doc_prefix.py`, `text_norm.py` | 청크 헤더 경로, 페이지 분할, 문서 접두, 청크 텍스트 정제 |
+| `chunking/chunk_quality.py` | 이상 청크 판정(`chunking.validation`). 코어 청커가 초기·최종 검사로 호출한다 |
 | `enrichment/`, `guardrail/` | custom_fields·LLM 보강, 민감정보 처리 |
 | `converters/` | 입력 전처리 변환기 (`html_flatten`, `json_text`, `md_marker_headings` 등) |
