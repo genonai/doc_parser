@@ -983,10 +983,13 @@ class CustomFieldsEnricher(BaseEnricher):
         과소 추정이 된다. _TOKENS_PER_CHAR 안전계수를 곱해 넘치는 쪽으로 판정한다.
         """
         system, user = self._render_prompts(raw_text, document, suffix)
+        reserved = self._table_description_options.completion_reserved_tokens
+        if reserved is None:
+            # 예약량을 생략하면 응답 상한만큼 남긴다. max_tokens 와 손으로 맞출 필요가 없다.
+            reserved = max(0, self._max_tokens or 0)
         available = max(
             1,
-            self._table_description_options.max_context_tokens
-            - self._table_description_options.completion_reserved_tokens,
+            self._table_description_options.max_context_tokens - reserved,
         )
         estimated = (len(system) + len(user)) * _TOKENS_PER_CHAR
         return estimated <= available

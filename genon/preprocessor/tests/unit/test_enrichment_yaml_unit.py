@@ -97,7 +97,7 @@ def test_shipped_table_text_description_exposes_all_user_options(repo_root, rel)
     cfg = ec.table_text_description_cfg
     assert set(cfg) >= {
         "enabled", "input_format", "before_items", "after_items",
-        "max_context_chars", "max_context_tokens", "completion_reserved_tokens",
+        "max_context_chars", "max_context_tokens",
         "overflow_policy", "conflict_policy", "rag",
     }
     prompt_file = cfg["prompt_template_file"]

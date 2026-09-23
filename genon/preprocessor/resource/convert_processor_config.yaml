@@ -229,8 +229,7 @@ enrichment:
       before_items: 3
       after_items: 2
       max_context_chars: 1500
-      max_context_tokens: 128000
-      completion_reserved_tokens: 8000
+      max_context_tokens: 128000  # 모델 context 크기. 모델이 바뀌면 이 값만 수정
       overflow_policy: batch  # batch | skip | error
       conflict_policy: prefer_text # prefer_text | prefer_image | error
       rag:

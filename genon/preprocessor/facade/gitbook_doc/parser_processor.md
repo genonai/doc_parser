@@ -423,9 +423,10 @@ llm:
   값을 받으면 요청이 실패할 수 있어, 명시하지 않으면 보내지 않습니다.
 - `concurrency` 만 예외입니다 — 설명 계열(이미지·표·페이지)만 읽습니다. 나머지 섹션은
   문서 하나에 한 번씩만 호출하므로 동시 실행이라는 개념이 없습니다.
-- `max_tokens` 는 프리셋보다 각 블록에 두는 편이 안전합니다 — `table_text_description` 은
-  `completion_reserved_tokens` 와 짝을 맞춰야 배치 계산이 맞습니다. `page_description` 에서는
-  `0` 이 "상한 없음"이라 값을 보내지 않습니다.
+- `max_tokens` 는 `params` 가 아니라 `max_tokens` 키로 적습니다 — `table_text_description` 은
+  이 값만큼 응답 몫을 자동으로 예약해 입력 예산을 계산하며, `params.max_tokens` 는 요청에는
+  반영되지만 예산 계산에는 반영되지 않습니다. `page_description` 에서는 `0` 이 "상한 없음"이라
+  값을 보내지 않습니다.
 
 `enable`/`enabled`, `doc_type`, `config_file` 은 "이 블록을 어떻게 쓸지" 를 정하는 값이라
 프리셋에 적어도 주입되지 않습니다. 특히 `enable` 이 프리셋을 통해 퍼지면 그 프리셋을
@@ -561,6 +562,10 @@ llm:
 > `chart.enable: true` 면 변환 단계에서 docling 그림 분류가 자동 활성화됩니다. **런타임 kwargs**(호출 `params`, 0/1)로 오버라이드 가능: `img_desc`→`image_description.enable`, `chart_desc`(별칭 `chart_convert`)→`chart.enable`, `chart_detection`(1=auto/0=all), `doc_summary`→`doc_summary.enable`, `table_desc`→`table_description.enable`, `table_refine`→`table_description.refine.enable`. `chart_detection=1`(auto) 은 `chart.enable: true` 로 분류가 켜져 있어야 하며 아니면 `all` 로 강등됩니다.
 
 > **표 설명(table_description)**: `enable`(또는 `table_desc=1`) 이면 각 표 뒤에 `[표 설명]` 요약을 병기하고, `refine.enable`(또는 `table_refine=1`) 이면 표 구조를 재구성 HTML 로 만들어 표 본체를 교체합니다. 재구성/요약은 **element(parse) 및 markdown 출력**에 반영되며, `output.format: docling`(원본 보존)에서는 적용되지 않습니다. refine 표를 `table_format: markdown` 으로 낼 때 `compact_tables` 설정이 반영됩니다.
+
+> **텍스트 표 설명(table_text_description)의 context 설정**: 모델 context 크기가 바뀌면 표 설명 블록의 `max_context_tokens` 만 고칩니다. 값은 모델 사양의 최대치가 아니라 현재 모델 서버의 context 한도(토큰, 정수)입니다. 입력 예산은 `max_context_tokens` 에서 응답 몫을 뺀 값이며, 응답 몫(`completion_reserved_tokens`)은 생략을 권장합니다. 생략하면 그 호출의 `max_tokens` 만큼 자동으로 예약합니다(전용 연결은 표 설명 블록, custom_fields 통합 모드는 custom_fields 블록의 `max_tokens`). 값을 명시하면(`0` 포함) 그 값을 그대로 씁니다.
+>
+> **기본값 변경 안내**: 예약량을 적지 않은 기존 설정은 업그레이드만으로 예약량이 `8000` 에서 `max_tokens` 값으로 바뀝니다. `max_tokens` 가 8000보다 크면 입력 예산이 줄어 표가 더 여러 번에 나뉘어 호출될 수 있고, 8000보다 작으면 입력 예산이 늘어 한 번에 담기는 표가 많아집니다. 이전 동작이 필요하면 `completion_reserved_tokens: 8000` 을 명시합니다.
 
 > 이미지 설명 enrichment는 `pdf_pipeline.generate_picture_images: false`인 경우 동작하지 않습니다 (그림 이미지가 생성되지 않으므로).
 
