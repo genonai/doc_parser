@@ -29,10 +29,7 @@ import io
 import logging
 import re
 from collections import deque
-from pathlib import Path
 from typing import Any
-
-import yaml
 
 _log = logging.getLogger(__name__)
 
@@ -42,7 +39,6 @@ from genon.preprocessor.processing.chunking.table_html import (
     drop_blank_markdown_rows, render_table,
 )
 from genon.preprocessor.processing.common import config_parse as cp
-from genon.preprocessor.processing.enrichment import config_v2 as cv2
 from genon.preprocessor.processing.common.markdown_export import (
     MD_PLAIN_TEXT_OPTS as _MD_EXPORT_OPTS,
     export_markdown,
@@ -54,17 +50,13 @@ from .custom_fields_enricher import (
     LlmFieldSpec,  # noqa: F401  (하위 호환 재노출 — 정의는 custom_fields_enricher 로 이동)
     build_llm_field_specs,
     custom_fields_extractor,
-    matches_doc_type,
-    normalize_doc_type,
     normalize_doc_types,
 )
 from . import file_source
 from .field_transforms import VALUE_TRANSFORMS
 from .tabular_custom_fields import (
-    apply_derive,
+    CustomFieldsMapperBase,
     apply_sequence,
-    apply_transforms,
-    apply_value_map,
     build_chunk_text,
     compile_chunk_prefix_fields,
     compile_derive,
@@ -503,11 +495,14 @@ def html_to_text(
     return _drop_synthetic_headings(text)
 
 
-class JsonRecordsMapper:
+class JsonRecordsMapper(CustomFieldsMapperBase):
     """custom_fields 설정 하나를 JSON 레코드 → parse-format 변환기로 컴파일한다.
 
     tabular 의 `TabularCustomFieldsMapper` 와 같은 역할·수명(기동 시 1회 생성).
     """
+
+    _CF_LABEL = "json"
+    _CF_EXTRACTOR = "json_mapping"
 
     def __init__(
         self,
@@ -525,12 +520,11 @@ class JsonRecordsMapper:
         # 프롬프트/LLM config 파일 경로 해석 기준(= 이 config 파일과 같은 디렉토리).
         self.resource_path = resource_path
         cfg = self._load_config(config_file, resource_path, model_presets)
+        label = self._config_label(config_file)
 
         # 설정 오기입을 키 소비 **전에** 막는다(tabular 와 같은 순서). 뒤로 미루면
         # `transforms` 를 리스트로 쓴 경우 파일명도 키 이름도 없는 AttributeError 가 먼저 난다.
-        validate_custom_field_config(
-            cfg, label=f"json custom_fields({config_file})", extractor=extractor
-        )
+        validate_custom_field_config(cfg, label=label, extractor=extractor)
 
         self.records_key: str | None = str(cfg.get("records") or "").strip() or None
 
@@ -539,7 +533,7 @@ class JsonRecordsMapper:
         try:
             self.delimited = parse_delimited_spec(cfg.get("delimited"))
         except ValueError as exc:
-            raise ValueError(f"json custom_fields({config_file}) source.pre.{exc}") from exc
+            raise ValueError(f"{label} source.pre.{exc}") from exc
 
         key_map = cfg.get("key_map") or {}
         if not isinstance(key_map, dict):
@@ -551,9 +545,7 @@ class JsonRecordsMapper:
         }
 
         # 원천의 객체를 통째로 받을 필드(적재 DB 의 JSON 컬럼용).
-        self.raw_fields = compile_raw_fields(
-            cfg, self.key_map, label=f"json custom_fields({config_file})"
-        )
+        self.raw_fields = compile_raw_fields(cfg, self.key_map, label=label)
 
         collect_key_map = cfg.get("collect_key_map") or {}
         if not isinstance(collect_key_map, dict):
@@ -585,7 +577,6 @@ class JsonRecordsMapper:
         # 값 별칭 정규화(GROUP_C 의 "삼성생명/생명/SLF" 흔들림 등). tabular 와 같은 구현을 공유한다.
         self.value_map = compile_value_map(cfg.get("value_map"))
 
-        label = f"json custom_fields({config_file})"
         self.transforms = compile_transforms(cfg.get("transforms"), label=label, cfg=cfg)
         self.derive = compile_derive(cfg, label=label)
         self.pack = compile_pack(cfg, label=label)
@@ -595,7 +586,7 @@ class JsonRecordsMapper:
 
         # 원천이 값 하나를 여러 레코드에 쪼개 보내는 스키마용. tabular 와 같은 구현을 공유한다
         # (연속 런 기준 병합 — 멀리 떨어진 동일 키는 다른 레코드로 남긴다).
-        self.row_merge = compile_row_merge(cfg, label=f"json custom_fields({config_file})")
+        self.row_merge = compile_row_merge(cfg, label=label)
         self.llm_field_specs = build_llm_field_specs(cfg)
 
         self.text_fields = [str(f).strip() for f in (cfg.get("text_fields") or []) if str(f).strip()]
@@ -613,48 +604,6 @@ class JsonRecordsMapper:
             _log.warning(f"[json_records] Invalid missing_policy '{policy}', fallback to 'error'")
             policy = "error"
         self.missing_policy = policy
-
-    # ── 설정 로딩 ────────────────────────────────────────────────────────────
-    @staticmethod
-    def _load_config(
-        config_file: str, resource_path: str | None, presets: dict | None = None
-    ) -> dict:
-        if not config_file:
-            raise ValueError("json_mapping custom_fields 에는 config_file 이 필요합니다.")
-        path = Path(config_file)
-        if not path.is_absolute() and resource_path:
-            path = Path(resource_path) / path
-        path = path.resolve()
-        if not path.is_file():
-            raise FileNotFoundError(f"json custom_fields config 없음: {path}")
-        loaded = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
-        if not isinstance(loaded, dict):
-            raise ValueError(f"json custom_fields config 는 object 여야 합니다: {path}")
-        # 설정 표기를 내부 형태로 번역해 넘긴다 — 아래 코드는 표기를 신경 쓰지 않는다.
-        normalized, _ = cv2.load(
-            loaded, label=f"json custom_fields({config_file})", presets=presets
-        )
-        return normalized
-
-    @staticmethod
-    def _aliases(target: str, source_spec: Any) -> list[str]:
-        values = source_spec if isinstance(source_spec, list) else [source_spec]
-        aliases = [target]
-        for value in values:
-            value = str(value or "").strip()
-            if value and value not in aliases:
-                aliases.append(value)
-        return aliases
-
-    # ── 매칭 ─────────────────────────────────────────────────────────────────
-    def matches(self, runtime_doc_type: Any) -> bool:
-        return matches_doc_type(self.doc_types, runtime_doc_type)
-
-    def canonical_doc_type(self, runtime_doc_type: Any) -> str:
-        runtime = normalize_doc_type(runtime_doc_type)
-        if runtime and runtime in self.doc_types:
-            return runtime
-        return self.doc_types[0] if self.doc_types else runtime
 
     # ── 변환 ─────────────────────────────────────────────────────────────────
     def extract_records(self, payload: Any) -> list[dict]:
@@ -706,33 +655,21 @@ class JsonRecordsMapper:
         table_format: str = DEFAULT_TABLE_FORMAT,
         compact_tables: bool = True,
     ) -> dict:
-        """원시 매핑 값에 defaults → constants → value_map → transforms → derive 를 건다.
+        """원천의 표 모양 설정을 렌더러로 바꿔 베이스의 값 파이프라인에 넘긴다.
 
-        defaults 가 먼저다 — 반대로 하면 `constants: {X: ""}` 를 defaults 가 되살려
-        "constants 가 이긴다"는 계약이 깨진다(tabular/json_semantic 과 같은 순서).
+        표가 섞인 HTML 은 docling 백엔드로 보낸다(행/열·빈 셀 보존). 파서가 넘겨준
+        `output.table_format`/`compact_tables` 를 그대로 물려 docling 경로와 모양을 맞춘다.
+        `html_text`/`text` 변환기만 이 렌더러를 받는다.
+
+        적용 순서(defaults → constants → value_map → transforms → derive)는 매퍼 3종이
+        공유하므로 여기서 다시 쓰지 않는다.
         """
-        for key, value in self.defaults.items():
-            if fields.get(key) in (None, ""):
-                fields[key] = value
-        fields.update(self.constants)
-
-        # 값 정규화 → 변환 순서. 별칭을 표준값으로 접은 뒤에 타입 변환을 건다(tabular 와 동일).
-        apply_value_map(fields, self.value_map)
-
-        # 표가 섞인 HTML 은 docling 백엔드로 보낸다(행/열·빈 셀 보존). 파서가 넘겨준
-        # output.table_format / compact_tables 를 그대로 물려 docling 경로와 모양을 맞춘다.
-        # `html_text`/`text` 변환기만 이 렌더러를 받는다.
-        apply_transforms(
+        return self._apply_value_pipeline(
             fields,
-            self.transforms,
-            lambda value: html_to_text(
+            html_renderer=lambda value: html_to_text(
                 value, table_format=table_format, compact_tables=compact_tables
             ),
         )
-        # 결합은 변환 뒤에 — 정규화된 값으로 합쳐야 표기가 흔들리지 않는다.
-        apply_derive(fields, self.derive, self.transforms)
-
-        return fields
 
     def missing_required(self, fields: dict) -> list[str]:
         return [name for name in self.required if fields.get(name) in (None, "")]

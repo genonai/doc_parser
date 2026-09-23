@@ -6,6 +6,11 @@ extractor=tabular_mapping 설정을 적용해 행별 metadata element를 만든�
 형제 모듈 `json_records.py`(JSON 레코드 매핑)가 이 모듈의 이름/값 정규화 헬퍼
 (`normalize_column_name` · `compile_value_map` · `apply_value_map`)를 그대로 가져다 쓴다.
 두 경로가 같은 규칙으로 동작해야 하므로 여기가 단일 출처다.
+
+같은 이유로 매퍼 3종(tabular/json_records/json_semantic)의 공용 베이스
+`CustomFieldsMapperBase` 도 여기 있다. 파일 이름은 tabular 지만 베이스가 쓰는 헬퍼가 전부
+이 파일에 있고 나머지 두 모듈이 이미 이 파일을 import 하므로, 별도 모듈로 빼면 top-level
+순환 import 가 되어 기동에 실패한다.
 """
 from __future__ import annotations
 
@@ -14,7 +19,7 @@ import logging
 import re
 import unicodedata
 from pathlib import Path
-from typing import Any
+from typing import Any, ClassVar
 
 import yaml
 
@@ -1175,8 +1180,120 @@ def build_chunk_text(
     return content, prefix
 
 
-class TabularCustomFieldsMapper:
+class CustomFieldsMapperBase:
+    """매퍼 3종이 공유하는 설정 로드와 doc_type 매칭.
+
+    `tabular_mapping`·`json_mapping`·`json_semantic` 은 원천을 읽는 방법이 서로 다르지만
+    "설정 파일을 읽어 내부 형태로 번역한다"와 "이 요청의 doc_type 을 내가 맡는가"는 같은
+    코드였다. 사본 세 벌이 따로 움직이다 값 파이프라인 적용 순서가 어긋난 적이 있어
+    (bca0e926) 여기 한 벌만 둔다.
+
+    **이 모듈에 두는 이유는 순환 import 다.** 베이스가 쓰는 헬퍼가 전부 이 파일에 있고
+    json_records·json_semantic 은 이미 이 파일을 import 한다. 별도 모듈로 빼면 베이스와
+    헬퍼가 서로를 top-level import 하게 되어 기동에 실패한다.
+
+    서브클래스는 아래 두 ClassVar 만 정한다. **다른 속성은 여기 두지 않는다** — 호출부가
+    `getattr(mapper, 이름, 기본값)` 으로 속성 부재를 읽어 분기하기 때문이다. 베이스가
+    `llm_fields_scope` 를 정의하면 json_semantic 의 문서 단위 LLM 이 레코드 단위로 바뀌고
+    (`core/parser.py`), `records_key` 를 정의하면 json_semantic 매퍼가 json_mapping 으로
+    오인된다(`common/parser_config.py`).
+    """
+
+    # 오류 메시지와 검증 라벨에 쓰는 이름. 설정 파일 종류를 가리키므로 extractor 이름과 다르다.
+    _CF_LABEL: ClassVar[str] = "custom_fields"
+    # config_file 누락 메시지는 extractor 이름으로 알린다 — 등록 블록에서 고칠 값이기 때문이다.
+    _CF_EXTRACTOR: ClassVar[str] = "custom_fields"
+
+    doc_types: tuple[str, ...]
+    # 값 파이프라인 재료. 서브클래스가 `__init__` 에서 채운다.
+    defaults: dict
+    constants: dict
+    value_map: dict
+    transforms: dict
+    derive: dict
+
+    @classmethod
+    def _config_label(cls, config_file: str) -> str:
+        """검증·컴파일 오류 메시지 앞에 붙는 라벨(어느 파일의 문제인지)."""
+        return f"{cls._CF_LABEL} custom_fields({config_file})"
+
+    @classmethod
+    def _load_config(
+        cls, config_file: str, resource_path: str | None, presets: dict | None = None
+    ) -> dict:
+        if not config_file:
+            raise ValueError(f"{cls._CF_EXTRACTOR} custom_fields 에는 config_file 이 필요합니다.")
+        path = Path(config_file)
+        if not path.is_absolute() and resource_path:
+            path = Path(resource_path) / path
+        path = path.resolve()
+        if not path.is_file():
+            raise FileNotFoundError(f"{cls._CF_LABEL} custom_fields config 없음: {path}")
+        loaded = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+        if not isinstance(loaded, dict):
+            raise ValueError(
+                f"{cls._CF_LABEL} custom_fields config 는 object 여야 합니다: {path}"
+            )
+        # 설정 표기를 내부 형태로 번역해 넘긴다 — 아래 코드는 표기를 신경 쓰지 않는다.
+        normalized, _ = cv2.load(
+            loaded, label=cls._config_label(config_file), presets=presets
+        )
+        return normalized
+
+    @staticmethod
+    def _aliases(target: str, source_spec: Any) -> list[str]:
+        """목표필드명 자신을 첫 별칭으로 두고 설정의 별칭을 순서대로 잇는다."""
+        values = source_spec if isinstance(source_spec, list) else [source_spec]
+        aliases = [target]
+        for value in values:
+            value = str(value or "").strip()
+            if value and value not in aliases:
+                aliases.append(value)
+        return aliases
+
+    def matches(self, runtime_doc_type: Any) -> bool:
+        return matches_doc_type(self.doc_types, runtime_doc_type)
+
+    def canonical_doc_type(self, runtime_doc_type: Any) -> str:
+        runtime = normalize_doc_type(runtime_doc_type)
+        if runtime and runtime in self.doc_types:
+            return runtime
+        return self.doc_types[0] if self.doc_types else runtime
+
+    def _apply_value_pipeline(
+        self, fields: dict, *, html_renderer: Any = None, context: str = ""
+    ) -> dict:
+        """원시 매핑 값에 defaults → constants → value_map → transforms → derive 를 건다.
+
+        **순서가 계약이다.** defaults 가 먼저여야 `constants: {X: ""}` 로 못 박은 빈 상수를
+        defaults 가 되살리지 않는다("constants 가 이긴다"). 값 정규화가 변환보다 먼저여야
+        별칭을 표준값으로 접은 뒤에 타입이 바뀌고, 결합(derive)은 정규화된 값으로 해야
+        표기가 흔들리지 않는다.
+
+        매퍼 3종이 이 순서를 각자 들고 있다가 실제로 어긋나 손으로 되맞춘 적이 있다
+        (bca0e926 "defaults 와 constants 의 적용 순서를 세 extractor 에서 맞춤"). 그래서
+        여기 한 벌만 둔다.
+
+        `html_renderer` 는 `html_text`/`text` 변환이 쓰는 구조 HTML 평문화 콜백이고,
+        `context` 는 값 정규화 경고에 붙일 위치 문자열이다. 둘 다 원천마다 다르므로
+        호출측이 넘긴다 — 파이프라인의 순서는 그대로 두고 재료만 갈아 끼운다.
+        """
+        for key, value in self.defaults.items():
+            if fields.get(key) in (None, ""):
+                fields[key] = value
+        fields.update(self.constants)
+
+        apply_value_map(fields, self.value_map, context=context)
+        apply_transforms(fields, self.transforms, html_renderer)
+        apply_derive(fields, self.derive, self.transforms)
+        return fields
+
+
+class TabularCustomFieldsMapper(CustomFieldsMapperBase):
     """custom_fields 설정 하나를 행 단위 metadata 변환기로 컴파일한다."""
+
+    _CF_LABEL = "tabular"
+    _CF_EXTRACTOR = "tabular_mapping"
 
     def __init__(
         self,
@@ -1194,27 +1311,25 @@ class TabularCustomFieldsMapper:
         # llm_fields 의 프롬프트/LLM config 파일 경로 해석 기준(= 이 config 파일과 같은 디렉토리).
         self.resource_path = resource_path
         self.config = self._load_config(config_file, resource_path, model_presets)
+        label = self._config_label(config_file)
         # 설정 오기입을 **키를 소비하기 전에** 막는다 — 런타임 크래시·조용한 전건 skip 예방.
-        validate_custom_field_config(
-            self.config, label=f"tabular custom_fields({config_file})", extractor=extractor
-        )
+        validate_custom_field_config(self.config, label=label, extractor=extractor)
 
         # 값 정규화·파생 필드 설정은 json_mapping(JsonRecordsMapper)과 같은 키/의미를 쓴다.
+        # defaults/constants 는 베이스의 값 파이프라인이 읽으므로 여기서 속성으로 굳힌다
+        # (self.config 는 기동 뒤 바뀌지 않아 읽는 시점만 앞당기는 것이다).
+        self.defaults = dict(self.config.get("defaults") or {})
+        self.constants = dict(self.config.get("constants") or {})
         self.value_map = compile_value_map(self.config.get("value_map"))
 
         self.transforms = compile_transforms(
-            self.config.get("transforms"),
-            label=f"tabular custom_fields({config_file})",
-            cfg=self.config,
+            self.config.get("transforms"), label=label, cfg=self.config
         )
-        self.derive = compile_derive(self.config, label=f"tabular custom_fields({config_file})")
-        self.pack = compile_pack(self.config, label=f"tabular custom_fields({config_file})")
-        self.meta_exclude = compile_meta_exclude(
-            self.config, label=f"tabular custom_fields({config_file})")
-        self.filter = compile_filter(self.config, label=f"tabular custom_fields({config_file})")
-        self.sequence = compile_sequence(
-            self.config, label=f"tabular custom_fields({config_file})"
-        )
+        self.derive = compile_derive(self.config, label=label)
+        self.pack = compile_pack(self.config, label=label)
+        self.meta_exclude = compile_meta_exclude(self.config, label=label)
+        self.filter = compile_filter(self.config, label=label)
+        self.sequence = compile_sequence(self.config, label=label)
         # 선언만 컴파일한다. 실제 호출은 parser 가 행 목록을 들고 수행한다(json_mapping 과 동일).
         self.llm_field_specs = build_llm_field_specs(self.config)
         self.split = bool(self.config.get("split", False))
@@ -1223,49 +1338,7 @@ class TabularCustomFieldsMapper:
         self.field_labels = cp.parse_field_labels(self.config.get(cp.FIELD_LABELS_KEY))
 
         # 여러 행에 쪼개져 오는 값을 한 레코드로 접는다(미선언이면 종전대로 행 1개 = 레코드 1개).
-        self.row_merge = compile_row_merge(
-            self.config, label=f"tabular custom_fields({config_file})"
-        )
-
-    @staticmethod
-    def _load_config(
-        config_file: str, resource_path: str | None, presets: dict | None = None
-    ) -> dict:
-        if not config_file:
-            raise ValueError("tabular_mapping custom_fields에는 config_file이 필요합니다.")
-        path = Path(config_file)
-        if not path.is_absolute() and resource_path:
-            path = Path(resource_path) / path
-        path = path.resolve()
-        if not path.is_file():
-            raise FileNotFoundError(f"tabular custom_fields config 없음: {path}")
-        loaded = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
-        if not isinstance(loaded, dict):
-            raise ValueError(f"tabular custom_fields config는 object여야 합니다: {path}")
-        # 설정 표기를 내부 형태로 번역해 넘긴다 — 아래 코드는 표기를 신경 쓰지 않는다.
-        normalized, _ = cv2.load(
-            loaded, label=f"tabular custom_fields({config_file})", presets=presets
-        )
-        return normalized
-
-    def matches(self, runtime_doc_type: Any) -> bool:
-        return matches_doc_type(self.doc_types, runtime_doc_type)
-
-    def canonical_doc_type(self, runtime_doc_type: Any) -> str:
-        runtime = normalize_doc_type(runtime_doc_type)
-        if runtime and runtime in self.doc_types:
-            return runtime
-        return self.doc_types[0] if self.doc_types else runtime
-
-    @staticmethod
-    def _aliases(target: str, source_spec: Any) -> list[str]:
-        values = source_spec if isinstance(source_spec, list) else [source_spec]
-        aliases = [target]
-        for value in values:
-            value = str(value or "").strip()
-            if value and value not in aliases:
-                aliases.append(value)
-        return aliases
+        self.row_merge = compile_row_merge(self.config, label=label)
 
     @staticmethod
     def _header_index(row: dict) -> dict[str, str]:
@@ -1350,8 +1423,6 @@ class TabularCustomFieldsMapper:
         `row_merge` 미선언이면 런 길이가 1이라 종전과 동일하다.
         """
         column_map = self.config.get("column_map") or {}
-        constants = dict(self.config.get("constants") or {})
-        defaults = dict(self.config.get("defaults") or {})
         required_fields = set(self.config.get("required") or [])
         doc_type = self.canonical_doc_type(runtime_doc_type)
 
@@ -1375,7 +1446,8 @@ class TabularCustomFieldsMapper:
             sheet_context = self._resolve_sheet_context(sheet, sheet_name)
             missing_columns = [
                 field for field in required_fields
-                if field in column_map and resolved.get(field) is None and field not in defaults
+                if field in column_map and resolved.get(field) is None
+                and field not in self.defaults
                 and self._context_value(field, column_map[field], sheet_context) is None
             ]
             if missing_columns:
@@ -1423,21 +1495,12 @@ class TabularCustomFieldsMapper:
             # 3단계 — 레코드 마감.
             skipped = filtered = 0
             for record_idx, (fields, row) in enumerate(records, start=1):
-                # defaults 를 먼저 채우고 constants 로 덮는다. 반대 순서면 `constants: {X: ""}`
-                # 처럼 상수를 빈 값으로 못 박았을 때 defaults 가 그것을 되살려 "constants 가
-                # 이긴다"는 계약이 깨진다(json_semantic 과 같은 순서).
-                for key, value in defaults.items():
-                    if fields.get(key) in (None, ""):
-                        fields[key] = value
-                fields.update(constants)
-
-                # 값 정규화 → 변환 순서. 별칭을 표준값으로 접은 뒤에 타입 변환을 건다.
-                apply_value_map(
-                    fields, self.value_map, context=f"(sheet={sheet_name}, row={record_idx})"
+                # 값 파이프라인은 매퍼 3종이 한 벌을 공유한다(순서가 계약이라 베이스에 둔다).
+                self._apply_value_pipeline(
+                    fields,
+                    html_renderer=html_renderer,
+                    context=f"(sheet={sheet_name}, row={record_idx})",
                 )
-                apply_transforms(fields, self.transforms, html_renderer)
-                # 결합은 변환 뒤에 — 정규화된 값으로 합쳐야 표기가 흔들리지 않는다.
-                apply_derive(fields, self.derive, self.transforms)
 
                 # 대상이 아닌 레코드는 여기서 빠진다. required 보다 **먼저** 보는 것이 중요하다 —
                 # 뒤에 두면 정상 제외가 "필수값 누락" 경고로 찍혀 데이터 사고처럼 보인다.
