@@ -271,29 +271,45 @@ def test_no_llm_and_no_structured_source_stores_nothing(monkeypatch):
 
 
 @pytest.mark.unit
-def test_front_matter_keys_are_the_only_typed_keys(monkeypatch):
-    """타입 보존(JSON 표식)은 front matter 유래 키에만 적용된다(#360)."""
-    calls = []
-    monkeypatch.setattr(
-        cfe,
-        "store_metadata_in_document",
-        lambda document, metadata, **kwargs: calls.append(kwargs),
+def test_config_decided_values_keep_their_type_across_the_document(tmp_path):
+    """front matter 와 설정(const/default/transform)이 정한 값은 타입이 보존된다(#360, #388).
+
+    설정이 정한 값까지 문자열로 저장하면 front matter 에 기간이 없는 문서만
+    `VALID_FROM: "0"` 이 되어, 같은 필드가 문서마다 int/str 로 갈린다.
+    LLM 이 뽑는 필드는 기존 컬렉션 property 타입을 지키려고 종전대로 문자열이다.
+    """
+    from docling_core.types.doc.document import DoclingDocument
+
+    from genon.preprocessor.processing.enrichment.field_transforms import (
+        extract_metadata_from_document,
     )
+
+    (tmp_path / "custom_field_doc.yaml").write_text(textwrap.dedent("""
+        schema: v2
+        source: {kind: document}
+        fields:
+          VALID_FROM: {alias: [sales_period], transform: [date_int_flex]}
+          SEQ_NO: {default: 7}
+          FIXED_NO: {const: 20260101}
+    """), encoding="utf-8")
     enricher = CustomFieldsEnricher(
-        doc_type="product_slf",
-        output_fields=["PRODUCT_NM"],
-        constants={"GROUP_C": "SLF"},
+        config_file="custom_field_doc.yaml", resource_path=str(tmp_path),
+        output_fields=["AMOUNT"],
     )
     enricher._extract_raw_text = lambda _document: "본문"
+    document = DoclingDocument(name="t")
 
     asyncio.run(enricher.enrich(
-        AsyncMock(),
+        document,
         doc_type="product_slf",
         _markdown_front_matter={"metadata": {"source_pages": 9}, "prompt_prefix": ""},
     ))
+    # LLM 필드가 문자열로 남는 경로는 store_metadata_in_document 단위 테스트가 고정한다.
+    stored = extract_metadata_from_document(document)
 
-    assert calls[0]["typed_keys"] == {"source_pages"}
-    assert calls[0]["preserve_nulls"] is True
+    assert {k: stored[k] for k in ("source_pages", "VALID_FROM", "SEQ_NO", "FIXED_NO")} == {
+        "source_pages": 9, "VALID_FROM": 0, "SEQ_NO": 7, "FIXED_NO": 20260101,
+    }
 
 
 @pytest.mark.unit
