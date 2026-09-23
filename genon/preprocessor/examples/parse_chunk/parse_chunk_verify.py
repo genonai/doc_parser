@@ -13,6 +13,10 @@ doc_type 마다 샘플을 파싱·청킹한 뒤, 그 doc_type 의 custom_field y
   - llm_fields / output_fields 는 실패해도 통과로 본다(on_error:null 정책). 다만
     null 비율을 리포트해 모델서빙이 죽었는지 눈에 보이게 한다.
   - 케이스별 추가 단정(EXTRA_CHECKS): 위 공통 규칙으로는 잡히지 않는 회귀를 고정한다.
+  - 이상 청크 검증(chunk_quality): custom_fields 와 무관한 별도 케이스로, `--only chunk_quality`
+    로 고를 때만 돈다. 청커 설정에
+    `chunking.validation: {enable: true, action: drop}` 을 얹어 불량 섹션이 빠지고 대조군이
+    남는지, 전부 불량인 문서가 CHUNK_ALL_REJECTED 로 실패하는지 단정한다.
 
 doc_type → extractor/config 매핑은 resource_dev/parser_processor_config.yaml 에서
 직접 읽는다. 설정이 늘어나면 이 스크립트를 고치지 않아도 따라간다.
@@ -21,6 +25,7 @@ doc_type → extractor/config 매핑은 resource_dev/parser_processor_config.yam
     python parse_chunk_verify.py                 # 전체
     python parse_chunk_verify.py --only faq menu # 일부 doc_type 만
     python parse_chunk_verify.py --keep          # 산출물 보존(기본은 임시 디렉터리)
+    python parse_chunk_verify.py --only chunk_quality   # 이상 청크 검증 케이스만
 """
 
 from __future__ import annotations
@@ -579,6 +584,76 @@ EXTRA_CHECKS = {
     ("monimo_news", "TD00008415_d_5199.html.json"): check_biz_id_from_filename("TD00008415"),
 }
 
+# 이상 청크 검증(chunking.validation) 케이스. 샘플 생성 스크립트는
+# examples/parse_chunk/make_chunk_quality_sample.py 다. custom_fields 블록이 없는 원천이라
+# CASES 와 따로 돌린다. 불량 본문 표식은 그 스크립트의 E06·E08·E10·E11 과 같다.
+QUALITY_DOC_TYPE = "chunk_quality"
+QUALITY_BAD_MARKS = ("<div></div>", "처리 중 오류가 발생했습니다", "페이지를 표시할 수 없습니다",
+                     "\uFFFD", "GLYPH")
+
+
+def check_quality_sample(chunks: list) -> list[str]:
+    """불량 섹션 본문은 없고, 대조군(N01·N03·N05·N10)과 정상 섹션은 남아 있다."""
+    text = "\n".join(c.get("text") or "" for c in chunks)
+    problems = [f"불량 본문이 남음: {mark!r}" for mark in QUALITY_BAD_MARKS if mark in text]
+    for mark in ("会員がサービス", "제2조 회원은", "가온카드", "{{ name }}", "결제일은 매월", "카드 해지는"):
+        if mark not in text:
+            problems.append(f"대조군 본문이 빠짐: {mark!r}")
+    return problems
+
+
+def check_quality_rows(chunks: list) -> list[str]:
+    """빈 행·기호 행만 빠지고 FAQ 5건이 순번대로 남는다."""
+    problems = [] if len(chunks) == 5 else [f"FAQ 5건 기대, 실제 {len(chunks)}건"]
+    if [c.get("i_chunk_on_doc") for c in chunks] != list(range(len(chunks))):
+        problems.append("순번이 0부터 이어지지 않습니다")
+    return problems
+
+
+QUALITY_CASES = [
+    (SAMPLES / "chunk_quality_sample.md", check_quality_sample, "불량 섹션 제외·대조군 보존"),
+    (SAMPLES / "chunk_quality_rows.json", check_quality_rows, "빈 행·기호 행 제외"),
+    (SAMPLES / "chunk_quality_all_bad.md", None, "전부 불량 → CHUNK_ALL_REJECTED"),
+]
+
+
+def quality_chunker_config(out_root: Path) -> Path:
+    """resource_dev 청커 설정에 검증 drop 모드를 얹은 사본. 배포 설정은 건드리지 않는다."""
+    cfg = yaml.safe_load(
+        (RESOURCE_DIR / "chunking_processor_config.yaml").read_text(encoding="utf-8")) or {}
+    cfg.setdefault("chunking", {})["validation"] = {"enable": True, "action": "drop"}
+    path = out_root / "chunk_quality_chunker_config.yaml"
+    path.write_text(yaml.safe_dump(cfg, allow_unicode=True), encoding="utf-8")
+    return path
+
+
+def run_quality_cases(python: str, out_root: Path) -> list[tuple]:
+    """(label, 결과, 비고, 청크 수, '-') 행 목록."""
+    rows = []
+    out_dir = out_root / QUALITY_DOC_TYPE
+    out_dir.mkdir(parents=True, exist_ok=True)
+    config = quality_chunker_config(out_root)
+    for src, check, note in QUALITY_CASES:
+        label = f"{QUALITY_DOC_TYPE}:{src.name}"
+        if not src.exists():
+            rows.append((label, "SKIP", "샘플 없음(make_chunk_quality_sample.py 실행)", "-", "-"))
+            continue
+        ok, err, output = run_case(python, None, src, out_dir,
+                                   ["--chunker-config", str(config)])
+        chunks_path = out_dir / (src.stem + ".chunks.json")
+        chunks = json.loads(chunks_path.read_text(encoding="utf-8")) if chunks_path.exists() else []
+        if check is None:
+            # 실패가 기대값이다. 러너가 예외로 끝나므로 출력에서 오류 코드를 찾는다.
+            failed = "CHUNK_ALL_REJECTED" in output and not chunks
+            rows.append((label, "PASS" if failed else "FAIL",
+                         note if failed else "CHUNK_ALL_REJECTED 실패를 기대했습니다", str(len(chunks)), "-"))
+            continue
+        problems = [err] if not ok else (check(chunks) if chunks else ["청크 0건"])
+        rows.append((label, "FAIL" if problems else "PASS",
+                     "; ".join(problems) or note, str(len(chunks)), "-"))
+    return rows
+
+
 # 입력 확장자로 extractor 를 고른다. 같은 doc_type 에 블록이 둘인 경우가 있다
 # (product_hpp: md→llm / json→json_semantic).
 EXTRACTOR_BY_SUFFIX = {
@@ -744,12 +819,14 @@ def main() -> int:
     ap.add_argument("--python", default=sys.executable, help="parse_chunk_test.py 실행 인터프리터")
     args = ap.parse_args()
 
-    known_types = {case[0] for case in CASES}
+    known_types = {case[0] for case in CASES} | {QUALITY_DOC_TYPE}
     unknown_types = sorted(set(args.only or []) - known_types)
     if unknown_types:
         ap.error(f"CASES 에 등록되지 않은 doc_type: {', '.join(unknown_types)}")
     cases = [c for c in CASES if not args.only or c[0] in args.only]
-    if not cases:
+    # 기본 실행(custom_fields 케이스)의 결과를 바꾸지 않도록 명시적으로 고를 때만 돈다.
+    run_quality = QUALITY_DOC_TYPE in (args.only or [])
+    if not cases and not run_quality:
         ap.error("검사 대상이 0건입니다. CASES 에 doc_type 과 샘플 경로를 등록하세요.")
 
     blocks = load_custom_field_blocks()
@@ -781,6 +858,12 @@ def main() -> int:
             rows.append((label, "FAIL", "; ".join(problems), n_chunks, nulls)); failed += 1
         else:
             rows.append((label, "PASS", note, n_chunks, nulls))
+
+    if run_quality:
+        quality_rows = run_quality_cases(args.python, out_root)
+        rows += quality_rows
+        failed += sum(1 for r in quality_rows if r[1] == "FAIL")
+        skipped += sum(1 for r in quality_rows if r[1] == "SKIP")
 
     width = max((len(r[0]) for r in rows), default=20)
     print()
