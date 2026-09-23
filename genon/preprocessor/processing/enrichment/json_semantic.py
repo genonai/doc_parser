@@ -71,10 +71,7 @@ import fnmatch
 import json
 import logging
 import re
-from pathlib import Path
 from typing import Any
-
-import yaml
 
 _log = logging.getLogger(__name__)
 
@@ -82,8 +79,6 @@ from .custom_fields_enricher import (
     JSON_SEMANTIC_EXTRACTORS,
     build_llm_field_specs,
     custom_fields_extractor,
-    matches_doc_type,
-    normalize_doc_type,
     normalize_doc_types,
 )
 from .json_records import (
@@ -95,12 +90,9 @@ from .json_records import (
     normalize_table_format,
 )
 from genon.preprocessor.processing.common import config_parse as cp
-from genon.preprocessor.processing.enrichment import config_v2 as cv2
 from .tabular_custom_fields import (
-    apply_derive,
+    CustomFieldsMapperBase,
     apply_pack,
-    apply_transforms,
-    apply_value_map,
     compile_derive,
     compile_meta_exclude,
     compile_pack,
@@ -596,13 +588,16 @@ def _walk(
         )
 
 
-class SemanticJsonMapper:
+class SemanticJsonMapper(CustomFieldsMapperBase):
     """custom_fields 설정 하나를 JSON 트리 → 섹션(=청크) 변환기로 컴파일한다.
 
     `json_records.JsonRecordsMapper` 와 같은 시그니처(matches/build_fields/to_parse_format)를
     제공해 parser 호출부가 두 매퍼를 구분하지 않고 그대로 쓸 수 있다(덕 타이핑). 차이는
     "레코드 1건 = element 1개"가 아니라 "섹션 1개 = element 1개"라는 점뿐이다.
     """
+
+    _CF_LABEL = "json_semantic"
+    _CF_EXTRACTOR = "json_semantic"
 
     def __init__(
         self,
@@ -620,6 +615,7 @@ class SemanticJsonMapper:
         # 프롬프트/LLM config 파일 경로 해석 기준(= 이 config 파일과 같은 디렉토리).
         self.resource_path = resource_path
         cfg = self._load_config(config_file, resource_path, model_presets)
+        label = self._config_label(config_file)
 
         shared_fields_cfg = cfg.get("shared_fields")
         if not isinstance(shared_fields_cfg, dict) or not shared_fields_cfg:
@@ -630,9 +626,7 @@ class SemanticJsonMapper:
         }
 
         # 원천의 객체를 통째로 받을 공통 필드(적재 DB 의 JSON 컬럼용).
-        self.raw_fields = compile_raw_fields(
-            cfg, self.shared_fields, label=f"json_semantic custom_fields({config_file})"
-        )
+        self.raw_fields = compile_raw_fields(cfg, self.shared_fields, label=label)
 
         # 공통 필드를 청크 접두에 실을 때 붙일 항목명. 설정에 적은 것만 쓴다 — 매퍼가
         # 특정 사이트의 필드명(PRODUCT_NM 등)을 기본 라벨로 들고 있으면, 그 이름을 쓰는
@@ -679,7 +673,6 @@ class SemanticJsonMapper:
         # 컴파일해 두면 잘못된 변환기 이름·안 되는 정규식·없는 참조 필드를 기동 시에 잡는다.
         # 섹션 본문에는 관여하지 않는다(본문은 섹션 워커가 만든다) — 이 파이프라인이 다루는
         # 것은 적재 DB 컬럼이 되는 공통 필드 값이고, 그 점에서 다른 kind 와 다를 이유가 없다.
-        label = f"json_semantic custom_fields({config_file})"
         self.value_map = compile_value_map(cfg.get("value_map"))
         self.transforms = compile_transforms(cfg.get("transforms"), label=label, cfg=cfg)
         self.derive = compile_derive(cfg, label=label)
@@ -702,51 +695,7 @@ class SemanticJsonMapper:
         self.llm_fields_scope = "document"
 
         # 설정 오기입을 여기서 막는다(json_mapping/tabular 와 동일 기준).
-        validate_custom_field_config(
-            cfg, label=f"json_semantic custom_fields({config_file})", extractor=extractor
-        )
-
-    # ── 설정 로딩 ────────────────────────────────────────────────────────────
-    @staticmethod
-    def _load_config(
-        config_file: str, resource_path: str | None, presets: dict | None = None
-    ) -> dict:
-        if not config_file:
-            raise ValueError("json_semantic custom_fields 에는 config_file 이 필요합니다.")
-        path = Path(config_file)
-        if not path.is_absolute() and resource_path:
-            path = Path(resource_path) / path
-        path = path.resolve()
-        if not path.is_file():
-            raise FileNotFoundError(f"json_semantic custom_fields config 없음: {path}")
-        loaded = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
-        if not isinstance(loaded, dict):
-            raise ValueError(f"json_semantic custom_fields config 는 object 여야 합니다: {path}")
-        # 설정 표기를 내부 형태로 번역해 넘긴다 — 아래 코드는 표기를 신경 쓰지 않는다.
-        normalized, _ = cv2.load(
-            loaded, label=f"json_semantic custom_fields({config_file})", presets=presets
-        )
-        return normalized
-
-    @staticmethod
-    def _aliases(target: str, source_spec: Any) -> list[str]:
-        values = source_spec if isinstance(source_spec, list) else [source_spec]
-        aliases = [target]
-        for value in values:
-            value = str(value or "").strip()
-            if value and value not in aliases:
-                aliases.append(value)
-        return aliases
-
-    # ── 매칭 ─────────────────────────────────────────────────────────────────
-    def matches(self, runtime_doc_type: Any) -> bool:
-        return matches_doc_type(self.doc_types, runtime_doc_type)
-
-    def canonical_doc_type(self, runtime_doc_type: Any) -> str:
-        runtime = normalize_doc_type(runtime_doc_type)
-        if runtime and runtime in self.doc_types:
-            return runtime
-        return self.doc_types[0] if self.doc_types else runtime
+        validate_custom_field_config(cfg, label=label, extractor=extractor)
 
     # ── 변환 ─────────────────────────────────────────────────────────────────
     def build_fields(
@@ -782,20 +731,12 @@ class SemanticJsonMapper:
             if value not in (None, ""):
                 identity[target] = _flatten_scalar_text(value, table_format, bool(compact_tables))
 
-        # json_mapping/tabular와 같은 공통 필드 우선순위:
-        #   루트 원천값 -> 빈 값만 defaults로 보충 -> constants로 무조건 덮어쓰기.
+        # 공통 필드 우선순위와 값 파이프라인은 매퍼 3종이 한 벌을 공유한다
+        #   (루트 원천값 -> 빈 값만 defaults 로 보충 -> constants 로 무조건 덮어쓰기 ->
+        #    value_map -> transforms -> derive).
         # required 검사는 이 적용 뒤에 수행하므로 기본값/상수로 충족된 필드도 정상 통과한다.
-        for key, value in self.defaults.items():
-            if identity.get(key) in (None, ""):
-                identity[key] = value
-        identity.update(self.constants)
-
-        # 값 정규화 -> 변환 -> 결합 -> 묶기. rows/records 와 같은 자리(constants 뒤)에 같은 순서로
-        # 건다 — 별칭을 표준값으로 접은 뒤 타입을 바꾸고, 결합은 정규화된 값으로 해야
-        # 표기가 흔들리지 않는다.
-        apply_value_map(identity, self.value_map)
-        apply_transforms(identity, self.transforms)
-        apply_derive(identity, self.derive, self.transforms)
+        # 섹션 본문은 섹션 워커가 따로 만들므로 여기에 html 렌더러를 넘기지 않는다.
+        self._apply_value_pipeline(identity)
         # 묶기는 맨 뒤에 — derive 로 만든 필드까지 담을 수 있어야 한다. llm_fields 산출은
         # 파서가 채운 뒤 repack_records 로 한 번 더 걸린다(레코드형 3종 공통).
         apply_pack(identity, self.pack)
