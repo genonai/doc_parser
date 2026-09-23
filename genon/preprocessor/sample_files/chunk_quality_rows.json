@@ -1,0 +1,67 @@
+{
+  "elements": [
+    {
+      "category": "tabular_row",
+      "content": "Q: 영업시간은 언제인가요? A: 평일 9시부터 18시까지입니다.",
+      "page": 1,
+      "id": 0,
+      "metadata": {
+        "question": "영업시간은 언제인가요?"
+      }
+    },
+    {
+      "category": "tabular_row",
+      "content": "Q: 카드 분실 신고는 어떻게 하나요? A: 앱의 분실 신고 메뉴나 고객센터에서 바로 신고합니다.",
+      "page": 1,
+      "id": 1,
+      "metadata": {
+        "question": "카드 분실 신고는 어떻게 하나요?"
+      }
+    },
+    {
+      "category": "tabular_row",
+      "content": "Q: 결제일을 바꿀 수 있나요? A: 월 1회 앱에서 변경할 수 있습니다.",
+      "page": 1,
+      "id": 2,
+      "metadata": {
+        "question": "결제일을 바꿀 수 있나요?"
+      }
+    },
+    {
+      "category": "tabular_row",
+      "content": "Q: 연회비는 언제 청구되나요? A: 발급 다음 달 결제일에 청구됩니다.",
+      "page": 1,
+      "id": 3,
+      "metadata": {
+        "question": "연회비는 언제 청구되나요?"
+      }
+    },
+    {
+      "category": "tabular_row",
+      "content": "Q: 포인트 유효기간은? A: 적립일로부터 5년입니다.",
+      "page": 1,
+      "id": 4,
+      "metadata": {
+        "question": "포인트 유효기간은?"
+      }
+    },
+    {
+      "category": "tabular_row",
+      "content": "",
+      "page": 1,
+      "id": 5,
+      "metadata": {
+        "question": ""
+      }
+    },
+    {
+      "category": "tabular_row",
+      "content": "- - - * * * ###",
+      "page": 1,
+      "id": 6,
+      "metadata": {
+        "question": ""
+      }
+    }
+  ]
+}

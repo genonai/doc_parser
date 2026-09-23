@@ -36,6 +36,7 @@ from genon.preprocessor.processing.chunking import doc_prefix as dpx
 from genon.preprocessor.processing.chunking import header_path as hp
 from genon.preprocessor.processing.chunking import table_blocks as tbk
 from genon.preprocessor.processing.chunking import table_variants as tv
+from genon.preprocessor.processing.chunking import chunk_quality as cq
 
 _as_dict = cp.as_dict
 _parse_optional_bool = cp.parse_optional_bool
@@ -366,6 +367,9 @@ class ChunkerCore:
         # 사이트별 노이즈 삭제 규칙(text_cleanup.rules). 기동 시 정규식을 컴파일해
         # 잘못된 설정을 요청 전에 드러낸다. 규칙이 없으면 빈 튜플이라 무비용이다.
         self._text_cleanup_rules = tn.rules_from_cfg(chunking_cfg)
+        # 이상 청크 검증(chunking.validation). text_cleanup 과 독립이며 요청 파라미터로 바꿀 수
+        # 없다. 오기입은 기동 시 실패한다. 꺼져 있으면 None.
+        self._chunk_validation = cq.config_from_cfg(chunking_cfg)
 
         # 민감정보 분류(#315): chunking 은 워크플로우를 직접 호출하지 않는다(parser 가 호출).
         # parser 가 넘긴 sensitive_infos 를 청크에 적용만 하며, 치환 여부는 masking_enabled 로 결정.
@@ -506,12 +510,18 @@ class ChunkerCore:
             self._single_marker_vector(c.text, notes["cleanup"], **notes["variant_options"])
             for c in chunks if c.kind == "marker"
         ]
+        # 이상 청크 검증(꺼져 있으면 None). 걸린 청크는 여기서 내주지 않으므로 첫 청크 전용
+        # 접두는 살아남은 첫 청크가 받는다.
+        validation = notes["validation"] = cq.start(self, job, notes["marker_vectors"])
         for chunk_idx, chunk in enumerate(chunks):
             if chunk.kind == "marker":
                 continue
             notes["chunk_idx"] = chunk_idx
             notes["chunk_page"] = chunk.page
             notes["chunk_fields"] = {}
+            notes["chunk_prefix"] = ""
+            if validation is not None and validation.check_chunk(chunk, chunk_idx):
+                continue
             yield chunk
 
     async def finish_chunk_loop(self, job, vector_metas: list) -> list:
@@ -520,12 +530,17 @@ class ChunkerCore:
         if notes["upload_tasks"]:
             await asyncio.gather(*notes["upload_tasks"])
         vector_metas = notes["marker_vectors"] + vector_metas
+        validation = notes.get("validation")
+        rejected = validation.rejected if validation is not None else 0
+        if not vector_metas and rejected:
+            raise cq.all_rejected_error(validation)
         if not vector_metas and not notes["dropped"]:
             raise GenosServiceException(1, "chunk length is 0")
-        if notes["dropped"]:
+        if notes["dropped"] or rejected:
             # n_chunk_of_doc / page 개수는 루프 전에 계산해 둔 값이라 다시 맞춰야 한다.
-            _log.info(
-                f"[chunker] edit_chunk 가 청크 {notes['dropped']}건을 버렸습니다 → 순번 재계산")
+            if notes["dropped"]:
+                _log.info(
+                    f"[chunker] edit_chunk 가 청크 {notes['dropped']}건을 버렸습니다 → 순번 재계산")
             vm.refresh_stats(vector_metas)
         return vector_metas
 
@@ -561,9 +576,12 @@ class ChunkerCore:
         # 청크 선두에 섹션 경로 부착 (HEADER: ). 여기가 유일한 부착 지점이며,
         # 청커의 크기 산정도 같은 _build_header_line 을 쓴다(한도 초과 방지).
         headers_text = _build_header_line(chunk.headings, notes["include_header"], self.CHUNKER)
-        return (notes["prefix_text"]
-                + (notes["first_prefix_text"] if notes["first_prefix_pending"] else "")
-                + headers_text + chunk.text)
+        # 코어가 붙인 접두. 최종 검사가 이 부분을 빼고 본문만 판정한다.
+        notes["chunk_prefix"] = (
+            notes["prefix_text"]
+            + (notes["first_prefix_text"] if notes["first_prefix_pending"] else "")
+            + headers_text)
+        return notes["chunk_prefix"] + chunk.text
 
     def collect_chunk_variants(self, job, chunk, text) -> None:
         """표 표기형태별 변형 텍스트를 만들어 둔다. 마스킹 전 텍스트에서 만들어야 한다.
@@ -611,6 +629,9 @@ class ChunkerCore:
         vector_meta = (self._record_vector_meta(job, chunk, text) if chunk.kind != "docling"
                        else self._docling_vector_meta(job, chunk, text))
         notes["chunk_index_on_page"] += 1
+        if notes.get("validation") is not None:
+            notes["validation"].remember(
+                vector_meta, chunk, notes.get("chunk_prefix", ""), notes["chunk_idx"])
         return vector_meta
 
     def _record_vector_meta(self, job, chunk, text: str):
@@ -1284,8 +1305,17 @@ class ChunkerCore:
                 for vector_meta in vector_metas:
                     if not getattr(vector_meta, "file_path", None):
                         vector_meta.file_path = job.file_path
-            return await hk.call_hook(
+            vector_metas = await hk.call_hook(
                 self.edit_output, vector_metas, request_kwargs=job.params)
+            # 이상 청크 최종 검사. 훅이 바꾸거나 만든 청크도 여기서 거른다.
+            validation = job.notes.get("validation")
+            if validation is not None:
+                vector_metas = list(vector_metas or [])
+                kept = validation.finalize(vector_metas)
+                if len(kept) != len(vector_metas):
+                    vm.refresh_stats(kept)
+                vector_metas = kept
+            return vector_metas
         finally:
             self._finish_chunk_job(job)
 
