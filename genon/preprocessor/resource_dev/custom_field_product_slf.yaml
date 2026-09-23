@@ -43,16 +43,16 @@ fields:
   PRODUCT_ATTRS:
     alias: [created_at]
     transform: [date_int_flex, {name: to_json, key: "created_at"}]
-  # frontmatter `기간: 2025-12-1 ~ 2026-3-15` 을 시작일/종료일로 나눈다.
+  # frontmatter `sales_period: 2025-12-1 ~ 2026-3-15` 을 시작일/종료일로 나눈다.
   # 종료 자리에 숫자가 없는 문자열("진행중", "현재" 등)은 열린 기간으로 보고 99991231 로 둔다.
   # `~` 가 없거나 종료가 비어 있으면 0 이다(date_int 계열의 "날짜 없음" 관례).
-  SALE_FROM:
-    alias: [기간]
+  VALID_FROM:
+    alias: [sales_period, version]
     transform:
-    - {name: regex_extract, pattern: '^\s*([^~]*?)\s*~'}
+    - {name: regex_extract, pattern: '^\s*([^~]*?)(?:\s*~\s*.*)?$'}
     - date_int_flex
-  SALE_TO:
-    alias: [기간]
+  VALID_TO:
+    alias: [sales_period, version]
     transform:
     - {name: regex_extract, pattern: '~\s*(.*?)\s*$'}
     - {name: regex_sub, pattern: '^\D+$', repl: '99991231'}
