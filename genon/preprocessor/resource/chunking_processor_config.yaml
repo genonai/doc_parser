@@ -96,6 +96,14 @@ chunking:
   recursive:
     chunk_overlap: 100    # 음수면 100 으로 폴백
 
+  # 이상 청크 검증. 내용 없음·지나치게 짧음·반복·문자 손상 청크를 판정한다.
+  # report 는 판정 결과를 로그([chunk_validation])에만 남기고 청크는 그대로 둔다. 기록을 검토해
+  # 기준에 합의한 뒤 drop(제외)으로 바꾼다. 키 목록과 기본값은 gitbook_doc/chunking_processor.md
+  # "이상 청크 검증" 절을 본다. 요청 파라미터로는 바꿀 수 없고, 오기입은 기동 시 실패한다.
+  validation:
+    enable: true
+    action: report
+
 # table_image
 # 표를 이미지로 잘라 저장하고 media_files 에 type='table_image' 로 기록할지 여부.
 # 청킹 단계에서는 입력 docling 문서에 이미 들어있는 이미지/표 참조를 활용한다.
