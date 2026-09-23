@@ -78,7 +78,7 @@ class TableTextDescriptionOptions:
     after_items: int = 2
     max_context_chars: int = 1500
     max_context_tokens: int = 128000
-    completion_reserved_tokens: int = 8000
+    completion_reserved_tokens: int | None = None  # None 이면 호출의 max_tokens 만큼 예약한다
     overflow_policy: str = "batch"
     conflict_policy: str = "prefer_text"
     retrieval_context_max_chars: int = 350
@@ -110,7 +110,10 @@ class TableTextDescriptionOptions:
             after_items=_as_int(cfg.get("after_items"), 2),
             max_context_chars=_as_int(cfg.get("max_context_chars"), 1500, 1),
             max_context_tokens=_as_int(cfg.get("max_context_tokens"), 128000, 1),
-            completion_reserved_tokens=_as_int(cfg.get("completion_reserved_tokens"), 8000),
+            completion_reserved_tokens=(
+                None if cfg.get("completion_reserved_tokens") is None
+                else _as_int(cfg.get("completion_reserved_tokens"), 8000)
+            ),
             overflow_policy=overflow,
             conflict_policy=conflict,
             retrieval_context_max_chars=_as_int(rag.get("retrieval_context_max_chars"), 350, 1),

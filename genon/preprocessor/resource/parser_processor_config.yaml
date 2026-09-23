@@ -23,8 +23,8 @@ defaults:
 #      auto(미전송)다. 이미지 모델은 별도 서빙을 쓰는 현장이 많아 명시할 때만 보낸다.
 #      concurrency 만 예외로 설명 계열(이미지·표·페이지)에서만 읽는다 - 나머지는 문서당
 #      1회 호출이라 동시 실행 개념이 없다.
-#   ※ max_tokens 는 블록에 두는 편이 안전하다 — table_text_description 은
-#      completion_reserved_tokens 와 짝을 맞춰야 배치 계산이 맞는다.
+#   ※ max_tokens 는 params 가 아니라 max_tokens 키로 적는다 — table_text_description 은
+#      이 값만큼 응답 몫을 자동으로 예약해 입력 예산을 계산한다(params.max_tokens 는 반영되지 않는다).
 #   ※ enable/enabled, doc_type, config_file 은 배선 키라 프리셋에 적어도 주입되지 않는다.
 #      특히 enable 이 새어 나가면 그 프리셋을 쓰는 섹션이 전부 켜진다.
 #
@@ -276,8 +276,7 @@ enrichment:
       before_items: 2          # 표 앞쪽 본문 아이템 수
       after_items: 1           # 표 뒤쪽 본문 아이템 수
       max_context_chars: 400   # 앞/뒤 문맥 각각의 최대 문자 수
-      max_context_tokens: 40000        # 프롬프트 허용 상한(토크나이저 없이 문자 수로 보수 판정)
-      completion_reserved_tokens: 16000 # 응답 생성을 위해 남겨둘 여유. max_tokens 와 맞춘다
+      max_context_tokens: 40000  # 모델 context 크기. 모델이 바뀌면 이 값만 수정
       overflow_policy: batch   # batch=최소 추가 호출 | skip=표 설명 생략 | error=실패
       conflict_policy: prefer_text # 기존 이미지 표 설명과 충돌 시 prefer_text | prefer_image | error
       rag:

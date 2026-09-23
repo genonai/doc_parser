@@ -249,8 +249,7 @@ enrichment:
       before_items: 2          # 표 앞쪽 본문 아이템 수
       after_items: 1           # 표 뒤쪽 본문 아이템 수
       max_context_chars: 400   # 앞/뒤 문맥 각각의 최대 문자 수
-      max_context_tokens: 40000        # 프롬프트 허용 상한(토크나이저 없이 문자 수로 보수 판정)
-      completion_reserved_tokens: 16000 # 응답 생성을 위해 남겨둘 여유. max_tokens 와 맞춘다
+      max_context_tokens: 40000  # 모델 context 크기. 모델이 바뀌면 이 값만 수정
       overflow_policy: batch   # batch=최소 추가 호출 | skip=표 설명 생략 | error=실패
       conflict_policy: prefer_text # 기존 이미지 표 설명과 충돌 시 prefer_text | prefer_image | error
       rag:

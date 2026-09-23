@@ -15,7 +15,10 @@ from docling_core.types.doc import (
     TableData,
 )
 
-from genon.preprocessor.processing.enrichment.custom_fields_enricher import CustomFieldsEnricher
+from genon.preprocessor.processing.enrichment.custom_fields_enricher import (
+    _TOKENS_PER_CHAR,
+    CustomFieldsEnricher,
+)
 from genon.preprocessor.processing.enrichment.field_transforms import extract_metadata_from_document
 from genon.preprocessor.processing.enrichment.table_description import TableDescriptionExtractor
 
@@ -341,6 +344,37 @@ def test_oversized_single_table_is_skipped_instead_of_being_sent():
     ]
     assert described == [True, True, False]
     assert "table_0003" not in [table_id for ids in sent_ids for table_id in ids]
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("reserved_cfg,fits", [
+    ({}, False),
+    ({"completion_reserved_tokens": None}, False),
+    ({"completion_reserved_tokens": 0}, True),
+])
+def test_omitted_completion_reserve_follows_max_tokens(reserved_cfg, fits):
+    """예약량을 생략하거나 null 로 두면 max_tokens 만큼 예약하고, 명시값은 그대로 쓴다.
+
+    예전에는 생략 시 8000으로 고정되어 max_tokens(16000)와 어긋났다. 입력 경계는 배치
+    분할 결과로는 간접적으로만 드러나므로 판정 함수(_prompt_fits)를 직접 확인한다.
+    """
+    doc = _document_with_two_tables()
+    suffix = "표 설명 요청"
+
+    def make(max_context_tokens):
+        return CustomFieldsEnricher(
+            url="http://llm.invalid", model="test-model", output_fields=[], max_tokens=16000,
+            table_text_description={
+                "enabled": True, "prompt_template": TEST_TABLE_PROMPT,
+                "max_context_tokens": max_context_tokens, **reserved_cfg,
+            },
+        )
+
+    system, user = make(1)._render_prompts("", doc, suffix)
+    estimated = int((len(system) + len(user)) * _TOKENS_PER_CHAR) + 1
+    # 예약량 8000이면 들어가고 16000이면 넘치는 경계
+    enricher = make(estimated + 12000)
+    assert enricher._prompt_fits("", doc, suffix) is fits
 
 
 @pytest.mark.unit
