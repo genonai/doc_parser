@@ -2,6 +2,9 @@ name: CI (PR → develop)
 on:
   pull_request:
     branches: [ develop ]
+  # PR 을 거치지 않고 develop 에 직접 들어온 커밋도 같은 검증을 받게 한다.
+  push:
+    branches: [ develop ]
   workflow_dispatch: { }
 
 jobs:
