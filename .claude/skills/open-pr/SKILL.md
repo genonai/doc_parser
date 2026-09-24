@@ -5,7 +5,7 @@ description: 로컬 테스트를 먼저 돌린 뒤 develop 대상 PR 을 만들�
 
 # PR 생성
 
-`/open-pr [--draft]` 로 호출한다. 로컬 검증 → PR 생성 → CI 결과 확인까지가 범위다.
+`/open-pr [--draft]` 로 호출한다. 로컬 검증(테스트·설정·범위) → PR 생성 → CI 결과 확인까지가 범위다.
 
 ## 절차
 
@@ -31,7 +31,39 @@ cd genon/preprocessor && .venv/bin/python -m pytest tests/unit -q -p no:randomly
 실패하면 실패한 테스트 목록만 보고하고 **PR 을 만들지 않고 중단한다**.
 `.claude/hooks/pytest-filter.sh` 가 출력에서 PASSED/SKIPPED 줄을 걷어내므로 별도 필터링은 하지 않는다.
 
-### 3. 테스트 범위 점검
+### 3. 설정·doc_type 검증
+
+```bash
+git diff develop...HEAD --name-only
+```
+
+변경 파일에 따라 아래를 실행한다. 해당 파일이 없으면 이 단계를 건너뛴다.
+
+| 변경 파일 | 실행 |
+|---|---|
+| `genon/preprocessor/resource/`·`resource_dev/` 의 `custom_field_*.yaml` | `precheck_custom_fields.sh`(운영 `resource/` 기본값) 를 먼저 실행하고, `resource_dev/` 를 바꿨으면 그 경로를 인자로 한 번 더 실행한다. 이어서 `parse_chunk_verify.sh --only <doc_type...>` 를 실행한다 |
+| `facade/` 의 파싱·청킹 경로, `processing/{core,common,chunking,enrichment}/` | `parse_chunk_verify.sh` 전체 실행 |
+
+- 스크립트 경로는 `genon/preprocessor/examples/config_precheck/`, `genon/preprocessor/examples/parse_chunk/` 이다.
+- doc_type 은 파일명 `custom_field_<doc_type>.yaml` 에서 뽑는다. 뽑은 이름을 `parse_chunk_verify.py` 가 알지 못하거나(미지원 이름 오류), 한 yaml 이 여러 등록 블록에 쓰이는지 확실하지 않으면 전체 실행으로 바꾼다. 영향 범위를 확정할 수 없을 때 검증을 좁히지 않는다. `CASES` 에 없는 doc_type 은 전체 실행에도 포함되지 않으므로, precheck 만 거쳤다고 PR 본문에 적는다.
+- `parse_chunk_verify` 는 `resource_dev/` 설정으로 실행된다. 운영 `resource/` 만 바꿨다면 precheck 결과가 그 변경의 유일한 검증임을 PR 본문 "검증" 절에 적는다.
+- 실패가 있으면 PR 을 만들지 않고 중단한다. LLM 게이트웨이에 접근할 수 없어 실패한 것으로 보이면 회귀와 구분해 보고하고, 계속할지 사용자에게 묻는다.
+- 실행 건수·SKIP 건수와 사유·실패를 PR 본문 "검증" 절에 남긴다. SKIP 만 있고 실행 건수가 0 이면 검증을 완료했다고 적지 않는다.
+
+### 4. 수정 범위 점검
+
+브랜치 접두사가 `fix/` 일 때만 실행한다. 다른 유형은 이 단계를 건너뛴다(`scope-check` 의 판정 기준이 "보고된 결함"을 전제로 한다).
+
+```bash
+gh issue view <N> --repo genonai/doc_parser --json title,body
+git diff develop...HEAD
+```
+
+`scope-check` 서브에이전트에 이슈 제목·본문을 증상으로, `develop...HEAD` diff 를 대상으로 넘긴다.
+판정이 "과잉"이면 지적 내용을 사용자에게 보여 주고, 덜어낼지 그대로 진행할지 묻는다. 범위를 덜어내는 것은
+판단이 필요한 일이므로 자동으로 고치지 않는다. 판정 결과는 PR 본문의 "검증" 절에 한 줄로 남긴다.
+
+### 5. 테스트 범위 점검
 
 ```bash
 git diff develop...HEAD --stat -- genon/preprocessor/tests
@@ -43,14 +75,14 @@ git diff develop...HEAD --stat -- genon/preprocessor/tests
 
 테스트 변경이 없으면 이 단계를 건너뛴다.
 
-### 4. 변경 요약 수집
+### 6. 변경 요약 수집
 
 ```bash
 git log develop..HEAD --format='%s'
 git diff develop...HEAD --stat
 ```
 
-### 5. PR 본문 작성
+### 7. PR 본문 작성
 
 `.github/PULL_REQUEST_TEMPLATE.md` 는 docling 업스트림 잔재(영문)이므로 쓰지 않는다.
 아래 한국어 구조로 직접 만든다.
@@ -81,7 +113,7 @@ Resolves #<N>
 
 해당 없으면 "해당 없음" 한 줄로 적는다.
 
-### 6. 승인 후 생성
+### 8. 승인 후 생성
 
 제목(한국어)과 본문을 보여주고 승인받은 뒤, 본문을 스크래치패드에 임시 파일로 쓰고 생성한다.
 
@@ -94,7 +126,7 @@ gh pr create --repo genonai/doc_parser \
 
 호출 인자에 `--draft` 가 있으면 플래그를 붙인다.
 
-### 7. CI 대기
+### 9. CI 대기
 
 ```bash
 gh pr checks --watch --fail-fast
@@ -109,6 +141,6 @@ gh run view <run-id> --log-failed
 
 로그 전문을 출력하지 않는다. 실패 원인 한두 줄과 해당 테스트/단계만 정리한다.
 
-### 8. 보고
+### 10. 보고
 
 PR URL, CI 결과, 실패가 있으면 원인 요약.
