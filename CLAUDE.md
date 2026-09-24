@@ -225,13 +225,13 @@ PYTHONPATH=<repo>:<repo>/genon/preprocessor:<repo>/genon/preprocessor/src:<repo>
 - 소스 주석·docstring에 이모지를 쓰지 않는다. 강조는 문장으로 한다.
 - 코드 주석과 문서 자료는 구어체·속어투 대신 문어체로 쓴다. IT 용어는 그대로 쓴다. 예: "떠서 동작한다" → "배포되어 동작한다", "얕은 쪽이 이긴다" → "얕은 쪽이 우선한다", "게이트웨이에 닿지 않으면" → "게이트웨이에 접근할 수 없으면", "돌려 볼 수 있다" → "실행해 볼 수 있다". `gitbook_doc/` 의 자매 문서는 같은 문장을 공유하는 곳이 많으므로 한쪽만 고쳐 어긋나게 두지 않는다.
 - 서브에이전트는 작업이 독립적인 하위 문제로 명확히 분할되고 병렬 실행의 이점이 있을 때만 사용한다. 단순·순차 작업은 직접 처리한다.
-- 병렬 서브에이전트에게 `git checkout`/`git restore` 등 작업 트리를 되돌리는 명령을 주지 않는다. 담당 경계를 모르는 되돌리기로 미커밋 작업물이 소실된 전례가 있다.
+- 병렬 서브에이전트에게 `git checkout`/`git restore` 등 작업 트리를 되돌리는 명령을 주지 않는다. 담당 경계를 모르는 되돌리기로 미커밋 작업물이 소실된 전례가 있다. `.claude/hooks/git-destructive-guard.sh` 가 이런 명령을 거부한다.
 - 같은 작업 트리를 다른 세션이 동시에 쓸 수 있다. `git add -A` 대신 pathspec 으로 커밋한다.
 
 ### GitHub 작업 흐름
 
 이슈 등록부터 PR 까지 스킬 3개로 자동화되어 있다(`gh auth login` 전제).
-`/issue-start <작업 설명>` (이슈 등록 + 브랜치 생성·체크아웃) → `/wip [힌트]` (커밋·푸시, 반복) → `/open-pr [--draft]` (로컬 테스트 → PR → CI 확인).
+`/issue-start <작업 설명>` (이슈 등록 + 브랜치 생성·체크아웃) → `/wip [힌트]` (커밋·푸시, 반복) → `/open-pr [--draft]` (로컬 테스트·설정 검증·범위 점검 → PR → CI 확인).
 
 컨벤션: 브랜치는 `<type>/<이슈번호>-<slug>`(slug 는 영문), 커밋 메시지는 한국어 한 줄에
 conventional prefix 없음, 이슈 제목은 명사형("~추가"), PR 대상은 `develop`, 본문에 `Resolves #N` 을
@@ -241,7 +241,7 @@ conventional prefix 없음, 이슈 제목은 명사형("~추가"), PR 대상은 
 
 각 파일의 상세 동작과 근거는 해당 파일 상단 주석에 있다.
 
-- `settings.json`(Read·Edit 차단 범위), `.ignore`(검색 제외 목록), 훅 2종(`pytest-filter.sh`, `large-file-read-guard.sh`)
+- `settings.json`(Read·Edit 차단 범위), `.ignore`(검색 제외 목록), 훅 4종(`pytest-filter.sh`, `large-file-read-guard.sh`, 되돌리기 명령을 거부하는 `git-destructive-guard.sh`, 편집 후 경고 전용 `edit-rule-warn.py`)
 - 서브에이전트 `scope-check`·`test-scope-check`, 스킬 `deploy-code-serving`·`create-patch-bundle`·`issue-start`·`wip`·`open-pr`
 - `pyright-lsp` 플러그인(선택, 개인 설정이라 미공유). 설치되어 있으면 심볼 정의 탐색에 Grep 대신 LSP 를 우선한다.
 
