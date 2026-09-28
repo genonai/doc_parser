@@ -117,6 +117,8 @@ Genos에서 전처리기를 배포할 때 `parser_processor_config.yaml`파일�
 defaults:
   # 5=DEBUG, 4=INFO, 3=WARNING, 2=ERROR, 1=CRITICAL, 0=NOLOG
   log_level: 4
+  # 요청 doc_type 에 맞는 custom_fields 등록이 없을 때: warn(경고 후 기본 경로로 처리, 기본값) | fail(요청 실패)
+  unknown_doc_type: warn
 
 # ───────────────────────────────────────────────
 # 모델 프리셋 (아래 "모델 프리셋으로 접속 정보 모으기" 참고)
@@ -443,6 +445,7 @@ llm:
 | 섹션 | 키 | 기본값 | 설명 |
 |------|----|--------|------|
 | `defaults` | `log_level` | `4` (INFO) | 로깅 레벨. `5`=DEBUG / `4`=INFO / `3`=WARNING / `2`=ERROR / `1`=CRITICAL / `0`=NOLOG(전체 비활성화). 누락/오류 시 4 폴백. 실행 시 `params.log_level` 이 주어지면 그 값이 우선 |
+| `defaults` | `unknown_doc_type` | `warn` | 요청 `doc_type` 에 맞는 custom_fields 등록이 없을 때의 처리. `warn` 은 경고 로그를 남기고 확장자 기본 경로로 처리하고, `fail` 은 요청을 실패시킨다. doc_type 목록이 확정된 현장은 `fail` 로 두어 등록 누락을 드러낸다. 등록 없이 `CONFIG_BY_DOC_TYPE` 이나 훅만으로 doc_type 을 쓰는 요청도 `fail` 에서는 실패한다. 그 밖의 값은 기동 실패 |
 | `ocr` | `ocr_mode` | `"auto"` | OCR 수행 정책. `auto`(휴리스틱 감지 후 필요 시 재OCR) / `force` / `disable`. 유효하지 않으면 `auto` |
 | `ocr` | `engine` | `"paddle"` | OCR 엔진 선택. `paddle` / `upstage` (유효하지 않으면 `paddle`) |
 | `ocr` | `table_cell_ocr_timeout` | `60` | 글리프 깨진 테이블 셀 재OCR 시 HTTP 타임아웃(초). 양의 정수, 유효하지 않으면 60 |

@@ -578,6 +578,10 @@ class ParserCore:
         if log_level is None:
             log_level = 4
         self._log_level = log_level
+        # 요청 doc_type 에 맞는 custom_fields 등록이 없을 때의 처리(warn | fail).
+        self._unknown_doc_type = _guard(
+            "defaults.unknown_doc_type", pcfg.resolve_unknown_doc_type_policy,
+            defaults_cfg.get("unknown_doc_type"))
 
         self._hwp = HwpDocumentLoader()
         self._docx = DocxDocumentLoader()
@@ -2000,6 +2004,10 @@ class ParserCore:
 
         job = jb.ParseJob(request=request, file_path=file_path, ext=ext,
                           doc_type=self.resolve_doc_type(**kwargs), params=kwargs)
+        # 등록 없는 doc_type 은 파싱 작업을 시작하기 전에 드러낸다(defaults.unknown_doc_type).
+        pcfg.check_doc_type_configured(
+            getattr(getattr(self, "_intel", None), "custom_fields_cfgs", ()), job.doc_type,
+            getattr(self, "_unknown_doc_type", "warn"), _routing_error)
         # 분기 사이에 공유되는 상태. enrichment_context 는 후처리가 채워 응답 metadata 로 나간다.
         job.ctx = {"enrichment_context": {}, "artifacts_source": None, "job": job}
 

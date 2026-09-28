@@ -11,6 +11,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 import yaml
 
+from genon.preprocessor.processing.common import parser_config as pcfg
 from genon.preprocessor.processing.enrichment import custom_fields_enricher as cfe
 from genon.preprocessor.processing.enrichment.custom_fields_enricher import (
     CustomFieldsEnricher,
@@ -61,6 +62,38 @@ def test_doc_type_matching_is_normalized_and_missing_config_is_wildcard():
     assert not matches_doc_type("card", "faq")
     assert matches_doc_type(None, None)
     assert matches_doc_type(None, "anything")
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("value,expected", [
+    (None, "warn"), ("", "warn"), ("warn", "warn"), (" FAIL ", "fail"), ("fial", ValueError),
+])
+def test_unknown_doc_type_policy_defaults_to_warn_and_rejects_typo(value, expected):
+    if expected is ValueError:
+        with pytest.raises(ValueError):
+            pcfg.resolve_unknown_doc_type_policy(value)
+    else:
+        assert pcfg.resolve_unknown_doc_type_policy(value) == expected
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("cfgs,doc_type,policy,outcome", [
+    ([{"doc_type": "cs_ssf"}], "cs_ssf", "fail", "pass"),
+    ([{"doc_type": ["card", "faq"]}], " FAQ ", "fail", "pass"),
+    ([{"doc_type": "cs_ssf"}], None, "fail", "pass"),
+    ([{"doc_type": "cs_ssf"}, {"config_file": "all.yaml"}], "other", "fail", "pass"),
+    ([{"doc_type": "cs_hpp"}], "cs_ssf", "warn", "warn"),
+    ([], "cs_ssf", "fail", "fail"),
+])
+def test_check_doc_type_configured_by_policy(cfgs, doc_type, policy, outcome, caplog):
+    """등록 합집합·빈 doc_type·전체 대상 블록은 통과, 미등록은 정책대로 경고하거나 실패한다."""
+    if outcome == "fail":
+        with pytest.raises(RuntimeError, match="doc_type=cs_ssf"):
+            pcfg.check_doc_type_configured(cfgs, doc_type, policy, RuntimeError)
+        return
+    with caplog.at_level(logging.WARNING):
+        pcfg.check_doc_type_configured(cfgs, doc_type, policy, RuntimeError)
+    assert ("custom_fields 등록이 없습니다" in caplog.text) == (outcome == "warn")
 
 
 @pytest.mark.unit
