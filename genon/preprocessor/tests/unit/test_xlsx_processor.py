@@ -664,6 +664,8 @@ async def test_parser_xlsx_docling_mode_runs_post_enrichment(tmp_path):
     mod = pytest.importorskip("facade.parser_processor")
     cfg = yaml.safe_load(_PARSER_CONFIG.read_text(encoding="utf-8"))
     cfg["enrichment"] = []  # 네트워크/LLM 호출 차단
+    # 등록을 비웠으므로 doc_type=card 가 미등록이 된다. 이 테스트는 스탬프만 보므로 warn 으로 둔다.
+    cfg.setdefault("defaults", {})["unknown_doc_type"] = "warn"
     cfg.setdefault("formats", {}).setdefault("xlsx", {})["processing_mode"] = "docling"
     cfg.setdefault("output", {})["format"] = "json"
     out = tmp_path / "parser_processor_config.yaml"

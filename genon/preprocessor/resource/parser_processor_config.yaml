@@ -1,6 +1,8 @@
 defaults:
   # 5=DEBUG, 4=INFO, 3=WARNING, 2=ERROR, 1=CRITICAL, 0=NOLOG
   log_level: 4
+  # 요청 doc_type 에 맞는 custom_fields 등록이 없을 때: warn(경고 후 기본 경로로 처리, 기본값) | fail(요청 실패)
+  unknown_doc_type: fail
 
 # ── 모델 프리셋 ───────────────────────────────────────────────────────────────
 # 모델 한 벌(접속 정보 + 그 모델의 성질)을 이름 붙여 여기 두고, 쓰는 자리에서는

@@ -114,3 +114,52 @@ def json_records_mappers_for(mappers: Iterable, runtime_doc_type: Any,
                 f" 설정 하나를 지우세요."
             )
     return matching
+
+
+# `defaults.unknown_doc_type` 이 받는 값. warn 이 기본값이다.
+UNKNOWN_DOC_TYPE_POLICIES = ("warn", "fail")
+
+
+def resolve_unknown_doc_type_policy(value: Any) -> str:
+    """`defaults.unknown_doc_type` 값을 해석한다. 없으면 warn 이다.
+
+    그 밖의 값은 ValueError 로 기동을 막는다. 누락을 드러내려고 둔 키이므로, 오기입이
+    조용히 warn 으로 떨어지면 목적과 반대가 된다.
+    """
+    policy = str(value or "").strip().lower() or "warn"
+    if policy not in UNKNOWN_DOC_TYPE_POLICIES:
+        raise ValueError(
+            f"defaults.unknown_doc_type 은 {' | '.join(UNKNOWN_DOC_TYPE_POLICIES)} 중 하나여야 "
+            f"합니다: {value!r}"
+        )
+    return policy
+
+
+def check_doc_type_configured(custom_fields_cfgs: Iterable[dict] | None, runtime_doc_type: Any,
+                              policy: str, exc_factory: Callable[[str], Exception]) -> None:
+    """요청 doc_type 에 맞는 custom_fields 등록이 있는지 확인한다.
+
+    등록이 없으면 파싱은 확장자 기본 경로로 진행되고, 결과에는 doc_type 만 찍혀 정상
+    처리와 구별되지 않는다. policy 가 warn 이면 경고 로그를 남기고, fail 이면 요청을
+    실패시킨다. doc_type 이 비었거나, doc_type 을 적지 않은 등록 블록(전체 대상)이 있으면
+    판정하지 않는다 — specs_for_doc_type 과 같은 규칙이다.
+    """
+    key = normalize_doc_type(runtime_doc_type)
+    if not key:
+        return
+    registered: set[str] = set()
+    for config in custom_fields_cfgs or []:
+        doc_types = normalize_doc_types(config.get("doc_type"))
+        if not doc_types:
+            return
+        registered.update(doc_types)
+    if key in registered:
+        return
+    message = (
+        f"doc_type={key} 에 맞는 custom_fields 등록이 없습니다. parser_processor_config.yaml 의 "
+        f"enrichment 에 등록하거나, 등록 없이 기본 경로로 처리하려면 "
+        f"defaults.unknown_doc_type 을 warn 으로 두세요."
+    )
+    if policy == "fail":
+        raise exc_factory(message)
+    _log.warning(f"[parser] {message} 기본 경로로 처리합니다.")
