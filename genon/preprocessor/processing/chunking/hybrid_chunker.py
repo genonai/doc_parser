@@ -178,7 +178,7 @@ class HierarchicalDocChunker(BaseChunker):
                 elif isinstance(item, TableItem):
                     # 레이아웃용 표(안내 배너 등)는 표기형태와 무관하게 평문으로 낸다.
                     # 캡션은 아래 공통 경로에서 실으므로 여기서는 넘기지 않는다.
-                    text = render_degenerate(getattr(item, "data", None))
+                    text = render_degenerate(getattr(item, "data", None), doc=dl_doc)
                     if not text:
                         # compact_tables 는 컬럼 정렬 패딩을 없애 대형 표 markdown 크기를 줄인다.
                         text = export_markdown(

@@ -22,6 +22,7 @@ from typing import Any
 from genon.preprocessor.processing.common.markdown_export import (
     MD_PLAIN_TEXT_OPTS as _MD_PLAIN_TEXT_OPTS,
 )
+from genon.preprocessor.processing.chunking.rich_cells import rich_cell_text
 from genon.preprocessor.processing.chunking.table_shape import (
     cell_at as _cell_at,
     cell_text as _cell_text,
@@ -121,6 +122,7 @@ def render_plain_text(
     num_cols: Any = 0,
     *,
     caption: str = "",
+    doc: Any = None,
 ) -> str:
     """표기 없는 평문으로 렌더한다. 낼 값이 없으면 빈 문자열.
 
@@ -133,14 +135,20 @@ def render_plain_text(
 
     산출물에 ``|`` 도 ``<table`` 도 없으므로 ``table_blocks`` 가 다시 표로 잡지 않는다. 즉
     같은 텍스트에 두 번 걸어도 결과가 같다.
+
+    ``doc`` 을 주면 rich cell 은 문단마다 줄을 바꿔 낸다(`rich_cells.rich_cell_text`). 셀 하나에
+    본문 전체를 담은 레이아웃 표는 이 줄바꿈이 없으면 분할기가 문장 중간에서 자른다.
     """
     if not grid:
         return caption.strip() if caption else ""
 
+    def text_of(cell: Any) -> str:
+        return rich_cell_text(cell, doc) or _cell_text(cell)
+
     lines: list[str] = []
     for row in grid:
         values: list[str] = []
-        for text in map(_cell_text, row):
+        for text in map(text_of, row):
             if text and (not values or values[-1] != text):
                 values.append(text)
         line = " ".join(values).strip()
@@ -155,7 +163,7 @@ def render_plain_text(
     return "\n".join(lines)
 
 
-def render_degenerate(table_data: Any, *, caption: str = "") -> str:
+def render_degenerate(table_data: Any, *, caption: str = "", doc: Any = None) -> str:
     """표 데이터가 레이아웃용이면 평문, 아니면 빈 문자열.
 
     `data.grid` / `data.num_cols` 만 duck typing 으로 읽는다. 청킹 경로 두 곳
@@ -165,7 +173,7 @@ def render_degenerate(table_data: Any, *, caption: str = "") -> str:
     num_cols = getattr(table_data, "num_cols", 0)
     if not _degenerate_reason(grid, num_cols):
         return ""
-    return render_plain_text(grid, num_cols, caption=caption)
+    return render_plain_text(grid, num_cols, caption=caption, doc=doc)
 
 
 def sanitize_table_html(html_text: str) -> str:
