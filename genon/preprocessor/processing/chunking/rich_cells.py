@@ -64,3 +64,36 @@ def collect_subtree_refs(node: Any, doc: Any, refs: set[str]) -> None:
             collect_subtree_refs(child.resolve(doc=doc), doc, refs)
         except Exception:
             continue
+
+
+def rich_cell_text(cell: Any, doc: Any) -> str:
+    """rich cell 의 내용을 문단마다 줄을 바꿔 이은 텍스트. 만들 수 없으면 빈 문자열.
+
+    docling HTML 백엔드는 셀 대표 텍스트(``cell.text``)를 만들 때 ``<p>``/``<li>`` 끝에 공백
+    하나만 붙여 문단 경계가 사라진다(`html_backend.get_text`). 문단 구조는 ``cell.ref`` 가
+    가리키는 자식 아이템에 그대로 남아 있으므로 그것을 순서대로 잇는다.
+
+    이은 결과의 단어 열이 ``cell.text`` 와 다르면 빈 문자열을 돌려준다. 자식에 텍스트가 없는
+    아이템(중첩 표·그림)이 있거나 참조가 끊긴 경우로, 호출부가 ``cell.text`` 로 폴백해 내용
+    손실을 막는다.
+    """
+    ref = getattr(cell, "ref", None)
+    if ref is None or doc is None:
+        return ""
+    texts: list[str] = []
+
+    def collect(node: Any) -> None:
+        text = str(getattr(node, "text", "") or "").strip()
+        if text:
+            texts.append(text)
+        for child in getattr(node, "children", None) or []:
+            collect(child.resolve(doc=doc))
+
+    try:
+        collect(ref.resolve(doc=doc))
+    except Exception:
+        return ""
+    joined = "\n".join(texts)
+    if joined.split() != str(getattr(cell, "text", "") or "").split():
+        return ""
+    return joined

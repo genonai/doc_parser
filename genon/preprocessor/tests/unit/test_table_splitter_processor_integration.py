@@ -329,10 +329,12 @@ def test_enricher_meta_does_not_leak_into_chunk_text_after_json_roundtrip(module
 
 @pytest.mark.unit
 def test_single_cell_layout_table_is_split_within_chunk_size():
-    """셀 하나에 본문 전체가 든 레이아웃 표도 chunk_size 를 지킨다(#392).
+    """셀 하나에 본문 전체가 든 레이아웃 표도 chunk_size 를 지키고 문단 경계에서 잘린다(#392).
 
     이 표는 평문으로 직렬화되지만 분할은 행 단위에 맡겨져, 행이 하나뿐이라 통째로
-    나갔다(실측 8,331자 청크 1건). 청커는 활성 facade 3종이 공유하므로 한 곳만 본다.
+    나갔다(실측 8,331자 청크 1건). 셀 대표 텍스트는 docling 이 문단을 공백으로 이어 만들어
+    그대로 자르면 문장 중간에서 끊기므로, rich cell 의 문단 구조를 살려 내야 한다.
+    청커는 활성 facade 3종이 공유하므로 한 곳만 본다.
     """
     core = pytest.importorskip("docling_core.types.doc", exc_type=ImportError)
     module = pytest.importorskip("genon.preprocessor.facade.chunking_processor", exc_type=ImportError)
@@ -340,12 +342,17 @@ def test_single_cell_layout_table_is_split_within_chunk_size():
         name="layout_table",
         origin=core.DocumentOrigin(mimetype="text/html", binary_hash=1, filename="layout_table.html"),
     )
-    cell = core.TableCell(text="본문내용 " * 1000, start_row_offset_idx=0, end_row_offset_idx=1,
-                          start_col_offset_idx=0, end_col_offset_idx=1)
-    doc.add_table(data=core.TableData(num_rows=1, num_cols=1, table_cells=[cell]))
+    paragraphs = [f"Q{n}. 청구서류 원본이 필요한가요? A. 사본으로도 청구가 가능합니다." for n in range(1, 61)]
+    table = doc.add_table(data=core.TableData(num_rows=0, num_cols=0))
+    group = doc.add_group(label=core.GroupLabel.UNSPECIFIED, parent=table)
+    for text in paragraphs:
+        doc.add_text(label=core.DocItemLabel.TEXT, text=text, parent=group)
+    table.data = core.TableData(num_rows=1, num_cols=1, table_cells=[core.RichTableCell(
+        text=" ".join(paragraphs), ref=group.get_ref(), start_row_offset_idx=0,
+        end_row_offset_idx=1, start_col_offset_idx=0, end_col_offset_idx=1)])
     chunker = module.GenosSmartChunker(max_tokens=420, chunk_mode="split_only", tokenizer_type="char")
 
     texts = [chunk.text for chunk in chunker.chunk(dl_doc=doc)]
 
     assert len(texts) > 1 and all(len(text) <= 420 for text in texts), [len(t) for t in texts]
-    assert "".join(texts).count("본문내용") == 1000
+    assert [line for text in texts for line in text.splitlines() if line] == paragraphs

@@ -458,7 +458,7 @@ class SmartChunkerBase(BaseChunker):
             caption = table_item.caption_text(dl_doc)
         except Exception:
             caption = ""
-        prose = th.render_degenerate(getattr(table_item, "data", None), caption=caption)
+        prose = th.render_degenerate(getattr(table_item, "data", None), caption=caption, doc=dl_doc)
         if prose:
             _log.debug("[smart_chunker] 레이아웃용 표를 평문으로 냈습니다: ref=%s",
                        getattr(table_item, "self_ref", ""))
