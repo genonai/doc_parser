@@ -17,6 +17,8 @@ from typing import Any, Callable, Optional
 from docling_core.types import DoclingDocument
 from docling_core.types.doc import PictureItem, TableItem
 
+from genon.preprocessor.processing.chunking.table_shape import degenerate_reason
+
 # 본문과 통계·순번 필드. core 가 본문에서 계산하므로 edit_chunk 의 info["fields"] 로 바꿀 수 없다.
 STAT_FIELDS = (
     "text", "n_char", "n_word", "n_line",
@@ -235,8 +237,14 @@ class VectorMetaBuilderBase:
         ``split_totals`` 는 청커가 남긴 {self_ref: 조각 수} 이고, ``seen_counts`` 는
         호출부가 문서 단위로 들고 다니는 {self_ref: 지금까지 본 조각 수} 다. 같은 표가
         연속해서 나오는 순서가 곧 조각 순서다.
+
+        레이아웃용 표(`table_shape.degenerate_reason`)는 세지 않는다. 청커가 평문으로 내고
+        텍스트처럼 자르므로 표가 아니다. 레코드·텍스트 경로의 `table_blocks.has_table` 도
+        같은 표를 세지 않는다. 판정 인자는 `table_html.render_degenerate` 와 같다.
         """
-        refs = [item.self_ref for item in doc_items if isinstance(item, TableItem)]
+        refs = [item.self_ref for item in doc_items
+                if isinstance(item, TableItem)
+                and not degenerate_reason(item.data.grid, item.data.num_cols)]
         self.has_table = bool(refs)
         self.table_refs = json.dumps(refs) if refs else None
         if not refs or not split_totals or seen_counts is None:

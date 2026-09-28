@@ -77,6 +77,19 @@ def test_missing_split_totals_still_fills_refs():
     assert builder.table_split_total is None
 
 
+@pytest.mark.unit
+def test_layout_table_is_not_marked_as_table():
+    """셀 하나짜리 레이아웃 표는 청커가 평문으로 내므로 표로 세지 않는다(#394)."""
+    core = pytest.importorskip("docling_core.types.doc", exc_type=ImportError)
+    cell = core.TableCell(text="안내 산문", start_row_offset_idx=0, end_row_offset_idx=1,
+                          start_col_offset_idx=0, end_col_offset_idx=1)
+    table = core.TableItem(self_ref="#/tables/0", label="table",
+                           data=core.TableData(num_rows=1, num_cols=1, table_cells=[cell]))
+    builder = _Builder().set_table_info([table], {"#/tables/0": 3}, {})
+    assert (builder.has_table, builder.table_refs,
+            builder.table_split_index, builder.table_split_total) == (False, None, None, None)
+
+
 # ─── 설정 해석 ────────────────────────────────────────────────────────────────
 
 from genon.preprocessor.processing.common import config_parse as cp
