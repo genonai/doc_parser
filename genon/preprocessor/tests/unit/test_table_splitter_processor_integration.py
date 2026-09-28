@@ -325,3 +325,27 @@ def test_enricher_meta_does_not_leak_into_chunk_text_after_json_roundtrip(module
     table_texts = [text for text in texts if "<table>" in text]
     assert table_texts
     assert all(text.count("[표 검색 설명]") == 1 for text in table_texts)
+
+
+@pytest.mark.unit
+def test_single_cell_layout_table_is_split_within_chunk_size():
+    """셀 하나에 본문 전체가 든 레이아웃 표도 chunk_size 를 지킨다(#392).
+
+    이 표는 평문으로 직렬화되지만 분할은 행 단위에 맡겨져, 행이 하나뿐이라 통째로
+    나갔다(실측 8,331자 청크 1건). 청커는 활성 facade 3종이 공유하므로 한 곳만 본다.
+    """
+    core = pytest.importorskip("docling_core.types.doc", exc_type=ImportError)
+    module = pytest.importorskip("genon.preprocessor.facade.chunking_processor", exc_type=ImportError)
+    doc = core.DoclingDocument(
+        name="layout_table",
+        origin=core.DocumentOrigin(mimetype="text/html", binary_hash=1, filename="layout_table.html"),
+    )
+    cell = core.TableCell(text="본문내용 " * 1000, start_row_offset_idx=0, end_row_offset_idx=1,
+                          start_col_offset_idx=0, end_col_offset_idx=1)
+    doc.add_table(data=core.TableData(num_rows=1, num_cols=1, table_cells=[cell]))
+    chunker = module.GenosSmartChunker(max_tokens=420, chunk_mode="split_only", tokenizer_type="char")
+
+    texts = [chunk.text for chunk in chunker.chunk(dl_doc=doc)]
+
+    assert len(texts) > 1 and all(len(text) <= 420 for text in texts), [len(t) for t in texts]
+    assert "".join(texts).count("본문내용") == 1000

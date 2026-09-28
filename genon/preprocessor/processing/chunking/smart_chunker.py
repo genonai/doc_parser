@@ -44,6 +44,7 @@ from genon.preprocessor.processing.chunking.formula_text import (
 from genon.preprocessor.processing.chunking.rich_cells import table_embedded_refs
 from genon.preprocessor.processing.chunking.table_shape import (
     analyze_grid,
+    degenerate_reason,
     resolve_table_format,
 )
 from genon.preprocessor.processing.chunking.table_splitter import (
@@ -714,6 +715,12 @@ class SmartChunkerBase(BaseChunker):
         shape = self._table_shape(table_item, dl_doc)
         if shape is None:
             return [single]
+        # 레이아웃용 표는 직렬화 단계에서 이미 평문으로 풀렸다(_serialize_degenerate_table).
+        # 지킬 행 구조가 없으므로 일반 텍스트와 같은 방식으로 예산에 맞춰 자른다.
+        if degenerate_reason(table_item.data.grid, shape.num_cols):
+            pieces = self._split_text_to_budget(single, limit)
+            self._record_table_split(table_item, len(pieces))
+            return pieces
 
         result = split_table_rows(
             grid=table_item.data.grid,
