@@ -182,6 +182,19 @@ def test_expand_elements_leaves_table_free_rows_alone():
     assert tb.expand_elements([element]) == [element]
 
 
+def test_expand_elements_keeps_layout_table_as_prose_in_single_row():
+    """레이아웃 표만 담은 행도 평문으로 풀린 본문이 나간다(#396).
+
+    풀고 나면 표가 없어 나눌 것이 없는데, 예전에는 이때 원래 행을 그대로 내보내 markdown
+    표기가 남았고 뒤의 크기 분할이 `| - |` 만 담긴 조각을 따로 남겼다.
+    """
+    prefix = "문의유형: 자동차\n제목: 자주 묻는 질문"
+    element = {"category": "custom_fields_row", "metadata": {}, "chunk_prefix": prefix,
+               "content": f"{prefix}\n내용:\n| Q1. 원본이 필요한가요? A. 사본도 됩니다. |\n| - |"}
+    assert tb.expand_elements([element]) == [{
+        **element, "content": f"{prefix}\n내용:\nQ1. 원본이 필요한가요? A. 사본도 됩니다."}]
+
+
 def test_table_search_description_stays_with_its_table():
     """`[표 검색 설명]` 은 그 표의 것이다. 떼어 놓으면 표 청크가 설명을, 설명 청크가 표를 잃는다."""
     body = ("연회비 안내 문단입니다.\n"
