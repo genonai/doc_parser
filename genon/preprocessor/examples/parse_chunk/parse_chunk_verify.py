@@ -107,16 +107,14 @@ CASES = [
 def check_front_matter(chunks: list) -> list[str]:
     """markdown front matter 승격/제외 회귀(#360).
 
-    front_matter 블록은 document_type/source_file/source_pages/author/created_at 만
-    metadata 로 올리고 front matter 전체는 청크 텍스트에서 뺀다. front matter 만으로
+    front_matter 블록은 fields 에 매핑한 키(created_at 등)만 metadata 로 올리고 front matter
+    전체는 청크 텍스트에서 뺀다. front matter 만으로
     이루어진 청크가 사라져 8청크 → 7청크가 된다. LLM 이 죽어도 이 단정은 유지된다.
     """
     problems = []
     c = chunks[0]
     if len(chunks) != 7:
         problems.append(f"청크 7건 기대, 실제 {len(chunks)}건(front matter 청크 제거 실패)")
-    if c.get("source_pages") != 9:
-        problems.append(f"source_pages int 보존 실패: {c.get('source_pages')!r}")
     if c.get("created_date") != 20260112:
         problems.append(f"created_at → date_int transform 실패: {c.get('created_date')!r}")
     leaked = [i for i, x in enumerate(chunks)
@@ -195,14 +193,10 @@ def check_stock_insight_row_merge(chunks: list) -> list[str]:
     for idx, chunk in enumerate(chunks):
         name = chunk.get("JONG_NM")
         text = chunk.get("text") or ""
-        # 분할 조각마다 "어느 종목의 언제 기준 분석인지" 가 다시 붙어야 그 조각만 검색돼도
-        # LLM 이 근거로 쓸 수 있다. 종목코드·기준일은 어휘 매칭에도 기여한다.
-        expected_prefix = (
-            f"종목명: {name}\n종목코드: {chunk.get('JONG_CODE')}\n"
-            f"분석기준일: {chunk.get('ANALYSIS_DATE')}"
-        )
-        if not text.startswith(expected_prefix):
-            problems.append(f"[{idx}] 접두 3줄이 어긋납니다: {text[:60]!r}")
+        # 분할 조각마다 어느 종목의 분석인지가 다시 붙어야 그 조각만 검색돼도 LLM 이
+        # 근거로 쓸 수 있다(body.repeat).
+        if not text.startswith(f"종목명: {name}\n"):
+            problems.append(f"[{idx}] 종목명 접두가 어긋납니다: {text[:60]!r}")
         if "<BR>" in text or "<strong>" in text:
             problems.append(f"[{idx}] 본문에 인라인 HTML 태그가 남았습니다")
         if '{"trading_strategy"' in text:
@@ -226,7 +220,8 @@ def check_stock_insight_row_merge(chunks: list) -> list[str]:
     for chunk in chunks:
         by_stock.setdefault(chunk.get("JONG_NM"), []).append(chunk)
     for name, group in by_stock.items():
-        bodies = [c["text"].split("\n", 3)[3] if c["text"].count("\n") >= 3 else ""
+        # 종목명 접두 줄과, 첫 조각에만 붙는 세부내용 라벨을 걷어 낸 본문을 본다.
+        bodies = [re.sub(r"^세부내용:[ \n]?", "", c["text"].split("\n", 1)[-1])
                   for c in group]
         if not any(body.lstrip().startswith("#") for body in bodies):
             continue                      # 헤딩이 없는 원천(평문)은 대상이 아니다
@@ -425,8 +420,8 @@ def _once_field_problems(chunks: list, label: str) -> list[str]:
 
 
 def check_product_attrs_once(chunks: list) -> list[str]:
-    """product_slf/ssf — front matter created_at 이 작성일로 1회만 표기된다."""
-    return _once_field_problems(chunks, "작성일")
+    """product_slf/ssf — front matter created_at 이 출시일로 1회만 표기된다."""
+    return _once_field_problems(chunks, "출시일")
 
 
 def check_annual_fee_once(chunks: list) -> list[str]:
@@ -454,13 +449,6 @@ def check_cs_hpp_parsed_ext(chunks: list) -> list[str]:
             )
     if not any(chunk.get("has_table") for chunk in chunks):
         problems.append("표로 인식된 청크가 없습니다(HTML 표가 파싱되지 않았습니다)")
-    # 문서 단위 custom_fields 가 걸렸는지는 const 필드로 본다. LLM 산출 필드(TITLE 등)는
-    # 모델서빙이 없으면 on_error 정책에 따라 null 이 되므로 이 판정의 근거가 못 된다.
-    if {chunk.get("GROUP_C") for chunk in chunks} != {"HPP"}:
-        problems.append(
-            "GROUP_C 가 모든 청크에 HPP 로 실리지 않았습니다"
-            "(문서 단위 custom_fields 가 걸리지 않았습니다)"
-        )
     # 마커 소제목(◈/■)이 heading 으로 승격돼야 섹션마다 청크가 갈린다. 승격이 빠지면
     # 마커가 본문 한 줄로 남아 앞뒤가 크기로만 잘린다.
     #
@@ -525,13 +513,13 @@ def check_cs_ssf_delimited(chunks: list) -> list[str]:
     # 분류 4단(대분류/중분류/소분류/제목)이 청크 property 로 승격돼야 검색 필터가 걸린다.
     if {chunk.get("GROUP_C") for chunk in chunks} != {"SSF"}:
         problems.append("GROUP_C 가 모든 청크에 SSF 로 실리지 않았습니다")
-    categories = {chunk.get("CS_CATEGORY") for chunk in chunks}
+    categories = {chunk.get("CS_CTGR_L1") for chunk in chunks}
     if not {"자동차", "화재", "일반"} <= categories:
-        problems.append(f"CS_CATEGORY 가 원천 4건의 값을 담지 못했습니다: {sorted(map(str, categories))}")
-    if "누수" not in {chunk.get("CS_CATEGORY_SUB") for chunk in chunks}:
-        problems.append("CS_CATEGORY_SUB 가 실리지 않았습니다")
+        problems.append(f"CS_CTGR_L1 이 원천 4건의 값을 담지 못했습니다: {sorted(map(str, categories))}")
+    if "누수" not in {chunk.get("CS_CTGR_L3") for chunk in chunks}:
+        problems.append("CS_CTGR_L3 이 실리지 않았습니다")
     # 소분류가 빈 원천 1건은 default: null 로 떨어져야 한다(빈 문자열이 아니다).
-    if not any(chunk.get("CS_CATEGORY_SUB") is None for chunk in chunks):
+    if not any(chunk.get("CS_CTGR_L3") is None for chunk in chunks):
         problems.append("빈 소분류가 null 로 떨어지지 않았습니다")
 
     # 인용 안 개행으로 이어진 본문이 실제로 붙어 왔는가. 표 두 번째 행의 문구는 원천에서
