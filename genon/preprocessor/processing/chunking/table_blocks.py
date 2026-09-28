@@ -397,9 +397,13 @@ def expand_elements(elements) -> list:
             prefix = ""      # 접두와 본문이 어긋나면 재부착을 포기하고 전체를 나눈다
         # 배너 표를 먼저 평문으로 풀어 둔다. 안 그러면 안내 산문이 표로 인식돼 자기 청크로
         # 격리되고, 정작 표로서 검색될 것은 없다.
-        body = normalize_degenerate(body)
-        pieces = split_at_tables(body)
+        prose = normalize_degenerate(body)
+        pieces = split_at_tables(prose)
         if len(pieces) <= 1:
+            # 풀고 나서 나눌 표가 없어도 풀린 본문을 내보낸다. 원래 행을 그대로 두면 markdown
+            # 표기가 남아, 뒤의 크기 분할이 `| - |` 만 담긴 조각을 따로 남긴다(#396).
+            if prose != body:
+                element = {**element, "content": f"{prefix}\n{prose}" if prefix else prose}
             expanded.append(element)
             continue
         split_rows += 1

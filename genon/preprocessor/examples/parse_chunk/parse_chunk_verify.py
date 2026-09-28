@@ -69,6 +69,8 @@ CASES = [
     ("monimo_news",   MONIMO / "TD00008415_d_5199.html.json",          "실 파일명 → BIZ_ID"),
     ("cs_slf",        MONIMO / "monimo_cs_slf_sample.json",            "json_mapping"),
     ("cs_ssf",        MONIMO / "monimo_cs_ssf_sample.dtms",            "|@| 구분 레코드"),
+    # 본문이 셀 하나짜리 레이아웃 표인 레코드(#396). 실물 형식을 따라 만든 생성 샘플이다.
+    ("cs_ssf",        MONIMO / "monimo_cs_ssf_layout_table_sample.dtms", "1셀 레이아웃 표 레코드"),
     ("cs_sss",        MONIMO / "monimo_cs_sss_sample.json",            "json_mapping"),
     ("cs_hpp",        MONIMO / "monimo_cs_hpp_sample.html",            "llm(문서 단위)"),
     # 파일명이 점으로 시작하고 본문이 fragment 인 실 원천(#349 재현). rename 금지.
@@ -499,6 +501,24 @@ def check_md_html_table(chunks: list) -> list[str]:
     return problems
 
 
+def check_cs_ssf_layout_table(chunks: list) -> list[str]:
+    """본문이 셀 하나짜리 레이아웃 표인 레코드가 평문으로 풀려 잘리는가(#396).
+
+    예전에는 풀린 평문이 버려져 markdown 표기(`| Q1… |`)를 단 채 크기로 잘렸고, 끝에
+    `| - |` 만 담긴 조각이 has_table=True 로 따로 남았다.
+    """
+    problems: list[str] = []
+    body = "\n".join(chunk.get("text") or "" for chunk in chunks)
+    if "| - |" in body or re.search(r"^\|", body, re.MULTILINE):
+        problems.append("레이아웃 표가 평문으로 풀리지 않고 markdown 표기가 남았습니다")
+    if any(chunk.get("has_table") for chunk in chunks):
+        problems.append("레이아웃 표 청크에 has_table=True 가 붙었습니다")
+    for phrase in ("Q1. 청구서류 원본이", "Q12. 보험금 청구 진행 상황은"):
+        if phrase not in body:
+            problems.append(f"본문이 유실됐습니다: {phrase!r}")
+    return problems
+
+
 def check_cs_ssf_delimited(chunks: list) -> list[str]:
     """|@| 구분 원천의 분류 필드와 표가 청크까지 살아 오는가.
 
@@ -569,6 +589,7 @@ EXTRA_CHECKS = {
     ("product_hpp", "monimo_product_hpp_rich_table_sample.json"): check_product_hpp_link_labels,
     ("stock_insight", "monimo_stock_insight_sample.xlsx"): check_stock_insight_row_merge,
     ("cs_ssf", "monimo_cs_ssf_sample.dtms"): check_cs_ssf_delimited,
+    ("cs_ssf", "monimo_cs_ssf_layout_table_sample.dtms"): check_cs_ssf_layout_table,
     ("monimo_news", "TD00008415_d_5199.html.json"): check_biz_id_from_filename("TD00008415"),
 }
 
