@@ -36,7 +36,7 @@ _log = logging.getLogger(__name__)
 from genon.preprocessor.processing.converters.delimited_text import parse_spec as parse_delimited_spec
 from genon.preprocessor.processing.chunking.rich_cells import collect_subtree_refs
 from genon.preprocessor.processing.chunking.table_html import (
-    drop_blank_markdown_rows, render_table,
+    drop_blank_markdown_rows, render_degenerate, render_table,
 )
 from genon.preprocessor.processing.common import config_parse as cp
 from genon.preprocessor.processing.common.markdown_export import (
@@ -391,6 +391,47 @@ def _get_auto_table_serializer() -> Any:
     return _auto_table_serializer
 
 
+# 형식별 표 serializer 를 레이아웃 표 처리로 감싼 것(lazy, 형식별 1개).
+_layout_aware_serializers: dict = {}
+
+
+def _get_layout_aware_table_serializer(table_format: str) -> Any:
+    """레이아웃용 표는 문단마다 줄을 바꾼 평문으로, 나머지는 table_format 대로 내는 serializer.
+
+    docling 은 셀 텍스트를 만들 때 `<p>` 사이를 공백 하나로 잇는다. 셀 하나에 본문 전체를 담은
+    레이아웃 표를 표 표기로 내면 문단 경계가 사라져, 크기 분할이 문장 중간에서 자른다(#396).
+    판정과 렌더는 청커의 레이아웃 표 평문화(`table_html.render_degenerate`)와 같은 한 벌이다.
+    """
+    cached = _layout_aware_serializers.get(table_format)
+    if cached is not None:
+        return cached
+    from docling_core.transforms.serializer.base import BaseTableSerializer, SerializationResult
+    from docling_core.transforms.serializer.common import create_ser_result
+    from docling_core.transforms.serializer.markdown import MarkdownTableSerializer
+
+    if table_format == "html":
+        inner = _get_html_table_serializer()
+    elif table_format == "auto":
+        inner = _get_auto_table_serializer()
+    else:
+        inner = MarkdownTableSerializer()
+
+    class _LayoutAwareTableSerializer(BaseTableSerializer):
+        def serialize(self, *, item, doc_serializer, doc, **kwargs) -> SerializationResult:
+            try:
+                caption = item.caption_text(doc)
+            except Exception:
+                caption = ""
+            prose = render_degenerate(getattr(item, "data", None), caption=caption, doc=doc)
+            if prose:
+                _mark_rich_cells_visited(item, doc, kwargs)
+                return create_ser_result(text=prose, span_source=item)
+            return inner.serialize(item=item, doc_serializer=doc_serializer, doc=doc, **kwargs)
+
+    serializer = _layout_aware_serializers[table_format] = _LayoutAwareTableSerializer()
+    return serializer
+
+
 def normalize_table_format(value: Any) -> str:
     fmt = str(value or "").strip().lower()
     if fmt not in VALID_TABLE_FORMATS:
@@ -408,15 +449,9 @@ def _export_text(doc: Any, table_format: str, compact_tables: bool) -> str:
     auto 는 표마다 다르게 나가므로 문서 단위 markdown export 로는 표현할 수 없다 —
     표 serializer 를 갈아 끼워 표별로 결정한다.
     """
-    table_serializer = None
-    if table_format in {"html", "auto"}:
-        table_serializer = (
-            _get_auto_table_serializer() if table_format == "auto"
-            else _get_html_table_serializer()
-        )
     return export_markdown(
         doc,
-        table_serializer=table_serializer,
+        table_serializer=_get_layout_aware_table_serializer(table_format),
         compact_tables=compact_tables,
         **_MD_EXPORT_OPTS,
     )

@@ -516,6 +516,12 @@ def check_cs_ssf_layout_table(chunks: list) -> list[str]:
     for phrase in ("Q1. 청구서류 원본이", "Q12. 보험금 청구 진행 상황은"):
         if phrase not in body:
             problems.append(f"본문이 유실됐습니다: {phrase!r}")
+    # 셀 안 `<p>` 마다 줄이 나뉘어야 크기 분할이 문단 경계에서 자른다. 문단이 한 줄로 합쳐지면
+    # 조각이 문장 중간(`… Q8. 합의는 언제 하는`)에서 끝난다.
+    cut = [idx for idx, chunk in enumerate(chunks)
+           if not (chunk.get("text") or "").rstrip().endswith((".", "?"))]
+    if cut:
+        problems.append(f"조각이 문장 중간에서 끝납니다: 청크 {cut}")
     return problems
 
 
