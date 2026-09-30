@@ -18,7 +18,7 @@
 실 고객 데이터를 쓰지 않고 값은 지어냈다.
 샘플이 다시 바뀌면 손으로 md 를 만지지 말고 이 스크립트를 고쳐 다시 돌린다.
 
-실행:  genon/preprocessor/.venv/bin/python examples/parse_chunk/make_text_cleanup_noise_sample.py
+실행:  genon/preprocessor/.venv/bin/python tools/parse_chunk/make_text_cleanup_noise_sample.py
 """
 from __future__ import annotations
 

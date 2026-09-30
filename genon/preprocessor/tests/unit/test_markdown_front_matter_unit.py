@@ -513,7 +513,7 @@ def test_duplicate_targets_are_still_rejected():
 #
 # 실제 원천 파일로 검증한다 — front matter 값의 형태(코드값·비표준 날짜·브랜드 분리)를
 # 흉내낸 sample_files/monimo/monimo_product_slf_fields_sample.md 를 쓴다. 생성 스크립트는
-# examples/parse_chunk/make_product_slf_fields_sample.py 다.
+# tools/parse_chunk/make_product_slf_fields_sample.py 다.
 
 FIELDS_SAMPLE_MD = (
     Path(__file__).resolve().parents[2]

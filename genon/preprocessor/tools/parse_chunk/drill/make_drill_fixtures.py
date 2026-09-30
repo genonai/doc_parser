@@ -5,7 +5,7 @@
 재현해 "설정으로 되는가 / 코드가 필요한가" 를 가른다.
 
 손으로 만든 파일이 아니라 스크립트로 재생성 가능해야 축을 나중에 바꿀 수 있다
-(examples/parse_chunk/make_*_sample.py 의 기존 관례).
+(tools/parse_chunk/make_*_sample.py 의 기존 관례).
 
 사용:
     python make_drill_fixtures.py            # sample_files/drill/ 에 생성

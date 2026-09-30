@@ -143,7 +143,7 @@ def expand_block(
 def iter_refs(node: Any, *, path: str = ""):
     """설정 안의 `model_preset:` 참조를 (자리, 이름) 으로 훑는다.
 
-    배포 전 설정 점검(`examples/config_precheck`)이 "어디서 어떤 이름을 불렀는가" 를
+    배포 전 설정 점검(`tools/config_precheck`)이 "어디서 어떤 이름을 불렀는가" 를
     세려고 쓴다. 참조를 찾는 규칙을 스크립트가 다시 구현하면 이 모듈과 갈린다.
     """
     if isinstance(node, dict):

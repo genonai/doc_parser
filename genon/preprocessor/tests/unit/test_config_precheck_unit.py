@@ -19,7 +19,7 @@ from genon.preprocessor.processing.enrichment.tabular_custom_fields import (
 pytestmark = pytest.mark.unit
 
 _PREPROC = Path(__file__).resolve().parents[2]
-_SCRIPT = _PREPROC / "examples" / "config_precheck" / "precheck_custom_fields.py"
+_SCRIPT = _PREPROC / "tools" / "config_precheck" / "precheck_custom_fields.py"
 
 
 def _load_precheck():

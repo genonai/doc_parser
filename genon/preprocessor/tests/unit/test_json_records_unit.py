@@ -1,7 +1,7 @@
 """json_records — JSON 레코드 배열 → 목표필드/청크 본문 매핑 단위 테스트.
 
 LLM 은 호출하지 않는다(llm_fields 는 선언 파싱만 확인). 실제 LLM 경로는
-examples/parse_chunk 스크립트로 확인한다.
+tools/parse_chunk 스크립트로 확인한다.
 """
 import textwrap
 

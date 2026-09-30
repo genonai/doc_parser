@@ -8,7 +8,7 @@ import pytest
 
 @pytest.fixture
 def verifier():
-    path = Path(__file__).resolve().parents[2] / "examples/parse_chunk/parse_chunk_verify.py"
+    path = Path(__file__).resolve().parents[2] / "tools/parse_chunk/parse_chunk_verify.py"
     spec = importlib.util.spec_from_file_location("review_parse_chunk_verify", path)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)

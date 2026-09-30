@@ -52,6 +52,7 @@ jq -nc --slurpfile doc "${RESULT_DIR}/doc.json" \
   | jq '.data | length as $n | "chunks: \($n)"'
 
 # ── 참고: 동등한 Python 스크립트 실행 ───────────────────────────────────────
+#   (스크립트 위치: genon/preprocessor/tools/code_serving/)
 #   python serving_gateway_test.py --mode health
 #   python serving_gateway_test.py --mode e2e --file-path "${FILE_PATH}" --out /tmp/chunks.json
 #   python serving_gateway_test.py --mode parser --file-path "${FILE_PATH}" --out-doc /tmp/doc.json

@@ -33,7 +33,7 @@ _log = logging.getLogger(__name__)
 # 환경변수에 둔다 — 통합 실행(main.py)은 한 프로세스에 facade 를 여럿 올리므로
 # 프로세서 yaml 에 두면 나중에 로드된 값이 앞의 것을 덮어 예측이 어려워진다.
 #
-# 배포 전에는 examples/config_precheck 로 현장 설정을 먼저 검사하는 것이 정석이고,
+# 배포 전에는 tools/config_precheck 로 현장 설정을 먼저 검사하는 것이 정석이고,
 # warn 은 그 검사를 못 돌린 경우의 안전판이다.
 VALIDATION_POLICY_ENV = "GENOS_CUSTOM_FIELDS_VALIDATION"
 _VALID_POLICIES = ("error", "warn")

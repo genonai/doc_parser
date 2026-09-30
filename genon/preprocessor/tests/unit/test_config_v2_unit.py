@@ -485,7 +485,7 @@ def _load_script(name: str):
     import importlib.util
     from pathlib import Path
 
-    path = Path(__file__).resolve().parents[2] / "examples" / "config_precheck" / name
+    path = Path(__file__).resolve().parents[2] / "tools" / "config_precheck" / name
     spec = importlib.util.spec_from_file_location(name.replace(".py", ""), path)
     module = importlib.util.module_from_spec(spec)
     import sys as _sys

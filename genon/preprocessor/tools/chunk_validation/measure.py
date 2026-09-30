@@ -18,9 +18,9 @@
 그 밖은 문서형이다. 본문 앞의 `HEADER: …` 줄까지는 코어가 붙인 접두로 보고 판정에서 뺀다.
 
 사용:
-  .venv/bin/python examples/chunk_validation/measure.py                  # 기본 코퍼스
-  .venv/bin/python examples/chunk_validation/measure.py --extra <dir> …   # 청킹 결과 추가
-  .venv/bin/python examples/chunk_validation/measure.py --out report.md
+  .venv/bin/python tools/chunk_validation/measure.py                  # 기본 코퍼스
+  .venv/bin/python tools/chunk_validation/measure.py --extra <dir> …   # 청킹 결과 추가
+  .venv/bin/python tools/chunk_validation/measure.py --out report.md
 """
 from __future__ import annotations
 
@@ -38,7 +38,7 @@ sys.path.insert(0, str(PREPROCESSOR_DIR.parents[1]))
 
 from genon.preprocessor.processing.chunking import chunk_quality as cq  # noqa: E402
 
-DEFAULT_ROOTS = [PREPROCESSOR_DIR / "examples" / "parse_chunk"]
+DEFAULT_ROOTS = [PREPROCESSOR_DIR / "tools" / "parse_chunk"]
 CASES = PREPROCESSOR_DIR / "tests" / "fixtures" / "chunk_quality" / "cases.yaml"
 _HEADER_RE = re.compile(r"^HEADER: [^\n]*\n?", re.M)
 _METRICS = ("content", "run", "line", "phrase", "broken", "broken_share", "dup_share")

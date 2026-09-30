@@ -54,6 +54,7 @@ curl --location "${GW}/preprocess_convert" \
   | jq '.data | length as $n | "convert chunks: \($n)"'
 
 # ── 참고: 동등한 Python 스크립트 실행 ───────────────────────────────────────
+#   (스크립트 위치: genon/preprocessor/tools/code_serving/)
 #   python serving_gateway_preprocess_test.py --mode health
 #   python serving_gateway_preprocess_test.py --mode attachment  --file-path "${FILE_PATH}"
 #   python serving_gateway_preprocess_test.py --mode intelligent --file-path "${FILE_PATH}"

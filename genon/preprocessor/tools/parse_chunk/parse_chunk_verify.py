@@ -92,7 +92,7 @@ CASES = [
                                                                       "md+HTML 혼합(*.parsed)"),
     ("product_slf",   MONIMO / "monimo_product_slf_sample.md",         "llm + markdown front matter"),
     # front matter 값 파이프라인(values/transform/template)용 원천. 생성 스크립트는
-    # examples/parse_chunk/make_product_slf_fields_sample.py 다.
+    # tools/parse_chunk/make_product_slf_fields_sample.py 다.
     ("product_slf",   MONIMO / "monimo_product_slf_fields_sample.md",
      "코드값·비표준 날짜·브랜드 분리 front matter"),
     ("product_ssf",   MONIMO / "monimo_product_ssf_sample.md",         "llm + markdown front matter"),
@@ -105,7 +105,7 @@ CASES = [
     ("product_hpp",   MONIMO / "monimo_product_hpp_rich_table_sample.json",
      "rich cell 표(연회비·적립·제휴링크)"),
     # 값 파이프라인(values/transform/template)용 원천. 생성 스크립트는
-    # examples/parse_chunk/make_product_hpp_fields_sample.py 다.
+    # tools/parse_chunk/make_product_hpp_fields_sample.py 다.
     ("product_hpp",   MONIMO / "monimo_product_hpp_fields_sample.json",
      "코드값·금액문자열·브랜드 분리 필드"),
     ("stock_insight", MONIMO / "monimo_stock_insight_sample.txt",      "구분자 텍스트 레코드"),
@@ -615,7 +615,7 @@ EXTRA_CHECKS = {
 }
 
 # 이상 청크 검증(chunking.validation) 케이스. 샘플 생성 스크립트는
-# examples/parse_chunk/make_chunk_quality_sample.py 다. custom_fields 블록이 없는 원천이라
+# tools/parse_chunk/make_chunk_quality_sample.py 다. custom_fields 블록이 없는 원천이라
 # CASES 와 따로 돌린다. 불량 본문 표식은 그 스크립트의 E06·E08·E10·E11 과 같다.
 QUALITY_DOC_TYPE = "chunk_quality"
 QUALITY_BAD_MARKS = ("<div></div>", "처리 중 오류가 발생했습니다", "페이지를 표시할 수 없습니다",

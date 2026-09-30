@@ -16,7 +16,7 @@
 
 샘플이 다시 바뀌면 손으로 json 을 만지지 말고 이 스크립트를 고쳐 다시 돌린다.
 
-실행:  genon/preprocessor/.venv/bin/python examples/parse_chunk/make_product_hpp_fields_sample.py
+실행:  genon/preprocessor/.venv/bin/python tools/parse_chunk/make_product_hpp_fields_sample.py
 """
 from __future__ import annotations
 

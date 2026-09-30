@@ -363,7 +363,7 @@ def skip_table_stage(exc: Exception, stage: str) -> None:
 
     설정 오기입(conflict_policy=error 충돌)은 여기로 오지 않는다 — 그쪽은 facade 의
     error_policy 를 그대로 타서 strict 면 실패한다. 조용히 넘기면 안 되는 종류이고,
-    배포 전에는 examples/config_precheck 가 같은 것을 미리 잡는다.
+    배포 전에는 tools/config_precheck 가 같은 것을 미리 잡는다.
     """
     _log.warning(f"[{stage}] 표 설명을 건너뛰고 문서 처리를 계속합니다: {exc}")
 

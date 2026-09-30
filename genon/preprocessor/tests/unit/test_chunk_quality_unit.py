@@ -1,7 +1,7 @@
 """이상 청크 판정(processing/chunking/chunk_quality.py) 단위 테스트.
 
 판정 샘플과 설정 샘플은 tests/fixtures/chunk_quality/ 의 yaml 두 개가 정본이다. 실측
-스크립트(examples/chunk_validation/measure.py)와 고객 설명 자료가 같은 파일을 쓰므로,
+스크립트(tools/chunk_validation/measure.py)와 고객 설명 자료가 같은 파일을 쓰므로,
 기준을 바꿀 때는 이 테스트가 아니라 yaml 을 고친다. 코어 연결은
 test_chunking_processor_unit.py 가 다룬다.
 """

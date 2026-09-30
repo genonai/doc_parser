@@ -224,8 +224,8 @@ cat > "${DEST}/.dockerignore" <<'EOF'
 offline-dev-kit/
 wheelhouse/
 genon/preprocessor/facade/result.json
-genon/preprocessor/examples/parse_chunk/result_parse_chunk/
-genon/preprocessor/examples/code_serving/result_serving_gateway_test/
+genon/preprocessor/tools/parse_chunk/result_parse_chunk/
+genon/preprocessor/tools/code_serving/result_serving_gateway_test/
 EOF
 echo "[INFO] .dockerignore 생성: ${DEST}/.dockerignore"
 
@@ -289,8 +289,8 @@ htmlcov/
 
 # Local test outputs
 genon/preprocessor/facade/result.json
-genon/preprocessor/examples/parse_chunk/result_parse_chunk/
-genon/preprocessor/examples/code_serving/result_serving_gateway_test/
+genon/preprocessor/tools/parse_chunk/result_parse_chunk/
+genon/preprocessor/tools/code_serving/result_serving_gateway_test/
 
 # Platform-specific offline development kits (distribute separately; do not commit)
 offline-dev-kit/

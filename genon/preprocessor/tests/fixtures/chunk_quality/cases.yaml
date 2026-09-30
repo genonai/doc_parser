@@ -1,7 +1,7 @@
 # 청크 품질 판정 샘플(chunking.validation).
 #
 # 단위 테스트(tests/unit/test_chunk_quality_unit.py)와 실측 스크립트
-# (examples/chunk_validation/measure.py)가 이 파일을 함께 읽는다. 고객에게 판정 기준을
+# (tools/chunk_validation/measure.py)가 이 파일을 함께 읽는다. 고객에게 판정 기준을
 # 설명하는 자료로도 그대로 쓴다. 실제 고객 데이터는 쓰지 않는다.
 #
 # 항목 필드

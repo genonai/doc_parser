@@ -41,7 +41,7 @@ def dp(parser_processor, tmp_path_factory):
 
     스모크는 출력 스키마만 본다. 기본 설정 그대로면 표가 있는 샘플마다 실제 LLM 게이트웨이를
     호출해 CI 시간의 대부분이 응답 대기가 된다(표 71개 샘플 한 건이 약 100초). LLM 경로는
-    examples/parse_chunk/parse_chunk_verify.sh 가 검증한다. 설정이 프롬프트·custom_fields
+    tools/parse_chunk/parse_chunk_verify.sh 가 검증한다. 설정이 프롬프트·custom_fields
     파일을 상대 경로로 읽으므로 설정 디렉터리째 복사한 뒤 사본만 고친다.
     """
     from genon.preprocessor.processing.core.parser import _resolve_default_parser_config_path

@@ -6,7 +6,7 @@
 #
 # 설정 폴더는 GENOS_RESOURCE_DIR, 모델은 GENOS_MODEL_PRESETS_FILE(기본 genon/sites/dev/model_presets.yaml)로
 # 넘긴다. 이미 설정된 GENOS_MODEL_PRESETS_FILE 은 존중한다. 기동 후 호출은
-# genon/preprocessor/examples/code_serving/serving_gateway_test.sh 로 한다.
+# genon/preprocessor/tools/code_serving/serving_gateway_test.sh 로 한다.
 
 set -euo pipefail
 

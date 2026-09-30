@@ -28,12 +28,13 @@ SOURCE_DIR="${REPO_ROOT}/genon/preprocessor"
 #   processing/  facade 가 호출하는 처리 라이브러리
 #   resource/    표준 설정과 LLM 프롬프트(.md 도 런타임 입력이다)
 #   src/         루트 main.py 가 sys.path 에 넣고 logger·settings·minio 유틸을 불러온다
-#   examples/    현장에서 실행하는 검증 스크립트
+#   examples/    고객이 붙여 쓰는 훅·설정 예제
+#   tools/       현장에서 실행하는 검증 스크립트(설정 점검, 골든 기준선 등)
 # 그 밖(tests, manual, sample_files, docker, scripts, configs 등)은 서버가 쓰지 않으므로 싣지 않는다.
 # 특히 sample_files/monimo 는 고객사 실 문서라 번들로 다른 현장에 나가면 안 된다.
 # resource/ 는 따로 복사한다. --site 를 주면 그 원천이 사이트 완성본(genon/sites/<site>/resource/)으로 바뀐다.
 # 완성본은 표준 사본에 사이트 소유 파일을 더한 전체 설정 폴더다(genon/sites/README.md).
-PATCH_DIRS=(facade processing src examples)
+PATCH_DIRS=(facade processing src examples tools)
 PATCH_EXTS=(py md yaml sh)
 
 # 폴더 x 확장자 조합의 git pathspec. `**/` 는 0개 이상의 하위 폴더에 대응한다.

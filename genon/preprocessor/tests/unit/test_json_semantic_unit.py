@@ -1311,7 +1311,7 @@ body:
 #
 # 실제 원천 파일로 검증한다 — 값의 형태(코드값·단위 붙은 금액·브랜드 분리)를 흉내낸
 # sample_files/monimo/monimo_product_hpp_fields_sample.json 을 쓴다. 생성 스크립트는
-# examples/parse_chunk/make_product_hpp_fields_sample.py 다.
+# tools/parse_chunk/make_product_hpp_fields_sample.py 다.
 
 FIELDS_SAMPLE = (
     Path(__file__).resolve().parents[2]

@@ -530,7 +530,7 @@ def test_heading_only_chunk_is_merged_forward():
 def _sample_docling_doc() -> dict:
     """실제 규정 문서(여비세칙) 파싱 결과. 없으면 skip."""
     path = (Path(__file__).resolve().parents[2]
-            / "examples" / "parse_chunk" / "result_parse_chunk" / "hwp_sample_table.docling.json")
+            / "tools" / "parse_chunk" / "result_parse_chunk" / "hwp_sample_table.docling.json")
     if not path.exists():
         pytest.skip(f"샘플 docling JSON 없음: {path}")
     with open(path, encoding="utf-8") as f:

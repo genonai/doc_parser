@@ -8,9 +8,9 @@ facade 정리(#363)의 성공 판정에 쓴 자료이기도 하다.
 
 ```bash
 # 실행 위치: genon/preprocessor
-.venv/bin/python examples/parse_chunk/drill/make_drill_fixtures.py   # 픽스처 15개 생성
-.venv/bin/python examples/parse_chunk/drill/run_drill.py --step raw     # 1단계
-.venv/bin/python examples/parse_chunk/drill/run_drill.py --step config  # 2단계
+.venv/bin/python tools/parse_chunk/drill/make_drill_fixtures.py   # 픽스처 15개 생성
+.venv/bin/python tools/parse_chunk/drill/run_drill.py --step raw     # 1단계
+.venv/bin/python tools/parse_chunk/drill/run_drill.py --step config  # 2단계
 ```
 
 드릴은 **배포 설정을 건드리지 않는다.** `resource_dev/` 를 임시 디렉터리로 복사한 뒤
@@ -32,7 +32,7 @@ facade 정리(#363)의 성공 판정에 쓴 자료이기도 하다.
 
 ## 픽스처별 결과
 
-`sample_files/drill/` (생성 스크립트: `examples/parse_chunk/drill/make_drill_fixtures.py`)
+`sample_files/drill/` (생성 스크립트: `tools/parse_chunk/drill/make_drill_fixtures.py`)
 
 | # | 변형 | 계획의 예상 | 1단계(그대로) | 2단계(설정만) | 3단계(코드) |
 |---|---|---|---|---|---|
