@@ -25,3 +25,4 @@
 | `chunking/chunk_quality.py` | 이상 청크 판정(`chunking.validation`). 코어 청커가 초기·최종 검사로 호출한다 |
 | `enrichment/`, `guardrail/` | custom_fields·LLM 보강, 민감정보 처리 |
 | `converters/` | 입력 전처리 변환기 (`html_flatten`, `json_text`, `md_marker_headings` 등) |
+| `serialize/parse_format.py` | 파서 결과(DoclingDocument·오디오·표 등)를 응답 dict 로 변환하는 순수 함수. `core/parser.py` 가 호출하고 `core/toolbox.py` 가 재수출한다 |

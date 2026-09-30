@@ -76,6 +76,7 @@ facade가 공유하는 로직은 아래에 한 벌씩만 둔다. 최상위 proce
 | `common/` | 설정 해석, 파일 종류 판별, PDF 변환, docling 배관, 파이프라인 배선, 벡터·문서 메타, 로더 |
 | `chunking/` | `GenosSmartChunker` 본체와 docling_core 청커 포크본, 표 처리, 헤더 경로·페이지 분할·텍스트 정제 |
 | `enrichment/`, `guardrail/` | custom_fields·LLM 보강, 민감정보 처리 |
+| `serialize/` | 파서 결과를 응답 dict 로 변환하는 순수 함수(`parse_format.py`) |
 
 파일 단위 역할표는 `genon/preprocessor/processing/README.md` 에 있다.
 

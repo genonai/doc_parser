@@ -18,27 +18,31 @@
 │   │   ├── configs # gunicorn, supervisor 설정
 │   │   ├── docker # 도커파일 위치
 │   │   │   └── assets # 도커 빌드 전용 폰트·tessdata tar
-│   │   ├── env # 개발 시 설정 파일들
+│   │   ├── env # 서버 환경변수 프로파일(.env.dev, .env.prod). 이미지의 /app/env 로 복사됨
+│   │   ├── examples # 고객이 붙여 쓰는 최소 예제(훅, 텍스트 정제, curl 호출)
 │   │   ├── facade # facade 코드(*_processor.py)
 │   │   ├── manual # 고객·현장용 매뉴얼
 │   │   │   └── images
 │   │   ├── processing # 파싱·청킹·보강 처리 라이브러리(facade 가 상속·호출)
 │   │   │   ├── chunking
 │   │   │   ├── common
+│   │   │   ├── converters # 입력 전처리 변환기
 │   │   │   ├── core
 │   │   │   ├── enrichment
 │   │   │   ├── guardrail
-│   │   │   └── serialize
+│   │   │   └── serialize # 파서 결과를 응답 dict 로 변환
+│   │   ├── resource # 표준 YAML 설정·프롬프트(facade 기본 해석기가 읽음)
 │   │   ├── scripts # 도커 이미지 push 및 디비 등록 관련 스크립트 위치
-│   │   ├── sample_files
+│   │   ├── sample_files # 샘플 입력 문서
 │   │   ├── src # 전처리기 API 소스
 │   │   │   └── common
-│   │   └── tests # genos doc-parser 테스트 소스
-│   │       ├── regression
-│   │       │   └── baselines
-│   │       ├── smoke
-│   │       └── unit
-│   ├── serving # ocr 및
+│   │   ├── tests # genos doc-parser 테스트 소스
+│   │   │   ├── regression
+│   │   │   │   └── baselines
+│   │   │   ├── smoke
+│   │   │   └── unit
+│   │   └── tools # 손으로 돌리는 검증·개발 도구(facade_run, parse_chunk 등)
+│   ├── serving # OCR 모델 서빙 이미지
 │   │   └── paddle
 │   │       ├── config # ocr, vl paddlex 실행 파일
 │   │       ├── docker
@@ -46,9 +50,11 @@
 │   │       ├── k8s-manifest
 │   │       └── resources
 │   ├── sites # 고객사이트별 설정 완성본과 전용 facade (배포본 제외, 별도 전달)
-│   └── tools
-│       └── genos_tools
-│           └── commands
+│   ├── tools # 독립 CLI(genos-tools: 청크 내보내기·뷰어)
+│   │   └── genos_tools
+│   │       └── commands
+│   └── train # 레이아웃 모델 파인튜닝
+│       └── layout
 └── tests # docling 리포 test 관련 코드 작성 x
 ```
 

@@ -1,14 +1,14 @@
 """DoclingDocument → 파서 응답 포맷.
 
-parser facade 가 "어떤 확장자를 어느 경로로 보내는가" 를 갖는다면, 이 모듈은 그 경로가
+파서 본체(`core/parser.py` 의 `ParserCore`)가 "어떤 확장자를 어느 경로로 보내는가" 를 갖는다면, 이 모듈은 그 경로가
 만든 문서를 응답으로 굳히는 마지막 단계만 갖는다. 전부 인자만 보고 답하는 함수이고
 프로세서 인스턴스를 받지 않는다.
 
 여기 **없는** 것: 응답 조립(`_build_docling_response`). 그것은 설정 4종을 읽고, 문서를
 변이하고(strip_enricher_meta), guardrail 로 외부 HTTP 를 부른다 — 순수 변환 모듈에
-네트워크 호출이 들어가서는 안 되므로 facade 에 남겼다.
+네트워크 호출이 들어가서는 안 되므로 `ParserCore` 에 남겼다.
 
-facade 에는 이 함수들을 부르는 얇은 staticmethod 래퍼가 남아 있다. 단위 테스트가
+`ParserCore` 에는 이 함수들을 부르는 얇은 staticmethod 래퍼가 남아 있다. 단위 테스트가
 `DocumentProcessor._docling_to_parse_format(...)` 처럼 클래스 경유로 부르고
 `patch.object(DocumentProcessor, ...)` 로 갈아끼우기 때문이다.
 """
