@@ -24,9 +24,9 @@ REPO_ROOT="$(git -C "${SCRIPT_DIR}" rev-parse --show-toplevel)" || {
 SOURCE_DIR="${REPO_ROOT}/genon/preprocessor"
 
 # 번들에서 빼는 것. git pathspec 이라 하위 전체가 걸린다.
-#   resource_dev/  로컬 개발용 설정이고 **실 API 키가 커밋되어 있다**. 운영에 얹을 값이
-#                  아니므로, 현장에 전달하는 산출물에 키가 섞여 나가지 않게 제외한다.
-#                  로컬 검증용으로 필요하면 저장소에서 직접 쓴다(번들 대상이 아니다).
+#   resource_dev/  예전의 로컬 개발용 설정 폴더(실 API 키 포함). 폴더는 삭제되었고 항목만 남아 있다(무해).
+# 사이트 설정(sites/<site>/resource/)은 genon/ 밖이라 번들에 포함되지 않는다. 사이트 현장의 설정 변경은
+# 그 완성본 폴더를 별도로 전달한다.
 PATCH_EXCLUDES=(':(exclude)resource_dev/')
 
 if [[ $# -ne 1 ]]; then

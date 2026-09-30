@@ -125,14 +125,21 @@ vectors = await processor(request, file_path, guardrail_call=1)
 
 ### 1.3 config: `guardrail:` 섹션 (접속 정보)
 
-워크플로우 접속 정보는 전처리기 config yaml 의 `guardrail:` 섹션에 둡니다(환경 종속값).
+워크플로우 접속 정보(환경 종속값)는 설정 폴더의 `model_presets.yaml` 의 `guardrail` 프리셋에 두고,
+전처리기 config yaml 의 `guardrail:` 섹션은 `model_preset: guardrail` 로 그 값을 부릅니다.
 
 ```yaml
+# model_presets.yaml
+model_presets:
+  guardrail:
+    url: "https://genos.genon.ai/api/gateway"   # gateway 베이스. 코드가 /workflow/{workflow_id}/run/v2 를 붙임
+    workflow_id: 4932        # 민감정보 분류 워크플로우 ID
+    api_key: "..."           # 워크플로우 호출 Bearer 인증키(AuthKeyBearer)
+
+# 전처리기 config yaml
 guardrail:
   # GenOS 분류 워크플로우 연동(#315). 기능 on/off 는 요청별 kwargs(guardrail_call)로 제어.
-  url: "https://genos.genon.ai/api/gateway"   # gateway 베이스. 코드가 /workflow/{workflow_id}/run/v2 를 붙임
-  workflow_id: 4932        # 민감정보 분류 워크플로우 ID
-  api_key: "..."           # 워크플로우 호출 Bearer 인증키(AuthKeyBearer)
+  model_preset: guardrail
   timeout: 60              # 호출 타임아웃(초). 대용량 문서는 상향
   masking_enabled: false   # 마스킹 치환 on/off (1.2절 케이스 A/B). 라벨 부착은 기능 켜지면 항상
 ```
@@ -141,7 +148,7 @@ guardrail:
 - `url`/`workflow_id`/`api_key` 중 하나라도 비어 있으면 전처리기는 fail-open(원문 통과 + warning 로그)
   으로 그 문서를 정상 처리합니다(적재가 막히지 않음).
 - 위 예시는 intelligent/attachment/convert(단일 호출)용 — 한 config 에 접속·마스킹이 모두 있습니다.
-  parser→chunking 분리 경로에서는 **호출 주체인 parser config 에 `url`/`workflow_id`/`api_key`** 를,
+  parser→chunking 분리 경로에서는 **호출 주체인 parser config 에 `model_preset: guardrail`** 을,
   **마스킹 주체인 chunking config 에 `masking_enabled`** 를 둡니다(chunking 은 접속값 불필요).
 - 대상 전처리기: intelligent / attachment / convert (파싱+청킹 한 번에 — 스스로 호출·부착),
   그리고 parser → chunking(Chunk API) 분리 경로.
@@ -328,13 +335,13 @@ Python 단계에 붙여 넣으세요).
 
    ![인증 키 발급](images/guardrail_setup_06a_authkey.jpg)
    - 워크플로우 상세의 **"인증 키" 탭 → "+ 인증 키 생성"** 으로 인증키 발급을 진행합니다.
-   - 이 키가 전처리기 YAML 의 `api_key` 로 들어갑니다.
+   - 이 키가 `model_presets.yaml` 의 `guardrail` 프리셋 `api_key` 로 들어갑니다.
 
 #### [순서5-2] **전처리기와 워크플로우 연결**
 
    ![config 설정](images/guardrail_setup_06b_config.jpg)
-   - 워크플로우의 ID값, 인증키를 전처리기 YAML의 `guardrail:` 부분에 넣습니다.
-     - 전처리기 YAML이란, `attachment_processor_config.yaml` · `intelligent_processor_config.yaml`(`genon/preprocessor/resource/`) 등의 각 전처리기별 YAML 파일입니다.
+   - 워크플로우의 ID값, 인증키를 설정 폴더(`genon/preprocessor/resource/`)의 `model_presets.yaml` 의 `guardrail` 프리셋에 넣습니다.
+     - 각 전처리기 YAML(`attachment_processor_config.yaml` · `intelligent_processor_config.yaml` 등)의 `guardrail:` 섹션은 `model_preset: guardrail` 로 이 값을 읽으므로 따로 고치지 않습니다.
      - ID값과 인증키는 각각 `workflow_id`/`api_key`에 해당됩니다. 
 
 ### 6. 간단한 워크플로우 검증
@@ -358,9 +365,9 @@ curl -s -X POST "https://genos.genon.ai/api/gateway/workflow/{workflow_id}/run/v
 | 증상 | 원인 / 조치 |
 |---|---|
 | 배포 시 `09050003` (응답에 text/json 없음) | Python 단계 dict 반환에 `text` 키 누락 → 스텝 코드처럼 `text` 도 함께 반환 |
-| 워크플로우 직접 호출 401 | admin 토큰이 아니라 **워크플로우 AuthKeyBearer** 필요. config `api_key` 확인 |
+| 워크플로우 직접 호출 401 | admin 토큰이 아니라 **워크플로우 AuthKeyBearer** 필요. `guardrail` 프리셋의 `api_key` 확인 |
 | 라벨이 하나도 안 붙음 | 요청에 `guardrail_call: 1` 를 안 넣음(기본 off) / `category` 가 비어 옴 / `quote_origin` 이 원문과 불일치(프롬프트가 변형) |
 | 정규식류(주민번호·전화 등)가 안 잡힘 | 워크플로우가 가드레일 인스턴스 dry-run 을 못 부름 → `GUARDRAIL_DRYRUN_BASE`(내부 게이트웨이)·`GUARDRAIL_ID` 확인, 인스턴스에 정규식 필터 등록됐는지 확인 |
 | 정규식은 잡히나 소분류가 토큰 그대로 | 가드레일 필터 "치환 규칙" 이 `[주민등록번호]` 같은 표준 토큰이 아님 → 토큰 표준화 or 매핑 테이블(`_TOKEN_SPEC`) 보강 |
 | 마스킹이 안 됨 | `masking_enabled: false` 이거나 요청 `guardrail_call` off. 둘 다 on 이어야 치환 |
-| 호출 자체가 안 감 | config `url`/`workflow_id`/`api_key` 중 빈 값 → 전처리기가 fail-open(원문 통과 + warning 로그) |
+| 호출 자체가 안 감 | `guardrail` 프리셋의 `url`/`workflow_id`/`api_key` 중 빈 값 → 전처리기가 fail-open(원문 통과 + warning 로그) |

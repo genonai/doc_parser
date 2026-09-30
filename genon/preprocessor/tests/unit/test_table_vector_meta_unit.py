@@ -135,7 +135,6 @@ import yaml
 from pathlib import Path
 
 _RESOURCE = Path(__file__).resolve().parents[2] / "resource"
-_RESOURCE_DEV = Path(__file__).resolve().parents[2] / "resource_dev"
 
 
 @pytest.mark.unit
@@ -152,15 +151,6 @@ def test_chunker_config_exposes_table_switches(name):
     assert output is not None, f"{name} 에 output 블록이 없다"
     assert cp.resolve_table_format_setting(output) in {"html", "markdown", "auto"}
     assert cp.resolve_table_row_serialization(output) is False  # 기본은 off
-
-
-@pytest.mark.unit
-def test_chunker_dev_config_matches_operational_keys():
-    ops = yaml.safe_load(
-        (_RESOURCE / "chunking_processor_config.yaml").read_text(encoding="utf-8"))["output"]
-    dev = yaml.safe_load(
-        (_RESOURCE_DEV / "chunking_processor_config.yaml").read_text(encoding="utf-8"))["output"]
-    assert set(ops) == set(dev)
 
 
 class _Processor:

@@ -34,7 +34,7 @@ HERE = Path(__file__).resolve().parent
 PREPROCESSOR_DIR = HERE.parents[1]
 REPO_ROOT = PREPROCESSOR_DIR.parent
 PC_DIR = PREPROCESSOR_DIR / "examples" / "parse_chunk"
-BASE_CONFIG = PREPROCESSOR_DIR / "resource_dev" / "chunking_processor_config.yaml"
+BASE_CONFIG = PREPROCESSOR_DIR / "resource" / "chunking_processor_config.yaml"
 SAMPLE = PREPROCESSOR_DIR / "sample_files" / "monimo" / ".INC_235488_02_20260626103138.html.parsed"
 DOC_TYPE = "cs_hpp"
 

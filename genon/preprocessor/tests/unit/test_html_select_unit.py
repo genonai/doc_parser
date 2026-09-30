@@ -15,6 +15,7 @@ import yaml
 from genon.preprocessor.processing.enrichment import config_schema as cs
 from genon.preprocessor.processing.enrichment import config_v2 as cv2
 from genon.preprocessor.processing.enrichment import html_select
+from shipped_config import SITE_MONIMO
 
 pytestmark = pytest.mark.unit
 
@@ -176,7 +177,7 @@ def test_select_map_is_covered_by_v2_notation():
 
 # ── 출고 설정 ───────────────────────────────────────────────────────────────
 
-@pytest.mark.parametrize("resource_dir", ["resource", "resource_dev"])
+@pytest.mark.parametrize("resource_dir", [SITE_MONIMO])
 def test_shipped_monimo_news_selectors_compile_and_cover_the_requirement(resource_dir):
     """관심소식 출고 설정이 요건표의 다섯 값을 모두 지목하는지 고정한다."""
     base = Path(__file__).resolve().parents[2] / resource_dir
@@ -195,7 +196,7 @@ def test_shipped_monimo_news_selectors_compile_and_cover_the_requirement(resourc
     assert compiled["DETAIL"]["css"] == ".newslertter-article-content"
 
 
-@pytest.mark.parametrize("resource_dir", ["resource", "resource_dev"])
+@pytest.mark.parametrize("resource_dir", [SITE_MONIMO])
 def test_shipped_monimo_news_extracts_from_the_source_shape(resource_dir):
     """출고 선택자를 원천 모양에 걸어 실제로 값이 나오는지까지 본다."""
     base = Path(__file__).resolve().parents[2] / resource_dir
@@ -295,7 +296,7 @@ def test_parser_skips_non_html_inputs(tmp_path):
 NEWS_SAMPLE = "TD00008415_d_5199.html.json"
 
 
-def _shipped_selectors(resource_dir: str = "resource") -> dict:
+def _shipped_selectors(resource_dir: str = SITE_MONIMO) -> dict:
     base = Path(__file__).resolve().parents[2] / resource_dir
     raw = yaml.safe_load(
         (base / "custom_field_monimo_news.yaml").read_text(encoding="utf-8")

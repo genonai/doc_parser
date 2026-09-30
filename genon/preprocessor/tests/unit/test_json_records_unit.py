@@ -16,6 +16,7 @@ from genon.preprocessor.processing.enrichment.json_records import (
     find_fields,
     html_to_text,
 )
+from shipped_config import SITE_MONIMO
 
 pytestmark = pytest.mark.unit
 
@@ -639,7 +640,7 @@ def test_builder_selects_only_json_mapping_configs(tmp_path):
 
 # ── 출고 설정 파일 자체 검증 ─────────────────────────────────────────────────
 
-@pytest.mark.parametrize("resource_dir", ["resource", "resource_dev"])
+@pytest.mark.parametrize("resource_dir", [SITE_MONIMO])
 def test_shipped_monimo_event_config_loads(resource_dir):
     """출고 yaml 이 실제로 매퍼로 컴파일되는지(오타/키 누락 방지)."""
     from pathlib import Path
@@ -675,7 +676,7 @@ def test_shipped_monimo_event_config_loads(resource_dir):
         assert "CONTENT_HASH" not in spec.enricher_kwargs["system_prompt"]
 
 
-@pytest.mark.parametrize("resource_dir", ["resource", "resource_dev"])
+@pytest.mark.parametrize("resource_dir", [SITE_MONIMO])
 def test_shipped_monimo_event_config_maps_real_payload_schema(resource_dir):
     """출고 yaml 이 실 payload(영문 camelCase 키) 스키마를 매핑하는지.
 

@@ -10,6 +10,7 @@ facade 쪽에는 기존 이름(`_as_dict` 등)의 얇은 별칭만 남긴다 —
 from __future__ import annotations
 
 import logging
+import os
 import re
 from pathlib import Path
 from typing import Any, Optional
@@ -133,6 +134,74 @@ def warn_unresolved_placeholders(cfg: dict, config_path: str) -> None:
         )
 
 
+# 메인 yaml 이 쓸 프리셋 파일을 지정하는 키와, 로컬 실행에서 모델만 바꿔 끼우는 환경변수.
+MODEL_PRESETS_FILE_KEY = "model_presets_file"
+MODEL_PRESETS_ENV = "GENOS_MODEL_PRESETS_FILE"
+
+
+def collect_model_presets(cfg: dict, config_path: str, *, strict: bool = True) -> dict:
+    """메인 yaml 이 쓰는 모델 프리셋을 층별로 모아 {이름: 설정} 으로 돌려준다.
+
+    층은 셋이고 뒤가 우선한다.
+      1. `model_presets_file` 로 지정한 파일들(적은 순서). 메인 yaml 폴더 기준 경로다.
+      2. 메인 yaml 의 `model_presets`
+      3. 환경변수 GENOS_MODEL_PRESETS_FILE 이 가리키는 파일. 로컬 실행에서 모델 접속 정보만
+         바꿔 끼울 때 쓰며, 운영에서는 설정하지 않는다.
+    같은 이름의 프리셋끼리는 키 단위로 합친다 — 덮어쓰는 층에는 url·api_key 만 적어도 된다.
+    """
+    from genon.preprocessor.processing.enrichment.prompt_files import resolve_prompt_path
+
+    raw_refs = cfg.get(MODEL_PRESETS_FILE_KEY)
+    if raw_refs is None:
+        refs = []
+    elif isinstance(raw_refs, str):
+        refs = [raw_refs]
+    elif isinstance(raw_refs, list) and all(isinstance(r, str) for r in raw_refs):
+        refs = raw_refs
+    else:
+        return _preset_fail(
+            f"{config_path}: `{MODEL_PRESETS_FILE_KEY}` 는 파일 경로 문자열 또는 그 목록이어야 합니다 "
+            f"(받은 것: {raw_refs!r}).",
+            strict=strict,
+            fallback=model_preset.get_presets(cfg, label=config_path, strict=strict),
+        )
+
+    base_dir = Path(config_path).resolve().parent
+    layers = [_read_presets_file(resolve_prompt_path(ref, base_dir), strict=strict) for ref in refs]
+    layers.append(model_preset.get_presets(cfg, label=config_path, strict=strict))
+    env_path = os.environ.get(MODEL_PRESETS_ENV, "").strip()
+    if env_path:
+        path = Path(env_path).expanduser().resolve()
+        _log.info(f"[model_preset] {MODEL_PRESETS_ENV} 의 모델 프리셋을 적용합니다: {path}")
+        layers.append(_read_presets_file(path, strict=strict))
+
+    merged: dict = {}
+    for presets in layers:
+        for name, value in presets.items():
+            merged[name] = {**merged.get(name, {}), **value}
+    return merged
+
+
+def _preset_fail(message: str, *, strict: bool, fallback):
+    """프리셋 파일 지정 오류. strict 면 기동을 막고, 아니면 경고만 남긴다(model_preset 과 같은 정책)."""
+    if strict:
+        raise model_preset.ModelPresetError(message)
+    _log.warning(f"[model_preset] {message}")
+    return fallback
+
+
+def _read_presets_file(path: Path, *, strict: bool) -> dict:
+    """프리셋 파일 하나를 읽는다. 형식은 메인 yaml 과 같은 최상위 `model_presets:` 블록이다."""
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            loaded = yaml.safe_load(f) or {}
+    except Exception as exc:
+        return _preset_fail(
+            f"모델 프리셋 파일을 읽지 못했습니다: {path} ({exc})", strict=strict, fallback={}
+        )
+    return model_preset.get_presets(loaded, label=str(path), strict=strict)
+
+
 def load_config(config_path: str, *, strict: bool = True) -> dict:
     """yaml 설정을 읽어 dict 로 돌려준다.
 
@@ -156,6 +225,9 @@ def load_config(config_path: str, *, strict: bool = True) -> dict:
             f"(expected mapping, got {type(cfg).__name__}). Using defaults."
         )
         return {}
+    presets = collect_model_presets(cfg, config_path, strict=strict)
+    if presets:
+        cfg[model_preset.PRESETS_KEY] = presets
     # 플레이스홀더 경고는 펼치기 전에 한다 — 펼친 뒤에는 프리셋 하나의 미치환 주소가
     # 그것을 참조하는 블록 수만큼 되풀이 보고된다.
     warn_unresolved_placeholders(cfg, config_path)

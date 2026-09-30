@@ -18,14 +18,17 @@ doc_type 마다 샘플을 파싱·청킹한 뒤, 그 doc_type 의 custom_field y
     `chunking.validation: {enable: true, action: drop}` 을 얹어 불량 섹션이 빠지고 대조군이
     남는지, 전부 불량인 문서가 CHUNK_ALL_REJECTED 로 실패하는지 단정한다.
 
-doc_type → extractor/config 매핑은 resource_dev/parser_processor_config.yaml 에서
-직접 읽는다. 설정이 늘어나면 이 스크립트를 고치지 않아도 따라간다.
+doc_type → extractor/config 매핑은 모니모 사이트 완성본(sites/monimo/resource/)의
+parser_processor_config.yaml 에서 직접 읽는다. 설정이 늘어나면 이 스크립트를 고치지 않아도
+따라간다. --resource-dir 로 다른 설정 폴더를 주면 매핑과 러너 설정을 모두 그 폴더에서 읽는다.
+모델은 로컬(VPN) 프리셋(sites/dev/model_presets.yaml)으로 돈다(parse_chunk_test.py 가 지정).
 
 사용:
     python parse_chunk_verify.py                 # 전체
     python parse_chunk_verify.py --only faq menu # 일부 doc_type 만
     python parse_chunk_verify.py --keep          # 산출물 보존(기본은 임시 디렉터리)
     python parse_chunk_verify.py --only chunk_quality   # 이상 청크 검증 케이스만
+    python parse_chunk_verify.py --resource-dir ../../resource   # 표준 설정으로 검증
 """
 
 from __future__ import annotations
@@ -48,10 +51,16 @@ import yaml
 os.environ.setdefault(
     "DYLD_FALLBACK_LIBRARY_PATH", "/opt/homebrew/lib:/usr/local/lib:/usr/lib"
 )
+# 로컬 검증은 로컬(VPN) 모델로 돈다. 하위 러너(parse_chunk_test.py)와 골든 하네스가 이 값을
+# 물려받는다. 이미 설정된 값은 존중한다.
+os.environ.setdefault(
+    "GENOS_MODEL_PRESETS_FILE",
+    str(Path(__file__).resolve().parents[4] / "sites" / "dev" / "model_presets.yaml"),
+)
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 PREPROCESSOR_DIR = SCRIPT_DIR.parents[1]
-RESOURCE_DIR = PREPROCESSOR_DIR / "resource_dev"
+RESOURCE_DIR = PREPROCESSOR_DIR.parents[1] / "sites" / "monimo" / "resource"
 REPO_ROOT = PREPROCESSOR_DIR.parents[1]
 SAMPLES = PREPROCESSOR_DIR / "sample_files"
 MONIMO = SAMPLES / "monimo"
@@ -138,12 +147,26 @@ def check_card_annual_fee(chunks: list) -> list[str]:
     return []
 
 
-def check_product_hpp_table_format(chunks: list) -> list[str]:
-    """table_format: auto 는 정형 표를 markdown 으로 낸다.
+# 표준·모니모 설정은 table_format: html 이라 파싱된 표가 청크 본문에 `<table>` 로 다시 렌더된다.
+# 렌더 결과는 표 태그만 쓰고 속성을 싣지 않는다(병합 칸의 colspan/rowspan 만 예외). 원천 HTML 이
+# 파싱되지 않고 새어 나오면 표 밖 태그(span, div …)나 style 같은 속성이 함께 남으므로 그것으로 가른다.
+_RENDERED_TABLE_TAG = re.compile(
+    r'</?(?:table|caption|thead|tbody|tr|th|td)(?:\s+(?:colspan|rowspan)="?\d+"?)*\s*>')
+_ANY_TAG = re.compile(r"</?[A-Za-z][A-Za-z0-9]*(?:\s[^<>]*)?>")
 
-    연회비 표는 행 라벨이 `<th scope="row">` 인 실제 WCMS 표다. 병합 셀도 계층 헤더도
-    없으므로 markdown 이어야 하는데, 예전에는 행 라벨 `<th>` 때문에 모든 행이 헤더 행으로
-    집계돼 계층 헤더 표로 오인되고 html 로 나갔다(table_shape.leading_header_row_count).
+
+def raw_markup_leak(text: str) -> str | None:
+    """렌더된 표 태그를 뺀 뒤에도 남는 HTML 태그(원천 누출)의 첫 조각. 없으면 None."""
+    hit = _ANY_TAG.search(_RENDERED_TABLE_TAG.sub(" ", text or ""))
+    return hit.group(0)[:40] if hit else None
+
+
+def check_product_hpp_table_format(chunks: list) -> list[str]:
+    """연회비 표의 행 라벨이 헤더가 아니라 각 행의 첫 칸으로 남는가(table_format: html).
+
+    연회비 표는 행 라벨이 `<th scope="row">` 인 실제 WCMS 표다. 예전에는 행 라벨 `<th>` 때문에
+    모든 행이 헤더 행으로 집계돼 계층 헤더 표로 오인됐다(table_shape.leading_header_row_count).
+    그러면 헤더 행이 반복되거나 행 라벨이 헤더 쪽으로 빠진다.
     """
     problems = []
     # 표 청크만 본다 — table_as_chunk 로 표와 표 설명이 다른 청크로 갈리므로, 설명 청크가
@@ -153,22 +176,17 @@ def check_product_hpp_table_format(chunks: list) -> list[str]:
     if fee is None:
         return ["연회비 표가 어느 청크에도 없습니다"]
 
-    if "<table" in fee:
-        problems.append("연회비 표가 html 로 나왔습니다(auto 가 markdown 을 골라야 함)")
-    # compact_tables 가 켜져 있으면 구분선이 `| - | - |` 로 줄어든다(`| --- |` 아님).
-    if not any(re.fullmatch(r"\|(\s*-+\s*\|)+", line.strip()) for line in fee.splitlines()):
-        problems.append("연회비 표에 markdown 구분선이 없습니다")
-    # 행 라벨은 첫 컬럼의 데이터 행으로 남아야 한다(헤더로 반복되면 안 된다).
-    if not any(line.lstrip().startswith("| 총 연회비 |") for line in fee.splitlines()):
-        problems.append("행 라벨 '총 연회비' 가 첫 컬럼 데이터 행으로 남지 않았습니다")
+    if "<table" not in fee:
+        problems.append("연회비 표가 html 로 나오지 않았습니다(table_format: html)")
+    # 헤더 행은 한 번만 나와야 한다(행 라벨이 헤더로 오인되면 헤더 행이 늘어난다).
+    if fee.count(">구분</th>") != 1:
+        problems.append(f"헤더 행 '구분' 이 {fee.count('>구분</th>')}번 나왔습니다(1번 기대)")
+    # 행 라벨은 자기 행의 첫 칸으로 남고, 바로 뒤에 그 행의 값이 와야 한다.
+    if not re.search(r"<tr><t[hd]>총 연회비</t[hd]><td>20,000원</td>", fee):
+        problems.append("행 라벨 '총 연회비' 가 첫 칸 데이터 행으로 남지 않았습니다")
     for value in ("20,000", "18,000", "15,000", "13,000", "국내전용"):
         if value not in fee:
             problems.append(f"연회비 표에서 '{value}' 가 사라졌습니다")
-
-    # 대조군: 원래도 정형이던 적립률 표도 markdown 이어야 한다.
-    rate = next((t for t in texts if "적립률" in t and "일반 가맹점" in t), None)
-    if rate is not None and "<table" in rate:
-        problems.append("적립률 표가 html 로 나왔습니다(정형 표 회귀)")
     return problems
 
 
@@ -301,7 +319,8 @@ def check_cs_hpp_degenerate_table(chunks: list) -> list[str]:
 def check_table_text_formats(chunks: list) -> list[str]:
     """표 표기형태별 추가 필드(#360 text_table_html / text_table_md) 공통 단정.
 
-    resource_dev 가 이 기능을 켜 두므로 모든 케이스가 두 필드를 갖는다. 예전에는 이 함수가
+    검증 러너가 이 기능을 켠 청커 설정(verify_chunker_config)으로 돌므로 모든 케이스가 두 필드를
+    갖는다(표준 설정은 꺼 두지만, 이 검증은 기능이 모든 경로에서 동작하는지를 지킨다). 예전에는 이 함수가
     "필드가 없으면 기능 범위 밖" 으로 통과시켰는데, 그 폴백이 곧 이 기능이 행 기반 경로
     (product_hpp JSON 등)에서 조용히 빠져 있던 것을 감추고 있었다. 이제 필드 부재는 실패다.
 
@@ -313,7 +332,7 @@ def check_table_text_formats(chunks: list) -> list[str]:
     present = [c for c in chunks if any(f in c for f in fields)]
     if not present:
         return ["표기형태 필드가 한 청크에도 없습니다 "
-                "(resource_dev 는 table_text_formats on — 이 경로가 기능을 건너뜁니다)"]
+                "(검증 설정은 table_text_formats on — 이 경로가 기능을 건너뜁니다)"]
     if len(present) != len(chunks):
         problems.append(
             f"표기형태 필드가 일부 청크에만 있습니다 {len(present)}/{len(chunks)}건")
@@ -440,15 +459,10 @@ def check_cs_hpp_parsed_ext(chunks: list) -> list[str]:
     8청크가 태그 덩어리였다.
     """
     problems: list[str] = []
-    markup = re.compile(r"<(?:table|tbody|thead|tr|td|th|span|div|colgroup|img)\b")
     for idx, chunk in enumerate(chunks):
-        text = chunk.get("text") or ""
-        hit = markup.search(text)
-        if hit:
-            problems.append(
-                f"청크 {idx} 본문에 HTML 태그가 원문 그대로 남았습니다: "
-                f"{text[hit.start():hit.start() + 40]!r}"
-            )
+        leak = raw_markup_leak(chunk.get("text"))
+        if leak:
+            problems.append(f"청크 {idx} 본문에 원천 HTML 이 그대로 남았습니다: {leak!r}")
     if not any(chunk.get("has_table") for chunk in chunks):
         problems.append("표로 인식된 청크가 없습니다(HTML 표가 파싱되지 않았습니다)")
     # 마커 소제목(◈/■)이 heading 으로 승격돼야 섹션마다 청크가 갈린다. 승격이 빠지면
@@ -558,11 +572,12 @@ def check_cs_ssf_delimited(chunks: list) -> list[str]:
     if '"사고사실확인원"' not in body:
         problems.append("이스케이프된 따옴표가 복원되지 않았습니다")
 
-    # HTML 표가 구조로 파싱됐는가(태그가 본문에 그대로 남으면 실패).
+    # HTML 표가 구조로 파싱됐는가(원천 태그가 본문에 그대로 남으면 실패).
     if not any(chunk.get("has_table") for chunk in chunks):
         problems.append("표로 인식된 청크가 없습니다")
-    if re.search(r"<(?:table|tbody|tr|td|span|div)\b", body):
-        problems.append("청크 본문에 HTML 태그가 원문 그대로 남았습니다")
+    leak = raw_markup_leak(body)
+    if leak:
+        problems.append(f"청크 본문에 원천 HTML 이 그대로 남았습니다: {leak!r}")
     return problems
 
 
@@ -632,10 +647,29 @@ QUALITY_CASES = [
 ]
 
 
+_VERIFY_CHUNKER_CONFIG: Path | None = None
+
+
+def verify_chunker_config() -> Path:
+    """검증용 청커 설정 사본. 설정 폴더의 청커 설정에 표 표기형태(#360)를 켠다.
+
+    표준·사이트 설정은 이 기능을 꺼 두지만, check_table_text_formats 는 기능이 모든 경로에서
+    동작하는지를 지키므로 켜고 돈다. 설정 파일은 건드리지 않고 임시 사본을 한 번만 만든다.
+    """
+    global _VERIFY_CHUNKER_CONFIG
+    if _VERIFY_CHUNKER_CONFIG is None:
+        cfg = yaml.safe_load(
+            (RESOURCE_DIR / "chunking_processor_config.yaml").read_text(encoding="utf-8")) or {}
+        cfg.setdefault("output", {})["table_text_formats"] = ["html", "markdown"]
+        path = Path(tempfile.mkdtemp(prefix="parse_chunk_verify_cfg_")) / "chunking_processor_config.yaml"
+        path.write_text(yaml.safe_dump(cfg, allow_unicode=True), encoding="utf-8")
+        _VERIFY_CHUNKER_CONFIG = path
+    return _VERIFY_CHUNKER_CONFIG
+
+
 def quality_chunker_config(out_root: Path) -> Path:
-    """resource_dev 청커 설정에 검증 drop 모드를 얹은 사본. 배포 설정은 건드리지 않는다."""
-    cfg = yaml.safe_load(
-        (RESOURCE_DIR / "chunking_processor_config.yaml").read_text(encoding="utf-8")) or {}
+    """검증용 청커 설정에 drop 모드 검증을 얹은 사본. 배포 설정은 건드리지 않는다."""
+    cfg = yaml.safe_load(verify_chunker_config().read_text(encoding="utf-8")) or {}
     cfg.setdefault("chunking", {})["validation"] = {"enable": True, "action": "drop"}
     path = out_root / "chunk_quality_chunker_config.yaml"
     path.write_text(yaml.safe_dump(cfg, allow_unicode=True), encoding="utf-8")
@@ -769,8 +803,12 @@ def run_case(python: str, doc_type: str | None, src: Path, out_dir: Path,
     사실을 읽는 데 쓴다.
     """
     doc_type_args = ["--doc_type", doc_type] if doc_type else []
+    # 설정은 RESOURCE_DIR 의 파서 설정과 검증용 청커 설정이다. extra_args 를 뒤에 두어 호출자가 준
+    # 인자(예: 이상 청크 검증의 --chunker-config)가 우선하게 한다.
+    config_args = ["--config", str(RESOURCE_DIR / "parser_processor_config.yaml"),
+                   "--chunker-config", str(verify_chunker_config())]
     cmd = [python, str(SCRIPT_DIR / "parse_chunk_test.py"),
-           *doc_type_args, *(extra_args or []), str(src), str(out_dir) + "/"]
+           *doc_type_args, *config_args, *(extra_args or []), str(src), str(out_dir) + "/"]
     proc = subprocess.run(cmd, cwd=SCRIPT_DIR, capture_output=True, text=True)
     output = (proc.stdout or "") + (proc.stderr or "")
     if proc.returncode != 0:
@@ -832,7 +870,13 @@ def main() -> int:
     ap.add_argument("--keep", action="store_true", help="산출물을 지우지 않는다")
     ap.add_argument("--out", default=None, help="산출 디렉터리(미지정 시 임시 디렉터리)")
     ap.add_argument("--python", default=sys.executable, help="parse_chunk_test.py 실행 인터프리터")
+    ap.add_argument("--resource-dir", default=None,
+                    help="설정 폴더(미지정 시 sites/monimo/resource)")
     args = ap.parse_args()
+
+    global RESOURCE_DIR
+    if args.resource_dir:
+        RESOURCE_DIR = Path(args.resource_dir).expanduser().resolve()
 
     known_types = {case[0] for case in CASES} | {QUALITY_DOC_TYPE}
     unknown_types = sorted(set(args.only or []) - known_types)

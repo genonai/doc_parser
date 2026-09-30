@@ -8,6 +8,8 @@ from unittest.mock import AsyncMock
 
 import pytest
 
+from shipped_config import PREPROCESSOR_DIR, SITE_MONIMO
+
 from genon.preprocessor.processing.enrichment import custom_fields_enricher as cfe
 from genon.preprocessor.processing.enrichment.custom_fields_enricher import (
     CustomFieldsEnricher,
@@ -358,7 +360,7 @@ def _product_slf_round_trip() -> list[dict]:
 
     async def _run():
         request = Request(scope={"type": "http"})
-        parser = ParserProcessor()
+        parser = ParserProcessor(str(PREPROCESSOR_DIR / SITE_MONIMO / "parser_processor_config.yaml"))  # 모니모 문서유형은 모니모 사이트 설정에 있다
         parser._output_format = "docling"
         for enricher in parser._intel.custom_fields_enrichers:
             if "product_slf" in enricher._doc_types:

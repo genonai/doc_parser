@@ -97,7 +97,7 @@ OCR 엔진(Paddle)과 Layout 모델 서빙(dots.ocr vllm)은 **사내 운영계 
 **PaddleOCR**
 
 - 빌드/배포 가이드: 사내 원본 저장소 `genon/README.md` 의 "paddle-ocr 빌드 및 배포"
-- 빌드 후 PaddleOCR 서버가 클러스터 내부에서 접근 가능한 주소(예: `http://paddle-ocr-service:8080/ocr` 형태)를 메모해 두세요. <br> 5단계 YAML 의 `ocr.paddle.ocr_endpoint` 에 해당 주소를 입력해야 합니다.
+- 빌드 후 PaddleOCR 서버가 클러스터 내부에서 접근 가능한 주소(예: `http://paddle-ocr-service:8080/ocr` 형태)를 메모해 두세요. <br> 4단계에서 `resource/model_presets.yaml` 의 `ocr` 프리셋(`ocr_endpoint`)에 해당 주소를 입력해야 합니다.
 
 **dots.ocr vllm 서빙 (Layout 모델)**
 
@@ -160,25 +160,25 @@ GenOS 웹 UI에서 **관리 > 리소스 > 전처리기** 로 이동하여 **전�
 
 ### 4.1 시작점: 레포에 있는 yaml을 그대로 쓰면 안 되는 이유
 
-레포의 **`resource_dev/`** 아래에 들어 있는 yaml(예: `resource_dev/intelligent_processor_config.yaml`)은 **사내망 로컬 PC에서 `python test.py` 로 facade 동작을 확인하는 dev 용도**로 세팅되어 있습니다. 사이트에 그대로 가져가면 동작하지 않습니다. 두 가지가 다릅니다.
+모델 접속 정보는 레포의 `resource/model_presets.yaml` **한 파일**에 모여 있고, 메인 yaml(`intelligent_processor_config.yaml` 등)은 `model_presets_file: model_presets.yaml` 로 이 파일을 읽습니다. 레포의 `sites/dev/model_presets.yaml` 은 **사내망 로컬 PC에서 facade 동작을 확인하는 dev 용도**의 접속값이며, 로컬 실행에서만 환경변수 `GENOS_MODEL_PRESETS_FILE` 로 얹어 씁니다. 사이트에 그대로 가져가면 동작하지 않습니다. 두 가지가 다릅니다.
 
-| 항목 | dev yaml (`resource_dev/`) — 사내망 로컬 PC | 사이트 GenOS 배포용 |
+| 항목 | dev 접속값 (`sites/dev/model_presets.yaml`) — 사내망 로컬 PC | 사이트 GenOS 배포용 (`resource/model_presets.yaml`) |
 |---|---|---|
 | URL 형태 | 외부 게이트웨이: `https://genos.genon.ai/api/gateway/rep/serving/<ID>/...` | 사이트 k8s 내부 서비스 DNS: `http://llmops-gateway-api-service:8080/rep/serving/<ID>/v1/chat/completions` |
 | `api_key` | 외부 호출이라 인증 필요 → 값이 채워져 있음 | k8s 내부 통신이라 불필요 → **빈 값** |
 | `<ID>` | 사내 GenOS 환경의 서빙 ID | **사이트** GenOS에 등록된 서빙 ID (2.3에서 확인한 값) |
 
-따라서 사이트 적용 시에는 dev yaml을 베이스로 시작하되, **URL을 사이트 k8s 내부 주소로 바꾸고, api_key는 비우고, `<ID>` 자리를 사이트의 실제 서빙 ID로 채워야 합니다.**
+따라서 사이트 적용 시에는 `resource/model_presets.yaml` 의 **`<ID>` 자리를 사이트의 실제 서빙 ID로 채웁니다.** URL은 이미 사이트 k8s 내부 주소 형태이고 api_key는 비어 있습니다. dev 접속값을 사이트로 가져가지 않습니다.
 
 ![yaml URL · api_key 비교 — 사내망 dev (외부 게이트웨이) vs 사이트 배포 (k8s 내부 DNS)](./images/url_api_setting.jpg)
 
 ### 4.2 채워야 할 자리
 
-dev yaml 안의 `<...>` 자리표는 다음과 같이 채웁니다.
+`resource/model_presets.yaml` 안의 `<...>` 자리표는 다음과 같이 채웁니다.
 
-- **`<LAYOUT_SERVING_ID>`** → 2.3 에서 메모한 dots.ocr 서빙 ID
-- **`<ENRICHMENT_SERVING_ID>`** → 2.3 에서 메모한 LLM 서빙 ID. **`enrichment` 의 `toc` / `metadata` / `image_description` 세 항목 URL에 모두 동일한 ID를 사용합니다.** (이미지 설명용 별도 VLM이 등록된 사이트라도 토대 구조는 같음 — 운영 표준은 셋이 같은 서빙 ID 공유)
-- **`<OCR_ENDPOINT>`** → 2.2 에서 빌드·배포한 사이트 PaddleOCR 서버의 클러스터 내부 접근 주소
+- **`<LAYOUT_SERVING_ID>`** (`layout` 프리셋) → 2.3 에서 메모한 dots.ocr 서빙 ID
+- **`<ENRICHMENT_SERVING_ID>`** (`default` 프리셋) → 2.3 에서 메모한 LLM 서빙 ID. 이미지 설명용 `<IMAGE_DESCRIPTION_SERVING_ID>`(`image` 프리셋)와 페이지 설명용 `<PAGE_DESCRIPTION_SERVING_ID>`(`page` 프리셋)에도 같은 ID를 쓸 수 있습니다. (이미지 설명용 별도 VLM이 등록된 사이트라도 토대 구조는 같음 — 운영 표준은 셋이 같은 서빙 ID 공유)
+- **`<OCR_ENDPOINT>`** (`ocr` 프리셋) → 2.2 에서 빌드·배포한 사이트 PaddleOCR 서버의 클러스터 내부 접근 주소
 
 기타 옵션(`ocr_mode`, `layout.genos_layout.page_batch_size`, enrichment 프롬프트 파일 등)은 기본값을 그대로 두면 됩니다. 사이트별로 튜닝이 필요한 항목과 그 의미는 [intelligent_processor.md](intelligent_processor.md) 와 [parser_processor.md](parser_processor.md) 참고.
 
@@ -216,6 +216,7 @@ Doc Parser는 PDF 파싱에 쓰는 모델을 **두 가지 방식** 중 하나로
 | 파일 | 역할 |
 |---|---|
 | `intelligent_processor_config.yaml` (4단계에서 수정한 것) | 메인 config — OCR / Layout / Enrichment 설정 |
+| `model_presets.yaml` (4단계에서 수정한 것) | 모델·외부 서비스 접속 정보. 메인 config 가 `model_presets_file` 로 읽으므로 **반드시 함께 올린다** |
 | `prompt_toc_default_system.md` / `prompt_toc_default_user.md` | TOC 생성 enrichment 프롬프트 |
 | `prompt_metadata_default_system.md` / `prompt_metadata_default_user.md` | 메타데이터 추출 enrichment 프롬프트 |
 | `prompt_image_description_default.md` | 이미지 설명 enrichment 프롬프트 |
@@ -371,13 +372,13 @@ source ./.venv/bin/activate
 
 cd ./facade
 # test.py 안의 from <processor>_processor import DocumentProcessor 와
-# file_path 만 원하는 값으로 수정 후 실행
+# file_path 만 원하는 값으로 수정 후 실행. test.py 가 사내망 dev 프리셋을 스스로 얹는다
 python test.py
 # 결과는 같은 디렉토리의 result.json 에 저장
 ```
 
-- **genon 사내망 VPN 접속 필요** (dev yaml 의 외부 게이트웨이 호출 때문).
-- 이 흐름은 `resource/...yaml`이 아닌 `resource_dev/...yaml` 을 그대로 사용합니다. 사이트 배포 시에는 4단계대로 yaml 을 수정해야 한다는 점만 잊지 마세요.
+- **genon 사내망 VPN 접속 필요** (dev 프리셋의 외부 게이트웨이 호출 때문).
+- 이 흐름은 `resource/...yaml` 위에 `sites/dev/model_presets.yaml` 의 접속값만 얹어 사용합니다. `test.py` 가 환경변수 `GENOS_MODEL_PRESETS_FILE` 을 이 파일로 설정하며(밖에서 지정하면 그 값이 우선합니다), 이 변수는 로컬 전용입니다. 사이트 배포 시에는 4단계대로 `resource/model_presets.yaml` 을 수정해야 한다는 점만 잊지 마세요.
 
 ---
 

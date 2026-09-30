@@ -216,12 +216,7 @@ def _resolve_default_parser_config_path() -> str:
     # processing/core/ 로 한 단계 깊어졌으므로 facade/ 를 기준으로 잡는다 —
     # 옮기기 전 이 헬퍼는 facade/ 에 있었고 아래 상대 경로가 그것을 전제한다.
     base_dir = Path(__file__).resolve().parents[1]
-    local_config = (base_dir / "../resource_dev/parser_processor_config.yaml").resolve()
-    default_config = (base_dir / "../resource/parser_processor_config.yaml").resolve()
-
-    if local_config.exists():
-        return str(local_config)
-    return str(default_config)
+    return str((base_dir / "../resource/parser_processor_config.yaml").resolve())
 
 
 # ============================================================

@@ -122,17 +122,13 @@ defaults:
 
 # ───────────────────────────────────────────────
 # 모델 프리셋 (아래 "모델 프리셋으로 접속 정보 모으기" 참고)
-# 모델 한 벌을 이름 붙여 두고, 쓰는 자리에서 `model_preset: <이름>` 으로 부릅니다.
+# 접속 정보는 같은 폴더의 model_presets.yaml 에 모여 있고,
+# 쓰는 자리에서 `model_preset: <이름>` 으로 부릅니다.
 # ───────────────────────────────────────────────
-model_presets:
-  default:
-    url: "http://llmops-gateway-api-service:8080/rep/serving/<ENRICHMENT_SERVING_ID>/v1/chat/completions"
-    api_key: ""
-    model: "model"
-  image:
-    url: "http://llmops-gateway-api-service:8080/rep/serving/<IMAGE_DESCRIPTION_SERVING_ID>/v1/chat/completions"
-    api_key: ""
-    model: "model"
+model_presets_file: model_presets.yaml
+model_presets:              # 이 설정에서만 달라지는 값(선택)
+  page:
+    timeout: 360
 
 # ───────────────────────────────────────────────
 # 포맷별 처리 옵션 (xlsx/csv — "지원 파일 형식 > CSV / XLSX", md — "지원 파일 형식 > Markdown" 참고)
@@ -165,8 +161,7 @@ ocr:
 
   # engine: "paddle" 일 때만 사용
   paddle:
-    # <OCR_ENDPOINT>: PaddleOCR 서버 주소로 변경 필요
-    ocr_endpoint: "http://<OCR_ENDPOINT>/ocr"
+    model_preset: ocr   # 서버 주소는 model_presets.yaml
     text_score: 0.3
 
   # 글리프 깨짐 기반 auto-OCR 재트리거 임계값
@@ -190,10 +185,7 @@ layout:
   # 레이아웃 모델 종류: genos_layout | docling_layout
   layout_model_type: "genos_layout"
   genos_layout:
-    # <LAYOUT_SERVING_ID>: Genos에 등록한 layout 모델서빙 ID로 변경 필요
-    # api_key는 k8s 내부 통신 기반 모델 호출 시 불필요.
-    endpoint: "http://llmops-gateway-api-service:8080/rep/serving/<LAYOUT_SERVING_ID>/v1/chat/completions"
-    api_key: ""
+    model_preset: layout   # 서빙 주소·키는 model_presets.yaml
     page_batch_size: 128
     max_completion_tokens: 16384
     model: "dots-mocr"          # 서빙 모델명
@@ -219,19 +211,17 @@ pdf_pipeline:
 # 각 항목은 {이름: {옵션}} 형식의 list 입니다.
 #   이름 ∈ {toc, metadata, doc_summary, image_description, table_description, custom_fields}
 #   비활성화: ① 항목 삭제  ② 항목 주석 처리  ③ enable: false
-#   접속 정보는 위 model_presets 에 모아 두고 `model_preset: <이름>` 으로 부릅니다.
-#   항목마다 url/api_key/model 을 직접 적는 방식도 그대로 동작합니다(프리셋보다 우선).
-#   <ENRICHMENT_SERVING_ID> / <IMAGE_DESCRIPTION_SERVING_ID> 는 Genos에 등록한
-#   모델서빙 ID로 변경 필요. api_key 는 k8s 내부 통신 시 불필요.
+#   접속 정보는 model_presets.yaml 에 모아 두고 `model_preset: <이름>` 으로 부릅니다.
+#   특정 항목만 다른 모델을 쓰려면 그 항목에 url/api_key/model 을 직접 적습니다(프리셋보다 우선).
+#   <ENRICHMENT_SERVING_ID> / <IMAGE_DESCRIPTION_SERVING_ID> 는 model_presets.yaml 에서
+#   Genos에 등록한 모델서빙 ID로 변경 필요. api_key 는 k8s 내부 통신 시 불필요.
 #   프롬프트는 별도 .md 파일로 분리합니다(아래 "프롬프트 파일 분리 & 변수 치환" 참고).
 #   *_file 경로는 이 config 파일과 같은 디렉토리 기준이며, 파일명만 적습니다.
 # ───────────────────────────────────────────────
 enrichment:
   - toc:
       enable: true
-      url: "http://llmops-gateway-api-service:8080/rep/serving/<ENRICHMENT_SERVING_ID>/v1/chat/completions"
-      api_key: ""
-      model: "model"
+      model_preset: default
       temperature: 0.0
       top_p: 0.00001
       seed: 33
@@ -246,9 +236,7 @@ enrichment:
 
   - metadata:
       enable: true
-      url: "http://llmops-gateway-api-service:8080/rep/serving/<ENRICHMENT_SERVING_ID>/v1/chat/completions"
-      api_key: ""
-      model: "model"
+      model_preset: default
       max_tokens: 10000
       temperature: 0.0
       timeout: 3600
@@ -274,19 +262,14 @@ enrichment:
   # 문서 본문요약 1회 → image/table description 공용 {{doc_summary}} 컨텍스트
   - doc_summary:
       enable: false
-      url: "http://llmops-gateway-api-service:8080/rep/serving/<ENRICHMENT_SERVING_ID>/v1/chat/completions"
-      api_key: ""
-      model: "model"
+      model_preset: default
       prompt_file: prompt_doc_summary.md   # {{full_text}} 치환
       max_chars: 6000
 
   # facade 후처리 기반 이미지 설명 생성 (문맥 포함)
   - image_description:
       enable: true
-      # <IMAGE_DESCRIPTION_SERVING_ID>: 별도 VLM 서빙 ID
-      url: "http://llmops-gateway-api-service:8080/rep/serving/<IMAGE_DESCRIPTION_SERVING_ID>/v1/chat/completions"
-      api_key: ""
-      model: "model"
+      model_preset: image
       concurrency: 16        # 이미지 설명 요청 병렬 수
       before_items: 3
       after_items: 2
@@ -302,9 +285,7 @@ enrichment:
   # 표 설명(요약 + 선택적 refine 구조 재구성). refine/요약은 element(parse) 출력에 반영.
   - table_description:      # 표 영역을 crop 해 VLM 에 보냄 → 이미지 서빙.
       enable: false
-      url: "http://llmops-gateway-api-service:8080/rep/serving/<IMAGE_DESCRIPTION_SERVING_ID>/v1/chat/completions"
-      api_key: ""
-      model: "model"
+      model_preset: image
       concurrency: 8         # 표 설명 요청 병렬 수
       before_items: 3
       after_items: 2
@@ -317,9 +298,7 @@ enrichment:
   # 커스텀 필드 추출 (여러 개 지정 가능). 인라인 옵션 또는 외부 config_file 사용.
   # - custom_fields:
   #     enable: true
-  #     url: "http://llmops-gateway-api-service:8080/rep/serving/<ENRICHMENT_SERVING_ID>/v1/chat/completions"
-  #     api_key: ""
-  #     model: "model"
+  #     model_preset: default
   #     output_fields: [doc_category, keywords]
   #     system_prompt_file: prompt_custom_fields_xxx_system.md  # 생략 시 built-in default
   #     user_prompt_file: prompt_custom_fields_xxx_user.md      # 파일 안에서 {{raw_text}} 치환
@@ -345,7 +324,7 @@ output:
 # Whisper 설정 (오디오 음성인식이 필요한 경우에만 설정)
 # ───────────────────────────────────────────────
 whisper:
-  url: ""
+  model_preset: whisper   # 서버 주소는 model_presets.yaml
   model: "model"
   language: "ko"
   response_format: "json"
@@ -360,17 +339,36 @@ whisper:
 
 ### 모델 프리셋으로 접속 정보 모으기
 
-같은 모델 서빙 주소와 인증키를 설정 파일 곳곳에 되풀이 적지 않도록, 모델 한 벌을
-최상위 `model_presets:` 에 이름 붙여 두고 쓰는 자리에서 `model_preset:` 으로 부릅니다.
-서빙 ID 나 키가 바뀌면 프리셋 한 곳만 고치면 됩니다.
+같은 모델 서빙 주소와 인증키를 설정 파일 곳곳에 되풀이 적지 않도록, 모델·외부 서비스 접속 정보를
+`resource/model_presets.yaml` **한 파일**에 이름 붙여 모아 두고, 쓰는 자리에서 `model_preset:` 으로 부릅니다.
+메인 설정(parser·intelligent·convert·attachment, `_simple` 포함)은 모두 이 파일을 읽으므로,
+서빙 ID 나 키가 바뀌면 `model_presets.yaml` 만 고치면 됩니다.
+
+표준 `model_presets.yaml` 에 정의된 프리셋은 다음과 같습니다.
+
+| 이름 | 용도 | 접속 키 |
+|------|------|---------|
+| `default` | 텍스트 LLM(목차·메타데이터·문서요약·텍스트 표 설명·custom_fields) | `url`, `api_key`, `model` |
+| `image` | 이미지 이해 모델(그림 설명·이미지 표 설명) | `url`, `api_key`, `model` |
+| `page` | PPT 페이지 설명 | `url`, `api_key`, `model` |
+| `ocr` | PaddleOCR 서버 | `ocr_endpoint` |
+| `layout` | 레이아웃 분석 모델(`layout.genos_layout`) | `endpoint`, `api_key` |
+| `whisper` | 음성인식 | `url` |
+| `guardrail` | 민감정보 분류 워크플로우 | `url`, `workflow_id`, `api_key` |
 
 ```yaml
+# model_presets.yaml
 model_presets:
   default:
     url: "http://llmops-gateway-api-service:8080/rep/serving/<ENRICHMENT_SERVING_ID>/v1/chat/completions"
     api_key: ""
     model: "model"
     temperature: 0.0       # 그 모델의 성질은 여기에 같이 둘 수 있습니다
+```
+
+```yaml
+# parser_processor_config.yaml
+model_presets_file: model_presets.yaml
 
 enrichment:
   - toc:
@@ -393,6 +391,19 @@ llm:
     endpoint:
       model_preset: default    # url/api_key/model 을 여기 다시 적지 않습니다
 ```
+
+**프리셋 파일 지정과 우선순위**
+
+- `model_presets_file` 은 메인 yaml 과 같은 폴더 기준 경로입니다. 목록으로 여러 파일을 적을 수 있고,
+  뒤에 적은 파일이 우선합니다.
+- 프리셋은 세 층에서 모이며 뒤가 우선합니다. ① `model_presets_file` 로 지정한 파일들 →
+  ② 메인 yaml 에 직접 적은 `model_presets` → ③ 환경변수 `GENOS_MODEL_PRESETS_FILE` 이 가리키는 파일.
+- 같은 이름의 프리셋끼리는 **키 단위로 병합**됩니다. 덮어쓰는 층에는 바뀌는 키(`url`·`api_key` 등)만
+  적으면 됩니다. 예를 들어 메인 yaml 에 `model_presets: {page: {timeout: 360}}` 만 적으면
+  `page` 의 접속값은 `model_presets.yaml` 의 값을 그대로 쓰고 `timeout` 만 바뀝니다.
+- `GENOS_MODEL_PRESETS_FILE` 은 **로컬 실행 전용**입니다. 저장소의 로컬 도구
+  (`parse_chunk_test.sh`, `parse_chunk_verify.sh`, `build-script/run-local.sh`)는 이 변수가 비어 있으면
+  사내 VPN 용 접속값 `sites/dev/model_presets.yaml` 로 자동 설정합니다. 운영 환경에서는 설정하지 않습니다.
 
 **규칙**
 
@@ -434,9 +445,10 @@ llm:
 프리셋에 적어도 주입되지 않습니다. 특히 `enable` 이 프리셋을 통해 퍼지면 그 프리셋을
 쓰는 항목이 한꺼번에 켜지기 때문입니다.
 
-> `layout.genos_layout` 과 `ocr.upstage` 는 주소 키 이름이 각각 `endpoint`,
-> `api_endpoint` 로 달라서 위 프리셋을 그대로 공유하지 않습니다. 그쪽 전용 프리셋을
-> 따로 정의하면 같은 방식으로 쓸 수 있습니다.
+> `layout.genos_layout`, `ocr.paddle`, `ocr.upstage` 는 주소 키 이름이 각각 `endpoint`,
+> `ocr_endpoint`, `api_endpoint` 로 달라서 LLM 프리셋을 그대로 공유하지 않습니다. 표준
+> `model_presets.yaml` 은 `layout`·`ocr` 전용 프리셋을 따로 정의해 두었고, Upstage 도 전용 프리셋을
+> 정의하면 같은 방식으로 쓸 수 있습니다.
 
 ### 설정 항목 상세
 
@@ -449,7 +461,7 @@ llm:
 | `ocr` | `ocr_mode` | `"auto"` | OCR 수행 정책. `auto`(휴리스틱 감지 후 필요 시 재OCR) / `force` / `disable`. 유효하지 않으면 `auto` |
 | `ocr` | `engine` | `"paddle"` | OCR 엔진 선택. `paddle` / `upstage` (유효하지 않으면 `paddle`) |
 | `ocr` | `table_cell_ocr_timeout` | `60` | 글리프 깨진 테이블 셀 재OCR 시 HTTP 타임아웃(초). 양의 정수, 유효하지 않으면 60 |
-| `ocr.paddle` | `ocr_endpoint` | `""` | PaddleOCR 서버 URL (engine=paddle 일 때만 사용). 구버전 `ocr.ocr_endpoint`(상위) 위치도 호환 인식 |
+| `ocr.paddle` | `ocr_endpoint` | `""` | PaddleOCR 서버 URL (engine=paddle 일 때만 사용). 표준 설정은 `model_preset: ocr` 로 `model_presets.yaml` 에서 가져옵니다. 구버전 `ocr.ocr_endpoint`(상위) 위치도 호환 인식 |
 | `ocr.paddle` | `text_score` | `0.3` | PaddleOCR word confidence 필터링 임계값 |
 | `ocr.glyph_detection` | `table_cell_threshold` | `1` | 셀 GLYPH 토큰 N개 이상이면 셀 재OCR. 양의 정수, 유효하지 않으면 1 |
 | `ocr.glyph_detection` | `document_threshold` | `10` | 문서 GLYPH 토큰 N개 초과면 OCR 경로 재시도. 양의 정수, 유효하지 않으면 10 |
@@ -459,7 +471,7 @@ llm:
 | `ocr.upstage` | `timeout` | `60` | HTTP 타임아웃 (초) |
 | `ocr.upstage` | `text_score` | `0.5` | word confidence 필터링 임계값 |
 | `layout` | `layout_model_type` | `"genos_layout"` | 레이아웃 모델 선택. `genos_layout` / `docling_layout` (유효하지 않으면 `genos_layout`) |
-| `layout.genos_layout` | `endpoint` | `""` | Genos Layout API URL |
+| `layout.genos_layout` | `endpoint` | `""` | Genos Layout API URL. 표준 설정은 `model_preset: layout` 으로 `model_presets.yaml` 에서 가져옵니다 |
 | `layout.genos_layout` | `api_key` | `""` | API 인증 키 |
 | `layout.genos_layout` | `page_batch_size` | `128` | 배치당 처리 페이지 수. 양의 정수, 유효하지 않으면 128 대체 |
 | `layout.genos_layout` | `max_completion_tokens` | `16384` | Layout LLM 최대 생성 토큰. 양의 정수, 유효하지 않거나 0 이하이면 16384로 대체 |
@@ -824,15 +836,18 @@ filename: 보고서.pdf
 
 ### 파싱용 전처리기 최초 등록시 config 수정가이드
 
-아래 설정은 사이트환경에 맞게 수정이 필요합니다.
-- `ocr.paddle.ocr_endpoint`
+아래 설정은 사이트환경에 맞게 수정이 필요합니다. 모두 `model_presets.yaml` 의 프리셋에 있으며, 메인 yaml 은 고치지 않습니다.
+- `ocr` 프리셋의 `ocr_endpoint`
   - `<OCR_ENDPOINT>` 는 PaddleOCR server 를 서비스 하는 주소로 변경해야 합니다.
-- `layout.genos_layout.endpoint`
+- `layout` 프리셋의 `endpoint`
   - `<LAYOUT_SERVING_ID>` 는 Genos에 등록한 layout 모델서빙 ID 로 변경해야 합니다.
-- `enrichment` (list 형식)
-  - `toc.url` / `metadata.url` / `doc_summary.url`: `<ENRICHMENT_SERVING_ID>` 는 Genos에 등록한 enrichment 모델서빙 ID로 변경해야 합니다.
-  - `image_description.url` / `table_description.url`: `<IMAGE_DESCRIPTION_SERVING_ID>` 는 별도 VLM 모델서빙 ID로 변경해야 합니다(표 description 은 표 영역을 crop 해 VLM 에 전달).
-- `whisper.url`
+- `default` 프리셋의 `url` (toc / metadata / doc_summary / table_text_description / custom_fields 가 공유)
+  - `<ENRICHMENT_SERVING_ID>` 는 Genos에 등록한 enrichment 모델서빙 ID로 변경해야 합니다.
+- `image` 프리셋의 `url` (image_description / table_description 이 공유)
+  - `<IMAGE_DESCRIPTION_SERVING_ID>` 는 별도 VLM 모델서빙 ID로 변경해야 합니다(표 description 은 표 영역을 crop 해 VLM 에 전달).
+- `page` 프리셋의 `url` (PPT 페이지 설명)
+  - `<PAGE_DESCRIPTION_SERVING_ID>` 는 페이지 설명용 VLM 모델서빙 ID로 변경해야 합니다.
+- `whisper` 프리셋의 `url`
   - 오디오 처리가 필요한 경우 OpenAI Whisper 호환 API 주소로 설정해야 합니다.
 
 ### 민감정보 분류/마스킹 (개인정보 비식별화, `guardrail_call`)
@@ -845,15 +860,21 @@ filename: 보고서.pdf
 - 그 응답을 **chunking API 로 넘기면 chunking 전처리기가 청크별로 `quote_origin` 을 매칭**해
   `guardrail_categories` 라벨을 부착(항상)하고, 옵션(`masking_enabled`)으로 마스킹 치환합니다.
   chunking 은 워크플로우를 다시 호출하지 않습니다(파서가 넘긴 결과만 사용).
-- 따라서 접속 정보(`url`/`workflow_id`/`api_key`/`timeout`)는 **파서 config 의 `guardrail:` 섹션**에,
-  마스킹 스위치(`masking_enabled`)는 **chunking config** 에 둡니다.
+- 따라서 호출 설정은 **파서 config 의 `guardrail:` 섹션**에, 마스킹 스위치(`masking_enabled`)는
+  **chunking config** 에 둡니다. 접속 정보(`url`/`workflow_id`/`api_key`)는 `model_presets.yaml` 의
+  `guardrail` 프리셋에 채웁니다.
 
 ```yaml
+# model_presets.yaml
+model_presets:
+  guardrail:
+    url: "https://genos.genon.ai/api/gateway"  # 코드가 /workflow/{workflow_id}/run/v2 를 붙임
+    workflow_id: 4932        # 민감정보 분류 워크플로우 ID
+    api_key: "..."           # 워크플로우 호출 Bearer 인증키
+
 # parser_processor_config.yaml
 guardrail:
-  url: "https://genos.genon.ai/api/gateway"  # 코드가 /workflow/{workflow_id}/run/v2 를 붙임
-  workflow_id: 4932        # 민감정보 분류 워크플로우 ID
-  api_key: "..."           # 워크플로우 호출 Bearer 인증키
+  model_preset: guardrail
   timeout: 60
 ```
 
@@ -884,7 +905,7 @@ guardrail:
 | 키 | 의미 | 기본값 |
 |----|------|--------|
 | `enable` | PPT 페이지 설명 활성화 | `false` |
-| `url` / `api_key` / `model` | VLM 서빙 endpoint / 키 / 모델명 | `<PAGE_DESCRIPTION_SERVING_ID>` / `""` / `model` |
+| `model_preset` | 접속 정보(`url` / `api_key` / `model`)를 가져올 프리셋. 값은 `model_presets.yaml` 에서 변경 | `page` |
 | `timeout` / `concurrency` | VLM 타임아웃(초) / 병렬 요청 수 | `360` / `16` |
 | `images_scale` / `max_image_side` / `max_tokens` / `params` | 렌더 배율 / 이미지 최대 변(px) / 출력 토큰 상한 / 추가 VLM 파라미터 | `2.0` / `0` / `0` / `{}` |
 | `prompt_template_file` | 프롬프트 `.md` 경로. `{{page_text}}` 치환 | `prompt_page_image_description_default.md` |
@@ -906,10 +927,10 @@ guardrail:
 **처리 클래스:** `IntelligentDocumentProcessor`
 
 **전제조건:**
-- **Layout 모델 서버:** `parser_processor_config.yaml`의 `layout.genos_layout.endpoint` 로 접근 가능한 vLLM 호환 서버가 실행 중이어야 함
-- **OCR 서버:** `ocr_mode`가 `disable`이 아닌 경우 `ocr.paddle.ocr_endpoint`에 PaddleOCR 서버가 실행 중이어야 함 (단, `ocr_mode=auto`이면 글리프 깨짐 등 휴리스틱 감지 후 필요할 때만 접근)
-- **Enrichment LLM:** `enrichment`의 `toc` 또는 `metadata` 항목이 활성화된 경우 해당 항목의 `url`에 LLM API가 실행 중이어야 함
-- **Image Description VLM(선택):** `enrichment`의 `image_description` 항목이 활성화된 경우 해당 항목의 `url`에 이미지+텍스트 입력 가능한 VLM API가 실행 중이어야 함
+- **Layout 모델 서버:** `model_presets.yaml` 의 `layout` 프리셋(`endpoint`)으로 접근 가능한 vLLM 호환 서버가 실행 중이어야 함
+- **OCR 서버:** `ocr_mode`가 `disable`이 아닌 경우 `model_presets.yaml` 의 `ocr` 프리셋(`ocr_endpoint`)에 PaddleOCR 서버가 실행 중이어야 함 (단, `ocr_mode=auto`이면 글리프 깨짐 등 휴리스틱 감지 후 필요할 때만 접근)
+- **Enrichment LLM:** `enrichment`의 `toc` 또는 `metadata` 항목이 활성화된 경우 그 항목이 부르는 프리셋(기본 `default`)의 `url`에 LLM API가 실행 중이어야 함
+- **Image Description VLM(선택):** `enrichment`의 `image_description` 항목이 활성화된 경우 그 항목이 부르는 프리셋(기본 `image`)의 `url`에 이미지+텍스트 입력 가능한 VLM API가 실행 중이어야 함
 - **Python 패키지:** `docling`, `docling-core`, `pymupdf`
 
 ---
@@ -949,7 +970,7 @@ GenosHwpDocumentBackend  →  HwpDocumentBackend/HwpxDocumentBackend  →  Libre
 **처리 클래스:** `AudioLoader`
 
 **전제조건:**
-- **Whisper API 서버:** `parser_processor_config.yaml`의 `whisper.url`에 OpenAI Whisper 호환 API가 실행 중이어야 함
+- **Whisper API 서버:** `model_presets.yaml` 의 `whisper` 프리셋(`url`)에 OpenAI Whisper 호환 API가 실행 중이어야 함
 - **Python 패키지:** `pydub`
 - **ffmpeg / ffprobe:** pydub의 오디오 디코딩에 필요. 시스템에 설치되어 있어야 함
 - 오디오 파일은 `chunk_sec`(기본 29초) 단위로 분할 후 병렬 전사
@@ -1742,9 +1763,9 @@ JSONL·빈 배열·doc_type 충돌 등입니다.
 | 예외 | 원인 | 동작 |
 |------|------|------|
 | `converter.convert()` 실패 | 파일 손상, 백엔드 오류 | `second_converter`로 재시도 (동일 설정, 다른 인스턴스) |
-| 레이아웃 서버 연결 오류 | `layout.genos_layout.endpoint` 미응답 | 예외 발생, 처리 중단 |
-| OCR 서버 연결 오류 | `ocr.paddle.ocr_endpoint` 미응답 | `ocr_all_table_cells`에서 예외를 캐치하고 OCR 없이 진행 |
-| Enrichment LLM 연결 오류 | `enrichment` 항목의 `url` 미응답 | enrichment 단계에서 예외 발생 |
+| 레이아웃 서버 연결 오류 | `layout` 프리셋의 `endpoint` 미응답 | 예외 발생, 처리 중단 |
+| OCR 서버 연결 오류 | `ocr` 프리셋의 `ocr_endpoint` 미응답 | `ocr_all_table_cells`에서 예외를 캐치하고 OCR 없이 진행 |
+| Enrichment LLM 연결 오류 | `enrichment` 항목이 부르는 프리셋의 `url` 미응답 | enrichment 단계에서 예외 발생 |
 | Enrichment 입력 토큰 초과 | `precheck.enabled: true` 상태에서 추정 토큰 수가 `model_context_tokens - completion_reserved_tokens` 초과 | LLM 호출 없이 즉시 `GenosServiceException` 발생. `errMsg`에 JSON 페이로드 포함 (아래 참고) |
 
 #### HWP / HWPX
@@ -1759,7 +1780,7 @@ JSONL·빈 배열·doc_type 충돌 등입니다.
 
 | 예외 | 원인 | 동작 |
 |------|------|------|
-| Whisper API 연결 오류 | `whisper.url` 미응답 | `requests.exceptions.ConnectionError` 등 예외 발생 |
+| Whisper API 연결 오류 | `whisper` 프리셋의 `url` 미응답 | `requests.exceptions.ConnectionError` 등 예외 발생 |
 | `pydub` 오류 | ffmpeg 미설치 또는 파일 손상 | 예외 발생 |
 | 임시 파일 정리 실패 | 디스크 권한 오류 | 무시하고 계속 진행 |
 
@@ -1785,12 +1806,12 @@ JSONL·빈 배열·doc_type 충돌 등입니다.
 
 | 상황 | 오류 메시지 예시 | 조치 |
 |------|-----------------|------|
-| Layout 서버 미응답 | Connection refused to `<endpoint>` | `parser_processor_config.yaml`의 `layout.genos_layout.endpoint` 확인 |
-| OCR 서버 미응답 | `OCR HTTP 502` | `parser_processor_config.yaml`의 `ocr.paddle.ocr_endpoint` 및 서버 상태 확인 |
-| Enrichment LLM 오류 | LLM API timeout | `parser_processor_config.yaml`의 `enrichment` 항목 `url` 확인 |
+| Layout 서버 미응답 | Connection refused to `<endpoint>` | `model_presets.yaml` 의 `layout` 프리셋(`endpoint`) 확인 |
+| OCR 서버 미응답 | `OCR HTTP 502` | `model_presets.yaml` 의 `ocr` 프리셋(`ocr_endpoint`) 및 서버 상태 확인 |
+| Enrichment LLM 오류 | LLM API timeout | `enrichment` 항목이 부르는 `model_presets.yaml` 프리셋의 `url` 확인 |
 | Enrichment 입력 토큰 초과 | `프롬프트 입력 토큰 (N) 초과 하였습니다. (128000 - reserved 12000).` | 문서 크기를 줄이거나 해당 항목 `precheck.model_context_tokens` 값 조정. 비활성화는 `precheck.enabled: false` |
 | HWP SDK 실패 | `HWP SDK 실패: ...` | 로그 확인 후 `use_hwp_sdk=false` 파라미터로 재시도 |
-| Whisper 미설정 | Connection error | `parser_processor_config.yaml`의 `whisper.url` 설정 확인 |
+| Whisper 미설정 | Connection error | `model_presets.yaml` 의 `whisper` 프리셋(`url`) 확인 |
 | `soffice` 미설치 | `FileNotFoundError: soffice` | LibreOffice 설치 후 PATH 등록 |
 | 파일 없음 | `FileNotFoundError` | `file_path` 경로 및 파일 존재 여부 확인 |
 

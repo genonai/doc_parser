@@ -41,7 +41,8 @@ from genon.preprocessor.processing.converters.hwp_to_pdf.config import _AVAILABI
 _PREPROC = Path(__file__).resolve().parents[2]
 SAMPLE = _PREPROC / "sample_files" / "hwp_sample_table.hwp"
 RESOURCE_DIR = _PREPROC / "resource"
-RESOURCE_DEV_DIR = _PREPROC / "resource_dev"
+# 로컬(VPN) 모델 접속값. 표준 설정 위에 얹어 사내 layout 서버로 표를 추출한다.
+DEV_MODEL_PRESETS = _PREPROC.parents[1] / "sites" / "dev" / "model_presets.yaml"
 
 pytestmark = [
     pytest.mark.regression,
@@ -359,7 +360,7 @@ def _isolated_sample(tmp_dir: Path) -> Path:
 def attachment_chunks(tmp_path_factory) -> list[str]:
     """hwp_sample_table.hwp 를 첨부용 프로세서로 끝까지 처리한 최종 청크 텍스트.
 
-    - 배포 config(resource/) 를 명시 지정한다. 인자 없이 만들면 resource_dev/ 가 잡힌다.
+    - 배포 config(resource/) 를 명시 지정한다.
     - 프로덕션 기본 kwargs 그대로(chunker_type=recursive, chunk_size=1000000) 호출한다.
       실제 배포 설정에서 표가 살아남는지가 검증 대상이므로 테스트가 chunk_size 를 키우지 않는다.
     - convert_to_pdf 를 차단한다: HWP 네이티브 파싱이 실패하면 __call__ 이 조용히 PDF 변환
@@ -447,15 +448,22 @@ class TestAttachmentHwpTableStructure:
 def _intelligent_config(tmp_dir: Path) -> str:
     """운영 경로(genos_layout)를 유지하되 표 추출과 무관한 외부 호출만 차단한 임시 config.
 
-    주의: config_path 를 반드시 넘겨야 한다. 인자 없는 DocumentProcessor() 는
-    resource_dev/ 를 집는데 거기에는 실제 엔드포인트와 API 키가 들어 있다.
+    표준 설정에 로컬(VPN) 모델 프리셋을 얹어 펼친 결과를 쓴다. 펼친 결과에는 접속값이 이미
+    채워져 있으므로 임시 폴더로 옮겨도 프리셋 파일이 필요 없다. 이미 설정된
+    GENOS_MODEL_PRESETS_FILE 은 존중한다.
     """
     import yaml
 
-    base = RESOURCE_DEV_DIR / "intelligent_processor_config.yaml"
-    if not base.exists():
-        base = RESOURCE_DIR / "intelligent_processor_config.yaml"
-    cfg = yaml.safe_load(base.read_text(encoding="utf-8")) or {}
+    from genon.preprocessor.processing.common import config_parse as cp
+
+    saved = os.environ.get(cp.MODEL_PRESETS_ENV)
+    os.environ.setdefault(cp.MODEL_PRESETS_ENV, str(DEV_MODEL_PRESETS))
+    try:
+        cfg = cp.load_config(str(RESOURCE_DIR / "intelligent_processor_config.yaml"))
+    finally:
+        if saved is None:
+            os.environ.pop(cp.MODEL_PRESETS_ENV, None)
+    cfg.pop(cp.MODEL_PRESETS_FILE_KEY, None)
 
     layout = cfg.setdefault("layout", {})
     layout["layout_model_type"] = "genos_layout"  # 운영과 동일한 표 추출기(dots.ocr)

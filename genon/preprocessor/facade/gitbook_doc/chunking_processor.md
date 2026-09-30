@@ -33,7 +33,7 @@
 |---|---|
 | 파일 | `genon/preprocessor/facade/chunking_processor.py` |
 | 마커 | `IS_CHUNKER = True` (이게 없으면 `/chunker` 요청이 거부됩니다) |
-| 설정 | `resource/chunking_processor_config.yaml` (개발 시 `resource_dev/` 가 우선) |
+| 설정 | `resource/chunking_processor_config.yaml` |
 | 청킹 엔진 본체 | `processing/chunking/smart_chunker.py` — **공용 모듈** |
 
 > **엔진은 이 파일 안에 없습니다.** facade 의 `GenosSmartChunker` 는 동작 옵션(ClassVar)만

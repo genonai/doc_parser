@@ -234,12 +234,12 @@ class TestStringRuntimeValueReachesOutput:
 @pytest.mark.unit
 class TestShippedConfigs:
     def test_shipped_configs_enable_compact(self):
-        """배포 config 3종(resource/resource_dev/resource_product) 모두 compact 가 켜져 있다."""
+        """배포 config(resource/resource_product) 모두 compact 가 켜져 있다."""
         from pathlib import Path
         import yaml
 
         preproc = Path(attachment.__file__).resolve().parents[1]
-        for name in ("resource", "resource_dev", "resource_product"):
+        for name in ("resource", "resource_product"):
             path = preproc / name / "attachment_processor_config.yaml"
             if not path.exists():
                 continue

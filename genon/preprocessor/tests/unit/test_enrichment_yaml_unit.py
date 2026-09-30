@@ -18,10 +18,7 @@ from processing.enrichment.field_transforms import DEFAULT_METADATA_FIELD_TRANSF
 
 # 실제 배포되는 설정 파일들 (repo_root = genon/preprocessor 기준 상대 경로)
 SHIPPED_CONFIGS = [
-    "resource_dev/intelligent_processor_config.yaml",
-    "resource_dev/parser_processor_config.yaml",
-    "resource_dev/attachment_processor_config.yaml",
-    "resource_dev/convert_processor_config.yaml",
+    "../../sites/monimo/resource/parser_processor_config.yaml",
     "resource/intelligent_processor_config.yaml",
     "resource/parser_processor_config.yaml",
     "resource/attachment_processor_config.yaml",
@@ -30,9 +27,7 @@ SHIPPED_CONFIGS = [
 
 # enrichment 섹션이 있는(벡터/메타데이터 추출) 설정들
 ENRICHMENT_CONFIGS = [
-    "resource_dev/intelligent_processor_config.yaml",
-    "resource_dev/parser_processor_config.yaml",
-    "resource_dev/convert_processor_config.yaml",
+    "../../sites/monimo/resource/parser_processor_config.yaml",
     "resource/intelligent_processor_config.yaml",
     "resource/parser_processor_config.yaml",
     "resource/convert_processor_config.yaml",
@@ -140,9 +135,9 @@ def test_shipped_prompt_files_resolve_non_empty(repo_root, rel):
 # ── intelligent_processor 설정 ─────────────────────────────────────────────────
 
 @pytest.mark.unit
-def test_intelligent_dev_enrichment_values(repo_root):
-    """intelligent dev 설정: toc/metadata enable, output_fields, field_transforms 미지정(=[])."""
-    rel = "resource_dev/intelligent_processor_config.yaml"
+def test_intelligent_enrichment_values(repo_root):
+    """intelligent 표준 설정: toc/metadata enable, output_fields, field_transforms 미지정(=[])."""
+    rel = "resource/intelligent_processor_config.yaml"
     if not (repo_root / rel).exists():
         pytest.skip(f"config not present: {rel}")
     ec = _parse_enrichment(repo_root, rel)
@@ -163,33 +158,10 @@ def test_intelligent_dev_enrichment_values(repo_root):
 
 # ── parser_processor 설정 ──────────────────────────────────────────────────────
 
-@pytest.mark.unit
-def test_parser_dev_enrichment_output_fields_match_prompt(repo_root):
-    """parser dev 설정: metadata output_fields 가 영문 default 프롬프트(created_date/authors)와 일치하는지.
-
-    (prompt md 분리 후 영문 default 프롬프트로 통일 — output_fields 도 영문 키여야 추출이 정상 동작.)
-    """
-    rel = "resource_dev/parser_processor_config.yaml"
-    if not (repo_root / rel).exists():
-        pytest.skip(f"config not present: {rel}")
-    ec = _parse_enrichment(repo_root, rel)
-
-    # 이 테스트의 목적은 output_fields ↔ 프롬프트 키 정합이다. enable 값 자체는 단정하지 않는다 —
-    # dev 설정은 로컬에서 모델서버 없이 돌리려고 개별 enricher 를 수시로 off 로 내린다
-    # (위 image_description 검사가 같은 이유로 존재/타입만 본다).
-    # metadata 가 off 면 output_fields 가 비어 정합을 볼 수 없으므로 검사를 건너뛴다.
-    assert isinstance(ec.metadata.do_metadata, bool)
-    assert isinstance(ec.toc.do_toc, bool)
-    if not ec.metadata.do_metadata:
-        pytest.skip("resource_dev 의 metadata enricher 가 off — output_fields 정합 검사 불가")
-    assert ec.metadata.output_fields == ["created_date", "authors"]
-
-
 # ── attachment_processor 설정 (enrichment 없음) ────────────────────────────────
 
 @pytest.mark.unit
 @pytest.mark.parametrize("rel", [
-    "resource_dev/attachment_processor_config.yaml",
     "resource/attachment_processor_config.yaml",
 ])
 def test_attachment_config_has_no_enrichment_section(repo_root, rel):

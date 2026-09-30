@@ -14,7 +14,8 @@ docling(v2.41.0) 포크 위에 GenOn 전처리기(genon/preprocessor)를 올린 
 | `genon/preprocessor/processing/converters/` | 입력 전처리 변환기 (`html_flatten`, `json_text`, `md_marker_headings` 등) |
 | `genon/preprocessor/facade/gitbook_doc/` | 고객·현장용 매뉴얼(`facade_hooks.md`, `parser_processor.md`, `code_serving_dev_manual.md` 등) |
 | `genon/preprocessor/src/` | 공통 모듈(`common`, `logger`, `config`, `utils`) + **기본 전처리기 서비스**의 진입점(`main.py`, facade 1개) |
-| `genon/preprocessor/resource/`, `resource_dev/` | 운영 / 로컬개발 YAML 설정 (프로세서 설정 + `custom_field_*.yaml`) |
+| `genon/preprocessor/resource/` | 표준 YAML 설정 (프로세서 설정 + `custom_field_*.yaml` + 모델 접속 정보 `model_presets.yaml`). facade 기본 해석기는 항상 이 폴더를 읽는다 |
+| `sites/<site>/resource/` | 고객사이트 설정 **완성본**(표준 사본 + `manifest.yaml` 의 `owned:` 파일). 표준을 고치면 `build-script/sync-sites.sh` 로 사본을 맞춘다. `sites/dev/model_presets.yaml` 은 로컬(VPN) 모델 접속값이다(`sites/README.md`) |
 | `genon/preprocessor/tests/` | **전처리기 테스트** (`unit/`, `smoke/`, `regression/`) |
 | `genon/preprocessor/examples/` | 손으로 돌리는 검증 스크립트 (테스트 절 참조) |
 | `docling/` | 포크된 docling 본체. 백엔드·파이프라인 수정은 여기 |
@@ -183,6 +184,11 @@ genon/preprocessor/examples/parse_chunk/parse_chunk_verify.sh          # 케이�
 genon/preprocessor/examples/parse_chunk/parse_chunk_verify.sh --only faq menu
 ```
 
+기본 설정 폴더는 모니모 완성본 `sites/monimo/resource/` 이고 `--resource-dir` 로 바꿀 수 있다.
+표 표기형태 검증을 위해 청커 설정의 임시 사본에서만 `table_text_formats` 를 켠다. 표준 `resource/` 를
+바꿨으면 `build-script/sync-sites.sh` 로 사이트 사본을 먼저 맞춘다 — 사본이 표준과 다르면
+`tests/unit/test_sites_sync_unit.py` 가 실패한다.
+
 **설정 점검(파싱·LLM 없음)** — 설정만 바꿨거나 **배포 전 현장 설정을 검사할 때** 쓴다. extractor 별 지원 키(`processing/enrichment/config_schema.py`)와 같은 판정을 공유하므로 기동 실패를 미리 드러내고, 청크 본문이 바뀌는 필드(재색인 판단)도 알려준다.
 
 ```bash
@@ -210,6 +216,16 @@ PYTHONPATH=<repo>:<repo>/genon/preprocessor:<repo>/genon/preprocessor/src:<repo>
 
 검증 스크립트에서 `DoclingDocument.model_validate()` 는 쓰지 않는다 — 설치된 `docling_core` 버전이
 리포 docling 산출 스키마를 거부한다. 직렬화된 dict(`doc["texts"]`, `doc["tables"]`)로 검증하면 버전 무관이다.
+
+모델 접속값은 설정 폴더의 `model_presets.yaml` 에 있다. 로컬에서는 환경변수 `GENOS_MODEL_PRESETS_FILE` 이
+가리키는 파일이 그 위에 키 단위로 얹힌다. `parse_chunk_test.py`·`parse_chunk_verify.sh`·`build-script/run-local.sh` 는
+이 변수가 비어 있으면 `sites/dev/model_presets.yaml`(VPN 전용)로 설정한다. 운영에서는 설정하지 않는다.
+
+```bash
+P=genon/preprocessor; $P/.venv/bin/python $P/examples/parse_chunk/parse_chunk_test.py 입력 출력                 # 표준 resource/
+P=genon/preprocessor; $P/.venv/bin/python $P/examples/parse_chunk/parse_chunk_test.py --site monimo 입력 출력   # sites/monimo/resource/
+build-script/run-local.sh [monimo]    # 루트 main.py 를 포트 7084 로 기동. 설정 폴더는 GENOS_RESOURCE_DIR(로컬 전용)
+```
 
 엔드포인트 확인은 새 pytest를 만들기보다 `genon/preprocessor/examples/code_serving/serving_gateway_test.sh` 에 모드를 추가하는 방식을 선호한다.
 

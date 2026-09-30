@@ -1,0 +1,64 @@
+# 모델 프리셋 — 모델·외부 서비스 접속 정보를 한 곳에 모은다.
+#
+# 메인 설정(parser/intelligent/convert/attachment)이 `model_presets_file: model_presets.yaml` 로 이 파일을
+# 읽고, 쓰는 자리에서는 `model_preset: <이름>` 한 줄로 부른다. 서빙 ID·주소·키가 바뀌면 이 파일만 고친다.
+#
+#   enrichment:
+#     - toc:
+#         model_preset: default
+#         temperature: 0.2      # 이 블록만 다르게 — 블록에 직접 쓴 값이 프리셋보다 우선한다
+#
+# 프리셋은 블록에 없는 키만 채운다. 그래서 접속 키(url, endpoint, api_key …)는 블록에 적지 않고
+# 여기에만 둔다 — 블록에 남아 있으면 이 파일이나 로컬 덮어쓰기가 그 값을 바꾸지 못한다.
+#
+# 로컬 실행에서는 환경변수 GENOS_MODEL_PRESETS_FILE 이 가리키는 파일(예: sites/dev/model_presets.yaml)이
+# 이 파일 위에 이름별·키 단위로 얹힌다. 운영에서는 그 변수를 설정하지 않는다.
+#
+# 없는 이름을 부르면 기동이 실패한다(오타를 조용히 넘기면 인증 없이 호출이 나간다).
+#
+# 담을 수 있는 값
+#   접속    url, api_key, model (OCR 은 ocr_endpoint, layout 은 endpoint, guardrail 은 workflow_id 도)
+#   생성    temperature, top_p, max_tokens, thinking, thinking_dialect, repetition_penalty, seed
+#   호출    timeout, concurrency, headers, params
+#   ※ 생성 5종과 params/headers/thinking 은 모든 enrichment 항목과 page_description 이 같게 읽는다.
+#      단 thinking 기본값은 갈린다 - 텍스트 계열은 off(차단 토큰 전송), 이미지 계열은
+#      auto(미전송)다. 이미지 모델은 별도 서빙을 쓰는 현장이 많아 명시할 때만 보낸다.
+#      concurrency 만 예외로 설명 계열(이미지·표·페이지)에서만 읽는다 - 나머지는 문서당
+#      1회 호출이라 동시 실행 개념이 없다.
+#   ※ max_tokens 는 params 가 아니라 max_tokens 키로 적는다 — table_text_description 은
+#      이 값만큼 응답 몫을 자동으로 예약해 입력 예산을 계산한다(params.max_tokens 는 반영되지 않는다).
+#   ※ enable/enabled, doc_type, config_file 은 배선 키라 프리셋에 적어도 주입되지 않는다.
+#      특히 enable 이 새어 나가면 그 프리셋을 쓰는 섹션이 전부 켜진다.
+# 자세한 규칙은 gitbook_doc/parser_processor.md 의 "모델 프리셋" 절 참고.
+# 아래 <...> 는 설치 환경 값으로 변경한다. api_key 는 k8s 내부 통신 기반 호출 시 불필요하다.
+model_presets:
+  # 텍스트 LLM. 목차/메타데이터/문서요약/텍스트 표 설명이 함께 쓴다.
+  default:
+    url: "http://llmops-gateway-api-service:8080/rep/serving/<ENRICHMENT_SERVING_ID>/v1/chat/completions"
+    api_key: ""
+    model: "model"
+  # 이미지 이해 모델(VLM). 그림 설명과 이미지 표 설명이 함께 쓴다.
+  image:
+    url: "http://llmops-gateway-api-service:8080/rep/serving/<IMAGE_DESCRIPTION_SERVING_ID>/v1/chat/completions"
+    api_key: ""
+    model: "model"
+  # PPT 페이지 전체를 그림으로 설명하는 모델. 위 image 와 같은 서빙을 쓸 수도 있다.
+  page:
+    url: "http://llmops-gateway-api-service:8080/rep/serving/<PAGE_DESCRIPTION_SERVING_ID>/v1/chat/completions"
+    api_key: ""
+    model: "model"
+  # PaddleOCR 서버(ocr.paddle). <OCR_ENDPOINT>: PaddleOCR 서버 주소
+  ocr:
+    ocr_endpoint: "http://<OCR_ENDPOINT>/ocr"
+  # 레이아웃 분석 모델(layout.genos_layout). <LAYOUT_SERVING_ID>: Genos 에 등록한 layout 모델서빙 ID
+  layout:
+    endpoint: "http://llmops-gateway-api-service:8080/rep/serving/<LAYOUT_SERVING_ID>/v1/chat/completions"
+    api_key: ""
+  # 음성인식(whisper). 음성(.wav/.mp3/.m4a) 처리 시에만 필요. <WHISPER_ENDPOINT>: 음성인식 모델 서버 주소
+  whisper:
+    url: "http://<WHISPER_ENDPOINT>/v1/audio/transcriptions"
+  # 민감정보 분류 워크플로우(guardrail, #315). 기능 on/off 는 요청별 kwargs(guardrail_call)로 제어한다.
+  guardrail:
+    url: ""            # GenOS gateway 주소(코드가 /workflow/{id}/run/v2 를 붙임). 예: "https://genos.genon.ai/api/gateway"
+    workflow_id:       # 민감정보 분류 워크플로우 ID
+    api_key: ""        # 워크플로우 호출 Bearer 인증키

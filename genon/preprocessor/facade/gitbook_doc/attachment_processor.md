@@ -65,17 +65,20 @@ PDF, HWP/HWPX, DOCX/DOC, PPT/PPTX, CSV/XLSX, 이미지(JPG/PNG), 텍스트(TXT/J
 `DocumentProcessor()`가 무인자로 생성될 때 설정 파일을 다음 우선순위로 찾습니다.
 
 ```
-1순위) resource_dev/attachment_processor_config.yaml   (있으면 우선 사용 — 개발/사이트 오버라이드)
-2순위) resource/attachment_processor_config.yaml       (공개 기본본)
-3순위) 내장 기본값                                       (파일 없음/형식 오류 시, 경고 로그 후 동작)
+1순위) resource/attachment_processor_config.yaml       (표준 설정 폴더)
+2순위) 내장 기본값                                       (파일 없음/형식 오류 시, 경고 로그 후 동작)
 ```
+
+모델·외부 서비스 접속 정보(whisper·guardrail 주소 등)는 같은 폴더의 `model_presets.yaml` 에 모여 있고,
+메인 yaml 은 `model_presets_file: model_presets.yaml` 로 그 파일을 읽습니다. 자세한 규칙은
+[parser_processor.md](parser_processor.md) 의 "모델 프리셋" 절을 참고하세요.
 
 파일이 없거나 형식이 잘못돼도 예외를 던지지 않고 경고 로그를 남긴 뒤 내장 기본값으로 동작합니다.
 
 ### 기본값 사용 vs 사이트별 변경
 
 - **기본값 그대로 사용 가능**: 청킹 크기, SDK 사용 여부, OCR 언어 등 대부분의 항목은 기본값으로 일반 문서를 처리할 수 있습니다.
-- **사이트별로 반드시 바꿔야 하는 항목**: `whisper.url` 의 `<WHISPER_ENDPOINT>` 는 placeholder이므로, 오디오 STT를 사용하려면 실제 음성인식 서버 주소로 변경해야 합니다.
+- **사이트별로 반드시 바꿔야 하는 항목**: `model_presets.yaml` 의 `whisper` 프리셋(`url`)의 `<WHISPER_ENDPOINT>` 는 placeholder이므로, 오디오 STT를 사용하려면 실제 음성인식 서버 주소로 변경해야 합니다. PPT 페이지 설명을 켜면 `page` 프리셋의 `<PAGE_DESCRIPTION_SERVING_ID>` 도 변경합니다.
 
 ---
 
@@ -151,9 +154,8 @@ loaders:
     encoding_detect_sample_bytes: 10000
 
 # 음성 파일(.wav/.mp3/.m4a) 처리 기본값
-# <WHISPER_ENDPOINT>: 음성인식 모델 서버 주소로 변경 필요
 whisper:
-  url: "http://<WHISPER_ENDPOINT>/v1/audio/transcriptions"
+  model_preset: whisper   # 서버 주소는 model_presets.yaml
   model: "model"
   language: "ko"
   response_format: "json"
@@ -239,7 +241,7 @@ whisper:
 
 | 키 | 기본값 | 설명 |
 |----|--------|------|
-| `url` | `"http://<WHISPER_ENDPOINT>/v1/audio/transcriptions"` | STT 서버 엔드포인트. **placeholder이므로 사이트별로 실제 주소로 변경 필요** |
+| `model_preset` | `whisper` | STT 서버 접속 정보(`url`)를 가져올 프리셋. `model_presets.yaml` 의 `<WHISPER_ENDPOINT>` 는 **placeholder이므로 사이트별로 실제 주소로 변경 필요** |
 | `model` | `"model"` | STT 요청 모델명 |
 | `language` | `"ko"` | 전사 언어 |
 | `response_format` | `"json"` | 응답 포맷 |
@@ -271,9 +273,7 @@ formats:
   ppt:
     page_description:
       enable: true
-      url: "http://.../rep/serving/<PAGE_DESCRIPTION_SERVING_ID>/v1/chat/completions"
-      api_key: ""
-      model: "model"
+      model_preset: page       # 서빙 주소·키는 model_presets.yaml
       timeout: 360
       concurrency: 32          # 병렬↑ (VLM 서버 처리량 한도 내)
       images_scale: 1.0        # 렌더 배율↓ (payload·image token↓)
@@ -286,7 +286,7 @@ formats:
 | 키 | 의미 | 기본값(첨부 권장) |
 |----|------|--------|
 | `enable` | PPT 페이지 설명 활성화 | `false`(운영 시 `true`) |
-| `url` / `api_key` / `model` | VLM 서빙 endpoint / 키 / 모델명 | `<PAGE_DESCRIPTION_SERVING_ID>` / `""` / `model` |
+| `model_preset` | 접속 정보(`url` / `api_key` / `model`)를 가져올 프리셋. 값은 `model_presets.yaml` 에서 변경 | `page` |
 | `timeout` | VLM 요청 타임아웃(초) | `360` |
 | `concurrency` | 페이지 설명 병렬 요청 수 | `32` |
 | `images_scale` | 페이지 렌더 배율(작을수록 빠름) | `1.0` |
@@ -337,12 +337,13 @@ chunking:
     merge_peers: true
 ```
 
-**③ whisper STT 서버 지정** — 오디오 처리를 활성화할 때:
+**③ whisper STT 서버 지정** — 오디오 처리를 활성화할 때 `model_presets.yaml` 의 `whisper` 프리셋을 고칩니다:
 
 ```yaml
-whisper:
-  url: "http://10.0.0.5:30100/v1/audio/transcriptions"
-  language: "ko"
+# model_presets.yaml
+model_presets:
+  whisper:
+    url: "http://10.0.0.5:30100/v1/audio/transcriptions"
 ```
 
 **④ HWP SDK 비활성화** — 엔터프라이즈 SDK 없이 레거시 백엔드로 처리할 때:
@@ -473,12 +474,18 @@ HWP/HWPX 파일은 변환 실패 시 단계적으로 폴백합니다.
 치환합니다. 전처리기는 판단하지 않고 워크플로우 결과를 반영만 합니다.
 
 - **켜기**: 요청 kwargs `guardrail_call: 1` (기본 `0`). yaml 아님, 업로드 건별 제어.
-- **접속 정보 (yaml)**:
+- **접속 정보 (yaml)**: `url`/`workflow_id`/`api_key` 는 `model_presets.yaml` 의 `guardrail` 프리셋에 채웁니다.
   ```yaml
+  # model_presets.yaml
+  model_presets:
+    guardrail:
+      url: ""               # GenOS gateway 주소(코드가 /workflow/{id}/run/v2 를 붙임)
+      workflow_id:          # 민감정보 분류 워크플로우 ID
+      api_key: ""           # 워크플로우 호출 Bearer 인증키
+
+  # attachment_processor_config.yaml
   guardrail:
-    url: ""                 # GenOS gateway 주소(코드가 /workflow/{id}/run/v2 를 붙임)
-    workflow_id:            # 민감정보 분류 워크플로우 ID
-    api_key: ""             # 워크플로우 호출 Bearer 인증키
+    model_preset: guardrail
     timeout: 60             # 대용량 문서는 상향
     masking_enabled: false  # quote_masked 치환 on/off. guardrail_categories 부착은 기능 켜지면 항상
   ```
@@ -500,12 +507,12 @@ HWP/HWPX 파일은 변환 실패 시 단계적으로 폴백합니다.
 | 증상 | 원인 | 대응 |
 |------|------|------|
 | `chunk length is 0` (`GenosServiceException`) | HWP/DOCX에서 추출된 청크가 0개 | 원본 파일이 비었거나 파싱 실패. 다른 백엔드(`use_hwp_sdk` 변경)나 PDF 폴백 확인 |
-| 오디오 전사 결과 비어있음 | `whisper.url`이 placeholder(`<WHISPER_ENDPOINT>`) | config에서 실제 STT 서버 주소로 변경 |
+| 오디오 전사 결과 비어있음 | `whisper` 프리셋의 `url`이 placeholder(`<WHISPER_ENDPOINT>`) | `model_presets.yaml` 에서 실제 STT 서버 주소로 변경 |
 | HWP 변환 실패 후 에러 | SDK/레거시 백엔드/PDF 변환 모두 실패 | `formats.hwp.use_hwp_sdk`, `defaults.use_pdf_sdk` 조정. LibreOffice(`soffice`) 설치 확인 |
 | 청크가 비정상적으로 큼 / 임베딩 입력 초과 | 기본 `chunk_size` 가 크거나 `0`(전체 1청크)이라 한 청크가 임베딩 토큰 한도 초과 (60K 토큰 안전망 제거됨) | `chunking.chunk_size` 를 적정 문자 수(예: 2000~8000)로 지정 |
 | 한글 텍스트 깨짐 (CSV/TXT) | 인코딩 감지 실패 | TXT는 다단 인코딩 폴백 사용. CSV는 `encoding_detect_sample_bytes` 증대 |
 | 로그가 너무 많음/적음 | `log_level` 설정 | config `defaults.log_level` 조정 (4=INFO 기본) |
-| config가 적용 안 됨 | `resource_dev` 파일이 우선 로드됨 | 로딩 우선순위([2장](#2-빠른-시작)) 확인. 의도치 않은 `resource_dev` 파일 제거 |
+| config가 적용 안 됨 | 다른 설정 파일이 로드됨 | 로딩 우선순위([2장](#2-빠른-시작)) 확인. `config_path` 인자를 넘기지 않으면 항상 `resource/` 를 읽습니다 |
 
 ---
 
@@ -515,7 +522,7 @@ HWP/HWPX 파일은 변환 실패 시 단계적으로 폴백합니다.
 
 ### A. 설정 로딩 (`DocumentProcessor.__init__`)
 
-생성 시 `_resolve_default_attachment_config_path()`로 config 경로를 결정(`resource_dev` → `resource`)한 뒤 `_load_config()`로 읽습니다. 각 섹션(`defaults`/`formats`/`chunking`/`loaders`/`whisper`)은 `_parse_optional_bool/_parse_optional_int` 등으로 검증되어 `self._default_kwargs`에 평탄화됩니다. `chunker_type`·공통 `chunk_size` 는 `chunking` 에서, HWP 옵션은 `formats.hwp` 에서 읽습니다(각각 구버전 위치 `defaults.*` 폴백 지원). 공통 `chunk_size` 는 `recursive_chunk_size`/`hybrid_chunk_size` 양쪽 소스로 쓰이고, 문자 오버랩은 `recursive_chunk_overlap` 로 저장됩니다. 무효 값은 표의 기본값으로 폴백하고 경고 로그를 남깁니다.
+생성 시 `_resolve_default_attachment_config_path()`로 config 경로를 결정(`resource/`)한 뒤 `_load_config()`로 읽습니다. 각 섹션(`defaults`/`formats`/`chunking`/`loaders`/`whisper`)은 `_parse_optional_bool/_parse_optional_int` 등으로 검증되어 `self._default_kwargs`에 평탄화됩니다. `chunker_type`·공통 `chunk_size` 는 `chunking` 에서, HWP 옵션은 `formats.hwp` 에서 읽습니다(각각 구버전 위치 `defaults.*` 폴백 지원). 공통 `chunk_size` 는 `recursive_chunk_size`/`hybrid_chunk_size` 양쪽 소스로 쓰이고, 문자 오버랩은 `recursive_chunk_overlap` 로 저장됩니다. 무효 값은 표의 기본값으로 폴백하고 경고 로그를 남깁니다.
 
 ### B. 라우팅 (`DocumentProcessor.__call__`)
 

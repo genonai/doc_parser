@@ -91,8 +91,8 @@ _OUTPUT_FORMAT = "docling"
 
 OUTPUT_FORMATS = ("docling", "json", "html", "markdown")
 
-# 설정 파일 경로. 미지정이면 프로세서가 resource_dev/ → resource/ 순으로 스스로 찾는다.
-# 배포 설정을 건드리지 않고 별도 설정 트리로 시험할 때 --config / --chunker-config 로 준다.
+# 설정 파일 경로. 미지정이면 프로세서가 표준 resource/ 를 읽는다. 사이트 완성본은 --site 로,
+# 그 밖의 설정 트리는 --config / --chunker-config 로 준다.
 _PARSER_CONFIG: str | None = None
 _CHUNKER_CONFIG: str | None = None
 
@@ -276,8 +276,14 @@ def parse_args():
     ap.add_argument(
         "--config",
         default=None,
-        help="파서 설정 yaml 경로(미지정 시 resource_dev/ → resource/ 자동 탐색). "
+        help="파서 설정 yaml 경로(미지정 시 표준 resource/). "
              "배포 설정을 건드리지 않고 별도 설정 트리로 시험할 때 쓴다",
+    )
+    ap.add_argument(
+        "--site",
+        default=None,
+        help="사이트 완성본(sites/<이름>/resource/)으로 실행한다. --config / --chunker-config 가 "
+             "주어지면 그쪽이 우선한다",
     )
     ap.add_argument(
         "--chunker-config",
@@ -340,6 +346,14 @@ def main():
     _OUTPUT_FORMAT = args.output_format
     _PARSER_CONFIG = args.config
     _CHUNKER_CONFIG = args.chunker_config
+    if args.site:
+        site_dir = PROJECT_ROOT / "sites" / args.site / "resource"
+        if not site_dir.is_dir():
+            raise SystemExit(f"사이트 설정 폴더가 없습니다: {site_dir}")
+        _PARSER_CONFIG = _PARSER_CONFIG or str(site_dir / "parser_processor_config.yaml")
+        _CHUNKER_CONFIG = _CHUNKER_CONFIG or str(site_dir / "chunking_processor_config.yaml")
+    # 로컬 실행은 로컬(VPN) 모델로 돈다. 이미 설정된 값은 존중한다(README 의 GENOS_MODEL_PRESETS_FILE).
+    os.environ.setdefault("GENOS_MODEL_PRESETS_FILE", str(PROJECT_ROOT / "sites" / "dev" / "model_presets.yaml"))
     SUPPORTED_EXTENSIONS = SUPPORTED_EXTENSIONS | _alias_extensions(_PARSER_CONFIG)
     input_path = Path(args.input_path).expanduser().resolve()
     output_dir = Path(args.output_dir).expanduser().resolve()

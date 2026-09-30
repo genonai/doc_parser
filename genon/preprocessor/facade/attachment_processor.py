@@ -133,12 +133,7 @@ _resolve_compact_tables = hc.resolve_compact_tables
 
 def _resolve_default_attachment_config_path() -> str:
     base_dir = Path(__file__).resolve().parent
-    local_config = (base_dir / "../resource_dev/attachment_processor_config.yaml").resolve()
-    default_config = (base_dir / "../resource/attachment_processor_config.yaml").resolve()
-
-    if local_config.exists():
-        return str(local_config)
-    return str(default_config)
+    return str((base_dir / "../resource/attachment_processor_config.yaml").resolve())
 
 
 def convert_to_pdf(file_path: str, use_pdf_sdk: bool = True) -> str | None:

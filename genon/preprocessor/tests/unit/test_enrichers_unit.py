@@ -499,7 +499,7 @@ class TestCustomFieldsPromptFiles:
 
 
 @pytest.mark.unit
-@pytest.mark.parametrize("resource_dir", ["resource", "resource_dev"])
+@pytest.mark.parametrize("resource_dir", ["resource"])
 class TestShippedCardConfigSelfContained:
     """출고 custom_field_card.yaml 이 외부 프롬프트 파일 없이 자족하는지 고정한다.
 

@@ -176,12 +176,7 @@ def _resolve_default_chunking_config_path() -> str:
     # processing/core/ 로 한 단계 깊어졌으므로 facade/ 를 기준으로 잡는다 —
     # 옮기기 전 이 헬퍼는 facade/ 에 있었고 아래 상대 경로가 그것을 전제한다.
     base_dir = Path(__file__).resolve().parents[1]
-    local_config = (base_dir / "../resource_dev/chunking_processor_config.yaml").resolve()
-    default_config = (base_dir / "../resource/chunking_processor_config.yaml").resolve()
-
-    if local_config.exists():
-        return str(local_config)
-    return str(default_config)
+    return str((base_dir / "../resource/chunking_processor_config.yaml").resolve())
 
 
 # 조각에 섹션 문맥을 물려주는 규칙은 공용 모듈 한 벌이다(표 기준 분리도 같은 함수를 쓴다).
@@ -304,8 +299,7 @@ class ChunkerCore:
         '''
         initialize Document Converter (config 기반)
 
-        config_path 가 None 이면 resource_dev/chunking_processor_config.yaml
-        (없으면 resource/chunking_processor_config.yaml) 을 사용한다.
+        config_path 가 None 이면 resource/chunking_processor_config.yaml 를 사용한다.
         GenOS 는 DocumentProcessor() 무인자로 호출하므로 기본 경로 resolve 필수.
         '''
         if config_path is None:

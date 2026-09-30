@@ -1044,13 +1044,12 @@ python -m genon.preprocessor.facade.chunking_processor --config genon/preprocess
 | 인자 | 뜻 |
 |---|---|
 | `--doc-type` | 유형별 설정 매칭과 훅의 처리 대상 제한에 쓰입니다. 생략하면 특정 유형 전용 처리는 적용되지 않지만, 조건 없는 등록과 공통 처리는 실행될 수 있습니다 |
-| `--config` | 프로세서 설정 YAML 경로. 생략하면 `resource_dev/` 우선, 없으면 `resource/`. 배포 설정과 비교할 때는 명시합니다 |
+| `--config` | 프로세서 설정 YAML 경로. 생략하면 `resource/`. 사이트 설정과 비교할 때는 명시합니다 |
 | `-o, --out` | 결과 JSON 경로. 생략하면 stdout |
 | `--log-level` | `5` DEBUG / `4` INFO / `3` WARNING / `2` ERROR / `1` CRITICAL / `0` 로그 없음 |
 
-**설정 파일을 명시하세요.** facade 단독 실행은 `--config`가 없으면 `resource_dev/`의 같은 이름 파일을 먼저
-찾고, 없을 때 `resource/`를 사용합니다. 반면 루트 `main.py`는 `resource/`를 명시합니다.
-`resource/`를 고쳤는데 테스트에 반영되지 않으면 가장 먼저 이 차이를 확인하세요.
+**설정 파일을 명시하세요.** facade 단독 실행과 루트 `main.py` 는 `--config`가 없으면 모두 `resource/`를
+사용합니다. 모니모 설정(`sites/monimo/resource/`)으로 확인하려면 그 폴더의 파일을 `--config` 로 지정합니다.
 
 청커의 입력은 원본 문서가 아니라 **파서가 생성한 결과 JSON**입니다. 청킹만 반복해서 검증하는
 경우에는 파싱을 다시 실행하지 말고 저장한 `parsed.json`을 재사용하세요. 모델 서빙을 호출하지
@@ -1138,13 +1137,15 @@ PY
 
 ### 3.5 모델 서빙 연결 설정
 
-연결 설정은 `resource/*.yaml`에 이미 구성되어 있습니다.
+연결 설정은 `resource/model_presets.yaml` **한 파일**에 모여 있습니다. 메인 yaml 은
+`model_presets_file: model_presets.yaml` 로 이 파일을 읽고, 각 블록은 `model_preset: <이름>` 으로 부릅니다.
 
-| 용도 | config 안의 이름 |
+| 용도 | 프리셋 이름 |
 |---|---|
-| 문서 레이아웃 분석 | `layout.genos_layout.endpoint` |
-| 목차·메타데이터·표 설명 | 각 `enrichment` 항목의 `url` |
-| OCR | `ocr.paddle.ocr_endpoint` (서빙 ID가 아니라 **주소**입니다) |
+| 문서 레이아웃 분석 | `layout` (`endpoint`, `api_key`) |
+| 목차·메타데이터·표 설명 | `default` |
+| 이미지 설명 · PPT 페이지 설명 | `image` · `page` |
+| OCR | `ocr` (`ocr_endpoint`. 서빙 ID가 아니라 **주소**입니다) |
 
 미치환 플레이스홀더의 존재 여부를 확인하는 명령입니다. 주석 줄은 제외합니다.
 
@@ -1325,6 +1326,11 @@ curl "${CS}/parser" -H 'Content-Type: application/json' \
 | 플레이스홀더 치환 | 로그에서 `미치환 placeholder` 경고가 사라졌는지 |
 
 ### 4.5 릴리스 갱신 시 사용자 수정 사항 유지
+
+모니모 문서유형 설정(`custom_field_*.yaml` 과 그 등록 블록)은 공통 배포본에 포함되지 않습니다.
+공급 측은 모니모 설정 완성본(`sites/monimo/resource/`)을 전달하며, 이 폴더가 배포본의 `resource/` 를
+그대로 대체합니다. 현장에서 고친 설정·facade 는 다음 릴리스의 완성본에 반영되도록 공급 측 담당자에게도
+전달합니다. 전달하지 않은 수정은 아래 절차로 직접 이관해야 합니다.
 
 릴리스 갱신은 고객 수정 파일을 덮어쓸 수 있습니다. **기존 공급 릴리스와 고객 수정본의 차이**를 보관한 뒤,
 새 릴리스에 필요한 변경만 다시 적용합니다. 인자 없는 `git diff`는 커밋된 수정과 미추적 파일을 보관하지 않습니다.

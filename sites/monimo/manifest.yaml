@@ -1,0 +1,26 @@
+# 모니모 사이트 완성본(sites/monimo/resource/) 관리 정보. build-script/sync-sites.sh 가 읽는다.
+#
+# resource/ 는 그대로 실행·배포하는 전체 설정 폴더다. 아래 owned 에 적은 파일만 모니모가 소유하고,
+# 나머지는 표준 genon/preprocessor/resource/ 의 사본이다. 사본은 직접 고치지 않는다 — 표준을 고친 뒤
+# sync-sites.sh 로 맞춘다. 사본이 표준과 다르면 단위 테스트(test_sites_sync_unit.py)가 실패한다.
+owned:
+  # 모니모 운영 모델 접속 정보(현장 값으로 채운다)
+  - model_presets.yaml
+  # 모니모 문서유형 등록 블록이 들어간 파서 설정
+  - parser_processor_config.yaml
+  - parser_processor_config_simple.yaml
+  # 모니모 문서유형 설정 14종
+  - custom_field_menu.yaml
+  - custom_field_term.yaml
+  - custom_field_faq.yaml
+  - custom_field_monimo_event.yaml
+  - custom_field_monimo_news.yaml
+  - custom_field_product_slf.yaml
+  - custom_field_product_ssf.yaml
+  - custom_field_product_hpp.yaml
+  - custom_field_cs_slf.yaml
+  - custom_field_cs_ssf.yaml
+  - custom_field_cs_hpp.yaml
+  - custom_field_cs_sss.yaml
+  - custom_field_stock_insight.yaml
+  - custom_field_research_report.yaml

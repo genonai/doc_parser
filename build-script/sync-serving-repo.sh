@@ -73,7 +73,8 @@ fi
 WHITELIST=("genon" "main.py" "requirements.txt" "Dockerfile")
 
 # whitelist 로 가져온 뒤 배포본에서 제거할 하위 폴더 (dev/legacy/build — 서빙 런타임 무의존).
-#   main.py 는 production resource/ 를 config_path 로 고정하므로 resource_dev 제외해도 무영향.
+#   resource_dev 는 예전의 로컬 개발용 설정 폴더다. 저장소에서 삭제되었고 항목만 남아 있다(무해).
+#   배포본 main.py 는 표준 resource/ 를 읽는다(GENOS_RESOURCE_DIR 는 로컬 전용).
 EXCLUDE_PATHS=(
   "genon/preprocessor/resource_dev"
   "genon/preprocessor/docker"

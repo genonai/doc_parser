@@ -49,11 +49,11 @@ def test_cs_hpp_yaml_takes_content_from_the_source():
     예전 설정은 문서 단위 LLM 이 CONTENT 를 재작성했고, 문서당 한 값이 모든 청크에 같은
     문자열로 붙는 문제를 body_fields 로 막았다. 사이트 설정이 JSON 레코드 매핑으로 바뀌면서
     (`kind: records`) CONTENT 가 레코드별 원천 필드가 됐고 그 우회가 필요 없어졌다.
-    선언이 되살아나면 원천 값이 청크 본문으로 덮이므로 양쪽 yaml 에서 함께 고정한다.
+    선언이 되살아나면 원천 값이 청크 본문으로 덮이므로 출고 yaml(모니모 사이트)에서 고정한다.
     """
-    from shipped_config import load_shipped_named
+    from shipped_config import SITE_MONIMO, load_shipped_named
 
-    for resource_dir in ("resource", "resource_dev"):
+    for resource_dir in (SITE_MONIMO,):
         # 출고는 v2 표기다. raw 로 읽으면 body_fields 가 None 이 되어 검사가 조용히 무력해진다.
         cfg = load_shipped_named("custom_field_cs_hpp.yaml", resource_dir)
         assert cp.parse_field_name_list(cfg.get("body_fields")) == [], resource_dir

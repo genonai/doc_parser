@@ -3,23 +3,10 @@ defaults:
   log_level: 4
 
 # ── 모델 프리셋 ───────────────────────────────────────────────────────────────
-# 모델 한 벌(접속 정보 + 그 모델의 성질)을 이름 붙여 두고, 쓰는 자리에서는
-# `model_preset: <이름>` 한 줄로 부른다. 서빙 ID 나 키가 바뀌면 여기만 고치면 된다.
-# 블록에 url/api_key/model 을 직접 적는 기존 방식도 그대로 되며, 직접 적은 값이 우선한다.
-# 담을 수 있는 값과 자세한 규칙은 gitbook_doc/parser_processor.md 의 "모델 프리셋" 절 참고.
-model_presets:
-  default:
-    url: "http://llmops-gateway-api-service:8080/rep/serving/<ENRICHMENT_SERVING_ID>/v1/chat/completions"
-    api_key: ""
-    model: "model"
-  image:
-    url: "http://llmops-gateway-api-service:8080/rep/serving/<IMAGE_DESCRIPTION_SERVING_ID>/v1/chat/completions"
-    api_key: ""
-    model: "model"
-  page:
-    url: "http://llmops-gateway-api-service:8080/rep/serving/<PAGE_DESCRIPTION_SERVING_ID>/v1/chat/completions"
-    api_key: ""
-    model: "model"
+# 모델·외부 서비스 접속 정보(LLM 서빙 주소·키, OCR·layout·whisper·guardrail 주소)는
+# model_presets.yaml 에 모여 있고, 쓰는 자리에서는 `model_preset: <이름>` 한 줄로 부른다.
+# 규칙과 담을 수 있는 값은 그 파일 머리말을 참고한다.
+model_presets_file: model_presets.yaml
 
 formats:
   # 엑셀(xlsx/xlsm), csv는 PDF 변환 없이 처리
@@ -61,8 +48,7 @@ ocr:
 
   paddle:
     # engine: "paddle" 일 때만 사용
-    # <OCR_ENDPOINT>: PaddleOCR 서버 주소로 변경 필요
-    ocr_endpoint: "http://<OCR_ENDPOINT>/ocr"
+    model_preset: ocr   # 서버 주소는 model_presets.yaml
     text_score: 0.3
 
   # 글리프 깨짐 기반 auto-OCR 재트리거 임계값
@@ -82,10 +68,7 @@ ocr:
 layout:
   layout_model_type: "genos_layout" # "genos_layout"(default) or "docling_layout"
   genos_layout:
-    # <LAYOUT_SERVING_ID>: Genos에 등록한 layout 모델서빙 ID로 변경 필요
-    # api_key는 k8s 내부 통신 기반 모델 호출 시 불필요.
-    endpoint: "http://llmops-gateway-api-service:8080/rep/serving/<LAYOUT_SERVING_ID>/v1/chat/completions"
-    api_key: ""
+    model_preset: layout   # 서빙 주소·키는 model_presets.yaml
     page_batch_size: 128
     max_completion_tokens: 16384
     model: "dots-mocr"          # 서빙 모델명
@@ -129,8 +112,7 @@ output:
 # enrichment
 # 각 항목은 {이름: {옵션}} 형식의 list.
 # 비활성화: ① 항목 삭제  ② 항목 주석 처리  ③ enable: false
-# 모든 url 의 <ENRICHMENT_SERVING_ID> 는 Genos에 등록한 모델서빙 ID로 변경 필요.
-# api_key 는 k8s 내부 통신 기반 모델 호출 시 불필요.
+# 모델서빙 ID·주소는 model_presets.yaml 에서 변경한다.
 enrichment:
   - toc:
       enable: true
@@ -248,10 +230,6 @@ enrichment:
       enable: false
       doc_type: card
       config_file: custom_field_card.yaml   # resource_path 자동 = 이 yaml 파일 디렉토리
-  - custom_fields:
-      enable: false
-      doc_type: faq
-      config_file: custom_field_faq.yaml   # resource_path 자동 = 이 yaml 파일 디렉토리
 
 # 청킹(GenosSmartChunker) 설정
 chunking:
@@ -316,8 +294,6 @@ models:
 
 guardrail:
   # GenOS 분류 워크플로우 연동(#315). 기능 on/off 는 요청별 kwargs(guardrail_call)로 제어.
-  url: ""                 # GenOS gateway 주소(코드가 /workflow/{id}/run/v2 를 붙임). 예: "https://genos.genon.ai/api/gateway/rep"
-  workflow_id:            # 민감정보 분류 워크플로우 ID
-  api_key: ""             # 워크플로우 호출 Bearer 인증키(가능하면 배포 환경변수로 주입)
+  model_preset: guardrail   # 접속 정보(url, workflow_id, api_key)는 model_presets.yaml
   timeout: 60             # 워크플로우 호출 타임아웃(초). 대용량 문서는 상향 필요
   masking_enabled: false  # quote_masked 치환 on/off. content_category 메타 부착은 기능 켜지면 항상 수행

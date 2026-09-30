@@ -113,10 +113,10 @@ class TestChunkerAndProcessorContract:
     ],
 )
 def test_operational_yaml_declares_prefix_fields(yaml_name, key, expected):
-    """운영·개발 yaml 양쪽이 같은 선언을 갖는다."""
-    from shipped_config import load_shipped_named
+    """출고 yaml(모니모 사이트)이 이 선언을 갖는다."""
+    from shipped_config import SITE_MONIMO, load_shipped_named
 
-    for resource_dir in ("resource", "resource_dev"):
+    for resource_dir in (SITE_MONIMO,):
         # 출고는 v2 표기다(`body.repeat` / `body.once`). raw 로 읽으면 둘 다 None 이 된다.
         cfg = load_shipped_named(yaml_name, resource_dir)
         assert cp.parse_field_name_list(cfg.get(key)) == expected, (resource_dir, yaml_name)

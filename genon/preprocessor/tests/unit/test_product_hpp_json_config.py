@@ -11,9 +11,10 @@ import json
 from pathlib import Path
 
 from genon.preprocessor.processing.enrichment.json_semantic import SemanticJsonMapper
+from shipped_config import SITE_MONIMO
 
 PREPROCESSOR_DIR = Path(__file__).resolve().parents[2]
-RESOURCE_DIR = PREPROCESSOR_DIR / "resource"
+RESOURCE_DIR = PREPROCESSOR_DIR / SITE_MONIMO
 SAMPLE = PREPROCESSOR_DIR / "sample_files/monimo/monimo_product_hpp_wcms_sample.json"
 MINIMAL_SAMPLE = PREPROCESSOR_DIR / "sample_files/monimo/monimo_product_hpp_sample.json"
 

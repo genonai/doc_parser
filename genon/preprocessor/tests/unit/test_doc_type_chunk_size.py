@@ -25,9 +25,8 @@ monimo_news 자체 산출은 골든 대조가 덮는다.
 이 비대칭이 의도된 동작임을 테스트가 그대로 문서화한다 — 상한을 상수로 박지 않고
 경로별 계산식으로 쓴다.
 
-chunk_size 는 kwargs 로 명시한다(kwargs > yaml). 값 1000 은 현재
-resource_dev/chunking_processor_config.yaml 의 설정값과 같으며, 설정이 바뀌어도
-이 테스트가 흔들리지 않도록 고정한다.
+chunk_size 는 kwargs 로 명시한다(kwargs > yaml). 설정값이 바뀌어도 이 테스트가
+흔들리지 않도록 고정한다.
 """
 
 import asyncio
@@ -36,6 +35,8 @@ from pathlib import Path
 from unittest.mock import AsyncMock
 
 import pytest
+
+from shipped_config import PREPROCESSOR_DIR, SITE_MONIMO
 
 # 청크 크기 하한 보정은 배관이라 처리 본체(core)에 있다(#363 08-2).
 from genon.preprocessor.processing.core.chunker import _clamp_chunk_size
@@ -92,8 +93,7 @@ def _parse_and_chunk(source: Path, doc_type: str, llm_stub: str | None = None, *
     """파서→청커 왕복을 실제로 돌리고 청크 dict 목록을 돌려준다.
 
     ``include_chunk_header`` 를 주면 kwargs 로 넘겨 yaml 설정을 덮는다. HEADER 접두어를
-    단정하는 테스트는 반드시 이걸 명시한다 — resource_dev 는 개발 편의로 접두어를 꺼둔
-    상태(커밋 e332b1e5)라, 설정에 기대면 테스트가 개발 설정 변경에 끌려다닌다.
+    단정하는 테스트는 반드시 이걸 명시한다 — 설정에 기대면 테스트가 설정 변경에 끌려다닌다.
     """
     from fastapi import Request
 
@@ -102,7 +102,7 @@ def _parse_and_chunk(source: Path, doc_type: str, llm_stub: str | None = None, *
 
     async def _run():
         request = Request(scope={"type": "http"})
-        parser = pp.DocumentProcessor()
+        parser = pp.DocumentProcessor(str(PREPROCESSOR_DIR / SITE_MONIMO / "parser_processor_config.yaml"))  # 모니모 문서유형은 모니모 사이트 설정에 있다
         if llm_stub is not None:
             stubbed = 0
             for enricher in parser._intel.custom_fields_enrichers:
