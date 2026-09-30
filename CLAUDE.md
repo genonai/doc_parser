@@ -16,6 +16,7 @@ docling(v2.41.0) 포크 위에 GenOn 전처리기(genon/preprocessor)를 올린 
 | `genon/preprocessor/src/` | 공통 모듈(`common`, `logger`, `config`, `utils`) + **기본 전처리기 서비스**의 진입점(`main.py`, facade 1개) |
 | `genon/preprocessor/resource/` | 표준 YAML 설정 (프로세서 설정 + `custom_field_*.yaml` + 모델 접속 정보 `model_presets.yaml`). facade 기본 해석기는 항상 이 폴더를 읽는다 |
 | `sites/<site>/resource/` | 고객사이트 설정 **완성본**(표준 사본 + `manifest.yaml` 의 `owned:` 파일). 표준을 고치면 `build-script/sync-sites.sh` 로 사본을 맞춘다. `sites/dev/model_presets.yaml` 은 로컬(VPN) 모델 접속값이다(`sites/README.md`) |
+| `sites/<site>/facade/` | 고객사이트 전용 전처리기(BOK 적재용, 법령, 코레일 등). 기본 전처리기 서비스로만 배포되는 별도 배포 단위이며 핫픽스 번들에 포함되지 않는다 |
 | `genon/preprocessor/tests/` | **전처리기 테스트** (`unit/`, `smoke/`, `regression/`) |
 | `genon/preprocessor/examples/` | 손으로 돌리는 검증 스크립트 (테스트 절 참조) |
 | `docling/` | 포크된 docling 본체. 백엔드·파이프라인 수정은 여기 |
@@ -23,7 +24,7 @@ docling(v2.41.0) 포크 위에 GenOn 전처리기(genon/preprocessor)를 올린 
 | `build-script/` | 도커 이미지 빌드, 코드서빙 저장소 동기화, 핫픽스 패치 번들 생성. 저장소의 셸 스크립트는 전부 여기 둔다 |
 
 **수정 금지 / 탐색 제외** (모두 gitignore됨): `reference/`, `shkim_labs/`, `dist/`, `build/`, `debug/`, `tmp/`, `code-serving/`.
-`facade/legacy/` 는 **기본적으로 참조하지 않는다** — 별도 배포 단위이므로 활성 경로 작업에 끌어들이지 말고, 사용자가 명시적으로 언급할 때만 읽는다.
+`sites/<site>/facade/` 는 **기본적으로 참조하지 않는다** — 별도 배포 단위이므로 활성 경로 작업에 끌어들이지 말고, 사용자가 명시적으로 언급할 때만 읽는다.
 
 저장소 전체가 11G / 6만 파일 이상이다. 대형 fixture·노트북 제외는 루트 `.ignore` 가
 자동으로 해주므로(`rg` 와 `Grep` 툴 양쪽에 적용) 글롭을 손으로 붙일 필요는 없다.
@@ -56,7 +57,7 @@ GenOS 에 전처리기 리소스로 등록되는 형태. **facade 가 하나만 
 - 배포 대상 facade **한 개**만 `preprocessor.py` 로 이름이 바뀌어 마운트되고, `from preprocessor import DocumentProcessor` 로 로드되어 `/run` 으로 진입한다.
 - `/parser`, `/chunker` 는 프로세서의 `IS_PARSER` / `IS_CHUNKER` 속성으로 게이팅된다. 속성이 없으면 "지원하지 않습니다" 응답.
 - 헬스 경로가 `/healthcheck` 로 다르고 `/version` 은 없다.
-- `legacy/` 코드들(BOK 적재용, 법령, 코레일 등)은 로컬 진입점이 없고 이 경로로만 배포·실행된다.
+- `sites/<site>/facade/` 의 사이트 전용 코드들(BOK 적재용, 법령, 코레일 등)은 로컬 진입점이 없고 이 경로로만 배포·실행된다.
 
 배포본에 facade 가 하나뿐인 형태가 있다는 것이 "아키텍처 제약" 첫 항목의 근거다.
 `main.py` 계층 기능(요청 deadline, 에러 envelope 등)을 바꿀 때는 **두 파일 모두** 확인한다.
@@ -117,11 +118,11 @@ facade가 공유하는 로직은 아래에 한 벌씩만 둔다. 최상위 proce
   - 공용 모듈은 docling 타입 import를 피하고 duck typing으로 처리한다. 배포본이 docling 버전에 묶이지 않게 한다.
   - processor 속성을 읽는 공용 헬퍼는 `getattr(..., 기본값)` 으로 속성 부재를 견뎌야 한다 — `object.__new__` 로 `__init__` 을 우회하는 단위 테스트가 있다.
   - 선례: `processing/chunking/text_norm.py` 하나를 활성 processor 3종의 출력 경로 9곳이 호출한다.
-- **청킹 파이프라인은 `processing/chunking/smart_chunker.py` 한 벌이다.** 활성 3종은 ClassVar 플래그만 다른 얇은 서브클래스이므로 여기만 고치면 된다. `legacy/BOK_적재용_*` 3종은 별도 배포 단위라 자체 사본과 모듈 상수 설정을 유지하니, 변경이 거기까지 반영돼야 하는지 먼저 판단한다.
-- **`GenosServiceException` 은 활성 경로와 legacy 여러 곳에 복제**되어 있다(파싱·청킹은 `core/errors.py` 한 벌을 공유하고 이름만 재수출한다). 개수를 가정하지 말고 시그니처 변경 전에 아래로 전체 대상을 확인한다. facade가 던진 로컬 예외는 `main.py` 의 제네릭 핸들러가 받는다.
+- **청킹 파이프라인은 `processing/chunking/smart_chunker.py` 한 벌이다.** 활성 3종은 ClassVar 플래그만 다른 얇은 서브클래스이므로 여기만 고치면 된다. `sites/bok/facade/BOK_적재용_*` 3종은 별도 배포 단위라 자체 사본과 모듈 상수 설정을 유지하니, 변경이 거기까지 반영돼야 하는지 먼저 판단한다.
+- **`GenosServiceException` 은 활성 경로와 사이트 전용 facade 여러 곳에 복제**되어 있다(파싱·청킹은 `core/errors.py` 한 벌을 공유하고 이름만 재수출한다). 개수를 가정하지 말고 시그니처 변경 전에 아래로 전체 대상을 확인한다. facade가 던진 로컬 예외는 `main.py` 의 제네릭 핸들러가 받는다.
 
   ```bash
-  rg -n '^class GenosServiceException' genon/preprocessor/src genon/preprocessor/facade genon/preprocessor/processing --glob '*.py'
+  rg -n '^class GenosServiceException' genon/preprocessor/src genon/preprocessor/facade genon/preprocessor/processing sites --glob '*.py'
   ```
 
 - **docling 은 되도록 수정하지 않는다.** 포크 본체를 건드리면 영향 범위가 그 백엔드를 쓰는 모든 문서로 퍼지고 배포에 wheel 재빌드가 강제된다(핫픽스 overlay 는 genon 전용). **그 docling 결함을 고치는 것이 이번 작업의 목표일 때만** 손댄다. 조사 중 우연히 발견한 docling 결함은 별도 이슈로 분리한다.

@@ -72,13 +72,13 @@ fi
 # Dockerfile: 코드서빙이 리비전 부팅 시 배포본 루트의 이 파일로 이미지를 빌드한다(main.py 와 같은 위치).
 WHITELIST=("genon" "main.py" "requirements.txt" "Dockerfile")
 
-# whitelist 로 가져온 뒤 배포본에서 제거할 하위 폴더 (dev/legacy/build — 서빙 런타임 무의존).
+# whitelist 로 가져온 뒤 배포본에서 제거할 하위 폴더 (dev/build — 서빙 런타임 무의존).
+#   사이트 전용 facade 는 sites/<site>/facade/ 에 있어 whitelist 밖이므로 여기 적지 않는다.
 #   resource_dev 는 예전의 로컬 개발용 설정 폴더다. 저장소에서 삭제되었고 항목만 남아 있다(무해).
 #   배포본 main.py 는 표준 resource/ 를 읽는다(GENOS_RESOURCE_DIR 는 로컬 전용).
 EXCLUDE_PATHS=(
   "genon/preprocessor/resource_dev"
   "genon/preprocessor/docker"
-  "genon/preprocessor/facade/legacy"
   "genon/serving"
   "genon/train"
   "genon/legal_parser"                       # 전처리기와 무관한 독립 법령 수집기
@@ -160,7 +160,7 @@ mkdir -p "${DEST}"
 find "${DEST}" -mindepth 1 -maxdepth 1 ! -name '.git' -exec rm -rf {} +
 git -C "${ROOT_DIR}" archive "${SOURCE_REF}" "${WHITELIST[@]}" | tar -x -C "${DEST}"
 
-# 제외 하위 폴더 제거 (dev/legacy/build)
+# 제외 하위 폴더 제거 (dev/build)
 for p in "${EXCLUDE_PATHS[@]}"; do
   rm -rf "${DEST:?}/${p}"
 done
