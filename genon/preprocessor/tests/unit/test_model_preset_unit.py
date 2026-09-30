@@ -181,6 +181,32 @@ def test_malformed_presets_block_fails_startup(tmp_path):
 # ── 하위 호환 ─────────────────────────────────────────────────────────────────
 
 @pytest.mark.unit
+@pytest.mark.parametrize("inline, env, expected", [
+    # 파일만: 파일 값이 그대로 쓰인다
+    ("", None, {"url": "http://file/v1", "model": "m", "timeout": 10}),
+    # 메인 yaml 의 인라인이 파일 위에 키 단위로 얹힌다
+    ("model_presets:\n  default: {timeout: 99}\n", None,
+     {"url": "http://file/v1", "model": "m", "timeout": 99}),
+    # 환경변수 파일이 가장 마지막 층이다 — url 만 바꿔도 나머지 키는 남는다
+    ("model_presets:\n  default: {timeout: 99}\n", "default: {url: http://local/v1}",
+     {"url": "http://local/v1", "model": "m", "timeout": 99}),
+])
+def test_preset_layers_file_inline_env(tmp_path, monkeypatch, inline, env, expected):
+    """층 우선순위: model_presets_file → 메인 yaml 의 model_presets → GENOS_MODEL_PRESETS_FILE."""
+    (tmp_path / "model_presets.yaml").write_text(
+        "model_presets:\n  default: {url: http://file/v1, model: m, timeout: 10}\n", encoding="utf-8")
+    monkeypatch.delenv(cp.MODEL_PRESETS_ENV, raising=False)
+    if env is not None:
+        local = tmp_path / "local" / "presets.yaml"
+        local.parent.mkdir()
+        local.write_text("model_presets:\n  " + env + "\n", encoding="utf-8")
+        monkeypatch.setenv(cp.MODEL_PRESETS_ENV, str(local))
+    cfg = cp.load_config(_write(tmp_path, "model_presets_file: model_presets.yaml\n" + inline
+                                + "toc:\n  model_preset: default\n"))
+    assert cfg["toc"] == expected
+
+
+@pytest.mark.unit
 def test_config_without_presets_is_untouched(tmp_path):
     """프리셋을 안 쓰는 설정은 지금까지와 똑같은 dict 로 읽힌다."""
     text = """

@@ -5,50 +5,13 @@ defaults:
   unknown_doc_type: fail
 
 # ── 모델 프리셋 ───────────────────────────────────────────────────────────────
-# 모델 한 벌(접속 정보 + 그 모델의 성질)을 이름 붙여 여기 두고, 쓰는 자리에서는
-# `model_preset: <이름>` 한 줄로 부른다. 서빙 ID 나 키가 바뀌면 여기만 고치면 된다.
-#
-#   enrichment:
-#     - toc:
-#         model_preset: default
-#         temperature: 0.2      # 이 블록만 다르게 — 직접 쓴 값이 프리셋을 이긴다
-#
-# 프리셋을 안 쓰고 블록마다 url/api_key/model 을 직접 적는 기존 방식도 그대로 된다.
-# 없는 이름을 부르면 기동이 실패한다(오타를 조용히 넘기면 인증 없이 호출이 나간다).
-#
-# 담을 수 있는 값
-#   접속    url, api_key, model
-#   생성    temperature, top_p, max_tokens, thinking, thinking_dialect, repetition_penalty, seed
-#   호출    timeout, concurrency, headers, params
-#   ※ 생성 5종과 params/headers/thinking 은 모든 enrichment 항목과 page_description 이 같게 읽는다.
-#      단 thinking 기본값은 갈린다 - 텍스트 계열은 off(차단 토큰 전송), 이미지 계열은
-#      auto(미전송)다. 이미지 모델은 별도 서빙을 쓰는 현장이 많아 명시할 때만 보낸다.
-#      concurrency 만 예외로 설명 계열(이미지·표·페이지)에서만 읽는다 - 나머지는 문서당
-#      1회 호출이라 동시 실행 개념이 없다.
-#   ※ max_tokens 는 params 가 아니라 max_tokens 키로 적는다 — table_text_description 은
-#      이 값만큼 응답 몫을 자동으로 예약해 입력 예산을 계산한다(params.max_tokens 는 반영되지 않는다).
-#   ※ enable/enabled, doc_type, config_file 은 배선 키라 프리셋에 적어도 주입되지 않는다.
-#      특히 enable 이 새어 나가면 그 프리셋을 쓰는 섹션이 전부 켜진다.
-#
-# 아래 <..._SERVING_ID> 는 Genos에 등록한 모델서빙 ID로 변경 필요.
-# api_key 는 k8s 내부 통신 기반 모델 호출 시 불필요.
+# 모델·외부 서비스 접속 정보(LLM 서빙 주소·키, OCR·layout·whisper·guardrail 주소)는
+# model_presets.yaml 에 모여 있고, 쓰는 자리에서는 `model_preset: <이름>` 한 줄로 부른다.
+# 규칙과 담을 수 있는 값은 그 파일 머리말을 참고한다.
+model_presets_file: model_presets.yaml
 model_presets:
-  # 텍스트 LLM. 목차/메타데이터/문서요약/텍스트 표 설명이 함께 쓴다.
-  default:
-    url: "http://llmops-gateway-api-service:8080/rep/serving/<ENRICHMENT_SERVING_ID>/v1/chat/completions"
-    api_key: ""
-    model: "model"
-  # 이미지 이해 모델(VLM). 그림 설명과 이미지 표 설명이 함께 쓴다.
-  image:
-    url: "http://llmops-gateway-api-service:8080/rep/serving/<IMAGE_DESCRIPTION_SERVING_ID>/v1/chat/completions"
-    api_key: ""
-    model: "model"
-  # PPT 페이지 전체를 그림으로 설명하는 모델. 위 image 와 같은 서빙을 쓸 수도 있다.
   page:
-    url: "http://llmops-gateway-api-service:8080/rep/serving/<PAGE_DESCRIPTION_SERVING_ID>/v1/chat/completions"
-    api_key: ""
-    model: "model"
-    timeout: 360
+    timeout: 360   # PPT 페이지 설명은 오래 걸려 이 설정에서만 늘린다
 
 formats:
   # 비표준 확장자 별칭: "이 확장자는 어떤 포맷으로 볼 것인가" 를 한 줄로 지정한다.
@@ -124,8 +87,7 @@ ocr:
 
   paddle:
     # engine: "paddle" 일 때만 사용
-    # <OCR_ENDPOINT>: PaddleOCR 서버 주소로 변경 필요
-    ocr_endpoint: "http://<OCR_ENDPOINT>/ocr"
+    model_preset: ocr   # 서버 주소는 model_presets.yaml
     text_score: 0.3
 
   # 글리프 깨짐 기반 auto-OCR 재트리거 임계값
@@ -145,10 +107,7 @@ ocr:
 layout:
   layout_model_type: "genos_layout" # "genos_layout"(default) or "docling_layout"
   genos_layout:
-    # <LAYOUT_SERVING_ID>: Genos에 등록한 layout 모델서빙 ID로 변경 필요
-    # api_key는 k8s 내부 통신 기반 모델 호출 시 불필요.
-    endpoint: "http://llmops-gateway-api-service:8080/rep/serving/<LAYOUT_SERVING_ID>/v1/chat/completions"
-    api_key: ""
+    model_preset: layout   # 서빙 주소·키는 model_presets.yaml
     page_batch_size: 128
     max_completion_tokens: 16384
     model: "dots-mocr"          # 서빙 모델명
@@ -296,74 +255,8 @@ enrichment:
       doc_type: card
       config_file: custom_field_card.yaml
 
-  # ── 모니모 13종 문서유형 custom_fields (2026-08-16 추가) ────────────────────
-  # 메뉴서비스
-  - custom_fields:
-      enable: true
-      doc_type: menu
-      config_file: custom_field_menu.yaml
-  # 용어사전
-  - custom_fields:
-      enable: true
-      doc_type: term
-      config_file: custom_field_term.yaml
-  # FAQ
-  - custom_fields:
-      enable: true
-      doc_type: faq
-      config_file: custom_field_faq.yaml
-  # 이벤트
-  - custom_fields:
-      enable: true
-      doc_type: monimo_event
-      config_file: custom_field_monimo_event.yaml
-  # 관심소식
-  - custom_fields:
-      enable: true
-      doc_type: monimo_news
-      config_file: custom_field_monimo_news.yaml
-  # 상품설명서 생명/화재
-  - custom_fields:
-      enable: true
-      doc_type: product_slf
-      config_file: custom_field_product_slf.yaml
-  - custom_fields:
-      enable: true
-      doc_type: product_ssf
-      config_file: custom_field_product_ssf.yaml
-  # 상품설명서 카드
-  - custom_fields:
-      enable: true
-      doc_type: product_hpp
-      config_file: custom_field_product_hpp.yaml
-  # 고객센터 생명/화재
-  - custom_fields:
-      enable: true
-      doc_type: cs_slf
-      config_file: custom_field_cs_slf.yaml
-  - custom_fields:
-      enable: true
-      doc_type: cs_ssf
-      config_file: custom_field_cs_ssf.yaml
-  # 고객센터 카드
-  - custom_fields:
-      enable: true
-      doc_type: cs_hpp
-      config_file: custom_field_cs_hpp.yaml
-  # 고객센터 증권
-  - custom_fields:
-      enable: true
-      doc_type: cs_sss
-      config_file: custom_field_cs_sss.yaml
-  # AI 차트뷰
-  - custom_fields:
-      enable: true
-      doc_type: stock_insight
-      config_file: custom_field_stock_insight.yaml
-  - custom_fields:
-      enable: true
-      doc_type: research_report
-      config_file: custom_field_research_report.yaml
+  # 고객사이트 전용 문서유형(예: 모니모)은 여기가 아니라 저장소 루트 sites/<site>/resource/ 에
+  # 둔다. 사이트 폴더는 그대로 배포하는 완성본이며 표준 사본은 build-script/sync-sites.sh 로 맞춘다(sites/README.md 참조).
 
 output:
   format: "docling" # "json" (default), "html", "markdown", "docling"
@@ -388,9 +281,8 @@ output:
   # chunking_processor_config.yaml 의 output 에서 켠다.
 
 # whisper 설정. 음성(.wav/.mp3/.m4a) 처리 시에만 필요(선택).
-# <WHISPER_ENDPOINT>: 음성인식 모델 서버 주소로 변경 필요 (음성 미사용 시 무시)
 whisper:
-  url: "http://<WHISPER_ENDPOINT>/v1/audio/transcriptions"
+  model_preset: whisper   # 서버 주소는 model_presets.yaml
   model: "model"
   language: "ko"
   response_format: "json"
@@ -403,7 +295,5 @@ whisper:
 guardrail:
   # 민감정보 분류(#315) — parser 가 호출 주체. 요청 kwargs guardrail_call(0/1) 이면 문서 전체를 1회
   # 분류해 sensitive_infos 를 파스 출력에 실어 chunking 으로 전달(청크 라벨·마스킹 적용은 chunking).
-  url: ""                 # GenOS gateway 베이스(코드가 /workflow/{workflow_id}/run/v2 를 붙임)
-  workflow_id:            # 민감정보 분류 워크플로우 ID
-  api_key: ""             # 워크플로우 호출 Bearer 인증키(배포 환경변수/시크릿 권장)
+  model_preset: guardrail   # 접속 정보(url, workflow_id, api_key)는 model_presets.yaml
   timeout: 60             # 호출 타임아웃(초). 대용량 문서는 상향

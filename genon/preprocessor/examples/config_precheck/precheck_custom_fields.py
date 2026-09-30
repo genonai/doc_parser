@@ -38,6 +38,7 @@ import yaml
 REPO_ROOT = Path(__file__).resolve().parents[4]
 sys.path.insert(0, str(REPO_ROOT))
 
+from genon.preprocessor.processing.common import config_parse as cp  # noqa: E402
 from genon.preprocessor.processing.common import model_preset as mp  # noqa: E402
 from genon.preprocessor.processing.enrichment import config_schema as cs  # noqa: E402
 from genon.preprocessor.processing.enrichment import config_v2 as cv2  # noqa: E402
@@ -94,8 +95,8 @@ def registered_blocks(root: Path) -> list[tuple[str, dict, dict]]:
         if not path.exists():
             continue
         cfg = load_yaml(path)
-        raw_presets = cfg.get(mp.PRESETS_KEY)
-        presets = raw_presets if isinstance(raw_presets, dict) else {}
+        # 형식 오류는 check_model_presets 가 보고한다. 여기서는 모을 수 있는 만큼만 모은다.
+        presets = cp.collect_model_presets(cfg, str(path), strict=False)
         for item in (cfg.get("enrichment") or []):
             block = (item or {}).get("custom_fields")
             if isinstance(block, dict):
@@ -258,20 +259,12 @@ def check_model_presets(root: Path) -> list[str]:
         if not path.exists():
             continue
         cfg = load_yaml(path)
-        raw = cfg.get(mp.PRESETS_KEY)
-        if raw is not None and not isinstance(raw, dict):
-            problems.append(
-                f"[기동실패] {name}: `{mp.PRESETS_KEY}` 는 {{이름: 설정}} 매핑이어야 합니다 "
-                f"(지금은 {type(raw).__name__})."
-            )
+        # 프리셋은 기동과 같은 규칙으로 모은다(`model_presets_file` 로 지정한 파일 + 인라인).
+        try:
+            presets = cp.collect_model_presets(cfg, str(path), strict=True)
+        except ValueError as exc:  # ModelPresetError 와 경로 범위 위반 모두 ValueError 다
+            problems.append(f"[기동실패] {name}: {exc}")
             continue
-        presets: dict = raw if isinstance(raw, dict) else {}
-        for preset_name, value in presets.items():
-            if not isinstance(value, dict):
-                problems.append(
-                    f"[기동실패] {name}: `{mp.PRESETS_KEY}.{preset_name}` 은 매핑이어야 합니다 "
-                    f"(지금은 {type(value).__name__})."
-                )
 
         # 참조를 찾을 곳: 프로세서 config 자신 + 그것이 등록한 자식 설정 파일들.
         targets: list[tuple[str, dict]] = [(name, cfg)]
@@ -300,7 +293,10 @@ def check_model_presets(root: Path) -> list[str]:
                         f"{name} 의 `{mp.PRESETS_KEY}` 에 없습니다. 정의된 이름: {known}"
                     )
 
-        unused = sorted(set(presets) - used)
+        # 공유 프리셋 파일(`model_presets_file`)은 여러 설정이 나눠 쓰므로 안 쓰는 이름이 있는 게
+        # 정상이다. 이 설정에 직접 적은 프리셋만 본다.
+        inline = cfg.get(mp.PRESETS_KEY) if isinstance(cfg.get(mp.PRESETS_KEY), dict) else {}
+        unused = sorted(set(inline) - used)
         if unused:
             problems.append(f"[정보] {name}: 아무도 참조하지 않는 프리셋 {unused}")
         blocked = sorted({k for v in presets.values() if isinstance(v, dict) for k in v

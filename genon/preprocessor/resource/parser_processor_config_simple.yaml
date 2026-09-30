@@ -12,15 +12,10 @@ defaults:
   log_level: 4
 
 # ── 모델 프리셋 ───────────────────────────────────────────────────────────────
-# 모델 한 벌(접속 정보 + 그 모델의 성질)을 이름 붙여 두고, 쓰는 자리에서는
-# `model_preset: <이름>` 한 줄로 부른다. 서빙 ID 나 키가 바뀌면 여기만 고치면 된다.
-# 블록에 url/api_key/model 을 직접 적는 기존 방식도 그대로 되며, 직접 적은 값이 우선한다.
-# 담을 수 있는 값과 자세한 규칙은 gitbook_doc/parser_processor.md 의 "모델 프리셋" 절 참고.
-model_presets:
-  default:
-    url: "http://llmops-gateway-api-service:8080/rep/serving/<ENRICHMENT_SERVING_ID>/v1/chat/completions"
-    api_key: ""
-    model: "model"
+# 모델·외부 서비스 접속 정보(LLM 서빙 주소·키, OCR·layout·whisper·guardrail 주소)는
+# model_presets.yaml 에 모여 있고, 쓰는 자리에서는 `model_preset: <이름>` 한 줄로 부른다.
+# 규칙과 담을 수 있는 값은 그 파일 머리말을 참고한다.
+model_presets_file: model_presets.yaml
 
 formats:
   # 비표준 확장자 별칭: "이 확장자는 어떤 포맷으로 볼 것인가" 를 한 줄로 지정한다.
@@ -51,16 +46,12 @@ ocr:
 
   paddle:
     # engine: "paddle" 일 때만 사용
-    # <OCR_ENDPOINT>: PaddleOCR 서버 주소로 변경 필요
-    ocr_endpoint: "http://<OCR_ENDPOINT>/ocr"
+    model_preset: ocr   # 서버 주소는 model_presets.yaml
 
 layout:
   layout_model_type: "genos_layout" # "genos_layout"(default) or "docling_layout"
   genos_layout:
-    # <LAYOUT_SERVING_ID>: Genos에 등록한 layout 모델서빙 ID로 변경 필요
-    # api_key는 k8s 내부 통신 기반 모델 호출 시 불필요.
-    endpoint: "http://llmops-gateway-api-service:8080/rep/serving/<LAYOUT_SERVING_ID>/v1/chat/completions"
-    api_key: ""
+    model_preset: layout   # 서빙 주소·키는 model_presets.yaml
     page_batch_size: 128
     max_completion_tokens: 16384
     model: "dots-mocr"          # 서빙 모델명
@@ -70,8 +61,7 @@ layout:
 # enrichment
 # 각 항목은 {이름: {옵션}} 형식의 list.
 # 비활성화: ① 항목 삭제  ② 항목 주석 처리  ③ enable: false
-# 모든 url 의 <ENRICHMENT_SERVING_ID> 는 Genos에 등록한 모델서빙 ID로 변경 필요.
-# api_key 는 k8s 내부 통신 기반 모델 호출 시 불필요.
+# 모델서빙 ID·주소는 model_presets.yaml 에서 변경한다.
 enrichment:
   - toc:
       enable: false
@@ -107,74 +97,8 @@ enrichment:
         include_search_terms: false      # true면 검색어도 청크 텍스트에 노출
         repeat_context_on_split: true    # 큰 표 분할 시 retrieval_context를 모든 조각에 반복
 
-  # ── 모니모 13종 문서유형 custom_fields (2026-08-16 추가) ────────────────────
-  # 메뉴서비스
-  - custom_fields:
-      enable: true
-      doc_type: menu
-      config_file: custom_field_menu.yaml
-  # 용어사전
-  - custom_fields:
-      enable: true
-      doc_type: term
-      config_file: custom_field_term.yaml
-  # FAQ
-  - custom_fields:
-      enable: true
-      doc_type: faq
-      config_file: custom_field_faq.yaml
-  # 이벤트
-  - custom_fields:
-      enable: true
-      doc_type: monimo_event
-      config_file: custom_field_monimo_event.yaml
-  # 관심소식
-  - custom_fields:
-      enable: true
-      doc_type: monimo_news
-      config_file: custom_field_monimo_news.yaml
-  # 상품설명서 생명/화재
-  - custom_fields:
-      enable: true
-      doc_type: product_slf
-      config_file: custom_field_product_slf.yaml
-  - custom_fields:
-      enable: true
-      doc_type: product_ssf
-      config_file: custom_field_product_ssf.yaml
-  # 상품설명서 카드
-  - custom_fields:
-      enable: true
-      doc_type: product_hpp
-      config_file: custom_field_product_hpp.yaml
-  # 고객센터 생명/화재
-  - custom_fields:
-      enable: true
-      doc_type: cs_slf
-      config_file: custom_field_cs_slf.yaml
-  - custom_fields:
-      enable: true
-      doc_type: cs_ssf
-      config_file: custom_field_cs_ssf.yaml
-  # 고객센터 카드
-  - custom_fields:
-      enable: true
-      doc_type: cs_hpp
-      config_file: custom_field_cs_hpp.yaml
-  # 고객센터 증권
-  - custom_fields:
-      enable: true
-      doc_type: cs_sss
-      config_file: custom_field_cs_sss.yaml
-  # AI 차트뷰
-  - custom_fields:
-      enable: true
-      doc_type: stock_insight
-      config_file: custom_field_stock_insight.yaml
-  - custom_fields:
-      enable: true
-      doc_type: research_report
-      config_file: custom_field_research_report.yaml
+  # 고객사이트 전용 문서유형(예: 모니모)은 여기가 아니라 저장소 루트 sites/<site>/resource/ 에
+  # 둔다. 사이트 폴더는 그대로 배포하는 완성본이며 표준 사본은 build-script/sync-sites.sh 로 맞춘다(sites/README.md 참조).
 
 output:
   format: "docling" # "json" (default), "html", "markdown", "docling"

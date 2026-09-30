@@ -159,12 +159,19 @@ def probe_endpoints() -> dict[str, str]:
     """
     resource_dir = verify.RESOURCE_DIR
     urls: set[str] = set()
-    for name in ["parser_processor_config.yaml", *[p.name for p in sorted(resource_dir.glob("custom_field_*.yaml"))]]:
-        path = resource_dir / name
+    # 파서 설정은 기동과 같은 경로로 읽는다 — 접속 주소가 프리셋 파일(model_presets_file)과
+    # 로컬 모델 덮어쓰기(GENOS_MODEL_PRESETS_FILE)에서 모이기 때문이다.
+    if str(verify.REPO_ROOT) not in sys.path:
+        sys.path.insert(0, str(verify.REPO_ROOT))
+    from genon.preprocessor.processing.common import config_parse as cp
+
+    for path in [resource_dir / "parser_processor_config.yaml", *sorted(resource_dir.glob("custom_field_*.yaml"))]:
         if not path.exists():
             continue
         try:
-            _collect_urls(yaml.safe_load(path.read_text(encoding="utf-8")), urls)
+            loaded = (cp.load_config(str(path), strict=False) if path.name == "parser_processor_config.yaml"
+                      else yaml.safe_load(path.read_text(encoding="utf-8")))
+            _collect_urls(loaded, urls)
         except Exception as exc:  # 설정을 못 읽으면 점검 대상에서만 빠진다
             print(f"  [warn] 설정을 읽지 못했습니다: {path.name} ({exc})")
     result: dict[str, str] = {}
