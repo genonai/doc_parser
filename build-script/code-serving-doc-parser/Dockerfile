@@ -78,7 +78,7 @@ RUN sed -i 's/# \(ko_KR.UTF-8\)/\1/' /etc/locale.gen \
 
 ############################
 # 2) LibreOffice 확장 + HCRBatang 폰트 (Dockerfile.standard 와 동일)
-#    resources 에서 HCRBatang 폰트가 들어온다.
+#    genon/preprocessor/docker/assets 에서 HCRBatang 폰트가 들어온다.
 ############################
 FROM base AS loext
 ARG H2ORESTART_URL
@@ -93,7 +93,7 @@ RUN --mount=type=cache,target=/opt/h2o_cache \
     soffice --headless --nologo --nodefault --nofirststartwizard --terminate_after_init
 # HCRBatang 폰트 — bind mount 로 필요한 파일만 읽는다.
 # COPY 로 가져오면 다음 레이어에서 rm 해도 COPY 레이어(11.6MB)가 회수되지 않는다.
-RUN --mount=type=bind,source=genon/preprocessor/resources/HCRBatang.ttf.tar.gz,target=/tmp/HCRBatang.ttf.tar.gz \
+RUN --mount=type=bind,source=genon/preprocessor/docker/assets/HCRBatang.ttf.tar.gz,target=/tmp/HCRBatang.ttf.tar.gz \
     set -eux; \
     mkdir -p /usr/share/fonts && \
     tar zxf /tmp/HCRBatang.ttf.tar.gz -C /usr/share/fonts/ && \

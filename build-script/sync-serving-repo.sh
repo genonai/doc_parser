@@ -78,13 +78,12 @@ WHITELIST=("genon" "main.py" "requirements.txt" "Dockerfile")
 #   배포본 main.py 는 표준 resource/ 를 읽는다(GENOS_RESOURCE_DIR 는 로컬 전용).
 EXCLUDE_PATHS=(
   "genon/preprocessor/resource_dev"
-  "genon/preprocessor/docker"
+  "genon/preprocessor/docker"                # Dockerfile·빌드 전용 폰트 tar(docker/assets)
   "genon/serving"
   "genon/train"
   "genon/legal_parser"                       # 전처리기와 무관한 독립 법령 수집기
   # 2차 검토 추가 (활성 facade/main.py 무의존 검증됨)
   "genon/tools"                              # CLI 도구(런타임 무관)
-  "genon/preprocessor/resources"             # 폰트·tessdata tar (베이스 이미지에 이미 포함)
   "genon/preprocessor/scripts"               # 이미지 등록 스크립트
   # 사내 전용 문서 — 공개 배포본에 나갈 필요가 없고, 배포본에 없는 폴더(build-script/·docling/·docs/)를
   # 안내해 오히려 혼란을 준다. 코드서빙 사용/설치 안내는 배포본 root README.md 가 담당한다.

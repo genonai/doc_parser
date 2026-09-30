@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # doc-parser 코드서빙 base 이미지 빌드 스크립트.
-# build context = repo 루트 (doc-parser-build.sh 와 동일 방식). genon/preprocessor/resources 와
+# build context = repo 루트 (doc-parser-build.sh 와 동일 방식). genon/preprocessor/docker/assets 와
 # build-script/hf_private_token.env(HWP_SDK_TOKEN) 를 재사용한다.
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"

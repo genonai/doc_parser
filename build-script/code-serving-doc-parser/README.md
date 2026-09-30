@@ -18,7 +18,7 @@ git 소스를 `/app/src/service` 로 clone 해 `main.py`(facade) 를 실행한�
 - **의존성 목록은 `genon/preprocessor` 의 uv 정보 기반**(`pyproject.toml`): preprocessor 직접 deps
   (− vendored `docling`) ∪ repo 루트 docling deps ∪ harness 필수(pydantic-settings, python-dotenv).
 - **다운로드 아티팩트는 `Dockerfile.standard` 와 full parity** 로 복제(아래).
-- **build context = repo 루트** (자기완결 아님): `genon/preprocessor/resources`(HCRBatang 폰트, docling-parse
+- **build context = repo 루트** (자기완결 아님): `genon/preprocessor/docker/assets`(HCRBatang 폰트, docling-parse
   패치 헤더) 와 `build-script/hf_private_token.env`(HWP_SDK_TOKEN) 를 재사용.
 - 구조: `Dockerfile`(CPU, python:3.12-slim) / `Dockerfile.gpu`(GPU, nvidia/cuda 12.4.1).
 
@@ -31,7 +31,7 @@ git 소스를 `/app/src/service` 로 clone 해 `main.py`(facade) 를 실행한�
 | HWP SDK (convtext) | `/app/hwp_sdk` (+ venv 심링크) | HF `genon-search/hwp_sdk` (**HWP_SDK_TOKEN 필요**) |
 | rhwp 바이너리 | `/usr/local/bin/rhwp` (`RHWP_BIN`) | `genonai/genos-rhwp` rust 빌드 |
 | H2Orestart.oxt | LibreOffice 확장 | GitHub 릴리스 |
-| 폰트 | HCRBatang/additional + noto-cjk/nanum/dejavu | resources + HF + apt |
+| 폰트 | HCRBatang/additional + noto-cjk/nanum/dejavu | docker/assets + HF + apt |
 | NLTK 데이터 | `/app/nltk_data` (`NLTK_DATA`) | `nltk.download` |
 | EasyOCR korean_g2 | `/models/EasyOcr` | JaidedAI 릴리스 |
 | docling-parse 4.1.0 패치 | `/app/.venv/.../site-packages/docling_parse` | 소스 패치 빌드(#245), venv 인터프리터로 설치해 wheel 덮어씀 |

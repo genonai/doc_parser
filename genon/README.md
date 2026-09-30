@@ -17,6 +17,7 @@
 │   ├── preprocessor # genos에서 실행 될 전처리기 이미지 및 facade 관련
 │   │   ├── configs # gunicorn, supervisor 설정
 │   │   ├── docker # 도커파일 위치
+│   │   │   └── assets # 도커 빌드 전용 폰트·tessdata tar
 │   │   ├── env # 개발 시 설정 파일들
 │   │   ├── facade # facade 코드(*_processor.py)
 │   │   ├── manual # 고객·현장용 매뉴얼
@@ -29,7 +30,6 @@
 │   │   │   ├── guardrail
 │   │   │   └── serialize
 │   │   ├── scripts # 도커 이미지 push 및 디비 등록 관련 스크립트 위치
-│   │   ├── resources # 폰트 및 기타 리소스 파일들
 │   │   ├── sample_files
 │   │   ├── src # 전처리기 API 소스
 │   │   │   └── common

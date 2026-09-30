@@ -128,7 +128,7 @@ RUN sed -i 's/# \(ko_KR.UTF-8\)/\1/' /etc/locale.gen \
 FROM base AS loext
 ARG H2ORESTART_URL
 ARG INSTALL_LIBREOFFICE
-# NOTE: 예전에는 `COPY ./genon/preprocessor/resources /app` 로 resources 를 통째 복사했지만,
+# NOTE: 예전에는 `COPY` 로 폰트·tessdata 폴더(현 `genon/preprocessor/docker/assets`)를 통째 복사했지만,
 #   (1) 필요한 건 HCRBatang 폰트뿐인데 tessedata.tar.gz(35MB, 레포 전역 참조 0건 —
 #       한국어 tessdata 는 apt tesseract-ocr-kor 로 이미 들어온다)까지 이미지에 남았고,
 #   (2) 폰트 tarball 을 다음 레이어에서 rm 해도 COPY 레이어(48MB)는 회수되지 않았다.
@@ -147,7 +147,7 @@ RUN --mount=type=cache,target=/opt/h2o_cache \
     else \
       echo "[INFO] INSTALL_LIBREOFFICE=false — skipping H2Orestart extension (이슈 #286)"; \
     fi
-RUN --mount=type=bind,source=genon/preprocessor/resources/HCRBatang.ttf.tar.gz,target=/tmp/HCRBatang.ttf.tar.gz \
+RUN --mount=type=bind,source=genon/preprocessor/docker/assets/HCRBatang.ttf.tar.gz,target=/tmp/HCRBatang.ttf.tar.gz \
     set -eux; \
     mkdir -p /usr/share/fonts && \
     tar zxf /tmp/HCRBatang.ttf.tar.gz -C /usr/share/fonts/ && \

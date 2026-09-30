@@ -296,12 +296,12 @@ RUN mkdir -p /app/tmp /tmp/xdg \
     && mkdir -p /app/.cache/huggingface /app/nltk_data /app/tmp /tmp/xdg
 
 # LibreOffice H2Orestart 확장 + HCRBatang 폰트
-# NOTE: 예전에는 `COPY ./genon/preprocessor/resources /tmp/resources` 로 디렉토리를 통째 복사했다.
+# NOTE: 예전에는 `COPY` 로 폰트·tessdata 폴더(현 `genon/preprocessor/docker/assets`)를 `/tmp/resources` 에 통째 복사했다.
 #   (1) 필요한 건 HCRBatang 폰트뿐인데 참조가 전혀 없는 tessedata.tar.gz(35MB)까지 들어왔고
 #       (한국어 tessdata 는 apt tesseract-ocr-kor 로 이미 들어온다),
 #   (2) 마지막 `rm -rf /tmp/resources` 는 상위 레이어라 COPY 레이어(48MB)를 회수하지 못했다.
 #   → bind mount 로 필요한 파일만 읽어 레이어에 아무것도 남기지 않는다.
-RUN --mount=type=bind,source=genon/preprocessor/resources/HCRBatang.ttf.tar.gz,target=/tmp/HCRBatang.ttf.tar.gz \
+RUN --mount=type=bind,source=genon/preprocessor/docker/assets/HCRBatang.ttf.tar.gz,target=/tmp/HCRBatang.ttf.tar.gz \
     set -eux; \
     mkdir -p /opt/h2orestart /usr/lib/libreoffice/share/extensions/h2orestart; \
     wget -O /opt/h2orestart/H2Orestart.oxt "${H2ORESTART_URL}"; \
