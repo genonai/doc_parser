@@ -255,8 +255,8 @@ enrichment:
       doc_type: card
       config_file: custom_field_card.yaml
 
-  # 고객사이트 전용 문서유형(예: 모니모)은 여기가 아니라 저장소 루트 sites/<site>/resource/ 에
-  # 둔다. 사이트 폴더는 그대로 배포하는 완성본이며 표준 사본은 build-script/sync-sites.sh 로 맞춘다(sites/README.md 참조).
+  # 고객사이트 전용 문서유형(예: 모니모)은 여기가 아니라 genon/sites/<site>/resource/ 에
+  # 둔다. 사이트 폴더는 그대로 배포하는 완성본이며 표준 사본은 build-script/sync-sites.sh 로 맞춘다(genon/sites/README.md 참조).
 
 output:
   format: "docling" # "json" (default), "html", "markdown", "docling"

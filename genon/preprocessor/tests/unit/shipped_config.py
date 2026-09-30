@@ -1,6 +1,6 @@
 """출고 custom_fields 설정을 내부 형태로 읽는 테스트 공용 헬퍼.
 
-출고 설정(`resource/`, `sites/<site>/resource/`)은 v2 표기다. `yaml.safe_load` 로 raw 를 읽고
+출고 설정(`resource/`, `genon/sites/<site>/resource/`)은 v2 표기다. `yaml.safe_load` 로 raw 를 읽고
 내부 형태의 최상위 키(`text_fields`, `field_labels`, `body_fields`, `chunk_prefix_fields`,
 `first_chunk_fields` …)를 찾으면 전부 None 이 되어 **검사가 조용히 무력해진다** —
 통과하지만 아무것도 보지 않는 상태가 된다. 실제로 그 상태로 4개 파일이 흘러갔다.
@@ -18,7 +18,7 @@ PREPROCESSOR_DIR = Path(__file__).resolve().parents[2]
 # 모니모 사이트 완성본. 표준 resource/ 의 사본에 모니모 소유 파일을 더한, 그대로 실행하는 전체 폴더다
 # (build-script/sync-sites.sh 가 표준 사본을 맞춘다). PREPROCESSOR_DIR 기준 상대경로로 두어
 # `resource_dir` 파라미터 자리에 그대로 쓴다.
-SITE_MONIMO = "../../sites/monimo/resource"
+SITE_MONIMO = "../sites/monimo/resource"
 
 # 전수 검사가 도는 출고 설정 폴더.
 SHIPPED_ROOTS = ("resource", SITE_MONIMO)

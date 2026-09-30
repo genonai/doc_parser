@@ -42,7 +42,7 @@ _PREPROC = Path(__file__).resolve().parents[2]
 SAMPLE = _PREPROC / "sample_files" / "hwp_sample_table.hwp"
 RESOURCE_DIR = _PREPROC / "resource"
 # 로컬(VPN) 모델 접속값. 표준 설정 위에 얹어 사내 layout 서버로 표를 추출한다.
-DEV_MODEL_PRESETS = _PREPROC.parents[1] / "sites" / "dev" / "model_presets.yaml"
+DEV_MODEL_PRESETS = _PREPROC.parent / "sites" / "dev" / "model_presets.yaml"
 
 pytestmark = [
     pytest.mark.regression,

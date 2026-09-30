@@ -1,0 +1,4 @@
+# ripgrep / Grep 툴 전용. 고객사이트 전용 facade 는 별도 배포 단위라 기본 검색에 섞지 않는다.
+# 루트 .ignore 에 두면 `rg ... genon` 처럼 하위 폴더를 인자로 줄 때 적용되지 않아 여기에 둔다.
+# 필요하면 rg --no-ignore-dot 으로 해제한다(CLAUDE.md 참조).
+*/facade/

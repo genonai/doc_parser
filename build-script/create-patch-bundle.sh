@@ -25,7 +25,7 @@ SOURCE_DIR="${REPO_ROOT}/genon/preprocessor"
 
 # 번들에서 빼는 것. git pathspec 이라 하위 전체가 걸린다.
 #   resource_dev/  예전의 로컬 개발용 설정 폴더(실 API 키 포함). 폴더는 삭제되었고 항목만 남아 있다(무해).
-# 사이트 설정(sites/<site>/resource/)은 genon/ 밖이라 번들에 포함되지 않는다. 사이트 현장의 설정 변경은
+# 사이트 설정(genon/sites/<site>/resource/)은 SOURCE_DIR 밖이라 번들에 포함되지 않는다. 사이트 현장의 설정 변경은
 # 그 완성본 폴더를 별도로 전달한다.
 PATCH_EXCLUDES=(':(exclude)resource_dev/')
 

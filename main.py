@@ -146,7 +146,7 @@ from genon.preprocessor.facade.parser_processor import DocumentProcessor as Pars
 from genon.preprocessor.facade.chunking_processor import DocumentProcessor as ChunkingDocumentProcessor
 
 # config 는 출고용 resource/ 를 읽는다. GENOS_RESOURCE_DIR 은 로컬 실행에서 사이트 완성본
-# (예: sites/monimo/resource)을 띄울 때만 쓴다(build-script/run-local.sh 가 설정한다).
+# (예: genon/sites/monimo/resource)을 띄울 때만 쓴다(build-script/run-local.sh 가 설정한다).
 RESOURCE_DIR = Path(os.environ.get("GENOS_RESOURCE_DIR") or BASE_DIR / "genon" / "preprocessor" / "resource")
 
 

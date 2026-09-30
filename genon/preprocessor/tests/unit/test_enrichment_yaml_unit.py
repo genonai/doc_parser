@@ -18,7 +18,7 @@ from processing.enrichment.field_transforms import DEFAULT_METADATA_FIELD_TRANSF
 
 # 실제 배포되는 설정 파일들 (repo_root = genon/preprocessor 기준 상대 경로)
 SHIPPED_CONFIGS = [
-    "../../sites/monimo/resource/parser_processor_config.yaml",
+    "../sites/monimo/resource/parser_processor_config.yaml",
     "resource/intelligent_processor_config.yaml",
     "resource/parser_processor_config.yaml",
     "resource/attachment_processor_config.yaml",
@@ -27,7 +27,7 @@ SHIPPED_CONFIGS = [
 
 # enrichment 섹션이 있는(벡터/메타데이터 추출) 설정들
 ENRICHMENT_CONFIGS = [
-    "../../sites/monimo/resource/parser_processor_config.yaml",
+    "../sites/monimo/resource/parser_processor_config.yaml",
     "resource/intelligent_processor_config.yaml",
     "resource/parser_processor_config.yaml",
     "resource/convert_processor_config.yaml",

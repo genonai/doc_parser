@@ -3,7 +3,7 @@
 # 로컬 실행 도구(parse_chunk_test.sh, parse_chunk_verify.sh, build-script/run-local.sh)가 환경변수
 # GENOS_MODEL_PRESETS_FILE 로 이 파일을 지정한다. 직접 실행할 때는 같은 변수를 설정한다.
 #
-#   GENOS_MODEL_PRESETS_FILE=sites/dev/model_presets.yaml python main.py
+#   GENOS_MODEL_PRESETS_FILE=genon/sites/dev/model_presets.yaml python main.py
 #
 # 사내 VPN 안에서만 접속되는 주소·키라 git 으로 관리한다. 같은 이름의 표준 프리셋에 키 단위로 얹히므로
 # 여기에는 바뀌는 키(주소·키)만 적는다.

@@ -403,7 +403,7 @@ llm:
   `page` 의 접속값은 `model_presets.yaml` 의 값을 그대로 쓰고 `timeout` 만 바뀝니다.
 - `GENOS_MODEL_PRESETS_FILE` 은 **로컬 실행 전용**입니다. 저장소의 로컬 도구
   (`parse_chunk_test.sh`, `parse_chunk_verify.sh`, `build-script/run-local.sh`)는 이 변수가 비어 있으면
-  사내 VPN 용 접속값 `sites/dev/model_presets.yaml` 로 자동 설정합니다. 운영 환경에서는 설정하지 않습니다.
+  사내 VPN 용 접속값 `genon/sites/dev/model_presets.yaml` 로 자동 설정합니다. 운영 환경에서는 설정하지 않습니다.
 
 **규칙**
 

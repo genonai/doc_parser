@@ -45,6 +45,7 @@
 │   │       ├── etc
 │   │       ├── k8s-manifest
 │   │       └── resources
+│   ├── sites # 고객사이트별 설정 완성본과 전용 facade (배포본 제외, 별도 전달)
 │   └── tools
 │       └── genos_tools
 │           └── commands

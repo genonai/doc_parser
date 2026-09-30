@@ -1,16 +1,16 @@
 # sites — 고객사이트별 설정과 전용 전처리기
 
 표준 설정은 `genon/preprocessor/resource/` 한 벌이다. 고객사이트마다 달라지는 설정은
-`sites/<site>/resource/` 에 **그대로 실행·배포할 수 있는 완성본**으로 git 관리한다.
-사이트 전용 전처리기(facade) 코드는 `sites/<site>/facade/` 에 둔다.
+`genon/sites/<site>/resource/` 에 **그대로 실행·배포할 수 있는 완성본**으로 git 관리한다.
+사이트 전용 전처리기(facade) 코드는 `genon/sites/<site>/facade/` 에 둔다.
 
-이 폴더는 `genon/` 밖에 있으므로 코드서빙 배포본(`build-script/sync-serving-repo.sh`)과
-핫픽스 번들(`build-script/create-patch-bundle.sh`)에 포함되지 않는다.
+이 폴더는 코드서빙 배포본(`build-script/sync-serving-repo.sh` 의 `EXCLUDE_PATHS`)과
+핫픽스 번들(원천이 `genon/preprocessor/` 라 범위 밖)에 포함되지 않는다.
 
 ## 폴더 구조
 
 ```
-sites/
+genon/sites/
   dev/
     model_presets.yaml   로컬(VPN) 모델 접속값. 로컬 도구만 쓴다
   <site>/
@@ -49,7 +49,7 @@ sites/
 - 표준 `resource/model_presets.yaml` 은 `<...>` 자리표를 담고, 사이트 `resource/model_presets.yaml` 은
   현장 값을 담는다.
 - 로컬 실행에서는 환경변수 `GENOS_MODEL_PRESETS_FILE` 이 가리키는 파일이 그 위에 이름별·키 단위로 얹힌다.
-  로컬 도구는 이 변수가 비어 있으면 `sites/dev/model_presets.yaml` 로 자동 설정한다.
+  로컬 도구는 이 변수가 비어 있으면 `genon/sites/dev/model_presets.yaml` 로 자동 설정한다.
   **운영에서는 설정하지 않는다.**
 
 ## 표준 설정을 바꾼 뒤
@@ -82,17 +82,17 @@ owned 파일을 제외한 모든 파일을 표준과 똑같이 맞추고, 표준
 
 ## 배포
 
-`sites/<site>/resource/` 를 그대로 전달한다.
+`genon/sites/<site>/resource/` 를 그대로 전달한다.
 
 - 코드서빙: 배포본의 `genon/preprocessor/resource/` 를 이 폴더로 덮어쓴다.
 - 기본 전처리기 서비스: 이 폴더를 MinIO 리소스로 올린다.
-- 핫픽스 번들에는 `sites/` 가 포함되지 않으므로 사이트 설정 변경은 이 폴더를 별도로 전달한다.
-- 사이트 전용 전처리기는 `sites/<site>/facade/` 의 해당 파일을 별도로 전달한다. 코드서빙 배포본과
+- 핫픽스 번들에는 `genon/sites/` 가 포함되지 않으므로 사이트 설정 변경은 이 폴더를 별도로 전달한다.
+- 사이트 전용 전처리기는 `genon/sites/<site>/facade/` 의 해당 파일을 별도로 전달한다. 코드서빙 배포본과
   핫픽스 번들 어디에도 포함되지 않는다.
 
 ## 사이트 추가
 
-1. `sites/<site>/manifest.yaml` 을 만들고 `owned:` 에 사이트가 소유할 파일을 적는다(`sites/monimo/manifest.yaml` 참고).
+1. `genon/sites/<site>/manifest.yaml` 을 만들고 `owned:` 에 사이트가 소유할 파일을 적는다(`genon/sites/monimo/manifest.yaml` 참고).
 2. `build-script/sync-sites.sh <site>` 로 표준 사본을 채운다.
-3. owned 파일(최소 `model_presets.yaml`)을 `sites/<site>/resource/` 에 두고 현장 값으로 채운다.
+3. owned 파일(최소 `model_presets.yaml`)을 `genon/sites/<site>/resource/` 에 두고 현장 값으로 채운다.
 4. 위 로컬 테스트로 확인한다.

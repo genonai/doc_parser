@@ -11,7 +11,7 @@
 # 프리셋은 블록에 없는 키만 채운다. 그래서 접속 키(url, endpoint, api_key …)는 블록에 적지 않고
 # 여기에만 둔다 — 블록에 남아 있으면 이 파일이나 로컬 덮어쓰기가 그 값을 바꾸지 못한다.
 #
-# 로컬 실행에서는 환경변수 GENOS_MODEL_PRESETS_FILE 이 가리키는 파일(예: sites/dev/model_presets.yaml)이
+# 로컬 실행에서는 환경변수 GENOS_MODEL_PRESETS_FILE 이 가리키는 파일(예: genon/sites/dev/model_presets.yaml)이
 # 이 파일 위에 이름별·키 단위로 얹힌다. 운영에서는 그 변수를 설정하지 않는다.
 #
 # 없는 이름을 부르면 기동이 실패한다(오타를 조용히 넘기면 인증 없이 호출이 나간다).

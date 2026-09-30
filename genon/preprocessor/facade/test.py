@@ -11,7 +11,7 @@ sys.path.insert(0, "../../../") # 현재 doc_parser의 docling 폴더 참조
 # 로컬(사내망 VPN) 모델 접속값을 표준 resource/model_presets.yaml 위에 얹는다. 밖에서 지정한 값이 있으면 그 값을 쓴다
 os.environ.setdefault(
     "GENOS_MODEL_PRESETS_FILE",
-    os.path.join(os.path.dirname(os.path.abspath(__file__)), "../../../sites/dev/model_presets.yaml"),
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), "../../sites/dev/model_presets.yaml"),
 )
 
 # 테스트할 전처리기 임포트

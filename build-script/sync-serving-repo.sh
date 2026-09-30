@@ -73,7 +73,7 @@ fi
 WHITELIST=("genon" "main.py" "requirements.txt" "Dockerfile")
 
 # whitelist 로 가져온 뒤 배포본에서 제거할 하위 폴더 (dev/build — 서빙 런타임 무의존).
-#   사이트 전용 facade 는 sites/<site>/facade/ 에 있어 whitelist 밖이므로 여기 적지 않는다.
+#   genon/sites 는 고객사이트별 설정 완성본·전용 facade·로컬(VPN) 접속값이라 배포본에 넣지 않는다.
 #   resource_dev 는 예전의 로컬 개발용 설정 폴더다. 저장소에서 삭제되었고 항목만 남아 있다(무해).
 #   배포본 main.py 는 표준 resource/ 를 읽는다(GENOS_RESOURCE_DIR 는 로컬 전용).
 EXCLUDE_PATHS=(
@@ -84,6 +84,7 @@ EXCLUDE_PATHS=(
   "genon/legal_parser"                       # 전처리기와 무관한 독립 법령 수집기
   # 2차 검토 추가 (활성 facade/main.py 무의존 검증됨)
   "genon/tools"                              # CLI 도구(런타임 무관)
+  "genon/sites"                              # 고객사이트 설정·전용 facade(별도 전달)
   "genon/preprocessor/scripts"               # 이미지 등록 스크립트
   # 사내 전용 문서 — 공개 배포본에 나갈 필요가 없고, 배포본에 없는 폴더(build-script/·docling/·docs/)를
   # 안내해 오히려 혼란을 준다. 코드서빙 사용/설치 안내는 배포본 root README.md 가 담당한다.
@@ -325,6 +326,11 @@ if find "${DEST}" -type f -path '*/docling/__init__.py' | grep -q .; then
   find "${DEST}" -type f -path '*/docling/__init__.py' >&2
   exit 1
 fi
+# 고객사이트 자산(현장 설정, 타 고객사 facade, VPN 접속값)이 배포본에 섞이면 안 된다.
+if [[ -e "${DEST}/genon/sites" ]]; then
+  echo "[ERROR] 배포본에 genon/sites 가 남아 있습니다 — EXCLUDE_PATHS 를 확인하십시오." >&2
+  exit 1
+fi
 for f in "main.py" "genon" "packages/${WHEEL_NAME}"; do
   if [[ ! -e "${DEST}/${f}" ]]; then
     echo "[ERROR] 배포본에 ${f} 가 없습니다." >&2
@@ -376,7 +382,7 @@ if [[ ! -f "${DEST}/VERSION" ]]; then
   echo "[ERROR] VERSION 스탬프가 생성되지 않았습니다." >&2
   exit 1
 fi
-echo "[SMOKE] 배포본 청결성 OK — docling 소스 없음, genon/+main.py 존재, packages/${WHEEL_NAME} 동봉됨, Dockerfile·requirements-dev.txt·constraints-cpu.txt·.gitignore·.dockerignore·VERSION 생성됨"
+echo "[SMOKE] 배포본 청결성 OK — docling 소스 없음, genon/sites 없음, genon/+main.py 존재, packages/${WHEEL_NAME} 동봉됨, Dockerfile·requirements-dev.txt·constraints-cpu.txt·.gitignore·.dockerignore·VERSION 생성됨"
 echo "[INFO] 배포본 조립 위치: ${DEST}  (원본 커밋 ${SOURCE_COMMIT})"
 
 # ── 4) 배포본 클론이면 commit/push ──────────────────────────────────────────

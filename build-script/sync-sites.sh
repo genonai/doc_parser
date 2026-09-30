@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 표준 설정(genon/preprocessor/resource/)을 각 사이트 완성본(sites/<site>/resource/)에 맞춘다.
+# 표준 설정(genon/preprocessor/resource/)을 각 사이트 완성본(genon/sites/<site>/resource/)에 맞춘다.
 #
 #   build-script/sync-sites.sh            # manifest.yaml 이 있는 모든 사이트
 #   build-script/sync-sites.sh monimo     # 지정한 사이트만
@@ -30,13 +30,13 @@ if [ $# -gt 0 ]; then
   SITES=("$@")
 else
   SITES=()
-  for manifest in "${REPO_ROOT}"/sites/*/manifest.yaml; do
+  for manifest in "${REPO_ROOT}"/genon/sites/*/manifest.yaml; do
     [ -f "${manifest}" ] && SITES+=("$(basename "$(dirname "${manifest}")")")
   done
 fi
 
 for site in "${SITES[@]}"; do
-  site_dir="${REPO_ROOT}/sites/${site}"
+  site_dir="${REPO_ROOT}/genon/sites/${site}"
   [ -f "${site_dir}/manifest.yaml" ] || { echo "[ERROR] ${site_dir}/manifest.yaml 이 없습니다." >&2; exit 1; }
 
   excludes=(--exclude '__pycache__')

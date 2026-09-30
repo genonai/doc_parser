@@ -1,4 +1,4 @@
-# 모니모 사이트 완성본(sites/monimo/resource/) 관리 정보. build-script/sync-sites.sh 가 읽는다.
+# 모니모 사이트 완성본(genon/sites/monimo/resource/) 관리 정보. build-script/sync-sites.sh 가 읽는다.
 #
 # resource/ 는 그대로 실행·배포하는 전체 설정 폴더다. 아래 owned 에 적은 파일만 모니모가 소유하고,
 # 나머지는 표준 genon/preprocessor/resource/ 의 사본이다. 사본은 직접 고치지 않는다 — 표준을 고친 뒤

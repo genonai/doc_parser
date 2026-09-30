@@ -160,9 +160,9 @@ GenOS 웹 UI에서 **관리 > 리소스 > 전처리기** 로 이동하여 **전�
 
 ### 4.1 시작점: 레포에 있는 yaml을 그대로 쓰면 안 되는 이유
 
-모델 접속 정보는 레포의 `resource/model_presets.yaml` **한 파일**에 모여 있고, 메인 yaml(`intelligent_processor_config.yaml` 등)은 `model_presets_file: model_presets.yaml` 로 이 파일을 읽습니다. 레포의 `sites/dev/model_presets.yaml` 은 **사내망 로컬 PC에서 facade 동작을 확인하는 dev 용도**의 접속값이며, 로컬 실행에서만 환경변수 `GENOS_MODEL_PRESETS_FILE` 로 얹어 씁니다. 사이트에 그대로 가져가면 동작하지 않습니다. 두 가지가 다릅니다.
+모델 접속 정보는 레포의 `resource/model_presets.yaml` **한 파일**에 모여 있고, 메인 yaml(`intelligent_processor_config.yaml` 등)은 `model_presets_file: model_presets.yaml` 로 이 파일을 읽습니다. 레포의 `genon/sites/dev/model_presets.yaml` 은 **사내망 로컬 PC에서 facade 동작을 확인하는 dev 용도**의 접속값이며, 로컬 실행에서만 환경변수 `GENOS_MODEL_PRESETS_FILE` 로 얹어 씁니다. 사이트에 그대로 가져가면 동작하지 않습니다. 두 가지가 다릅니다.
 
-| 항목 | dev 접속값 (`sites/dev/model_presets.yaml`) — 사내망 로컬 PC | 사이트 GenOS 배포용 (`resource/model_presets.yaml`) |
+| 항목 | dev 접속값 (`genon/sites/dev/model_presets.yaml`) — 사내망 로컬 PC | 사이트 GenOS 배포용 (`resource/model_presets.yaml`) |
 |---|---|---|
 | URL 형태 | 외부 게이트웨이: `https://genos.genon.ai/api/gateway/rep/serving/<ID>/...` | 사이트 k8s 내부 서비스 DNS: `http://llmops-gateway-api-service:8080/rep/serving/<ID>/v1/chat/completions` |
 | `api_key` | 외부 호출이라 인증 필요 → 값이 채워져 있음 | k8s 내부 통신이라 불필요 → **빈 값** |
@@ -378,7 +378,7 @@ python test.py
 ```
 
 - **genon 사내망 VPN 접속 필요** (dev 프리셋의 외부 게이트웨이 호출 때문).
-- 이 흐름은 `resource/...yaml` 위에 `sites/dev/model_presets.yaml` 의 접속값만 얹어 사용합니다. `test.py` 가 환경변수 `GENOS_MODEL_PRESETS_FILE` 을 이 파일로 설정하며(밖에서 지정하면 그 값이 우선합니다), 이 변수는 로컬 전용입니다. 사이트 배포 시에는 4단계대로 `resource/model_presets.yaml` 을 수정해야 한다는 점만 잊지 마세요.
+- 이 흐름은 `resource/...yaml` 위에 `genon/sites/dev/model_presets.yaml` 의 접속값만 얹어 사용합니다. `test.py` 가 환경변수 `GENOS_MODEL_PRESETS_FILE` 을 이 파일로 설정하며(밖에서 지정하면 그 값이 우선합니다), 이 변수는 로컬 전용입니다. 사이트 배포 시에는 4단계대로 `resource/model_presets.yaml` 을 수정해야 한다는 점만 잊지 마세요.
 
 ---
 

@@ -18,10 +18,10 @@ doc_type 마다 샘플을 파싱·청킹한 뒤, 그 doc_type 의 custom_field y
     `chunking.validation: {enable: true, action: drop}` 을 얹어 불량 섹션이 빠지고 대조군이
     남는지, 전부 불량인 문서가 CHUNK_ALL_REJECTED 로 실패하는지 단정한다.
 
-doc_type → extractor/config 매핑은 모니모 사이트 완성본(sites/monimo/resource/)의
+doc_type → extractor/config 매핑은 모니모 사이트 완성본(genon/sites/monimo/resource/)의
 parser_processor_config.yaml 에서 직접 읽는다. 설정이 늘어나면 이 스크립트를 고치지 않아도
 따라간다. --resource-dir 로 다른 설정 폴더를 주면 매핑과 러너 설정을 모두 그 폴더에서 읽는다.
-모델은 로컬(VPN) 프리셋(sites/dev/model_presets.yaml)으로 돈다(parse_chunk_test.py 가 지정).
+모델은 로컬(VPN) 프리셋(genon/sites/dev/model_presets.yaml)으로 돈다(parse_chunk_test.py 가 지정).
 
 사용:
     python parse_chunk_verify.py                 # 전체
@@ -55,12 +55,12 @@ os.environ.setdefault(
 # 물려받는다. 이미 설정된 값은 존중한다.
 os.environ.setdefault(
     "GENOS_MODEL_PRESETS_FILE",
-    str(Path(__file__).resolve().parents[4] / "sites" / "dev" / "model_presets.yaml"),
+    str(Path(__file__).resolve().parents[3] / "sites" / "dev" / "model_presets.yaml"),
 )
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 PREPROCESSOR_DIR = SCRIPT_DIR.parents[1]
-RESOURCE_DIR = PREPROCESSOR_DIR.parents[1] / "sites" / "monimo" / "resource"
+RESOURCE_DIR = PREPROCESSOR_DIR.parent / "sites" / "monimo" / "resource"
 REPO_ROOT = PREPROCESSOR_DIR.parents[1]
 SAMPLES = PREPROCESSOR_DIR / "sample_files"
 MONIMO = SAMPLES / "monimo"
@@ -871,7 +871,7 @@ def main() -> int:
     ap.add_argument("--out", default=None, help="산출 디렉터리(미지정 시 임시 디렉터리)")
     ap.add_argument("--python", default=sys.executable, help="parse_chunk_test.py 실행 인터프리터")
     ap.add_argument("--resource-dir", default=None,
-                    help="설정 폴더(미지정 시 sites/monimo/resource)")
+                    help="설정 폴더(미지정 시 genon/sites/monimo/resource)")
     args = ap.parse_args()
 
     global RESOURCE_DIR

@@ -20,8 +20,8 @@ bash build-script/create-patch-bundle.sh patch_20260829
 `genon/preprocessor` 아래에서 **git 이 추적 중인** `*.py`, `*.md`, `*.yaml`, `*.sh` 만 rsync 로 복사한다. 추적되지 않은 파일은 포함되지 않으므로, 새로 만든 파일은 반드시 먼저 `git add` 해야 번들에 들어간다.
 
 번들의 설정은 표준 `genon/preprocessor/resource/` 다. 예전의 로컬 개발용 `resource_dev/` 는 삭제되었다
-(스크립트의 `PATCH_EXCLUDES` 에 남은 항목은 무해하다). **`sites/` 는 `genon/` 밖이라 번들에 포함되지
-않는다.** 모니모 등 사이트 현장의 설정 변경은 `sites/<site>/resource/` 완성본을 별도로 전달한다.
+(스크립트의 `PATCH_EXCLUDES` 에 남은 항목은 무해하다). **`genon/sites/` 는 번들 원천(`genon/preprocessor/`) 밖이라 번들에 포함되지
+않는다.** 모니모 등 사이트 현장의 설정 변경은 `genon/sites/<site>/resource/` 완성본을 별도로 전달한다.
 
 인자는 경로가 아니라 폴더 이름 하나여야 한다(`.`, `..`, 슬래시 포함 시 거부).
 

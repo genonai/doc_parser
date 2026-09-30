@@ -42,12 +42,12 @@ git diff develop...HEAD --name-only
 | 변경 파일 | 실행 |
 |---|---|
 | `genon/preprocessor/resource/` 의 파일 | 먼저 `build-script/sync-sites.sh` 로 사이트 사본을 맞추고 그 결과를 같은 PR 에 넣는다(사본이 어긋나면 `test_sites_sync_unit.py` 가 실패한다) |
-| `genon/preprocessor/resource/`·`sites/<site>/resource/` 의 `custom_field_*.yaml` | `precheck_custom_fields.sh`(표준 `resource/` 기본값) 를 먼저 실행하고, 사이트 설정을 바꿨으면 그 폴더(`sites/<site>/resource`)를 인자로 한 번 더 실행한다. 이어서 `parse_chunk_verify.sh --only <doc_type...>` 를 실행한다 |
+| `genon/preprocessor/resource/`·`genon/sites/<site>/resource/` 의 `custom_field_*.yaml` | `precheck_custom_fields.sh`(표준 `resource/` 기본값) 를 먼저 실행하고, 사이트 설정을 바꿨으면 그 폴더(`genon/sites/<site>/resource`)를 인자로 한 번 더 실행한다. 이어서 `parse_chunk_verify.sh --only <doc_type...>` 를 실행한다 |
 | `facade/` 의 파싱·청킹 경로, `processing/{core,common,chunking,enrichment}/` | `parse_chunk_verify.sh` 전체 실행 |
 
 - 스크립트 경로는 `genon/preprocessor/examples/config_precheck/`, `genon/preprocessor/examples/parse_chunk/` 이다.
 - doc_type 은 파일명 `custom_field_<doc_type>.yaml` 에서 뽑는다. 뽑은 이름을 `parse_chunk_verify.py` 가 알지 못하거나(미지원 이름 오류), 한 yaml 이 여러 등록 블록에 쓰이는지 확실하지 않으면 전체 실행으로 바꾼다. 영향 범위를 확정할 수 없을 때 검증을 좁히지 않는다. `CASES` 에 없는 doc_type 은 전체 실행에도 포함되지 않으므로, precheck 만 거쳤다고 PR 본문에 적는다.
-- `parse_chunk_verify` 는 기본값으로 모니모 완성본 `sites/monimo/resource/` 설정과 로컬 모델 프리셋(`sites/dev/model_presets.yaml`)으로 실행된다. 표준 `resource/` 의 변경은 `sync-sites.sh` 로 사본이 맞춰진 뒤에야 이 검증에 반영된다. 모니모가 소유(`owned:`)한 파일에 대응하는 표준 파일만 바꿨다면 verify 에 반영되지 않으므로 `--resource-dir ../../resource` 로 표준 설정을 따로 검증하거나, precheck 결과가 그 변경의 유일한 검증임을 PR 본문 "검증" 절에 적는다.
+- `parse_chunk_verify` 는 기본값으로 모니모 완성본 `genon/sites/monimo/resource/` 설정과 로컬 모델 프리셋(`genon/sites/dev/model_presets.yaml`)으로 실행된다. 표준 `resource/` 의 변경은 `sync-sites.sh` 로 사본이 맞춰진 뒤에야 이 검증에 반영된다. 모니모가 소유(`owned:`)한 파일에 대응하는 표준 파일만 바꿨다면 verify 에 반영되지 않으므로 `--resource-dir ../../resource` 로 표준 설정을 따로 검증하거나, precheck 결과가 그 변경의 유일한 검증임을 PR 본문 "검증" 절에 적는다.
 - 실패가 있으면 PR 을 만들지 않고 중단한다. LLM 게이트웨이에 접근할 수 없어 실패한 것으로 보이면 회귀와 구분해 보고하고, 계속할지 사용자에게 묻는다.
 - 실행 건수·SKIP 건수와 사유·실패를 PR 본문 "검증" 절에 남긴다. SKIP 만 있고 실행 건수가 0 이면 검증을 완료했다고 적지 않는다.
 

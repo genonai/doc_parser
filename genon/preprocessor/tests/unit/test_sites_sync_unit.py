@@ -1,4 +1,4 @@
-"""사이트 완성본(sites/<site>/resource/)의 표준 사본이 표준 resource/ 와 같은지 지킨다.
+"""사이트 완성본(genon/sites/<site>/resource/)의 표준 사본이 표준 resource/ 와 같은지 지킨다.
 
 사이트 폴더는 그대로 실행·배포하는 전체 설정이라 표준 파일의 사본을 품는다. 사본은
 build-script/sync-sites.sh 가 맞추며, 사이트가 소유하는 파일은 manifest.yaml 의 owned 에 적는다.
@@ -13,7 +13,7 @@ import yaml
 from shipped_config import PREPROCESSOR_DIR
 
 STANDARD = PREPROCESSOR_DIR / "resource"
-SITES = PREPROCESSOR_DIR.parents[1] / "sites"
+SITES = PREPROCESSOR_DIR.parent / "sites"
 
 
 def _files(root: Path) -> set[str]:
@@ -37,5 +37,5 @@ def test_site_copies_match_standard(site):
     assert (stale, stray, missing_owned) == ([], [], []), (
         f"{site}: 표준과 다른 사본 {stale}, 소유 표시 없는 파일 {stray}, 없는 owned {missing_owned}. "
         f"표준을 고쳤다면 build-script/sync-sites.sh {site} 를 실행하고, 사이트 전용 파일이면 "
-        f"sites/{site}/manifest.yaml 의 owned 에 적는다."
+        f"genon/sites/{site}/manifest.yaml 의 owned 에 적는다."
     )

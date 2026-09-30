@@ -25,7 +25,7 @@ git diff --cached --stat
 아래 경로가 스테이징 대상에 들어오면 사용자에게 경고하고 제외를 제안한다.
 
 - `reference/`, `shkim_labs/`, `dist/`, `build/`, `debug/`, `tmp/`, `code-serving/` — 모두 gitignore 대상이지만 강제 추가된 경우가 있을 수 있다
-- 운영 현장의 실 API 키·비밀값 — `sites/<site>/resource/model_presets.yaml` 에는 현장 값 자리만 두고 비밀값은 커밋하지 않는다. `sites/dev/model_presets.yaml` 은 VPN 전용 로컬 접속값이라 커밋 대상이지만, 운영 키를 여기에 넣지 않는다
+- 운영 현장의 실 API 키·비밀값 — `genon/sites/<site>/resource/model_presets.yaml` 에는 현장 값 자리만 두고 비밀값은 커밋하지 않는다. `genon/sites/dev/model_presets.yaml` 은 VPN 전용 로컬 접속값이라 커밋 대상이지만, 운영 키를 여기에 넣지 않는다
 - 대형 fixture(`tests/data/`, `tests/data_scanned/`), `*.whl`, 모델 가중치
 
 ### 3. 논리 단위 분할
