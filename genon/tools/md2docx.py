@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """마크다운 문서를 Word(.docx)로 변환한다.
 
-gitbook_doc/*.md 처럼 GitHub-flavored Markdown 으로 쓰인 매뉴얼을 배포용 docx 로 뽑기 위한
+manual/*.md 처럼 GitHub-flavored Markdown 으로 쓰인 매뉴얼을 배포용 docx 로 뽑기 위한
 스크립트다. 새 패키지 설치 없이 저장소 .venv 에 이미 있는 markdown + python-docx 만 쓴다.
 
 사용법:

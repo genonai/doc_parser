@@ -19,8 +19,8 @@
 │   │   ├── docker # 도커파일 위치
 │   │   ├── env # 개발 시 설정 파일들
 │   │   ├── facade # facade 코드(*_processor.py)
-│   │   │   └── gitbook_doc
-│   │   │       └── images
+│   │   ├── manual # 고객·현장용 매뉴얼
+│   │   │   └── images
 │   │   ├── processing # 파싱·청킹·보강 처리 라이브러리(facade 가 상속·호출)
 │   │   │   ├── chunking
 │   │   │   ├── common
@@ -186,13 +186,13 @@ GenOS **코드서빙** 기능으로 띄우는 경로이며, 동작 방식이 전
   콜드스타트 단축 + 에어갭(오프라인) 동작을 위해 **base 이미지에 빌드 시점에 pre-bake** 한다
   (`Dockerfile.standard` 와 full parity).
 - 배포 후 게이트웨이로 호출하는 방법(`/health`·`/parser`·`/chunker` 등)은
-  [`preprocessor/facade/gitbook_doc/code_serving.md`](preprocessor/facade/gitbook_doc/code_serving.md) 참고.
+  [`preprocessor/manual/code_serving.md`](preprocessor/manual/code_serving.md) 참고.
 
 > 빌드 방식·pre-bake 아티팩트 목록·의존성 동기화 주의사항 등 상세는
 > [`build-script/code-serving-doc-parser/README.md`](../build-script/code-serving-doc-parser/README.md) 참고.
 
 > **타사(외부) 개발자에게 전처리기 코드 수정을 넘길 때는**
-> [`preprocessor/facade/gitbook_doc/code_serving_dev_manual.md`](preprocessor/facade/gitbook_doc/code_serving_dev_manual.md)
+> [`preprocessor/manual/code_serving_dev_manual.md`](preprocessor/manual/code_serving_dev_manual.md)
 > 를 안내한다 — 공개 배포본 repo 만으로 개발환경 세팅 → parser/chunker 코드 이해·수정 → gitea push →
 > 리비전 재배포까지 할 수 있게 쓴 매뉴얼이다(이미지 빌드·원본 repo 접근은 전제하지 않음).
 > **아래 A~C(이미지 빌드·최초 등록)는 사내 담당자 몫**이며 그 매뉴얼에는 포함되지 않는다.
@@ -249,7 +249,7 @@ echo "HWP_SDK_TOKEN=hf_xxx" >> build-script/hf_private_token.env
     ```
 
   - doc_parser github debelop 브랜치 전체 코드를 gitea 레포지터리에 복사 후 gitea 레포지터리에서 commit/push 를 수행한다.
-    - 이 때 `genon/preprocessor/resource`의 yaml 파일을 기반으로 전처리기가 동작하므로 실행환경에 맞게 수정한후 commit/push를 해야 한다. [매뉴얼 참조](https://github.com/genonai/doc_parser/tree/develop/genon/preprocessor/facade/gitbook_doc)
+    - 이 때 `genon/preprocessor/resource`의 yaml 파일을 기반으로 전처리기가 동작하므로 실행환경에 맞게 수정한후 commit/push를 해야 한다. [매뉴얼 참조](https://github.com/genonai/doc_parser/tree/develop/genon/preprocessor/manual)
     - 코드서빙으로 서빙할 전처리기의 config yaml은 아래와 같다.
       - parser/chunking 만 사용하는 경우: parser_processor_config.yaml, chunking_processor_config.yaml 수정
       - 적재용 전처리기 사용하는 경우: intelligent_processor_config.yaml
@@ -288,7 +288,7 @@ echo "HWP_SDK_TOKEN=hf_xxx" >> build-script/hf_private_token.env
   - 리비전 생성시 이미지는 `mnc/template-code-serving-doc-parser` 를 선택한다
   - 리비전 생성시 gpu 할당은 하지 않고, medium (1 CPU Core, 16 Gb Memory) 수준의 인스턴스를 생성하면 된다.
 
-- 호출(게이트웨이 URL·엔드포인트·예시)은 [`preprocessor/facade/gitbook_doc/code_serving.md`](preprocessor/facade/gitbook_doc/code_serving.md) 참고.
+- 호출(게이트웨이 URL·엔드포인트·예시)은 [`preprocessor/manual/code_serving.md`](preprocessor/manual/code_serving.md) 참고.
 
   - 기본 테스트는 [테스트 코드](https://github.com/genonai/doc_parser/blob/develop/genon/preprocessor/examples/code_serving/serving_gateway_test.py) 를 참고해서 테스트 가능
 

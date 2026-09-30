@@ -99,7 +99,7 @@ EXCLUDE_PATHS=(
   "genon/preprocessor/docs"
   "genon/MAINTAINERS.md"                     # docling 원본 메인테이너 잔존물
   "genon/dotsocr_vllm_max_num_seqs.md"       # 사내 모델 서빙 튜닝 메모
-  "genon/preprocessor/facade/README.md"      # 구버전 facade 문서(현재 트리와 불일치). 대체: gitbook_doc/
+  "genon/preprocessor/facade/README.md"      # 구버전 facade 문서(현재 트리와 불일치). 대체: manual/
 )
 
 SOURCE_COMMIT="$(git -C "${ROOT_DIR}" rev-parse "${SOURCE_REF}")"

@@ -512,7 +512,7 @@ COPY --chown=${UID}:${GID} ./genon/preprocessor/src /app/src
 # package 로 풀리도록. HWP → PDF chain(이슈 #199)을 포함한 입력 변환기
 # processing/converters 도 이 트리에 함께 들어간다.
 # 디렉터리 하나를 통째로 담으므로 공용 패키지를 새로 만들어도 이 파일은 고치지 않는다.
-# 파사드 파일(facade/*_processor.py)과 gitbook_doc 은 런타임 이미지에
+# 파사드 파일(facade/*_processor.py)과 매뉴얼(manual/)은 런타임 이미지에
 # 들어가지 않는다 — 파사드는 코드서빙/전처리기 리소스가 런타임에 올린다.
 COPY --chown=${UID}:${GID} ./genon/preprocessor/processing /app/genon/preprocessor/processing
 
