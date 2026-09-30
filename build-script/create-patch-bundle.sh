@@ -148,3 +148,9 @@ FILE_COUNT="$(cat "${FILE_LIST}" "${RESOURCE_LIST}" | tr -cd '\0' | wc -c | tr -
 echo "Patch created: ${DEST_DIR}"
 echo "Resource source: ${RESOURCE_SRC#"${REPO_ROOT}/"}"
 echo "Copied files: ${FILE_COUNT}"
+
+# 폴더별 개수도 복사에 쓴 같은 목록에서 센다.
+for dir in "${PATCH_DIRS[@]}"; do
+  printf '  %-12s %s\n' "${dir}/" "$(tr '\0' '\n' < "${FILE_LIST}" | grep -c "^${dir}/" || true)"
+done
+printf '  %-12s %s\n' "resource/" "$(tr -cd '\0' < "${RESOURCE_LIST}" | wc -c | tr -d ' ')"
