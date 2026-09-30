@@ -99,7 +99,7 @@ CASES = [
     # examples/parse_chunk/make_product_hpp_fields_sample.py 다.
     ("product_hpp",   MONIMO / "monimo_product_hpp_fields_sample.json",
      "코드값·금액문자열·브랜드 분리 필드"),
-    ("stock_insight", MONIMO / "monimo_stock_insight_sample.xlsx",     "tabular_mapping"),
+    ("stock_insight", MONIMO / "monimo_stock_insight_sample.txt",      "구분자 텍스트 레코드"),
     # 개인 작업 디렉터리(gitignore)에 있는 실 원천. 없는 머신에서는 SKIP 된다.
     ("card",          REPO_ROOT / "shkim_labs" / "20260803_monimo" / "01_card" / "card01.flat.html",
                                                                       "llm(카드 12필드)"),
@@ -593,7 +593,7 @@ EXTRA_CHECKS = {
     ("cs_hpp", "monimo_cs_hpp_rich_table_sample.html"): check_cs_hpp_degenerate_table,
     ("cs_hpp", ".INC_235488_02_20260626103138.html.parsed"): check_cs_hpp_parsed_ext,
     ("product_hpp", "monimo_product_hpp_rich_table_sample.json"): check_product_hpp_link_labels,
-    ("stock_insight", "monimo_stock_insight_sample.xlsx"): check_stock_insight_row_merge,
+    ("stock_insight", "monimo_stock_insight_sample.txt"): check_stock_insight_row_merge,
     ("cs_ssf", "monimo_cs_ssf_sample.dtms"): check_cs_ssf_delimited,
     ("cs_ssf", "monimo_cs_ssf_layout_table_sample.dtms"): check_cs_ssf_layout_table,
     ("monimo_news", "TD00008415_d_5199.html.json"): check_biz_id_from_filename("TD00008415"),

@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
-"""monimo_stock_insight_sample.xlsx 재생성 — AI차트뷰 원천(2026-08-28 개편) 재현.
+"""monimo_stock_insight_sample.txt 재생성 — AI차트뷰 원천 재현.
 
-원천(`[AI차트뷰]<국장|미장>_yyyymmdd.xlsx`)의 두 가지 특징을 그대로 흉내낸다.
+2026-09-22 개편 원천은 2026-08-28 개편 xlsx 와 같은 컬럼을 헤더 없는 구분자 텍스트로 보낸다.
 
-1. 헤더가 영문 소문자다: jong_name · jong_code · regt_no · ntc_objline · detail_desc ·
+원천의 두 가지 특징을 그대로 흉내낸다.
+
+1. 컬럼 순서(헤더는 없다): jong_name · jong_code · regt_no · ntc_objline · detail_desc ·
    news_date · md_stck_itm_c · kosc_stck_itm_c · nat_c
    (뒤 세 개는 TB 에 대응 컬럼이 없어 매핑하지 않는다. 매핑하지 않는 컬럼이 섞여 있어도
    깨지지 않는지 확인하는 재료로 일부러 채운다.)
@@ -11,7 +13,7 @@
    실제 원천에 `"price_pat` / `tern_desc":` 처럼 키 이름 중간에서 끊긴 사례가 있어,
    구분자 없이 이어붙여야만 JSON 이 복원된다.
 
-샘플이 다시 바뀌면 손으로 엑셀을 만지지 말고 이 스크립트를 고쳐 다시 돌린다.
+샘플이 다시 바뀌면 손으로 파일을 만지지 말고 이 스크립트를 고쳐 다시 돌린다.
 
 실행:  genon/preprocessor/.venv/bin/python examples/parse_chunk/make_stock_insight_sample.py
 """
@@ -21,14 +23,10 @@ import json
 import re
 from pathlib import Path
 
-from openpyxl import Workbook
+OUT = Path(__file__).resolve().parents[2] / "sample_files" / "monimo" / "monimo_stock_insight_sample.txt"
 
-OUT = Path(__file__).resolve().parents[2] / "sample_files" / "monimo" / "monimo_stock_insight_sample.xlsx"
-
-HEADERS = [
-    "jong_name", "jong_code", "regt_no", "ntc_objline", "detail_desc",
-    "news_date", "md_stck_itm_c", "kosc_stck_itm_c", "nat_c",
-]
+# 필드 구분자. custom_field_stock_insight.yaml 의 separator 와 같아야 한다.
+SEPARATOR = "\x1f|"
 
 # 가상 데이터. 실 원천과 같은 키 구성이고 값 안에 <BR>/<strong> 을 섞는다.
 # 분량도 실 원천에 맞춘다 — 종목당 detail_desc 가 3,000자를 넘어야 chunk_size 1500 에서
@@ -323,13 +321,9 @@ def split_at_key_names(text: str, count: int) -> list[str]:
     return [text[a:b] for a, b in zip(edges, edges[1:])]
 
 
-def main() -> None:
-    wb = Workbook()
-    ws = wb.active
-    ws.title = "Sheet"
-    ws.append(HEADERS)
-
-    rows = 0
+def build_rows() -> list[list]:
+    """종목마다 detail 을 절단해 원천 행 목록을 만든다(docstring 의 컬럼 순서)."""
+    rows: list[list] = []
     for stock in STOCKS:
         detail = stock["detail"]
         if isinstance(detail, (dict, list)):
@@ -345,15 +339,28 @@ def main() -> None:
             pieces = [raw[a:b] for a, b in zip(edges, edges[1:])]
             assert "".join(pieces) == raw, stock["jong_name"]
         for line_no, piece in enumerate(pieces, start=1):
-            ws.append([
+            rows.append([
                 stock["jong_name"], stock["jong_code"], stock["regt_no"], line_no, piece,
                 stock["news_date"], stock["md_stck_itm_c"], stock["kosc_stck_itm_c"], stock["nat_c"],
             ])
-            rows += 1
+    return rows
 
+
+def write_txt(rows: list[list]) -> None:
+    """헤더 없이 한 행을 한 줄로 쓴다.
+
+    텍스트 원천은 본문 줄바꿈을 `<BR>` 로 실어 보내 한 행이 한 줄을 넘지 않는다. 평문 종목의
+    개행도 같은 모양으로 바꿔 쓴다 — 개행이 그대로 남으면 구분자 리더가 행을 끊는다.
+    """
     OUT.parent.mkdir(parents=True, exist_ok=True)
-    wb.save(OUT)
-    print(f"{OUT}  sheet={ws.title}  rows={rows}  stocks={len(STOCKS)}")
+    with open(OUT, "w", encoding="utf-8", newline="\n") as f:
+        for row in rows:
+            f.write(SEPARATOR.join(str(v).replace("\n", "<BR>") for v in row) + "\n")
+    print(f"{OUT}  rows={len(rows)}  stocks={len(STOCKS)}")
+
+
+def main() -> None:
+    write_txt(build_rows())
 
 
 if __name__ == "__main__":
