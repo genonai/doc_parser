@@ -370,15 +370,14 @@ cd ./genon/preprocessor/
 uv sync
 source ./.venv/bin/activate
 
-cd ./facade
-# test.py 안의 from <processor>_processor import DocumentProcessor 와
-# file_path 만 원하는 값으로 수정 후 실행. test.py 가 사내망 dev 프리셋을 스스로 얹는다
-python test.py
-# 결과는 같은 디렉토리의 result.json 에 저장
+# tools/facade_run/facade_run.py 안의 from <processor>_processor import DocumentProcessor 와
+# file_path 만 원하는 값으로 수정 후 실행. facade_run.py 가 사내망 dev 프리셋을 스스로 얹는다
+python tools/facade_run/facade_run.py
+# 결과는 facade_run.py 와 같은 디렉토리의 result.json 에 저장
 ```
 
 - **genon 사내망 VPN 접속 필요** (dev 프리셋의 외부 게이트웨이 호출 때문).
-- 이 흐름은 `resource/...yaml` 위에 `genon/sites/dev/model_presets.yaml` 의 접속값만 얹어 사용합니다. `test.py` 가 환경변수 `GENOS_MODEL_PRESETS_FILE` 을 이 파일로 설정하며(밖에서 지정하면 그 값이 우선합니다), 이 변수는 로컬 전용입니다. 사이트 배포 시에는 4단계대로 `resource/model_presets.yaml` 을 수정해야 한다는 점만 잊지 마세요.
+- 이 흐름은 `resource/...yaml` 위에 `genon/sites/dev/model_presets.yaml` 의 접속값만 얹어 사용합니다. `facade_run.py` 가 환경변수 `GENOS_MODEL_PRESETS_FILE` 을 이 파일로 설정하며(밖에서 지정하면 그 값이 우선합니다), 이 변수는 로컬 전용입니다. 사이트 배포 시에는 4단계대로 `resource/model_presets.yaml` 을 수정해야 한다는 점만 잊지 마세요.
 
 ---
 

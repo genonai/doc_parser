@@ -226,11 +226,11 @@ python serving_gateway_test.py --mode chunker --doc-json /tmp/doc.json --chunk-s
   전체 상세는 **전체 매뉴얼**을 참고하세요:
   → [`genon/preprocessor/manual/code_serving.md`](genon/preprocessor/manual/code_serving.md)
 
-## 부록: 로컬에서 `facade/test.py` 직접 실행 (개발·디버깅용)
+## 부록: 로컬에서 `facade_run.py` 직접 실행 (개발·디버깅용)
 
 게이트웨이 HTTP 테스트(`serving_gateway_test.py`, 위 [사용 예시](#사용-예시))와 달리, **서빙 배포 없이 이
 repo를 clone한 로컬에서 전처리기를 직접 호출**해 보는 개발용 절차입니다. 대상은
-`genon/preprocessor/facade/test.py`(지능형 프로세서, PDF).
+`genon/preprocessor/tools/facade_run/facade_run.py`(지능형 프로세서, PDF).
 
 > `uv sync` 는 이 배포본에서 **실패**합니다 — 동봉된 `genon/preprocessor/pyproject.toml` 의 docling 의존성
 > source 가 소스가 없는(wheel만 있는) 이 repo 루트를 가리켜 docling 을 소스빌드하려다 깨집니다. 그래서 아래처럼
@@ -261,9 +261,9 @@ api_key: "<MODEL_SERVING_API_KEY>"
 [`code_serving_dev_manual.md`](genon/preprocessor/manual/code_serving_dev_manual.md)의 4장을
 참고하세요.
 
-**③ 실행** — 반드시 `facade/` 디렉토리에서 (test.py 의 `sys.path` 처리가 `genon.*` 절대 import 를 해결):
+**③ 실행** — 경로를 파일 위치 기준으로 잡으므로 어느 디렉토리에서 실행해도 됩니다(`genon.*` 절대 import 도 스크립트가 해결합니다):
 ```bash
-cd genon/preprocessor/facade && python test.py    # 입력: ../sample_files/pdf_sample.pdf → 결과: result.json
+python genon/preprocessor/tools/facade_run/facade_run.py    # 입력: genon/preprocessor/sample_files/pdf_sample.pdf → 결과: 같은 폴더의 result.json
 ```
 > 로컬 외부 게이트웨이 URL·API 키가 들어간 config와 `.venv`·`result.json`·`__pycache__` 등 로컬
 > 산출물이 코드 변경 패치에 포함되지 않도록 확인하세요. 배포본에는 기본 `.gitignore`가 포함됩니다.

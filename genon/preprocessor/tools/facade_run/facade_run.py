@@ -6,12 +6,17 @@ import json
 import time
 
 import sys
-sys.path.insert(0, "../../../") # 현재 doc_parser의 docling 폴더 참조
+
+# 경로는 이 파일 위치를 기준으로 잡으므로 어느 디렉토리에서 실행해도 된다
+HERE = os.path.dirname(os.path.abspath(__file__))
+PREPROCESSOR_DIR = os.path.normpath(os.path.join(HERE, "../.."))
+sys.path.insert(0, os.path.normpath(os.path.join(PREPROCESSOR_DIR, "../..")))  # 저장소 루트(genon.*, docling)
+sys.path.insert(0, os.path.join(PREPROCESSOR_DIR, "facade"))  # 아래 from <processor>_processor import
 
 # 로컬(사내망 VPN) 모델 접속값을 표준 resource/model_presets.yaml 위에 얹는다. 밖에서 지정한 값이 있으면 그 값을 쓴다
 os.environ.setdefault(
     "GENOS_MODEL_PRESETS_FILE",
-    os.path.join(os.path.dirname(os.path.abspath(__file__)), "../../sites/dev/model_presets.yaml"),
+    os.path.join(PREPROCESSOR_DIR, "../sites/dev/model_presets.yaml"),
 )
 
 # 테스트할 전처리기 임포트
@@ -20,7 +25,7 @@ os.environ.setdefault(
 from intelligent_processor import DocumentProcessor # 지능형
 
 # 파일 경로
-file_path = "../sample_files/pdf_sample.pdf"
+file_path = os.path.join(PREPROCESSOR_DIR, "sample_files/pdf_sample.pdf")
 
 # 파일 존재 여부 확인
 if not os.path.exists(file_path):
@@ -48,8 +53,8 @@ result = asyncio.run(process_document())
 
 result_list_as_dict = [item.model_dump() for item in result]
 
-# 최종적으로 이 리스트를 JSON으로 저장
-with open("result.json", "w", encoding="utf-8") as f:
+# 최종적으로 이 리스트를 이 파일과 같은 디렉토리의 result.json 으로 저장
+with open(os.path.join(HERE, "result.json"), "w", encoding="utf-8") as f:
     json.dump(result_list_as_dict, f, ensure_ascii=False, indent=4)
 
 end = time.time()

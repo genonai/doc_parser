@@ -4,8 +4,8 @@
 
 ## 사용법
 
-1. 이 폴더에 `sample.pdf` 파일을 추가하세요
-2. `genos_di/test.py`를 실행하면 해당 파일을 처리합니다
+1. 이 폴더에 처리할 파일을 추가하세요
+2. `tools/facade_run/facade_run.py`를 실행하면 해당 파일을 처리합니다
 
 ## 지원되는 파일 형식
 
@@ -17,8 +17,8 @@
 
 ## 파일명 규칙
 
-- 기본적으로 `sample.pdf`를 찾습니다
-- 다른 파일명을 사용하려면 `test.py`의 `file_path` 변수를 수정하세요
+- 기본적으로 `pdf_sample.pdf`를 찾습니다
+- 다른 파일명을 사용하려면 `facade_run.py`의 `file_path` 변수를 수정하세요
 
 ## HWP → PDF 회귀 검증 자산 (이슈 #199)
 
