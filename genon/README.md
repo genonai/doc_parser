@@ -19,9 +19,8 @@
 │   │   ├── docker # 도커파일 위치
 │   │   ├── env # 개발 시 설정 파일들
 │   │   ├── facade # facade 코드(*_processor.py)
-│   │   │   ├── gitbook_doc
-│   │   │   │   └── images
-│   │   │   └── legacy
+│   │   │   └── gitbook_doc
+│   │   │       └── images
 │   │   ├── processing # 파싱·청킹·보강 처리 라이브러리(facade 가 상속·호출)
 │   │   │   ├── chunking
 │   │   │   ├── common
