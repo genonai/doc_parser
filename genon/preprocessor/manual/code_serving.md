@@ -240,7 +240,7 @@ chunker 가 형태를 자동 판별). `IS_CHUNKER` 를 지원하는 전처리기
 
 ## 사용 예시
 
-아래 예시는 `genon/preprocessor/examples/code_serving/` 의 테스트 스크립트와 동등합니다.
+아래 예시는 `genon/preprocessor/tools/code_serving/` 의 테스트 스크립트와 동등합니다.
 
 ### curl
 
@@ -482,7 +482,7 @@ python serving_gateway_test.py --mode parser --file-path /data/report.pdf \
   --param llm_cache=1 --param interim_root=/nfs-root/interim \
   --param workflow_id=wf-123 --param run_id=run-1 --out-doc /tmp/doc_run2.json
 
-# in-process 파싱→청킹: examples/parse_chunk/parse_chunk_test.sh
+# in-process 파싱→청킹: tools/parse_chunk/parse_chunk_test.sh
 python parse_chunk_test.py --llm_cache --interim_root <경로> \
   --workflow_id wf-1 --run_id run-1 <input.pdf> <out>/
 

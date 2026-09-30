@@ -18,10 +18,11 @@ docling(v2.41.0) 포크 위에 GenOn 전처리기(genon/preprocessor)를 올린 
 | `genon/sites/<site>/resource/` | 고객사이트 설정 **완성본**(표준 사본 + `manifest.yaml` 의 `owned:` 파일). 표준을 고치면 `build-script/sync-sites.sh` 로 사본을 맞춘다. `genon/sites/dev/model_presets.yaml` 은 로컬(VPN) 모델 접속값이다(`genon/sites/README.md`) |
 | `genon/sites/<site>/facade/` | 고객사이트 전용 전처리기(BOK 적재용, 법령, 코레일 등). 기본 전처리기 서비스로만 배포되는 별도 배포 단위이며 핫픽스 번들에 포함되지 않는다 |
 | `genon/preprocessor/tests/` | **전처리기 테스트** (`unit/`, `smoke/`, `regression/`) |
-| `genon/preprocessor/examples/` | 손으로 돌리는 검증 스크립트 (테스트 절 참조) |
+| `genon/preprocessor/examples/` | 고객이 붙여 쓰는 최소 예제(훅, 텍스트 정제, curl 호출) |
+| `genon/preprocessor/tools/` | 손으로 돌리는 검증·개발 도구 (테스트 절 참조) |
 | `docling/` | 포크된 docling 본체. 백엔드·파이프라인 수정은 여기 |
 | `tests/` | docling 업스트림 테스트 |
-| `build-script/` | 도커 이미지 빌드, 코드서빙 저장소 동기화, 핫픽스 패치 번들 생성. 저장소의 셸 스크립트는 전부 여기 둔다 |
+| `build-script/` | 도커 이미지 빌드, 코드서빙 저장소 동기화, 핫픽스 패치 번들 생성. 빌드·배포 셸 스크립트는 전부 여기 둔다(검증 도구의 실행 셸은 `tools/` 에 함께 둔다) |
 
 **수정 금지 / 탐색 제외** (모두 gitignore됨): `reference/`, `shkim_labs/`, `dist/`, `build/`, `debug/`, `tmp/`, `code-serving/`.
 `genon/sites/<site>/facade/` 는 **기본적으로 참조하지 않는다** — 별도 배포 단위이므로 활성 경로 작업에 끌어들이지 말고, 사용자가 명시적으로 언급할 때만 읽는다.
@@ -154,8 +155,8 @@ facade가 공유하는 로직은 아래에 한 벌씩만 둔다. 최상위 proce
 없다는 이유로 함께 채우지 않는다. "수정 범위" 절의 기준 1이 테스트에도 그대로 적용된다.
 
 **검증을 늘리는 대신 옮긴다.** custom_fields yaml 이 약속한 필드가 실제로 실리는지는 유닛을
-늘리는 것보다 `examples/parse_chunk/parse_chunk_verify.sh` 에 케이스를 한 줄 더하는 편이 싸고,
-설정 오기입은 `examples/config_precheck/precheck_custom_fields.sh` 가 이미 잡는다.
+늘리는 것보다 `tools/parse_chunk/parse_chunk_verify.sh` 에 케이스를 한 줄 더하는 편이 싸고,
+설정 오기입은 `tools/config_precheck/precheck_custom_fields.sh` 가 이미 잡는다.
 
 적용 전이나 PR 직전에 `test-scope-check` 서브에이전트로 한 번 판정받는다. 판정 기준의 전문과
 이 저장소에서 자주 걸리는 유형은 `.claude/agents/test-scope-check.md` 에 있다.
@@ -181,8 +182,8 @@ cd genon/preprocessor
 **doc_type 자동 검증** — custom_fields 를 건드렸거나 facade 파싱·청킹 경로를 바꿨으면 함께 돌린다. 실제로 파싱·청킹하고 LLM 을 호출해 유닛보다 느리지만, yaml 이 약속한 필드가 실제 청크에 실렸는지는 이것으로만 확인된다.
 
 ```bash
-genon/preprocessor/examples/parse_chunk/parse_chunk_verify.sh          # 케이스 23건 / doc_type 14종
-genon/preprocessor/examples/parse_chunk/parse_chunk_verify.sh --only faq menu
+genon/preprocessor/tools/parse_chunk/parse_chunk_verify.sh          # 케이스 23건 / doc_type 14종
+genon/preprocessor/tools/parse_chunk/parse_chunk_verify.sh --only faq menu
 ```
 
 기본 설정 폴더는 모니모 완성본 `genon/sites/monimo/resource/` 이고 `--resource-dir` 로 바꿀 수 있다.
@@ -193,7 +194,7 @@ genon/preprocessor/examples/parse_chunk/parse_chunk_verify.sh --only faq menu
 **설정 점검(파싱·LLM 없음)** — 설정만 바꿨거나 **배포 전 현장 설정을 검사할 때** 쓴다. extractor 별 지원 키(`processing/enrichment/config_schema.py`)와 같은 판정을 공유하므로 기동 실패를 미리 드러내고, 청크 본문이 바뀌는 필드(재색인 판단)도 알려준다.
 
 ```bash
-genon/preprocessor/examples/config_precheck/precheck_custom_fields.sh   # 인자로 현장 설정 경로 지정 가능
+genon/preprocessor/tools/config_precheck/precheck_custom_fields.sh   # 인자로 현장 설정 경로 지정 가능
 ```
 
 custom_fields yaml 주의:
@@ -223,12 +224,12 @@ PYTHONPATH=<repo>:<repo>/genon/preprocessor:<repo>/genon/preprocessor/src:<repo>
 이 변수가 비어 있으면 `genon/sites/dev/model_presets.yaml`(VPN 전용)로 설정한다. 운영에서는 설정하지 않는다.
 
 ```bash
-P=genon/preprocessor; $P/.venv/bin/python $P/examples/parse_chunk/parse_chunk_test.py 입력 출력                 # 표준 resource/
-P=genon/preprocessor; $P/.venv/bin/python $P/examples/parse_chunk/parse_chunk_test.py --site monimo 입력 출력   # genon/sites/monimo/resource/
+P=genon/preprocessor; $P/.venv/bin/python $P/tools/parse_chunk/parse_chunk_test.py 입력 출력                 # 표준 resource/
+P=genon/preprocessor; $P/.venv/bin/python $P/tools/parse_chunk/parse_chunk_test.py --site monimo 입력 출력   # genon/sites/monimo/resource/
 build-script/run-local.sh [monimo]    # 루트 main.py 를 포트 7084 로 기동. 설정 폴더는 GENOS_RESOURCE_DIR(로컬 전용)
 ```
 
-엔드포인트 확인은 새 pytest를 만들기보다 `genon/preprocessor/examples/code_serving/serving_gateway_test.sh` 에 모드를 추가하는 방식을 선호한다.
+엔드포인트 확인은 새 pytest를 만들기보다 `genon/preprocessor/tools/code_serving/serving_gateway_test.sh` 에 모드를 추가하는 방식을 선호한다.
 
 ## 배포 (code-serving)
 

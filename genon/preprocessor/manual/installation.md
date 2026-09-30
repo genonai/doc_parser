@@ -350,7 +350,7 @@ yaml 로 안 되는 것(새 확장자 처리, 원천 JSON 구조 흡수, 섹션 
 | 청크 크기·경계·표 표기 | [청킹용 전처리기 매뉴얼](chunking_processor.md) |
 | 수정 → 검증 → 재배포 절차 | [코드서빙 개발 매뉴얼](code_serving_dev_manual.md) |
 
-> **고치기 전에 자기 기준선을 만드세요.** `examples/parse_chunk/parse_chunk_golden.py --record`
+> **고치기 전에 자기 기준선을 만드세요.** `tools/parse_chunk/parse_chunk_golden.py --record`
 > 로 지금 산출을 기록해 두면, 수정 뒤 `--check` 로 **기존 문서가 그대로인지** 확인할 수 있습니다.
 > 벤더 골든은 배포되지 않으므로 이 절차가 정식입니다.
 

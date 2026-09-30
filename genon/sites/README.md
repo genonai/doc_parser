@@ -71,14 +71,14 @@ owned 파일을 제외한 모든 파일을 표준과 똑같이 맞추고, 표준
 | 서버 기동(`main.py`, 포트 7084) | `build-script/run-local.sh` | `build-script/run-local.sh monimo` |
 | 설정 점검(파싱·LLM 없음) | `precheck_custom_fields.sh` | `precheck_custom_fields.sh <저장소>/sites/monimo/resource` |
 
-- `parse_chunk_*` 는 `genon/preprocessor/examples/parse_chunk/` 에서, `precheck_custom_fields.sh` 는
-  `genon/preprocessor/examples/config_precheck/` 에 있다. `parse_chunk_test.py` 는
+- `parse_chunk_*` 는 `genon/preprocessor/tools/parse_chunk/` 에서, `precheck_custom_fields.sh` 는
+  `genon/preprocessor/tools/config_precheck/` 에 있다. `parse_chunk_test.py` 는
   `genon/preprocessor/.venv/bin/python` 으로 실행한다(`parse_chunk_test.sh` 는 인자를 받지 않는 예제 모음이다).
 - `parse_chunk_verify.sh` 는 표 표기형태를 검증하기 위해 청커 설정의 임시 사본에서 `table_text_formats` 를 켠다.
   저장소의 설정 파일은 바뀌지 않는다.
 - `run-local.sh` 는 `GENOS_RESOURCE_DIR` 로 설정 폴더를 지정해 루트 `main.py` 를 기동한다.
   `GENOS_RESOURCE_DIR` 는 로컬 전용이다. 기동 후 호출은
-  `genon/preprocessor/examples/code_serving/serving_gateway_test.sh` 로 한다.
+  `genon/preprocessor/tools/code_serving/serving_gateway_test.sh` 로 한다.
 
 ## 배포
 

@@ -302,7 +302,7 @@ llm:
 #  확인 방법
 #
 #  1) 설정만 검사 — 파싱·LLM 없이 yaml 만 읽는다.
-#       genon/preprocessor/examples/config_precheck/precheck_custom_fields.sh
+#       genon/preprocessor/tools/config_precheck/precheck_custom_fields.sh
 #
 #  2) 프롬프트·출력필드가 제대로 실렸는지 검사한다(LLM 호출 없음).
 #     실행 위치: genon/preprocessor  (그 폴더의 .venv 로 돌린다)
@@ -320,12 +320,12 @@ llm:
 #     → `프롬프트에 없는 출력필드` 가 비어 있어야 한다. 남아 있으면 그 필드는 null 로 나온다.
 #
 #  3) 등록된 사례 자동 검증 — 파싱·청킹까지 실행해 필드와 결과를 확인한다.
-#     신규 유형은 examples/parse_chunk/parse_chunk_verify.py 의 CASES 에
+#     신규 유형은 tools/parse_chunk/parse_chunk_verify.py 의 CASES 에
 #     (doc_type, 샘플 경로, 설명)을 추가하고 검증 설정 폴더(기본 genon/sites/monimo/resource)의 parser_processor_config.yaml 에
 #     해당 유형의 설정을 등록한다. --only 는 등록된 CASES 를 고르는 옵션이다.
 #     미등록 유형·검사 대상 0건·실행 결과 전부 SKIP 은 실패로 종료된다.
 #     PASS 건수와 SKIP 사유를 확인하고, 새 필드의 기대값 검증은 verify() 에 추가한다.
-#       genon/preprocessor/examples/parse_chunk/parse_chunk_verify.sh --only <유형>
+#       genon/preprocessor/tools/parse_chunk/parse_chunk_verify.sh --only <유형>
 #
 #  ── 알려진 주의사항 (현재 코드) ─────────────────────────────────────────────
 #  · `params.max_tokens: 1000` / `temperature: 0.0` / `timeout: 60` 처럼 **기본값과 같은 값**을

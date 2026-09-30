@@ -291,7 +291,7 @@ echo "HWP_SDK_TOKEN=hf_xxx" >> build-script/hf_private_token.env
 
 - 호출(게이트웨이 URL·엔드포인트·예시)은 [`preprocessor/manual/code_serving.md`](preprocessor/manual/code_serving.md) 참고.
 
-  - 기본 테스트는 [테스트 코드](https://github.com/genonai/doc_parser/blob/develop/genon/preprocessor/examples/code_serving/serving_gateway_test.py) 를 참고해서 테스트 가능
+  - 기본 테스트는 [테스트 코드](https://github.com/genonai/doc_parser/blob/develop/genon/preprocessor/tools/code_serving/serving_gateway_test.py) 를 참고해서 테스트 가능
 
 ## 로컬 테스트 (도커 빌드 없이 test.py 실행)
 

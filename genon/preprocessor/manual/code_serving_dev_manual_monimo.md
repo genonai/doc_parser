@@ -312,7 +312,7 @@ curl "${CS}/parser" -H 'Content-Type: application/json' \
 
 ```bash
 # 실행 위치: 저장소 루트
-genon/preprocessor/examples/config_precheck/precheck_custom_fields.sh
+genon/preprocessor/tools/config_precheck/precheck_custom_fields.sh
 ```
 
 (나) 결과 값을 확인합니다. facade 단독 실행이 가장 빠릅니다([3.3](#33-신속한-확인-방법--facade-단독-실행)).
@@ -369,7 +369,7 @@ PY
 저장해 놓고 같은 결과와 비교하면 회귀를 찾을 수 없습니다.
 
 ```bash
-# 실행 위치: genon/preprocessor/examples/parse_chunk
+# 실행 위치: genon/preprocessor/tools/parse_chunk
 # 변경으로 결과가 달라지면 안 되는 기존 문서를 지정합니다. 경로는 실제 샘플로 교체합니다.
 cat > my_cases.yaml <<'EOF'
 - {doc_type: card, path: /data/samples/card.pdf}
@@ -1004,7 +1004,8 @@ raise GenosServiceException(
 | `genon/preprocessor/facade/chunking_processor.py` | 청킹. 주 수정 대상 |
 | `genon/preprocessor/resource/` | config yaml + `custom_field_*.yaml` + 프롬프트 |
 | `genon/preprocessor/resource/templates/` | 새 문서 유형 템플릿 5종 |
-| `genon/preprocessor/examples/` | 검증 스크립트 |
+| `genon/preprocessor/examples/` | 훅·설정 예제 |
+| `genon/preprocessor/tools/` | 검증 스크립트 |
 | `genon/preprocessor/sample_files/` | 샘플 문서 |
 | `main.py` | FastAPI 앱. 수정 대상이 아닙니다 |
 

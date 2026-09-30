@@ -1706,7 +1706,7 @@ fields:
 않으므로 **자기 문서로 자기 골든을 만듭니다.**
 
 ```bash
-# 실행 위치: genon/preprocessor/examples/parse_chunk
+# 실행 위치: genon/preprocessor/tools/parse_chunk
 # ① 내 문서 목록을 yaml 로 적는다
 cat > my_cases.yaml <<'EOF'
 - {doc_type: my_type, path: /data/samples/a.json}
@@ -1726,18 +1726,18 @@ EOF
 
 ### 실전 드릴 — 남이 이미 밟아 본 지뢰
 
-`examples/parse_chunk/drill/` 에 **일부러 어려운 JSON 15종**과 그 결과 기록이 있습니다.
+`tools/parse_chunk/drill/` 에 **일부러 어려운 JSON 15종**과 그 결과 기록이 있습니다.
 동명 키 충돌·동적 키·2단 중첩 레코드·조건부 선택·타입 흔들림·HTML 표 문자열·BOM/CP949·
 JSONL·빈 배열·doc_type 충돌 등입니다.
 
 ```bash
 # 실행 위치: genon/preprocessor
-.venv/bin/python examples/parse_chunk/drill/make_drill_fixtures.py
-.venv/bin/python examples/parse_chunk/drill/run_drill.py --step config
+.venv/bin/python tools/parse_chunk/drill/make_drill_fixtures.py
+.venv/bin/python tools/parse_chunk/drill/run_drill.py --step config
 ```
 
 무엇이 설정으로 됐고 무엇이 코드가 필요했는지는
-`examples/parse_chunk/drill/RESULTS.md` 에 있습니다. 새 원천이 이 중 하나를
+`tools/parse_chunk/drill/RESULTS.md` 에 있습니다. 새 원천이 이 중 하나를
 닮았다면 거기서 답을 먼저 찾으세요.
 
 ## 예외 처리

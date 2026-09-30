@@ -49,8 +49,8 @@ doc_parser 의 테스트 diff(또는 작성 계획)를 받아 **과잉만** 판�
 - **결함 하나에 테스트 여러 건** — 재현 테스트 한 건이 기본이다. 고치는 과정에서 읽은 주변
   코드에 테스트가 없다는 이유로 함께 채웠으면 지적한다.
 - **더 싼 자리를 두고 유닛을 늘림** — custom_fields yaml 이 약속한 필드가 실리는지는
-  `examples/parse_chunk/parse_chunk_verify.sh` 케이스 한 줄이 싸고, 설정 오기입은
-  `examples/config_precheck/precheck_custom_fields.sh` 가 이미 잡는다.
+  `tools/parse_chunk/parse_chunk_verify.sh` 케이스 한 줄이 싸고, 설정 오기입은
+  `tools/config_precheck/precheck_custom_fields.sh` 가 이미 잡는다.
 - **파사드 5종에 같은 테스트 배선** — 공용 하위 모듈 한 곳의 테스트면 되는 일인지 본다.
 - **사이트 전용 facade(`genon/sites/<site>/facade/`) 동반 테스트** — 별도 배포 단위다. 사용자가 명시하지 않았는데 끌어들였으면 지적한다.
 - **목 검증** — 목을 세워 두고 그 목이 호출됐는지만 보는 테스트는 프로덕션 구현을 그대로 옮겨

@@ -370,7 +370,7 @@ enrichment:
 
 ```bash
 # 실행 위치: 저장소 루트
-genon/preprocessor/examples/config_precheck/precheck_custom_fields.sh
+genon/preprocessor/tools/config_precheck/precheck_custom_fields.sh
 ```
 
 (나) 값을 눈으로 봅니다. facade 단독 실행이 가장 빠릅니다([3.3](#33-신속한-확인-방법--facade-단독-실행)).
@@ -410,7 +410,7 @@ else:                                               # document / html
 (다) 기존 문서의 결과가 바뀌지 않았는지 확인합니다. 검증할 문서로 기준선(골든)을 만듭니다.
 
 ```bash
-# 실행 위치: genon/preprocessor/examples/parse_chunk
+# 실행 위치: genon/preprocessor/tools/parse_chunk
 cat > my_cases.yaml <<'EOF'
 - {doc_type: notice, path: /data/samples/notice.xlsx}
 - {doc_type: card,   path: /data/samples/card.pdf}
@@ -1005,7 +1005,7 @@ python -m genon.preprocessor.facade.chunking_processor parsed.json --doc-type co
 ### 3.4 파싱과 청킹 반복 실행
 
 ```bash
-# 실행 위치: genon/preprocessor/examples/parse_chunk
+# 실행 위치: genon/preprocessor/tools/parse_chunk
 # 파싱 -> 청킹 E2E (모델 서빙 호출 포함)
 python parse_chunk_test.py ../../sample_files/pdf_sample.pdf result_parse_chunk/
 
@@ -1309,7 +1309,7 @@ curl --location "${GW}/parser" "${HDR[@]}" \
 스크립트로 한 번에 실행할 수도 있습니다. `serving_gateway_test.py`는 표준 라이브러리만 씁니다.
 
 ```bash
-# 실행 위치: genon/preprocessor/examples/code_serving
+# 실행 위치: genon/preprocessor/tools/code_serving
 AUTHARGS="--base-url $BASE --serving-id $SERVING_ID --auth-key $AUTH"
 
 python serving_gateway_test.py --mode health $AUTHARGS
@@ -1814,15 +1814,15 @@ python -m genon.preprocessor.facade.parser_processor 공지사항.xlsx --doc-typ
 python -m genon.preprocessor.facade.chunking_processor parsed.json --doc-type notice -o chunks.json
 
 # custom_fields 설정 점검 — 파싱·LLM 없이 기동 실패를 미리 잡는다 (1.7)
-genon/preprocessor/examples/config_precheck/precheck_custom_fields.sh
+genon/preprocessor/tools/config_precheck/precheck_custom_fields.sh
 
 # 로컬 파싱 -> 청킹 (처음) / 청킹만 반복 (모델 불필요) (3.4)
 python parse_chunk_test.py ../../sample_files/pdf_sample.pdf result_parse_chunk/
 python parse_chunk_test.py result_parse_chunk/pdf_sample.docling.json result_parse_chunk/
 
 # 기존 문서의 결과가 바뀌지 않았는지 — 자체 골든 (1.7)
-examples/parse_chunk/parse_chunk_golden.py --record   # 고치기 전
-examples/parse_chunk/parse_chunk_golden.py --check    # 고친 뒤
+tools/parse_chunk/parse_chunk_golden.py --record   # 고치기 전
+tools/parse_chunk/parse_chunk_golden.py --check    # 고친 뒤
 
 # 미치환 플레이스홀더 확인 (5.2) — 아무것도 안 나와야 정상
 grep -rn "<[A-Z_]*>" genon/preprocessor/resource/ | grep -vE ':[0-9]+: *#'

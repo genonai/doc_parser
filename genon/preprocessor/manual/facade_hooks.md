@@ -552,9 +552,9 @@ with open("chunks.json", "w", encoding="utf-8") as fp:
 
 ```bash
 # 고치기 전에 한 번
-examples/parse_chunk/parse_chunk_golden.py --record
+tools/parse_chunk/parse_chunk_golden.py --record
 # 고친 뒤
-examples/parse_chunk/parse_chunk_golden.py --check
+tools/parse_chunk/parse_chunk_golden.py --check
 ```
 
 ## 릴리스 갱신 때 내 수정분 지키기

@@ -20,9 +20,9 @@ bash build-script/create-patch-bundle.sh patch_20260829 --site monimo
 
 ## 동작
 
-`genon/preprocessor` 아래 `facade/`, `processing/`, `resource/`, `src/`, `examples/` 에서 **git 이 추적 중인**
+`genon/preprocessor` 아래 `facade/`, `processing/`, `resource/`, `src/`, `examples/`, `tools/` 에서 **git 이 추적 중인**
 `*.py`, `*.md`, `*.yaml`, `*.sh` 만 rsync 로 복사한다(스크립트의 `PATCH_DIRS`). 앞의 넷은 코드서빙 서버(루트 `main.py`)가
-실제로 쓰는 폴더이고 `examples/` 는 현장 검증 스크립트다. 추적되지 않은 파일은 포함되지 않으므로, 새로 만든 파일은 반드시 먼저
+실제로 쓰는 폴더이고 `examples/` 는 훅·설정 예제, `tools/` 는 현장 검증 스크립트다. 추적되지 않은 파일은 포함되지 않으므로, 새로 만든 파일은 반드시 먼저
 `git add` 해야 번들에 들어간다.
 
 `tests/`, `manual/`, `sample_files/`, `docker/`, `scripts/`, `configs/` 등은 서버가 쓰지 않으므로 싣지 않는다. 특히

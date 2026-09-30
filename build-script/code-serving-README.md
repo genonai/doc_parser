@@ -105,7 +105,7 @@ config를 업무 요구사항에 맞게 수정할 수 있습니다.
    - GPU 미할당, **medium(1 CPU Core, 16GB Memory)** 수준 인스턴스.
 
 5. **호출/테스트** — 아래 [사용 예시](#사용-예시) 및 동봉된
-   `genon/preprocessor/examples/code_serving/serving_gateway_test.py` 참고.
+   `genon/preprocessor/tools/code_serving/serving_gateway_test.py` 참고.
 
 ## 사전 준비
 
@@ -194,7 +194,7 @@ curl --location "${GW}/parser" -H 'Content-Type: application/json' -H "Authoriza
 ```
 
 ### Python (표준 라이브러리만 사용)
-동봉된 `genon/preprocessor/examples/code_serving/serving_gateway_test.py`로 동일 호출:
+동봉된 `genon/preprocessor/tools/code_serving/serving_gateway_test.py`로 동일 호출:
 ```bash
 # 접속 정보는 환경변수 또는 인자로 전달합니다(스크립트에 기본값이 없어 없으면 실행을 거부합니다).
 export GENOS_BASE_URL="https://<GENOS_HOST>"

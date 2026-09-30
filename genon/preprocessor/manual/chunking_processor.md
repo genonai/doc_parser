@@ -322,7 +322,7 @@ chunking:
 청크 단위 판정으로는 찾을 수 없습니다. 원문과 대조하는 문서 단위 평가가 필요합니다.
 
 판정 샘플(오류·정상·경계)은 `tests/fixtures/chunk_quality/cases.yaml` 에, 실측 보고서는
-`examples/chunk_validation/measure.py` 로 만듭니다.
+`tools/chunk_validation/measure.py` 로 만듭니다.
 
 ---
 
@@ -391,7 +391,7 @@ parse-format 입력은 element 의 `category` 로 경로가 갈립니다. **여�
 ### 고치기 전에 내 기준선을 만드세요
 
 ```bash
-# 실행 위치: genon/preprocessor/examples/parse_chunk
+# 실행 위치: genon/preprocessor/tools/parse_chunk
 cat > my_cases.yaml <<'EOF'
 - {doc_type: my_type, path: /data/samples/a.pdf}
 EOF
