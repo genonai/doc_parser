@@ -17,7 +17,7 @@
 | **전처리기 코드를 수정하는 개발자** | 아래 개발 매뉴얼 |
 
 > **전처리기 코드를 직접 수정하려면** 이 문서 대신
-> [`genon/preprocessor/facade/gitbook_doc/code_serving_dev_manual.md`](genon/preprocessor/facade/gitbook_doc/code_serving_dev_manual.md)
+> [`genon/preprocessor/manual/code_serving_dev_manual.md`](genon/preprocessor/manual/code_serving_dev_manual.md)
 > 를 보세요 — Genos 개념부터 로컬 개발환경 세팅, parser/chunker 코드 이해·수정, 재배포까지 한 문서로
 > 안내합니다. 이 저장소(공개 배포본)만으로 따라갈 수 있게 쓰여 있습니다.
 
@@ -88,7 +88,7 @@ config를 업무 요구사항에 맞게 수정할 수 있습니다.
    tar --exclude=.git -cf - . | (cd <gitea_dir> && tar -xf -)
 
    # gitea repo에서 환경에 맞게 config yaml 수정 (특히 LLM 모델 주소) — 용도별 대상 파일:
-   # genon/preprocessor/facade/gitbook_doc/ 의 매뉴얼 참고바람.
+   # genon/preprocessor/manual/ 의 매뉴얼 참고바람.
    #   genon/preprocessor/resource/parser_processor_config.yaml
    #   genon/preprocessor/resource/chunking_processor_config.yaml
    #   genon/preprocessor/resource/intelligent_processor_config.yaml
@@ -220,11 +220,11 @@ python serving_gateway_test.py --mode chunker --doc-json /tmp/doc.json --chunk-s
 
 ## 설정 / 고급 옵션
 
-- 프로세서 동작·옵션 상세: `genon/preprocessor/facade/gitbook_doc/`의
+- 프로세서 동작·옵션 상세: `genon/preprocessor/manual/`의
   [intelligent_processor.md] · [attachment_processor.md] · [convert_processor.md] · [parser_processor.md].
 - **LLM 캐시 / 실패 정책(`error_policy`) / 요청 deadline(`request_deadline`)** 등 `params` opt-in 옵션과
   전체 상세는 **전체 매뉴얼**을 참고하세요:
-  → [`genon/preprocessor/facade/gitbook_doc/code_serving.md`](genon/preprocessor/facade/gitbook_doc/code_serving.md)
+  → [`genon/preprocessor/manual/code_serving.md`](genon/preprocessor/manual/code_serving.md)
 
 ## 부록: 로컬에서 `facade/test.py` 직접 실행 (개발·디버깅용)
 
@@ -258,7 +258,7 @@ api_key: "<MODEL_SERVING_API_KEY>"
 ```
 
 자세한 위치와 인터넷 단절 환경 준비는
-[`code_serving_dev_manual.md`](genon/preprocessor/facade/gitbook_doc/code_serving_dev_manual.md)의 4장을
+[`code_serving_dev_manual.md`](genon/preprocessor/manual/code_serving_dev_manual.md)의 4장을
 참고하세요.
 
 **③ 실행** — 반드시 `facade/` 디렉토리에서 (test.py 의 `sys.path` 처리가 `genon.*` 절대 import 를 해결):

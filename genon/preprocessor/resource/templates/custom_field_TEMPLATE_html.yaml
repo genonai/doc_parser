@@ -13,7 +13,7 @@
 #   sections · 대상 하나를 깊게 설명한 중첩 JSON   custom_field_TEMPLATE_sections.yaml
 #   document · 문서 1건에서 필드 몇 개를 LLM 으로  custom_field_TEMPLATE_document.yaml
 #   html     · 마크업이 값을 이미 지목한 HTML      custom_field_TEMPLATE_html.yaml  ← 이 파일
-#   더 자세한 비교는 facade/gitbook_doc/parser_processor.md 의 "extractor 5종" 표.
+#   더 자세한 비교는 manual/parser_processor.md 의 "extractor 5종" 표.
 #
 #  document(LLM) 와의 차이 — 나머지는 전부 같다
 #   · 값을 만드는 주체가 LLM 이 아니라 **CSS 선택자**다. 그 뒤의 값 파이프라인
@@ -208,7 +208,7 @@ fields:
 #  오류 메시지는 설정에 적는 이름이 아니라 **내부 이름**으로 나온다
 #   (`select`→`select_map`, `body.repeat`→`chunk_prefix_fields`,
 #    `body.once`→`first_chunk_fields`, `values`→`value_map`, `transform`→`transforms` …).
-#   못 보던 이름이 나오면 facade/gitbook_doc/parser_processor.md 의 매트릭스에서 되짚는다.
+#   못 보던 이름이 나오면 manual/parser_processor.md 의 매트릭스에서 되짚는다.
 #
 # ═══════════════════════════════════════════════════════════════════════════
 #  확인 방법

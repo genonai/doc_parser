@@ -29,7 +29,7 @@
 #      이 값만큼 응답 몫을 자동으로 예약해 입력 예산을 계산한다(params.max_tokens 는 반영되지 않는다).
 #   ※ enable/enabled, doc_type, config_file 은 배선 키라 프리셋에 적어도 주입되지 않는다.
 #      특히 enable 이 새어 나가면 그 프리셋을 쓰는 섹션이 전부 켜진다.
-# 자세한 규칙은 gitbook_doc/parser_processor.md 의 "모델 프리셋" 절 참고.
+# 자세한 규칙은 manual/parser_processor.md 의 "모델 프리셋" 절 참고.
 # 아래 <...> 는 설치 환경 값으로 변경한다. api_key 는 k8s 내부 통신 기반 호출 시 불필요하다.
 model_presets:
   # 텍스트 LLM. 목차/메타데이터/문서요약/텍스트 표 설명이 함께 쓴다.

@@ -20,7 +20,7 @@
 #   sections · 대상 하나를 깊게 설명한 중첩 JSON   custom_field_TEMPLATE_sections.yaml  ← 이 파일
 #   document · 문서 1건에서 필드 몇 개를 LLM 으로  custom_field_TEMPLATE_document.yaml
 #   html     · 마크업이 값을 이미 지목한 HTML      custom_field_TEMPLATE_html.yaml
-#   더 자세한 비교는 facade/gitbook_doc/parser_processor.md 의 "extractor 5종" 표.
+#   더 자세한 비교는 manual/parser_processor.md 의 "extractor 5종" 표.
 #
 #  ── 이 파일에서 정하는 것은 세 가지뿐이다 ─────────────────────────────────
 #    ① fields             : 모든 청크에 함께 넣을 공통 정보 (상품명·상품코드 …)
@@ -260,7 +260,7 @@ fields:
 #  실패시킨다(요청 전에 바로 안다)
 #   · **이 kind 가 읽지 않는 키를 적은 경우.** 어느 스키마에도 없는 키(오타)는 가장 가까운
 #     이름을 제안하고, 다른 kind 의 키는 어디 전용인지 알려준다. 지원 키 매트릭스는
-#     facade/gitbook_doc/parser_processor.md 에 있다.
+#     manual/parser_processor.md 에 있다.
 #     sections 가 **읽지 않는** 대표 키는 아래와 같다(다른 템플릿에서 옮겨 적으면 안 된다).
 #       body.split · body.repeat · body.mirror_to
 #       필드 스펙의 collect · seq
@@ -289,7 +289,7 @@ fields:
 #  오류 메시지는 설정에 적는 이름이 아니라 **내부 이름**으로 나온다
 #   (`body.fields`→`text_fields`, `body.once`→`first_chunk_fields`, `values`→`value_map`,
 #    `require.fields`→`required_shared_fields`, `seq`→`sequence`, `raw`→`raw_fields` …).
-#   못 보던 이름이 나오면 facade/gitbook_doc/parser_processor.md 의 매트릭스에서 되짚는다.
+#   못 보던 이름이 나오면 manual/parser_processor.md 의 매트릭스에서 되짚는다.
 #
 # ═══════════════════════════════════════════════════════════════════════════
 #  확인 방법

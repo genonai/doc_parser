@@ -1756,7 +1756,7 @@ grep -rn "<함수명 또는 클래스명>" genon/preprocessor/facade/
 
 ## 부록 D. 관련 문서
 
-모두 이 문서와 같은 폴더(`genon/preprocessor/facade/gitbook_doc/`)에 있습니다.
+모두 이 문서와 같은 폴더(`genon/preprocessor/manual/`)에 있습니다.
 
 | 문서 | 언제 보나 |
 |---|---|
@@ -1774,7 +1774,7 @@ grep -rn "<함수명 또는 클래스명>" genon/preprocessor/facade/
 > 반드시 [부록 B](#부록-b-환경값과-문의처)에서 확인한 내 환경 값으로 교체하세요.
 
 > docx로 이 문서를 읽고 있다면 위 표의 상대 링크와 이미지는 동작하지 않습니다. 같은 이름의
-> `.md` 파일이 저장소의 `genon/preprocessor/facade/gitbook_doc/`에 함께 들어 있습니다.
+> `.md` 파일이 저장소의 `genon/preprocessor/manual/`에 함께 들어 있습니다.
 
 ## 부록 E. 코드서빙·코드스페이스 신규 생성
 
@@ -1847,5 +1847,5 @@ python serving_gateway_test.py --mode e2e \
 
 ---
 
-※ 이 문서의 정본은 `genon/preprocessor/facade/gitbook_doc/code_serving_dev_manual.md` 입니다.
+※ 이 문서의 정본은 `genon/preprocessor/manual/code_serving_dev_manual.md` 입니다.
 docx 버전은 같은 폴더에 함께 배포됩니다.

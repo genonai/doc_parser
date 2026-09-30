@@ -3,7 +3,7 @@
 # 정식 설정(chunking_processor_config.yaml)에서 사이트가 실제로 손대는 키만 남긴 판입니다.
 # 여기 없는 키는 코드 기본값으로 안전하게 폴백합니다.
 #
-#   청크 크기·경계·표 표기·정제 → gitbook_doc/chunking_processor.md
+#   청크 크기·경계·표 표기·정제 → manual/chunking_processor.md
 #
 # 이 facade 는 파싱(docling) 결과를 입력받아 청킹만 합니다. OCR·레이아웃·enrichment 는
 # 앞 단계에서 끝났으므로 그 섹션들은 **코드에도 없습니다** — 적어도 읽지 않습니다.

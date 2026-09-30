@@ -221,7 +221,7 @@ Doc Parser는 PDF 파싱에 쓰는 모델을 **두 가지 방식** 중 하나로
 | `prompt_metadata_default_system.md` / `prompt_metadata_default_user.md` | 메타데이터 추출 enrichment 프롬프트 |
 | `prompt_image_description_default.md` | 이미지 설명 enrichment 프롬프트 |
 
-> 위 파일들은 운영 표준 묶음으로 레포의 [`genon/preprocessor/resource/`](../../resource/) 폴더에 한 세트로 들어 있습니다. **그 폴더 내용을 통째로 가져와서, yaml만 사이트에 맞게 수정한 뒤 같은 묶음을 그대로 업로드**하면 됩니다.
+> 위 파일들은 운영 표준 묶음으로 레포의 [`genon/preprocessor/resource/`](../resource/) 폴더에 한 세트로 들어 있습니다. **그 폴더 내용을 통째로 가져와서, yaml만 사이트에 맞게 수정한 뒤 같은 묶음을 그대로 업로드**하면 됩니다.
 
 ![전처리기 상세 > 리소스 목록 탭 > 업로드 — yaml + prompt md 파일들을 한 묶음으로 등록](./images/yaml_upload.jpg)
 
@@ -333,8 +333,8 @@ GenOS 웹 UI에서 **데이터 > 벡터 DB > 벡터 DB 생성** 으로 새 벡�
 
 - **텍스트가 잘 나오는가?** 누락·깨짐이 보이면 → 4단계 yaml 에서 `ocr.ocr_mode` 를 `force` 로 올리거나, `attachment_processor` 같이 OCR을 안 거치는 경우엔 OCR 포함 facade(`intelligent_processor.py`)로 교체.
 - **청킹이 적절한가?** 청크가 너무 크거나 문맥이 끊기면, 손 댈 수 있는 범위가 facade 별로 다릅니다.
-  - `attachment_processor.py` — 청커는 `attachment_processor_config.yaml` 의 [`defaults.chunker_type` (L9)](../../resource/attachment_processor_config.yaml#L9) 로 `recursive`(기본) ↔ `hybrid` 전환 가능합니다.
-    - 청커별 세부 옵션은 같은 파일의 [`chunking.recursive` (L30-36)](../../resource/attachment_processor_config.yaml#L30-L36) (`chunk_size` / `chunk_overlap` / `token_chunk_size_cap`) 또는 [`chunking.hybrid` (L39-42)](../../resource/attachment_processor_config.yaml#L39-L42) (`max_tokens` / `merge_peers`) 에서 조정합니다.
+  - `attachment_processor.py` — 청커는 `attachment_processor_config.yaml` 의 [`defaults.chunker_type` (L9)](../resource/attachment_processor_config.yaml#L9) 로 `recursive`(기본) ↔ `hybrid` 전환 가능합니다.
+    - 청커별 세부 옵션은 같은 파일의 [`chunking.recursive` (L30-36)](../resource/attachment_processor_config.yaml#L30-L36) (`chunk_size` / `chunk_overlap` / `token_chunk_size_cap`) 또는 [`chunking.hybrid` (L39-42)](../resource/attachment_processor_config.yaml#L39-L42) (`max_tokens` / `merge_peers`) 에서 조정합니다.
     - 수정한 yaml 을 5단계 절차대로 리소스 파일로 재업로드한 뒤 전처리기를 재배포합니다.
   - `convert_processor.py` / `intelligent_processor.py` / `chunking_processor.py` — 청커가 `GenosSmartChunker` 로 고정되어 있지만 **yaml 로 조절되는 범위가 넓습니다**: `chunking.chunk_size` · `chunk_mode`(`split_only` ↔ `resize_all`) · `table_as_chunk` · `include_chunk_header` · `text_cleanup` · `output.table_format`. 대부분의 "청크가 너무 크다/문맥이 끊긴다" 는 여기서 해결됩니다. 자세한 것은 [청킹용 전처리기 매뉴얼](chunking_processor.md) 을 보세요.
 

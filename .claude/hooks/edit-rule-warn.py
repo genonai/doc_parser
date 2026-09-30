@@ -95,7 +95,7 @@ def main() -> None:
             warnings.append(
                 f"{rel} 에 새 메소드 {', '.join(added)} 가 생겼다. 이 파일은 고객이 여는 파사드이고 "
                 "릴리스가 통째로 덮어쓴다. 처리 로직이면 processing/ 공용 모듈에 구현하고 여기에는 "
-                "호출부만 둔다. 새 훅이면 facade/gitbook_doc/facade_hooks.md 와 "
+                "호출부만 둔다. 새 훅이면 manual/facade_hooks.md 와 "
                 "tests/unit/test_facade_hooks_unit.py 도 함께 고친다."
             )
     lines = _emoji_lines(source)

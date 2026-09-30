@@ -12,7 +12,7 @@ docling(v2.41.0) 포크 위에 GenOn 전처리기(genon/preprocessor)를 올린 
 | `genon/preprocessor/processing/core/` | 파싱·청킹 처리 본체(`parser.py`/`chunker.py`)와 고객용 `toolbox.py`·`cli.py`·`errors.py` |
 | `genon/preprocessor/processing/{common,chunking,enrichment,guardrail}/` | facade가 공유하는 공용 하위 모듈. 배포본에 포함된다 |
 | `genon/preprocessor/processing/converters/` | 입력 전처리 변환기 (`html_flatten`, `json_text`, `md_marker_headings` 등) |
-| `genon/preprocessor/facade/gitbook_doc/` | 고객·현장용 매뉴얼(`facade_hooks.md`, `parser_processor.md`, `code_serving_dev_manual.md` 등) |
+| `genon/preprocessor/manual/` | 고객·현장용 매뉴얼(`facade_hooks.md`, `parser_processor.md`, `code_serving_dev_manual.md` 등) |
 | `genon/preprocessor/src/` | 공통 모듈(`common`, `logger`, `config`, `utils`) + **기본 전처리기 서비스**의 진입점(`main.py`, facade 1개) |
 | `genon/preprocessor/resource/` | 표준 YAML 설정 (프로세서 설정 + `custom_field_*.yaml` + 모델 접속 정보 `model_presets.yaml`). facade 기본 해석기는 항상 이 폴더를 읽는다 |
 | `sites/<site>/resource/` | 고객사이트 설정 **완성본**(표준 사본 + `manifest.yaml` 의 `owned:` 파일). 표준을 고치면 `build-script/sync-sites.sh` 로 사본을 맞춘다. `sites/dev/model_presets.yaml` 은 로컬(VPN) 모델 접속값이다(`sites/README.md`) |
@@ -112,7 +112,7 @@ facade가 공유하는 로직은 아래에 한 벌씩만 둔다. 최상위 proce
 
 - **배포 대상 `*_processor.py` 는 하나다.** 최상위 processor 파일끼리 서로 import하면 배포본에서 깨진다. 반면 `processing/core/` 와 공용 하위 모듈은 배포본에 함께 들어가므로 상속·import 해도 된다(파싱·청킹 파사드가 그렇게 한다). 무조건 복제하지 말고 `build-script/sync-serving-repo.sh` 의 배포 범위를 먼저 확인한다.
 - **파싱·청킹 파사드 2종은 고객이 여는 파일이다.** `parser_processor.py`·`chunking_processor.py` 는 `ParserCore`/`ChunkerCore` 를 상속하고 호출부와 확장 지점(`ROUTES`, 상수, 훅 메소드)만 갖는다. **여기에 처리 로직을 넣지 않는다.** 릴리스가 이 두 파일을 통째로 덮어쓰므로 고객 수정분과 충돌하고, 훅 시그니처·`ROUTES` 형태는 고정 API 다(`tests/unit/test_facade_hooks_unit.py` 가 고정한다). 고객이 훅에서 쓸 기능은 `core/toolbox.py` 에 **재수출**만 하고 구현은 공용 하위 모듈에 둔다.
-  - 훅 목록·시그니처와 고객용 설명은 `facade/gitbook_doc/facade_hooks.md` 가 정본이다. 훅·`ROUTES`·toolbox 를 바꾸면 여기도 함께 고친다.
+  - 훅 목록·시그니처와 고객용 설명은 `manual/facade_hooks.md` 가 정본이다. 훅·`ROUTES`·toolbox 를 바꾸면 여기도 함께 고친다.
 - **신규 기능은 공용 하위 모듈에 구현하고 facade는 호출만 한다.** 여러 facade가 쓸 수 있는 로직이면 processor 파일에 직접 쓰거나 복붙하지 말고 `processing/{common,chunking,enrichment,guardrail}/` 에 모듈을 만든다. facade에는 설정 읽기 한 줄과 호출부만 남긴다. 판정 기준은 "두 번째 facade에 같은 코드를 넣고 싶어지는가"이며, 그렇다면 이미 공용 모듈 대상이다.
   - 설정 해석(yaml/kwargs 우선순위), 판정 헬퍼, 텍스트 변환 같은 부수 로직도 함께 공용 모듈에 둔다. facade마다 `_resolve_*` 헬퍼를 복제하면 그 자체가 새 lockstep 부채다.
   - 공용 모듈은 docling 타입 import를 피하고 duck typing으로 처리한다. 배포본이 docling 버전에 묶이지 않게 한다.
@@ -199,7 +199,7 @@ genon/preprocessor/examples/config_precheck/precheck_custom_fields.sh   # 인자
 custom_fields yaml 주의:
 
 - **`schema: v2` 표기 한 가지뿐이다.** 이 줄이 없으면 `config_v2.load` 가 기동을 막는다(빈 설정은 예외 — `config_file` 을 안 쓰는 등록 블록이다).
-- 매퍼가 읽는 **내부 형태는 여전히 옛 키 이름**(`column_map`·`text_fields` …)이라 오류 메시지에는 그 이름이 나온다. 기동 실패 로그는 `gitbook_doc/parser_processor.md` 의 매트릭스에서 되짚는다.
+- 매퍼가 읽는 **내부 형태는 여전히 옛 키 이름**(`column_map`·`text_fields` …)이라 오류 메시지에는 그 이름이 나온다. 기동 실패 로그는 `manual/parser_processor.md` 의 매트릭스에서 되짚는다.
 - 설정 오기입은 기본적으로 **기동 실패**다. 첫 릴리스에 한해 `GENOS_CUSTOM_FIELDS_VALIDATION=warn` 으로 낮추면 경고만 남기고 기동한다(그 설정은 무시된다).
 - 같은 디렉터리의 `parse_chunk_test.sh` 는 손으로 돌려보는 놀이터다. 자동 검증에 넣을 것은 `parse_chunk_verify.py` 쪽에 단정문으로 옮긴다.
 
@@ -240,7 +240,7 @@ build-script/run-local.sh [monimo]    # 루트 main.py 를 포트 7084 로 기�
 
 - 진행 상황과 결과 보고는 한국어로.
 - 소스 주석·docstring에 이모지를 쓰지 않는다. 강조는 문장으로 한다.
-- 코드 주석과 문서 자료는 구어체·속어투 대신 문어체로 쓴다. IT 용어는 그대로 쓴다. 예: "떠서 동작한다" → "배포되어 동작한다", "얕은 쪽이 이긴다" → "얕은 쪽이 우선한다", "게이트웨이에 닿지 않으면" → "게이트웨이에 접근할 수 없으면", "돌려 볼 수 있다" → "실행해 볼 수 있다". `gitbook_doc/` 의 자매 문서는 같은 문장을 공유하는 곳이 많으므로 한쪽만 고쳐 어긋나게 두지 않는다.
+- 코드 주석과 문서 자료는 구어체·속어투 대신 문어체로 쓴다. IT 용어는 그대로 쓴다. 예: "떠서 동작한다" → "배포되어 동작한다", "얕은 쪽이 이긴다" → "얕은 쪽이 우선한다", "게이트웨이에 닿지 않으면" → "게이트웨이에 접근할 수 없으면", "돌려 볼 수 있다" → "실행해 볼 수 있다". `manual/` 의 자매 문서는 같은 문장을 공유하는 곳이 많으므로 한쪽만 고쳐 어긋나게 두지 않는다.
 - 서브에이전트는 작업이 독립적인 하위 문제로 명확히 분할되고 병렬 실행의 이점이 있을 때만 사용한다. 단순·순차 작업은 직접 처리한다.
 - 병렬 서브에이전트에게 `git checkout`/`git restore` 등 작업 트리를 되돌리는 명령을 주지 않는다. 담당 경계를 모르는 되돌리기로 미커밋 작업물이 소실된 전례가 있다. `.claude/hooks/git-destructive-guard.sh` 가 이런 명령을 거부한다.
 - 같은 작업 트리를 다른 세션이 동시에 쓸 수 있다. `git add -A` 대신 pathspec 으로 커밋한다.
