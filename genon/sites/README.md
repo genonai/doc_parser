@@ -4,8 +4,8 @@
 `genon/sites/<site>/resource/` 에 **그대로 실행·배포할 수 있는 완성본**으로 git 관리한다.
 사이트 전용 전처리기(facade) 코드는 `genon/sites/<site>/facade/` 에 둔다.
 
-이 폴더는 코드서빙 배포본(`build-script/sync-serving-repo.sh` 의 `EXCLUDE_PATHS`)과
-핫픽스 번들(원천이 `genon/preprocessor/` 라 범위 밖)에 포함되지 않는다.
+이 폴더는 코드서빙 배포본(`build-script/sync-serving-repo.sh` 의 `EXCLUDE_PATHS`)에 포함되지 않는다.
+핫픽스 번들은 `--site <site>` 를 줄 때만 `resource/` 완성본을 싣는다.
 
 ## 폴더 구조
 
@@ -86,7 +86,7 @@ owned 파일을 제외한 모든 파일을 표준과 똑같이 맞추고, 표준
 
 - 코드서빙: 배포본의 `genon/preprocessor/resource/` 를 이 폴더로 덮어쓴다.
 - 기본 전처리기 서비스: 이 폴더를 MinIO 리소스로 올린다.
-- 핫픽스 번들에는 `genon/sites/` 가 포함되지 않으므로 사이트 설정 변경은 이 폴더를 별도로 전달한다.
+- 핫픽스 번들: `build-script/create-patch-bundle.sh <이름> --site <site>` 로 만들면 번들의 `resource/` 가 이 폴더다.
 - 사이트 전용 전처리기는 `genon/sites/<site>/facade/` 의 해당 파일을 별도로 전달한다. 코드서빙 배포본과
   핫픽스 번들 어디에도 포함되지 않는다.
 

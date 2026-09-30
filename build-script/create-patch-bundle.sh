@@ -23,19 +23,58 @@ REPO_ROOT="$(git -C "${SCRIPT_DIR}" rev-parse --show-toplevel)" || {
 
 SOURCE_DIR="${REPO_ROOT}/genon/preprocessor"
 
-# 번들에서 빼는 것. git pathspec 이라 하위 전체가 걸린다.
-#   resource_dev/  예전의 로컬 개발용 설정 폴더(실 API 키 포함). 폴더는 삭제되었고 항목만 남아 있다(무해).
-# 사이트 설정(genon/sites/<site>/resource/)은 SOURCE_DIR 밖이라 번들에 포함되지 않는다. 사이트 현장의 설정 변경은
-# 그 완성본 폴더를 별도로 전달한다.
-PATCH_EXCLUDES=(':(exclude)resource_dev/')
+# 번들에 싣는 폴더. 코드서빙 서버(루트 main.py)가 실제로 쓰는 것과 현장 검증 스크립트만 둔다.
+#   facade/      루트 main.py 가 올리는 processor 5종
+#   processing/  facade 가 호출하는 처리 라이브러리
+#   resource/    표준 설정과 LLM 프롬프트(.md 도 런타임 입력이다)
+#   src/         루트 main.py 가 sys.path 에 넣고 logger·settings·minio 유틸을 불러온다
+#   examples/    현장에서 실행하는 검증 스크립트
+# 그 밖(tests, manual, sample_files, docker, scripts, configs 등)은 서버가 쓰지 않으므로 싣지 않는다.
+# 특히 sample_files/monimo 는 고객사 실 문서라 번들로 다른 현장에 나가면 안 된다.
+# resource/ 는 따로 복사한다. --site 를 주면 그 원천이 사이트 완성본(genon/sites/<site>/resource/)으로 바뀐다.
+# 완성본은 표준 사본에 사이트 소유 파일을 더한 전체 설정 폴더다(genon/sites/README.md).
+PATCH_DIRS=(facade processing src examples)
+PATCH_EXTS=(py md yaml sh)
 
-if [[ $# -ne 1 ]]; then
-  echo "Usage: $0 <destination-folder-name>" >&2
+# 폴더 x 확장자 조합의 git pathspec. `**/` 는 0개 이상의 하위 폴더에 대응한다.
+PATCH_PATHSPECS=()
+for dir in "${PATCH_DIRS[@]}"; do
+  for ext in "${PATCH_EXTS[@]}"; do
+    PATCH_PATHSPECS+=(":(glob)${dir}/**/*.${ext}")
+  done
+done
+RESOURCE_PATHSPECS=()
+for ext in "${PATCH_EXTS[@]}"; do
+  RESOURCE_PATHSPECS+=(":(glob)**/*.${ext}")
+done
+
+usage() {
+  echo "Usage: $0 <destination-folder-name> [--site <site>]" >&2
   echo "Example: $0 patch_20260826" >&2
+  echo "Example: $0 patch_20260826 --site monimo" >&2
   exit 1
-fi
+}
 
-DEST_NAME="$1"
+DEST_NAME=""
+SITE=""
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --site)
+      [[ $# -ge 2 && -n "$2" ]] || usage
+      SITE="$2"
+      shift 2
+      ;;
+    -*)
+      usage
+      ;;
+    *)
+      [[ -z "${DEST_NAME}" ]] || usage
+      DEST_NAME="$1"
+      shift
+      ;;
+  esac
+done
+[[ -n "${DEST_NAME}" ]] || usage
 
 if [[ -z "${DEST_NAME}" || "${DEST_NAME}" == "." || "${DEST_NAME}" == ".." || "${DEST_NAME}" == */* ]]; then
   echo "Enter a folder name only, without a path: ${DEST_NAME}" >&2
@@ -43,6 +82,19 @@ if [[ -z "${DEST_NAME}" || "${DEST_NAME}" == "." || "${DEST_NAME}" == ".." || "$
 fi
 
 DEST_DIR="${REPO_ROOT}/dist/${DEST_NAME}"
+
+RESOURCE_SRC="${SOURCE_DIR}/resource"
+if [[ -n "${SITE}" ]]; then
+  if [[ "${SITE}" == */* || "${SITE}" == "." || "${SITE}" == ".." ]]; then
+    echo "Enter a site name only, without a path: ${SITE}" >&2
+    exit 1
+  fi
+  RESOURCE_SRC="${REPO_ROOT}/genon/sites/${SITE}/resource"
+  if [[ ! -d "${RESOURCE_SRC}" ]]; then
+    echo "Site resource directory not found: ${RESOURCE_SRC}" >&2
+    exit 1
+  fi
+fi
 
 if [[ ! -d "${SOURCE_DIR}" ]]; then
   echo "Source directory not found: ${SOURCE_DIR}" >&2
@@ -65,20 +117,33 @@ mkdir -p "${DEST_DIR}"
 # 목록은 **한 번만** 만든다. 예전에는 복사와 개수 세기가 각자 git 을 불러, 대상 조건이
 # 바뀌면 한쪽만 고쳐져 "복사한 것과 보고한 개수"가 갈릴 수 있었다.
 FILE_LIST="$(mktemp)"
-trap 'rm -f "${FILE_LIST}"' EXIT
+RESOURCE_LIST="$(mktemp)"
+trap 'rm -f "${FILE_LIST}" "${RESOURCE_LIST}"' EXIT
 
 (
   cd "${SOURCE_DIR}"
-  git ls-files -z -- '*.py' '*.md' '*.yaml' '*.sh' "${PATCH_EXCLUDES[@]}"
+  git ls-files -z -- "${PATCH_PATHSPECS[@]}"
 ) > "${FILE_LIST}"
+
+(
+  cd "${RESOURCE_SRC}"
+  git ls-files -z -- "${RESOURCE_PATHSPECS[@]}"
+) > "${RESOURCE_LIST}"
 
 (
   cd "${SOURCE_DIR}"
   rsync -a --from0 --files-from="${FILE_LIST}" ./ "${DEST_DIR}/"
 )
 
+mkdir -p "${DEST_DIR}/resource"
+(
+  cd "${RESOURCE_SRC}"
+  rsync -a --from0 --files-from="${RESOURCE_LIST}" ./ "${DEST_DIR}/resource/"
+)
+
 # NUL 구분이라 줄 수가 아니라 구분자 개수를 센다.
-FILE_COUNT="$(tr -cd '\0' < "${FILE_LIST}" | wc -c | tr -d ' ')"
+FILE_COUNT="$(cat "${FILE_LIST}" "${RESOURCE_LIST}" | tr -cd '\0' | wc -c | tr -d ' ')"
 
 echo "Patch created: ${DEST_DIR}"
+echo "Resource source: ${RESOURCE_SRC#"${REPO_ROOT}/"}"
 echo "Copied files: ${FILE_COUNT}"

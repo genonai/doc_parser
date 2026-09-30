@@ -10,6 +10,9 @@ description: genon 전처리기 핫픽스 패치 번들(dist/<이름>) 생성. "
 ```bash
 bash build-script/create-patch-bundle.sh patch_20260829
 # → dist/patch_20260829/ 에 생성
+
+bash build-script/create-patch-bundle.sh patch_20260829 --site monimo
+# → resource/ 만 genon/sites/monimo/resource/ 완성본으로 싣는다
 ```
 
 저장소 루트가 아닌 곳에서 호출해도 된다. 스크립트가 `git rev-parse --show-toplevel` 로
@@ -17,13 +20,23 @@ bash build-script/create-patch-bundle.sh patch_20260829
 
 ## 동작
 
-`genon/preprocessor` 아래에서 **git 이 추적 중인** `*.py`, `*.md`, `*.yaml`, `*.sh` 만 rsync 로 복사한다. 추적되지 않은 파일은 포함되지 않으므로, 새로 만든 파일은 반드시 먼저 `git add` 해야 번들에 들어간다.
+`genon/preprocessor` 아래 `facade/`, `processing/`, `resource/`, `src/`, `examples/` 에서 **git 이 추적 중인**
+`*.py`, `*.md`, `*.yaml`, `*.sh` 만 rsync 로 복사한다(스크립트의 `PATCH_DIRS`). 앞의 넷은 코드서빙 서버(루트 `main.py`)가
+실제로 쓰는 폴더이고 `examples/` 는 현장 검증 스크립트다. 추적되지 않은 파일은 포함되지 않으므로, 새로 만든 파일은 반드시 먼저
+`git add` 해야 번들에 들어간다.
 
-번들의 설정은 표준 `genon/preprocessor/resource/` 다. 예전의 로컬 개발용 `resource_dev/` 는 삭제되었다
-(스크립트의 `PATCH_EXCLUDES` 에 남은 항목은 무해하다). **`genon/sites/` 는 번들 원천(`genon/preprocessor/`) 밖이라 번들에 포함되지
-않는다.** 모니모 등 사이트 현장의 설정 변경은 `genon/sites/<site>/resource/` 완성본을 별도로 전달한다.
+`tests/`, `manual/`, `sample_files/`, `docker/`, `scripts/`, `configs/` 등은 서버가 쓰지 않으므로 싣지 않는다. 특히
+`sample_files/monimo/` 는 고객사 실 문서라 다른 현장으로 나가면 안 된다. 이 폴더들의 변경은 코드서빙 배포본으로만 전달된다.
+`env/.env.*` 도 확장자 필터에 걸려 싣지 않으므로 현장 환경설정 변경은 별도로 전달한다.
 
-인자는 경로가 아니라 폴더 이름 하나여야 한다(`.`, `..`, 슬래시 포함 시 거부).
+번들의 설정은 기본으로 표준 `genon/preprocessor/resource/` 다. **사이트 현장(모니모 등)에 보낼 때는 `--site <site>` 를 준다.**
+그러면 `resource/` 만 `genon/sites/<site>/resource/` 완성본(표준 사본 + 사이트 소유 파일)으로 싣고, 나머지는 같다.
+사이트 없이 만든 번들을 사이트 현장에 덮으면 사이트 문서유형 설정이 표준으로 바뀌어 사라진다.
+완성본의 표준 사본이 최신인지는 `test_sites_sync_unit.py` 가 확인하므로, 표준을 고쳤다면 `build-script/sync-sites.sh` 를 먼저 실행한다.
+사이트 전용 facade(`genon/sites/<site>/facade/`)와 `sample_files/<site>/` 는 `--site` 를 주어도 싣지 않는다.
+
+인자는 경로가 아니라 폴더 이름 하나여야 한다(`.`, `..`, 슬래시 포함 시 거부). `--site` 값도 사이트 이름만 받고,
+`genon/sites/<site>/resource/` 가 없으면 실패한다.
 
 **이미 파일이 있는 목적지에는 만들지 않는다.** rsync 는 지우지 않으므로 번들 대상에서 빠진
 파일이 옛 사본으로 남아 저장소와 어긋난 번들이 된다. 같은 이름으로 다시 만들려면 먼저 지운다.
