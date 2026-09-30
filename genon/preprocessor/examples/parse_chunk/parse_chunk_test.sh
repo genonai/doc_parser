@@ -46,8 +46,9 @@ cd "${SCRIPT_DIR}"
 # 산출물: result_parse_chunk/<stem>.chunks.json  (+ docling 경로는 <stem>.docling.json)
 #
 # doc_type 별 경로:
-#   tabular_mapping (xlsx) : menu term cs_ssf stock_insight              → 행 1개 = 청크 1개
+#   tabular_mapping (xlsx) : menu term cs_ssf                            → 행 1개 = 청크 1개
 #   json_mapping    (json) : faq cs_slf monimo_event monimo_news cs_sss link → 레코드 1개 = 청크 1개
+#   json_mapping    (구분자 텍스트) : stock_insight                          → 종목 1개 = 레코드 1개
 #   json_semantic   (json) : product_hpp                                 → 섹션 1개 = 청크 1개
 #                            (성격별로 나뉜 섹션마다 SECTION_NM/SOURCE_JSON_PATH + 공통 정보)
 #   llm (문서 단위)        : product_slf product_ssf cs_hpp card
@@ -88,7 +89,7 @@ MONIMO_CASES=(
   "product_hpp:${MONIMO}/monimo_product_hpp_sample.json"
   # 원천이 한 종목의 세부내용 JSON 하나를 ntc_objline 1..N 으로 문자 단위로 잘라 여러 행에
   # 뿌린다. row_merge 가 그 행들을 도로 이어붙인다 — 아래 전용 블록 참고.
-  "stock_insight:${MONIMO}/monimo_stock_insight_sample.xlsx"
+  "stock_insight:${MONIMO}/monimo_stock_insight_sample.txt"
 )
 
 # 한 건이 실패해도 나머지는 계속 돌린다(set -e 아래에서 전체 중단 방지).
@@ -118,7 +119,7 @@ MONIMO_CASES=(
 # assert all('conversion_note' not in x['text'] and 'source_file:' not in x['text'] for x in d)
 # "
 
-# ── AI차트뷰 xlsx: 행 병합 + 자동판별 렌더링 + 섹션 단위 분할 (#360) ─────────
+# ── AI차트뷰 구분자 텍스트(2026-09-22 개편, 이전은 xlsx): 행 병합 + 자동판별 렌더링 + 섹션 단위 분할 (#360) ─────────
 # 2026-08-28 원천 개편으로 세 가지가 바뀌었다.
 #   1) 헤더가 영문 소문자 (jong_name·jong_code·regt_no·ntc_objline·detail_desc·news_date …)
 #   2) 한 종목의 세부내용이 ntc_objline 1..N 으로 **문자 단위 절단**되어 행마다 흩어짐
@@ -133,7 +134,7 @@ MONIMO_CASES=(
 # 샘플을 다시 만들려면: "${PYTHON}" make_stock_insight_sample.py
 # LLM 필드가 비활성이라 모델서빙 없이 돈다.
 "${PYTHON}" parse_chunk_test.py --doc_type stock_insight --chunk-size 1500 \
-  "${MONIMO}/monimo_stock_insight_sample.xlsx" "${OUT}/"
+  "${MONIMO}/monimo_stock_insight_sample.txt" "${OUT}/"
 # "${PYTHON}" -c "
 # import json
 # d = json.load(open('${OUT}/monimo_stock_insight_sample.chunks.json'))
