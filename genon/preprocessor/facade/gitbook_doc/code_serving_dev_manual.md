@@ -183,11 +183,13 @@ cd /app/src/service && uvicorn main:app --host 0.0.0.0 --port ${PORT:-8080}
 
 | `kind` | 복사할 템플릿 (`resource/templates/`) | 제공 예시 (`resource/`) |
 |---|---|---|
-| `rows` | `custom_field_TEMPLATE_rows.yaml` | `custom_field_faq.yaml` · `custom_field_term.yaml` |
-| `records` | `custom_field_TEMPLATE_records.yaml` | `custom_field_monimo_event.yaml` |
-| `sections` | `custom_field_TEMPLATE_sections.yaml` | `custom_field_product_hpp.yaml` |
+| `rows` | `custom_field_TEMPLATE_rows.yaml` | — |
+| `records` | `custom_field_TEMPLATE_records.yaml` | — |
+| `sections` | `custom_field_TEMPLATE_sections.yaml` | — |
 | `document` | `custom_field_TEMPLATE_document.yaml` | `custom_field_card.yaml` |
-| `html` | `custom_field_TEMPLATE_html.yaml` | `custom_field_monimo_news.yaml` |
+| `html` | `custom_field_TEMPLATE_html.yaml` | — |
+
+특정 고객사이트 전용 문서유형 설정은 공통 배포본의 `resource/` 에 포함되지 않습니다.
 
 ```bash
 # 실행 위치: 저장소 루트
@@ -1065,13 +1067,18 @@ curl "http://code-serving-<ID>-<리비전>:8080/health"
 
 전처리기가 호출하는 모델은 세 종류입니다. 이미 배포된 코드서빙은 값이 채워져 있습니다.
 
-| 용도 | config 안의 이름 | 비고 |
-|---|---|---|
-| 문서 레이아웃 분석 | `layout.genos_layout.endpoint` | dots mocr |
-| 목차·메타데이터·이미지/표 설명 | 각 `enrichment` 항목의 `url` | LLM. 이미지 설명은 vision 필요 |
-| OCR | `ocr.paddle.ocr_endpoint` | 서빙 ID가 아니라 **주소**를 씁니다 |
+접속 정보는 `resource/model_presets.yaml` **한 파일**에 모여 있습니다. 메인 yaml 은
+`model_presets_file: model_presets.yaml` 로 이 파일을 읽고, 각 블록은 `model_preset: <이름>` 으로 부릅니다.
+서빙 ID·주소·키를 바꿀 때는 이 파일만 고칩니다.
 
-주소는 실행 위치에 따라 다릅니다. 같은 `resource/*.yaml`을 쓰되 URL과 `api_key`만 바꿉니다.
+| 용도 | 프리셋 이름 | 비고 |
+|---|---|---|
+| 문서 레이아웃 분석 | `layout` (`endpoint`, `api_key`) | dots mocr |
+| 목차·메타데이터·표 설명 | `default` | LLM |
+| 이미지 설명 · PPT 페이지 설명 | `image` · `page` | vision 필요 |
+| OCR | `ocr` (`ocr_endpoint`) | 서빙 ID가 아니라 **주소**를 씁니다 |
+
+주소는 실행 위치에 따라 다릅니다. 같은 `model_presets.yaml` 을 쓰되 URL과 `api_key`만 바꿉니다.
 
 | 실행 위치 | URL | `api_key` |
 |---|---|---|
@@ -1079,9 +1086,9 @@ curl "http://code-serving-<ID>-<리비전>:8080/health"
 | 로컬 PC | `https://<GENOS_HOST>/api/gateway/rep/serving/<ID>/v1/chat/completions` | **필수** |
 
 ```yaml
-layout:
-  layout_model_type: "genos_layout"
-  genos_layout:
+# resource/model_presets.yaml
+model_presets:
+  layout:
     endpoint: "https://<GENOS_HOST>/api/gateway/rep/serving/<LAYOUT_SERVING_ID>/v1/chat/completions"
     api_key: "<MODEL_SERVING_API_KEY>"
 ```
@@ -1092,7 +1099,7 @@ layout:
 OCR도 함께 확인하세요. 기본값이 `ocr.ocr_mode: auto` 이고 주소는 플레이스홀더로 남아
 있습니다. OCR은 주소라서 게이트웨이 URL로 대체되지 않습니다. 다음 세 가지 중 하나가 필요합니다.
 
-- 접근 가능한 PaddleOCR 서버 주소를 `ocr.paddle.ocr_endpoint`에 설정
+- 접근 가능한 PaddleOCR 서버 주소를 `model_presets.yaml` 의 `ocr` 프리셋(`ocr_endpoint`)에 설정
 - OCR이 필요 없으면 `ocr.ocr_mode: disable`
 - Upstage OCR을 쓰면 `ocr.engine: upstage`로 바꾸고 `upstage.api_key` 설정
 
@@ -1408,7 +1415,8 @@ git apply "$BACKUP_DIR/my_change.patch"           # 충돌하면 번들에서 �
 
 ### 5.2 설정이 필요한 값 (플레이스홀더)
 
-`<대문자_이름>` 형태는 환경마다 다른 값입니다. 이미 배포된 코드서빙에는 채워져 있습니다.
+`<대문자_이름>` 형태는 환경마다 다른 값입니다. 모델 접속값의 자리표는 모두 `resource/model_presets.yaml`
+한 파일에 있습니다. 이미 배포된 코드서빙에는 채워져 있습니다.
 
 | 플레이스홀더 | 무엇으로 바꾸나 |
 |---|---|
