@@ -1,0 +1,29 @@
+# 로컬(VPN) 개발 환경의 모델 프리셋. 표준 resource/model_presets.yaml 위에 얹혀 접속 정보만 바꾼다.
+#
+# 로컬 실행 도구(parse_chunk_test.sh, parse_chunk_verify.sh, build-script/run-local.sh)가 환경변수
+# GENOS_MODEL_PRESETS_FILE 로 이 파일을 지정한다. 직접 실행할 때는 같은 변수를 설정한다.
+#
+#   GENOS_MODEL_PRESETS_FILE=sites/dev/model_presets.yaml python main.py
+#
+# 사내 VPN 안에서만 접속되는 주소·키라 git 으로 관리한다. 같은 이름의 표준 프리셋에 키 단위로 얹히므로
+# 여기에는 바뀌는 키(주소·키)만 적는다.
+model_presets:
+  default:
+    url: "https://genos.genon.ai/api/gateway/rep/serving/752/v1/chat/completions"
+    api_key: "d1a9e0acab6243019008a96cd8af868e"
+  image:
+    url: "https://genos.genon.ai/api/gateway/rep/serving/752/v1/chat/completions"
+    api_key: "d1a9e0acab6243019008a96cd8af868e"
+  page:
+    url: "https://genos.genon.ai/api/gateway/rep/serving/761/v1/chat/completions"
+    api_key: "d6b4609e06104261b7f945819b65256d"
+  ocr:
+    ocr_endpoint: "http://192.168.73.172:48080/ocr"
+  layout:
+    endpoint: "http://192.168.75.174:26001/v1/chat/completions"
+  whisper:
+    url: ""            # 로컬 음성인식 서버 없음
+  guardrail:
+    url: "https://genos.genon.ai/api/gateway"
+    workflow_id: 4932
+    api_key: "2f234b362030401485c65146efe56271"

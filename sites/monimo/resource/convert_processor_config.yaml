@@ -3,20 +3,15 @@ defaults:
   log_level: 4
 
 # ── 모델 프리셋 ───────────────────────────────────────────────────────────────
-# 모델 한 벌(접속 정보 + 그 모델의 성질)을 이름 붙여 두고, 쓰는 자리에서는
-# `model_preset: <이름>` 한 줄로 부른다. 서빙 ID 나 키가 바뀌면 여기만 고치면 된다.
-# 블록에 url/api_key/model 을 직접 적는 기존 방식도 그대로 되며, 직접 적은 값이 우선한다.
-# 담을 수 있는 값과 자세한 규칙은 gitbook_doc/parser_processor.md 의 "모델 프리셋" 절 참고.
-model_presets:
-  default:
-    url: "https://genos.genon.ai/api/gateway/rep/serving/752/v1/chat/completions"
-    api_key: "d1a9e0acab6243019008a96cd8af868e"
-    model: "model"
+# 모델·외부 서비스 접속 정보(LLM 서빙 주소·키, OCR·layout·whisper·guardrail 주소)는
+# model_presets.yaml 에 모여 있고, 쓰는 자리에서는 `model_preset: <이름>` 한 줄로 부른다.
+# 규칙과 담을 수 있는 값은 그 파일 머리말을 참고한다.
+model_presets_file: model_presets.yaml
 
 formats:
   # 엑셀(xlsx/xlsm), csv는 PDF 변환 없이 처리
   xlsx:
-    # docling(기본): MsExcel 백엔드로 DoclingDocument 생성 후 기존 청킹/벡터 파이프라인.
+    # docling(기본): xlsx 를 docling MsExcel 백엔드로 처리(현행) → 기존 청킹/벡터 파이프라인.
     # tabular: 데이터 행마다 1벡터 + 컬럼 헤더→셀 값 메타데이터(병합셀 unmerge+forward-fill).
     #   ※ Weaviate property 규칙(/[_A-Za-z][_0-9A-Za-z]*/)상 한글 헤더는 field_<hash> 로 alias 되고
     #      원본명은 column_map 에 보존된다.
@@ -28,53 +23,43 @@ formats:
       # 1시트에 표가 여러 개(빈 행으로 분리)면 표별로 분리. false(기본)=시트=1표.
       multi_table: false
 
-  # PPT(ppt/pptx): 페이지 기반 청킹(기본 1 page 1 chunk, chunk_size 지정 시 연속 페이지 결합).
+  # PPT(.pptx): docling 경로. page_description="페이지 자체"를 VLM 설명 → 페이지별 TextItem 주입.
+  # PPT 는 페이지 기반 청킹(1 page 1 chunk, chunk_size 로 연속 페이지 결합) + TOC skip. (.ppt 레거시 미지원)
+  # enable=true 면 generate_page_images 자동 강제. native text 는 프롬프트({{page_text}})에 반영.
   ppt:
-    # page_description: 페이지 내부 이미지 오브젝트(image_description)와 별개로 "페이지 자체"를
-    # 렌더링해 VLM 설명하고 그 텍스트를 페이지별 TextItem 으로 주입한다(PPT 원본 전용).
-    # native text 가 있으면 프롬프트에 포함해 요청. enable=true 면 generate_page_images 자동 강제.
     page_description:
       enable: true
-      # url: "https://genos.genon.ai/api/gateway/rep/serving/776/v1/chat/completions"
-      # api_key: "30241fdbb58d42e48a36495da34a6de7"
-      # url: "https://genos.genon.ai/api/gateway/rep/serving/807/v1/chat/completions"
-      # api_key: "3a2f82b4859e4cd1b345c80a3ee5b2e6"
-      # url: "https://genos.genon.ai/api/gateway/rep/serving/761/v1/chat/completions"
-      # api_key: "d6b4609e06104261b7f945819b65256d"
-      model_preset: default
+      model_preset: page
       timeout: 360
       concurrency: 16          # 페이지 설명 요청 병렬 수
-      # 프롬프트: prompt_template_file(우선) > prompt(inline) > 내장 기본값
+      # 선택 튜닝: images_scale(렌더 배율) / max_image_side(전송 이미지 최대 변) / max_tokens(출력 상한) / params(추가 VLM 파라미터)
       prompt_template_file: prompt_page_image_description_default.md
 
 ocr:
   # OCR 수행 모드. "auto"(default)=휴리스틱 기반 재OCR / "force"=무조건 전체 OCR / "disable"=OCR 안 함
+  # (PDF 입력에만 적용. DOCX/기타 포맷은 ocr_mode 무관)
   ocr_mode: "auto"
 
   # OCR 엔진 선택. "paddle"(default) | "upstage"
-  # docker image 재빌드 없이 yaml 만으로 전환 가능
   engine: "paddle"
 
-  # 글리프 깨진 테이블 셀 재OCR 시 HTTP timeout(초). 기본 60
+  # 글리프 깨진 테이블 셀 재OCR 시 HTTP timeout(초)
   table_cell_ocr_timeout: 60
 
-  # engine: "paddle" 일 때만 사용. text_score 미지정 시 0.3 기본
   paddle:
-    # <OCR_ENDPOINT>: PaddleOCR 서버 주소로 변경 필요
-    ocr_endpoint: "http://192.168.73.172:48080/ocr"
+    # engine: "paddle" 일 때만 사용
+    model_preset: ocr   # 서버 주소는 model_presets.yaml
     text_score: 0.3
 
   # 글리프 깨짐 기반 auto-OCR 재트리거 임계값
-  # table_cell_threshold: 셀 텍스트에 GLYPH 토큰이 N개 이상이면 재OCR(>= 비교, 기본 1)
-  # document_threshold: 문서 텍스트 아이템 GLYPH 토큰이 N개 초과면 OCR 경로 재시도(> 비교, 기본 10)
   glyph_detection:
-    table_cell_threshold: 1
-    document_threshold: 10
+    table_cell_threshold: 1   # 셀 GLYPH 토큰 N개 이상이면 재OCR
+    document_threshold: 10     # 문서 GLYPH 토큰 N개 초과면 OCR 경로 재시도
 
   # engine: "upstage" 일 때만 사용
   upstage:
     api_endpoint: "https://api.upstage.ai/v1/document-digitization"
-    # api_key 가 비어있으면 UPSTAGE_API_KEY 환경변수에서 fallback (시크릿 운영용)
+    # api_key 가 비어있으면 UPSTAGE_API_KEY 환경변수에서 fallback
     api_key: ""
     model: "ocr"
     timeout: 60
@@ -83,30 +68,24 @@ ocr:
 layout:
   layout_model_type: "genos_layout" # "genos_layout"(default) or "docling_layout"
   genos_layout:
-    endpoint: "http://192.168.75.174:26001/v1/chat/completions"
-    api_key: ""
+    model_preset: layout   # 서빙 주소·키는 model_presets.yaml
     page_batch_size: 128
     max_completion_tokens: 16384
     model: "dots-mocr"          # 서빙 모델명
-    timeout: 1200               # VLM 요청 타임아웃(초)
+    timeout: 3600               # VLM 요청 타임아웃(초)
     retry_count: 2              # 일시적 전송 실패(502 등) 재시도 횟수. 폭주·타임아웃은 재시도 대신 폴백
     temperature: 0.1            # 생성 temperature
     top_p: 0.9                  # 생성 top_p (0<top_p<=1)
     repetition_penalty: 1.15    # >1.0, 토큰 반복(degeneration) 억제
-    length_fallback_enabled: true  # 폭주(finish_reason=length)/타임아웃 감지 시 layout_only 보정 on/off
-    fallback_dpi: 200           # 보정 시 페이지 재렌더 DPI (dots.ocr 권장 200)
-    table_fallback_enabled: true   # dotsocr가 표 HTML을 못 준 빈 테이블을 TableFormer로 보강 (CPU ~1.7s/표)
 
-
-# ── PDF 파이프라인 ─────────────────────────────────────────────────────────────
-# docling PDF 파싱 성능/품질 노브. 키 생략 시 아래 기본값과 동일하게 동작.
+# PDF 파이프라인 (docling PDF 파싱 성능/품질 노브)
 pdf_pipeline:
-  num_threads: 8                     # accelerator 스레드 수 (호스트 CPU에 맞게 조정)
+  num_threads: 8                     # accelerator 스레드 수
   device: "auto"                     # "auto"(default) | "cpu" | "cuda" | "mps"
-  images_scale: 2                    # 페이지/그림 이미지 렌더 배율 (품질↔메모리)
-  generate_page_images: true         # false 로 두면 메모리 절감
-  generate_picture_images: true      # false 로 두면 그림 이미지 미생성
-  table_structure_mode: "accurate"   # "accurate"(default, 품질) | "fast"(속도)
+  images_scale: 2                    # 페이지/그림 이미지 렌더 배율
+  generate_page_images: true
+  generate_picture_images: true
+  table_structure_mode: "accurate"   # "accurate"(default) | "fast"
 
 # table_image
 # 복잡 표 대응: 표를 picture 와 동일하게 이미지로 잘라 저장하고 media_files 에
@@ -128,22 +107,22 @@ output:
   # 같은 청크 전문을 표만 다른 표기형태로 렌더한 텍스트를 청크에 추가로 싣는다.
   # 표가 없는 청크는 text 와 같은 값이 들어간다. 켜면 본문이 형식 수만큼 복제된다.
   # 빈 목록(기본)=추가 안 함 | "html" -> text_table_html | "markdown" -> text_table_md
-  table_text_formats: ["html", "markdown"]
+  table_text_formats: []
 
-# ── enrichment ────────────────────────────────────────────────────────────────
+# enrichment
 # 각 항목은 {이름: {옵션}} 형식의 list.
-# 비활성화 방법: ① 항목 삭제  ② 항목 주석 처리  ③ enable: false 추가 (설정 보존)
+# 비활성화: ① 항목 삭제  ② 항목 주석 처리  ③ enable: false
+# 모델서빙 ID·주소는 model_presets.yaml 에서 변경한다.
 enrichment:
   - toc:
       enable: true
-      # 동작 보존: 기존 하드코딩 값(서빙 502)을 그대로 사용
       model_preset: default
       temperature: 0.0
       top_p: 0.00001
       seed: 33
       max_tokens: 10000
       precheck:
-        enabled: false  # 동작 보존: 기존 하드코딩 toc_precheck_enabled=False
+        enabled: false
         model_context_tokens: 128000
         completion_reserved_tokens: 12000
       # 반복(degeneration) 억제. 미설정 시 미전송.
@@ -164,34 +143,17 @@ enrichment:
 
   - metadata:
       enable: true
-      # 동작 보존: 기존 하드코딩 값(서빙 502)을 그대로 사용
       # system_prompt 가 설정되면 facade custom metadata enricher를 사용하고,
       # 비어있으면 docling 내장 metadata 추출 경로를 사용한다.
       model_preset: default
       max_tokens: 10000
       temperature: 0.0
       timeout: 3600
-      pages: [1,4]  # null = 첫 4페이지 (docling 기존 동작과 동일)
+      pages: [1,4]  # null = 첫 4페이지
       # output_fields: 프롬프트의 JSON 키와 일치해야 함
       output_fields: [created_date, authors]
-      # field_transforms: 추출 키 → 벡터 메타 필드 + 타입 변환 매핑 (선언적).
-      #   - source : 출력에서 찾을 후보 키. 문자열 1개 또는 list(순서대로 탐색).
-      #   - target : 벡터 메타 필드명 (생략 시 source 첫 키).
-      #   - type   : 값 변환기. 현재 지원: date_int (날짜 텍스트 → YYYYMMDD 정수).
-      #   - fallback: (옵션) 추출 실패 시 보조 추출. 현재 지원: doc_text_scan (본문 휴리스틱).
-      # 생략하면 아래 기본값(created_date 동작)이 그대로 적용된다(하위 호환).
-      # 프롬프트가 바뀌어 키 이름이 달라지면 source 만 수정하면 된다.
-      # field_transforms:
-      #   - source: [created_date, 작성일]
-      #     target: created_date
-      #     type: date_int
-      #     fallback: doc_text_scan
       parser:
-        type: json
-        # extract_pattern: '<date>(.*?)</date>'
-        # type: python
-        # file: authors_parser.py
-        # callable: parse
+        type: json   # json(default) | python
       # thinking(추론) 모드. 미설정 시 기본 off(차단 토큰 전송). 모델 자동 판단은 thinking: auto.
       # thinking: off | on | auto,  thinking_dialect: standard(enable_thinking) | hcx(force/skip_reasoning)
       # thinking: off
@@ -199,23 +161,20 @@ enrichment:
       system_prompt_file: prompt_metadata_default_system.md
       user_prompt_file: prompt_metadata_default_user.md
       precheck:
-        enabled: false  # 동작 보존: 기존 하드코딩 metadata_precheck_enabled=False
+        enabled: false
         model_context_tokens: 128000
         completion_reserved_tokens: 12000
 
-  # NOTE: image_description / custom_fields 는 facade 후처리 enricher로 동작한다.
-  #       필요 시 enable 값을 조정해서 사용.
+  # image_description / custom_fields 는 facade 후처리 enricher. 필요 시 enable: true 로 활성화.
   - doc_summary:
       enable: false          # 기본 off. true 또는 런타임 doc_summary=1 로 활성화. image/table 이 공유
       model_preset: default
       prompt_file: prompt_doc_summary.md   # {{full_text}} 기반 문서 본문요약
       max_chars: 6000
-
   - image_description:
-      enable: true
-      model_preset: default
-      # 이미지 설명 요청 병렬 수 (기본 16, 문서 내 이미지가 많을 때 처리속도에 영향)
-      concurrency: 16
+      enable: false
+      model_preset: image
+      concurrency: 16        # 이미지 설명 요청 병렬 수
       before_items: 3
       after_items: 2
       max_context_chars: 1500
@@ -225,10 +184,9 @@ enrichment:
         enable: false          # false=일반 image description만 / true=차트 처리 수행
         detection: auto         # auto=docling 자동판별(차트 분류 이미지만 차트 프롬프트) | all=모든 이미지를 차트로 처리
         chart_prompt_file: prompt_chart_description_default.md
-
   - table_description:
       enable: false          # 기본 off(회귀 없음). true 또는 런타임 table_desc=1 로 활성화
-      model_preset: default
+      model_preset: image
       concurrency: 8         # 표 설명 요청 병렬 수
       before_items: 3
       after_items: 2
@@ -267,36 +225,11 @@ enrichment:
   # ── 문서유형별 custom_fields 추출 ──────────────────────────────────────────
   # extractor 는 적지 않는다 — 설정 파일(config_file)의 `source.kind` 에서 정해진다
   #   (document → 문서 단위 LLM 추출, rows → Excel·CSV 행별 직접 매핑).
-  # doc_type(요청 kwargs)과 일치하는 설정만 동작. config_file 은 resource_dev 공유본.
-  # 카드 상품 메타데이터(12필드) 추출 — monimo 카드 HTML(flatten 후) 대상
+  # doc_type(요청 kwargs)과 일치하는 설정만 동작. 배포 시 enable/serving ID 설정 후 사용.
   - custom_fields:
-      enable: true
+      enable: false
       doc_type: card
       config_file: custom_field_card.yaml   # resource_path 자동 = 이 yaml 파일 디렉토리
-
-  # FAQ Excel/CSV 행별 메타데이터 매핑 — LLM 호출 없음
-  - custom_fields:
-      enable: true
-      doc_type: faq
-      config_file: custom_field_faq.yaml   # resource_path 자동 = 이 yaml 파일 디렉토리
-
-  # ── authors 데모(기존) ──
-  - custom_fields:
-      enable: false
-      model_preset: default
-      max_tokens: 1000
-      temperature: 0.0
-      timeout: 60
-      pages: [1]
-      output_fields: [authors]
-      parser:
-        type: json
-      system_prompt_file: prompt_custom_fields_authors_system.md
-      user_prompt_file: prompt_custom_fields_authors_user.md
-
-  - custom_fields:
-      enable: false
-      config_file: custom_field_authors.yaml   # resource_path 자동 = 이 yaml 파일 디렉토리
 
 # 청킹(GenosSmartChunker) 설정
 chunking:
@@ -357,13 +290,10 @@ models:
   artifacts_path: ""
 
 # PII 마스킹(#315) — GenOS Guardrail 연동.
-# on/off 는 여기서 하지 않고 요청별 kwargs(guardrail_call, 기본 off)로 제어한다.
-# 아래는 접속 정보(환경 종속값)만 둔다. 클러스터 내부 gateway 주소를 사용한다.
+# on/off 는 요청별 kwargs(guardrail_call, 기본 off)로 제어. 아래는 접속 정보(환경 종속값)만.
 
 guardrail:
   # GenOS 분류 워크플로우 연동(#315). 기능 on/off 는 요청별 kwargs(guardrail_call)로 제어.
-  url: "https://genos.genon.ai/api/gateway"  # 코드가 /workflow/{workflow_id}/run/v2 를 붙임
-  workflow_id: 4932       # 민감정보 분류 워크플로우 ID (dev)
-  api_key: "2f234b362030401485c65146efe56271"  # 워크플로우 호출 Bearer 인증키 (dev)
+  model_preset: guardrail   # 접속 정보(url, workflow_id, api_key)는 model_presets.yaml
   timeout: 60             # 워크플로우 호출 타임아웃(초). 대용량 문서는 상향 필요
-  masking_enabled: on  # quote_masked 치환 on/off. content_category 메타 부착은 기능 켜지면 항상 수행
+  masking_enabled: false  # quote_masked 치환 on/off. content_category 메타 부착은 기능 켜지면 항상 수행

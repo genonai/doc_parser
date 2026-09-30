@@ -40,8 +40,8 @@ cd "${SCRIPT_DIR}"
 # 원천 화면에서 확인한 실 payload 스키마(monimo_event_real_sample.json). 같은 config 가
 # 두 표기를 모두 받는지(key_map 별칭 fallback) 확인하는 용도다.
 #
-# 필요 조건: resource_dev/custom_field_*.yaml 의 llm_fields.url / api_key 가 살아있는 모델서빙을
-#            가리켜야 SUMMARY_TEXT·KEYWORDS·SYNONYMS·QUESTION_VARIANTS 가 채워진다.
+# 필요 조건: 모니모 문서유형은 --site monimo(sites/monimo/resource)로 실행하고, 로컬 모델 프리셋
+#            (sites/dev/model_presets.yaml)이 살아있는 모델서빙을 가리켜야 SUMMARY_TEXT·KEYWORDS·SYNONYMS·QUESTION_VARIANTS 가 채워진다.
 #            서빙이 없으면 on_error:null 정책에 따라 그 필드만 null 이 되고 나머지는 정상 산출된다.
 # 산출물: result_parse_chunk/<stem>.chunks.json  (+ docling 경로는 <stem>.docling.json)
 #
@@ -107,7 +107,7 @@ MONIMO_CASES=(
 # front matter 만으로 이루어진 청크가 사라져 8청크 → 7청크가 된다.
 # 본문에서 뺀 front matter 도 LLM 프롬프트에는 계속 실린다(PRODUCT_C 근거 보존).
 # LLM 연결이 죽어도 front matter 승격 필드와 constants(GROUP_C 등)는 그대로 남는다.
-# "${PYTHON}" parse_chunk_test.py --doc_type product_slf \
+# "${PYTHON}" parse_chunk_test.py --site monimo --doc_type product_slf \
 #   "${MONIMO}/monimo_product_slf_sample.md" "${OUT}/front_matter/"
 # "${PYTHON}" -c "
 # import json
@@ -133,7 +133,7 @@ MONIMO_CASES=(
 # 중간에서 잘리면 직전 제목을 `(이어서)` 로 다시 붙인다 — 뒷 조각만 검색돼도 문맥이 남는다.
 # 샘플을 다시 만들려면: "${PYTHON}" make_stock_insight_sample.py
 # LLM 필드가 비활성이라 모델서빙 없이 돈다.
-"${PYTHON}" parse_chunk_test.py --doc_type stock_insight --chunk-size 1500 \
+"${PYTHON}" parse_chunk_test.py --site monimo --doc_type stock_insight --chunk-size 1500 \
   "${MONIMO}/monimo_stock_insight_sample.txt" "${OUT}/"
 # "${PYTHON}" -c "
 # import json
@@ -175,17 +175,17 @@ MONIMO_CASES=(
 # assert d[0]['annual_fee_amount'] == '18000', d[0]['annual_fee_amount']
 # "
 
-# "${PYTHON}" parse_chunk_test.py --doc_type faq "/Users/shkim/_shkim/01.source/doc_parser/shkim_labs/20260803_monimo/02_faq/증권FAQ_260712.csv" "${OUT}/"
+# "${PYTHON}" parse_chunk_test.py --site monimo --doc_type faq "/Users/shkim/_shkim/01.source/doc_parser/shkim_labs/20260803_monimo/02_faq/증권FAQ_260712.csv" "${OUT}/"
 # "${PYTHON}" parse_chunk_test.py --doc_type card "../../../../shkim_labs/20260806_hwp/hwp_sample_table.hwp" "${OUT}/"
-# "${PYTHON}" parse_chunk_test.py --doc_type monimo_event "${MONIMO}/monimo_event_table_sample.json" "${OUT}/"
-# "${PYTHON}" parse_chunk_test.py --doc_type product_hpp "${MONIMO}/monimo_product_hpp_wcms_sample.json" "${OUT}/"
+# "${PYTHON}" parse_chunk_test.py --site monimo --doc_type monimo_event "${MONIMO}/monimo_event_table_sample.json" "${OUT}/"
+# "${PYTHON}" parse_chunk_test.py --site monimo --doc_type product_hpp "${MONIMO}/monimo_product_hpp_wcms_sample.json" "${OUT}/"
 
 # ── 표 표기형태별 추가 텍스트(text_table_html / text_table_md) ─────────────────
 # output.table_text_formats 를 켜면 청크에 text 외에 표기형태별 텍스트가 함께 실린다.
 # text 는 그대로 두고 표 부분만 바꿔 렌더한 전문이며, 표가 없는 청크는 text 와 같은 값이 된다.
-# resource_dev 는 ["html", "markdown"] 로 켜져 있다. 껐다 켠 대조는 아래처럼 확인한다
+# 표준 설정은 [] 로 꺼져 있다. 껐다 켠 대조는 아래처럼 확인한다
 # (설정 편집 없이 청킹만 다시 돌리려면 이미 만들어둔 .docling.json 을 입력으로 준다).
-# "${PYTHON}" parse_chunk_test.py --doc_type cs_hpp "${MONIMO}/monimo_cs_hpp_rich_table_sample.html" "${OUT}/"
+# "${PYTHON}" parse_chunk_test.py --site monimo --doc_type cs_hpp "${MONIMO}/monimo_cs_hpp_rich_table_sample.html" "${OUT}/"
 # "${PYTHON}" -c "
 # import json
 # d = json.load(open('${OUT}/monimo_cs_hpp_rich_table_sample.chunks.json'))
@@ -222,7 +222,7 @@ RUN="run-1"
 # "${PYTHON}" parse_chunk_test.py --llm_cache --interim_root "${INTERIM}" --workflow_id "${WF}" --run_id "${RUN}" "${FILE}" "${OUT}/"
 
 # ── monimo 카드 HTML → (flatten) → 파싱(custom_fields enrichment) → 청킹 ──────────
-# custom_fields(카드 12필드)는 resource_dev/custom_field_card.yaml 로 설정된다.
+# custom_fields(카드 12필드)는 resource/custom_field_card.yaml 로 설정된다.
 # 결과는 파일로 저장되지 않고 파서 응답의 metadata 로 콘솔에 출력되며, 청킹 후에는
 # <name>.chunks.json 의 각 청크 top-level 키로 실린다(GenOSVectorMeta extra=allow).
 # MONIMO_SRC="../../../../shkim_labs/20260803_monimo/01_card/card02.docling.html"
@@ -238,20 +238,20 @@ RUN="run-1"
 #    모델서버 없이 매핑만 보려면 --doc_type 없이 돌리거나 그 yaml 의 llm_fields 를 주석 처리한다.
 #    (증권/카드 FAQ 도 동일 스키마라 같은 매핑으로 처리)
 # FAQ_SRC="../../../../shkim_labs/20260803_monimo/02_faq/증권FAQ_260712.xlsx"
-# "${PYTHON}" parse_chunk_test.py --doc_type faq "${FAQ_SRC}" "${OUT}/"
+# "${PYTHON}" parse_chunk_test.py --site monimo --doc_type faq "${FAQ_SRC}" "${OUT}/"
 # 결과 확인: 행마다 1청크. --doc_type faq 사용 시 목표 custom field(DB 컬럼명)도 부착.
 #   ls "${OUT}"/생명FAQ_260712.chunks.json
 #   "${PYTHON}" -c "import json;d=json.load(open('${OUT}/생명FAQ_260712.chunks.json'));print(len(d));print(d[0])"
 
 # ── monimo 이벤트 JSON → parser(json_mapping 레코드별) → chunker (레코드마다 1청크) ──────────
-# resource_dev/parser_processor_config.yaml 의 doc_type=monimo_event 블록을 enable: true 로 바꾸면
+# sites/monimo/resource/parser_processor_config.yaml 의 doc_type=monimo_event 블록이 켜져 있으면(--site monimo)
 # eventList[*] 가 레코드마다 청크 1개가 되고 TITLE/EVENT_FROM/EVENT_TO/DETAIL_HTML 이 청크 metadata 로 실린다.
 # 요약본문(SUMMARY_TEXT)은 LLM 생성이라 custom_field_monimo_event.yaml 의 llm_fields.url/model
 # 설정이 필요하다(LLM 연결·프롬프트까지 그 파일 하나에 인라인되어 있다).
 # LLM 없이 매핑만 확인하려면 같은 파일에서 llm_fields 를 주석 처리하고
 # text_fields 를 [TITLE, DETAIL_TEXT] 로 바꾼다.
 # (doc_type 은 이제 위 MONIMO_CASES 배열에서 기본으로 함께 실행된다)
-# "${PYTHON}" parse_chunk_test.py --doc_type monimo_event "../../sample_files/json/monimo_event_sample.json" "${OUT}/"
+# "${PYTHON}" parse_chunk_test.py --site monimo --doc_type monimo_event "../../sample_files/json/monimo_event_sample.json" "${OUT}/"
 # 결과 확인: 제목이 빈 3번째 레코드는 skip 되어 2청크.
 #   "${PYTHON}" -c "import json;d=json.load(open('${OUT}/monimo_event_sample.chunks.json'));print(len(d));print(d[0])"
 

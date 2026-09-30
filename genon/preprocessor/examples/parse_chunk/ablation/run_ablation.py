@@ -16,7 +16,7 @@ facade 훅과 toolbox 로 메울 수 있는가.
   4. 사람이 그 차이를 훅으로 메우고 다시 --step min diff 로 확인한다.
      메우는 데 든 줄 수와 toolbox 밖 import 여부가 이 검증의 진짜 산출이다.
 
-배포 설정을 건드리지 않는다. `resource_dev/` 를 임시 디렉터리로 복사한 뒤 그 사본만
+배포 설정을 건드리지 않는다. 모니모 사이트 완성본(`sites/monimo/resource/`)을 임시 디렉터리로 복사한 뒤 그 사본만
 최소화하고 `--config` 로 넘긴다.
 
 LLM 캐시 스코프는 두 실행이 **같다**. 스코프를 나누면 2회차가 LLM 을 다시 불러 그 답의
@@ -84,8 +84,8 @@ RETIRED = {"research_report"}
 
 
 def resource_dir() -> Path:
-    dev = PREPROCESSOR_DIR / "resource_dev"
-    return dev if dev.exists() else PREPROCESSOR_DIR / "resource"
+    # 케이스가 모니모 문서이므로 parse_chunk_verify 와 같은 모니모 사이트 완성본을 쓴다.
+    return verify.RESOURCE_DIR
 
 
 def cases_for(only: list[str] | None) -> list[tuple]:

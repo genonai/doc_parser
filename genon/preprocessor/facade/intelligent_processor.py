@@ -250,12 +250,7 @@ _TABLE_FORMER_MODE_MAP = {
 
 def _resolve_default_intelligent_config_path() -> str:
     base_dir = Path(__file__).resolve().parent
-    local_config = (base_dir / "../resource_dev/intelligent_processor_config.yaml").resolve()
-    default_config = (base_dir / "../resource/intelligent_processor_config.yaml").resolve()
-
-    if local_config.exists():
-        return str(local_config)
-    return str(default_config)
+    return str((base_dir / "../resource/intelligent_processor_config.yaml").resolve())
 
 
 # 청킹용 토크나이저 기본 경로 (config 미지정 시 현행 동작 유지)
@@ -363,8 +358,7 @@ class DocumentProcessor(DoclingRuntimeBase):
         '''
         initialize Document Converter (config 기반)
 
-        config_path 가 None 이면 resource_dev/intelligent_processor_config.yaml
-        (없으면 resource/intelligent_processor_config.yaml) 을 사용한다.
+        config_path 가 None 이면 resource/intelligent_processor_config.yaml 를 사용한다.
         GenOS 는 DocumentProcessor() 무인자로 호출하므로 기본 경로 resolve 필수.
 
         docling 배관(OCR·파이프라인·layout·컨버터·enricher)은 DoclingRuntimeBase 가

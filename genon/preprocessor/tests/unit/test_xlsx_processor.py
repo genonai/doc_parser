@@ -8,6 +8,7 @@ mock 없이 실제 추출 경로를 호출한다. docling/facade 의존성 미�
 """
 
 import json
+import shutil
 from pathlib import Path
 
 import pytest
@@ -626,6 +627,8 @@ def _make_e2e_config(tmp_path: Path, processing_mode: str) -> str:
     cfg.setdefault("formats", {}).setdefault("xlsx", {})["processing_mode"] = processing_mode
     out = tmp_path / "intelligent_processor_config.yaml"
     out.write_text(yaml.safe_dump(cfg, allow_unicode=True), encoding="utf-8")
+    # 메인 설정이 `model_presets_file` 로 같은 폴더의 프리셋 파일을 읽으므로 함께 옮긴다.
+    shutil.copy(_CONFIG.parent / "model_presets.yaml", tmp_path)
     return str(out)
 
 
@@ -670,6 +673,7 @@ async def test_parser_xlsx_docling_mode_runs_post_enrichment(tmp_path):
     cfg.setdefault("output", {})["format"] = "json"
     out = tmp_path / "parser_processor_config.yaml"
     out.write_text(yaml.safe_dump(cfg, allow_unicode=True), encoding="utf-8")
+    shutil.copy(_PARSER_CONFIG.parent / "model_presets.yaml", tmp_path)
     try:
         dp = mod.DocumentProcessor(config_path=str(out))
     except Exception as e:  # noqa: BLE001 - 모델/네트워크 등 환경 의존

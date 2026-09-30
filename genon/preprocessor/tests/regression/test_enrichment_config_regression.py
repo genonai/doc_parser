@@ -23,13 +23,10 @@ from processing.enrichment.enrichment_config import EnrichmentConfig
 ENRICHMENT_CONFIGS = [
     "resource/intelligent_processor_config.yaml",
     "resource/parser_processor_config.yaml",
-    "resource_dev/intelligent_processor_config.yaml",
-    "resource_dev/parser_processor_config.yaml",
 ]
 
 ATTACHMENT_CONFIGS = [
     "resource/attachment_processor_config.yaml",
-    "resource_dev/attachment_processor_config.yaml",
 ]
 
 
@@ -66,8 +63,14 @@ def test_log_level_present_and_int(repo_root, rel):
 @pytest.mark.regression
 @pytest.mark.parametrize("rel", ENRICHMENT_CONFIGS)
 def test_paddle_ocr_endpoint_under_paddle(repo_root, rel):
-    """ocr_endpoint 는 ocr.paddle 하위에 위치한다(옵션 위치 변경 회귀 방지)."""
-    cfg = _load(repo_root, rel)
+    """ocr_endpoint 는 ocr.paddle 하위에 위치한다(옵션 위치 변경 회귀 방지).
+
+    주소는 model_presets.yaml 의 ocr 프리셋에서 오므로 기동과 같이 펼친 결과를 본다.
+    """
+    from processing.common import config_parse as cp
+
+    _load(repo_root, rel)  # 파일이 없으면 skip
+    cfg = cp.load_config(str(repo_root / rel))
     paddle = cfg.get("ocr", {}).get("paddle", {})
     assert "ocr_endpoint" in paddle, f"{rel}: ocr.paddle.ocr_endpoint 누락"
     assert isinstance(paddle["ocr_endpoint"], str)

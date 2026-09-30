@@ -12,7 +12,7 @@
   5. 골든 대조                     → parse_chunk_golden.py --check (별도)
   6. 기록하고 수정을 되돌린다        → RESULTS.md (이 디렉터리)
 
-배포 설정을 건드리지 않는다. `resource_dev/`(없으면 `resource/`)를 임시 디렉터리로 복사한
+배포 설정을 건드리지 않는다. 모니모 사이트 완성본(`sites/monimo/resource/`)을 임시 디렉터리로 복사한
 뒤 드릴 설정만 덧붙여 등록하고, 그 사본을 `--config` 로 넘긴다. 그래서 이 스크립트를
 돌려도 골든이 흔들리지 않는다.
 
@@ -100,8 +100,8 @@ EXPECT_FIELDS = {
 
 
 def resource_dir() -> Path:
-    dev = PREPROCESSOR_DIR / "resource_dev"
-    return dev if dev.exists() else PREPROCESSOR_DIR / "resource"
+    # 케이스가 모니모 문서이므로 parse_chunk_verify 와 같은 모니모 사이트 완성본을 쓴다.
+    return verify.RESOURCE_DIR
 
 
 def build_drill_config(work: Path, cases: list) -> Path:

@@ -380,8 +380,7 @@ HEADER_SEP = " > "  # facade 의 _CHUNK_HEADER_SEP 과 같아야 한다(콤마�
 def _chunk(doc_dict, **kwargs):
     cp = pytest.importorskip("facade.chunking_processor")
     chunker = cp.DocumentProcessor()
-    # HEADER 접두는 yaml 설정에 끌려다니지 않게 여기서 못 박는다 - resource_dev 는 개발
-    # 편의로 include_chunk_header 를 꺼둔다(e332b1e5). 헤더가 없어야 하는 케이스는
+    # HEADER 접두는 yaml 설정에 끌려다니지 않게 여기서 못 박는다. 헤더가 없어야 하는 케이스는
     # 호출부에서 include_chunk_header=0 으로 덮어쓴다.
     kwargs.setdefault("include_chunk_header", 1)
     return asyncio.run(

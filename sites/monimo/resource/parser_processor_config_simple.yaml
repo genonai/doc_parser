@@ -1,0 +1,189 @@
+# 파싱용 전처리기 설정 — **간소 프로필**
+#
+# 정식 설정(parser_processor_config.yaml)에서 사이트가 실제로 손대는 키만 남긴 판입니다.
+# 여기 없는 키는 코드 기본값으로 안전하게 폴백합니다. 세부 옵션이 필요해지면 정식 설정을
+# 복사해 쓰세요.
+#
+#   설정으로 어디까지 되는지 / 코드는 어디를 고치는지  → gitbook_doc/parser_processor.md
+#   문서유형(doc_type) 설정                          → resource/templates/custom_field_TEMPLATE_*.yaml
+#
+defaults:
+  # 5=DEBUG, 4=INFO, 3=WARNING, 2=ERROR, 1=CRITICAL, 0=NOLOG
+  log_level: 4
+
+# ── 모델 프리셋 ───────────────────────────────────────────────────────────────
+# 모델·외부 서비스 접속 정보(LLM 서빙 주소·키, OCR·layout·whisper·guardrail 주소)는
+# model_presets.yaml 에 모여 있고, 쓰는 자리에서는 `model_preset: <이름>` 한 줄로 부른다.
+# 규칙과 담을 수 있는 값은 그 파일 머리말을 참고한다.
+model_presets_file: model_presets.yaml
+
+formats:
+  # 비표준 확장자 별칭: "이 확장자는 어떤 포맷으로 볼 것인가" 를 한 줄로 지정한다.
+  # 원천이 표준 확장자를 안 쓰는 경우(예: 마크다운+HTML 혼합 산출물이 *.parsed 로 옴)에
+  # 쓴다. 왼쪽이 실제 확장자, 오른쪽이 그렇게 취급할 표준 확장자다.
+  # 파싱용 사본을 오른쪽 확장자 이름으로 만들어 넘기므로 이후 처리는 그 포맷과 동일하다.
+  extension_aliases:
+    ".parsed": ".md"
+    # 고객센터(화재) 구분자 원천. 내용은 |@| 구분 텍스트지만 레코드 매핑 경로를 타야 하므로
+    # json 으로 본다(실제 파싱은 custom_field_cs_ssf.yaml 의 source.pre.delimited 가 한다).
+    ".dtms": ".json"
+
+  # 엑셀(xlsx/xlsm), csv는 PDF 변환 없이 처리
+  xlsx:
+    # tabular(기본): openpyxl 로 병합셀 unmerge+forward-fill 후 데이터 행마다 parse element/청크 생성.
+    # docling: docling MsExcel/Csv 백엔드로 DoclingDocument 생성 후 parse-JSON 직렬화.
+    processing_mode: "tabular"
+    # tabular 모드 전용 옵션
+    tabular:
+      # 헤더 행(0-based). 0=자동판정(제목행 스킵/멀티헤더 flatten), >0=단일헤더 강제.
+      header_row: 0
+
+ocr:
+  ocr_mode: "auto" # "auto"(default), "force", "disable"
+
+  # OCR 엔진 선택. "paddle"(default) | "upstage"
+  engine: "paddle"
+
+  paddle:
+    # engine: "paddle" 일 때만 사용
+    model_preset: ocr   # 서버 주소는 model_presets.yaml
+
+layout:
+  layout_model_type: "genos_layout" # "genos_layout"(default) or "docling_layout"
+  genos_layout:
+    model_preset: layout   # 서빙 주소·키는 model_presets.yaml
+    page_batch_size: 128
+    max_completion_tokens: 16384
+    model: "dots-mocr"          # 서빙 모델명
+    timeout: 3600               # VLM 요청 타임아웃(초)
+    repetition_penalty: 1.15    # >1.0, 토큰 반복(degeneration) 억제
+
+# enrichment
+# 각 항목은 {이름: {옵션}} 형식의 list.
+# 비활성화: ① 항목 삭제  ② 항목 주석 처리  ③ enable: false
+# 모델서빙 ID·주소는 model_presets.yaml 에서 변경한다.
+enrichment:
+  - toc:
+      enable: false
+      model_preset: default
+      max_tokens: 10000
+      # 반복(degeneration) 억제. 미설정 시 미전송.
+      repetition_penalty: 1.1
+      system_prompt_file: prompt_toc_default_system.md
+      user_prompt_file: prompt_toc_default_user.md
+
+  # 텍스트 기반(HTML/Markdown) 표 RAG 설명.
+  # url/model 을 채우면 이 연결로 직접 만들고, 비워 두면 문서형 custom_fields 호출에 통합된다.
+  - table_text_description:
+      enable: false
+      model_preset: default
+      model_context_tokens: 40000  # 모델 context 크기. 모델이 바뀌면 이 값만 수정
+      max_tokens: 16000       # 응답 상한. 배치당 표 개수는 이 값이 정한다
+      concurrency: 8          # 표 설명 배치 병렬 호출 수
+      temperature: 0.0
+      timeout: 600             # 배치당 생성량이 늘어난 만큼 호출 타임아웃도 올린다
+      prompt_template_file: prompt_table_text_description_rag.md
+      input_format: auto       # auto=HTML 원본은 html, 그 외 markdown | markdown | html
+      before_items: 2          # 표 앞쪽 본문 아이템 수
+      after_items: 1           # 표 뒤쪽 본문 아이템 수
+      max_context_chars: 400   # 앞/뒤 문맥 각각의 최대 문자 수
+      overflow_policy: batch   # batch=최소 추가 호출 | skip=표 설명 생략 | error=실패
+      conflict_policy: prefer_text # 기존 이미지 표 설명과 충돌 시 prefer_text | prefer_image | error
+      rag:
+        retrieval_context_max_chars: 250 # 모든 분할 표 청크에 반복할 독립 검색 문맥
+        key_fact_limit: 2                # 원표에서 직접 확인되는 핵심 사실 최대 개수
+        key_fact_max_chars: 120          # 핵심 사실 1개당 최대 문자 수
+        search_terms_limit: 3            # 질의 확장용 검색 표현 최대 개수
+        include_search_terms: false      # true면 검색어도 청크 텍스트에 노출
+        repeat_context_on_split: true    # 큰 표 분할 시 retrieval_context를 모든 조각에 반복
+
+  # ── 모니모 13종 문서유형 custom_fields (2026-08-16 추가) ────────────────────
+  # 메뉴서비스
+  - custom_fields:
+      enable: true
+      doc_type: menu
+      config_file: custom_field_menu.yaml
+  # 용어사전
+  - custom_fields:
+      enable: true
+      doc_type: term
+      config_file: custom_field_term.yaml
+  # FAQ
+  - custom_fields:
+      enable: true
+      doc_type: faq
+      config_file: custom_field_faq.yaml
+  # 이벤트
+  - custom_fields:
+      enable: true
+      doc_type: monimo_event
+      config_file: custom_field_monimo_event.yaml
+  # 관심소식
+  - custom_fields:
+      enable: true
+      doc_type: monimo_news
+      config_file: custom_field_monimo_news.yaml
+  # 상품설명서 생명/화재
+  - custom_fields:
+      enable: true
+      doc_type: product_slf
+      config_file: custom_field_product_slf.yaml
+  - custom_fields:
+      enable: true
+      doc_type: product_ssf
+      config_file: custom_field_product_ssf.yaml
+  # 상품설명서 카드
+  - custom_fields:
+      enable: true
+      doc_type: product_hpp
+      config_file: custom_field_product_hpp.yaml
+  # 고객센터 생명/화재
+  - custom_fields:
+      enable: true
+      doc_type: cs_slf
+      config_file: custom_field_cs_slf.yaml
+  - custom_fields:
+      enable: true
+      doc_type: cs_ssf
+      config_file: custom_field_cs_ssf.yaml
+  # 고객센터 카드
+  - custom_fields:
+      enable: true
+      doc_type: cs_hpp
+      config_file: custom_field_cs_hpp.yaml
+  # 고객센터 증권
+  - custom_fields:
+      enable: true
+      doc_type: cs_sss
+      config_file: custom_field_cs_sss.yaml
+  # AI 차트뷰
+  - custom_fields:
+      enable: true
+      doc_type: stock_insight
+      config_file: custom_field_stock_insight.yaml
+  - custom_fields:
+      enable: true
+      doc_type: research_report
+      config_file: custom_field_research_report.yaml
+
+output:
+  format: "docling" # "json" (default), "html", "markdown", "docling"
+  # "docling": 복원 가능한 DoclingDocument 원본 JSON 을 data.document 로 반환(Chunk API 입력용)
+  # 민감정보 분류(#315): parser 가 guardrail 워크플로우를 호출해 sensitive_infos 를 출력에 실어 보내고,
+  # chunking API 가 그 결과로 청크별 라벨/마스킹을 적용한다(아래 guardrail 섹션 참고).
+
+  # ── 표 표기형태 ────────────────────────────────────────────────────────────
+  # 아래 두 키는 파서가 표를 직접 문자열로 낼 때만 쓰인다.
+  #   1) format 이 json/html/markdown 일 때의 파싱 출력
+  #   2) custom_fields 의 `html_text`/`text` 변환
+  #      (예: monimo_event 의 DETAIL_HTML → DETAIL_TEXT). 이 파생 필드는 docling 을
+  #      거치지 않으므로 format: docling 에서도 파서가 표 모양을 확정한다.
+  # format: docling 으로 청커(/chunker)에 넘기는 구성에서는 파싱 출력의 표에 영향이 없다.
+  # 그때 청크 텍스트의 표 모양은 chunking_processor_config.yaml 의 output 이 정한다.
+  #
+  # "auto" 는 표마다 구조를 보고 고른다 - 병합 셀이나 2단 헤더가 있으면 html,
+  # 단순 격자면 markdown. markdown 은 병합 셀을 표현하지 못해 헤더 계층이 사라진다.
+  table_format: "html" # "html"(default) | "markdown" | "auto"  ("docling" 포맷에서는 무시)
+  compact_tables: true # markdown 표 컬럼 정렬 패딩 제거(대형 표 축소). html/docling 포맷엔 무관.
+  # 표 뒤 "컬럼=값 | 컬럼=값" 행 문장(table_row_serialization)은 청커 전용이라 여기에 없다 —
+  # chunking_processor_config.yaml 의 output 에서 켠다.

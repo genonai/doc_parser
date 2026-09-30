@@ -502,7 +502,9 @@ def test_llm_extractor_constants_survive_and_win(tmp_path):
 
 # ── 출고 config 전수 검증 ────────────────────────────────────────────────────
 
-_RESOURCE_DIRS = ["resource", "resource_dev"]
+from shipped_config import SHIPPED_ROOTS, SITE_MONIMO
+
+_RESOURCE_DIRS = [SITE_MONIMO]
 
 # 모니모 적재 스키마(TB_*)의 NOT NULL 컬럼. doc_type 별로 "이 필드는 반드시 값이 확보되는
 # 경로가 있어야 한다"는 뜻이다 — column_map/key_map 매핑, constants 고정, defaults 기본값
@@ -1107,13 +1109,15 @@ def test_unproducible_text_field_warns_but_loads(tmp_path, caplog):
 @pytest.mark.unit
 def test_shipped_configs_pass_startup_validation():
     """출고 매핑 설정은 새 검증을 모두 통과해야 한다(오탐 방지)."""
-    import yaml as _yaml
+    from genon.preprocessor.processing.common import config_parse as cp
     from genon.preprocessor.processing.enrichment.custom_fields_enricher import (
         custom_fields_extractor,
     )
 
-    base = Path(__file__).resolve().parents[2] / "resource"
-    raw = _yaml.safe_load((base / "parser_processor_config.yaml").read_text(encoding="utf-8"))
+    # 매핑 설정(모니모 문서유형)은 모니모 사이트 완성본에 있다.
+    base = Path(__file__).resolve().parents[2] / SITE_MONIMO
+    # 기동과 같은 경로로 읽는다 — 프리셋이 `model_presets_file` 로 지정한 파일에서 모인다.
+    raw = cp.load_config(str(base / "parser_processor_config.yaml"))
     built = 0
     for item in raw.get("enrichment") or []:
         for name, opts in (item or {}).items():
@@ -1241,7 +1245,7 @@ def test_llm_config_rejects_output_field_typo(tmp_path):
 
 
 @pytest.mark.unit
-@pytest.mark.parametrize("resource_dir", ["resource", "resource_dev"])
+@pytest.mark.parametrize("resource_dir", SHIPPED_ROOTS)
 def test_shipped_configs_match_declared_keys(resource_dir):
     """출고 설정이 지원키 선언과 어긋나지 않는지 지킨다.
 
@@ -1283,7 +1287,9 @@ def test_shipped_configs_match_declared_keys(resource_dir):
         cfg = _load_shipped(path)
         cs.validate_known_keys(cfg, label=f"{resource_dir}/{path.name}", extractor=extractor)
         checked += 1
-    assert checked >= 15, f"검사된 출고 설정이 너무 적다: {checked}건"
+    # 공통본 단독은 card 한 건뿐이다(문서유형 설정 대부분은 사이트 폴더에 있다).
+    minimum = 1 if resource_dir == "resource" else 15
+    assert checked >= minimum, f"검사된 출고 설정이 너무 적다: {checked}건"
 
 
 # ── 시트/표 컨텍스트를 column_map 에서 참조 (A3) ────────────────────────────

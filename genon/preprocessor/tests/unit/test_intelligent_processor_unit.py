@@ -184,12 +184,12 @@ class TestIntelligentProcessor:
 
     @pytest.mark.unit
     def test_enrichment_options_precheck_defaults(self, processor):
-        """DataEnrichmentOptions에 precheck 필드가 False 기본값으로 설정되어 있는지 확인"""
+        """표준 설정의 precheck 값(toc/metadata 켜짐)과 토큰 예산이 DataEnrichmentOptions 에 실리는지 확인"""
         opts = processor.enrichment_options
-        assert opts.toc_precheck_enabled is False
+        assert opts.toc_precheck_enabled is True
         assert opts.toc_max_context_tokens == 128000
         assert opts.toc_completion_reserved_tokens == 12000
-        assert opts.metadata_precheck_enabled is False
+        assert opts.metadata_precheck_enabled is True
         assert opts.metadata_max_context_tokens == 128000
         assert opts.metadata_completion_reserved_tokens == 12000
 

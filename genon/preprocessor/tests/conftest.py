@@ -115,7 +115,7 @@ def _is_unit_test(request) -> bool:
 def _no_external_network_in_unit_tests(request):
     """unit 테스트는 외부 네트워크로 나가지 않는다.
 
-    출고 설정(`resource/`, `resource_dev/`)에는 실제 LLM 게이트웨이 URL 이 들어 있다.
+    출고·로컬 모델 설정(`resource/`, `sites/dev/model_presets.yaml`)에는 실제 LLM 게이트웨이 URL 이 들어 있다.
     그 설정을 그대로 복사해 쓰는 테스트가 프로세서를 끝까지 돌리면 진짜 호출이 나간다.
     호출부마다 patch 로 막는 방식은 호출 경로가 하나 늘 때 조용히 새고, 실제로 샜다
     (convert_processor.__call__ 은 enrichment 계열 메서드를 5개 부르는데 테스트는 그중

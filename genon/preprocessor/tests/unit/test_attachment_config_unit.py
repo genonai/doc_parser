@@ -45,11 +45,3 @@ class TestResolveDefaultConfigPath:
         assert isinstance(path, str)
         assert Path(path).exists(), f"기본 설정 경로가 존재해야 함: {path}"
         assert path.endswith("attachment_processor_config.yaml")
-
-    def test_prefers_resource_dev(self):
-        # resource_dev 파일이 있으면 그쪽을 우선 사용한다.
-        from pathlib import Path
-        path = Path(_resolve_default_attachment_config_path())
-        dev = path.parent.parent / "resource_dev" / "attachment_processor_config.yaml"
-        if dev.exists():
-            assert "resource_dev" in str(path)

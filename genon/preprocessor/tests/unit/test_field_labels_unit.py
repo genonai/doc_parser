@@ -8,7 +8,6 @@ json 은 안 붙임). 그 기준을 "사람이 붙인 이름이 있는가" 하�
 from __future__ import annotations
 
 import textwrap
-from pathlib import Path
 
 import pytest
 import yaml
@@ -21,7 +20,10 @@ from genon.preprocessor.processing.enrichment.tabular_custom_fields import (
     build_chunk_text,
 )
 
-RESOURCE_DIR = Path(__file__).resolve().parents[2] / "resource"
+from shipped_config import PREPROCESSOR_DIR, SITE_MONIMO
+
+# 항목명 검사 대상(모니모 문서유형)은 사이트 폴더로 옮겨졌다.
+RESOURCE_DIR = PREPROCESSOR_DIR / SITE_MONIMO
 
 
 def _load_shipped(name: str) -> dict:

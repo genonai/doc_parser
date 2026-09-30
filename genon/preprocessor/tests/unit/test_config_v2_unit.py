@@ -10,6 +10,7 @@ import yaml
 
 from genon.preprocessor.processing.enrichment import config_schema as cs
 from genon.preprocessor.processing.enrichment import config_v2 as cv2
+from shipped_config import SITE_MONIMO
 from genon.preprocessor.processing.enrichment.custom_fields_enricher import (
     custom_fields_extractor,
 )
@@ -318,7 +319,7 @@ def test_shipped_blocks_derive_their_extractor():
     from genon.preprocessor.processing.enrichment.custom_fields_enricher import (
         _derive_extractor,
     )
-    from shipped_config import PREPROCESSOR_DIR
+    from shipped_config import PREPROCESSOR_DIR, SHIPPED_ROOTS
 
     configs = (
         "parser_processor_config.yaml", "parser_processor_config_simple.yaml",
@@ -327,7 +328,7 @@ def test_shipped_blocks_derive_their_extractor():
         "attachment_processor_config.yaml",
     )
     checked = 0
-    for resource_dir in ("resource", "resource_dev"):
+    for resource_dir in SHIPPED_ROOTS:
         root = PREPROCESSOR_DIR / resource_dir
         for name in configs:
             path = root / name
@@ -350,7 +351,7 @@ def test_shipped_blocks_derive_their_extractor():
                     f"{config_file} 에서 extractor 를 유도할 수 없다"
                 )
                 checked += 1
-    assert checked >= 50, f"검사한 블록이 너무 적다({checked}) — 경로가 틀렸을 수 있다"
+    assert checked >= 30, f"검사한 블록이 너무 적다({checked}) — 경로가 틀렸을 수 있다"
 
 
 # ── source.pre.json ────────────────────────────────────────────────────────
@@ -441,8 +442,7 @@ def test_registered_block_json_is_refused(tmp_path):
 # 직접 읽는다. 문서형 본문 키(`source.pre.json`)를 쓰지 않으므로 검사 대상이 아니다.
 @pytest.mark.parametrize("resource_dir, name, doc_types", [
     ("resource", "custom_field_card.yaml", ("card",)),
-    ("resource", "custom_field_research_report.yaml", ("research_report",)),
-    ("resource_dev", "custom_field_card.yaml", ("card",)),
+    (SITE_MONIMO, "custom_field_research_report.yaml", ("research_report",)),
 ])
 def test_shipped_configs_keep_json_body_keys(resource_dir, name, doc_types):
     """등록 블록에서 옮겨 온 본문 키가 출고 설정에 그대로 남아 있어야 한다.

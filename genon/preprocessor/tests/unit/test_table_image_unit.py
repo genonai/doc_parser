@@ -132,9 +132,9 @@ def test_enable_forces_generate_page_images(tmp_path, module_name):
 @pytest.mark.unit
 @pytest.mark.parametrize("module_name", _MODULES)
 def test_shipped_config_default_is_false(module_name):
-    """출고 resource/resource_dev/resource_product 의 table_image.enable 이 모두 false."""
+    """출고 resource/resource_product 의 table_image.enable 이 모두 false."""
     base = Path(__file__).resolve().parents[2]
-    for sub in ("resource", "resource_dev", "resource_product"):
+    for sub in ("resource", "resource_product"):
         path = base / sub / _DEFAULT_CONFIG[module_name]
         if not path.exists():
             continue
