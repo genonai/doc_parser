@@ -34,6 +34,15 @@ jobs:
             created_time = get_input("created_time")
             output = convert_time_to_kr(created_time)
             set_output("time", output)
+      - name: Resolve author display name
+        id: author
+        run: |
+          name=$(gh api "users/$LOGIN" --jq '.name // empty' 2>/dev/null) || name=""
+          if [ -n "$name" ]; then display="$name ($LOGIN)"; else display="$LOGIN"; fi
+          echo "display=$display" >> "$GITHUB_OUTPUT"
+        env:
+          GH_TOKEN: ${{ github.token }}
+          LOGIN: ${{ github.event.pull_request.user.login }}
       - name: Send PR created message to Slack
         id: slack
         uses: slackapi/slack-github-action@v1.23.0
@@ -53,7 +62,7 @@ jobs:
                     "fields": [
                       {
                           "type": "mrkdwn",
-                          "text": "*Username:* \n ${{ github.event.pull_request.user.login }}"
+                          "text": "*Username:* \n ${{ steps.author.outputs.display }}"
                       },
                       {
                           "type": "mrkdwn",

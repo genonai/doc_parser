@@ -22,6 +22,15 @@ jobs:
             iso = created_time.replace("Z", "+00:00")
             dt_kst = datetime.fromisoformat(iso).astimezone(kst)
             set_output("time", dt_kst.strftime("%Y-%m-%d %H:%M:%S"))
+      - name: Resolve author display name
+        id: author
+        run: |
+          name=$(gh api "users/$LOGIN" --jq '.name // empty' 2>/dev/null) || name=""
+          if [ -n "$name" ]; then display="$name ($LOGIN)"; else display="$LOGIN"; fi
+          echo "display=$display" >> "$GITHUB_OUTPUT"
+        env:
+          GH_TOKEN: ${{ github.token }}
+          LOGIN: ${{ github.event.issue.user.login }}
       - name: Create Slack payload
         id: create_payload
         run: |
@@ -66,7 +75,7 @@ jobs:
           ISSUE_TITLE: ${{ github.event.issue.title }}
           ISSUE_NUMBER: ${{ github.event.issue.number }}
           ISSUE_URL: ${{ github.event.issue.html_url }}
-          ISSUE_USER: ${{ github.event.issue.user.login }}
+          ISSUE_USER: ${{ steps.author.outputs.display }}
           ISSUE_AVATAR: ${{ github.event.issue.user.avatar_url }}
           CREATED_TIME: ${{ steps.preprocess.outputs.time }}
       - name: Send Issue created message to Slack
