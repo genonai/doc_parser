@@ -1,27 +1,2 @@
-import logging
-import sys
-
-
-FORMAT = '%(levelname)s: %(asctime)s|[%(filename)s:%(lineno)s - %(funcName)20s() ] %(message)s'
-
-
-class Logger(object):
-
-    @staticmethod
-    def getLogger(name, logginglevel=logging.DEBUG):
-        logger = Logger._loggerSetup(name, logginglevel=logginglevel)
-        return logger
-
-    @staticmethod
-    def _loggerSetup(filename, logginglevel=logging.INFO):
-        logging.basicConfig(
-            # format='%(asctime)s [%(process)d] [%(levelname)s] %(message)s',
-            format=FORMAT,
-            datefmt='%Y-%m-%d %H:%M:%S %Z',
-            stream=sys.stdout
-        )
-
-        logger = logging.getLogger(filename)
-        logger.setLevel(logginglevel)
-
-        return logger
+# 구현은 common/logger.py 한 벌이다. 두 진입점(루트 main.py, src/main.py)의 `from logger import Logger` 를 위해 재수출한다.
+from common.logger import Logger  # noqa: F401
