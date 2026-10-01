@@ -620,7 +620,7 @@ class JsonRecordsMapper(CustomFieldsMapperBase):
         self.sequence = compile_sequence(cfg, label=label)
 
         # 원천이 값 하나를 여러 레코드에 쪼개 보내는 스키마용. tabular 와 같은 구현을 공유한다
-        # (연속 런 기준 병합 — 멀리 떨어진 동일 키는 다른 레코드로 남긴다).
+        # (group_by 가 같으면 떨어져 있어도 모은다).
         self.row_merge = compile_row_merge(cfg, label=label)
         self.llm_field_specs = build_llm_field_specs(cfg)
 

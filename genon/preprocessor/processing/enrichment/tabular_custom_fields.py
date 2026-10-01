@@ -377,10 +377,17 @@ def collect_target_field_names(cfg: dict) -> set[str]:
 # 그래서 기본 separator 는 빈 문자열이다. 구분자를 끼우면 JSON 이 복원되지 않는다.
 #
 #   row_merge:
-#     group_by: [REGT_NO, JONG_CODE]   # 이 값이 같은 "연속" 행이 한 묶음
-#     order_by: NTC_OBJLINE_NO         # 묶음 안 정렬 기준(숫자 우선)
+#     group_by: [JONG_CODE, NEWS_DATE] # 이 값이 같은 행이 한 묶음(떨어져 있어도 모은다)
+#     part_by:  REGT_NO                # 묶음 안의 문서 경계(선택). order_by 는 이 안에서만 유효
+#     order_by: NTC_OBJLINE_NO         # 문서 안 정렬 기준(숫자 우선)
 #     concat:   [DETAIL_DESC]          # 순서대로 이어붙일 필드
 #     separator: ""                    # 기본값
+#
+# 같은 종목·일자가 등록번호를 달리해 여러 번 오고, 그 행들이 원천 안에서 떨어져 있는 사례가
+# 있다(AI차트뷰 실측). 게시물 라인번호는 등록번호마다 1부터 다시 매겨지므로 묶음 전체를
+# 라인번호 하나로 정렬하면 두 문서의 조각이 섞인다. 그래서 part_by 로 문서를 먼저 가른다.
+# 문서가 둘 이상이고 모두 JSON 으로 복원되면 `[문서1,문서2]` 배열로 합친다 — 그냥 이어붙이면
+# `{..}{..}` 가 되어 JSON 이 깨진다. 복원되지 않는 문서가 섞이면 개행으로만 잇는다.
 #
 # 이름은 원천 컬럼명이 아니라 **목표필드명**을 쓴다(column_map 을 거친 뒤 이름). yaml 안에서
 # 어휘를 하나로 유지하려는 것이고, 오타는 아래 검증이 기동 시에 잡는다.
@@ -405,13 +412,14 @@ def compile_row_merge(cfg: dict, *, label: str) -> dict | None:
     group_by = as_list("group_by")
     concat = as_list("concat")
     order_by = str(spec.get("order_by") or "").strip() or None
+    part_by = str(spec.get("part_by") or "").strip() or None
     if not group_by:
         raise ValueError(f"{label}: row_merge 에는 group_by 가 필요합니다(묶음 경계를 정하는 필드).")
     if not concat:
         raise ValueError(f"{label}: row_merge 에는 concat 이 필요합니다(이어붙일 필드).")
 
     known = collect_target_field_names(cfg)
-    unknown = sorted({*group_by, *concat, *([order_by] if order_by else [])} - known)
+    unknown = sorted({*group_by, *concat, *(f for f in (order_by, part_by) if f)} - known)
     if unknown:
         raise ValueError(
             f"{label}: row_merge 의 {unknown} 를 만드는 설정이 없습니다. "
@@ -421,6 +429,7 @@ def compile_row_merge(cfg: dict, *, label: str) -> dict | None:
     return {
         "group_by": group_by,
         "order_by": order_by,
+        "part_by": part_by,
         "concat": concat,
         "separator": str(spec.get("separator", "") or ""),
     }
@@ -436,56 +445,66 @@ def _order_key(value: Any) -> tuple[int, float, str]:
         return (1, 0.0, str(value))
 
 
+def _join_parts(parts: list[str]) -> str:
+    """part_by 로 가른 문서들을 합친다. 모두 JSON 이면 배열로, 아니면 개행으로 잇는다."""
+    if len(parts) == 1:
+        return parts[0]
+    try:
+        for part in parts:
+            json.loads(part)
+    except ValueError:
+        return "\n".join(parts)
+    return "[" + ",".join(parts) + "]"
+
+
 def merge_row_records(
     records: list[tuple[dict, dict]],
     spec: dict,
     resolved: dict[str, str | None],
 ) -> list[tuple[dict, dict]]:
-    """`(목표필드 dict, 원본 row dict)` 목록을 group_by 연속 런 단위로 접는다.
+    """`(목표필드 dict, 원본 row dict)` 목록을 group_by 값이 같은 것끼리 접는다.
 
-    **연속 런** 기준인 이유: 멀리 떨어진 동일 키를 끌어와 붙이면 원천이 같은 등록번호를
-    재사용했을 때 서로 다른 게시물이 한 덩어리로 뭉개진다. 원천은 조각을 붙여서 보내므로
-    연속으로 충분하고, 그렇지 않은 데이터를 조용히 이어붙이지 않는 쪽이 안전하다.
+    떨어져 있는 행도 모은다. 같은 종목·일자가 원천 안에서 흩어져 오는 사례가 있기 때문이다.
+    병합된 레코드는 그 묶음이 처음 나온 자리에 둔다.
+
+    part_by 가 있으면 묶음 안을 그 값(숫자 우선 오름차순)으로 문서별로 가르고, 문서마다
+    order_by 로 정렬해 이어붙인 뒤 `_join_parts` 로 합친다. 없으면 묶음 전체가 문서 하나다.
 
     concat 이외 필드는 정렬 후 **첫 행** 값을 쓴다. 원본 row dict 도 첫 행 것을 쓰되
     concat 대상의 원천 컬럼만 이어붙인 값으로 덮는다(폴백 본문이 조각만 갖지 않게).
     """
     group_by = spec["group_by"]
     order_by = spec["order_by"]
+    part_by = spec.get("part_by")
     concat = spec["concat"]
     separator = spec["separator"]
 
-    merged: list[tuple[dict, dict]] = []
-    run: list[tuple[dict, dict]] = []
-    run_key: Any = object()
+    def sort_key(item: tuple[dict, dict]) -> tuple:
+        part = _order_key(item[0].get(part_by)) if part_by else ()
+        line = _order_key(item[0].get(order_by)) if order_by else ()
+        return (part, line)
 
-    def flush() -> None:
-        if not run:
-            return
-        ordered = sorted(run, key=lambda item: _order_key(item[0].get(order_by))) if order_by else run
+    groups: dict[tuple, list[tuple[dict, dict]]] = {}
+    for fields, row in records:
+        groups.setdefault(tuple(fields.get(name) for name in group_by), []).append((fields, row))
+
+    merged: list[tuple[dict, dict]] = []
+    for run in groups.values():
+        ordered = sorted(run, key=sort_key) if (order_by or part_by) else run
         fields = dict(ordered[0][0])
         row = dict(ordered[0][1])
         for target in concat:
-            pieces = [
-                str(item[0].get(target))
-                for item in ordered
-                if item[0].get(target) not in (None, "")
-            ]
-            value = separator.join(pieces) if pieces else None
+            docs: dict[Any, list[str]] = {}
+            for item in ordered:
+                if item[0].get(target) not in (None, ""):
+                    doc = item[0].get(part_by) if part_by else None
+                    docs.setdefault(doc, []).append(str(item[0].get(target)))
+            value = _join_parts([separator.join(p) for p in docs.values()]) if docs else None
             fields[target] = value
             source = resolved.get(target)
             if source is not None:
                 row[source] = value
         merged.append((fields, row))
-        run.clear()
-
-    for fields, row in records:
-        key = tuple(fields.get(name) for name in group_by)
-        if run and key != run_key:
-            flush()
-        run_key = key
-        run.append((fields, row))
-    flush()
     return merged
 
 
@@ -1416,11 +1435,11 @@ class TabularCustomFieldsMapper(CustomFieldsMapperBase):
 
         3단으로 나뉘어 있다.
           1. 원시 매핑 — 행마다 `column_map` 값만 채운다.
-          2. 병합 — `row_merge` 가 있으면 연속 런을 한 레코드로 접는다.
+          2. 병합 — `row_merge` 가 있으면 group_by 가 같은 행을 한 레코드로 접는다.
           3. 레코드 마감 — defaults/constants/value_map/transforms/derive/required.
         순서가 중요하다. transforms 와 required 는 **병합이 끝난 값**을 봐야 한다 —
         조각 하나만 보고 날짜를 변환하거나 필수값을 판정하면 결과가 달라진다.
-        `row_merge` 미선언이면 런 길이가 1이라 종전과 동일하다.
+        `row_merge` 미선언이면 행 1개가 레코드 1개라 종전과 동일하다.
         """
         column_map = self.config.get("column_map") or {}
         required_fields = set(self.config.get("required") or [])
