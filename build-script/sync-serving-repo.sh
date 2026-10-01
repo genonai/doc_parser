@@ -6,7 +6,7 @@ set -euo pipefail
 # 동작: 배포에 필요한 것만(whitelist: genon/ + main.py + requirements.txt + Dockerfile) 서브모듈 폴더 `code-serving/`에
 #       재생성하고, docling wheel 을 packages/ 로 동봉 + requirements.txt 에 wheel 경로 append +
 #       배포본 root README.md(코드서빙 사용 가이드, build-script/code-serving-README.md) 복사 +
-#       requirements-dev.txt(로컬 tools/facade_run/facade_run.py 실행 전용 deps), constraints-cpu.txt와 .gitignore/.dockerignore 생성 후,
+#       requirements-dev.txt(로컬 examples/facade_run/facade_run.py 실행 전용 deps), constraints-cpu.txt와 .gitignore/.dockerignore 생성 후,
 #       배포본 repo(genonai/doc_parser_code_serving) 안에서 commit/push 한다.
 #
 # 왜: 코드서빙은 GenOS 가 런타임에 배포본 repo 를 /app/src/service 로 clone 해 main.py 를 띄우고,
@@ -220,7 +220,7 @@ cat > "${DEST}/.dockerignore" <<'EOF'
 .idea/
 offline-dev-kit/
 wheelhouse/
-genon/preprocessor/tools/facade_run/result.json
+genon/preprocessor/examples/facade_run/result.json
 genon/preprocessor/tools/parse_chunk/result_parse_chunk/
 genon/preprocessor/tools/code_serving/result_serving_gateway_test/
 EOF
@@ -285,7 +285,7 @@ htmlcov/
 .idea/
 
 # Local test outputs
-genon/preprocessor/tools/facade_run/result.json
+genon/preprocessor/examples/facade_run/result.json
 genon/preprocessor/tools/parse_chunk/result_parse_chunk/
 genon/preprocessor/tools/code_serving/result_serving_gateway_test/
 

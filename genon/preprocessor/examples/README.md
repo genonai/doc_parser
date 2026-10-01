@@ -4,6 +4,7 @@
 
 | 폴더 | 내용 |
 |---|---|
+| `facade_run/` | facade 하나를 서버 없이 호출하는 최소 예(`facade_run.py`, 샘플 PDF → 같은 폴더의 `result.json`). |
 | `facade_hooks/` | 파사드 훅(`edit_chunk`, `ROUTES` 등)과 Python extractor 를 붙여 쓰는 예 |
 | `text_cleanup/` | 설정(`cleanup_rules.yaml`)과 훅으로 청크 텍스트를 정제하는 예. `run_cleanup_examples.sh` 로 두 방식을 비교해 실행할 수 있다 |
 | `code_serving/` | 게이트웨이·분리 배포 서비스를 curl 로 호출하는 예 |

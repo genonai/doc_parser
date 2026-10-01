@@ -5,7 +5,7 @@
 ## 사용법
 
 1. 이 폴더에 처리할 파일을 추가하세요
-2. `tools/facade_run/facade_run.py`를 실행하면 해당 파일을 처리합니다
+2. `examples/facade_run/facade_run.py`를 실행하면 해당 파일을 처리합니다
 
 ## 지원되는 파일 형식
 

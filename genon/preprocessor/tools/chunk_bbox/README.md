@@ -3,7 +3,7 @@
 파서 산출 JSON 의 청크 bounding box 를 원본 PDF 페이지 이미지 위에 그린다. 레이아웃 판정이
 어디서 어긋났는지(문단이 잘렸는지, 표가 통째로 잡혔는지)를 눈으로 확인할 때 쓴다.
 
-입력은 `tools/facade_run/facade_run.py` 가 남기는 `result.json` 처럼 `bbox` 와 `page` 를 가진 청크 목록이다.
+입력은 `examples/facade_run/facade_run.py` 가 남기는 `result.json` 처럼 `bbox` 와 `page` 를 가진 청크 목록이다.
 
 ```bash
 python visualization.py \

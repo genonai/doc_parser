@@ -370,9 +370,9 @@ cd ./genon/preprocessor/
 uv sync
 source ./.venv/bin/activate
 
-# tools/facade_run/facade_run.py 안의 from <processor>_processor import DocumentProcessor 와
+# examples/facade_run/facade_run.py 안의 from <processor>_processor import DocumentProcessor 와
 # file_path 만 원하는 값으로 수정 후 실행. facade_run.py 가 사내망 dev 프리셋을 스스로 얹는다
-python tools/facade_run/facade_run.py
+python examples/facade_run/facade_run.py
 # 결과는 facade_run.py 와 같은 디렉토리의 result.json 에 저장
 ```
 

@@ -19,7 +19,7 @@
 │   │   ├── docker # 도커파일 위치
 │   │   │   └── assets # 도커 빌드 전용 폰트·tessdata tar
 │   │   ├── env # 서버 환경변수 프로파일(.env.dev, .env.prod). 이미지의 /app/env 로 복사됨
-│   │   ├── examples # 고객이 붙여 쓰는 최소 예제(훅, 텍스트 정제, curl 호출)
+│   │   ├── examples # 고객이 붙여 쓰는 최소 예제(facade 실행, 훅, 텍스트 정제, curl 호출)
 │   │   ├── facade # facade 코드(*_processor.py)
 │   │   ├── manual # 고객·현장용 매뉴얼
 │   │   │   └── images
@@ -41,7 +41,7 @@
 │   │   │   │   └── baselines
 │   │   │   ├── smoke
 │   │   │   └── unit
-│   │   └── tools # 손으로 돌리는 검증·개발 도구(facade_run, parse_chunk 등)
+│   │   └── tools # 손으로 돌리는 검증·개발 도구(parse_chunk 등)
 │   ├── serving # OCR 모델 서빙 이미지
 │   │   └── paddle
 │   │       ├── config # ocr, vl paddlex 실행 파일
@@ -301,7 +301,7 @@ echo "HWP_SDK_TOKEN=hf_xxx" >> build-script/hf_private_token.env
 
 ## 로컬 테스트 (도커 빌드 없이 facade_run.py 실행)
 
-도커를 거치지 않고 `genon/preprocessor/tools/facade_run/facade_run.py` 등을 로컬에서 바로 실행하려면, **HWP SDK · PDF SDK를 레포 최상위에 직접 다운로드**해야 한다. (코드가 `<repo_root>/hwp_sdk`, `<repo_root>/pdf_sdk` 경로를 자동으로 찾음)
+도커를 거치지 않고 `genon/preprocessor/examples/facade_run/facade_run.py` 등을 로컬에서 바로 실행하려면, **HWP SDK · PDF SDK를 레포 최상위에 직접 다운로드**해야 한다. (코드가 `<repo_root>/hwp_sdk`, `<repo_root>/pdf_sdk` 경로를 자동으로 찾음)
 
 > 아래 명령어들은 **레포가 위치한 호스트 머신의 터미널**에서 실행한다 (도커 컨테이너 안 셸이 아님). 컨테이너 안에서 macOS 절대경로로 받으면 컨테이너 내부 가상 경로에 저장돼 호스트에 반영되지 않으니 주의. 만약 컨테이너 안에서 받고 싶다면 cwd를 마운트된 repo root(예: `/app/docparser_work_187/doc_parser`)로 옮긴 뒤 상대경로(`./hwp_sdk`, `./pdf_sdk`)로 받아야 한다.
 
@@ -330,7 +330,7 @@ echo "HWP_SDK_TOKEN=hf_xxx" >> build-script/hf_private_token.env
    chmod +x ./pdf_sdk/pdfConverter
    ```
 3. 두 디렉토리(`hwp_sdk/`, `pdf_sdk/`)는 `.gitignore`에 포함되어 있어 커밋되지 않음
-4. 이후 `genon/preprocessor/tools/facade_run/facade_run.py` 실행 시 별도 환경변수 설정 없이 동작
+4. 이후 `genon/preprocessor/examples/facade_run/facade_run.py` 실행 시 별도 환경변수 설정 없이 동작
 
 > 도커 환경에서는 빌드 단계에서 두 SDK가 자동으로 `/app/hwp_sdk`, `/app/pdf_sdk` 에 설치되며, `PDF_SDK_HOME` 환경변수로 SDK 경로가 제어됨. 로컬에서는 위 경로 fallback이 자동 적용됨.
 
