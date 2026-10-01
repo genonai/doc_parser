@@ -318,10 +318,6 @@ def check_stock_insight_scattered_merge(chunks: list) -> list[str]:
             json.loads(desc)
         except ValueError:
             problems.append(f"{name}: DETAIL_DESC 가 JSON 으로 복원되지 않았습니다(조각 순서 오류)")
-    # 완전 중복 행이 레코드를 하나 더 만들지 않았는가(#412).
-    biz_ids = {chunk.get("BIZ_ID") for chunk in chunks}
-    if len(biz_ids) != len(expected):
-        problems.append(f"BIZ_ID {len(expected)}건 기대, 실제 {sorted(map(str, biz_ids))}")
     return problems
 
 

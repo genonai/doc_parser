@@ -472,6 +472,8 @@ def drop_duplicate_records(records: list[tuple[dict, dict]]) -> list[tuple[dict,
     비교 대상은 원본 row 전체다. 일부 컬럼만 같은 행은 서로 다른 행이므로 유지한다.
     처음 나온 행을 남기고 순서를 보존한다. 키 순서는 무시하고, 배열·객체 값은 정규화 문자열로
     비교한다(해시할 수 없는 값이 와도 실패하지 않게 한다).
+    판정은 로더가 넘겨준 값 기준이다. xlsx 로더는 셀을 문자열로 읽으므로 숫자 1 과 텍스트 '1' 은
+    같은 행이 된다. 이후 단계에서도 두 값은 구별되지 않으므로 남겨도 같은 청크가 두 번 생길 뿐이다.
     """
     seen: set[str] = set()
     kept: list[tuple[dict, dict]] = []
