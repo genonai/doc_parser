@@ -857,3 +857,29 @@ def test_row_merge_folds_scattered_keys(tmp_path):
         {"regtNo": "R1", "body": "c"},
     ], "stock")
     assert [r["BODY"] for r in rows] == ["ac", "b"]
+
+
+def test_row_merge_accepts_array_valued_key(tmp_path):
+    """JSON 레코드의 배열 값도 묶음 키가 된다(dict 키로 쓰다 TypeError 가 나던 회귀)."""
+    mapper = write_mapper(tmp_path, """
+        schema: v2
+        source:
+          kind: records
+          merge_rows:
+            group_by: [TAGS]
+            part_by:  TAGS
+            concat:   [BODY]
+        fields:
+          TAGS:
+            alias: [tags]
+          BODY:
+            alias: [body]
+        body:
+          fields: [BODY]
+    """, doc_type="stock")
+    rows = mapper.build_fields([
+        {"tags": ["A"], "body": "a"},
+        {"tags": ["B"], "body": "b"},
+        {"tags": ["A"], "body": "c"},
+    ], "stock")
+    assert [r["BODY"] for r in rows] == ["ac", "b"]

@@ -457,6 +457,13 @@ def _join_parts(parts: list[str]) -> str:
     return "[" + ",".join(parts) + "]"
 
 
+def _merge_key(value: Any) -> Any:
+    """묶음·문서 키로 쓸 값. JSON 레코드의 배열·객체 값도 dict 키가 되도록 정규화 문자열로 바꾼다."""
+    if isinstance(value, (list, dict)):
+        return json.dumps(value, ensure_ascii=False, sort_keys=True, default=str)
+    return value
+
+
 def merge_row_records(
     records: list[tuple[dict, dict]],
     spec: dict,
@@ -486,7 +493,8 @@ def merge_row_records(
 
     groups: dict[tuple, list[tuple[dict, dict]]] = {}
     for fields, row in records:
-        groups.setdefault(tuple(fields.get(name) for name in group_by), []).append((fields, row))
+        key = tuple(_merge_key(fields.get(name)) for name in group_by)
+        groups.setdefault(key, []).append((fields, row))
 
     merged: list[tuple[dict, dict]] = []
     for run in groups.values():
@@ -497,7 +505,7 @@ def merge_row_records(
             docs: dict[Any, list[str]] = {}
             for item in ordered:
                 if item[0].get(target) not in (None, ""):
-                    doc = item[0].get(part_by) if part_by else None
+                    doc = _merge_key(item[0].get(part_by)) if part_by else None
                     docs.setdefault(doc, []).append(str(item[0].get(target)))
             value = _join_parts([separator.join(p) for p in docs.values()]) if docs else None
             fields[target] = value
