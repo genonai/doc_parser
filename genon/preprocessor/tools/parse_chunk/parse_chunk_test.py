@@ -1,6 +1,6 @@
 """서버 없이(in-process) 파싱(docling) → 청킹 테스트 러너.
 
-shkim_labs/test.py 와 동일한 in-process 패턴(mock_request + await doc_processor(...))을 따른다.
+tools/facade_test/facade_test.py 와 동일한 in-process 패턴(mock_request + await doc_processor(...))을 따른다.
 facade 의 DocumentProcessor 를 직접 import 해 호출하므로 uvicorn/게이트웨이 불필요.
 
 사용:

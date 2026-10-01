@@ -227,6 +227,7 @@ PYTHONPATH=<repo>:<repo>/genon/preprocessor:<repo>/genon/preprocessor/src:<repo>
 ```bash
 P=genon/preprocessor; $P/.venv/bin/python $P/tools/parse_chunk/parse_chunk_test.py 입력 출력                 # 표준 resource/
 P=genon/preprocessor; $P/.venv/bin/python $P/tools/parse_chunk/parse_chunk_test.py --site monimo 입력 출력   # genon/sites/monimo/resource/
+P=genon/preprocessor; $P/.venv/bin/python $P/tools/facade_test/facade_test.py --facade intelligent 입력 출력 --kw toc=1   # facade 하나(/run 경로) 실행
 build-script/run-local.sh [monimo]    # 루트 main.py 를 포트 7084 로 기동. 설정 폴더는 GENOS_RESOURCE_DIR(로컬 전용)
 ```
 

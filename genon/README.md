@@ -41,7 +41,7 @@
 │   │   │   │   └── baselines
 │   │   │   ├── smoke
 │   │   │   └── unit
-│   │   └── tools # 손으로 돌리는 검증·개발 도구(parse_chunk 등)
+│   │   └── tools # 손으로 돌리는 검증·개발 도구(facade_test, parse_chunk 등)
 │   ├── serving # OCR 모델 서빙 이미지
 │   │   └── paddle
 │   │       ├── config # ocr, vl paddlex 실행 파일

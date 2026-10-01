@@ -486,8 +486,9 @@ python serving_gateway_test.py --mode parser --file-path /data/report.pdf \
 python parse_chunk_test.py --llm_cache --interim_root <경로> \
   --workflow_id wf-1 --run_id run-1 <input.pdf> <out>/
 
-# in-process 적재(/run): shkim_labs/test.sh
-python test.py --llm_cache --interim_root <경로> --workflow_id <id> --run_id <id> <input> <out>
+# in-process 적재(/run): tools/facade_test/facade_test.sh
+python facade_test.py --kw llm_cache=1 --kw interim_root=<경로> \
+  --kw workflow_id=<id> --kw run_id=<id> <input> <out>/
 ```
 로그의 1회차 `MISS→STORE`, 2회차 `HIT` 및 요약 `hit=.. miss=..` 로 재사용을 확인한다.
 
