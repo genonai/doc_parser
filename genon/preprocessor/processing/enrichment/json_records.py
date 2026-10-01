@@ -67,6 +67,7 @@ from .tabular_custom_fields import (
     compile_sequence,
     compile_transforms,
     compile_value_map,
+    drop_duplicate_records,
     merge_row_records,
     normalize_column_name,
     passes_filter,
@@ -727,6 +728,11 @@ class JsonRecordsMapper(CustomFieldsMapperBase):
         raw: list[tuple[dict, dict]] = [
             (self.map_record_raw(record), record) for record in records
         ]
+        # 원천이 다시 보낸 완전 중복 레코드는 병합 전에 뺀다(tabular 와 같은 규칙).
+        unique = drop_duplicate_records(raw)
+        if len(unique) != len(raw):
+            _log.info(f"[json_records] 완전 중복 레코드 {len(raw) - len(unique)}건 제거")
+        raw = unique
 
         # 2단계 — 병합. 값 파이프라인 **전에** 접어야 조각마다 transforms 가 돌지 않는다.
         # resolved(목표필드 → 원천 컬럼명)는 tabular 전용 개념이라 빈 dict 를 넘긴다 — json 은

@@ -464,6 +464,28 @@ def _merge_key(value: Any) -> Any:
     return value
 
 
+def drop_duplicate_records(records: list[tuple[dict, dict]]) -> list[tuple[dict, dict]]:
+    """`(목표필드 dict, 원본 row dict)` 목록에서 원본 row 가 완전히 같은 것을 뺀다.
+
+    원천이 같은 행을 다시 보내는 사례가 있다(모니모 AI차트뷰). 그대로 두면 같은 청크·같은
+    BIZ_ID 가 두 번 생기고, `row_merge` 에서는 같은 조각이 두 번 이어붙어 JSON 이 깨진다.
+    비교 대상은 원본 row 전체다. 일부 컬럼만 같은 행은 서로 다른 행이므로 유지한다.
+    처음 나온 행을 남기고 순서를 보존한다. 키 순서는 무시하고, 배열·객체 값은 정규화 문자열로
+    비교한다(해시할 수 없는 값이 와도 실패하지 않게 한다).
+    """
+    seen: set[str] = set()
+    kept: list[tuple[dict, dict]] = []
+    for fields, row in records:
+        key = json.dumps(
+            {str(k): v for k, v in row.items()}, ensure_ascii=False, sort_keys=True, default=str
+        )
+        if key in seen:
+            continue
+        seen.add(key)
+        kept.append((fields, row))
+    return kept
+
+
 def merge_row_records(
     records: list[tuple[dict, dict]],
     spec: dict,
@@ -1442,7 +1464,7 @@ class TabularCustomFieldsMapper(CustomFieldsMapperBase):
         안에 실어 보내고 `to_parse_format` 이 pop 한다.
 
         3단으로 나뉘어 있다.
-          1. 원시 매핑 — 행마다 `column_map` 값만 채운다.
+          1. 원시 매핑 — 행마다 `column_map` 값만 채운다. 원본 행이 완전히 같은 행은 뺀다.
           2. 병합 — `row_merge` 가 있으면 group_by 가 같은 행을 한 레코드로 접는다.
           3. 레코드 마감 — defaults/constants/value_map/transforms/derive/required.
         순서가 중요하다. transforms 와 required 는 **병합이 끝난 값**을 봐야 한다 —
@@ -1506,6 +1528,15 @@ class TabularCustomFieldsMapper(CustomFieldsMapperBase):
                         self._context_value(target, column_map[target], sheet_context)
                     )
                 records.append((fields, row))
+
+            # 원천이 다시 보낸 완전 중복 행은 병합 전에 뺀다. 같은 조각이 두 번 이어붙지 않게 한다.
+            unique = drop_duplicate_records(records)
+            if len(unique) != len(records):
+                _log.info(
+                    f"[tabular_custom_fields] 완전 중복 행 {len(records) - len(unique)}건 제거 "
+                    f"(sheet={sheet_name})"
+                )
+            records = unique
 
             # 2단계 — 병합. 시트 경계는 넘지 않는다(시트마다 page 가 다르다).
             if self.row_merge and records:

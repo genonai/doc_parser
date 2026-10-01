@@ -14,6 +14,10 @@
    1·2·3·5행과 4721 의 4·6행만 있고, 둘 사이에 다른 종목이 끼어 있다. 라인번호는 등록번호마다
    따로 매겨진다. 캡처의 검색 결과도 6건이라 빠진 행(4637 의 4행, 4721 의 1·2·3·5행)은
    원천에 실제로 없다. 그래서 두 문서 모두 JSON 으로 복원되지 않는다.
+3. 원천이 이미 보낸 행을 그대로 다시 보낸다(#412). 4637 의 1·2행과 테슬라 4556 의 2행이 끝에
+   한 번 더 온다. 이 행들은 모든 컬럼이 같으므로 병합 전에 빠져야 하고, 빠지지 않으면 같은
+   조각이 두 번 이어붙어 테슬라 JSON 이 깨진다. 대조군으로 4637 의 3행을 kosc 종목코드 하나만
+   바꿔 한 번 더 넣었다. 일부 컬럼만 같은 행은 제거 대상이 아니므로 유지되어야 한다.
 
 기존 종목 4건 샘플(make_stock_insight_sample.py)은 HTML·평문 판별을 고정하므로 따로 둔다.
 
@@ -153,7 +157,8 @@ DOCS = {
     }),
 }
 
-# 캡처의 행 순서 — (등록번호, 라인번호). 캡처에 없는 행은 원천에도 없다(모듈 docstring 2번).
+# 캡처의 행 순서 — (등록번호, 라인번호[, kosc 종목코드 대체값]). 캡처에 없는 행은 원천에도
+# 없다(모듈 docstring 2번). 끝의 4행은 재전송 행과 대조군이다(모듈 docstring 3번).
 LAYOUT = [
     *[("4556", n) for n in (1, 2, 3)],
     *[("4558", n) for n in range(1, 7)],
@@ -163,6 +168,8 @@ LAYOUT = [
     *[("4566", n) for n in range(1, 7)],
     *[("4721", n) for n in (4, 6)],
     *[("4567", n) for n in range(1, 7)],
+    ("4637", 1), ("4637", 2), ("4556", 2),
+    ("4637", 3, "HOLO.OQ"),
 ]
 
 
@@ -192,8 +199,9 @@ def build_rows() -> list[list]:
         assert len(cut) == count and json.loads("".join(cut)) == detail, regt_no
         pieces[regt_no] = cut
     rows = []
-    for regt_no, line_no in LAYOUT:
+    for regt_no, line_no, *kosc_override in LAYOUT:
         name, code, _, md_code, kosc_code, _ = DOCS[regt_no]
+        kosc_code = kosc_override[0] if kosc_override else kosc_code
         rows.append([name, code, regt_no, line_no, pieces[regt_no][line_no - 1],
                      NEWS_DATE, md_code, kosc_code, "US"])
     return rows

@@ -16,6 +16,7 @@ from genon.preprocessor.processing.enrichment.json_records import (
     find_fields,
     html_to_text,
 )
+from genon.preprocessor.processing.enrichment.tabular_custom_fields import TabularCustomFieldsMapper
 from shipped_config import SITE_MONIMO
 
 pytestmark = pytest.mark.unit
@@ -883,3 +884,40 @@ def test_row_merge_accepts_array_valued_key(tmp_path):
         {"tags": ["A"], "body": "c"},
     ], "stock")
     assert [r["BODY"] for r in rows] == ["ac", "b"]
+
+
+@pytest.mark.parametrize("kind", ["rows", "records"])
+def test_exact_duplicate_rows_are_dropped_before_mapping(tmp_path, kind):
+    """원본 행 전체가 같은 것만 빠진다. 키 순서는 무시하고, 일부 컬럼만 다른 행은 남는다.
+
+    매핑되지 않는 컬럼(tags)만 다른 행도 원본이 다르므로 유지한다. 객체 값이 섞여도 실패하지 않는다.
+    """
+    config = f"""
+        schema: v2
+        source:
+          kind: {kind}
+        fields:
+          ID:
+            alias: [id]
+          BODY:
+            alias: [body]
+        body:
+          fields: [BODY]
+    """
+    source = [
+        {"id": "A", "body": "x", "tags": {"k": [1]}},
+        {"id": "A", "body": "y", "tags": {"k": [1]}},
+        {"tags": {"k": [1]}, "body": "x", "id": "A"},
+        {"id": "A", "body": "x", "tags": {"k": [2]}},
+    ]
+    if kind == "rows":
+        path = tmp_path / "custom_field_rows.yaml"
+        path.write_text(textwrap.dedent(config), encoding="utf-8")
+        mapper = TabularCustomFieldsMapper(
+            doc_type="dup", extractor="tabular_mapping",
+            config_file=path.name, resource_path=str(tmp_path),
+        )
+        rows = mapper.build_fields({"data": [{"sheet_name": "S", "data_rows": source}]}, "dup")
+    else:
+        rows = write_mapper(tmp_path, config, doc_type="dup").build_fields(source, "dup")
+    assert [r["BODY"] for r in rows] == ["x", "y", "x"]
