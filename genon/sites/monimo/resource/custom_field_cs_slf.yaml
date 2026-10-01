@@ -19,7 +19,7 @@ fields:
     default: null
   CUSTOM_TITLE:
     alias: [question, 질문]
-    transform: [html_text, text_norm]
+    transform: html_text
   CONTENT:
     alias: [answer, 내용, 답변]
     transform: html_text

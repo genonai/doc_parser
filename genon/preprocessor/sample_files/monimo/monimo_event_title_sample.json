@@ -1,0 +1,25 @@
+{
+  "_note": "doc_type=monimo_event 제목 표기 픽스처(#414). monimo_event_real_sample.json 과 같은 실 payload 스키마(eventList·evtTodayMainCopy·wcmsHtml.htmlText)를 따른 생성 데이터다. 제목에 영문 대문자·연속 공백·<BR>·HTML 엔티티를 넣어, 제목이 대소문자를 보존한 채 <BR>·엔티티만 풀려 실리는지 확인한다.",
+  "resultCode": "0000",
+  "eventList": [
+    {
+      "cmpId": "M261106194",
+      "cmsId": "3750633",
+      "detailUrl": "",
+      "evtTodayBgYn": "N",
+      "evtTodayType": "A",
+      "evtTodayMainCopy": "KB국민카드  &amp; monimo Pay<BR>첫 결제 최대 5만원 캐시백",
+      "evtTodaySubCopy": "26.10.01~26.10.31",
+      "evtDvC": "F",
+      "buttonName": "이벤트 자세히보기",
+      "buttonUseYn": "Y",
+      "evtPtrmStrtDt": "20261001",
+      "evtPtrmEndDt": "20261031",
+      "evtAtentnList": [],
+      "evtClauseList": [],
+      "wcmsHtml": {
+        "htmlText": "<div class=\"box940 mt0\"><h2>monimo Pay 첫 결제 캐시백</h2><p>KB국민카드를 monimo Pay에 등록하고 첫 결제하면 결제 금액의 10%를 최대 5만원까지 캐시백 해드립니다.</p></div>"
+      }
+    }
+  ]
+}

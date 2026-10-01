@@ -25,7 +25,7 @@ fields:
       SSS: [4, "04", 삼성증권, 증권]
   CUSTOM_TITLE:
     alias: [text, 제목, title, evtTodayMainCopy]
-    transform: text_norm
+    transform: html_text
   EVENT_FROM:
     alias: [이벤트 시작일, 시작일, startDate, start_date, evtPtrmStrtDt]
     transform: date_int_flex
