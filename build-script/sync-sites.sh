@@ -39,12 +39,15 @@ for site in "${SITES[@]}"; do
   site_dir="${REPO_ROOT}/genon/sites/${site}"
   [ -f "${site_dir}/manifest.yaml" ] || { echo "[ERROR] ${site_dir}/manifest.yaml 이 없습니다." >&2; exit 1; }
 
+  # 목록을 먼저 변수에 받아 실패를 검사한다. 목록이 빈 채로 rsync --delete 가 실행되면 owned 파일이 지워진다.
+  owned="$("${PYTHON}" -c 'import sys, yaml; print("\n".join((yaml.safe_load(open(sys.argv[1], encoding="utf-8")) or {}).get("owned") or []))' "${site_dir}/manifest.yaml")" \
+    || { echo "[ERROR] ${site}: manifest.yaml 의 owned 목록을 읽지 못했습니다(PYTHON=${PYTHON}). PyYAML 이 설치된 python 을 PYTHON=<venv python> 으로 지정하십시오." >&2; exit 1; }
   excludes=(--exclude '__pycache__')
   while IFS= read -r name; do
     [ -n "${name}" ] || continue
     excludes+=(--exclude "/${name}")
     [ -f "${site_dir}/resource/${name}" ] || echo "[WARN] ${site}: owned 파일이 없습니다: resource/${name}" >&2
-  done < <("${PYTHON}" -c 'import sys, yaml; print("\n".join((yaml.safe_load(open(sys.argv[1], encoding="utf-8")) or {}).get("owned") or []))' "${site_dir}/manifest.yaml")
+  done <<< "${owned}"
 
   mkdir -p "${site_dir}/resource"
   # --delete 는 표준에서 지워진 사본을 지운다. --exclude 로 뺀 owned 파일은 지우지 않는다.
