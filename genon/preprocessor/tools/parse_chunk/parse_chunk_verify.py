@@ -193,6 +193,34 @@ def check_product_hpp_table_format(chunks: list) -> list[str]:
     return problems
 
 
+def _check_stock_insight_keeps_source_text(chunks: list) -> list[str]:
+    """세부내용의 영문 대소문자와 `<BR>` 문단 구분이 보존되어야 한다(#410).
+
+    중복 판정 키용 변환(text_norm)이 걸리면 casefold 로 RSI·MACD 가 소문자가 되고 `<BR>` 이
+    공백으로 접힌다. 원천에는 소문자 rsi·macd 가 없으므로 나오면 변환이 바꾼 것이다.
+    DETAIL_DESC 는 `<BR>` 을 그대로 갖고, DETAIL_TEXT 는 그 자리를 개행으로 바꿔야 한다.
+    """
+    problems = []
+    lower = re.compile(r"(?<![A-Za-z])(?:rsi|macd)(?![A-Za-z])")
+    for idx, chunk in enumerate(chunks):
+        for field in ("DETAIL_DESC", "DETAIL_TEXT", "text"):
+            hit = lower.search(chunk.get(field) or "")
+            if hit:
+                problems.append(f"[{idx}] {field} 에서 지표 이름이 소문자로 바뀌었습니다: {hit.group()!r}")
+    if not any("RSI" in (c.get("text") or "") for c in chunks):
+        problems.append("청크 본문에 원천의 RSI 가 남지 않았습니다")
+
+    records = {(c.get("DETAIL_DESC") or "", c.get("DETAIL_TEXT") or "") for c in chunks}
+    if not any("<BR>" in desc for desc, _ in records):
+        problems.append("DETAIL_DESC 에서 원천의 <BR> 이 사라졌습니다(원본 미보관)")
+    for desc, detail_text in records:
+        # `<BR>` 바로 뒤 문장이 DETAIL_TEXT 에서 줄 첫머리로 와야 문단 구분이 살아 있는 것이다.
+        after = re.search(r"<BR>\s*([^<\"\\\s][^<\"\\]{5})", desc)
+        if after and f"\n{after.group(1)}" not in detail_text:
+            problems.append(f"DETAIL_TEXT 에서 <BR> 문단 구분이 개행으로 남지 않았습니다: {after.group(1)!r}")
+    return problems
+
+
 def check_stock_insight_row_merge(chunks: list) -> list[str]:
     """AI차트뷰 원천은 세부내용을 여러 행에 문자 단위로 잘라 보낸다.
 
@@ -271,6 +299,7 @@ def check_stock_insight_row_merge(chunks: list) -> list[str]:
     leaked = sorted({"md_stck_itm_c", "kosc_stck_itm_c", "nat_c"} & set(first))
     if leaked:
         problems.append(f"매핑하지 않은 원천 컬럼이 metadata 에 실렸습니다: {leaked}")
+    problems += _check_stock_insight_keeps_source_text(chunks)
     return problems
 
 
@@ -281,7 +310,7 @@ def check_stock_insight_scattered_merge(chunks: list) -> list[str]:
     테슬라는 4556 의 1~3행과 4~7행이 엔비디아를 사이에 두고 갈려 있다. 홀로그램은 4637
     (1·2·3·5행)과 4721(4·6행)이 다른 종목 사이에 흩어져 있고, 라인번호는 등록번호마다 따로
     매겨진다. 홀로그램은 원천에 빠진 행이 있어 JSON 으로 복원되지 않으므로 등록번호 순서만
-    본다(두 문서를 잇는 개행은 DETAIL_DESC 의 text_norm 이 공백으로 접는다).
+    본다(두 문서는 개행으로 이어진다).
     """
     problems = []
     by_stock: dict = {}
@@ -310,6 +339,7 @@ def check_stock_insight_scattered_merge(chunks: list) -> list[str]:
             json.loads(desc)
         except ValueError:
             problems.append(f"{name}: DETAIL_DESC 가 JSON 으로 복원되지 않았습니다(조각 순서 오류)")
+    problems += _check_stock_insight_keeps_source_text(chunks)
     return problems
 
 
