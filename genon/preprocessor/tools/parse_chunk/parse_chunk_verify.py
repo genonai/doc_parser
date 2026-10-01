@@ -109,6 +109,9 @@ CASES = [
     ("product_hpp",   MONIMO / "monimo_product_hpp_fields_sample.json",
      "코드값·금액문자열·브랜드 분리 필드"),
     ("stock_insight", MONIMO / "monimo_stock_insight_sample.txt",      "구분자 텍스트 레코드"),
+    # 2026-10-01 현장 캡처 재현. 생성 스크립트는 tools/parse_chunk/make_stock_insight_split_sample.py 다.
+    ("stock_insight", MONIMO / "monimo_stock_insight_split_sample.txt",
+     "떨어진 행·등록번호 2개 병합"),
     # 개인 작업 디렉터리(gitignore)에 있는 실 원천. 없는 머신에서는 SKIP 된다.
     ("card",          REPO_ROOT / "shkim_labs" / "20260803_monimo" / "01_card" / "card01.flat.html",
                                                                       "llm(카드 12필드)"),
@@ -193,7 +196,7 @@ def check_product_hpp_table_format(chunks: list) -> list[str]:
 def check_stock_insight_row_merge(chunks: list) -> list[str]:
     """AI차트뷰 원천은 세부내용을 여러 행에 문자 단위로 잘라 보낸다.
 
-    row_merge 가 등록번호+종목코드 연속 런을 게시물 라인번호 순으로 이어붙여
+    row_merge 가 종목코드+뉴스일자 묶음을 등록번호별 게시물 라인번호 순으로 이어붙여
     20행 → 4레코드(종목 4건)가 되어야 한다. 구분자가 끼거나 순서가 틀리면 복원되지 않는다.
 
     detail_desc 는 **JSON·HTML·평문 중 무엇이든** 올 수 있어 스키마를 못 박을 수 없다.
@@ -270,6 +273,44 @@ def check_stock_insight_row_merge(chunks: list) -> list[str]:
         problems.append(f"매핑하지 않은 원천 컬럼이 metadata 에 실렸습니다: {leaked}")
     return problems
 
+
+
+def check_stock_insight_scattered_merge(chunks: list) -> list[str]:
+    """같은 종목코드·뉴스일자 행은 떨어져 있어도 한 레코드로 모인다(현장 캡처 재현).
+
+    테슬라는 4556 의 1~3행과 4~7행이 엔비디아를 사이에 두고 갈려 있다. 홀로그램은 4637
+    (1·2·3·5행)과 4721(4·6행)이 다른 종목 사이에 흩어져 있고, 라인번호는 등록번호마다 따로
+    매겨진다. 홀로그램은 원천에 빠진 행이 있어 JSON 으로 복원되지 않으므로 등록번호 순서만
+    본다(두 문서를 잇는 개행은 DETAIL_DESC 의 text_norm 이 공백으로 접는다).
+    """
+    problems = []
+    by_stock: dict = {}
+    for chunk in chunks:
+        by_stock.setdefault(chunk.get("JONG_NM"), []).append(chunk)
+    expected = {"테슬라", "엔비디아", "마이크로클라우드 홀로그램", "팔란티어 테크놀로지스",
+                "리게티 컴퓨팅", "애플"}
+    if set(by_stock) != expected:
+        problems.append(f"종목 {len(expected)}건 기대, 실제 {sorted(by_stock, key=str)}")
+
+    for name, group in by_stock.items():
+        # 한 레코드에서 나온 청크는 metadata 가 같다. 값이 둘 이상이면 레코드가 갈린 것이다.
+        descs = {c.get("DETAIL_DESC") for c in group}
+        biz_ids = {c.get("BIZ_ID") for c in group}
+        if len(descs) != 1 or len(biz_ids) != 1:
+            problems.append(f"{name}: 레코드가 {len(descs)}건으로 갈렸습니다(BIZ_ID {sorted(map(str, biz_ids))})")
+            continue
+        desc = descs.pop() or ""
+        if name == "마이크로클라우드 홀로그램":
+            first = desc.find("현재 종가 1.75는")          # 4637 1행
+            second = desc.find("반전 신호의 신뢰도가")     # 4721 6행
+            if not 0 <= first < second:
+                problems.append(f"{name}: 4637 → 4721 순서로 결합되지 않았습니다: {desc[:60]!r}")
+            continue
+        try:
+            json.loads(desc)
+        except ValueError:
+            problems.append(f"{name}: DETAIL_DESC 가 JSON 으로 복원되지 않았습니다(조각 순서 오류)")
+    return problems
 
 
 def check_cs_hpp_degenerate_table(chunks: list) -> list[str]:
@@ -609,6 +650,7 @@ EXTRA_CHECKS = {
     ("cs_hpp", ".INC_235488_02_20260626103138.html.parsed"): check_cs_hpp_parsed_ext,
     ("product_hpp", "monimo_product_hpp_rich_table_sample.json"): check_product_hpp_link_labels,
     ("stock_insight", "monimo_stock_insight_sample.txt"): check_stock_insight_row_merge,
+    ("stock_insight", "monimo_stock_insight_split_sample.txt"): check_stock_insight_scattered_merge,
     ("cs_ssf", "monimo_cs_ssf_sample.dtms"): check_cs_ssf_delimited,
     ("cs_ssf", "monimo_cs_ssf_layout_table_sample.dtms"): check_cs_ssf_layout_table,
     ("monimo_news", "TD00008415_d_5199.html.json"): check_biz_id_from_filename("TD00008415"),

@@ -834,8 +834,8 @@ def test_row_merge_folds_split_records_before_value_pipeline(tmp_path):
     assert "SK하이닉스" in str(rows[1]["DETAIL_JSON"])
 
 
-def test_row_merge_only_folds_consecutive_runs(tmp_path):
-    """떨어진 동일 키는 합치지 않는다 — 등록번호 재사용 시 다른 건이 뭉개지는 것을 막는다."""
+def test_row_merge_folds_scattered_keys(tmp_path):
+    """떨어진 동일 키도 한 레코드로 모으고, 첫 등장 자리에 둔다."""
     mapper = write_mapper(tmp_path, """
         schema: v2
         source:
@@ -856,4 +856,30 @@ def test_row_merge_only_folds_consecutive_runs(tmp_path):
         {"regtNo": "R2", "body": "b"},
         {"regtNo": "R1", "body": "c"},
     ], "stock")
-    assert [r["BODY"] for r in rows] == ["a", "b", "c"]
+    assert [r["BODY"] for r in rows] == ["ac", "b"]
+
+
+def test_row_merge_accepts_array_valued_key(tmp_path):
+    """JSON 레코드의 배열 값도 묶음 키가 된다(dict 키로 쓰다 TypeError 가 나던 회귀)."""
+    mapper = write_mapper(tmp_path, """
+        schema: v2
+        source:
+          kind: records
+          merge_rows:
+            group_by: [TAGS]
+            part_by:  TAGS
+            concat:   [BODY]
+        fields:
+          TAGS:
+            alias: [tags]
+          BODY:
+            alias: [body]
+        body:
+          fields: [BODY]
+    """, doc_type="stock")
+    rows = mapper.build_fields([
+        {"tags": ["A"], "body": "a"},
+        {"tags": ["B"], "body": "b"},
+        {"tags": ["A"], "body": "c"},
+    ], "stock")
+    assert [r["BODY"] for r in rows] == ["ac", "b"]

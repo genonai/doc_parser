@@ -725,6 +725,30 @@ def test_row_merge_splits_on_group_boundary(tmp_path):
 
 
 @pytest.mark.unit
+def test_row_merge_part_by_keeps_line_numbers_per_document(tmp_path):
+    """같은 종목이 등록번호를 달리해 떨어져 와도 한 레코드로 모은다(AI차트뷰 실측).
+
+    라인번호는 등록번호마다 따로 매겨지므로 문서별로 이어붙인 뒤 JSON 배열로 합친다.
+    """
+    path = _write_row_merge_cfg(tmp_path, row_merge={
+        "group_by": ["JONG_CODE"],
+        "part_by": "REGT_NO",
+        "order_by": "NTC_OBJLINE_NO",
+        "concat": ["DETAIL_DESC", "DETAIL_TEXT"],
+    })
+    first = [r for r in _row_merge_rows() if r["ntc_objline"] != 3]
+    second = [{**r, "regt_no": "4721"} for r in _row_merge_rows(order=(3, 1, 2))]
+    other = [{**r, "regt_no": "4558", "jong_code": "NVDA"} for r in _row_merge_rows()]
+    rest = [r for r in _row_merge_rows() if r["ntc_objline"] == 3]
+    fields = _build(_mapper(path, tmp_path), first + second[:1] + other + rest + second[1:])
+
+    assert [f["JONG_CODE"] for f in fields] == ["TSLA", "NVDA"]
+    whole = {"a": "값", "long_key": {"b": "<strong>볼드</strong>"}, "c": "x<BR>y"}
+    assert json.loads(fields[0]["DETAIL_DESC"]) == [whole, whole]
+    assert "볼드" in str(fields[0]["DETAIL_TEXT"])
+
+
+@pytest.mark.unit
 def test_row_merge_absent_keeps_one_record_per_row(tmp_path):
     """row_merge 미선언이면 종전대로 행 1개 = 레코드 1개다(회귀 가드)."""
     config = yaml.safe_load(_write_row_merge_cfg(tmp_path).read_text(encoding="utf-8"))

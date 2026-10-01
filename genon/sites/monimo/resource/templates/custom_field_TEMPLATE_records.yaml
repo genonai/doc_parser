@@ -80,11 +80,12 @@ source:
   #     skip_header: false                   # 기본값. 첫 줄이 헤더면 true
 
   # ── [선택] 여러 레코드에 걸쳐 쪼개진 값을 한 건으로 접기 ──────────────────
-  # rows 의 merge_rows 와 같은 구현·같은 규칙이다. group_by 가 같은 **연속** 레코드만
+  # rows 의 merge_rows 와 같은 구현·같은 규칙이다. group_by 가 같은 레코드는 떨어져 있어도
   # 한 묶음으로 접는다. 병합은 값 변환·파생 필드보다 **먼저** 돈다 — 조각마다 transform 이
   # 돌면 잘린 JSON 조각을 각각 평문화하게 되어 복원이 불가능하다.
   # merge_rows:
   #   group_by:  [<TARGET_FIELD_1>]
+  #   part_by:   <TARGET_FIELD_4>     # 선택. rows 템플릿 설명 참조
   #   order_by:  <TARGET_FIELD_2>
   #   concat:    [<TARGET_FIELD_3>]
   #   separator: ""
