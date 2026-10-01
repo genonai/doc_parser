@@ -74,9 +74,12 @@ CASES = [
     ("monimo_event",  SAMPLES / "json" / "monimo_event_sample.json",   "협의용 한글 키 표기"),
     ("monimo_event",  MONIMO / "monimo_event_real_sample.json",        "실 payload 스키마"),
     ("monimo_event",  MONIMO / "monimo_event_table_sample.json",       "5열 표 빈 셀 보존"),
+    # 제목에 영문 대문자·<BR>·엔티티가 든 생성 샘플이다(#414).
+    ("monimo_event",  MONIMO / "monimo_event_title_sample.json",       "제목 대소문자 보존"),
     ("monimo_news",   MONIMO / "monimo_news_sample.json",              "json_mapping"),
     ("monimo_news",   MONIMO / "TD00008415_d_5199.html.json",          "실 파일명 → BIZ_ID"),
     ("cs_slf",        MONIMO / "monimo_cs_slf_sample.json",            "json_mapping"),
+    # 마지막 레코드는 제목에 영문 대문자·<BR>·엔티티가 든 생성 레코드다(#414).
     ("cs_ssf",        MONIMO / "monimo_cs_ssf_sample.dtms",            "|@| 구분 레코드"),
     # 본문이 셀 하나짜리 레이아웃 표인 레코드(#396). 실물 형식을 따라 만든 생성 샘플이다.
     ("cs_ssf",        MONIMO / "monimo_cs_ssf_layout_table_sample.dtms", "1셀 레이아웃 표 레코드"),
@@ -622,6 +625,29 @@ def check_cs_ssf_delimited(chunks: list) -> list[str]:
     return problems
 
 
+def check_title_kept(*titles: str):
+    """제목(CUSTOM_TITLE)이 대소문자를 보존한 채 `<BR>`·HTML 엔티티만 풀려 실리는가(#414).
+
+    `text_norm` 은 중복 판정 키를 만드는 변환이라 영문을 소문자로 바꾸고(`OTP` → `otp`)
+    연속 공백을 한 칸으로 접는다. 제목에 걸리면 청크 본문과 화면 제목이 함께 바뀐다.
+    """
+    def _check(chunks: list) -> list[str]:
+        problems: list[str] = []
+        found = {chunk.get("CUSTOM_TITLE") for chunk in chunks}
+        body = "\n".join(chunk.get("text") or "" for chunk in chunks)
+        seen = "\n".join(map(str, found)) + "\n" + body
+        for title in titles:
+            if title not in found:
+                problems.append(f"CUSTOM_TITLE 에 {title!r} 가 없습니다")
+            if title not in body:
+                problems.append(f"청크 본문에 제목 {title!r} 가 없습니다")
+            for word in re.findall(r"[A-Za-z]*[A-Z][A-Za-z]*", title):
+                if re.search(rf"(?<![A-Za-z]){word.lower()}(?![A-Za-z])", seen):
+                    problems.append(f"제목의 {word!r} 가 소문자로 바뀌었습니다")
+        return problems
+    return _check
+
+
 def check_biz_id_from_filename(expected: str):
     """파일명 원천(`alias: [$file]`)으로 만든 BIZ_ID 가 모든 청크에 실렸는가."""
     def _check(chunks: list) -> list[str]:
@@ -651,7 +677,13 @@ EXTRA_CHECKS = {
     ("product_hpp", "monimo_product_hpp_rich_table_sample.json"): check_product_hpp_link_labels,
     ("stock_insight", "monimo_stock_insight_sample.txt"): check_stock_insight_row_merge,
     ("stock_insight", "monimo_stock_insight_split_sample.txt"): check_stock_insight_scattered_merge,
-    ("cs_ssf", "monimo_cs_ssf_sample.dtms"): check_cs_ssf_delimited,
+    ("cs_ssf", "monimo_cs_ssf_sample.dtms"): lambda chunks: check_cs_ssf_delimited(chunks) + check_title_kept(
+        "[보상콜] OTP  인증 오류 시 사고 접수 & 보상 안내")(chunks),
+    ("cs_slf", "monimo_cs_slf_sample.json"): check_title_kept(
+        "보험계약대출 이자 금액이 차이나는 이유가 무엇인가요? (추가대출고객,중도이자상환고객,CD/ATM 이용고객 등)",
+        "모니모 앱에서 OTP  재발급 신청 & 해지는 어떻게 하나요?"),
+    ("monimo_event", "monimo_event_title_sample.json"): check_title_kept(
+        "KB국민카드  & monimo Pay 첫 결제 최대 5만원 캐시백"),
     ("cs_ssf", "monimo_cs_ssf_layout_table_sample.dtms"): check_cs_ssf_layout_table,
     ("monimo_news", "TD00008415_d_5199.html.json"): check_biz_id_from_filename("TD00008415"),
 }
