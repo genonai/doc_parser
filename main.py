@@ -1,8 +1,10 @@
 import os
+import re
 import sys
 import json
 import shutil
 import asyncio
+import importlib.util
 import tempfile
 import traceback
 import time
@@ -163,6 +165,48 @@ parser_processor = ParserDocumentProcessor(config_path=_cfg("parser"))          
 chunking_processor = ChunkingDocumentProcessor(config_path=_cfg("chunking"))         # 청킹 전용(/chunker)
 
 
+# ── GenOS 전처리 콘솔 액티비티 디스패처 (#19901 B안) ─────────────────────────
+# 콘솔이 복제한 파서/청커 소스는 이 리포의 console/activities/{parser|chunker}_<n>.py 에 커밋된다
+# (원형 = facade/parser_processor.py · chunking_processor.py 1벌). 워커는 params 를 그대로 넘기므로
+# params 의 `parser_id`/`chunker_id` 로 어느 복제본을 쓸지 고른다 — 라우트·워커 수정 없이
+# "액티비티 n개 = 파드 1개"를 성립시키는 유일한 지점이다.
+# 선택자 키는 두 개 모두 **반드시 pop** 한다 — 프로세서는 `**params` 로 받아 모르는 키에 TypeError 를 낸다.
+CONSOLE_ACTIVITY_DIR = BASE_DIR / "console" / "activities"
+_CONSOLE_SELECTOR = {"parser": "parser_id", "chunker": "chunker_id"}
+_CONSOLE_CONFIG = {"parser": "parser", "chunker": "chunking"}
+_CONSOLE_ID = re.compile(r"^(parser|chunker)_\d+$")
+_console_cache: dict = {}   # 액티비티 id → (파일 mtime, 프로세서 인스턴스)
+
+
+def _console_processor(kind: str, params: dict, default):
+    """params 의 선택자로 콘솔 액티비티 프로세서를 고른다. 미지정·원형(<kind>_1)은 기본 프로세서."""
+    selected = None
+    for k, key in _CONSOLE_SELECTOR.items():
+        value = params.pop(key, None)
+        if k == kind and value:
+            selected = str(value).strip()
+    if not selected or selected == f"{kind}_1":
+        return default
+    if not _CONSOLE_ID.match(selected) or not selected.startswith(kind):
+        raise GenosServiceException(ERROR_CODE_INPUT, f"{_CONSOLE_SELECTOR[kind]} 값이 올바르지 않습니다: {selected}")
+    path = CONSOLE_ACTIVITY_DIR / f"{selected}.py"
+    if not path.is_file():
+        raise GenosServiceException(
+            ERROR_CODE_INPUT, f"콘솔 액티비티 소스가 없습니다: console/activities/{selected}.py (배포 리비전 확인)")
+    mtime = path.stat().st_mtime
+    cached = _console_cache.get(selected)
+    if cached and cached[0] == mtime:
+        return cached[1]
+    # 복제본은 facade 모듈의 사본이라 절대 import(genon.preprocessor.facade.*)만 쓴다 → 경로만 바꿔 로드해도 된다.
+    spec = importlib.util.spec_from_file_location(f"console_activities.{selected}", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    processor = getattr(module, "DocumentProcessor")(config_path=_cfg(_CONSOLE_CONFIG[kind]))
+    _console_cache[selected] = (mtime, processor)
+    logger.info(f"[console] {kind} 액티비티 로드: {selected} ← {path}")
+    return processor
+
+
 def _request_deadline_seconds(params: dict):
     """#329: params.request_deadline(초, >0)이면 요청 전체 hard deadline 으로 쓴다.
 
@@ -256,7 +300,8 @@ async def parse(
         file_path: str = Body(..., embed=True),
         params: dict = Body(default_factory=dict)
 ):
-    return await _run('parser', parser_processor, request, file_path, params, marker='IS_PARSER')
+    processor = _console_processor('parser', params, parser_processor)
+    return await _run('parser', processor, request, file_path, params, marker='IS_PARSER')
 
 
 # /parser 의 multipart 변형: 클라이언트 로컬 파일을 업로드받아 파싱한다.
@@ -287,7 +332,8 @@ async def parse_upload(
         contents = await file.read()
         with open(tmp_path, 'wb') as f:
             f.write(contents)
-        return await _run('parser_upload', parser_processor, request, tmp_path, params_dict, marker='IS_PARSER')
+        processor = _console_processor('parser', params_dict, parser_processor)
+        return await _run('parser_upload', processor, request, tmp_path, params_dict, marker='IS_PARSER')
     finally:
         shutil.rmtree(tmp_dir, ignore_errors=True)
 
@@ -299,7 +345,8 @@ async def chunker(
         params: dict = Body(default_factory=dict)
 ):
     # 앞단계(파싱) 결과 docling JSON 은 params["document"] 로 인라인 전달된다.
-    return await _run('chunker', chunking_processor, request, file_path, params, marker='IS_CHUNKER')
+    processor = _console_processor('chunker', params, chunking_processor)
+    return await _run('chunker', processor, request, file_path, params, marker='IS_CHUNKER')
 
 
 if __name__ == '__main__':

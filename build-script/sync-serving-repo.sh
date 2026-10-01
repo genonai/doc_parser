@@ -70,7 +70,9 @@ fi
 
 # 배포본에 담을 것 (whitelist, repo 루트 기준 추적 경로). 나머지는 애초에 복사 안 함.
 # Dockerfile: 코드서빙이 리비전 부팅 시 배포본 루트의 이 파일로 이미지를 빌드한다(main.py 와 같은 위치).
-WHITELIST=("genon" "main.py" "requirements.txt" "Dockerfile")
+# console: GenOS 전처리 콘솔이 커밋하는 액티비티 복제본(console/activities/*.py)과 단건 실행 CLI.
+#   main.py 의 _console_processor 가 그 복제본을 읽으므로 배포본에 함께 가야 운영에서 선택이 동작한다.
+WHITELIST=("genon" "main.py" "requirements.txt" "Dockerfile" "console")
 
 # whitelist 로 가져온 뒤 배포본에서 제거할 하위 폴더 (dev/build — 서빙 런타임 무의존).
 #   genon/sites 는 고객사이트별 설정 완성본·전용 facade·로컬(VPN) 접속값이라 배포본에 넣지 않는다.
