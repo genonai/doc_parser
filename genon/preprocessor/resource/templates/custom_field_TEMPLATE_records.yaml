@@ -171,7 +171,8 @@ fields:
   # <ROW_NO>:      {seq: {prefix: "FAQ-", width: 4}}   # FAQ-0001, FAQ-0002 …
 
 # ── [참고] 값 적용 순서 ──────────────────────────────────────────────────────
-#   alias/collect 원시 매핑 → (merge_rows 병합) →
+#   alias/collect 원시 매핑 → 완전 중복 레코드 제거(키 순서와 무관하게 모든 값이 같은
+#   레코드는 첫 건만 남긴다) → (merge_rows 병합) →
 #   default → const → values → transform → template → filter → require 검사
 #   → seq 번호 부여(걸러진 레코드가 번호를 소비하지 않게 맨 뒤에 붙는다)
 #   → llm 필드 채움 → pack 묶기(값이 다 확정된 뒤라 seq·llm 산출까지 담긴다)

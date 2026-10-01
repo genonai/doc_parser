@@ -70,6 +70,9 @@ MONIMO = SAMPLES / "monimo"
 CASES = [
     ("menu",          MONIMO / "monimo_menu_sample.xlsx",              "행 1개 = 청크 1개"),
     ("term",          MONIMO / "monimo_term_sample.xlsx",              "행 1개 = 청크 1개"),
+    # 완전 중복 행과 일부 컬럼만 다른 대조군 행(#412). 생성 스크립트는
+    # tools/parse_chunk/make_term_duplicate_rows_sample.py 다.
+    ("term",          MONIMO / "monimo_term_duplicate_rows_sample.xlsx", "완전 중복 행 제거"),
     ("faq",           MONIMO / "monimo_faq_json_sample.json",          "json_mapping"),
     ("monimo_event",  SAMPLES / "json" / "monimo_event_sample.json",   "협의용 한글 키 표기"),
     ("monimo_event",  MONIMO / "monimo_event_real_sample.json",        "실 payload 스키마"),
@@ -305,6 +308,11 @@ def check_stock_insight_scattered_merge(chunks: list) -> list[str]:
             second = desc.find("반전 신호의 신뢰도가")     # 4721 6행
             if not 0 <= first < second:
                 problems.append(f"{name}: 4637 → 4721 순서로 결합되지 않았습니다: {desc[:60]!r}")
+            # 재전송된 4637 1행은 한 번만, kosc 코드만 다른 대조군 3행은 두 번 실려야 한다(#412).
+            if desc.count("현재 종가 1.75는 5일선(1.71)을") != 1:
+                problems.append(f"{name}: 완전 중복 행(4637 1행)이 제거되지 않았습니다")
+            if desc.count("1.66까지 내려갔으나") != 2:
+                problems.append(f"{name}: 일부 컬럼만 다른 대조군 행(4637 3행)이 유지되지 않았습니다")
             continue
         try:
             json.loads(desc)
@@ -637,7 +645,15 @@ def check_valid_period(chunks: list) -> list[str]:
     return [] if found == expected else [f"VALID_FROM/VALID_TO 가 {expected} 가 아닙니다: {sorted(map(str, found))}"]
 
 
+def check_term_duplicate_rows(chunks: list) -> list[str]:
+    """완전 중복 행(SLF_0001 재전송)은 한 번만, 최종수정일만 다른 대조군(HPP_0001)은 둘 다 남는다(#412)."""
+    found = sorted((str(c.get("BIZ_ID")), str(c.get("SRC_LAST_MOD_DT"))) for c in chunks)
+    expected = [("HPP_0001", "20260601"), ("HPP_0001", "20260615"), ("SLF_0001", "20260601")]
+    return [] if found == expected else [f"(BIZ_ID, 최종수정일) {expected} 기대, 실제 {found}"]
+
+
 EXTRA_CHECKS = {
+    ("term", "monimo_term_duplicate_rows_sample.xlsx"): check_term_duplicate_rows,
     ("product_slf", "monimo_product_slf_fields_sample.md"): check_valid_period,
     ("product_slf", "monimo_product_slf_sample.md"):
         lambda chunks: check_front_matter(chunks) + check_product_attrs_once(chunks),
