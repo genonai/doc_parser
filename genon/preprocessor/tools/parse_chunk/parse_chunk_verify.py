@@ -13,6 +13,8 @@ doc_type 마다 샘플을 파싱·청킹한 뒤, 그 doc_type 의 custom_field y
   - llm_fields / output_fields 는 실패해도 통과로 본다(on_error:null 정책). 다만
     null 비율을 리포트해 모델서빙이 죽었는지 눈에 보이게 한다.
   - 케이스별 추가 단정(EXTRA_CHECKS): 위 공통 규칙으로는 잡히지 않는 회귀를 고정한다.
+  - 분할 강제 케이스(FORCED_SPLIT_CASES): 기본 chunk_size 에서 나뉘지 않는 샘플을 작은
+    chunk_size 로 다시 실행해, 분할 뒤에도 같은 단정이 성립하는지 본다.
   - 이상 청크 검증(chunk_quality): custom_fields 와 무관한 별도 케이스로, `--only chunk_quality`
     로 고를 때만 돈다. 청커 설정에
     `chunking.validation: {enable: true, action: drop}` 을 얹어 불량 섹션이 빠지고 대조군이
@@ -227,6 +229,36 @@ def _check_stock_insight_keeps_source_text(chunks: list) -> list[str]:
     return problems
 
 
+def _check_stock_insight_same_record_meta(chunks: list) -> list[str]:
+    """한 레코드(BIZ_ID)에서 나온 청크는 분할돼도 세부내용 원본·평문이 모두 같다(#419).
+
+    레코드가 chunk_size 를 넘으면 본문만 나뉘고 metadata 는 조각마다 레코드 전체 값으로 복사된다.
+    값이 둘 이상이면 병합이 갈렸거나 조각 값이 metadata 로 샌 것이다.
+    """
+    problems = []
+    by_biz: dict = {}
+    for chunk in chunks:
+        by_biz.setdefault(chunk.get("BIZ_ID"), []).append(chunk)
+    for biz_id, group in by_biz.items():
+        for field in ("DETAIL_DESC", "DETAIL_TEXT"):
+            values = {c.get(field) for c in group}
+            if len(values) != 1:
+                problems.append(f"{biz_id}: 청크 {len(group)}건의 {field} 가 {len(values)}종입니다")
+    return problems
+
+
+def check_stock_insight_split_per_record(chunks: list) -> list[str]:
+    """작은 chunk_size 로 돌렸을 때 모든 레코드가 실제로 둘 이상으로 나뉘었다(#419).
+
+    나뉘지 않으면 `_check_stock_insight_same_record_meta` 가 아무것도 검증하지 못한다.
+    """
+    counts: dict = {}
+    for chunk in chunks:
+        counts[chunk.get("BIZ_ID")] = counts.get(chunk.get("BIZ_ID"), 0) + 1
+    unsplit = sorted(str(biz_id) for biz_id, n in counts.items() if n < 2)
+    return [f"분할되지 않은 레코드가 있습니다: {unsplit}"] if unsplit else []
+
+
 def check_stock_insight_row_merge(chunks: list) -> list[str]:
     """AI차트뷰 원천은 세부내용을 여러 행에 문자 단위로 잘라 보낸다.
 
@@ -306,6 +338,7 @@ def check_stock_insight_row_merge(chunks: list) -> list[str]:
     if leaked:
         problems.append(f"매핑하지 않은 원천 컬럼이 metadata 에 실렸습니다: {leaked}")
     problems += _check_stock_insight_keeps_source_text(chunks)
+    problems += _check_stock_insight_same_record_meta(chunks)
     return problems
 
 
@@ -351,6 +384,7 @@ def check_stock_insight_scattered_merge(chunks: list) -> list[str]:
         except ValueError:
             problems.append(f"{name}: DETAIL_DESC 가 JSON 으로 복원되지 않았습니다(조각 순서 오류)")
     problems += _check_stock_insight_keeps_source_text(chunks)
+    problems += _check_stock_insight_same_record_meta(chunks)
     return problems
 
 
@@ -734,6 +768,15 @@ EXTRA_CHECKS = {
     ("monimo_news", "TD00008415_d_5199.html.json"): check_biz_id_from_filename("TD00008415"),
 }
 
+# 기본 chunk_size 에서는 나뉘지 않는 샘플을 작은 chunk_size 로 한 번 더 실행한다(#419).
+# CASES 와 같은 샘플이므로 EXTRA_CHECKS 단정을 그대로 받고, 마지막 항목의 단정을 덧붙인다.
+# CASES 의 튜플 형태는 골든 하네스(parse_chunk_golden.py)가 함께 쓰므로 여기에 따로 둔다.
+# (doc_type, 샘플, chunk_size, 추가 단정, 비고)
+FORCED_SPLIT_CASES = [
+    ("stock_insight", MONIMO / "monimo_stock_insight_split_sample.txt", 200,
+     check_stock_insight_split_per_record, "떨어진 행 병합 후 분할"),
+]
+
 # 이상 청크 검증(chunking.validation) 케이스. 샘플 생성 스크립트는
 # tools/parse_chunk/make_chunk_quality_sample.py 다. custom_fields 블록이 없는 원천이라
 # CASES 와 따로 돌린다. 불량 본문 표식은 그 스크립트의 E06·E08·E10·E11 과 같다.
@@ -1013,23 +1056,31 @@ def main() -> int:
     out_root.mkdir(parents=True, exist_ok=True)
     rows, failed, skipped = [], 0, 0
 
-    for doc_type, src, note in cases:
-        label = f"{doc_type}:{src.name}"
+    runs = [(doc_type, src, note, None, None) for doc_type, src, note in cases]
+    runs += [(doc_type, src, note, size, check)
+             for doc_type, src, size, check, note in FORCED_SPLIT_CASES
+             if not args.only or doc_type in args.only]
+    for doc_type, src, note, chunk_size, split_check in runs:
+        label = f"{doc_type}:{src.name}" + (f"@chunk_size={chunk_size}" if chunk_size else "")
         if not src.exists():
             rows.append((label, "SKIP", "샘플 없음", "-", "-")); skipped += 1; continue
         block = pick_block(blocks, doc_type, src.suffix)
         if block is None:
             rows.append((label, "SKIP", "설정에 doc_type 없음", "-", "-")); skipped += 1; continue
 
-        out_dir = out_root / doc_type
+        # 같은 샘플을 chunk_size 만 바꿔 다시 돌리므로 산출물이 덮이지 않게 폴더를 가른다.
+        out_dir = out_root / (doc_type if chunk_size is None else f"{doc_type}_chunk{chunk_size}")
         out_dir.mkdir(parents=True, exist_ok=True)
-        ok, err, _out = run_case(args.python, doc_type, src, out_dir)
+        extra_args = ["--chunk-size", str(chunk_size)] if chunk_size else None
+        ok, err, _out = run_case(args.python, doc_type, src, out_dir, extra_args)
         if not ok:
             rows.append((label, "FAIL", err, "-", "-")); failed += 1; continue
 
         problems = verify(doc_type, src, out_dir, block)
         chunks_path = out_dir / (src.stem + ".chunks.json")
         chunks = json.loads(chunks_path.read_text(encoding="utf-8")) if chunks_path.exists() else []
+        if split_check is not None and chunks:
+            problems += split_check(chunks)
         _req, _const, llm = expected_from_yaml(block)
         n_chunks = str(len(chunks))
         nulls = llm_null_rate(chunks, llm)
