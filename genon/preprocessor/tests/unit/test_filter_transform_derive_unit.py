@@ -88,7 +88,7 @@ def test_transform_takes_arguments_and_chains(tmp_path):
               - {name: to_int}
           CODE:
             alias: [설명]
-            transform: {name: regex_extract, pattern: "(?P<code>[A-Z]+-[A-Z]+-[0-9]+)", group: code}
+            transform: {name: regex_extract, pattern: "([A-Z]+-[A-Z]+-[0-9]+)"}
           SHORT:
             alias: [본문]
             transform: {name: truncate, length: 6, suffix: "…"}
@@ -577,20 +577,50 @@ def test_json_path_gets_the_same_features(tmp_path):
         ("schema: v2\nsource: {kind: rows}\n"
          "fields: {T: {alias: [제목]}, B: {alias: [$file]}}\n"
          "body: {fields: [T]}\n", "file_fields"),
-        # 없는 그룹은 실행 시 IndexError 가 삼켜져 값이 조용히 항상 None 이 된다.
-        ('schema: v2\nsource: {kind: rows}\n'
-         'fields: {T: {alias: [제목], transform: {name: regex_extract, pattern: "^TD[0-9]+"}}}\n'
-         'body: {fields: [T]}\n', "패턴에 없습니다"),
-        ('schema: v2\nsource: {kind: rows}\n'
-         'fields: {T: {alias: [제목], transform: {name: regex_extract, '
-         'pattern: "^(?P<code>TD[0-9]+)", group: nope}}}\n'
-         'body: {fields: [T]}\n', "패턴에 없습니다"),
     ],
 )
 def test_misconfiguration_is_caught_at_startup(tmp_path, body, expect):
     """요청 때 터지면 어느 설정이 문제인지 로그만 보고는 알 수 없다."""
     with pytest.raises(ValueError, match=expect):
         _rows(tmp_path, body, [{"제목": "x"}])
+
+
+@pytest.mark.parametrize(
+    "pattern, group, ok",
+    [
+        (r"^(TD\d+)", None, True),          # 출고 설정 그대로
+        (r"^TD\d+", None, False),           # 괄호를 빠뜨린 실수
+        (r"^(?P<id>TD\d+)", "id", True),
+        (r"^(?P<id>TD\d+)", "nope", False),
+    ],
+)
+def test_regex_extract_group_is_checked_on_shipped_config(pattern, group, ok):
+    """모니모 관심소식 출고 설정의 BIZ_ID 추출(#422).
+
+    없는 그룹은 실행 시 IndexError 가 삼켜져 BIZ_ID 가 조용히 항상 None 으로 적재된다.
+    """
+    import yaml
+
+    from genon.preprocessor.processing.enrichment import config_v2 as cv2
+    from genon.preprocessor.processing.enrichment.tabular_custom_fields import (
+        compile_transforms,
+    )
+    from shipped_config import PREPROCESSOR_DIR, SITE_MONIMO
+
+    path = PREPROCESSOR_DIR / SITE_MONIMO / "custom_field_monimo_news.yaml"
+    raw = yaml.safe_load(path.read_text(encoding="utf-8"))
+    step = raw["fields"]["BIZ_ID"]["transform"]
+    assert step == {"name": "regex_extract", "pattern": r"^(TD\d+)"}, "출고 설정이 바뀌었다"
+    step["pattern"] = pattern
+    if group is not None:
+        step["group"] = group
+    internal, _ = cv2.load(raw, label=path.name)
+
+    if ok:
+        compile_transforms(internal["transforms"], label=path.name, cfg=internal)
+    else:
+        with pytest.raises(ValueError, match="패턴에 없습니다"):
+            compile_transforms(internal["transforms"], label=path.name, cfg=internal)
 
 
 @pytest.mark.parametrize(
