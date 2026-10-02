@@ -139,7 +139,7 @@
 | `table_text_formats` | `[]` | 같은 청크를 표만 다른 형식으로 렌더한 텍스트를 **추가 필드**로. 켜면 본문이 형식 수만큼 복제됩니다 |
 
 > **파서 설정의 같은 이름 키와 맞출 필요가 없습니다.** 파서 쪽은 자기 출력(`format: json/html/markdown`)과
-> custom_fields 의 `html_text`/`to_text` 변환에만 씁니다. **청크 텍스트의 표 모양은 이 섹션이 최종 결정**합니다.
+> custom_fields 의 `to_text` 변환에만 씁니다. **청크 텍스트의 표 모양은 이 섹션이 최종 결정**합니다.
 
 ### `table_image` · `guardrail`
 

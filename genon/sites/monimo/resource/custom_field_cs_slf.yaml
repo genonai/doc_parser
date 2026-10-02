@@ -32,7 +32,7 @@ fields:
   SRC_LAST_MOD_DT:
     alias: [게시일자]
     default: null
-    transform: date_int_flex
+    transform: date_int
 require:
   fields: [GROUP_C]
 body:

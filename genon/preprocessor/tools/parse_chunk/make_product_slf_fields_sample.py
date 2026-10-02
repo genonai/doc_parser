@@ -8,7 +8,7 @@ md 상품요약서 모양을 유지하면서 **front matter 값의 형태만** �
 1. `sale_state` 가 사람이 읽는 이름이 아니라 **코드값**(`"1"`)이다 — `values` 로 접어야
    적재 컬럼이 표준값(`SALE`)이 된다.
 2. `created_at` 이 `2026.01.12` 처럼 **구분자가 다른 날짜 문자열**이다 — `transform` 의
-   `date_int_flex` 가 YYYYMMDD 정수로 바꾼다.
+   `date_int` 가 YYYYMMDD 정수로 바꾼다.
 4. `sales_period` 가 `시작 ~ 종료` 한 줄이고 종료가 날짜가 아닌 "진행중"이다 — 체인으로 나눠
    `VALID_FROM`/`VALID_TO` 를 만들고, 열린 종료는 99991231 로 둔다.
 3. 상품명이 브랜드(`brand`)와 상품명(`product_name`) 두 키로 나뉘어 있다 — `template` 으로

@@ -716,7 +716,7 @@ def _compile_transform_step(name: str, kwargs: dict, *, target: str, label: str)
 def apply_transforms(fields: dict, compiled: dict[str, list], html_renderer: Any = None) -> None:
     """컴파일된 변환 체인을 제자리 적용한다.
 
-    `html_renderer` 는 `html_text`/`to_text` 변환기에만 주입한다 — 표 모양을 살리려면 요청의
+    `html_renderer` 는 `to_text` 변환기에만 주입한다 — 표 모양을 살리려면 요청의
     table_format/compact_tables 를 물려야 해서 설정으로는 표현할 수 없는 인자다. 기본값이
     None 이라 렌더러가 필요 없는 호출부는 그대로 둔다(표가 오는 경로에서는 반드시 넘긴다).
     """
@@ -1244,7 +1244,7 @@ def build_chunk_text(
     def labeled(name: str) -> str:
         """`항목명: 값`. 값이 여러 줄이면 항목명만 한 줄로 앞세워 블록 구조를 지킨다.
 
-        여러 줄이면 항목명을 통째로 버리는 규칙이었다. 근거는 `to_text`/`html_text` 변환이 만든
+        여러 줄이면 항목명을 통째로 버리는 규칙이었다. 근거는 `to_text` 변환이 만든
         값이 자기 제목을 가진 마크다운 블록이라는 것이었는데, 실제 산출은 표·목록으로 시작해
         제목이 없는 경우가 대부분이라 설정에 적어 둔 이름이 조용히 사라졌다. 사람이 적어 준
         이름은 그래서 여러 줄 값에도 낸다 — 다만 `내용: | 구 분 |` 처럼 첫 줄에 붙이면 표가
@@ -1373,7 +1373,7 @@ class CustomFieldsMapperBase:
         (bca0e926 "defaults 와 constants 의 적용 순서를 세 extractor 에서 맞춤"). 그래서
         여기 한 벌만 둔다.
 
-        `html_renderer` 는 `html_text`/`to_text` 변환이 쓰는 구조 HTML 평문화 콜백이고,
+        `html_renderer` 는 `to_text` 변환이 쓰는 구조 HTML 평문화 콜백이고,
         `context` 는 값 정규화 경고에 붙일 위치 문자열이다. 둘 다 원천마다 다르므로
         호출측이 넘긴다 — 파이프라인의 순서는 그대로 두고 재료만 갈아 끼운다.
         """
@@ -1526,7 +1526,7 @@ class TabularCustomFieldsMapper(CustomFieldsMapperBase):
         doc_type = self.canonical_doc_type(runtime_doc_type)
 
         # 구조 HTML 이 섞여 올 수 있으므로 렌더러를 준비한다(변환이 없으면 만들지 않는다).
-        # `html_text`/`to_text` 변환기만 이것을 받는다. 표 모양을 docling 경로·records 경로와
+        # `to_text` 변환기만 이것을 받는다. 표 모양을 docling 경로·records 경로와
         # 같은 설정으로 맞춘다 — 인자를 주지 않으면 항상 <table> 이 되어, 같은 파일 안에서도
         # kind 마다 표가 다르게 나온다.
         html_renderer = structural_html_renderer(

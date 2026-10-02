@@ -565,7 +565,7 @@ def test_shipped_date_fields_use_flexible_integer_transform(resource_dir, config
 
     transforms = cfg.get("transforms") or {}
     assert {field: transforms.get(field) for field in fields} == {
-        field: "date_int_flex" for field in fields
+        field: "date_int" for field in fields
     }
 
 

@@ -204,7 +204,7 @@ def transform_normalize(value: Any) -> Optional[str]:
 transform_text_norm = transform_normalize  # 옛 이름. toolbox 재수출과 기존 import 를 유지한다.
 
 
-# ── 원천 값 → 사람이 읽는 평문 (`to_text`/`html_text` 변환기용) ──────────────
+# ── 원천 값 → 사람이 읽는 평문 (`to_text` 변환기용) ──────────────
 # 원천이 같은 컬럼에 JSON·HTML·평문을 섞어 보낸다(모니모 AI차트뷰 detail_desc). 정해진
 # 스키마가 없으므로 **종류를 자동 판별해 하나의 마크다운으로 수렴**시킨다. 설정은 없다.
 #
@@ -431,7 +431,7 @@ def render_field_text(
     if detected == "broken_json":
         raw = str(value).strip()
         _log.warning(
-            f"[text] JSON 파싱 실패 — 원문을 평문화만 합니다"
+            f"[to_text] JSON 파싱 실패 — 원문을 평문화만 합니다"
             f"(len={len(raw)}, head={raw[:80]!r}). 여러 행으로 쪼개진 값이라면 "
             f"row_merge 의 group_by/order_by 를 확인하세요."
         )

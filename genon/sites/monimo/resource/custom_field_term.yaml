@@ -26,7 +26,7 @@ fields:
     alias: [설명, 정의·설명, 정의 설명, 정의]
   SRC_LAST_MOD_DT:
     alias: [최종수정일]
-    transform: date_int_flex
+    transform: date_int
   SYNONYMS:
     default: null
 require:
