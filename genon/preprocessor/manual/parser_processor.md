@@ -1510,14 +1510,14 @@ fields:
 |---|---|---|
 | `date_int` | `on_error` | 날짜 텍스트 → `YYYYMMDD` 정수. 2자리 연도(`26.07.01`)·구분자 없는 `20260713`·`260701` 도 받는다. 날짜로 읽지 못하면 `on_error`(기본 `0`), 빈 값은 항상 `0` |
 | `date_int_flex` | `date_int` 와 같다 | `date_int` 의 옛 이름(별칭) |
-| `text_norm` | — | NFKC + 공백 축약 + casefold (중복 판정용) |
+| `normalize` (옛 이름 `text_norm`) | — | NFKC + 양끝 공백 제거 + 연속 공백 축약 + casefold (중복 판정용). 영문은 소문자로 바뀌고, 단어 사이 공백은 한 칸으로 줄일 뿐 없애지 않는다 |
 | `regex_sub` | `pattern`, `repl` | 정규식 치환 (`"18,000원"` → `"18000"`) |
 | `regex_extract` | `pattern`, `group`, `on_error` | 정규식 오려내기. 미매칭 시 `on_error`(기본 `None`), 빈 값은 그대로. `group` 이 패턴에 없으면 기동 실패 |
 | `hash` | `length`, `prefix` | SHA-1 16진 코드화(기본 16자리). 같은 값이면 같은 코드 |
 | `to_int` | `on_error` | 정수 하나로 변환. 천 단위 콤마·단위는 무시하고, 소수이거나 숫자가 둘 이상이면 `on_error` |
 | `truncate` | `length`, `suffix` | 길이 자르기(적재 컬럼 길이 맞춤) |
 | `html_text` | — | HTML 로 **강제** 평문화. 표·목록 유지 |
-| `text` | — | JSON/HTML/평문 **자동 판별** 후 평문화 |
+| `to_text` (옛 이름 `text`) | — | JSON/HTML/평문 **자동 판별** 후 평문화 |
 | `to_json` | `on_scalar`, `key` | 값을 **유효한 JSON 문자열**로 맞춤(적재 DB 의 JSON 컬럼용) |
 
 체이닝이 "새 요건 = 코드 수정" 을 막는 핵심 수단입니다.

@@ -51,8 +51,8 @@ from genon.preprocessor.processing.enrichment.tabular_custom_fields import (  # 
 # 이번 정리에서 없앤 키 → 대신 쓸 것.
 REMOVED_KEYS = {
     "nulls": "defaults 에 `필드: null` 로 적는다(결과가 같다)",
-    "json_text_fields": "`transform: text` 로 옮긴다(값 종류를 자동 판별한다)",
-    "text_from": "같은 alias 를 목표필드에 한 번 더 붙이고 `transform: text` 를 건다",
+    "json_text_fields": "`transform: to_text` 로 옮긴다(값 종류를 자동 판별한다)",
+    "text_from": "같은 alias 를 목표필드에 한 번 더 붙이고 `transform: to_text` 를 건다",
     "html_text_fields": "같은 alias 를 목표필드에 한 번 더 붙이고 `transform: html_text` 를 건다",
 }
 # 등록 블록에서 없앤 키 → 대신 쓸 것. 등록 블록은 기동 시 키 검증을 받지 않으므로

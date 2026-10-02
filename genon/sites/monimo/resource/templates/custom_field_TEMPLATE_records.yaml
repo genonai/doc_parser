@@ -128,7 +128,10 @@ source:
 #                **문서 1건 안에서만 유일하다** — 여러 파일에 걸친 전역 유일번호는 여기서
 #                만들 수 없다(접두를 파일명·수집일자로 잡거나 적재 쪽 시퀀스를 쓴다).
 #
-# [변환기] text_norm · html_text · text (인자 없음)
+# [변환기] normalize · html_text · to_text (인자 없음)
+#          normalize 는 중복 판정 키용이라 영문이 소문자로 바뀌고, 단어 사이 공백은 한 칸으로
+#          줄일 뿐 없애지 않는다.
+#          옛 이름 text_norm·text 는 각각 normalize·to_text 의 별칭이다.
 #          date_int · date_int_flex(on_error=0, 빈 값은 0) ·
 #          regex_sub(pattern, repl) · regex_extract(pattern, group=1, on_error=null) ·
 #          to_int(on_error=null) · truncate(length, suffix="") ·
@@ -140,12 +143,12 @@ source:
 #          객체를 통째로 적재 컬럼에 담을 때만 켜고, to_json 을 함께 건다.
 # 모르는 이름·빠진 인자·잘못된 정규식은 기동 시 실패한다.
 #
-# [평문화] `text` 는 값의 종류를 자동 판별한다 — JSON → 마크다운 헤딩, 구조 HTML(표·목록)
+# [평문화] `to_text` 는 값의 종류를 자동 판별한다 — JSON → 마크다운 헤딩, 구조 HTML(표·목록)
 #          → docling 평문화, 인라인 태그만 있으면 태그만 제거. `html_text` 는 판별 대신
 #          HTML 로 강제한다(원천이 항상 HTML 로 확정됐을 때). 정리 규칙은 파싱 경로와
 #          같다 — 접힌 약관·aria-hidden 텍스트도 보존된다.
 #          `collect` 결과(배열)에도 걸 수 있다 — `html_text` 는 항목별 변환 뒤 빈 줄로
-#          이어 붙이고, `text` 는 배열을 구조로 보아 `- 항목` 불릿 목록으로 만든다.
+#          이어 붙이고, `to_text` 는 배열을 구조로 보아 `- 항목` 불릿 목록으로 만든다.
 #          **원본도 함께 남기려면** 같은 alias 를 두 필드에 붙인다(아래 예시).
 fields:
   <TARGET_FIELD_1>:
