@@ -1643,16 +1643,20 @@ def _stock_insight_detail_desc(jong_name: str) -> str:
     ("custom_field_stock_insight.yaml", "DETAIL_TEXT", "text", "to_text", _stock_insight_detail_desc("애플")),
 ])
 def test_renamed_transform_matches_old_name(config_name, target, old, new, value):
-    """새 이름(to_text·normalize)은 출고 설정의 옛 이름 체인과 같은 값을 만든다."""
+    """새 이름(to_text·normalize)과 옛 이름은 출고 설정의 체인에서 같은 값을 만든다.
+
+    출고 설정은 어느 이름을 쓰든 되므로 체인의 해당 단계를 두 이름으로 각각 바꿔 비교한다.
+    """
     from genon.preprocessor.processing.enrichment.tabular_custom_fields import (
         apply_transforms, compile_transforms,
     )
     from shipped_config import SITE_MONIMO, load_shipped_named
 
-    old_spec = load_shipped_named(config_name, SITE_MONIMO)["transforms"][target]
-    old_chain = old_spec if isinstance(old_spec, list) else [old_spec]
-    assert old in old_chain
-    new_chain = [new if step == old else step for step in old_chain]
+    shipped_spec = load_shipped_named(config_name, SITE_MONIMO)["transforms"][target]
+    shipped_chain = shipped_spec if isinstance(shipped_spec, list) else [shipped_spec]
+    assert {old, new} & set(shipped_chain)
+    old_chain = [old if step in (old, new) else step for step in shipped_chain]
+    new_chain = [new if step in (old, new) else step for step in shipped_chain]
 
     results = []
     for chain in (old_chain, new_chain):
