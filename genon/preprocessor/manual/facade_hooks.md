@@ -397,7 +397,7 @@ RAG 검색용 정제는 **설정으로 하는 것이 기본**입니다. `chunkin
 | 자리 | 무엇을 꽂나 | 어떻게 |
 |---|---|---|
 | **값 추출 자체** | 정규식 추출, 사내 마스터 조회처럼 **LLM 이 아닌 방법** | custom_fields 의 `extractor: python` |
-| 값 변환기 | 금액 파싱, 사번 → 부서명처럼 **사이트 전용 값 변환** | `tb.register_transform()` 후 yaml `transforms:` 에서 이름으로 |
+| 값 변환기 | 금액 파싱, 사번 → 부서명처럼 **사이트 전용 값 변환** | `tb.register_transform()` 후 yaml `transform:` 에서 이름으로 |
 | LLM 출력 파서 | 표준 JSON 이 아닌 응답 해석 | custom_fields yaml 의 `parser: {type: python, file, callable}` |
 | 라우트 | 표준 포맷으로 못 바꾸는 원천 | 위 [ROUTES 절](#그래도-안-되면--라우트를-직접-씁니다) |
 
@@ -457,7 +457,7 @@ def extract(text, document=None, output_fields=None, **kwargs):
 
 ### 값 변환기 등록
 
-`custom_field_*.yaml` 의 `transforms:` 는 등록된 이름만 받습니다. 사이트 전용 변환은
+`custom_field_*.yaml` 의 `transform:` 은 등록된 이름만 받습니다. 사이트 전용 변환은
 **core 를 고치지 말고** 전처리기 파일 최상위에서 등록하세요 — core 를 고치면 릴리스
 통째 갱신에서 사라집니다.
 
@@ -466,8 +466,8 @@ tb.register_transform("won_to_int", lambda v: int(str(v).replace(",", "").replac
 ```
 
 ```yaml
-transforms:
-  AMT: [won_to_int]        # '1,200원' -> 1200
+fields:
+  AMT: {alias: [연회비], transform: [won_to_int]}    # '1,200원' -> 1200
 ```
 
 설정으로 하던 변환과 **같은 파이프라인**을 타므로 `value_map` · `derive` 와 순서가

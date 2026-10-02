@@ -110,7 +110,7 @@ source:
 #   values    : 코드값·표기 흔들림을 표준값으로 접는다 (`SALE: ["1", Y, 판매중]`)
 #               별칭에 영문 `yes`/`no`/`on`/`off` 를 쓸 때는 **따옴표로 감싼다** — YAML 이
 #               참/거짓으로 바꿔 버려 원천의 "yes" 와 영영 안 맞는다(`Y`/`N` 은 그대로다)
-#   transform : 값 변환 체인 (`date_int_flex`, `[{name: regex_sub, pattern: ...}]`)
+#   transform : 값 변환 체인 (`date_int`, `[{name: regex_sub, pattern: ...}]`)
 #               적재 DB 의 JSON 컬럼에 넣을 필드는 `[{name: to_json}]` 을 맨 뒤에 건다
 #   template  : 다른 필드를 합쳐 만든다 (`"{{BRAND_NM}} {{PRODUCT_NM}}"`)
 #   pack      : 여러 필드를 JSON 한 칸에 담는다 (`[BRAND_NM, ANNUAL_FEE]` →
@@ -125,7 +125,7 @@ source:
 #   <GROUP_C>:     {const: "<고정값>"}
 #   <BIZ_ID>:      {default: null}
 #   # front matter 에서 가져오기 — 예전 `front_matter.metadata_fields` 자리가 여기로 왔다.
-#   created_date:  {alias: [created_at], transform: date_int_flex}
+#   created_date:  {alias: [created_at], transform: date_int}
 #   <PRODUCT_C>:   {alias: [product_code, prod_cd]}
 #   <SALE_STATUS>: {alias: [sale_state], values: {SALE: ["1"], STOP: ["0"]}}
 #   <DISPLAY_NM>:  {template: "{{<BRAND_NM>}} {{<PRODUCT_NM>}}"}
