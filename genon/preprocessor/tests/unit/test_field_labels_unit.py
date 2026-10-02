@@ -129,6 +129,61 @@ def test_chunk_prefix_carries_the_label_too():
     assert content.startswith(prefix)
 
 
+# 입력은 모니모 실물 샘플의 값이다.
+_STOCK_INSIGHT_JSON = (  # monimo_stock_insight_sample.txt 1행 detail_desc 의 첫 키
+    '{"trading_strategy": "현재 종가 346.44는 20일선(334.68)과 60일선(369.71) 사이에 위치하며, '
+    '5일선(350.73)은 종가 아래에 있음.<BR><BR>8월 13일 RSI는 50.1로 과매도 또는 과매수 구간에 '
+    '해당하지 않음."}'
+)
+_CS_SSS_HTML = (  # monimo_cs_sss_sample.json 첫 레코드 answer
+    "<div><p>시간외종가 주문은 <b>KRX</b> 장 개시 전과 KRX 장 종료 후, NXT 종가매매 주문으로 "
+    "구분됩니다.</p><ul><li>KRX 장 개시 전 시간외종가매매: 접수 08:30~08:40, 체결 08:40</li>"
+    "<li>KRX 장 종료 후 시간외종가매매: 접수 15:40~16:00, 체결 16:00</li></ul>"
+    "<p>체결가격은 당일 종가입니다.</p></div>"
+)
+_CS_SLF_INLINE = "모니모 앱에서 OTP  재발급<BR>신청 &amp; 해지는 어떻게 하나요?"  # cs_slf 4번째 question
+_CS_SLF_TEXT = "보험금 청구는 어떻게 하나요?"  # cs_slf 1번째 question
+# monimo_stock_insight_split_sample.txt 를 row_merge 한 DETAIL_DESC 의 일부. 흩어진 조각이
+# 잘못 이어져 JSON 으로 읽히지 않는다(broken_json). 본문에는 원문 그대로 둔다.
+_STOCK_INSIGHT_BROKEN = (
+    '{"RSI": "RSI는 8월 7일CD는 시그널선과 교차 상태로, 향후 상향 돌파 시 매수 신호로 '
+    '해석됩니다."}, "overall_diagnosis": "단기 반등 이후 방향성 확인이 필요한 구간입니다."}\n'
+    '13일 62.16까지 올랐으나, 이후 8월 '
+)
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    "value, plain",
+    [
+        (_STOCK_INSIGHT_JSON, True),
+        (_CS_SSS_HTML, True),
+        (_CS_SLF_INLINE, True),
+        (_CS_SLF_TEXT, False),
+        (_STOCK_INSIGHT_BROKEN, False),
+    ],
+    ids=["json", "html", "html_inline", "text", "broken_json"],
+)
+def test_chunk_body_renders_json_and_html_like_to_text(value, plain):
+    """`to_text` 를 지정하지 않은 JSON·HTML 값도 본문에는 `to_text` 와 같은 평문으로 실린다.
+
+    필드 값(메타·해시 입력)은 그대로 두고, 이미 평문화된 값은 다시 바뀌지 않는다.
+    """
+    from genon.preprocessor.processing.enrichment.field_transforms import transform_to_text
+    from genon.preprocessor.processing.enrichment.tabular_custom_fields import (
+        structural_html_renderer,
+    )
+
+    renderer = structural_html_renderer()
+    fields = {"CONTENT": value}
+    content, _ = build_chunk_text(fields, ["CONTENT"], [], html_renderer=renderer)
+
+    assert content == (transform_to_text(value, html_renderer=renderer) if plain else value)
+    assert fields == {"CONTENT": value}
+    again, _ = build_chunk_text({"CONTENT": content}, ["CONTENT"], [], html_renderer=renderer)
+    assert again == content
+
+
 # ── 설정 해석 ────────────────────────────────────────────────────────────────
 
 @pytest.mark.unit

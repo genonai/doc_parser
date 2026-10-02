@@ -1668,6 +1668,10 @@ facade의 `GenosSmartChunker` ClassVar는 청크 표기 방식을 정합니다.
 동작이 그렇다는 것이지 키를 적어도 된다는 뜻이 아닙니다. `body.split`·`body.repeat`을 적으면
 sections가 읽지 않는 키이므로 **기동에 실패합니다.**
 
+rows·records의 `body.fields`·`body.repeat` 값이 JSON·HTML이면 본문에는 `to_text`와 같은 방식으로
+평문화해 싣습니다(`to_text`를 지정한 필드는 이미 평문이므로 결과가 같습니다). 필드 값 자체는 바뀌지
+않으므로, **청크 메타(적재 컬럼)에도 평문이 필요하면** 여전히 `transform: to_text`를 지정합니다.
+
 **입력 데이터 구조 · 선별 · LLM**
 
 | 기능 | 설정 키 (내부 이름) | rows | records | sections | document | html |

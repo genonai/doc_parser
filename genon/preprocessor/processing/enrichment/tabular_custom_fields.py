@@ -38,7 +38,7 @@ from .custom_fields_enricher import (
     normalize_doc_type,
     normalize_doc_types,
 )
-from .field_transforms import VALUE_TRANSFORMS, render_field_text
+from .field_transforms import VALUE_TRANSFORMS, detect_payload_kind, render_field_text
 
 # 표 출력 포맷 기본값은 json_records 와 한 벌을 쓴다 — 경로마다 기본값이 갈리면
 # 같은 원천이 kind 에 따라 다른 표 모양으로 적재된다.
@@ -1187,16 +1187,28 @@ def _has_chunk_text_value(value: Any) -> bool:
     return True
 
 
-def _chunk_text_value(value: Any) -> str:
+# 본문에 실을 때 평문화하는 값의 종류. `broken_json` 은 원문 그대로 둔다 — 잘린 JSON 은
+# 평문화해도 복원되지 않고, 그 경고는 `to_text` 를 지정한 필드에서만 의미가 있다.
+_CHUNK_PLAINTEXT_KINDS = frozenset({"json", "html", "html_inline"})
+
+
+def _chunk_text_value(value: Any, html_renderer: Any = None) -> str:
     """본문에 실을 문자열. 배열은 항목을 `, ` 로 잇는다(파이썬 repr 을 내보내지 않는다).
 
     줄바꿈이 아니라 쉼표로 잇는 이유: 라벨(`키워드: …`)은 여러 줄 블록에 붙지 않으므로,
     줄바꿈으로 이으면 항목이 둘 이상일 때만 항목명이 조용히 사라진다.
+
+    값이 JSON·HTML 이면 `to_text` 변환과 같은 함수(`render_field_text`)로 평문화한다.
+    설정에 `to_text` 를 빠뜨려도 태그·JSON 원문이 임베딩 입력에 실리지 않게 하기 위함이다.
+    **필드 값 자체는 바꾸지 않는다** — 메타·적재 컬럼과 해시 입력은 설정이 정한 값 그대로다.
+    이미 `to_text` 를 거친 값은 평문이라 다시 판정해도 `text` 로 나와 그대로 통과한다.
     """
     if isinstance(value, (list, tuple)):
         return ", ".join(
             str(item) for item in value if item is not None and item != ""
         )
+    if detect_payload_kind(value) in _CHUNK_PLAINTEXT_KINDS:
+        return render_field_text(value, html_renderer=html_renderer) or ""
     return str(value)
 
 
@@ -1208,11 +1220,14 @@ def build_chunk_text(
     fallback_text: str = "",
     column_map: dict | None = None,
     field_labels: dict | None = None,
+    html_renderer: Any = None,
 ) -> tuple[str, str]:
     """본문과 모든 분할 조각에 반복할 접두를 함께 만든다.
 
     접두 필드는 본문에서 제외해 제목이 두 번 들어가지 않게 한다. 반환한 ``content`` 는
     접두가 있으면 반드시 그 문자열로 시작하므로 chunking processor 의 재부착 계약을 만족한다.
+    `html_renderer` 는 JSON·HTML 값을 본문용 평문으로 바꿀 때 표를 렌더링하는 콜백이다
+    (`structural_html_renderer`). 주지 않으면 표가 있는 HTML 은 태그 제거로 폴백한다.
     """
     column_map = column_map or {}
     field_labels = field_labels or {}
@@ -1253,7 +1268,7 @@ def build_chunk_text(
         원천 헤더로 폴백한 이름은 종전대로 여러 줄 값에 붙이지 않는다. 그 헤더가 그 블록을
         설명한다는 근거가 사람이 적어 준 이름만큼 강하지 않다.
         """
-        value = _chunk_text_value(fields[name])
+        value = _chunk_text_value(fields[name], html_renderer)
         label = explicit_label(name)
         if label:
             return f"{label}:\n{value}" if "\n" in value else f"{label}: {value}"
@@ -1665,12 +1680,24 @@ class TabularCustomFieldsMapper(CustomFieldsMapperBase):
         repack_records(self, fields_list)
         return fields_list
 
-    def to_parse_format_from_fields(self, fields_list: list[dict], runtime_doc_type: Any) -> dict:
-        """행별 목표필드 목록 → parse-format(청커 행 기반 경로가 소비하는 형태)."""
+    def to_parse_format_from_fields(
+        self, fields_list: list[dict], runtime_doc_type: Any, *,
+        table_format: str = DEFAULT_TABLE_FORMAT, compact_tables: bool = True,
+    ) -> dict:
+        """행별 목표필드 목록 → parse-format(청커 행 기반 경로가 소비하는 형태).
+
+        `table_format`/`compact_tables` 는 본문 조립 시 JSON·HTML 값을 평문화할 때의 표 모양이다.
+        `build_fields` 의 `to_text` 와 같은 설정을 받아 두 경로의 표 모양을 맞춘다.
+        """
         text_fields = list(self.config.get("text_fields") or [])
         doc_type = self.canonical_doc_type(runtime_doc_type)
 
         column_map = dict(self.config.get("column_map") or {})
+        # 변환 유무와 상관없이 만든다 — 본문 평문화는 `to_text` 지정 여부와 무관하게 적용된다.
+        # 콜백만 만들어 두므로 표가 있는 HTML 이 실제로 올 때만 docling 을 탄다.
+        html_renderer = structural_html_renderer(
+            table_format=table_format, compact_tables=compact_tables
+        )
 
         elements: list[dict] = []
         max_page = 0
@@ -1685,6 +1712,7 @@ class TabularCustomFieldsMapper(CustomFieldsMapperBase):
                 fallback_text=fallback_text,
                 column_map=column_map,
                 field_labels=self.field_labels,
+                html_renderer=html_renderer,
             )
             element = {
                 "category": "custom_fields_row",
