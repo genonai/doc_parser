@@ -21,6 +21,8 @@
    config 의 `model_presets` 에 없는 경우. 자식 custom_field yaml 의 참조도 함께 본다.
 5. **기동 시 컴파일에서 막히는 transform** — 없는 변환기·쓸 수 없는 인자(오타 포함)·
    잘못된 정규식·체인 중간의 `to_json`. 기동과 같은 `compile_transforms` 를 실행한다.
+6. **파서·청커의 표 형식 불일치** — 같은 폴더의 두 설정에서 `output.table_format` 이 다른
+   경우(경고). 레코드형 문서는 파서 값, 일반 문서는 청커 값으로 표가 나가 모양이 갈린다.
 
 ## 쓰는 법
 
@@ -319,6 +321,40 @@ def check_model_presets(root: Path) -> list[str]:
     return problems
 
 
+# 같은 폴더에서 짝을 이루는 파서·청커 설정. 청크의 표 모양을 문서 종류마다 나눠 정한다.
+TABLE_FORMAT_PAIRS = (
+    ("parser_processor_config.yaml", "chunking_processor_config.yaml"),
+    ("parser_processor_config_simple.yaml", "chunking_processor_config_simple.yaml"),
+)
+
+
+def check_table_format_pairs(root: Path) -> list[str]:
+    """파서와 청커의 `output.table_format` 이 다르면 경고한다.
+
+    custom_fields 레코드형 문서는 파서가 청크 본문을 완성해 넘기므로 그 표 모양은 파서 값을
+    따르고, 일반 문서는 청커 값을 따른다. 두 값이 다르면 문서 종류에 따라 최종 청크의 표
+    모양이 갈린다. 해석은 기동과 같은 규칙을 쓴다 — 파서는 키가 없으면 html 이고
+    (`ParserCore._normalize_table_format`), 청커는 레거시 `export_to_html` 까지 본다.
+    """
+    problems: list[str] = []
+    for parser_name, chunker_name in TABLE_FORMAT_PAIRS:
+        parser_path, chunker_path = root / parser_name, root / chunker_name
+        if not (parser_path.exists() and chunker_path.exists()):
+            continue
+        parser_out = load_yaml(parser_path).get("output") or {}
+        chunker_out = load_yaml(chunker_path).get("output") or {}
+        parser_fmt = cp.resolve_table_format_setting(
+            {"table_format": parser_out.get("table_format", "html")})
+        chunker_fmt = cp.resolve_table_format_setting(chunker_out)
+        if parser_fmt != chunker_fmt:
+            problems.append(
+                f"[경고] {parser_name} 의 table_format({parser_fmt})과 {chunker_name} 의 "
+                f"table_format({chunker_fmt})이 다릅니다. custom_fields 레코드형 문서의 표는 "
+                f"파서 값, 일반 문서의 표는 청커 값으로 나갑니다. 같은 값으로 맞추세요."
+            )
+    return problems
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description="배포 전 custom_fields 설정 점검")
     ap.add_argument(
@@ -345,6 +381,7 @@ def main() -> int:
         problems.extend(check_block(source, block, root, seen_files, presets))
     # 모델 프리셋은 등록 블록과 무관하게 설정 파일 단위로 본다(자식 yaml 참조 포함).
     problems.extend(check_model_presets(root))
+    problems.extend(check_table_format_pairs(root))
 
     # 등록되지 않은 custom_field yaml 은 배포되지만 쓰이지 않는다(정보성).
     registered_files = {
@@ -356,6 +393,7 @@ def main() -> int:
 
     blocking = [p for p in problems if p.startswith("[기동실패]")]
     body = [p for p in problems if p.startswith("[본문변화]")]
+    warn = [p for p in problems if p.startswith("[경고]")]
     info = [p for p in problems if p.startswith("[정보]")]
 
     for line in blocking:
@@ -365,6 +403,10 @@ def main() -> int:
     for line in body:
         print(line)
     if body:
+        print()
+    for line in warn:
+        print(line)
+    if warn:
         print()
     for line in info:
         print(line)

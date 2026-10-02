@@ -201,3 +201,23 @@ def test_precheck_detects_undefined_preset(tmp_path):
     problems = precheck.check_model_presets(tmp_path)
     blocking = [p for p in problems if p.startswith("[기동실패]")]
     assert any("기븐" in p and "custom_field_demo.yaml" in p for p in blocking), problems
+
+
+@pytest.mark.parametrize(
+    "parser_output, chunker_output, warned",
+    [
+        ({"table_format": "markdown"}, {"table_format": "markdown"}, False),
+        ({}, {"table_format": "markdown"}, True),  # 파서는 키가 없으면 html 이다
+        ({"table_format": "html"}, {"export_to_html": 0}, True),  # 청커의 레거시 플래그
+    ],
+    ids=["same", "parser_key_missing", "chunker_legacy_flag"],
+)
+def test_precheck_warns_table_format_mismatch(tmp_path, parser_output, chunker_output, warned):
+    """레코드형 문서는 파서 값, 일반 문서는 청커 값으로 표가 나가므로 둘이 다르면 경고한다."""
+    precheck = _load_precheck()
+    (tmp_path / "parser_processor_config.yaml").write_text(
+        yaml.safe_dump({"output": parser_output}), encoding="utf-8")
+    (tmp_path / "chunking_processor_config.yaml").write_text(
+        yaml.safe_dump({"output": chunker_output}), encoding="utf-8")
+    problems = precheck.check_table_format_pairs(tmp_path)
+    assert bool(problems) is warned and all(p.startswith("[경고]") for p in problems), problems

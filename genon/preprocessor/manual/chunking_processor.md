@@ -112,7 +112,7 @@
 
 | 키 | 기본 | 의미 |
 |---|---|---|
-| `chunk_size` | `1000` | 청크 상한. **0 = 분할 안 함.** docling 경로는 0 초과 시 **최소 1024 로 보정**됩니다 |
+| `chunk_size` | `1500` | 청크 상한. **0 = 분할 안 함.** docling 경로는 0 초과 시 **최소 1024 로 보정**됩니다 |
 | `chunk_mode` | `split_only` | 아래 절 참조 |
 | `table_as_chunk` | `true` | 표를 본문과 섞지 않고 독자 청크로 |
 | `include_chunk_header` | `true` | 청크 선두 `HEADER: <섹션 경로>` 라인 |
@@ -133,13 +133,15 @@
 
 | 키 | 기본 | 의미 |
 |---|---|---|
-| `table_format` | `html` | `html` / `markdown` / `auto`(표마다 구조를 보고 고름) |
+| `table_format` | `markdown` | `html` / `markdown` / `auto`(표마다 구조를 보고 고름). 키를 생략하면 `html` |
 | `compact_tables` | `true` | markdown 표 정렬 패딩 제거(대형 표 축소). html 엔 무관 |
-| `table_row_serialization` | `false` | 병합 셀 표 뒤에 `컬럼=값 | 컬럼=값` 행 문장 추가 |
+| `table_row_serialization` | `true` | 병합 셀 표 뒤에 `컬럼=값 | 컬럼=값` 행 문장 추가. 키를 생략하면 `false` |
 | `table_text_formats` | `[]` | 같은 청크를 표만 다른 형식으로 렌더한 텍스트를 **추가 필드**로. 켜면 본문이 형식 수만큼 복제됩니다 |
 
-> **파서 설정의 같은 이름 키와 맞출 필요가 없습니다.** 파서 쪽은 자기 출력(`format: json/html/markdown`)과
-> custom_fields 의 `to_text` 변환에만 씁니다. **청크 텍스트의 표 모양은 이 섹션이 최종 결정**합니다.
+> **`table_format` 은 파서 설정의 같은 이름 키와 같은 값으로 맞추세요.** 이 섹션은 일반 문서(PDF·DOCX·HTML 등)의
+> 표 모양을 정합니다. custom_fields 레코드형 문서는 파서가 청크 본문을 완성해 넘기므로, 그 표 모양은
+> **파서 설정의 `output.table_format`** 이 정합니다(청커는 다시 렌더링하지 않습니다). 두 값이 다르면
+> `precheck_custom_fields.sh` 가 경고합니다.
 
 ### `table_image` · `guardrail`
 

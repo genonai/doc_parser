@@ -158,7 +158,7 @@ def check_card_annual_fee(chunks: list) -> list[str]:
     return []
 
 
-# 표준·모니모 설정은 table_format: html 이라 파싱된 표가 청크 본문에 `<table>` 로 다시 렌더된다.
+# table_format: html 이면 파싱된 표가 청크 본문에 `<table>` 로 다시 렌더된다.
 # 렌더 결과는 표 태그만 쓰고 속성을 싣지 않는다(병합 칸의 colspan/rowspan 만 예외). 원천 HTML 이
 # 파싱되지 않고 새어 나오면 표 밖 태그(span, div …)나 style 같은 속성이 함께 남으므로 그것으로 가른다.
 _RENDERED_TABLE_TAG = re.compile(
@@ -173,11 +173,12 @@ def raw_markup_leak(text: str) -> str | None:
 
 
 def check_product_hpp_table_format(chunks: list) -> list[str]:
-    """연회비 표의 행 라벨이 헤더가 아니라 각 행의 첫 칸으로 남는가(table_format: html).
+    """연회비 표의 행 라벨이 헤더가 아니라 각 행의 첫 칸으로 남는가(table_format: html·markdown).
 
     연회비 표는 행 라벨이 `<th scope="row">` 인 실제 WCMS 표다. 예전에는 행 라벨 `<th>` 때문에
     모든 행이 헤더 행으로 집계돼 계층 헤더 표로 오인됐다(table_shape.leading_header_row_count).
-    그러면 헤더 행이 반복되거나 행 라벨이 헤더 쪽으로 빠진다.
+    그러면 헤더 행이 반복되거나 행 라벨이 헤더 쪽으로 빠진다. 표기형태는 파서 설정의
+    `output.table_format` 을 따르므로(레코드형 문서) 두 형식 모두 같은 보장을 확인한다.
     """
     problems = []
     # 표 청크만 본다 — table_as_chunk 로 표와 표 설명이 다른 청크로 갈리므로, 설명 청크가
@@ -187,13 +188,20 @@ def check_product_hpp_table_format(chunks: list) -> list[str]:
     if fee is None:
         return ["연회비 표가 어느 청크에도 없습니다"]
 
-    if "<table" not in fee:
-        problems.append("연회비 표가 html 로 나오지 않았습니다(table_format: html)")
+    if "<table" in fee:
+        header = r">구분</th>"
+        first_cell_row = r"<tr><t[hd]>총 연회비</t[hd]><td>20,000 ?원</td>"
+    elif re.search(r"(?m)^\|(?: ?:?-+:? ?\|)+$", fee):
+        header = r"(?m)^\| 구분 \|"
+        first_cell_row = r"(?m)^\| 총 연회비 \| 20,000 ?원 \|"
+    else:
+        return ["연회비 표가 html 로도 markdown 으로도 나오지 않았습니다"]
     # 헤더 행은 한 번만 나와야 한다(행 라벨이 헤더로 오인되면 헤더 행이 늘어난다).
-    if fee.count(">구분</th>") != 1:
-        problems.append(f"헤더 행 '구분' 이 {fee.count('>구분</th>')}번 나왔습니다(1번 기대)")
+    header_count = len(re.findall(header, fee))
+    if header_count != 1:
+        problems.append(f"헤더 행 '구분' 이 {header_count}번 나왔습니다(1번 기대)")
     # 행 라벨은 자기 행의 첫 칸으로 남고, 바로 뒤에 그 행의 값이 와야 한다.
-    if not re.search(r"<tr><t[hd]>총 연회비</t[hd]><td>20,000원</td>", fee):
+    if not re.search(first_cell_row, fee):
         problems.append("행 라벨 '총 연회비' 가 첫 칸 데이터 행으로 남지 않았습니다")
     for value in ("20,000", "18,000", "15,000", "13,000", "국내전용"):
         if value not in fee:

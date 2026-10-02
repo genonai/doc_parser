@@ -5,7 +5,7 @@
 #               conversion_note)
 #   → `# {상품명} 상품요약서`
 #   → `## 핵심 키워드`
-#   → `## 문서 개요`      (샘플에 따라 `## 목차` 로 오기도 한다 — 문서 개요로 통일 요청됨)
+#   → `## 문서 개요`      (샘플에 따라 `## 목차` 로 오기도 한다)
 #   → `## 내용 색인`
 #   → `원문 전사` / `원문 N쪽 - {소제목}`
 
@@ -25,7 +25,7 @@ fields:
   created_date:
     alias: [created_at]
     transform: date_int
-  # LLM 도 뽑지만 front matter 값이 우선(default < LLM < front matter < const).
+  # LLM 은 이 필드를 뽑지 않는다. front matter 의 product_code 만 쓰고 없으면 null 이다.
   PRODUCT_C:
     alias: [product_code]
     default: null
@@ -44,7 +44,7 @@ fields:
     transform: [date_int, {name: to_json, key: "created_at"}]
   # frontmatter `sales_period`(없으면 `version`) 의 `2025-12-1 ~ 2026-3-15` 을 시작일/종료일로 나눈다.
   # 종료 자리에 숫자가 없는 문자열("진행중", "현재" 등)은 열린 기간으로 보고 99991231 로 둔다.
-  # `~` 가 없으면 값 전체를 시작일로 보고 종료일은 0 이다(date_int 계열의 "날짜 없음" 관례).
+  # `~` 가 없으면 값 전체를 시작일로 보고 종료일은 0 이다(0 은 날짜 없음을 뜻한다).
   VALID_FROM:
     alias: [sales_period, version]
     transform:
