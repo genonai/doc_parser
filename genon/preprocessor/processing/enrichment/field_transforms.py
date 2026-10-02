@@ -213,6 +213,8 @@ transform_text_norm = transform_normalize  # 옛 이름. toolbox 재수출과 �
 # 파생 전용 블록이 그 일을 했는데, 그러면 원본 컬럼 생성이 강제되고 제자리 변환이 불가능했다.
 
 _BR_RE = re.compile(r"<\s*br\s*/?\s*>", re.IGNORECASE)
+# 연달아 붙은 `<BR>` 묶음. 하나면 줄넘김, 둘 이상이면 문단 구분이다.
+_BR_RUN_RE = re.compile(r"(?:<\s*br\s*/?\s*>\s*)+", re.IGNORECASE)
 _TAG_RE = re.compile(r"<[^>]+>")
 # 인라인 태그만 있으면 경량 경로로 충분하다. 표·목록·문단 같은 **구조**가 섞여 있으면
 # docling 백엔드(json_records.html_to_text)에 태워야 행/열 대응이 살아남는다.
@@ -221,6 +223,12 @@ _STRUCTURAL_HTML_RE = re.compile(
     re.IGNORECASE,
 )
 _ANY_TAG_RE = re.compile(r"<\s*[a-zA-Z][a-zA-Z0-9]*\b[^>]*>")
+# `[` 로 시작하는데 파싱되지 않는 값이 JSON 배열 조각인지 본다. 첫 원소가 JSON 값 토큰
+# (배열·객체·문자열·숫자·true/false/null)이거나 빈 배열일 때만 조각이다. 숫자는 뒤에 `,`·`]`
+# 까지 확인한다 — `[1.자동차 사고부상] …` 같은 평문 제목이 숫자로 시작한다.
+_JSON_ARRAY_HEAD_RE = re.compile(
+    r"\[\s*(?:[\[{\"\]]|-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?\s*[,\]]|(?:true|false|null)\s*[,\]])"
+)
 
 # 값이 이보다 짧은 스칼라면 헤딩을 만들지 않고 한 줄 불릿으로 붙인다.
 # 안 그러면 평평한 20필드 JSON 이 헤딩 20개가 되어 본문보다 제목이 많아진다.
@@ -249,6 +257,8 @@ def detect_payload_kind(value: Any) -> str:
     `broken_json` 은 `{`·`[` 로 시작하는데 파싱이 안 되는 경우다. 원천이 한 JSON 을
     문자 단위로 잘라 여러 행에 나눠 보내는 스키마가 있어(row_merge), 이 상태는 조용히
     넘기면 안 되는 신호다. 브레이스로 시작하지 않는 평문은 그냥 text 다.
+    `[보상콜] …`·`[안내] …` 처럼 `[` 로 시작해도 머리가 JSON 값 토큰이 아니면 평문 제목이므로
+    아래 html/html_inline/text 판별로 넘긴다. `{` 로 시작하는 값은 항상 broken_json 이다.
     """
     if value in (None, ""):
         return "empty"
@@ -260,9 +270,10 @@ def detect_payload_kind(value: Any) -> str:
     if text[0] in "{[":
         try:
             json.loads(text)
+            return "json"
         except (ValueError, TypeError):
-            return "broken_json"
-        return "json"
+            if text[0] == "{" or _JSON_ARRAY_HEAD_RE.match(text):
+                return "broken_json"
     if _STRUCTURAL_HTML_RE.search(text):
         return "html"
     if _ANY_TAG_RE.search(text) or _BR_RE.search(text):
@@ -395,13 +406,13 @@ def render_field_text(
     """원천 값 하나 → 청크 본문에 실을 평문. 종류는 자동 판별한다.
 
     `kind` 로 "json"/"html"/"text" 를 주면 판별을 건너뛰고 그 경로로 강제한다
-    (`transform: html_text` 가 `kind="html"` 로 쓴다).
+    (`html_select` 가 `kind="html"` 로 쓴다).
     `html_renderer` 는 구조 HTML 을 처리할 함수다(json_records.html_to_text). 주지 않으면
     경량 태그 제거로 폴백한다 — 표가 한 줄씩 뭉개지므로 표가 오는 경로에서는 반드시 넘긴다.
     """
     if kind == "html":
         # 원본을 그대로 넘긴다 — html_to_text 는 리스트(collect_key_map 결과)까지 처리하므로
-        # 여기서 문자열로 눌러 버리면 `html_text` 가 배열을 못 다룬다.
+        # 여기서 문자열로 눌러 버리면 배열을 못 다룬다.
         if html_renderer is not None:
             return str(html_renderer(value) or "").strip() or None
         return strip_inline_html(value) or None
@@ -433,6 +444,14 @@ def render_field_text(
 
     if detected == "html" and html_renderer is not None:
         return str(html_renderer(value) or "").strip() or None
+    if detected == "html_inline":
+        # 필드 값 전체가 인라인 조각일 때 홀로 쓰인 `<BR>` 은 제목을 화면 폭에 맞춰 넘긴
+        # 줄넘김이므로 공백으로 잇는다(옛 `html_text` 의 결과와 같다). 연달아 쓴 `<BR><BR>` 은
+        # 본문의 문단 구분(stock_insight detail_desc)이므로 빈 줄로 남긴다. JSON 리프 안의
+        # `<BR>` 은 `_leaf_text` 가 따로 처리하므로 바뀌지 않는다.
+        text = _BR_RUN_RE.sub(lambda m: " " if len(_BR_RE.findall(m.group())) == 1 else "\n\n",
+                              str(value))
+        return strip_inline_html(text) or None
 
     return strip_inline_html(value) or None
 
@@ -554,14 +573,9 @@ def transform_truncate(value: Any, *, length: int, suffix: str = "") -> Any:
     return text[: max(0, length - len(suffix))] + suffix
 
 
-def transform_html_text(value: Any, *, html_renderer: Optional[Callable[[str], str]] = None) -> Any:
-    """HTML 로 **강제** 평문화한다(표·목록 구조 유지). 옛 표기 `as: html` 과 같다."""
-    return render_field_text(value, kind="html", html_renderer=html_renderer)
-
-
 def transform_to_text(value: Any, *, html_renderer: Optional[Callable[[str], str]] = None) -> Any:
     """값의 종류(JSON / HTML / 평문)를 자동 판별해 평문화한다. 옛 표기 `as: auto` 와 같다.
-    옛 이름 `text` 는 별칭이다.
+    옛 이름 `text`·`html_text` 는 별칭이다.
 
     같은 컬럼에 세 종류가 섞여 오는 원천(모니모 AI차트뷰 `detail_desc`)이 있어 강제
     변환만으로는 부족하다.
@@ -570,6 +584,7 @@ def transform_to_text(value: Any, *, html_renderer: Optional[Callable[[str], str
 
 
 transform_text = transform_to_text  # 옛 이름. toolbox 재수출과 기존 import 를 유지한다.
+transform_html_text = transform_to_text  # 옛 이름. toolbox 재수출과 기존 import 를 유지한다.
 
 
 # `to_json` 의 스칼라 처리 방식. yaml 에서 `null` 은 널 값으로 파싱되므로 이름을 `drop` 으로
@@ -623,9 +638,9 @@ PARAM_TRANSFORMS: dict[str, Callable[..., Any]] = {
     "hash": transform_hash,
     "to_int": transform_to_int,
     "truncate": transform_truncate,
-    "html_text": transform_html_text,
     "to_text": transform_to_text,
     "text": transform_to_text,             # 옛 이름(별칭)
+    "html_text": transform_to_text,        # 옛 이름(별칭)
     "to_json": transform_to_json,
 }
 

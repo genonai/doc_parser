@@ -246,13 +246,13 @@ alias 매핑 -> default(빈 값만) -> const(덮어씀) -> values -> transform -
           -> filter·require 선별 -> seq 번호 -> llm 필드 -> pack 묶기
 ```
 
-변환기는 인자 없이 쓰는 4종(`date_int` `normalize` `html_text` `to_text`)과 인자를
-받는 6종(`regex_sub` `regex_extract` `hash` `to_int` `truncate` `to_json`), 합쳐서 10종입니다.
+변환기는 인자 없이 쓰는 3종(`date_int` `normalize` `to_text`)과 인자를
+받는 6종(`regex_sub` `regex_extract` `hash` `to_int` `truncate` `to_json`), 합쳐서 9종입니다.
 뒤 6종 중 `regex_sub`·`regex_extract`의 `pattern`과 `truncate`의 `length`는 **필수 인자**이며,
 빠지면 기동에 실패합니다. `date_int`는 인자 없이 쓰되, 날짜로 읽지 못한 값에 남길
 `on_error`(기본 `0`)를 선택 인자로 받습니다. `regex_extract`도 매칭되지 않은 값에 남길 `on_error`(기본
 `null`)를 받습니다. 두 경우 모두 빈 값에는 적용되지 않습니다.
-옛 이름 `date_int_flex`·`text_norm`·`text`는 각각 `date_int`·`normalize`·`to_text`의 별칭으로 계속 동작합니다.
+옛 이름 `date_int_flex`·`text_norm`은 각각 `date_int`·`normalize`의, `text`·`html_text`는 `to_text`의 별칭으로 계속 동작합니다.
 `normalize`는 중복 판정 키를 만드는 변환이라 영문이 소문자로 바뀌고, 단어 사이 공백은 한 칸으로 줄일 뿐 없애지 않습니다.
 목록에 없는 이름을 적으면 기동에 실패합니다. 사이트 전용 변환기를 더하는 방법은 [2.6](#26-설정에서-이름으로-불러-쓰는-세-가지-확장-지점)에 있습니다.
 
@@ -438,7 +438,7 @@ EOF
 | 본문이 빈 레코드가 빠짐 | 정상입니다. 빈 벡터 적재를 막으려고 경고와 함께 제외합니다 |
 | xlsx가 행별로 나뉘지 않음 | 매칭되는 매핑이 없으면 `formats.xlsx.processing_mode`가 결정합니다 (`tabular` 인지 확인) |
 | `tabular custom_fields config 없음: …` | `config_file`은 **프로세서 config와 같은 폴더** 기준. 파일명만 적으세요 |
-| `등록되지 않은 transforms 변환기: …` | 기본 제공 10종과 `tb.register_transform`으로 등록한 것만 쓸 수 있습니다([2.6](#26-설정에서-이름으로-불러-쓰는-세-가지-확장-지점)) |
+| `등록되지 않은 transforms 변환기: …` | 기본 제공 9종과 `tb.register_transform`으로 등록한 것만 쓸 수 있습니다([2.6](#26-설정에서-이름으로-불러-쓰는-세-가지-확장-지점)) |
 | `… 에 쓸 수 없는 인자입니다: …` | 변환기 인자 이름의 오타입니다. 메시지의 `쓸 수 있는 인자` 목록과 대조합니다. `html_renderer`는 실행 시 자동으로 주입되므로 설정에 적지 않습니다 |
 | 필드는 안 붙는데 `doc_type`만 모든 청크에 붙음 | 매칭되는 등록이 없는 상태. 스탬프는 매칭 여부와 무관하게 동작합니다 |
 | csv/xlsx 인데 `doc_type` 조차 안 붙음 | 정상입니다. 엑셀은 **매칭되는 행 매핑이 있을 때만** `doc_type`이 실립니다 |
@@ -653,7 +653,7 @@ EOF
             ]}
 ```
 
-적용 후 `DETAIL_TEXT`가 채워지고, 설정의 `transform: html_text`가 그때부터 동작합니다.
+적용 후 `DETAIL_TEXT`가 채워지고, 설정의 `transform: to_text`가 그때부터 동작합니다.
 
 #### 청커 쪽 훅 — 청크 하나씩 손보기
 
@@ -1765,7 +1765,7 @@ grep -rn "<함수명 또는 클래스명>" genon/preprocessor/facade/
 
 | 문서 | 언제 보나 |
 |---|---|
-| `parser_processor.md` | **custom_fields 전체 매트릭스.** `kind`별 지원 키, `transform` 10종 상세, 별칭 탐색 범위, 설정으로 안 되는 8가지. [1장](#1-새-문서-유형-추가하기)에서 막히면 여기 |
+| `parser_processor.md` | **custom_fields 전체 매트릭스.** `kind`별 지원 키, `transform` 9종 상세, 별칭 탐색 범위, 설정으로 안 되는 8가지. [1장](#1-새-문서-유형-추가하기)에서 막히면 여기 |
 | `facade_hooks.md` | **훅 메소드 전체 계약**과 더 많은 예시. [2.4](#24-설정만으로-입력-데이터-구조를-처리할-수-없는-경우--훅-메소드)의 본편 |
 | `chunking_processor.md` | 청킹 옵션 레퍼런스 |
 | `code_serving.md` | 코드서빙 **호출** 매뉴얼. 요청/응답 스키마, LLM 캐시, 실패 정책 |

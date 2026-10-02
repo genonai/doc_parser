@@ -208,8 +208,8 @@ body:                         # 청크 본문(= 임베딩 입력)을 어떻게 �
 `pack`은 순번과 LLM 출력까지 확정된 뒤에 적용합니다. 행·레코드형의 `filter`·`require`는 추가 LLM 생성보다
 앞서 적용되므로, LLM이 나중에 생성할 필드의 유효성은 결과 검증 단계에서 확인하세요.
 
-기본 변환기는 10종입니다. 인자가 필요 없는 사용법과 선택 인자를 받는 사용법은
-[부록 C.2](#c2-transform-10종)에 정리되어 있습니다. 목록에 없는 이름은 별도 등록하지 않으면 기동에 실패합니다.
+기본 변환기는 9종입니다. 인자가 필요 없는 사용법과 선택 인자를 받는 사용법은
+[부록 C.2](#c2-transform-9종)에 정리되어 있습니다. 목록에 없는 이름은 별도 등록하지 않으면 기동에 실패합니다.
 사이트 전용 변환기 등록은 [2.6](#26-설정에서-이름으로-불러-쓰는-세-가지-확장-지점)을 참조하세요.
 
 > 여기 적는 이름이 **설정 표기**입니다. 오류 메시지에는 `column_map` · `text_fields` · `key_map`
@@ -457,7 +457,7 @@ PY
 | 본문이 빈 레코드가 빠짐 | 정상입니다. 빈 벡터 적재를 막으려고 경고와 함께 제외합니다 |
 | xlsx가 행별로 나뉘지 않음 | 매칭되는 매핑이 없으면 `formats.xlsx.processing_mode`가 결정합니다 (`tabular` 인지 확인) |
 | `tabular custom_fields config 없음: …` | `config_file`은 **프로세서 config와 같은 폴더** 기준. 파일명만 적으세요 |
-| `등록되지 않은 transforms 변환기: …` | 기본 제공 10종과 `tb.register_transform`으로 등록한 것만 쓸 수 있습니다([2.6](#26-설정에서-이름으로-불러-쓰는-세-가지-확장-지점)) |
+| `등록되지 않은 transforms 변환기: …` | 기본 제공 9종과 `tb.register_transform`으로 등록한 것만 쓸 수 있습니다([2.6](#26-설정에서-이름으로-불러-쓰는-세-가지-확장-지점)) |
 | `… 에 쓸 수 없는 인자입니다: …` | 변환기 인자 이름의 오타입니다. 메시지의 `쓸 수 있는 인자` 목록과 대조합니다. `html_renderer`는 실행 시 자동으로 주입되므로 설정에 적지 않습니다 |
 | 필드는 안 붙는데 `doc_type`만 모든 청크에 붙음 | 매칭되는 등록이 없는 상태. 스탬프는 매칭 여부와 무관하게 동작합니다 |
 | csv/xlsx인데 `doc_type`도 안 붙음 | 매핑 없는 일반 tabular 경로인지 확인합니다. 매핑된 행 경로와 Docling 문서 경로는 별도로 확인합니다 |
@@ -702,7 +702,7 @@ PY
             ]}
 ```
 
-적용 후 `DETAIL_TEXT`가 채워지고, 설정의 `transform: html_text`가 그때부터 동작합니다.
+적용 후 `DETAIL_TEXT`가 채워지고, 설정의 `transform: to_text`가 그때부터 동작합니다.
 
 #### 청커 훅 — 청크 단위 수정
 
@@ -1704,7 +1704,7 @@ HTML 원문이 입력으로 전달되어야 하며, JSON 안에 HTML이 들어 �
 | `require.fields` | `sections`만 **`required_shared_fields`**, 나머지는 `required` |
 | `llm` | `rows` · `records` · `sections`는 `llm_fields`. `document`는 항목이 **최상위 키로 펼쳐져** `output_fields` · `system_prompt` · `user_prompt` 같은 이름으로 나옵니다 |
 
-### C.2 `transform` 10종
+### C.2 `transform` 9종
 
 체이닝됩니다. 잘못된 이름·빠진 인자·쓸 수 없는 인자·컴파일되지 않는 정규식은 **기동 시** 걸립니다.
 
@@ -1717,8 +1717,7 @@ HTML 원문이 입력으로 전달되어야 하며, JSON 안에 HTML이 들어 �
 | `hash` | `length` 기본 `16`, `prefix` 기본 `""` | SHA-1 16진 코드화. 같은 값이면 같은 코드 |
 | `to_int` | `on_error` 기본 `null` | 정수 하나로 변환. 천 단위 콤마·단위는 무시하고, 소수이거나 숫자가 둘 이상이면 `on_error` |
 | `truncate` | `length` 필수, `suffix` 기본 `""` | 길이 자르기(적재 컬럼 길이 맞춤) |
-| `html_text` | — | HTML로 **강제** 평문화. 표·목록 유지 |
-| `to_text` (옛 이름 `text`) | — | JSON/HTML/평문 **자동 판별** 후 평문화 |
+| `to_text` (옛 이름 `text`·`html_text`) | — | JSON/HTML/평문 **자동 판별** 후 평문화 |
 | `to_json` | `on_scalar`, `key` | 값을 **유효한 JSON 문자열**로 맞춤(적재 DB의 JSON 컬럼용) |
 
 `regex_extract`의 기본 `group: 1`은 첫 번째 캡처 그룹을 뜻합니다. 패턴에 그룹이 없으면 매칭되어도 `None`이

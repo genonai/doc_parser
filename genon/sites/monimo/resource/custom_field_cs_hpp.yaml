@@ -92,7 +92,7 @@ fields:
     alias: [TIT_NM, 제목, 대표질문]
   CONTENT:
     alias: [CONT, 안내본문, 답변]
-    transform: html_text
+    transform: to_text
   RELATED_KEYWORDS:
     alias: [KEYW_LIS]
     default: null

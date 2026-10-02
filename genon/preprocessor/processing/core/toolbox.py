@@ -19,7 +19,7 @@ from genon.preprocessor.processing.enrichment.field_transforms import (
     strip_inline_html,                      # 인라인 태그만 제거
     transform_date_int as date_int,         # 날짜 -> YYYYMMDD 정수
     transform_date_int_flex as date_int_flex,   # date_int 의 옛 이름(별칭)
-    transform_html_text as html_text,       # HTML 강제 평문화(html_renderer= 로 표 렌더 주입)
+    transform_html_text as html_text,       # to_text 의 옛 이름(별칭)
     transform_normalize as normalize,       # 중복 판정 키(NFKC·양끝 공백 제거·연속 공백 축약·casefold)
     transform_regex_extract as regex_extract,
     transform_regex_sub as regex_sub,

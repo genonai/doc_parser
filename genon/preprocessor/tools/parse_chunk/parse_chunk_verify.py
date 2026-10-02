@@ -758,14 +758,34 @@ EXTRA_CHECKS = {
     ("stock_insight", "monimo_stock_insight_sample.txt"): check_stock_insight_row_merge,
     ("stock_insight", "monimo_stock_insight_split_sample.txt"): check_stock_insight_scattered_merge,
     ("cs_ssf", "monimo_cs_ssf_sample.dtms"): lambda chunks: check_cs_ssf_delimited(chunks) + check_title_kept(
-        "[보상콜] OTP  인증 오류 시 사고 접수 & 보상 안내")(chunks),
+        "[보상콜] OTP 인증 오류 시 사고 접수 & 보상 안내")(chunks),
     ("cs_slf", "monimo_cs_slf_sample.json"): check_title_kept(
         "보험계약대출 이자 금액이 차이나는 이유가 무엇인가요? (추가대출고객,중도이자상환고객,CD/ATM 이용고객 등)",
-        "모니모 앱에서 OTP  재발급 신청 & 해지는 어떻게 하나요?"),
+        "모니모 앱에서 OTP 재발급 신청 & 해지는 어떻게 하나요?"),
     ("monimo_event", "monimo_event_title_sample.json"): check_title_kept(
-        "KB국민카드  & monimo Pay 첫 결제 최대 5만원 캐시백"),
+        "KB국민카드 & monimo Pay 첫 결제 최대 5만원 캐시백"),
     ("cs_ssf", "monimo_cs_ssf_layout_table_sample.dtms"): check_cs_ssf_layout_table,
     ("monimo_news", "TD00008415_d_5199.html.json"): check_biz_id_from_filename("TD00008415"),
+}
+
+
+def check_no_json_parse_warning(output: str) -> list[str]:
+    """`[보상콜] …`·`[1.자동차 사고부상] …` 처럼 `[` 로 시작하는 제목을 JSON 조각으로 오판하지 않는가(#437)."""
+    n = output.count("JSON 파싱 실패")
+    return [] if n == 0 else [f"JSON 파싱 실패 경고 {n}건(기대 0건)"]
+
+
+def check_row_merge_warning_kept(output: str) -> list[str]:
+    """병합 후에도 JSON 으로 복원되지 않는 홀로그램 조각은 계속 경고하는가(#437, `{` 조각 신호 보존)."""
+    n = sum(1 for line in output.splitlines() if "JSON 파싱 실패" in line and "row_merge" in line)
+    return [] if n else ["row_merge 조각 경고가 없습니다(기대 1건 이상)"]
+
+
+# 실행 로그(stdout+stderr)에 대한 단정. 변환기 경고처럼 청크에 남지 않는 신호를 본다.
+OUTPUT_CHECKS = {
+    ("cs_ssf", "monimo_cs_ssf_sample.dtms"): check_no_json_parse_warning,
+    ("cs_ssf", "monimo_cs_ssf_layout_table_sample.dtms"): check_no_json_parse_warning,
+    ("stock_insight", "monimo_stock_insight_split_sample.txt"): check_row_merge_warning_kept,
 }
 
 # 기본 chunk_size 에서는 나뉘지 않는 샘플을 작은 chunk_size 로 한 번 더 실행한다(#419).
@@ -1072,11 +1092,15 @@ def main() -> int:
         out_dir = out_root / (doc_type if chunk_size is None else f"{doc_type}_chunk{chunk_size}")
         out_dir.mkdir(parents=True, exist_ok=True)
         extra_args = ["--chunk-size", str(chunk_size)] if chunk_size else None
-        ok, err, _out = run_case(args.python, doc_type, src, out_dir, extra_args)
+        ok, err, output = run_case(args.python, doc_type, src, out_dir, extra_args)
         if not ok:
             rows.append((label, "FAIL", err, "-", "-")); failed += 1; continue
 
         problems = verify(doc_type, src, out_dir, block)
+        # 같은 샘플을 chunk_size 만 바꿔 다시 돌리는 분할 강제 실행에는 다시 걸지 않는다.
+        output_check = OUTPUT_CHECKS.get((doc_type, src.name)) if chunk_size is None else None
+        if output_check is not None:
+            problems += output_check(output)
         chunks_path = out_dir / (src.stem + ".chunks.json")
         chunks = json.loads(chunks_path.read_text(encoding="utf-8")) if chunks_path.exists() else []
         if split_check is not None and chunks:
