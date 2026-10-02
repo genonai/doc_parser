@@ -1508,11 +1508,11 @@ fields:
 
 | 이름 | 인자 | 하는 일 |
 |---|---|---|
-| `date_int` | — | 날짜 텍스트 → `YYYYMMDD` 정수. 2자리 연도(`26.07.01`)·구분자 없는 `20260713`·`260701` 도 받는다 |
-| `date_int_flex` | — | `date_int` 의 옛 이름(별칭) |
+| `date_int` | `on_error` | 날짜 텍스트 → `YYYYMMDD` 정수. 2자리 연도(`26.07.01`)·구분자 없는 `20260713`·`260701` 도 받는다. 날짜로 읽지 못하면 `on_error`(기본 `0`), 빈 값은 항상 `0` |
+| `date_int_flex` | `date_int` 와 같다 | `date_int` 의 옛 이름(별칭) |
 | `text_norm` | — | NFKC + 공백 축약 + casefold (중복 판정용) |
 | `regex_sub` | `pattern`, `repl` | 정규식 치환 (`"18,000원"` → `"18000"`) |
-| `regex_extract` | `pattern`, `group` | 정규식 오려내기. 미매칭 시 `None`. `group` 이 패턴에 없으면 기동 실패 |
+| `regex_extract` | `pattern`, `group`, `on_error` | 정규식 오려내기. 미매칭 시 `on_error`(기본 `None`), 빈 값은 그대로. `group` 이 패턴에 없으면 기동 실패 |
 | `hash` | `length`, `prefix` | SHA-1 16진 코드화(기본 16자리). 같은 값이면 같은 코드 |
 | `to_int` | `on_error` | 정수 하나로 변환. 천 단위 콤마·단위는 무시하고, 소수이거나 숫자가 둘 이상이면 `on_error` |
 | `truncate` | `length`, `suffix` | 길이 자르기(적재 컬럼 길이 맞춤) |

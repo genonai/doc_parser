@@ -115,6 +115,30 @@ def test_plain_transform_name_still_works(tmp_path):
     assert rows[0]["DT"] == 20260701
 
 
+def test_on_error_separates_unparsable_from_empty(tmp_path):
+    """`date_int` 의 on_error 는 해석 실패에만 쓰이고 빈 입력은 0 으로 남는다(#431).
+
+    행 1은 monimo_product_slf_fields_sample.md(제목·sales_period), 행 2는 sales_period 가 없는
+    monimo_product_slf_sample.md(제목)의 값이다. 체인은 출고 VALID_TO 의 regex_sub 우회를
+    on_error 로 바꾼 형태다.
+    """
+    rows = _rows(tmp_path, """
+        schema: v2
+        source: {kind: rows}
+        fields:
+          T: {alias: [제목]}
+          VALID_TO:
+            alias: [sales_period]
+            transform:
+              - {name: regex_extract, pattern: '~\\s*(.*?)\\s*$'}
+              - {name: date_int, on_error: 99991231}
+        body:
+          fields: [T]
+    """, [{"제목": "든든한 여행상해보험(2601)(무배당) 상품요약서", "sales_period": "2025-12-1 ~ 진행중"},
+          {"제목": "삼성 s교통상해보험(2501)(무배당) 상품요약서"}])
+    assert [r["VALID_TO"] for r in rows] == [99991231, 0]
+
+
 def test_derive_combines_fields(tmp_path):
     """두 필드를 metadata 필드로 합치는 방법이 없었다(text_fields 는 청크 본문이다)."""
     rows = _rows(tmp_path, """
@@ -512,7 +536,7 @@ def test_json_path_gets_the_same_features(tmp_path):
          'body: {fields: [T]}\n', "정규식"),
         ("schema: v2\nsource: {kind: rows}\n"
          "fields: {T: {alias: [제목], transform: {name: date_int, pattern: x}}}\n"
-         "body: {fields: [T]}\n", "인자를 받지 않"),
+         "body: {fields: [T]}\n", "쓸 수 없는 인자"),
         ('schema: v2\nsource: {kind: rows}\n'
          'fields: {T: {alias: [제목]}, D: {template: "{{NOPE}}"}}\n'
          'body: {fields: [T]}\n', "만드는 설정이 없"),
