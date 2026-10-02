@@ -17,6 +17,7 @@ from processing.enrichment.field_transforms import (
     parse_created_date,
     serialize_metadata_value_for_output,
     store_metadata_in_document,
+    transform_regex_extract,
     transform_to_int,
 )
 
@@ -66,6 +67,16 @@ def test_to_int_rejects_decimal_and_multiple_numbers(value, expected):
     문자열 행은 monimo 실물 샘플의 값이다. 음수와 float 입력은 실물에 사례가 없어 합성 입력을 쓴다.
     """
     assert transform_to_int(value) == expected
+
+
+def test_regex_extract_on_error_when_nothing_extracted():
+    """매칭이 없으면 on_error 다(#431).
+
+    패턴은 출고 custom_field_product_slf.yaml BIZ_ID, 값은 실물 샘플 파일명이다(8자리 일자가 없어 미매칭).
+    """
+    assert transform_regex_extract(
+        "monimo_product_slf_sample.md", pattern=r"^(.+?_\d{8})(?!\d)", on_error="없음"
+    ) == "없음"
 
 
 # ── apply_field_transforms ───────────────────────────────────────────────────

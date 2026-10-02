@@ -635,11 +635,24 @@ def _compile_transform_step(name: str, kwargs: dict, *, target: str, label: str)
     )
 
     if name in VALUE_TRANSFORMS:
+        # 인자 없이도 부를 수 있는 변환기다(메타 경로 apply_field_transforms 가 그렇게 부른다).
+        # 키워드 전용 인자(`date_int` 의 `on_error`)만 설정에서 받는다. register_transform 으로
+        # 등록한 함수나 시그니처를 읽을 수 없는 내장 함수는 인자를 받지 않는다.
         if kwargs:
-            raise ValueError(
-                f"{label}: transforms.{target} 의 '{name}' 은 인자를 받지 않습니다: {sorted(kwargs)}"
-            )
-        return (VALUE_TRANSFORMS[name], {}, False)
+            try:
+                allowed = {
+                    p.name for p in inspect.signature(VALUE_TRANSFORMS[name]).parameters.values()
+                    if p.kind is p.KEYWORD_ONLY
+                }
+            except (TypeError, ValueError):
+                allowed = set()
+            unknown = sorted(set(kwargs) - allowed)
+            if unknown:
+                raise ValueError(
+                    f"{label}: transforms.{target} 의 '{name}' 에 쓸 수 없는 인자입니다: {unknown} "
+                    f"(쓸 수 있는 인자: {sorted(allowed)})"
+                )
+        return (VALUE_TRANSFORMS[name], dict(kwargs), False)
     if name not in PARAM_TRANSFORMS:
         raise ValueError(
             f"{label}: 등록되지 않은 transforms 변환기: {name!r} "

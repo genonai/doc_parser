@@ -128,8 +128,9 @@ source:
 #                **문서 1건 안에서만 유일하다** — 여러 파일에 걸친 전역 유일번호는 여기서
 #                만들 수 없다(접두를 파일명·수집일자로 잡거나 적재 쪽 시퀀스를 쓴다).
 #
-# [변환기] date_int · date_int_flex · text_norm · html_text · text (인자 없음)
-#          regex_sub(pattern, repl) · regex_extract(pattern, group=1) ·
+# [변환기] text_norm · html_text · text (인자 없음)
+#          date_int · date_int_flex(on_error=0, 빈 값은 0) ·
+#          regex_sub(pattern, repl) · regex_extract(pattern, group=1, on_error=null) ·
 #          to_int(on_error=null) · truncate(length, suffix="") ·
 #          to_json(on_scalar=wrap|drop, key="value") — 적재 DB 의 JSON 컬럼에 넣을 값을
 #          유효한 JSON 문자열로 맞춘다(스칼라는 {key: 값} 으로 감싼다). 체인 맨 뒤 전용.

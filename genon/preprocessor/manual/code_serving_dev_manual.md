@@ -249,7 +249,9 @@ alias 매핑 -> default(빈 값만) -> const(덮어씀) -> values -> transform -
 변환기는 인자 없이 쓰는 5종(`date_int` `date_int_flex` `text_norm` `html_text` `text`)과 인자를
 받는 6종(`regex_sub` `regex_extract` `hash` `to_int` `truncate` `to_json`), 합쳐서 11종입니다.
 뒤 6종 중 `regex_sub`·`regex_extract`의 `pattern`과 `truncate`의 `length`는 **필수 인자**이며,
-빠지면 기동에 실패합니다.
+빠지면 기동에 실패합니다. `date_int`·`date_int_flex`는 인자 없이 쓰되, 날짜로 읽지 못한 값에 남길
+`on_error`(기본 `0`)를 선택 인자로 받습니다. `regex_extract`도 매칭되지 않은 값에 남길 `on_error`(기본
+`null`)를 받습니다. 두 경우 모두 빈 값에는 적용되지 않습니다.
 목록에 없는 이름을 적으면 기동에 실패합니다. 사이트 전용 변환기를 더하는 방법은 [2.6](#26-설정에서-이름으로-불러-쓰는-세-가지-확장-지점)에 있습니다.
 
 > **여기 적는 이름이 설정 표기입니다.** 오류 메시지에는 `column_map` · `text_fields` · `key_map`

@@ -127,7 +127,7 @@ _COMPACT_DATE6_RE = re.compile(r"^\s*(\d{2})(\d{2})(\d{2})\s*$")
 _SHORT_DATE_RE = re.compile(r"^\s*(\d{2})\s*[-./]\s*(\d{1,2})\s*[-./]\s*(\d{1,2})\s*$")
 
 
-def transform_date_int(value: Any) -> int:
+def transform_date_int(value: Any, *, on_error: Any = 0) -> Any:
     """date_int 변환기: 날짜 텍스트/정수를 YYYYMMDD 정수로 변환. 옛 이름 `date_int_flex` 는 별칭이다.
 
     `parse_created_date` 는 `\\d{4}` 연도만 인식해 "26.07.01" 을 2601 년으로도,
@@ -137,10 +137,17 @@ def transform_date_int(value: Any) -> int:
       - "20260713"               (구분자 없는 8자리 YYYYMMDD)
       - "260701"                 (구분자 없는 6자리 YYMMDD)
     월/일이 실제 날짜가 아니면(예: "202699") 정규화하지 않고 기존 경로로 넘긴다.
+
+    `on_error` 는 입력이 있는데 날짜를 만들지 못했을 때 남길 값이다(기본 0). 빈 입력(None,
+    공백뿐인 문자열, `parse_created_date` 가 빈 값으로 보는 "None")은 대상이 아니며 항상 0 이다.
+    "값이 없음"과 "해석 실패"를 구분해야 `{name: date_int, on_error: 99991231}` 이 종료일 없는
+    값과 기간 정보가 없는 값을 갈라 낸다.
     """
+    if value is None or (isinstance(value, str) and value.strip() in ("", "None")):
+        return 0
     if isinstance(value, bool):
         # bool 은 int 의 하위형이라 그대로 두면 True 가 1 로 통과한다.
-        return 0
+        return on_error
     if isinstance(value, (int, float)):
         # 엑셀/JSON 이 숫자로 준 압축 날짜(20260713)도 문자열과 같게 다룬다.
         as_int = int(value)
@@ -168,7 +175,7 @@ def transform_date_int(value: Any) -> int:
                     break          # 날짜가 아니면 압축 표기로 보지 않는다
                 value = f"{year}-{month}-{day}"
                 break
-    return _date_int_basic(value)
+    return _date_int_basic(value) or on_error
 
 
 transform_date_int_flex = transform_date_int  # 옛 이름. toolbox 재수출과 기존 import 를 유지한다.
@@ -488,17 +495,21 @@ def transform_regex_sub(value: Any, *, pattern: str, repl: str = "") -> Any:
     return re.sub(pattern, repl, str(value))
 
 
-def transform_regex_extract(value: Any, *, pattern: str, group: int = 1) -> Any:
-    """정규식으로 오려낸다. 매칭이 없으면 None — 원값을 남기면 "안 뽑혔다"를 못 가린다."""
+def transform_regex_extract(value: Any, *, pattern: str, group: int = 1, on_error: Any = None) -> Any:
+    """정규식으로 오려낸다. 매칭이 없으면 `on_error`(기본 None) — 원값을 남기면 "안 뽑혔다"를 못 가린다.
+
+    그룹이 매칭에 참여하지 않은 경우(선택 그룹)도 뽑지 못한 것이므로 `on_error` 다. 빈 입력은 그대로 둔다.
+    """
     if value in (None, ""):
         return value
     match = re.search(pattern, str(value))
     if match is None:
-        return None
+        return on_error
     try:
-        return match.group(group)
+        extracted = match.group(group)
     except (IndexError, re.error):
-        return None
+        return on_error
+    return on_error if extracted is None else extracted
 
 
 def transform_hash(value: Any, *, length: int = 16, prefix: str = "") -> Any:
