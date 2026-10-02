@@ -181,8 +181,8 @@ def transform_date_int(value: Any, *, on_error: Any = 0) -> Any:
 transform_date_int_flex = transform_date_int  # 옛 이름. toolbox 재수출과 기존 import 를 유지한다.
 
 
-def transform_text_norm(value: Any) -> Optional[str]:
-    """text_norm 변환기: 표기 흔들림을 흡수한 대조용 정규화 문자열.
+def transform_normalize(value: Any) -> Optional[str]:
+    """normalize 변환기: 표기 흔들림을 흡수한 대조용 정규화 문자열. 옛 이름 `text_norm` 은 별칭이다.
 
     모니모 TB_TERM.TERM_NORM("띄어쓰기와 대소문자를 고른 형태입니다. 같은 용어가 두 번
     등록되는 걸 막습니다") 용도. 유일키 `CLCM_C + TERM_NORM` 의 재료라 규칙이 곧 중복 판정
@@ -201,7 +201,10 @@ def transform_text_norm(value: Any) -> Optional[str]:
     return text.casefold() or None
 
 
-# ── 원천 값 → 사람이 읽는 평문 (`text`/`html_text` 변환기용) ─────────────────
+transform_text_norm = transform_normalize  # 옛 이름. toolbox 재수출과 기존 import 를 유지한다.
+
+
+# ── 원천 값 → 사람이 읽는 평문 (`to_text`/`html_text` 변환기용) ──────────────
 # 원천이 같은 컬럼에 JSON·HTML·평문을 섞어 보낸다(모니모 AI차트뷰 detail_desc). 정해진
 # 스키마가 없으므로 **종류를 자동 판별해 하나의 마크다운으로 수렴**시킨다. 설정은 없다.
 #
@@ -476,7 +479,8 @@ def extract_created_date_from_document_text(document: "DoclingDocument") -> int:
 VALUE_TRANSFORMS: dict[str, Callable[[Any], Any]] = {
     "date_int": transform_date_int,
     "date_int_flex": transform_date_int,   # 옛 이름(별칭)
-    "text_norm": transform_text_norm,
+    "normalize": transform_normalize,
+    "text_norm": transform_normalize,      # 옛 이름(별칭)
 }
 
 
@@ -555,13 +559,17 @@ def transform_html_text(value: Any, *, html_renderer: Optional[Callable[[str], s
     return render_field_text(value, kind="html", html_renderer=html_renderer)
 
 
-def transform_text(value: Any, *, html_renderer: Optional[Callable[[str], str]] = None) -> Any:
+def transform_to_text(value: Any, *, html_renderer: Optional[Callable[[str], str]] = None) -> Any:
     """값의 종류(JSON / HTML / 평문)를 자동 판별해 평문화한다. 옛 표기 `as: auto` 와 같다.
+    옛 이름 `text` 는 별칭이다.
 
     같은 컬럼에 세 종류가 섞여 오는 원천(모니모 AI차트뷰 `detail_desc`)이 있어 강제
     변환만으로는 부족하다.
     """
     return render_field_text(value, html_renderer=html_renderer)
+
+
+transform_text = transform_to_text  # 옛 이름. toolbox 재수출과 기존 import 를 유지한다.
 
 
 # `to_json` 의 스칼라 처리 방식. yaml 에서 `null` 은 널 값으로 파싱되므로 이름을 `drop` 으로
@@ -616,7 +624,8 @@ PARAM_TRANSFORMS: dict[str, Callable[..., Any]] = {
     "to_int": transform_to_int,
     "truncate": transform_truncate,
     "html_text": transform_html_text,
-    "text": transform_text,
+    "to_text": transform_to_text,
+    "text": transform_to_text,             # 옛 이름(별칭)
     "to_json": transform_to_json,
 }
 
@@ -628,6 +637,7 @@ PARAM_TRANSFORM_REQUIRED: dict[str, tuple[str, ...]] = {
     "to_int": (),
     "truncate": ("length",),
     "html_text": (),
+    "to_text": (),
     "text": (),
     "to_json": (),
 }
@@ -635,7 +645,7 @@ PARAM_TRANSFORM_REQUIRED: dict[str, tuple[str, ...]] = {
 # 설정이 아니라 **런타임**이 주는 인자(`html_renderer`)를 받는 변환기. 표 모양을 살리려면
 # 요청의 table_format/compact_tables 를 물려야 해서 yaml 로는 표현할 수 없다 — 적용 시점에
 # 호출부가 주입한다(tabular_custom_fields.apply_transforms).
-RENDERER_TRANSFORMS = frozenset({"html_text", "text"})
+RENDERER_TRANSFORMS = frozenset({"html_text", "to_text", "text"})
 
 ALL_TRANSFORM_NAMES = tuple(sorted({*VALUE_TRANSFORMS, *PARAM_TRANSFORMS}))
 assert not (set(VALUE_TRANSFORMS) & set(PARAM_TRANSFORMS)), "변환기 이름이 겹칩니다"

@@ -104,8 +104,10 @@ source:
 #          목록으로 쓰면 순서대로 적용된다(체이닝).
 #   date_int       "2026-07-01"                  → 20260701 (파싱 실패 시 on_error=0, 빈 값은 0)
 #   date_int_flex  "26.07.01" / "260701" / 8자리 → 20260701 (두 자리 연도까지 흡수)
-#   text_norm      NFKC → 공백 축약 → casefold   (중복 판정 키를 만들 때)
-#   text           JSON/HTML/평문 자동 판별       JSON → 마크다운 헤딩, 구조 HTML → docling
+#   normalize      NFKC → 양끝 공백 제거 → 연속 공백 축약 → casefold  (중복 판정 키를 만들 때).
+#                                                 영문은 소문자로 바뀌고, 단어 사이 공백은 한 칸으로
+#                                                 줄일 뿐 없애지 않는다
+#   to_text        JSON/HTML/평문 자동 판별       JSON → 마크다운 헤딩, 구조 HTML → docling
 #                                                 평문화, 인라인 태그뿐이면 태그만 제거.
 #                                                 같은 컬럼에 세 종류가 섞여 오는 원천용
 #   html_text      HTML 로 강제 평문화            원천이 항상 HTML 로 확정됐을 때
@@ -117,6 +119,7 @@ source:
 #                                                 JSON 컬럼용). 스칼라는 {key: 값} 으로
 #                                                 감싸고, on_scalar: drop 이면 null.
 #                                                 체인 맨 뒤에만 올 수 있다
+# 옛 이름 text_norm·text 는 각각 normalize·to_text 의 별칭으로 계속 동작한다.
 # 목록에 없는 이름·빠진 인자·컴파일 안 되는 정규식은 기동 시 실패하며 쓸 수 있는 이름을 알려준다.
 fields:
   <TARGET_FIELD_1>:
@@ -140,10 +143,10 @@ fields:
   #     - {name: to_int}
   # 원본도 함께 남기려면 같은 alias 를 두 필드에 붙인다(원본은 적재 컬럼, 사본은 본문용).
   # <DETAIL_DESC>: {alias: [세부내용]}
-  # <DETAIL_TEXT>: {alias: [세부내용], transform: text}
+  # <DETAIL_TEXT>: {alias: [세부내용], transform: to_text}
   #   · merge_rows 를 쓰면 두 필드를 **모두** concat 에 넣는다 — 병합이 변환보다 먼저다.
   # 원본이 필요 없으면 제자리로 바꾼다.
-  # <DETAIL>:      {alias: [세부내용], transform: text}
+  # <DETAIL>:      {alias: [세부내용], transform: to_text}
   # <DISPLAY_NM>:  {template: "{{<TARGET_FIELD_1>}} {{<TARGET_FIELD_2>}}"}
   # <ROW_NO>:      {seq: {prefix: "FAQ-", width: 4}}   # FAQ-0001, FAQ-0002 …
   # <DETAIL_JSON>: {pack: [<TARGET_FIELD_1>, <TARGET_FIELD_2>]}

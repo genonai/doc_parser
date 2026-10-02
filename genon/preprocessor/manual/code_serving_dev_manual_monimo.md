@@ -170,7 +170,7 @@ fields:                       # 각 목표필드의 설정은 YAML 매핑으로 
     alias: [질문, 문의내용]                    # 입력 데이터의 컬럼·key 이름들. 표기가 흔들리면 여러 개
   ANSWER:
     alias: [답변]
-    transform: text                           # 값 변환(체이닝 가능)
+    transform: to_text                        # 값 변환(체이닝 가능)
   REG_DT:
     alias: [등록일]
     transform: date_int_flex                  # "26.07.01" -> 20260701
@@ -1712,14 +1712,14 @@ HTML 원문이 입력으로 전달되어야 하며, JSON 안에 HTML이 들어 �
 |---|---|---|
 | `date_int` | `on_error` 기본 `0` | 날짜 텍스트 → `YYYYMMDD` 정수. 2자리 연도(`26.07.01`)·구분자 없는 `20260713`·`260701` 도 받는다. 날짜로 읽지 못하면 `on_error`, 빈 값은 항상 `0` |
 | `date_int_flex` | `date_int` 와 같다 | `date_int` 의 옛 이름(별칭) |
-| `text_norm` | — | NFKC + 공백 축약 + casefold (중복 판정용) |
+| `normalize` (옛 이름 `text_norm`) | — | NFKC + 양끝 공백 제거 + 연속 공백 축약 + casefold (중복 판정용). 영문은 소문자로 바뀌고, 단어 사이 공백은 한 칸으로 줄일 뿐 없애지 않는다 |
 | `regex_sub` | `pattern` 필수, `repl` 기본 `""` | 정규식 치환 (`"18,000원"` → `"18000"`) |
 | `regex_extract` | `pattern` 필수, `group` 기본 `1`, `on_error` 기본 `null` | 정규식 오려내기. 미매칭 시 `on_error`, 빈 값은 그대로 |
 | `hash` | `length` 기본 `16`, `prefix` 기본 `""` | SHA-1 16진 코드화. 같은 값이면 같은 코드 |
 | `to_int` | `on_error` 기본 `null` | 정수 하나로 변환. 천 단위 콤마·단위는 무시하고, 소수이거나 숫자가 둘 이상이면 `on_error` |
 | `truncate` | `length` 필수, `suffix` 기본 `""` | 길이 자르기(적재 컬럼 길이 맞춤) |
 | `html_text` | — | HTML로 **강제** 평문화. 표·목록 유지 |
-| `text` | — | JSON/HTML/평문 **자동 판별** 후 평문화 |
+| `to_text` (옛 이름 `text`) | — | JSON/HTML/평문 **자동 판별** 후 평문화 |
 | `to_json` | `on_scalar`, `key` | 값을 **유효한 JSON 문자열**로 맞춤(적재 DB의 JSON 컬럼용) |
 
 `regex_extract`의 기본 `group: 1`은 첫 번째 캡처 그룹을 뜻합니다. 패턴에 그룹이 없으면 매칭되어도 `None`이
@@ -1862,7 +1862,7 @@ source:
   on_missing: error
 fields:
   TITLE: {alias: [title]}
-  DETAIL: {alias: [detail], transform: text}
+  DETAIL: {alias: [detail], transform: to_text}
 require:
   fields: [TITLE]
 body:
