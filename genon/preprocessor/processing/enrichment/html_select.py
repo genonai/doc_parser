@@ -103,7 +103,11 @@ def extract_fields(html: str, selectors: dict[str, dict]) -> dict[str, Any]:
     from bs4 import BeautifulSoup
 
     from .field_transforms import render_field_text
+    from .tabular_custom_fields import structural_html_renderer
 
+    # 렌더러 없이 부르면 경량 태그 제거로 폴백해 표 셀이 한 줄로 붙는다. 표가 없는 조각은
+    # 경량 경로가 문단 줄바꿈을 그대로 두므로 표가 있을 때만 docling 렌더러를 쓴다.
+    html_renderer = structural_html_renderer()
     soup = BeautifulSoup(html or "", "html.parser")
     values: dict[str, Any] = {}
     missed: list[str] = []
@@ -117,8 +121,11 @@ def extract_fields(html: str, selectors: dict[str, dict]) -> dict[str, Any]:
             raw = element.get(spec["attr"])
             values[target] = str(raw).strip() or None if raw is not None else None
         else:
-            # `transform: html_text` 와 같은 렌더러 — 표·목록 구조가 남는다.
-            values[target] = render_field_text(element.decode_contents(), kind="html")
+            # 표가 있으면 `transform: html_text` 와 같은 렌더러를 쓴다 — 행/열 구조가 남는다.
+            values[target] = render_field_text(
+                element.decode_contents(), kind="html",
+                html_renderer=html_renderer if element.find("table") else None,
+            )
     if missed:
         _log.warning(
             f"[html_select] 선택자에 걸리지 않아 값이 비었습니다: {', '.join(missed)} "

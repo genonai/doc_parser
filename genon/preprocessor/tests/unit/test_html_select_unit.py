@@ -80,6 +80,22 @@ def test_detail_keeps_inline_emphasis_text():
     assert "소제목" in detail and "19% 증가" in detail
 
 
+def test_table_in_selected_element_keeps_cell_boundaries():
+    """선택한 요소 안의 표는 셀이 붙지 않아야 한다(#421, 렌더러 없이 평문화하던 결함)."""
+    table = (
+        '<table><tr><th>구분</th><th>상세내용</th></tr>'
+        '<tr><td>결제하기</td><td>결제수단 선택</td></tr></table>'
+    )
+    html = SAMPLE.replace(
+        '<ul class="newslertter-article-content">',
+        f'<ul class="newslertter-article-content">{table}',
+    )
+    detail = html_select.extract_fields(html, SELECTORS)["DETAIL"]
+
+    assert "구분상세내용" not in detail
+    assert "<th>구분</th><th>상세내용</th>" in detail
+
+
 def test_commented_out_element_is_not_extracted():
     """주석은 원천이 꺼 둔 것이다. 되살리지 않고 None 으로 두되 키는 남긴다."""
     values = html_select.extract_fields(SAMPLE, SELECTORS)
