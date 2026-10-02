@@ -1291,7 +1291,12 @@ class ParserCore:
             )
             # json 매퍼의 to_parse_format 은 이미 만들어진 fields 목록을 받는다
             # (tabular 는 같은 이름이 원시 data_dict 를 받아 이름이 어긋나 있다).
-            results.append(mapper.to_parse_format(fields_list, doc_type))
+            # 표 모양은 본문 조립 시 JSON·HTML 값 평문화에도 쓰이므로 build_fields 와 같게 넘긴다.
+            results.append(mapper.to_parse_format(
+                fields_list, doc_type,
+                table_format=getattr(self, "_table_format", "html"),
+                compact_tables=bool(getattr(self, "_compact_tables", True)),
+            ))
         return merge_parse_formats(results)
 
     async def _parse_tabular_records(
@@ -1322,7 +1327,11 @@ class ParserCore:
             claimed_pages.update(claimed_row_pages(fields_list))
             fields_list = await self._apply_llm_fields(mapper, fields_list)
             _log.info(f"[parser] tabular_mapping 행 {len(fields_list)}건 → element")
-            results.append(mapper.to_parse_format_from_fields(fields_list, runtime_doc_type))
+            results.append(mapper.to_parse_format_from_fields(
+                fields_list, runtime_doc_type,
+                table_format=getattr(self, "_table_format", "html"),
+                compact_tables=bool(getattr(self, "_compact_tables", True)),
+            ))
 
         if multi:
             sheets = data_dict.get("data", []) or []

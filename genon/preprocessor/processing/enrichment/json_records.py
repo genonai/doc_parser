@@ -803,20 +803,31 @@ class JsonRecordsMapper(CustomFieldsMapperBase):
         )
         return content
 
-    def to_parse_format(self, fields_list: list[dict], runtime_doc_type: Any) -> dict:
+    def to_parse_format(
+        self, fields_list: list[dict], runtime_doc_type: Any, *,
+        table_format: str = DEFAULT_TABLE_FORMAT, compact_tables: bool = True,
+    ) -> dict:
         """목표필드 목록 → parse-format(청커 행 기반 경로가 소비하는 형태).
 
         본문이 빈 레코드는 element 로 내보내지 않는다. 청커의 행 경로는 빈 content 도 청크로
         만들기 때문에(tabular 와 동일), 그대로 두면 text 가 빈 벡터가 적재된다. text_fields 가
         LLM 생성 필드뿐인 설정에서 호출이 실패하면 바로 이 상황이 되므로 건수를 경고로 남긴다.
+
+        `table_format`/`compact_tables` 는 본문 조립 시 JSON·HTML 값을 평문화할 때의 표 모양이다
+        (`build_fields` 의 `to_text` 와 같은 설정을 받는다).
         """
         doc_type = self.canonical_doc_type(runtime_doc_type)
+        table_format = normalize_table_format(table_format)
+        html_renderer = lambda value: html_to_text(  # noqa: E731
+            value, table_format=table_format, compact_tables=compact_tables
+        )
         elements = []
         empty = 0
         for fields in fields_list:
             content, prefix = build_chunk_text(
                 fields, self.text_fields, self.chunk_prefix_fields,
                 field_labels=self.field_labels,
+                html_renderer=html_renderer,
             )
             if not content.strip():
                 empty += 1

@@ -873,11 +873,15 @@ class SemanticJsonMapper(CustomFieldsMapperBase):
             lines.append(f"{label}: {rendered}" if label else rendered)
         return lines
 
-    def to_parse_format(self, fields_list: list[dict], runtime_doc_type: Any) -> dict:
+    def to_parse_format(
+        self, fields_list: list[dict], runtime_doc_type: Any, **_render_options: Any
+    ) -> dict:
         """섹션별 목표필드 목록 → parse-format(청커 행 기반 경로가 소비하는 형태).
 
         `chunk_prefix` 를 함께 실어 둔다 — 과대 섹션이 chunk_size 로 분할될 때 청커가 조각마다
         이 접두를 다시 붙인다(json_records 의 splittable 레코드와 달리 접두 유지가 필요하다).
+        `_render_options`(table_format 등)는 파서가 json 매퍼 공통으로 넘기는 표 모양 인자다.
+        이 매퍼는 `build_fields` 에서 이미 HTML 을 평문화하므로 쓰지 않는다.
         """
         doc_type = self.canonical_doc_type(runtime_doc_type)
         elements: list[dict] = []
