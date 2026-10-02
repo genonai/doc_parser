@@ -368,5 +368,7 @@ def test_table_in_detail_keeps_cell_boundaries():
 
     detail = html_select.extract_fields(content, _shipped_selectors())["DETAIL"]
 
+    # 표가 통째로 빠져도 아래 부재 단정은 통과하므로 셀 텍스트가 있는지 먼저 본다.
+    assert "상세내용" in detail and "네이버페이 비밀번호 설정" in detail
     assert "구분상세내용" not in detail
     assert "네이버페이 비밀번호 설정1." not in detail
