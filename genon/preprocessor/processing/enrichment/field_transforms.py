@@ -431,7 +431,7 @@ def render_field_text(
     if detected == "broken_json":
         raw = str(value).strip()
         _log.warning(
-            f"[text] JSON 파싱 실패 — 원문을 평문화만 합니다"
+            f"[to_text] JSON 파싱 실패 — 원문을 평문화만 합니다"
             f"(len={len(raw)}, head={raw[:80]!r}). 여러 행으로 쪼개진 값이라면 "
             f"row_merge 의 group_by/order_by 를 확인하세요."
         )
