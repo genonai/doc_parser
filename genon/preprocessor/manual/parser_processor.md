@@ -1350,7 +1350,7 @@ fields:
 
 - `select` 는 CSS 선택자입니다. 여러 개가 걸리면 **첫 번째**를 씁니다.
 - `attr` 을 주면 그 속성값을 문자열 그대로 씁니다. 없으면 요소 텍스트를 평문화합니다.
-  요소 안에 표가 있으면 `transform: html_text` 와 같은 렌더러로 표의 행·열 구조를 남기고,
+  요소 안에 표가 있으면 `transform: to_text` 와 같은 렌더러로 표의 행·열 구조를 남기고,
   표가 없으면 태그만 걷어냅니다. 이때 `<ul>`·`<ol>` 은 글머리표 없이 원천 마크업의 줄바꿈대로 나옵니다.
 - 선택자 문법 오류는 **기동 시** 잡힙니다.
 - 선언한 필드는 못 찾아도 키가 남고 값이 `null` 이 됩니다(경고 로그에 어느 선택자가
@@ -1382,7 +1382,7 @@ fields:
 | 상수 | `const` (`constants`) | ✔ | ✔ | ✔ | ✔ |
 | 기본값(빈 값만) | `default` (`defaults`) | ✔ | ✔ | ✔ | ✔ |
 | 값 접기 | `values` (`value_map`) | ✔ | ✔ | ✔ | ✔ |
-| 변환(10종 체이닝) | `transform` (`transforms`) | ✔ | ✔ | ⚠ 표 뭉갬 | ⚠ 표 뭉갬 |
+| 변환(9종 체이닝) | `transform` (`transforms`) | ✔ | ✔ | ⚠ 표 뭉갬 | ⚠ 표 뭉갬 |
 | 필드 결합 | `template` (**`derive`**) | ✔ | ✔ | ✔ | ✔ |
 | JSON 한 칸에 묶기 | `pack` | ✔ | ✔ | ✔ | ✔ |
 | 청크 메타에서 빼기 | `meta: false` (`meta_include`) | ✔ | ✔ | ✔ | ✔ |
@@ -1505,7 +1505,7 @@ fields:
 > **청크 텍스트 정제(`chunking.text_cleanup`)는 doc_type 별 설정이 아니라 프로세서 config** 입니다.
 > `parser_processor_config.yaml` 에는 없습니다 — 파서와 청커를 나눠 배포했다면 **청커 쪽 yaml** 에 적습니다.
 
-### `transform` 10종 — 체이닝됩니다
+### `transform` 9종 — 체이닝됩니다
 
 | 이름 | 인자 | 하는 일 |
 |---|---|---|
@@ -1516,8 +1516,7 @@ fields:
 | `hash` | `length`, `prefix` | SHA-1 16진 코드화(기본 16자리). 같은 값이면 같은 코드 |
 | `to_int` | `on_error` | 정수 하나로 변환. 천 단위 콤마·단위는 무시하고, 소수이거나 숫자가 둘 이상이면 `on_error` |
 | `truncate` | `length`, `suffix` | 길이 자르기(적재 컬럼 길이 맞춤) |
-| `html_text` | — | HTML 로 **강제** 평문화. 표·목록 유지 |
-| `to_text` (옛 이름 `text`) | — | JSON/HTML/평문 **자동 판별** 후 평문화 |
+| `to_text` (옛 이름 `text`·`html_text`) | — | JSON/HTML/평문 **자동 판별** 후 평문화 |
 | `to_json` | `on_scalar`, `key` | 값을 **유효한 JSON 문자열**로 맞춤(적재 DB 의 JSON 컬럼용) |
 
 체이닝이 "새 요건 = 코드 수정" 을 막는 핵심 수단입니다.

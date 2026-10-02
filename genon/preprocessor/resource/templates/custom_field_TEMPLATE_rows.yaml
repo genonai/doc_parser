@@ -100,7 +100,7 @@ source:
 #                **문서 1건 안에서만 유일하다** — 여러 파일에 걸친 전역 유일번호는 여기서
 #                만들 수 없다(접두를 파일명·수집일자로 잡거나 적재 쪽 시퀀스를 쓴다).
 #
-# [변환기] 10종. 인자 없이 쓰는 것 4개 + 인자를 받는 것 6개.
+# [변환기] 9종. 인자 없이 쓰는 것 3개 + 인자를 받는 것 6개.
 #          목록으로 쓰면 순서대로 적용된다(체이닝).
 #   date_int       "2026-07-01" / "26.07.01" / "260701" / 8자리 → 20260701
 #                                                 (두 자리 연도까지 흡수. 파싱 실패 시
@@ -111,7 +111,6 @@ source:
 #   to_text        JSON/HTML/평문 자동 판별       JSON → 마크다운 헤딩, 구조 HTML → docling
 #                                                 평문화, 인라인 태그뿐이면 태그만 제거.
 #                                                 같은 컬럼에 세 종류가 섞여 오는 원천용
-#   html_text      HTML 로 강제 평문화            원천이 항상 HTML 로 확정됐을 때
 #   regex_sub      pattern, repl                 정규식 치환  "18,000원" → "18000"
 #   regex_extract  pattern, group=1, on_error=null  정규식 추출  매칭 없으면 on_error
 #   hash           length=16, prefix=""          SHA-1 16진 코드로 줄인다(같은 값이면 같은 코드)
@@ -122,7 +121,8 @@ source:
 #                                                 JSON 컬럼용). 스칼라는 {key: 값} 으로
 #                                                 감싸고, on_scalar: drop 이면 null.
 #                                                 체인 맨 뒤에만 올 수 있다
-# 옛 이름 date_int_flex·text_norm·text 는 각각 date_int·normalize·to_text 의 별칭으로 계속 동작한다.
+# 옛 이름 date_int_flex·text_norm 은 각각 date_int·normalize 의, text·html_text 는 to_text 의 별칭으로
+# 계속 동작한다.
 # 목록에 없는 이름·빠진 인자·컴파일 안 되는 정규식은 기동 시 실패하며 쓸 수 있는 이름을 알려준다.
 fields:
   <TARGET_FIELD_1>:

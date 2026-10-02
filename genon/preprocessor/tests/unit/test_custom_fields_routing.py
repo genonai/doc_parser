@@ -824,12 +824,17 @@ def test_render_field_text_warns_and_falls_back_on_broken_json(caplog):
 
 
 @pytest.mark.unit
-def test_render_field_text_plain_text_does_not_warn(caplog):
-    """브레이스로 시작하지 않는 평문은 그냥 평문이다 — 경고를 남기지 않는다."""
+@pytest.mark.parametrize("value", [
+    "현재 주가는 20일선 아래에서 형성되며 하락 추세입니다.",
+    # sample_files/monimo/monimo_cs_ssf_layout_table_sample.dtms 47행, 제목(4번째 칸)
+    "[안내] 담당 직원 배정 안내",
+])
+def test_render_field_text_plain_text_does_not_warn(caplog, value):
+    """JSON 이 아닌 평문은 그냥 평문이다 — `[` 로 시작하는 제목도 경고를 남기지 않는다."""
     with caplog.at_level(logging.WARNING):
-        text = render_field_text("현재 주가는 20일선 아래에서 형성되며 하락 추세입니다.")
+        text = render_field_text(value)
 
-    assert text == "현재 주가는 20일선 아래에서 형성되며 하락 추세입니다."
+    assert text == value
     assert "row_merge" not in caplog.text
 
 
@@ -847,13 +852,26 @@ def test_render_field_text_routes_structural_html_to_renderer():
 
 
 @pytest.mark.unit
-def test_render_field_text_inline_html_skips_renderer():
-    """인라인 태그뿐이면 렌더러를 부르지 않는다 — 행마다 docling 문서를 세우지 않게."""
+@pytest.mark.parametrize("value,expected", [
+    # sample_files/monimo/monimo_cs_slf_sample.json faq_list[3](LIFE-CS-03) question
+    ("모니모 앱에서 OTP  재발급<BR>신청 &amp; 해지는 어떻게 하나요?",
+     "모니모 앱에서 OTP 재발급 신청 & 해지는 어떻게 하나요?"),
+    # sample_files/monimo/monimo_stock_insight_sample.txt 18행(리게티 컴퓨팅) 5번째 칸의 뒷부분
+    ("MACD 값은 -0.06으로 Signal선(0.3)을 하향 돌파한 이후 음의 영역에서 확대되는 흐름입니다."
+     "<BR><BR>볼린저 밴드 기준 현재 주가는 중심선(17.15) 아래에서 거래",
+     "MACD 값은 -0.06으로 Signal선(0.3)을 하향 돌파한 이후 음의 영역에서 확대되는 흐름입니다."
+     "\n\n볼린저 밴드 기준 현재 주가는 중심선(17.15) 아래에서 거래"),
+])
+def test_render_field_text_inline_html_skips_renderer(value, expected):
+    """인라인 태그뿐이면 렌더러를 부르지 않는다 — 행마다 docling 문서를 세우지 않게.
+
+    홀로 쓰인 `<BR>`(제목 줄넘김)은 공백으로 잇고(옛 `html_text` 결과와 같다),
+    연달아 쓴 `<BR><BR>`(본문 문단 구분)은 빈 줄로 남긴다.
+    """
     called = []
-    text = render_field_text("가나<BR>다라<strong>강조</strong>",
-                             html_renderer=lambda v: called.append(v) or "")
+    text = render_field_text(value, html_renderer=lambda v: called.append(v) or "")
     assert not called
-    assert text == "가나\n다라강조"
+    assert text == expected
 
 
 @pytest.mark.unit
@@ -865,6 +883,11 @@ def test_render_field_text_inline_html_skips_renderer():
     ("<table><tr><td>1</td></tr></table>", "html"),
     ("가나<BR>다라", "html_inline"),
     ("그냥 평문", "text"),
+    # `[` 로 시작하는 평문 제목. sample_files/monimo/monimo_cs_ssf_sample.dtms 28행·64행,
+    # monimo_cs_ssf_layout_table_sample.dtms 1행의 제목(4번째 칸)
+    ("[보상콜] 누수 사고 보상 범위", "text"),
+    ("[1.자동차 사고부상] 자주 묻는 질문", "text"),
+    ("[보상콜] OTP  인증 오류 시<BR>사고 접수 &amp; 보상 안내", "html_inline"),
     ("", "empty"),
     (None, "empty"),
 ])
@@ -1585,7 +1608,7 @@ def test_constants_beat_defaults_even_when_empty(tmp_path):
 
 @pytest.mark.unit
 def test_html_text_transform_forces_html_and_receives_the_runtime_renderer(tmp_path):
-    """`html_text` 는 판별 없이 HTML 로 강제하고, 표 모양은 런타임 렌더러가 정한다.
+    """`html_text`(to_text 의 옛 이름)에도 런타임 렌더러가 주입되어 표 모양을 정한다.
 
     렌더러는 요청의 table_format/compact_tables 를 물고 있어 yaml 로 표현할 수 없다 —
     설정이 아니라 적용 시점에 주입된다.

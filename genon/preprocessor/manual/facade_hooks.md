@@ -501,7 +501,7 @@ from genon.preprocessor.processing.core import toolbox as tb
 
 | 갈래 | 항목 |
 |---|---|
-| 값 변환 | `regex_sub` `regex_extract` `to_int` `to_json` `truncate` `html_text` `to_text` `date_int` `normalize` `json_to_markdown` (옛 이름 별칭: `text` `date_int_flex` `text_norm`) |
+| 값 변환 | `regex_sub` `regex_extract` `to_int` `to_json` `truncate` `to_text` `date_int` `normalize` `json_to_markdown` (옛 이름 별칭: `text` `html_text` `date_int_flex` `text_norm`) |
 | 엑셀 | `load_sheets` `load_tables` |
 | JSON | `collect_text_fields` `detect_format` |
 | 표 | `render_table` `render_plain_text` `sanitize_table_html` |

@@ -19,10 +19,10 @@ fields:
     default: null
   CUSTOM_TITLE:
     alias: [question, 질문]
-    transform: html_text
+    transform: to_text
   CONTENT:
     alias: [answer, 내용, 답변]
-    transform: html_text
+    transform: to_text
   RELATED_KEYWORDS:
     alias: [related_keywords, 연관 키워드]
     default: null
