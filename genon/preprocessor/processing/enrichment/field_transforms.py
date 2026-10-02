@@ -106,8 +106,8 @@ def parse_created_date(date_text: str) -> int:
     return 0
 
 
-def transform_date_int(value: Any) -> int:
-    """date_int 변환기: 날짜 텍스트/정수를 YYYYMMDD 정수로 변환."""
+def _date_int_basic(value: Any) -> int:
+    """날짜 텍스트/정수를 YYYYMMDD 정수로 변환한다(4자리 연도 표기만 인식)."""
     if isinstance(value, (int, float)):
         candidate_int = int(value)
         return candidate_int if candidate_int > 0 else 0
@@ -127,18 +127,21 @@ _COMPACT_DATE6_RE = re.compile(r"^\s*(\d{2})(\d{2})(\d{2})\s*$")
 _SHORT_DATE_RE = re.compile(r"^\s*(\d{2})\s*[-./]\s*(\d{1,2})\s*[-./]\s*(\d{1,2})\s*$")
 
 
-def transform_date_int_flex(value: Any) -> int:
-    """date_int_flex 변환기: 2자리 연도("26.07.01")까지 받는 YYYYMMDD 정수 변환.
+def transform_date_int(value: Any) -> int:
+    """date_int 변환기: 날짜 텍스트/정수를 YYYYMMDD 정수로 변환. 옛 이름 `date_int_flex` 는 별칭이다.
 
-    `date_int`(parse_created_date)는 `\\d{4}` 연도만 인식해 "26.07.01" 을 2601 년으로도,
-    날짜로도 읽지 못한다. 여기서 아래 세 형태를 먼저 정규화한 뒤 나머지는 `date_int` 에
-    위임하므로 기존 created_date 동작에는 영향이 없다.
+    `parse_created_date` 는 `\\d{4}` 연도만 인식해 "26.07.01" 을 2601 년으로도,
+    날짜로도 읽지 못한다. 여기서 아래 세 형태를 먼저 정규화한 뒤 나머지는 `_date_int_basic` 에
+    위임한다. 메타 기본 변환(created_date)도 이 함수를 쓰므로 같은 표기를 받는다.
       - "26.07.01" / "26-07-01"  (2자리 연도 + 구분자)
       - "20260713"               (구분자 없는 8자리 YYYYMMDD)
       - "260701"                 (구분자 없는 6자리 YYMMDD)
     월/일이 실제 날짜가 아니면(예: "202699") 정규화하지 않고 기존 경로로 넘긴다.
     """
-    if isinstance(value, (int, float)) and not isinstance(value, bool):
+    if isinstance(value, bool):
+        # bool 은 int 의 하위형이라 그대로 두면 True 가 1 로 통과한다.
+        return 0
+    if isinstance(value, (int, float)):
         # 엑셀/JSON 이 숫자로 준 압축 날짜(20260713)도 문자열과 같게 다룬다.
         as_int = int(value)
         if 10_000_000 <= as_int <= 99_999_999 or 100_000 <= as_int <= 999_999:
@@ -165,7 +168,10 @@ def transform_date_int_flex(value: Any) -> int:
                     break          # 날짜가 아니면 압축 표기로 보지 않는다
                 value = f"{year}-{month}-{day}"
                 break
-    return transform_date_int(value)
+    return _date_int_basic(value)
+
+
+transform_date_int_flex = transform_date_int  # 옛 이름. toolbox 재수출과 기존 import 를 유지한다.
 
 
 def transform_text_norm(value: Any) -> Optional[str]:
@@ -462,7 +468,7 @@ def extract_created_date_from_document_text(document: "DoclingDocument") -> int:
 # 신규 변환기/보조추출은 함수 작성 후 아래 dict 에 등록만 하면 설정에서 바로 사용 가능.
 VALUE_TRANSFORMS: dict[str, Callable[[Any], Any]] = {
     "date_int": transform_date_int,
-    "date_int_flex": transform_date_int_flex,
+    "date_int_flex": transform_date_int,   # 옛 이름(별칭)
     "text_norm": transform_text_norm,
 }
 

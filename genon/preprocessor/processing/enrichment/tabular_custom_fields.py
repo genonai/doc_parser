@@ -660,7 +660,9 @@ def _compile_transform_step(name: str, kwargs: dict, *, target: str, label: str)
             if isinstance(group, str):
                 valid = group in compiled.groupindex
             else:
-                valid = isinstance(group, int) and 0 <= group <= compiled.groups
+                # bool 은 int 의 하위형이라 `group: true` 가 1번 그룹으로 통과하지 않게 막는다.
+                valid = (isinstance(group, int) and not isinstance(group, bool)
+                         and 0 <= group <= compiled.groups)
             if not valid:
                 raise ValueError(
                     f"{label}: transforms.{target} 의 '{name}' group {group!r} 이 패턴에 "

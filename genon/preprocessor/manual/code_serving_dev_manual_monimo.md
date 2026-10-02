@@ -1709,8 +1709,8 @@ HTML 원문이 입력으로 전달되어야 하며, JSON 안에 HTML이 들어 �
 
 | 이름 | 인자 | 하는 일 |
 |---|---|---|
-| `date_int` | — | 날짜 텍스트 → `YYYYMMDD` 정수 |
-| `date_int_flex` | — | 위 + 2자리 연도(`26.07.01`)·구분자 없는 `260701` |
+| `date_int` | — | 날짜 텍스트 → `YYYYMMDD` 정수. 2자리 연도(`26.07.01`)·구분자 없는 `20260713`·`260701` 도 받는다 |
+| `date_int_flex` | — | `date_int` 의 옛 이름(별칭) |
 | `text_norm` | — | NFKC + 공백 축약 + casefold (중복 판정용) |
 | `regex_sub` | `pattern` 필수, `repl` 기본 `""` | 정규식 치환 (`"18,000원"` → `"18000"`) |
 | `regex_extract` | `pattern` 필수, `group` 기본 `1` | 정규식 오려내기. 미매칭 시 `None` |
