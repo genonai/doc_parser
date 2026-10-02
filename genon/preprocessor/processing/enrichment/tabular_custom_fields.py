@@ -14,6 +14,7 @@ extractor=tabular_mapping 설정을 적용해 행별 metadata element를 만든�
 """
 from __future__ import annotations
 
+import inspect
 import json
 import logging
 import re
@@ -589,7 +590,8 @@ def compile_transforms(spec: Any, *, label: str, cfg: Any = None) -> dict[str, l
             chain.append(_compile_transform_step(name, kwargs, target=str(target), label=label))
         # to_json 뒤에 다른 단계가 오면 산출이 더 이상 JSON 이 아니다(truncate 는 잘라서
         # 깨뜨리고, text 는 다시 평문으로 만든다). 조용히 깨지므로 여기서 막는다.
-        if "to_json" in names and names[-1] != "to_json":
+        # 마지막 단계만 보면 `[to_json, text, to_json]` 이 통과하므로 마지막을 뺀 전체를 본다.
+        if "to_json" in names[:-1]:
             raise ValueError(
                 f"{label}: transforms.{target} 의 to_json 은 체인 **맨 뒤**여야 합니다 "
                 f"(현재: {names}) — 뒤에 다른 변환이 오면 JSON 이 깨집니다."
@@ -644,10 +646,29 @@ def _compile_transform_step(name: str, kwargs: dict, *, target: str, label: str)
             f"(사용 가능: {list(ALL_TRANSFORM_NAMES)})"
         )
 
+    # 허용 인자는 변환기 시그니처에서 얻는다. 별도 표를 두면 함수와 어긋난다. `html_renderer`
+    # 는 런타임이 주입하는 인자라 설정에 적어도 apply_transforms 가 덮어써 조용히 무시된다.
+    allowed = {
+        p.name for p in inspect.signature(PARAM_TRANSFORMS[name]).parameters.values()
+        if p.kind is p.KEYWORD_ONLY
+    } - {"html_renderer"}
+    unknown = sorted(set(kwargs) - allowed)
+    if unknown:
+        raise ValueError(
+            f"{label}: transforms.{target} 의 '{name}' 에 쓸 수 없는 인자입니다: {unknown} "
+            f"(쓸 수 있는 인자: {sorted(allowed)})"
+        )
     missing = [k for k in PARAM_TRANSFORM_REQUIRED[name] if k not in kwargs]
     if missing:
         raise ValueError(f"{label}: transforms.{target} 의 '{name}' 에 {missing} 인자가 필요합니다.")
     if "pattern" in kwargs:
+        # 검사한 값과 실행하는 값이 같아야 한다. 문자열로 바꿔 넘기면 `pattern: null` 이
+        # "None" 정규식이 되는 식으로 의도하지 않은 값까지 받아들이므로 문자열만 허용한다.
+        if not isinstance(kwargs["pattern"], str):
+            raise ValueError(
+                f"{label}: transforms.{target} 의 '{name}' pattern 은 문자열이어야 합니다: "
+                f"{kwargs['pattern']!r} — 숫자처럼 읽히는 패턴은 따옴표로 감쌉니다."
+            )
         try:
             compiled = re.compile(str(kwargs["pattern"]))
         except re.error as exc:
