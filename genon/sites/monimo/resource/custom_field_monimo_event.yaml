@@ -28,10 +28,10 @@ fields:
     transform: to_text
   EVENT_FROM:
     alias: [이벤트 시작일, 시작일, startDate, start_date, evtPtrmStrtDt]
-    transform: date_int_flex
+    transform: date_int
   EVENT_TO:
     alias: [이벤트 종료일, 종료일, endDate, end_date, evtPtrmEndDt]
-    transform: date_int_flex
+    transform: date_int
   DETAIL_HTML:
     alias: [cmp_desc, htmlText, 상세내용]
   MOVE_TARGET_URL:

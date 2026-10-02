@@ -58,12 +58,12 @@ schema: v2
 #     alias: [buttonLink, detailUrl, 콘텐츠 상세 경로, 상세경로]
 #   NEWS_TO:
 #     alias: [개시 종료일, 종료일, endDate, evtPtrmEndDt]
-#     transform: date_int_flex
+#     transform: date_int
 #   DETAIL_HTML:
 #     alias: [htmlText, 상세내용]
 #   DETAIL_TEXT:
 #     alias: [htmlText, 상세내용]
-#     transform: html_text
+#     transform: to_text
 # require:
 #   fields: [TITLE]
 # body:

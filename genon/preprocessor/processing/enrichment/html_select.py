@@ -33,7 +33,7 @@ docling 이 파싱을 마친 **평문**이라 class 도 속성도 남지 않는�
 
 ## 뽑은 값의 모양
 
-`transform: html_text` 와 **같은 렌더러**로 평문화한다(`render_field_text(kind="html")`).
+`transform: to_text` 와 **같은 렌더러**로 평문화한다(`render_field_text(kind="html")`).
 표·목록 구조가 남고, 짧은 필드는 그냥 한 줄로 나온다. 설정에 모양 스위치를 따로 두지
 않은 이유다 — 이미 있는 변환기와 결과가 같으면 개념을 하나 더 만들 이유가 없다.
 
@@ -121,7 +121,7 @@ def extract_fields(html: str, selectors: dict[str, dict]) -> dict[str, Any]:
             raw = element.get(spec["attr"])
             values[target] = str(raw).strip() or None if raw is not None else None
         else:
-            # 표가 있으면 `transform: html_text` 와 같은 렌더러를 쓴다 — 행/열 구조가 남는다.
+            # 표가 있으면 `transform: to_text` 와 같은 렌더러를 쓴다 — 행/열 구조가 남는다.
             values[target] = render_field_text(
                 element.decode_contents(), kind="html",
                 html_renderer=html_renderer if element.find("table") else None,

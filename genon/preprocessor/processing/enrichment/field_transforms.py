@@ -204,7 +204,7 @@ def transform_normalize(value: Any) -> Optional[str]:
 transform_text_norm = transform_normalize  # 옛 이름. toolbox 재수출과 기존 import 를 유지한다.
 
 
-# ── 원천 값 → 사람이 읽는 평문 (`to_text`/`html_text` 변환기용) ──────────────
+# ── 원천 값 → 사람이 읽는 평문 (`to_text` 변환기용) ──────────────
 # 원천이 같은 컬럼에 JSON·HTML·평문을 섞어 보낸다(모니모 AI차트뷰 detail_desc). 정해진
 # 스키마가 없으므로 **종류를 자동 판별해 하나의 마크다운으로 수렴**시킨다. 설정은 없다.
 #

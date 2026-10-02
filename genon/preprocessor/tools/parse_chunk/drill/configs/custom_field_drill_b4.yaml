@@ -9,7 +9,7 @@ fields:
   KIND:       {alias: [type]}
   PLAIN:      {alias: [plainBody]}
   HTML_RAW:   {alias: [htmlBody]}
-  HTML_TEXT:  {alias: [htmlBody], transform: html_text}
+  HTML_TEXT:  {alias: [htmlBody], transform: to_text}
   BODY:       {template: "{{PLAIN}}{{HTML_TEXT}}"}
 body:
   fields: [SUBJECT, BODY]
