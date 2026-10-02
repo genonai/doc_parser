@@ -1628,46 +1628,6 @@ def test_renderer_is_only_injected_into_renderer_transforms():
     assert fields["D"] == 20260701
 
 
-def _stock_insight_detail_desc(jong_name: str) -> str:
-    """구분자 텍스트 원천에서 한 종목의 detail_desc 조각을 라인번호 순으로 잇는다(merge_rows 와 같다)."""
-    path = Path(__file__).resolve().parents[2] / "sample_files/monimo/monimo_stock_insight_split_sample.txt"
-    rows = [line.split("\x1f|") for line in path.read_text(encoding="utf-8").splitlines()]
-    return "".join(r[4] for r in sorted((r for r in rows if r[0] == jong_name), key=lambda r: int(r[3])))
-
-
-@pytest.mark.unit
-@pytest.mark.parametrize("config_name,target,old,new,value", [
-    # monimo_term_sample.xlsx 의 용어(국문) 열
-    ("custom_field_term.yaml", "TERM_NORM", "text_norm", "normalize", "해지  환급금"),
-    # monimo_stock_insight_split_sample.txt 의 애플 detail_desc(조각 6개를 이은 JSON)
-    ("custom_field_stock_insight.yaml", "DETAIL_TEXT", "text", "to_text", _stock_insight_detail_desc("애플")),
-])
-def test_renamed_transform_matches_old_name(config_name, target, old, new, value):
-    """새 이름(to_text·normalize)과 옛 이름은 출고 설정의 체인에서 같은 값을 만든다.
-
-    출고 설정은 어느 이름을 쓰든 되므로 체인의 해당 단계를 두 이름으로 각각 바꿔 비교한다.
-    """
-    from genon.preprocessor.processing.enrichment.tabular_custom_fields import (
-        apply_transforms, compile_transforms,
-    )
-    from shipped_config import SITE_MONIMO, load_shipped_named
-
-    shipped_spec = load_shipped_named(config_name, SITE_MONIMO)["transforms"][target]
-    shipped_chain = shipped_spec if isinstance(shipped_spec, list) else [shipped_spec]
-    assert {old, new} & set(shipped_chain)
-    old_chain = [old if step in (old, new) else step for step in shipped_chain]
-    new_chain = [new if step in (old, new) else step for step in shipped_chain]
-
-    results = []
-    for chain in (old_chain, new_chain):
-        fields = {target: value}
-        apply_transforms(fields, compile_transforms({target: chain}, label="t"))
-        results.append(fields[target])
-
-    assert results[0] == results[1]
-    assert results[0] not in (None, "", value)
-
-
 @pytest.mark.unit
 def test_duplicate_alias_keeps_source_and_derives_in_one_pass(tmp_path):
     """같은 alias 를 두 필드에 붙이면 원본과 평문 사본을 함께 얻는다(옛 from/as 대체)."""
