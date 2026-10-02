@@ -80,22 +80,6 @@ def test_detail_keeps_inline_emphasis_text():
     assert "소제목" in detail and "19% 증가" in detail
 
 
-def test_table_in_selected_element_keeps_cell_boundaries():
-    """선택한 요소 안의 표는 셀이 붙지 않아야 한다(#421, 렌더러 없이 평문화하던 결함)."""
-    table = (
-        '<table><tr><th>구분</th><th>상세내용</th></tr>'
-        '<tr><td>결제하기</td><td>결제수단 선택</td></tr></table>'
-    )
-    html = SAMPLE.replace(
-        '<ul class="newslertter-article-content">',
-        f'<ul class="newslertter-article-content">{table}',
-    )
-    detail = html_select.extract_fields(html, SELECTORS)["DETAIL"]
-
-    assert "구분상세내용" not in detail
-    assert "<th>구분</th><th>상세내용</th>" in detail
-
-
 def test_commented_out_element_is_not_extracted():
     """주석은 원천이 꺼 둔 것이다. 되살리지 않고 None 으로 두되 키는 남긴다."""
     values = html_select.extract_fields(SAMPLE, SELECTORS)
@@ -362,3 +346,28 @@ def test_sample_summary_does_not_swallow_the_body():
     values = html_select.extract_fields(_news_sample_content(), _shipped_selectors())
 
     assert len(values["SUMMARY"]) < len(values["DETAIL"]) / 10
+
+
+def test_table_in_detail_keeps_cell_boundaries():
+    """상세 안의 표는 셀이 붙지 않아야 한다(#421, 렌더러 없이 평문화하던 결함).
+
+    관심소식 샘플에는 표가 없어, 같은 카드 WCMS 원천인 고객센터 샘플의 실물 표를
+    상세 영역에 넣는다. 표 밖의 본문은 수정 전과 같은 경량 경로를 타야 한다.
+    """
+    from bs4 import BeautifulSoup
+
+    cs_html = (
+        Path(__file__).resolve().parents[2]
+        / "sample_files" / "monimo" / "monimo_cs_hpp_rich_table_sample.html"
+    ).read_text(encoding="utf-8")
+    table = str(BeautifulSoup(cs_html, "html.parser").find_all("table")[1])
+    content = _news_sample_content()
+    anchor = '<ul class="newslertter-article-content">'
+    assert anchor in content
+    content = content.replace(anchor, anchor + table, 1)
+
+    detail = html_select.extract_fields(content, _shipped_selectors())["DETAIL"]
+
+    assert "구분상세내용" not in detail
+    assert "<td>네이버페이 비밀번호 설정</td>" in detail
+    assert detail.count("무인점포") > 5
