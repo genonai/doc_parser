@@ -346,3 +346,29 @@ def test_sample_summary_does_not_swallow_the_body():
     values = html_select.extract_fields(_news_sample_content(), _shipped_selectors())
 
     assert len(values["SUMMARY"]) < len(values["DETAIL"]) / 10
+
+
+def test_table_in_detail_keeps_cell_boundaries():
+    """상세 안의 표는 셀이 붙지 않아야 한다(#421, 렌더러 없이 평문화하던 결함).
+
+    관심소식 샘플에는 표가 없어, 같은 카드 WCMS 원천인 고객센터 샘플의 실물 표를
+    상세 영역에 넣는다. 표 출력 형식(html/markdown)에는 기대지 않고 셀 경계만 본다.
+    """
+    from bs4 import BeautifulSoup
+
+    cs_html = (
+        Path(__file__).resolve().parents[2]
+        / "sample_files" / "monimo" / "monimo_cs_hpp_rich_table_sample.html"
+    ).read_text(encoding="utf-8")
+    table = str(BeautifulSoup(cs_html, "html.parser").find_all("table")[1])
+    content = _news_sample_content()
+    anchor = '<ul class="newslertter-article-content">'
+    assert anchor in content
+    content = content.replace(anchor, anchor + table, 1)
+
+    detail = html_select.extract_fields(content, _shipped_selectors())["DETAIL"]
+
+    # 표가 통째로 빠져도 아래 부재 단정은 통과하므로 셀 텍스트가 있는지 먼저 본다.
+    assert "상세내용" in detail and "네이버페이 비밀번호 설정" in detail
+    assert "구분상세내용" not in detail
+    assert "네이버페이 비밀번호 설정1." not in detail
