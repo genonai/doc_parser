@@ -1349,8 +1349,9 @@ fields:
 ```
 
 - `select` 는 CSS 선택자입니다. 여러 개가 걸리면 **첫 번째**를 씁니다.
-- `attr` 을 주면 그 속성값을 문자열 그대로 씁니다. 없으면 요소 텍스트를
-  `transform: html_text` 와 같은 방식으로 평문화합니다(표·목록 구조가 남습니다).
+- `attr` 을 주면 그 속성값을 문자열 그대로 씁니다. 없으면 요소 텍스트를 평문화합니다.
+  요소 안에 표가 있으면 `transform: html_text` 와 같은 렌더러로 표의 행·열 구조를 남기고,
+  표가 없으면 태그만 걷어냅니다. 이때 `<ul>`·`<ol>` 은 글머리표 없이 원천 마크업의 줄바꿈대로 나옵니다.
 - 선택자 문법 오류는 **기동 시** 잡힙니다.
 - 선언한 필드는 못 찾아도 키가 남고 값이 `null` 이 됩니다(경고 로그에 어느 선택자가
   안 걸렸는지 나옵니다).
@@ -1381,7 +1382,7 @@ fields:
 | 상수 | `const` (`constants`) | ✔ | ✔ | ✔ | ✔ |
 | 기본값(빈 값만) | `default` (`defaults`) | ✔ | ✔ | ✔ | ✔ |
 | 값 접기 | `values` (`value_map`) | ✔ | ✔ | ✔ | ✔ |
-| 변환(9종 체이닝) | `transform` (`transforms`) | ✔ | ✔ | ⚠ 표 뭉갬 | ⚠ 표 뭉갬 |
+| 변환(10종 체이닝) | `transform` (`transforms`) | ✔ | ✔ | ⚠ 표 뭉갬 | ⚠ 표 뭉갬 |
 | 필드 결합 | `template` (**`derive`**) | ✔ | ✔ | ✔ | ✔ |
 | JSON 한 칸에 묶기 | `pack` | ✔ | ✔ | ✔ | ✔ |
 | 청크 메타에서 빼기 | `meta: false` (`meta_include`) | ✔ | ✔ | ✔ | ✔ |
@@ -1504,12 +1505,11 @@ fields:
 > **청크 텍스트 정제(`chunking.text_cleanup`)는 doc_type 별 설정이 아니라 프로세서 config** 입니다.
 > `parser_processor_config.yaml` 에는 없습니다 — 파서와 청커를 나눠 배포했다면 **청커 쪽 yaml** 에 적습니다.
 
-### `transform` 11종 — 체이닝됩니다
+### `transform` 10종 — 체이닝됩니다
 
 | 이름 | 인자 | 하는 일 |
 |---|---|---|
-| `date_int` | `on_error` | 날짜 텍스트 → `YYYYMMDD` 정수. 2자리 연도(`26.07.01`)·구분자 없는 `20260713`·`260701` 도 받는다. 날짜로 읽지 못하면 `on_error`(기본 `0`), 빈 값은 항상 `0` |
-| `date_int_flex` | `date_int` 와 같다 | `date_int` 의 옛 이름(별칭) |
+| `date_int` (옛 이름 `date_int_flex`) | `on_error` | 날짜 텍스트 → `YYYYMMDD` 정수. 2자리 연도(`26.07.01`)·구분자 없는 `20260713`·`260701` 도 받는다. 날짜로 읽지 못하면 `on_error`(기본 `0`), 빈 값은 항상 `0` |
 | `normalize` (옛 이름 `text_norm`) | — | NFKC + 양끝 공백 제거 + 연속 공백 축약 + casefold (중복 판정용). 영문은 소문자로 바뀌고, 단어 사이 공백은 한 칸으로 줄일 뿐 없애지 않는다 |
 | `regex_sub` | `pattern`, `repl` | 정규식 치환 (`"18,000원"` → `"18000"`) |
 | `regex_extract` | `pattern`, `group`, `on_error` | 정규식 오려내기. 미매칭 시 `on_error`(기본 `None`), 빈 값은 그대로. `group` 이 패턴에 없으면 기동 실패 |
@@ -1543,8 +1543,9 @@ fields:
 ```yaml
 fields:
   PRODUCT_ATTRS:
-    llm: true
     transform: [{name: to_json, key: fee_text}]
+llm:
+  - out: [PRODUCT_ATTRS]
 ```
 
 | 값 | 산출 |

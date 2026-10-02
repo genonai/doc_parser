@@ -128,13 +128,13 @@ source:
 #                **문서 1건 안에서만 유일하다** — 여러 파일에 걸친 전역 유일번호는 여기서
 #                만들 수 없다(접두를 파일명·수집일자로 잡거나 적재 쪽 시퀀스를 쓴다).
 #
-# [변환기] normalize · html_text · to_text (인자 없음)
+# [변환기] 10종. normalize · html_text · to_text (인자 없음)
 #          normalize 는 중복 판정 키용이라 영문이 소문자로 바뀌고, 단어 사이 공백은 한 칸으로
 #          줄일 뿐 없애지 않는다.
-#          옛 이름 text_norm·text 는 각각 normalize·to_text 의 별칭이다.
-#          date_int · date_int_flex(on_error=0, 빈 값은 0) ·
+#          옛 이름 date_int_flex·text_norm·text 는 각각 date_int·normalize·to_text 의 별칭이다.
+#          date_int(on_error=0, 빈 값은 0) · hash(length=16, prefix="") ·
 #          regex_sub(pattern, repl) · regex_extract(pattern, group=1, on_error=null) ·
-#          to_int(on_error=null) · truncate(length, suffix="") ·
+#          to_int(on_error=null, 소수·숫자 둘 이상이면 on_error) · truncate(length, suffix="") ·
 #          to_json(on_scalar=wrap|drop, key="value") — 적재 DB 의 JSON 컬럼에 넣을 값을
 #          유효한 JSON 문자열로 맞춘다(스칼라는 {key: 값} 으로 감싼다). 체인 맨 뒤 전용.
 #
@@ -155,7 +155,7 @@ fields:
     alias: [<json key>, <다른 표기>]
   <TARGET_FIELD_2>:
     alias: [<json key>]
-    transform: date_int_flex
+    transform: date_int
 
   # 한 필드가 별칭·값매핑·기본값을 **동시에** 가질 수 있다.
   # <SEARCHABLE_YN>:

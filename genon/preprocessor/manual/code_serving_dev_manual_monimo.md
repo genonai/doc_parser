@@ -173,7 +173,7 @@ fields:                       # 각 목표필드의 설정은 YAML 매핑으로 
     transform: to_text                        # 값 변환(체이닝 가능)
   REG_DT:
     alias: [등록일]
-    transform: date_int_flex                  # "26.07.01" -> 20260701
+    transform: date_int                       # "26.07.01" -> 20260701
   USE_YN:
     alias: [노출여부]
     values: {"Y": [노출, 사용], "N": [미노출]}  # 값 표기를 표준 코드로 통일합니다
@@ -1710,8 +1710,7 @@ HTML 원문이 입력으로 전달되어야 하며, JSON 안에 HTML이 들어 �
 
 | 이름 | 인자 | 하는 일 |
 |---|---|---|
-| `date_int` | `on_error` 기본 `0` | 날짜 텍스트 → `YYYYMMDD` 정수. 2자리 연도(`26.07.01`)·구분자 없는 `20260713`·`260701` 도 받는다. 날짜로 읽지 못하면 `on_error`, 빈 값은 항상 `0` |
-| `date_int_flex` | `date_int` 와 같다 | `date_int` 의 옛 이름(별칭) |
+| `date_int` (옛 이름 `date_int_flex`) | `on_error` 기본 `0` | 날짜 텍스트 → `YYYYMMDD` 정수. 2자리 연도(`26.07.01`)·구분자 없는 `20260713`·`260701` 도 받는다. 날짜로 읽지 못하면 `on_error`, 빈 값은 항상 `0` |
 | `normalize` (옛 이름 `text_norm`) | — | NFKC + 양끝 공백 제거 + 연속 공백 축약 + casefold (중복 판정용). 영문은 소문자로 바뀌고, 단어 사이 공백은 한 칸으로 줄일 뿐 없애지 않는다 |
 | `regex_sub` | `pattern` 필수, `repl` 기본 `""` | 정규식 치환 (`"18,000원"` → `"18000"`) |
 | `regex_extract` | `pattern` 필수, `group` 기본 `1`, `on_error` 기본 `null` | 정규식 오려내기. 미매칭 시 `on_error`, 빈 값은 그대로 |

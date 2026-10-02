@@ -662,7 +662,7 @@ class JsonRecordsMapper(CustomFieldsMapperBase):
     ) -> dict:
         """레코드 1건 → 목표필드 dict(변환/기본값/파생 필드까지 적용).
 
-        `table_format`/`compact_tables` 는 `html_text`/`text` 변환의 표 모양을 정한다
+        `table_format`/`compact_tables` 는 `html_text`/`to_text` 변환의 표 모양을 정한다
         (파서가 config 의 `output.*` 를 그대로 넘긴다). 그 변환이 없으면 무시된다.
         """
         return self.apply_value_pipeline(
@@ -695,7 +695,7 @@ class JsonRecordsMapper(CustomFieldsMapperBase):
 
         표가 섞인 HTML 은 docling 백엔드로 보낸다(행/열·빈 셀 보존). 파서가 넘겨준
         `output.table_format`/`compact_tables` 를 그대로 물려 docling 경로와 모양을 맞춘다.
-        `html_text`/`text` 변환기만 이 렌더러를 받는다.
+        `html_text`/`to_text` 변환기만 이 렌더러를 받는다.
 
         적용 순서(defaults → constants → value_map → transforms → derive)는 매퍼 3종이
         공유하므로 여기서 다시 쓰지 않는다.

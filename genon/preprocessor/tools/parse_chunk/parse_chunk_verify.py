@@ -204,7 +204,7 @@ def check_product_hpp_table_format(chunks: list) -> list[str]:
 def _check_stock_insight_keeps_source_text(chunks: list) -> list[str]:
     """세부내용의 영문 대소문자와 `<BR>` 문단 구분이 보존되어야 한다(#410).
 
-    중복 판정 키용 변환(text_norm)이 걸리면 casefold 로 RSI·MACD 가 소문자가 되고 `<BR>` 이
+    중복 판정 키용 변환(normalize)이 걸리면 casefold 로 RSI·MACD 가 소문자가 되고 `<BR>` 이
     공백으로 접힌다. 원천에는 소문자 rsi·macd 가 없으므로 나오면 변환이 바꾼 것이다.
     DETAIL_DESC 는 `<BR>` 을 그대로 갖고, DETAIL_TEXT 는 그 자리를 개행으로 바꿔야 한다.
     """
@@ -266,7 +266,7 @@ def check_stock_insight_row_merge(chunks: list) -> list[str]:
     20행 → 4레코드(종목 4건)가 되어야 한다. 구분자가 끼거나 순서가 틀리면 복원되지 않는다.
 
     detail_desc 는 **JSON·HTML·평문 중 무엇이든** 올 수 있어 스키마를 못 박을 수 없다.
-    샘플에 세 종류를 모두 넣어 `transform: text` 의 자동 판별을 검증한다.
+    샘플에 세 종류를 모두 넣어 `transform: to_text` 의 자동 판별을 검증한다.
       테슬라·엔비디아 = JSON, 팔란티어 = 구조 HTML(표 포함), 리게티 = 평문
     레코드가 chunk_size 를 넘으므로 종목당 여러 청크로 갈라지고, 조각마다 종목명 접두가
     반복되며 분할 지점에는 직전 섹션 제목이 `(이어서)` 로 다시 붙는다.
@@ -700,7 +700,7 @@ def check_cs_ssf_delimited(chunks: list) -> list[str]:
 def check_title_kept(*titles: str):
     """제목(CUSTOM_TITLE)이 대소문자를 보존한 채 `<BR>`·HTML 엔티티만 풀려 실리는가(#414).
 
-    `text_norm` 은 중복 판정 키를 만드는 변환이라 영문을 소문자로 바꾸고(`OTP` → `otp`)
+    `normalize` 는 중복 판정 키를 만드는 변환이라 영문을 소문자로 바꾸고(`OTP` → `otp`)
     연속 공백을 한 칸으로 접는다. 제목에 걸리면 청크 본문과 화면 제목이 함께 바뀐다.
     """
     def _check(chunks: list) -> list[str]:
