@@ -53,16 +53,17 @@ def test_parse_created_date(text, expected):
 
 
 @pytest.mark.parametrize("value,expected", [
+    ("연 8.5%", None),            # monimo_cs_sss_chunksize_sample.json, 예전에는 85
+    ("만 0세 ~ 79세", None),       # monimo_product_ssf_sample.md, 예전에는 79
+    ("LIFE-CS-01", 1),            # monimo_cs_slf_sample.json faqId, 앞 글자에 붙은 - 는 부호가 아니다
     ("-3", -3),
     (15.0, 15),
-    ("1.5", None),
-    ("약 3~5개", None),
     (1.5, None),
 ])
 def test_to_int_rejects_decimal_and_multiple_numbers(value, expected):
     """소수·숫자 둘 이상을 이어 붙여 다른 정수를 만들지 않고 on_error 로 보낸다(#426).
 
-    monimo 실물 샘플에는 소수·범위 표기 금액이 없어 합성 입력을 쓴다.
+    문자열 행은 monimo 실물 샘플의 값이다. 음수와 float 입력은 실물에 사례가 없어 합성 입력을 쓴다.
     """
     assert transform_to_int(value) == expected
 
