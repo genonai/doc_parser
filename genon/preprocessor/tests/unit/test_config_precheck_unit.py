@@ -103,6 +103,9 @@ def test_precheck_passes_on_shipped_resource():
         # 제거된 키
         (lambda c: c.update({"nulls": ["BIZ_ID"]}), "nulls"),
         (lambda c: c.update({"json_text_fields": {"D": "SRC"}}), "json_text_fields"),
+        # transform 은 키 대조가 아니라 컴파일 단계에서 걸린다
+        (lambda c: c["fields"]["Q"].update({"transform": {"name": "hash", "lenght": 8}}),
+         "쓸 수 없는 인자"),
     ],
 )
 def test_precheck_detects_blocking_problems(tmp_path, mutate, expect):

@@ -557,6 +557,21 @@ def test_json_path_gets_the_same_features(tmp_path):
         ("schema: v2\nsource: {kind: rows}\n"
          "fields: {T: {alias: [제목], transform: [to_json, {name: truncate, length: 5}]}}\n"
          "body: {fields: [T]}\n", "맨 뒤"),
+        # 마지막 단계만 보면 체인 중간의 to_json 을 놓친다.
+        ("schema: v2\nsource: {kind: rows}\n"
+         "fields: {T: {alias: [제목]}, U: {const: x, transform: [to_json, text, to_json]}}\n"
+         "body: {fields: [T]}\n", "맨 뒤"),
+        # 옵션 이름 오타는 요청 때 TypeError 가 된다. 런타임 주입 인자(html_renderer)도 막는다.
+        ("schema: v2\nsource: {kind: rows}\n"
+         "fields: {T: {alias: [제목], transform: [{name: hash, lenght: 8}]}}\n"
+         "body: {fields: [T]}\n", "쓸 수 없는 인자"),
+        ("schema: v2\nsource: {kind: rows}\n"
+         "fields: {T: {alias: [제목], transform: [{name: text, html_renderer: x}]}}\n"
+         "body: {fields: [T]}\n", "쓸 수 없는 인자"),
+        # 따옴표 없는 숫자 패턴은 int 로 파싱돼 실행 시 re 가 거부한다.
+        ("schema: v2\nsource: {kind: rows}\n"
+         "fields: {T: {alias: [제목], transform: [{name: regex_sub, pattern: 2024}]}}\n"
+         "body: {fields: [T]}\n", "문자열이어야"),
         # 변환은 필드를 제자리에서 덮으므로, 본문에도 쓰이는 필드에 걸면 본문에 JSON 이 실린다.
         ("schema: v2\nsource: {kind: rows}\n"
          "fields: {T: {alias: [제목], transform: [to_json]}}\n"

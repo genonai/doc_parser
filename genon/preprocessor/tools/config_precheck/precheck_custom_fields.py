@@ -19,6 +19,8 @@
    본문이 바뀌면 임베딩이 바뀌므로 재색인 판단이 필요하다.
 4. **없는 모델 프리셋을 부르는 것** — `model_preset:` 이 가리키는 이름이 그 프로세서
    config 의 `model_presets` 에 없는 경우. 자식 custom_field yaml 의 참조도 함께 본다.
+5. **기동 시 컴파일에서 막히는 transform** — 없는 변환기·쓸 수 없는 인자(오타 포함)·
+   잘못된 정규식·체인 중간의 `to_json`. 기동과 같은 `compile_transforms` 를 실행한다.
 
 ## 쓰는 법
 
@@ -42,6 +44,9 @@ from genon.preprocessor.processing.common import config_parse as cp  # noqa: E40
 from genon.preprocessor.processing.common import model_preset as mp  # noqa: E402
 from genon.preprocessor.processing.enrichment import config_schema as cs  # noqa: E402
 from genon.preprocessor.processing.enrichment import config_v2 as cv2  # noqa: E402
+from genon.preprocessor.processing.enrichment.tabular_custom_fields import (  # noqa: E402
+    compile_transforms,
+)
 
 # 이번 정리에서 없앤 키 → 대신 쓸 것.
 REMOVED_KEYS = {
@@ -212,6 +217,11 @@ def check_block(
     diagnosis = cs.diagnose_keys(cfg, extractor)
     if diagnosis:
         problems.append(f"[기동실패] {cs.format_diagnosis(label, diagnosis)}")
+    # transform 은 키 대조가 아니라 컴파일 단계에서 검증되므로 기동과 같은 함수를 실행한다.
+    try:
+        compile_transforms(cfg.get("transforms"), label=label, cfg=cfg)
+    except ValueError as exc:
+        problems.append(f"[기동실패] {exc}")
 
     problems.extend(check_body_label_change(label, cfg))
     return problems
