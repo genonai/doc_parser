@@ -586,6 +586,43 @@ def test_misconfiguration_is_caught_at_startup(tmp_path, body, expect):
 
 
 @pytest.mark.parametrize(
+    "pattern, group, ok",
+    [
+        (r"^TD\d+", None, False),           # 괄호를 빠뜨린 실수
+        (r"^(?P<id>TD\d+)", "id", True),
+        (r"^(?P<id>TD\d+)", "nope", False),
+    ],
+)
+def test_regex_extract_group_is_checked_on_shipped_config(pattern, group, ok):
+    """모니모 관심소식 출고 설정의 BIZ_ID 추출(#422).
+
+    없는 그룹은 실행 시 IndexError 가 삼켜져 BIZ_ID 가 조용히 항상 None 으로 적재된다.
+    """
+    import yaml
+
+    from genon.preprocessor.processing.enrichment import config_v2 as cv2
+    from genon.preprocessor.processing.enrichment.tabular_custom_fields import (
+        compile_transforms,
+    )
+    from shipped_config import PREPROCESSOR_DIR, SITE_MONIMO
+
+    path = PREPROCESSOR_DIR / SITE_MONIMO / "custom_field_monimo_news.yaml"
+    raw = yaml.safe_load(path.read_text(encoding="utf-8"))
+    step = raw["fields"]["BIZ_ID"]["transform"]
+    assert step == {"name": "regex_extract", "pattern": r"^(TD\d+)"}, "출고 설정이 바뀌었다"
+    step["pattern"] = pattern
+    if group is not None:
+        step["group"] = group
+    internal, _ = cv2.load(raw, label=path.name)
+
+    if ok:
+        compile_transforms(internal["transforms"], label=path.name, cfg=internal)
+    else:
+        with pytest.raises(ValueError, match="패턴에 없습니다"):
+            compile_transforms(internal["transforms"], label=path.name, cfg=internal)
+
+
+@pytest.mark.parametrize(
     "filename, expected",
     [
         ("hpp_rag_adcc_237219_init.json", "hpp_rag_adcc_237219"),
