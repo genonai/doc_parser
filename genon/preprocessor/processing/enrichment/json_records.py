@@ -53,7 +53,6 @@ from .custom_fields_enricher import (
     normalize_doc_types,
 )
 from . import file_source
-from .field_transforms import VALUE_TRANSFORMS
 from .tabular_custom_fields import (
     CustomFieldsMapperBase,
     apply_sequence,

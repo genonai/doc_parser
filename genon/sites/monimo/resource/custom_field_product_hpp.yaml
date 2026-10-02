@@ -23,7 +23,7 @@ source:
     - monimoDeepLink
     - youtube
     - imgInfo
-    - serviceUrl
+    # - serviceUrl
     - smplAplcExcdYn
 fields:
   BIZ_ID:
