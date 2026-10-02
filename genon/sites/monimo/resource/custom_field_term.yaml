@@ -21,7 +21,7 @@ fields:
     alias: [용어, 용어(국문), 용어국문]
   TERM_NORM:
     alias: [용어, 용어(국문), 용어국문]
-    transform: text_norm
+    transform: normalize
   DEFINITION:
     alias: [설명, 정의·설명, 정의 설명, 정의]
   SRC_LAST_MOD_DT:
