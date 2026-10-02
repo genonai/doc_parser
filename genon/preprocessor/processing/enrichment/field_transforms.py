@@ -213,8 +213,9 @@ transform_text_norm = transform_normalize  # 옛 이름. toolbox 재수출과 �
 # 파생 전용 블록이 그 일을 했는데, 그러면 원본 컬럼 생성이 강제되고 제자리 변환이 불가능했다.
 
 _BR_RE = re.compile(r"<\s*br\s*/?\s*>", re.IGNORECASE)
-# 연달아 붙은 `<BR>` 묶음. 하나면 줄넘김, 둘 이상이면 문단 구분이다.
-_BR_RUN_RE = re.compile(r"(?:<\s*br\s*/?\s*>\s*)+", re.IGNORECASE)
+# 연달아 붙은 `<BR>` 묶음. 하나면 줄넘김, 둘 이상이면 문단 구분이다. 태그 **사이**의 공백만
+# 묶음에 넣는다 — 마지막 태그 뒤의 공백까지 먹으면 `<BR>\n\n` 의 문단 구분이 공백 하나로 붙는다.
+_BR_RUN_RE = re.compile(r"(?:<\s*br\s*/?\s*>\s*)*<\s*br\s*/?\s*>", re.IGNORECASE)
 _TAG_RE = re.compile(r"<[^>]+>")
 # 인라인 태그만 있으면 경량 경로로 충분하다. 표·목록·문단 같은 **구조**가 섞여 있으면
 # docling 백엔드(json_records.html_to_text)에 태워야 행/열 대응이 살아남는다.
