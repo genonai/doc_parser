@@ -82,6 +82,17 @@ def test_apply_field_transforms_backward_compat_and_rename():
 
 
 @pytest.mark.unit
+def test_default_created_date_reads_compact_forms():
+    """메타 기본 변환(created_date <- date_int)도 date_int_flex 와 같은 표기를 받는다(#425).
+
+    표기별 분기는 test_json_records_unit 의 date_int_flex 표가 같은 함수로 고정한다.
+    """
+    typed, _ = apply_field_transforms(
+        DEFAULT_METADATA_FIELD_TRANSFORMS, {"created_date": "20260713"}, document=None)
+    assert typed == {"created_date": 20260713}   # 예전에는 20260101
+
+
+@pytest.mark.unit
 def test_apply_field_transforms_doc_text_scan_fallback():
     """추출값이 비어있고 fallback=doc_text_scan 이면 본문 휴리스틱으로 보강."""
     document = MagicMock()

@@ -591,6 +591,7 @@ def test_misconfiguration_is_caught_at_startup(tmp_path, body, expect):
         (r"^TD\d+", None, False),           # 괄호를 빠뜨린 실수
         (r"^(?P<id>TD\d+)", "id", True),
         (r"^(?P<id>TD\d+)", "nope", False),
+        (r"^(TD\d+)", True, False),          # yaml 의 true 가 1번 그룹으로 통과하지 않게
     ],
 )
 def test_regex_extract_group_is_checked_on_shipped_config(pattern, group, ok):

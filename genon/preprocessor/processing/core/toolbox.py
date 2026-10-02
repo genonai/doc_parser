@@ -18,7 +18,7 @@ from genon.preprocessor.processing.enrichment.field_transforms import (
     json_to_markdown,                       # JSON -> 청킹 친화 마크다운(## 섹션 자동)
     strip_inline_html,                      # 인라인 태그만 제거
     transform_date_int as date_int,         # 날짜 -> YYYYMMDD 정수
-    transform_date_int_flex as date_int_flex,   # 비표준 날짜 표기까지
+    transform_date_int_flex as date_int_flex,   # date_int 의 옛 이름(별칭)
     transform_html_text as html_text,       # HTML 강제 평문화(html_renderer= 로 표 렌더 주입)
     transform_regex_extract as regex_extract,
     transform_regex_sub as regex_sub,

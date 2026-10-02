@@ -761,6 +761,7 @@ def test_shipped_monimo_event_config_maps_real_payload_schema(resource_dir):
     ("202699", 20260101),        # 날짜가 아니면 압축 표기로 보지 않고 기존 경로(연도만)
     ("", 0),
     (None, 0),
+    (True, 0),                   # bool 은 int 의 하위형이지만 날짜가 아니다
 ])
 def test_date_int_flex_handles_compact_forms(raw, expected):
     assert transform_date_int_flex(raw) == expected
