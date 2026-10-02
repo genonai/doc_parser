@@ -649,11 +649,23 @@ def _compile_transform_step(name: str, kwargs: dict, *, target: str, label: str)
         raise ValueError(f"{label}: transforms.{target} 의 '{name}' 에 {missing} 인자가 필요합니다.")
     if "pattern" in kwargs:
         try:
-            re.compile(str(kwargs["pattern"]))
+            compiled = re.compile(str(kwargs["pattern"]))
         except re.error as exc:
             raise ValueError(
                 f"{label}: transforms.{target} 의 정규식이 잘못됐습니다: {exc}"
             ) from exc
+        if name == "regex_extract":
+            # 없는 그룹은 실행 시 IndexError 가 삼켜져 값이 항상 None 이 되므로 기동 시에 막는다.
+            group = kwargs.get("group", 1)
+            if isinstance(group, str):
+                valid = group in compiled.groupindex
+            else:
+                valid = isinstance(group, int) and 0 <= group <= compiled.groups
+            if not valid:
+                raise ValueError(
+                    f"{label}: transforms.{target} 의 '{name}' group {group!r} 이 패턴에 "
+                    f"없습니다 (캡처 그룹 {compiled.groups}개, 이름 {sorted(compiled.groupindex)})."
+                )
     if name == "to_json" and "on_scalar" in kwargs:
         # yaml 의 `on_scalar: null` 은 널 값으로 파싱돼 여기 None 으로 온다. 기본값으로
         # 조용히 돌아가지 않게 이름으로만 받는다.

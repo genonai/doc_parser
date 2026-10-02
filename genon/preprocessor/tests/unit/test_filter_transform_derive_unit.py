@@ -88,7 +88,7 @@ def test_transform_takes_arguments_and_chains(tmp_path):
               - {name: to_int}
           CODE:
             alias: [설명]
-            transform: {name: regex_extract, pattern: "([A-Z]+-[A-Z]+-[0-9]+)"}
+            transform: {name: regex_extract, pattern: "(?P<code>[A-Z]+-[A-Z]+-[0-9]+)", group: code}
           SHORT:
             alias: [본문]
             transform: {name: truncate, length: 6, suffix: "…"}
@@ -577,6 +577,14 @@ def test_json_path_gets_the_same_features(tmp_path):
         ("schema: v2\nsource: {kind: rows}\n"
          "fields: {T: {alias: [제목]}, B: {alias: [$file]}}\n"
          "body: {fields: [T]}\n", "file_fields"),
+        # 없는 그룹은 실행 시 IndexError 가 삼켜져 값이 조용히 항상 None 이 된다.
+        ('schema: v2\nsource: {kind: rows}\n'
+         'fields: {T: {alias: [제목], transform: {name: regex_extract, pattern: "^TD[0-9]+"}}}\n'
+         'body: {fields: [T]}\n', "패턴에 없습니다"),
+        ('schema: v2\nsource: {kind: rows}\n'
+         'fields: {T: {alias: [제목], transform: {name: regex_extract, '
+         'pattern: "^(?P<code>TD[0-9]+)", group: nope}}}\n'
+         'body: {fields: [T]}\n', "패턴에 없습니다"),
     ],
 )
 def test_misconfiguration_is_caught_at_startup(tmp_path, body, expect):
