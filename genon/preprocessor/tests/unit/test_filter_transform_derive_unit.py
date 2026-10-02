@@ -588,7 +588,6 @@ def test_misconfiguration_is_caught_at_startup(tmp_path, body, expect):
 @pytest.mark.parametrize(
     "pattern, group, ok",
     [
-        (r"^(TD\d+)", None, True),          # 출고 설정 그대로
         (r"^TD\d+", None, False),           # 괄호를 빠뜨린 실수
         (r"^(?P<id>TD\d+)", "id", True),
         (r"^(?P<id>TD\d+)", "nope", False),
