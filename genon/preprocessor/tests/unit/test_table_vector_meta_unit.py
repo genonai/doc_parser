@@ -150,7 +150,8 @@ def test_chunker_config_exposes_table_switches(name):
     output = yaml.safe_load((_RESOURCE / name).read_text(encoding="utf-8")).get("output")
     assert output is not None, f"{name} 에 output 블록이 없다"
     assert cp.resolve_table_format_setting(output) in {"html", "markdown", "auto"}
-    assert cp.resolve_table_row_serialization(output) is False  # 기본은 off
+    # 켜고 끄는 값은 설정마다 다르다(표준 청커 설정은 on). 스위치가 노출됐는지만 본다.
+    assert "table_row_serialization" in output
 
 
 class _Processor:

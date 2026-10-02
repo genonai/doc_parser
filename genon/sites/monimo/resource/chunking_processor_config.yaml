@@ -15,7 +15,7 @@ chunking:
   # char 모드면 문자 수, huggingface 모드면 docling 은 토큰 수(parse-format 은 항상 문자 수).
   # 우선순위: 호출 kwargs 의 chunk_size > 아래 chunk_size. docling: 0=분할 안 함, 0 초과 시 최소 1024 로 보정.
   # parse-format: chunk_size 0/음수면 사실상 미분할(1000000). 미설정이면 위 공통 chunk_size 사용.
-  chunk_size: 1000
+  chunk_size: 1500
   # 청크 크기 하한(기본 1024). docling 경로에서 위 chunk_size 가 이보다 작으면 이 값으로 올린다.
   # 임베딩 모델의 입력 길이가 짧아 더 작은 청크가 필요하면 낮춘다. 0 이면 보정하지 않는다
   # (chunk_size 를 그대로 쓴다). parse-format(레코드/텍스트) 경로에는 원래 하한이 없다.
@@ -111,18 +111,19 @@ table_image:
   enable: false
 
 # 표 텍스트 직렬화 옵션. 파서와 청커는 별개 호출이라 파서 설정이 넘어오지 않는다 —
-# /chunker 로 들어오는 문서의 표 모양은 여기서 정한다. 청크 텍스트의 표 표기형태는
-# 이 섹션이 최종 결정한다. parser_processor_config.yaml 에도 같은 이름의 키가 있지만
-# 그쪽은 파서가 자기 출력을 낼 때(format: json/html/markdown)와 custom_fields 의
-# custom_fields 의 `to_text` 변환에만 쓰인다 — 여기 값과 맞출 필요가 없다.
+# /chunker 로 들어오는 일반 문서(PDF·DOCX·HTML 등)의 표 모양은 여기서 정한다.
+# custom_fields 레코드형 문서는 파서가 청크 본문을 완성해 넘기므로, 그 표 모양은
+# parser_processor_config.yaml 의 output.table_format 이 정한다(여기서 다시 렌더링하지 않는다).
+# 최종 청크의 표 모양을 통일하려면 두 설정의 table_format 을 같은 값으로 맞춘다
+# (precheck_custom_fields.sh 가 같은 폴더의 두 값이 다르면 경고한다).
 output:
   # "auto" 는 표마다 구조를 보고 고른다 - 병합 셀이나 2단 헤더가 있으면 html,
   # 단순 격자면 markdown. markdown 은 병합 셀을 표현하지 못해 헤더 계층이 사라진다.
-  table_format: "html"    # "html"(default) | "markdown" | "auto"
+  table_format: "markdown"    # "html"(default) | "markdown" | "auto"
   compact_tables: true    # markdown 표 컬럼 정렬 패딩 제거(대형 표 청크 축소). html 포맷엔 무관.
   # 병합 셀 표에 한해 표 뒤에 "컬럼=값 | 컬럼=값" 행 문장을 덧붙인다. 어느 헤더에 걸린
   # 값인지 문장으로 드러나 검색이 쉬워지지만 청크가 커진다. 단순 격자 표에는 적용 안 됨.
-  table_row_serialization: false
+  table_row_serialization: true
 
   # 같은 청크 전문을 표만 다른 표기형태로 렌더한 텍스트를 청크에 추가로 싣는다.
   # 표가 없는 청크는 text 와 같은 값이 들어간다. 켜면 본문이 형식 수만큼 복제된다.

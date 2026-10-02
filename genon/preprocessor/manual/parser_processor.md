@@ -315,7 +315,8 @@ output:
   #   markdown — 전체 문서를 Markdown 문자열로 반환 (content 필드)
   #   docling  — 복원 가능한 DoclingDocument 원본 JSON 을 data.document 로 반환 (Chunk API 입력용)
   format: "json"
-  # 테이블 표현 형식: html | markdown (json, markdown 포맷의 테이블에 적용; docling 포맷에서는 무시)
+  # 테이블 표현 형식: html | markdown | auto (json, markdown 포맷의 테이블과 custom_fields 레코드형 문서의 표에 적용.
+  # 일반 문서의 docling 출력에는 무관. 최종 청크의 표 모양을 통일하려면 청커 설정의 같은 키와 맞춘다)
   table_format: "html"
   # markdown 표 컬럼 정렬 패딩 제거(대형 표 축소). html/docling 포맷엔 무관. refine 표에도 적용
   compact_tables: true
@@ -1201,7 +1202,7 @@ Docling 경로(PDF, HTML, HWP, HWPX, DOCX)에서 `parser_processor_config.yaml`�
 ```
 
 - 이 JSON은 `DoclingDocument.model_validate(data["document"])`로 **무손실 복원**할 수 있어, GenOS Temporal 파이프라인의 다음 단계인 **Chunk API(`/chunker`)의 입력**으로 그대로 전달합니다.
-- `output.table_format`은 `docling` 포맷에서는 무시됩니다(표 구조가 원본 그대로 보존되므로).
+- `output.table_format`은 일반 문서의 `docling` 출력에는 무관합니다(표 구조가 원본 그대로 보존되고, 청크의 표 모양은 청커 설정이 정합니다). 다만 custom_fields 레코드형 문서는 파서가 청크 본문을 완성해 넘기므로 이 값이 최종 청크의 표 모양이 됩니다. 두 설정의 `table_format` 을 같은 값으로 맞추세요.
 
 #### 연계 — Chunk API (`POST /preprocessor/{id}/chunker`)
 
