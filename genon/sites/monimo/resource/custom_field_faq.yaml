@@ -1,6 +1,5 @@
-# FAQ, json
-#
-#   - `faqMenuList` 레코드 : id | logo | depth3 | depth4 | description
+# FAQ JSON 레코드
+# faqMenuList 레코드: id | logo | depth3 | depth4 | description
 
 schema: v2
 source:
