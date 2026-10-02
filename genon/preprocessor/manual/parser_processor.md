@@ -1514,7 +1514,7 @@ fields:
 | `regex_sub` | `pattern`, `repl` | 정규식 치환 (`"18,000원"` → `"18000"`) |
 | `regex_extract` | `pattern`, `group` | 정규식 오려내기. 미매칭 시 `None`. `group` 이 패턴에 없으면 기동 실패 |
 | `hash` | `length`, `prefix` | SHA-1 16진 코드화(기본 16자리). 같은 값이면 같은 코드 |
-| `to_int` | `on_error` | 숫자만 남겨 정수화 |
+| `to_int` | `on_error` | 정수 하나로 변환. 천 단위 콤마·단위는 무시하고, 소수이거나 숫자가 둘 이상이면 `on_error` |
 | `truncate` | `length`, `suffix` | 길이 자르기(적재 컬럼 길이 맞춤) |
 | `html_text` | — | HTML 로 **강제** 평문화. 표·목록 유지 |
 | `text` | — | JSON/HTML/평문 **자동 판별** 후 평문화 |

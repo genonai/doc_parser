@@ -514,16 +514,19 @@ def transform_hash(value: Any, *, length: int = 16, prefix: str = "") -> Any:
 
 
 def transform_to_int(value: Any, *, on_error: Any = None) -> Any:
-    """숫자만 남겨 정수로. 콤마·단위가 섞인 금액에 쓴다(`"18,000원"` → 18000)."""
+    """정수 하나로. 천 단위 콤마·단위가 섞인 금액에 쓴다(`"18,000원"` → 18000).
+
+    숫자 덩어리가 둘 이상이거나(`"010-1234"`, `"3~5개"`) 소수(`"1.5"`)이면 `on_error` 를 낸다.
+    `-` 는 앞에 글자가 없을 때만 부호로 읽는다. 코드값 `"LIFE-CS-01"` 이 -1 이 되지 않게 한다.
+    """
     if value in (None, ""):
         return value
-    digits = re.sub(r"[^0-9-]", "", str(value))
-    if digits in ("", "-"):
+    if isinstance(value, float):
+        return int(value) if value.is_integer() else on_error
+    numbers = re.findall(r"(?:(?<!\w)-)?[0-9.]*[0-9]", str(value).replace(",", ""))
+    if len(numbers) != 1 or "." in numbers[0]:
         return on_error
-    try:
-        return int(digits)
-    except ValueError:
-        return on_error
+    return int(numbers[0])
 
 
 def transform_truncate(value: Any, *, length: int, suffix: str = "") -> Any:
