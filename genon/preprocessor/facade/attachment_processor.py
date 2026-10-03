@@ -1348,10 +1348,13 @@ class DocumentProcessor:
             use_pdf_sdk=kwargs.get('use_pdf_sdk', True),
             image_ocr_languages=kwargs.get("image_ocr_languages"),
         )
-        documents = loader.load()
-
         # 이미지 파일의 경우 텍스트 추출 안되었을 시 기본 텍스트 제공
         ext = os.path.splitext(file_path)[-1].lower()
+        if ext in ['.jpg', '.jpeg', '.png']:
+            documents = ld.load_image_documents(loader, file_path)
+        else:
+            documents = loader.load()
+
         if ext in ['.jpg', '.jpeg', '.png']:
             # documents가 없거나, 있어도 모든 page_content가 비어있는 경우
             if not documents or not any(doc.page_content.strip() for doc in documents):

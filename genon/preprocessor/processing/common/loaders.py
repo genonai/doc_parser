@@ -56,6 +56,55 @@ def install_packages(packages):
             subprocess.run([sys.executable, "-m", "pip", "install", package], check=True)
 
 
+def load_image_documents(loader, file_path: str) -> list[Document]:
+    """UnstructuredImageLoader 를 실행하고, 텍스트 없는 요소에서 나는 오류를 우회한다.
+
+    hi_res 레이아웃 모델(yolox)이 그림만 있는 이미지에서 text 가 None 인 Image 요소를
+    돌려주면 langchain 로더의 ``str(element)`` 가 ``TypeError: __str__ returned
+    non-string`` 을 낸다. 그 경우에만 partition_image 를 직접 호출해 요소를 적재한다.
+    언어 설정은 로더에 넘긴 값(unstructured_kwargs)을 그대로 쓴다.
+    """
+    try:
+        return loader.load()
+    except TypeError as exc:
+        if "__str__ returned non-string" not in str(exc):
+            raise
+        _log.warning(f"[load_image_documents] 이미지 로더 우회 경로로 적재합니다: {file_path} ({exc})")
+
+    from unstructured.partition.image import partition_image
+
+    unstructured_kwargs = getattr(loader, "unstructured_kwargs", None) or {}
+    languages = unstructured_kwargs.get("languages") or ["kor", "eng"]
+    elements = partition_image(filename=file_path, languages=languages)
+    documents: list[Document] = []
+
+    for element in elements:
+        text = getattr(element, "text", "")
+        if text is None:
+            text = ""
+        elif not isinstance(text, str):
+            text = str(text)
+
+        metadata: dict = {"source": file_path}
+        if getattr(element, "metadata", None) is not None:
+            try:
+                metadata.update(element.metadata.to_dict())
+            except Exception:
+                pass
+
+        if hasattr(element, "category"):
+            metadata["category"] = element.category
+
+        if hasattr(element, "to_dict"):
+            element_id = element.to_dict().get("element_id")
+            if element_id:
+                metadata["element_id"] = element_id
+
+        documents.append(Document(page_content=text, metadata=metadata))
+
+    return documents
+
+
 class TextLoaderBase:
     # 텍스트를 A4 로 렌더한 PDF 를 거쳐 읽을지. True 면 페이지 단위 Document 가 나오고
     # (페이지 메타가 필요한 attachment 용), False 면 읽은 텍스트를 Document 하나로 돌린다.

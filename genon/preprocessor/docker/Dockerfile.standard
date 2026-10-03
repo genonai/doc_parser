@@ -15,7 +15,9 @@ ARG PY_VER=3.12.12
 ARG DEBIAN_DIST=trixie
 ARG H2ORESTART_URL="https://github.com/ebandal/H2Orestart/releases/latest/download/H2Orestart.oxt"
 ARG APP_VENV=/app/.venv
-ARG NLTK_PACKAGES=all
+# unstructured 가 실제로 여는 것은 punkt_tab, averaged_perceptron_tagger_eng 두 패키지뿐이다
+#   (partition_text/docx/pptx 실행 시 파일 접근 계측 결과). `all` 은 약 115MB 이고 두 패키지는 17MB 다.
+ARG NLTK_PACKAGES=punkt_tab,averaged_perceptron_tagger_eng
 ARG UID=1000
 ARG GID=1000
 ARG UNAME=genos
@@ -52,23 +54,28 @@ ENV DEBIAN_FRONTEND=noninteractive \
     TMPDIR=/app/tmp \
     HF_HOME=/app/.cache/huggingface \
     NLTK_DATA=/app/nltk_data
-# 이슈 #286 빌드 안정화 — sudo/systemd 가 sid 버전으로 당겨지면 두 패키지의 sid postinst 가
-# 빌드 컨테이너에서 깨진다(systemd: /etc/machine-id / sudo: "Failed to read sudo.conf").
-# 주의: 기존 pin-python3.13 파일은 확장자 '.13' 탓에 apt 가 통째로 무시한다(이름 규칙 위반)
-#   → sid 억제 핀이 실제로 동작 안 함. 그 파일은 광범위 영향을 피하려 그대로 두고,
-#   제대로 읽히는 .pref 파일로 sudo·systemd 만 trixie(우선순위 1001)로 강제한다.
-# 추가로 sudo 의 `systemd | systemd-standalone-tmpfiles | systemd-tmpfiles` 의존은
+# apt 소스는 trixie 단일 구성이다. 예전에는 python3.13 계열만 sid 에서 받으려고 sid 소스와 핀을 두었으나,
+#   핀 파일 이름(pin-python3.13)의 확장자 '.13' 때문에 apt 가 파일을 무시했고 `Pin: release a=sid` 도
+#   archive 이름(unstable)과 맞지 않아, 실제로는 sid 가 우선순위 500 으로 남아 libreoffice·imagemagick·glibc
+#   까지 sid 판이 섞여 들어갔다. 핀을 바로잡으면 sid python3.13 이 libc6 2.42 이상을 요구해 trixie glibc 와
+#   충돌하므로 sid 를 아예 두지 않는다. trixie 의 python3.13 으로 LibreOffice python3-uno 가 동작한다.
+#   sid 가 없으므로 sudo·systemd 를 trixie 로 강제하던 force-trixie-sudo.pref 도 필요 없다.
+# sudo 의 `systemd | systemd-standalone-tmpfiles | systemd-tmpfiles` 의존은
 # 풀 systemd 대신 컨테이너 친화적 systemd-standalone-tmpfiles 로 충족시킨다.
+# apt-get upgrade -y: 베이스 이미지의 trixie 패키지(openssl, dpkg, expat, giflib, openjdk-21 등)를
+#   보안 수정본으로 전체 상향한다. TMPDIR(/app/tmp)은 upgrade 중 dpkg postinst(base-passwd)의
+#   mktemp 가 쓰므로 apt 전에 만든다(없으면 postinst 가 실패한다).
+# vim, libmagic-dev, libffi-dev 는 설치하지 않는다. 이미지에 컴파일러가 없어 -dev 헤더는 쓰일 곳이 없고,
+#   런타임에 필요한 libmagic1(python-magic)·libffi8(cffi)은 그대로 남는다(빌드 끝 import 검사로 확인한다).
 # NOTE: /var/cache/apt 와 /var/lib/apt/lists 는 cache mount 라 **이미지 레이어에 포함되지 않는다.**
 #   예전에는 이 RUN 끝에서 `rm -rf /var/lib/apt/lists/*` 를 했는데, 이미지 크기에는 아무 이득이 없고
 #   다음 빌드가 재사용할 apt 인덱스 캐시만 파괴했다(매 빌드 인덱스 재다운로드). 그래서 제거했다.
 #   cache mount 가 없는 다른 apt RUN(rhwp 빌더 등)의 rm 은 실제로 레이어를 줄이므로 유지해야 한다.
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
-    echo "deb http://deb.debian.org/debian sid main" > /etc/apt/sources.list.d/sid.list && \
-    printf "Package: python3.13 python3.13-minimal libpython3.13 libpython3.13-minimal libpython3.13-stdlib\nPin: release a=sid\nPin-Priority: 990\n\nPackage: *\nPin: release a=sid\nPin-Priority: 100\n" > /etc/apt/preferences.d/pin-python3.13 && \
-    printf "Package: sudo systemd\nPin: release n=trixie\nPin-Priority: 1001\n" > /etc/apt/preferences.d/force-trixie-sudo.pref && \
+    mkdir -p "$TMPDIR" && \
     apt-get update && \
+    apt-get upgrade -y && \
     apt-get install -y --no-install-recommends \
       net-tools \
       curl \
@@ -76,14 +83,11 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
       fontconfig \
       procps \
       supervisor \
-      vim \
       libmagic1 \
-      libmagic-dev \
       libpango-1.0-0 \
       libpangocairo-1.0-0 \
       libcairo2 \
       libgdk-pixbuf-xlib-2.0-0 \
-      libffi-dev \
       libgl1 \
       ffmpeg \
       unzip \
@@ -195,6 +199,8 @@ RUN uv venv ${APP_VENV}
 #   uv.lock 의 torch 는 PyPI 기본(CUDA) 휠이라 nvidia 15종 + triton 이 딸려 오는데(약 4GB),
 #   바로 다음 단계에서 CPU 휠로 갈아끼우며 전부 버려진다. 콜드 빌드에서 이 다운로드가
 #   uv sync 시간의 대부분(6GB 중 4GB)을 차지했다.
+# torch 2.10 부터는 nvidia-* 외에 cuda-bindings / cuda-pathfinder(CUDA 파이썬 바인딩)도 torch 의
+#   linux x86_64 의존으로 딸려 오므로 함께 제외한다(uv.lock 에서 torch 외 다른 의존자가 없다).
 # 제외 목록을 하드코딩하지 말 것 — uv.lock 에서 뽑는다.
 #    하드코딩하면 `-cu12` → `-cu13` 같은 개명을 놓친다(code-serving 에서 그 방식 때문에
 #    CUDA 2.7GB 가 CPU 이미지에 그대로 남았던 전례).
@@ -204,7 +210,7 @@ ARG HW_VARIANT
 RUN --mount=type=cache,target=/root/.cache/uv \
     set -eu; \
     if [ "${HW_VARIANT}" = "cpu" ]; then \
-      EXCL=$(grep -oE '^name = "(nvidia-[A-Za-z0-9._-]*|triton)"' uv.lock \
+      EXCL=$(grep -oE '^name = "(nvidia-[A-Za-z0-9._-]*|triton|cuda-bindings|cuda-pathfinder)"' uv.lock \
              | sed 's/^name = "//; s/"$//' \
              | sed 's/^/--no-install-package /' | tr '\n' ' '); \
       echo "[INFO] HW_VARIANT=cpu — 설치 제외: torch torchvision ${EXCL}"; \
@@ -223,6 +229,8 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 #    (code-serving 쪽 Dockerfile 이 torch 핀 없이 2.13 을 받아 실제로 2.7GB 가 남아 있었다).
 #    → 설치된 목록에서 이름을 뽑아 지우고, `|| true` 로 실패를 감추지 않는다.
 #    (지울 게 없으면 xargs -r 이 uv 를 호출하지 않으므로 그대로 성공한다.)
+# torch/torchvision 핀은 uv.lock 버전과 같아야 한다(`uv pip install` 은 lock 을 보지 않는다).
+#    CVE-2026-24747 로 torch 2.9.0 → 2.10.0, torchvision 은 그 짝인 0.25.0 이다.
 ARG HW_VARIANT
 ARG TORCH_CPU_INDEX_URL
 RUN --mount=type=cache,target=/root/.cache/uv \
@@ -232,15 +240,15 @@ RUN --mount=type=cache,target=/root/.cache/uv \
       uv pip install --python /app/.venv/bin/python \
         --reinstall-package torch --reinstall-package torchvision \
         --index-url "${TORCH_CPU_INDEX_URL}" \
-        torch==2.9.0 torchvision==0.24.0; \
+        torch==2.10.0 torchvision==0.25.0; \
       uv pip list --python /app/.venv/bin/python --format=freeze \
-        | sed -n 's/^\(nvidia[A-Za-z0-9._-]*\|triton\)==.*/\1/p' \
+        | sed -n 's/^\(nvidia[A-Za-z0-9._-]*\|triton\|cuda-bindings\|cuda-pathfinder\)==.*/\1/p' \
         | tee /tmp/cuda_pkgs.txt; \
       xargs -r uv pip uninstall --python /app/.venv/bin/python < /tmp/cuda_pkgs.txt; \
       rm -f /tmp/cuda_pkgs.txt; \
-      echo "[INFO] 남은 nvidia/triton 패키지 확인:"; \
+      echo "[INFO] 남은 nvidia/triton/cuda-bindings/cuda-pathfinder 패키지 확인:"; \
       uv pip list --python /app/.venv/bin/python --format=freeze \
-        | grep -iE '^(nvidia|triton)' && { echo "[ERROR] nvidia/triton 잔존"; exit 1; } || true; \
+        | grep -iE '^(nvidia|triton|cuda-bindings|cuda-pathfinder)' && { echo "[ERROR] nvidia/triton/cuda 바인딩 잔존"; exit 1; } || true; \
     else \
       echo "[INFO] HW_VARIANT=${HW_VARIANT} — keeping GPU torch as-is"; \
     fi
@@ -250,8 +258,14 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 # torch/bin(50MB)은 지우면 안 된다. torch/__init__.py 가 import 시점에 _manager_path() 로
 #    torch/bin/torch_shm_manager 존재를 무조건 확인하고, 없으면 RuntimeError 로 죽는다
 #    (DataLoader 를 쓰지 않아도 발생 — 실제로 제거했다가 import torch 부터 실패했다).
+#
+# 같은 이유로 venv 안의 이름이 `tests` 또는 `test` 인 디렉터리를 지운다(약 140MB, onnx/backend/test 66MB 등).
+#    `testing` 은 지우면 안 된다. numpy/testing 이 사라지면 PDF 파싱이 ModuleNotFoundError 로 실패하고,
+#    torch/testing, sqlalchemy/testing, matplotlib/testing 등도 import 경로에서 쓰인다.
+#    아래 opencv 단계 끝의 import 검사가 numpy.testing 을 확인한다.
 RUN rm -rf ${APP_VENV}/lib/python3*/site-packages/torch/test \
-           ${APP_VENV}/lib/python3*/site-packages/torch/include
+           ${APP_VENV}/lib/python3*/site-packages/torch/include && \
+    find ${APP_VENV}/lib/python3*/site-packages -type d \( -name tests -o -name test \) -prune -exec rm -rf {} +
 
 # opencv 를 headless 로 통일한다.
 #   opencv-python(non-headless)과 opencv-python-headless 가 둘 다 해석돼 들어오는데
@@ -267,11 +281,18 @@ RUN rm -rf ${APP_VENV}/lib/python3*/site-packages/torch/test \
 #    ffmpeg 는 pydub 오디오 파싱(attachment_processor.py / parser_processor.py)에 필요해
 #    뺄 수 없다. libgl1 만 제거하면 libGL.so.1 이 사라져 검증 못한 렌더링 경로에 위험만 남는다.
 #   (Dockerfile.gpu 의 models_artifacts 가 이미 같은 방식을 쓴다.)
+# 이 단계 끝의 import 검사는 빌드 smoke 다. 앞 단계들의 정리가 런타임 import 를 깨지 않았는지 확인한다:
+#    numpy.testing(tests 디렉터리 정리), torch/torchvision(CPU 재설치), unstructured.partition.image
+#    (onnx·numba 전이 import), docling.models.ocr_pb2_grpc(protobuf gencode 검사), magic(libmagic1).
 # 순서 중요: opencv-python 을 지우면 공유되는 cv2/ 파일까지 함께 사라지므로
 #    반드시 그 뒤에 headless 를 --reinstall 해야 한다.
 # 버전을 반드시 uv.lock 에 맞춰 핀한다. `uv pip install` 은 lock 을 참조하지 않으므로
 #    버전을 안 주면 최신(현재 5.0.x)을 가져와 lock 의 4.11 에서 **메이저 점프**가 일어난다.
 #    핵심 이미징 의존성이 이미지 경량화의 부작용으로 바뀌면 안 된다. 하드코딩 대신 lock 에서 뽑는다.
+# --reinstall 이 아니라 --reinstall-package 로 opencv-python-headless 만 다시 설치한다.
+#    --reinstall 은 의존성까지 전부 다시 해석·설치해서 numpy 를 lock 의 2.3.4 에서 최신(2.5.x)으로 올렸고,
+#    numba 가 "Numba needs NumPy 2.3 or less" 로 import 에 실패해 unstructured.partition.image(이미지 hi_res)가
+#    깨졌다. 아래 import 검사가 이 회귀를 잡는다.
 RUN --mount=type=cache,target=/root/.cache/uv \
     set -eu; \
     OCV=$(grep -A1 '^name = "opencv-python-headless"' uv.lock | awk -F'"' '/^version/{print $2}'); \
@@ -280,9 +301,10 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     if uv pip list --python ${APP_VENV}/bin/python --format=freeze | grep -q '^opencv-python=='; then \
       uv pip uninstall --python ${APP_VENV}/bin/python opencv-python; \
     fi; \
-    uv pip install --python ${APP_VENV}/bin/python --reinstall "opencv-python-headless==${OCV}"; \
+    uv pip install --python ${APP_VENV}/bin/python --reinstall-package opencv-python-headless "opencv-python-headless==${OCV}"; \
     ${APP_VENV}/bin/python -c "import cv2; print('[INFO] cv2', cv2.__version__)"; \
     ${APP_VENV}/bin/python -c "import unstructured_inference; print('[INFO] unstructured_inference ok')"; \
+    ${APP_VENV}/bin/python -c "import numpy.testing, torch, torchvision, unstructured.partition.image, docling.models.ocr_pb2_grpc, magic; magic.from_buffer(b'%PDF-1.4', mime=True); print('[INFO] smoke import ok: torch', torch.__version__, 'cuda', torch.version.cuda)"; \
     if ls -d ${APP_VENV}/lib/python3*/site-packages/opencv_python.libs >/dev/null 2>&1; then \
       echo "[ERROR] opencv_python.libs 잔존"; exit 1; \
     fi
@@ -402,12 +424,19 @@ ENV PATH="${APP_VENV}/bin:${PATH}" \
 #   쓰지 않았다. docling-tools 는 `-o /models`(이미지 레이어)와 HF_HOME 을 쓴다. 실제로 그 캐시는
 #   4KB 로 비어 있었다. 오해를 남기지 않도록 제거했다.
 #   (재빌드 시 모델 다운로드를 건너뛰려면 HF_HOME 을 캐시 마운트해야 한다 — 아래 HF 단계 참고.)
+# 끝의 rm: tableformer 로 받은 ds4sd--docling-models 에는 옛 layout 가중치(model_artifacts/layout,
+#   164MB)가 함께 들어 있으나, layout_model_specs.py 의 기본 spec 은 ds4sd--docling-layout-old 를 열고
+#   model_artifacts 아래에서는 tableformer 만 쓰인다(오프라인 PDF/PPTX/DOCX/HWPX 실행 시 파일 접근 계측).
+#   삭제 전에 실제로 쓰는 layout-old 가중치가 있는지 확인한다. docling 을 올릴 때는
+#   LayoutOptions.model_spec 기본값이 바뀌지 않았는지 다시 확인해야 한다.
 RUN echo "Docling models ver: ${DOCLING_MODELS_VER}"; \
     if [ ! -d /models ] || [ -z "$(ls -A /models)" ]; then \
         docling-tools models download -o /models ${DOCLING_MODELS}; \
     else \
         echo "[INFO] /models already present, skip"; \
-    fi
+    fi && \
+    test -f /models/ds4sd--docling-layout-old/model.safetensors && \
+    rm -rf /models/ds4sd--docling-models/model_artifacts/layout
 
 # mncai/doc_parser_models 에서 실제로 쓰는 것은 MiniLM 토크나이저 폴더 하나뿐이다.
 # 예전에는 repo 전체(846MB)를 받았는데 나머지는 모두 사용되지 않았다:
@@ -416,12 +445,40 @@ RUN echo "Docling models ver: ${DOCLING_MODELS_VER}"; \
 #                              바꾸는 코드가 없다 (기본은 ds4sd--docling-layout-old).
 # 또한 두 번째 download 의 --local-dir 이 이미 받은 폴더를 다시 가리켜 동명 하위 디렉토리가
 # 중첩 생성됐다(88MB 중복). 코드는 바깥쪽 경로만 사용하므로 그 줄을 없앤다.
+# 그 폴더에서도 가중치(model.safetensors, 87MB)는 받지 않는다. 이 폴더는 tokenizer_type: huggingface
+#   일 때 AutoTokenizer 로만 열리고(tokenizer_config.json 등), 기본 char 모드에서는 아예 열리지 않는다.
+#   받은 뒤 토크나이저 파일이 모두 있는지 확인한다.
 RUN --mount=type=cache,target=${HF_HOME} \
+    set -eu; \
     echo "HF models ver: ${HF_MODELS_VER}"; \
     mkdir -p /models/doc_parser_models; \
     huggingface-cli download mncai/doc_parser_models \
       --include "sentence-transformers-all-MiniLM-L6-v2/*" \
-      --local-dir /models/doc_parser_models
+      --exclude "sentence-transformers-all-MiniLM-L6-v2/model.safetensors" \
+      --local-dir /models/doc_parser_models; \
+    D=/models/doc_parser_models/sentence-transformers-all-MiniLM-L6-v2; \
+    for f in tokenizer.json tokenizer_config.json special_tokens_map.json vocab.txt config.json; do \
+      test -f "$D/$f" || { echo "[ERROR] MiniLM 토크나이저 파일 누락: $f"; exit 1; }; \
+    done; \
+    test ! -e "$D/model.safetensors"
+
+# unstructured hi_res(이미지·PDF 레이아웃 검출)의 기본 모델 yolox 를 이미지에 넣는다.
+#   unstructured_inference 는 모델이 없으면 실행 시점에 HF(unstructuredio/yolo_x_layout)에서 받으려 하므로
+#   폐쇄망에서는 LocalEntryNotFoundError 로 실패했다. 받은 onnx 를 가리키는 초기화 설정(yolox_params.json)을
+#   같은 폴더에 만들고, runtime 의 UNSTRUCTURED_DEFAULT_MODEL_INITIALIZE_PARAMS_JSON_PATH 가 이를 가리킨다.
+#   label_map 은 unstructured_inference.models.yolox 의 YOLOX_LABEL_MAP 과 같다.
+#   다른 모델 단계와 같이 HF_HOME 은 캐시 마운트이고, --local-dir 로 받은 실제 파일만 /models 레이어에 남는다.
+RUN --mount=type=cache,target=${HF_HOME} \
+    set -eu; \
+    mkdir -p /models/unstructured/yolo_x_layout; \
+    huggingface-cli download unstructuredio/yolo_x_layout yolox_l0.05.onnx \
+      --local-dir /models/unstructured/yolo_x_layout; \
+    test -s /models/unstructured/yolo_x_layout/yolox_l0.05.onnx; \
+    printf '%s\n' \
+      '{"model_path": "/models/unstructured/yolo_x_layout/yolox_l0.05.onnx",' \
+      ' "label_map": {"0": "Caption", "1": "Footnote", "2": "Formula", "3": "List-item", "4": "Page-footer", "5": "Page-header", "6": "Picture", "7": "Section-header", "8": "Table", "9": "Text", "10": "Title"}}' \
+      > /models/unstructured/yolo_x_layout/yolox_params.json; \
+    python -c "import json; json.load(open('/models/unstructured/yolo_x_layout/yolox_params.json'))"
 
 RUN --mount=type=cache,target=/root/.cache/nltk \
     python - <<'PY'
@@ -437,6 +494,17 @@ if packages == "all":
 else:
     for pkg in [p.strip() for p in packages.split(",") if p.strip()]:
         nltk.download(pkg, download_dir=target)
+
+# nltk.download 는 압축을 풀고도 zip 을 남긴다. 풀린 디렉터리가 있는 zip 만 지운다
+# (nltk.data.find 는 풀린 디렉터리를 찾으므로 zip 이 없어도 된다).
+for root, _dirs, files in os.walk(target):
+    for fn in files:
+        if fn.endswith(".zip") and os.path.isdir(os.path.join(root, fn[:-4])):
+            os.remove(os.path.join(root, fn))
+
+# unstructured 는 두 패키지가 모두 있으면 자동 다운로드를 시도하지 않는다(unstructured/nlp/tokenize.py).
+nltk.data.find("tokenizers/punkt_tab")
+nltk.data.find("taggers/averaged_perceptron_tagger_eng")
 PY
 
 # 조건은 **캐시 경로**의 zip 을 봐야 한다. 예전에는 `/models/EasyOcr/korean_g2.zip` 을
@@ -479,8 +547,12 @@ ENV UV_PROJECT_ENVIRONMENT=${APP_VENV} \
     LC_ALL=ko_KR.UTF-8 \
     LC_CTYPE=ko_KR.UTF-8 \
     DOCLING_ARTIFACTS_PATH=/models \
+    UNSTRUCTURED_DEFAULT_MODEL_INITIALIZE_PARAMS_JSON_PATH=/models/unstructured/yolo_x_layout/yolox_params.json \
     DOC_PARSER_BUILD_VARIANT=standard \
     RHWP_BIN=/usr/local/bin/rhwp
+# unstructured 는 import 시 packages.unstructured.io 로 사용 통계를 보내려 한다(unstructured/utils.py).
+# 폐쇄망에서는 매번 DNS 조회가 실패할 뿐이므로 끈다(SCARF_NO_ANALYTICS 와 같은 효과).
+ENV DO_NOT_TRACK=true
 
 # 이슈 #286 — 빌드 시 rhwp/LibreOffice 설치 여부를 이미지에 self-describing 으로 기록.
 # 태그 접미사(-nolibre/-norhwp)와 별개로 `docker inspect` 로도 확인 가능.

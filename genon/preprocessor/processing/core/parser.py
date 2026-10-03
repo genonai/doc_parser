@@ -385,39 +385,6 @@ class GenericDocumentLoader:
         else:
             return UnstructuredFileLoader(file_path)
 
-    def _load_image_documents_fallback(self, file_path: str) -> list[Document]:
-        """UnstructuredImageLoader의 __str__ NoneType 오류를 우회해 이미지 요소를 안전하게 적재."""
-        from unstructured.partition.image import partition_image
-
-        elements = partition_image(filename=file_path, languages=["kor", "eng"])
-        documents: list[Document] = []
-
-        for element in elements:
-            text = getattr(element, "text", "")
-            if text is None:
-                text = ""
-            elif not isinstance(text, str):
-                text = str(text)
-
-            metadata: dict[str, Any] = {"source": file_path}
-            if hasattr(element, "metadata") and element.metadata is not None:
-                try:
-                    metadata.update(element.metadata.to_dict())
-                except Exception:
-                    pass
-
-            if hasattr(element, "category"):
-                metadata["category"] = element.category
-
-            if hasattr(element, "to_dict"):
-                element_id = element.to_dict().get("element_id")
-                if element_id:
-                    metadata["element_id"] = element_id
-
-            documents.append(Document(page_content=text, metadata=metadata))
-
-        return documents
-
     def load_documents(self, file_path: str, **kwargs: dict) -> list:
         try:
             loader = self.get_loader(file_path, kwargs.get("_pdf_policy"))
@@ -431,14 +398,10 @@ class GenericDocumentLoader:
                 f"처리할 포맷을 지정하세요: {os.path.basename(file_path)}",
             ) from exc
         ext = os.path.splitext(file_path)[-1].lower()
-        try:
+        if ext in ['.jpg', '.jpeg', '.png']:
+            documents = ld.load_image_documents(loader, file_path)
+        else:
             documents = loader.load()
-        except TypeError as exc:
-            if ext in ['.jpg', '.jpeg', '.png'] and "__str__ returned non-string" in str(exc):
-                _log.warning(f"[GenericDocumentLoader] Image loader fallback: {file_path} ({exc})")
-                documents = self._load_image_documents_fallback(file_path)
-            else:
-                raise
 
         if ext in ['.jpg', '.jpeg', '.png']:
             if not documents or not any((doc.page_content or "").strip() for doc in documents):

@@ -2,7 +2,7 @@
 #
 # code-serving-doc-parser (CPU) — doc-parser 코드서빙 base 이미지.
 #
-# 라이브러리 설치 방식은 genon/code-serving 과 동일: `uv venv --seed` + `uv pip install .` → /app/.venv.
+# 라이브러리는 uv.lock 을 export 한 고정 목록으로 /app/.venv 에 설치한다(`uv venv --seed` + `uv pip install --no-deps -r`).
 # 다운로드 아티팩트(모델/HWP SDK/rhwp/H2Orestart/폰트/NLTK/EasyOCR)는
 # genon/preprocessor/docker/Dockerfile.standard 와 full parity 로 복제한다.
 #
@@ -38,6 +38,12 @@ FROM python:${PY_VER}-slim-${DEBIAN_DIST} AS base
 #   패키지명이 배포판마다 다르다: Debian trixie = libspatialindex-c8,
 #      Ubuntu 22.04(jammy) = libspatialindex-c6 (Dockerfile.gpu 가 쓰는 이름).
 #      서로 바꿔 쓰면 apt 가 패키지를 못 찾아 빌드가 깨진다.
+# NOTE: libgl1 은 남겨 둔다. opencv 는 headless 만 설치되어 libGL 을 쓰지 않지만, ffmpeg 가
+#   libsdl2 → libgbm1 경로로 같은 Mesa 스택을 끌어오므로 libgl1 만 빼서는 용량이 줄지 않는다.
+#   ffmpeg 를 함께 정리할 때 재검토한다.
+# NOTE: vim, libmagic-dev, libffi-dev 는 설치하지 않는다. vim 은 디버깅 편의 도구이고 두 -dev 패키지는
+#   헤더뿐이다. venv 는 휠로만 설치되어 빌드 중 컴파일이 없고, python-magic 은 런타임 라이브러리
+#   libmagic1(libmagic.so.1)만 읽는다.
 ENV DEBIAN_FRONTEND=noninteractive \
     PIP_NO_CACHE_DIR=1 \
     HOME=/app \
@@ -54,14 +60,18 @@ ENV DEBIAN_FRONTEND=noninteractive \
 #   cache mount 가 없는 다른 apt RUN(rhwp 빌더 등)의 rm 은 실제로 레이어를 줄이므로 유지해야 한다.
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
-    echo "deb http://deb.debian.org/debian sid main" > /etc/apt/sources.list.d/sid.list && \
-    printf "Package: python3.13 python3.13-minimal libpython3.13 libpython3.13-minimal libpython3.13-stdlib\nPin: release n=sid\nPin-Priority: 990\n\nPackage: *\nPin: release n=sid\nPin-Priority: 100\n" > /etc/apt/preferences.d/pin-python3.13 && \
-    apt-get update && \
+    mkdir -p "$TMPDIR" && apt-get update && \
+    # sid 소스는 두지 않는다. 예전에는 python3.13 계열만 sid 에서 받으려는 핀이 있었으나 실제로는
+    # sid 가 우선순위 500 으로 남아 libreoffice, imagemagick, glibc 까지 sid 판이 섞여 들어갔고,
+    # 핀을 바로잡으면 sid python3.13 이 trixie glibc 와 충돌한다(site/monimo-2.2.3.1 의 59301a0d).
+    # trixie 단일 구성으로 두고, 베이스 이미지의 패키지는 upgrade 로 보안 수정본까지 올린다.
+    # TMPDIR(/app/tmp)은 dpkg postinst 의 mktemp 가 쓰므로 apt 전에 만든다.
+    apt-get upgrade -y && \
     apt-get install -y --no-install-recommends \
-      net-tools curl wget git fontconfig procps supervisor vim \
-      libmagic1 libmagic-dev \
+      net-tools curl wget git fontconfig procps supervisor \
+      libmagic1 \
       libpango-1.0-0 libpangocairo-1.0-0 libcairo2 libgdk-pixbuf-xlib-2.0-0 \
-      libffi-dev libgl1 \
+      libgl1 \
       libreoffice ffmpeg unzip \
       openjdk-21-jre-headless ca-certificates-java \
       libreoffice-java-common libreoffice-writer libreoffice-impress libreoffice-l10n-ko \
@@ -100,7 +110,7 @@ RUN --mount=type=bind,source=genon/preprocessor/docker/assets/HCRBatang.ttf.tar.
     fc-cache -f -v
 
 ############################
-# 3) Builder — venv 설치는 genon/code-serving 방식 (uv venv --seed + uv pip install .)
+# 3) Builder — venv 는 uv.lock 고정 목록으로 설치 (uv venv --seed + uv pip install --no-deps -r)
 ############################
 FROM loext AS builder
 ARG APP_VENV
@@ -113,7 +123,7 @@ ENV VIRTUAL_ENV=${APP_VENV} \
     HF_HOME=/app/.cache/huggingface \
     NLTK_DATA=/app/nltk_data
 
-# uv 버전을 핀한다. 아래 `uv pip install . --torch-backend=cpu` 가 --torch-backend 에 의존하므로
+# uv 버전을 핀한다. 아래 `uv pip install --torch-backend=cpu` 가 --torch-backend 에 의존하므로
 # uv 버전이 빌드 동작에 직접 영향을 준다(0.8.0 에 존재함을 확인).
 ARG UV_VERSION=0.8.0
 RUN pip install "uv==${UV_VERSION}"
@@ -122,27 +132,38 @@ WORKDIR /app
 # 의존성 정의는 build-script/code-serving-doc-parser 의 pyproject/uv.lock (preprocessor uv 정보 기반).
 COPY build-script/code-serving-doc-parser/pyproject.toml build-script/code-serving-doc-parser/uv.lock /app/
 
-# genon/code-serving 와 동일: uv venv --seed 로 /app/.venv 생성 후 uv pip install . 로 venv 에 설치.
-#
-# --torch-backend=cpu: 처음부터 PyTorch CPU 인덱스에서 받는다.
-#   이게 없으면 PyPI 기본(CUDA) torch 가 잡혀 nvidia 휠 15종 + triton 약 4GB 가 함께 내려오고,
-#   아래 HW_VARIANT=cpu 단계에서 전부 버려진다. 콜드 빌드 시간의 대부분이 이 다운로드였다.
+# uv.lock 을 requirements 형식으로 export 해 그 목록만 --no-deps 로 설치한다.
+#   예전 `uv pip install .` 는 lock 을 참조하지 않고 빌드 시점에 새로 해석했다. 그래서 lock 의 CVE
+#   수정본과 핀이 이미지에 실린다는 보장이 없었고, 2.1.4 이미지에는 핀(numpy==2.3.4)을 벗어난
+#   numpy 2.5.1 이 들어가 numba 가 import 단계에서 실패했다. lock 의 버전이 곧 이미지의 버전이 되게 한다.
+#   --no-hashes: torch/torchvision 은 --torch-backend 가 CPU 인덱스의 +cpu 휠로 바꿔 받으므로
+#     lock 에 기록된 PyPI 휠 해시와 맞지 않는다.
+#   --no-emit-package opencv-python: unstructured-inference 가 non-headless opencv 를 요구하지만
+#     headless(easyocr 경유)와 cv2/ 를 공유해 중복(약 116MB)이고 libGL 에 링크한다. 처음부터 설치하지 않는다.
+#     `pip check` 가 opencv-python 누락을 보고하는 것은 이 때문이며 의도된 상태다.
+#   nvidia-*/triton/cuda-*: lock 은 PyPI torch 의 linux 의존(CUDA 13 휠)을 함께 기록한다. --no-deps 이므로
+#     목록에서 빼면 설치되지 않는다. cuda-bindings/cuda-pathfinder/cuda-toolkit 을 cuda- 접두사로 함께 뺀다.
+# --torch-backend=cpu: torch/torchvision 을 PyTorch CPU 인덱스에서 받는다(torch==2.13.0 → 2.13.0+cpu).
 #   (preprocessor 쪽은 uv sync 를 써서 --torch-backend 가 없어 --no-install-package 로 처리한다.)
 # /app/tmp 를 지운 뒤 반드시 다시 만들어야 한다. base 스테이지가 ENV TMPDIR=/app/tmp 를
 #    설정하므로, 디렉토리가 없으면 uv 가 임시 파일을 만들지 못해
 #    `error: No such file or directory (os error 2) at path "/app/tmp/.tmpXXXX"` 로 죽는다.
 #    (uv 버전을 0.8.0 으로 핀하면서 드러났다 — 이전 미핀 uv 는 TMPDIR 을 자동 생성했다.)
 RUN --mount=type=cache,target=/root/.cache/uv \
+    set -eu; \
     rm -rf /app/tmp /app/nltk_data && \
     mkdir -p /app/tmp && \
     uv venv --seed && \
-    uv pip install . --torch-backend=cpu
+    uv export --frozen --no-hashes --no-emit-project --no-dev --no-emit-package opencv-python \
+      | grep -vE '^(nvidia-|triton==|cuda-)' > /tmp/requirements.lock.txt && \
+    uv pip install --no-deps --torch-backend=cpu -r /tmp/requirements.lock.txt && \
+    rm -f /tmp/requirements.lock.txt
 
 # HW_VARIANT=cpu — nvidia-*/triton 잔존 제거 (안전망).
 #
-# 위 `uv pip install . --torch-backend=cpu` 가 이미 CPU torch 를 넣으므로 여기서 torch 를
+# 위 `uv pip install --torch-backend=cpu` 가 이미 CPU torch 를 넣으므로 여기서 torch 를
 # 재설치하지 않는다(예전에는 --reinstall-package 로 같은 CPU 휠을 약 190MB 다시 받았다).
-# 이 블록은 --torch-backend 가 어떤 이유로 CUDA 휠을 들여보냈을 때를 대비한 **안전망**이다.
+# 이 블록은 export 필터나 --torch-backend 가 어떤 이유로 CUDA 휠을 들여보냈을 때를 대비한 **안전망**이다.
 #
 # 제거 목록을 하드코딩하지 말 것. 예전에는 `nvidia-cublas-cu12` 처럼 `-cu12` 접미사
 #    목록을 박아두었는데, 버전 핀이 없어 torch 2.13 이 잡히면서 CUDA 13 휠로 패키지명이
@@ -179,28 +200,32 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 RUN rm -rf ${APP_VENV}/lib/python3*/site-packages/torch/test \
            ${APP_VENV}/lib/python3*/site-packages/torch/include
 
-# opencv 를 headless 로 통일한다 (Dockerfile.standard 와 동일 조치).
-#   opencv-python(non-headless)과 opencv-python-headless 가 둘 다 들어와 `opencv_python.libs`
-#   (약 116MB)가 중복이고, non-headless 가 libGL.so.1 에 링크해 apt `libgl1` → Mesa 소프트웨어
-#   GL 스택(약 208MB)까지 끌어온다. 헤드리스 컨테이너에는 불필요해 apt 에서도 libgl1 을 뺐다.
-# 순서 중요: opencv-python 을 지우면 공유되는 cv2/ 파일까지 사라지므로 뒤에 --reinstall 필수.
-# 버전을 uv.lock 에 맞춰 핀한다. `uv pip install` 은 lock 을 참조하지 않으므로 버전을 안 주면
-#    최신(현재 5.0.x)을 가져온다. 이 파일은 설치 자체가 lock 기반이 아니지만(위 uv pip install .),
-#    최소한 opencv 만이라도 결정적으로 고정해 빌드마다 달라지지 않게 한다.
-RUN --mount=type=cache,target=/root/.cache/uv \
-    set -eu; \
-    OCV=$(grep -A1 '^name = "opencv-python-headless"' uv.lock | awk -F'"' '/^version/{print $2}'); \
-    if [ -z "${OCV}" ]; then echo "[ERROR] uv.lock 에서 opencv-python-headless 버전을 못 찾음"; exit 1; fi; \
-    echo "[INFO] opencv-python-headless==${OCV} (uv.lock 기준)"; \
-    if uv pip list --python ${APP_VENV}/bin/python --format=freeze | grep -q '^opencv-python=='; then \
-      uv pip uninstall --python ${APP_VENV}/bin/python opencv-python; \
-    fi; \
-    uv pip install --python ${APP_VENV}/bin/python --reinstall "opencv-python-headless==${OCV}"; \
-    ${APP_VENV}/bin/python -c "import cv2; print('[INFO] cv2', cv2.__version__)"; \
-    ${APP_VENV}/bin/python -c "import unstructured_inference; print('[INFO] unstructured_inference ok')"; \
+# 패키지 내부 테스트 픽스처 디렉터리(tests/, test/)를 지운다(약 140MB, 최대는 onnx/backend/test 66MB).
+# `testing` 디렉터리는 지우지 않는다. numpy/testing 은 런타임 import 대상이라 지우면 PDF 파싱과
+#    `import easyocr` 가 ModuleNotFoundError 로 실패한다(torch/testing, sympy/testing 등도 같다).
+RUN find ${APP_VENV}/lib/python3*/site-packages -mindepth 2 -type d \( -name tests -o -name test \) -prune \
+      -exec rm -rf {} +
+
+# 설치 결과 검사. opencv 는 headless 만 있어야 하고(opencv-python 은 export 에서 뺐다), numpy 는
+#   numba 가 지원하는 범위여야 한다. numba 는 범위를 벗어난 numpy 에서 import 단계에서 실패하므로
+#   import 로 함께 확인한다.
+RUN set -eu; \
     if ls -d ${APP_VENV}/lib/python3*/site-packages/opencv_python.libs >/dev/null 2>&1; then \
       echo "[ERROR] opencv_python.libs 잔존"; exit 1; \
-    fi
+    fi; \
+    ${APP_VENV}/bin/python -c "import cv2, numpy, numba, unstructured_inference, temporalio; print('[INFO] cv2', cv2.__version__, 'numpy', numpy.__version__, 'numba', numba.__version__, 'temporalio', temporalio.__version__)"
+
+# docling wheel 의존 충족 검사. docling 은 이미지에 넣지 않고 런타임에 배포본 packages/ 의 wheel 을
+#   --no-deps --no-index 로 설치한다(scripts/init.sh). wheel 의 의존은 저장소 루트 pyproject.toml 의
+#   [project].dependencies 그대로이므로(build-docling-wheel.sh 는 name/version 만 바꾼다), 이 목록이
+#   venv 에서 모두 충족되는지 네트워크 없이 확인한다. 하나라도 없거나 버전 범위를 벗어나면
+#   --no-index 라 해석에 실패해 빌드가 멈춘다. 루트 pyproject 는 bind mount 로 읽기만 한다.
+RUN --mount=type=bind,source=pyproject.toml,target=/tmp/docling-pyproject.toml \
+    set -eu; \
+    ${APP_VENV}/bin/python -c "import tomllib; print('\n'.join(tomllib.load(open('/tmp/docling-pyproject.toml', 'rb'))['project']['dependencies']))" \
+      > /tmp/docling-deps.txt; \
+    ${APP_VENV}/bin/pip install --dry-run --no-index --no-cache-dir -r /tmp/docling-deps.txt; \
+    rm -f /tmp/docling-deps.txt
 
 ############################
 # 4-1) HWP SDK (HF private, 무료 자산) — Dockerfile.standard 와 동일
@@ -283,9 +308,15 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 # NOTE: 예전에는 `--mount=type=cache,target=/root/.cache/models` 가 붙어 있었지만 아무도 그 경로를
 #   쓰지 않았다. docling-tools 는 `-o /models`(이미지 레이어)와 HF_HOME 을 쓴다. 오해를 남기지
 #   않도록 제거했다. (preprocessor 쪽도 동일하게 정리돼 있다.)
-RUN if [ ! -d /models ] || [ -z "$(ls -A /models)" ]; then \
+# ds4sd--docling-models/model_artifacts/layout(164MB)은 ds4sd--docling-layout-old 와 같은 파일이다(md5 동일).
+#   tableformer 를 받을 때 HF 저장소 전체가 함께 오며 생긴 부산물이고, 코드는 layout-old 만 읽는다
+#   (layout_model_specs.py 의 기본 spec). docling 을 올려 기본 spec 이 바뀌면 다시 확인한다.
+RUN set -eu; \
+    if [ ! -d /models ] || [ -z "$(ls -A /models)" ]; then \
         docling-tools models download -o /models ${DOCLING_MODELS}; \
-    fi
+    fi; \
+    test -f /models/ds4sd--docling-layout-old/model.safetensors; \
+    rm -rf /models/ds4sd--docling-models/model_artifacts/layout
 # mncai/doc_parser_models 에서 실제로 쓰는 것은 MiniLM 토크나이저 폴더 하나뿐이다.
 # repo 전체(846MB)를 받으면 docling-models(506MB)/docling-layout-old(164MB)가 함께 오는데
 # 둘 다 코드에서 로드되지 않는다(TableFormer 는 ds4sd--docling-models, layout 기본값은
@@ -295,7 +326,24 @@ RUN --mount=type=cache,target=${HF_HOME} \
     mkdir -p /models/doc_parser_models && \
     huggingface-cli download mncai/doc_parser_models \
       --include "sentence-transformers-all-MiniLM-L6-v2/*" \
+      --exclude "*.safetensors" \
       --local-dir /models/doc_parser_models
+# unstructured hi_res(이미지·PDF partition)의 기본 레이아웃 모델 yolox 를 반입한다. 없으면 폐쇄망에서
+#   HF 다운로드를 시도하다 LocalEntryNotFoundError 로 실패한다. 모델 경로와 label_map 은 runtime 의
+#   UNSTRUCTURED_DEFAULT_MODEL_INITIALIZE_PARAMS_JSON_PATH 가 가리키는 yolox_params.json 으로 넘긴다
+#   (unstructured_inference/models/base.py 가 이 파일을 기본 모델의 initialize 인자로 쓴다).
+#   label_map 은 unstructured_inference 의 yolox 기본값과 같다.
+RUN --mount=type=cache,target=${HF_HOME} \
+    set -eu; \
+    mkdir -p /models/unstructured/yolo_x_layout && \
+    huggingface-cli download unstructuredio/yolo_x_layout yolox_l0.05.onnx \
+      --local-dir /models/unstructured/yolo_x_layout && \
+    rm -rf /models/unstructured/yolo_x_layout/.cache && \
+    printf '%s\n' \
+      '{"model_path": "/models/unstructured/yolo_x_layout/yolox_l0.05.onnx",' \
+      ' "label_map": {"0": "Caption", "1": "Footnote", "2": "Formula", "3": "List-item", "4": "Page-footer", "5": "Page-header", "6": "Picture", "7": "Section-header", "8": "Table", "9": "Text", "10": "Title"}}' \
+      > /models/unstructured/yolo_x_layout/yolox_params.json && \
+    python -c "import json; json.load(open('/models/unstructured/yolo_x_layout/yolox_params.json'))"
 RUN --mount=type=cache,target=/root/.cache/nltk \
     python - <<'PY'
 import os, nltk
@@ -307,6 +355,16 @@ if packages == "all":
 else:
     for pkg in [p.strip() for p in packages.split(",") if p.strip()]:
         nltk.download(pkg, download_dir=target)
+# 압축을 푼 디렉터리가 있는 zip 은 지운다. nltk.data.find 는 디렉터리를 먼저 찾으므로 그 zip 은 읽히지 않는다.
+# 압축 해제본이 없는 zip(wordnet, omw-1.4 등)은 zip 으로만 읽히므로 남긴다.
+import glob
+for z in glob.glob(os.path.join(target, "*", "*.zip")):
+    if os.path.isdir(z[:-4]):
+        os.remove(z)
+# unstructured 가 실제로 요구하는 두 패키지(unstructured/nlp/tokenize.py)가 남았는지 확인한다.
+nltk.data.path.insert(0, target)
+nltk.data.find("tokenizers/punkt_tab")
+nltk.data.find("taggers/averaged_perceptron_tagger_eng")
 PY
 RUN --mount=type=cache,target=/root/.cache/easyocr_korean \
     mkdir -p /models/EasyOcr && \
@@ -342,7 +400,11 @@ ENV VIRTUAL_ENV=${APP_VENV} \
     DOCLING_ARTIFACTS_PATH=/models \
     DOC_PARSER_BUILD_VARIANT=standard \
     RHWP_BIN=/usr/local/bin/rhwp \
-    HWP_SDK_DIR=/app/hwp_sdk
+    HWP_SDK_DIR=/app/hwp_sdk \
+    UNSTRUCTURED_DEFAULT_MODEL_INITIALIZE_PARAMS_JSON_PATH=/models/unstructured/yolo_x_layout/yolox_params.json
+# unstructured 는 import 시 packages.unstructured.io 로 사용 통계를 보내려 한다(unstructured/utils.py).
+# 폐쇄망에서는 매번 DNS 조회가 실패할 뿐이므로 끈다(SCARF_NO_ANALYTICS 와 같은 효과).
+ENV DO_NOT_TRACK=true
 
 WORKDIR /app
 
@@ -367,7 +429,8 @@ COPY --chown=${UID}:${GID} --from=models_artifacts /app/nltk_data /app/nltk_data
 
 # hwp_sdk import 경로 (venv site-packages 심링크, 표준 빌드 파리티용). python3.12 고정(slim 3.12.x).
 # docling 은 런타임에 clone 된 복사본 packages/ 의 wheel(genon-docling, import name: docling)을
-#    requirements.txt 경로 참조로 pip install 해 /app/.venv 에 설치한다(복사본엔 docling 소스 없음, index 불필요).
+#    --no-deps --no-index 로 /app/.venv 에 설치한다(scripts/init.sh, 복사본엔 docling 소스 없음, index 불필요).
+#    wheel 의 의존이 venv 에 모두 있다는 것은 builder 의 docling wheel 의존 충족 검사가 빌드 시점에 보장한다.
 #    코드서빙 런타임은 ENV HWP_SDK_DIR=/app/hwp_sdk 로 SDK 경로를 잡는다(genos_hwp_backend.py).
 RUN ln -s /app/hwp_sdk ${APP_VENV}/lib/python3.12/site-packages/hwp_sdk
 
