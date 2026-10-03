@@ -54,6 +54,16 @@ def test_removes_zero_width_and_bom():
     assert tn.sanitize("﻿한​국‍어­") == "한국어"
 
 
+@pytest.mark.parametrize("ch, kept", [
+    ("\u202e", False), ("\u2066", False), ("\ufff9", False), ("\U000e0041", False),
+    ("\ufffd", True), ("\ue000", True),
+])
+def test_format_chars_removed_by_category(ch, kept):
+    """제거 대상은 유니코드 Cf 카테고리 전체다. U+FFFD·사설 영역은 Cf 가 아니므로
+    손상 판정이 볼 수 있도록 남는다."""
+    assert tn.sanitize(f"가{ch}나") == (f"가{ch}나" if kept else "가나")
+
+
 def test_special_spaces_become_plain_space():
     assert tn.sanitize("A B C　D") == "A B C D"
 
