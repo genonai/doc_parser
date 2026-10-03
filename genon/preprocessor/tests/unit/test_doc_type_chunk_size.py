@@ -312,11 +312,12 @@ def test_marker_promotion_is_gated_by_doc_type():
     html 원천에 custom_fields 가 붙지 않는 doc_type(faq)으로 돌린다.
     """
     source = _require("monimo_cs_hpp_marker_sections_sample.html")
-    rows = _parse_and_chunk(source, "faq", include_chunk_header=True)
+    # text_cleanup 을 끈다 — 켜 두면 승격이 일어나도 장식 마커 규칙이 글리프를 지우므로
+    # "봉인됐다" 와 "승격됐는데 글리프만 지워졌다" 를 구분하지 못한다.
+    rows = _parse_and_chunk(source, "faq", include_chunk_header=True,
+                            extra_kwargs={"text_cleanup": "off"})
 
     headers = [r["text"].splitlines()[0] for r in rows]
     assert len(set(headers)) < 3, f"distinct HEADER 가 예상보다 많습니다: {headers}"
-    # ◈ 로 보면 안 된다 — 승격이 일어나도 text_cleanup 규칙이 지우므로 이 대조군이
-    # "봉인됐다" 와 "승격됐는데 글리프만 지워졌다" 를 구분하지 못한다. ▣ 는 그 규칙을
-    # 타지 않아 승격이 일어났을 때만 breadcrumb 에 나타난다(실측: 봉인 시 0건).
+    # ▣ 는 승격이 일어났을 때만 breadcrumb 에 나타난다(실측: 봉인 시 0건).
     assert not any("▣" in h for h in headers)

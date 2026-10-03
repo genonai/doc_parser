@@ -98,9 +98,17 @@ def _build_base_map() -> dict:
     """전 구간(코드 포함)에 적용해도 안전한 치환 테이블."""
     table: dict = {}
 
-    # 제거: BOM, 제로폭, word joiner, soft hyphen, 몽골 모음 구분자.
-    for cp in (0xFEFF, 0x200B, 0x200C, 0x200D, 0x2060, 0x00AD, 0x180E):
-        table[cp] = None
+    # 제거: 유니코드 일반 카테고리 Cf(Format) 전체. BOM, 제로폭, word joiner, soft hyphen,
+    # 몽골 모음 구분자에 더해 bidi 제어(U+202A-202E, U+2066-2069), interlinear annotation
+    # (U+FFF9-FFFB), tag 문자(U+E0000-E007F)처럼 화면에 보이지 않는 서식 문자가 함께
+    # 들어온다. 목록을 손으로 나열하면 빠진 문자가 청크에 남는다.
+    # 대가로 아랍 숫자 부호(U+0600-0605)·국기 tag 시퀀스 등 일부 서식 정보는 잃는다.
+    # 한국어 문서 기준으로 위험이 낮다고 판단했다.
+    # U+FFFD(So)와 사설 영역(Co)은 Cf 가 아니므로 남는다(손상 판정이 봐야 한다).
+    # 전 코드포인트 순회는 import 시 한 번이며 약 0.05초다.
+    for cp in range(0x110000):
+        if unicodedata.category(chr(cp)) == "Cf":
+            table[cp] = None
 
     # 제거: C0 제어문자(탭/개행 제외) 와 C1 제어문자.
     for cp in range(0x00, 0x20):

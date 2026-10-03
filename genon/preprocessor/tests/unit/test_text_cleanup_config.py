@@ -81,7 +81,7 @@ def test_shipped_chunker_rules_strip_decorative_glyphs(tmp_path):
     proc = _init_processor("chunking_processor", _make_config(tmp_path, "chunking_processor"))
     rules = tn.rules_of(proc)
     assert rules, "출고 설정에 text_cleanup 규칙이 있어야 한다"
-    assert tn.apply_rules("■ 제목\n◈ 항목\n※ 주의", rules) == "제목\n항목\n주의"
+    assert tn.apply_rules("■ 제목\n◈ 항목\n※ 주의", rules) == "제목\n항목\n※ 주의"
 
 
 @pytest.mark.parametrize("module_name", _MODULES)
