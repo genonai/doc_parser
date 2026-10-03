@@ -111,7 +111,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # 순서 두 가지가 모두 중요하다.
 #   1) 이 블록은 반드시 **위 apt RUN 뒤**에 와야 한다. builder 베이스가 ubuntu:22.04 최소
 #      구성이라 그 전에는 libglib2.0-0 이 없어 아래 `import cv2` 가 ImportError 로 죽는다.
-#   2) opencv-python 을 지우면 공유되는 cv2/ 파일까지 사라지므로 뒤에 --reinstall 필수.
+#   2) opencv-python 을 지우면 공유되는 cv2/ 파일까지 사라지므로 뒤에 재설치가 필수다.
+#      `--reinstall` 은 의존까지 모두 다시 해석해 numpy 를 핀(2.3.4) 밖 최신으로 올리므로(numba import 실패),
+#      opencv-python-headless 하나만 다시 까는 `--reinstall-package` 를 쓴다.
 # 버전을 uv.lock 에 맞춰 핀한다. `uv pip install` 은 lock 을 참조하지 않으므로 버전을 안 주면
 #    최신(현재 5.0.x)을 가져온다. 최소한 opencv 만이라도 결정적으로 고정한다.
 RUN --mount=type=cache,target=/root/.cache/uv \
@@ -122,9 +124,10 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     if uv pip list --python ${APP_VENV}/bin/python --format=freeze | grep -q '^opencv-python=='; then \
       uv pip uninstall --python ${APP_VENV}/bin/python opencv-python; \
     fi; \
-    uv pip install --python ${APP_VENV}/bin/python --reinstall "opencv-python-headless==${OCV}"; \
+    uv pip install --python ${APP_VENV}/bin/python --reinstall-package opencv-python-headless "opencv-python-headless==${OCV}"; \
     ${APP_VENV}/bin/python -c "import cv2; print('[INFO] cv2', cv2.__version__)"; \
     ${APP_VENV}/bin/python -c "import unstructured_inference; print('[INFO] unstructured_inference ok')"; \
+    ${APP_VENV}/bin/python -c "import temporalio; print('[INFO] temporalio', temporalio.__version__)"; \
     if ls -d ${APP_VENV}/lib/python3*/site-packages/opencv_python.libs >/dev/null 2>&1; then \
       echo "[ERROR] opencv_python.libs 잔존"; exit 1; \
     fi
