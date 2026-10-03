@@ -75,6 +75,9 @@ else
   # 디폴트: packages/*.whl 을 먼저 설치하고, requirements.txt 의 나머지 줄을 설치한다.
   # pip 은 PATH 상 /app/.venv/bin/pip (base deps 와 동일 venv) 로 해석된다.
   REQ_FILE="$DESTINATION/requirements.txt"
+  # 설치 실패는 기동을 막지 않고 끝까지 진행하되, 마지막에 0 이 아닌 값으로 끝낸다.
+  #   entrypoint.sh 는 실패 시 서비스를 그대로 띄우고 marker 만 남기지 않으므로 다음 부팅 때 재시도된다.
+  INSTALL_FAILED=0
   PKG_DIR="$DESTINATION/packages"
 
   # 배포본 wheel(docling 포크 등)은 --no-deps --no-index 로 설치한다.
@@ -91,7 +94,7 @@ else
     echo "$WHEELS"
     # shellcheck disable=SC2086
     pip install --no-deps --no-index --force-reinstall --no-cache-dir $WHEELS 2>&1 \
-      || echo "[init.sh] WARNING: bundled wheel install failed"
+      || { echo "[init.sh] WARNING: bundled wheel install failed"; INSTALL_FAILED=1; }
   fi
 
   if [ -f "$REQ_FILE" ]; then
@@ -111,10 +114,15 @@ else
       if ! pip install $PIP_OPTS --no-index -r "$REST_REQ" $FIND_LINKS 2>&1; then
         echo "[init.sh] offline install failed, retrying with package index..."
         # shellcheck disable=SC2086
-        pip install $PIP_OPTS -r "$REST_REQ" $FIND_LINKS 2>&1 || echo "[init.sh] WARNING: pip install failed"
+        pip install $PIP_OPTS -r "$REST_REQ" $FIND_LINKS 2>&1 \
+          || { echo "[init.sh] WARNING: pip install failed"; INSTALL_FAILED=1; }
       fi
     fi
     rm -f "$REST_REQ"
+  fi
+  if [ "$INSTALL_FAILED" -ne 0 ]; then
+    echo "[init.sh] Package installation failed — marker 를 남기지 않아 다음 부팅 때 재시도한다." >&2
+    exit 1
   fi
   echo "[init.sh] Package installation completed."
 fi
