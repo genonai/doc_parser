@@ -78,7 +78,7 @@ enrichment:
       enable: false
       model_preset: default
       model_context_tokens: 40000  # 모델 context 크기. 모델이 바뀌면 이 값만 수정
-      max_tokens: 16000       # 응답 상한. 배치당 표 개수는 이 값이 정한다
+      max_tokens: 4000        # 응답 상한. 배치당 표 개수는 이 값이 정한다. 서빙의 출력 상한(4096) 이하로 둔다
       concurrency: 8          # 표 설명 배치 병렬 호출 수
       temperature: 0.0
       timeout: 600             # 배치당 생성량이 늘어난 만큼 호출 타임아웃도 올린다
