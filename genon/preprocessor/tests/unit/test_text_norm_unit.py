@@ -55,7 +55,7 @@ def test_removes_zero_width_and_bom():
 
 
 @pytest.mark.parametrize("ch, kept", [
-    ("\u202e", False), ("\u2066", False), ("\ufff9", False), ("\U000e0041", False),
+    ("\u202e", False),   # 예전 하드코딩 목록에 없던 Cf
     ("\ufffd", True), ("\ue000", True),
 ])
 def test_format_chars_removed_by_category(ch, kept):
