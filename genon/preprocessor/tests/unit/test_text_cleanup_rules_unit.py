@@ -190,6 +190,46 @@ def test_noise_sample_keeps_every_control_case():
     assert "목차를 참고하세요" in out
 
 
+_STANDARD_RULES = tn.rules_from_cfg(
+    yaml.safe_load(
+        (Path(__file__).resolve().parents[2] / "resource" / "chunking_processor_config.yaml")
+        .read_text(encoding="utf-8")
+    )["chunking"]
+)
+
+
+@pytest.mark.parametrize("text, expected", [
+    # 지운다 — 줄 맨 앞의 글머리표(들여쓰기 보존, 연속 묶음, 둘째 줄)
+    ("○ 다문화 인구란", "다문화 인구란"),
+    ("◇ 개요", "개요"),
+    ("  ■ 가입", "  가입"),
+    ("• • 가입", "가입"),
+    ("\u25b6\ufe0f 가입", "가입"),       # 뒤에 붙은 variation selector 도 함께 지운다
+    ("개요\n■ 가입", "개요\n가입"),
+    # 남긴다 — 정보 기호, 글 중간의 기호, 줄 앞이지만 뒤에 공백+글자가 없는 기호
+    ("☐ 동의", "☐ 동의"),
+    ("☑ 동의", "☑ 동의"),
+    ("❏ True", "❏ True"),           # 표 칸의 체크박스
+    ("△0.5%p", "△0.5%p"),
+    ("▲ 3.2%", "▲ 3.2%"),
+    ("피보험자 ○○○님", "피보험자 ○○○님"),
+    ("○○은행", "○○은행"),
+    ("★★★★☆ 평점", "★★★★☆ 평점"),
+    ("♀ 12명", "♀ 12명"),
+    ("<td>○</td>", "<td>○</td>"),
+    ("○.", "○."),
+    ("| ○ |", "| ○ |"),
+    ("| ○ 가능 |", "| ○ 가능 |"),
+    ("※ 단, 만 65세", "※ 단, 만 65세"),
+    ("☎ 1588-3819", "☎ 1588-3819"),
+    ("개요○ 다문화", "개요○ 다문화"),
+    ("한글 漢字 ① 「」 ․ ￦ 10%", "한글 漢字 ① 「」 ․ ￦ 10%"),
+])
+def test_standard_marker_rule(text, expected):
+    """표준 청커 설정의 장식 마커 규칙 — 줄 맨 앞의 글머리표만 지운다."""
+    assert tn.apply_rules(text, _STANDARD_RULES) == expected
+
+
 # ── 청크 경계 반영 (입력 단계 적용이 목적이다) ───────────────────────────────
 
 _CONFIG_NAME = "chunking_processor_config.yaml"
