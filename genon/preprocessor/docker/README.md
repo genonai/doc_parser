@@ -15,8 +15,8 @@ PDF SDK의 사용 여부에 따라 `standard` 또는 `synap`로 분리됨.
 
 | `HW_VARIANT` | torch | 용도 |
 |---|---|---|
-| `gpu` | `uv.lock` 기준 CUDA wheel + nvidia-* / triton 포함 | GPU 가속 환경 |
-| `cpu` | CPU wheel 재설치 + nvidia-* / triton 제거 (경량) | GPU 없는 환경 |
+| `gpu` | `uv.lock` 기준 CUDA wheel + nvidia-* / triton / cuda-bindings / cuda-pathfinder 포함 | GPU 가속 환경 |
+| `cpu` | CPU wheel 재설치 + nvidia-* / triton / cuda-bindings / cuda-pathfinder 제거 (경량) | GPU 없는 환경 |
 
 `BUILD_VARIANT` × `HW_VARIANT` 조합으로 최대 4종 이미지가 만들어진다. 최종 태그는 기본 조합(`cpu`+`standard`)이면 접미사 없이 `:${IMAGE_VERSION}` (예: `:1.3.6.3`), 그 외 조합은 `:${IMAGE_VERSION}-${HW_VARIANT}-${BUILD_VARIANT}` (예: `:1.3.6.3-gpu-synap`) — 이슈 #236. `HW_VARIANT` 도 비워두면 `doc-parser-build.sh` 가 에러로 중단된다.
 
@@ -34,6 +34,14 @@ PDF SDK의 사용 여부에 따라 `standard` 또는 `synap`로 분리됨.
   - 첨부형/변환형/파싱형 — HWP 는 내장 HWP SDK, docx/ppt 는 원본 직접 파싱이라 변환 backend 없이도 동작(영향 적음).
 - `synap` 은 PDF SDK 가 남아 docx/ppt 등은 계속 변환된다.
 - **태그 반영** — off 면 태그 끝에 `-nolibre` / `-norhwp` 가 자동으로 붙어(둘 다 off → `-nolibre-norhwp`) 운영 이미지(둘 다 on)와 덮어쓰기 없이 구분된다. 둘 다 on(기본)이면 접미사 없음. `register.config` 에도 동일 값 필요. 빌드 시 `ai.genon.install.libreoffice` / `ai.genon.install.rhwp` OCI 라벨로도 기록됨. 설정/빌드 절차는 [`../../README.md` "A-2. (선택) rhwp / LibreOffice 제외 빌드"](../../README.md#a-2-선택-rhwp--libreoffice-제외-빌드-이슈-286) 참고.
+
+## 이미지에 포함되는 오프라인 모델
+
+`models_artifacts` 단계가 `/models` 에 받아 두는 것으로, 폐쇄망에서 실행 시점 다운로드가 일어나지 않게 한다.
+
+- docling: layout(`ds4sd--docling-layout-old`), tableformer, picture_classifier, easyocr(+ korean_g2)
+- unstructured hi_res 레이아웃 모델 yolox(`/models/unstructured/yolo_x_layout`). `UNSTRUCTURED_DEFAULT_MODEL_INITIALIZE_PARAMS_JSON_PATH` 가 같은 폴더의 `yolox_params.json` 을 가리킨다.
+- MiniLM 토크나이저 파일(`tokenizer_type: huggingface` 용, 가중치 제외)과 NLTK `punkt_tab`, `averaged_perceptron_tagger_eng`
 
 ## HWP → PDF 변환 chain (런타임 동작)
 
