@@ -210,4 +210,9 @@ def json_payload_to_html(payload: Any, spec: JsonTextSpec, title: str) -> str:
             f"[json_text] 텍스트 항목 {len(items)}개 수집 "
             f"(총 {sum(len(v) for _, v in items):,}자)"
         )
+    # 항목이 하나뿐이고 라벨이 형제 name/title 이 아닌 자동 라벨(`<key>#1`)이면 섹션을
+    # 나눌 이유가 없다. 라벨을 문서 제목으로 바꾸면 build_docling_document 가 <h2> 를
+    # 생략하므로 `content#1` 같은 의미 없는 문자열이 청크 HEADER 와 본문에 실리지 않는다.
+    if len(items) == 1 and items[0][0] in {f"{key}#1" for key in spec.text_fields}:
+        items = [(title, items[0][1])]
     return build_merged_html(items, title, spec.format)
