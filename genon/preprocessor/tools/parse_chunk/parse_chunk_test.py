@@ -251,7 +251,8 @@ def parse_args():
     )
     ap.add_argument("--chunk-size", type=int, default=None,
                     help="청크 최대 크기 (0=크기 기반 병합·분할 끄기 — docling 입력은 구조 청크가 그대로 "
-                         "남아 여러 개, parse-format 입력은 요소당 1개. 0 초과 시 최소 1024)")
+                         "남아 여러 개, parse-format 입력은 요소당 1개. 0 초과 시 docling 입력은 최소 "
+                         "chunking.min_chunk_size(기본 1024)로 올라가고, 행·레코드 입력은 값 그대로 쓴다)")
     ap.add_argument(
         "--chunk-mode",
         choices=["split_only", "resize_all"],
