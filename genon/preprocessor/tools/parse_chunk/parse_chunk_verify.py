@@ -94,6 +94,8 @@ CASES = [
     ("cs_hpp",        MONIMO / ".INC_235488_02_20260626103138.html",   "section 1개"),
     ("cs_hpp",        MONIMO / ".INC_235489_01_20260626103139.html",   "section 3개"),
     ("cs_hpp",        MONIMO / "monimo_cs_hpp_rich_table_sample.html", "rich cell 표 + colspan 안내 셀"),
+    # JSON 레코드 원천. UD_DTM 이 "2026-08-25 16:04:41" 문자열로 온다(#455).
+    ("cs_hpp",        MONIMO / "monimo_cs_hpp_chunksize_sample.json",  "json_mapping(UD_DTM 날짜)"),
     # 같은 원천의 마크다운 산출물. 확장자가 표준이 아니라(*.parsed) 라우팅이 그 사실을
     # 설정/내용으로 알아내야 한다. 위 .html 과 쌍이므로 함께 둔다.
     ("cs_hpp",        MONIMO / ".INC_235488_02_20260626103138.html.parsed",
@@ -736,6 +738,18 @@ def check_biz_id_from_filename(expected: str):
     return _check
 
 
+def check_last_mod_dt(expected: int):
+    """SRC_LAST_MOD_DT 가 정수 YYYYMMDD(값이 없으면 0)로 모든 청크에 실렸는가(#455).
+
+    문자열이나 null 이 섞이면 기간 필터·최신순 정렬에서 그 문서유형만 빠진다.
+    """
+    def _check(chunks: list) -> list[str]:
+        found = {chunk.get("SRC_LAST_MOD_DT") for chunk in chunks}
+        ok = found == {expected} and all(isinstance(v, int) for v in found)
+        return [] if ok else [f"SRC_LAST_MOD_DT 가 정수 {expected} 가 아닙니다: {sorted(map(repr, found))}"]
+    return _check
+
+
 def check_valid_period(chunks: list) -> list[str]:
     """product_slf — front matter `sales_period: 2025-12-1 ~ 진행중` 이 시작일/열린 종료일로 나뉘었는가."""
     found = {(chunk.get("VALID_FROM"), chunk.get("VALID_TO")) for chunk in chunks}
@@ -773,6 +787,9 @@ EXTRA_CHECKS = {
     ("monimo_event", "monimo_event_title_sample.json"): check_title_kept(
         "KB국민카드 & monimo Pay 첫 결제 최대 5만원 캐시백"),
     ("cs_ssf", "monimo_cs_ssf_layout_table_sample.dtms"): check_cs_ssf_layout_table,
+    ("cs_ssf", "monimo_cs_ssf_sample.dtms"): check_last_mod_dt(0),
+    ("cs_sss", "monimo_cs_sss_sample.json"): check_last_mod_dt(0),
+    ("cs_hpp", "monimo_cs_hpp_chunksize_sample.json"): check_last_mod_dt(20260825),
     ("monimo_news", "TD00008415_d_5199.html.json"): check_biz_id_from_filename("TD00008415"),
 }
 
