@@ -43,6 +43,8 @@ fields:
   SRC_LAST_MOD_DT:
     alias: [updated_date]
     default: null
+    # 다른 문서유형과 같은 정수 YYYYMMDD 로 맞춘다(기간 필터·최신순 정렬). 값이 없으면 0(날짜 없음).
+    transform: date_int
 require:
   fields: [CUSTOM_TITLE]
 body:
