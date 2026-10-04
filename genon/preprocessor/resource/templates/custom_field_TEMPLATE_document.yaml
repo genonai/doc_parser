@@ -3,158 +3,160 @@
 #
 #  언제 쓰나 : 원천이 **문서**(pdf/docx/hwp/html/md/pptx/xlsx)이고, 그 문서 하나에서
 #              필드 몇 개를 뽑고 싶을 때 (상품설명서의 상품명·상품코드, 카드 혜택 요약 …)
+#              행/레코드마다 다른 값이 필요하면 rows/records 를 쓴다.
 #  결과      : 문서 metadata → 그 문서에서 나온 **모든 청크에 같은 값**이 붙는다.
-#              (행/레코드마다 다른 값이 필요하면 rows/records 템플릿을 쓴다)
-#  LLM 호출  : 문서당 1회. (값을 LLM 이 아니라 고객 파이썬 함수로 만들려면 맨 아래
-#              `python:` 블록을 쓴다 — 연결·프롬프트가 필요 없다)
-#
-#  ── 5종 중 어느 템플릿인가 ───────────────────────────────────────────────
-#   rows     · 엑셀/CSV 한 행 = 검색 1건           custom_field_TEMPLATE_rows.yaml
-#   records  · JSON 배열 한 요소 = 검색 1건        custom_field_TEMPLATE_records.yaml
-#   sections · 대상 하나를 깊게 설명한 중첩 JSON   custom_field_TEMPLATE_sections.yaml
-#   document · 문서 1건에서 필드 몇 개를 LLM 으로  custom_field_TEMPLATE_document.yaml  ← 이 파일
-#   html     · 마크업이 값을 이미 지목한 HTML      custom_field_TEMPLATE_html.yaml
-#   더 자세한 비교는 manual/parser_processor.md 의 "extractor 5종" 표.
+#              청크 본문은 docling 이 만든다.
+#  LLM 호출  : 문서당 1회(필드 추출 기준. 표 설명은 별도 호출이거나 이 호출에 합쳐진다 — 아래 표 설명 블록).
+#              값을 LLM 대신 고객 파이썬 함수로 만들려면 맨 아래 `python:` 블록을 쓴다.
+#  실행 경로 : 필드 추출은 모든 경로에서 동작한다. `source.pre` 전처리만 parser 경로 전용이다.
+#  다른 kind : rows(엑셀/CSV 한 행) · records(JSON 배열 한 요소) · sections(대상 하나를 설명한
+#              중첩 JSON) · html(마크업이 값을 지목한 HTML — 선택자로 뽑아 LLM 이 필요 없다)
 #
 #  ── 쓰는 순서 ────────────────────────────────────────────────────────────
-#  ① 이 파일을 resource/custom_field_<유형>.yaml 로 복사한다.
-#  ② <...> 로 표시된 곳을 채운다.
-#  ③ resource/parser_processor_config.yaml 의 enrichment 목록에 아래를 추가한다.
+#  ① 이 파일을 설정 폴더에 custom_field_<유형>.yaml 로 복사한다(표준 유형은 genon/preprocessor/
+#     resource/, 사이트 전용 유형은 genon/sites/<site>/resource/ — 맨 아래 "배포" 참고).
+#  ② <...> 를 채우고 쓰지 않는 [선택] 블록은 지운다. `schema: v2` 줄은 지우지 않는다
+#     (없으면 기동이 실패한다).
+#  ③ 같은 폴더의 parser_processor_config.yaml 의 enrichment 목록에 등록한다.
 #        - custom_fields:
 #            enable: true
-#            doc_type: <유형>
-#            # extractor 는 적지 않는다 — 설정 파일의 `source.kind: document` 에서
-#            #   정해진다(맨 아래 `python:` 블록을 쓰면 자동으로 `python` 이 된다).
-#            #   굳이 적겠다면 그 값과 같아야 한다. 어긋나면 기동이 실패하고, 메시지에는
-#            #   설정에 적은 적 없는 내부 키 이름이 나와 원인을 짚기 어렵다.
-#            config_file: custom_field_<유형>.yaml   # 파일명만. 이 yaml 과 같은 폴더 기준
-#  ④ 확인한다(아래 "확인 방법" 참고).
-#
-#  이 파일 하나로 자족한다 — 프롬프트를 여기 인라인하면 별도 md 파일이 필요 없다.
-#    프롬프트가 아주 길거나 여러 유형이 공유하면 `prompt.system_file` / `prompt.user_file` 로
-#    별도 md 로 빼도 된다 — 파일 지정이 인라인보다 우선한다.
-#
-#  이 템플릿은 참고용이므로 parser_processor_config.yaml 에 등록하지 않는다.
-#     <...> 가 남은 상태로 등록하면 프롬프트가 문서와 맞지 않아 값이 비어서 나온다.
+#            doc_type: <유형>            # 요청 params 의 doc_type 과 같은 값
+#            config_file: custom_field_<유형>.yaml   # 파일명만. 이 등록 블록이 있는 프로세서
+#                                                    # 설정 yaml 과 같은 폴더 기준
+#     extractor 는 적지 않는다(`source.kind: document` 에서 `llm` 으로, `python:` 블록을 쓰면
+#     `python` 으로 정해진다).
+#  ④ 맨 아래 "확인 방법" 으로 실제 원천 파일의 결과를 확인한다.
 # ═══════════════════════════════════════════════════════════════════════════
 
 schema: v2
 
-# ── [필수] 레코드 소스 ──────────────────────────────────────────────────────
+# ── [필수] 소스 ─────────────────────────────────────────────────────────────
 source:
   kind: document
 
   # ── [선택] 원천 포맷 전처리 (md / html / json) ────────────────────────────
-  # docling 파싱 **전에** 원문을 손보는 규칙이다. 아래 `markdown`·`html`·`json` 세 블록은
-  # 문서 단위(kind: document)에서만 소비된다 — rows/records/sections 설정에 적으면
-  # 기동은 통과하고 **조용히 무시된다**(그 kind 의 파서가 읽지 않는다).
-  # `pre` 아래 나머지 하나인 `delimited` 는 반대로 kind: records 전용이다(구분자 텍스트
-  # 원천. custom_field_TEMPLATE_records.yaml 의 같은 이름 블록 참고).
-  # 이 전처리는 **parser 경로에서만** 소비된다 — 적재용(intelligent)/변환용(convert) 은 원천을
-  # PDF 로 바꿔 읽어 걸릴 자리가 없고, 등록하면 기동 시 경고가 남는다.
-  # 세 블록은 같은 일을 한다 — 원천을 docling 이 읽을 문서 한 벌로 만든다.
-  # `markdown`·`html` 두 블록은 이 파일이 기본값이고, 등록 블록에 같은 이름을 적으면
-  # 그쪽이 덮어쓰며, `markdown: false` 처럼 false 를 주면 명시적 비활성이다.
-  # `json` 은 **이 파일에만** 적는다 — 등록 블록에 적던 옛 표기는 받지 않는다.
-  # marker_headings 는 md 와 html 이 판정 규칙을 공유한다 — 같은 원문이 포맷에 따라
-  # 다르게 쪼개지지 않게 하기 위해서다. 그래서 `pre` 바로 아래 **한 번만** 적으면 둘 다
-  # 적용된다(블록 안에 다시 적으면 그쪽이 이긴다).
-  #
-  # 왜 필요한가(실측):
-  #   · text_fence 없이 두면 docling 이 ```text 펜스 전체를 CodeItem 1개로 만들어 4,654자가
-  #     아이템 하나가 되고 chunk_size 가 무의미해진다. `|` 한 줄이 md 표 모드를 열어 뒤따르는
-  #     본문 1,586자를 빈 표로 삼키기도 한다.
-  #   · marker_headings 없이 두면 h태그·`#` 없이 도형 마커(◈ ▣ ■)로만 계층을 표현한 문서가
-  #     통째로 한 섹션이 되어 청킹 경계가 생기지 않는다.
+  # docling 파싱 **전에** 원문을 손보는 규칙이다. parser 경로에서만 적용된다.
+  # `markdown`·`html` 은 이 파일이 기본값이고, 등록 블록에 같은 이름을 적으면 그쪽이 덮어쓴다
+  # (`markdown: false` 는 명시적 비활성). `json` 은 이 파일에만 적는다.
   # pre:
-  #   marker_headings: true             # `◈ 기본내용` 같은 마커 줄을 heading 으로 승격.
-  #                                     # md·html 양쪽에 걸린다(위 설명 참고)
+  #   marker_headings: true             # `◈ 기본내용` 처럼 도형 마커로만 계층을 표현한 줄을
+  #                                     # heading 으로 승격해 청킹 경계를 만든다. 여기 한 번 적으면
+  #                                     # md·html 양쪽에 적용된다(블록 안에 다시 적으면 그쪽이 우선한다)
   #   markdown:
   #     front_matter:                   # 선두 YAML front matter 를 본문에서 분리
   #       # 어느 front matter 키에서 값을 가져올지는 아래 `fields.<목표>.alias` 에 적는다.
-  #       # 여기 남는 것은 "본문에 남길까" 같은 텍스트 정책뿐이다.
   #       exclude_text_fields: ["*"]    # "*" = front matter 전체를 검색 본문에서 제외
-  #       on_missing: ignore            # ignore(기본) | warn | error
-  #       on_invalid: ignore            # ignore(기본) | warn | error
+  #       on_missing: ignore            # front matter 가 없을 때: ignore(기본) | warn | error
+  #       on_invalid: ignore            # 해석할 수 없을 때: ignore(기본) | warn | error
   #       max_bytes: 65536              # front matter 로 읽을 선두 바이트 상한
-  #     text_fence:                     # ```text 펜스를 단락으로 되돌린다
-  #       enable: true                  # `text_fence: true` 로 줄여 써도 된다
+  #     text_fence:                     # ```text 펜스를 단락으로 복원한다. 없으면 펜스 전체가
+  #       enable: true                  # 코드 블록 하나가 되어 chunk_size 로 나뉘지 않는다.
+  #                                     # `text_fence: true` 로 줄여 써도 된다
   #       langs: ["", "text"]           # 대상 펜스 정보문자열(진짜 코드 펜스는 건드리지 않음)
   #       min_hangul_ratio: 0.3         # 본문 한글 비율 하한(코드 블록 오변환 방지)
-  #     # 이 블록 안에 marker_headings 를 다시 적으면 md 에만 그 값이 쓰인다
-  #     #   (한쪽만 끄고 싶을 때만. 보통은 위에 한 번 적는 것으로 끝난다)
   #   json:                             # 원천이 .json 인데 **본문이 그 안의 값**으로 올 때
-  #     # 본문(markdown/html 문자열)이 담긴 원천 key 이름들. 경로가 아니라 **이름만** 적고
-  #     # 임의 깊이에서 문서 순서대로 모으므로 `pages[*].html` 같은 배열도 그대로 처리된다.
-  #     # 항목이 여러 개면 항목별 <h2> 섹션을 가진 단일 문서로 병합해 docling 을 1회 부른다.
-  #     # 이 블록이 없으면 .json 은 원문 그대로 docling 을 탄다(표·heading 구조가 남지 않는다).
+  #     # 본문(markdown/html 문자열)이 담긴 원천 key 이름들. 경로가 아니라 이름만 적고 임의 깊이에서
+  #     # 문서 순서대로 모은다(`pages[*].html` 같은 배열도 처리된다). 꺼낸 항목마다 <h2> 섹션이
+  #     # 생기며, 제목은 같은 object 의 name/title 값, 없으면 `<key>#<번호>` 다. 이 제목은 청크
+  #     # HEADER 와 본문에 실린다. 항목이 하나뿐이고 name/title 이 없으면 <h2> 를 만들지 않는다.
+  #     # 이 블록이 없으면 .json 은 원문 그대로 파싱된다.
   #     body_from: [<본문_KEY>, <요약_KEY>]   # [필수]
-  #     format: auto                    # auto(기본, 값 내용으로 판별) | html | markdown
-  #     on_missing: skip                # skip(기본, 경고만) | error
-  #     # 같은 doc_type 에 records/sections 설정이 함께 있으면 그쪽이 먼저 선택된다
-  #     #   (레코드·섹션마다 청크를 만드는 편이 문서 1건으로 합치는 것보다 구체적이다).
+  #     format: auto                    # auto(기본: HTML 태그가 보이면 html, 아니면 markdown) | html | markdown
+  #     on_missing: skip                # skip(기본) = 경고 후 빈 문서로 진행(파일명만 담긴 청크가 생긴다)
+  #                                     # error = 요청 실패
+  #     # 같은 doc_type 에 records/sections 설정이 함께 있으면 그쪽이 먼저 선택된다.
 
 # ── [선택] 필드 선언 ────────────────────────────────────────────────────────
-# 이 kind 의 원천은 둘이다 — LLM 응답과 **markdown front matter**.
-# 한 필드의 규칙(어디서 오나 / 어떻게 접나 / 뭐라고 부르나)을 전부 여기 한 자리에 적는다.
+# 값의 원천은 셋이다 — LLM 응답(`llm.out`), markdown front matter, 입력 파일명.
+# `llm.out` 필드는 여기 선언하지 않아도 된다. 값을 손보거나 다른 원천에서 가져올 때만 적는다.
+# 왼쪽 = 목표필드명. 적재 DB 컬럼명(대문자)으로 쓴다. 이 kind 는 이름 규칙을 기동 시 전부
+# 검사하지 않으므로 소문자 예약 이름(text·title·n_char·i_page·appendix …)과 한글·공백·기호를
+# 쓰지 않는다. 예외로 `created_date` 는 front matter 의 작성일을 받는 이름으로 쓸 수 있다. 청커가
+# YYYYMMDD 정수로 다시 바꾸며, 값이 비면(null 레시피 결과 포함) 본문의 작성일·첫 날짜를 쓰고 그것도
+# 없으면 0 이다(null 로 둘 수 없다).
 #
-# 쓸 수 있는 키 — rows/records 와 같되 `collect`·`seq`·`raw` 는 못 쓴다(적으면 기동 실패).
-#   collect : records 전용. 오류 메시지도 `collect` 라고 나온다.
-#   seq     : 레코드 루프가 있는 rows/records 전용(문서형은 항상 1건이라 "N번째"가 없다).
-#   raw     : "객체를 구조로 볼지 값으로 볼지" 판정이 있는 JSON 원천 2종 전용.
-#   뒤의 둘은 오류 메시지가 **내부 이름**(`sequence`·`raw_fields`)으로 나온다 — 설정에
-#   적은 이름과 다르니, 못 보던 이름이 나오면 이 대응표에서 되짚는다.
-#   alias     : 값이 들어 있는 **front matter 키 이름들**. 먼저 찾은 것을 쓴다.
-#   const     : 원천과 무관하게 항상 같은 값. LLM 이 다른 값을 내놔도 이긴다.
-#   default   : LLM 도 front matter 도 값을 못 준 자리만 채운다.
-#   values    : 코드값·표기 흔들림을 표준값으로 접는다 (`SALE: ["1", Y, 판매중]`)
-#               별칭에 영문 `yes`/`no`/`on`/`off` 를 쓸 때는 **따옴표로 감싼다** — YAML 이
-#               참/거짓으로 바꿔 버려 원천의 "yes" 와 영영 안 맞는다(`Y`/`N` 은 그대로다)
-#   transform : 값 변환 체인 (`date_int`, `[{name: regex_sub, pattern: ...}]`)
-#               적재 DB 의 JSON 컬럼에 넣을 필드는 `[{name: to_json}]` 을 맨 뒤에 건다
-#   template  : 다른 필드를 합쳐 만든다 (`"{{BRAND_NM}} {{PRODUCT_NM}}"`)
-#   pack      : 여러 필드를 JSON 한 칸에 담는다 (`[BRAND_NM, ANNUAL_FEE]` →
-#               `{"BRAND_NM": ..., "ANNUAL_FEE": ...}` 문자열). 값이 없는 키도 null 로
-#               남고 원천 필드는 그대로 남는다. 본문 관련 키에는 쓸 수 없다
-#   meta      : 이 필드를 청크 메타(적재 컬럼)에 실을지. 안 적으면 실린다(기본 true).
-#               template·pack 재료나 require·filter 조건처럼 값 조립에만 쓰는 중간
-#               필드에 `meta: false` 를 적어 컬럼에서 뺀다. 값은 그대로 만들어지므로
-#               본문(body)·파생·선별은 정상으로 돌고, 빠지는 곳은 청크 메타 하나다
+#   alias     : front matter 키 이름들. 적은 이름과 **정확히 같은** 키만 찾고, 앞에 적은 것이
+#               우선한다. 목표필드명은 자동 별칭이 아니다. 키를 찾지 못하면 경고가 남는다.
+#               **파일명 원천**: `alias: [$file]` 이면 입력 파일명을 원천값으로 쓴다. 요청의
+#               org_filename 이 우선이고 없으면 입력 경로의 파일명이다. `$file` 은 다른 별칭과
+#               섞을 수 없다. 잘라내기는 regex_extract 로 하며, 매칭이 없으면 값이 비고 경고가
+#               남는다(파일명 상품_20260112_요약서.md → pattern '^(상품_\d{8})' → 상품_20260112).
+#               python 모드에서는 alias(front matter·$file)를 쓸 수 없다(기동 실패).
+#   const     : 원천과 무관하게 항상 같은 값. LLM·front matter 값보다 우선한다.
+#   default   : LLM·front matter·파일명이 값을 주지 못한 자리만 채운다.
+#   values    : 코드값·표기 흔들림을 표준값으로 접는다 (`SALE: ["1", Y, 판매중]`).
+#               매핑표에 없는 값은 원값을 그대로 두고 경고만 남긴다.
+#               별칭에 영문 `yes`/`no`/`on`/`off` 를 쓸 때는 따옴표로 감싼다. YAML 이 불리언으로
+#               해석하므로 원천의 "yes" 와 일치하지 않는다(`Y`/`N` 은 그대로다).
+#   transform : 값 변환 체인. 아래 [변환기] 참고. LLM 이 준 값에도 적용된다.
+#   template  : 다른 필드를 합쳐 만든다 (`"{{BRAND_NM}} {{PRODUCT_NM}}"`). 값이 없는 자리표시자만
+#               지우고 구분자는 남긴다(`"{{A}} > {{B}}"` 에서 B 가 비면 `값 >`). 같은 필드의 transform 은
+#               합친 결과에 적용되므로 구분자는 regex_sub 로 정리한다(rows·records 템플릿의 예 참고).
+#   pack      : 여러 필드를 **JSON 객체 한 칸**에 담는다 (`[BRAND_NM, ANNUAL_FEE]` →
+#               `{"BRAND_NM": ..., "ANNUAL_FEE": ...}` 문자열). 값이 없는 키도 null 로 남고 묶은
+#               필드는 그대로 남는다. 산출이 이미 JSON 문자열이므로 to_json 을 덧붙이지 않는다.
+#               `llm.out` 필드도 묶을 수 있다. 본문 키(repeat·once·mirror_to)에는 쓸 수 없다.
+#               LLM 이 JSON 객체를 준 필드에 다른 필드를 평탄하게 합치는 기능은 없다 —
+#               pack 은 늘 새 객체로 감싼다.
+#   meta      : 청크 메타(적재 컬럼)에 실을지. 기본 true. template·pack 재료로만 쓰는 중간
+#               필드에 `meta: false` 를 적는다. 적재 컬럼에서만 빠진다.
+#
+# [변환기] 목록으로 쓰면 순서대로 적용된다. 인자는 `{name: <이름>, <인자>: <값>}` 으로 적는다.
+#   date_int       날짜 → YYYYMMDD 정수. "2026-07-01"·"26.07.01"·"260701"·"20260701" 을 받고,
+#                  문자열 "2026" 은 20260101 이다(숫자 2026 은 2026 그대로). 인자 on_error(기본 0).
+#                    빈 값(None·""·공백·문자열 "None", 키 없음) → 항상 0 (on_error 와 무관)
+#                    해석 실패("진행중" 등) → on_error
+#                    정상 → 20260701
+#                  0 은 빈 값이 아니므로 once/repeat 로 싣으면 "출시일: 0" 처럼 본문에 나간다.
+#   normalize      NFKC → 양끝 공백 제거 → 연속 공백 한 칸 → 소문자화(중복 판정 키용)
+#   to_text        JSON·HTML·평문을 자동 판별해 평문화한다(표시·검색용)
+#   regex_sub      pattern, repl=""                  정규식 치환  "18,000원" → "18000"
+#   regex_extract  pattern, group=1, on_error=null   정규식 추출. 매칭이 없으면 on_error, 빈 값은 그대로
+#   to_int         on_error=null                     정수 하나로. 소수·숫자 둘 이상이면 on_error
+#   hash           length=16, prefix=""              SHA-1 16진 코드로 줄인다
+#   truncate       length, suffix=""                 길이 자르기
+#   to_json        on_scalar=wrap|drop, key="value"  값 하나를 유효한 JSON 문자열로(JSON 컬럼용).
+#                                                    스칼라는 {key: 값} 으로 감싸고 drop 이면 null.
+#                                                    빈 값·깨진 JSON 은 null. 체인 맨 뒤 전용이며
+#                                                    본문 키와 pack 재료에 쓸 수 없다
+#   모르는 이름·빠진 인자·컴파일되지 않는 정규식은 기동이 실패한다.
+#
+# [날짜 레시피]
+#   빈 값을 null 로(0 을 null 로 바꾸고 정수 타입을 되살린다. null 은 once 에서 건너뛴다):
+#     transform: [date_int, {name: regex_extract, pattern: '^([1-9]\d{7})$'}, to_int]
+#   종료일 없음·"진행중"을 99991231 로(default 가 빈 값을, on_error 가 해석 실패를 채운다):
+#     default: 99991231  +  transform: {name: date_int, on_error: 99991231}
 #
 # fields:
 #   <GROUP_C>:     {const: "<고정값>"}
-#   <BIZ_ID>:      {default: null}
-#   # front matter 에서 가져오기 — 예전 `front_matter.metadata_fields` 자리가 여기로 왔다.
-#   created_date:  {alias: [created_at], transform: date_int}
-#   <PRODUCT_C>:   {alias: [product_code, prod_cd]}
+#   <BIZ_ID>:      {alias: [$file], transform: {name: regex_extract, pattern: '<파일명 정규식>'}}
+#   created_date:  {alias: [created_at], transform: date_int}       # front matter 작성일
+#   <PRODUCT_C>:   {alias: [product_code, prod_cd]}                  # front matter, 없으면 LLM 값
 #   <SALE_STATUS>: {alias: [sale_state], values: {SALE: ["1"], STOP: ["0"]}}
+#   <VALID_TO>:    {default: 99991231, transform: {name: date_int, on_error: 99991231}}   # LLM·front matter 값을 손본다
 #   <DISPLAY_NM>:  {template: "{{<BRAND_NM>}} {{<PRODUCT_NM>}}"}
 
 # ── [참고] 값 적용 순서 ──────────────────────────────────────────────────────
-# 필드 하나가 확정되기까지 이 순서로 처리된다:
-#   default < LLM < front matter < const  →  values → transform → template → pack
-# 값 파이프라인은 이 병합이 끝난 뒤에 도는 후처리라, LLM 이 준 값도 const 로 못 박은 값도
-# 똑같이 지나간다. 순서는 rows/records/sections 와 같다.
-# `const` 는 LLM 응답보다 우선한다 — 고정값이라고 선언한 이상 모델이 뭘 내놓든 그 값이고,
-# front matter 로 온 구조화 원천값보다도 우선한다.
+#   default < LLM 응답 < front matter·파일명 < const  →  values → transform → template → pack
+# · 왼쪽일수록 우선순위가 낮다. 값이 있는 원천이 앞의 값을 덮어쓴다(front matter 가 LLM 응답을
+#   덮으면 경고가 남는다. default 를 적은 필드는 LLM 이 비워도 이 경고가 날 수 있다).
+# · values 이후는 병합이 끝난 뒤에 처리되므로 LLM 응답·front matter·const·default 값 모두에
+#   적용된다. 앞에 regex_extract 를 두면 그 패턴이 default 값에도 맞아야 한다(맞지 않으면 지워진다).
 
 # ── [선택] 청크 본문 관련 규칙 ──────────────────────────────────────────────
-# 값이 아니라 규칙이다. 프롬프트·`llm.out` 에 넣지 않는다.
-# 파서가 문서 metadata 로 실어 보내고 청커가 소비한다.
+# 값이 아니라 규칙이다. 프롬프트·`llm.out` 에 넣지 않는다. 파서가 문서 metadata 로 실어 보내고
+# 청커가 소비한다. `llm.out` 필드도 그대로 쓸 수 있다.
 #
-#   mirror_to : 그 청크의 본문(text)과 글자 그대로 같은 값을 받는 필드
-#               (소비계층의 검색 대상 본문 컬럼용)
-#   repeat    : 모든 청크 본문 앞에 반복해 얹을 필드
-#               (매 청크가 단독으로 검색돼야 하는 식별자 — 상품명 등)
-#   once      : 문서의 첫 청크에만 1회 얹을 필드
-#               (매 청크에 반복하기엔 chunk_size 가 아까운 문서 단위 분류·작성일 등)
-#   labels    : 위 두 규칙으로 얹는 값 앞에 붙일 사람이 읽는 항목명(`항목명: 값`).
-#               목표필드명(예: QUESTION)은 적재 DB 컬럼명이라 그대로 노출하면 임베딩에
-#               안 쓰는 토큰이 섞이므로, 이름이 있는 필드만 라벨을 붙이고 없으면 값만 낸다.
+#   mirror_to : 그 청크의 본문(text)과 글자 그대로 같은 값을 받는 필드(검색 대상 본문 컬럼용)
+#   repeat    : 모든 청크 본문 앞에 반복해 얹을 필드(매 청크가 단독으로 검색되어야 하는 식별자)
+#   once      : 문서의 첫 청크에만 1회 얹을 필드(문서 단위 분류·작성일처럼 매 청크에 반복하기에는
+#               chunk_size 를 소모하기에 부담스러운 값). 주입 횟수만 정하며 원문의 같은 값은 남는다.
+#   labels    : repeat·once 로 얹는 값 앞에 붙일 사람이 읽는 항목명(`항목명: 값`). 이름이 없는
+#               필드는 값만 낸다(목표필드명을 그대로 노출하면 임베딩에 잡음이 섞인다).
 #
-# repeat/once 는 접두만큼 chunk_size 를 깎으므로 짧은 필드 1~2개로 제한한다. 값이 비었거나
-# 중첩 객체인 필드는 조용히 건너뛴다. once 만 쓴 값은 임베딩 검색에서 첫 청크만 걸린다
-# (값 자체는 모든 청크의 metadata 에 실리므로 필터 검색은 전 청크에서 된다).
+# repeat/once 는 접두만큼 chunk_size 를 소모하므로 짧은 필드 1~2개로 제한한다. 값이 비었거나
+# 중첩 객체인 필드는 건너뛴다(0 은 빈 값이 아니다). once 만 쓴 값은 임베딩 검색에서 첫 청크만
+# 걸린다(값 자체는 모든 청크 metadata 에 실리므로 필터 검색은 전 청크에서 된다).
 # body:
 #   mirror_to: [<BODY_COLUMN>]
 #   repeat:    [<IDENTIFIER_FIELD>]
@@ -162,28 +164,25 @@ source:
 #   labels:
 #     <IDENTIFIER_FIELD>: <사람이 읽는 이름>
 
-# ── [필수] LLM 추출 ─────────────────────────────────────────────────────────
-# 호출 단위는 `source.kind` 가 정한다 — `scope` 를 적지 않는다(document = 문서 1회).
-# 이 kind 에는 `in` 을 적지 않는다(적으면 기동 실패) — 입력이 문서 본문 하나로 정해져
-#    있기 때문이다. rows/records/sections 에서는 반대로 `in` 이 **필수**다.
-#
-# out 의 이름이 프롬프트가 요구하는 JSON 키와 **정확히 같아야** 한다.
-#    어긋나면 **에러 없이 값이 null** 로 채워진다. 이게 가장 흔한 실수다.
-# user 프롬프트의 `{{raw_text}}` 가 문서 본문으로 치환된다 — 반드시 넣어야 한다.
-#    빠뜨리면 본문이 전달되지 않고 프롬프트만 전송된다.
-#    예약 변수(값 자동 채움): raw_text, full_text, filename, mimetype, page_count,
-#    table_count, picture_count, section_headers. (before_context/after_context/caption/
-#    section_header 도 이름은 허용되지만 이미지 단위 enrichment 전용이라 여기서는 항상 빈 값)
-#    추가로 `prompt.variables` 에 정의한 사용자 변수도 `{{이름}}` 으로 쓸 수 있다.
-#    정의되지 않은 `{{변수}}` 를 쓰면 기동 시 실패한다 — strict 가 기본(`prompt.mode` 로 완화).
-# system 을 생략하면 built-in default("문서 정보추출 전문가다 …")가 쓰인다.
-# 적재 DB 컬럼명(대문자)으로 쓰면 적재 매핑이 1:1 이 된다.
+# ── [필수: llm 또는 python 중 하나] LLM 추출 ────────────────────────────────
+# 문서 1건당 1회 호출한다. `scope` 와 `in` 은 적지 않는다(적으면 기동 실패) — 입력은 문서 본문이다.
+# out 의 이름이 프롬프트가 요구하는 JSON 키와 **정확히 같아야** 한다. 어긋나면 **오류 없이 값이
+# null** 로 채워진다. 이것이 가장 흔한 실수다. out 은 값 타입을 강제하지 않는다(객체가 오면
+# repeat·once 에서 건너뛴다). 문자열이 필요하면 프롬프트에 형식을 지시한다.
+# 프롬프트 변수(값 자동 채움): raw_text(문서 본문), full_text, filename, mimetype, page_count,
+#    table_count, picture_count, section_headers. `prompt.variables` 에 정의한 변수도 쓸 수 있다.
+#    정의되지 않은 `{{변수}}` 는 기동이 실패한다(strict 기본, `prompt.mode` 로 완화).
+#    user 에는 보통 `{{raw_text}}` 를 넣는다. user 를 비우면 본문 자체가 user 로 전송된다.
+#    `{{filename}}` 은 모델이 읽는 참고값일 뿐이다 — 파일명에서 값을 뽑을 때는 `fields` 의
+#    `alias: [$file]` 을 쓴다(모델을 거치지 않아 결과가 일정하다).
+# system 을 생략하면 내장 기본 프롬프트("문서 정보추출 전문가다 …")가 쓰인다.
+# 프롬프트에는 값이 없을 때 null 을 내라는 지시와 함께, 비슷해 보이는 오답(상품명 속 괄호 숫자를
+# 상품코드로 읽는 것 등)을 막는 규칙을 적는다.
 llm:
 - out: [<TARGET_FIELD_1>, <TARGET_FIELD_2>]
 
   # ── 입력 페이지 범위 ─────────────────────────────────────────────────────
-  # 미지정(또는 null) → 문서 전체를 대상으로 한다.
-  # 앞쪽 몇 페이지만 보면 충분한 경우에만 지정한다(입력 토큰 절약).
+  # 미지정(또는 null) → 문서 전체. 앞쪽 몇 페이지만 보면 충분할 때만 지정한다(입력 토큰 절약).
   pages: null
 
   # ── 응답 파서 ────────────────────────────────────────────────────────────
@@ -194,24 +193,28 @@ llm:
     type: json
 
   # ── LLM 연결 ─────────────────────────────────────────────────────────────
-  # 접속 정보는 프로세서 설정 최상위 model_presets 에 모아 두고 여기서는 이름만 부른다.
-  # 이 항목만 다른 모델을 쓰려면 url/api_key/model 을 직접 적는다(직접 적은 값이 이긴다).
-  # url 또는 model 이 비어 있으면 실행 시 경고를 남기고 이 enricher 를 건너뛴다.
+  # 접속 정보는 프로세서 설정 최상위 model_presets 에 두고 여기서는 이름만 부른다.
+  # 이 항목만 다른 모델을 쓰려면 url/api_key/model 을 직접 적는다(직접 적은 값이 우선한다).
+  # url 또는 model 이 비면 LLM 호출만 건너뛰고(경고) front matter·파일명·const·default 값은 계속
+  # 만든다. 그런 값도 하나 없으면 이 설정 전체를 건너뛰어 out 필드가 결과에 생기지 않는다.
   endpoint:
     model_preset: default
 
   # ── 생성 파라미터 ────────────────────────────────────────────────────────
   # 생략 시 기본값: max_tokens 1000 / temperature 0.0 / timeout 60
-  # 문서 전체를 넣으면 입력이 길어지므로 max_tokens·timeout 을 넉넉히 잡는 편이 좋다.
-  # thinking / thinking_dialect 도 여기 쓴다(등록 블록이 우선, 없으면 이 값).
+  # 등록 블록에 같은 키를 적으면 등록 블록 값이 우선한다(기본값과 같은 값이어도 마찬가지다).
+  # 문서 전체를 넣으면 입력이 길어지므로 max_tokens·timeout 을 넉넉히 잡는다.
+  # thinking / thinking_dialect / top_p / seed / repetition_penalty / headers 도 여기 쓴다.
+  # 공급자 전용 값은 하위 `params:` 매핑에 적는다(위 이름 있는 값보다 우선한다).
   params:
     max_tokens: 4000
     temperature: 0.0
     timeout: 300
 
   prompt:
-    # system_file / user_file 로 프롬프트를 별도 md 로 뺄 수도 있다(이 yaml 과 같은 폴더 기준).
+    # system_file / user_file 로 프롬프트를 별도 md 로 뺄 수 있다(이 yaml 과 같은 폴더 기준).
     # 지정하면 인라인보다 우선한다. variables 로 사용자 변수를, mode 로 strict/lenient 를 정한다.
+    # 그 밖의 키는 기동이 실패한다.
     # variables: {<MY_VAR>: "<값>"}
     # mode: strict
     system: |
@@ -238,98 +241,76 @@ llm:
       {{raw_text}}
       </document>
 
-# ── [선택] 값을 LLM 이 아니라 고객 파이썬 함수로 만든다 ──────────────────────
-# 위 `llm` 블록 **대신** 쓴다(둘을 함께 쓰면 기동 시 실패한다 — 값을 만드는 주체는 하나다).
-# 등록 블록에서 `extractor` 를 생략했다면 이 블록만 쓰면 된다 — 그 값이 `python` 으로
-# 유도된다. 등록 블록에 `extractor: llm` 을 **적어 둔 경우에만** `python` 으로 바꿔야
-# 하고, 안 바꾸면 `extractor 'llm' 이 읽지 않는 키: file, callable` 로 기동이 실패한다
-# (설정에 적은 이름은 `python.file` 인데 메시지에는 `file` 만 나온다).
-# 파일명·수집일자 같은 패턴에서 규칙으로 뽑아낼 수 있는 값은 모델에 맡길 이유가 없다.
-# 만들어진 값은 위 `fields` 의 값 파이프라인(values·transform·template·pack)을 그대로 탄다.
-# kind: document 전용이다.
+# ── [필수: llm 또는 python 중 하나] 값을 고객 파이썬 함수로 만든다 ──────────
+# 위 `llm` 블록 **대신** 쓴다(둘을 함께 쓰면 기동이 실패한다). 규칙으로 뽑을 수 있는 값은
+# 모델에 맡길 이유가 없다. 만들어진 값은 `fields` 의 values·transform·template·pack 을 그대로
+# 거친다. 단 fields 의 alias(front matter·$file)는 이 모드에서 쓸 수 없다.
+# 등록 블록에 `extractor: llm` 을 적어 두었다면 `python` 으로 바꿔야 한다(그대로 두면
+# `extractor 'llm' 이 읽지 않는 키: file, callable` 로 기동이 실패한다).
 # python:
 #   file: custom_field_<유형>.py    # 이 yaml 과 같은 폴더 기준
 #   callable: extract               # 생략 시 기본 진입점 이름을 쓴다
-#   out: [<TARGET_FIELD_1>, <TARGET_FIELD_2>]   # 그 함수가 돌려주는 dict 의 키
+#   out: [<TARGET_FIELD_1>, <TARGET_FIELD_2>]   # 그 함수가 반환하는 dict 의 키
 
 # ── [선택] 표 설명(table_text_description)을 이 문서유형에서만 바꾼다 ────────
-# 프로세서 config 의 공통 `table_text_description` 값이 기본이며, 아래처럼 필요한 키만 쓰면
-# 이 문서유형에서만 덮어쓴다(rag 하위도 키 단위 병합). model/max_tokens/thinking 은 표 설명도
-# 이 custom_fields 호출의 값을 그대로 공유한다(별도 호출·별도 모델 없음).
-# **최상위 키**이며 kind 와 무관하다 — rows/records/sections 설정에도 똑같이 쓸 수 있다.
+# **최상위 키**이며 다른 kind 설정에도 같은 형식으로 쓴다. 프로세서 설정의 공통
+# `table_text_description` 이 기본이고, 여기 적은 키만 덮어쓴다(rag 하위도 키 단위 병합).
+# 켜고 끄기: `enable`(기본 false). 요청의 table_text_desc 값이 있으면 그것이 우선한다.
+# 표 설명에 자체 연결(model_preset 또는 url/model)이 있으면 별도 호출이 우선한다. 없으면 이
+# 문서유형의 llm 연결로 필드 추출과 함께 요청되며, 입력이 모델 한도를 넘으면 `overflow_policy` 에
+# 따른다 — batch(기본: 필드는 1회, 표는 묶음별 추가 호출) | skip(표 설명 생략) | error(경고 후 이
+# 문서의 LLM 필드를 비운다. 요청은 실패하지 않는다). 입력 예산은 model_context_tokens·
+# completion_reserved_tokens 로 조정한다.
 # table_text_description:
+#   enable: true
 #   prompt_template_file: prompt_table_text_description_rag.md
 #   input_format: auto
-#   before_items: 4
-#   after_items: 3
+#   before_items: 4                   # 표 앞 문맥 항목 수(기본 3)
+#   after_items: 3                    # 표 뒤 문맥 항목 수(기본 2)
+#   overflow_policy: batch
 #   rag:
 #     key_fact_limit: 5
 #     include_search_terms: true
 
 # ═══════════════════════════════════════════════════════════════════════════
-#  기동 시 자동 검사 — 무엇을 잡아주고 무엇을 못 잡나
+#  기동 시 자동 검사
 #
-#  실패시킨다(요청 전에 바로 안다)
-#   · **이 kind 가 읽지 않는 키를 적은 경우.** 어느 스키마에도 없는 키(오타)는 가장 가까운
-#     이름을 제안하고(`out` 을 `outs` 로 쓴 경우 등), 다른 kind 의 키는 어디 전용인지 알려준다.
-#     document 가 **읽지 않는** 대표 키는 아래와 같다(다른 템플릿에서 옮겨 적으면 안 된다).
-#       require · filter · body.fields · body.split
-#       source.records_at · source.merge_rows
-#       llm 항목의 in
-#   · 필드 스펙에 `collect`·`seq`·`raw` 를 쓴 경우 — 각각 records · rows/records ·
-#     JSON 원천 2종 전용이다(나머지 스펙은 이 kind 도 그대로 쓴다).
-#     `seq`·`raw` 는 내부 이름 `sequence`·`raw_fields` 로 보고된다
-#   · `transform` 의 변환기 이름이 틀렸거나 필수 인자가 빠진 경우, 안 되는 정규식
-#   · `template` 이 아무도 만들지 않는 필드를 참조하는 경우
-#   · 정의되지 않은 `{{변수}}` 를 프롬프트에 쓴 경우(strict 기본)
-#   · `llm` 과 `python` 을 함께 쓴 경우, 또는 `python.file` 을 빠뜨린 경우
+#  실패시킨다: 이 kind 가 읽지 않는 키(오타는 가까운 이름을 — `out` 을 `outs` 로 쓴 경우 등 —
+#  다른 kind 의 키는 어디 전용인지 알려준다), 모르는 변환기·잘못된 정규식, 아무도 만들지 않는
+#  필드를 가리키는 template, 정의되지 않은 `{{변수}}`(strict 기본), `prompt` 아래의 모르는 키,
+#  `llm` 과 `python` 을 함께 쓴 경우, `python.file` 누락, python 모드의 alias.
+#    document 가 읽지 않는 대표 키: require · filter · body.fields · body.split
+#                                   · 필드의 collect · seq · raw · llm 항목의 in
+#                                   · source.records_at · source.merge_rows
+#  경고만 남긴다: front matter 키를 찾지 못할 때, 파일명에서 값을 만들지 못할 때, `values` 에
+#  없는 값.
+#  못 잡는다: `out` 이름과 프롬프트의 JSON 키가 어긋나 값이 null 이 되는 경우, `parser` 등 다른
+#  중첩 블록 안쪽의 일부 오타, 목표필드명 규칙 위반, `source.pre.delimited` 를 적은 경우(무시된다).
 #
-#  경고만 남긴다(로그를 봐야 안다)
-#   · `alias` 의 front matter 키를 원천에서 못 찾을 때 — 그 필드가 빈 값으로 지나간다
-#   · `values` 에 없는 값이 들어올 때 — 원값을 그대로 두고 경고만 남긴다
-#
-#  못 잡는다(아래 "확인 방법"으로 직접 봐야 한다)
-#   · `out` 이름과 프롬프트의 JSON 키가 어긋나 값이 전부 null 이 되는 경우
-#   · `prompt`·`parser` 같은 **중첩 블록 안쪽**의 오타(최상위 키만 검사한다)
-#   · `source.pre.delimited` 를 이 kind 에 적은 경우 — records 전용이라 조용히 무시된다
-#
-#  오류 메시지는 설정에 적는 이름이 아니라 **내부 이름**으로 나온다
-#   (`body.repeat`→`chunk_prefix_fields`, `body.once`→`first_chunk_fields`,
-#    `values`→`value_map`, `require.fields`→`required`, `transform`→`transforms` …).
-#   못 보던 이름이 나오면 manual/parser_processor.md 의 매트릭스에서 되짚는다.
+#  오류 메시지는 내부 이름으로 나온다: llm.out→output_fields, alias→front_matter_map,
+#  alias [$file]→file_fields, body.repeat→chunk_prefix_fields, body.once→first_chunk_fields,
+#  body.mirror_to→body_fields, values→value_map, transform→transforms, template→derive,
+#  python.file→file.
 #
 # ═══════════════════════════════════════════════════════════════════════════
-#  확인 방법
+#  확인 방법 — 저장소 루트에서 실행한다. <resource 폴더> 에는 현장 설정 폴더 경로를 그대로 쓴다.
 #
-#  1) 설정만 검사 — 파싱·LLM 없이 yaml 만 읽는다.
-#       genon/preprocessor/tools/config_precheck/precheck_custom_fields.sh
+#  1) 설정 점검(LLM·파싱 없음). 스키마·지원 키·변환기 오류를 미리 보여 준다.
+#     template·pack 참조 등 일부 기동 검사는 하지 않으므로 통과해도 2) 를 실행한다.
+#       PYTHON=genon/preprocessor/.venv/bin/python genon/preprocessor/tools/config_precheck/precheck_custom_fields.sh <resource 폴더>
 #
-#  2) 프롬프트·출력필드가 제대로 실렸는지 검사한다(LLM 호출 없음).
-#     실행 위치: genon/preprocessor  (그 폴더의 .venv 로 돌린다)
-#       .venv/bin/python -c "
-#     import sys; sys.path.insert(0,'.'); sys.path.insert(0,'../..')
-#     from processing.enrichment.custom_fields_enricher import CustomFieldsEnricher as E
-#     e = E(config_file='custom_field_<유형>.yaml', resource_path='resource')
-#     print('연결 설정 :', e.is_configured, e._model, e._max_tokens, e._timeout)
-#     print('출력 필드 :', e._output_fields)
-#     print('{{raw_text}} 포함:', '{{raw_text}}' in e._user_prompt)
-#     missing = [f for f in e._output_fields
-#                if f not in e._system_prompt and f not in (e._constants or {})]
-#     print('프롬프트에 없는 출력필드:', missing or '없음')
-#     "
-#     → `프롬프트에 없는 출력필드` 가 비어 있어야 한다. 남아 있으면 그 필드는 null 로 나온다.
+#  2) 실제 원천으로 파싱·청킹(실제 LLM 을 호출한다). <출력폴더> 의 *.chunks.json 에서 각 청크의
+#     최상위 키로 목표필드가 실린다. `$file` 필드는 운영 파일명 규칙을 따른 샘플로 확인한다.
+#       genon/preprocessor/.venv/bin/python genon/preprocessor/tools/parse_chunk/parse_chunk_test.py --config <resource 폴더>/parser_processor_config.yaml \
+#         --chunker-config <resource 폴더>/chunking_processor_config.yaml --doc_type <유형> <샘플> <출력폴더>/
 #
-#  3) 등록된 사례 자동 검증 — 파싱·청킹까지 실행해 필드와 결과를 확인한다.
-#     신규 유형은 tools/parse_chunk/parse_chunk_verify.py 의 CASES 에
-#     (doc_type, 샘플 경로, 설명)을 추가하고 검증 설정 폴더(기본 genon/sites/monimo/resource)의 parser_processor_config.yaml 에
-#     해당 유형의 설정을 등록한다. --only 는 등록된 CASES 를 고르는 옵션이다.
-#     미등록 유형·검사 대상 0건·실행 결과 전부 SKIP 은 실패로 종료된다.
-#     PASS 건수와 SKIP 사유를 확인하고, 새 필드의 기대값 검증은 verify() 에 추가한다.
-#       genon/preprocessor/tools/parse_chunk/parse_chunk_verify.sh --only <유형>
+#  · 필드가 모두 null 이면 out 이름과 프롬프트의 JSON 키, 그리고 LLM 연결 경고를 먼저 본다.
+#  · 결과에 필드가 아예 없으면 요청 doc_type 과 등록 doc_type 이 일치하는지 본다.
+#  · 값 부재·비슷한 숫자·front matter 누락 같은 경계 입력도 샘플로 만들어 확인한다.
+#  · 저장소 회귀 검증: tools/parse_chunk/parse_chunk_verify.py 의 CASES 에 샘플을, EXTRA_CHECKS 에 새 필드
+#    기대값을 넣고 parse_chunk_verify.sh --resource-dir <resource 폴더> --only <유형> 으로 실행한다(SKIP 은 사유를 본다).
 #
-#  ── 알려진 주의사항 (현재 코드) ─────────────────────────────────────────────
-#  · `params.max_tokens: 1000` / `temperature: 0.0` / `timeout: 60` 처럼 **기본값과 같은 값**을
-#    등록 블록에 써도 이제는 등록 블록이 이긴다(예전에는 "미지정"과 구분되지 않아 이 파일의
-#    값이 이겼다).
-#  · `const` 가 LLM 응답을 이기는 규칙은 위 "[참고] 값 적용 순서" 에 적혀 있다.
+#  배포 — 사이트 전용 유형은 그 사이트 manifest.yaml 의 `owned:` 에 이 파일과, 등록을 넣은
+#  parser_processor_config.yaml 을 함께 올린다. owned 가 아닌 파일은 build-script/sync-sites.sh 가 표준
+#  사본으로 덮어쓰거나 지운다. 표준 유형도 파서 설정을 owned 로 둔 사이트에는 그 파일에 따로 등록한다.
 # ═══════════════════════════════════════════════════════════════════════════
