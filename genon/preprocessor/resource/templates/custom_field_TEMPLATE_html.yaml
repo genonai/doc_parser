@@ -218,8 +218,10 @@ fields:
 #         --chunker-config <resource 폴더>/chunking_processor_config.yaml --doc_type <유형> <샘플> <출력폴더>/
 #
 #  · 결과에 필드가 아예 없으면 요청 doc_type 과 등록 doc_type 이 일치하는지 본다.
-#  · 저장소 회귀 검증: tools/parse_chunk/parse_chunk_verify.py 의 CASES 에 샘플을, EXTRA_CHECKS 에 새 필드
-#    기대값을 넣고 parse_chunk_verify.sh --resource-dir <resource 폴더> --only <유형> 으로 실행한다(SKIP 은 사유를 본다).
+#  · 저장소 회귀 검증: genon/preprocessor/tools/parse_chunk/parse_chunk_verify.py 의 CASES 에 샘플을,
+#    EXTRA_CHECKS 에 새 필드 기대값을 넣고 genon/preprocessor/tools/parse_chunk/parse_chunk_verify.sh
+#    --resource-dir <resource 폴더> --only <유형> 으로 실행한다(SKIP 은 사유를 본다). 스크립트가 자기 폴더로
+#    이동한 뒤 실행되므로 --resource-dir 에는 절대 경로를 준다.
 #
 #  배포 — 사이트 전용 유형은 그 사이트 manifest.yaml 의 `owned:` 에 이 파일과, 등록을 넣은
 #  parser_processor_config.yaml 을 함께 올린다. owned 가 아닌 파일은 build-script/sync-sites.sh 가 표준
