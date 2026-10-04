@@ -21,6 +21,8 @@
    config 의 `model_presets` 에 없는 경우. 자식 custom_field yaml 의 참조도 함께 본다.
 5. **기동 시 컴파일에서 막히는 transform** — 없는 변환기·쓸 수 없는 인자(오타 포함)·
    잘못된 정규식·체인 중간의 `to_json`. 기동과 같은 `compile_transforms` 를 실행한다.
+   매퍼·enricher 생성자가 이어서 실행하는 검증도 같은 함수로 실행한다 — template·pack 의
+   참조 필드, 본문에 넣은 pack 필드, html 선택자 문법, 목표필드명 규칙(`check_startup_compile`).
 6. **파서·청커의 표 형식 불일치** — 같은 폴더의 두 설정에서 `output.table_format` 이 다른
    경우(경고). 레코드형 문서는 파서 값, 일반 문서는 청커 값으로 표가 나가 모양이 갈린다.
 
@@ -46,8 +48,13 @@ from genon.preprocessor.processing.common import config_parse as cp  # noqa: E40
 from genon.preprocessor.processing.common import model_preset as mp  # noqa: E402
 from genon.preprocessor.processing.enrichment import config_schema as cs  # noqa: E402
 from genon.preprocessor.processing.enrichment import config_v2 as cv2  # noqa: E402
+from genon.preprocessor.processing.enrichment import html_select  # noqa: E402
 from genon.preprocessor.processing.enrichment.tabular_custom_fields import (  # noqa: E402
+    compile_derive,
+    compile_meta_exclude,
+    compile_pack,
     compile_transforms,
+    validate_custom_field_config,
 )
 
 # 이번 정리에서 없앤 키 → 대신 쓸 것.
@@ -225,7 +232,36 @@ def check_block(
     except ValueError as exc:
         problems.append(f"[기동실패] {exc}")
 
+    problems.extend(check_startup_compile(label, cfg, extractor))
+
     problems.extend(check_body_label_change(label, cfg))
+    return problems
+
+
+# 생성자에서 `validate_custom_field_config` 를 부르는 extractor. llm·python·html_select 는
+# enricher 가 맡고 이 검증을 부르지 않으므로, 여기서 부르면 기동은 뜨는 설정을 막는 오탐이 된다.
+_VALIDATED_EXTRACTORS = {"tabular_mapping", "json_mapping", "json_semantic"}
+
+
+def check_startup_compile(label: str, cfg: dict, extractor: str) -> list[str]:
+    """매퍼·enricher 생성자가 기동 시 실행하는 검증을 같은 함수, 같은 조건으로 실행한다.
+
+    키 대조와 transform 컴파일만 보면 template 의 없는 참조 필드, 본문에 넣은 pack 필드,
+    html 선택자 문법 오류, 목표필드명 규칙 위반은 통과한다. 그런데 기동은 여기서 실패하므로
+    점검과 기동의 판정이 갈린다. 규칙을 다시 구현하지 않고 기동의 함수를 그대로 부른다.
+    """
+    checks = [compile_derive, compile_pack, compile_meta_exclude]
+    if extractor in _VALIDATED_EXTRACTORS:
+        checks.insert(0, lambda c, *, label: validate_custom_field_config(
+            c, label=label, extractor=extractor))
+    if extractor == "html_select":
+        checks.append(html_select.compile_selectors)
+    problems: list[str] = []
+    for check in checks:
+        try:
+            check(cfg, label=label)
+        except ValueError as exc:
+            problems.append(f"[기동실패] {exc}")
     return problems
 
 

@@ -263,7 +263,7 @@ fields:
 #  확인 방법 — 저장소 루트에서 실행한다. <resource 폴더> 에는 현장 설정 폴더 경로를 그대로 쓴다.
 #
 #  1) 설정 점검(파싱·LLM 없음). 스키마·지원 키·변환기 오류를 미리 보여 준다.
-#     template·pack 참조 등 일부 기동 검사는 하지 않으므로 통과해도 2) 를 실행한다.
+#     기동 시 설정 검사도 같은 함수로 실행한다. 값이 맞게 나오는지는 보지 않으므로 2) 도 실행한다.
 #       PYTHON=genon/preprocessor/.venv/bin/python genon/preprocessor/tools/config_precheck/precheck_custom_fields.sh <resource 폴더>
 #
 #  2) 실제 원천으로 파싱·청킹. <출력폴더> 의 *.chunks.json 에서 각 청크의 최상위 키로 공통 필드와

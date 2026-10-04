@@ -106,6 +106,13 @@ def test_precheck_passes_on_shipped_resource():
         # transform 은 키 대조가 아니라 컴파일 단계에서 걸린다
         (lambda c: c["fields"]["Q"].update({"transform": {"name": "hash", "lenght": 8}}),
          "쓸 수 없는 인자"),
+        # 생성자 검증 — 키 대조·transform 컴파일은 통과하지만 기동은 실패한다(#457)
+        (lambda c: c["fields"].update({"T": {"template": "{{Q}} {{QQ}}"}}), "참조하는"),
+        (lambda c: (c["fields"].update({"P": {"pack": ["Q"]}}), c["body"]["fields"].append("P")),
+         "pack 필드"),
+        (lambda c: c["fields"].update({"title": {"alias": ["제목"]}}), "예약 필드"),
+        (lambda c: (c.update({"source": {"kind": "html"}, "fields": {"Q": {"select": "p >>"}}}),
+                    c.pop("body")), "선택자를 해석할 수 없습니다"),
     ],
 )
 def test_precheck_detects_blocking_problems(tmp_path, mutate, expect):
@@ -116,8 +123,8 @@ def test_precheck_detects_blocking_problems(tmp_path, mutate, expect):
     (tmp_path / "custom_field_x.yaml").write_text(
         yaml.safe_dump(cfg, allow_unicode=True), encoding="utf-8"
     )
-    block = {"doc_type": "t", "extractor": "tabular_mapping",
-             "config_file": "custom_field_x.yaml"}
+    # extractor 는 기동처럼 source.kind 에서 유도한다(rows → tabular_mapping, html → html_select).
+    block = {"doc_type": "t", "config_file": "custom_field_x.yaml"}
     problems = precheck.check_block("cfg.yaml", block, tmp_path, set())
     assert any(expect in p and p.startswith("[기동실패]") for p in problems), problems
 
