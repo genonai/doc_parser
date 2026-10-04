@@ -1,5 +1,6 @@
 """json_text — JSON 안의 본문 텍스트 추출/병합 단위 테스트."""
 import json
+import re
 
 import pytest
 
@@ -154,6 +155,20 @@ def test_build_merged_html_honors_forced_format():
     """format: markdown 강제 시 html 처럼 보이는 값도 markdown 으로 처리된다."""
     out = build_merged_html([("x", "## 제목")], "문서", forced_format="markdown")
     assert "<h2>제목</h2>" in out
+
+
+@pytest.mark.parametrize("payload, headings", [
+    # 항목 1개 + 자동 라벨: `content#1` 이 청크 HEADER·본문 잡음이 되므로 <h2> 를 만들지 않는다.
+    ({"content": "<p>본문</p>"}, []),
+    # 형제 제목이 있으면 의미 있는 라벨이므로 그대로 둔다.
+    ({"title": "공지", "content": "<p>본문</p>"}, ["공지"]),
+    # 항목이 여럿이면 자동 라벨도 섹션 구분으로 유지한다.
+    ([{"content": "<p>A</p>"}, {"content": "<p>B</p>"}], ["content#1", "content#2"]),
+])
+def test_single_item_auto_label_has_no_heading(payload, headings):
+    spec = JsonTextSpec({"text_fields": ["content"]})
+    out = json_payload_to_html(payload, spec, "문서")
+    assert re.findall(r"<h2>(.*?)</h2>", out) == headings
 
 
 # ── missing_policy ──────────────────────────────────────────────────────────
