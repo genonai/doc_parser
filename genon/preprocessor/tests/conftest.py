@@ -4,6 +4,7 @@ pytest에서 자동 로드되는 공통 설정 파일.
 """
 
 import os
+import shutil
 import sys
 from pathlib import Path
 import pytest
@@ -18,6 +19,25 @@ _REPO_ROOT = Path(__file__).resolve().parents[3]  # repo root
 for _p in (_PREPROC, _REPO_ROOT):
     if str(_p) not in sys.path:
         sys.path.insert(0, str(_p))
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _remove_sample_outputs():
+    """세션 동안 sample_files/ 최상위에 새로 생긴 산출물을 세션 종료 시 지운다(이슈 #460).
+
+    변환기는 운영 동작상 입력 파일 옆에 결과(PDF, 이미지 폴더)를 쓴다. 테스트가 sample_files 의
+    원본 경로를 그대로 넘기므로 작업 트리에 산출물이 남고, 다음 실행의 같은 stem 판정에 걸려
+    skip 수가 달라진다. 세션 시작 전부터 있던 항목은 지우지 않는다.
+    pytest-xdist(-n)로 실행하면 워커마다 세션 종료가 따로 일어나 다른 워커의 산출물을 지울 수 있다.
+    """
+    sample_dir = _PREPROC / "sample_files"
+    before = set(sample_dir.iterdir())
+    yield
+    for p in set(sample_dir.iterdir()) - before:
+        if p.is_dir() and not p.is_symlink():
+            shutil.rmtree(p, ignore_errors=True)
+        else:
+            p.unlink(missing_ok=True)
 
 
 # 프로젝트 루트 경로 반환
