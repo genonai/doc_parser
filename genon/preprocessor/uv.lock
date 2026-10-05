@@ -1164,6 +1164,7 @@ dependencies = [
     { name = "uvicorn" },
     { name = "wand" },
     { name = "watchfiles" },
+    { name = "wcwidth" },
     { name = "weasyprint" },
 ]
 
@@ -1244,6 +1245,7 @@ requires-dist = [
     { name = "uvicorn", specifier = "==0.21.1" },
     { name = "wand" },
     { name = "watchfiles", specifier = "==1.1.0" },
+    { name = "wcwidth", specifier = ">=0.2.14,<0.3" },
     { name = "weasyprint", specifier = "==68.1" },
 ]
 
