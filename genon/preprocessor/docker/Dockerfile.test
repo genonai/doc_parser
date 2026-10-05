@@ -1,0 +1,128 @@
+# syntax=docker/dockerfile:1.7
+#
+# 전처리기 테스트(unit + smoke + regression)를 리눅스 컨테이너에서 실행하기 위한 경량 이미지.
+# 운영 이미지(Dockerfile.standard)가 아니며 배포하지 않는다.
+#
+# 이미지에는 시스템 패키지와 의존성 venv 만 담는다. 나머지는 실행 시점에 붙인다.
+#   - 저장소 소스  : /repo 로 bind mount 한다. 코드를 고쳐도 이미지를 다시 빌드하지 않는다.
+#                    docling 도 설치하지 않고 PYTHONPATH 의 /repo 에서 읽는다(CI 와 같은 해석 순서).
+#   - 모델·데이터  : HF 캐시, NLTK 데이터, HWP SDK 는 /cache named volume 에 처음 한 번만 받는다.
+# 빌드·실행 절차는 tools/docker_test/run_tests_in_docker.sh 에 있다.
+#
+# LibreOffice 스택(패키지, Java, H2Orestart 확장)은 운영 이미지(Dockerfile.standard,
+#   code-serving-doc-parser/Dockerfile)와 같게 둔다. 그래야 HWP → PDF 의 libreoffice 경로가 운영과 같게 검증된다.
+# 운영 이미지 대비 제외한 것: rhwp, ffmpeg, imagemagick 본체, 대형 CJK 폰트, supervisor/sudo,
+#   오프라인 모델 레이어.
+
+ARG PY_VER=3.12
+ARG DEBIAN_DIST=trixie
+ARG UV_VERSION=0.8.0
+ARG H2ORESTART_URL="https://github.com/ebandal/H2Orestart/releases/latest/download/H2Orestart.oxt"
+
+FROM ghcr.io/astral-sh/uv:${UV_VERSION} AS uv_bin
+
+############################
+# 1) Builder: venv 만 만든다
+############################
+FROM python:${PY_VER}-slim-${DEBIAN_DIST} AS builder
+ARG TORCH_CPU_INDEX_URL=https://download.pytorch.org/whl/cpu
+COPY --from=uv_bin /uv /bin/
+ENV UV_PROJECT_ENVIRONMENT=/opt/venv \
+    UV_PYTHON=/usr/local/bin/python \
+    UV_LINK_MODE=copy \
+    UV_COMPILE_BYTECODE=0
+
+# docling 은 uv.lock 에서 경로 의존(../..)이라 루트 pyproject.toml 만 함께 둔다. 소스는 복사하지 않는다.
+COPY pyproject.toml /src/pyproject.toml
+COPY genon/preprocessor/pyproject.toml genon/preprocessor/uv.lock /src/genon/preprocessor/
+WORKDIR /src/genon/preprocessor
+
+# 설치 제외 목록은 uv.lock 에서 뽑는다(하드코딩 금지 사유는 Dockerfile.standard 의 같은 단계 참조).
+#   - torch/torchvision         : 다음 단계에서 CPU 휠로 설치한다.
+#   - nvidia-*/triton/cuda-*    : CUDA 휠의 전이 의존(약 4GB).
+#   - opencv-python             : opencv-python-headless 와 같은 cv2 를 제공하는 중복(약 116MB).
+#                                 처음부터 설치하지 않으므로 지우고 다시 까는 과정이 필요 없다.
+RUN --mount=type=cache,target=/root/.cache/uv \
+    set -eu; \
+    EXCL=$(grep -oE '^name = "(nvidia-[A-Za-z0-9._-]*|triton|cuda-bindings|cuda-pathfinder|opencv-python)"$' uv.lock \
+           | sed 's/^name = "//; s/"$//; s/^/--no-install-package /' | tr '\n' ' '); \
+    echo "[INFO] 설치 제외: docling torch torchvision ${EXCL}"; \
+    uv sync --frozen --no-dev --no-install-project \
+      --no-install-package docling --no-install-package torch --no-install-package torchvision ${EXCL}
+
+# CPU torch 와 테스트 도구. 버전은 uv.lock 에서 읽는다(`uv pip install` 은 lock 을 보지 않는다).
+# dev 그룹 전체(mypy, ipykernel, debugpy 등)는 설치하지 않고 테스트가 import 하는 것만 넣는다.
+RUN --mount=type=cache,target=/root/.cache/uv \
+    set -eu; \
+    v() { grep -A1 "^name = \"$1\"$" uv.lock | awk -F'"' '/^version/{print $2}'; }; \
+    uv pip install --python /opt/venv/bin/python --index-url "${TORCH_CPU_INDEX_URL}" \
+      "torch==$(v torch)" "torchvision==$(v torchvision)"; \
+    uv pip install --python /opt/venv/bin/python \
+      "pytest==$(v pytest)" "pytest-asyncio==$(v pytest-asyncio)" "apted==$(v apted)"; \
+    if uv pip list --python /opt/venv/bin/python --format=freeze \
+         | grep -iE '^(nvidia|triton|cuda-bindings|cuda-pathfinder|opencv-python)=='; then \
+      echo "[ERROR] CUDA 패키지 또는 opencv-python 이 설치되었다"; exit 1; \
+    fi
+
+# 런타임에 쓰이지 않는 자산을 지운다. `testing` 디렉터리는 import 경로라 남긴다(numpy.testing 등).
+RUN rm -rf /opt/venv/lib/python3*/site-packages/torch/test \
+           /opt/venv/lib/python3*/site-packages/torch/include && \
+    find /opt/venv/lib/python3*/site-packages -type d \( -name tests -o -name test \) -prune -exec rm -rf {} +
+
+############################
+# 2) Runtime
+############################
+FROM python:${PY_VER}-slim-${DEBIAN_DIST} AS runtime
+ARG H2ORESTART_URL
+# BuildKit 이 넣는 대상 아키텍처(amd64|arm64). Debian 의 JVM 디렉터리 이름과 같다.
+ARG TARGETARCH
+# 패키지 선정 기준
+#   libreoffice ~ ca-certificates-java : 운영 이미지와 같은 목록이다. Java 는 H2Orestart(HWP 읽기 확장)가 쓴다.
+#   poppler-utils                     : pdf2image
+#   tesseract-ocr, tesseract-ocr-kor  : 이미지 OCR(eng 는 tesseract-ocr 의 의존으로 들어온다)
+#   libmagic1                         : python-magic
+#   libpango*, libcairo2              : weasyprint
+#   libmagickwand-7.q16-10            : wand(docling HWP/DOCX 백엔드가 import 한다). imagemagick CLI 는 불필요하다.
+#   fonts-nanum                       : 한글 글리프. fonts-noto-cjk(약 90MB)보다 작다.
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
+    rm -f /etc/apt/apt.conf.d/docker-clean && \
+    apt-get update && \
+    apt-get install -y --no-install-recommends \
+      libreoffice libreoffice-java-common libreoffice-writer libreoffice-impress libreoffice-l10n-ko \
+      openjdk-21-jre-headless ca-certificates-java \
+      poppler-utils \
+      tesseract-ocr tesseract-ocr-kor \
+      libmagic1 \
+      libpango-1.0-0 libpangocairo-1.0-0 libcairo2 \
+      libmagickwand-7.q16-10 \
+      fonts-nanum
+
+# H2Orestart 확장. 운영 이미지와 같은 위치에 풀고 첫 기동으로 등록한다.
+# unzip 패키지 대신 python 의 zipfile 로 푼다(설치 패키지를 늘리지 않기 위함).
+ADD ${H2ORESTART_URL} /tmp/H2Orestart.oxt
+RUN python -m zipfile -e /tmp/H2Orestart.oxt /usr/lib/libreoffice/share/extensions/h2orestart && \
+    rm /tmp/H2Orestart.oxt && \
+    HOME=/tmp/soffice-init soffice --headless --nologo --nodefault --nofirststartwizard --terminate_after_init && \
+    rm -rf /tmp/soffice-init
+
+COPY --from=builder /opt/venv /opt/venv
+
+ENV PATH=/opt/venv/bin:${PATH} \
+    VIRTUAL_ENV=/opt/venv \
+    PYTHONPATH=/repo:/repo/genon/preprocessor \
+    PYTHONDONTWRITEBYTECODE=1 \
+    LANG=C.UTF-8 \
+    HOME=/tmp/home \
+    JAVA_HOME=/usr/lib/jvm/java-21-openjdk-${TARGETARCH} \
+    HF_HOME=/cache/huggingface \
+    NLTK_DATA=/cache/nltk_data \
+    HWP_SDK_DIR=/cache/hwp_sdk \
+    DO_NOT_TRACK=true
+
+# 이미지 자체가 깨지지 않았는지 확인한다(docling 은 /repo 가 없어 여기서는 import 하지 않는다).
+RUN python -c "import numpy.testing, torch, torchvision, cv2, magic, wand.image, weasyprint, unstructured.partition.image, pytest, pytest_asyncio, apted, wcwidth; print('[INFO] import ok: torch', torch.__version__, 'cuda', torch.version.cuda)" && \
+    soffice --version && tesseract --list-langs
+
+WORKDIR /repo/genon/preprocessor
+ENTRYPOINT ["bash", "/repo/genon/preprocessor/tools/docker_test/container_entry.sh"]
