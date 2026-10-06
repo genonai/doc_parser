@@ -26,7 +26,7 @@ from pathlib import Path
 OUT = Path(__file__).resolve().parents[2] / "sample_files" / "monimo" / "monimo_stock_insight_sample.txt"
 
 # 필드 구분자. custom_field_stock_insight.yaml 의 separator 와 같아야 한다.
-SEPARATOR = "\x1f|"
+SEPARATOR = "\x0f|"
 
 # 가상 데이터. 실 원천과 같은 키 구성이고 값 안에 <BR>/<strong> 을 섞는다.
 # 분량도 실 원천에 맞춘다 — 종목당 detail_desc 가 3,000자를 넘어야 chunk_size 1500 에서

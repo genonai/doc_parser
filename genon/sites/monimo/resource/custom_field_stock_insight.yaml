@@ -20,8 +20,8 @@ source:
   kind: records
   pre:
     delimited:
-      # 메모장으로 열면 `□|` 로 보이는 두 글자다. □ 는 제어문자 0x1F(Unit Separator)다.
-      separator: "\x1f|"
+      # 메모장으로 열면 `□|` 로 보이는 두 글자다. □ 는 제어문자 0x0F(SI, Shift In)다.
+      separator: "\x0f|"
       # 순서가 곧 원천의 필드 순서다. 이름은 이전 xlsx 헤더와 같게 두어 아래 alias 를 그대로 쓴다.
       columns: [jong_name, jong_code, regt_no, ntc_objline, detail_desc,
                 news_date, md_stck_itm_c, kosc_stck_itm_c, nat_c]
