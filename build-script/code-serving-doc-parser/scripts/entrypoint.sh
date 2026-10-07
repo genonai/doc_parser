@@ -6,6 +6,8 @@
 #     1) /app/src/service/main.py 가 있으면 uvicorn main:app 실행
 #     2) 그 외 fallback — 기존 디폴트(gunicorn src.main:app)
 # PORT 는 admin-api에서 8080으로 주입됨.
+# uvicorn 워커 수는 WEB_CONCURRENCY(기본 5)로 정한다. 워커마다 facade 전체가 따로 메모리에
+# 올라가므로, 메모리가 부족한 인스턴스 유형에서는 리비전 환경변수로 값을 낮춘다.
 set -eu
 
 # commit hash 별 marker — 새 commit 으로 재배포 시 init.sh 자동 재실행.
@@ -34,8 +36,8 @@ fi
 
 # 디폴트 — main.py 자동 감지 (사용자가 START_COMMAND 안 채워도 동작)
 if [ -f "main.py" ]; then
-  echo "[entrypoint] Default: uvicorn main:app on port ${PORT:-8080}"
-  exec uvicorn main:app --host 0.0.0.0 --port "${PORT:-8080}"
+  echo "[entrypoint] Default: uvicorn main:app on port ${PORT:-8080} (workers=${WEB_CONCURRENCY:-5})"
+  exec uvicorn main:app --host 0.0.0.0 --port "${PORT:-8080}" --workers "${WEB_CONCURRENCY:-5}"
 fi
 
 if [ -f "src/main.py" ]; then

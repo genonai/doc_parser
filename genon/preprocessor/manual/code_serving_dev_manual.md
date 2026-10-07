@@ -95,8 +95,11 @@ supervisord → entrypoint.sh
    │     ├─ git checkout <COMMIT_HASH>
    │     └─ requirements.txt가 있으면 pip install (이미지 가상환경 /app/.venv에 그대로)
    ▼
-cd /app/src/service && uvicorn main:app --host 0.0.0.0 --port ${PORT:-8080}
+cd /app/src/service && uvicorn main:app --host 0.0.0.0 --port ${PORT:-8080} --workers ${WEB_CONCURRENCY:-5}
 ```
+
+워커는 기본 5개로 실행되며, 워커마다 전처리기 전체가 따로 메모리에 올라갑니다. 인스턴스 유형의
+메모리가 부족하면 리비전 환경변수 `WEB_CONCURRENCY` 로 워커 수를 낮추세요.
 
 짚어 둘 점이 세 가지입니다.
 
