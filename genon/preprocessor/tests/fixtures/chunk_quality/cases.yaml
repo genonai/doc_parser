@@ -15,7 +15,7 @@
 #                {distinct: N}                   서로 다른 한글 음절 N자(가, 각, 갂 …)
 #   expect     keep | blank | no_content | broken_chars | repetition | min_chars
 #
-# 판정 설정은 모듈 기본값(chunk_validation_plan.md 3.6 실측값)이다.
+# 판정 설정은 모듈 기본값(manual/chunking_processor.md "판정 기준의 근거")이다.
 
 cases:
   # --- 오류 샘플: 전부 제외돼야 한다 ---
@@ -37,6 +37,9 @@ cases:
   - {id: E12, text: [{repeat: "GLYPH<c=1,font=/B>", times: 3}], expect: broken_chars}
   - {id: E13, kind: text, text: [{repeat: "\x01", times: 50}, "가"], expect: broken_chars}
   - {id: E14, text: [{repeat: "오류오류오류", times: 40}], expect: repetition}
+  # 잘못된 인코딩으로 바뀐 한글(U+FFFD 없음). CP949 재해석 패턴과 UTF-8 을 cp1252 로 읽은 형태.
+  - {id: E15, text: "占쏙옙占쏙옙 占쏙옙 안내", expect: broken_chars}
+  - {id: E16, text: "ë³´í—˜ê¸ˆ ì§€ê¸‰ ì•ˆë‚´", expect: broken_chars}
 
   # --- 정상 샘플: 전부 보존돼야 한다 ---
   - {id: N01, text: "本契約は、会員がサービスを利用する際の条件を定めるものです。", expect: keep}
@@ -96,6 +99,42 @@ cases:
       - "| 19 | 119 |\n| 20 | 120 |\n| 21 | 121 |\n| 22 | 122 |\n| 23 | 123 |\n| 24 | 124 |\n"
       - "| 25 | 125 |\n| 26 | 126 |\n| 27 | 127 |\n| 28 | 128 |\n| 29 | 129 |\n| 30 | 130 |"
     expect: keep
+  # 병합 셀(colspan) 머리글 값이 열마다 복사된 통계표. 반복은 표 밖에서만 센다.
+  - id: N18
+    text:
+      - "[표 검색 설명]\n2018년 월별 물가상승률 표.\n"
+      - {repeat: "| (전년 대비, %) ", times: 12}
+      - "|\n"
+      - {repeat: "| --- ", times: 12}
+      - "|\n| 4.1 | 4.1 | 4.1 | 3.9 | 3.8 | 4.0 | 3.9 | 3.9 | 3.7 | 3.6 | 3.5 | 3.4 |\n"
+    expect: keep
+  - id: N19
+    text:
+      - "<table><tr>"
+      - {repeat: "<th>(전년 대비, %)</th>", times: 12}
+      - "</tr><tr><td>4.1</td><td>3.9</td><td>3.7</td></tr></table>"
+    expect: keep
+  # 표를 행 문장으로 풀어 쓴 `[표 행 요약]` 블록에 병합 머리글이 복사된 경우.
+  - id: N20
+    text:
+      - "| 구분 | 값 |\n| --- | --- |\n| 2018 | 4.1 |\n[표 행 요약]\n"
+      - {repeat: "[표 3] 혼인 연령별 비중 (단위: %)=100.0\n", times: 12}
+    expect: keep
+  # 정상 문단 뒤의 체크 목록. 실제 중복은 22% 인데 줄·문구 지표를 겹쳐 세면 56% 로 걸렸다.
+  - id: N21
+    text:
+      - "제1조(목적) 이 약관은 회사와 계약자 사이의 보험계약에 관한 권리와 의무를 정하는 것을 목적으로 합니다. "
+      - "보험금 청구 시 필요한 서류와 절차는 아래 체크리스트를 확인하시기 바랍니다.\n"
+      - "제2조(용어) 이 약관에서 사용하는 용어의 뜻은 회사와 계약자 사이의 보험계약에 관한 사항을 따릅니다. "
+      - "보험금 청구 시 필요한 서류와 절차는 아래 체크리스트를 확인하시기 바랍니다.\n"
+      - {repeat: "□ 해당 없음\n", times: 10}
+    expect: keep
+  # 숫자 연속은 반복으로 세지 않는다(금액·계좌 번호).
+  - {id: N22, text: "보험금 10000000000원", expect: keep}
+  # 비교식의 꺾쇠는 HTML 태그가 아니다.
+  - {id: N24, kind: text, text: "0 < 금리 < 5%이고 신용등급 > 3", expect: keep}
+  # 정상 한자 占(점)은 깨진 글자 패턴이 아니다.
+  - {id: N25, text: "민법 제192조 占有權은 물건을 사실상 지배하는 자가 가진다", expect: keep}
 
   # --- 경계 샘플: 임계값 바로 아래·같음·바로 위 ---
   # 내용 문자 하한 4자(min_chars: 내용 문자 수 < 하한 이면 제외)

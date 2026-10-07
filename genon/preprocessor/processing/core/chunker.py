@@ -506,7 +506,10 @@ class ChunkerCore:
         ]
         # 이상 청크 검증(꺼져 있으면 None). 걸린 청크는 여기서 내주지 않으므로 첫 청크 전용
         # 접두는 살아남은 첫 청크가 받는다.
-        validation = notes["validation"] = cq.start(self, job, notes["marker_vectors"])
+        validation = notes["validation"] = cq.start(
+            self, job, notes["marker_vectors"],
+            display=lambda text: self.clean_text(job, gr.apply_to_text(
+                text, notes["sensitive_infos"], notes["masking"])[0]))
         for chunk_idx, chunk in enumerate(chunks):
             if chunk.kind == "marker":
                 continue
@@ -1309,6 +1312,12 @@ class ChunkerCore:
                 if len(kept) != len(vector_metas):
                     vm.refresh_stats(kept)
                 vector_metas = kept
+            # 판정 결과는 요청 상태에 남기고 진입점이 성공 응답에 싣는다. 요청 단위 값이라
+            # 프로세서 속성에 두지 않는다. 같은 request 로 다시 청킹해도 앞 결과가 남지 않게
+            # 걸린 것이 없을 때도 덮어쓴다.
+            state = getattr(getattr(job, "request", None), "state", None)
+            if state is not None:
+                state.chunk_validation = validation.summary() if validation is not None else None
             return vector_metas
         finally:
             self._finish_chunk_job(job)

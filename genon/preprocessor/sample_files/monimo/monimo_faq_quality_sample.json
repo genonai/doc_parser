@@ -1,0 +1,101 @@
+{
+  "_note": "doc_type=faq 청크 검증 샘플(생성). monimo_faq_json_sample.json 에 불량·대조군 레코드를 덧붙였다. ca01_90~92 는 기본 기준에서 빠지고 나머지는 남는다.",
+  "faqMenuList": [
+    {
+      "depth1": "더보기",
+      "depth2": "FAQ",
+      "depth3": "앱 이용",
+      "depth4": "설정한 홈 화면을 변경하고 싶어요.",
+      "id": "ca01_1",
+      "app_route": "더보기>고객센터>앱 이용",
+      "url": "/fcm/common/faq/ca01/1492147_1415.json",
+      "description": "세 가지의 홈 유형(생활 금융형, 데일리 투자형, 일상 혜택형) 중 이용 패턴에 맞는 유형을 선택할 수 있습니다. 홈화면 최하단 '큐레이션 홈 설정' 또는 '전체 메뉴>설정>화면 관리>큐레이션 홈 설정'에서 변경합니다.",
+      "corp_code": "IFP",
+      "logo": "IFP"
+    },
+    {
+      "depth1": "더보기",
+      "depth2": "FAQ",
+      "depth3": "카드",
+      "depth4": "SFC 삼성카드는 어떻게 신청하나요?",
+      "id": "ca01_2",
+      "app_route": "더보기>고객센터>카드",
+      "url": "/fcm/common/faq/ca01/1491815_1415.json",
+      "description": "전체메뉴 > 카드 > 카드안내/신청 > SFC카드에서 신청할 수 있습니다. 신청 후 심사 결과는 영업일 기준 2일 내에 안내됩니다.",
+      "corp_code": "HPP",
+      "logo": "HPP"
+    },
+    {
+      "depth1": "더보기",
+      "depth2": "FAQ",
+      "depth3": "카드",
+      "depth4": "해외 결제 수수료는 얼마인가요?",
+      "id": "ca01_90",
+      "app_route": "더보기>고객센터>카드",
+      "url": "/fcm/common/faq/ca01/ca01_90.json",
+      "description": "�� ���� �� ���� �� ���� �� ���� �� ���� �� ���� �� ���� �� ���� �� ���� �� ���� �� ���� �� ���� �� ���� �� ���� �� ���� ",
+      "corp_code": "HPP",
+      "logo": "HPP"
+    },
+    {
+      "depth1": "더보기",
+      "depth2": "FAQ",
+      "depth3": "카드",
+      "depth4": "카드 이용한도는 어떻게 올리나요?",
+      "id": "ca01_91",
+      "app_route": "더보기>고객센터>카드",
+      "url": "/fcm/common/faq/ca01/ca01_91.json",
+      "description": "GLYPH<c=3,font=/AAAAAB+HYGothic-Medium>GLYPH<c=3,font=/AAAAAB+HYGothic-Medium>GLYPH<c=3,font=/AAAAAB+HYGothic-Medium>GLYPH<c=3,font=/AAAAAB+HYGothic-Medium>GLYPH<c=3,font=/AAAAAB+HYGothic-Medium>GLYPH<c=3,font=/AAAAAB+HYGothic-Medium>GLYPH<c=3,font=/AAAAAB+HYGothic-Medium>GLYPH<c=3,font=/AAAAAB+HYGothic-Medium>GLYPH<c=3,font=/AAAAAB+HYGothic-Medium>GLYPH<c=3,font=/AAAAAB+HYGothic-Medium>GLYPH<c=3,font=/AAAAAB+HYGothic-Medium>GLYPH<c=3,font=/AAAAAB+HYGothic-Medium>",
+      "corp_code": "HPP",
+      "logo": "HPP"
+    },
+    {
+      "depth1": "더보기",
+      "depth2": "FAQ",
+      "depth3": "카드",
+      "depth4": "포인트 전환은 어디서 하나요?",
+      "id": "ca01_92",
+      "app_route": "더보기>고객센터>카드",
+      "url": "/fcm/common/faq/ca01/ca01_92.json",
+      "description": "일시적인 오류로 페이지를 표시할 수 없습니다. 잠시 후 다시 시도해 주세요. 일시적인 오류로 페이지를 표시할 수 없습니다. 잠시 후 다시 시도해 주세요. 일시적인 오류로 페이지를 표시할 수 없습니다. 잠시 후 다시 시도해 주세요. 일시적인 오류로 페이지를 표시할 수 없습니다. 잠시 후 다시 시도해 주세요. 일시적인 오류로 페이지를 표시할 수 없습니다. 잠시 후 다시 시도해 주세요. 일시적인 오류로 페이지를 표시할 수 없습니다. 잠시 후 다시 시도해 주세요. 일시적인 오류로 페이지를 표시할 수 없습니다. 잠시 후 다시 시도해 주세요. 일시적인 오류로 페이지를 표시할 수 없습니다. 잠시 후 다시 시도해 주세요. 일시적인 오류로 페이지를 표시할 수 없습니다. 잠시 후 다시 시도해 주세요. 일시적인 오류로 페이지를 표시할 수 없습니다. 잠시 후 다시 시도해 주세요. 일시적인 오류로 페이지를 표시할 수 없습니다. 잠시 후 다시 시도해 주세요. 일시적인 오류로 페이지를 표시할 수 없습니다. 잠시 후 다시 시도해 주세요. ",
+      "corp_code": "HPP",
+      "logo": "HPP"
+    },
+    {
+      "depth1": "더보기",
+      "depth2": "FAQ",
+      "depth3": "카드",
+      "depth4": "결제 알림은 어디서 켜나요?",
+      "id": "ca01_93",
+      "app_route": "더보기>고객센터>카드",
+      "url": "/fcm/common/faq/ca01/ca01_93.json",
+      "description": "설정 > 알림에서 결제 알림을 켤 수 있습니다��",
+      "corp_code": "HPP",
+      "logo": "HPP"
+    },
+    {
+      "depth1": "더보기",
+      "depth2": "FAQ",
+      "depth3": "카드",
+      "depth4": "가족카드도 신청할 수 있나요?",
+      "id": "ca01_94",
+      "app_route": "더보기>고객센터>카드",
+      "url": "/fcm/common/faq/ca01/ca01_94.json",
+      "description": "네.",
+      "corp_code": "HPP",
+      "logo": "HPP"
+    },
+    {
+      "depth1": "더보기",
+      "depth2": "FAQ",
+      "depth3": "카드",
+      "depth4": "명세서는 언제 오나요?",
+      "id": "ca01_95",
+      "app_route": "더보기>고객센터>카드",
+      "url": "/fcm/common/faq/ca01/ca01_95.json",
+      "description": "매월 결제일 7일 전 발송. 매월 결제일 7일 전 발송. 매월 결제일 7일 전 발송. 매월 결제일 7일 전 발송. 매월 결제일 7일 전 발송. 매월 결제일 7일 전 발송. 매월 결제일 7일 전 발송. 매월 결제일 7일 전 발송. 매월 결제일 7일 전 발송. ",
+      "corp_code": "HPP",
+      "logo": "HPP"
+    }
+  ]
+}

@@ -15,10 +15,10 @@ doc_type 마다 샘플을 파싱·청킹한 뒤, 그 doc_type 의 custom_field y
   - 케이스별 추가 단정(EXTRA_CHECKS): 위 공통 규칙으로는 잡히지 않는 회귀를 고정한다.
   - 분할 강제 케이스(FORCED_SPLIT_CASES): 기본 chunk_size 에서 나뉘지 않는 샘플을 작은
     chunk_size 로 다시 실행해, 분할 뒤에도 같은 단정이 성립하는지 본다.
-  - 이상 청크 검증(chunk_quality): custom_fields 와 무관한 별도 케이스로, `--only chunk_quality`
-    로 고를 때만 돈다. 청커 설정에
-    `chunking.validation: {enable: true, action: drop}` 을 얹어 불량 섹션이 빠지고 대조군이
-    남는지, 전부 불량인 문서가 CHUNK_ALL_REJECTED 로 실패하는지 단정한다.
+  - 이상 청크 검증(chunk_quality): `--only chunk_quality` 로 고를 때만 도는 별도 케이스다. 청커
+    설정에 `chunking.validation: {enable: true, action: drop}` 을 얹어(기준값은 기본값) 불량
+    섹션·레코드가 빠지고 대조군이 남는지, 전부 불량인 문서가 CHUNK_ALL_REJECTED 로 실패하는지
+    단정한다. custom_fields 경로(faq 행 청크, product_ssf 문서형 청크) 샘플도 함께 돈다.
 
 doc_type → extractor/config 매핑은 모니모 사이트 완성본(genon/sites/monimo/resource/)의
 parser_processor_config.yaml 에서 직접 읽는다. 설정이 늘어나면 이 스크립트를 고치지 않아도
@@ -848,10 +848,45 @@ def check_quality_rows(chunks: list) -> list[str]:
     return problems
 
 
+def check_quality_text(chunks: list) -> list[str]:
+    """쪽 번호만 남은 평문 청크만 빠지고 앞뒤 문단은 순번대로 남는다."""
+    texts = [c.get("text") or "" for c in chunks]
+    problems = [] if len(texts) == 2 and not any(t.strip() == "1." for t in texts) else [
+        f"정상 문단 2건만 기대, 실제 {[t[:10] for t in texts]}"]
+    if [c.get("i_chunk_on_doc") for c in chunks] != list(range(len(chunks))):
+        problems.append("순번이 0부터 이어지지 않습니다")
+    return problems
+
+
+def check_quality_faq(chunks: list) -> list[str]:
+    """깨짐·반복 답변 레코드만 빠지고 원래 레코드와 경계 아래 대조군은 남는다."""
+    from make_chunk_quality_sample import FAQ_BAD_ANSWERS, FAQ_CONTROL_ANSWERS
+
+    text = "\n".join(c.get("text") or "" for c in chunks)
+    problems = [f"불량 레코드가 남음: {q!r}" for q, _ in FAQ_BAD_ANSWERS.values() if q in text]
+    keep = ["설정한 홈 화면을 변경하고 싶어요.", *(q for q, _ in FAQ_CONTROL_ANSWERS.values())]
+    problems += [f"대조군 레코드가 빠짐: {q!r}" for q in keep if q not in text]
+    return problems
+
+
+def check_quality_ssf(chunks: list) -> list[str]:
+    """변환에 실패한 5·6쪽만 빠지고 나머지 쪽은 남는다."""
+    text = "\n".join(c.get("text") or "" for c in chunks)
+    problems = [f"불량 쪽이 남음: {p!r}" for p in ("원문 5쪽", "원문 6쪽") if p in text]
+    problems += [f"정상 쪽이 빠짐: {p!r}" for p in ("원문 1쪽", "원문 4쪽", "원문 7쪽")
+                 if p not in text]
+    return problems
+
+
+# (doc_type, 원천, 단정, 비고). doc_type 이 있으면 설정 폴더의 custom_fields 블록을 탄다.
 QUALITY_CASES = [
-    (SAMPLES / "chunk_quality_sample.md", check_quality_sample, "불량 섹션 제외·대조군 보존"),
-    (SAMPLES / "chunk_quality_rows.json", check_quality_rows, "빈 행·기호 행 제외"),
-    (SAMPLES / "chunk_quality_all_bad.md", None, "전부 불량 → CHUNK_ALL_REJECTED"),
+    (None, SAMPLES / "chunk_quality_sample.md", check_quality_sample, "불량 섹션 제외·대조군 보존"),
+    (None, SAMPLES / "chunk_quality_rows.json", check_quality_rows, "빈 행·기호 행 제외"),
+    (None, SAMPLES / "chunk_quality_all_bad.md", None, "전부 불량 → CHUNK_ALL_REJECTED"),
+    (None, SAMPLES / "chunk_quality_text.json", check_quality_text, "쪽 번호만 남은 평문 제외"),
+    ("faq", MONIMO / "monimo_faq_quality_sample.json", check_quality_faq, "깨짐·반복 답변 레코드 제외"),
+    ("product_ssf", MONIMO / "monimo_product_ssf_quality_sample.md", check_quality_ssf,
+     "변환 실패 쪽 제외"),
 ]
 
 
@@ -890,12 +925,12 @@ def run_quality_cases(python: str, out_root: Path) -> list[tuple]:
     out_dir = out_root / QUALITY_DOC_TYPE
     out_dir.mkdir(parents=True, exist_ok=True)
     config = quality_chunker_config(out_root)
-    for src, check, note in QUALITY_CASES:
+    for doc_type, src, check, note in QUALITY_CASES:
         label = f"{QUALITY_DOC_TYPE}:{src.name}"
         if not src.exists():
             rows.append((label, "SKIP", "샘플 없음(make_chunk_quality_sample.py 실행)", "-", "-"))
             continue
-        ok, err, output = run_case(python, None, src, out_dir,
+        ok, err, output = run_case(python, doc_type, src, out_dir,
                                    ["--chunker-config", str(config)])
         chunks_path = out_dir / (src.stem + ".chunks.json")
         chunks = json.loads(chunks_path.read_text(encoding="utf-8")) if chunks_path.exists() else []

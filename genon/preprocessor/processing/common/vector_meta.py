@@ -294,7 +294,11 @@ def refresh_stats(vectors, reindex: bool = True):
     for item in items:
         page = page_of(item)
         per_page[page] = per_page.get(page, 0) + 1
-    n_page = max(per_page) if per_page else 1
+    # n_page 는 문서 전체 쪽수다. 청크를 버린 뒤 남은 청크의 페이지로만 다시 세면 마지막 쪽
+    # 청크가 빠졌을 때 쪽수가 줄어든다. 이미 채워진 값보다 작아지지 않게 한다.
+    known = [n for n in (getattr(item, "n_page", None) for item in items)
+             if isinstance(n, int) and not isinstance(n, bool)]
+    n_page = max([max(per_page) if per_page else 1] + known)
     seen: dict = {}
     for index, item in enumerate(items):
         page = page_of(item)

@@ -7,6 +7,7 @@
 - #284: chunking_processor 가 그 docling JSON 을 입력받아 GenOSVectorMeta 리스트를 반환하는지.
 """
 import asyncio
+import dataclasses
 import json
 import logging
 from pathlib import Path
@@ -279,7 +280,7 @@ def test_chunker_rows_without_splittable_stay_one_chunk_per_row():
         },
     ]
 
-    chunker = cp.DocumentProcessor()
+    chunker = _unvalidated(cp.DocumentProcessor())
     vectors = asyncio.run(
         chunker(
             request=None, file_path="/data/faq.json",
@@ -350,7 +351,7 @@ def test_chunker_splittable_row_prefix_overflow_falls_back_with_warning(caplog):
         },
     ]
 
-    chunker = cp.DocumentProcessor()
+    chunker = _unvalidated(cp.DocumentProcessor())
     with caplog.at_level(logging.WARNING):
         vectors = asyncio.run(
             chunker(
@@ -377,9 +378,16 @@ def test_chunker_splittable_row_prefix_overflow_falls_back_with_warning(caplog):
 HEADER_SEP = " > "  # facade 의 _CHUNK_HEADER_SEP 과 같아야 한다(콤마는 heading 내부 콤마와 충돌)
 
 
+def _unvalidated(proc):
+    # 청크 검증과 무관한 기능을 합성 본문(반복 문장 등)으로 보는 테스트다. 배포 설정의 검증
+    # 모드(drop)가 입력을 빼지 않게 끈다. 검증 연결은 아래 "이상 청크 검증" 절이 다룬다.
+    proc._chunk_validation = None
+    return proc
+
+
 def _chunk(doc_dict, **kwargs):
     cp = pytest.importorskip("facade.chunking_processor")
-    chunker = cp.DocumentProcessor()
+    chunker = _unvalidated(cp.DocumentProcessor())
     # HEADER 접두는 yaml 설정에 끌려다니지 않게 여기서 못 박는다. 헤더가 없어야 하는 케이스는
     # 호출부에서 include_chunk_header=0 으로 덮어쓴다.
     kwargs.setdefault("include_chunk_header", 1)
@@ -906,9 +914,13 @@ async def test_validation_drops_bad_chunks_and_renumbers():
     cf = pytest.importorskip("facade.chunking_processor")
     result = {"document": _quality_doc(_BAD, _GOOD, _BAD, _GOOD)}
     tb.set_chunk_metadata(result, {"DOC_NM": "약관문서식별", tb.FIRST_CHUNK_FIELDS_KEY: ["DOC_NM"]})
+    result["sensitive_infos"] = [{"category": "민감", "quote_origin": "오류가", "quote_masked": "***"}]
+    request = tb.mock_request()
+    proc = _validating(cf.DocumentProcessor())
+    # 마스킹 스위치는 yaml(guardrail.masking_enabled)에서만 오고 요청 경로가 없어 사설 속성으로 켠다.
+    proc._gr_cfg = dataclasses.replace(proc._gr_cfg, masking_enabled=True)
 
-    vectors = await _validating(cf.DocumentProcessor())(
-        None, "", document=result["document"], text_cleanup="off")
+    vectors = await proc(request, "", document=result, text_cleanup="off")
 
     assert len(vectors) == 2 and not any("처리 중 오류" in v.text for v in vectors)
     assert [v.i_chunk_on_doc for v in vectors] == [0, 1]
@@ -916,12 +928,29 @@ async def test_validation_drops_bad_chunks_and_renumbers():
     assert sum(v.n_chunk_of_page for v in vectors if v.i_chunk_on_page == 0) == 2
     assert vectors[0].text.startswith("약관문서식별")
     assert sum("약관문서식별" in v.text for v in vectors) == 1
+    # 뺀 청크는 진입점이 성공 응답에 싣도록 요청 상태에 남는다. preview 는 출력 본문과 같은
+    # 마스킹을 거친 본문이다. 요약 표기는 test_session_summary 가 다룬다.
+    summary = request.state.chunk_validation
+    body = ("처리 중 *** 발생했습니다. " * 30).strip()
+    assert (summary["action"], summary["count"], summary["reasons"], summary["items"]) == (
+        "drop", 2, {"repetition": 2}, [
+            {"index": i, "reason": "repetition", "message": "같은 내용이 반복됨(같은 문구 29회)",
+             "preview": f"섹션 {i + 1}\n{body}"[:cq.PREVIEW_MAX_CHARS], "section": [f"섹션 {i + 1}"]}
+            for i in (0, 2)])
+    # 같은 request 로 다시 청킹하면 앞 문서의 요약이 남지 않는다.
+    await _validating(cf.DocumentProcessor())(request, "", document=_quality_doc(_GOOD))
+    assert request.state.chunk_validation is None
 
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("hook", ["edit_chunk_repeats", "edit_output_adds_blank", "edit_chunk_prefix_only"])
 async def test_validation_final_check_covers_hook_output(hook):
-    """훅이 본문을 불량으로 바꾸거나 불량 청크를 더해도 최종 검사가 뺀다."""
+    """훅이 본문을 불량으로 바꾸거나 불량 청크를 더해도 최종 검사가 뺀다.
+
+    요약의 section 은 출력 본문에 남은 헤딩 경로만 싣는다. 훅이 HEADER 줄을 지웠거나 새로
+    만든 청크에는 없다.
+    """
+    tb = pytest.importorskip("processing.core.toolbox")
     cf = pytest.importorskip("facade.chunking_processor")
 
     class _P(cf.DocumentProcessor):
@@ -939,12 +968,15 @@ async def test_validation_final_check_covers_hook_output(hook):
                 vector_metas.append(vector_metas[0].model_copy(update={"text": "  \n"}))
             return vector_metas
 
-    vectors = await _validating(_P())(None, "", document=_quality_doc(_GOOD, _GOOD + " 둘째"),
+    request = tb.mock_request()
+    vectors = await _validating(_P())(request, "", document=_quality_doc(_GOOD, _GOOD + " 둘째"),
                                       include_chunk_header=1)
 
     assert len(vectors) == (2 if hook == "edit_output_adds_blank" else 1)
     assert all(v.text.strip() and "처리 중 오류" not in v.text for v in vectors)
     assert [v.i_chunk_on_doc for v in vectors] == list(range(len(vectors)))
+    [item] = request.state.chunk_validation["items"]
+    assert item.get("section") == (["섹션 1"] if hook == "edit_chunk_prefix_only" else None)
 
 
 @pytest.mark.asyncio
@@ -961,6 +993,7 @@ async def test_validation_fails_document(values, code):
         await _validating(cf.DocumentProcessor(), **values)(None, "", document=document)
 
     assert exc.value.error_msg.startswith(code) and exc.value.error_type == "permanent"
+    assert type(exc.value).__name__ == "ChunkValidationError"    # 코드서빙 응답의 error_type
 
 
 @pytest.mark.asyncio

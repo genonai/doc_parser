@@ -65,6 +65,13 @@ def test_dropping_chunks_renumbers_the_survivors():
     assert {v.n_chunk_of_page for v in kept} == {2}
 
 
+def test_dropping_last_page_chunk_keeps_document_page_count():
+    """n_page 는 문서 전체 쪽수다. 마지막 쪽 청크가 빠져도 남은 청크의 페이지로 줄이지 않는다."""
+    vectors = [FakeVector(t, p, n_page=10) for t, p in (("가", 1), ("나", 2), ("다", 10))]
+    refresh_stats(vectors[:2])
+    assert {v.n_page for v in vectors[:2]} == {10}
+
+
 def test_missing_i_page_falls_back_to_one():
     class NoPage(FakeVector):
         def __init__(self, text):

@@ -24,3 +24,14 @@ class GenosServiceException(Exception):
 
     def __repr__(self) -> str:
         return f"GenosServiceException(code={self.code!r}, errMsg={self.error_msg!r})"
+
+
+class ChunkValidationError(GenosServiceException):
+    """청크 검증(chunking.validation)이 문서를 실패 처리할 때 던진다.
+
+    GenosServiceException 을 상속하므로 진입점의 처리와 응답 필드(error_code, stage,
+    error_kind)는 같다. 코드서빙 응답의 error_type 에 이 이름이 실려 청크 검증 실패를 구분한다.
+    """
+
+    def __repr__(self) -> str:
+        return f"ChunkValidationError(code={self.code!r}, errMsg={self.error_msg!r})"
