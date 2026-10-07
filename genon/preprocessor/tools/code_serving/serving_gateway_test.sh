@@ -15,6 +15,9 @@ GENOS_SERVING_ID="${GENOS_SERVING_ID:?GENOS_SERVING_ID 을 지정하세요}"
 python serving_gateway_test.py --mode parser --file-path "/app/src/service/genon/preprocessor/sample_files/pdf_sample.pdf" --out-doc result_serving_gateway_test/doc.json --base-url "$GENOS_BASE_URL" --serving-id "$GENOS_SERVING_ID"
 python serving_gateway_test.py --mode chunker --doc-json result_serving_gateway_test/doc.json --out result_serving_gateway_test/chunks.json --base-url "$GENOS_BASE_URL" --serving-id "$GENOS_SERVING_ID"
 
+# 청크 검증 요약(#465): 청커 서빙이 chunking.validation 을 켠 상태에서 응답 최상위 chunk_validation 형태 검사
+# python serving_gateway_test.py --mode chunk_validation --doc-json result_serving_gateway_test/doc.json --base-url "$GENOS_BASE_URL" --serving-id "$GENOS_SERVING_ID"
+
 # ── 문서유형(doc_type) 지정: FAQ 엑셀(행별 custom_fields) / 카드(문서 metadata 스탬프) ──────────
 # --doc-type 으로 전달(= --param doc_type=.. 와 동일, 둘 다 주면 --param 우선).
 # FAQ xlsx: parser 가 doc_type=faq 로 행별 custom_fields_row 파싱 → chunker 가 행마다 1청크.

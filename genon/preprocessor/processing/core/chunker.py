@@ -1309,6 +1309,12 @@ class ChunkerCore:
                 if len(kept) != len(vector_metas):
                     vm.refresh_stats(kept)
                 vector_metas = kept
+            # 판정 결과는 요청 상태에 남기고 진입점이 성공 응답에 싣는다. 요청 단위 값이라
+            # 프로세서 속성에 두지 않는다. 같은 request 로 다시 청킹해도 앞 결과가 남지 않게
+            # 걸린 것이 없을 때도 덮어쓴다.
+            state = getattr(getattr(job, "request", None), "state", None)
+            if state is not None:
+                state.chunk_validation = validation.summary() if validation is not None else None
             return vector_metas
         finally:
             self._finish_chunk_job(job)

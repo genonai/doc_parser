@@ -193,7 +193,8 @@ async def _run(tag, processor, request, file_path, params, marker=None):
         else:
             data = await asyncio.wait_for(processor(request, file_path, **params), timeout=rd)
         logger.info(f'[{tag}] Success: "{file_path}"')
-        return make_success_response(data=data)
+        return make_success_response(
+            data=data, chunk_validation=getattr(request.state, 'chunk_validation', None))
     except asyncio.TimeoutError as e:
         logger.error(f'[{tag}] Error(timeout): "{file_path}" (request_deadline exceeded)')
         return _error_response(tag, file_path, e, error_code=ERROR_CODE_TIMEOUT, stage='request')

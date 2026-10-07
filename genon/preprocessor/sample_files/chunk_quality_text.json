@@ -1,0 +1,22 @@
+{
+  "elements": [
+    {
+      "category": "paragraph",
+      "content": "결제일은 매월 14일이며 등록한 자동이체 계좌에서 출금된다. 결제일 변경은 월 1회 앱에서 신청한다.",
+      "page": 1,
+      "id": 0
+    },
+    {
+      "category": "paragraph",
+      "content": "1.",
+      "page": 2,
+      "id": 1
+    },
+    {
+      "category": "paragraph",
+      "content": "카드 해지는 고객센터나 앱에서 신청한다. 해지 전에 남은 할부 금액과 포인트를 확인한다.",
+      "page": 3,
+      "id": 2
+    }
+  ]
+}

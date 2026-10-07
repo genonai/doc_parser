@@ -49,6 +49,11 @@ CHUNK_REJECTED = "CHUNK_REJECTED"
 CHUNK_VALIDATION_ERROR = "CHUNK_VALIDATION_ERROR"
 _STAGE = "chunk_validation"
 
+# 성공 응답의 chunk_validation 요약에 싣는 청크 수, 본문 미리보기·섹션 경로 길이, 섹션 경로 수.
+SUMMARY_MAX_ITEMS = 20
+PREVIEW_MAX_CHARS = 200
+SECTION_MAX_PATHS = 5
+
 
 @dataclass(frozen=True)
 class Config:
@@ -199,6 +204,31 @@ class Verdict:
             return ", ".join(parts) + f", 중복 {m['dup_share']:.0%}"
         return f"내용 문자 {m['content']}자 < 하한 {lim['min_chars']}자"
 
+    def message(self) -> str:
+        """성공 응답 요약에 싣는 고객 문구. 로그 문구(describe)와 따로 둔다."""
+        m, lim = self.measures, self.limits
+        if self.reason == "blank":
+            return "본문이 비어 있음"
+        if self.reason == "no_content":
+            return "글자·숫자 없이 기호나 태그만 있음"
+        if self.reason == "broken_chars":
+            # 공백으로 분류되는 제어 문자(\x0b 등)는 깨진 문자로 세지만 분모에서는 빠지므로,
+            # 고객 문구에서는 분모가 분자보다 작아지지 않게 맞춘다. 판정 측정값은 바꾸지 않는다.
+            total = max(m["raw_chars"], m["broken"])
+            return (f"깨진 문자가 많음(깨진 문자 {m['broken']}자 / 전체 {total}자, "
+                    f"{m['broken'] / total:.0%})")
+        if self.reason == "repetition":
+            # 중복 점유율은 겹친 구간을 중복해 세어 100% 를 넘을 수 있으므로 싣지 않는다.
+            parts = []
+            if m["run"]:
+                parts.append(f"같은 문자 {m['run']}회 연속")
+            if m["line"]:
+                parts.append(f"같은 줄 {m['line']}회")
+            if m["phrase"]:
+                parts.append(f"같은 문구 {m['phrase']}회")
+            return f"같은 내용이 반복됨({', '.join(parts)})"
+        return f"본문이 지나치게 짧음(글자·숫자 {m['content']}자, 최소 {lim['min_chars']}자)"
+
 
 def _has_alnum(text: str) -> bool:
     return any(c.isalnum() for c in text)
@@ -334,6 +364,41 @@ class _Origin:
     index: int
     page: Any
     flagged: bool = False
+    headings: tuple = ()
+    item: Optional[dict] = None     # report 모드 초기 검사의 요약 항목(최종 본문으로 채운다)
+
+
+def _prefix_len(origin: Optional[_Origin], text: str) -> int:
+    return (len(origin.prefix) if origin is not None and origin.prefix
+            and text.startswith(origin.prefix) else 0)
+
+
+def _summary_item(verdict: Verdict, page) -> dict:
+    """응답 요약 1건의 뼈대. preview 는 출력 본문을 알 때 채운다(모르면 빈 문자열)."""
+    item: dict = {}
+    if isinstance(page, int) and not isinstance(page, bool) and page >= 1:
+        item["page"] = page
+    item.update(reason=verdict.reason, message=verdict.message(), preview="")
+    return item
+
+
+def _fill_from_output(item: dict, text: str, prefix_len: int, headings) -> None:
+    """출력 본문(훅·마스킹·정제를 거친 vector_meta.text)으로 preview 와 section 을 채운다.
+
+    응답에는 data 와 같은 내용만 내보낸다. 섹션 경로는 출력 본문에 그대로 들어 있는 것만
+    싣는다 — 헤딩을 따로 내보내면 헤딩과 본문에 걸친 인용문의 마스킹을 피해 간다.
+    """
+    preview = _display_controls(text[prefix_len:]).strip()[:PREVIEW_MAX_CHARS]
+    section = [h[:PREVIEW_MAX_CHARS] for h in headings or () if h and h in text]
+    item["preview"] = preview
+    if section:
+        item["section"] = section[:SECTION_MAX_PATHS]
+
+
+def _display_controls(text: str) -> str:
+    """제어 문자를 눈에 보이는 기호로 바꾼다(C0 는 U+2400 대역, DEL 은 U+2421)."""
+    return _CTRL_RE.sub(
+        lambda m: "\u2421" if m.group(0) == "\x7f" else chr(0x2400 + ord(m.group(0))), text)
 
 
 class Session:
@@ -349,15 +414,23 @@ class Session:
         self.file_name = os.path.basename(file_path or "") or "-"
         self.rejected = 0            # drop 모드에서 제외한 건수
         self.records: list = []      # 판정에 걸린 청크(모드 무관)
+        self._items: list = []       # 응답 요약용 상세(앞 SUMMARY_MAX_ITEMS 건)
         self.n_input = 0
         self._input_pages: Counter = Counter()
         self._origins: dict = {}
         self._markers = {id(v): v for v in marker_vectors}
         self._default_kind = "docling"
         self._flagged_initial = False
+        self._pending_item: Optional[dict] = None
 
     # --- 판정 1건 ---
-    def _check(self, text, *, kind, code_like, prefix_len, stage, index, page) -> Optional[Verdict]:
+    def _check(self, text, *, kind, code_like, prefix_len, stage, index, page,
+               headings=()) -> Optional[Verdict]:
+        """판정 1건. 초기 검사(stage="initial")의 요약 항목에는 본문·섹션을 싣지 않는다.
+
+        초기 검사의 본문은 훅·마스킹을 거치기 전이라 응답에 그대로 내보낼 수 없다. 최종
+        검사의 본문은 data 에 실리는 출력 본문과 같다.
+        """
         try:
             verdict = judge(text, kind=kind, code_like=code_like, prefix_len=prefix_len,
                             cfg=self.cfg)
@@ -375,6 +448,14 @@ class Session:
             return None
         self.records.append({"stage": stage, "index": index, "page": page,
                              "reason": verdict.reason})
+        self._pending_item = None
+        if len(self._items) < SUMMARY_MAX_ITEMS:
+            item = _summary_item(verdict, page)
+            if stage == "initial":
+                self._pending_item = item
+            else:
+                _fill_from_output(item, text, prefix_len, headings)
+            self._items.append(item)
         _log.info(
             "[chunk_validation] %s file=%s index=%s page=%s stage=%s reason=%s extra=%s "
             "근거=%s measures=%s limits=%s",
@@ -390,11 +471,13 @@ class Session:
 
     def check_chunk(self, chunk, index: int) -> bool:
         """초기 검사. 청크를 빼야 하면 True(report 모드는 항상 False)."""
+        self._pending_item = None
         self.n_input += 1
         self._input_pages[chunk.page] += 1
         self._default_kind = chunk.kind
         verdict = self._check(chunk.text, kind=chunk.kind, code_like=code_like(chunk),
-                              prefix_len=0, stage="initial", index=index, page=chunk.page)
+                              prefix_len=0, stage="initial", index=index, page=chunk.page,
+                              headings=chunk.headings)
         self._flagged_initial = verdict is not None
         return verdict is not None and self.cfg.drops
 
@@ -407,7 +490,8 @@ class Session:
         """
         self._origins[id(vector_meta)] = _Origin(
             vector_meta, (prefix or "").rstrip(), chunk.kind, code_like(chunk), index, chunk.page,
-            flagged=self._flagged_initial)
+            flagged=self._flagged_initial, headings=tuple(chunk.headings or ()),
+            item=self._pending_item if self._flagged_initial else None)
 
     # --- 최종 검사 ---
     def finalize(self, vector_metas) -> list:
@@ -426,22 +510,27 @@ class Session:
             if origin is not None and origin.vector_meta is not item:
                 origin = None
             if origin is not None and origin.flagged:
-                # report 모드에서 초기 검사가 이미 기록한 청크다. 두 번 세지 않는다.
+                # report 모드에서 초기 검사가 이미 기록한 청크다. 두 번 세지 않고, 요약 항목은
+                # 출력 본문으로 채운다. 훅이 버리거나 edit_output 이 뺀 청크는 빈 채로 남는다.
+                if origin.item is not None:
+                    text = getattr(item, "text", None)
+                    text = text if isinstance(text, str) else ""
+                    _fill_from_output(origin.item, text, _prefix_len(origin, text), origin.headings)
                 kept.append(item)
                 continue
             text = getattr(item, "text", None)
             text = text if isinstance(text, str) else ""
             # 훅이 본문을 바꿔 접두로 시작하지 않으면 전체로 판정한다(더 관대하다).
-            prefix_len = (len(origin.prefix)
-                          if origin is not None and origin.prefix
-                          and text.startswith(origin.prefix) else 0)
+            prefix_len = _prefix_len(origin, text)
             verdict = self._check(
                 text,
                 kind=origin.kind if origin else self._default_kind,
                 code_like=origin.code_like if origin else False,
                 prefix_len=prefix_len, stage="final",
                 index=origin.index if origin else getattr(item, "i_chunk_on_doc", position),
-                page=origin.page if origin else getattr(item, "i_page", None))
+                page=origin.page if origin else getattr(item, "i_page", None),
+                # 훅이 새로 만든 청크는 섹션을 알 수 없다.
+                headings=origin.headings if origin else ())
             if verdict is not None and self.cfg.drops:
                 if position == 0 and origin is not None and origin.prefix:
                     _log.warning(
@@ -456,6 +545,12 @@ class Session:
         return kept
 
     # --- 기록 ---
+    def summary(self) -> Optional[dict]:
+        """성공 응답에 싣는 요약. 판정에 걸린 청크가 없으면 None."""
+        if not self.records:
+            return None
+        return {"action": self.cfg.action, "count": len(self.records), "items": list(self._items)}
+
     def reason_counts(self) -> dict:
         return dict(Counter(r["reason"] for r in self.records))
 

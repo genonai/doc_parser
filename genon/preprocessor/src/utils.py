@@ -1,5 +1,6 @@
 from typing import Optional, Any
 from fastapi import Request, status
+from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import HTTPException
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
@@ -11,8 +12,15 @@ class BaseResponse(BaseModel):
     data: Optional[Any] = None
 
 
-def make_success_response(data: Optional[Any] = None):
-    return BaseResponse(code=0, errMsg='success', data=data)
+def make_success_response(data: Optional[Any] = None, chunk_validation: Optional[dict] = None):
+    response = BaseResponse(code=0, errMsg='success', data=data)
+    if chunk_validation is None:
+        return response
+    # 청크 검증에 걸린 청크가 있을 때만 최상위 키를 붙인다. BaseResponse 는 선언하지 않은
+    # 키를 버리므로 dict 로 바꿔서 붙인다.
+    body = jsonable_encoder(response)
+    body['chunk_validation'] = chunk_validation
+    return body
 
 
 def make_failure_response(

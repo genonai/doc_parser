@@ -87,6 +87,10 @@ requests 등 외부 의존 없이 표준 라이브러리(urllib)만 사용한다
         --param chunk_mode=1 --out /tmp/run_merged.json
     python serving_gateway_test.py --mode run --file-path /data/documents/report.pdf \
         --param chunk_mode=0 --out /tmp/run_split.json
+
+    # 13) 청크 검증 요약(#465) — 청커 서빙 설정이 chunking.validation 을 켠 상태에서 /chunker 응답
+    #     최상위 chunk_validation 의 형태를 검사한다. 판정에 걸린 청크가 없으면 키가 없는 것이 정상이다.
+    python serving_gateway_test.py --mode chunk_validation --doc-json /tmp/doc.json
 """
 from __future__ import annotations
 
@@ -114,11 +118,12 @@ def _url(args, route: str) -> str:
     return f"{args.base_url.rstrip('/')}/api/gateway/code_serving/{args.serving_id}/{route}"
 
 
-def _request(args, method: str, route: str, payload: dict | None = None):
+def _request(args, method: str, route: str, payload: dict | None = None, envelope: bool = False):
     """게이트웨이로 요청하고 envelope(code/data)를 검사해 반환한다.
 
     - GET (예: health): envelope 가 아닐 수 있으므로 body 를 그대로 반환.
     - POST (parser/chunker): {"code":0,"data":...} 를 검사해 data 를 반환.
+      envelope=True 면 검사한 응답 전체를 반환한다(최상위 키 확인용).
     """
     url = _url(args, route)
     data_bytes = None
@@ -139,7 +144,8 @@ def _request(args, method: str, route: str, payload: dict | None = None):
     except urllib.error.URLError as e:
         raise SystemExit(f"[{route}] 연결 실패: {e.reason}")
 
-    return _check_envelope(route, body)
+    data = _check_envelope(route, body)
+    return body if envelope else data
 
 
 def _check_envelope(route: str, body):
@@ -308,16 +314,21 @@ def do_parser_upload(args) -> dict:
     return _handle_parser_data(args, data)
 
 
+def _load_doc_json(args) -> dict:
+    if not args.doc_json:
+        raise SystemExit(f"{args.mode} 모드에는 --doc-json <docling JSON 파일> 이 필요합니다.")
+    with open(args.doc_json, "r", encoding="utf-8") as f:
+        document = json.load(f)
+    # parser 응답을 통째로 저장한 경우({"document":...}) 도 허용.
+    if isinstance(document, dict) and "document" in document and "schema_name" not in document:
+        document = document["document"]
+    return document
+
+
 def do_chunker(args, document: dict | None = None) -> list:
     """청킹 서빙 호출 → 청크(GenOSVectorMeta) 리스트 반환."""
     if document is None:
-        if not args.doc_json:
-            raise SystemExit("chunker 모드에는 --doc-json <docling JSON 파일> 이 필요합니다.")
-        with open(args.doc_json, "r", encoding="utf-8") as f:
-            document = json.load(f)
-        # parser 응답을 통째로 저장한 경우({"document":...}) 도 허용.
-        if isinstance(document, dict) and "document" in document and "schema_name" not in document:
-            document = document["document"]
+        document = _load_doc_json(args)
 
     params: dict = {"document": document}
     if args.chunk_size is not None:
@@ -367,6 +378,52 @@ def do_run(args) -> list:
     return chunks
 
 
+_CV_ITEM_KEYS = {"page", "section", "reason", "message", "preview"}
+_CV_REASONS = {"blank", "no_content", "broken_chars", "repetition", "min_chars"}
+
+
+def _chunk_validation_errors(cv) -> list:
+    """응답 최상위 chunk_validation 의 형태 위반 목록. 비어 있으면 정상이다."""
+    if not isinstance(cv, dict) or set(cv) != {"action", "count", "items"}:
+        return [f"키가 action·count·items 가 아닙니다: {cv!r}"[:300]]
+    items = cv["items"]
+    errors = []
+    if cv["action"] not in ("report", "drop"):
+        errors.append(f"action={cv['action']!r}")
+    if not isinstance(items, list) or not 1 <= len(items) <= min(20, cv["count"]):
+        errors.append(f"items 개수가 1~min(20, count={cv['count']}) 밖입니다")
+        return errors
+    for n, item in enumerate(items):
+        if not {"reason", "message", "preview"} <= set(item) <= _CV_ITEM_KEYS:
+            errors.append(f"items[{n}] 키: {sorted(item)}")
+        elif item["reason"] not in _CV_REASONS or len(item["preview"]) > 200:
+            errors.append(f"items[{n}] reason={item['reason']!r} preview {len(item['preview'])}자")
+    return errors
+
+
+def do_chunk_validation(args) -> int:
+    """/chunker 응답 최상위 chunk_validation 을 검사한다. 위반이 있으면 1."""
+    params: dict = {"document": _load_doc_json(args)}
+    if args.chunk_size is not None:
+        params["chunk_size"] = args.chunk_size
+    body = _request(args, "POST", "chunker",
+                    payload={"file_path": "", "params": params}, envelope=True)
+    print(f"[chunk_validation] 청크 {len(body.get('data') or [])}개")
+    if "chunk_validation" not in body:
+        print("[chunk_validation] 판정에 걸린 청크가 없어 키가 없습니다(검증이 꺼져 있어도 같습니다).")
+        return 0
+    cv = body["chunk_validation"]
+    errors = _chunk_validation_errors(cv)
+    if errors:
+        print("[chunk_validation] 형태 위반:\n  - " + "\n  - ".join(errors), file=sys.stderr)
+        return 1
+    print(f"[chunk_validation] action={cv['action']} count={cv['count']} items={len(cv['items'])}")
+    for item in cv["items"]:
+        preview = item["preview"].replace("\n", " ")
+        print(f"  - page={item.get('page', '-')} {item['reason']}: {item['message']} | {preview[:60]}")
+    return 0
+
+
 def do_e2e(args) -> int:
     # --upload-file 가 있으면 업로드 파싱으로, 없으면 서버 로컬 경로 파싱으로 진행.
     document = do_parser_upload(args) if args.upload_file else do_parser(args)
@@ -379,7 +436,8 @@ def build_parser() -> argparse.ArgumentParser:
         description="main.py /health·/version·/parser·/chunker 게이트웨이 테스트",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
-    p.add_argument("--mode", choices=["health", "version", "run", "parser", "parser_upload", "chunker", "e2e"],
+    p.add_argument("--mode", choices=["health", "version", "run", "parser", "parser_upload", "chunker",
+                                      "chunk_validation", "e2e"],
                    default="e2e", help="실행 모드")
     p.add_argument("--base-url", default=DEFAULT_BASE_URL, help="게이트웨이 base URL")
     p.add_argument("--serving-id", default=DEFAULT_SERVING_ID, help="코드서빙 id")
@@ -402,7 +460,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--doc-type", default=None,
                    help="문서유형 kwarg (예: faq, card). parser/parser_upload/run/e2e 에 doc_type 으로 전달. "
                         "--param doc_type=.. 로도 가능(둘 다 주면 --param 우선)")
-    p.add_argument("--doc-json", default=None, help="chunker 모드: 입력 docling JSON 파일 경로")
+    p.add_argument("--doc-json", default=None, help="chunker·chunk_validation 모드: 입력 docling JSON 파일 경로")
     p.add_argument("--out", default=None, help="청크 결과 JSON 저장 경로 또는 디렉터리(옵션)")
     p.add_argument("--out-doc", default=None, help="parser 모드: docling JSON 저장 경로 또는 디렉터리(옵션)")
     p.add_argument("--timeout", type=float, default=3600.0, help="요청 타임아웃(초)")
@@ -437,6 +495,8 @@ def main(argv=None) -> int:
     if args.mode == "chunker":
         do_chunker(args)
         return 0
+    if args.mode == "chunk_validation":
+        return do_chunk_validation(args)
     return do_e2e(args)
 
 

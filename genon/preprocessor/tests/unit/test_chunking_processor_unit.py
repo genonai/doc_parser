@@ -906,9 +906,10 @@ async def test_validation_drops_bad_chunks_and_renumbers():
     cf = pytest.importorskip("facade.chunking_processor")
     result = {"document": _quality_doc(_BAD, _GOOD, _BAD, _GOOD)}
     tb.set_chunk_metadata(result, {"DOC_NM": "약관문서식별", tb.FIRST_CHUNK_FIELDS_KEY: ["DOC_NM"]})
+    request = tb.mock_request()
 
     vectors = await _validating(cf.DocumentProcessor())(
-        None, "", document=result["document"], text_cleanup="off")
+        request, "", document=result["document"], text_cleanup="off")
 
     assert len(vectors) == 2 and not any("처리 중 오류" in v.text for v in vectors)
     assert [v.i_chunk_on_doc for v in vectors] == [0, 1]
@@ -916,12 +917,25 @@ async def test_validation_drops_bad_chunks_and_renumbers():
     assert sum(v.n_chunk_of_page for v in vectors if v.i_chunk_on_page == 0) == 2
     assert vectors[0].text.startswith("약관문서식별")
     assert sum("약관문서식별" in v.text for v in vectors) == 1
+    # 뺀 청크는 진입점이 성공 응답에 싣도록 요청 상태에 남는다. 훅·마스킹을 거치지 않은 청크라
+    # 본문과 섹션은 싣지 않는다. 요약 표기는 test_session_summary 가 다룬다.
+    summary = request.state.chunk_validation
+    assert (summary["action"], summary["count"], summary["items"]) == ("drop", 2, [
+        {"reason": "repetition", "message": "같은 내용이 반복됨(같은 문구 29회)", "preview": ""}] * 2)
+    # 같은 request 로 다시 청킹하면 앞 문서의 요약이 남지 않는다.
+    await _validating(cf.DocumentProcessor())(request, "", document=_quality_doc(_GOOD))
+    assert request.state.chunk_validation is None
 
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("hook", ["edit_chunk_repeats", "edit_output_adds_blank", "edit_chunk_prefix_only"])
 async def test_validation_final_check_covers_hook_output(hook):
-    """훅이 본문을 불량으로 바꾸거나 불량 청크를 더해도 최종 검사가 뺀다."""
+    """훅이 본문을 불량으로 바꾸거나 불량 청크를 더해도 최종 검사가 뺀다.
+
+    요약의 section 은 출력 본문에 남은 헤딩 경로만 싣는다. 훅이 HEADER 줄을 지웠거나 새로
+    만든 청크에는 없다.
+    """
+    tb = pytest.importorskip("processing.core.toolbox")
     cf = pytest.importorskip("facade.chunking_processor")
 
     class _P(cf.DocumentProcessor):
@@ -939,12 +953,15 @@ async def test_validation_final_check_covers_hook_output(hook):
                 vector_metas.append(vector_metas[0].model_copy(update={"text": "  \n"}))
             return vector_metas
 
-    vectors = await _validating(_P())(None, "", document=_quality_doc(_GOOD, _GOOD + " 둘째"),
+    request = tb.mock_request()
+    vectors = await _validating(_P())(request, "", document=_quality_doc(_GOOD, _GOOD + " 둘째"),
                                       include_chunk_header=1)
 
     assert len(vectors) == (2 if hook == "edit_output_adds_blank" else 1)
     assert all(v.text.strip() and "처리 중 오류" not in v.text for v in vectors)
     assert [v.i_chunk_on_doc for v in vectors] == list(range(len(vectors)))
+    [item] = request.state.chunk_validation["items"]
+    assert item.get("section") == (["섹션 1"] if hook == "edit_chunk_prefix_only" else None)
 
 
 @pytest.mark.asyncio

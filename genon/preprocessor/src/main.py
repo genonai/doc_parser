@@ -109,7 +109,8 @@ async def run(
         return failure_response_from_exc(e)
     finally:
         logger.info(f'End: "{file_path}" ({time.time() - pt:.2f} seconds)')
-    return make_success_response(data=data)
+    return make_success_response(
+        data=data, chunk_validation=getattr(request.state, 'chunk_validation', None))
 
 
 @app.post('/parser')
@@ -178,7 +179,8 @@ async def chunker(
         return failure_response_from_exc(e)
     finally:
         logger.info(f'[chunker] End ({time.time() - pt:.2f} seconds)')
-    return make_success_response(data=data)
+    return make_success_response(
+        data=data, chunk_validation=getattr(request.state, 'chunk_validation', None))
 
 
 if __name__ == '__main__':
