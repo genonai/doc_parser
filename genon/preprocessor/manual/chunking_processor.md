@@ -245,7 +245,7 @@ chunking:
 chunking:
   validation:
     enable: true
-    action: report            # report(기록만) | drop(제외). 운영 도입은 report 로 시작합니다
+    action: drop              # report(기록만) | drop(제외). 표준·monimo 설정은 drop 입니다
     fail_on_any: false        # drop 모드에서 불량 청크가 하나라도 있으면 문서를 실패 처리
     min_chars: 4              # 문서·평문 청크의 내용 문자 하한
     row_min_chars: 0          # 행 청크 하한. FAQ·메뉴 보호를 위해 기본은 끔
@@ -330,6 +330,8 @@ chunking:
 - 한 요청에서 청킹을 여러 번 하는 확장 코드라면 마지막 청킹의 요약만 남습니다.
 
 ### 모드 전환 절차
+
+표준·monimo 설정은 `action: drop` 입니다. 새 현장에서 기준을 먼저 확인하려면 아래 순서를 따릅니다.
 
 1. `action: report` 로 배포합니다. 청크는 그대로 적재되고 판정은 로그와 [응답 요약](#응답-요약)에 남습니다.
 2. 로그에서 `[chunk_validation]` 줄을 모아 걸린 청크와 근거를 검토합니다. 정상 청크가 걸렸으면

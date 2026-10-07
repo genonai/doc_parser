@@ -279,7 +279,7 @@ def test_chunker_rows_without_splittable_stay_one_chunk_per_row():
         },
     ]
 
-    chunker = cp.DocumentProcessor()
+    chunker = _unvalidated(cp.DocumentProcessor())
     vectors = asyncio.run(
         chunker(
             request=None, file_path="/data/faq.json",
@@ -350,7 +350,7 @@ def test_chunker_splittable_row_prefix_overflow_falls_back_with_warning(caplog):
         },
     ]
 
-    chunker = cp.DocumentProcessor()
+    chunker = _unvalidated(cp.DocumentProcessor())
     with caplog.at_level(logging.WARNING):
         vectors = asyncio.run(
             chunker(
@@ -377,9 +377,16 @@ def test_chunker_splittable_row_prefix_overflow_falls_back_with_warning(caplog):
 HEADER_SEP = " > "  # facade 의 _CHUNK_HEADER_SEP 과 같아야 한다(콤마는 heading 내부 콤마와 충돌)
 
 
+def _unvalidated(proc):
+    # 청크 검증과 무관한 기능을 합성 본문(반복 문장 등)으로 보는 테스트다. 배포 설정의 검증
+    # 모드(drop)가 입력을 빼지 않게 끈다. 검증 연결은 아래 "이상 청크 검증" 절이 다룬다.
+    proc._chunk_validation = None
+    return proc
+
+
 def _chunk(doc_dict, **kwargs):
     cp = pytest.importorskip("facade.chunking_processor")
-    chunker = cp.DocumentProcessor()
+    chunker = _unvalidated(cp.DocumentProcessor())
     # HEADER 접두는 yaml 설정에 끌려다니지 않게 여기서 못 박는다. 헤더가 없어야 하는 케이스는
     # 호출부에서 include_chunk_header=0 으로 덮어쓴다.
     kwargs.setdefault("include_chunk_header", 1)

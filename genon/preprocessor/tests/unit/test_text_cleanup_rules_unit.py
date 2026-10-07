@@ -232,6 +232,8 @@ def _make_processor(tmp_path: Path, text_cleanup):
     cfg = yaml.safe_load((resource_dir / _CONFIG_NAME).read_text(encoding="utf-8"))
     cfg.setdefault("chunking", {})["text_cleanup"] = text_cleanup
     cfg["chunking"]["chunk_size"] = 1000
+    # 정제 결과만 본다. 배포 설정의 청크 검증(drop)이 짧은·빈 청크를 먼저 빼지 않게 끈다.
+    cfg["chunking"].pop("validation", None)
     out = tmp_path / _CONFIG_NAME
     out.write_text(yaml.safe_dump(cfg, allow_unicode=True), encoding="utf-8")
     try:

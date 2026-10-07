@@ -179,15 +179,15 @@ custom_fields 설정 검증 단계가 없습니다. 파서 산출물을 소비�
 
 ## 청크 검증 판정 기준
 
-청크 검증 예외 2종은 `chunking.validation` 을 `action: drop` 으로 바꾼 경우에만 발생합니다.
-표준 설정과 monimo 설정은 `action: report` 라서 판정 결과를 로그(`[chunk_validation]`)와 성공 응답의
-`chunk_validation` 요약에 남기고 청크는 그대로 적재합니다. 요약 형식은 `chunking_processor.md` 의
-"응답 요약" 절을 참조합니다.
+청크 검증 예외 2종은 `chunking.validation` 의 `action` 이 `drop` 일 때 발생합니다. 표준 설정과
+monimo 설정은 `action: drop` 이라 걸린 청크를 빼고 적재하며, 판정 결과를 로그(`[chunk_validation]`)와
+성공 응답의 `chunk_validation` 요약에 남깁니다. 요약 형식은 `chunking_processor.md` 의 "응답 요약"
+절을 참조합니다.
 
 | `action` | 판정에 걸린 청크 |
 |---|---|
-| `report` (기본) | 로그와 응답 요약에 남기고 그대로 적재. 예외 없음 |
-| `drop` | 걸린 청크를 빼고 적재하며 응답 요약에 남김. 모든 청크가 걸리면 `CHUNK_ALL_REJECTED` |
+| `report` (키 생략 시) | 로그와 응답 요약에 남기고 그대로 적재. 예외 없음 |
+| `drop` (표준·monimo 설정) | 걸린 청크를 빼고 적재하며 응답 요약에 남김. 모든 청크가 걸리면 `CHUNK_ALL_REJECTED` |
 
 청크마다 아래 순서로 검사하며, 앞의 사유에 걸리면 그 사유가 대표 사유입니다.
 판정은 `HEADER:` 경로와 문서 접두를 뺀 본문으로 합니다.
