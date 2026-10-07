@@ -2013,7 +2013,8 @@ class ParserCore:
             if bad_reason:
                 _log.warning(f"[parser] 비정상 파일 감지({bad_reason}) — 처리 중단: {file_path}")
                 raise GenosServiceException(
-                    "1", f"{bad_reason} 입니다. 정상 문서로 다시 업로드하세요: {os.path.basename(file_path)}"
+                    "1", f"{bad_reason} 입니다. 정상 문서로 다시 업로드하세요: {os.path.basename(file_path)}",
+                    error_type="permanent",
                 )
 
             if ext != raw_ext:

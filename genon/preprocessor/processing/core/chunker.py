@@ -1134,7 +1134,8 @@ class ChunkerCore:
                 raise GenosServiceException(1, f"chunker 입력 파일 로드 실패({file_path}): {exc}") from exc
         if not raw_payload:
             raise GenosServiceException(
-                1, "chunker API: 'document'(인라인 JSON) 또는 file_path(.json) 입력이 필요합니다.")
+                1, "chunker API: 'document'(인라인 JSON) 또는 file_path(.json) 입력이 필요합니다.",
+                error_type="permanent")
 
         if isinstance(raw_payload, DoclingDocument):
             kind, data = "docling", raw_payload
