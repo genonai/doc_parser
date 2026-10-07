@@ -702,10 +702,11 @@ class JsonRecordsMapper(CustomFieldsMapperBase):
         ] + [(names, False) for names in self.collect_key_map.values()]
 
         def score(records: list[dict]) -> int:
+            # 키만 있고 값이 빈 필드는 세지 않는다(require 와 같은 "값 없음" 기준).
             sample = records[:_AUTO_RECORDS_SAMPLE]
             return sum(
                 1 for names, raw in alias_specs
-                if any(find_field(record, names, raw=raw) is not None for record in sample)
+                if any(find_field(record, names, raw=raw) not in (None, "") for record in sample)
             )
 
         ranked = sorted(
