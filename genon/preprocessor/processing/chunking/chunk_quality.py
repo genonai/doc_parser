@@ -2,7 +2,8 @@
 
 유효 내용이 없거나, 지나치게 짧거나, 반복·문자 손상이 심한 청크를 찾아 적재 대상에서
 뺀다. 기준은 yaml `chunking.validation` 블록이 정하고, 모든 판정은 사람이 읽을 수 있는
-근거(측정값·임계값)를 남긴다. 설계와 실측 근거는 genon_docs/chunk_validation_plan.md 다.
+근거(측정값·임계값)를 남긴다. 기본값의 근거와 재측정 방법은 manual/chunking_processor.md
+"판정 기준의 근거" 절에 있다.
 
 판정 순서(앞에 걸리면 그 사유가 대표 사유다)
 
@@ -13,8 +14,9 @@
   5 min_chars     내용 문자 수가 유형별 하한 미만
 
 설계 원칙은 "애매하면 통과" 다. 정상 청크를 빼면 그 내용이 검색에서 영구히 사라지지만,
-놓친 불량 청크는 다음 조정에서 잡으면 된다. 아래 예외 규칙은 실제 청크 1,727건 실측에서
-오탐이 난 뒤 넣은 것이므로 근거 없이 빼지 않는다.
+놓친 불량 청크는 다음 조정에서 잡으면 된다. 아래 예외 규칙은 실제 청크 실측에서 오탐이 난 뒤
+넣은 것이므로 근거 없이 빼지 않는다. 오탐 형태는 tests/fixtures/chunk_quality/cases.yaml 의
+정상(N) 사례로 고정한다.
 
   - 반복 단위에 내용 문자가 없으면 반복으로 세지 않는다(구분선, 표 구분선)
   - 반복은 마크업을 걷어낸 판정용 텍스트에서 센다(HTML 표의 `</td><td>` 반복)
@@ -24,6 +26,8 @@
   - 표가 든 청크는 길이 하한을 적용하지 않는다(table_min_chars 로 켤 수 있다)
   - 코드·수식 청크는 길이 하한과 반복 판정을 적용하지 않는다
   - 반복·손상은 횟수와 점유율을 함께 넘어야 한다
+  - 동일 문자 연속은 글자만 센다(금액·계좌 번호의 `0` 연속)
+  - 걷어내는 마크업은 영문 태그 이름의 HTML 태그와 주석뿐이다(`0 < 금리 < 5%` 비교식)
 
 검증 키는 요청 파라미터로 바꿀 수 없다. `config_parse.CONFIG_PATH_ALIASES` 에 넣으면 요청 한
 줄로 검증을 우회할 수 있게 되므로 넣지 않는다. docling 타입은 import 하지 않는다.
@@ -164,7 +168,10 @@ def config_for(owner, doc_type: Any = None) -> Optional[Config]:
 # 판정
 # ---------------------------------------------------------------------------
 
-_TAG_RE = re.compile(r"<[^>\n]{1,200}>")
+# 판정용으로 걷어내는 마크업. 태그 이름이 영문자로 시작하는 HTML 태그와 주석만 대상이다.
+# `<[^>]+>` 처럼 넓게 잡으면 `0 < 금리 < 5%` 같은 비교식이나 `<가입대상>` 같은 본문 표기까지
+# 지워져 정상 청크가 제외됐다.
+_TAG_RE = re.compile(r"<!--.{0,200}?-->|</?[A-Za-z][A-Za-z0-9:-]*(?:[\s/][^<>\n]{0,200})?>", re.S)
 _TABLE_SEP_RE = re.compile(r"^\s*\|?[\s:\-|]+\|[\s:\-|]*$")
 _TABLE_ROW_RE = re.compile(r"^\s*\|", re.M)
 _HTML_TABLE_RE = re.compile(r"<table\b.*?</table\s*>", re.I | re.S)
@@ -224,7 +231,7 @@ class Verdict:
             return (f"깨진 문자가 많음(깨진 문자 {m['broken']}자 / 전체 {total}자, "
                     f"{m['broken'] / total:.0%})")
         if self.reason == "repetition":
-            # 중복 점유율은 겹친 구간을 중복해 세어 100% 를 넘을 수 있으므로 싣지 않는다.
+            # 중복 점유율은 로그(describe)에만 남기고 고객 문구에는 싣지 않는다.
             parts = []
             if m["run"]:
                 parts.append(f"같은 문자 {m['run']}회 연속")
@@ -294,31 +301,47 @@ def code_like(chunk) -> bool:
 
 
 def _repetition(judged: str, min_count: int) -> tuple:
-    """(최장 연속 문자, 최다 반복 줄, 최다 연속 문구, 중복 구간 문자 수)."""
-    dup = 0
-    run, prev, best_run = 1, None, 0
-    for c in judged:
+    """(최장 연속 문자, 최다 반복 줄, 최다 연속 문구, 중복 구간 문자 수).
+
+    중복 구간은 원본 한 벌을 뺀 사본의 문자 위치를 모아 공백이 아닌 문자만 센다. 같은 줄이
+    연속되면 줄 지표와 문구 지표가 같은 구간을 함께 가리키므로, 지표별 길이를 더하면 실제보다
+    커져 정상 문단이 섞인 청크까지 제외됐다(정상 문단 2개 + `□ 해당 없음` 10줄이 실제 22% 인데
+    56% 로 계산됐다).
+
+    연속 문자는 문자(isalpha)만 센다. 숫자를 세면 `10000000000원` 같은 금액·계좌 번호가
+    반복으로 걸린다. 숫자만 길게 이어진 손상은 문구 지표(`0000` 이 min_count 회 연속)가 잡는다.
+    """
+    dup: set = set()
+    run, prev, best_run, run_end = 1, None, 0, 0
+    for i, c in enumerate(judged):
         run = run + 1 if c == prev else 1
         prev = c
-        if c.isalnum() and run >= min_count:
-            best_run = max(best_run, run)
+        if c.isalpha() and run >= min_count and run > best_run:
+            best_run, run_end = run, i + 1
     if best_run:
-        dup += best_run - 1
+        dup.update(range(run_end - best_run + 1, run_end))
 
-    lines = [_WS_RE.sub(" ", line).strip() for line in judged.split("\n") if line.strip()]
+    positions: dict = {}
+    offset = 0
+    for raw in judged.split("\n"):
+        line = _WS_RE.sub(" ", raw).strip()
+        if line:
+            positions.setdefault(line, []).append((offset, offset + len(raw)))
+        offset += len(raw) + 1
     best_line = 0
-    for line, count in Counter(lines).items():
-        if count >= min_count and _has_alnum(line):
-            best_line = max(best_line, count)
-            dup += (count - 1) * len(line.replace(" ", ""))
+    for line, spans in positions.items():
+        if len(spans) >= min_count and _has_alnum(line):
+            best_line = max(best_line, len(spans))
+            for start, end in spans[1:]:
+                dup.update(range(start, end))
 
     best_phrase = 0
     for match in _phrase_re(min_count).finditer(judged):
         unit = match.group(1)
         if _has_alnum(unit):
             best_phrase = max(best_phrase, len(match.group(0)) // len(unit))
-            dup += len(match.group(0)) - len(unit)
-    return best_run, best_line, best_phrase, dup
+            dup.update(range(match.start() + len(unit), match.end()))
+    return best_run, best_line, best_phrase, sum(1 for i in dup if not judged[i].isspace())
 
 
 def measure(text: Optional[str], *, prefix_len: int = 0, repeat_min_count: int = 10) -> dict:
