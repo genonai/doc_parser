@@ -272,7 +272,7 @@ output:
   #      레코드형 문서는 파서가 청크 본문을 완성해 넘기고 청커는 표를 다시 렌더링하지 않으므로,
   #      format: docling 이어도 이 값이 최종 청크의 표 모양이 된다.
   # format: docling 으로 청커(/chunker)에 넘기는 일반 문서(PDF·DOCX·HTML 등)의 표 모양은
-  # chunking_processor_config.yaml 의 output 이 정한다. 최종 청크의 표 모양을 통일하려면
+  # chunk_config.yaml 의 output 이 정한다. 최종 청크의 표 모양을 통일하려면
   # 두 설정의 table_format 을 같은 값으로 맞춘다(precheck_custom_fields.sh 가 다르면 경고한다).
   # 레코드형 문서의 표 모양이 바뀌면 hash 로 만든 식별자(예: cs_ssf 의 BIZ_ID)도 바뀐다.
   #
@@ -281,7 +281,7 @@ output:
   table_format: "markdown" # "html"(default) | "markdown" | "auto"  (일반 문서의 "docling" 출력에는 무관)
   compact_tables: true # markdown 표 컬럼 정렬 패딩 제거(대형 표 축소). html/docling 포맷엔 무관.
   # 표 뒤 "컬럼=값 | 컬럼=값" 행 문장(table_row_serialization)은 청커 전용이라 여기에 없다 —
-  # chunking_processor_config.yaml 의 output 에서 켠다.
+  # chunk_config.yaml 의 output 에서 켠다.
 
 # whisper 설정. 음성(.wav/.mp3/.m4a) 처리 시에만 필요(선택).
 whisper:

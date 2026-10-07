@@ -18,8 +18,12 @@ import pytest
 pytestmark = pytest.mark.unit
 
 FACADE_DIR = Path(__file__).resolve().parents[2] / "facade"
-FACADES = sorted(FACADE_DIR.glob("*_processor.py"))
-FACADE_STEMS = {p.stem for p in FACADES}
+ACTIVITIES_DIR = Path(__file__).resolve().parents[2] / "activities"
+# facade/parser_processor.py·chunking_processor.py 는 activities/ 로 옮긴 모듈의 별칭이라(#474) 뺀다.
+ALIASES = {"parser_processor", "chunking_processor"}
+FACADES = sorted([p for p in FACADE_DIR.glob("*_processor.py") if p.stem not in ALIASES]
+                 + [p for p in ACTIVITIES_DIR.glob("*.py") if not p.name.startswith("_")])
+FACADE_STEMS = {p.stem for p in FACADES} | ALIASES
 
 
 def _imported_modules(tree: ast.AST) -> list[tuple[int, str]]:

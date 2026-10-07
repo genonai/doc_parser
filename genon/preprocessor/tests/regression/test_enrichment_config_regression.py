@@ -22,7 +22,7 @@ from processing.enrichment.enrichment_config import EnrichmentConfig
 # enrichment 을 사용하는 설정(메타데이터/TOC 추출)
 ENRICHMENT_CONFIGS = [
     "resource/intelligent_processor_config.yaml",
-    "resource/parser_processor_config.yaml",
+    "resource/parse_config.yaml",
 ]
 
 ATTACHMENT_CONFIGS = [

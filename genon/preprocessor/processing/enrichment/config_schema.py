@@ -50,7 +50,7 @@ def validation_policy() -> str:
         return "error"
     return raw
 
-# 등록 블록(parser_processor_config.yaml 의 `- custom_fields:`)에서 넘어오는 배선 키.
+# 등록 블록(parse_config.yaml 의 `- custom_fields:`)에서 넘어오는 배선 키.
 # custom_field yaml 안에 적을 값이 아니라 매퍼/enricher 생성자의 인자다.
 WIRING_KEYS = frozenset({
     "enable", "doc_type", "extractor", "config_file", "resource_path",

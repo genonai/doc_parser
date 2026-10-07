@@ -1,6 +1,6 @@
 """청킹 처리 본체 (#363 08).
 
-`facade/chunking_processor.py` 에서 통째로 옮겨 왔다. 고객이 여는 파일은 그쪽이고
+`activities/chunk.py` 에서 통째로 옮겨 왔다. 고객이 여는 파일은 그쪽이고
 여기는 열 일이 없다. 08-2 는 순수 이동이며 벡터 스키마·청커 옵션을 facade 로
 되돌리는 것과 훅은 08-3 이다.
 """
@@ -176,7 +176,7 @@ def _resolve_default_chunking_config_path() -> str:
     # processing/core/ 로 한 단계 깊어졌으므로 facade/ 를 기준으로 잡는다 —
     # 옮기기 전 이 헬퍼는 facade/ 에 있었고 아래 상대 경로가 그것을 전제한다.
     base_dir = Path(__file__).resolve().parents[1]
-    return str((base_dir / "../resource/chunking_processor_config.yaml").resolve())
+    return str((base_dir / "../resource/chunk_config.yaml").resolve())
 
 
 # 조각에 섹션 문맥을 물려주는 규칙은 공용 모듈 한 벌이다(표 기준 분리도 같은 함수를 쓴다).
@@ -299,7 +299,7 @@ class ChunkerCore:
         '''
         initialize Document Converter (config 기반)
 
-        config_path 가 None 이면 resource/chunking_processor_config.yaml 를 사용한다.
+        config_path 가 None 이면 resource/chunk_config.yaml 를 사용한다.
         GenOS 는 DocumentProcessor() 무인자로 호출하므로 기본 경로 resolve 필수.
         '''
         if config_path is None:

@@ -271,7 +271,7 @@ def test_missing_unstructured_becomes_actionable_error(tmp_path: Path, monkeypat
 
 @pytest.mark.unit
 def test_processor_reads_extension_aliases_from_config(parser_processor, tmp_path: Path):
-    config = tmp_path / "parser_processor_config.yaml"
+    config = tmp_path / "parse_config.yaml"
     config.write_text(
         "formats:\n"
         "  extension_aliases:\n"

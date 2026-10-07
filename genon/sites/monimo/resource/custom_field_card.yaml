@@ -7,7 +7,7 @@
 #    이 파일은 기존 데모(doc_type: card — parse_chunk_test.sh / serving_gateway_test.sh)를
 #    깨지 않기 위해 그대로 둔다.
 #
-# 사용 (parser_processor_config.yaml):
+# 사용 (parse_config.yaml):
 #   - custom_fields:
 #       enable: true
 #       doc_type: card
@@ -16,7 +16,7 @@
 #
 # 이 파일 하나로 자족한다 — 프롬프트가 아래에 인라인되어 있어 별도 md 파일이 없다.
 #
-# 이 파일은 parser_processor_config.yaml 과 동일 폴더(resource/)에 위치.
+# 이 파일은 parse_config.yaml 과 동일 폴더(resource/)에 위치.
 # 인라인 블록에서 null 이 아닌 값을 지정하면 이 파일 값보다 우선한다.
 # ── LLM 연결 ────────────────────────────────────────────────────────────────
 # 접속 정보는 프로세서 설정 최상위 model_presets 에 모아 두고 여기서는 이름만 부른다.

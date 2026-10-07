@@ -17,7 +17,7 @@ _MODULES = ["intelligent_processor", "convert_processor", "chunking_processor"]
 _DEFAULT_CONFIG = {
     "intelligent_processor": "intelligent_processor_config.yaml",
     "convert_processor": "convert_processor_config.yaml",
-    "chunking_processor": "chunking_processor_config.yaml",
+    "chunking_processor": "chunk_config.yaml",
 }
 
 _UNSET = object()

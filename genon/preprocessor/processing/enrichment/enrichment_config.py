@@ -1,6 +1,6 @@
 """enrichment_config.py — Enrichment 설정 파싱 전담 모듈.
 
-parser_processor.py 의 enrichment 설정 읽기 로직을 단일 typed dataclass 로 집결시킨다.
+activities/parse.py 의 enrichment 설정 읽기 로직을 단일 typed dataclass 로 집결시킨다.
 
 지원 YAML 포맷:
   Format A (dict):  enrichment: {do_toc: true, api_url: "...", toc: {...}, ...}

@@ -18,18 +18,18 @@ from processing.enrichment.field_transforms import DEFAULT_METADATA_FIELD_TRANSF
 
 # 실제 배포되는 설정 파일들 (repo_root = genon/preprocessor 기준 상대 경로)
 SHIPPED_CONFIGS = [
-    "../sites/monimo/resource/parser_processor_config.yaml",
+    "../sites/monimo/resource/parse_config.yaml",
     "resource/intelligent_processor_config.yaml",
-    "resource/parser_processor_config.yaml",
+    "resource/parse_config.yaml",
     "resource/attachment_processor_config.yaml",
     "resource/convert_processor_config.yaml",
 ]
 
 # enrichment 섹션이 있는(벡터/메타데이터 추출) 설정들
 ENRICHMENT_CONFIGS = [
-    "../sites/monimo/resource/parser_processor_config.yaml",
+    "../sites/monimo/resource/parse_config.yaml",
     "resource/intelligent_processor_config.yaml",
-    "resource/parser_processor_config.yaml",
+    "resource/parse_config.yaml",
     "resource/convert_processor_config.yaml",
 ]
 
@@ -85,7 +85,7 @@ def test_shipped_enrichment_parses_without_error(repo_root, rel):
 @pytest.mark.unit
 @pytest.mark.parametrize(
     "rel",
-    ENRICHMENT_CONFIGS + ["resource/parser_processor_config_simple.yaml"],
+    ENRICHMENT_CONFIGS + ["resource/parse_config_simple.yaml"],
 )
 def test_shipped_table_text_description_exposes_all_user_options(repo_root, rel):
     ec = _parse_enrichment(repo_root, rel)

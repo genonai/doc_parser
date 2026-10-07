@@ -146,7 +146,7 @@ class DocumentProcessor(ChunkerCore):
 
     # --- 2. doc_type 별 설정 ---
     #
-    # 설정 파일(chunking_processor_config.yaml)은 모든 문서에 공통이다. doc_type 마다 다르게
+    # 설정 파일(chunk_config.yaml)은 모든 문서에 공통이다. doc_type 마다 다르게
     # 하려면 아래 표에 적는다. 키는 설정 파일 경로(점 표기)나 같은 뜻의 요청 파라미터
     # 이름(괄호)을 쓴다 — 둘 다 같게 동작한다.
     #   chunking.chunk_size               청크 최대 크기  (= chunk_size)
@@ -255,11 +255,11 @@ class DocumentProcessor(ChunkerCore):
 #
 # cli() 는 서버를 띄우지 않고 이 파일 하나를 돌린다. 입력은 **파서가 만든 결과 JSON** 이고
 # (원본 문서가 아니다) 산출은 /chunker 응답과 같은 vector_meta 목록이다. 저장 위치와 청크
-# 건수, 걸린 시간은 stderr 로 알린다. 경로 실행(python chunking_processor.py)은 import 가
+# 건수, 걸린 시간은 stderr 로 알린다. 경로 실행(python chunk.py)은 import 가
 # 풀리지 않는다 — 저장소 최상위에서 -m 으로 부른다.
 #
-#   python -m genon.preprocessor.facade.parser_processor 계약서.pdf --doc-type contract -o parsed.json
-#   python -m genon.preprocessor.facade.chunking_processor parsed.json --doc-type contract -o chunks.json
+#   python -m genon.preprocessor.activities.parse 계약서.pdf --doc-type contract -o parsed.json
+#   python -m genon.preprocessor.activities.chunk parsed.json --doc-type contract -o chunks.json
 #
 #   --doc-type    doc_type 별 설정(2)과 훅 메소드 게이팅에 쓰인다. 파서에 넘긴 값과 같게 준다
 #   --config      프로세서 설정 yaml 경로. 미지정 시 기본 경로를 찾는다

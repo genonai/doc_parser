@@ -7,7 +7,7 @@
 # tests/unit/test_facade_isolation_unit.py 가 CI 에서 맡는다.
 #
 # 검사:
-#   1. 파싱·청킹 파사드(parser_processor.py, chunking_processor.py)에 HEAD 에 없던 메소드가
+#   1. 파싱·청킹 파사드(activities/parse.py, activities/chunk.py)에 HEAD 에 없던 메소드가
 #      생기면, 처리 로직은 processing/ 에 두고 파사드에는 호출부만 두라고 알린다.
 #   2. 활성 경로 .py 의 주석·docstring 에 이모지가 있으면 알린다. 문자열 값은 대상이 아니다.
 #
@@ -22,11 +22,12 @@ import sys
 import tokenize
 from pathlib import Path
 
-CUSTOMER_FACADES = {"parser_processor.py", "chunking_processor.py"}
+CUSTOMER_DIR = "genon/preprocessor/activities/"   # 파싱·청킹 파사드(parse.py·chunk.py·parse_*·chunk_*)
 ACTIVE_PREFIXES = (
     "main.py",
     "genon/preprocessor/processing/",
     "genon/preprocessor/facade/",
+    "genon/preprocessor/activities/",
     "genon/preprocessor/src/",
 )
 EMOJI = re.compile("[\U0001F300-\U0001FAFF☀-➿⭐⭕️]")
@@ -89,7 +90,7 @@ def main() -> None:
 
     source = path.read_text(encoding="utf-8")
     warnings = []
-    if path.name in CUSTOMER_FACADES and rel.startswith("genon/preprocessor/facade/"):
+    if rel.startswith(CUSTOMER_DIR) and not path.name.startswith("_"):
         added = _new_facade_methods(root, rel, source)
         if added:
             warnings.append(

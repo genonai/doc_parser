@@ -3,7 +3,7 @@
 이 파일은 예전에 json_mapping(레코드 모드) 시절의 custom_field_product_hpp_json.yaml 을
 검증했다. 그 설정은 삭제됐고(레코드 1건 = 상품 1건이라는 전제가, 성격이 다른 내용이 섞인
 카드 WCMS JSON 에는 맞지 않아 json_semantic 으로 교체됐다 — json_semantic.py 모듈 docstring
-참고) parser_processor_config*.yaml 의 product_hpp 항목도 extractor: json_semantic +
+참고) parse_config*.yaml 의 product_hpp 항목도 extractor: json_semantic +
 config_file: custom_field_product_hpp.yaml 을 가리키도록 바뀌었다. 이 파일은 그
 출고 설정을 실제 두 샘플로 재검증한다.
 """

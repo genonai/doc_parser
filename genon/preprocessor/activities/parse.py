@@ -159,7 +159,7 @@ class DocumentProcessor(ParserCore):
 
     # --- 3. doc_type 별 설정 ---
     #
-    # 설정 파일(parser_processor_config.yaml)은 모든 문서에 공통이다. doc_type 마다 다르게
+    # 설정 파일(parse_config.yaml)은 모든 문서에 공통이다. doc_type 마다 다르게
     # 하려면 아래 표에 적는다. 키는 설정 파일 경로(점 표기)나 같은 뜻의 요청 파라미터
     # 이름(괄호)을 쓴다 — 둘 다 같게 동작한다. 켜기는 1(또는 True), 끄기는 0 이다.
     #   enrichment.table_description.enable  표 설명       (= table_desc)
@@ -168,7 +168,7 @@ class DocumentProcessor(ParserCore):
     #   enrichment.toc.enable                목차 보강     (= toc)
     #   ocr.ocr_mode                         auto / force / disable
     #   pdf_output.keep                      변환 PDF 보존 (= keep_pdf)
-    # 청크 크기 같은 청킹 설정은 chunking_processor.py 의 같은 표에 적는다.
+    # 청크 크기 같은 청킹 설정은 activities/chunk.py 의 같은 표에 적는다.
     #
     # 기동 시 한 번 읽혀 굳는 설정(엔드포인트 주소, 프롬프트 등)은 여기 적어도 건너뛰고
     # 경고가 남는다 — 그 값은 설정 파일에서 바꾼다.
@@ -240,7 +240,7 @@ class DocumentProcessor(ParserCore):
 
         청크에 실을 메타는 tb.set_chunk_metadata() 로 넣는다. result["metadata"] 에 직접 쓰면
         이 API 응답에만 남고 청크에는 전달되지 않는다. 이 값은 그 문서의 모든 청크에 똑같이
-        붙는다(청크마다 다른 값은 chunking_processor.py 의 edit_chunk 에서 info["fields"] 로).
+        붙는다(청크마다 다른 값은 activities/chunk.py 의 edit_chunk 에서 info["fields"] 로).
 
             async def edit_output(self, ext, doc_type, result, **kwargs):
                 emp_no = (result.get("metadata") or {}).get("EMP_NO")
@@ -276,9 +276,9 @@ class DocumentProcessor(ParserCore):
 # cli() 는 서버를 띄우지 않고 이 파일 하나를 돌린다. 고친 훅 메소드가 의도대로 도는지 문서
 # 한 건으로 바로 볼 때 쓴다. 산출은 /parser 응답과 같은 JSON 이고, 저장 위치와 걸린 시간은
 # stderr 로 알린다. 여기서 만든 parsed.json 을 chunking_processor 에 넘기면 청킹까지 이어진다.
-# 경로 실행(python parser_processor.py)은 import 가 풀리지 않는다 — 저장소 최상위에서 -m 으로.
+# 경로 실행(python parse.py)은 import 가 풀리지 않는다 — 저장소 최상위에서 -m 으로.
 #
-#   python -m genon.preprocessor.facade.parser_processor 계약서.pdf --doc-type contract -o parsed.json
+#   python -m genon.preprocessor.activities.parse 계약서.pdf --doc-type contract -o parsed.json
 #
 #   --doc-type    custom_fields 설정과 훅 메소드 게이팅에 쓰인다. 훅 메소드를 doc_type 으로
 #                 가르고 있으면 이것을 빼는 순간 그 코드가 통째로 안 돈다 — 사실상 필수다
