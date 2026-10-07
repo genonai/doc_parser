@@ -159,7 +159,7 @@ def check_doc_type_configured(custom_fields_cfgs: Iterable[dict] | None, runtime
     if key in registered:
         return
     message = (
-        f"doc_type={key} 에 맞는 custom_fields 등록이 없습니다. parser_processor_config.yaml 의 "
+        f"doc_type={key} 에 맞는 custom_fields 등록이 없습니다. parse_config.yaml 의 "
         f"enrichment 에 등록하거나, 등록 없이 기본 경로로 처리하려면 "
         f"defaults.unknown_doc_type 을 warn 으로 두세요."
     )

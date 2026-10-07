@@ -80,12 +80,12 @@ REMOVED_EXTRACTORS = {
 }
 
 PROCESSOR_CONFIGS = (
-    "parser_processor_config.yaml",
-    "parser_processor_config_simple.yaml",
+    "parse_config.yaml",
+    "parse_config_simple.yaml",
     "intelligent_processor_config.yaml",
     "convert_processor_config.yaml",
-    "chunking_processor_config.yaml",
-    "chunking_processor_config_simple.yaml",
+    "chunk_config.yaml",
+    "chunk_config_simple.yaml",
     "attachment_processor_config.yaml",
 )
 
@@ -359,8 +359,8 @@ def check_model_presets(root: Path) -> list[str]:
 
 # 같은 폴더에서 짝을 이루는 파서·청커 설정. 청크의 표 모양을 문서 종류마다 나눠 정한다.
 TABLE_FORMAT_PAIRS = (
-    ("parser_processor_config.yaml", "chunking_processor_config.yaml"),
-    ("parser_processor_config_simple.yaml", "chunking_processor_config_simple.yaml"),
+    ("parse_config.yaml", "chunk_config.yaml"),
+    ("parse_config_simple.yaml", "chunk_config_simple.yaml"),
 )
 
 

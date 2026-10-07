@@ -22,7 +22,7 @@
 #     resource/, 사이트 전용 유형은 genon/sites/<site>/resource/ — 맨 아래 "배포" 참고).
 #  ② <...> 를 채우고 쓰지 않는 [선택] 블록은 지운다. `schema: v2` 줄은 지우지 않는다
 #     (없으면 기동이 실패한다).
-#  ③ 같은 폴더의 parser_processor_config.yaml 의 enrichment 목록에 등록한다.
+#  ③ 같은 폴더의 parse_config.yaml 의 enrichment 목록에 등록한다.
 #        - custom_fields:
 #            enable: true
 #            doc_type: <유형>            # 요청 params 의 doc_type 과 같은 값
@@ -268,8 +268,8 @@ fields:
 #
 #  2) 실제 원천으로 파싱·청킹. <출력폴더> 의 *.chunks.json 에서 각 청크의 최상위 키로 공통 필드와
 #     SECTION_NM·SOURCE_JSON_PATH 가 실린다. llm 블록이 있으면 실제 LLM 을 호출한다.
-#       genon/preprocessor/.venv/bin/python genon/preprocessor/tools/parse_chunk/parse_chunk_test.py --config <resource 폴더>/parser_processor_config.yaml \
-#         --chunker-config <resource 폴더>/chunking_processor_config.yaml --doc_type <유형> <샘플> <출력폴더>/
+#       genon/preprocessor/.venv/bin/python genon/preprocessor/tools/parse_chunk/parse_chunk_test.py --config <resource 폴더>/parse_config.yaml \
+#         --chunker-config <resource 폴더>/chunk_config.yaml --doc_type <유형> <샘플> <출력폴더>/
 #
 #  증상별 원인
 #  · require 를 채우지 못해 요청이 실패하면(기본 on_missing: error) 루트 원천값과 alias, 그리고
@@ -287,6 +287,6 @@ fields:
 #    이동한 뒤 실행되므로 --resource-dir 에는 절대 경로를 준다.
 #
 #  배포 — 사이트 전용 유형은 그 사이트 manifest.yaml 의 `owned:` 에 이 파일과, 등록을 넣은
-#  parser_processor_config.yaml 을 함께 올린다. owned 가 아닌 파일은 build-script/sync-sites.sh 가 표준
+#  parse_config.yaml 을 함께 올린다. owned 가 아닌 파일은 build-script/sync-sites.sh 가 표준
 #  사본으로 덮어쓰거나 지운다. 표준 유형도 파서 설정을 owned 로 둔 사이트에는 그 파일에 따로 등록한다.
 # ═══════════════════════════════════════════════════════════════════════════

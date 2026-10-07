@@ -38,8 +38,8 @@ for path in (PREPROCESSOR_SRC, PROJECT_ROOT):
         sys.path.insert(0, path_str)  # doc_parser 루트 / preprocessor src 참조
 
 # in-process 테스트라 코드서빙 단일 마운트 제약과 무관 → 두 facade 동시 import 가능.
-from genon.preprocessor.facade.parser_processor import DocumentProcessor as ParserProcessor
-from genon.preprocessor.facade.chunking_processor import (
+from genon.preprocessor.activities.parse import DocumentProcessor as ParserProcessor
+from genon.preprocessor.activities.chunk import (
     DocumentProcessor as ChunkerProcessor,
     GenosServiceException,
 )
@@ -351,8 +351,8 @@ def main():
         site_dir = PROJECT_ROOT / "genon" / "sites" / args.site / "resource"
         if not site_dir.is_dir():
             raise SystemExit(f"사이트 설정 폴더가 없습니다: {site_dir}")
-        _PARSER_CONFIG = _PARSER_CONFIG or str(site_dir / "parser_processor_config.yaml")
-        _CHUNKER_CONFIG = _CHUNKER_CONFIG or str(site_dir / "chunking_processor_config.yaml")
+        _PARSER_CONFIG = _PARSER_CONFIG or str(site_dir / "parse_config.yaml")
+        _CHUNKER_CONFIG = _CHUNKER_CONFIG or str(site_dir / "chunk_config.yaml")
     # 로컬 실행은 로컬(VPN) 모델로 돈다. 이미 설정된 값은 존중한다(README 의 GENOS_MODEL_PRESETS_FILE).
     os.environ.setdefault("GENOS_MODEL_PRESETS_FILE", str(PROJECT_ROOT / "genon" / "sites" / "dev" / "model_presets.yaml"))
     SUPPORTED_EXTENSIONS = SUPPORTED_EXTENSIONS | _alias_extensions(_PARSER_CONFIG)

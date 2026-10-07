@@ -102,7 +102,7 @@ def _parse_and_chunk(source: Path, doc_type: str, llm_stub: str | None = None, *
 
     async def _run():
         request = Request(scope={"type": "http"})
-        parser = pp.DocumentProcessor(str(PREPROCESSOR_DIR / SITE_MONIMO / "parser_processor_config.yaml"))  # 모니모 문서유형은 모니모 사이트 설정에 있다
+        parser = pp.DocumentProcessor(str(PREPROCESSOR_DIR / SITE_MONIMO / "parse_config.yaml"))  # 모니모 문서유형은 모니모 사이트 설정에 있다
         if llm_stub is not None:
             stubbed = 0
             for enricher in parser._intel.custom_fields_enrichers:

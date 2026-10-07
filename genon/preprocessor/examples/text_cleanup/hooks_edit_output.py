@@ -1,4 +1,4 @@
-"""`edit_output` 로 정제하는 예시. 이 클래스 몸통을 facade/chunking_processor.py 에 붙인다.
+"""`edit_output` 로 정제하는 예시. 이 클래스 몸통을 activities/chunk.py 에 붙인다.
 
 설정(`chunking.text_cleanup`)은 프로세서 전체에 걸려 doc_type 을 가릴 수 없다. 특정
 doc_type 만 다르게 정제해야 할 때 이 자리를 쓴다.

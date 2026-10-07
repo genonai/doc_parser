@@ -71,7 +71,10 @@ def load_processor_class(spec: str):
         if module_spec is None or module_spec.loader is None:
             raise SystemExit(f"Python 모듈로 읽을 수 없습니다: {path}")
         module = importlib.util.module_from_spec(module_spec)
+        sys.modules[module_spec.name] = module
         module_spec.loader.exec_module(module)
+        # 옛 이름 별칭(facade/parser_processor.py 등)은 실행되며 sys.modules 의 자기 자리를 실제 모듈로 바꾼다.
+        module = sys.modules.get(module_spec.name, module)
     if not hasattr(module, "DocumentProcessor"):
         raise SystemExit(f"DocumentProcessor 가 없습니다: {spec}")
     return module.DocumentProcessor

@@ -165,11 +165,11 @@ def probe_endpoints() -> dict[str, str]:
         sys.path.insert(0, str(verify.REPO_ROOT))
     from genon.preprocessor.processing.common import config_parse as cp
 
-    for path in [resource_dir / "parser_processor_config.yaml", *sorted(resource_dir.glob("custom_field_*.yaml"))]:
+    for path in [resource_dir / "parse_config.yaml", *sorted(resource_dir.glob("custom_field_*.yaml"))]:
         if not path.exists():
             continue
         try:
-            loaded = (cp.load_config(str(path), strict=False) if path.name == "parser_processor_config.yaml"
+            loaded = (cp.load_config(str(path), strict=False) if path.name == "parse_config.yaml"
                       else yaml.safe_load(path.read_text(encoding="utf-8")))
             _collect_urls(loaded, urls)
         except Exception as exc:  # 설정을 못 읽으면 점검 대상에서만 빠진다

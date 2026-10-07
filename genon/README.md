@@ -258,7 +258,7 @@ echo "HWP_SDK_TOKEN=hf_xxx" >> build-script/hf_private_token.env
   - doc_parser github debelop 브랜치 전체 코드를 gitea 레포지터리에 복사 후 gitea 레포지터리에서 commit/push 를 수행한다.
     - 이 때 `genon/preprocessor/resource`의 yaml 파일을 기반으로 전처리기가 동작하므로 실행환경에 맞게 수정한후 commit/push를 해야 한다. [매뉴얼 참조](https://github.com/genonai/doc_parser/tree/develop/genon/preprocessor/manual)
     - 코드서빙으로 서빙할 전처리기의 config yaml은 아래와 같다.
-      - parser/chunking 만 사용하는 경우: parser_processor_config.yaml, chunking_processor_config.yaml 수정
+      - parser/chunking 만 사용하는 경우: parse_config.yaml, chunk_config.yaml 수정
       - 적재용 전처리기 사용하는 경우: intelligent_processor_config.yaml
       - 첨부용 전처리기 사용하는 경우: attachment_processor_config.yaml
       - 변환용 전처리기 사용하는 경우: convert_processor_config.yaml
@@ -276,8 +276,8 @@ echo "HWP_SDK_TOKEN=hf_xxx" >> build-script/hf_private_token.env
     # 복사된 gitea 레포 디렉토리에서 config yaml 수정
     # vscode를 이용해서 genon/preprocessor/resource 의 config yaml을 수정해 준다.
     # 수정 대상 파일.
-    # - parser_processor_config.yaml
-    # - chunking_processor_config.yaml
+    # - parse_config.yaml
+    # - chunk_config.yaml
     # - intelligent_processor_config.yaml
     # - attachment_processor_config.yaml
     # - convert_processor_config.yaml

@@ -15,8 +15,8 @@ RAG 검색을 방해하는 문자 노이즈를 청크 본문에서 걷어내는 
 
 | 예시 | 정제하는 자리 | 쓰는 때 |
 |---|---|---|
-| `yaml` | `chunking_processor_config.yaml` 의 `chunking.text_cleanup` | 전 문서 공통. 코드 변경 없음 |
-| `edit_output` | `chunking_processor.py` 의 `edit_output` 훅 | 특정 doc_type 만. 설정으로 못 가릴 때 |
+| `yaml` | `chunk_config.yaml` 의 `chunking.text_cleanup` | 전 문서 공통. 코드 변경 없음 |
+| `edit_output` | `activities/chunk.py` 의 `edit_output` 훅 | 특정 doc_type 만. 설정으로 못 가릴 때 |
 | `both` | 위 둘을 함께 | 공통은 설정, 그 doc_type 의 예외만 훅 |
 
 ## 어느 것을 골라야 하는가

@@ -241,7 +241,7 @@ def test_product_fence_sample_parser_to_chunk_round_trip():
 
     async def _run():
         request = Request(scope={"type": "http"})
-        parser = ParserProcessor(str(PREPROCESSOR_DIR / SITE_MONIMO / "parser_processor_config.yaml"))  # 모니모 문서유형은 모니모 사이트 설정에 있다
+        parser = ParserProcessor(str(PREPROCESSOR_DIR / SITE_MONIMO / "parse_config.yaml"))  # 모니모 문서유형은 모니모 사이트 설정에 있다
         parser._output_format = "docling"
         for enricher in parser._intel.custom_fields_enrichers:
             if "product_slf" in enricher._doc_types:
@@ -304,7 +304,7 @@ def test_product_fence_sample_keeps_repeated_qa():
 
     async def _run():
         request = Request(scope={"type": "http"})
-        parser = ParserProcessor(str(PREPROCESSOR_DIR / SITE_MONIMO / "parser_processor_config.yaml"))  # 모니모 문서유형은 모니모 사이트 설정에 있다
+        parser = ParserProcessor(str(PREPROCESSOR_DIR / SITE_MONIMO / "parse_config.yaml"))  # 모니모 문서유형은 모니모 사이트 설정에 있다
         parser._output_format = "docling"
         for enricher in parser._intel.custom_fields_enrichers:
             if "product_slf" in enricher._doc_types:

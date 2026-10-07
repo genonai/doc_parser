@@ -139,8 +139,8 @@ _RESOURCE = Path(__file__).resolve().parents[2] / "resource"
 
 @pytest.mark.unit
 @pytest.mark.parametrize("name", [
-    "chunking_processor_config.yaml",
-    "chunking_processor_config_simple.yaml",
+    "chunk_config.yaml",
+    "chunk_config_simple.yaml",
 ])
 def test_chunker_config_exposes_table_switches(name):
     """파서와 청커는 별개 호출이라 파서 설정이 넘어오지 않는다.
@@ -225,7 +225,7 @@ def test_table_text_formats_parsing(value, expected):
 @pytest.mark.unit
 def test_table_text_formats_defaults_to_off_in_operational_config():
     """켜면 본문이 형식 수만큼 복제된다. 운영 기본은 off 여야 한다."""
-    for name in ("chunking_processor_config.yaml", "chunking_processor_config_simple.yaml",
+    for name in ("chunk_config.yaml", "chunk_config_simple.yaml",
                  "intelligent_processor_config.yaml", "convert_processor_config.yaml"):
         output = yaml.safe_load((_RESOURCE / name).read_text(encoding="utf-8"))["output"]
         assert cp.resolve_table_text_formats(output) == (), name

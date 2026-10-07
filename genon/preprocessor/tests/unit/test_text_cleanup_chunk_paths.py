@@ -16,7 +16,7 @@ import yaml
 
 pytestmark = pytest.mark.unit
 
-_CONFIG_NAME = "chunking_processor_config.yaml"
+_CONFIG_NAME = "chunk_config.yaml"
 
 # 자모 분리(NFD) + 제로폭 + NBSP + 전각 + 줄 끝 공백 + 빈 줄 3개
 _NOISY = "﻿한​글 Ａ   \n\n\n\n본문"

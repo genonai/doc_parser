@@ -142,25 +142,26 @@ from genon.preprocessor.facade.attachment_processor import DocumentProcessor as 
 from genon.preprocessor.facade.intelligent_processor import DocumentProcessor as IntelligentDocumentProcessor
 from genon.preprocessor.facade.convert_processor import DocumentProcessor as ConvertDocumentProcessor
 
-from genon.preprocessor.facade.parser_processor import DocumentProcessor as ParserDocumentProcessor
-from genon.preprocessor.facade.chunking_processor import DocumentProcessor as ChunkingDocumentProcessor
+from genon.preprocessor.activities.parse import DocumentProcessor as ParserDocumentProcessor
+from genon.preprocessor.activities.chunk import DocumentProcessor as ChunkingDocumentProcessor
 
 # config 는 출고용 resource/ 를 읽는다. GENOS_RESOURCE_DIR 은 로컬 실행에서 사이트 완성본
 # (예: genon/sites/monimo/resource)을 띄울 때만 쓴다(build-script/run-local.sh 가 설정한다).
 RESOURCE_DIR = Path(os.environ.get("GENOS_RESOURCE_DIR") or BASE_DIR / "genon" / "preprocessor" / "resource")
 
 
-def _cfg(name: str) -> str:
-    return str(RESOURCE_DIR / f"{name}_processor_config.yaml")
+def _cfg(stem: str) -> str:
+    return str(RESOURCE_DIR / f"{stem}_config.yaml")
 
 
 # 프로세서는 모듈 로딩 시 1회만 생성해 재사용한다(요청마다 재생성하면 config/토크나이저/
-# 파이프라인 초기화 비용이 반복됨). 각 프로세서는 resource/<name>_processor_config.yaml 을 로드한다.
-attachment_processor = AttachmentDocumentProcessor(config_path=_cfg("attachment"))    # 첨부용
-intelligent_processor = IntelligentDocumentProcessor(config_path=_cfg("intelligent"))  # 적재용(지능형)
-convert_processor = ConvertDocumentProcessor(config_path=_cfg("convert"))             # 변환용
-parser_processor = ParserDocumentProcessor(config_path=_cfg("parser"))               # 파싱 전용(/parser)
-chunking_processor = ChunkingDocumentProcessor(config_path=_cfg("chunking"))         # 청킹 전용(/chunker)
+# 파이프라인 초기화 비용이 반복됨). 각 프로세서는 resource/<모듈 이름>_config.yaml 을 로드한다
+# (activities/parse.py → parse_config.yaml, facade/attachment_processor.py → attachment_processor_config.yaml).
+attachment_processor = AttachmentDocumentProcessor(config_path=_cfg("attachment_processor"))    # 첨부용
+intelligent_processor = IntelligentDocumentProcessor(config_path=_cfg("intelligent_processor"))  # 적재용(지능형)
+convert_processor = ConvertDocumentProcessor(config_path=_cfg("convert_processor"))             # 변환용
+parser_processor = ParserDocumentProcessor(config_path=_cfg("parse"))               # 파싱 전용(/parser)
+chunking_processor = ChunkingDocumentProcessor(config_path=_cfg("chunk"))         # 청킹 전용(/chunker)
 
 
 def _request_deadline_seconds(params: dict):

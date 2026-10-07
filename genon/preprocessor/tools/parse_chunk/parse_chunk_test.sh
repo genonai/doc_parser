@@ -244,7 +244,7 @@ RUN="run-1"
 #   "${PYTHON}" -c "import json;d=json.load(open('${OUT}/생명FAQ_260712.chunks.json'));print(len(d));print(d[0])"
 
 # ── monimo 이벤트 JSON → parser(json_mapping 레코드별) → chunker (레코드마다 1청크) ──────────
-# genon/sites/monimo/resource/parser_processor_config.yaml 의 doc_type=monimo_event 블록이 켜져 있으면(--site monimo)
+# genon/sites/monimo/resource/parse_config.yaml 의 doc_type=monimo_event 블록이 켜져 있으면(--site monimo)
 # eventList[*] 가 레코드마다 청크 1개가 되고 TITLE/EVENT_FROM/EVENT_TO/DETAIL_HTML 이 청크 metadata 로 실린다.
 # 요약본문(SUMMARY_TEXT)은 LLM 생성이라 custom_field_monimo_event.yaml 의 llm_fields.url/model
 # 설정이 필요하다(LLM 연결·프롬프트까지 그 파일 하나에 인라인되어 있다).

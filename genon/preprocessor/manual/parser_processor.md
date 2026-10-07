@@ -13,7 +13,7 @@
 
 1. [개요](#개요)
 2. [API 엔드포인트](#api-엔드포인트)
-3. [parser_processor_config.yaml 설정](#parser_processor_configyaml-설정)
+3. [parse_config.yaml 설정](#parse_configyaml-설정)
 4. [지원 파일 형식 및 전제조건](#지원-파일-형식-및-전제조건)
 5. [API 요청 파라미터](#api-요청-파라미터)
 6. [출력 데이터 구조](#출력-데이터-구조)
@@ -33,7 +33,7 @@
 - HWP/HWPX는 전용 SDK 백엔드 사용, 실패 시 단계별 폴백 적용
 - 오디오는 Whisper API를 통한 음성 전사
 - CSV/XLSX는 표 구조 그대로 반환
-- 출력 형식은 `parser_processor_config.yaml`의 `output.format`으로 제어 (`json` / `html` / `markdown` / `docling`)
+- 출력 형식은 `parse_config.yaml`의 `output.format`으로 제어 (`json` / `html` / `markdown` / `docling`)
 - `docling` 포맷은 복원 가능한 DoclingDocument 원본 JSON을 반환하며, Chunk API(`/chunker`)의 입력으로 사용
 
 ---
@@ -97,12 +97,12 @@ Content-Type: application/json
 
 ---
 
-## parser_processor_config.yaml 설정
+## parse_config.yaml 설정
 
-`파싱용 전처리기`는 `parser_processor_config.yaml` 파일을 읽어서 전처리기 수행에 필요한 정보를 설정합니다.
-`parser_processor_config.yaml` 파일은 Genos 전처리기의 `resource` 탭에 등록됩니다.
+`파싱용 전처리기`는 `parse_config.yaml` 파일을 읽어서 전처리기 수행에 필요한 정보를 설정합니다.
+`parse_config.yaml` 파일은 Genos 전처리기의 `resource` 탭에 등록됩니다.
 
-Genos에서 전처리기를 배포할 때 `parser_processor_config.yaml`파일도 함께 배포되어 전처리기 컨테이너에 적용됩니다. 따라서 `parser_processor_config.yaml`파일의 내용이 수정된 경우에는 전처리기를 재배포해야만 수정된 내용이 적용됩니다.
+Genos에서 전처리기를 배포할 때 `parse_config.yaml`파일도 함께 배포되어 전처리기 컨테이너에 적용됩니다. 따라서 `parse_config.yaml`파일의 내용이 수정된 경우에는 전처리기를 재배포해야만 수정된 내용이 적용됩니다.
 
 > **전처리기 최초 등록시 아래의 config 수정가이드를 참고해서 수정해 주세요.**
 
@@ -368,7 +368,7 @@ model_presets:
 ```
 
 ```yaml
-# parser_processor_config.yaml
+# parse_config.yaml
 model_presets_file: model_presets.yaml
 
 enrichment:
@@ -873,7 +873,7 @@ model_presets:
     workflow_id: 4932        # 민감정보 분류 워크플로우 ID
     api_key: "..."           # 워크플로우 호출 Bearer 인증키
 
-# parser_processor_config.yaml
+# parse_config.yaml
 guardrail:
   model_preset: guardrail
   timeout: 60
@@ -1098,7 +1098,7 @@ markdown:
 | `use_hwp_sdk` | `bool` | `true` | `true`: GenosHwpDocumentBackend 사용. `false`: 내장 백엔드(HwpDocumentBackend/HwpxDocumentBackend) 강제 사용 |
 | `dump_sdk_output` | `bool` | `false` | HWP SDK 내부 출력 덤프 여부 (`use_hwp_sdk=true`일 때만 유효) |
 
-> 이미지 설명 문맥 추출(`enrichment.image_description.*`)은 현재 `parser_processor_config.yaml` 설정값으로 제어합니다.
+> 이미지 설명 문맥 추출(`enrichment.image_description.*`)은 현재 `parse_config.yaml` 설정값으로 제어합니다.
 
 > LLM 호출 파일 캐시·실패 정책(`error_policy`)·요청 deadline(`request_deadline`)은 모든 형식 공통으로
 > `params` 로 opt-in 할 수 있습니다 — [9. LLM 호출 파일 캐시 / 실패 정책 / 요청 deadline (#329)](#9-llm-호출-파일-캐시--실패-정책--요청-deadline-329) 절 참고.
@@ -1176,7 +1176,7 @@ markdown:
 
 ### `output.format: html` 또는 `markdown`
 
-Docling 경로(PDF, HTML, HWP, HWPX, DOCX)에서 `parser_processor_config.yaml`의 `output.format`을 `html` 또는 `markdown`으로 설정하면, 전체 문서를 하나의 문자열로 직렬화하여 `content`에 담고 `elements`는 `[]`로 반환됩니다.
+Docling 경로(PDF, HTML, HWP, HWPX, DOCX)에서 `parse_config.yaml`의 `output.format`을 `html` 또는 `markdown`으로 설정하면, 전체 문서를 하나의 문자열로 직렬화하여 `content`에 담고 `elements`는 `[]`로 반환됩니다.
 
 ```json
 {
@@ -1363,7 +1363,7 @@ fields:
 > `source.pre.json.body_from` 으로 그 값을 지목하면 됩니다. 선택자는 **파싱 전 원문**에
 > 걸리므로, docling 이 지워 버리는 class·속성·`alt` 를 모두 쓸 수 있습니다.
 
-> 등록 블록(`parser_processor_config.yaml`)의 `extractor` 는 **적지 않아도 됩니다.**
+> 등록 블록(`parse_config.yaml`)의 `extractor` 는 **적지 않아도 됩니다.**
 > 생략하면 설정 파일의 `source.kind` 에서 정해집니다(문서형은 `python:` 블록이 있으면
 > `python`, 없으면 `llm`. `kind: html` 이면 `html_select`). 같은 정보를 두 파일에 적으면 어긋날 수 있고, 어긋나면 "이
 > extractor 가 읽지 않는 키" 라는 메시지로 기동이 실패합니다 — 설정에 그 키를 적은
@@ -1508,7 +1508,7 @@ rows·records 의 `body.fields`·`body.repeat` 값이 JSON·HTML 이면 본문�
 펼쳐져** `output_fields`·`system_prompt`·`user_prompt` 같은 이름으로 오류 메시지에 나옵니다.
 
 > **청크 텍스트 정제(`chunking.text_cleanup`)는 doc_type 별 설정이 아니라 프로세서 config** 입니다.
-> `parser_processor_config.yaml` 에는 없습니다 — 파서와 청커를 나눠 배포했다면 **청커 쪽 yaml** 에 적습니다.
+> `parse_config.yaml` 에는 없습니다 — 파서와 청커를 나눠 배포했다면 **청커 쪽 yaml** 에 적습니다.
 
 ### `transform` 9종 — 체이닝됩니다
 
@@ -1670,7 +1670,7 @@ fields:
 
 ### 코드가 필요할 때 — 고칠 자리 3개
 
-`parser_processor.py` 파일 머리 주석에 같은 목록이 있습니다. **그 밖으로 나가야 한다면
+`activities/parse.py` 파일 머리 주석에 같은 목록이 있습니다. **그 밖으로 나가야 한다면
 설정이나 facade 로 풀 수 있는 일을 놓친 것입니다.**
 
 | # | 자리 | 언제 |
@@ -1884,10 +1884,10 @@ if result["code"] == 0:
         print(f"[Page {element['page']}][{element['category']}] {str(element['content'])[:80]}")
 ```
 
-### HTML 포맷으로 출력 (`parser_processor_config.yaml: output.format: html`)
+### HTML 포맷으로 출력 (`parse_config.yaml: output.format: html`)
 
 ```python
-# parser_processor_config.yaml에 output.format: html 설정 후
+# parse_config.yaml에 output.format: html 설정 후
 response = requests.post(
     f"{BASE_URL}/preprocessor/{PREPROCESSOR_ID}/run",
     headers={"Authorization": f"Bearer {AUTH_KEY}"},

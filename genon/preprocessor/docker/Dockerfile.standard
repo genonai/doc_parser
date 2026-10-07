@@ -278,7 +278,7 @@ RUN rm -rf ${APP_VENV}/lib/python3*/site-packages/torch/test \
 #    Mesa 스택(libLLVM 134MB + gallium 47MB + z3 27MB ≈ 208MB)은 opencv 가 아니라
 #    **ffmpeg** 가 끌어온다:
 #      ffmpeg → libsdl2-2.0-0 → libsdl3-0 → libgbm1 → mesa-libgallium → libllvm21 → libz3-4
-#    ffmpeg 는 pydub 오디오 파싱(attachment_processor.py / parser_processor.py)에 필요해
+#    ffmpeg 는 pydub 오디오 파싱(attachment_processor.py / activities/parse.py)에 필요해
 #    뺄 수 없다. libgl1 만 제거하면 libGL.so.1 이 사라져 검증 못한 렌더링 경로에 위험만 남는다.
 #   (Dockerfile.gpu 의 models_artifacts 가 이미 같은 방식을 쓴다.)
 # 이 단계 끝의 import 검사는 빌드 smoke 다. 앞 단계들의 정리가 런타임 import 를 깨지 않았는지 확인한다:

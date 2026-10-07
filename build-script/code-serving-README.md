@@ -89,8 +89,8 @@ config를 업무 요구사항에 맞게 수정할 수 있습니다.
 
    # gitea repo에서 환경에 맞게 config yaml 수정 (특히 LLM 모델 주소) — 용도별 대상 파일:
    # genon/preprocessor/manual/ 의 매뉴얼 참고바람.
-   #   genon/preprocessor/resource/parser_processor_config.yaml
-   #   genon/preprocessor/resource/chunking_processor_config.yaml
+   #   genon/preprocessor/resource/parse_config.yaml
+   #   genon/preprocessor/resource/chunk_config.yaml
    #   genon/preprocessor/resource/intelligent_processor_config.yaml
    #   genon/preprocessor/resource/attachment_processor_config.yaml
    #   genon/preprocessor/resource/convert_processor_config.yaml
@@ -119,7 +119,7 @@ config를 업무 요구사항에 맞게 수정할 수 있습니다.
 | `auth_key` | 게이트웨이 인증 토큰(Bearer) | `<AUTH_KEY>` |
 
 - **`/parser`의 `file_path`는 서빙 컨테이너 내부의 로컬 경로**입니다(MinIO 키 아님). 서버가 접근 가능한 경로를 넣으세요.
-- docling 포맷은 파싱 서빙의 `parser_processor_config.yaml`이 `output.format: "docling"`이어야 응답에 `data.document`가 생성됩니다.
+- docling 포맷은 파싱 서빙의 `parse_config.yaml`이 `output.format: "docling"`이어야 응답에 `data.document`가 생성됩니다.
 - 그 외 포맷은 설정과 무관하게 parse-format(`data.elements`)으로 반환되며 chunker가 그대로 청킹합니다.
 
 ## 엔드포인트

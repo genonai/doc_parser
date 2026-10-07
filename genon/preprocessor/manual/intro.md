@@ -7,7 +7,7 @@
   |---|---|
   | 첨부용 (채팅 실시간) | `preprocessor/facade/attachment_processor.py` |
   | 변환용 (PDF 표준화) | `preprocessor/facade/convert_processor.py` |
-  | 파싱용 (Element 구조화 API) | `preprocessor/facade/parser_processor.py` |
+  | 파싱용 (Element 구조화 API) | `preprocessor/activities/parse.py` |
   | 적재용 지능형 (RAG 고품질) | `preprocessor/facade/intelligent_processor.py` |
 
 - 설치(이미지 빌드·배포) 및 Facade·config 구성 절차는 [GenOS v2 Doc Parser 설치 및 Facade 구성 매뉴얼](installation.md)을 참고하세요.
@@ -42,7 +42,7 @@
 
 **"구조 중심: Element 단위 파싱 결과 반환"**
 - 설명: [parser_processor.md](parser_processor.md)
-- 위치: [preprocessor/facade/parser_processor.py](https://github.com/genonai/doc_parser/blob/develop/genon/preprocessor/facade/parser_processor.py)
+- 위치: [preprocessor/activities/parse.py](https://github.com/genonai/doc_parser/blob/develop/genon/preprocessor/activities/parse.py)
 - 특징
   * **Element 기반 출력**: `title`, `paragraph`, `table`, `picture` 등 문서 구조를 `elements` 배열로 반환
   * **다양한 포맷 처리**: PDF/HTML/HWP(HWPX)/DOCX/CSV/XLSX/오디오 및 기타 문서 포맷 파싱 지원

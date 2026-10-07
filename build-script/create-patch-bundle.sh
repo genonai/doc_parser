@@ -24,7 +24,8 @@ REPO_ROOT="$(git -C "${SCRIPT_DIR}" rev-parse --show-toplevel)" || {
 SOURCE_DIR="${REPO_ROOT}/genon/preprocessor"
 
 # 번들에 싣는 폴더. 코드서빙 서버(루트 main.py)가 실제로 쓰는 것과 현장 검증 스크립트만 둔다.
-#   facade/      루트 main.py 가 올리는 processor 5종
+#   activities/  파싱·청킹 파사드(parse.py·chunk.py) — 루트 main.py 와 Temporal 워커가 올린다
+#   facade/      루트 main.py 가 올리는 나머지 processor 3종 + 옛 이름 별칭 2개
 #   processing/  facade 가 호출하는 처리 라이브러리
 #   resource/    표준 설정과 LLM 프롬프트(.md 도 런타임 입력이다)
 #   src/         루트 main.py 가 sys.path 에 넣고 logger·settings·minio 유틸을 불러온다
@@ -34,7 +35,7 @@ SOURCE_DIR="${REPO_ROOT}/genon/preprocessor"
 # 특히 sample_files/monimo 는 고객사 실 문서라 번들로 다른 현장에 나가면 안 된다.
 # resource/ 는 따로 복사한다. --site 를 주면 그 원천이 사이트 완성본(genon/sites/<site>/resource/)으로 바뀐다.
 # 완성본은 표준 사본에 사이트 소유 파일을 더한 전체 설정 폴더다(genon/sites/README.md).
-PATCH_DIRS=(facade processing src examples tools)
+PATCH_DIRS=(activities facade processing src examples tools)
 PATCH_EXTS=(py md yaml sh)
 
 # 폴더 x 확장자 조합의 git pathspec. `**/` 는 0개 이상의 하위 폴더에 대응한다.

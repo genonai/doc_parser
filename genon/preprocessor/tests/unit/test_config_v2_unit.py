@@ -322,9 +322,9 @@ def test_shipped_blocks_derive_their_extractor():
     from shipped_config import PREPROCESSOR_DIR, SHIPPED_ROOTS
 
     configs = (
-        "parser_processor_config.yaml", "parser_processor_config_simple.yaml",
+        "parse_config.yaml", "parse_config_simple.yaml",
         "intelligent_processor_config.yaml", "convert_processor_config.yaml",
-        "chunking_processor_config.yaml", "chunking_processor_config_simple.yaml",
+        "chunk_config.yaml", "chunk_config_simple.yaml",
         "attachment_processor_config.yaml",
     )
     checked = 0

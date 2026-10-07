@@ -522,7 +522,7 @@ def promote_marker_headings(node: Tag) -> int:
     떴는데 승격은 0건"인 드리프트를 막는다.
 
     마커 문자는 텍스트에서 제거하지 않는다 — 저자가 쓴 라벨이고, 청커
-    breadcrumb 이 쓰는 값이 item.orig(facade/chunking_processor.py:583)라
+    breadcrumb 이 쓰는 값이 item.orig(activities/chunk.py:583)라
     "HEADER: [AI 에이전트용] > ◈ 기본내용 > ▣ 네이버페이 서비스 등록방법 및
     화면"처럼 원문 그대로 읽힌다.
 

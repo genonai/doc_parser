@@ -1,6 +1,6 @@
 """파싱 처리 본체 (#363 08).
 
-`facade/parser_processor.py` 에서 통째로 옮겨 왔다. 고객이 여는 파일은 그쪽이고
+`activities/parse.py` 에서 통째로 옮겨 왔다. 고객이 여는 파일은 그쪽이고
 여기는 열 일이 없다. 08-1 은 순수 이동이며 훅·이름 변경은 08-3 이다.
 """
 from __future__ import annotations
@@ -216,7 +216,7 @@ def _resolve_default_parser_config_path() -> str:
     # processing/core/ 로 한 단계 깊어졌으므로 facade/ 를 기준으로 잡는다 —
     # 옮기기 전 이 헬퍼는 facade/ 에 있었고 아래 상대 경로가 그것을 전제한다.
     base_dir = Path(__file__).resolve().parents[1]
-    return str((base_dir / "../resource/parser_processor_config.yaml").resolve())
+    return str((base_dir / "../resource/parse_config.yaml").resolve())
 
 
 # ============================================================

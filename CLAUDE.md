@@ -7,7 +7,8 @@ docling(v2.41.0) 포크 위에 GenOn 전처리기(genon/preprocessor)를 올린 
 | 경로 | 역할 |
 |---|---|
 | `main.py` | **코드서빙 서비스**의 진입점(로컬 실행도 이것). FastAPI 앱, 업무 API 7개와 health·version |
-| `genon/preprocessor/facade/` | 최상위 `*_processor.py` 5종. 파싱·청킹 2종은 고객이 여는 파사드, 나머지 3종은 아직 처리 로직을 안고 있다 |
+| `genon/preprocessor/activities/` | 파싱·청킹 파사드(`parse.py`·`chunk.py`) — 고객이 여는 파일. 파일 이름 = 액티비티 이름(전처리 Studio·Temporal 워커가 이 폴더를 읽는다) |
+| `genon/preprocessor/facade/` | 최상위 `*_processor.py` 3종(아직 처리 로직을 안고 있다) + 옛 이름 별칭 `parser_processor.py`·`chunking_processor.py` |
 | `genon/preprocessor/processing/` | 파싱·청킹·보강 **처리 라이브러리**. facade 는 여기를 상속·호출만 한다 |
 | `genon/preprocessor/processing/core/` | 파싱·청킹 처리 본체(`parser.py`/`chunker.py`)와 고객용 `toolbox.py`·`cli.py`·`errors.py` |
 | `genon/preprocessor/processing/{common,chunking,enrichment,guardrail}/` | facade가 공유하는 공용 하위 모듈. 배포본에 포함된다 |
@@ -113,7 +114,7 @@ facade가 공유하는 로직은 아래에 한 벌씩만 둔다. 최상위 proce
 ## 아키텍처 제약
 
 - **배포 대상 `*_processor.py` 는 하나다.** 최상위 processor 파일끼리 서로 import하면 배포본에서 깨진다. 반면 `processing/core/` 와 공용 하위 모듈은 배포본에 함께 들어가므로 상속·import 해도 된다(파싱·청킹 파사드가 그렇게 한다). 무조건 복제하지 말고 `build-script/sync-serving-repo.sh` 의 배포 범위를 먼저 확인한다.
-- **파싱·청킹 파사드 2종은 고객이 여는 파일이다.** `parser_processor.py`·`chunking_processor.py` 는 `ParserCore`/`ChunkerCore` 를 상속하고 호출부와 확장 지점(`ROUTES`, 상수, 훅 메소드)만 갖는다. **여기에 처리 로직을 넣지 않는다.** 릴리스가 이 두 파일을 통째로 덮어쓰므로 고객 수정분과 충돌하고, 훅 시그니처·`ROUTES` 형태는 고정 API 다(`tests/unit/test_facade_hooks_unit.py` 가 고정한다). 고객이 훅에서 쓸 기능은 `core/toolbox.py` 에 **재수출**만 하고 구현은 공용 하위 모듈에 둔다.
+- **파싱·청킹 파사드는 고객이 여는 파일이다.** `activities/parse.py`·`chunk.py`(#474 — 옛 `facade/parser_processor.py`·`chunking_processor.py` 는 같은 모듈을 가리키는 별칭만 남았다. 파일 이름 = 액티비티 이름, 설정은 `resource/<이름>_config.yaml`)는 `ParserCore`/`ChunkerCore` 를 상속하고 호출부와 확장 지점(`ROUTES`, 상수, 훅 메소드)만 갖는다. **여기에 처리 로직을 넣지 않는다.** 릴리스가 이 두 파일을 통째로 덮어쓰므로 고객 수정분과 충돌하고, 훅 시그니처·`ROUTES` 형태는 고정 API 다(`tests/unit/test_facade_hooks_unit.py` 가 고정한다). 고객이 훅에서 쓸 기능은 `core/toolbox.py` 에 **재수출**만 하고 구현은 공용 하위 모듈에 둔다.
   - 훅 목록·시그니처와 고객용 설명은 `manual/facade_hooks.md` 가 정본이다. 훅·`ROUTES`·toolbox 를 바꾸면 여기도 함께 고친다.
 - **신규 기능은 공용 하위 모듈에 구현하고 facade는 호출만 한다.** 여러 facade가 쓸 수 있는 로직이면 processor 파일에 직접 쓰거나 복붙하지 말고 `processing/{common,chunking,enrichment,guardrail}/` 에 모듈을 만든다. facade에는 설정 읽기 한 줄과 호출부만 남긴다. 판정 기준은 "두 번째 facade에 같은 코드를 넣고 싶어지는가"이며, 그렇다면 이미 공용 모듈 대상이다.
   - 설정 해석(yaml/kwargs 우선순위), 판정 헬퍼, 텍스트 변환 같은 부수 로직도 함께 공용 모듈에 둔다. facade마다 `_resolve_*` 헬퍼를 복제하면 그 자체가 새 lockstep 부채다.

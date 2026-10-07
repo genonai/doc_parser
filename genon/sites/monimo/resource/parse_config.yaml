@@ -255,8 +255,74 @@ enrichment:
       doc_type: card
       config_file: custom_field_card.yaml
 
-  # 고객사이트 전용 문서유형(예: 모니모)은 여기가 아니라 genon/sites/<site>/resource/ 에
-  # 둔다. 사이트 폴더는 그대로 배포하는 완성본이며 표준 사본은 build-script/sync-sites.sh 로 맞춘다(genon/sites/README.md 참조).
+  # ── 모니모 13종 문서유형 custom_fields (2026-08-16 추가) ────────────────────
+  # 메뉴서비스
+  - custom_fields:
+      enable: true
+      doc_type: menu
+      config_file: custom_field_menu.yaml
+  # 용어사전
+  - custom_fields:
+      enable: true
+      doc_type: term
+      config_file: custom_field_term.yaml
+  # FAQ
+  - custom_fields:
+      enable: true
+      doc_type: faq
+      config_file: custom_field_faq.yaml
+  # 이벤트
+  - custom_fields:
+      enable: true
+      doc_type: monimo_event
+      config_file: custom_field_monimo_event.yaml
+  # 관심소식
+  - custom_fields:
+      enable: true
+      doc_type: monimo_news
+      config_file: custom_field_monimo_news.yaml
+  # 상품설명서 생명/화재
+  - custom_fields:
+      enable: true
+      doc_type: product_slf
+      config_file: custom_field_product_slf.yaml
+  - custom_fields:
+      enable: true
+      doc_type: product_ssf
+      config_file: custom_field_product_ssf.yaml
+  # 상품설명서 카드
+  - custom_fields:
+      enable: true
+      doc_type: product_hpp
+      config_file: custom_field_product_hpp.yaml
+  # 고객센터 생명/화재
+  - custom_fields:
+      enable: true
+      doc_type: cs_slf
+      config_file: custom_field_cs_slf.yaml
+  - custom_fields:
+      enable: true
+      doc_type: cs_ssf
+      config_file: custom_field_cs_ssf.yaml
+  # 고객센터 카드
+  - custom_fields:
+      enable: true
+      doc_type: cs_hpp
+      config_file: custom_field_cs_hpp.yaml
+  # 고객센터 증권
+  - custom_fields:
+      enable: true
+      doc_type: cs_sss
+      config_file: custom_field_cs_sss.yaml
+  # AI 차트뷰
+  - custom_fields:
+      enable: true
+      doc_type: stock_insight
+      config_file: custom_field_stock_insight.yaml
+  - custom_fields:
+      enable: true
+      doc_type: research_report
+      config_file: custom_field_research_report.yaml
 
 output:
   format: "docling" # "json" (default), "html", "markdown", "docling"
@@ -272,7 +338,7 @@ output:
   #      레코드형 문서는 파서가 청크 본문을 완성해 넘기고 청커는 표를 다시 렌더링하지 않으므로,
   #      format: docling 이어도 이 값이 최종 청크의 표 모양이 된다.
   # format: docling 으로 청커(/chunker)에 넘기는 일반 문서(PDF·DOCX·HTML 등)의 표 모양은
-  # chunking_processor_config.yaml 의 output 이 정한다. 최종 청크의 표 모양을 통일하려면
+  # chunk_config.yaml 의 output 이 정한다. 최종 청크의 표 모양을 통일하려면
   # 두 설정의 table_format 을 같은 값으로 맞춘다(precheck_custom_fields.sh 가 다르면 경고한다).
   # 레코드형 문서의 표 모양이 바뀌면 hash 로 만든 식별자(예: cs_ssf 의 BIZ_ID)도 바뀐다.
   #
@@ -281,7 +347,7 @@ output:
   table_format: "markdown" # "html"(default) | "markdown" | "auto"  (일반 문서의 "docling" 출력에는 무관)
   compact_tables: true # markdown 표 컬럼 정렬 패딩 제거(대형 표 축소). html/docling 포맷엔 무관.
   # 표 뒤 "컬럼=값 | 컬럼=값" 행 문장(table_row_serialization)은 청커 전용이라 여기에 없다 —
-  # chunking_processor_config.yaml 의 output 에서 켠다.
+  # chunk_config.yaml 의 output 에서 켠다.
 
 # whisper 설정. 음성(.wav/.mp3/.m4a) 처리 시에만 필요(선택).
 whisper:

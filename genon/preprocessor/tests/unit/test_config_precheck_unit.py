@@ -161,7 +161,7 @@ def test_precheck_flags_chunk_body_change(tmp_path):
 
 def _write_preset_site(tmp_path, preset_ref: str) -> None:
     """프리셋을 정의한 프로세서 config 와 그것을 참조하는 자식 설정을 쓴다."""
-    (tmp_path / "parser_processor_config.yaml").write_text(
+    (tmp_path / "parse_config.yaml").write_text(
         "model_presets:\n"
         "  기본:\n"
         "    url: http://m/v1\n"
@@ -222,9 +222,9 @@ def test_precheck_detects_undefined_preset(tmp_path):
 def test_precheck_warns_table_format_mismatch(tmp_path, parser_output, chunker_output, warned):
     """레코드형 문서는 파서 값, 일반 문서는 청커 값으로 표가 나가므로 둘이 다르면 경고한다."""
     precheck = _load_precheck()
-    (tmp_path / "parser_processor_config.yaml").write_text(
+    (tmp_path / "parse_config.yaml").write_text(
         yaml.safe_dump({"output": parser_output}), encoding="utf-8")
-    (tmp_path / "chunking_processor_config.yaml").write_text(
+    (tmp_path / "chunk_config.yaml").write_text(
         yaml.safe_dump({"output": chunker_output}), encoding="utf-8")
     problems = precheck.check_table_format_pairs(tmp_path)
     assert bool(problems) is warned and all(p.startswith("[경고]") for p in problems), problems

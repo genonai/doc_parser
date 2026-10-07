@@ -33,7 +33,7 @@ def sibling_presets(path: Path) -> dict:
     """
     from genon.preprocessor.processing.common import config_parse as cp
 
-    config = Path(path).parent / "parser_processor_config.yaml"
+    config = Path(path).parent / "parse_config.yaml"
     if not config.exists():
         return {}
     cfg = yaml.safe_load(config.read_text(encoding="utf-8")) or {}
