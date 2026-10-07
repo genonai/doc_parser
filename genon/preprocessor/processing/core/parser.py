@@ -2013,7 +2013,8 @@ class ParserCore:
             if bad_reason:
                 _log.warning(f"[parser] 비정상 파일 감지({bad_reason}) — 처리 중단: {file_path}")
                 raise GenosServiceException(
-                    "1", f"{bad_reason} 입니다. 정상 문서로 다시 업로드하세요: {os.path.basename(file_path)}"
+                    "1", f"{bad_reason} 입니다. 정상 문서로 다시 업로드하세요: {os.path.basename(file_path)}",
+                    error_type="permanent",
                 )
 
             if ext != raw_ext:
@@ -2119,3 +2120,13 @@ class ParserCore:
             return await self._call_route(job)
         finally:
             self._finish_job(job)
+
+    def run_activity(self, arg: dict) -> dict:
+        """Temporal 액티비티 본문(파싱). 워커가 activities/<slug>.py 의 이 메서드를 slug 이름으로 등록한다.
+
+        처리는 이 인스턴스의 `__call__`(입력·라우트·출력 훅 전부)로 한다. 인자·반환·하트비트·오류
+        분류는 genon/preprocessor/worker/runtime.py — 파사드 파일은 상속만 하고 이 메서드를 고치지 않는다.
+        """
+        from genon.preprocessor.worker import runtime   # temporalio 는 워커에서만 import 한다
+
+        return runtime.execute(self, "parse", arg)

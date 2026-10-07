@@ -1134,7 +1134,8 @@ class ChunkerCore:
                 raise GenosServiceException(1, f"chunker 입력 파일 로드 실패({file_path}): {exc}") from exc
         if not raw_payload:
             raise GenosServiceException(
-                1, "chunker API: 'document'(인라인 JSON) 또는 file_path(.json) 입력이 필요합니다.")
+                1, "chunker API: 'document'(인라인 JSON) 또는 file_path(.json) 입력이 필요합니다.",
+                error_type="permanent")
 
         if isinstance(raw_payload, DoclingDocument):
             kind, data = "docling", raw_payload
@@ -1215,6 +1216,16 @@ class ChunkerCore:
         if fields is not None:
             fields.update(vm.chunk_fields(info.get("fields")))
         return out
+
+    def run_activity(self, arg: dict) -> dict:
+        """Temporal 액티비티 본문(청킹). 워커가 activities/<slug>.py 의 이 메서드를 slug 이름으로 등록한다.
+
+        처리는 이 인스턴스의 `__call__`(입력·라우트·출력 훅 전부)로 한다. 인자·반환·하트비트·오류
+        분류는 genon/preprocessor/worker/runtime.py — 파사드 파일은 상속만 하고 이 메서드를 고치지 않는다.
+        """
+        from genon.preprocessor.worker import runtime   # temporalio 는 워커에서만 import 한다
+
+        return runtime.execute(self, "chunk", arg)
 
     async def run_edit_input(self, kind, data, /, **kwargs):
         """edit_input 훅 호출부. facade 의 __call__ 이 부른다."""
