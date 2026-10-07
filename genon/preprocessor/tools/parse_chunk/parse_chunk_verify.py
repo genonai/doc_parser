@@ -21,7 +21,7 @@ doc_type 마다 샘플을 파싱·청킹한 뒤, 그 doc_type 의 custom_field y
     단정한다. custom_fields 경로(faq 행 청크, product_ssf 문서형 청크) 샘플도 함께 돈다.
 
 doc_type → extractor/config 매핑은 모니모 사이트 완성본(genon/sites/monimo/resource/)의
-parser_processor_config.yaml 에서 직접 읽는다. 설정이 늘어나면 이 스크립트를 고치지 않아도
+parse_config.yaml 에서 직접 읽는다. 설정이 늘어나면 이 스크립트를 고치지 않아도
 따라간다. --resource-dir 로 다른 설정 폴더를 주면 매핑과 러너 설정을 모두 그 폴더에서 읽는다.
 모델은 로컬(VPN) 프리셋(genon/sites/dev/model_presets.yaml)으로 돈다(parse_chunk_test.py 가 지정).
 
@@ -902,9 +902,9 @@ def verify_chunker_config() -> Path:
     global _VERIFY_CHUNKER_CONFIG
     if _VERIFY_CHUNKER_CONFIG is None:
         cfg = yaml.safe_load(
-            (RESOURCE_DIR / "chunking_processor_config.yaml").read_text(encoding="utf-8")) or {}
+            (RESOURCE_DIR / "chunk_config.yaml").read_text(encoding="utf-8")) or {}
         cfg.setdefault("output", {})["table_text_formats"] = ["html", "markdown"]
-        path = Path(tempfile.mkdtemp(prefix="parse_chunk_verify_cfg_")) / "chunking_processor_config.yaml"
+        path = Path(tempfile.mkdtemp(prefix="parse_chunk_verify_cfg_")) / "chunk_config.yaml"
         path.write_text(yaml.safe_dump(cfg, allow_unicode=True), encoding="utf-8")
         _VERIFY_CHUNKER_CONFIG = path
     return _VERIFY_CHUNKER_CONFIG
@@ -961,8 +961,8 @@ EXTRACTOR_BY_SUFFIX = {
 
 
 def load_custom_field_blocks() -> list[dict]:
-    """parser_processor_config.yaml 의 enable 된 custom_fields 블록 목록."""
-    cfg = yaml.safe_load((RESOURCE_DIR / "parser_processor_config.yaml").read_text(encoding="utf-8"))
+    """parse_config.yaml 의 enable 된 custom_fields 블록 목록."""
+    cfg = yaml.safe_load((RESOURCE_DIR / "parse_config.yaml").read_text(encoding="utf-8"))
     out = []
     for item in cfg.get("enrichment") or []:
         if not isinstance(item, dict):
@@ -1048,7 +1048,7 @@ def run_case(python: str, doc_type: str | None, src: Path, out_dir: Path,
     doc_type_args = ["--doc_type", doc_type] if doc_type else []
     # 설정은 RESOURCE_DIR 의 파서 설정과 검증용 청커 설정이다. extra_args 를 뒤에 두어 호출자가 준
     # 인자(예: 이상 청크 검증의 --chunker-config)가 우선하게 한다.
-    config_args = ["--config", str(RESOURCE_DIR / "parser_processor_config.yaml"),
+    config_args = ["--config", str(RESOURCE_DIR / "parse_config.yaml"),
                    "--chunker-config", str(verify_chunker_config())]
     cmd = [python, str(SCRIPT_DIR / "parse_chunk_test.py"),
            *doc_type_args, *config_args, *(extra_args or []), str(src), str(out_dir) + "/"]

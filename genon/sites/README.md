@@ -21,7 +21,7 @@ genon/sites/
 ```
 
 - `resource/` 에서 `owned:` 에 적힌 파일만 사이트가 직접 고친다. 모니모는 `model_presets.yaml`,
-  파서 설정 2종(`parser_processor_config.yaml`, `parser_processor_config_simple.yaml`),
+  파서 설정 2종(`parse_config.yaml`, `parse_config_simple.yaml`),
   `custom_field_*.yaml` 14종을 소유한다.
 - 나머지 파일은 표준의 사본이다. **사본은 직접 고치지 않는다.** 표준을 고친 뒤 `sync-sites.sh` 로 맞춘다.
   사본이 표준과 다르면 `genon/preprocessor/tests/unit/test_sites_sync_unit.py` 가 실패한다.

@@ -6,7 +6,7 @@ facade 훅으로 처리할 수 있는가.**
 
 절차
   1. 그대로 넣어 본다        --step raw
-  2. 훅을 넣고 다시 본다      사람이 facade/parser_processor.py 를 고치고 --step raw 재실행
+  2. 훅을 넣고 다시 본다      사람이 activities/parse.py 를 고치고 --step raw 재실행
   3. 판정                    각 케이스의 expect 문자열이 청크 본문에 있는가
 
 설정(custom_fields)을 쓰지 않는다. 이 드릴이 재는 것은 훅이지 설정이 아니다.

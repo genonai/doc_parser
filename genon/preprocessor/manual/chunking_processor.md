@@ -1,6 +1,6 @@
 # 청킹용 전처리기 매뉴얼
 
-`chunking_processor.py` (`/chunker`) 레퍼런스입니다. **파싱 결과를 입력받아 청킹만** 합니다.
+`activities/chunk.py` (`/chunker`) 레퍼런스입니다. **파싱 결과를 입력받아 청킹만** 합니다.
 
 - 파싱은 하지 않습니다. OCR·레이아웃·enrichment 는 앞 단계(파서)에서 이미 끝났습니다.
 - 그래서 이 프로세서의 설정에는 `ocr` / `layout` / `pdf_pipeline` / `enrichment` 섹션이 **없습니다.**
@@ -15,7 +15,7 @@
 - [개요](#개요)
 - [API](#api)
 - [입력 — 두 가지 형태](#입력--두-가지-형태)
-- [chunking_processor_config.yaml 설정](#chunking_processor_configyaml-설정)
+- [chunk_config.yaml 설정](#chunk_configyaml-설정)
 - [청킹 동작 — split_only 와 resize_all](#청킹-동작--split_only-와-resize_all)
 - [표 처리](#표-처리)
 - [청크 텍스트 정제](#청크-텍스트-정제)
@@ -31,9 +31,9 @@
 
 | | |
 |---|---|
-| 파일 | `genon/preprocessor/facade/chunking_processor.py` |
+| 파일 | `genon/preprocessor/activities/chunk.py` |
 | 마커 | `IS_CHUNKER = True` (이게 없으면 `/chunker` 요청이 거부됩니다) |
-| 설정 | `resource/chunking_processor_config.yaml` |
+| 설정 | `resource/chunk_config.yaml` |
 | 청킹 엔진 본체 | `processing/chunking/smart_chunker.py` — **공용 모듈** |
 
 > **엔진은 이 파일 안에 없습니다.** facade 의 `GenosSmartChunker` 는 동작 옵션(ClassVar)만
@@ -43,9 +43,9 @@
 ### 배포 형태에 따라 서빙 수가 다릅니다
 
 **루트 `main.py` 로 올리는 형태(권장)** 는 한 서빙이 `/parser` 와 `/chunker` 를 **둘 다**
-제공합니다. `main.py` 가 `facade/parser_processor.py` 와 `facade/chunking_processor.py` 를
-각각 생성해 라우트에 붙이기 때문입니다. 설정은 `resource/parser_processor_config.yaml` 과
-`resource/chunking_processor_config.yaml` 두 벌을 읽습니다.
+제공합니다. `main.py` 가 `activities/parse.py` 와 `activities/chunk.py` 를
+각각 생성해 라우트에 붙이기 때문입니다. 설정은 `resource/parse_config.yaml` 과
+`resource/chunk_config.yaml` 두 벌을 읽습니다.
 
 **facade 한 개만 `preprocessor.py` 로 마운트하는 형태** 에서는 `IS_PARSER` 가 파서에만,
 `IS_CHUNKER` 가 청커에만 있으므로 **한 서빙이 둘 다 할 수 없습니다.** 그때는 파싱 서빙과
@@ -104,7 +104,7 @@
 
 ---
 
-## chunking_processor_config.yaml 설정
+## chunk_config.yaml 설정
 
 섹션은 5개뿐입니다: `defaults` / `chunking` / `table_image` / `output` / `guardrail`.
 
@@ -462,8 +462,8 @@ parse-format 입력은 element 의 `category` 로 경로가 갈립니다. **여�
 |---|---|
 | 청크 크기·모드·헤더·표 청크·정제 | **코드 수정 불필요** — yaml `chunking.*` 또는 요청 `params` |
 | 표 표기형태 | **코드 수정 불필요** — yaml `output.table_format` |
-| 헤더 구분자(` > ` · ` | `)·리프 상한·최소 청크 크기·토크나이저 기본 경로 | `chunking_processor.py` **파일 머리의 사이트 조정 지점 블록** |
-| 그림 annotation 을 청크에 실을지, 표 설명 반영 범위 | `chunking_processor.py::GenosSmartChunker` 의 ClassVar |
+| 헤더 구분자(` > ` · ` | `)·리프 상한·최소 청크 크기·토크나이저 기본 경로 | `activities/chunk.py` **파일 머리의 사이트 조정 지점 블록** |
+| 그림 annotation 을 청크에 실을지, 표 설명 반영 범위 | `activities/chunk.py::GenosSmartChunker` 의 ClassVar |
 | 청크 metadata 필드 추가 | 가장 안전한 것은 문서 metadata 경유(스키마가 `extra` 허용). 정식 필드로 올리려면 스키마·빌더·조립부 + parse-format 경로를 함께 |
 | 섹션 인식 규칙("제N조" 등) | `processing/chunking/smart_chunker.py` 의 `_is_section_header` + `preprocess` 안의 같은 판정 + `_get_section_header_level` — **세 곳이 같은 판정을 중복 구현합니다** |
 | 병합·분할 기준 | `processing/chunking/smart_chunker.py` 4·5·5.5단계 |

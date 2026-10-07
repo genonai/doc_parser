@@ -135,13 +135,13 @@ GenOS 웹 UI에서 **관리 > 리소스 > 전처리기** 로 이동하여 **전�
 | 파라미터 | kwargs 형태(JSON). 비워두거나 `{"chunk_size":1000,"chunk_overlap":100}` 등 |
 | GPU 할당 | `docling_layout` 쓰는 경우만 1 이상. `genos_layout`(기본)이면 0 |
 
-용도별 facade 파일 (모두 `genon/preprocessor/facade/`):
+용도별 facade 파일 (파싱형은 `genon/preprocessor/activities/`, 나머지는 `genon/preprocessor/facade/`):
 
 | 용도 | 파일 | 비고 |
 |---|---|---|
 | 첨부형 (채팅 첨부 실시간) | [`attachment_processor.py`](attachment_processor.md) | GPU 불필요 |
 | 변환형 (첨부형 + PDF 표준화) | [`convert_processor.py`](convert_processor.md) | GPU 불필요 |
-| 파싱형 (Element 구조화 API) | [`parser_processor.py`](parser_processor.md) | |
+| 파싱형 (Element 구조화 API) | [`activities/parse.py`](parser_processor.md) | |
 | 적재형 / 지능형 (RAG 적재) | [`intelligent_processor.py`](intelligent_processor.md) | Layout/Enrichment 사용 |
 
 ![전처리기 생성 다이얼로그 — 이름·확장자·코드·파라미터·GPU 할당 필드](./images/install_preprocessor_create_dialog.jpg)
@@ -152,7 +152,7 @@ GenOS 웹 UI에서 **관리 > 리소스 > 전처리기** 로 이동하여 **전�
 
 ## 4. YAML 작성 (사이트 환경에 맞게 수정)
 
-전처리기는 동작 시점에 **`parser_processor_config.yaml`**(또는 facade가 가리키는 yaml)을 읽어 OCR·Layout·Enrichment 호출 방식을 결정합니다. 이 yaml을 사이트 환경에 맞춰 수정한 뒤, 다음 절(5장)에서 전처리기 리소스 파일로 첨부합니다.
+전처리기는 동작 시점에 **`parse_config.yaml`**(또는 facade가 가리키는 yaml)을 읽어 OCR·Layout·Enrichment 호출 방식을 결정합니다. 이 yaml을 사이트 환경에 맞춰 수정한 뒤, 다음 절(5장)에서 전처리기 리소스 파일로 첨부합니다.
 
 > YAML 각 값의 자세한 설정·튜닝 의미는 [20260618_전처리기교육](https://docs.google.com/presentation/d/1Jv2AYyOOAkDRppq8lni-JkJb0XF4xEpK/edit?usp=sharing&ouid=113104694679155634630&rtpof=true&sd=true) 문서의 다음 페이지를 참고하세요. <br>
 > - **p.33** — YAML enrichment 값 관련 설정 설명
@@ -336,7 +336,7 @@ GenOS 웹 UI에서 **데이터 > 벡터 DB > 벡터 DB 생성** 으로 새 벡�
   - `attachment_processor.py` — 청커는 `attachment_processor_config.yaml` 의 [`defaults.chunker_type` (L9)](../resource/attachment_processor_config.yaml#L9) 로 `recursive`(기본) ↔ `hybrid` 전환 가능합니다.
     - 청커별 세부 옵션은 같은 파일의 [`chunking.recursive` (L30-36)](../resource/attachment_processor_config.yaml#L30-L36) (`chunk_size` / `chunk_overlap` / `token_chunk_size_cap`) 또는 [`chunking.hybrid` (L39-42)](../resource/attachment_processor_config.yaml#L39-L42) (`max_tokens` / `merge_peers`) 에서 조정합니다.
     - 수정한 yaml 을 5단계 절차대로 리소스 파일로 재업로드한 뒤 전처리기를 재배포합니다.
-  - `convert_processor.py` / `intelligent_processor.py` / `chunking_processor.py` — 청커가 `GenosSmartChunker` 로 고정되어 있지만 **yaml 로 조절되는 범위가 넓습니다**: `chunking.chunk_size` · `chunk_mode`(`split_only` ↔ `resize_all`) · `table_as_chunk` · `include_chunk_header` · `text_cleanup` · `output.table_format`. 대부분의 "청크가 너무 크다/문맥이 끊긴다" 는 여기서 해결됩니다. 자세한 것은 [청킹용 전처리기 매뉴얼](chunking_processor.md) 을 보세요.
+  - `convert_processor.py` / `intelligent_processor.py` / `activities/chunk.py` — 청커가 `GenosSmartChunker` 로 고정되어 있지만 **yaml 로 조절되는 범위가 넓습니다**: `chunking.chunk_size` · `chunk_mode`(`split_only` ↔ `resize_all`) · `table_as_chunk` · `include_chunk_header` · `text_cleanup` · `output.table_format`. 대부분의 "청크가 너무 크다/문맥이 끊긴다" 는 여기서 해결됩니다. 자세한 것은 [청킹용 전처리기 매뉴얼](chunking_processor.md) 을 보세요.
 
 ### 9.2 더 깊은 변경이 필요한 경우
 

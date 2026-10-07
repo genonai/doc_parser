@@ -34,7 +34,7 @@ HERE = Path(__file__).resolve().parent
 PREPROCESSOR_DIR = HERE.parents[1]
 REPO_ROOT = PREPROCESSOR_DIR.parent
 PC_DIR = PREPROCESSOR_DIR / "tools" / "parse_chunk"
-BASE_CONFIG = PREPROCESSOR_DIR / "resource" / "chunking_processor_config.yaml"
+BASE_CONFIG = PREPROCESSOR_DIR / "resource" / "chunk_config.yaml"
 SAMPLE = PREPROCESSOR_DIR / "sample_files" / "monimo" / ".INC_235488_02_20260626103138.html.parsed"
 DOC_TYPE = "cs_hpp"
 
@@ -78,7 +78,7 @@ def build_off_config(work: Path) -> Path:
     """
     cfg = yaml.safe_load(BASE_CONFIG.read_text(encoding="utf-8"))
     cfg.setdefault("chunking", {})["text_cleanup"] = "off"
-    out = work / "chunking_processor_config.off.yaml"
+    out = work / "chunk_config.off.yaml"
     out.write_text(yaml.safe_dump(cfg, allow_unicode=True, sort_keys=False),
                    encoding="utf-8")
     return out

@@ -1,4 +1,4 @@
-"""edit_chunk 로 청크를 손보거나 버리는 예시. 이 클래스 몸통을 chunking_processor.py 에 붙인다.
+"""edit_chunk 로 청크를 손보거나 버리는 예시. 이 클래스 몸통을 activities/chunk.py 에 붙인다.
 
 본문 수정과 청크 버리기는 `edit_output` 가 아니라 여기서 한다. 통계(n_char 등)와 순번이
 확정되기 **전**이라 코어가 다시 맞춰 주므로 `refresh_stats` 를 부를 필요가 없다.

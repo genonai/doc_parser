@@ -1,6 +1,6 @@
 # 전처리기 파일 커스터마이징 — 보관과 재적용
 
-`facade/parser_processor.py` 와 `facade/chunking_processor.py` 는 **고객이 채우는 파일**이고,
+`activities/parse.py` 와 `activities/chunk.py` 는 **고객이 채우는 파일**이고,
 저장소에는 **빈 원본 상태로 유지한다.** 사이트별 업무 로직은 저장소에 직접 넣지 않고 이
 디렉터리에 예시로 남긴 뒤, 현장에서 원본에 붙여 쓴다.
 
@@ -8,8 +8,8 @@
 
 ```bash
 # 갱신 전 — 내 수정분을 뽑아 둔다
-git diff -- genon/preprocessor/facade/parser_processor.py \
-             genon/preprocessor/facade/chunking_processor.py > my_change.patch
+git diff -- genon/preprocessor/activities/parse.py \
+             genon/preprocessor/activities/chunk.py > my_change.patch
 # … 릴리스 통째 갱신 …
 git apply my_change.patch          # 충돌하면 patch 를 보고 손으로 반영
 ```
@@ -21,9 +21,9 @@ git apply my_change.patch          # 충돌하면 patch 를 보고 손으로 반
 
 | 파일 | 붙일 자리 | 하는 일 |
 |---|---|---|
-| `hooks_skip_table_desc.py` | `parser_processor.py` 의 `__call__` | 지정한 doc_type 에서만 표 설명을 끈다 |
-| `hooks_custom_route.py` | `parser_processor.py` 의 `ROUTES` + 새 메서드 | 표준 포맷으로 못 바꾸는 원천을 자기 라우트로 받는다 |
-| `hooks_edit_chunk.py` | `chunking_processor.py` 의 `edit_chunk` | 청크 한 건씩 정제하고 내부용 청크를 버린다 |
+| `hooks_skip_table_desc.py` | `activities/parse.py` 의 `__call__` | 지정한 doc_type 에서만 표 설명을 끈다 |
+| `hooks_custom_route.py` | `activities/parse.py` 의 `ROUTES` + 새 메서드 | 표준 포맷으로 못 바꾸는 원천을 자기 라우트로 받는다 |
+| `hooks_edit_chunk.py` | `activities/chunk.py` 의 `edit_chunk` | 청크 한 건씩 정제하고 내부용 청크를 버린다 |
 | `custom_field_regex_demo.yaml` + `.py` | 설정 폴더 (코드 수정 없음) | `extractor: python` — 정규식으로 값을 뽑는다 |
 
 청킹 쪽 정제 예시 비교(설정 vs 훅)는 `../text_cleanup/` 에 있다.
@@ -38,7 +38,7 @@ yaml 의 `enrichment.table_text_description` 은 **프로세서 전역 스위치
 로 내리면 모든 문서에서 꺼지고, 문서유형을 가릴 수단이 설정에는 없다. 특정 doc_type 만
 빼려면 이 훅을 쓴다.
 
-`parser_processor.py` 의 `__call__` 에 **두 줄**을 넣는다(상수 한 줄은 파일 위쪽에).
+`activities/parse.py` 의 `__call__` 에 **두 줄**을 넣는다(상수 한 줄은 파일 위쪽에).
 
 ```python
 SKIP_TABLE_DESC_DOC_TYPES = ("cs_hpp",)

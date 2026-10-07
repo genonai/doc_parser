@@ -115,7 +115,7 @@ def build_drill_config(work: Path, cases: list) -> Path:
     for cfg in CONFIG_DIR.glob("custom_field_drill_*.yaml"):
         shutil.copy(cfg, work / "resource" / cfg.name)
 
-    parser_cfg = work / "resource" / "parser_processor_config.yaml"
+    parser_cfg = work / "resource" / "parse_config.yaml"
     cfg = yaml.safe_load(parser_cfg.read_text(encoding="utf-8"))
     # B12: .jsonl 을 .json 으로 보게 한다. 확장자 자체는 설정 한 줄로 받을 수 있고,
     # 그 뒤 내용(줄 단위 JSON)이 설정으로 되는지가 진짜 시험 대상이다.

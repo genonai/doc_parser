@@ -1,4 +1,4 @@
-# 전 문서 공통 정제 규칙. chunking_processor_config.yaml 의 `chunking:` 아래
+# 전 문서 공통 정제 규칙. chunk_config.yaml 의 `chunking:` 아래
 # `text_cleanup: off` 한 줄을 이 블록으로 갈아 끼운다(들여쓰기 2칸 유지).
 #
 # mode: safe  는 문자 위생만 한다(NFC 복원, BOM·제로폭·제어문자 제거, 특수 공백 →
