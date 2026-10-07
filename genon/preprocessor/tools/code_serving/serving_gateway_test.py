@@ -378,18 +378,22 @@ def do_run(args) -> list:
     return chunks
 
 
-_CV_ITEM_KEYS = {"page", "section", "reason", "message", "preview"}
+_CV_ITEM_KEYS = {"index", "page", "section", "reason", "message", "preview"}
 _CV_REASONS = {"blank", "no_content", "broken_chars", "repetition", "min_chars"}
 
 
 def _chunk_validation_errors(cv) -> list:
     """응답 최상위 chunk_validation 의 형태 위반 목록. 비어 있으면 정상이다."""
-    if not isinstance(cv, dict) or set(cv) != {"action", "count", "items"}:
-        return [f"키가 action·count·items 가 아닙니다: {cv!r}"[:300]]
+    if not isinstance(cv, dict) or set(cv) != {"action", "count", "reasons", "items"}:
+        return [f"키가 action·count·reasons·items 가 아닙니다: {cv!r}"[:300]]
     items = cv["items"]
     errors = []
     if cv["action"] not in ("report", "drop"):
         errors.append(f"action={cv['action']!r}")
+    reasons = cv["reasons"]
+    if (not isinstance(reasons, dict) or not set(reasons) <= _CV_REASONS
+            or sum(reasons.values()) != cv["count"]):
+        errors.append(f"reasons={reasons!r} 가 사유 코드별 건수(합계 count)가 아닙니다")
     if not isinstance(items, list) or not 1 <= len(items) <= min(20, cv["count"]):
         errors.append(f"items 개수가 1~min(20, count={cv['count']}) 밖입니다")
         return errors
@@ -417,10 +421,11 @@ def do_chunk_validation(args) -> int:
     if errors:
         print("[chunk_validation] 형태 위반:\n  - " + "\n  - ".join(errors), file=sys.stderr)
         return 1
-    print(f"[chunk_validation] action={cv['action']} count={cv['count']} items={len(cv['items'])}")
+    print(f"[chunk_validation] action={cv['action']} count={cv['count']} reasons={cv['reasons']} "
+          f"items={len(cv['items'])}")
     for item in cv["items"]:
         preview = item["preview"].replace("\n", " ")
-        print(f"  - page={item.get('page', '-')} {item['reason']}: {item['message']} | {preview[:60]}")
+        print(f"  - index={item.get('index', '-')} page={item.get('page', '-')} {item['reason']}: {item['message']} | {preview[:60]}")
     return 0
 
 

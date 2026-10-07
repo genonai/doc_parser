@@ -506,7 +506,10 @@ class ChunkerCore:
         ]
         # 이상 청크 검증(꺼져 있으면 None). 걸린 청크는 여기서 내주지 않으므로 첫 청크 전용
         # 접두는 살아남은 첫 청크가 받는다.
-        validation = notes["validation"] = cq.start(self, job, notes["marker_vectors"])
+        validation = notes["validation"] = cq.start(
+            self, job, notes["marker_vectors"],
+            display=lambda text: self.clean_text(job, gr.apply_to_text(
+                text, notes["sensitive_infos"], notes["masking"])[0]))
         for chunk_idx, chunk in enumerate(chunks):
             if chunk.kind == "marker":
                 continue

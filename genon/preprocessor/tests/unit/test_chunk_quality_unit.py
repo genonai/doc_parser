@@ -103,15 +103,18 @@ _GOOD_STEP = (_chunk("결제일은 매월 14일이다."), "", "결제일은 매�
         (_chunk("\x1c\x1d\x1e가\x01\x02\x03", page=0), "", "\x1c\x1d\x1e가\x01\x02\x03"),
         (_chunk("상담직원용 기밀 설명. " * 30, headings=["내부"]), "", None),
         _GOOD_STEP,
-    ], {"action": "report", "count": 3, "items": [
-        {"page": 3, "reason": "blank", "message": "본문이 비어 있음", "preview": "HEADER: 1장 > [이름] 안내"},
-        {"reason": "broken_chars", "message": "깨진 문자가 많음(깨진 문자 6자 / 전체 6자, 100%)",
+    ], {"action": "report", "count": 3,
+        "reasons": {"blank": 1, "broken_chars": 1, "repetition": 1}, "items": [
+        {"index": 0, "page": 3, "reason": "blank", "message": "본문이 비어 있음", "preview": "HEADER: 1장 > [이름] 안내"},
+        {"index": 1, "reason": "broken_chars", "message": "깨진 문자가 많음(깨진 문자 6자 / 전체 6자, 100%)",
          "preview": "\u241c\u241d\u241e가\u2401\u2402\u2403"},
-        {"page": 1, "reason": "repetition", "message": "같은 내용이 반복됨(같은 문구 29회)", "preview": ""},
+        {"index": 2, "page": 1, "reason": "repetition", "message": "같은 내용이 반복됨(같은 문구 29회)",
+         "preview": ""},
     ]}, id="report_uses_output_text_only"),
-    # drop 으로 뺀 청크는 훅·마스킹을 거치지 않았으므로 본문과 섹션을 싣지 않는다.
+    # 코어가 마스킹 변환(display)을 넘기지 않으면 drop 으로 뺀 청크의 본문을 싣지 않는다.
     pytest.param("drop", [(_chunk("1.", headings=["섹션"]), "", "1.")] * 21 + [_GOOD_STEP],
-                 {"action": "drop", "count": 21, "items": [_SHORT] * 20}, id="drop_caps_items_without_text"),
+                 {"action": "drop", "count": 21, "reasons": {"min_chars": 21},
+                  "items": [{"index": i, **_SHORT} for i in range(20)]}, id="drop_caps_items_without_text"),
 ])
 def test_session_summary(action, steps, expected):
     """성공 응답에 싣는 요약. 걸린 청크가 없으면 None 이라 응답에 키가 붙지 않는다."""

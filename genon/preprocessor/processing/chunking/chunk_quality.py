@@ -445,9 +445,14 @@ def _prefix_len(origin: Optional[_Origin], text: str) -> int:
             and text.startswith(origin.prefix) else 0)
 
 
-def _summary_item(verdict: Verdict, page) -> dict:
-    """응답 요약 1건의 뼈대. preview 는 출력 본문을 알 때 채운다(모르면 빈 문자열)."""
+def _summary_item(verdict: Verdict, page, index) -> dict:
+    """응답 요약 1건의 뼈대. preview 는 본문을 알 때 채운다(모르면 빈 문자열).
+
+    index 는 로그의 index 와 같은 원래 청크 순번이다. 같은 페이지의 청크를 구분하는 데 쓴다.
+    """
     item: dict = {}
+    if isinstance(index, int) and not isinstance(index, bool):
+        item["index"] = index
     if isinstance(page, int) and not isinstance(page, bool) and page >= 1:
         item["page"] = page
     item.update(reason=verdict.reason, message=verdict.message(), preview="")
@@ -481,8 +486,10 @@ class Session:
     만들어도 최종 검사를 거친다.
     """
 
-    def __init__(self, cfg: Config, file_path: str = "", marker_vectors=()):
+    def __init__(self, cfg: Config, file_path: str = "", marker_vectors=(), display=None):
         self.cfg = cfg
+        # 초기 검사에서 뺀 청크의 preview 를 만들 때 쓰는 변환(마스킹·표현 정리). 코어가 넘긴다.
+        self._display = display
         self.file_name = os.path.basename(file_path or "") or "-"
         self.rejected = 0            # drop 모드에서 제외한 건수
         self.records: list = []      # 판정에 걸린 청크(모드 무관)
@@ -498,10 +505,12 @@ class Session:
     # --- 판정 1건 ---
     def _check(self, text, *, kind, code_like, prefix_len, stage, index, page,
                headings=()) -> Optional[Verdict]:
-        """판정 1건. 초기 검사(stage="initial")의 요약 항목에는 본문·섹션을 싣지 않는다.
+        """판정 1건.
 
-        초기 검사의 본문은 훅·마스킹을 거치기 전이라 응답에 그대로 내보낼 수 없다. 최종
-        검사의 본문은 data 에 실리는 출력 본문과 같다.
+        초기 검사의 본문은 훅·마스킹을 거치기 전이라 그대로 내보내지 않는다. drop 으로 빠지는
+        청크는 출력 본문이 생기지 않으므로 코어가 넘긴 display(마스킹·표현 정리)를 거친 본문으로
+        preview 를 만든다. report 의 초기 항목은 뒤에 출력 본문으로 채운다. 최종 검사의 본문은
+        data 에 실리는 출력 본문과 같다.
         """
         try:
             verdict = judge(text, kind=kind, code_like=code_like, prefix_len=prefix_len,
@@ -522,9 +531,11 @@ class Session:
                              "reason": verdict.reason})
         self._pending_item = None
         if len(self._items) < SUMMARY_MAX_ITEMS:
-            item = _summary_item(verdict, page)
+            item = _summary_item(verdict, page, index)
             if stage == "initial":
                 self._pending_item = item
+                if self.cfg.drops and self._display is not None:
+                    _fill_from_output(item, self._display(text), 0, headings)
             else:
                 _fill_from_output(item, text, prefix_len, headings)
             self._items.append(item)
@@ -621,7 +632,8 @@ class Session:
         """성공 응답에 싣는 요약. 판정에 걸린 청크가 없으면 None."""
         if not self.records:
             return None
-        return {"action": self.cfg.action, "count": len(self.records), "items": list(self._items)}
+        return {"action": self.cfg.action, "count": len(self.records),
+                "reasons": self.reason_counts(), "items": list(self._items)}
 
     def reason_counts(self) -> dict:
         return dict(Counter(r["reason"] for r in self.records))
@@ -646,9 +658,12 @@ def all_rejected_error(session: Session) -> ChunkValidationError:
         f"입력 {session.n_input}건, 사유별 {session.reason_counts()}).")
 
 
-def start(owner, job, marker_vectors=()) -> Optional[Session]:
-    """문서 1건의 검증을 시작한다. 검증이 꺼져 있으면 None."""
+def start(owner, job, marker_vectors=(), display=None) -> Optional[Session]:
+    """문서 1건의 검증을 시작한다. 검증이 꺼져 있으면 None.
+
+    display 는 초기 검사에서 뺀 청크의 preview 에 적용할 변환이다(출력 본문과 같은 마스킹·정제).
+    """
     cfg = config_for(owner, getattr(job, "doc_type", None))
     if cfg is None:
         return None
-    return Session(cfg, getattr(job, "file_path", ""), marker_vectors)
+    return Session(cfg, getattr(job, "file_path", ""), marker_vectors, display)
