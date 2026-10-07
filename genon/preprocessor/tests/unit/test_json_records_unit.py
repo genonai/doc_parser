@@ -106,6 +106,27 @@ def test_collect_records_without_key_uses_payload():
     assert collect_records([{"a": 1}, {"b": 2}], None) == [{"a": 1}, {"b": 2}]
 
 
+_EV1, _EV2 = SAMPLE_PAYLOAD["eventList"]
+_NO_RECORDS_AT = {"ID": "x", "tags": ["a", "b"], "emptyList": []}
+
+
+@pytest.mark.parametrize("payload, expected", [
+    ({"resultCode": "0", "eventList": [_EV1, _EV2]}, [_EV1, _EV2]),      # 감싼 배열
+    ({"data": {"body": {"eventList": [_EV1]}}}, [_EV1]),                 # 깊이 감싼 배열
+    ({"links": [{"url": "u"}], "eventList": [_EV1, _EV2]}, [_EV1, _EV2]),  # alias 로 구별
+    ({"aList": [_EV1], "bList": [_EV2]}, ValueError),                    # 구별 불가
+    (_NO_RECORDS_AT, [_NO_RECORDS_AT]),                                  # 후보 없음 → 1건
+])
+def test_extract_records_without_records_at_finds_array(tmp_path, payload, expected):
+    """records_at 을 생략해도 object 안의 레코드 배열을 찾는다(#461)."""
+    mapper = write_mapper(tmp_path, BASE_CONFIG.replace("  records_at: eventList\n", ""))
+    if expected is ValueError:
+        with pytest.raises(ValueError, match="records_at"):
+            mapper.extract_records(payload)
+    else:
+        assert mapper.extract_records(payload) == expected
+
+
 def test_collect_records_returns_none_when_key_missing():
     assert collect_records({"other": []}, "eventList") is None
 

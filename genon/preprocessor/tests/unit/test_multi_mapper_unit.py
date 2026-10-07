@@ -188,6 +188,7 @@ def test_ambiguous_json_mappers_are_rejected(tmp_path, monkeypatch):
 
     for mappers in (
         [_Mapper("faqList"), _Mapper("faqList")],   # 같은 배열을 둘이 맡는다
+        [_Mapper("faq_list"), _Mapper("FAQ-LIST")], # 표기만 다른 같은 키(탐색은 정규화 비교)
         [_Mapper("faqList"), _Mapper(None)],        # 하나는 무엇을 맡는지 모른다
     ):
         processor._json_records_mappers = mappers
