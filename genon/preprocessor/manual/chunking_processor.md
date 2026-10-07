@@ -117,7 +117,7 @@
 | `table_as_chunk` | `true` | 표를 본문과 섞지 않고 독자 청크로 |
 | `include_chunk_header` | `true` | 청크 선두 `HEADER: <섹션 경로>` 라인 |
 | `text_cleanup` | `off` | `safe` 로 켜면 문자 노이즈 제거 + 사이트 규칙 |
-| `validation` | 꺼짐 | 이상 청크 검증. [이상 청크 검증](#이상-청크-검증) 참조 |
+| `validation` | 블록이 없으면 꺼짐. 표준·monimo 설정은 켜짐(`action: drop`) | 이상 청크 검증. [이상 청크 검증](#이상-청크-검증) 참조 |
 | `tokenizer_type` | `char` | `char`=문자 수 / `huggingface`=토큰 수 |
 | `tokenizer_path` · `tokenizer_id` | — | `huggingface` 모드에서만 사용. 경로가 없으면 HF ID 로 폴백 |
 | `recursive.chunk_overlap` | `100` | parse-format 경로 전용 overlap |
@@ -259,8 +259,12 @@ chunking:
       menu: {min_chars: 0}
 ```
 
-위 수치는 실제 청크 2,545건(본문 중복 제거 1,422건) 실측으로 정한 기본값입니다. 블록이 없거나 `enable: false` 면 기존과
-완전히 같게 동작합니다.
+위 수치가 기본값이며, 근거는 아래 [판정 기준의 근거](#판정-기준의-근거)에 있습니다. 블록이 없거나 `enable: false` 면
+기존과 완전히 같게 동작합니다.
+
+`faq`·`menu` 예시처럼 짧은 답이 정상인 문서 유형은 `min_chars: 0` 으로 완화합니다. 행 청크는 원래
+`row_min_chars: 0` 이라 이 완화는 문서·평문 청크(예: 단독 청크로 나온 `없음`)에 적용됩니다. `by_doc_type` 은
+청커 요청의 `doc_type` 파라미터로 고르므로, 요청에 `doc_type` 이 없거나 이름이 다르면 공통 기준을 씁니다.
 
 ### 판정 사유
 
@@ -271,12 +275,17 @@ chunking:
 | 1 | `blank` | 본문이 공백뿐 | 본문 없음 |
 | 2 | `no_content` | 내용 문자(글자·숫자, 언어 무관) 0자 | 내용 문자 0자 |
 | 3 | `broken_chars` | 깨진 문자(U+FFFD, 제어 문자, `GLYPH<…>`) 개수 ≥ `broken_min_count` **그리고** 점유율 ≥ `broken_max_share` | 깨진 문자 100자 / 101자(99%) |
-| 4 | `repetition` | 동일 문자 연속·동일 줄·동일 문구 연속 중 하나가 `repeat_min_count` 이상 **그리고** 중복 점유율 ≥ `repeat_max_share` | 동일 문구 29회, 중복 122% |
+| 4 | `repetition` | 동일 문자 연속·동일 줄·동일 문구 연속 중 하나가 `repeat_min_count` 이상 **그리고** 중복 점유율 ≥ `repeat_max_share` | 동일 문구 29회, 중복 93% |
 | 5 | `min_chars` | 내용 문자 수 < 하한 | 내용 문자 1자 < 하한 4자 |
 
 정상 청크를 빼지 않는 것이 우선이라, 아래는 판정에서 보호합니다.
 
 - 구분선(`-----`, `| --- |`)처럼 글자가 없는 반복은 반복으로 세지 않습니다.
+- 동일 문자 연속은 글자만 셉니다. `10000000000원` 같은 금액·계좌 번호의 숫자 연속은 반복이 아닙니다.
+- 중복 점유율은 반복된 사본의 문자를 한 번씩만 셉니다(원본 한 벌 제외, 공백 제외). 같은 구간을 여러 지표로
+  겹쳐 세지 않으므로 100% 를 넘지 않습니다.
+- 내용 문자를 셀 때 걷어내는 것은 HTML 태그(`<p>`, `</td>`, `<!-- … -->`)뿐입니다. `0 < 금리 < 5%` 같은
+  비교식이나 `<가입대상>` 같은 꺾쇠 표기는 본문으로 셉니다.
 - 표가 든 청크는 길이 하한을 적용하지 않습니다(`table_min_chars: true` 로 켤 수 있습니다).
 - 코드·수식 청크(docling 라벨 `code`·`formula`)는 길이 하한과 반복 판정을 적용하지 않습니다.
   행·평문 청크에는 라벨이 없어 일반 기준을 씁니다.
@@ -291,6 +300,7 @@ chunking:
 2. **최종 검사** — `edit_output` 훅이 끝난 뒤 응답 직전입니다. `edit_chunk`·`edit_output` 이
    본문을 바꾸거나 새 청크를 만들어도 이 검사를 거칩니다. 훅이 `HEADER:` 줄을 지웠으면 본문 전체로
    판정합니다. 여기서 청크가 빠지면 순번·개수(`i_chunk_on_doc`, `n_chunk_of_doc` 등)를 다시 맞춥니다.
+   문서 전체 쪽수(`n_page`)는 청크가 빠져도 줄어들지 않습니다.
 
 ### 응답 요약
 
@@ -350,20 +360,52 @@ chunking:
 | 전부 불량 | 전부 반환, 로그·응답 요약 기록 | 문서 실패 `CHUNK_ALL_REJECTED` | 문서 실패 `CHUNK_REJECTED` |
 | 판정기 오류 | 전부 반환, 오류 로그 기록 | 문서 실패 `CHUNK_VALIDATION_ERROR` | 같음 |
 
-오류 코드는 응답의 `error_msg` 앞머리에 실립니다. 모두 재시도로 해결되지 않는 오류(`permanent`)입니다.
+세 경우 모두 실패 응답(`code: 1`, `stage: chunk_validation`, `error_kind: permanent`)이며 재시도로 해결되지
+않습니다. HTTP 상태는 200 이므로 응답 본문의 `code` 로 실패를 판단합니다. 오류 코드는 `error_msg` 에 실리지만
+배포 형태에 따라 앞부분이 다르므로, 시작 문자열이 아니라 포함 여부로 구분합니다.
+
+| 배포 형태 | `error_msg` 예 | 추가 필드 |
+|---|---|---|
+| 기본 전처리기 서비스(`/run`·`/chunker`) | `CHUNK_ALL_REJECTED: 모든 청크가 …` | 없음 |
+| 코드서빙 서비스(`/chunker`) | `[chunker] ChunkValidationError: CHUNK_ALL_REJECTED: 모든 청크가 …` | `error_type: ChunkValidationError`, `tag`, `file_path`, `traceback` |
 
 - 검증 키는 **요청 파라미터로 바꿀 수 없습니다.** `text_cleanup=off` 요청에서도 검증은 그대로입니다.
   `CONFIG_BY_DOC_TYPE` 에 적어도 건너뜁니다 — doc_type 별 차등은 `by_doc_type` 으로 합니다.
 - 오기입(음수, 정수 자리의 true/false, 0~1 밖의 비율, 모르는 키, 모르는 `action`)은 **기동 시** 실패합니다.
 - 오디오(`[AUDIO]`)·legacy 표(`[DA]`) 단일 청크는 검증하지 않습니다.
 
+### 판정 기준의 근거
+
+기본값은 두 자료로 정했고, 두 자료 모두 `tools/chunk_validation/measure.py` 로 다시 측정할 수 있습니다.
+
+1. **판정 샘플** `tests/fixtures/chunk_quality/cases.yaml` — 꼭 제외해야 할 오류(E), 꼭 보존해야 할 정상(N),
+   임계값 바로 아래·같음·위의 경계(B) 사례입니다. 정상 사례에는 실측에서 오탐이 났던 형태(병합 셀 통계표, 체크
+   목록이 붙은 약관 문단, 금액·계좌 번호, 비교식)가 들어 있습니다. 단위 테스트가 모든 사례의 판정을 고정합니다.
+2. **실제 청킹 결과** — 저장소의 샘플 문서(`sample_files/`)를 실제로 파싱·청킹한 결과(`*.chunks.json`)에
+   판정기를 돌려, 정상 청크에서 지표가 어디까지 올라가는지와 임계값 후보별 제외 건수를 봅니다. 청킹 결과 파일은
+   커밋하지 않으므로 아래처럼 만들어 측정합니다(파싱·청킹 단계에서 LLM 을 호출합니다).
+
+```bash
+cd genon/preprocessor
+tools/parse_chunk/parse_chunk_verify.sh --keep --out /tmp/cv_corpus       # 샘플 문서 청킹 결과 생성
+.venv/bin/python tools/chunk_validation/measure.py --extra /tmp/cv_corpus --out report.md
+```
+
+2026-10-07 측정(샘플 문서를 설정 두 벌로 청킹한 결과) 결과는 청크 794건(본문 중복 제거 211건, 금융 상품·FAQ·메뉴·약관
+등 doc_type 14종), 판정 샘플
+49건 전부 기대 일치, 제외 판정 0건입니다. 실물 문서를 포함한 청킹 결과 52건(일반 형식 21건, custom_fields 31건)의 청크
+1,755건에서는 `min_chars` 17건, `no_content` 3건이 걸렸고 `repetition`·`broken_chars` 는 0건입니다. 기본값을 처음 정할 때는 더 큰 코퍼스(청크 2,545건, 본문 중복 제거
+1,422건)로 측정했으나 그 원자료는 보존되어 있지 않아 다시 측정할 수 없습니다.
+
+이 결과는 **판정기가 저장소의 정상 자료를 빼지 않는다**는 근거이며, 고객 문서에서의 오탐률을 보증하지 않습니다.
+도입 현장에서는 [모드 전환 절차](#모드-전환-절차)대로 고객 문서를 `report` 로 관측하고, 같은 도구에
+`--extra <청킹 결과 폴더>` 를 주어 현장 자료로 다시 측정합니다. 이 도구는 고객 YAML 이 아니라 모듈 기본값으로
+판정하고 청크 종류를 메타에서 추정하므로, 운영 판정과 다를 수 있는 근사치입니다.
+
 ### 보장하지 않는 것
 
 원문 일부 누락, 읽기 순서 오류, 표 값·열 연결 오류, 출처 매핑 오류는 그럴듯한 문장으로 남으므로
 청크 단위 판정으로는 찾을 수 없습니다. 원문과 대조하는 문서 단위 평가가 필요합니다.
-
-판정 샘플(오류·정상·경계)은 `tests/fixtures/chunk_quality/cases.yaml` 에, 실측 보고서는
-`tools/chunk_validation/measure.py` 로 만듭니다.
 
 ---
 
