@@ -18,6 +18,9 @@
 
   - 반복 단위에 내용 문자가 없으면 반복으로 세지 않는다(구분선, 표 구분선)
   - 반복은 마크업을 걷어낸 판정용 텍스트에서 센다(HTML 표의 `</td><td>` 반복)
+  - 반복은 표 밖 텍스트에서만 센다. 병합 셀(colspan) 값이 열마다 복사된 정상 표가
+    `| (전년 대비) | (전년 대비) | …` 처럼 같은 문구 반복으로 걸렸다(실측 hwpx·md 통계표).
+    표를 행 문장으로 풀어 쓴 `[표 행 요약]` 블록도 같은 복사본을 담으므로 함께 뺀다
   - 표가 든 청크는 길이 하한을 적용하지 않는다(table_min_chars 로 켤 수 있다)
   - 코드·수식 청크는 길이 하한과 반복 판정을 적용하지 않는다
   - 반복·손상은 횟수와 점유율을 함께 넘어야 한다
@@ -35,6 +38,7 @@ from dataclasses import dataclass, field, replace
 from functools import lru_cache
 from typing import Any, Optional
 
+from genon.preprocessor.processing.chunking.table_splitter import ROW_LINES_LABEL
 from genon.preprocessor.processing.core.errors import GenosServiceException
 
 _log = logging.getLogger(__name__)
@@ -163,6 +167,8 @@ def config_for(owner, doc_type: Any = None) -> Optional[Config]:
 _TAG_RE = re.compile(r"<[^>\n]{1,200}>")
 _TABLE_SEP_RE = re.compile(r"^\s*\|?[\s:\-|]+\|[\s:\-|]*$")
 _TABLE_ROW_RE = re.compile(r"^\s*\|", re.M)
+_HTML_TABLE_RE = re.compile(r"<table\b.*?</table\s*>", re.I | re.S)
+_ROW_LINES_RE = re.compile(r"^" + re.escape(ROW_LINES_LABEL) + r"[ \t]*$", re.M)
 _GLYPH_RE = re.compile(r"GLYPH<[^>]*>|GLYPH\w+")
 _CTRL_RE = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
 _SPACES_RE = re.compile(r"[ \t]+")
@@ -240,6 +246,39 @@ def _judged_text(body: str) -> str:
     return _SPACES_RE.sub(" ", _TAG_RE.sub(" ", "\n".join(lines)).replace("|", " "))
 
 
+def _outside_tables(body: str) -> str:
+    """표 부분을 뺀 텍스트. 반복 판정에만 쓴다.
+
+    빼는 것은 HTML 표, 구분선(`| --- |`)이 있는 마크다운 표 블록, 표 뒤의 `[표 행 요약]`
+    블록이다. 표가 없는 청크는 그대로 둔다 — `|` 로 시작하는 인용·로그나 본문 속 라벨 문자열을
+    표로 오인하지 않기 위해서다.
+
+    뺀 자리에는 서로 다른 표식을 남긴다. 그냥 지우면 표 사이에 있던 같은 낱말끼리 붙어 없던
+    반복 줄이 생긴다. `[표 행 요약]` 은 행 문장이 여러 줄에 걸쳐 끝을 정할 수 없으므로 라벨
+    줄부터 끝까지 뺀다(뒤 문단도 반복 판정에서 빠지므로 더 관대한 쪽이다).
+    """
+    if not has_table(body):
+        return body
+    marks = iter(range(1 << 30))
+    match = _ROW_LINES_RE.search(body)
+    if match:
+        body = body[:match.start()]
+    # HTML 표는 줄을 나누지 않고 그 자리에 표식만 둔다(태그를 공백으로 바꾸던 원래 줄 구조 유지).
+    body = _HTML_TABLE_RE.sub(lambda _: f" ⟦{next(marks)}⟧ ", body)
+    out: list = []
+    block: list = []
+    for line in body.split("\n") + [""]:
+        if _TABLE_ROW_RE.match(line):
+            block.append(line)
+            continue
+        if block:
+            is_table = any(_TABLE_SEP_RE.match(row) for row in block)
+            out.extend([f"⟦{next(marks)}⟧"] if is_table else block)
+            block = []
+        out.append(line)
+    return "\n".join(out[:-1])
+
+
 def has_table(text: str) -> bool:
     return "<table" in text.lower() or _TABLE_ROW_RE.search(text) is not None
 
@@ -295,7 +334,9 @@ def measure(text: Optional[str], *, prefix_len: int = 0, repeat_min_count: int =
               + len(_CTRL_RE.findall(body)) + body.count("\ufffd"))
     raw_chars = sum(1 for c in body if not c.isspace())
     chars = sum(1 for c in judged if not c.isspace())
-    run, line, phrase, dup = _repetition(judged, repeat_min_count)
+    # 반복은 표 밖에서만 센다. 분모(chars)는 청크 전체라 표가 큰 청크일수록 관대하다.
+    run, line, phrase, dup = _repetition(
+        _judged_text(_outside_tables(body.strip())), repeat_min_count)
     return {
         "blank": not body.strip(),
         "content": sum(1 for c in judged if c.isalnum()),
