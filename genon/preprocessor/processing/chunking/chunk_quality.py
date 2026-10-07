@@ -39,7 +39,7 @@ from functools import lru_cache
 from typing import Any, Optional
 
 from genon.preprocessor.processing.chunking.table_splitter import ROW_LINES_LABEL
-from genon.preprocessor.processing.core.errors import GenosServiceException
+from genon.preprocessor.processing.core.errors import ChunkValidationError
 
 _log = logging.getLogger(__name__)
 
@@ -389,9 +389,9 @@ def judge(text: Optional[str], *, kind: str = "docling", code_like: bool = False
 # 문서 1건의 검증 진행(코어 청커가 쓴다)
 # ---------------------------------------------------------------------------
 
-def _error(code: str, message: str) -> GenosServiceException:
+def _error(code: str, message: str) -> ChunkValidationError:
     # 재시도로 해결되지 않는 오류다.
-    return GenosServiceException(
+    return ChunkValidationError(
         "1", f"{code}: {message}", stage=_STAGE, error_type="permanent")
 
 
@@ -608,7 +608,7 @@ class Session:
             len(list(survivors)), self.reason_counts(), rate * 100, empty_pages or "-")
 
 
-def all_rejected_error(session: Session) -> GenosServiceException:
+def all_rejected_error(session: Session) -> ChunkValidationError:
     return _error(
         CHUNK_ALL_REJECTED,
         f"모든 청크가 검증 기준에 걸려 제외됐습니다({session.file_name}, "

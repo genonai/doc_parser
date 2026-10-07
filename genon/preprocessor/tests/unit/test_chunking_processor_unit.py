@@ -985,6 +985,7 @@ async def test_validation_fails_document(values, code):
         await _validating(cf.DocumentProcessor(), **values)(None, "", document=document)
 
     assert exc.value.error_msg.startswith(code) and exc.value.error_type == "permanent"
+    assert type(exc.value).__name__ == "ChunkValidationError"    # 코드서빙 응답의 error_type
 
 
 @pytest.mark.asyncio

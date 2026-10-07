@@ -156,6 +156,8 @@ raw 예외**(마크다운 머리말 오류 등)뿐입니다.
 # chunker — 런타임 예외
 
 custom_fields 설정 검증 단계가 없습니다. 파서 산출물을 소비하다 실패하며 전부 `GenosServiceException` 입니다.
+청크 검증 실패(`CHUNK_ALL_REJECTED`·`CHUNK_VALIDATION_ERROR`)는 그 하위 클래스인 `ChunkValidationError` 라 코드서빙 응답의
+`error_type` 이 `ChunkValidationError` 입니다(응답의 나머지 필드는 같습니다).
 청커 자체 설정인 청크 검증(`chunking.validation`)의 오기입은 요청 때가 아니라 기동 시 `ValueError` 로 실패합니다.
 
 | 에러메시지 | 발생 상황 |
