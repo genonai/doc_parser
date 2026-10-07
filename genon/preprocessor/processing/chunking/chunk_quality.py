@@ -178,6 +178,13 @@ _HTML_TABLE_RE = re.compile(r"<table\b.*?</table\s*>", re.I | re.S)
 _ROW_LINES_RE = re.compile(r"^" + re.escape(ROW_LINES_LABEL) + r"[ \t]*$", re.M)
 _GLYPH_RE = re.compile(r"GLYPH<[^>]*>|GLYPH\w+")
 _CTRL_RE = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
+# 잘못된 인코딩으로 바뀐 한글. U+FFFD 가 남지 않아 위 규칙으로는 세지 못한다.
+#   占쏙옙   깨진 문자(U+FFFD)를 UTF-8 로 저장한 것을 CP949 로 다시 읽은 고정 패턴
+#   ë³´í—˜  UTF-8 한글(3바이트, 첫 바이트 0xEA~0xED)을 Latin-1·cp1252 로 읽은 것. 첫 글자 ê~í 뒤에
+#            0x80~0xBF 바이트가 바뀐 글자 두 개가 온다. 프랑스어 é(0xE9)·è 등은 첫 글자 범위 밖이다
+_CP1252_CONT = "\u20ac\u201a\u0192\u201e\u2026\u2020\u2021\u02c6\u2030\u0160\u2039\u0152\u017d" \
+               "\u2018\u2019\u201c\u201d\u2022\u2013\u2014\u02dc\u2122\u0161\u203a\u0153\u017e\u0178"
+_MOJIBAKE_RE = re.compile("占쏙옙|[\u00ea-\u00ed][\u0080-\u00bf%s]{2}" % _CP1252_CONT)
 _SPACES_RE = re.compile(r"[ \t]+")
 _WS_RE = re.compile(r"\s+")
 _CODE_LABELS = frozenset({"code", "formula"})
@@ -354,7 +361,8 @@ def measure(text: Optional[str], *, prefix_len: int = 0, repeat_min_count: int =
     judged = _judged_text(body.strip())
     # 손상 판정은 정규화 전 본문으로 한다. 정규화가 손상 증거(GLYPH<…> 태그)를 지우지 않게.
     broken = (sum(len(m.group(0)) for m in _GLYPH_RE.finditer(body))
-              + len(_CTRL_RE.findall(body)) + body.count("\ufffd"))
+              + len(_CTRL_RE.findall(body)) + body.count("\ufffd")
+              + sum(len(m.group(0)) for m in _MOJIBAKE_RE.finditer(body)))
     raw_chars = sum(1 for c in body if not c.isspace())
     chars = sum(1 for c in judged if not c.isspace())
     # 반복은 표 밖에서만 센다. 분모(chars)는 청크 전체라 표가 큰 청크일수록 관대하다.

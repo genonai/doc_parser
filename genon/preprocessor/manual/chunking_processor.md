@@ -274,7 +274,7 @@ chunking:
 |---|---|---|---|
 | 1 | `blank` | 본문이 공백뿐 | 본문 없음 |
 | 2 | `no_content` | 내용 문자(글자·숫자, 언어 무관) 0자 | 내용 문자 0자 |
-| 3 | `broken_chars` | 깨진 문자(U+FFFD, 제어 문자, `GLYPH<…>`) 개수 ≥ `broken_min_count` **그리고** 점유율 ≥ `broken_max_share` | 깨진 문자 100자 / 101자(99%) |
+| 3 | `broken_chars` | 깨진 문자(U+FFFD, 제어 문자, `GLYPH<…>`, 잘못된 인코딩으로 바뀐 한글 `占쏙옙`·`ë³´í—˜`) 개수 ≥ `broken_min_count` **그리고** 점유율 ≥ `broken_max_share` | 깨진 문자 100자 / 101자(99%) |
 | 4 | `repetition` | 동일 문자 연속·동일 줄·동일 문구 연속 중 하나가 `repeat_min_count` 이상 **그리고** 중복 점유율 ≥ `repeat_max_share` | 동일 문구 29회, 중복 93% |
 | 5 | `min_chars` | 내용 문자 수 < 하한 | 내용 문자 1자 < 하한 4자 |
 
@@ -393,7 +393,7 @@ tools/parse_chunk/parse_chunk_verify.sh --keep --out /tmp/cv_corpus       # 샘�
 
 2026-10-07 측정(샘플 문서를 설정 두 벌로 청킹한 결과) 결과는 청크 794건(본문 중복 제거 211건, 금융 상품·FAQ·메뉴·약관
 등 doc_type 14종), 판정 샘플
-49건 전부 기대 일치, 제외 판정 0건입니다. 실물 문서를 포함한 청킹 결과 52건(일반 형식 21건, custom_fields 31건)의 청크
+52건 전부 기대 일치, 제외 판정 0건입니다. 실물 문서를 포함한 청킹 결과 52건(일반 형식 21건, custom_fields 31건)의 청크
 1,755건에서는 `min_chars` 17건, `no_content` 3건이 걸렸고 `repetition`·`broken_chars` 는 0건입니다. 기본값을 처음 정할 때는 더 큰 코퍼스(청크 2,545건, 본문 중복 제거
 1,422건)로 측정했으나 그 원자료는 보존되어 있지 않아 다시 측정할 수 없습니다.
 

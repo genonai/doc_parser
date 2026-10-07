@@ -37,6 +37,9 @@ cases:
   - {id: E12, text: [{repeat: "GLYPH<c=1,font=/B>", times: 3}], expect: broken_chars}
   - {id: E13, kind: text, text: [{repeat: "\x01", times: 50}, "가"], expect: broken_chars}
   - {id: E14, text: [{repeat: "오류오류오류", times: 40}], expect: repetition}
+  # 잘못된 인코딩으로 바뀐 한글(U+FFFD 없음). CP949 재해석 패턴과 UTF-8 을 cp1252 로 읽은 형태.
+  - {id: E15, text: "占쏙옙占쏙옙 占쏙옙 안내", expect: broken_chars}
+  - {id: E16, text: "ë³´í—˜ê¸ˆ ì§€ê¸‰ ì•ˆë‚´", expect: broken_chars}
 
   # --- 정상 샘플: 전부 보존돼야 한다 ---
   - {id: N01, text: "本契約は、会員がサービスを利用する際の条件を定めるものです。", expect: keep}
@@ -130,6 +133,8 @@ cases:
   - {id: N22, text: "보험금 10000000000원", expect: keep}
   # 비교식의 꺾쇠는 HTML 태그가 아니다.
   - {id: N24, kind: text, text: "0 < 금리 < 5%이고 신용등급 > 3", expect: keep}
+  # 정상 한자 占(점)은 깨진 글자 패턴이 아니다.
+  - {id: N25, text: "민법 제192조 占有權은 물건을 사실상 지배하는 자가 가진다", expect: keep}
 
   # --- 경계 샘플: 임계값 바로 아래·같음·바로 위 ---
   # 내용 문자 하한 4자(min_chars: 내용 문자 수 < 하한 이면 제외)
