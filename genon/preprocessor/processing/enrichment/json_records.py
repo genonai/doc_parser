@@ -229,6 +229,7 @@ def collect_records(payload: Any, records_key: str | None) -> list[dict] | None:
     """레코드(dict) 목록을 뽑는다. 키를 못 찾으면 None(호출측이 정책 결정).
 
     - `records_key` 미지정: payload 가 목록이면 그 안의 dict 들, dict 면 1건짜리 목록.
+      매퍼는 dict payload 를 여기로 보내지 않고 `find_record_arrays` 로 배열을 먼저 찾는다.
     - `records_key` 지정: 임의 깊이에서 그 이름의 키를 찾아 값이 list 면 그 안의 dict 들,
       dict 하나면 1건짜리 목록으로 본다.
     """
@@ -255,6 +256,33 @@ def collect_records(payload: Any, records_key: str | None) -> list[dict] | None:
         elif isinstance(node, list):
             queue.extend(node)
     return None
+
+
+def find_record_arrays(payload: dict) -> list[tuple[int, str, list[dict]]]:
+    """`records_at` 을 생략한 object payload 에서 레코드 배열 후보를 `(깊이, 키, 배열)` 로 모은다.
+
+    후보는 비어 있지 않고 원소가 모두 dict 인 배열이다(문자열 배열·빈 배열은 제외).
+    object 안으로만 내려가고 배열 안으로는 들어가지 않는다 — 레코드 안의 하위 배열
+    (`evtAtentnList` 등)을 레코드 배열로 오인하지 않기 위해서다.
+    """
+    found: list[tuple[int, str, list[dict]]] = []
+    level: list[dict] = [payload]
+    depth = 0
+    while level:
+        depth += 1
+        next_level: list[dict] = []
+        for node in level:
+            for key, value in node.items():
+                if isinstance(value, list) and value and all(isinstance(i, dict) for i in value):
+                    found.append((depth, str(key), value))
+                elif isinstance(value, dict):
+                    next_level.append(value)
+        level = next_level
+    return found
+
+
+# 후보 배열이 여럿일 때 alias 매칭 점수를 셀 앞쪽 레코드 수.
+_AUTO_RECORDS_SAMPLE = 5
 
 
 # docling HTML 백엔드 전용 경량 컨버터(lazy 싱글턴). HTML 백엔드는 순수 bs4 라 모델
@@ -643,6 +671,8 @@ class JsonRecordsMapper(CustomFieldsMapperBase):
     # ── 변환 ─────────────────────────────────────────────────────────────────
     def extract_records(self, payload: Any) -> list[dict]:
         """payload 에서 레코드 목록을 뽑는다. 못 찾으면 missing_policy 에 따라 처리."""
+        if self.records_key is None and isinstance(payload, dict):
+            return self._auto_records(payload)
         records = collect_records(payload, self.records_key)
         if records is None:
             msg = f"records 키 '{self.records_key}' 를 JSON 에서 찾지 못했습니다."
@@ -651,6 +681,51 @@ class JsonRecordsMapper(CustomFieldsMapperBase):
             _log.warning(f"[json_records] {msg} — 레코드 0건으로 진행합니다.")
             return []
         return records
+
+    def _auto_records(self, payload: dict) -> list[dict]:
+        """`records_at` 없이 object payload 에서 레코드 배열을 고른다.
+
+        후보가 없으면 object 전체가 1건, 하나면 그 배열이다. 여럿이면 앞쪽 레코드에서
+        alias 가 값을 찾는 필드 수로 고르고, 동점이면 얕은 쪽을 쓴다. 그래도 구별되지 않거나
+        어느 배열도 맞지 않으면 설정 문제로 보고 missing_policy 와 무관하게 실패시킨다.
+        """
+        candidates = find_record_arrays(payload)
+        if not candidates:
+            return [payload]
+        if len(candidates) == 1:
+            _, key, records = candidates[0]
+            _log.info(f"[json_records] records_at 생략 — '{key}' 배열을 레코드로 사용합니다.")
+            return records
+
+        alias_specs = [
+            (names, target in self.raw_fields) for target, names in self.key_map.items()
+        ] + [(names, False) for names in self.collect_key_map.values()]
+
+        def score(records: list[dict]) -> int:
+            # 키만 있고 값이 빈 필드는 세지 않는다(require 와 같은 "값 없음" 기준).
+            sample = records[:_AUTO_RECORDS_SAMPLE]
+            return sum(
+                1 for names, raw in alias_specs
+                if any(find_field(record, names, raw=raw) not in (None, "") for record in sample)
+            )
+
+        ranked = sorted(
+            ((score(records), -depth, key, records) for depth, key, records in candidates),
+            key=lambda item: item[:2],
+            reverse=True,
+        )
+        best = ranked[0]
+        if best[0] == 0 or ranked[1][:2] == best[:2]:
+            keys = [key for _, key, _ in candidates]
+            raise ValueError(
+                f"레코드 배열 후보 {keys} 를 fields 의 alias 로 구별할 수 없습니다. "
+                f"source.records_at 에 배열 키를 지정하세요."
+            )
+        _log.info(
+            f"[json_records] records_at 생략 — 후보 {[k for _, k, _ in candidates]} 중 "
+            f"'{best[2]}' 배열을 레코드로 사용합니다(alias 일치 {best[0]}개)."
+        )
+        return best[3]
 
     def map_record(
         self,

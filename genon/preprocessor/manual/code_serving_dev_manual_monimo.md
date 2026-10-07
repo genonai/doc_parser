@@ -1768,7 +1768,7 @@ source:
 
 | 키 | 하는 일 |
 |---|---|
-| `records_at` | 레코드 배열의 key 이름. 생략하면 payload가 배열이면 원소마다 1건, 단일 object면 그 자체가 1건 |
+| `records_at` | 레코드 배열의 key 이름. 생략하면 payload가 배열이면 원소마다 1건이고, object면 그 안(배열 안은 제외)에서 dict 배열을 찾습니다. 하나면 그 배열, 여럿이면 `fields` alias가 더 많이 맞는 배열을 쓰고 구별되지 않으면 요청이 실패합니다. dict 배열이 없으면 object 자체가 1건 |
 | `on_missing` | `records`는 지정 배열을 못 찾았을 때, `sections`는 문서 공통 필수값이 없을 때의 정책. 두 경로 모두 `error`가 기본이며 `skip`은 경고 후 0건 처리 |
 | `merge_rows` | `group_by`가 같은 **연속** 건만 한 묶음으로 접습니다. 병합은 값 변환·파생보다 **먼저** 실행됩니다 |
 | `sections` | `kind: sections`의 섹션 표시 이름 |
