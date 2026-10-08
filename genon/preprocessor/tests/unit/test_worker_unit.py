@@ -207,3 +207,39 @@ def test_processor_setup_error_is_classified(monkeypatch):
     with pytest.raises(Exception) as info:
         ActivityEnvironment().run(registry.build([registry.Entry("chunk", "chunk", None)])[0], {})
     assert (info.value.type, info.value.non_retryable) == ("permanent", True)
+
+
+def test_single_run_cli_uses_worker_body_and_prints_result_last(tmp_path, monkeypatch, capsys):
+    """단건 CLI(activities/__main__.py) — 워커와 같은 래퍼로 돌고 stdout 마지막 줄이 @@RESULT@@ 다."""
+    import importlib
+
+    cli = importlib.import_module("genon.preprocessor.activities.__main__")
+    src = tmp_path / "a.md"
+    src.write_text("# 제목\n본문")
+    fake = _FakeProcessor({"document": {"texts": [{"text": "제목"}, {"text": "본문"}]}})
+    fake.run_activity = lambda arg: runtime.execute(fake, "parse", arg)   # ParserCore.run_activity 와 같다
+    monkeypatch.setattr(registry, "processor", lambda entry: fake)
+    monkeypatch.setattr(runtime, "_POISONED", False)
+    monkeypatch.setattr(runtime, "_CFG", None)
+    # 자식 프로세스 대신 같은 프로세스에서 본체(run)를 돌린다 — 가짜 프로세서를 쓰기 위해
+    monkeypatch.setattr(cli, "_run_isolated",
+                        lambda argv: {"ok": True, "data": cli.run(cli._parser().parse_args(argv))})
+
+    code = cli.main(["run", "--activity", "parse", str(src), "--doc-type", "card",
+                     "--params", '{"doc_type": "x", "keep": 1}', "-o", str(tmp_path / "out" / "p.json")])
+    last = capsys.readouterr().out.strip().splitlines()[-1]
+    result = json.loads(last.removeprefix("@@RESULT@@ "))
+
+    assert code == 0 and last.startswith("@@RESULT@@ ")
+    assert (result["ok"], result["stage"], result["activity"], result["data"]["count"]) == (True, "parse", "parse", 2)
+    assert fake.calls[0][1] == {"doc_type": "card", "keep": 1}            # --doc-type 이 우선
+    assert fake.calls[0][0].endswith("/a.md")                              # 사용자가 준 파일명 그대로
+    assert json.loads((tmp_path / "out" / "p.json").read_text()) == {"texts": [{"text": "제목"}, {"text": "본문"}]}
+
+    code = cli.main(["run", "--activity", "nope", str(src)])
+    failed = json.loads(capsys.readouterr().out.strip().splitlines()[-1].removeprefix("@@RESULT@@ "))
+    assert code == 1 and failed["ok"] is False and "nope" in failed["error"]["message"]
+
+    code = cli.main(["run", "--activity", "parse"])                          # 인자 오류도 결과 한 줄
+    usage = json.loads(capsys.readouterr().out.strip().splitlines()[-1].removeprefix("@@RESULT@@ "))
+    assert code == 1 and usage["ok"] is False and usage["error"]["type"] == "_UsageError"
