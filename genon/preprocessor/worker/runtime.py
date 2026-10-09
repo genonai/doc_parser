@@ -150,7 +150,10 @@ def _summarize(stage: str, payload, size: int, limit: int) -> tuple[int, str, st
         count = len(payload["elements"])
     else:
         count = len(payload.get("texts") or [])
-    text = payload.get("text") or payload.get("elements") or payload.get("texts") or ""
+    text = payload.get("text")
+    if not text:   # docling 문서는 본문이 texts[].text 에 나뉘어 있다
+        items = payload.get("elements") or payload.get("texts") or []
+        text = "\n".join(str(t.get("text") or "") for t in items[:50] if isinstance(t, dict)) or str(items)
     return count, f"파싱 {_kb(size)} · 요소 {count}", _clip(text, limit)
 
 
