@@ -24,6 +24,11 @@ set -euo pipefail
 #   bash build-script/sync-serving-repo.sh
 #   # 배포본 클론에 재생성 + 배포본 repo 로 push
 #   PUSH=true GENON_BUILD=0 bash build-script/sync-serving-repo.sh
+#   # 개발 빌드(전처리 Studio) — 배포본 studio/dev 브랜치로 push, 미러 태그 없음
+#   SERVING_BRANCH=studio/dev MIRROR_TAG=false PUSH=true bash build-script/sync-serving-repo.sh
+#
+#   PUSH=true 면 조립 전에 배포본 클론을 origin/${SERVING_BRANCH} 로 맞춘다(fetch + checkout -f -B).
+#   배포본에 그 브랜치가 아직 없으면 origin/main 에서 시작해 push 로 새로 만든다.
 #
 # ── 버전 정합 ────────────────────────────────────────────────────────────────
 #   원본(doc_parser)의 git 릴리스 태그가 버전의 단일 진실 소스다. 이 스크립트는
@@ -62,9 +67,11 @@ SERVING_README="${SERVING_README:-${ROOT_DIR}/build-script/code-serving-README.m
 # 미러 태그로 쓸 버전. 비우면 SOURCE_REF 에서 자동 파생(태그 커밋이면 정확히 그 태그, 아니면 2.2.4-14-gSHA).
 VERSION="${VERSION:-$(git -C "${ROOT_DIR}" describe --tags "${SOURCE_REF}" 2>/dev/null || true)}"
 FORCE_TAG="${FORCE_TAG:-false}"                      # true 일 때만 기존 태그를 다른 커밋으로 강제 이동(-f)
+MIRROR_TAG="${MIRROR_TAG:-true}"                     # false 면 5) 미러 태그 생략(개발 빌드). VERSION 스탬프는 그대로 동봉
 
 # 릴리스 위생: SOURCE_REF 가 정확히 릴리스 태그 커밋이 아니면 경고(dev 빌드로 태깅됨).
-if ! git -C "${ROOT_DIR}" describe --exact-match --tags "${SOURCE_REF}" >/dev/null 2>&1; then
+if [[ "${MIRROR_TAG}" == "true" ]] \
+   && ! git -C "${ROOT_DIR}" describe --exact-match --tags "${SOURCE_REF}" >/dev/null 2>&1; then
   echo "[WARN] SOURCE_REF(${SOURCE_REF}) 가 릴리스 태그 커밋이 아닙니다 — dev 빌드로 태깅됩니다(VERSION=${VERSION:-<없음>})."
 fi
 
@@ -131,6 +138,21 @@ DRYRUN_TMP=""
 if is_serving_clone "${SERVING_DIR}"; then
   PUSH_TARGET_OK=true
   DEST="${SERVING_DIR}"
+  # push 할 브랜치의 원격 끝에서 시작해야 push 가 fast-forward 가 된다. 작업 트리는 아래 1) 에서
+  # 통째로 재생성되므로 -f 로 버려도 잃는 것이 없다.
+  # 원격 브랜치 유무는 ls-remote 로 묻고 그 브랜치만 명시해 fetch 한다(단일 브랜치 클론이어도 맞게).
+  if [[ "${PUSH}" == "true" ]]; then
+    REMOTE_HEAD="$(git -C "${DEST}" ls-remote --heads origin "refs/heads/${SERVING_BRANCH}")"
+    if [[ -n "${REMOTE_HEAD}" ]]; then
+      BASE_BRANCH="${SERVING_BRANCH}"
+    else
+      BASE_BRANCH="main"
+      echo "[INFO] 배포본에 ${SERVING_BRANCH} 브랜치가 없습니다 — origin/main 에서 시작해 새로 만듭니다."
+    fi
+    git -C "${DEST}" fetch -q origin "+refs/heads/${BASE_BRANCH}:refs/remotes/origin/${BASE_BRANCH}"
+    git -C "${DEST}" checkout -q -f -B "${SERVING_BRANCH}" "origin/${BASE_BRANCH}"
+    echo "[INFO] 배포본 클론을 origin/${BASE_BRANCH} 로 맞춤 (브랜치 ${SERVING_BRANCH})"
+  fi
 else
   # 배포본 클론 아님: OUT_DIR 지정 시 그 경로, 아니면 mktemp 임시폴더(검증 후 정리).
   if [[ -n "${OUT_DIR}" ]]; then
@@ -146,7 +168,8 @@ fi
 echo "[INFO] ROOT_DIR      = ${ROOT_DIR}"
 echo "[INFO] SOURCE_REF    = ${SOURCE_REF} (${SOURCE_COMMIT})"
 echo "[INFO] DEST          = ${DEST}  (push_target_ok=${PUSH_TARGET_OK})"
-echo "[INFO] VERSION       = ${VERSION:-<없음>}  (force_tag=${FORCE_TAG})"
+echo "[INFO] VERSION       = ${VERSION:-<없음>}  (mirror_tag=${MIRROR_TAG}, force_tag=${FORCE_TAG})"
+echo "[INFO] SERVING_BRANCH= ${SERVING_BRANCH}"
 echo "[INFO] WHITELIST     = ${WHITELIST[*]}"
 echo "[INFO] EXCLUDE       = ${EXCLUDE_PATHS[*]}"
 echo "[INFO] GENON_BUILD   = ${GENON_BUILD}"
@@ -399,16 +422,19 @@ if git -C "${DEST}" diff --cached --quiet; then
 else
   git -C "${DEST}" commit -q -m "sync from doc_parser ${SOURCE_COMMIT} (docling→wheel)"
   echo "[INFO] 서브모듈 commit 완료."
-  if [[ "${PUSH}" == "true" ]]; then
-    git -C "${DEST}" push origin "HEAD:${SERVING_BRANCH}"
-    echo "[INFO] push 완료 → 배포본 repo (${SERVING_BRANCH})"
-  else
-    echo "[INFO] PUSH=false — 서브모듈에 commit 만 함. push 하려면 PUSH=true 로 재실행."
-  fi
+fi
+# 변경이 없어도 push 한다 — origin/main 에서 새로 시작한 브랜치는 이 push 로 원격에 생긴다(이미 같으면 무동작).
+if [[ "${PUSH}" == "true" ]]; then
+  git -C "${DEST}" push origin "HEAD:${SERVING_BRANCH}"
+  echo "[INFO] push 완료 → 배포본 repo (${SERVING_BRANCH})"
+else
+  echo "[INFO] PUSH=false — 서브모듈에 commit 만 함. push 하려면 PUSH=true 로 재실행."
 fi
 
 # ── 5) 미러 태그: 원본 릴리스 태그를 배포본 HEAD 에 부여(+PUSH 시 push) ────────
-if [[ -z "${VERSION}" ]]; then
+if [[ "${MIRROR_TAG}" != "true" ]]; then
+  echo "[INFO] MIRROR_TAG=${MIRROR_TAG} — 미러 태그 생략(개발 빌드, VERSION 스탬프는 동봉됨)."
+elif [[ -z "${VERSION}" ]]; then
   echo "[WARN] VERSION 이 비어 미러 태그를 생략합니다(원본이 태그 커밋이 아니거나 태그가 없음)."
 else
   HEAD_SHA="$(git -C "${DEST}" rev-parse HEAD)"
@@ -435,5 +461,9 @@ else
 fi
 
 if [[ "${PUSH}" == "true" ]]; then
-  echo "[INFO] 배포본 repo 에 커밋+태그(${VERSION:-<없음>}) push 완료. doc_parser 는 code-serving 을 추적하지 않으므로 별도 gitlink 고정 불필요."
+  if [[ "${MIRROR_TAG}" == "true" ]]; then
+    echo "[INFO] 배포본 repo 에 커밋+태그(${VERSION:-<없음>}) push 완료. doc_parser 는 code-serving 을 추적하지 않으므로 별도 gitlink 고정 불필요."
+  else
+    echo "[INFO] 배포본 repo ${SERVING_BRANCH} 에 커밋 push 완료(태그 없음)."
+  fi
 fi
