@@ -1,11 +1,25 @@
 ---
 name: open-pr
-description: 로컬 테스트를 먼저 돌린 뒤 develop 대상 PR 을 만들고 CI 통과까지 지켜본다. "PR 생성", "PR 올려줘", "풀리퀘" 관련 작업일 때 사용한다.
+description: 로컬 테스트를 먼저 돌린 뒤 develop(전처리 Studio 작업은 studio/dev) 대상 PR 을 만들고 CI 통과까지 지켜본다. "PR 생성", "PR 올려줘", "풀리퀘" 관련 작업일 때 사용한다.
 ---
 
 # PR 생성
 
 `/open-pr [--draft]` 로 호출한다. 로컬 검증(테스트·설정·범위) → PR 생성 → CI 결과 확인까지가 범위다.
+
+## base 결정
+
+이후 모든 명령의 `<base>` 는 다음으로 정한다. **전처리 Studio 작업은 `studio/dev`**, 그 밖은 `develop`.
+
+```bash
+git fetch -q origin
+git merge-base --is-ancestor origin/studio/dev HEAD && ! git merge-base --is-ancestor origin/studio/dev origin/develop \
+  && echo studio/dev || echo develop
+```
+
+`studio/dev` 에서 딴 브랜치면 `studio/dev`, 아니면 `develop` 이다. 이슈가 #466(전처리 Studio) 하위인데 결과가
+`develop` 이면 사용자에게 확인한다. `studio/dev` 로 머지된 PR 의 이슈는 자동으로 닫히지 않는다 — 사용자가
+닫으라고 할 때 닫는다.
 
 ## 절차
 
@@ -14,10 +28,10 @@ description: 로컬 테스트를 먼저 돌린 뒤 develop 대상 PR 을 만들�
 ```bash
 git rev-parse --abbrev-ref HEAD
 git status --porcelain
-git log origin/develop..HEAD --oneline
+git log origin/<base>..HEAD --oneline
 ```
 
-- 현재 브랜치가 `develop` 이면 중단한다
+- 현재 브랜치가 `develop` 이나 `studio/dev` 이면 중단한다
 - 미커밋 변경이 있으면 `/wip` 로 먼저 커밋하도록 안내하고 중단한다
 - 브랜치명에서 `^[a-z]+/([0-9]+)-` 로 이슈 번호를 뽑는다. 매칭되지 않으면 사용자에게 이슈 번호를 묻는다
 - 푸시되지 않은 커밋이 있으면 먼저 푸시한다
@@ -34,7 +48,7 @@ cd genon/preprocessor && .venv/bin/python -m pytest tests/unit -q -p no:randomly
 ### 3. 설정·doc_type 검증
 
 ```bash
-git diff develop...HEAD --name-only
+git diff origin/<base>...HEAD --name-only
 ```
 
 변경 파일에 따라 아래를 실행한다. 해당 파일이 없으면 이 단계를 건너뛴다.
@@ -57,17 +71,17 @@ git diff develop...HEAD --name-only
 
 ```bash
 gh issue view <N> --repo genonai/doc_parser --json title,body
-git diff develop...HEAD
+git diff origin/<base>...HEAD
 ```
 
-`scope-check` 서브에이전트에 이슈 제목·본문을 증상으로, `develop...HEAD` diff 를 대상으로 넘긴다.
+`scope-check` 서브에이전트에 이슈 제목·본문을 증상으로, `<base>...HEAD` diff 를 대상으로 넘긴다.
 판정이 "과잉"이면 지적 내용을 사용자에게 보여 주고, 덜어낼지 그대로 진행할지 묻는다. 범위를 덜어내는 것은
 판단이 필요한 일이므로 자동으로 고치지 않는다. 판정 결과는 PR 본문의 "검증" 절에 한 줄로 남긴다.
 
 ### 5. 테스트 범위 점검
 
 ```bash
-git diff develop...HEAD --stat -- genon/preprocessor/tests
+git diff origin/<base>...HEAD --stat -- genon/preprocessor/tests
 ```
 
 테스트 변경이 있으면 `test-scope-check` 서브에이전트에 테스트 diff 와 프로덕션 diff 를 함께 넘겨
@@ -79,8 +93,8 @@ git diff develop...HEAD --stat -- genon/preprocessor/tests
 ### 6. 변경 요약 수집
 
 ```bash
-git log develop..HEAD --format='%s'
-git diff develop...HEAD --stat
+git log origin/<base>..HEAD --format='%s'
+git diff origin/<base>...HEAD --stat
 ```
 
 ### 7. PR 본문 작성
@@ -120,7 +134,7 @@ Resolves #<N>
 
 ```bash
 gh pr create --repo genonai/doc_parser \
-  --base develop \
+  --base <base> \
   --title "<제목>" \
   --body-file "<스크래치패드>/pr_body.md"
 ```
@@ -133,7 +147,7 @@ gh pr create --repo genonai/doc_parser \
 gh pr checks --watch --fail-fast
 ```
 
-`.github/workflows/develop.yml` 이 py3.12/3.13 매트릭스로 도므로 수 분 걸린다.
+`.github/workflows/develop.yml` 이 py3.12/3.13 매트릭스로 도므로 수 분 걸린다. `studio/dev` 대상 PR 에는 아직 CI 가 돌지 않는다 — 로컬 테스트 결과를 PR 본문에 적는다.
 실패하면 실패 잡의 로그를 받되 **요약만** 보고한다.
 
 ```bash

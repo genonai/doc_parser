@@ -136,12 +136,14 @@ gh api -X PATCH repos/genonai/doc_parser/issues/<N> -f type=<Task|Bug|Feature|Im
 
 ```bash
 gh issue develop <N> --repo genonai/doc_parser \
-  --base develop \
+  --base <develop | studio/dev> \
   --name "<type>/<N>-<slug>" \
   --checkout
 ```
 
-`gh issue develop` 는 브랜치를 이슈에 링크하므로 머지 시 이슈가 자동으로 닫힌다.
+**전처리 Studio 작업(#466 하위 — `activities/`·워커·단건 CLI·서빙본 개발 빌드 등)은 `--base studio/dev`**, 그 밖은 `develop`. 판단이 서지 않으면 사용자에게 묻는다.
+
+`gh issue develop` 는 브랜치를 이슈에 링크하므로 `develop` 머지 시 이슈가 자동으로 닫힌다. `studio/dev` 머지는 자동으로 닫히지 않는다 — 사용자가 닫으라고 할 때 닫는다.
 
 미커밋 변경이 있으면 체크아웃 전에 사용자에게 알린다. stash 나 checkout 으로 작업 트리를
 임의로 되돌리지 않는다.
