@@ -84,6 +84,9 @@ def run_cli(processor_cls, argv=None) -> int:
     if args.doc_type:
         kwargs["doc_type"] = args.doc_type
     if args.log_level is not None:
+        # 로깅 레벨은 프로세스 단위다(#481 F-C): 파서·청커는 요청 kwargs 의 log_level 을 무시하므로
+        # 여기서 프로세스에 직접 적용한다. kwargs 에도 실어 옛 파사드(intelligent·convert)는 종전대로.
+        proc.setup_logging(args.log_level)
         kwargs["log_level"] = args.log_level
 
     begin = time.time()
