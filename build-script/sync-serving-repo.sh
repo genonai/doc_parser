@@ -30,6 +30,14 @@ set -euo pipefail
 #   PUSH=true 면 조립 전에 배포본 클론을 origin/${SERVING_BRANCH} 로 맞춘다(fetch + checkout -f -B).
 #   배포본에 그 브랜치가 아직 없으면 origin/main 에서 시작해 push 로 새로 만든다.
 #
+# ── 배포본 브랜치 역할 ──────────────────────────────────────────────────────
+#   main(릴리스)·studio/dev(개발 빌드) 같은 sync 브랜치에는 이 스크립트의 커밋만 쌓는다. 사람의 작업
+#   (액티비티 추가·설정 수정)은 작업 브랜치에서 하고, 새 버전은 그 브랜치로 merge 해 받는다.
+#   이 스크립트는 작업 트리를 통째로 다시 만들어 다음 커밋으로 올리므로(merge 가 아니다), sync 브랜치에
+#   사람의 커밋이 있으면 그 내용을 충돌 없이 지우거나 원본 내용으로 바꿔 쓴다. 그래서 직전 sync 커밋
+#   뒤에 다른 커밋이 있으면 목록을 보여 주고 중단한다. 의도한 덮어쓰기일 때만 OVERWRITE_MANUAL_COMMITS=true.
+#   (배포본 README 「브랜치 역할과 새 버전 받기」)
+#
 # ── 버전 정합 ────────────────────────────────────────────────────────────────
 #   원본(doc_parser)의 git 릴리스 태그가 버전의 단일 진실 소스다. 이 스크립트는
 #   배포본에 (1) 같은 이름의 미러 태그를 push 하고 (2) VERSION 스탬프 파일을 동봉해
@@ -44,7 +52,8 @@ set -euo pipefail
 #        (VERSION 을 생략하면 git describe 로 자동 파생. 태그 커밋에서 실행하면 정확히 그 태그.)
 #        원본↔배포본 연결은 배포본 커밋 메시지의 SOURCE_COMMIT + 미러 태그 + VERSION 스탬프로 기록된다
 #        (doc_parser 는 code-serving 을 추적하지 않으므로 gitlink 고정 단계는 없다).
-#   3) 배포처(gitea) 를 새 배포본으로 갱신 후 리비전 재배포 (배포 절차는 code-serving-README.md 참고).
+#   3) 배포처를 새 배포본으로 갱신 후 리비전 재배포 (배포 절차는 code-serving-README.md 참고 —
+#      gitea 복사본은 복사 후 커밋, 외부 Git 작업 브랜치는 새 버전을 merge).
 #
 #   - wheel 히스토리 누적: 매 릴리스 wheel(~5MB)이 배포본 repo 에 커밋되어 쌓인다. 비대해지면 LFS/릴리스 자산 전환 고려.
 #   - genon/ 디스크 중복: doc_parser/genon 과 code-serving/genon(복사 산출물)이 공존한다("복사" 특성상 불가피).
@@ -68,6 +77,7 @@ SERVING_README="${SERVING_README:-${ROOT_DIR}/build-script/code-serving-README.m
 VERSION="${VERSION:-$(git -C "${ROOT_DIR}" describe --tags "${SOURCE_REF}" 2>/dev/null || true)}"
 FORCE_TAG="${FORCE_TAG:-false}"                      # true 일 때만 기존 태그를 다른 커밋으로 강제 이동(-f)
 MIRROR_TAG="${MIRROR_TAG:-true}"                     # false 면 5) 미러 태그 생략(개발 빌드). VERSION 스탬프는 그대로 동봉
+OVERWRITE_MANUAL_COMMITS="${OVERWRITE_MANUAL_COMMITS:-false}"  # true 면 sync 브랜치의 사람 커밋을 알고도 덮어쓴다
 
 # 릴리스 위생: SOURCE_REF 가 정확히 릴리스 태그 커밋이 아니면 경고(dev 빌드로 태깅됨).
 if [[ "${MIRROR_TAG}" == "true" ]] \
@@ -133,6 +143,34 @@ is_serving_clone() {
   [[ "$(normalize_remote "${origin}")" == "$(normalize_remote "${SERVING_REMOTE}")" ]]
 }
 
+# ref 에 직전 sync 커밋 뒤 사람의 커밋이 있으면 중단한다(머리 주석 「배포본 브랜치 역할」). 브랜치·작업
+# 트리를 바꾸기 전에 부른다. sync 커밋이 하나도 없는 ref 는 첫 sync 로 보고 통과시킨다.
+assert_no_manual_commits() {
+  local dir="$1" ref="$2" last manual
+  git -C "${dir}" rev-parse -q --verify "${ref}^{commit}" >/dev/null || return 0
+  # 이력이 잘린 클론은 sync 커밋을 못 찾아 첫 sync 로 오판한다.
+  if [[ "$(git -C "${dir}" rev-parse --is-shallow-repository)" == "true" ]]; then
+    echo "[ERROR] 배포본 클론(${dir})이 shallow 입니다 — 사람 커밋 검사에 전체 이력이 필요합니다: git -C ${dir} fetch --unshallow" >&2
+    exit 1
+  fi
+  # sync 커밋은 제목으로만 판별한다(--grep 은 본문 줄도 맞힌다).
+  last="$(git -C "${dir}" log --format='%H %s' "${ref}" | awk '$2=="sync" && $3=="from" && $4=="doc_parser" {print $1; exit}')"
+  [[ -n "${last}" ]] || return 0
+  manual="$(git -C "${dir}" log --format='  %h %an  %s' "${last}..${ref}")"
+  [[ -n "${manual}" ]] || return 0
+  if [[ "${OVERWRITE_MANUAL_COMMITS}" == "true" ]]; then
+    echo "[WARN] OVERWRITE_MANUAL_COMMITS=true — ${ref} 의 아래 커밋 내용은 이번 sync 에서 지워지거나 원본 내용으로 바뀝니다:"
+    echo "${manual}"
+    return 0
+  fi
+  echo "[ERROR] 배포본 ${ref} 에 직전 sync 커밋(${last:0:9}) 뒤 다른 커밋이 있습니다:" >&2
+  echo "${manual}" >&2
+  echo "        sync 는 작업 트리를 통째로 다시 만들어 다음 커밋으로 올리므로, 이 내용을 충돌 없이 지우거나 바꿔 씁니다." >&2
+  echo "        작업은 작업 브랜치로 옮기고(예: git branch work/<이름> <커밋>) 새 버전은 그 브랜치로 merge 하십시오." >&2
+  echo "        알고도 덮어쓰려면 OVERWRITE_MANUAL_COMMITS=true 로 다시 실행하십시오." >&2
+  exit 1
+}
+
 PUSH_TARGET_OK=false
 DRYRUN_TMP=""
 if is_serving_clone "${SERVING_DIR}"; then
@@ -150,8 +188,13 @@ if is_serving_clone "${SERVING_DIR}"; then
       echo "[INFO] 배포본에 ${SERVING_BRANCH} 브랜치가 없습니다 — origin/main 에서 시작해 새로 만듭니다."
     fi
     git -C "${DEST}" fetch -q origin "+refs/heads/${BASE_BRANCH}:refs/remotes/origin/${BASE_BRANCH}"
+    # 원격 기준(push 된 사람 커밋)과 로컬 대상 브랜치(push 안 된 사람 커밋)를 체크아웃 전에 본다.
+    assert_no_manual_commits "${DEST}" "origin/${BASE_BRANCH}"
+    assert_no_manual_commits "${DEST}" "refs/heads/${SERVING_BRANCH}"
     git -C "${DEST}" checkout -q -f -B "${SERVING_BRANCH}" "origin/${BASE_BRANCH}"
     echo "[INFO] 배포본 클론을 origin/${BASE_BRANCH} 로 맞춤 (브랜치 ${SERVING_BRANCH})"
+  else
+    assert_no_manual_commits "${DEST}" HEAD    # PUSH=false 는 지금 브랜치에 커밋한다
   fi
 else
   # 배포본 클론 아님: OUT_DIR 지정 시 그 경로, 아니면 mktemp 임시폴더(검증 후 정리).

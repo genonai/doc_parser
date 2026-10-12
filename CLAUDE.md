@@ -267,6 +267,7 @@ conventional prefix 없음, 이슈 제목은 명사형("~추가"), PR 대상은 
 - **`activities/`:** 파싱·청킹 파사드 자리다. 파일명 = slug = Temporal 액티비티 이름, 첫 단어 = 단계(`parse`·`chunk`), 첫 줄 = Studio 목록 제목, 짝 설정 `resource/<slug>_config.yaml`. 파일은 `DocumentProcessor` 를 상속만 한다. 액티비티 본문은 부모 `ParserCore`·`ChunkerCore.run_activity` 하나이고 이름은 워커가 파일명으로 붙인다. `_` 로 시작하는 파일(`__main__.py`)은 액티비티가 아니다. 옛 `facade/parser_processor.py`·`chunking_processor.py` 는 별칭이다.
 - **워커:** `python -m genon.preprocessor.worker`(코드서빙 START_COMMAND). 프로세스 N개 × 1건, `/health :8080`(코드서빙 startupProbe). 인자는 상대 참조(`read_ref`·`parsed_ref`·`output_ref`)뿐이다. 구버전(HTTP 호출)과의 호환은 요구사항이 아니다.
 - **단건 CLI:** `python -m genon.preprocessor.activities run --activity <slug> <file> [-o …]`(#477 머지 후 — 그 전에는 파사드별 `DocumentProcessor.cli()`). 워커와 같은 본문으로 돌며, stdout 마지막 줄 `@@RESULT@@ {…}` 한 줄이 Studio 계약이다.
+- **서빙본 브랜치:** 서빙본의 `main`·`studio/dev` 에는 `sync-serving-repo.sh` 의 커밋만 쌓는다. 사람·Studio 작업은 서빙본 작업 브랜치에서 하고 새 버전은 그 브랜치로 merge 한다. sync 는 작업 트리를 통째로 다시 만들어 다음 커밋으로 올리므로, sync 브랜치에 다른 커밋이 있으면 멈춘다(`OVERWRITE_MANUAL_COMMITS=true` 로만 덮어씀). 자세한 규칙은 `build-script/code-serving-README.md` 「브랜치 역할과 새 버전 받기」.
 - **공개 저장소:** 이 저장소는 public 이다. 커밋·PR·이슈에 접속 주소·계정·비밀값·고객 내부 정보를 쓰지 않는다. SCP 검증 기록은 `data-ingestion-pipeline` 이슈에 남긴다.
 - **GPT 독립 리뷰:** PR 전에 `bash .claude/review/gpt-review.sh working`(커밋 뒤에는 `origin/studio/dev`). 작업의 task brief 는 `GPT_REVIEW_BRIEF=<파일>` 로 준다(틀: `genon/docs/REVIEW_CONTEXT.md`, 리뷰어용 맥락 `genon/docs/ENGINEERING_CONTEXT.md`). 지적은 코드로 확인한 것만 반영하고, 자동 리뷰는 작업당 2회까지 한다.
 
