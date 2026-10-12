@@ -22,7 +22,11 @@ Linux 에서만 만들어지는 것(docling-parse 패치, LibreOffice, rhwp, 폰
 
 ## 절차
 
-아래는 Mac 의 로컬 체크아웃 기준이다. `<REPO>` 는 doc_parser 체크아웃 경로다.
+아래 명령은 모두 doc_parser 저장소 루트(예: `/Users/<me>/workspace/doc_parser`)에서 실행한다. 먼저 그 폴더로 이동한다.
+
+```bash
+cd /Users/<me>/workspace/doc_parser
+```
 
 ### 1. 소스를 빌드할 커밋으로 맞춘다
 
@@ -30,19 +34,19 @@ Linux 에서만 만들어지는 것(docling-parse 패치, LibreOffice, rhwp, 폰
 docling wheel 은 작업 트리 기준이라, 작업 트리가 더러우면 wheel 이 커밋과 어긋난다.
 
 ```bash
-git -C <REPO> status --short
+git status --short
 ```
 
 대조군(수정 전)은 develop 최신이다.
 
 ```bash
-git -C <REPO> checkout develop && git -C <REPO> pull --ff-only origin develop
+git checkout develop && git pull --ff-only origin develop
 ```
 
 수정본은 검증 대상 브랜치다. 이번 검증은 #481 과 #482 를 합친 `test/481-482-concurrency` 다.
 
 ```bash
-git -C <REPO> checkout test/481-482-concurrency
+git checkout test/481-482-concurrency
 ```
 
 ### 2. 배포본 저장소를 한 번만 클론한다
@@ -51,7 +55,7 @@ git -C <REPO> checkout test/481-482-concurrency
 배포본 저장소일 때만 commit 을 만든다(무관한 저장소 보호).
 
 ```bash
-git clone git@github.com:genonai/doc_parser_code_serving.git <REPO>/code-serving
+git clone git@github.com:genonai/doc_parser_code_serving.git code-serving
 ```
 
 SSH 키가 없으면 `https://github.com/genonai/doc_parser_code_serving.git` 로 클론한다.
@@ -61,7 +65,7 @@ SSH 키가 없으면 `https://github.com/genonai/doc_parser_code_serving.git` �
 스크립트는 클론의 현재 브랜치에 commit 한다. main 에 테스트 commit 이 쌓이지 않도록 브랜치를 먼저 바꾼다.
 
 ```bash
-git -C <REPO>/code-serving checkout -b test/develop-base
+git -C code-serving checkout -b test/develop-base
 ```
 
 수정본을 조립할 때는 `test/481-482` 로 바꾼다. 이미 있는 브랜치면 `checkout` 만 한다.
@@ -72,7 +76,7 @@ wheel 빌드까지 1~2분이다. `GENON_BUILD` 는 wheel 의 local 세그먼트(
 대조군과 구분되게 올린다(대조군 0, #481 포함 수정본 1).
 
 ```bash
-cd <REPO> && PUSH=false GENON_BUILD=0 bash build-script/sync-serving-repo.sh
+PUSH=false GENON_BUILD=0 bash build-script/sync-serving-repo.sh
 ```
 
 정상이면 마지막에 다음 두 줄이 있다. `[WARN] … dev 빌드로 태깅됩니다` 는 릴리스 태그 커밋이 아니라는 뜻이라 정상이다.
@@ -89,7 +93,7 @@ Mac 에서는 `[INFO] tar=bsdtar — export 를 임시 tar 파일 경유로 수�
 `VERSION` 의 `source_commit` 이 1번에서 맞춘 커밋과 같아야 한다.
 
 ```bash
-cat <REPO>/code-serving/VERSION && git -C <REPO> log --oneline -1
+cat code-serving/VERSION && git log --oneline -1
 ```
 
 ### 6. 테스트 브랜치로 push 하고 커밋 해시를 적어 둔다
@@ -98,7 +102,7 @@ cat <REPO>/code-serving/VERSION && git -C <REPO> log --oneline -1
 리비전에 들어간다.
 
 ```bash
-git -C <REPO>/code-serving push origin HEAD:refs/heads/test/develop-base && git -C <REPO>/code-serving rev-parse HEAD
+git -C code-serving push origin HEAD:refs/heads/test/develop-base && git -C code-serving rev-parse HEAD
 ```
 
 ## 막혔을 때
