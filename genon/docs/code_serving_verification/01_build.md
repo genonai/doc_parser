@@ -114,10 +114,12 @@ git -C code-serving push origin HEAD:refs/heads/test/develop-base && git -C code
 | `[WARN] 로컬 docling/ 이 HEAD 와 다릅니다` | 작업 트리의 docling 이 커밋과 다름. 1번으로 돌아가 정리 |
 | `[ERROR] 배포본 Dockerfile 이 코드서빙용이 아닙니다` | 루트 `Dockerfile` 변경을 커밋하지 않음. export 는 커밋 기준이다 |
 | `uv: command not found` | `brew install uv` 또는 astral 설치 스크립트 |
+| `PUSH=true` 로 실행해 `HEAD -> main` 으로 push 됨 | 스크립트는 클론의 현재 브랜치로 push 한다. 3번(테스트 브랜치 체크아웃)을 건너뛰면 main 에 dev 빌드가 올라간다. `git -C code-serving push origin <커밋>:refs/heads/test/develop-base` 로 브랜치를 만들고, main 은 릴리스 커밋으로 되돌린다 |
+| `[ERROR] 태그 … 가 이미 다른 커밋을 가리킵니다` | 앞서 실행한 조립이 로컬에 같은 이름의 dev 태그를 남겼다. 테스트 빌드는 태그를 쓰지 않으므로 무시해도 된다(push 와 commit 은 이미 끝난 뒤다) |
 
 ## 이 검증에서 실제로 쓴 값
 
 | 빌드 | 원본 커밋 | 배포본 브랜치 | 배포본 커밋 | wheel |
 |---|---|---|---|---|
 | 수정본(#481+#482) | `28f8b94f` (`test/481-482-concurrency`) | `test/481-482` | `7239a563` | `+genon.1` |
-| 대조군(develop) | 묶음 1 실행 후 기입 | `test/develop-base` | 묶음 1 실행 후 기입 | `+genon.0` |
+| 대조군(develop) | `49d8f176` (develop, #493 머지 직후) | `test/develop-base` | `3abe9ac2` | `+genon.0` |
