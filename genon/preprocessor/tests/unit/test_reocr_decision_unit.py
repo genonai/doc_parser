@@ -152,3 +152,13 @@ def test_ocr_text_items_on_pages_replaces_only_target_pages():
     with patch.object(dops, "_post_ocr_bytes", return_value=ocr_resp) as post:
         failed = dops.ocr_text_items_on_pages(d, [2, 3], ocr_endpoint="http://unused.invalid")
     assert ([t.text for t in d.texts], failed, post.call_count) == (["정상", "제2조 정의", ""], [3], 1)
+
+
+@pytest.mark.unit
+def test_text_checking_prompt_formats_with_judge_kwargs():
+    """#483: 판정 프롬프트의 자리표시자와 judge_document_text 가 넘기는 인자 이름이 맞는지.
+    어긋나면 format_user_prompt 가 KeyError 를 삼키고 None 을 돌려 판정이 조용히 '판정 불가' 가 된다."""
+    pm = PromptManager()
+    prompt = pm.format_user_prompt("document_checking", "text_checking", content="본문",
+                                   text_len=2, non_meaningful_ratio=0.0, space_ratio=0.0)
+    assert prompt is not None and "비의미 문자 비율: 0.0" in prompt and "비ASCII" not in prompt

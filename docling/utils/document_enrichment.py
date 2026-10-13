@@ -858,21 +858,23 @@ class DocumentEnrichmentUtils:
         if not self.prompt_manager:
             return OcrVerdict.UNKNOWN
 
-        def get_text_by_page(doc: DoclingDocument, last_page_no: int = 0):
-            page_texts = ""
-
-            for item, level in doc.iterate_items():
+        def get_sampled_text(doc: DoclingDocument, max_pages: int = 10) -> str:
+            # 문서 전체에서 페이지를 균등 간격으로 최대 max_pages 개 고른다(#483). 앞 10쪽만 보면
+            # 뒤쪽 페이지에만 있는 깨진 글꼴을 놓친다.
+            texts_by_page: dict = {}
+            for item, _level in doc.iterate_items():
                 if isinstance(item, TextItem) and hasattr(item, 'prov') and item.prov:
-                    page_no = item.prov[0].page_no
-                    if last_page_no != 0 and page_no <= last_page_no:
-                        page_texts += item.text
-
-            return page_texts
+                    texts_by_page.setdefault(item.prov[0].page_no, []).append(item.text)
+            pages = sorted(texts_by_page)
+            if len(pages) > max_pages:
+                step = len(pages) / max_pages
+                pages = [pages[int(i * step)] for i in range(max_pages)]
+            return "".join("".join(texts_by_page[p]) for p in pages)
 
         try:
             _log.info("문서 품질 검사 시작...")
 
-            page_texts = get_text_by_page(document, last_page_no=10)
+            page_texts = get_sampled_text(document)
 
             text  = page_texts
             if len(text) > 3000:
@@ -882,7 +884,7 @@ class DocumentEnrichmentUtils:
                 return OcrVerdict.NEEDS_OCR  # 텍스트가 없으면 OCR 필요
 
             text_len = len(text)
-            non_ascii_ratio = sum(1 for c in text if self._is_non_meaningful_char(c)) / text_len if text_len > 0 else 0
+            non_meaningful_ratio = sum(1 for c in text if self._is_non_meaningful_char(c)) / text_len if text_len > 0 else 0
             space_ratio = text.count(' ') / text_len if text_len > 0 else 1.0
 
             response = self.prompt_manager.call_ai_model(
@@ -890,7 +892,7 @@ class DocumentEnrichmentUtils:
                 prompt_type="text_checking",
                 content=text,
                 text_len=text_len,
-                non_ascii_ratio=non_ascii_ratio,
+                non_meaningful_ratio=non_meaningful_ratio,
                 space_ratio=space_ratio
             )
             if not response:
