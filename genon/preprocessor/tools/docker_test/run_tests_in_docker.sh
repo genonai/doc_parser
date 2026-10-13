@@ -11,7 +11,7 @@
 #   Apple Silicon 에서 linux/amd64 를 지정하면 Rosetta 에뮬레이션에서 LibreOffice 의 JVM(H2Orestart)이
 #   정상 동작하지 않아 오피스 문서 → PDF 변환 테스트가 실패한다.
 #
-# 저장소는 /repo 로 마운트되고, 모델·NLTK·HWP SDK 는 named volume(doc-parser-test-cache)에 한 번만 받는다.
+# 저장소는 /repo 로 마운트되고, 모델·HWP SDK 는 named volume(doc-parser-test-cache)에 한 번만 받는다.
 # HWP SDK 토큰은 build-script/hf_private_token.env 의 HWP_SDK_TOKEN 을 읽어 환경변수로만 넘긴다.
 # 캐시를 비우려면: docker volume rm doc-parser-test-cache
 set -euo pipefail

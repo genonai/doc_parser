@@ -8,7 +8,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from shipped_config import PREPROCESSOR_DIR, SITE_MONIMO
+from shipped_config import PREPROCESSOR_DIR, SITE_MONIMO, sibling_presets
 
 from genon.preprocessor.processing.enrichment import custom_fields_enricher as cfe
 from genon.preprocessor.processing.enrichment.custom_fields_enricher import (
@@ -658,3 +658,26 @@ def test_document_without_front_matter_still_works(tmp_path: Path):
     assert fields["SUMMARY_TEXT"] == "요약"
     assert fields["GROUP_C"] == "SLF"
     assert fields.get("PRODUCT_C") is None
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("name", [
+    "custom_field_product_slf.yaml", "custom_field_product_ssf.yaml",
+])
+def test_multiline_sales_period_is_parsed_without_backtracking(name):
+    """판매기간 값에 긴 공백과 줄바꿈이 섞여도 시작·종료일을 바로 뽑는다(#485).
+
+    줄바꿈이 남으면 VALID_FROM/VALID_TO 패턴이 매칭에 실패하면서 공백 분할을 모두 시도하고,
+    실패한 값은 0 으로 남았다. 두 설정은 사이트 소유 파일이라 각자 고쳐지므로 둘 다 확인한다.
+    """
+    import time
+
+    base = PREPROCESSOR_DIR / SITE_MONIMO
+    enricher = CustomFieldsEnricher(config_file=name, resource_path=str(base),
+                                    model_presets=sibling_presets(base / name))
+    value = "2025-12-1 ~" + " " * 3000 + "2026-3-15\n비고"
+    started = time.perf_counter()
+    fields = enricher._normalize_output_fields({}, {"VALID_FROM": value, "VALID_TO": value})
+    elapsed = time.perf_counter() - started
+    assert (fields["VALID_FROM"], fields["VALID_TO"]) == (20251201, 20260315)
+    assert elapsed < 0.5

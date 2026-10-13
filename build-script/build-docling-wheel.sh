@@ -23,6 +23,10 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
+# tar 구현 판별 (#492, sync-serving-repo.sh 와 같은 기준). bsdtar 는 종료 블록을 읽으면 입력을 바로 닫아
+# `tar -cf - | tar -xf -` 파이프의 만드는 쪽이 "Write error" 로 실패한다. uname 이 아니라 tar 구현으로 가른다.
+tar_is_bsd() { tar --version 2>/dev/null | grep -q bsdtar; }
+
 # ── 설정 (env 로 오버라이드) ────────────────────────────────────────────────
 DIST_NAME="${DIST_NAME:-genon-docling}"     # 배포명 (import 은 docling 유지)
 GENON_BUILD="${GENON_BUILD:-0}"             # local segment N: <base>+genon.<N>
@@ -48,9 +52,20 @@ trap 'rm -rf "${BUILD_DIR}"' EXIT
 # 로컬 작업 트리의 docling/ + README.md 를 임시 트리로 복사한다(커밋 여부 무관).
 #   git ls-files (cached+others, exclude-standard) 로 추적/미추적 파일을 모으되
 #   .gitignore 대상(__pycache__/, .DS_Store 등)은 자동 제외해 wheel 오염을 막는다.
-( cd "${ROOT_DIR}" \
-    && git ls-files --cached --others --exclude-standard docling README.md \
-    | tar -cf - -T - ) | tar -xf - -C "${BUILD_DIR}"
+if tar_is_bsd; then
+  # bsdtar(macOS 기본): tar 끼리 파이프로 이으면 만드는 쪽이 "Write error" 로 실패한다(#492). 임시 파일 경유.
+  echo "[INFO] tar=bsdtar — 소스 복사를 임시 tar 파일 경유로 수행합니다."
+  SRC_TAR="${BUILD_DIR}/src.tar"
+  ( cd "${ROOT_DIR}" \
+      && git ls-files --cached --others --exclude-standard docling README.md \
+      | tar -cf "${SRC_TAR}" -T - )
+  tar -xf "${SRC_TAR}" -C "${BUILD_DIR}"
+  rm -f "${SRC_TAR}"
+else
+  ( cd "${ROOT_DIR}" \
+      && git ls-files --cached --others --exclude-standard docling README.md \
+      | tar -cf - -T - ) | tar -xf - -C "${BUILD_DIR}"
+fi
 
 # 오버라이드된 pyproject 생성: 로컬 루트 pyproject 에서 name/version 만 바꾸고 build-system 명시
 sed -e "s/^name = \"docling\"/name = \"${DIST_NAME}\"/" \

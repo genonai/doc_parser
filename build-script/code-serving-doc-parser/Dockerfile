@@ -3,7 +3,7 @@
 # code-serving-doc-parser (CPU) — doc-parser 코드서빙 base 이미지.
 #
 # 라이브러리는 uv.lock 을 export 한 고정 목록으로 /app/.venv 에 설치한다(`uv venv --seed` + `uv pip install --no-deps -r`).
-# 다운로드 아티팩트(모델/HWP SDK/rhwp/H2Orestart/폰트/NLTK/EasyOCR)는
+# 다운로드 아티팩트(모델/HWP SDK/rhwp/H2Orestart/폰트/EasyOCR)는
 # genon/preprocessor/docker/Dockerfile.standard 와 full parity 로 복제한다.
 #
 # build context = repo 루트 (build-script/code-serving-doc-parser/build.sh 가 ROOT_DIR=repo 루트 사용).
@@ -16,7 +16,6 @@ ARG PY_VER=3.12.12
 ARG DEBIAN_DIST=trixie
 ARG H2ORESTART_URL="https://github.com/ebandal/H2Orestart/releases/latest/download/H2Orestart.oxt"
 ARG APP_VENV=/app/.venv
-ARG NLTK_PACKAGES=all
 ARG UID=1000
 ARG GID=1000
 ARG UNAME=genos
@@ -52,8 +51,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
     XDG_DATA_HOME=/app/.local/share \
     XDG_RUNTIME_DIR=/tmp/xdg \
     TMPDIR=/app/tmp \
-    HF_HOME=/app/.cache/huggingface \
-    NLTK_DATA=/app/nltk_data
+    HF_HOME=/app/.cache/huggingface
 # NOTE: /var/cache/apt 와 /var/lib/apt/lists 는 cache mount 라 **이미지 레이어에 포함되지 않는다.**
 #   예전에는 이 RUN 끝에서 `rm -rf /var/lib/apt/lists/*` 를 했는데, 이미지 크기에는 아무 이득이 없고
 #   다음 빌드가 재사용할 apt 인덱스 캐시만 파괴했다. 그래서 제거했다.
@@ -81,7 +79,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
       libspatialindex-c8 \
     && apt-get install -y --no-install-recommends --only-upgrade \
       imagemagick imagemagick-7.q16 libmagickcore-7.q16-10 libmagickwand-7.q16-10 \
-    && mkdir -p /app/.cache/huggingface /app/.cache/fontconfig /app/.config /app/.local/share /app/.fontconfig /app/nltk_data /app/tmp /tmp/xdg
+    && mkdir -p /app/.cache/huggingface /app/.cache/fontconfig /app/.config /app/.local/share /app/.fontconfig /app/tmp /tmp/xdg
 RUN sed -i 's/# \(ko_KR.UTF-8\)/\1/' /etc/locale.gen \
     && locale-gen \
     && fc-cache -f -v || true
@@ -120,8 +118,7 @@ ENV VIRTUAL_ENV=${APP_VENV} \
     PATH="${APP_VENV}/bin:${PATH}" \
     HOME=/app \
     XDG_CACHE_HOME=/app/.cache \
-    HF_HOME=/app/.cache/huggingface \
-    NLTK_DATA=/app/nltk_data
+    HF_HOME=/app/.cache/huggingface
 
 # uv 버전을 핀한다. 아래 `uv pip install --torch-backend=cpu` 가 --torch-backend 에 의존하므로
 # uv 버전이 빌드 동작에 직접 영향을 준다(0.8.0 에 존재함을 확인).
@@ -151,7 +148,7 @@ COPY build-script/code-serving-doc-parser/pyproject.toml build-script/code-servi
 #    (uv 버전을 0.8.0 으로 핀하면서 드러났다 — 이전 미핀 uv 는 TMPDIR 을 자동 생성했다.)
 RUN --mount=type=cache,target=/root/.cache/uv \
     set -eu; \
-    rm -rf /app/tmp /app/nltk_data && \
+    rm -rf /app/tmp && \
     mkdir -p /app/tmp && \
     uv venv --seed && \
     uv export --frozen --no-hashes --no-emit-project --no-dev --no-emit-package opencv-python \
@@ -275,13 +272,12 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
  && cp /src/target/release/rhwp /usr/local/bin/rhwp
 
 ############################
-# 4-3) 모델/NLTK/EasyOCR
+# 4-3) 모델/EasyOCR
 #  docling-tools 는 docling 패키지 CLI 이므로 이 스테이지에서만 docling 임시 설치 후 모델 다운로드.
-#     (이 stage 의 venv 는 runtime 에 COPY 되지 않음 — /models, /app/nltk_data 만 가져감)
+#     (이 stage 의 venv 는 runtime 에 COPY 되지 않음 — /models 만 가져감)
 ############################
 FROM builder AS models_artifacts
 ARG APP_VENV
-ARG NLTK_PACKAGES
 ARG DOCLING_PKG_VER
 # 받을 docling 모델 목록. 인자 없이 `docling-tools models download` 를 호출하면 기본 세트
 # (layout, tableformer, code_formula, picture_classifier, easyocr)를 전부 받는데, 그중
@@ -344,28 +340,6 @@ RUN --mount=type=cache,target=${HF_HOME} \
       ' "label_map": {"0": "Caption", "1": "Footnote", "2": "Formula", "3": "List-item", "4": "Page-footer", "5": "Page-header", "6": "Picture", "7": "Section-header", "8": "Table", "9": "Text", "10": "Title"}}' \
       > /models/unstructured/yolo_x_layout/yolox_params.json && \
     python -c "import json; json.load(open('/models/unstructured/yolo_x_layout/yolox_params.json'))"
-RUN --mount=type=cache,target=/root/.cache/nltk \
-    python - <<'PY'
-import os, nltk
-target = os.environ.get("NLTK_DATA", "/app/nltk_data")
-os.makedirs(target, exist_ok=True)
-packages = os.environ.get("NLTK_PACKAGES", "all")
-if packages == "all":
-    nltk.download("all", download_dir=target)
-else:
-    for pkg in [p.strip() for p in packages.split(",") if p.strip()]:
-        nltk.download(pkg, download_dir=target)
-# 압축을 푼 디렉터리가 있는 zip 은 지운다. nltk.data.find 는 디렉터리를 먼저 찾으므로 그 zip 은 읽히지 않는다.
-# 압축 해제본이 없는 zip(wordnet, omw-1.4 등)은 zip 으로만 읽히므로 남긴다.
-import glob
-for z in glob.glob(os.path.join(target, "*", "*.zip")):
-    if os.path.isdir(z[:-4]):
-        os.remove(z)
-# unstructured 가 실제로 요구하는 두 패키지(unstructured/nlp/tokenize.py)가 남았는지 확인한다.
-nltk.data.path.insert(0, target)
-nltk.data.find("tokenizers/punkt_tab")
-nltk.data.find("taggers/averaged_perceptron_tagger_eng")
-PY
 RUN --mount=type=cache,target=/root/.cache/easyocr_korean \
     mkdir -p /models/EasyOcr && \
     if [ ! -f /root/.cache/easyocr_korean/korean_g2.zip ]; then \
@@ -393,7 +367,6 @@ ENV VIRTUAL_ENV=${APP_VENV} \
     TMPDIR=/app/tmp \
     JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64 \
     HF_HOME=/app/.cache/huggingface \
-    NLTK_DATA=/app/nltk_data \
     LANG=ko_KR.UTF-8 \
     LC_ALL=ko_KR.UTF-8 \
     LC_CTYPE=ko_KR.UTF-8 \
@@ -425,7 +398,6 @@ COPY --from=rhwp_builder /usr/local/bin/rhwp /usr/local/bin/rhwp
 COPY --from=font_artifacts /app/extra_fonts /usr/share/fonts/additional
 RUN fc-cache -f -v
 COPY --chown=${UID}:${GID} --from=models_artifacts /models /models
-COPY --chown=${UID}:${GID} --from=models_artifacts /app/nltk_data /app/nltk_data
 
 # hwp_sdk import 경로 (venv site-packages 심링크, 표준 빌드 파리티용). python3.12 고정(slim 3.12.x).
 # docling 은 런타임에 clone 된 복사본 packages/ 의 wheel(genon-docling, import name: docling)을
@@ -446,11 +418,11 @@ COPY --chown=${UID}:${GID} build-script/code-serving-doc-parser/gunicorn /app/gu
 RUN rm -rf /app/src/service && chmod +x /app/scripts/*.sh
 
 # 위 COPY 들이 이미 ${UID}:${GID} 로 복사했으므로 여기서는 작은 경로만 정리한다.
-#   - /app, /app/nltk_data : base 단계에서 root 로 미리 만들어진 디렉토리라
+#   - /app : base 단계에서 root 로 미리 만들어진 디렉토리라
 #     COPY --chown 이 디렉토리 자체의 소유권은 바꾸지 않는다 → 비재귀 chown 으로 보정.
 #   - site-packages/hwp_sdk : 위 RUN 이 만든 심볼릭 링크 자체의 소유권(-h).
 #   - /var/log/supervisor, /var/run/supervisor 는 /var/log, /run 에 포함된다.
-RUN chown "${UID}:${GID}" /app /app/nltk_data && \
+RUN chown "${UID}:${GID}" /app && \
     chown -h "${UID}:${GID}" ${APP_VENV}/lib/python3.12/site-packages/hwp_sdk && \
     find /app -maxdepth 1 -user 0 -exec chown "${UID}:${GID}" {} + && \
     chown -R "${UID}:${GID}" /run /var/log /etc/supervisor /app/.cache /app/.config /app/.local /app/.fontconfig /app/tmp /tmp/xdg

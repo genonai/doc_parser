@@ -81,11 +81,12 @@ def resolve_ocr_runtime(cfg: dict, ocr_cfg: dict) -> OcrRuntime:
             "사이트 배포 시 yaml 에 반드시 지정하세요."
         )
 
-    # OCR 수행 모드. "auto"(default)=휴리스틱 기반 재OCR / "force"=무조건 전체 OCR / "disable"=OCR 안 함
-    mode = str(ocr_cfg.get("ocr_mode", cfg.get("ocr_mode", "auto"))).lower().strip()
+    # OCR 수행 모드. "disable"(default, #482)=OCR 안 함 / "auto"=휴리스틱 판정 뒤 필요 시 재OCR /
+    # "force"=무조건 전체 OCR. 판정이 필요한 문서는 요청 파라미터·CONFIG_BY_DOC_TYPE 의 ocr_mode 로 켠다.
+    mode = str(ocr_cfg.get("ocr_mode", cfg.get("ocr_mode", "disable"))).lower().strip()
     if mode not in {"auto", "force", "disable"}:
-        _log.warning(f"[DocumentProcessor] Unknown ocr_mode '{mode}', fallback to 'auto'")
-        mode = "auto"
+        _log.warning(f"[DocumentProcessor] Unknown ocr_mode '{mode}', fallback to 'disable'")
+        mode = "disable"
 
     # 테이블 셀 재OCR HTTP timeout (ocr_all_table_cells). 잘못된 값은 60 으로 폴백.
     timeout = parse_optional_int(ocr_cfg.get("table_cell_ocr_timeout"), "ocr.table_cell_ocr_timeout")

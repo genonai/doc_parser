@@ -1416,7 +1416,7 @@ git diff
 | 섹션 · 키 | 적용 파일 | 기본값 | 가능한 값 | 변경 시점 |
 |---|---|---|---|---|
 | `output.format` | **parser 전용** | `docling` | `json` / `html` / `markdown` / `docling` | Docling 문서의 구조를 청커에 보존하려면 `docling`. 요소형 `elements`도 청커 입력으로 지원됩니다 |
-| `ocr.ocr_mode` | parser | `auto` | `auto` / `force` / `disable` | 스캔 문서가 많으면 `force`, OCR 서버가 없으면 `disable` |
+| `ocr.ocr_mode` | parser | `disable` | `disable` / `auto` / `force` | 기본은 OCR 안 함. 판정이 필요한 문서는 요청 파라미터·문서유형 설정으로 `auto`(판정 불가는 재OCR 안 함), 스캔 문서가 많으면 `force` |
 | `chunking.chunk_size` | chunking | `1000` | 정수 | 크기 기준. 문서형은 양수일 때 `min_chunk_size` 하한을 적용합니다. 요소형은 별도 분할 경로를 사용합니다 |
 | `chunking.min_chunk_size` | chunking | `1024` | 정수 | **문서형 경로 전용** 크기 하한. `0` 이하이면 하한 보정을 끕니다. 기본 설정의 문서형 실효 크기는 `1024`입니다 |
 | `chunking.chunk_mode` | chunking | `split_only` | `split_only` / `resize_all` | `split_only`는 섹션 구조 유지(작은 청크 다수), `resize_all`은 크기 기준 재조립(균일) |

@@ -120,7 +120,6 @@ from docling_core.types.doc import (
     TextItem,
     ProvenanceItem
 )
-from docling.datamodel.settings import settings
 
 
 from pydantic import BaseModel
@@ -277,6 +276,19 @@ class ChunkInput:
     guardrail: dict      # #315 민감정보 컨텍스트. core 가 그대로 넘긴다
 
 
+@dataclass
+class SplitInfo:
+    """`_split_documents_ex` 가 돌려주는 문서 단위 분할 결과(#481 F-B). 요청 객체(job.notes["split"])에 산다.
+
+    page_chunk_counts   쪽 번호 → 그 쪽의 청크 수(n_chunk_of_page)
+    table_split_totals  표 참조 → 분할 조각 수(table_split_total)
+    table_variants      표 표기형태별 변형 텍스트 기록부(off 면 None)
+    """
+    page_chunk_counts: dict
+    table_split_totals: dict
+    table_variants: object = None
+
+
 class ChunkerCore:
 
     # IS_CHUNKER 는 배포되는 facade 가 선언한다 — main.py 가 그 속성으로 /chunker
@@ -313,6 +325,7 @@ class ChunkerCore:
         if log_level is None:
             log_level = 4
         self._log_level = log_level
+        self.setup_logging(self._log_level)   # 프로세스에 한 번(#481 F-C)
 
         # layout 은 아래 page_batch_size 전역 설정에만 쓴다(청킹은 docling 파싱을 하지 않는다).
         layout_cfg = _as_dict(cfg.get("layout"))
@@ -398,12 +411,8 @@ class ChunkerCore:
         # 기본은 빈 목록(추가 필드 없음) — 켜면 본문이 형식 수만큼 복제되어 페이로드가 커진다.
         self._table_text_formats = cp.resolve_table_text_formats(output_cfg)
 
-        # layout.page_batch_size 는 docling 의 프로세스 전역 싱글턴이라 청커도 그대로 세운다.
-        # 통합 실행(main.py)은 attachment → intelligent → convert → parser → chunking 순으로
-        # 생성하므로 이 줄을 지우면 전역값이 달라져 /parser 와 /preprocess* 의 페이지 배치
-        # 동작이 바뀐다. 전역 오염 자체는 이번 작업 범위 밖이다.
-        _layout = ps.resolve_layout_settings(cfg, layout_cfg)
-        settings.perf.page_batch_size = _layout.page_batch_size
+        # 청커는 레이아웃 파이프라인을 돌리지 않으므로 docling 전역 page_batch_size 를 건드리지 않는다
+        # (#481 F-E). 예전엔 여기서 전역을 32 로 덮어 뒤에 생성된 파서의 128 이 사라졌다.
 
         # 추출 메타데이터 → typed 벡터 필드 매핑(설정 기반). 설정이 비어있으면
         # 기존 created_date 동작을 그대로 재현한다(하위 호환).
@@ -412,6 +421,20 @@ class ChunkerCore:
         )
 
     def split_documents(self, documents: DoclingDocument, **kwargs: dict) -> List[DocChunk]:
+        """옛 입구(직접 호출부·테스트용 — HTTP 파사드 intelligent·convert·attachment 는 ChunkerCore 를 상속하지 않고
+        자기 사본을 갖는다). 분할 결과의 문서 단위 값을 인스턴스에 붙인다.
+
+        공유 인스턴스를 요청마다 덮어쓰므로 동시 요청에 안전하지 않다. core 의 새 흐름
+        (`split_document(job)`)은 `_split_documents_ex` 로 받아 `job.notes["split"]` 에 둔다(#481 F-B).
+        """
+        chunks, info = self._split_documents_ex(documents, **kwargs)
+        self._table_split_totals = info.table_split_totals
+        self._table_variants = info.table_variants
+        self.page_chunk_counts = info.page_chunk_counts
+        return chunks
+
+    def _split_documents_ex(self, documents: DoclingDocument, **kwargs: dict) -> "tuple[List[DocChunk], SplitInfo]":
+        """DoclingDocument 를 청크로 자르고 (chunks, SplitInfo) 를 돌려준다. 인스턴스에는 쓰지 않는다."""
         # chunk_size 우선순위: kwargs > yaml(chunking.chunk_size) > 0
         chunk_size = _parse_optional_int(kwargs.get('chunk_size'), 'chunk_size')
         if chunk_size is None:
@@ -444,22 +467,31 @@ class ChunkerCore:
         # 출력에서만 정규화하면 청크 경계가 노이즈 문자를 센 채로 잡힌다.
         _cleanup = tn.prepare_document(documents, kwargs, self)
         chunks: List[DocChunk] = list(chunker.chunk(dl_doc=documents, **kwargs))
-        # 표별 분할 조각 수는 청커만 안다. compose_vectors 가 조각 순서 메타를 매길 때 읽는다.
-        self._table_split_totals = getattr(chunker, "_table_split_totals", {})
-        # 표 표기형태별 변형 텍스트도 같은 방식으로 청커에서 받는다.
-        self._table_variants = getattr(chunker, "_table_variants", None)
         if _cleanup:
             chunks = tn.drop_blank_chunks(chunks, rules=tn.rules_of(self))
+        page_chunk_counts: dict = defaultdict(int)
         for chunk in chunks:
             if chunk.meta.doc_items[0].prov:
-                self.page_chunk_counts[chunk.meta.doc_items[0].prov[0].page_no] += 1
-        return chunks
+                page_chunk_counts[chunk.meta.doc_items[0].prov[0].page_no] += 1
+        # 표별 분할 조각 수·표기형태별 변형 텍스트는 청커만 안다. 벡터 조합이 조각 순번·변형 필드를
+        # 매길 때 읽는다 — 요청 객체(job.notes["split"])로 넘긴다.
+        return chunks, SplitInfo(
+            page_chunk_counts=page_chunk_counts,
+            table_split_totals=getattr(chunker, "_table_split_totals", {}),
+            table_variants=getattr(chunker, "_table_variants", None),
+        )
 
     async def compose_vectors(self, document: DoclingDocument, chunks: List[DocChunk], file_path: str, request: Request, converted_pdf_path: Optional[str] = None, **kwargs: dict) -> \
             list[dict]:
-        """옛 호출부용 입구. job 을 만들어 chunks_to_vector_metas 로 넘긴다."""
+        """옛 입구(직접 호출부·테스트용). job 을 만들어 chunks_to_vector_metas 로 넘긴다."""
         job = jb.ChunkJob(request=request, file_path=file_path, kind="docling", data=document,
                           document=document, doc_type=kwargs.get("doc_type"), params=kwargs)
+        # 옛 파사드는 split_documents 가 인스턴스에 남긴 값을 쓴다 — 새 흐름과 같은 자리로 옮겨 둔다.
+        job.notes["split"] = SplitInfo(
+            page_chunk_counts=getattr(self, "page_chunk_counts", defaultdict(int)),
+            table_split_totals=getattr(self, "_table_split_totals", {}),
+            table_variants=getattr(self, "_table_variants", None),
+        )
         return await self.chunks_to_vector_metas(
             job, _docling_chunks(chunks), converted_pdf_path)
 
@@ -715,14 +747,15 @@ class ChunkerCore:
         return (GenOSVectorMetaBuilder()
                 .set_text(text)
                 .set_page_info(notes["chunk_page"], notes["chunk_index_on_page"],
-                               self.page_chunk_counts[notes["chunk_page"]])
+                               notes["page_chunk_counts"][notes["chunk_page"]])
                 .set_chunk_index(notes["chunk_idx"])
                 .set_global_metadata(**chunk_global_metadata)  #!! appendix feature (2025-09-30, geonhee kim) !!
                 .set_chunk_bboxes(chunk.source.meta.doc_items, job.document)
                 .set_media_files(chunk.source.meta.doc_items, include_tables=self.table_image_enabled)
                 .set_table_info(chunk.source.meta.doc_items,
-                                getattr(self, "_table_split_totals", {}),
-                                notes["table_piece_seen"])
+                                notes["table_split_totals"],
+                                notes["table_piece_seen"],
+                                notes["table_kinds"])
                 .set_guardrail_categories(
                     sorted(notes["chunk_cats"]) if notes["chunk_cats"] else None)
                 ).build(self.VECTOR_META)
@@ -752,6 +785,7 @@ class ChunkerCore:
             cleanup=tn.enabled_for(kwargs, self),
             variant_options=self._text_variant_options(**kwargs),
             page_chunk_counts=page_chunk_counts,
+            table_split_totals={},   # 행·텍스트 청크엔 표 조각이 없다 — 문서형과 같은 키를 둔다
             global_metadata=dict(
                 n_chunk_of_doc=len(pages),
                 n_page=max(pages, default=1),
@@ -765,6 +799,7 @@ class ChunkerCore:
             first_prefix_pending=False,
             appendix_list=[],
             table_piece_seen={},
+            table_kinds={},
             current_page=None,
             chunk_index_on_page=0,
             variant_values={},
@@ -786,7 +821,18 @@ class ChunkerCore:
         # setdefault 로 전달할 수 없어 양쪽이 같은 resolver 를 호출한다.
         _include_header: bool = _resolve_include_chunk_header(kwargs, self._include_chunk_header)
         # 표 표기형태별 변형 텍스트 기록부(청커가 남긴다). off 면 None 이라 필드가 아예 생기지 않는다.
-        _table_variants = getattr(self, "_table_variants", None)
+        # split 을 오버라이드해 문서 청크를 직접 만든 파사드는 split_document 를 안 거쳐 notes["split"] 이 없다.
+        # 그때 쪽별 청크 수는 넘어온 청크로 센다(_split_documents_ex 와 같은 규칙 — prov 없는 0쪽은 세지 않는다).
+        # 인스턴스 속성으로 되돌아가면 동시 요청에서 다른 문서 값이 섞인다. 표 조각 수는 청커 내부 기록이라
+        # 이 경로에서는 알 수 없어 비워 둔다.
+        split = job.notes.get("split")
+        if split is None:
+            fallback_counts: dict = defaultdict(int)
+            for c in chunks:
+                if c.kind != "marker" and c.page:
+                    fallback_counts[c.page] += 1
+            split = SplitInfo(page_chunk_counts=fallback_counts, table_split_totals={})
+        _table_variants = split.table_variants
         if _table_variants is not None and not _table_variants.enabled():
             _table_variants = None
         merged_metadata = dpx.merge_context_metadata(
@@ -875,9 +921,11 @@ class ChunkerCore:
             # 문서형은 표 변형을 table_variants 기록부로 만든다. 반복문이 형식을 가리지 않게
             # 같은 키를 두되 이 경로에서는 쓰이지 않는다.
             variant_options={},
-            page_chunk_counts=self.page_chunk_counts,
+            page_chunk_counts=split.page_chunk_counts,
+            table_split_totals=split.table_split_totals,
             # 같은 표의 조각이 연속해서 나오는 순서가 곧 조각 번호다.
             table_piece_seen={},
+            table_kinds={},
             current_page=None,
             chunk_index_on_page=0,
             variant_values={},
@@ -1119,8 +1167,7 @@ class ChunkerCore:
         인라인 document 가 우선이고 없으면 file_path 의 .json 을 읽는다. 형태 판별은
         확장자가 아니라 payload 내용으로 한다(file_path 는 parser 결과 JSON 경로다).
         """
-        runtime_level = kwargs.get('log_level')
-        self.setup_logging(runtime_level if runtime_level is not None else self._log_level)
+        # 로깅 레벨은 기동 때 한 번(__init__) — 요청 log_level 은 무시한다(#481 F-C).
         _log.info(f"[chunker] file_path: {file_path}")
 
         raw_payload = kwargs.get("document")
@@ -1373,9 +1420,6 @@ class ChunkerCore:
         except Exception as exc:
             raise GenosServiceException(1, f"docling document 복원 실패: {exc}") from exc
 
-        # 요청별 상태 초기화 (싱글턴 프로세서 재사용 간 page_chunk_counts 누적 방지).
-        self.page_chunk_counts = defaultdict(int)
-
         has_text_items = False
         for item, _ in document.iterate_items():
             if (isinstance(item, (TextItem, ListItem, CodeItem, SectionHeaderItem)) and item.text and item.text.strip()) or (isinstance(item, TableItem) and item.data and len(item.data.table_cells) == 0):
@@ -1391,7 +1435,7 @@ class ChunkerCore:
             )
             document.add_text(label=DocItemLabel.TEXT, text=".", prov=prov)
 
-        doc_chunks: List[DocChunk] = self.split_documents(document, **job.params)
+        doc_chunks, job.notes["split"] = self._split_documents_ex(document, **job.params)
         if len(doc_chunks) < 1:
             raise GenosServiceException(1, "chunk length is 0")
         job.document = document

@@ -2,19 +2,13 @@
 # 테스트 컨테이너(docker/Dockerfile.test)의 진입점. 호스트에서 직접 실행하지 않는다.
 #
 # 1) /cache volume 에 테스트 자산이 없으면 받는다(이미 있으면 건너뛴다). 단계는 CI(develop.yml)와 같다.
-#      - NLTK 데이터 2종
 #      - HWP SDK (HWP_SDK_TOKEN 필요. 없으면 경고만 남기고 HWP SDK 경로 테스트는 실패하거나 skip 된다)
 #      - MNCAI 커스텀 레이아웃 모델
 #    그 밖의 docling 모델은 테스트가 처음 사용할 때 HF_HOME(/cache)에 자동으로 받는다.
 # 2) 인자를 pytest 에 그대로 넘긴다. 인자가 없으면 unit+smoke+regression 전체를 실행한다.
 set -euo pipefail
 
-mkdir -p "$HOME" "$HF_HOME" "$NLTK_DATA"
-
-if [ ! -d "$NLTK_DATA/tokenizers/punkt_tab" ] || [ ! -d "$NLTK_DATA/taggers/averaged_perceptron_tagger_eng" ]; then
-  echo "[INFO] NLTK 데이터 다운로드"
-  python -c "import nltk, os; d=os.environ['NLTK_DATA']; [nltk.download(p, download_dir=d, quiet=True) for p in ('punkt_tab', 'averaged_perceptron_tagger_eng')]"
-fi
+mkdir -p "$HOME" "$HF_HOME"
 
 if [ "$(uname -m)" != "x86_64" ]; then
   # HWP SDK(convtext)는 x86-64 전용 바이너리다. 다른 아키텍처에서는 연결하지 않아

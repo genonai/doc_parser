@@ -31,7 +31,7 @@ def test_chunk_without_table_is_marked_false():
     builder = _Builder().set_table_info([_text()])
     assert builder.has_table is False
     assert builder.table_refs is None
-    assert builder.table_split_index is None
+    assert builder.table_split_index == -1
 
 
 @pytest.mark.unit
@@ -57,7 +57,7 @@ def test_split_pieces_get_increasing_index_within_one_document():
 def test_unsplit_table_has_no_piece_index():
     builder = _Builder().set_table_info([_table("#/tables/0")], {"#/tables/0": 1}, {})
     assert builder.has_table is True
-    assert (builder.table_split_index, builder.table_split_total) == (None, None)
+    assert (builder.table_split_index, builder.table_split_total) == (-1, -1)
 
 
 @pytest.mark.unit
@@ -66,7 +66,7 @@ def test_multiple_tables_in_one_chunk_have_no_piece_index():
     builder = _Builder().set_table_info(
         [_table("#/tables/0"), _table("#/tables/1")], {"#/tables/0": 2}, {})
     assert json.loads(builder.table_refs) == ["#/tables/0", "#/tables/1"]
-    assert builder.table_split_index is None
+    assert builder.table_split_index == -1
 
 
 @pytest.mark.unit
@@ -74,7 +74,7 @@ def test_missing_split_totals_still_fills_refs():
     """청커가 기록을 남기지 않는 경로(첨부 등)에서도 표 식별은 된다."""
     builder = _Builder().set_table_info([_table("#/tables/0")])
     assert builder.has_table is True
-    assert builder.table_split_total is None
+    assert builder.table_split_total == -1
 
 
 @pytest.mark.unit
@@ -87,7 +87,34 @@ def test_layout_table_is_not_marked_as_table():
                            data=core.TableData(num_rows=1, num_cols=1, table_cells=[cell]))
     builder = _Builder().set_table_info([table], {"#/tables/0": 3}, {})
     assert (builder.has_table, builder.table_refs,
-            builder.table_split_index, builder.table_split_total) == (False, None, None, None)
+            builder.table_split_index, builder.table_split_total) == (False, None, -1, -1)
+
+
+@pytest.mark.unit
+def test_row_split_table_is_judged_once_per_document():
+    """행 단위로 나뉜 큰 표는 조각마다 다시 판정하지 않는다(#484).
+
+    `TableData.grid` 가 읽을 때마다 셀 전체를 새로 만들므로, 조각마다 판정하면 비용이
+    행 수의 제곱으로 늘어난다. 수정 전에는 이 크기에서 수 초가 걸렸다.
+    """
+    import time
+
+    core = pytest.importorskip("docling_core.types.doc", exc_type=ImportError)
+    rows, cols = 500, 10
+    cells = [core.TableCell(text=f"r{r}c{c}", start_row_offset_idx=r, end_row_offset_idx=r + 1,
+                            start_col_offset_idx=c, end_col_offset_idx=c + 1)
+             for r in range(rows) for c in range(cols)]
+    table = core.TableItem(self_ref="#/tables/0", label="table",
+                           data=core.TableData(num_rows=rows, num_cols=cols, table_cells=cells))
+    totals = {"#/tables/0": rows}
+    seen: dict = {}
+    kinds: dict = {}
+    started = time.perf_counter()
+    for _ in range(rows):
+        builder = _Builder().set_table_info([table], totals, seen, kinds)
+    elapsed = time.perf_counter() - started
+    assert (builder.has_table, builder.table_split_index) == (True, rows - 1)
+    assert elapsed < 1.0
 
 
 # ─── 설정 해석 ────────────────────────────────────────────────────────────────

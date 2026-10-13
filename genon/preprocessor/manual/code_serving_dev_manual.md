@@ -1104,11 +1104,12 @@ model_presets:
 용도별로 서로 다른 서빙일 수 있습니다. 레이아웃, 목차·메타데이터, 이미지·페이지 설명에 각각
 해당하는 ID를 넣으세요. enrichment 계열은 같은 서빙 하나로 겸할 수 있습니다.
 
-OCR도 함께 확인하세요. 기본값이 `ocr.ocr_mode: auto` 이고 주소는 플레이스홀더로 남아
-있습니다. OCR은 주소라서 게이트웨이 URL로 대체되지 않습니다. 다음 세 가지 중 하나가 필요합니다.
+OCR도 함께 확인하세요. 기본값은 `ocr.ocr_mode: disable` 이라 OCR 서버를 부르지 않습니다. 판정 뒤
+재OCR 이 필요한 문서가 있으면 그 문서(요청 파라미터 `ocr_mode: "auto"`)나 문서유형(`CONFIG_BY_DOC_TYPE`
+의 `"ocr.ocr_mode": "auto"`)에서 켜고, 그때는 다음 중 하나가 필요합니다. OCR은 주소라서 게이트웨이 URL로
+대체되지 않습니다.
 
 - 접근 가능한 PaddleOCR 서버 주소를 `model_presets.yaml` 의 `ocr` 프리셋(`ocr_endpoint`)에 설정
-- OCR이 필요 없으면 `ocr.ocr_mode: disable`
 - Upstage OCR을 쓰면 `ocr.engine: upstage`로 바꾸고 `upstage.api_key` 설정
 
 > **모델 서빙 인증키와 코드서빙 인증키는 다른 값입니다.** 전자는 전처리기가 LLM을 호출할 때,
@@ -1459,7 +1460,7 @@ grep -rn "<[A-Z_]*>" genon/preprocessor/resource/ | grep -vE ':[0-9]+: *#'
 |---|---|---|---|---|
 | `output.format` | **parser 전용** | `docling` | `json` / `html` / `markdown` / `docling` | Docling 문서의 구조를 `/chunker`에 보존하려면 `docling`. 요소형 `elements`도 청커 입력으로 지원됩니다 |
 | `layout.layout_model_type` | parser · intelligent · convert | `genos_layout` | `genos_layout` / `docling_layout` | 레이아웃 모델 서빙이 없으면 `docling_layout` (아래) |
-| `ocr.ocr_mode` | parser · intelligent · convert | `auto` | `auto` / `force` / `disable` | 스캔 문서가 많으면 `force`, OCR 서버가 없으면 `disable` |
+| `ocr.ocr_mode` | parser · intelligent · convert | `disable` | `disable` / `auto` / `force` | 기본은 OCR 안 함. 판정이 필요한 문서는 요청 파라미터·문서유형 설정으로 `auto`, 스캔 문서가 많으면 `force` |
 | `ocr.engine` | 〃 | `paddle` | `paddle` / `upstage` | 띄워 둔 OCR 서버 종류에 맞춰 |
 | `chunking.chunk_size` | chunking · intelligent · convert | chunking `1000` · 나머지 `10000` | 정수 | 청크 길이. 문서형 경로는 양수일 때 `chunking.min_chunk_size` 하한을 적용합니다. 요소형 경로에는 하한이 없습니다 |
 | `chunking.min_chunk_size` | **chunking 전용** | `1024` | 정수 | **문서형 경로 전용** 크기 하한. `0` 이하면 하한 보정을 끕니다. 기본 설정의 문서형 실효 크기는 `1024`입니다 |
@@ -1757,7 +1758,6 @@ grep -rn "<함수명 또는 클래스명>" genon/preprocessor/facade/
 | `DOCLING_ARTIFACTS_PATH` | `/models` | 레이아웃·표 모델 |
 | `HWP_SDK_DIR` | `/app/hwp_sdk` | HWP 변환 SDK |
 | `RHWP_BIN` | `/usr/local/bin/rhwp` | HWP 처리 바이너리 |
-| `NLTK_DATA` | `/app/nltk_data` | NLTK 데이터 |
 | `HF_HOME` | `/app/.cache/huggingface` | HuggingFace 캐시 |
 | `PORT` | `8080` | Genos가 주입 |
 | `COMMIT_HASH` | 리비전의 커밋 | init 재실행 판단에 사용 |

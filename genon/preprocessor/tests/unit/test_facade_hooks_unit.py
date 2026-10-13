@@ -551,7 +551,7 @@ def _routable(cls):
     proc._ext_aliases = {}
     proc._intel = type("_I", (), {
         "_normalize_runtime_kwargs": staticmethod(lambda kw: kw),
-        "_configure_runtime_image_mode": staticmethod(lambda kw: None),
+        "_request_enrichers": staticmethod(lambda kw: None),
     })()
     return proc
 
@@ -769,7 +769,7 @@ async def test_config_overlay_reaches_runtime_wiring(tmp_path: Path):
     saw: dict = {}
     proc._intel = type("_I", (), {
         "_normalize_runtime_kwargs": staticmethod(lambda kw: dict(kw)),
-        "_configure_runtime_image_mode": staticmethod(saw.update),
+        "_request_enrichers": staticmethod(saw.update),
     })()
 
     await proc(None, str(src), doc_type="notice")

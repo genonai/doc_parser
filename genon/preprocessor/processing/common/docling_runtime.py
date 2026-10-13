@@ -40,7 +40,6 @@ from docling.datamodel.pipeline_options import (
     PipelineOptions,
     UpstageOcrOptions,
 )
-from docling.datamodel.settings import settings as docling_settings
 from docling_core.types.doc import DoclingDocument
 
 from genon.preprocessor.processing.converters.md_math import guard_markdown
@@ -148,7 +147,9 @@ class DoclingRuntimeBase:
         self.pipe_line_options.images_scale = images_scale
 
         ps.apply_layout_settings(self.pipe_line_options, _layout)
-        docling_settings.perf.page_batch_size = _layout.page_batch_size
+        # 프로세스 전역(docling settings.perf.page_batch_size)이 아니라 이 인스턴스의 파이프라인 옵션에
+        # 둔다(#481 F-E) — 전역은 뒤에 만들어진 프로세서(청커 등)가 덮어써 값이 생성 순서에 따라 달라졌다.
+        self.pipe_line_options.page_batch_size = _layout.page_batch_size
 
         self.pipe_line_options.do_table_structure = True
         self.pipe_line_options.table_structure_options.do_cell_matching = True
@@ -401,17 +402,8 @@ class DoclingRuntimeBase:
             self.pipe_line_options, self.ocr_pipe_line_options)
 
     def load_documents_with_docling(self, file_path: str, **kwargs: dict) -> DoclingDocument:
-        # kwargs에서 save_images 값을 가져와서 옵션 업데이트
-        save_images = kwargs.get('save_images', True)
-        include_wmf = kwargs.get('include_wmf', False)
-
-        # save_images 옵션이 현재 설정과 다르면 컨버터 재생성
-        if (self.simple_pipeline_options.save_images != save_images or
-                getattr(self.simple_pipeline_options, 'include_wmf', False) != include_wmf):
-            self.simple_pipeline_options.save_images = save_images
-            self.simple_pipeline_options.include_wmf = include_wmf
-            self._create_converters()
-
+        # 요청 save_images/include_wmf 로 converter 를 다시 만들던 분기는 지웠다(#481 F-D): 그 옵션은
+        # PDF converter 에 들어가지 않아 효과가 없고, 초기화된 파이프라인만 버렸다.
         # markdown 의 LaTeX 수식은 파싱 전에 감춰 둔다. 백엔드가 `$` 를 모르기 때문에
         # 세로줄이 표로 오인되고 백슬래시가 해독되며 `$$` 블록이 쪼개진다
         # (processing/converters/md_math 모듈 docstring 참조). md 가 아니면 원본 경로 그대로다.
@@ -425,15 +417,6 @@ class DoclingRuntimeBase:
         return document
 
     def load_documents_with_docling_ocr(self, file_path: str, **kwargs: dict) -> DoclingDocument:
-        save_images = kwargs.get('save_images', True)
-        include_wmf = kwargs.get('include_wmf', False)
-
-        if (self.simple_pipeline_options.save_images != save_images or
-                getattr(self.simple_pipeline_options, 'include_wmf', False) != include_wmf):
-            self.simple_pipeline_options.save_images = save_images
-            self.simple_pipeline_options.include_wmf = include_wmf
-            self._create_converters()
-
         with guard_markdown(file_path) as guard:
             try:
                 conv_result = self.ocr_converter.convert(guard.path, raises_on_error=True)
@@ -456,7 +439,12 @@ class DoclingRuntimeBase:
         return rk.normalize_runtime_kwargs(self, kwargs)
 
     def _configure_runtime_image_mode(self, kwargs: dict):
+        """옛 입구 — 인스턴스를 덮어쓴다. core 파서는 `_request_enrichers` 를 쓴다(#481)."""
         rk.configure_runtime_image_mode(self, kwargs)
+
+    def _request_enrichers(self, kwargs: dict) -> rk.RequestEnrichers:
+        """요청 토글로 만든 enricher 묶음. 인스턴스는 바꾸지 않는다(#481)."""
+        return rk.build_request_enrichers(self, kwargs)
 
     # ------------------------------------------------------------------
     # enrichment 위임 (enrichment() 자체는 facade 가 갖는다 - 모듈 docstring 참조)
@@ -472,7 +460,8 @@ class DoclingRuntimeBase:
         return enricher
 
     def enrich_image_descriptions(self, document: DoclingDocument, **kwargs: dict) -> DoclingDocument:
-        enricher = self._get_or_create_image_description_enricher()
+        # 요청 묶음(job.params["_enrichers"])이 있으면 그것, 없으면(옛 파사드) 인스턴스 것(#481).
+        enricher = rk.request_enricher(kwargs, "image") or self._get_or_create_image_description_enricher()
         if enricher is None:
             return document
         return enricher.enrich(document, **kwargs)
@@ -486,7 +475,7 @@ class DoclingRuntimeBase:
         return enricher
 
     def enrich_doc_summary(self, document: DoclingDocument, **kwargs: dict) -> DoclingDocument:
-        enricher = self._get_or_create_doc_summary_enricher()
+        enricher = rk.request_enricher(kwargs, "doc_summary") or self._get_or_create_doc_summary_enricher()
         if enricher is None:
             return document
         return enricher.enrich(document, **kwargs)
@@ -500,7 +489,7 @@ class DoclingRuntimeBase:
         return enricher
 
     def enrich_table_descriptions(self, document: DoclingDocument, **kwargs: dict) -> DoclingDocument:
-        enricher = self._get_or_create_table_description_enricher()
+        enricher = rk.request_enricher(kwargs, "table") or self._get_or_create_table_description_enricher()
         if enricher is None:
             return document
         return enricher.enrich(document, **kwargs)

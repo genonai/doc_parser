@@ -28,7 +28,6 @@ IMAGE_VERSION="${IMAGE_VERSION:-latest}"
 HW_VARIANT="${HW_VARIANT:-}"
 SMOKE_TEST="${SMOKE_TEST:-true}"
 TORCH_CPU_INDEX_URL="${TORCH_CPU_INDEX_URL:-https://download.pytorch.org/whl/cpu}"
-NLTK_PACKAGES="${NLTK_PACKAGES:-all}"
 RHWP_GIT_REF="${RHWP_GIT_REF:-genos/main}"
 APP_UID="${APP_UID:-1000}"
 APP_GID="${APP_GID:-1000}"
@@ -73,7 +72,6 @@ echo "[INFO] HW_VARIANT      = ${HW_VARIANT}"
 echo "[INFO] DOCKERFILE_PATH = ${DOCKERFILE_PATH}"
 echo "[INFO] IMAGE_TAG       = ${IMAGE_TAG}"
 echo "[INFO] UID:GID         = ${APP_UID}:${APP_GID} (${APP_UNAME}:${APP_GNAME})"
-echo "[INFO] NLTK_PACKAGES   = ${NLTK_PACKAGES}"
 echo "[INFO] HWP_SDK_TOKEN   = (감지됨)"
 echo "[INFO] SMOKE_TEST      = ${SMOKE_TEST}"
 
@@ -85,7 +83,6 @@ DOCKER_BUILDKIT=1 docker build \
   --secret id=HWP_SDK_TOKEN,env=HWP_SDK_TOKEN \
   --build-arg HW_VARIANT="${HW_VARIANT}" \
   --build-arg TORCH_CPU_INDEX_URL="${TORCH_CPU_INDEX_URL}" \
-  --build-arg NLTK_PACKAGES="${NLTK_PACKAGES}" \
   --build-arg RHWP_GIT_REF="${RHWP_GIT_REF}" \
   --build-arg UID="${APP_UID}" \
   --build-arg GID="${APP_GID}" \

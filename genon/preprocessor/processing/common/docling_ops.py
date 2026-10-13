@@ -17,7 +17,7 @@ import logging
 import os
 import re
 from pathlib import Path
-from typing import Optional
+from typing import Literal, Optional
 
 import requests
 from PIL import Image
@@ -35,6 +35,7 @@ from docling.datamodel.pipeline_options import (
     PipelineOptions,
     UpstageOcrOptions,
 )
+from docling.utils.document_enrichment import OcrVerdict
 from docling.document_converter import (
     DocumentConverter,
     HwpxFormatOption,
@@ -303,6 +304,29 @@ def check_empty_text(document: DoclingDocument) -> bool:
             _log.info(f"[intelligent] page {page_no} 텍스트가 비어있음 → 강제 OCR 필요")
             return True
     return False
+
+
+#: 재OCR 사유(#482). "none" = 재OCR 하지 않는다(판정이 OK 또는 UNKNOWN 이고 휴리스틱도 안 걸림).
+#: 로그에 판정값과 나란히 남겨 운영에서 비율을 센다 — 예: verdict=unknown reason=none.
+ReocrReason = Literal["llm_yes", "glyph", "empty_text", "none"]
+
+
+def reocr_reason(verdict: OcrVerdict, glyph_broken: bool, empty_page: bool) -> ReocrReason:
+    """`ocr_mode: auto` 에서 두 번째 변환(OCR converter 재변환)을 할 사유를 돌려준다(#482).
+
+    verdict 는 docling.utils.document_enrichment.judge_document 의 판정값이다.
+        NEEDS_OCR → "llm_yes"        판정 LLM 이 OCR 필요라 답함(텍스트가 전혀 없는 경우 포함)
+        OK / UNKNOWN → 사유 아님      판정 불가(LLM 없음·응답 없음)는 재OCR 사유가 아니다
+    glyph_broken(check_glyphs)·empty_page(check_empty_text) 는 결정적 휴리스틱이라 판정과 무관하게 사유가 된다.
+    호출부는 `!= "none"` 으로 판단한다(문자열 참/거짓에 기대지 않는다).
+    """
+    if verdict == OcrVerdict.NEEDS_OCR:
+        return "llm_yes"
+    if glyph_broken:
+        return "glyph"
+    if empty_page:
+        return "empty_text"
+    return "none"
 
 
 # ── 표 셀 재OCR ─────────────────────────────────────────────────────────────

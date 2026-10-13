@@ -83,9 +83,10 @@ docker save mncregistry:30500/mnc/doc-parser-preprocessor:2.2.0 \
 gunzip -c doc-parser-preprocessor-2.2.0.tar.gz | docker load
 ```
 
-- 사이트 GenOS 레지스트리·DB에 등록은 사내 원본 저장소의 `genon/preprocessor/scripts/register_image.sh` 로 처리합니다. 
-  - 동일 디렉토리의 `register.config` 에 받아온 이미지와 같은 `IMAGE_VERSION` / `BUILD_VARIANT` / `HW_VARIANT` 를 입력한 뒤 실행하세요.
-  - 단계별 상세 절차(레지스트리 push·DB 등록, 폐쇄망 사이트에서 `docker save → load → register_image.sh` 운반 흐름)는 사내 원본 저장소 `genon/README.md` 의 "C. 레지스트리 등록 (6~7번)" 과 "D. 사이트 배포 (8번)" 참고.
+- 사이트 GenOS 에 등록하는 절차는 다음과 같습니다.
+  1. `docker load` 한 이미지를 사이트 레지스트리로 push 합니다. 사이트 레지스트리 주소가 다르면 `docker tag` 로 바꾼 뒤 push 합니다.
+  2. 사이트 GenOS 웹 UI 의 **관리 > 리소스 > 도커 이미지** 에서 이미지명(`mnc/doc-parser-preprocessor`)과 태그(예: `2.2.0`)를 지정해 등록합니다. GenOS 가 레지스트리에서 해당 이미지를 찾아 자동으로 등록합니다.
+  - 단계별 상세 절차(폐쇄망 사이트에서 `docker save → load → push → 등록` 운반 흐름)는 사내 원본 저장소 `genon/README.md` 의 "C. 레지스트리 등록 (6~7번)" 과 "D. 사이트 배포 (8번)" 참고.
 - 빌드 정책·variant 의미·태그 규칙 등 빌드 측 상세는 사내 원본 저장소 `genon/README.md` 의 "전처리기 빌드 및 등록" 참고.
 
 ### 2.2 PaddleOCR · dots.ocr vllm 서빙 (직접 빌드 후 사이트 운반)

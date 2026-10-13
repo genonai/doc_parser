@@ -151,7 +151,7 @@ INSTALL_RHWP=false          # 기본 true. false 면 rhwp 바이너리(Rust 빌�
 - **태그 반영** — `false` 로 끄면 이미지 태그 끝에 `-nolibre` / `-norhwp` 가 **자동으로** 붙는다 (둘 다 끄면 `-nolibre-norhwp`). 둘 다 `true`(기본)면 접미사 없이 기존 태그 그대로다.
   - 예) `cpu`+`standard` + 둘 다 off → `:2.2.0-nolibre-norhwp`, `gpu`+`synap` + rhwp off → `:2.2.0-gpu-synap-norhwp`.
   - 덕분에 패키지를 끈 특수 이미지가 운영 이미지(둘 다 on)와 **같은 태그로 push 돼 덮어쓰는 사고가 자동 차단**된다. 표준 4종 카탈로그(2번 표)와도 자연히 구분된다.
-  - 등록 시 [`register.config`](preprocessor/scripts/register.config) 에도 `INSTALL_LIBREOFFICE` / `INSTALL_RHWP` 를 빌드와 동일하게 넣어야 태그가 일치한다.
+  - GenOS 에 이미지를 등록할 때도 접미사가 붙은 태그를 그대로 지정한다.
   - 빌드 시 두 값은 `docker inspect` 로도 보이도록 OCI 라벨(`ai.genon.install.libreoffice` / `ai.genon.install.rhwp`)에 함께 기록된다.
 
 ### B. 이미지 빌드 (4~5번)
@@ -163,10 +163,12 @@ INSTALL_RHWP=false          # 기본 true. false 면 rhwp 바이너리(Rust 빌�
 
 ### C. 레지스트리 등록 (6~7번)
 
-6. [register.config](preprocessor/scripts/register.config) 설정 — `IMAGE_VERSION` / `BUILD_VARIANT` / `HW_VARIANT` 세 값은 **`doc-parser-build.config` 와 동일한 값**으로 둔다. `register_image.sh` 가 빌드와 동일한 태그 규칙으로 자동 조합한다 (기본 조합 `cpu`+`standard` 는 `${IMAGE_VERSION}`, 그 외는 `${IMAGE_VERSION}-${HW_VARIANT}-${BUILD_VARIANT}`).
+6. 레지스트리 push — `doc-parser-build.config` 의 `PUSH_IMAGE=true` 면 5번 빌드 직후 자동으로 push 된다. `false` 로 빌드했다면 `docker push <이미지 태그>` 로 직접 push 한다.
 
-7. 실행 [register_image.sh](preprocessor/scripts/register_image.sh) : push와 디비에 등록해준다.
-   - 다른 조합을 등록하려면 `register.config` 의 세 값을 그 조합으로 바꾸고 다시 실행 (interactive prompt 가 있어 한 번에 batch 자동화 불가).
+7. GenOS 웹 UI 의 **관리 > 리소스 > 도커 이미지** 에서 이미지명(`mnc/doc-parser-preprocessor`)과 태그를 지정해 등록한다. GenOS 가 레지스트리에서 해당 이미지를 찾아 자동으로 등록한다.
+   - 태그는 빌드와 동일한 규칙을 따른다 (기본 조합 `cpu`+`standard` 는 `${IMAGE_VERSION}`, 그 외는 `${IMAGE_VERSION}-${HW_VARIANT}-${BUILD_VARIANT}`).
+   - 다른 조합을 등록하려면 같은 메뉴에서 그 조합의 태그로 한 번 더 등록한다.
+   - 예전에 쓰던 [register_image.sh](preprocessor/scripts/register_image.sh) 방식(스크립트로 push 와 DB 등록)은 더 이상 사용하지 않는다.
 
 ### D. 사이트 배포 (8번)
 
@@ -176,7 +178,9 @@ INSTALL_RHWP=false          # 기본 true. false 면 rhwp 바이너리(Rust 빌�
 docker save mncregistry:30500/mnc/doc-parser-preprocessor:2.1.5 | gzip > doc-parser-preprocessor-2.1.5.tar.gz
 # 2. 사이트에서 이미지 복원
 gunzip -c doc-parser-preprocessor-2.1.5.tar.gz | docker load
-# 3. 해당 조합으로 register_image.sh 실행 (BUILD_VARIANT / HW_VARIANT 지정)
+# 3. 사이트 레지스트리로 push (사이트 레지스트리 주소가 다르면 docker tag 로 바꾼 뒤 push)
+docker push mncregistry:30500/mnc/doc-parser-preprocessor:2.1.5
+# 4. 사이트 GenOS 웹 UI 의 관리 > 리소스 > 도커 이미지 에서 이미지명·태그를 지정해 등록
 ```
    - `gpu`/`synap` 등 다른 조합이면 태그가 `:2.1.5-gpu-synap` 처럼 붙으니 파일명/명령어를 그에 맞게 바꾼다.
 
@@ -189,7 +193,7 @@ GenOS **코드서빙** 기능으로 띄우는 경로이며, 동작 방식이 전
 
 - 코드서빙 시스템이 이 **base 이미지**를 띄운 뒤, 런타임에 git 소스를 `/app/src/service` 로 clone 하고
   `main.py`(facade) 를 실행한다.
-- facade 의 무거운 deps 와 다운로드 아티팩트(모델/HWP SDK/rhwp/H2Orestart/폰트/NLTK/EasyOCR)는
+- facade 의 무거운 deps 와 다운로드 아티팩트(모델/HWP SDK/rhwp/H2Orestart/폰트/EasyOCR)는
   콜드스타트 단축 + 에어갭(오프라인) 동작을 위해 **base 이미지에 빌드 시점에 pre-bake** 한다
   (`Dockerfile.standard` 와 full parity).
 - 배포 후 게이트웨이로 호출하는 방법(`/health`·`/parser`·`/chunker` 등)은

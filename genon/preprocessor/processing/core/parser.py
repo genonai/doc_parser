@@ -9,6 +9,7 @@ import asyncio
 import json
 import logging
 import os
+import shutil
 import subprocess
 import tempfile
 from pathlib import Path
@@ -29,7 +30,7 @@ from docling.datamodel.base_models import InputFormat
 from docling.datamodel.pipeline_options import PdfPipelineOptions
 from docling.document_converter import DocumentConverter, PdfFormatOption
 from docling.prompts.prompt_manager import LLMApiError
-from docling.utils.document_enrichment import check_document, enrich_document
+from docling.utils.document_enrichment import enrich_document, judge_document
 from docling.utils.llm_cache import (
     classify_error as _classify_error,
     current_context as _cache_current_context,
@@ -536,6 +537,7 @@ class ParserCore:
         if log_level is None:
             log_level = 4
         self._log_level = log_level
+        self.setup_logging(self._log_level)   # 프로세스에 한 번(#481 F-C)
         # 요청 doc_type 에 맞는 custom_fields 등록이 없을 때의 처리(warn | fail).
         self._unknown_doc_type = _guard(
             "defaults.unknown_doc_type", pcfg.resolve_unknown_doc_type_policy,
@@ -598,7 +600,9 @@ class ParserCore:
         formats_cfg = _as_dict(cfg.get("formats"))
         ppt_pd_cfg = _as_dict(_as_dict(formats_cfg.get("ppt")).get("page_description"))
         self._page_desc_options = PageDescriptionOptions.from_config(ppt_pd_cfg, self._intel._config_dir)
-        self._ppt_pdf_converter = None
+        # 기동 때 만든다(#481 F-F) — 첫 PPT 요청 둘이 동시에 만들던 지연 생성을 없앤다. 객체만 가볍고
+        # 파이프라인은 첫 convert 때 초기화된다.
+        self._ppt_pdf_converter = self._build_ppt_pdf_converter()
 
         # HTML flatten 전처리 모드. docling 은 <iframe srcdoc="..."> 속성 안의 본문,
         # 접힌 아코디언, <li>와 중첩 목록 사이에 div가 낀 구조를 누락할 수 있다.
@@ -746,11 +750,14 @@ class ParserCore:
             document = self._intel.load_documents(file_path, **kwargs)
             if ocr_mode == "auto":
                 # #329(task#1): /run(_load_document)과 동일한 auto 재OCR 휴리스틱으로 정합.
-                # 기존엔 check_empty_text 조건이 빠져 있어, /run 은 재OCR 하는 '텍스트 없는'
-                # 문서를 /parse 는 재OCR 하지 않아 다운스트림 청크가 달라졌다.
-                if (not check_document(document, self._intel.enrichment_options)
-                        or self._intel.check_glyphs(document)
-                        or self._intel.check_empty_text(document)):
+                # #482: 판정 불가(판정 LLM 없음·응답 없음)는 재OCR 사유가 아니다 — 예전엔
+                # `not check_document(...)` 가 판정 불가도 참으로 읽어 모든 PDF 를 두 번 변환했다.
+                verdict = judge_document(document, self._intel.enrichment_options)
+                reason = dops.reocr_reason(
+                    verdict, self._intel.check_glyphs(document), self._intel.check_empty_text(document))
+                _log.info(f"[parser] 재OCR 판정 verdict={verdict.value} reason={reason}: "
+                          f"{os.path.basename(file_path)}")
+                if reason != "none":
                     document = self._intel.load_documents_with_docling_ocr(file_path, **kwargs)
 
         if ocr_mode != "disable" and self._intel.ocr_endpoint:
@@ -831,9 +838,9 @@ class ParserCore:
         return self._docx.load_documents(file_path, **kwargs)
 
     def _parse_audio(self, file_path: str, **kwargs) -> str:
-        tmp_path = f"./tmp_audios_{os.path.basename(file_path).split('.')[0]}"
-        if not os.path.exists(tmp_path):
-            os.makedirs(tmp_path)
+        # 요청마다 새 임시 폴더(#481 F-G) — cwd 의 고정 이름 폴더는 같은 이름의 오디오를 동시에
+        # 처리하는 프로세스끼리 조각 파일을 덮어쓰고 지웠다.
+        tmp_path = tempfile.mkdtemp(prefix="parser_audio_")
         try:
             loader = AudioLoader(
                 file_path=file_path,
@@ -846,10 +853,7 @@ class ParserCore:
             audio_chunks = loader.split_file_as_chunks()
             return loader.transcribe_audio(audio_chunks)
         finally:
-            try:
-                subprocess.run(["rm", "-r", tmp_path], check=True)
-            except Exception:
-                pass
+            shutil.rmtree(tmp_path, ignore_errors=True)
 
     def _parse_tabular(self, file_path: str, sheets_with_merges: dict | None = None) -> dict:
         """xlsx/csv → {"data":[{"sheet_name","title","data_rows":[{col:val}]}]} (이슈 #288).
@@ -1333,21 +1337,25 @@ class ParserCore:
 
         return self._parse_docling(html_path, artifacts_from=file_path, **kwargs)
 
-    def _get_ppt_pdf_converter(self) -> DocumentConverter:
-        """PPT(→PDF) 파싱용 경량 docling 컨버터(lazy, 캐시). dotsocr 미수행 + do_ocr=False.
+    def _build_ppt_pdf_converter(self) -> DocumentConverter:
+        """PPT(→PDF) 파싱용 경량 docling 컨버터. dotsocr 미수행 + do_ocr=False.
         page_description 이 켜지면 generate_page_images=True 로 페이지 렌더 이미지를 만든다.
         """
-        if self._ppt_pdf_converter is not None:
-            return self._ppt_pdf_converter
         opts = PdfPipelineOptions()
         opts.do_ocr = False
         opts.do_table_structure = False
         opts.generate_page_images = bool(self._page_desc_options.enabled)
         opts.generate_picture_images = False
         opts.images_scale = self._page_desc_options.images_scale
-        self._ppt_pdf_converter = DocumentConverter(
+        # 페이지 묶음 크기는 파서 설정(layout.page_batch_size)을 따른다 — 예전엔 전역값에 기댔다.
+        opts.page_batch_size = getattr(getattr(self._intel, "pipe_line_options", None), "page_batch_size", None)
+        return DocumentConverter(
             format_options={InputFormat.PDF: PdfFormatOption(pipeline_options=opts)}
         )
+
+    def _get_ppt_pdf_converter(self) -> DocumentConverter:
+        if getattr(self, "_ppt_pdf_converter", None) is None:   # __init__ 을 우회한 인스턴스(단위 테스트)
+            self._ppt_pdf_converter = self._build_ppt_pdf_converter()
         return self._ppt_pdf_converter
 
     def _parse_ppt_docling(self, file_path: str, **kwargs) -> "Optional[DoclingDocument]":
@@ -1956,9 +1964,8 @@ class ParserCore:
         로깅·런타임 옵션·캐시 컨텍스트·변환 PDF 정책을 요청 스코프로 세우고, 확장자 판별과
         비정상 파일 차단, 확장자 별칭 사본까지 한다. 정리는 _finish_job 이 맡는다.
         """
-        runtime_level = kwargs.get('log_level')
-        self.setup_logging(runtime_level if runtime_level is not None else self._log_level)
-
+        # 로깅 레벨은 프로세스 기동 때 한 번(__init__) 정한다 — 루트 로거는 프로세스에 하나라
+        # 요청마다 바꾸면 동시에 도는 다른 요청의 로그까지 바뀐다(#481 F-C). 요청 log_level 은 무시한다.
         raw_ext = os.path.splitext(file_path)[-1].lower()
         # __init__ 을 우회해 만든 인스턴스(단위 테스트)도 견디도록 getattr 로 읽는다.
         ext = _resolve_ext(raw_ext, getattr(self, "_ext_aliases", {}))
@@ -1984,10 +1991,11 @@ class ParserCore:
         # 기본값으로 채우므로, 그 뒤에 얹으면 오버레이가 "요청이 보낸 값" 과 구분하지 못한다.
         self._apply_config_overlay(job)
 
-        # 런타임 토글(img_desc/chart_desc/chart_detection/doc_summary)로 이미지·차트 description 재구성
-        # (실제 enrichment 는 self._intel 경유이므로 embed 프로세서에 반영한다)
+        # 런타임 토글(img_desc/chart_desc/table_desc/doc_summary …)로 만든 enricher 묶음은 요청 객체에
+        # 싣는다(#481 F-A). 공유 인스턴스 self._intel 에는 쓰지 않는다 — enrichment 단계가
+        # kwargs["_enrichers"] 에서 꺼내 쓴다(docling_runtime.enrich_*).
         job.params = self._intel._normalize_runtime_kwargs(job.params)
-        self._intel._configure_runtime_image_mode(job.params)
+        job.params["_enrichers"] = self._intel._request_enrichers(job.params)
 
         # #329: LLM 캐시 / error_policy 컨텍스트를 요청 스코프로 설정(/parse 는 body 의
         # workflow_id/run_id 로 스코프 유도). ThreadPool 워커엔 in_current_context 로 전파.

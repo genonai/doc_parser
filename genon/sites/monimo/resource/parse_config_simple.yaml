@@ -39,7 +39,12 @@ formats:
       header_row: 0
 
 ocr:
-  ocr_mode: "auto" # "auto"(default), "force", "disable"
+  # "disable"(기본) — OCR 서버를 부르지 않는다. 레이아웃이 genos_layout(VLM) 이면 첫 변환이 이미 이미지에서
+  #   글자를 읽으므로 대부분의 문서는 이것으로 충분하다.
+  # "auto"  — 첫 변환 뒤 판정(판정 LLM·글리프·빈 페이지)해 필요할 때만 OCR converter 로 다시 변환.
+  #   문서·문서유형 단위로 켠다: 요청 파라미터 ocr_mode: "auto" 또는 CONFIG_BY_DOC_TYPE 의 "ocr.ocr_mode": "auto".
+  # "force" — 항상 OCR converter 로 변환.
+  ocr_mode: "disable"
 
   # OCR 엔진 선택. "paddle"(default) | "upstage"
   engine: "paddle"

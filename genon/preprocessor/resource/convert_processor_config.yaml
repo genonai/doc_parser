@@ -36,9 +36,9 @@ formats:
       prompt_template_file: prompt_page_image_description_default.md
 
 ocr:
-  # OCR 수행 모드. "auto"(default)=휴리스틱 기반 재OCR / "force"=무조건 전체 OCR / "disable"=OCR 안 함
-  # (PDF 입력에만 적용. DOCX/기타 포맷은 ocr_mode 무관)
-  ocr_mode: "auto"
+  # OCR 수행 모드. "disable"(default)=OCR 안 함 / "auto"=판정 뒤 필요 시 재OCR / "force"=무조건 전체 OCR
+  # (PDF 입력에만 적용. DOCX/기타 포맷은 ocr_mode 무관). 판정이 필요한 문서는 요청 파라미터 ocr_mode 로 켠다.
+  ocr_mode: "disable"
 
   # OCR 엔진 선택. "paddle"(default) | "upstage"
   engine: "paddle"

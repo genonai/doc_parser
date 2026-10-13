@@ -165,7 +165,7 @@ formats:
       multi_table: false          # true 면 1시트 복수표(빈 행 분리) 분리
 
 ocr:
-  ocr_mode: "auto"            # "auto"(default) | "force" | "disable"
+  ocr_mode: "disable"         # "disable"(default) | "auto"(판정 뒤 필요 시 재OCR — 요청 ocr_mode 로 켬) | "force"
   engine: "paddle"            # "paddle"(default) | "upstage"
   table_cell_ocr_timeout: 60  # 글리프 깨진 셀 재OCR HTTP timeout(초)
   paddle:
@@ -1270,7 +1270,8 @@ def enrichment(self, document, **kwargs):
 async def __call__(self, request, file_path, **kwargs):
     # 비-PDF + auto_convert_to_pdf=True(기본) → convert_to_pdf(use_pdf_sdk=kwargs.get('use_pdf_sdk', True))
     document = self.load_documents(file_path, **kwargs)
-    if not check_document(document, self.enrichment_options) or self.check_glyphs(document):
+    if reocr_reason(judge_document(document, self.enrichment_options),
+                    self.check_glyphs(document), self.check_empty_text(document)) != "none":   # ocr_mode=auto 일 때만
         document = self.load_documents_with_docling_ocr(file_path, **kwargs)
     document = self.ocr_all_table_cells(document, file_path)
     document = document._with_pictures_refs(...)

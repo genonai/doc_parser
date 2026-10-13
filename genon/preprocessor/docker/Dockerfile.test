@@ -6,7 +6,7 @@
 # 이미지에는 시스템 패키지와 의존성 venv 만 담는다. 나머지는 실행 시점에 붙인다.
 #   - 저장소 소스  : /repo 로 bind mount 한다. 코드를 고쳐도 이미지를 다시 빌드하지 않는다.
 #                    docling 도 설치하지 않고 PYTHONPATH 의 /repo 에서 읽는다(CI 와 같은 해석 순서).
-#   - 모델·데이터  : HF 캐시, NLTK 데이터, HWP SDK 는 /cache named volume 에 처음 한 번만 받는다.
+#   - 모델·데이터  : HF 캐시, HWP SDK 는 /cache named volume 에 처음 한 번만 받는다.
 # 빌드·실행 절차는 tools/docker_test/run_tests_in_docker.sh 에 있다.
 #
 # LibreOffice 스택(패키지, Java, H2Orestart 확장)은 운영 이미지(Dockerfile.standard,
@@ -116,7 +116,6 @@ ENV PATH=/opt/venv/bin:${PATH} \
     HOME=/tmp/home \
     JAVA_HOME=/usr/lib/jvm/java-21-openjdk-${TARGETARCH} \
     HF_HOME=/cache/huggingface \
-    NLTK_DATA=/cache/nltk_data \
     HWP_SDK_DIR=/cache/hwp_sdk \
     DO_NOT_TRACK=true
 

@@ -1,6 +1,7 @@
 # 0708 매칭 수정된 코드
 import json
 import logging
+from enum import Enum
 import re
 import difflib
 from typing import Dict, Any, Optional, List, Tuple
@@ -20,6 +21,14 @@ from docling.datamodel.pipeline_options import DataEnrichmentOptions
 from collections import Counter
 
 _log = logging.getLogger(__name__)
+
+class OcrVerdict(str, Enum):
+    """OCR 필요 판정값(#482). 이 셋뿐이다 — bool 이 아닌 이유는 "판정 불가" 를 "필요" 와 구분하기 위해서다.
+    str 혼합이라 비교·로그는 문자열처럼 쓰고(`verdict == "ok"`), 로그에는 `.value` 를 쓴다.
+    """
+    OK = "ok"                # 텍스트가 충분하다 — 재OCR 불필요
+    NEEDS_OCR = "needs_ocr"  # 판정 LLM 이 OCR 필요라 답함(또는 텍스트가 전혀 없음)
+    UNKNOWN = "unknown"      # 판정 불가 — 판정 LLM 이 없거나 응답이 없거나 형식이 다름
 
 
 class DocumentEnrichmentUtils:
@@ -837,19 +846,15 @@ class DocumentEnrichmentUtils:
             _log.error(f"메타데이터 추출 중 오류 발생: {str(e)}")
             return False
 
-    def check_document_with_good_text(self, document: DoclingDocument) -> bool:
+    def judge_document_text(self, document: DoclingDocument) -> "OcrVerdict":
         """
-        문서의 텍스트 품질을 검사하여 OCR이 필요한지 판단
-
-        Args:
-            document: DoclingDocument 객체
+        문서의 텍스트 품질을 검사하여 OCR이 필요한지 판단한다.
 
         Returns:
-            bool: OCR이 필요하지 않으면 True, 필요하면 False
+            OcrVerdict: OK(텍스트 충분) / NEEDS_OCR(OCR 필요) / UNKNOWN(판정 불가 — 판정 LLM 이
+                 없거나 응답이 없거나 형식이 다름).
+                 판정 불가는 "필요" 가 아니다. 호출부가 그 경우 재OCR 할지 정한다(#482).
         """
-        if not self.prompt_manager:
-            return 0
-
         def get_text_by_page(doc: DoclingDocument, last_page_no: int = 0):
             page_texts = ""
 
@@ -871,7 +876,11 @@ class DocumentEnrichmentUtils:
                 # text = text[:3000] + "..."
                 text = self._extract_substrings(text, length=1000)
             if len(text) == 0:
-                return False  # 텍스트가 없으면 OCR 필요
+                return OcrVerdict.NEEDS_OCR  # 텍스트가 없으면 OCR 필요
+            # 판정 LLM 유무는 빈 텍스트 검사 뒤에 본다 — 텍스트 레이어가 없는 스캔본은 LLM 없이도
+            # OCR 이 필요하다고 결정된다. 판정 LLM 이 없어 판정할 수 없는 것은 텍스트가 있는 문서뿐이다.
+            if not self.prompt_manager:
+                return OcrVerdict.UNKNOWN
 
             text_len = len(text)
             non_ascii_ratio = sum(1 for c in text if self._is_non_meaningful_char(c)) / text_len if text_len > 0 else 0
@@ -885,20 +894,19 @@ class DocumentEnrichmentUtils:
                 non_ascii_ratio=non_ascii_ratio,
                 space_ratio=space_ratio
             )
-            if response:
-                decision_match = re.search(r'<decision>\s*(YES|NO)\s*</decision>', response, re.IGNORECASE)
-                if decision_match:
-                    decision = decision_match.group(1).strip()
-                else:
-                    decision = "YES"
-            else:
-                decision = "YES"
-
-            return False if decision == "YES" else True # OCR이 필요하지 않으면 True, 필요하면 False
+            if not response:
+                _log.warning("문서 품질 검사: 판정 LLM 응답 없음 → 판정 불가")
+                return OcrVerdict.UNKNOWN
+            decision_match = re.search(r'<decision>\s*(YES|NO)\s*</decision>', response, re.IGNORECASE)
+            if not decision_match:
+                _log.warning("문서 품질 검사: 판정 LLM 응답에 <decision> 이 없음 → 판정 불가")
+                return OcrVerdict.UNKNOWN
+            decision = decision_match.group(1).strip().upper()
+            return OcrVerdict.NEEDS_OCR if decision == "YES" else OcrVerdict.OK
 
         except Exception as e:
             _log.error(f"문서 품질 검사 중 오류 발생: {str(e)}")
-            return False
+            return OcrVerdict.UNKNOWN
 
     def _is_non_meaningful_char(self, c):
         # 공백은 제외
@@ -1628,24 +1636,29 @@ def add_metadata(document: DoclingDocument, enrichment_options: DataEnrichmentOp
     return enrich_document(document, metadata_options)
 
 
-def check_document(document: DoclingDocument, enrichment_options: DataEnrichmentOptions) -> bool:
-    """
-    문서의 텍스트 품질을 검사하여 OCR이 필요한지 판단하고, 필요시 OCR 적용
-
-    Args:
-        document: 원본 DoclingDocument 객체
-        enrichment_options: 데이터 enrichment 옵션
+def judge_document(document: DoclingDocument, enrichment_options: DataEnrichmentOptions) -> OcrVerdict:
+    """문서의 텍스트 품질로 OCR 필요 여부를 판정한다(#482).
 
     Returns:
-        bool: OCR이 필요하지 않으면 True, 필요하면 False
+        OcrVerdict: OK / NEEDS_OCR / UNKNOWN(판정 불가).
+        판정 LLM 은 enrichment 설정의 toc 또는 metadata 가 켜져 있을 때만 있으므로, 기본
+        설정에서는 텍스트가 있는 문서가 OcrVerdict.UNKNOWN 이다(텍스트가 없으면 LLM 없이 NEEDS_OCR). 호출부(processing/common/docling_ops.reocr_reason)는
+        NEEDS_OCR 일 때만 재OCR 하고 UNKNOWN 은 재OCR 사유로 보지 않는다.
     """
     if not document:
-        return False
+        return OcrVerdict.NEEDS_OCR
 
     try:
         enricher = DocumentEnrichmentUtils(enrichment_options)
-        return enricher.check_document_with_good_text(document)
+        return enricher.judge_document_text(document)
 
     except Exception as e:
         _log.error(f"문서 품질 검사 중 오류 발생: {str(e)}")
-        return False
+        return OcrVerdict.UNKNOWN
+
+
+def check_document(document: DoclingDocument, enrichment_options: DataEnrichmentOptions) -> bool:
+    """호환 래퍼 — 판정값이 OcrVerdict.OK 일 때만 True(옛 호출부 `not check_document(...)` 의
+    동작 보존: 판정 불가도 False). 새 코드는 judge_document 를 쓴다.
+    """
+    return judge_document(document, enrichment_options) == OcrVerdict.OK

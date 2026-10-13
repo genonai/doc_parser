@@ -132,27 +132,31 @@ def _stable_key(name: str) -> str:
 # ------------------------------------------------------------------ #
 # docling 모드                                                         #
 # ------------------------------------------------------------------ #
+import threading
+
+_converter_lock = threading.Lock()
 _docling_converter = None  # lazy singleton
 
 
 def _get_docling_converter():
     """xlsx/csv 전용 DocumentConverter 를 생성·캐시한다(PDF 컨버터와 분리)."""
     global _docling_converter
-    if _docling_converter is None:
-        from docling.datamodel.base_models import InputFormat
-        from docling.document_converter import (
-            CsvFormatOption,
-            DocumentConverter,
-            ExcelFormatOption,
-        )
+    with _converter_lock:   # 첫 호출 둘이 동시에 만들지 않게(#481 F-F)
+        if _docling_converter is None:
+            from docling.datamodel.base_models import InputFormat
+            from docling.document_converter import (
+                CsvFormatOption,
+                DocumentConverter,
+                ExcelFormatOption,
+            )
 
-        _docling_converter = DocumentConverter(
-            allowed_formats=[InputFormat.XLSX, InputFormat.CSV],
-            format_options={
-                InputFormat.XLSX: ExcelFormatOption(),
-                InputFormat.CSV: CsvFormatOption(),
-            },
-        )
+            _docling_converter = DocumentConverter(
+                allowed_formats=[InputFormat.XLSX, InputFormat.CSV],
+                format_options={
+                    InputFormat.XLSX: ExcelFormatOption(),
+                    InputFormat.CSV: CsvFormatOption(),
+                },
+            )
     return _docling_converter
 
 

@@ -142,9 +142,9 @@ formats:
       multi_table: false          # true 면 1시트 복수표(빈 행 분리) 분리
 
 ocr:
-  # OCR 수행 모드. "auto"(default)=휴리스틱 기반 재OCR / "force"=무조건 전체 OCR / "disable"=OCR 안 함
-  # (PDF 입력에만 적용. DOCX/기타 포맷은 ocr_mode 무관)
-  ocr_mode: "auto"
+  # OCR 수행 모드. "disable"(default)=OCR 안 함 / "auto"=판정 뒤 필요 시 재OCR / "force"=무조건 전체 OCR
+  # (PDF 입력에만 적용. DOCX/기타 포맷은 ocr_mode 무관). 판정이 필요한 문서는 요청 파라미터 ocr_mode 로 켠다.
+  ocr_mode: "disable"
 
   # OCR 엔진 선택. "paddle"(default) | "upstage"
   engine: "paddle"
@@ -329,7 +329,7 @@ enrichment:
 
 | 모드 | 동작 |
 |------|------|
-| `auto` (기본) | 먼저 일반 추출 후, 문서 품질 검사(`check_document`)에 실패하거나 글리프 휴리스틱(`document_threshold` 초과)이 깨짐을 감지하면 **전체 페이지 OCR** 로 재변환 |
+| `auto` | 먼저 일반 추출 후, 판정 LLM 이 OCR 필요라 답하거나(`judge_document` = needs_ocr) 글리프 휴리스틱(`document_threshold` 초과)이 깨짐을 감지하면 **전체 페이지 OCR** 로 재변환. 판정 불가(판정 LLM 없음·응답 없음)는 재변환 사유가 아니다. 기본값은 `disable` — 요청 파라미터 `ocr_mode` 로 켠다 |
 | `force` | 품질과 무관하게 처음부터 **전체 페이지 OCR** |
 | `disable` | OCR 을 전혀 수행하지 않음 (테이블 셀 OCR 포함) |
 
@@ -1199,8 +1199,8 @@ else:  # .pdf / .docx / .pptx 등 Docling 경로
         if ocr_mode == "force":  document = load_documents_with_docling_ocr(...)
         else:
             document = load_documents(...)
-            if ocr_mode == "auto" and (not check_document(...) or check_glyphs(document)):
-                document = load_documents_with_docling_ocr(...)
+            if ocr_mode == "auto" and reocr_reason(judge_document(...), check_glyphs(document), False) != "none":
+                document = load_documents_with_docling_ocr(...)   # 판정 불가는 재OCR 사유가 아니다(#482)
         if ocr_mode != "disable" and ocr_endpoint:
             document = ocr_all_table_cells(document, file_path)
     else:

@@ -436,6 +436,9 @@ class AsrPipelineOptions(PipelineOptions):
 class PdfPipelineOptions(PaginatedPipelineOptions):
     """Options for the PDF pipeline."""
 
+    # 페이지 묶음 크기. None 이면 프로세스 전역 settings.perf.page_batch_size 를 쓴다.
+    # 프로세서마다 다른 값을 가질 수 있게 옵션으로 둔다(genon #481).
+    page_batch_size: Optional[int] = None
     do_table_structure: bool = True  # True: perform table structure extraction
     do_ocr: bool = True  # True: perform OCR, replace programmatic PDF text
     do_code_enrichment: bool = False  # True: perform code OCR

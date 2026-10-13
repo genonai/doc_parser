@@ -110,7 +110,7 @@ from docling.datamodel.pipeline_options import (
 )
 
 from docling.prompts.prompt_manager import LLMApiError
-from docling.utils.document_enrichment import enrich_document, check_document
+from docling.utils.document_enrichment import enrich_document, judge_document
 from docling.utils.llm_cache import (
     classify_error as _classify_error,
     current_context as _cache_current_context,
@@ -644,6 +644,8 @@ class DocumentProcessor(DoclingRuntimeBase):
 
         # 같은 표의 조각이 연속해서 나오는 순서가 곧 조각 번호다.
         table_piece_seen: dict = {}
+        # 표마다 표로 셀지 판정한 결과. 같은 표의 조각마다 다시 판정하지 않는다.
+        table_kinds: dict = {}
         current_page = None
         chunk_index_on_page = 0
         vectors = []
@@ -690,7 +692,7 @@ class DocumentProcessor(DoclingRuntimeBase):
                       .set_media_files(chunk.meta.doc_items, include_tables=self.table_image_enabled)
                       .set_table_info(chunk.meta.doc_items,
                                       getattr(self, "_table_split_totals", {}),
-                                      table_piece_seen)
+                                      table_piece_seen, table_kinds)
                       .set_guardrail_categories(sorted(chunk_cats) if chunk_cats else None)
                       ).build()
             vectors.append(vector)
@@ -835,12 +837,17 @@ class DocumentProcessor(DoclingRuntimeBase):
         """ocr_mode 에 따라 docling 문서를 로딩한다.
         "force"=무조건 전체 OCR / "auto"=휴리스틱 기반 재OCR / "disable"=OCR 안 함
         """
-        if self.ocr_mode == "force":
+        # 요청 파라미터 ocr_mode 가 yaml 을 덮는다(#482: 기본 disable 을 문서 단위로 켠다). 인스턴스는 안 바꾼다.
+        ocr_mode = cp.resolve_ocr_mode(kwargs, self.ocr_mode)
+        if ocr_mode == "force":
             return self.load_documents_with_docling_ocr(file_path, **kwargs)
         document: DoclingDocument = self.load_documents(file_path, **kwargs)
-        if self.ocr_mode == "auto":
-            if not check_document(document, self.enrichment_options) or self.check_glyphs(document) or self.check_empty_text(document):
-                # OCR이 필요하다고 판단되면 OCR 수행
+        if ocr_mode == "auto":
+            # #482: 판정 불가는 재OCR 사유가 아니다(processing/common/docling_ops.reocr_reason).
+            verdict = judge_document(document, self.enrichment_options)
+            reason = dops.reocr_reason(verdict, self.check_glyphs(document), self.check_empty_text(document))
+            _log.info(f"[intelligent] 재OCR 판정 verdict={verdict.value} reason={reason}")
+            if reason != "none":
                 document = self.load_documents_with_docling_ocr(file_path, **kwargs)
         return document
 
@@ -852,7 +859,7 @@ class DocumentProcessor(DoclingRuntimeBase):
         ocr_table_cells: 글리프 깨진 테이블 셀 재OCR 수행 여부(xlsx 직접 처리는 False).
         """
         # 글리프 깨진 텍스트가 있는 테이블에 대해서만 OCR 수행 (청크토큰 8k이상 발생 방지)
-        if ocr_table_cells and self.ocr_mode != "disable" and self.ocr_endpoint:
+        if ocr_table_cells and cp.resolve_ocr_mode(kwargs, self.ocr_mode) != "disable" and self.ocr_endpoint:
             document = self.ocr_all_table_cells(document, file_path)
 
         output_path, output_file = os.path.split(file_path)
