@@ -529,6 +529,16 @@ class DoclingRuntimeBase:
     def check_empty_text(self, document: DoclingDocument) -> bool:
         return dops.check_empty_text(document)
 
+    def find_reocr_pages(self, document: DoclingDocument) -> tuple[list[int], list[int]]:
+        """(글리프 깨진 페이지, 빈 페이지) 번호 목록(#483)."""
+        return dops.find_reocr_pages(document, self._glyph_document_threshold)
+
+    def ocr_text_items_on_pages(self, document: DoclingDocument, pages: list[int]) -> list[int]:
+        """pages 의 텍스트 박스만 OCR 해 글자를 바꾸고, 처리하지 못한 페이지 번호를 돌려준다(#483)."""
+        return dops.ocr_text_items_on_pages(
+            document, pages, ocr_endpoint=self.ocr_endpoint, timeout=self._table_cell_ocr_timeout,
+        )
+
     def ocr_all_table_cells(self, document: DoclingDocument, pdf_path) -> DoclingDocument:
         """글리프 깨진 텍스트가 있는 표에 대해서만 셀 단위 재OCR 을 수행한다."""
         return dops.ocr_all_table_cells(

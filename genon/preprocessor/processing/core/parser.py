@@ -749,15 +749,22 @@ class ParserCore:
                 # #482: 판정 불가(판정 LLM 없음·응답 없음)는 재OCR 사유가 아니다 — 예전엔
                 # `not check_document(...)` 가 판정 불가도 참으로 읽어 모든 PDF 를 두 번 변환했다.
                 # #483: 결정적 검사(밀리초)를 먼저 하고, 둘 다 아닐 때만 판정 LLM 을 부른다.
-                glyph_broken = self._intel.check_glyphs(document)
-                empty_page = self._intel.check_empty_text(document)
+                glyph_pages, empty_pages = self._intel.find_reocr_pages(document)
                 verdict = None
-                if not (glyph_broken or empty_page):
+                if not (glyph_pages or empty_pages):
                     verdict = judge_document(document, self._intel.enrichment_options)
-                reason = dops.reocr_reason(verdict, glyph_broken, empty_page)
+                reason = dops.reocr_reason(verdict, bool(glyph_pages), bool(empty_pages))
+                pages = sorted(set(glyph_pages) | set(empty_pages))
                 _log.info(f"[parser] 재OCR 판정 verdict={verdict.value if verdict else 'skipped'} "
-                          f"reason={reason}: {os.path.basename(file_path)}")
-                if reason != "none":
+                          f"reason={reason} pages={pages}: {os.path.basename(file_path)}")
+                # #483: 글리프·빈 페이지는 그 페이지의 텍스트 박스만 OCR 한다. 처리하지 못한 페이지가
+                # 있거나 OCR 주소가 없거나, 문서 단위 판정(판정 LLM)이 사유이면 문서 전체를 다시 변환한다.
+                failed = pages
+                if pages and self._intel.ocr_endpoint:
+                    failed = self._intel.ocr_text_items_on_pages(document, pages)
+                    _log.info(f"[parser] 페이지 단위 재OCR pages={pages} failed={failed}: "
+                              f"{os.path.basename(file_path)}")
+                if reason == "llm_yes" or failed:
                     document = self._intel.load_documents_with_docling_ocr(file_path, **kwargs)
 
         if ocr_mode != "disable" and self._intel.ocr_endpoint:

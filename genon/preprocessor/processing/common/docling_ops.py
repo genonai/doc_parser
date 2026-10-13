@@ -306,6 +306,24 @@ def check_empty_text(document: DoclingDocument) -> bool:
     return False
 
 
+def find_reocr_pages(document: DoclingDocument, threshold: int) -> tuple[list[int], list[int]]:
+    """(글리프 깨진 페이지, 빈 페이지) 번호 목록. 페이지 단위 재OCR 대상을 고른다(#483).
+
+    기준은 check_glyphs·check_empty_text 와 같다 — 글리프는 TextItem 하나의 GLYPH 토큰이 threshold 를
+    초과하는 페이지, 빈 페이지는 텍스트 아이템이 있는데 글자 수 합이 0 인 페이지다.
+    """
+    glyph_pages: set = set()
+    page_text_len: dict = {}
+    for item, _level in document.iterate_items():
+        if isinstance(item, TextItem) and item.prov:
+            page_no = item.prov[0].page_no
+            page_text_len[page_no] = page_text_len.get(page_no, 0) + len((item.text or "").strip())
+            if len(re.findall(r"GLYPH\w*", item.text or "")) > threshold:
+                glyph_pages.add(page_no)
+    empty_pages = [p for p, n in page_text_len.items() if n == 0]
+    return sorted(glyph_pages), sorted(empty_pages)
+
+
 #: 재OCR 사유(#482). "none" = 재OCR 하지 않는다(판정이 OK 또는 UNKNOWN 이고 휴리스틱도 안 걸림).
 #: 로그에 판정값과 나란히 남겨 운영에서 비율을 센다 — 예: verdict=unknown reason=none.
 ReocrReason = Literal["llm_yes", "glyph", "empty_text", "none"]
@@ -456,6 +474,76 @@ def ocr_all_table_cells(
         print(f"OCR processing failed: {e}")
 
     return document
+
+
+def _crop_png(page, bbox) -> Optional[bytes]:
+    """docling 페이지 이미지에서 bbox 영역을 잘라 PNG 바이트로 돌려준다. 자를 수 없으면 None.
+
+    ocr_all_table_cells 의 셀 이미지 자르기 코드(좌표 변환·클램프·작은 영역 확대)를 그대로 옮겨 왔다.
+    현재는 같은 로직이 그 함수 본문에도 남아 있다.
+    """
+    page_image = page.image.pil_image if page.image is not None else None
+    if page_image is None or page.size is None or bbox is None:
+        return None
+    W, H = page_image.size
+    crop = bbox.to_top_left_origin(page_height=page.size.height).scale_to_size(
+        old_size=page.size, new_size=page.image.size
+    )
+    x0, y0, x1, y1 = crop.as_tuple()
+    x0, x1 = sorted((x0, x1))
+    y0, y1 = sorted((y0, y1))
+    x0 = max(0, min(x0, W)); x1 = max(0, min(x1, W))
+    y0 = max(0, min(y0, H)); y1 = max(0, min(y1, H))
+    if (x1 - x0) < 1 or (y1 - y0) < 1:
+        return None
+    img = page_image.crop((x0, y0, x1, y1))
+    h = y1 - y0
+    zoom = min(max(20.0 / h, 1.0), 4.0) if h > 0 else 1.0
+    if zoom > 1.0:
+        img = img.resize((max(1, round((x1 - x0) * zoom)), max(1, round(h * zoom))), Image.LANCZOS)
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    return buf.getvalue()
+
+
+def ocr_text_items_on_pages(
+    document: DoclingDocument,
+    pages: list[int],
+    *,
+    ocr_endpoint: str,
+    timeout: int = 60,
+) -> list[int]:
+    """pages 에 있는 TextItem 의 박스를 페이지 이미지에서 잘라 OCR 하고 text 를 바꾼다(in-place, #483).
+
+    문서 구조(항목 순서·참조)는 건드리지 않고 글자만 바꾸므로 병합이 필요 없다. 표 셀 재OCR
+    (ocr_all_table_cells)과 같은 방식이다.
+
+    Returns:
+        처리하지 못한 페이지 번호. 페이지 이미지가 없거나 OCR 에 실패한 박스가 있는 페이지다.
+        호출부는 이 페이지가 있으면 문서 전체 재변환으로 보낸다.
+    """
+    targets = set(pages)
+    failed: set = set()
+    for page_no in targets:
+        page = document.pages.get(page_no)
+        if page is None or page.image is None or page.image.pil_image is None:
+            failed.add(page_no)
+    for item, _level in document.iterate_items():
+        if not (isinstance(item, TextItem) and item.prov):
+            continue
+        page_no = item.prov[0].page_no
+        if page_no not in targets or page_no in failed:
+            continue
+        try:
+            png = _crop_png(document.pages[page_no], item.prov[0].bbox)
+            if png is None:
+                continue
+            rec_texts, _scores, _boxes = _extract_ocr_fields(_post_ocr_bytes(png, ocr_endpoint, timeout=timeout))
+            item.text = " ".join(t for t in rec_texts if t)
+        except Exception as err:
+            _log.warning(f"[reocr] page {page_no} 텍스트 박스 OCR 실패: {err}")
+            failed.add(page_no)
+    return sorted(failed)
 
 
 # ── 포맷 전용 로더 ──────────────────────────────────────────────────────────

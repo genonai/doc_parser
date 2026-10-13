@@ -1132,13 +1132,20 @@ class DocumentProcessor(DoclingRuntimeBase):
         if ocr_mode == "auto":
             # #482: 판정 불가는 재OCR 사유가 아니다. convert 는 빈 페이지 검사를 쓰지 않는다(기존과 같음).
             # #483: 결정적 검사(밀리초)를 먼저 하고, 아닐 때만 판정 LLM 을 부른다.
-            glyph_broken = self.check_glyphs(document)
+            glyph_pages, _empty_pages = self.find_reocr_pages(document)  # convert 는 빈 페이지를 보지 않는다
             verdict = None
-            if not glyph_broken:
+            if not glyph_pages:
                 verdict = judge_document(document, self.enrichment_options)
-            reason = dops.reocr_reason(verdict, glyph_broken, False)
-            _log.info(f"[convert] 재OCR 판정 verdict={verdict.value if verdict else 'skipped'} reason={reason}")
-            if reason != "none":
+            reason = dops.reocr_reason(verdict, bool(glyph_pages), False)
+            _log.info(f"[convert] 재OCR 판정 verdict={verdict.value if verdict else 'skipped'} "
+                      f"reason={reason} pages={glyph_pages}")
+            # #483: 글리프 깨진 페이지는 그 페이지의 텍스트 박스만 OCR 한다. 처리하지 못한 페이지가
+            # 있거나 OCR 주소가 없거나, 문서 단위 판정(판정 LLM)이 사유이면 문서 전체를 다시 변환한다.
+            failed = glyph_pages
+            if glyph_pages and self.ocr_endpoint:
+                failed = self.ocr_text_items_on_pages(document, glyph_pages)
+                _log.info(f"[convert] 페이지 단위 재OCR pages={glyph_pages} failed={failed}")
+            if reason == "llm_yes" or failed:
                 document = self.load_documents_with_docling_ocr(file_path, **kwargs)
         return document
 

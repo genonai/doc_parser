@@ -843,14 +843,21 @@ class DocumentProcessor(DoclingRuntimeBase):
         if ocr_mode == "auto":
             # #482: 판정 불가는 재OCR 사유가 아니다(processing/common/docling_ops.reocr_reason).
             # #483: 결정적 검사(밀리초)를 먼저 하고, 둘 다 아닐 때만 판정 LLM 을 부른다.
-            glyph_broken = self.check_glyphs(document)
-            empty_page = self.check_empty_text(document)
+            glyph_pages, empty_pages = self.find_reocr_pages(document)
             verdict = None
-            if not (glyph_broken or empty_page):
+            if not (glyph_pages or empty_pages):
                 verdict = judge_document(document, self.enrichment_options)
-            reason = dops.reocr_reason(verdict, glyph_broken, empty_page)
-            _log.info(f"[intelligent] 재OCR 판정 verdict={verdict.value if verdict else 'skipped'} reason={reason}")
-            if reason != "none":
+            reason = dops.reocr_reason(verdict, bool(glyph_pages), bool(empty_pages))
+            pages = sorted(set(glyph_pages) | set(empty_pages))
+            _log.info(f"[intelligent] 재OCR 판정 verdict={verdict.value if verdict else 'skipped'} "
+                      f"reason={reason} pages={pages}")
+            # #483: 글리프·빈 페이지는 그 페이지의 텍스트 박스만 OCR 한다. 처리하지 못한 페이지가
+            # 있거나 OCR 주소가 없거나, 문서 단위 판정(판정 LLM)이 사유이면 문서 전체를 다시 변환한다.
+            failed = pages
+            if pages and self.ocr_endpoint:
+                failed = self.ocr_text_items_on_pages(document, pages)
+                _log.info(f"[intelligent] 페이지 단위 재OCR pages={pages} failed={failed}")
+            if reason == "llm_yes" or failed:
                 document = self.load_documents_with_docling_ocr(file_path, **kwargs)
         return document
 
