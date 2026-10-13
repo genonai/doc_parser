@@ -7,7 +7,9 @@
       on 요청이 순차 실행과 달리 설명·요약을 잃어도 같은 결함.
   R2  청크의 n_chunk_of_page 가 그 페이지의 실제 청크 수와 다르면 쪽별 청크 수가 다른 요청 값으로 덮인 것.
   시간  순차 합계 vs 동시 벽시계, 요청별 소요 시간.
+  필드  매니페스트 잡(doc_type 별 custom_fields)은 청크 필드 집합이 순차 실행과 달라지면 doc_type 설정 간섭을 의심한다.
 결과: --out 아래 results.json(요약), raw/<phase>/<job>.parse.json·.chunks.json(원 응답).
+매니페스트: --manifest 로 doc_type 이 붙는 잡을 더한다(같은 폴더의 monimo_manifest.json 은 parse_chunk_verify 의 케이스 표).
 """
 from __future__ import annotations
 
@@ -36,6 +38,18 @@ def build_jobs(docdir: str, extra: dict) -> list[dict]:
                 "file_path": f"{docdir}/{base}__{variant}.{ext}",
                 "params": {"img_desc": flag, "table_desc": flag, "doc_summary": flag, **extra},
             })
+    return jobs
+
+
+def load_manifest(path: str, docdir: str) -> list[dict]:
+    """매니페스트(JSON 배열: name, file, params)를 잡 목록으로 읽는다. file 이 상대 경로면 docdir 기준이다.
+    on/off 변형이 없으므로 variant 는 "n/a" 이고 R1 토글 검사는 건너뛴다(doc_type 별 custom_fields 경로)."""
+    with open(path, encoding="utf-8") as f:
+        entries = json.load(f)
+    jobs = []
+    for e in entries:
+        fp = e["file"] if e["file"].startswith("/") else f"{docdir}/{e['file']}"
+        jobs.append({"name": e["name"], "variant": "n/a", "file_path": fp, "params": dict(e.get("params") or {})})
     return jobs
 
 
@@ -91,7 +105,9 @@ def chunk_metrics(chunks) -> dict:
         if isinstance(c, dict) and "i_page" in c:
             by_page[c["i_page"]].append(c.get("n_chunk_of_page"))
     bad = {p: (sorted(set(v)), len(v)) for p, v in by_page.items() if set(v) != {len(v)}}
-    return {"n_chunks": len(chunks), "page_count_consistent": not bad, "page_count_mismatch": bad or None}
+    keys = sorted({k for c in chunks if isinstance(c, dict) for k in c.keys()})
+    return {"n_chunks": len(chunks), "page_count_consistent": not bad, "page_count_mismatch": bad or None,
+            "chunk_keys": keys}
 
 
 def run_job(base: str, job: dict, out_dir: str, chunk_size, timeout: float) -> dict:
@@ -163,6 +179,9 @@ def interference(phase: dict, solo: dict | None) -> list[str]:
             issues.append(f"{r['name']}: n_chunk_of_page 불일치 {r.get('page_count_mismatch')} (R2)")
         if s and s.get("n_chunks") is not None and r.get("n_chunks") != s.get("n_chunks"):
             issues.append(f"{r['name']}: 청크 수 순차 {s.get('n_chunks')} → 동시 {r.get('n_chunks')}")
+        if s and s.get("chunk_keys") and r.get("chunk_keys") and s["chunk_keys"] != r["chunk_keys"]:
+            issues.append(f"{r['name']}: 청크 필드 집합이 순차와 다름 (doc_type 설정 간섭 의심) "
+                          f"{sorted(set(s['chunk_keys']) ^ set(r['chunk_keys']))}")
     return issues
 
 
@@ -185,6 +204,8 @@ def main(argv=None) -> int:
     p.add_argument("--chunk-size", type=int, default=None, help="생략하면 서빙 config 값")
     p.add_argument("--timeout", type=float, default=1800)
     p.add_argument("--param", action="append", default=[], help="모든 요청에 더할 params KEY=VALUE (예: log_level=4)")
+    p.add_argument("--manifest", default=None, help="추가 잡 매니페스트 JSON(name, file, params). 예: monimo_manifest.json")
+    p.add_argument("--only-manifest", action="store_true", help="기본 문서 7종 x on/off 를 빼고 매니페스트만 보낸다")
     args = p.parse_args(argv)
 
     extra = {}
@@ -194,7 +215,13 @@ def main(argv=None) -> int:
             extra[k] = int(v)
         except ValueError:
             extra[k] = v
-    jobs = build_jobs(args.docdir, extra)
+    jobs = [] if args.only_manifest else build_jobs(args.docdir, extra)
+    if args.manifest:
+        for j in load_manifest(args.manifest, args.docdir):
+            j["params"].update(extra)
+            jobs.append(j)
+    if not jobs:
+        raise SystemExit("보낼 잡이 없습니다 (--only-manifest 에는 --manifest 가 필요합니다).")
     os.makedirs(args.out, exist_ok=True)
 
     with urllib.request.urlopen(f"{args.base}/version", timeout=30) as resp:
