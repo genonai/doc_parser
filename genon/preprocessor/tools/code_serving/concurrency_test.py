@@ -102,7 +102,8 @@ def chunk_metrics(chunks) -> dict:
         return {"n_chunks": None, "page_count_consistent": None}
     by_page = collections.defaultdict(list)
     for c in chunks:
-        if isinstance(c, dict) and "i_page" in c:
+        # parse-format(elements) 문서는 쪽 개념이 없어 n_chunk_of_page 가 0 으로 온다. 그 청크는 검사 대상이 아니다.
+        if isinstance(c, dict) and "i_page" in c and c.get("n_chunk_of_page"):
             by_page[c["i_page"]].append(c.get("n_chunk_of_page"))
     bad = {p: (sorted(set(v)), len(v)) for p, v in by_page.items() if set(v) != {len(v)}}
     keys = sorted({k for c in chunks if isinstance(c, dict) for k in c.keys()})
