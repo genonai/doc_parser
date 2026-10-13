@@ -748,11 +748,15 @@ class ParserCore:
                 # #329(task#1): /run(_load_document)과 동일한 auto 재OCR 휴리스틱으로 정합.
                 # #482: 판정 불가(판정 LLM 없음·응답 없음)는 재OCR 사유가 아니다 — 예전엔
                 # `not check_document(...)` 가 판정 불가도 참으로 읽어 모든 PDF 를 두 번 변환했다.
-                verdict = judge_document(document, self._intel.enrichment_options)
-                reason = dops.reocr_reason(
-                    verdict, self._intel.check_glyphs(document), self._intel.check_empty_text(document))
-                _log.info(f"[parser] 재OCR 판정 verdict={verdict.value} reason={reason}: "
-                          f"{os.path.basename(file_path)}")
+                # #483: 결정적 검사(밀리초)를 먼저 하고, 둘 다 아닐 때만 판정 LLM 을 부른다.
+                glyph_broken = self._intel.check_glyphs(document)
+                empty_page = self._intel.check_empty_text(document)
+                verdict = None
+                if not (glyph_broken or empty_page):
+                    verdict = judge_document(document, self._intel.enrichment_options)
+                reason = dops.reocr_reason(verdict, glyph_broken, empty_page)
+                _log.info(f"[parser] 재OCR 판정 verdict={verdict.value if verdict else 'skipped'} "
+                          f"reason={reason}: {os.path.basename(file_path)}")
                 if reason != "none":
                     document = self._intel.load_documents_with_docling_ocr(file_path, **kwargs)
 

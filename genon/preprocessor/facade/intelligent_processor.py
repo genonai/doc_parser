@@ -842,9 +842,14 @@ class DocumentProcessor(DoclingRuntimeBase):
         document: DoclingDocument = self.load_documents(file_path, **kwargs)
         if ocr_mode == "auto":
             # #482: 판정 불가는 재OCR 사유가 아니다(processing/common/docling_ops.reocr_reason).
-            verdict = judge_document(document, self.enrichment_options)
-            reason = dops.reocr_reason(verdict, self.check_glyphs(document), self.check_empty_text(document))
-            _log.info(f"[intelligent] 재OCR 판정 verdict={verdict.value} reason={reason}")
+            # #483: 결정적 검사(밀리초)를 먼저 하고, 둘 다 아닐 때만 판정 LLM 을 부른다.
+            glyph_broken = self.check_glyphs(document)
+            empty_page = self.check_empty_text(document)
+            verdict = None
+            if not (glyph_broken or empty_page):
+                verdict = judge_document(document, self.enrichment_options)
+            reason = dops.reocr_reason(verdict, glyph_broken, empty_page)
+            _log.info(f"[intelligent] 재OCR 판정 verdict={verdict.value if verdict else 'skipped'} reason={reason}")
             if reason != "none":
                 document = self.load_documents_with_docling_ocr(file_path, **kwargs)
         return document
