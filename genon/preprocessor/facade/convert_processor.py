@@ -1133,8 +1133,9 @@ class DocumentProcessor(DoclingRuntimeBase):
             # #482: 판정 불가는 재OCR 사유가 아니다. convert 는 빈 페이지 검사를 쓰지 않는다(기존과 같음).
             # #483: 결정적 검사(밀리초)를 먼저 하고, 아닐 때만 판정 LLM 을 부른다.
             glyph_pages, _empty_pages = self.find_reocr_pages(document)  # convert 는 빈 페이지를 보지 않는다
+            # #483: genos_layout 은 원문 텍스트 품질 판정(판정 LLM)을 하지 않는다(judges_native_text).
             verdict = None
-            if not glyph_pages:
+            if not glyph_pages and self.judges_native_text():
                 verdict = judge_document(document, self.enrichment_options)
             reason = dops.reocr_reason(verdict, bool(glyph_pages), False)
             _log.info(f"[convert] 재OCR 판정 verdict={verdict.value if verdict else 'skipped'} "

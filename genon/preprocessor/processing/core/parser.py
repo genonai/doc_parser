@@ -750,8 +750,9 @@ class ParserCore:
                 # `not check_document(...)` 가 판정 불가도 참으로 읽어 모든 PDF 를 두 번 변환했다.
                 # #483: 결정적 검사(밀리초)를 먼저 하고, 둘 다 아닐 때만 판정 LLM 을 부른다.
                 glyph_pages, empty_pages = self._intel.find_reocr_pages(document)
+                # #483: genos_layout 은 원문 텍스트 품질 판정(판정 LLM)을 하지 않는다(judges_native_text).
                 verdict = None
-                if not (glyph_pages or empty_pages):
+                if not (glyph_pages or empty_pages) and self._intel.judges_native_text():
                     verdict = judge_document(document, self._intel.enrichment_options)
                 reason = dops.reocr_reason(verdict, bool(glyph_pages), bool(empty_pages))
                 pages = sorted(set(glyph_pages) | set(empty_pages))

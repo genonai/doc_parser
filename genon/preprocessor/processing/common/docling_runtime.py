@@ -115,6 +115,8 @@ class DoclingRuntimeBase:
 
         # 해석·적용은 processing/common/pipeline_setup.py 로 모았다(조정 지점은 yaml 의 layout 섹션).
         _layout = ps.resolve_layout_settings(cfg, layout_cfg)
+        # 재OCR 판정이 파이프라인을 구분한다(#483) — genos_layout 은 원문 텍스트 품질 판정(LLM)을 건너뛴다.
+        self.layout_model_type = _layout.model_type.value
 
         ocr_options = self._build_ocr_options(ocr_cfg, paddle_endpoint=ocr_ep)
         if isinstance(ocr_options, UpstageOcrOptions):
@@ -528,6 +530,15 @@ class DoclingRuntimeBase:
 
     def check_empty_text(self, document: DoclingDocument) -> bool:
         return dops.check_empty_text(document)
+
+    def judges_native_text(self) -> bool:
+        """원문 텍스트 품질 판정(판정 LLM)을 할지(#483).
+
+        genos_layout 은 1차 변환에서 VLM 이 이미지에서 읽은 텍스트로 셀을 덮어쓰므로 원문 텍스트 품질은
+        판정할 대상이 아니다. 남는 검사는 VLM 뒤에도 남은 빈 페이지·GLYPH 뿐이다. docling_layout 은
+        2차 변환이 유일한 OCR 이라 판정을 그대로 한다.
+        """
+        return getattr(self, "layout_model_type", "genos_layout") == "docling_layout"
 
     def find_reocr_pages(self, document: DoclingDocument) -> tuple[list[int], list[int]]:
         """(글리프 깨진 페이지, 빈 페이지) 번호 목록(#483)."""
