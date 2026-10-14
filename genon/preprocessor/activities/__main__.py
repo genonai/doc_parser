@@ -118,7 +118,7 @@ def run(args) -> dict:
         inputs.mkdir(), artifacts.mkdir()
         runtime.configure(settings.Settings(
             temporal_host="local", temporal_port=0, temporal_namespace="local", task_queue="local",
-            processes=1, nfs_root=str(inputs), artifact_root=str(artifacts),
+            processes=1, threads=1, nfs_root=str(inputs), artifact_root=str(artifacts),
             heartbeat_interval=10.0, port=0,
             llm_cache_root=(os.environ.get("LLM_CACHE_ROOT") or "").strip() or None))
         arg = {"output_ref": "out", "source_name": str(given.absolute()), "params": params}

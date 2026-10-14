@@ -4,7 +4,9 @@
     TEMPORAL_PORT          기본 7233
     TEMPORAL_NAMESPACE     기본 ns-ifa-app (파이프라인과 같은 기본값)
     WORKER_TASK_QUEUE      필수. 이 워커가 폴링할 큐 — 파이프라인의 DOC_PARSER_TASK_QUEUE 와 같아야 한다
-    WORKER_PROCESSES       기본 1. 동시에 처리할 문서 수 = 워커 프로세스 수
+    WORKER_PROCESSES       기본 1. 워커 프로세스 수(N)
+    WORKER_THREADS         기본 1. 프로세스마다 동시에 처리할 문서 수(M, 액티비티 스레드)
+                           동시 문서 수 = N × M. 메모리는 프로세스 수에, 처리 중 문서 수에 함께 비례한다
     NFS_ROOT               필수. read_ref root="nfs"(원본·업로드 하드링크)를 여는 루트
     ARTIFACT_ROOT          필수. 산출물 ref 와 read_ref root="artifact"(JSON 복구본)를 여는 루트
                            (파이프라인 INTERIM_ROOT 와 같은 저장소를 이 파드에 마운트한 경로)
@@ -38,6 +40,7 @@ class Settings:
     temporal_namespace: str
     task_queue: str
     processes: int
+    threads: int
     nfs_root: str
     artifact_root: str
     heartbeat_interval: float
@@ -62,12 +65,16 @@ def load(env: dict | None = None) -> Settings:
     processes = int(env.get("WORKER_PROCESSES") or 1)
     if processes < 1:
         raise ValueError(f"WORKER_PROCESSES 는 1 이상이어야 합니다: {processes}")
+    threads = int(env.get("WORKER_THREADS") or 1)
+    if threads < 1:
+        raise ValueError(f"WORKER_THREADS 는 1 이상이어야 합니다: {threads}")
     return Settings(
         temporal_host=env["TEMPORAL_HOST"].strip(),
         temporal_port=int(env.get("TEMPORAL_PORT") or 7233),
         temporal_namespace=(env.get("TEMPORAL_NAMESPACE") or "ns-ifa-app").strip(),
         task_queue=env["WORKER_TASK_QUEUE"].strip(),
         processes=processes,
+        threads=threads,
         nfs_root=env["NFS_ROOT"].strip(),
         artifact_root=env["ARTIFACT_ROOT"].strip(),
         heartbeat_interval=float(env.get("HEARTBEAT_INTERVAL") or 10),

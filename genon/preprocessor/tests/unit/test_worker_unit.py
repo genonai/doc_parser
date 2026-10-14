@@ -166,37 +166,91 @@ def test_wrapped_error_without_type_follows_its_cause(cause, non_retryable):
         assert errors.to_application_error(wrapped).non_retryable is non_retryable
 
 
-def test_stuck_processing_poisons_the_process_and_rejects_next_work(cfg, monkeypatch):
-    """마감을 넘겨 처리 스레드가 남으면 재기동을 예약하고, 그동안 온 작업은 재시도로 돌려보낸다."""
+@pytest.mark.parametrize("release_after", [0.1, 0.5], ids=["유예 안에 끝남", "유예 뒤에 끝남"])
+def test_stuck_processing_rejects_new_work_and_restarts_after_running_work(cfg, monkeypatch, release_after):
+    """마감을 넘겨 처리 스레드가 남으면 새 작업은 재시도로 돌려보내고, 같은 프로세스가 받아 둔 다른 작업
+    (프로세서 준비 중인 것까지)이 끝나고 **그 뒤로** 보고 유예(0.3)가 지난 다음 프로세스를 끝낸다(WORKER_THREADS>1).
+    다른 작업이 유예 안에 끝나든 뒤에 끝나든 같다."""
     import threading
+    import time
 
-    timers = []
-    monkeypatch.setattr(runtime.threading, "Timer", lambda *a: timers.append(a) or _NoTimer())
+    exits = []
+    monkeypatch.setattr(runtime.os, "_exit", exits.append)
+    monkeypatch.setattr(runtime, "_EXIT_DELAY_SEC", 0.3)
+    monkeypatch.setattr(runtime, "_IDLE_POLL_SEC", 0.01)
     monkeypatch.setattr(runtime, "_POISONED", False)
-    release = threading.Event()
+    unstick, model_loaded, other_started = threading.Event(), threading.Event(), threading.Event()
 
     class _Stuck:
         async def __call__(self, request, file_path, **kwargs):
-            release.wait(5)                     # 동기 파싱처럼 루프를 막는다
+            unstick.wait(5)                     # 동기 파싱처럼 루프를 막는다
             return {"document": {"texts": []}}
 
+    class _Quick:
+        async def __call__(self, request, file_path, **kwargs):
+            return {"document": {"texts": []}}
+
+    def processor(entry):                       # 다른 slug 의 첫 호출 — 모델 적재가 오래 걸린다
+        if entry.slug == "parse_o":
+            other_started.set()
+            model_loaded.wait(5)
+            proc = _Quick()
+        else:
+            proc = _Stuck()
+        proc.run_activity = lambda arg: runtime.execute(proc, "parse", arg)
+        return proc
+    monkeypatch.setattr(registry, "processor", processor)
+    stuck_fn, other_fn = registry.build([registry.Entry("parse", "parse", None), registry.Entry("parse_o", "parse", None)])
+    arg = {"read_ref": {"root": "nfs", "path": "raw/a.pdf"}}
+
+    other = threading.Thread(target=ActivityEnvironment().run, args=(other_fn, {**arg, "output_ref": "k1/o"}))
+    other.start()
+    assert other_started.wait(5)
     env = ActivityEnvironment()
-    with pytest.raises(Exception) as info:
-        env.run(runtime.execute, _Stuck(), "parse",
-                {"read_ref": {"root": "nfs", "path": "raw/a.pdf"}, "output_ref": "k1/p",
-                 "params": {"request_deadline": 0.2}})
-    release.set()
-    assert info.value.type == "timeout" and timers and timers[0][1:] == (runtime.os._exit, (runtime.EXIT_RESTART,))
+    with pytest.raises(Exception) as stuck:
+        env.run(stuck_fn, {**arg, "output_ref": "k1/p", "params": {"request_deadline": 0.2}})
     with pytest.raises(Exception) as nxt:
-        env.run(registry.build([registry.Entry("parse", "parse", None)])[0], {})
+        env.run(stuck_fn, {**arg, "output_ref": "k1/q"})
+    time.sleep(release_after)                   # 준비 중인 작업이 있는 동안은 끝내지 않는다
+    exits_while_preparing = list(exits)
+    model_loaded.set()
+    other.join(5)
+    finished = time.monotonic()
+    for _ in range(300):
+        if exits:
+            break
+        time.sleep(0.01)
+    unstick.set()
+    assert stuck.value.type == "timeout"
     assert (nxt.value.type, nxt.value.non_retryable) == ("worker_restarting", False)
+    assert (exits_while_preparing, exits) == ([], [runtime.EXIT_RESTART])
+    assert time.monotonic() - finished >= 0.25  # 마지막 작업의 결과가 보고될 유예 뒤에 끝낸다
 
 
-class _NoTimer:
-    daemon = False
+def test_first_processor_is_created_once_under_concurrent_calls(monkeypatch):
+    """첫 호출이 여러 액티비티 스레드에서 동시에 와도 slug 의 프로세서는 하나만 만든다(모델 이중 적재 방지)."""
+    import concurrent.futures
+    import time
+    import types
 
-    def start(self):
-        pass
+    from genon.preprocessor.processing.core.parser import ParserCore
+
+    made = []
+
+    class _Slow(ParserCore):
+        def __init__(self):                      # 무거운 기동(모델 적재)을 흉내 낸다
+            made.append(self)
+            time.sleep(0.2)
+
+    real = registry.importlib.import_module
+    monkeypatch.setattr(registry.importlib, "import_module",
+                        lambda name, *a: types.SimpleNamespace(DocumentProcessor=_Slow)
+                        if name.endswith(".parse_t") else real(name, *a))
+    monkeypatch.setattr(registry, "_PROCESSORS", {})
+    entry = registry.Entry("parse_t", "parse", None)
+    with concurrent.futures.ThreadPoolExecutor(4) as pool:
+        procs = list(pool.map(lambda _: registry.processor(entry), range(4)))
+    assert len(made) == 1 and all(p is made[0] for p in procs)
 
 
 def test_processor_setup_error_is_classified(monkeypatch):
