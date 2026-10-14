@@ -304,7 +304,7 @@ def test_single_run_cli_uses_worker_body_and_prints_result_last(tmp_path, monkey
     monkeypatch.setattr(cli, "_run_isolated",
                         lambda argv: {"ok": True, "data": cli.run(cli._parser().parse_args(argv))})
 
-    code = cli.main(["run", "--activity", "parse", str(src), "--doc-type", "card",
+    code = cli.main(["run", "--activity", "parse", "--input", str(src), "--doc-type", "card",   # <file> 과 같다
                      "--params", '{"doc_type": "x", "keep": 1}', "-o", str(tmp_path / "out" / "p.json")])
     last = capsys.readouterr().out.strip().splitlines()[-1]
     result = json.loads(last.removeprefix("@@RESULT@@ "))
@@ -371,3 +371,72 @@ def test_diff_reports_uncommitted_copy(tmp_path):
     shutil.copytree(acts / "parse", acts / "parse_u")                      # 아직 커밋하지 않은 사본
     summary, body = diff_origin("parse_u", activities_dir=acts)
     assert summary["copied_at"] is None and "미커밋" in summary["note"] and body == ""
+
+
+# ── activities new / remove(#472) — 생성·복제 = 폴더 복사, 삭제 = 폴더 삭제 ─────────────────────
+
+def _activities(tmp_path, monkeypatch, site_overrides_parse=False):
+    """저장소 액티비티 폴더(parse·chunk) + 선택적으로 사이트 완성본(GENOS_RESOURCE_DIR 옆 activities/parse/)."""
+    acts = tmp_path / "activities"
+    for slug in ("parse", "chunk"):
+        (acts / slug).mkdir(parents=True)
+        (acts / slug / "processor.py").write_text(f"# {slug} 원형 별명\nclass DocumentProcessor: ...\n", encoding="utf-8")
+        (acts / slug / "__init__.py").write_text("", encoding="utf-8")
+        (acts / slug / "config.yaml").write_text(f"who: repo-{slug}\n", encoding="utf-8")
+        (acts / slug / "prompt_x.md").write_text("repo prompt\n", encoding="utf-8")
+    monkeypatch.delenv("GENOS_RESOURCE_DIR", raising=False)
+    if site_overrides_parse:
+        site = tmp_path / "site"
+        (site / "resource").mkdir(parents=True)
+        (site / "activities" / "parse").mkdir(parents=True)
+        (site / "activities" / "parse" / "config.yaml").write_text("who: site-parse\n", encoding="utf-8")
+        (site / "activities" / "parse" / "custom_field_faq.yaml").write_text("site field\n", encoding="utf-8")
+        (site / "activities" / "parse" / "plugins").mkdir()
+        (site / "activities" / "parse" / "plugins" / "extract.py").write_text("def run(): ...\n", encoding="utf-8")
+        monkeypatch.setenv("GENOS_RESOURCE_DIR", str(site / "resource"))
+    return acts
+
+
+def test_new_copies_effective_config_and_repo_code(tmp_path, monkeypatch):
+    """사본의 설정은 원본의 실제 설정 폴더(사이트가 덮어쓰면 그쪽)에서, 코드는 저장소 폴더에서 온다. 첫 줄 별명만 바뀐다."""
+    from genon.preprocessor.activities.__main__ import new_activity
+
+    acts = _activities(tmp_path, monkeypatch, site_overrides_parse=True)
+    files = new_activity("parse", "parse_1", activities_dir=acts)
+    # 사이트 설정 폴더의 것 전부(플러그인 하위 폴더 포함) + 저장소 코드 — 저장소 설정 폴더의 prompt_x.md 는 오지 않는다
+    assert sorted("/".join(Path(f).parts[-2:]) if "plugins" in f else Path(f).name for f in files) == \
+        ["__init__.py", "config.yaml", "custom_field_faq.yaml", "plugins/extract.py", "processor.py"]
+    assert (acts / "parse_1" / "config.yaml").read_text(encoding="utf-8") == "who: site-parse\n"      # 사이트 설정(모니모 유형)
+    assert (acts / "parse_1" / "processor.py").read_text(encoding="utf-8") == \
+        "# parse 원형 별명 사본\nclass DocumentProcessor: ...\n"
+
+
+@pytest.mark.parametrize("origin, slug, title, needle", [
+    ("parse", "parse", None, "원형 이름"), ("parse", "Parse_1", None, "규칙"), ("parse", "chunk_1", None, "단계가 다릅니다"),
+    ("nope", "parse_1", None, "원본 'nope'"), ("parse", "parse_1", "두\n줄", "한 줄"),
+])
+def test_new_rejects_bad_requests(tmp_path, monkeypatch, origin, slug, title, needle):
+    from genon.preprocessor.activities.__main__ import new_activity
+
+    acts = _activities(tmp_path, monkeypatch)
+    with pytest.raises(ValueError, match=needle):
+        new_activity(origin, slug, title=title, activities_dir=acts)
+    assert sorted(p.name for p in acts.iterdir()) == ["chunk", "parse"]                              # 아무것도 만들지 않았다
+
+
+def test_remove_deletes_copy_but_not_prototype_or_site_overridden(tmp_path, monkeypatch):
+    from genon.preprocessor.activities.__main__ import new_activity, remove_activity
+
+    acts = _activities(tmp_path, monkeypatch, site_overrides_parse=True)
+    new_activity("chunk", "chunk_1", activities_dir=acts)
+    removed = remove_activity("chunk_1", activities_dir=acts)
+    assert sorted(Path(f).name for f in removed) == ["__init__.py", "config.yaml", "processor.py", "prompt_x.md"]
+    assert not (acts / "chunk_1").exists()
+    for slug, needle in (("parse", "원형"), ("chunk_1", "없습니다")):
+        with pytest.raises(ValueError, match=needle):
+            remove_activity(slug, activities_dir=acts)
+    new_activity("parse", "parse_s", activities_dir=acts)
+    (tmp_path / "site" / "activities" / "parse_s").mkdir()                       # 사이트가 덮어쓰는 slug
+    with pytest.raises(ValueError, match="사이트 완성본"):
+        remove_activity("parse_s", activities_dir=acts)
+    assert (acts / "parse_s").exists()
