@@ -42,6 +42,7 @@ PARSER_REQUIRED_METHODS = (
     "check_empty_text",
     "judges_native_text",
     "has_text",
+    "page_text_metrics",
     "find_reocr_pages",
     "ocr_text_items_on_pages",
     "ocr_all_table_cells",

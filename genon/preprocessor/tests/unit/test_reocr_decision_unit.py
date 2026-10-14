@@ -90,17 +90,23 @@ def test_parse_docling_reocr_paths(native, verdict, found, endpoint, failed, exp
     dp._intel.ocr_endpoint = endpoint
     dp._intel.find_reocr_pages.return_value = found[:2]
     dp._intel.has_text.return_value = found[2]
+    dp._intel.page_text_metrics.return_value = {"glyph_by_page": {}, "chars": 10, "chars_per_page": 10}
     dp._intel.judges_native_text.return_value = native
     dp._intel.ocr_text_items_on_pages.return_value = failed
     dp._intel.ocr_all_table_cells.side_effect = lambda document, path: document
     dp._intel.enrichment_options.do_picture_description = False
     dp._intel.table_image_enabled = False
     dp._intel.enrichment.side_effect = lambda document, **kw: document
+    ctx: dict = {}
     with patch.object(core_parser, "judge_document", return_value=verdict) as judge:
-        dp._parse_docling("doc.pdf")
+        dp._parse_docling("doc.pdf", _enrichment_context=ctx)
     # expected = (페이지 단위 OCR 호출, 문서 전체 재변환, 판정 LLM 호출)
     assert (dp._intel.ocr_text_items_on_pages.called, dp._intel.load_documents_with_docling_ocr.called,
             judge.called) == expected
+    # 판정 기록이 응답 metadata.ocr_judge 로 나간다 — 전체 재변환 여부가 실제 동작과 같아야 한다
+    judge_log = ctx["metadata"]["ocr_judge"]
+    assert (judge_log["full_reconvert"], judge_log["verdict"] == "skipped", judge_log["chars"]) == (
+        expected[1], not judge.called, 10)
 
 
 @pytest.mark.unit
@@ -138,6 +144,9 @@ def test_find_reocr_pages_returns_broken_page_numbers():
                    prov=ProvenanceItem(page_no=page_no, bbox=BoundingBox(l=0, t=0, r=500, b=20),
                                        charspan=(0, len(text))))
     assert dops.find_reocr_pages(d, threshold=10) == ([2], [3])
+    # 판정 기록용 지표 — GLYPH 는 토큰이 있는 페이지만, 평균은 텍스트가 있는 페이지 기준
+    metrics = dops.page_text_metrics(d)
+    assert (metrics["glyph_by_page"], metrics["chars_per_page"]) == ({"2": 11, "4": 1}, round(metrics["chars"] / 3))
 
 
 @pytest.mark.unit

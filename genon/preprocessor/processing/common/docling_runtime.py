@@ -529,6 +529,10 @@ class DoclingRuntimeBase:
         """
         return getattr(self, "layout_model_type", "genos_layout") == "docling_layout"
 
+    def page_text_metrics(self, document: DoclingDocument) -> dict:
+        """재OCR 판정 기록용 지표(#483). docling_ops.page_text_metrics 참조."""
+        return dops.page_text_metrics(document)
+
     def has_text(self, document: DoclingDocument) -> bool:
         """글자가 있는 TextItem 이 하나라도 있는지(#483)."""
         return dops.has_text(document)

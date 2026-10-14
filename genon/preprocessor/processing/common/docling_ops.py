@@ -351,6 +351,28 @@ def reocr_reason(verdict: OcrVerdict, glyph_broken: bool, empty_page: bool,
     return "none"
 
 
+def page_text_metrics(document: DoclingDocument) -> dict:
+    """재OCR 판정 기록용 지표(#483). 응답 metadata.ocr_judge 에 실어 운영에서 임계값을 보정하는 근거로 쓴다.
+
+    glyph_by_page: GLYPH 토큰이 있는 페이지만 {페이지 번호(문자열): 토큰 수}
+    chars: 문서 전체 글자 수(공백 제외 앞뒤), chars_per_page: 텍스트가 있는 페이지당 평균 글자 수
+    """
+    glyph_by_page: dict = {}
+    chars_by_page: dict = {}
+    for item, _level in document.iterate_items():
+        if isinstance(item, TextItem) and item.prov:
+            page_no = item.prov[0].page_no
+            text = item.text or ""
+            chars_by_page[page_no] = chars_by_page.get(page_no, 0) + len(text.strip())
+            n_glyph = len(re.findall(r"GLYPH\w*", text))
+            if n_glyph:
+                glyph_by_page[str(page_no)] = glyph_by_page.get(str(page_no), 0) + n_glyph
+    chars = sum(chars_by_page.values())
+    text_pages = sum(1 for n in chars_by_page.values() if n)
+    return {"glyph_by_page": glyph_by_page, "chars": chars,
+            "chars_per_page": round(chars / text_pages) if text_pages else 0}
+
+
 def has_text(document: DoclingDocument) -> bool:
     """글자가 있는 TextItem 이 하나라도 있는지(#483).
 
