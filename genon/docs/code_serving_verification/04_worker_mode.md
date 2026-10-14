@@ -44,27 +44,35 @@ push 한 것이다. 환경변수만 다르다.
 | `WORKER_THREADS` | `5` | HTTP 의 워커 5개와 동시 처리 수를 맞춘다 |
 | `NFS_ROOT` | 문서가 있는 NFS 루트 | 액티비티는 이 루트 기준 상대 경로로 파일을 연다 |
 | `ARTIFACT_ROOT` | `<NFS 의 측정 전용 폴더>` | parse·chunk 결과 JSON 을 여기에 쓴다. 파이프라인 산출물 폴더와 겹치지 않게 한다 |
-| `GENOS_RESOURCE_DIR` | 묶음 2 와 같은 리소스 폴더 | 워커는 이 폴더의 `parse_config.yaml`·`chunk_config.yaml` 을 읽는다. 아래 "설정 파일 이름" 참고 |
+| `GENOS_RESOURCE_DIR` | `<SITE_DIR>/resource` | 아래 "사이트 설정 폴더 구성" 참고 |
 | `OMP_NUM_THREADS` | 넣지 않는다 | 워커가 "파드 CPU ÷ 프로세스 수" 의 내림으로 정한다(1 코어면 1) |
+| `GENOS_PROFILE` | `1`(병목 분해 측정 때만) | 단계별 시간·CPU 와 모든 외부 HTTP 호출의 지연·동시 호출 수를 `[prof]` 로그로 남긴다. 아래 "병목 분해" 참고 |
 
-### 설정 파일 이름
+### 사이트 설정 폴더 구성
 
-워커(studio/dev)는 `<slug>_config.yaml`, 즉 `parse_config.yaml`·`chunk_config.yaml` 을 찾는다. develop 기준으로 만든 리소스 폴더는
-`parser_processor_config.yaml`·`chunking_processor_config.yaml` 이라 이름이 다르다. 이 파일이 없으면 워커는 **경고 없이
-저장소의 표준 설정으로 기동한다**(#520). 기동은 정상이고 요청에서야 레이아웃 모델 500, doc_type 미등록 같은 실패로 드러난다.
-HTTP 측정과 같은 설정으로 비교하려면 리소스 폴더에 같은 내용의 사본을 둔다. 기존 파일은 그대로 두므로 develop 배포에는 영향이 없다.
+워커는 액티비티(slug)마다 설정 폴더 하나를 쓴다(#517). 사이트 배포에서는 `GENOS_RESOURCE_DIR` 이 사이트의 `resource/` 를
+가리키고, 그 **옆의** `activities/<slug>/` 가 그 slug 의 설정 폴더가 된다. 사이트에 `activities/` 가 없으면 처리가 실패한다(#523).
 
-```bash
-cd <NFS_RESOURCE_DIR> && cp -n parser_processor_config.yaml parse_config.yaml && cp -n chunking_processor_config.yaml chunk_config.yaml
+```text
+<SITE_DIR>/
+  resource/              model_presets.yaml 등. GENOS_RESOURCE_DIR 은 여기를 가리킨다
+  activities/
+    parse/config.yaml    + 설정이 파일명으로 부르는 custom_field_*.yaml·prompt_*.md
+    chunk/config.yaml
 ```
 
-워커 파드 안에서 실제로 읽는 경로를 확인한다. 두 slug 모두 리소스 폴더의 경로가 나와야 한다(`None` 이면 표준 설정이다).
+develop 기준 리소스 폴더(`parser_processor_config.yaml`·`chunking_processor_config.yaml`)로 HTTP 측정과 같은 설정을 만들려면
+아래처럼 옮긴다. `model_presets_file:` 줄은 뺀다 — 빼면 `resource/model_presets.yaml` 을 읽고, 두면 액티비티 폴더 기준으로 찾는다.
 
 ```bash
-cd /app/src/service && python -c "from genon.preprocessor.worker import registry; print([(e.slug, e.config_path) for e in registry.scan()])"
+SRC=<NFS_RESOURCE_DIR>; D=<SITE_DIR>
+mkdir -p $D/resource $D/activities/parse $D/activities/chunk && cp -a $SRC/. $D/resource/
+grep -v "^model_presets_file:" $SRC/parser_processor_config.yaml > $D/activities/parse/config.yaml
+cp $SRC/custom_field_*.yaml $SRC/prompt_*.md $D/activities/parse/
+grep -v "^model_presets_file:" $SRC/chunking_processor_config.yaml > $D/activities/chunk/config.yaml
 ```
 
-설정 경로는 워커 자식 프로세스가 기동할 때 읽는다. 기동 뒤에 사본을 만들었으면 자식 프로세스만 끝낸다(`kill <자식 PID>`, `ps -eo pid,args | grep multiprocessing.spawn` 으로 찾는다). 부모가 곧바로 다시 띄운다.
+기동 로그에 slug 마다 설정 경로와 출처(사이트 완성본 | 저장소 표준)가 한 줄씩 찍힌다(#520). 두 slug 모두 `<SITE_DIR>/activities/…` 여야 한다.
 
 기동 로그에서 아래 한 줄을 확인한다. `OMP_NUM_THREADS=1` 이고 `액티비티=chunk, parse` 여야 한다.
 
@@ -107,7 +115,25 @@ kubectl -n <NAMESPACE> exec <POD> -- sh -c 'mkdir -p <ARTIFACT_ROOT> && cd /app/
 단계마다 묶음 3 과 같은 표, 단계별 대기·처리 표, 요약 한 줄(wall, 동시 처리 최대, 대기 최대)이 나온다.
 결과는 `--out` 의 `results.json` 에 남는다. 산출물은 `ARTIFACT_ROOT/measure/<run>/` 에 남으므로 끝나면 지운다.
 
-## 3. 판정
+## 3. 병목 분해(`GENOS_PROFILE=1`)
+
+리비전에 `GENOS_PROFILE=1` 을 넣고 같은 클라이언트를 돌린 뒤, 워커 로그를 받아 표로 묶는다. 순차 구간과 동시 구간은 클라이언트
+로그의 단계 시작 시각으로 나눈다.
+
+```bash
+kubectl -n <NAMESPACE> logs <POD> --since=2h > worker.log
+python3 genon/preprocessor/tools/code_serving/prof_report.py worker.log --from <순차 시작> --to <동시 시작>
+python3 genon/preprocessor/tools/code_serving/prof_report.py worker.log --from <동시 시작> --to <끝>
+```
+
+| 표 | 보는 법 |
+|---|---|
+| 단계별·단계 합계 | 순차 구간에서 단계마다 `proc_cpu`(CPU 일)와 `wait`(= wall - proc_cpu, 외부 응답 대기)의 비율. `convert` 의 wait 는 레이아웃 VLM, 보강 단계의 wait 는 LLM 이다 |
+| 외부 호출 | 엔드포인트마다 지연 p50·p95 와, 같은 엔드포인트 동시 호출 수 구간별 p50. 동시 호출이 늘 때 p50 이 따라 늘면 그 서빙의 용량이 병목이다 |
+
+`proc_cpu` 는 프로세스 전체 CPU 증분이라 동시 구간에서는 문서 몫으로 읽지 않는다.
+
+## 4. 판정
 
 | 질문 | 판정 |
 |---|---|
@@ -125,7 +151,8 @@ kubectl -n <NAMESPACE> exec <POD> -- sh -c 'mkdir -p <ARTIFACT_ROOT> && cd /app/
 | 증상 | 원인과 조치 |
 |---|---|
 | 기동 로그에 `Namespace … is not found` 가 1초마다 반복 | `TEMPORAL_NAMESPACE` 가 사이트 값과 다르다. 파이프라인 워커 파드의 값으로 바꾼다 |
-| 요청이 레이아웃 모델 500(주소에 `<…_SERVING_ID>` 자리표시자), doc_type 미등록으로 실패 | 워커가 표준 설정으로 돌고 있다. 위 "설정 파일 이름" 대로 사본을 두고 자식 프로세스를 다시 띄운다 |
+| 요청이 레이아웃 모델 500(주소에 `<…_SERVING_ID>` 자리표시자), doc_type 미등록으로 실패 | 워커가 표준 설정으로 돌고 있다(#517 전 빌드). 사이트 폴더를 위 구성으로 맞춘다 |
+| 처리가 "사이트 activities/ 가 없다" 로 바로 실패 | `GENOS_RESOURCE_DIR` 옆에 `activities/` 가 없다(#523). 위 구성으로 만든다 |
 | 코드스페이스에서 `pip install` 이 `Name or service not known` | PyPI 미러에 접근할 수 없다. 워커 파드 안에서 실행한다 |
 
 ## 이 검증의 결과
