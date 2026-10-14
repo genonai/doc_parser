@@ -16,6 +16,7 @@ processor.py 는 `DocumentProcessor` 를 상속만 한다. 액티비티 본문�
 from __future__ import annotations
 
 import importlib
+import logging
 import threading
 from dataclasses import dataclass
 from pathlib import Path
@@ -30,6 +31,7 @@ from .errors import to_application_error
 
 STAGES = _folders.STAGES
 stage_of = _folders.stage_of
+log = logging.getLogger("genon.worker")
 
 
 @dataclass(frozen=True)
@@ -40,9 +42,25 @@ class Entry:
 
 
 def scan(activities_dir: Path | None = None) -> list[Entry]:
-    """activities 디렉터리의 액티비티 폴더 → Entry 목록(slug 순). config.yaml 이 없는 폴더는 ValueError."""
-    return [Entry(slug, stage_of(slug), str(_folders.config_path(slug, activities_dir)))
-            for slug in _folders.slugs(activities_dir)]
+    """activities 디렉터리의 액티비티 폴더 → Entry 목록(slug 순). config.yaml 이 없는 폴더는 ValueError.
+
+    slug 마다 실제로 쓰는 설정 경로와 출처(사이트 완성본 | 저장소 표준)를 로그에 남긴다(#520 — 기동 로그만으로 어느
+    설정으로 도는지 알 수 있게). 사이트 배포(GENOS_RESOURCE_DIR)인데 그 옆에 activities/ 가 없으면 경고한다 — 액티비티
+    설정이 전부 저장소 표준으로 떨어져 사이트 문서유형 등록이 빠진 채 돈다(모델 접속은 resource/ 의 model_presets.yaml
+    로 그대로 적용된다). 실패로 막지는 않는다(표준 설정으로 도는 사이트도 있을 수 있다).
+    """
+    site = _folders.site_activities_dir()
+    if site is not None and not site.is_dir():
+        log.warning("사이트 설정(GENOS_RESOURCE_DIR=%s) 옆에 activities/ 가 없다 — 액티비티 설정은 전부 저장소 표준을 "
+                    "쓴다(사이트 문서유형 등록 미반영 — 모델 접속은 resource/model_presets.yaml 로 적용된다). "
+                    "사이트 완성본은 resource/ 와 activities/<slug>/ 두 자리다", _folders.resource_dir())
+    entries = []
+    for slug in _folders.slugs(activities_dir):
+        path = _folders.config_path(slug, activities_dir)
+        source = "사이트 완성본" if site is not None and path.parent.parent == site else "저장소 표준"
+        log.info("액티비티 %s: 설정 %s (%s)", slug, path, source)
+        entries.append(Entry(slug, stage_of(slug), str(path)))
+    return entries
 
 
 _PROCESSORS: dict[str, object] = {}
