@@ -1,15 +1,17 @@
-"""액티비티 등록부 — `activities/` 의 파일 이름 규칙으로 파싱·청킹 액티비티를 찾는다.
+"""액티비티 등록부 — `activities/<slug>/` 폴더 규칙으로 파싱·청킹 액티비티를 찾는다(#495).
 
-규칙(설계서 v0.25): **파일명 = slug = 액티비티 이름, 첫 단어 = 단계.** `activities/` 최상위에서
-이름이 `parse`·`chunk` 이거나 `parse_`·`chunk_` 로 시작하는 파일만 등록한다. 목록을 만들 때는
-import 하지 않는다(파사드 import 는 docling 을 끌어와 무겁다).
+규칙: **폴더 이름 = slug = 액티비티 이름, 첫 단어 = 단계.** `activities/` 바로 아래에서 `processor.py` 가 있고
+이름이 `parse`·`chunk` 이거나 `parse_`·`chunk_` 로 시작하는 폴더만 등록한다. 목록을 만들 때는 import 하지
+않는다(파사드 import 는 docling 을 끌어와 무겁다). 폴더 규칙·사이트 덮어쓰기는 `activities/_folders.py`.
 
-파일은 `DocumentProcessor` 를 상속만 한다. 액티비티 본문은 부모(`ParserCore`·`ChunkerCore`)의
+processor.py 는 `DocumentProcessor` 를 상속만 한다. 액티비티 본문은 부모(`ParserCore`·`ChunkerCore`)의
 `run_activity(arg)` 하나이고, 이름은 여기서 붙인다 — 바운드 메서드에는 이름표를 붙일 수 없고,
 물려받은 같은 함수에 붙이면 두 번째 slug 가 충돌하므로 slug 마다 얇은 래퍼 함수를 만든다.
 프로세서는 slug 마다 프로세스당 1개, 첫 호출에 만든다(액티비티 스레드 여럿이 함께 쓴다).
 
-짝 설정은 `resource/<slug>_config.yaml` 이다. 없으면 프로세서 기본 해석에 맡긴다.
+설정은 폴더의 `config.yaml` 이 **필수**다 — 없으면 목록을 만들 때 오류다(예전엔 짝 설정이 없으면 조용히
+패키지 기본 설정으로 떨어져 사이트 문서유형을 몰랐다). 사이트 완성본이 그 slug 폴더를 갖고 있으면
+그 폴더의 config.yaml 을 쓴다(`_folders.config_dir`).
 """
 from __future__ import annotations
 
@@ -21,37 +23,26 @@ from pathlib import Path
 from temporalio import activity
 from temporalio.exceptions import CancelledError
 
-from . import runtime, settings
+from genon.preprocessor.activities import _folders
+
+from . import runtime
 from .errors import to_application_error
 
-STAGES = ("parse", "chunk")
+STAGES = _folders.STAGES
+stage_of = _folders.stage_of
 
 
 @dataclass(frozen=True)
 class Entry:
     slug: str
     stage: str              # "parse" | "chunk"
-    config_path: str | None
+    config_path: str        # 폴더(또는 사이트 완성본)의 config.yaml
 
 
-def stage_of(slug: str) -> str | None:
-    """slug → 단계. 규칙에 맞지 않으면 None."""
-    head = slug.split("_", 1)[0]
-    return head if head in STAGES else None
-
-
-def scan(activities_dir: Path | None = None, resource_dir: Path | None = None) -> list[Entry]:
-    """activities 디렉터리 최상위(하위 폴더 제외) → Entry 목록(slug 순)."""
-    activities_dir = activities_dir or settings.ACTIVITIES_DIR
-    resource_dir = resource_dir or settings.resource_dir()
-    entries = []
-    for path in sorted(activities_dir.glob("*.py")):
-        stage = stage_of(path.stem)
-        if stage is None:
-            continue
-        cfg = resource_dir / f"{path.stem}_config.yaml"
-        entries.append(Entry(path.stem, stage, str(cfg) if cfg.is_file() else None))
-    return entries
+def scan(activities_dir: Path | None = None) -> list[Entry]:
+    """activities 디렉터리의 액티비티 폴더 → Entry 목록(slug 순). config.yaml 이 없는 폴더는 ValueError."""
+    return [Entry(slug, stage_of(slug), str(_folders.config_path(slug, activities_dir)))
+            for slug in _folders.slugs(activities_dir)]
 
 
 _PROCESSORS: dict[str, object] = {}
@@ -71,11 +62,12 @@ def processor(entry: Entry):
         from genon.preprocessor.processing.core.chunker import ChunkerCore
         from genon.preprocessor.processing.core.parser import ParserCore
 
-        cls = importlib.import_module(f"genon.preprocessor.activities.{entry.slug}").DocumentProcessor
+        cls = importlib.import_module(f"genon.preprocessor.activities.{entry.slug}.processor").DocumentProcessor
         base = ParserCore if entry.stage == "parse" else ChunkerCore
         if not issubclass(cls, base):
-            raise TypeError(f"activities/{entry.slug}.py 의 DocumentProcessor 는 {base.__name__} 를 상속해야 합니다")
-        proc = cls(config_path=entry.config_path) if entry.config_path else cls()
+            raise TypeError(f"activities/{entry.slug}/processor.py 의 DocumentProcessor 는 {base.__name__} 를 "
+                            "상속해야 합니다")
+        proc = cls(config_path=entry.config_path)
         _PROCESSORS[entry.slug] = proc
     return proc
 

@@ -15,14 +15,17 @@ genon/sites/
     model_presets.yaml   로컬(VPN) 모델 접속값. 로컬 도구만 쓴다
   <site>/
     manifest.yaml        owned: 이 사이트가 소유하는 파일 목록
-    resource/            완성본 설정 폴더 = 표준 사본 + owned 파일
+    resource/            완성본 설정 폴더 = 표준 사본 + owned 파일(모델 접속 정보, HTTP facade·간이 파서 설정)
+    activities/<slug>/   완성본 액티비티 설정 = 표준 사본 + owned 파일(파서 설정 config.yaml·custom_field, #497).
+                         코드(processor.py)는 저장소 것이라 여기 두지 않는다. 그 slug 폴더가 있을 때만 덮어쓴다
     facade/              사이트 전용 전처리기 코드(선택)
     docs/                사이트 전용 전처리기 매뉴얼(선택)
 ```
 
-- `resource/` 에서 `owned:` 에 적힌 파일만 사이트가 직접 고친다. 모니모는 `model_presets.yaml`,
-  파서 설정 2종(`parse_config.yaml`, `parse_config_simple.yaml`),
-  `custom_field_*.yaml` 14종을 소유한다.
+- `owned:` 에 적힌 파일(사이트 루트 기준 경로)만 사이트가 직접 고친다. 모니모는 `resource/model_presets.yaml`,
+  간이 파서 설정 `resource/parse_config_simple.yaml`(+ 그것이 부르는 `custom_field_*.yaml` 14종 사본),
+  파서 액티비티 설정 `activities/parse/config.yaml` 과 `activities/parse/custom_field_*.yaml` 14종을 소유한다.
+  두 자리의 custom_field 사본은 같아야 한다(`test_sites_sync_unit.py` 가 대조).
 - 나머지 파일은 표준의 사본이다. **사본은 직접 고치지 않는다.** 표준을 고친 뒤 `sync-sites.sh` 로 맞춘다.
   사본이 표준과 다르면 `genon/preprocessor/tests/unit/test_sites_sync_unit.py` 가 실패한다.
 - owned 파서 설정은 표준이 새 키를 추가해도 자동으로 들어오지 않는다. 표준 파서 설정을 바꿨으면
@@ -82,11 +85,15 @@ owned 파일을 제외한 모든 파일을 표준과 똑같이 맞추고, 표준
 
 ## 배포
 
-`genon/sites/<site>/resource/` 를 그대로 전달한다.
+`genon/sites/<site>/` 의 두 자리를 그대로 전달한다.
 
-- 코드서빙: 배포본의 `genon/preprocessor/resource/` 를 이 폴더로 덮어쓴다.
-- 기본 전처리기 서비스: 이 폴더를 MinIO 리소스로 올린다.
-- 핫픽스 번들: `build-script/create-patch-bundle.sh <이름> --site <site>` 로 만들면 번들의 `resource/` 가 이 폴더다.
+- 코드서빙(워커·HTTP): `GENOS_RESOURCE_DIR` 가 사이트의 `resource/` 를 가리키게 하고, 그 **옆에** `activities/<slug>/` 를
+  함께 둔다(예: NFS 의 `…/monimo/resource` + `…/monimo/activities/parse`). 그 slug 폴더가 있으면 그 폴더가 설정 폴더가
+  된다(`genon/preprocessor/activities/_folders.py`). 배포본의 `resource/` 를 덮어쓰는 방식도 같다 — 그때는 `activities/<slug>/`
+  의 설정 파일도 함께 덮어쓴다.
+- 기본 전처리기 서비스: `resource/` 를 MinIO 리소스로 올린다(간이 파서 설정과 custom_field 사본이 여기 있다).
+- 핫픽스 번들: `build-script/create-patch-bundle.sh <이름> --site <site>` 로 만들면 번들의 `resource/` 가 이 폴더이고,
+  번들의 `activities/<slug>/` 설정 파일도 사이트 완성본으로 덮어쓴다.
 - 사이트 전용 전처리기는 `genon/sites/<site>/facade/` 의 해당 파일을 별도로 전달한다. 코드서빙 배포본과
   핫픽스 번들 어디에도 포함되지 않는다.
 

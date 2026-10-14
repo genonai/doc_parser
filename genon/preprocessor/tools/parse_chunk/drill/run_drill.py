@@ -110,12 +110,13 @@ def build_drill_config(work: Path, cases: list) -> Path:
     원본을 건드리지 않는 것이 중요하다 — B16(doc_type 충돌)이 보여주듯 등록 하나로
     기존 doc_type 을 죽일 수 있고, 그러면 골든이 통째로 흔들린다.
     """
-    src = resource_dir()
-    shutil.copytree(src, work / "resource")
+    # 사이트 완성본(resource/ + activities/parse/)을 통째로 복사하고 파서 액티비티 폴더에 드릴 설정을 더한다
+    shutil.copytree(resource_dir().parent, work, dirs_exist_ok=True)
+    parser_dir = work / "activities" / "parse"
     for cfg in CONFIG_DIR.glob("custom_field_drill_*.yaml"):
-        shutil.copy(cfg, work / "resource" / cfg.name)
+        shutil.copy(cfg, parser_dir / cfg.name)
 
-    parser_cfg = work / "resource" / "parse_config.yaml"
+    parser_cfg = parser_dir / "config.yaml"
     cfg = yaml.safe_load(parser_cfg.read_text(encoding="utf-8"))
     # B12: .jsonl 을 .json 으로 보게 한다. 확장자 자체는 설정 한 줄로 받을 수 있고,
     # 그 뒤 내용(줄 단위 JSON)이 설정으로 되는지가 진짜 시험 대상이다.

@@ -48,7 +48,7 @@ def _parser() -> argparse.ArgumentParser:
                 description="전처리기 액티비티 단건 실행(워커와 같은 본문, Temporal 미경유)")
     sub = p.add_subparsers(dest="command", required=True, parser_class=_Parser)
     run = sub.add_parser("run", help="액티비티 1개를 단건 실행한다")
-    run.add_argument("--activity", required=True, help="slug(= activities/<slug>.py 파일명)")
+    run.add_argument("--activity", required=True, help="slug(= activities/<slug>/ 폴더 이름)")
     run.add_argument("file", help="parse: 원본 문서 · chunk: 파싱 결과 JSON")
     run.add_argument("--doc-type", help="문서 유형(params.doc_type 보다 우선)")
     run.add_argument("--params", default="{}", help="실행 파라미터 JSON(Studio 층②)")

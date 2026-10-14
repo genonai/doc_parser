@@ -46,7 +46,6 @@ _log = logging.getLogger(__name__)
 # 문자 수를 토큰으로 환산할 때의 안전계수. 한국어 기준 1글자가 1토큰을 넘는 경우를 감안한 상한.
 _TOKENS_PER_CHAR = 1.5
 
-_CONFIG_DIR = Path(__file__).parent.parent / "configs" / "enrich" / "custom_fields"
 
 # 배치 하나가 실패해도 나머지로 진행하지만, 아래 둘은 요청 전체가 끝난 신호라 그대로 올린다.
 # (deadline 소진은 남은 배치도 전부 같은 이유로 실패한다 — 삼키면 행잉으로 돌아간다.)
@@ -213,17 +212,22 @@ def warn_unsupported_custom_fields(configs: list[dict] | None, processor: str) -
 def resolve_custom_fields_config_path(
     config_file: str, resource_path: str | None = None
 ) -> Path:
-    """custom_fields 하위 config 경로를 기존 규칙대로 해석한다."""
+    """custom_fields 하위 config 경로 — 설정 폴더(resource_path) 안의 파일만 받는다(prompt 파일과 같은 규칙,
+    #495). 절대 경로는 운영자의 명시적 지정으로 보고 그대로 쓴다. 확장자가 없으면 .yaml 을 붙인다."""
     cfg_path = Path(config_file)
     if cfg_path.is_absolute():
         return cfg_path
-    if cfg_path.suffix in {".yaml", ".yml"} or len(cfg_path.parts) > 1:
-        return (Path(resource_path) / cfg_path).resolve() if resource_path else cfg_path
-    if resource_path:
-        candidate = (Path(resource_path) / f"{config_file}.yaml").resolve()
-        if candidate.exists():
-            return candidate
-    return _CONFIG_DIR / f"{config_file}.yaml"
+    if cfg_path.suffix not in {".yaml", ".yml"}:
+        cfg_path = cfg_path.with_name(cfg_path.name + ".yaml")
+    if not resource_path:
+        return cfg_path
+    base = Path(resource_path).resolve()
+    resolved = (base / cfg_path).resolve()
+    try:
+        resolved.relative_to(base)
+    except ValueError as exc:
+        raise ValueError(f"custom_fields config_file 경로가 설정 폴더를 벗어났습니다: {resolved} (base: {base})") from exc
+    return resolved
 
 
 def load_custom_fields_config(

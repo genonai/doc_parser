@@ -22,8 +22,9 @@ ACTIVITIES_DIR = Path(__file__).resolve().parents[2] / "activities"
 # facade/parser_processor.py·chunking_processor.py 는 activities/ 로 옮긴 모듈의 별칭이라(#474) 뺀다.
 ALIASES = {"parser_processor", "chunking_processor"}
 FACADES = sorted([p for p in FACADE_DIR.glob("*_processor.py") if p.stem not in ALIASES]
-                 + [p for p in ACTIVITIES_DIR.glob("*.py") if not p.name.startswith("_")])
-FACADE_STEMS = {p.stem for p in FACADES} | ALIASES
+                 + [p for p in ACTIVITIES_DIR.glob("*/processor.py") if not p.parent.name.startswith("_")])
+# 액티비티는 폴더 하나(activities/<slug>/processor.py)라 slug 가 이름이다(#495)
+FACADE_STEMS = {p.parent.name if p.name == "processor.py" else p.stem for p in FACADES} | ALIASES
 
 
 def _imported_modules(tree: ast.AST) -> list[tuple[int, str]]:
@@ -46,5 +47,6 @@ def test_top_level_facades_do_not_import_each_other():
         for path in FACADES
         for lineno, module in _imported_modules(ast.parse(path.read_text(encoding="utf-8")))
         if module.rsplit(".", 1)[-1] in FACADE_STEMS
+        or module.endswith(".processor") and module.rsplit(".", 2)[-2] in FACADE_STEMS
     ]
     assert violations == []

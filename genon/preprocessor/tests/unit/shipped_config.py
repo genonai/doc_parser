@@ -15,13 +15,15 @@ import yaml
 
 PREPROCESSOR_DIR = Path(__file__).resolve().parents[2]
 
-# 모니모 사이트 완성본. 표준 resource/ 의 사본에 모니모 소유 파일을 더한, 그대로 실행하는 전체 폴더다
+# 모니모 사이트 완성본의 파서 액티비티 폴더(#495·#497) — 파서 설정(config.yaml)과 문서유형 설정 14종이 여기 있다.
 # (build-script/sync-sites.sh 가 표준 사본을 맞춘다). PREPROCESSOR_DIR 기준 상대경로로 두어
 # `resource_dir` 파라미터 자리에 그대로 쓴다.
-SITE_MONIMO = "../sites/monimo/resource"
+SITE_MONIMO = "../sites/monimo/activities/parse"
 
 # 전수 검사가 도는 출고 설정 폴더.
-SHIPPED_ROOTS = ("resource", SITE_MONIMO)
+STANDARD_PARSE = "activities/parse"           # 표준 파서 액티비티 폴더(config.yaml + card)
+SITE_MONIMO_RESOURCE = "../sites/monimo/resource"   # 모니모 설정 폴더(HTTP facade 설정·간이 파서 설정 + 문서유형 사본)
+SHIPPED_ROOTS = ("resource", STANDARD_PARSE, SITE_MONIMO_RESOURCE, SITE_MONIMO)
 
 
 def sibling_presets(path: Path) -> dict:
@@ -33,8 +35,11 @@ def sibling_presets(path: Path) -> dict:
     """
     from genon.preprocessor.processing.common import config_parse as cp
 
-    config = Path(path).parent / "parse_config.yaml"
-    if not config.exists():
+    # 액티비티 폴더는 config.yaml, HTTP facade 설정 폴더(resource/)는 intelligent 설정이 같은 프리셋을 쓴다.
+    folder = Path(path).parent
+    config = next((folder / n for n in ("config.yaml", "parse_config.yaml", "intelligent_processor_config.yaml")
+                   if (folder / n).exists()), None)
+    if config is None:
         return {}
     cfg = yaml.safe_load(config.read_text(encoding="utf-8")) or {}
     return cp.collect_model_presets(cfg, str(config))

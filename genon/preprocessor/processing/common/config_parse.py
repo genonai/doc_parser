@@ -144,6 +144,9 @@ def collect_model_presets(cfg: dict, config_path: str, *, strict: bool = True) -
 
     층은 셋이고 뒤가 우선한다.
       1. `model_presets_file` 로 지정한 파일들(적은 순서). 메인 yaml 폴더 기준 경로다.
+         액티비티 폴더의 설정(파일명 config.yaml)이 적지 않으면 설정 폴더(GENOS_RESOURCE_DIR, 없으면 표준
+         resource/)의 model_presets.yaml — 접속 정보를 폴더에 복사하지 않고 이름으로 참조한다(#495).
+         그 밖의 설정(HTTP facade·임시 yaml)은 적지 않으면 그대로 없다
       2. 메인 yaml 의 `model_presets`
       3. 환경변수 GENOS_MODEL_PRESETS_FILE 이 가리키는 파일. 로컬 실행에서 모델 접속 정보만
          바꿔 끼울 때 쓰며, 운영에서는 설정하지 않는다.
@@ -154,6 +157,12 @@ def collect_model_presets(cfg: dict, config_path: str, *, strict: bool = True) -
     raw_refs = cfg.get(MODEL_PRESETS_FILE_KEY)
     if raw_refs is None:
         refs = []
+        if Path(config_path).name == "config.yaml":          # 액티비티 폴더의 설정만 — activities/ 가 없는 배포본도 이 함수를 쓴다
+            from genon.preprocessor.activities import _folders
+
+            shared = (_folders.resource_dir() / "model_presets.yaml").resolve()   # 절대 경로 — 상대 GENOS_RESOURCE_DIR 이면
+            if shared.is_file():                                                  # 설정 폴더 기준으로 다시 결합되지 않게
+                refs = [str(shared)]
     elif isinstance(raw_refs, str):
         refs = [raw_refs]
     elif isinstance(raw_refs, list) and all(isinstance(r, str) for r in raw_refs):

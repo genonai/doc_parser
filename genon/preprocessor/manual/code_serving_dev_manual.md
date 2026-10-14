@@ -65,7 +65,7 @@ Genos 코드서빙으로 배포된 **문서 전처리기(doc parser)** 의 설�
 
 | 하는 일 | 어디를 고치나 | 이 문서 |
 |---|---|---|
-| **새 문서 유형 추가** | `resource/custom_field_<유형>.yaml` + 등록 블록 | 1장 |
+| **새 문서 유형 추가** | `activities/parse/custom_field_<유형>.yaml` + 등록 블록 | 1장 |
 | 문서 유형별 옵션 조정 | facade의 `CONFIG_BY_DOC_TYPE` | [2.3](#23-문서-유형마다-설정을-다르게--config_by_doc_type) |
 | 입력 데이터 구조 조정 | facade의 훅 메소드 | [2.4](#24-설정만으로-입력-데이터-구조를-처리할-수-없는-경우--훅-메소드) |
 | 공통 동작 옵션 | `resource/*_processor_config.yaml` | 5장 |
@@ -118,8 +118,8 @@ cd /app/src/service && uvicorn main:app --host 0.0.0.0 --port ${PORT:-8080} --wo
 
 | 엔드포인트 | facade 파일 | 이 문서에서 |
 |---|---|---|
-| `POST /parser` · `/parser_upload` | `activities/parse.py` | **주 대상** |
-| `POST /chunker` | `activities/chunk.py` | **주 대상** |
+| `POST /parser` · `/parser_upload` | `activities/parse/processor.py` | **주 대상** |
+| `POST /chunker` | `activities/chunk/processor.py` | **주 대상** |
 | `POST /preprocess` · `/preprocess_intelligent` | `intelligent_processor.py` | 옵션 레퍼런스는 `intelligent_processor.md` |
 | `POST /preprocess_convert` | `convert_processor.py` | 〃 `convert_processor.md` |
 | `POST /preprocess_attachment` | `attachment_processor.py` | 〃 `attachment_processor.md` |
@@ -197,7 +197,7 @@ cd /app/src/service && uvicorn main:app --host 0.0.0.0 --port ${PORT:-8080} --wo
 ```bash
 # 실행 위치: 저장소 루트
 cp genon/preprocessor/resource/templates/custom_field_TEMPLATE_rows.yaml \
-   genon/preprocessor/resource/custom_field_notice.yaml
+   genon/preprocessor/activities/parse/custom_field_notice.yaml
 ```
 
 ### 1.4 ③ 유형에 맞는 블록을 구성합니다
@@ -284,7 +284,7 @@ metadata 컬럼에만 있는 값은 필터 검색에만 걸리고 임베딩 검�
 ### 1.5 ④ 프로세서 설정에 등록합니다
 
 ```yaml
-# genon/preprocessor/resource/parse_config.yaml의 enrichment 목록 끝에
+# genon/preprocessor/activities/parse/config.yaml의 enrichment 목록 끝에
 enrichment:
   # … 기존 항목 …
   - custom_fields:
@@ -462,8 +462,8 @@ EOF
 |---|---|---|---|
 | ① | 요청 `params` | 그 요청 하나 | 없음 ([5.4](#54-요청-params로-재배포-없이-값-변경)) |
 | ② | 프로세서 설정 yaml | 모든 문서 공통 동작 | `resource/*_processor_config.yaml` ([5장](#5-구성-yaml-옵션)) |
-| ③ | `custom_field_*.yaml` | 그 **문서유형**의 값 추출과 청크 본문 | `resource/custom_field_<유형>.yaml` ([1장](#1-새-문서-유형-추가하기)) |
-| ④ | **facade 2개** | 설정으로 표현할 수 없는 처리 | `activities/parse.py` · `activities/chunk.py` |
+| ③ | `custom_field_*.yaml` | 그 **문서유형**의 값 추출과 청크 본문 | `activities/parse/custom_field_<유형>.yaml` ([1장](#1-새-문서-유형-추가하기)) |
+| ④ | **facade 2개** | 설정으로 표현할 수 없는 처리 | `activities/parse/processor.py` · `activities/chunk/processor.py` |
 | ⑤ | 그 밖 | 위 넷으로 안 될 때만 | `main.py`(엔드포인트 추가), `processing/` 공용 모듈 |
 
 ④ 까지가 **고객 개발자의 범위입니다.** 처리 본체는 `processing/core/parser.py`와 `core/chunker.py`에
@@ -476,8 +476,8 @@ EOF
 
 | 파일 | 구획 |
 |---|---|
-| `activities/parse.py` | 파일 상단 주석(흐름 요약) → `ROUTES` → `CONFIG_BY_DOC_TYPE` → 훅 3종 → 오버라이드 |
-| `activities/chunk.py` | `GenOSVectorMeta` → `GenosSmartChunker` → `ROW_CATEGORIES` → `CONFIG_BY_DOC_TYPE` → 훅 3종 |
+| `activities/parse/processor.py` | 파일 상단 주석(흐름 요약) → `ROUTES` → `CONFIG_BY_DOC_TYPE` → 훅 3종 → 오버라이드 |
+| `activities/chunk/processor.py` | `GenOSVectorMeta` → `GenosSmartChunker` → `ROW_CATEGORIES` → `CONFIG_BY_DOC_TYPE` → 훅 3종 |
 
 **파일 상단 주석**부터 읽으세요. 처리 흐름 요약과 결과 형식이 들어 있습니다.
 
@@ -500,13 +500,13 @@ EOF
 훅이 아니라 이 표에 씁니다. 두 facade 모두 같은 자리에 있습니다.
 
 ```python
-# activities/parse.py
+# activities/parse/processor.py
     CONFIG_BY_DOC_TYPE = {
         "press":    {"enrichment.table_description.enable": False},  # 표가 없어 불필요한 LLM 호출
         "contract": {"ocr.ocr_mode": "force"},                       # 스캔본이 많다
     }
 
-# activities/chunk.py
+# activities/chunk/processor.py
     CONFIG_BY_DOC_TYPE = {
         "contract": {"chunking.chunk_size": 1500},                   # 문서형 청크 크기
         "manual": {"chunking.chunk_mode": "split_only"},
@@ -551,10 +551,10 @@ EOF
 
 | 파일 | 훅 메소드 | 자리 | 받는 것 |
 |---|---|---|---|
-| `activities/parse.py` | `edit_input(ext, doc_type, data, work_dir=None, **kwargs)` | 파싱 **전** | `.json`은 dict/list, `.md .html`은 str, 엑셀은 `{시트명: 2차원 행}`, 그 밖은 파일 경로 |
+| `activities/parse/processor.py` | `edit_input(ext, doc_type, data, work_dir=None, **kwargs)` | 파싱 **전** | `.json`은 dict/list, `.md .html`은 str, 엑셀은 `{시트명: 2차원 행}`, 그 밖은 파일 경로 |
 | | `edit_document(job, doc)` | 파싱 후, **LLM enrichment 전** | `DoclingDocument` 객체 |
 | | `edit_output(ext, doc_type, result, **kwargs)` | 응답 직전 | 응답 dict |
-| `activities/chunk.py` | `edit_input(kind, data, **kwargs)` | 청킹 전 | `kind=="parse"` 면 `list[dict]`, `"docling"` 이면 직렬화된 dict |
+| `activities/chunk/processor.py` | `edit_input(kind, data, **kwargs)` | 청킹 전 | `kind=="parse"` 면 `list[dict]`, `"docling"` 이면 직렬화된 dict |
 | | `edit_chunk(text, info, **kwargs)` | **청크 1건마다** | 본문 str + `info` dict |
 | | `edit_output(vector_metas, **kwargs)` | 응답 직전 | `GenOSVectorMeta` 목록 |
 
@@ -763,7 +763,7 @@ EOF
 
 > 새 category 이름을 만들기보다 **`custom_fields_row`를 그대로 재사용**하는 쪽이 안전합니다.
 > 청커는 `doc_type`을 보지 않고 `category` 로만 분기하므로, 기존 이름을 쓰면 청커는 손댈 일이
-> 없습니다. 굳이 새 이름을 쓰려면 `activities/chunk.py`의 `ROW_CATEGORIES`에 더합니다.
+> 없습니다. 굳이 새 이름을 쓰려면 `activities/chunk/processor.py`의 `ROW_CATEGORIES`에 더합니다.
 
 > 파서에서 청커로 가는 element 계약입니다. 행 기반 경로는 행 element만 청킹하고 **섞여 온 다른
 > element는 경고 한 줄을 남기고 버립니다.** category 문자열이 틀리면 조용히 일반 텍스트 분할로
@@ -826,7 +826,7 @@ fields:
 |---|---|---|
 | 그 **문서의 모든 청크**에 같은 값 | 파서의 `edit_output`에서 `tb.set_chunk_metadata(result, {...})` | `result["metadata"]`에 직접 쓰면 **이 API 응답에만** 남고 청크에는 반영되지 않습니다 |
 | **청크마다 다른 값** | 청커의 `edit_chunk`에서 `info["fields"]["RISK"] = "high"` | 본문·통계·순번 필드는 넣을 수 없습니다 |
-| **적재 컬럼으로 선언** | `activities/chunk.py`의 `GenOSVectorMeta` | 선언하면 타입까지 검사됩니다. 선언이 없어도 실립니다(`extra=allow`) |
+| **적재 컬럼으로 선언** | `activities/chunk/processor.py`의 `GenOSVectorMeta` | 선언하면 타입까지 검사됩니다. 선언이 없어도 실립니다(`extra=allow`) |
 
 ```python
     def edit_output(self, ext, doc_type, result, **kwargs):
@@ -1033,7 +1033,7 @@ sys.path.insert(0, '.')
 from genon.preprocessor.processing.core import toolbox as tb
 from genon.preprocessor.activities.chunk import DocumentProcessor
 
-p = DocumentProcessor(config_path='genon/preprocessor/resource/chunk_config.yaml')
+p = DocumentProcessor(config_path='genon/preprocessor/activities/chunk/config.yaml')
 doc = json.load(open('doc.json'))          # 파싱 결과 JSON
 metas = asyncio.run(p(tb.mock_request(), '', document=doc))
 print(len(metas), metas[0].model_dump()['text'][:80])
@@ -1369,9 +1369,9 @@ mkdir "$BACKUP_DIR"                       # 이미 있으면 다른 이름을 �
 git status --short                        # 미커밋·미추적 파일 확인
 # 보존할 파일만 명시적으로 지정합니다. 디렉터리를 통째로 add 하면 결과 JSON·임시 파일과
 # 로컬 검증용 API 키까지 커밋에 섞입니다.
-git add genon/preprocessor/activities/parse.py \
-        genon/preprocessor/activities/chunk.py \
-        genon/preprocessor/resource/custom_field_<유형>.yaml
+git add genon/preprocessor/activities/parse/processor.py \
+        genon/preprocessor/activities/chunk/processor.py \
+        genon/preprocessor/activities/parse/custom_field_<유형>.yaml
 git diff --cached --stat                  # 커밋할 파일 목록을 눈으로 확인
 git commit -m "릴리스 갱신 전 수정 사항 보관"
 
@@ -1379,8 +1379,8 @@ git bundle create "$BACKUP_DIR/my_change.bundle" HEAD   # 복구용 전체 이�
 git bundle verify "$BACKUP_DIR/my_change.bundle"
 
 git diff --binary "$BASE_RELEASE" HEAD -- \
-             genon/preprocessor/activities/parse.py \
-             genon/preprocessor/activities/chunk.py \
+             genon/preprocessor/activities/parse/processor.py \
+             genon/preprocessor/activities/chunk/processor.py \
              genon/preprocessor/resource > "$BACKUP_DIR/my_change.patch"
 
 git apply --stat "$BACKUP_DIR/my_change.patch"    # 담긴 파일 목록 확인
@@ -1654,7 +1654,7 @@ facade는 **한 파일씩 배포**되므로 서로 import 하지 않습니다. �
 
 | 복제된 것 | 어디에 |
 |---|---|
-| 청크 출력 스키마 `GenOSVectorMeta` | `activities/chunk.py` · `intelligent_processor.py` · `convert_processor.py` · `attachment_processor.py` |
+| 청크 출력 스키마 `GenOSVectorMeta` | `activities/chunk/processor.py` · `intelligent_processor.py` · `convert_processor.py` · `attachment_processor.py` |
 | `GenosSmartChunker` | 〃 (청커만 core의 `CHUNKER` ClassVar를 거칩니다) |
 | `GenosServiceException` | `processing/core/errors.py`(parser·chunker 공용) + 나머지 facade의 로컬 사본 |
 | `enrichment()` | `core/parser.py` + `intelligent_processor.py` · `convert_processor.py` |

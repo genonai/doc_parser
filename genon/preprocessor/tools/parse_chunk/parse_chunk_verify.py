@@ -20,8 +20,8 @@ doc_type 마다 샘플을 파싱·청킹한 뒤, 그 doc_type 의 custom_field y
     섹션·레코드가 빠지고 대조군이 남는지, 전부 불량인 문서가 CHUNK_ALL_REJECTED 로 실패하는지
     단정한다. custom_fields 경로(faq 행 청크, product_ssf 문서형 청크) 샘플도 함께 돈다.
 
-doc_type → extractor/config 매핑은 모니모 사이트 완성본(genon/sites/monimo/resource/)의
-parse_config.yaml 에서 직접 읽는다. 설정이 늘어나면 이 스크립트를 고치지 않아도
+doc_type → extractor/config 매핑은 모니모 사이트 완성본(genon/sites/monimo/activities/parse/)의
+config.yaml 에서 직접 읽는다. 설정이 늘어나면 이 스크립트를 고치지 않아도
 따라간다. --resource-dir 로 다른 설정 폴더를 주면 매핑과 러너 설정을 모두 그 폴더에서 읽는다.
 모델은 로컬(VPN) 프리셋(genon/sites/dev/model_presets.yaml)으로 돈다(parse_chunk_test.py 가 지정).
 
@@ -62,7 +62,8 @@ os.environ.setdefault(
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 PREPROCESSOR_DIR = SCRIPT_DIR.parents[1]
-RESOURCE_DIR = PREPROCESSOR_DIR.parent / "sites" / "monimo" / "resource"
+SITE_DIR = PREPROCESSOR_DIR.parent / "sites" / "monimo"          # 사이트 완성본 = resource/ + activities/<slug>/
+RESOURCE_DIR = SITE_DIR / "resource"
 REPO_ROOT = PREPROCESSOR_DIR.parents[1]
 SAMPLES = PREPROCESSOR_DIR / "sample_files"
 MONIMO = SAMPLES / "monimo"
@@ -860,8 +861,7 @@ def verify_chunker_config() -> Path:
     """
     global _VERIFY_CHUNKER_CONFIG
     if _VERIFY_CHUNKER_CONFIG is None:
-        cfg = yaml.safe_load(
-            (RESOURCE_DIR / "chunk_config.yaml").read_text(encoding="utf-8")) or {}
+        cfg = yaml.safe_load(chunker_config_path().read_text(encoding="utf-8")) or {}
         cfg.setdefault("output", {})["table_text_formats"] = ["html", "markdown"]
         path = Path(tempfile.mkdtemp(prefix="parse_chunk_verify_cfg_")) / "chunk_config.yaml"
         path.write_text(yaml.safe_dump(cfg, allow_unicode=True), encoding="utf-8")
@@ -919,9 +919,20 @@ EXTRACTOR_BY_SUFFIX = {
 }
 
 
+def parser_config_path() -> Path:
+    """파서 설정 — 사이트 완성본의 activities/parse/config.yaml(없으면 표준). RESOURCE_DIR 옆의 activities/ 를 본다."""
+    site = RESOURCE_DIR.parent / "activities" / "parse" / "config.yaml"
+    return site if site.exists() else PREPROCESSOR_DIR / "activities" / "parse" / "config.yaml"
+
+
+def chunker_config_path() -> Path:
+    site = RESOURCE_DIR.parent / "activities" / "chunk" / "config.yaml"
+    return site if site.exists() else PREPROCESSOR_DIR / "activities" / "chunk" / "config.yaml"
+
+
 def load_custom_field_blocks() -> list[dict]:
-    """parse_config.yaml 의 enable 된 custom_fields 블록 목록."""
-    cfg = yaml.safe_load((RESOURCE_DIR / "parse_config.yaml").read_text(encoding="utf-8"))
+    """파서 설정(activities/parse/config.yaml)의 enable 된 custom_fields 블록 목록."""
+    cfg = yaml.safe_load(parser_config_path().read_text(encoding="utf-8"))
     out = []
     for item in cfg.get("enrichment") or []:
         if not isinstance(item, dict):
@@ -1007,7 +1018,7 @@ def run_case(python: str, doc_type: str | None, src: Path, out_dir: Path,
     doc_type_args = ["--doc_type", doc_type] if doc_type else []
     # 설정은 RESOURCE_DIR 의 파서 설정과 검증용 청커 설정이다. extra_args 를 뒤에 두어 호출자가 준
     # 인자(예: 이상 청크 검증의 --chunker-config)가 우선하게 한다.
-    config_args = ["--config", str(RESOURCE_DIR / "parse_config.yaml"),
+    config_args = ["--config", str(parser_config_path()),
                    "--chunker-config", str(verify_chunker_config())]
     cmd = [python, str(SCRIPT_DIR / "parse_chunk_test.py"),
            *doc_type_args, *config_args, *(extra_args or []), str(src), str(out_dir) + "/"]
@@ -1072,7 +1083,8 @@ def main() -> int:
     ap.add_argument("--out", default=None, help="산출 디렉터리(미지정 시 임시 디렉터리)")
     ap.add_argument("--python", default=sys.executable, help="parse_chunk_test.py 실행 인터프리터")
     ap.add_argument("--resource-dir", default=None,
-                    help="설정 폴더(미지정 시 genon/sites/monimo/resource)")
+                    help="사이트 완성본의 설정 폴더(미지정 시 genon/sites/monimo/resource). 파서·청커 설정은 그 옆의 "
+                         "activities/<slug>/config.yaml 에서 읽고, 없으면 표준 액티비티 폴더를 쓴다")
     args = ap.parse_args()
 
     global RESOURCE_DIR
