@@ -339,6 +339,9 @@ echo "[INFO] .dockerignore 생성: ${DEST}/.dockerignore"
   echo "markdown2"
   echo "pydub"
   echo "chardet"                  # parser/attachment 의 인코딩 감지 (없으면 import 시 RuntimeError)
+  echo ""
+  echo "# 워커 모드(PREPROC_MODE=worker)와 그 측정 도구(tools/code_serving/worker_concurrency_test.py)"
+  echo "temporalio==1.34.0"       # base 이미지(build-script/code-serving-doc-parser/pyproject.toml)와 같은 버전
 } > "${DEST}/requirements-dev.txt"
 echo "[INFO] requirements-dev.txt 생성: ${DEST}/requirements-dev.txt"
 

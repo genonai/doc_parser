@@ -127,6 +127,7 @@ from genon.preprocessor.processing.serialize import parse_format as pf
 from genon.preprocessor.processing.common import runtime as rt
 from genon.preprocessor.processing.common import file_probe as fp
 from genon.preprocessor.processing.common import pdf_convert as pc
+from genon.preprocessor.processing.common import profiling as prof
 from genon.preprocessor.processing.common import format_alias as fa
 from genon.preprocessor.processing.common import hooks as hk
 from genon.preprocessor.processing.common import job as jb
@@ -745,9 +746,11 @@ class ParserCore:
         ocr_mode = cp.resolve_ocr_mode(kwargs, getattr(self._intel, "ocr_mode", "auto"))
 
         if ocr_mode == "force":
-            document = self._intel.load_documents_with_docling_ocr(file_path, **kwargs)
+            with prof.stage("convert_ocr"):
+                document = self._intel.load_documents_with_docling_ocr(file_path, **kwargs)
         else:
-            document = self._intel.load_documents(file_path, **kwargs)
+            with prof.stage("convert"):
+                document = self._intel.load_documents(file_path, **kwargs)
             if ocr_mode == "auto":
                 # #329(task#1): /run(_load_document)과 동일한 auto 재OCR 휴리스틱으로 정합.
                 # #482: 판정 불가(판정 LLM 없음·응답 없음)는 재OCR 사유가 아니다 — 예전엔
@@ -758,7 +761,8 @@ class ParserCore:
                 _log.info(f"[parser] 재OCR 판정 verdict={verdict.value} reason={reason}: "
                           f"{os.path.basename(file_path)}")
                 if reason != "none":
-                    document = self._intel.load_documents_with_docling_ocr(file_path, **kwargs)
+                    with prof.stage("convert_ocr"):
+                        document = self._intel.load_documents_with_docling_ocr(file_path, **kwargs)
 
         if ocr_mode != "disable" and self._intel.ocr_endpoint:
             document = self._intel.ocr_all_table_cells(document, file_path)
@@ -1365,7 +1369,8 @@ class ParserCore:
         PDF 변환이 불가하면 None 을 반환해 호출부가 레거시 langchain 경로로 폴백하도록 한다.
         """
         policy = kwargs.get("_pdf_policy")
-        pdf_path = convert_to_pdf(file_path, policy)
+        with prof.stage("to_pdf"):
+            pdf_path = convert_to_pdf(file_path, policy)
         if not pdf_path or not os.path.exists(pdf_path):
             # 변환이 실패해도 같은 자리에 이전 산출 PDF 가 있을 수 있다. 정책이 위치를
             # 옮겼다면 그 폴더에서 찾아야 한다.
@@ -1376,13 +1381,15 @@ class ParserCore:
             _log.warning(f"[ppt] PDF 변환 실패 — 레거시 경로로 폴백: {os.path.basename(file_path)}")
             return None
 
-        document: DoclingDocument = self._get_ppt_pdf_converter().convert(
-            pdf_path, raises_on_error=True
-        ).document
+        with prof.stage("convert"):
+            document: DoclingDocument = self._get_ppt_pdf_converter().convert(
+                pdf_path, raises_on_error=True
+            ).document
 
         # 페이지별 native text 수집 → 프롬프트({{page_text}})에 반영해 페이지 설명 요청
         page_texts = collect_page_texts(document)
-        page_descs = describe_pages(document, self._page_desc_options, page_texts=page_texts)
+        with prof.stage("page_desc"):
+            page_descs = describe_pages(document, self._page_desc_options, page_texts=page_texts)
         for page_no in sorted(page_descs.keys()):
             desc = page_descs[page_no].strip()
             if not desc:
@@ -1429,28 +1436,33 @@ class ParserCore:
         # #329: error_policy=strict 이면 _handle_stage_error 가 GenosServiceException 으로
         # 재-raise(삼키지 않음). lenient(기본)은 기존처럼 warning 후 계속.
         try:
-            document = self._intel.enrich_doc_summary(document, **kwargs)
+            with prof.stage("doc_summary"):
+                document = self._intel.enrich_doc_summary(document, **kwargs)
         except Exception as exc:
             _handle_stage_error(exc, "doc_summary")
         try:
-            document = self._intel.enrich_image_descriptions(document, **kwargs)
+            with prof.stage("image_desc"):
+                document = self._intel.enrich_image_descriptions(document, **kwargs)
         except Exception as exc:
             _handle_stage_error(exc, "image_description")
         # 표 설명(독립 → 융합 → 이미지). 판정은 공용 모듈 한 곳에 있다.
-        document = await apply_table_description_stage(
-            document,
-            custom_fields_enrichers=self._intel.custom_fields_enrichers,
-            standalone=getattr(self._intel, "table_text_description_enricher", None),
-            run_image_stage=self._intel.enrich_table_descriptions,
-            handle_error=_handle_stage_error,
-            kwargs=kwargs,
-        )
+        with prof.stage("table_desc"):
+            document = await apply_table_description_stage(
+                document,
+                custom_fields_enrichers=self._intel.custom_fields_enrichers,
+                standalone=getattr(self._intel, "table_text_description_enricher", None),
+                run_image_stage=self._intel.enrich_table_descriptions,
+                handle_error=_handle_stage_error,
+                kwargs=kwargs,
+            )
         try:
-            document = await self._intel.enrich_metadata(document, **kwargs)
+            with prof.stage("metadata"):
+                document = await self._intel.enrich_metadata(document, **kwargs)
         except Exception as exc:
             _handle_stage_error(exc, "metadata")
         try:
-            document = await self._intel.enrich_custom_fields(document, **kwargs)
+            with prof.stage("custom_fields"):
+                document = await self._intel.enrich_custom_fields(document, **kwargs)
         except Exception as exc:
             _handle_stage_error(exc, "custom_fields")
         # doc_type 스탬프(예: card): 요청 kwargs 로 doc_type 이 오면 문서 메타에 저장 → compose_vectors 가

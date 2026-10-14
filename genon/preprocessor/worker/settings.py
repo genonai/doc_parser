@@ -15,6 +15,9 @@
     PREVIEW_CHARS          기본 2000. 반환 preview 길이(페이로드 상한 안)
     HEARTBEAT_INTERVAL     기본 10초
     PORT                   기본 8080 — /health
+    OMP_NUM_THREADS        없으면 기동 때 "파드 CPU 한도 ÷ WORKER_PROCESSES" 의 내림(최소 1)으로 정해 자식에
+                           물려준다(`omp_threads`). 프로세스는 파드 한도가 아니라 노드 코어 수를 보고 torch·docling
+                           스레드를 띄우므로, 정하지 않으면 CPU 작업이 겹칠 때 수 배 느려진다(#511·#514)
 
 `INTERIM_ROOT` 는 쓰지 않는다. 전처리기에서 그 이름은 LLM 캐시 루트다(docling/utils/llm_cache.py).
 `GENOS_RESOURCE_DIR` 은 루트 main.py 와 같은 뜻 — 있으면 그 폴더의 설정을 읽는다.
@@ -54,6 +57,33 @@ class Settings:
 
 
 _REQUIRED = ("TEMPORAL_HOST", "WORKER_TASK_QUEUE", "NFS_ROOT", "ARTIFACT_ROOT")
+
+#: cgroup v2 의 CPU 한도 파일. 내용은 "<quota> <period>" 또는 한도 없음 "max <period>".
+CPU_MAX_FILE = Path("/sys/fs/cgroup/cpu.max")
+
+
+def omp_threads(cpu_max: str | None, processes: int, fallback_cpus: int | None) -> int:
+    """프로세스당 연산 스레드 수 = 파드 CPU 한도 ÷ 프로세스 수의 내림, 최소 1.
+
+    내림인 이유: 스레드 합이 코어 수를 넘지 않게 하려는 값이라, 올림·반올림은 과다 구독으로 틀어질 수 있다
+    (8 코어 ÷ 3 → 올림 3 이면 합 9). `cpu_max` 는 cgroup v2 `cpu.max` 내용이고, 없거나 한도가 없으면
+    `fallback_cpus`(노드 코어 수)를 쓴다.
+    """
+    cpus: float = fallback_cpus or 1
+    parts = (cpu_max or "").split()
+    if len(parts) == 2 and parts[0] != "max":
+        try:
+            cpus = int(parts[0]) / int(parts[1])
+        except (ValueError, ZeroDivisionError):
+            pass
+    return max(1, int(cpus // max(processes, 1)))
+
+
+def read_cpu_max() -> str | None:
+    try:
+        return CPU_MAX_FILE.read_text()
+    except OSError:
+        return None
 
 
 def load(env: dict | None = None) -> Settings:

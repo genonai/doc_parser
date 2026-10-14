@@ -16,6 +16,8 @@ log = logging.getLogger("genon.worker")
 
 def child(index: int) -> None:
     logging.basicConfig(level=logging.INFO, format=f"%(asctime)s [worker-{index}] %(levelname)s %(message)s")
+    from genon.preprocessor.processing.common import profiling
+    profiling.install()          # GENOS_PROFILE=1 일 때만 — 단계·외부 호출 계측(#514)
     asyncio.run(_serve(settings.load()))
 
 
