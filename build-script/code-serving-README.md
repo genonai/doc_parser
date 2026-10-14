@@ -287,7 +287,7 @@ uv pip install -r requirements-dev.txt     # 로컬 실행 전용 추가 deps
 ```
 > `requirements-dev.txt` 는 `sync-serving-repo.sh` 가 생성합니다. 공통 deps(fastapi·httpx·grpcio·protobuf)와
 > **parser·chunker facade 실행에 필요한 deps**(pymupdf·langchain-community·langchain-core·
-> langchain-text-splitters·markdown2·pydub·chardet)가 함께 담깁니다. 이 deps 는 **운영 base 이미지엔 이미
+> langchain-text-splitters·markdown2·pydub·chardet), 워커 모드와 그 측정 도구가 쓰는 `temporalio` 가 함께 담깁니다. 이 deps 는 **운영 base 이미지엔 이미
 > 포함**되어 있어 운영 런타임은 `requirements.txt`(docling wheel)만 설치합니다 — 로컬 bare-metal 실행 시에만
 > 필요합니다.
 
