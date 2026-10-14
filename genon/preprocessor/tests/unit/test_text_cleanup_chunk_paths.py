@@ -16,7 +16,7 @@ import yaml
 
 pytestmark = pytest.mark.unit
 
-_CONFIG_NAME = "chunk_config.yaml"
+_CONFIG_NAME = "config.yaml"
 
 # 자모 분리(NFD) + 제로폭 + NBSP + 전각 + 줄 끝 공백 + 빈 줄 3개
 _NOISY = "﻿한​글 Ａ   \n\n\n\n본문"
@@ -24,7 +24,7 @@ _NOISY = "﻿한​글 Ａ   \n\n\n\n본문"
 
 def _make_processor(tmp_path: Path, text_cleanup):
     mod = pytest.importorskip("facade.chunking_processor")
-    resource_dir = Path(__file__).resolve().parents[2] / "resource"
+    resource_dir = Path(__file__).resolve().parents[2] / "activities" / "chunk"
     shutil.copytree(resource_dir, tmp_path, dirs_exist_ok=True)
     cfg = yaml.safe_load((resource_dir / _CONFIG_NAME).read_text(encoding="utf-8"))
     cfg.setdefault("chunking", {})["text_cleanup"] = text_cleanup

@@ -80,6 +80,7 @@ REMOVED_EXTRACTORS = {
 }
 
 PROCESSOR_CONFIGS = (
+    "config.yaml",                     # 액티비티 폴더(activities/<slug>/·사이트 activities/<slug>/)의 설정
     "parse_config.yaml",
     "parse_config_simple.yaml",
     "intelligent_processor_config.yaml",
@@ -373,8 +374,15 @@ def check_table_format_pairs(root: Path) -> list[str]:
     (`ParserCore._normalize_table_format`), 청커는 레거시 `export_to_html` 까지 본다.
     """
     problems: list[str] = []
-    for parser_name, chunker_name in TABLE_FORMAT_PAIRS:
-        parser_path, chunker_path = root / parser_name, root / chunker_name
+    pairs = [(root / p, root / c) for p, c in TABLE_FORMAT_PAIRS]
+    # 액티비티 폴더(activities/parse/ 또는 사이트의 그 폴더)면 청커는 옆의 chunk/ 폴더, 없으면 표준 청커 폴더
+    if (root / "config.yaml").exists():
+        chunker = root.parent / "chunk" / "config.yaml"
+        if not chunker.exists():
+            chunker = REPO_ROOT / "genon" / "preprocessor" / "activities" / "chunk" / "config.yaml"
+        pairs.append((root / "config.yaml", chunker))
+    for parser_path, chunker_path in pairs:
+        parser_name, chunker_name = parser_path.name, chunker_path.name
         if not (parser_path.exists() and chunker_path.exists()):
             continue
         parser_out = load_yaml(parser_path).get("output") or {}

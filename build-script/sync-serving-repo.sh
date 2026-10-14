@@ -98,7 +98,7 @@ WHITELIST=("genon" "main.py" "requirements.txt" "Dockerfile")
 
 # whitelist 로 가져온 뒤 배포본에서 제거할 하위 폴더 (dev/build — 서빙 런타임 무의존).
 #   genon/sites 는 고객사이트별 설정 완성본·전용 facade·로컬(VPN) 접속값이라 배포본에 넣지 않는다.
-#   배포본 main.py 는 표준 resource/ 를 읽는다(GENOS_RESOURCE_DIR 는 로컬 전용).
+#   배포본 main.py 는 표준 resource/ 와 activities/<slug>/config.yaml 을 읽는다(GENOS_RESOURCE_DIR 는 사이트 배포·로컬용).
 EXCLUDE_PATHS=(
   "genon/preprocessor/docker"                # Dockerfile·빌드 전용 폰트 tar(docker/assets)
   "genon/serving"

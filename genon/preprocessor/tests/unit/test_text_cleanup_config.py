@@ -17,7 +17,7 @@ _MODULES = ["intelligent_processor", "convert_processor", "chunking_processor"]
 _DEFAULT_CONFIG = {
     "intelligent_processor": "intelligent_processor_config.yaml",
     "convert_processor": "convert_processor_config.yaml",
-    "chunking_processor": "chunk_config.yaml",
+    "chunking_processor": "config.yaml",          # 청커는 액티비티 폴더(activities/chunk/)
 }
 
 _UNSET = object()
@@ -34,7 +34,7 @@ def _make_config(tmp_path: Path, module_name: str, text_cleanup=_UNSET) -> str:
     config 는 같은 디렉터리의 prompt_*.md 등 형제 파일을 참조하므로 resource/ 를 통째로
     복사한다(yaml 하나만 복사하면 init 실패로 테스트가 조용히 skip 된다).
     """
-    resource_dir = Path(__file__).resolve().parents[2] / "resource"
+    resource_dir = Path(__file__).resolve().parents[2] / ("activities/chunk" if module_name == "chunking_processor" else "resource")
     shutil.copytree(resource_dir, tmp_path, dirs_exist_ok=True)
     cfg = yaml.safe_load((resource_dir / _DEFAULT_CONFIG[module_name]).read_text(encoding="utf-8"))
     cfg.setdefault("chunking", {})

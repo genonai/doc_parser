@@ -13,11 +13,13 @@
     코드서빙이 쓰는 진입점(`python -m genon.preprocessor.worker`)을 자식 프로세스로 그대로 띄운다
     (env 로 설정, `WORKER_THREADS`). 모니모 사이트 설정·문서유형별 표본을 기본 parse·chunk 와
     **설정·코드를 고친 slug 사본** parse_t·chunk_t 로 함께 돌린다 — Studio 가 사본을 만들어 거기서부터
-    바꾸는 꼴. 사본은 시험 동안만 activities/ 에 만들고 끝나면 지운다. 설정은 사이트 설정을 짝 설정
-    (<slug>_config.yaml)으로 복사한 뒤 chunk_t 의 chunk_size 를 줄이고, 코드는 사본 파일 끝에 훅을
-    덧붙인다(parse_t 는 청크 메타 SLUG_MARK, chunk_t 는 청크 본문 앞 표식). 짝 설정이 없는 사본은
-    사이트 설정이 아니라 패키지 기본 설정으로 떨어져 모니모 유형을 모른다 — 그래서 설정을 꼭 복사한다.
-    모니모 폴더는 공개 배포본에 없어 배포본(코드서빙 파드)에서는 건너뛴다
+    바꾸는 꼴(#472 의 new 가 하는 일). 사본은 시험 동안만 activities/ 에 폴더로 만들고 끝나면 지운다.
+    사본의 원천은 그 slug 의 **실제** 설정 폴더(_folders.config_dir — 사이트 완성본이 덮어쓰면 그쪽)와
+    저장소의 processor.py 다. 그 뒤 chunk_t 의 config.yaml 에서 chunk_size 를 줄이고, processor.py 끝에
+    훅을 덧붙인다(parse_t 는 청크 메타 SLUG_MARK, chunk_t 는 청크 본문 앞 표식).
+    사이트 완성본(sites/monimo)은 임시 폴더에 복사해 GENOS_RESOURCE_DIR 로 준다 — 기본 parse 는 그 폴더의
+    activities/parse/ 설정(모니모 14 유형)으로 돈다(#497). 모니모 폴더는 공개 배포본에 없어 배포본
+    (코드서빙 파드)에서는 건너뛴다
 
 Temporal 은 env `TEMPORAL_TEST_TARGET` 로 고른다(워크플로우는 이 시험의 탐침이라 샌드박스 없이 돌린다).
   local(기본)  SDK 개발 서버 — 처음 한 번 내려받는다(인터넷 필요)
@@ -51,7 +53,7 @@ from genon.preprocessor.worker import registry, runtime, settings
 PREPROC = Path(__file__).resolve().parents[2]              # genon/preprocessor
 REPO = PREPROC.parents[1]
 ACTIVITIES, SAMPLES = PREPROC / "activities", PREPROC / "sample_files"
-SITE = REPO / "genon" / "sites" / "monimo" / "resource"
+SITE = REPO / "genon" / "sites" / "monimo"                   # 완성본: resource/ + activities/<slug>/
 
 
 @contextlib.asynccontextmanager
@@ -222,26 +224,32 @@ class DocumentProcessor(DocumentProcessor):          # 사본에서 고친 코�
 
 
 @pytest.fixture
-def slug_copies(tmp_path):
-    """사이트 설정의 임시 사본(GENOS_RESOURCE_DIR) + 사본 slug 둘(설정·코드 모두 복사 뒤 변경)."""
-    resource = tmp_path / "resource"
-    shutil.copytree(SITE, resource)
-    shutil.copyfile(SITE / "parse_config.yaml", resource / "parse_t_config.yaml")          # 설정 복사(그대로)
-    cfg = yaml.safe_load((SITE / "chunk_config.yaml").read_text(encoding="utf-8"))
-    cfg["chunking"].update({"chunk_size": 80, "min_chunk_size": 40})   # 설정 복사 뒤 변경 — 표본이 짧아 작게
-    (resource / "chunk_t_config.yaml").write_text(yaml.safe_dump(cfg, allow_unicode=True), encoding="utf-8")
+def slug_copies(tmp_path, monkeypatch):
+    """사이트 완성본의 임시 사본(GENOS_RESOURCE_DIR = 그 resource/) + 사본 slug 폴더 둘(설정·코드 모두 복사 뒤 변경)."""
+    from genon.preprocessor.activities import _folders
+
+    site = tmp_path / "monimo"
+    shutil.copytree(SITE, site, ignore=shutil.ignore_patterns("__pycache__"))
+    monkeypatch.setenv("GENOS_RESOURCE_DIR", str(site / "resource"))
     made = []
     try:
         for slug, origin, code in (("parse_t", "parse", PARSE_T_CODE), ("chunk_t", "chunk", CHUNK_T_CODE)):
-            dest = ACTIVITIES / f"{slug}.py"
+            dest = ACTIVITIES / slug
             assert not dest.exists(), f"{dest} 가 이미 있다 — 시험이 덮어쓰지 않는다"
-            dest.write_text((ACTIVITIES / f"{origin}.py").read_text(encoding="utf-8") + code, encoding="utf-8")
             made.append(dest)
-        yield resource
+            # 원천 = 그 slug 의 실제 설정 폴더(사이트가 덮어쓰면 그쪽) + 저장소의 코드
+            shutil.copytree(_folders.config_dir(origin), dest, ignore=shutil.ignore_patterns("__pycache__", "*.py"))
+            for name in ("__init__.py", "processor.py"):
+                shutil.copyfile(ACTIVITIES / origin / name, dest / name)
+            (dest / "processor.py").write_text((dest / "processor.py").read_text(encoding="utf-8") + code,
+                                               encoding="utf-8")
+        cfg = yaml.safe_load((ACTIVITIES / "chunk_t" / "config.yaml").read_text(encoding="utf-8"))
+        cfg["chunking"].update({"chunk_size": 80, "min_chunk_size": 40})   # 설정 복사 뒤 변경 — 표본이 짧아 작게
+        (ACTIVITIES / "chunk_t" / "config.yaml").write_text(yaml.safe_dump(cfg, allow_unicode=True), encoding="utf-8")
+        yield site / "resource"
     finally:
         for p in made:
-            p.unlink(missing_ok=True)
-        shutil.rmtree(ACTIVITIES / "__pycache__", ignore_errors=True)
+            shutil.rmtree(p, ignore_errors=True)
 
 
 def _monimo_steps(sample: str, doc_type: str, parse: str, chunk: str, tag: str) -> list:

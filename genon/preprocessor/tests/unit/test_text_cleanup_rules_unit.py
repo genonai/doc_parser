@@ -192,7 +192,7 @@ def test_noise_sample_keeps_every_control_case():
 
 _STANDARD_RULES = tn.rules_from_cfg(
     yaml.safe_load(
-        (Path(__file__).resolve().parents[2] / "resource" / "chunk_config.yaml")
+        (Path(__file__).resolve().parents[2] / "activities" / "chunk" / "config.yaml")
         .read_text(encoding="utf-8")
     )["chunking"]
 )
@@ -222,12 +222,12 @@ def test_standard_marker_rule(text, expected):
 
 # ── 청크 경계 반영 (입력 단계 적용이 목적이다) ───────────────────────────────
 
-_CONFIG_NAME = "chunk_config.yaml"
+_CONFIG_NAME = "config.yaml"
 
 
 def _make_processor(tmp_path: Path, text_cleanup):
     mod = pytest.importorskip("facade.chunking_processor")
-    resource_dir = Path(__file__).resolve().parents[2] / "resource"
+    resource_dir = Path(__file__).resolve().parents[2] / "activities" / "chunk"
     shutil.copytree(resource_dir, tmp_path, dirs_exist_ok=True)
     cfg = yaml.safe_load((resource_dir / _CONFIG_NAME).read_text(encoding="utf-8"))
     cfg.setdefault("chunking", {})["text_cleanup"] = text_cleanup

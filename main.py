@@ -142,6 +142,7 @@ from genon.preprocessor.facade.attachment_processor import DocumentProcessor as 
 from genon.preprocessor.facade.intelligent_processor import DocumentProcessor as IntelligentDocumentProcessor
 from genon.preprocessor.facade.convert_processor import DocumentProcessor as ConvertDocumentProcessor
 
+from genon.preprocessor.activities import _folders
 from genon.preprocessor.activities.parse import DocumentProcessor as ParserDocumentProcessor
 from genon.preprocessor.activities.chunk import DocumentProcessor as ChunkingDocumentProcessor
 
@@ -156,12 +157,13 @@ def _cfg(stem: str) -> str:
 
 # 프로세서는 모듈 로딩 시 1회만 생성해 재사용한다(요청마다 재생성하면 config/토크나이저/
 # 파이프라인 초기화 비용이 반복됨). 각 프로세서는 resource/<모듈 이름>_config.yaml 을 로드한다
-# (activities/parse.py → parse_config.yaml, facade/attachment_processor.py → attachment_processor_config.yaml).
+# (facade/attachment_processor.py → attachment_processor_config.yaml). 파싱·청킹은 액티비티 폴더의 config.yaml
+# (activities/parse/·chunk/, 사이트 완성본이 그 slug 폴더를 갖고 있으면 그쪽 — activities/_folders.py).
 attachment_processor = AttachmentDocumentProcessor(config_path=_cfg("attachment_processor"))    # 첨부용
 intelligent_processor = IntelligentDocumentProcessor(config_path=_cfg("intelligent_processor"))  # 적재용(지능형)
 convert_processor = ConvertDocumentProcessor(config_path=_cfg("convert_processor"))             # 변환용
-parser_processor = ParserDocumentProcessor(config_path=_cfg("parse"))               # 파싱 전용(/parser)
-chunking_processor = ChunkingDocumentProcessor(config_path=_cfg("chunk"))         # 청킹 전용(/chunker)
+parser_processor = ParserDocumentProcessor(config_path=str(_folders.config_path("parse")))     # 파싱 전용(/parser)
+chunking_processor = ChunkingDocumentProcessor(config_path=str(_folders.config_path("chunk")))  # 청킹 전용(/chunker)
 
 
 def _request_deadline_seconds(params: dict):

@@ -207,6 +207,26 @@ def test_preset_layers_file_inline_env(tmp_path, monkeypatch, inline, env, expec
 
 
 @pytest.mark.unit
+@pytest.mark.parametrize("name, resolves", [("config.yaml", True), ("parse_config.yaml", False)],
+                         ids=["액티비티 설정", "그 밖의 설정"])
+def test_activity_config_falls_back_to_shared_presets(tmp_path, monkeypatch, name, resolves):
+    """액티비티 폴더의 설정(파일명 config.yaml)은 model_presets_file 없이 설정 폴더(GENOS_RESOURCE_DIR)의
+    model_presets.yaml 을 1층으로 받는다(#495 — 접속 정보를 폴더에 복사하지 않는다). 다른 이름의 설정은 종전대로다."""
+    (tmp_path / "shared").mkdir()
+    (tmp_path / "shared" / "model_presets.yaml").write_text(
+        "model_presets:\n  default: {url: http://shared/v1}\n", encoding="utf-8")
+    monkeypatch.setenv("GENOS_RESOURCE_DIR", str(tmp_path / "shared"))
+    monkeypatch.delenv(cp.MODEL_PRESETS_ENV, raising=False)
+    path = tmp_path / name
+    path.write_text("toc:\n  model_preset: default\n", encoding="utf-8")
+    if resolves:
+        assert cp.load_config(str(path))["toc"] == {"url": "http://shared/v1"}
+    else:
+        with pytest.raises(model_preset.ModelPresetError, match="default"):
+            cp.load_config(str(path))
+
+
+@pytest.mark.unit
 def test_config_without_presets_is_untouched(tmp_path):
     """프리셋을 안 쓰는 설정은 지금까지와 똑같은 dict 로 읽힌다."""
     text = """

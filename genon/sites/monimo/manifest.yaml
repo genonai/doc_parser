@@ -1,26 +1,46 @@
-# 모니모 사이트 완성본(genon/sites/monimo/resource/) 관리 정보. build-script/sync-sites.sh 가 읽는다.
+# 모니모 사이트 완성본 관리 정보. build-script/sync-sites.sh 가 읽는다.
 #
-# resource/ 는 그대로 실행·배포하는 전체 설정 폴더다. 아래 owned 에 적은 파일만 모니모가 소유하고,
-# 나머지는 표준 genon/preprocessor/resource/ 의 사본이다. 사본은 직접 고치지 않는다 — 표준을 고친 뒤
-# sync-sites.sh 로 맞춘다. 사본이 표준과 다르면 단위 테스트(test_sites_sync_unit.py)가 실패한다.
+# 완성본은 두 자리다 — 둘 다 그대로 실행·배포하는 폴더다.
+#   resource/              설정 폴더(모델 접속 정보 등). 배포본 genon/preprocessor/resource/ 를 덮어쓴다
+#   activities/<slug>/     액티비티 설정(config.yaml·custom_field·프롬프트). 그 slug 의 설정 폴더가 된다(#497).
+#                          코드(processor.py)는 저장소 것이다 — 여기 두지 않는다
+# 아래 owned 에 적은 파일(사이트 루트 기준 경로)만 모니모가 소유하고, 나머지는 표준(genon/preprocessor/)의
+# 사본이다. 사본은 직접 고치지 않는다 — 표준을 고친 뒤 sync-sites.sh 로 맞춘다. 사본이 표준과 다르면
+# 단위 테스트(test_sites_sync_unit.py)가 실패한다.
 owned:
   # 모니모 운영 모델 접속 정보(현장 값으로 채운다)
-  - model_presets.yaml
+  - resource/model_presets.yaml
+  # 기본 전처리기 서비스용 간이 파서 설정(모니모 문서유형 등록 포함) — 그 서비스는 resource/ 완성본만 받으므로
+  # 문서유형 설정 14종의 사본도 여기 둔다. activities/parse/ 의 것과 같아야 한다(test_sites_sync_unit 이 대조)
+  - resource/parse_config_simple.yaml
+  - resource/custom_field_menu.yaml
+  - resource/custom_field_term.yaml
+  - resource/custom_field_faq.yaml
+  - resource/custom_field_monimo_event.yaml
+  - resource/custom_field_monimo_news.yaml
+  - resource/custom_field_product_slf.yaml
+  - resource/custom_field_product_ssf.yaml
+  - resource/custom_field_product_hpp.yaml
+  - resource/custom_field_cs_slf.yaml
+  - resource/custom_field_cs_ssf.yaml
+  - resource/custom_field_cs_hpp.yaml
+  - resource/custom_field_cs_sss.yaml
+  - resource/custom_field_stock_insight.yaml
+  - resource/custom_field_research_report.yaml
   # 모니모 문서유형 등록 블록이 들어간 파서 설정
-  - parse_config.yaml
-  - parse_config_simple.yaml
+  - activities/parse/config.yaml
   # 모니모 문서유형 설정 14종
-  - custom_field_menu.yaml
-  - custom_field_term.yaml
-  - custom_field_faq.yaml
-  - custom_field_monimo_event.yaml
-  - custom_field_monimo_news.yaml
-  - custom_field_product_slf.yaml
-  - custom_field_product_ssf.yaml
-  - custom_field_product_hpp.yaml
-  - custom_field_cs_slf.yaml
-  - custom_field_cs_ssf.yaml
-  - custom_field_cs_hpp.yaml
-  - custom_field_cs_sss.yaml
-  - custom_field_stock_insight.yaml
-  - custom_field_research_report.yaml
+  - activities/parse/custom_field_menu.yaml
+  - activities/parse/custom_field_term.yaml
+  - activities/parse/custom_field_faq.yaml
+  - activities/parse/custom_field_monimo_event.yaml
+  - activities/parse/custom_field_monimo_news.yaml
+  - activities/parse/custom_field_product_slf.yaml
+  - activities/parse/custom_field_product_ssf.yaml
+  - activities/parse/custom_field_product_hpp.yaml
+  - activities/parse/custom_field_cs_slf.yaml
+  - activities/parse/custom_field_cs_ssf.yaml
+  - activities/parse/custom_field_cs_hpp.yaml
+  - activities/parse/custom_field_cs_sss.yaml
+  - activities/parse/custom_field_stock_insight.yaml
+  - activities/parse/custom_field_research_report.yaml

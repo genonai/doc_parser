@@ -15,20 +15,41 @@ from genon.preprocessor.worker import errors, paths, registry, runtime, settings
 pytestmark = pytest.mark.unit
 
 
-def test_scan_registers_files_named_by_stage_with_paired_config(tmp_path):
-    acts, resource = tmp_path / "activities", tmp_path / "resource"
-    acts.mkdir(), resource.mkdir()
-    for name in ("parse", "parse_card", "chunk", "parsefoo", "_helper", "__main__"):
-        (acts / f"{name}.py").write_text("class DocumentProcessor: ...\n")
-    (acts / "legacy").mkdir()
-    (acts / "legacy" / "parse_old.py").write_text("")
-    (resource / "parse_card_config.yaml").write_text("{}\n")
+def test_scan_registers_folders_named_by_stage_with_config(tmp_path, monkeypatch):
+    """폴더 이름 = slug, 첫 단어 = 단계, processor.py 가 있어야 액티비티. config.yaml 은 필수(#495)."""
+    monkeypatch.delenv("GENOS_RESOURCE_DIR", raising=False)
+    acts = tmp_path / "activities"
+    for name, files in (("parse", ("processor.py", "config.yaml")), ("parse_card", ("processor.py", "config.yaml")),
+                        ("chunk", ("processor.py", "config.yaml")), ("parsefoo", ("processor.py", "config.yaml")),
+                        ("_helper", ("processor.py", "config.yaml")), ("legacy", ("config.yaml",))):
+        (acts / name).mkdir(parents=True)
+        for f in files:
+            (acts / name / f).write_text("")
+    (acts / "stray.py").write_text("")                      # 평평한 파일은 더 이상 액티비티가 아니다
 
-    assert registry.scan(acts, resource) == [
-        registry.Entry("chunk", "chunk", None),
-        registry.Entry("parse", "parse", None),
-        registry.Entry("parse_card", "parse", str(resource / "parse_card_config.yaml")),
+    assert registry.scan(acts) == [
+        registry.Entry("chunk", "chunk", str(acts / "chunk" / "config.yaml")),
+        registry.Entry("parse", "parse", str(acts / "parse" / "config.yaml")),
+        registry.Entry("parse_card", "parse", str(acts / "parse_card" / "config.yaml")),
     ]
+    (acts / "parse_card" / "config.yaml").unlink()
+    with pytest.raises(ValueError, match="parse_card"):
+        registry.scan(acts)
+
+
+def test_site_folder_overrides_activity_config(tmp_path, monkeypatch):
+    """사이트 완성본(GENOS_RESOURCE_DIR 옆 activities/<slug>/)이 그 slug 의 설정 폴더가 된다(#497) — 코드는 저장소 것."""
+    acts, site = tmp_path / "activities", tmp_path / "site"
+    for name in ("parse", "chunk"):
+        (acts / name).mkdir(parents=True)
+        (acts / name / "processor.py").write_text("")
+        (acts / name / "config.yaml").write_text("")
+    (site / "resource").mkdir(parents=True)
+    (site / "activities" / "parse").mkdir(parents=True)
+    (site / "activities" / "parse" / "config.yaml").write_text("")
+    monkeypatch.setenv("GENOS_RESOURCE_DIR", str(site / "resource"))
+    assert [e.config_path for e in registry.scan(acts)] == [str(acts / "chunk" / "config.yaml"),
+                                                            str(site / "activities" / "parse" / "config.yaml")]
 
 
 def test_build_gives_each_slug_its_own_activity_name():
@@ -46,8 +67,8 @@ def test_real_activities_follow_the_rule_and_inherit_core():
 
     slugs = {e.slug: e.stage for e in registry.scan()}
     assert {"parse": "parse", "chunk": "chunk"}.items() <= slugs.items()
-    parse_cls = registry.importlib.import_module("genon.preprocessor.activities.parse").DocumentProcessor
-    chunk_cls = registry.importlib.import_module("genon.preprocessor.activities.chunk").DocumentProcessor
+    parse_cls = registry.importlib.import_module("genon.preprocessor.activities.parse.processor").DocumentProcessor
+    chunk_cls = registry.importlib.import_module("genon.preprocessor.activities.chunk.processor").DocumentProcessor
     assert issubclass(parse_cls, ParserCore) and issubclass(chunk_cls, ChunkerCore)
 
 
@@ -238,14 +259,14 @@ def test_first_processor_is_created_once_under_concurrent_calls(monkeypatch):
     made = []
 
     class _Slow(ParserCore):
-        def __init__(self):                      # 무거운 기동(모델 적재)을 흉내 낸다
+        def __init__(self, config_path=None):    # 무거운 기동(모델 적재)을 흉내 낸다
             made.append(self)
             time.sleep(0.2)
 
     real = registry.importlib.import_module
     monkeypatch.setattr(registry.importlib, "import_module",
                         lambda name, *a: types.SimpleNamespace(DocumentProcessor=_Slow)
-                        if name.endswith(".parse_t") else real(name, *a))
+                        if name.endswith(".parse_t.processor") else real(name, *a))
     monkeypatch.setattr(registry, "_PROCESSORS", {})
     entry = registry.Entry("parse_t", "parse", None)
     with concurrent.futures.ThreadPoolExecutor(4) as pool:

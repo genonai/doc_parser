@@ -17,7 +17,7 @@ _MODULES = ["intelligent_processor", "convert_processor", "chunking_processor"]
 _DEFAULT_CONFIG = {
     "intelligent_processor": "intelligent_processor_config.yaml",
     "convert_processor": "convert_processor_config.yaml",
-    "chunking_processor": "chunk_config.yaml",
+    "chunking_processor": "config.yaml",          # 청커는 액티비티 폴더(activities/chunk/)
 }
 
 
@@ -37,7 +37,7 @@ def _make_config(tmp_path: Path, module_name: str, chunk_size, chunk_mode=_UNSET
     tmp_path 에 복사한다(yaml 하나만 복사하면 intelligent/convert 가 prompt 파일 부재로 init 실패 →
     테스트가 조용히 skip 된다).
     """
-    resource_dir = Path(__file__).resolve().parents[2] / "resource"
+    resource_dir = Path(__file__).resolve().parents[2] / ("activities/chunk" if module_name == "chunking_processor" else "resource")
     repo_resource = resource_dir / _DEFAULT_CONFIG[module_name]
     shutil.copytree(resource_dir, tmp_path, dirs_exist_ok=True)
     cfg = yaml.safe_load(repo_resource.read_text(encoding="utf-8"))

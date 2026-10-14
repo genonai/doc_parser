@@ -6,9 +6,9 @@ defaults:
 
 # ── 모델 프리셋 ───────────────────────────────────────────────────────────────
 # 모델·외부 서비스 접속 정보(LLM 서빙 주소·키, OCR·layout·whisper·guardrail 주소)는
-# model_presets.yaml 에 모여 있고, 쓰는 자리에서는 `model_preset: <이름>` 한 줄로 부른다.
-# 규칙과 담을 수 있는 값은 그 파일 머리말을 참고한다.
-model_presets_file: model_presets.yaml
+# 설정 폴더(resource/, 사이트는 GENOS_RESOURCE_DIR)의 model_presets.yaml 한 곳에 모여 있고, 쓰는 자리에서는
+# `model_preset: <이름>` 한 줄로 부른다. 액티비티 폴더는 그 파일을 복사하지 않고 이름으로 참조한다 —
+# `model_presets_file` 을 적지 않으면 그 파일이 자동으로 1층이 된다. 규칙은 그 파일 머리말을 참고한다.
 model_presets:
   page:
     timeout: 360   # PPT 페이지 설명은 오래 걸려 이 설정에서만 늘린다
