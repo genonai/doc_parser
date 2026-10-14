@@ -322,7 +322,7 @@ def test_shipped_blocks_derive_their_extractor():
     from shipped_config import PREPROCESSOR_DIR, SHIPPED_ROOTS
 
     configs = (
-        "parse_config.yaml", "parse_config_simple.yaml",
+        "config.yaml", "parse_config_simple.yaml",
         "intelligent_processor_config.yaml", "convert_processor_config.yaml",
         "chunk_config.yaml", "chunk_config_simple.yaml",
         "attachment_processor_config.yaml",

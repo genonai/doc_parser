@@ -5,6 +5,7 @@
 """
 import errno
 import json
+from pathlib import Path
 
 import pytest
 from temporalio.testing import ActivityEnvironment
@@ -15,20 +16,54 @@ from genon.preprocessor.worker import errors, paths, registry, runtime, settings
 pytestmark = pytest.mark.unit
 
 
-def test_scan_registers_files_named_by_stage_with_paired_config(tmp_path):
-    acts, resource = tmp_path / "activities", tmp_path / "resource"
-    acts.mkdir(), resource.mkdir()
-    for name in ("parse", "parse_card", "chunk", "parsefoo", "_helper", "__main__"):
-        (acts / f"{name}.py").write_text("class DocumentProcessor: ...\n")
-    (acts / "legacy").mkdir()
-    (acts / "legacy" / "parse_old.py").write_text("")
-    (resource / "parse_card_config.yaml").write_text("{}\n")
+def test_scan_registers_folders_named_by_stage_with_config(tmp_path, monkeypatch):
+    """폴더 이름 = slug, 첫 단어 = 단계, processor.py 가 있어야 액티비티. config.yaml 은 필수(#495)."""
+    monkeypatch.delenv("GENOS_RESOURCE_DIR", raising=False)
+    acts = tmp_path / "activities"
+    for name, files in (("parse", ("processor.py", "config.yaml")), ("parse_card", ("processor.py", "config.yaml")),
+                        ("chunk", ("processor.py", "config.yaml")), ("parsefoo", ("processor.py", "config.yaml")),
+                        ("_helper", ("processor.py", "config.yaml")), ("legacy", ("config.yaml",))):
+        (acts / name).mkdir(parents=True)
+        for f in files:
+            (acts / name / f).write_text("")
+    (acts / "stray.py").write_text("")                      # 평평한 파일은 더 이상 액티비티가 아니다
 
-    assert registry.scan(acts, resource) == [
-        registry.Entry("chunk", "chunk", None),
-        registry.Entry("parse", "parse", None),
-        registry.Entry("parse_card", "parse", str(resource / "parse_card_config.yaml")),
+    assert registry.scan(acts) == [
+        registry.Entry("chunk", "chunk", str(acts / "chunk" / "config.yaml")),
+        registry.Entry("parse", "parse", str(acts / "parse" / "config.yaml")),
+        registry.Entry("parse_card", "parse", str(acts / "parse_card" / "config.yaml")),
     ]
+    (acts / "parse_card" / "config.yaml").unlink()
+    with pytest.raises(ValueError, match="parse_card"):
+        registry.scan(acts)
+
+
+def test_site_folder_overrides_activity_config(tmp_path, monkeypatch, caplog):
+    """사이트 완성본(GENOS_RESOURCE_DIR 옆 activities/<slug>/)이 그 slug 의 설정 폴더가 된다(#497) — 코드는 저장소 것.
+    기동 로그는 slug 마다 설정 경로·출처를 적고, 사이트에 activities/ 가 없으면 경고한다(#520)."""
+    import logging
+
+    acts, site = tmp_path / "activities", tmp_path / "site"
+    for name in ("parse", "chunk"):
+        (acts / name).mkdir(parents=True)
+        (acts / name / "processor.py").write_text("")
+        (acts / name / "config.yaml").write_text("")
+    (site / "resource").mkdir(parents=True)
+    monkeypatch.setenv("GENOS_RESOURCE_DIR", str(site / "resource"))
+    with caplog.at_level(logging.INFO, logger="genon.worker"):
+        assert [e.config_path for e in registry.scan(acts)] == [str(acts / "chunk" / "config.yaml"),
+                                                                str(acts / "parse" / "config.yaml")]
+    assert any(r.levelno == logging.WARNING and "activities/ 가 없다" in r.getMessage() for r in caplog.records)
+    caplog.clear()
+    (site / "activities" / "parse").mkdir(parents=True)
+    (site / "activities" / "parse" / "config.yaml").write_text("")
+    with caplog.at_level(logging.INFO, logger="genon.worker"):
+        assert [e.config_path for e in registry.scan(acts)] == [str(acts / "chunk" / "config.yaml"),
+                                                                str(site / "activities" / "parse" / "config.yaml")]
+    lines = [r.getMessage() for r in caplog.records]
+    assert not any(r.levelno == logging.WARNING for r in caplog.records)
+    assert any("액티비티 parse:" in ln and "사이트 완성본" in ln for ln in lines)
+    assert any("액티비티 chunk:" in ln and "저장소 표준" in ln for ln in lines)
 
 
 @pytest.mark.parametrize("cpu_max, processes, node_cpus, expected", [
@@ -58,9 +93,12 @@ def test_real_activities_follow_the_rule_and_inherit_core():
     from genon.preprocessor.processing.core.parser import ParserCore
 
     slugs = {e.slug: e.stage for e in registry.scan()}
-    assert {"parse": "parse", "chunk": "chunk"}.items() <= slugs.items()
-    parse_cls = registry.importlib.import_module("genon.preprocessor.activities.parse").DocumentProcessor
-    chunk_cls = registry.importlib.import_module("genon.preprocessor.activities.chunk").DocumentProcessor
+    if (Path(__file__).resolve().parents[3] / "genon" / "sites").is_dir():     # 원본 저장소 — 원형만 둔다(#496)
+        assert slugs == {"parse": "parse", "chunk": "chunk"}, "고객 slug 는 고객 저장소(서빙본 작업 브랜치)에서 만든다"
+    else:                                                                       # 서빙본·고객 저장소 — 사본이 더 있을 수 있다
+        assert {"parse": "parse", "chunk": "chunk"}.items() <= slugs.items()
+    parse_cls = registry.importlib.import_module("genon.preprocessor.activities.parse.processor").DocumentProcessor
+    chunk_cls = registry.importlib.import_module("genon.preprocessor.activities.chunk.processor").DocumentProcessor
     assert issubclass(parse_cls, ParserCore) and issubclass(chunk_cls, ChunkerCore)
 
 
@@ -251,14 +289,14 @@ def test_first_processor_is_created_once_under_concurrent_calls(monkeypatch):
     made = []
 
     class _Slow(ParserCore):
-        def __init__(self):                      # 무거운 기동(모델 적재)을 흉내 낸다
+        def __init__(self, config_path=None):    # 무거운 기동(모델 적재)을 흉내 낸다
             made.append(self)
             time.sleep(0.2)
 
     real = registry.importlib.import_module
     monkeypatch.setattr(registry.importlib, "import_module",
                         lambda name, *a: types.SimpleNamespace(DocumentProcessor=_Slow)
-                        if name.endswith(".parse_t") else real(name, *a))
+                        if name.endswith(".parse_t.processor") else real(name, *a))
     monkeypatch.setattr(registry, "_PROCESSORS", {})
     entry = registry.Entry("parse_t", "parse", None)
     with concurrent.futures.ThreadPoolExecutor(4) as pool:
@@ -292,7 +330,7 @@ def test_single_run_cli_uses_worker_body_and_prints_result_last(tmp_path, monkey
     monkeypatch.setattr(cli, "_run_isolated",
                         lambda argv: {"ok": True, "data": cli.run(cli._parser().parse_args(argv))})
 
-    code = cli.main(["run", "--activity", "parse", str(src), "--doc-type", "card",
+    code = cli.main(["run", "--activity", "parse", "--input", str(src), "--doc-type", "card",   # <file> 과 같다
                      "--params", '{"doc_type": "x", "keep": 1}', "-o", str(tmp_path / "out" / "p.json")])
     last = capsys.readouterr().out.strip().splitlines()[-1]
     result = json.loads(last.removeprefix("@@RESULT@@ "))
@@ -310,3 +348,121 @@ def test_single_run_cli_uses_worker_body_and_prints_result_last(tmp_path, monkey
     code = cli.main(["run", "--activity", "parse"])                          # 인자 오류도 결과 한 줄
     usage = json.loads(capsys.readouterr().out.strip().splitlines()[-1].removeprefix("@@RESULT@@ "))
     assert code == 1 and usage["ok"] is False and usage["error"]["type"] == "_UsageError"
+
+
+# ── activities diff(#496) — 사본이 복사된 뒤 원형이 바뀐 것 ───────────────────────────
+
+def _copied_repo(tmp_path):
+    """임시 git 저장소: 원형 parse → 사본 parse_t 복사 커밋 → 원형 변경(수정·추가·삭제) 커밋. activities 폴더를 돌려준다."""
+    import os
+    import shutil
+    import subprocess
+
+    def git(*args):
+        subprocess.run(["git", "-C", str(tmp_path), *args], check=True, capture_output=True,
+                       env={**os.environ, "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t",
+                            "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t"})
+    acts = tmp_path / "activities"
+    (acts / "parse").mkdir(parents=True)
+    (acts / "parse" / "processor.py").write_text("class DocumentProcessor: ...\n", encoding="utf-8")
+    (acts / "parse" / "config.yaml").write_text("chunking:\n  chunk_size: 1500\n", encoding="utf-8")
+    (acts / "parse" / "지울_프롬프트.md").write_text("old\n", encoding="utf-8")       # 한글 이름 — ls-tree 인용 회귀를 잡는다
+    git("init", "-q"); git("add", "-A"); git("commit", "-q", "-m", "원형")
+    shutil.copytree(acts / "parse", acts / "parse_t")                                # 복사(Studio 의 new)
+    git("add", "-A"); git("commit", "-q", "-m", "parse_t 복사")
+    (acts / "parse" / "config.yaml").write_text("chunking:\n  chunk_size: 300\n", encoding="utf-8")   # 원형이 바뀐다
+    (acts / "parse" / "new.md").write_text("new\n", encoding="utf-8")
+    (acts / "parse" / "지울_프롬프트.md").unlink()
+    git("add", "-A"); git("commit", "-q", "-m", "원형 변경")
+    return acts
+
+
+def test_diff_shows_origin_changes_since_copy(tmp_path):
+    from genon.preprocessor.activities.__main__ import diff_origin
+
+    acts = _copied_repo(tmp_path)
+    summary, body = diff_origin("parse_t", activities_dir=acts)
+    assert {k: summary[k] for k in ("slug", "origin", "changed", "added", "removed", "unchanged")} == {
+        "slug": "parse_t", "origin": "parse", "changed": ["config.yaml"], "added": ["new.md"],
+        "removed": ["지울_프롬프트.md"], "unchanged": 1}
+    assert summary["copied_at"]["commit"] and "-  chunk_size: 1500" in body and "+  chunk_size: 300" in body
+
+
+def test_diff_reports_uncommitted_copy(tmp_path):
+    import shutil
+
+    from genon.preprocessor.activities.__main__ import diff_origin
+
+    acts = _copied_repo(tmp_path)
+    shutil.copytree(acts / "parse", acts / "parse_u")                      # 아직 커밋하지 않은 사본
+    summary, body = diff_origin("parse_u", activities_dir=acts)
+    assert summary["copied_at"] is None and "미커밋" in summary["note"] and body == ""
+
+
+# ── activities new / remove(#472) — 생성·복제 = 폴더 복사, 삭제 = 폴더 삭제 ─────────────────────
+
+def _activities(tmp_path, monkeypatch, site_overrides_parse=False):
+    """저장소 액티비티 폴더(parse·chunk) + 선택적으로 사이트 완성본(GENOS_RESOURCE_DIR 옆 activities/parse/)."""
+    acts = tmp_path / "activities"
+    for slug in ("parse", "chunk"):
+        (acts / slug).mkdir(parents=True)
+        (acts / slug / "processor.py").write_text(f"# {slug} 원형 별명\nclass DocumentProcessor: ...\n", encoding="utf-8")
+        (acts / slug / "__init__.py").write_text("", encoding="utf-8")
+        (acts / slug / "config.yaml").write_text(f"who: repo-{slug}\n", encoding="utf-8")
+        (acts / slug / "prompt_x.md").write_text("repo prompt\n", encoding="utf-8")
+    monkeypatch.delenv("GENOS_RESOURCE_DIR", raising=False)
+    if site_overrides_parse:
+        site = tmp_path / "site"
+        (site / "resource").mkdir(parents=True)
+        (site / "activities" / "parse").mkdir(parents=True)
+        (site / "activities" / "parse" / "config.yaml").write_text("who: site-parse\n", encoding="utf-8")
+        (site / "activities" / "parse" / "custom_field_faq.yaml").write_text("site field\n", encoding="utf-8")
+        (site / "activities" / "parse" / "plugins").mkdir()
+        (site / "activities" / "parse" / "plugins" / "extract.py").write_text("def run(): ...\n", encoding="utf-8")
+        monkeypatch.setenv("GENOS_RESOURCE_DIR", str(site / "resource"))
+    return acts
+
+
+def test_new_copies_effective_config_and_repo_code(tmp_path, monkeypatch):
+    """사본의 설정은 원본의 실제 설정 폴더(사이트가 덮어쓰면 그쪽)에서, 코드는 저장소 폴더에서 온다. 첫 줄 별명만 바뀐다."""
+    from genon.preprocessor.activities.__main__ import new_activity
+
+    acts = _activities(tmp_path, monkeypatch, site_overrides_parse=True)
+    files = new_activity("parse", "parse_1", activities_dir=acts)
+    # 사이트 설정 폴더의 것 전부(플러그인 하위 폴더 포함) + 저장소 코드 — 저장소 설정 폴더의 prompt_x.md 는 오지 않는다
+    assert sorted("/".join(Path(f).parts[-2:]) if "plugins" in f else Path(f).name for f in files) == \
+        ["__init__.py", "config.yaml", "custom_field_faq.yaml", "plugins/extract.py", "processor.py"]
+    assert (acts / "parse_1" / "config.yaml").read_text(encoding="utf-8") == "who: site-parse\n"      # 사이트 설정(모니모 유형)
+    assert (acts / "parse_1" / "processor.py").read_text(encoding="utf-8") == \
+        "# parse 원형 별명 사본\nclass DocumentProcessor: ...\n"
+
+
+@pytest.mark.parametrize("origin, slug, title, needle", [
+    ("parse", "parse", None, "원형 이름"), ("parse", "Parse_1", None, "규칙"), ("parse", "chunk_1", None, "단계가 다릅니다"),
+    ("nope", "parse_1", None, "원본 'nope'"), ("parse", "parse_1", "두\n줄", "한 줄"),
+])
+def test_new_rejects_bad_requests(tmp_path, monkeypatch, origin, slug, title, needle):
+    from genon.preprocessor.activities.__main__ import new_activity
+
+    acts = _activities(tmp_path, monkeypatch)
+    with pytest.raises(ValueError, match=needle):
+        new_activity(origin, slug, title=title, activities_dir=acts)
+    assert sorted(p.name for p in acts.iterdir()) == ["chunk", "parse"]                              # 아무것도 만들지 않았다
+
+
+def test_remove_deletes_copy_but_not_prototype_or_site_overridden(tmp_path, monkeypatch):
+    from genon.preprocessor.activities.__main__ import new_activity, remove_activity
+
+    acts = _activities(tmp_path, monkeypatch, site_overrides_parse=True)
+    new_activity("chunk", "chunk_1", activities_dir=acts)
+    removed = remove_activity("chunk_1", activities_dir=acts)
+    assert sorted(Path(f).name for f in removed) == ["__init__.py", "config.yaml", "processor.py", "prompt_x.md"]
+    assert not (acts / "chunk_1").exists()
+    for slug, needle in (("parse", "원형"), ("chunk_1", "없습니다")):
+        with pytest.raises(ValueError, match=needle):
+            remove_activity(slug, activities_dir=acts)
+    new_activity("parse", "parse_s", activities_dir=acts)
+    (tmp_path / "site" / "activities" / "parse_s").mkdir()                       # 사이트가 덮어쓰는 slug
+    with pytest.raises(ValueError, match="사이트 완성본"):
+        remove_activity("parse_s", activities_dir=acts)
+    assert (acts / "parse_s").exists()

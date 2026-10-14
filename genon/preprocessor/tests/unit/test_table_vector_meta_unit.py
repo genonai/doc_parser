@@ -164,6 +164,11 @@ from pathlib import Path
 _RESOURCE = Path(__file__).resolve().parents[2] / "resource"
 
 
+def _shipped(name: str):
+    """출고 설정 경로 — 청커 설정(chunk_config.yaml)은 액티비티 폴더 activities/chunk/config.yaml 이다(#495)."""
+    return _RESOURCE.parent / "activities" / "chunk" / "config.yaml" if name == "chunk_config.yaml" else _RESOURCE / name
+
+
 @pytest.mark.unit
 @pytest.mark.parametrize("name", [
     "chunk_config.yaml",
@@ -174,7 +179,7 @@ def test_chunker_config_exposes_table_switches(name):
 
     이 블록이 없으면 /chunker 로 들어온 문서는 표 형식을 지정할 방법이 없다.
     """
-    output = yaml.safe_load((_RESOURCE / name).read_text(encoding="utf-8")).get("output")
+    output = yaml.safe_load(_shipped(name).read_text(encoding="utf-8")).get("output")
     assert output is not None, f"{name} 에 output 블록이 없다"
     assert cp.resolve_table_format_setting(output) in {"html", "markdown", "auto"}
     # 켜고 끄는 값은 설정마다 다르다(표준 청커 설정은 on). 스위치가 노출됐는지만 본다.
@@ -254,7 +259,7 @@ def test_table_text_formats_defaults_to_off_in_operational_config():
     """켜면 본문이 형식 수만큼 복제된다. 운영 기본은 off 여야 한다."""
     for name in ("chunk_config.yaml", "chunk_config_simple.yaml",
                  "intelligent_processor_config.yaml", "convert_processor_config.yaml"):
-        output = yaml.safe_load((_RESOURCE / name).read_text(encoding="utf-8"))["output"]
+        output = yaml.safe_load(_shipped(name).read_text(encoding="utf-8"))["output"]
         assert cp.resolve_table_text_formats(output) == (), name
 
 

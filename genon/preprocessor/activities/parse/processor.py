@@ -168,7 +168,7 @@ class DocumentProcessor(ParserCore):
     #   enrichment.toc.enable                목차 보강     (= toc)
     #   ocr.ocr_mode                         auto / force / disable
     #   pdf_output.keep                      변환 PDF 보존 (= keep_pdf)
-    # 청크 크기 같은 청킹 설정은 activities/chunk.py 의 같은 표에 적는다.
+    # 청크 크기 같은 청킹 설정은 activities/chunk/processor.py 의 같은 표에 적는다.
     #
     # 기동 시 한 번 읽혀 굳는 설정(엔드포인트 주소, 프롬프트 등)은 여기 적어도 건너뛰고
     # 경고가 남는다 — 그 값은 설정 파일에서 바꾼다.
@@ -240,7 +240,7 @@ class DocumentProcessor(ParserCore):
 
         청크에 실을 메타는 tb.set_chunk_metadata() 로 넣는다. result["metadata"] 에 직접 쓰면
         이 API 응답에만 남고 청크에는 전달되지 않는다. 이 값은 그 문서의 모든 청크에 똑같이
-        붙는다(청크마다 다른 값은 activities/chunk.py 의 edit_chunk 에서 info["fields"] 로).
+        붙는다(청크마다 다른 값은 activities/chunk/processor.py 의 edit_chunk 에서 info["fields"] 로).
 
             async def edit_output(self, ext, doc_type, result, **kwargs):
                 emp_no = (result.get("metadata") or {}).get("EMP_NO")

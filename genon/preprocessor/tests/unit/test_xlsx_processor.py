@@ -651,7 +651,7 @@ async def test_e2e_xlsx_modes(tmp_path, mode):
     assert isinstance(v.get("text"), str) and v["text"]
 
 
-_PARSER_CONFIG = _PREPROC / "resource" / "parse_config.yaml"
+_PARSER_CONFIG = _PREPROC / "activities" / "parse" / "config.yaml"
 
 
 @pytest.mark.smoke
@@ -671,9 +671,8 @@ async def test_parser_xlsx_docling_mode_runs_post_enrichment(tmp_path):
     cfg.setdefault("defaults", {})["unknown_doc_type"] = "warn"
     cfg.setdefault("formats", {}).setdefault("xlsx", {})["processing_mode"] = "docling"
     cfg.setdefault("output", {})["format"] = "json"
-    out = tmp_path / "parse_config.yaml"
+    out = tmp_path / "config.yaml"          # 액티비티 설정 이름 — 모델 프리셋이 설정 폴더의 model_presets.yaml 로 풀린다
     out.write_text(yaml.safe_dump(cfg, allow_unicode=True), encoding="utf-8")
-    shutil.copy(_PARSER_CONFIG.parent / "model_presets.yaml", tmp_path)
     try:
         dp = mod.DocumentProcessor(config_path=str(out))
     except Exception as e:  # noqa: BLE001 - 모델/네트워크 등 환경 의존

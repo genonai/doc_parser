@@ -11,8 +11,8 @@
 
 | 파일 | 줄수 | 고칠 자리 |
 |---|---:|---|
-| `activities/parse.py` | 282 | `ROUTES` · `CONFIG_BY_DOC_TYPE` · `edit_input` · `edit_document` · `edit_output` |
-| `activities/chunk.py` | 264 | `GenOSVectorMeta` · `GenosSmartChunker` · `ROW_CATEGORIES` · `CONFIG_BY_DOC_TYPE` · `edit_input` · `edit_chunk` · `edit_output` |
+| `activities/parse/processor.py` | 282 | `ROUTES` · `CONFIG_BY_DOC_TYPE` · `edit_input` · `edit_document` · `edit_output` |
+| `activities/chunk/processor.py` | 264 | `GenOSVectorMeta` · `GenosSmartChunker` · `ROW_CATEGORIES` · `CONFIG_BY_DOC_TYPE` · `edit_input` · `edit_chunk` · `edit_output` |
 
 처리 본체는 `processing/core/` 에 있고 **열어 볼 일이 없습니다.** 열어야 했다면 그건 훅 메소드가
 부족하다는 뜻이니 알려 주세요.
@@ -267,7 +267,7 @@ API 라 그 값은 호출자용 정보로 끝납니다. `tb.set_chunk_metadata()
 
 | 하고 싶은 것 | 바꿀 것 | 자리 |
 |---|---|---|
-| 청크 앞 `HEADER:` 라벨을 다른 말로 / 없애기 | `GenosSmartChunker.CHUNK_HEADER_PREFIX` (빈 문자열이면 경로만) | `activities/chunk.py` |
+| 청크 앞 `HEADER:` 라벨을 다른 말로 / 없애기 | `GenosSmartChunker.CHUNK_HEADER_PREFIX` (빈 문자열이면 경로만) | `activities/chunk/processor.py` |
 | 섹션 경로 구분자 | `CHUNK_HEADER_SEP` · `CHUNK_PATH_SEP` · `CHUNK_PATH_MAX_LEAVES` | 〃 |
 | 파서가 만든 **새 category** 를 행 1개 = 청크 1개로 처리 | `ROW_CATEGORIES` 에 이름 추가 | 〃 |
 | 1024 보다 작은 청크 만들기 | `chunking.min_chunk_size` (0 이면 보정 안 함) | `chunk_config.yaml` |
@@ -559,14 +559,14 @@ tools/parse_chunk/parse_chunk_golden.py --check
 
 ## 릴리스 갱신 때 내 수정분 지키기
 
-**전처리기 갱신은 릴리스 단위 통째 갱신입니다** — `activities/parse.py` 와
-`activities/chunk.py` 도 함께 덮어써집니다. 그래서 갱신 전에 보관하고 뒤에 다시
+**전처리기 갱신은 릴리스 단위 통째 갱신입니다** — `activities/parse/processor.py` 와
+`activities/chunk/processor.py` 도 함께 덮어써집니다. 그래서 갱신 전에 보관하고 뒤에 다시
 붙입니다.
 
 ```bash
 # 실행 위치: gitea_repo
-git diff -- genon/preprocessor/activities/parse.py \
-             genon/preprocessor/activities/chunk.py > my_change.patch
+git diff -- genon/preprocessor/activities/parse/processor.py \
+             genon/preprocessor/activities/chunk/processor.py > my_change.patch
 # … 릴리스 통째 갱신 …
 git apply my_change.patch          # 충돌하면 patch 를 보고 손으로 반영
 ```

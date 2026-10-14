@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # 배포 전 custom_fields 설정 점검. 파싱도 LLM 호출도 하지 않고 yaml 만 읽는다.
 #
-#   ./precheck_custom_fields.sh                         # 저장소 resource/
-#   ./precheck_custom_fields.sh /path/to/site/resource  # 현장 설정 디렉터리
+#   ./precheck_custom_fields.sh                         # 저장소 resource/ + 모든 액티비티 폴더(activities/<slug>/)
+#   ./precheck_custom_fields.sh /path/to/site           # 사이트 루트(resource/ + activities/<slug>/) 또는 설정 폴더 하나
 #
 # 기동을 막는 문제가 하나라도 있으면 비-0 으로 끝난다.
 set -euo pipefail

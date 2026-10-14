@@ -1164,7 +1164,7 @@ def test_shipped_configs_pass_startup_validation():
     # 매핑 설정(모니모 문서유형)은 모니모 사이트 완성본에 있다.
     base = Path(__file__).resolve().parents[2] / SITE_MONIMO
     # 기동과 같은 경로로 읽는다 — 프리셋이 `model_presets_file` 로 지정한 파일에서 모인다.
-    raw = cp.load_config(str(base / "parse_config.yaml"))
+    raw = cp.load_config(str(base / "config.yaml"))
     built = 0
     for item in raw.get("enrichment") or []:
         for name, opts in (item or {}).items():
@@ -1310,7 +1310,7 @@ def test_shipped_configs_match_declared_keys(resource_dir):
 
     root = Path(__file__).resolve().parents[2] / resource_dir
     registered = {}
-    for name in ("parse_config.yaml", "parse_config_simple.yaml",
+    for name in ("config.yaml", "parse_config_simple.yaml",
                  "intelligent_processor_config.yaml", "convert_processor_config.yaml"):
         path = root / name
         if not path.exists():
@@ -1334,8 +1334,8 @@ def test_shipped_configs_match_declared_keys(resource_dir):
         cfg = _load_shipped(path)
         cs.validate_known_keys(cfg, label=f"{resource_dir}/{path.name}", extractor=extractor)
         checked += 1
-    # 공통본 단독은 card 한 건뿐이다(문서유형 설정 대부분은 사이트 폴더에 있다).
-    minimum = 1 if resource_dir == "resource" else 15
+    # 표준 폴더(resource/·activities/parse/)는 card 한 건뿐이다(문서유형 설정 대부분은 사이트 폴더에 있다).
+    minimum = 15 if resource_dir == SITE_MONIMO else 1
     assert checked >= minimum, f"검사된 출고 설정이 너무 적다: {checked}건"
 
 
@@ -1783,3 +1783,15 @@ def test_warning_never_breaks_startup(caplog):
         cfe.warn_unsupported_custom_fields(configs, "intelligent")
     # 앞 항목에서 터지지 않고 뒤 항목의 경고까지 도달한다.
     assert any("records_one" in r.getMessage() for r in caplog.records)
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("ref, outcome", [("../x.yaml", "error"), ("x", "x.yaml"), ("sub/x.yml", "sub/x.yml")])
+def test_config_file_stays_inside_resource_dir(tmp_path, ref, outcome):
+    """custom_fields config_file 은 설정 폴더(resource_path) 안의 파일만 받는다 — prompt 파일과 같은 규칙(#495).
+    확장자가 없으면 .yaml 을 붙인다."""
+    if outcome == "error":
+        with pytest.raises(ValueError, match="설정 폴더"):
+            cfe.resolve_custom_fields_config_path(ref, str(tmp_path))
+    else:
+        assert cfe.resolve_custom_fields_config_path(ref, str(tmp_path)) == (tmp_path / outcome).resolve()

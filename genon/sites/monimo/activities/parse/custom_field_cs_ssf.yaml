@@ -1,0 +1,56 @@
+# 고객센터(화재) 구분자 원천
+#
+# 원천 한 줄의 모양 — 헤더 없이 데이터부터 시작한다.
+#   대분류|@|중분류|@|소분류|@|제목|@|"<style>…<table>…</table>"
+
+schema: v2
+# table_text_description:
+#   enable: false
+source:
+  kind: records
+  pre:
+    delimited:
+      separator: "|@|"
+      columns: [대분류, 중분류, 소분류, 제목, 내용]
+fields:
+  BIZ_ID:
+    # 원천에 ID 가 없어 분류·제목·내용을 결합해 해시로 만든다. 같은 행은 재적재해도 같은 값이고,
+    # 제목·내용이 바뀌면 새 ID 다(to_text 정제 후 값이므로 마크업만 바뀐 경우는 같은 ID).
+    template: "{{CS_CTGR_L1}}|{{CS_CTGR_L2}}|{{CS_CTGR_L3}}|{{CUSTOM_TITLE}}|{{CONTENT}}"
+    transform: {name: hash, prefix: SSF_CS_, length: 16}
+  GROUP_C:
+    const: SSF
+  CS_CTGR_L1:
+    alias: [대분류]
+  CS_CTGR_L2:
+    alias: [중분류]
+    default: null
+  CS_CTGR_L3:
+    alias: [소분류]
+    default: null
+  CUSTOM_TITLE:
+    alias: [제목]
+    transform: to_text
+  CONTENT:
+    alias: [내용]
+    transform: to_text
+  RELATED_KEYWORDS:
+    alias: [related_keywords, 연관 키워드]
+    default: null
+  DEEP_LINK_URL:
+    alias: [딥링크, 앱 딥링크]
+    default: null
+  SRC_LAST_MOD_DT:
+    default: null
+    # 다른 문서유형과 같은 정수 YYYYMMDD 로 맞춘다(기간 필터·최신순 정렬). 값이 없으면 0(날짜 없음).
+    transform: date_int
+require:
+  fields: [GROUP_C]
+body:
+  fields: [CS_CTGR_L1, CUSTOM_TITLE, CONTENT]
+  labels:
+    CS_CTGR_L1: 문의유형
+    CUSTOM_TITLE: 제목
+    CONTENT: 내용
+  split: true
+  repeat: [CS_CTGR_L1, CUSTOM_TITLE]

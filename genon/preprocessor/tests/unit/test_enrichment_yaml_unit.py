@@ -7,6 +7,7 @@ intelligent_processor / parser_processor / attachment_processor 가 사용하는
 등 무거운 의존성이나 내부 서버 요청 없이 어디서든(로컬/GitHub CI) 실행된다.
 """
 
+import os
 from pathlib import Path
 
 import pytest
@@ -18,18 +19,18 @@ from processing.enrichment.field_transforms import DEFAULT_METADATA_FIELD_TRANSF
 
 # 실제 배포되는 설정 파일들 (repo_root = genon/preprocessor 기준 상대 경로)
 SHIPPED_CONFIGS = [
-    "../sites/monimo/resource/parse_config.yaml",
+    "../sites/monimo/activities/parse/config.yaml",
     "resource/intelligent_processor_config.yaml",
-    "resource/parse_config.yaml",
+    "activities/parse/config.yaml",
     "resource/attachment_processor_config.yaml",
     "resource/convert_processor_config.yaml",
 ]
 
 # enrichment 섹션이 있는(벡터/메타데이터 추출) 설정들
 ENRICHMENT_CONFIGS = [
-    "../sites/monimo/resource/parse_config.yaml",
+    "../sites/monimo/activities/parse/config.yaml",
     "resource/intelligent_processor_config.yaml",
-    "resource/parse_config.yaml",
+    "activities/parse/config.yaml",
     "resource/convert_processor_config.yaml",
 ]
 
@@ -58,6 +59,35 @@ def test_shipped_config_is_valid_yaml_mapping(repo_root, rel):
         pytest.skip(f"config not present: {rel}")
     cfg = _load_cfg(repo_root, rel)
     assert isinstance(cfg, dict), f"{rel} 최상위는 mapping 이어야 함"
+
+
+#: 액티비티 폴더 설정 전부(표준 + 각 사이트 완성본) — 사본은 원형의 복사라 자동으로 따라오지 않으므로 여기서 깨짐을 드러낸다(#496)
+_PREPROC = Path(__file__).resolve().parents[2]
+ACTIVITY_CONFIGS = sorted(os.path.relpath(p, _PREPROC) for p in [*_PREPROC.glob("activities/*/config.yaml"),
+                                                                 *_PREPROC.parent.glob("sites/*/activities/*/config.yaml")])
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("rel", ACTIVITY_CONFIGS)
+def test_activity_config_loads_strictly_from_its_folder(repo_root, rel, monkeypatch):
+    """기동과 같은 경로로 — 엄격 로드, 프롬프트 파일은 폴더 안에서(밖이거나 없으면 실패), LLM extractor 의 custom_fields 는
+    enricher 생성까지(그 프롬프트 파일 읽기 포함, LLM 호출 없음 — 매핑 extractor 의 키 검사는 test_custom_fields_routing 이 본다).
+    모델 프리셋은 그 완성본의 resource/(배포의 GENOS_RESOURCE_DIR 과 같게)."""
+    from genon.preprocessor.processing.common import config_parse as cp
+    from genon.preprocessor.processing.enrichment.custom_fields_enricher import (
+        CustomFieldsEnricher, custom_fields_extractor, load_custom_fields_config)
+
+    path = repo_root / rel
+    monkeypatch.setenv("GENOS_RESOURCE_DIR", str(path.parents[2] / "resource"))
+    cfg = cp.load_config(str(path), strict=True)
+    ec = EnrichmentConfig.from_raw(cfg.get("enrichment"), path.parent, parent_cfg=cfg)
+    for block in ec.custom_fields_cfgs:
+        if not block.get("config_file"):
+            continue
+        load_custom_fields_config(block["config_file"], str(path.parent))          # 폴더 밖·없는 파일이면 여기서 실패
+        if custom_fields_extractor(block) == "llm":
+            CustomFieldsEnricher(config_file=block["config_file"], resource_path=str(path.parent),
+                                 model_presets=cfg.get("model_presets") or {})
 
 
 @pytest.mark.unit
