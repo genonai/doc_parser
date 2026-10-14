@@ -17,12 +17,14 @@ LLM_CACHE_ROOT 로 채운다.
 프로세서는 별도 스레드에서 `asyncio.run` 으로 돌리고, 액티비티 스레드는 끝날 때까지 하트비트를
 친다(파싱 본체가 동기라 같은 스레드에서 돌리면 하트비트가 멈춘다). 동기 파싱은 중간에 멈출 수
 없으므로, 취소·마감 초과로 처리 스레드를 남긴 채 돌아갈 때는 이 프로세스를 끝낸다 — 부모
-(`__main__`)가 새로 띄운다. 프로세스당 1건이라 다른 작업에는 영향이 없다.
+(`__main__`)가 새로 띄운다. 그동안 새 작업은 재시도로 돌려보내고, 같은 프로세스에서 돌던 다른
+작업(WORKER_THREADS>1)은 끝날 때까지 기다린 뒤 끝낸다.
 """
 from __future__ import annotations
 
 import asyncio
 import concurrent.futures
+import contextlib
 import logging
 import os
 import threading
@@ -43,10 +45,16 @@ log = logging.getLogger("genon.worker")
 #: 처리 스레드를 남긴 채 돌아갈 때의 종료 코드 — 부모가 이 자식을 새로 띄운다.
 EXIT_RESTART = 75
 _EXIT_DELAY_SEC = 10.0      # 실패 결과가 서버에 보고될 시간
+_IDLE_POLL_SEC = 1.0        # 재기동 전, 돌던 작업이 끝났는지 보는 간격
 
 _CFG: Settings | None = None
-#: 처리 스레드를 남긴 뒤로는 새 작업을 받지 않는다 — 공유 인스턴스가 두 건을 동시에 돌게 된다.
+#: 처리 스레드를 남긴 뒤로는 새 작업을 받지 않는다 — 멈추지 않는 스레드가 프로세서·메모리를 계속 쓴다.
 _POISONED = False
+#: 지금 이 프로세스가 받아 돌리는 작업 수(프로세서 준비 포함)와 마지막 작업이 끝난 시각 — 재기동은
+#: 작업이 없고 마지막 작업이 끝난 뒤 _EXIT_DELAY_SEC 가 지나야 한다(그 결과가 서버에 보고될 시간).
+_ACTIVE = 0
+_LAST_DONE = 0.0
+_ACTIVE_LOCK = threading.Lock()
 
 
 def configure(cfg: Settings) -> None:
@@ -66,9 +74,18 @@ def _restart_process(reason: str) -> None:
         return
     _POISONED = True
     log.error("처리 스레드를 멈출 수 없어 이 워커 프로세스를 다시 띄운다 — %s", reason)
-    timer = threading.Timer(_EXIT_DELAY_SEC, os._exit, (EXIT_RESTART,))
-    timer.daemon = True
-    timer.start()
+    threading.Thread(target=_exit_when_idle, name="restart", daemon=True).start()
+
+
+def _exit_when_idle() -> None:
+    while True:
+        time.sleep(_IDLE_POLL_SEC)
+        with _ACTIVE_LOCK:
+            idle = not _ACTIVE and time.monotonic() - _LAST_DONE >= _EXIT_DELAY_SEC
+        if idle:
+            break
+    log.error("돌던 작업이 모두 끝났다 — 워커 프로세스를 끝낸다(부모가 다시 띄운다)")
+    os._exit(EXIT_RESTART)
 
 
 def guard() -> None:
@@ -76,6 +93,25 @@ def guard() -> None:
     if _POISONED:
         raise ApplicationError("워커 프로세스 재기동 중 — 재시도한다", type="worker_restarting",
                                non_retryable=False)
+
+
+@contextlib.contextmanager
+def running():
+    """작업 하나를 이 프로세스가 받아 돌리는 동안(프로세서 준비부터 반환까지) — 재기동이 기다리는 범위.
+    받기 전에 `guard` 로 재기동 중인지 본다(세고 나서 보므로 그 사이에 재기동이 끼어들지 않는다)."""
+    global _ACTIVE, _LAST_DONE
+    entered = False
+    try:
+        with _ACTIVE_LOCK:                  # 취소 예외가 아무 때나 끼어들어도 센 만큼만 되돌린다
+            _ACTIVE += 1
+            entered = True
+        guard()
+        yield
+    finally:
+        if entered:
+            with _ACTIVE_LOCK:
+                _ACTIVE -= 1
+                _LAST_DONE = time.monotonic()
 
 
 def _seconds(value) -> float | None:

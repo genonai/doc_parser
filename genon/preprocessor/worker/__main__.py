@@ -3,7 +3,7 @@
     python -m genon.preprocessor.worker          (저장소 루트에서 — facade 와 같은 import 규칙)
 
 부모 프로세스는 /health(PORT, startupProbe 용)만 서비스하고, 실제 워커는 자식 프로세스
-WORKER_PROCESSES 개가 돈다. 자식마다 Temporal 워커 1개 · 동시 1건이다(패키지 docstring 참고).
+WORKER_PROCESSES 개가 돈다. 자식마다 Temporal 워커 1개 · 동시 WORKER_THREADS 건이다(패키지 docstring 참고).
 코드서빙 규약(GenOS 템플릿): startupProbe `GET /health :8080` 이 기동 때 한 번 200 을 받아야 하고
 그 뒤로는 probe 가 없다. PID1 은 supervisord 라 이 프로세스가 끝나면 START_COMMAND 를 다시 실행한다.
 그래서 기동 후 503 에 기대지 않는다 — 자식이 죽으면 그 자식만 다시 띄우고(한 건만 영향),

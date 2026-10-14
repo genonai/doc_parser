@@ -7,13 +7,14 @@ import 하지 않는다(파사드 import 는 docling 을 끌어와 무겁다).
 파일은 `DocumentProcessor` 를 상속만 한다. 액티비티 본문은 부모(`ParserCore`·`ChunkerCore`)의
 `run_activity(arg)` 하나이고, 이름은 여기서 붙인다 — 바운드 메서드에는 이름표를 붙일 수 없고,
 물려받은 같은 함수에 붙이면 두 번째 slug 가 충돌하므로 slug 마다 얇은 래퍼 함수를 만든다.
-프로세서는 slug 마다 프로세스당 1개, 첫 호출에 만든다.
+프로세서는 slug 마다 프로세스당 1개, 첫 호출에 만든다(액티비티 스레드 여럿이 함께 쓴다).
 
 짝 설정은 `resource/<slug>_config.yaml` 이다. 없으면 프로세서 기본 해석에 맡긴다.
 """
 from __future__ import annotations
 
 import importlib
+import threading
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -54,12 +55,19 @@ def scan(activities_dir: Path | None = None, resource_dir: Path | None = None) -
 
 
 _PROCESSORS: dict[str, object] = {}
+#: 첫 생성은 slug 마다 한 번 — 첫 호출이 여러 스레드에서 동시에 오면 모델을 두 번 올린다(WORKER_THREADS>1).
+_CREATE_LOCK = threading.Lock()
 
 
 def processor(entry: Entry):
     """slug 의 DocumentProcessor 인스턴스 — 프로세스당 1개(첫 호출에 생성)."""
     proc = _PROCESSORS.get(entry.slug)
-    if proc is None:
+    if proc is not None:
+        return proc
+    with _CREATE_LOCK:
+        proc = _PROCESSORS.get(entry.slug)
+        if proc is not None:
+            return proc
         from genon.preprocessor.processing.core.chunker import ChunkerCore
         from genon.preprocessor.processing.core.parser import ParserCore
 
@@ -77,13 +85,13 @@ def build(entries: list[Entry]) -> list:
     def make(entry: Entry):
         @activity.defn(name=entry.slug)
         def run(arg: dict) -> dict:
-            runtime.guard()
-            try:
-                proc = processor(entry)          # 첫 호출: import·설정 검증·모델 준비
-            except CancelledError:
-                raise
-            except Exception as exc:  # noqa: BLE001 — 성격 판정은 to_application_error 한 곳에서
-                raise to_application_error(exc, f"{entry.slug} 프로세서 준비") from exc
-            return proc.run_activity(arg)
+            with runtime.running():              # 재기동 중이면 여기서 거절한다
+                try:
+                    proc = processor(entry)      # 첫 호출: import·설정 검증·모델 준비
+                except CancelledError:
+                    raise
+                except Exception as exc:  # noqa: BLE001 — 성격 판정은 to_application_error 한 곳에서
+                    raise to_application_error(exc, f"{entry.slug} 프로세서 준비") from exc
+                return proc.run_activity(arg)
         return run
     return [make(e) for e in entries]
