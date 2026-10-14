@@ -269,6 +269,10 @@ repo를 clone한 로컬에서 전처리기를 직접 호출**해 보는 개발�
 > source 가 소스가 없는(wheel만 있는) 이 repo 루트를 가리켜 docling 을 소스빌드하려다 깨집니다. 그래서 아래처럼
 > **동봉 wheel 을 직접 설치**합니다.
 
+> 코드스페이스(전처리 Studio, #470)는 이 절 대신 루트의 **`./setup.sh [--wheelhouse <폴더>]`** 를 쓴다 — `.venv` 에 워커까지 포함한
+> 전체 의존성(`genon/preprocessor/uv.lock` 기준)을 설치하고 `.env.codespace`·`worker.sh`(개발 큐 워커)를 만든다. 인터넷이 없는
+> 코드스페이스용 wheelhouse 는 인터넷 PC 에서 `./make-wheelhouse.sh`(Python 3.11)로 만든다.
+
 **① 동작환경 설정 (uv)** — repo 루트에서:
 ```bash
 uv venv --python 3.11 && source .venv/bin/activate
