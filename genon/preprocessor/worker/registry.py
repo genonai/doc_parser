@@ -39,27 +39,29 @@ class Entry:
     slug: str
     stage: str              # "parse" | "chunk"
     config_path: str        # 폴더(또는 사이트 완성본)의 config.yaml
+    problem: str | None = None   # 배포 설정 결함 — 있으면 호출마다 그 메시지로 실패한다(#522)
 
 
 def scan(activities_dir: Path | None = None) -> list[Entry]:
     """activities 디렉터리의 액티비티 폴더 → Entry 목록(slug 순). config.yaml 이 없는 폴더는 ValueError.
 
-    slug 마다 실제로 쓰는 설정 경로와 출처(사이트 완성본 | 저장소 표준)를 로그에 남긴다(#520 — 기동 로그만으로 어느
-    설정으로 도는지 알 수 있게). 사이트 배포(GENOS_RESOURCE_DIR)인데 그 옆에 activities/ 가 없으면 경고한다 — 액티비티
-    설정이 전부 저장소 표준으로 떨어져 사이트 문서유형 등록이 빠진 채 돈다(모델 접속은 resource/ 의 model_presets.yaml
-    로 그대로 적용된다). 실패로 막지는 않는다(표준 설정으로 도는 사이트도 있을 수 있다).
+    slug 마다 실제로 쓰는 설정 경로와 출처(사이트 완성본 | 저장소 표준)를 로그에 남긴다(#520). 사이트 배포
+    (GENOS_RESOURCE_DIR)인데 그 옆에 activities/ 가 없으면 — 액티비티 설정이 전부 저장소 표준으로 떨어져 사이트
+    문서유형 등록이 빠진 채 돌게 되므로 — 워커는 띄우되 **호출마다 그 사실을 오류로 돌려준다**(Entry.problem, #522).
+    기동 로그의 경고는 보는 사람이 없고, 워커가 안 뜨면 호출자는 timeout 만 본다 — 오류는 호출한 쪽에 가야 한다.
     """
     site = _folders.site_activities_dir()
+    problem = None
     if site is not None and not site.is_dir():
-        log.warning("사이트 설정(GENOS_RESOURCE_DIR=%s) 옆에 activities/ 가 없다 — 액티비티 설정은 전부 저장소 표준을 "
-                    "쓴다(사이트 문서유형 등록 미반영 — 모델 접속은 resource/model_presets.yaml 로 적용된다). "
-                    "사이트 완성본은 resource/ 와 activities/<slug>/ 두 자리다", _folders.resource_dir())
+        problem = (f"사이트 설정(GENOS_RESOURCE_DIR={_folders.resource_dir()}) 옆에 activities/ 가 없습니다: {site} — "
+                   "사이트 완성본은 resource/ 와 activities/<slug>/ 두 자리입니다. 액티비티 설정이 저장소 표준으로 떨어져 "
+                   "사이트 문서유형 등록 없이 돌게 되므로 실행하지 않습니다. 사이트의 activities/ 를 그 자리에 두십시오")
     entries = []
     for slug in _folders.slugs(activities_dir):
         path = _folders.config_path(slug, activities_dir)
         source = "사이트 완성본" if site is not None and path.parent.parent == site else "저장소 표준"
         log.info("액티비티 %s: 설정 %s (%s)", slug, path, source)
-        entries.append(Entry(slug, stage_of(slug), str(path)))
+        entries.append(Entry(slug, stage_of(slug), str(path), problem))
     return entries
 
 
@@ -69,7 +71,9 @@ _CREATE_LOCK = threading.Lock()
 
 
 def processor(entry: Entry):
-    """slug 의 DocumentProcessor 인스턴스 — 프로세스당 1개(첫 호출에 생성)."""
+    """slug 의 DocumentProcessor 인스턴스 — 프로세스당 1개(첫 호출에 생성). 배포 설정 결함은 호출마다 오류."""
+    if entry.problem:
+        raise ValueError(entry.problem)          # 입력·설정 오류 → permanent(non_retryable) 로 호출자에게
     proc = _PROCESSORS.get(entry.slug)
     if proc is not None:
         return proc

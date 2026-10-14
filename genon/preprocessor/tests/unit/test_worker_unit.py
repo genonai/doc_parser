@@ -40,8 +40,10 @@ def test_scan_registers_folders_named_by_stage_with_config(tmp_path, monkeypatch
 
 def test_site_folder_overrides_activity_config(tmp_path, monkeypatch, caplog):
     """사이트 완성본(GENOS_RESOURCE_DIR 옆 activities/<slug>/)이 그 slug 의 설정 폴더가 된다(#497) — 코드는 저장소 것.
-    기동 로그는 slug 마다 설정 경로·출처를 적고, 사이트에 activities/ 가 없으면 경고한다(#520)."""
+    기동 로그는 slug 마다 설정 경로·출처를 적고(#520), 사이트에 activities/ 가 없으면 워커는 뜨되 호출이 오류다(#522)."""
     import logging
+
+    from temporalio.exceptions import ApplicationError
 
     acts, site = tmp_path / "activities", tmp_path / "site"
     for name in ("parse", "chunk"):
@@ -51,17 +53,21 @@ def test_site_folder_overrides_activity_config(tmp_path, monkeypatch, caplog):
     (site / "resource").mkdir(parents=True)
     monkeypatch.setenv("GENOS_RESOURCE_DIR", str(site / "resource"))
     with caplog.at_level(logging.INFO, logger="genon.worker"):
-        assert [e.config_path for e in registry.scan(acts)] == [str(acts / "chunk" / "config.yaml"),
-                                                                str(acts / "parse" / "config.yaml")]
-    assert any(r.levelno == logging.WARNING and "activities/ 가 없다" in r.getMessage() for r in caplog.records)
+        entries = registry.scan(acts)
+    assert [e.config_path for e in entries] == [str(acts / "chunk" / "config.yaml"), str(acts / "parse" / "config.yaml")]
+    assert not any(r.levelno == logging.WARNING for r in caplog.records)         # 경고는 보는 사람이 없다 — 호출 오류로
+    with pytest.raises(ApplicationError) as info:                                # 호출한 쪽이 결함을 그대로 본다
+        ActivityEnvironment().run(registry.build(entries)[0], {})
+    assert str(site / "activities") in str(info.value) and "activities/ 가 없습니다" in str(info.value)
     caplog.clear()
     (site / "activities" / "parse").mkdir(parents=True)
     (site / "activities" / "parse" / "config.yaml").write_text("")
     with caplog.at_level(logging.INFO, logger="genon.worker"):
-        assert [e.config_path for e in registry.scan(acts)] == [str(acts / "chunk" / "config.yaml"),
-                                                                str(site / "activities" / "parse" / "config.yaml")]
+        entries = registry.scan(acts)
+    assert [e.config_path for e in entries] == [str(acts / "chunk" / "config.yaml"),
+                                                str(site / "activities" / "parse" / "config.yaml")]
+    assert all(e.problem is None for e in entries)
     lines = [r.getMessage() for r in caplog.records]
-    assert not any(r.levelno == logging.WARNING for r in caplog.records)
     assert any("액티비티 parse:" in ln and "사이트 완성본" in ln for ln in lines)
     assert any("액티비티 chunk:" in ln and "저장소 표준" in ln for ln in lines)
 
