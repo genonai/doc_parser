@@ -5,6 +5,7 @@
 """
 import errno
 import json
+from pathlib import Path
 
 import pytest
 from temporalio.testing import ActivityEnvironment
@@ -66,7 +67,10 @@ def test_real_activities_follow_the_rule_and_inherit_core():
     from genon.preprocessor.processing.core.parser import ParserCore
 
     slugs = {e.slug: e.stage for e in registry.scan()}
-    assert {"parse": "parse", "chunk": "chunk"}.items() <= slugs.items()
+    if (Path(__file__).resolve().parents[3] / "genon" / "sites").is_dir():     # 원본 저장소 — 원형만 둔다(#496)
+        assert slugs == {"parse": "parse", "chunk": "chunk"}, "고객 slug 는 고객 저장소(서빙본 작업 브랜치)에서 만든다"
+    else:                                                                       # 서빙본·고객 저장소 — 사본이 더 있을 수 있다
+        assert {"parse": "parse", "chunk": "chunk"}.items() <= slugs.items()
     parse_cls = registry.importlib.import_module("genon.preprocessor.activities.parse.processor").DocumentProcessor
     chunk_cls = registry.importlib.import_module("genon.preprocessor.activities.chunk.processor").DocumentProcessor
     assert issubclass(parse_cls, ParserCore) and issubclass(chunk_cls, ChunkerCore)
@@ -318,3 +322,52 @@ def test_single_run_cli_uses_worker_body_and_prints_result_last(tmp_path, monkey
     code = cli.main(["run", "--activity", "parse"])                          # 인자 오류도 결과 한 줄
     usage = json.loads(capsys.readouterr().out.strip().splitlines()[-1].removeprefix("@@RESULT@@ "))
     assert code == 1 and usage["ok"] is False and usage["error"]["type"] == "_UsageError"
+
+
+# ── activities diff(#496) — 사본이 복사된 뒤 원형이 바뀐 것 ───────────────────────────
+
+def _copied_repo(tmp_path):
+    """임시 git 저장소: 원형 parse → 사본 parse_t 복사 커밋 → 원형 변경(수정·추가·삭제) 커밋. activities 폴더를 돌려준다."""
+    import os
+    import shutil
+    import subprocess
+
+    def git(*args):
+        subprocess.run(["git", "-C", str(tmp_path), *args], check=True, capture_output=True,
+                       env={**os.environ, "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t",
+                            "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t"})
+    acts = tmp_path / "activities"
+    (acts / "parse").mkdir(parents=True)
+    (acts / "parse" / "processor.py").write_text("class DocumentProcessor: ...\n", encoding="utf-8")
+    (acts / "parse" / "config.yaml").write_text("chunking:\n  chunk_size: 1500\n", encoding="utf-8")
+    (acts / "parse" / "지울_프롬프트.md").write_text("old\n", encoding="utf-8")       # 한글 이름 — ls-tree 인용 회귀를 잡는다
+    git("init", "-q"); git("add", "-A"); git("commit", "-q", "-m", "원형")
+    shutil.copytree(acts / "parse", acts / "parse_t")                                # 복사(Studio 의 new)
+    git("add", "-A"); git("commit", "-q", "-m", "parse_t 복사")
+    (acts / "parse" / "config.yaml").write_text("chunking:\n  chunk_size: 300\n", encoding="utf-8")   # 원형이 바뀐다
+    (acts / "parse" / "new.md").write_text("new\n", encoding="utf-8")
+    (acts / "parse" / "지울_프롬프트.md").unlink()
+    git("add", "-A"); git("commit", "-q", "-m", "원형 변경")
+    return acts
+
+
+def test_diff_shows_origin_changes_since_copy(tmp_path):
+    from genon.preprocessor.activities.__main__ import diff_origin
+
+    acts = _copied_repo(tmp_path)
+    summary, body = diff_origin("parse_t", activities_dir=acts)
+    assert {k: summary[k] for k in ("slug", "origin", "changed", "added", "removed", "unchanged")} == {
+        "slug": "parse_t", "origin": "parse", "changed": ["config.yaml"], "added": ["new.md"],
+        "removed": ["지울_프롬프트.md"], "unchanged": 1}
+    assert summary["copied_at"]["commit"] and "-  chunk_size: 1500" in body and "+  chunk_size: 300" in body
+
+
+def test_diff_reports_uncommitted_copy(tmp_path):
+    import shutil
+
+    from genon.preprocessor.activities.__main__ import diff_origin
+
+    acts = _copied_repo(tmp_path)
+    shutil.copytree(acts / "parse", acts / "parse_u")                      # 아직 커밋하지 않은 사본
+    summary, body = diff_origin("parse_u", activities_dir=acts)
+    assert summary["copied_at"] is None and "미커밋" in summary["note"] and body == ""

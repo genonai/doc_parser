@@ -1,6 +1,7 @@
 """액티비티 단건 실행 — 전처리 Studio(목업 ② 단건 테스트)와 VS Code 터미널이 같은 명령을 부른다.
 
     python -m genon.preprocessor.activities run --activity <slug> <file> [--doc-type …] [--params '<json>'] [-o <out>]
+    python -m genon.preprocessor.activities diff <slug> [--from <원형>]
 
     parse  <file> = 원본 문서        → 파싱 결과 JSON(-o, 기본 ./<파일명>.<slug>.json)
     chunk  <file> = 파싱 결과 JSON   → 청크 배열 JSON
@@ -15,6 +16,12 @@
 
 출력 계약(Studio 디스패처가 읽는다): stderr = 진행 로그 · stdout **마지막 줄**
 `@@RESULT@@ {"ok", "stage", "activity", "duration_ms", "data" | "error"}` · 실패는 exit 1.
+
+`diff <slug>` (#496): 사본 폴더가 **복사된 뒤 원형이 얼마나 바뀌었는지** — git 이력에서 사본의 복사 커밋(폴더의
+config.yaml 이 처음 들어온 커밋)을 찾아, 그때의 원형 폴더와 지금의 원형 폴더를 파일별 unified diff 로 stdout 에
+찍는다(사본에 가져올 변경을 사람이 고른다 — 자동 동기화는 하지 않는다). 원형은 --from, 없으면 단계 원형(parse·chunk).
+복사 커밋이 없으면(미커밋 사본) 그렇다고 알린다. 마지막 줄은 같은 결과 계약 — data = {slug, origin, copied_at,
+changed, added, removed, unchanged}.
 """
 from __future__ import annotations
 
@@ -53,7 +60,62 @@ def _parser() -> argparse.ArgumentParser:
     run.add_argument("--doc-type", help="문서 유형(params.doc_type 보다 우선)")
     run.add_argument("--params", default="{}", help="실행 파라미터 JSON(Studio 층②)")
     run.add_argument("-o", "--output", help="결과 JSON 파일 경로(기본 ./<파일명>.<slug>.json)")
+    diff = sub.add_parser("diff", help="사본 slug 가 복사된 뒤 원형이 바뀐 것을 보여 준다")
+    diff.add_argument("slug", help="사본 slug(= activities/<slug>/ 폴더 이름)")
+    diff.add_argument("--from", dest="origin", help="원형 slug(기본: 단계 원형 parse·chunk)")
     return p
+
+
+def _git(repo: Path, *args: str) -> str:
+    return subprocess.run(["git", "-C", str(repo), *args], capture_output=True, text=True, check=True).stdout
+
+
+def diff_origin(slug: str, origin: str | None = None, activities_dir: Path | None = None) -> tuple[dict, str]:
+    """사본 slug 의 복사 커밋 시점 원형 ↔ 지금 원형 → (요약, unified diff 본문)."""
+    import difflib
+
+    from genon.preprocessor.activities import _folders
+
+    root = activities_dir or _folders.ACTIVITIES_DIR
+    if slug not in _folders.slugs(root):
+        raise ValueError(f"액티비티 {slug!r} 가 없습니다 — 있는 것: {', '.join(_folders.slugs(root)) or '<없음>'}")
+    origin = origin or _folders.stage_of(slug)
+    if origin == slug:
+        raise ValueError(f"{slug!r} 는 원형입니다 — 사본 slug 를 주거나 --from 으로 원형을 지정하세요")
+    if origin not in _folders.slugs(root):
+        raise ValueError(f"원형 {origin!r} 폴더가 없습니다")
+    repo = Path(_git(root, "rev-parse", "--show-toplevel").strip())
+    rel = lambda p: p.resolve().relative_to(repo).as_posix()  # noqa: E731
+    # pathspec 은 저장소 루트 기준이라 git 도 루트에서 돌린다(-C root 면 activities/ 기준으로 해석된다)
+    first = _git(repo, "log", "--diff-filter=A", "--format=%H %cI", "--reverse", "--", rel(root / slug / "config.yaml"))
+    summary = {"slug": slug, "origin": origin, "copied_at": None, "changed": [], "added": [], "removed": [], "unchanged": 0}
+    if not first.strip():
+        summary["note"] = "복사 커밋이 없습니다(미커밋 사본) — 커밋한 뒤 다시 보세요"
+        return summary, ""
+    commit, date = first.splitlines()[0].split(" ", 1)
+    summary["copied_at"] = {"commit": commit[:12], "date": date}
+    # -z: 한글 파일명을 따옴표·이스케이프 없이 그대로 받는다(core.quotepath 무관)
+    listing = _git(repo, "ls-tree", "-r", "-z", "--name-only", commit, "--", rel(root / origin))
+    prefix = rel(root / origin) + "/"
+    then_files = {ln[len(prefix):] for ln in listing.split("\0") if ln.startswith(prefix) and "__pycache__" not in ln}
+    now_files = {p.relative_to(root / origin).as_posix() for p in (root / origin).rglob("*")
+                 if p.is_file() and "__pycache__" not in p.parts}
+    body: list[str] = []
+    for name in sorted(then_files | now_files):
+        old = _git(repo, "show", f"{commit}:{prefix}{name}") if name in then_files else None
+        new = (root / origin / name).read_text(encoding="utf-8") if name in now_files else None
+        if old is None:
+            summary["added"].append(name)
+        elif new is None:
+            summary["removed"].append(name)
+        elif old == new:
+            summary["unchanged"] += 1
+            continue
+        else:
+            summary["changed"].append(name)
+        body += difflib.unified_diff((old or "").splitlines(keepends=True), (new or "").splitlines(keepends=True),
+                                     fromfile=f"{origin}/{name}@{commit[:12]}", tofile=f"{origin}/{name}@now")
+    return summary, "".join(body)
 
 
 def _emit(payload: dict) -> None:
@@ -186,6 +248,14 @@ def main(argv=None) -> int:
     activity = None
     try:
         args = _parser().parse_args(argv)
+        if args.command == "diff":
+            activity = args.slug
+            summary, body = diff_origin(args.slug, args.origin)
+            if body:
+                sys.stdout.write(body if body.endswith("\n") else body + "\n")
+            _emit({"ok": True, "stage": None, "activity": activity, "command": "diff",
+                   "duration_ms": int((time.monotonic() - started) * 1000), "data": summary})
+            return 0
         activity = args.activity
         result = _run_isolated(argv)
     except SystemExit as exc:                        # --help

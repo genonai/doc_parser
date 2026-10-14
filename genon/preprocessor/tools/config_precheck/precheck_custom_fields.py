@@ -399,25 +399,72 @@ def check_table_format_pairs(root: Path) -> list[str]:
     return problems
 
 
+def roots_of(target: Path | None) -> list[Path]:
+    """검사할 설정 폴더들.
+    인자 없음        표준 resource/ + 표준 파서 액티비티 폴더 전부(activities/parse*/ — custom_fields 는 파서 설정에만 있다)
+    사이트 루트      그 resource/ + activities/parse*/ 전부(genon/sites/<site>/ 또는 NFS 의 사이트 사본)
+    그 밖의 폴더     그 폴더 하나(종전과 같다 — resource/ 나 액티비티 폴더 하나)
+    """
+    def parser_folders(activities: Path) -> list[Path]:
+        return sorted(p for p in activities.glob("parse*/") if (p / "config.yaml").is_file())
+
+    preprocessor = REPO_ROOT / "genon" / "preprocessor"
+    if target is None:
+        return [preprocessor / "resource", *parser_folders(preprocessor / "activities")]
+    if (target / "resource").is_dir() and (target / "activities").is_dir():
+        return [target / "resource", *parser_folders(target / "activities")]
+    return [target]
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description="배포 전 custom_fields 설정 점검")
     ap.add_argument(
-        "resource_dir", nargs="?",
-        default=str(REPO_ROOT / "genon" / "preprocessor" / "resource"),
-        help="검사할 설정 디렉터리(프로세서 config 와 custom_field yaml 이 있는 곳)",
+        "resource_dir", nargs="?", default=None,
+        help="검사할 설정 디렉터리(프로세서 config 와 custom_field yaml 이 있는 곳) 또는 사이트 루트"
+             "(resource/ 와 activities/ 가 있는 폴더). 없으면 저장소의 표준 resource/ 와 모든 액티비티 폴더",
     )
     args = ap.parse_args()
 
-    root = Path(args.resource_dir).expanduser().resolve()
-    if not root.is_dir():
-        print(f"[치명] 디렉터리가 없습니다: {root}")
+    target = Path(args.resource_dir).expanduser().resolve() if args.resource_dir else None
+    if target is not None and not target.is_dir():
+        print(f"[치명] 디렉터리가 없습니다: {target}")
         return 2
+    code = 0
+    for root in roots_of(target):
+        code = max(code, check_root(root))
+        print()
+    return code
+
+
+def check_root(root: Path) -> int:
+    """설정 폴더 하나를 점검해 결과를 찍고 종료 코드(0 통과 · 1 기동실패 · 2 치명)를 돌려준다.
+
+    액티비티 폴더(…/activities/<slug>/)면 그 완성본의 설정 폴더(옆의 resource/)를 GENOS_RESOURCE_DIR 로 두고
+    본다 — config.yaml 의 모델 프리셋이 기동과 같은 파일(사이트 값)에서 풀리게."""
+    import os
 
     print(f"검사 대상: {root}\n")
+    sibling = root.parent.parent / "resource" if root.parent.name == "activities" else None
+    saved = os.environ.get("GENOS_RESOURCE_DIR")
+    if sibling is not None and sibling.is_dir():
+        os.environ["GENOS_RESOURCE_DIR"] = str(sibling)
+    try:
+        return _check_root(root)
+    finally:
+        if saved is None:
+            os.environ.pop("GENOS_RESOURCE_DIR", None)
+        else:
+            os.environ["GENOS_RESOURCE_DIR"] = saved
+
+
+def _check_root(root: Path) -> int:
     blocks = registered_blocks(root)
     if not blocks:
-        print("[치명] 등록된 custom_fields 블록이 없습니다 — 경로가 맞는지 확인하세요.")
-        return 2
+        if not any((root / name).exists() for name in PROCESSOR_CONFIGS):
+            print("[치명] 프로세서 설정이 없습니다 — 경로가 맞는지 확인하세요.")
+            return 2
+        # custom_fields 는 선택 기능이다 — 등록이 없어도 프리셋·표 형식 검사는 그대로 한다
+        print("[정보] 등록된 custom_fields 블록이 없습니다.\n")
 
     problems: list[str] = []
     seen_files: set[str] = set()
