@@ -281,6 +281,11 @@ rm -rf "${WHEEL_OUT}"
 if [[ -f "${SERVING_README}" ]]; then
   cp "${SERVING_README}" "${DEST}/README.md"
   echo "[INFO] README.md 복사: ${SERVING_README} → ${DEST}/README.md"
+  # 코드스페이스 설치(#470): 배포본 루트 setup.sh · make-wheelhouse.sh (원본은 build-script/codespace-*.sh)
+  cp "${ROOT_DIR}/build-script/codespace-setup.sh" "${DEST}/setup.sh"
+  cp "${ROOT_DIR}/build-script/codespace-wheelhouse.sh" "${DEST}/make-wheelhouse.sh"
+  chmod +x "${DEST}/setup.sh" "${DEST}/make-wheelhouse.sh"
+  echo "[INFO] setup.sh · make-wheelhouse.sh 복사(코드스페이스 설치, #470)"
 else
   echo "[WARN] README 소스가 없어 건너뜀: ${SERVING_README}"
 fi
@@ -378,6 +383,11 @@ genon/preprocessor/tools/code_serving/result_serving_gateway_test/
 # Platform-specific offline development kits (distribute separately; do not commit)
 offline-dev-kit/
 wheelhouse/
+wheelhouse-*/
+
+# setup.sh(코드스페이스 설치)가 만드는 것
+.env.codespace
+worker.sh
 EOF
 echo "[INFO] .gitignore 생성: ${DEST}/.gitignore"
 
