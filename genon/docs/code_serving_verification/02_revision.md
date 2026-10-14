@@ -116,7 +116,7 @@ GenOS 화면에서 대상 코드서빙(`<CODE_SERVING_ID>`)을 열고 **리비�
 | 이미지 | 0-4 에서 등록한 `template-code-serving-doc-parser:2.2.5` | 같음 |
 | 인스턴스 | CPU 1, 메모리 16Gi, replica 1(노드 여유에 맞춘다 — 아래) | 같음 |
 | 볼륨 | NFS 루트 볼륨을 `/nfs-root` 로 | 같음 |
-| 환경변수 | `GENOS_RESOURCE_DIR=<NFS_RESOURCE_DIR>`, `WEB_CONCURRENCY=5`, 나머지는 돌고 있는 리비전과 동일 | 같음 |
+| 환경변수 | `GENOS_RESOURCE_DIR=<NFS_RESOURCE_DIR>`, `WEB_CONCURRENCY=5`, `OMP_NUM_THREADS=1`(파드 CPU / 워커 수), 나머지는 돌고 있는 리비전과 동일 | 같음 |
 
 메모리는 워커 수에 비례한다. uvicorn 프로세스 하나가 문서 처리 뒤 최대 약 3 GB 를 쓰므로 워커 5개면 15 GB 안팎이다.
 CPU 는 노드 여유가 정한다. 리비전을 만들기 전에 배스천에서 노드별 남은 CPU·메모리를 보고, 자리가 없으면 돌고 있는
