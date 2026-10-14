@@ -99,12 +99,18 @@ GenOS 화면에서 대상 코드서빙(`<CODE_SERVING_ID>`)을 열고 **리비�
 | 저장소 | `https://github.com/genonai/doc_parser_code_serving` (외부 GitHub, 기존 연결 그대로) | 같음 |
 | 브랜치 / 커밋 | 묶음 1 의 대조군 브랜치·해시 | 묶음 1 의 수정본 브랜치·해시 |
 | 이미지 | 0-4 에서 등록한 `template-code-serving-doc-parser:2.2.5` | 같음 |
-| 인스턴스 | CPU 4, 메모리 20Gi, replica 1 | 같음 |
+| 인스턴스 | CPU 1, 메모리 16Gi, replica 1(노드 여유에 맞춘다 — 아래) | 같음 |
 | 볼륨 | NFS 루트 볼륨을 `/nfs-root` 로 | 같음 |
 | 환경변수 | `GENOS_RESOURCE_DIR=<NFS_RESOURCE_DIR>`, `WEB_CONCURRENCY=5`, 나머지는 돌고 있는 리비전과 동일 | 같음 |
 
-메모리는 워커 수에 비례한다. uvicorn 프로세스 하나가 문서 처리 뒤 최대 약 3 GB 를 쓰므로 워커 5개면 16 Gi 로는
-빠듯하다. 자원이 모자라면 `WEB_CONCURRENCY` 를 줄이되 두 리비전을 같은 값으로 맞춘다.
+메모리는 워커 수에 비례한다. uvicorn 프로세스 하나가 문서 처리 뒤 최대 약 3 GB 를 쓰므로 워커 5개면 15 GB 안팎이다.
+CPU 는 노드 여유가 정한다. 리비전을 만들기 전에 배스천에서 노드별 남은 CPU·메모리를 보고, 자리가 없으면 돌고 있는
+리비전을 먼저 내린다(그 자리가 빈다). 워커 5개가 CPU 1 코어를 나눠 쓰면 CPU 구간은 빨라지지 않고 VLM·LLM 대기만
+겹친다. 자원을 바꾸면 두 리비전을 같은 값으로 맞춘다.
+
+```bash
+kubectl describe nodes | grep -E '^Name:|cpu .*%|memory .*%' | paste - - -
+```
 
 생성하면 파드가 베이스 이미지로 뜨고 배포본 커밋을 clone·설치한 뒤 기동한다. 2~5분 걸린다.
 
