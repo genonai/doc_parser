@@ -34,6 +34,7 @@ from fastapi.encoders import jsonable_encoder
 from temporalio import activity
 from temporalio.exceptions import ApplicationError, CancelledError
 
+from genon.preprocessor.processing.common import profiling as prof
 from genon.preprocessor.processing.core.cli import mock_request
 
 from . import paths
@@ -122,12 +123,14 @@ def _seconds(value) -> float | None:
     return value if value > 0 else None
 
 
-def _call(proc, file_path: str, params: dict, heartbeat_interval: float):
+def _call(proc, file_path: str, params: dict, heartbeat_interval: float, stage: str = "", doc: str = ""):
     """proc.__call__ 을 별도 스레드에서 돌리며 하트비트. 마감은 request_deadline(초)."""
     deadline = _seconds(params.get("request_deadline"))
 
     async def call():
-        return await proc(mock_request(), file_path, **params)
+        prof.set_doc(doc)
+        with prof.stage(f"{stage}_total"):
+            return await proc(mock_request(), file_path, **params)
 
     pool = concurrent.futures.ThreadPoolExecutor(max_workers=1, thread_name_prefix="processor")
     future = None
@@ -198,7 +201,8 @@ def execute(proc, stage: str, arg: dict) -> dict:
     cfg = _cfg()
     started = time.monotonic()
     name = activity.info().activity_type
-    where = f"{name} {arg.get('source_name') or arg.get('output_ref', '')}"
+    doc = arg.get("source_name") or arg.get("output_ref", "")
+    where = f"{name} {doc}"
     try:
         params = dict(arg.get("params") or {})
         params.pop("interim_root", None)
@@ -210,10 +214,10 @@ def execute(proc, stage: str, arg: dict) -> dict:
         output_ref = arg["output_ref"]
         if stage == "parse":
             file_path = str(paths.read_path(cfg.nfs_root, cfg.artifact_root, arg["read_ref"]))
-            payload = _parsed_payload(_call(proc, file_path, params, cfg.heartbeat_interval))
+            payload = _parsed_payload(_call(proc, file_path, params, cfg.heartbeat_interval, stage, doc))
         else:
             params["document"] = paths.load_json(cfg.artifact_root, arg["parsed_ref"])
-            payload = jsonable_encoder(_call(proc, "", params, cfg.heartbeat_interval)) or []
+            payload = jsonable_encoder(_call(proc, "", params, cfg.heartbeat_interval, stage, doc)) or []
         activity.heartbeat()           # 저장 직전 — 취소됐으면 여기서 멈춘다
         size = paths.save_json(cfg.artifact_root, output_ref, payload)
     except CancelledError:
