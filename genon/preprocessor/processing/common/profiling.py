@@ -11,7 +11,9 @@
 - `call` 은 requests·httpx 의 전송 계층에서 모든 HTTP 호출을 잰다(레이아웃 VLM, 보강 LLM, OCR 등 호출부와 무관).
   `inflight`·`total` 은 호출이 시작될 때 자기를 포함해 진행 중인 수다.
 
-`tools/code_serving/prof_report.py` 가 이 로그를 표로 묶는다.
+`tools/code_serving/prof_report.py` 가 이 로그를 표로 묶는다. `collect()` 안에서 잰 단계는 목록으로도 모인다 —
+워커는 이것을 액티비티 결과의 `stages` 에 실어 Temporal 화면에서 액티비티마다 하위 단계 시간을 보게 한다.
+켜고 읽는 절차는 `manual/stage_timing_runbook.md`.
 """
 from __future__ import annotations
 
@@ -27,6 +29,7 @@ ENABLED = os.environ.get("GENOS_PROFILE") == "1"
 
 _log = logging.getLogger("genon.prof")
 _doc: contextvars.ContextVar[str] = contextvars.ContextVar("genon_prof_doc", default="-")
+_collected: contextvars.ContextVar[list | None] = contextvars.ContextVar("genon_prof_collected", default=None)
 _lock = threading.Lock()
 _inflight: dict[str, int] = {}
 _installed = False
@@ -39,6 +42,20 @@ def set_doc(name: str | None) -> None:
 
 
 @contextlib.contextmanager
+def collect():
+    """블록 안에서 끝난 stage 를 [{stage, wall, cpu}] 로 모은다. 꺼져 있으면 None 을 내준다."""
+    if not ENABLED:
+        yield None
+        return
+    box: list = []
+    token = _collected.set(box)
+    try:
+        yield box
+    finally:
+        _collected.reset(token)
+
+
+@contextlib.contextmanager
 def stage(name: str):
     """with 블록 하나를 단계 하나로 잰다."""
     if not ENABLED:
@@ -48,8 +65,12 @@ def stage(name: str):
     try:
         yield
     finally:
+        wall, cpu = time.monotonic() - w0, time.process_time() - p0
         _log.info("[prof] stage name=%s doc=%s wall=%.3f thread_cpu=%.3f proc_cpu=%.3f", name, _doc.get(),
-                  time.monotonic() - w0, time.thread_time() - t0, time.process_time() - p0)
+                  wall, time.thread_time() - t0, cpu)
+        box = _collected.get()
+        if box is not None:
+            box.append({"stage": name, "wall": round(wall, 3), "cpu": round(cpu, 3)})
 
 
 def _endpoint(url) -> str:

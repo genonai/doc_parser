@@ -143,6 +143,9 @@ from genon.preprocessor.facade.intelligent_processor import DocumentProcessor as
 from genon.preprocessor.facade.convert_processor import DocumentProcessor as ConvertDocumentProcessor
 
 from genon.preprocessor.activities import _folders
+from genon.preprocessor.processing.common import profiling as prof
+
+prof.install()   # GENOS_PROFILE=1 일 때만 — 단계 시간·외부 호출 계측(manual/stage_timing_runbook.md)
 from genon.preprocessor.activities.parse import DocumentProcessor as ParserDocumentProcessor
 from genon.preprocessor.activities.chunk import DocumentProcessor as ChunkingDocumentProcessor
 
@@ -189,12 +192,14 @@ async def _run(tag, processor, request, file_path, params, marker=None):
     pt = time.time()
     try:
         logger.info(f'[{tag}] Start: "{file_path}"')
+        prof.set_doc(os.path.basename(file_path or '') or tag)
         # #329: 요청 전체 deadline(params.request_deadline) 이 있으면 행잉 대신 timeout 응답.
         rd = _request_deadline_seconds(params)
-        if rd is None:
-            data = await processor(request, file_path, **params)
-        else:
-            data = await asyncio.wait_for(processor(request, file_path, **params), timeout=rd)
+        with prof.stage(f'{tag}_total'):
+            if rd is None:
+                data = await processor(request, file_path, **params)
+            else:
+                data = await asyncio.wait_for(processor(request, file_path, **params), timeout=rd)
         logger.info(f'[{tag}] Success: "{file_path}"')
         return make_success_response(
             data=data, chunk_validation=getattr(request.state, 'chunk_validation', None))

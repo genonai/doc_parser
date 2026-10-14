@@ -1,4 +1,4 @@
-"""계측(processing/common/profiling.py) — 켜면 단계와 모든 HTTP 호출을 재고, 동시 호출 수를 센다(#514)."""
+"""계측(processing/common/profiling.py) — 켜면 단계와 모든 HTTP 호출을 재고, 동시 호출 수를 세고, 단계 목록을 모은다(#514)."""
 import concurrent.futures
 import http.server
 import logging
@@ -39,7 +39,7 @@ def test_profiling_logs_stage_and_counts_concurrent_http_calls(monkeypatch, capl
     try:
         prof.install()
         prof.set_doc("doc a")
-        with prof.stage("convert"):
+        with prof.collect() as box, prof.stage("convert"):
             with concurrent.futures.ThreadPoolExecutor(3) as pool:
                 list(pool.map(lambda _: requests.get(url, timeout=5), range(3)))
             httpx.get(url, timeout=5)
@@ -51,3 +51,4 @@ def test_profiling_logs_stage_and_counts_concurrent_http_calls(monkeypatch, capl
     assert len(calls) == 4 and all(f"ep=127.0.0.1:{server.server_port}/v1/x status=200" in c for c in calls)
     assert sorted(int(c.split("inflight=")[1].split()[0]) for c in calls) == [1, 1, 2, 3]   # 셋이 겹치고 하나는 혼자
     assert len(stages) == 1 and "name=convert doc=doc_a wall=" in stages[0]
+    assert [x["stage"] for x in box] == ["convert"] and box[0]["wall"] >= 0.3          # 액티비티 결과에 싣는 목록

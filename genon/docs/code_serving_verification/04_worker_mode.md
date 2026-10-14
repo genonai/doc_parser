@@ -131,7 +131,8 @@ python3 genon/preprocessor/tools/code_serving/prof_report.py worker.log --from <
 | 단계별·단계 합계 | 순차 구간에서 단계마다 `proc_cpu`(CPU 일)와 `wait`(= wall - proc_cpu, 외부 응답 대기)의 비율. `convert` 의 wait 는 레이아웃 VLM, 보강 단계의 wait 는 LLM 이다 |
 | 외부 호출 | 엔드포인트마다 지연 p50·p95 와, 같은 엔드포인트 동시 호출 수 구간별 p50. 동시 호출이 늘 때 p50 이 따라 늘면 그 서빙의 용량이 병목이다 |
 
-`proc_cpu` 는 프로세스 전체 CPU 증분이라 동시 구간에서는 문서 몫으로 읽지 않는다.
+`proc_cpu` 는 프로세스 전체 CPU 증분이라 동시 구간에서는 문서 몫으로 읽지 않는다. 로그 형식, HTTP 모드에서 켜는 법,
+Temporal 화면에서 액티비티마다 하위 단계를 보는 법은 `genon/preprocessor/manual/stage_timing_runbook.md` 에 있다.
 
 ## 4. 판정
 

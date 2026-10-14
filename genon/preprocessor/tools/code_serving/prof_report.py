@@ -19,7 +19,8 @@ import re
 import statistics
 import sys
 
-LINE = re.compile(r"^\d{4}-\d\d-\d\d (\d\d:\d\d:\d\d)[,.]\d+ .*?\[prof\] (stage|call) (.*)$")
+# 워커(`2026-10-14 21:44:31,123 [worker-0] …`)와 HTTP 서버(`INFO: 2026-10-14 21:44:31 KST|…`) 로그 형식을 모두 읽는다
+LINE = re.compile(r"\d{4}-\d\d-\d\d (\d\d:\d\d:\d\d)\b.*?\[prof\] (stage|call) (.*)$")
 KV = re.compile(r"(\w+)=(\S+)")
 BUCKETS = [(1, 1), (2, 3), (4, 7), (8, 15), (16, 10**9)]
 
@@ -29,7 +30,7 @@ def parse(paths, start, end):
     for path in paths:
         with open(path, encoding="utf-8", errors="replace") as f:
             for line in f:
-                m = LINE.match(line)
+                m = LINE.search(line)
                 if not m or (start and m.group(1) < start) or (end and m.group(1) > end):
                     continue
                 kv = dict(KV.findall(m.group(3)))

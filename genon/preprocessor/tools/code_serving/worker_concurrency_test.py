@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import collections
 import json
 import os
 import sys
@@ -113,6 +114,11 @@ def _record(job: dict, out: dict, times: dict, args) -> dict:
             rec[f"{stage}_code"], rec[f"{stage}_err"] = -1, s["error"]
             continue
         rec[f"{stage}_code"], rec[f"{stage}_err"] = 0, None
+        if s["result"].get("stages"):    # 워커가 GENOS_PROFILE=1 이면 하위 단계 시간(초)을 싣는다
+            sub = collections.Counter()
+            for x in s["result"]["stages"]:
+                sub[x["stage"]] += x["wall"]
+            rec[f"{stage}_stages"] = {k: round(v, 2) for k, v in sub.items()}
         if args.artifact_root:
             data = _load(args.artifact_root, s["result"]["ref"])
             if stage == "parse":
