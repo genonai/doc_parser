@@ -160,8 +160,9 @@ assert_no_manual_commits() {
     echo "[ERROR] 배포본 클론(${dir})이 shallow 입니다 — 사람 커밋 검사에 전체 이력이 필요합니다: git -C ${dir} fetch --unshallow" >&2
     exit 1
   fi
-  # sync 커밋은 제목으로만 판별한다(--grep 은 본문 줄도 맞힌다).
-  last="$(git -C "${dir}" log --format='%H %s' "${ref}" | awk '$2=="sync" && $3=="from" && $4=="doc_parser" {print $1; exit}')"
+  # sync 커밋은 제목으로만 판별한다(--grep 은 본문 줄도 맞힌다). awk 는 입력을 끝까지 읽는다 — 중간에
+  # exit 하면 git log 가 SIGPIPE 를 받고 pipefail 로 스크립트가 조용히 끝난다(#505).
+  last="$(git -C "${dir}" log --format='%H %s' "${ref}" | awk '!found && $2=="sync" && $3=="from" && $4=="doc_parser" {print $1; found=1}')"
   [[ -n "${last}" ]] || return 0
   manual="$(git -C "${dir}" log --format='  %h %an  %s' "${last}..${ref}")"
   [[ -n "${manual}" ]] || return 0
