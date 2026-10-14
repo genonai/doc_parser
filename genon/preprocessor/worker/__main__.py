@@ -14,6 +14,7 @@ from __future__ import annotations
 import http.server
 import logging
 import multiprocessing as mp
+import os
 import signal
 import sys
 import threading
@@ -44,9 +45,13 @@ def main() -> int:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s [worker] %(levelname)s %(message)s")
     cfg = settings.load()
     entries = registry.scan()
-    log.info("task_queue=%s processes=%d NFS_ROOT=%s ARTIFACT_ROOT=%s 액티비티=%s",
-             cfg.task_queue, cfg.processes, cfg.nfs_root, cfg.artifact_root,
-             ", ".join(e.slug for e in entries) or "<없음>")
+    # 자식은 spawn 으로 뜨며 이 환경을 물려받는다. torch·docling 이 import 때 읽으므로 자식을 띄우기 전에 정한다.
+    if not os.environ.get("OMP_NUM_THREADS"):
+        os.environ["OMP_NUM_THREADS"] = str(
+            settings.omp_threads(settings.read_cpu_max(), cfg.processes, os.cpu_count()))
+    log.info("task_queue=%s processes=%d threads=%d OMP_NUM_THREADS=%s NFS_ROOT=%s ARTIFACT_ROOT=%s 액티비티=%s",
+             cfg.task_queue, cfg.processes, cfg.threads, os.environ["OMP_NUM_THREADS"],
+             cfg.nfs_root, cfg.artifact_root, ", ".join(e.slug for e in entries) or "<없음>")
     ctx = mp.get_context("spawn")
 
     def spawn(i: int):

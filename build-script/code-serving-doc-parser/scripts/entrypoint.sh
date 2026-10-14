@@ -34,9 +34,40 @@ if [ -n "${START_COMMAND:-}" ]; then
   exec sh -c "${START_COMMAND}"
 fi
 
+# 실행 모드 — PREPROC_MODE=http(기본, 루트 main.py 의 REST API) | worker(Temporal 워커, #514).
+# 같은 배포본을 배포할 때 골라 쓴다. START_COMMAND 가 있으면 위에서 이미 그것을 실행했다.
+# 두 모드 모두 PORT(8080)의 /health 에 매 요청 응답한다(코드서빙 규약). 워커 모드는 부모 프로세스가 응답한다.
+PREPROC_MODE="${PREPROC_MODE:-http}"
+case "$PREPROC_MODE" in
+  http) ;;
+  worker)
+    echo "[entrypoint] PREPROC_MODE=worker: python -m genon.preprocessor.worker"
+    exec python -m genon.preprocessor.worker ;;
+  *)
+    echo "[entrypoint] ERROR: PREPROC_MODE 는 http 또는 worker 여야 합니다: ${PREPROC_MODE}" >&2
+    exit 1 ;;
+esac
+
+# HTTP 모드의 연산 스레드 수 — OMP_NUM_THREADS 가 없으면 "파드 CPU 한도 ÷ 워커 수" 의 내림(최소 1).
+# 프로세스는 파드 한도가 아니라 노드 코어 수를 보고 torch·docling 스레드를 띄우므로, 정하지 않으면
+# CPU 작업이 겹칠 때 수 배 느려진다(#511 측정). 워커 모드는 워커가 같은 식으로 정한다(worker/settings.py).
+if [ -z "${OMP_NUM_THREADS:-}" ]; then
+  cpus=""
+  if [ -r /sys/fs/cgroup/cpu.max ]; then
+    read -r quota period < /sys/fs/cgroup/cpu.max || true
+    if [ "${quota:-max}" != "max" ] && [ "${period:-0}" -gt 0 ]; then
+      cpus=$(( quota / period ))
+    fi
+  fi
+  [ -n "$cpus" ] || cpus=$(nproc 2>/dev/null || echo 1)
+  OMP_NUM_THREADS=$(( cpus / ${WEB_CONCURRENCY:-5} ))
+  [ "$OMP_NUM_THREADS" -ge 1 ] || OMP_NUM_THREADS=1
+  export OMP_NUM_THREADS
+fi
+
 # 디폴트 — main.py 자동 감지 (사용자가 START_COMMAND 안 채워도 동작)
 if [ -f "main.py" ]; then
-  echo "[entrypoint] Default: uvicorn main:app on port ${PORT:-8080} (workers=${WEB_CONCURRENCY:-5})"
+  echo "[entrypoint] Default: uvicorn main:app on port ${PORT:-8080} (workers=${WEB_CONCURRENCY:-5}, OMP_NUM_THREADS=${OMP_NUM_THREADS})"
   exec uvicorn main:app --host 0.0.0.0 --port "${PORT:-8080}" --workers "${WEB_CONCURRENCY:-5}"
 fi
 

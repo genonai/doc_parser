@@ -31,6 +31,19 @@ def test_scan_registers_files_named_by_stage_with_paired_config(tmp_path):
     ]
 
 
+@pytest.mark.parametrize("cpu_max, processes, node_cpus, expected", [
+    ("100000 100000\n", 5, 4, 1),      # SCP 측정 파드: 1 코어 ÷ 5 → 0 → 최소 1
+    ("400000 100000\n", 1, 16, 4),     # 4 코어 ÷ 1
+    ("800000 100000\n", 3, 32, 2),     # 8 ÷ 3 = 2.67 → 내림 2(올림 3 이면 합 9 > 8)
+    ("150000 100000\n", 1, 4, 1),      # 소수 코어 1.5 → 1
+    ("max 100000\n", 2, 8, 4),         # 한도 없음 → 노드 코어
+    (None, 1, None, 1),                # cgroup 정보도 코어 수도 없음
+], ids=["1core-5proc", "4core-1proc", "8core-3proc", "1.5core", "no-limit", "unknown"])
+def test_omp_threads_floor_of_cpu_limit_per_process(cpu_max, processes, node_cpus, expected):
+    """연산 스레드 = 파드 CPU 한도 ÷ 프로세스 수의 내림, 최소 1(#514). 한도는 노드 코어가 아니라 cgroup 에서 읽는다."""
+    assert settings.omp_threads(cpu_max, processes, node_cpus) == expected
+
+
 def test_build_gives_each_slug_its_own_activity_name():
     """같은 부모 메서드를 물려받는 slug 둘이 이름 충돌 없이 함께 등록된다(SDK 1.34)."""
     from temporalio.activity import _Definition

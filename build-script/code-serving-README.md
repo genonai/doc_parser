@@ -136,6 +136,16 @@ config를 업무 요구사항에 맞게 수정할 수 있습니다.
 4. **리비전 생성/배포** — 코드서빙 매뉴얼대로 리비전을 생성하면 gitea 소스(레포 URL/commit)가 런타임에 `/app/src/service`로 clone되고 `main.py`가 실행됩니다.
    - 이미지: `mnc/template-code-serving-doc-parser` 선택.
    - GPU 미할당, **medium(1 CPU Core, 16GB Memory)** 수준 인스턴스.
+   - **실행 모드**는 리비전 환경변수 `PREPROC_MODE` 로 고릅니다. 두 모드를 동시에 돌릴 필요는 없습니다.
+
+     | `PREPROC_MODE` | 띄우는 것 | 동시 처리 수 | 메모리 기준 |
+     |---|---|---|---|
+     | `http`(기본) | 루트 `main.py` REST API(`/parser`·`/chunker`·`/preprocess*`) | `WEB_CONCURRENCY`(기본 5) 프로세스 | 프로세스당 2~3 GB |
+     | `worker` | Temporal 워커 `python -m genon.preprocessor.worker` | `WORKER_PROCESSES` × `WORKER_THREADS`(기본 1×1) | 프로세스당 2~3 GB + 처리 중 문서 수만큼 |
+
+     - 두 모드 모두 `PORT`(8080)의 `/health` 에 매 요청 응답합니다(코드서빙 규약). 워커 모드의 필수 env(`TEMPORAL_HOST`·`WORKER_TASK_QUEUE`·`NFS_ROOT`·`ARTIFACT_ROOT`)는 `genon/preprocessor/worker/settings.py` 머리말을 봅니다.
+     - `START_COMMAND` 를 채우면 모드보다 그것이 우선합니다.
+     - **연산 스레드 `OMP_NUM_THREADS`**: 비워 두면 "파드 CPU 한도 ÷ 프로세스 수" 의 내림(최소 1)으로 자동 설정됩니다(1 코어·워커 5 → 1). 프로세스는 파드 한도가 아니라 노드 코어 수를 보고 스레드를 띄우므로, 이 값이 없으면 CPU 작업이 겹칠 때 수 배 느려집니다. 자동 설정은 이 기능이 들어간 베이스 이미지부터 동작하므로, 그 전 이미지에서는 리비전 env 에 직접 넣습니다.
 
 5. **호출/테스트** — 아래 [사용 예시](#사용-예시) 및 동봉된
    `genon/preprocessor/tools/code_serving/serving_gateway_test.py` 참고.
