@@ -170,10 +170,12 @@ def interference(phase: dict, solo: dict | None) -> list[str]:
         if r["variant"] == "off" and (r.get("n_pictures_annotated") or r.get("has_doc_summary")):
             issues.append(f"{r['name']}: off 요청에 설명 {r.get('n_pictures_annotated')}건/요약 {r.get('has_doc_summary')} (R1 토글 누수)")
         s = ref.get(r["name"])
-        if s and r["variant"] == "on" and s.get("parse_code") == 0:
-            if (s.get("n_pictures_annotated"), s.get("has_doc_summary")) != (r.get("n_pictures_annotated"), r.get("has_doc_summary")):
-                issues.append(f"{r['name']}: on 요청의 설명/요약이 순차와 다름 "
-                              f"(순차 {s.get('n_pictures_annotated')}/{s.get('has_doc_summary')} → 동시 {r.get('n_pictures_annotated')}/{r.get('has_doc_summary')}) (R1)")
+        # on 요청은 찾은 그림마다 설명이 붙고 요약이 있어야 한다. 그림 수 자체는 VLM 레이아웃 응답에 따라
+        # 실행마다 달라질 수 있으므로 순차와 비교하지 않는다(설명 수가 그림 수보다 적을 때만 토글이 꺼진 것).
+        if r["variant"] == "on" and ((r.get("n_pictures_annotated") or 0) < (r.get("n_pictures") or 0)
+                                     or (s and s.get("has_doc_summary") and not r.get("has_doc_summary"))):
+            issues.append(f"{r['name']}: on 요청인데 설명/요약이 빠짐 "
+                          f"(그림 {r.get('n_pictures')} 중 설명 {r.get('n_pictures_annotated')}, 요약 {r.get('has_doc_summary')}) (R1)")
         if r.get("chunk_code") not in (None, 0):
             issues.append(f"{r['name']}: chunk 실패 {r.get('chunk_err')}")
         if r.get("page_count_consistent") is False:
