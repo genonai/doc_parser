@@ -64,20 +64,23 @@ def test_judge_document_verdict_and_reocr_reason(options, llm_response, verdict,
 
 @pytest.mark.unit
 @pytest.mark.parametrize("native,verdict,found,endpoint,failed,expected", [
+    # found = (글리프 깨진 페이지, 빈 페이지, 문서에 텍스트가 있는지)
     # 재현 R5: 기본 설정에서 정상 문서가 두 번 변환되던 경우 — 판정 불가면 재변환하지 않는다
-    (True, de.OcrVerdict.UNKNOWN, ([], []), "", [], (False, False, True)),
+    (True, de.OcrVerdict.UNKNOWN, ([], [], True), "", [], (False, False, True)),
     # 판정 LLM 이 OCR 필요라 답하면 문서 전체를 다시 변환한다
-    (True, de.OcrVerdict.NEEDS_OCR, ([], []), "", [], (False, True, True)),
+    (True, de.OcrVerdict.NEEDS_OCR, ([], [], True), "", [], (False, True, True)),
     # #483: genos_layout 은 판정 LLM 을 부르지 않는다 — LLM 이 YES 였을 문서도 재변환하지 않는다
-    (False, de.OcrVerdict.NEEDS_OCR, ([], []), "", [], (False, False, False)),
+    (False, de.OcrVerdict.NEEDS_OCR, ([], [], True), "", [], (False, False, False)),
     # #483: 글리프·빈 페이지는 그 페이지만 OCR 하고, 모두 처리되면 전체 재변환은 하지 않는다
-    (True, None, ([2], [5]), "http://ocr", [], (True, False, False)),
+    (True, None, ([2], [5], True), "http://ocr", [], (True, False, False)),
     # 처리하지 못한 페이지가 있으면 전체 재변환으로 보낸다
-    (True, None, ([2], []), "http://ocr", [2], (True, True, False)),
+    (True, None, ([2], [], True), "http://ocr", [2], (True, True, False)),
+    # #483: 문서 전체에 텍스트가 없으면(스캔본) 판정 LLM 없이 no_text 로 전체 재변환한다
+    (True, None, ([], [], False), "http://ocr", [], (False, True, False)),
     # OCR 주소가 없으면 페이지 단위로 할 수 없으므로 전체 재변환한다(예전 동작)
-    (True, None, ([2], []), "", [], (False, True, False)),
+    (True, None, ([2], [], True), "", [], (False, True, False)),
 ], ids=["unknown-no-reocr", "llm-yes-full", "genos-skips-llm", "pages-fixed", "pages-failed-full",
-        "no-endpoint-full"])
+        "no-text-full", "no-endpoint-full"])
 def test_parse_docling_reocr_paths(native, verdict, found, endpoint, failed, expected):
     """_parse_docling 의 auto 경로: 페이지 단위 재OCR 과 문서 전체 재변환 중 무엇을 하는지.
     __init__ 우회 + _intel 가짜 — 기존 test_parser_processor_unit 의 dp 와 같은 꼴."""
@@ -85,7 +88,8 @@ def test_parse_docling_reocr_paths(native, verdict, found, endpoint, failed, exp
     dp._intel = MagicMock()
     dp._intel.ocr_mode = "auto"
     dp._intel.ocr_endpoint = endpoint
-    dp._intel.find_reocr_pages.return_value = found
+    dp._intel.find_reocr_pages.return_value = found[:2]
+    dp._intel.has_text.return_value = found[2]
     dp._intel.judges_native_text.return_value = native
     dp._intel.ocr_text_items_on_pages.return_value = failed
     dp._intel.ocr_all_table_cells.side_effect = lambda document, path: document

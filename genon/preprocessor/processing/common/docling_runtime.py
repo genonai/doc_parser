@@ -529,6 +529,10 @@ class DoclingRuntimeBase:
         """
         return getattr(self, "layout_model_type", "genos_layout") == "docling_layout"
 
+    def has_text(self, document: DoclingDocument) -> bool:
+        """글자가 있는 TextItem 이 하나라도 있는지(#483)."""
+        return dops.has_text(document)
+
     def find_reocr_pages(self, document: DoclingDocument) -> tuple[list[int], list[int]]:
         """(글리프 깨진 페이지, 빈 페이지) 번호 목록(#483)."""
         return dops.find_reocr_pages(document, self._glyph_document_threshold)

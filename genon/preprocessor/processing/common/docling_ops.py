@@ -326,17 +326,19 @@ def find_reocr_pages(document: DoclingDocument, threshold: int) -> tuple[list[in
 
 #: 재OCR 사유(#482). "none" = 재OCR 하지 않는다(판정이 OK 또는 UNKNOWN 이고 휴리스틱도 안 걸림).
 #: 로그에 판정값과 나란히 남겨 운영에서 비율을 센다 — 예: verdict=unknown reason=none.
-ReocrReason = Literal["llm_yes", "glyph", "empty_text", "none"]
+#: no_text = 문서 전체에 텍스트가 없음(#483). 판정 LLM 을 부르지 않고 결정하므로 llm_yes 와 구분한다.
+ReocrReason = Literal["llm_yes", "glyph", "empty_text", "no_text", "none"]
 
 
-def reocr_reason(verdict: OcrVerdict, glyph_broken: bool, empty_page: bool) -> ReocrReason:
+def reocr_reason(verdict: OcrVerdict, glyph_broken: bool, empty_page: bool,
+                 no_text: bool = False) -> ReocrReason:
     """`ocr_mode: auto` 에서 두 번째 변환(OCR converter 재변환)을 할 사유를 돌려준다(#482).
 
     verdict 는 docling.utils.document_enrichment.judge_document 의 판정값이다.
-        NEEDS_OCR → "llm_yes"        판정 LLM 이 OCR 필요라 답함(텍스트가 전혀 없는 경우 포함)
+        NEEDS_OCR → "llm_yes"        판정 LLM 이 OCR 필요라 답함
         OK / UNKNOWN → 사유 아님      판정 불가(LLM 없음·응답 없음)는 재OCR 사유가 아니다
-    glyph_broken(check_glyphs)·empty_page(check_empty_text) 는 결정적 휴리스틱이라 판정과 무관하게 사유가 된다.
-    호출부는 `!= "none"` 으로 판단한다(문자열 참/거짓에 기대지 않는다).
+    glyph_broken(check_glyphs)·empty_page(check_empty_text)·no_text(has_text 의 반대) 는 결정적 검사라
+    판정과 무관하게 사유가 된다. 호출부는 `!= "none"` 으로 판단한다(문자열 참/거짓에 기대지 않는다).
     """
     if verdict == OcrVerdict.NEEDS_OCR:
         return "llm_yes"
@@ -344,7 +346,21 @@ def reocr_reason(verdict: OcrVerdict, glyph_broken: bool, empty_page: bool) -> R
         return "glyph"
     if empty_page:
         return "empty_text"
+    if no_text:
+        return "no_text"
     return "none"
+
+
+def has_text(document: DoclingDocument) -> bool:
+    """글자가 있는 TextItem 이 하나라도 있는지(#483).
+
+    judge_document_text 의 "텍스트 0자 → NEEDS_OCR" 과 같은 기준을 판정 LLM 앞의 결정적 검사로 둔다.
+    텍스트 레이어가 없는 스캔본처럼 문서 전체에 텍스트가 없으면 False 다.
+    """
+    for item, _level in document.iterate_items():
+        if isinstance(item, TextItem) and (item.text or "").strip():
+            return True
+    return False
 
 
 # ── 표 셀 재OCR ─────────────────────────────────────────────────────────────
