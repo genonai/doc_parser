@@ -233,7 +233,7 @@ chunker 가 형태를 자동 판별). `IS_CHUNKER` 를 지원하는 전처리기
 | --- | --- | --- | --- |
 | `document` | `params` | (필수) | 파싱이 반환한 결과 JSON. docling(`{"document":...}`) 또는 parse-format(`{"elements":[...]}`) 모두 허용(자동 판별) |
 | `chunk_size` | `params` | `0` | 청크 최대 크기. `0` 이면 토큰/문자 기반 분할 안 함. 청킹 config 기본값을 덮어씀 |
-| `log_level` | `params` | config 값 | 런타임 로깅 레벨(5=DEBUG ~ 1=CRITICAL, 0=NOLOG) |
+| `log_level` | `params` | config 값 | ~~런타임 로깅 레벨~~ — parser·chunker 는 무시한다(로깅 레벨은 프로세스 기동 때 yaml `defaults.log_level` 로 한 번, #481). intelligent·convert 는 종전대로 요청 값 적용(5=DEBUG ~ 1=CRITICAL, 0=NOLOG) |
 
 > `file_path` 는 청킹 단계에서는 청크 메타데이터에 기록되는 경로 용도이며,
 > 실제 입력은 `params.document` 입니다.

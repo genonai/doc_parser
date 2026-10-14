@@ -20,7 +20,6 @@ ARG PY_VER=3.12.12
 ARG DEBIAN_DIST=trixie
 ARG H2ORESTART_URL="https://github.com/ebandal/H2Orestart/releases/latest/download/H2Orestart.oxt"
 ARG APP_VENV=/app/.venv
-ARG NLTK_PACKAGES=all
 ARG UID=1000
 ARG GID=1000
 ARG UNAME=genos
@@ -48,8 +47,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
     VIRTUAL_ENV=${APP_VENV} \
     PATH="${APP_VENV}/bin:${PATH}" \
     HOME=/app \
-    HF_HOME=/app/.cache/huggingface \
-    NLTK_DATA=/app/nltk_data
+    HF_HOME=/app/.cache/huggingface
 
 # uv(standalone) + uv 관리형 python3.12 (python-build-standalone).
 # deadsnakes PPA 미사용 — 빌드망에서 launchpad 키서버 접근이 막혀 add-apt-repository(gpg import)가 실패한다.
@@ -77,7 +75,7 @@ COPY build-script/code-serving-doc-parser/pyproject.toml build-script/code-servi
 #   곧바로 --index-url cu124 로 **다시 약 4GB** 를 받아 덮어썼다(총 약 8GB, 절반은 폐기).
 #   한 번에 받도록 바꿔 재설치 단계를 없앴다.
 RUN --mount=type=cache,target=/root/.cache/uv \
-    rm -rf /app/tmp /app/nltk_data && \
+    rm -rf /app/tmp && \
     uv venv --python 3.12 --seed && \
     uv pip install . --torch-backend=cu124
 
@@ -173,7 +171,6 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
 
 FROM builder AS models_artifacts
 ARG APP_VENV
-ARG NLTK_PACKAGES
 ARG DOCLING_PKG_VER
 # 받을 docling 모델 목록. 인자 없이 `docling-tools models download` 를 호출하면 기본 세트
 # (layout, tableformer, code_formula, picture_classifier, easyocr)를 전부 받는데, 그중
@@ -217,18 +214,6 @@ RUN --mount=type=cache,target=${HF_HOME} \
     huggingface-cli download mncai/doc_parser_models \
       --include "sentence-transformers-all-MiniLM-L6-v2/*" \
       --local-dir /models/doc_parser_models
-RUN --mount=type=cache,target=/root/.cache/nltk \
-    python - <<'PY'
-import os, nltk
-target = os.environ.get("NLTK_DATA", "/app/nltk_data")
-os.makedirs(target, exist_ok=True)
-packages = os.environ.get("NLTK_PACKAGES", "all")
-if packages == "all":
-    nltk.download("all", download_dir=target)
-else:
-    for pkg in [p.strip() for p in packages.split(",") if p.strip()]:
-        nltk.download(pkg, download_dir=target)
-PY
 RUN --mount=type=cache,target=/root/.cache/easyocr_korean \
     mkdir -p /models/EasyOcr && \
     if [ ! -f /root/.cache/easyocr_korean/korean_g2.zip ]; then \
@@ -269,7 +254,6 @@ ENV DEBIAN_FRONTEND=noninteractive \
     TMPDIR=/app/tmp \
     JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64 \
     HF_HOME=/app/.cache/huggingface \
-    NLTK_DATA=/app/nltk_data \
     LANG=ko_KR.UTF-8 \
     LC_ALL=ko_KR.UTF-8 \
     LC_CTYPE=ko_KR.UTF-8 \
@@ -296,7 +280,7 @@ RUN mkdir -p /app/tmp /tmp/xdg \
     && ln -snf /usr/share/zoneinfo/${TZ} /etc/localtime && echo ${TZ} > /etc/timezone \
     && sed -i 's/# \(ko_KR.UTF-8\)/\1/' /etc/locale.gen && locale-gen \
     && rm -rf /var/lib/apt/lists/* \
-    && mkdir -p /app/.cache/huggingface /app/nltk_data /app/tmp /tmp/xdg
+    && mkdir -p /app/.cache/huggingface /app/tmp /tmp/xdg
 
 # LibreOffice H2Orestart 확장 + HCRBatang 폰트
 # NOTE: 예전에는 `COPY` 로 폰트·tessdata 폴더(현 `genon/preprocessor/docker/assets`)를 `/tmp/resources` 에 통째 복사했다.
@@ -337,7 +321,6 @@ COPY --from=rhwp_builder /usr/local/bin/rhwp /usr/local/bin/rhwp
 COPY --from=font_artifacts /app/extra_fonts /usr/share/fonts/additional
 RUN fc-cache -f -v
 COPY --chown=${UID}:${GID} --from=models_artifacts /models /models
-COPY --chown=${UID}:${GID} --from=models_artifacts /app/nltk_data /app/nltk_data
 
 # hwp_sdk import 경로 (venv site-packages 심링크, 표준 빌드 파리티용). python3.12 고정.
 # docling 은 런타임에 clone 된 복사본 packages/ 의 wheel(genon-docling, import name: docling)을
@@ -356,11 +339,11 @@ COPY --chown=${UID}:${GID} build-script/code-serving-doc-parser/gunicorn /app/gu
 RUN rm -rf /app/src/service && chmod +x /app/scripts/*.sh
 
 # 위 COPY 들이 이미 ${UID}:${GID} 로 복사했으므로 여기서는 작은 경로만 정리한다.
-#   - /app, /app/nltk_data : 위 apt RUN 에서 root 로 미리 만들어진 디렉토리라
+#   - /app : 위 apt RUN 에서 root 로 미리 만들어진 디렉토리라
 #     COPY --chown 이 디렉토리 자체의 소유권은 바꾸지 않는다 → 비재귀 chown 으로 보정.
 #   - site-packages/hwp_sdk : 위 RUN 이 만든 심볼릭 링크 자체의 소유권(-h).
 #   - /var/log/supervisor, /var/run/supervisor 는 /var/log, /run 에 포함된다.
-RUN chown "${UID}:${GID}" /app /app/nltk_data && \
+RUN chown "${UID}:${GID}" /app && \
     chown -h "${UID}:${GID}" ${APP_VENV}/lib/python3.12/site-packages/hwp_sdk && \
     find /app -maxdepth 1 -user 0 -exec chown "${UID}:${GID}" {} + && \
     chown -R "${UID}:${GID}" /run /var/log /etc/supervisor /app/.cache /app/.config /app/.local /app/tmp /tmp/xdg

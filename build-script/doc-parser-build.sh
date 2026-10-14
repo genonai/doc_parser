@@ -34,7 +34,6 @@ APP_UID="${APP_UID:-1000}"
 APP_GID="${APP_GID:-1000}"
 APP_UNAME="${APP_UNAME:-genos}"
 APP_GNAME="${APP_GNAME:-genos}"
-APP_NLTK_PACKAGES="${APP_NLTK_PACKAGES:-all}"
 TORCH_CPU_INDEX_URL="${TORCH_CPU_INDEX_URL:-https://download.pytorch.org/whl/cpu}"
 SMOKE_TEST="${SMOKE_TEST:-true}"
 SMOKE_TEST_FILE="${SMOKE_TEST_FILE:-pdf_sample.pdf}"
@@ -136,7 +135,6 @@ echo "[INFO] INSTALL_RHWP        = ${INSTALL_RHWP}"
 echo "[INFO] DOCKERFILE_PATH = ${DOCKERFILE_PATH}"
 echo "[INFO] IMAGE_TAG       = ${IMAGE_TAG}"
 echo "[INFO] UID:GID         = ${APP_UID}:${APP_GID} (${APP_UNAME}:${APP_GNAME})"
-echo "[INFO] NLTK_PACKAGES  = ${APP_NLTK_PACKAGES}"
 echo "[INFO] SMOKE_TEST      = ${SMOKE_TEST} (file: ${SMOKE_TEST_FILE})"
 
 # HuggingFace 토큰 존재 여부 확인 (이슈 #199 — SDK 별 fine-grained 토큰 분리)
@@ -179,7 +177,6 @@ DOCKER_BUILDKIT=1 docker build \
   --build-arg GID="${APP_GID}" \
   --build-arg UNAME="${APP_UNAME}" \
   --build-arg GNAME="${APP_GNAME}" \
-  --build-arg NLTK_PACKAGES="${APP_NLTK_PACKAGES}" \
   "${ROOT_DIR}"
 
 echo "[INFO] Build done: ${IMAGE_TAG}"

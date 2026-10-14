@@ -554,6 +554,8 @@ class DocxProcessor:
 
         current_page = None
         chunk_index_on_page = 0
+        # 표마다 표로 셀지 판정한 결과. 같은 표의 조각마다 다시 판정하지 않는다.
+        table_kinds: dict = {}
         vectors = []
         upload_tasks = []
         scheduled_upload_paths = set()  # 청크 간 동일 이미지(헤더 그림 등) 중복 업로드 방지
@@ -581,7 +583,7 @@ class DocxProcessor:
                       .set_global_metadata(**global_metadata)
                       .set_chunk_bboxes(doc_items, document)
                       .set_media_files(doc_items)
-                      .set_table_info(doc_items)
+                      .set_table_info(doc_items, table_kinds=table_kinds)
                       .set_guardrail_categories(sorted(chunk_cats) if chunk_cats else None)
                       ).build()
             vectors.append(vector)
@@ -762,6 +764,8 @@ class HwpProcessor:
 
         current_page = None
         chunk_index_on_page = 0
+        # 표마다 표로 셀지 판정한 결과. 같은 표의 조각마다 다시 판정하지 않는다.
+        table_kinds: dict = {}
         vectors = []
         upload_tasks = []
 
@@ -790,7 +794,7 @@ class HwpProcessor:
                       .set_global_metadata(**global_metadata)
                       .set_chunk_bboxes(doc_items, document)
                       .set_media_files(doc_items)
-                      .set_table_info(doc_items)
+                      .set_table_info(doc_items, table_kinds=table_kinds)
                       .set_guardrail_categories(sorted(chunk_cats) if chunk_cats else None)
                       ).build()
             vectors.append(vector_obj)

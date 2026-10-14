@@ -23,7 +23,7 @@ from typing import Any, Callable
 
 # 훅에 넘길 수 없는 요청 파라미터. core 가 내부 배관용으로 kwargs 에 실어 나르는 값이라
 # 훅의 관심사가 아니고, 이름이 길어 훅 시그니처를 오염시킨다.
-_INTERNAL_KEYS = frozenset({"_sensitive_infos", "_guardrail_masking", "_enrichment_context"})
+_INTERNAL_KEYS = frozenset({"_sensitive_infos", "_guardrail_masking", "_enrichment_context", "_enrichers"})
 
 
 @lru_cache(maxsize=256)

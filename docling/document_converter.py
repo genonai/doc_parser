@@ -1,4 +1,5 @@
 import hashlib
+import threading
 import logging
 import sys
 import time
@@ -50,6 +51,9 @@ from docling.utils.profiling import log_profiling_summary
 from docling.utils.utils import chunkify
 
 _log = logging.getLogger(__name__)
+
+# __init__ 을 우회한 인스턴스(테스트)용 공용 락 — 호출마다 새 락을 만들면 아무것도 막지 못한다.
+_PIPELINE_INIT_FALLBACK_LOCK = threading.Lock()
 
 # CUSTOM IMPORT
 from docling.backend.json.bok_json_backend import BOKJsonDocumentBackend
@@ -238,6 +242,8 @@ class DocumentConverter:
         self.initialized_pipelines: Dict[
             Tuple[Type[BasePipeline], str], BasePipeline
         ] = {}
+        # 첫 변환을 두 스레드가 동시에 시작하면 파이프라인(모델 로딩)을 두 번 만든다 — 생성은 락 안에서(genon #481).
+        self._pipeline_init_lock = threading.Lock()
 
     def _get_initialized_pipelines(
         self,
@@ -358,12 +364,14 @@ class DocumentConverter:
         cache_key = (pipeline_class, options_hash)
 
         if cache_key not in self.initialized_pipelines:
-            _log.info(
-                f"Initializing pipeline for {pipeline_class.__name__} with options hash {options_hash}"
-            )
-            self.initialized_pipelines[cache_key] = pipeline_class(
-                pipeline_options=pipeline_options
-            )
+            with getattr(self, "_pipeline_init_lock", None) or _PIPELINE_INIT_FALLBACK_LOCK:
+                if cache_key not in self.initialized_pipelines:
+                    _log.info(
+                        f"Initializing pipeline for {pipeline_class.__name__} with options hash {options_hash}"
+                    )
+                    self.initialized_pipelines[cache_key] = pipeline_class(
+                        pipeline_options=pipeline_options
+                    )
         else:
             _log.debug(
                 f"Reusing cached pipeline for {pipeline_class.__name__} with options hash {options_hash}"

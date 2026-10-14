@@ -40,7 +40,6 @@ git 소스를 `/app/src/service` 로 clone 해 `main.py`(facade) 를 실행한�
 | rhwp 바이너리 | `/usr/local/bin/rhwp` (`RHWP_BIN`) | `genonai/genos-rhwp` rust 빌드 |
 | H2Orestart.oxt | LibreOffice 확장 | GitHub 릴리스 |
 | 폰트 | HCRBatang/additional + noto-cjk/nanum/dejavu | docker/assets + HF + apt |
-| NLTK 데이터 (`punkt_tab`, `averaged_perceptron_tagger_eng`) | `/app/nltk_data` (`NLTK_DATA`) | `nltk.download` |
 | EasyOCR korean_g2 | `/models/EasyOcr` | JaidedAI 릴리스 |
 | docling-parse 4.1.0 패치 | `/app/.venv/.../site-packages/docling_parse` | 소스 패치 빌드(#245), venv 인터프리터로 설치해 wheel 덮어씀 |
 

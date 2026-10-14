@@ -214,7 +214,7 @@ def test_row_path_carries_both_notations_on_every_chunk():
 @pytest.mark.unit
 def test_row_path_isolates_the_table_into_its_own_chunk():
     """표 독립 청크(table_as_chunk)도 경로에 따라 갈리지 않는다."""
-    vectors = _chunk_rows(table_text_formats=("markdown",))
+    vectors = _chunk_rows(table_text_formats=("markdown",), table_as_chunk=True)
     table_chunks = [v for v in vectors if v["has_table"]]
     assert len(table_chunks) == 1
     body = table_chunks[0]["text"]

@@ -33,7 +33,7 @@ PDF SDK의 사용 여부에 따라 `standard` 또는 `synap`로 분리됨.
   - 적재형(지능형) — 비-PDF 입력을 내부 PDF 변환 후 파싱하므로 처리 불가 → "PDF 직접 입력/재빌드" 안내와 함께 실패.
   - 첨부형/변환형/파싱형 — HWP 는 내장 HWP SDK, docx/ppt 는 원본 직접 파싱이라 변환 backend 없이도 동작(영향 적음).
 - `synap` 은 PDF SDK 가 남아 docx/ppt 등은 계속 변환된다.
-- **태그 반영** — off 면 태그 끝에 `-nolibre` / `-norhwp` 가 자동으로 붙어(둘 다 off → `-nolibre-norhwp`) 운영 이미지(둘 다 on)와 덮어쓰기 없이 구분된다. 둘 다 on(기본)이면 접미사 없음. `register.config` 에도 동일 값 필요. 빌드 시 `ai.genon.install.libreoffice` / `ai.genon.install.rhwp` OCI 라벨로도 기록됨. 설정/빌드 절차는 [`../../README.md` "A-2. (선택) rhwp / LibreOffice 제외 빌드"](../../README.md#a-2-선택-rhwp--libreoffice-제외-빌드-이슈-286) 참고.
+- **태그 반영** — off 면 태그 끝에 `-nolibre` / `-norhwp` 가 자동으로 붙어(둘 다 off → `-nolibre-norhwp`) 운영 이미지(둘 다 on)와 덮어쓰기 없이 구분된다. 둘 다 on(기본)이면 접미사 없음. GenOS 이미지 등록 시에도 접미사가 붙은 태그를 그대로 지정한다. 빌드 시 `ai.genon.install.libreoffice` / `ai.genon.install.rhwp` OCI 라벨로도 기록됨. 설정/빌드 절차는 [`../../README.md` "A-2. (선택) rhwp / LibreOffice 제외 빌드"](../../README.md#a-2-선택-rhwp--libreoffice-제외-빌드-이슈-286) 참고.
 
 ## 이미지에 포함되는 오프라인 모델
 
@@ -41,7 +41,7 @@ PDF SDK의 사용 여부에 따라 `standard` 또는 `synap`로 분리됨.
 
 - docling: layout(`ds4sd--docling-layout-old`), tableformer, picture_classifier, easyocr(+ korean_g2)
 - unstructured hi_res 레이아웃 모델 yolox(`/models/unstructured/yolo_x_layout`). `UNSTRUCTURED_DEFAULT_MODEL_INITIALIZE_PARAMS_JSON_PATH` 가 같은 폴더의 `yolox_params.json` 을 가리킨다.
-- MiniLM 토크나이저 파일(`tokenizer_type: huggingface` 용, 가중치 제외)과 NLTK `punkt_tab`, `averaged_perceptron_tagger_eng`
+- MiniLM 토크나이저 파일(`tokenizer_type: huggingface` 용, 가중치 제외)
 
 ## HWP → PDF 변환 chain (런타임 동작)
 

@@ -27,6 +27,7 @@ def setup_logging(level_num: int, announce=print) -> None:
         return
 
     level = getattr(logging, level_name.upper())
+    logging.disable(logging.NOTSET)   # 앞서 0(NOLOG) 으로 꺼 둔 상태를 되돌린다(#481 F-C)
 
     # root logger 설정 (핸들러는 main에서만 설정)
     logging.basicConfig(

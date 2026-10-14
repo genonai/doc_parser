@@ -39,20 +39,23 @@ _LLM_ON = dict(do_toc_enrichment=True, toc_api_provider="custom", toc_model="m",
 
 
 @pytest.mark.unit
-@pytest.mark.parametrize("options,llm_response,verdict,reason", [
+@pytest.mark.parametrize("options,llm_response,verdict,reason,has_text", [
     # 기본 설정(toc·metadata 끔) — 판정 LLM 이 없다 → 판정 불가 → 재OCR 사유 없음. 예전엔 0(거짓) → 재OCR.
-    (dict(do_toc_enrichment=False, extract_metadata=False), None, de.OcrVerdict.UNKNOWN, "none"),
+    (dict(do_toc_enrichment=False, extract_metadata=False), None, de.OcrVerdict.UNKNOWN, "none", True),
+    # 같은 설정의 텍스트 레이어 없는 스캔본 — LLM 없이도 OCR 필요(리뷰 지적: 판정 LLM 확인이 빈 텍스트 검사를 가렸다).
+    (dict(do_toc_enrichment=False, extract_metadata=False), None, de.OcrVerdict.NEEDS_OCR, "llm_yes", False),
     # 판정 LLM 이 있는데 응답이 없다(느림·429) → 판정 불가. 예전엔 "YES" → 재OCR.
-    (_LLM_ON, None, de.OcrVerdict.UNKNOWN, "none"),
+    (_LLM_ON, None, de.OcrVerdict.UNKNOWN, "none", True),
     # 응답에 <decision> 이 없다 → 판정 불가. 예전엔 "YES".
-    (_LLM_ON, "<analysis>…</analysis>", de.OcrVerdict.UNKNOWN, "none"),
-    (_LLM_ON, "<analysis>ok</analysis><decision>NO</decision>", de.OcrVerdict.OK, "none"),
-    (_LLM_ON, "<decision>\n yes \n</decision>", de.OcrVerdict.NEEDS_OCR, "llm_yes"),
-], ids=["judge-absent", "llm-silent", "llm-malformed", "llm-no", "llm-yes"])
-def test_judge_document_verdict_and_reocr_reason(options, llm_response, verdict, reason):
+    (_LLM_ON, "<analysis>…</analysis>", de.OcrVerdict.UNKNOWN, "none", True),
+    (_LLM_ON, "<analysis>ok</analysis><decision>NO</decision>", de.OcrVerdict.OK, "none", True),
+    (_LLM_ON, "<decision>\n yes \n</decision>", de.OcrVerdict.NEEDS_OCR, "llm_yes", True),
+], ids=["judge-absent", "judge-absent-scan", "llm-silent", "llm-malformed", "llm-no", "llm-yes"])
+def test_judge_document_verdict_and_reocr_reason(options, llm_response, verdict, reason, has_text):
     """판정값은 OcrVerdict 셋 중 하나이고, 재OCR 사유는 needs_ocr 일 때만 생긴다(휴리스틱 없음 기준).
     옛 호출부용 래퍼 check_document 는 OK 일 때만 참이다."""
-    doc, opts = _doc_with_text(), DataEnrichmentOptions(**options)
+    doc = _doc_with_text() if has_text else DoclingDocument(name="scan")
+    opts = DataEnrichmentOptions(**options)
     with patch.object(PromptManager, "call_ai_model", return_value=llm_response):
         got = de.judge_document(doc, opts)
         compat = de.check_document(doc, opts)

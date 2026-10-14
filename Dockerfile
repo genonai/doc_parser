@@ -40,7 +40,7 @@
 # 레지스트리 호스트·경로 접두어·태그는 코드서빙 배포 화면에 표시된 이미지 경로와 정확히 같아야 한다.
 #   태그 확인:  curl http://<레지스트리>/v2/<경로>/template-code-serving-doc-parser/tags/list
 #   GPU 사이트는 이미지명이 다르다 — template-code-serving-doc-parser-gpu (build.sh 가 -gpu 를 붙인다).
-ARG BASE_IMAGE=scrpifpext-xichxjgz.scr.kr-west.scp-in.com/external/ifa/mnc/template-code-serving-doc-parser:2.1.4
+ARG BASE_IMAGE=scrpifpext-xichxjgz.scr.kr-west.scp-in.com/external/ifa/mnc/template-code-serving-doc-parser:2.2.5
 FROM ${BASE_IMAGE}
 
 # 저장소 루트가 곧 서비스 루트다. 코드서빙이 clone 하던 자리(/app/src/service)와 같게 두어야
@@ -88,7 +88,7 @@ EXPOSE 8080
 
 # 진입점은 배포본 루트의 main.py 하나다(FastAPI). 업무 API 7개와 /health 를 모두 제공한다.
 # PORT 는 코드서빙이 8080 으로 주입한다. exec 로 감싸 uvicorn 이 PID 1 이 되게 한다(종료 시그널 전달).
-# 워커는 1개다 — 모델 로딩·문서 변환이 동기 블로킹이라 늘리려면 메모리(워커당 수 GB)를 먼저 확인한다.
+# 워커는 5개다 — 모델 로딩·문서 변환이 동기 블로킹이라 워커마다 메모리(수 GB)를 따로 쓴다. 늘리기 전에 리비전 메모리를 먼저 확인한다.
 # 노드 코어가 많고 리비전 CPU 가 1코어인 인스턴스에서 OpenMP 스레드 경합이 보이면
 #    ENV OMP_NUM_THREADS=4 를 추가한다. 현재 base 이미지는 이 값을 설정하지 않는다.
-CMD ["sh", "-c", "exec uvicorn main:app --host 0.0.0.0 --port ${PORT:-8080}"]
+CMD ["sh", "-c", "exec uvicorn main:app --host 0.0.0.0 --port ${PORT:-8080} --workers 5"]

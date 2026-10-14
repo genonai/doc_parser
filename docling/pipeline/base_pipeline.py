@@ -125,6 +125,10 @@ class PaginatedPipeline(BasePipeline):  # TODO this is a bad name.
 
         yield from page_batch
 
+    def _page_batch_size(self) -> int:
+        """파이프라인 옵션의 page_batch_size 가 있으면 그것, 없으면 프로세스 전역값(genon #481)."""
+        return getattr(self.pipeline_options, "page_batch_size", None) or settings.perf.page_batch_size
+
     def _build_document(self, conv_res: ConversionResult) -> ConversionResult:
         if not isinstance(conv_res.input._backend, PdfDocumentBackend):
             raise RuntimeError(
@@ -145,7 +149,7 @@ class PaginatedPipeline(BasePipeline):  # TODO this is a bad name.
             try:
                 # Iterate batches of pages (page_batch_size) in the doc
                 for page_batch in chunkify(
-                    conv_res.pages, settings.perf.page_batch_size
+                    conv_res.pages, self._page_batch_size()
                 ):
                     start_batch_time = time.monotonic()
 

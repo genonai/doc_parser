@@ -34,10 +34,11 @@ fields:
   SALE_STATUS:
     const: SALE
   BIZ_ID:
-    # 파일명 앞의 `상품코드_출시일(YYYYMMDD)`. 예: 20071_20260611_file3_자동차개인용.md → 20071_20260611
-    # 상품코드는 숫자로 한정하지 않는다. 첫 `_YYYYMMDD` 까지를 취한다.
+    # 파일명 전체를 SHA-1 로 해시해 `SSF_PROD_` 접두와 16자리 16진 문자열로 만든다.
+    # 같은 파일명이면 다시 적재해도 같은 값이 나오고, 파일명이 바뀌면 값도 바뀐다.
     alias: [$file]
-    transform: {name: regex_extract, pattern: '^(.+?_\d{8})(?!\d)'}
+    # transform: {name: regex_extract, pattern: '^(.+?_\d{8})(?!\d)'}
+    transform: {name: hash, prefix: SSF_PROD_, length: 16}
     default: null
   PRODUCT_ATTRS:
     alias: [created_at]
@@ -48,11 +49,13 @@ fields:
   VALID_FROM:
     alias: [sales_period, version]
     transform:
+    - {name: regex_sub, pattern: '\s+', repl: ' '}   # 여러 줄 값을 한 줄로 편다. 줄바꿈이 남으면 아래 패턴이 매칭에 실패한다
     - {name: regex_extract, pattern: '^\s*([^~]*?)(?:\s*~\s*.*)?$'}
     - date_int
   VALID_TO:
     alias: [sales_period, version]
     transform:
+    - {name: regex_sub, pattern: '\s+', repl: ' '}
     - {name: regex_extract, pattern: '~\s*(.*?)\s*$'}
     - {name: regex_sub, pattern: '^\D+$', repl: '99991231'}
     - date_int

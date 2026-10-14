@@ -855,9 +855,6 @@ class DocumentEnrichmentUtils:
                  없거나 응답이 없거나 형식이 다름).
                  판정 불가는 "필요" 가 아니다. 호출부가 그 경우 재OCR 할지 정한다(#482).
         """
-        if not self.prompt_manager:
-            return OcrVerdict.UNKNOWN
-
         def get_sampled_text(doc: DoclingDocument, max_pages: int = 10) -> str:
             # 문서 전체에서 페이지를 균등 간격으로 최대 max_pages 개 고른다(#483). 앞 10쪽만 보면
             # 뒤쪽 페이지에만 있는 깨진 글꼴을 놓친다.
@@ -882,6 +879,10 @@ class DocumentEnrichmentUtils:
                 text = self._extract_substrings(text, length=1000)
             if len(text) == 0:
                 return OcrVerdict.NEEDS_OCR  # 텍스트가 없으면 OCR 필요
+            # 판정 LLM 유무는 빈 텍스트 검사 뒤에 본다 — 텍스트 레이어가 없는 스캔본은 LLM 없이도
+            # OCR 이 필요하다고 결정된다. 판정 LLM 이 없어 판정할 수 없는 것은 텍스트가 있는 문서뿐이다.
+            if not self.prompt_manager:
+                return OcrVerdict.UNKNOWN
 
             text_len = len(text)
             non_meaningful_ratio = sum(1 for c in text if self._is_non_meaningful_char(c)) / text_len if text_len > 0 else 0
@@ -1643,7 +1644,7 @@ def judge_document(document: DoclingDocument, enrichment_options: DataEnrichment
     Returns:
         OcrVerdict: OK / NEEDS_OCR / UNKNOWN(판정 불가).
         판정 LLM 은 enrichment 설정의 toc 또는 metadata 가 켜져 있을 때만 있으므로, 기본
-        설정에서는 OcrVerdict.UNKNOWN 이다. 호출부(processing/common/docling_ops.reocr_reason)는
+        설정에서는 텍스트가 있는 문서가 OcrVerdict.UNKNOWN 이다(텍스트가 없으면 LLM 없이 NEEDS_OCR). 호출부(processing/common/docling_ops.reocr_reason)는
         NEEDS_OCR 일 때만 재OCR 하고 UNKNOWN 은 재OCR 사유로 보지 않는다.
     """
     if not document:

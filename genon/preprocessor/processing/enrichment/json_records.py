@@ -287,16 +287,20 @@ _AUTO_RECORDS_SAMPLE = 5
 
 # docling HTML 백엔드 전용 경량 컨버터(lazy 싱글턴). HTML 백엔드는 순수 bs4 라 모델
 # 로딩이 없어 생성이 사실상 무료다(실측 0.2ms).
+import threading
+
+_lazy_lock = threading.Lock()
 _html_converter: Any = None
 
 
 def _get_html_converter() -> Any:
     global _html_converter
-    if _html_converter is None:
-        from docling.datamodel.base_models import InputFormat
-        from docling.document_converter import DocumentConverter
+    with _lazy_lock:   # 첫 호출 둘이 동시에 만들지 않게(#481 F-F)
+        if _html_converter is None:
+            from docling.datamodel.base_models import InputFormat
+            from docling.document_converter import DocumentConverter
 
-        _html_converter = DocumentConverter(allowed_formats=[InputFormat.HTML])
+            _html_converter = DocumentConverter(allowed_formats=[InputFormat.HTML])
     return _html_converter
 
 
@@ -361,16 +365,17 @@ def _get_html_table_serializer() -> Any:
     markdown 으로 남는다. serializer 를 갈아 끼우면 그 불일치 자체가 생기지 않는다.
     """
     global _html_table_serializer
-    if _html_table_serializer is None:
-        from docling_core.transforms.serializer.base import BaseTableSerializer, SerializationResult
-        from docling_core.transforms.serializer.common import create_ser_result
+    with _lazy_lock:   # 첫 호출 둘이 동시에 만들지 않게(#481 F-F)
+        if _html_table_serializer is None:
+            from docling_core.transforms.serializer.base import BaseTableSerializer, SerializationResult
+            from docling_core.transforms.serializer.common import create_ser_result
 
-        class _HtmlTableSerializer(BaseTableSerializer):
-            def serialize(self, *, item, doc_serializer, doc, **kwargs) -> SerializationResult:
-                _mark_rich_cells_visited(item, doc, kwargs)
-                return create_ser_result(text=_table_html(item, doc), span_source=item)
+            class _HtmlTableSerializer(BaseTableSerializer):
+                def serialize(self, *, item, doc_serializer, doc, **kwargs) -> SerializationResult:
+                    _mark_rich_cells_visited(item, doc, kwargs)
+                    return create_ser_result(text=_table_html(item, doc), span_source=item)
 
-        _html_table_serializer = _HtmlTableSerializer()
+            _html_table_serializer = _HtmlTableSerializer()
     return _html_table_serializer
 
 
@@ -386,36 +391,37 @@ def _get_auto_table_serializer() -> Any:
     알 수 없다. 청커가 쓰는 판정(table_shape)과 같은 함수를 써서 두 경로가 어긋나지 않는다.
     """
     global _auto_table_serializer
-    if _auto_table_serializer is None:
-        from docling_core.transforms.serializer.base import BaseTableSerializer, SerializationResult
-        from docling_core.transforms.serializer.common import create_ser_result
-        from docling_core.transforms.serializer.markdown import MarkdownTableSerializer
+    with _lazy_lock:   # 첫 호출 둘이 동시에 만들지 않게(#481 F-F)
+        if _auto_table_serializer is None:
+            from docling_core.transforms.serializer.base import BaseTableSerializer, SerializationResult
+            from docling_core.transforms.serializer.common import create_ser_result
+            from docling_core.transforms.serializer.markdown import MarkdownTableSerializer
 
-        from genon.preprocessor.processing.chunking.table_shape import (
-            analyze_grid, resolve_table_format,
-        )
+            from genon.preprocessor.processing.chunking.table_shape import (
+                analyze_grid, resolve_table_format,
+            )
 
-        class _AutoTableSerializer(BaseTableSerializer):
-            def __init__(self) -> None:
-                self._markdown = MarkdownTableSerializer()
+            class _AutoTableSerializer(BaseTableSerializer):
+                def __init__(self) -> None:
+                    self._markdown = MarkdownTableSerializer()
 
-            def serialize(self, *, item, doc_serializer, doc, **kwargs) -> SerializationResult:
-                data = getattr(item, "data", None)
-                shape = analyze_grid(
-                    getattr(data, "grid", None), getattr(data, "num_cols", 0),
-                    # 이 경로의 원본은 HTML 필드라 thead 플래그를 그대로 믿는다.
-                    is_html_origin=True,
-                )
-                if resolve_table_format("auto", shape) == "html":
-                    _mark_rich_cells_visited(item, doc, kwargs)
+                def serialize(self, *, item, doc_serializer, doc, **kwargs) -> SerializationResult:
+                    data = getattr(item, "data", None)
+                    shape = analyze_grid(
+                        getattr(data, "grid", None), getattr(data, "num_cols", 0),
+                        # 이 경로의 원본은 HTML 필드라 thead 플래그를 그대로 믿는다.
+                        is_html_origin=True,
+                    )
+                    if resolve_table_format("auto", shape) == "html":
+                        _mark_rich_cells_visited(item, doc, kwargs)
+                        return create_ser_result(
+                            text=_table_html(item, doc), span_source=item)
+                    result = self._markdown.serialize(
+                        item=item, doc_serializer=doc_serializer, doc=doc, **kwargs)
                     return create_ser_result(
-                        text=_table_html(item, doc), span_source=item)
-                result = self._markdown.serialize(
-                    item=item, doc_serializer=doc_serializer, doc=doc, **kwargs)
-                return create_ser_result(
-                    text=drop_blank_markdown_rows(result.text), span_source=item)
+                        text=drop_blank_markdown_rows(result.text), span_source=item)
 
-        _auto_table_serializer = _AutoTableSerializer()
+            _auto_table_serializer = _AutoTableSerializer()
     return _auto_table_serializer
 
 

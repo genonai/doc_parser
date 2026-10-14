@@ -44,9 +44,16 @@ set -euo pipefail
 #   - wheel 히스토리 누적: 매 릴리스 wheel(~5MB)이 배포본 repo 에 커밋되어 쌓인다. 비대해지면 LFS/릴리스 자산 전환 고려.
 #   - genon/ 디스크 중복: doc_parser/genon 과 code-serving/genon(복사 산출물)이 공존한다("복사" 특성상 불가피).
 #   - 재태깅: 이미 존재하는 태그를 다른 커밋으로 옮기려 하면 에러로 중단된다. 의도적일 때만 FORCE_TAG=true.
+#   - tar 가 bsdtar(macOS 기본)이면 export 를 임시 tar 파일 경유로 수행한다. `git archive | tar` 파이프가
+#     bsdtar 에서 SIGPIPE 로 끊기기 때문이며, GNU tar(Linux)에서는 기존 파이프 그대로다(#492).
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
+
+# tar 구현 판별 (#492). macOS 기본 bsdtar 는 아카이브 종료 블록을 읽으면 입력을 바로 닫아
+# `git archive | tar -x` 파이프의 쓰는 쪽이 SIGPIPE 를 받는다. uname 이 아니라 tar 구현으로 가르는 이유는
+# Mac 에 GNU tar(brew gtar)를, Linux 에 bsdtar 를 쓰는 환경이 있기 때문이다.
+tar_is_bsd() { tar --version 2>/dev/null | grep -q bsdtar; }
 
 # ── 설정 (env 로 오버라이드) ────────────────────────────────────────────────
 SOURCE_REF="${SOURCE_REF:-HEAD}"                     # 복사 원본 커밋
@@ -155,7 +162,17 @@ echo "[INFO] PUSH          = ${PUSH}"
 # ── 1) DEST 재생성 (.git 보존) — whitelist 만 clean 추적본으로 export ─────────
 mkdir -p "${DEST}"
 find "${DEST}" -mindepth 1 -maxdepth 1 ! -name '.git' -exec rm -rf {} +
-git -C "${ROOT_DIR}" archive "${SOURCE_REF}" "${WHITELIST[@]}" | tar -x -C "${DEST}"
+if tar_is_bsd; then
+  # bsdtar(macOS 기본): 파이프를 쓰면 git archive 가 SIGPIPE(141)를 받고 pipefail 로 조용히 중단된다(#492).
+  echo "[INFO] tar=bsdtar — export 를 임시 tar 파일 경유로 수행합니다."
+  EXPORT_TAR="$(mktemp -t serving-export.XXXXXX)"
+  trap 'rm -f "${EXPORT_TAR}"' EXIT
+  git -C "${ROOT_DIR}" archive --output="${EXPORT_TAR}" "${SOURCE_REF}" "${WHITELIST[@]}"
+  tar -xf "${EXPORT_TAR}" -C "${DEST}"
+  rm -f "${EXPORT_TAR}"
+else
+  git -C "${ROOT_DIR}" archive "${SOURCE_REF}" "${WHITELIST[@]}" | tar -x -C "${DEST}"
+fi
 
 # 제외 하위 폴더 제거 (dev/build)
 for p in "${EXCLUDE_PATHS[@]}"; do

@@ -644,6 +644,8 @@ class DocumentProcessor(DoclingRuntimeBase):
 
         # 같은 표의 조각이 연속해서 나오는 순서가 곧 조각 번호다.
         table_piece_seen: dict = {}
+        # 표마다 표로 셀지 판정한 결과. 같은 표의 조각마다 다시 판정하지 않는다.
+        table_kinds: dict = {}
         current_page = None
         chunk_index_on_page = 0
         vectors = []
@@ -690,7 +692,7 @@ class DocumentProcessor(DoclingRuntimeBase):
                       .set_media_files(chunk.meta.doc_items, include_tables=self.table_image_enabled)
                       .set_table_info(chunk.meta.doc_items,
                                       getattr(self, "_table_split_totals", {}),
-                                      table_piece_seen)
+                                      table_piece_seen, table_kinds)
                       .set_guardrail_categories(sorted(chunk_cats) if chunk_cats else None)
                       ).build()
             vectors.append(vector)

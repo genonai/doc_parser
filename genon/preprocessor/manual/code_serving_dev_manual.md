@@ -1758,7 +1758,6 @@ grep -rn "<함수명 또는 클래스명>" genon/preprocessor/facade/
 | `DOCLING_ARTIFACTS_PATH` | `/models` | 레이아웃·표 모델 |
 | `HWP_SDK_DIR` | `/app/hwp_sdk` | HWP 변환 SDK |
 | `RHWP_BIN` | `/usr/local/bin/rhwp` | HWP 처리 바이너리 |
-| `NLTK_DATA` | `/app/nltk_data` | NLTK 데이터 |
 | `HF_HOME` | `/app/.cache/huggingface` | HuggingFace 캐시 |
 | `PORT` | `8080` | Genos가 주입 |
 | `COMMIT_HASH` | 리비전의 커밋 | init 재실행 판단에 사용 |
