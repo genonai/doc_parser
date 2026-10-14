@@ -51,7 +51,7 @@ class MeasureParseChunk:
         for stage in ("parse", "chunk"):
             try:
                 out[stage] = {"result": await workflow.execute_activity(
-                    spec[f"{stage}_activity"], spec[f"{stage}_arg"], task_queue=spec["queue"],
+                    spec[f"{stage}_activity"], spec[f"{stage}_arg"], task_queue=spec[f"{stage}_queue"],
                     start_to_close_timeout=timedelta(seconds=spec["timeout"]),
                     retry_policy=RetryPolicy(maximum_attempts=1))}
             except Exception as exc:  # noqa: BLE001 — 실패는 결과로 돌려주고 다음 단계는 건너뛴다
@@ -83,7 +83,8 @@ def _spec(job: dict, args, prefix: str) -> dict:
     key = f"{prefix}/{job['name']}"
     params = dict(job["params"])
     chunk_params = {} if args.chunk_size is None else {"chunk_size": args.chunk_size}
-    return {"queue": args.activity_queue, "timeout": args.timeout,
+    return {"parse_queue": args.activity_queue, "chunk_queue": args.chunk_queue or args.activity_queue,
+            "timeout": args.timeout,
             "parse_activity": args.parse_activity, "chunk_activity": args.chunk_activity,
             "parse_arg": {"read_ref": {"root": "nfs", "path": job["file_path"]}, "output_ref": f"{key}/parse",
                           "source_name": job["name"], "params": params},
@@ -181,13 +182,16 @@ async def amain(args) -> int:
             jobs.append(j)
     if not jobs:
         raise SystemExit("보낼 잡이 없습니다 (--only-manifest 에는 --manifest 가 필요합니다).")
+    if args.repeat > 1:          # 같은 잡을 여러 벌 — 이름 뒤에 #k 를 붙여 산출물·워크플로 id 를 가른다
+        jobs = [{**j, "name": f"{j['name']}#{k}"} for k in range(args.repeat) for j in jobs]
     os.makedirs(args.out, exist_ok=True)
 
     address = f"{os.environ['TEMPORAL_HOST']}:{os.environ.get('TEMPORAL_PORT') or 7233}"
     client = await Client.connect(address, namespace=os.environ.get("TEMPORAL_NAMESPACE") or "ns-ifa-app")
     run_id = time.strftime("%Y%m%d-%H%M%S")
     args.wf_queue = f"measure-wf-{uuid.uuid4().hex[:8]}"
-    results = {"mode": "worker", "activity_queue": args.activity_queue, "run": run_id,
+    results = {"mode": "worker", "activity_queue": args.activity_queue, "chunk_queue": args.chunk_queue,
+               "repeat": args.repeat, "run": run_id,
                "extra_params": extra, "phases": {}}
     print(f"[worker] run={run_id} activity_queue={args.activity_queue} workflow_queue={args.wf_queue}", flush=True)
 
@@ -229,6 +233,9 @@ def main(argv=None) -> int:
     p.add_argument("--param", action="append", default=[], help="모든 parse 요청에 더할 params KEY=VALUE")
     p.add_argument("--manifest", default=None, help="추가 잡 매니페스트 JSON(name, file, params). 예: monimo_manifest.json")
     p.add_argument("--only-manifest", action="store_true", help="기본 문서 7종 x on/off 를 빼고 매니페스트만 보낸다")
+    p.add_argument("--chunk-queue", default=None,
+                   help="chunk 를 보낼 큐(생략하면 --activity-queue). parse·chunk 큐 분리 실험용 — 그 큐를 듣는 워커가 따로 떠 있어야 한다")
+    p.add_argument("--repeat", type=int, default=1, help="잡 목록을 N 벌 보낸다(부하 키우기)")
     p.add_argument("--parse-activity", default="parse")
     p.add_argument("--chunk-activity", default="chunk")
     return asyncio.run(amain(p.parse_args(argv)))
