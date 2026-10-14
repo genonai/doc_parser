@@ -38,19 +38,32 @@ def test_scan_registers_folders_named_by_stage_with_config(tmp_path, monkeypatch
         registry.scan(acts)
 
 
-def test_site_folder_overrides_activity_config(tmp_path, monkeypatch):
-    """사이트 완성본(GENOS_RESOURCE_DIR 옆 activities/<slug>/)이 그 slug 의 설정 폴더가 된다(#497) — 코드는 저장소 것."""
+def test_site_folder_overrides_activity_config(tmp_path, monkeypatch, caplog):
+    """사이트 완성본(GENOS_RESOURCE_DIR 옆 activities/<slug>/)이 그 slug 의 설정 폴더가 된다(#497) — 코드는 저장소 것.
+    기동 로그는 slug 마다 설정 경로·출처를 적고, 사이트에 activities/ 가 없으면 경고한다(#520)."""
+    import logging
+
     acts, site = tmp_path / "activities", tmp_path / "site"
     for name in ("parse", "chunk"):
         (acts / name).mkdir(parents=True)
         (acts / name / "processor.py").write_text("")
         (acts / name / "config.yaml").write_text("")
     (site / "resource").mkdir(parents=True)
+    monkeypatch.setenv("GENOS_RESOURCE_DIR", str(site / "resource"))
+    with caplog.at_level(logging.INFO, logger="genon.worker"):
+        assert [e.config_path for e in registry.scan(acts)] == [str(acts / "chunk" / "config.yaml"),
+                                                                str(acts / "parse" / "config.yaml")]
+    assert any(r.levelno == logging.WARNING and "activities/ 가 없다" in r.getMessage() for r in caplog.records)
+    caplog.clear()
     (site / "activities" / "parse").mkdir(parents=True)
     (site / "activities" / "parse" / "config.yaml").write_text("")
-    monkeypatch.setenv("GENOS_RESOURCE_DIR", str(site / "resource"))
-    assert [e.config_path for e in registry.scan(acts)] == [str(acts / "chunk" / "config.yaml"),
-                                                            str(site / "activities" / "parse" / "config.yaml")]
+    with caplog.at_level(logging.INFO, logger="genon.worker"):
+        assert [e.config_path for e in registry.scan(acts)] == [str(acts / "chunk" / "config.yaml"),
+                                                                str(site / "activities" / "parse" / "config.yaml")]
+    lines = [r.getMessage() for r in caplog.records]
+    assert not any(r.levelno == logging.WARNING for r in caplog.records)
+    assert any("액티비티 parse:" in ln and "사이트 완성본" in ln for ln in lines)
+    assert any("액티비티 chunk:" in ln and "저장소 표준" in ln for ln in lines)
 
 
 def test_build_gives_each_slug_its_own_activity_name():
