@@ -149,10 +149,22 @@ def test_find_reocr_pages_returns_broken_page_numbers():
     assert (metrics["glyph_by_page"], metrics["chars_per_page"]) == ({"2": 11, "4": 1}, round(metrics["chars"] / 3))
 
 
+_OCR_OK = {"result": {"ocrResults": [{"prunedResult": {
+    "rec_texts": ["제2조", "정의"], "rec_scores": [0.9, 0.9], "rec_boxes": [[0, 0, 1, 1]] * 2}}]}}
+# HTTP 200 이지만 오류 응답 — _extract_ocr_fields 가 빈 목록을 돌려준다
+_OCR_ERROR = {"errorCode": 500, "errorMsg": "internal error"}
+
+
 @pytest.mark.unit
-def test_ocr_text_items_on_pages_replaces_only_target_pages():
-    """#483: 대상 페이지의 텍스트 박스만 OCR 결과로 바꾸고, 페이지 이미지가 없는 페이지는 실패로 돌려준다.
-    OCR 서버 호출(_post_ocr_bytes)은 패치한다."""
+@pytest.mark.parametrize("ocr_resp,texts,failed_expected", [
+    # 대상 페이지(2)의 글자만 OCR 결과로 바뀌고, 페이지 이미지가 없는 3쪽은 실패로 돌려준다
+    (_OCR_OK, ["정상", "제2조 정의", ""], [3]),
+    # OCR 이 오류 응답이면 원래 글자를 지우지 않고, 글자를 하나도 읽지 못한 2쪽도 실패로 돌려
+    # 호출부가 문서 전체 재변환으로 보내게 한다(PR #503 리뷰)
+    (_OCR_ERROR, ["정상", "GLYPH<c=4,font=/X>", ""], [2, 3]),
+], ids=["ocr-ok", "ocr-error-payload"])
+def test_ocr_text_items_on_pages(ocr_resp, texts, failed_expected):
+    """#483: 대상 페이지의 텍스트 박스만 OCR 결과로 바꾼다. OCR 서버 호출(_post_ocr_bytes)은 패치한다."""
     from PIL import Image
     from docling_core.types.doc import ImageRef
 
@@ -163,11 +175,9 @@ def test_ocr_text_items_on_pages_replaces_only_target_pages():
         d.add_text(label=DocItemLabel.TEXT, text=text,
                    prov=ProvenanceItem(page_no=page_no, bbox=BoundingBox(l=10, t=100, r=500, b=80),
                                        charspan=(0, len(text))))
-    ocr_resp = {"result": {"ocrResults": [{"prunedResult": {
-        "rec_texts": ["제2조", "정의"], "rec_scores": [0.9, 0.9], "rec_boxes": [[0, 0, 1, 1]] * 2}}]}}
     with patch.object(dops, "_post_ocr_bytes", return_value=ocr_resp) as post:
         failed = dops.ocr_text_items_on_pages(d, [2, 3], ocr_endpoint="http://unused.invalid")
-    assert ([t.text for t in d.texts], failed, post.call_count) == (["정상", "제2조 정의", ""], [3], 1)
+    assert ([t.text for t in d.texts], failed, post.call_count) == (texts, failed_expected, 1)
 
 
 @pytest.mark.unit

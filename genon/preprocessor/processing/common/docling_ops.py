@@ -557,11 +557,16 @@ def ocr_text_items_on_pages(
     (ocr_all_table_cells)과 같은 방식이다.
 
     Returns:
-        처리하지 못한 페이지 번호. 페이지 이미지가 없거나 OCR 에 실패한 박스가 있는 페이지다.
-        호출부는 이 페이지가 있으면 문서 전체 재변환으로 보낸다.
+        처리하지 못한 페이지 번호. 페이지 이미지가 없거나, OCR 에 실패한 박스가 있거나, 박스에서
+        글자를 하나도 읽지 못한 페이지다. 호출부는 이 페이지가 있으면 문서 전체 재변환으로 보낸다.
+
+    OCR 결과가 비면(서버가 HTTP 200 으로 오류 응답을 준 경우 포함 — _extract_ocr_fields 가 빈 목록을
+    돌려준다) 원래 글자를 지우지 않고 둔다. 페이지의 어느 박스에서도 글자를 읽지 못하면 그 페이지를
+    실패로 돌려 전체 재변환이라는 안전망이 동작하게 한다.
     """
     targets = set(pages)
     failed: set = set()
+    recognized: set = set()  # 박스 하나라도 글자를 읽은 페이지
     for page_no in targets:
         page = document.pages.get(page_no)
         if page is None or page.image is None or page.image.pil_image is None:
@@ -577,10 +582,14 @@ def ocr_text_items_on_pages(
             if png is None:
                 continue
             rec_texts, _scores, _boxes = _extract_ocr_fields(_post_ocr_bytes(png, ocr_endpoint, timeout=timeout))
-            item.text = " ".join(t for t in rec_texts if t)
+            text = " ".join(t for t in rec_texts if t)
+            if text:
+                item.text = text
+                recognized.add(page_no)
         except Exception as err:
             _log.warning(f"[reocr] page {page_no} 텍스트 박스 OCR 실패: {err}")
             failed.add(page_no)
+    failed |= targets - recognized
     return sorted(failed)
 
 
