@@ -911,6 +911,7 @@ class ChunkerCore:
             "i_chunk_on_page", "n_chunk_of_page", "i_chunk_on_doc", "n_chunk_of_doc",
             "n_page", "reg_date", "chunk_bboxes", "media_files", "title",
             "created_date", "appendix", "file_path", "metadata", "guardrail_categories",
+            "ocr_judge",  # 파서의 재OCR 판정 기록(#483). 응답 진단용이며 청크 property 가 아니다.
             cp.BODY_FIELDS_KEY, cp.CHUNK_PREFIX_FIELDS_KEY, cp.FIRST_CHUNK_FIELDS_KEY,
             cp.FIELD_LABELS_KEY, cp.SHORT_CHUNK_SIZE_KEY,
         } | set(tv.field_names()) | consumed_keys

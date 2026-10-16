@@ -797,13 +797,38 @@ class ParserCore:
                 # #329(task#1): /run(_load_document)과 동일한 auto 재OCR 휴리스틱으로 정합.
                 # #482: 판정 불가(판정 LLM 없음·응답 없음)는 재OCR 사유가 아니다 — 예전엔
                 # `not check_document(...)` 가 판정 불가도 참으로 읽어 모든 PDF 를 두 번 변환했다.
-                verdict = judge_document(document, self._intel.enrichment_options)
-                reason = dops.reocr_reason(
-                    verdict, self._intel.check_glyphs(document), self._intel.check_empty_text(document))
-                _log.info(f"[parser] 재OCR 판정 verdict={verdict.value} reason={reason}: "
-                          f"{os.path.basename(file_path)}")
-                if reason != "none":
+                # #483: 결정적 검사(밀리초)를 먼저 하고, 둘 다 아닐 때만 판정 LLM 을 부른다.
+                glyph_pages, empty_pages = self._intel.find_reocr_pages(document)
+                # #483: 문서 전체에 텍스트가 없으면(스캔본) 판정 LLM 없이 no_text 로 결정한다.
+                no_text = not (glyph_pages or empty_pages) and not self._intel.has_text(document)
+                # #483: genos_layout 은 원문 텍스트 품질 판정(판정 LLM)을 하지 않는다(judges_native_text).
+                verdict = None
+                if not (glyph_pages or empty_pages or no_text) and self._intel.judges_native_text():
+                    verdict = judge_document(document, self._intel.enrichment_options)
+                reason = dops.reocr_reason(verdict, bool(glyph_pages), bool(empty_pages), no_text)
+                pages = sorted(set(glyph_pages) | set(empty_pages))
+                _log.info(f"[parser] 재OCR 판정 verdict={verdict.value if verdict else 'skipped'} "
+                          f"reason={reason} pages={pages}: {os.path.basename(file_path)}")
+                # #483: 글리프·빈 페이지는 그 페이지의 텍스트 박스만 OCR 한다. 처리하지 못한 페이지가
+                # 있거나 OCR 주소가 없거나, 문서 단위 사유(판정 LLM·텍스트 없음)이면 문서 전체를 다시 변환한다.
+                # 판정 지표는 첫 변환 결과로 잰다(재OCR 로 글자가 바뀌기 전).
+                metrics = self._intel.page_text_metrics(document)
+                failed = pages
+                if pages and self._intel.ocr_endpoint:
+                    failed = self._intel.ocr_text_items_on_pages(document, pages)
+                    _log.info(f"[parser] 페이지 단위 재OCR pages={pages} failed={failed}: "
+                              f"{os.path.basename(file_path)}")
+                full_reconvert = reason in ("llm_yes", "no_text") or bool(failed)
+                if full_reconvert:
                     document = self._intel.load_documents_with_docling_ocr(file_path, **kwargs)
+                # #483: 판정 사유·지표를 응답 metadata.ocr_judge 에 싣는다(운영 통계로 임계값 보정).
+                # 요청마다 새로 만드는 enrichment_context 에 둔다 — 인스턴스에는 두지 않는다(#481).
+                ctx = kwargs.get("_enrichment_context")
+                if isinstance(ctx, dict):
+                    ctx.setdefault("metadata", {})["ocr_judge"] = {
+                        "verdict": verdict.value if verdict else "skipped", "reason": reason,
+                        "pages": pages, "failed": failed, "full_reconvert": full_reconvert, **metrics,
+                    }
 
         if ocr_mode != "disable" and self._intel.ocr_endpoint:
             document = self._intel.ocr_all_table_cells(document, file_path)
