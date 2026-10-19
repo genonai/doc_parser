@@ -19,14 +19,12 @@
 출력 계약(Studio 디스패처가 읽는다): stderr = 진행 로그 · stdout **마지막 줄**
 `@@RESULT@@ {"ok", "stage", "activity", "duration_ms", "data" | "error"}` · 실패는 exit 1.
 
-`new`·`remove` (#472, Studio 의 "+ 새 액티비티 · 복제"·삭제): 액티비티 하나 = 폴더 하나라 생성·복제는 **폴더 복사**,
-삭제는 폴더 삭제다. 저장소 폴더는 저장소 원본(설정·코드)에서 복사하고, processor.py 첫 줄(Studio 별명)만 바꾼다.
-사이트 배포(GENOS_RESOURCE_DIR)면 사이트 완성본에도 사이트 원본 폴더를 복사하고(그래서 사본은 사이트 문서유형을 그대로
-가진다) 사이트 manifest 의 owned 에 원본 항목을 새 slug 로 따라 적는다 — 사이트 배포는 사이트 완성본만 읽기 때문이다
-(#561). 삭제도 저장소·사이트 폴더와 owned 항목을 함께 지운다. slug 는 콘솔이 정한다(`parse_1` …, 규칙
-^(parse|chunk)(_[a-z0-9_]+)?$, 단계는 원형과 같아야 하고 원형·있는 이름은 거부). 삭제는 원형(parse·chunk)을 거부한다.
-둘 다 **파일만 다룬다** — 커밋은 Studio·사용자 몫이다(작업 브랜치). 결과 `data.files` = 만든/지운/바꾼 파일 경로 전부
-(저장소 루트 기준, 저장소 밖이면 절대 경로) — 콘솔이 이 목록을 한 커밋에 담는다.
+`new`·`remove` (#472, Studio 의 "+ 새 액티비티 · 복제"·삭제): 액티비티 하나 = 폴더 하나라 생성·복제는 **폴더 복사 한 번**,
+삭제는 폴더 삭제다. 복사 원천은 저장소의 원본 폴더(설정·코드)다. Studio 는 배포처에서 일한다 — 배포처의 activities/ 에는
+동기화가 사이트 설정을 이미 덮어 두었으므로 사본은 사이트 문서유형을 그대로 가진다(#561). processor.py 첫 줄(Studio 별명)만
+바꾼다. slug 는 콘솔이 정한다(`parse_1` …, 규칙 ^(parse|chunk)(_[a-z0-9_]+)?$, 단계는 원형과 같아야 하고 원형·있는 이름은
+거부). 삭제는 원형(parse·chunk)과 사이트 완성본이 덮어쓰는 slug 를 거부한다. 둘 다 **파일만 다룬다** — 커밋은 Studio·사용자
+몫이다(작업 브랜치). 결과 `data.files` = 만든/지운 파일 경로 전부(저장소 루트 기준) — 콘솔이 이 목록을 한 커밋에 담는다.
 
 `diff <slug>` (#496): 사본 폴더가 **복사된 뒤 원형이 얼마나 바뀌었는지** — git 이력에서 사본의 복사 커밋(폴더의
 config.yaml 이 처음 들어온 커밋)을 찾아, 그때의 원형 폴더와 지금의 원형 폴더를 파일별 unified diff 로 stdout 에
@@ -77,7 +75,7 @@ def _parser() -> argparse.ArgumentParser:
     new.add_argument("--from", dest="origin", required=True, help="원본 slug")
     new.add_argument("--slug", required=True, help="새 slug(콘솔이 정한다, 예: parse_1)")
     new.add_argument("--title", help="processor.py 첫 줄 별명(기본: '<원본 별명> 사본')")
-    remove = sub.add_parser("remove", help="사본 액티비티 폴더를 지운다(원형은 거부, 사이트 배포면 사이트 폴더도)")
+    remove = sub.add_parser("remove", help="사본 액티비티 폴더를 지운다(원형·사이트가 덮어쓰는 slug 는 거부)")
     remove.add_argument("--slug", required=True, help="지울 slug")
     diff = sub.add_parser("diff", help="사본 slug 가 복사된 뒤 원형이 바뀐 것을 보여 준다")
     diff.add_argument("slug", help="사본 slug(= activities/<slug>/ 폴더 이름)")
@@ -89,95 +87,17 @@ SLUG_RE = re.compile(r"^(parse|chunk)(_[a-z0-9_]+)?$")
 
 
 def _repo_relative(root: Path, paths: list[Path]) -> list[str]:
-    """저장소 루트 기준 경로(콘솔이 git add 에 쓴다). 저장소 밖(배포에 따로 둔 사이트 완성본 등)이면 절대 경로."""
+    """저장소 루트 기준 경로(콘솔이 git add 에 쓴다). git 저장소가 아니면 절대 경로."""
     try:
-        repo = Path(_git(root, "rev-parse", "--show-toplevel").strip()).resolve()
-    except (subprocess.CalledProcessError, OSError):
-        repo = None
-    out = []
-    for p in paths:
-        resolved = p.resolve()
-        out.append(resolved.relative_to(repo).as_posix() if repo is not None and resolved.is_relative_to(repo)
-                   else str(resolved))
-    return out
-
-
-_CODE_FILES = ("processor.py", "__init__.py", "__main__.py")   # 액티비티 폴더 최상위의 코드 — 저장소에만 둔다
-
-
-def _copy_settings(src: Path, dest: Path) -> list[Path]:
-    """설정·프롬프트·custom_field·플러그인(하위 폴더의 .py 포함)을 복사한다 — 최상위 코드 파일은 빼고."""
-    made = []
-    for path in sorted(src.rglob("*")):
-        if path.is_dir() or "__pycache__" in path.parts or (path.parent == src and path.name in _CODE_FILES):
-            continue
-        target = dest / path.relative_to(src)
-        target.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copyfile(path, target)
-        made.append(target)
-    return made
-
-
-def _owned_pattern(slug: str) -> re.Pattern:
-    """owned 항목 한 줄 — 따옴표와 줄 끝 주석도 받는다(sync-sites.sh 는 yaml 로 읽는다)."""
-    return re.compile(rf"""^(\s*-\s*["']?)activities/{re.escape(slug)}/([^\s"'#]+)(["']?\s*(?:#.*)?)$""")
-
-
-def _check_owned_lines(manifest: Path, slug: str) -> None:
-    """manifest 의 owned 중 activities/<slug>/ 항목을 줄 단위로 모두 고칠 수 있는지 — 아니면(흐름 표기 `[…]` 등) 오류.
-    고칠 수 없는 항목을 조용히 건너뛰면 사본의 사이트 설정이 sync-sites.sh 에서 표준으로 덮인다."""
-    import yaml
-
-    if not manifest.is_file():
-        return
-    owned = (yaml.safe_load(manifest.read_text(encoding="utf-8")) or {}).get("owned") or []
-    want = sum(1 for n in owned if str(n).startswith(f"activities/{slug}/"))
-    pattern = _owned_pattern(slug)
-    found = sum(1 for line in manifest.read_text(encoding="utf-8").splitlines() if pattern.match(line))
-    if want != found:
-        raise ValueError(f"{manifest} 의 owned 에서 activities/{slug}/ 항목 {want}개 중 {found}개만 한 줄 목록 표기입니다 — "
-                         "owned 를 '  - 경로' 한 줄씩으로 적어 주십시오")
-
-
-def _mirror_owned(manifest: Path, origin: str, slug: str) -> bool:
-    """사이트 manifest 의 owned 에서 원본 slug 항목(activities/<origin>/…)을 새 slug 로 따라 적는다 — 사본 폴더의
-    그 파일도 사이트 소유라 표준 사본 대조(test_sites_sync_unit)에서 빠져야 한다. 바꿨으면 True."""
-    if not manifest.is_file():
-        return False
-    lines = manifest.read_text(encoding="utf-8").splitlines(keepends=True)
-    pattern = _owned_pattern(origin)
-    hits = [i for i, line in enumerate(lines) if pattern.match(line)]
-    if not hits:
-        return False
-    added = [pattern.sub(rf"\g<1>activities/{slug}/\g<2>\g<3>", lines[i].rstrip("\n")) + "\n" for i in hits]
-    last = hits[-1]
-    if not lines[last].endswith("\n"):
-        lines[last] += "\n"
-    lines[last + 1:last + 1] = [f"  # {slug} — {origin} 사본(activities new)\n", *added]
-    manifest.write_text("".join(lines), encoding="utf-8")
-    return True
-
-
-def _drop_owned(manifest: Path, slug: str) -> bool:
-    """사이트 manifest 의 owned 에서 activities/<slug>/… 항목과 _mirror_owned 가 단 머리 주석을 지운다. 바꿨으면 True."""
-    if not manifest.is_file():
-        return False
-    text = manifest.read_text(encoding="utf-8")
-    pattern, note = _owned_pattern(slug), f"  # {slug} — "
-    kept = "".join(line for line in text.splitlines(keepends=True)
-                   if not pattern.match(line) and not line.startswith(note))
-    if kept == text:
-        return False
-    manifest.write_text(kept, encoding="utf-8")
-    return True
+        repo = Path(_git(root, "rev-parse", "--show-toplevel").strip())
+        return [p.resolve().relative_to(repo).as_posix() for p in paths]
+    except (subprocess.CalledProcessError, ValueError, OSError):
+        return [str(p.resolve()) for p in paths]
 
 
 def new_activity(origin: str, slug: str, title: str | None = None, activities_dir: Path | None = None) -> list[str]:
-    """원본 폴더를 새 slug 폴더로 복사한다 → 만든·바꾼 파일 목록(저장소 루트 기준).
-
-    저장소 폴더는 저장소 원본에서 복사한다(설정·코드). 사이트 배포(GENOS_RESOURCE_DIR)면 사이트 완성본에도 사이트
-    원본 폴더를 복사해 그 slug 를 둔다 — 사이트 배포는 사이트 완성본만 읽기 때문이다(#561). 사이트 manifest 가
-    있으면 원본의 owned 항목을 새 slug 로 따라 적는다."""
+    """원본 폴더를 새 slug 폴더로 복사한다 → 만든 파일 목록(저장소 루트 기준). 설정·코드 모두 저장소 원본 폴더에서.
+    배포처(사이트 설정이 이미 activities/ 에 덮인 서빙본 사본)에서는 그 폴더가 곧 사이트 설정이다."""
     from genon.preprocessor.activities import _folders
 
     root = activities_dir or _folders.ACTIVITIES_DIR
@@ -194,48 +114,35 @@ def new_activity(origin: str, slug: str, title: str | None = None, activities_di
     dest = root / slug
     if dest.exists():
         raise ValueError(f"이미 있습니다: {dest}")
-    site = _folders.site_activities_dir()
-    site_dest = manifest = backup = None
-    if site is not None:
-        if not (site / origin).is_dir():
-            raise ValueError(f"사이트 완성본({site})에 원본 {origin!r} 폴더가 없습니다 — 사이트 배포에서는 사이트 원본을 복제합니다")
-        site_dest = site / slug
-        if site_dest.exists():
-            raise ValueError(f"이미 있습니다: {site_dest}")
-        manifest = site.parent / "manifest.yaml"
-        _check_owned_lines(manifest, origin)
-        backup = manifest.read_bytes() if manifest.is_file() else None
+    source_cfg = source_code = root / origin                  # 저장소 원본 — 사이트 설정은 배포처 동기화가 덮는다(#561)
+    code = {_folders.PROCESSOR_FILE, "__init__.py", "__main__.py"}       # 폴더 최상위의 액티비티 코드 — 저장소에서
     made: list[Path] = []
     dest.mkdir()
     try:
-        made += _copy_settings(root / origin, dest)
-        for name in _CODE_FILES:                                    # 코드 — 저장소 폴더에서
-            if (root / origin / name).is_file():
-                shutil.copyfile(root / origin / name, dest / name)
+        for src in sorted(source_cfg.rglob("*")):                  # 설정·프롬프트·custom_field·플러그인(하위 폴더의 .py 포함)
+            if src.is_dir() or "__pycache__" in src.parts or (src.parent == source_cfg and src.name in code):
+                continue
+            target = dest / src.relative_to(source_cfg)
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(src, target)
+            made.append(target)
+        for name in sorted(code):                                  # 코드 — 저장소 폴더에서
+            if (source_code / name).is_file():
+                shutil.copyfile(source_code / name, dest / name)
                 made.append(dest / name)
         processor = dest / _folders.PROCESSOR_FILE
         lines = processor.read_text(encoding="utf-8").splitlines(keepends=True)
         origin_title = lines[0].lstrip("#").strip() if lines and lines[0].startswith("#") else origin
         lines[0:1 if lines and lines[0].startswith("#") else 0] = [f"# {title or origin_title + ' 사본'}\n"]
         processor.write_text("".join(lines), encoding="utf-8")
-        if site_dest is not None:
-            site_dest.mkdir()
-            made += _copy_settings(site / origin, site_dest)
-            if _mirror_owned(manifest, origin, slug):
-                made.append(manifest)
     except BaseException:
         shutil.rmtree(dest, ignore_errors=True)
-        if site_dest is not None:
-            shutil.rmtree(site_dest, ignore_errors=True)
-            if backup is not None:
-                manifest.write_bytes(backup)
         raise
     return _repo_relative(root, made)
 
 
 def remove_activity(slug: str, activities_dir: Path | None = None) -> list[str]:
-    """사본 폴더를 지운다 → 지운·바꾼 파일 목록. 원형은 지우지 않는다. 사이트 배포면 사이트 완성본의 그 slug 폴더와
-    manifest 의 owned 항목도 함께 지운다 — 한쪽만 남으면 사이트 배포에서 그 slug 가 오류가 되거나 표준 대조에 걸린다."""
+    """사본 폴더를 지운다 → 지운 파일 목록. 원형과 사이트 완성본이 덮어쓰는 slug 는 지우지 않는다."""
     from genon.preprocessor.activities import _folders
 
     root = activities_dir or _folders.ACTIVITIES_DIR
@@ -244,17 +151,12 @@ def remove_activity(slug: str, activities_dir: Path | None = None) -> list[str]:
     if slug not in _folders.slugs(root):
         raise ValueError(f"액티비티 {slug!r} 가 없습니다 — 있는 것: {', '.join(_folders.slugs(root)) or '<없음>'}")
     site = _folders.site_activities_dir()
-    if site is not None:
-        _check_owned_lines(site.parent / "manifest.yaml", slug)
-    targets = ([site / slug] if site is not None and (site / slug).is_dir() else []) + [root / slug]
-    files = [p for t in targets for p in sorted(t.rglob("*")) if p.is_file() and "__pycache__" not in p.parts]
+    if site is not None and (site / slug).is_dir():
+        raise ValueError(f"{slug!r} 는 사이트 완성본({site / slug})이 덮어쓰는 액티비티입니다 — 사이트 쪽에서 정리하세요")
+    target = root / slug
+    files = [p for p in sorted(target.rglob("*")) if p.is_file() and "__pycache__" not in p.parts]
     listed = _repo_relative(root, files)
-    # 사이트 폴더·owned 를 먼저, 저장소 폴더를 마지막에 지운다 — 중간에 실패해도 저장소 slug 가 남아 같은 명령으로 다시 지운다
-    if targets[0] != root / slug:
-        shutil.rmtree(targets[0])
-    if site is not None and _drop_owned(site.parent / "manifest.yaml", slug):
-        listed += _repo_relative(root, [site.parent / "manifest.yaml"])
-    shutil.rmtree(root / slug)
+    shutil.rmtree(target)
     return listed
 
 
