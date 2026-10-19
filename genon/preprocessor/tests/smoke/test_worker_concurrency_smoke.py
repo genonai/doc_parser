@@ -225,9 +225,9 @@ class DocumentProcessor(DocumentProcessor):          # 사본에서 고친 코�
 
 @pytest.fixture
 def slug_copies(tmp_path, monkeypatch):
-    """사이트 완성본의 임시 사본(GENOS_RESOURCE_DIR = 그 resource/) + 사본 slug 폴더 둘(설정·코드 모두 복사 뒤 변경)."""
-    from genon.preprocessor.activities import _folders
-
+    """사이트 완성본의 임시 사본(GENOS_RESOURCE_DIR = 그 resource/) + 사본 slug 둘(설정·코드 모두 복사 뒤 변경).
+    사이트 실행은 사이트 완성본의 설정만 읽으므로(#561) 사본 설정은 사이트 사본의 activities/<slug>/ 에, 코드는
+    저장소 activities/<slug>/ 에 둔다."""
     site = tmp_path / "monimo"
     shutil.copytree(SITE, site, ignore=shutil.ignore_patterns("__pycache__"))
     monkeypatch.setenv("GENOS_RESOURCE_DIR", str(site / "resource"))
@@ -237,15 +237,18 @@ def slug_copies(tmp_path, monkeypatch):
             dest = ACTIVITIES / slug
             assert not dest.exists(), f"{dest} 가 이미 있다 — 시험이 덮어쓰지 않는다"
             made.append(dest)
-            # 원천 = 그 slug 의 실제 설정 폴더(사이트가 덮어쓰면 그쪽) + 저장소의 코드
-            shutil.copytree(_folders.config_dir(origin), dest, ignore=shutil.ignore_patterns("__pycache__", "*.py"))
+            # 설정 = 사이트 원형 폴더의 사본, 코드 = 저장소 원형의 코드
+            shutil.copytree(site / "activities" / origin, site / "activities" / slug,
+                            ignore=shutil.ignore_patterns("__pycache__", "*.py"))
+            dest.mkdir()
             for name in ("__init__.py", "processor.py"):
                 shutil.copyfile(ACTIVITIES / origin / name, dest / name)
             (dest / "processor.py").write_text((dest / "processor.py").read_text(encoding="utf-8") + code,
                                                encoding="utf-8")
-        cfg = yaml.safe_load((ACTIVITIES / "chunk_t" / "config.yaml").read_text(encoding="utf-8"))
+        chunk_cfg = site / "activities" / "chunk_t" / "config.yaml"
+        cfg = yaml.safe_load(chunk_cfg.read_text(encoding="utf-8"))
         cfg["chunking"].update({"chunk_size": 80, "min_chunk_size": 40})   # 설정 복사 뒤 변경 — 표본이 짧아 작게
-        (ACTIVITIES / "chunk_t" / "config.yaml").write_text(yaml.safe_dump(cfg, allow_unicode=True), encoding="utf-8")
+        chunk_cfg.write_text(yaml.safe_dump(cfg, allow_unicode=True), encoding="utf-8")
         yield site / "resource"
     finally:
         for p in made:
