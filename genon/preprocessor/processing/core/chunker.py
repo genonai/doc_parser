@@ -1,7 +1,7 @@
 """청킹 처리 본체 (#363 08).
 
 `activities/chunk/processor.py` 에서 통째로 옮겨 왔다. 고객이 여는 파일은 그쪽이고
-여기는 열 일이 없다. 08-2 는 순수 이동이며 벡터 스키마·청커 옵션을 facade 로
+여기는 열 일이 없다. 08-2 는 순수 이동이며 벡터 스키마·청커 옵션을 처리기로
 되돌리는 것과 훅은 08-3 이다.
 """
 from __future__ import annotations
@@ -151,7 +151,7 @@ except ImportError:
 
 
 # 사이트가 바꾸는 값(적재 컬럼·청커 옵션·헤더 구분자)은 이 파일에 없다.
-# 배포되는 facade 가 VECTOR_META / CHUNKER 로 정한다. 아래 둘은 그 축이 아니라
+# 처리기가 VECTOR_META / CHUNKER 로 정한다. 아래 둘은 그 축이 아니라
 # 배관의 하한값이라 여기 둔다.
 
 _MIN_CHUNK_SIZE = 1024
@@ -184,7 +184,7 @@ _carry_over_section_headings = hp.carry_over_section_headings
 
 class GenOSVectorMetaBuilder(vm.VectorMetaBuilderBase):
     """공통 세터(텍스트 통계·페이지·bbox·미디어·글로벌 메타데이터)는
-    processing/common/vector_meta.py 에 있다. 여기에는 이 facade 고유 필드만 둔다."""
+    processing/common/vector_meta.py 에 있다. 여기에는 이 처리기 고유 필드만 둔다."""
 
     def __init__(self):
         """빌더 초기화"""
@@ -197,7 +197,7 @@ class GenOSVectorMetaBuilder(vm.VectorMetaBuilderBase):
     def build(self, model=None):
         """설정된 데이터로 벡터 메타 객체를 만든다.
 
-        model 은 배포되는 facade 가 정한 스키마다(ChunkerCore.VECTOR_META).
+        model 은 처리기가 정한 스키마다(ChunkerCore.VECTOR_META).
         미지정이면 core 기본 스키마를 쓴다.
         """
         payload = {
@@ -291,16 +291,16 @@ class SplitInfo:
 
 class ChunkerCore:
 
-    # IS_CHUNKER 는 배포되는 facade 가 선언한다 — main.py 가 그 속성으로 /chunker
+    # IS_CHUNKER 는 처리기가 선언한다 — main.py 가 그 속성으로 /chunker
     # 전용임을 식별한다. core 는 그 표식을 갖지 않는다.
 
     # 행 기반 청킹으로 보낼 element category. 파서가 만든 이름과 짝이며, 사이트가
-    # 자기 category 를 쓰면 facade 에서 늘린다(청커는 doc_type 을 보지 않고 이 값만 본다).
+    # 자기 category 를 쓰면 처리기에서 늘린다(청커는 doc_type 을 보지 않고 이 값만 본다).
     # faq_row 는 이전 파서 산출물을 다시 청킹할 수 있게 남긴 하위호환 이름이다.
     ROW_CATEGORIES: ClassVar[frozenset] = frozenset(
         {"tabular_row", "custom_fields_row", "faq_row"})
 
-    # 사이트마다 달라지는 두 가지. 배포되는 facade 가 **반드시** 정한다(#363 08).
+    # 사이트마다 달라지는 두 가지. 처리기가 **반드시** 정한다(#363 08).
     # core 에 기본값을 두지 않는 이유는 사본이 둘이 되면 조용히 어긋나기 때문이다.
     #   VECTOR_META  적재 DB 컬럼 스키마
     #   CHUNKER      청킹 동작 옵션·헤더 구분자
@@ -505,7 +505,7 @@ class ChunkerCore:
         문서·행·텍스트 세 종류가 같은 반복문을 지난다. 종류별로 다른 것은 각 단계 메소드가
         chunk.kind 로 가른다.
 
-        고객용 facade 가 같은 반복문을 그대로 갖는다 — 이쪽은 facade 를 거치지 않는 옛
+        고객용 처리기가 같은 반복문을 그대로 갖는다 — 이쪽은 처리기를 거치지 않는 옛
         호출부(compose_vectors 등)용 기본 구현이다.
         """
         vector_metas: list = []
@@ -821,7 +821,7 @@ class ChunkerCore:
         # setdefault 로 전달할 수 없어 양쪽이 같은 resolver 를 호출한다.
         _include_header: bool = _resolve_include_chunk_header(kwargs, self._include_chunk_header)
         # 표 표기형태별 변형 텍스트 기록부(청커가 남긴다). off 면 None 이라 필드가 아예 생기지 않는다.
-        # split 을 오버라이드해 문서 청크를 직접 만든 파사드는 split_document 를 안 거쳐 notes["split"] 이 없다.
+        # split 을 오버라이드해 문서 청크를 직접 만든 처리기는 split_document 를 안 거쳐 notes["split"] 이 없다.
         # 그때 쪽별 청크 수는 넘어온 청크로 센다(_split_documents_ex 와 같은 규칙 — prov 없는 0쪽은 세지 않는다).
         # 인스턴스 속성으로 되돌아가면 동시 요청에서 다른 문서 값이 섞인다. 표 조각 수는 청커 내부 기록이라
         # 이 경로에서는 알 수 없어 비워 둔다.
@@ -997,7 +997,7 @@ class ChunkerCore:
         """비-docling 경로에서 표기형태 필드를 만들 때 쓸 인자.
 
         `_chunk_parse_format` 이 `apply_table_output_defaults` 로 kwargs 에 채워 둔 값을
-        읽는다. 설정 해석은 공용 모듈에만 둔다(facade 마다 헬퍼를 복제하지 않는다).
+        읽는다. 설정 해석은 공용 모듈에만 둔다(처리기마다 헬퍼를 복제하지 않는다).
         """
         return {
             "formats": cp.resolve_table_text_formats(kwargs),
@@ -1268,22 +1268,22 @@ class ChunkerCore:
         """Temporal 액티비티 본문(청킹). 워커가 activities/<slug>.py 의 이 메서드를 slug 이름으로 등록한다.
 
         처리는 이 인스턴스의 `__call__`(입력·라우트·출력 훅 전부)로 한다. 인자·반환·하트비트·오류
-        분류는 genon/preprocessor/worker/runtime.py — 파사드 파일은 상속만 하고 이 메서드를 고치지 않는다.
+        분류는 genon/preprocessor/worker/runtime.py — 처리기 파일은 상속만 하고 이 메서드를 고치지 않는다.
         """
         from genon.preprocessor.worker import runtime   # temporalio 는 워커에서만 import 한다
 
         return runtime.execute(self, "chunk", arg)
 
     async def run_edit_input(self, kind, data, /, **kwargs):
-        """edit_input 훅 호출부. facade 의 __call__ 이 부른다."""
+        """edit_input 훅 호출부. 처리기의 __call__ 이 부른다."""
         return await hk.call_hook(self.edit_input, kind, data, request_kwargs=kwargs)
 
     async def run_edit_output(self, vectors, /, **kwargs):
-        """edit_output 훅 호출부. facade 의 __call__ 이 부른다."""
+        """edit_output 훅 호출부. 처리기의 __call__ 이 부른다."""
         return await hk.call_hook(self.edit_output, vectors, request_kwargs=kwargs)
 
     # --- doc_type 별 설정 오버레이 ---
-    # 배포되는 facade 가 표에 값을 적는다. 키는 요청 파라미터 이름이다(chunk_size 등).
+    # 처리기가 표에 값을 적는다. 키는 요청 파라미터 이름이다(chunk_size 등).
     CONFIG_BY_DOC_TYPE: dict = {}
 
     def config_by_condition(self, job) -> dict:

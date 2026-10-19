@@ -8,7 +8,7 @@
 
 | 모듈 | 역할 |
 |---|---|
-| `core/parser.py`, `core/chunker.py` | 파싱·청킹 처리 본체(`ParserCore`/`ChunkerCore`). 두 파사드는 상속만 한다 |
+| `core/parser.py`, `core/chunker.py` | 파싱·청킹 처리 본체(`ParserCore`/`ChunkerCore`). 상속하는 처리기(지금은 `activities/parse`·`chunk/processor.py`, 파사드도 옮겨 올 예정)는 상속만 한다 |
 | `core/toolbox.py` | 고객이 훅에서 쓰는 기능 재수출(값 변환·엑셀·JSON·표·청크 메타). **새 구현을 두는 자리가 아니다** |
 | `core/cli.py`, `core/errors.py` | 파일 단독 실행 진입점(`DocumentProcessor.cli()`), 공용 `GenosServiceException` |
 | `common/config_parse.py` | yaml/kwargs 값 파싱, `load_config`, 토크나이저·청크크기·`compact_tables` 등 설정 해석 |

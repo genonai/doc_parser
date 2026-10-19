@@ -78,7 +78,7 @@ MONIMO_CASES=(
   "cs_hpp:${MONIMO}/.INC_235488_02_20260626103138.html"
   "cs_hpp:${MONIMO}/.INC_235489_01_20260626103139.html"
   # 같은 원천의 마크다운 산출물. 확장자가 표준이 아니라 설정의 formats.extension_aliases
-  # (".parsed": ".md")로 포맷을 알려준다. 예전에는 그 설정이 파사드까지 배선되지 않아
+  # (".parsed": ".md")로 포맷을 알려준다. 예전에는 그 설정이 처리기까지 배선되지 않아
   # 구조 없는 텍스트로 떨어져 청크 본문에 <table> 태그가 원문 그대로 실렸다.
   "cs_hpp:${MONIMO}/.INC_235488_02_20260626103138.html.parsed"
   "product_slf:${MONIMO}/monimo_product_slf_sample.md"

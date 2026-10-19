@@ -2,7 +2,7 @@
 
 규칙: **폴더 이름 = slug = 액티비티 이름, 첫 단어 = 단계.** `activities/` 바로 아래에서 `processor.py` 가 있고
 이름이 `parse`·`chunk` 이거나 `parse_`·`chunk_` 로 시작하는 폴더만 등록한다. 목록을 만들 때는 import 하지
-않는다(파사드 import 는 docling 을 끌어와 무겁다). 폴더 규칙·사이트 덮어쓰기는 `activities/_folders.py`.
+않는다(처리기 import 는 docling 을 끌어와 무겁다). 폴더 규칙·사이트 덮어쓰기는 `activities/_folders.py`.
 
 processor.py 는 `DocumentProcessor` 를 상속만 한다. 액티비티 본문은 부모(`ParserCore`·`ChunkerCore`)의
 `run_activity(arg)` 하나이고, 이름은 여기서 붙인다 — 바운드 메서드에는 이름표를 붙일 수 없고,

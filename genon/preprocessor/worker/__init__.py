@@ -1,4 +1,4 @@
-"""전처리기 Temporal 워커 — `activities/` 의 파싱·청킹 파사드를 Temporal 액티비티로 실행한다.
+"""전처리기 Temporal 워커 — `activities/` 의 액티비티 처리기를 Temporal 액티비티로 실행한다.
 
 같은 배포본(doc_parser_code_serving)으로 코드서빙을 만들고 시작 커맨드만 이것으로 준다.
 

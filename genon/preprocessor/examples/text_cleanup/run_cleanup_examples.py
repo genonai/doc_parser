@@ -5,7 +5,7 @@
 
   baseline    정제 없음     설정을 끈 사본으로 돌린다
   yaml        설정만        운영 설정 그대로(chunking.text_cleanup 이 켜져 있다)
-  edit_output  훅만          설정은 끄고 hooks_edit_output.py 의 Hooks 를 파사드에 얹는다
+  edit_output  훅만          설정은 끄고 hooks_edit_output.py 의 Hooks 를 처리기에 얹는다
   both        설정 + 훅     운영 설정 + hooks_both.py — 공통은 설정, 예외만 훅
 
 단정
@@ -45,8 +45,8 @@ ENTITIES = re.compile(r"&(?:gt|lt|amp|nbsp);")
 CASES = ("baseline", "yaml", "edit_output", "both")
 HOOKS = {"edit_output": "hooks_edit_output.py", "both": "hooks_both.py"}
 
-# parse_chunk_test.py 를 그대로 재사용하면서 파사드에만 훅을 얹는 자식 스크립트.
-# 서브클래스 오버라이드는 파사드 파일을 직접 고치는 것과 같은 경로를 탄다
+# parse_chunk_test.py 를 그대로 재사용하면서 처리기에만 훅을 얹는 자식 스크립트.
+# 서브클래스 오버라이드는 액티비티 처리기 파일을 직접 고치는 것과 같은 경로를 탄다
 # (core 가 `type(self).edit_output is not ChunkerCore.edit_output` 로 판정하지 않고
 #  항상 부르므로, 여기서는 클래스만 갈아 끼우면 된다).
 CHILD = '''

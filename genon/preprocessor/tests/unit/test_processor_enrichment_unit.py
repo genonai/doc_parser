@@ -6,7 +6,7 @@ setup_logging(yaml `log_level`) 레벨 매핑을 검증한다.
 enrich_metadata/enrich_custom_fields 는 enrichment 배선을 들고 있는 클래스에 정의돼 있다:
 - `convert_processor.DocumentProcessor` (변환 파사드)
 - `intelligent_processor.DocumentProcessor` (단독 인텔리전트 파사드)
-- `parser_processor.IntelligentDocumentProcessor` (parser 파사드가 내부에서 위임하는 엔진)
+- `parser_processor.IntelligentDocumentProcessor` (parse 액티비티 처리기가 내부에서 위임하는 엔진)
 setup_logging 은 세 facade DocumentProcessor 가 동일하게 갖는다.
 
 모두 네트워크 비의존이다(enricher 는 AsyncMock 또는 미주입; setup_logging 은 logging 상태만).

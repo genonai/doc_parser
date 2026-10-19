@@ -19,9 +19,9 @@ from facade.intelligent_processor import DocumentProcessor as IntelligentProcess
 from facade.parser_processor import DocumentProcessor
 from genon.preprocessor.processing.common import docling_ops as dops
 
-# 파사드가 상속하는 core 모듈 — sys.path 에 저장소 루트와 genon/preprocessor 가 둘 다 있어 같은 파일이
+# 처리기가 상속하는 core 모듈 — sys.path 에 저장소 루트와 genon/preprocessor 가 둘 다 있어 같은 파일이
 # 두 이름(processing.core.parser / genon.preprocessor.processing.core.parser)으로 import 될 수 있으므로,
-# 패치는 파사드가 실제로 쓰는 모듈 객체에 건다.
+# 패치는 처리기가 실제로 쓰는 모듈 객체에 건다.
 core_parser = sys.modules[DocumentProcessor.__mro__[1].__module__]
 
 

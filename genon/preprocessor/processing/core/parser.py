@@ -165,7 +165,7 @@ def _write_derived(work_dir: str, src_path: str, ext: str, text: str) -> str:
 
 
 def _config_error(message: str) -> "GenosServiceException":
-    """기동 시 설정 오류용 예외 팩토리. 공용 모듈이 이 facade 의 예외 클래스를 쓰게 하는 통로다."""
+    """기동 시 설정 오류용 예외 팩토리. 공용 모듈이 이 처리기의 예외 클래스를 쓰게 하는 통로다."""
     return GenosServiceException("1", message, stage="custom_fields")
 
 
@@ -230,7 +230,7 @@ _is_libreoffice_available = fp.is_libreoffice_available
 def convert_to_pdf(file_path: str, policy: "pa.PdfArtifactPolicy | None" = None) -> str | None:
     """LibreOffice 로 PDF 변환을 시도한다. 실패해도 예외를 던지지 않고 None 을 반환한다.
 
-    이 facade 는 backend chain 을 LibreOffice 하나로 고정한다(rhwp/pdf_sdk 미사용).
+    파싱 처리기는 backend chain 을 LibreOffice 하나로 고정한다(rhwp/pdf_sdk 미사용).
     구현은 processing/common/pdf_convert.py 에 있다.
 
     policy 를 주면 산출 PDF 의 위치와 보존 여부가 그 정책을 따른다(`pdf_output` 설정).
@@ -278,7 +278,7 @@ class AudioLoader(ld.AudioLoaderBase):
 # ============================================================
 # IntelligentDocumentProcessor — parser 가 합성으로 쓰는 docling 런타임
 # 배관은 processing/common/docling_runtime.py 한 벌이다. 여기 남는 것은 enrichment()
-# 뿐이다 — 세 facade 의 본문이 로그 태그·PPT 처리·예외 스탬프에서 갈린다.
+# 뿐이다 — 세 처리기의 본문이 로그 태그·PPT 처리·예외 스탬프에서 갈린다.
 # 이름을 남기는 이유: tests/unit 두 파일이 모듈 최상위에서 이 이름을 import 한다.
 # ============================================================
 
@@ -417,18 +417,18 @@ class GenericDocumentLoader:
 
 class ParserCore:
     """
-    파싱 단계만 수행하고 결과를 JSON으로 반환하는 파사드.
+    파싱 단계만 수행하고 결과를 JSON으로 반환하는 처리기.
     청킹/벡터 조합은 수행하지 않음.
 
-    IS_PARSER 와 ROUTES 는 배포되는 facade 가 선언한다. core 에 기본 표를 두면
+    IS_PARSER 와 ROUTES 는 처리기가 선언한다. core 에 기본 표를 두면
     사본이 둘이 되어 조용히 어긋난다.
     """
 
-    # 확장자 → 핸들러. 배포되는 facade 가 **반드시** 정한다(#363 08-3).
+    # 확장자 → 핸들러. 처리기가 **반드시** 정한다(#363 08-3).
     ROUTES: tuple = ()
 
     # ── 확장 훅 (#363 08-3) ────────────────────────────────────────────────
-    # 배포되는 facade 가 덮어쓴다. 기본 구현은 받은 값을 그대로 돌려주므로
+    # 처리기가 덮어쓴다. 기본 구현은 받은 값을 그대로 돌려주므로
     # 덮어쓰지 않으면 산출이 착수 전과 같다.
 
     def edit_input(self, ext, doc_type, data, work_dir=None, **kwargs):
@@ -479,9 +479,9 @@ class ParserCore:
         return doc if out is None else out
 
     async def run_edit_output(self, ext, doc_type, result, /, **kwargs):
-        """edit_output 훅 호출부. facade 의 __call__ 이 부른다.
+        """edit_output 훅 호출부. 처리기의 __call__ 이 부른다.
 
-        요청 파라미터 전달과 async 훅 await 를 여기서 처리하므로 facade 는 한 줄이다.
+        요청 파라미터 전달과 async 훅 await 를 여기서 처리하므로 처리기는 한 줄이다.
         """
         return await hk.call_hook(
             self.edit_output, ext, doc_type, result, request_kwargs=kwargs)
@@ -588,7 +588,7 @@ class ParserCore:
         self._output_format = self._normalize_output_format(output_cfg.get("format", "json"))
         self._table_format = self._normalize_table_format(output_cfg.get("table_format", "html"))
         # markdown 표 compact(컬럼 정렬 패딩 제거) 여부. 기본 True. html 포맷엔 무관.
-        # 공용 헬퍼를 쓴다 - 다른 facade 와 같은 규칙으로 문자열 "false" 도 off 로 읽는다.
+        # 공용 헬퍼를 쓴다 - 다른 처리기와 같은 규칙으로 문자열 "false" 도 off 로 읽는다.
         self._compact_tables = cp.resolve_compact_tables(output_cfg)
 
         # 민감정보 분류(#315): parser 가 호출 주체. guardrail_call 요청 시 문서 전체를 1회 분류해
@@ -1425,7 +1425,7 @@ class ParserCore:
         return result
 
     async def _apply_docling_post_enrichment(self, document: DoclingDocument, **kwargs) -> DoclingDocument:
-        """Facade 후처리 enrichment 훅."""
+        """처리기 후처리 enrichment 훅."""
         # #329: error_policy=strict 이면 _handle_stage_error 가 GenosServiceException 으로
         # 재-raise(삼키지 않음). lenient(기본)은 기존처럼 warning 후 계속.
         try:
@@ -1923,7 +1923,7 @@ class ParserCore:
         return dops.demote_code_items(doc)
 
     # --- doc_type 별 설정 오버레이 ---
-    # 배포되는 facade 가 표에 값을 적는다. 키는 요청 파라미터 이름이다(chunk_size 등).
+    # 처리기가 표에 값을 적는다. 키는 요청 파라미터 이름이다(chunk_size 등).
     CONFIG_BY_DOC_TYPE: dict = {}
 
     def config_by_condition(self, job) -> dict:
@@ -2133,7 +2133,7 @@ class ParserCore:
         """Temporal 액티비티 본문(파싱). 워커가 activities/<slug>.py 의 이 메서드를 slug 이름으로 등록한다.
 
         처리는 이 인스턴스의 `__call__`(입력·라우트·출력 훅 전부)로 한다. 인자·반환·하트비트·오류
-        분류는 genon/preprocessor/worker/runtime.py — 파사드 파일은 상속만 하고 이 메서드를 고치지 않는다.
+        분류는 genon/preprocessor/worker/runtime.py — 처리기 파일은 상속만 하고 이 메서드를 고치지 않는다.
         """
         from genon.preprocessor.worker import runtime   # temporalio 는 워커에서만 import 한다
 

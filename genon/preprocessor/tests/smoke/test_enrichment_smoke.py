@@ -28,7 +28,7 @@ def intel_engine(intelligent_processor):
 
 @pytest.fixture(scope="module")
 def parser_engine(parser_processor):
-    """parser 파사드 내부 엔진(._intel): 실제 enrichment 배선을 들고 있다."""
+    """parse 액티비티 처리기 내부 엔진(._intel): 실제 enrichment 배선을 들고 있다."""
     try:
         proc = parser_processor()
     except Exception as e:  # noqa: BLE001

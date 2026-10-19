@@ -1,6 +1,6 @@
 """전처리기 Temporal 워커의 동시 실행 — 한 프로세스에서 여러 건을 돌려도 결과가 한 건씩과 같은가(#502·#507).
 
-실제 등록부(`registry.scan()` → `build`)와 실제 파사드(activities/parse.py·chunk.py)를 쓴다. 한 건씩 돌린
+실제 등록부(`registry.scan()` → `build`)와 실제 액티비티 처리기(activities/parse·chunk/processor.py)를 쓴다. 한 건씩 돌린
 결과를 기준으로, 같은 것을 한꺼번에 돌린 결과가 같아야 한다. 시험 둘:
 
   test_concurrent_activities_equal_one_at_a_time
@@ -208,7 +208,7 @@ COMBOS = [("parse", "chunk"), ("parse_t", "chunk_t")]
 ENTRY_THREADS = 3
 MARK = "[chunk_t] "
 
-#: 사본 파일 끝에 덧붙이는 코드 — 복사한 파사드를 같은 이름으로 다시 상속해 훅 하나를 바꾼다
+#: 사본 파일 끝에 덧붙이는 코드 — 복사한 처리기를 같은 이름으로 다시 상속해 훅 하나를 바꾼다
 PARSE_T_CODE = '''
 
 class DocumentProcessor(DocumentProcessor):          # 사본에서 고친 코드(시험)
