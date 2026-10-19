@@ -15,12 +15,14 @@
 │   │   ├── schemas
 │   │   └── services
 │   ├── preprocessor # genos에서 실행 될 전처리기 이미지 및 facade 관련
+│   │   ├── activities # 액티비티 처리기 — 액티비티 하나 = 폴더 하나 <slug>/(processor.py·config.yaml·prompt_*.md·custom_field_*.yaml).
+│   │   │              # 원형 parse·chunk, 사본 parse_<이름>·chunk_<이름>. 단건 실행·new·remove·diff 는 `python -m genon.preprocessor.activities`
 │   │   ├── configs # gunicorn, supervisor 설정
 │   │   ├── docker # 도커파일 위치
 │   │   │   └── assets # 도커 빌드 전용 폰트·tessdata tar
 │   │   ├── env # 서버 환경변수 프로파일(.env.dev, .env.prod). 이미지의 /app/env 로 복사됨
 │   │   ├── examples # 고객이 붙여 쓰는 최소 예제(facade 실행, 훅, 텍스트 정제, curl 호출)
-│   │   ├── facade # facade 코드(*_processor.py)
+│   │   ├── facade # 파사드 코드(*_processor.py, HTTP main.py 가 부름). parser_processor.py·chunking_processor.py 는 activities/ 별칭
 │   │   ├── manual # 고객·현장용 매뉴얼
 │   │   │   └── images
 │   │   ├── processing # 파싱·청킹·보강 처리 라이브러리(facade 가 상속·호출)
@@ -31,7 +33,8 @@
 │   │   │   ├── enrichment
 │   │   │   ├── guardrail
 │   │   │   └── serialize # 파서 결과를 응답 dict 로 변환
-│   │   ├── resource # 표준 YAML 설정·프롬프트(facade 기본 해석기가 읽음)
+│   │   ├── resource # 표준 설정 폴더 — 모델 접속 프리셋 model_presets.yaml(액티비티·파사드가 이름으로 참조),
+│   │   │            # 파사드 설정(intelligent·attachment·convert_processor_config.yaml)·간이 파서 설정·프롬프트
 │   │   ├── scripts # 도커 이미지 push 및 디비 등록 관련 스크립트 위치
 │   │   ├── sample_files # 샘플 입력 문서
 │   │   ├── src # 전처리기 API 소스
@@ -41,7 +44,8 @@
 │   │   │   │   └── baselines
 │   │   │   ├── smoke
 │   │   │   └── unit
-│   │   └── tools # 손으로 돌리는 검증·개발 도구(facade_test, parse_chunk 등)
+│   │   ├── tools # 손으로 돌리는 검증·개발 도구(facade_test, parse_chunk 등)
+│   │   └── worker # 전처리기 Temporal 워커 — `python -m genon.preprocessor.worker`, slug 마다 액티비티 등록, /health
 │   ├── serving # OCR 모델 서빙 이미지
 │   │   └── paddle
 │   │       ├── config # ocr, vl paddlex 실행 파일
@@ -49,7 +53,7 @@
 │   │       ├── etc
 │   │       ├── k8s-manifest
 │   │       └── resources
-│   ├── sites # 고객사이트별 설정 완성본과 전용 facade (배포본 제외, 별도 전달)
+│   ├── sites # 고객사이트별 설정 완성본과 전용 facade (배포본 제외. SITE=<site> 빌드가 activities/ 설정만 서빙본에 덮음)
 │   ├── tools # 독립 CLI(genos-tools: 청크 내보내기·뷰어)
 │   │   └── genos_tools
 │   │       └── commands
@@ -186,14 +190,17 @@ docker push mncregistry:30500/mnc/doc-parser-preprocessor:2.1.5
 
 ## 코드서빙(code-serving) base 이미지 빌드 및 배포
 
-위 "전처리기 빌드 및 등록" 의 전처리기 이미지와는 **별개의 이미지**다. 코드서빙은 doc-parser facade 를
+위 "전처리기 빌드 및 등록" 의 전처리기 이미지와는 **별개의 이미지**다. 코드서빙은 doc-parser 서빙본을
 GenOS **코드서빙** 기능으로 띄우는 경로이며, 동작 방식이 전처리기와 다르다.
 
 **동작 개요**
 
-- 코드서빙 시스템이 이 **base 이미지**를 띄운 뒤, 런타임에 git 소스를 `/app/src/service` 로 clone 하고
-  `main.py`(facade) 를 실행한다.
-- facade 의 무거운 deps 와 다운로드 아티팩트(모델/HWP SDK/rhwp/H2Orestart/폰트/EasyOCR)는
+- 코드서빙 시스템이 이 **base 이미지**를 띄운 뒤, 런타임에 git 소스(서빙본)를 `/app/src/service` 로 clone 하고
+  리비전의 시작 명령을 실행한다. 서빙본 하나로 두 가지를 띄울 수 있다.
+  - 전처리기 Temporal 워커: `START_COMMAND=python -m genon.preprocessor.worker`. `activities/` 의 slug 마다
+    액티비티를 등록하고, HTTP 는 startupProbe 용 `/health`(:8080) 하나다.
+  - HTTP 서빙: `START_COMMAND` 를 비우면 루트 `main.py`(FastAPI — `/parser`·`/chunker`·`/preprocess*` 등)가 뜬다.
+- 처리기의 무거운 deps 와 다운로드 아티팩트(모델/HWP SDK/rhwp/H2Orestart/폰트/EasyOCR)는
   콜드스타트 단축 + 에어갭(오프라인) 동작을 위해 **base 이미지에 빌드 시점에 pre-bake** 한다
   (`Dockerfile.standard` 와 full parity).
 - 배포 후 게이트웨이로 호출하는 방법(`/health`·`/parser`·`/chunker` 등)은
@@ -259,31 +266,33 @@ echo "HWP_SDK_TOKEN=hf_xxx" >> build-script/hf_private_token.env
     git clone http://llmops-gitea-service:3000/llmops/<코드서빙 gitea id>.git
     ```
 
-  - doc_parser github debelop 브랜치 전체 코드를 gitea 레포지터리에 복사 후 gitea 레포지터리에서 commit/push 를 수행한다.
-    - 이 때 `genon/preprocessor/resource`의 yaml 파일을 기반으로 전처리기가 동작하므로 실행환경에 맞게 수정한후 commit/push를 해야 한다. [매뉴얼 참조](https://github.com/genonai/doc_parser/tree/develop/genon/preprocessor/manual)
-    - 코드서빙으로 서빙할 전처리기의 config yaml은 아래와 같다.
-      - parser/chunking 만 사용하는 경우: activities/parse/config.yaml, activities/chunk/config.yaml 수정(액티비티 폴더, #495)
-      - 적재용 전처리기 사용하는 경우: intelligent_processor_config.yaml
-      - 첨부용 전처리기 사용하는 경우: attachment_processor_config.yaml
-      - 변환용 전처리기 사용하는 경우: convert_processor_config.yaml
-    - 각 yaml에서 반드시 수정해야 하는 부분은 전처리기에서 사용하는 llm 모델 주소를 설치환경에 맞게 수정해야한다. (매뉴얼 참조바람)
+  - 서빙본(`build-script/sync-serving-repo.sh` 가 만든 `genonai/doc_parser_code_serving`)을 gitea 레포지터리에 복사 후
+    gitea 레포지터리에서 commit/push 를 수행한다. doc_parser 원본을 통째로 복사하지 않는다(docling 은 서빙본에 wheel 로 동봉된다).
+    - 사이트 배포처는 `SITE=<site> bash build-script/sync-serving-repo.sh` 로 만든 서빙본을 쓴다 — 사이트의 액티비티 설정이
+      `activities/<slug>/` 에 이미 덮여 있고(커밋 제목 끝 ` · site=<site>`), `resource/` 는 표준 그대로다.
+    - 외부 Git 에 서빙본을 두고 작업 브랜치로 쓰는 방식은 [`build-script/code-serving-README.md`](../build-script/code-serving-README.md) 「브랜치 역할과 새 버전 받기」 참고.
+    - 코드서빙으로 서빙할 전처리기의 설정은 아래와 같다. [매뉴얼 참조](https://github.com/genonai/doc_parser/tree/develop/genon/preprocessor/manual)
+      - parser/chunking(워커 액티비티 또는 HTTP `/parser`·`/chunker`): `activities/parse/config.yaml`, `activities/chunk/config.yaml`
+      - 적재용 전처리기 사용하는 경우: `resource/intelligent_processor_config.yaml`
+      - 첨부용 전처리기 사용하는 경우: `resource/attachment_processor_config.yaml`
+      - 변환용 전처리기 사용하는 경우: `resource/convert_processor_config.yaml`
+    - llm 등 모델 접속 정보는 각 yaml 에 적지 않는다. 설정은 `resource/model_presets.yaml` 의 프리셋을 이름(`model_preset: <이름>`)으로
+      부르고, 설치환경의 실값은 리비전 env `GENOS_MODEL_PRESETS_FILE` 이 가리키는 파일(값을 채운 `model_presets.yaml`)이 키 단위로 덮는다.
 
     ```bash
-    # doc parser 코드를 clone 하고 develop 브랜치로 변경
-    git clone https://github.com/genonai/doc_parser.git
-    cd doc_parser
-    git checkout develop
+    # 서빙본 clone — 릴리스는 main, 개발 빌드·사이트 빌드는 그 빌드가 push 한 브랜치(SERVING_BRANCH)
+    git clone -b <서빙본 브랜치> https://github.com/genonai/doc_parser_code_serving.git
+    cd doc_parser_code_serving
 
-    # doc parser 코드를 gitea 레포 디렉토리로 복사 (.git 디렉토리 제외)
+    # 서빙본을 gitea 레포 디렉토리로 복사 (.git 디렉토리 제외)
     tar --exclude=.git -cf - . | (cd <gitea dir> && tar -xf -)
 
-    # 복사된 gitea 레포 디렉토리에서 config yaml 수정
-    # vscode를 이용해서 genon/preprocessor/resource 의 config yaml을 수정해 준다.
-    # 수정 대상 파일.
-    # - activities/parse/config.yaml · activities/chunk/config.yaml (genon/preprocessor/activities/ 아래)
-    # - intelligent_processor_config.yaml
-    # - attachment_processor_config.yaml
-    # - convert_processor_config.yaml
+    # 복사된 gitea 레포 디렉토리에서 업무에 맞게 설정 수정(필요할 때). 대상 파일(genon/preprocessor/ 아래):
+    # - activities/parse/config.yaml · activities/chunk/config.yaml
+    # - resource/intelligent_processor_config.yaml
+    # - resource/attachment_processor_config.yaml
+    # - resource/convert_processor_config.yaml
+    # 모델 접속 실값은 여기 적지 않고 리비전 env GENOS_MODEL_PRESETS_FILE 로 넣는다.
 
     # gitea 레포 디렉토리에서 복사된 doc parser 코드를 commit/push
     cd <gitea dir>
@@ -293,7 +302,10 @@ echo "HWP_SDK_TOKEN=hf_xxx" >> build-script/hf_private_token.env
     # push 할 때 Genos id, pass 를 임력해야 함
     ```
 
-- 코드서빙 매뉴얼을 참고하여 GenOS **코드서빙** 의 리비전을 생성/배포하면, doc-parser가 등록된 gitea의  git 소스(레포 URL/commit)가 런타임에 `/app/src/service` 로 clone 되고 `main.py` 가 실행된다.
+- 코드서빙 매뉴얼을 참고하여 GenOS **코드서빙** 의 리비전을 생성/배포하면, doc-parser가 등록된 gitea의  git 소스(레포 URL/commit)가 런타임에 `/app/src/service` 로 clone 되고
+  `START_COMMAND` 가 실행된다(비우면 `main.py`). 전처리기 워커 리비전은 `START_COMMAND=python -m genon.preprocessor.worker` 와
+  워커 env(`TEMPORAL_HOST`·`WORKER_TASK_QUEUE`·`NFS_ROOT`·`ARTIFACT_ROOT` 필수, `TEMPORAL_NAMESPACE`, `GENOS_MODEL_PRESETS_FILE` 등 —
+  `genon/preprocessor/worker/settings.py`)를 준다.
 
   - 리비전 생성시 이미지는 `mnc/template-code-serving-doc-parser` 를 선택한다
   - 리비전 생성시 gpu 할당은 하지 않고, medium (1 CPU Core, 16 Gb Memory) 수준의 인스턴스를 생성하면 된다.

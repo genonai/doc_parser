@@ -17,7 +17,9 @@
     PORT                   기본 8080 — /health
 
 `INTERIM_ROOT` 는 쓰지 않는다. 전처리기에서 그 이름은 LLM 캐시 루트다(docling/utils/llm_cache.py).
-`GENOS_RESOURCE_DIR` 은 루트 main.py 와 같은 뜻 — 있으면 그 폴더의 설정을 읽는다.
+`GENOS_RESOURCE_DIR` 은 로컬에서 사이트 완성본(genon/sites/<site>/resource + 옆 activities/)을 띄울 때만 준다 —
+사이트 배포처(sync-serving-repo.sh SITE=<site>)는 activities/ 에 사이트 설정이 있으므로 주지 않는다.
+모델 접속 실값은 GENOS_MODEL_PRESETS_FILE.
 """
 from __future__ import annotations
 

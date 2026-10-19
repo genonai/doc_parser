@@ -342,6 +342,7 @@ Python 단계에 붙여 넣으세요).
    ![config 설정](images/guardrail_setup_06b_config.jpg)
    - 워크플로우의 ID값, 인증키를 설정 폴더(`genon/preprocessor/resource/`)의 `model_presets.yaml` 의 `guardrail` 프리셋에 넣습니다.
      - 각 전처리기 YAML(`attachment_processor_config.yaml` · `intelligent_processor_config.yaml` 등)의 `guardrail:` 섹션은 `model_preset: guardrail` 로 이 값을 읽으므로 따로 고치지 않습니다.
+     - 코드서빙 배포에서는 이 실값을 값이 채워진 `model_presets.yaml` 경로를 가리키는 리비전 환경변수 `GENOS_MODEL_PRESETS_FILE` 로 줍니다.
      - ID값과 인증키는 각각 `workflow_id`/`api_key`에 해당됩니다. 
 
 ### 6. 간단한 워크플로우 검증

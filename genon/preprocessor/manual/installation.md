@@ -132,11 +132,11 @@ GenOS 웹 UI에서 **관리 > 리소스 > 전처리기** 로 이동하여 **전�
 | 상세 설명 | 자유 |
 | 관리 그룹 | 사이트 운영 그룹 |
 | 확장자 | 처리할 확장자 (예: docx, pdf, ppt, pptx, hwp, hwpx, csv, xlsx, txt, json, md) |
-| 코드 | 용도에 맞는 facade 파일의 코드를 **그대로 복사·붙여넣기** |
+| 코드 | 용도에 맞는 처리기 파일의 코드를 **그대로 복사·붙여넣기** |
 | 파라미터 | kwargs 형태(JSON). 비워두거나 `{"chunk_size":1000,"chunk_overlap":100}` 등 |
 | GPU 할당 | `docling_layout` 쓰는 경우만 1 이상. `genos_layout`(기본)이면 0 |
 
-용도별 facade 파일 (파싱형은 `genon/preprocessor/activities/`, 나머지는 `genon/preprocessor/facade/`):
+용도별 처리기 파일 (파싱형 액티비티 처리기는 `genon/preprocessor/activities/`, 나머지 파사드는 `genon/preprocessor/facade/`):
 
 | 용도 | 파일 | 비고 |
 |---|---|---|
@@ -153,7 +153,7 @@ GenOS 웹 UI에서 **관리 > 리소스 > 전처리기** 로 이동하여 **전�
 
 ## 4. YAML 작성 (사이트 환경에 맞게 수정)
 
-전처리기는 동작 시점에 **`parse_config.yaml`**(또는 facade가 가리키는 yaml)을 읽어 OCR·Layout·Enrichment 호출 방식을 결정합니다. 이 yaml을 사이트 환경에 맞춰 수정한 뒤, 다음 절(5장)에서 전처리기 리소스 파일로 첨부합니다.
+전처리기는 동작 시점에 처리기가 가리키는 yaml(파싱형은 **`parse_config_simple.yaml`**, 적재형은 `intelligent_processor_config.yaml` 등)을 읽어 OCR·Layout·Enrichment 호출 방식을 결정합니다. 이 yaml을 사이트 환경에 맞춰 수정한 뒤, 다음 절(5장)에서 전처리기 리소스 파일로 첨부합니다.
 
 > YAML 각 값의 자세한 설정·튜닝 의미는 [20260618_전처리기교육](https://docs.google.com/presentation/d/1Jv2AYyOOAkDRppq8lni-JkJb0XF4xEpK/edit?usp=sharing&ouid=113104694679155634630&rtpof=true&sd=true) 문서의 다음 페이지를 참고하세요. <br>
 > - **p.33** — YAML enrichment 값 관련 설정 설명
@@ -161,7 +161,7 @@ GenOS 웹 UI에서 **관리 > 리소스 > 전처리기** 로 이동하여 **전�
 
 ### 4.1 시작점: 레포에 있는 yaml을 그대로 쓰면 안 되는 이유
 
-모델 접속 정보는 레포의 `resource/model_presets.yaml` **한 파일**에 모여 있고, 메인 yaml(`intelligent_processor_config.yaml` 등)은 `model_presets_file: model_presets.yaml` 로 이 파일을 읽습니다. 레포의 `genon/sites/dev/model_presets.yaml` 은 **사내망 로컬 PC에서 facade 동작을 확인하는 dev 용도**의 접속값이며, 로컬 실행에서만 환경변수 `GENOS_MODEL_PRESETS_FILE` 로 얹어 씁니다. 사이트에 그대로 가져가면 동작하지 않습니다. 두 가지가 다릅니다.
+모델 접속 정보는 레포의 `resource/model_presets.yaml` **한 파일**에 모여 있고, 메인 yaml(`intelligent_processor_config.yaml` 등)은 `model_presets_file: model_presets.yaml` 로 이 파일을 읽습니다. 레포의 `genon/sites/dev/model_presets.yaml` 은 **사내망 로컬 PC에서 처리기 동작을 확인하는 dev 용도**의 접속값이며, 로컬 실행에서 환경변수 `GENOS_MODEL_PRESETS_FILE` 로 얹어 씁니다(기본 전처리기 서비스에서는 이 변수를 설정하지 않습니다). 사이트에 그대로 가져가면 동작하지 않습니다. 두 가지가 다릅니다.
 
 | 항목 | dev 접속값 (`genon/sites/dev/model_presets.yaml`) — 사내망 로컬 PC | 사이트 GenOS 배포용 (`resource/model_presets.yaml`) |
 |---|---|---|
@@ -183,7 +183,7 @@ GenOS 웹 UI에서 **관리 > 리소스 > 전처리기** 로 이동하여 **전�
 
 기타 옵션(`ocr_mode`, `layout.genos_layout.page_batch_size`, enrichment 프롬프트 파일 등)은 기본값을 그대로 두면 됩니다. 사이트별로 튜닝이 필요한 항목과 그 의미는 [intelligent_processor.md](intelligent_processor.md) 와 [parser_processor.md](parser_processor.md) 참고.
 
-> **자동 경고** — facade 는 yaml 로드 직후 미치환 플레이스홀더(`<UPPER_SNAKE>` 패턴, 예: `<LAYOUT_SERVING_ID>` / `<OCR_ENDPOINT>`)가 남아 있는지 탐지해 컨테이너 로그에 경고를 남깁니다 (`[DocumentProcessor] 미치환 설정 플레이스홀더가 발견되었습니다 ...`). 배포 직후 8장 로그에서 이 경고가 보이면 자리표 누락 → yaml 수정 후 재업로드·재배포 하세요.
+> **자동 경고** — 처리기는 yaml 로드 직후 미치환 플레이스홀더(`<UPPER_SNAKE>` 패턴, 예: `<LAYOUT_SERVING_ID>` / `<OCR_ENDPOINT>`)가 남아 있는지 탐지해 컨테이너 로그에 경고를 남깁니다 (`[DocumentProcessor] 미치환 설정 플레이스홀더가 발견되었습니다 ...`). 배포 직후 8장 로그에서 이 경고가 보이면 자리표 누락 → yaml 수정 후 재업로드·재배포 하세요.
 
 ### 4.3 문서 파싱 모델 선택
 
@@ -226,7 +226,7 @@ Doc Parser는 PDF 파싱에 쓰는 모델을 **두 가지 방식** 중 하나로
 
 ![전처리기 상세 > 리소스 목록 탭 > 업로드 — yaml + prompt md 파일들을 한 묶음으로 등록](./images/yaml_upload.jpg)
 
-업로드된 파일들은 전처리기 컨테이너가 기동될 때 컨테이너 내부 `/app/resource` 로 자동 다운로드되어 facade 코드가 읽어갑니다. yaml의 enrichment 항목들이 `system_prompt_file: prompt_toc_default_system.md` 같은 키로 같은 폴더의 prompt 파일을 가리키므로, **yaml만 올리고 prompt md 파일들을 빼먹으면 enrichment 가 동작하지 않습니다.**
+업로드된 파일들은 전처리기 컨테이너가 기동될 때 컨테이너 내부 `/app/resource` 로 자동 다운로드되어 처리기 코드가 읽어갑니다. yaml의 enrichment 항목들이 `system_prompt_file: prompt_toc_default_system.md` 같은 키로 같은 폴더의 prompt 파일을 가리키므로, **yaml만 올리고 prompt md 파일들을 빼먹으면 enrichment 가 동작하지 않습니다.**
 
 이후 수정이 필요하면 같은 화면에서 해당 파일을 다시 업로드해 교체합니다.
 
@@ -333,7 +333,7 @@ GenOS 웹 UI에서 **데이터 > 벡터 DB > 벡터 DB 생성** 으로 새 벡�
 ### 9.1 점검 항목 (벡터 DB 결과 화면 기준)
 
 - **텍스트가 잘 나오는가?** 누락·깨짐이 보이면 → 4단계 yaml 에서 `ocr.ocr_mode` 를 `force` 로 올리거나, `attachment_processor` 같이 OCR을 안 거치는 경우엔 OCR 포함 facade(`intelligent_processor.py`)로 교체.
-- **청킹이 적절한가?** 청크가 너무 크거나 문맥이 끊기면, 손 댈 수 있는 범위가 facade 별로 다릅니다.
+- **청킹이 적절한가?** 청크가 너무 크거나 문맥이 끊기면, 손 댈 수 있는 범위가 처리기 별로 다릅니다.
   - `attachment_processor.py` — 청커는 `attachment_processor_config.yaml` 의 [`defaults.chunker_type` (L9)](../resource/attachment_processor_config.yaml#L9) 로 `recursive`(기본) ↔ `hybrid` 전환 가능합니다.
     - 청커별 세부 옵션은 같은 파일의 [`chunking.recursive` (L30-36)](../resource/attachment_processor_config.yaml#L30-L36) (`chunk_size` / `chunk_overlap` / `token_chunk_size_cap`) 또는 [`chunking.hybrid` (L39-42)](../resource/attachment_processor_config.yaml#L39-L42) (`max_tokens` / `merge_peers`) 에서 조정합니다.
     - 수정한 yaml 을 5단계 절차대로 리소스 파일로 재업로드한 뒤 전처리기를 재배포합니다.
@@ -342,7 +342,7 @@ GenOS 웹 UI에서 **데이터 > 벡터 DB > 벡터 DB 생성** 으로 새 벡�
 ### 9.2 더 깊은 변경이 필요한 경우
 
 yaml 로 안 되는 것(새 확장자 처리, 원천 JSON 구조 흡수, 섹션 인식 규칙 변경 등)은
-**facade 소스를 사이트에서 직접 수정**합니다. 고칠 자리는 정해져 있고 파일 머리 주석에
+**처리기 소스를 사이트에서 직접 수정**합니다. 고칠 자리는 정해져 있고 파일 머리 주석에
 적혀 있습니다.
 
 | 목표 | 문서 |
@@ -361,7 +361,7 @@ yaml 로 안 되는 것(새 확장자 처리, 원천 JSON 구조 흡수, 섹션 
 
 ## 부록: 사내망 로컬 PC 테스트 흐름 (개발자용)
 
-사이트 적용 전 사내망에서 facade 코드 변경을 검증하고 싶을 때 쓰는 흐름입니다. 사이트 운영 매뉴얼이 필요한 분은 건너뛰어도 됩니다.
+사이트 적용 전 사내망에서 처리기 코드 변경을 검증하고 싶을 때 쓰는 흐름입니다. 사이트 운영 매뉴얼이 필요한 분은 건너뛰어도 됩니다.
 
 ```bash
 git clone https://github.com/genonai/doc_parser.git
@@ -378,12 +378,12 @@ python examples/facade_run/facade_run.py
 ```
 
 - **genon 사내망 VPN 접속 필요** (dev 프리셋의 외부 게이트웨이 호출 때문).
-- 이 흐름은 `resource/...yaml` 위에 `genon/sites/dev/model_presets.yaml` 의 접속값만 얹어 사용합니다. `facade_run.py` 가 환경변수 `GENOS_MODEL_PRESETS_FILE` 을 이 파일로 설정하며(밖에서 지정하면 그 값이 우선합니다), 이 변수는 로컬 전용입니다. 사이트 배포 시에는 4단계대로 `resource/model_presets.yaml` 을 수정해야 한다는 점만 잊지 마세요.
+- 이 흐름은 `resource/...yaml` 위에 `genon/sites/dev/model_presets.yaml` 의 접속값만 얹어 사용합니다. `facade_run.py` 가 환경변수 `GENOS_MODEL_PRESETS_FILE` 을 이 파일로 설정하며(밖에서 지정하면 그 값이 우선합니다), 기본 전처리기 서비스에서는 이 변수를 설정하지 않습니다. 사이트 배포 시에는 4단계대로 `resource/model_presets.yaml` 을 수정해야 한다는 점만 잊지 마세요.
 
 ---
 
 ## 참고 문서
 
-- 전처리기 개념 및 4종 facade 비교: [intro.md](intro.md)
-- 각 facade 동작 상세: [attachment](attachment_processor.md) / [convert](convert_processor.md) / [parser](parser_processor.md) / [intelligent](intelligent_processor.md)
+- 전처리기 개념 및 4종 처리기 비교: [intro.md](intro.md)
+- 각 처리기 동작 상세: [attachment](attachment_processor.md) / [convert](convert_processor.md) / [parser](parser_processor.md) / [intelligent](intelligent_processor.md)
 - 이미지 빌드·등록 측 상세: 사내 원본 저장소 `genon/README.md`

@@ -11,8 +11,8 @@
 
 | 파일 | 줄수 | 고칠 자리 |
 |---|---:|---|
-| `activities/parse/processor.py` | 282 | `ROUTES` · `CONFIG_BY_DOC_TYPE` · `edit_input` · `edit_document` · `edit_output` |
-| `activities/chunk/processor.py` | 264 | `GenOSVectorMeta` · `GenosSmartChunker` · `ROW_CATEGORIES` · `CONFIG_BY_DOC_TYPE` · `edit_input` · `edit_chunk` · `edit_output` |
+| `activities/parse/processor.py` | 296 | `ROUTES` · `CONFIG_BY_DOC_TYPE` · `edit_input` · `edit_document` · `edit_output` |
+| `activities/chunk/processor.py` | 277 | `GenOSVectorMeta` · `GenosSmartChunker` · `ROW_CATEGORIES` · `CONFIG_BY_DOC_TYPE` · `edit_input` · `edit_chunk` · `edit_output` |
 
 처리 본체는 `processing/core/` 에 있고 **열어 볼 일이 없습니다.** 열어야 했다면 그건 훅 메소드가
 부족하다는 뜻이니 알려 주세요.
@@ -270,7 +270,7 @@ API 라 그 값은 호출자용 정보로 끝납니다. `tb.set_chunk_metadata()
 | 청크 앞 `HEADER:` 라벨을 다른 말로 / 없애기 | `GenosSmartChunker.CHUNK_HEADER_PREFIX` (빈 문자열이면 경로만) | `activities/chunk/processor.py` |
 | 섹션 경로 구분자 | `CHUNK_HEADER_SEP` · `CHUNK_PATH_SEP` · `CHUNK_PATH_MAX_LEAVES` | 〃 |
 | 파서가 만든 **새 category** 를 행 1개 = 청크 1개로 처리 | `ROW_CATEGORIES` 에 이름 추가 | 〃 |
-| 1024 보다 작은 청크 만들기 | `chunking.min_chunk_size` (0 이면 보정 안 함) | `chunk_config.yaml` |
+| 1024 보다 작은 청크 만들기 | `chunking.min_chunk_size` (0 이면 보정 안 함) | `activities/chunk/config.yaml` |
 
 `CHUNK_HEADER_PREFIX` 는 청크 크기 산정과 실제 부착이 같은 값을 보므로 여기만 바꾸면
 됩니다. `min_chunk_size` 는 docling 경로의 하한이라, 임베딩 모델의 입력 길이가 짧아
@@ -362,7 +362,7 @@ tb.refresh_stats(vectors, reindex=False)   # 본문만 고쳤을 때 — 통계�
 
 ## 청크 본문에서 특수문자 걷어내기
 
-RAG 검색용 정제는 **설정으로 하는 것이 기본**입니다. `chunk_config.yaml` 의
+RAG 검색용 정제는 **설정으로 하는 것이 기본**입니다. `activities/chunk/config.yaml` 의
 `chunking.text_cleanup` 에 규칙을 적으면 됩니다 — 코드를 고치지 않습니다.
 
 | 방식 | 정제하는 자리 | 쓰는 때 |
@@ -518,9 +518,13 @@ from genon.preprocessor.processing.core import toolbox as tb
 전처리기 파일은 **그 자체로 실행됩니다.** 서버를 띄우지 않고 한 건만 돌려 볼 수 있습니다.
 
 ```bash
-python preprocessor.py 지점현황.xlsx --doc-type branch_list -o parsed.json   # 파서
-python preprocessor.py parsed.json -o chunks.json                            # 청커
+# 실행 위치: 저장소 루트 (코드서빙·워커)
+python -m genon.preprocessor.activities run --activity parse 지점현황.xlsx --doc-type branch_list -o parsed.json   # 파서
+python -m genon.preprocessor.activities run --activity chunk parsed.json -o chunks.json                            # 청커
 ```
+
+기본 전처리기 서비스처럼 처리기 파일 하나를 `preprocessor.py` 로 둔 형태에서는
+`python preprocessor.py 지점현황.xlsx --doc-type branch_list -o parsed.json` 처럼 그 파일을 직접 실행합니다.
 
 `--doc-type` 을 꼭 주세요. 훅 메소드가 전부 `doc_type` 게이팅이라 없으면 훅 메소드가 안 탑니다.
 
@@ -529,17 +533,18 @@ python preprocessor.py parsed.json -o chunks.json                            # �
 ```python
 import asyncio, json
 from genon.preprocessor.processing.core import toolbox as tb
-from preprocessor import DocumentProcessor
+from genon.preprocessor.activities.parse import DocumentProcessor as Parser
+from genon.preprocessor.activities.chunk import DocumentProcessor as Chunker
 
 # 파서 — 산출은 dict 입니다
-result = asyncio.run(DocumentProcessor()(tb.mock_request(), "지점현황.xlsx",
-                                         doc_type="branch_list"))
+result = asyncio.run(Parser()(tb.mock_request(), "지점현황.xlsx",
+                              doc_type="branch_list"))
 with open("parsed.json", "w", encoding="utf-8") as fp:
     json.dump(result, fp, ensure_ascii=False, indent=2)
 
 # 청커 — 산출은 vector_meta 객체 목록이라 model_dump() 를 거칩니다
-metas = asyncio.run(DocumentProcessor()(tb.mock_request(), "parsed.json",
-                                        doc_type="branch_list"))
+metas = asyncio.run(Chunker()(tb.mock_request(), "parsed.json",
+                              doc_type="branch_list"))
 with open("chunks.json", "w", encoding="utf-8") as fp:
     json.dump([m.model_dump() for m in metas], fp, ensure_ascii=False, indent=2)
 ```
@@ -560,13 +565,12 @@ tools/parse_chunk/parse_chunk_golden.py --check
 ## 릴리스 갱신 때 내 수정분 지키기
 
 **전처리기 갱신은 릴리스 단위 통째 갱신입니다** — `activities/parse/processor.py` 와
-`activities/chunk/processor.py` 도 함께 덮어써집니다. 그래서 갱신 전에 보관하고 뒤에 다시
+`activities/chunk/processor.py`, 같은 폴더의 `config.yaml`·`custom_field_*.yaml`·`prompt_*.md` 도 함께 덮어써집니다. 그래서 갱신 전에 보관하고 뒤에 다시
 붙입니다.
 
 ```bash
 # 실행 위치: gitea_repo
-git diff -- genon/preprocessor/activities/parse/processor.py \
-             genon/preprocessor/activities/chunk/processor.py > my_change.patch
+git diff -- genon/preprocessor/activities > my_change.patch   # activities/<slug>/ 폴더 전체(처리기·설정·custom_field·프롬프트)
 # … 릴리스 통째 갱신 …
 git apply my_change.patch          # 충돌하면 patch 를 보고 손으로 반영
 ```

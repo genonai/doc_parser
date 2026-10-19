@@ -2,22 +2,23 @@
 
 모니모 환경에 배포된 **문서 전처리기(doc parser)** 의 설정과 코드를 수정하고 반영하는 방법을 다룹니다.
 
-전처리기 코드서빙은 **이미 배포되어 동작하고 있습니다.** 이 문서는 실행 중인 전처리기를 우리
-요구에 맞게 고치는 방법을 다룹니다. 개발자가 새 코드서빙을 만들거나 도커 이미지를 직접 빌드하지는 않습니다.
-이미지 빌드와 코드 반영은 담당자 승인 후 CI/CD가 수행합니다.
+모니모의 전처리기는 코드서빙에서 **Temporal 워커**로 동작하며, **이미 배포되어 동작하고 있습니다.**
+파싱·청킹은 전처리기 워커가 액티비티로 처리하고, 임베딩·적재는 pipeline 워커가 처리합니다.
+이 문서는 실행 중인 전처리기의 파싱·청킹을 우리 요구에 맞게 고치는 방법을 다룹니다. 개발자가 새 코드서빙을
+만들거나 도커 이미지를 직접 빌드하지는 않습니다. 이미지 빌드와 코드 반영은 담당자 승인 후 CI/CD가 수행합니다.
 
-대상 독자는 Python·REST API·Git의 기본 사용 경험이 있는 개발자입니다. Genos와 전처리기의 사전 지식은
+대상 독자는 Python·Git의 기본 사용 경험이 있는 개발자입니다. Genos·Temporal·전처리기의 사전 지식은
 필수로 요구하지 않습니다. 실행에는 제공된 코드스페이스, 저장소, 환경별 접속 정보가 필요합니다.
-이 문서는 `schema: v2` 설정과 두 facade의 확장 API를 기준으로 합니다. 작업 전 제공받은 릴리스 태그 또는
-커밋과 `/version` 응답을 기록하고, 릴리스 갱신 시 이 문서와 템플릿도 함께 확인하세요. 문서만으로 현재 운영
-서버의 버전을 확정할 수는 없습니다.
+이 문서는 `schema: v2` 설정과 액티비티 처리기 2개(`activities/parse/processor.py` · `activities/chunk/processor.py`)의
+확장 API를 기준으로 합니다. 작업 전 제공받은 릴리스 태그 또는 커밋을 기록하고, 릴리스 갱신 시 이 문서와 템플릿도
+함께 확인하세요. 문서만으로 현재 운영 서버의 버전을 확정할 수는 없습니다.
 
 ## 목차
 
-- [0. 개요](#0-개요) — 제공 항목 · 작업 흐름 · 작업 범위
+- [0. 개요](#0-개요) — 제공 항목 · 작업 흐름 · 작업 범위 · 실행 구조
 - [1. 새 문서 유형 추가하기](#1-새-문서-유형-추가하기) — `custom_field_*.yaml` 6단계 · 입력/기대 결과 예제
-- [2. 코드 수정](#2-코드-수정) — facade 2개의 훅 메소드와 확장 지점
-- [3. 개발 환경](#3-개발-환경) — 코드스페이스 사용법 · 검증 절차
+- [2. 코드 수정](#2-코드-수정) — 액티비티 처리기 2개의 훅 메소드와 확장 지점
+- [3. 개발 환경](#3-개발-환경) — 코드스페이스 사용법 · 단건 실행 · 워커 확인 · 워커 환경 변수 · 액티비티 사본
 - [4. 배포](#4-배포) — Bitbucket 브랜치 → PR → CI/CD → 반영 확인 · 릴리스 갱신 · 롤백
 - [5. 구성 YAML 옵션](#5-구성-yaml-옵션) — 주요 구성 옵션
 - [6. 주요 동작 방식](#6-주요-동작-방식) — 파싱 결과 2종 · 청킹 · 출력 스키마
@@ -33,10 +34,10 @@
 
 | 전달물 | 내용 | 확인 방법 |
 |---|---|---|
-| 전처리기 소스 | Bitbucket 저장소에 이미 반영되어 있습니다 | 코드스페이스에 저장소가 클론되어 있는지 |
-| **개발 환경이 구성된 코드스페이스** | 파이썬과 의존성 설치가 완료되어 바로 실행할 수 있습니다 | 3.3의 facade 단독 실행이 가능한지 |
-| 코드서빙 접속 정보 | 개발·운영별 코드서빙 `ID`, 리비전, 배포 담당자와 요청 경로 | 4.4의 `/version`이 응답하는지 |
-| 채워진 `resource/*.yaml` | 모델 서빙 주소와 인증키가 들어 있습니다 | 5.1 |
+| 전처리기 배포본 소스 | Bitbucket 저장소에 이미 반영되어 있습니다. 모니모 설정(문서유형 등록·`custom_field_*.yaml`)이 `genon/preprocessor/activities/<slug>/` 에 들어 있습니다 | 코드스페이스에 저장소가 클론되어 있고 `activities/parse/config.yaml` 에 모니모 문서유형이 등록되어 있는지 |
+| **개발 환경이 구성된 코드스페이스** | 파이썬과 의존성 설치가 완료되어 바로 실행할 수 있습니다 | 3.3의 단건 실행이 가능한지 |
+| 코드서빙 접속 정보 | 개발·운영별 코드서빙 `ID`, 리비전, Temporal 네임스페이스와 큐 이름, 배포 담당자 | 4.4의 워커 확인(`/health` 200)이 되는지 |
+| 모델 접속값 파일 | 모델 서빙 주소와 인증키를 채운 `model_presets.yaml`. 코드서빙 리비전 환경 변수 `GENOS_MODEL_PRESETS_FILE` 이 이 파일을 가리킵니다 | 3.5 |
 | 설정 템플릿 5종 | `resource/templates/custom_field_TEMPLATE_*.yaml` | 1.3 |
 | 매뉴얼 | 이 문서 (주요 설정 요약과 최소 예제는 [부록 C](#부록-c-custom_fields-설정-레퍼런스)) | — |
 
@@ -45,13 +46,13 @@
 ```
  [3장]   작업 브랜치 확인 → 기존 결과 기준선 저장(1.7)
         │
- [1장 또는 2장]  코드스페이스에서 설정 또는 코드 수정
+ [1장 또는 2장]  코드스페이스에서 activities/<slug>/ 의 설정 또는 처리기 수정
         │
- [3장]   facade 단독 실행으로 결과 확인                    ← 파싱 시간은 파일 크기와 모델 호출에 따라 달라집니다
+ [3장]   단건 실행(activities run)으로 결과 확인            ← 파싱 시간은 파일 크기와 모델 호출에 따라 달라집니다
         │
  [4장]   UPDATED_AT 갱신 → commit/push → PR → 담당자 merge
         │
- [4.4]   /version 호출로 반영 확인                        ← 건너뛰지 마세요
+ [4.4]   워커 확인(기동 로그 · /health · 큐 poller)        ← 건너뛰지 마세요
 ```
 
 배포 후 되돌릴 때도 담당자 머지·배포 절차가 필요합니다. 변경 전 정상 버전과 검증 결과를 보관하세요([4.6](#46-배포-실패와-롤백)).
@@ -61,49 +62,60 @@
 | 작업 목적 | 수정 위치 | 관련 절 |
 |---|---|---|
 | **새 문서 유형 추가** | `activities/parse/custom_field_<유형>.yaml` + 등록 블록 | 1장 |
-| 문서 유형별 옵션 조정 | facade의 `CONFIG_BY_DOC_TYPE` | 2.3 |
-| 입력 데이터 구조 조정 | facade의 훅 메소드 | 2.4 |
-| 공통 동작 옵션 | `resource/*_processor_config.yaml` | 5장 |
+| 문서 유형별 옵션 조정 | 액티비티 처리기의 `CONFIG_BY_DOC_TYPE` | 2.3 |
+| 입력 데이터 구조 조정 | 액티비티 처리기의 훅 메소드 | 2.4 |
+| 공통 동작 옵션 | `activities/parse/config.yaml` · `activities/chunk/config.yaml` | 5장 |
+| 같은 단계를 다른 설정으로 하나 더 | 사본 폴더 `activities/parse_<이름>/` · `activities/chunk_<이름>/` | [3.7](#37-액티비티-사본-만들기와-지우기) |
 
-### 0.4 엔드포인트
+### 0.4 실행 구조
 
-전처리기는 목적이 다른 facade 5개를 하나의 서버에서 실행합니다. **이 문서의 대상은 파싱과 청킹
-2종**이며, 나머지 facade는 본 문서의 범위에 포함하지 않습니다.
+모니모 전처리기는 코드서빙의 **Temporal 워커**로만 동작합니다. 문서 한 건의 처리는 조합(워크플로우)
+1개가 순서를 정하고, 큐 2개와 워커 2개가 나누어 실행합니다. **이 문서의 대상은 전처리기 워커의 파싱과
+청킹**입니다.
 
-| 엔드포인트 | facade 파일 | 이 문서에서 |
+| 구성 | 하는 일 | 이 문서에서 |
 |---|---|---|
-| `POST /parser` · `/parser_upload` | `activities/parse/processor.py` | **주 대상** |
-| `POST /chunker` | `activities/chunk/processor.py` | **주 대상** |
-| `POST /preprocess` · `/preprocess_intelligent` | `intelligent_processor.py` | 다루지 않음 |
-| `POST /preprocess_convert` | `convert_processor.py` | 다루지 않음 |
-| `POST /preprocess_attachment` | `attachment_processor.py` | 다루지 않음 |
-| `GET /health` · `/version` | 없음 | [4.4](#44-반영-확인--version) |
+| 조합(워크플로우) 1개 | 문서 한 건의 파싱 → 청킹 → 임베딩 → 적재 순서를 정합니다 | 다루지 않음 |
+| pipeline 워커 큐 · pipeline 워커 | 조합을 실행하고 임베딩·적재를 처리합니다 | 다루지 않음 |
+| 전처리기 워커 큐 · 전처리기 워커 | 파싱·청킹 액티비티를 실행합니다. 시작 명령은 `python -m genon.preprocessor.worker` | **주 대상** |
+
+전처리기 워커는 `genon/preprocessor/activities/` 아래의 **폴더 하나를 액티비티 하나**로 등록합니다.
+폴더 이름이 곧 slug(액티비티 이름)이고, 첫 단어가 단계입니다.
+
+| 액티비티(slug) | 폴더 | 이 문서에서 |
+|---|---|---|
+| `parse` | `activities/parse/` — `processor.py` · `config.yaml` · `custom_field_*.yaml` · `prompt_*.md` | **주 대상** |
+| `chunk` | `activities/chunk/` — `processor.py` · `config.yaml` | **주 대상** |
+| `parse_<이름>` · `chunk_<이름>` | 원형 폴더를 복사한 사본([3.7](#37-액티비티-사본-만들기와-지우기)) | 필요할 때 |
 
 파싱과 청킹은 2단계로 나뉩니다. 무거운 처리(레이아웃 분석·OCR·LLM 보강)는 파싱 단계에서 이뤄집니다.
 
 ```
-원본 문서 ──POST /parser──▶ 파싱 결과 JSON ──POST /chunker──▶ 청크 목록
+원본 문서 ──액티비티 parse──▶ 파싱 결과 JSON ──액티비티 chunk──▶ 청크 목록 ──pipeline 워커──▶ 임베딩·적재
 ```
 
-- **facade**: 파싱·청킹의 진입 클래스와 수정 가능한 확장 지점을 제공하는 파일입니다.
+- **액티비티 처리기**: `activities/<slug>/processor.py`. 파싱·청킹의 진입 클래스(`DocumentProcessor`)와 수정 가능한 확장 지점을 제공하는 파일입니다.
 - **enrichment(보강)**: 파싱한 결과에 필드·요약·표 설명 등을 추가하는 단계입니다. 기능에 따라 LLM, CSS 선택자, Python 함수를 사용합니다.
 - **문서 메타데이터**: 제목·문서 유형처럼 문서 전체에 속하는 값입니다. **청크 메타데이터**는 최종 청크에 함께 실리는 값이며, 행·레코드별 값도 포함할 수 있습니다.
 - **청크 본문**: 임베딩을 만들 텍스트입니다. 메타데이터에만 있는 값은 본문에 자동으로 포함되지 않습니다.
 
-HTTP 응답은 `{code, errMsg, data}`로 감싸집니다. facade 단독 실행 파일에는 이 포장 없이 결과 자체가
-저장됩니다. 두 방식의 연결 예제는 [3.4](#34-배포된-코드서빙-직접-호출)에 있습니다.
+액티비티는 인자 dict 하나를 받고, 파일 위치는 **상대 참조**(`read_ref` · `parsed_ref` · `output_ref`)로만
+주고받습니다. 결과 JSON은 그 상대 경로에 파일로 쓰고, 호출한 쪽에는 요약 dict만 돌려줍니다.
+경로의 루트는 각 파드의 환경 변수(`NFS_ROOT` · `ARTIFACT_ROOT`)입니다([3.6](#36-워커-환경-변수와-액티비티-인자)).
+전처리기 워커가 여는 HTTP는 코드서빙 startupProbe용 `GET /health`(포트 8080) 하나뿐이며, 파싱·청킹을
+HTTP로 호출하는 경로는 쓰지 않습니다.
 
 ---
 
 ## 1. 새 문서 유형 추가하기
 
 새 입력 데이터 유형(엑셀 FAQ, JSON 이벤트 목록, 계약서 PDF 등)을 추가할 때 수행하는 작업입니다.
-**지원하는 입력 구조라면 유형별 설정 파일을 추가하고 프로세서 설정에 등록하는 것으로 완료됩니다.**
+**지원하는 입력 구조라면 유형별 설정 파일을 추가하고 파싱 설정(`activities/parse/config.yaml`)에 등록하는 것으로 완료됩니다.**
 입력 구조를 별도로 변환해야 할 때만 Python 코드를 수정합니다.
 
 ### 1.1 `doc_type`의 역할
 
-`doc_type`은 요청 `params`로 넘기는 문서유형 키입니다. "이 문서는 계약서다 / FAQ 엑셀이다"를
+`doc_type`은 액티비티 인자의 `params`로 넘기는 문서유형 키입니다(단건 실행에서는 `--doc-type`). "이 문서는 계약서다 / FAQ 엑셀이다"를
 알려 주면 전처리기가 해당 문서 유형에 대한 전용 처리를 적용합니다. 이때 수행되는 작업은 세 가지입니다.
 
 1. `enable: true`인 등록 중 `doc_type` 조건이 일치하는 설정을 적용합니다. 등록 블록에 `doc_type`이 없으면 모든 요청에 매칭됩니다.
@@ -114,6 +126,8 @@ HTTP 응답은 `{code, errMsg, data}`로 감싸집니다. facade 단독 실행 �
 > **등록 YAML**에는 `doc_type: notice` 또는 `doc_type: [notice, notice_v2]`처럼 허용할 유형을 적습니다.
 > 비교는 양끝 공백 제거 후 소문자로 정규화한 정확 일치입니다. `"Contract "`와 `contract`는 같지만 `contracts`는 다릅니다.
 > 유형을 생략해도 조건 없는 등록과 공통 처리는 실행될 수 있습니다.
+> 등록에 없는 유형을 넘기면 파싱이 실패합니다(`activities/parse/config.yaml` 의 `defaults.unknown_doc_type: fail`).
+> 다만 `doc_type` 이 없는 등록 블록이 하나라도 있으면 이 검사를 하지 않습니다.
 
 ### 1.2 ① 입력 데이터 구조에 따라 `kind`를 선택합니다
 
@@ -139,7 +153,7 @@ HTTP 응답은 `{code, errMsg, data}`로 감싸집니다. facade 단독 실행 �
 템플릿에는 항목마다 `[필수]`/`[선택]` 표시와 뜻, 흔한 실수, 확인 명령이 주석으로 들어 있습니다.
 빈 파일에서 새로 쓰는 것보다 빠릅니다.
 
-| `kind` | 복사할 템플릿 (`resource/templates/`) | 제공 예시 (`resource/`) |
+| `kind` | 복사할 템플릿 (`resource/templates/`) | 제공 예시 (`activities/parse/`) |
 |---|---|---|
 | `rows` | `custom_field_TEMPLATE_rows.yaml` | `custom_field_faq.yaml` · `custom_field_term.yaml` |
 | `records` | `custom_field_TEMPLATE_records.yaml` | `custom_field_monimo_event.yaml` |
@@ -235,7 +249,7 @@ body:                         # 청크 본문(= 임베딩 입력)을 어떻게 �
 > 다른 청크가 의미적으로 유사해 검색될 가능성까지 배제하는 뜻은 아닙니다. `meta: false`로 제외하지 않은
 > 문서 공통 값은 모든 청크의 메타데이터에 전달되며, 적재·검색 측이 지원하면 필터로 사용할 수 있습니다.
 
-### 1.5 ④ 프로세서 설정에 등록합니다
+### 1.5 ④ 파싱 설정에 등록합니다
 
 ```yaml
 # genon/preprocessor/activities/parse/config.yaml의 enrichment 목록 끝에
@@ -249,17 +263,25 @@ enrichment:
 
 쓰지 않을 유형은 `enable: false`로 끕니다.
 
-### 1.6 ⑤ 요청을 호출합니다
+### 1.6 ⑤ 단건 실행으로 처리합니다
 
-수정 직후에는 [3.3](#33-신속한-확인-방법--facade-단독-실행)의 단독 실행으로 검증합니다. 아래는 배포된
-설정을 사용하는 `POST /parser`의 요청 본문 예시이며, 경로는 실제 서버 내부 경로로 바꿔야 합니다.
-코드스페이스에서 파일만 고친 상태로 서버를 호출하면 기존 배포본이 실행됩니다.
+수정 직후에는 [3.3](#33-신속한-확인-방법--단건-실행)의 단건 실행으로 검증합니다. 단건 실행은 워커와
+같은 본문으로 코드스페이스의 파일과 설정을 처리하므로, 배포하지 않은 수정도 바로 확인할 수 있습니다.
 
-```json
-{ "file_path": "/app/src/service/.../notice.xlsx", "params": { "doc_type": "notice" } }
+```bash
+# 실행 위치: 저장소 루트
+python -m genon.preprocessor.activities run --activity parse notice.xlsx --doc-type notice -o parsed.json
+python -m genon.preprocessor.activities run --activity chunk parsed.json --doc-type notice -o chunks.json
 ```
 
-`/chunker`는 **수정할 것이 없습니다.** 파서 결과의 값을 그대로 이어받으므로 등록 블록도 필요 없습니다.
+배포된 워커에서는 같은 처리가 액티비티 인자로 들어옵니다. 파일 위치는 상대 참조이고, `doc_type`은 `params`에 실립니다.
+
+```json
+{ "read_ref": {"root": "nfs", "path": "<NFS_ROOT 기준 상대 경로>/notice.xlsx"},
+  "output_ref": "<문서키>/<이름>", "params": { "doc_type": "notice" } }
+```
+
+청킹(`activities/chunk/`)은 **수정할 것이 없습니다.** 파서 결과의 값을 그대로 이어받으므로 등록 블록도 필요 없습니다.
 
 ### 1.7 ⑥ 결과 값을 확인합니다
 
@@ -279,12 +301,12 @@ enrichment:
 | `values`에 없는 값 | 원값 통과(fail-open), 경고만 |
 | 같은 이름 key가 얕은 곳과 깊은 곳에 모두 있음 | **얕은 쪽이 우선합니다.** 경고 없이 엉뚱한 값이 실립니다 |
 | 같은 이름의 레코드 배열이 여러 곳에 있음 | `records_at`은 최초 매칭 **1개**만 찾습니다. 나머지는 경고 없이 빠집니다 |
-| 보강 단계가 예외로 실패함 | **기본값 `lenient`에서는 경고만 남기고 그 단계를 건너뛴 채 성공 응답을 냅니다** (아래) |
+| 보강 단계가 예외로 실패함 | **기본값 `lenient`에서는 경고만 남기고 그 단계를 건너뛴 채 성공으로 끝납니다** (아래) |
 
 #### 보강 실패는 기본적으로 요청을 실패시키지 않습니다
 
 `error_policy`의 기본값은 `lenient`입니다. **보강 단계의 상위 오류 처리까지 전달된 예외**는 경고를
-남기고 처리를 계속합니다. 따라서 요청이 `code: 0`이어도 일부 필드는 비어 있을 수 있습니다.
+남기고 처리를 계속합니다. 따라서 액티비티가 성공해도 일부 필드는 비어 있을 수 있습니다.
 설정 로딩 중 발견된 프롬프트·스키마 오류는 별개이며 기동 실패로 처리됩니다.
 
 이 정책이 적용되는 단계는 다음과 같습니다. 파싱 자체의 실패는 해당하지 않으며 그대로 요청 실패가 됩니다.
@@ -296,14 +318,15 @@ enrichment:
 | `metadata` · `doc_type_stamp` | 문서 메타데이터 · 문서 유형 기록 |
 
 > **검증할 때는 `error_policy: strict`와 결과값 검사를 함께 사용하세요.** 상위 오류 처리까지 전달된
-> 예외는 `stage`가 포함된 요청 실패로 올라옵니다. 다만 목표필드 추출기의 LLM·Python·HTML 추출 경로는
+> 예외는 메시지 앞에 `[stage]`가 붙은 액티비티 실패로 올라옵니다. 다만 목표필드 추출기의 LLM·Python·HTML 추출 경로는
 > 내부에서 일부 예외를 잡고 경고만 남기므로, `strict`에서도 필드가 `null`인 채 정상 반환할 수 있습니다.
 > 필수 필드의 값, 요소·청크 수, 경고 로그를 별도로 확인해야 합니다. 운영 정책은 일부 보강 실패를
 > 허용할지에 따라 선택합니다. 이 설정은 `workflow_id` 없이도 적용됩니다.
 
 ```bash
-curl "${CS}/parser" -H 'Content-Type: application/json' \
-  --data '{"file_path": "...", "params": {"doc_type": "notice", "error_policy": "strict"}}'
+# 실행 위치: 저장소 루트
+python -m genon.preprocessor.activities run --activity parse notice.xlsx --doc-type notice \
+  --params '{"error_policy": "strict"}' -o parsed.json
 ```
 
 #### 세 단계 검증 절차
@@ -315,7 +338,8 @@ curl "${CS}/parser" -H 'Content-Type: application/json' \
 genon/preprocessor/tools/config_precheck/precheck_custom_fields.sh
 ```
 
-(나) 결과 값을 확인합니다. facade 단독 실행이 가장 빠릅니다([3.3](#33-신속한-확인-방법--facade-단독-실행)).
+(나) 결과 값을 확인합니다. 아래 명령은 처리기 파일 단독 실행으로, 파서 결과 전체(문서 메타데이터 포함)를
+저장합니다([3.3](#33-신속한-확인-방법--단건-실행)).
 행·레코드·섹션 매핑은 필드 생성 LLM과 표 설명 등 모델을 호출하는 보강 기능을 모두 끄면 모델 서빙 없이 검증할 수 있습니다.
 `html`의 필드 추출에 LLM이 없다는 사실만으로 전체 파싱의 모델 호출이 없다고 판단하지 마세요.
 
@@ -449,14 +473,15 @@ PY
 
 | 증상 | 원인 |
 |---|---|
-| `doc_type`을 줬는데 아무 일도 안 일어남 | 등록이 `enable: false` 이거나 `doc_type` **값**의 문자열 불일치. 값 오타는 에러 없이 무시됩니다 |
+| `doc_type`을 줬는데 아무 일도 안 일어남 | 등록이 `enable: false` 입니다. 비활성 등록도 등록으로 보므로 오류 없이 지나갑니다 |
+| `doc_type=… 에 맞는 custom_fields 등록이 없습니다` | 등록 블록에 없는 `doc_type` 값(오타 포함)입니다. `defaults.unknown_doc_type: fail` 이라 파싱이 실패합니다 |
 | `doc_type`을 안 줬는데 custom_fields가 동작함 | config yaml의 등록 블록에 `doc_type` 키가 없으면 **wildcard** 로 모든 요청에 매칭됩니다 |
 | 청크는 생성되지만 metadata가 비어 있음 | 일치하는 등록이 없어 일반 처리 경로로 처리되었거나 `alias`가 일치하지 않음 |
 | 특정 필드만 계속 `null` | `llm`의 `out` 이름과 프롬프트가 내놓는 JSON 키가 다릅니다. `kind: html` 이면 선택자가 안 걸린 것 |
 | 모든 레코드가 제외됨 | `skipped N/N records (missing required)` 경고 확인. 입력 데이터 표기가 `alias`와 달라 `require` 필드가 null이 된 경우입니다 |
 | 본문이 빈 레코드가 빠짐 | 정상입니다. 빈 벡터 적재를 막으려고 경고와 함께 제외합니다 |
 | xlsx가 행별로 나뉘지 않음 | 매칭되는 매핑이 없으면 `formats.xlsx.processing_mode`가 결정합니다 (`tabular` 인지 확인) |
-| `tabular custom_fields config 없음: …` | `config_file`은 **프로세서 config와 같은 폴더** 기준. 파일명만 적으세요 |
+| `tabular custom_fields config 없음: …` | `config_file`은 **파싱 설정(`activities/parse/config.yaml`)과 같은 폴더** 기준. 파일명만 적으세요 |
 | `등록되지 않은 transforms 변환기: …` | 기본 제공 9종과 `tb.register_transform`으로 등록한 것만 쓸 수 있습니다([2.6](#26-설정에서-이름으로-불러-쓰는-세-가지-확장-지점)) |
 | `… 에 쓸 수 없는 인자입니다: …` | 변환기 인자 이름의 오타입니다. 메시지의 `쓸 수 있는 인자` 목록과 대조합니다. `html_renderer`는 실행 시 자동으로 주입되므로 설정에 적지 않습니다 |
 | 필드는 안 붙는데 `doc_type`만 모든 청크에 붙음 | 매칭되는 등록이 없는 상태. 스탬프는 매칭 여부와 무관하게 동작합니다 |
@@ -476,10 +501,10 @@ PY
 
 | 순서 | 수단 | 적용 범위 | 수정 위치 |
 |---|---|---|---|
-| ① | 요청 `params` | 해당 요청 | 없음 ([5.3](#53-요청-params로-재배포-없이-값-변경)) |
-| ② | 프로세서 설정 YAML | 모든 문서 공통 동작 | `resource/*_processor_config.yaml` ([5장](#5-구성-yaml-옵션)) |
+| ① | 액티비티 인자 `params` | 그 호출 | 없음 ([5.3](#53-액티비티-인자-params로-값-바꾸기)) |
+| ② | 액티비티 설정 YAML | 모든 문서 공통 동작 | `activities/parse/config.yaml` · `activities/chunk/config.yaml` ([5장](#5-구성-yaml-옵션)) |
 | ③ | `custom_field_*.yaml` | 그 **문서유형**의 값 추출과 청크 본문 | `activities/parse/custom_field_<유형>.yaml` ([1장](#1-새-문서-유형-추가하기)) |
-| ④ | **facade 2개** | 설정으로 표현할 수 없는 처리 | `activities/parse/processor.py` · `activities/chunk/processor.py` |
+| ④ | **액티비티 처리기 2개** | 설정으로 표현할 수 없는 처리 | `activities/parse/processor.py` · `activities/chunk/processor.py` |
 | ⑤ | 기타 | 앞선 네 가지 방법으로 처리할 수 없는 경우 | 담당자에게 문의 |
 
 **④ 까지가 고객 개발자의 범위입니다.** 처리 본체는 `processing/core/parser.py`와 `core/chunker.py`에
@@ -516,7 +541,7 @@ PY
 ### 2.3 문서 유형마다 설정을 다르게 — `CONFIG_BY_DOC_TYPE`
 
 설정 파일은 모든 문서에 동일하게 적용됩니다. "계약서만 OCR을 강제 적용", "매뉴얼만 청크 분할 방식을 변경"과 같은
-문서 유형별 설정은 훅이 아니라 이 표에 정의합니다. 두 facade 모두 동일한 위치에 설정합니다.
+문서 유형별 설정은 훅이 아니라 이 표에 정의합니다. 두 액티비티 처리기 모두 동일한 위치에 설정합니다.
 
 ```python
 # activities/parse/processor.py
@@ -605,13 +630,13 @@ PY
 
 `config_by_condition(job)`, 파서의 `edit_document(job, doc)`, 직접 구현하는 `route_*(job)`처럼
 **시그니처에 `job`이 있는 메소드**에서는 요청 객체를 사용할 수 있습니다. 일반 `edit_input`·`edit_output`·
-`edit_chunk`의 `**kwargs`에는 자동 전달되지 않습니다. facade 주석의 `kwargs["job"]` 안내와 현재 호출부가
+`edit_chunk`의 `**kwargs`에는 자동 전달되지 않습니다. 처리기 주석의 `kwargs["job"]` 안내와 현재 호출부가
 일치하지 않으므로, 이 문서는 실행 코드를 기준으로 설명합니다.
 
 | 필드 | 파서 | 청커 | 실제 의미 |
 |---|:-:|:-:|---|
 | `job.doc_type` | ✔ | ✔ | 파서는 정규화된 값, 청커는 요청에서 받은 값. 청커 요청도 소문자 표준값으로 전달합니다. |
-| `job.file_path` | ✔ | ✔ | 해당 요청의 `file_path`. 청커에서는 파싱 결과 JSON 경로나 인라인 입력의 식별값일 수 있습니다. |
+| `job.file_path` | ✔ | ✔ | 파서는 처리할 원본 파일 경로. 청커는 워커와 단건 실행에서는 빈 값이고, 처리기 파일 단독 실행에서는 파싱 결과 JSON 경로입니다. |
 | `job.params` | ✔ | ✔ | 요청 인자와 적용된 런타임 값. 사용자가 보낸 원본 dict와 완전히 같지는 않습니다. |
 | `job.config` | ✔ | ✔ | **문서 유형·조건별 설정 중 요청 인자로 실제 추가한 값만** 담습니다. YAML 전체와 최종 설정 전체의 스냅샷이 아닙니다. |
 | `job.notes` | ✔ | ✔ | 내부 처리에도 쓰는 요청별 dict. `job`을 명시적으로 받는 단계 사이에서만 사용하고 내부 키와 겹치지 않는 이름을 씁니다. |
@@ -805,7 +830,7 @@ PY
 > 확장자 조건 없이 훅을 쓰면 두 번째 호출에서 이미 변환된 데이터를 다시 변환하려다 실패합니다.
 
 표준 형식으로 변환할 수 없는 입력 데이터(로그, 고정폭 텍스트, 사내 전문)에 한해서만 핸들러를 직접
-구현합니다. 해당 핸들러도 facade 파일에 정의합니다.
+구현합니다. 해당 핸들러도 액티비티 처리기 파일에 정의합니다.
 
 ```python
     async def route_log(self, job):
@@ -837,7 +862,7 @@ PY
 | 확장 지점 | 무엇을 맡기나 | 어떻게 |
 |---|---|---|
 | **값 추출 자체** | 정규식 추출, 사내 마스터 조회처럼 **LLM이 아닌 방법** | `custom_field_*.yaml`의 `python:` 블록 |
-| 값 변환기 | 금액 파싱, 사번에서 부서명처럼 **사이트 전용 값 변환** | facade에서 `tb.register_transform()`으로 등록한 뒤 yaml `transform:`에서 이름으로 호출 |
+| 값 변환기 | 금액 파싱, 사번에서 부서명처럼 **사이트 전용 값 변환** | 액티비티 처리기에서 `tb.register_transform()`으로 등록한 뒤 yaml `transform:`에서 이름으로 호출 |
 | LLM 출력 파서 | 표준 JSON이 아닌 응답 해석 | `custom_field_*.yaml`의 `llm` 항목 안 `parser: {type: python, file, callable}` |
 
 ```yaml
@@ -869,7 +894,7 @@ def extract(text, document=None, output_fields=None, **kwargs):
 - `async def`로 써도 됩니다(사내 API 조회). 파일이 없거나 함수 이름이 틀리면 기동에서 실패합니다.
 - `url`·`system_prompt` 같은 LLM 전용 키는 이 자리에서 쓸 수 없습니다(기동 실패).
 
-사이트 전용 값 변환기는 **core를 고치지 말고** facade 파일 최상위에서 등록합니다. core를 고치면
+사이트 전용 값 변환기는 **core를 고치지 말고** 액티비티 처리기 파일 최상위에서 등록합니다. core를 고치면
 릴리스 갱신에서 사라집니다.
 
 ```python
@@ -885,7 +910,7 @@ fields:
 
 | 추가 대상 | 수정 위치 | 비고 |
 |---|---|---|
-| 그 **문서의 모든 청크**에 같은 값 | 파서의 `edit_output`에서 `tb.set_chunk_metadata(result, {...})` | `result["metadata"]`에 직접 쓰면 **이 API 응답에만** 남고 청크에는 반영되지 않습니다 |
+| 그 **문서의 모든 청크**에 같은 값 | 파서의 `edit_output`에서 `tb.set_chunk_metadata(result, {...})` | `result["metadata"]`에 직접 쓰면 **파서 결과에만** 남고 청크에는 반영되지 않습니다 |
 | **청크마다 다른 값** | 청커의 `edit_chunk`에서 `info["fields"]["RISK"] = "high"` | 본문·통계·순번 필드는 넣을 수 없습니다 |
 | **적재 컬럼으로 선언** | `activities/chunk/processor.py`의 `GenOSVectorMeta` | 선언하면 타입까지 검사됩니다. 선언이 없어도 실립니다(`extra=allow`) |
 
@@ -905,44 +930,46 @@ fields:
 
 | | 왜 |
 |---|---|
-| facade끼리 import | 각 facade의 독립 실행과 교체가 어려워집니다. 공통 기능은 제공된 toolbox를 사용합니다 |
-| `self`에 요청 상태 저장 | 인스턴스는 **프로세스당 1개**입니다. `await` 사이에 다른 요청의 값이 섞입니다. `job`을 명시적으로 받는 단계에서는 `job.notes`를 사용할 수 있습니다. 일반 훅에는 `job`이 자동 전달되지 않습니다 |
+| 액티비티 처리기끼리 import | 각 액티비티의 독립 실행과 교체가 어려워집니다. 공통 기능은 제공된 toolbox를 사용합니다 |
+| `self`에 요청 상태 저장 | 인스턴스는 워커 프로세스마다 **slug당 1개**이고, 동시에 처리하는 작업(`WORKER_THREADS`)이 함께 씁니다. 다른 작업의 값이 섞입니다. `job`을 명시적으로 받는 단계에서는 `job.notes`를 사용할 수 있습니다. 일반 훅에는 `job`이 자동 전달되지 않습니다 |
 | `_`로 시작하는 메소드 오버라이드 | 훅 호출과 설정 적용 순서를 맡고 있습니다 |
 | `processing/core/` 수정 | 릴리스 갱신에서 사라집니다. 필요하면 솔루션 개발자에게 훅 추가를 요청하세요 |
 | docling 수정 | 소스가 아니라 wheel로 들어옵니다. 수정할 수 없습니다 |
-| element 5키 스키마에서 필드 삭제·개명 | `/chunker`가 의존합니다. 추가 필드도 예약 필드 충돌과 소비 측 호환성을 확인합니다 |
+| element 5키 스키마에서 필드 삭제·개명 | 청킹 액티비티가 의존합니다. 추가 필드도 예약 필드 충돌과 소비 측 호환성을 확인합니다 |
 
 예외를 발생시킬 때는 공용 예외를 사용합니다.
 
 ```python
 raise GenosServiceException(
-    error_code='1',              # 응답의 error_code로 그대로 나감
-    error_msg='읽을 수 없는 파일입니다.',
+    error_code='1',
+    error_msg='읽을 수 없는 파일입니다.',   # 액티비티 오류 메시지에 실립니다
     stage='parse',               # 선택: 실패 단계
-    error_type='permanent',      # 선택: transient / permanent / timeout
+    error_type='permanent',      # 선택: transient / permanent / timeout — 재시도 여부를 정합니다
 )
 ```
 
-`stage`와 `error_type`을 지정하면 응답의 `stage`·`error_kind`에 포함되어 호출 측에서 재시도 여부를 판단할
-수 있습니다. **부분 실패를 허용하려면** 예외를 발생시키지 않고 해당 항목만 제외한 뒤 결과에 기록하세요.
+`error_type`이 액티비티 오류의 `type`과 재시도 여부를 정합니다([6.4](#64-액티비티-결과와-오류)).
+같은 입력이면 늘 실패하는 오류라면 `error_type='permanent'`를 지정해야 재시도하지 않습니다.
+**부분 실패를 허용하려면** 예외를 발생시키지 않고 해당 항목만 제외한 뒤 결과에 기록하세요.
 
 #### 훅에서 발생한 예외가 가는 곳
 
-**훅이 던진 예외는 그 요청 전체를 실패시킵니다.** core가 대신 삼켜 주지 않으므로, 문서 한 건이
-아니라 요청 하나가 통째로 실패합니다. `error_policy: lenient`는 보강 단계에만 적용되며 훅 예외에는
+**훅이 던진 예외는 그 액티비티 호출 전체를 실패시킵니다.** core가 대신 삼켜 주지 않으므로, 문서 한 건의
+파싱 또는 청킹이 통째로 실패합니다. `error_policy: lenient`는 보강 단계에만 적용되며 훅 예외에는
 적용되지 않습니다.
 
-| 던진 것 | 응답 |
+| 던진 것 | 액티비티 오류 |
 |---|---|
-| `GenosServiceException` | `error_code`가 그대로 보존되고, 지정했다면 `stage`·`error_kind`도 함께 실립니다 |
-| 그 밖의 예외 | 타입에 따라 `INPUT_ERROR` / `TIMEOUT_ERROR` / `INTERNAL_ERROR`로 자동 분류됩니다. `error_type`에는 예외 클래스명이 들어갑니다 |
+| `GenosServiceException` + `error_type` | `permanent`면 재시도하지 않고(`non_retryable: true`), `transient`·`timeout`이면 재시도합니다 |
+| `ValueError` · `KeyError` · `TypeError` · `IndexError` · `FileNotFoundError` · `PermissionError` 등 입력 오류 | `type: permanent`, 재시도하지 않습니다. 예외의 원인(`raise … from`)도 따라가며 판정합니다 |
+| 그 밖의 예외(`error_type` 없는 `GenosServiceException` 포함) | `type`에 예외 클래스명이 들어가고 재시도합니다 |
 
-`error_code`는 문자열로 그대로 전달되므로 현장에서 쓰는 코드 체계가 있으면 그 값을 넣습니다.
-예제의 `'1'`은 특별한 뜻이 없는 기본값입니다.
+오류 메시지는 `<slug> <원본 이름 또는 output_ref>: <예외 클래스명>: <error_msg>` 형식입니다. `error_code`·`stage`는
+액티비티 오류에 별도 필드로 실리지 않으므로, 찾아야 할 정보는 `error_msg`에 적습니다.
 
 여러 건을 처리하는 훅에서 일부만 실패했을 때는 다음과 같이 나눠 판단합니다. 아래 예제는
 `{"items": [{"id": "1", "title": "공지 제목"}]}` 형식을 가정하며, 제목이 없는 항목을 제외합니다.
-`GenosServiceException`은 facade 상단에 이미 import되어 있습니다.
+`GenosServiceException`은 액티비티 처리기 상단에 이미 import되어 있습니다.
 
 ```python
     def edit_input(self, ext, doc_type, data, work_dir=None, **kwargs):
@@ -993,7 +1020,8 @@ raise GenosServiceException(
 |---|---|
 | 파이썬과 의존성 | **설치 완료.** `pip install`을 다시 실행할 필요가 없습니다 |
 | Bitbucket 저장소 클론 | 완료되어 있습니다 |
-| `resource/*.yaml` | 모델 서빙 주소와 인증키가 구성되어 있습니다 |
+| 모니모 설정 | `genon/preprocessor/activities/<slug>/` 에 들어 있습니다(문서유형 등록·`custom_field_*.yaml`·프롬프트) |
+| 모델 접속값 | 값이 채워진 `model_presets.yaml` 을 `GENOS_MODEL_PRESETS_FILE` 로 지정합니다([3.5](#35-모델-서빙-연결-설정)) |
 | 샘플 문서 | `genon/preprocessor/sample_files/` |
 
 주요 경로는 다음과 같습니다.
@@ -1001,14 +1029,14 @@ raise GenosServiceException(
 | 경로 | 설명 |
 |---|---|
 | `UPDATED_AT` | 갱신 시각 기록. **배포할 때마다 갱신합니다** ([4.3](#43-배포-절차)). 아직 없으면 4.3 에서 만듭니다 |
-| `genon/preprocessor/activities/parse/processor.py` | 파싱. 주 수정 대상 |
-| `genon/preprocessor/activities/chunk/processor.py` | 청킹. 주 수정 대상 |
-| `genon/preprocessor/resource/` | config yaml + `custom_field_*.yaml` + 프롬프트 |
+| `genon/preprocessor/activities/parse/` | 파싱 액티비티 폴더. `processor.py`(주 수정 대상) · `config.yaml` · `custom_field_*.yaml` · `prompt_*.md` |
+| `genon/preprocessor/activities/chunk/` | 청킹 액티비티 폴더. `processor.py`(주 수정 대상) · `config.yaml` |
+| `genon/preprocessor/resource/` | 표준 설정 폴더. `model_presets.yaml`(자리표시 값)과 템플릿. 모니모 설정은 여기에 두지 않습니다 |
 | `genon/preprocessor/resource/templates/` | 새 문서 유형 템플릿 5종 |
 | `genon/preprocessor/examples/` | 훅·설정 예제 |
 | `genon/preprocessor/tools/` | 검증 스크립트 |
 | `genon/preprocessor/sample_files/` | 샘플 문서 |
-| `main.py` | FastAPI 앱. 수정 대상이 아닙니다 |
+| `genon/preprocessor/worker/` | 전처리기 워커 진입점(`python -m genon.preprocessor.worker`). 수정 대상이 아닙니다 |
 
 #### 작업 브랜치와 기준선 준비
 
@@ -1029,118 +1057,145 @@ git log -1 --oneline
 원격에도 없다면 담당자가 지정한 기준 커밋에서 브랜치를 만들며, 임의로 기준을 선택하지 않습니다.
 작업 시작 시 기준 커밋을 기록하고 [1.7](#17-⑥-결과-값을-확인합니다)의 회귀 검사 기준선을 먼저 저장하세요.
 
-### 3.3 신속한 확인 방법 — facade 단독 실행
+### 3.3 신속한 확인 방법 — 단건 실행
 
-facade 두 파일은 **독립적으로 실행할 수 있습니다.** 서버를 실행하지 않고 문서 한 건을 처리하여 결과를 확인할 수 있습니다.
+`python -m genon.preprocessor.activities run`은 액티비티 하나를 **워커와 같은 본문**으로 실행합니다.
+Temporal 서버 없이 문서 한 건을 처리하며, 인자 해석·설정·결과 저장·오류 분류가 배포된 워커와 같습니다.
 훅이나 `custom_field_*.yaml`을 수정한 직후 확인하는 방법으로 가장 빠릅니다.
 
 ```bash
 # 실행 위치: 저장소 루트 (import 경로 때문에 반드시 -m으로 실행합니다)
-python -m genon.preprocessor.activities.parse --config genon/preprocessor/activities/parse/config.yaml 계약서.pdf --doc-type contract -o parsed.json
-python -m genon.preprocessor.activities.chunk --config genon/preprocessor/activities/chunk/config.yaml parsed.json --doc-type contract -o chunks.json
+python -m genon.preprocessor.activities run --activity parse 계약서.pdf --doc-type contract -o parsed.json
+python -m genon.preprocessor.activities run --activity chunk parsed.json --doc-type contract -o chunks.json
 ```
 
 위 명령은 **제공된 코드스페이스의 파이썬 환경을 전제로 합니다**([3.2](#32-사전-구성-항목)). 개인 PC처럼
 직접 구성한 환경에서는 `PYTHONPATH`와 의존성을 따로 맞춰야 하므로, 검증은 코드스페이스에서 수행하세요.
+모델을 호출하는 기능을 켠 상태라면 먼저 `GENOS_MODEL_PRESETS_FILE`을 지정합니다([3.5](#35-모델-서빙-연결-설정)).
 
 | 인자 | 뜻 |
 |---|---|
-| `--doc-type` | 유형별 설정 매칭과 훅의 처리 대상 제한에 쓰입니다. 생략하면 특정 유형 전용 처리는 적용되지 않지만, 조건 없는 등록과 공통 처리는 실행될 수 있습니다 |
-| `--config` | 프로세서 설정 YAML 경로. 생략하면 `resource/`. 사이트 설정과 비교할 때는 명시합니다 |
+| `--activity` | 실행할 slug(= `activities/<slug>/` 폴더 이름). 원형은 `parse` · `chunk` |
+| `<file>` 또는 `--input` | parse는 원본 문서, chunk는 파싱 결과 JSON. 둘 중 하나만 줍니다 |
+| `--doc-type` | 유형별 설정 매칭과 훅의 처리 대상 제한에 쓰입니다. `--params`의 `doc_type`보다 우선합니다. 생략하면 특정 유형 전용 처리는 적용되지 않지만, 조건 없는 등록과 공통 처리는 실행될 수 있습니다 |
+| `--params` | 액티비티 인자 `params`에 넣을 JSON 객체([5.3](#53-액티비티-인자-params로-값-바꾸기)). 기본 `{}` |
+| `-o, --output` | 결과 JSON 경로. 생략하면 `./<입력 파일명>.<slug>.json` |
+
+설정은 `--activity`로 지정한 폴더의 `activities/<slug>/config.yaml`을 읽습니다. 배포된 워커가 읽는 것과
+같은 파일이므로 `--config` 같은 별도 지정이 없습니다. 입력 파일은 임시 폴더에 복사해 상대 참조로 넘기므로
+원본 폴더에는 아무것도 쓰지 않습니다.
+
+진행 로그는 stderr로, 결과는 stdout의 **마지막 줄** 한 줄로 나옵니다. 실패하면 종료 코드가 1입니다.
+아래는 보기 쉽게 줄을 나눈 것이며 실제로는 각각 한 줄입니다.
+
+```text
+@@RESULT@@ {"ok": true, "stage": "parse", "activity": "parse", "duration_ms": 9342,
+            "data": {"count": 1, "summary": "파싱 0KB · 요소 1", "preview": "…", "output": "…/parsed.json", …}}
+
+@@RESULT@@ {"ok": false, "stage": "parse", "activity": "parse", "duration_ms": 9501,
+            "error": {"type": "…", "message": "…", "non_retryable": false}}
+```
+
+`data`는 워커가 돌려주는 요약 dict([6.4](#64-액티비티-결과와-오류))에 결과 파일 경로 `output`을 더한 것입니다.
+`error`의 `type`·`non_retryable`은 배포된 워커에서 같은 오류가 났을 때의 재시도 판정과 같습니다.
+
+결과 파일은 워커가 쓰는 것과 같은 모양입니다. parse는 요소형이면 `{elements: [...]}`를, 문서형이면
+Docling 문서 자체를 저장합니다. chunk는 청크 배열을 저장합니다.
+
+#### 처리기 파일 단독 실행
+
+파서 결과 전체(문서형의 문서 메타데이터 `metadata` 포함)를 보려면 처리기 파일을 직접 실행합니다.
+[1.7](#17-⑥-결과-값을-확인합니다)의 검사 스크립트는 이 형식을 기준으로 합니다.
+
+```bash
+# 실행 위치: 저장소 루트
+python -m genon.preprocessor.activities.parse --config genon/preprocessor/activities/parse/config.yaml 계약서.pdf --doc-type contract -o parsed.json
+python -m genon.preprocessor.activities.chunk --config genon/preprocessor/activities/chunk/config.yaml parsed.json --doc-type contract -o chunks.json
+```
+
+| 인자 | 뜻 |
+|---|---|
+| `--doc-type` | 단건 실행의 `--doc-type`과 같습니다 |
+| `--config` | 설정 YAML 경로. 생략하면 원형 폴더(`activities/parse/` · `activities/chunk/`)의 `config.yaml`. 사본 slug를 실행할 때는 그 폴더의 `config.yaml`을 지정합니다 |
 | `-o, --out` | 결과 JSON 경로. 생략하면 stdout |
 | `--log-level` | `5` DEBUG / `4` INFO / `3` WARNING / `2` ERROR / `1` CRITICAL / `0` 로그 없음 |
 
-**설정 파일을 명시하세요.** facade 단독 실행과 루트 `main.py` 는 `--config`가 없으면 모두 `resource/`를
-사용합니다. 모니모 설정(`genon/sites/monimo/resource/`)으로 확인하려면 그 폴더의 파일을 `--config` 로 지정합니다.
+이 방식은 워커의 상대 참조·결과 저장·오류 분류를 거치지 않습니다. 배포 전 마지막 확인은 단건 실행(`run`)으로 합니다.
 
-청커의 입력은 원본 문서가 아니라 **파서가 생성한 결과 JSON**입니다. 청킹만 반복해서 검증하는
-경우에는 파싱을 다시 실행하지 말고 저장한 `parsed.json`을 재사용하세요. 모델 서빙을 호출하지
-않으므로 몇 초 안에 완료됩니다.
+청커의 입력은 원본 문서가 아니라 **파서가 생성한 결과 JSON**입니다. 두 실행 방식의 파싱 결과를 모두
+입력으로 받습니다. 청킹만 반복해서 검증하는 경우에는 파싱을 다시 실행하지 말고 저장한 `parsed.json`을
+재사용하세요. 모델 서빙을 호출하지 않으므로 빠르게 완료됩니다.
 
-### 3.4 배포된 코드서빙 직접 호출
+### 3.4 배포된 워커 확인
 
-코드스페이스는 Genos 클러스터 안에 있으므로 코드서빙을 직접 호출할 수 있습니다. 게이트웨이를
-거치지 않으니 인증키가 필요 없습니다.
+배포된 전처리기 워커는 다음 세 가지로 확인합니다. 단건 실행은 코드스페이스의 파일로 처리하므로 배포
+반영의 증거가 아닙니다.
 
+| 확인 | 방법 | 정상 |
+|---|---|---|
+| 기동 로그 | 코드서빙 로그 | slug마다 설정 경로 한 줄, 큐·액티비티 목록 줄이 남습니다(아래) |
+| `/health` | 코드스페이스에서 `curl` | HTTP 200, `{"status":"ok"}` |
+| 큐 poller | Temporal에서 전처리기 워커 큐 조회 | 전처리기 워커가 poller로 보입니다 |
+
+기동 로그는 다음과 같습니다. `[worker]`는 부모 프로세스, `[worker-0]`부터는 실제로 작업을 받는 워커
+프로세스입니다. 워커 프로세스도 같은 slug 설정 줄을 다시 남깁니다.
+
+```text
+<시각> [worker] INFO 액티비티 chunk: 설정 …/genon/preprocessor/activities/chunk/config.yaml (저장소)
+<시각> [worker] INFO 액티비티 parse: 설정 …/genon/preprocessor/activities/parse/config.yaml (저장소)
+<시각> [worker] INFO task_queue=<전처리기 워커 큐> processes=1 NFS_ROOT=… ARTIFACT_ROOT=… 액티비티=chunk, parse
+<시각> [worker-0] INFO Temporal 접속: address=…:7233 namespace=… task_queue=<전처리기 워커 큐> threads=1
+<시각> [worker-0] INFO 액티비티 2개: chunk(chunk), parse(parse)
 ```
-http://code-serving-<ID>-<리비전>:8080/<route>
-```
 
-`<ID>`와 `<리비전>`은 제공받은 코드서빙 접속 정보입니다([0.1](#01-제공-항목)).
+| 기동 로그에서 볼 것 | 판단 |
+|---|---|
+| 기대한 slug(새로 만든 사본 포함)가 모두 있는지 | 빠진 slug는 폴더에 `processor.py`가 있는지, 폴더 이름이 `parse` · `chunk` · `parse_…` · `chunk_…` 규칙인지 확인합니다 |
+| 각 slug의 설정 경로가 `activities/<slug>/config.yaml`인지 | 다르면 담당자에게 배포본 구성을 확인합니다 |
+| 로그 시각이 머지·빌드 뒤인지 | 앞이면 새 배포본으로 재기동되지 않은 것입니다. 담당자에게 배포·재기동 이력을 확인합니다 |
+| `task_queue`·`namespace` | 제공받은 전처리기 워커 큐 이름·네임스페이스와 같아야 합니다 |
+
+워커가 기동하지 않는 대표 원인은 두 가지입니다. 액티비티 폴더에 `config.yaml`이 없으면 등록 오류로,
+필수 환경 변수가 없으면 `워커 필수 env 가 없습니다: …` 오류로 기동이 멈춥니다([3.6](#36-워커-환경-변수와-액티비티-인자)).
+
+`/health`는 코드스페이스에서 코드서빙을 직접 호출해 확인합니다. 코드스페이스는 Genos 클러스터 안에
+있으므로 게이트웨이를 거치지 않으며 인증키가 필요 없습니다. `<ID>`와 `<리비전>`은 제공받은 코드서빙
+접속 정보입니다([0.1](#01-제공-항목)).
 
 ```bash
 # 실행 위치: 코드스페이스 터미널
-export CS="http://code-serving-<ID>-<리비전>:8080"
-
-curl "${CS}/health"
-# -> {"status":"ok"}
-
-curl "${CS}/version"
-# -> 4.4 참고
-
-curl "${CS}/parser" -H 'Content-Type: application/json' \
-  --data '{"file_path": "/app/src/service/genon/preprocessor/sample_files/pdf_sample.pdf", "params": {}}'
+curl -i "http://code-serving-<ID>-<리비전>:8080/health"
+# -> 200, {"status":"ok"}
 ```
 
-> `file_path`는 **서빙 컨테이너 내부의 경로**입니다. 업로드 경로나 스토리지 키가 아닙니다.
-> 저장소에 동봉된 샘플 파일을 쓰면 확실합니다.
+`503`과 `{"status":"down"}`은 워커 프로세스 중 하나가 멈춰 있다는 뜻입니다. 워커는 멈춘 프로세스를
+스스로 다시 띄우고, 짧은 시간(300초) 안에 5번을 넘게 멈추면 전체를 끝내 코드서빙이 다시 시작하게 합니다.
+`/health`는 워커 프로세스가 살아 있는지만 알려 주며 수정본 반영의 증거가 아닙니다.
 
-처리 결과는 HTTP 상태뿐 아니라 응답의 `code`로 판단합니다. `code: 0`이 성공입니다.
-요청 형식 오류나 네트워크·게이트웨이 오류는 비-200으로 반환될 수도 있습니다.
-
-#### 로컬 파일 업로드 → 파싱 결과 전달 → 청크 확인
-
-아래 예제는 코드스페이스의 파일을 업로드합니다. `notice` 설정을 서버에 배포한 뒤 실행하세요.
-로컬에 저장한 파싱 응답은 자동으로 서빙 컨테이너에 생기지 않으므로, 청커에는 JSON을 인라인으로 전달합니다.
-
-```bash
-# 실행 위치: 샘플 notice.csv가 있는 코드스페이스 디렉터리
-curl --fail-with-body "${CS}/parser_upload" \
-  -F 'file=@notice.csv' -F 'params={"doc_type":"notice"}' -o parser_response.json
-
-python - <<'PY'
-import json
-from pathlib import Path
-r = json.loads(Path('parser_response.json').read_text(encoding='utf-8'))
-if r.get('code') != 0:
-    raise SystemExit(f"파싱 실패: {r.get('errMsg')}")
-payload = r['data']
-assert isinstance(payload, dict), '파싱 data가 객체가 아닙니다.'
-if not isinstance(payload.get('document'), dict):
-    assert payload.get('elements'), '요소형 파싱 결과가 0건입니다.'
-request = {'file_path': 'notice.csv',
-           'params': {'doc_type': 'notice', 'document': payload}}
-Path('chunker_request.json').write_text(
-    json.dumps(request, ensure_ascii=False), encoding='utf-8')
-PY
-
-curl --fail-with-body "${CS}/chunker" -H 'Content-Type: application/json' \
-  --data-binary @chunker_request.json -o chunker_response.json
-
-python - <<'PY'
-import json
-from pathlib import Path
-r = json.loads(Path('chunker_response.json').read_text(encoding='utf-8'))
-if r.get('code') != 0:
-    raise SystemExit(f"청킹 실패: {r.get('errMsg')}")
-chunks = r['data']
-assert isinstance(chunks, list) and chunks, '최종 청크가 없습니다.'
-print(json.dumps(chunks, ensure_ascii=False, indent=2))
-PY
-```
-
-앞 단계가 실패하면 다음 명령으로 진행하지 않습니다. 인라인 전달에서는 `file_path`를 원본 식별용으로 사용하며,
-예제의 `notice.csv`를 청커 서버에서 읽지 않습니다. 인라인 `params.document`가 없으면 `file_path`는
-**서버 내부에 저장된 파싱 결과 JSON 파일의 경로**여야 합니다.
-
-파서 HTTP 응답의 `data` 전체를 `params.document`에 넣습니다. 문서형이면 `{document: {...}}`,
-요소형이면 `{elements: [...]}` 구조가 전달됩니다. 구현은 파서 응답 전체도 받아들이지만, 성공 여부를 먼저
-확인한 후 `data`를 전달하는 방식을 권장합니다. facade 단독 실행의 `parsed.json`은 이미 이 `data`에 해당합니다.
+큐 poller는 Temporal에서 전처리기 워커 큐를 조회해 확인합니다. 조회 경로와 권한은 담당자에게 받습니다.
+poller가 없으면 pipeline 워커가 보낸 파싱·청킹 작업을 받을 워커가 없는 상태입니다.
 
 ### 3.5 모델 서빙 연결 설정
 
-연결 설정은 `resource/model_presets.yaml` **한 파일**에 모여 있습니다. 메인 yaml 은
-`model_presets_file: model_presets.yaml` 로 이 파일을 읽고, 각 블록은 `model_preset: <이름>` 으로 부릅니다.
+액티비티 설정은 모델 접속 정보를 **이름으로 참조**합니다. 각 블록은 `model_preset: <이름>`으로 프리셋을
+부르고, 프리셋은 다음 세 층을 합쳐 만듭니다. 뒤의 층이 우선하며, 같은 이름의 프리셋은 키 단위로 합칩니다.
+
+| 순서 | 층 | 내용 |
+|---|---|---|
+| 1 | `resource/model_presets.yaml` | 표준 프리셋. 주소·키는 자리표시 값입니다. 액티비티 설정에 `model_presets_file`을 적지 않으면 자동으로 쓰입니다 |
+| 2 | `activities/<slug>/config.yaml`의 `model_presets` | 그 액티비티만의 조정(예: 시간 제한) |
+| 3 | 환경 변수 `GENOS_MODEL_PRESETS_FILE`이 가리키는 파일 | **모델 접속 실값.** 값이 채워진 `model_presets.yaml`입니다 |
+
+배포된 워커는 코드서빙 리비전의 환경 변수 `GENOS_MODEL_PRESETS_FILE`로 실값 파일을 받습니다. 덮는 층이므로
+`url`·`api_key`처럼 바꿀 키만 적어도 됩니다. 코드스페이스에서 단건 실행할 때도 같은 변수를 지정합니다.
+
+```bash
+# 실행 위치: 코드스페이스 터미널. 경로는 제공받은 실값 파일로 바꿉니다.
+export GENOS_MODEL_PRESETS_FILE=<값이 채워진 model_presets.yaml 경로>
+```
+
+이 층이 적용되면 처리기를 처음 준비할 때 `[model_preset] GENOS_MODEL_PRESETS_FILE 의 모델 프리셋을 적용합니다: <경로>`
+로그가 남습니다. 실값은 `resource/model_presets.yaml`이나 액티비티 폴더에 쓰지 않습니다.
 
 | 용도 | 프리셋 이름 |
 |---|---|
@@ -1149,22 +1204,91 @@ PY
 | 이미지 설명 · PPT 페이지 설명 | `image` · `page` |
 | OCR | `ocr` (`ocr_endpoint`. 서빙 ID가 아니라 **주소**입니다) |
 
-미치환 플레이스홀더의 존재 여부를 확인하는 명령입니다. 주석 줄은 제외합니다.
+실값 파일의 미치환 플레이스홀더를 확인하는 명령입니다. 주석 줄은 제외합니다.
 
 ```bash
-# 실행 위치: 저장소 루트. 아무것도 안 나와야 정상
-grep -rn "<[A-Z_]*>" genon/preprocessor/resource/ | grep -vE ':[0-9]+: *#'
+# 아무것도 안 나와야 정상
+grep -n "<[A-Z0-9_]*>" "$GENOS_MODEL_PRESETS_FILE" | grep -vE '^[0-9]+: *#'
 ```
 
-미치환 값이 있으면 기동 시 `미치환 placeholder 발견` 경고가 남습니다. 기동 자체는 됩니다.
-사용하지 않는 기능은 연결값을 설정하지 않고 **비활성화할 수 있습니다.** OCR을 사용하지 않으면 `ocr.ocr_mode: disable`, enrichment를
-사용하지 않으면 각 항목의 `enable: false`를 설정합니다.
+세 층을 합친 뒤에도 자리표시 값이 남아 있으면 처리기를 준비할 때 `미치환 설정 플레이스홀더가 발견되었습니다`
+경고가 남습니다. 처리는 계속됩니다. 사용하지 않는 기능은 연결값을 설정하지 않고 **비활성화할 수 있습니다.**
+OCR을 사용하지 않으면 `ocr.ocr_mode: disable`, enrichment를 사용하지 않으면 각 항목의 `enable: false`를
+설정합니다. 없는 프리셋 이름을 부르면 처리기 준비가 실패합니다.
 
-> API 키는 **비밀번호처럼** 취급합니다. 문서·이슈·채팅에 실제 값을 넣지 마세요.
+> API 키는 **비밀번호처럼** 취급합니다. 문서·이슈·채팅·저장소에 실제 값을 넣지 마세요.
 
 > 저장소의 **예시값에 주의하세요.** `README.md`와 `examples/` 예제에 나오는 주소·ID·인증키는
 > 다른 환경의 값입니다. 그대로 복사하여 사용하면 현재 환경이 아닌 다른 서빙으로 요청이
 > 전송될 수 있습니다.
+
+### 3.6 워커 환경 변수와 액티비티 인자
+
+전처리기 워커의 환경 변수는 코드서빙 리비전에 지정되어 있습니다. 값은 기동 때 한 번 읽으며, 변경은
+담당자에게 요청합니다.
+
+| 환경 변수 | 구분 | 뜻 |
+|---|---|---|
+| `TEMPORAL_HOST` | 필수 | Temporal 서버 주소 |
+| `WORKER_TASK_QUEUE` | 필수 | 이 워커가 받을 큐(전처리기 워커 큐). pipeline 워커가 파싱·청킹 작업을 보내는 큐와 같아야 합니다 |
+| `NFS_ROOT` | 필수 | `read_ref`의 `root: "nfs"`(원본 파일)를 여는 루트 |
+| `ARTIFACT_ROOT` | 필수 | 결과(`output_ref`)·파싱 결과(`parsed_ref`)와 `read_ref`의 `root: "artifact"`를 여는 루트. pipeline 워커와 같은 저장소를 이 파드에 마운트한 경로입니다 |
+| `TEMPORAL_NAMESPACE` | 꼭 지정 | Temporal 네임스페이스. 기본값이 있지만 환경에 맞는 값을 반드시 지정합니다 |
+| `TEMPORAL_PORT` | 선택 | 기본 `7233` |
+| `WORKER_PROCESSES` | 선택 | 워커 프로세스 수. 기본 `1` |
+| `WORKER_THREADS` | 선택 | 프로세스당 동시 처리 수. 기본 `1`. 동시 처리 문서 수는 `WORKER_PROCESSES × WORKER_THREADS`이고, 메모리 사용량도 함께 늘어납니다 |
+| `LLM_CACHE_ROOT` | 선택 | `params.llm_cache`를 켠 작업의 LLM 캐시 루트. 없으면 캐시를 쓰지 않습니다 |
+| `HEARTBEAT_INTERVAL` | 선택 | 처리 중 하트비트 간격(초). 기본 `10` |
+| `PREVIEW_CHARS` | 선택 | 결과 요약의 `preview` 길이. 기본 `2000` |
+| `GENOS_MODEL_PRESETS_FILE` | 지정 | 모델 접속 실값 파일([3.5](#35-모델-서빙-연결-설정)) |
+
+`/health`의 포트는 `PORT`(기본 `8080`)이며, 코드서빙 startupProbe가 이 포트를 보므로 바꾸지 않습니다.
+
+액티비티 인자는 pipeline 워커가 만들어 보냅니다. 직접 만들 일은 없지만 오류 메시지와 결과를 읽을 때 필요합니다.
+
+| 액티비티 | 인자(dict 하나) |
+|---|---|
+| parse · `parse_…` | `read_ref`: 읽을 원본 `{"root": "nfs" 또는 "artifact", "path": 상대 경로}` · `output_ref`: 결과를 쓸 자리 · `source_name`(선택): 로그와 오류 메시지의 원본 이름 · `params`(선택) |
+| chunk · `chunk_…` | `parsed_ref`: 파싱 결과 자리 · `output_ref` · `source_name`(선택) · `params`(선택) |
+
+- `read_ref.path`는 `root`가 가리키는 루트(`NFS_ROOT` 또는 `ARTIFACT_ROOT`) 기준 상대 경로입니다.
+- `output_ref`·`parsed_ref`는 `ARTIFACT_ROOT/<ref>.json` 파일을 가리킵니다.
+- 절대 경로나 `..`로 루트 밖을 가리키면 거부합니다(재시도하지 않는 입력 오류).
+- `params`는 요청 파라미터입니다([5.3](#53-액티비티-인자-params로-값-바꾸기)). `llm_cache`를 켠 작업은 이 파드의 `LLM_CACHE_ROOT`를 캐시 루트로 씁니다.
+
+### 3.7 액티비티 사본 만들기와 지우기
+
+같은 단계를 다른 설정으로 하나 더 쓰려면 원형 폴더를 복사해 사본 slug를 만듭니다. 액티비티 하나가 폴더
+하나이므로, 만들기는 폴더 복사이고 지우기는 폴더 삭제입니다. 아래 명령은 배포처 저장소의 작업 브랜치에서
+저장소 루트 기준으로 실행합니다.
+
+```bash
+# 복제: 원본 폴더를 통째로 복사합니다. processor.py 첫 줄(별명)만 바뀝니다
+python -m genon.preprocessor.activities new --from parse --slug parse_notice --title "공지 파싱"
+
+# 사본 단건 실행
+python -m genon.preprocessor.activities run --activity parse_notice notice.xlsx --doc-type notice -o parsed.json
+
+# 복사 뒤 원형이 얼마나 바뀌었는지 보기
+python -m genon.preprocessor.activities diff parse_notice
+
+# 삭제: 사본만 지웁니다(원형 parse · chunk는 거부)
+python -m genon.preprocessor.activities remove --slug parse_notice
+```
+
+| 명령 | 동작 |
+|---|---|
+| `new --from <원본> --slug <새 slug> [--title <별명>]` | 원본 폴더의 설정·`custom_field_*.yaml`·프롬프트·하위 폴더를 모두 복사합니다. `processor.py` 첫 줄 주석(별명)만 바꾸며, `--title`을 생략하면 `<원본 별명> 사본`이 됩니다. slug는 `^(parse\|chunk)(_[a-z0-9_]+)?$` 규칙을 따르고 원본과 단계가 같아야 합니다. 원형 이름과 이미 있는 이름은 거부합니다 |
+| `remove --slug <slug>` | 사본 폴더를 지웁니다. 원형(`parse` · `chunk`)은 거부합니다 |
+| `diff <slug> [--from <원형>]` | 사본의 `config.yaml`이 처음 커밋된 시점의 원형과 지금의 원형을 파일별로 비교해 stdout에 보여 줍니다. 원형을 지정하지 않으면 단계 원형(`parse` · `chunk`)입니다. 사본에 자동으로 반영하지 않으므로, 가져올 변경은 사람이 골라 사본에 적용합니다. 사본이 아직 커밋되지 않았으면 그렇다고 알립니다 |
+
+세 명령 모두 결과를 stdout 마지막 줄 `@@RESULT@@ {…}`로 알립니다. `new`·`remove`의 `data.files`는 만들거나
+지운 파일 목록(저장소 루트 기준)이므로 그대로 `git add`에 씁니다. 명령은 파일만 다루며 커밋하지 않습니다.
+
+- 사본의 설정이 파일명으로 부르는 프롬프트·`custom_field_*.yaml`은 **그 사본 폴더 안의 파일**입니다. 파일명(상대 경로)이 폴더 밖을 가리키면 거부합니다.
+- 모델 접속은 프리셋 이름으로 참조하므로 사본에 복사되지 않습니다([3.5](#35-모델-서빙-연결-설정)).
+- 커밋·push 후 4장 절차로 배포하면 워커가 그 폴더를 slug 이름의 액티비티로 등록합니다. 기동 로그에서 새 slug의 설정 경로를 확인합니다([3.4](#34-배포된-워커-확인)).
+- 적재 흐름에서 어느 slug를 부를지는 pipeline 워커의 조합이 정합니다. 조합 변경은 담당자에게 요청합니다.
 
 ---
 
@@ -1196,7 +1320,7 @@ grep -rn "<[A-Z_]*>" genon/preprocessor/resource/ | grep -vE ':[0-9]+: *#'
 [Genos]          고정 전처리기 코드서빙에 반영 (재기동)
        │
        ▼
-[코드스페이스]   ⑤ /version 호출로 반영 확인      ← 건너뛰지 마세요
+[코드스페이스]   ⑤ 워커 확인(기동 로그 · /health · 큐 poller)   ← 건너뛰지 마세요
 ```
 
 ### 4.2 브랜치 모델
@@ -1218,10 +1342,11 @@ grep -rn "<[A-Z_]*>" genon/preprocessor/resource/ | grep -vE ':[0-9]+: *#'
 
 Genos 웹 UI는 "지금 실행 중인 코드서빙이 내 수정본으로 기동된 것인지"를 알려 주지 않습니다.
 코드서빙이 고정되어 있어 이름도 리비전도 그대로이기 때문입니다. 릴리스 스탬프만으로 고객 수정까지 식별하기 어려우므로
-수정 시각, 배포 이력, 재기동 시각, 기능 확인 결과를 함께 사용합니다.
+수정 시각, 배포 이력, 워커 기동 로그의 시각, 기능 확인 결과를 함께 사용합니다.
 
-저장소 루트(`main.py`와 같은 위치)의 `UPDATED_AT` 파일 **첫 번째 줄**을 갱신합니다. 최대 100자까지 읽으며 구현은 형식을 강제하지 않습니다.
-운영 비교를 위해 **시간대가 포함된 ISO 8601 시각만** 기록하세요(예: `2026-09-19T14:30:00+09:00`).
+저장소 루트의 `UPDATED_AT` 파일 **첫 번째 줄**을 갱신합니다. 워커는 이 파일을 읽지 않습니다. 이 파일은 배포할
+변경과 함께 커밋되어, 저장소 이력에서 고객 수정본과 그 시각을 구분하는 기록입니다.
+비교를 위해 **시간대가 포함된 ISO 8601 시각만** 기록하세요(예: `2026-09-19T14:30:00+09:00`).
 변경 설명은 커밋·PR에 기록합니다. 파일이 없으면 생성하세요.
 
 ```bash
@@ -1234,8 +1359,7 @@ Path("UPDATED_AT").write_text(
 PY
 ```
 
-> `VERSION` 파일은 **직접 수정하지 마세요.** JSON이 손상되면 `/version` 응답의 `version`까지
-> `unknown`으로 나옵니다.
+> `VERSION` 파일은 **직접 수정하지 마세요.** 배포본의 릴리스 스탬프입니다.
 
 #### ② 커밋 / 푸시
 
@@ -1245,7 +1369,7 @@ git branch --show-current                    # 개발 배포 예제: feature/dev
 git status --short
 git diff                                     # 아직 스테이징하지 않은 변경 검토
 
-# 아래는 notice 설정을 추가한 예입니다. facade도 고쳤다면 해당 파일을 명시적으로 추가합니다.
+# 아래는 notice 설정을 추가한 예입니다. 액티비티 처리기도 고쳤다면 해당 파일을 명시적으로 추가합니다.
 git add genon/preprocessor/activities/parse/custom_field_notice.yaml \
         genon/preprocessor/activities/parse/config.yaml UPDATED_AT
 git diff --cached --stat                     # 커밋할 파일 목록
@@ -1277,62 +1401,41 @@ Bitbucket에서 작업 브랜치를 대상 브랜치로 PR을 만듭니다.
 머지와 sync는 담당자가 처리합니다. 이후 CI/CD가 도커 이미지를 빌드하고 코드를
 컨테이너의 지정 위치에 적재한 뒤 코드서빙이 재기동됩니다. **빌드에 몇 분 걸립니다.**
 
-### 4.4 반영 확인 — `/version`
+### 4.4 반영 확인 — 워커 확인
 
-코드스페이스에서 코드서빙을 직접 호출합니다([3.4](#34-배포된-코드서빙-직접-호출)).
-
-```bash
-curl "http://code-serving-<ID>-<리비전>:8080/version"
-```
-
-| 응답 필드 | 뜻 |
-|---|---|
-| `manual_updated_at` | `UPDATED_AT`의 첫 줄. **① 에서 적은 값.** 이것만 호출할 때마다 파일에서 새로 읽습니다 |
-| `started_at` | 서버 프로세스의 버전 모듈 로드 시각. 재기동 확인에 사용 |
-| `version` · `commit` | 릴리스 스탬프 |
-| `updated_at` | **릴리스 커밋 날짜입니다.** 이름이 비슷하지만 ① 에서 적은 값이 아닙니다 |
-| `source` | 스탬프를 읽은 곳. `file`(배포본) · `git`(소스 실행) · `unknown`(스탬프 없음) |
-| `docling` · `docling_wheel` | 실제 설치된 엔진 버전과 배포 시점 wheel 파일명 |
-
-> `updated_at`과 `manual_updated_at`을 혼동하지 마세요. **내가 적은 값은 `manual_updated_at`
-> 하나뿐입니다.** `source`가 `unknown`이면 릴리스 스탬프 자체가 실리지 않은 것이므로
-> `version`·`commit`으로는 아무것도 판정할 수 없습니다.
-
-다음 순서로 판정합니다. `manual_updated_at` 일치만으로 실행 중인 코드까지 갱신됐다고 확정하지 않습니다.
-이 값은 호출 시 파일에서 읽고, `started_at`은 프로세스가 모듈을 로드한 시각입니다.
+배포된 전처리기 워커를 기동 로그, `/health`, 큐 poller 순서로 확인합니다. 확인 방법은 [3.4](#34-배포된-워커-확인)에 있습니다.
 
 | 확인 순서 | 결과 | 판단과 조치 |
 |---|---|---|
-| ① 수정 표식 비교 | 기대한 `manual_updated_at`과 다르거나 없음 | 호출한 환경·배포 대상·머지·빌드 상태를 확인합니다. 여기서 막히면 ② 로 넘어가지 않습니다. |
-| ② 재기동 확인 | 기대한 값과 같지만 수정 시각이 `started_at`보다 늦음 | 파일은 바뀌었으나 실행 코드가 갱신되지 않았을 수 있습니다. 담당자에게 배포·재기동 이력을 확인합니다. |
-| ② 재기동 확인 | 기존 표식이 자유 형식이거나 시계가 맞지 않아 비교할 수 없음 | 문자열의 대소로 비교하지 않습니다. CI/CD 배포 이력과 담당자의 재기동 기록으로 확인합니다. |
-| ② 재기동 확인 | 기대한 값과 같고 배포 후 프로세스 기동이 확인됨 | ③ 으로 진행합니다. 시간대가 다르면 같은 기준으로 변환해 비교합니다. |
+| ① 기동 로그 | 로그 시각이 머지·빌드보다 앞이거나, 기대한 slug 또는 `activities/<slug>/config.yaml` 설정 경로가 없음 | 확인한 환경·배포 대상·머지·빌드 상태를 확인합니다. 여기서 막히면 ② 로 넘어가지 않습니다. |
+| ① 기동 로그 | 시계가 맞지 않거나 시간대가 달라 시각을 비교할 수 없음 | 문자열의 대소로 비교하지 않습니다. CI/CD 배포 이력과 담당자의 재기동 기록으로 확인합니다. |
+| ② 워커 상태 | `/health`가 200이 아니거나 전처리기 워커 큐에 poller가 없음 | 워커가 작업을 받을 수 없는 상태입니다. 담당자에게 기동 오류 로그와 재기동 이력을 확인합니다. |
+| ② 워커 상태 | `/health` 200이고 큐에 poller가 있음 | ③ 으로 진행합니다. |
 | ③ 기능 검증 | 예상 필드·본문·청크 결과가 모두 일치 | 해당 검증 범위의 배포 완료로 판단합니다. |
 
-수정 시각보다 기동 시각이 늦다는 사실만으로 파일 반영 시점을 증명할 수는 없습니다. 표식은 커밋 시각에
-작성되므로, 실제 배포 이력도 함께 확인해야 합니다. 여러 인스턴스가 있다면 전체 교체 완료 여부를 담당자에게
-확인하세요. `/health`는 서비스 응답 여부만 알려 주며 수정본 반영 증거가 아닙니다.
+기동 시각이 배포보다 늦다는 사실만으로 그 배포본이 내 수정본이라고 증명할 수는 없습니다. 실제 배포
+이력(머지 커밋·빌드)도 함께 확인해야 합니다. 여러 인스턴스가 있다면 전체 교체 완료 여부를 담당자에게
+확인하세요. `/health`는 워커 프로세스가 살아 있는지만 알려 주며 수정본 반영 증거가 아닙니다.
+코드스페이스의 단건 실행 결과도 배포 반영의 증거가 아닙니다.
 
-반영이 확인되면 실제 문서 한 건을 처리하여 기능을 확인합니다.
-
-```bash
-curl "${CS}/parser" -H 'Content-Type: application/json' \
-  --data '{"file_path": "/app/src/service/.../notice.xlsx", "params": {"doc_type": "notice"}}'
-```
+반영이 확인되면 실제 문서 한 건을 적재 흐름으로 처리하여 기능을 확인합니다. 적재 흐름을 실행하는 방법은
+담당자와 합의한 절차를 따릅니다.
 
 | 바꾼 것 | 확인 지점 |
 |---|---|
-| 새 `doc_type` | 요소형은 `data.elements[].metadata`, 문서형은 `data.metadata`를 확인하고, 최종 청크에서도 목표필드·본문을 검증합니다 |
-| `chunk_size` · `chunk_mode` | `/chunker` 결과의 청크 개수와 길이 |
-| enrichment `enable` | 응답의 해당 항목 유무, 처리 시간 변화 |
-| 플레이스홀더 치환 | 로그에서 `미치환 placeholder` 경고가 사라졌는지 |
+| 새 `doc_type` | 최종 청크에서 목표필드·본문을 검증합니다. 파싱 결과 파일(`ARTIFACT_ROOT/<output_ref>.json`)을 볼 수 있으면 요소형은 `elements[].metadata`도 확인합니다 |
+| `chunk_size` · `chunk_mode` | 청킹 결과의 청크 개수(요약의 `count`)와 길이 |
+| enrichment `enable` | 결과의 해당 항목 유무, 처리 시간(`duration_ms`) 변화 |
+| 플레이스홀더 치환 | 로그에서 `미치환 설정 플레이스홀더` 경고가 사라졌는지 |
+| 새 사본 slug | 기동 로그의 액티비티 목록과 그 slug의 설정 경로 |
 
 ### 4.5 릴리스 갱신 시 사용자 수정 사항 유지
 
-모니모 문서유형 설정(`custom_field_*.yaml` 과 그 등록 블록)은 공통 배포본에 포함되지 않습니다.
-공급 측은 모니모 설정 완성본(`genon/sites/monimo/resource/`)을 전달하며, 이 폴더가 배포본의 `resource/` 를
-그대로 대체합니다. 현장에서 고친 설정·facade 는 다음 릴리스의 완성본에 반영되도록 공급 측 담당자에게도
-전달합니다. 전달하지 않은 수정은 아래 절차로 직접 이관해야 합니다.
+공급 측은 모니모 설정을 넣어 만든 배포본을 전달합니다. 모니모 문서유형 설정(등록 블록과 `custom_field_*.yaml`)은
+배포본의 `genon/preprocessor/activities/<slug>/` 에 들어 있고, `resource/` 는 표준 그대로입니다. 새 릴리스의
+배포본도 같은 자리에 모니모 설정이 들어 있습니다. 현장에서 고친 액티비티 폴더(설정·`custom_field_*.yaml`·프롬프트·처리기)는
+다음 릴리스에 반영되도록 공급 측 담당자에게도 전달합니다. 전달하지 않은 수정과 현장에서 만든 사본 폴더는 아래
+절차로 직접 이관해야 합니다.
 
 릴리스 갱신은 고객 수정 파일을 덮어쓸 수 있습니다. **기존 공급 릴리스와 고객 수정본의 차이**를 보관한 뒤,
 새 릴리스에 필요한 변경만 다시 적용합니다. 인자 없는 `git diff`는 커밋된 수정과 미추적 파일을 보관하지 않습니다.
@@ -1352,10 +1455,9 @@ git bundle create "$BACKUP_DIR/customer.bundle" HEAD
 git bundle verify "$BACKUP_DIR/customer.bundle"
 
 # 관련 Python 추출기·프롬프트·신규 설정 파일도 커밋되어 있어야 합니다.
+# 액티비티 폴더 전체(원형·사본의 처리기·설정·custom_field·프롬프트)를 범위로 잡습니다.
 git diff --binary "$BASE_RELEASE" HEAD -- \
-  genon/preprocessor/activities/parse/processor.py \
-  genon/preprocessor/activities/chunk/processor.py \
-  genon/preprocessor/resource > "$BACKUP_DIR/my_change.patch"
+  genon/preprocessor/activities > "$BACKUP_DIR/my_change.patch"
 git apply --stat "$BACKUP_DIR/my_change.patch"
 ```
 
@@ -1373,22 +1475,22 @@ git diff
 ```
 
 검사가 실패하면 패치의 변경 의도를 새 파일에 수동 반영합니다. 훅 시그니처가 같아도 주변 코드가 바뀌면
-충돌할 수 있습니다. `resource/` 전체를 옛 파일로 복원하지 말고 새 설정 키·프롬프트를 유지하며 고객 설정값을
-이관하세요. 사전 설정 검사, 기존 문서 회귀 검사, 기능 검증을 완료한 뒤 4.3의 배포 절차를 따릅니다.
+충돌할 수 있습니다. `activities/<slug>/` 폴더를 통째로 옛 파일로 복원하지 말고 새 설정 키·프롬프트를 유지하며
+고객 설정값을 이관하세요. 사전 설정 검사, 기존 문서 회귀 검사, 기능 검증을 완료한 뒤 4.3의 배포 절차를 따릅니다.
 
 ### 4.6 배포 실패와 롤백
 
 | 상황 | 조치 |
 |---|---|
 | 빌드·배포 실패 | 담당자에게 대상 환경, PR, 커밋, 실패 시각과 로그 위치를 전달합니다. 기존 정상 버전이 계속 실행 중인지 확인합니다. |
-| 표식·재기동 확인 실패 | 4.4의 순서로 대상 환경과 배포 이력을 확인합니다. 확인되지 않은 상태를 배포 완료로 처리하지 않습니다. |
+| 워커 확인 실패 | 4.4의 순서로 대상 환경과 배포 이력을 확인합니다. 확인되지 않은 상태를 배포 완료로 처리하지 않습니다. |
 | 배포 후 결과 이상 | 문제 입력과 기대 결과·실제 결과를 보관하고 담당자에게 롤백을 요청합니다. |
 
 롤백 대상은 작업 전에 기록한 정상 배포 커밋 또는 배포 이미지입니다. 담당자가 정한 방식으로 이전 이미지를
 재배포하거나 되돌림 커밋을 PR로 반영합니다. 공유 브랜치의 이력을 강제로 되돌리지 않습니다.
 코드 되돌림 PR을 만들 때는 `UPDATED_AT`에 새 시각을 기록하고 되돌린 대상 커밋을 PR에 남깁니다.
-이전 이미지를 그대로 재배포하면 표식도 이전 값이 되므로 그 이미지의 기대값과 비교합니다.
-롤백 후에도 `/version`, 재기동, 대표 문서의 파싱·청킹 결과를 확인합니다.
+이전 이미지를 그대로 재배포했다면 기동 로그의 시각과 배포 이력으로 재배포를 확인합니다.
+롤백 후에도 4.4의 워커 확인(기동 로그 · `/health` · 큐 poller)과 대표 문서의 파싱·청킹 결과를 확인합니다.
 이미 변경된 청크가 적재되었다면 코드 롤백만으로 DB 데이터가 복구되지는 않습니다. 재적재·재색인 범위는 적재 담당자와 확인합니다.
 
 ---
@@ -1397,17 +1499,22 @@ git diff
 
 코드를 수정하지 않고 동작을 변경하는 방법입니다. 기본 설정값은 이미 구성되어 있습니다.
 
-> facade 인스턴스는 **모듈 로드 시점에 한 번만** 생성됩니다. 따라서 **구성 YAML을 변경하면
-> 재배포해야 반영됩니다.** 재배포 없이 값을 변경하려면 요청 `params`를 사용하세요([5.3](#53-요청-params로-재배포-없이-값-변경)).
+> 액티비티 처리기 인스턴스는 워커 프로세스마다 slug별로 **첫 호출 때 한 번** 만들어지고, 그때 설정을 읽습니다.
+> 따라서 **구성 YAML을 변경하면 재배포해야 반영됩니다.** 배포 전에 값을 바꿔 확인하려면 액티비티 인자
+> `params`를 사용하세요([5.3](#53-액티비티-인자-params로-값-바꾸기)).
 
 ### 5.1 구성 파일별 적용 대상
 
-| config 파일 (`genon/preprocessor/resource/`) | 엔드포인트 |
+| 파일 (`genon/preprocessor/` 기준) | 적용 대상 |
 |---|---|
-| `parse_config.yaml` | `/parser`, `/parser_upload` |
-| `chunk_config.yaml` | `/chunker` |
-| `custom_field_*.yaml` (유형별 제공 파일) | 문서 유형별 값 추출과 청크 본문 ([1장](#1-새-문서-유형-추가하기)) |
-| `templates/custom_field_TEMPLATE_*.yaml` | 새 문서 유형을 만들 때 복사할 원본 5종. 등록하지 않습니다 |
+| `activities/parse/config.yaml` | 액티비티 `parse`(파싱) |
+| `activities/chunk/config.yaml` | 액티비티 `chunk`(청킹) |
+| `activities/<사본 slug>/config.yaml` | 그 사본 액티비티([3.7](#37-액티비티-사본-만들기와-지우기)) |
+| `activities/parse/custom_field_*.yaml` (유형별 제공 파일) | 문서 유형별 값 추출과 청크 본문 ([1장](#1-새-문서-유형-추가하기)) |
+| `resource/model_presets.yaml` | 모델 접속 프리셋의 표준 층. 실값은 `GENOS_MODEL_PRESETS_FILE`([3.5](#35-모델-서빙-연결-설정)) |
+| `resource/templates/custom_field_TEMPLATE_*.yaml` | 새 문서 유형을 만들 때 복사할 원본 5종. 등록하지 않습니다 |
+
+각 액티비티는 자기 폴더의 `config.yaml`만 읽습니다. 폴더에 `config.yaml`이 없으면 등록 오류로 워커가 기동하지 않습니다.
 
 ### 5.2 주요 구성 옵션
 
@@ -1437,33 +1544,42 @@ git diff
 > `huggingface`에서 1만 토큰입니다. 토큰당 글자 수는 언어와 토크나이저에 따라 달라집니다.
 > 이 옵션은 문서형 경로에 적용되며, 요소형의 크기는 문자 수를 기준으로 합니다.
 
-### 5.3 요청 `params`로 재배포 없이 값 변경
+### 5.3 액티비티 인자 `params`로 값 바꾸기
 
-`params`는 **YAML보다 우선**합니다. 옵션을 검증할 때 사용합니다.
+액티비티 인자의 `params`는 **YAML보다 우선**합니다. 배포 전에 옵션을 검증할 때 사용합니다.
+단건 실행에서는 `--params`에 JSON 객체로 넘깁니다.
 
 ```bash
-curl "${CS}/parser" -H 'Content-Type: application/json' \
-  --data '{"file_path": "...", "params": {"log_level": 5, "toc": 0, "img_desc": 1}}'
+# 실행 위치: 저장소 루트
+python -m genon.preprocessor.activities run --activity parse 계약서.pdf --doc-type contract \
+  --params '{"toc": 0, "img_desc": 1}' -o parsed.json
 ```
 
-| facade | 자주 쓰는 `params` 키 |
+배포된 워커에서는 pipeline 워커가 액티비티 인자에 `params`를 실어 보냅니다. 문서 유형(`doc_type`)과
+전처리 정책(`llm_cache` · `workflow_id` · `error_policy` · `request_deadline`)이 여기에 들어갑니다.
+적재 흐름에서 어떤 값을 싣는지는 pipeline 쪽 설정이 정하므로 담당자와 확인합니다.
+
+| 액티비티 | 자주 쓰는 `params` 키 |
 |---|---|
-| parser | `doc_type`, `toc`, `img_desc`, `chart_desc`, `table_desc`, `table_refine`, `doc_summary`, `save_images`, `use_hwp_sdk`, `log_level` |
-| chunking | `document`, `chunk_size`, `chunk_mode`, `include_chunk_header`, `chunk_overlap`, `table_as_chunk`, `export_to_html`, `log_level` |
+| parse | `doc_type`, `toc`, `img_desc`, `chart_desc`, `table_desc`, `table_refine`, `doc_summary`, `save_images`, `use_hwp_sdk` |
+| chunk | `doc_type`, `chunk_size`, `chunk_mode`, `include_chunk_header`, `chunk_overlap`, `table_as_chunk`, `export_to_html` |
 | 공통 | `llm_cache`, `error_policy`(`strict`/`lenient`), `request_deadline`(초) — 의미는 [부록 C.5](#c5-공통-요청-params) |
 
 0/1 플래그 형태의 키는 `0`/`1` 또는 `true`/`false` 둘 다 받습니다.
+로그 수준은 설정의 `defaults.log_level`로만 정합니다. `params`의 `log_level`은 반영되지 않습니다.
 
-**파서와 청커는 별도 요청입니다.** 파서 결과에 기록된 `doc_type`이 청커의 요청 인자로 자동 승격되지는 않습니다.
-청커의 `CONFIG_BY_DOC_TYPE`과 유형별 훅을 적용하려면 청커 요청에도 같은 `params.doc_type`을 명시합니다.
-현재 청커의 설정표 조회는 전달받은 문자열 그대로 수행하므로 양쪽 모두 공백 없는 소문자 표준값을 사용하세요.
+**파싱과 청킹은 별도 액티비티 호출입니다.** 파서 결과에 기록된 `doc_type`이 청킹의 `params`로 자동 승격되지는 않습니다.
+청커의 `CONFIG_BY_DOC_TYPE`과 유형별 훅을 적용하려면 청킹 호출에도 같은 `params.doc_type`을 명시합니다
+(단건 실행에서는 chunk에도 `--doc-type`). 현재 청커의 설정표 조회는 전달받은 문자열 그대로 수행하므로 양쪽 모두
+공백 없는 소문자 표준값을 사용하세요.
 
-`/chunker`가 입력을 받는 통로는 두 가지입니다. `params.document`에 파싱 결과를 **인라인 전달**하는 것이
-우선이고, 없으면 `file_path`가 가리키는 **서버 내부의 `.json` 파일**을 읽습니다.
+청킹 액티비티는 파싱 결과를 `parsed_ref`가 가리키는 파일(`ARTIFACT_ROOT/<parsed_ref>.json`)에서 읽습니다.
+단건 실행에서는 입력 파일로 준 파싱 결과 JSON이 그 자리에 놓입니다.
 
 ### 5.4 프롬프트 파일 구성
 
-enrichment 항목은 프롬프트를 별도 md 파일로 분리합니다.
+enrichment 항목은 프롬프트를 별도 md 파일로 분리합니다. 프롬프트 파일은 그 액티비티 폴더에 있습니다
+(파싱은 `activities/parse/prompt_*.md`).
 
 ```yaml
 enrichment:
@@ -1473,8 +1589,10 @@ enrichment:
 ```
 
 우선순위는 **`prompt_template_file` > YAML 내부의 inline `prompt_template` > 코드 내장 기본값**
-입니다. 경로는 구성 YAML이 있는 폴더를 기준으로 합니다. 프롬프트만 변경하는 경우에도 `resource/prompt_*.md` 수정 후
-4장의 커밋·PR·머지·배포·검증 절차를 따릅니다.
+입니다. 코드 내장 기본값은 설정에 프롬프트를 적지 않았을 때만 씁니다. `prompt_template_file`에 적은 파일이
+없거나 내용이 비어 있으면 **오류**이며, 내장 기본값으로 대신하지 않습니다. 상대 경로는 구성 YAML이 있는
+액티비티 폴더를 기준으로 하고, 그 폴더 밖을 가리키면 거부합니다. 프롬프트만 변경하는 경우에도
+`activities/<slug>/prompt_*.md` 수정 후 4장의 커밋·PR·머지·배포·검증 절차를 따릅니다.
 
 ---
 
@@ -1495,8 +1613,8 @@ enrichment:
 | PPT·PPTX | PDF 변환에 성공하면 문서 경로, 변환 실패 시 요소형 대체 경로 |
 | 이미지·기타 입력 | 해당 핸들러의 결과를 사용하므로 실제 응답 구조 확인 필요 |
 
-`/chunker`는 `document`가 객체이면 문서형으로, 그렇지 않고 `elements`가 목록이면 요소형으로 판별합니다.
-두 키가 함께 있으면 `document`를 우선합니다. 문서형 응답에 빈 `elements: []`가 있어도 오류가 아닙니다.
+청킹 액티비티는 입력이 Docling 문서이거나 `document`가 객체이면 문서형으로, 그렇지 않고 `elements`가 목록이면 요소형으로
+판별합니다. 두 키가 함께 있으면 `document`를 우선합니다. 문서형 응답에 빈 `elements: []`가 있어도 오류가 아닙니다.
 element의 공통 키는 `{category, content, coordinates, id, page}`이며, 행 기반 element에는
 `metadata`와 분할 관련 정보가 추가될 수 있습니다. 최종 청크의 개수는 element 개수와 항상 같지는 않습니다.
 
@@ -1512,7 +1630,7 @@ element의 공통 키는 `{category, content, coordinates, id, page}`이며, 행
 
 ### 6.2 청킹 동작
 
-facade의 `GenosSmartChunker` ClassVar는 청크 표기 방식을 정합니다.
+청킹 처리기(`activities/chunk/processor.py`)의 `GenosSmartChunker` ClassVar는 청크 표기 방식을 정합니다.
 
 | ClassVar | 기본값 | 의미 |
 |---|---|---|
@@ -1548,29 +1666,62 @@ facade의 `GenosSmartChunker` ClassVar는 청크 표기 방식을 정합니다.
 > **출력 모델이 추가 필드를 허용한다는 것이 적재 DB의 자동 확장을 뜻하지는 않습니다.** 추가·삭제·이름·타입 변경 시
 > 적재 매핑, DB 컬럼, 검색 필터와의 호환성을 확인하세요. 기본 본문·통계·위치 필드와 같은 이름의 목표필드를 만들지 마세요.
 
-### 6.4 응답 형식 및 오류
+### 6.4 액티비티 결과와 오류
 
-응답 형식은 `main.py`가 구성합니다. facade는 `data`에 포함할 값만 반환합니다.
+액티비티는 결과 JSON을 `ARTIFACT_ROOT/<output_ref>.json`에 쓰고, 호출한 쪽에는 요약 dict만 돌려줍니다.
+파싱 결과는 요소형이면 `{elements: [...]}`, 문서형이면 Docling 문서 자체이고, 청킹 결과는 청크 배열입니다.
 
 ```json
-{ "code": 0, "errMsg": "success", "data": { } }
+{ "stage": "parse", "activity": "parse", "ref": "<output_ref>", "bytes": 331, "count": 1,
+  "summary": "파싱 0KB · 요소 1", "preview": "…", "duration_ms": 1234 }
 ```
 
-- 애플리케이션이 처리한 성공·실패는 HTTP 200으로 반환되며 `code: 0`이 성공입니다. 요청 형식 검증·네트워크·게이트웨이 오류는 비-200일 수 있으므로 HTTP 상태와 JSON 본문을 모두 검사합니다.
-- 공통 오류 응답의 `error_type`은 예외 클래스명입니다. `error_code`, `traceback`도 포함됩니다.
-- `stage`는 실패 단계, `error_kind`는 `transient` / `permanent` / `timeout`과 같은 실패 성격이며, 정보가 있을 때만 포함됩니다. 예외 생성자의 `error_type` 인자는 응답에서 `error_kind`로 나갑니다.
-- core가 넣는 `stage` 값은 `custom_fields` · `doc_summary` · `image_description` · `metadata` · `doc_type_stamp`(보강 단계의 상위 오류 처리로 전달된 예외, `error_policy: strict`일 때)와 `request`(요청 제한 시간 초과)입니다. 행 메타데이터의 청킹 중 타입 검증 실패도 정책과 무관하게 `stage: custom_fields`로 반환됩니다. 훅에서 직접 지정한 값은 그대로 나갑니다.
-- facade가 `GenosServiceException`으로 던진 오류는 `error_code`가 보존됩니다. 그 외 예외는
-  타입에 따라 `INPUT_ERROR` / `TIMEOUT_ERROR` / `INTERNAL_ERROR`로 자동 분류됩니다.
+| 키 | 뜻 |
+|---|---|
+| `stage` · `activity` | 단계(`parse` / `chunk`)와 slug |
+| `ref` · `bytes` | 결과를 쓴 자리(`output_ref`)와 파일 크기 |
+| `count` | parse는 요소 수(문서형은 텍스트 항목 수), chunk는 청크 수 |
+| `summary` · `preview` | 한 줄 요약과 앞부분 미리보기(`PREVIEW_CHARS`자까지) |
+| `duration_ms` | 처리 시간 |
 
-**응답이 예상과 다른 경우**
+실패는 Temporal 액티비티 오류로 호출한 쪽에 전달되며, `type`과 `non_retryable`이 붙습니다. 같은 입력이면
+늘 실패하는 오류는 재시도하지 않고, 일시 오류는 재시도합니다. 재시도 횟수와 간격은 호출한 쪽이 정합니다.
+판정은 예외와 그 원인(`raise … from`)을 따라가며 처음 걸리는 규칙으로 합니다.
 
-| 응답 | 원인 | 확인할 것 |
+| 예외 | `type` | `non_retryable` |
 |---|---|---|
-| `…지원하지 않습니다` (`code:1`) | facade에 `IS_PARSER`/`IS_CHUNKER` 마커가 없어 요청이 도달하지 못함 | 클래스명(`DocumentProcessor`)과 마커를 바꾸지 않았는지 |
-| `/parser`는 되는데 `data.document`가 없음 | 정상 요소형 경로일 수 있음 | 먼저 `data.elements`와 적용 매핑을 확인합니다. 문서형을 기대했다면 `output.format`과 6.1의 분기 조건을 확인합니다 |
+| `error_type='timeout'`, `TimeoutError`, `request_deadline` 초과 | `timeout` | `false`(재시도) |
+| `error_type='transient'` | `transient` | `false`(재시도) |
+| `error_type='permanent'` | `permanent` | `true`(재시도 안 함) |
+| `OSError` 중 NFS 순단 류(`ESTALE` · `EIO` · `ETIMEDOUT` · `ECONNRESET` 등) | `transient` | `false`(재시도) |
+| 그 밖의 `OSError`(경로·권한·용량 등) | `permanent` | `true`(재시도 안 함) |
+| 입력·설정 오류(`ValueError` · `KeyError` · `TypeError` · `IndexError` · `FileNotFoundError` · `PermissionError` 등) | `permanent` | `true`(재시도 안 함) |
+| 워커 프로세스가 재기동을 기다리는 중 | `worker_restarting` | `false`(재시도) |
+| 그 밖의 예외 | 예외 클래스명 | `false`(재시도) |
+
+보강 단계의 오류는 `error_policy`를 따릅니다. 기본 `lenient`에서는 경고만 남기고 그 단계를 건너뛰며,
+`strict`에서는 메시지 앞에 `[stage]`가 붙은 오류로 실패합니다. 이때 모델 서빙의 연결 오류와 HTTP 5xx는
+`transient`(재시도), 시간 초과는 `timeout`(재시도), HTTP 4xx는 `permanent`(재시도 안 함)로 분류됩니다. `request_deadline`을 넘기면 워커는 멈출 수 없는 처리를 남긴 그 워커 프로세스를,
+처리 중인 다른 작업이 끝난 뒤 다시 띄웁니다.
+
+**설정 파일을 찾지 못하면 항상 오류입니다.** 기본값으로 조용히 대신하지 않습니다.
+
+| 상황 | 결과 |
+|---|---|
+| 액티비티 폴더에 `config.yaml`이 없음 | 등록 오류. 워커가 기동하지 않습니다 |
+| 설정에 적은 `custom_field_*.yaml`이 없음 | 오류(`custom_fields config 없음: …`). 재시도하지 않습니다 |
+| 설정에 적은 프롬프트 파일이 없거나 내용이 비어 있음 | 오류. 코드 내장 기본 프롬프트는 설정에 프롬프트를 적지 않았을 때만 씁니다 |
+| 요청 `doc_type`이 등록되어 있지 않음 | 파싱 실패(`doc_type=… 에 맞는 custom_fields 등록이 없습니다`, `defaults.unknown_doc_type: fail`) |
+
+**결과가 예상과 다른 경우**
+
+| 증상 | 원인 | 확인할 것 |
+|---|---|---|
+| `… 의 DocumentProcessor 는 ParserCore 를 상속해야 합니다` (청킹은 `ChunkerCore`) | 처리기의 클래스명이나 부모 클래스를 바꿈 | 클래스명(`DocumentProcessor`)과 상속을 바꾸지 않았는지 |
+| `파서 결과에 document/elements 가 없습니다` | 훅이 파서 결과의 모양을 바꿈 | `edit_output`이 `document` 또는 `elements`를 남기는지 |
+| 파싱 결과가 Docling 문서가 아니라 `elements`임 | 정상 요소형 경로일 수 있음 | 먼저 `elements`와 적용 매핑을 확인합니다. 문서형을 기대했다면 `output.format`과 6.1의 분기 조건을 확인합니다 |
 | 청크가 1개만 나오거나 합쳐지지 않음 | `chunk_size: 0`은 병합·분할을 끄는 값 | `0` 대신 충분히 큰 양수, 필요하면 `chunk_mode: resize_all` |
-| `code:1` + 연결 오류 | 모델 서빙 주소나 키가 실행 환경과 일치하지 않음 | [3.5](#35-모델-서빙-연결-설정) |
+| 연결 오류로 실패 | 모델 서빙 주소나 키가 실행 환경과 일치하지 않음 | [3.5](#35-모델-서빙-연결-설정) |
 
 ---
 
@@ -1580,20 +1731,33 @@ facade의 `GenosSmartChunker` ClassVar는 청크 표기 방식을 정합니다.
 
 | 용어 | 뜻 |
 |---|---|
-| **코드서빙(Code Serving)** | FastAPI 앱을 Genos에서 실행하는 기능. 모니모에서는 **고정**되어 있습니다 |
+| **코드서빙(Code Serving)** | 저장소의 코드를 Genos에서 실행하는 기능. 모니모에서는 **고정**되어 있으며 전처리기 워커를 실행합니다 |
 | **코드스페이스(Code Space)** | 브라우저에서 열리는 VSCode 개발 환경 |
 | **모델 서빙** | LLM·OCR·레이아웃 모델을 API로 제공하는 서비스 |
 | **게이트웨이** | 서빙 호출을 중계하는 진입점. 코드스페이스에서는 거치지 않습니다 |
+
+**Temporal**
+
+| 용어 | 뜻 |
+|---|---|
+| **워커(worker)** | 큐에서 작업을 받아 실행하는 프로세스. 모니모에는 pipeline 워커와 전처리기 워커 2개가 있습니다 |
+| **큐(task queue)** | 워커가 작업을 받는 이름 붙은 대기열. pipeline 워커 큐와 전처리기 워커 큐 2개입니다 |
+| **조합(워크플로우)** | 문서 한 건의 파싱 → 청킹 → 임베딩 → 적재 순서를 정하는 실행 단위 |
+| **액티비티(activity)** | 조합이 큐로 보내 워커가 실행하는 처리 단위. 전처리기 워커의 액티비티는 `activities/<slug>/` 폴더 하나입니다 |
+| **poller** | 큐에서 작업을 기다리고 있는 워커. 큐에 poller가 없으면 작업을 받을 워커가 없습니다 |
 
 **전처리기(doc parser)**
 
 | 용어 | 뜻 |
 |---|---|
-| **facade** | 전처리기 유형별 외부 확장 지점을 제공하는 파일(`facade/*_processor.py`). 진입 클래스는 `DocumentProcessor` |
-| **훅 메소드(hook)** | facade에서 오버라이드하면 core가 정해진 시점에 호출하는 메소드. `edit_input` · `edit_document` · `edit_chunk` · `edit_output` |
+| **slug** | 액티비티 이름 = 폴더 이름. 첫 단어가 단계(`parse` · `chunk`)입니다. 원형은 `parse` · `chunk`, 사본은 `parse_<이름>` · `chunk_<이름>` |
+| **액티비티 처리기** | `activities/<slug>/processor.py`. 진입 클래스는 `DocumentProcessor`이며 수정 가능한 확장 지점을 제공합니다 |
+| **처리기** | 액티비티 처리기와 파사드를 함께 부르는 말 |
+| **파사드(facade)** | HTTP 처리기 `facade/*_processor.py`. 모니모는 쓰지 않으며 이 문서의 수정 대상이 아닙니다. 고칠 곳은 `activities/<slug>/`입니다 |
+| **훅 메소드(hook)** | 액티비티 처리기에서 오버라이드하면 core가 정해진 시점에 호출하는 메소드. `edit_input` · `edit_document` · `edit_chunk` · `edit_output` |
 | **toolbox (`tb`)** | 훅에서 사용할 수 있도록 다시 노출한 기능 모음. YAML `transform:`이 호출하는 함수와 같습니다 |
 | **custom_fields** | 문서 유형별 값 추출 설정(`custom_field_*.yaml`). `source.kind` 5가지로 구분됩니다 |
-| **doc_type(문서유형)** | 요청의 문서 유형 문자열. 등록 조건과 매칭하며 조건 없는 등록은 공통 적용됩니다. 청크 전달 범위는 1.1 참조 |
+| **doc_type(문서유형)** | 액티비티 인자 `params`의 문서 유형 문자열. 등록 조건과 매칭하며 조건 없는 등록은 공통 적용됩니다. 청크 전달 범위는 1.1 참조 |
 | **docling** | 문서 파싱 엔진. wheel로 제공되므로 직접 수정할 수 없습니다 |
 | **element** | 요소형 결과의 한 조각. `{category, content, coordinates, id, page}` |
 | **청크(chunk)** | 벡터 DB에 넣을 텍스트 조각 |
@@ -1608,9 +1772,12 @@ facade의 `GenosSmartChunker` ClassVar는 청크 표기 방식을 정합니다.
 |---|---|
 | 코드스페이스 개발 환경에 문제가 발생함 | 재구축 |
 | 모델 서빙 주소·인증키를 모름 | 값 확인 또는 권한 |
-| 코드서빙 `ID` · 리비전을 모름 | 접속 정보 |
+| 코드서빙 `ID` · 리비전, Temporal 네임스페이스·큐 이름을 모름 | 접속 정보 |
+| 워커 환경 변수(큐·루트·모델 접속 파일)를 바꿔야 함 | 코드서빙 리비전 환경 변수 변경 |
+| 적재 흐름에서 부를 slug나 `params`를 바꿔야 함 | pipeline 조합 설정 변경 |
 | PR을 올렸는데 머지가 안 됨 | `prd` / `dev` 머지와 sync |
-| `/version`의 표식은 맞지만 배포 후 재기동이 확인되지 않음 | 배포·재기동 이력 확인 후 필요한 조치 |
+| 머지·빌드는 끝났지만 워커 기동 로그·`/health`·큐 poller가 확인되지 않음 | 배포·재기동 이력과 기동 오류 로그 확인 후 필요한 조치 |
+| Temporal 큐의 poller를 조회할 수 없음 | 조회 경로와 권한 |
 | 빌드가 실패함 | CI/CD 로그 확인 |
 | `processing/core/`를 고쳐야 할 것 같음 | 훅 추가 (고치기 전에 문의하세요) |
 | docling 자체 동작을 바꿔야 함 | 엔진 수정 요청 |
@@ -1827,23 +1994,25 @@ fields:
 
 ### C.5 공통 요청 `params`
 
-[5.3](#53-요청-params로-재배포-없이-값-변경)의 표에 있는 공통 키의 의미입니다.
+[5.3](#53-액티비티-인자-params로-값-바꾸기)의 표에 있는 공통 키의 의미입니다.
 
 | 키 | 값 | 하는 일 |
 |---|---|---|
 | `llm_cache` | `0` / `1` | 파싱 단계의 LLM 응답 캐시 사용 여부. 같은 입력·모델·프롬프트 등 캐시 조건이 일치할 때 재사용합니다. 청커 자체가 LLM을 호출하도록 만드는 옵션은 아닙니다. `workflow_id` 조건은 아래 참조 |
-| `error_policy` | `strict` / `lenient` | **기본 `lenient`.** 보강 단계(`custom_fields` · `doc_summary` · `image_description` · `metadata` · `doc_type_stamp`)에서 상위 오류 처리로 전달된 예외를 `strict`는 요청 실패로 올리고, `lenient`는 경고 후 계속합니다. 추출기 내부에서 처리된 예외·빈 결과까지 검출하지는 않으므로 필수 결과값을 별도로 검사합니다. 훅이 던진 예외와 파싱 실패에는 적용되지 않습니다. `workflow_id` 없이도 항상 적용됩니다 |
-| `request_deadline` | 양수 초 | HTTP 처리 래퍼가 제한 시간을 적용하며 타임아웃 시 `error_kind: timeout`을 반환합니다. 생략·0 이하·숫자 변환 불가는 이 래퍼의 제한을 설정하지 않습니다. 단독 CLI에는 같은 HTTP 래퍼가 없으며, 동기 코드가 이벤트 루프를 점유하면 취소 응답이 지연될 수 있습니다 |
+| `error_policy` | `strict` / `lenient` | **기본 `lenient`.** 보강 단계(`custom_fields` · `doc_summary` · `image_description` · `metadata` · `doc_type_stamp`)에서 상위 오류 처리로 전달된 예외를 `strict`는 액티비티 실패로 올리고, `lenient`는 경고 후 계속합니다. 추출기 내부에서 처리된 예외·빈 결과까지 검출하지는 않으므로 필수 결과값을 별도로 검사합니다. 훅이 던진 예외와 파싱 실패에는 적용되지 않습니다. `workflow_id` 없이도 항상 적용됩니다 |
+| `request_deadline` | 양수 초 | 워커와 단건 실행이 액티비티 처리 시간 제한으로 적용합니다. 넘기면 `type: timeout`으로 실패하고(재시도 대상), 멈출 수 없는 처리를 남긴 그 워커 프로세스는 다시 띄웁니다. 생략·0 이하·숫자 변환 불가는 제한을 두지 않습니다. 처리기 파일 단독 실행에는 이 제한 장치가 없습니다 |
 
-> `llm_cache`는 **`params.workflow_id`가 함께 전달될 때만** 동작합니다. 캐시 디렉터리를
-> `<interim_root>/<workflow_id>/<run_id 또는 default>/llm_cache`로 잡기 때문입니다.
-> `workflow_id` 없이 `llm_cache: 1`만 주면 **경고 없이 캐시가 꺼진 채로 처리됩니다.**
-> 적재 워크플로를 거치지 않고 `curl`로 직접 호출하며 반복 비교할 때는 임의의 고정 문자열을
+> `llm_cache`는 **환경 변수 `LLM_CACHE_ROOT`가 있고 `params.workflow_id`가 함께 전달될 때만** 동작합니다.
+> 캐시 디렉터리를 `<LLM_CACHE_ROOT>/<workflow_id>/<run_id 또는 default>/llm_cache`로 잡기 때문입니다.
+> `LLM_CACHE_ROOT`가 없거나 `workflow_id` 없이 `llm_cache: 1`만 주면 **경고 없이 캐시가 꺼진 채로 처리됩니다.**
+> 적재 흐름을 거치지 않고 단건 실행으로 반복 비교할 때는 `LLM_CACHE_ROOT`를 지정하고 임의의 고정 문자열을
 > `workflow_id`로 함께 넘기세요.
 >
 > ```bash
-> curl "${CS}/parser" -H 'Content-Type: application/json' \
->   --data '{"file_path": "...", "params": {"llm_cache": 1, "workflow_id": "local-tune-notice"}}'
+> # 실행 위치: 저장소 루트. 캐시 폴더는 원하는 위치로 바꿉니다.
+> export LLM_CACHE_ROOT=<캐시를 둘 폴더>
+> python -m genon.preprocessor.activities run --activity parse notice.xlsx --doc-type notice \
+>   --params '{"llm_cache": 1, "workflow_id": "local-tune-notice"}' -o parsed.json
 > ```
 
 ### C.6 유형별 최소 설정 예제
@@ -1902,7 +2071,7 @@ body:
 
 #### document — 문서 본문에서 LLM으로 추출
 
-다음 예제는 프로세서 설정의 `model_presets.default`에 유효한 모델 접속 정보가 있다는 전제입니다.
+다음 예제는 모델 프리셋 `default`([3.5](#35-모델-서빙-연결-설정))에 유효한 모델 접속 정보가 있다는 전제입니다.
 테스트 문서에 `문서 제목: 알림 설정 안내`를 포함하고 `TITLE`의 추출값과 최종 청크 전달 여부를 확인합니다.
 LLM 결과는 결정적이지 않으므로 정확한 기대값 검사를 별도로 수행합니다.
 
@@ -2004,7 +2173,7 @@ llm:
 | `llm` | 설정 항목의 목록입니다. 문서형 예제는 하나의 항목으로 구성합니다. |
 | `out` | 출력할 목표필드 이름 목록. 프롬프트가 반환하는 JSON 키와 일치해야 합니다. |
 | `in` | 행·레코드·섹션형에서 LLM 입력으로 결합할 필드 목록. 문서형은 본문을 사용하므로 생략합니다. |
-| `endpoint.model_preset` | 프로세서 설정의 모델 프리셋 이름. 예제의 `default`가 실제로 등록되어 있어야 합니다. |
+| `endpoint.model_preset` | 모델 프리셋 이름([3.5](#35-모델-서빙-연결-설정)). 예제의 `default`가 실제로 등록되어 있어야 합니다. |
 | `parser.type` | 기본 `json`. 외부 응답 해석기를 쓰면 `python`을 지정합니다. |
 | `params` | 생성 옵션. 문서형 템플릿의 생략 기본값은 `max_tokens: 1000`, `temperature: 0.0`, `timeout: 60`입니다. 필요한 경우 명시합니다. |
 | `prompt.user` | `{{raw_text}}`를 포함해 실제 입력을 모델에 전달합니다. 출력 필드가 비면 프롬프트와 응답 키부터 확인합니다. |
@@ -2032,12 +2201,18 @@ def parse(llm_output, **kwargs):
 ### C.8 구현 확인 위치와 현재 제약
 
 아래 경로는 저장소 루트 기준입니다. 주석·예제와 실행 코드가 다르면 실제 호출부와 결과를 먼저 확인합니다.
-이 절의 내용은 문서 작성 시 확인한 로컬 소스 기준이며, 배포 서버가 동일한 리비전인지는 `/version`과 배포 이력으로 확인합니다.
+이 절의 내용은 문서 작성 시 확인한 로컬 소스 기준이며, 배포 서버가 동일한 리비전인지는 배포 이력과 워커 기동 로그로 확인합니다.
 
 | 확인할 내용 | 소스와 진입점 |
 |---|---|
-| HTTP 입력·응답, 설정 경로, 요청 제한 시간 | `main.py`: `_cfg`, `_run`, `parse`, `parse_upload`, `chunker` |
-| facade의 변경 가능한 처리 흐름 | `genon/preprocessor/activities/parse/processor.py`, `activities/chunk/processor.py` |
+| 워커 기동·프로세스 재기동·`/health` | `genon/preprocessor/worker/__main__.py` |
+| 워커 환경 변수 | `genon/preprocessor/worker/settings.py` |
+| slug 등록과 설정 경로·처리기 준비 | `genon/preprocessor/worker/registry.py`, `genon/preprocessor/activities/_folders.py` |
+| 액티비티 인자·결과 저장·요약·`request_deadline` | `genon/preprocessor/worker/runtime.py`, `paths.py` |
+| 오류의 `type`·재시도 판정 | `genon/preprocessor/worker/errors.py` |
+| 단건 실행·사본 만들기·지우기·비교 | `genon/preprocessor/activities/__main__.py`: `run`, `new_activity`, `remove_activity`, `diff_origin` |
+| 액티비티 처리기의 변경 가능한 처리 흐름 | `genon/preprocessor/activities/parse/processor.py`, `activities/chunk/processor.py` |
+| 모델 프리셋 층 | `processing/common/config_parse.py`: `collect_model_presets` |
 | 파서 훅의 실제 인자·호출 위치 | `processing/core/parser.py`: `_hook_edit_input`, `_call_edit_document`, `_load_json_payload`, `_hook_tabular_sheets` 등 |
 | 청커 문서 유형·설정 덮어쓰기 | `processing/core/chunker.py`: `_start_chunk_job`, `_apply_config_overlay` |
 | 훅 kwargs·반환값 처리 | `processing/common/hooks.py`: `hook_kwargs`, `call_hook`, `call_chunk_hook` |
@@ -2053,8 +2228,8 @@ def parse(llm_output, **kwargs):
 
 - 일반 훅에는 `job`이 자동 전달되지 않습니다. `kwargs["job"]`을 사용하는 예제를 그대로 실행하지 않습니다.
 - `job.config`는 전체 설정이 아닙니다. 초기화 YAML, 요청 params, 덮어쓴 값을 함께 확인합니다.
-- CLI와 HTTP 서버의 기본 설정 탐색 경로가 다릅니다. 비교 실행 시 `--config`를 명시합니다.
-- `request_deadline`은 이벤트 루프를 차단하는 동기 작업까지 즉시 강제 종료하는 장치가 아닙니다.
+- 단건 실행(`run`)과 워커는 `activities/<slug>/config.yaml`을 읽습니다. 처리기 파일 단독 실행은 `--config`가 없으면 원형 폴더의 설정을 읽으므로, 사본을 실행할 때는 `--config`를 명시합니다.
+- `request_deadline`을 넘기면 액티비티는 바로 실패하지만 처리 스레드는 즉시 멈추지 않습니다. 워커는 그 프로세스를 처리 중인 다른 작업이 끝난 뒤 다시 띄웁니다.
 - 청크 순번은 0부터 시작하며 좌표·미디어 미제공 표식 `"."`은 JSON으로 해석하지 않습니다.
 
 ---
