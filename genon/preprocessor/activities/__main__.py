@@ -20,8 +20,8 @@
 `@@RESULT@@ {"ok", "stage", "activity", "duration_ms", "data" | "error"}` · 실패는 exit 1.
 
 `new`·`remove` (#472, Studio 의 "+ 새 액티비티 · 복제"·삭제): 액티비티 하나 = 폴더 하나라 생성·복제는 **폴더 복사 한 번**,
-삭제는 폴더 삭제다. 복사 원천은 그 slug 의 **실제** 설정 폴더(`_folders.config_dir` — 사이트 완성본이 덮어쓰면 그쪽, 그래서
-사본은 사이트 문서유형을 그대로 가진다)와 저장소의 코드(processor.py·__init__·__main__)다. processor.py 첫 줄(Studio 별명)만
+삭제는 폴더 삭제다. 복사 원천은 저장소의 원본 폴더(설정·코드)다. Studio 는 배포처에서 일한다 — 배포처의 activities/ 에는
+동기화가 사이트 설정을 이미 덮어 두었으므로 사본은 사이트 문서유형을 그대로 가진다(#561). processor.py 첫 줄(Studio 별명)만
 바꾼다. slug 는 콘솔이 정한다(`parse_1` …, 규칙 ^(parse|chunk)(_[a-z0-9_]+)?$, 단계는 원형과 같아야 하고 원형·있는 이름은
 거부). 삭제는 원형(parse·chunk)과 사이트 완성본이 덮어쓰는 slug 를 거부한다. 둘 다 **파일만 다룬다** — 커밋은 Studio·사용자
 몫이다(작업 브랜치). 결과 `data.files` = 만든/지운 파일 경로 전부(저장소 루트 기준) — 콘솔이 이 목록을 한 커밋에 담는다.
@@ -96,8 +96,8 @@ def _repo_relative(root: Path, paths: list[Path]) -> list[str]:
 
 
 def new_activity(origin: str, slug: str, title: str | None = None, activities_dir: Path | None = None) -> list[str]:
-    """원본 폴더를 새 slug 폴더로 복사한다 → 만든 파일 목록(저장소 루트 기준).
-    설정·프롬프트·custom_field 는 원본의 **실제** 설정 폴더(사이트 완성본이 덮어쓰면 그쪽)에서, 코드는 저장소 폴더에서."""
+    """원본 폴더를 새 slug 폴더로 복사한다 → 만든 파일 목록(저장소 루트 기준). 설정·코드 모두 저장소 원본 폴더에서.
+    배포처(사이트 설정이 이미 activities/ 에 덮인 서빙본 사본)에서는 그 폴더가 곧 사이트 설정이다."""
     from genon.preprocessor.activities import _folders
 
     root = activities_dir or _folders.ACTIVITIES_DIR
@@ -114,7 +114,7 @@ def new_activity(origin: str, slug: str, title: str | None = None, activities_di
     dest = root / slug
     if dest.exists():
         raise ValueError(f"이미 있습니다: {dest}")
-    source_cfg, source_code = _folders.config_dir(origin, root), root / origin
+    source_cfg = source_code = root / origin                  # 저장소 원본 — 사이트 설정은 배포처 동기화가 덮는다(#561)
     code = {_folders.PROCESSOR_FILE, "__init__.py", "__main__.py"}       # 폴더 최상위의 액티비티 코드 — 저장소에서
     made: list[Path] = []
     dest.mkdir()

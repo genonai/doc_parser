@@ -95,13 +95,10 @@ def _as_int_flag(value: Any, default: int = 0) -> int:
 
 
 def _read_optional_prompt(config_dir: Path, prompt_file: str | None, default: str = "") -> str:
+    """적지 않았으면 default. 적었는데 읽지 못하면 오류 — 기본값으로 떨어지지 않는다(#561)."""
     if not prompt_file:
         return default
-    try:
-        return read_prompt_file(str(prompt_file), config_dir)
-    except Exception as exc:
-        _log.warning("[image_description] prompt read failed: file=%s error=%s", prompt_file, exc)
-        return default
+    return read_prompt_file(str(prompt_file), config_dir)
 
 
 _DEFAULT_IMAGE_DESCRIPTION_PROMPT_TEMPLATE = (

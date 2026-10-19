@@ -101,14 +101,9 @@ class PageDescriptionOptions:
         prompt_file = cfg.get("prompt_template_file") or cfg.get("prompt_file")
         if isinstance(prompt_file, str) and prompt_file.strip():
             base = config_dir if config_dir is not None else Path.cwd()
-            try:
-                loaded = read_prompt_file(prompt_file.strip(), base)
-                if loaded.strip():
-                    prompt = loaded
-            except Exception as exc:
-                _log.warning(
-                    f"[page_description] prompt_template_file 읽기 실패({prompt_file!r}): {exc}. 기본 프롬프트 사용."
-                )
+            loaded = read_prompt_file(prompt_file.strip(), base)   # 적었는데 읽지 못하면 오류(#561)
+            if loaded.strip():
+                prompt = loaded
         else:
             inline = cfg.get("prompt") or cfg.get("prompt_template")
             if isinstance(inline, str) and inline.strip():

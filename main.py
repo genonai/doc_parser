@@ -158,7 +158,7 @@ def _cfg(stem: str) -> str:
 # 프로세서는 모듈 로딩 시 1회만 생성해 재사용한다(요청마다 재생성하면 config/토크나이저/
 # 파이프라인 초기화 비용이 반복됨). 각 프로세서는 resource/<모듈 이름>_config.yaml 을 로드한다
 # (facade/attachment_processor.py → attachment_processor_config.yaml). 파싱·청킹은 액티비티 폴더의 config.yaml
-# (activities/parse/·chunk/, 사이트 완성본이 그 slug 폴더를 갖고 있으면 그쪽 — activities/_folders.py).
+# (activities/parse/·chunk/, 사이트 배포면 사이트 완성본의 그 slug 폴더만 — 없으면 오류, activities/_folders.py).
 attachment_processor = AttachmentDocumentProcessor(config_path=_cfg("attachment_processor"))    # 첨부용
 intelligent_processor = IntelligentDocumentProcessor(config_path=_cfg("intelligent_processor"))  # 적재용(지능형)
 convert_processor = ConvertDocumentProcessor(config_path=_cfg("convert_processor"))             # 변환용

@@ -172,7 +172,7 @@ from genon.preprocessor.processing.core.errors import GenosServiceException
 
 
 def _resolve_default_chunking_config_path() -> str:
-    # 기본 청커 설정은 액티비티 폴더 activities/chunk/config.yaml 이다(사이트 완성본이 있으면 그쪽, #495).
+    # 기본 청커 설정은 액티비티 폴더 activities/chunk/config.yaml 이다(사이트 배포면 사이트 완성본의 것, #495·#561).
     from genon.preprocessor.activities import _folders
 
     return str(_folders.config_path("chunk"))
@@ -311,7 +311,7 @@ class ChunkerCore:
         '''
         initialize Document Converter (config 기반)
 
-        config_path 가 None 이면 액티비티 폴더 activities/chunk/config.yaml 을 사용한다(사이트 완성본이 있으면 그쪽).
+        config_path 가 None 이면 액티비티 폴더 activities/chunk/config.yaml 을 사용한다(사이트 배포면 사이트 완성본의 것).
         GenOS 는 DocumentProcessor() 무인자로 호출하므로 기본 경로 resolve 필수.
         '''
         if config_path is None:

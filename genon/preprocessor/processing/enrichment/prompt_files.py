@@ -54,10 +54,15 @@ def read_prompt_file(file_ref: str, base_dir: Path) -> str:
         파일 내용 (앞뒤 공백 strip).
 
     Raises:
-        ValueError: 경로가 허용 범위를 벗어난 경우.
+        ValueError: 경로가 허용 범위를 벗어났거나 파일이 비어 있는 경우.
         FileNotFoundError: 파일이 존재하지 않는 경우.
+
+    설정에 적은 파일이 없거나 비면 오류다 — 호출부가 내장 기본 프롬프트로 떨어지지 않게 한다(#561).
     """
     path = resolve_prompt_path(file_ref, base_dir)
     if not path.exists():
         raise FileNotFoundError(f"prompt 파일이 없습니다: {path}")
-    return path.read_text(encoding="utf-8").strip()
+    text = path.read_text(encoding="utf-8").strip()
+    if not text:
+        raise ValueError(f"prompt 파일이 비어 있습니다: {path}")
+    return text
