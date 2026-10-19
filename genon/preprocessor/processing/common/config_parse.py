@@ -134,7 +134,7 @@ def warn_unresolved_placeholders(cfg: dict, config_path: str) -> None:
         )
 
 
-# 메인 yaml 이 쓸 프리셋 파일을 지정하는 키와, 로컬 실행에서 모델만 바꿔 끼우는 환경변수.
+# 메인 yaml 이 쓸 프리셋 파일을 지정하는 키와, 모델 접속 정보만 바꿔 끼우는 환경변수(로컬 실행·코드서빙 리비전).
 MODEL_PRESETS_FILE_KEY = "model_presets_file"
 MODEL_PRESETS_ENV = "GENOS_MODEL_PRESETS_FILE"
 
@@ -148,8 +148,8 @@ def collect_model_presets(cfg: dict, config_path: str, *, strict: bool = True) -
          resource/)의 model_presets.yaml — 접속 정보를 폴더에 복사하지 않고 이름으로 참조한다(#495).
          그 밖의 설정(HTTP facade·임시 yaml)은 적지 않으면 그대로 없다
       2. 메인 yaml 의 `model_presets`
-      3. 환경변수 GENOS_MODEL_PRESETS_FILE 이 가리키는 파일. 로컬 실행에서 모델 접속 정보만
-         바꿔 끼울 때 쓰며, 운영에서는 설정하지 않는다.
+      3. 환경변수 GENOS_MODEL_PRESETS_FILE 이 가리키는 파일. 모델 접속 정보만 바꿔 끼울 때 쓴다 —
+         로컬 실행(개발 접속값)과 코드서빙 리비전(배포 실값을 채운 model_presets.yaml) 모두.
     같은 이름의 프리셋끼리는 키 단위로 합친다 — 덮어쓰는 층에는 url·api_key 만 적어도 된다.
     """
     from genon.preprocessor.processing.enrichment.prompt_files import resolve_prompt_path

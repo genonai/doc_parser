@@ -15,7 +15,7 @@
 - [개요](#개요)
 - [API](#api)
 - [입력 — 두 가지 형태](#입력--두-가지-형태)
-- [chunk_config.yaml 설정](#chunk_configyaml-설정)
+- [activities/chunk/config.yaml 설정](#activitieschunkconfigyaml-설정)
 - [청킹 동작 — split_only 와 resize_all](#청킹-동작--split_only-와-resize_all)
 - [표 처리](#표-처리)
 - [청크 텍스트 정제](#청크-텍스트-정제)
@@ -36,7 +36,7 @@
 | 설정 | `activities/chunk/config.yaml` |
 | 청킹 엔진 본체 | `processing/chunking/smart_chunker.py` — **공용 모듈** |
 
-> **엔진은 이 파일 안에 없습니다.** facade 의 `GenosSmartChunker` 는 동작 옵션(ClassVar)만
+> **엔진은 이 파일 안에 없습니다.** 액티비티 처리기의 `GenosSmartChunker` 는 동작 옵션(ClassVar)만
 > 지정하는 얇은 서브클래스이고, 실제 분할·병합 로직은 `processing/chunking/smart_chunker.py`
 > 한 벌에 있습니다. 거기를 고치면 `/chunker` 와 `/preprocess*`(적재)가 **함께** 바뀝니다.
 
@@ -47,7 +47,7 @@
 각각 생성해 라우트에 붙이기 때문입니다. 설정은 `activities/parse/config.yaml` 과
 `activities/chunk/config.yaml` 두 벌을 읽습니다.
 
-**facade 한 개만 `preprocessor.py` 로 마운트하는 형태** 에서는 `IS_PARSER` 가 파서에만,
+**처리기 한 개만 `preprocessor.py` 로 마운트하는 형태** 에서는 `IS_PARSER` 가 파서에만,
 `IS_CHUNKER` 가 청커에만 있으므로 **한 서빙이 둘 다 할 수 없습니다.** 그때는 파싱 서빙과
 청킹 서빙 두 개를 운용하고 설정도 두 벌을 각각 갱신합니다.
 
@@ -104,7 +104,9 @@
 
 ---
 
-## chunk_config.yaml 설정
+## activities/chunk/config.yaml 설정
+
+기본 전처리기 서비스용으로는 이 키 중 자주 고치는 것만 남긴 간이 설정 `resource/chunk_config_simple.yaml` 을 제공합니다.
 
 섹션은 5개뿐입니다: `defaults` / `chunking` / `table_image` / `output` / `guardrail`.
 
@@ -307,7 +309,7 @@ chunking:
 판정에 걸린 청크가 있으면 성공 응답 최상위에 `chunk_validation` 이 붙습니다. `drop` 으로 뺀 청크를 로그를
 보지 않고도 알 수 있게 하기 위한 것입니다. `data`(청크 목록)의 구조는 바뀌지 않으며, 걸린 청크가 없거나
 검증이 꺼져 있으면 키 자체가 없습니다. 문서 실패(`CHUNK_ALL_REJECTED` 등)는 지금처럼 실패 응답입니다.
-코드서빙 서비스의 `/chunker` 와, 청킹 파사드를 배포한 기본 전처리기 서비스의 `/run`·`/chunker` 에 적용됩니다.
+코드서빙 서비스의 `/chunker` 와, 청킹 처리기를 배포한 기본 전처리기 서비스의 `/run`·`/chunker` 에 적용됩니다.
 
 ```json
 {"code": 0, "errMsg": "success", "data": [ ... ],

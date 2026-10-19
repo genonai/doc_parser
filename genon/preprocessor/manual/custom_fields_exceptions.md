@@ -106,13 +106,16 @@ raw 예외**(마크다운 머리말 오류 등)뿐입니다.
 | 값의 형태 오류 (`values` 별칭 중복, 정수·boolean 아님, 필수 하위 키 누락) |
 | CSS 선택자 문법 오류 / 프롬프트 템플릿에 정의되지 않은 변수 |
 | 외부 파이썬 파일 경로가 허용 범위 밖 |
+| 액티비티 폴더(`activities/<slug>/`)에 `config.yaml` 이 없음 — 등록 오류. 기본 설정으로 대신하지 않습니다 |
+| 프롬프트 파일·`config_file` 의 상대 경로가 설정 폴더 밖(`../` 등). 설정 폴더 안의 사본만 읽습니다 |
+| 프롬프트 파일이 비어 있음 |
 
 ## FileNotFoundError
 
 | 발생 조건 |
 |---|
 | `config_file` |
-| 프롬프트 파일 (`system_prompt_file`·`user_prompt_file`) |
+| 프롬프트 파일 (`system_prompt_file`·`user_prompt_file`·`prompt_template_file`·`prompt_file`). 설정에 적은 파일이 없으면 내장 기본 프롬프트로 대신하지 않습니다 |
 | 외부 파이썬 파일 (`python.file`·`parser.file`) |
 
 ## ImportError

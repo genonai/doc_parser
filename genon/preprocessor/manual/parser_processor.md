@@ -13,7 +13,7 @@
 
 1. [개요](#개요)
 2. [API 엔드포인트](#api-엔드포인트)
-3. [parse_config.yaml 설정](#parse_configyaml-설정)
+3. [파싱 설정 (config.yaml)](#파싱-설정-configyaml)
 4. [지원 파일 형식 및 전제조건](#지원-파일-형식-및-전제조건)
 5. [API 요청 파라미터](#api-요청-파라미터)
 6. [출력 데이터 구조](#출력-데이터-구조)
@@ -33,7 +33,7 @@
 - HWP/HWPX는 전용 SDK 백엔드 사용, 실패 시 단계별 폴백 적용
 - 오디오는 Whisper API를 통한 음성 전사
 - CSV/XLSX는 표 구조 그대로 반환
-- 출력 형식은 `parse_config.yaml`의 `output.format`으로 제어 (`json` / `html` / `markdown` / `docling`)
+- 출력 형식은 파싱 설정(`activities/parse/config.yaml`)의 `output.format`으로 제어 (`json` / `html` / `markdown` / `docling`)
 - `docling` 포맷은 복원 가능한 DoclingDocument 원본 JSON을 반환하며, Chunk API(`/chunker`)의 입력으로 사용
 
 ---
@@ -97,12 +97,16 @@ Content-Type: application/json
 
 ---
 
-## parse_config.yaml 설정
+## 파싱 설정 (config.yaml)
 
-`파싱용 전처리기`는 `parse_config.yaml` 파일을 읽어서 전처리기 수행에 필요한 정보를 설정합니다.
-`parse_config.yaml` 파일은 Genos 전처리기의 `resource` 탭에 등록됩니다.
+`파싱용 전처리기`는 설정 파일을 읽어서 전처리기 수행에 필요한 정보를 설정합니다. 실행 방식에 따라 파일이 다릅니다.
 
-Genos에서 전처리기를 배포할 때 `parse_config.yaml`파일도 함께 배포되어 전처리기 컨테이너에 적용됩니다. 따라서 `parse_config.yaml`파일의 내용이 수정된 경우에는 전처리기를 재배포해야만 수정된 내용이 적용됩니다.
+| 실행 방식 | 설정 파일 |
+|---|---|
+| 코드서빙 · 워커 | `activities/parse/config.yaml` (아래 스키마의 정식 설정) |
+| 기본 전처리기 서비스 (Genos 전처리기의 `resource` 탭에 등록) | `resource` 탭에 올린 설정 — 제공되는 간이 설정 `resource/parse_config_simple.yaml`(정식 설정에서 자주 고치는 키만 남긴 판)을 바탕으로 합니다 |
+
+Genos에서 전처리기를 배포할 때 설정 파일도 함께 배포되어 전처리기 컨테이너에 적용됩니다. 따라서 설정 파일의 내용이 수정된 경우에는 전처리기를 재배포해야만 수정된 내용이 적용됩니다.
 
 > **전처리기 최초 등록시 아래의 config 수정가이드를 참고해서 수정해 주세요.**
 
@@ -122,10 +126,13 @@ defaults:
 
 # ───────────────────────────────────────────────
 # 모델 프리셋 (아래 "모델 프리셋으로 접속 정보 모으기" 참고)
-# 접속 정보는 같은 폴더의 model_presets.yaml 에 모여 있고,
+# 접속 정보는 설정 폴더(resource/)의 model_presets.yaml 에 모여 있고,
 # 쓰는 자리에서 `model_preset: <이름>` 으로 부릅니다.
+# 액티비티 설정(activities/parse/config.yaml)은 model_presets_file 을 적지 않습니다 — 적지 않으면
+# 설정 폴더의 model_presets.yaml 을 이름으로 참조하고, 적으면 그 경로를 액티비티 폴더 기준으로 찾습니다.
+# 같은 폴더에 프리셋 파일을 둔 설정(resource/ 의 설정)만 아래 줄을 씁니다.
 # ───────────────────────────────────────────────
-model_presets_file: model_presets.yaml
+# model_presets_file: model_presets.yaml
 model_presets:              # 이 설정에서만 달라지는 값(선택)
   page:
     timeout: 360
@@ -267,7 +274,7 @@ enrichment:
       prompt_file: prompt_doc_summary.md   # {{full_text}} 치환
       max_chars: 6000
 
-  # facade 후처리 기반 이미지 설명 생성 (문맥 포함)
+  # 처리기 후처리 기반 이미지 설명 생성 (문맥 포함)
   - image_description:
       enable: true
       model_preset: image
@@ -369,8 +376,8 @@ model_presets:
 ```
 
 ```yaml
-# parse_config.yaml
-model_presets_file: model_presets.yaml
+# 파싱 설정 (activities/parse/config.yaml · resource/parse_config_simple.yaml)
+# model_presets_file: model_presets.yaml  # resource/ 의 설정만. 액티비티 설정은 적지 않습니다(적으면 액티비티 폴더 기준으로 찾습니다)
 
 enrichment:
   - toc:
@@ -397,15 +404,17 @@ llm:
 **프리셋 파일 지정과 우선순위**
 
 - `model_presets_file` 은 메인 yaml 과 같은 폴더 기준 경로입니다. 목록으로 여러 파일을 적을 수 있고,
-  뒤에 적은 파일이 우선합니다.
+  뒤에 적은 파일이 우선합니다. 액티비티 설정(`activities/<slug>/config.yaml`)은 적지 않아도 설정 폴더
+  (`resource/`)의 `model_presets.yaml` 을 이름으로 참조합니다(그 파일이 ① 층이 됩니다).
 - 프리셋은 세 층에서 모이며 뒤가 우선합니다. ① `model_presets_file` 로 지정한 파일들 →
   ② 메인 yaml 에 직접 적은 `model_presets` → ③ 환경변수 `GENOS_MODEL_PRESETS_FILE` 이 가리키는 파일.
 - 같은 이름의 프리셋끼리는 **키 단위로 병합**됩니다. 덮어쓰는 층에는 바뀌는 키(`url`·`api_key` 등)만
   적으면 됩니다. 예를 들어 메인 yaml 에 `model_presets: {page: {timeout: 360}}` 만 적으면
   `page` 의 접속값은 `model_presets.yaml` 의 값을 그대로 쓰고 `timeout` 만 바뀝니다.
-- `GENOS_MODEL_PRESETS_FILE` 은 **로컬 실행 전용**입니다. 저장소의 로컬 도구
+- `GENOS_MODEL_PRESETS_FILE` 은 값이 채워진 `model_presets.yaml` 경로로, 저장소 파일을 고치지 않고 접속 실값을
+  키 단위로 덮어씁니다. 로컬 실행과 코드서빙 배포(리비전 환경변수로 실값 주입)에서 씁니다. 저장소의 로컬 도구
   (`parse_chunk_test.sh`, `parse_chunk_verify.sh`, `build-script/run-local.sh`)는 이 변수가 비어 있으면
-  사내 VPN 용 접속값 `genon/sites/dev/model_presets.yaml` 로 자동 설정합니다. 운영 환경에서는 설정하지 않습니다.
+  사내 VPN 용 접속값 `genon/sites/dev/model_presets.yaml` 로 자동 설정합니다. 기본 전처리기 서비스에서는 설정하지 않습니다.
 
 **규칙**
 
@@ -834,7 +843,7 @@ filename: 보고서.pdf
 ---
 ```
 
-> TOC 프롬프트는 docling 레이어에서 처리되어 `{{raw_text}}` 만 지원하며, 위 reserved 카탈로그·`variables`·`template.mode` 는 facade enricher(metadata / custom_fields / image_description / table_description / doc_summary)에 적용됩니다.
+> TOC 프롬프트는 docling 레이어에서 처리되어 `{{raw_text}}` 만 지원하며, 위 reserved 카탈로그·`variables`·`template.mode` 는 처리기 enricher(metadata / custom_fields / image_description / table_description / doc_summary)에 적용됩니다.
 
 ### 파싱용 전처리기 최초 등록시 config 수정가이드
 
@@ -874,7 +883,7 @@ model_presets:
     workflow_id: 4932        # 민감정보 분류 워크플로우 ID
     api_key: "..."           # 워크플로우 호출 Bearer 인증키
 
-# parse_config.yaml
+# 파싱 설정 (activities/parse/config.yaml)
 guardrail:
   model_preset: guardrail
   timeout: 60
@@ -1099,7 +1108,7 @@ markdown:
 | `use_hwp_sdk` | `bool` | `true` | `true`: GenosHwpDocumentBackend 사용. `false`: 내장 백엔드(HwpDocumentBackend/HwpxDocumentBackend) 강제 사용 |
 | `dump_sdk_output` | `bool` | `false` | HWP SDK 내부 출력 덤프 여부 (`use_hwp_sdk=true`일 때만 유효) |
 
-> 이미지 설명 문맥 추출(`enrichment.image_description.*`)은 현재 `parse_config.yaml` 설정값으로 제어합니다.
+> 이미지 설명 문맥 추출(`enrichment.image_description.*`)은 현재 파싱 설정(`activities/parse/config.yaml`) 값으로 제어합니다.
 
 > LLM 호출 파일 캐시·실패 정책(`error_policy`)·요청 deadline(`request_deadline`)은 모든 형식 공통으로
 > `params` 로 opt-in 할 수 있습니다 — [9. LLM 호출 파일 캐시 / 실패 정책 / 요청 deadline (#329)](#9-llm-호출-파일-캐시--실패-정책--요청-deadline-329) 절 참고.
@@ -1177,7 +1186,7 @@ markdown:
 
 ### `output.format: html` 또는 `markdown`
 
-Docling 경로(PDF, HTML, HWP, HWPX, DOCX)에서 `parse_config.yaml`의 `output.format`을 `html` 또는 `markdown`으로 설정하면, 전체 문서를 하나의 문자열로 직렬화하여 `content`에 담고 `elements`는 `[]`로 반환됩니다.
+Docling 경로(PDF, HTML, HWP, HWPX, DOCX)에서 파싱 설정(`activities/parse/config.yaml`)의 `output.format`을 `html` 또는 `markdown`으로 설정하면, 전체 문서를 하나의 문자열로 직렬화하여 `content`에 담고 `elements`는 `[]`로 반환됩니다.
 
 ```json
 {
@@ -1364,7 +1373,7 @@ fields:
 > `source.pre.json.body_from` 으로 그 값을 지목하면 됩니다. 선택자는 **파싱 전 원문**에
 > 걸리므로, docling 이 지워 버리는 class·속성·`alt` 를 모두 쓸 수 있습니다.
 
-> 등록 블록(`parse_config.yaml`)의 `extractor` 는 **적지 않아도 됩니다.**
+> 등록 블록(`activities/parse/config.yaml`)의 `extractor` 는 **적지 않아도 됩니다.**
 > 생략하면 설정 파일의 `source.kind` 에서 정해집니다(문서형은 `python:` 블록이 있으면
 > `python`, 없으면 `llm`. `kind: html` 이면 `html_select`). 같은 정보를 두 파일에 적으면 어긋날 수 있고, 어긋나면 "이
 > extractor 가 읽지 않는 키" 라는 메시지로 기동이 실패합니다 — 설정에 그 키를 적은
@@ -1509,7 +1518,7 @@ rows·records 의 `body.fields`·`body.repeat` 값이 JSON·HTML 이면 본문�
 펼쳐져** `output_fields`·`system_prompt`·`user_prompt` 같은 이름으로 오류 메시지에 나옵니다.
 
 > **청크 텍스트 정제(`chunking.text_cleanup`)는 doc_type 별 설정이 아니라 프로세서 config** 입니다.
-> `parse_config.yaml` 에는 없습니다 — 파서와 청커를 나눠 배포했다면 **청커 쪽 yaml** 에 적습니다.
+> 파싱 설정(`activities/parse/config.yaml`)에는 없습니다 — 파서와 청커를 나눠 배포했다면 **청커 쪽 yaml** 에 적습니다.
 
 ### `transform` 9종 — 체이닝됩니다
 
@@ -1672,7 +1681,7 @@ fields:
 ### 코드가 필요할 때 — 고칠 자리 3개
 
 `activities/parse/processor.py` 파일 머리 주석에 같은 목록이 있습니다. **그 밖으로 나가야 한다면
-설정이나 facade 로 풀 수 있는 일을 놓친 것입니다.**
+설정이나 처리기로 풀 수 있는 일을 놓친 것입니다.**
 
 | # | 자리 | 언제 |
 |---|---|---|
@@ -1885,10 +1894,10 @@ if result["code"] == 0:
         print(f"[Page {element['page']}][{element['category']}] {str(element['content'])[:80]}")
 ```
 
-### HTML 포맷으로 출력 (`parse_config.yaml: output.format: html`)
+### HTML 포맷으로 출력 (`parse_config_simple.yaml: output.format: html`)
 
 ```python
-# parse_config.yaml에 output.format: html 설정 후
+# 기본 전처리기 서비스의 resource/parse_config_simple.yaml 에 output.format: html 설정 후
 response = requests.post(
     f"{BASE_URL}/preprocessor/{PREPROCESSOR_ID}/run",
     headers={"Authorization": f"Bearer {AUTH_KEY}"},

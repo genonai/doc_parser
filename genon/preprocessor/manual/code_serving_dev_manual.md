@@ -6,14 +6,14 @@ Genos 코드서빙으로 배포된 **문서 전처리기(doc parser)** 의 설�
 전처리기 코드서빙은 **이미 배포되어 동작하고 있습니다.** 이 문서는 실행 중인 전처리기를 우리
 요구에 맞게 고치는 방법을 다룹니다. 도커 이미지를 빌드하는 일은 없습니다.
 
-> **모니모 환경은 이 문서가 아닙니다.** Bitbucket과 전용 CI/CD로 배포하는 환경은 같은 폴더의
-> `code_serving_dev_manual_monimo.md`를 보세요. 1·2·5·6장은 같고 개발환경과 배포 장만 다릅니다.
+> **모니모 환경은 이 문서가 아닙니다.** 모니모는 Temporal 워커로 전처리기를 실행하므로 같은 폴더의
+> 모니모 개발 매뉴얼 `code_serving_dev_manual_monimo.md`를 보세요.
 
 ## 목차
 
 - [0. 개요](#0-개요) — 사전 준비 항목 · 작업 흐름 · 작업 범위 · 엔드포인트
 - [1. 새 문서 유형 추가하기](#1-새-문서-유형-추가하기) — `custom_field_*.yaml` 6단계
-- [2. 코드 수정](#2-코드-수정) — facade 2개의 훅 메소드와 확장 지점
+- [2. 코드 수정](#2-코드-수정) — 액티비티 처리기 2개의 훅 메소드와 확장 지점
 - [3. 개발 환경](#3-개발-환경) — 로컬 설치 · 검증 절차 · 코드스페이스
 - [4. 재배포](#4-재배포) — gitea push → 리비전 배포 → 호출 검증
 - [5. 구성 YAML 옵션](#5-구성-yaml-옵션) — 플레이스홀더 · 주요 구성 옵션
@@ -52,7 +52,7 @@ Genos 코드서빙으로 배포된 **문서 전처리기(doc parser)** 의 설�
 ```
  [1장 또는 2장]  설정 또는 코드 수정
         │
- [3장]   facade 단독 실행으로 결과를 눈으로 확인          ← 수 초. 여기서 대부분 끝냅니다
+ [3장]   처리기 단독 실행으로 결과를 눈으로 확인          ← 수 초. 여기서 대부분 끝냅니다
         │
  [4장]   commit/push → 리비전 생성 → 배포
         │
@@ -66,9 +66,9 @@ Genos 코드서빙으로 배포된 **문서 전처리기(doc parser)** 의 설�
 | 하는 일 | 어디를 고치나 | 이 문서 |
 |---|---|---|
 | **새 문서 유형 추가** | `activities/parse/custom_field_<유형>.yaml` + 등록 블록 | 1장 |
-| 문서 유형별 옵션 조정 | facade의 `CONFIG_BY_DOC_TYPE` | [2.3](#23-문서-유형마다-설정을-다르게--config_by_doc_type) |
-| 입력 데이터 구조 조정 | facade의 훅 메소드 | [2.4](#24-설정만으로-입력-데이터-구조를-처리할-수-없는-경우--훅-메소드) |
-| 공통 동작 옵션 | `resource/*_processor_config.yaml` | 5장 |
+| 문서 유형별 옵션 조정 | 액티비티 처리기의 `CONFIG_BY_DOC_TYPE` | [2.3](#23-문서-유형마다-설정을-다르게--config_by_doc_type) |
+| 입력 데이터 구조 조정 | 액티비티 처리기의 훅 메소드 | [2.4](#24-설정만으로-입력-데이터-구조를-처리할-수-없는-경우--훅-메소드) |
+| 공통 동작 옵션 | `activities/parse/config.yaml` · `activities/chunk/config.yaml` | 5장 |
 | 재배포 | gitea push → 리비전 | 4장 |
 
 ### 0.4 코드서빙이란
@@ -113,10 +113,10 @@ cd /app/src/service && uvicorn main:app --host 0.0.0.0 --port ${PORT:-8080} --wo
 
 ### 0.5 엔드포인트
 
-전처리기는 목적이 다른 facade 5개를 한 서버에 올립니다. **이 문서가 다루는 것은 파싱과 청킹
+전처리기는 목적이 다른 처리기 5개를 한 서버에 올립니다. **이 문서가 다루는 것은 파싱과 청킹
 2종**이고, 나머지는 이름만 알아 두면 됩니다.
 
-| 엔드포인트 | facade 파일 | 이 문서에서 |
+| 엔드포인트 | 처리기 파일 | 이 문서에서 |
 |---|---|---|
 | `POST /parser` · `/parser_upload` | `activities/parse/processor.py` | **주 대상** |
 | `POST /chunker` | `activities/chunk/processor.py` | **주 대상** |
@@ -184,7 +184,7 @@ cd /app/src/service && uvicorn main:app --host 0.0.0.0 --port ${PORT:-8080} --wo
 템플릿에는 항목마다 `[필수]`/`[선택]` 표시와 뜻, 흔한 실수, 확인 명령이 주석으로 들어 있습니다.
 빈 파일에서 새로 쓰는 것보다 빠릅니다.
 
-| `kind` | 복사할 템플릿 (`resource/templates/`) | 제공 예시 (`resource/`) |
+| `kind` | 복사할 템플릿 (`resource/templates/`) | 제공 예시 (`activities/parse/`) |
 |---|---|---|
 | `rows` | `custom_field_TEMPLATE_rows.yaml` | — |
 | `records` | `custom_field_TEMPLATE_records.yaml` | — |
@@ -192,7 +192,7 @@ cd /app/src/service && uvicorn main:app --host 0.0.0.0 --port ${PORT:-8080} --wo
 | `document` | `custom_field_TEMPLATE_document.yaml` | `custom_field_card.yaml` |
 | `html` | `custom_field_TEMPLATE_html.yaml` | — |
 
-특정 고객사이트 전용 문서유형 설정은 공통 배포본의 `resource/` 에 포함되지 않습니다.
+특정 고객사이트 전용 문서유형 설정은 공통 배포본의 `activities/parse/` 에 포함되지 않습니다.
 
 ```bash
 # 실행 위치: 저장소 루트
@@ -301,12 +301,13 @@ enrichment:
 
 #### 다른 엔드포인트에도 필요하다면
 
-설정 파일은 한 벌만 두고 등록 블록만 복사합니다. `custom_field_*.yaml`은 `resource/`에
-하나만 두면 됩니다.
+등록 블록을 복사하고, `custom_field_*.yaml`은 **등록한 config와 같은 폴더**에 둡니다. 파싱(`/parser`)
+설정은 자기 폴더(`activities/parse/`)의 사본만 읽고 폴더 밖 파일은 거부합니다. 나머지 엔드포인트의
+config는 `resource/`에 있으므로 그쪽에도 사본이 필요합니다.
 
 | 엔드포인트 | 등록 블록을 추가할 config |
 |---|---|
-| `/parser` | `parse_config.yaml` |
+| `/parser` | `activities/parse/config.yaml` |
 | `/preprocess`, `/preprocess_intelligent` | `intelligent_processor_config.yaml` |
 | `/preprocess_convert` | `convert_processor_config.yaml` |
 | `/chunker` | **수정 불필요** — 파서 결과를 그대로 승격합니다 |
@@ -380,7 +381,7 @@ enrichment:
 genon/preprocessor/tools/config_precheck/precheck_custom_fields.sh
 ```
 
-(나) 값을 눈으로 봅니다. facade 단독 실행이 가장 빠릅니다([3.3](#33-신속한-확인-방법--facade-단독-실행)).
+(나) 값을 눈으로 봅니다. 처리기 단독 실행이 가장 빠릅니다([3.3](#33-신속한-확인-방법--처리기-단독-실행)).
 `rows`·`records`·`sections`는 필드 생성 LLM과 표 설명 등 모델을 호출하는 보강 기능을 모두 끄면
 모델 서빙 없이 검증할 수 있습니다.
 
@@ -461,9 +462,9 @@ EOF
 | 순서 | 수단 | 무엇이 바뀌나 | 고치는 곳 |
 |---|---|---|---|
 | ① | 요청 `params` | 그 요청 하나 | 없음 ([5.4](#54-요청-params로-재배포-없이-값-변경)) |
-| ② | 프로세서 설정 yaml | 모든 문서 공통 동작 | `resource/*_processor_config.yaml` ([5장](#5-구성-yaml-옵션)) |
+| ② | 프로세서 설정 yaml | 모든 문서 공통 동작 | `activities/parse/config.yaml` · `activities/chunk/config.yaml` ([5장](#5-구성-yaml-옵션)) |
 | ③ | `custom_field_*.yaml` | 그 **문서유형**의 값 추출과 청크 본문 | `activities/parse/custom_field_<유형>.yaml` ([1장](#1-새-문서-유형-추가하기)) |
-| ④ | **facade 2개** | 설정으로 표현할 수 없는 처리 | `activities/parse/processor.py` · `activities/chunk/processor.py` |
+| ④ | **액티비티 처리기 2개** | 설정으로 표현할 수 없는 처리 | `activities/parse/processor.py` · `activities/chunk/processor.py` |
 | ⑤ | 그 밖 | 위 넷으로 안 될 때만 | `main.py`(엔드포인트 추가), `processing/` 공용 모듈 |
 
 ④ 까지가 **고객 개발자의 범위입니다.** 처리 본체는 `processing/core/parser.py`와 `core/chunker.py`에
@@ -497,7 +498,7 @@ EOF
 ### 2.3 문서 유형마다 설정을 다르게 — `CONFIG_BY_DOC_TYPE`
 
 설정 파일은 모든 문서에 똑같이 적용됩니다. "계약서만 OCR을 강제로", "FAQ만 청크를 짧게"는
-훅이 아니라 이 표에 씁니다. 두 facade 모두 같은 자리에 있습니다.
+훅이 아니라 이 표에 씁니다. 두 액티비티 처리기 모두 같은 자리에 있습니다.
 
 ```python
 # activities/parse/processor.py
@@ -584,7 +585,7 @@ EOF
 
 `config_by_condition(job)`, 파서의 `edit_document(job, doc)`, 직접 구현하는 `route_*(job)`처럼
 **시그니처에 `job`이 있는 메소드**에서만 요청 객체를 쓸 수 있습니다. 일반 `edit_input`·`edit_output`·
-`edit_chunk`의 `**kwargs`에는 자동 전달되지 않습니다. facade 주석의 `kwargs["job"]` 안내와 현재
+`edit_chunk`의 `**kwargs`에는 자동 전달되지 않습니다. 액티비티 처리기 주석의 `kwargs["job"]` 안내와 현재
 호출부가 일치하지 않으므로, 이 문서는 실행 코드를 기준으로 설명합니다.
 
 | 필드 | 파서 | 청커 | 값 |
@@ -746,7 +747,7 @@ EOF
 **먼저 `ROUTES`에 등록한 다음 시험하세요.** 등록 전에는 캐치올이 받아 목표필드가 빈 청크 1개만 나옵니다.
 
 표준 포맷 어느 것으로도 바꿀 수 없는 입력 데이터(로그, 고정폭 텍스트, 사내 전문)만 핸들러를 직접
-만듭니다. 그 핸들러도 facade 파일에 둡니다.
+만듭니다. 그 핸들러도 액티비티 처리기 파일에 둡니다.
 
 ```python
     async def route_log(self, job):
@@ -778,7 +779,7 @@ EOF
 | 확장 지점 | 무엇을 맡기나 | 어떻게 |
 |---|---|---|
 | **값 추출 자체** | 정규식 추출, 사내 마스터 조회처럼 **LLM이 아닌 방법** | `custom_field_*.yaml`의 `python:` 블록 |
-| 값 변환기 | 금액 파싱, 사번에서 부서명처럼 **사이트 전용 값 변환** | facade에서 `tb.register_transform()`으로 등록한 뒤 yaml `transform:`에서 이름으로 호출 |
+| 값 변환기 | 금액 파싱, 사번에서 부서명처럼 **사이트 전용 값 변환** | 액티비티 처리기에서 `tb.register_transform()`으로 등록한 뒤 yaml `transform:`에서 이름으로 호출 |
 | LLM 출력 파서 | 표준 JSON이 아닌 응답 해석 | `custom_field_*.yaml`의 `llm:` 항목 안 `parser: {type: python, file, callable}` |
 
 ```yaml
@@ -808,7 +809,7 @@ def extract(text, document=None, output_fields=None, **kwargs):
 - `async def`로 써도 됩니다(사내 API 조회). 파일이 없거나 함수 이름이 틀리면 **기동에서** 실패합니다.
 - `url`·`system_prompt` 같은 LLM 전용 키는 이 자리에서 쓸 수 없습니다(기동 실패).
 
-사이트 전용 값 변환기는 **core를 고치지 말고** facade 파일 최상위에서 등록합니다. core를 고치면
+사이트 전용 값 변환기는 **core를 고치지 말고** 액티비티 처리기 파일 최상위에서 등록합니다. core를 고치면
 릴리스 갱신에서 사라집니다.
 
 ```python
@@ -842,7 +843,7 @@ fields:
 
 ### 2.8 새 엔드포인트 추가하기
 
-1. facade에 처리 메서드를 만들거나 새 facade 파일을 만듭니다.
+1. 처리기에 처리 메서드를 만들거나 새 facade 파일을 만듭니다.
 2. `main.py`에 라우트를 추가합니다.
 
 ```python
@@ -860,12 +861,12 @@ fields:
 > 경로에 슬래시를 넣지 마세요. 게이트웨이는 `{route}`를 **단일 세그먼트로만** 전달합니다.
 > `/preprocess/myfeature`는 통과하지 못합니다([0.5](#05-엔드포인트)).
 
-`main.py`는 각 facade에 대해 아래를 가정합니다. **이 계약을 깨면 그 엔드포인트가 동작하지 않습니다.**
+`main.py`는 각 처리기에 대해 아래를 가정합니다. **이 계약을 깨면 그 엔드포인트가 동작하지 않습니다.**
 
 | 항목 | 지켜야 할 것 |
 |---|---|
 | 클래스 이름 | `DocumentProcessor` 고정. `main.py`가 이 이름으로 import 합니다 |
-| 마커 | `IS_PARSER` / `IS_CHUNKER`. 없으면 요청이 facade에 도달하지 못하고 거부됩니다 |
+| 마커 | `IS_PARSER` / `IS_CHUNKER`. 없으면 요청이 처리기에 도달하지 못하고 거부됩니다 |
 | `__call__` | **async** 여야 하고, 요청의 `params`가 `**kwargs`로 들어옵니다 |
 | 반환값 | 그대로 응답의 `data`가 됩니다 (parser=dict, chunker=청크 목록) |
 | 생성 시점 | 모듈 로드 시 **1회** 생성되어 프로세스 전역에서 재사용됩니다 |
@@ -874,7 +875,7 @@ fields:
 
 | | 왜 |
 |---|---|
-| facade 끼리 import | facade 파일 하나만 배포하는 방식이 깨집니다 |
+| 처리기끼리 import | 처리기 파일 하나만 배포하는 방식이 깨집니다 |
 | `self`에 요청 상태 저장 | 인스턴스는 **프로세스당 1개**입니다. `await` 사이에 다른 요청의 값이 섞입니다. `job`을 명시적으로 받는 단계에서는 `job.notes`를 쓸 수 있고, 일반 훅에는 `job`이 자동 전달되지 않습니다 |
 | `_`로 시작하는 메소드 오버라이드 | 훅 호출과 설정 적용 순서를 맡고 있습니다 |
 | `processing/core/` 수정 | 릴리스 갱신에서 사라집니다. 필요하면 솔루션 개발자에게 훅 추가를 요청하세요 |
@@ -939,14 +940,15 @@ uv pip install -r requirements-dev.txt    # 로컬 실행용 의존성
 > **`uv sync`는 사용하지 않습니다.** 배포본에는 docling 소스 대신 `packages/*.whl`만 있으므로
 > 위처럼 `uv pip install -r ...`로 설치합니다.
 
-설치가 정상인지 facade import로 확인합니다.
+설치가 정상인지 처리기 import로 확인합니다.
 
 ```bash
 # 실행 위치: 저장소 루트
 python -c "
 import sys; sys.path.insert(0,'.')
-for m in ('parser','chunking','intelligent','attachment','convert'):
-    __import__(f'genon.preprocessor.facade.{m}_processor'); print('OK', m)
+for m in ('activities.parse','activities.chunk','facade.intelligent_processor',
+          'facade.attachment_processor','facade.convert_processor'):
+    __import__(f'genon.preprocessor.{m}'); print('OK', m)
 "
 ```
 
@@ -990,9 +992,9 @@ Genos **게이트웨이에 접근할 수 있는지가 갈림길입니다.** 모�
 > 완전 차단 환경에서는 enrichment 각 항목을 `enable: false`로 꺼 두는 편이 낫습니다. 실패해도
 > 경고만 남기고 넘어가지만, 실패를 확인하기까지 불필요한 대기가 생깁니다.
 
-### 3.3 신속한 확인 방법 — facade 단독 실행
+### 3.3 신속한 확인 방법 — 처리기 단독 실행
 
-facade 두 파일은 **그 자체로 실행됩니다.** 서버를 실행하지 않고도 문서 한 건을 처리해 볼 수 있습니다.
+액티비티 처리기 두 파일은 **그 자체로 실행됩니다.** 서버를 실행하지 않고도 문서 한 건을 처리해 볼 수 있습니다.
 훅이나 `custom_field_*.yaml`을 고친 직후 확인에 가장 빠릅니다.
 
 ```bash
@@ -1075,9 +1077,11 @@ curl "http://code-serving-<ID>-<리비전>:8080/health"
 
 전처리기가 호출하는 모델은 세 종류입니다. 이미 배포된 코드서빙은 값이 채워져 있습니다.
 
-접속 정보는 `resource/model_presets.yaml` **한 파일**에 모여 있습니다. 메인 yaml 은
-`model_presets_file: model_presets.yaml` 로 이 파일을 읽고, 각 블록은 `model_preset: <이름>` 으로 부릅니다.
-서빙 ID·주소·키를 바꿀 때는 이 파일만 고칩니다.
+접속 정보는 `resource/model_presets.yaml` **한 파일**에 모여 있습니다. 액티비티 설정(`activities/*/config.yaml`)은
+`model_presets_file`을 적지 않아도 이 파일을 읽고, 그 밖의 메인 yaml 은 `model_presets_file: model_presets.yaml` 로
+읽습니다. 각 블록은 `model_preset: <이름>` 으로 부릅니다.
+서빙 ID·주소·키를 바꿀 때는 이 파일을 고칩니다. 리비전에 `GENOS_MODEL_PRESETS_FILE` 을 준 배포에서는 그 파일의 값이
+마지막에 이름별·키 단위로 덮이므로, 그 배포의 실값은 그 파일을 고칩니다.
 
 | 용도 | 프리셋 이름 | 비고 |
 |---|---|---|
@@ -1196,13 +1200,13 @@ cd ../gitea_repo
 
 코드스페이스에서 GitHub에 접근할 수 없으면 내 PC에서 받아 `.git`을 제외하고 압축해 올린 뒤 풉니다.
 
-> facade 몇 개만 골라 올리지 마세요. facade는 `packages/*.whl`(docling), `main.py`,
+> 처리기 몇 개만 골라 올리지 마세요. 처리기는 `packages/*.whl`(docling), `main.py`,
 > `processing/`과 같은 릴리스를 전제로 동작합니다. 일부만 바꾸면 서로 다른 릴리스가 섞여
 > 재현하기 어려운 오류가 발생합니다. 릴리스 단위로 통째 갱신하세요.
 
-갱신은 `resource/*.yaml`도 덮어씁니다. 환경에 맞게 채운 config가 초기화됩니다. 주의할 점은 다음 세 가지입니다.
+갱신은 `resource/*.yaml`과 `activities/<slug>/`의 설정(`config.yaml`·`custom_field_*.yaml`·`prompt_*.md`)도 덮어씁니다. 환경에 맞게 채운 config가 초기화됩니다. 주의할 점은 다음 세 가지입니다.
 
-1. `resource/`를 통째로 백업해 두고 **그대로 되돌리면 안 됩니다.** 새 릴리스가 추가한 config 키와
+1. `resource/`·`activities/`를 통째로 백업해 두고 **그대로 되돌리면 안 됩니다.** 새 릴리스가 추가한 config 키와
    프롬프트 파일까지 예전 것으로 돌아갑니다. 새 파일을 기준으로 두고 환경별 값만 옮겨 넣으세요.
 2. `tar` 덮어쓰기는 상위 릴리스에서 **삭제된 파일을 지우지 않습니다.** `git status --short`로 남은
    파일을 확인해 손으로 지우거나, `gitea_repo`를 새로 clone 하는 편이 안전합니다.
@@ -1212,11 +1216,11 @@ cd ../gitea_repo
 
 ```bash
 git diff --stat                                   # 전체 변경 요약
-git diff -- genon/preprocessor/resource           # 신규 키·프롬프트 확인 (되돌리기 전에 반드시)
+git diff -- genon/preprocessor/resource genon/preprocessor/activities   # 신규 키·프롬프트 확인 (되돌리기 전에 반드시)
 git status --short                                # 새로 생긴 파일 목록
 ```
 
-고친 facade를 다시 적용하는 절차는 [4.8](#48-릴리스-갱신-시-사용자-수정-사항-유지)에 있습니다.
+고친 처리기를 다시 적용하는 절차는 [4.8](#48-릴리스-갱신-시-사용자-수정-사항-유지)에 있습니다.
 
 ### 4.5 commit / push
 
@@ -1235,7 +1239,7 @@ echo "2026-09-17 14:30 공지사항 doc_type 추가" > UPDATED_AT
 
 ```bash
 git status --short                                              # 먼저 무엇이 잡히는지 확인
-git add genon/preprocessor/facade genon/preprocessor/resource UPDATED_AT   # 고친 경로만 명시
+git add genon/preprocessor/activities genon/preprocessor/facade genon/preprocessor/resource UPDATED_AT   # 고친 경로만 명시
 git commit -m "update preprocessor"
 git push                                                        # Genos id / pass 입력
 
@@ -1355,7 +1359,7 @@ python serving_gateway_test.py --mode e2e $AUTHARGS \
 
 ### 4.8 릴리스 갱신 시 사용자 수정 사항 유지
 
-전처리기 갱신은 **릴리스 단위 통째 갱신**이라 고친 facade 2개와 `resource/` 설정이 함께
+전처리기 갱신은 **릴리스 단위 통째 갱신**이라 고친 액티비티 처리기 2개와 `activities/`·`resource/` 설정이 함께
 덮어써집니다. 인자 없는 `git diff -- <경로> > my_change.patch`는 **이미 커밋한 변경과 미추적
 신규 파일을 놓칩니다** — working tree가 이미 커밋된 상태면 `HEAD`와 비교해도 차이가 없고, `add`
 하지 않은 새 파일은 `git diff`에 아예 잡히지 않습니다. 갱신 전에 아래 순서로 보관하세요.
@@ -1371,7 +1375,10 @@ git status --short                        # 미커밋·미추적 파일 확인
 # 로컬 검증용 API 키까지 커밋에 섞입니다.
 git add genon/preprocessor/activities/parse/processor.py \
         genon/preprocessor/activities/chunk/processor.py \
-        genon/preprocessor/activities/parse/custom_field_<유형>.yaml
+        genon/preprocessor/activities/parse/config.yaml \
+        genon/preprocessor/activities/chunk/config.yaml \
+        genon/preprocessor/activities/parse/custom_field_<유형>.yaml \
+        genon/preprocessor/activities/parse/prompt_<고친 것>.md
 git diff --cached --stat                  # 커밋할 파일 목록을 눈으로 확인
 git commit -m "릴리스 갱신 전 수정 사항 보관"
 
@@ -1379,9 +1386,8 @@ git bundle create "$BACKUP_DIR/my_change.bundle" HEAD   # 복구용 전체 이�
 git bundle verify "$BACKUP_DIR/my_change.bundle"
 
 git diff --binary "$BASE_RELEASE" HEAD -- \
-             genon/preprocessor/activities/parse/processor.py \
-             genon/preprocessor/activities/chunk/processor.py \
-             genon/preprocessor/resource > "$BACKUP_DIR/my_change.patch"
+             genon/preprocessor/activities \
+             genon/preprocessor/resource > "$BACKUP_DIR/my_change.patch"   # activities/<slug>/ 폴더 전체
 
 git apply --stat "$BACKUP_DIR/my_change.patch"    # 담긴 파일 목록 확인
 
@@ -1407,20 +1413,20 @@ git apply "$BACKUP_DIR/my_change.patch"           # 충돌하면 번들에서 �
 
 코드를 고치지 않고 동작을 바꾸는 방법입니다. **이미 배포된 코드서빙은 값이 채워져 있습니다.**
 
-> facade 인스턴스는 **모듈 로드 시점에 1회만** 생성됩니다. 그래서 **config yaml을 바꾸면
+> 처리기 인스턴스는 **모듈 로드 시점에 1회만** 생성됩니다. 그래서 **config yaml을 바꾸면
 > 재배포해야 반영됩니다.** 재배포 없이 값을 바꿔 보려면 요청 `params`를 쓰세요([5.4](#54-요청-params로-재배포-없이-값-변경)).
 
 ### 5.1 구성 파일별 적용 대상
 
-| config 파일 (`genon/preprocessor/resource/`) | 엔드포인트 |
+| config 파일 (`genon/preprocessor/` 기준) | 엔드포인트 |
 |---|---|
-| `parse_config.yaml` | `/parser`, `/parser_upload` |
-| `chunk_config.yaml` | `/chunker` |
-| `intelligent_processor_config.yaml` | `/preprocess`, `/preprocess_intelligent` |
-| `convert_processor_config.yaml` | `/preprocess_convert` |
-| `attachment_processor_config.yaml` | `/preprocess_attachment` |
-| `custom_field_*.yaml` (기본 제공 15개) | 문서 유형별 값 추출과 청크 본문 ([1장](#1-새-문서-유형-추가하기)) |
-| `templates/custom_field_TEMPLATE_*.yaml` | 새 문서 유형을 만들 때 복사할 원본 5종. 등록하지 않습니다 |
+| `activities/parse/config.yaml` | `/parser`, `/parser_upload` |
+| `activities/chunk/config.yaml` | `/chunker` |
+| `resource/intelligent_processor_config.yaml` | `/preprocess`, `/preprocess_intelligent` |
+| `resource/convert_processor_config.yaml` | `/preprocess_convert` |
+| `resource/attachment_processor_config.yaml` | `/preprocess_attachment` |
+| `custom_field_*.yaml` (기본 제공 예시 `custom_field_card.yaml` 1개) | 문서 유형별 값 추출과 청크 본문 ([1장](#1-새-문서-유형-추가하기)). 등록한 config와 같은 폴더에 둡니다 |
+| `resource/templates/custom_field_TEMPLATE_*.yaml` | 새 문서 유형을 만들 때 복사할 원본 5종. 등록하지 않습니다 |
 
 ### 5.2 설정이 필요한 값 (플레이스홀더)
 
@@ -1506,7 +1512,7 @@ curl --location "${GW}/parser" \
   --data "{\"file_path\": \"${FILE_PATH}\", \"params\": {\"log_level\": 5, \"toc\": 0, \"img_desc\": 1}}"
 ```
 
-| facade | 자주 쓰는 `params` 키 |
+| 처리기 | 자주 쓰는 `params` 키 |
 |---|---|
 | parser | `doc_type`, `toc`, `img_desc`, `chart_desc`, `table_desc`, `table_refine`, `doc_summary`, `save_images`, `use_hwp_sdk`, `log_level` |
 | chunking | `document`, `chunk_size`, `chunk_mode`, `include_chunk_header`, `chunk_overlap`, `table_as_chunk`, `export_to_html`, `log_level` |
@@ -1521,7 +1527,7 @@ curl --location "${GW}/parser" \
 |---|---|---|
 | `error_policy` | `strict` / `lenient` | **기본 `lenient`.** 보강 단계(`custom_fields` · `doc_summary` · `image_description` · `metadata` · `doc_type_stamp`)에서 상위 오류 처리로 전달된 예외를 `strict`는 요청 실패로 올리고, `lenient`는 경고 후 계속합니다. 추출기 내부에서 처리된 예외·빈 결과까지 검출하지는 않으므로 필수 결과값을 별도로 검사합니다. 훅이 던진 예외와 파싱 실패에는 적용되지 않으며 `workflow_id` 없이도 항상 적용됩니다 |
 | `llm_cache` | `0` / `1` | 같은 입력에 대한 LLM 응답을 재사용합니다. **`workflow_id`가 함께 있을 때만 켜집니다** — 캐시 디렉터리를 `<interim_root>/<workflow_id>/<run_id 또는 default>/llm_cache`로 잡기 때문입니다. `workflow_id` 없이 `llm_cache: 1`만 주면 경고 없이 캐시가 꺼진 채 처리됩니다 |
-| `request_deadline` | 양수 초 | HTTP 처리 래퍼가 요청 전체에 제한 시간을 겁니다. 초과하면 `error_kind: timeout`으로 끊습니다. 생략·0 이하·숫자 변환 불가는 제한을 걸지 않으며, facade 단독 실행에는 이 래퍼가 없습니다 |
+| `request_deadline` | 양수 초 | HTTP 처리 래퍼가 요청 전체에 제한 시간을 겁니다. 초과하면 `error_kind: timeout`으로 끊습니다. 생략·0 이하·숫자 변환 불가는 제한을 걸지 않으며, 처리기 단독 실행에는 이 래퍼가 없습니다 |
 
 `/chunker`는 입력을 두 채널로 받습니다. `params.document`에 파싱 결과를 **인라인 전달**하는 것이
 우선이고, 없으면 `file_path`가 가리키는 **서버 내부의 `.json` 파일**을 읽습니다.
@@ -1538,8 +1544,9 @@ enrichment:
 ```
 
 우선순위는 **`prompt_template_file` > yaml 안의 inline `prompt_template` > 코드 내장 기본값**
-입니다. 경로는 config yaml이 있는 폴더 기준입니다. 프롬프트만 바꾸려면 `resource/prompt_*.md`를
-고쳐서 push 하면 됩니다.
+입니다. 상대 경로는 config yaml이 있는 폴더 기준이고 폴더 밖으로 나가는 상대 경로는 거부합니다(절대 경로는 운영자가 지정한 것으로 보고 그대로 읽으므로 사본 액티비티에는 쓰지 않습니다). 설정에 적은 파일이 없거나
+비어 있으면 오류이며, 코드 내장 기본값은 설정에 파일도 inline도 적지 않았을 때만 씁니다. 파싱(`/parser`)의
+프롬프트만 바꾸려면 `activities/parse/prompt_*.md`를 고쳐서 push 하면 됩니다.
 
 ---
 
@@ -1574,7 +1581,7 @@ enrichment:
 
 ### 6.2 청킹 동작
 
-facade의 `GenosSmartChunker` ClassVar는 청크 표기 방식을 정합니다.
+액티비티 처리기의 `GenosSmartChunker` ClassVar는 청크 표기 방식을 정합니다.
 
 | ClassVar | 기본값 | 의미 |
 |---|---|---|
@@ -1617,7 +1624,7 @@ facade의 `GenosSmartChunker` ClassVar는 청크 표기 방식을 정합니다.
 
 ### 6.4 응답 형식 및 오류
 
-응답 봉투는 `main.py`가 만듭니다. facade는 `data`에 들어갈 값만 반환합니다. facade에서 `code` 나
+응답 봉투는 `main.py`가 만듭니다. 처리기는 `data`에 들어갈 값만 반환합니다. 처리기에서 `code` 나
 `data` 같은 키를 만들면 이중으로 감싸집니다.
 
 ```json
@@ -1629,7 +1636,7 @@ facade의 `GenosSmartChunker` ClassVar는 청크 표기 방식을 정합니다.
 - 실패 응답에는 `error_code`, `error_type`, `stage`, `error_kind`, `tag`, `file_path`, `traceback`이
   실립니다(`stage`·`error_kind`는 값이 있을 때만). `error_type`은 예외 클래스명이고, 예외 생성자에
   준 `error_type` 인자는 응답에서 `error_kind`로 나갑니다.
-- facade가 `GenosServiceException`으로 던진 오류는 `error_code`가 보존됩니다. 그 외 예외는
+- 처리기가 `GenosServiceException`으로 던진 오류는 `error_code`가 보존됩니다. 그 외 예외는
   타입에 따라 `INPUT_ERROR` / `TIMEOUT_ERROR` / `INTERNAL_ERROR`로 자동 분류됩니다.
 - core가 넣는 `stage` 값은 `custom_fields` · `doc_summary` · `image_description` · `metadata` ·
   `doc_type_stamp`(보강 단계의 상위 오류 처리로 전달된 예외, `error_policy: strict`일 때)와
@@ -1641,7 +1648,7 @@ facade의 `GenosSmartChunker` ClassVar는 청크 표기 방식을 정합니다.
 
 | 응답 | 원인 | 확인할 것 |
 |---|---|---|
-| `…지원하지 않습니다` (`code:1`) | facade에 `IS_PARSER`/`IS_CHUNKER` 마커가 없어 요청이 도달하지 못함 | 클래스명(`DocumentProcessor`)과 마커를 바꾸지 않았는지 |
+| `…지원하지 않습니다` (`code:1`) | 처리기에 `IS_PARSER`/`IS_CHUNKER` 마커가 없어 요청이 도달하지 못함 | 클래스명(`DocumentProcessor`)과 마커를 바꾸지 않았는지 |
 | `/parser`는 되는데 `data.document`가 없음 | 정상 요소형 경로일 수 있음 | 먼저 `data.elements`와 적용 매핑을 확인합니다. 문서형을 기대했다면 `output.format`과 [6.1](#61-파싱-결과-형식)의 분기 조건을 확인합니다 |
 | 청크가 1개만 나옴 | 요소형 입력에 `chunk_size: 0`이 전달됨 | `chunk_size`를 충분히 큰 양수로 |
 | 청크가 합쳐지지 않음 | `chunk_size: 0`은 병합을 끄는 값 | `0` 대신 큰 값과 `chunk_mode: resize_all` |
@@ -1649,17 +1656,17 @@ facade의 `GenosSmartChunker` ClassVar는 청크 표기 방식을 정합니다.
 
 ### 6.5 수정 전 확인할 코드 중복 범위
 
-facade는 **한 파일씩 배포**되므로 서로 import 하지 않습니다. 그래서 일부 코드가 복제돼 있습니다.
+처리기는 **한 파일씩 배포**되므로 서로 import 하지 않습니다. 그래서 일부 코드가 복제돼 있습니다.
 `/chunker` 결과와 `/preprocess` 결과가 같아야 한다면 **관련 파일을 함께 고쳐야 합니다.**
 
 | 복제된 것 | 어디에 |
 |---|---|
 | 청크 출력 스키마 `GenOSVectorMeta` | `activities/chunk/processor.py` · `intelligent_processor.py` · `convert_processor.py` · `attachment_processor.py` |
 | `GenosSmartChunker` | 〃 (청커만 core의 `CHUNKER` ClassVar를 거칩니다) |
-| `GenosServiceException` | `processing/core/errors.py`(parser·chunker 공용) + 나머지 facade의 로컬 사본 |
+| `GenosServiceException` | `processing/core/errors.py`(parser·chunker 공용) + 나머지 파사드의 로컬 사본 |
 | `enrichment()` | `core/parser.py` + `intelligent_processor.py` · `convert_processor.py` |
 
-반대로 아래는 **한 벌뿐입니다.** 여기를 고치면 관련 facade 전부가 함께 바뀝니다.
+반대로 아래는 **한 벌뿐입니다.** 여기를 고치면 관련 처리기 전부가 함께 바뀝니다.
 
 | 한 벌인 것 | 어디에 |
 |---|---|
@@ -1671,7 +1678,7 @@ facade는 **한 파일씩 배포**되므로 서로 import 하지 않습니다. �
 
 ```bash
 # 실행 위치: 저장소 루트. 수정 전에 복제본을 찾습니다
-grep -rn "<함수명 또는 클래스명>" genon/preprocessor/facade/
+grep -rn "<함수명 또는 클래스명>" genon/preprocessor/activities/ genon/preprocessor/facade/
 ```
 
 ---
@@ -1693,8 +1700,10 @@ grep -rn "<함수명 또는 클래스명>" genon/preprocessor/facade/
 
 | 용어 | 뜻 |
 |---|---|
-| **facade** | 전처리기 한 종류의 **표면**을 담은 파일(`facade/*_processor.py`). 진입 클래스는 `DocumentProcessor` |
-| **훅 메소드(hook)** | facade에서 오버라이드하면 core가 정해진 자리에서 불러 주는 메소드. `edit_input` · `edit_document` · `edit_chunk` · `edit_output` |
+| **처리기** | 전처리기 한 종류의 **표면**을 담은 파일. 진입 클래스는 `DocumentProcessor`. 액티비티 처리기와 파사드를 함께 이르는 말 |
+| **액티비티 처리기** | 파싱·청킹 처리기 `activities/<slug>/processor.py`. 폴더 하나에 `config.yaml`·`prompt_*.md`·`custom_field_*.yaml`을 함께 둡니다 |
+| **파사드(facade)** | HTTP 처리기 파일 `facade/*_processor.py`(intelligent·convert·attachment). `parser_processor.py`·`chunking_processor.py`는 액티비티 처리기의 별칭입니다 |
+| **훅 메소드(hook)** | 처리기에서 오버라이드하면 core가 정해진 자리에서 불러 주는 메소드. `edit_input` · `edit_document` · `edit_chunk` · `edit_output` |
 | **toolbox (`tb`)** | 훅에서 쓸 수 있도록 재수출해 둔 기능 모음. yaml `transform:`이 부르는 것과 같은 함수입니다 |
 | **custom_fields** | 문서 유형별 값 추출 설정(`custom_field_*.yaml`). `source.kind` 5종으로 갈립니다 |
 | **doc_type(문서유형)** | 요청 `params`로 넘기는 문서유형 키. 일치하는 `custom_fields`만 켭니다. 청크 전달 범위는 [1.1](#11-doc_type의-역할) 참조 |
@@ -1775,7 +1784,7 @@ grep -rn "<함수명 또는 클래스명>" genon/preprocessor/facade/
 | `intelligent_processor.md` · `convert_processor.md` · `attachment_processor.md` | 이 문서가 다루지 않는 프로세서 3종의 옵션 전체 |
 | `guardrail_workflow_setup.md` · `guardrail_regex_filters.md` | 개인정보 마스킹 |
 | `installation.md` | 도커 이미지형 전처리기 설치 (코드서빙과 다른 배포 방식) |
-| `code_serving_dev_manual_monimo.md` | 모니모 환경(Bitbucket + CI/CD) 전용 판 |
+| `code_serving_dev_manual_monimo.md` | 모니모 개발 매뉴얼. 모니모는 Temporal 워커로 실행하므로 이 문서 대신 봅니다 |
 
 > 다른 환경의 예시값에 주의하세요. 저장소의 `README.md`와 `examples/` 예제에 나오는 주소·ID·
 > 인증키는 다른 환경의 값입니다. **그대로 복사해 쓰면 내 서빙이 아닌 곳으로 요청이 갑니다.**
@@ -1807,7 +1816,7 @@ config를 채운 뒤([5.2](#52-설정이-필요한-값-플레이스홀더)) 리�
 | 명령 | 실행 위치 |
 |---|---|
 | 로컬 환경 설치 | 내 PC, 배포본 클론 루트 |
-| facade 단독 실행 | 내 PC, 저장소 루트 |
+| 처리기 단독 실행 | 내 PC, 저장소 루트 |
 | 설정 점검·플레이스홀더 확인 | 저장소 루트 |
 | 커밋 해시 확인 | 코드스페이스, gitea 저장소 루트 |
 | 게이트웨이 호출 | 게이트웨이가 열리는 곳 |
@@ -1817,7 +1826,7 @@ config를 채운 뒤([5.2](#52-설정이-필요한-값-플레이스홀더)) 리�
 uv venv --python 3.11 && source .venv/bin/activate
 uv pip install -r requirements.txt && uv pip install -r requirements-dev.txt
 
-# facade 단독 실행 — 서버 없이 한 건 (3.3). 훅·설정을 고친 직후 가장 빠른 확인
+# 처리기 단독 실행 — 서버 없이 한 건 (3.3). 훅·설정을 고친 직후 가장 빠른 확인
 python -m genon.preprocessor.activities.parse 공지사항.xlsx --doc-type notice -o parsed.json
 python -m genon.preprocessor.activities.chunk parsed.json --doc-type notice -o chunks.json
 
@@ -1836,7 +1845,7 @@ tools/parse_chunk/parse_chunk_golden.py --check    # 고친 뒤
 grep -rn "<[A-Z_]*>" genon/preprocessor/resource/ | grep -vE ':[0-9]+: *#'
 
 # 복제본 찾기 (코드 수정 전 — 6.5)
-grep -rn "<함수명>" genon/preprocessor/facade/
+grep -rn "<함수명>" genon/preprocessor/activities/ genon/preprocessor/facade/
 
 # 리비전에 넣을 커밋 해시 (4.5)
 git rev-parse HEAD
