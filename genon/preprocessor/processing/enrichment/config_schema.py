@@ -74,7 +74,7 @@ _RECORD_COMMON = frozenset({
 EXTRACTOR_KEYS: dict[str, frozenset[str]] = {
     # `sequence`(v2 `fields.<이름>.seq`)는 레코드 루프가 있는 두 kind 전용이다. 섹션형·문서형은
     # "항목 N번째"가 정의되지 않아(문서형은 항상 1) 여기 넣지 않는다.
-    "tabular_mapping": _RECORD_COMMON | {"column_map", "row_merge", "sequence"},
+    "tabular_mapping": _RECORD_COMMON | {"column_map", "row_merge", "sequence", "sheets"},
     # `raw_fields` 는 JSON 원천 2종에만 있다. 엑셀 칸(rows)과 LLM 응답(document)에는
     # "객체를 구조로 볼지 값으로 볼지" 라는 판정 자체가 없다.
     "json_mapping": _RECORD_COMMON | {
@@ -104,6 +104,7 @@ EXTRACTOR_KEYS: dict[str, frozenset[str]] = {
         "thinking", "thinking_dialect",
         "front_matter_map", "file_fields", "value_map", "transforms", "derive", "pack",
         "meta_include", "body_fields", "chunk_prefix_fields", "first_chunk_fields", "field_labels",
+        "short_chunk_size",
     }),
     # 문서 단위인데 값을 만드는 것이 원문 HTML 의 선택자인 경우. 연결·프롬프트·파서 키가
     # 통째로 없고 원천 지목은 `select_map` 하나다(v2 의 `fields.<이름>.select`/`attr`).
@@ -112,6 +113,7 @@ EXTRACTOR_KEYS: dict[str, frozenset[str]] = {
         "select_map", "file_fields", "constants", "defaults",
         "value_map", "transforms", "derive", "pack", "meta_include",
         "body_fields", "chunk_prefix_fields", "first_chunk_fields", "field_labels",
+        "short_chunk_size",
     }),
     # 문서 단위인데 값을 만드는 것이 LLM 이 아니라 고객 파이썬 함수인 경우. 연결·프롬프트
     # 키가 없는 대신 file/callable 을 받고, 그 뒤의 값 파이프라인은 llm 과 같다.
@@ -120,6 +122,7 @@ EXTRACTOR_KEYS: dict[str, frozenset[str]] = {
         "output_fields", "constants", "defaults",
         "value_map", "transforms", "derive", "pack", "meta_include",
         "body_fields", "chunk_prefix_fields", "first_chunk_fields", "field_labels",
+        "short_chunk_size",
     }),
 }
 
@@ -187,6 +190,75 @@ def diagnose_keys(cfg: dict, extractor: str | None) -> dict | None:
         },
         "supported": sorted(supported),
     }
+
+
+# ── 텍스트 표 설명(table_text_description) 블록 ──────────────────────────────
+# 프로세서 공통 블록과 문서유형 오버라이드(등록 블록·custom_field yaml 최상위)가 같은 키를 쓴다.
+# 매뉴얼에 싣지 않는 키(옛 철자, 내부 표기, 미세 조정 값)도 코드가 읽으므로 모두 여기 둔다.
+TABLE_TEXT_DESCRIPTION_KEYS = frozenset({
+    "enable", "enabled", "model_preset", "resource_path",
+    "url", "api_key", "model", "max_tokens", "temperature", "timeout",
+    "top_p", "seed", "repetition_penalty", "params", "headers",
+    "thinking", "thinking_dialect", "system_prompt", "concurrency",
+    "prompt_template_file", "prompt_file", "prompt_template", "prompt",
+    "model_context_tokens", "max_context_tokens", "max_context", "completion_reserved_tokens",
+    "input_format", "before_items", "after_items", "max_context_chars",
+    "overflow_policy", "conflict_policy", "rag", "skip",
+})
+# `search_terms` 는 아래 두 키(생성 상한, 청크 노출)를 한 번에 정하는 편의 표기다.
+TABLE_TEXT_RAG_KEYS = frozenset({
+    "retrieval_context_max_chars", "key_fact_limit", "key_fact_max_chars",
+    "search_terms", "search_terms_limit", "include_search_terms", "repeat_context_on_split",
+})
+# LLM 전송에서 뺄 표의 조건. `skip: false` 는 여기 있는 조건을 모두 끈다.
+TABLE_TEXT_SKIP_KEYS = ("layout", "self_describing", "contained_duplicate")
+
+
+def diagnose_table_text_description(block) -> list[str]:
+    """텍스트 표 설명 블록 하나의 오기입을 찾아 사람이 읽는 문장 목록으로 돌려준다.
+
+    계층(공통·등록 블록·custom_field yaml)을 병합하기 전에 계층마다 부른다 — 병합 뒤에는
+    어느 계층에 적힌 값인지 알 수 없다. 처리 정책은 호출하는 쪽이 정한다.
+    """
+    if not isinstance(block, dict):
+        return []
+    problems = [
+        f"모르는 키 `{key}` 는 무시됩니다{_suggest(str(key), TABLE_TEXT_DESCRIPTION_KEYS)}"
+        for key in block if str(key) not in TABLE_TEXT_DESCRIPTION_KEYS
+    ]
+    rag = block.get("rag")
+    if isinstance(rag, dict):
+        problems += [
+            f"모르는 키 `rag.{key}` 는 무시됩니다{_suggest(str(key), TABLE_TEXT_RAG_KEYS)}"
+            for key in rag if str(key) not in TABLE_TEXT_RAG_KEYS
+        ]
+        if "search_terms" in rag:
+            value = rag["search_terms"]
+            if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+                problems.append(f"`rag.search_terms` 는 0 이상의 정수여야 합니다(받은 값: {value!r}). 이 값은 무시됩니다")
+            old = sorted(k for k in ("search_terms_limit", "include_search_terms") if k in rag)
+            if old:
+                problems.append(f"`rag.search_terms` 와 옛 키 {old} 를 함께 적었습니다. `rag.search_terms` 가 우선합니다")
+    elif rag is not None:
+        problems.append("`rag` 는 '키: 값' 형태여야 합니다. 이 값은 무시됩니다")
+    skip = block.get("skip")
+    if isinstance(skip, dict):
+        problems += [
+            f"모르는 키 `skip.{key}` 는 무시됩니다{_suggest(str(key), frozenset(TABLE_TEXT_SKIP_KEYS))}"
+            for key in skip if str(key) not in TABLE_TEXT_SKIP_KEYS
+        ]
+    elif skip is not None and skip is not False:
+        problems.append(f"`skip` 은 false 또는 조건별 '키: 값' 형태여야 합니다(받은 값: {skip!r}). 이 값은 무시됩니다")
+    return problems
+
+
+def warn_table_text_description(block, *, label: str) -> None:
+    """`diagnose_table_text_description` 결과를 경고로 남긴다. 기동은 막지 않는다.
+
+    쓰지 않는 블록의 오타로 서비스가 뜨지 않는 일을 피하려고 첫 릴리스는 경고만 남긴다.
+    """
+    for problem in diagnose_table_text_description(block):
+        _log.warning(f"[table_text_description] {label}: {problem}.")
 
 
 def format_diagnosis(label: str, diagnosis: dict) -> str:

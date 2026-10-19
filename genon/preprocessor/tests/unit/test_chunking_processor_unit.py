@@ -722,6 +722,53 @@ def test_title_only_chunk_not_lost():
     assert "장 본문입니다." in joined
 
 
+# 실물 발췌: 카카오 데브톡 Discourse 글(https://devtalk.kakao.com/t/topic/151298)의 <title>,
+# <noscript> 본문 시작부, 상단 로고 <img>. 본문이 <noscript> 안에만 있어 docling 결과가 제목과 그림뿐이다.
+_DEVTALK_EXCERPT = """<!DOCTYPE html>
+<html lang="ko"><head><title>카카오비즈니스 이용약관 개정 안내 - Notice / 공지 - 카카오 데브톡</title></head>
+<body class="">
+    <noscript data-path="/t/topic/151298">
+        <header>
+  <a href="/">카카오 데브톡</a>
+</header>
+        <div id="main-outlet" class="wrap" role="main">
+            <div id="topic-title">
+    <h1>
+      <a href="/t/topic/151298">카카오비즈니스 이용약관 개정 안내</a>
+    </h1>
+            </div>
+        </div>
+    </noscript>
+      <div class="custom-navbar">
+    <div class="wrap">
+        <a href="https://developers.kakao.com" target="_blank">
+            <img class="kakao-dev-logo" src="/uploads/default/original/3X/a/7/a7274086055333d7d5e218e5c8ba76ae30e74f6c.png" width="131" height="17">
+        </a>
+    </div>
+</div>
+    <section id='main'>
+    </section>
+</body></html>"""
+
+
+@pytest.mark.unit
+def test_html_without_body_text_chunks_without_page_lookup_error(tmp_path):
+    """본문 텍스트가 없는 HTML 도 청킹된다(#567).
+
+    pages 가 빈 문서에 청커의 최소 text item 폴백이 page_no=1 prov 를 달아, chunk_bboxes
+    계산이 없는 페이지를 조회하다 AttributeError 로 중단되던 결함의 재현이다.
+    """
+    pytest.importorskip("docling.document_converter", exc_type=ImportError)
+    from docling.document_converter import DocumentConverter
+
+    path = tmp_path / "devtalk.html"
+    path.write_text(_DEVTALK_EXCERPT, encoding="utf-8")
+    doc = DocumentConverter().convert(path).document
+
+    joined = "\n".join(v.text for v in _chunk(doc.model_dump(mode="json")))
+    assert "카카오비즈니스 이용약관 개정 안내" in joined
+
+
 @pytest.mark.unit
 def test_sibling_sections_are_not_rendered_as_parent_child():
     """형제 섹션을 한 청크에 담아도 부모-자식 경로로 표기하지 않는다."""
@@ -868,10 +915,10 @@ async def test_edit_chunk_drop_moves_the_once_prefix_to_the_first_survivor():
 
     # 버리기 전에는 0번만, 버린 뒤에는 새 0번만 접두를 갖는다(문서당 1회).
     assert sum("약관문서식별" in v.text for v in base) == 1
-    assert base[0].text.startswith("약관문서식별")
+    assert base[0].text.splitlines()[1] == "약관문서식별"  # HEADER 줄 다음(#545)
     assert len(kept) == len(base) - 1
     assert sum("약관문서식별" in v.text for v in kept) == 1
-    assert kept[0].text.startswith("약관문서식별")
+    assert kept[0].text.splitlines()[1] == "약관문서식별"  # HEADER 줄 다음(#545)
     # 순번·개수는 코어가 다시 맞춘다.
     assert [v.i_chunk_on_doc for v in kept] == list(range(len(kept)))
     assert all(v.n_chunk_of_doc == len(kept) for v in kept)
@@ -926,7 +973,7 @@ async def test_validation_drops_bad_chunks_and_renumbers():
     assert [v.i_chunk_on_doc for v in vectors] == [0, 1]
     assert all(v.n_chunk_of_doc == 2 for v in vectors)
     assert sum(v.n_chunk_of_page for v in vectors if v.i_chunk_on_page == 0) == 2
-    assert vectors[0].text.startswith("약관문서식별")
+    assert vectors[0].text.splitlines()[1] == "약관문서식별"  # HEADER 줄 다음(#545)
     assert sum("약관문서식별" in v.text for v in vectors) == 1
     # 뺀 청크는 진입점이 성공 응답에 싣도록 요청 상태에 남는다. preview 는 출력 본문과 같은
     # 마스킹을 거친 본문이다. 요약 표기는 test_session_summary 가 다룬다.
@@ -980,11 +1027,11 @@ async def test_validation_final_check_covers_hook_output(hook):
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("values,code", [
-    ({}, "CHUNK_ALL_REJECTED"),
-    ({"fail_on_any": True}, "CHUNK_REJECTED"),
+@pytest.mark.parametrize("values,code,reason_code", [
+    ({}, "CHUNK_ALL_REJECTED", "CHUNK_D002"),
+    ({"fail_on_any": True}, "CHUNK_REJECTED", "CHUNK_D003"),
 ])
-async def test_validation_fails_document(values, code):
+async def test_validation_fails_document(values, code, reason_code):
     """전부 제외되면 문서 실패, fail_on_any 면 불량 청크 하나로 문서 실패."""
     cf = pytest.importorskip("facade.chunking_processor")
     document = _quality_doc(_BAD, _BAD) if not values else _quality_doc(_GOOD, _BAD)
@@ -993,7 +1040,88 @@ async def test_validation_fails_document(values, code):
         await _validating(cf.DocumentProcessor(), **values)(None, "", document=document)
 
     assert exc.value.error_msg.startswith(code) and exc.value.error_type == "permanent"
+    assert exc.value.reason_code == reason_code
     assert type(exc.value).__name__ == "ChunkValidationError"    # 코드서빙 응답의 error_type
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("file_path,kwargs,message,reason_code", [
+    ("", {}, "입력이 필요합니다", "CHUNK_P002"),
+    ("/nonexistent/parsed.json", {}, "로드 실패", "CHUNK_S003"),   # 없는 경로는 파일 오류다
+    ("", {"document": {"foo": 1}}, "인식할 수 없습니다", "CHUNK_P003"),
+    ("", {"document": {"schema_name": "DoclingDocument", "texts": "broken"}}, "복원 실패", "CHUNK_P004"),
+])
+async def test_input_errors_are_permanent(file_path, kwargs, message, reason_code):
+    """청커 입력 오류는 다시 시도해도 같으므로 permanent 이며 사유 코드가 실린다(#528).
+
+    실물 파서 산출로 만든 같은 입력은 tools/code_serving 경로로 확인했다. 여기서는 해당
+    분기만 타면 되므로 최소 입력을 쓴다.
+    """
+    cf = pytest.importorskip("facade.chunking_processor")
+
+    with pytest.raises(cf.GenosServiceException, match=message) as exc:
+        await cf.DocumentProcessor()(None, file_path, **kwargs)
+
+    assert (exc.value.error_type, exc.value.reason_code) == ("permanent", reason_code)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("hook,expected", [
+    (None, {"i_page": 1}),          # 외부 payload 의 예약 키가 청킹 중 덮어써짐
+    ("blank_biz_id", {"BIZ_ID": 1, "i_page": 1}),   # edit_output 이 최종 출력에서 값을 지움
+    ("drop_first", None),           # 버려진 청크는 세지 않는다
+])
+async def test_lost_row_meta_is_reported_on_final_output(hook, expected):
+    """파서가 실어 보낸 행 메타가 최종 출력 청크에 그대로 실리지 않으면 검증 요약에 남는다(#528).
+
+    값은 실물 sample_files/monimo/monimo_faq_json_sample.json 의 첫 두 레코드다. 첫 행의
+    i_page 는 외부 payload 가 예약 이름을 실어 온 경우를 흉내 낸 것이다. 문서는 실패하지 않는다.
+    """
+    tb = pytest.importorskip("processing.core.toolbox")
+    cf = pytest.importorskip("facade.chunking_processor")
+
+    class _P(cf.DocumentProcessor):
+        def edit_output(self, vector_metas, **kwargs):
+            if hook == "blank_biz_id":
+                vector_metas[0].BIZ_ID = None
+            if hook == "drop_first":
+                return vector_metas[1:]
+            return vector_metas
+
+    elements = [
+        {"category": "tabular_row", "content": "설정한 홈 화면을 변경하고 싶어요.", "page": 1, "id": 0,
+         "metadata": {"BIZ_ID": "ca01_1", "QUESTION": "설정한 홈 화면을 변경하고 싶어요.", "i_page": 99}},
+        {"category": "tabular_row", "content": "SFC 삼성카드는 어떻게 신청하나요?", "page": 1, "id": 1,
+         "metadata": {"BIZ_ID": "ca01_2", "QUESTION": "SFC 삼성카드는 어떻게 신청하나요?"}},
+    ]
+    request = tb.mock_request()
+
+    await _validating(_P(), action="report")(request, "", document={"elements": elements})
+
+    summary = request.state.chunk_validation or {}
+    assert summary.get("missing_fields") == expected
+
+
+@pytest.mark.asyncio
+async def test_over_length_chunk_is_reported_not_dropped():
+    """max_chars 를 넘는 출력 청크는 drop 모드여도 버리지 않고 요약에 보고한다(#528).
+
+    본문은 실물 sample_files/monimo/monimo_faq_json_sample.json 첫 레코드의 질문이다.
+    """
+    tb = pytest.importorskip("processing.core.toolbox")
+    cf = pytest.importorskip("facade.chunking_processor")
+    question = "설정한 홈 화면을 변경하고 싶어요."
+    elements = [{"category": "tabular_row", "content": question, "page": 1, "id": 0,
+                 "metadata": {"QUESTION": question}}]
+    request = tb.mock_request()
+
+    vectors = await _validating(cf.DocumentProcessor(), max_chars=10)(
+        request, "", document={"elements": elements})
+
+    assert len(vectors) == 1
+    report = request.state.chunk_validation["max_length"]
+    assert (report["limit"], report["count"], report["items"][0]["n_char"]) == (
+        10, 1, len(vectors[0].text))
 
 
 @pytest.mark.asyncio

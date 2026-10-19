@@ -90,6 +90,7 @@ from .json_records import (
     normalize_table_format,
 )
 from genon.preprocessor.processing.common import config_parse as cp
+from genon.preprocessor.processing.common.reason_codes import CodedValueError
 from .tabular_custom_fields import (
     CustomFieldsMapperBase,
     apply_pack,
@@ -745,7 +746,7 @@ class SemanticJsonMapper(CustomFieldsMapperBase):
         if missing:
             msg = f"[json_semantic] 필수 공통 필드 누락: {sorted(missing)}"
             if self.missing_policy == "error":
-                raise ValueError(msg)
+                raise CodedValueError(msg, "PARSE_D003")
             _log.warning(f"{msg} — 섹션 0건으로 진행합니다.")
             return []
 

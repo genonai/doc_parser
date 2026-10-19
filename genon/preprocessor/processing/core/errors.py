@@ -13,7 +13,8 @@ from typing import Optional
 class GenosServiceException(Exception):
     def __init__(self, error_code: str, error_msg: Optional[str] = None,
                  msg_params: Optional[dict] = None,
-                 *, stage: Optional[str] = None, error_type: Optional[str] = None) -> None:
+                 *, stage: Optional[str] = None, error_type: Optional[str] = None,
+                 reason_code: Optional[str] = None) -> None:
         self.code = 1
         self.error_code = error_code
         self.error_msg = error_msg or "GenOS Service Exception"
@@ -21,6 +22,8 @@ class GenosServiceException(Exception):
         # #329: 실패 단계(stage)와 성격(error_type: transient/permanent/timeout).
         self.stage = stage
         self.error_type = error_type
+        # #528: 사유 코드(`PARSE_D001` 형식). 코드표는 common/reason_codes.py 를 본다.
+        self.reason_code = reason_code
 
     def __repr__(self) -> str:
         return f"GenosServiceException(code={self.code!r}, errMsg={self.error_msg!r})"

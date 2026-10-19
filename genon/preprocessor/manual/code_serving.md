@@ -450,7 +450,9 @@ workflow_id/run_id 를 유지하므로 **재시도 간 성공분을 그대로 �
 | 필드 | 설명 |
 | --- | --- |
 | `stage` | 실패 단계(`doc_summary`/`image_description`/`table_description`/`metadata`/`custom_fields`/`enrichment`/`request`) |
-| `error_kind` | 실패 성격 — `transient`(연결/5xx) / `permanent`(4xx/파싱) / `timeout` |
+| `error_kind` | 실패 성격 — `transient`(연결/429/5xx) / `permanent`(그 밖의 4xx/파싱) / `timeout` |
+| `reason_code` | 사유 코드(예: `PARSE_D001`). 코드표는 `custom_fields_exceptions.md` 의 "사유 코드" 절 |
+| `error_category` | 유형 — `data`(원천데이터) / `preprocess`(전처리) / `system`(시스템) |
 
 > **주의**: `strict` 는 캐시가 선행되어야 실용적이다. 캐시 없이 하드페일하면 재시도마다 성공분이 전부 재과금된다.
 

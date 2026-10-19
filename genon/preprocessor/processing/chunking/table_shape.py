@@ -253,22 +253,59 @@ def normalize_row_spans(grid: Sequence[Sequence[Any]]) -> list[list[Any]]:
     return normalized
 
 
+def is_colspan_copy(cell: Any, column: int) -> bool:
+    """grid 의 이 위치가 colspan 셀의 시작 컬럼이 아닌 피복 위치인가.
+
+    Docling grid 는 병합 셀을 피복 위치마다 같은 객체로 채운다. 같은 셀을 한 번만 쓰려면
+    텍스트가 아니라 셀의 시작 컬럼으로 가려야 한다(``table_html.render_row`` 와 같은 판정).
+    """
+    return cell is not None and getattr(cell, "start_col_offset_idx", column) != column
+
+
+def _has_sub_header(rows: Sequence[Sequence[Any]], column: int, text: str) -> bool:
+    """아래 헤더 행에 이 컬럼에서 시작하는 서로 다른 하위 헤더가 있는가."""
+    for row in rows:
+        cell = cell_at(row, column)
+        sub = cell_text(cell)
+        if sub and sub != text and not is_colspan_copy(cell, column):
+            return True
+    return False
+
+
 def flatten_header_rows(
-    grid: Sequence[Sequence[Any]], header_row_count: int, num_cols: int
+    grid: Sequence[Sequence[Any]],
+    header_row_count: int,
+    num_cols: int,
+    *,
+    keep_merged_leaf: bool = True,
 ) -> list[str]:
     """다중 헤더 행을 컬럼마다 ``상위 > 하위`` 한 줄로 합친다.
 
     markdown 표는 헤더가 한 행뿐이라 두 행을 그대로 쓰면 구분선 위치가 어긋나 표로
     파싱되지 않는다. 합치면 유효한 표가 되고 계층 관계도 본문에 남는다.
+
+    colspan 셀은 피복 컬럼에 그 컬럼에서 시작하는 하위 헤더가 있을 때만 상위 라벨로
+    붙인다(``지급금액 > 1년초과``). 하위 헤더가 없으면 시작 컬럼에만 한 번 쓴다 - 헤더 행의
+    조항·주석 성격 병합 셀이 모든 컬럼 라벨로 반복되어 분할 조각마다 몇 배로 실렸다.
+    ``keep_merged_leaf`` 가 거짓이면 하위 헤더 없는 colspan 셀은 시작 컬럼에서도 뺀다.
+    여러 컬럼을 덮으므로 어느 한 컬럼의 이름이 아니다(행 요약 라벨용 - 표 헤더에는 남는다).
     """
+    rows = grid[:max(header_row_count, 0)]
     labels: list[str] = []
     for column in range(num_cols):
         parts: list[str] = []
-        for row in grid[:max(header_row_count, 0)]:
-            text = cell_text(cell_at(row, column))
+        for index, row in enumerate(rows):
+            cell = cell_at(row, column)
+            text = cell_text(cell)
             # 상위 헤더는 colspan 으로 여러 컬럼에 복제되므로 같은 값이 이어지면 한 번만 쓴다.
-            if text and text not in parts:
-                parts.append(text)
+            if not text or text in parts:
+                continue
+            if not _has_sub_header(rows[index + 1:], column, text):
+                if is_colspan_copy(cell, column):
+                    continue
+                if not keep_merged_leaf and _span(cell, "col_span") > 1:
+                    continue
+            parts.append(text)
         labels.append(HEADER_LEVEL_SEP.join(parts))
     return labels
 
@@ -280,16 +317,48 @@ def serialize_rows(
 
     병합 셀이 많은 표는 격자 표현만으로는 어느 헤더에 걸린 값인지 임베딩에 드러나지
     않는다. 헤더 라벨을 값 옆에 붙인 문장을 함께 실어 그 관계를 명시한다.
+    colspan 셀은 시작 컬럼에서 한 번만 쓴다.
     """
     lines: list[str] = []
     for row in rows:
-        parts: list[str] = []
-        for column in range(num_cols):
-            value = cell_text(cell_at(row, column))
-            if not value:
-                continue
-            label = header_labels[column] if column < len(header_labels) else ""
-            parts.append(f"{label}={value}" if label else value)
+        parts = [f"{label}={value}" if label else value
+                 for label, value in _row_parts(row, header_labels, num_cols)]
         if parts:
             lines.append(" | ".join(parts))
     return lines
+
+
+def _row_parts(
+    row: Sequence[Any], header_labels: Sequence[str], num_cols: int
+) -> list[tuple[str, str]]:
+    """행 요약에 실리는 (라벨, 값) 목록. 값이 있는 시작 컬럼 셀만 고른다."""
+    parts: list[tuple[str, str]] = []
+    for column in range(num_cols):
+        cell = cell_at(row, column)
+        value = cell_text(cell)
+        if not value or is_colspan_copy(cell, column):
+            continue
+        parts.append((header_labels[column] if column < len(header_labels) else "", value))
+    return parts
+
+
+def row_has_label(row: Sequence[Any], header_labels: Sequence[str], num_cols: int) -> bool:
+    """이 행의 요약 줄에 라벨이 붙은 값이 하나라도 있는가.
+
+    라벨이 하나도 없으면 요약 줄은 표 행의 값을 다시 늘어놓은 것일 뿐이다. 요약 문자열의
+    모양(``=`` 포함 여부)으로 가리면 값에 든 ``=`` 를 라벨로 오인하므로, 실제로 출력되는
+    셀과 그 컬럼 라벨로 판정한다.
+    """
+    return any(label for label, _ in _row_parts(row, header_labels, num_cols))
+
+
+def cell_with_text(cell: Any, text: str, column: int) -> _FlatCell:
+    """셀의 구조 속성은 그대로 두고 텍스트만 바꾼 사본. 긴 셀을 나눈 부분 행에 쓴다."""
+    return _FlatCell(
+        text=text,
+        start_col_offset_idx=int(getattr(cell, "start_col_offset_idx", column) or 0),
+        col_span=_span(cell, "col_span"),
+        column_header=bool(getattr(cell, "column_header", False)),
+        row_header=bool(getattr(cell, "row_header", False)),
+        row_section=bool(getattr(cell, "row_section", False)),
+    )

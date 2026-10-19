@@ -32,6 +32,7 @@ OUT = (
 
 TEXT = """---
 file: "든든한 여행상해보험(2601)(무배당) 상품요약서"
+title: "든든한 여행상해보험(2601)(무배당) 상품요약서"
 document_type: "보험 상품요약서"
 source_file: "1900000000001.pdf"
 source_pages: 4

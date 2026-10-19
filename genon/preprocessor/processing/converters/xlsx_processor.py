@@ -25,6 +25,8 @@ from typing import Any, Optional
 
 from pydantic import BaseModel
 
+from genon.preprocessor.processing.common.reason_codes import CodedValueError
+
 _log = logging.getLogger(__name__)
 
 
@@ -472,6 +474,7 @@ def load_tables(
     header_row: int = 0,
     multi_table: bool = False,
     sheets_with_merges: dict | None = None,
+    only_sheets: Optional[set] = None,
 ) -> list[dict]:
     """xlsx/csv 를 표 블록 목록으로 감지·추출한다(출력 형태에 중립 — 벡터/HTML 공용).
 
@@ -483,11 +486,14 @@ def load_tables(
 
     멀티헤더 자동 판정(_detect_header)·복수표 분리(_split_blocks) 적용.
     header_row>0 이면 레거시 단일헤더(그 인덱스) 강제.
+    only_sheets 를 주면 그 이름의 시트만 감지한다. sheet_index 는 워크북 안의 순번을 유지한다.
     """
     sheets = sheets_with_merges if sheets_with_merges is not None else _load_sheets_with_merges(file_path)
     tables: list[dict] = []
 
     for sheet_idx, (sheet_name, (rows, merges)) in enumerate(sheets.items(), start=1):
+        if only_sheets is not None and sheet_name not in only_sheets:
+            continue
         for brows, bmerges in _split_blocks(rows, merges, multi_table):
             if not brows:
                 continue
@@ -631,6 +637,7 @@ def build_tabular_data_dict(
     header_row: int = 0,
     multi_table: bool = False,
     sheets_with_merges: dict | None = None,
+    only_sheets: Optional[set] = None,
 ) -> dict:
     """xlsx/csv → {"data":[{"sheet_name","sheet_index","title","data_rows":[...]}]} 중립 표현.
 
@@ -638,8 +645,9 @@ def build_tabular_data_dict(
     만든다. parser 의 _parse_tabular 와 동일 산출물(단일 소스). TabularCustomFieldsMapper.to_parse_format
     입력 형태.
     """
+    sheets = sheets_with_merges if sheets_with_merges is not None else _load_sheets_with_merges(file_path)
     tables = load_tables(file_path, header_row=header_row, multi_table=multi_table,
-                         sheets_with_merges=sheets_with_merges)
+                         sheets_with_merges=sheets, only_sheets=only_sheets)
     data: list[dict] = []
     for t in tables:
         # 헤더가 빈 컬럼(이름 없이 값만 있는 열)은 위치 기반 이름으로 채운다. 빈 이름이 둘 이상이면
@@ -650,7 +658,7 @@ def build_tabular_data_dict(
         # (이후 _header_index 는 정규화 후 충돌만 감지 → 원본 중복은 못 잡음). 여기서 명확히 거부한다.
         dup_headers = [h for h, cnt in Counter(headers).items() if h and cnt > 1]
         if dup_headers:
-            raise ValueError(f"중복되는 Excel 컬럼(헤더)이 있습니다: {dup_headers}")
+            raise CodedValueError(f"중복되는 Excel 컬럼(헤더)이 있습니다: {dup_headers}", "PARSE_D004")
         data_rows = [dict(zip(headers, values, strict=False)) for values in t["data_rows"]]
         data.append({
             "sheet_name": t["sheet_name"],
@@ -658,7 +666,9 @@ def build_tabular_data_dict(
             "title": t["title"],
             "data_rows": data_rows,
         })
-    return {"data": data}
+    # 표가 감지되지 않은 시트(빈 시트, 헤더만 있는 시트)도 있는 시트로 보아야 하므로
+    # 워크북의 시트 이름을 함께 싣는다(source.sheets 존재 검사, #528).
+    return {"data": data, "sheet_names": list(sheets)}
 
 
 def tabular_data_to_parse_format(data_dict: dict) -> dict:

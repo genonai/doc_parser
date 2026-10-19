@@ -58,6 +58,7 @@ def test_empty_config_is_not_refused():
         # document 도 alias/values/transform/template 을 쓴다(front matter 가 두 번째 원천).
         # kind 제약이 남은 필드 스펙은 records 전용인 collect 뿐이다.
         ("source:\n  kind: document\nfields:\n  Q: {collect: [a]}\n", "collect"),
+        ("source:\n  kind: document\nbody: {merge_short: -1}\n", "merge_short"),
     ],
 )
 def test_v2_rejects_malformed_config(body, expect):
@@ -169,6 +170,14 @@ def test_normalize_derives_python_for_document_with_python_block():
     )
     internal, extractor = cv2.normalize(cfg, label="t")
     assert extractor == "python"
+    cs.validate_known_keys(internal, label="t", extractor=extractor)
+
+
+def test_body_merge_short_reaches_document_extractor():
+    """짧은 청크 병합 기준은 청커가 쓰는 규칙이다. 문서형 extractor 가 받아 문서 metadata 로 넘긴다."""
+    cfg = yaml.safe_load("schema: v2\nsource: {kind: document}\nbody: {merge_short: 200}\n")
+    internal, extractor = cv2.normalize(cfg, label="t")
+    assert internal["short_chunk_size"] == 200
     cs.validate_known_keys(internal, label="t", extractor=extractor)
 
 

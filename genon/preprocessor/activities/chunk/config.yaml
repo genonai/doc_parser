@@ -24,6 +24,15 @@ chunking:
   #             (작은 섹션을 장 단위로 병합하지 않음) |
   #           resize_all = 모든 청크를 chunk_size 에 맞게 병합/분할. 우선순위: kwargs.chunk_mode > 아래.
   chunk_mode: split_only
+  # 짧은 청크 병합 기준(chunk_size 와 같은 단위, 기본 0=끔). 본문(HEADER 라인 제외)이 이보다
+  # 짧은 청크를 병합하되 짧은 청크를 남기지 않는다 — 연달아 나오면 먼저 서로 묶어 기준을 넘으면
+  # 독립 청크로 두고, 여전히 짧으면 chunk_size 안에서 다음(안 되면 앞) 청크에 붙이며, 둘 다 꽉 찼으면
+  # 이웃 본문을 줄 경계에서 나눠 옮긴다. 나눌 수도 없으면(표 등) 그때만 chunk_size 를 넘겨 붙인다.
+  # 합친 결과가 이상 청크 검증에서 버려지면 붙이지 않는다.
+  # 0 이면 제목만 있는 청크만 크기 한도 안에서 다음 청크로 병합한다. 오기입은 기동 시 실패한다.
+  # 켜면 청크 경계가 바뀌므로 재색인이 필요하다. 문서유형별 값은 custom_fields yaml 의
+  # body.merge_short 에 적는다. 우선순위: kwargs.short_chunk_size > body.merge_short > 아래.
+  short_chunk_size: 0
   # 표를 본문과 섞지 않고 독자 청크로 만들지 여부(기본 true).
   # 표 청크에는 섹션 제목·표 캡션·표 설명이 함께 실리고, chunk_size 를 넘는 큰 표는
   # 행 단위로 나뉘며 조각마다 표 헤더 행이 반복된다.
@@ -105,6 +114,10 @@ chunking:
   validation:
     enable: true
     action: drop
+    # 출력 청크 글자 수 상한. 넘은 청크는 버리지 않고 응답 chunk_validation.max_length 와 로그로 알린다.
+    # 0(기본)이면 검사하지 않는다. 임베딩 모델 입력 한도(토큰)를 글자 수로 환산해, 한도보다 조금 낮게 둔다.
+    # 글자 수는 HEADER: 등 접두를 포함한 최종 본문 기준이다. by_doc_type 으로 문서유형별로 다르게 둘 수 있다.
+    # max_chars: 7000
 
 # table_image
 # 표를 이미지로 잘라 저장하고 media_files 에 type='table_image' 로 기록할지 여부.

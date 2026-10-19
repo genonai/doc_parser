@@ -55,7 +55,7 @@ def test_extract_selected_metadata_and_exclude_all_text(tmp_path: Path):
     assert result.metadata == {
         "source_pages": 9,
         "created_date": "2026-01-12",
-        "tags": ["보험", "교통"],
+        "tags": "보험, 교통",
     }
     assert result.filtered_text.startswith("# 실제 제목")
     assert "source_pages" not in result.filtered_text
@@ -362,12 +362,6 @@ def _product_slf_round_trip() -> list[dict]:
         request = Request(scope={"type": "http"})
         parser = ParserProcessor(str(PREPROCESSOR_DIR / SITE_MONIMO / "config.yaml"))  # 모니모 문서유형은 모니모 사이트 설정에 있다
         parser._output_format = "docling"
-        for enricher in parser._intel.custom_fields_enrichers:
-            if "product_slf" in enricher._doc_types:
-                enricher._call_llm = AsyncMock(return_value=(
-                    '{"PRODUCT_C":"30387",'
-                    '"PRODUCT_NM":"삼성 s교통상해보험(2501)(무배당)"}'
-                ))
 
         source = (
             Path(__file__).resolve().parents[2]
@@ -392,7 +386,11 @@ def test_product_markdown_parser_to_chunk_round_trip():
     """출고 설정/샘플로 front matter 제거와 Docling JSON metadata 왕복을 검증."""
     rows = _product_slf_round_trip()
     forbidden = ("source_file:", "source_pages:", "created_at:", "conversion_note:")
-    assert len(rows) == 7
+    # 사이트 설정의 markdown.sections 가 안내 섹션 3개(핵심 키워드·문서 개요·내용 색인)를
+    # 지워 원문 4쪽만 남는다(#526). 원문 쪽은 모두 짧아 body.merge_short 로 합쳐지므로 청크 수가
+    # 아니라 안내 섹션이 본문에 없는지로 본다.
+    assert rows
+    assert not any(m in row["text"] for row in rows for m in ("핵심 키워드", "문서 개요", "내용 색인"))
     assert all(not any(token in row["text"] for token in forbidden) for row in rows)
     # front matter 값 중 metadata 로 broadcast 되는 것은 설정이 `fields.<목표>.alias` 로
     # 선언한 것뿐이다. 사이트 운영 설정(커밋 263f53ea)은 created_at → created_date 와
@@ -402,20 +400,10 @@ def test_product_markdown_parser_to_chunk_round_trip():
     assert all(row["created_date"] == 20260112 for row in rows)
     assert all(row["GROUP_C"] == "SLF" for row in rows)
     assert all(row["doc_type"] == "product_slf" for row in rows)
-    # PRODUCT_C 는 아래 xfail 테스트가 따로 본다 — 지금은 출고 설정 때문에 항상 null 이다.
+    # 사이트 설정은 LLM 추출을 쓰지 않는다. PRODUCT_NM 은 front matter `title` 에서
+    # "상품요약서" 를 지운 값이고, 샘플에 상품코드가 없으므로 PRODUCT_C 는 `default: null` 이다.
     assert all(row["PRODUCT_NM"] == "삼성 s교통상해보험(2501)(무배당)" for row in rows)
-
-
-@pytest.mark.unit
-def test_product_code_from_llm_survives_to_chunks():
-    """LLM 이 뽑은 PRODUCT_C 가 모든 청크 metadata 에 실려야 한다.
-
-    PRODUCT_C 는 NOT NULL 컬럼인데 front matter 에 상품코드가 없어 LLM 이 본문에서 찾는다.
-    설정이 `const: null` 이면 그 값을 덮어 항상 null 이 된다(default < LLM < front matter
-    < const). 값을 고정하려는 것이 아니라 "못 찾으면 null" 이므로 `default: null` 이다.
-    """
-    rows = _product_slf_round_trip()
-    assert all(row["PRODUCT_C"] == "30387" for row in rows)
+    assert all(row["PRODUCT_C"] is None for row in rows)
 
 
 @pytest.mark.unit
@@ -681,3 +669,34 @@ def test_multiline_sales_period_is_parsed_without_backtracking(name):
     elapsed = time.perf_counter() - started
     assert (fields["VALID_FROM"], fields["VALID_TO"]) == (20251201, 20260315)
     assert elapsed < 0.5
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("line, expected", [
+    ('product_code: ["90001"]', "90001"),
+    ('product_code:\n  - "90001"', "90001"),
+    ('product_code: ["90001", "90002"]', "90001, 90002"),
+    ("product_code: []", None),
+])
+def test_front_matter_array_value_is_flattened(tmp_path: Path, line, expected):
+    """front matter 의 스칼라 배열이 transform 없이 PRODUCT_C 에 평문으로 실린다.
+
+    배열을 그대로 두면 출력이 `'["90001"]'` 이 되어 정확 일치 필터에 걸리지 않고, 빈 배열은
+    `default: null` 대신 `'[]'` 로 실렸다. 실물 샘플의 상품코드 줄만 바꿔 사이트 설정으로 확인한다.
+    """
+    base = PREPROCESSOR_DIR / SITE_MONIMO
+    name = "custom_field_product_slf.yaml"
+    source = FIELDS_SAMPLE_MD.read_text(encoding="utf-8")
+    assert 'product_code: "90001"' in source
+    sample = tmp_path / FIELDS_SAMPLE_MD.name
+    sample.write_text(source.replace('product_code: "90001"', line), encoding="utf-8")
+
+    enricher = CustomFieldsEnricher(config_file=name, resource_path=str(base),
+                                    model_presets=sibling_presets(base / name))
+    spec = build_markdown_front_matter_specs([{
+        "doc_type": "product_slf", "extractor": "llm",
+        "config_file": name, "resource_path": str(base),
+    }])[0]
+    fields = enricher._normalize_output_fields({}, spec.parse(sample).metadata)
+
+    assert fields["PRODUCT_C"] == expected

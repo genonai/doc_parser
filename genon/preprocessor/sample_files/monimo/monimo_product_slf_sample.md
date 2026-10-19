@@ -1,5 +1,6 @@
 ---
 file: "삼성 s교통상해보험(2501)(무배당) 상품요약서"
+title: "삼성 s교통상해보험(2501)(무배당) 상품요약서"
 document_type: "보험 상품요약서"
 source_file: "1768198211902.pdf"
 source_pages: 9

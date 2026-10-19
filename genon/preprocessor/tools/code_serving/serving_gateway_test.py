@@ -384,12 +384,28 @@ _CV_REASONS = {"blank", "no_content", "broken_chars", "repetition", "min_chars"}
 
 def _chunk_validation_errors(cv) -> list:
     """응답 최상위 chunk_validation 의 형태 위반 목록. 비어 있으면 정상이다."""
-    if not isinstance(cv, dict) or set(cv) != {"action", "count", "reasons", "items"}:
-        return [f"키가 action·count·reasons·items 가 아닙니다: {cv!r}"[:300]]
+    base = {"action", "count", "reasons", "items"}
+    # missing_fields·max_length 는 판정과 별개의 보고 항목이라 있을 때만 실린다(#528).
+    if not isinstance(cv, dict) or not base <= set(cv) <= base | {"missing_fields", "max_length"}:
+        return [f"키가 action·count·reasons·items(+missing_fields·max_length) 가 아닙니다: {cv!r}"[:300]]
     items = cv["items"]
     errors = []
     if cv["action"] not in ("report", "drop"):
         errors.append(f"action={cv['action']!r}")
+    if "missing_fields" in cv and not (
+            isinstance(cv["missing_fields"], dict) and cv["missing_fields"]
+            and all(isinstance(n, int) and n > 0 for n in cv["missing_fields"].values())):
+        errors.append(f"missing_fields={cv['missing_fields']!r} 가 필드별 건수가 아닙니다")
+    if "max_length" in cv and not (
+            isinstance(cv["max_length"], dict)
+            and {"limit", "count", "items"} <= set(cv["max_length"])
+            and 1 <= len(cv["max_length"]["items"]) <= min(20, cv["max_length"]["count"])):
+        errors.append(f"max_length={str(cv['max_length'])[:200]} 형태가 아닙니다")
+    if cv["count"] == 0:
+        # 판정에 걸린 청크 없이 보고 항목만 있는 요약이다.
+        if items or cv["reasons"] or not ({"missing_fields", "max_length"} & set(cv)):
+            errors.append("count=0 인데 items·reasons 가 있거나 보고 항목이 없습니다")
+        return errors
     reasons = cv["reasons"]
     if (not isinstance(reasons, dict) or not set(reasons) <= _CV_REASONS
             or sum(reasons.values()) != cv["count"]):

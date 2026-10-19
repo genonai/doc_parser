@@ -16,11 +16,13 @@ custom_fields 설정(yaml)은 **parser 만 읽습니다.** chunker 는 파서가
 | `code` | `0` 성공 / `1` 실패 |
 | `errMsg` · `error_msg` | `[엔드포인트] 예외이름: 메시지`. 두 필드에 같은 값이 들어갑니다 |
 | `error_code` | 아래 설명 참조 |
-| `error_type` | 예외 클래스명 |
+| `error_type` | 예외 클래스명. 코드서빙 서비스(루트 `main.py`)만 싣습니다(`tag`·`file_path`·`traceback` 도 같습니다) |
 | `tag` | 실패한 엔드포인트 (`parser` / `parser_upload` / `chunker`) |
 | `file_path` | 대상 파일. 파서 결과를 본문에 담아 호출하면 빈 값 |
 | `stage` | `custom_fields` / `metadata` / `doc_summary` / `image_description` / `table_description` / `table_text_description` / `doc_type_stamp` / `enrichment` / `request` / `chunk_validation`. **값이 있을 때만 실립니다** |
 | `error_kind` | `timeout` / `transient` / `permanent`. **값이 있을 때만 실립니다** |
+| `reason_code` | 사유 코드(`PARSE_D001` 형식). 아래 [사유 코드](#사유-코드) 참조. 실패 응답에는 항상 실립니다 |
+| `error_category` | `data`(원천데이터) / `preprocess`(전처리) / `system`(시스템). `reason_code` 의 분류문자에서 정해집니다 |
 | `traceback` | 호출 스택 마지막 8줄 |
 | `data` | 실패 시 항상 `null` |
 
@@ -31,23 +33,87 @@ custom_fields 설정(yaml)은 **parser 만 읽습니다.** chunker 는 파서가
 `INPUT_ERROR` / `TIMEOUT_ERROR` / `INTERNAL_ERROR` 로 분류되는 것은 **감싸지 않고 올라온
 raw 예외**(마크다운 머리말 오류 등)뿐입니다.
 
-원인 구분은 `error_code` 가 아니라 **`errMsg` 문구와 `stage`** 로 하십시오.
+원인 구분은 `error_code` 가 아니라 **`reason_code`** 로 하십시오. 호출 측이 이미 `error_code` 를
+쓰고 있을 수 있으므로 `error_code` 의 값은 바꾸지 않았습니다.
 
-### error_kind 는 세 경우에만 실립니다
+### error_kind
 
-- 문서형 extractor 실패가 `error_policy: strict` 로 올라온 경우(`_handle_stage_error`)
-- 요청 전체 deadline 초과(`stage: request`)
-- 청크 검증 실패(`stage: chunk_validation`, 항상 `permanent`)
+아래 사유 코드표의 성격 열이 `error_kind` 로 실립니다. 원천데이터(D)·전처리(P) 오류는 다시 시도해도
+결과가 같으므로 `permanent` 이고, 시스템(S) 오류는 코드 번호대로 나뉩니다. 사유 코드가 없는
+미분류 오류(`*_P999`)의 `error_kind` 는 감싸는 자리가 정합니다. 매핑 단계처럼 감싸는 자리가 결정적 오류로
+보는 곳에서는 `permanent` 가 실리고, 진입점의 일반 예외 경로에서는 실리지 않습니다.
 
-레코드형 하드페일과 그 밖의 chunker 예외는 `stage` 만 싣고 `error_kind` 는 실리지 않습니다.
-판정 규칙은 `timeout`(deadline·Timeout 계열) / `transient`(5xx·연결 오류) /
-`permanent`(4xx·값 오류) 입니다.
+## 사유 코드
+
+형식은 `<단계>_<분류문자><3자리 번호>` 입니다.
+
+| 단계 | 범위 |
+|---|---|
+| `PARSE` | 파서 API |
+| `CHUNK` | 청커 API |
+| `COMMON` | 진입점 공통(요청 형식, 요청 deadline, 미지원 API) |
+
+| 분류문자 | `error_category` | 뜻 | 1차 조치 |
+|---|---|---|---|
+| D | `data` | 원천 파일의 내용·구조가 문서유형 설정의 기대와 다름 | 원천 제공 측. 원천 형식이 정당하게 바뀌었으면 문서유형 설정을 고침 |
+| P | `preprocess` | 전처리 설정 오기입, 처리 로직 실패, 호출 규약 위반 | 전처리 운영자 |
+| S | `system` | 실행 환경·파일시스템·네트워크·외부 서비스 | 인프라 운영자 |
+
+시스템(S) 코드의 번호대는 `S0xx` 환경·권한·접속 설정(`permanent`), `S1xx` 네트워크·시간 초과·입출력
+일시 장애(`transient`/`timeout`), `S2xx` 외부 서비스 응답 이상(`permanent`) 입니다.
+
+| 코드 | `error_kind` | 내용 |
+|---|---|---|
+| `PARSE_D001` | permanent | 엑셀·CSV 필수 열 부재 |
+| `PARSE_D002` | permanent | JSON 레코드 배열(`records_at`) 부재 |
+| `PARSE_D003` | permanent | 필수 공통 필드 공백 |
+| `PARSE_D004` | permanent | 정규화 후 열 이름 중복 |
+| `PARSE_D005` | permanent | 마크다운 front matter 형식 오류(중복 키, YAML 문법, 종료 구분자 없음, 크기 초과 등) |
+| `PARSE_D006` | permanent | front matter 별칭 순환 |
+| `PARSE_D007` | permanent | front matter 중첩 한도 초과 |
+| `PARSE_D008` | permanent | JSON 본문 텍스트 키(`body_from`) 부재 |
+| `PARSE_D009` | permanent | 빈 파일, 지원하지 않거나 손상·암호화된 파일 |
+| `PARSE_D010` | permanent | JSON 문법 손상 |
+| `PARSE_D011` | permanent | 구분자로 나뉜 레코드가 없음 |
+| `PARSE_D012` | permanent | `markdown.sections` 적용 후 본문 없음 |
+| `PARSE_D013` | permanent | `source.sheets` 로 지정한 시트가 워크북에 없음 |
+| `PARSE_P001` | permanent | LLM 입력 길이 사전 검사 초과(목차·메타데이터 추출의 `precheck`). 표 설명의 길이 초과(`overflow_policy: error`)는 경고 후 진행합니다 |
+| `PARSE_P002` | permanent | 등록되지 않은 doc_type(`defaults.unknown_doc_type: fail`) |
+| `PARSE_P003` | permanent | 같은 doc_type 에 설정이 여러 개 |
+| `PARSE_P004` | permanent | `llm_fields` 설정 오류 |
+| `PARSE_P005` | permanent | `records_at` 없이 레코드 배열을 고를 수 없음 |
+| `PARSE_P999` | (없음) | 분류되지 않은 파서 오류 |
+| `PARSE_S001` | permanent | LLM 인증·권한·요청 거부(429 를 제외한 4xx) |
+| `PARSE_S002` | permanent | 실행 환경 구성 누락(LibreOffice, unstructured) |
+| `PARSE_S003` | permanent | 원천 파일 없음·권한 거부 |
+| `PARSE_S101` | transient | LLM 일시 장애(429, 5xx, 연결 실패). 호출자가 나중에 다시 시도할 만하다는 뜻이며, 전처리기의 자체 재호출 대상(429·502·503·504)과는 범위가 다릅니다 |
+| `PARSE_S102` | timeout | LLM 호출 시간 초과 |
+| `PARSE_S103` | transient | 그 밖의 파일 입출력 실패 |
+| `PARSE_S201` | permanent | LLM 응답 형식 이상 |
+| `CHUNK_D001` | permanent | 청크로 만들 본문 없음(`chunk length is 0`) |
+| `CHUNK_D002` | permanent | 전체 청크 불량(`CHUNK_ALL_REJECTED`) |
+| `CHUNK_D003` | permanent | 불량 청크 존재, `fail_on_any: true`(`CHUNK_REJECTED`) |
+| `CHUNK_P001` | permanent | 행 메타를 청크 속성으로 옮기지 못함 |
+| `CHUNK_P002` | permanent | 입력 누락 |
+| `CHUNK_P003` | permanent | 파서 결과가 아닌 입력 |
+| `CHUNK_P004` | permanent | 파서 결과 손상(JSON 문법, 문서 복원 실패) |
+| `CHUNK_P005` | permanent | 청크 판정 처리 중 예외(`CHUNK_VALIDATION_ERROR`) |
+| `CHUNK_P999` | (없음) | 분류되지 않은 청커 오류 |
+| `CHUNK_S003` | permanent | 입력 파일 없음·권한 거부 |
+| `CHUNK_S103` | transient | 그 밖의 입력 파일 입출력 실패 |
+| `COMMON_P001` | (없음) | 이 배포본이 지원하지 않는 API(`/parser`·`/chunker`) |
+| `COMMON_P002` | (없음) | 요청 형식 오류(필수 본문 키 누락 등) |
+| `COMMON_P999` | (없음) | 분류되지 않은 오류(`/preprocess*`, `/run` 등) |
+| `COMMON_S102` | timeout | 요청 deadline 초과 |
+
+청크 검증의 메시지 앞머리(`CHUNK_ALL_REJECTED:` 등)는 하위호환을 위해 그대로 둡니다.
 
 ### 실패 정책
 
-`error_policy: lenient`(기본)에서 문서형 extractor(`llm`/`python`/`html_select`)의 런타임
-예외는 WARNING 후 성공 응답. `strict` 에서만 `code: 1`.
-레코드형(`rows`/`records`/`sections`)은 정책과 무관하게 실패합니다.
+문서형 extractor(`llm`/`python`/`html_select`)의 LLM 호출 실패·응답 해석 실패는 `error_policy` 와 무관하게
+WARNING 을 남기고 해당 필드를 null 로 둔 채 성공 응답합니다. 문서 요약·표 설명 단계도 같습니다.
+LLM 오류를 실패 응답(`code: 1`, `PARSE_S0xx`·`S1xx`·`S2xx`)으로 받는 경로는 docling 기본 enrichment(목차·메타데이터
+추출)입니다. 레코드형(`rows`/`records`/`sections`)의 매핑 오류는 정책과 무관하게 실패합니다.
 
 ### 응답 예시
 
@@ -64,7 +130,10 @@ raw 예외**(마크다운 머리말 오류 등)뿐입니다.
   "file_path": "/data/faq.xlsx",
   "data": null,
   "traceback": "...(마지막 8줄)",
-  "stage": "custom_fields"
+  "stage": "custom_fields",
+  "error_kind": "permanent",
+  "reason_code": "PARSE_D001",
+  "error_category": "data"
 }
 ```
 
@@ -150,8 +219,8 @@ raw 예외**(마크다운 머리말 오류 등)뿐입니다.
 
 **구분 단서**
 
-- 마크다운 머리말 오류 3종은 감싸지 않고 올라와 **`stage` 가 없고 `error_code` 가 `INPUT_ERROR`** 입니다. 나머지 parser 런타임 예외는 `stage: custom_fields` 를 싣습니다.
-- 일시적 실패는 전처리기가 1회만 자체 재호출합니다(`Retry-After` 존중, 최대 10초).
+- 위 표의 원인별 사유 코드는 [사유 코드](#사유-코드) 표에 있습니다. 매핑 오류(`ValueError`)는 `stage: custom_fields` 를 싣습니다.
+- 일시적 실패 중 429·502·503·504·연결 오류는 전처리기가 1회만 자체 재호출합니다(`Retry-After` 존중, 최대 10초). 500 은 자체 재호출하지 않지만 응답의 `error_kind` 는 `transient` 입니다.
 - 표 설명 프롬프트가 `model_context_tokens` 를 넘는 경우도 `ValueError` 로 나지만, 기본 설정은 내용을 나눠 여러 번 호출하므로 발생하지 않습니다.
 
 ---
@@ -173,11 +242,9 @@ custom_fields 설정 검증 단계가 없습니다. 파서 산출물을 소비�
 | `chunk length is 0` | 입력은 정상적으로 읽었지만 청크가 하나도 만들어지지 않음<br>· 파싱 결과에 청크로 만들 본문이 없음<br>· 설정의 필수값 조건을 채우지 못해 파서 단계에서 모든 항목이 제외된 경우도 여기로 이어짐 |
 | `CHUNK_ALL_REJECTED: 모든 청크가 검증 기준에 걸려 제외됐습니다(<파일>, 입력 N건, 사유별 {…}).` | 청크 검증에서 모든 청크가 불량으로 판정되어 적재할 청크가 남지 않음<br>· 일부 청크만 불량이면 오류 없이 그 청크만 빼고 적재하며, 제외된 청크의 정보(제외 건수, 청크별 페이지·사유·설명, 최대 20건)를 성공 응답의 `chunk_validation` 으로 알려 줌. 제외된 청크마다 마스킹을 거친 본문 앞 200자(`preview`)와 원래 청크 순번(`index`)을, 요약에는 사유별 건수(`reasons`)를 함께 실음<br>· 사유(`blank`·`no_content`·`broken_chars`·`repetition`·`min_chars`)별 건수가 함께 표시<br>· 재시도로 해결되지 않음 → 원문 상태나 검증 기준(`min_chars` 등)을 확인<br>· 어떤 청크가 불량인지는 아래 [청크 검증 판정 기준](#청크-검증-판정-기준) 참조 |
 | `CHUNK_VALIDATION_ERROR: 청크 판정 중 오류가 났습니다(<파일> #N): …` | 청크 검증 기능 자체가 판정 도중 실패<br>· 판정하지 못한 청크를 그대로 적재하지 않기 위해 문서 전체를 실패로 처리<br>· 서비스 내부 결함일 가능성이 높으므로 로그와 함께 개발 측에 전달<br>· 청크가 판정 기준에 걸린 것이 아니라 판정 과정 자체의 오류 |
-| `Cancelled` | 요청 처리 중 호출한 쪽이 연결을 끊어 처리를 중단<br>· 호출 측 대기 시간 만료 또는 요청 취소<br>· 서버 오류가 아니므로 호출 측 타임아웃 설정을 확인 |
 
-**구분 단서** — 청커 예외 중 `stage` 가 실리는 것은 **첫 항목**(`stage: custom_fields`)과
-**청크 검증 2종**(`stage: chunk_validation`)뿐입니다. `stage` 값으로 "파서 설정 문제 / 청크 검증 /
-청커 입력 문제" 가 갈립니다.
+**구분 단서** — 원인은 `reason_code` 로 가릅니다([사유 코드](#사유-코드)). 청커 예외 중 `stage` 가
+실리는 것은 **첫 항목**(`stage: custom_fields`)과 **청크 검증**(`stage: chunk_validation`)뿐입니다.
 
 첫 항목은 **파서의 기동 시 검증을 문서형 extractor 가 받지 않아** 청킹까지 흘러온 결과입니다
 (아래 검증 범위 차이 참조).

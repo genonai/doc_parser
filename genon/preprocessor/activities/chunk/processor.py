@@ -152,6 +152,7 @@ class DocumentProcessor(ChunkerCore):
     #   chunking.chunk_size               청크 최대 크기  (= chunk_size)
     #   chunking.recursive.chunk_overlap  청크 간 겹침    (= chunk_overlap)
     #   chunking.chunk_mode               split_only(섹션 단위 유지) / resize_all(크기에 맞춰 재분할)
+    #   chunking.short_chunk_size         본문이 이보다 짧은 청크를 다음 청크에 병합 (= short_chunk_size)
     #
     # 기동 시 한 번 읽혀 굳는 설정(토크나이저 경로, min_chunk_size 등)은 여기 적어도 건너뛰고
     # 경고가 남는다 — 그 값은 설정 파일에서 바꾼다.
