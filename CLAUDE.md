@@ -7,9 +7,9 @@ docling(v2.41.0) 포크 위에 GenOn 전처리기(genon/preprocessor)를 올린 
 | 경로 | 역할 |
 |---|---|
 | `main.py` | **코드서빙 서비스**의 진입점(로컬 실행도 이것). FastAPI 앱, 업무 API 7개와 health·version |
-| `genon/preprocessor/activities/` | 파싱·청킹 파사드(`parse.py`·`chunk.py`) — 고객이 여는 파일. 파일 이름 = 액티비티 이름(전처리 Studio·Temporal 워커가 이 폴더를 읽는다) |
-| `genon/preprocessor/facade/` | 최상위 `*_processor.py` 3종(아직 처리 로직을 안고 있다) + 옛 이름 별칭 `parser_processor.py`·`chunking_processor.py` |
-| `genon/preprocessor/processing/` | 파싱·청킹·보강 **처리 라이브러리**. facade 는 여기를 상속·호출만 한다 |
+| `genon/preprocessor/activities/` | **액티비티 처리기** `<slug>/processor.py`(원형 `parse`·`chunk` + Studio 사본) — 고객이 여는 파일. 폴더 이름 = slug = 액티비티 이름(전처리 Studio·Temporal 워커가 이 폴더를 읽는다) |
+| `genon/preprocessor/facade/` | **파사드** — HTTP 서비스(루트 `main.py` 코드서빙 서비스·`src/main.py` 기본 전처리기 서비스)가 띄우는 `*_processor.py` 3종(attachment·convert·intelligent, 아직 처리 로직을 안고 있다) + 옛 이름 별칭 `parser_processor.py`·`chunking_processor.py` |
+| `genon/preprocessor/processing/` | 파싱·청킹·보강 **처리 라이브러리**. 파사드와 액티비티 처리기는 여기를 상속·호출만 한다 |
 | `genon/preprocessor/processing/core/` | 파싱·청킹 처리 본체(`parser.py`/`chunker.py`)와 고객용 `toolbox.py`·`cli.py`·`errors.py` |
 | `genon/preprocessor/processing/{common,chunking,enrichment,guardrail}/` | facade가 공유하는 공용 하위 모듈. 배포본에 포함된다 |
 | `genon/preprocessor/processing/converters/` | 입력 전처리 변환기 (`html_flatten`, `json_text`, `md_marker_headings` 등) |
@@ -93,7 +93,9 @@ facade가 공유하는 로직은 아래에 한 벌씩만 둔다. 최상위 proce
 **통째로 Read 하지 말 것.** `Grep` 으로 심볼·문자열 위치를 먼저 찾고 `Read` 의 `offset`/`limit` 으로 해당 구간만 읽는다.
 `.claude/hooks/large-file-read-guard.sh` 가 이 규칙을 강제한다.
 
-파싱·청킹 파사드 2종은 처리 본체가 `processing/core/` 로 빠져 300줄 미만이고 대부분 주석이므로 통째로 읽어도 된다.
+용어 — **파사드**는 `facade/*_processor.py`(HTTP), **액티비티 처리기**는 `activities/<slug>/processor.py`(Temporal), 둘을 함께 말할 때는 **처리기**라고 쓴다. `processing/core/`(`ParserCore`·`ChunkerCore`)는 둘의 공통 본체다 — 지금은 액티비티 처리기만 상속하지만 파사드도 이리로 옮겨 올 예정이라 core 의 주석·docstring 은 **처리기**로 쓴다.
+
+액티비티 처리기 원형 2종은 처리 본체가 `processing/core/` 로 빠져 300줄 미만이고 대부분 주석이므로 통째로 읽어도 된다.
 
 ## 수정 범위 (중요)
 
@@ -113,10 +115,10 @@ facade가 공유하는 로직은 아래에 한 벌씩만 둔다. 최상위 proce
 
 ## 아키텍처 제약
 
-- **배포 대상 `*_processor.py` 는 하나다.** 최상위 processor 파일끼리 서로 import하면 배포본에서 깨진다. 반면 `processing/core/` 와 공용 하위 모듈은 배포본에 함께 들어가므로 상속·import 해도 된다(파싱·청킹 파사드가 그렇게 한다). 무조건 복제하지 말고 `build-script/sync-serving-repo.sh` 의 배포 범위를 먼저 확인한다.
-- **파싱·청킹 파사드는 고객이 여는 파일이다.** `activities/parse/processor.py`·`chunk/processor.py`(#474·#495 — 액티비티 하나 = 폴더 하나, 설정은 그 폴더의 `config.yaml` — 옛 `facade/parser_processor.py`·`chunking_processor.py` 는 같은 모듈을 가리키는 별칭만 남았다. 파일 이름 = 액티비티 이름, 설정은 `resource/<이름>_config.yaml`)는 `ParserCore`/`ChunkerCore` 를 상속하고 호출부와 확장 지점(`ROUTES`, 상수, 훅 메소드)만 갖는다. **여기에 처리 로직을 넣지 않는다.** 릴리스가 이 두 파일을 통째로 덮어쓰므로 고객 수정분과 충돌하고, 훅 시그니처·`ROUTES` 형태는 고정 API 다(`tests/unit/test_facade_hooks_unit.py` 가 고정한다). 고객이 훅에서 쓸 기능은 `core/toolbox.py` 에 **재수출**만 하고 구현은 공용 하위 모듈에 둔다.
+- **배포 대상 `*_processor.py` 는 하나다.** 최상위 processor 파일끼리 서로 import하면 배포본에서 깨진다. 반면 `processing/core/` 와 공용 하위 모듈은 배포본에 함께 들어가므로 상속·import 해도 된다(액티비티 처리기가 그렇게 한다). 무조건 복제하지 말고 `build-script/sync-serving-repo.sh` 의 배포 범위를 먼저 확인한다.
+- **액티비티 처리기는 고객이 여는 파일이다.** `activities/parse/processor.py`·`chunk/processor.py`(#474·#495 — 액티비티 하나 = 폴더 하나, 설정은 그 폴더의 `config.yaml` — 옛 `facade/parser_processor.py`·`chunking_processor.py` 는 같은 모듈을 가리키는 별칭만 남았다. 폴더 이름 = slug = 액티비티 이름)는 `ParserCore`/`ChunkerCore` 를 상속하고 호출부와 확장 지점(`ROUTES`, 상수, 훅 메소드)만 갖는다. **여기에 처리 로직을 넣지 않는다.** 릴리스가 이 두 파일을 통째로 덮어쓰므로 고객 수정분과 충돌하고, 훅 시그니처·`ROUTES` 형태는 고정 API 다(`tests/unit/test_facade_hooks_unit.py` 가 고정한다). 고객이 훅에서 쓸 기능은 `core/toolbox.py` 에 **재수출**만 하고 구현은 공용 하위 모듈에 둔다.
   - 훅 목록·시그니처와 고객용 설명은 `manual/facade_hooks.md` 가 정본이다. 훅·`ROUTES`·toolbox 를 바꾸면 여기도 함께 고친다.
-- **신규 기능은 공용 하위 모듈에 구현하고 facade는 호출만 한다.** 여러 facade가 쓸 수 있는 로직이면 processor 파일에 직접 쓰거나 복붙하지 말고 `processing/{common,chunking,enrichment,guardrail}/` 에 모듈을 만든다. facade에는 설정 읽기 한 줄과 호출부만 남긴다. 판정 기준은 "두 번째 facade에 같은 코드를 넣고 싶어지는가"이며, 그렇다면 이미 공용 모듈 대상이다.
+- **신규 기능은 공용 하위 모듈에 구현하고 처리기는 호출만 한다.** 여러 처리기가 쓸 수 있는 로직이면 processor 파일에 직접 쓰거나 복붙하지 말고 `processing/{common,chunking,enrichment,guardrail}/` 에 모듈을 만든다. 처리기에는 설정 읽기 한 줄과 호출부만 남긴다. 판정 기준은 "두 번째 처리기에 같은 코드를 넣고 싶어지는가"이며, 그렇다면 이미 공용 모듈 대상이다.
   - 설정 해석(yaml/kwargs 우선순위), 판정 헬퍼, 텍스트 변환 같은 부수 로직도 함께 공용 모듈에 둔다. facade마다 `_resolve_*` 헬퍼를 복제하면 그 자체가 새 lockstep 부채다.
   - 공용 모듈은 docling 타입 import를 피하고 duck typing으로 처리한다. 배포본이 docling 버전에 묶이지 않게 한다.
   - processor 속성을 읽는 공용 헬퍼는 `getattr(..., 기본값)` 으로 속성 부재를 견뎌야 한다 — `object.__new__` 로 `__init__` 을 우회하는 단위 테스트가 있다.
@@ -142,7 +144,7 @@ facade가 공유하는 로직은 아래에 한 벌씩만 둔다. 최상위 proce
 1. **한 번의 호출에는 테스트 하나.** 같은 함수를 같은 인자로 여러 번 호출해 결과의 필드를 하나씩 단정하지 않는다. 딕셔너리·리스트는 통째로 비교하거나 한 테스트 안에서 연속 단정한다.
 2. **입력값 변형은 parametrize 한 건으로.** 대소문자·앞뒤 공백·빈 문자열·미지원 값 폴백처럼 같은 코드 경로를 타는 변형은 `@pytest.mark.parametrize` 표 하나에 넣는다.
 3. **설정 배선은 배선하는 함수에서 검증한다.** yaml 키가 사설 속성에 실렸는지 보려고 `DocumentProcessor(config_path=...)` 를 기동하지 않는다. 기동은 느리고, `__init__` 실패를 `pytest.skip` 으로 삼키면 환경이 어긋났을 때 조용히 통과한다. 설정 해석은 `common/config_parse.py` 의 순수 함수 단위로 검증한다.
-4. **같은 로직의 사본마다 테스트를 복제하지 않는다.** 두 번째 파사드나 두 번째 클래스에 같은 테스트를 붙이고 싶어지면 그것은 프로덕션 코드가 복제됐다는 신호다. 공용 하위 모듈로 합치고 테스트도 한 벌만 둔다. 합칠 수 없으면 그 이유를 테스트 docstring 에 남긴다.
+4. **같은 로직의 사본마다 테스트를 복제하지 않는다.** 두 번째 처리기나 두 번째 클래스에 같은 테스트를 붙이고 싶어지면 그것은 프로덕션 코드가 복제됐다는 신호다. 공용 하위 모듈로 합치고 테스트도 한 벌만 둔다. 합칠 수 없으면 그 이유를 테스트 docstring 에 남긴다.
 5. **새 테스트 파일을 만들기 전에 기존 파일을 찾는다.** `rg -l '<모듈명>' genon/preprocessor/tests` 로 대상 모듈을 이미 겨냥하는 파일이 있는지 먼저 확인한다.
 6. **사설 속성 대신 공개 동작을 단정한다.** `proc._default_kwargs[...]` 처럼 내부 이름에 기대면 리팩터링마다 테스트를 함께 고쳐야 한다. 공개 경로로 확인할 수 없을 때만 쓰고, 그때는 이유를 한 줄 남긴다.
 

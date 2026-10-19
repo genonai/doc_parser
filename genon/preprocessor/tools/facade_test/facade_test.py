@@ -2,7 +2,7 @@
 
 facade 의 DocumentProcessor 를 직접 import 해 `await doc_processor(mock_request, file_path, **kwargs)`
 로 호출한다. 기본 전처리기 서비스의 `/run` 진입과 같은 경로이며 uvicorn/게이트웨이는 필요 없다.
-파싱 → 청킹 2단계 파사드 검증은 `tools/parse_chunk/parse_chunk_test.py` 를 쓴다.
+파싱 → 청킹 2단계 처리기 검증은 `tools/parse_chunk/parse_chunk_test.py` 를 쓴다.
 
 사용:
     # 기본: 지능형 facade

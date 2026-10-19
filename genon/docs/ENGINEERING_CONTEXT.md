@@ -19,7 +19,7 @@ GPT 독립 리뷰(`.claude/review/gpt-review.sh`)와 구현 에이전트가 같�
 - 워커 큐 왕복은 짝 저장소(data-ingestion-pipeline)의 로컬 스모크로 본다
 
 ## 지켜야 할 불변식
-- 파사드 파일(`activities/<slug>/processor.py`)에 처리 로직을 넣지 않는다 — 공용 하위 모듈에 둔다
+- 액티비티 처리기(`activities/<slug>/processor.py`)에 처리 로직을 넣지 않는다 — 공용 하위 모듈에 둔다
 - 액티비티 하나 = 폴더 하나(`activities/<slug>/` — processor.py·config.yaml 필수·프롬프트·custom_field 사본, #495). 이름 = 폴더명,
   인자 dict 하나(상대 참조), 반환 요약 dict. 사이트 완성본 `sites/<site>/activities/<slug>/` 가 그 slug 의 설정 폴더를 덮어쓴다(#497)
 - 요청 상태는 프로세서 인스턴스가 아니라 job 에 둔다 — 한 프로세스의 액티비티 스레드(`WORKER_THREADS`)가

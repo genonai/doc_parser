@@ -1,6 +1,6 @@
 """파일 단독 실행 진입점 (#363 08-3).
 
-FastAPI 없이 프로세서를 직접 돌려 본다. 배포되는 facade 는 두 줄만 갖는다.
+FastAPI 없이 프로세서를 직접 돌려 본다. 처리기는 두 줄만 갖는다.
 
     if __name__ == "__main__":
         DocumentProcessor.cli()
