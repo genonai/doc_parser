@@ -1,6 +1,6 @@
 # 청킹 전용 전처리기(Chunk API, /chunker) 설정 — 모니모 GenOS Temporal 파이프라인 #284
 #
-# 이 facade(activities/chunk/processor.py)는 파싱(docling) 결과를 입력으로 받아 청킹만 수행한다.
+# 이 액티비티 처리기(activities/chunk/processor.py)는 파싱(docling) 결과를 입력으로 받아 청킹만 수행한다.
 # 파싱/로딩/OCR/레이아웃/enrichment 는 앞단계(파싱 Activity)에서 이미 끝났으므로
 # 여기서는 호출되지 않는다. 따라서 ocr/layout/pdf_pipeline/enrichment 섹션은 두지 않으며,
 # 미설정 시 코드 기본값으로 안전하게 폴백된다.
