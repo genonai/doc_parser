@@ -211,20 +211,14 @@ enrichment:
       api_key: ""
       model: ""
       prompt_template_file: prompt_table_text_description_rag.md
-      input_format: auto      # auto | markdown | html
       before_items: 3
       after_items: 2
       max_context_chars: 1500
       model_context_tokens: 128000  # 모델 context 크기. 모델이 바뀌면 이 값만 수정
-      overflow_policy: batch  # batch | skip | error
-      conflict_policy: prefer_text # prefer_text | prefer_image | error
       rag:
         retrieval_context_max_chars: 350
         key_fact_limit: 3
-        key_fact_max_chars: 160
-        search_terms_limit: 8
-        include_search_terms: false
-        repeat_context_on_split: true
+        search_terms: 0            # 검색어 개수. 0=만들지 않음, N=최대 N개를 만들어 청크에 싣는다
 
   # ── 문서유형별 custom_fields 추출 ──────────────────────────────────────────
   # extractor 는 적지 않는다 — 설정 파일(config_file)의 `source.kind` 에서 정해진다

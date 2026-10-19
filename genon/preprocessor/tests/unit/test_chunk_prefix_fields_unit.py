@@ -129,3 +129,26 @@ def test_enricher_ships_rules_into_document_metadata():
         encoding="utf-8")
     assert "cp.CHUNK_PREFIX_FIELDS_KEY: list(self._chunk_prefix_fields)" in source
     assert "cp.FIRST_CHUNK_FIELDS_KEY: list(self._first_chunk_fields)" in source
+
+
+# --- 짧은 청크 병합 기준(short_chunk_size): 같은 전달 경로(custom_fields → 문서 metadata) ---
+
+@pytest.mark.unit
+@pytest.mark.parametrize("kwargs, metadata, yaml_default, expected", [
+    ({}, {}, 0, 0),                                              # 기본은 끔
+    ({}, {"short_chunk_size": 200}, 0, 200),                     # 문서유형 yaml(body.merge_short)
+    ({"short_chunk_size": "0"}, {"short_chunk_size": 200}, 0, 0),  # 요청이 우선
+    ({}, {}, 150, 150),                                          # 청커 yaml 공통값
+    ({"short_chunk_size": True}, {"short_chunk_size": 200}, 0, 200),  # 잘못된 요청값은 다음 순위로
+    ({"short_chunk_size": 1.9}, {}, 150, 150),
+])
+def test_short_chunk_size_priority(kwargs, metadata, yaml_default, expected):
+    assert cp.resolve_short_chunk_size(kwargs, metadata, yaml_default) == expected
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("value", [True, 1.5, -1, "bad"])
+def test_short_chunk_size_rejects_bad_config_value(value):
+    """청커 yaml 의 오기입은 기동 시 실패한다. bool 을 int 로 바꾸면 true 가 1 이 되어 병합이 켜진다."""
+    with pytest.raises(ValueError, match="short_chunk_size"):
+        cp.parse_short_chunk_size(value)

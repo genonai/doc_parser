@@ -18,6 +18,7 @@
 | `common/pipeline_setup.py`, `runtime_kwargs.py` | `__init__` 의 OCR·PDF·layout 해석 / 런타임 kwargs 정규화·이미지 모드 배선 |
 | `common/vector_meta.py`, `doc_meta.py` | `GenOSVectorMeta` 빌더 공통 코어, 문서 메타 |
 | `common/loaders.py`, `markdown_export.py`, `runtime.py`, `appendix.py` | 로더(`install_packages`, Text/Tabular/Audio), 마크다운 내보내기, 로깅 초기화, 별첨 키워드 판정 |
+| `common/reason_codes.py` | 오류 사유 코드(#528) — 코드를 실은 `CodedValueError`, 원인 예외의 코드 읽기, OSError 의 코드·성격 판정 |
 | `chunking/smart_chunker.py` | `GenosSmartChunker` 본체. 활성 3종이 ClassVar 플래그만 다른 서브클래스로 상속 |
 | `chunking/hybrid_chunker.py` | docling_core `HybridChunker`/`HierarchicalChunker` 포크본(`TokenAwareHybridChunker`/`HierarchicalDocChunker` 로 개명해 업스트림과 구분). 갈라진 축은 모듈 docstring 참조 |
 | `chunking/table_*.py`, `rich_cells.py` | 표 행 분할·모양 판정·HTML 표 직렬화·변형 처리 |

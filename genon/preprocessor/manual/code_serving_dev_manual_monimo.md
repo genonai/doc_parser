@@ -240,8 +240,8 @@ body:                         # 청크 본문(= 임베딩 입력)을 어떻게 �
 | `body.fields` | 본문을 구성할 필드와 순서 (개행 결합) | `rows` · `records`는 **본문의 전부** |
 | `body.labels` | `항목명: 값` 형태로 냅니다 | 사람이 검색어로 쓰는 자연스러운 항목명을 권장합니다 |
 | `body.split` | 본문이 `chunk_size`를 넘으면 여러 청크로 나눕니다 | 긴 상세 HTML을 가진 행·레코드 |
-| `body.repeat` | 나뉜 **모든** 조각 앞에 반복할 식별 필드 | `rows`·`records`는 `split: true`일 때. `document`·`html`은 모든 청크에 적용 |
-| `body.once` | **첫 청크에만 1회** 얹습니다 | 문서 단위 분류 (`sections` · `document` · `html`) |
+| `body.repeat` | 나뉜 **모든** 조각 앞에 반복할 식별 필드(문서형 청크는 `HEADER:` 줄 다음) | `rows`·`records`는 `split: true`일 때. `document`·`html`은 모든 청크에 적용하며 `body.labels` 로 항목명을 함께 지정 |
+| `body.once` | **첫 청크에만 1회** 얹습니다(문서형 청크는 `HEADER:` 줄 다음) | 문서 단위 분류 (`sections` · `document` · `html`) |
 | `body.mirror_to` | 본문과 글자 그대로 같은 값을 받을 메타 필드 | 적재 측의 본문 컬럼용. `document` · `html` 전용 |
 
 > 접두는 청크마다 쓸 수 있는 `chunk_size`를 그만큼 줄입니다(청커가 미리 그 몫을 떼어 둡니다).
@@ -474,7 +474,7 @@ PY
 | 증상 | 원인 |
 |---|---|
 | `doc_type`을 줬는데 아무 일도 안 일어남 | 등록이 `enable: false` 입니다. 비활성 등록도 등록으로 보므로 오류 없이 지나갑니다 |
-| `doc_type=… 에 맞는 custom_fields 등록이 없습니다` | 등록 블록에 없는 `doc_type` 값(오타 포함)입니다. `defaults.unknown_doc_type: fail` 이라 파싱이 실패합니다 |
+| `doc_type=… 에 맞는 custom_fields 등록이 없습니다` | 등록 블록에 없는 `doc_type` 값(오타 포함)입니다. `defaults.unknown_doc_type: fail` 이라 파싱이 실패하고 재시도하지 않습니다 |
 | `doc_type`을 안 줬는데 custom_fields가 동작함 | config yaml의 등록 블록에 `doc_type` 키가 없으면 **wildcard** 로 모든 요청에 매칭됩니다 |
 | 청크는 생성되지만 metadata가 비어 있음 | 일치하는 등록이 없어 일반 처리 경로로 처리되었거나 `alias`가 일치하지 않음 |
 | 특정 필드만 계속 `null` | `llm`의 `out` 이름과 프롬프트가 내놓는 JSON 키가 다릅니다. `kind: html` 이면 선택자가 안 걸린 것 |
@@ -1701,7 +1701,7 @@ element의 공통 키는 `{category, content, coordinates, id, page}`이며, 행
 
 보강 단계의 오류는 `error_policy`를 따릅니다. 기본 `lenient`에서는 경고만 남기고 그 단계를 건너뛰며,
 `strict`에서는 메시지 앞에 `[stage]`가 붙은 오류로 실패합니다. 이때 모델 서빙의 연결 오류와 HTTP 5xx는
-`transient`(재시도), 시간 초과는 `timeout`(재시도), HTTP 4xx는 `permanent`(재시도 안 함)로 분류됩니다. `request_deadline`을 넘기면 워커는 멈출 수 없는 처리를 남긴 그 워커 프로세스를,
+`transient`(재시도), HTTP 429도 `transient`(재시도), 시간 초과는 `timeout`(재시도), 그 밖의 HTTP 4xx는 `permanent`(재시도 안 함)로 분류됩니다. `request_deadline`을 넘기면 워커는 멈출 수 없는 처리를 남긴 그 워커 프로세스를,
 처리 중인 다른 작업이 끝난 뒤 다시 띄웁니다.
 
 **설정 파일을 찾지 못하면 항상 오류입니다.** 기본값으로 조용히 대신하지 않습니다.
@@ -1711,7 +1711,7 @@ element의 공통 키는 `{category, content, coordinates, id, page}`이며, 행
 | 액티비티 폴더에 `config.yaml`이 없음 | 등록 오류. 워커가 기동하지 않습니다 |
 | 설정에 적은 `custom_field_*.yaml`이 없음 | 오류(`custom_fields config 없음: …`). 재시도하지 않습니다 |
 | 설정에 적은 프롬프트 파일이 없거나 내용이 비어 있음 | 오류. 코드 내장 기본 프롬프트는 설정에 프롬프트를 적지 않았을 때만 씁니다 |
-| 요청 `doc_type`이 등록되어 있지 않음 | 파싱 실패(`doc_type=… 에 맞는 custom_fields 등록이 없습니다`, `defaults.unknown_doc_type: fail`) |
+| 요청 `doc_type`이 등록되어 있지 않음 | 파싱 실패(`doc_type=… 에 맞는 custom_fields 등록이 없습니다`, `defaults.unknown_doc_type: fail`). 재시도하지 않습니다 |
 
 **결과가 예상과 다른 경우**
 
@@ -1846,6 +1846,7 @@ rows·records의 `body.fields`·`body.repeat` 값이 JSON·HTML이면 본문에�
 | 레코드 배열 위치 | `source.records_at` (`records`) | ✗ | ✔ | ✗ | ✗ | ✗ |
 | 못 찾을 때 정책 | `source.on_missing` (`missing_policy`) | ✗ | ✔ | ✔ | ✗ | ✗ |
 | 여러 건 접기 | `source.merge_rows` (`row_merge`) | ✔ | ✔ | ✗ | ✗ | ✗ |
+| 처리 대상 시트 | `source.sheets` | ✔ | ✗ | ✗ | ✗ | ✗ |
 | 섹션 표시 이름 | `source.sections` | ✗ | ✗ | ✔ | ✗ | ✗ |
 | 서브트리 제외 | `source.ignore_keys` | ✗ | ✗ | ✔ | ✗ | ✗ |
 | 포맷 전처리 | `source.pre.markdown` / `.html` | ⚠ **무시** | ⚠ **무시** | ⚠ **무시** | ✔ | ⚠ `.html` 적용, `.markdown` 무시 |

@@ -28,6 +28,7 @@ import re
 from typing import Any
 
 from bs4 import BeautifulSoup
+from genon.preprocessor.processing.common.reason_codes import CodedValueError
 
 from .html_flatten import (
     build_docling_document,
@@ -203,7 +204,7 @@ def json_payload_to_html(payload: Any, spec: JsonTextSpec, title: str) -> str:
             f"찾지 못했습니다."
         )
         if spec.missing_policy == "error":
-            raise ValueError(msg)
+            raise CodedValueError(msg, "PARSE_D008")
         _log.warning(f"[json_text] {msg} — 빈 문서로 진행합니다.")
     else:
         _log.info(

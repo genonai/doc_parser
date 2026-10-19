@@ -18,6 +18,7 @@ from docling.utils.llm_cache import CacheDeadlineExceeded, async_cached_call, re
 from docling.utils.thinking import resolve_thinking_kwargs, strip_reasoning
 
 from genon.preprocessor.processing.common import config_parse as cp
+from genon.preprocessor.processing.common.reason_codes import CodedValueError
 from genon.preprocessor.processing.common.model_params import (
     build_chat_payload,
     collect_generation_params,
@@ -548,6 +549,8 @@ class CustomFieldsEnricher(BaseEnricher):
         self._first_chunk_fields = cp.parse_field_name_list(cfg.get(cp.FIRST_CHUNK_FIELDS_KEY))
         # 위 두 규칙으로 얹힌 값 앞에 붙일 사람이 읽는 항목명. 이름이 있는 필드만 붙는다.
         self._field_labels = cp.parse_field_labels(cfg.get(cp.FIELD_LABELS_KEY))
+        # 짧은 청크 병합 기준(body.merge_short). 같은 성격의 규칙이라 문서 metadata 로 청커에 넘긴다.
+        self._short_chunk_size = cfg.get(cp.SHORT_CHUNK_SIZE_KEY)
         resolved_key = api_key or cfg.get("api_key", "")
         resolved_headers_cfg = headers if headers is not None else cfg.get("headers")
         self._headers = resolve_headers({"headers": resolved_headers_cfg}, resolved_key)
@@ -907,6 +910,9 @@ class CustomFieldsEnricher(BaseEnricher):
                 **normalized, cp.FIRST_CHUNK_FIELDS_KEY: list(self._first_chunk_fields)}
         if self._field_labels:
             normalized = {**normalized, cp.FIELD_LABELS_KEY: dict(self._field_labels)}
+        short_chunk_size = getattr(self, "_short_chunk_size", None)
+        if short_chunk_size is not None:
+            normalized = {**normalized, cp.SHORT_CHUNK_SIZE_KEY: short_chunk_size}
         # 같은 성격의 규칙 — 값은 여기까지 다 만들어졌고, 청커가 청크 메타를 조립할 때만 뺀다.
         normalized = cp.attach_meta_exclude(normalized, self._meta_exclude)
         return normalized
@@ -1000,7 +1006,8 @@ class CustomFieldsEnricher(BaseEnricher):
 
     @staticmethod
     def _clean_string_list(value: Any, limit: int, max_chars: int | None = None) -> list[str]:
-        if not isinstance(value, list):
+        # 상한 0 은 "만들지 않음"이다. 검사를 append 뒤에만 두면 0 이어도 1개가 남는다.
+        if not isinstance(value, list) or limit <= 0:
             return []
         result: list[str] = []
         for item in value:
@@ -1235,6 +1242,7 @@ class CustomFieldsEnricher(BaseEnricher):
             fitted, fits = targets, False
 
         if fits:
+            _log.info(f"[table_text_description] 표 {len(fitted)}개를 custom_fields 호출 1회에 함께 설명합니다.")
             parsed = await self._describe_call(raw_text, document, fitted, **kwargs)
             try:
                 self._attach_table_descriptions(parsed, fitted)
@@ -1244,7 +1252,8 @@ class CustomFieldsEnricher(BaseEnricher):
             return parsed
 
         if policy == "error":
-            raise ValueError("custom_fields + 표 설명 프롬프트가 model_context_tokens를 초과했습니다.")
+            raise CodedValueError(
+                "custom_fields + 표 설명 프롬프트가 model_context_tokens를 초과했습니다.", "PARSE_P001")
         output = await self._call_llm(raw_text, document)
         parsed = self._parse_with_custom_parser(output, document, **kwargs)
         if policy == "skip":
@@ -1254,6 +1263,7 @@ class CustomFieldsEnricher(BaseEnricher):
         # batch 정책: custom fields는 한 번만 호출하고 표는 들어가는 만큼 묶어 추가 호출한다.
         try:
             batches = self._plan_batches(document, fitted)
+            _log.info(f"[table_text_description] 표 {len(fitted)}개를 {len(batches)}개 배치로 호출합니다.")
             done, failure = await self._call_table_batches(document, batches, **kwargs)
             for table_batch, table_parsed in done:
                 self._attach_table_descriptions(table_parsed, table_batch)
@@ -1284,6 +1294,7 @@ class CustomFieldsEnricher(BaseEnricher):
         if not targets:
             return results
         batches = self._plan_batches(document, targets)
+        _log.info(f"[table_text_description] 표 {len(targets)}개를 {len(batches)}개 배치로 호출합니다.")
         done, failure = await self._call_table_batches(document, batches, **kwargs)
         for batch, parsed in done:
             values = parsed.get("_table_descriptions")
@@ -1314,13 +1325,15 @@ class CustomFieldsEnricher(BaseEnricher):
             return
         fitted, fits = self._fit_targets("", document, targets)
         if fits:
+            _log.info(f"[table_text_description] 표 {len(fitted)}개를 1회 호출로 설명합니다.")
             parsed = await self._describe_call("", document, fitted, **kwargs)
             self._attach_table_descriptions(parsed, fitted)
             return
 
         policy = self._table_description_options.overflow_policy
         if policy == "error":
-            raise ValueError("표 설명 프롬프트가 model_context_tokens 를 초과했습니다.")
+            raise CodedValueError(
+                "표 설명 프롬프트가 model_context_tokens 를 초과했습니다.", "PARSE_P001")
         if policy == "skip":
             _log.warning("표 설명 프롬프트가 한도를 초과해 표 설명을 건너뜁니다.")
             return

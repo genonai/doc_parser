@@ -273,8 +273,8 @@ metadata 컬럼에만 있는 값은 필터 검색에만 걸리고 임베딩 검�
 | `body.fields` | 본문을 구성할 필드와 순서 (개행 결합) | `rows` · `records`는 **본문의 전부** |
 | `body.labels` | `항목명: 값` 형태로 냅니다 | 사람이 검색어로 쓰는 말을 적습니다. DB 컬럼명 금지 |
 | `body.split` | 본문이 `chunk_size`를 넘으면 여러 청크로 나눕니다 | 긴 상세 HTML을 가진 행·레코드 |
-| `body.repeat` | 나뉜 **모든** 조각 앞에 반복할 식별 필드 | `rows`·`records`는 `split: true` 일 때만. `document`·`html`은 모든 청크에 적용. 제목·메뉴명 1~2개 |
-| `body.once` | **첫 청크에만 1회** 얹습니다 | 문서 단위 분류 (`sections` · `document` · `html`) |
+| `body.repeat` | 나뉜 **모든** 조각 앞에 반복할 식별 필드(문서형 청크는 `HEADER:` 줄 다음) | `rows`·`records`는 `split: true` 일 때만. `document`·`html`은 모든 청크에 적용하며 `body.labels` 로 항목명을 함께 지정. 제목·메뉴명 1~2개 |
+| `body.once` | **첫 청크에만 1회** 얹습니다(문서형 청크는 `HEADER:` 줄 다음) | 문서 단위 분류 (`sections` · `document` · `html`) |
 | `body.mirror_to` | 본문과 글자 그대로 같은 값을 받을 메타 필드 | 적재 측의 본문 컬럼용. `document` · `html` 전용 |
 
 > 접두는 청크마다 쓸 수 있는 `chunk_size`를 그만큼 줄입니다(청커가 미리 그 몫을 떼어 둡니다).
@@ -524,6 +524,7 @@ EOF
 | `enrichment.image_description.enable` (`img_desc`) | 이미지 설명 | `chunking.chunk_mode` (`chunk_mode`) | `split_only` / `resize_all` |
 | `enrichment.doc_summary.enable` (`doc_summary`) | 문서 요약 | `chunking.recursive.chunk_overlap` (`chunk_overlap`) | 청크 간 겹침 |
 | `enrichment.toc.enable` (`toc`) | 목차 보강 | | |
+| `table_text_desc` (요청 파라미터 이름으로만 씀) | 텍스트 표 설명 | | |
 | `ocr.ocr_mode` | `auto` / `force` / `disable` | | |
 
 표로 표현할 수 없는 조건은 `config_by_condition()`에서 정합니다. 같은 형식의 dict를 돌려주고,
@@ -1514,7 +1515,7 @@ curl --location "${GW}/parser" \
 
 | 처리기 | 자주 쓰는 `params` 키 |
 |---|---|
-| parser | `doc_type`, `toc`, `img_desc`, `chart_desc`, `table_desc`, `table_refine`, `doc_summary`, `save_images`, `use_hwp_sdk`, `log_level` |
+| parser | `doc_type`, `toc`, `img_desc`, `chart_desc`, `table_desc`, `table_refine`, `table_text_desc`, `doc_summary`, `save_images`, `use_hwp_sdk`, `log_level` |
 | chunking | `document`, `chunk_size`, `chunk_mode`, `include_chunk_header`, `chunk_overlap`, `table_as_chunk`, `export_to_html`, `log_level` |
 | intelligent / convert | 위 parser 키 + `chunk_size`, `chunk_mode`, `include_chunk_header`, `use_pdf_sdk`, `table_format`, `export_to_html` |
 | attachment | `chunker_type`, `chunk_size`, `chunk_overlap`, `use_pdf_sdk`, `use_hwp_sdk` |
@@ -1636,6 +1637,9 @@ enrichment:
 - 실패 응답에는 `error_code`, `error_type`, `stage`, `error_kind`, `tag`, `file_path`, `traceback`이
   실립니다(`stage`·`error_kind`는 값이 있을 때만). `error_type`은 예외 클래스명이고, 예외 생성자에
   준 `error_type` 인자는 응답에서 `error_kind`로 나갑니다.
+- 실패 응답에는 사유 코드 `reason_code`(예: `PARSE_D001`)와 유형 `error_category`(`data`/`preprocess`/`system`)도
+  항상 실립니다. 예외 생성자에 `reason_code` 인자를 주면 그 값이 실리고, 주지 않으면 미분류 코드(`PARSE_P999` 등)가
+  실립니다. 코드표는 `custom_fields_exceptions.md` 의 "사유 코드" 절을 참조하세요.
 - 처리기가 `GenosServiceException`으로 던진 오류는 `error_code`가 보존됩니다. 그 외 예외는
   타입에 따라 `INPUT_ERROR` / `TIMEOUT_ERROR` / `INTERNAL_ERROR`로 자동 분류됩니다.
 - core가 넣는 `stage` 값은 `custom_fields` · `doc_summary` · `image_description` · `metadata` ·

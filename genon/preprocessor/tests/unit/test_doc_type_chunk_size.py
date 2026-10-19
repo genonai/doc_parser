@@ -63,9 +63,9 @@ _PREFIX_SCAN_LINES = 4
 def _chunk_header(text: str) -> str:
     """청크의 HEADER 라인. 없으면 빈 문자열.
 
-    접두(`chunk_prefix_fields` / `first_chunk_fields`)는 HEADER 앞에 붙는다 - 코드가
-    의도한 순서다(chunking_processor 의 compose_vectors: "접두는 헤더 앞이다 - 문서
-    식별이 섹션 경로보다 앞에 와야 한다"). 접두 줄이 몇 개인지는 doc_type 설정이
+    접두(`chunk_prefix_fields` / `first_chunk_fields`)는 HEADER 뒤에 붙는다 - 코드가
+    의도한 순서다(core/chunker.py 의 build_chunk_text: 문서형 청크는 HEADER 로
+    시작한다). 접두 줄이 몇 개인지는 doc_type 설정이
     정하므로 특정 값을 떼어내는 대신 HEADER 라인을 찾는다 - 설정이 접두 필드를
     늘리거나 줄여도 이 헬퍼가 끌려다니지 않는다.
     """
@@ -290,11 +290,10 @@ def test_chunk_prefix_fields_repeat_on_every_chunk_within_chunk_size():
     )
 
     assert len(rows) > 1
-    assert all(r["text"].startswith(_CARD_PRODUCT_NAME + "\n") for r in rows), \
+    # 선두 조립 순서 계약: HEADER → 반복 접두 → 본문(#552).
+    assert all(r["text"].splitlines()[0].startswith("HEADER: ") for r in rows)
+    assert all(r["text"].splitlines()[1] == _CARD_PRODUCT_NAME for r in rows), \
         "모든 청크에 반복돼야 합니다"
-
-    # 선두 조립 순서 계약: 반복 접두 → HEADER → 본문.
-    assert all(r["text"].splitlines()[1].startswith("HEADER: ") for r in rows)
 
     effective = _clamp_chunk_size(CHUNK_SIZE)
     over = [(i, len(r["text"])) for i, r in enumerate(rows) if len(r["text"]) > effective]

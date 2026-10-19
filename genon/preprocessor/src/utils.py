@@ -23,12 +23,28 @@ def make_success_response(data: Optional[Any] = None, chunk_validation: Optional
     return body
 
 
+# #528: 사유 코드의 분류문자 → 응답 error_category. 코드표는 processing/common/reason_codes.py 를 본다.
+_CATEGORY_BY_LETTER = {'D': 'data', 'P': 'preprocess', 'S': 'system'}
+
+
+def reason_fields(reason_code: str) -> dict:
+    """응답에 싣는 reason_code·error_category. 두 진입점(루트 main.py 포함)이 같이 쓴다."""
+    letter = reason_code.partition('_')[2][:1]
+    return {'reason_code': reason_code, 'error_category': _CATEGORY_BY_LETTER.get(letter)}
+
+
+def reason_code_of(exc: Exception, prefix: str) -> str:
+    """예외가 실은 사유 코드. 없으면 단계별 미분류 코드(`<prefix>_P999`)다."""
+    return getattr(exc, 'reason_code', None) or f'{prefix}_P999'
+
+
 def make_failure_response(
     errMsg: str = 'failure',
     *,
     error_code: Optional[Any] = None,
     stage: Optional[str] = None,
     error_kind: Optional[str] = None,
+    reason_code: Optional[str] = None,
 ):
     # #329: strict 경로에서 어느 단계(stage)에서 어떤 성격(error_kind: transient/permanent/timeout)의
     # 실패인지 caller(Temporal activity)가 알 수 있게 envelope 에 실어 준다.
@@ -40,10 +56,12 @@ def make_failure_response(
         body['stage'] = stage
     if error_kind is not None:
         body['error_kind'] = error_kind
+    if reason_code is not None:
+        body.update(reason_fields(reason_code))
     return JSONResponse(body, status_code=200)
 
 
-def failure_response_from_exc(exc: Exception):
+def failure_response_from_exc(exc: Exception, prefix: str = 'COMMON'):
     """예외에서 error_code/stage/error_kind 를 덕타이핑으로 추출해 실패 envelope 생성(#329).
 
     facade 별 GenosServiceException 사본(서로 다른 클래스)과 common.exception 사본을
@@ -63,6 +81,7 @@ def failure_response_from_exc(exc: Exception):
     error_kind = getattr(exc, 'error_type', None)
     if error_kind is not None:
         body['error_kind'] = error_kind
+    body.update(reason_fields(reason_code_of(exc, prefix)))
     return JSONResponse(body, status_code=200)
 
 

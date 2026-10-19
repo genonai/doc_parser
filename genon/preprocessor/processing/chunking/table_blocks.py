@@ -261,6 +261,16 @@ def _degenerate_prose(block: Any) -> str:
     return th.render_plain_text(grid.rows, grid.num_cols, caption=grid.caption)
 
 
+def is_layout_block(kind: str, text: str) -> bool:
+    """청커가 평문으로 푸는 레이아웃용 표 블록인가(`normalize_degenerate` 와 같은 판정)."""
+    return bool(_degenerate_prose(Block(0, len(text or ""), kind, text or "")))
+
+
+def block_grid(kind: str, text: str):
+    """표 블록 문자열의 셀 그리드(`rows`·`num_cols`·`header_rows`·`caption`). 못 읽으면 None."""
+    return _to_grid(Block(0, len(text or ""), kind, text or ""))
+
+
 def normalize_degenerate(text: str) -> str:
     """텍스트 안의 레이아웃용 표를 평문으로 바꾼 텍스트. 정형 표는 그대로 둔다.
 
@@ -313,6 +323,11 @@ def _peel_section_title(before: str) -> tuple:
     if not _is_section_title_line(last):
         return before, ""
     return head.strip(), last.strip()
+
+
+def table_title_line(before: str) -> str:
+    """표 앞 본문의 마지막 줄이 청커가 표와 함께 두는 섹션 제목이면 그 줄, 아니면 빈 문자열."""
+    return _peel_section_title(before or "")[1]
 
 
 def split_at_tables(text: str) -> list:

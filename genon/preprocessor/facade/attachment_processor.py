@@ -1,4 +1,4 @@
-# 첨부용 전처리기 v.2.2.4 (2026-07-30 Release)
+# 첨부용 전처리기 v.2.2.5 (2026-10-15 Release)
 from __future__ import annotations
 
 from collections import defaultdict

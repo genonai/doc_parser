@@ -1,10 +1,13 @@
 """processor 공통 HTML/Markdown 표 행 분할기의 순수 단위 테스트."""
 
+import re
 from dataclasses import dataclass
+from pathlib import Path
 
 import pytest
 
 from genon.preprocessor.processing.chunking.table_splitter import (
+    ROW_CONTINUED_LABEL,
     ROW_LINES_LABEL,
     leading_header_row_count,
     split_entries_preserving_tables,
@@ -233,6 +236,70 @@ def test_multi_header_markdown_piece_has_exactly_one_header_row_then_separator()
         assert len({line.count("|") for line in lines}) == 1
 
 
+# ─── colspan 병합 셀 (#539, monimo_product_slf_span_table_sample.md) ───────────
+
+def _spanned(text, start, span, **flags):
+    """docling grid 처럼 병합 셀 하나를 피복 컬럼마다 같은 객체로 채운다."""
+    cell = Cell(text, start, col_span=span, **flags)
+    return [cell] * span
+
+
+_CLAUSE = "㈜ 1. 보험료 납입기간 중 주계약의 보험료 납입 면제 사유가 발생하였을 경우 " + "가" * 200
+
+
+@pytest.mark.unit
+def test_tbody_colspan_clause_is_written_once_in_table_and_row_summary():
+    """11쪽 표: tbody 전체 폭 조항(colspan=3)이 표에 3회, 행 요약에 3회 실려 조각이 한도를 넘었다."""
+    grid = [
+        [Cell("특약명", 0, column_header=True), Cell("지급사유", 1, column_header=True),
+         Cell("지급금액", 2, column_header=True)],
+        _spanned(_CLAUSE, 0, 3),
+    ]
+    for n in range(1, 4):
+        grid.append([Cell("3대안과질환 수술보장특약", 0, row_span=3),
+                     Cell(f"ROW-{n:02d}-START □ 수술보험금 " + "나" * 80, 1), Cell("50만원", 2)])
+    grid.append(_spanned(_CLAUSE, 0, 3))
+    result = split_table_rows(
+        grid=grid, num_cols=3, single_text="X" * 3000, limit=700, count_text=len,
+        table_format="markdown", header_row_count=1, row_serialization=True,
+    )
+
+    assert result.did_split and not result.oversized_piece_indexes
+    clause_pieces = [piece for piece in result.pieces if _CLAUSE in piece]
+    assert len(clause_pieces) == 2
+    for piece in clause_pieces:
+        body, _, summary = piece.partition(ROW_LINES_LABEL)
+        assert (body.count(_CLAUSE), summary.count(_CLAUSE)) == (1, 1)
+        assert f"| {_CLAUSE} |  |  |" in body
+    # rowspan 값은 조각 맥락을 위해 행마다 그대로 복제된다.
+    assert "\n".join(result.pieces).count("특약명=3대안과질환 수술보장특약") == 3
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("header, data_cols", [
+    # 13쪽 표: thead 의 유일한 셀이 전체 폭(colspan=4) 조항이다.
+    (_spanned(_CLAUSE, 0, 4, column_header=True), 4),
+    # 6쪽 표: 두 번째 헤더 셀이 나머지 두 컬럼을 덮는 긴 설명(colspan=2)이다.
+    ([Cell("보존치료 보험금", 0, column_header=True), *_spanned(_CLAUSE, 1, 2, column_header=True)], 3),
+], ids=["full-width", "partial-width"])
+def test_merged_header_without_sub_header_is_not_repeated_as_column_label(header, data_cols):
+    """하위 헤더 없는 긴 병합 헤더가 모든 컬럼 라벨이 되어 표 헤더와 행 요약에 컬럼 수만큼 실렸다."""
+    grid = [header]
+    for n in range(1, 5):
+        grid.append([Cell(f"ROW-{n:02d}-START", 0),
+                     *(Cell(f"값{n}-{c}", c) for c in range(1, data_cols))])
+    result = split_table_rows(
+        grid=grid, num_cols=data_cols, single_text="X" * 3000, limit=500, count_text=len,
+        table_format="markdown", header_row_count=1, row_serialization=True,
+    )
+
+    assert result.did_split
+    for piece in result.pieces:
+        body, _, summary = piece.partition(ROW_LINES_LABEL)
+        # 표 헤더에 한 번 남고 행 요약 라벨로는 쓰이지 않는다.
+        assert (body.count(_CLAUSE), summary.count(_CLAUSE)) == (1, 0)
+
+
 # ─── rowspan 분할 (결함 회귀 고정) ─────────────────────────────────────────────
 
 def _rowspan_grid(groups=3, per_group=4, payload_size=90):
@@ -298,6 +365,37 @@ def test_row_serialization_appends_only_that_piece_rows_within_budget():
         for n in range(1, 7):
             marker = f"ROW-{n:02d}-START"
             body, _, summary = piece.partition("[표 행 요약]")
+            assert (marker in summary) == (marker in body)
+
+
+@pytest.mark.unit
+def test_blank_data_rows_are_dropped_before_split():
+    """OCR 레이아웃 표(상품설명서 116쪽 캡쳐): 빈 thead 아래 빈 행이 데이터 행 사이와 표 끝에 있다.
+
+    빈 행이 분할 단위로 남으면 표 끝의 빈 행이 홀로 조각이 되어 `설명 + 빈 헤더 + 빈 행` 만 담긴
+    청크가 나오고, 행 문장(빈 행을 건너뛴다)이 다른 조각의 행에 붙는다.
+    """
+    blank = lambda: [Cell("", c) for c in range(4)]
+    grid = [[Cell("", c, column_header=True) for c in range(4)],
+            [Cell("보장명", 0), Cell("", 1), Cell("지급사유", 2), Cell("지급금액", 3)], blank()]
+    for n in range(1, 9):
+        grid.append([Cell("", 0), Cell(f"ROW-{n:02d}-START", 1),
+                     Cell("가" * 40, 2), Cell(f"가입금액의 {n}%", 3)])
+        grid.append(blank())
+    grid.append(blank())
+    result = split_table_rows(
+        grid=grid, num_cols=4, single_text="X" * 3000, limit=400, count_text=len,
+        table_format="markdown", header_row_count=1,
+        prefix="[표 검색 설명]\n특정치료비 보장 내역이다.\n", row_serialization=True,
+    )
+
+    assert result.did_split
+    for piece in result.pieces:
+        body, _, summary = piece.partition(ROW_LINES_LABEL)
+        rows = body.strip().splitlines()[4:]      # 설명 라벨·설명·헤더·구분선 다음이 데이터 행
+        assert rows and all(row.replace("|", "").strip() for row in rows)
+        for n in range(1, 9):
+            marker = f"ROW-{n:02d}-START"
             assert (marker in summary) == (marker in body)
 
 
@@ -426,3 +524,120 @@ def test_markdown_variant_is_omitted_when_header_row_is_missing():
 
     assert result.did_split
     assert "markdown" not in result.format_pieces
+
+
+# ─── 긴 행 조각의 한도 초과 해소 (#548, monimo_product_slf_span_table_sample.md 13쪽) ─────
+
+_SAMPLE_PAGE13 = (Path(__file__).resolve().parents[2] / "sample_files" / "monimo"
+                  / "monimo_product_slf_span_table_sample.md").read_text(encoding="utf-8")
+_SAMPLE_PAGE13 = _SAMPLE_PAGE13[_SAMPLE_PAGE13.index("<!-- source_page: 13 -->"):]
+
+
+def _page13_cell(pattern):
+    """샘플 13쪽 표의 셀 원문. ``<br>`` 은 docling 셀 텍스트처럼 줄바꿈이 된다."""
+    return re.search(pattern, _SAMPLE_PAGE13, re.S).group(1).replace("<br>", "\n")
+
+
+_P13_THEAD = _page13_cell(r'<th colspan="4">(.*?)</th>')
+_P13_TBODY = _page13_cell(r'<td colspan="4">(.*?)</td>')
+_P13_REASON = _page13_cell(r'<td>(□ 소액질병진단보험금.*?)</td>')
+_P13_CONTEXT = "[표 검색 설명]\n소액질병보장특약 VII D 의 소액질병진단보험금 지급 내역을 비교한다.\n"
+
+
+def _page13_grid():
+    """13쪽 표: thead 전체 폭 조항, 상품 행, tbody 전체 폭 조항 한 행, 상품 행."""
+    product = [Cell("소액질병보장특약VII", 0), Cell(_P13_REASON, 1), Cell("150만원", 2), Cell("300만원", 3)]
+    return [
+        _spanned(_P13_THEAD, 0, 4, column_header=True),
+        [Cell("특약명", 0), Cell("지급사유", 1), *_spanned("지급금액", 2, 2)],
+        product,
+        _spanned(_P13_TBODY, 0, 4),
+        list(product),
+    ]
+
+
+def _joined_cells(pieces):
+    """markdown 조각의 데이터 행 셀을 모은다. 이어지는 조각의 첫 행은 앞 행에 셀별로 잇는다."""
+    rows: list[list[str]] = []
+    for piece in pieces:
+        body = piece.partition(ROW_LINES_LABEL)[0]
+        lines = [line for line in body.split("\n") if line.startswith("| ")][2:]
+        cells = [line[2:-2].split(" | ") for line in lines]
+        if ROW_CONTINUED_LABEL in piece and rows and cells:
+            rows[-1] = [a + b for a, b in zip(rows[-1], cells.pop(0))]
+        rows.extend(cells)
+    return rows
+
+
+def _squash(text):
+    return re.sub(r"\s+", "", text)
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("limit, stage", [
+    (1500, "summary"),       # 라벨 없는 행 요약 줄만 빼면 든다
+    (1400, "description"),   # 반복 검색 설명까지 빼야 든다
+    (1200, "cells"),         # 긴 셀을 나눠 행을 이어 써야 든다
+])
+def test_long_row_piece_is_reduced_in_order_until_it_fits(limit, stage):
+    """13쪽 tbody 조항 한 행 조각이 행 요약 중복과 반복 설명을 실은 채 한도를 넘었다."""
+    grid = _page13_grid()
+    kwargs = dict(grid=grid, num_cols=4, single_text="X" * 9000, limit=limit, count_text=len,
+                  table_format="markdown", header_row_count=1, prefix=_P13_CONTEXT,
+                  row_serialization=True, extra_formats=("html",))
+    before = split_table_rows(**kwargs)
+    result = split_table_rows(**kwargs, compact_prefix="", split_long_cells=True)
+
+    assert not result.oversized_piece_indexes
+    assert all(len(piece) <= limit for piece in result.pieces)
+    # 한도 안에 들던 조각은 그대로다.
+    assert result.pieces[0] == before.pieces[0] and result.pieces[-1] == before.pieces[-1]
+    clause = [piece for piece, bucket in zip(result.pieces, result.buckets) if bucket == (2,)]
+    assert all(ROW_LINES_LABEL not in piece for piece in clause)
+    assert all(piece.startswith(_P13_CONTEXT) for piece in clause) == (stage == "summary")
+    assert (len(clause) > 1) == (stage == "cells")
+    assert _squash(_joined_cells(result.pieces)[2][0]) == _squash(_P13_TBODY)
+    # 추가 형식도 같은 조각 계획으로 렌더한다.
+    assert len(result.format_pieces["html"]) == len(result.pieces)
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("row, limit", [
+    # 경계(공백·줄바꿈)가 없는 긴 문자열은 문자 위치에서 자른다.
+    ([*_spanned(_squash(_P13_TBODY), 0, 4)], 300),
+    # 한 행에 긴 셀이 둘이고 첫 셀은 rowspan 복제 셀이다.
+    ([Cell("소액질병보장특약VII", 0, row_span=2), Cell(_P13_THEAD, 1), Cell(_P13_TBODY, 2),
+      Cell("150만원", 3)], 400),
+], ids=["no-boundary", "two-long-cells-with-rowspan"])
+def test_long_cells_are_split_into_continued_rows_that_rebuild_the_cells(row, limit):
+    grid = [[Cell(name, c, column_header=True) for c, name in enumerate(("특약명", "지급사유", "지급금액", "비고"))],
+            row, [Cell("소액질병보장특약VII", 0, row_span=2, start_row_offset_idx=1), Cell("-", 1),
+                  Cell("50만원", 2), Cell("100만원", 3)]]
+    result = split_table_rows(
+        grid=grid, num_cols=4, single_text="X" * 9000, limit=limit, count_text=len,
+        table_format="markdown", header_row_count=1, split_long_cells=True,
+    )
+
+    assert not result.oversized_piece_indexes
+    assert all(len(piece) <= limit for piece in result.pieces)
+    continued = [ROW_CONTINUED_LABEL in piece for piece in result.pieces]
+    assert continued[0] is False and any(continued)
+    rebuilt = _joined_cells(result.pieces)[0]
+    expected = ["" if cell is not None and cell.start_col_offset_idx != column else cell.text
+                for column, cell in enumerate(row)]
+    assert [_squash(text) for text in rebuilt] == [_squash(text) for text in expected]
+
+
+@pytest.mark.unit
+def test_row_is_kept_whole_when_header_alone_exceeds_limit():
+    """긴 헤더 조항은 자르지 않는다. 헤더만으로 한도를 넘으면 셀을 나눠도 진전이 없다."""
+    grid = _page13_grid()
+    result = split_table_rows(
+        grid=grid, num_cols=4, single_text="X" * 9000, limit=len(_P13_THEAD), count_text=len,
+        table_format="markdown", header_row_count=1, compact_prefix="", split_long_cells=True,
+    )
+
+    assert result.oversized_piece_indexes == tuple(range(len(result.pieces)))
+    assert all(ROW_CONTINUED_LABEL not in piece for piece in result.pieces)
+    assert sum(_squash(_P13_TBODY) in _squash(piece) for piece in result.pieces) == 1
+

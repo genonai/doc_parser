@@ -23,7 +23,10 @@
    잘못된 정규식·체인 중간의 `to_json`. 기동과 같은 `compile_transforms` 를 실행한다.
    매퍼·enricher 생성자가 이어서 실행하는 검증도 같은 함수로 실행한다 — template·pack 의
    참조 필드, 본문에 넣은 pack 필드, html 선택자 문법, 목표필드명 규칙(`check_startup_compile`).
-6. **파서·청커의 표 형식 불일치** — 같은 폴더의 두 설정에서 `output.table_format` 이 다른
+6. **텍스트 표 설명 블록의 오기입** — `table_text_description` 과 그 `rag`·`skip` 의 모르는
+   키, 잘못된 `rag.search_terms`·`skip` 값(경고). 프로세서 공통·등록 블록·custom_field yaml
+   을 따로 본다. 기동은 같은 판정으로 경고만 남기고 그 값을 무시한다.
+7. **파서·청커의 표 형식 불일치** — 같은 폴더의 두 설정에서 `output.table_format` 이 다른
    경우(경고). 레코드형 문서는 파서 값, 일반 문서는 청커 값으로 표가 나가 모양이 갈린다.
 
 ## 쓰는 법
@@ -53,6 +56,7 @@ from genon.preprocessor.processing.enrichment.tabular_custom_fields import (  # 
     compile_derive,
     compile_meta_exclude,
     compile_pack,
+    compile_sheets,
     compile_transforms,
     validate_custom_field_config,
 )
@@ -227,6 +231,8 @@ def check_block(
     diagnosis = cs.diagnose_keys(cfg, extractor)
     if diagnosis:
         problems.append(f"[기동실패] {cs.format_diagnosis(label, diagnosis)}")
+    for problem in cs.diagnose_table_text_description(cfg.get("table_text_description")):
+        problems.append(f"[경고] {label} table_text_description: {problem}.")
     # transform 은 키 대조가 아니라 컴파일 단계에서 검증되므로 기동과 같은 함수를 실행한다.
     try:
         compile_transforms(cfg.get("transforms"), label=label, cfg=cfg)
@@ -257,6 +263,8 @@ def check_startup_compile(label: str, cfg: dict, extractor: str) -> list[str]:
             c, label=label, extractor=extractor))
     if extractor == "html_select":
         checks.append(html_select.compile_selectors)
+    if extractor == "tabular_mapping":
+        checks.append(compile_sheets)
     problems: list[str] = []
     for check in checks:
         try:
@@ -363,6 +371,31 @@ TABLE_FORMAT_PAIRS = (
     ("parse_config.yaml", "chunk_config.yaml"),
     ("parse_config_simple.yaml", "chunk_config_simple.yaml"),
 )
+
+
+def check_table_text_blocks(root: Path) -> list[str]:
+    """프로세서 설정의 공통 `table_text_description` 과 등록 블록의 같은 키를 본다.
+
+    custom_field yaml 쪽 블록은 `check_block` 이 번역한 설정으로 본다.
+    """
+    problems: list[str] = []
+    for name in PROCESSOR_CONFIGS:
+        path = root / name
+        if not path.exists():
+            continue
+        for item in (load_yaml(path).get("enrichment") or []):
+            item = item or {}
+            targets = [(f"{name} 공통", item.get("table_text_description"))]
+            block = item.get("custom_fields")
+            if isinstance(block, dict):
+                targets.append((
+                    f"{name} [doc_type={block.get('doc_type')}] 등록 블록",
+                    block.get("table_text_description"),
+                ))
+            for where, target in targets:
+                for problem in cs.diagnose_table_text_description(target):
+                    problems.append(f"[경고] {where} table_text_description: {problem}.")
+    return problems
 
 
 def check_table_format_pairs(root: Path) -> list[str]:
@@ -472,6 +505,7 @@ def _check_root(root: Path) -> int:
         problems.extend(check_block(source, block, root, seen_files, presets))
     # 모델 프리셋은 등록 블록과 무관하게 설정 파일 단위로 본다(자식 yaml 참조 포함).
     problems.extend(check_model_presets(root))
+    problems.extend(check_table_text_blocks(root))
     problems.extend(check_table_format_pairs(root))
 
     # 등록되지 않은 custom_field yaml 은 배포되지만 쓰이지 않는다(정보성).

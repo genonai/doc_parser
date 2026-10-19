@@ -239,7 +239,8 @@ API 라 그 값은 호출자용 정보로 끝납니다. `tb.set_chunk_metadata()
 | `enrichment.table_description.enable` (`table_desc`) | 표 설명 | `chunking.chunk_size` (`chunk_size`) | 청크 최대 크기 |
 | `enrichment.image_description.enable` (`img_desc`) | 이미지 설명 | `chunking.recursive.chunk_overlap` (`chunk_overlap`) | 청크 간 겹침 |
 | `enrichment.doc_summary.enable` (`doc_summary`) | 문서 요약 | `chunking.chunk_mode` (`chunk_mode`) | `split_only` / `resize_all` |
-| `enrichment.toc.enable` (`toc`) | 목차 보강 | | |
+| `enrichment.toc.enable` (`toc`) | 목차 보강 | `chunking.short_chunk_size` (`short_chunk_size`) | 짧은 청크 병합 기준 |
+| `table_text_desc` (요청 파라미터 이름으로만 씀) | 텍스트 표 설명 | | |
 | `ocr.ocr_mode` | `auto` / `force` / `disable` | | |
 | `pdf_output.keep` (`keep_pdf`) | 변환 PDF 보존 | | |
 

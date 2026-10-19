@@ -257,20 +257,23 @@ llm:
 # `table_text_description` 이 기본이고, 여기 적은 키만 덮어쓴다(rag 하위도 키 단위 병합).
 # 켜고 끄기: `enable`(기본 false). 요청의 table_text_desc 값이 있으면 그것이 우선한다.
 # 표 설명에 자체 연결(model_preset 또는 url/model)이 있으면 별도 호출이 우선한다. 없으면 이
-# 문서유형의 llm 연결로 필드 추출과 함께 요청되며, 입력이 모델 한도를 넘으면 `overflow_policy` 에
-# 따른다 — batch(기본: 필드는 1회, 표는 묶음별 추가 호출) | skip(표 설명 생략) | error(경고 후 이
-# 문서의 LLM 필드를 비운다. 요청은 실패하지 않는다). 입력 예산은 model_context_tokens·
-# completion_reserved_tokens 로 조정한다.
+# 문서유형의 llm 연결로 필드 추출과 함께 요청되며, 입력이 모델 한도를 넘으면 필드는 1회, 표는
+# 묶음별로 나눠 추가 호출한다. 입력 예산은 model_context_tokens 로 조정한다.
+# LLM 에 보내지 않을 표: 값이 하나뿐이거나 데이터 행이 없는 레이아웃 표는 자동으로 뺀다.
+# `skip: false` 는 이 생략과 아래 조건을 모두 끈다(어느 표가 빠졌는지 확인할 때 쓴다).
+# `skip.self_describing`(기본 false, 제목이 있고 값이 문장인 작은 표. 금액·비율·기간 값이나
+# 병합 셀이 있으면 보낸다), `skip.contained_duplicate`(기본 false, 앞선 표 하나에 모든 행이 행
+# 단위로 이미 실린 중복 표). 표가 많은 문서유형에서 검색 결과를 확인한 뒤 켠다.
 # table_text_description:
 #   enable: true
 #   prompt_template_file: prompt_table_text_description_rag.md
-#   input_format: auto
 #   before_items: 4                   # 표 앞 문맥 항목 수(기본 3)
 #   after_items: 3                    # 표 뒤 문맥 항목 수(기본 2)
-#   overflow_policy: batch
+#   skip:
+#     self_describing: true
 #   rag:
 #     key_fact_limit: 5
-#     include_search_terms: true
+#     search_terms: 3                 # 공통 설정은 0. 최대 3개를 만들어 청크에 싣는다
 
 # ═══════════════════════════════════════════════════════════════════════════
 #  기동 시 자동 검사

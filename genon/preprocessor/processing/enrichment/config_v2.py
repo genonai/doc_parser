@@ -38,7 +38,7 @@ from __future__ import annotations
 import difflib
 from typing import Any
 
-from ..common import model_preset
+from ..common import config_parse, model_preset
 from . import config_schema
 from .file_source import FILE_ALIAS, FILE_FIELDS_KEY
 
@@ -74,9 +74,9 @@ FIELD_SPEC_KEYS = frozenset({
 })
 SOURCE_KEYS = frozenset({
     "kind", "records_at", "table_at", "on_missing", "merge_rows",
-    "sections", "ignore_keys", "pre",
+    "sections", "ignore_keys", "sheets", "pre",
 })
-BODY_KEYS = frozenset({"fields", "labels", "split", "repeat", "once", "mirror_to"})
+BODY_KEYS = frozenset({"fields", "labels", "split", "repeat", "once", "mirror_to", "merge_short"})
 # source.pre 아래 쓸 수 있는 원천 포맷 전처리 블록(파서가 소비한다).
 PRE_KEYS = ("markdown", "html", "delimited", "json")
 # `pre` 바로 아래 쓸 수 있는 공통 스위치. **md 와 html 이 판정 규칙을 공유하는 것만** 여기
@@ -145,6 +145,7 @@ _BODY_TO_V1 = {
     "repeat": "chunk_prefix_fields",
     "once": "first_chunk_fields",
     "mirror_to": "body_fields",
+    "merge_short": "short_chunk_size",
 }
 
 # source 블록 키 → (v1 키, 이 키를 쓸 수 있는 kind).
@@ -152,6 +153,7 @@ _SOURCE_TO_V1 = {
     "records_at": ("records", ("records",)),
     "on_missing": ("missing_policy", ("records", "sections")),
     "merge_rows": ("row_merge", ("rows", "records")),
+    "sheets": ("sheets", ("rows",)),
     "sections": ("sections", ("sections",)),
     "ignore_keys": ("ignore_keys", ("sections",)),
 }
@@ -393,6 +395,10 @@ def _normalize_body(body: Any, kind: str, out: dict, label: str) -> None:
     if not body:
         return
     _check_unknown(body, BODY_KEYS, label, "body")
+    try:
+        config_parse.parse_short_chunk_size(body.get("merge_short"), "body.merge_short")
+    except ValueError as exc:
+        raise ConfigV2Error(f"{label}: {exc}") from None
     for v2_key, v1_key in _BODY_TO_V1.items():
         if body.get(v2_key) is not None:
             out[v1_key] = body[v2_key]

@@ -107,6 +107,17 @@ CASES = [
     ("product_slf",   MONIMO / "monimo_product_slf_fields_sample.md",
      "코드값·비표준 날짜·브랜드 분리 front matter"),
     ("product_ssf",   MONIMO / "monimo_product_ssf_sample.md",         "llm + markdown front matter"),
+    # 병합 셀(colspan) 표 캡처를 본뜬 합성 샘플(#539). 생성 스크립트는
+    # tools/parse_chunk/make_product_slf_span_table_sample.py 다.
+    ("product_slf",   MONIMO / "monimo_product_slf_span_table_sample.md", "병합 셀 표 행 분할"),
+    # 표 분할·병합 경계 사례(#550). 생성 스크립트는 tools/parse_chunk/make_product_table_edge_samples.py 다.
+    ("product_slf",   MONIMO / "monimo_product_slf_table_edge_sample.md", "표 경계: 긴 셀·헤더 초과"),
+    ("product_slf",   MONIMO / "monimo_product_slf_table_edge_sample_pages.md",
+     "표 경계: 계층 헤더·쪽 경계·깊은 경로"),
+    ("product_ssf",   MONIMO / "monimo_product_ssf_table_edge_sample.md", "표 경계: HTML 표 대조군·꼬리말"),
+    # 캡처한 실물 구조(안내 섹션 → `## 원문 전사` → `## 원문 N쪽`)를 본뜬 합성 샘플(#526).
+    ("product_slf",   MONIMO / "monimo_product_slf_sections_sample.md", "markdown.sections(목차 페이지 포함)"),
+    ("product_ssf",   MONIMO / "monimo_product_ssf_sections_sample.md", "markdown.sections"),
     # 본문 표를 파이프 표가 아니라 HTML <table> 로 쓴 마크다운. md 백엔드가 HTML 블록을
     # HTML 백엔드로 왕복시켜 TableItem 으로 만드는 경로를 고정한다.
     ("product_ssf",   MONIMO / "monimo_product_ssf_html_table_sample.md",
@@ -134,12 +145,16 @@ def check_front_matter(chunks: list) -> list[str]:
 
     front_matter 블록은 fields 에 매핑한 키(created_at 등)만 metadata 로 올리고 front matter
     전체는 청크 텍스트에서 뺀다. front matter 만으로
-    이루어진 청크가 사라져 8청크 → 7청크가 된다. LLM 이 죽어도 이 단정은 유지된다.
+    이루어진 청크가 사라져 8청크 → 7청크가 된다. 여기에 markdown.sections 가 안내 섹션
+    3개를 지워 4청크가 된다(#526). 모니모 설정은 product_slf 의 본문 200자 미만 청크를 다음 청크에
+    합치므로(custom_fields 의 body.merge_short) 짧은 원문 1·2쪽이 묶여 독립 청크 하나가 되고, 표 청크
+    2개와 함께 3청크가 된다(#535 — 묶음이 기준 이상이면 표 청크에 붙이지 않는다).
+    LLM 이 죽어도 이 단정은 유지된다.
     """
     problems = []
     c = chunks[0]
-    if len(chunks) != 7:
-        problems.append(f"청크 7건 기대, 실제 {len(chunks)}건(front matter 청크 제거 실패)")
+    if len(chunks) != 3:
+        problems.append(f"청크 3건 기대, 실제 {len(chunks)}건(front matter·안내 섹션 제거 또는 짧은 청크 병합 실패)")
     if c.get("created_date") != 20260112:
         problems.append(f"created_at → date_int transform 실패: {c.get('created_date')!r}")
     leaked = [i for i, x in enumerate(chunks)
@@ -432,6 +447,12 @@ def check_cs_hpp_degenerate_table(chunks: list) -> list[str]:
         if "|" in line or "<table" in line or "<td" in line:
             problems.append(f"{field} 의 안내 배너가 표 표기를 달고 있습니다: {line[:60]!r}")
 
+    # 레이아웃 표는 표 설명 LLM 전송에서 빠지므로 배너 앞에 `[표 검색 설명]` 이 붙지 않는다(#530).
+    lines = (hit.get("text") or "").splitlines()
+    index = next(i for i, ln in enumerate(lines) if banner in ln)
+    if any("[표 검색 설명]" in ln for ln in lines[max(0, index - 3):index]):
+        problems.append("레이아웃 표(안내 배너)에 [표 검색 설명] 이 붙었습니다(LLM 전송 제외 누락)")
+
     # 대조군: 정형 표 2개는 표로 남는다(표기형태는 auto 가 정하므로 둘 다 허용).
     tables = [c.get("text") or "" for c in chunks if c.get("has_table")]
     kept = sum(
@@ -464,9 +485,17 @@ def check_table_text_formats(chunks: list) -> list[str]:
         problems.append(
             f"표기형태 필드가 일부 청크에만 있습니다 {len(present)}/{len(chunks)}건")
 
-    def tokens(text: str) -> list:
-        """표기형태를 지운 내용 토큰. 태그·파이프·markdown 구분선을 걷어낸다."""
+    import html
+
+    def tokens(text: str, unescape: bool = False) -> list:
+        """표기형태를 지운 내용 토큰. 태그·파이프·markdown 구분선을 걷어낸다.
+
+        HTML 표기는 셀의 `&` 를 `&amp;` 로 적으므로 ``unescape`` 로 엔티티를 푼다. 태그를
+        지운 뒤에 풀어야 셀 값의 `&lt;b&gt;` 가 태그로 지워지지 않는다.
+        """
         text = re.sub(r"<[^>]+>", " ", text or "")
+        if unescape:
+            text = html.unescape(text)
         text = re.sub(r"^\s*\|[\s\-:|]+\|\s*$", " ", text, flags=re.M)
         return [t for t in re.split(r"\s+", text.replace("|", " ")) if t]
 
@@ -477,7 +506,7 @@ def check_table_text_formats(chunks: list) -> list[str]:
             if not value:
                 problems.append(f"[{idx}] {field} 가 비어 있습니다")
                 continue
-            got = tokens(value)
+            got = tokens(value, unescape=field == "text_table_html")
             if got == base:
                 continue
             # 병합 셀(colspan)을 markdown 으로 펴면 값이 컬럼마다 복제된다 — 손실만 문제다.
@@ -546,8 +575,18 @@ def _once_field_problems(chunks: list, label: str) -> list[str]:
 
 
 def check_product_attrs_once(chunks: list) -> list[str]:
-    """product_slf/ssf — front matter created_at 이 출시일로 1회만 표기된다."""
-    return _once_field_problems(chunks, "출시일")
+    """product_slf/ssf — front matter created_at 이 출시일로 1회만 표기된다.
+
+    문서형 청크의 once 줄은 HEADER 줄 다음에 온다(#545). 앞에 오면 첫 청크만 HEADER 로
+    시작하지 않는다.
+    """
+    problems = _once_field_problems(chunks, "출시일")
+    if problems:
+        return problems
+    lines = (chunks[0].get("text") or "").splitlines()
+    if len(lines) < 2 or not lines[0].startswith("HEADER: ") or not lines[1].startswith("출시일:"):
+        return [f"첫 청크가 'HEADER: ' 다음 줄에 '출시일:' 을 두지 않습니다(선두 2줄: {lines[:2]})"]
+    return []
 
 
 def check_annual_fee_once(chunks: list) -> list[str]:
@@ -717,11 +756,145 @@ def check_valid_period(chunks: list) -> list[str]:
     return [] if found == expected else [f"VALID_FROM/VALID_TO 가 {expected} 가 아닙니다: {sorted(map(str, found))}"]
 
 
+def check_sections_selected(product: str, first_page: str):
+    """product_slf/ssf — markdown.sections 로 원문만 남았는가(#526).
+
+    안내 섹션·`원문 전사` 표식·원본 목차 페이지가 본문에 없고, 모든 청크 HEADER 가 상품명
+    H1 에서 시작하며, 첫 청크가 기대한 원문 페이지인지 본다. 출시일 1회 표기는
+    check_product_attrs_once 가 본다.
+    """
+    def _check(chunks: list) -> list[str]:
+        problems = []
+        texts = [str(c.get("text") or "") for c in chunks]
+        for marker in ("문서 개요", "핵심 키워드", "내용 색인", "원문 전사", "■ 주요보험 용어의 설명"):
+            hits = [i for i, t in enumerate(texts) if marker in t]
+            if hits:
+                problems.append(f"'{marker}' 가 청크 {hits} 에 남았습니다")
+        headers = [line for t in texts for line in t.splitlines() if line.startswith("HEADER:")]
+        stray = [h for h in headers if not h.startswith(f"HEADER: {product} > ")]
+        if stray:
+            problems.append(f"상품명으로 시작하지 않는 HEADER: {stray}")
+        # 짧은 청크 병합으로 첫 청크가 여러 쪽에 걸치면 "상품명 > (첫 쪽 | 다음 쪽)" 이 된다.
+        if not headers or not headers[0].replace("(", "", 1).startswith(f"HEADER: {product} > {first_page}"):
+            problems.append(f"첫 HEADER 가 '{product} > {first_page}' 가 아닙니다: {headers[:1]}")
+        return problems
+    return _check
+
+
+def check_span_table_split(chunks: list) -> list[str]:
+    """병합 셀 표의 분할 조각에 같은 병합 셀이 반복되지 않고 모든 청크가 chunk_size 안에 드는가(#539, #548).
+
+    colspan 셀이 피복 컬럼마다, 헤더의 긴 병합 셀이 컬럼 라벨마다 다시 쓰여 조각이 수천 자가
+    됐다. 셀마다 원문 한 줄의 문구로 청크 안 등장 횟수를 센다. tbody 조항은 표 1회 + 행 요약
+    1회, 헤더 병합 셀은 표 헤더 1회까지 허용한다. 길이는 예외 없이 최종 text 로 잰다 — 조항
+    한 행만으로 한도를 넘던 조각은 행 요약·검색 설명을 덜거나 셀을 나눠 한도 안에 든다.
+    13쪽 tbody 조항은 조각을 이어 붙이면 원문이 빠짐없이 복원되어야 한다.
+    """
+    limit = 1500
+    once = {
+        "11쪽 tbody 조항": ("보험료 납입 면제 사유가 발생하였을 경우(단, 주계약이 유", 2),
+        "13쪽 thead 조항": ("2. 특약의 피보험자와 주계약의 피보험자가 다를 경우에는", 1),
+        "13쪽 tbody 조항": ("다만, 이 특약의 피보험자와 주계약의 피보험자가 다를", 2),
+        "6쪽 thead 병합 셀": ("인레이, 온레이 15만원", 1),
+    }
+    problems: list[str] = []
+    for idx, chunk in enumerate(chunks):
+        text = chunk.get("text") or ""
+        for name, (phrase, most) in once.items():
+            if text.count(phrase) > most:
+                problems.append(f"청크 {idx} 에 {name} 문구가 {text.count(phrase)}회(최대 {most})")
+        if len(text) > limit:
+            problems.append(f"청크 {idx} 가 {len(text)}자(최대 {limit})")
+    # 13쪽 tbody 조항 원문(셀 값)이 조각들의 첫 열 값을 이어 붙인 것 가운데 있어야 한다. 텍스트
+    # 정제가 따옴표·공백을 바꾸므로 글자와 숫자만 비교한다.
+    source = (MONIMO / "monimo_product_slf_span_table_sample.md").read_text(encoding="utf-8")
+    clause = re.search(r'<td colspan="4">(㈜ 1\. 보험료 납입기간 중 주계약의 보험료 납입면제 사유가 '
+                       r'발생하였을 경우에는.*?)</td>', source, re.S).group(1)
+    cells: list[str] = []
+    for chunk in chunks:
+        text = chunk.get("text") or ""
+        rows = [line for line in text.split("\n") if line.startswith("| ")][2:]
+        values = [re.sub(r"[\W_]+", "", row[2:].split(" | ")[0]) for row in rows]
+        if values and "[앞 조각에서 이어지는 행]" in text and cells:
+            cells[-1] += values.pop(0)
+        cells.extend(values)
+    if re.sub(r"[\W_]+", "", clause.replace("<br>", "")) not in cells:
+        problems.append("13쪽 tbody 조항이 조각 연결로 복원되지 않음")
+    return problems
+
+
 def check_term_duplicate_rows(chunks: list) -> list[str]:
     """완전 중복 행(SLF_0001 재전송)은 한 번만, 최종수정일만 다른 대조군(HPP_0001)은 둘 다 남는다(#412)."""
     found = sorted((str(c.get("BIZ_ID")), str(c.get("SRC_LAST_MOD_DT"))) for c in chunks)
     expected = [("HPP_0001", "20260601"), ("HPP_0001", "20260615"), ("SLF_0001", "20260601")]
     return [] if found == expected else [f"(BIZ_ID, 최종수정일) {expected} 기대, 실제 {found}"]
+
+
+def _letters(text: str) -> str:
+    """글자와 숫자만 남긴다. 렌더가 <br>·엔티티·공백·따옴표를 바꿔도 같은 원문인지 비교할 수 있다."""
+    import html
+    return re.sub(r"[\W_]+", "", html.unescape(text.replace("<br>", "")))
+
+
+def check_table_edge(*, long_cells: bool = False, oversized_page: int | None = None,
+                     expected: tuple[str, ...] = ()):
+    """표 분할·병합 경계 샘플(#550)의 최종 청크 단정. 샘플 생성기는 make_product_table_edge_samples.py 다.
+
+    - 모든 청크의 len(text) 가 chunk_size 이하다. 예외는 ``oversized_page`` 쪽(사례6)뿐이다. 그 표는
+      헤더 셀만으로 한도를 넘어 초과가 의도된 것이므로, 초과 청크가 그 쪽 표 조각인지만 본다.
+      그 경고 로그는 OUTPUT_CHECKS 의 check_table_edge_warning 이 따로 본다.
+    - 본문에 실린 쪽 제목(`원문 N쪽 - `)의 쪽이 HEADER 에 있다. HEADER 가 리프 상한으로 경로를
+      줄였으면(`… 외 N개`) 보지 않는다. 앞 섹션 HEADER 아래 다음 섹션 제목이 섞인 청크를 잡는다.
+    - 쪽번호만 남은 줄(`- 12 -`, `-12-`, 목록 항목이 된 `12 -`)이 없다. 상품명과 쪽번호를 이은
+      꼬리말 줄은 제거 대상이 아니므로 보지 않는다.
+    - ``long_cells`` 가 참이면 생성기의 LONG_CELLS 셀 원문이, 그 쪽 청크들의 같은 열 값을 이어
+      붙인 것(`[앞 조각에서 이어지는 행]` 조각은 앞 값에 잇는다) 가운데 빠짐없이 있다.
+    - ``expected`` 의 문자열이 어느 청크에든 그대로 있다(대조군 출력 불변, 계층 헤더 라벨 유지,
+      리프 상한 경로).
+    """
+    limit = 1500
+    page_line = re.compile(r"^원문 (\d+)쪽 - ", re.M)
+    page_number_only = re.compile(r"^\s*-?\s*\d{1,4}\s*-\s*$", re.M)
+
+    def page_of(chunk: dict) -> str:
+        return " ".join(re.findall(r"원문 (\d+)쪽", (chunk.get("text") or "").split("\n", 1)[0]))
+
+    def _check(chunks: list) -> list[str]:
+        problems: list[str] = []
+        for idx, chunk in enumerate(chunks):
+            text = chunk.get("text") or ""
+            header, _, body = text.partition("\n")
+            if len(text) > limit and page_of(chunk) != str(oversized_page):
+                problems.append(f"청크 {idx} 가 {len(text)}자(최대 {limit})")
+            if "외 " not in header:
+                stray = sorted(set(page_line.findall(body)) - set(re.findall(r"원문 (\d+)쪽", header)))
+                if stray:
+                    problems.append(f"청크 {idx} 본문의 {','.join(stray)}쪽 제목이 HEADER 에 없음")
+            residue = page_number_only.search(body)
+            if residue:
+                problems.append(f"청크 {idx} 에 쪽번호 잔재: {residue.group(0).strip()!r}")
+        if oversized_page is not None and not any(
+                len(c.get("text") or "") > limit and page_of(c) == str(oversized_page) for c in chunks):
+            problems.append(f"{oversized_page}쪽 표가 헤더만으로 한도를 넘는 사례인데 초과 청크가 없음")
+        if long_cells:
+            from make_product_table_edge_samples import LONG_CELLS
+            for page, column, cell in LONG_CELLS:
+                values: list[str] = []
+                for chunk in chunks:
+                    text = chunk.get("text") or ""
+                    if f"{page} - " not in text.split("\n", 1)[0]:
+                        continue
+                    rows = [line[2:-2].split(" | ") for line in text.split("\n") if line.startswith("| ")][2:]
+                    cells = [_letters(row[column]) for row in rows if len(row) > column]
+                    if cells and "[앞 조각에서 이어지는 행]" in text and values:
+                        values[-1] += cells.pop(0)
+                    values.extend(cells)
+                if _letters(cell) not in values:
+                    problems.append(f"{page} {column}열 긴 셀이 조각 연결로 복원되지 않음: {cell[:20]}")
+        text_all = "\n".join(c.get("text") or "" for c in chunks)
+        problems += [f"기대 문자열 없음: {want[:40]!r}" for want in expected if want not in text_all]
+        return problems
+    return _check
 
 
 EXTRA_CHECKS = {
@@ -730,6 +903,11 @@ EXTRA_CHECKS = {
     ("product_slf", "monimo_product_slf_sample.md"):
         lambda chunks: check_front_matter(chunks) + check_product_attrs_once(chunks),
     ("product_ssf", "monimo_product_ssf_sample.md"): check_product_attrs_once,
+    ("product_slf", "monimo_product_slf_span_table_sample.md"): check_span_table_split,
+    ("product_slf", "monimo_product_slf_sections_sample.md"):
+        check_sections_selected("無비추미암보험", "원문 2쪽 - 상품요약서"),
+    ("product_ssf", "monimo_product_ssf_sections_sample.md"):
+        check_sections_selected("주택화재보험", "원문 1쪽 - 주택화재보험 상품요약서"),
     ("product_ssf", "monimo_product_ssf_html_table_sample.md"): check_md_html_table,
     ("product_hpp", "monimo_product_hpp_sample.json"): check_annual_fee_once,
     ("card", "card01.flat.html"): check_card_annual_fee,
@@ -751,6 +929,18 @@ EXTRA_CHECKS = {
     ("cs_sss", "monimo_cs_sss_sample.json"): check_last_mod_dt(0),
     ("cs_hpp", "monimo_cs_hpp_chunksize_sample.json"): check_last_mod_dt(20260825),
     ("monimo_news", "TD00008415_d_5199.html.json"): check_biz_id_from_filename("TD00008415"),
+    ("product_slf", "monimo_product_slf_table_edge_sample.md"):
+        check_table_edge(long_cells=True, oversized_page=7),
+    # 계층 헤더의 하위 라벨(사례4)과 리프 상한으로 줄인 HEADER(사례9)가 남는다.
+    ("product_slf", "monimo_product_slf_table_edge_sample_pages.md"): check_table_edge(expected=(
+        "지급금액 > 1년이내=150만원 | 지급금액 > 1년초과=300만원", "무엇인가요? … 외 ")),
+    # 한도 안에 드는 span 표(사례11)는 단일 직렬화 그대로 나간다.
+    ("product_ssf", "monimo_product_ssf_table_edge_sample.md"): check_table_edge(expected=("\n".join((
+        "| 담보 | 보장 내용 | 보장 내용 | 지급금액 |", "| - | - | - | - |",
+        "| 담보 | 지급사유 | 자기부담금 | 지급금액 |", "| 상해 | 상해 사망·후유장해 | 없음 | 최대 1억원 |",
+        "| 의료비 | 해외 실손의료비 | 1만원 | 최대 3천만원 |",
+        "| 휴대품 | 휴대품 손해(1품목당 20만원) | 1만원 | 최대 100만원 |",
+        "| 지연 | 항공기 4시간 이상 지연 | 없음 | 20만원 |")),)),
 }
 
 
@@ -766,8 +956,22 @@ def check_row_merge_warning_kept(output: str) -> list[str]:
     return [] if n else ["row_merge 조각 경고가 없습니다(기대 1건 이상)"]
 
 
+def check_table_edge_warning(output: str) -> list[str]:
+    """헤더만으로 한도를 넘는 표(#550 사례6)의 의도된 초과가 분할기 경고 로그로 드러나는가."""
+    n = sum(1 for line in output.splitlines() if "[GenosSmartChunker]" in line and "분할 예산" in line)
+    return [] if n else ["표 분할 예산 초과 경고가 없습니다(기대 1건 이상)"]
+
+
+def check_span_table_contained_duplicate(output: str) -> list[str]:
+    """6쪽 하위 표 2개(앞 표의 병합 셀에 전사됨)를 표 설명 LLM 전송에서 뺐는가(#559)."""
+    want = "LLM 전송에서 제외합니다(contained_duplicate 2)"
+    return [] if want in output else [f"중복 표 생략 로그가 없습니다(기대: {want})"]
+
+
 # 실행 로그(stdout+stderr)에 대한 단정. 변환기 경고처럼 청크에 남지 않는 신호를 본다.
 OUTPUT_CHECKS = {
+    ("product_slf", "monimo_product_slf_table_edge_sample.md"): check_table_edge_warning,
+    ("product_slf", "monimo_product_slf_span_table_sample.md"): check_span_table_contained_duplicate,
     ("cs_ssf", "monimo_cs_ssf_sample.dtms"): check_no_json_parse_warning,
     ("cs_ssf", "monimo_cs_ssf_layout_table_sample.dtms"): check_no_json_parse_warning,
     ("stock_insight", "monimo_stock_insight_split_sample.txt"): check_row_merge_warning_kept,

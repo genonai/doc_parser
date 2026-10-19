@@ -34,12 +34,14 @@
 """
 from __future__ import annotations
 
+import json
 import logging
 import os
 import re
 from collections import Counter
 from dataclasses import dataclass, field, replace
 from functools import lru_cache
+from types import SimpleNamespace
 from typing import Any, Optional
 
 from genon.preprocessor.processing.chunking.table_splitter import ROW_LINES_LABEL
@@ -75,6 +77,7 @@ class Config:
     broken_max_share: float = 0.3
     broken_min_count: int = 3
     table_min_chars: bool = False   # 표가 든 청크에도 길이 하한을 적용할지
+    max_chars: int = 0              # 출력 청크 글자 수 상한(0 = 검사 안 함). 넘으면 보고만 한다(#528)
     by_doc_type: dict = field(default_factory=dict, compare=False, hash=False)
 
     @property
@@ -83,7 +86,7 @@ class Config:
 
 
 _BOOL_KEYS = ("fail_on_any", "table_min_chars")
-_COUNT_KEYS = ("min_chars", "row_min_chars", "repeat_min_count", "broken_min_count")
+_COUNT_KEYS = ("min_chars", "row_min_chars", "repeat_min_count", "broken_min_count", "max_chars")
 _SHARE_KEYS = ("repeat_max_share", "broken_max_share")
 _VALUE_KEYS = ("action",) + _BOOL_KEYS + _COUNT_KEYS + _SHARE_KEYS
 
@@ -416,14 +419,35 @@ def judge(text: Optional[str], *, kind: str = "docling", code_like: bool = False
     return Verdict(hits[0], tuple(hits[1:]), measures, limits)
 
 
+def rejects_doc_chunk(cfg: Config):
+    """청커 단계 DocChunk 가 초기 검사(Session.check_chunk)에서 버려질지 판정하는 함수.
+
+    짧은 청크 병합이 버려질 청크를 건너뛰고, 합친 결과가 버려질 청크가 되는 병합을 피하는 데
+    쓴다. 초기 검사와 같은 입력(청크 본문, 코드·수식 라벨)으로 판정해야 결과가 어긋나지 않는다.
+    """
+    def _rejects(doc_chunk) -> bool:
+        return judge(doc_chunk.text, code_like=code_like(SimpleNamespace(source=doc_chunk)),
+                     cfg=cfg) is not None
+    return _rejects
+
+
 # ---------------------------------------------------------------------------
 # 문서 1건의 검증 진행(코어 청커가 쓴다)
 # ---------------------------------------------------------------------------
 
+# 메시지 앞머리 코드 → 응답의 reason_code(#528). 앞머리는 하위호환을 위해 그대로 둔다.
+_REASON_CODES = {
+    CHUNK_ALL_REJECTED: "CHUNK_D002",
+    CHUNK_REJECTED: "CHUNK_D003",
+    CHUNK_VALIDATION_ERROR: "CHUNK_P005",
+}
+
+
 def _error(code: str, message: str) -> ChunkValidationError:
     # 재시도로 해결되지 않는 오류다.
     return ChunkValidationError(
-        "1", f"{code}: {message}", stage=_STAGE, error_type="permanent")
+        "1", f"{code}: {message}", stage=_STAGE, error_type="permanent",
+        reason_code=_REASON_CODES[code])
 
 
 @dataclass
@@ -438,6 +462,26 @@ class _Origin:
     flagged: bool = False
     headings: tuple = ()
     item: Optional[dict] = None     # report 모드 초기 검사의 요약 항목(최종 본문으로 채운다)
+    expected: Optional[dict] = None  # 이 청크에 그대로 실려야 하는 파서 메타(#528)
+
+
+def _same_value(expected: Any, actual: Any) -> bool:
+    """메타 값이 같은가. 정수·문자열이나 목록·JSON 문자열처럼 표기만 다른 값은 같다고 본다."""
+    if expected == actual:
+        return True
+    if actual is None:
+        return False
+
+    def norm(value: Any) -> str:
+        if isinstance(value, str) and value[:1] in ("[", "{"):
+            try:   # JSON 문자열로 직렬화된 목록·객체는 풀어서 비교한다
+                value = json.loads(value)
+            except ValueError:
+                return value
+        if isinstance(value, (dict, list, tuple)):
+            return json.dumps(value, ensure_ascii=False, sort_keys=True, default=str)
+        return str(value)
+    return norm(expected) == norm(actual)
 
 
 def _prefix_len(origin: Optional[_Origin], text: str) -> int:
@@ -501,6 +545,10 @@ class Session:
         self._default_kind = "docling"
         self._flagged_initial = False
         self._pending_item: Optional[dict] = None
+        # 청킹 중 빠지거나 다른 값으로 덮어써진 메타 필드(#528). 청크를 버리지 않는 보고 항목이다.
+        self.missing_fields: Counter = Counter()
+        # 글자 수 상한(max_chars)을 넘은 출력 청크. 버리지 않는 보고 항목이다(#528).
+        self.over_length: list = []
 
     # --- 판정 1건 ---
     def _check(self, text, *, kind, code_like, prefix_len, stage, index, page,
@@ -564,7 +612,8 @@ class Session:
         self._flagged_initial = verdict is not None
         return verdict is not None and self.cfg.drops
 
-    def remember(self, vector_meta, chunk, prefix: str, index: int) -> None:
+    def remember(self, vector_meta, chunk, prefix: str, index: int,
+                 expected: Optional[dict] = None) -> None:
         """chunk_to_vector_meta 가 만든 vector_meta 의 출처를 기록한다.
 
         접두는 끝 공백을 빼고 기록한다. text_cleanup 의 표현 정리가 본문이 빈 청크에서
@@ -574,7 +623,7 @@ class Session:
         self._origins[id(vector_meta)] = _Origin(
             vector_meta, (prefix or "").rstrip(), chunk.kind, code_like(chunk), index, chunk.page,
             flagged=self._flagged_initial, headings=tuple(chunk.headings or ()),
-            item=self._pending_item if self._flagged_initial else None)
+            item=self._pending_item if self._flagged_initial else None, expected=expected)
 
     # --- 최종 검사 ---
     def finalize(self, vector_metas) -> list:
@@ -624,16 +673,52 @@ class Session:
 
         if not kept and items:
             raise all_rejected_error(self)
+        self._check_meta(kept)
+        if self.cfg.max_chars:
+            # 임베딩 모델이 받는 것은 접두를 포함한 출력 본문 전체이므로 그 길이로 잰다.
+            for position, item in enumerate(kept):
+                text = getattr(item, "text", None)
+                n_char = len(text) if isinstance(text, str) else 0
+                if n_char > self.cfg.max_chars:
+                    self.over_length.append({
+                        "index": getattr(item, "i_chunk_on_doc", position),
+                        "page": getattr(item, "i_page", None), "n_char": n_char})
         self.log_summary(kept)
         return kept
 
+    def _check_meta(self, kept) -> None:
+        """최종 출력 청크에 파서 메타가 그대로 실렸는지 대조한다(#528).
+
+        훅(edit_output 포함)이 끝난 뒤 남은 청크만 본다. 행 청크는 청크마다, 문서 청크는
+        문서당 한 번 센다. 훅이 새로 만든 청크는 출처를 모르므로 대조하지 않는다.
+        """
+        doc_lost: set = set()
+        for item in kept:
+            origin = self._origins.get(id(item))
+            if origin is None or origin.vector_meta is not item or not origin.expected:
+                continue
+            lost = [key for key, value in origin.expected.items()
+                    if not _same_value(value, getattr(item, key, None))]
+            if origin.kind == "docling":
+                doc_lost.update(lost)
+            else:
+                self.missing_fields.update(lost)
+        self.missing_fields.update(doc_lost)
+
     # --- 기록 ---
+
     def summary(self) -> Optional[dict]:
-        """성공 응답에 싣는 요약. 판정에 걸린 청크가 없으면 None."""
-        if not self.records:
+        """성공 응답에 싣는 요약. 판정에 걸린 청크도 빠진 메타 필드도 없으면 None."""
+        if not self.records and not self.missing_fields and not self.over_length:
             return None
-        return {"action": self.cfg.action, "count": len(self.records),
-                "reasons": self.reason_counts(), "items": list(self._items)}
+        out = {"action": self.cfg.action, "count": len(self.records),
+               "reasons": self.reason_counts(), "items": list(self._items)}
+        if self.missing_fields:
+            out["missing_fields"] = dict(self.missing_fields)
+        if self.over_length:
+            out["max_length"] = {"limit": self.cfg.max_chars, "count": len(self.over_length),
+                                 "items": self.over_length[:SUMMARY_MAX_ITEMS]}
+        return out
 
     def reason_counts(self) -> dict:
         return dict(Counter(r["reason"] for r in self.records))
@@ -649,6 +734,13 @@ class Session:
             "판정률=%.1f%% 청크가_모두_걸린_페이지=%s",
             self.cfg.action, self.file_name, self.n_input, len(self.records), self.rejected,
             len(list(survivors)), self.reason_counts(), rate * 100, empty_pages or "-")
+        if self.missing_fields:
+            _log.warning("[chunk_validation] file=%s 청킹 중 빠지거나 덮어써진 메타 필드=%s",
+                         self.file_name, dict(self.missing_fields))
+        if self.over_length:
+            _log.warning("[chunk_validation] file=%s 글자 수 상한(%d) 초과 청크=%d건 최대=%d자",
+                         self.file_name, self.cfg.max_chars, len(self.over_length),
+                         max(item["n_char"] for item in self.over_length))
 
 
 def all_rejected_error(session: Session) -> ChunkValidationError:

@@ -19,6 +19,7 @@ from genon.preprocessor.processing.common.model_params import (
     resolve_thinking,
 )
 
+from .config_schema import warn_table_text_description
 from .prompt_files import read_prompt_file
 from .table_text_context import merge_table_text_description
 
@@ -178,6 +179,13 @@ def _merge_table_text_description_config(
     만들지 않는다. 여기서는 프로세서 공통값만 실어 보내고, 문서유형 YAML(config_file)의
     값과의 최종 병합은 enricher 생성자가 같은 규칙(merge_table_text_description)으로 한다.
     """
+    # 키 검사는 공통값이 섞이기 전의 원본으로 한다. 섞인 뒤에는 공통 키가 등록 블록에서 다시 보고된다.
+    warn_table_text_description(common_cfg, label="프로세서 설정")
+    for original in custom_fields_cfgs:
+        warn_table_text_description(
+            original.get("table_text_description"),
+            label=f"custom_fields(doc_type={original.get('doc_type')}) 등록 블록",
+        )
     if not common_cfg:
         return custom_fields_cfgs
     merged_cfgs: list[dict] = []
@@ -227,9 +235,9 @@ def build_table_text_description_overrides(
                     label=f"custom_fields({config_file})",
                     presets=entry.get("model_presets"),
                 )
-                local = merge_table_text_description(
-                    local, _as_dict(normalized.get("table_text_description"))
-                )
+                child = _as_dict(normalized.get("table_text_description"))
+                warn_table_text_description(child, label=f"custom_fields({config_file})")
+                local = merge_table_text_description(local, child)
             except Exception as exc:  # noqa: BLE001
                 # 설정 오류는 enricher 생성 시 제대로 보고된다. 여기서 기동을 막지 않는다.
                 _log.debug(f"[table_text_description] {config_file} 오버라이드 읽기 실패: {exc}")

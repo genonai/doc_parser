@@ -81,6 +81,10 @@ _LATIN_RE = re.compile(r"[A-Za-z]")
 # 줄머리에서 마크다운 블록 구조로 오인되는 문자. 백슬래시로 이스케이프한다.
 _ESCAPE_PREFIX = ("#", ">")
 
+# 쪽번호(`- 5 -`). 펜스 본문이 이 한 줄뿐이면 블록을 제거한다. 복원하면 줄머리 `- ` 가
+# 목록 마커로 읽혀 `5 -` 가 본문에 남고, 쪽 정보는 `source_page` 주석이 이미 담는다.
+_PAGE_NUMBER_RE = re.compile(r"-\s*\d{1,4}\s*-")
+
 
 @dataclass(frozen=True)
 class MarkdownTextFenceSpec:
@@ -361,6 +365,12 @@ def transform(
             end = len(lines) - 1 if close_idx is None else close_idx
             out.extend(lines[i:end + 1])
             i = end + 1
+            continue
+
+        content = [cleaned for raw in body if (cleaned := _clean_line(raw))]
+        if len(content) == 1 and _PAGE_NUMBER_RE.fullmatch(content[0]):
+            converted += 1
+            i = close_idx + 1
             continue
 
         restored = _restore_paragraphs(body)
