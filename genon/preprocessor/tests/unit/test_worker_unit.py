@@ -8,6 +8,7 @@ import json
 from pathlib import Path
 
 import pytest
+import yaml
 from temporalio.testing import ActivityEnvironment
 
 from genon.preprocessor.processing.core.errors import GenosServiceException
@@ -40,7 +41,8 @@ def test_scan_registers_folders_named_by_stage_with_config(tmp_path, monkeypatch
 
 def test_site_folder_overrides_activity_config(tmp_path, monkeypatch, caplog):
     """사이트 완성본(GENOS_RESOURCE_DIR 옆 activities/<slug>/)이 그 slug 의 설정 폴더가 된다(#497) — 코드는 저장소 것.
-    기동 로그는 slug 마다 설정 경로·출처를 적고(#520), 사이트에 activities/ 가 없으면 워커는 뜨되 호출이 오류다(#522)."""
+    기동 로그는 slug 마다 설정 경로·출처를 적고(#520), 사이트에 activities/ 가 없으면 워커는 뜨되 호출이 오류다(#522).
+    사이트에 그 slug 폴더만 없어도 저장소로 떨어지지 않고 그 slug 호출이 영구 오류다(#561)."""
     import logging
 
     from temporalio.exceptions import ApplicationError
@@ -54,7 +56,8 @@ def test_site_folder_overrides_activity_config(tmp_path, monkeypatch, caplog):
     monkeypatch.setenv("GENOS_RESOURCE_DIR", str(site / "resource"))
     with caplog.at_level(logging.INFO, logger="genon.worker"):
         entries = registry.scan(acts)
-    assert [e.config_path for e in entries] == [str(acts / "chunk" / "config.yaml"), str(acts / "parse" / "config.yaml")]
+    assert [e.config_path for e in entries] == [str(site / "activities" / "chunk" / "config.yaml"),
+                                                str(site / "activities" / "parse" / "config.yaml")]
     assert not any(r.levelno == logging.WARNING for r in caplog.records)         # 경고는 보는 사람이 없다 — 호출 오류로
     with pytest.raises(ApplicationError) as info:                                # 호출한 쪽이 결함을 그대로 본다
         ActivityEnvironment().run(registry.build(entries)[0], {})
@@ -64,12 +67,16 @@ def test_site_folder_overrides_activity_config(tmp_path, monkeypatch, caplog):
     (site / "activities" / "parse" / "config.yaml").write_text("")
     with caplog.at_level(logging.INFO, logger="genon.worker"):
         entries = registry.scan(acts)
-    assert [e.config_path for e in entries] == [str(acts / "chunk" / "config.yaml"),
-                                                str(site / "activities" / "parse" / "config.yaml")]
-    assert all(e.problem is None for e in entries)
+    chunk, parse = entries
+    assert (chunk.config_path, parse.config_path) == (str(site / "activities" / "chunk" / "config.yaml"),
+                                                      str(site / "activities" / "parse" / "config.yaml"))
+    assert parse.problem is None and "저장소 폴더로 떨어지지 않습니다" in chunk.problem
+    with pytest.raises(ApplicationError) as info:                                # 저장소 chunk 설정으로 돌지 않는다
+        ActivityEnvironment().run(registry.build([chunk])[0], {})
+    assert info.value.non_retryable and "'chunk' 폴더가 없습니다" in str(info.value)
     lines = [r.getMessage() for r in caplog.records]
-    assert any("액티비티 parse:" in ln and "사이트 완성본" in ln for ln in lines)
-    assert any("액티비티 chunk:" in ln and "저장소 표준" in ln for ln in lines)
+    assert any("액티비티 parse:" in ln and "사이트 완성본" in ln and "오류" not in ln for ln in lines)
+    assert any("액티비티 chunk:" in ln and "호출마다 오류" in ln for ln in lines)
 
 
 def test_build_gives_each_slug_its_own_activity_name():
@@ -394,6 +401,10 @@ def test_diff_reports_uncommitted_copy(tmp_path):
 
 # ── activities new / remove(#472) — 생성·복제 = 폴더 복사, 삭제 = 폴더 삭제 ─────────────────────
 
+_MANIFEST = ("owned:\n  - resource/model_presets.yaml\n  # 사이트 문서유형\n  - activities/parse/config.yaml\n"
+             "  - \"activities/parse/custom_field_faq.yaml\"  # 따옴표·줄 끝 주석도 owned 항목이다\n")
+
+
 def _activities(tmp_path, monkeypatch, site_overrides_parse=False):
     """저장소 액티비티 폴더(parse·chunk) + 선택적으로 사이트 완성본(GENOS_RESOURCE_DIR 옆 activities/parse/)."""
     acts = tmp_path / "activities"
@@ -412,22 +423,33 @@ def _activities(tmp_path, monkeypatch, site_overrides_parse=False):
         (site / "activities" / "parse" / "custom_field_faq.yaml").write_text("site field\n", encoding="utf-8")
         (site / "activities" / "parse" / "plugins").mkdir()
         (site / "activities" / "parse" / "plugins" / "extract.py").write_text("def run(): ...\n", encoding="utf-8")
+        (site / "activities" / "chunk").mkdir()                                  # 사이트 완성본은 모든 slug 를 갖는다(#561)
+        (site / "activities" / "chunk" / "config.yaml").write_text("who: site-chunk\n", encoding="utf-8")
+        (site / "manifest.yaml").write_text(_MANIFEST, encoding="utf-8")
         monkeypatch.setenv("GENOS_RESOURCE_DIR", str(site / "resource"))
     return acts
 
 
-def test_new_copies_effective_config_and_repo_code(tmp_path, monkeypatch):
-    """사본의 설정은 원본의 실제 설정 폴더(사이트가 덮어쓰면 그쪽)에서, 코드는 저장소 폴더에서 온다. 첫 줄 별명만 바뀐다."""
+def test_new_copies_repo_and_site_folders(tmp_path, monkeypatch):
+    """사이트 배포의 사본: 저장소 폴더는 저장소 원본(설정·코드)에서, 사이트 폴더는 사이트 원본에서 온다(#561).
+    사이트 manifest 의 owned 에 원본 항목을 따라 적는다. 첫 줄 별명만 바뀐다."""
     from genon.preprocessor.activities.__main__ import new_activity
 
     acts = _activities(tmp_path, monkeypatch, site_overrides_parse=True)
+    site = tmp_path / "site"
     files = new_activity("parse", "parse_1", activities_dir=acts)
-    # 사이트 설정 폴더의 것 전부(플러그인 하위 폴더 포함) + 저장소 코드 — 저장소 설정 폴더의 prompt_x.md 는 오지 않는다
-    assert sorted("/".join(Path(f).parts[-2:]) if "plugins" in f else Path(f).name for f in files) == \
-        ["__init__.py", "config.yaml", "custom_field_faq.yaml", "plugins/extract.py", "processor.py"]
-    assert (acts / "parse_1" / "config.yaml").read_text(encoding="utf-8") == "who: site-parse\n"      # 사이트 설정(모니모 유형)
+    repo_files = sorted(Path(f).name for f in files if Path(f).parent == acts / "parse_1")
+    site_files = sorted(Path(f).relative_to(site / "activities" / "parse_1").as_posix() for f in files
+                        if Path(f).is_relative_to(site / "activities" / "parse_1"))
+    assert repo_files == ["__init__.py", "config.yaml", "processor.py", "prompt_x.md"]
+    assert site_files == ["config.yaml", "custom_field_faq.yaml", "plugins/extract.py"]          # 코드는 사이트에 두지 않는다
+    assert str(site / "manifest.yaml") in files
+    assert (acts / "parse_1" / "config.yaml").read_text(encoding="utf-8") == "who: repo-parse\n"      # 사이트 설정이 저장소로 새지 않는다
+    assert (site / "activities" / "parse_1" / "config.yaml").read_text(encoding="utf-8") == "who: site-parse\n"
     assert (acts / "parse_1" / "processor.py").read_text(encoding="utf-8") == \
         "# parse 원형 별명 사본\nclass DocumentProcessor: ...\n"
+    owned = yaml.safe_load((site / "manifest.yaml").read_text(encoding="utf-8"))["owned"]
+    assert owned[-2:] == ["activities/parse_1/config.yaml", "activities/parse_1/custom_field_faq.yaml"]
 
 
 @pytest.mark.parametrize("origin, slug, title, needle", [
@@ -443,19 +465,25 @@ def test_new_rejects_bad_requests(tmp_path, monkeypatch, origin, slug, title, ne
     assert sorted(p.name for p in acts.iterdir()) == ["chunk", "parse"]                              # 아무것도 만들지 않았다
 
 
-def test_remove_deletes_copy_but_not_prototype_or_site_overridden(tmp_path, monkeypatch):
+def test_remove_deletes_copy_in_repo_and_site_but_not_prototype(tmp_path, monkeypatch):
+    """사이트 배포의 삭제는 저장소·사이트 폴더와 manifest 의 owned 항목을 함께 지운다(#561). 원형은 지우지 않는다."""
     from genon.preprocessor.activities.__main__ import new_activity, remove_activity
 
     acts = _activities(tmp_path, monkeypatch, site_overrides_parse=True)
+    site = tmp_path / "site"
     new_activity("chunk", "chunk_1", activities_dir=acts)
     removed = remove_activity("chunk_1", activities_dir=acts)
-    assert sorted(Path(f).name for f in removed) == ["__init__.py", "config.yaml", "processor.py", "prompt_x.md"]
-    assert not (acts / "chunk_1").exists()
+    assert sorted(Path(f).name for f in removed) == ["__init__.py", "config.yaml", "config.yaml", "processor.py", "prompt_x.md"]
+    assert not (acts / "chunk_1").exists() and not (site / "activities" / "chunk_1").exists()
     for slug, needle in (("parse", "원형"), ("chunk_1", "없습니다")):
         with pytest.raises(ValueError, match=needle):
             remove_activity(slug, activities_dir=acts)
     new_activity("parse", "parse_s", activities_dir=acts)
-    (tmp_path / "site" / "activities" / "parse_s").mkdir()                       # 사이트가 덮어쓰는 slug
-    with pytest.raises(ValueError, match="사이트 완성본"):
-        remove_activity("parse_s", activities_dir=acts)
-    assert (acts / "parse_s").exists()
+    removed = remove_activity("parse_s", activities_dir=acts)
+    assert str(site / "manifest.yaml") in removed
+    assert not (acts / "parse_s").exists() and not (site / "activities" / "parse_s").exists()
+    assert (site / "manifest.yaml").read_text(encoding="utf-8") == _MANIFEST                      # owned 가 원래대로
+    (site / "manifest.yaml").write_text("owned: [activities/parse/config.yaml]\n", encoding="utf-8")   # 줄 단위로 못 고치는 표기
+    with pytest.raises(ValueError, match="한 줄 목록"):
+        new_activity("parse", "parse_f", activities_dir=acts)
+    assert not (acts / "parse_f").exists()                                                       # 건너뛰지 않고 멈춘다

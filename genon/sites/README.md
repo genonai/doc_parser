@@ -17,7 +17,7 @@ genon/sites/
     manifest.yaml        owned: 이 사이트가 소유하는 파일 목록
     resource/            완성본 설정 폴더 = 표준 사본 + owned 파일(모델 접속 정보, HTTP facade·간이 파서 설정)
     activities/<slug>/   완성본 액티비티 설정 = 표준 사본 + owned 파일(파서 설정 config.yaml·custom_field, #497).
-                         코드(processor.py)는 저장소 것이라 여기 두지 않는다. 그 slug 폴더가 있을 때만 덮어쓴다
+                         코드(processor.py)는 저장소 것이라 여기 두지 않는다. 저장소의 모든 slug 를 갖는다(#561)
     facade/              사이트 전용 전처리기 코드(선택)
     docs/                사이트 전용 전처리기 매뉴얼(선택)
 ```
@@ -88,8 +88,9 @@ owned 파일을 제외한 모든 파일을 표준과 똑같이 맞추고, 표준
 `genon/sites/<site>/` 의 두 자리를 그대로 전달한다.
 
 - 코드서빙(워커·HTTP): `GENOS_RESOURCE_DIR` 가 사이트의 `resource/` 를 가리키게 하고, 그 **옆에** `activities/<slug>/` 를
-  함께 둔다(예: NFS 의 `…/monimo/resource` + `…/monimo/activities/parse`). 그 slug 폴더가 있으면 그 폴더가 설정 폴더가
-  된다(`genon/preprocessor/activities/_folders.py`). 배포본의 `resource/` 를 덮어쓰는 방식도 같다 — 그때는 `activities/<slug>/`
+  함께 둔다(예: NFS 의 `…/monimo/resource` + `…/monimo/activities/parse`·`…/activities/chunk`). 사이트 배포는 사이트
+  완성본만 읽는다 — 저장소의 모든 slug 가 사이트 `activities/` 에 있어야 하고, 없는 slug 는 호출마다 오류다(저장소 폴더로
+  떨어지지 않는다, #561, `genon/preprocessor/activities/_folders.py`). `sync-sites.sh` 가 빠진 slug 를 표준 사본으로 만든다. 배포본의 `resource/` 를 덮어쓰는 방식도 같다 — 그때는 `activities/<slug>/`
   의 설정 파일도 함께 덮어쓴다.
 - 기본 전처리기 서비스: `resource/` 를 MinIO 리소스로 올린다(간이 파서 설정과 custom_field 사본이 여기 있다).
 - 핫픽스 번들: `build-script/create-patch-bundle.sh <이름> --site <site>` 로 만들면 번들의 `resource/` 가 이 폴더이고,

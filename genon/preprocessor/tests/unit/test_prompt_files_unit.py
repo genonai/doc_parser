@@ -46,6 +46,11 @@ class TestPromptFiles:
         with pytest.raises(FileNotFoundError):
             read_prompt_file("nope.md", tmp_path)
 
+    def test_read_empty_raises(self, tmp_path):
+        (tmp_path / "empty.md").write_text("  \n", encoding="utf-8")   # 적은 파일이 비면 기본값으로 떨어지지 않는다(#561)
+        with pytest.raises(ValueError, match="비어 있습니다"):
+            read_prompt_file("empty.md", tmp_path)
+
     def test_read_strips_content(self, tmp_path):
         f = tmp_path / "p.md"
         f.write_text("\n  내용  \n\n", encoding="utf-8")
@@ -157,3 +162,22 @@ class TestEnrichmentConfigPromptFiles:
         )
         assert ec.metadata.system_prompt == "DICT_SYS"
         assert ec.metadata.has_custom_metadata is True
+
+
+_LLM = {"fallback_api_url": "http://x", "fallback_api_key": "", "fallback_model": "m"}
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("module, cls, kwargs", [
+    ("doc_summary", "DocSummaryOptions", {"doc_summary_cfg": {"prompt_file": "없는.md"}, **_LLM}),
+    ("image_description", "ImageDescriptionOptions", {"image_desc_cfg": {"chart": {"chart_prompt_file": "없는.md"}}, **_LLM}),
+    ("table_description", "TableDescriptionOptions", {"table_desc_cfg": {"refine": {"prompt_file": "없는.md"}}, **_LLM}),
+    ("page_description", "PageDescriptionOptions", {"cfg": {"prompt_template_file": "없는.md"}}),
+])
+def test_named_prompt_file_missing_is_error_not_default(tmp_path, module, cls, kwargs):
+    """설정에 적은 프롬프트 파일이 없으면 오류다 — 내장 기본 프롬프트로 떨어지지 않는다(#561)."""
+    import importlib
+
+    options = getattr(importlib.import_module(f"processing.enrichment.{module}"), cls)
+    with pytest.raises(FileNotFoundError, match="없는.md"):
+        options.from_config(config_dir=tmp_path, **kwargs)

@@ -214,7 +214,7 @@ CONVERTIBLE_EXTENSIONS = ['.hwp', '.txt', '.json', '.md', '.ppt', '.pptx', '.doc
 
 
 def _resolve_default_parser_config_path() -> str:
-    # 기본 파서 설정은 액티비티 폴더 activities/parse/config.yaml 이다(사이트 완성본이 있으면 그쪽, #495).
+    # 기본 파서 설정은 액티비티 폴더 activities/parse/config.yaml 이다(사이트 배포면 사이트 완성본의 것, #495·#561).
     from genon.preprocessor.activities import _folders
 
     return str(_folders.config_path("parse"))

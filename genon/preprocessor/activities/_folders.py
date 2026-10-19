@@ -8,8 +8,10 @@
 
 사이트 완성본(genon/sites/<site>/)은 `resource/`(설정 폴더)와 `activities/<slug>/`(액티비티 설정) 두 자리를
 갖는다. 배포에서는 `GENOS_RESOURCE_DIR` 이 사이트의 `resource/` 를 가리키고, 그 **옆의** `activities/<slug>/`
-가 있으면 그 폴더가 그 slug 의 설정 폴더가 된다(코드는 저장소의 processor.py 그대로). 덮어쓰기는 폴더 단위다 —
-사이트 폴더는 그 설정이 부르는 파일을 모두 담은 완성본이어야 한다(build-script/sync-sites.sh 가 표준 사본을 맞춘다).
+가 그 slug 의 설정 폴더다(코드는 저장소의 processor.py 그대로). 사이트 배포는 **사이트 완성본만** 읽는다 —
+그 slug 폴더가 사이트에 없으면 오류이고 저장소 폴더로 떨어지지 않는다(#561). 저장소와 사이트 설정이 섞이면
+어느 설정이 잘못됐는지 찾을 수 없기 때문이다. 사이트 완성본은 모든 slug 폴더를 갖는다
+(build-script/sync-sites.sh 가 표준 사본을 맞추고 빠진 slug 폴더를 만든다).
 
 `_` 로 시작하는 파일·폴더와 `__pycache__` 는 액티비티가 아니다.
 """
@@ -53,18 +55,23 @@ def slugs(activities_dir: Path | None = None) -> list[str]:
 
 
 def config_dir(slug: str, activities_dir: Path | None = None) -> Path:
-    """slug 의 설정 폴더 — 사이트 완성본에 그 slug 폴더가 있으면 그것, 아니면 저장소의 액티비티 폴더."""
+    """slug 의 설정 폴더 — 사이트 배포면 사이트 완성본의 그 slug 폴더, 아니면 저장소의 액티비티 폴더.
+    사이트 배포에서 폴더가 없어도 저장소로 떨어지지 않는다(config_path 가 오류로 알린다)."""
     site = site_activities_dir()
-    if site is not None and (site / slug).is_dir():
+    if site is not None:
         return site / slug
     return (activities_dir or ACTIVITIES_DIR) / slug
 
 
 def config_path(slug: str, activities_dir: Path | None = None) -> Path:
     """slug 의 config.yaml 경로. 없으면 ValueError — 어느 폴더를 봤는지 적는다."""
-    path = config_dir(slug, activities_dir) / CONFIG_FILE
+    folder = config_dir(slug, activities_dir)
+    site = site_activities_dir()
+    if site is not None and not folder.is_dir():
+        raise ValueError(f"사이트 완성본({site})에 액티비티 {slug!r} 폴더가 없습니다: {folder} — 사이트 배포(GENOS_RESOURCE_DIR)는 "
+                         "사이트 완성본의 설정만 읽고 저장소 폴더로 떨어지지 않습니다. 사이트에 그 slug 를 두십시오"
+                         "(사이트 원형 복제: activities new, 표준 사본: build-script/sync-sites.sh)")
+    path = folder / CONFIG_FILE
     if not path.is_file():
-        raise ValueError(f"액티비티 {slug!r} 의 설정이 없습니다: {path} — 액티비티 폴더에는 config.yaml 이 있어야 합니다"
-                         + (f"(사이트 완성본 {path.parent} 이 그 slug 를 덮어쓰고 있다)" if site_activities_dir()
-                            and path.parent.parent == site_activities_dir() else ""))
+        raise ValueError(f"액티비티 {slug!r} 의 설정이 없습니다: {path} — 액티비티 폴더에는 config.yaml 이 있어야 합니다")
     return path
