@@ -3,13 +3,18 @@
     genon/preprocessor/activities/<slug>/     원형·사본 모두 같은 모양. 폴더 이름 = slug = 액티비티 이름,
         processor.py                           첫 단어 = 단계(parse·chunk)
         config.yaml                            필수. 없으면 등록 오류(기본 설정으로 조용히 떨어지지 않는다)
-        prompt_*.md · custom_field_*.yaml      설정이 파일명으로 부르는 것 = 폴더 안 사본(폴더 밖 참조 거부)
+        prompt_*.md · custom_field_*.yaml      설정이 파일명으로 부르는 것 = 폴더 안 사본(폴더 밖 상대 참조 거부, 절대 경로는 그대로)
     모델·외부 서비스 접속은 설정 폴더의 model_presets.yaml 을 **이름으로 참조**한다(복사하지 않는다).
 
 사이트 완성본(genon/sites/<site>/)은 `resource/`(설정 폴더)와 `activities/<slug>/`(액티비티 설정) 두 자리를
-갖는다. 배포에서는 `GENOS_RESOURCE_DIR` 이 사이트의 `resource/` 를 가리키고, 그 **옆의** `activities/<slug>/`
-가 있으면 그 폴더가 그 slug 의 설정 폴더가 된다(코드는 저장소의 processor.py 그대로). 덮어쓰기는 폴더 단위다 —
-사이트 폴더는 그 설정이 부르는 파일을 모두 담은 완성본이어야 한다(build-script/sync-sites.sh 가 표준 사본을 맞춘다).
+갖는다. 사이트 배포처(`SITE=<site> bash build-script/sync-serving-repo.sh` 로 만든 서빙본)는 사이트의
+`activities/<slug>/` 설정이 이미 이 폴더(`activities/<slug>/`)에 덮여 있으므로 `GENOS_RESOURCE_DIR` 없이
+저장소 자리를 읽는다(resource/ 는 표준, 모델 접속 실값은 GENOS_MODEL_PRESETS_FILE).
+`GENOS_RESOURCE_DIR` 은 로컬에서 사이트 완성본을 직접 띄울 때만 쓴다 — 그 사이트의 `resource/` 를 가리키고,
+그 **옆의** `activities/<slug>/` 가 그 slug 의 설정 폴더다(코드는 저장소의 processor.py 그대로). 이때는
+**사이트 완성본만** 읽는다 — 그 slug 폴더가 사이트에 없으면 오류이고 저장소 폴더로 떨어지지 않는다(#561).
+저장소와 사이트 설정이 섞이면 어느 설정이 잘못됐는지 찾을 수 없기 때문이다. 사이트 완성본은 모든 slug 폴더를
+갖는다(build-script/sync-sites.sh 가 표준 사본을 맞추고 빠진 slug 폴더를 만든다).
 
 `_` 로 시작하는 파일·폴더와 `__pycache__` 는 액티비티가 아니다.
 """
@@ -27,12 +32,12 @@ STAGES = ("parse", "chunk")
 
 
 def resource_dir() -> Path:
-    """설정 폴더 — 사이트 배포면 GENOS_RESOURCE_DIR, 아니면 표준 resource/."""
+    """설정 폴더 — 사이트 완성본 실행(GENOS_RESOURCE_DIR)이면 그 폴더, 아니면 표준 resource/."""
     return Path(os.environ.get("GENOS_RESOURCE_DIR") or STANDARD_RESOURCE_DIR)
 
 
 def site_activities_dir() -> Path | None:
-    """사이트 완성본의 액티비티 자리(GENOS_RESOURCE_DIR 옆의 activities/). 사이트 배포가 아니면 None."""
+    """사이트 완성본의 액티비티 자리(GENOS_RESOURCE_DIR 옆의 activities/). GENOS_RESOURCE_DIR 가 없으면 None."""
     if not os.environ.get("GENOS_RESOURCE_DIR"):
         return None
     return resource_dir().resolve().parent / "activities"
@@ -53,18 +58,23 @@ def slugs(activities_dir: Path | None = None) -> list[str]:
 
 
 def config_dir(slug: str, activities_dir: Path | None = None) -> Path:
-    """slug 의 설정 폴더 — 사이트 완성본에 그 slug 폴더가 있으면 그것, 아니면 저장소의 액티비티 폴더."""
+    """slug 의 설정 폴더 — 사이트 완성본 실행(GENOS_RESOURCE_DIR)이면 사이트의 그 slug 폴더, 아니면 저장소의 액티비티 폴더.
+    사이트 완성본 실행에서 폴더가 없어도 저장소로 떨어지지 않는다(config_path 가 오류로 알린다)."""
     site = site_activities_dir()
-    if site is not None and (site / slug).is_dir():
+    if site is not None:
         return site / slug
     return (activities_dir or ACTIVITIES_DIR) / slug
 
 
 def config_path(slug: str, activities_dir: Path | None = None) -> Path:
     """slug 의 config.yaml 경로. 없으면 ValueError — 어느 폴더를 봤는지 적는다."""
-    path = config_dir(slug, activities_dir) / CONFIG_FILE
+    folder = config_dir(slug, activities_dir)
+    site = site_activities_dir()
+    if site is not None and not folder.is_dir():
+        raise ValueError(f"사이트 완성본({site})에 액티비티 {slug!r} 폴더가 없습니다: {folder} — 사이트 배포(GENOS_RESOURCE_DIR)는 "
+                         "사이트 완성본의 설정만 읽고 저장소 폴더로 떨어지지 않습니다. 사이트에 그 slug 를 두십시오"
+                         "(사이트 원형 복제: activities new, 표준 사본: build-script/sync-sites.sh)")
+    path = folder / CONFIG_FILE
     if not path.is_file():
-        raise ValueError(f"액티비티 {slug!r} 의 설정이 없습니다: {path} — 액티비티 폴더에는 config.yaml 이 있어야 합니다"
-                         + (f"(사이트 완성본 {path.parent} 이 그 slug 를 덮어쓰고 있다)" if site_activities_dir()
-                            and path.parent.parent == site_activities_dir() else ""))
+        raise ValueError(f"액티비티 {slug!r} 의 설정이 없습니다: {path} — 액티비티 폴더에는 config.yaml 이 있어야 합니다")
     return path

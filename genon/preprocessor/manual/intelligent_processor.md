@@ -676,6 +676,7 @@ field_transforms:
 | `doc_summary` | `doc_summary.enable` | 문서 본문요약 사용유무(독립 enricher) |
 | `table_desc` | `table_description.enable` | 표 요약 description 사용유무 |
 | `table_refine` | `table_description.refine.enable` | 표 구조 재구성(refine) 사용유무 |
+| `table_text_desc` | `table_text_description.enable` | 텍스트(HTML/Markdown) 표 설명 사용유무 |
 
 > `chart_detection=1`(auto) 은 변환 단계 그림 분류가 켜져 있어야 동작합니다. config `chart.enable: false` 로 분류가 꺼진 배포에서는 auto 요청이 자동으로 `all` 로 강등됩니다(경고 로그). 런타임 auto 를 쓰려면 config 에서 `chart.enable: true` 로 두세요.
 

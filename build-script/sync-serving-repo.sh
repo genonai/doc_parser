@@ -26,6 +26,13 @@ set -euo pipefail
 #   PUSH=true GENON_BUILD=0 bash build-script/sync-serving-repo.sh
 #   # 개발 빌드(전처리 Studio) — 배포본 studio/dev 브랜치로 push, 미러 태그 없음
 #   SERVING_BRANCH=studio/dev MIRROR_TAG=false PUSH=true bash build-script/sync-serving-repo.sh
+#   # 사이트 배포처 빌드 — 사이트 완성본의 액티비티 설정을 배포본 activities/ 에 덮는다(#561)
+#   SITE=monimo SERVING_BRANCH=studio/dev MIRROR_TAG=false PUSH=true bash build-script/sync-serving-repo.sh
+#
+#   SITE=<site> 면 genon/sites/<site>/activities/<slug>/ 의 설정 파일(SOURCE_REF 기준)을 배포본
+#   genon/preprocessor/activities/<slug>/ 에 덮어쓴다 — 코드(processor.py·__init__.py·__main__.py)는 저장소 것.
+#   배포처는 설정 자리가 activities/ 하나이고 GENOS_RESOURCE_DIR 를 쓰지 않는다. resource/ 는 표준 그대로다
+#   (모델 접속 실값은 리비전 env GENOS_MODEL_PRESETS_FILE). genon/sites 자체는 여전히 배포본에 넣지 않는다.
 #
 #   PUSH=true 면 조립 전에 배포본 클론을 origin/${SERVING_BRANCH} 로 맞춘다(fetch + checkout -f -B).
 #   배포본에 그 브랜치가 아직 없으면 origin/main 에서 시작해 push 로 새로 만든다.
@@ -78,6 +85,7 @@ SERVING_REMOTE="${SERVING_REMOTE:-git@github.com:genonai/doc_parser_code_serving
 GENON_BUILD="${GENON_BUILD:-0}"                      # docling wheel local segment N (build-docling-wheel.sh 로 전달)
 OUT_DIR="${OUT_DIR:-}"                               # dry-run 조립 위치 지정용(비우면 mktemp 임시폴더). gitignored 경로 권장.
 PUSH="${PUSH:-false}"
+SITE="${SITE:-}"                                     # 사이트 배포처 빌드(위 사용 참조). 비우면 표준만
 SERVING_README="${SERVING_README:-${ROOT_DIR}/build-script/code-serving-README.md}"  # 배포본 root 로 복사할 README 소스
 
 # 미러 태그로 쓸 버전. 비우면 SOURCE_REF 에서 자동 파생(태그 커밋이면 정확히 그 태그, 아니면 2.2.4-14-gSHA).
@@ -218,6 +226,7 @@ fi
 
 echo "[INFO] ROOT_DIR      = ${ROOT_DIR}"
 echo "[INFO] SOURCE_REF    = ${SOURCE_REF} (${SOURCE_COMMIT})"
+echo "[INFO] SITE          = ${SITE:-<표준>}"
 echo "[INFO] DEST          = ${DEST}  (push_target_ok=${PUSH_TARGET_OK})"
 echo "[INFO] VERSION       = ${VERSION:-<없음>}  (mirror_tag=${MIRROR_TAG}, force_tag=${FORCE_TAG})"
 echo "[INFO] SERVING_BRANCH= ${SERVING_BRANCH}"
@@ -245,6 +254,29 @@ fi
 for p in "${EXCLUDE_PATHS[@]}"; do
   rm -rf "${DEST:?}/${p}"
 done
+
+# 사이트 배포처 빌드 — 사이트 완성본의 액티비티 설정을 배포본의 같은 slug 폴더에 덮는다(#561).
+SITE_ACTIVITIES_DIR=""
+if [[ -n "${SITE}" ]]; then
+  if [[ "${SITE}" == */* || "${SITE}" == "." || "${SITE}" == ".." ]]; then
+    echo "[ERROR] SITE 에는 사이트 이름만 적습니다: ${SITE}" >&2; exit 1
+  fi
+  SITE_EXPORT="$(mktemp -d)"
+  SITE_TAR="$(mktemp -t serving-site.XXXXXX)"
+  git -C "${ROOT_DIR}" archive --output="${SITE_TAR}" "${SOURCE_REF}" "genon/sites/${SITE}/activities" 2>/dev/null \
+    || { echo "[ERROR] ${SOURCE_REF} 에 genon/sites/${SITE}/activities 가 없습니다." >&2; exit 1; }
+  tar -xf "${SITE_TAR}" -C "${SITE_EXPORT}"; rm -f "${SITE_TAR}"
+  SITE_ACTIVITIES_DIR="${SITE_EXPORT}/genon/sites/${SITE}/activities"
+  for slug_dir in "${SITE_ACTIVITIES_DIR}"/*/; do
+    slug="$(basename "${slug_dir}")"
+    target="${DEST}/genon/preprocessor/activities/${slug}"
+    [[ -f "${target}/processor.py" ]] \
+      || { echo "[ERROR] 사이트 ${SITE} 의 activities/${slug} 가 배포본에 없는 slug 입니다." >&2; exit 1; }
+    rsync -a --delete --exclude '__pycache__' \
+      --exclude '/processor.py' --exclude '/__init__.py' --exclude '/__main__.py' "${slug_dir}" "${target}/"
+    echo "[INFO] SITE=${SITE} — activities/${slug} 설정을 사이트 완성본으로 덮었습니다."
+  done
+fi
 
 # ── 2) docling wheel 빌드 → packages/ 동봉 + requirements.txt 에 경로 append ─
 # docling wheel 은 항상 로컬 작업 트리(현재 docling/ 폴더) 기준으로 빌드된다(SOURCE_REF 무관).
@@ -340,7 +372,7 @@ echo "[INFO] .dockerignore 생성: ${DEST}/.dockerignore"
   echo "pydub"
   echo "chardet"                  # parser/attachment 의 인코딩 감지 (없으면 import 시 RuntimeError)
   echo ""
-  echo "# 워커 모드(PREPROC_MODE=worker)와 그 측정 도구(tools/code_serving/worker_concurrency_test.py)"
+  echo "# 전처리기 워커(python -m genon.preprocessor.worker)와 그 측정 도구(tools/code_serving/worker_concurrency_test.py)"
   echo "temporalio==1.34.0"       # base 이미지(build-script/code-serving-doc-parser/pyproject.toml)와 같은 버전
 } > "${DEST}/requirements-dev.txt"
 echo "[INFO] requirements-dev.txt 생성: ${DEST}/requirements-dev.txt"
@@ -468,6 +500,17 @@ if [[ ! -f "${DEST}/VERSION" ]]; then
   echo "[ERROR] VERSION 스탬프가 생성되지 않았습니다." >&2
   exit 1
 fi
+if [[ -n "${SITE_ACTIVITIES_DIR}" ]]; then
+  for slug_dir in "${SITE_ACTIVITIES_DIR}"/*/; do
+    slug="$(basename "${slug_dir}")"
+    if ! diff -rq -x '__pycache__' -x 'processor.py' -x '__init__.py' -x '__main__.py' \
+         "${slug_dir}" "${DEST}/genon/preprocessor/activities/${slug}" >/dev/null; then
+      echo "[ERROR] 배포본 activities/${slug} 설정이 사이트 ${SITE} 완성본과 다릅니다." >&2; exit 1
+    fi
+  done
+  rm -rf "${SITE_EXPORT}"
+  echo "[SMOKE] 사이트 ${SITE} — 배포본 activities/ 설정이 사이트 완성본과 같음"
+fi
 echo "[SMOKE] 배포본 청결성 OK — docling 소스 없음, genon/sites 없음, genon/+main.py 존재, packages/${WHEEL_NAME} 동봉됨, Dockerfile·requirements-dev.txt·constraints-cpu.txt·.gitignore·.dockerignore·VERSION 생성됨"
 echo "[INFO] 배포본 조립 위치: ${DEST}  (원본 커밋 ${SOURCE_COMMIT})"
 
@@ -484,7 +527,7 @@ if git -C "${DEST}" diff --cached --quiet; then
   # 내용 동일 — 새 커밋은 없지만, 기존 HEAD 가 이 VERSION 에 해당하므로 태깅은 계속 진행한다.
   echo "[INFO] 변경 없음 — commit 생략(기존 HEAD 에 태그만 부여)."
 else
-  git -C "${DEST}" commit -q -m "sync from doc_parser ${SOURCE_COMMIT} (docling→wheel)"
+  git -C "${DEST}" commit -q -m "sync from doc_parser ${SOURCE_COMMIT} (docling→wheel)${SITE:+ · site=${SITE}}"
   echo "[INFO] 서브모듈 commit 완료."
 fi
 # 변경이 없어도 push 한다 — origin/main 에서 새로 시작한 브랜치는 이 push 로 원격에 생긴다(이미 같으면 무동작).

@@ -109,15 +109,12 @@ class DocSummaryOptions:
         base_dir = config_dir if config_dir is not None else Path.cwd()
 
         # prompt 우선순위: prompt_file > inline prompt_template > built-in default.
-        # prompt_file 이 지정됐지만 읽기에 실패하면(파일 없음 등) 기본 프롬프트로 폴백(비차단).
+        # prompt_file 을 적었는데 읽지 못하면 오류다 — 기본 프롬프트로 떨어지면 어느 설정이 틀렸는지 결과로는
+        # 알 수 없다(#561). 적지 않았을 때만 내장 기본값을 쓴다.
         prompt_file = doc_summary_cfg.get("prompt_file")
         prompt_template = None
         if isinstance(prompt_file, str) and prompt_file.strip():
-            try:
-                prompt_template = read_prompt_file(prompt_file.strip(), base_dir)
-            except Exception as exc:
-                _log.warning("[DocSummaryOptions] prompt read failed: file=%s error=%s", prompt_file, exc)
-                prompt_template = None
+            prompt_template = read_prompt_file(prompt_file.strip(), base_dir)
         if not isinstance(prompt_template, str) or not prompt_template.strip():
             inline = doc_summary_cfg.get("prompt_template")
             prompt_template = inline if isinstance(inline, str) and inline.strip() else DEFAULT_BODY_SUMMARY_PROMPT

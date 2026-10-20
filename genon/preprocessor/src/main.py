@@ -9,7 +9,8 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
 from logger import Logger
-from utils import make_failure_response, make_success_response, failure_response_from_exc
+from utils import (make_failure_response, make_success_response, failure_response_from_exc,
+                   reason_code_of, reason_fields)
 from config import cors_config
 from common.exception import GenosServiceException
 from common.settings import settings
@@ -32,19 +33,20 @@ async def mlops_exception_handler(request, exc: GenosServiceException):
         body['stage'] = exc.stage
     if getattr(exc, 'error_type', None) is not None:
         body['error_kind'] = exc.error_type
+    body.update(reason_fields(reason_code_of(exc, 'COMMON')))
     return JSONResponse(body, status_code=200)
 
 
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request, exc: RequestValidationError):
     logger.error(f'[RequestValidationError]: {exc.errors()}')
-    return make_failure_response(str(exc))
+    return make_failure_response(str(exc), reason_code='COMMON_P002')
 
 
 @app.exception_handler(Exception)
 async def exception_handler(request, exc: Exception):
     logger.error(f'[Exception]: {exc}')
-    return make_failure_response(str(exc))
+    return make_failure_response(str(exc), reason_code=reason_code_of(exc, 'COMMON'))
 
 
 @app.get('/healthcheck')
@@ -97,10 +99,16 @@ async def run(
         logger.info(f'Start: "{file_path}"')
         data = await _run_with_deadline(request, file_path, params)
         logger.info(f'Success: "{file_path}"')
-    except asyncio.TimeoutError:
+    except asyncio.TimeoutError as e:
+        rd = _request_deadline_seconds(params)
+        if rd is None or time.time() - pt < rd:
+            # 처리기 안에서 난 시간 초과다. 요청 deadline 초과로 표시하지 않는다(#528).
+            logger.error(f'Error: "{file_path}"\n{traceback.format_exc()}\n')
+            return failure_response_from_exc(e, 'COMMON')
         logger.error(f'Error(timeout): "{file_path}"')
         return make_failure_response('request deadline exceeded', error_code=1,
-                                     stage='request', error_kind='timeout')
+                                     stage='request', error_kind='timeout',
+                                     reason_code='COMMON_S102')
     except GenosServiceException as e:
         logger.error(f'Error: "{file_path}"\n{traceback.format_exc()}\n')
         return failure_response_from_exc(e)
@@ -125,23 +133,30 @@ async def parse(
              'errMsg': '현재 설치된 전처리기는 /parser API를 지원하지 않습니다.',
              'data': None,
              'error_code': 1,
-             'error_msg': '현재 설치된 전처리기는 /parser API를 지원하지 않습니다.'},
+             'error_msg': '현재 설치된 전처리기는 /parser API를 지원하지 않습니다.',
+             **reason_fields('COMMON_P001')},
             status_code=200)
     pt = time.time()
     try:
         logger.info(f'[parser] Start: "{file_path}"')
         data = await _run_with_deadline(request, file_path, params)
         logger.info(f'[parser] Success: "{file_path}"')
-    except asyncio.TimeoutError:
+    except asyncio.TimeoutError as e:
+        rd = _request_deadline_seconds(params)
+        if rd is None or time.time() - pt < rd:
+            # 처리기 안에서 난 시간 초과다. 요청 deadline 초과로 표시하지 않는다(#528).
+            logger.error(f'[parser] Error: "{file_path}"\n{traceback.format_exc()}\n')
+            return failure_response_from_exc(e, 'PARSE')
         logger.error(f'[parser] Error(timeout): "{file_path}"')
         return make_failure_response('request deadline exceeded', error_code=1,
-                                     stage='request', error_kind='timeout')
+                                     stage='request', error_kind='timeout',
+                                     reason_code='COMMON_S102')
     except GenosServiceException as e:
         logger.error(f'[parser] Error: "{file_path}"\n{traceback.format_exc()}\n')
-        return failure_response_from_exc(e)
+        return failure_response_from_exc(e, 'PARSE')
     except Exception as e:
         logger.error(f'[parser] Error: "{file_path}"\n{traceback.format_exc()}\n')
-        return failure_response_from_exc(e)
+        return failure_response_from_exc(e, 'PARSE')
     finally:
         logger.info(f'[parser] End: "{file_path}" ({time.time() - pt:.2f} seconds)')
     return make_success_response(data=data)
@@ -159,7 +174,8 @@ async def chunker(
              'errMsg': '현재 설치된 전처리기는 /chunker API를 지원하지 않습니다.',
              'data': None,
              'error_code': 1,
-             'error_msg': '현재 설치된 전처리기는 /chunker API를 지원하지 않습니다.'},
+             'error_msg': '현재 설치된 전처리기는 /chunker API를 지원하지 않습니다.',
+             **reason_fields('COMMON_P001')},
             status_code=200)
     pt = time.time()
     try:
@@ -167,16 +183,22 @@ async def chunker(
         # 앞단계(파싱) 결과 docling JSON 은 params["document"] 로 인라인 전달된다.
         data = await _run_with_deadline(request, file_path, params)
         logger.info('[chunker] Success')
-    except asyncio.TimeoutError:
+    except asyncio.TimeoutError as e:
+        rd = _request_deadline_seconds(params)
+        if rd is None or time.time() - pt < rd:
+            # 처리기 안에서 난 시간 초과다. 요청 deadline 초과로 표시하지 않는다(#528).
+            logger.error(f'[chunker] Error: "{file_path}"\n{traceback.format_exc()}\n')
+            return failure_response_from_exc(e, 'CHUNK')
         logger.error('[chunker] Error(timeout)')
         return make_failure_response('request deadline exceeded', error_code=1,
-                                     stage='request', error_kind='timeout')
+                                     stage='request', error_kind='timeout',
+                                     reason_code='COMMON_S102')
     except GenosServiceException as e:
         logger.error(f'[chunker] Error\n{traceback.format_exc()}\n')
-        return failure_response_from_exc(e)
+        return failure_response_from_exc(e, 'CHUNK')
     except Exception as e:
         logger.error(f'[chunker] Error\n{traceback.format_exc()}\n')
-        return failure_response_from_exc(e)
+        return failure_response_from_exc(e, 'CHUNK')
     finally:
         logger.info(f'[chunker] End ({time.time() - pt:.2f} seconds)')
     return make_success_response(

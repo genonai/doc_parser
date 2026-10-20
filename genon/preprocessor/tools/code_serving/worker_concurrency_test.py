@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""워커 모드(PREPROC_MODE=worker) parse + chunk 동시 처리 측정 — concurrency_test.py 의 워커판(#514).
+"""전처리기 워커 parse + chunk 동시 처리 측정 — concurrency_test.py 의 워커판(#514).
 
 HTTP 측정과 같은 잡(문서 7종 x on/off, --manifest)을 같은 순서로 보낸다. 요청 대신 문서마다 작은
 워크플로 하나를 시작하고, 워크플로가 파드의 큐(--activity-queue)에 parse → chunk 액티비티를 차례로 건다.

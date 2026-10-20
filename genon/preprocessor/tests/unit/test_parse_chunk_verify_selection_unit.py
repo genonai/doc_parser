@@ -48,3 +48,19 @@ def test_executed_case_keeps_result(verifier, monkeypatch, tmp_path):
     monkeypatch.setattr(verifier, "llm_null_rate", lambda *a: "-")
     monkeypatch.setattr(sys, "argv", ["verify", "--out", str(tmp_path / "out")])
     assert verifier.main() == 0
+
+
+def test_table_text_formats_unescapes_html_entities(verifier):
+    """HTML 표기의 `&amp;` 를 내용 소실로 판정하지 않는다(#557).
+
+    셀 값은 sample_files/json/monimo_card_sample.json 의 카드 상세 링크다.
+    """
+    url = ("https://www.samsungcard.com/home/card/cardinfo/PGHPPCCCardCardinfoDetails001"
+           "?code=AAP1913&click=UHPPCO0101M0_card_PGHPPCCCardCardinfoDetails001_PRD_AAP1913")
+    md = f"| 링크 |\n| --- |\n| {url} |"
+    chunk = {
+        "text": md,
+        "text_table_md": md,
+        "text_table_html": f"<table><tr><th>링크</th></tr><tr><td>{url.replace('&', '&amp;')}</td></tr></table>",
+    }
+    assert verifier.check_table_text_formats([chunk]) == []

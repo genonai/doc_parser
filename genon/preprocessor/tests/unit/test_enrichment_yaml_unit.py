@@ -13,8 +13,10 @@ from pathlib import Path
 import pytest
 import yaml
 
+from processing.enrichment import config_schema as cs
 from processing.enrichment.enrichment_config import EnrichmentConfig, _MetadataConfig, _TocConfig
 from processing.enrichment.field_transforms import DEFAULT_METADATA_FIELD_TRANSFORMS
+from processing.enrichment.table_text_context import merge_table_text_description
 
 
 # 실제 배포되는 설정 파일들 (repo_root = genon/preprocessor 기준 상대 경로)
@@ -120,24 +122,25 @@ def test_shipped_enrichment_parses_without_error(repo_root, rel):
 def test_shipped_table_text_description_exposes_all_user_options(repo_root, rel):
     ec = _parse_enrichment(repo_root, rel)
     cfg = ec.table_text_description_cfg
+    # 코드 기본값과 같은 미세 조정 키(input_format 등)는 노출하지 않는다.
     assert set(cfg) >= {
-        "enabled", "input_format", "before_items", "after_items",
-        "max_context_chars", "model_context_tokens",
-        "overflow_policy", "conflict_policy", "rag",
+        "enabled", "before_items", "after_items",
+        "max_context_chars", "model_context_tokens", "rag",
     }
+    assert cs.diagnose_table_text_description(cfg) == []
     prompt_file = cfg["prompt_template_file"]
     assert (repo_root / rel).parent.joinpath(prompt_file).is_file()
-    assert set(cfg["rag"]) >= {
-        "retrieval_context_max_chars", "key_fact_limit", "key_fact_max_chars",
-        "search_terms_limit", "include_search_terms", "repeat_context_on_split",
-    }
+    assert set(cfg["rag"]) >= {"retrieval_context_max_chars", "key_fact_limit", "search_terms"}
     document_llm = [
         item for item in ec.custom_fields_cfgs
         if str(item.get("extractor") or "llm").lower() in {"llm", "document_llm"}
     ]
     # 융합 사본은 공통 설정과 같아야 한다. 단 `resource_path` 는 독립 실행기 전용 키라
-    # 융합 사본에는 붙지 않는다(enrichment_config._with_resource_path 참고).
-    expected = {k: v for k, v in cfg.items() if k != "resource_path"}
+    # 융합 사본에는 붙지 않는다(enrichment_config._with_resource_path 참고). 융합 사본은 병합을
+    # 거쳐 `rag.search_terms` 같은 편의 표기가 내부 표기로 펼쳐져 있으므로 같은 병합으로 맞춰 비교한다.
+    expected = merge_table_text_description(
+        {k: v for k, v in cfg.items() if k != "resource_path"}, None
+    )
     assert all(item["table_text_description"] == expected for item in document_llm)
 
 

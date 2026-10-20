@@ -263,24 +263,44 @@ def classify_error(exc: BaseException) -> str:
     requests/httpx 를 import 하지 않고 예외 클래스명/status_code 로 휴리스틱 판정한다
     (llm_cache 는 경량 하위 유틸이라 무거운 의존성을 두지 않는다).
     - timeout: deadline 초과, *Timeout* 계열, asyncio.TimeoutError
-    - transient: 연결/네트워크 오류, HTTP 5xx (재시도로 나을 수 있음)
-    - permanent: HTTP 4xx, 파싱/값 오류 등 (재시도해도 동일)
+    - transient: 연결/네트워크 오류, HTTP 429·5xx (재시도로 나을 수 있음)
+    - permanent: 그 밖의 HTTP 4xx, 파싱/값 오류 등 (재시도해도 동일)
+
+    상태 번호는 `status_code` 속성과 `response.status_code`(httpx·requests 의 HTTP 오류)에서 읽는다.
+    스스로 판정되지 않는 예외는 원인 예외(`__cause__`)로 판정한다. 상태 번호 없이 포장된
+    연결 실패(`raise LLMApiError(...) from httpx.ConnectError`)가 permanent 로 떨어지지 않게 한다.
+    값·타입 오류(ValueError·TypeError)는 호출부가 결정적 오류로 확정한 것이므로 원인을 따라가지 않는다.
     """
+    seen = 0
+    while exc is not None and seen < 8:
+        kind = _classify_one(exc)
+        if kind is not None:
+            return kind
+        if isinstance(exc, (ValueError, TypeError)):
+            return "permanent"
+        exc, seen = exc.__cause__, seen + 1
+    return "permanent"
+
+
+def _classify_one(exc: BaseException) -> Optional[str]:
+    """예외 하나만 보고 판정한다. 판정할 단서가 없으면 None."""
     if isinstance(exc, CacheDeadlineExceeded):
         return "timeout"
     name = type(exc).__name__.lower()
     if "timeout" in name:
         return "timeout"
     status = getattr(exc, "status_code", None)
+    if not isinstance(status, int):
+        status = getattr(getattr(exc, "response", None), "status_code", None)
     if isinstance(status, int):
-        if status >= 500:
+        if status == 429 or status >= 500:
             return "transient"
         if 400 <= status < 500:
             return "permanent"
     if any(k in name for k in ("connection", "connect", "network", "remoteprotocol",
                                "readerror", "writeerror", "pool")):
         return "transient"
-    return "permanent"
+    return None
 
 
 def remaining_timeout(fallback: Optional[float] = None) -> float:

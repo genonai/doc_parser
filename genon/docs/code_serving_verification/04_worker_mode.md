@@ -37,7 +37,7 @@ push 한 것이다. 환경변수만 다르다.
 
 | 환경변수 | 값 | 비고 |
 |---|---|---|
-| `START_COMMAND` | `python -m genon.preprocessor.worker` | 베이스 이미지 2.2.5 의 시작 스크립트에는 `PREPROC_MODE` 가 없다. 다음 베이스 이미지부터는 `PREPROC_MODE=worker` 로 대신한다 |
+| `START_COMMAND` | `python -m genon.preprocessor.worker` | 워커로 기동한다 |
 | `TEMPORAL_HOST`·`TEMPORAL_PORT`·`TEMPORAL_NAMESPACE` | 파이프라인 워커와 같은 값 | 코드 기본값(`ns-ifa-app`)이 사이트 값과 다를 수 있다. 실행 중인 파이프라인 워커 파드에서 `printenv TEMPORAL_NAMESPACE` 로 확인한다 |
 | `WORKER_TASK_QUEUE` | `<MEASURE_QUEUE>` | **측정 전용 이름.** 파이프라인이 쓰는 큐 이름을 주면 운영 작업이 이 리비전으로 온다 |
 | `WORKER_PROCESSES` | `1` | 1 코어 파드 |

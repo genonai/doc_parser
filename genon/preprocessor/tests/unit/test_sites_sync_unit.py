@@ -33,11 +33,15 @@ def _standard_for(rel: str) -> Path | None:
 @pytest.mark.parametrize("site", sorted(p.parent.name for p in SITES.glob("*/manifest.yaml")))
 def test_site_copies_match_standard(site):
     """owned 가 아닌 파일은 표준과 한 바이트도 다르지 않고, 표준에 없는 파일은 owned 여야 한다.
-    사이트 액티비티 폴더에는 코드(processor.py·__init__.py)가 없어야 하고, 표준에 없는 slug 폴더도 안 된다."""
+    사이트 액티비티 폴더에는 코드(processor.py·__init__.py)가 없어야 하고, 표준에 없는 slug 폴더도 안 된다.
+    저장소의 모든 slug 가 사이트에 있어야 한다 — 사이트 배포는 저장소 폴더로 떨어지지 않는다(#561)."""
     site_root = SITES / site
     owned = set((yaml.safe_load((site_root / "manifest.yaml").read_text(encoding="utf-8")) or {}).get("owned") or [])
     folders = ["resource", *sorted(f"activities/{p.name}" for p in (site_root / "activities").glob("*") if p.is_dir())]
-    problems = {}
+    standard_slugs = {p.parent.name for p in (PREPROCESSOR_DIR / "activities").glob("*/processor.py")
+                      if not p.parent.name.startswith("_")}
+    problems = {f"activities/{slug}": "사이트에 없는 slug" for slug in sorted(standard_slugs)
+                if not (site_root / "activities" / slug).is_dir()}
     for rel in folders:
         standard = _standard_for(rel)
         if standard is None:

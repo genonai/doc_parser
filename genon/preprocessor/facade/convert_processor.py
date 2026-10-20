@@ -1,4 +1,4 @@
-# 변환용 전처리기 v.2.2.4 (2026-07-30 Release)
+# 변환용 전처리기 v.2.2.5 (2026-10-15 Release)
 from __future__ import annotations
 
 import json
@@ -744,6 +744,7 @@ class DocumentProcessor(DoclingRuntimeBase):
             "i_chunk_on_page", "n_chunk_of_page", "i_chunk_on_doc", "n_chunk_of_doc",
             "n_page", "reg_date", "chunk_bboxes", "media_files", "title",
             "created_date", "guardrail_categories",
+            cp.SHORT_CHUNK_SIZE_KEY,  # custom_fields 가 청커용으로 싣는 제어키. 이 facade 는 쓰지 않는다
         } | set(tv.field_names()) | consumed_keys
         for reserved_key in reserved_keys:
             passthrough_metadata.pop(reserved_key, None)

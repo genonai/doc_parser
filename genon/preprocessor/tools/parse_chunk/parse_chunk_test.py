@@ -37,7 +37,7 @@ for path in (PREPROCESSOR_SRC, PROJECT_ROOT):
     if path_str not in sys.path:
         sys.path.insert(0, path_str)  # doc_parser 루트 / preprocessor src 참조
 
-# in-process 테스트라 코드서빙 단일 마운트 제약과 무관 → 두 facade 동시 import 가능.
+# in-process 테스트라 코드서빙 단일 마운트 제약과 무관 → 두 액티비티 처리기 동시 import 가능.
 from genon.preprocessor.activities.parse import DocumentProcessor as ParserProcessor
 from genon.preprocessor.activities.chunk import (
     DocumentProcessor as ChunkerProcessor,

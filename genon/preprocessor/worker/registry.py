@@ -2,7 +2,7 @@
 
 규칙: **폴더 이름 = slug = 액티비티 이름, 첫 단어 = 단계.** `activities/` 바로 아래에서 `processor.py` 가 있고
 이름이 `parse`·`chunk` 이거나 `parse_`·`chunk_` 로 시작하는 폴더만 등록한다. 목록을 만들 때는 import 하지
-않는다(파사드 import 는 docling 을 끌어와 무겁다). 폴더 규칙·사이트 덮어쓰기는 `activities/_folders.py`.
+않는다(처리기 import 는 docling 을 끌어와 무겁다). 폴더 규칙·사이트 덮어쓰기는 `activities/_folders.py`.
 
 processor.py 는 `DocumentProcessor` 를 상속만 한다. 액티비티 본문은 부모(`ParserCore`·`ChunkerCore`)의
 `run_activity(arg)` 하나이고, 이름은 여기서 붙인다 — 바운드 메서드에는 이름표를 붙일 수 없고,
@@ -10,8 +10,8 @@ processor.py 는 `DocumentProcessor` 를 상속만 한다. 액티비티 본문�
 프로세서는 slug 마다 프로세스당 1개, 첫 호출에 만든다(액티비티 스레드 여럿이 함께 쓴다).
 
 설정은 폴더의 `config.yaml` 이 **필수**다 — 없으면 목록을 만들 때 오류다(예전엔 짝 설정이 없으면 조용히
-패키지 기본 설정으로 떨어져 사이트 문서유형을 몰랐다). 사이트 완성본이 그 slug 폴더를 갖고 있으면
-그 폴더의 config.yaml 을 쓴다(`_folders.config_dir`).
+패키지 기본 설정으로 떨어져 사이트 문서유형을 몰랐다). 사이트 배포면 사이트 완성본의 그 slug 폴더만 쓴다
+(`_folders.config_dir`) — 사이트에 없는 slug 는 저장소 폴더로 떨어지지 않고 호출마다 오류다(#561).
 """
 from __future__ import annotations
 
@@ -45,23 +45,32 @@ class Entry:
 def scan(activities_dir: Path | None = None) -> list[Entry]:
     """activities 디렉터리의 액티비티 폴더 → Entry 목록(slug 순). config.yaml 이 없는 폴더는 ValueError.
 
-    slug 마다 실제로 쓰는 설정 경로와 출처(사이트 완성본 | 저장소 표준)를 로그에 남긴다(#520). 사이트 배포
-    (GENOS_RESOURCE_DIR)인데 그 옆에 activities/ 가 없으면 — 액티비티 설정이 전부 저장소 표준으로 떨어져 사이트
-    문서유형 등록이 빠진 채 돌게 되므로 — 워커는 띄우되 **호출마다 그 사실을 오류로 돌려준다**(Entry.problem, #522).
+    slug 마다 실제로 쓰는 설정 경로와 출처(사이트 완성본 | 저장소)를 로그에 남긴다(#520). 사이트 배포
+    (GENOS_RESOURCE_DIR)인데 그 옆에 activities/ 가 없으면 — 사이트 배포는 사이트 완성본만 읽으므로 —
+    워커는 띄우되 **호출마다 그 사실을 오류로 돌려준다**(Entry.problem, #522).
     기동 로그의 경고는 보는 사람이 없고, 워커가 안 뜨면 호출자는 timeout 만 본다 — 오류는 호출한 쪽에 가야 한다.
+    사이트에 그 slug 폴더(또는 그 config.yaml)만 없을 때도 같다 — 그 slug 호출만 실패한다(#561).
     """
     site = _folders.site_activities_dir()
     problem = None
     if site is not None and not site.is_dir():
         problem = (f"사이트 설정(GENOS_RESOURCE_DIR={_folders.resource_dir()}) 옆에 activities/ 가 없습니다: {site} — "
-                   "사이트 완성본은 resource/ 와 activities/<slug>/ 두 자리입니다. 액티비티 설정이 저장소 표준으로 떨어져 "
-                   "사이트 문서유형 등록 없이 돌게 되므로 실행하지 않습니다. 사이트의 activities/ 를 그 자리에 두십시오")
+                   "사이트 완성본은 resource/ 와 activities/<slug>/ 두 자리이고, 사이트 배포는 저장소 폴더로 떨어지지 않으므로 "
+                   "실행하지 않습니다. 사이트의 activities/ 를 그 자리에 두십시오")
     entries = []
     for slug in _folders.slugs(activities_dir):
-        path = _folders.config_path(slug, activities_dir)
-        source = "사이트 완성본" if site is not None and path.parent.parent == site else "저장소 표준"
-        log.info("액티비티 %s: 설정 %s (%s)", slug, path, source)
-        entries.append(Entry(slug, stage_of(slug), str(path), problem))
+        path = _folders.config_dir(slug, activities_dir) / _folders.CONFIG_FILE
+        slug_problem = problem
+        if slug_problem is None and site is not None:
+            try:                                 # 사이트 배포 — 그 slug 폴더·설정이 사이트에 없으면 그 slug 호출만 실패(#561)
+                _folders.config_path(slug, activities_dir)
+            except ValueError as exc:
+                slug_problem = str(exc)
+        elif slug_problem is None:
+            path = _folders.config_path(slug, activities_dir)   # 저장소 폴더의 config.yaml 누락은 기동 오류(시험이 잡는다)
+        log.info("액티비티 %s: 설정 %s (%s)%s", slug, path, "사이트 완성본" if site is not None else "저장소",
+                 " — 호출마다 오류" if slug_problem else "")
+        entries.append(Entry(slug, stage_of(slug), str(path), slug_problem))
     return entries
 
 

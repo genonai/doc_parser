@@ -5,6 +5,8 @@
 사이트 전용 전처리기(facade) 코드는 `genon/sites/<site>/facade/` 에 둔다.
 
 이 폴더는 코드서빙 배포본(`build-script/sync-serving-repo.sh` 의 `EXCLUDE_PATHS`)에 포함되지 않는다.
+사이트 배포처는 `SITE=<site> bash build-script/sync-serving-repo.sh` 로 만든다 — 이 폴더의 `activities/<slug>/`
+설정 파일이 서빙본 `genon/preprocessor/activities/<slug>/` 에 덮여 들어가고, `resource/`·`facade/` 는 들어가지 않는다.
 핫픽스 번들은 `--site <site>` 를 줄 때만 `resource/` 완성본을 싣는다.
 
 ## 폴더 구조
@@ -17,7 +19,8 @@ genon/sites/
     manifest.yaml        owned: 이 사이트가 소유하는 파일 목록
     resource/            완성본 설정 폴더 = 표준 사본 + owned 파일(모델 접속 정보, HTTP facade·간이 파서 설정)
     activities/<slug>/   완성본 액티비티 설정 = 표준 사본 + owned 파일(파서 설정 config.yaml·custom_field, #497).
-                         코드(processor.py)는 저장소 것이라 여기 두지 않는다. 그 slug 폴더가 있을 때만 덮어쓴다
+                         코드(processor.py)는 저장소 것이라 여기 두지 않는다. 저장소의 모든 slug 를 갖는다(#561).
+                         SITE 빌드가 서빙본 activities/<slug>/ 에 덮는 것이 이 폴더다
     facade/              사이트 전용 전처리기 코드(선택)
     docs/                사이트 전용 전처리기 매뉴얼(선택)
 ```
@@ -51,9 +54,11 @@ genon/sites/
 
 - 표준 `resource/model_presets.yaml` 은 `<...>` 자리표를 담고, 사이트 `resource/model_presets.yaml` 은
   현장 값을 담는다.
-- 로컬 실행에서는 환경변수 `GENOS_MODEL_PRESETS_FILE` 이 가리키는 파일이 그 위에 이름별·키 단위로 얹힌다.
-  로컬 도구는 이 변수가 비어 있으면 `genon/sites/dev/model_presets.yaml` 로 자동 설정한다.
-  **운영에서는 설정하지 않는다.**
+- 환경변수 `GENOS_MODEL_PRESETS_FILE` 이 가리키는 파일이 그 위에 이름별·키 단위로 얹힌다
+  (`processing/common/config_parse.py` 의 `collect_model_presets` 3층).
+  - 코드서빙 배포: 서빙본 `resource/model_presets.yaml` 은 표준(`<...>` 자리표) 그대로이고, 현장 접속 실값은
+    리비전 env `GENOS_MODEL_PRESETS_FILE` 로 값을 채운 `model_presets.yaml` 을 가리켜 넣는다.
+  - 로컬 실행: 로컬 도구는 이 변수가 비어 있으면 `genon/sites/dev/model_presets.yaml` 로 자동 설정한다.
 
 ## 표준 설정을 바꾼 뒤
 
@@ -85,12 +90,13 @@ owned 파일을 제외한 모든 파일을 표준과 똑같이 맞추고, 표준
 
 ## 배포
 
-`genon/sites/<site>/` 의 두 자리를 그대로 전달한다.
+배포 방식마다 `genon/sites/<site>/` 에서 쓰는 자리가 다르다.
 
-- 코드서빙(워커·HTTP): `GENOS_RESOURCE_DIR` 가 사이트의 `resource/` 를 가리키게 하고, 그 **옆에** `activities/<slug>/` 를
-  함께 둔다(예: NFS 의 `…/monimo/resource` + `…/monimo/activities/parse`). 그 slug 폴더가 있으면 그 폴더가 설정 폴더가
-  된다(`genon/preprocessor/activities/_folders.py`). 배포본의 `resource/` 를 덮어쓰는 방식도 같다 — 그때는 `activities/<slug>/`
-  의 설정 파일도 함께 덮어쓴다.
+- 코드서빙(워커·HTTP): `SITE=<site> bash build-script/sync-serving-repo.sh` 로 사이트 배포처 서빙본을 만든다.
+  사이트 `activities/<slug>/` 의 설정 파일이 서빙본 `genon/preprocessor/activities/<slug>/` 에 덮이고(코드는 저장소 것),
+  `resource/` 는 표준 그대로다. 사이트에 있는 slug 가 서빙본에 없으면 빌드가 멈춘다. 서빙본 커밋 제목 끝에
+  ` · site=<site>` 가 붙는다. 모델 접속 실값은 리비전 env `GENOS_MODEL_PRESETS_FILE` 로 넣는다(위 「모델 접속 정보」).
+  `GENOS_RESOURCE_DIR` 는 쓰지 않는다(위 로컬 테스트 — 로컬 전용).
 - 기본 전처리기 서비스: `resource/` 를 MinIO 리소스로 올린다(간이 파서 설정과 custom_field 사본이 여기 있다).
 - 핫픽스 번들: `build-script/create-patch-bundle.sh <이름> --site <site>` 로 만들면 번들의 `resource/` 가 이 폴더이고,
   번들의 `activities/<slug>/` 설정 파일도 사이트 완성본으로 덮어쓴다.

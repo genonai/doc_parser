@@ -13,7 +13,7 @@
 
 1. [개요](#개요)
 2. [API 엔드포인트](#api-엔드포인트)
-3. [parse_config.yaml 설정](#parse_configyaml-설정)
+3. [파싱 설정 (config.yaml)](#파싱-설정-configyaml)
 4. [지원 파일 형식 및 전제조건](#지원-파일-형식-및-전제조건)
 5. [API 요청 파라미터](#api-요청-파라미터)
 6. [출력 데이터 구조](#출력-데이터-구조)
@@ -33,7 +33,7 @@
 - HWP/HWPX는 전용 SDK 백엔드 사용, 실패 시 단계별 폴백 적용
 - 오디오는 Whisper API를 통한 음성 전사
 - CSV/XLSX는 표 구조 그대로 반환
-- 출력 형식은 `parse_config.yaml`의 `output.format`으로 제어 (`json` / `html` / `markdown` / `docling`)
+- 출력 형식은 파싱 설정(`activities/parse/config.yaml`)의 `output.format`으로 제어 (`json` / `html` / `markdown` / `docling`)
 - `docling` 포맷은 복원 가능한 DoclingDocument 원본 JSON을 반환하며, Chunk API(`/chunker`)의 입력으로 사용
 
 ---
@@ -97,12 +97,16 @@ Content-Type: application/json
 
 ---
 
-## parse_config.yaml 설정
+## 파싱 설정 (config.yaml)
 
-`파싱용 전처리기`는 `parse_config.yaml` 파일을 읽어서 전처리기 수행에 필요한 정보를 설정합니다.
-`parse_config.yaml` 파일은 Genos 전처리기의 `resource` 탭에 등록됩니다.
+`파싱용 전처리기`는 설정 파일을 읽어서 전처리기 수행에 필요한 정보를 설정합니다. 실행 방식에 따라 파일이 다릅니다.
 
-Genos에서 전처리기를 배포할 때 `parse_config.yaml`파일도 함께 배포되어 전처리기 컨테이너에 적용됩니다. 따라서 `parse_config.yaml`파일의 내용이 수정된 경우에는 전처리기를 재배포해야만 수정된 내용이 적용됩니다.
+| 실행 방식 | 설정 파일 |
+|---|---|
+| 코드서빙 · 워커 | `activities/parse/config.yaml` (아래 스키마의 정식 설정) |
+| 기본 전처리기 서비스 (Genos 전처리기의 `resource` 탭에 등록) | `resource` 탭에 올린 설정 — 제공되는 간이 설정 `resource/parse_config_simple.yaml`(정식 설정에서 자주 고치는 키만 남긴 판)을 바탕으로 합니다 |
+
+Genos에서 전처리기를 배포할 때 설정 파일도 함께 배포되어 전처리기 컨테이너에 적용됩니다. 따라서 설정 파일의 내용이 수정된 경우에는 전처리기를 재배포해야만 수정된 내용이 적용됩니다.
 
 > **전처리기 최초 등록시 아래의 config 수정가이드를 참고해서 수정해 주세요.**
 
@@ -122,10 +126,13 @@ defaults:
 
 # ───────────────────────────────────────────────
 # 모델 프리셋 (아래 "모델 프리셋으로 접속 정보 모으기" 참고)
-# 접속 정보는 같은 폴더의 model_presets.yaml 에 모여 있고,
+# 접속 정보는 설정 폴더(resource/)의 model_presets.yaml 에 모여 있고,
 # 쓰는 자리에서 `model_preset: <이름>` 으로 부릅니다.
+# 액티비티 설정(activities/parse/config.yaml)은 model_presets_file 을 적지 않습니다 — 적지 않으면
+# 설정 폴더의 model_presets.yaml 을 이름으로 참조하고, 적으면 그 경로를 액티비티 폴더 기준으로 찾습니다.
+# 같은 폴더에 프리셋 파일을 둔 설정(resource/ 의 설정)만 아래 줄을 씁니다.
 # ───────────────────────────────────────────────
-model_presets_file: model_presets.yaml
+# model_presets_file: model_presets.yaml
 model_presets:              # 이 설정에서만 달라지는 값(선택)
   page:
     timeout: 360
@@ -267,7 +274,7 @@ enrichment:
       prompt_file: prompt_doc_summary.md   # {{full_text}} 치환
       max_chars: 6000
 
-  # facade 후처리 기반 이미지 설명 생성 (문맥 포함)
+  # 처리기 후처리 기반 이미지 설명 생성 (문맥 포함)
   - image_description:
       enable: true
       model_preset: image
@@ -369,8 +376,8 @@ model_presets:
 ```
 
 ```yaml
-# parse_config.yaml
-model_presets_file: model_presets.yaml
+# 파싱 설정 (activities/parse/config.yaml · resource/parse_config_simple.yaml)
+# model_presets_file: model_presets.yaml  # resource/ 의 설정만. 액티비티 설정은 적지 않습니다(적으면 액티비티 폴더 기준으로 찾습니다)
 
 enrichment:
   - toc:
@@ -397,15 +404,17 @@ llm:
 **프리셋 파일 지정과 우선순위**
 
 - `model_presets_file` 은 메인 yaml 과 같은 폴더 기준 경로입니다. 목록으로 여러 파일을 적을 수 있고,
-  뒤에 적은 파일이 우선합니다.
+  뒤에 적은 파일이 우선합니다. 액티비티 설정(`activities/<slug>/config.yaml`)은 적지 않아도 설정 폴더
+  (`resource/`)의 `model_presets.yaml` 을 이름으로 참조합니다(그 파일이 ① 층이 됩니다).
 - 프리셋은 세 층에서 모이며 뒤가 우선합니다. ① `model_presets_file` 로 지정한 파일들 →
   ② 메인 yaml 에 직접 적은 `model_presets` → ③ 환경변수 `GENOS_MODEL_PRESETS_FILE` 이 가리키는 파일.
 - 같은 이름의 프리셋끼리는 **키 단위로 병합**됩니다. 덮어쓰는 층에는 바뀌는 키(`url`·`api_key` 등)만
   적으면 됩니다. 예를 들어 메인 yaml 에 `model_presets: {page: {timeout: 360}}` 만 적으면
   `page` 의 접속값은 `model_presets.yaml` 의 값을 그대로 쓰고 `timeout` 만 바뀝니다.
-- `GENOS_MODEL_PRESETS_FILE` 은 **로컬 실행 전용**입니다. 저장소의 로컬 도구
+- `GENOS_MODEL_PRESETS_FILE` 은 값이 채워진 `model_presets.yaml` 경로로, 저장소 파일을 고치지 않고 접속 실값을
+  키 단위로 덮어씁니다. 로컬 실행과 코드서빙 배포(리비전 환경변수로 실값 주입)에서 씁니다. 저장소의 로컬 도구
   (`parse_chunk_test.sh`, `parse_chunk_verify.sh`, `build-script/run-local.sh`)는 이 변수가 비어 있으면
-  사내 VPN 용 접속값 `genon/sites/dev/model_presets.yaml` 로 자동 설정합니다. 운영 환경에서는 설정하지 않습니다.
+  사내 VPN 용 접속값 `genon/sites/dev/model_presets.yaml` 로 자동 설정합니다. 기본 전처리기 서비스에서는 설정하지 않습니다.
 
 **규칙**
 
@@ -576,13 +585,28 @@ llm:
 | `table_description` | `refine.prompt_file` | `prompt_table_refine_combined.md` | 재구성 HTML + 요약 통합 프롬프트 |
 | `custom_fields` | (인라인 옵션 또는 `config_file`) | — | 커스텀 필드 추출 enricher. 여러 개 지정 가능. 아래 [커스텀 필드 enricher](#커스텀-필드-enricher) 참고 |
 
-> `chart.enable: true` 면 변환 단계에서 docling 그림 분류가 자동 활성화됩니다. **런타임 kwargs**(호출 `params`, 0/1)로 오버라이드 가능: `img_desc`→`image_description.enable`, `chart_desc`(별칭 `chart_convert`)→`chart.enable`, `chart_detection`(1=auto/0=all), `doc_summary`→`doc_summary.enable`, `table_desc`→`table_description.enable`, `table_refine`→`table_description.refine.enable`. `chart_detection=1`(auto) 은 `chart.enable: true` 로 분류가 켜져 있어야 하며 아니면 `all` 로 강등됩니다.
+> `chart.enable: true` 면 변환 단계에서 docling 그림 분류가 자동 활성화됩니다. **런타임 kwargs**(호출 `params`, 0/1)로 오버라이드 가능: `img_desc`→`image_description.enable`, `chart_desc`(별칭 `chart_convert`)→`chart.enable`, `chart_detection`(1=auto/0=all), `doc_summary`→`doc_summary.enable`, `table_desc`→`table_description.enable`, `table_refine`→`table_description.refine.enable`, `table_text_desc`→`table_text_description.enable`. `chart_detection=1`(auto) 은 `chart.enable: true` 로 분류가 켜져 있어야 하며 아니면 `all` 로 강등됩니다.
 
 > **표 설명(table_description)**: `enable`(또는 `table_desc=1`) 이면 각 표 뒤에 `[표 설명]` 요약을 병기하고, `refine.enable`(또는 `table_refine=1`) 이면 표 구조를 재구성 HTML 로 만들어 표 본체를 교체합니다. 재구성/요약은 **element(parse) 및 markdown 출력**에 반영되며, `output.format: docling`(원본 보존)에서는 적용되지 않습니다. refine 표를 `table_format: markdown` 으로 낼 때 `compact_tables` 설정이 반영됩니다.
 
 > **텍스트 표 설명(table_text_description)의 context 설정**: 모델 context 크기가 바뀌면 표 설명 블록의 `model_context_tokens` 만 고칩니다. 값은 모델 사양의 최대치가 아니라 현재 모델 서버의 context 한도(토큰, 정수)입니다. 입력 예산은 `model_context_tokens` 에서 응답 몫을 뺀 값이며, 응답 몫(`completion_reserved_tokens`)은 생략을 권장합니다. 생략하면 그 호출의 `max_tokens` 만큼 자동으로 예약합니다(전용 연결은 표 설명 블록, custom_fields 통합 모드는 custom_fields 블록의 `max_tokens`). 값을 명시하면(`0` 포함) 그 값을 그대로 씁니다.
 >
 > **기본값 변경 안내**: 예약량을 적지 않은 기존 설정은 업그레이드만으로 예약량이 `8000` 에서 `max_tokens` 값으로 바뀝니다. `max_tokens` 가 8000보다 크면 입력 예산이 줄어 표가 더 여러 번에 나뉘어 호출될 수 있고, 8000보다 작으면 입력 예산이 늘어 한 번에 담기는 표가 많아집니다. 이전 동작이 필요하면 `completion_reserved_tokens: 8000` 을 명시합니다.
+>
+> **텍스트 표 설명에서 LLM 에 보내지 않는 표**: 표 청크만으로 주제와 내용이 드러나는 표는 설명을 받아도 검색에 새로 잡히는 질의가 없으므로 LLM 에 보내지 않습니다. 안내 문구 한 칸짜리 표처럼 값이 하나뿐이거나 데이터 행이 없는 레이아웃 표는 자동으로 뺍니다. 청커가 바깥 표 셀로만 싣는 중첩 표도 자체 설명이 청크에 실리지 않으므로 함께 뺍니다. 두 생략은 `skip.layout` 으로 함께 켜고 끕니다. 그 밖의 조건은 `skip` 하위 키로 정하며, 문서유형 YAML 에서 키 단위로 덮어쓸 수 있습니다.
+>
+> | 키 | 기본값 | 대상 |
+> |---|---|---|
+> | `skip.self_describing` | `false` | 구체적인 제목(섹션 제목·캡션·표 바로 위 한 줄)이 있고, 데이터 행 5개 이하·열 2~3개이며, 행 라벨을 뺀 값 셀이 문장형인 표. 값에 금액·비율·기간이 있거나 병합 셀·다단 헤더가 있으면 보냅니다 |
+> | `skip.contained_duplicate` | `false` | 같은 문서의 앞선 표 하나에 모든 행(헤더 포함)이 행 단위로 이미 실린 표. 앞 표의 병합 셀에 통째로 전사된 하위 표나 다른 쪽에 다시 실린 표가 해당하며, 셀 값만 같고 행의 짝이 다른 표는 보냅니다. 레코드 경로에서는 같은 레코드 안의 표끼리 비교합니다 |
+>
+> `self_describing` 과 `contained_duplicate` 는 문서유형마다 검색 결과를 확인한 뒤 켭니다. 표를 뺀 문서는 처리 로그에 `표 N개 중 M개를 LLM 전송에서 제외합니다(사유별 개수)` 가 남고, 호출 횟수는 모든 문서에 남습니다.
+>
+> 어느 표가 빠졌는지 확인하려면 `skip: false` 로 레이아웃 표를 포함한 모든 생략을 끕니다. 공통 설정에 `skip: false` 를 두고 문서유형 YAML 에서 `skip.contained_duplicate: true` 처럼 한 조건만 켜면, 나머지 조건은 꺼진 채로 남습니다. 앞으로 생략 조건이 추가되어도 `skip: false` 는 그 조건까지 함께 끕니다.
+>
+> **검색어**: `rag.search_terms` 로 표마다 만들 검색어 개수를 정합니다. `0` 이면 만들지 않고, `N` 이면 최대 N개를 만들어 청크에 싣습니다. 표준 설정은 `0` 입니다. 이 키를 적지 않으면 검색어를 최대 8개 만들되 청크에는 싣지 않습니다. 옛 키 `rag.search_terms_limit`(생성 개수)와 `rag.include_search_terms`(청크 노출)도 계속 읽으며, 한 블록에 새 키와 함께 적으면 새 키가 우선합니다.
+>
+> **키 점검**: 이 블록과 `rag`·`skip` 하위에 모르는 키(오타 포함)나 잘못된 값이 있으면 기동 로그에 `[table_text_description]` 경고가 남고 그 값은 무시됩니다. 기동은 막지 않습니다. 배포 전에는 `tools/config_precheck/precheck_custom_fields.sh` 로 같은 점검을 실행할 수 있습니다.
 >
 > **이름 변경 안내**: 모델 context 한도 키 `max_context_tokens` 는 `model_context_tokens` 로 이름이 바뀌었습니다. 같은 블록의 `max_context_chars`(표 앞뒤 본문 길이)와 혼동되기 때문입니다. 옛 이름(`max_context_tokens`, `max_context`)도 계속 읽으므로 기존 설정은 그대로 동작하며, 한 블록에 둘 다 적으면 새 이름이 우선합니다. 적용 위치는 `precheck` 계열과 `table_text_description` 입니다.
 
@@ -697,7 +721,7 @@ metadata:
 | 블록 | 대상 | 설명 |
 |------|------|------|
 | `source.pre.json` | `.json` 입력 | 본문 텍스트(markdown/html)가 담긴 원천 key 이름 목록(`body_from`). [기타 포맷](#기타-포맷-doc-ppt-pptx-txt-json-md-jpg-jpeg-png) 참고 |
-| `source.pre.markdown` | `.md` 입력 | front matter 승격·제외, ```text 펜스 복원, 마커 heading 승격. [Markdown](#markdown-md) 참고 |
+| `source.pre.markdown` | `.md` 입력 | front matter 승격·제외, 청크 본문 섹션 선택(`sections`), ```text 펜스 복원, 마커 heading 승격. [Markdown](#markdown-md) 참고 |
 | `source.pre.html` | `.html` 입력 | 마커 heading 승격 |
 | `source.pre.delimited` | 구분자 텍스트 | 원천을 레코드 목록으로 바꾼다(`kind: records` 전용). 입력 확장자와 무관하게(.dtms/.md/.html/.txt 등 텍스트면) 확장자 라우팅보다 먼저 이 경로를 탄다 |
 
@@ -834,7 +858,7 @@ filename: 보고서.pdf
 ---
 ```
 
-> TOC 프롬프트는 docling 레이어에서 처리되어 `{{raw_text}}` 만 지원하며, 위 reserved 카탈로그·`variables`·`template.mode` 는 facade enricher(metadata / custom_fields / image_description / table_description / doc_summary)에 적용됩니다.
+> TOC 프롬프트는 docling 레이어에서 처리되어 `{{raw_text}}` 만 지원하며, 위 reserved 카탈로그·`variables`·`template.mode` 는 처리기 enricher(metadata / custom_fields / image_description / table_description / doc_summary)에 적용됩니다.
 
 ### 파싱용 전처리기 최초 등록시 config 수정가이드
 
@@ -874,7 +898,7 @@ model_presets:
     workflow_id: 4932        # 민감정보 분류 워크플로우 ID
     api_key: "..."           # 워크플로우 호출 Bearer 인증키
 
-# parse_config.yaml
+# 파싱 설정 (activities/parse/config.yaml)
 guardrail:
   model_preset: guardrail
   timeout: 60
@@ -1057,10 +1081,45 @@ markdown:
 - **본문에서 뺀 front matter 도 LLM 프롬프트에는 그대로 실립니다.** `PRODUCT_C` 처럼 근거가 front matter 에만 있는 추출 필드가 있기 때문입니다.
 - **front matter 값이 LLM 추출값보다 우선**합니다(구조화 원천이 추론값보다 신뢰도가 높음). 다만 config 의 `constants` 는 front matter 보다도 우선합니다.
 - `created_at → created_date` 매핑은 청커의 기본 metadata transform(`type: date_int`)을 타고 `20260112` 같은 정수 벡터 필드가 됩니다. **명시 매핑이 없으면 front matter 를 본문에서 뺀 순간 `created_date` 가 0 이 됩니다** — 기존에는 본문 스캔 fallback 이 front matter 의 날짜를 우연히 주워 왔기 때문입니다.
-- `source_pages: 9` 처럼 숫자/불리언/배열인 front matter 값은 **타입 그대로** 청크 property 가 됩니다. 이 타입 보존은 front matter 유래 키에만 적용되며, 다른 `custom_fields` 출력 필드는 종전 직렬화 규칙을 유지합니다(기존 컬렉션의 property 타입 호환).
+- `source_pages: 9` 처럼 숫자/불리언인 front matter 값은 **타입 그대로** 청크 property 가 됩니다. 이 타입 보존은 front matter 유래 키에만 적용되며, 다른 `custom_fields` 출력 필드는 종전 직렬화 규칙을 유지합니다(기존 컬렉션의 property 타입 호환).
+- 스칼라 배열인 front matter 값은 **평문으로 풀어서** 싣습니다. `["LP123456"]` 처럼 원소가 하나면 그 값, 여럿이면 `", "` 로 이은 문자열(`LP123456, LP999`)이 되고, 빈 배열 `[]` 은 값이 없는 것으로 보아 다음 원천키나 `default` 를 씁니다. 객체가 섞인 배열은 그대로 둡니다.
 - front matter 를 제외한 파생 md 는 **임시 파일로만** 존재하며 원본 파일명을 유지합니다(docling `origin.filename` 보존, 이미지 artifacts 경로도 원본 기준).
 
 > 이 처리는 **`/parse` → `/chunk` 워크플로 전용**입니다. `intelligent`(`/run`) · `convert` 는 `formats.md` 설정 자체가 없어 `.md` 를 docling 으로 파싱하지 않습니다(PDF 변환 경로).
+
+#### 청크 본문 섹션 선택 (`custom_fields.markdown.sections`)
+
+변환 과정에서 원문 앞에 붙은 안내 섹션(`## 문서 개요`, `## 핵심 키워드` 등)은 원문에 없는 생성 문장이라 검색 노이즈가 됩니다. `source.pre.markdown.sections` 블록으로 헤딩을 기준으로 청크 본문에 넣을 섹션을 고릅니다. 파싱 전에 지우므로 docling 문서와 표 설명·요약 등 보강 단계의 입력에서도 빠집니다.
+
+```yaml
+# custom_field_product_slf.yaml
+source:
+  pre:
+    markdown:
+      sections:
+        after_heading: '## 원문 전사'
+        exclude: ['## 문서 개요', '## 핵심 키워드', '## 내용 색인', '## 원문*쪽-목차']
+```
+
+| 키 | 설명 |
+|----|------|
+| `after_heading` | 일치하는 **첫** 헤딩 앞의 내용과 그 헤딩 줄을 지웁니다. 그 헤딩보다 상위 레벨의 조상 헤딩 줄(상품명 H1 등)과 문서 맨 앞 front matter 는 남깁니다. 일치하는 헤딩이 없으면 이 단계를 건너뜁니다 |
+| `exclude` | 일치하는 헤딩부터 **다음 헤딩 직전까지**(레벨 무관) 지웁니다. 하위 헤딩은 지우지 않으므로 안내 아래 하위 레벨로 붙은 원문도 보존됩니다. `after_heading` 일치 여부와 상관없이 적용합니다 |
+
+패턴 문법:
+
+- `#` 뒤에 공백을 두면 그 레벨만 일치합니다(`## 문서 개요`). `#` 가 없으면 모든 레벨에 일치합니다. `##문서 개요` 처럼 공백이 없으면 기동 시 오류입니다.
+- 공백을 모두 지우고 대소문자를 무시해 비교합니다(`목차` 는 `목 차` 와도 일치). 헤딩 쪽은 제목 전체를 감싼 강조(`**`, `__`, 백틱)도 벗깁니다. 패턴은 평문으로 적습니다.
+- glob(`*`, `?`, `[...]`)을 씁니다. 와일드카드가 없으면 제목 전체가 같아야 합니다. `원문*쪽-목차` 는 `원문 1쪽 - 목 차` 와 일치하지만 `원문 3쪽 - 보장내용 목차` 와는 일치하지 않습니다. `*목차` 처럼 넓은 패턴은 원문 제목까지 지울 수 있습니다. 제목 글자 `[`·`?`·`*`·`#` 는 `[[]`·`[?]`·`[*]`·`[#]` 로 적습니다.
+
+동작 규칙:
+
+- `#` 로 시작하는 ATX 헤딩만 대상입니다. 밑줄형(Setext) 헤딩과 HTML `<h2>` 는 대상이 아닙니다.
+- 코드 펜스(```` ``` ````, `~~~`), 여러 줄 HTML 주석, `<pre>`·`<script>`·`<style>`·`<textarea>` 블록, front matter 안의 `#` 줄은 헤딩으로 보지 않습니다.
+- front matter 처리 다음, ```text 펜스 복원 전에 적용합니다. 마커 heading 승격으로 나중에 만들어지는 헤딩은 대상이 아닙니다.
+- 지운 결과에 헤딩·주석 말고 남은 본문이 없으면 **파싱 오류**로 중단합니다(원문으로 되돌리지 않습니다).
+- 설정 값 형식 오류(알 수 없는 키, 빈 패턴, 와일드카드만 있는 패턴, 목록이 아닌 `exclude`)는 기동 실패입니다.
+- 설정을 바꾸면 이미 적재한 문서는 다시 적재해야 반영됩니다.
 
 ---
 
@@ -1099,7 +1158,7 @@ markdown:
 | `use_hwp_sdk` | `bool` | `true` | `true`: GenosHwpDocumentBackend 사용. `false`: 내장 백엔드(HwpDocumentBackend/HwpxDocumentBackend) 강제 사용 |
 | `dump_sdk_output` | `bool` | `false` | HWP SDK 내부 출력 덤프 여부 (`use_hwp_sdk=true`일 때만 유효) |
 
-> 이미지 설명 문맥 추출(`enrichment.image_description.*`)은 현재 `parse_config.yaml` 설정값으로 제어합니다.
+> 이미지 설명 문맥 추출(`enrichment.image_description.*`)은 현재 파싱 설정(`activities/parse/config.yaml`) 값으로 제어합니다.
 
 > LLM 호출 파일 캐시·실패 정책(`error_policy`)·요청 deadline(`request_deadline`)은 모든 형식 공통으로
 > `params` 로 opt-in 할 수 있습니다 — [9. LLM 호출 파일 캐시 / 실패 정책 / 요청 deadline (#329)](#9-llm-호출-파일-캐시--실패-정책--요청-deadline-329) 절 참고.
@@ -1177,7 +1236,7 @@ markdown:
 
 ### `output.format: html` 또는 `markdown`
 
-Docling 경로(PDF, HTML, HWP, HWPX, DOCX)에서 `parse_config.yaml`의 `output.format`을 `html` 또는 `markdown`으로 설정하면, 전체 문서를 하나의 문자열로 직렬화하여 `content`에 담고 `elements`는 `[]`로 반환됩니다.
+Docling 경로(PDF, HTML, HWP, HWPX, DOCX)에서 파싱 설정(`activities/parse/config.yaml`)의 `output.format`을 `html` 또는 `markdown`으로 설정하면, 전체 문서를 하나의 문자열로 직렬화하여 `content`에 담고 `elements`는 `[]`로 반환됩니다.
 
 ```json
 {
@@ -1364,7 +1423,7 @@ fields:
 > `source.pre.json.body_from` 으로 그 값을 지목하면 됩니다. 선택자는 **파싱 전 원문**에
 > 걸리므로, docling 이 지워 버리는 class·속성·`alt` 를 모두 쓸 수 있습니다.
 
-> 등록 블록(`parse_config.yaml`)의 `extractor` 는 **적지 않아도 됩니다.**
+> 등록 블록(`activities/parse/config.yaml`)의 `extractor` 는 **적지 않아도 됩니다.**
 > 생략하면 설정 파일의 `source.kind` 에서 정해집니다(문서형은 `python:` 블록이 있으면
 > `python`, 없으면 `llm`. `kind: html` 이면 `html_select`). 같은 정보를 두 파일에 적으면 어긋날 수 있고, 어긋나면 "이
 > extractor 가 읽지 않는 키" 라는 메시지로 기동이 실패합니다 — 설정에 그 키를 적은
@@ -1475,6 +1534,7 @@ fields:
 | 모든 청크에 반복 접두 | `body.repeat` (`chunk_prefix_fields`) | ✔ split 시만 | ✔ split 시만 | ✗ 주의³ | ✔ |
 | 첫 청크에만 1회 | `body.once` (`first_chunk_fields`) | ✗ | ✗ | ✔ | ✔ |
 | 본문을 메타 필드에 복사 | `body.mirror_to` (`body_fields`) | ✗ | ✗ | ✗ | ✔ |
+| 짧은 청크를 다음 청크에 병합 | `body.merge_short` (`short_chunk_size`) | ✗ | ✗ | ✗ | ✔ |
 
 ¹ sections 의 `body.fields` 는 본문 구성이 아니라 **공통 필드를 청크 접두에 실을지 정하는 스위치**입니다.
 본문은 트리 순회가 만듭니다.
@@ -1494,6 +1554,7 @@ rows·records 의 `body.fields`·`body.repeat` 값이 JSON·HTML 이면 본문�
 | 레코드 배열 위치 | `source.records_at` (`records`) | ✗ | ✔ | ✗ | ✗ |
 | 못 찾을 때 정책 | `source.on_missing` (`missing_policy`) | ✗ | ✔ | ✔ | ✗ |
 | 여러 행 접기 | `source.merge_rows` (`row_merge`) | ✔ | ✔ | ✗ | ✗ |
+| 처리 대상 시트⁶ | `source.sheets` | ✔ | ✗ | ✗ | ✗ |
 | 섹션 표시 이름 | `source.sections` | ✗ | ✗ | ✔ | ✗ |
 | 서브트리 제외 | `source.ignore_keys` | ✗ | ✗ | ✔ | ✗ |
 | 포맷 전처리 | `source.pre.markdown` / `.html` | ⚠ **무시** | ⚠ **무시** | ⚠ **무시** | ✔ |
@@ -1508,8 +1569,12 @@ rows·records 의 `body.fields`·`body.repeat` 값이 JSON·HTML 이면 본문�
 ⁵ `llm_fields` 로 묶이는 것은 rows·records·sections 뿐입니다. document 는 항목이 **최상위 키로
 펼쳐져** `output_fields`·`system_prompt`·`user_prompt` 같은 이름으로 오류 메시지에 나옵니다.
 
+⁶ `source.sheets: [시트이름, …]` 를 적으면 그 시트만 처리하고 나머지 시트는 건너뜁니다. 적은 시트가
+워크북에 없으면 `PARSE_D013` 으로 실패합니다. 생략하면 모든 시트를 처리합니다(종전 동작). CSV 는
+시트 이름이 `table_1` 하나뿐이라 이 키를 쓰지 않습니다.
+
 > **청크 텍스트 정제(`chunking.text_cleanup`)는 doc_type 별 설정이 아니라 프로세서 config** 입니다.
-> `parse_config.yaml` 에는 없습니다 — 파서와 청커를 나눠 배포했다면 **청커 쪽 yaml** 에 적습니다.
+> 파싱 설정(`activities/parse/config.yaml`)에는 없습니다 — 파서와 청커를 나눠 배포했다면 **청커 쪽 yaml** 에 적습니다.
 
 ### `transform` 9종 — 체이닝됩니다
 
@@ -1672,7 +1737,7 @@ fields:
 ### 코드가 필요할 때 — 고칠 자리 3개
 
 `activities/parse/processor.py` 파일 머리 주석에 같은 목록이 있습니다. **그 밖으로 나가야 한다면
-설정이나 facade 로 풀 수 있는 일을 놓친 것입니다.**
+설정이나 처리기로 풀 수 있는 일을 놓친 것입니다.**
 
 | # | 자리 | 언제 |
 |---|---|---|
@@ -1885,10 +1950,10 @@ if result["code"] == 0:
         print(f"[Page {element['page']}][{element['category']}] {str(element['content'])[:80]}")
 ```
 
-### HTML 포맷으로 출력 (`parse_config.yaml: output.format: html`)
+### HTML 포맷으로 출력 (`parse_config_simple.yaml: output.format: html`)
 
 ```python
-# parse_config.yaml에 output.format: html 설정 후
+# 기본 전처리기 서비스의 resource/parse_config_simple.yaml 에 output.format: html 설정 후
 response = requests.post(
     f"{BASE_URL}/preprocessor/{PREPROCESSOR_ID}/run",
     headers={"Authorization": f"Bearer {AUTH_KEY}"},

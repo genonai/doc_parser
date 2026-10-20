@@ -159,7 +159,7 @@ class DocumentProcessor(ParserCore):
 
     # --- 3. doc_type 별 설정 ---
     #
-    # 설정 파일(parse_config.yaml)은 모든 문서에 공통이다. doc_type 마다 다르게
+    # 설정 파일(activities/parse/config.yaml)은 모든 문서에 공통이다. doc_type 마다 다르게
     # 하려면 아래 표에 적는다. 키는 설정 파일 경로(점 표기)나 같은 뜻의 요청 파라미터
     # 이름(괄호)을 쓴다 — 둘 다 같게 동작한다. 켜기는 1(또는 True), 끄기는 0 이다.
     #   enrichment.table_description.enable  표 설명       (= table_desc)

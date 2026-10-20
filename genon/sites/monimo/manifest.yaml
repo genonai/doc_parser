@@ -1,8 +1,11 @@
 # 모니모 사이트 완성본 관리 정보. build-script/sync-sites.sh 가 읽는다.
 #
-# 완성본은 두 자리다 — 둘 다 그대로 실행·배포하는 폴더다.
-#   resource/              설정 폴더(모델 접속 정보 등). 배포본 genon/preprocessor/resource/ 를 덮어쓴다
-#   activities/<slug>/     액티비티 설정(config.yaml·custom_field·프롬프트). 그 slug 의 설정 폴더가 된다(#497).
+# 완성본은 두 자리다.
+#   resource/              설정 폴더(모델 접속 정보 등). 기본 전처리기 서비스(MinIO 리소스)·핫픽스 번들(--site)·
+#                          로컬 사이트 실행(GENOS_RESOURCE_DIR)이 쓴다. 코드서빙 배포처 빌드는 이 폴더를 넣지 않는다
+#                          (서빙본 resource/ 는 표준 그대로, 모델 접속 실값은 리비전 env GENOS_MODEL_PRESETS_FILE)
+#   activities/<slug>/     액티비티 설정(config.yaml·custom_field·프롬프트). 배포처 빌드(SITE=monimo
+#                          sync-serving-repo.sh)가 서빙본 genon/preprocessor/activities/<slug>/ 에 덮는다(#497·#561).
 #                          코드(processor.py)는 저장소 것이다 — 여기 두지 않는다
 # 아래 owned 에 적은 파일(사이트 루트 기준 경로)만 모니모가 소유하고, 나머지는 표준(genon/preprocessor/)의
 # 사본이다. 사본은 직접 고치지 않는다 — 표준을 고친 뒤 sync-sites.sh 로 맞춘다. 사본이 표준과 다르면

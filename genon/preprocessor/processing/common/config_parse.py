@@ -134,7 +134,7 @@ def warn_unresolved_placeholders(cfg: dict, config_path: str) -> None:
         )
 
 
-# 메인 yaml 이 쓸 프리셋 파일을 지정하는 키와, 로컬 실행에서 모델만 바꿔 끼우는 환경변수.
+# 메인 yaml 이 쓸 프리셋 파일을 지정하는 키와, 모델 접속 정보만 바꿔 끼우는 환경변수(로컬 실행·코드서빙 리비전).
 MODEL_PRESETS_FILE_KEY = "model_presets_file"
 MODEL_PRESETS_ENV = "GENOS_MODEL_PRESETS_FILE"
 
@@ -148,8 +148,8 @@ def collect_model_presets(cfg: dict, config_path: str, *, strict: bool = True) -
          resource/)의 model_presets.yaml — 접속 정보를 폴더에 복사하지 않고 이름으로 참조한다(#495).
          그 밖의 설정(HTTP facade·임시 yaml)은 적지 않으면 그대로 없다
       2. 메인 yaml 의 `model_presets`
-      3. 환경변수 GENOS_MODEL_PRESETS_FILE 이 가리키는 파일. 로컬 실행에서 모델 접속 정보만
-         바꿔 끼울 때 쓰며, 운영에서는 설정하지 않는다.
+      3. 환경변수 GENOS_MODEL_PRESETS_FILE 이 가리키는 파일. 모델 접속 정보만 바꿔 끼울 때 쓴다 —
+         로컬 실행(개발 접속값)과 코드서빙 리비전(배포 실값을 채운 model_presets.yaml) 모두.
     같은 이름의 프리셋끼리는 키 단위로 합친다 — 덮어쓰는 층에는 url·api_key 만 적어도 된다.
     """
     from genon.preprocessor.processing.enrichment.prompt_files import resolve_prompt_path
@@ -450,6 +450,7 @@ CONFIG_PATH_ALIASES = {
     "ocr.ocr_mode": "ocr_mode",
     "chunking.chunk_size": "chunk_size",
     "chunking.chunk_mode": "chunk_mode",
+    "chunking.short_chunk_size": "short_chunk_size",
     "chunking.recursive.chunk_overlap": "chunk_overlap",
     "pdf_output.keep": "keep_pdf",
     "pdf_output.dir": "pdf_dir",
@@ -536,6 +537,47 @@ def resolve_body_fields(kwargs: dict, metadata: Any = None) -> list[str]:
 
 CHUNK_PREFIX_FIELDS_KEY = "chunk_prefix_fields"
 FIRST_CHUNK_FIELDS_KEY = "first_chunk_fields"
+
+# ── 짧은 청크 병합 기준(short_chunk_size) ─────────────────────────────────────
+# 문서유형 yaml 의 body.merge_short. 위 두 키처럼 값이 아니라 규칙이라 문서 metadata 로
+# 청커까지 넘기고, 청커는 청크 메타에서 뺀다. 청커 설정 chunking.short_chunk_size 가 공통값이다.
+SHORT_CHUNK_SIZE_KEY = "short_chunk_size"
+
+
+def parse_short_chunk_size(value: Any, key: str = SHORT_CHUNK_SIZE_KEY) -> Optional[int]:
+    """0 이상의 정수(또는 정수 문자열)만 받는다. 없으면 None, 그 밖의 값은 ValueError.
+
+    bool·실수를 int() 로 바꾸면 true 가 1 이 되어 병합이 켜진다(1.9 는 1). custom_fields 의
+    body.merge_short 가 거절하는 값을 다른 경로에서 받아들이지 않도록 같은 기준을 쓴다.
+    """
+    if value is None or value == "":
+        return None
+    if isinstance(value, (bool, float)):
+        raise ValueError(f"{key}: 0 이상의 정수여야 합니다(지금: {value!r}).")
+    try:
+        number = int(str(value).strip())
+    except ValueError:
+        raise ValueError(f"{key}: 0 이상의 정수여야 합니다(지금: {value!r}).") from None
+    if number < 0:
+        raise ValueError(f"{key}: 0 이상의 정수여야 합니다(지금: {value!r}).")
+    return number
+
+
+def resolve_short_chunk_size(kwargs: dict, metadata: dict, yaml_default: int = 0) -> int:
+    """짧은 청크 병합 기준. 우선순위: 요청 kwargs > 문서 metadata(custom_fields) > 청커 yaml > 0.
+
+    요청·metadata 의 잘못된 값은 경고를 남기고 다음 순위로 넘어간다(요청 하나로 기동 설정을
+    깨지 않는다). 청커 yaml 값은 기동 시 parse_short_chunk_size 로 이미 검사했다.
+    """
+    for source in (kwargs, metadata):
+        try:
+            value = parse_short_chunk_size((source or {}).get(SHORT_CHUNK_SIZE_KEY))
+        except ValueError as exc:
+            _log.warning(f"[DocumentProcessor] {exc} 다음 순위 값을 씁니다.")
+            continue
+        if value is not None:
+            return value
+    return yaml_default or 0
 
 # ── 청크 본문에 실을 때 붙일 사람이 읽는 항목명(field_labels) ────────────────
 # 목표필드명(BIZ_ID, DETAIL_TEXT)은 적재 DB 컬럼명이고 원천 key(depth4, htmlText)는 시스템

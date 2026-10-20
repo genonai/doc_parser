@@ -7,8 +7,8 @@
 # tests/unit/test_facade_isolation_unit.py 가 CI 에서 맡는다.
 #
 # 검사:
-#   1. 파싱·청킹 파사드(activities/<slug>/processor.py)에 HEAD 에 없던 메소드가
-#      생기면, 처리 로직은 processing/ 에 두고 파사드에는 호출부만 두라고 알린다.
+#   1. 액티비티 처리기(activities/<slug>/processor.py)에 HEAD 에 없던 메소드가
+#      생기면, 처리 로직은 processing/ 에 두고 처리기에는 호출부만 두라고 알린다.
 #   2. 활성 경로 .py 의 주석·docstring 에 이모지가 있으면 알린다. 문자열 값은 대상이 아니다.
 #
 # 입력 파싱이나 검사 중 오류가 나면 조용히 통과한다(경고 훅이 편집을 방해하지 않게).
@@ -22,7 +22,7 @@ import sys
 import tokenize
 from pathlib import Path
 
-CUSTOMER_DIR = "genon/preprocessor/activities/"   # 파싱·청킹 파사드(<slug>/processor.py — parse·chunk·parse_*·chunk_*)
+CUSTOMER_DIR = "genon/preprocessor/activities/"   # 액티비티 처리기(<slug>/processor.py — parse·chunk·parse_*·chunk_*)
 ACTIVE_PREFIXES = (
     "main.py",
     "genon/preprocessor/processing/",
@@ -94,7 +94,7 @@ def main() -> None:
         added = _new_facade_methods(root, rel, source)
         if added:
             warnings.append(
-                f"{rel} 에 새 메소드 {', '.join(added)} 가 생겼다. 이 파일은 고객이 여는 파사드이고 "
+                f"{rel} 에 새 메소드 {', '.join(added)} 가 생겼다. 이 파일은 고객이 여는 액티비티 처리기이고 "
                 "릴리스가 통째로 덮어쓴다. 처리 로직이면 processing/ 공용 모듈에 구현하고 여기에는 "
                 "호출부만 둔다. 새 훅이면 manual/facade_hooks.md 와 "
                 "tests/unit/test_facade_hooks_unit.py 도 함께 고친다."

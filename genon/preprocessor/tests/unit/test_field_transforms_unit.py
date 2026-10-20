@@ -284,3 +284,38 @@ def test_extract_then_apply_pipeline():
     # created_date 는 consumed 라 passthrough 제외, authors 는 passthrough 로 직렬화되어 유지
     passthrough = {k: serialize_metadata_value_for_output(v) for k, v in merged.items() if k not in consumed}
     assert passthrough == {"authors": '[{"name": "홍길동"}]'}
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("facade", ["intelligent", "convert"])
+def test_short_chunk_size_control_key_is_not_a_chunk_field(facade):
+    """custom_fields 의 body.merge_short 는 공용 enricher 가 문서 metadata 에 싣는 청커 제어키다.
+    청커가 아닌 facade 도 같은 enricher 산출을 받으므로 청크 필드로 나가면 안 된다(청커는 core 가 뺀다).
+
+    모델 기동을 피하려고 __init__ 을 우회하고 compose_vectors 가 읽는 속성만 채운다.
+    """
+    import asyncio
+    import collections
+    import importlib
+
+    from docling_core.transforms.chunker import DocChunk, DocMeta
+    from docling_core.types import DoclingDocument
+    from docling_core.types.doc.labels import DocItemLabel
+
+    from genon.preprocessor.processing.core.chunker import DEFAULT_METADATA_FIELD_TRANSFORMS
+    from genon.preprocessor.processing.enrichment.field_transforms import store_metadata_in_document
+
+    doc = DoclingDocument(name="sample")
+    item = doc.add_text(label=DocItemLabel.TEXT, text="정상 본문을 포함한 청크입니다.")
+    store_metadata_in_document(doc, {"short_chunk_size": 200})
+    module = importlib.import_module(f"genon.preprocessor.facade.{facade}_processor")
+    proc = object.__new__(module.DocumentProcessor)
+    proc._include_chunk_header = True
+    proc._metadata_field_transforms = DEFAULT_METADATA_FIELD_TRANSFORMS
+    proc.table_image_enabled = False
+    proc.page_chunk_counts = collections.defaultdict(int, {0: 1})
+
+    rows = asyncio.run(proc.compose_vectors(
+        doc, [DocChunk(text=item.text, meta=DocMeta(doc_items=[item], headings=["검증"]))],
+        "sample.md", None))
+    assert all("short_chunk_size" not in row.model_dump() for row in rows)

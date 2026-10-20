@@ -25,6 +25,8 @@ conversion_note 7줄을 갖는데, 그대로 두면 그 7줄만으로 이루어�
 `markdown:` 블록의 해석(`resolve_markdown_cfg`)과 하위 블록 빌더를 이 모듈이 소유한다 —
 `front_matter` 외에 `text_fence`(펜스 본문을 단락으로 복원, 변환 로직은
 `processing.converters.md_text_fence`)도 같은 자리에서 컴파일한다.
+`sections`(청크 본문에 넣을 섹션 선택, 변환 로직은 `processing.converters.md_sections`)도
+같다.
 """
 from __future__ import annotations
 
@@ -36,7 +38,9 @@ from typing import Any
 
 import yaml
 
+from genon.preprocessor.processing.converters.md_sections import MarkdownSectionsSpec
 from genon.preprocessor.processing.converters.md_text_fence import MarkdownTextFenceSpec
+from genon.preprocessor.processing.common.reason_codes import CodedValueError, reason_of
 
 from .custom_fields_enricher import (
     DOCUMENT_CUSTOM_FIELD_EXTRACTORS,
@@ -83,7 +87,7 @@ class _UniqueKeySafeLoader(yaml.SafeLoader):
         for key_node, value_node in node.value:
             key = self.construct_object(key_node, deep=deep)
             if key in mapping:
-                raise ValueError(f"Markdown front matter 중복 키: {key}")
+                raise CodedValueError(f"Markdown front matter 중복 키: {key}", "PARSE_D005")
             mapping[key] = self.construct_object(value_node, deep=deep)
         return mapping
 
@@ -101,7 +105,7 @@ def _normalize_value(
     date_int transform 도 `2026-01-12` 표기를 그대로 받는다.
     """
     if _depth > 32:
-        raise ValueError("Markdown front matter 중첩 깊이가 32를 초과했습니다.")
+        raise CodedValueError("Markdown front matter 중첩 깊이가 32를 초과했습니다.", "PARSE_D007")
     if isinstance(value, (date, datetime)):
         return value.isoformat()
     if value is None or isinstance(value, (str, int, float, bool)):
@@ -111,7 +115,7 @@ def _normalize_value(
         memo = _memo if _memo is not None else {}
         value_id = id(value)
         if value_id in active:
-            raise ValueError("Markdown front matter에 순환 YAML alias가 있습니다.")
+            raise CodedValueError("Markdown front matter에 순환 YAML alias가 있습니다.", "PARSE_D006")
         if value_id in memo:
             return memo[value_id]
         active.add(value_id)
@@ -135,6 +139,25 @@ def _normalize_value(
         memo[value_id] = normalized
         return normalized
     return str(value)
+
+
+def _flatten_scalar_list(value: Any) -> Any:
+    """목표 필드에 실을 front matter 값에서 스칼라 배열을 푼다.
+
+    `product_codes: ["LP123456"]` 처럼 값 하나를 배열로 적는 표기가 흔하다. 배열을 그대로
+    두면 출력에서 `'["LP123456"]'` JSON 문자열이 되어 정확 일치 필터에 걸리지 않는다.
+    빈 값을 뺀 원소가 하나면 그 원소를, 여럿이면 `", "` 로 이은 문자열을, 없으면 None 을
+    돌려준다(호출부는 이 경우를 원천키 누락으로 본다). 원소에 dict/list 가 섞인 구조
+    데이터와 스칼라는 그대로 둔다.
+    """
+    if not isinstance(value, list) or any(isinstance(item, (dict, list)) for item in value):
+        return value
+    items = [item for item in value if item not in (None, "")]
+    if not items:
+        return None
+    if len(items) == 1:
+        return items[0]
+    return ", ".join(str(item) for item in items)
 
 
 def _policy(value: Any, name: str, default: str) -> str:
@@ -313,9 +336,11 @@ class MarkdownFrontMatterSpec:
 
     def _handle(self, policy: str, message: str, exc: Exception | None = None) -> MarkdownFrontMatterResult:
         if policy == "error":
+            # 원인 예외의 사유 코드(중복 키·순환·중첩)를 잇고, 없으면 형식 오류로 본다(#528).
+            error = CodedValueError(message, reason_of(exc, "PARSE_D005"))
             if exc is not None:
-                raise ValueError(message) from exc
-            raise ValueError(message)
+                raise error from exc
+            raise error
         if policy == "warn":
             _log.warning(message)
         return MarkdownFrontMatterResult(False, {}, "", None)
@@ -324,7 +349,15 @@ class MarkdownFrontMatterSpec:
         path = Path(file_path)
         try:
             text = path.read_text(encoding="utf-8-sig")
-        except (OSError, UnicodeError) as exc:
+        except OSError as exc:
+            if self.on_invalid == "error":
+                raise   # 파일 오류는 호출부가 성격(permanent/transient)을 나눈다(#528)
+            return self._handle(
+                self.on_invalid,
+                f"Markdown front matter 입력을 읽을 수 없습니다: {path.name} ({exc})",
+                exc,
+            )
+        except UnicodeError as exc:
             return self._handle(
                 self.on_invalid,
                 f"Markdown front matter 입력을 읽을 수 없습니다: {path.name} ({exc})",
@@ -378,14 +411,20 @@ class MarkdownFrontMatterSpec:
                 exc,
             )
         # 목표마다 **먼저 찾은** 원천키를 쓴다(다른 kind 의 alias 와 같은 규칙).
+        # 빈 배열은 값이 없는 것으로 보고 다음 원천키를 찾는다.
         selected: dict[str, Any] = {}
         missing_selected = []
         for target, sources in self.field_aliases.items():
-            found = next((s for s in sources if s in fields), None)
+            found = next(
+                (s for s in sources
+                 if s in fields and not (isinstance(fields[s], list)
+                                         and _flatten_scalar_list(fields[s]) is None)),
+                None,
+            )
             if found is None:
                 missing_selected.append(target)
                 continue
-            selected[target] = fields[found]
+            selected[target] = _flatten_scalar_list(fields[found])
         if missing_selected:
             _log.warning(
                 "Markdown front matter 별칭 원천키 누락(%s): %s",
@@ -568,6 +607,27 @@ def build_markdown_text_fence_specs(configs: list[dict]) -> list[MarkdownTextFen
         specs.append(
             MarkdownTextFenceSpec.from_config(
                 fence_cfg, normalize_doc_types(config.get("doc_type"))
+            )
+        )
+    return specs
+
+
+def build_markdown_sections_specs(configs: list[dict]) -> list[MarkdownSectionsSpec]:
+    """문서 단위 custom_fields 설정들을 sections spec 으로 컴파일한다(기동 시 1회).
+
+    ``sections: false`` 또는 생략은 비활성화다. 값 형식 오류는 기동 실패로 드러낸다.
+    """
+    specs = []
+    for config in configs or []:
+        markdown_cfg = resolve_markdown_cfg(config)
+        if markdown_cfg is None:
+            continue
+        sections_cfg = markdown_cfg.get("sections")
+        if sections_cfg is None or sections_cfg is False:
+            continue
+        specs.append(
+            MarkdownSectionsSpec.from_config(
+                sections_cfg, normalize_doc_types(config.get("doc_type"))
             )
         )
     return specs

@@ -198,7 +198,12 @@ class VectorMetaBuilderBase:
         chunk_bboxes = []
         for item in doc_items:
             for prov in item.prov:
-                size = document.pages.get(prov.page_no).size
+                # pages 가 비어 있는 문서(HTML 등)에 청커의 최소 text item 폴백이 page_no=1 prov 를
+                # 달 수 있다. 페이지 크기를 알 수 없는 prov 는 bbox 를 정규화할 수 없으므로 건너뛴다.
+                page = document.pages.get(prov.page_no)
+                if page is None or page.size is None:
+                    continue
+                size = page.size
                 bbox = prov.bbox
                 bbox_data = {'l': bbox.l / size.width,
                              't': bbox.t / size.height,

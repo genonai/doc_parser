@@ -22,7 +22,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
 from logger import Logger
-from utils import make_success_response
+from utils import make_success_response, reason_code_of, reason_fields
 from config import cors_config
 from common.exception import GenosServiceException
 from common.settings import settings
@@ -57,7 +57,12 @@ def _classify_error(exc: Exception) -> str:
     return ERROR_CODE_INTERNAL
 
 
-def _error_response(tag: str, file_path: str, exc: Exception, error_code=None, stage=None) -> JSONResponse:
+# #528: 사유 코드가 없는 예외의 미분류 코드 접두. 그 밖의 엔드포인트는 COMMON 이다.
+_REASON_PREFIX_BY_TAG = {'parser': 'PARSE', 'parser_upload': 'PARSE', 'chunker': 'CHUNK'}
+
+
+def _error_response(tag: str, file_path: str, exc: Exception, error_code=None, stage=None,
+                    reason_code=None) -> JSONResponse:
     """모든 에러 경로의 응답 형태를 통일한다.
 
     code 는 항상 1(실패 플래그), 기존 키(errMsg/error_code/error_msg/data)는 유지하고
@@ -97,6 +102,8 @@ def _error_response(tag: str, file_path: str, exc: Exception, error_code=None, s
         fac_kind = 'timeout'   # facade 값이 없는 요청-레벨/일반 timeout 도 성격을 명시
     if fac_kind is not None:
         body['error_kind'] = fac_kind
+    body.update(reason_fields(
+        reason_code or reason_code_of(exc, _REASON_PREFIX_BY_TAG.get(tag, 'COMMON'))))
     return JSONResponse(body, status_code=200)
 
 
@@ -109,7 +116,7 @@ async def mlops_exception_handler(request, exc: GenosServiceException):
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request, exc: RequestValidationError):
     logger.error(f'[RequestValidationError]: {exc.errors()}')
-    return _error_response('app', '', exc, error_code=ERROR_CODE_INPUT)
+    return _error_response('app', '', exc, error_code=ERROR_CODE_INPUT, reason_code='COMMON_P002')
 
 
 @app.exception_handler(Exception)
@@ -161,7 +168,7 @@ def _cfg(stem: str) -> str:
 # 프로세서는 모듈 로딩 시 1회만 생성해 재사용한다(요청마다 재생성하면 config/토크나이저/
 # 파이프라인 초기화 비용이 반복됨). 각 프로세서는 resource/<모듈 이름>_config.yaml 을 로드한다
 # (facade/attachment_processor.py → attachment_processor_config.yaml). 파싱·청킹은 액티비티 폴더의 config.yaml
-# (activities/parse/·chunk/, 사이트 완성본이 그 slug 폴더를 갖고 있으면 그쪽 — activities/_folders.py).
+# (activities/parse/·chunk/, 사이트 배포면 사이트 완성본의 그 slug 폴더만 — 없으면 오류, activities/_folders.py).
 attachment_processor = AttachmentDocumentProcessor(config_path=_cfg("attachment_processor"))    # 첨부용
 intelligent_processor = IntelligentDocumentProcessor(config_path=_cfg("intelligent_processor"))  # 적재용(지능형)
 convert_processor = ConvertDocumentProcessor(config_path=_cfg("convert_processor"))             # 변환용
@@ -187,7 +194,8 @@ async def _run(tag, processor, request, file_path, params, marker=None):
     if marker and not getattr(processor, marker, False):
         msg = f'현재 설치된 전처리기는 /{tag} API를 지원하지 않습니다.'
         return JSONResponse(
-            {'code': 1, 'errMsg': msg, 'data': None, 'error_code': 1, 'error_msg': msg},
+            {'code': 1, 'errMsg': msg, 'data': None, 'error_code': 1, 'error_msg': msg,
+             **reason_fields('COMMON_P001')},
             status_code=200)
     pt = time.time()
     try:
@@ -204,8 +212,14 @@ async def _run(tag, processor, request, file_path, params, marker=None):
         return make_success_response(
             data=data, chunk_validation=getattr(request.state, 'chunk_validation', None))
     except asyncio.TimeoutError as e:
+        rd = _request_deadline_seconds(params)
+        if rd is None or time.time() - pt < rd:
+            # 처리기 안에서 난 시간 초과다. 요청 deadline 초과로 표시하지 않는다(#528).
+            logger.error(f'[{tag}] Error: "{file_path}"\n{traceback.format_exc()}\n')
+            return _error_response(tag, file_path, e)
         logger.error(f'[{tag}] Error(timeout): "{file_path}" (request_deadline exceeded)')
-        return _error_response(tag, file_path, e, error_code=ERROR_CODE_TIMEOUT, stage='request')
+        return _error_response(tag, file_path, e, error_code=ERROR_CODE_TIMEOUT, stage='request',
+                               reason_code='COMMON_S102')
     except GenosServiceException as e:
         logger.error(f'[{tag}] Error: "{file_path}"\n{traceback.format_exc()}\n')
         return _error_response(tag, file_path, e, error_code=e.error_code)  # facade 코드 보존
@@ -284,7 +298,8 @@ async def parse_upload(
         if not isinstance(params_dict, dict):
             raise ValueError('params 는 JSON 객체여야 합니다.')
     except (ValueError, TypeError) as e:
-        return _error_response('parser_upload', file.filename or '', e, error_code=ERROR_CODE_INPUT)
+        return _error_response('parser_upload', file.filename or '', e, error_code=ERROR_CODE_INPUT,
+                               reason_code='COMMON_P002')
 
     # 원본 파일명/확장자 보존 — 확장자가 파서의 형식 라우팅 기준이다.
     safe_name = os.path.basename(file.filename or 'upload')

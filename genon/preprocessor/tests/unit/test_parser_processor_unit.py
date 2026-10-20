@@ -446,6 +446,23 @@ def test_enrichment_provider_error_is_rethrown_as_genos_exception(intel):
             intel.enrichment(dummy_doc)
 
     assert exc_info.value.error_msg == raw_error
+    # 원인 예외 없이 상태 400 이면 docling 의 길이 사전 검사다(#528).
+    assert (exc_info.value.stage, exc_info.value.error_type, exc_info.value.reason_code) == (
+        "enrichment", "permanent", "PARSE_P001")
+
+
+@pytest.mark.unit
+def test_llm_reason_reads_http_response_status():
+    """httpx 응답의 4xx 도 S001 로 매긴다. classify_error 와 같은 구조를 읽어야 한다(#528).
+
+    사설 함수를 직접 부른다. strict 단계 핸들러로 가려면 요청 컨텍스트를 세워야 해서다.
+    """
+    import httpx
+    from processing.core import parser as pp
+
+    request = httpx.Request("POST", "http://llm/v1/chat/completions")
+    exc = httpx.HTTPStatusError("x", request=request, response=httpx.Response(401, request=request))
+    assert pp._llm_reason(exc, pp._classify_error(exc)) == "PARSE_S001"
 
 
 # ─── _normalize_output_format / _normalize_table_format ─────────────────────

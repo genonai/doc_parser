@@ -39,6 +39,7 @@ from genon.preprocessor.processing.chunking.table_html import (
     drop_blank_markdown_rows, render_degenerate, render_table,
 )
 from genon.preprocessor.processing.common import config_parse as cp
+from genon.preprocessor.processing.common.reason_codes import CodedValueError
 from genon.preprocessor.processing.common.markdown_export import (
     MD_PLAIN_TEXT_OPTS as _MD_EXPORT_OPTS,
     export_markdown,
@@ -683,7 +684,7 @@ class JsonRecordsMapper(CustomFieldsMapperBase):
         if records is None:
             msg = f"records 키 '{self.records_key}' 를 JSON 에서 찾지 못했습니다."
             if self.missing_policy == "error":
-                raise ValueError(msg)
+                raise CodedValueError(msg, "PARSE_D002")
             _log.warning(f"[json_records] {msg} — 레코드 0건으로 진행합니다.")
             return []
         return records
@@ -723,9 +724,10 @@ class JsonRecordsMapper(CustomFieldsMapperBase):
         best = ranked[0]
         if best[0] == 0 or ranked[1][:2] == best[:2]:
             keys = [key for _, key, _ in candidates]
-            raise ValueError(
+            raise CodedValueError(
                 f"레코드 배열 후보 {keys} 를 fields 의 alias 로 구별할 수 없습니다. "
-                f"source.records_at 에 배열 키를 지정하세요."
+                f"source.records_at 에 배열 키를 지정하세요.",
+                "PARSE_P005",
             )
         _log.info(
             f"[json_records] records_at 생략 — 후보 {[k for _, k, _ in candidates]} 중 "

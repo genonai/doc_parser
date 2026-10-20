@@ -256,7 +256,7 @@ body:
 # ── [선택] 표 설명(table_text_description)을 이 문서유형에서만 바꾼다 ────────
 # **최상위 키**다. 프로세서 설정의 공통 `table_text_description` 이 기본이고, 여기 적은 키만
 # 덮어쓴다(rag 하위도 키 단위 병합). 행 본문 안의 <table> 에도 표 설명이 붙는다.
-# enable·입력 예산·overflow_policy 예시는 custom_field_TEMPLATE_document.yaml 의 같은 블록에 있다.
+# enable·입력 예산 예시는 custom_field_TEMPLATE_document.yaml 의 같은 블록에 있다.
 # table_text_description:
 #   rag:
 #     key_fact_limit: 5
