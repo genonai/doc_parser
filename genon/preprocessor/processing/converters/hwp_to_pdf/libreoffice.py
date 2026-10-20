@@ -24,6 +24,11 @@ DEFAULT_TIMEOUT_SEC = 600
 _profile_lock = threading.Lock()
 _profile_dir: str | None = None
 
+# 프로필이 프로세스당 하나이므로, 같은 프로세스의 스레드 둘이 동시에 soffice 를 띄우면 한 프로필을 함께
+# 열게 되어 뒤 호출이 실패하거나 멈춘다(#515). 프로세스 안에서는 변환을 한 번에 하나씩 돌린다.
+# 프로세스가 다르면 프로필도 다르므로 병렬 그대로다. 변환은 CPU 구간이라 1~2 코어 파드에서는 직렬이 손해가 아니다.
+_convert_lock = threading.Lock()
+
 
 def _process_profile_dir() -> str:
     global _profile_dir
@@ -84,7 +89,8 @@ class LibreOfficeConverter:
                     "--outdir", str(out_dir),
                     str(cand),
                 ]
-                proc = subprocess.run(cmd, env=env, capture_output=True, text=True, timeout=timeout)
+                with _convert_lock:
+                    proc = subprocess.run(cmd, env=env, capture_output=True, text=True, timeout=timeout)
                 if proc.returncode == 0 and pdf_path.exists():
                     if tmp_dir:
                         shutil.rmtree(tmp_dir, ignore_errors=True)

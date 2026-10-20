@@ -226,6 +226,8 @@ genon/preprocessor/activities/<slug>/
 | `TEMPORAL_PORT` | 선택 | 기본 `7233` |
 | `WORKER_PROCESSES` | 선택 | 워커 프로세스 수(N), 기본 `1` |
 | `WORKER_THREADS` | 선택 | 프로세스마다 동시에 처리할 문서 수(M), 기본 `1`. 동시 문서 수 = N × M |
+| `OMP_NUM_THREADS` | 선택 | 연산 스레드 수. 비워 두면 "파드 CPU 한도 ÷ `WORKER_PROCESSES`" 의 내림(최소 1)으로 자동 설정됩니다. 프로세스는 파드 한도가 아니라 노드 코어 수를 보고 스레드를 띄우므로, 이 값이 없으면 CPU 작업이 겹칠 때 수 배 느려집니다 |
+| `GENOS_PROFILE` | 선택 | `1` 이면 구간별 처리 시간·외부 호출 계측 로그를 남깁니다(`genon/preprocessor/manual/stage_timing_runbook.md`) |
 | `LLM_CACHE_ROOT` | 선택 | `params.llm_cache` 를 켠 요청의 LLM 캐시 루트. 없으면 캐시를 쓰지 않습니다 |
 | `HEARTBEAT_INTERVAL` | 선택 | 하트비트 간격(초), 기본 `10` |
 | `PREVIEW_CHARS` | 선택 | 반환 preview 길이, 기본 `2000` |
@@ -370,7 +372,7 @@ uv pip install -r requirements-dev.txt     # 로컬 실행 전용 추가 deps
 ```
 > `requirements-dev.txt` 는 `sync-serving-repo.sh` 가 생성합니다. 공통 deps(fastapi·httpx·grpcio·protobuf)와
 > **parser·chunker facade 실행에 필요한 deps**(pymupdf·langchain-community·langchain-core·
-> langchain-text-splitters·markdown2·pydub·chardet)가 함께 담깁니다. 이 deps 는 **운영 base 이미지엔 이미
+> langchain-text-splitters·markdown2·pydub·chardet), 워커 모드와 그 측정 도구가 쓰는 `temporalio` 가 함께 담깁니다. 이 deps 는 **운영 base 이미지엔 이미
 > 포함**되어 있어 운영 런타임은 `requirements.txt`(docling wheel)만 설치합니다 — 로컬 bare-metal 실행 시에만
 > 필요합니다.
 

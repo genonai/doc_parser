@@ -34,6 +34,7 @@ from fastapi.encoders import jsonable_encoder
 from temporalio import activity
 from temporalio.exceptions import ApplicationError, CancelledError
 
+from genon.preprocessor.processing.common import profiling as prof
 from genon.preprocessor.processing.core.cli import mock_request
 
 from . import paths
@@ -122,12 +123,21 @@ def _seconds(value) -> float | None:
     return value if value > 0 else None
 
 
-def _call(proc, file_path: str, params: dict, heartbeat_interval: float):
-    """proc.__call__ 을 별도 스레드에서 돌리며 하트비트. 마감은 request_deadline(초)."""
+def _call(proc, file_path: str, params: dict, heartbeat_interval: float, stage: str = "", doc: str = "",
+          stages: list | None = None):
+    """proc.__call__ 을 별도 스레드에서 돌리며 하트비트. 마감은 request_deadline(초).
+    계측이 켜져 있으면(GENOS_PROFILE=1) 하위 단계 시간을 stages 에 채운다."""
     deadline = _seconds(params.get("request_deadline"))
 
     async def call():
-        return await proc(mock_request(), file_path, **params)
+        prof.set_doc(doc)
+        with prof.collect() as box:
+            try:
+                with prof.stage(f"{stage}_total"):
+                    return await proc(mock_request(), file_path, **params)
+            finally:
+                if box is not None and stages is not None:
+                    stages.extend(box)
 
     pool = concurrent.futures.ThreadPoolExecutor(max_workers=1, thread_name_prefix="processor")
     future = None
@@ -198,8 +208,10 @@ def execute(proc, stage: str, arg: dict) -> dict:
     cfg = _cfg()
     started = time.monotonic()
     name = activity.info().activity_type
-    where = f"{name} {arg.get('source_name') or arg.get('output_ref', '')}"
+    doc = arg.get("source_name") or arg.get("output_ref", "")
+    where = f"{name} {doc}"
     try:
+        stages: list = []
         params = dict(arg.get("params") or {})
         params.pop("interim_root", None)
         if params.get("llm_cache"):
@@ -210,10 +222,10 @@ def execute(proc, stage: str, arg: dict) -> dict:
         output_ref = arg["output_ref"]
         if stage == "parse":
             file_path = str(paths.read_path(cfg.nfs_root, cfg.artifact_root, arg["read_ref"]))
-            payload = _parsed_payload(_call(proc, file_path, params, cfg.heartbeat_interval))
+            payload = _parsed_payload(_call(proc, file_path, params, cfg.heartbeat_interval, stage, doc, stages))
         else:
             params["document"] = paths.load_json(cfg.artifact_root, arg["parsed_ref"])
-            payload = jsonable_encoder(_call(proc, "", params, cfg.heartbeat_interval)) or []
+            payload = jsonable_encoder(_call(proc, "", params, cfg.heartbeat_interval, stage, doc, stages)) or []
         activity.heartbeat()           # 저장 직전 — 취소됐으면 여기서 멈춘다
         size = paths.save_json(cfg.artifact_root, output_ref, payload)
     except CancelledError:
@@ -221,6 +233,7 @@ def execute(proc, stage: str, arg: dict) -> dict:
     except Exception as exc:  # noqa: BLE001 — 성격 판정은 to_application_error 한 곳에서
         raise to_application_error(exc, where) from exc
     count, summary, preview = _summarize(stage, payload, size, cfg.preview_chars)
-    return {"stage": stage, "activity": name, "ref": output_ref, "bytes": size, "count": count,
+    extra = {"stages": stages} if stages else {}     # 계측이 켜졌을 때만 — Temporal 화면에서 하위 단계 시간
+    return {**extra, "stage": stage, "activity": name, "ref": output_ref, "bytes": size, "count": count,
             "summary": summary, "preview": preview,
             "duration_ms": int((time.monotonic() - started) * 1000)}
