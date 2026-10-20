@@ -1196,10 +1196,11 @@ def call_vlm_server(
         "repetition_penalty": repetition_penalty,
     }
 
-    headers = {
-        "Authorization": "Bearer " + api_key,
-        "Content-Type": "application/json",
-    }
+    # 키가 있을 때만 Authorization 을 싣는다(#578). 빈 키로 `Bearer ` 를 보내면 게이트웨이가 헤더가 있다는 이유로
+    # 익명 허용·내부 신뢰 분기를 건너뛰고 401 을 준다 — 표 구조 모델(genos_vlm_table_structure_model)과 같은 규칙.
+    headers = {"Content-Type": "application/json"}
+    if api_key:
+        headers["Authorization"] = f"Bearer {api_key}"
 
     def _produce() -> "tuple[str, dict | None, str | None]":
         # #329: llm_cache opt-in 시 캐시 경유. 예외는 그대로 전파해 폴백/에러 분기를 보존.
