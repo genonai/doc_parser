@@ -2,7 +2,7 @@
 
 원인 예외 쪽(processing/common/reason_codes.py)과 응답 쪽(src/utils.py)의 순수 함수만
 확인한다. 실물 샘플로 만든 오류 입력이 응답에 어떤 코드로 실리는지는
-tools/code_serving/error_response_check.py 가 루트 main.py 를 띄워 확인한다.
+tools/code_serving/error_response_check.py 가 기본 전처리기 서비스(src/main.py)의 /run 으로 확인한다.
 """
 
 import errno

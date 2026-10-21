@@ -1,8 +1,12 @@
 # 예외 목록
 
 - **기동**: 설정 로드 시점. 서비스가 뜨지 않음
-- **런타임**: 문서 처리 중. 해당 요청이 `code: 1` 로 실패
-- 모든 오류는 HTTP 200 + `code: 1`
+- **런타임**: 문서 처리 중. 해당 요청(액티비티 호출)이 실패
+- 실패가 호출 측에 보이는 모양은 진입점마다 다릅니다.
+  - 코드서빙(전처리기 Temporal 워커): 액티비티 오류(`ApplicationError`). `type` 은 아래 `error_kind` 와 같은 값
+    (`permanent`/`transient`/`timeout`, 없으면 예외 이름), `non_retryable` 은 `permanent` 일 때 `true`. 메시지는
+    `<slug> <원본 이름>: <예외 이름>: <메시지>` 입니다. 아래 응답 봉투의 필드(`reason_code`·`stage` 등)는 따로 실리지 않습니다
+  - GenOS 전처리기(기본 전처리기 서비스 `/run`): HTTP 200 + `code: 1` 응답 봉투(아래)
 
 custom_fields 설정(yaml)은 **parser 만 읽습니다.** chunker 는 파서가 문서 메타로 실어 보낸
 값을 소비할 뿐이므로, 설정 검증 예외는 전부 parser 쪽입니다.
@@ -11,27 +15,23 @@ custom_fields 설정(yaml)은 **parser 만 읽습니다.** chunker 는 파서가
 
 ## 응답 봉투
 
+GenOS 전처리기(`/run`)의 실패 응답입니다.
+
 | 필드 | 값 |
 |---|---|
 | `code` | `0` 성공 / `1` 실패 |
-| `errMsg` · `error_msg` | `[엔드포인트] 예외이름: 메시지`. 두 필드에 같은 값이 들어갑니다 |
+| `errMsg` · `error_msg` | 예외 메시지. `error_msg` 는 `error_code` 가 있을 때 같은 값으로 함께 실립니다 |
 | `error_code` | 아래 설명 참조 |
-| `error_type` | 예외 클래스명. 코드서빙 서비스(루트 `main.py`)만 싣습니다(`tag`·`file_path`·`traceback` 도 같습니다) |
-| `tag` | 실패한 엔드포인트 (`parser` / `parser_upload` / `chunker`) |
-| `file_path` | 대상 파일. 파서 결과를 본문에 담아 호출하면 빈 값 |
 | `stage` | `custom_fields` / `metadata` / `doc_summary` / `image_description` / `table_description` / `table_text_description` / `doc_type_stamp` / `enrichment` / `request` / `chunk_validation`. **값이 있을 때만 실립니다** |
 | `error_kind` | `timeout` / `transient` / `permanent`. **값이 있을 때만 실립니다** |
 | `reason_code` | 사유 코드(`PARSE_D001` 형식). 아래 [사유 코드](#사유-코드) 참조. 실패 응답에는 항상 실립니다 |
 | `error_category` | `data`(원천데이터) / `preprocess`(전처리) / `system`(시스템). `reason_code` 의 분류문자에서 정해집니다 |
-| `traceback` | 호출 스택 마지막 8줄 |
 | `data` | 실패 시 항상 `null` |
 
 ### error_code 는 대부분 `1` 입니다
 
-`GenosServiceException` 은 생성자 첫 인자가 그대로 `error_code` 가 되고 `main.py` 가 그 값을
-우선합니다. 따라서 **서비스가 감싸 던진 오류는 `"1"`**(chunker 는 정수 `1`, 청크 검증 예외만 `"1"`)로 나갑니다.
-`INPUT_ERROR` / `TIMEOUT_ERROR` / `INTERNAL_ERROR` 로 분류되는 것은 **감싸지 않고 올라온
-raw 예외**(마크다운 머리말 오류 등)뿐입니다.
+`GenosServiceException` 은 생성자 첫 인자가 그대로 `error_code` 가 됩니다. 따라서 **서비스가 감싸 던진
+오류는 `"1"`** 로 나갑니다. **감싸지 않고 올라온 raw 예외**(마크다운 머리말 오류 등)에는 `error_code` 가 실리지 않습니다.
 
 원인 구분은 `error_code` 가 아니라 **`reason_code`** 로 하십시오. 호출 측이 이미 `error_code` 를
 쓰고 있을 수 있으므로 `error_code` 의 값은 바꾸지 않았습니다.
@@ -51,7 +51,7 @@ raw 예외**(마크다운 머리말 오류 등)뿐입니다.
 |---|---|
 | `PARSE` | 파서 API |
 | `CHUNK` | 청커 API |
-| `COMMON` | 진입점 공통(요청 형식, 요청 deadline, 미지원 API) |
+| `COMMON` | 진입점 공통(요청 형식, 요청 deadline) |
 
 | 분류문자 | `error_category` | 뜻 | 1차 조치 |
 |---|---|---|---|
@@ -101,9 +101,8 @@ raw 예외**(마크다운 머리말 오류 등)뿐입니다.
 | `CHUNK_P999` | (없음) | 분류되지 않은 청커 오류 |
 | `CHUNK_S003` | permanent | 입력 파일 없음·권한 거부 |
 | `CHUNK_S103` | transient | 그 밖의 입력 파일 입출력 실패 |
-| `COMMON_P001` | (없음) | 이 배포본이 지원하지 않는 API(`/parser`·`/chunker`) |
 | `COMMON_P002` | (없음) | 요청 형식 오류(필수 본문 키 누락 등) |
-| `COMMON_P999` | (없음) | 분류되지 않은 오류(`/preprocess*`, `/run` 등) |
+| `COMMON_P999` | (없음) | 분류되지 않은 오류(`/run`) |
 | `COMMON_S102` | timeout | 요청 deadline 초과 |
 
 청크 검증의 메시지 앞머리(`CHUNK_ALL_REJECTED:` 등)는 하위호환을 위해 그대로 둡니다.
@@ -117,19 +116,15 @@ LLM 오류를 실패 응답(`code: 1`, `PARSE_S0xx`·`S1xx`·`S2xx`)으로 받�
 
 ### 응답 예시
 
-엑셀 필수 컬럼 매핑 실패(`/parser`).
+엑셀 필수 컬럼 매핑 실패(파싱 처리기를 올린 GenOS 전처리기 `/run`).
 
 ```json
 {
   "code": 1,
-  "errMsg": "[parser] GenosServiceException: 필수 Excel 컬럼 매핑 실패(sheet=FAQ): ['질문']; available=['번호', '답변', '카테고리']",
-  "error_msg": "[parser] GenosServiceException: 필수 Excel 컬럼 매핑 실패(sheet=FAQ): ['질문']; available=['번호', '답변', '카테고리']",
+  "errMsg": "필수 Excel 컬럼 매핑 실패(sheet=FAQ): ['질문']; available=['번호', '답변', '카테고리']",
+  "error_msg": "필수 Excel 컬럼 매핑 실패(sheet=FAQ): ['질문']; available=['번호', '답변', '카테고리']",
   "error_code": "1",
-  "error_type": "GenosServiceException",
-  "tag": "parser",
-  "file_path": "/data/faq.xlsx",
   "data": null,
-  "traceback": "...(마지막 8줄)",
   "stage": "custom_fields",
   "error_kind": "permanent",
   "reason_code": "PARSE_D001",
@@ -137,8 +132,9 @@ LLM 오류를 실패 응답(`code: 1`, `PARSE_S0xx`·`S1xx`·`S2xx`)으로 받�
 }
 ```
 
-`errMsg` 는 `[parser] GenosServiceException:` 접두가 붙으므로, 아래 표의 에러메시지와
-대조할 때는 콜론 뒤만 보면 됩니다.
+코드서빙 워커에서는 같은 실패가 액티비티 오류 `type: permanent`, 메시지
+`parse <원본 이름>: GenosServiceException: 필수 Excel 컬럼 매핑 실패(…)` 로 옵니다. 아래 표의 에러메시지와
+대조할 때는 접두 뒤만 보면 됩니다.
 
 ---
 
@@ -228,8 +224,8 @@ LLM 오류를 실패 응답(`code: 1`, `PARSE_S0xx`·`S1xx`·`S2xx`)으로 받�
 # chunker — 런타임 예외
 
 custom_fields 설정 검증 단계가 없습니다. 파서 산출물을 소비하다 실패하며 전부 `GenosServiceException` 입니다.
-청크 검증 실패(`CHUNK_ALL_REJECTED`·`CHUNK_VALIDATION_ERROR`)는 그 하위 클래스인 `ChunkValidationError` 라 코드서빙 응답의
-`error_type` 이 `ChunkValidationError` 입니다(응답의 나머지 필드는 같습니다).
+청크 검증 실패(`CHUNK_ALL_REJECTED`·`CHUNK_VALIDATION_ERROR`)는 그 하위 클래스인 `ChunkValidationError` 라 코드서빙
+워커의 오류 메시지에 `ChunkValidationError:` 가 붙습니다(`/run` 응답의 필드는 같습니다).
 청커 자체 설정인 청크 검증(`chunking.validation`)의 오기입은 요청 때가 아니라 기동 시 `ValueError` 로 실패합니다.
 
 | 에러메시지 | 발생 상황 |

@@ -6,9 +6,10 @@ docling(v2.41.0) 포크 위에 GenOn 전처리기(genon/preprocessor)를 올린 
 
 | 경로 | 역할 |
 |---|---|
-| `main.py` | **코드서빙 서비스**의 진입점(로컬 실행도 이것). FastAPI 앱, 업무 API 7개와 health·version |
+| `main.py` | 코드서빙 리비전의 시작 명령이 비었을 때 뜨는 자리. "시작 명령을 넣으세요" 기동 오류만 낸다(#577) |
+| `genon/preprocessor/worker/` | **코드서빙(전처리기 Temporal 워커)** 진입점 `python -m genon.preprocessor.worker`. uvicorn 한 프로세스가 `/health`·`/version` 을 받고 감시자가 자식 워커 프로세스를 띄운다 |
 | `genon/preprocessor/activities/` | **액티비티 처리기** `<slug>/processor.py`(원형 `parse`·`chunk` + Studio 사본) — 고객이 여는 파일. 폴더 이름 = slug = 액티비티 이름(전처리 Studio·Temporal 워커가 이 폴더를 읽는다) |
-| `genon/preprocessor/facade/` | **파사드** — HTTP 서비스(루트 `main.py` 코드서빙 서비스·`src/main.py` 기본 전처리기 서비스)가 띄우는 `*_processor.py` 3종(attachment·convert·intelligent, 아직 처리 로직을 안고 있다) + 옛 이름 별칭 `parser_processor.py`·`chunking_processor.py` |
+| `genon/preprocessor/facade/` | **파사드** — 기본 전처리기 서비스(`src/main.py`)가 `/run` 으로 띄우는 `*_processor.py` 3종(attachment·convert·intelligent, 아직 처리 로직을 안고 있다) + 옛 이름 별칭 `parser_processor.py`·`chunking_processor.py` |
 | `genon/preprocessor/processing/` | 파싱·청킹·보강 **처리 라이브러리**. 파사드와 액티비티 처리기는 여기를 상속·호출만 한다 |
 | `genon/preprocessor/processing/core/` | 파싱·청킹 처리 본체(`parser.py`/`chunker.py`)와 고객용 `toolbox.py`·`cli.py`·`errors.py` |
 | `genon/preprocessor/processing/{common,chunking,enrichment,guardrail}/` | facade가 공유하는 공용 하위 모듈. 배포본에 포함된다 |
@@ -43,28 +44,27 @@ rg '<pattern>' main.py genon docling tests build-script
 ## 배포 형태 2가지
 
 **서비스 형태에 따라 진입점이 갈린다. 둘 다 실제 운영 배포다** — 어느 쪽으로 나가느냐에 따라
-올라가는 facade 개수와 API 표면이 달라진다.
+올라가는 처리기와 호출 표면이 달라진다.
 
-### ① 코드서빙 서비스 — 루트 `main.py`
+### ① 코드서빙 — 전처리기 Temporal 워커(`genon/preprocessor/worker/`)
 
-facade 5종을 한 서버에 올리고 라우트로 가른다(로컬 실행도 이 파일로 한다).
-
-라우트와 facade 의 대응은 `main.py` 의 등록부에서 확인한다. `/preprocess` 는 `/preprocess_intelligent` 의
-하위호환 별칭이다. 그 밖에 `/health`, `/version`(배포 시 생성되는 루트 VERSION 스탬프, 없으면 git 폴백)을 노출한다.
+리비전 시작 명령(START_COMMAND) `python -m genon.preprocessor.worker` 가 **필수**다. `activities/` 의 폴더(slug)마다
+액티비티를 등록하고, 파싱·청킹은 Temporal 큐(`WORKER_TASK_QUEUE`)로만 받는다. HTTP 는 `/health`(별칭 `/healthcheck`,
+자식이 모두 살아 있으면 200)·`/version`(배포 시 생성되는 루트 VERSION 스탬프, 없으면 git 폴백) 뿐이다.
+#577 에서 코드서빙 HTTP 업무 경로를 없앴다 — 파사드는 코드서빙에 올라가지 않는다. 시작 명령이 비면 루트 `main.py` 가
+기동 오류만 낸다.
 
 ### ② 기본 전처리기 서비스 — `genon/preprocessor/src/main.py`
 
 GenOS 에 전처리기 리소스로 등록되는 형태. **facade 가 하나만 쓰인다.**
 
-- 배포 대상 facade **한 개**만 `preprocessor.py` 로 이름이 바뀌어 마운트되고, `from preprocessor import DocumentProcessor` 로 로드되어 `/run` 으로 진입한다.
-- `/parser`, `/chunker` 는 프로세서의 `IS_PARSER` / `IS_CHUNKER` 속성으로 게이팅된다. 속성이 없으면 "지원하지 않습니다" 응답.
-- 헬스 경로가 `/healthcheck` 로 다르고 `/version` 은 없다.
+- 배포 대상 처리기 **한 개**만 `preprocessor.py` 로 이름이 바뀌어 마운트되고, `from preprocessor import DocumentProcessor` 로 로드되어 `/run` 으로 진입한다(supervisord → `gunicorn src.main:app`, GenOS preprocess-api 가 `POST /run` 을 부른다). 파사드 3종과, 따로 올린 파싱·청킹 액티비티 처리기가 이 자리에 쓰인다.
+- 헬스 경로는 `/healthcheck` 이고 `/version` 은 없다.
 - `genon/sites/<site>/facade/` 의 사이트 전용 코드들(BOK 적재용, 법령, 코레일 등)은 로컬 진입점이 없고 이 경로로만 배포·실행된다.
 
 배포본에 facade 가 하나뿐인 형태가 있다는 것이 "아키텍처 제약" 첫 항목의 근거다.
-`main.py` 계층 기능(요청 deadline, 에러 envelope 등)을 바꿀 때는 **두 파일 모두** 확인한다.
-이미 어긋난 자리가 있다 — 에러 응답 형태(루트 `_error_response` 는 `tag`/`traceback` 까지
-싣고, src 는 `failure_response_from_exc`)와 위 헬스·버전 경로.
+진입점 계층 기능(요청 deadline, 오류 분류)을 바꿀 때는 **두 진입점 모두** 확인한다 — 워커는 `worker/runtime.py`(deadline)·
+`worker/errors.py`(예외 → `ApplicationError` 성격), 기본 전처리기 서비스는 `src/main.py`·`src/utils.py`(`failure_response_from_exc` 응답 봉투).
 
 ## 공용 하위 모듈 지도
 
@@ -93,7 +93,7 @@ facade가 공유하는 로직은 아래에 한 벌씩만 둔다. 최상위 proce
 **통째로 Read 하지 말 것.** `Grep` 으로 심볼·문자열 위치를 먼저 찾고 `Read` 의 `offset`/`limit` 으로 해당 구간만 읽는다.
 `.claude/hooks/large-file-read-guard.sh` 가 이 규칙을 강제한다.
 
-용어 — **파사드**는 `facade/*_processor.py`(HTTP), **액티비티 처리기**는 `activities/<slug>/processor.py`(Temporal), 둘을 함께 말할 때는 **처리기**라고 쓴다. `processing/core/`(`ParserCore`·`ChunkerCore`)는 둘의 공통 본체다 — 지금은 액티비티 처리기만 상속하지만 파사드도 이리로 옮겨 올 예정이라 core 의 주석·docstring 은 **처리기**로 쓴다.
+용어 — **파사드**는 `facade/*_processor.py`(기본 전처리기 서비스 `/run`), **액티비티 처리기**는 `activities/<slug>/processor.py`(Temporal), 둘을 함께 말할 때는 **처리기**라고 쓴다. `processing/core/`(`ParserCore`·`ChunkerCore`)는 둘의 공통 본체다 — 지금은 액티비티 처리기만 상속하지만 파사드도 이리로 옮겨 올 예정이라 core 의 주석·docstring 은 **처리기**로 쓴다.
 
 액티비티 처리기 원형 2종은 처리 본체가 `processing/core/` 로 빠져 300줄 미만이고 대부분 주석이므로 통째로 읽어도 된다.
 
@@ -124,7 +124,7 @@ facade가 공유하는 로직은 아래에 한 벌씩만 둔다. 최상위 proce
   - processor 속성을 읽는 공용 헬퍼는 `getattr(..., 기본값)` 으로 속성 부재를 견뎌야 한다 — `object.__new__` 로 `__init__` 을 우회하는 단위 테스트가 있다.
   - 선례: `processing/chunking/text_norm.py` 하나를 활성 processor 3종의 출력 경로 9곳이 호출한다.
 - **청킹 파이프라인은 `processing/chunking/smart_chunker.py` 한 벌이다.** 활성 3종은 ClassVar 플래그만 다른 얇은 서브클래스이므로 여기만 고치면 된다. `genon/sites/bok/facade/BOK_적재용_*` 3종은 별도 배포 단위라 자체 사본과 모듈 상수 설정을 유지하니, 변경이 거기까지 반영돼야 하는지 먼저 판단한다.
-- **`GenosServiceException` 은 활성 경로와 사이트 전용 facade 여러 곳에 복제**되어 있다(파싱·청킹은 `core/errors.py` 한 벌을 공유하고 이름만 재수출한다). 개수를 가정하지 말고 시그니처 변경 전에 아래로 전체 대상을 확인한다. facade가 던진 로컬 예외는 `main.py` 의 제네릭 핸들러가 받는다.
+- **`GenosServiceException` 은 활성 경로와 사이트 전용 facade 여러 곳에 복제**되어 있다(파싱·청킹은 `core/errors.py` 한 벌을 공유하고 이름만 재수출한다). 개수를 가정하지 말고 시그니처 변경 전에 아래로 전체 대상을 확인한다. facade가 던진 로컬 예외는 `src/main.py` 의 제네릭 핸들러가 받는다.
 
   ```bash
   rg -n --no-ignore-dot '^class GenosServiceException' genon/preprocessor/src genon/preprocessor/facade genon/preprocessor/processing genon/sites --glob '*.py'
@@ -231,10 +231,11 @@ PYTHONPATH=<repo>:<repo>/genon/preprocessor:<repo>/genon/preprocessor/src:<repo>
 P=genon/preprocessor; $P/.venv/bin/python $P/tools/parse_chunk/parse_chunk_test.py 입력 출력                 # 표준 resource/
 P=genon/preprocessor; $P/.venv/bin/python $P/tools/parse_chunk/parse_chunk_test.py --site monimo 입력 출력   # genon/sites/monimo/resource/
 P=genon/preprocessor; $P/.venv/bin/python $P/tools/facade_test/facade_test.py --facade intelligent 입력 출력 --kw toc=1   # facade 하나(/run 경로) 실행
-build-script/run-local.sh [monimo]    # 루트 main.py 를 포트 7084 로 기동. 설정 폴더는 GENOS_RESOURCE_DIR(로컬 전용)
+build-script/run-local.sh [monimo]    # 전처리기 워커 기동(/health·/version 포트 7084). 워커 env·로컬 Temporal 필요. 설정 폴더는 GENOS_RESOURCE_DIR(로컬 전용)
 ```
 
-엔드포인트 확인은 새 pytest를 만들기보다 `genon/preprocessor/tools/code_serving/serving_gateway_test.sh` 에 모드를 추가하는 방식을 선호한다.
+파싱·청킹 확인은 새 pytest 를 만들기보다 단건 CLI `python -m genon.preprocessor.activities run --activity <slug> --input <파일>`(워커와 같은 본문)로 하고,
+큐 왕복·동시 실행은 smoke 시험 `tests/smoke/test_worker_concurrency_smoke.py`(기본은 SDK 로컬 개발 서버, `TEMPORAL_TEST_TARGET=scp` 면 배포 환경 Temporal 의 시험 전용 큐)에 케이스를 더하는 방식을 선호한다.
 
 ## 배포 (code-serving)
 
@@ -267,7 +268,7 @@ conventional prefix 없음, 이슈 제목은 명사형("~추가"), PR 대상은 
 
 - **브랜치:** `develop ← studio/dev ← feature/<N>-<slug>`. Studio 작업의 PR 대상은 `studio/dev` 다(HTTP 로 서빙되던 버전을 `develop` 에서 바로 교체하지 않는다). `develop` 반영 시점은 따로 정한다. `studio/dev` 로 머지된 PR 의 이슈는 자동으로 닫히지 않으며, 사용자가 닫으라고 할 때 닫는다.
 - **`activities/`:** 파싱·청킹 액티비티 자리다. **폴더 하나 = 액티비티 하나**(`<slug>/processor.py` + `config.yaml` + 설정이 파일명으로 부르는 프롬프트·custom_field 사본, #495). 폴더 이름 = slug = Temporal 액티비티 이름, 첫 단어 = 단계(`parse`·`chunk`), processor.py 첫 줄 = Studio 목록 제목, 짝 설정 `resource/<slug>_config.yaml`. 파일은 `DocumentProcessor` 를 상속만 한다. 액티비티 본문은 부모 `ParserCore`·`ChunkerCore.run_activity` 하나이고 이름은 워커가 파일명으로 붙인다. `_` 로 시작하는 파일(`__main__.py`)은 액티비티가 아니다. 옛 `facade/parser_processor.py`·`chunking_processor.py` 는 별칭이다.
-- **워커:** `python -m genon.preprocessor.worker`(코드서빙 START_COMMAND). 프로세스 N개(`WORKER_PROCESSES`) × 스레드 M건(`WORKER_THREADS`, 기본 1), `/health :8080`(코드서빙 startupProbe). 인자는 상대 참조(`read_ref`·`parsed_ref`·`output_ref`)뿐이다. 구버전(HTTP 호출)과의 호환은 요구사항이 아니다.
+- **워커:** `python -m genon.preprocessor.worker`(코드서빙 START_COMMAND, 필수). uvicorn 한 프로세스가 `/health`(코드서빙 startupProbe)·`/version` 을 `:8080` 으로 받고, 감시자가 자식 프로세스 N개(`WORKER_PROCESSES`)를 spawn 한다. 자식마다 Temporal 워커 1개 · 스레드 M건(`WORKER_THREADS`, 기본 1). 인자는 상대 참조(`read_ref`·`parsed_ref`·`output_ref`)뿐이다. 구버전(HTTP 호출)과의 호환은 요구사항이 아니다.
 - **사본 검증(#496):** `tests/unit/test_enrichment_yaml_unit.py`(모든 액티비티 `config.yaml` — 표준·사이트 — 를 기동과 같은 로더로 엄격히 읽음)와 `tests/unit/test_worker_unit.py`(이 저장소에는 원형만)가 본다. 설정 점검기 `tools/config_precheck/precheck_custom_fields.sh` 는 인자 없이 표준 `resource/` + 모든 `activities/<slug>/`, 사이트 루트를 주면 그 두 자리를 본다. 원형이 복사 뒤 얼마나 바뀌었는지는 `python -m genon.preprocessor.activities diff <slug> [--from <원형>]`.
 - **생성·복제·삭제(#472):** `python -m genon.preprocessor.activities new --from <원본> --slug <새>`(폴더 복사 — 설정·코드 모두 저장소 원본 폴더, 첫 줄 별명만 교체) · `remove --slug <slug>`(원형·사이트가 덮어쓰는 slug 거부). Studio 는 배포처(사이트 설정을 `activities/` 에 덮은 서빙본 사본, `sync-serving-repo.sh SITE=<site>`)에서 일하므로 사본은 사이트 문서유형을 그대로 가진다. 설정에 적은 프롬프트·문서유형 파일이 없거나 비면 오류이고, `GENOS_RESOURCE_DIR` 로 사이트 완성본을 띄울 때 사이트에 없는 slug 는 호출마다 영구 오류다 — 저장소·기본값으로 떨어지지 않는다(#561). 파일만 다루고 커밋은 Studio·사용자 몫. 결과 `data.files` 는 저장소 루트 기준 경로.
 - **단건 CLI:** `python -m genon.preprocessor.activities run --activity <slug> (<file> | --input <file>) [-o …]`(#477 머지 후 — 그 전에는 파사드별 `DocumentProcessor.cli()`). 워커와 같은 본문으로 돌며, stdout 마지막 줄 `@@RESULT@@ {…}` 한 줄이 Studio 계약이다.

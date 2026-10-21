@@ -38,8 +38,3 @@ python3 "${SCRIPT_DIR}/serving_direct_parser_chunker_test.py" \
 
 echo "테스트 완료: ${RESULT_DIR}"
 
-# 한 번에 E2E로 실행하려면:
-# python3 "${SCRIPT_DIR}/serving_gateway_test.py" --mode e2e \
-#   --file-path "${FILE_PATH}" --chunk-size 0 \
-#   --out-doc "${RESULT_DIR}/doc.json" --out "${RESULT_DIR}/chunks.json"
-

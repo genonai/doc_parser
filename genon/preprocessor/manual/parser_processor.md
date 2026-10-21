@@ -34,7 +34,7 @@
 - 오디오는 Whisper API를 통한 음성 전사
 - CSV/XLSX는 표 구조 그대로 반환
 - 출력 형식은 파싱 설정(`activities/parse/config.yaml`)의 `output.format`으로 제어 (`json` / `html` / `markdown` / `docling`)
-- `docling` 포맷은 복원 가능한 DoclingDocument 원본 JSON을 반환하며, Chunk API(`/chunker`)의 입력으로 사용
+- `docling` 포맷은 복원 가능한 DoclingDocument 원본 JSON을 반환하며, 청킹 단계(`chunk` 액티비티)의 입력으로 사용
 
 ---
 
@@ -321,7 +321,7 @@ output:
   #   json     — element 목록 형태 (기본값)
   #   html     — 전체 문서를 HTML 문자열로 반환 (content 필드)
   #   markdown — 전체 문서를 Markdown 문자열로 반환 (content 필드)
-  #   docling  — 복원 가능한 DoclingDocument 원본 JSON 을 data.document 로 반환 (Chunk API 입력용)
+  #   docling  — 복원 가능한 DoclingDocument 원본 JSON 을 data.document 로 반환 (청킹 입력용)
   format: "json"
   # 테이블 표현 형식: html | markdown | auto (json, markdown 포맷의 테이블과 custom_fields 레코드형 문서의 표에 적용.
   # 일반 문서의 docling 출력에는 무관. 최종 청크의 표 모양을 통일하려면 청커 설정의 같은 키와 맞춘다)
@@ -878,7 +878,7 @@ filename: 보고서.pdf
 
 ### 민감정보 분류/마스킹 (개인정보 비식별화, `guardrail_call`)
 
-파서는 **파스 전용(청킹·벡터 없음)** 이라 라벨/마스킹을 직접 하지는 않지만, parser→chunking(Chunk API)
+파서는 **파스 전용(청킹·벡터 없음)** 이라 라벨/마스킹을 직접 하지는 않지만, parser→chunking
 분리 경로에서 **분류 워크플로우를 호출하는 주체**입니다.
 
 - `guardrail_call: 1` 요청이면 파서가 **파싱한 문서 전체를 워크플로우로 1회 분류**해, 결과
@@ -936,9 +936,9 @@ guardrail:
 | `images_scale` / `max_image_side` / `max_tokens` / `params` | 렌더 배율 / 이미지 최대 변(px) / 출력 토큰 상한 / 추가 VLM 파라미터 | `2.0` / `0` / `0` / `{}` |
 | `prompt_template_file` | 프롬프트 `.md` 경로. `{{page_text}}` 치환 | `prompt_page_image_description_default.md` |
 
-> **주의** — 페이지 설명은 **파싱 단계 전용**입니다. Chunk API(`/chunker`)는 파서 출력(JSON)만 받으며 렌더된 페이지 이미지가 없어 페이지 설명을 수행하지 않습니다.
+> **주의** — 페이지 설명은 **파싱 단계 전용**입니다. 청킹 단계(`chunk`)는 파서 출력(JSON)만 받으며 렌더된 페이지 이미지가 없어 페이지 설명을 수행하지 않습니다.
 
-> **청킹(Chunk API) 연계**: docling 경로(`.pdf/.html/.htm/.docx/.hwp/.hwpx`, `.ppt/.pptx`)는 `output.format: docling`
+> **청킹 연계**: docling 경로(`.pdf/.html/.htm/.docx/.hwp/.hwpx`, `.ppt/.pptx`)는 `output.format: docling`
 > 일 때 `data.document` 를 만들어 구조 인식 청킹(GenosSmartChunker)에 쓰인다. 그 외 포맷은 항상
 > parse-format(`data.elements`)으로 반환되며, chunker 가 이를 공통 청킹한다 — 오디오는 `[AUDIO]`
 > 단일 벡터, csv/xlsx(`tabular_row` / `custom_fields_row`)는 **행마다 벡터 1개**, 그 외 텍스트
@@ -1261,12 +1261,15 @@ Docling 경로(PDF, HTML, HWP, HWPX, DOCX)에서 파싱 설정(`activities/parse
 }
 ```
 
-- 이 JSON은 `DoclingDocument.model_validate(data["document"])`로 **무손실 복원**할 수 있어, GenOS Temporal 파이프라인의 다음 단계인 **Chunk API(`/chunker`)의 입력**으로 그대로 전달합니다.
+- 이 JSON은 `DoclingDocument.model_validate(data["document"])`로 **무손실 복원**할 수 있어, Temporal 파이프라인의 다음 단계인 **청킹 액티비티(`chunk`)의 입력**으로 그대로 전달합니다.
 - `output.table_format`은 일반 문서의 `docling` 출력에는 무관합니다(표 구조가 원본 그대로 보존되고, 청크의 표 모양은 청커 설정이 정합니다). 다만 custom_fields 레코드형 문서는 파서가 청크 본문을 완성해 넘기므로 이 값이 최종 청크의 표 모양이 됩니다. 두 설정의 `table_format` 을 같은 값으로 맞추세요.
 
-#### 연계 — Chunk API (`POST /preprocessor/{id}/chunker`)
+#### 연계 — 청킹
 
-파싱 결과를 입력받아 청킹만 수행하고 청크 목록(`GenOSVectorMeta`)을 반환하는 별도 전처리기(`chunking_processor`)가 처리합니다. 해당 전처리기는 `IS_CHUNKER` 마커로 식별되며, 요청 본문은 다음과 같습니다.
+파싱 결과를 입력받아 청킹만 수행하고 청크 목록(`GenOSVectorMeta`)을 반환하는 청킹 처리기(`activities/chunk/processor.py`)가 처리합니다.
+
+- 코드서빙(전처리기 워커): `chunk` 액티비티. 워커가 파싱 결과 파일(`parsed_ref`)을 읽어 `params.document` 로 넘깁니다([code_serving.md](code_serving.md)).
+- GenOS 전처리기: 청킹 처리기를 올린 전처리기의 `POST /preprocessor/{id}/run`. 요청 본문은 다음과 같습니다.
 
 ```json
 {
@@ -1280,9 +1283,9 @@ Docling 경로(PDF, HTML, HWP, HWPX, DOCX)에서 파싱 설정(`activities/parse
 판별해, docling 은 구조 인식 청킹(GenosSmartChunker)을, parse-format 은 공통 청킹(audio→`[AUDIO]`
 단일, csv/xlsx→행마다 청크 1개, 그 외 텍스트→`chunking.generic` splitter)을 수행합니다.
 
-E2E 흐름:
-- docling 포맷: `POST /parser (output.format=docling)` → `data.document` → `POST /chunker (params.document=…)` → 청크 목록.
-- 비-docling 포맷: `POST /parser` → `data.elements`(parse-format) → `POST /chunker (params.document=data)` → 청크 목록.
+E2E 흐름(코드서빙):
+- docling 포맷: `parse` 액티비티(`output.format=docling`) → 파싱 결과 = DoclingDocument → `chunk` 액티비티 → 청크 목록.
+- 비-docling 포맷: `parse` 액티비티 → 파싱 결과 = `{"elements": [...]}`(parse-format) → `chunk` 액티비티 → 청크 목록.
 
 ---
 
@@ -1993,10 +1996,12 @@ enrichment 실패를 응답으로 돌려주는 `error_policy` 와 행잉을 막�
 - **`error_policy`**: `lenient`(기본)은 enrichment 실패를 삼키고 `code:0`(기존 동작). `strict` 는
   실패 시 `code:1` + envelope 에 `stage`(실패 단계)·`error_kind`(`transient`/`permanent`/`timeout`)를 실어 줍니다.
   단, **TOC/문서 품질검사(base enrichment)의 LLM 실패는 정책과 무관하게 하드페일**(`stage="enrichment"`, 기존 동작).
-- **`/chunker`** 는 파싱 결과를 입력받아 청킹만 하므로 LLM 호출이 없어 캐시는 실질 no-op 이며,
-  `interim_ref`(=`"<workflow_id>/<run_id>"`)로 스코프만 전달합니다. 즉 캐시가 실제로 동작하는 단계는 **파싱(`/parser`)** 입니다.
+- **청킹** 은 파싱 결과를 입력받아 청킹만 하므로 LLM 호출이 없어 캐시는 실질 no-op 이며,
+  `interim_ref`(=`"<workflow_id>/<run_id>"`)로 스코프만 전달합니다. 즉 캐시가 실제로 동작하는 단계는 **파싱** 입니다.
+- 위 표의 `interim_root` 우선순위는 GenOS 전처리기(`/run`) 기준입니다. 코드서빙 워커는 `params.interim_root` 를 버리고
+  워커 env `LLM_CACHE_ROOT` 를 캐시 루트로 씁니다(없으면 캐시 없음, [code_serving.md](code_serving.md)).
 
-요청 예시(`/parser`):
+요청 예시(GenOS 전처리기 `/run`):
 ```json
 {
   "file_path": "/app/src/service/genon/preprocessor/sample_files/pdf_sample.pdf",

@@ -1,6 +1,6 @@
 # 청킹용 전처리기 매뉴얼
 
-`activities/chunk/processor.py` (`/chunker`) 레퍼런스입니다. **파싱 결과를 입력받아 청킹만** 합니다.
+`activities/chunk/processor.py` (청킹 액티비티 `chunk`) 레퍼런스입니다. **파싱 결과를 입력받아 청킹만** 합니다.
 
 - 파싱은 하지 않습니다. OCR·레이아웃·enrichment 는 앞 단계(파서)에서 이미 끝났습니다.
 - 그래서 이 프로세서의 설정에는 `ocr` / `layout` / `pdf_pipeline` / `enrichment` 섹션이 **없습니다.**
@@ -32,24 +32,22 @@
 | | |
 |---|---|
 | 파일 | `genon/preprocessor/activities/chunk/processor.py` |
-| 마커 | `IS_CHUNKER = True` (이게 없으면 `/chunker` 요청이 거부됩니다) |
+| 클래스 | `DocumentProcessor(ChunkerCore)` — 클래스명과 부모를 바꾸면 워커가 호출마다 오류로 거부합니다 |
 | 설정 | `activities/chunk/config.yaml` |
 | 청킹 엔진 본체 | `processing/chunking/smart_chunker.py` — **공용 모듈** |
 
 > **엔진은 이 파일 안에 없습니다.** 액티비티 처리기의 `GenosSmartChunker` 는 동작 옵션(ClassVar)만
 > 지정하는 얇은 서브클래스이고, 실제 분할·병합 로직은 `processing/chunking/smart_chunker.py`
-> 한 벌에 있습니다. 거기를 고치면 `/chunker` 와 `/preprocess*`(적재)가 **함께** 바뀝니다.
+> 한 벌에 있습니다. 거기를 고치면 청킹 액티비티와 파사드(intelligent·convert 의 적재 청킹)가 **함께** 바뀝니다.
 
 ### 배포 형태에 따라 서빙 수가 다릅니다
 
-**루트 `main.py` 로 올리는 형태(권장)** 는 한 서빙이 `/parser` 와 `/chunker` 를 **둘 다**
-제공합니다. `main.py` 가 `activities/parse/processor.py` 와 `activities/chunk/processor.py` 를
-각각 생성해 라우트에 붙이기 때문입니다. 설정은 `activities/parse/config.yaml` 과
+**코드서빙(전처리기 Temporal 워커)** 은 한 서빙이 `parse` 와 `chunk` 액티비티를 **둘 다** 등록합니다.
+워커가 `activities/` 의 폴더마다 액티비티를 하나씩 만들기 때문입니다. 설정은 `activities/parse/config.yaml` 과
 `activities/chunk/config.yaml` 두 벌을 읽습니다.
 
-**처리기 한 개만 `preprocessor.py` 로 마운트하는 형태** 에서는 `IS_PARSER` 가 파서에만,
-`IS_CHUNKER` 가 청커에만 있으므로 **한 서빙이 둘 다 할 수 없습니다.** 그때는 파싱 서빙과
-청킹 서빙 두 개를 운용하고 설정도 두 벌을 각각 갱신합니다.
+**GenOS 전처리기(기본 전처리기 서비스)** 는 처리기 한 개만 `preprocessor.py` 로 올려 `/run` 으로 부르므로
+**한 서빙이 둘 다 할 수 없습니다.** 그때는 파싱 서빙과 청킹 서빙 두 개를 운용하고 설정도 두 벌을 각각 갱신합니다.
 
 특히 아래 둘은 **청커 쪽 yaml 에 적어야** 효과가 있습니다.
 
@@ -60,12 +58,15 @@
 
 ## API
 
-`POST /preprocessor/{id}/run` (통합 실행 시 `POST /chunker`)
+- 코드서빙: Temporal 액티비티 `chunk`(또는 사본 slug) — 인자 `{parsed_ref, output_ref, source_name?, params?}`.
+  워커가 `ARTIFACT_ROOT/<parsed_ref>.json` 을 읽어 `params.document` 로 넘기고, 청크 리스트를
+  `ARTIFACT_ROOT/<output_ref>.json` 에 씁니다(인자·반환은 [code_serving.md](code_serving.md)).
+- GenOS 전처리기: `POST /preprocessor/{id}/run` — 아래 body.
 
 | 파라미터 | 위치 | 설명 |
 |---|---|---|
 | `file_path` | body | 파서 결과 JSON 파일 경로. `document` 를 인라인으로 주면 생략 가능 |
-| `params.document` | body | 파서 응답의 `data` 를 그대로. **인라인이 우선** |
+| `params.document` | body | 파서 응답의 `data` 를 그대로. **인라인이 우선**(코드서빙은 워커가 `parsed_ref` 로 채웁니다) |
 | `params.chunk_size` | body | 청크 상한. yaml 보다 우선 |
 | `params.chunk_mode` | body | `split_only` / `resize_all` |
 | `params.short_chunk_size` | body | 짧은 청크 병합 기준. yaml 보다 우선 |
@@ -361,7 +362,8 @@ chunking:
 판정에 걸린 청크, 청킹 중 빠진 메타 필드(`missing_fields`), 글자 수 상한을 넘은 청크(`max_length`) 중 하나라도
 있으면 성공 응답 최상위에 `chunk_validation` 이 붙습니다. `drop` 으로 뺀 청크를 로그를 보지 않고도 알 수 있게
 하기 위한 것입니다. `data`(청크 목록)의 구조는 바뀌지 않으며, 셋 다 없거나 검증이 꺼져 있으면 키 자체가 없습니다. 문서 실패(`CHUNK_ALL_REJECTED` 등)는 지금처럼 실패 응답입니다.
-코드서빙 서비스의 `/chunker` 와, 청킹 처리기를 배포한 기본 전처리기 서비스의 `/run`·`/chunker` 에 적용됩니다.
+청킹 처리기를 배포한 기본 전처리기 서비스의 `/run` 응답에 붙습니다. 코드서빙의 `chunk` 액티비티는 반환 요약에
+이 값을 싣지 않으므로 로그의 `[chunk_validation]` 줄로 봅니다.
 
 ```json
 {"code": 0, "errMsg": "success", "data": [ ... ],
@@ -434,14 +436,13 @@ chunking:
 | 전부 불량 | 전부 반환, 로그·응답 요약 기록 | 문서 실패 `CHUNK_ALL_REJECTED` | 문서 실패 `CHUNK_REJECTED` |
 | 판정기 오류 | 전부 반환, 오류 로그 기록 | 문서 실패 `CHUNK_VALIDATION_ERROR` | 같음 |
 
-세 경우 모두 실패 응답(`code: 1`, `stage: chunk_validation`, `error_kind: permanent`)이며 재시도로 해결되지
-않습니다. HTTP 상태는 200 이므로 응답 본문의 `code` 로 실패를 판단합니다. 오류 코드는 `error_msg` 에 실리지만
-배포 형태에 따라 앞부분이 다르므로, 시작 문자열이 아니라 포함 여부로 구분합니다.
+세 경우 모두 실패(`stage: chunk_validation`, 성격 `permanent`)이며 재시도로 해결되지 않습니다. 오류 코드는
+메시지에 실리지만 배포 형태에 따라 앞부분이 다르므로, 시작 문자열이 아니라 포함 여부로 구분합니다.
 
-| 배포 형태 | `error_msg` 예 | 추가 필드 |
+| 배포 형태 | 메시지 예 | 실패 표시 |
 |---|---|---|
-| 기본 전처리기 서비스(`/run`·`/chunker`) | `CHUNK_ALL_REJECTED: 모든 청크가 …` | 없음 |
-| 코드서빙 서비스(`/chunker`) | `[chunker] ChunkValidationError: CHUNK_ALL_REJECTED: 모든 청크가 …` | `error_type: ChunkValidationError`, `tag`, `file_path`, `traceback` |
+| 기본 전처리기 서비스(`/run`) | `error_msg`: `CHUNK_ALL_REJECTED: 모든 청크가 …` | HTTP 200 + `code: 1`, `error_kind: permanent` |
+| 코드서빙(`chunk` 액티비티) | `chunk <원본 이름>: ChunkValidationError: CHUNK_ALL_REJECTED: 모든 청크가 …` | 액티비티 오류 `type: permanent`, `non_retryable: true` |
 
 - 검증 키는 **요청 파라미터로 바꿀 수 없습니다.** `text_cleanup=off` 요청에서도 검증은 그대로입니다.
   `CONFIG_BY_DOC_TYPE` 에 적어도 건너뜁니다 — doc_type 별 차등은 `by_doc_type` 으로 합니다.
@@ -542,7 +543,7 @@ parse-format 입력은 element 의 `category` 로 경로가 갈립니다. **여�
 | 병합·분할 기준 | `processing/chunking/smart_chunker.py` 4·5·5.5단계 |
 | 표 직렬화 | `processing/chunking/smart_chunker.py::_extract_table_text` · `_table_item_to_texts`, HTML 은 `processing/chunking/table_html.py` |
 
-> `processing/chunking/` 는 **공용 모듈**입니다. 고치면 `/chunker` 와 `/preprocess*`(적재)가 함께
+> `processing/chunking/` 는 **공용 모듈**입니다. 고치면 청킹 액티비티와 파사드(적재)가 함께
 > 바뀝니다. 한쪽만 바꾸려던 것이면 다른 방법을 찾으세요.
 
 ### 고치기 전에 내 기준선을 만드세요

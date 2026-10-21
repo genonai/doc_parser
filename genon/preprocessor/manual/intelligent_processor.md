@@ -1197,7 +1197,7 @@ class GenOSVectorMeta(BaseModel):
 - **`request_deadline`**: 요청 전체 상한과 함께 개별 LLM 호출 timeout 도 좁혀 행잉 대신 timeout 응답을 돌려줍니다.
   (요청 상한은 await 경계 기준 — 완전 동기 파싱 단계는 선점되지 않을 수 있고, LLM 행잉은 per-call timeout 으로 방어.)
 
-요청 예시(`/preprocess_intelligent`):
+요청 예시(GenOS 전처리기 `POST /run`):
 ```json
 {
   "file_path": "/app/src/service/genon/preprocessor/sample_files/pdf_sample.pdf",
@@ -1211,7 +1211,8 @@ class GenOSVectorMeta(BaseModel):
 ```
 
 > 캐시 키 생성 방식, 저장되는 데이터 형태, 저장 제외 대상, 배포 요건(INTERIM_ROOT + 공유 NFS) 등 상세는
-> [코드 서빙 매뉴얼](code_serving.md)의 「LLM 캐시 / 실패 정책 / 요청 deadline (#329)」 절을 참고하세요.
+> [코드 서빙 매뉴얼](code_serving.md)의 「LLM 캐시 / 실패 정책 / 요청 deadline (#329)」 절을 참고하세요
+> (그 절의 캐시 루트는 코드서빙 워커 기준 `LLM_CACHE_ROOT` 이고, `/run` 은 위 표처럼 요청 `interim_root` > env `INTERIM_ROOT` 순입니다).
 
 ---
 

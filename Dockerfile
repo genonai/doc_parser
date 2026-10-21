@@ -86,9 +86,8 @@ RUN printf '%s\n' \
 
 EXPOSE 8080
 
-# 진입점은 배포본 루트의 main.py 하나다(FastAPI). 업무 API 7개와 /health 를 모두 제공한다.
-# PORT 는 코드서빙이 8080 으로 주입한다. exec 로 감싸 uvicorn 이 PID 1 이 되게 한다(종료 시그널 전달).
-# 워커는 5개다 — 모델 로딩·문서 변환이 동기 블로킹이라 워커마다 메모리(수 GB)를 따로 쓴다. 늘리기 전에 리비전 메모리를 먼저 확인한다.
-# 노드 코어가 많고 리비전 CPU 가 1코어인 인스턴스에서 OpenMP 스레드 경합이 보이면
-#    ENV OMP_NUM_THREADS=4 를 추가한다. 현재 base 이미지는 이 값을 설정하지 않는다.
-CMD ["sh", "-c", "exec uvicorn main:app --host 0.0.0.0 --port ${PORT:-8080} --workers 5"]
+# 진입점은 전처리기 Temporal 워커 하나다(#577) — 코드서빙 리비전의 시작 명령과 같다. HTTP 는 /health·/version 만 받는다.
+# PORT 는 코드서빙이 8080 으로 주입한다. exec 로 감싸 워커가 PID 1 이 되게 한다(종료 시그널 전달).
+# 동시 처리 수는 WORKER_PROCESSES × WORKER_THREADS 다. 프로세스마다 처리기가 메모리(수 GB)를 따로 쓰므로 늘리기 전에
+# 리비전 메모리를 먼저 확인한다. OMP_NUM_THREADS 는 없으면 워커가 "CPU ÷ 프로세스 수" 로 정한다.
+CMD ["sh", "-c", "exec python -m genon.preprocessor.worker"]
