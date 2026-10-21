@@ -243,8 +243,8 @@ enrichment:
       after_items: 1           # 표 뒤쪽 본문 아이템 수
       max_context_chars: 400   # 앞/뒤 문맥 각각의 최대 문자 수
       rag:
-        retrieval_context_max_chars: 250 # 모든 분할 표 청크에 반복할 독립 검색 문맥
-        key_fact_limit: 2                # 원표에서 직접 확인되는 핵심 사실 최대 개수
+        retrieval_context_max_chars: 150 # 모든 분할 표 청크에 반복할 독립 검색 문맥
+        key_fact_limit: 1                # 원표에서 직접 확인되는 핵심 사실 최대 개수
         key_fact_max_chars: 120          # 핵심 사실 1개당 최대 문자 수
         search_terms: 0                  # 검색어 개수. 0=만들지 않음, N=최대 N개를 만들어 청크에 싣는다
 
