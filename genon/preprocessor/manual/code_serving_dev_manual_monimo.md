@@ -1093,11 +1093,14 @@ python -m genon.preprocessor.activities run --activity chunk parsed.json --doc-t
             "data": {"count": 1, "summary": "파싱 0KB · 요소 1", "preview": "…", "output": "…/parsed.json", …}}
 
 @@RESULT@@ {"ok": false, "stage": "parse", "activity": "parse", "duration_ms": 9501,
-            "error": {"type": "…", "message": "…", "non_retryable": false}}
+            "error": {"type": "permanent", "message": "…", "non_retryable": true,
+                      "reason_code": "PARSE_D001", "error_category": "data", "error_kind": "permanent"}}
 ```
 
 `data`는 워커가 돌려주는 요약 dict([6.4](#64-액티비티-결과와-오류))에 결과 파일 경로 `output`을 더한 것입니다.
-`error`의 `type`·`non_retryable`은 배포된 워커에서 같은 오류가 났을 때의 재시도 판정과 같습니다.
+`error`의 `type`·`non_retryable`은 배포된 워커에서 같은 오류가 났을 때의 재시도 판정과 같고,
+`reason_code`·`error_category`·`error_kind`는 워커가 액티비티 오류의 `details[0]`에 싣는 사유 코드와 같습니다
+(처리 본체의 실패에만 있고, 인자 오류처럼 본체 밖의 실패에는 없습니다).
 
 결과 파일은 워커가 쓰는 것과 같은 모양입니다. parse는 요소형이면 `{elements: [...]}`를, 문서형이면
 Docling 문서 자체를 저장합니다. chunk는 청크 배열을 저장합니다.
@@ -1683,10 +1686,13 @@ element의 공통 키는 `{category, content, coordinates, id, page}`이며, 행
 | `count` | parse는 요소 수(문서형은 텍스트 항목 수), chunk는 청크 수 |
 | `summary` · `preview` | 한 줄 요약과 앞부분 미리보기(`PREVIEW_CHARS`자까지) |
 | `duration_ms` | 처리 시간 |
+| `chunk_validation` | chunk 단계에서 청크 검증에 걸린 것이 있을 때만. HTTP 성공 응답의 `chunk_validation`과 같은 모양 |
 
 실패는 Temporal 액티비티 오류로 호출한 쪽에 전달되며, `type`과 `non_retryable`이 붙습니다. 같은 입력이면
 늘 실패하는 오류는 재시도하지 않고, 일시 오류는 재시도합니다. 재시도 횟수와 간격은 호출한 쪽이 정합니다.
-판정은 예외와 그 원인(`raise … from`)을 따라가며 처음 걸리는 규칙으로 합니다.
+판정은 예외와 그 원인(`raise … from`)을 따라가며 처음 걸리는 규칙으로 합니다. 오류의 `details[0]`에는
+사유 코드 `reason_code`·`error_category`·`error_kind`(= `type`)가 실립니다(사유 코드가 없는 예외는 `null`,
+[custom_fields_exceptions.md](custom_fields_exceptions.md)의 "사유 코드" 절).
 
 | 예외 | `type` | `non_retryable` |
 |---|---|---|

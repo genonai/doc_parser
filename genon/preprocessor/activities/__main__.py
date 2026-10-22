@@ -220,11 +220,16 @@ def _emit(payload: dict) -> None:
 def _failure(activity: str | None, started: float, exc: BaseException) -> dict:
     from genon.preprocessor.worker.registry import stage_of
 
+    error = {"type": getattr(exc, "type", None) or type(exc).__name__,
+             "message": str(exc),
+             "non_retryable": bool(getattr(exc, "non_retryable", False))}
+    # 워커 본체가 만든 ApplicationError 면 details[0] 의 사유 코드(#589)를 선택 키로 더한다 — 배포된
+    # 워커가 Temporal 오류에 싣는 값과 같다. 인자 오류처럼 본체 밖의 실패에는 없다.
+    details = getattr(exc, "details", None) or ()
+    if details and isinstance(details[0], dict):
+        error.update({k: details[0].get(k) for k in ("reason_code", "error_category", "error_kind")})
     return {"ok": False, "stage": stage_of(activity or ""), "activity": activity,
-            "duration_ms": int((time.monotonic() - started) * 1000),
-            "error": {"type": getattr(exc, "type", None) or type(exc).__name__,
-                      "message": str(exc),
-                      "non_retryable": bool(getattr(exc, "non_retryable", False))}}
+            "duration_ms": int((time.monotonic() - started) * 1000), "error": error}
 
 
 def _input_path(args) -> str:
