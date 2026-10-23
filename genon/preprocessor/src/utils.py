@@ -5,6 +5,8 @@ from fastapi.exceptions import HTTPException
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
+from genon.preprocessor.processing.common.reason_codes import category_of
+
 
 class BaseResponse(BaseModel):
     code: int
@@ -23,14 +25,10 @@ def make_success_response(data: Optional[Any] = None, chunk_validation: Optional
     return body
 
 
-# #528: 사유 코드의 분류문자 → 응답 error_category. 코드표는 processing/common/reason_codes.py 를 본다.
-_CATEGORY_BY_LETTER = {'D': 'data', 'P': 'preprocess', 'S': 'system'}
-
-
 def reason_fields(reason_code: str) -> dict:
-    """응답에 싣는 reason_code·error_category. 두 진입점(루트 main.py 포함)이 같이 쓴다."""
-    letter = reason_code.partition('_')[2][:1]
-    return {'reason_code': reason_code, 'error_category': _CATEGORY_BY_LETTER.get(letter)}
+    """응답에 싣는 reason_code·error_category(#528). 두 진입점(루트 main.py 포함)이 같이 쓴다.
+    분류는 processing/common/reason_codes.py 의 category_of 가 정한다 — 워커의 ApplicationError details 와 같다."""
+    return {'reason_code': reason_code, 'error_category': category_of(reason_code)}
 
 
 def reason_code_of(exc: Exception, prefix: str) -> str:

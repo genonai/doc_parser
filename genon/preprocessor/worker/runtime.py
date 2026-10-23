@@ -8,7 +8,9 @@
            저장하던 것과 같다 — `document` 가 있으면 그것, 없으면 `elements` 를 가진 응답 전체.
     chunk  arg = {parsed_ref, output_ref, source_name?, params?}
            parsed_ref 의 파싱 결과를 params["document"] 로 넘기고 file_path 는 빈 값으로 부른다 —
-           현 파이프라인의 /chunker 호출과 같다(청크 메타가 그대로다).
+           현 파이프라인의 /chunker 호출과 같다(청크 메타가 그대로다). 청커가 요청 상태
+           (request.state.chunk_validation)에 올린 청크 검증 요약은 결과의 `chunk_validation` 으로
+           싣는다(걸린 것이 있을 때만 — HTTP 성공 봉투와 같다, #589).
 
 params 는 요청 파라미터 + 파이프라인이 싣는 전처리 정책(llm_cache·workflow_id·error_policy·
 request_deadline)이다. `interim_root` 는 다른 파드의 절대경로라 버리고, 캐시를 켠 요청이면 이 파드의
@@ -123,9 +125,10 @@ def _seconds(value) -> float | None:
     return value if value > 0 else None
 
 
-def _call(proc, file_path: str, params: dict, heartbeat_interval: float, stage: str = "", doc: str = "",
+def _call(proc, request, file_path: str, params: dict, heartbeat_interval: float, stage: str = "", doc: str = "",
           stages: list | None = None):
     """proc.__call__ 을 별도 스레드에서 돌리며 하트비트. 마감은 request_deadline(초).
+    request 는 프로세서에 넘기는 요청 객체다(mock_request) — 청커가 요청 상태에 남기는 값을 호출부가 읽는다.
     계측이 켜져 있으면(GENOS_PROFILE=1) 하위 단계 시간을 stages 에 채운다."""
     deadline = _seconds(params.get("request_deadline"))
 
@@ -134,7 +137,7 @@ def _call(proc, file_path: str, params: dict, heartbeat_interval: float, stage: 
         with prof.collect() as box:
             try:
                 with prof.stage(f"{stage}_total"):
-                    return await proc(mock_request(), file_path, **params)
+                    return await proc(request, file_path, **params)
             finally:
                 if box is not None and stages is not None:
                     stages.extend(box)
@@ -210,6 +213,7 @@ def execute(proc, stage: str, arg: dict) -> dict:
     name = activity.info().activity_type
     doc = arg.get("source_name") or arg.get("output_ref", "")
     where = f"{name} {doc}"
+    request = mock_request()
     try:
         stages: list = []
         params = dict(arg.get("params") or {})
@@ -222,10 +226,12 @@ def execute(proc, stage: str, arg: dict) -> dict:
         output_ref = arg["output_ref"]
         if stage == "parse":
             file_path = str(paths.read_path(cfg.nfs_root, cfg.artifact_root, arg["read_ref"]))
-            payload = _parsed_payload(_call(proc, file_path, params, cfg.heartbeat_interval, stage, doc, stages))
+            payload = _parsed_payload(_call(proc, request, file_path, params, cfg.heartbeat_interval, stage, doc,
+                                            stages))
         else:
             params["document"] = paths.load_json(cfg.artifact_root, arg["parsed_ref"])
-            payload = jsonable_encoder(_call(proc, "", params, cfg.heartbeat_interval, stage, doc, stages)) or []
+            payload = jsonable_encoder(_call(proc, request, "", params, cfg.heartbeat_interval, stage, doc,
+                                             stages)) or []
         activity.heartbeat()           # 저장 직전 — 취소됐으면 여기서 멈춘다
         size = paths.save_json(cfg.artifact_root, output_ref, payload)
     except CancelledError:
@@ -234,6 +240,11 @@ def execute(proc, stage: str, arg: dict) -> dict:
         raise to_application_error(exc, where) from exc
     count, summary, preview = _summarize(stage, payload, size, cfg.preview_chars)
     extra = {"stages": stages} if stages else {}     # 계측이 켜졌을 때만 — Temporal 화면에서 하위 단계 시간
+    # 청크 검증 요약 — 청커(ChunkerCore)가 요청 상태에 올린 것을 HTTP 성공 봉투와 같은 키로 싣는다.
+    # 걸린 것이 없으면 청커가 None 을 올리므로 키를 붙이지 않는다(HTTP 봉투와 같다).
+    validation = getattr(request.state, "chunk_validation", None)
+    if validation is not None:
+        extra["chunk_validation"] = validation
     return {**extra, "stage": stage, "activity": name, "ref": output_ref, "bytes": size, "count": count,
             "summary": summary, "preview": preview,
             "duration_ms": int((time.monotonic() - started) * 1000)}

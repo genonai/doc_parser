@@ -4,6 +4,9 @@
 분류문자는 D(원천데이터)·P(전처리)·S(시스템)이다. 코드표 정본은
 `manual/custom_fields_exceptions.md` 의 "사유 코드" 절이다.
 
+분류문자에서 정하는 `error_category` 는 `category_of` 한 곳에서 계산한다. HTTP 응답(src/utils.py)과
+Temporal ApplicationError 의 details(worker/errors.py, #589)가 같은 함수를 쓴다.
+
 원인 예외가 코드를 실어 보내면 감싸는 자리는 `reason_of` 로 그 값을 우선한다. 같은 모듈이
 두 import 경로로 올라와 클래스 객체가 갈릴 수 있으므로 isinstance 대신 속성으로 읽는다.
 """
@@ -25,6 +28,17 @@ class CodedValueError(ValueError):
 def reason_of(exc: BaseException, default: Optional[str] = None) -> Optional[str]:
     """원인 예외가 실은 사유 코드. 없으면 default."""
     return getattr(exc, "reason_code", None) or default
+
+
+#: 사유 코드의 분류문자 → error_category.
+CATEGORY_BY_LETTER = {"D": "data", "P": "preprocess", "S": "system"}
+
+
+def category_of(reason_code: Optional[str]) -> Optional[str]:
+    """사유 코드의 분류문자에서 정한 error_category. 코드가 없거나 분류문자를 모르면 None."""
+    if not reason_code:
+        return None
+    return CATEGORY_BY_LETTER.get(reason_code.partition("_")[2][:1])
 
 
 # 다시 시도해도 결과가 같은 파일 오류(없는 경로, 권한 거부).
