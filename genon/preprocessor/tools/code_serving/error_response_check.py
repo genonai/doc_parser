@@ -1,9 +1,11 @@
 #!/usr/bin/env python
-"""루트 main.py 를 그대로 띄워 오류 응답의 사유 코드·성격과 청크 검증 보고를 확인한다(#528).
+"""기본 전처리기 서비스(src/main.py)의 `/run` 으로 오류 응답의 사유 코드·성격과 청크 검증 보고를 확인한다(#528).
 
-모니모 실물 샘플에서 오류 입력을 만들어 /parser·/chunker 에 넣고, 응답의 `reason_code`,
-`error_category`, `error_kind` 가 코드표(`manual/custom_fields_exceptions.md` 의 "사유 코드" 절)와 맞는지 단정한다.
-local_main_test.py 와 같이 FastAPI TestClient 로 앱을 직접 호출하므로 네트워크가 필요 없다.
+파싱 액티비티 처리기와 청킹 액티비티 처리기를 각각 `preprocessor.py` 로 올린 서비스 두 벌을 만든다.
+모니모 실물 샘플에서 오류 입력을 만들어 넣고, 응답의 `reason_code`, `error_category`, `error_kind` 가
+코드표(`manual/custom_fields_exceptions.md` 의 "사유 코드" 절)와 맞는지 단정한다. 사유 코드는 처리기가
+던지는 예외에 실리므로 워커 경로와 같은 분류다. FastAPI TestClient 로 앱을 직접 호출하므로 네트워크가 필요 없다.
+#577 전에는 코드서빙 루트 main.py 의 /parser·/chunker 로 확인했다.
 
 설정은 모니모 완성본의 임시 사본을 쓴다. front matter 오류는 현장 설정(on_invalid 기본
 ignore)에서 나지 않으므로 사본의 product_slf 에만 `on_invalid: error` 를 켠다.
@@ -46,7 +48,7 @@ MAX_CHARS = 1000
 
 def _resource_copy() -> Path:
     """모니모 사이트 완성본 사본(resource/ + activities/) → 사본의 resource/ 경로(GENOS_RESOURCE_DIR).
-    루트 main.py 의 /parser·/chunker 는 그 옆 activities/parse·chunk/ 의 설정을 읽는다 — 확인용 변경은 그쪽에 한다.
+    처리기는 그 옆 activities/parse·chunk/ 의 설정을 읽는다 — 확인용 변경은 그쪽에 한다.
     product_slf 의 front matter 형식 오류만 실패로 바꾼다."""
     site = WORK / "monimo"
     shutil.copytree(REPO_ROOT / "genon" / "sites" / "monimo", site, ignore=shutil.ignore_patterns("__pycache__"))
@@ -108,8 +110,37 @@ _PRESETS.write_text(yaml.safe_dump({"model_presets": {"default": {
     encoding="utf-8")
 os.environ["GENOS_MODEL_PRESETS_FILE"] = str(_PRESETS)
 os.environ["GENOS_RESOURCE_DIR"] = str(_resource_copy())
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-import local_main_test  # noqa: E402,F401  더미 env 와 sys.path 설정을 재사용한다
+# src/main.py 는 common.settings 를 거치는데 그것이 MQ·MinIO 접속 정보를 필수로 요구한다. 이 확인에서는
+# 쓰이지 않으므로 더미 값을 채운다. PREPROCESSOR_ID 는 주지 않는다(주면 MinIO 에서 자원을 내려받으려 한다).
+for _k, _v in {
+    "PROFILE": "dev", "POD_ID": "local",
+    "LOG_PATH": json.dumps([tempfile.mkdtemp(prefix="error_response_check_log_")]),
+    "MQ_HOST": "127.0.0.1", "MQ_PORT": "5672", "MQ_USER": "guest",
+    "MQ_PASSWORD": "guest", "MQ_VHOST": "/", "MQ_EXCHANGE_TYPE": "topic",
+    "MQ_EXCHANGE_NAME_LOG": "log", "MQ_QUEUE_NAME_LOG": "log",
+    "MQ_QUEUE_BIND_ROUTING_KEY_LOG": "log.#", "MQ_ROUTING_KEY_LOG": "log.local",
+    "MINIO_ENDPOINT": "127.0.0.1:9000", "MINIO_ACCESS_KEY": "x", "MINIO_SECRET_KEY": "x",
+}.items():
+    os.environ.setdefault(_k, _v)
+sys.path.insert(0, str(REPO_ROOT))
+sys.path.insert(0, str(REPO_ROOT / "genon" / "preprocessor" / "src"))   # src/main.py 의 `from logger import …`
+
+
+def _service(processor):
+    """처리기 하나를 preprocessor.py 로 올린 기본 전처리기 서비스(src/main.py) → TestClient."""
+    import importlib.util
+    import types
+
+    from fastapi.testclient import TestClient
+
+    module = types.ModuleType("preprocessor")
+    module.DocumentProcessor = lambda: processor
+    sys.modules["preprocessor"] = module
+    spec = importlib.util.spec_from_file_location(
+        f"src_main_{id(processor)}", REPO_ROOT / "genon" / "preprocessor" / "src" / "main.py")
+    src_main = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(src_main)
+    return TestClient(src_main.app)
 
 
 def _derived_inputs() -> dict:
@@ -189,17 +220,19 @@ def _derived_inputs() -> dict:
 
 
 def main() -> int:
-    from fastapi.testclient import TestClient
+    from genon.preprocessor.activities import _folders
+    from genon.preprocessor.activities.chunk import DocumentProcessor as ChunkProcessor
+    from genon.preprocessor.activities.parse import DocumentProcessor as ParseProcessor
 
-    import main as app_main
-
-    client = TestClient(app_main.app)
+    clients = {"/parser": _service(ParseProcessor(config_path=str(_folders.config_path("parse")))),
+               "/chunker": _service(ChunkProcessor(config_path=str(_folders.config_path("chunk"))))}
     src = _derived_inputs()
 
     def post(route: str, file_path, params: dict) -> dict:
+        """route 는 처리기 이름표다 — /parser 는 파싱 처리기를, /chunker 는 청킹 처리기를 올린 서비스의 /run."""
         if route == "/parser":
             params = {"toc": 0, **params}
-        return client.post(route, json={"file_path": str(file_path), "params": params}).json()
+        return clients[route].post("/run", json={"file_path": str(file_path), "params": params}).json()
 
     parsed = post("/parser", MONIMO / "monimo_product_ssf_sample.md", {"doc_type": "product_ssf"})
     assert parsed.get("code") == 0, parsed.get("errMsg")
@@ -342,36 +375,10 @@ def main() -> int:
     cases.append("deadline")
 
     # 요청 형식 오류는 라우트 함수에 닿기 전에 FastAPI 가 거부한다.
-    body = client.post("/parser", json={"params": {}}).json()
+    body = clients["/parser"].post("/run", json={"params": {}}).json()
     ok = body.get("reason_code") == "COMMON_P002"
     failures += not ok
     print(f"[{'PASS' if ok else 'FAIL'}] 요청 형식 오류(file_path 누락): reason_code={body.get('reason_code')}")
-
-    # 기본 전처리기 서비스(src/main.py)도 같은 필드를 싣는가. 파서 파사드를 배포한 형태로 띄운다.
-    import importlib.util
-    import types
-
-    module = types.ModuleType("preprocessor")
-    module.DocumentProcessor = lambda: app_main.parser_processor
-    sys.modules["preprocessor"] = module
-    spec = importlib.util.spec_from_file_location(
-        "src_main", REPO_ROOT / "genon" / "preprocessor" / "src" / "main.py")
-    src_main = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(src_main)
-    src_client = TestClient(src_main.app)
-    for label, route, path, params, want_code, want_kind in [
-        ("기본 전처리기 /parser 필수 열 부재", "/parser", MONIMO / "monimo_term_sample.xlsx",
-         {"doc_type": "menu"}, "PARSE_D001", "permanent"),
-        ("기본 전처리기 /run records 키 부재", "/run", MONIMO / "monimo_cs_slf_sample.json",
-         {"doc_type": "faq"}, "PARSE_D002", "permanent"),
-        ("기본 전처리기 /chunker 미지원 API", "/chunker", "", {}, "COMMON_P001", None),
-    ]:
-        body = src_client.post(route, json={"file_path": str(path), "params": params}).json()
-        ok = _failure_ok(body, want_code, want_kind)
-        failures += not ok
-        print(f"[{'PASS' if ok else 'FAIL'}] {label}: reason_code={body.get('reason_code')} "
-              f"error_category={body.get('error_category')} error_kind={body.get('error_kind')}")
-        cases.append(label)
 
     print(f"\n{len(cases) + 1 - failures}/{len(cases) + 1} 통과")
     return 1 if failures else 0

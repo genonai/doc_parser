@@ -1,5 +1,11 @@
 # 모니모 파싱·청킹 호출부 오류 처리 안내
 
+> **#577 전 기준 문서입니다.** #577 에서 코드서빙 HTTP 업무 경로(`/parser`·`/parser_upload`·`/chunker`)를 없앴고,
+> 모니모 코드서빙은 전처리기 Temporal 워커만 씁니다. 지금 호출부(pipeline 워커)는 HTTP 응답이 아니라 액티비티 오류
+> (`ApplicationError` 의 `type`·`non_retryable`·메시지)를 받습니다 — [code_serving.md](code_serving.md)의
+> 「파싱·청킹 호출 — Temporal 액티비티」 절. 사유 코드표와 7장의 문서유형별 원인은 처리기가 던지는 예외 기준이라
+> 그대로 참고할 수 있지만, 액티비티 오류에는 `reason_code`·`error_category` 필드가 따로 실리지 않습니다.
+
 모니모 코드서빙의 `/parser`·`/parser_upload`·`/chunker` 를 호출하는 쪽(적재 파이프라인, Temporal activity 등)을 위한
 문서입니다. 응답을 받았을 때 무엇을 보고, 다시 시도할지, 누구에게 넘길지를 정리합니다.
 

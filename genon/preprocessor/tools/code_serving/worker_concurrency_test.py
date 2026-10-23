@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""전처리기 워커 parse + chunk 동시 처리 측정 — concurrency_test.py 의 워커판(#514).
+"""전처리기 워커 parse + chunk 동시 처리 측정(#514). 공용 함수는 measure_common.py.
 
-HTTP 측정과 같은 잡(문서 7종 x on/off, --manifest)을 같은 순서로 보낸다. 요청 대신 문서마다 작은
+#511 HTTP 측정과 같은 잡(문서 7종 x on/off, --manifest)을 같은 순서로 보낸다. 요청 대신 문서마다 작은
 워크플로 하나를 시작하고, 워크플로가 파드의 큐(--activity-queue)에 parse → chunk 액티비티를 차례로 건다.
 워크플로와 이 클라이언트는 이 프로세스(코드스페이스)에서 돌고, 실제 처리는 워커 파드가 한다.
 
@@ -12,12 +12,12 @@ Temporal 접속은 워커와 같은 env(TEMPORAL_HOST·TEMPORAL_PORT·TEMPORAL_N
 액티비티는 파일을 NFS 상대 경로(read_ref)로 받으므로 --docdir 은 파드의 NFS_ROOT 기준 상대 경로다.
 
 측정 항목(잡마다, 단계마다):
-  *_elapsed  예약 → 완료. HTTP 측정의 요청 소요 시간과 같은 뜻이다(대기 포함)
+  *_elapsed  예약 → 완료. #511 HTTP 측정의 요청 소요 시간과 같은 뜻이다(대기 포함)
   *_wait     예약 → 시작. 큐·스레드가 비기를 기다린 시간. chunk_wait 가 "긴 parse 뒤 chunk 대기"다
   *_run      시작 → 완료. 파드 안에서 처리한 시간(slug 의 첫 호출은 프로세서 생성 시간을 포함한다)
   시각은 모두 워크플로 이력에 Temporal 서버가 기록한 이벤트 시각이다
   max_inflight  단계별로 파드 안에서 동시에 처리 중이던 최대 건수. WORKER_THREADS 만큼 올라가야 동시 처리다
---artifact-root 를 주면 산출물(ARTIFACT_ROOT/<ref>.json)을 읽어 HTTP 측정과 같은 간섭 검사(R1·R2·청크 수·필드 집합)도 한다.
+--artifact-root 를 주면 산출물(ARTIFACT_ROOT/<ref>.json)을 읽어 간섭 검사(R1·R2·청크 수·필드 집합)도 한다.
 산출물은 ARTIFACT_ROOT/measure/<run>/ 아래에 남는다. 측정이 끝나면 지운다.
 """
 from __future__ import annotations
@@ -38,7 +38,7 @@ from temporalio.common import RetryPolicy
 from temporalio.worker import UnsandboxedWorkflowRunner, Worker
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from concurrency_test import build_jobs, chunk_metrics, interference, load_manifest, parse_metrics, table  # noqa: E402
+from measure_common import build_jobs, chunk_metrics, interference, load_manifest, parse_metrics, table  # noqa: E402
 
 
 @workflow.defn(name="measure_parse_chunk")

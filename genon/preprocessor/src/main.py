@@ -1,3 +1,11 @@
+"""기본 전처리기 서비스 — GenOS 전처리기 파드의 진입점.
+
+전처리기 이미지는 supervisord → `gunicorn src.main:app`(configs/supervisor.conf)으로 이 앱을 띄운다. 업로드한
+처리기 하나를 `preprocessor.py`(DocumentProcessor)로 올려 `POST /run` 으로 부른다. 호출자는 GenOS
+preprocess-api 다(문서 업로드 → 전처리기 파드 `/run`). 파사드 3종(attachment·convert·intelligent)이 이 자리에 쓰인다.
+
+doc_parser 코드서빙(전처리기 Temporal 워커)과는 별개다 — 그쪽 진입점은 `genon/preprocessor/worker/`(#577).
+"""
 import asyncio
 import os
 import sys
@@ -117,90 +125,6 @@ async def run(
         return failure_response_from_exc(e)
     finally:
         logger.info(f'End: "{file_path}" ({time.time() - pt:.2f} seconds)')
-    return make_success_response(
-        data=data, chunk_validation=getattr(request.state, 'chunk_validation', None))
-
-
-@app.post('/parser')
-async def parse(
-        request: Request,
-        file_path: str = Body(..., embed=True),
-        params: dict = Body(default_factory=dict)
-):
-    if not getattr(processor, 'IS_PARSER', False):
-        return JSONResponse(
-            {'code': 1,
-             'errMsg': '현재 설치된 전처리기는 /parser API를 지원하지 않습니다.',
-             'data': None,
-             'error_code': 1,
-             'error_msg': '현재 설치된 전처리기는 /parser API를 지원하지 않습니다.',
-             **reason_fields('COMMON_P001')},
-            status_code=200)
-    pt = time.time()
-    try:
-        logger.info(f'[parser] Start: "{file_path}"')
-        data = await _run_with_deadline(request, file_path, params)
-        logger.info(f'[parser] Success: "{file_path}"')
-    except asyncio.TimeoutError as e:
-        rd = _request_deadline_seconds(params)
-        if rd is None or time.time() - pt < rd:
-            # 처리기 안에서 난 시간 초과다. 요청 deadline 초과로 표시하지 않는다(#528).
-            logger.error(f'[parser] Error: "{file_path}"\n{traceback.format_exc()}\n')
-            return failure_response_from_exc(e, 'PARSE')
-        logger.error(f'[parser] Error(timeout): "{file_path}"')
-        return make_failure_response('request deadline exceeded', error_code=1,
-                                     stage='request', error_kind='timeout',
-                                     reason_code='COMMON_S102')
-    except GenosServiceException as e:
-        logger.error(f'[parser] Error: "{file_path}"\n{traceback.format_exc()}\n')
-        return failure_response_from_exc(e, 'PARSE')
-    except Exception as e:
-        logger.error(f'[parser] Error: "{file_path}"\n{traceback.format_exc()}\n')
-        return failure_response_from_exc(e, 'PARSE')
-    finally:
-        logger.info(f'[parser] End: "{file_path}" ({time.time() - pt:.2f} seconds)')
-    return make_success_response(data=data)
-
-
-@app.post('/chunker')
-async def chunker(
-        request: Request,
-        file_path: str = Body(default='', embed=True),
-        params: dict = Body(default_factory=dict)
-):
-    if not getattr(processor, 'IS_CHUNKER', False):
-        return JSONResponse(
-            {'code': 1,
-             'errMsg': '현재 설치된 전처리기는 /chunker API를 지원하지 않습니다.',
-             'data': None,
-             'error_code': 1,
-             'error_msg': '현재 설치된 전처리기는 /chunker API를 지원하지 않습니다.',
-             **reason_fields('COMMON_P001')},
-            status_code=200)
-    pt = time.time()
-    try:
-        logger.info('[chunker] Start')
-        # 앞단계(파싱) 결과 docling JSON 은 params["document"] 로 인라인 전달된다.
-        data = await _run_with_deadline(request, file_path, params)
-        logger.info('[chunker] Success')
-    except asyncio.TimeoutError as e:
-        rd = _request_deadline_seconds(params)
-        if rd is None or time.time() - pt < rd:
-            # 처리기 안에서 난 시간 초과다. 요청 deadline 초과로 표시하지 않는다(#528).
-            logger.error(f'[chunker] Error: "{file_path}"\n{traceback.format_exc()}\n')
-            return failure_response_from_exc(e, 'CHUNK')
-        logger.error('[chunker] Error(timeout)')
-        return make_failure_response('request deadline exceeded', error_code=1,
-                                     stage='request', error_kind='timeout',
-                                     reason_code='COMMON_S102')
-    except GenosServiceException as e:
-        logger.error(f'[chunker] Error\n{traceback.format_exc()}\n')
-        return failure_response_from_exc(e, 'CHUNK')
-    except Exception as e:
-        logger.error(f'[chunker] Error\n{traceback.format_exc()}\n')
-        return failure_response_from_exc(e, 'CHUNK')
-    finally:
-        logger.info(f'[chunker] End ({time.time() - pt:.2f} seconds)')
     return make_success_response(
         data=data, chunk_validation=getattr(request.state, 'chunk_validation', None))
 

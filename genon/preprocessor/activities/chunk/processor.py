@@ -16,7 +16,7 @@ from pydantic import BaseModel
 from genon.preprocessor.processing.chunking import smart_chunker as sc
 from genon.preprocessor.processing.core import toolbox as tb  # noqa: F401
 from genon.preprocessor.processing.core.chunker import ChunkerCore
-# main.py 의 예외 핸들러가 이 이름으로 잡는다. core 가 던지는 것과 같은 클래스다.
+# 액티비티 래퍼·기본 전처리기 서비스(src/main.py)의 예외 처리가 이 이름으로 잡는다. core 가 던지는 것과 같은 클래스다.
 from genon.preprocessor.processing.core.errors import GenosServiceException  # noqa: F401
 
 
@@ -68,9 +68,8 @@ class GenosSmartChunker(sc.SmartChunkerBase):
 
 
 class DocumentProcessor(ChunkerCore):
-    """청킹 전용 전처리기. main.py 가 /chunker 요청을 이 클래스로 라우팅한다."""
+    """청킹 전용 액티비티 처리기. 전처리기 워커의 chunk 액티비티(와 사본 slug)가 부른다."""
 
-    IS_CHUNKER = True                 # True 여야 /chunker 엔드포인트가 활성화된다
     VECTOR_META = GenOSVectorMeta
     CHUNKER = GenosSmartChunker
 
