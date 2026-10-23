@@ -627,7 +627,7 @@ def check_md_html_table(chunks: list) -> list[str]:
         problems.append(f"표 청크 2건 기대, 실제 {len(table_chunks)}건(HTML 표 파싱 실패)")
     for idx, chunk in enumerate(table_chunks):
         text = chunk.get("text") or ""
-        if "<table" not in text and "| - |" not in text:
+        if "<table" not in text and not re.search(r"^\| -+ \|", text, re.MULTILINE):
             problems.append(f"표 청크 {idx} 가 html/markdown 어느 표기도 아닙니다")
         for field in ("text_table_html", "text_table_md"):
             if not (chunk.get(field) or "").strip():
@@ -934,10 +934,10 @@ EXTRA_CHECKS = {
     # 계층 헤더의 하위 라벨(사례4)과 리프 상한으로 줄인 HEADER(사례9)가 남는다.
     ("product_slf", "monimo_product_slf_table_edge_sample_pages.md"): check_table_edge(expected=(
         "지급금액 > 1년이내=150만원 | 지급금액 > 1년초과=300만원", "무엇인가요? … 외 ")),
-    # 한도 안에 드는 span 표(사례11)는 단일 직렬화 그대로 나간다.
+    # 한도 안에 드는 span 표(사례11)도 분할 조각과 같은 표기로 나간다(#580). 행 요약은 붙지 않는다.
     ("product_ssf", "monimo_product_ssf_table_edge_sample.md"): check_table_edge(expected=("\n".join((
-        "| 담보 | 보장 내용 | 보장 내용 | 지급금액 |", "| - | - | - | - |",
-        "| 담보 | 지급사유 | 자기부담금 | 지급금액 |", "| 상해 | 상해 사망·후유장해 | 없음 | 최대 1억원 |",
+        "| 담보 | 보장 내용 > 지급사유 | 보장 내용 > 자기부담금 | 지급금액 |", "| --- | --- | --- | --- |",
+        "| 상해 | 상해 사망·후유장해 | 없음 | 최대 1억원 |",
         "| 의료비 | 해외 실손의료비 | 1만원 | 최대 3천만원 |",
         "| 휴대품 | 휴대품 손해(1품목당 20만원) | 1만원 | 최대 100만원 |",
         "| 지연 | 항공기 4시간 이상 지연 | 없음 | 20만원 |")),)),

@@ -975,9 +975,15 @@ class CustomFieldsEnricher(BaseEnricher):
         options = self._table_description_options
         limits = (
             f"retrieval_context 최대 {options.retrieval_context_max_chars}자, "
-            f"key_facts 최대 {options.key_fact_limit}개(항목당 {options.key_fact_max_chars}자), "
-            f"search_terms 최대 {options.search_terms_limit}개."
+            f"key_facts 최대 {options.key_fact_limit}개(항목당 {options.key_fact_max_chars}자)."
         )
+        # 템플릿 스키마에는 search_terms 가 없다. 검색어를 만들 때만 요구해야 0개 설정에서
+        # 모델이 빈 배열 골격을 출력하느라 시간을 쓰지 않는다.
+        if options.search_terms_limit > 0:
+            limits += (
+                f" 각 항목에 `search_terms`(문자열 배열, 최대 {options.search_terms_limit}개)도 넣는다."
+                " 원문에 근거한 실제 질의 표현만 쓴다."
+            )
         return "\n\n".join((
             options.prompt_template,
             limits,

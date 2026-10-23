@@ -356,3 +356,73 @@ def test_single_cell_layout_table_is_split_within_chunk_size():
 
     assert len(texts) > 1 and all(len(text) <= 420 for text in texts), [len(t) for t in texts]
     assert [line for text in texts for line in text.splitlines() if line] == paragraphs
+
+
+def _table_edge_sample_doc():
+    """실물 재현 샘플(상품설명서 생명 표 경계 사례)을 md 백엔드로 변환한 문서."""
+    from pathlib import Path
+
+    md_backend = pytest.importorskip("docling.backend.md_backend", exc_type=ImportError)
+    from docling.datamodel.base_models import InputFormat
+    from docling.datamodel.document import InputDocument
+
+    source = (Path(__file__).resolve().parents[2] / "sample_files" / "monimo"
+              / "monimo_product_slf_table_edge_sample_pages.md")
+    backend = md_backend.MarkdownDocumentBackend
+    return backend(
+        in_doc=InputDocument(path_or_stream=source, format=InputFormat.MD, backend=backend),
+        path_or_stream=source,
+    ).convert()
+
+
+@pytest.mark.unit
+def test_complex_table_keeps_same_format_whether_split_or_not():
+    """병합 셀·다단 헤더 표가 한도 안팎에서 같은 표 헤더로 나간다(#580).
+
+    한도 안이면 docling 직렬화(`지급금액 | 지급금액` + 둘째 헤더가 데이터 행, `| - |`), 넘으면
+    행 분할 렌더러(`지급금액 > 1년이내`, `| --- |`)로 그려져, 표 앞 LLM 설명 길이에 따라 같은
+    원본이 실행마다 다른 형태가 됐다. 실물 재현 샘플을 분할되지 않는 한도와 모든 표가
+    나뉘는 한도로 각각 청킹해, 구분선 바로 위의 표 헤더 줄 집합이 같은지 본다. 청커는 활성
+    facade 3종이 공유하므로 한 곳만 본다.
+    """
+    module = pytest.importorskip("genon.preprocessor.facade.chunking_processor", exc_type=ImportError)
+    doc = _table_edge_sample_doc()
+
+    def table_headers(max_tokens):
+        headers = set()
+        for chunk in module.GenosSmartChunker(
+            max_tokens=max_tokens, chunk_mode="split_only", tokenizer_type="char",
+        ).chunk(dl_doc=doc, table_format="markdown"):
+            lines = chunk.text.splitlines()
+            headers |= {lines[i - 1] for i, line in enumerate(lines) if i and line.startswith("| -")}
+        return headers
+
+    single = table_headers(4000)
+
+    assert "| 특약명 | 지급사유 | 지급금액 > 1년이내 | 지급금액 > 1년초과 |" in single
+    assert single == table_headers(300)
+
+
+@pytest.mark.unit
+def test_full_width_footnote_row_stays_out_of_row_summary():
+    """표 전체 폭 각주 행은 행 요약에 싣지 않고 표 격자에만 남긴다(#582).
+
+    예전에는 첫 컬럼 라벨이 붙어(`특약명=㈜1. …`) 각주가 특약명 값처럼 읽혔고, 긴 각주
+    문장이 표 격자와 행 요약에 두 번 실려 청크가 커졌다. 실물 재현 샘플의 각주 행으로 본다.
+    """
+    module = pytest.importorskip("genon.preprocessor.facade.chunking_processor", exc_type=ImportError)
+    texts = [chunk.text for chunk in module.GenosSmartChunker(
+        max_tokens=1500, chunk_mode="split_only", tokenizer_type="char",
+    ).chunk(dl_doc=_table_edge_sample_doc(), table_format="markdown", table_row_serialization=True)]
+
+    summaries = [text.split("[표 행 요약]\n", 1)[1] for text in texts if "[표 행 요약]" in text]
+    # 표 격자에서 첫 칸만 채운 전체 폭 각주 행의 셀 원문. 행 요약은 셀 안 줄바꿈을 살리므로
+    # 공백을 접어 비교한다.
+    def fold(value):
+        return " ".join(value.split())
+
+    footnotes = [fold(line[2:].split(" | ", 1)[0]) for text in texts for line in text.splitlines()
+                 if line.startswith("| ㈜")]
+
+    assert summaries and footnotes
+    assert not any(note in fold(summary) for note in footnotes for summary in summaries)

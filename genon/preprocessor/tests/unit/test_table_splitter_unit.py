@@ -249,7 +249,10 @@ _CLAUSE = "㈜ 1. 보험료 납입기간 중 주계약의 보험료 납입 면�
 
 @pytest.mark.unit
 def test_tbody_colspan_clause_is_written_once_in_table_and_row_summary():
-    """11쪽 표: tbody 전체 폭 조항(colspan=3)이 표에 3회, 행 요약에 3회 실려 조각이 한도를 넘었다."""
+    """11쪽 표: tbody 전체 폭 조항(colspan=3)이 표에 3회, 행 요약에 3회 실려 조각이 한도를 넘었다.
+
+    표에는 한 번 남고 행 요약에서는 빠진다(#582 - 어느 한 컬럼의 값이 아니다).
+    """
     grid = [
         [Cell("특약명", 0, column_header=True), Cell("지급사유", 1, column_header=True),
          Cell("지급금액", 2, column_header=True)],
@@ -269,7 +272,7 @@ def test_tbody_colspan_clause_is_written_once_in_table_and_row_summary():
     assert len(clause_pieces) == 2
     for piece in clause_pieces:
         body, _, summary = piece.partition(ROW_LINES_LABEL)
-        assert (body.count(_CLAUSE), summary.count(_CLAUSE)) == (1, 1)
+        assert (body.count(_CLAUSE), summary.count(_CLAUSE)) == (1, 0)
         assert f"| {_CLAUSE} |  |  |" in body
     # rowspan 값은 조각 맥락을 위해 행마다 그대로 복제된다.
     assert "\n".join(result.pieces).count("특약명=3대안과질환 수술보장특약") == 3
