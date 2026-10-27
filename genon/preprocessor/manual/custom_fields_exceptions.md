@@ -43,6 +43,9 @@ raw 예외**(마크다운 머리말 오류 등)뿐입니다.
 미분류 오류(`*_P999`)의 `error_kind` 는 감싸는 자리가 정합니다. 매핑 단계처럼 감싸는 자리가 결정적 오류로
 보는 곳에서는 `permanent` 가 실리고, 진입점의 일반 예외 경로에서는 실리지 않습니다.
 
+Temporal 워커 경로에서는 같은 세 값이 액티비티 오류(`ApplicationError`)의 `details[0]` 에 `reason_code`·`error_category`·`error_kind` 로
+실립니다. 사유 코드가 없는 예외는 `null` 이며 `*_P999` 로 바꾸지 않습니다(자세한 모양은 `code_serving_dev_manual_monimo.md` 6.4).
+
 ## 사유 코드
 
 형식은 `<단계>_<분류문자><3자리 번호>` 입니다.

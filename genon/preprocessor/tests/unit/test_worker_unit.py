@@ -10,6 +10,7 @@ from pathlib import Path
 import pytest
 from temporalio.testing import ActivityEnvironment
 
+from genon.preprocessor.processing.common.reason_codes import CodedValueError
 from genon.preprocessor.processing.core.errors import GenosServiceException
 from genon.preprocessor.worker import errors, paths, registry, runtime, settings
 
@@ -170,7 +171,22 @@ def test_parse_then_chunk_exchange_refs_on_artifact_root(cfg):
         == [{"text": "카드 개요", "i_chunk_on_doc": 0}]
     assert (parsed["ref"], parsed["count"], chunked["ref"], chunked["count"]) == ("k1/parse", 1, "k1/chunk", 1)
     assert parsed["preview"] == "카드 개요" and parsed["summary"].startswith("파싱 ")
-    assert chunked["summary"].startswith("청크 1건")
+    assert chunked["summary"].startswith("청크 1건") and "chunk_validation" not in chunked
+
+
+def test_chunk_result_carries_validation_summary_from_request_state(cfg):
+    """청커(ChunkerCore)가 요청 상태에 올린 청크 검증 요약을 HTTP 성공 봉투와 같은 키로 싣는다(#589).
+    걸린 것이 없을 때 키가 붙지 않는 것은 위 교환 시험이 본다."""
+    summary = {"action": "report", "count": 1, "reasons": {"too_short": 1}, "items": []}
+
+    class _Chunker(_FakeProcessor):
+        async def __call__(self, request, file_path, **kwargs):
+            request.state.chunk_validation = summary
+            return self.result
+
+    result = ActivityEnvironment().run(runtime.execute, _Chunker([{"text": "a"}]), "chunk",
+                                       {"parsed_ref": "k1/fixed", "output_ref": "k1/chunk"})
+    assert result["chunk_validation"] == summary
 
 
 def test_parse_reads_repaired_copy_from_artifact_root(cfg):
@@ -227,6 +243,23 @@ def test_wrapped_error_without_type_follows_its_cause(cause, non_retryable):
             raise GenosServiceException("1", "JSON 파일을 읽을 수 없습니다") from e
     except GenosServiceException as wrapped:
         assert errors.to_application_error(wrapped).non_retryable is non_retryable
+
+
+def _caused_by(exc, cause):
+    exc.__cause__ = cause
+    return exc
+
+
+@pytest.mark.parametrize("exc, expected", [
+    (_caused_by(GenosServiceException("1", "JSON 파일을 읽을 수 없습니다"), CodedValueError("손상", "CHUNK_P004")),
+     {"reason_code": "CHUNK_P004", "error_category": "preprocess", "error_kind": "permanent"}),
+    (RuntimeError("unknown"), {"reason_code": None, "error_category": None, "error_kind": "RuntimeError"}),
+], ids=["원인이 코드를 실음", "코드 없음"])
+def test_application_error_details_carry_reason_code(exc, expected):
+    """사유 코드(#528)는 details[0] 로 실린다(#589) — 원인 체인에서 찾고, 없으면 None(지어내지 않는다).
+    error_kind 는 type 과 같다. 겉 예외가 직접 코드를 실은 경우는 아래 단건 CLI 시험의 실패 봉투가 본다."""
+    err = errors.to_application_error(exc)
+    assert (list(err.details), err.type) == ([expected], expected["error_kind"])
 
 
 @pytest.mark.parametrize("release_after", [0.1, 0.5], ids=["유예 안에 끝남", "유예 뒤에 끝남"])
@@ -356,6 +389,14 @@ def test_single_run_cli_uses_worker_body_and_prints_result_last(tmp_path, monkey
     code = cli.main(["run", "--activity", "nope", str(src)])
     failed = json.loads(capsys.readouterr().out.strip().splitlines()[-1].removeprefix("@@RESULT@@ "))
     assert code == 1 and failed["ok"] is False and "nope" in failed["error"]["message"]
+    assert "reason_code" not in failed["error"]                              # 본체 밖의 실패에는 사유 코드가 없다
+
+    fake.exc = GenosServiceException("1", "필수 열 부재", error_type="permanent", reason_code="PARSE_D001")
+    code = cli.main(["run", "--activity", "parse", str(src)])                 # 본체 실패 — 워커와 같은 details
+    coded = json.loads(capsys.readouterr().out.strip().splitlines()[-1].removeprefix("@@RESULT@@ "))
+    assert code == 1 and "필수 열 부재" in coded["error"].pop("message")
+    assert coded["error"] == {"type": "permanent", "non_retryable": True, "reason_code": "PARSE_D001",
+                              "error_category": "data", "error_kind": "permanent"}
 
     code = cli.main(["run", "--activity", "parse"])                          # 인자 오류도 결과 한 줄
     usage = json.loads(capsys.readouterr().out.strip().splitlines()[-1].removeprefix("@@RESULT@@ "))
