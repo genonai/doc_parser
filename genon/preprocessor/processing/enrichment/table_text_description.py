@@ -38,11 +38,13 @@ from typing import Any, Callable, Optional
 
 from .table_description import TABLE_RETRIEVAL_LABEL
 from .table_text_context import (
-    SKIP_CONTAINED_DUPLICATE,
-    SKIP_LAYOUT,
-    SKIP_SELF_DESCRIBING,
+    SKIP_DUPLICATE_TABLE,
+    SKIP_LONG_TEXT_TABLE,
+    SKIP_SELF_DESCRIBING_TABLE,
+    SKIP_SINGLE_VALUE_TABLE,
     TableTextDescriptionOptions,
     TableTextTarget,
+    avg_value_chars,
     is_contained_duplicate,
     is_self_describing,
     log_skipped_tables,
@@ -156,25 +158,29 @@ def text_table_skip_reason(
 ) -> str | None:
     """레코드 경로의 표를 LLM 전송에서 뺄 사유. 판정은 문서 경로와 같다.
 
-    레이아웃 판정은 청커의 레코드 경로(`table_blocks.normalize_degenerate`)와 같은 함수를
+    값 한 칸 표 판정은 청커의 레코드 경로(`table_blocks.normalize_degenerate`)와 같은 함수를
     쓴다. 앵커는 섹션 제목·캡션과, 청커가 표와 함께 두는 바로 앞 제목 줄(`table_title_line`)이다.
     중복 판정은 같은 레코드의 앞선 표들(`previous`)과 비교한다.
     """
     from genon.preprocessor.processing.chunking import table_blocks as tbk
 
     kind, text = target.input_format, target.table_text
-    if options.skip_layout and tbk.is_layout_block(kind, text):
-        return SKIP_LAYOUT
-    if options.skip_contained_duplicate and is_contained_duplicate(rows or [], previous or []):
-        return SKIP_CONTAINED_DUPLICATE
-    if not options.skip_self_describing:
+    if options.skip_single_value_table and tbk.is_layout_block(kind, text):
+        return SKIP_SINGLE_VALUE_TABLE
+    if options.skip_duplicate_table and is_contained_duplicate(rows or [], previous or []):
+        return SKIP_DUPLICATE_TABLE
+    if not (options.skip_self_describing_table or options.skip_long_text_table):
         return None
     grid = tbk.block_grid(kind, text)
     if grid is None or not grid.rows:
         return None
     anchors = [target.section_header, grid.caption, tbk.table_title_line(target.before_context)]
-    if is_self_describing(grid.rows, grid.num_cols, anchors, header_rows=grid.header_rows):
-        return SKIP_SELF_DESCRIBING
+    if options.skip_self_describing_table and is_self_describing(
+        grid.rows, grid.num_cols, anchors, header_rows=grid.header_rows
+    ):
+        return SKIP_SELF_DESCRIBING_TABLE
+    if options.skip_long_text_table and avg_value_chars(grid.rows) >= options.skip_long_text_table:
+        return SKIP_LONG_TEXT_TABLE
     return None
 
 
@@ -386,7 +392,7 @@ class TableTextDescriptionEnricher:
         for _index, targets in plans:
             previous: list[list[str]] = []
             for target in targets:
-                rows = text_table_rows(target) if options.skip_contained_duplicate else []
+                rows = text_table_rows(target) if options.skip_duplicate_table else []
                 reasons.append(text_table_skip_reason(target, options, rows, previous))
                 previous.append(rows)
         send = [target for target, reason in zip(all_targets, reasons) if not reason]
