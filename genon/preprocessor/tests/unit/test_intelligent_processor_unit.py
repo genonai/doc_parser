@@ -338,3 +338,44 @@ def test_post_runtime_setup_warns_on_unread_custom_fields(caplog):
         proc._post_runtime_setup({}, ec)
 
     assert any("faq_json" in r.getMessage() for r in caplog.records)
+
+
+@pytest.mark.unit
+def test_table_only_document_gets_no_placeholder_text(tmp_path, monkeypatch):
+    """표만 있는 문서(csv)에 임시 "." 항목이 끼어 한 글자 청크가 생기지 않는다(#599).
+
+    글자 있는 항목이 없으면 빈 결과를 막으려고 "." 를 넣는데, 표를 글자 항목으로 치지 않아
+    csv·xlsx 가 항상 여기에 걸렸다. 표 청크 옆에 본문 "." 한 글자짜리 청크가 하나 더 생겼다.
+    """
+    from unittest.mock import AsyncMock, MagicMock
+    import asyncio
+
+    mod = pytest.importorskip("facade.intelligent_processor")
+    from genon.preprocessor.processing.converters.xlsx_processor import build_docling_document
+
+    csv_path = tmp_path / "faq.csv"
+    csv_path.write_text("번호,질문,답변\n1,벡터 DB 는?,생성 버튼을 누른다\n2,재적재는?,재적재 버튼을 누른다\n", encoding="utf-8")
+    document = build_docling_document(str(csv_path))
+    assert document.tables and not document.texts, "표만 있는 문서여야 한다"
+
+    # __init__(네트워크/모델) 우회 — 판정 앞뒤의 보강·청킹·벡터화는 통과시키는 stub 으로 채운다.
+    proc = object.__new__(mod.DocumentProcessor)
+    proc.table_image_enabled = False
+    proc.custom_fields_enrichers = []
+    proc.enrich_table_descriptions = None
+    proc.enrichment = lambda doc, **kw: doc
+    proc.enrich_doc_summary = lambda doc, **kw: doc
+    proc.enrich_image_descriptions = lambda doc, **kw: doc
+    proc.enrich_metadata = AsyncMock(side_effect=lambda doc, **kw: doc)
+    proc.enrich_custom_fields = AsyncMock(side_effect=lambda doc, **kw: doc)
+    proc.split_documents = MagicMock(return_value=[object()])
+    proc.compose_vectors = AsyncMock(return_value=[])
+    monkeypatch.setattr(mod, "apply_table_description_stage", AsyncMock(side_effect=lambda doc, **kw: doc))
+
+    asyncio.run(proc._document_to_vectors(
+        document, str(csv_path), None, converted_pdf_path=None, ocr_table_cells=False))
+
+    # 파이프라인이 문서를 복사해 쓰므로, 청킹에 실제로 넘어간 문서를 본다.
+    assert proc.split_documents.call_count == 1
+    chunked = proc.split_documents.call_args.args[0]
+    assert [t.text for t in chunked.texts] == [], "임시 텍스트가 끼어들면 안 된다"
