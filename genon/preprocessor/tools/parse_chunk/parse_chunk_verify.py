@@ -964,7 +964,7 @@ def check_table_edge_warning(output: str) -> list[str]:
 
 def check_span_table_contained_duplicate(output: str) -> list[str]:
     """6쪽 하위 표 2개(앞 표의 병합 셀에 전사됨)를 표 설명 LLM 전송에서 뺐는가(#559)."""
-    want = "LLM 전송에서 제외합니다(contained_duplicate 2)"
+    want = "LLM 전송에서 제외합니다(duplicate_table 2, long_text_table 1)"
     return [] if want in output else [f"중복 표 생략 로그가 없습니다(기대: {want})"]
 
 

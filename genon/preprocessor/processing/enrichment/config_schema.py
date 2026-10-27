@@ -210,8 +210,34 @@ TABLE_TEXT_RAG_KEYS = frozenset({
     "retrieval_context_max_chars", "key_fact_limit", "key_fact_max_chars",
     "search_terms", "search_terms_limit", "include_search_terms", "repeat_context_on_split",
 })
-# LLM 전송에서 뺄 표의 조건. `skip: false` 는 여기 있는 조건을 모두 끈다.
-TABLE_TEXT_SKIP_KEYS = ("layout", "self_describing", "contained_duplicate")
+# LLM 전송에서 뺄 표의 종류. `skip: false` 는 여기 있는 종류를 모두 끈다. 앞의 넷은 true/false 이고,
+# `long_text_table` 만 값 칸 평균 문자 수의 하한(0 이상의 정수, 0 또는 false 면 끔)이다.
+TABLE_TEXT_SKIP_FLAG_KEYS = ("single_value_table", "nested_table", "duplicate_table", "self_describing_table")
+TABLE_TEXT_LONG_TEXT_KEY = "long_text_table"
+TABLE_TEXT_SKIP_KEYS = (*TABLE_TEXT_SKIP_FLAG_KEYS, TABLE_TEXT_LONG_TEXT_KEY)
+# 옛 키 → 새 키. 옛 키는 계층 병합 전에 새 키로 펼친다(`table_text_context._canonical_rag_skip`).
+# 옛 `layout` 은 값 한 칸 표와 중첩 표를 함께 켜고 껐으므로 새 키 둘로 펼친다.
+TABLE_TEXT_SKIP_OLD_KEYS = {
+    "layout": ("single_value_table", "nested_table"),
+    "contained_duplicate": ("duplicate_table",),
+    "self_describing": ("self_describing_table",),
+    "long_cells": (TABLE_TEXT_LONG_TEXT_KEY,),
+}
+
+
+def _is_nonneg_int(value) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool) and value >= 0
+
+
+def _diagnose_skip_value(key: str, value) -> list[str]:
+    """`skip` 하위 키 하나의 값 형식을 검사한다. 위반한 값은 무시되어 기본값이 쓰인다."""
+    if key in (TABLE_TEXT_LONG_TEXT_KEY, "long_cells"):
+        if value is False or _is_nonneg_int(value):
+            return []
+        return [f"`skip.{key}` 는 0 이상의 정수여야 합니다(받은 값: {value!r}). 이 값은 무시됩니다"]
+    if not isinstance(value, bool):
+        return [f"`skip.{key}` 는 true 또는 false 여야 합니다(받은 값: {value!r}). 이 값은 무시됩니다"]
+    return []
 
 
 def diagnose_table_text_description(block) -> list[str]:
@@ -243,10 +269,20 @@ def diagnose_table_text_description(block) -> list[str]:
         problems.append("`rag` 는 '키: 값' 형태여야 합니다. 이 값은 무시됩니다")
     skip = block.get("skip")
     if isinstance(skip, dict):
-        problems += [
-            f"모르는 키 `skip.{key}` 는 무시됩니다{_suggest(str(key), frozenset(TABLE_TEXT_SKIP_KEYS))}"
-            for key in skip if str(key) not in TABLE_TEXT_SKIP_KEYS
-        ]
+        for key, value in skip.items():
+            key = str(key)
+            if key in TABLE_TEXT_SKIP_OLD_KEYS:
+                news = TABLE_TEXT_SKIP_OLD_KEYS[key]
+                names = ", ".join(f"`skip.{new}`" for new in news)
+                problems.append(f"`skip.{key}` 는 옛 이름입니다. {names} 를 쓰십시오")
+                if any(new in skip for new in news):
+                    problems.append(f"`skip.{key}` 와 새 키 {names} 를 함께 적었습니다. 새 키가 우선합니다")
+            elif key not in TABLE_TEXT_SKIP_KEYS:
+                problems.append(
+                    f"모르는 키 `skip.{key}` 는 무시됩니다{_suggest(key, frozenset(TABLE_TEXT_SKIP_KEYS))}"
+                )
+                continue
+            problems += _diagnose_skip_value(key, value)
     elif skip is not None and skip is not False:
         problems.append(f"`skip` 은 false 또는 조건별 '키: 값' 형태여야 합니다(받은 값: {skip!r}). 이 값은 무시됩니다")
     return problems

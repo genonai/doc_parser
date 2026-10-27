@@ -593,16 +593,39 @@ llm:
 >
 > **기본값 변경 안내**: 예약량을 적지 않은 기존 설정은 업그레이드만으로 예약량이 `8000` 에서 `max_tokens` 값으로 바뀝니다. `max_tokens` 가 8000보다 크면 입력 예산이 줄어 표가 더 여러 번에 나뉘어 호출될 수 있고, 8000보다 작으면 입력 예산이 늘어 한 번에 담기는 표가 많아집니다. 이전 동작이 필요하면 `completion_reserved_tokens: 8000` 을 명시합니다.
 >
-> **텍스트 표 설명에서 LLM 에 보내지 않는 표**: 표 청크만으로 주제와 내용이 드러나는 표는 설명을 받아도 검색에 새로 잡히는 질의가 없으므로 LLM 에 보내지 않습니다. 안내 문구 한 칸짜리 표처럼 값이 하나뿐이거나 데이터 행이 없는 레이아웃 표는 자동으로 뺍니다. 청커가 바깥 표 셀로만 싣는 중첩 표도 자체 설명이 청크에 실리지 않으므로 함께 뺍니다. 두 생략은 `skip.layout` 으로 함께 켜고 끕니다. 그 밖의 조건은 `skip` 하위 키로 정하며, 문서유형 YAML 에서 키 단위로 덮어쓸 수 있습니다.
+> **텍스트 표 설명에서 LLM 에 보내지 않는 표**: 표 청크만으로 주제와 내용이 드러나는 표는 설명을 받아도 검색에 새로 잡히는 질의가 없으므로 LLM 에 보내지 않습니다. `skip` 아래에 보내지 않을 **표의 종류**를 적습니다. 하나라도 맞는 표는 보내지 않으며, 문서유형 YAML 에서 키 단위로 덮어쓸 수 있습니다.
 >
 > | 키 | 기본값 | 대상 |
 > |---|---|---|
-> | `skip.self_describing` | `false` | 구체적인 제목(섹션 제목·캡션·표 바로 위 한 줄)이 있고, 데이터 행 5개 이하·열 2~3개이며, 행 라벨을 뺀 값 셀이 문장형인 표. 값에 금액·비율·기간이 있거나 병합 셀·다단 헤더가 있으면 보냅니다 |
-> | `skip.contained_duplicate` | `false` | 같은 문서의 앞선 표 하나에 모든 행(헤더 포함)이 행 단위로 이미 실린 표. 앞 표의 병합 셀에 통째로 전사된 하위 표나 다른 쪽에 다시 실린 표가 해당하며, 셀 값만 같고 행의 짝이 다른 표는 보냅니다. 레코드 경로에서는 같은 레코드 안의 표끼리 비교합니다 |
+> | `skip.single_value_table` | `true` | 안내 문구 한 칸짜리 표처럼 값이 하나뿐이거나 데이터 행이 없는 표 |
+> | `skip.nested_table` | `true` | 다른 표의 칸 안에 든 표. 청커가 바깥 표 셀로만 싣기 때문에 자체 설명이 청크에 실릴 자리가 없습니다(문서 경로에만 있고 레코드 경로에는 해당 개념이 없습니다) |
+> | `skip.duplicate_table` | `false` | 같은 문서의 앞선 표 하나에 모든 행(헤더 포함)이 행 단위로 이미 실린 표. 앞 표의 병합 셀에 통째로 전사된 하위 표나 다른 쪽에 다시 실린 표가 해당하며, 셀 값만 같고 행의 짝이 다른 표는 보냅니다. 레코드 경로에서는 같은 레코드 안의 표끼리 비교합니다 |
+> | `skip.self_describing_table` | `false` | 구체적인 제목(섹션 제목·캡션·표 바로 위 한 줄)이 있고, 데이터 행 5개 이하·열 2~3개이며, 행 라벨을 뺀 값 셀이 문장형인 표. 값에 금액·비율·기간이 있거나 병합 셀·다단 헤더가 있으면 보냅니다 |
+> | `skip.long_text_table` | `0`(끔) | 숫자 하나로 정합니다. 첫 행·첫 열을 뺀 값 칸의 평균 문자 수가 이 값 이상인 표를 보내지 않습니다. 칸 자체가 긴 설명문이라 설명이 덧붙일 정보가 적습니다. 키를 적지 않거나 `0`·`false` 면 끕니다. 모니모 상품설명서(`custom_field_product_slf.yaml`·`product_ssf.yaml`)는 `100` 으로 켭니다 |
 >
-> `self_describing` 과 `contained_duplicate` 는 문서유형마다 검색 결과를 확인한 뒤 켭니다. 표를 뺀 문서는 처리 로그에 `표 N개 중 M개를 LLM 전송에서 제외합니다(사유별 개수)` 가 남고, 호출 횟수는 모든 문서에 남습니다.
+> 앞의 네 키는 `true`/`false` 만 받고, `long_text_table` 은 0 이상의 정수(또는 끔을 뜻하는 `false`)만 받습니다. `long_text_table: true` 와 `min_avg_chars` 를 둔 `{...}` 형태는 받지 않습니다. 형식이 틀린 값과 모르는 키는 무시되고 기동 로그와 `precheck_custom_fields.sh` 에 경고로 남습니다(기동은 막지 않습니다).
 >
-> 어느 표가 빠졌는지 확인하려면 `skip: false` 로 레이아웃 표를 포함한 모든 생략을 끕니다. 공통 설정에 `skip: false` 를 두고 문서유형 YAML 에서 `skip.contained_duplicate: true` 처럼 한 조건만 켜면, 나머지 조건은 꺼진 채로 남습니다. 앞으로 생략 조건이 추가되어도 `skip: false` 는 그 조건까지 함께 끕니다.
+> ```yaml
+> table_text_description:
+>   skip:
+>     single_value_table: true
+>     nested_table: true
+>     duplicate_table: true
+>     self_describing_table: false
+>     long_text_table: 100
+> ```
+>
+> 모니모 상품설명서 YAML 은 위처럼 다섯 옵션을 모두 적어 켜진 것과 꺼진 것을 한눈에 보이게 합니다. 적지 않은 키는 위 표의 기본값입니다.
+>
+> `self_describing_table` 과 `duplicate_table` 은 문서유형마다 검색 결과를 확인한 뒤 켭니다. 표를 뺀 문서는 처리 로그에 `표 N개 중 M개를 LLM 전송에서 제외합니다(사유별 개수)` 가 남고, 호출 횟수는 모든 문서에 남습니다. 사유 이름은 위 키 이름과 같습니다.
+>
+> **판정 순서와 사유**: 한 표가 여러 종류에 맞아도 처음 맞은 사유 하나만 기록합니다. 순서는 `nested_table` → `single_value_table` → `duplicate_table` → `self_describing_table` → `long_text_table` 입니다. 종류는 모두 OR 이라 순서는 로그에 남는 사유 이름만 바꾸고 보내지는 표 집합은 바꾸지 않습니다. 따라서 로그의 사유별 개수는 종류별로 맞는 표의 수가 아니라 먼저 맞은 사유별 수입니다(모니모 상품설명서에서 `duplicate_table` 과 `long_text_table` 을 함께 켜면 긴 문장 표의 사본은 `duplicate_table` 로 셉니다).
+>
+> **병합 규칙**: 프로세서 공통 설정 < 등록 블록 < 문서유형 YAML 순서로 키 단위로 덮어씁니다. `skip: false` 는 병합 전에 모든 종류(`long_text_table` 포함)를 끈 상태로 펼쳐지므로, 공통 설정에 `skip: false` 를 두고 문서유형 YAML 에서 `skip.duplicate_table: true` 처럼 한 종류만 켜면 나머지는 꺼진 채로 남습니다. 반대로 문서유형의 `skip: false` 는 공통 설정에서 켠 종류까지 모두 끕니다. 앞으로 종류가 추가되어도 `skip: false` 는 그 종류까지 함께 끕니다. `skip: true` 는 지원하지 않습니다. 경고가 남고 그 계층에는 `skip` 이 없는 것으로 취급하므로 아래 계층 값이나 기본값(`single_value_table`·`nested_table` 만 켬)이 쓰입니다. 같은 블록의 `overflow_policy: skip`(표 설명 전체 건너뜀)과는 다른 설정입니다.
+>
+> 어느 표가 빠졌는지 확인하려면 `skip: false` 로 모든 생략을 끄고 다시 실행해 비교합니다.
+>
+> **옛 키**: `skip.layout`(→ `single_value_table`·`nested_table` 을 함께 설정), `skip.contained_duplicate`(→ `duplicate_table`), `skip.self_describing`(→ `self_describing_table`), `skip.long_cells: N`(→ `long_text_table: N`)도 계속 읽고 기동 시 새 이름을 안내하는 경고를 남깁니다. 같은 계층에 옛 키와 새 키를 함께 적으면 새 키가 우선합니다. 옛 키는 다음 릴리스 이후 제거될 수 있으므로 새 키로 바꿉니다. `long_cells: true` 처럼 bool 을 적은 값은 받지 않고 끈 것으로 취급합니다.
 >
 > **검색어**: `rag.search_terms` 로 표마다 만들 검색어 개수를 정합니다. `0` 이면 만들지 않고, `N` 이면 최대 N개를 만들어 청크에 싣습니다. 표준 설정은 `0` 입니다. 이 키를 적지 않으면 검색어를 최대 8개 만들되 청크에는 싣지 않습니다. 옛 키 `rag.search_terms_limit`(생성 개수)와 `rag.include_search_terms`(청크 노출)도 계속 읽으며, 한 블록에 새 키와 함께 적으면 새 키가 우선합니다.
 >

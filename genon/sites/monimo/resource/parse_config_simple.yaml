@@ -88,14 +88,22 @@ enrichment:
       temperature: 0.0
       timeout: 600             # 배치당 생성량이 늘어난 만큼 호출 타임아웃도 올린다
       prompt_template_file: prompt_table_text_description_rag.md
-      before_items: 2          # 표 앞쪽 본문 아이템 수
-      after_items: 1           # 표 뒤쪽 본문 아이템 수
-      max_context_chars: 400   # 앞/뒤 문맥 각각의 최대 문자 수
+      before_items: 3          # 표 앞쪽 본문 아이템 수
+      after_items: 2           # 표 뒤쪽 본문 아이템 수
+      max_context_chars: 1500  # 앞/뒤 문맥 각각의 최대 문자 수
       rag:
-        retrieval_context_max_chars: 150 # 모든 분할 표 청크에 반복할 독립 검색 문맥
-        key_fact_limit: 1                # 원표에서 직접 확인되는 핵심 사실 최대 개수
+        retrieval_context_max_chars: 200 # 모든 분할 표 청크에 반복할 독립 검색 문맥
+        key_fact_limit: 2                # 원표에서 직접 확인되는 핵심 사실 최대 개수
         key_fact_max_chars: 120          # 핵심 사실 1개당 최대 문자 수
         search_terms: 0                  # 검색어 개수. 0=만들지 않음, N=최대 N개를 만들어 청크에 싣는다
+      # LLM 에 보내지 않을 표의 종류(skip). 아래 값은 코드 기본값과 같으므로 적지 않아도 동작이 같다.
+      # 하나라도 맞는 표는 보내지 않는다. `skip: false` 는 다섯 개를 모두 끄고, 문서유형 YAML 의 skip 과는 키 단위로 합쳐진다.
+      # skip:
+      #   single_value_table: true       # 값이 한 칸뿐이거나 데이터 행이 없는 표
+      #   nested_table: true             # 다른 표의 칸 안에 든 표(설명을 붙일 청크가 없어 false 로 바꿔도 설명은 버려진다)
+      #   duplicate_table: false         # 앞선 표 하나에 모든 행이 행 단위로 이미 실린 표
+      #   self_describing_table: false   # 제목이 있고, 병합 셀이 없고, 데이터 5행 이하·2~3열이며, 값 칸이 문장이고, 금액·비율·기간이 없는 표
+      #   long_text_table: 0             # 첫 행·첫 열을 뺀 값 칸 평균 문자 수가 이 값 이상인 표(0=끔)
 
   # ── 모니모 13종 문서유형 custom_fields (2026-08-16 추가) ────────────────────
   # 메뉴서비스
