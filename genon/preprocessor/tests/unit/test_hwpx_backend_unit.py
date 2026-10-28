@@ -465,3 +465,42 @@ def test_handle_paragraph_toc_uses_text_label():
     backend.active_main_parent = doc.body
 
     assert _para_label(backend, doc, "제1장 총칙 ......... 3") == DocItemLabel.TEXT
+
+
+@pytest.mark.unit
+def test_add_header_nests_by_level_not_by_previous_section():
+    """같은 레벨의 제목은 형제여야 하고, 하위 레벨 제목만 상위 제목 그룹 안에 들어간다.
+
+    직전 섹션을 부모로 쓰면 제목이 수백 개인 문서(GenOS #25673)에서 그룹 중첩이 수백 단계가 되어
+    마크다운 직렬화가 재귀 한도를 넘는다.
+    """
+    from docling_core.types.doc import BoundingBox, ProvenanceItem
+
+    backend = _make_backend_no_io()
+    doc = _make_doc()
+    backend.active_main_parent = doc.body
+    prov = ProvenanceItem(page_no=1, bbox=BoundingBox(l=0, t=0, r=1, b=1), charspan=(0, 1))
+
+    def add(level, text):
+        backend._add_header(doc, level, text, prov, parent=backend.active_main_parent)
+        return backend.active_main_parent
+
+    a = add(1, "A")
+    a1 = add(2, "A-1")
+    a2 = add(2, "A-2")
+    b = add(1, "B")
+    for i in range(400):
+        add(1, f"제{i}절")
+
+    def parent_of(section):
+        return section.parent.resolve(doc)
+
+    assert parent_of(a) is doc.body
+    assert parent_of(a1) is a
+    assert parent_of(a2) is a
+    assert parent_of(b) is doc.body
+
+    depth, node = 0, backend.active_main_parent
+    while node is not doc.body:
+        depth, node = depth + 1, parent_of(node)
+    assert depth == 1

@@ -798,11 +798,17 @@ class GenosHwpDocumentBackend(DeclarativeDocumentBackend):
         header_name = f"header-{level - 1}"
         
         # 3. 새로운 섹션 그룹 생성
-        # parent는 doc.body 또는 상위 헤더 그룹이 됩니다.
+        # 부모는 호출자가 넘긴 직전 섹션이 아니라, 바로 위 레벨의 가장 가까운 섹션(없으면 doc.body)이다.
+        # 직전 섹션을 그대로 부모로 쓰면 같은 레벨의 제목이 계속 앞 제목 안으로 중첩되어
+        # 제목이 수백 개인 문서에서 트리 깊이가 재귀 한도를 넘는다.
+        section_parent = next(
+            (self.parents[i] for i in range(level - 1, 0, -1) if self.parents.get(i) is not None),
+            doc.body,
+        )
         new_section = doc.add_group(
-            label=GroupLabel.SECTION, 
+            label=GroupLabel.SECTION,
             name=header_name, # "header-0", "header-1" 등으로 박힘
-            parent=parent
+            parent=section_parent
         )
         
         # 4. 헤더 텍스트 추가 (이 그룹의 자식으로 등록)
