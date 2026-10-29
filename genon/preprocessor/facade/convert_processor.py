@@ -1,4 +1,4 @@
-# 변환용 전처리기 v.2.2.5.1 (2026-10-27 Release)
+# 변환용 전처리기 v.2.2.5.2 (2026-10-29 Release)
 from __future__ import annotations
 
 import json
