@@ -4,48 +4,49 @@
 # 파싱/로딩/OCR/레이아웃/enrichment 는 앞단계(파싱 Activity)에서 이미 끝났으므로
 # 여기서는 호출되지 않는다. 따라서 ocr/layout/pdf_pipeline/enrichment 섹션은 두지 않으며,
 # 미설정 시 코드 기본값으로 안전하게 폴백된다.
+#
+# 전처리 Studio 는 옵션 이름 옆 툴팁으로 그 키의 같은 줄 주석과 바로 위에 붙은 주석 줄을 보여 준다
+# (빈 줄이나 다른 키를 만나면 끝난다). 그래서 키 바로 위에는 툴팁용 짧은 설명
+# (무엇을 정하는가 · 값과 미지정 시 값 · 바꾸면 달라지는 것)만 두고, 긴 운영 메모는 빈 줄로 떼어 그 위에 둔다.
 
 defaults:
-  # 5=DEBUG, 4=INFO, 3=WARNING, 2=ERROR, 1=CRITICAL, 0=NOLOG
+  # 실행 로그를 얼마나 자세히 남길지. 5=DEBUG 4=INFO(미지정 시) 3=WARNING 2=ERROR 1=CRITICAL 0=끄기. 클수록 로그가 많다
   log_level: 4
 
 # 청킹(GenosSmartChunker) 설정
 chunking:
-  # 청크 최대 크기(공통): docling=GenosSmartChunker max_tokens · parse-format=문자 splitter 크기.
-  # char 모드면 문자 수, huggingface 모드면 docling 은 토큰 수(parse-format 은 항상 문자 수).
-  # 우선순위: 호출 kwargs 의 chunk_size > 아래 chunk_size. docling: 0=분할 안 함, 0 초과 시 최소 1024 로 보정.
-  # parse-format: chunk_size 0/음수면 사실상 미분할(1000000). 미설정이면 위 공통 chunk_size 사용.
+  # docling 문서(PDF·DOCX·HTML 등)는 GenosSmartChunker 의 max_tokens 로, 그 밖의 텍스트 입력(parse-format)은
+  # 문자 splitter 크기로 쓰인다. 우선순위: 호출 kwargs 의 chunk_size > 아래 값.
+  # docling: 0 이면 분할하지 않고, 0 보다 크고 min_chunk_size 보다 작으면 min_chunk_size 로 올린다.
+  # parse-format: 0/음수면 사실상 미분할(1000000). 크기는 항상 문자 수다.
+  # chunk_mode·table_as_chunk·include_chunk_header 도 호출 kwargs 가 아래 값보다 우선한다.
+
+  # 청크 하나의 최대 크기. 단위는 글자 수(tokenizer_type 이 huggingface 면 토큰 수). 0=나누지 않음.
+  # 줄이면 청크가 짧아지고 개수가 늘어난다
   chunk_size: 1500
-  # 청크 크기 하한(기본 1024). docling 경로에서 위 chunk_size 가 이보다 작으면 이 값으로 올린다.
-  # 임베딩 모델의 입력 길이가 짧아 더 작은 청크가 필요하면 낮춘다. 0 이면 보정하지 않는다
-  # (chunk_size 를 그대로 쓴다). parse-format(레코드/텍스트) 경로에는 원래 하한이 없다.
+  # chunk_size 의 최솟값(미지정 시 1024). chunk_size 가 이보다 작으면 이 값으로 올린다. 0=올리지 않음.
+  # 임베딩 모델 입력이 짧아 더 작은 청크가 필요하면 낮춘다(docling 문서에만 적용)
   min_chunk_size: 1024
-  # 청킹 모드: split_only(기본) = 파서 섹션 단위(제N조 등) 그대로 유지 + chunk_size 초과 섹션만 분할
-  #             (작은 섹션을 장 단위로 병합하지 않음) |
-  #           resize_all = 모든 청크를 chunk_size 에 맞게 병합/분할. 우선순위: kwargs.chunk_mode > 아래.
+  # 청크를 만드는 방식. split_only(미지정 시)=문서 구조(제N조 등 섹션) 단위를 유지하고 chunk_size 를 넘는 것만 나눔 |
+  # resize_all=작은 섹션은 합치고 큰 섹션은 나눠 모든 청크를 chunk_size 에 맞춤
   chunk_mode: split_only
-  # 짧은 청크 병합 기준(chunk_size 와 같은 단위, 기본 0=끔). 본문(HEADER 라인 제외)이 이보다
-  # 짧은 청크를 병합하되 짧은 청크를 남기지 않는다 — 연달아 나오면 먼저 서로 묶어 기준을 넘으면
-  # 독립 청크로 두고, 여전히 짧으면 chunk_size 안에서 다음(안 되면 앞) 청크에 붙이며, 둘 다 꽉 찼으면
-  # 이웃 본문을 줄 경계에서 나눠 옮긴다. 나눌 수도 없으면(표 등) 그때만 chunk_size 를 넘겨 붙인다.
-  # 합친 결과가 이상 청크 검증에서 버려지면 붙이지 않는다.
-  # 0 이면 제목만 있는 청크만 크기 한도 안에서 다음 청크로 병합한다. 오기입은 기동 시 실패한다.
-  # 켜면 청크 경계가 바뀌므로 재색인이 필요하다. 문서유형별 값은 custom_fields yaml 의
-  # body.merge_short 에 적는다. 우선순위: kwargs.short_chunk_size > body.merge_short > 아래.
+  # 짧은 청크 병합 세부: 짧은 청크가 연달아 나오면 먼저 서로 묶어 기준을 넘으면 독립 청크로 두고,
+  # 여전히 짧으면 chunk_size 안에서 다음(안 되면 앞) 청크에 붙이며, 둘 다 꽉 찼으면 이웃 본문을
+  # 줄 경계에서 나눠 옮긴다. 나눌 수도 없으면(표 등) 그때만 chunk_size 를 넘겨 붙인다. 표 청크는
+  # 짧은 청크로 보지 않는다. 합친 결과가 이상 청크 검증에서 버려지면 붙이지 않는다. 오기입은 기동 시 실패한다.
+  # 문서유형별 값은 custom_fields yaml 의 body.merge_short 에 적는다.
+  # 우선순위: kwargs.short_chunk_size > body.merge_short > 아래.
+
+  # 본문(HEADER 줄 제외)이 이보다 짧은 청크를 이웃 청크에 합친다(chunk_size 와 같은 단위).
+  # 0(미지정 시)=제목만 있는 청크만 합침. 바꾸면 청크 경계가 바뀌어 재색인이 필요하다
   short_chunk_size: 0
-  # 표를 본문과 섞지 않고 독자 청크로 만들지 여부(기본 true).
-  # 표 청크에는 섹션 제목·표 캡션·표 설명이 함께 실리고, chunk_size 를 넘는 큰 표는
-  # 행 단위로 나뉘며 조각마다 표 헤더 행이 반복된다.
-  # false 로 내리면 예전처럼 표가 앞뒤 본문과 한 청크로 묶인다.
-  # 우선순위: kwargs.table_as_chunk > 아래 > true.
+  # 표를 본문과 섞지 않고 별도 청크로 만들지. true(미지정 시)=표만 담은 청크(섹션 제목·캡션·표 설명 포함,
+  # 큰 표는 행 단위로 나누고 조각마다 헤더 행 반복) | false=표를 앞뒤 본문과 한 청크로
   table_as_chunk: false
-  # 청크 텍스트 선두에 "HEADER: <섹션 경로>" 라인을 붙일지 여부(기본 true).
-  # false 면 순수 본문만 산출된다(검색 시 섹션 문맥이 사라지므로 기본값 변경은 신중히).
-  # 섹션 경로는 이 라인 한 곳에서만 붙는다 — 본문 내 제목 반복은 제거되었다.
-  # 우선순위: kwargs.include_chunk_header > 아래 > true.
+  # 청크 맨 앞에 "HEADER: <섹션 경로>" 줄을 붙일지. true(미지정 시) | false=본문만.
+  # 끄면 검색 때 섹션 문맥이 사라지므로 신중히 바꾼다
   include_chunk_header: true
-  # 청크 텍스트 정제(RAG 검색용). off(기본) | safe
-  # safe 로 켜면 검색 매칭을 방해하는 문자 노이즈만 결정적으로 제거한다.
+  # 청크 텍스트 정제(RAG 검색용). safe 로 켜면 검색 매칭을 방해하는 문자 노이즈만 결정적으로 제거한다.
   #   - 한글 자모 분리(NFD) 복원, BOM/제로폭/제어문자 제거
   #   - NBSP 등 특수 공백을 일반 공백으로, 줄바꿈을 LF 로 통일
   #   - 전각 영숫자를 반각으로, 따옴표/대시를 통일
@@ -53,6 +54,8 @@ chunking:
   # 표/코드 블록 안의 구조와 원문 의미는 건드리지 않는다(문장 재작성/공백 병합 없음).
   # 우선순위: 호출 kwargs 의 text_cleanup > 아래 > off.
   text_cleanup:
+    # 청크 글자 정제. off(미지정 시)=안 함 | safe=깨진 한글·보이지 않는 문자·특수 공백 등 검색을 방해하는 문자만
+    # 정리(문장은 바꾸지 않음). 아래 rules 는 safe 일 때만 동작한다. 켜면 청크 본문이 바뀐다
     mode: safe
     rules:
       # 장식 마커: 줄 맨 앞의 글머리표만 지운다(들여쓰기는 보존한다). 대상은 • 와
@@ -73,8 +76,9 @@ chunking:
   #       - {find: "\\[이미지[^\\]]*\\]", replace: ""}  # 부분 치환(replace 생략 시 삭제)
   #       - {chunk: "^본 문서는 참고용"}                # 청크를 통째로 버린다
   #
+  # 규칙은 mode 가 safe 일 때만 적용된다.
   # line/find 는 **청킹 입력**에 적용된다 — 그래야 삭제가 청크 경계와 n_char 에 반영된다.
-  # chunk 만 출력 단계에서 판정한다.
+  # chunk 는 분할 직후 HEADER 를 붙이기 전의 청크 본문으로 판정하며, 레코드(행) 청크에는 적용되지 않는다.
   # 코드 블록(``` 펜스·인라인 백틱)은 규칙을 타지 않는다 — 예제 코드가 훼손되는 것을 막는다.
   # 마크다운 표 행을 건너뛰는 것은 `line` 뿐이다. `find` 는 표 안에서도 치환하므로
   # `- {find: "\\|"}` 같은 규칙은 표를 통째로 깨뜨린다. 표 셀의 글자를 지울 때만 쓴다.
@@ -91,28 +95,34 @@ chunking:
   # 문장부호(`.` `,` `(` `)` `:` `-`)와 `|` 는 지우지 않는다. `|` 는 마크다운 표의 칸
   # 경계이고, `[` `]` 는 파이프라인이 붙인 `[표 검색 설명]` 라벨이다 — 지우면 표와
   # 라벨이 같이 죽는다. 실측 대조는 examples/text_cleanup/ 을 돌려 본다.
-  # 토큰 수 계산 방식. "char"(default)=문자 수 기준 | "huggingface"=HF 토크나이저 기준
+
+  # 청크 크기를 무엇으로 셀지. char(미지정 시)=글자 수 | huggingface=임베딩 모델 토크나이저의 토큰 수
+  # (아래 tokenizer_path/tokenizer_id 사용). 바꾸면 chunk_size 의 단위가 바뀐다
   tokenizer_type: "char"
-  # 청킹용 토크나이저(huggingface 모드에서만 사용). tokenizer_path 가 실제 존재하면 그 경로,
-  # 없으면 tokenizer_id(HF) 로 폴백 (외부 네트워크 차단 환경 대비)
+  # huggingface 모드에서 쓸 토크나이저 폴더 경로. 이 경로가 없으면 tokenizer_id 로 받는다(폐쇄망 대비). char 모드면 쓰지 않는다
   tokenizer_path: "/models/doc_parser_models/sentence-transformers-all-MiniLM-L6-v2"
+  # huggingface 모드에서 tokenizer_path 가 없을 때 쓸 Hugging Face 모델 ID. char 모드면 쓰지 않는다
   tokenizer_id: "sentence-transformers/all-MiniLM-L6-v2"
 
-  # parse-format(비-docling) 문자 splitter 의 overlap 기본값.
-  # 파서가 docling 을 못 만드는 포맷(csv/xlsx/txt/md/ppt/pptx/doc/이미지/오디오)은 parse-format
-  # ({"elements":[...]})으로 들어오며, 그 중 일반 텍스트는 RecursiveCharacterTextSplitter 로 분할한다.
-  # 크기는 위 공통 chunk_size 를 사용한다(docling 무관). audio([AUDIO])/csv·xlsx([DA]) 단일 벡터엔 미적용.
+  # parse-format(비-docling) 문자 splitter 설정.
+  # 파서가 docling 문서를 만들지 않는 입력은 parse-format({"elements":[...]})으로 들어오며, 그 중 일반 텍스트는
+  # RecursiveCharacterTextSplitter 로 분할한다. 크기는 위 공통 chunk_size 를 사용한다.
+  # audio([AUDIO])/csv·xlsx([DA]) 단일 벡터와 일반 레코드(행) 청크에는 적용하지 않는다.
   # 우선순위: 호출 kwargs(chunk_overlap/recursive_chunk_overlap) > 아래 > 코드 기본값(100).
   recursive:
-    chunk_overlap: 100    # 음수면 100 으로 폴백
+    # 이웃 청크끼리 겹치는 글자 수(미지정·음수면 100). docling 이 아닌 일반 텍스트 입력을 나눌 때만 쓴다.
+    # 늘리면 경계의 문맥이 이어지지만 중복 본문이 늘어난다
+    chunk_overlap: 100
 
   # 이상 청크 검증. 내용 없음·지나치게 짧음·반복·문자 손상 청크를 판정한다.
-  # drop 은 걸린 청크를 적재에서 빼고, 판정 결과를 로그([chunk_validation])와 성공 응답의
-  # chunk_validation 요약에 남긴다. report 로 바꾸면 청크는 그대로 두고 기록만 한다. 키 목록과
+  # 판정 결과는 로그([chunk_validation])와 성공 응답의 chunk_validation 요약에 남는다. 키 목록과
   # 기본값은 manual/chunking_processor.md "이상 청크 검증" 절을 본다. 요청 파라미터로는 바꿀 수
   # 없고, 오기입은 기동 시 실패한다.
   validation:
+    # 이상 청크(내용 없음·너무 짧음·같은 말 반복·깨진 문자) 검증을 할지. true | false(미지정 시)=검증하지 않음
     enable: true
+    # 검증에 걸린 청크를 어떻게 할지. drop=적재에서 뺌(전부 빠지면 그 문서는 실패) |
+    # report(미지정 시)=청크는 그대로 두고 로그와 응답 요약에만 기록
     action: drop
     # 출력 청크 글자 수 상한. 넘은 청크는 버리지 않고 응답 chunk_validation.max_length 와 로그로 알린다.
     # 0(기본)이면 검사하지 않는다. 임베딩 모델 입력 한도(토큰)를 글자 수로 환산해, 한도보다 조금 낮게 둔다.
@@ -120,9 +130,9 @@ chunking:
     # max_chars: 7000
 
 # table_image
-# 표를 이미지로 잘라 저장하고 media_files 에 type='table_image' 로 기록할지 여부.
-# 청킹 단계에서는 입력 docling 문서에 이미 들어있는 이미지/표 참조를 활용한다.
+# 청킹 단계는 표 이미지를 새로 만들지 않는다. 파싱 단계에서 표 이미지를 저장해 둔 문서에만 의미가 있다.
 table_image:
+  # 파싱 단계가 저장한 표 이미지를 청크 결과의 media_files 에 type='table_image' 로 싣고 함께 올릴지. false(미지정 시) | true
   enable: false
 
 # 표 텍스트 직렬화 옵션. 파서와 청커는 별개 호출이라 파서 설정이 넘어오지 않는다 —
@@ -131,21 +141,25 @@ table_image:
 # 파서 설정(activities/parse/config.yaml)의 output.table_format 이 정한다(여기서 다시 렌더링하지 않는다).
 # 최종 청크의 표 모양을 통일하려면 두 설정의 table_format 을 같은 값으로 맞춘다
 # (precheck_custom_fields.sh 가 같은 폴더의 두 값이 다르면 경고한다).
+# markdown 은 병합 셀을 표현하지 못해 헤더 계층이 사라진다.
 output:
-  # "auto" 는 표마다 구조를 보고 고른다 - 병합 셀이나 2단 헤더가 있으면 html,
-  # 단순 격자면 markdown. markdown 은 병합 셀을 표현하지 못해 헤더 계층이 사라진다.
-  table_format: "markdown"    # "html"(default) | "markdown" | "auto"
-  compact_tables: true    # markdown 표 컬럼 정렬 패딩 제거(대형 표 청크 축소). html 포맷엔 무관.
-  # 병합 셀 표에 한해 표 뒤에 "컬럼=값 | 컬럼=값" 행 문장을 덧붙인다. 어느 헤더에 걸린
-  # 값인지 문장으로 드러나 검색이 쉬워지지만 청크가 커진다. 단순 격자 표에는 적용 안 됨.
+  # 청크 본문에 표를 넣는 형식. html(미지정 시) | markdown | auto(병합 셀·여러 줄 헤더가 있는 표는 html,
+  # 단순한 표는 markdown). 바꾸면 검색 본문의 표 모양이 바뀐다
+  table_format: "markdown"
+  # markdown 표의 칸 맞춤 공백을 없애 청크 크기를 줄일지. true(미지정 시) | false. html 표에는 영향 없음
+  compact_tables: true
+  # 병합 셀이 있는 표 뒤에 "컬럼=값 | 컬럼=값" 행 문장을 덧붙일지. false(미지정 시) | true.
+  # 켜면 값이 어느 헤더에 걸렸는지 문장으로 드러나 검색이 쉬워지지만 청크가 커진다. 단순한 표에는 적용 안 됨
   table_row_serialization: true
 
-  # 같은 청크 전문을 표만 다른 표기형태로 렌더한 텍스트를 청크에 추가로 싣는다.
-  # 표가 없는 청크는 text 와 같은 값이 들어간다. 켜면 본문이 형식 수만큼 복제된다.
-  # 빈 목록(기본)=추가 안 함 | "html" -> text_table_html | "markdown" -> text_table_md
+  # 표만 다른 형식으로 바꾼 청크 본문을 별도 필드로 더 실을지. [](미지정 시)=싣지 않음 |
+  # "html" → text_table_html, "markdown" → text_table_md. 켜면 본문이 형식 수만큼 늘어난다
   table_text_formats: []
 
 guardrail:
   # 민감정보 분류(#315) — chunking 은 워크플로우를 직접 호출하지 않는다(parser 가 호출).
   # parser 가 넘긴 sensitive_infos 를 청크에 적용하며, 여기선 마스킹 치환 여부만 결정한다.
-  masking_enabled: false  # quote_masked 치환 on/off. guardrail_categories 라벨 부착은 항상 수행
+
+  # 파싱 단계가 찾은 민감정보를 청크 본문에서 가림 문자열로 바꿀지. false(미지정 시) | true.
+  # 분류 라벨(guardrail_categories)은 이 값과 관계없이 붙는다
+  masking_enabled: false
