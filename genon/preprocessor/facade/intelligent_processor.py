@@ -937,9 +937,10 @@ class DocumentProcessor(DoclingRuntimeBase):
                 self._guardrail_api_key, self._guardrail_timeout,
             )
 
+        # 표만 있는 문서(csv·xlsx)도 내용이 있는 문서다. 표를 빼면 임시 "." 항목이 들어가 표 청크 옆에 한 글자 청크가 생긴다.
         has_text_items = False
         for item, _ in document.iterate_items():
-            if (isinstance(item, (TextItem, ListItem, CodeItem, SectionHeaderItem)) and item.text and item.text.strip()) or (isinstance(item, TableItem) and item.data and len(item.data.table_cells) == 0):
+            if (isinstance(item, (TextItem, ListItem, CodeItem, SectionHeaderItem)) and item.text and item.text.strip()) or (isinstance(item, TableItem) and item.data):
                 has_text_items = True
                 break
 
