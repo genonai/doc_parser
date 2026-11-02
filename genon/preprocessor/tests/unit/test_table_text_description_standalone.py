@@ -409,8 +409,9 @@ def test_parser_record_branch_is_a_noop_without_own_connection():
 
 
 # ── LLM 전송 제외(#530) ──────────────────────────────────────────────────────
-# 표는 모니모 실물 샘플에서 옮겼다. 배너는 monimo_cs_hpp_rich_table_sample.html, 나머지는
-# monimo_product_ssf_bold_title_sample.md·monimo_product_ssf_sample.md 의 표다.
+# 표는 모니모 실물 샘플에서 옮겼다. 배너는 monimo_cs_hpp_rich_table_sample.html, 그 밖은
+# 상품요약서(화재) 표다. 가입나이 표는 monimo_product_ssf_sample.md 에서, 나머지는 #613 에서
+# 삭제한 monimo_product_ssf_bold_title_sample.md 에서 옮겼다.
 
 BANNER_TEXT = (
     "해당 목차는 [AI 에이전트용] 이므로, 실제 상담 시에는 세부 지침이 포함된 "
