@@ -21,9 +21,9 @@ doc_type 마다 샘플을 파싱·청킹한 뒤, 그 doc_type 의 custom_field y
     단정한다. custom_fields 경로(faq 행 청크, product_ssf 문서형 청크) 샘플도 함께 돈다.
 
 doc_type → extractor/config 매핑은 모니모 사이트 완성본(genon/sites/monimo/resource/)의
-parser_processor_config.yaml 에서 직접 읽는다. 설정이 늘어나면 이 스크립트를 고치지 않아도
-따라간다. --resource-dir 로 다른 설정 폴더를 주면 매핑과 러너 설정을 모두 그 폴더에서 읽는다.
-모델은 로컬(VPN) 프리셋(genon/sites/dev/model_presets.yaml)으로 돈다(parse_chunk_test.py 가 지정).
+parser_processor_config.yaml 에서 직접 읽는다. genon/sites 가 없는 배포본에서는 표준 resource/ 를
+읽는다. 설정이 늘어나면 이 스크립트를 고치지 않아도 따라간다. --resource-dir 로 다른 설정 폴더를 주면 매핑과 러너 설정을 모두 그 폴더에서 읽는다.
+모델은 로컬(VPN) 프리셋(genon/sites/dev/model_presets.yaml)이 있으면 그것으로 돈다(parse_chunk_test.py 가 지정).
 
 사용:
     python parse_chunk_verify.py                 # 전체
@@ -54,15 +54,23 @@ os.environ.setdefault(
     "DYLD_FALLBACK_LIBRARY_PATH", "/opt/homebrew/lib:/usr/local/lib:/usr/lib"
 )
 # 로컬 검증은 로컬(VPN) 모델로 돈다. 하위 러너(parse_chunk_test.py)와 골든 하네스가 이 값을
-# 물려받는다. 이미 설정된 값은 존중한다.
-os.environ.setdefault(
-    "GENOS_MODEL_PRESETS_FILE",
-    str(Path(__file__).resolve().parents[3] / "sites" / "dev" / "model_presets.yaml"),
-)
+# 물려받는다. 이미 설정된 값은 존중한다. genon/sites 가 없는 배포본에는 이 파일이 없고, 없는 파일을
+# 가리키면 기동이 실패하므로 있을 때만 넣는다.
+_DEV_MODEL_PRESETS = Path(__file__).resolve().parents[3] / "sites" / "dev" / "model_presets.yaml"
+if _DEV_MODEL_PRESETS.exists():
+    os.environ.setdefault("GENOS_MODEL_PRESETS_FILE", str(_DEV_MODEL_PRESETS))
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 PREPROCESSOR_DIR = SCRIPT_DIR.parents[1]
-RESOURCE_DIR = PREPROCESSOR_DIR.parent / "sites" / "monimo" / "resource"
+
+
+def default_resource_dir(preprocessor_dir: Path = PREPROCESSOR_DIR) -> Path:
+    """기본 설정 폴더. 모니모 사이트 완성본이 있으면 그 폴더, 없으면(배포본) 표준 resource/ 다."""
+    site_dir = preprocessor_dir.parent / "sites" / "monimo" / "resource"
+    return site_dir if site_dir.is_dir() else preprocessor_dir / "resource"
+
+
+RESOURCE_DIR = default_resource_dir()
 REPO_ROOT = PREPROCESSOR_DIR.parents[1]
 SAMPLES = PREPROCESSOR_DIR / "sample_files"
 MONIMO = SAMPLES / "monimo"
@@ -1299,7 +1307,7 @@ def main() -> int:
     ap.add_argument("--out", default=None, help="산출 디렉터리(미지정 시 임시 디렉터리)")
     ap.add_argument("--python", default=sys.executable, help="parse_chunk_test.py 실행 인터프리터")
     ap.add_argument("--resource-dir", default=None,
-                    help="설정 폴더(미지정 시 genon/sites/monimo/resource)")
+                    help="설정 폴더(미지정 시 genon/sites/monimo/resource, 없으면 표준 resource)")
     args = ap.parse_args()
 
     global RESOURCE_DIR
