@@ -1,5 +1,5 @@
 {
-  "_note": "doc_type=cs_slf 원천 샘플(json). 레코드는 `faq_list` 아래에 있다. 1~2번째 내용은 monimo_cs_slf_sample.xlsx 와 같다. 3번째는 생명 FAQ 실물(faqId 1489378)의 질문·답변이고, 4번째는 제목에 영문 대문자·연속 공백·<BR>·HTML 엔티티가 든 생성 레코드다(#414).",
+  "_note": "doc_type=cs_slf 원천 샘플(json). 레코드는 `faq_list` 아래에 있다. 1~2번째는 옛 엑셀 협의 샘플(#613 에서 삭제)에서 옮긴 내용이다. 3번째는 생명 FAQ 실물(faqId 1489378)의 질문·답변이고, 4번째는 제목에 영문 대문자·연속 공백·<BR>·HTML 엔티티가 든 생성 레코드다(#414).",
   "faq_list": [
     {
       "faqId": "LIFE-CS-01",

@@ -46,12 +46,13 @@ cd "${SCRIPT_DIR}"
 # 산출물: result_parse_chunk/<stem>.chunks.json  (+ docling 경로는 <stem>.docling.json)
 #
 # doc_type 별 경로:
-#   tabular_mapping (xlsx) : menu term cs_ssf                            → 행 1개 = 청크 1개
-#   json_mapping    (json) : faq cs_slf monimo_event monimo_news cs_sss link → 레코드 1개 = 청크 1개
-#   json_mapping    (구분자 텍스트) : stock_insight                          → 종목 1개 = 레코드 1개
+#   tabular_mapping (xlsx) : menu term                                   → 행 1개 = 청크 1개
+#   json_mapping    (json) : faq cs_slf cs_hpp monimo_event cs_sss link  → 레코드 1개 = 청크 1개
+#   json_mapping    (구분자 텍스트) : cs_ssf(.dtms) stock_insight            → 줄·종목 1개 = 레코드 1개
 #   json_semantic   (json) : product_hpp                                 → 섹션 1개 = 청크 1개
 #                            (성격별로 나뉜 섹션마다 SECTION_NM/SOURCE_JSON_PATH + 공통 정보)
-#   llm (문서 단위)        : product_slf product_ssf cs_hpp card
+#   html 추출 (json 안의 html) : monimo_news                             → 문서 1개, 필드는 select 로 뽑는다
+#   llm (문서 단위)        : product_slf product_ssf card
 #                            → metadata 가 모든 청크에 동일하게 붙는다
 MONIMO="../../sample_files/monimo"
 OUT="result_parse_chunk"
@@ -66,15 +67,18 @@ MONIMO_CASES=(
   # DETAIL_TEXT 의 표는 output.table_format 을 따른다(html=<table>, markdown=파이프 표).
   # 구 코드는 셀 하나당 한 줄로 뭉개 빈 셀이 사라졌고 열 대응을 복원할 수 없었다.
   "monimo_event:${MONIMO}/monimo_event_table_sample.json"
-  "monimo_news:${MONIMO}/monimo_news_sample.json"
+  "monimo_news:${MONIMO}/TD00008415_d_5199.html.json"
   "cs_slf:${MONIMO}/monimo_cs_slf_sample.json"
-  "cs_ssf:${MONIMO}/monimo_cs_ssf_sample.xlsx"
+  "cs_ssf:${MONIMO}/monimo_cs_ssf_sample.dtms"
   "cs_sss:${MONIMO}/monimo_cs_sss_sample.json"
+  "cs_hpp:${MONIMO}/monimo_cs_hpp_chunksize_sample.json"
+  # 아래 html·.parsed 원천은 cs_hpp 설정(JSON 레코드)의 매핑을 타지 않고 docling HTML·md 경로로만
+  # 처리된다. cs_hpp 메타는 비어 있으며, HTML 파싱·포맷 판정 회귀를 확인하는 용도다.
   "cs_hpp:${MONIMO}/monimo_cs_hpp_sample.html"
   # 실 원천 형태(ADCC 카드 고객센터). 파일명이 점으로 시작하고 본문이 <!DOCTYPE>/<html> 없는
   # fragment 다 — 이 조합이 겹치면 docling 이 포맷 판정에 실패해 "File format not allowed" 로
   # 죽었다(#349). 파일명의 선행 점을 지우면 재현이 사라지므로 rename 하지 말 것.
-  #   _02_ : section 1개(항목 1건), _01_ : section 3개(항목 3건 → metadata 는 1세트만 나온다)
+  #   _02_ : section 1개(항목 1건), _01_ : section 3개(항목 3건)
   "cs_hpp:${MONIMO}/.INC_235488_02_20260626103138.html"
   "cs_hpp:${MONIMO}/.INC_235489_01_20260626103139.html"
   # 같은 원천의 마크다운 산출물. 확장자가 표준이 아니라 설정의 formats.extension_aliases
