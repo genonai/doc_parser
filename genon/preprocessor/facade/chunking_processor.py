@@ -157,7 +157,7 @@ class DocumentProcessor(ChunkerCore):
     # 기동 시 한 번 읽혀 굳는 설정(토크나이저 경로, min_chunk_size 등)은 여기 적어도 건너뛰고
     # 경고가 남는다 — 그 값은 설정 파일에서 바꾼다.
     # 우선순위(뒤가 우선). 설정 파일, CONFIG_BY_DOC_TYPE, config_by_condition(), 요청 파라미터.
-    # 최종 값은 job.config 와 결과에 기록된다.
+    # 오버레이로 추가한 값만 job.config 에 담긴다(최종 설정 전체의 스냅샷도, 결과에 기록되는 값도 아니다).
 
     CONFIG_BY_DOC_TYPE = {
         # "faq":    {"chunking.chunk_size": 500},            # 문답 1건이 짧다

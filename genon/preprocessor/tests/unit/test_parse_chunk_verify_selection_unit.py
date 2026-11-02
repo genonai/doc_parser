@@ -50,6 +50,18 @@ def test_executed_case_keeps_result(verifier, monkeypatch, tmp_path):
     assert verifier.main() == 0
 
 
+@pytest.mark.parametrize(
+    "has_site, expected",
+    [(True, "sites/monimo/resource"), (False, "preprocessor/resource")],
+)
+def test_default_resource_dir_falls_back_without_sites(verifier, tmp_path, has_site, expected):
+    """genon/sites 가 없는 배포본에서는 표준 resource/ 를 기본 설정 폴더로 쓴다(#617)."""
+    genon = tmp_path / "genon"
+    if has_site:
+        (genon / "sites" / "monimo" / "resource").mkdir(parents=True)
+    assert verifier.default_resource_dir(genon / "preprocessor") == genon / expected
+
+
 def test_table_text_formats_unescapes_html_entities(verifier):
     """HTML 표기의 `&amp;` 를 내용 소실로 판정하지 않는다(#557).
 

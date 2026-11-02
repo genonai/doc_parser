@@ -25,6 +25,7 @@ parse_chunk_verify.py 가 "설정이 약속한 필드가 실렸는가" 를 단�
     ./parse_chunk_golden.py --noise
     ./parse_chunk_golden.py --check --only cs_hpp product_hpp
     ./parse_chunk_golden.py --record --cases my_cases.yaml --golden ~/my_golden
+    ./parse_chunk_golden.py --record --resource-dir ~/my_resource
 
 케이스 목록은 --cases 로 외부에서 주입할 수 있다(미지정 시 아래 GOLDEN_CASES).
 고객은 자기 문서 목록으로 --record 해서 자기 골든을 만든다 — 벤더 골든은 배포되지 않는다.
@@ -546,7 +547,12 @@ def main() -> int:
                     help="--record: 엔드포인트가 닿지 않아도 진행")
     ap.add_argument("--allow-llm-nulls", action="store_true",
                     help="--record: llm 필드가 전부 비어도 진행")
+    ap.add_argument("--resource-dir", default=None,
+                    help="설정 폴더(미지정 시 genon/sites/monimo/resource, 없으면 표준 resource)")
     args = ap.parse_args()
+
+    if args.resource_dir:
+        verify.RESOURCE_DIR = Path(args.resource_dir).expanduser().resolve()
 
     cases = load_cases(Path(args.cases).expanduser() if args.cases else None,
                        args.include_unstable)
