@@ -90,6 +90,7 @@ CASES = [
     ("cs_sss",        MONIMO / "monimo_cs_sss_sample.json",            "json_mapping"),
     # cs_hpp 설정은 JSON 레코드를 받는다. 아래 html·.parsed 원천은 레코드 매핑 없이 docling HTML·md
     # 경로로만 처리되므로(cs_hpp 메타는 비어 있다) HTML 파싱·포맷 판정 회귀를 확인하는 케이스다.
+    # yaml 필수·상수 단정은 CONFIG_NOT_APPLIED 로 건너뛴다.
     ("cs_hpp",        MONIMO / "monimo_cs_hpp_sample.html",            "HTML 문서(레코드 매핑 미적용)"),
     # 파일명이 점으로 시작하고 본문이 fragment 인 실 원천(#349 재현). rename 금지.
     ("cs_hpp",        MONIMO / ".INC_235488_02_20260626103138.html",   "section 1개"),
@@ -897,6 +898,18 @@ def check_table_edge(*, long_cells: bool = False, oversized_page: int | None = N
     return _check
 
 
+# 설정의 원천 형식과 다른 입력이라 custom_fields 매핑이 걸리지 않는 케이스. yaml 의 필수·상수
+# 필드 단정을 건너뛰고 전용 단정(EXTRA_CHECKS)과 공통 본문 단정만 적용한다. cs_hpp 설정은
+# JSON 레코드를 받으므로 아래 html·.parsed 원천은 HTML 파싱·포맷 판정 회귀 확인용이다.
+CONFIG_NOT_APPLIED = {
+    ("cs_hpp", "monimo_cs_hpp_sample.html"),
+    ("cs_hpp", ".INC_235488_02_20260626103138.html"),
+    ("cs_hpp", ".INC_235489_01_20260626103139.html"),
+    ("cs_hpp", "monimo_cs_hpp_rich_table_sample.html"),
+    ("cs_hpp", ".INC_235488_02_20260626103138.html.parsed"),
+}
+
+
 EXTRA_CHECKS = {
     ("term", "monimo_term_duplicate_rows_sample.xlsx"): check_term_duplicate_rows,
     ("product_slf", "monimo_product_slf_fields_sample.md"): check_valid_period,
@@ -1148,19 +1161,26 @@ def pick_block(blocks: list[dict], doc_type: str, suffix: str) -> dict | None:
 
 
 def load_config_spec(block: dict) -> dict:
-    """블록이 가리키는 custom_field yaml 원본(없으면 빈 dict)."""
+    """블록이 가리키는 custom_field yaml 을 매퍼가 읽는 내부 형태로 정규화한 것(없으면 빈 dict).
+
+    yaml 원문은 `schema: v2` 표기(`require.fields`, `const`, `body.labels` …)이고 아래 단정은
+    내부 형태의 키 이름(`required`, `constants`, `field_labels` …)을 읽는다. 원문을 그대로
+    읽으면 기대값이 전부 비어 공통 단정이 동작하지 않는다(#615).
+    """
     path = RESOURCE_DIR / str(block.get("config_file") or "")
     if not path.exists():
         return {}
-    return yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    loaded = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    if str(REPO_ROOT) not in sys.path:
+        sys.path.insert(0, str(REPO_ROOT))
+    from genon.preprocessor.processing.enrichment import config_v2
+    spec, _extractor = config_v2.load(loaded, label=path.name)
+    return spec
 
 
 def expected_from_yaml(block: dict) -> tuple[list[str], dict, list[str]]:
     """(필수 필드, 상수 필드, LLM 산출 필드)."""
-    path = RESOURCE_DIR / str(block.get("config_file") or "")
-    if not path.exists():
-        return [], {}, []
-    spec = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    spec = load_config_spec(block)
     required = list(spec.get("required") or spec.get("required_shared_fields") or [])
     constants = dict(spec.get("constants") or {})
     llm: list[str] = []
@@ -1169,7 +1189,7 @@ def expected_from_yaml(block: dict) -> tuple[list[str], dict, list[str]]:
     for blk in (raw if isinstance(raw, list) else [raw] if raw else []):
         if isinstance(blk, dict):
             llm += list(blk.get("output_fields") or [])
-    # llm extractor(card/cs_hpp/product_*) 는 최상위 output_fields 를 쓴다.
+    # 문서형(kind: document) llm 설정은 최상위 output_fields 를 쓴다.
     if isinstance(spec.get("output_fields"), (list, dict)):
         llm += list(spec["output_fields"])
     return required, constants, [f for f in dict.fromkeys(llm) if isinstance(f, str)]
@@ -1240,6 +1260,8 @@ def verify(doc_type: str, src: Path, out_dir: Path, block: dict) -> list[str]:
 
     spec = load_config_spec(block)
     required, constants, _llm = expected_from_yaml(block)
+    if (doc_type, src.name) in CONFIG_NOT_APPLIED:
+        required, constants = [], {}
     for field in required:
         missing = [i for i, c in enumerate(chunks)
                    if c.get(field) in (None, "", [], {})]
