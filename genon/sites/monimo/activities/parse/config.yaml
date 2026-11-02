@@ -5,8 +5,8 @@
 defaults:
   # 실행 로그를 얼마나 자세히 남길지. 5=DEBUG 4=INFO(미지정 시) 3=WARNING 2=ERROR 1=CRITICAL 0=끄기. 클수록 로그가 많다
   log_level: 4
-  # 요청한 doc_type 에 맞는 문서유형 설정(custom_fields)이 없을 때. warn(미지정 시)=경고만 남기고 일반 문서로 파싱 |
-  # fail=요청을 실패시킨다
+  # 요청한 doc_type 에 맞는 문서유형 설정(custom_fields)이 없을 때. warn(미지정 시)=경고만 남기고 일반 문서로 파싱
+  # | fail=요청을 실패시킨다
   unknown_doc_type: fail
 
 # ── 모델 프리셋 ───────────────────────────────────────────────────────────────
@@ -34,8 +34,8 @@ formats:
 
   # 엑셀(xlsx/xlsm), csv는 PDF 변환 없이 처리
   xlsx:
-    # 엑셀·csv 를 읽는 방식. tabular(미지정 시)=병합 셀을 풀어 데이터 행마다 한 건으로 만듦 |
-    # docling=시트를 문서(표)로 변환해 일반 문서처럼 처리
+    # 엑셀·csv 를 읽는 방식. tabular(미지정 시)=병합 셀을 풀어 데이터 행마다 한 건으로 만듦
+    # | docling=시트를 문서(표)로 변환해 일반 문서처럼 처리
     processing_mode: "tabular"
     # tabular 모드 전용 옵션
     tabular:
@@ -65,15 +65,15 @@ formats:
   # 크롤 산출물(merged.html)이 그 형태라 4MB 문서에서 641자·표 0개만 추출되는 문제가 있어,
   # 파싱 전에 srcdoc 을 펼쳐 heading 기반 단일 문서로 재조립한다(실측: 641자 → 59,140자, 표 43개).
   html:
-    # HTML 을 파싱 전에 펼쳐 정리할지. auto(미지정 시)=iframe·접힌 메뉴 등 docling 이 놓치는 구조가 보일 때만 |
-    # always=항상(본문 영역만 남기고 script/style 제거) | off=그대로 파싱
+    # HTML 을 파싱 전에 펼쳐 정리할지. auto(미지정 시)=iframe·접힌 메뉴 등 docling 이 놓치는 구조가 보일 때만
+    # | always=항상(본문 영역만 남기고 script/style 제거) | off=그대로 파싱
     flatten: auto
   # 마크다운(.md): docling(기본) 이면 MarkdownDocumentBackend 로 파싱해 헤딩/표 구조를 유지하고
   # enrichment(custom_fields)까지 적용한다. 상품설명서(md) 같은 doc_type 이 custom_fields 를 쓰려면
   # DoclingDocument 가 필요하다 — 레거시 TextLoader 경로에는 후처리 enrichment 훅이 없다.
   md:
-    # 마크다운을 읽는 방식. docling(미지정 시)=제목·표 구조를 살리고 문서유형 추출까지 적용 |
-    # text=일반 텍스트로 읽음(구조·문서유형 추출 없음)
+    # 마크다운을 읽는 방식. docling(미지정 시)=제목·표 구조를 살리고 문서유형 추출까지 적용
+    # | text=일반 텍스트로 읽음(구조·문서유형 추출 없음)
     processing_mode: docling
 
 # 변환 PDF: HWP/PPT/DOC/DOCX/이미지처럼 PDF 변환이 반드시 필요한 포맷에서 나온다.
@@ -91,8 +91,8 @@ ocr:
   # 레이아웃이 genos_layout(VLM) 이면 첫 변환이 이미 이미지에서 글자를 읽으므로 대부분의 문서는 disable 로 충분하다.
   # 문서·문서유형 단위로 켤 때는 요청 파라미터 ocr_mode: "auto" 또는 CONFIG_BY_DOC_TYPE 의 "ocr.ocr_mode": "auto".
 
-  # OCR(이미지 글자 인식) 서버를 쓸지. disable(미지정 시)=쓰지 않음 | auto=글자가 깨졌거나 비었을 때만 OCR 로 다시 변환 |
-  # force=항상 OCR 로 변환. 켜면 스캔 문서 품질이 오르지만 느려진다
+  # OCR(이미지 글자 인식) 서버를 쓸지. disable(미지정 시)=쓰지 않음 | auto=글자가 깨졌거나 비었을 때만 OCR 로 다시 변환
+  # | force=항상 OCR 로 변환. 켜면 스캔 문서 품질이 오르지만 느려진다
   ocr_mode: "disable"
 
   # 쓸 OCR 엔진. paddle(미지정 시) | upstage(외부 API, 아래 upstage 설정 사용)
@@ -431,8 +431,8 @@ enrichment:
       config_file: custom_field_research_report.yaml   # 이 문서유형의 필드 추출 규칙 파일(이 폴더 기준)
 
 output:
-  # 파싱 결과 형식. json(미지정 시)=요소 목록 | html·markdown=본문 문자열 하나 |
-  # docling=복원 가능한 docling 문서 원본(청킹 단계 입력용)
+  # 파싱 결과 형식. json(미지정 시)=요소 목록 | html·markdown=본문 문자열 하나
+  # | docling=복원 가능한 docling 문서 원본(청킹 단계 입력용)
   format: "docling"
   # 민감정보 분류(#315): parser 가 guardrail 워크플로우를 호출해 sensitive_infos 를 출력에 실어 보내고,
   # chunking API 가 그 결과로 청크별 라벨/마스킹을 적용한다(아래 guardrail 섹션 참고).
@@ -450,8 +450,8 @@ output:
   # 레코드형 문서의 표 모양이 바뀌면 hash 로 만든 식별자(예: cs_ssf 의 BIZ_ID)도 바뀐다.
   # markdown 은 병합 셀을 표현하지 못해 헤더 계층이 사라진다.
 
-  # 표를 글로 낼 때의 형식(문서유형 레코드의 표 등). html(미지정 시) | markdown |
-  # auto(병합 셀·여러 줄 헤더가 있는 표는 html, 단순한 표는 markdown). 일반 문서의 docling 출력에는 영향 없음
+  # 표를 글로 낼 때의 형식(문서유형 레코드의 표 등). html(미지정 시) | markdown
+  # | auto(병합 셀·여러 줄 헤더가 있는 표는 html, 단순한 표는 markdown). 일반 문서의 docling 출력에는 영향 없음
   table_format: "markdown"
   compact_tables: true # markdown 표의 칸 맞춤 공백을 없애 크기를 줄일지. true(미지정 시) | false. html 에는 영향 없음
   # 표 뒤 "컬럼=값 | 컬럼=값" 행 문장(table_row_serialization)은 청커 전용이라 여기에 없다 —

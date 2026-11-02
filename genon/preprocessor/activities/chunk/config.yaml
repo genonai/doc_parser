@@ -27,8 +27,8 @@ chunking:
   # chunk_size 의 최솟값(미지정 시 1024). chunk_size 가 이보다 작으면 이 값으로 올린다. 0=올리지 않음.
   # 임베딩 모델 입력이 짧아 더 작은 청크가 필요하면 낮춘다(docling 문서에만 적용)
   min_chunk_size: 1024
-  # 청크를 만드는 방식. split_only(미지정 시)=문서 구조(제N조 등 섹션) 단위를 유지하고 chunk_size 를 넘는 것만 나눔 |
-  # resize_all=작은 섹션은 합치고 큰 섹션은 나눠 모든 청크를 chunk_size 에 맞춤
+  # 청크를 만드는 방식. split_only(미지정 시)=문서 구조(제N조 등 섹션) 단위를 유지하고 chunk_size 를 넘는 것만 나눔
+  # | resize_all=작은 섹션은 합치고 큰 섹션은 나눠 모든 청크를 chunk_size 에 맞춤
   chunk_mode: split_only
   # 짧은 청크 병합 세부: 짧은 청크가 연달아 나오면 먼저 서로 묶어 기준을 넘으면 독립 청크로 두고,
   # 여전히 짧으면 chunk_size 안에서 다음(안 되면 앞) 청크에 붙이며, 둘 다 꽉 찼으면 이웃 본문을
@@ -121,8 +121,8 @@ chunking:
   validation:
     # 이상 청크(내용 없음·너무 짧음·같은 말 반복·깨진 문자) 검증을 할지. true | false(미지정 시)=검증하지 않음
     enable: true
-    # 검증에 걸린 청크를 어떻게 할지. drop=적재에서 뺌(전부 빠지면 그 문서는 실패) |
-    # report(미지정 시)=청크는 그대로 두고 로그와 응답 요약에만 기록
+    # 검증에 걸린 청크를 어떻게 할지. drop=적재에서 뺌(전부 빠지면 그 문서는 실패)
+    # | report(미지정 시)=청크는 그대로 두고 로그와 응답 요약에만 기록
     action: drop
     # 출력 청크 글자 수 상한. 넘은 청크는 버리지 않고 응답 chunk_validation.max_length 와 로그로 알린다.
     # 0(기본)이면 검사하지 않는다. 임베딩 모델 입력 한도(토큰)를 글자 수로 환산해, 한도보다 조금 낮게 둔다.
@@ -152,8 +152,8 @@ output:
   # 켜면 값이 어느 헤더에 걸렸는지 문장으로 드러나 검색이 쉬워지지만 청크가 커진다. 단순한 표에는 적용 안 됨
   table_row_serialization: true
 
-  # 표만 다른 형식으로 바꾼 청크 본문을 별도 필드로 더 실을지. [](미지정 시)=싣지 않음 |
-  # "html" → text_table_html, "markdown" → text_table_md. 켜면 본문이 형식 수만큼 늘어난다
+  # 표만 다른 형식으로 바꾼 청크 본문을 별도 필드로 더 실을지. [](미지정 시)=싣지 않음
+  # | "html" → text_table_html, "markdown" → text_table_md. 켜면 본문이 형식 수만큼 늘어난다
   table_text_formats: []
 
 guardrail:
