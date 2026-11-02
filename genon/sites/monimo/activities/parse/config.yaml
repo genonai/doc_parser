@@ -253,7 +253,7 @@ enrichment:
   # 문서 요약: 본문 앞부분을 LLM 에 보내 요약 한 편을 만들어 출력 metadata.doc_summary 에 싣는다.
   # 이미지·표 설명 프롬프트가 {{doc_summary}} 로 이 요약을 함께 쓴다(꺼져 있으면 "-").
   - doc_summary:
-      # 문서 요약을 만들지. false(미지정 시) | true. 요청 파라미터 doc_summary=1 로 요청마다 켤 수 있다
+      # 문서 요약을 만들지. true | false. 이 키를 빼면 true 로 본다. 요청 파라미터 doc_summary=1 로 요청마다 켤 수 있다
       enable: false
       # 요약에 쓸 LLM 모델 프리셋 이름(model_presets.yaml 의 키)
       model_preset: default
@@ -289,7 +289,7 @@ enrichment:
   # 표 설명(이미지 기반): 표 영역을 페이지 이미지에서 잘라 VLM 에 보내 요약을 받아 표에 붙인다.
   # 아래 table_text_description 이 켜져 있으면 그쪽이 우선하고 이 항목은 실행되지 않는다.
   - table_description:
-      # 이미지 기반 표 설명을 만들지. false(미지정 시) | true. 요청 파라미터 table_desc=1 로 요청마다 켤 수 있다
+      # 이미지 기반 표 설명을 만들지. true | false. 이 키를 빼면 true 로 본다. 요청 파라미터 table_desc=1 로 요청마다 켤 수 있다
       enable: false
       # 표 설명에 쓸 VLM 모델 프리셋 이름(model_presets.yaml 의 키)
       model_preset: image
