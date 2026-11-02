@@ -78,3 +78,17 @@ def test_site_owned_copies_agree(site):
     differing = {name: paths for name, paths in by_name.items() if len(paths) > 1
                  and len({(site_root / p).read_bytes() for p in paths if (site_root / p).exists()}) > 1}
     assert differing == {}, f"{site}: 같은 이름의 owned 사본이 서로 다르다: {differing}"
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("root", [PREPROCESSOR_DIR, *sorted(p.parent for p in SITES.glob("*/manifest.yaml"))],
+                         ids=lambda p: p.name)
+def test_activity_copies_match_resource(root):
+    """activities/<slug>/ 의 프롬프트·custom_field 는 같은 폴더 resource/ 의 사본이다. 워커는 activities/ 를,
+    기본 전처리기 서비스는 resource/ 를 읽으므로 한쪽만 고치면 서비스에 따라 결과가 갈린다. develop 병합은
+    resource/ 만 고치므로 이 대조가 없으면 activities/ 사본이 옛 내용으로 남아도 드러나지 않는다(#619)."""
+    differing = sorted(
+        str(f.relative_to(root)) for f in (root / "activities").glob("*/*")
+        if f.is_file() and f.name not in CODE and (root / "resource" / f.name).is_file()
+        and f.read_bytes() != (root / "resource" / f.name).read_bytes())
+    assert differing == [], f"{root.name}: resource/ 사본과 다른 activities 사본: {differing}"

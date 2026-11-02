@@ -64,3 +64,21 @@ def test_table_text_formats_unescapes_html_entities(verifier):
         "text_table_html": f"<table><tr><th>링크</th></tr><tr><td>{url.replace('&', '&amp;')}</td></tr></table>",
     }
     assert verifier.check_table_text_formats([chunk]) == []
+
+
+def test_expected_fields_are_read_from_v2_config(verifier, monkeypatch, tmp_path):
+    """`schema: v2` 표기에서도 필수·상수 필드 기대값을 읽는다(#615).
+
+    원문 키(`require.fields`, `const`)를 내부 이름(`required`, `constants`)으로 찾으면
+    기대값이 비어 공통 단정이 동작하지 않는다.
+    """
+    (tmp_path / "custom_field_x.yaml").write_text(
+        "schema: v2\n"
+        "source:\n  kind: records\n  records_at: items\n"
+        "fields:\n  GROUP_C:\n    const: SLF\n  TITLE:\n    alias: [title]\n"
+        "require:\n  fields: [TITLE]\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(verifier, "RESOURCE_DIR", tmp_path)
+    required, constants, _llm = verifier.expected_from_yaml({"config_file": "custom_field_x.yaml"})
+    assert (required, constants) == (["TITLE"], {"GROUP_C": "SLF"})
