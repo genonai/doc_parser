@@ -45,9 +45,11 @@ from genon.preprocessor.processing.chunking.rich_cells import table_embedded_ref
 from genon.preprocessor.processing.chunking.table_shape import (
     analyze_grid,
     degenerate_reason,
+    leading_header_row_count,
     resolve_table_format,
 )
 from genon.preprocessor.processing.chunking.table_splitter import (
+    render_table_text,
     split_entries_preserving_tables,
     split_table_rows,
 )
@@ -479,11 +481,31 @@ class SmartChunkerBase(BaseChunker):
         청크 텍스트에 실렸다. 격자 구조만 필요하므로 `table_html` 로 직접 렌더한다.
         렌더가 실패하면 예전 경로로 폴백해 내용 손실을 막는다.
         """
-        table_format = self._resolve_table_format(kwargs, self._table_shape(table_item, dl_doc))
+        shape = self._table_shape(table_item, dl_doc)
+        table_format = self._resolve_table_format(kwargs, shape)
         try:
             prose = self._serialize_degenerate_table(table_item, dl_doc)
             if prose:
                 return prose
+            # 병합 셀·다단 헤더 표는 행 분할과 같은 렌더러로 그린다. docling 직렬화와는 헤더
+            # 해석·구분선·행 요약이 달라, 한도 근처의 표가 LLM 설명 길이에 따라 실행마다
+            # 다른 형태로 나갔다. 다단 헤더는 플래그 행 수로 본다 - shape.is_complex 는 비-HTML
+            # 원천에서 컬럼명 추정 행을 한 행 더 세므로 1행 헤더 격자 표까지 바뀐다.
+            # annotation 이 남은 표는 docling 이 본문에 함께 싣던 내용을 잃지 않도록 기존 경로에 둔다.
+            # 행 요약은 싣지 않는다. 표기형태 변형(table_text_formats)이 기존 경로로 만들어져
+            # 요약이 없고, 전체 폭 각주 행이 요약에 한 번 더 실려 표 길이가 크게 는다.
+            if (table_format == "markdown" and shape is not None
+                    and (shape.has_row_span or shape.has_col_span
+                         or leading_header_row_count(table_item.data.grid) > 1)
+                    and not getattr(table_item, "annotations", None)):
+                table_text = render_table_text(
+                    grid=table_item.data.grid,
+                    num_cols=shape.num_cols,
+                    table_format=table_format,
+                    header_row_count=shape.header_row_count,
+                )
+                if table_text:
+                    return self._caption_prefix(table_item, dl_doc) + table_text
             if table_format == "markdown":
                 # compact_tables 는 컬럼 정렬 패딩을 없애 대형 표 markdown 크기를 줄인다.
                 table_text = export_markdown(

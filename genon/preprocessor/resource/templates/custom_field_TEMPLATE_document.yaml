@@ -259,18 +259,23 @@ llm:
 # 표 설명에 자체 연결(model_preset 또는 url/model)이 있으면 별도 호출이 우선한다. 없으면 이
 # 문서유형의 llm 연결로 필드 추출과 함께 요청되며, 입력이 모델 한도를 넘으면 필드는 1회, 표는
 # 묶음별로 나눠 추가 호출한다. 입력 예산은 model_context_tokens 로 조정한다.
-# LLM 에 보내지 않을 표: 값이 하나뿐이거나 데이터 행이 없는 레이아웃 표는 자동으로 뺀다.
-# `skip: false` 는 이 생략과 아래 조건을 모두 끈다(어느 표가 빠졌는지 확인할 때 쓴다).
-# `skip.self_describing`(기본 false, 제목이 있고 값이 문장인 작은 표. 금액·비율·기간 값이나
-# 병합 셀이 있으면 보낸다), `skip.contained_duplicate`(기본 false, 앞선 표 하나에 모든 행이 행
-# 단위로 이미 실린 중복 표). 표가 많은 문서유형에서 검색 결과를 확인한 뒤 켠다.
+# LLM 에 보내지 않을 표: `skip` 아래에 표 종류별로 켜고 끈다. 하나라도 맞는 표는 보내지 않는다.
+#   `single_value_table`(기본 true) 값이 한 칸뿐이거나 데이터 행이 없는 표
+#   `nested_table`(기본 true) 다른 표의 칸 안에 든 표. 설명이 청크에 실릴 자리가 없다
+#   `duplicate_table`(기본 false) 앞선 표 하나에 모든 행이 행 단위로 이미 실린 표
+#   `self_describing_table`(기본 false) 제목이 있고 값이 문장인 작은 표. 금액·비율·기간 값이나 병합 셀이 있으면 보낸다
+#   `long_text_table`(기본 0=끔) 숫자 N. 첫 행·첫 열을 뺀 값 칸 평균 문자 수가 N 이상인 표
+# `skip: false` 는 모든 종류를 끈다(어느 표가 빠졌는지 확인할 때 쓴다). 기본 false 인 종류는 표가
+# 많은 문서유형에서 검색 결과를 확인한 뒤 켠다. 옛 키(layout, contained_duplicate, self_describing,
+# long_cells)도 받지만 기동 시 경고한다.
 # table_text_description:
 #   enable: true
 #   prompt_template_file: prompt_table_text_description_rag.md
 #   before_items: 4                   # 표 앞 문맥 항목 수(기본 3)
 #   after_items: 3                    # 표 뒤 문맥 항목 수(기본 2)
 #   skip:
-#     self_describing: true
+#     self_describing_table: true
+#     long_text_table: 100            # 모니모 상품설명서 값
 #   rag:
 #     key_fact_limit: 5
 #     search_terms: 3                 # 공통 설정은 0. 최대 3개를 만들어 청크에 싣는다

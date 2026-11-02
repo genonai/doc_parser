@@ -445,14 +445,16 @@ AMOUNT_RECORD = """**ㅁ 소지품(보상가능) 과 휴대품(보상불가)**
 
 @pytest.mark.unit
 @pytest.mark.parametrize("record, skip, expected", [
-    (BANNER_RECORD, {}, "layout"),                                   # 청커가 평문으로 내는 배너
-    (BANNER_RECORD, {"layout": False}, None),
+    (BANNER_RECORD, {}, "single_value_table"),                       # 청커가 평문으로 내는 배너
+    (BANNER_RECORD, {"single_value_table": False}, None),
     (SELF_DESC_RECORD, {}, None),                                    # 자기서술형은 기본 off
-    (SELF_DESC_RECORD, {"self_describing": True}, "self_describing"),
-    (NO_TITLE_RECORD, {"self_describing": True}, None),              # 표 위 제목 줄 없음
-    ("**[AI 에이전트용]**\n\n" + REPAIR_TABLE, {"self_describing": True}, None),  # 굵은 태그는 제목 아님
-    (AGE_RECORD, {"self_describing": True}, None),                   # 키-값 조건표
-    (AMOUNT_RECORD, {"self_describing": True}, None),                # 금액 값
+    (SELF_DESC_RECORD, {"self_describing_table": True}, "self_describing_table"),
+    (NO_TITLE_RECORD, {"self_describing_table": True}, None),        # 표 위 제목 줄 없음
+    ("**[AI 에이전트용]**\n\n" + REPAIR_TABLE, {"self_describing_table": True}, None),  # 굵은 태그는 제목 아님
+    (AGE_RECORD, {"self_describing_table": True}, None),             # 키-값 조건표
+    (AMOUNT_RECORD, {"self_describing_table": True}, None),          # 금액 값
+    (AMOUNT_RECORD, {"long_text_table": 39}, "long_text_table"),  # 값 칸 평균 39.7자(첫 행·첫 열 제외)
+    (AMOUNT_RECORD, {"long_text_table": 40}, None),
 ])
 def test_record_table_skip_reason(record, skip, expected):
     options = _standalone(skip=skip).options
@@ -581,7 +583,7 @@ def _add_table(doc: DoclingDocument, rows: list[list[str]], parent=None) -> None
 @pytest.mark.parametrize("skip, expected", [
     ({}, ["최초로 보존치료를 받은 경우 ◇ 계약일로부터 1년초과 구분 지급금액 인레이, 온레이 15만원 복합레진 5만원",
           "15만원", "5만원"]),
-    ({"contained_duplicate": True}, [
+    ({"duplicate_table": True}, [
         "최초로 보존치료를 받은 경우 ◇ 계약일로부터 1년초과 구분 지급금액 인레이, 온레이 15만원 복합레진 5만원",
         "5만원",
     ]),

@@ -9,8 +9,17 @@
 # 여기에는 바뀌는 키(주소·키)만 적는다.
 model_presets:
   default:
-    url: "https://genos.genon.ai/api/gateway/rep/serving/752/v1/chat/completions"
-    api_key: "d1a9e0acab6243019008a96cd8af868e"
+    # url: "https://genos.genon.ai/api/gateway/rep/serving/752/v1/chat/completions"
+    # api_key: "d1a9e0acab6243019008a96cd8af868e"
+    url: "https://genos.genon.ai/api/gateway/rep/serving/1439/v1/chat/completions"
+    api_key: "63f67a4aff2f4887afa8054a7936ba76"
+    # 추론을 vLLM 과 OpenRouter 양쪽에서 끈다. 각 서빙은 상대 방식의 키를 무시한다.
+    #   thinking: off -> chat_template_kwargs.enable_thinking=false (vLLM)
+    #   params.reasoning -> reasoning.enabled=false (OpenRouter, chat_template_kwargs 를 무시한다)
+    # params.reasoning 은 고정값이라 thinking: on 을 설정해도 OpenRouter 에서는 추론이 꺼진 상태로 유지된다.
+    thinking: "off"
+    params:
+      reasoning: {enabled: false}
   image:
     url: "https://genos.genon.ai/api/gateway/rep/serving/752/v1/chat/completions"
     api_key: "d1a9e0acab6243019008a96cd8af868e"
