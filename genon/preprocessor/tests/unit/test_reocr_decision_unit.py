@@ -63,25 +63,50 @@ def test_judge_document_verdict_and_reocr_reason(options, llm_response, verdict,
 
 
 @pytest.mark.unit
-@pytest.mark.parametrize("verdict,reocr_expected", [
-    (de.OcrVerdict.UNKNOWN, False),   # 재현 R5: 기본 설정에서 정상 문서가 두 번 변환되던 경우
-    (de.OcrVerdict.NEEDS_OCR, True),
-], ids=["unknown-no-reocr", "needs-reocr"])
-def test_parse_docling_reocrs_only_on_needs_ocr(verdict, reocr_expected):
-    """_parse_docling 의 auto 경로: 판정 불가면 첫 변환 결과를 그대로 쓴다(OCR converter 를 부르지 않는다).
-    __init__ 우회 + _intel 가짜(ocr_mode=auto, 휴리스틱 모두 거짓) — 기존 test_parser_processor_unit 의 dp 와 같은 꼴."""
+@pytest.mark.parametrize("native,verdict,found,endpoint,failed,expected", [
+    # found = (글리프 깨진 페이지, 빈 페이지, 문서에 텍스트가 있는지)
+    # 재현 R5: 기본 설정에서 정상 문서가 두 번 변환되던 경우 — 판정 불가면 재변환하지 않는다
+    (True, de.OcrVerdict.UNKNOWN, ([], [], True), "", [], (False, False, True)),
+    # 판정 LLM 이 OCR 필요라 답하면 문서 전체를 다시 변환한다
+    (True, de.OcrVerdict.NEEDS_OCR, ([], [], True), "", [], (False, True, True)),
+    # #483: genos_layout 은 판정 LLM 을 부르지 않는다 — LLM 이 YES 였을 문서도 재변환하지 않는다
+    (False, de.OcrVerdict.NEEDS_OCR, ([], [], True), "", [], (False, False, False)),
+    # #483: 글리프·빈 페이지는 그 페이지만 OCR 하고, 모두 처리되면 전체 재변환은 하지 않는다
+    (True, None, ([2], [5], True), "http://ocr", [], (True, False, False)),
+    # 처리하지 못한 페이지가 있으면 전체 재변환으로 보낸다
+    (True, None, ([2], [], True), "http://ocr", [2], (True, True, False)),
+    # #483: 문서 전체에 텍스트가 없으면(스캔본) 판정 LLM 없이 no_text 로 전체 재변환한다
+    (True, None, ([], [], False), "http://ocr", [], (False, True, False)),
+    # OCR 주소가 없으면 페이지 단위로 할 수 없으므로 전체 재변환한다(예전 동작)
+    (True, None, ([2], [], True), "", [], (False, True, False)),
+], ids=["unknown-no-reocr", "llm-yes-full", "genos-skips-llm", "pages-fixed", "pages-failed-full",
+        "no-text-full", "no-endpoint-full"])
+def test_parse_docling_reocr_paths(native, verdict, found, endpoint, failed, expected):
+    """_parse_docling 의 auto 경로: 페이지 단위 재OCR 과 문서 전체 재변환 중 무엇을 하는지.
+    __init__ 우회 + _intel 가짜 — 기존 test_parser_processor_unit 의 dp 와 같은 꼴."""
     dp = object.__new__(DocumentProcessor)
     dp._intel = MagicMock()
     dp._intel.ocr_mode = "auto"
-    dp._intel.ocr_endpoint = ""                      # 셀 재OCR 경로는 건너뛴다
-    dp._intel.check_glyphs.return_value = False
-    dp._intel.check_empty_text.return_value = False
+    dp._intel.ocr_endpoint = endpoint
+    dp._intel.find_reocr_pages.return_value = found[:2]
+    dp._intel.has_text.return_value = found[2]
+    dp._intel.page_text_metrics.return_value = {"glyph_by_page": {}, "chars": 10, "chars_per_page": 10}
+    dp._intel.judges_native_text.return_value = native
+    dp._intel.ocr_text_items_on_pages.return_value = failed
+    dp._intel.ocr_all_table_cells.side_effect = lambda document, path: document
     dp._intel.enrichment_options.do_picture_description = False
     dp._intel.table_image_enabled = False
     dp._intel.enrichment.side_effect = lambda document, **kw: document
-    with patch.object(core_parser, "judge_document", return_value=verdict):
-        dp._parse_docling("doc.pdf")
-    assert (dp._intel.load_documents.call_count, dp._intel.load_documents_with_docling_ocr.called) == (1, reocr_expected)
+    ctx: dict = {}
+    with patch.object(core_parser, "judge_document", return_value=verdict) as judge:
+        dp._parse_docling("doc.pdf", _enrichment_context=ctx)
+    # expected = (페이지 단위 OCR 호출, 문서 전체 재변환, 판정 LLM 호출)
+    assert (dp._intel.ocr_text_items_on_pages.called, dp._intel.load_documents_with_docling_ocr.called,
+            judge.called) == expected
+    # 판정 기록이 응답 metadata.ocr_judge 로 나간다 — 전체 재변환 여부가 실제 동작과 같아야 한다
+    judge_log = ctx["metadata"]["ocr_judge"]
+    assert (judge_log["full_reconvert"], judge_log["verdict"] == "skipped", judge_log["chars"]) == (
+        expected[1], not judge.called, 10)
 
 
 @pytest.mark.unit
@@ -98,8 +123,68 @@ def test_http_facades_honor_request_ocr_mode(facade_cls, request_kwargs, reocr_e
     fp.enrichment_options = MagicMock()
     fp.load_documents = MagicMock(return_value=MagicMock())
     fp.load_documents_with_docling_ocr = MagicMock(return_value=MagicMock())
-    fp.check_glyphs = MagicMock(return_value=True)      # 글리프 깨짐 — auto 면 재OCR 사유
-    fp.check_empty_text = MagicMock(return_value=False)
+    fp.ocr_endpoint = ""                                   # 페이지 단위 OCR 불가 — 전체 재변환 경로
+    fp.find_reocr_pages = MagicMock(return_value=([1], []))  # 글리프 깨짐 — auto 면 재OCR 사유
     with patch.object(sys.modules[facade_cls.__module__], "judge_document", return_value=de.OcrVerdict.UNKNOWN):
         fp._load_document("scan.pdf", **request_kwargs)
     assert fp.load_documents_with_docling_ocr.called is reocr_expected
+
+
+@pytest.mark.unit
+def test_find_reocr_pages_returns_broken_page_numbers():
+    """#483: 페이지 단위 재OCR 대상 — 글리프 깨진 페이지와 빈 페이지를 번호로 돌려준다."""
+    d = DoclingDocument(name="t")
+    pages = {1: "제1조 목적 이 약관은 보험계약의 내용을 정한다.",
+             2: " ".join(["GLYPH<c=4,font=/X>"] * 11),   # document_threshold(10) 초과
+             3: "",                                       # 박스는 있는데 글자가 없다
+             4: "정상 페이지 GLYPH<c=1,font=/X>"}           # 임계값 이하
+    for page_no, text in pages.items():
+        d.add_page(page_no=page_no, size=Size(width=600, height=800))
+        d.add_text(label=DocItemLabel.TEXT, text=text,
+                   prov=ProvenanceItem(page_no=page_no, bbox=BoundingBox(l=0, t=0, r=500, b=20),
+                                       charspan=(0, len(text))))
+    assert dops.find_reocr_pages(d, threshold=10) == ([2], [3])
+    # 판정 기록용 지표 — GLYPH 는 토큰이 있는 페이지만, 평균은 텍스트가 있는 페이지 기준
+    metrics = dops.page_text_metrics(d)
+    assert (metrics["glyph_by_page"], metrics["chars_per_page"]) == ({"2": 11, "4": 1}, round(metrics["chars"] / 3))
+
+
+_OCR_OK = {"result": {"ocrResults": [{"prunedResult": {
+    "rec_texts": ["제2조", "정의"], "rec_scores": [0.9, 0.9], "rec_boxes": [[0, 0, 1, 1]] * 2}}]}}
+# HTTP 200 이지만 오류 응답 — _extract_ocr_fields 가 빈 목록을 돌려준다
+_OCR_ERROR = {"errorCode": 500, "errorMsg": "internal error"}
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("ocr_resp,texts,failed_expected", [
+    # 대상 페이지(2)의 글자만 OCR 결과로 바뀌고, 페이지 이미지가 없는 3쪽은 실패로 돌려준다
+    (_OCR_OK, ["정상", "제2조 정의", ""], [3]),
+    # OCR 이 오류 응답이면 원래 글자를 지우지 않고, 글자를 하나도 읽지 못한 2쪽도 실패로 돌려
+    # 호출부가 문서 전체 재변환으로 보내게 한다(PR #503 리뷰)
+    (_OCR_ERROR, ["정상", "GLYPH<c=4,font=/X>", ""], [2, 3]),
+], ids=["ocr-ok", "ocr-error-payload"])
+def test_ocr_text_items_on_pages(ocr_resp, texts, failed_expected):
+    """#483: 대상 페이지의 텍스트 박스만 OCR 결과로 바꾼다. OCR 서버 호출(_post_ocr_bytes)은 패치한다."""
+    from PIL import Image
+    from docling_core.types.doc import ImageRef
+
+    d = DoclingDocument(name="t")
+    for page_no, text, with_image in [(1, "정상", True), (2, "GLYPH<c=4,font=/X>", True), (3, "", False)]:
+        d.add_page(page_no=page_no, size=Size(width=600, height=800),
+                   image=ImageRef.from_pil(Image.new("RGB", (600, 800), "white"), dpi=72) if with_image else None)
+        d.add_text(label=DocItemLabel.TEXT, text=text,
+                   prov=ProvenanceItem(page_no=page_no, bbox=BoundingBox(l=10, t=100, r=500, b=80),
+                                       charspan=(0, len(text))))
+    with patch.object(dops, "_post_ocr_bytes", return_value=ocr_resp) as post:
+        failed = dops.ocr_text_items_on_pages(d, [2, 3], ocr_endpoint="http://unused.invalid")
+    assert ([t.text for t in d.texts], failed, post.call_count) == (texts, failed_expected, 1)
+
+
+@pytest.mark.unit
+def test_text_checking_prompt_formats_with_judge_kwargs():
+    """#483: 판정 프롬프트의 자리표시자와 judge_document_text 가 넘기는 인자 이름이 맞는지.
+    어긋나면 format_user_prompt 가 KeyError 를 삼키고 None 을 돌려 판정이 조용히 '판정 불가' 가 된다."""
+    pm = PromptManager()
+    prompt = pm.format_user_prompt("document_checking", "text_checking", content="본문",
+                                   text_len=2, non_meaningful_ratio=0.0, space_ratio=0.0)
+    assert prompt is not None and "비의미 문자 비율: 0.0" in prompt and "비ASCII" not in prompt
