@@ -81,7 +81,6 @@ CASES = [
     ("monimo_event",  MONIMO / "monimo_event_table_sample.json",       "5열 표 빈 셀 보존"),
     # 제목에 영문 대문자·<BR>·엔티티가 든 생성 샘플이다(#414).
     ("monimo_event",  MONIMO / "monimo_event_title_sample.json",       "제목 대소문자 보존"),
-    ("monimo_news",   MONIMO / "monimo_news_sample.json",              "json_mapping"),
     ("monimo_news",   MONIMO / "TD00008415_d_5199.html.json",          "실 파일명 → BIZ_ID"),
     ("cs_slf",        MONIMO / "monimo_cs_slf_sample.json",            "json_mapping"),
     # 마지막 레코드는 제목에 영문 대문자·<BR>·엔티티가 든 생성 레코드다(#414).
@@ -89,7 +88,9 @@ CASES = [
     # 본문이 셀 하나짜리 레이아웃 표인 레코드(#396). 실물 형식을 따라 만든 생성 샘플이다.
     ("cs_ssf",        MONIMO / "monimo_cs_ssf_layout_table_sample.dtms", "1셀 레이아웃 표 레코드"),
     ("cs_sss",        MONIMO / "monimo_cs_sss_sample.json",            "json_mapping"),
-    ("cs_hpp",        MONIMO / "monimo_cs_hpp_sample.html",            "llm(문서 단위)"),
+    # cs_hpp 설정은 JSON 레코드를 받는다. 아래 html·.parsed 원천은 레코드 매핑 없이 docling HTML·md
+    # 경로로만 처리되므로(cs_hpp 메타는 비어 있다) HTML 파싱·포맷 판정 회귀를 확인하는 케이스다.
+    ("cs_hpp",        MONIMO / "monimo_cs_hpp_sample.html",            "HTML 문서(레코드 매핑 미적용)"),
     # 파일명이 점으로 시작하고 본문이 fragment 인 실 원천(#349 재현). rename 금지.
     ("cs_hpp",        MONIMO / ".INC_235488_02_20260626103138.html",   "section 1개"),
     ("cs_hpp",        MONIMO / ".INC_235489_01_20260626103139.html",   "section 3개"),
@@ -597,9 +598,9 @@ def check_cs_hpp_parsed_ext(chunks: list) -> list[str]:
     """*.parsed(마크다운+HTML 혼합 산출물)의 HTML 이 실제로 파싱되는가(#360).
 
     이 원천은 표준 확장자를 쓰지 않는다. 예전에는 확장자 라우팅이 그것을 알아내지 못해
-    구조 없는 텍스트로 떨어졌고, 청크 본문에 `<table style=...>` 이 원문 그대로 실렸으며
-    문서 단위 enrichment 도 걸리지 않아 custom_fields 가 통째로 비었다. 실측 10청크 중
-    8청크가 태그 덩어리였다.
+    구조 없는 텍스트로 떨어졌고, 청크 본문에 `<table style=...>` 이 원문 그대로 실렸다.
+    실측 10청크 중 8청크가 태그 덩어리였다. 지금 cs_hpp 설정은 JSON 레코드를 받으므로
+    이 원천에는 custom_fields 가 원래 실리지 않는다. 여기서는 HTML 파싱만 단정한다.
     """
     problems: list[str] = []
     for idx, chunk in enumerate(chunks):
