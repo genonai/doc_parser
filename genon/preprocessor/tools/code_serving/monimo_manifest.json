@@ -1,0 +1,226 @@
+[
+ {
+  "name": "menu__monimo_menu_sample",
+  "file": "monimo/monimo_menu_sample.xlsx",
+  "params": {
+   "doc_type": "menu"
+  }
+ },
+ {
+  "name": "term__monimo_term_sample",
+  "file": "monimo/monimo_term_sample.xlsx",
+  "params": {
+   "doc_type": "term"
+  }
+ },
+ {
+  "name": "term__monimo_term_duplicate_rows_sample",
+  "file": "monimo/monimo_term_duplicate_rows_sample.xlsx",
+  "params": {
+   "doc_type": "term"
+  }
+ },
+ {
+  "name": "faq__monimo_faq_json_sample",
+  "file": "monimo/monimo_faq_json_sample.json",
+  "params": {
+   "doc_type": "faq"
+  }
+ },
+ {
+  "name": "monimo_event__monimo_event_sample",
+  "file": "json/monimo_event_sample.json",
+  "params": {
+   "doc_type": "monimo_event"
+  }
+ },
+ {
+  "name": "monimo_event__monimo_event_real_sample",
+  "file": "monimo/monimo_event_real_sample.json",
+  "params": {
+   "doc_type": "monimo_event"
+  }
+ },
+ {
+  "name": "monimo_event__monimo_event_table_sample",
+  "file": "monimo/monimo_event_table_sample.json",
+  "params": {
+   "doc_type": "monimo_event"
+  }
+ },
+ {
+  "name": "monimo_event__monimo_event_title_sample",
+  "file": "monimo/monimo_event_title_sample.json",
+  "params": {
+   "doc_type": "monimo_event"
+  }
+ },
+ {
+  "name": "monimo_news__monimo_news_sample",
+  "file": "monimo/monimo_news_sample.json",
+  "params": {
+   "doc_type": "monimo_news"
+  }
+ },
+ {
+  "name": "monimo_news__TD00008415_d_5199.html",
+  "file": "monimo/TD00008415_d_5199.html.json",
+  "params": {
+   "doc_type": "monimo_news"
+  }
+ },
+ {
+  "name": "cs_slf__monimo_cs_slf_sample",
+  "file": "monimo/monimo_cs_slf_sample.json",
+  "params": {
+   "doc_type": "cs_slf"
+  }
+ },
+ {
+  "name": "cs_ssf__monimo_cs_ssf_sample",
+  "file": "monimo/monimo_cs_ssf_sample.dtms",
+  "params": {
+   "doc_type": "cs_ssf"
+  }
+ },
+ {
+  "name": "cs_ssf__monimo_cs_ssf_layout_table_sample",
+  "file": "monimo/monimo_cs_ssf_layout_table_sample.dtms",
+  "params": {
+   "doc_type": "cs_ssf"
+  }
+ },
+ {
+  "name": "cs_sss__monimo_cs_sss_sample",
+  "file": "monimo/monimo_cs_sss_sample.json",
+  "params": {
+   "doc_type": "cs_sss"
+  }
+ },
+ {
+  "name": "cs_hpp__monimo_cs_hpp_sample",
+  "file": "monimo/monimo_cs_hpp_sample.html",
+  "params": {
+   "doc_type": "cs_hpp"
+  }
+ },
+ {
+  "name": "cs_hpp__.INC_235488_02_20260626103138",
+  "file": "monimo/.INC_235488_02_20260626103138.html",
+  "params": {
+   "doc_type": "cs_hpp"
+  }
+ },
+ {
+  "name": "cs_hpp__.INC_235489_01_20260626103139",
+  "file": "monimo/.INC_235489_01_20260626103139.html",
+  "params": {
+   "doc_type": "cs_hpp"
+  }
+ },
+ {
+  "name": "cs_hpp__monimo_cs_hpp_rich_table_sample",
+  "file": "monimo/monimo_cs_hpp_rich_table_sample.html",
+  "params": {
+   "doc_type": "cs_hpp"
+  }
+ },
+ {
+  "name": "cs_hpp__monimo_cs_hpp_chunksize_sample",
+  "file": "monimo/monimo_cs_hpp_chunksize_sample.json",
+  "params": {
+   "doc_type": "cs_hpp"
+  }
+ },
+ {
+  "name": "cs_hpp__.INC_235488_02_20260626103138.html",
+  "file": "monimo/.INC_235488_02_20260626103138.html.parsed",
+  "params": {
+   "doc_type": "cs_hpp"
+  }
+ },
+ {
+  "name": "product_slf__monimo_product_slf_sample",
+  "file": "monimo/monimo_product_slf_sample.md",
+  "params": {
+   "doc_type": "product_slf"
+  }
+ },
+ {
+  "name": "product_slf__monimo_product_slf_fields_sample",
+  "file": "monimo/monimo_product_slf_fields_sample.md",
+  "params": {
+   "doc_type": "product_slf"
+  }
+ },
+ {
+  "name": "product_ssf__monimo_product_ssf_sample",
+  "file": "monimo/monimo_product_ssf_sample.md",
+  "params": {
+   "doc_type": "product_ssf"
+  }
+ },
+ {
+  "name": "product_ssf__monimo_product_ssf_html_table_sample",
+  "file": "monimo/monimo_product_ssf_html_table_sample.md",
+  "params": {
+   "doc_type": "product_ssf"
+  }
+ },
+ {
+  "name": "product_hpp__monimo_product_hpp_wcms_sample",
+  "file": "monimo/monimo_product_hpp_wcms_sample.json",
+  "params": {
+   "doc_type": "product_hpp"
+  }
+ },
+ {
+  "name": "product_hpp__monimo_product_hpp_sample",
+  "file": "monimo/monimo_product_hpp_sample.json",
+  "params": {
+   "doc_type": "product_hpp"
+  }
+ },
+ {
+  "name": "product_hpp__monimo_product_hpp_rich_table_sample",
+  "file": "monimo/monimo_product_hpp_rich_table_sample.json",
+  "params": {
+   "doc_type": "product_hpp"
+  }
+ },
+ {
+  "name": "product_hpp__monimo_product_hpp_fields_sample",
+  "file": "monimo/monimo_product_hpp_fields_sample.json",
+  "params": {
+   "doc_type": "product_hpp"
+  }
+ },
+ {
+  "name": "stock_insight__monimo_stock_insight_sample",
+  "file": "monimo/monimo_stock_insight_sample.txt",
+  "params": {
+   "doc_type": "stock_insight"
+  }
+ },
+ {
+  "name": "stock_insight__monimo_stock_insight_split_sample",
+  "file": "monimo/monimo_stock_insight_split_sample.txt",
+  "params": {
+   "doc_type": "stock_insight"
+  }
+ },
+ {
+  "name": "faq__monimo_faq_quality_sample",
+  "file": "monimo/monimo_faq_quality_sample.json",
+  "params": {
+   "doc_type": "faq"
+  }
+ },
+ {
+  "name": "product_ssf__monimo_product_ssf_quality_sample",
+  "file": "monimo/monimo_product_ssf_quality_sample.md",
+  "params": {
+   "doc_type": "product_ssf"
+  }
+ }
+]
