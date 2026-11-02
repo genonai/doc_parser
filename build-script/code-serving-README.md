@@ -1,24 +1,26 @@
 # doc_parser 코드 서빙 — 사용 가이드
 
 이 저장소는 **doc_parser 전처리기의 코드 서빙 배포본**입니다. GenOS 코드 서빙이 이 repo를 clone한 뒤,
-리비전의 시작 명령에 따라 둘 중 하나를 띄웁니다.
+리비전의 시작 명령으로 **전처리기 Temporal 워커**를 띄웁니다.
 
-| 리비전 | 시작 명령 | 제공하는 것 |
+| 리비전 | 시작 명령(필수) | 제공하는 것 |
 | --- | --- | --- |
-| **전처리기 워커** | `python -m genon.preprocessor.worker` | Temporal 액티비티(액티비티 폴더 slug 마다 하나). HTTP 는 `/health` 하나 — [전처리기 워커 리비전](#전처리기-워커-리비전) |
-| **HTTP 서빙** | 비움(기본 — `main.py`, FastAPI) | 적재/첨부/변환·파싱·청킹·헬스체크 엔드포인트 — [엔드포인트](#엔드포인트) |
+| **전처리기 워커** | `python -m genon.preprocessor.worker` | Temporal 액티비티(액티비티 폴더 slug 마다 하나). HTTP 는 `/health`·`/version` 뿐 — [전처리기 워커 리비전](#전처리기-워커-리비전) |
+
+> 시작 명령을 비우면 루트 `main.py` 가 뜨고, 이 파일은 "시작 명령(START_COMMAND)이 비어 있습니다" 기동 오류만 냅니다.
+> #577 에서 코드서빙 HTTP 업무 경로(`/preprocess*`·`/parser`·`/chunker`)를 없앴습니다.
 
 > 이 repo는 코드서빙용 **배포 산출물**입니다. docling은 소스 대신 `packages/`의 wheel로 동봉되어
 > 런타임에 설치됩니다.
 
-문서는 **① GenOS 배포·등록 → ② 호출(사전 준비·엔드포인트·사용 예시)** 순서로 구성됩니다.
+문서는 **① GenOS 배포·등록 → ② 워커 리비전 → ③ 동작 확인(헬스·액티비티 호출·단건 실행)** 순서로 구성됩니다.
 
 **독자별로 읽는 곳이 다릅니다.**
 
 | 독자 | 읽을 곳 |
 |---|---|
-| **코드서빙을 설치·배포하는 엔지니어** | [배포 / GenOS 코드서빙 등록](#배포--genos-코드서빙-등록) 1~5번 (최초 설치는 1번부터) → 워커는 [전처리기 워커 리비전](#전처리기-워커-리비전), HTTP 는 [사용 예시](#사용-예시) 로 동작 확인 |
-| **전처리기를 호출하는 개발자** | [사전 준비](#사전-준비) → [엔드포인트](#엔드포인트) → [사용 예시](#사용-예시) (HTTP 서빙) |
+| **코드서빙을 설치·배포하는 엔지니어** | [배포 / GenOS 코드서빙 등록](#배포--genos-코드서빙-등록) 1~5번 (최초 설치는 1번부터) → [전처리기 워커 리비전](#전처리기-워커-리비전) → [동작 확인](#동작-확인) |
+| **액티비티를 호출하는 개발자** | [액티비티 호출](#액티비티-호출) |
 | **액티비티를 추가·수정하는 개발자** | [액티비티 폴더](#액티비티-폴더) → [브랜치 역할과 새 버전 받기](#브랜치-역할과-새-버전-받기) |
 | **전처리기 코드를 수정하는 개발자** | 아래 개발 매뉴얼 |
 
@@ -29,16 +31,14 @@
 
 ## 개요
 
-이 절과 [사전 준비](#사전-준비)·[엔드포인트](#엔드포인트)·[사용 예시](#사용-예시)는 **HTTP 서빙** 리비전의 내용입니다.
-
-- 엔드포인트: `/health`, `/preprocess*`(적재/첨부/변환), `/parser`(파싱), `/chunker`(청킹).
-- 적재/첨부/변환은 문서를 한 번에 처리하는 **단일 단계** API입니다.
-- 파싱·청킹은 **분리된 2단계**입니다.
+- 코드서빙 = **전처리기 Temporal 워커 하나**입니다. uvicorn 한 프로세스가 `/health`·`/version` 만 받고, 같은 프로세스의
+  감시자가 자식 프로세스 `WORKER_PROCESSES` 개를 띄웁니다. 자식마다 Temporal 워커 1개가 `WORKER_THREADS` 스레드로
+  `WORKER_TASK_QUEUE` 에서 액티비티를 받습니다.
+- 액티비티는 파싱(`parse`)·청킹(`chunk`)과 그 사본 slug(`parse_…`·`chunk_…`)입니다. 파싱·청킹은 **분리된 2단계**입니다.
 
 ```
-원본 문서                  파싱 결과 JSON                        청크 리스트
-(report.pdf) ──POST /parser──▶ data.document(docling)   ──POST /chunker──▶ data[ {...}, ... ]
-(sheet.csv)  ──POST /parser──▶ data.elements(parse-format) ┘
+원본 문서(NFS_ROOT)        파싱 결과(ARTIFACT_ROOT/<ref>.json)       청크 리스트(ARTIFACT_ROOT/<ref>.json)
+read_ref ──[parse]──▶  DoclingDocument | {elements}  ──[chunk]──▶  [ {...}, ... ]
 ```
 
 > 무거운 처리(OCR·레이아웃·enrichment)는 파싱에서 끝나므로 청킹은 가볍게 호출할 수 있습니다.
@@ -47,7 +47,7 @@
 ## 버전 정합
 
 이 공개 배포본의 릴리스는 배포 스크립트로 생성됩니다. 배포처(Genos 코드서빙용 gitea 복사본, 또는 외부 Git 의
-작업 브랜치)에서는 액티비티 폴더(`genon/preprocessor/activities/<slug>/`)의 설정·프롬프트와 HTTP 서빙 설정
+작업 브랜치)에서는 액티비티 폴더(`genon/preprocessor/activities/<slug>/`)의 설정·프롬프트와 공용 설정
 (`genon/preprocessor/resource/`)을 업무 요구사항에 맞게 수정하거나 사본 액티비티를 추가할 수 있습니다
 ([액티비티 폴더](#액티비티-폴더)).
 
@@ -76,8 +76,7 @@ genon/preprocessor/activities/<slug>/
 ```
 
 - **원형**은 `parse`(파싱)·`chunk`(청킹)이고, **사본**은 `parse_<이름>`·`chunk_<이름>` 입니다(slug 의 첫 단어 = 단계).
-- 파싱·청킹 설정은 `activities/parse/config.yaml`·`activities/chunk/config.yaml` 입니다. HTTP 서빙의
-  `/parser`·`/chunker` 도 이 두 파일을 씁니다.
+- 파싱·청킹 설정은 `activities/parse/config.yaml`·`activities/chunk/config.yaml` 입니다.
 - 설정이 부르는 프롬프트·custom_field 는 **상대 경로로 그 폴더 안의 파일**을 씁니다(폴더 밖으로 나가는 상대 경로는 거부, 절대 경로는 지정한 그대로 읽음 — 사본에는 쓰지 않습니다). 모델 접속 정보는 폴더에 복사하지 않고
   `genon/preprocessor/resource/model_presets.yaml` 의 프리셋을 이름(`model_preset: <이름>`)으로 참조합니다.
 - 못 찾으면 오류로 알리고 다른 파일로 대신하지 않습니다.
@@ -178,11 +177,9 @@ genon/preprocessor/activities/<slug>/
    tar --exclude=.git -cf - . | (cd <gitea_dir> && tar -xf -)
 
    # (필요할 때) gitea repo에서 업무에 맞게 설정 수정 — 용도별 대상 파일(genon/preprocessor/manual/ 의 매뉴얼 참고):
-   #   genon/preprocessor/activities/parse/config.yaml   (파싱 — 워커 액티비티 parse, HTTP /parser)
-   #   genon/preprocessor/activities/chunk/config.yaml   (청킹 — 워커 액티비티 chunk, HTTP /chunker)
-   #   genon/preprocessor/resource/intelligent_processor_config.yaml   (HTTP /preprocess·/preprocess_intelligent)
-   #   genon/preprocessor/resource/attachment_processor_config.yaml    (HTTP /preprocess_attachment)
-   #   genon/preprocessor/resource/convert_processor_config.yaml       (HTTP /preprocess_convert)
+   #   genon/preprocessor/activities/parse/config.yaml   (파싱 — 워커 액티비티 parse)
+   #   genon/preprocessor/activities/chunk/config.yaml   (청킹 — 워커 액티비티 chunk)
+   #   사본 액티비티는 genon/preprocessor/activities/<slug>/config.yaml
    # LLM 모델 주소·키는 이 파일들에 적지 않습니다. 설정은 resource/model_presets.yaml 의 프리셋을
    # 이름(model_preset: <이름>)으로 부르고, 설치 환경의 실값은 4번 리비전 환경변수
    # GENOS_MODEL_PRESETS_FILE 로 넣습니다.
@@ -195,23 +192,26 @@ genon/preprocessor/activities/<slug>/
      바꿀 키(예: `url`·`api_key`)만 적어도 됩니다 — 같은 이름의 프리셋 위에 키 단위로 덮입니다.
 
 4. **리비전 생성/배포** — 코드서빙 매뉴얼대로 리비전을 생성하면 gitea 소스(레포 URL/commit)가 런타임에 `/app/src/service`로 clone되고
-   시작 명령(`START_COMMAND`)이 실행됩니다. 비우면 `main.py`(HTTP 서빙)가 실행됩니다.
+   시작 명령(`START_COMMAND`)이 실행됩니다.
    - 이미지: `mnc/template-code-serving-doc-parser` 선택.
-   - HTTP 서빙: GPU 미할당, **medium(1 CPU Core, 16GB Memory)** 수준 인스턴스.
-   - 전처리기 워커: `START_COMMAND` 와 환경변수를 [전처리기 워커 리비전](#전처리기-워커-리비전)대로 줍니다.
+   - **시작 명령은 필수**입니다: `python -m genon.preprocessor.worker`. 비우면 `main.py` 가 기동 오류만 내고 끝납니다.
+   - 환경변수는 [전처리기 워커 리비전](#전처리기-워커-리비전)대로 줍니다. 메모리는 프로세스 수와 처리 중 문서 수에
+     비례하므로 `WORKER_PROCESSES`·`WORKER_THREADS` 에 맞춰 인스턴스를 고릅니다.
    - 모델 접속 실값: 환경변수 `GENOS_MODEL_PRESETS_FILE` 에 값을 채운 `model_presets.yaml` 의 경로(파드에서 읽을 수 있는 경로)를 줍니다.
 
-5. **호출/테스트** — 아래 [사용 예시](#사용-예시) 및 동봉된
-   `genon/preprocessor/tools/code_serving/serving_gateway_test.py` 참고.
+5. **동작 확인** — 아래 [동작 확인](#동작-확인) 참고(기동 로그 · `/health`·`/version` · 단건 실행 또는 큐 왕복).
 
 ## 전처리기 워커 리비전
 
-같은 배포본으로 코드서빙 리비전을 만들고 시작 명령만 워커로 줍니다. 워커는 Temporal 큐에서 파싱·청킹
-액티비티를 받아 처리하며, 액티비티 이름은 [액티비티 폴더](#액티비티-폴더)의 slug(`parse`·`chunk`·사본 slug)입니다.
+코드서빙 리비전의 시작 명령으로 워커를 띄웁니다. 워커는 Temporal 큐에서 파싱·청킹 액티비티를 받아 처리하며,
+액티비티 이름은 [액티비티 폴더](#액티비티-폴더)의 slug(`parse`·`chunk`·사본 slug)입니다.
 
-- **시작 명령**(`START_COMMAND`): `python -m genon.preprocessor.worker`
-- **헬스 체크**: `GET /health`(포트 `PORT`, 기본 8080) 하나만 제공합니다 — 코드서빙 startupProbe 용입니다.
-  워커 프로세스가 모두 살아 있으면 200 `{"status":"ok"}`, 아니면 503 입니다.
+- **시작 명령**(`START_COMMAND`, 필수): `python -m genon.preprocessor.worker`
+- **HTTP**(포트 `PORT`, 기본 8080): `GET /health`(별칭 `/healthcheck`) — 코드서빙 startupProbe 용. 워커 프로세스가 모두
+  살아 있으면 200 `{"status":"ok"}`, 아니면 503 `{"status":"down"}`. `GET /version` — 배포 스탬프(`VERSION`)·`UPDATED_AT`
+  첫 줄·기동 시각.
+- 자식 프로세스가 죽으면 그 프로세스만 다시 띄웁니다. 300초 안에 5번을 넘게 죽으면 전체를 끝내고, supervisord 가 시작
+  명령을 다시 실행합니다.
 - **액티비티 인자**는 파일 내용이 아니라 상대 참조(`read_ref`·`parsed_ref`·`output_ref`)입니다. 루트는 이 파드의
   `NFS_ROOT`·`ARTIFACT_ROOT` 로 해석하고, 결과 JSON 은 `ARTIFACT_ROOT` 아래 `output_ref` 자리에 씁니다.
 
@@ -226,139 +226,77 @@ genon/preprocessor/activities/<slug>/
 | `TEMPORAL_PORT` | 선택 | 기본 `7233` |
 | `WORKER_PROCESSES` | 선택 | 워커 프로세스 수(N), 기본 `1` |
 | `WORKER_THREADS` | 선택 | 프로세스마다 동시에 처리할 문서 수(M), 기본 `1`. 동시 문서 수 = N × M |
-| `OMP_NUM_THREADS` | 선택 | 연산 스레드 수. 비워 두면 "파드 CPU 한도 ÷ `WORKER_PROCESSES`" 의 내림(최소 1)으로 자동 설정됩니다. 프로세스는 파드 한도가 아니라 노드 코어 수를 보고 스레드를 띄우므로, 이 값이 없으면 CPU 작업이 겹칠 때 수 배 느려집니다 |
+| `OMP_NUM_THREADS` | 선택 | 연산 스레드 수. 비워 두면 "파드 CPU 한도 ÷ 워커 프로세스 합(`WORKER_PROCESSES`)" 의 내림(최소 1)으로 자동 설정됩니다. 프로세스는 파드 한도가 아니라 노드 코어 수를 보고 스레드를 띄우므로, 이 값이 없으면 CPU 작업이 겹칠 때 수 배 느려집니다 |
 | `GENOS_PROFILE` | 선택 | `1` 이면 구간별 처리 시간·외부 호출 계측 로그를 남깁니다(`genon/preprocessor/manual/stage_timing_runbook.md`) |
 | `LLM_CACHE_ROOT` | 선택 | `params.llm_cache` 를 켠 요청의 LLM 캐시 루트. 없으면 캐시를 쓰지 않습니다 |
 | `HEARTBEAT_INTERVAL` | 선택 | 하트비트 간격(초), 기본 `10` |
 | `PREVIEW_CHARS` | 선택 | 반환 preview 길이, 기본 `2000` |
+| `PORT` | 선택 | `/health`·`/version` 포트, 기본 `8080`. startupProbe 가 8080 을 보므로 바꾸지 않습니다 |
 
 - 필수 값이 없으면 워커가 기동하지 않고 빠진 이름을 모두 로그에 남깁니다.
 - 메모리는 프로세스 수와 처리 중인 문서 수에 함께 비례합니다.
 
-## 사전 준비
+## 동작 확인
 
-위 [배포 / GenOS 코드서빙 등록](#배포--genos-코드서빙-등록)으로 코드서빙을 만들면 `serving_id`가 발급됩니다.
-이를 게이트웨이 base URL·`auth_key`(Bearer 토큰)와 함께 호출에 사용합니다.
+**① 기동 로그** — 코드서빙 로그에 slug 마다 설정 경로 한 줄, 큐·액티비티 목록이 남습니다. `[worker]` 는 부모,
+`[worker-default-0]` 부터는 작업을 받는 워커 프로세스입니다.
 
-| 항목 | 설명 | 예시 |
-| --- | --- | --- |
-| `base URL` | 게이트웨이 base URL | `https://<GENOS_HOST>` |
-| `serving_id` | 배포된 코드 서빙 ID | `<SERVING_ID>` |
-| `auth_key` | 게이트웨이 인증 토큰(Bearer) | `<AUTH_KEY>` |
-
-- **`/parser`의 `file_path`는 서빙 컨테이너 내부의 로컬 경로**입니다(MinIO 키 아님). 서버가 접근 가능한 경로를 넣으세요.
-- docling 포맷은 파싱 서빙의 `activities/parse/config.yaml`이 `output.format: "docling"`이어야 응답에 `data.document`가 생성됩니다.
-- 그 외 포맷은 설정과 무관하게 parse-format(`data.elements`)으로 반환되며 chunker가 그대로 청킹합니다.
-
-## 엔드포인트
-
-**공통 URL** `{base}/api/gateway/code_serving/{serving_id}/{route}` — `route`는 **단일 세그먼트만**(슬래시 중첩 불가).
-
-**공통 헤더**
-```
-Content-Type: application/json
-Authorization: Bearer {auth_key}
+```text
+<시각> [worker] INFO 액티비티 parse: 설정 …/genon/preprocessor/activities/parse/config.yaml (저장소)
+<시각> [worker] INFO 묶음 default: task_queue=<WORKER_TASK_QUEUE> processes=1 threads=1
+<시각> [worker-default-0] INFO Temporal 접속: address=…:7233 namespace=… task_queue=<WORKER_TASK_QUEUE> threads=1
+<시각> [worker-default-0] INFO 액티비티 2개: chunk(chunk), parse(parse)
 ```
 
-**공통 요청/응답 envelope** (모든 POST 공통)
-```json
-{ "file_path": "<문서 경로>", "params": { } }
-```
-```json
-{ "code": 0, "errMsg": "success", "data": { } }
-```
-- 성공 여부는 HTTP 상태가 아니라 **`code` 값**으로 판단하세요(예외 시에도 HTTP 200, `code`≠0).
+**② HTTP** — 게이트웨이 `{base}/api/gateway/code_serving/{serving_id}/{route}`(헤더 `Authorization: Bearer {auth_key}`)
+또는 클러스터 안(코드스페이스)에서 `http://code-serving-<ID>-<리비전>:8080/{route}` 로 부릅니다.
 
-| 메서드 | 경로 | 용도 | 비고 |
-| --- | --- | --- | --- |
-| `GET` | `/health` | 헬스 체크 | `{"status":"ok"}` |
-| `POST` | `/preprocess` | 적재용(지능형) | `/preprocess_intelligent` 하위호환 별칭 |
-| `POST` | `/preprocess_attachment` | 첨부용 | |
-| `POST` | `/preprocess_intelligent` | 적재용(지능형) | |
-| `POST` | `/preprocess_convert` | 변환용 | |
-| `POST` | `/parser` | 문서 파싱 → DoclingDocument JSON | `IS_PARSER` 지원 전처리기 필요 |
-| `POST` | `/chunker` | 파싱 결과 JSON → 청크 리스트 | `IS_CHUNKER` 지원 전처리기 필요 |
-
-> `/parser`·`/chunker`는 설치된 전처리기가 해당 기능을 지원할 때만 동작합니다(미지원 시 `code:1` 안내).
-
-### POST /parser
-요청 `{"file_path": "...", "params": {}}` → 응답:
-```json
-{ "code": 0, "errMsg": "success",
-  "data": { "document": { "schema_name": "DoclingDocument", "...": "..." }, "usage": { "pages": 10 } } }
-```
-- `data.document`: 청킹 입력으로 쓰는 DoclingDocument JSON · `data.usage.pages`: 처리 페이지 수.
-
-### POST /chunker
-파싱 결과를 `params.document`로 인라인 전달(docling `{"document":...}` 또는 parse-format `{"elements":[...]}` 자동 판별).
-```json
-{ "file_path": "report.pdf",
-  "params": { "document": { "schema_name": "DoclingDocument", "...": "..." }, "chunk_size": 0 } }
-```
-응답 `data`는 `GenOSVectorMeta` 청크 리스트(`i_chunk_on_doc`, `i_page`, `text`, `chunk_token_count` ...).
-
-| 파라미터 | 위치 | 기본값 | 설명 |
-| --- | --- | --- | --- |
-| `document` | `params` | (필수) | 파싱 결과 JSON(docling/parse-format 자동 판별) |
-| `chunk_size` | `params` | `0` | 청크 최대 크기(0=분할 안 함, config 기본값 덮어씀) |
-| `log_level` | `params` | config | 런타임 로깅 레벨(5=DEBUG ~ 1=CRITICAL, 0=NOLOG) |
-
-> 청킹 단계의 `file_path`는 청크 메타데이터 기록용이며 실제 입력은 `params.document`입니다.
-
-## 사용 예시
-
-### curl
 ```bash
-BASE="https://<GENOS_HOST>"; SERVING_ID="<SERVING_ID>"; AUTH="<AUTH_KEY>"
-GW="${BASE}/api/gateway/code_serving/${SERVING_ID}"
-FILE_PATH="/app/src/service/genon/preprocessor/sample_files/pdf_sample.pdf"
-
-# health
-curl --location "${GW}/health" -H 'Content-Type: application/json' -H "Authorization: Bearer ${AUTH}"
-
-# parser
-curl --location "${GW}/parser" -H 'Content-Type: application/json' -H "Authorization: Bearer ${AUTH}" \
-  --data "{\"file_path\": \"${FILE_PATH}\", \"params\": {}}"
+GW="https://<GENOS_HOST>/api/gateway/code_serving/<SERVING_ID>"
+curl -s "${GW}/health"  -H "Authorization: Bearer <AUTH_KEY>"     # 200 {"status":"ok"}
+curl -s "${GW}/version" -H "Authorization: Bearer <AUTH_KEY>"     # VERSION·UPDATED_AT·기동 시각
 ```
 
-### Python (표준 라이브러리만 사용)
-동봉된 `genon/preprocessor/tools/code_serving/serving_gateway_test.py`로 동일 호출:
+> `/health` 는 워커 프로세스가 살아 있는지만 봅니다. 수정본이 올라갔는지는 `/version` 의 `manual_updated_at`(UPDATED_AT
+> 첫 줄)과 `started_at` 으로, 큐에서 작업을 받는지는 Temporal 에서 그 큐의 poller 로 확인합니다.
+
+**③ 파싱·청킹** — 배포된 워커는 [액티비티 호출](#액티비티-호출)로, 같은 본문은 저장소 루트에서 단건 실행으로 봅니다.
+
 ```bash
-# 접속 정보는 환경변수 또는 인자로 전달합니다(스크립트에 기본값이 없어 없으면 실행을 거부합니다).
-export GENOS_BASE_URL="https://<GENOS_HOST>"
-export GENOS_SERVING_ID="<SERVING_ID>"
-export GENOS_AUTH_KEY="<AUTH_KEY>"
-
-python serving_gateway_test.py --mode health
-python serving_gateway_test.py --mode e2e     --file-path /data/documents/report.pdf --out /tmp/chunks.json --chunk-size 10000
-python serving_gateway_test.py --mode parser  --file-path /data/documents/report.pdf --out-doc /tmp/doc.json
-python serving_gateway_test.py --mode chunker --doc-json /tmp/doc.json --chunk-size 10000
+python -m genon.preprocessor.activities run --activity parse --input genon/preprocessor/sample_files/pdf_sample.pdf -o /tmp/doc.json
+python -m genon.preprocessor.activities run --activity chunk --input /tmp/doc.json -o /tmp/chunks.json
 ```
-주요 인자: `--mode`(health/parser/parser_upload/chunker/e2e), `--base-url`, `--serving-id`, `--auth-key`,
-`--file-path`, `--chunk-size`, `--param KEY=VALUE`(임의 `params` 오버라이드, 반복 가능).
 
-> `--chunk-size` 를 생략하면 필드를 아예 보내지 않아 **서빙 config 의 `chunking.chunk_size` 가
-> 적용**됩니다. 크기 기반 병합·분할을 끄려면 `--chunk-size 0` 을 명시하세요.
+stdout 마지막 줄이 결과 `@@RESULT@@ {"ok", "stage", "activity", "duration_ms", "data" | "error"}` 이고, 실패면 exit 1 입니다.
 
-## 에러 응답
+## 액티비티 호출
 
-- HTTP 상태는 항상 `200`, 성공 여부는 `code`로 판단(`0`=성공).
-- 실패 시 `errMsg`·`error_code`가 담기고, `error_policy: "strict"` 또는 요청 deadline 초과 시
-  `stage`(실패 단계)·`error_kind`(`transient`/`permanent`/`timeout`)가 추가됩니다.
+워크플로우에서 `WORKER_TASK_QUEUE` 큐에 slug 이름으로 액티비티를 겁니다. 인자는 dict 하나, 반환은 요약 dict 입니다.
+
+| 단계 | 인자 |
+| --- | --- |
+| parse · `parse_…` | `read_ref` `{"root": "nfs" \| "artifact", "path": <루트 기준 상대경로>}` · `output_ref` · `source_name`(선택) · `params`(선택) |
+| chunk · `chunk_…` | `parsed_ref` · `output_ref` · `source_name`(선택) · `params`(선택) |
+
+- `output_ref`·`parsed_ref` 는 `ARTIFACT_ROOT/<ref>.json` 을 가리킵니다. 절대경로나 `..` 로 루트 밖을 가리키면 거부합니다.
+- `params` 는 처리기 파라미터(`doc_type`·`chunk_size` 등)와 전처리 정책(`llm_cache`·`workflow_id`·`error_policy`·
+  `request_deadline`)입니다. `params.interim_root` 는 버리고, `llm_cache` 를 켠 요청은 이 파드의 `LLM_CACHE_ROOT` 를 씁니다.
+- 반환: `{stage, activity, ref, bytes, count, summary, preview, duration_ms}`(`GENOS_PROFILE=1` 이면 `stages` 추가).
+- 실패는 `ApplicationError` — `type` 은 `permanent`(재시도 안 함)·`transient`·`timeout`·`worker_restarting`·예외 이름이고,
+  메시지는 `<slug> <source_name 또는 output_ref>: <예외 타입>: <사유>` 입니다.
 
 ## 설정 / 고급 옵션
 
-- 프로세서 동작·옵션 상세: `genon/preprocessor/manual/`의
-  [intelligent_processor.md] · [attachment_processor.md] · [convert_processor.md] · [parser_processor.md].
-- **LLM 캐시 / 실패 정책(`error_policy`) / 요청 deadline(`request_deadline`)** 등 `params` opt-in 옵션과
-  전체 상세는 **전체 매뉴얼**을 참고하세요:
+- 액티비티 처리기 옵션 상세: `genon/preprocessor/manual/` 의 [parser_processor.md] · [chunking_processor.md].
+- **액티비티 인자·반환·오류, LLM 캐시 / 실패 정책(`error_policy`) / 요청 deadline(`request_deadline`)** 의 전체 상세는
+  **전체 매뉴얼**을 참고하세요:
   → [`genon/preprocessor/manual/code_serving.md`](genon/preprocessor/manual/code_serving.md)
 
 ## 부록: 로컬에서 `facade_run.py` 직접 실행 (개발·디버깅용)
 
-게이트웨이 HTTP 테스트(`serving_gateway_test.py`, 위 [사용 예시](#사용-예시))와 달리, **서빙 배포 없이 이
-repo를 clone한 로컬에서 전처리기를 직접 호출**해 보는 개발용 절차입니다. 대상은
-`genon/preprocessor/examples/facade_run/facade_run.py`(지능형 프로세서, PDF).
+**서빙 배포 없이 이 repo를 clone한 로컬에서 파사드 처리기를 직접 호출**해 보는 개발용 절차입니다. 대상은
+`genon/preprocessor/examples/facade_run/facade_run.py`(지능형 프로세서, PDF). 파사드(intelligent·attachment·convert)는
+코드서빙 워커가 쓰지 않고, GenOS 전처리기(기본 전처리기 서비스 `POST /run`)에 올려 씁니다.
 
 > `uv sync` 는 이 배포본에서 **실패**합니다 — 동봉된 `genon/preprocessor/pyproject.toml` 의 docling 의존성
 > source 가 소스가 없는(wheel만 있는) 이 repo 루트를 가리켜 docling 을 소스빌드하려다 깨집니다. 그래서 아래처럼

@@ -5,6 +5,7 @@
 """
 import errno
 import json
+import os
 from pathlib import Path
 
 import pytest
@@ -518,3 +519,132 @@ def test_remove_deletes_copy_but_not_prototype_or_site_overridden(tmp_path, monk
     with pytest.raises(ValueError, match="사이트 완성본"):
         remove_activity("parse_s", activities_dir=acts)
     assert (acts / "parse_s").exists()
+
+
+# ── 진입점(#577) — 감시자 · /health·/version · 루트 main.py ─────────────────────────
+
+
+class _FakeChild:
+    def __init__(self, name):
+        self.name, self.exitcode, self.alive = name, None, True
+
+    def is_alive(self):
+        return self.alive
+
+    def terminate(self):
+        self.alive = False
+
+    def join(self, timeout=None):
+        pass
+
+
+def _supervisor(groups_):
+    from genon.preprocessor.worker.supervisor import Supervisor
+
+    spawned = []
+
+    def spawn(group, index):
+        spawned.append((group.name, index))
+        return _FakeChild(f"worker-{group.name}-{index}")
+
+    return Supervisor(groups_, spawn=spawn), spawned
+
+
+def test_supervisor_restarts_dead_child_and_goes_fatal_over_limit(monkeypatch):
+    """죽은 자식만 다시 띄우고, 300초 안에 5번을 넘으면 치명 — 자기 프로세스에 SIGTERM(시작 명령이 끝나 재기동)."""
+    from genon.preprocessor.worker import supervisor as sv
+    from genon.preprocessor.worker.groups import Group
+
+    killed = []
+    monkeypatch.setattr(sv.os, "kill", lambda pid, sig: killed.append((pid, sig)))
+    sup, spawned = _supervisor([Group("default", "q", 2, 1)])
+    sup._children = {("default", i): _FakeChild(f"c{i}") for i in range(2)}
+    assert sup.healthy()
+
+    for n in range(sv._RESTART_LIMIT):
+        sup._children[("default", 1)].alive = False
+        assert not sup.healthy()
+        assert sup.check(now=float(n)) is True
+    assert spawned == [("default", 1)] * sv._RESTART_LIMIT and sup.healthy()
+
+    sup._children[("default", 0)].alive = False
+    assert sup.check(now=10.0) is False
+    assert sup.fatal and not sup.healthy()
+    assert killed == [(sv.os.getpid(), sv.signal.SIGTERM)]
+
+
+def test_supervisor_error_while_restarting_ends_everything(monkeypatch):
+    """재기동 중 spawn 이 실패해도 감시만 멈춘 채 부모가 남지 않는다 — 치명으로 끝내 재기동에 맡긴다."""
+    from genon.preprocessor.worker import supervisor as sv
+    from genon.preprocessor.worker.groups import Group
+
+    killed = []
+    monkeypatch.setattr(sv.os, "kill", lambda pid, sig: killed.append(sig))
+
+    def spawn(group, index):
+        raise OSError(11, "Resource temporarily unavailable")
+
+    sup = sv.Supervisor([Group("default", "q", 1, 1)], spawn=spawn)
+    dead = _FakeChild("c0")
+    dead.alive = False
+    sup._children = {("default", 0): dead}
+    sup._loop()
+    assert sup.fatal and killed == [sv.signal.SIGTERM]
+
+
+def test_supervisor_sets_omp_from_total_processes_of_all_groups(monkeypatch):
+    """OMP_NUM_THREADS 분모는 모든 묶음의 프로세스 합이다. env 에 값이 있으면 건드리지 않는다."""
+    from genon.preprocessor.worker.groups import Group
+
+    monkeypatch.delenv("OMP_NUM_THREADS", raising=False)
+    monkeypatch.setattr(settings, "read_cpu_max", lambda: "400000 100000\n")      # 4 코어
+    sup, spawned = _supervisor([Group("parse", "qp", 3, 1), Group("chunk", "qc", 1, 2)])
+    sup.start()
+    try:
+        assert os.environ["OMP_NUM_THREADS"] == "1"                                # 4 ÷ (3 + 1)
+        assert spawned == [("parse", 0), ("parse", 1), ("parse", 2), ("chunk", 0)]
+        assert sup.status() == {"parse": {"alive": 3, "total": 3}, "chunk": {"alive": 1, "total": 1}}
+    finally:
+        sup.stop()
+
+
+def test_group_settings_replaces_only_queue_processes_threads(cfg):
+    from genon.preprocessor.worker import runner
+    from genon.preprocessor.worker.groups import Group
+
+    got = runner.group_settings(Group("chunk", "q-chunk", 2, 4), cfg)
+    assert (got.task_queue, got.processes, got.threads) == ("q-chunk", 2, 4)
+
+
+def test_health_follows_supervisor_and_version_is_served(monkeypatch):
+    """/health 는 감시자가 아는 자식 생존으로 200·503, /version 은 배포 스탬프. lifespan 은 띄우지 않는다."""
+    from fastapi.testclient import TestClient
+
+    from genon.preprocessor.worker import app as worker_app
+    from genon.preprocessor.worker.groups import Group
+
+    client = TestClient(worker_app.app)                 # with 없이 — 감시자·자식을 띄우지 않는다
+    monkeypatch.delattr(worker_app.app.state, "supervisor", raising=False)
+    assert client.get("/health").status_code == 503     # 감시자 시작 전
+
+    sup, _ = _supervisor([Group("default", "q", 1, 1)])
+    sup._children = {("default", 0): _FakeChild("c0")}
+    monkeypatch.setattr(worker_app.app.state, "supervisor", sup, raising=False)
+    for path in ("/health", "/healthcheck"):
+        r = client.get(path)
+        assert (r.status_code, r.json()) == (200, {"status": "ok"})
+    sup._children[("default", 0)].alive = False
+    r = client.get("/health")
+    assert (r.status_code, r.json()) == (503, {"status": "down"})
+
+    v = client.get("/version")
+    assert v.status_code == 200 and {"started_at", "manual_updated_at"} <= set(v.json())
+
+
+def test_root_main_stops_with_start_command_message():
+    """시작 명령이 비면 기동 스크립트가 `uvicorn main:app` 으로 루트 main.py 를 띄운다 — 엉뚱한 것이 뜨지 않게 멈춘다."""
+    import runpy
+
+    root_main = Path(__file__).resolve().parents[4] / "main.py"
+    with pytest.raises(SystemExit, match="python -m genon.preprocessor.worker"):
+        runpy.run_path(str(root_main))

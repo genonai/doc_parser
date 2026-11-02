@@ -124,7 +124,7 @@ Resolves #<N>
 - `GenosServiceException` 시그니처를 바꿨는가
 - 코드서빙 배포본에 포함되는 경로(`genon/`, `main.py`)를 바꿨는가 — 바꿨다면 `sync-serving-repo.sh` 재실행 필요
 - `docling/` 을 바꿨는가 — 바꿨다면 wheel 재빌드 필요(핫픽스 overlay 로는 전달되지 않는다)
-- 루트 `main.py` 계층 기능을 바꿨다면 `genon/preprocessor/src/main.py` 도 함께 봤는가
+- 진입점 계층 기능(요청 deadline·오류 분류)을 바꿨다면 워커(`genon/preprocessor/worker/runtime.py`·`errors.py`)와 `genon/preprocessor/src/main.py` 를 함께 봤는가
 
 해당 없으면 "해당 없음" 한 줄로 적는다.
 

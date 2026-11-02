@@ -10,7 +10,10 @@
     paths.py       파드 사이에는 상대 참조만 오간다. 루트는 이 파드의 env 로 해석한다
     errors.py      예외 → 재시도 성격 판정
     runner.py      자식 프로세스 본체 — Temporal 워커 1개, 동시 WORKER_THREADS 건
-    __main__.py    프로세스 N개 기동·재기동 + /health(코드서빙 startupProbe)
+    groups.py      워커 묶음(큐 · 프로세스 수 · 스레드 수) — 감시자가 자식을 띄우는 단위
+    supervisor.py  감시자 — 묶음마다 자식 프로세스 기동·재기동
+    app.py         HTTP 앱 — 코드서빙 계약 /health(startupProbe)·/version 만
+    __main__.py    시작 명령 — uvicorn 한 프로세스로 app 을 띄운다(lifespan 이 감시자를 시작)
 
 동시 실행은 **프로세스 N개(`WORKER_PROCESSES`) × 프로세스당 M건(`WORKER_THREADS`)**, 기본 1 × 1 이다.
 프로세서 객체는 slug 마다 프로세스에 하나이고 M개 스레드가 함께 쓴다 — 요청 상태는 인스턴스가 아니라

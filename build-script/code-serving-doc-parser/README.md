@@ -79,7 +79,7 @@ bash build-script/code-serving-doc-parser/build.sh
   `libgdk-pixbuf`)이 다를 수 있다. 첫 빌드 실패 시 해당 패키지명만 조정.
 - 스테이지 큐(Temporal activity) 워커용 SDK `temporalio` 를 CPU·GPU 이미지 모두에 미리 설치한다.
   워커 코드(`genon/preprocessor/worker/`, 기동 `python -m genon.preprocessor.worker`)는 배포본과 함께 런타임에 들어오므로 이미지에는 SDK 만 둔다.
-  워커는 `TEMPORAL_HOST` 를 줄 때만 띄우도록 설계되어 있다(스테이지 큐 적용계획 7-10, 런처는 별도 작업).
+  코드서빙 리비전의 시작 명령(`START_COMMAND`) `python -m genon.preprocessor.worker` 가 필수다(#577 — 비우면 루트 `main.py` 가 기동 오류만 낸다).
   base 의 supervisord 설정은 바꾸지 않는다(기동 명령은 현장이 `START_COMMAND` 로 지정한다).
 
 ## 구성

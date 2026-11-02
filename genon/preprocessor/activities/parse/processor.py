@@ -12,7 +12,7 @@
 from typing import TYPE_CHECKING
 
 from genon.preprocessor.processing.core import toolbox as tb  # noqa: F401
-# main.py 의 예외 핸들러가 이 이름으로 잡는다. core 가 던지는 것과 같은 클래스다.
+# 액티비티 래퍼·기본 전처리기 서비스(src/main.py)의 예외 처리가 이 이름으로 잡는다. core 가 던지는 것과 같은 클래스다.
 from genon.preprocessor.processing.core.errors import GenosServiceException  # noqa: F401
 from genon.preprocessor.processing.core.parser import ParserCore
 
@@ -21,9 +21,7 @@ if TYPE_CHECKING:  # 타입 힌트 전용. 실행 시에는 docling 을 불러�
 
 
 class DocumentProcessor(ParserCore):
-    """파싱 전용 전처리기. main.py 가 /parser 요청을 이 클래스로 라우팅한다."""
-
-    IS_PARSER = True   # True 여야 /parser 엔드포인트가 활성화된다
+    """파싱 전용 액티비티 처리기. 전처리기 워커의 parse 액티비티(와 사본 slug)가 부른다."""
 
     # --- 1. 처리 흐름 ---
     #

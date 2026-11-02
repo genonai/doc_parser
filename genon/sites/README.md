@@ -17,7 +17,7 @@ genon/sites/
     model_presets.yaml   로컬(VPN) 모델 접속값. 로컬 도구만 쓴다
   <site>/
     manifest.yaml        owned: 이 사이트가 소유하는 파일 목록
-    resource/            완성본 설정 폴더 = 표준 사본 + owned 파일(모델 접속 정보, HTTP facade·간이 파서 설정)
+    resource/            완성본 설정 폴더 = 표준 사본 + owned 파일(모델 접속 정보, facade·간이 파서 설정)
     activities/<slug>/   완성본 액티비티 설정 = 표준 사본 + owned 파일(파서 설정 config.yaml·custom_field, #497).
                          코드(processor.py)는 저장소 것이라 여기 두지 않는다. 저장소의 모든 slug 를 갖는다(#561).
                          SITE 빌드가 서빙본 activities/<slug>/ 에 덮는 것이 이 폴더다
@@ -76,7 +76,7 @@ owned 파일을 제외한 모든 파일을 표준과 똑같이 맞추고, 표준
 |---|---|---|
 | 한 건 파싱·청킹 | `parse_chunk_test.py 입력 출력` | `parse_chunk_test.py --site monimo 입력 출력` |
 | 검증 케이스 일괄 | `parse_chunk_verify.sh --resource-dir ../../resource` | `parse_chunk_verify.sh` (기본값) |
-| 서버 기동(`main.py`, 포트 7084) | `build-script/run-local.sh` | `build-script/run-local.sh monimo` |
+| 워커 기동(`python -m genon.preprocessor.worker`, `/health` 포트 7084, 로컬 Temporal 필요) | `build-script/run-local.sh` | `build-script/run-local.sh monimo` |
 | 설정 점검(파싱·LLM 없음) | `precheck_custom_fields.sh` | `precheck_custom_fields.sh <저장소>/sites/monimo/resource` |
 
 - `parse_chunk_*` 는 `genon/preprocessor/tools/parse_chunk/` 에서, `precheck_custom_fields.sh` 는
@@ -84,15 +84,15 @@ owned 파일을 제외한 모든 파일을 표준과 똑같이 맞추고, 표준
   `genon/preprocessor/.venv/bin/python` 으로 실행한다(`parse_chunk_test.sh` 는 인자를 받지 않는 예제 모음이다).
 - `parse_chunk_verify.sh` 는 표 표기형태를 검증하기 위해 청커 설정의 임시 사본에서 `table_text_formats` 를 켠다.
   저장소의 설정 파일은 바뀌지 않는다.
-- `run-local.sh` 는 `GENOS_RESOURCE_DIR` 로 설정 폴더를 지정해 루트 `main.py` 를 기동한다.
-  `GENOS_RESOURCE_DIR` 는 로컬 전용이다. 기동 후 호출은
-  `genon/preprocessor/tools/code_serving/serving_gateway_test.sh` 로 한다.
+- `run-local.sh` 는 `GENOS_RESOURCE_DIR` 로 설정 폴더를 지정해 전처리기 Temporal 워커를 기동한다. 워커 env
+  (`TEMPORAL_HOST`·`WORKER_TASK_QUEUE`·`NFS_ROOT`·`ARTIFACT_ROOT`)는 셸에서 준다. `GENOS_RESOURCE_DIR` 는 로컬 전용이다.
+  Temporal 없이 처리 본문만 확인하려면 단건 실행 `python -m genon.preprocessor.activities run --activity <slug> --input <파일>` 을 쓴다.
 
 ## 배포
 
 배포 방식마다 `genon/sites/<site>/` 에서 쓰는 자리가 다르다.
 
-- 코드서빙(워커·HTTP): `SITE=<site> bash build-script/sync-serving-repo.sh` 로 사이트 배포처 서빙본을 만든다.
+- 코드서빙(전처리기 워커): `SITE=<site> bash build-script/sync-serving-repo.sh` 로 사이트 배포처 서빙본을 만든다.
   사이트 `activities/<slug>/` 의 설정 파일이 서빙본 `genon/preprocessor/activities/<slug>/` 에 덮이고(코드는 저장소 것),
   `resource/` 는 표준 그대로다. 사이트에 있는 slug 가 서빙본에 없으면 빌드가 멈춘다. 서빙본 커밋 제목 끝에
   ` · site=<site>` 가 붙는다. 모델 접속 실값은 리비전 env `GENOS_MODEL_PRESETS_FILE` 로 넣는다(위 「모델 접속 정보」).

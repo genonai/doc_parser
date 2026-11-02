@@ -297,9 +297,6 @@ class SplitInfo:
 
 class ChunkerCore:
 
-    # IS_CHUNKER 는 처리기가 선언한다 — main.py 가 그 속성으로 /chunker
-    # 전용임을 식별한다. core 는 그 표식을 갖지 않는다.
-
     # 행 기반 청킹으로 보낼 element category. 파서가 만든 이름과 짝이며, 사이트가
     # 자기 category 를 쓰면 처리기에서 늘린다(청커는 doc_type 을 보지 않고 이 값만 본다).
     # faq_row 는 이전 파서 산출물을 다시 청킹할 수 있게 남긴 하위호환 이름이다.

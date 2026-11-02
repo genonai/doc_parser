@@ -102,8 +102,8 @@
 액티비티는 인자 dict 하나를 받고, 파일 위치는 **상대 참조**(`read_ref` · `parsed_ref` · `output_ref`)로만
 주고받습니다. 결과 JSON은 그 상대 경로에 파일로 쓰고, 호출한 쪽에는 요약 dict만 돌려줍니다.
 경로의 루트는 각 파드의 환경 변수(`NFS_ROOT` · `ARTIFACT_ROOT`)입니다([3.6](#36-워커-환경-변수와-액티비티-인자)).
-전처리기 워커가 여는 HTTP는 코드서빙 startupProbe용 `GET /health`(포트 8080) 하나뿐이며, 파싱·청킹을
-HTTP로 호출하는 경로는 쓰지 않습니다.
+전처리기 워커가 여는 HTTP는 코드서빙 startupProbe용 `GET /health`(별칭 `/healthcheck`)와 배포 스탬프를 돌려주는
+`GET /version`(포트 8080)뿐이며, 파싱·청킹을 HTTP로 호출하는 경로는 없습니다.
 
 ---
 
@@ -1140,15 +1140,17 @@ python -m genon.preprocessor.activities.chunk --config genon/preprocessor/activi
 | `/health` | 코드스페이스에서 `curl` | HTTP 200, `{"status":"ok"}` |
 | 큐 poller | Temporal에서 전처리기 워커 큐 조회 | 전처리기 워커가 poller로 보입니다 |
 
-기동 로그는 다음과 같습니다. `[worker]`는 부모 프로세스, `[worker-0]`부터는 실제로 작업을 받는 워커
-프로세스입니다. 워커 프로세스도 같은 slug 설정 줄을 다시 남깁니다.
+기동 로그는 다음과 같습니다. `[worker]`는 `/health`·`/version`을 받고 워커 프로세스를 띄우는 부모 프로세스,
+`[worker-default-0]`부터는 실제로 작업을 받는 워커 프로세스입니다. 워커 프로세스도 같은 slug 설정 줄을 다시 남깁니다.
 
 ```text
 <시각> [worker] INFO 액티비티 chunk: 설정 …/genon/preprocessor/activities/chunk/config.yaml (저장소)
 <시각> [worker] INFO 액티비티 parse: 설정 …/genon/preprocessor/activities/parse/config.yaml (저장소)
-<시각> [worker] INFO task_queue=<전처리기 워커 큐> processes=1 NFS_ROOT=… ARTIFACT_ROOT=… 액티비티=chunk, parse
-<시각> [worker-0] INFO Temporal 접속: address=…:7233 namespace=… task_queue=<전처리기 워커 큐> threads=1
-<시각> [worker-0] INFO 액티비티 2개: chunk(chunk), parse(parse)
+<시각> [worker] INFO NFS_ROOT=… ARTIFACT_ROOT=… 액티비티=chunk, parse
+<시각> [worker] INFO 묶음 default: task_queue=<전처리기 워커 큐> processes=1 threads=1
+<시각> [worker] INFO OMP_NUM_THREADS=… (자식 프로세스 합 1)
+<시각> [worker-default-0] INFO Temporal 접속: address=…:7233 namespace=… task_queue=<전처리기 워커 큐> threads=1
+<시각> [worker-default-0] INFO 액티비티 2개: chunk(chunk), parse(parse)
 ```
 
 | 기동 로그에서 볼 것 | 판단 |
@@ -1759,7 +1761,7 @@ element의 공통 키는 `{category, content, coordinates, id, page}`이며, 행
 | **slug** | 액티비티 이름 = 폴더 이름. 첫 단어가 단계(`parse` · `chunk`)입니다. 원형은 `parse` · `chunk`, 사본은 `parse_<이름>` · `chunk_<이름>` |
 | **액티비티 처리기** | `activities/<slug>/processor.py`. 진입 클래스는 `DocumentProcessor`이며 수정 가능한 확장 지점을 제공합니다 |
 | **처리기** | 액티비티 처리기와 파사드를 함께 부르는 말 |
-| **파사드(facade)** | HTTP 처리기 `facade/*_processor.py`. 모니모는 쓰지 않으며 이 문서의 수정 대상이 아닙니다. 고칠 곳은 `activities/<slug>/`입니다 |
+| **파사드(facade)** | 기본 전처리기 서비스(GenOS 전처리기 `POST /run`)용 처리기 `facade/*_processor.py`. 모니모는 쓰지 않으며 이 문서의 수정 대상이 아닙니다. 고칠 곳은 `activities/<slug>/`입니다 |
 | **훅 메소드(hook)** | 액티비티 처리기에서 오버라이드하면 core가 정해진 시점에 호출하는 메소드. `edit_input` · `edit_document` · `edit_chunk` · `edit_output` |
 | **toolbox (`tb`)** | 훅에서 사용할 수 있도록 다시 노출한 기능 모음. YAML `transform:`이 호출하는 함수와 같습니다 |
 | **custom_fields** | 문서 유형별 값 추출 설정(`custom_field_*.yaml`). `source.kind` 5가지로 구분됩니다 |
@@ -2212,7 +2214,7 @@ def parse(llm_output, **kwargs):
 
 | 확인할 내용 | 소스와 진입점 |
 |---|---|
-| 워커 기동·프로세스 재기동·`/health` | `genon/preprocessor/worker/__main__.py` |
+| 워커 기동·프로세스 재기동·`/health`·`/version` | `genon/preprocessor/worker/__main__.py`(진입점), `app.py`(HTTP), `supervisor.py`(프로세스 감시) |
 | 워커 환경 변수 | `genon/preprocessor/worker/settings.py` |
 | slug 등록과 설정 경로·처리기 준비 | `genon/preprocessor/worker/registry.py`, `genon/preprocessor/activities/_folders.py` |
 | 액티비티 인자·결과 저장·요약·`request_deadline` | `genon/preprocessor/worker/runtime.py`, `paths.py` |

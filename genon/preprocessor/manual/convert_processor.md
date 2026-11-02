@@ -1137,7 +1137,7 @@ class GenOSVectorMeta(BaseModel):
   요청 종료 시 `[llm_cache] hit=.. miss=..` 요약이 남습니다.
 - 재시도 간 재사용이 성립하려면 그 경로가 **공유 NFS** 여야 합니다.
 
-요청 예시(`/preprocess_convert`):
+요청 예시(GenOS 전처리기 `POST /run`):
 ```json
 {
   "file_path": "/app/src/service/genon/preprocessor/sample_files/pdf_sample.pdf",
@@ -1151,7 +1151,8 @@ class GenOSVectorMeta(BaseModel):
 ```
 
 > 캐시 키 생성 방식, 저장되는 데이터 형태, 저장 제외 대상, 배포 요건 등 상세는
-> [코드 서빙 매뉴얼](code_serving.md)의 「LLM 캐시 / 실패 정책 / 요청 deadline (#329)」 절을 참고하세요.
+> [코드 서빙 매뉴얼](code_serving.md)의 「LLM 캐시 / 실패 정책 / 요청 deadline (#329)」 절을 참고하세요
+> (그 절의 캐시 루트는 코드서빙 워커 기준 `LLM_CACHE_ROOT` 이고, `/run` 은 위 표처럼 요청 `interim_root` > env `INTERIM_ROOT` 순입니다).
 
 ---
 

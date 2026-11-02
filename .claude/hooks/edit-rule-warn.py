@@ -24,7 +24,7 @@ from pathlib import Path
 
 CUSTOMER_DIR = "genon/preprocessor/activities/"   # 액티비티 처리기(<slug>/processor.py — parse·chunk·parse_*·chunk_*)
 ACTIVE_PREFIXES = (
-    "main.py",
+    "genon/preprocessor/worker/",
     "genon/preprocessor/processing/",
     "genon/preprocessor/facade/",
     "genon/preprocessor/activities/",

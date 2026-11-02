@@ -14,8 +14,8 @@
                            가 가리키던 NFS 자리). 없으면 캐시를 쓰지 않는다
     PREVIEW_CHARS          기본 2000. 반환 preview 길이(페이로드 상한 안)
     HEARTBEAT_INTERVAL     기본 10초
-    PORT                   기본 8080 — /health
-    OMP_NUM_THREADS        없으면 기동 때 "파드 CPU 한도 ÷ WORKER_PROCESSES" 의 내림(최소 1)으로 정해 자식에
+    PORT                   기본 8080 — /health·/version(코드서빙 계약)
+    OMP_NUM_THREADS        없으면 기동 때 "파드 CPU 한도 ÷ 모든 묶음의 프로세스 합" 의 내림(최소 1)으로 정해 자식에
                            물려준다(`omp_threads`). 프로세스는 파드 한도가 아니라 노드 코어 수를 보고 torch·docling
                            스레드를 띄우므로, 정하지 않으면 CPU 작업이 겹칠 때 수 배 느려진다(#511·#514)
 

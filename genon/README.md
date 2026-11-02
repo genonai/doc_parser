@@ -22,7 +22,7 @@
 │   │   │   └── assets # 도커 빌드 전용 폰트·tessdata tar
 │   │   ├── env # 서버 환경변수 프로파일(.env.dev, .env.prod). 이미지의 /app/env 로 복사됨
 │   │   ├── examples # 고객이 붙여 쓰는 최소 예제(facade 실행, 훅, 텍스트 정제, curl 호출)
-│   │   ├── facade # 파사드 코드(*_processor.py, HTTP main.py 가 부름). parser_processor.py·chunking_processor.py 는 activities/ 별칭
+│   │   ├── facade # 파사드 코드(*_processor.py, 기본 전처리기 서비스 src/main.py 의 /run 이 부름). parser_processor.py·chunking_processor.py 는 activities/ 별칭
 │   │   ├── manual # 고객·현장용 매뉴얼
 │   │   │   └── images
 │   │   ├── processing # 파싱·청킹·보강 처리 라이브러리(facade 가 상속·호출)
@@ -196,14 +196,14 @@ GenOS **코드서빙** 기능으로 띄우는 경로이며, 동작 방식이 전
 **동작 개요**
 
 - 코드서빙 시스템이 이 **base 이미지**를 띄운 뒤, 런타임에 git 소스(서빙본)를 `/app/src/service` 로 clone 하고
-  리비전의 시작 명령을 실행한다. 서빙본 하나로 두 가지를 띄울 수 있다.
-  - 전처리기 Temporal 워커: `START_COMMAND=python -m genon.preprocessor.worker`. `activities/` 의 slug 마다
-    액티비티를 등록하고, HTTP 는 startupProbe 용 `/health`(:8080) 하나다.
-  - HTTP 서빙: `START_COMMAND` 를 비우면 루트 `main.py`(FastAPI — `/parser`·`/chunker`·`/preprocess*` 등)가 뜬다.
+  리비전의 시작 명령을 실행한다. 코드서빙은 **전처리기 Temporal 워커 하나**다.
+  - 시작 명령(필수): `START_COMMAND=python -m genon.preprocessor.worker`. `activities/` 의 slug 마다
+    액티비티를 등록하고, HTTP 는 `/health`(startupProbe, :8080)·`/version` 뿐이다.
+  - `START_COMMAND` 를 비우면 루트 `main.py` 가 "시작 명령을 넣으세요" 기동 오류만 낸다(#577 에서 코드서빙 HTTP 업무 경로를 없앴다).
 - 처리기의 무거운 deps 와 다운로드 아티팩트(모델/HWP SDK/rhwp/H2Orestart/폰트/EasyOCR)는
   콜드스타트 단축 + 에어갭(오프라인) 동작을 위해 **base 이미지에 빌드 시점에 pre-bake** 한다
   (`Dockerfile.standard` 와 full parity).
-- 배포 후 게이트웨이로 호출하는 방법(`/health`·`/parser`·`/chunker` 등)은
+- 배포 후 확인(`/health`·`/version`)과 액티비티 호출(이름·인자·큐)은
   [`preprocessor/manual/code_serving.md`](preprocessor/manual/code_serving.md) 참고.
 
 > 빌드 방식·pre-bake 아티팩트 목록·의존성 동기화 주의사항 등 상세는
@@ -272,10 +272,8 @@ echo "HWP_SDK_TOKEN=hf_xxx" >> build-script/hf_private_token.env
       `activities/<slug>/` 에 이미 덮여 있고(커밋 제목 끝 ` · site=<site>`), `resource/` 는 표준 그대로다.
     - 외부 Git 에 서빙본을 두고 작업 브랜치로 쓰는 방식은 [`build-script/code-serving-README.md`](../build-script/code-serving-README.md) 「브랜치 역할과 새 버전 받기」 참고.
     - 코드서빙으로 서빙할 전처리기의 설정은 아래와 같다. [매뉴얼 참조](https://github.com/genonai/doc_parser/tree/develop/genon/preprocessor/manual)
-      - parser/chunking(워커 액티비티 또는 HTTP `/parser`·`/chunker`): `activities/parse/config.yaml`, `activities/chunk/config.yaml`
-      - 적재용 전처리기 사용하는 경우: `resource/intelligent_processor_config.yaml`
-      - 첨부용 전처리기 사용하는 경우: `resource/attachment_processor_config.yaml`
-      - 변환용 전처리기 사용하는 경우: `resource/convert_processor_config.yaml`
+      - parser/chunking(워커 액티비티 `parse`·`chunk`): `activities/parse/config.yaml`, `activities/chunk/config.yaml`
+      - 적재·첨부·변환용 파사드 설정(`resource/*_processor_config.yaml`)은 코드서빙 워커가 쓰지 않는다 — 기본 전처리기 서비스(`/run`)용이다
     - llm 등 모델 접속 정보는 각 yaml 에 적지 않는다. 설정은 `resource/model_presets.yaml` 의 프리셋을 이름(`model_preset: <이름>`)으로
       부르고, 설치환경의 실값은 리비전 env `GENOS_MODEL_PRESETS_FILE` 이 가리키는 파일(값을 채운 `model_presets.yaml`)이 키 단위로 덮는다.
 
@@ -288,10 +286,7 @@ echo "HWP_SDK_TOKEN=hf_xxx" >> build-script/hf_private_token.env
     tar --exclude=.git -cf - . | (cd <gitea dir> && tar -xf -)
 
     # 복사된 gitea 레포 디렉토리에서 업무에 맞게 설정 수정(필요할 때). 대상 파일(genon/preprocessor/ 아래):
-    # - activities/parse/config.yaml · activities/chunk/config.yaml
-    # - resource/intelligent_processor_config.yaml
-    # - resource/attachment_processor_config.yaml
-    # - resource/convert_processor_config.yaml
+    # - activities/parse/config.yaml · activities/chunk/config.yaml (사본 slug 는 activities/<slug>/config.yaml)
     # 모델 접속 실값은 여기 적지 않고 리비전 env GENOS_MODEL_PRESETS_FILE 로 넣는다.
 
     # gitea 레포 디렉토리에서 복사된 doc parser 코드를 commit/push
@@ -303,16 +298,16 @@ echo "HWP_SDK_TOKEN=hf_xxx" >> build-script/hf_private_token.env
     ```
 
 - 코드서빙 매뉴얼을 참고하여 GenOS **코드서빙** 의 리비전을 생성/배포하면, doc-parser가 등록된 gitea의  git 소스(레포 URL/commit)가 런타임에 `/app/src/service` 로 clone 되고
-  `START_COMMAND` 가 실행된다(비우면 `main.py`). 전처리기 워커 리비전은 `START_COMMAND=python -m genon.preprocessor.worker` 와
+  `START_COMMAND` 가 실행된다. 리비전에는 `START_COMMAND=python -m genon.preprocessor.worker`(필수)와
   워커 env(`TEMPORAL_HOST`·`WORKER_TASK_QUEUE`·`NFS_ROOT`·`ARTIFACT_ROOT` 필수, `TEMPORAL_NAMESPACE`, `GENOS_MODEL_PRESETS_FILE` 등 —
   `genon/preprocessor/worker/settings.py`)를 준다.
 
   - 리비전 생성시 이미지는 `mnc/template-code-serving-doc-parser` 를 선택한다
   - 리비전 생성시 gpu 할당은 하지 않고, medium (1 CPU Core, 16 Gb Memory) 수준의 인스턴스를 생성하면 된다.
 
-- 호출(게이트웨이 URL·엔드포인트·예시)은 [`preprocessor/manual/code_serving.md`](preprocessor/manual/code_serving.md) 참고.
+- 동작 확인(기동 로그·`/health`·`/version`·액티비티 호출·단건 실행)은 [`preprocessor/manual/code_serving.md`](preprocessor/manual/code_serving.md) 참고.
 
-  - 기본 테스트는 [테스트 코드](https://github.com/genonai/doc_parser/blob/develop/genon/preprocessor/tools/code_serving/serving_gateway_test.py) 를 참고해서 테스트 가능
+  - 처리 본문은 단건 실행 `python -m genon.preprocessor.activities run --activity <slug> --input <파일>`(워커와 같은 본문)로 확인할 수 있다
 
 ## 로컬 테스트 (도커 빌드 없이 facade_run.py 실행)
 

@@ -7,18 +7,26 @@ from __future__ import annotations
 
 import asyncio
 import concurrent.futures
+import dataclasses
 import logging
 
 from . import registry, runtime, settings
+from .groups import Group
 
 log = logging.getLogger("genon.worker")
 
 
-def child(index: int) -> None:
-    logging.basicConfig(level=logging.INFO, format=f"%(asctime)s [worker-{index}] %(levelname)s %(message)s")
+def group_settings(group: Group, base: settings.Settings) -> settings.Settings:
+    """공통 값(TEMPORAL_*·NFS_ROOT·ARTIFACT_ROOT 등)은 env 그대로, 큐·프로세스·스레드만 묶음 값으로(#577)."""
+    return dataclasses.replace(base, task_queue=group.task_queue, processes=group.processes, threads=group.threads)
+
+
+def child(group: Group, index: int) -> None:
+    logging.basicConfig(level=logging.INFO,
+                        format=f"%(asctime)s [worker-{group.name}-{index}] %(levelname)s %(message)s")
     from genon.preprocessor.processing.common import profiling
     profiling.install()          # GENOS_PROFILE=1 일 때만 — 단계·외부 호출 계측(#514)
-    asyncio.run(_serve(settings.load()))
+    asyncio.run(_serve(group_settings(group, settings.load())))
 
 
 async def _serve(cfg: settings.Settings) -> None:

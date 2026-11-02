@@ -63,8 +63,6 @@ def test_chunker_consumes_docling_json():
     """#284: chunking_processor 가 docling JSON 을 입력받아 GenOSVectorMeta 리스트 반환."""
     cp = pytest.importorskip("facade.chunking_processor")
 
-    assert getattr(cp.DocumentProcessor, "IS_CHUNKER", False) is True
-
     doc_dict = _build_doc().model_dump(mode="json")  # parser output.format='docling' 직렬화와 동일 경로
 
     chunker = cp.DocumentProcessor()

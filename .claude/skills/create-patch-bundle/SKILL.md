@@ -21,7 +21,7 @@ bash build-script/create-patch-bundle.sh patch_20260829 --site monimo
 ## 동작
 
 `genon/preprocessor` 아래 `facade/`, `processing/`, `resource/`, `src/`, `examples/`, `tools/` 에서 **git 이 추적 중인**
-`*.py`, `*.md`, `*.yaml`, `*.sh` 만 rsync 로 복사한다(스크립트의 `PATCH_DIRS`). 앞의 넷은 코드서빙 서버(루트 `main.py`)가
+`*.py`, `*.md`, `*.yaml`, `*.sh` 만 rsync 로 복사한다(스크립트의 `PATCH_DIRS`). 앞의 넷은 서비스(코드서빙 워커·기본 전처리기 서비스)가
 실제로 쓰는 폴더이고 `examples/` 는 훅·설정 예제, `tools/` 는 현장 검증 스크립트다. 추적되지 않은 파일은 포함되지 않으므로, 새로 만든 파일은 반드시 먼저
 `git add` 해야 번들에 들어간다.
 
@@ -51,7 +51,7 @@ bash build-script/create-patch-bundle.sh patch_20260829
 **이 overlay 는 genon 전용이다.** `docling/` 변경은 절대 전달되지 않는다. docling 을 고쳤다면 패치 번들이 아니라 wheel 재빌드 + 코드서빙 배포 경로를 써야 한다. `deploy-code-serving` 스킬을 참고한다.
 
 번들을 만들기 전에 docling 변경이 섞여 있지 않은지 확인한다. 작업 트리만 보면 놓친다 —
-브랜치가 develop 이후에 건드린 경로를 함께 본다. 루트 `main.py` 와 `build-script/` 도
+브랜치가 develop 이후에 건드린 경로를 함께 본다. `genon/preprocessor/worker/`·루트 `main.py`·`build-script/` 도
 overlay 범위 밖이므로 거기 기능 변경이 있으면 번들만으로는 부족하다.
 
 ```bash
