@@ -15,7 +15,10 @@ from genon.preprocessor.processing.common.config_parse import (
     resolve_model_context_tokens,
 )
 from genon.preprocessor.processing.common.markdown_export import export_markdown
-from genon.preprocessor.processing.enrichment.config_schema import TABLE_TEXT_SKIP_KEYS
+from genon.preprocessor.processing.enrichment.config_schema import (
+    TABLE_TEXT_SKIP_KEYS,
+    TABLE_TEXT_SKIP_OLD_KEYS,
+)
 from genon.preprocessor.processing.chunking.rich_cells import table_embedded_refs
 from genon.preprocessor.processing.chunking.table_shape import (
     analyze_grid,
@@ -42,6 +45,16 @@ def _as_int(value: Any, default: int, minimum: int = 0) -> int:
         return max(minimum, int(value))
     except (TypeError, ValueError):
         return default
+
+
+def _skip_flag(value: Any, default: bool) -> bool:
+    """`skip` 의 true/false 키. bool 이 아닌 값은 진단이 알리고 여기서는 기본값으로 둔다."""
+    return value if isinstance(value, bool) else default
+
+
+def _long_text_min_chars(value: Any) -> int:
+    """`long_text_table: N` 의 N. false·키 없음·0 이상의 정수가 아닌 값(true 포함)은 0(끔)이다."""
+    return value if isinstance(value, int) and not isinstance(value, bool) and value >= 0 else 0
 
 
 # 응답 크기 추정에 쓰는 고정값. search_terms 는 상한만 있고 길이 규정이 없어 표현 1개를
@@ -88,16 +101,19 @@ def _canonical_rag_skip(cfg: dict) -> dict:
 
     - `rag.search_terms: N` → `search_terms_limit: N`, `include_search_terms: N > 0`.
       같은 계층에 옛 두 키가 함께 있으면 새 키가 우선한다. 값이 0 이상의 정수가 아니면 버린다.
-    - `skip: false` → 모든 조건을 false 로 둔 dict. dict 로 펼쳐 두어야 다른 계층의 skip 과
-      키 단위로 병합된다(위 계층의 `skip: false` 위에 문서유형이 한 조건만 켜면 나머지는 꺼진 채
-      남는다). 조건이 새로 생기면 `TABLE_TEXT_SKIP_KEYS` 에 넣는 것만으로 이 표기가 함께 끈다.
+    - `skip: false` → 모든 종류를 false 로 둔 dict. dict 로 펼쳐 두어야 다른 계층의 skip 과
+      키 단위로 병합된다(위 계층의 `skip: false` 위에 문서유형이 한 종류만 켜면 나머지는 꺼진 채
+      남는다). 종류가 새로 생기면 `TABLE_TEXT_SKIP_KEYS` 에 넣는 것만으로 이 표기가 함께 끈다.
+    - `skip` 의 옛 키(`TABLE_TEXT_SKIP_OLD_KEYS`) → 새 키. 같은 계층에 새 키가 있으면 새 키가 우선한다.
 
     계층을 병합하기 **전에** 펼쳐야 한다. 병합 뒤에 펼치면 공통의 새 키가 문서유형의 옛 키를
     이긴다(`_canonical_context_key` 와 같은 이유).
     """
     rag = cfg.get("rag")
     expand_terms = isinstance(rag, dict) and "search_terms" in rag
-    if not expand_terms and cfg.get("skip") is not False:
+    skip = cfg.get("skip")
+    expand_old = isinstance(skip, dict) and any(key in TABLE_TEXT_SKIP_OLD_KEYS for key in skip)
+    if not (expand_terms or expand_old or skip is False):
         return cfg
     merged = dict(cfg)
     if expand_terms:
@@ -107,8 +123,16 @@ def _canonical_rag_skip(cfg: dict) -> dict:
             sub["search_terms_limit"] = value
             sub["include_search_terms"] = value > 0
         merged["rag"] = sub
-    if cfg.get("skip") is False:
+    if skip is False:
         merged["skip"] = dict.fromkeys(TABLE_TEXT_SKIP_KEYS, False)
+    elif expand_old:
+        expanded = {k: v for k, v in skip.items() if k not in TABLE_TEXT_SKIP_OLD_KEYS}
+        for old, news in TABLE_TEXT_SKIP_OLD_KEYS.items():
+            if old in skip:
+                value = skip[old]
+                for new in news:
+                    expanded.setdefault(new, value)
+        merged["skip"] = expanded
     return merged
 
 
@@ -148,13 +172,15 @@ class TableTextDescriptionOptions:
     repeat_context_on_split: bool = True
     prompt_template: str = ""
     concurrency: int = 8
-    # LLM 전송에서 뺄 표(`table_skip_reason`). 레이아웃 표(값이 하나뿐이거나 데이터 행이 없는 표)는
-    # 설명할 내용이 없으므로 기본으로
-    # 빼고, 자기서술형 표는 검색 품질 확인이 문서유형마다 필요해 기본으로 끈다.
-    # 앞선 표에 이미 실린 중복 표도 같은 이유로 문서유형에서 켠다.
-    skip_layout: bool = True
-    skip_self_describing: bool = False
-    skip_contained_duplicate: bool = False
+    # LLM 전송에서 뺄 표의 종류(`_item_skip_reason`, `text_table_skip_reason`). 값이 하나뿐이거나
+    # 데이터 행이 없는 표와 다른 표의 칸 안에 든 표는 설명할 내용이나 실릴 자리가 없으므로 기본으로
+    # 빼고, 나머지는 검색 품질 확인이 문서유형마다 필요해 기본으로 끈다(문서유형 YAML 에서 켠다).
+    # `skip_long_text_table` 은 값 칸 평균 문자 수의 하한이며 0 이면 끈다.
+    skip_single_value_table: bool = True
+    skip_nested_table: bool = True
+    skip_duplicate_table: bool = False
+    skip_self_describing_table: bool = False
+    skip_long_text_table: int = 0
 
     @classmethod
     def from_config(cls, cfg: dict | None) -> "TableTextDescriptionOptions":
@@ -191,9 +217,11 @@ class TableTextDescriptionOptions:
             repeat_context_on_split=_as_bool(rag.get("repeat_context_on_split"), True),
             prompt_template=str(cfg.get("prompt_template") or cfg.get("prompt") or "").strip(),
             concurrency=_as_int(cfg.get("concurrency"), 8, 1),
-            skip_layout=_as_bool(skip.get("layout"), True),
-            skip_self_describing=_as_bool(skip.get("self_describing"), False),
-            skip_contained_duplicate=_as_bool(skip.get("contained_duplicate"), False),
+            skip_single_value_table=_skip_flag(skip.get("single_value_table"), True),
+            skip_nested_table=_skip_flag(skip.get("nested_table"), True),
+            skip_duplicate_table=_skip_flag(skip.get("duplicate_table"), False),
+            skip_self_describing_table=_skip_flag(skip.get("self_describing_table"), False),
+            skip_long_text_table=_long_text_min_chars(skip.get("long_text_table")),
         )
 
     @property
@@ -292,11 +320,12 @@ def _resolve_input_format(document: DoclingDocument, configured: str) -> str:
 # ── LLM 전송 제외 판정 ──────────────────────────────────────────────────────
 # 표 설명은 표 청크만으로는 표의 주제·조건이 드러나지 않을 때 검색을 돕는다. 표 청크가
 # 이미 그 역할을 하는 표는 설명을 받아도 새로 잡히는 질의가 없으므로 LLM 에 보내지 않는다.
-SKIP_LAYOUT = "layout"
-SKIP_SELF_DESCRIBING = "self_describing"
-SKIP_CONTAINED_DUPLICATE = "contained_duplicate"
-# 청커가 바깥 표 셀(rich cell)로만 싣는 중첩 표. 이 표의 설명은 청크에 실리지 않는다.
-SKIP_NESTED = "nested"
+# 로그에 남는 사유는 `skip` 하위 키와 같은 문자열이다.
+SKIP_SINGLE_VALUE_TABLE = "single_value_table"
+SKIP_NESTED_TABLE = "nested_table"
+SKIP_DUPLICATE_TABLE = "duplicate_table"
+SKIP_SELF_DESCRIBING_TABLE = "self_describing_table"
+SKIP_LONG_TEXT_TABLE = "long_text_table"
 
 # 자기서술형 판정 임계. 값 셀이 이미 문장이면 설명이 덧붙일 정보가 없다.
 _SELF_DESC_MAX_DATA_ROWS = 5
@@ -352,6 +381,18 @@ def is_self_describing(
     if sentences < _SELF_DESC_SENTENCE_RATIO * len(values):
         return False
     return not any(_CONDITION_VALUE_RE.search(value) for value in values)
+
+
+def avg_value_chars(grid: Any) -> float:
+    """첫 행·첫 열을 뺀 비어 있지 않은 값 셀의 평균 문자 수(연속 공백은 하나로 센다).
+
+    행이 하나뿐이면 그 행 전체, 열이 하나뿐이면 그 열 전체를 본다. 셀이 이미 긴 문장인 표는
+    설명이 덧붙일 정보가 적다. 헤더 행 수는 보지 않고 첫 행을 늘 뺀다(실험의 판정식과 같다).
+    """
+    rows = [[" ".join(cell_text(cell).split()) for cell in row] for row in grid or []]
+    body = rows[1:] if len(rows) > 1 else rows
+    values = [text for row in body for text in (row[1:] if len(row) > 1 else row) if text]
+    return sum(map(len, values)) / len(values) if values else 0.0
 
 
 # 중복 판정에서 본문이 이보다 짧은 표는 보지 않는다. 숫자 몇 개뿐인 표는 다른 표의 셀에
@@ -421,13 +462,15 @@ def _item_skip_reason(
     data = getattr(item, "data", None)
     grid = getattr(data, "grid", None)
     num_cols = getattr(data, "num_cols", None)
-    # 레이아웃 판정은 청커(`smart_chunker`)와 같은 호출이다 — 청커가 평문으로 내는 표만 뺀다.
-    if options.skip_layout and degenerate_reason(grid, num_cols):
-        return SKIP_LAYOUT
-    if options.skip_contained_duplicate and is_contained_duplicate(rows, previous):
-        return SKIP_CONTAINED_DUPLICATE
-    if options.skip_self_describing and is_self_describing(grid, num_cols, anchors):
-        return SKIP_SELF_DESCRIBING
+    # 값 한 칸 판정은 청커(`smart_chunker`)와 같은 호출이다 — 청커가 평문으로 내는 표만 뺀다.
+    if options.skip_single_value_table and degenerate_reason(grid, num_cols):
+        return SKIP_SINGLE_VALUE_TABLE
+    if options.skip_duplicate_table and is_contained_duplicate(rows, previous):
+        return SKIP_DUPLICATE_TABLE
+    if options.skip_self_describing_table and is_self_describing(grid, num_cols, anchors):
+        return SKIP_SELF_DESCRIBING_TABLE
+    if options.skip_long_text_table and avg_value_chars(grid) >= options.skip_long_text_table:
+        return SKIP_LONG_TEXT_TABLE
     return None
 
 
@@ -458,7 +501,7 @@ def collect_table_text_targets(
     # 중복 판정의 비교 대상. 뺀 표도 본문은 청크에 남으므로 모든 표를 넣는다.
     previous: list[list[str]] = []
     # 청커(`smart_chunker`)가 문서 순회에서 건너뛰는 아이템과 같은 집합이다.
-    embedded = table_embedded_refs(document) if options.skip_layout else set()
+    embedded = table_embedded_refs(document) if options.skip_nested_table else set()
     total = 0
     for index, item in enumerate(items):
         if not isinstance(item, TableItem):
@@ -471,12 +514,12 @@ def collect_table_text_targets(
         section_header = _section_header(items, index)
         rows = (
             table_row_texts(getattr(getattr(item, "data", None), "grid", None))
-            if options.skip_contained_duplicate else []
+            if options.skip_duplicate_table else []
         )
-        # 바깥 표 셀로만 실리는 중첩 표는 레이아웃 표와 같이 청커가 자체 블록으로 내지 않는 표라
-        # skip_layout 으로 함께 뺀다.
+        # 바깥 표 셀로만 실리는 중첩 표는 청커가 자체 블록으로 내지 않아 설명이 청크에 실릴
+        # 자리가 없다. 다른 종류보다 먼저 판정한다(레코드 경로에는 중첩 표 개념이 없다).
         if getattr(item, "self_ref", None) in embedded:
-            reason = SKIP_NESTED
+            reason = SKIP_NESTED_TABLE
         else:
             reason = _item_skip_reason(
                 item, [section_header, caption, _table_title_line(items, index)], options,

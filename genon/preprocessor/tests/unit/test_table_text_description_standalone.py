@@ -409,8 +409,9 @@ def test_parser_record_branch_is_a_noop_without_own_connection():
 
 
 # ── LLM 전송 제외(#530) ──────────────────────────────────────────────────────
-# 표는 모니모 실물 샘플에서 옮겼다. 배너는 monimo_cs_hpp_rich_table_sample.html, 나머지는
-# monimo_product_ssf_bold_title_sample.md·monimo_product_ssf_sample.md 의 표다.
+# 표는 모니모 실물 샘플에서 옮겼다. 배너는 monimo_cs_hpp_rich_table_sample.html, 그 밖은
+# 상품요약서(화재) 표다. 가입나이 표는 monimo_product_ssf_sample.md 에서, 나머지는 #613 에서
+# 삭제한 monimo_product_ssf_bold_title_sample.md 에서 옮겼다.
 
 BANNER_TEXT = (
     "해당 목차는 [AI 에이전트용] 이므로, 실제 상담 시에는 세부 지침이 포함된 "
@@ -445,14 +446,16 @@ AMOUNT_RECORD = """**ㅁ 소지품(보상가능) 과 휴대품(보상불가)**
 
 @pytest.mark.unit
 @pytest.mark.parametrize("record, skip, expected", [
-    (BANNER_RECORD, {}, "layout"),                                   # 청커가 평문으로 내는 배너
-    (BANNER_RECORD, {"layout": False}, None),
+    (BANNER_RECORD, {}, "single_value_table"),                       # 청커가 평문으로 내는 배너
+    (BANNER_RECORD, {"single_value_table": False}, None),
     (SELF_DESC_RECORD, {}, None),                                    # 자기서술형은 기본 off
-    (SELF_DESC_RECORD, {"self_describing": True}, "self_describing"),
-    (NO_TITLE_RECORD, {"self_describing": True}, None),              # 표 위 제목 줄 없음
-    ("**[AI 에이전트용]**\n\n" + REPAIR_TABLE, {"self_describing": True}, None),  # 굵은 태그는 제목 아님
-    (AGE_RECORD, {"self_describing": True}, None),                   # 키-값 조건표
-    (AMOUNT_RECORD, {"self_describing": True}, None),                # 금액 값
+    (SELF_DESC_RECORD, {"self_describing_table": True}, "self_describing_table"),
+    (NO_TITLE_RECORD, {"self_describing_table": True}, None),        # 표 위 제목 줄 없음
+    ("**[AI 에이전트용]**\n\n" + REPAIR_TABLE, {"self_describing_table": True}, None),  # 굵은 태그는 제목 아님
+    (AGE_RECORD, {"self_describing_table": True}, None),             # 키-값 조건표
+    (AMOUNT_RECORD, {"self_describing_table": True}, None),          # 금액 값
+    (AMOUNT_RECORD, {"long_text_table": 39}, "long_text_table"),  # 값 칸 평균 39.7자(첫 행·첫 열 제외)
+    (AMOUNT_RECORD, {"long_text_table": 40}, None),
 ])
 def test_record_table_skip_reason(record, skip, expected):
     options = _standalone(skip=skip).options
@@ -581,7 +584,7 @@ def _add_table(doc: DoclingDocument, rows: list[list[str]], parent=None) -> None
 @pytest.mark.parametrize("skip, expected", [
     ({}, ["최초로 보존치료를 받은 경우 ◇ 계약일로부터 1년초과 구분 지급금액 인레이, 온레이 15만원 복합레진 5만원",
           "15만원", "5만원"]),
-    ({"contained_duplicate": True}, [
+    ({"duplicate_table": True}, [
         "최초로 보존치료를 받은 경우 ◇ 계약일로부터 1년초과 구분 지급금액 인레이, 온레이 15만원 복합레진 5만원",
         "5만원",
     ]),

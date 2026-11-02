@@ -34,3 +34,13 @@
 - 폼·필드
 
 각 자산은 `<유형>_<설명>.hwp` 패턴 권장 (예: `table_merged_cells.hwp`, `image_wmf.hwpx`).
+
+## 반입 구조 QA 샘플 (`monimo/pse/`, 이슈 #608)
+
+`monimo/pse/<원천>/<L2>/base/<파일>` 은 운영 반입 규약과 같은 트리다. SCP 코드서빙·코드스페이스의
+지식유형 QA 샘플 자리(`…/samples/pse/<원천>/<L2>/base/`)에 그대로 복사해 쓴다.
+
+- `pse/SSS/ADAC/base/sss_rag_adac_20261028_full_001.txt` — AI차트뷰(`stock_insight`) 1종목(6행).
+  `monimo_stock_insight_sample.txt` 의 첫 종목 6행과 같은 내용이고, 필드 구분자는
+  `custom_field_stock_insight.yaml` 의 `separator` 값 `\x0f|` 다(`od -c` 로 보면 `017 |`).
+  구분자가 바뀌면 `tools/parse_chunk/make_stock_insight_sample.py` 로 원본을 다시 만든 뒤 이 파일도 같이 바꾼다.

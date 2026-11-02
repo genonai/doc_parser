@@ -173,6 +173,95 @@ def _best_cut(text: str, fits: Callable[[int], bool]) -> int:
     return low
 
 
+@dataclass(frozen=True)
+class _PreparedRows:
+    """렌더 직전의 표. 단일 렌더와 행 분할이 같은 준비 결과를 써야 표기형태가 같다."""
+
+    header_rows: list[Any]
+    data_rows: list[Any]
+    header_labels: list[str]
+    line_labels: list[str]
+    renderer: _RowRenderer
+    rendered_rows: list[str]
+    row_lines: list[str]
+    normalized_spans: bool
+
+
+def _prepare_rows(
+    grid: Sequence[Sequence[Any]],
+    num_cols: int,
+    table_format: TableFormat,
+    header_row_count: int,
+    row_serialization: bool,
+) -> _PreparedRows | str:
+    """grid 를 헤더·데이터 행과 렌더 결과로 나눈다. 그릴 수 없으면 그 사유 문자열."""
+    if not grid or num_cols <= 0:
+        return "empty-grid"
+
+    header_row_count = max(int(header_row_count), 0)
+    if header_row_count >= len(grid):
+        return "no-data-rows"
+
+    normalized_spans = any(
+        int(getattr(cell, "row_span", 1) or 1) > 1
+        for row in grid[header_row_count:]
+        for cell in row
+    )
+    if normalized_spans:
+        grid = normalize_row_spans(grid)
+    header_rows = list(grid[:header_row_count])
+    # 값이 하나도 없는 데이터 행은 분할 단위에서 뺀다. 단일 청크 경로는 같은 행을
+    # drop_blank_markdown_rows 로 지우는데 여기서 남기면, 표 끝의 빈 행이 홀로 조각이 되어
+    # 표 설명 접두와 빈 표만 담긴 청크가 나온다. 또 serialize_rows 는 빈 행을 건너뛰므로
+    # 남겨 두면 행 문장 목록과 행 인덱스가 어긋난다.
+    data_rows = [
+        row for row in grid[header_row_count:]
+        if any(_cell_text(cell) for cell in row)
+    ]
+
+    header_labels = flatten_header_rows(grid, header_row_count, num_cols)
+
+    renderer = _build_renderer(
+        table_format=table_format, header_rows=header_rows,
+        header_labels=header_labels, num_cols=num_cols,
+    )
+    if renderer is None:
+        return "no-markdown-header"
+
+    rendered_rows = [renderer.render_row(row, num_cols) for row in data_rows]
+    # 행 문장은 표기형태와 무관하다. 한 번 만들어 모든 형식이 공유한다. 하위 헤더 없는
+    # 병합 헤더 셀은 표 헤더에 한 번 남으므로 행 요약 라벨에서는 뺀다.
+    line_labels = flatten_header_rows(grid, header_row_count, num_cols, keep_merged_leaf=False)
+    # 요약할 값이 없는 행(전체 폭 각주 등)은 빈 줄로 두어 data_rows 와 인덱스를 맞춘다.
+    row_lines = [
+        "\n".join(serialize_rows([row], line_labels, num_cols)) for row in data_rows
+    ] if row_serialization else []
+    return _PreparedRows(
+        header_rows, data_rows, header_labels, line_labels,
+        renderer, rendered_rows, row_lines, normalized_spans)
+
+
+def render_table_text(
+    *,
+    grid: Sequence[Sequence[Any]],
+    num_cols: int,
+    table_format: TableFormat = "markdown",
+    header_row_count: int = 1,
+) -> str:
+    """표 전체를 행 분할과 같은 렌더러로 한 조각에 그린다. 그릴 수 없으면 빈 문자열.
+
+    한도 안에 드는 표를 다른 직렬화기로 그리면, 같은 표가 분할 여부에 따라 헤더 해석·
+    구분선·병합 셀 표기가 다른 텍스트로 나간다. 분할 여부는 표 앞 LLM 설명 길이에도
+    좌우되므로 같은 원본이 실행마다 다른 형태가 된다. 이 함수의 결과를 단일 텍스트로 쓰면
+    한도를 넘을 때 split_table_rows 가 만드는 조각과 표 격자의 표기형태가 같다.
+    행 요약은 싣지 않는다(분할 조각에만 붙는다).
+    """
+    prepared = _prepare_rows(grid, num_cols, table_format, header_row_count, False)
+    if isinstance(prepared, str):
+        return ""
+    return _compose_with(prepared.renderer, "", prepared.rendered_rows, prepared.row_lines)
+
+
 def split_table_rows(
     *,
     grid: Sequence[Sequence[Any]],
@@ -221,44 +310,17 @@ def split_table_rows(
 
     if limit <= 0 or count_text(single_text) <= limit:
         return TableSplitResult([single_text], False)
-    if not grid or num_cols <= 0:
-        return TableSplitResult([single_text], False, "empty-grid")
-
-    header_row_count = max(int(header_row_count), 0)
-    if header_row_count >= len(grid):
-        return TableSplitResult([single_text], False, "no-data-rows")
-
-    normalized_spans = any(
-        int(getattr(cell, "row_span", 1) or 1) > 1
-        for row in grid[header_row_count:]
-        for cell in row
-    )
-    if normalized_spans:
-        grid = normalize_row_spans(grid)
-    header_rows = list(grid[:header_row_count])
-    # 값이 하나도 없는 데이터 행은 분할 단위에서 뺀다. 단일 청크 경로는 같은 행을
-    # drop_blank_markdown_rows 로 지우는데 여기서 남기면, 표 끝의 빈 행이 홀로 조각이 되어
-    # 표 설명 접두와 빈 표만 담긴 청크가 나온다. 또 serialize_rows 는 빈 행을 건너뛰므로
-    # 남겨 두면 행 문장 목록과 행 인덱스가 어긋난다.
-    data_rows = [
-        row for row in grid[header_row_count:]
-        if any(_cell_text(cell) for cell in row)
-    ]
-
-    header_labels = flatten_header_rows(grid, header_row_count, num_cols)
-
-    renderer = _build_renderer(
-        table_format=table_format, header_rows=header_rows,
-        header_labels=header_labels, num_cols=num_cols,
-    )
-    if renderer is None:
-        return TableSplitResult([single_text], False, "no-markdown-header")
-
-    rendered_rows = [renderer.render_row(row, num_cols) for row in data_rows]
-    # 행 문장은 표기형태와 무관하다. 한 번 만들어 모든 형식이 공유한다. 하위 헤더 없는
-    # 병합 헤더 셀은 표 헤더에 한 번 남으므로 행 요약 라벨에서는 뺀다.
-    line_labels = flatten_header_rows(grid, header_row_count, num_cols, keep_merged_leaf=False)
-    row_lines = serialize_rows(data_rows, line_labels, num_cols) if row_serialization else []
+    prepared = _prepare_rows(grid, num_cols, table_format, header_row_count, row_serialization)
+    if isinstance(prepared, str):
+        return TableSplitResult([single_text], False, prepared)
+    header_rows = prepared.header_rows
+    data_rows = prepared.data_rows
+    header_labels = prepared.header_labels
+    line_labels = prepared.line_labels
+    renderer = prepared.renderer
+    rendered_rows = prepared.rendered_rows
+    row_lines = prepared.row_lines
+    normalized_spans = prepared.normalized_spans
 
     def compose(indexes: Sequence[int], trailing: str = "") -> str:
         return _compose_with(

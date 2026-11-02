@@ -134,6 +134,24 @@ def test_table_prompt_template_file_is_loaded_from_resource_yaml_directory():
 
 
 @pytest.mark.unit
+@pytest.mark.parametrize(("search_terms", "requested"), [(0, False), (3, True)])
+def test_table_prompt_requests_search_terms_only_when_count_positive(search_terms, requested):
+    """검색어 0개 설정에서는 search_terms 를 요구하지 않는다(빈 배열 출력 비용 제거)."""
+    resource_dir = Path(__file__).resolve().parents[2] / "resource"
+    enricher = CustomFieldsEnricher(
+        url="http://llm.invalid",
+        model="test-model",
+        resource_path=str(resource_dir),
+        table_text_description={
+            "enabled": True,
+            "prompt_template_file": "prompt_table_text_description_rag.md",
+            "rag": {"search_terms": search_terms},
+        },
+    )
+    assert ("search_terms" in enricher._table_prompt([])) is requested
+
+
+@pytest.mark.unit
 @pytest.mark.parametrize(
     ("filename", "input_format", "expected_input_format", "export_to_html"),
     [

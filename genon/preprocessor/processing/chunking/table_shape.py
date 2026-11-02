@@ -331,12 +331,18 @@ def serialize_rows(
 def _row_parts(
     row: Sequence[Any], header_labels: Sequence[str], num_cols: int
 ) -> list[tuple[str, str]]:
-    """행 요약에 실리는 (라벨, 값) 목록. 값이 있는 시작 컬럼 셀만 고른다."""
+    """행 요약에 실리는 (라벨, 값) 목록. 값이 있는 시작 컬럼 셀만 고른다.
+
+    표 전체 폭을 덮는 셀(각주 등)은 뺀다. 어느 한 컬럼의 값이 아닌데 첫 컬럼 라벨이 붙어
+    (`특약명=㈜1. …`) 잘못 읽히고, 표 격자에 이미 있는 긴 문장이 한 번 더 실린다.
+    """
     parts: list[tuple[str, str]] = []
     for column in range(num_cols):
         cell = cell_at(row, column)
         value = cell_text(cell)
         if not value or is_colspan_copy(cell, column):
+            continue
+        if num_cols > 1 and _span(cell, "col_span") >= num_cols:
             continue
         parts.append((header_labels[column] if column < len(header_labels) else "", value))
     return parts
