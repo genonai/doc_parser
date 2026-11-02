@@ -378,21 +378,23 @@ PY
 저장해 놓고 같은 결과와 비교하면 회귀를 찾을 수 없습니다.
 
 `tools/parse_chunk/parse_chunk_golden.py`로 수정 전 결과를 기준선(골든)으로 기록하고, 수정 후 같은 케이스를 다시 실행해 대조합니다.
-설정 폴더는 `--resource-dir`로 지정하며, 생략하면 표준 설정 폴더(`genon/preprocessor/resource/`)를 읽습니다. `--record`와 `--check`에는 같은 값을 지정합니다.
+설정 폴더는 `--resource-dir`로 지정합니다. 생략하면 저장소에 `genon/sites/monimo/resource/`가 있을 때 그 폴더를, 없으면 표준 설정 폴더 `genon/preprocessor/resource/`를 읽으므로, 수정한 설정 폴더를 명시하고 `--record`와 `--check`에는 같은 값을 지정합니다.
+골든 도구는 지정한 폴더의 청커 설정에서 `output.table_text_formats`를 `[html, markdown]`으로 덮어쓴 임시 사본으로 실행하므로, 이 키를 바꾼 경우에는 골든 비교로 차이를 확인할 수 없으며 facade 단독 실행([3.3](#33-신속한-확인-방법--facade-단독-실행))으로 실제 설정의 결과를 확인합니다.
+샘플 파일이 없는 케이스는 실행하지 않고 건너뛰며(SKIP), 모든 케이스가 건너뛰어져도 `--record`와 `--check`는 종료 코드 0으로 끝납니다. 종료 코드만으로 판정하지 말고 마지막 요약의 `실행`·`건너뜀` 건수와 `SKIP` 줄을 확인합니다.
 `--record`는 설정에 적힌 모델 엔드포인트에 접근할 수 없거나 `llm` 필드가 모두 비어 있는 케이스가 있으면 기준선을 기록하지 않고 종료 코드 2로 끝나며, 그 상태를 알고도 기록하려면 각각 `--allow-offline`, `--allow-llm-nulls`를 지정합니다.
 
 ```bash
-# 실행 위치: genon/preprocessor/tools/parse_chunk
+# 실행 위치: genon/preprocessor/tools/parse_chunk (`../../resource`는 genon/preprocessor/resource/ 입니다)
 # 변경으로 결과가 달라지면 안 되는 기존 문서를 지정합니다. 경로는 실제 샘플로 교체합니다.
 cat > my_cases.yaml <<'EOF'
 - {doc_type: card, path: /data/samples/card.pdf}
 EOF
 
 # 수정 전 실행. 기준선은 소스 갱신으로 덮어쓰지 않는 별도 디렉터리에 보관합니다.
-python parse_chunk_golden.py --record --cases my_cases.yaml --golden ~/my_golden
+python parse_chunk_golden.py --record --cases my_cases.yaml --golden ~/my_golden --resource-dir ../../resource
 
 # 수정 후 실행. 기준선과 차이가 있으면 종료 코드 1로 끝납니다.
-python parse_chunk_golden.py --check --cases my_cases.yaml --golden ~/my_golden
+python parse_chunk_golden.py --check --cases my_cases.yaml --golden ~/my_golden --resource-dir ../../resource
 ```
 
 기존 동작을 유지할 케이스는 차이가 없어야 합니다. 신규 유형과 의도적으로 동작을 바꾼 케이스는 별도로
@@ -1084,7 +1086,7 @@ python -m genon.preprocessor.facade.chunking_processor --config genon/preprocess
 | `--log-level` | `5` DEBUG / `4` INFO / `3` WARNING / `2` ERROR / `1` CRITICAL / `0` 로그 없음 |
 
 facade 단독 실행은 `--config`가 없으면 `resource/`를 사용합니다. 코드서빙(루트 `main.py`)에는 `--config`가 없으며
-항상 `resource/`를 읽습니다. 이 저장소의 `genon/preprocessor/resource/`가 모니모 설정 완성본이므로 별도 폴더를 지정할 필요가 없습니다.
+`GENOS_RESOURCE_DIR`을 설정하지 않으면(운영 기본) `resource/`를 읽습니다. 이 환경변수는 로컬 실행 전용이며 운영에서는 설정하지 않습니다. 이 저장소의 `genon/preprocessor/resource/`가 모니모 설정 완성본이므로 별도 폴더를 지정할 필요가 없습니다.
 
 청커의 입력은 원본 문서가 아니라 **파서가 생성한 결과 JSON**입니다. 청킹만 반복해서 검증하는
 경우에는 파싱을 다시 실행하지 말고 저장한 `parsed.json`을 재사용하세요. 모델 서빙을 호출하지
@@ -1456,14 +1458,14 @@ git diff
 
 | 섹션 · 키 | 적용 파일 | 기본값 | 가능한 값 | 변경 시점 |
 |---|---|---|---|---|
-| `output.format` | **parser 전용** | `docling` | `json` / `html` / `markdown` / `docling` | Docling 문서의 구조를 청커에 보존하려면 `docling`. `json`의 요소형 `elements`도 청커 입력으로 지원됩니다. `html`·`markdown`은 본문을 `content` 문자열로 반환합니다(`elements`는 빈 목록) |
+| `output.format` | **parser 전용** | `docling` | `json` / `html` / `markdown` / `docling` | Docling 문서의 구조를 청커에 보존하려면 `docling`. `json`의 요소형 `elements`도 청커 입력으로 지원됩니다. `html`·`markdown`은 본문을 `content` 문자열로 반환합니다(`elements`는 빈 목록). 문서 경로의 직렬화 형식이며, 행 매핑·JSON 레코드 매핑이 적용된 입력은 이 값과 무관하게 요소형 `elements`로 반환됩니다 |
 | `ocr.ocr_mode` | parser | `disable` | `disable` / `auto` / `force` | 기본은 OCR 안 함. 판정이 필요한 문서는 요청 파라미터·문서유형 설정으로 `auto`(판정 불가는 재OCR 안 함), 스캔 문서가 많으면 `force` |
 | `chunking.chunk_size` | chunking | `1500` | 정수 | 크기 기준. 문서형은 양수일 때 `min_chunk_size` 하한을 적용합니다. 요소형은 별도 분할 경로를 사용합니다 |
 | `chunking.min_chunk_size` | chunking | `1024` | 정수 | **문서형 경로 전용** 크기 하한. `0` 이하이면 하한 보정을 끕니다. `chunk_size`가 이 값보다 작으면 이 값으로 올립니다. 현재 기본 설정(`1500`)에서는 보정이 일어나지 않습니다 |
 | `chunking.chunk_mode` | chunking | `split_only` | `split_only` / `resize_all` | `split_only`는 섹션 구조 유지(작은 청크 다수), `resize_all`은 크기 기준 재조립(균일) |
 | `chunking.short_chunk_size` | chunking | `0` | 0 이상 정수 | 문서형 청크 중 본문이 이 값보다 짧은 청크를 병합합니다. 문서유형별 값은 `body.merge_short`에 적습니다. 우선순위는 요청 값 > `body.merge_short` > 이 설정입니다. 바꾸면 재색인이 필요합니다 |
 | `chunking.table_as_chunk` | chunking | `false` (코드 기본 `true`) | `true` / `false` | `true`면 표를 본문과 섞지 않고 독자 청크로 만듭니다. 요청 파라미터로도 바꿀 수 있습니다 |
-| `chunking.validation` | chunking | `enable: true`, `action: drop` | `action`: `drop` / `report` | 이상 청크 검증. `drop`은 걸린 청크를 적재에서 빼고, `report`는 기록만 합니다. 요청 파라미터로는 바꿀 수 없습니다 |
+| `chunking.validation` | chunking | `enable: true`, `action: drop` | `action`: `drop` / `report` | 이상 청크 검증. `drop`은 본문 품질 판정에 걸린 청크를 적재에서 빼고, `report`는 기록만 합니다. 메타 필드 누락·글자 수 상한 초과는 어느 쪽이든 기록만 합니다. 요청 파라미터로는 바꿀 수 없습니다 |
 | `chunking.tokenizer_type` | chunking | `char` | `char` / `huggingface` | `chunk_size`의 **단위가 바뀝니다** |
 | `chunking.include_chunk_header` | chunking | 켜짐 | `0` / `1` | 청크 선두의 `HEADER:` 줄이 필요 없을 때 `0` |
 | `chunking.text_cleanup` | chunking | 코드 기본 `off`; 현재 제공 YAML은 `mode: safe`와 규칙 지정 | `off` / `safe` 또는 `{mode, rules}` | 문자 정규화와 선택적 정규식 정제. 실제 설정 파일의 값을 확인합니다 |
@@ -1611,7 +1613,7 @@ facade의 `GenosSmartChunker` ClassVar는 청크 표기 방식을 정합니다.
 { "code": 0, "errMsg": "success", "data": { } }
 ```
 
-- 이상 청크 검증에 걸린 청크나 메타 필드 누락·글자 수 상한 초과가 있으면 성공 응답 최상위에 `chunk_validation` 요약이 붙습니다. 제공 설정은 `action: drop`이므로 걸린 청크는 `data`에서 빠집니다.
+- 이상 청크 검증에 걸린 청크나 메타 필드 누락·글자 수 상한 초과가 있으면 성공 응답 최상위에 `chunk_validation` 요약이 붙습니다. 제공 설정은 `action: drop`이므로 본문 품질 판정에 걸린 청크는 `data`에서 빠집니다. 메타 필드 누락(`missing_fields`)과 글자 수 상한 초과(`max_length`)는 요약에만 기록되며 해당 청크는 유지됩니다.
 - 애플리케이션이 처리한 성공·실패는 요청 형식 오류(`COMMON_P002`)를 포함해 HTTP 200으로 반환되며 `code: 0`이 성공입니다. 네트워크·게이트웨이 오류는 비-200일 수 있으므로 HTTP 상태와 JSON 본문을 모두 검사합니다.
 - 공통 오류 응답의 `error_type`은 예외 클래스명입니다. `error_code`, `traceback`도 포함됩니다.
 - 실패 응답에는 사유 코드 `reason_code`(예: `PARSE_D001`)와 유형 `error_category`(`data` / `preprocess` / `system`)가 항상 포함됩니다. 원인 구분은 `error_code`가 아니라 `reason_code`로 합니다. 호출 측의 판정·재시도 기준은 [monimo_caller_error_handling.md](monimo_caller_error_handling.md)에 있습니다.
@@ -2123,7 +2125,7 @@ def parse(llm_output, **kwargs):
 
 - 일반 훅에는 `job`이 자동 전달되지 않습니다. `kwargs["job"]`을 사용하는 예제를 그대로 실행하지 않습니다.
 - `job.config`는 전체 설정이 아닙니다. 초기화 YAML, 요청 params, 덮어쓴 값을 함께 확인합니다.
-- CLI와 HTTP 서버의 기본 설정 경로는 `genon/preprocessor/resource/`로 동일합니다.
+- CLI와 HTTP 서버의 기본 설정 경로는 `genon/preprocessor/resource/`로 동일합니다. HTTP 서버는 `GENOS_RESOURCE_DIR`이 설정되어 있으면 그 폴더를 우선하며, 운영에서는 이 변수를 설정하지 않습니다.
 - `request_deadline`은 이벤트 루프를 차단하는 동기 작업까지 즉시 강제 종료하는 장치가 아닙니다.
 - 청크 순번은 0부터 시작하며 좌표·미디어 미제공 표식 `"."`은 JSON으로 해석하지 않습니다.
 
