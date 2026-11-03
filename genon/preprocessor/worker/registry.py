@@ -90,7 +90,6 @@ def processor(entry: Entry):
         proc = _PROCESSORS.get(entry.slug)
         if proc is not None:
             return proc
-        _assert_model_values_filled(entry)
         from genon.preprocessor.processing.core.chunker import ChunkerCore
         from genon.preprocessor.processing.core.parser import ParserCore
 
@@ -102,24 +101,6 @@ def processor(entry: Entry):
         proc = cls(config_path=entry.config_path)
         _PROCESSORS[entry.slug] = proc
     return proc
-
-
-def _assert_model_values_filled(entry: Entry) -> None:
-    """설정을 프리셋 층까지 펼친 결과에 자리표시(<…_SERVING_ID> 등)가 남아 있으면 거부한다(#628).
-
-    저장소·서빙본의 resource/model_presets.yaml 은 자리표시뿐이라, 실값을 resource/ 에 채우지도
-    GENOS_MODEL_PRESETS_FILE 로 얹지도 않으면 처리기는 정상으로 만들어진 뒤 모델 호출에서야 알기 어려운
-    접속 오류로 실패한다. 처리기가 쓰는 것과 같은 로더로 한 번 더 읽어 그 전에 짚는다. 쓰이지 않는
-    프리셋은 보지 않도록 `model_presets` 정의 블록은 제외한다. 설정 결함이므로 호출마다 오류다(#522).
-    """
-    from genon.preprocessor.processing.common import config_parse as cp, model_preset
-
-    cfg = cp.load_config(entry.config_path)
-    left = cp.find_unresolved_placeholders({k: v for k, v in cfg.items() if k != model_preset.PRESETS_KEY})
-    if left:
-        shown = ", ".join(f"{path} ({ph})" for path, ph in left[:5]) + (f" 외 {len(left) - 5}곳" if len(left) > 5 else "")
-        raise ValueError(f"activities/{entry.slug} 설정에 모델 접속값이 입력되지 않았습니다(자리표시가 남아 있음): {shown} — "
-                         "resource/model_presets.yaml 에 실값을 채우거나 GENOS_MODEL_PRESETS_FILE 로 실값 파일을 지정하십시오")
 
 
 def build(entries: list[Entry]) -> list:
