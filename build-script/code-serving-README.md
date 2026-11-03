@@ -214,8 +214,6 @@ genon/preprocessor/activities/<slug>/
   워커 프로세스가 모두 살아 있으면 200 `{"status":"ok"}`, 아니면 503 입니다.
 - **액티비티 인자**는 파일 내용이 아니라 상대 참조(`read_ref`·`parsed_ref`·`output_ref`)입니다. 루트는 이 파드의
   `NFS_ROOT`·`ARTIFACT_ROOT` 로 해석하고, 결과 JSON 은 `ARTIFACT_ROOT` 아래 `output_ref` 자리에 씁니다.
-- **모델 접속 실값**이 `resource/model_presets.yaml` 에도 `GENOS_MODEL_PRESETS_FILE` 에도 없으면(자리표시가 남아 있으면)
-  워커는 처리기를 만들기 전에 `모델 접속값이 입력되지 않았습니다` 오류로 거부합니다. 워커는 뜨지만 호출마다 같은 오류입니다.
 
 | 환경변수 | 구분 | 설명 |
 | --- | --- | --- |
