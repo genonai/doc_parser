@@ -24,6 +24,7 @@ doc_type → extractor/config 매핑은 모니모 사이트 완성본(genon/site
 config.yaml 에서 직접 읽는다. genon/sites 가 없는 배포본에서는 표준 자리(genon/preprocessor/activities/parse/ —
 배포처에서는 사이트 설정이 덮인 자리)를 읽는다. 설정이 늘어나면 이 스크립트를 고치지 않아도
 따라간다. --resource-dir 로 다른 설정 폴더를 주면 매핑과 러너 설정을 모두 그 폴더 옆의 activities/ 에서 읽는다.
+custom_field yaml 도 워커와 같이 파서 설정 폴더(activities/parse/)에서 읽는다.
 모델은 로컬(VPN) 프리셋(genon/sites/dev/model_presets.yaml)이 있으면 그것으로 돈다(parse_chunk_test.py 가 지정).
 
 사용:
@@ -1187,13 +1188,19 @@ def load_config_spec(block: dict) -> dict:
     내부 형태의 키 이름(`required`, `constants`, `field_labels` …)을 읽는다. 원문을 그대로
     읽으면 기대값이 전부 비어 공통 단정이 동작하지 않는다(#615).
     """
-    path = RESOURCE_DIR / str(block.get("config_file") or "")
-    if not path.exists():
+    if not block.get("config_file"):
         return {}
-    loaded = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
     if str(REPO_ROOT) not in sys.path:
         sys.path.insert(0, str(REPO_ROOT))
     from genon.preprocessor.processing.enrichment import config_v2
+    from genon.preprocessor.processing.enrichment.custom_fields_enricher import resolve_custom_fields_config_path
+
+    # 워커와 같은 자리·같은 규칙 — config_file 은 파서 설정 폴더(activities/parse/) 기준이다. resource/ 의 사본은
+    # 사이트 완성본에만 있고(HTTP 파사드용) 배포본의 resource/ 는 표준이라, 거기서 읽으면 기대값이 조용히 빈다.
+    path = resolve_custom_fields_config_path(str(block["config_file"]), str(parser_config_path().parent))
+    if not path.exists():
+        return {}
+    loaded = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
     spec, _extractor = config_v2.load(loaded, label=path.name)
     return spec
 

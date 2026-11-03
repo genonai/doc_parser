@@ -110,9 +110,12 @@ def build_drill_config(work: Path, cases: list) -> Path:
     원본을 건드리지 않는 것이 중요하다 — B16(doc_type 충돌)이 보여주듯 등록 하나로
     기존 doc_type 을 죽일 수 있고, 그러면 골든이 통째로 흔들린다.
     """
-    # 사이트 완성본(resource/ + activities/parse/)을 통째로 복사하고 파서 액티비티 폴더에 드릴 설정을 더한다
-    shutil.copytree(resource_dir().parent, work, dirs_exist_ok=True)
+    # 설정 자리(resource/ + activities/parse/)만 복사하고 파서 액티비티 폴더에 드릴 설정을 더한다. 사이트 완성본이면
+    # sites/monimo 아래 두 폴더, 배포본(genon/sites 없음)이면 genon/preprocessor 아래 두 폴더다 — 상위 폴더를
+    # 통째로 복사하면 배포본에서는 패키지 전체(sample_files·tests…)가 따라온다.
+    shutil.copytree(resource_dir(), work / "resource", dirs_exist_ok=True)
     parser_dir = work / "activities" / "parse"
+    shutil.copytree(verify.parser_config_path().parent, parser_dir, dirs_exist_ok=True)
     for cfg in CONFIG_DIR.glob("custom_field_drill_*.yaml"):
         shutil.copy(cfg, parser_dir / cfg.name)
 
