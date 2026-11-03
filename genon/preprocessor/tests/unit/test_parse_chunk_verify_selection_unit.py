@@ -6,6 +6,7 @@ import sys
 from pathlib import Path
 
 import pytest
+import yaml
 
 
 @pytest.fixture
@@ -170,6 +171,32 @@ def test_dev_model_presets_are_set_only_when_the_file_exists(monkeypatch, tmp_pa
     spec = importlib.util.spec_from_file_location("deploy_parse_chunk_verify", tools / "parse_chunk_verify.py")
     spec.loader.exec_module(importlib.util.module_from_spec(spec))
     assert os.environ.get("GENOS_MODEL_PRESETS_FILE") == (str(presets) if has_dev_presets else None)
+
+
+def test_resource_dir_reaches_the_runner_command(verifier, monkeypatch, tmp_path):
+    """--resource-dir(골든·검증기)로 고른 설정 폴더가 하위 러너(parse_chunk_test.py)의 --config 까지 간다.
+    청커는 그 폴더 옆 activities/chunk/config.yaml 에 표 표기형태만 켠 임시 사본이다."""
+    pre = _deploy_tree(tmp_path)
+    monkeypatch.setattr(verifier, "PREPROCESSOR_DIR", pre)
+    monkeypatch.setattr(verifier, "RESOURCE_DIR", pre / "resource")
+    monkeypatch.setattr(verifier, "_VERIFY_CHUNKER_CONFIG", None)
+    seen = {}
+
+    class _Done:
+        returncode, stdout, stderr = 0, "", ""
+
+    def fake_run(cmd, **_kw):
+        seen["cmd"] = cmd
+        return _Done()
+
+    monkeypatch.setattr(verifier.subprocess, "run", fake_run)
+    ok, _msg, _out = verifier.run_case("python", "faq", tmp_path / "in.xlsx", tmp_path / "out")
+    cmd = seen["cmd"]
+    assert ok and cmd[cmd.index("--config") + 1] == str(pre / "activities" / "parse" / "config.yaml")
+    chunker = yaml.safe_load(Path(cmd[cmd.index("--chunker-config") + 1]).read_text(encoding="utf-8"))
+    site_chunker = yaml.safe_load((pre / "activities" / "chunk" / "config.yaml").read_text(encoding="utf-8"))
+    assert chunker["output"]["table_text_formats"] == ["html", "markdown"]
+    assert chunker["chunking"] == site_chunker["chunking"]
 
 
 def test_drill_copies_only_the_config_folders(monkeypatch, tmp_path):
