@@ -135,7 +135,7 @@ HTTP로 호출하는 경로는 쓰지 않습니다.
 
 | 입력 데이터가 다음 구조인 경우 | `source.kind` | 검색 단위 | 필드 추출을 위한 LLM 호출 |
 |---|---|---|---|
-| 엑셀·CSV 한 행이 한 건 (FAQ, 용어사전, 메뉴) | `rows` | 기본: 행 1개 = 청크 1개 | 선택 |
+| 엑셀·CSV 한 행이 한 건 (엑셀 FAQ, 용어사전, 메뉴) | `rows` | 기본: 행 1개 = 청크 1개 | 선택 |
 | JSON 배열의 한 요소가 한 건 (이벤트 목록, 공지) | `records` | 기본: 레코드 1개 = 청크 1개 | 선택 |
 | 대상 하나를 깊게 설명한 중첩 JSON (상품 상세) | `sections` | 섹션별 본문, 크기에 따라 분할 | 선택 |
 | 문서에서 필드 몇 개를 뽑는다 (계약서, 카드 안내) | `document` | 문서 metadata, 모든 청크에 같은 값 | LLM 추출 시 문서 단위 호출 |
@@ -155,8 +155,8 @@ HTTP로 호출하는 경로는 쓰지 않습니다.
 
 | `kind` | 복사할 템플릿 (`resource/templates/`) | 제공 예시 (`activities/parse/`) |
 |---|---|---|
-| `rows` | `custom_field_TEMPLATE_rows.yaml` | `custom_field_faq.yaml` · `custom_field_term.yaml` |
-| `records` | `custom_field_TEMPLATE_records.yaml` | `custom_field_monimo_event.yaml` |
+| `rows` | `custom_field_TEMPLATE_rows.yaml` | `custom_field_menu.yaml` · `custom_field_term.yaml` |
+| `records` | `custom_field_TEMPLATE_records.yaml` | `custom_field_monimo_event.yaml` · `custom_field_faq.yaml` |
 | `sections` | `custom_field_TEMPLATE_sections.yaml` | `custom_field_product_hpp.yaml` |
 | `document` | `custom_field_TEMPLATE_document.yaml` | `custom_field_card.yaml` |
 | `html` | `custom_field_TEMPLATE_html.yaml` | `custom_field_monimo_news.yaml` |
@@ -204,11 +204,15 @@ body:                         # 청크 본문(= 임베딩 입력)을 어떻게 �
 
 | 블록 | 하는 일 |
 |---|---|
-| `source` | `kind`, 레코드 배열 위치(`records_at`), 행 접기(`merge_rows`), 포맷 전처리(`pre`) |
-| `fields` | **목표필드 하나의 규칙을 한 자리에** 모읍니다 (`alias` `const` `default` `values` `transform` `template` `pack` `meta` `seq`) |
+| `source` | `kind`, 레코드 배열 위치(`records_at`), 못 찾을 때 정책(`on_missing`), 행 접기(`merge_rows`), 처리 시트(`sheets`), 섹션(`sections` · `ignore_keys`), 포맷 전처리(`pre`) |
+| `fields` | **목표필드 하나의 규칙을 한 자리에** 모읍니다 (`alias` `collect` `raw` `select` `attr` `const` `default` `values` `transform` `template` `pack` `meta` `seq`) |
 | `require` · `filter` | 빈 값으로 거르기 / 값으로 거르기 |
-| `body` | 청크 본문 구성(`fields`), 항목명(`labels`), 긴 본문 분할(`split`), 접두(`repeat`·`once`) |
+| `body` | 청크 본문 구성(`fields`), 항목명(`labels`), 긴 본문 분할(`split`), 접두(`repeat`·`once`), 본문 복사(`mirror_to`), 짧은 청크 병합(`merge_short`) |
 | `llm` | LLM 추출·생성 설정 목록. `out`은 출력 필드, 행·레코드·섹션형의 `in`은 입력 필드입니다. 문서형은 본문을 입력으로 사용합니다([C.7](#c7-필드-조합과-llm-설정)) |
+| `python` | LLM 대신 Python 함수로 값을 추출합니다. `kind: document` 전용입니다([2.6](#26-설정에서-이름으로-불러-쓰는-세-가지-확장-지점)) |
+| `table_text_description` | 프로세서 설정의 텍스트 표 설명 옵션을 이 문서유형에서만 키 단위로 덮어씁니다. `kind`와 무관합니다([5.2](#52-주요-구성-옵션)) |
+
+표에는 주요 키를 적었습니다. `kind`별 지원 범위는 [부록 C.1](#c1-설정-표기와-내부-이름)을 확인하세요.
 
 값을 얻는 단계와 후처리 단계를 구분합니다.
 
@@ -243,6 +247,7 @@ body:                         # 청크 본문(= 임베딩 입력)을 어떻게 �
 | `body.repeat` | 나뉜 **모든** 조각 앞에 반복할 식별 필드(문서형 청크는 `HEADER:` 줄 다음) | `rows`·`records`는 `split: true`일 때. `document`·`html`은 모든 청크에 적용하며 `body.labels` 로 항목명을 함께 지정 |
 | `body.once` | **첫 청크에만 1회** 얹습니다(문서형 청크는 `HEADER:` 줄 다음) | 문서 단위 분류 (`sections` · `document` · `html`) |
 | `body.mirror_to` | 본문과 글자 그대로 같은 값을 받을 메타 필드 | 적재 측의 본문 컬럼용. `document` · `html` 전용 |
+| `body.merge_short` | 본문(`HEADER:` 줄 제외)이 이 값보다 짧은 청크를 다음 청크(안 되면 앞 청크)에 병합합니다 | `document` · `html` 전용. 청크 경계가 바뀌므로 재색인이 필요합니다 |
 
 > 접두는 청크마다 쓸 수 있는 `chunk_size`를 그만큼 줄입니다(청커가 미리 그 몫을 떼어 둡니다).
 > 짧은 식별 필드 1~2개를 권장합니다. `body.once`로만 추가한 값은 첫 청크의 임베딩 입력에만 직접 포함됩니다.
@@ -261,7 +266,9 @@ enrichment:
       config_file: custom_field_notice.yaml     # 파일명만. 이 yaml과 같은 폴더 기준
 ```
 
-쓰지 않을 유형은 `enable: false`로 끕니다.
+쓰지 않을 유형은 `enable: false`로 끕니다. 제공 설정은 `defaults.unknown_doc_type: fail`이므로 끈 유형이나 등록되지
+않은 `doc_type`을 요청하면 `PARSE_P002`로 요청이 실패합니다(`doc_type`을 적지 않은 등록 블록이 있으면 이 검사를
+하지 않습니다). 유형을 끌 때는 호출부도 함께 정리하세요. `warn`으로 바꾸면 경고만 남기고 기본 경로로 처리합니다.
 
 ### 1.6 ⑤ 단건 실행으로 처리합니다
 
@@ -295,9 +302,9 @@ python -m genon.preprocessor.activities run --activity chunk parsed.json --doc-t
 
 | 상황 | 결과 |
 |---|---|
-| `alias`·CSS 선택자가 입력 데이터 표기와 어긋남 | 값이 `null`. 경고만 |
+| `alias`·CSS 선택자가 입력 데이터 표기와 어긋남 | 값이 `null`. `html` 선택자는 경고가 남고, `rows`·`records`의 필수가 아닌 필드는 경고 없이 `null`이 됩니다 |
 | `body.fields`에 **어디서도 만들어지지 않는 필드** | 본문에서 조용히 빠짐. `llm`을 주석 처리하고 그 출력 필드를 남기는 실수가 가장 흔합니다 |
-| `require` 미충족 | rows·records는 해당 항목을 제외합니다. sections는 `source.on_missing: error`가 기본이므로 요청이 실패하며, `skip`이면 경고 후 섹션 0건을 반환합니다. **파서는 요소 0건으로 성공할 수 있습니다. 빈 결과를 청커에 전달하면 오류가 날 수 있으므로 별도로 검사합니다** |
+| `require` 미충족 | rows는 필수 컬럼을 찾지 못하면 요청이 실패하고(`PARSE_D001`), 컬럼은 있으나 값이 빈 행은 제외합니다. records는 해당 항목을 제외합니다. sections는 `source.on_missing: error`가 기본이므로 요청이 실패하며, `skip`이면 경고 후 섹션 0건을 반환합니다. **파서는 요소 0건으로 성공할 수 있습니다. 빈 결과를 청커에 전달하면 오류가 날 수 있으므로 별도로 검사합니다** |
 | `values`에 없는 값 | 원값 통과(fail-open), 경고만 |
 | 같은 이름 key가 얕은 곳과 깊은 곳에 모두 있음 | **얕은 쪽이 우선합니다.** 경고 없이 엉뚱한 값이 실립니다 |
 | 같은 이름의 레코드 배열이 여러 곳에 있음 | `records_at`은 최초 매칭 **1개**만 찾습니다. 나머지는 경고 없이 빠집니다 |
@@ -316,6 +323,7 @@ python -m genon.preprocessor.activities run --activity chunk parsed.json --doc-t
 | `custom_fields` | 목표필드 추출 |
 | `doc_summary` · `image_description` | 문서 요약 · 이미지 설명 |
 | `metadata` · `doc_type_stamp` | 문서 메타데이터 · 문서 유형 기록 |
+| `table_description` | 표 설명 설정 충돌(텍스트 표 설명과 이미지 표 설명의 동시 활성화) |
 
 > **검증할 때는 `error_policy: strict`와 결과값 검사를 함께 사용하세요.** 상위 오류 처리까지 전달된
 > 예외는 메시지 앞에 `[stage]`가 붙은 액티비티 실패로 올라옵니다. 다만 목표필드 추출기의 LLM·Python·HTML 추출 경로는
@@ -388,22 +396,28 @@ PY
 `document`·`html`의 추출값은 문서 메타데이터에서 먼저 확인한 뒤 최종 청크에서 다시 확인합니다.
 행·레코드형은 `elements[].metadata`와 최종 청크를 비교합니다. 기동·처리 로그의 `WARNING`도 함께 확인하세요.
 
-(다) 기존 동작의 회귀 검사를 수행합니다. **기준선(골든)은 코드를 수정하기 전에 저장해야 합니다.**
+(다) 기존 동작의 회귀 검사를 수행합니다. **기준선은 코드를 수정하기 전에 저장해야 합니다.**
 이미 수정했다면 기존 정상 커밋의 별도 작업 디렉터리에서 기준선을 만드세요. 현재 수정 결과를 기준선으로
 저장해 놓고 같은 결과와 비교하면 회귀를 찾을 수 없습니다.
 
+`tools/parse_chunk/parse_chunk_golden.py`로 수정 전 결과를 기준선(골든)으로 기록하고, 수정 후 같은 케이스를 다시 실행해 대조합니다.
+설정 폴더는 `--resource-dir`로 지정합니다. 파서·청커 설정과 custom_field는 그 폴더 옆의 `activities/<slug>/`(`config.yaml`·`custom_field_*.yaml`)에서 읽습니다 — 워커가 읽는 자리와 같습니다. 모니모 배포본에는 `genon/sites/`가 없으므로 생략하면 표준 설정 폴더 `genon/preprocessor/resource/`와 그 옆 `activities/`(모니모 설정이 들어 있는 자리)를 읽습니다. 수정한 설정 폴더를 명시하고 `--record`와 `--check`에는 같은 값을 지정합니다.
+골든 도구는 청커 설정(`activities/chunk/config.yaml`)에서 `output.table_text_formats`를 `[html, markdown]`으로 덮어쓴 임시 사본으로 실행하므로, 이 키를 바꾼 경우에는 골든 비교로 차이를 확인할 수 없으며 단건 실행([3.3](#33-신속한-확인-방법--단건-실행))으로 실제 설정의 결과를 확인합니다.
+샘플 파일이 없는 케이스는 실행하지 않고 건너뛰며(SKIP), 모든 케이스가 건너뛰어져도 `--record`와 `--check`는 종료 코드 0으로 끝납니다. 종료 코드만으로 판정하지 말고 마지막 요약의 `실행`·`건너뜀` 건수와 `SKIP` 줄을 확인합니다.
+`--record`는 설정에 적힌 모델 엔드포인트에 접근할 수 없거나 `llm` 필드가 모두 비어 있는 케이스가 있으면 기준선을 기록하지 않고 종료 코드 2로 끝나며, 그 상태를 알고도 기록하려면 각각 `--allow-offline`, `--allow-llm-nulls`를 지정합니다.
+
 ```bash
-# 실행 위치: genon/preprocessor/tools/parse_chunk
+# 실행 위치: genon/preprocessor/tools/parse_chunk (`../../resource`는 genon/preprocessor/resource/, 설정은 그 옆 activities/ 입니다)
 # 변경으로 결과가 달라지면 안 되는 기존 문서를 지정합니다. 경로는 실제 샘플로 교체합니다.
 cat > my_cases.yaml <<'EOF'
 - {doc_type: card, path: /data/samples/card.pdf}
 EOF
 
 # 수정 전 실행. 기준선은 소스 갱신으로 덮어쓰지 않는 별도 디렉터리에 보관합니다.
-python parse_chunk_golden.py --record --cases my_cases.yaml --golden ~/my_golden
+python parse_chunk_golden.py --record --cases my_cases.yaml --golden ~/my_golden --resource-dir ../../resource
 
-# 수정 후 실행
-python parse_chunk_golden.py --check --cases my_cases.yaml --golden ~/my_golden
+# 수정 후 실행. 기준선과 차이가 있으면 종료 코드 1로 끝납니다.
+python parse_chunk_golden.py --check --cases my_cases.yaml --golden ~/my_golden --resource-dir ../../resource
 ```
 
 기존 동작을 유지할 케이스는 차이가 없어야 합니다. 신규 유형과 의도적으로 동작을 바꾼 케이스는 별도로
@@ -473,22 +487,23 @@ PY
 
 | 증상 | 원인 |
 |---|---|
-| `doc_type`을 줬는데 아무 일도 안 일어남 | 등록이 `enable: false` 입니다. 비활성 등록도 등록으로 보므로 오류 없이 지나갑니다 |
-| `doc_type=… 에 맞는 custom_fields 등록이 없습니다` | 등록 블록에 없는 `doc_type` 값(오타 포함)입니다. `defaults.unknown_doc_type: fail` 이라 파싱이 실패하고 재시도하지 않습니다 |
+| `doc_type=… 에 맞는 custom_fields 등록이 없습니다` (`PARSE_P002`) | 등록이 없거나 `enable: false` 이거나 `doc_type` **값**의 문자열 불일치(오타 포함)입니다. `enable: false` 인 등록은 등록 목록에서 빠지므로 없는 것과 같습니다. `defaults.unknown_doc_type: fail` 이라 파싱이 실패하고 재시도하지 않습니다. `warn` 이면 경고 후 기본 경로로 처리합니다 |
 | `doc_type`을 안 줬는데 custom_fields가 동작함 | config yaml의 등록 블록에 `doc_type` 키가 없으면 **wildcard** 로 모든 요청에 매칭됩니다 |
-| 청크는 생성되지만 metadata가 비어 있음 | 일치하는 등록이 없어 일반 처리 경로로 처리되었거나 `alias`가 일치하지 않음 |
+| 청크는 생성되지만 metadata가 비어 있음 | `unknown_doc_type: warn` 설정에서 일치하는 등록이 없어 일반 처리 경로로 처리되었거나 `alias`가 일치하지 않음 |
 | 특정 필드만 계속 `null` | `llm`의 `out` 이름과 프롬프트가 내놓는 JSON 키가 다릅니다. `kind: html` 이면 선택자가 안 걸린 것 |
-| 모든 레코드가 제외됨 | `skipped N/N records (missing required)` 경고 확인. 입력 데이터 표기가 `alias`와 달라 `require` 필드가 null이 된 경우입니다 |
+| 모든 레코드가 제외됨 | `skipped N/N records (missing required)` 경고 확인. records에서 입력 데이터 표기가 `alias`와 달라 `require` 필드가 null이 된 경우입니다 |
+| `필수 Excel 컬럼 매핑 실패` | rows에서 `require` 필드의 `alias`와 일치하는 컬럼이 없습니다. 메시지의 `available` 목록과 `alias`를 대조합니다 |
 | 본문이 빈 레코드가 빠짐 | 정상입니다. 빈 벡터 적재를 막으려고 경고와 함께 제외합니다 |
 | xlsx가 행별로 나뉘지 않음 | 매칭되는 매핑이 없으면 `formats.xlsx.processing_mode`가 결정합니다 (`tabular` 인지 확인) |
-| `tabular custom_fields config 없음: …` | `config_file`은 **파싱 설정(`activities/parse/config.yaml`)과 같은 폴더** 기준. 파일명만 적으세요 |
+| `… custom_fields config 없음: …` | `config_file`은 **파싱 설정(`activities/parse/config.yaml`)과 같은 폴더** 기준. 파일명만 적으세요 |
 | `등록되지 않은 transforms 변환기: …` | 기본 제공 9종과 `tb.register_transform`으로 등록한 것만 쓸 수 있습니다([2.6](#26-설정에서-이름으로-불러-쓰는-세-가지-확장-지점)) |
 | `… 에 쓸 수 없는 인자입니다: …` | 변환기 인자 이름의 오타입니다. 메시지의 `쓸 수 있는 인자` 목록과 대조합니다. `html_renderer`는 실행 시 자동으로 주입되므로 설정에 적지 않습니다 |
-| 필드는 안 붙는데 `doc_type`만 모든 청크에 붙음 | 매칭되는 등록이 없는 상태. 스탬프는 매칭 여부와 무관하게 동작합니다 |
+| 필드는 안 붙는데 `doc_type`만 모든 청크에 붙음 | `unknown_doc_type: warn` 설정에서 매칭되는 등록이 없는 상태. 스탬프는 매칭 여부와 무관하게 동작합니다 |
 | csv/xlsx인데 `doc_type`도 안 붙음 | 매핑 없는 일반 tabular 경로인지 확인합니다. 매핑된 행 경로와 Docling 문서 경로는 별도로 확인합니다 |
 
 **설정만으로 처리할 수 없는 경우** 입력 데이터 구조가 예상과 다른 것입니다. 예를 들어 같은 이름의 레코드 배열이 여러 부모 아래에 나뉘어 있거나, 목록과 상세 데이터가 분리되어 있거나,
 확장자가 `.xml`인 경우가 있습니다. 단순히 중첩 깊이만 늘어난 JSON은 이름 탐색으로 처리될 수 있습니다. 이 경우에는 [2장](#2-코드-수정)을 참조합니다.
+내용은 지원 형식인데 확장자만 다르다면 `formats.extension_aliases` 한 줄(예: `".parsed": ".md"`)로 처리할 수 있으므로 이를 먼저 검토합니다.
 
 ---
 
@@ -518,7 +533,7 @@ PY
 | 파일 | 구획 |
 |---|---|
 | `activities/parse/processor.py` | 파일 상단 주석(흐름 요약) → `ROUTES` → `CONFIG_BY_DOC_TYPE` → 훅 3종 → 오버라이드 |
-| `activities/chunk/processor.py` | `GenOSVectorMeta` → `GenosSmartChunker` → `ROW_CATEGORIES` → `CONFIG_BY_DOC_TYPE` → 훅 3종 |
+| `activities/chunk/processor.py` | `GenOSVectorMeta` → `GenosSmartChunker` → `ROW_CATEGORIES` → `CONFIG_BY_DOC_TYPE` → 훅 3종 → 오버라이드 |
 
 먼저 **파일 상단 주석**을 확인하세요. 처리 흐름 요약과 결과 형식이 포함되어 있습니다.
 
@@ -546,16 +561,19 @@ PY
 ```python
 # activities/parse/processor.py
     CONFIG_BY_DOC_TYPE = {
-        "press":    {"enrichment.table_description.enable": False},  # 표가 없어 불필요한 LLM 호출
+        "press":    {"table_text_desc": False},                     # 표가 없어 불필요한 LLM 호출
         "contract": {"ocr.ocr_mode": "force"},                       # 스캔본이 많다
     }
 
 # activities/chunk/processor.py
     CONFIG_BY_DOC_TYPE = {
-        "contract": {"chunking.chunk_size": 1500},                   # 문서형 청크 크기
-        "manual": {"chunking.chunk_mode": "split_only"},
+        "contract": {"chunking.chunk_size": 2000},                   # 문서형 청크 크기
+        "manual": {"chunking.chunk_mode": "resize_all"},             # 크기 기준으로 병합·분할
     }
 ```
+
+표에 적는 `doc_type`도 [1.5](#15-④-프로세서-설정에-등록합니다)의 custom_fields 등록이 있어야 합니다. 제공 설정(`defaults.unknown_doc_type: fail`)에서는
+등록이 없으면 파서 요청이 이 표를 적용하기 전에 실패합니다(`PARSE_P002`). 등록 없이 기본 경로로 처리하려면 `warn`으로 둡니다.
 
 키는 설정 파일 경로를 점 표기법으로 작성합니다. 같은 의미의 요청 파라미터 이름(괄호 안 표기)을 사용해도 동일하게
 동작합니다. **청킹 설정은 파서가 아니라 청커의 표**에 정의합니다.
@@ -564,11 +582,12 @@ PY
 
 | 파서 | | 청커 | |
 |---|---|---|---|
-| `enrichment.table_description.enable` (`table_desc`) | 표 설명 | `chunking.chunk_size` (`chunk_size`) | 청크 최대 크기 |
+| `enrichment.table_description.enable` (`table_desc`) | 이미지 표 설명 | `chunking.chunk_size` (`chunk_size`) | 청크 최대 크기 |
 | `enrichment.image_description.enable` (`img_desc`) | 이미지 설명 | `chunking.chunk_mode` (`chunk_mode`) | `split_only` / `resize_all` |
 | `enrichment.doc_summary.enable` (`doc_summary`) | 문서 요약 | `chunking.recursive.chunk_overlap` (`chunk_overlap`) | 청크 간 겹침 |
-| `enrichment.toc.enable` (`toc`) | 목차 보강 | | |
+| `enrichment.toc.enable` (`toc`) | 목차 보강 | `chunking.short_chunk_size` (`short_chunk_size`) | 본문이 이보다 짧은 청크를 병합 |
 | `ocr.ocr_mode` | `auto` / `force` / `disable` | | |
+| `table_text_desc` (요청 파라미터 이름으로만 씀) | 텍스트 표 설명 | | |
 
 표로 표현할 수 없는 조건은 `config_by_condition()`에서 정의합니다. 동일한 형식의 dict를 반환하며,
 빈 dict를 반환하면 설정은 변경되지 않습니다.
@@ -606,8 +625,9 @@ PY
 | | `edit_chunk(text, info, **kwargs)` | **청크 1건마다** | 본문 str + `info` dict |
 | | `edit_output(vector_metas, **kwargs)` | 응답 직전 | `GenOSVectorMeta` 목록 |
 
-> `edit_document`가 **enrichment 앞**이라는 점이 중요합니다. 표를 LLM 설명 대상에서 빼려면 여기서
-> 빼야 합니다. `edit_output`은 enrichment 뒤라 LLM 비용을 이미 치른 뒤입니다.
+> `edit_document`가 **enrichment 앞**이라는 점이 중요합니다. 텍스트 표는 먼저 `table_text_description.skip`
+> 옵션([5.2](#52-주요-구성-옵션))을 검토하고, 그 옵션으로 표현되지 않는 기준이면 여기서 뺍니다.
+> `edit_output`은 enrichment 뒤라 LLM 비용을 이미 치른 뒤입니다.
 
 훅에서 사용하는 `tb`는 파일 상단에서 이미 import한 toolbox입니다. 직접 구현하기 전에 toolbox에서 제공하는
 기능을 먼저 확인하세요. 값 변환기는 yaml의 `transform:`이 호출하는 함수와 같으므로 설정과 코드의 변환 결과가 일치합니다.
@@ -630,8 +650,7 @@ PY
 
 `config_by_condition(job)`, 파서의 `edit_document(job, doc)`, 직접 구현하는 `route_*(job)`처럼
 **시그니처에 `job`이 있는 메소드**에서는 요청 객체를 사용할 수 있습니다. 일반 `edit_input`·`edit_output`·
-`edit_chunk`의 `**kwargs`에는 자동 전달되지 않습니다. 처리기 주석의 `kwargs["job"]` 안내와 현재 호출부가
-일치하지 않으므로, 이 문서는 실행 코드를 기준으로 설명합니다.
+`edit_chunk`의 `**kwargs`에는 자동 전달되지 않습니다.
 
 | 필드 | 파서 | 청커 | 실제 의미 |
 |---|:-:|:-:|---|
@@ -779,7 +798,7 @@ PY
 |---|---|
 | `source.merge_rows` | 값 파이프라인 이전에 값을 이어붙여 최종 출력까지 바꿉니다 |
 | `source.sections` · `source.ignore_keys` | `kind: sections`의 트리 순회 자체를 좌우합니다 |
-| `source.pre.markdown.front_matter` 승격 | 본문 제외는 되지만 metadata 승격은 안 됩니다 |
+| front matter 승격(`fields.<목표>.alias`, 본문 제외는 `source.pre.markdown.front_matter`) | 본문 제외는 되지만 metadata 승격은 안 됩니다 |
 
 실행해 볼 수 있는 예시는 `genon/preprocessor/examples/facade_hooks/`에 있습니다.
 
@@ -787,14 +806,15 @@ PY
 
 파서는 확장자에 따라 핸들러를 선택합니다. 일치하는 첫 번째 항목의 핸들러를 호출하고, 핸들러가 `None`을 반환하면
 다음 후보를 처리합니다(폴스루). 마지막 항목은 항상 캐치올입니다.
+예외: `source.pre.delimited`를 선언한 `doc_type`은 입력이 텍스트 파일이면 확장자와 무관하게 `ROUTES`보다 먼저 레코드 경로로 처리합니다.
 
 | 확장자 | 핸들러 | 결과 |
 |---|---|---|
 | `.csv .xlsx .xlsm` | `route_tabular` | 행 매핑 설정이 우선. 없으면 시트를 문서로, 또는 행을 레코드로 |
 | `.hwp .hwpx .hml` | `route_hwp` | 문서형 |
 | `.docx` | `route_docx` | 문서형 |
-| `.pdf .html .htm .md` | `route_docling` | 문서형 |
-| `.json` | `route_json` | 레코드 매핑이 일치하는 경우에만 처리. 없으면 캐치올로 대체 처리 |
+| `.pdf .html .htm .md` | `route_docling` | 문서형. `.md`는 `formats.md.processing_mode: text`이면 캐치올로 넘어갑니다 |
+| `.json` | `route_json` | 레코드 매핑이면 레코드, 본문 추출(`source.pre.json`) 설정이면 문서형. 둘 다 없으면 캐치올로 처리 |
 | `.ppt .pptx` | `route_ppt` | 문서형. PDF 변환 실패 시 텍스트만 |
 | 그 외 | `route_other` | 텍스트면 문서형, 아니면 텍스트 추출 |
 
@@ -815,17 +835,24 @@ PY
             out = os.path.join(work_dir, "converted.json")
             json.dump({"eventList": events}, open(out, "w", encoding="utf-8"), ensure_ascii=False)
             return out                          # 새 경로를 돌려주면 그것으로 파싱합니다
+        if ext == ".tsv":
+            out = os.path.join(work_dir, "converted.csv")   # 표 로더는 .csv 확장자로 CSV를 판정합니다
+            with open(data, encoding="utf-8", newline="") as src, \
+                    open(out, "w", encoding="utf-8", newline="") as dst:
+                csv.writer(dst).writerows(csv.reader(src, delimiter="\t"))
+            return out
         return data
 ```
 
-위 XML 예제는 파일 상단에 `import xml.etree.ElementTree as ET`, `import os`, `import json`이 필요합니다.
+위 예제는 파일 상단에 `import xml.etree.ElementTree as ET`, `import os`, `import json`, `import csv`가 필요합니다.
 `ROUTES`와 `edit_input`은 기존 클래스의 해당 정의에 반영하고, 중복 정의하지 않습니다.
 동작을 검증하기 전에 **먼저 `ROUTES`에 등록**하세요. 등록하지 않으면 캐치올이 처리하여 목표필드가 비어 있는 청크 1개만 생성됩니다.
 
 > **새 확장자를 표·JSON 라우트에 붙이면 `edit_input`이 한 요청에서 두 번 호출됩니다.** 처음은
 > `ROUTES` 앞에서 원래 확장자와 파일 경로로, 두 번째는 라우트 안에서 변환된 형식으로 호출됩니다.
-> 위 예제에서 `.xml → route_json`은 `.xml`(경로)과 `.json`(dict) 두 번, `.tsv → route_tabular`는
-> `.tsv`(경로)와 `.xlsx`(시트 dict) 두 번입니다. **위 예제가 안전한 이유는 `ext == ".xml"`로
+> 위 예제에서 `.xml → route_json`은 `.xml`(경로)과 `.json`(dict) 두 번입니다. `.tsv → route_tabular`는
+> `.tsv`를 표 형식 파일로 변환해 돌려준 경우에 한해 `.tsv`(경로)와 `.xlsx`(시트 dict) 두 번 호출됩니다.
+> **위 예제가 안전한 이유는 `ext == ".xml"`·`ext == ".tsv"`로
 > 게이팅했기 때문입니다** — 두 번째 호출은 조건에 걸리지 않아 입력을 그대로 돌려줍니다.
 > 확장자 조건 없이 훅을 쓰면 두 번째 호출에서 이미 변환된 데이터를 다시 변환하려다 실패합니다.
 
@@ -893,12 +920,13 @@ def extract(text, document=None, output_fields=None, **kwargs):
 - 돌려주는 것은 dict 하나입니다. 그 뒤로는 LLM 경로와 완전히 같은 파이프라인을 거칩니다.
 - `async def`로 써도 됩니다(사내 API 조회). 파일이 없거나 함수 이름이 틀리면 기동에서 실패합니다.
 - `url`·`system_prompt` 같은 LLM 전용 키는 이 자리에서 쓸 수 없습니다(기동 실패).
+- `python`은 `kind: document` 전용이며 [1.5](#15-④-프로세서-설정에-등록합니다)처럼 프로세서 설정에 등록해야 합니다. 전체 예제는 `genon/preprocessor/examples/facade_hooks/custom_field_regex_demo.yaml`과 `custom_field_regex_demo.py`에 있습니다.
 
 사이트 전용 값 변환기는 **core를 고치지 말고** 액티비티 처리기 파일 최상위에서 등록합니다. core를 고치면
 릴리스 갱신에서 사라집니다.
 
 ```python
-tb.register_transform("won_to_int", lambda v: int(str(v).replace(",", "").replace("원", "")))
+tb.register_transform("won_to_int", lambda v: int(str(v).replace(",", "").replace("원", "")) if v not in (None, "") else v)
 ```
 
 ```yaml
@@ -911,7 +939,7 @@ fields:
 | 추가 대상 | 수정 위치 | 비고 |
 |---|---|---|
 | 그 **문서의 모든 청크**에 같은 값 | 파서의 `edit_output`에서 `tb.set_chunk_metadata(result, {...})` | `result["metadata"]`에 직접 쓰면 **파서 결과에만** 남고 청크에는 반영되지 않습니다 |
-| **청크마다 다른 값** | 청커의 `edit_chunk`에서 `info["fields"]["RISK"] = "high"` | 본문·통계·순번 필드는 넣을 수 없습니다 |
+| **청크마다 다른 값** | 청커의 `edit_chunk`에서 `info["fields"]["RISK"] = "high"` | 본문·통계·순번 필드를 넣으면 청킹 액티비티가 실패합니다 |
 | **적재 컬럼으로 선언** | `activities/chunk/processor.py`의 `GenOSVectorMeta` | 선언하면 타입까지 검사됩니다. 선언이 없어도 실립니다(`extra=allow`) |
 
 ```python
@@ -945,11 +973,14 @@ raise GenosServiceException(
     error_msg='읽을 수 없는 파일입니다.',   # 액티비티 오류 메시지에 실립니다
     stage='parse',               # 선택: 실패 단계
     error_type='permanent',      # 선택: transient / permanent / timeout — 재시도 여부를 정합니다
+    reason_code='PARSE_D001',    # 선택: 사유 코드
 )
 ```
 
 `error_type`이 액티비티 오류의 `type`과 재시도 여부를 정합니다([6.4](#64-액티비티-결과와-오류)).
 같은 입력이면 늘 실패하는 오류라면 `error_type='permanent'`를 지정해야 재시도하지 않습니다.
+`reason_code`는 액티비티 오류의 `details[0]`에 `error_category`와 함께 실립니다. 지정하지 않으면 사유 코드가 비어 나갑니다
+(워커는 HTTP 응답의 미분류 코드 `*_P999`를 만들지 않습니다).
 **부분 실패를 허용하려면** 예외를 발생시키지 않고 해당 항목만 제외한 뒤 결과에 기록하세요.
 
 #### 훅에서 발생한 예외가 가는 곳
@@ -1068,6 +1099,8 @@ Temporal 서버 없이 문서 한 건을 처리하며, 인자 해석·설정·�
 python -m genon.preprocessor.activities run --activity parse 계약서.pdf --doc-type contract -o parsed.json
 python -m genon.preprocessor.activities run --activity chunk parsed.json --doc-type contract -o chunks.json
 ```
+
+위 `계약서.pdf`와 `contract`는 자리표시입니다. 등록되지 않은 `doc_type`은 `PARSE_P002`로 실패하므로, 실제 입력 파일과 등록된 `doc_type`(예: `card`)으로 바꿔 실행합니다.
 
 위 명령은 **제공된 코드스페이스의 파이썬 환경을 전제로 합니다**([3.2](#32-사전-구성-항목)). 개인 PC처럼
 직접 구성한 환경에서는 `PYTHONPATH`와 의존성을 따로 맞춰야 하므로, 검증은 코드스페이스에서 수행하세요.
@@ -1203,9 +1236,12 @@ export GENOS_MODEL_PRESETS_FILE=<값이 채워진 model_presets.yaml 경로>
 | 용도 | 프리셋 이름 |
 |---|---|
 | 문서 레이아웃 분석 | `layout` (`endpoint`, `api_key`) |
-| 목차·메타데이터·표 설명 | `default` |
-| 이미지 설명 · PPT 페이지 설명 | `image` · `page` |
+| 목차·메타데이터·문서 요약·텍스트 표 설명 | `default` |
+| 이미지 설명·이미지 표 설명 | `image` |
+| PPT 페이지 설명 | `page` |
 | OCR | `ocr` (`ocr_endpoint`. 서빙 ID가 아니라 **주소**입니다) |
+| 음성 인식 | `whisper` (`url`) |
+| 민감정보 분류 | `guardrail` (`url`, `workflow_id`, `api_key`) |
 
 실값 파일의 미치환 플레이스홀더를 확인하는 명령입니다. 주석 줄은 제외합니다.
 
@@ -1216,8 +1252,10 @@ grep -n "<[A-Z0-9_]*>" "$GENOS_MODEL_PRESETS_FILE" | grep -vE '^[0-9]+: *#'
 
 세 층을 합친 뒤에도 자리표시 값이 남아 있으면 처리기를 준비할 때 `미치환 설정 플레이스홀더가 발견되었습니다`
 경고가 남습니다. 처리는 계속됩니다. 사용하지 않는 기능은 연결값을 설정하지 않고 **비활성화할 수 있습니다.**
-OCR을 사용하지 않으면 `ocr.ocr_mode: disable`, enrichment를 사용하지 않으면 각 항목의 `enable: false`를
-설정합니다. 없는 프리셋 이름을 부르면 처리기 준비가 실패합니다.
+OCR은 제공 설정의 기본이 `disable`이며, 필요한 문서만 요청 파라미터 `ocr_mode: "auto"` 또는 문서유형 설정으로 켭니다.
+enrichment를 사용하지 않으면 각 항목의 `enable: false`를, PPT 페이지 설명을 사용하지 않으면
+`formats.ppt.page_description.enable: false`를 설정합니다. 비활성화해도 해당 프리셋에 자리표시자가 남아 있으면 경고는
+계속 나오므로, 경고에 나열된 경로가 쓰지 않는 프리셋뿐인지 확인합니다. 없는 프리셋 이름을 부르면 처리기 준비가 실패합니다.
 
 > API 키는 **비밀번호처럼** 취급합니다. 문서·이슈·채팅·저장소에 실제 값을 넣지 마세요.
 
@@ -1429,7 +1467,7 @@ Bitbucket에서 작업 브랜치를 대상 브랜치로 PR을 만듭니다.
 | 새 `doc_type` | 최종 청크에서 목표필드·본문을 검증합니다. 파싱 결과 파일(`ARTIFACT_ROOT/<output_ref>.json`)을 볼 수 있으면 요소형은 `elements[].metadata`도 확인합니다 |
 | `chunk_size` · `chunk_mode` | 청킹 결과의 청크 개수(요약의 `count`)와 길이 |
 | enrichment `enable` | 결과의 해당 항목 유무, 처리 시간(`duration_ms`) 변화 |
-| 플레이스홀더 치환 | 로그에서 `미치환 설정 플레이스홀더` 경고가 사라졌는지 |
+| 플레이스홀더 치환 | 로그의 `미치환 설정 플레이스홀더` 경고에 사용 중인 프리셋이 나열되지 않는지 |
 | 새 사본 slug | 기동 로그의 액티비티 목록과 그 slug의 설정 경로 |
 
 ### 4.5 릴리스 갱신 시 사용자 수정 사항 유지
@@ -1525,15 +1563,23 @@ git diff
 
 | 섹션 · 키 | 적용 파일 | 기본값 | 가능한 값 | 변경 시점 |
 |---|---|---|---|---|
-| `output.format` | **parser 전용** | `docling` | `json` / `html` / `markdown` / `docling` | Docling 문서의 구조를 청커에 보존하려면 `docling`. 요소형 `elements`도 청커 입력으로 지원됩니다 |
+| `output.format` | **parser 전용** | `docling` | `json` / `html` / `markdown` / `docling` | Docling 문서의 구조를 청커에 보존하려면 `docling`. `json`의 요소형 `elements`도 청커 입력으로 지원됩니다. `html`·`markdown`은 본문을 `content` 문자열로 반환합니다(`elements`는 빈 목록). 문서 경로의 직렬화 형식이며, 행 매핑·JSON 레코드 매핑이 적용된 입력은 이 값과 무관하게 요소형 `elements`로 반환됩니다 |
 | `ocr.ocr_mode` | parser | `disable` | `disable` / `auto` / `force` | 기본은 OCR 안 함. 판정이 필요한 문서는 요청 파라미터·문서유형 설정으로 `auto`(판정 불가는 재OCR 안 함), 스캔 문서가 많으면 `force` |
-| `chunking.chunk_size` | chunking | `1000` | 정수 | 크기 기준. 문서형은 양수일 때 `min_chunk_size` 하한을 적용합니다. 요소형은 별도 분할 경로를 사용합니다 |
-| `chunking.min_chunk_size` | chunking | `1024` | 정수 | **문서형 경로 전용** 크기 하한. `0` 이하이면 하한 보정을 끕니다. 기본 설정의 문서형 실효 크기는 `1024`입니다 |
+| `chunking.chunk_size` | chunking | `1500` | 정수 | 크기 기준. 문서형은 양수일 때 `min_chunk_size` 하한을 적용합니다. 요소형은 별도 분할 경로를 사용합니다 |
+| `chunking.min_chunk_size` | chunking | `1024` | 정수 | **문서형 경로 전용** 크기 하한. `0` 이하이면 하한 보정을 끕니다. `chunk_size`가 이 값보다 작으면 이 값으로 올립니다. 현재 기본 설정(`1500`)에서는 보정이 일어나지 않습니다 |
 | `chunking.chunk_mode` | chunking | `split_only` | `split_only` / `resize_all` | `split_only`는 섹션 구조 유지(작은 청크 다수), `resize_all`은 크기 기준 재조립(균일) |
+| `chunking.short_chunk_size` | chunking | `0` | 0 이상 정수 | 문서형 청크 중 본문이 이 값보다 짧은 청크를 병합합니다. 문서유형별 값은 `body.merge_short`에 적습니다. 우선순위는 요청 값 > `body.merge_short` > 이 설정입니다. 바꾸면 재색인이 필요합니다 |
+| `chunking.table_as_chunk` | chunking | `false` (코드 기본 `true`) | `true` / `false` | `true`면 표를 본문과 섞지 않고 독자 청크로 만듭니다. 요청 파라미터로도 바꿀 수 있습니다 |
+| `chunking.validation` | chunking | `enable: true`, `action: drop` | `action`: `drop` / `report` | 이상 청크 검증. `drop`은 본문 품질 판정에 걸린 청크를 적재에서 빼고, `report`는 기록만 합니다. 메타 필드 누락·글자 수 상한 초과는 어느 쪽이든 기록만 합니다. 요청 파라미터로는 바꿀 수 없습니다 |
 | `chunking.tokenizer_type` | chunking | `char` | `char` / `huggingface` | `chunk_size`의 **단위가 바뀝니다** |
 | `chunking.include_chunk_header` | chunking | 켜짐 | `0` / `1` | 청크 선두의 `HEADER:` 줄이 필요 없을 때 `0` |
 | `chunking.text_cleanup` | chunking | 코드 기본 `off`; 현재 제공 YAML은 `mode: safe`와 규칙 지정 | `off` / `safe` 또는 `{mode, rules}` | 문자 정규화와 선택적 정규식 정제. 실제 설정 파일의 값을 확인합니다 |
-| `enrichment` 각 항목의 `enable` | parser | 항목별 상이 | `true` / `false` | LLM 호출 비용과 시간을 줄일 때 |
+| `enrichment` 각 항목의 `enable` | parser | 항목별 상이. 제공 설정은 `table_text_description`과 `custom_fields`만 켜져 있습니다 | `true` / `false` | LLM 호출 비용과 시간을 줄일 때 |
+| `enrichment`의 `table_text_description.rag` | parser | `retrieval_context_max_chars: 200`, `key_fact_limit: 2`, `search_terms: 0` | 정수 | 표당 LLM 산출량. 늘리면 배치가 작아져 호출 수가 늘어납니다 |
+| `enrichment`의 `table_text_description.skip` | parser | `single_value_table: true`, `nested_table: true`, `duplicate_table: false`, `self_describing_table: false`, `long_text_table: 0` | 각 키 `true` / `false`, `long_text_table`은 문자 수. `skip: false`는 다섯 개를 모두 끕니다 | LLM에 보내지 않을 표의 종류. 문서유형 YAML의 `table_text_description.skip`과 키 단위로 합쳐집니다 |
+| `defaults.unknown_doc_type` | parser | `fail` (코드 기본 `warn`) | `fail` / `warn` | 요청 `doc_type`에 맞는 custom_fields 등록이 없을 때 요청을 실패시킬지(`PARSE_P002`), 경고 후 기본 경로로 처리할지 |
+| `formats.extension_aliases` | parser | `.parsed` → `.md`, `.dtms` → `.json` | 확장자 매핑 | 내용은 지원 형식인데 확장자만 다른 입력을 처리할 때 |
+| `formats.html.flatten` | parser | `auto` | `auto` / `always` / `off` | HTML 전처리. `auto`는 구조적 결함이 감지될 때만 적용합니다 |
 | `formats.xlsx.processing_mode` | parser | `tabular` | `tabular` / `docling` | 엑셀을 표로 다룰지 문서로 다룰지 |
 | `defaults.log_level` | 전부 | `4` | `5`=DEBUG ~ `1`=CRITICAL, `0`=NOLOG | 디버깅할 때 `5` |
 
@@ -1564,17 +1610,21 @@ python -m genon.preprocessor.activities run --activity parse 계약서.pdf --doc
 
 | 액티비티 | 자주 쓰는 `params` 키 |
 |---|---|
-| parse | `doc_type`, `toc`, `img_desc`, `chart_desc`, `table_desc`, `table_refine`, `doc_summary`, `save_images`, `use_hwp_sdk` |
-| chunk | `doc_type`, `chunk_size`, `chunk_mode`, `include_chunk_header`, `chunk_overlap`, `table_as_chunk`, `export_to_html` |
-| 공통 | `llm_cache`, `error_policy`(`strict`/`lenient`), `request_deadline`(초) — 의미는 [부록 C.5](#c5-공통-요청-params) |
+| parse | `doc_type`, `toc`, `img_desc`, `chart_desc`, `table_desc`, `table_refine`, `table_text_desc`, `ocr_mode`, `doc_summary`, `save_images`, `use_hwp_sdk` |
+| chunk | `doc_type`, `chunk_size`, `chunk_mode`, `include_chunk_header`, `chunk_overlap`, `table_as_chunk`, `export_to_html`, `table_format`, `compact_tables`, `table_row_serialization`, `text_cleanup`, `short_chunk_size` |
+| 공통 | `llm_cache`, `workflow_id`(파이프라인이 싣습니다), `error_policy`(`strict`/`lenient`), `request_deadline`(초) — 의미는 [부록 C.5](#c5-공통-요청-params) |
 
 0/1 플래그 형태의 키는 `0`/`1` 또는 `true`/`false` 둘 다 받습니다.
 로그 수준은 설정의 `defaults.log_level`로만 정합니다. `params`의 `log_level`은 반영되지 않습니다.
 
+`table_desc`는 이미지 표 설명, `table_text_desc`는 텍스트 표 설명의 스위치입니다. 제공 설정에서 켜져 있는 것은 텍스트 표 설명이므로,
+표 설명 LLM 호출을 호출별로 끄려면 `table_text_desc: 0`을 사용합니다.
+
 **파싱과 청킹은 별도 액티비티 호출입니다.** 파서 결과에 기록된 `doc_type`이 청킹의 `params`로 자동 승격되지는 않습니다.
 청커의 `CONFIG_BY_DOC_TYPE`과 유형별 훅을 적용하려면 청킹 호출에도 같은 `params.doc_type`을 명시합니다
 (단건 실행에서는 chunk에도 `--doc-type`). 현재 청커의 설정표 조회는 전달받은 문자열 그대로 수행하므로 양쪽 모두
-공백 없는 소문자 표준값을 사용하세요.
+공백 없는 소문자 표준값을 사용하세요. 제공 설정(`defaults.unknown_doc_type: fail`)에서는 파싱 호출의 `doc_type`이
+오타로 등록과 일치하지 않으면 파싱이 실패합니다(`PARSE_P002`).
 
 청킹 액티비티는 파싱 결과를 `parsed_ref`가 가리키는 파일(`ARTIFACT_ROOT/<parsed_ref>.json`)에서 읽습니다.
 단건 실행에서는 입력 파일로 준 파싱 결과 JSON이 그 자리에 놓입니다.
@@ -1611,7 +1661,7 @@ enrichment:
 | JSON에 `records`·`sections` 매핑이 적용됨 | 요소형 `{elements: [...]}` |
 | 매핑 없는 엑셀·CSV, `processing_mode: tabular` | 요소형 `{elements: [...]}` |
 | 매핑 없는 엑셀·CSV, `processing_mode: docling` | Docling 문서로 파싱한 뒤 출력 형식에 따라 직렬화 |
-| PDF·HWP·DOCX·HTML·Markdown 등 문서 경로 | `output.format: docling`이면 문서형 `{document: {...}}`, 다른 출력 형식이면 요소형 |
+| PDF·HWP·DOCX·HTML·Markdown 등 문서 경로 | `output.format: docling`이면 문서형 `{document: {...}}`, `json`이면 요소형, `html`·`markdown`이면 `content` 문자열(`elements`는 빈 목록) |
 | JSON의 본문 추출 설정이 적용되거나, 매핑 없는 JSON·TXT 등이 텍스트로 판정됨 | Docling 문서 경로. 확장자만으로 요소형이라고 판단하지 않음 |
 | PPT·PPTX | PDF 변환에 성공하면 문서 경로, 변환 실패 시 요소형 대체 경로 |
 | 이미지·기타 입력 | 해당 핸들러의 결과를 사용하므로 실제 응답 구조 확인 필요 |
@@ -1728,6 +1778,7 @@ element의 공통 키는 `{category, content, coordinates, id, page}`이며, 행
 | 파싱 결과가 Docling 문서가 아니라 `elements`임 | 정상 요소형 경로일 수 있음 | 먼저 `elements`와 적용 매핑을 확인합니다. 문서형을 기대했다면 `output.format`과 6.1의 분기 조건을 확인합니다 |
 | 청크가 1개만 나오거나 합쳐지지 않음 | `chunk_size: 0`은 병합·분할을 끄는 값 | `0` 대신 충분히 큰 양수, 필요하면 `chunk_mode: resize_all` |
 | 연결 오류로 실패 | 모델 서빙 주소나 키가 실행 환경과 일치하지 않음 | [3.5](#35-모델-서빙-연결-설정) |
+| 청크 수가 예상보다 적음 | 이상 청크 검증(제공 설정 `action: drop`)에서 제외됨 | 청킹 결과 요약의 `chunk_validation`과 로그의 `[chunk_validation]` |
 
 ---
 
@@ -1833,6 +1884,7 @@ element의 공통 키는 `{category, content, coordinates, id, page}`이며, 행
 | 모든 청크에 반복 접두 | `body.repeat` (`chunk_prefix_fields`) | ✔ split 시만 | ✔ split 시만 | ✗ 주의³ | ✔ | ✔ |
 | 첫 청크에만 1회 | `body.once` (`first_chunk_fields`) | ✗ | ✗ | ✔ | ✔ | ✔ |
 | 본문을 메타 필드에 복사 | `body.mirror_to` (`body_fields`) | ✗ | ✗ | ✗ | ✔ | ✔ |
+| 짧은 청크 병합 | `body.merge_short` (`short_chunk_size`) | ✗ | ✗ | ✗ | ✔ | ✔ |
 
 ¹ sections의 `body.fields`는 본문 구성이 아니라 **공통 필드를 청크 접두에 실을지 정하는
 스위치**입니다. 본문은 트리 순회가 만듭니다.
@@ -1856,9 +1908,15 @@ rows·records의 `body.fields`·`body.repeat` 값이 JSON·HTML이면 본문에�
 | 섹션 표시 이름 | `source.sections` | ✗ | ✗ | ✔ | ✗ | ✗ |
 | 서브트리 제외 | `source.ignore_keys` | ✗ | ✗ | ✔ | ✗ | ✗ |
 | 포맷 전처리 | `source.pre.markdown` / `.html` | ⚠ **무시** | ⚠ **무시** | ⚠ **무시** | ✔ | ⚠ `.html` 적용, `.markdown` 무시 |
+| 도형 마커 줄의 제목 승격 | `source.pre.marker_headings` | ⚠ **무시** | ⚠ **무시** | ⚠ **무시** | ✔ | ✔ |
+| JSON 안의 본문 꺼내기 | `source.pre.json` | ⚠ **무시** | ⚠ **무시** | ⚠ **무시** | ✔ | ✔ |
+| 구분자 텍스트 원천 | `source.pre.delimited` | ⚠ **무시** | ✔ | ⚠ **무시** | ⚠ **무시** | ⚠ **무시** |
 | 필수값(빈 값 제외) | `require.fields` (`required`) | ✔ 건별 | ✔ 건별 | ✔ 문서 전체 | ✗ | ✗ |
 | 값 기반 제외 | `filter` | ✔ | ✔ | ✗ | ✗ | ✗ |
 | 필드별 LLM 생성 | `llm:` (`llm_fields`) | ✔ 행별 | ✔ 레코드별 | ✔ 문서 1회 | (본체가 LLM) | ✗ (선택자 추출) |
+| 문서유형별 표 설명 덮어쓰기 | `table_text_description`(최상위) | ✔ | ✔ | ✔ | ✔ | ✔ |
+
+`table_text_description` 블록의 오기입은 예외적으로 기동 실패가 아니라 경고만 남깁니다.
 
 
 ² `transform` 자체는 지원됩니다. 일부 문자열 변환은 표 구조나 줄바꿈을 바꿀 수 있으므로 변환 후 본문을 확인하세요.
@@ -1898,7 +1956,7 @@ HTML 원문이 입력으로 전달되어야 하며, JSON 안에 HTML이 들어 �
 | `to_text` (옛 이름 `text`·`html_text`) | — | JSON/HTML/평문 **자동 판별** 후 평문화 |
 | `to_json` | `on_scalar`, `key` | 값을 **유효한 JSON 문자열**로 맞춤(적재 DB의 JSON 컬럼용) |
 
-`regex_extract`의 기본 `group: 1`은 첫 번째 캡처 그룹을 뜻합니다. 패턴에 그룹이 없으면 매칭되어도 `None`이
+`regex_extract`의 기본 `group: 1`은 첫 번째 캡처 그룹을 뜻합니다. 패턴에 그룹이 없으면 매칭되어도 `on_error` 값(기본 `null`)이
 나오므로 전체 매칭값을 원하면 `group: 0`을 지정합니다. `to_int("1.5")`와 `to_int("3~5개")`는
 `on_error` 값이 되므로 소수 금액·비율이나 범위 표기의 변환에는 사용하지 마세요. `truncate`는 `suffix`가
 `length`보다 길면 길이 상한을 넘을 수 있으므로 접미사는 제한 길이 이하로 설정합니다.
@@ -1944,10 +2002,13 @@ source:
 |---|---|
 | `records_at` | 레코드 배열의 key 이름. 생략하면 payload가 배열이면 원소마다 1건이고, object면 그 안(배열 안은 제외)에서 dict 배열을 찾습니다. 하나면 그 배열, 여럿이면 `fields` alias가 더 많이 맞는 배열을 쓰고 구별되지 않으면 요청이 실패합니다. dict 배열이 없으면 object 자체가 1건 |
 | `on_missing` | `records`는 지정 배열을 못 찾았을 때, `sections`는 문서 공통 필수값이 없을 때의 정책. 두 경로 모두 `error`가 기본이며 `skip`은 경고 후 0건 처리 |
-| `merge_rows` | `group_by`가 같은 **연속** 건만 한 묶음으로 접습니다. 병합은 값 변환·파생보다 **먼저** 실행됩니다 |
+| `merge_rows` | `group_by` 값이 같은 건은 떨어져 있어도 한 묶음으로 접고, 묶음이 처음 나온 자리에 둡니다. `part_by`(선택)는 묶음 안의 문서 경계이며, 문서가 둘 이상이면 모두 JSON일 때 배열로, 아니면 개행으로 합칩니다. 병합은 값 변환·파생보다 **먼저** 실행됩니다 |
 | `sections` | `kind: sections`의 섹션 표시 이름 |
 | `ignore_keys` | `kind: sections`에서 제외할 **key 이름 glob**(경로가 아닙니다). 매칭되면 서브트리 통째 제외 |
 | `pre.markdown` / `pre.html` | 문서 경로의 포맷 전처리. `html` 유형도 HTML 전처리를 사용할 수 있으며, 행·레코드·섹션 매핑 경로에서는 적용되지 않습니다 |
+| `pre.marker_headings` | `◈ 기본내용`처럼 도형 마커로만 계층을 표현한 줄을 제목으로 승격합니다. `pre.markdown`·`pre.html` 양쪽에 적용되며, 블록 안에 다시 적으면 그쪽이 우선합니다 |
+| `pre.json` | `document`·`html` 전용. JSON 입력에서 본문을 꺼낼 key 이름(`body_from`)과 형식(`format`)을 지정합니다([C.6](#c6-유형별-최소-설정-예제)) |
+| `pre.delimited` | `records` 전용. 구분자 텍스트를 레코드로 읽습니다(`separator`·`columns` 필수). 입력이 텍스트 파일이면 확장자와 무관하게 `ROUTES`보다 먼저 처리합니다 |
 
 값으로 거르는 `filter`는 별도 블록입니다. 연산자는 `in`과 `not_in` 두 가지입니다.
 
@@ -2006,7 +2067,7 @@ fields:
 | 키 | 값 | 하는 일 |
 |---|---|---|
 | `llm_cache` | `0` / `1` | 파싱 단계의 LLM 응답 캐시 사용 여부. 같은 입력·모델·프롬프트 등 캐시 조건이 일치할 때 재사용합니다. 청커 자체가 LLM을 호출하도록 만드는 옵션은 아닙니다. `workflow_id` 조건은 아래 참조 |
-| `error_policy` | `strict` / `lenient` | **기본 `lenient`.** 보강 단계(`custom_fields` · `doc_summary` · `image_description` · `metadata` · `doc_type_stamp`)에서 상위 오류 처리로 전달된 예외를 `strict`는 액티비티 실패로 올리고, `lenient`는 경고 후 계속합니다. 추출기 내부에서 처리된 예외·빈 결과까지 검출하지는 않으므로 필수 결과값을 별도로 검사합니다. 훅이 던진 예외와 파싱 실패에는 적용되지 않습니다. `workflow_id` 없이도 항상 적용됩니다 |
+| `error_policy` | `strict` / `lenient` | **기본 `lenient`.** 보강 단계(`custom_fields` · `doc_summary` · `image_description` · `metadata` · `doc_type_stamp`)에서 상위 오류 처리로 전달된 예외를 `strict`는 액티비티 실패로 올리고, `lenient`는 경고 후 계속합니다. 추출기 내부에서 처리된 예외·빈 결과까지 검출하지는 않으므로 필수 결과값을 별도로 검사합니다. 훅이 던진 예외와 파싱 실패에는 적용되지 않습니다. `workflow_id` 없이도 항상 적용됩니다. 표 설명은 예외입니다. 런타임 실패는 `strict`에서도 액티비티를 막지 않고 건너뛰며, 설정 충돌만 이 정책을 따릅니다 |
 | `request_deadline` | 양수 초 | 워커와 단건 실행이 액티비티 처리 시간 제한으로 적용합니다. 넘기면 `type: timeout`으로 실패하고(재시도 대상), 멈출 수 없는 처리를 남긴 그 워커 프로세스는 다시 띄웁니다. 생략·0 이하·숫자 변환 불가는 제한을 두지 않습니다. 처리기 파일 단독 실행에는 이 제한 장치가 없습니다 |
 
 > `llm_cache`는 **환경 변수 `LLM_CACHE_ROOT`가 있고 `params.workflow_id`가 함께 전달될 때만** 동작합니다.
@@ -2049,7 +2110,8 @@ body:
   split: false
 ```
 
-이 입력은 요소 1건을 만들며 최종 청크에 `TITLE: 알림 설정`과 `DETAIL` 값이 실려야 합니다.
+이 입력은 요소 1건을 만듭니다. 최종 청크의 메타데이터에는 `TITLE`(`알림 설정`)과 `DETAIL` 값이 실리고,
+본문에는 라벨을 적용한 `제목: 알림 설정`과 `내용: 앱 설정에서 변경합니다.`가 포함되어야 합니다.
 `split: true`로 바꾸면 긴 본문을 여러 청크로 나눌 수 있습니다.
 
 #### sections — 중첩 JSON을 섹션별로 처리
