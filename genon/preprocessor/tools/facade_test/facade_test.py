@@ -136,8 +136,11 @@ def parse_args():
 
 def main():
     args = parse_args()
-    # 로컬 실행은 로컬(VPN) 모델로 돈다. 이미 설정된 값은 존중한다.
-    os.environ.setdefault("GENOS_MODEL_PRESETS_FILE", str(PROJECT_ROOT / "genon" / "sites" / "dev" / "model_presets.yaml"))
+    # 로컬 실행은 로컬(VPN) 모델로 돈다. 이미 설정된 값은 존중한다. genon/sites 가 없는 배포본에는 이 파일이
+    # 없고, 없는 파일을 가리키면 기동이 실패하므로 있을 때만 넣는다.
+    dev_presets = PROJECT_ROOT / "genon" / "sites" / "dev" / "model_presets.yaml"
+    if dev_presets.exists():
+        os.environ.setdefault("GENOS_MODEL_PRESETS_FILE", str(dev_presets))
 
     input_path = Path(args.input_path).expanduser().resolve()
     output_dir = Path(args.output_dir).expanduser().resolve()

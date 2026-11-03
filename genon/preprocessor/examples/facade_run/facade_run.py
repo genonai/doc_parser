@@ -13,11 +13,11 @@ PREPROCESSOR_DIR = os.path.normpath(os.path.join(HERE, "../.."))
 sys.path.insert(0, os.path.normpath(os.path.join(PREPROCESSOR_DIR, "../..")))  # 저장소 루트(genon.*, docling)
 sys.path.insert(0, os.path.join(PREPROCESSOR_DIR, "facade"))  # 아래 from <processor>_processor import
 
-# 로컬(사내망 VPN) 모델 접속값을 표준 resource/model_presets.yaml 위에 얹는다. 밖에서 지정한 값이 있으면 그 값을 쓴다
-os.environ.setdefault(
-    "GENOS_MODEL_PRESETS_FILE",
-    os.path.join(PREPROCESSOR_DIR, "../sites/dev/model_presets.yaml"),
-)
+# 로컬(사내망 VPN) 모델 접속값을 표준 resource/model_presets.yaml 위에 얹는다. 밖에서 지정한 값이 있으면 그 값을 쓴다.
+# genon/sites 가 없는 배포본에는 이 파일이 없고, 없는 파일을 가리키면 기동이 실패하므로 있을 때만 넣는다
+_DEV_PRESETS = os.path.normpath(os.path.join(PREPROCESSOR_DIR, "../sites/dev/model_presets.yaml"))
+if os.path.isfile(_DEV_PRESETS):
+    os.environ.setdefault("GENOS_MODEL_PRESETS_FILE", _DEV_PRESETS)
 
 # 테스트할 전처리기 임포트
 # from attachment_processor import DocumentProcessor # 첨부용
