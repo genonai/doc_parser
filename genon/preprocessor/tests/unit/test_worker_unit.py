@@ -343,10 +343,25 @@ def test_first_processor_is_created_once_under_concurrent_calls(monkeypatch):
                         lambda name, *a: types.SimpleNamespace(DocumentProcessor=_Slow)
                         if name.endswith(".parse_t.processor") else real(name, *a))
     monkeypatch.setattr(registry, "_PROCESSORS", {})
+    monkeypatch.setattr(registry, "_assert_model_values_filled", lambda entry: None)   # 설정 파일 없는 가짜 처리기
     entry = registry.Entry("parse_t", "parse", None)
     with concurrent.futures.ThreadPoolExecutor(4) as pool:
         procs = list(pool.map(lambda _: registry.processor(entry), range(4)))
     assert len(made) == 1 and all(p is made[0] for p in procs)
+
+
+def test_processor_refuses_config_with_unresolved_model_placeholders(tmp_path, monkeypatch):
+    """실값이 어느 층에도 없으면 처리기를 만들기 전에 설정 경로를 짚어 거부한다(#628). 안 그러면 자리표시
+    주소로 모델을 부르다 접속 오류로만 드러난다. `model_presets` 정의 블록의 쓰이지 않는 자리표시는 보지 않는다."""
+    monkeypatch.delenv("GENOS_MODEL_PRESETS_FILE", raising=False)
+    monkeypatch.setattr(registry, "_PROCESSORS", {})
+    cfg = tmp_path / "parse.yaml"
+    cfg.write_text("model_presets:\n  default:\n    url: http://gw/<ENRICHMENT_SERVING_ID>/v1\n"
+                   "  unused:\n    url: <WHISPER_ENDPOINT>\n"
+                   "enrichment:\n  - toc:\n      model_preset: default\n", encoding="utf-8")
+    with pytest.raises(ValueError, match=r"enrichment\[0\]\.toc\.url \(<ENRICHMENT_SERVING_ID>\)") as info:
+        registry.processor(registry.Entry("parse", "parse", str(cfg)))
+    assert "WHISPER_ENDPOINT" not in str(info.value)
 
 
 def test_processor_setup_error_is_classified(monkeypatch):

@@ -105,14 +105,12 @@ def as_int_flag(value: Any, default: int = 0) -> int:
     return default
 
 
-def warn_unresolved_placeholders(cfg: dict, config_path: str) -> None:
-    """config 에 남아있는 미치환 플레이스홀더(<UPPER_SNAKE>)를 탐지해 경고한다.
+_PLACEHOLDER = re.compile(r"<[A-Z0-9_]+>")
 
-    Site 배포 시 OCR/Layout/Enrichment endpoint·serving ID 등의 치환 누락을 조기에
-    드러내기 위함. fail-fast 하지 않고(기동 보존) WARNING 로그만 남긴다.
-    """
-    pattern = re.compile(r"<[A-Z0-9_]+>")
-    found = []
+
+def find_unresolved_placeholders(cfg) -> list[tuple[str, str]]:
+    """config 에 남아 있는 미치환 플레이스홀더(<UPPER_SNAKE>)를 (경로, 플레이스홀더) 목록으로 돌려준다."""
+    found: list[tuple[str, str]] = []
 
     def _scan(node, path):
         if isinstance(node, dict):
@@ -122,10 +120,21 @@ def warn_unresolved_placeholders(cfg: dict, config_path: str) -> None:
             for i, v in enumerate(node):
                 _scan(v, f"{path}[{i}]")
         elif isinstance(node, str):
-            for ph in pattern.findall(node):
+            for ph in _PLACEHOLDER.findall(node):
                 found.append((path, ph))
 
     _scan(cfg, "")
+    return found
+
+
+def warn_unresolved_placeholders(cfg: dict, config_path: str) -> None:
+    """config 에 남아있는 미치환 플레이스홀더(<UPPER_SNAKE>)를 탐지해 경고한다.
+
+    Site 배포 시 OCR/Layout/Enrichment endpoint·serving ID 등의 치환 누락을 조기에
+    드러내기 위함. fail-fast 하지 않고(기동 보존) WARNING 로그만 남긴다. 워커는 이것과 별도로
+    처리기를 만들기 전에 거부한다(worker/registry.processor, #628).
+    """
+    found = find_unresolved_placeholders(cfg)
     if found:
         lines = "\n".join(f"  - {path}: {ph}" for path, ph in found)
         _log.warning(
