@@ -477,16 +477,63 @@ class GenosHwpDocumentBackend(DeclarativeDocumentBackend):
 
     def _walk_hwp_data(self, data: List[List[Dict]], doc: DoclingDocument):
         """페이지 그룹화를 제거하고 모든 아이템을 body에 직접 나열하여 DOCX 스타일로 구성합니다."""
-        self._processed_hashes = set()
         # 본문 baseline 폰트 사전 패스 (헤더 상대 판정용)
         self.body_font_size = self._compute_body_font_size(data)
+        # 강등 예외 사전 패스: 같은 번호 목록의 형제가 대부분 제목이면 강등된 항목도 제목으로 둔다.
+        self._demotion_exempt = self._collect_demotion_exempt(data)
+        self._walk_items(data, doc)
+
+    def _reset_walk_state(self, doc: DoclingDocument):
+        self._processed_hashes = set()
         # 제목 레벨 판정 상태: 열려 있는 제목 [(종류, 레벨)] 과 종류별 마지막 레벨
         self._heading_stack: List[tuple] = []
         self._heading_last_level: Dict[str, int] = {}
         # 단위(편·장·절·관·조)별 직전 조항 번호
         self._article_last_number: Dict[str, int] = {}
-        root_parent = doc.body
-        self.active_main_parent = root_parent
+        self.parents = {i: None for i in range(-1, self.max_levels)}
+        self.active_main_parent = doc.body
+
+    def _collect_demotion_exempt(self, data: List[List[Dict]]) -> set:
+        """문서를 한 번 미리 처리해 강등을 풀어 줄 단락 텍스트를 모은다.
+
+        번호 마커(1. 가. ① (1) Ⅰ.)가 같은 목록 안에서 제목이 강등보다 많으면, 그 목록에서 길거나
+        서술형이라 강등된 항목도 제목으로 본다(예: "2.~6." 은 제목인데 "1. 지정목적 : …" 만 긴 경우).
+        목록 전체가 서술 단락이면(보고서 본문 번호 단락, 정의 조항 등) 그대로 본문이다.
+        표 안에서 풀려 나온 단락도 같은 경로로 판정해야 하므로 실제 처리와 같은 순회를 그대로 쓴다.
+        """
+        self._demotion_exempt = set()
+        self._demotion_log: Optional[List[tuple]] = []
+        save_images = self.save_images
+        self.save_images = False
+        try:
+            self._walk_items(data, DoclingDocument(name="demotion_prepass"))
+            log = self._demotion_log
+        finally:
+            self.save_images = save_images
+            self._demotion_log = None
+
+        lists: Dict[tuple, List[tuple]] = {}
+        current: Dict[str, tuple] = {}  # 종류 → (목록 번호, 직전 번호)
+        for text, demoted in log:
+            kind = self._heading_kind(text)
+            ordinal = self._heading_ordinal(kind, text) if kind else None
+            if ordinal is None:
+                continue
+            list_id, previous = current.get(kind, (0, 0))
+            if ordinal == 1 or ordinal <= previous:
+                list_id += 1
+            current[kind] = (list_id, ordinal)
+            lists.setdefault((kind, list_id), []).append((text, demoted))
+
+        exempt = set()
+        for items in lists.values():
+            kept = sum(1 for _, demoted in items if not demoted)
+            if kept > len(items) - kept:
+                exempt.update(text for text, demoted in items if demoted)
+        return exempt
+
+    def _walk_items(self, data: List[List[Dict]], doc: DoclingDocument):
+        self._reset_walk_state(doc)
 
         for paragraph_items in data:
             if not paragraph_items:
@@ -857,8 +904,13 @@ class GenosHwpDocumentBackend(DeclarativeDocumentBackend):
         # 4. 강등 로직: heading으로 잡혔지만 실제로는 서술형 본문 문장/리스트 항목인 경우 강등.
         #    divider 마커(장/조/붙임/별표)는 SDK가 본문과 한 단락으로 합쳐도 heading 유지 → 면제.
         #    그 외(number/weak heading)는 종결형 문장으로 끝나거나 지나치게 길면 본문으로 강등.
+        #    단, 같은 번호 목록의 형제가 대부분 제목이면(사전 패스 결과) 강등하지 않는다.
         if p_style_id == "Heading" and marker[1] != "divider":
-            if len(full_text) > _HEADING_MAX_LEN or _SENTENCE_FINAL.search(full_text):
+            demoted = len(full_text) > _HEADING_MAX_LEN or bool(_SENTENCE_FINAL.search(full_text))
+            log = getattr(self, "_demotion_log", None)
+            if log is not None and not is_toc:
+                log.append((full_text, demoted))
+            if demoted and full_text not in getattr(self, "_demotion_exempt", ()):
                 p_style_id = "Normal"
                 p_level = 0
 
