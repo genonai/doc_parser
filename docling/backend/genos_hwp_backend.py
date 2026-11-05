@@ -18,15 +18,25 @@ from io import BytesIO
 try:
     from wand.image import Image as WandImage
     from wand.exceptions import WandException
+
     WAND_AVAILABLE = True
 except ImportError:
     WAND_AVAILABLE = False
 
 from bs4 import BeautifulSoup, NavigableString
 from docling_core.types.doc import (
-    DocItemLabel, DoclingDocument, DocumentOrigin, GroupLabel,
-    ImageRef, NodeItem, ProvenanceItem, TableCell, TableData,
-    BoundingBox, CoordOrigin, Size
+    DocItemLabel,
+    DoclingDocument,
+    DocumentOrigin,
+    GroupLabel,
+    ImageRef,
+    NodeItem,
+    ProvenanceItem,
+    TableCell,
+    TableData,
+    BoundingBox,
+    CoordOrigin,
+    Size,
 )
 from docling.backend.abstract_backend import DeclarativeDocumentBackend
 from docling.datamodel.base_models import InputFormat
@@ -61,7 +71,7 @@ if SDK_DIR.exists():
     # PATH 등록
     if SDK_PATH_STR not in os.environ.get("PATH", ""):
         os.environ["PATH"] = f"{SDK_PATH_STR}:{os.environ.get('PATH', '')}"
-    
+
     # LD_LIBRARY_PATH 등록
     if SDK_PATH_STR not in os.environ.get("LD_LIBRARY_PATH", ""):
         os.environ["LD_LIBRARY_PATH"] = f"{SDK_PATH_STR}:{os.environ.get('LD_LIBRARY_PATH', '')}"
@@ -82,17 +92,17 @@ _SDK_DEBUG_OUTPUT_DIR = Path("/tmp/docparser_debug")
 
 # divider: 폰트·길이·문장 무관하게 heading (강등 면제)
 _HEADING_DIVIDER_MARKERS = [
-    (re.compile(r'^제\s*\d+\s*[편장]\b'), 1),                 # 제1편 / 제 2 장
-    (re.compile(r'^제\s*\d+\s*[절관조]\b'), 2),               # 제1절 / 제2조
+    (re.compile(r"^제\s*\d+\s*[편장]\b"), 1),  # 제1편 / 제 2 장
+    (re.compile(r"^제\s*\d+\s*[절관조]\b"), 2),  # 제1절 / 제2조
     # 붙임/별첨/별표/별지/참고/첨부/서식/양식/부록 — 괄호([<〈【) 안에 있어도 인식
-    (re.compile(r'^[\[<〈【(]?\s*(?:붙임|별첨|별표|별지|참고|첨부물|첨부|서식|양식|부록)\b'), 1),
+    (re.compile(r"^[\[<〈【(]?\s*(?:붙임|별첨|별표|별지|참고|첨부물|첨부|서식|양식|부록)\b"), 1),
 ]
 
 # number: 로마자./번호 — heading이되 긴 서술형이면 강등 대상
 _HEADING_NUMBER_MARKERS = [
-    (re.compile(r'^[ⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩ]+\.\s'), 1),               # Ⅰ. Ⅱ.
-    (re.compile(r'^\d{1,2}\.\s'), 2),                        # 1.  (연도 등 3자리+ 숫자 제외)
-    (re.compile(r'^\d{1,2}\.\d+(?:\.\d+)*\s'), 2),           # 1.1, 1.2.3
+    (re.compile(r"^[ⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩ]+\.\s"), 1),  # Ⅰ. Ⅱ.
+    (re.compile(r"^\d{1,2}\.\s"), 2),  # 1.  (연도 등 3자리+ 숫자 제외)
+    (re.compile(r"^\d{1,2}\.\d+(?:\.\d+)*\s"), 2),  # 1.1, 1.2.3
 ]
 
 # 약한 마커(공문서 글머리 기호 + 불릿 + ①②·(1)·가.): 본문 글머리로도 흔히 쓰여
@@ -103,13 +113,13 @@ _HEADING_NUMBER_MARKERS = [
 #   '법.', '표.' 등 일반 단락 시작어의 오탐을 막는다.
 _KOR_ORDER = "가나다라마바사아자차카타파하"
 _HEADING_WEAK_MARKER = re.compile(
-    r'^(?:[❏□■◆◇○●▶▷▪▫※◦◈∙·•*\-①-⑳]\s|[' + _KOR_ORDER + r']\.\s|\((?:[' + _KOR_ORDER + r']|\d+)\)\s)'
+    r"^(?:[❏□■◆◇○●▶▷▪▫※◦◈∙·•*\-①-⑳]\s|[" + _KOR_ORDER + r"]\.\s|\((?:[" + _KOR_ORDER + r"]|\d+)\)\s)"
 )
 
 # heading 후보가 "제목"이 아니라 서술형 본문 문장이면 강등한다 (divider 제외).
 #   한국 공문서 본문은 종결형 '다./함/음/됨/임' 또는 의문형 '까?'로 끝나는 경우가 많다.
 #   '요'는 명사(개요/요약 등) 오인이 많아 제외. 제목은 보통 명사로 끝난다.
-_SENTENCE_FINAL = re.compile(r'(?:다|함|음|됨|임)[.)\]」』】〉]?\s*$|까[?]\s*$')
+_SENTENCE_FINAL = re.compile(r"(?:다|함|음|됨|임)[.)\]」』】〉]?\s*$|까[?]\s*$")
 # 마커가 있어도 이 길이를 넘으면 제목이 아니라 본문으로 본다 (divider 제외).
 _HEADING_MAX_LEN = 80
 
@@ -120,6 +130,7 @@ _LARGE_FONT_FACTOR = 1.15
 # heading run이 baseline 대비 얼마나 큰지로 L1/L2/L3 세분화.
 _LEVEL1_FONT_FACTOR = 1.5
 _LEVEL2_FONT_FACTOR = 1.25
+
 
 class GenosHwpDocumentBackend(DeclarativeDocumentBackend):
     def __init__(self, in_doc: InputDocument, path_or_stream: Union[Path, BytesIO], **kwargs) -> None:
@@ -140,14 +151,12 @@ class GenosHwpDocumentBackend(DeclarativeDocumentBackend):
 
         # 1. 환경 설정
         self.valid = False
-        
+
         # 2. 계층 및 상태 관리 (GenosMsWord 방식 이식)
         self.max_levels = 10
         self.parents: Dict[int, Optional[NodeItem]] = {i: None for i in range(-1, self.max_levels)}
-        self.history: Dict[str, List[Any]] = {
-            "names": [None], "levels": [None], "page_nos": [1]
-        }
-        
+        self.history: Dict[str, List[Any]] = {"names": [None], "levels": [None], "page_nos": [1]}
+
         # 3. 소스 파일 준비
         self.original_path = Path(in_doc.file) if in_doc.file else None
         self.temp_input_path = None
@@ -174,10 +183,10 @@ class GenosHwpDocumentBackend(DeclarativeDocumentBackend):
         # 2순위: 스트림 매직 바이트로 판별
         header = stream.read(256)
         stream.seek(0)  # 반드시 되감기
-        if header[:3] == b"\xef\xbb\xbf":     # UTF-8 BOM은 매직 판별 전에 제거
+        if header[:3] == b"\xef\xbb\xbf":  # UTF-8 BOM은 매직 판별 전에 제거
             header = header[3:]
 
-        if header[:2] == b"PK":               # ZIP 시그니처 → HWPX
+        if header[:2] == b"PK":  # ZIP 시그니처 → HWPX
             return ".hwpx"
         if header[:4] == b"\xd0\xcf\x11\xe0":  # OLE 시그니처 → HWP
             return ".hwp"
@@ -206,7 +215,7 @@ class GenosHwpDocumentBackend(DeclarativeDocumentBackend):
     def supports_pagination(cls) -> bool:
         """추상 메서드 구현: 페이지 단위 처리를 지원하는지 여부 (HWP는 대개 False이나, hwp_sdk는 true)"""
         return True
-    
+
     @staticmethod
     def _match_structural_marker(text: str):
         """강한 마커(divider/number)에 매칭되면 (level, kind)를 반환, 아니면 (None, None).
@@ -253,10 +262,7 @@ class GenosHwpDocumentBackend(DeclarativeDocumentBackend):
         marker_level, _marker_kind = marker
 
         # 강조 단락 여부: 단락의 70% 이상이 bold이거나 큰 폰트일 때만.
-        is_emphasized = (
-            bold_ratio >= _EMPHASIS_RATIO_THRESHOLD
-            or large_ratio >= _EMPHASIS_RATIO_THRESHOLD
-        )
+        is_emphasized = bold_ratio >= _EMPHASIS_RATIO_THRESHOLD or large_ratio >= _EMPHASIS_RATIO_THRESHOLD
 
         # (A) 강한 마커(divider/number) → 단독으로 heading
         if marker_level is not None:
@@ -284,9 +290,9 @@ class GenosHwpDocumentBackend(DeclarativeDocumentBackend):
         elif file_ext == ".hml":
             mimetype = "application/vnd.hancom.hwpml"
         else:
-            mimetype = "application/octet-stream" # 알 수 없는 경우 기본값
-        
-        # b) binary_hash는 보통 정수형(int)을 기대하므로, 
+            mimetype = "application/octet-stream"  # 알 수 없는 경우 기본값
+
+        # b) binary_hash는 보통 정수형(int)을 기대하므로,
         # 만약 문자열 해시라면 정수로 변환하거나 적절히 처리해야.
         try:
             bin_hash = int(self.document_hash, 16) & ((1 << 64) - 1) if hasattr(self, "document_hash") else 0
@@ -334,13 +340,13 @@ class GenosHwpDocumentBackend(DeclarativeDocumentBackend):
 
             # 4-a) SDK 실행 명령어 구성
             cmd = [
-                "convtext", 
-                str(self.source_path.resolve()), 
-                str(json_out.resolve()), 
-                str(info_out.resolve()), 
-                img_path_str
+                "convtext",
+                str(self.source_path.resolve()),
+                str(json_out.resolve()),
+                str(info_out.resolve()),
+                img_path_str,
             ]
-            
+
             # 4-b) 실제 SDK 실행
             try:
                 subprocess.run(
@@ -352,22 +358,17 @@ class GenosHwpDocumentBackend(DeclarativeDocumentBackend):
                     timeout=600,
                 )
             except subprocess.TimeoutExpired as e:
-                raise HwpConversionError(
-                    f"SDK 실행 타임아웃 (600초 초과): {self.source_path.name}"
-                ) from e
+                raise HwpConversionError(f"SDK 실행 타임아웃 (600초 초과): {self.source_path.name}") from e
             except subprocess.CalledProcessError as e:
                 raise HwpConversionError(
-                    f"SDK 실행 실패 (exit code={e.returncode}): {self.source_path.name}\n"
-                    f"stderr: {e.stderr}"
+                    f"SDK 실행 실패 (exit code={e.returncode}): {self.source_path.name}\n" f"stderr: {e.stderr}"
                 ) from e
 
             # 5. '.info' 활용 설정
             try:
                 self._setup_pages(doc, info_out)
             except Exception as e:
-                raise HwpConversionError(
-                    f"페이지 정보 로드 실패: {self.source_path.name}"
-                ) from e
+                raise HwpConversionError(f"페이지 정보 로드 실패: {self.source_path.name}") from e
 
             # 6. SDK 결과를 hwp_data에 저장
             # SDK 출력은 두 가지 비정상 케이스가 있어 일반 line-by-line json.loads로는 깨진다:
@@ -400,9 +401,7 @@ class GenosHwpDocumentBackend(DeclarativeDocumentBackend):
                     hwp_data.append(batch)
                     pos = end
             except OSError as e:
-                raise HwpConversionError(
-                    f"SDK 결과 파일 읽기 실패: {json_out}"
-                ) from e
+                raise HwpConversionError(f"SDK 결과 파일 읽기 실패: {json_out}") from e
 
             # 7. hwp_data를 Docling 구조로 변환
             self.current_img_dir = img_dir
@@ -456,7 +455,7 @@ class GenosHwpDocumentBackend(DeclarativeDocumentBackend):
         for paragraph_items in data:
             if not paragraph_items:
                 continue
-            
+
             # 1. 페이지 번호 추출 (Provenance/메타데이터용으로만 사용)
             page_no = 1
             for item in paragraph_items:
@@ -469,7 +468,7 @@ class GenosHwpDocumentBackend(DeclarativeDocumentBackend):
             for item in paragraph_items:
                 i_type = str(item.get("item", "")).lower()
                 i_value = item.get("value", "")
-                
+
                 # 2-1. 표 처리
                 if i_type == "table" or "<table>" in i_value.lower():
                     if texts_in_batch:
@@ -478,7 +477,7 @@ class GenosHwpDocumentBackend(DeclarativeDocumentBackend):
                         texts_in_batch = []
                     # 표를 처리할 때 parent를 doc.body로 지정
                     self._handle_table(i_value, doc, page_no, parent=self.active_main_parent)
-                
+
                 # 2. [Step 3] 이미지(Picture) 처리 추가
                 elif i_type == "image":
                     if texts_in_batch:
@@ -499,7 +498,7 @@ class GenosHwpDocumentBackend(DeclarativeDocumentBackend):
                 # 2-3. 텍스트 수집
                 elif i_type == "text":
                     texts_in_batch.append(item)
-            
+
             # 3. 루프 종료 후 남은 텍스트들 처리
             if texts_in_batch:
                 self._handle_paragraph(texts_in_batch, doc, page_no, parent=self.active_main_parent)
@@ -521,7 +520,7 @@ class GenosHwpDocumentBackend(DeclarativeDocumentBackend):
             return
 
         cells = []
-        occupied = set() # (row, col) 점유 맵
+        occupied = set()  # (row, col) 점유 맵
         rows = table_tag.find_all("tr")
 
         for r_idx, tr in enumerate(rows):
@@ -530,11 +529,11 @@ class GenosHwpDocumentBackend(DeclarativeDocumentBackend):
                 # 점유된 칸 건너뛰기
                 while (r_idx, c_idx) in occupied:
                     c_idx += 1
-                
+
                 row_span = int(td.get("rowspan", 1))
                 col_span = int(td.get("colspan", 1))
                 text = td.get_text(strip=True)
-                
+
                 # TableCell 생성 (기존 로직 유지)
                 cell = TableCell(
                     text=text,
@@ -544,38 +543,34 @@ class GenosHwpDocumentBackend(DeclarativeDocumentBackend):
                     end_col_offset_idx=c_idx + col_span,
                     row_span=row_span,
                     col_span=col_span,
-                    column_header=True if td.name == "th" else False
+                    column_header=True if td.name == "th" else False,
                 )
                 cells.append(cell)
-                
+
                 # 점유 표시 (기존 로직 유지)
                 for r in range(r_idx, r_idx + row_span):
                     for c in range(c_idx, c_idx + col_span):
                         occupied.add((r, c))
-                
+
                 c_idx += col_span
-                
+
         if cells:
             # 전체 크기 계산
             max_row = max(c.end_row_offset_idx for c in cells)
             max_col = max(c.end_col_offset_idx for c in cells)
-            
+
             # 위치 정보 (Provenance) 생성
             prov = ProvenanceItem(
                 page_no=page_no,
                 bbox=BoundingBox(l=0, t=0, r=1, b=1, coord_origin=CoordOrigin.BOTTOMLEFT),
-                charspan=(0, len(html_content))
+                charspan=(0, len(html_content)),
             )
 
             # --- [수정 포인트]: 넘겨받은 parent(doc.body)를 사용합니다 ---
             doc.add_table(
-                data=TableData(
-                    num_rows=max_row, 
-                    num_cols=max_col, 
-                    table_cells=cells # 필드명 table_cells 확인!
-                ),
-                parent=parent, # <--- self.parents[1] 대신 인자로 받은 parent 사용
-                prov=prov
+                data=TableData(num_rows=max_row, num_cols=max_col, table_cells=cells),  # 필드명 table_cells 확인!
+                parent=parent,  # <--- self.parents[1] 대신 인자로 받은 parent 사용
+                prov=prov,
             )
 
     def _handle_image(self, item: Dict, doc: DoclingDocument, page_no: int, parent: Any):
@@ -591,40 +586,41 @@ class GenosHwpDocumentBackend(DeclarativeDocumentBackend):
         # [Salvaged 1] 매직 넘버 기반의 강력한 유효성 검사 (XML/가짜파일 방어)
         def is_really_image(file_path):
             signatures = [
-                b'\x89PNG',           # PNG
-                b'\xff\xd8\xff',      # JPEG
-                b'GIF8',              # GIF
-                b'BM',                # BMP
-                b'RIFF',              # WebP (RIFF 컨테이너)
-                b'\x00\x00\x01\x00', # ICO
-                b'\xd7\xcd\xc6\x9a', # WMF
-                b'\x01\x00\x00\x00', # EMF
-                b'II*\x00',          # TIFF (little-endian)
-                b'MM\x00*',          # TIFF (big-endian)
+                b"\x89PNG",  # PNG
+                b"\xff\xd8\xff",  # JPEG
+                b"GIF8",  # GIF
+                b"BM",  # BMP
+                b"RIFF",  # WebP (RIFF 컨테이너)
+                b"\x00\x00\x01\x00",  # ICO
+                b"\xd7\xcd\xc6\x9a",  # WMF
+                b"\x01\x00\x00\x00",  # EMF
+                b"II*\x00",  # TIFF (little-endian)
+                b"MM\x00*",  # TIFF (big-endian)
             ]
             try:
-                with open(file_path, 'rb') as f:
+                with open(file_path, "rb") as f:
                     header = f.read(4)
                 return any(header.startswith(s) for s in signatures)
-            except: return False
+            except:
+                return False
 
         if not is_really_image(img_path):
             _log.warning(f"유효하지 않은 이미지 데이터(XML 등 가능성): {os.path.basename(img_path)}")
             return
 
         pil_image = None
-        
+
         # [Salvaged 2] Pillow -> Wand 단계별 시도 (WMF/EMF 구제)
         try:
             # 1단계: 표준 포맷 시도
             pil_image = Image.open(img_path)
-            pil_image.load() # 강제 로드하여 오류 조기 감지
+            pil_image.load()  # 강제 로드하여 오류 조기 감지
         except (UnidentifiedImageError, OSError):
             # 2단계: Pillow 실패 시 Wand 가동 (include_wmf=True인 경우에만)
             if self.include_wmf and WAND_AVAILABLE:
                 try:
                     with WandImage(filename=img_path) as wand_img:
-                        wand_img.format = 'png'
+                        wand_img.format = "png"
                         pil_image = Image.open(BytesIO(wand_img.make_blob()))
                 except Exception as e:
                     _log.error(f"Wand 변환 실패: {e}")
@@ -633,9 +629,7 @@ class GenosHwpDocumentBackend(DeclarativeDocumentBackend):
 
         # [Salvaged 3] Docling 임베딩 (DPI 고정 및 BBox 설정)
         prov = ProvenanceItem(
-            page_no=page_no,
-            bbox=BoundingBox(l=0, t=0, r=1, b=1, coord_origin=CoordOrigin.BOTTOMLEFT),
-            charspan=(0, 0)
+            page_no=page_no, bbox=BoundingBox(l=0, t=0, r=1, b=1, coord_origin=CoordOrigin.BOTTOMLEFT), charspan=(0, 0)
         )
         if pil_image:
             doc.add_picture(
@@ -667,9 +661,11 @@ class GenosHwpDocumentBackend(DeclarativeDocumentBackend):
         """SDK 결과 JSON에서 임베드된 <latex value="..."/> 속성의 inner "를 escape하고
         base64 안의 공백/줄바꿈을 제거하여 JSON 파서가 outer 문자열을 끝까지 읽을 수 있도록 한다.
         """
+
         def _repl(m: "re.Match[str]") -> str:
             b64 = re.sub(r"\s+", "", m.group(1))
             return f'<latex value=\\"{b64}\\"/>'
+
         return cls._LATEX_ATTR_PATTERN.sub(_repl, text)
 
     @staticmethod
@@ -698,7 +694,7 @@ class GenosHwpDocumentBackend(DeclarativeDocumentBackend):
         prov = ProvenanceItem(
             page_no=page_no,
             bbox=BoundingBox(l=0, t=0, r=1, b=1, coord_origin=CoordOrigin.BOTTOMLEFT),
-            charspan=(0, len(latex))
+            charspan=(0, len(latex)),
         )
         doc.add_text(
             label=DocItemLabel.FORMULA,
@@ -709,10 +705,10 @@ class GenosHwpDocumentBackend(DeclarativeDocumentBackend):
 
     def _handle_paragraph(self, paragraph_items: List[Dict], doc: DoclingDocument, page_no: int, parent: Any):
         """TOC(목차) 감지 로직이 추가된 버전입니다. 넘겨받은 parent에 텍스트를 추가합니다."""
-        
+
         # 1. 텍스트 병합 및 기본 검사
         full_text = "".join([item.get("value", "") for item in paragraph_items]).strip()
-        if not full_text: 
+        if not full_text:
             return
 
         # 2. 폰트/스타일 정보 추출 — run 단위 max()/any() 대신 글자수 가중 "비율"로 집계.
@@ -747,7 +743,7 @@ class GenosHwpDocumentBackend(DeclarativeDocumentBackend):
 
         # 3. 패턴 감지 (TOC 및 헤더)
         # [추가]: TOC 패턴 감지 (점 2개 이상, 탭, 또는 긴 공백 뒤에 숫자로 끝나는 경우)
-        is_toc = bool(re.search(r'(\.{2,}|…|\t|\s{4,})\s*\d+$', full_text))
+        is_toc = bool(re.search(r"(\.{2,}|…|\t|\s{4,})\s*\d+$", full_text))
 
         # 4. 강등 로직: heading으로 잡혔지만 실제로는 서술형 본문 문장/리스트 항목인 경우 강등.
         #    divider 마커(장/조/붙임/별표)는 SDK가 본문과 한 단락으로 합쳐도 heading 유지 → 면제.
@@ -761,34 +757,24 @@ class GenosHwpDocumentBackend(DeclarativeDocumentBackend):
         prov = ProvenanceItem(
             page_no=page_no,
             bbox=BoundingBox(l=0, t=0, r=1, b=1, coord_origin=CoordOrigin.BOTTOMLEFT),
-            charspan=(0, len(full_text))
+            charspan=(0, len(full_text)),
         )
 
         # 5. 최종 문서 추가 (TOC -> Heading -> Paragraph 순서로 우선순위 적용)
         if is_toc:
             # 목차(TOC)로 판별된 텍스트 라인. docling_core 에서 DocItemLabel.DOCUMENT_INDEX 는
             # TableItem 전용 라벨이라 TextItem(add_text)에는 쓸 수 없다 → 일반 TEXT 로 추가한다.
-            doc.add_text(
-                label=DocItemLabel.TEXT,
-                text=full_text,
-                parent=parent,
-                prov=prov
-            )
+            doc.add_text(label=DocItemLabel.TEXT, text=full_text, parent=parent, prov=prov)
         elif p_style_id == "Heading":
             # 헤더로 판별된 경우 (수정된 _add_header 호출)
             self._add_header(doc, p_level, full_text, prov, parent=parent)
         else:
             # 일반 본문으로 판별된 경우
-            doc.add_text(
-                label=DocItemLabel.PARAGRAPH,
-                text=full_text,
-                parent=parent,
-                prov=prov
-            )
+            doc.add_text(label=DocItemLabel.PARAGRAPH, text=full_text, parent=parent, prov=prov)
 
     def _add_header(self, doc: DoclingDocument, level: int, text: str, prov: ProvenanceItem, parent: Any):
         """DOCX 표준 명칭(header-N)을 사용하여 논리적 섹션 마디를 만듭니다."""
-        
+
         # 1. 하위 계층 부모 초기화 (기존 로직 유지)
         for i in range(level, 10):
             if i in self.parents:
@@ -796,42 +782,35 @@ class GenosHwpDocumentBackend(DeclarativeDocumentBackend):
 
         # 2. [명칭 변경]: level 1 -> header-0, level 2 -> header-1 방식으로 명명
         header_name = f"header-{level - 1}"
-        
+
         # 3. 새로운 섹션 그룹 생성
         # parent는 doc.body 또는 상위 헤더 그룹이 됩니다.
         new_section = doc.add_group(
-            label=GroupLabel.SECTION, 
-            name=header_name, # "header-0", "header-1" 등으로 박힘
-            parent=parent
+            label=GroupLabel.SECTION, name=header_name, parent=parent  # "header-0", "header-1" 등으로 박힘
         )
-        
+
         # 4. 헤더 텍스트 추가 (이 그룹의 자식으로 등록)
-        header_item = doc.add_heading(
-            text=text, 
-            level=level, 
-            parent=new_section,
-            prov=prov
-        )
+        header_item = doc.add_heading(text=text, level=level, parent=new_section, prov=prov)
 
         # 5. 현재 활성 그룹 상태 업데이트
         # 이후에 나오는 paragraph들이 이 'header-N' 그룹 안으로 들어오게 됩니다.
         self.parents[level] = new_section
-        
+
         # _walk_hwp_data에서 문단들이 참고할 최신 부모 노드
         self.active_main_parent = new_section
 
     def _setup_pages(self, doc: DoclingDocument, info_path: Path):
-        """ .info 파일을 읽어 DoclingDocument에 페이지 정보를 설정합니다. """
-        
+        """.info 파일을 읽어 DoclingDocument에 페이지 정보를 설정합니다."""
+
         # 단위 변환 상수: 1cm = 28.3465pt (72 DPI 기준)
         CM_TO_PT = 28.3465
-        
+
         try:
             with open(info_path, "r", encoding="utf-8") as f:
                 info_data = json.load(f)
-            
+
             page_info_list = info_data.get("page_info", [])
-            
+
             if page_info_list:
                 # 1. 실제 페이지 정보가 있는 경우
                 for p in page_info_list:
@@ -839,21 +818,15 @@ class GenosHwpDocumentBackend(DeclarativeDocumentBackend):
                     # cm를 pt로 변환 (정수형으로 변환하는 것이 일반적입니다)
                     w_pt = round(float(p.get("width", 21.00)) * CM_TO_PT)
                     h_pt = round(float(p.get("height", 29.70)) * CM_TO_PT)
-                    
-                    doc.pages[p_no] = doc.add_page(
-                        page_no=p_no, 
-                        size=Size(width=w_pt, height=h_pt)
-                    )
+
+                    doc.pages[p_no] = doc.add_page(page_no=p_no, size=Size(width=w_pt, height=h_pt))
             else:
                 raise ValueError("page_info is empty")
 
         except Exception as e:
             # 2. 오류가 나거나 정보가 없는 경우 (Fallback)
             _log.warning(f"페이지 정보 로드 실패({e}). 기본 1페이지로 설정합니다.")
-            doc.pages[1] = doc.add_page(
-                page_no=1, 
-                size=Size(width=595, height=842) # 표준 A4 pt
-            )
+            doc.pages[1] = doc.add_page(page_no=1, size=Size(width=595, height=842))  # 표준 A4 pt
 
     @override
     def unload(self):
