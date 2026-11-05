@@ -514,10 +514,18 @@ class DocumentProcessor(DoclingRuntimeBase):
 
         SDK 가 exit 0 으로 "성공"해도 본문을 한 글자도 못 뽑는 경우가 있다(일부 .hwp/.hwpx).
         이때 doc_items 가 비어 다운스트림 GenosSmartChunker 의 DocMeta(min_length=1) 검증이
-        깨진다(too_short). 텍스트 run 이 하나도 없으면 True.
+        깨진다(too_short). 텍스트 run 도, 글자가 든 표 셀도 하나도 없으면 True.
+        표만 있는 문서는 SDK 결과를 그대로 쓴다(#605).
         """
         texts = getattr(document, "texts", None) or []
-        return not any((getattr(t, "text", "") or "").strip() for t in texts)
+        if any((getattr(t, "text", "") or "").strip() for t in texts):
+            return False
+        tables = getattr(document, "tables", None) or []
+        return not any(
+            (getattr(cell, "text", "") or "").strip()
+            for table in tables
+            for cell in (getattr(getattr(table, "data", None), "table_cells", None) or [])
+        )
 
     def load_documents(self, file_path: str, **kwargs: dict) -> DoclingDocument:
         ext = os.path.splitext(file_path)[-1].lower()
