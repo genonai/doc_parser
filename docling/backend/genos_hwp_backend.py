@@ -123,6 +123,37 @@ _SENTENCE_FINAL = re.compile(r"(?:다|함|음|됨|임)[.)\]」』】〉]?\s*$|�
 # 마커가 있어도 이 길이를 넘으면 제목이 아니라 본문으로 본다 (divider 제외).
 _HEADING_MAX_LEN = 80
 
+# 제목 레벨은 폰트가 아니라 마커 "종류"의 등장 흐름으로 정한다 (#605).
+#   문서마다 쓰는 마커 체계가 달라(Ⅰ.→1.→□, 1.→가.→(1) 등) 고정 레벨 힌트로는 계층이 맞지 않는다.
+#   종류 판별 순서가 중요하다: N.N.N → N.N → N. 순으로 긴 패턴을 먼저 본다.
+_HEADING_KINDS = [
+    ("article_major", re.compile(r"^제\s*\d+\s*[편장]")),
+    ("article_minor", re.compile(r"^제\s*\d+\s*[절관조]")),
+    ("attachment", re.compile(r"^[\[<〈【(]?\s*(?:붙임|별첨|별표|별지|서식|양식|부록)")),
+    ("reference", re.compile(r"^[\[<〈【(]?\s*(?:참고|첨부물|첨부)")),
+    ("roman", re.compile(r"^[ⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩ]+\.\s")),
+    ("num3", re.compile(r"^\d{1,2}\.\d+\.\d+\s")),
+    ("num2", re.compile(r"^\d{1,2}\.\d+\s")),
+    ("num", re.compile(r"^\d{1,2}\.\s")),
+    ("circled", re.compile(r"^[①-⑳]\s")),
+    ("kor", re.compile(r"^[" + _KOR_ORDER + r"]\.\s")),
+    ("paren", re.compile(r"^\((?:[" + _KOR_ORDER + r"]|\d+)\)\s")),
+    ("glyph", re.compile(r"^([❏□■◆◇○●▶▷▪▫※◦◈∙·•*\-])\s")),
+]
+# 절대 레벨은 고정하지 않고, 반드시 지켜야 할 상하 관계만 둔다: {하위 종류: 상위 종류}.
+#   절/관/조는 편/장이 열려 있으면 항상 그 바로 아래이고, 편/장은 절/관/조 아래로 들어가지 않는다.
+_HEADING_PARENT_KIND = {"article_minor": "article_major"}
+# 주석·목록 기호는 제목으로 보지 않는다.
+_HEADING_EXCLUDED_GLYPHS = {"※", "*", "-"}
+# 붙임·참고 등은 앞 제목과 무관하게 문서 전체에 딸린 덩어리이므로, 열린 제목을 모두 닫고 1레벨에 둔다.
+# 근데 아직 고민중이다. 1장 - 붙임 - 2장 - 3장 이런 순서로 문서가 진행될 수도 있다.
+_HEADING_TOP_KINDS = {"attachment", "reference"}
+# 장/절/관/조는 번호가 1부터 차례로 이어질 때만 제목이다. 앞 번호 없이 튀어나온 조항(예: 첫 장의
+# "제34조 …" 인용)은 본문으로 둔다. 번호는 단위(장·절·관·조)마다 따로 센다.
+# 옛날에 2편부터 시작하는 PDF를 본 기억이 있어서 편은 뺀다.
+_ARTICLE_NUMBER = re.compile(r"^제\s*(\d+)\s*([장절관조])")
+
+
 # 단락의 강조(bold/큰폰트) 비율 임계값 — 이 비율 이상일 때만 "강조 단락"으로 본다.
 _EMPHASIS_RATIO_THRESHOLD = 0.7
 # baseline(본문 최빈 폰트) 대비 이 배수 이상이면 "큰 폰트"로 본다.
@@ -449,6 +480,11 @@ class GenosHwpDocumentBackend(DeclarativeDocumentBackend):
         self._processed_hashes = set()
         # 본문 baseline 폰트 사전 패스 (헤더 상대 판정용)
         self.body_font_size = self._compute_body_font_size(data)
+        # 제목 레벨 판정 상태: 열려 있는 제목 [(종류, 레벨)] 과 종류별 마지막 레벨
+        self._heading_stack: List[tuple] = []
+        self._heading_last_level: Dict[str, int] = {}
+        # 단위(편·장·절·관·조)별 직전 조항 번호
+        self._article_last_number: Dict[str, int] = {}
         root_parent = doc.body
         self.active_main_parent = root_parent
 
@@ -518,6 +554,17 @@ class GenosHwpDocumentBackend(DeclarativeDocumentBackend):
         table_tag = soup.find("table")
         if not table_tag:
             return
+        # 본문을 표 틀 안에 배치한 문서(페이지 전체가 표인 보고서 등)는 표가 아니라 단락으로 풀어
+        # 제목 판별을 거치게 한다. 그렇지 않으면 표 안의 제목이 셀 텍스트로만 남는다.
+        if self._is_layout_table(table_tag):
+            self._unwrap_layout_table(table_tag, doc, page_no)
+            return
+        # "| 붙임 5 |  | 긴급복구공사 시행 협약서 |" 처럼 제목을 꾸미려고 그린 한 줄짜리 표는 제목 단락으로 넣는다.
+        label = self._title_label_text(table_tag)
+        if label:
+            item = {"item": "text", "value": label, "font": {"size": self.body_font_size}}
+            self._handle_paragraph([item], doc, page_no, parent=self.active_main_parent)
+            return
 
         cells = []
         occupied = set()  # (row, col) 점유 맵
@@ -572,6 +619,68 @@ class GenosHwpDocumentBackend(DeclarativeDocumentBackend):
                 parent=parent,  # <--- self.parents[1] 대신 인자로 받은 parent 사용
                 prov=prov,
             )
+
+    @staticmethod
+    def _direct_cells(table_tag) -> List[Any]:
+        """중첩 표의 셀을 제외한, 이 표에 직접 속한 셀."""
+        return [
+            td
+            for tr in table_tag.find_all("tr")
+            if tr.find_parent("table") is table_tag
+            for td in tr.find_all(["td", "th"], recursive=False)
+        ]
+
+    @classmethod
+    def _is_layout_table(cls, table_tag) -> bool:
+        """직속 셀 안에 다른 표가 들어 있으면 데이터 표가 아니라 본문 배치용 틀로 본다."""
+        return any(td.find("table") for td in cls._direct_cells(table_tag))
+
+    @classmethod
+    def _title_label_text(cls, table_tag) -> Optional[str]:
+        """한 줄짜리 표의 칸을 이은 글이 짧고 제목 마커로 시작하면 그 글을, 아니면 None."""
+        rows = [tr for tr in table_tag.find_all("tr") if tr.find_parent("table") is table_tag]
+        if len(rows) != 1:
+            return None
+        parts = [td.get_text(" ", strip=True) for td in cls._direct_cells(table_tag)]
+        text = " ".join(p for p in parts if p)
+        if not text or len(text) > _HEADING_MAX_LEN or cls._heading_kind(text) is None:
+            return None
+        return text
+
+    def _unwrap_layout_table(self, table_tag, doc: DoclingDocument, page_no: int):
+        """배치용 표의 셀 내용을 문서 순서대로 단락·표로 풀어 넣는다.
+
+        셀 글은 <br> 단위로 단락이 되고, 안쪽 표는 한 칸짜리 상자이거나 또 다른 배치용 표면
+        다시 풀고, 여러 칸짜리 표면 데이터 표로 넣는다. 부모는 매번 active_main_parent 를 써서
+        풀어 낸 제목 아래로 뒤따르는 단락이 들어가게 한다.
+        """
+        for td in self._direct_cells(table_tag):
+            buf: List[str] = []
+
+            def flush():
+                # 탭·연속 공백은 목차 줄 판별에 쓰이므로 줄바꿈만 공백으로 바꾼다.
+                text = re.sub(r"[\r\n]+", " ", "".join(buf)).strip()
+                buf.clear()
+                if text:
+                    item = {"item": "text", "value": text, "font": {"size": self.body_font_size}}
+                    self._handle_paragraph([item], doc, page_no, parent=self.active_main_parent)
+
+            for child in td.children:
+                if isinstance(child, NavigableString):
+                    buf.append(str(child))
+                elif child.name == "br":
+                    flush()
+                elif child.name == "table":
+                    flush()
+                    if len(self._direct_cells(child)) == 1 or self._is_layout_table(child):
+                        self._unwrap_layout_table(child, doc, page_no)
+                    else:
+                        self._handle_table(str(child), doc, page_no, parent=self.active_main_parent)
+                elif child.name == "img":
+                    flush()
+                else:
+                    buf.append(child.get_text())
+            flush()
 
     def _handle_image(self, item: Dict, doc: DoclingDocument, page_no: int, parent: Any):
         if not self.save_images:
@@ -753,6 +862,13 @@ class GenosHwpDocumentBackend(DeclarativeDocumentBackend):
                 p_style_id = "Normal"
                 p_level = 0
 
+        # 5. 레벨 판정: 폰트 대신 마커 종류의 흐름으로 정한다. 목차 줄은 상태에 반영하지 않는다.
+        if p_style_id == "Heading" and not is_toc:
+            p_level = self._resolve_heading_level(full_text)
+            if p_level is None:
+                p_style_id = "Normal"
+                p_level = 0
+
         # 위치 정보(Provenance) 생성
         prov = ProvenanceItem(
             page_no=page_no,
@@ -771,6 +887,87 @@ class GenosHwpDocumentBackend(DeclarativeDocumentBackend):
         else:
             # 일반 본문으로 판별된 경우
             doc.add_text(label=DocItemLabel.PARAGRAPH, text=full_text, parent=parent, prov=prov)
+
+    @staticmethod
+    def _heading_kind(text: str) -> Optional[str]:
+        """제목 마커 종류. 글머리 기호는 기호마다 다른 종류로 본다."""
+        for kind, pattern in _HEADING_KINDS:
+            m = pattern.match(text)
+            if m:
+                return f"glyph:{m.group(1)}" if kind == "glyph" else kind
+        return None
+
+    @staticmethod
+    def _heading_ordinal(kind: str, text: str) -> Optional[int]:
+        """순서 마커의 번호(1. → 1, 가. → 1, ① → 1, Ⅱ. → 2). 번호가 없는 마커는 None."""
+        head = text.lstrip("(")[:1]
+        if kind == "num" or (kind == "paren" and head.isdigit()):
+            m = re.match(r"\(?(\d+)", text)
+            return int(m.group(1)) if m else None
+        if kind in ("kor", "paren") and head in _KOR_ORDER:
+            return _KOR_ORDER.index(head) + 1
+        if kind == "circled":
+            return ord(head) - ord("①") + 1
+        if kind == "roman":
+            return "ⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩ".find(head) + 1 or None
+        return None
+
+    def _resolve_heading_level(self, text: str) -> Optional[int]:
+        """열린 제목 스택으로 레벨을 정한다. 제목이 아니면 None.
+
+        - 붙임·참고 등: 열린 제목을 모두 닫고 1레벨
+        - 상위 종류가 정해진 종류(절/관/조): 열려 있는 상위 종류(편/장)의 바로 아래
+        - 스택에 열려 있는 종류: 그 자리로 돌아가 같은 레벨의 형제
+        - 번호가 1(가, ①, Ⅰ 등)로 다시 시작하는 목록: 직전 제목의 자식 (예: 조항 안의 각 호, 참고 상자 안의 1.)
+        - 앞서 나왔지만 닫힌 종류: 마지막에 쓴 레벨 (예: Ⅱ 아래 □ 뒤에 다시 나온 2.)
+        - 처음 보는 종류: 직전 제목의 자식. 단 자신의 하위 종류(편/장 기준 절/관/조) 아래로는 들어가지 않는다.
+        """
+        stack = getattr(self, "_heading_stack", None)
+        if stack is None:
+            stack = self._heading_stack = []
+            self._heading_last_level = {}
+        kind = self._heading_kind(text)
+        if kind is None:
+            return stack[-1][1] if stack else 1
+        if kind.startswith("glyph:") and kind[6:] in _HEADING_EXCLUDED_GLYPHS:
+            return None
+        article = _ARTICLE_NUMBER.match(text)
+        if article:
+            number, unit = int(article.group(1)), article.group(2)
+            last_numbers = getattr(self, "_article_last_number", None)
+            if last_numbers is None:
+                last_numbers = self._article_last_number = {}
+            previous = last_numbers.get(unit)
+            # 본문으로 둔 조항도 번호는 기억해 발췌본(제5조부터 시작)은 다음 조항부터 제목이 된다.
+            last_numbers[unit] = number
+            if number != 1 and number != (previous or 0) + 1:
+                return None
+        kinds = [k for k, _ in stack]
+        parent_kind = _HEADING_PARENT_KIND.get(kind)
+        if kind in _HEADING_TOP_KINDS:
+            stack.clear()
+            level = 1
+        elif parent_kind in kinds:
+            del stack[kinds.index(parent_kind) + 1 :]
+            level = stack[-1][1] + 1
+        elif kind in kinds:
+            level = stack[kinds.index(kind)][1]
+            del stack[kinds.index(kind) :]
+        elif self._heading_ordinal(kind, text) == 1:
+            level = (stack[-1][1] if stack else 0) + 1
+        elif kind in self._heading_last_level:
+            level = self._heading_last_level[kind]
+            while stack and stack[-1][1] >= level:
+                stack.pop()
+        else:
+            child_kinds = [k for k in kinds if _HEADING_PARENT_KIND.get(k) == kind]
+            if child_kinds:
+                del stack[kinds.index(child_kinds[0]) :]
+            level = (stack[-1][1] if stack else 0) + 1
+        level = min(level, self.max_levels - 1)
+        stack.append((kind, level))
+        self._heading_last_level[kind] = level
+        return level
 
     def _add_header(self, doc: DoclingDocument, level: int, text: str, prov: ProvenanceItem, parent: Any):
         """DOCX 표준 명칭(header-N)을 사용하여 논리적 섹션 마디를 만듭니다."""
