@@ -148,6 +148,11 @@ _HEADING_EXCLUDED_GLYPHS = {"※", "*", "-"}
 # 붙임·참고 등은 앞 제목과 무관하게 문서 전체에 딸린 덩어리이므로, 열린 제목을 모두 닫고 1레벨에 둔다.
 # 근데 아직 고민중이다. 1장 - 붙임 - 2장 - 3장 이런 순서로 문서가 진행될 수도 있다.
 _HEADING_TOP_KINDS = {"attachment", "reference"}
+# 같은 모양의 번호라도 글자 크기가 이 배율 이상 차이 나면 다른 목록으로 본다.
+#   예: 간지에 큰 글씨로 쓴 "2. 부서별"과 본문의 "1. 과제명". 레벨을 폰트로 정하는 것이 아니라
+#   같은 종류를 나눌 때만 쓴다. 장·조·붙임처럼 상하 관계가 정해진 종류와 글머리 기호는 나누지 않는다.
+_SIZE_SPLIT_KINDS = {"roman", "num3", "num2", "num", "circled", "kor", "paren"}
+_LIST_SIZE_RATIO = 1.2
 # 한 줄짜리 번호 박스 표: 첫 칸이 번호뿐이고, 빈 칸(장식) 하나를 사이에 둘 수 있으며, 마지막 칸이 짧은 제목이다.
 _NUMBER_BOX = re.compile(
     r"<table[^>]*\brows=1\b[^>]*>\s*<tr>\s*"
@@ -495,6 +500,8 @@ class GenosHwpDocumentBackend(DeclarativeDocumentBackend):
         # 제목 레벨 판정 상태: 열려 있는 제목 [(종류, 레벨)] 과 종류별 마지막 레벨
         self._heading_stack: List[tuple] = []
         self._heading_last_level: Dict[str, int] = {}
+        # 글자 크기로 나눈 번호 목록별 대표 글자 크기
+        self._heading_kind_sizes: Dict[str, float] = {}
         # 단위(편·장·절·관·조)별 직전 조항 번호
         self._article_last_number: Dict[str, int] = {}
         self.parents = {i: None for i in range(-1, self.max_levels)}
@@ -950,7 +957,7 @@ class GenosHwpDocumentBackend(DeclarativeDocumentBackend):
 
         # 5. 레벨 판정: 폰트 대신 마커 종류의 흐름으로 정한다. 목차 줄은 상태에 반영하지 않는다.
         if p_style_id == "Heading" and not is_toc:
-            p_level = self._resolve_heading_level(full_text)
+            p_level = self._resolve_heading_level(full_text, size=max_font_size)
             if p_level is None:
                 p_style_id = "Normal"
                 p_level = 0
@@ -998,8 +1005,29 @@ class GenosHwpDocumentBackend(DeclarativeDocumentBackend):
             return "ⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩ".find(head) + 1 or None
         return None
 
-    def _resolve_heading_level(self, text: str, kind: Optional[str] = None) -> Optional[int]:
+    def _sized_heading_kind(self, kind: str, size: float) -> str:
+        """같은 번호 종류를 글자 크기로 나눈 목록 이름(num, num#2 ...).
+
+        크기 차이가 _LIST_SIZE_RATIO 미만인 기존 목록이 있으면 그 목록이고, 없으면 새 목록이다.
+        예: 40pt 간지 제목 "2. 부서별"과 18pt 본문 제목 "1. 대전 미래전략"은 다른 목록이다.
+        """
+        sizes = getattr(self, "_heading_kind_sizes", None)
+        if sizes is None:
+            sizes = self._heading_kind_sizes = {}
+        same_kind = [name for name in sizes if name.split("#")[0] == kind]
+        for name in same_kind:
+            if max(sizes[name], size) / min(sizes[name], size) < _LIST_SIZE_RATIO:
+                return name
+        name = f"{kind}#{len(same_kind) + 1}" if same_kind else kind
+        sizes[name] = size
+        return name
+
+    def _resolve_heading_level(
+        self, text: str, kind: Optional[str] = None, size: Optional[float] = None
+    ) -> Optional[int]:
         """열린 제목 스택으로 레벨을 정한다. 제목이 아니면 None.
+
+        - 번호 종류가 같아도 글자 크기가 크게 다르면 다른 목록으로 본다(size 가 주어진 경우)
 
         - 붙임·참고 등: 열린 제목을 모두 닫고 1레벨
         - 상위 종류가 정해진 종류(절/관/조): 열려 있는 상위 종류(편/장)의 바로 아래
@@ -1017,6 +1045,8 @@ class GenosHwpDocumentBackend(DeclarativeDocumentBackend):
             return stack[-1][1] if stack else 1
         if kind.startswith("glyph:") and kind[6:] in _HEADING_EXCLUDED_GLYPHS:
             return None
+        if size and kind in _SIZE_SPLIT_KINDS:
+            kind = self._sized_heading_kind(kind, size)
         article = _ARTICLE_NUMBER.match(text)
         if article:
             number, unit = int(article.group(1)), article.group(2)
@@ -1039,7 +1069,7 @@ class GenosHwpDocumentBackend(DeclarativeDocumentBackend):
         elif kind in kinds:
             level = stack[kinds.index(kind)][1]
             del stack[kinds.index(kind) :]
-        elif self._heading_ordinal(kind.removeprefix("box:"), text) == 1:
+        elif self._heading_ordinal(kind.removeprefix("box:").split("#")[0], text) == 1:
             level = (stack[-1][1] if stack else 0) + 1
         elif kind in self._heading_last_level:
             level = self._heading_last_level[kind]
