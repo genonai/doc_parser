@@ -507,6 +507,8 @@ class GenosHwpDocumentBackend(DeclarativeDocumentBackend):
         self._heading_last_level: Dict[str, int] = {}
         # 글자 크기로 나눈 번호 목록별 대표 글자 크기
         self._heading_kind_sizes: Dict[str, float] = {}
+        # 글머리 기호 제목 후보의 글별 등장 횟수 (_empty_glyph_headings 대조용)
+        self._glyph_heading_seen: Dict[str, int] = {}
         # 단위(편·장·절·관·조)별 직전 조항 번호
         self._article_last_number: Dict[str, int] = {}
         self.parents = {i: None for i in range(-1, self.max_levels)}
@@ -519,17 +521,21 @@ class GenosHwpDocumentBackend(DeclarativeDocumentBackend):
         서술형이라 강등된 항목도 제목으로 본다(예: "2.~6." 은 제목인데 "1. 지정목적 : …" 만 긴 경우).
         목록 전체가 서술 단락이면(보고서 본문 번호 단락, 정의 조항 등) 그대로 본문이다.
         표 안에서 풀려 나온 단락도 같은 경로로 판정해야 하므로 실제 처리와 같은 순회를 그대로 쓴다.
+        같은 사전 처리 결과로 딸린 내용이 없는 글머리 기호 제목(_empty_glyph_headings)도 모은다.
         """
         self._demotion_exempt = set()
+        self._empty_glyph_headings = set()
         self._demotion_log: Optional[List[tuple]] = []
         save_images = self.save_images
         self.save_images = False
+        prepass = DoclingDocument(name="demotion_prepass")
         try:
-            self._walk_items(data, DoclingDocument(name="demotion_prepass"))
+            self._walk_items(data, prepass)
             log = self._demotion_log
         finally:
             self.save_images = save_images
             self._demotion_log = None
+        self._empty_glyph_headings = self._find_empty_glyph_headings(prepass)
 
         lists: Dict[tuple, List[tuple]] = {}
         current: Dict[str, tuple] = {}  # 종류 → (목록 번호, 직전 번호)
@@ -550,6 +556,55 @@ class GenosHwpDocumentBackend(DeclarativeDocumentBackend):
             if kept > len(items) - kept:
                 exempt.update(text for text, demoted in items if demoted)
         return exempt
+
+    def _find_empty_glyph_headings(self, doc: DoclingDocument) -> set:
+        """본문으로 돌려야 할 글머리 기호 제목. "• 사업명(굵게) …" 처럼 목록 항목의 일부만 굵게 쓴 줄이
+        강조 비율 때문에 제목이 되는 경우를 거른다.
+
+        - 딸린 내용 없이 같은 기호의 형제 항목이나 상위·같은 레벨 제목이 바로 이어지는 제목
+        - 같은 기호 줄이 연달아 이어지는 묶음에서 본문(위의 내용 없는 제목 포함)이 더 많으면 그 묶음의 제목 전부
+        같은 글이 여러 번 나올 수 있어 (글, 몇 번째 등장) 으로 구분한다.
+        """
+        items = [item for item, _ in doc.iterate_items()]
+        glyphs = [
+            kind if kind and kind.startswith("glyph:") else None
+            for kind in (self._heading_kind(getattr(item, "text", "") or "") for item in items)
+        ]
+        is_header = [item.label == DocItemLabel.SECTION_HEADER for item in items]
+
+        demote = set()
+        for idx, item in enumerate(items):
+            if not (is_header[idx] and glyphs[idx]):
+                continue
+            nxt = items[idx + 1] if idx + 1 < len(items) else None
+            if (
+                nxt is None
+                or (is_header[idx + 1] and nxt.level <= item.level)
+                or glyphs[idx + 1] == glyphs[idx]
+            ):
+                demote.add(idx)
+
+        start = 0
+        while start < len(items):
+            end = start + 1
+            while end < len(items) and glyphs[start] and glyphs[end] == glyphs[start]:
+                end += 1
+            run = range(start, end)
+            kept = [i for i in run if is_header[i] and i not in demote]
+            if glyphs[start] and len(run) - len(kept) > len(kept):
+                demote.update(i for i in run if is_header[i])
+            start = end
+
+        seen: Dict[str, int] = {}
+        result = set()
+        for idx, item in enumerate(items):
+            if not (is_header[idx] and glyphs[idx]):
+                continue
+            occurrence = seen.get(item.text, 0)
+            seen[item.text] = occurrence + 1
+            if idx in demote:
+                result.add((item.text, occurrence))
+        return result
 
     def _walk_items(self, data: List[List[Dict]], doc: DoclingDocument):
         self._reset_walk_state(doc)
@@ -969,6 +1024,18 @@ class GenosHwpDocumentBackend(DeclarativeDocumentBackend):
             if log is not None and not is_toc:
                 log.append((full_text, demoted))
             if demoted and full_text not in getattr(self, "_demotion_exempt", ()):
+                p_style_id = "Normal"
+                p_level = 0
+
+        # 글머리 기호 제목인데 사전 처리에서 딸린 내용이 없던 줄(같은 기호 형제가 바로 이어짐)은 본문이다.
+        glyph_kind = self._heading_kind(full_text) if p_style_id == "Heading" and not is_toc else None
+        if glyph_kind and glyph_kind.startswith("glyph:") and glyph_kind[6:] not in _HEADING_EXCLUDED_GLYPHS:
+            seen = getattr(self, "_glyph_heading_seen", None)
+            if seen is None:
+                seen = self._glyph_heading_seen = {}
+            occurrence = seen.get(full_text, 0)
+            seen[full_text] = occurrence + 1
+            if (full_text, occurrence) in getattr(self, "_empty_glyph_headings", ()):
                 p_style_id = "Normal"
                 p_level = 0
 
