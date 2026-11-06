@@ -148,6 +148,13 @@ _HEADING_EXCLUDED_GLYPHS = {"※", "*", "-"}
 # 붙임·참고 등은 앞 제목과 무관하게 문서 전체에 딸린 덩어리이므로, 열린 제목을 모두 닫고 1레벨에 둔다.
 # 근데 아직 고민중이다. 1장 - 붙임 - 2장 - 3장 이런 순서로 문서가 진행될 수도 있다.
 _HEADING_TOP_KINDS = {"attachment", "reference"}
+# 한 줄짜리 번호 박스 표: 첫 칸이 번호뿐이고, 빈 칸(장식) 하나를 사이에 둘 수 있으며, 마지막 칸이 짧은 제목이다.
+_NUMBER_BOX = re.compile(
+    r"<table[^>]*\brows=1\b[^>]*>\s*<tr>\s*"
+    r"<td[^>]*>\s*([ⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩ]+|\d{1,2}|[" + _KOR_ORDER + r"])\s*</td>\s*"
+    r"(?:<td[^>]*>\s*</td>\s*)?"
+    r"<td[^>]*>([^<]{1,%d})</td>\s*</tr>\s*</table>" % _HEADING_MAX_LEN
+)
 # 장/절/관/조는 번호가 1부터 차례로 이어질 때만 제목이다. 앞 번호 없이 튀어나온 조항(예: 첫 장의
 # "제34조 …" 인용)은 본문으로 둔다. 번호는 단위(장·절·관·조)마다 따로 센다.
 # 옛날에 2편부터 시작하는 PDF를 본 기억이 있어서 편은 뺀다.
@@ -598,6 +605,21 @@ class GenosHwpDocumentBackend(DeclarativeDocumentBackend):
             decoded = self._decode_latex_b64(latex_tag.get("value", ""))
             replacement = f"<math>{decoded}</math>" if decoded else ""
             latex_tag.replace_with(NavigableString(replacement))
+        # "| 1 |  | 총평 |" 처럼 번호 칸과 제목 칸으로 그린 한 줄짜리 번호 박스는 표 모양 그대로 제목으로 넣는다.
+        # 번호 뒤에 점이 없어 마커 패턴에 걸리지 않으므로, 본문 번호와 구분되는 box 종류로 레벨을 정한다.
+        # 그냥 헤더 룰에 1 이런거를 추가하면 모든 숫자가 제목으로 붙어서 이렇게 구분하겠습니다.
+        box = _NUMBER_BOX.match(html_content.strip())
+        if box:
+            number, title = box.group(1), box.group(2).strip()
+            kind = "box:" + ("num" if number.isdigit() else "roman" if number[0] in "ⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩ" else "kor")
+            text = f"{number} {title}"
+            prov = ProvenanceItem(
+                page_no=page_no,
+                bbox=BoundingBox(l=0, t=0, r=1, b=1, coord_origin=CoordOrigin.BOTTOMLEFT),
+                charspan=(0, len(text)),
+            )
+            self._add_header(doc, self._resolve_heading_level(text, kind=kind), text, prov, parent=parent)
+            return
         table_tag = soup.find("table")
         if not table_tag:
             return
@@ -964,7 +986,7 @@ class GenosHwpDocumentBackend(DeclarativeDocumentBackend):
             return "ⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩ".find(head) + 1 or None
         return None
 
-    def _resolve_heading_level(self, text: str) -> Optional[int]:
+    def _resolve_heading_level(self, text: str, kind: Optional[str] = None) -> Optional[int]:
         """열린 제목 스택으로 레벨을 정한다. 제목이 아니면 None.
 
         - 붙임·참고 등: 열린 제목을 모두 닫고 1레벨
@@ -978,7 +1000,7 @@ class GenosHwpDocumentBackend(DeclarativeDocumentBackend):
         if stack is None:
             stack = self._heading_stack = []
             self._heading_last_level = {}
-        kind = self._heading_kind(text)
+        kind = kind or self._heading_kind(text)
         if kind is None:
             return stack[-1][1] if stack else 1
         if kind.startswith("glyph:") and kind[6:] in _HEADING_EXCLUDED_GLYPHS:
@@ -1005,7 +1027,7 @@ class GenosHwpDocumentBackend(DeclarativeDocumentBackend):
         elif kind in kinds:
             level = stack[kinds.index(kind)][1]
             del stack[kinds.index(kind) :]
-        elif self._heading_ordinal(kind, text) == 1:
+        elif self._heading_ordinal(kind.removeprefix("box:"), text) == 1:
             level = (stack[-1][1] if stack else 0) + 1
         elif kind in self._heading_last_level:
             level = self._heading_last_level[kind]
