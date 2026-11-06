@@ -494,10 +494,7 @@ class GenosHwpDocumentBackend(DeclarativeDocumentBackend):
         # 개요 스타일은 H1부터 쓴 문서에서만 제목 레벨로 믿는다. 일부 단락에만 H3 등이 붙은 문서는
         # 작성자가 개요 기능으로 제목을 단 것이 아니므로 스타일을 무시하고 마커 규칙으로 판정한다.
         self._use_outline_style = any(
-            str(i.get("style", "")) == "H1"
-            for p in data
-            for i in (p or [])
-            if str(i.get("item", "")).lower() == "para"
+            str(i.get("style", "")) == "H1" for p in data for i in (p or []) if str(i.get("item", "")).lower() == "para"
         )
         # 강등 예외 사전 패스: 같은 번호 목록의 형제가 대부분 제목이면 강등된 항목도 제목으로 둔다.
         self._demotion_exempt = self._collect_demotion_exempt(data)
