@@ -491,6 +491,14 @@ class GenosHwpDocumentBackend(DeclarativeDocumentBackend):
         """페이지 그룹화를 제거하고 모든 아이템을 body에 직접 나열하여 DOCX 스타일로 구성합니다."""
         # 본문 baseline 폰트 사전 패스 (헤더 상대 판정용)
         self.body_font_size = self._compute_body_font_size(data)
+        # 개요 스타일은 H1부터 쓴 문서에서만 제목 레벨로 믿는다. 일부 단락에만 H3 등이 붙은 문서는
+        # 작성자가 개요 기능으로 제목을 단 것이 아니므로 스타일을 무시하고 마커 규칙으로 판정한다.
+        self._use_outline_style = any(
+            str(i.get("style", "")) == "H1"
+            for p in data
+            for i in (p or [])
+            if str(i.get("item", "")).lower() == "para"
+        )
         # 강등 예외 사전 패스: 같은 번호 목록의 형제가 대부분 제목이면 강등된 항목도 제목으로 둔다.
         self._demotion_exempt = self._collect_demotion_exempt(data)
         self._walk_items(data, doc)
@@ -908,6 +916,18 @@ class GenosHwpDocumentBackend(DeclarativeDocumentBackend):
         if bullet_kind and not bullet_kind.startswith("glyph:"):
             full_text = f"{bullet} {full_text}"
 
+        # 개요 스타일(H1~H9)이 지정된 단락은 작성자가 정한 제목이므로 마커·강등·목차 판정 없이
+        # 스타일 번호를 레벨로 쓴다. H1부터 쓴 문서에서만 적용한다.
+        style_level = self._outline_style_level(para) if getattr(self, "_use_outline_style", False) else None
+        if style_level is not None:
+            prov = ProvenanceItem(
+                page_no=page_no,
+                bbox=BoundingBox(l=0, t=0, r=1, b=1, coord_origin=CoordOrigin.BOTTOMLEFT),
+                charspan=(0, len(full_text)),
+            )
+            self._add_header(doc, self._push_outline_heading(style_level), full_text, prov, parent=parent)
+            return
+
         # 2. 폰트/스타일 정보 추출 — run 단위 max()/any() 대신 글자수 가중 "비율"로 집계.
         #    단락의 일부 run만 강조돼도 전체가 강조로 잡히던 문제를 막는다. (Issue #206)
         baseline = self.body_font_size or 10.0
@@ -1004,6 +1024,27 @@ class GenosHwpDocumentBackend(DeclarativeDocumentBackend):
         if kind == "roman":
             return "ⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩ".find(head) + 1 or None
         return None
+
+    @staticmethod
+    def _outline_style_level(para: Optional[Dict]) -> Optional[int]:
+        """단락 속성의 개요 스타일(H1~H9) 번호. 그 밖이면 None.
+
+        제목 레벨 상한이 9라 개요 10은 개요 9와 구분할 수 없으므로 제목으로 보지 않는다.
+        """
+        m = re.fullmatch(r"H(\d{1,2})", str((para or {}).get("style", "") or ""))
+        return int(m.group(1)) if m and 1 <= int(m.group(1)) <= 9 else None
+
+    def _push_outline_heading(self, level: int) -> int:
+        """개요 스타일 제목을 열린 제목 스택에 올린다. 같은 레벨 이상은 닫고, 뒤따르는 마커 제목은 그 하위가 된다."""
+        level = min(level, self.max_levels - 1)
+        stack = getattr(self, "_heading_stack", None)
+        if stack is None:
+            stack = self._heading_stack = []
+            self._heading_last_level = {}
+        while stack and stack[-1][1] >= level:
+            stack.pop()
+        stack.append((f"style:H{level}", level))
+        return level
 
     def _sized_heading_kind(self, kind: str, size: float) -> str:
         """같은 번호 종류를 글자 크기로 나눈 목록 이름(num, num#2 ...).
