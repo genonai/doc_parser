@@ -196,7 +196,7 @@ class GenosHwpDocumentBackend(DeclarativeDocumentBackend):
         self.valid = False
 
         # 2. 계층 및 상태 관리 (GenosMsWord 방식 이식)
-        self.max_levels = 10
+        self.max_levels = 11
         self.parents: Dict[int, Optional[NodeItem]] = {i: None for i in range(-1, self.max_levels)}
         self.history: Dict[str, List[Any]] = {"names": [None], "levels": [None], "page_nos": [1]}
 
@@ -916,7 +916,7 @@ class GenosHwpDocumentBackend(DeclarativeDocumentBackend):
         if bullet_kind and not bullet_kind.startswith("glyph:"):
             full_text = f"{bullet} {full_text}"
 
-        # 개요 스타일(H1~H9)이 지정된 단락은 작성자가 정한 제목이므로 마커·강등·목차 판정 없이
+        # 개요 스타일(H1~H10)이 지정된 단락은 작성자가 정한 제목이므로 마커·강등·목차 판정 없이
         # 스타일 번호를 레벨로 쓴다. H1부터 쓴 문서에서만 적용한다.
         style_level = self._outline_style_level(para) if getattr(self, "_use_outline_style", False) else None
         if style_level is not None:
@@ -1027,12 +1027,9 @@ class GenosHwpDocumentBackend(DeclarativeDocumentBackend):
 
     @staticmethod
     def _outline_style_level(para: Optional[Dict]) -> Optional[int]:
-        """단락 속성의 개요 스타일(H1~H9) 번호. 그 밖이면 None.
-
-        제목 레벨 상한이 9라 개요 10은 개요 9와 구분할 수 없으므로 제목으로 보지 않는다.
-        """
+        """단락 속성의 개요 스타일(H1~H10) 번호. 개요 스타일이 아니면 None."""
         m = re.fullmatch(r"H(\d{1,2})", str((para or {}).get("style", "") or ""))
-        return int(m.group(1)) if m and 1 <= int(m.group(1)) <= 9 else None
+        return int(m.group(1)) if m and 1 <= int(m.group(1)) <= 10 else None
 
     def _push_outline_heading(self, level: int) -> int:
         """개요 스타일 제목을 열린 제목 스택에 올린다. 같은 레벨 이상은 닫고, 뒤따르는 마커 제목은 그 하위가 된다."""
@@ -1130,7 +1127,7 @@ class GenosHwpDocumentBackend(DeclarativeDocumentBackend):
         """DOCX 표준 명칭(header-N)을 사용하여 논리적 섹션 마디를 만듭니다."""
 
         # 1. 하위 계층 부모 초기화 (기존 로직 유지)
-        for i in range(level, 10):
+        for i in range(level, self.max_levels):
             if i in self.parents:
                 self.parents[i] = None
 
