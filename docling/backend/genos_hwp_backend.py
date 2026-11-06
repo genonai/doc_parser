@@ -553,6 +553,9 @@ class GenosHwpDocumentBackend(DeclarativeDocumentBackend):
                     page_no = item.get("page", 1)
                     break
 
+            # 단락 속성(개요 번호·문단 번호·글머리표의 bullet). 텍스트 단락 처리에만 쓴다.
+            para = next((i for i in paragraph_items if str(i.get("item", "")).lower() == "para"), None)
+
             # --- [아이템 분기 처리: Text & Table] ---
             texts_in_batch = []
             for item in paragraph_items:
@@ -563,7 +566,7 @@ class GenosHwpDocumentBackend(DeclarativeDocumentBackend):
                 if i_type == "table" or "<table>" in i_value.lower():
                     if texts_in_batch:
                         # 쌓인 텍스트 본문을 처리할 때 parent를 doc.body로 지정
-                        self._handle_paragraph(texts_in_batch, doc, page_no, parent=self.active_main_parent)
+                        self._handle_paragraph(texts_in_batch, doc, page_no, parent=self.active_main_parent, para=para)
                         texts_in_batch = []
                     # 표를 처리할 때 parent를 doc.body로 지정
                     self._handle_table(i_value, doc, page_no, parent=self.active_main_parent)
@@ -571,7 +574,7 @@ class GenosHwpDocumentBackend(DeclarativeDocumentBackend):
                 # 2. [Step 3] 이미지(Picture) 처리 추가
                 elif i_type == "image":
                     if texts_in_batch:
-                        self._handle_paragraph(texts_in_batch, doc, page_no, parent=self.active_main_parent)
+                        self._handle_paragraph(texts_in_batch, doc, page_no, parent=self.active_main_parent, para=para)
                         texts_in_batch = []
                     # 이미지 핸들러 호출
                     self._handle_image(item, doc, page_no, parent=self.active_main_parent)
@@ -581,7 +584,7 @@ class GenosHwpDocumentBackend(DeclarativeDocumentBackend):
                 # 이미지와 동일한 패턴으로, 누적된 텍스트를 먼저 flush한 뒤 FORMULA 노드로 추가한다.
                 elif i_type == "latex":
                     if texts_in_batch:
-                        self._handle_paragraph(texts_in_batch, doc, page_no, parent=self.active_main_parent)
+                        self._handle_paragraph(texts_in_batch, doc, page_no, parent=self.active_main_parent, para=para)
                         texts_in_batch = []
                     self._handle_latex(item, doc, page_no, parent=self.active_main_parent)
 
@@ -591,7 +594,7 @@ class GenosHwpDocumentBackend(DeclarativeDocumentBackend):
 
             # 3. 루프 종료 후 남은 텍스트들 처리
             if texts_in_batch:
-                self._handle_paragraph(texts_in_batch, doc, page_no, parent=self.active_main_parent)
+                self._handle_paragraph(texts_in_batch, doc, page_no, parent=self.active_main_parent, para=para)
 
     def _handle_table(self, html_content: str, doc: DoclingDocument, page_no: int, parent: Any):
         """HTML 테이블을 분석하여 구조화된 Table 객체를 지정된 parent(body)에 추가합니다."""
@@ -881,13 +884,22 @@ class GenosHwpDocumentBackend(DeclarativeDocumentBackend):
             prov=prov,
         )
 
-    def _handle_paragraph(self, paragraph_items: List[Dict], doc: DoclingDocument, page_no: int, parent: Any):
+    def _handle_paragraph(
+        self, paragraph_items: List[Dict], doc: DoclingDocument, page_no: int, parent: Any, para: Optional[Dict] = None
+    ):
         """TOC(목차) 감지 로직이 추가된 버전입니다. 넘겨받은 parent에 텍스트를 추가합니다."""
 
         # 1. 텍스트 병합 및 기본 검사
         full_text = "".join([item.get("value", "") for item in paragraph_items]).strip()
         if not full_text:
             return
+
+        # 자동 번호(개요 번호·문단 번호)는 SDK가 본문과 따로 bullet 으로 주므로 앞에 붙인다.
+        # 글머리표(□, ◦ 등)는 붙이면 강조 규칙으로 같은 목록의 일부만 제목이 되므로 붙이지 않는다.
+        bullet = str((para or {}).get("bullet", "") or "").strip()
+        bullet_kind = self._heading_kind(f"{bullet} ") if bullet else None
+        if bullet_kind and not bullet_kind.startswith("glyph:"):
+            full_text = f"{bullet} {full_text}"
 
         # 2. 폰트/스타일 정보 추출 — run 단위 max()/any() 대신 글자수 가중 "비율"로 집계.
         #    단락의 일부 run만 강조돼도 전체가 강조로 잡히던 문제를 막는다. (Issue #206)
