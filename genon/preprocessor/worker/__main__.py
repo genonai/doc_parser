@@ -2,7 +2,7 @@
 
     python -m genon.preprocessor.worker          (저장소 루트에서 — facade 와 같은 import 규칙)
 
-부모 프로세스는 /health(PORT, startupProbe 용)만 서비스하고, 실제 워커는 자식 프로세스
+부모 프로세스는 /health(PORT, startupProbe 용)와 /version(배포 스탬프)만 서비스하고, 실제 워커는 자식 프로세스
 WORKER_PROCESSES 개가 돈다. 자식마다 Temporal 워커 1개 · 동시 WORKER_THREADS 건이다(패키지 docstring 참고).
 코드서빙 규약(GenOS 템플릿): startupProbe `GET /health :8080` 이 기동 때 한 번 200 을 받아야 하고
 그 뒤로는 probe 가 없다. PID1 은 supervisord 라 이 프로세스가 끝나면 START_COMMAND 를 다시 실행한다.
@@ -12,6 +12,7 @@ WORKER_PROCESSES 개가 돈다. 자식마다 Temporal 워커 1개 · 동시 WORK
 from __future__ import annotations
 
 import http.server
+import json
 import logging
 import multiprocessing as mp
 import os
@@ -19,10 +20,15 @@ import signal
 import sys
 import threading
 import time
+from pathlib import Path
+
+from genon.preprocessor.src.common.version_info import get_version_info
 
 from . import registry, runner, settings
 
 log = logging.getLogger("genon.worker")
+
+BASE_DIR = Path(__file__).resolve().parents[3]   # 서비스 루트 — VERSION·UPDATED_AT 이 놓인 곳
 
 _RESTART_LIMIT = 5
 _RESTART_WINDOW_SEC = 300
@@ -32,6 +38,14 @@ class _Health(http.server.BaseHTTPRequestHandler):
     children: list = []
 
     def do_GET(self):  # noqa: N802
+        if self.path.rstrip("/") == "/version":
+            # 배포 스탬프(VERSION)·UPDATED_AT 첫 줄·기동 시각 — 루트 main.py 의 /version 과 같은 응답
+            body = json.dumps(get_version_info(BASE_DIR), ensure_ascii=False).encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(body)
+            return
         ok = self.path.rstrip("/") in ("/health", "/healthcheck") and all(p.is_alive() for p in self.children)
         self.send_response(200 if ok else 503)
         self.end_headers()

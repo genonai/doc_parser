@@ -518,3 +518,25 @@ def test_remove_deletes_copy_but_not_prototype_or_site_overridden(tmp_path, monk
     with pytest.raises(ValueError, match="사이트 완성본"):
         remove_activity("parse_s", activities_dir=acts)
     assert (acts / "parse_s").exists()
+
+
+def test_health_server_serves_version_stamp(tmp_path, monkeypatch):
+    """워커의 /version 은 루트 main.py 의 /version 과 같은 스탬프(VERSION·UPDATED_AT 첫 줄)를 돌려준다."""
+    import http.server
+    import json
+    import threading
+    import urllib.request
+
+    from genon.preprocessor.worker import __main__ as entry
+
+    (tmp_path / "VERSION").write_text(json.dumps({"source_version": "9.9.9"}), encoding="utf-8")
+    (tmp_path / "UPDATED_AT").write_text("2026-11-03 반영\n둘째 줄\n", encoding="utf-8")
+    monkeypatch.setattr(entry, "BASE_DIR", tmp_path)
+    server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), entry._Health)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    try:
+        with urllib.request.urlopen(f"http://127.0.0.1:{server.server_port}/version") as resp:
+            body = json.loads(resp.read())
+    finally:
+        server.shutdown()
+    assert (body["version"], body["source"], body["manual_updated_at"]) == ("9.9.9", "file", "2026-11-03 반영")

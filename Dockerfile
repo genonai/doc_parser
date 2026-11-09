@@ -1,63 +1,40 @@
-# 코드서빙 부팅 단계 도커 빌드용 Dockerfile.
+# 전처리기 Temporal 워커 이미지 — 코드서빙 부팅 단계 도커 빌드용 Dockerfile.
 #
-# 이 파일은 배포본(doc_parser_code_serving) **루트**에 그대로 나간다 — main.py 와 같은 위치여야
-# 코드서빙이 리비전 부팅 시 이 Dockerfile 로 이미지를 빌드한다. sync-serving-repo.sh 의 whitelist 에
-# 들어 있으므로, 여기서 고친 내용은 커밋 후 배포본 재생성 시 반영된다.
+# 코드서빙은 리비전 부팅 시 배포처(gitea) 루트의 이 Dockerfile 로 이미지를 빌드한다.
 #
-# ⚠️ 이 저장소(개발 원본) 루트에서 `docker build .` 하지 말 것. 컨텍스트가 11GB(6만 파일)이고
-#    COPY 가 그 전부를 이미지에 넣는다. 빌드는 배포본(또는 gitea 배포처) 루트에서만 한다.
-#    (원래 이 자리에 있던 docling 업스트림 샘플 Dockerfile 은 공개 PyPI 의 `docling` 을 설치하는
-#     CLI 데모로, 이 포크에서는 어떤 스크립트도 참조하지 않았다. 필요하면 git 이력에서 꺼낸다.)
+#   docker build -t doc-parser-worker:<태그> .        # 배포처 루트에서
+#   docker run --rm -p 8080:8080 -v <NFS>:/nfs-root doc-parser-worker:<태그>
 #
-# 구조와 사이트 값(레지스트리 경로·사내 PyPI 미러·NFS 루트)은 같은 사이트에서 동작 중인
-# data-ingestion-pipeline 의 코드서빙 Dockerfile 에서 가져왔다. 배포 화면의 세 필드가
-# 그대로 Dockerfile 로 옮겨온 형태다: 베이스 이미지 → FROM, 빌드 커맨드 → RUN pip install, 시작 커맨드 → CMD.
+# 하는 일: 사이트에 등록된 base 이미지 위에 서비스 코드와 docling wheel 만 얹는다(수십 초, 외부 인터넷 불필요).
+# 하지 않는 일: 모델·HWP SDK·rhwp·LibreOffice·폰트·NLTK·EasyOCR·temporalio 준비 — base 이미지에 포함되어 있다.
+#   이들은 토큰·외부망·긴 빌드 시간이 필요해 부팅 빌드로 만들 수 없다. base 이미지 내용이 바뀌면 새 태그를
+#   사이트 레지스트리에 올리고 BASE_IMAGE 태그를 바꾼다.
 #
-#   docker build -t doc-parser-serving:<태그> .      # 배포본 루트에서
-#   docker run --rm -p 8080:8080 doc-parser-serving:<태그>
+# `# syntax=docker/dockerfile:...` 지시자를 넣지 않는다. BuildKit 이 frontend 이미지를 docker.io 에서 받으려 하므로
+# 폐쇄망에서 부팅 빌드가 실패한다. 여기서 쓰는 문법(전역 ARG, COPY --chown)은 기본 frontend 로 동작한다.
 #
-# `# syntax=docker/dockerfile:...` 지시자를 넣지 말 것. BuildKit 이 그 frontend 이미지를
-# docker.io 에서 받아오려 하는데, 폐쇄망 사이트에서는 그 pull 이 실패해 부팅 빌드 전체가 죽는다.
-# 여기서 쓰는 문법(전역 ARG, COPY --chown)은 모두 기본 frontend 로 동작한다.
-#
-# ── 이 파일이 하는 일과 하지 않는 일 ────────────────────────────────────────
-# 하는 일: 사이트에 등록된 base 이미지 위에 서비스 코드와 docling wheel 만 얹는다.
-#          빌드는 수십 초, 외부 인터넷 불필요.
-# 하지 않는 일: 모델/HWP SDK/rhwp/LibreOffice 확장/폰트/NLTK/EasyOCR 준비.
-#          이들은 base 이미지에 pre-bake 되어 있다 (사내 build-script/code-serving-doc-parser/Dockerfile).
-#
-# 부팅 단계에서 전체(fat) 빌드는 성립하지 않는다 — base 이미지를 반드시 재사용해야 한다:
-#   1) HWP SDK 는 HF private repo 라 빌드 시 토큰(--secret)이 필요하다. 부팅 빌드에 주입 경로가 없다.
-#   2) rhwp 는 github 에서 rust 소스를 clone 해 cargo build 한다. 폐쇄망에서 실패한다.
-#   3) HCRBatang 폰트 tar(genon/preprocessor/resources) 와 의존성 정의(pyproject.toml/uv.lock) 는
-#      배포본 whitelist 에서 제외되어 빌드 컨텍스트에 아예 없다.
-#   4) 다 있다 해도 모델·torch 다운로드로 콜드 빌드가 수십 분이다. 리비전 부팅마다 감당할 수 없다.
-#   → base 이미지 내용을 바꿔야 하면 사내 원본 저장소에서 빌드해 사이트 레지스트리에 push 하고
-#     아래 BASE_IMAGE 태그를 올린다.
+# 아래 ENV 는 이 사이트의 운영 값이다. 리비전 환경변수로 같은 이름을 주면 그 값이 우선한다.
+# 사이트 환경이 바뀌면 확인·수정해야 하는 값에는 [사이트 설정] 표시를 붙였다.
 
 # ── 베이스 이미지 ───────────────────────────────────────────────────────────
-# 사이트에 등록된 template-code-serving-doc-parser (사내 build-script/code-serving-doc-parser 산출물).
-# 레지스트리 호스트·경로 접두어·태그는 코드서빙 배포 화면에 표시된 이미지 경로와 정확히 같아야 한다.
-#   태그 확인:  curl http://<레지스트리>/v2/<경로>/template-code-serving-doc-parser/tags/list
-#   GPU 사이트는 이미지명이 다르다 — template-code-serving-doc-parser-gpu (build.sh 가 -gpu 를 붙인다).
-ARG BASE_IMAGE=scrpifpext-xichxjgz.scr.kr-west.scp-in.com/external/ifa/mnc/template-code-serving-doc-parser:2.2.5
+# [사이트 설정] 레지스트리 호스트·경로·태그는 코드서빙 배포 화면에 표시된 이미지 경로와 같아야 한다.
+#   태그 확인: curl http://<레지스트리>/v2/<경로>/template-code-serving-doc-parser/tags/list
+#   GPU 사이트는 이미지명이 template-code-serving-doc-parser-gpu 다.
+ARG BASE_IMAGE=scrpifpext-xichxjgz.scr.kr-west.scp-in.com/external/ifa/mnc/template-code-serving-doc-parser:2.2.5.1
 FROM ${BASE_IMAGE}
 
-# 저장소 루트가 곧 서비스 루트다. 코드서빙이 clone 하던 자리(/app/src/service)와 같게 두어야
-# main.py 의 BASE_DIR 기준 경로(genon/preprocessor/resource, genon/preprocessor/src)가 성립한다.
+# 서비스 루트. 워커는 이 디렉터리에서 `python -m genon.preprocessor.worker` 로 기동해야 패키지 import 와
+# activities/<slug>/ 탐색이 성립한다(base entrypoint 도 START_COMMAND 를 이 자리에서 실행한다).
 WORKDIR /app/src/service
 
-# 소유권은 숫자 UID 대신 base 이미지의 계정명으로 준다.
-# 숫자는 이미지마다 다르지만(사내 build.config 는 3000, 다른 서비스 base 는 1000) 계정명은 genos 로 같다.
+# 소유권은 숫자 UID 대신 base 이미지의 계정명(genos)으로 준다. UID 는 이미지마다 다르다.
 COPY --chown=genos:genos . /app/src/service/
 
 # ── docling(fork) wheel 설치 ────────────────────────────────────────────────
-# requirements.txt 는 packages/ 의 wheel 경로 한 줄이고, 나머지 deps 는 base 이미지 venv(/app/.venv)에
-# 이미 들어 있다. 즉 이 단계는 로컬 wheel 만 설치하므로 실제로 네트워크를 쓰지 않는다.
-# index 는 requirements.txt 에 패키지명이 추가될 때를 위한 사이트 사내 미러다(폐쇄망이라 공개 PyPI 불가).
-#   --no-deps : wheel 의 deps 재해석을 막는다. 이게 없으면 resolver 가 torch 를 다시 잡아
-#               base 이미지가 일부러 걷어낸 CUDA 휠(약 2.7GB)을 되살릴 수 있다.
-# pip 은 PATH 상 /app/.venv/bin/pip 으로 해석되므로 base deps 와 같은 venv 에 설치된다.
+# requirements.txt 는 packages/ 의 wheel 경로 한 줄이고, 나머지 의존성은 base 이미지 venv(/app/.venv)에 있다.
+# 로컬 wheel 만 설치하므로 실제로 네트워크를 쓰지 않는다.
+#   --no-deps : 의존성 재해석을 막는다. 없으면 resolver 가 base 이미지에서 걷어낸 CUDA torch 를 다시 받을 수 있다.
+# [사이트 설정] PIP_INDEX_URL·PIP_TRUSTED_HOST 는 requirements.txt 에 패키지명이 추가될 때만 쓰는 사이트 사내 미러다.
 ARG PIP_INDEX_URL=https://p-nexus.samsungcard.biz/repository/sc-px-pypi/simple
 ARG PIP_TRUSTED_HOST=p-nexus.samsungcard.biz
 RUN pip install --no-cache-dir --no-deps \
@@ -66,29 +43,87 @@ RUN pip install --no-cache-dir --no-deps \
       -r /app/src/service/requirements.txt \
  && python -c "import importlib.metadata as m, docling; print('[INFO] genon-docling', m.version('genon-docling'))"
 
-# ── NFS (LLM 파일 캐시) ─────────────────────────────────────────────────────
-# llm_cache 는 캐시를 <NFS_ROOT_DIR>/interim/<workflow_id>/<run_id>/llm_cache 에 쓴다
-# (docling/utils/llm_cache.py). 코드 기본값도 /nfs-root 지만, 파이프라인 워커와 같은 NFS 를 봐야
-# 캐시가 공유되므로 사이트 값을 명시해 둔다.
-# 이 ENV 만으로는 부족하다 — 리비전에 같은 NFS 를 /nfs-root 로 마운트해야 한다. 마운트가 없으면
-#    llm_cache 요청이 조용히 무효가 되고, /parser 에 넘기는 NFS 파일 경로도 열리지 않는다.
-ENV NFS_ROOT_DIR=/nfs-root
+# ── Temporal 워커 ───────────────────────────────────────────────────────────
+# 워커는 전처리기 큐 하나만 long-poll 하고, task 의 액티비티 이름(slug = activities/<slug>/ 폴더명)으로 처리기를
+# 찾아 실행한다. 워크플로·embed·load 는 파이프라인 큐를 받는 파이프라인 워커가 맡는다. 워크플로가 늘어도 큐는 둘 그대로다.
 
-# 안전망: 런타임이 command 를 base 의 supervisord 로 덮어쓰는 배포 형태 대비.
-# 코드가 이미 이미지에 있으므로 base 의 scripts/init.sh(REPOSITORY_URL clone + pip install)를
-# 그대로 두면 비어있지 않은 디렉토리에 clone 을 시도해 실패 경고만 남긴다.
-# 이 no-op 로 바꿔두면 그 경로에서도 곧바로 main.py 자동 감지 → uvicorn 기동으로 이어진다.
+# ── 1. 필수 항목 — 기본값이 없고, 없으면 워커가 기동을 거부한다 ──────────────────────
+# ("워커 필수 env 가 없습니다: <이름>" 로그를 남기고 종료한다)
+# [사이트 설정] TEMPORAL_HOST — 파이프라인과 같은 Temporal frontend 주소
+# [사이트 설정] WORKER_TASK_QUEUE — 파이프라인 DOC_PARSER_TASK_QUEUE 와 같은 이름(파이프라인 자기 큐와는 다른 이름).
+#   파이프라인 DOC_PARSER_CHUNK_QUEUE_SPLIT 은 꺼 둔다. 켜면 청킹이 <큐>-chunk 로 가는데 이 워커는 큐 하나만 받는다.
+# [사이트 설정] NFS_ROOT·ARTIFACT_ROOT — 리비전에 파이프라인과 같은 NFS 를 /nfs-root 로 마운트해야 한다.
+#   NFS_ROOT       원본 문서(read_ref root="nfs")를 여는 루트. 파이프라인 NFS_ROOT 와 같은 경로
+#   ARTIFACT_ROOT  parse·chunk 결과 JSON 을 쓰고 읽는 루트. 파이프라인 INTERIM_ROOT(기본 <NFS_ROOT>/temporal-artifacts)와 같은 자리
+ENV TEMPORAL_HOST=llmops-temporal-frontend.ns-ifa-app.svc.cluster.local \
+    WORKER_TASK_QUEUE=preproc-q \
+    NFS_ROOT=/nfs-root \
+    ARTIFACT_ROOT=/nfs-root/temporal-artifacts
+
+# ── 2. 이 사이트에서 지정하는 항목 — 기본값이 없거나, 기본값과 다른 값을 쓴다 ───────────────
+#   START_COMMAND     (기본값 없음) base entrypoint.sh 는 이 값이 있으면 그것을 실행하고, 없으면 main.py 를 찾아
+#                     HTTP 서버를 띄운다. 런타임이 CMD 를 supervisord → entrypoint.sh 로 덮어쓰는 배포 형태에서도 워커가 뜨게 한다
+#   WORKER_PROCESSES  (기본값 1) 워커 프로세스 수(N). Temporal 표준 옵션이 아니라 이 워커의 옵션이다 — 부모 프로세스가
+#                     자식을 N 개 띄우고, 자식마다 Temporal 워커 1개가 같은 큐를 long-poll 한다. 프로세스끼리는 실제로 병렬 처리된다.
+#                     pod 의 동시 처리 문서 수 = N × WORKER_THREADS(기본 1)
+#                     [사이트 설정] 프로세스마다 모델이 메모리(수 GB)를 따로 쓰므로 늘리기 전에 리비전 메모리를 확인한다
+#   TZ                (기본값 UTC — base 이미지) 로그 시각을 파이프라인 로그(KST)와 맞춘다
+ENV START_COMMAND="python -m genon.preprocessor.worker" \
+    WORKER_PROCESSES=5 \
+    TZ=Asia/Seoul
+
+# 기본값이 없지만 이 사이트에서는 쓰지 않는 항목(필요할 때 주석을 푼다)
+#   LLM_CACHE_ROOT            재시도 때 이미 성공한 LLM 호출을 건너뛰는 캐시 루트(같은 NFS 아래). 없으면 캐시를 쓰지 않는다
+#   GENOS_MODEL_PRESETS_FILE  모델 접속 실값 파일. 없으면 배포처의 genon/preprocessor/resource/model_presets.yaml 만 읽는다.
+#                             그 파일에 실값(서빙 ID·OCR·레이아웃 주소 등)을 직접 채웠으면 필요 없다.
+#                             주면 그 파일이 resource/model_presets.yaml 위에 프리셋 이름별·키 단위로 덮인다(형식은 같다).
+#                             파일이 없거나 형식이 틀리면 기동이 실패한다
+# ENV LLM_CACHE_ROOT=/nfs-root/interim
+# ENV GENOS_MODEL_PRESETS_FILE=<model_presets.yaml 경로>
+
+# ── 3. 기본값이 있는 항목 — 지정하지 않는다(아래 값이 기본값) ─────────────────────────
+# 바꿀 때만 해당 줄의 주석을 풀거나 리비전 환경변수로 준다.
+#   TEMPORAL_PORT                   Temporal frontend 포트
+#   TEMPORAL_NAMESPACE              [사이트 설정] 파이프라인 TEMPORAL_NAMESPACE 와 같아야 한다
+#   WORKER_THREADS                  프로세스마다 동시에 처리할 문서 수(M). 각 프로세스의 Temporal 워커가 M 건까지 받는다
+#                                   (스레드 풀 크기 = max_concurrent_activities = M).
+#                                   같은 프로세스의 스레드는 모델·처리기를 함께 쓰므로 메모리는 거의 늘지 않지만,
+#                                   파이썬 GIL 때문에 파싱처럼 CPU 가 무거운 처리는 동시에 빨라지지 않는다.
+#                                   LLM 호출 대기가 긴 문서에서만 효과가 있고, LibreOffice 변환은 프로세스 안에서 한 번에 하나씩 돈다.
+#                                   한 건이 멈춰 프로세스를 다시 띄워야 하면 같은 프로세스의 다른 건이 끝난 뒤 재시작한다.
+#                                   처리량은 WORKER_PROCESSES 로 늘리고, 메모리가 부족할 때만 이 값을 2 정도로 올려 본다
+#   HEARTBEAT_INTERVAL              액티비티 하트비트 간격(초)
+#   PREVIEW_CHARS                   액티비티 반환 preview 길이(Temporal 페이로드 2MB 한계 안)
+#   PORT                            /health 포트(코드서빙도 8080 을 주입한다)
+#   OMP_NUM_THREADS                 연산 스레드 수. 기본은 기동 때 "CPU 한도 ÷ WORKER_PROCESSES" 의 내림(최소 1)으로 자동 설정
+#   GENOS_PROFILE                   1 이면 단계별 처리 시간·외부 호출 계측 로그를 남긴다(그 밖의 값은 꺼짐)
+#   GENOS_CUSTOM_FIELDS_VALIDATION  custom_fields 설정 오기입 처리. error = 기동 실패, warn = 경고 후 그 설정 무시
+# ENV TEMPORAL_PORT=7233
+# ENV TEMPORAL_NAMESPACE=ns-ifa-app
+# ENV WORKER_THREADS=1
+# ENV HEARTBEAT_INTERVAL=10
+# ENV PREVIEW_CHARS=2000
+# ENV PORT=8080
+# ENV OMP_NUM_THREADS=<자동>
+# ENV GENOS_PROFILE=0
+# ENV GENOS_CUSTOM_FIELDS_VALIDATION=error
+
+# 이 이미지에서 쓰지 않는 값
+#   GENOS_RESOURCE_DIR  주지 않는다. 사이트 배포본은 사이트 설정이 activities/<slug>/ 에 이미 들어 있다.
+#                       주면 그 폴더 옆 activities/ 만 읽으므로 설정을 찾지 못한다
+#   NFS_ROOT_DIR        HTTP 서빙의 LLM 캐시 경로다. 워커는 LLM_CACHE_ROOT 를 쓴다
+
+# ── 기동 ─────────────────────────────────────────────────────────────────────
+# base 의 init.sh 는 저장소를 clone 하고 pip install 한다. 코드가 이미 이미지에 있으므로 no-op 으로 바꾼다
+# (그대로 두면 비어 있지 않은 디렉터리에 clone 을 시도해 실패 경고만 남긴다).
 RUN printf '%s\n' \
       '#!/bin/sh' \
       '# 부팅 빌드 방식 — 코드와 deps 가 이미 이미지에 포함되어 있어 clone/pip 이 필요없다.' \
       'echo "[init.sh] image-baked code — clone/pip skipped"' \
       > /app/scripts/init.sh
 
+# /health(PORT) — 코드서빙 startupProbe. 워커 프로세스가 모두 살아 있으면 200, 아니면 503.
 EXPOSE 8080
 
-# 진입점은 배포본 루트의 main.py 하나다(FastAPI). 업무 API 7개와 /health 를 모두 제공한다.
-# PORT 는 코드서빙이 8080 으로 주입한다. exec 로 감싸 uvicorn 이 PID 1 이 되게 한다(종료 시그널 전달).
-# 워커는 5개다 — 모델 로딩·문서 변환이 동기 블로킹이라 워커마다 메모리(수 GB)를 따로 쓴다. 늘리기 전에 리비전 메모리를 먼저 확인한다.
-# 노드 코어가 많고 리비전 CPU 가 1코어인 인스턴스에서 OpenMP 스레드 경합이 보이면
-#    ENV OMP_NUM_THREADS=4 를 추가한다. 현재 base 이미지는 이 값을 설정하지 않는다.
-CMD ["sh", "-c", "exec uvicorn main:app --host 0.0.0.0 --port ${PORT:-8080} --workers 5"]
+# exec 로 감싸 워커가 PID 1 이 되게 한다(종료 시그널 전달).
+CMD ["sh", "-c", "exec python -m genon.preprocessor.worker"]
