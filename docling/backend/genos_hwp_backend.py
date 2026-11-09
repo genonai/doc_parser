@@ -36,10 +36,16 @@ class GenosHwpDocumentBackend(_GenosHwpNewDocumentBackend):
                 continue
             page_no = next((i.get("page", 1) for i in paragraph_items if "page" in i), 1)
             texts: List[str] = []
+            # 자동 번호·글머리표(□, 1. 등)는 SDK 가 단락 속성 bullet 으로 따로 주므로 단락 첫 텍스트 앞에 붙인다.
+            para = next((i for i in paragraph_items if str(i.get("item", "")).lower() == "para"), None)
+            bullet = [str((para or {}).get("bullet", "") or "").strip()]
 
             def flush():
                 text = "".join(texts).strip()
                 texts.clear()
+                if text and bullet[0]:
+                    text = f"{bullet[0]} {text}"
+                    bullet[0] = ""
                 if text:
                     doc.add_text(label=DocItemLabel.TEXT, text=text, parent=doc.body, prov=_prov(page_no, len(text)))
 
@@ -50,8 +56,13 @@ class GenosHwpDocumentBackend(_GenosHwpNewDocumentBackend):
                     texts.append(i_value)
                 elif i_type == "table":
                     flush()
-                    texts.append(i_value)
-                    flush()
+                    if i_value.strip():
+                        doc.add_text(
+                            label=DocItemLabel.TEXT,
+                            text=i_value.strip(),
+                            parent=doc.body,
+                            prov=_prov(page_no, len(i_value.strip())),
+                        )
                 elif i_type == "image":
                     flush()
                     self._handle_image(item, doc, page_no, parent=doc.body)
