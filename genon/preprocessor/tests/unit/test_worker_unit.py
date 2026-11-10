@@ -10,6 +10,7 @@ import logging
 from pathlib import Path
 
 import pytest
+import yaml
 from temporalio.testing import ActivityEnvironment
 
 from genon.preprocessor.processing.common.reason_codes import CodedValueError
@@ -288,6 +289,7 @@ def _os_error(code, cls=OSError):
     (RuntimeError("unknown"), False, "RuntimeError"),
     (_os_error(errno.ESTALE), False, "transient"),
     (_os_error(errno.EACCES, PermissionError), True, "permanent"),
+    (yaml.YAMLError("다른 로더가 감싸지 않고 올린 문법 오류"), True, "permanent"),
 ])
 def test_error_classification(exc, non_retryable, kind):
     err = errors.to_application_error(exc, "parse_x a.pdf")
@@ -418,6 +420,39 @@ def test_processor_setup_error_is_classified(monkeypatch):
     with pytest.raises(Exception) as info:
         ActivityEnvironment().run(registry.build([registry.Entry("chunk", "chunk", None)])[0], {})
     assert (info.value.type, info.value.non_retryable) == ("permanent", True)
+
+
+def test_config_yaml_syntax_error_is_permanent_one_line(tmp_path, monkeypatch):
+    """config.yaml 문법 오류는 같은 설정이면 늘 실패한다 — 재시도하지 않고, 파일·행·열과 조치를 한 줄로 앞에 적는다.
+    Studio 콘솔(줄당 220자)·GenOS error_message(약 500자)에서 잘려도 고칠 자리가 보여야 한다."""
+    import types
+
+    from genon.preprocessor.processing.common import config_parse
+    from genon.preprocessor.processing.core.parser import ParserCore
+
+    class _Reads(ParserCore):
+        def __init__(self, config_path=None):    # 실제 프로세서처럼 기동 때 설정을 읽는다
+            config_parse.load_config(config_path)
+
+    cfg = tmp_path / "activities" / "parse_t" / "config.yaml"
+    cfg.parent.mkdir(parents=True)
+    cfg.write_text("defaults:\n  log_level: 4\n  doc_types: [card, memo\nchunk: {}\n", encoding="utf-8")
+    real = registry.importlib.import_module
+    monkeypatch.setattr(registry.importlib, "import_module",
+                        lambda name, *a: types.SimpleNamespace(DocumentProcessor=_Reads)
+                        if name.endswith(".parse_t.processor") else real(name, *a))
+    monkeypatch.setattr(registry, "_PROCESSORS", {})
+    monkeypatch.setattr(runtime, "_POISONED", False)
+    monkeypatch.setattr(config_parse, "_PREPROCESSOR_DIR", tmp_path.resolve())   # 저장소 배치처럼 경로를 줄인다
+
+    with pytest.raises(Exception) as info:
+        ActivityEnvironment().run(registry.build([registry.Entry("parse_t", "parse", str(cfg))])[0], {})
+    err, message = info.value, info.value.message
+    assert (err.type, err.non_retryable) == ("permanent", True)
+    assert "\n" not in message
+    head = message[:130]                                            # 핵심은 앞 130자 안(#632)
+    assert "activities/parse_t/config.yaml 4행 6열의 YAML 문법이 틀렸습니다" in head
+    assert "). 괄호·들여쓰기·따옴표를 고치세요." in message          # 접두·접미(액티비티·파일)는 to_application_error 몫
 
 
 def test_single_run_cli_uses_worker_body_and_prints_result_last(tmp_path, monkeypatch, capsys, caplog):

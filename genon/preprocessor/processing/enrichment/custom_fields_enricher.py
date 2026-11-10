@@ -9,7 +9,6 @@ from pathlib import Path
 from typing import Any, Callable
 
 import httpx
-import yaml
 from docling_core.types import DoclingDocument
 from docling_core.types.doc import DescriptionAnnotation
 from docling_core.types.doc.document import MiscAnnotation
@@ -244,7 +243,7 @@ def load_custom_fields_config(
     path = resolve_custom_fields_config_path(config_file, resource_path)
     if not path.exists():
         raise FileNotFoundError(f"custom_fields config 없음: {path}")
-    loaded = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    loaded = cp.read_yaml_file(path) or {}
     if not isinstance(loaded, dict):
         raise ValueError(
             f"custom_fields config는 mapping이어야 합니다: {path} "

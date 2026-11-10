@@ -22,8 +22,6 @@ import unicodedata
 from pathlib import Path
 from typing import Any, ClassVar
 
-import yaml
-
 from genon.preprocessor.processing.common import config_parse as cp
 from genon.preprocessor.processing.common.reason_codes import CodedValueError
 from genon.preprocessor.processing.enrichment import config_schema as cs
@@ -1356,7 +1354,7 @@ class CustomFieldsMapperBase:
         path = path.resolve()
         if not path.is_file():
             raise FileNotFoundError(f"{cls._CF_LABEL} custom_fields config 없음: {path}")
-        loaded = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+        loaded = cp.read_yaml_file(path) or {}
         if not isinstance(loaded, dict):
             raise ValueError(
                 f"{cls._CF_LABEL} custom_fields config 는 object 여야 합니다: {path}"
