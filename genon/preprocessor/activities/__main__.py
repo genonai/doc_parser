@@ -16,7 +16,7 @@
 실제 처리는 **자식 프로세스**에서 돈다. 프로세서·docling 이 stdout 에 찍는 출력은 stderr 로 가고,
 마감 초과로 처리 스레드가 남아도(워커는 그 프로세스를 끝낸다) 부모가 결과 한 줄과 종료 코드를 정한다.
 
-출력 계약(Studio 디스패처가 읽는다): stderr = 진행 로그 · stdout **마지막 줄**
+출력 계약(Studio 디스패처가 읽는다): stderr = 진행 로그(파이프면 `LEVEL 메시지`, 터미널이면 시각·로거 이름까지) · stdout **마지막 줄**
 `@@RESULT@@ {"ok", "stage", "activity", "duration_ms", "data" | "error"}` · 실패는 exit 1.
 
 `new`·`remove` (#472, Studio 의 "+ 새 액티비티 · 복제"·삭제): 액티비티 하나 = 폴더 하나라 생성·복제는 **폴더 복사 한 번**,
@@ -376,12 +376,23 @@ def _log_failure(result: dict) -> None:
     log.error("단건 실행 실패(%s): %s", error.get("reason_code") or error.get("type"), error.get("message"))
 
 
+def _log_format() -> str:
+    """stderr 로그 줄 형식. 터미널에서는 시각·로거 이름까지 찍는다. 파이프(Studio 콘솔)로 나갈 때는 `LEVEL 메시지` 만 찍는다.
+
+    Studio 콘솔은 받은 줄마다 제 시각을 붙이고 한 줄을 220자에서 자른다. 날짜(23자)와 로거 이름(~50자)이
+    그 1/3 을 차지해 메시지가 잘렸고, 시각은 두 번 찍혔다(#638). 자식 프로세스는 부모의 stderr 를
+    그대로 물려받으므로 두 쪽이 같은 형식을 고른다. 배치 워커 형식(문서 태그, worker/runner.py)과는 별개다.
+    """
+    if sys.stderr.isatty():
+        return "%(asctime)s %(levelname)s %(name)s %(message)s"
+    return "%(levelname)s %(message)s"
+
+
 def main(argv=None) -> int:
     argv = list(sys.argv[1:] if argv is None else argv)
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8")
-    logging.basicConfig(level=logging.INFO, stream=sys.stderr,
-                        format="%(asctime)s %(levelname)s %(name)s %(message)s")
+    logging.basicConfig(level=logging.INFO, stream=sys.stderr, format=_log_format())
     if argv[:1] == ["_child"]:                       # 내부용 — _run_isolated 가 부른다
         return _child(_parser().parse_args(argv[2:]), argv[1])
     started = time.monotonic()
