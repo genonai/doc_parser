@@ -66,7 +66,4 @@ class GenosHwpDocumentBackend(_GenosHwpNewDocumentBackend):
                 elif i_type == "image":
                     flush()
                     self._handle_image(item, doc, page_no, parent=doc.body)
-                elif i_type == "latex":
-                    flush()
-                    self._handle_latex(item, doc, page_no, parent=doc.body)
             flush()
