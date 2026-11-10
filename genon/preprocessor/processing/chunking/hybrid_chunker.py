@@ -245,7 +245,7 @@ class TokenAwareHybridChunker(BaseChunker):
     def _patch_tokenizer_and_max_tokens(self) -> Self:
         mode = (self.tokenizer_type or "char").strip().lower()
         if mode not in {"char", "huggingface"}:
-            _log.warning(f"[TokenAwareHybridChunker] Unknown tokenizer_type '{mode}', fallback to 'char'.")
+            _log.warning(cp.unknown_tokenizer_type_message(mode))
             mode = "char"
         self.tokenizer_type = mode
         if mode == "char":

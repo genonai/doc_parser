@@ -98,3 +98,30 @@ def test_huggingface_mode_loads_tokenizer(make_chunker):
     assert chunker._tokenizer is not None
     count = getattr(chunker, "_count_tokens", None) or chunker._count_text_tokens
     assert count("hello world example text") > 0
+
+
+# ---------------------------------------------------------------------------
+# huggingface 토크나이저 경로 안내(#665)
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+@pytest.mark.parametrize("tokenizer_type,warns", [("huggingface", True), ("char", False)])
+def test_missing_tokenizer_path_warns_only_in_huggingface_mode(tokenizer_type, warns, tmp_path, caplog):
+    """tokenizer_path 가 없어 Hugging Face ID 로 바꾸는 폴백은 토크나이저를 쓰는 모드에서만 알린다."""
+    import logging
+    from genon.preprocessor.processing.common import config_parse as cp
+
+    cfg = {"tokenizer_type": tokenizer_type, "tokenizer_path": str(tmp_path / "없는폴더"), "tokenizer_id": "org/tok"}
+    with caplog.at_level(logging.WARNING):
+        assert cp.resolve_tokenizer(cfg) == "org/tok"
+    assert ("chunking.tokenizer_path" in caplog.text) is warns
+
+
+@pytest.mark.unit
+def test_tokenizer_load_failure_is_permanent(tmp_path):
+    """토크나이저를 못 불러오면 같은 설정으로는 늘 실패하므로 재시도하지 않는 오류로 낸다."""
+    with pytest.raises(Exception) as exc:
+        _smart_chunker("intelligent_processor")(
+            max_tokens=100, tokenizer=str(tmp_path), tokenizer_type="huggingface")   # 빈 폴더
+    assert getattr(exc.value, "error_type", None) == "permanent"
+    assert "chunking.tokenizer_path" in str(exc.value)

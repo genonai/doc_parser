@@ -65,6 +65,28 @@ from genon.preprocessor.processing.enrichment.table_description import (
 _log = logging.getLogger(__name__)
 
 
+def _load_hf_tokenizer(source):
+    """huggingface 모드의 토크나이저를 불러온다. 실패는 같은 설정이면 늘 실패하므로 permanent 다.
+
+    transformers 의 원문은 여러 줄 영어이고 재시도 대상(OSError)으로 분류되어, 폐쇄망에서 같은
+    실패를 되풀이했다. 첫 줄만 남겨 한 줄 사유 + 조치로 바꾼다. 맞는 사유 코드가 없어 비워 둔다.
+    transformers 는 경로 상태에 따라 OSError·ValueError 말고도(빈 폴더면 AttributeError) 던지므로
+    모든 예외를 받는다 — 어느 것이든 이 설정으로는 청킹을 시작할 수 없다는 뜻이다.
+    """
+    try:
+        return AutoTokenizer.from_pretrained(source)
+    except Exception as exc:
+        from genon.preprocessor.processing.core.errors import GenosServiceException
+
+        detail = next((line.strip() for line in str(exc).splitlines() if line.strip()), type(exc).__name__)
+        raise GenosServiceException(
+            1,
+            f"chunking.tokenizer_type 이 huggingface 인데 토크나이저 {source} 를 불러오지 못했습니다: "
+            f"{detail[:150].rstrip('.')}. chunking.tokenizer_path 에 토크나이저 폴더를 두거나 tokenizer_type 을 char 로 바꾸세요.",
+            error_type="permanent",
+        ) from exc
+
+
 def _is_html_origin(dl_doc) -> bool:
     """원본이 HTML 계열인가. 헤더 행 수 판정 규칙이 여기서 갈린다.
 
@@ -149,18 +171,16 @@ class SmartChunkerBase(BaseChunker):
         # 토크나이저 초기화
         mode = (self.tokenizer_type or "char").strip().lower()
         if mode not in {"char", "huggingface"}:
-            _log.warning(f"[GenosSmartChunker] Unknown tokenizer_type '{mode}', fallback to 'char'.")
+            _log.warning(cp.unknown_tokenizer_type_message(mode))
             mode = "char"
         self.tokenizer_type = mode
         if mode == "char":
             # 문자 수 기반: HF 토크나이저 로드 불필요 (외부 모델 의존 제거)
             self._tokenizer = None
+        elif isinstance(self.tokenizer, PreTrainedTokenizerBase):
+            self._tokenizer = self.tokenizer
         else:
-            self._tokenizer = (
-                self.tokenizer
-                if isinstance(self.tokenizer, PreTrainedTokenizerBase)
-                else AutoTokenizer.from_pretrained(self.tokenizer)
-            )
+            self._tokenizer = _load_hf_tokenizer(self.tokenizer)
         return self
 
     def preprocess(self, dl_doc: DLDocument, **kwargs: Any) -> Iterator[BaseChunk]:
@@ -294,7 +314,7 @@ class SmartChunkerBase(BaseChunker):
                 all_header_short_info.insert(0, {})  # 빈 짧은 헤더 정보
 
         # 파일명 TITLE 만 있는 문서는 위에서 전부 걸러져 all_items 가 빈다. 그대로 두면
-        # 청크가 0개가 되어 하위에서 "chunk length is 0" 으로 실패하므로 되살린다.
+        # 청크가 0개가 되어 하위에서 "청크를 하나도 만들지 못했습니다" 로 실패하므로 되살린다.
         if not all_items and dropped_filename_titles:
             _log.warning(
                 "[GenosSmartChunker] 파일명 TITLE 외 본문 아이템이 없어 파일명 TITLE "
@@ -876,6 +896,15 @@ class SmartChunkerBase(BaseChunker):
             self.CHUNK_HEADER_SEP, self.CHUNK_PATH_SEP, self.CHUNK_PATH_MAX_LEAVES,
             self.CHUNK_HEADER_PREFIX)
 
+    def _warn_header_over_size(self, header_tokens: int) -> None:
+        """HEADER 줄 하나가 chunk_size 이상이라 그 몫을 빼지 않고 본문만으로 나눌 때의 경고."""
+        unit = "토큰" if self.tokenizer_type == "huggingface" else "자"
+        _log.warning(
+            f"HEADER 줄(섹션 경로)이 {header_tokens}{unit}로 chunk_size({self.max_tokens}) 이상이라 "
+            f"그 길이를 빼지 않고 본문만으로 나눕니다. 이 섹션의 청크는 chunk_size 를 넘습니다. "
+            f"제목이 본문만큼 길면 parse 결과의 섹션 제목을 확인하거나 chunking.include_chunk_header 를 끄세요."
+        )
+
     def _header_line_for(self, h_short: list[dict]) -> str:
         """그룹의 header_short 정보로 청크 선두 헤더 라인을 만든다(크기 산정용).
 
@@ -1316,9 +1345,7 @@ class SmartChunkerBase(BaseChunker):
                 budget = self.max_tokens - header_tokens
                 if budget <= 0:
                     # 헤더 하나가 chunk_size 이상인 병리 케이스 — 본문 기준으로 폴백(경고).
-                    _log.warning(
-                        "[GenosSmartChunker] 헤더 라인(%d)이 chunk_size(%d) 이상 — 헤더 몫 예약 생략, "
-                        "청크가 한도를 초과할 수 있음", header_tokens, self.max_tokens)
+                    self._warn_header_over_size(header_tokens)
                     budget = self.max_tokens
 
                 # caption 및 table 내 그림은 같은 섹션에 있도록 조정
@@ -1543,9 +1570,7 @@ class SmartChunkerBase(BaseChunker):
                     # 헤더 하나가 chunk_size 이상인 병리 케이스(조문 전체가 SECTION_HEADER 로 승격된 경우).
                     # 예약하면 예산이 0 이하가 되어 분할이 끝나지 않으므로 기존 동작(본문 기준)으로
                     # 폴백하고 경고만 남긴다 — 근본 원인은 heading 길이라 별도로 다룬다.
-                    _log.warning(
-                        "[GenosSmartChunker] 헤더 라인(%d)이 chunk_size(%d) 이상 — 헤더 몫 예약 생략, "
-                        "청크가 한도를 초과할 수 있음", header_tokens, self.max_tokens)
+                    self._warn_header_over_size(header_tokens)
                     budget = self.max_tokens
 
                 table_safe_parts = split_item_groups_preserving_tables(items_group, budget)
