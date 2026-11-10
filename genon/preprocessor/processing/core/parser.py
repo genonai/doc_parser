@@ -87,12 +87,6 @@ except ImportError:
     raise RuntimeError("Module 'chardet' not imported. Run `pip install chardet`.")
 
 try:
-    from weasyprint import HTML
-except (ImportError, OSError):
-    print("Warning: WeasyPrint could not be imported. PDF conversion features will be disabled.")
-    HTML = None
-
-try:
     from genos_utils import upload_files
 except ImportError:
     upload_files = None
@@ -1672,7 +1666,8 @@ class ParserCore:
         return run_cli(cls, argv)
 
     def setup_logging(self, level_num: int):
-        rt.setup_logging(level_num)
+        # 레벨 안내는 DEBUG 로 — print 로 찍으면 Studio 콘솔 꼬리 끝을 차지한다.
+        rt.setup_logging(level_num, announce=_log.debug)
 
     # ------------------------------------------------------------------
     # 메인 진입점

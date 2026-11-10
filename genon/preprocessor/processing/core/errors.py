@@ -25,6 +25,10 @@ class GenosServiceException(Exception):
         # #528: 사유 코드(`PARSE_D001` 형식). 코드표는 common/reason_codes.py 를 본다.
         self.reason_code = reason_code
 
+    def __str__(self) -> str:
+        # 기본 str() 은 생성자 인자 튜플("('1', '메시지')")이라 로그·트레이스백에서 읽기 어렵다.
+        return self.error_msg
+
     def __repr__(self) -> str:
         return f"GenosServiceException(code={self.code!r}, errMsg={self.error_msg!r})"
 

@@ -377,7 +377,11 @@ def ocr_all_table_cells(
     """글리프 깨진 텍스트가 있는 표에 대해서만 셀 단위 재OCR 을 수행한다(in-place).
 
     cell_threshold 를 넘는 GLYPH 가 셀에 있으면 그 표 전체를 재OCR 대상으로 본다.
+    셀 하나의 실패는 DEBUG 로만 남기고, 끝에 실패 수를 한 줄로 알린다 — 셀마다 찍으면 OCR 서버가
+    멈췄을 때 수백 줄이 Studio 콘솔 꼬리와 배치 로그를 덮는다.
     """
+    tried = failed = 0
+    first_err = None
     try:
         for table_idx, table_item in enumerate(document.tables):
             if not table_item.data or not table_item.data.table_cells:
@@ -411,6 +415,7 @@ def ocr_all_table_cells(
                 try:
                     if cell.bbox is None:
                         continue
+                    tried += 1
 
                     # docling 셀 bbox(BOTTOMLEFT) → 페이지 이미지 픽셀 좌표(TOPLEFT)
                     crop = (
@@ -450,10 +455,16 @@ def ocr_all_table_cells(
                         cell.text += t if t else ""
                 except Exception as cell_err:
                     # 한 셀 실패가 나머지 셀/표를 막지 않도록 격리
-                    print(f"OCR cell processing failed (table={table_idx}, cell={cell_idx}): {cell_err}")
+                    failed += 1
+                    first_err = first_err or cell_err
+                    _log.debug(f"표 셀 OCR 실패(표 {table_idx}, 셀 {cell_idx}): {cell_err}")
                     continue
     except Exception as e:
-        print(f"OCR processing failed: {e}")
+        _log.warning(f"표 셀 OCR 을 중간에 멈췄습니다. 남은 표는 원래 글자를 그대로 둡니다: {e}")
+    if failed:
+        _log.warning(
+            f"표 셀 OCR {failed}/{tried}칸이 실패해 그 칸은 원래 글자를 그대로 둡니다. "
+            f"ocr.paddle.ocr_endpoint 의 OCR 서버가 응답하는지 확인하세요. 첫 오류: {first_err}")
 
     return document
 

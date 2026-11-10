@@ -993,7 +993,8 @@ class ChunkerCore:
         return run_cli(cls, argv)
 
     def setup_logging(self, level_num: int):
-        rt.setup_logging(level_num)
+        # 레벨 안내는 DEBUG 로 — print 로 찍으면 Studio 콘솔 꼬리 끝을 차지한다.
+        rt.setup_logging(level_num, announce=_log.debug)
 
     # ------------------------------------------------------------------
     # parse-format(비-docling) 공통 청킹

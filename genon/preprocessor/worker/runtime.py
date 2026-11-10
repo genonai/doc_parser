@@ -27,10 +27,12 @@ from __future__ import annotations
 import asyncio
 import concurrent.futures
 import contextlib
+import contextvars
 import logging
 import os
 import threading
 import time
+from pathlib import Path
 
 from fastapi.encoders import jsonable_encoder
 from temporalio import activity
@@ -44,6 +46,31 @@ from .errors import to_application_error
 from .settings import Settings
 
 log = logging.getLogger("genon.worker")
+
+#: 지금 처리 중인 문서 — 배치 워커 로그 줄 앞에 `[액티비티 파일명] ` 으로 붙는다(DocTagFilter).
+#: 한 워커 로그에 parse·chunk 프로세스의 자식 여럿 × 스레드 여럿이 섞이므로 이것이 없으면 줄이 어느
+#: 문서 것인지 알 수 없다. 처리 스레드로는 _call 이 문맥을 복사해 넘긴다. 처리기가 다시 띄우는 스레드
+#: (docling 내부 등)의 줄에는 붙지 않는다.
+DOC_TAG: contextvars.ContextVar[str] = contextvars.ContextVar("genon_worker_doc", default="")
+_TAG_NAME_LIMIT = 40
+
+
+class DocTagFilter(logging.Filter):
+    """핸들러 필터 — 모든 레코드에 `doc_tag`(`[parse_x a.pdf] ` 또는 빈 문자열)를 채운다. 형식 문자열이
+    `%(doc_tag)s` 를 쓰므로 핸들러에 단다(로거에 달면 그 로거의 레코드에만 붙는다)."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        tag = DOC_TAG.get()
+        record.doc_tag = f"[{tag}] " if tag else ""
+        return True
+
+
+def doc_tag(name: str, doc: str) -> str:
+    """`액티비티 파일명` — 파일명이 길면 앞을 남기고 줄인다."""
+    base = Path(doc).name if doc else "-"
+    if len(base) > _TAG_NAME_LIMIT:
+        base = base[:_TAG_NAME_LIMIT - 1] + "…"
+    return f"{name} {base}"
 
 #: 처리 스레드를 남긴 채 돌아갈 때의 종료 코드 — 부모가 이 자식을 새로 띄운다.
 EXIT_RESTART = 75
@@ -147,7 +174,8 @@ def _call(proc, request, file_path: str, params: dict, heartbeat_interval: float
     started = time.monotonic()
     try:
         # submit 도 이 경계 안에 둔다 — 취소 예외는 동기 액티비티 스레드에 아무 때나 주입된다(SDK).
-        future = pool.submit(asyncio.run, call())
+        # 문맥을 복사해 넘긴다 — 처리 스레드의 로그 줄에도 문서 태그(DOC_TAG)가 붙게.
+        future = pool.submit(contextvars.copy_context().run, asyncio.run, call())
         while True:
             # 완료 대기와 결과 회수를 나눈다 — 처리 본체가 던진 TimeoutError 를 대기 시간 초과로
             # 오인하지 않게(3.11+ 에서 concurrent.futures.TimeoutError 는 내장 TimeoutError 다).
@@ -212,8 +240,9 @@ def execute(proc, stage: str, arg: dict) -> dict:
     started = time.monotonic()
     name = activity.info().activity_type
     doc = arg.get("source_name") or arg.get("output_ref", "")
-    where = f"{name} {doc}"
+    where = f"액티비티 {name} · 파일 {Path(doc).name if doc else '-'}"
     request = mock_request()
+    tag_token = DOC_TAG.set(doc_tag(name, doc))
     try:
         stages: list = []
         params = dict(arg.get("params") or {})
@@ -234,11 +263,16 @@ def execute(proc, stage: str, arg: dict) -> dict:
                                              stages)) or []
         activity.heartbeat()           # 저장 직전 — 취소됐으면 여기서 멈춘다
         size = paths.save_json(cfg.artifact_root, output_ref, payload)
+        count, summary, preview = _summarize(stage, payload, size, cfg.preview_chars)
+        elapsed = time.monotonic() - started
+        # 문서 하나의 끝 줄 — 배치 로그에서는 문서 태그와 함께, 단건 실행에서는 콘솔 꼬리 끝에 보인다.
+        log.info("처리 완료: %s · %.1f초", summary, elapsed)
     except CancelledError:
         raise
     except Exception as exc:  # noqa: BLE001 — 성격 판정은 to_application_error 한 곳에서
         raise to_application_error(exc, where) from exc
-    count, summary, preview = _summarize(stage, payload, size, cfg.preview_chars)
+    finally:
+        DOC_TAG.reset(tag_token)
     extra = {"stages": stages} if stages else {}     # 계측이 켜졌을 때만 — Temporal 화면에서 하위 단계 시간
     # 청크 검증 요약 — 청커(ChunkerCore)가 요청 상태에 올린 것을 HTTP 성공 봉투와 같은 키로 싣는다.
     # 걸린 것이 없으면 청커가 None 을 올리므로 키를 붙이지 않는다(HTTP 봉투와 같다).
@@ -247,4 +281,4 @@ def execute(proc, stage: str, arg: dict) -> dict:
         extra["chunk_validation"] = validation
     return {**extra, "stage": stage, "activity": name, "ref": output_ref, "bytes": size, "count": count,
             "summary": summary, "preview": preview,
-            "duration_ms": int((time.monotonic() - started) * 1000)}
+            "duration_ms": int(elapsed * 1000)}
