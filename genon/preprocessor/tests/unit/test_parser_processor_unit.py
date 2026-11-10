@@ -445,10 +445,31 @@ def test_enrichment_provider_error_is_rethrown_as_genos_exception(intel):
         with pytest.raises(GenosServiceException) as exc_info:
             intel.enrichment(dummy_doc)
 
-    assert exc_info.value.error_msg == raw_error
+    # 공급자 원문은 적재 상태 화면에서 그대로 보여야 하므로 자르지 않고 맨 끝에 둔다(#664).
+    # 앞의 안내에는 고칠 키가 들어간다 — 콘솔(220자)·GenOS(약 500자)에서 원문보다 먼저 보인다.
+    guide, _, tail = exc_info.value.error_msg.partition(" 원문: ")
+    assert (tail, "precheck.model_context_tokens" in guide) == (raw_error, True)
     # 원인 예외 없이 상태 400 이면 docling 의 길이 사전 검사다(#528).
     assert (exc_info.value.stage, exc_info.value.error_type, exc_info.value.reason_code) == (
         "enrichment", "permanent", "PARSE_P001")
+
+
+@pytest.mark.unit
+def test_enrichment_http_failure_names_feature_status_and_preset(intel):
+    """LLM 호출 실패 안내는 어느 항목(toc)·HTTP 상태·`toc.model_preset` 을 앞에 두고 원문을 끝에 둔다(#664)."""
+    raw_error = '{"error":"invalid api key"}'
+    intel.enrichment_options = MagicMock()
+    error = LLMApiError(raw_error, status_code=401, category="toc_extraction")
+    error.__cause__ = RuntimeError("401 Unauthorized")   # 실제 호출 실패 — 길이 사전 검사가 아니다
+
+    with patch("processing.core.parser.enrich_document", side_effect=error):
+        with pytest.raises(GenosServiceException) as exc_info:
+            intel.enrichment(MagicMock())
+
+    msg = exc_info.value.error_msg
+    assert msg.startswith("enrichment 의 toc LLM 호출이 실패해 파싱을 멈췄습니다(HTTP 401).")
+    assert ("toc.model_preset" in msg, msg.endswith(f" 원문: {raw_error}")) == (True, True)
+    assert exc_info.value.reason_code == "PARSE_S001"
 
 
 @pytest.mark.unit
@@ -463,6 +484,21 @@ def test_llm_reason_reads_http_response_status():
     request = httpx.Request("POST", "http://llm/v1/chat/completions")
     exc = httpx.HTTPStatusError("x", request=request, response=httpx.Response(401, request=request))
     assert pp._llm_reason(exc, pp._classify_error(exc)) == "PARSE_S001"
+
+
+@pytest.mark.unit
+def test_guardrail_call_without_connection_warns_and_skips(dp, caplog):
+    """guardrail_call=1 인데 접속 정보가 비면 분류를 건너뛰되, 빠진 키를 적은 경고를 남긴다(#664).
+    예전엔 조용히 건너뛰어 청크 마스킹이 안 된 이유가 드러나지 않았다."""
+    from docling_core.types.doc import DoclingDocument
+    from processing.guardrail import GuardrailConfig
+
+    dp._gr_cfg = GuardrailConfig(url="http://guardrail.invalid", workflow_id=None, api_key="")
+    with caplog.at_level("WARNING"):
+        resp = dp._build_docling_response(DoclingDocument(name="t"), guardrail_call=1)
+    hits = [r.getMessage() for r in caplog.records if "guardrail_call=1" in r.getMessage()]
+    assert ("sensitive_infos" in resp, len(hits)) == (False, 1)
+    assert "접속 정보(workflow_id·api_key)가 비어" in hits[0]
 
 
 # ─── _normalize_output_format / _normalize_table_format ─────────────────────
@@ -750,6 +786,19 @@ class TestBuildOcrOptions:
         )
         assert opts.api_key == expected
 
+    @pytest.mark.parametrize("ocr_cfg,warned", [
+        ({"ocr_mode": "disable"}, False),                     # 기본값 — 주소를 쓰지 않으니 경고하지 않는다
+        ({"ocr_mode": "auto"}, True),
+        ({"ocr_mode": "force", "engine": "upstage"}, False),  # upstage 는 paddle 주소를 쓰지 않는다
+    ], ids=["disable-silent", "auto-warns", "upstage-silent"])
+    def test_empty_ocr_endpoint_warns_only_when_ocr_is_on(self, caplog, ocr_cfg, warned):
+        """OCR 서버 주소가 비었다는 경고는 설정이 paddle OCR 을 켰을 때만 낸다(#664)."""
+        from processing.common.pipeline_setup import resolve_ocr_runtime
+        with caplog.at_level("WARNING"):
+            resolve_ocr_runtime({}, ocr_cfg, config_label="activities/parse/config.yaml")
+        hits = [r.getMessage() for r in caplog.records if "ocr_endpoint" in r.getMessage()]
+        assert (len(hits) == 1) is warned
+
     # ── yaml 의 잘못된 값으로 startup 이 깨지지 않는지 (#178 CodeRabbit) ─────
 
     @pytest.mark.parametrize("upstage_cfg,expected_timeout,expected_text_score", [
@@ -858,6 +907,37 @@ def test_apply_llm_fields_document_scope_routes_from_apply_llm_fields(dp):
 
     assert stub_enricher.calls == 1
     assert len(result) == 3
+
+
+class _FailingStubEnricher:
+    """앞 failures 건은 예외를 던지고 나머지는 값을 돌려주는 스텁 — 실제 LLM 호출 없음."""
+
+    def __init__(self, failures: int):
+        self.is_configured = True
+        self.failures = failures
+
+    async def extract_fields_from_text(self, text: str) -> dict:
+        if self.failures:
+            self.failures -= 1
+            raise RuntimeError("HTTP 503 from llm")
+        return {"SALE_STATUS": "판매중"}
+
+
+def test_apply_llm_fields_record_failures_log_one_summary_warning(dp, caplog):
+    """레코드별 실패는 DEBUG 로 내리고 WARNING 은 요약 한 줄(실패 수·조치·첫 오류)만 남긴다(#664).
+    레코드마다 WARNING 을 내면 Studio 콘솔 꼬리가 같은 줄로 덮여 다른 경고가 보이지 않는다."""
+    mapper = _StubDocumentScopeMapper(llm_field_specs=[_make_llm_field_spec()])
+    mapper.pack = None
+    dp._llm_field_enricher = MagicMock(return_value=_FailingStubEnricher(failures=3))
+
+    with caplog.at_level("DEBUG"):
+        result = asyncio.run(dp._apply_llm_fields(mapper, [{"SECTION_NM": f"섹션{i}"} for i in range(5)]))
+
+    warnings = [r.getMessage() for r in caplog.records if r.levelname == "WARNING"]
+    debug_failures = [r for r in caplog.records if r.levelname == "DEBUG" and "LLM 필드 추출 실패" in r.getMessage()]
+    assert (len(warnings), len(debug_failures)) == (1, 3)
+    assert "3/5건 실패" in warnings[0] and warnings[0].endswith("첫 오류: HTTP 503 from llm")
+    assert [fields["SALE_STATUS"] for fields in result] == [None, None, None, "판매중", "판매중"]
 
 
 # ─── pack 재적용 — llm_fields 산출도 JSON 한 칸에 담긴다 ──────────────────────

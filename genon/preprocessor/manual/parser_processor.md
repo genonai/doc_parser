@@ -1171,7 +1171,7 @@ source:
 | 파라미터 | 타입 | 기본값 | 적용 대상 | 설명 |
 |----------|------|--------|-----------|------|
 | `log_level` | `int` | `defaults.log_level` (없으면 `4`) | 전체 | 로그 레벨. `5`=DEBUG, `4`=INFO, `3`=WARNING, `2`=ERROR, `1`=CRITICAL, `0`=비활성화. 미전달 시 config `defaults.log_level` 값을 사용 |
-| `toc` | `int` | `enrichment.toc.enable` | enrichment 대상 포맷 | 목차(TOC) enrichment 사용유무(별칭 `toc_on`). `0`=이번 요청만 off / `1`=on(단 config 에 TOC endpoint 가 구성돼 있어야 활성화, 미구성 시 무시·경고). 미전달 시 config 값 유지 |
+| `toc` | `int` | `enrichment.toc.enable` | enrichment 대상 포맷 | 목차(TOC) enrichment 사용유무(별칭 `toc_on`). `0`=이번 요청만 off / `1`=on(단 config 의 `enrichment` 에서 `toc.enable: true` 이고 `toc.model_preset` 접속 정보가 있어야 활성화, 없으면 무시·경고). 미전달 시 config 값 유지 |
 
 ### HWP / HWPX 전용 파라미터
 
@@ -1904,14 +1904,14 @@ JSONL·빈 배열·doc_type 충돌 등입니다.
 | OCR 서버 미응답 | `OCR HTTP 502` | `model_presets.yaml` 의 `ocr` 프리셋(`ocr_endpoint`) 및 서버 상태 확인 |
 | Enrichment LLM 오류 | LLM API timeout | `enrichment` 항목이 부르는 `model_presets.yaml` 프리셋의 `url` 확인 |
 | Enrichment 입력 토큰 초과 | `프롬프트 입력 토큰 (N) 초과 하였습니다. (128000 - reserved 12000).` | 문서 크기를 줄이거나 해당 항목 `precheck.model_context_tokens` 값 조정. 비활성화는 `precheck.enabled: false` |
-| HWP SDK 실패 | `HWP SDK 실패: ...` | 로그 확인 후 `use_hwp_sdk=false` 파라미터로 재시도 |
+| HWP SDK 실패 | `HWP SDK로 a.hwp 을 읽지 못해 SDK 없는 기본 HWP 해석기로 다시 읽습니다. 원인: ...` | 자동으로 기본 해석기 → LibreOffice PDF 변환 순으로 다시 읽는다. 모두 실패하면 파일 손상·암호 여부를 확인하고 PDF 로 저장해 올린다 |
 | Whisper 미설정 | Connection error | `model_presets.yaml` 의 `whisper` 프리셋(`url`) 확인 |
 | `soffice` 미설치 | `FileNotFoundError: soffice` | LibreOffice 설치 후 PATH 등록 |
 | 파일 없음 | `FileNotFoundError` | `file_path` 경로 및 파일 존재 여부 확인 |
 
 #### Enrichment 토큰 초과 에러 페이로드
 
-`precheck.enabled: true` 상태에서 입력 토큰이 허용치를 초과하면, `GenosServiceException.errMsg`에 아래 JSON이 문자열로 담겨 반환됩니다.
+`precheck.enabled: true` 상태에서 입력 토큰이 허용치를 초과하면, `GenosServiceException.errMsg` 는 어느 항목이 왜 멈췄는지와 고칠 키(`<항목>.precheck.model_context_tokens`)를 적은 한 줄 안내로 시작하고, 끝에 `원문: ` 다음으로 아래 JSON 을 그대로 붙입니다. 다른 LLM 호출 실패도 같은 형식이며 안내에는 HTTP 상태와 `<항목>.model_preset` 접속 정보 확인이 들어갑니다.
 
 ```json
 {
@@ -1923,7 +1923,7 @@ JSONL·빈 배열·doc_type 충돌 등입니다.
 }
 ```
 
-> 이 에러는 LLM을 호출하지 않고 로컬에서 생성됩니다. DB 적재 상태란에는 위 JSON 문자열이 에러 메시지로 저장됩니다.
+> 이 에러는 LLM을 호출하지 않고 로컬에서 생성됩니다. DB 적재 상태란에는 앞의 안내와 위 JSON 문자열이 함께 에러 메시지로 저장됩니다.
 
 ---
 

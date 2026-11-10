@@ -58,13 +58,15 @@ class OcrRuntime:
     glyph_document_threshold: int
 
 
-def resolve_ocr_runtime(cfg: dict, ocr_cfg: dict) -> OcrRuntime:
+def resolve_ocr_runtime(cfg: dict, ocr_cfg: dict, config_label: str | None = None) -> OcrRuntime:
     """ocr 섹션에서 엔드포인트·모드·타임아웃·글리프 임계값을 해석한다.
 
     엔드포인트 정식 위치는 ocr.paddle.ocr_endpoint 다.
     구버전 호환으로 ocr.ocr_endpoint(상위)와 최상위 ocr_endpoint 도 폴백으로 인식한다.
-    셋 다 없으면 빈 문자열이고 경고를 남긴다. 예전에는 사내 주소가 코드 기본값으로
-    박혀 있었다 — 사이트 배포본에 그대로 나가므로 yaml 지정을 정상 경로로 되돌렸다.
+    셋 다 없으면 빈 문자열이다. 예전에는 사내 주소가 코드 기본값으로 박혀 있었다 — 사이트
+    배포본에 그대로 나가므로 yaml 지정을 정상 경로로 되돌렸다. 비어 있다는 경고는 설정이 OCR 을
+    켰을 때(ocr_mode auto/force, engine paddle)만 낸다 — 기본값 disable 에서는 쓰이지 않는 주소다.
+    config_label 은 경고에 적을 설정 파일(모르면 "이 액티비티의 config.yaml").
     """
     cfg = as_dict(cfg)
     ocr_cfg = as_dict(ocr_cfg)
@@ -75,18 +77,22 @@ def resolve_ocr_runtime(cfg: dict, ocr_cfg: dict) -> OcrRuntime:
         or cfg.get("ocr_endpoint", "")
     )
 
-    if not endpoint:
-        _log.warning(
-            "[DocumentProcessor] ocr.paddle.ocr_endpoint 가 비어 있습니다. "
-            "사이트 배포 시 yaml 에 반드시 지정하세요."
-        )
-
     # OCR 수행 모드. "disable"(default, #482)=OCR 안 함 / "auto"=휴리스틱 판정 뒤 필요 시 재OCR /
     # "force"=무조건 전체 OCR. 판정이 필요한 문서는 요청 파라미터·CONFIG_BY_DOC_TYPE 의 ocr_mode 로 켠다.
+    where = config_label or "이 액티비티의 config.yaml"
     mode = str(ocr_cfg.get("ocr_mode", cfg.get("ocr_mode", "disable"))).lower().strip()
     if mode not in {"auto", "force", "disable"}:
-        _log.warning(f"[DocumentProcessor] Unknown ocr_mode '{mode}', fallback to 'disable'")
+        _log.warning(f"[DocumentProcessor] ocr.ocr_mode '{mode}' 를 알 수 없어 disable(OCR 안 함)로 처리합니다. "
+                     f"{where} 의 ocr.ocr_mode 를 auto·force·disable 중 하나로 고치세요.")
         mode = "disable"
+
+    engine = str(ocr_cfg.get("engine", "paddle")).lower().strip()
+    if not endpoint and mode != "disable" and engine != "upstage":
+        _log.warning(
+            f"[DocumentProcessor] ocr.ocr_mode 가 {mode} 인데 OCR 서버 주소(ocr.paddle 의 ocr_endpoint)가 "
+            f"비어 있어 스캔 페이지 OCR 과 표 칸 재OCR 이 동작하지 않습니다. model_presets.yaml 의 "
+            f"ocr 프리셋(ocr.paddle.model_preset 이 가리키는 이름)에 ocr_endpoint 를 적으세요(설정 {where})."
+        )
 
     # 테이블 셀 재OCR HTTP timeout (ocr_all_table_cells). 잘못된 값은 60 으로 폴백.
     timeout = parse_optional_int(ocr_cfg.get("table_cell_ocr_timeout"), "ocr.table_cell_ocr_timeout")
