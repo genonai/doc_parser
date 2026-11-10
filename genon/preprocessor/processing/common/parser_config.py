@@ -139,13 +139,17 @@ def resolve_unknown_doc_type_policy(value: Any) -> str:
 
 
 def check_doc_type_configured(custom_fields_cfgs: Iterable[dict] | None, runtime_doc_type: Any,
-                              policy: str, exc_factory: Callable[[str], Exception]) -> None:
+                              policy: str, exc_factory: Callable[[str], Exception],
+                              config_path: str | None = None) -> None:
     """요청 doc_type 에 맞는 custom_fields 등록이 있는지 확인한다.
 
     등록이 없으면 파싱은 확장자 기본 경로로 진행되고, 결과에는 doc_type 만 찍혀 정상
     처리와 구별되지 않는다. policy 가 warn 이면 경고 로그를 남기고, fail 이면 요청을
     실패시킨다. doc_type 이 비었거나, doc_type 을 적지 않은 등록 블록(전체 대상)이 있으면
     판정하지 않는다 — specs_for_doc_type 과 같은 규칙이다.
+
+    config_path 는 안내에 적을 설정 파일 — 실제로 읽은 파일이어야 한다. 사본(`activities/parse_x/`)이나
+    사이트 덮어쓰기에서 원형 경로를 가리키면 엉뚱한 파일을 고치게 된다(#627). 모르면 "이 액티비티의 config.yaml".
     """
     key = normalize_doc_type(runtime_doc_type)
     if not key:
@@ -158,11 +162,13 @@ def check_doc_type_configured(custom_fields_cfgs: Iterable[dict] | None, runtime
         registered.update(doc_types)
     if key in registered:
         return
-    message = (
-        f"doc_type={key} 에 맞는 custom_fields 등록이 없습니다. 파서 설정(activities/parse/config.yaml)의 "
-        f"enrichment 에 등록하거나, 등록 없이 기본 경로로 처리하려면 "
-        f"defaults.unknown_doc_type 을 warn 으로 두세요."
-    )
+    where = config_path or "이 액티비티의 config.yaml"
+    register = f"{where} 의 enrichment 에 custom_fields(doc_type: {key})를 등록"
     if policy == "fail":
-        raise exc_factory(message)
-    _log.warning(f"[parser] {message} 기본 경로로 처리합니다.")
+        raise exc_factory(
+            f"doc_type={key} 에 맞는 custom_fields 등록이 없습니다. defaults.unknown_doc_type 이 fail 이라 "
+            f"파싱을 멈춥니다. {register}하거나, 필드 추출 없이 일반 문서로 파싱하려면 그 파일의 "
+            f"defaults.unknown_doc_type 을 warn 으로 바꾸세요."
+        )
+    _log.warning(f"[parser] doc_type={key} 에 맞는 custom_fields 등록이 없어 필드 추출 없이 일반 문서로 "
+                 f"파싱합니다. 필드 추출이 필요하면 {register}하세요.")

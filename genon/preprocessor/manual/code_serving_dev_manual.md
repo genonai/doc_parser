@@ -455,7 +455,7 @@ python parse_chunk_golden.py --check --cases my_cases.yaml --golden ~/my_golden 
 
 | 증상 | 원인 |
 |---|---|
-| `doc_type=… 에 맞는 custom_fields 등록이 없습니다` (`PARSE_P002`) | 등록이 없거나 `enable: false` 이거나 `doc_type` **값**의 문자열 불일치. `defaults.unknown_doc_type: warn` 이면 요청이 실패하지 않고 경고 후 기본 경로로 처리합니다 |
+| `doc_type=… 에 맞는 custom_fields 등록이 없습니다` (`PARSE_P002`) | 등록이 없거나 `enable: false` 이거나 `doc_type` **값**의 문자열 불일치. `defaults.unknown_doc_type: warn` 이면 요청이 실패하지 않고 경고 후 필드 추출 없이 일반 문서로 파싱합니다. 안내 문구는 실제로 읽은 설정 파일을 가리킵니다 — 사본이면 `activities/parse_<접미>/config.yaml`, 사이트 완성본 실행이면 `genon/sites/<site>/activities/<slug>/config.yaml` 입니다. 그 파일을 고칩니다 |
 | `doc_type`을 안 줬는데 custom_fields가 동작함 | 등록 블록에 `doc_type` 키가 없으면 **wildcard** 로 모든 요청에 매칭됩니다 |
 | 청크는 생성되지만 metadata가 비어 있음 | `unknown_doc_type: warn` 설정에서 일치하는 등록이 없어 일반 처리 경로로 처리되었거나 `alias`가 일치하지 않음 |
 | 청크 본문의 일부가 빠져 있음 | `body.fields`에 어디서도 만들어지지 않는 필드가 있습니다 |
@@ -1432,7 +1432,7 @@ python serving_gateway_test.py --mode e2e $AUTHARGS \
 | `output.format` | 문서 경로 입력의 응답에 `data.document`가 있는지 |
 | `chunk_size` · `chunk_mode` | `/chunker` 결과의 청크 개수와 길이 |
 | enrichment `enable` | 응답의 해당 항목 유무, 처리 시간 변화 |
-| 플레이스홀더 치환 | 로그의 `미치환 설정 플레이스홀더` 경고에 사용 중인 프리셋이 나열되지 않는지 |
+| 플레이스홀더 치환 | 로그의 `모델 프리셋 N개(…)의 접속 정보가 자리표시값(<…>)이라` 경고에 사용 중인 프리셋이 나오지 않는지 |
 
 청크 수가 예상보다 적으면 응답 최상위 `chunk_validation`과 로그의 `[chunk_validation]`을 확인합니다.
 
@@ -1520,7 +1520,13 @@ git apply "$BACKUP_DIR/my_change.patch"           # 충돌하면 번들에서 �
 | `<PAGE_DESCRIPTION_SERVING_ID>` | PPT 페이지 설명용 **vision LLM 서빙 ID** |
 | `<OCR_ENDPOINT>` | OCR 서버 **주소**(호스트:포트). 서빙 ID가 아닙니다 |
 
-미치환 값이 남아 있으면 기동 시 `미치환 설정 플레이스홀더` 경고가 남습니다. 기동 자체는 됩니다.
+미치환 값이 남아 있으면 기동 시 한 줄 경고가 남습니다. 기동 자체는 됩니다.
+
+```text
+모델 프리셋 1개(whisper)의 접속 정보가 자리표시값(<…>)이라 해당 모델 호출은 실패하거나 건너뜁니다. GENOS_MODEL_PRESETS_FILE 이 가리키는 파일에 실제 값을 적으세요. 자리표시값: whisper.url=<WHISPER_ENDPOINT> (파일 <GENOS_MODEL_PRESETS_FILE 경로>, 설정 activities/parse/config.yaml)
+```
+
+앞부분이 무엇이(프리셋 이름과 개수) · 영향 · 조치이고, 괄호 안이 어느 파일을 읽었는지입니다. 목록은 앞 3개와 나머지 개수만 적습니다. 프리셋 밖의 키(액티비티 설정 자체)에 자리표시값이 있으면 `설정 키 N개가 자리표시값(<…>)이라 … <설정 파일> 에서 실제 값으로 바꾸세요` 경고가 따로 남습니다.
 
 ```bash
 # 실행 위치: 저장소 루트. 주석 줄은 제외 — 아무것도 안 나오면 통과 (템플릿의 자리표시자는 치환 대상이 아니므로 제외합니다)

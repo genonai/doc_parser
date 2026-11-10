@@ -339,3 +339,55 @@ def test_child_yaml_undefined_preset_fails_startup(tmp_path):
             config_file=name, resource_path=str(tmp_path), model_presets=_PRESETS,
             extractor="llm",
         )
+
+
+# ── 자리표시값 경고(#631) ──────────────────────────────────────────────────────
+# Studio 콘솔은 stderr 꼬리를 줄당 220자로 자른다. 로그 머리(시각·레벨·로거 이름)가 80자 남짓이므로
+# 무엇이·영향·조치는 메시지 앞 130자 안에 있어야 한다.
+_CONSOLE_MESSAGE_BUDGET = 130
+
+
+def _placeholder_warnings(caplog) -> list[str]:
+    return [r.getMessage() for r in caplog.records if "자리표시값" in r.getMessage()]
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("env", [False, True], ids=["환경변수 없음", "환경변수 있음"])
+def test_placeholder_warning_names_presets_effect_and_fix_in_one_line(tmp_path, monkeypatch, caplog, env):
+    """프리셋 자리표시값은 한 줄 앞부분에 프리셋 이름·영향·조치를 적고, 긴 목록은 개수와 앞 몇 개로 줄인다."""
+    monkeypatch.delenv(cp.MODEL_PRESETS_ENV, raising=False)
+    if env:
+        presets = tmp_path / "dev_presets.yaml"
+        presets.write_text("model_presets:\n  default: {url: <ENRICHMENT_SERVING_ID>}\n", encoding="utf-8")
+        monkeypatch.setenv(cp.MODEL_PRESETS_ENV, str(presets))
+    with caplog.at_level("WARNING"):
+        cp.load_config(_write(tmp_path, """
+model_presets:
+  default: {url: "<ENRICHMENT_SERVING_ID>"}
+  image: {url: "<IMAGE_DESCRIPTION_SERVING_ID>"}
+  page: {url: "<PAGE_DESCRIPTION_SERVING_ID>"}
+  ocr: {ocr_endpoint: "<OCR_ENDPOINT>"}
+toc:
+  model_preset: default
+"""))
+    [message] = _placeholder_warnings(caplog)
+    assert "\n" not in message
+    assert message.startswith("모델 프리셋 4개(default·image·page 외 1개)의 접속 정보가 자리표시값(<…>)이라")
+    fix = (f"{cp.MODEL_PRESETS_ENV} 이 가리키는 파일에 실제 값을 적으세요" if env
+           else f"{cp.MODEL_PRESETS_ENV} 에 실제 값을 적은 프리셋 파일을 지정하세요")
+    assert "실패하거나 건너뜁니다" in message
+    assert message.index(fix) + len(fix) <= _CONSOLE_MESSAGE_BUDGET
+    assert "page.url=<PAGE_DESCRIPTION_SERVING_ID> 외 1개" in message and "<OCR_ENDPOINT>" not in message
+    assert (f"파일 {presets}" in message) if env else (f"{cp.MODEL_PRESETS_ENV} 지정 안 됨" in message)
+
+
+@pytest.mark.unit
+def test_placeholder_outside_presets_points_at_the_config_file(tmp_path, monkeypatch, caplog):
+    """프리셋 밖의 자리표시값은 고칠 자리가 그 설정 파일이므로 따로, 그 파일을 가리켜 알린다."""
+    monkeypatch.delenv(cp.MODEL_PRESETS_ENV, raising=False)
+    path = _write(tmp_path, 'whisper:\n  url: "<WHISPER_ENDPOINT>"\n')
+    with caplog.at_level("WARNING"):
+        cp.load_config(path)
+    [message] = _placeholder_warnings(caplog)
+    assert message == (f"설정 키 1개가 자리표시값(<…>)이라 이 값을 쓰는 기능은 실패하거나 건너뜁니다. "
+                       f"{path} 에서 실제 값으로 바꾸세요: whisper.url=<WHISPER_ENDPOINT>")

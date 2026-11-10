@@ -105,14 +105,45 @@ def as_int_flag(value: Any, default: int = 0) -> int:
     return default
 
 
-def warn_unresolved_placeholders(cfg: dict, config_path: str) -> None:
-    """config 에 남아있는 미치환 플레이스홀더(<UPPER_SNAKE>)를 탐지해 경고한다.
+# 이 파일 기준 전처리기 폴더(processing/common/ 의 두 단계 위)와 저장소 루트. 안내 문구의 경로를 줄이는 데만 쓴다.
+_PREPROCESSOR_DIR = Path(__file__).resolve().parents[2]
+# 저장소 배치(<저장소>/genon/preprocessor)일 때만 — 다른 배치에서 엉뚱한 상위 폴더(예: /) 기준으로 줄이지 않는다.
+_REPO_DIR = _PREPROCESSOR_DIR.parents[1] if _PREPROCESSOR_DIR.parent.name == "genon" else _PREPROCESSOR_DIR
 
-    Site 배포 시 OCR/Layout/Enrichment endpoint·serving ID 등의 치환 누락을 조기에
-    드러내기 위함. fail-fast 하지 않고(기동 보존) WARNING 로그만 남긴다.
+
+def display_config_path(config_path: Any) -> str | None:
+    """안내 문구에 쓸 설정 경로. 전처리기 폴더 안이면 그 기준(`activities/parse_x/config.yaml`),
+    저장소 안이면 저장소 기준(`genon/sites/<site>/activities/<slug>/config.yaml`), 그 밖이면 그대로.
+    경로가 없으면 None."""
+    if not config_path:
+        return None
+    path = Path(str(config_path)).resolve()
+    for base in (_PREPROCESSOR_DIR, _REPO_DIR):
+        if path.is_relative_to(base):
+            return path.relative_to(base).as_posix()
+    return str(config_path)
+
+
+_PLACEHOLDER = re.compile(r"<[A-Z0-9_]+>")
+# 경고 한 줄에 이름·키를 몇 개까지 적을지. Studio 콘솔은 한 줄 220자에서 자르므로 나머지는 개수만 적는다.
+_PLACEHOLDER_SHOW = 3
+
+
+def _head(items: list[str], limit: int = _PLACEHOLDER_SHOW, sep: str = ", ") -> str:
+    """앞 limit 개와 나머지 개수(`a, b, c 외 3개`)."""
+    rest = len(items) - limit
+    return sep.join(items[:limit]) + (f" 외 {rest}개" if rest > 0 else "")
+
+
+def warn_unresolved_placeholders(cfg: dict, config_path: str) -> None:
+    """설정에 남은 자리표시값(`<UPPER_SNAKE>`)을 한 줄 경고로 알린다(기동은 막지 않는다, #628).
+
+    Studio 콘솔은 stderr 꼬리를 줄당 220자로 잘라 보여 주므로(#631) 줄 앞부분에 무엇이 · 영향 · 조치를
+    두고, 긴 목록은 개수와 앞 몇 개로 줄인다. 모델 프리셋(`model_presets.<이름>.*`)과 설정 자체의 키는
+    고칠 자리가 다르므로 따로 알린다 — 프리셋은 GENOS_MODEL_PRESETS_FILE 의 model_presets.yaml,
+    나머지는 그 설정 파일이다.
     """
-    pattern = re.compile(r"<[A-Z0-9_]+>")
-    found = []
+    found: list[tuple[str, str]] = []
 
     def _scan(node, path):
         if isinstance(node, dict):
@@ -122,15 +153,34 @@ def warn_unresolved_placeholders(cfg: dict, config_path: str) -> None:
             for i, v in enumerate(node):
                 _scan(v, f"{path}[{i}]")
         elif isinstance(node, str):
-            for ph in pattern.findall(node):
+            for ph in _PLACEHOLDER.findall(node):
                 found.append((path, ph))
 
     _scan(cfg, "")
-    if found:
-        lines = "\n".join(f"  - {path}: {ph}" for path, ph in found)
+    preset_prefix = f"{model_preset.PRESETS_KEY}."
+    preset_hits = [(p[len(preset_prefix):], ph) for p, ph in found if p.startswith(preset_prefix)]
+    other_hits = [(p, ph) for p, ph in found if not p.startswith(preset_prefix)]
+    where = display_config_path(config_path) or config_path
+
+    if preset_hits:
+        names = list(dict.fromkeys(p.split(".", 1)[0] for p, _ in preset_hits))
+        env_path = os.environ.get(MODEL_PRESETS_ENV, "").strip()
+        if env_path:
+            action = f"{MODEL_PRESETS_ENV} 이 가리키는 파일에 실제 값을 적으세요"
+            source = f"파일 {env_path}"
+        else:
+            action = f"{MODEL_PRESETS_ENV} 에 실제 값을 적은 프리셋 파일을 지정하세요"
+            source = f"{MODEL_PRESETS_ENV} 지정 안 됨 — 형식은 resource/model_presets.yaml"
+        keys = _head([f"{p}={ph}" for p, ph in preset_hits])
         _log.warning(
-            "[DocumentProcessor] 미치환 설정 플레이스홀더가 발견되었습니다 "
-            f"(config='{config_path}'). Site 배포 시 실제 값으로 변경하세요:\n{lines}"
+            f"모델 프리셋 {len(names)}개({_head(names, sep='·')})의 접속 정보가 자리표시값(<…>)이라 해당 모델 "
+            f"호출은 실패하거나 건너뜁니다. {action}. 자리표시값: {keys} ({source}, 설정 {where})"
+        )
+    if other_hits:
+        keys = _head([f"{p}={ph}" for p, ph in other_hits])
+        _log.warning(
+            f"설정 키 {len(other_hits)}개가 자리표시값(<…>)이라 이 값을 쓰는 기능은 실패하거나 건너뜁니다. "
+            f"{where} 에서 실제 값으로 바꾸세요: {keys}"
         )
 
 

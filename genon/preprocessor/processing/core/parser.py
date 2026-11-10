@@ -557,6 +557,8 @@ class ParserCore:
 
         cfg = _load_config(config_path)
         self._intel = IntelligentDocumentProcessor(cfg, config_path=config_path)
+        # 안내 문구에 적을, 실제로 읽은 설정 파일(사본·사이트 덮어쓰기면 그 경로, #627).
+        self._config_label = cp.display_config_path(config_path)
 
         # xlsx/csv · md · 확장자 별칭 설정은 intel 프로세서가 동일 config에서 이미 파싱함 → 재사용.
         # _ext_aliases 를 빠뜨리면 formats.extension_aliases 가 설정에 있어도 라우팅이 그것을
@@ -2106,7 +2108,8 @@ class ParserCore:
         # 등록 없는 doc_type 은 파싱 작업을 시작하기 전에 드러낸다(defaults.unknown_doc_type).
         pcfg.check_doc_type_configured(
             getattr(getattr(self, "_intel", None), "custom_fields_cfgs", ()), job.doc_type,
-            getattr(self, "_unknown_doc_type", "warn"), _unknown_doc_type_error)
+            getattr(self, "_unknown_doc_type", "warn"), _unknown_doc_type_error,
+            config_path=getattr(self, "_config_label", None))
         # 분기 사이에 공유되는 상태. enrichment_context 는 후처리가 채워 응답 metadata 로 나간다.
         job.ctx = {"enrichment_context": {}, "artifacts_source": None, "job": job}
 
