@@ -1486,14 +1486,17 @@ class ChunkerCore:
                 1, f"docling document 복원 실패: {exc}", error_type="permanent",
                 reason_code="CHUNK_P004") from exc
 
+        # 청크로 나갈 내용이 하나도 없으면(본문 텍스트도, 셀이 있는 표도 없음) split 결과가 비어 0건이 된다.
+        # 그때만 "." 한 글자 text item 을 넣어 임베딩에 보낼 텍스트를 만든다. 셀이 있는 표는 그 자체로 청크가
+        # 되므로 내용으로 친다 — 예전 조건(셀이 0개인 표만 내용으로 침)은 거꾸로라, 표만 있는 문서에 "." 청크가
+        # 붙고 빈 표만 있는 문서는 0건으로 실패했다(#599).
         has_text_items = False
         for item, _ in document.iterate_items():
-            if (isinstance(item, (TextItem, ListItem, CodeItem, SectionHeaderItem)) and item.text and item.text.strip()) or (isinstance(item, TableItem) and item.data and len(item.data.table_cells) == 0):
+            if (isinstance(item, (TextItem, ListItem, CodeItem, SectionHeaderItem)) and item.text and item.text.strip()) or (isinstance(item, TableItem) and item.data and len(item.data.table_cells) > 0):
                 has_text_items = True
                 break
 
         if not has_text_items:
-            # text item 이 없으면 split 결과가 비므로 최소 text item 을 추가 (intelligent 와 동일 로직).
             prov = ProvenanceItem(
                 page_no=1,
                 bbox=BoundingBox(l=0, t=0, r=1, b=1),  # 최소 bbox
