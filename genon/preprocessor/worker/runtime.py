@@ -239,8 +239,9 @@ def _summarize(stage: str, payload, size: int, limit: int) -> tuple[int, str, st
 def _load_parsed(artifact_root: str, ref: str):
     """chunk 입력(parse 결과 JSON)을 읽는다.
 
-    JSON 이 아니면 대개 parse 를 거치지 않은 원본 문서를 넣은 경우다. 파이썬 원문
-    (`JSONDecodeError: Expecting value …`)은 무엇을 넣어야 하는지 말하지 않으므로 한 줄 안내로 바꾼다.
+    JSON 이 아니면 단건 실행에서는 대개 parse 를 거치지 않은 원본 문서를 넣은 경우이고, 배치에서는
+    parse 산출물이 깨진 경우다. 파이썬 원문(`JSONDecodeError: Expecting value …`)은 어느 쪽인지도,
+    무엇을 넣어야 하는지도 말하지 않으므로 한 줄 안내로 바꾼다.
     """
     try:
         return paths.load_json(artifact_root, ref)
@@ -249,8 +250,8 @@ def _load_parsed(artifact_root: str, ref: str):
     except UnicodeDecodeError:
         reason = "UTF-8 텍스트가 아님"
     raise GenosServiceException(
-        1, f"청커 입력이 JSON 이 아닙니다({reason}). parse 액티비티 결과 JSON 을 넣으세요"
-           f"(원본 문서라면 먼저 parse 를 실행하세요).",
+        1, f"청커 입력을 parse 결과 JSON 으로 읽지 못했습니다({reason}). 단건 실행이면 parse 액티비티 결과 "
+           f"JSON 을 넣었는지(원본 문서가 아닌지), 배치면 parse 산출물이 온전한지 확인하세요.",
         error_type="permanent", reason_code="CHUNK_P004")
 
 
