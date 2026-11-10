@@ -301,9 +301,24 @@ def check_empty_text(document: DoclingDocument) -> bool:
     for page_no, n_items in page_item_count.items():
         # 텍스트 아이템이 있는데 그 페이지 텍스트 총량이 0 → 비어있는 페이지
         if n_items > 0 and page_text_len[page_no] == 0:
-            _log.info(f"[intelligent] page {page_no} 텍스트가 비어있음 → 강제 OCR 필요")
+            # 사유는 호출부의 재OCR 판정 줄(reason=empty_text)에 남는다. 여기서는 페이지만 DEBUG 로.
+            _log.debug(f"[intelligent] {page_no}쪽 글 항목의 텍스트가 모두 비어 있습니다(재OCR 사유 empty_text)")
             return True
     return False
+
+
+def has_no_text(document: DoclingDocument) -> bool:
+    """문서 전체에 읽힌 글자가 하나도 없는지(글 항목·표 칸 모두 빈 경우).
+
+    텍스트 레이어가 없는 스캔 PDF 를 OCR 없이 변환하면 그림 항목만 남고 이렇게 된다.
+    """
+    for item, _level in document.iterate_items():
+        if isinstance(item, TextItem) and (item.text or "").strip():
+            return False
+        if isinstance(item, TableItem) and any(
+                (cell.text or "").strip() for cell in item.data.table_cells):
+            return False
+    return True
 
 
 #: 재OCR 사유(#482). "none" = 재OCR 하지 않는다(판정이 OK 또는 UNKNOWN 이고 휴리스틱도 안 걸림).

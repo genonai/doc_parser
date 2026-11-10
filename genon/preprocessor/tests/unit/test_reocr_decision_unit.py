@@ -103,3 +103,32 @@ def test_http_facades_honor_request_ocr_mode(facade_cls, request_kwargs, reocr_e
     with patch.object(sys.modules[facade_cls.__module__], "judge_document", return_value=de.OcrVerdict.UNKNOWN):
         fp._load_document("scan.pdf", **request_kwargs)
     assert fp.load_documents_with_docling_ocr.called is reocr_expected
+
+
+def _scan_without_text() -> DoclingDocument:
+    """텍스트 레이어 없는 스캔본을 OCR 없이 변환한 꼴 — 페이지는 있는데 글 항목이 없다."""
+    d = DoclingDocument(name="scan")
+    d.add_page(page_no=1, size=Size(width=600, height=800))
+    return d
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("make_doc,warned", [
+    (_scan_without_text, True),
+    (_doc_with_text, False),
+], ids=["scan-warns", "text-silent"])
+def test_parse_docling_warns_when_disable_mode_reads_no_text(make_doc, warned, caplog):
+    """ocr_mode=disable 에서 PDF 본문이 비면 빈 결과가 조용히 나가지 않게 ocr_mode=auto 안내를 남긴다(#664)."""
+    dp = object.__new__(DocumentProcessor)
+    dp._intel = MagicMock()
+    dp._intel.ocr_mode = "disable"
+    dp._intel.ocr_endpoint = ""
+    dp._intel.enrichment_options.do_picture_description = False
+    dp._intel.table_image_enabled = False
+    dp._intel.load_documents.return_value = make_doc()
+    dp._intel.enrichment.side_effect = lambda document, **kw: document
+    with caplog.at_level("WARNING"):
+        dp._parse_docling("doc.pdf")
+    hits = [r.getMessage() for r in caplog.records if "ocr.ocr_mode 를 auto" in r.getMessage()]
+    assert (len(hits) == 1) is warned
+    assert dp._intel.load_documents_with_docling_ocr.called is False   # 경고만 — 동작은 그대로

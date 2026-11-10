@@ -85,9 +85,13 @@ class DoclingRuntimeBase:
     # 통일은 별도 이슈다 — 여기서 바꾸면 intelligent 의 metadata 추출 동작이 달라진다.
     _metadata_enricher_passes_thinking: ClassVar[bool] = True
 
+    # 안내 문구에 적을, 실제로 읽은 설정 파일(#627). 모르면 None — 문구가 "이 액티비티의 config.yaml" 로 쓴다.
+    _config_label: str | None = None
+
     def __init__(self, config: dict | None = None, config_path: str | None = None):
         cfg = _as_dict(config)
         self._config_dir = Path(config_path).resolve().parent if config_path else Path.cwd()
+        self._config_label = cp.display_config_path(config_path)
         # 런타임 kwargs 기본값(img_desc/chart_desc/chart_detection/doc_summary) 용도
         self._runtime_cfg = _as_dict(cfg.get("runtime"))
         ocr_cfg = _as_dict(cfg.get("ocr"))
@@ -105,7 +109,7 @@ class DoclingRuntimeBase:
         # OCR 엔드포인트는 ocr.paddle.ocr_endpoint 가 정식 위치.
         # 구버전 호환: ocr.ocr_endpoint(상위) / 최상위 ocr_endpoint 도 폴백으로 인식.
         # 해석은 processing/common/pipeline_setup.py 로 모았다(조정 지점은 yaml 의 ocr 섹션).
-        _ocr_rt = ps.resolve_ocr_runtime(cfg, ocr_cfg)
+        _ocr_rt = ps.resolve_ocr_runtime(cfg, ocr_cfg, config_label=self._config_label)
         ocr_ep = _ocr_rt.endpoint
         self.ocr_mode = _ocr_rt.mode
         self._table_cell_ocr_timeout = _ocr_rt.table_cell_ocr_timeout
@@ -357,8 +361,9 @@ class DoclingRuntimeBase:
         xlsx_mode = str(xlsx_cfg.get("processing_mode", default_mode)).strip().lower()
         if xlsx_mode not in {"docling", "tabular"}:
             _log.warning(
-                f"[DocumentProcessor] Unknown formats.xlsx.processing_mode '{xlsx_mode}', "
-                f"fallback to '{default_mode}'."
+                f"[DocumentProcessor] formats.xlsx.processing_mode '{xlsx_mode}' 를 알 수 없어 "
+                f"{default_mode} 로 처리합니다. {self._config_label or '이 액티비티의 config.yaml'} 의 "
+                f"formats.xlsx.processing_mode 를 docling·tabular 중 하나로 고치세요."
             )
             xlsx_mode = default_mode
         self._xlsx_cfg = {
@@ -376,8 +381,9 @@ class DoclingRuntimeBase:
         md_mode = str(md_cfg.get("processing_mode", "docling")).strip().lower()
         if md_mode not in {"docling", "text"}:
             _log.warning(
-                f"[DocumentProcessor] Unknown formats.md.processing_mode '{md_mode}', "
-                f"fallback to 'docling'."
+                f"[DocumentProcessor] formats.md.processing_mode '{md_mode}' 를 알 수 없어 docling 으로 "
+                f"처리합니다. {self._config_label or '이 액티비티의 config.yaml'} 의 "
+                f"formats.md.processing_mode 를 docling·text 중 하나로 고치세요."
             )
             md_mode = "docling"
         self._md_cfg = {"processing_mode": md_mode}
