@@ -124,6 +124,41 @@ def display_config_path(config_path: Any) -> str | None:
     return str(config_path)
 
 
+class ConfigSyntaxError(ValueError):
+    """설정 YAML 문법 오류. 같은 파일이면 늘 실패하므로 워커는 재시도하지 않는다(ValueError → permanent)."""
+
+
+# 문법 오류 설명(PyYAML 의 problem) 최대 길이 — 한 줄 메시지에서 조치 문구가 잘리지 않게 한다.
+_YAML_PROBLEM_MAX = 80
+
+
+def yaml_syntax_message(path: Any, exc: yaml.YAMLError) -> str:
+    """YAML 문법 오류의 한 줄 안내 — 무엇이(파일·행·열) · 왜(PyYAML 설명) · 어떻게(조치) 순서.
+
+    Studio 콘솔은 줄당 220자, GenOS error_message 는 약 500자에서 자르므로 파일·행을 앞에 둔다.
+    PyYAML 원문은 여러 줄이고 위치가 끝에 붙어 잘리기 쉽다. 행·열은 PyYAML 의 0 기준 값에 1 을 더한다.
+    """
+    shown = display_config_path(path) or str(path)
+    where, problem = "", str(exc)
+    if isinstance(exc, yaml.MarkedYAMLError):
+        if exc.problem_mark is not None:
+            where = f" {exc.problem_mark.line + 1}행 {exc.problem_mark.column + 1}열"
+        problem = exc.problem or exc.context or problem
+    problem = " ".join(problem.split())
+    if len(problem) > _YAML_PROBLEM_MAX:
+        problem = problem[: _YAML_PROBLEM_MAX - 1] + "…"
+    return f"{shown}{where}의 YAML 문법이 틀렸습니다({problem}). 괄호·들여쓰기·따옴표를 고치세요."
+
+
+def read_yaml_file(path: Any) -> Any:
+    """YAML 파일 하나를 읽는다. 문법 오류는 한 줄 안내의 ConfigSyntaxError 로 바꾼다(원인은 __cause__)."""
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            return yaml.safe_load(f)
+    except yaml.YAMLError as exc:
+        raise ConfigSyntaxError(yaml_syntax_message(path, exc)) from exc
+
+
 _PLACEHOLDER = re.compile(r"<[A-Z0-9_]+>")
 # 경고 한 줄에 이름·키를 몇 개까지 적을지. Studio 콘솔은 한 줄 220자에서 자르므로 나머지는 개수만 적는다.
 _PLACEHOLDER_SHOW = 3
@@ -252,8 +287,9 @@ def _preset_fail(message: str, *, strict: bool, fallback):
 def _read_presets_file(path: Path, *, strict: bool) -> dict:
     """프리셋 파일 하나를 읽는다. 형식은 메인 yaml 과 같은 최상위 `model_presets:` 블록이다."""
     try:
-        with open(path, "r", encoding="utf-8") as f:
-            loaded = yaml.safe_load(f) or {}
+        loaded = read_yaml_file(path) or {}
+    except ConfigSyntaxError as exc:
+        return _preset_fail(str(exc), strict=strict, fallback={})
     except Exception as exc:
         return _preset_fail(
             f"모델 프리셋 파일을 읽지 못했습니다: {path} ({exc})", strict=strict, fallback={}
@@ -268,8 +304,7 @@ def load_config(config_path: str, *, strict: bool = True) -> dict:
     strict=False: 경고만 남기고 빈 dict 로 진행한다(첨부 프로세서의 기존 동작).
     """
     try:
-        with open(config_path, "r", encoding="utf-8") as f:
-            cfg = yaml.safe_load(f) or {}
+        cfg = read_yaml_file(config_path) or {}
     except Exception as exc:
         if strict:
             raise

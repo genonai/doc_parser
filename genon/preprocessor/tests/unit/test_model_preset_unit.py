@@ -178,6 +178,16 @@ def test_malformed_presets_block_fails_startup(tmp_path):
         cp.load_config(_write(tmp_path, "model_presets:\n  - url: http://m/v1\n"))
 
 
+@pytest.mark.unit
+def test_presets_file_yaml_syntax_error_names_file_and_line_in_one_line(tmp_path):
+    """model_presets.yaml 문법 오류도 기동을 막고(ModelPresetError → 워커 permanent), 파일·행을 한 줄로 앞에 적는다."""
+    (tmp_path / "model_presets.yaml").write_text("model_presets:\n  default: {url: http://m/v1\n", encoding="utf-8")
+    with pytest.raises(model_preset.ModelPresetError) as info:
+        cp.load_config(_write(tmp_path, "model_presets_file: model_presets.yaml\n"))
+    message = str(info.value)
+    assert "\n" not in message and "model_presets.yaml 3행 1열의 YAML 문법이 틀렸습니다" in message
+
+
 # ── 하위 호환 ─────────────────────────────────────────────────────────────────
 
 @pytest.mark.unit
