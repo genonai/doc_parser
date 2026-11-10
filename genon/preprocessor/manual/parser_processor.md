@@ -1789,7 +1789,7 @@ fields:
 
 - element 의 `category` 가 `tabular_row` / `custom_fields_row` / `faq_row` 중 하나면
   **행 기반 경로**로 갑니다 — 행 1개 = 청크 1개, element `metadata` 가 청크 property 로 승격.
-- 그 경로는 **섞여 온 비-행 element 를 경고 한 줄 남기고 버립니다.**
+- 그 경로는 **섞여 온 다른 element 를 경고 한 줄 남기고 버립니다.**
 - 그 category 가 아니면 **조용히 일반 텍스트 분할**로 빠지고 metadata 는 청크에 실리지 않습니다.
 
 **category 문자열 하나를 잘못 쓰면 metadata 가 사라지거나 element 가 통째로 버려집니다.**

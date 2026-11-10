@@ -199,7 +199,7 @@ def test_chunker_parse_format_rows_mixed_with_text_warns_on_drop(caplog):
         )
 
     assert len(vectors) == 1
-    assert "비-행 element 1개" in caplog.text
+    assert "다른 element 1개" in caplog.text
 
 
 def test_chunker_parse_format_text_multi_chunk():
@@ -361,7 +361,7 @@ def test_chunker_splittable_row_prefix_overflow_falls_back_with_warning(caplog):
         )
 
     assert vectors, "병리 케이스에서도 청크는 산출되어야 한다"
-    assert "접두 몫 예약" in caplog.text
+    assert "조각마다 접두를 다시 붙이지 않고" in caplog.text
     # 폴백 후에도 원문 내용은 어딘가에 남아 있어야 한다(정보 유실 방지).
     assert "본문 내용" in "\n".join(v.text for v in vectors)
 
@@ -606,7 +606,7 @@ def test_oversized_heading_falls_back_with_warning(caplog):
         vectors = _chunk(doc.model_dump(mode="json"), chunk_size=CS)
 
     assert vectors, "병리 케이스에서도 청크는 산출되어야 한다"
-    assert "헤더 몫 예약 생략" in caplog.text, "폴백 경고가 없다"
+    assert "HEADER 줄(섹션 경로)이" in caplog.text, "폴백 경고가 없다"
 
 
 # ----------------------------------------------------------------------
@@ -1046,10 +1046,10 @@ async def test_validation_fails_document(values, code, reason_code):
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("file_path,kwargs,message,reason_code", [
-    ("", {}, "입력이 필요합니다", "CHUNK_P002"),
+    ("", {}, "입력이 비어 있습니다", "CHUNK_P002"),
     ("/nonexistent/parsed.json", {}, "로드 실패", "CHUNK_S003"),   # 없는 경로는 파일 오류다
-    ("", {"document": {"foo": 1}}, "인식할 수 없습니다", "CHUNK_P003"),
-    ("", {"document": {"schema_name": "DoclingDocument", "texts": "broken"}}, "복원 실패", "CHUNK_P004"),
+    ("", {"document": {"foo": 1}}, "parse 결과로 읽을 수 없습니다", "CHUNK_P003"),
+    ("", {"document": {"schema_name": "DoclingDocument", "texts": "broken"}}, "복원하지 못했습니다", "CHUNK_P004"),
 ])
 async def test_input_errors_are_permanent(file_path, kwargs, message, reason_code):
     """청커 입력 오류는 다시 시도해도 같으므로 permanent 이며 사유 코드가 실린다(#528).
@@ -1177,3 +1177,71 @@ async def test_validation_skips_markers_and_checks_rows():
 
     assert [v.text for v in vectors] == ["카드 > 결제"]
     assert len(audio) == 1
+
+
+# ---------------------------------------------------------------------------
+# 청크 0건의 원인 안내(#665, #364). 예전에는 원인이 달라도 모두 `chunk length is 0` 이었다.
+# 훅이 입력을 비웠는지, 원천이 비었는지, text_cleanup 이 지웠는지 메시지로 갈라야 고칠 곳을 안다.
+# ---------------------------------------------------------------------------
+
+def _emptying_edit_input(cf):
+    class _P(cf.DocumentProcessor):
+        def edit_input(self, kind, data, **kwargs):
+            return []
+    return _P()
+
+
+def _chunk_rule_drops_all(cf):
+    tn = pytest.importorskip("processing.chunking.text_norm")
+    proc = cf.DocumentProcessor()
+    proc._text_cleanup_rules = tn.rules_from_cfg({"text_cleanup": {"rules": [{"chunk": "."}]}})
+    return proc
+
+
+_TEXT = {"category": "paragraph", "content": "본문 문단", "page": 1}
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("make,elements,params,cause", [
+    (lambda cf: cf.DocumentProcessor(), [], {}, "elements 가 0개"),
+    (lambda cf: cf.DocumentProcessor(), [{**_TEXT, "content": " "}] * 2, {}, "content 가 모두 비어"),
+    (_emptying_edit_input, [_TEXT, _TEXT], {}, "edit_input 이 elements 2개를 모두 걸러"),
+    (_chunk_rule_drops_all, [_TEXT], {"text_cleanup": "safe"}, "text_cleanup 이 청크 1건을 모두 지웠습니다"),
+], ids=["source-empty", "content-blank", "edit-input-emptied", "text-cleanup-removed"])
+async def test_zero_chunks_names_the_cause(make, elements, params, cause):
+    cf = pytest.importorskip("facade.chunking_processor")
+    with pytest.raises(cf.GenosServiceException, match=cause) as exc:
+        await make(cf)(None, "", document={"elements": elements}, **params)
+    assert (exc.value.error_type, exc.value.reason_code) == ("permanent", "CHUNK_D001")
+
+
+@pytest.mark.asyncio
+async def test_edit_chunk_dropping_every_chunk_warns(caplog):
+    """edit_chunk 가 전부 버리면 실패가 아니라 0건 결과지만, 훅이 원인임을 경고로 알린다(#364)."""
+    tb = pytest.importorskip("processing.core.toolbox")
+    cf = pytest.importorskip("facade.chunking_processor")
+
+    class _P(cf.DocumentProcessor):
+        def edit_chunk(self, text, info, **kwargs):
+            return tb.DROP
+
+    with caplog.at_level(logging.WARNING):
+        vectors = await _unvalidated(_P())(None, "", document={"elements": [_TEXT]})
+
+    assert vectors == []
+    assert "edit_chunk 가 청크 1건을 모두 버려" in caplog.text
+
+
+def test_over_length_chunks_warn_once_per_document(caplog):
+    """chunk_size 를 넘는 최종 청크는 문서당 한 줄로 모아 알린다 — 청크마다 찍으면 콘솔 꼬리를 덮는다."""
+    from types import SimpleNamespace
+    from genon.preprocessor.processing.core.chunker import ChunkerCore, SplitInfo
+
+    job = SimpleNamespace(notes={"split": SplitInfo({}, {}, max_chars=10)})
+    metas = [SimpleNamespace(text="가" * n, i_chunk_on_doc=i) for i, n in enumerate([20, 5, 30, 11, 12, 13])]
+
+    with caplog.at_level(logging.WARNING):
+        ChunkerCore._warn_over_length(job, metas)
+
+    [record] = [r for r in caplog.records if "chunk_size(10자)" in r.getMessage()]
+    assert "5건" in record.getMessage() and "최대 30자" in record.getMessage()

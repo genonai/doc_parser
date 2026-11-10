@@ -34,6 +34,27 @@ def as_dict(value: Any) -> dict:
     return value if isinstance(value, dict) else {}
 
 
+# 값을 읽지 못해 "지정하지 않은 것"으로 처리할 때 실제로 어떻게 동작하는지. 경고 문구에 덧붙인다.
+# 키마다 미지정 동작이 달라 공용 함수가 알 수 없으므로 자주 틀리는 청크 키만 적는다.
+_UNSET_BEHAVIOR = {
+    "chunking.chunk_size": "청크를 나누지 않습니다",
+    "chunk_size": "설정 파일의 chunking.chunk_size 를 씁니다",
+    "chunking.min_chunk_size": "하한 1024 를 씁니다",
+    "chunking.include_chunk_header": "HEADER 줄을 붙입니다",
+    "chunking.table_as_chunk": "표를 별도 청크로 냅니다",
+}
+
+
+def _warn_unreadable(key: str, value: Any, kind: str) -> None:
+    """설정·요청 값을 해석하지 못했다는 한 줄 경고 — 무엇이(키·값) · 어떻게 처리하나 · 어떻게 고치나."""
+    behavior = _UNSET_BEHAVIOR.get(key)
+    effect = f" — {behavior}" if behavior else ""
+    _log.warning(
+        f"{key} 값 {value!r} 는 {kind} 값이 아니라 지정하지 않은 것과 같게 처리합니다{effect}. "
+        f"{kind} 값으로 고치세요."
+    )
+
+
 def parse_optional_bool(value: Any, key: str = "") -> Optional[bool]:
     if value is None:
         return None
@@ -48,7 +69,7 @@ def parse_optional_bool(value: Any, key: str = "") -> Optional[bool]:
         if text in _FALSE_WORDS:
             return False
     if key:
-        _log.warning(f"[DocumentProcessor] Invalid bool value for '{key}': {value!r}. Fallback to default.")
+        _warn_unreadable(key, value, "true/false")
     return None
 
 
@@ -59,7 +80,7 @@ def parse_optional_int(value: Any, key: str = "") -> Optional[int]:
         return int(value)
     except (TypeError, ValueError):
         if key:
-            _log.warning(f"[DocumentProcessor] Invalid int value for '{key}': {value!r}. Fallback to default.")
+            _warn_unreadable(key, value, "정수")
         return None
 
 
@@ -84,7 +105,7 @@ def parse_optional_float(value: Any, key: str = "") -> Optional[float]:
         return float(value)
     except (TypeError, ValueError):
         if key:
-            _log.warning(f"[DocumentProcessor] Invalid float value for '{key}': {value!r}. Fallback to default.")
+            _warn_unreadable(key, value, "숫자")
         return None
 
 
@@ -164,10 +185,14 @@ _PLACEHOLDER = re.compile(r"<[A-Z0-9_]+>")
 _PLACEHOLDER_SHOW = 3
 
 
-def _head(items: list[str], limit: int = _PLACEHOLDER_SHOW, sep: str = ", ") -> str:
-    """앞 limit 개와 나머지 개수(`a, b, c 외 3개`)."""
+def head_items(items: list, limit: int = _PLACEHOLDER_SHOW, sep: str = ", ") -> str:
+    """앞 limit 개와 나머지 개수(`a, b, c 외 3개`). 로그·오류 한 줄에 긴 목록을 줄여 적을 때 쓴다."""
+    items = [str(item) for item in items]
     rest = len(items) - limit
     return sep.join(items[:limit]) + (f" 외 {rest}개" if rest > 0 else "")
+
+
+_head = head_items
 
 
 def warn_unresolved_placeholders(cfg: dict, config_path: str) -> None:
@@ -434,6 +459,14 @@ def apply_table_output_defaults(kwargs: dict, processor) -> dict:
     return kwargs
 
 
+def unknown_tokenizer_type_message(value: Any) -> str:
+    """지원하지 않는 chunking.tokenizer_type 경고 — 설정 해석(core)과 청커 클래스가 같은 문구를 쓴다."""
+    return (
+        f"chunking.tokenizer_type {value!r} 는 지원하지 않는 값이라 char(글자 수)로 셉니다. "
+        f"char 또는 huggingface 로 고치세요."
+    )
+
+
 def resolve_tokenizer(
     chunking_cfg: dict,
     *,
@@ -447,14 +480,27 @@ def resolve_tokenizer(
     """
     local = chunking_cfg.get("tokenizer_path") or local_path
     resolved_id = chunking_cfg.get("tokenizer_id") or hf_id
-    return Path(local) if Path(local).exists() else resolved_id
+    if Path(local).exists():
+        return Path(local)
+    # 토크나이저는 huggingface 모드에서만 쓴다. char 모드면 폴백해도 영향이 없으므로 알리지 않는다.
+    if str(chunking_cfg.get("tokenizer_type") or "").strip().lower() == "huggingface":
+        given = "" if chunking_cfg.get("tokenizer_path") else "(미지정이라 기본값) "
+        _log.warning(
+            f"chunking.tokenizer_path {given}{local} 가 없어 Hugging Face 모델 ID {resolved_id} 로 "
+            f"토크나이저를 받습니다. 외부망이 막혀 있으면 받지 못해 청킹이 실패하므로 "
+            f"tokenizer_path 에 토크나이저 폴더를 두세요."
+        )
+    return resolved_id
 
 
 def clamp_chunk_size(size: Optional[int], minimum: int) -> Optional[int]:
     """chunk_size 가 0 초과이면서 minimum 미만이면 minimum 으로 보정.
     0(=분할 안 함) 과 None 은 그대로 둔다."""
     if size is not None and 0 < size < minimum:
-        _log.info(f"[chunk_size] {size} < {minimum} → {minimum} 로 보정")
+        _log.info(
+            f"chunk_size {size} 가 하한 chunking.min_chunk_size({minimum})보다 작아 {minimum} 으로 올립니다. "
+            f"더 작게 쓰려면 설정 파일의 chunking.min_chunk_size 를 낮추세요(0 이면 올리지 않음)."
+        )
         return minimum
     return size
 
