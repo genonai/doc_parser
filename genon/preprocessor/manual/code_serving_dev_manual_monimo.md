@@ -487,7 +487,7 @@ PY
 
 | 증상 | 원인 |
 |---|---|
-| `doc_type=… 에 맞는 custom_fields 등록이 없습니다` (`PARSE_P002`) | 등록이 없거나 `enable: false` 이거나 `doc_type` **값**의 문자열 불일치(오타 포함)입니다. `enable: false` 인 등록은 등록 목록에서 빠지므로 없는 것과 같습니다. `defaults.unknown_doc_type: fail` 이라 파싱이 실패하고 재시도하지 않습니다. `warn` 이면 경고 후 기본 경로로 처리합니다 |
+| `doc_type=… 에 맞는 custom_fields 등록이 없습니다` (`PARSE_P002`) | 등록이 없거나 `enable: false` 이거나 `doc_type` **값**의 문자열 불일치(오타 포함)입니다. `enable: false` 인 등록은 등록 목록에서 빠지므로 없는 것과 같습니다. `defaults.unknown_doc_type: fail` 이라 파싱이 실패하고 재시도하지 않습니다. `warn` 이면 경고 후 기본 경로로 처리합니다. 안내 문구는 실제로 읽은 설정 파일(사본이면 `activities/parse_<접미>/config.yaml`)을 가리킵니다. 그 파일을 고칩니다 |
 | `doc_type`을 안 줬는데 custom_fields가 동작함 | config yaml의 등록 블록에 `doc_type` 키가 없으면 **wildcard** 로 모든 요청에 매칭됩니다 |
 | 청크는 생성되지만 metadata가 비어 있음 | `unknown_doc_type: warn` 설정에서 일치하는 등록이 없어 일반 처리 경로로 처리되었거나 `alias`가 일치하지 않음 |
 | 특정 필드만 계속 `null` | `llm`의 `out` 이름과 프롬프트가 내놓는 JSON 키가 다릅니다. `kind: html` 이면 선택자가 안 걸린 것 |
@@ -1250,8 +1250,9 @@ export GENOS_MODEL_PRESETS_FILE=<값이 채워진 model_presets.yaml 경로>
 grep -n "<[A-Z0-9_]*>" "$GENOS_MODEL_PRESETS_FILE" | grep -vE '^[0-9]+: *#'
 ```
 
-세 층을 합친 뒤에도 자리표시 값이 남아 있으면 처리기를 준비할 때 `미치환 설정 플레이스홀더가 발견되었습니다`
-경고가 남습니다. 처리는 계속됩니다. 사용하지 않는 기능은 연결값을 설정하지 않고 **비활성화할 수 있습니다.**
+세 층을 합친 뒤에도 자리표시 값이 남아 있으면 처리기를 준비할 때
+`모델 프리셋 N개(default·image·page 외 N개)의 접속 정보가 자리표시값(<…>)이라 해당 모델 호출은 실패하거나 건너뜁니다. GENOS_MODEL_PRESETS_FILE 이 가리키는 파일에 실제 값을 적으세요. 자리표시값: default.url=<ENRICHMENT_SERVING_ID>, …`
+한 줄 경고가 남습니다(목록은 앞 3개와 나머지 개수만). 처리는 계속됩니다. 사용하지 않는 기능은 연결값을 설정하지 않고 **비활성화할 수 있습니다.**
 OCR은 제공 설정의 기본이 `disable`이며, 필요한 문서만 요청 파라미터 `ocr_mode: "auto"` 또는 문서유형 설정으로 켭니다.
 enrichment를 사용하지 않으면 각 항목의 `enable: false`를, PPT 페이지 설명을 사용하지 않으면
 `formats.ppt.page_description.enable: false`를 설정합니다. 비활성화해도 해당 프리셋에 자리표시자가 남아 있으면 경고는
@@ -1467,7 +1468,7 @@ Bitbucket에서 작업 브랜치를 대상 브랜치로 PR을 만듭니다.
 | 새 `doc_type` | 최종 청크에서 목표필드·본문을 검증합니다. 파싱 결과 파일(`ARTIFACT_ROOT/<output_ref>.json`)을 볼 수 있으면 요소형은 `elements[].metadata`도 확인합니다 |
 | `chunk_size` · `chunk_mode` | 청킹 결과의 청크 개수(요약의 `count`)와 길이 |
 | enrichment `enable` | 결과의 해당 항목 유무, 처리 시간(`duration_ms`) 변화 |
-| 플레이스홀더 치환 | 로그의 `미치환 설정 플레이스홀더` 경고에 사용 중인 프리셋이 나열되지 않는지 |
+| 플레이스홀더 치환 | 로그의 `모델 프리셋 N개(…)의 접속 정보가 자리표시값(<…>)이라` 경고에 사용 중인 프리셋이 나오지 않는지 |
 | 새 사본 slug | 기동 로그의 액티비티 목록과 그 slug의 설정 경로 |
 
 ### 4.5 릴리스 갱신 시 사용자 수정 사항 유지

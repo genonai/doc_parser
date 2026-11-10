@@ -183,7 +183,7 @@ GenOS 웹 UI에서 **관리 > 리소스 > 전처리기** 로 이동하여 **전�
 
 기타 옵션(`ocr_mode`, `layout.genos_layout.page_batch_size`, enrichment 프롬프트 파일 등)은 기본값을 그대로 두면 됩니다. 사이트별로 튜닝이 필요한 항목과 그 의미는 [intelligent_processor.md](intelligent_processor.md) 와 [parser_processor.md](parser_processor.md) 참고.
 
-> **자동 경고** — 처리기는 yaml 로드 직후 미치환 플레이스홀더(`<UPPER_SNAKE>` 패턴, 예: `<LAYOUT_SERVING_ID>` / `<OCR_ENDPOINT>`)가 남아 있는지 탐지해 컨테이너 로그에 경고를 남깁니다 (`[DocumentProcessor] 미치환 설정 플레이스홀더가 발견되었습니다 ...`). 배포 직후 8장 로그에서 이 경고가 보이면 자리표 누락 → yaml 수정 후 재업로드·재배포 하세요.
+> **자동 경고** — 처리기는 yaml 로드 직후 미치환 플레이스홀더(`<UPPER_SNAKE>` 패턴, 예: `<LAYOUT_SERVING_ID>` / `<OCR_ENDPOINT>`)가 남아 있는지 탐지해 컨테이너 로그에 한 줄 경고를 남깁니다 (모델 프리셋이면 `모델 프리셋 N개(…)의 접속 정보가 자리표시값(<…>)이라 해당 모델 호출은 실패하거나 건너뜁니다. …`, 그 밖의 키면 `설정 키 N개가 자리표시값(<…>)이라 … <설정 파일> 에서 실제 값으로 바꾸세요: …`). 배포 직후 8장 로그에서 이 경고가 보이면 자리표 누락 → yaml 수정 후 재업로드·재배포 하세요.
 
 ### 4.3 문서 파싱 모델 선택
 

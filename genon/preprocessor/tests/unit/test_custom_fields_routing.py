@@ -93,7 +93,61 @@ def test_check_doc_type_configured_by_policy(cfgs, doc_type, policy, outcome, ca
         return
     with caplog.at_level(logging.WARNING):
         pcfg.check_doc_type_configured(cfgs, doc_type, policy, RuntimeError)
-    assert ("custom_fields 등록이 없습니다" in caplog.text) == (outcome == "warn")
+    assert ("custom_fields 등록이 없" in caplog.text) == (outcome == "warn")
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("policy", ["fail", "warn"])
+def test_unknown_doc_type_message_names_the_config_file(policy, caplog):
+    """안내는 실제로 읽은 설정 파일을 가리킨다 — 모르면 원형 경로가 아니라 "이 액티비티의 config.yaml"(#627)."""
+    for config_path, expected in [("activities/parse_q1/config.yaml", "activities/parse_q1/config.yaml"),
+                                  (None, "이 액티비티의 config.yaml")]:
+        caplog.clear()
+        with caplog.at_level(logging.WARNING):
+            try:
+                pcfg.check_doc_type_configured([{"doc_type": "card"}], "faq", policy, RuntimeError,
+                                               config_path=config_path)
+                message = caplog.text
+            except RuntimeError as exc:
+                message = str(exc)
+        assert f"{expected} 의 enrichment 에 custom_fields(doc_type: faq)" in message
+        assert "activities/parse/config.yaml" not in message
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("parts, expected", [
+    (("activities", "parse_q1", "config.yaml"), "activities/parse_q1/config.yaml"),
+    (("..", "sites", "monimo", "activities", "parse", "config.yaml"),
+     "genon/sites/monimo/activities/parse/config.yaml"),
+], ids=["저장소 사본", "사이트 덮어쓰기"])
+def test_display_config_path_is_relative_inside_repo(parts, expected):
+    """안내 문구의 설정 경로는 전처리기 폴더(밖이면 저장소) 기준으로 줄인다 — 콘솔 한 줄에 들어가게."""
+    from genon.preprocessor.processing.common import config_parse as cp
+
+    preprocessor_dir = Path(cp.__file__).resolve().parents[2]
+    assert cp.display_config_path(str(preprocessor_dir.joinpath(*parts))) == expected
+    assert cp.display_config_path("/elsewhere/config.yaml") == "/elsewhere/config.yaml"
+
+
+@pytest.mark.smoke
+def test_parser_copy_reports_its_own_config_on_unknown_doc_type(tmp_path):
+    """파서 사본으로 등록 없는 doc_type 을 부르면 PARSE_P002 안내가 사본의 config.yaml 을 가리킨다(#627)."""
+    import shutil
+
+    from genon.preprocessor.processing.core.errors import GenosServiceException
+    from genon.preprocessor.processing.core.parser import ParserCore
+
+    origin = Path(pcfg.__file__).resolve().parents[2] / "activities" / "parse"
+    copy = tmp_path / "activities" / "parse_q1"
+    shutil.copytree(origin, copy, ignore=shutil.ignore_patterns("__pycache__"))
+    try:
+        parser = ParserCore(config_path=str(copy / "config.yaml"))
+    except Exception as e:  # noqa: BLE001 - 모델/네트워크 등 환경 의존
+        pytest.skip(f"ParserCore init unavailable: {e}")
+    assert parser._unknown_doc_type == "fail"     # 원형 설정 그대로 — 바뀌면 이 시험의 전제가 깨진다
+    with pytest.raises(GenosServiceException) as info:
+        parser._start_job(None, str(tmp_path / "a.md"), doc_type="deep_article")
+    assert f"{copy / 'config.yaml'} 의 enrichment" in str(info.value)
 
 
 @pytest.mark.unit
