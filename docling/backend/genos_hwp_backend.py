@@ -1,9 +1,11 @@
 """HWP SDK(convtext) 출력을 판정 로직 없이 그대로 DoclingDocument 로 옮기는 백엔드.
 
 제목 판정·강등·목차 감지·배치용 표 풀기·중복 제거는 하지 않는다.
-SDK 단락 하나가 TEXT 하나가 되고, 표는 SDK 가 준 HTML 문자열을 그대로 TEXT 로 넣는다.
+SDK 단락 하나가 TEXT 하나가 되고, 표는 SDK 가 준 HTML 을 docling 표 객체로만 바꿔 넣는다(셀 안 수식은 <math> 글자로).
 """
 
+import base64
+import binascii
 import json
 import logging
 import os
@@ -15,6 +17,7 @@ from io import BytesIO
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
+from bs4 import BeautifulSoup, NavigableString
 from docling_core.types.doc import (
     BoundingBox,
     CoordOrigin,
@@ -24,6 +27,8 @@ from docling_core.types.doc import (
     ImageRef,
     ProvenanceItem,
     Size,
+    TableCell,
+    TableData,
 )
 from PIL import Image, UnidentifiedImageError
 from typing_extensions import override
@@ -301,16 +306,83 @@ class GenosHwpDocumentBackend(DeclarativeDocumentBackend):
                 elif i_type == "table":
                     flush()
                     if i_value.strip():
-                        doc.add_text(
-                            label=DocItemLabel.TEXT,
-                            text=i_value.strip(),
-                            parent=doc.body,
-                            prov=_prov(page_no, len(i_value.strip())),
-                        )
+                        self._handle_table(i_value, doc, page_no, parent=doc.body)
                 elif i_type == "image":
                     flush()
                     self._handle_image(item, doc, page_no, parent=doc.body)
             flush()
+
+    @staticmethod
+    def _decode_latex_b64(raw: str) -> Optional[str]:
+        """SDK 가 표 셀 안에 넣는 base64 LaTeX 를 디코드한다. 줄바꿈·공백은 제거하고 strict 로 검증하며,
+        손상된 값은 경고 로그와 함께 None 을 돌려준다.
+        """
+        if not raw:
+            return None
+        cleaned = re.sub(r"\s+", "", raw)
+        try:
+            decoded = base64.b64decode(cleaned, validate=True).decode("utf-8").strip()
+        except (binascii.Error, UnicodeDecodeError) as e:
+            _log.warning(f"latex base64 디코드 실패: {e}; raw[:60]={raw[:60]!r}")
+            return None
+        return decoded or None
+
+    def _handle_table(self, html_content: str, doc: DoclingDocument, page_no: int, parent: Any):
+        """SDK 의 HTML 표를 docling 표 객체로 만들어 문서에 넣는다(제목 판정·배치용 표 풀기는 하지 않는다).
+
+        이후 to_markdown/to_html 직렬화와 표 단위 청킹은 docling 표 객체 위에서 이뤄진다.
+        표 태그가 없거나 셀이 하나도 없으면 원문을 TEXT 로 그대로 넣어 내용을 잃지 않는다.
+        """
+        soup = BeautifulSoup(html_content, "html.parser")
+        # 표 셀 안에 임베드된 <latex value="<base64>"/> 는 TableCell.text 가 문자열이라 FORMULA 노드로 못 넣는다.
+        # 셀 텍스트를 뽑기 전에 <math>{LaTeX}</math> 글자로 바꿔 수식이 사라지지 않게 한다.
+        for latex_tag in soup.find_all("latex"):
+            decoded = self._decode_latex_b64(latex_tag.get("value", ""))
+            latex_tag.replace_with(NavigableString(f"<math>{decoded}</math>" if decoded else ""))
+
+        table_tag = soup.find("table")
+        cells: List[TableCell] = []
+        if table_tag is not None:
+            occupied = set()  # 병합 칸이 차지한 (row, col)
+            for r_idx, tr in enumerate(table_tag.find_all("tr")):
+                c_idx = 0
+                for td in tr.find_all(["td", "th"]):
+                    while (r_idx, c_idx) in occupied:
+                        c_idx += 1
+                    row_span = int(td.get("rowspan", 1))
+                    col_span = int(td.get("colspan", 1))
+                    cells.append(
+                        TableCell(
+                            text=td.get_text(strip=True),
+                            start_row_offset_idx=r_idx,
+                            end_row_offset_idx=r_idx + row_span,
+                            start_col_offset_idx=c_idx,
+                            end_col_offset_idx=c_idx + col_span,
+                            row_span=row_span,
+                            col_span=col_span,
+                            column_header=td.name == "th",
+                        )
+                    )
+                    for r in range(r_idx, r_idx + row_span):
+                        for c in range(c_idx, c_idx + col_span):
+                            occupied.add((r, c))
+                    c_idx += col_span
+
+        if not cells:
+            text = html_content.strip()
+            if text:
+                doc.add_text(label=DocItemLabel.TEXT, text=text, parent=parent, prov=_prov(page_no, len(text)))
+            return
+
+        doc.add_table(
+            data=TableData(
+                num_rows=max(c.end_row_offset_idx for c in cells),
+                num_cols=max(c.end_col_offset_idx for c in cells),
+                table_cells=cells,
+            ),
+            parent=parent,
+            prov=_prov(page_no, len(html_content)),
+        )
 
     def _handle_image(self, item: Dict, doc: DoclingDocument, page_no: int, parent: Any):
         if not self.save_images:
