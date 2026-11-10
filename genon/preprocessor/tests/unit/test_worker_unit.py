@@ -391,7 +391,7 @@ def test_config_yaml_syntax_error_is_permanent_one_line(tmp_path, monkeypatch):
     assert "\n" not in message
     head = message[:130]                                            # 핵심은 앞 130자 안(#632)
     assert "activities/parse_t/config.yaml 4행 6열의 YAML 문법이 틀렸습니다" in head
-    assert message.endswith("괄호·들여쓰기·따옴표를 고치세요.")
+    assert "). 괄호·들여쓰기·따옴표를 고치세요." in message          # 접두·접미(액티비티·파일)는 to_application_error 몫
 
 
 def test_single_run_cli_uses_worker_body_and_prints_result_last(tmp_path, monkeypatch, capsys):
