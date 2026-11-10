@@ -20,6 +20,7 @@ import errno
 from temporalio.exceptions import ApplicationError
 
 from genon.preprocessor.processing.common.reason_codes import category_of, reason_of
+from genon.preprocessor.processing.core.errors import GenosServiceException
 
 TRANSIENT_ERRNOS = frozenset({
     errno.ESTALE, errno.EIO, errno.ENOTCONN, errno.ETIMEDOUT, errno.ECONNRESET,
@@ -62,7 +63,19 @@ def reason_details(exc: BaseException, kind: str) -> dict:
 
 
 def to_application_error(exc: BaseException, where: str = "") -> ApplicationError:
+    """메시지는 한 줄이고 **사유가 맨 앞**이다. 어디서 났는지(where — 액티비티·파일)는 뒤 괄호에 둔다.
+
+    이 메시지는 Studio 콘솔(줄당 220자)과 GenOS 적재 상태(`document_upsert.error_message`, pipeline 이
+    `[사유코드/범주] ` 를 앞에 붙인다)에 그대로 나가고 둘 다 앞부분만 보인다. 예전 형식
+    `parse /nfs/…/a.pdf: GenosServiceException: …` 은 경로·클래스 이름이 사유를 밀어냈다.
+    처리기가 만든 GenosServiceException 은 클래스 이름을 빼고, 그 밖의 예외(KeyError 등)는 이름이
+    뜻을 보태므로 남긴다.
+    """
     msg = getattr(exc, "error_msg", None) or str(exc) or type(exc).__name__
-    msg = f"{where}: {type(exc).__name__}: {msg}" if where else f"{type(exc).__name__}: {msg}"
+    msg = " ".join(str(msg).split())             # 여러 줄 원문(YAML·pydantic 오류 등)도 한 줄로
+    if not isinstance(exc, GenosServiceException):
+        msg = f"{type(exc).__name__}: {msg}"
+    if where:
+        msg = f"{msg} ({where})"
     kind, non_retryable = classify(exc)
     return ApplicationError(msg, reason_details(exc, kind), type=kind, non_retryable=non_retryable)

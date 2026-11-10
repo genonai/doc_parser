@@ -68,8 +68,9 @@ def scan(activities_dir: Path | None = None) -> list[Entry]:
                 slug_problem = str(exc)
         elif slug_problem is None:
             path = _folders.config_path(slug, activities_dir)   # 저장소 폴더의 config.yaml 누락은 기동 오류(시험이 잡는다)
-        log.info("액티비티 %s: 설정 %s (%s)%s", slug, path, "사이트 완성본" if site is not None else "저장소",
-                 " — 호출마다 오류" if slug_problem else "")
+        # 결함 표시를 경로 앞에 둔다 — 경로가 길면 줄 끝이 콘솔(220자)에서 잘린다.
+        log.info("액티비티 %s%s: 설정 %s (%s)", slug, " [호출마다 오류 — 배포 설정 결함]" if slug_problem else "",
+                 path, "사이트 완성본" if site is not None else "저장소")
         entries.append(Entry(slug, stage_of(slug), str(path), slug_problem))
     return entries
 

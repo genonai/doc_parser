@@ -49,6 +49,7 @@ import time
 from pathlib import Path
 
 RESULT_PREFIX = "@@RESULT@@"
+log = logging.getLogger("genon.activities")
 
 
 class _UsageError(Exception):
@@ -218,10 +219,14 @@ def _emit(payload: dict) -> None:
 
 
 def _failure(activity: str | None, started: float, exc: BaseException) -> dict:
+    from temporalio.exceptions import ApplicationError
+
     from genon.preprocessor.worker.registry import stage_of
 
+    # ApplicationError 의 str() 은 앞에 "permanent: " 처럼 type 을 붙인다 — type 은 따로 싣으므로 message 만.
+    message = exc.message if isinstance(exc, ApplicationError) else str(exc)
     error = {"type": getattr(exc, "type", None) or type(exc).__name__,
-             "message": str(exc),
+             "message": " ".join(message.split()) or type(exc).__name__,
              "non_retryable": bool(getattr(exc, "non_retryable", False))}
     # 워커 본체가 만든 ApplicationError 면 details[0] 의 사유 코드(#589)를 선택 키로 더한다 — 배포된
     # 워커가 Temporal 오류에 싣는 값과 같다. 인자 오류처럼 본체 밖의 실패에는 없다.
@@ -278,6 +283,8 @@ def run(args) -> dict:
     if not given.is_file():
         raise FileNotFoundError(f"입력 파일이 없습니다: {_input_path(args)}")
     output = _output_path(args, entry.slug)
+    log.info("단건 실행 시작: 액티비티 %s · 입력 %s · doc_type %s · 설정 %s · %s",
+             entry.slug, given.name, params.get("doc_type") or "없음", _config_source(entry), _presets_source())
 
     work = Path(tempfile.mkdtemp(prefix="activity-run-"))
     try:
@@ -304,6 +311,24 @@ def run(args) -> dict:
     return {**result, "output": str(output)}
 
 
+def _config_source(entry) -> str:
+    """실제로 읽는 설정 파일과 그 출처(원형·사본·사이트 완성본) — 사본·사이트에서 엉뚱한 파일을 고치지 않게."""
+    from genon.preprocessor.activities import _folders
+    from genon.preprocessor.processing.common.config_parse import display_config_path
+
+    kind = ("사이트 완성본" if _folders.site_activities_dir() is not None
+            else "원형" if entry.slug in _folders.STAGES else "사본")
+    return f"{display_config_path(entry.config_path)}({kind})"
+
+
+def _presets_source() -> str:
+    """모델 접속값을 덮어쓰는 프리셋 파일. 없으면 설정 폴더의 model_presets.yaml(자리표시값)만 쓴다."""
+    from genon.preprocessor.processing.common.config_parse import MODEL_PRESETS_ENV
+
+    path = os.environ.get(MODEL_PRESETS_ENV, "").strip()
+    return f"{MODEL_PRESETS_ENV}={path}" if path else f"{MODEL_PRESETS_ENV} 지정 안 됨"
+
+
 def _child(args, result_file: str) -> int:
     """자식 프로세스: 결과(또는 실패)를 파일로 넘긴다. stdout 은 부모가 stderr 로 돌려 둔다."""
     started = time.monotonic()
@@ -321,7 +346,10 @@ def _run_isolated(argv: list[str]) -> dict:
     os.close(fd)
     os.unlink(result_file)
     cmd = [sys.executable, "-m", "genon.preprocessor.activities", "_child", result_file, *argv]
-    proc = subprocess.Popen(cmd, stdout=sys.stderr, stderr=sys.stderr)
+    # 버퍼링을 끈다 — 파이프로 가는 자식 stdout(print)은 블록 버퍼라, 라이브러리 안내문이 실행 끝에
+    # 몰려 나와 Studio 콘솔 꼬리(실패 6줄)를 차지했다. 끄면 찍힌 순서대로 나온다.
+    proc = subprocess.Popen(cmd, stdout=sys.stderr, stderr=sys.stderr,
+                            env={**os.environ, "PYTHONUNBUFFERED": "1"})
 
     def _stop(signum, _frame):           # Studio 가 취소하면 자식도 끝낸다
         proc.terminate()
@@ -339,6 +367,13 @@ def _run_isolated(argv: list[str]) -> dict:
         raise RuntimeError(f"단건 실행 프로세스가 결과 없이 끝났습니다(exit={code})") from None
     finally:
         Path(result_file).unlink(missing_ok=True)
+
+
+def _log_failure(result: dict) -> None:
+    """실패 사유를 stderr 마지막 줄로 — Studio 콘솔은 실패 때 stderr 꼬리 6줄만 보여 주는데, 사유는
+    stdout 의 결과 줄에만 있었다. 사유 코드(있으면)를 앞에 둔다."""
+    error = result.get("error") or {}
+    log.error("단건 실행 실패(%s): %s", error.get("reason_code") or error.get("type"), error.get("message"))
 
 
 def main(argv=None) -> int:
@@ -376,10 +411,13 @@ def main(argv=None) -> int:
     except SystemExit as exc:                        # --help
         return int(exc.code or 0)
     except (Exception, KeyboardInterrupt) as exc:  # noqa: BLE001 — 인자 오류·자식 이상 종료·취소도 결과 한 줄로
-        _emit({**_failure(activity, started, exc), **({"command": command} if command else {})})
+        failed = {**_failure(activity, started, exc), **({"command": command} if command else {})}
+        _log_failure(failed)
+        _emit(failed)
         return 1
     if not result.get("ok"):
         result["duration_ms"] = int((time.monotonic() - started) * 1000)
+        _log_failure(result)
         _emit(result)
         return 1
     data = result["data"]
