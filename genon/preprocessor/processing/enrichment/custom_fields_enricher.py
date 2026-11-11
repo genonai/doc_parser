@@ -94,6 +94,10 @@ PROCESSOR_CUSTOM_FIELD_EXTRACTORS: dict[str, frozenset[str]] = {
 # 갖고, intelligent/convert 는 xlsx 와 PDF 를 뺀 전부를 PDF 로 바꿔 읽으므로 소비하지 않는다.
 PROCESSOR_READS_SOURCE_PRE = frozenset({"parser"})
 _SOURCE_PRE_BLOCKS = ("json", "markdown", "html")
+# 정규화된 설정에 이 키 중 하나라도 있으면 그 문서유형은 LLM 을 쓰겠다고 적은 것이다.
+_LLM_DECLARATION_KEYS = (
+    "url", "model", "prompt", "system_prompt", "user_prompt", "system_prompt_file", "user_prompt_file",
+)
 
 
 def normalize_doc_type(value: Any) -> str:
@@ -459,6 +463,13 @@ class CustomFieldsEnricher(BaseEnricher):
 
         self._url = url or cfg.get("url", "")
         self._model = model or cfg.get("model", "")
+        # 설정이 LLM 을 쓰겠다고 적었는지. `llm:` 블록은 정규화 뒤 url·model·프롬프트 키를
+        # 남기고(값이 비어 있어도 키는 있다), LLM 을 적지 않은 문서유형(front matter·상수만
+        # 쓰는 product_slf 등)에는 이 키가 없다. url/model 이 비었을 때 경고할지를 이것으로 정한다.
+        self._llm_declared = bool(
+            url or model or system_prompt or user_prompt or system_prompt_file or user_prompt_file
+            or any(key in cfg for key in _LLM_DECLARATION_KEYS)
+        )
         # 생성자 기본값이 None 인 것이 중요하다 — 예전에는 기본값과 같은 값을 등록 블록에
         # **명시**해도 "미지정"과 구분되지 않아 config_file 값이 이겼다(`temperature: 0.0`
         # 이 가장 자주 밟혔다). None 판정으로 바꿔 다른 키와 우선순위를 맞춘다.
@@ -1448,8 +1459,9 @@ class CustomFieldsEnricher(BaseEnricher):
                     parsed = self._parse_with_custom_parser(llm_output, document, **kwargs)
             except Exception as e:
                 _log.warning(f"custom_fields 추출 실패: {e}")
-        else:
+        elif self._llm_declared:
             # LLM 연결과 무관한 constants/front matter 는 계속 산출해야 한다.
+            # LLM 을 적지 않은 문서유형은 url/model 이 비어 있는 것이 정상이므로 경고하지 않는다.
             _log.warning(
                 "custom_fields LLM 비활성: url/model 설정이 비어있어 LLM 필드는 null 로 둡니다."
             )
