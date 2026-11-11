@@ -1,8 +1,8 @@
 """본문 텍스트 없이 표만 있는 docling 문서의 청킹(#599).
 
 청크로 나갈 내용이 하나도 없을 때만 "." 한 글자 text item 을 넣어 임베딩할 텍스트를 만든다.
-셀이 있는 표는 그 자체로 청크가 되므로 "." 를 붙이지 않는다(적재용 2.2.5 에서 표만 있는 csv·xlsx 에
-"." 청크가 생겼다). 셀이 0개인 빈 표만 있으면 "." 로 청크 1개를 만들어 0건 실패를 막는다.
+글자가 있는 표는 그 자체로 청크가 되므로 "." 를 붙이지 않는다(적재용 2.2.5 에서 표만 있는 csv·xlsx 에
+"." 청크가 생겼다). 셀이 없거나 모두 공백인 표만 있으면 "." 로 청크 1개를 만들어 0건 실패를 막는다.
 단, 청크 검증(chunking.validation, 출고 action: drop)이 켜져 있으면 그 "." 청크는 내용 없음으로 빠진다.
 """
 
@@ -63,3 +63,20 @@ def test_document_without_content_gets_dot_chunk(tmp_path):
     출고 설정의 청크 검증(action: drop)은 이 청크를 내용 없음으로 빼므로 검증을 끄고 본다."""
     texts = _chunk_texts(_table_only_document([]), tmp_path, validation=False)
     assert [t.strip().splitlines()[-1].strip() for t in texts] == ["."]
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("cell_text", ["", " \t\n "])
+@pytest.mark.parametrize("validation", [False, True])
+def test_table_with_blank_cells_uses_empty_document_fallback(tmp_path, cell_text, validation):
+    """빈 셀 표는 검증을 끄면 점 청크를 만들고, 켜면 내용 없음으로 거부한다."""
+    from genon.preprocessor.processing.core.errors import GenosServiceException
+
+    document = _table_only_document([(0, 0, cell_text), (0, 1, cell_text)])
+    if validation:
+        with pytest.raises(GenosServiceException) as exc:
+            _chunk_texts(document, tmp_path, validation=True)
+        assert exc.value.reason_code == "CHUNK_D002"
+    else:
+        texts = _chunk_texts(document, tmp_path, validation=False)
+        assert [t.strip().splitlines()[-1].strip() for t in texts] == ["."]
