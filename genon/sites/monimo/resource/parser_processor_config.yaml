@@ -289,6 +289,11 @@ enrichment:
       enable: true
       doc_type: monimo_news
       config_file: custom_field_monimo_news.yaml
+  # 뮤직 AI 플레이리스트 문구
+  - custom_fields:
+      enable: true
+      doc_type: music_ai
+      config_file: custom_field_music_ai.yaml
   # 상품설명서 생명/화재
   - custom_fields:
       enable: true

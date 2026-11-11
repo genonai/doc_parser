@@ -1,0 +1,65 @@
+﻿{
+  "wcmsData": {
+    "html": {},
+    "json": {
+      "playList": [
+        {
+          "text": "오늘 많이 듣는 국내 TOP50",
+          "landingType": "POPULAR_DOMESTIC"
+        },
+        {
+          "text": "깊은 밤, 조명과 함께\n듣기 좋은 음악",
+          "landingType": "EVENT"
+        },
+        {
+          "text": "이 노래가 좋아지면\n가을이 온 거예요",
+          "landingType": "SEASON"
+        },
+        {
+          "text": "2000년대 길거리 휩쓴 인기곡",
+          "landingType": "POPULAR_2000S"
+        },
+        {
+          "text": "힙하고 쿨했던 90년대 바이브",
+          "landingType": "POPULAR_1990S"
+        },
+        {
+          "text": "2010s FLO TOP 100",
+          "landingType": "POPULAR_2010S"
+        },
+        {
+          "text": "지금 뜨는 해외 TOP50",
+          "landingType": "POPULAR_OVERSEAS"
+        },
+        {
+          "text": "오늘 아침, 기분 좋은 하루의 시작",
+          "landingType": "MORNING_MISSION"
+        },
+        {
+          "text": "일할 때 이만한 노래가 없죠!",
+          "landingType": "BRUNCH"
+        },
+        {
+          "text": "산책지수가 나쁜 날, \n흐릿한 창밖과 어울리는 음악",
+          "landingType": "WALK_INDEX_BAD"
+        },
+        {
+          "text": "걸을수록 박자가 붙는 기분 좋은 음악",
+          "landingType": "WALK"
+        },
+        {
+          "text": "오늘의 영어 노래를 들어요",
+          "landingType": "TODAY_ENGLISH"
+        },
+        {
+          "text": "관심소식과 함께하는 부드러운 휴식",
+          "landingType": "INTEREST_NEWS"
+        },
+        {
+          "text": "모니모 혜택으로 오늘은 기분 좋은날!",
+          "landingType": "BENEFIT"
+        }
+      ]
+    }
+  }
+}

@@ -47,7 +47,7 @@ cd "${SCRIPT_DIR}"
 #
 # doc_type 별 경로:
 #   tabular_mapping (xlsx) : menu term                                   → 행 1개 = 청크 1개
-#   json_mapping    (json) : faq cs_slf cs_hpp monimo_event cs_sss link  → 레코드 1개 = 청크 1개
+#   json_mapping    (json) : faq cs_slf cs_hpp monimo_event cs_sss music_ai link  → 레코드 1개 = 청크 1개
 #   json_mapping    (구분자 텍스트) : cs_ssf(.dtms) stock_insight            → 줄·종목 1개 = 레코드 1개
 #   json_semantic   (json) : product_hpp                                 → 섹션 1개 = 청크 1개
 #                            (성격별로 나뉜 섹션마다 SECTION_NM/SOURCE_JSON_PATH + 공통 정보)
@@ -68,6 +68,7 @@ MONIMO_CASES=(
   # 구 코드는 셀 하나당 한 줄로 뭉개 빈 셀이 사라졌고 열 대응을 복원할 수 없었다.
   "monimo_event:${MONIMO}/monimo_event_table_sample.json"
   "monimo_news:${MONIMO}/TD00008415_d_5199.html.json"
+  "music_ai:${MONIMO}/monimo_music_ai_sample.json"
   "cs_slf:${MONIMO}/monimo_cs_slf_sample.json"
   "cs_ssf:${MONIMO}/monimo_cs_ssf_sample.dtms"
   "cs_sss:${MONIMO}/monimo_cs_sss_sample.json"
