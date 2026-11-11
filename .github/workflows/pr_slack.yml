@@ -43,6 +43,17 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           LOGIN: ${{ github.event.pull_request.user.login }}
+      # 제목을 payload JSON 문자열 안에 그대로 넣으면 큰따옴표·역슬래시가 든 제목에서 JSON 이 깨진다(#666).
+      # jq 로 JSON 문자열 이스케이프한 뒤 바깥 따옴표를 떼어 넣는다.
+      - name: Escape PR title for JSON
+        id: title
+        run: |
+          escaped=$(jq -Rr '@json' <<< "$TITLE")
+          escaped=${escaped#\"}
+          escaped=${escaped%\"}
+          echo "escaped=$escaped" >> "$GITHUB_OUTPUT"
+        env:
+          TITLE: ${{ github.event.pull_request.title }}
       - name: Send PR created message to Slack
         id: slack
         uses: slackapi/slack-github-action@v1.23.0
@@ -54,7 +65,7 @@ jobs:
                     "type": "section",
                     "text": {
                       "type": "mrkdwn",
-                      "text": "*새로운 PR이 생성되었습니다* :fire: \n\n *${{ github.event.pull_request.title }}* #${{ github.event.pull_request.number }} \n branch: `${{ github.head_ref }}` >> `${{ github.base_ref }}` \n Link: <${{ github.event.pull_request.html_url }}> "
+                      "text": "*새로운 PR이 생성되었습니다* :fire: \n\n *${{ steps.title.outputs.escaped }}* #${{ github.event.pull_request.number }} \n branch: `${{ github.head_ref }}` >> `${{ github.base_ref }}` \n Link: <${{ github.event.pull_request.html_url }}> "
                     }
                 },
                 {
