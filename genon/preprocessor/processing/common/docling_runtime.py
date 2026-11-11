@@ -56,7 +56,7 @@ from genon.preprocessor.processing.enrichment.doc_summary import (
     DocSummaryOptions,
 )
 from genon.preprocessor.processing.enrichment.docling_sender import sender_from_config
-from genon.preprocessor.processing.enrichment.enrichment_config import EnrichmentConfig
+from genon.preprocessor.processing.enrichment.enrichment_config import EnrichmentConfig, toc_off_reason
 from genon.preprocessor.processing.enrichment.image_description import (
     ImageDescriptionEnricher,
     ImageDescriptionOptions,
@@ -87,6 +87,8 @@ class DoclingRuntimeBase:
 
     # 안내 문구에 적을, 실제로 읽은 설정 파일(#627). 모르면 None — 문구가 "이 액티비티의 config.yaml" 로 쓴다.
     _config_label: str | None = None
+    # 설정에서 목차 추출이 꺼진 상태·켜는 방법(요청 toc=1 을 무시할 때 안내). __init__ 이 채운다.
+    _toc_off: tuple[str, str] = ("toc 항목 없음", "enrichment 에 toc 항목(enable: true, model_preset)을 넣으세요")
 
     def __init__(self, config: dict | None = None, config_path: str | None = None):
         cfg = _as_dict(config)
@@ -98,6 +100,7 @@ class DoclingRuntimeBase:
         layout_cfg = _as_dict(cfg.get("layout"))
         pdf_cfg = _as_dict(cfg.get("pdf_pipeline"))
         ec = EnrichmentConfig.from_raw(cfg.get("enrichment"), self._config_dir, parent_cfg=cfg)
+        self._toc_off = toc_off_reason(cfg.get("enrichment"))
 
         # 포맷별 처리 설정. 파싱 라우팅이 읽는다.
         self._setup_format_config(cfg)

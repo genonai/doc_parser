@@ -144,6 +144,24 @@ def _parse_thinking(opts: dict) -> "tuple[str, str]":
     return resolve_thinking(opts.get("thinking"), opts.get("thinking_dialect", "standard"))
 
 
+def toc_off_reason(raw_enrichment: Any) -> tuple[str, str]:
+    """목차 추출(toc)이 설정에서 꺼진 실제 상태와 켜는 방법 — 요청 toc=1 을 무시할 때 안내에 쓴다.
+
+    "꺼져 있거나 url 이 비어 있다" 처럼 가능한 원인을 늘어놓지 않고, 설정에 적힌 그대로를 보여 준다.
+    (toc 가 꺼져 있으면 그 접속 정보는 읽지 않으므로 url 은 원인이 아니다.)
+    """
+    if isinstance(raw_enrichment, dict):                       # 형식 A: enrichment: {do_toc: …}
+        return (f"enrichment.do_toc: {str(raw_enrichment.get('do_toc', True)).lower()}",
+                "enrichment.do_toc: true 와 toc 접속 정보를 지정하세요")
+    for item in raw_enrichment or []:                          # 형식 B: enrichment: [{toc: {…}}, …]
+        for name, opts in _as_dict(item).items():
+            if str(name).lower() in _ENRICHMENT_LIST_NAMES["toc"]:
+                enabled = _as_dict(opts).get("enable", True)
+                return (f"toc.enable: {str(enabled).lower()}",
+                        "toc.enable: true 로 바꾸고 toc.model_preset 을 지정하세요")
+    return ("toc 항목 없음", "enrichment 에 toc 항목(enable: true, model_preset)을 넣으세요")
+
+
 # enricher 이름 alias 매핑
 _ENRICHMENT_LIST_NAMES: dict[str, set[str]] = {
     "toc": {"toc", "toc_enricher"},
