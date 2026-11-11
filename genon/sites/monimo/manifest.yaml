@@ -9,7 +9,7 @@ owned:
   # 모니모 문서유형 등록 블록이 들어간 파서 설정
   - parser_processor_config.yaml
   - parser_processor_config_simple.yaml
-  # 모니모 문서유형 설정 14종
+  # 모니모 문서유형 설정 15종
   - custom_field_menu.yaml
   - custom_field_term.yaml
   - custom_field_faq.yaml
@@ -24,3 +24,4 @@ owned:
   - custom_field_cs_sss.yaml
   - custom_field_stock_insight.yaml
   - custom_field_research_report.yaml
+  - custom_field_music_ai.yaml

@@ -90,6 +90,8 @@ CASES = [
     # 제목에 영문 대문자·<BR>·엔티티가 든 생성 샘플이다(#414).
     ("monimo_event",  MONIMO / "monimo_event_title_sample.json",       "제목 대소문자 보존"),
     ("monimo_news",   MONIMO / "TD00008415_d_5199.html.json",          "실 파일명 → BIZ_ID"),
+    # 캡처를 옮겨 만든 샘플이다(BOM 포함).
+    ("music_ai",      MONIMO / "monimo_music_ai_sample.json",          "playList 항목별 청크"),
     ("cs_slf",        MONIMO / "monimo_cs_slf_sample.json",            "json_mapping"),
     # 마지막 레코드는 제목에 영문 대문자·<BR>·엔티티가 든 생성 레코드다(#414).
     ("cs_ssf",        MONIMO / "monimo_cs_ssf_sample.dtms",            "|@| 구분 레코드"),
