@@ -375,16 +375,16 @@ class IntelligentDocumentProcessor(DoclingRuntimeBase):
     def enrichment(self, document: DoclingDocument, **kwargs: dict) -> DoclingDocument:
         options = self.enrichment_options
         # 런타임 toc(0/1) — config 기본값(do_toc_enrichment)을 요청별로 켜고/끈다.
-        # 활성화(0→1)는 TOC endpoint 가 config 에 구성된 경우에만 유효(미구성 시 무시).
+        # 활성화(0→1)는 설정에 toc 접속 정보가 있을 때만 된다 — 설정에서 꺼져 있으면 무시하고 그 상태를 알린다.
         cur_toc = bool(getattr(options, "do_toc_enrichment", False))
         want_toc = bool(_as_int_flag(kwargs.get("toc"), 1 if cur_toc else 0))
         if want_toc != cur_toc:
             if want_toc and not str(getattr(options, "toc_api_base_url", "") or ""):
                 where = self._config_label or "이 액티비티의 config.yaml"
+                state, fix = self._toc_off
                 _log.warning(
-                    "[parser] 요청 toc=1 을 무시하고 목차 추출 없이 파싱합니다. enrichment 의 toc 가 꺼져 "
-                    "있거나(toc.enable: false) toc.model_preset 의 url 이 비어 있습니다. 목차 추출이 "
-                    f"필요하면 {where} 의 enrichment 에서 toc.enable: true 와 toc.model_preset 접속 정보를 지정하세요.")
+                    f"[parser] 요청 toc=1 을 무시하고 목차 추출 없이 파싱합니다 — {where} 에서 목차 추출이 "
+                    f"꺼져 있습니다({state}). 쓰려면 그 파일에서 {fix}.")
             else:
                 options = _copy_enrichment_options(options, do_toc_enrichment=want_toc)
                 _log.info(f"[parser] 요청 toc={int(want_toc)} 에 따라 목차 추출을 {'켭니다' if want_toc else '끕니다'}.")

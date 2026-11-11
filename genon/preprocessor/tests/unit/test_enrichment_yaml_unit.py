@@ -475,3 +475,16 @@ class TestTocSplitConfig:
             Path("."),
         )
         assert ec3.toc.repetition_penalty is None
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("raw, state", [
+    ([{"toc": {"enable": False, "model_preset": "default"}}], "toc.enable: false"),
+    ([{"metadata": {"enable": True}}], "toc 항목 없음"),
+    ({"do_toc": False}, "enrichment.do_toc: false"),
+], ids=["목록형·꺼짐", "목록형·항목 없음", "사전형·꺼짐"])
+def test_toc_off_reason_reports_the_actual_setting(raw, state):
+    """요청 toc=1 을 무시할 때 "꺼져 있거나 url 이 비어 있다" 대신 설정에 적힌 실제 상태를 보여 준다."""
+    from genon.preprocessor.processing.enrichment.enrichment_config import toc_off_reason
+
+    assert toc_off_reason(raw)[0] == state
