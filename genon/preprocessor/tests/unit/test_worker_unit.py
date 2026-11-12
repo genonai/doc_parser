@@ -7,6 +7,7 @@ import dataclasses
 import errno
 import json
 import logging
+import os
 from pathlib import Path
 
 import pytest
@@ -501,6 +502,39 @@ def test_single_run_cli_uses_worker_body_and_prints_result_last(tmp_path, monkey
     code = cli.main(["run", "--activity", "parse"])                          # 인자 오류도 결과 한 줄
     usage = json.loads(capsys.readouterr().out.strip().splitlines()[-1].removeprefix("@@RESULT@@ "))
     assert code == 1 and usage["ok"] is False and usage["error"]["type"] == "_UsageError"
+
+
+@pytest.mark.parametrize("codespace, shell_value, expected", [
+    ("cs-19", None, "/workspace/.studio/model_presets.yaml"),   # 코드스페이스 — 개발 env 파일의 값을 쓴다
+    ("cs-19", "/mine.yaml", "/mine.yaml"),                       # 이미 설정된 env 는 덮지 않는다
+    (None, None, None),                                          # 코드스페이스가 아니면 읽지 않는다
+])
+def test_single_run_cli_uses_codespace_dev_env_presets(tmp_path, monkeypatch, caplog, codespace, shell_value, expected):
+    """콘솔이 부르는 단건 CLI 가 개발 워커(Job)와 같은 GENOS_MODEL_PRESETS_FILE 로 자식 프로세스를 띄운다."""
+    import importlib
+
+    cli = importlib.import_module("genon.preprocessor.activities.__main__")
+    dev_env = tmp_path / "dev.env"
+    dev_env.write_text("# 개발 워커 env\nNFS_ROOT=/workspace\n"
+                       "export GENOS_MODEL_PRESETS_FILE='/workspace/.studio/model_presets.yaml'\n", encoding="utf-8")
+    monkeypatch.setenv("STUDIO_DEV_ENV", str(dev_env))
+    for name, value in (("CODESPACE_ID", codespace), ("GENOS_MODEL_PRESETS_FILE", shell_value)):
+        monkeypatch.setenv(name, value or "")          # 되돌림을 기록해 둔다 — CLI 가 os.environ 에 직접 쓴다
+        if value is None:
+            monkeypatch.delenv(name)
+    seen = {}
+
+    def isolated(argv):
+        seen["presets"] = os.environ.get("GENOS_MODEL_PRESETS_FILE")
+        return {"ok": True, "data": {"stage": "parse"}}
+
+    monkeypatch.setattr(cli, "_run_isolated", isolated)
+    caplog.set_level(logging.INFO, logger="genon.activities")
+    assert cli.main(["run", "--activity", "parse", str(tmp_path / "a.md")]) == 0
+    assert seen["presets"] == expected
+    notes = [r.getMessage() for r in caplog.records if "개발 env" in r.getMessage()]
+    assert len(notes) == (1 if codespace and not shell_value else 0)
+    assert all("model_presets.yaml" not in n and "NFS_ROOT" not in n for n in notes)   # 값·다른 키는 싣지 않는다
 
 
 # ── activities diff(#496) — 사본이 복사된 뒤 원형이 바뀐 것 ───────────────────────────

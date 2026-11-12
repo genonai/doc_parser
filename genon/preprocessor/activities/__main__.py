@@ -326,7 +326,43 @@ def _presets_source() -> str:
     from genon.preprocessor.processing.common.config_parse import MODEL_PRESETS_ENV
 
     path = os.environ.get(MODEL_PRESETS_ENV, "").strip()
-    return f"{MODEL_PRESETS_ENV}={path}" if path else f"{MODEL_PRESETS_ENV} 지정 안 됨"
+    if path:
+        return f"{MODEL_PRESETS_ENV}={path}"
+    return f"{MODEL_PRESETS_ENV} 지정 안 됨(LLM 단계는 자리표시값 url 로 호출돼 실패 — Job 결과와 다를 수 있음)"
+
+
+CODESPACE_DEV_ENV = "/workspace/.studio/dev.env"
+
+
+def _apply_codespace_presets() -> str | None:
+    """코드스페이스(`CODESPACE_ID` 가 있다)에서는 공유 개발 env 파일의 `GENOS_MODEL_PRESETS_FILE` 을 쓴다.
+
+    개발 워커(Job 실행)는 이 파일의 값으로 뜬다(data-ingestion-pipeline `app/workflows/devworkers.py`). 콘솔이 부르는
+    단건 CLI 도 같은 값을 써야 LLM 단계 결과가 Job 과 같다. 이미 설정된 env 는 덮지 않는다. 파일 자리는
+    `STUDIO_DEV_ENV` 로 바꾼다(pipeline 과 같은 키). 반환 = stderr 안내 한 줄(값은 싣지 않는다), 적용한 것이 없으면 None.
+    """
+    from genon.preprocessor.processing.common.config_parse import MODEL_PRESETS_ENV
+
+    if not os.environ.get("CODESPACE_ID", "").strip() or os.environ.get(MODEL_PRESETS_ENV, "").strip():
+        return None
+    path = Path(os.environ.get("STUDIO_DEV_ENV") or CODESPACE_DEV_ENV).expanduser()
+    value = _env_file_value(path, MODEL_PRESETS_ENV)
+    if not value:
+        return None
+    os.environ[MODEL_PRESETS_ENV] = value
+    return f"개발 워커와 같은 모델 접속값을 씁니다 — 코드스페이스 개발 env {path} 에서 {MODEL_PRESETS_ENV} 값을 읽었습니다(값은 출력하지 않음)"
+
+
+def _env_file_value(path: Path, key: str) -> str | None:
+    """`KEY=VALUE` 줄로 된 env 파일에서 key 의 값(주석·빈 줄 무시, `export ` 와 값 양끝 따옴표 제거). 파일이 없으면 None."""
+    if not path.is_file():
+        return None
+    value = None
+    for line in path.read_text(encoding="utf-8").splitlines():
+        name, sep, raw = line.strip().partition("=")
+        if sep and not name.startswith("#") and name.removeprefix("export ").strip() == key:
+            value = raw.strip().strip("'\"") or None          # 같은 키가 여러 번이면 마지막 줄
+    return value
 
 
 def _child(args, result_file: str) -> int:
@@ -418,6 +454,8 @@ def main(argv=None) -> int:
                    "duration_ms": int((time.monotonic() - started) * 1000), "data": {"files": files}})
             return 0
         activity = args.activity
+        if note := _apply_codespace_presets():           # 자식 프로세스가 이 env 를 물려받는다
+            log.info(note)
         result = _run_isolated(argv)
     except SystemExit as exc:                        # --help
         return int(exc.code or 0)
