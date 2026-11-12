@@ -1224,6 +1224,8 @@ poller가 없으면 pipeline 워커가 보낸 파싱·청킹 작업을 받을 �
 
 배포된 워커는 코드서빙 리비전의 환경 변수 `GENOS_MODEL_PRESETS_FILE`로 실값 파일을 받습니다. 덮는 층이므로
 `url`·`api_key`처럼 바꿀 키만 적어도 됩니다. 코드스페이스에서 단건 실행할 때도 같은 변수를 지정합니다.
+단건 CLI(`python -m genon.preprocessor.activities run`)는 코드스페이스(`CODESPACE_ID` 가 있을 때)에서 이 변수가 비어
+있으면 개발 워커와 같은 공유 개발 env 파일(`/workspace/.studio/dev.env`, `STUDIO_DEV_ENV` 로 바꿈)의 값을 읽습니다.
 
 ```bash
 # 실행 위치: 코드스페이스 터미널. 경로는 제공받은 실값 파일로 바꿉니다.
