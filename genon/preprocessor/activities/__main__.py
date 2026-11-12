@@ -270,7 +270,7 @@ def run(args) -> dict:
 
     from genon.preprocessor.worker import registry, runtime, settings
 
-    entries = {e.slug: e for e in registry.scan()}
+    entries = {e.slug: e for e in registry.scan(log_level=logging.DEBUG)}   # 이번 slug 의 설정은 시작 줄에
     entry = entries.get(args.activity)
     if entry is None:
         raise ValueError(f"액티비티 {args.activity!r} 가 없습니다 — 있는 것: {', '.join(sorted(entries)) or '<없음>'}")

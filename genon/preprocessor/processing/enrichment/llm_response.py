@@ -34,8 +34,10 @@ import asyncio
 import json
 import logging
 import random
+import re
 import time
 from typing import Any, Callable, Optional
+from urllib.parse import unquote
 
 import httpx
 import requests
@@ -106,7 +108,7 @@ async def post_chat_completion(
             delay = _retry_delay(exc)
             if not _deadline_allows(delay):
                 raise
-            _log.warning(f"[llm] 일시적 실패로 {delay:.1f}초 후 한 번 더 호출합니다: {exc}")
+            _log.warning(f"[llm] 일시적 실패로 {delay:.1f}초 후 한 번 더 호출합니다: {llm_failure_reason(exc)}")
             await asyncio.sleep(delay)
 
 
@@ -159,13 +161,34 @@ def retry_sync(send: Callable[[], Any], *, retries: int = 1) -> Any:
                 raise
             _log.warning(
                 f"[llm] 일시적 실패로 {delay:.1f}초 후 다시 호출합니다"
-                f"({attempt}/{limit}): {exc}"
+                f"({attempt}/{limit}): {llm_failure_reason(exc)}"
             )
             time.sleep(delay)
 
 
 #: 옛 이름. 재시도 1회가 기본이라 동작이 같다.
 retry_once_sync = retry_sync
+
+
+#: 모델 프리셋 표준 파일(resource/model_presets.yaml)의 자리표시값 — `<ENRICHMENT_SERVING_ID>` 처럼 대문자 이름.
+_PLACEHOLDER = re.compile(r"<[A-Z0-9_]+>")
+
+
+def llm_failure_reason(exc: BaseException) -> str:
+    """LLM 호출 실패의 한 줄 사유 — 상태 번호와 고칠 자리. 실패해도 문서를 막지 않는 경로의 경고에 쓴다.
+
+    httpx 의 상태 오류 문구는 두 줄이고 둘째 줄이 MDN 링크라 원인과 무관하다. url 에 모델 프리셋 표준 파일의
+    자리표시값이 남아 있으면 그것이 원인이므로 그 이름과 조치를 적는다. 다른 예외는 줄바꿈만 펴서 돌려준다.
+    """
+    if isinstance(exc, httpx.HTTPStatusError):
+        status = f"LLM 호출 실패(HTTP {exc.response.status_code})"
+        url = unquote(str(exc.request.url))
+        placeholder = _PLACEHOLDER.search(url)
+        if placeholder:
+            return (f"{status} — 모델 프리셋 url 에 자리표시값 {placeholder.group(0)} 이 남아 있습니다. "
+                    "GENOS_MODEL_PRESETS_FILE 이 실값 파일을 가리키는지 확인하세요")
+        return f"{status} — 모델 서버 상태와 모델 프리셋의 url·api_key·model 을 확인하세요: {url}"
+    return " ".join(str(exc).split()) or type(exc).__name__
 
 
 def is_retryable(exc: BaseException) -> bool:

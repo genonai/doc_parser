@@ -36,6 +36,7 @@ import re
 from dataclasses import replace
 from typing import Any, Callable, Optional
 
+from .llm_response import llm_failure_reason
 from .table_description import TABLE_RETRIEVAL_LABEL
 from .table_text_context import (
     SKIP_DUPLICATE_TABLE,
@@ -405,7 +406,7 @@ class TableTextDescriptionEnricher:
                 send, **kwargs
             )
         except Exception as exc:
-            _log.warning(f"[table_text_description] 레코드 표 설명 실패(원문 유지): {exc}")
+            _log.warning(f"[table_text_description] 레코드 표 설명 실패(원문 유지): {llm_failure_reason(exc)}")
             return list(texts)
 
         # 전송한 표의 응답만 쓴다. 모델이 ID 를 잘못 매기면 뺀 표의 ID 로 답이 올 수 있다.
@@ -441,7 +442,7 @@ def skip_table_stage(exc: Exception, stage: str) -> None:
     error_policy 를 그대로 타서 strict 면 실패한다. 조용히 넘기면 안 되는 종류이고,
     배포 전에는 tools/config_precheck 가 같은 것을 미리 잡는다.
     """
-    _log.warning(f"[{stage}] 표 설명을 건너뛰고 문서 처리를 계속합니다: {exc}")
+    _log.warning(f"[{stage}] 표 설명을 건너뛰고 문서 처리를 계속합니다: {llm_failure_reason(exc)}")
 
 
 async def apply_table_description_stage(
