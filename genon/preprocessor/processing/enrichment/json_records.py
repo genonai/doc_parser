@@ -69,6 +69,7 @@ from .tabular_custom_fields import (
     compile_value_map,
     drop_duplicate_records,
     merge_row_records,
+    meta_exclude_unused_note,
     normalize_column_name,
     passes_filter,
     repack_records,
@@ -651,6 +652,7 @@ class JsonRecordsMapper(CustomFieldsMapperBase):
         self.derive = compile_derive(cfg, label=label)
         self.pack = compile_pack(cfg, label=label)
         self.meta_exclude = compile_meta_exclude(cfg, label=label)
+        self.meta_unused_note = meta_exclude_unused_note(cfg, self.meta_exclude, label=label)
         self.filter = compile_filter(cfg, label=label)
         self.sequence = compile_sequence(cfg, label=label)
 

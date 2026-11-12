@@ -528,7 +528,7 @@ class CustomFieldsEnricher(BaseEnricher):
         # 지연 import 인 이유: tabular_custom_fields 가 이 모듈을 import 한다(순환).
         from .tabular_custom_fields import (
             compile_derive, compile_meta_exclude, compile_pack, compile_transforms,
-            compile_value_map,
+            compile_value_map, meta_exclude_unused_note,
         )
 
         self._value_map = compile_value_map(cfg.get("value_map"))
@@ -538,6 +538,8 @@ class CustomFieldsEnricher(BaseEnricher):
         self._derive = compile_derive(cfg, label=pipeline_label)
         self._pack = compile_pack(cfg, label=pipeline_label)
         self._meta_exclude = compile_meta_exclude(cfg, label=pipeline_label)
+        self._meta_unused_note = meta_exclude_unused_note(
+            cfg, self._meta_exclude, label=pipeline_label)
         # 청크 본문(text)과 같은 값을 실을 필드 이름(검색 대상 본문 컬럼). 값 자체는 청커가
         # 청크 단위로 채우므로 여기서는 이름만 문서 metadata 에 실어 넘긴다.
         self._body_fields = cp.parse_field_name_list(cfg.get(cp.BODY_FIELDS_KEY))
@@ -913,6 +915,9 @@ class CustomFieldsEnricher(BaseEnricher):
         if short_chunk_size is not None:
             normalized = {**normalized, cp.SHORT_CHUNK_SIZE_KEY: short_chunk_size}
         # 같은 성격의 규칙 — 값은 여기까지 다 만들어졌고, 청커가 청크 메타를 조립할 때만 뺀다.
+        from .tabular_custom_fields import warn_note_once
+
+        warn_note_once(getattr(self, "_meta_unused_note", None))
         normalized = cp.attach_meta_exclude(normalized, self._meta_exclude)
         return normalized
 

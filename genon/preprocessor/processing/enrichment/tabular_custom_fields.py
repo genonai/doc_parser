@@ -947,16 +947,38 @@ def compile_meta_exclude(cfg: dict, *, label: str) -> list[str]:
             )
         if not include:
             excluded.append(target)
-
-    unused = sorted(set(excluded) - _fields_used_outside_meta(cfg))
-    if unused:
-        # 기동을 막지는 않는다. 값이 만들어지는 것은 사실이고, 원천 점검용으로 잠시 빼 두는
-        # 쓰임도 있다. 다만 어디에도 쓰이지 않는 필드는 선언 자체가 죽은 설정이다.
-        _log.warning(
-            f"[custom_fields] {label}: {unused} 는 meta: false 인데 본문·선별·파생 어디에도 "
-            f"쓰이지 않습니다 — 값을 만들기만 하고 버립니다. 선언을 지워도 됩니다."
-        )
     return excluded
+
+
+def meta_exclude_unused_note(cfg: dict, excluded: list[str], *, label: str) -> str | None:
+    """`meta: false` 인데 청크 메타 말고 어디에도 쓰이지 않는 필드를 알리는 문장. 없으면 None.
+
+    기동을 막지는 않는다. 값이 만들어지는 것은 사실이고, 원천 점검용으로 잠시 빼 두는
+    쓰임도 있다. 다만 어디에도 쓰이지 않는 필드는 선언 자체가 죽은 설정이다.
+    처리기는 이 문장을 그 설정으로 문서를 처리할 때 남기고(`warn_note_once`), 설정 점검기는
+    모든 설정에 대해 남긴다.
+    """
+    unused = sorted(set(excluded) - _fields_used_outside_meta(cfg))
+    if not unused:
+        return None
+    return (
+        f"{label}: {unused} 는 meta: false 인데 본문·선별·파생 어디에도 "
+        f"쓰이지 않습니다 — 값을 만들기만 하고 버립니다. 선언을 지워도 됩니다."
+    )
+
+
+_noted: set[str] = set()
+
+
+def warn_note_once(note: str | None) -> None:
+    """설정 점검 안내를 프로세스에서 한 번만 경고로 남긴다.
+
+    처리기는 기동할 때 모든 문서유형의 매퍼를 한꺼번에 만든다. 만들 때 남기면 이번 요청과
+    무관한 문서유형의 안내까지 나오므로, 그 매퍼가 실제로 문서를 처리할 때 남긴다.
+    """
+    if note and note not in _noted:
+        _noted.add(note)
+        _log.warning(f"[custom_fields] {note}")
 
 
 def _fields_used_outside_meta(cfg: dict) -> set[str]:
@@ -1403,6 +1425,7 @@ class CustomFieldsMapperBase:
         `context` 는 값 정규화 경고에 붙일 위치 문자열이다. 둘 다 원천마다 다르므로
         호출측이 넘긴다 — 파이프라인의 순서는 그대로 두고 재료만 갈아 끼운다.
         """
+        warn_note_once(getattr(self, "meta_unused_note", None))
         for key, value in self.defaults.items():
             if fields.get(key) in (None, ""):
                 fields[key] = value
@@ -1453,6 +1476,7 @@ class TabularCustomFieldsMapper(CustomFieldsMapperBase):
         self.derive = compile_derive(self.config, label=label)
         self.pack = compile_pack(self.config, label=label)
         self.meta_exclude = compile_meta_exclude(self.config, label=label)
+        self.meta_unused_note = meta_exclude_unused_note(self.config, self.meta_exclude, label=label)
         self.filter = compile_filter(self.config, label=label)
         self.sequence = compile_sequence(self.config, label=label)
         # 선언만 컴파일한다. 실제 호출은 parser 가 행 목록을 들고 수행한다(json_mapping 과 동일).

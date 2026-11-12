@@ -99,6 +99,7 @@ from .tabular_custom_fields import (
     compile_pack,
     compile_transforms,
     compile_value_map,
+    meta_exclude_unused_note,
     normalize_column_name,
     validate_custom_field_config,
 )
@@ -679,6 +680,7 @@ class SemanticJsonMapper(CustomFieldsMapperBase):
         self.derive = compile_derive(cfg, label=label)
         self.pack = compile_pack(cfg, label=label)
         self.meta_exclude = compile_meta_exclude(cfg, label=label)
+        self.meta_unused_note = meta_exclude_unused_note(cfg, self.meta_exclude, label=label)
 
         # 본문 접두에 실릴 수 있는 공통 필드 이름(선언 순서). alias 로 원천에서 찾는 필드만이
         # 공통 필드가 아니다 — `default`/`const` 로만 만드는 필드나 `template` 으로 합쳐
