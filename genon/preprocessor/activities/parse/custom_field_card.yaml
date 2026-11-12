@@ -8,7 +8,8 @@
 #    이 파일은 doc_type: card 를 쓰는 시험 스크립트(tools/parse_chunk/parse_chunk_test.sh,
 #    tools/code_serving/serving_gateway_test.sh)가 깨지지 않도록 그대로 둔다.
 #
-# 등록 방법 — 같은 폴더의 config.yaml 의 enrichment 목록에 아래 항목을 둔다(지금 등록돼 있다):
+# 등록 방법 — 이 파일을 쓰는 설정 YAML(parse activity 는 config.yaml, resource 는 intelligent·convert_processor_config.yaml)의
+#    enrichment 목록에 아래 항목을 둔다(지금 등록돼 있다):
 #   - custom_fields:
 #       enable: true
 #       doc_type: card
