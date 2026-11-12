@@ -1,41 +1,50 @@
-# AI 차트뷰 구분자 텍스트 원천
+# 문서 유형 stock_insight(삼성증권 AI 차트뷰 — 종목별 분석)의 custom_fields 설정 — 구분자로 나뉜 텍스트 파일을 읽어
+# 종목·뉴스일자마다 한 건으로 모은다.
+# custom_fields 는 doc_type 마다 원본에서 뽑을 필드와 그 규칙이다. 이 파일은 core 의 CustomFieldsEnricher 가 읽는다.
+# fields 아래 키는 만들어 낼 필드 이름이고, 대부분 적재 테이블(GADACTBSSS001)의 컬럼 이름과 같다.
+# BIZ_ID 는 항목 ID(여기서는 종목코드_뉴스일자), GROUP_C 는 계열사 코드다(SSS = 삼성증권).
 #
-# 헤더 없이 데이터부터 시작하며 한 줄이 한 행이고 필드는 구분자로 나뉜다.
+# 원본은 헤더 줄 없이 첫 줄부터 데이터이고, 한 줄이 한 행이며 필드는 구분자로 나뉜다.
 #   테슬라<구분자>NQQUSATSLA<구분자>4556<구분자>1<구분자>{"trading_strategy": ...<구분자>20260821<구분자>US88160R1014<구분자>TSLA.O<구분자>US
-# 원천 컬럼(아래 columns 순서):
-#   jong_name(종목명) · jong_code(종목코드) · regt_no(등록번호) · ntc_objline(게시물라인번호) ·
-#   detail_desc(세부내용, json) · news_date(뉴스일자) · md_stck_itm_c · kosc_stck_itm_c · nat_c
-# ── 여러 행에 쪼개진 detail_desc 를 한 레코드로 접기 ─────────────────────────
-# 원천이 한 종목의 JSON 하나를 ntc_objline 1..N 으로 **문자 단위 절단**해 행마다 뿌린다.
-# 조각 수는 종목마다 다르다(실측 6~7). 실제 원천에 `"price_pat` / `tern_desc":` 처럼
-# 키 이름 중간에서 끊긴 사례가 있어 **구분자 없이** 이어붙여야 JSON 이 복원된다(separator 기본값 "").
-# 같은 종목코드·뉴스일자는 원천 안에서 떨어져 있어도 한 레코드로 모은다. 같은 종목·일자가
-# 등록번호를 달리해 여러 번 오는 사례가 있고, 게시물 라인번호는 등록번호마다 1부터 다시
-# 매겨지므로 등록번호(part_by)로 문서를 먼저 가른 뒤 그 안에서 라인번호 순으로 잇는다.
-# 조각이 모두 JSON 이면 문서가 둘 이상일 때 `[문서1,문서2]` JSON 배열로 합쳐진다.
-# 이 블록이 없으면 종목 하나가 깨진 JSON 조각 6~7개의 청크로 흩어진다.
+# 원본 필드(아래 columns 순서):
+#   jong_name(종목명) · jong_code(종목코드) · regt_no(등록번호) · ntc_objline(게시물 라인번호) ·
+#   detail_desc(세부내용, JSON) · news_date(뉴스일자) · md_stck_itm_c · kosc_stck_itm_c · nat_c
+#
+# 여러 행으로 쪼개진 detail_desc 를 한 건으로 합치기(source.merge_rows):
+# 원본은 한 종목의 JSON 하나를 글자 수 기준으로 잘라 ntc_objline 1..N 행에 나눠 담는다.
+# 조각 수는 종목마다 다르다(샘플에서는 6~7개). `"price_pat` / `tern_desc":` 처럼 key 이름 중간에서
+# 잘린 경우가 있어서, 구분자 없이 그대로 이어 붙여야 JSON 이 원래대로 돌아온다(separator 기본값 "").
+# 같은 종목코드·뉴스일자의 행은 파일 안에서 떨어져 있어도 한 건으로 모은다. 같은 종목·일자가
+# 등록번호만 다르게 여러 번 오는 경우가 있고, 게시물 라인번호는 등록번호마다 1부터 다시 매겨지므로,
+# 등록번호(part_by)로 먼저 나눈 뒤 그 안에서 라인번호 순으로 잇는다.
+# 이렇게 이은 결과가 둘 이상이고 모두 JSON 이면 `[결과1,결과2]` 형태의 JSON 배열 하나로 합친다.
+# 이 블록이 없으면 종목 하나가 깨진 JSON 조각 6~7개짜리 chunk 로 흩어진다.
 
 schema: v2
 source:
   kind: records
   pre:
     delimited:
-      # 메모장으로 열면 `□|` 로 보이는 두 글자다. □ 는 제어문자 0x0F(SI, Shift In)다.
+      # 메모장으로 열면 `□|` 로 보이는 두 글자다. □ 는 제어 문자 0x0F(SI, Shift In)다.
       separator: "\x0f|"
-      # 순서가 곧 원천의 필드 순서다. 이름은 이전 xlsx 헤더와 같게 두어 아래 alias 를 그대로 쓴다.
+      # 원본의 필드 순서대로 이름을 붙인다. 이름은 아래 fields 의 alias 목록에 이미 있는 것으로 맞춰
+      # alias 를 따로 고치지 않아도 되게 했다.
       columns: [jong_name, jong_code, regt_no, ntc_objline, detail_desc,
                 news_date, md_stck_itm_c, kosc_stck_itm_c, nat_c]
   merge_rows:
     group_by: [JONG_CODE, NEWS_DATE]
     part_by: REGT_NO
     order_by: NTC_OBJLINE_NO
-    # DETAIL_TEXT 도 같은 원천을 읽으므로 함께 이어붙여야 한다 — 병합은 값 파이프라인
-    # **전에** 돌기 때문에, 여기 없으면 첫 조각만 남은 채로 평문화된다.
+    # DETAIL_TEXT 도 같은 원본 필드를 읽으므로 함께 이어 붙여야 한다. 합치기는 값 변환(transform)보다
+    # 먼저 돌기 때문에, 여기 없으면 첫 조각만 남은 채로 평문화된다.
     concat: [DETAIL_DESC, DETAIL_TEXT]
 fields:
   BIZ_ID:
     template: "{{JONG_CODE}}_{{NEWS_DATE}}"
     default: null
+  # REGT_NO·NTC_OBJLINE_NO 는 위 merge_rows 에서 조각을 나누고 순서를 정하는 데만 쓴다. meta: false 라 값은 만들지만
+  # chunk 메타데이터(적재 쪽으로 넘어가는 값)에는 싣지 않는다. 적재 테이블이 바뀌면서 빠진 컬럼인데,
+  # 테이블이 다시 바뀔 수 있어 필드를 지우지 않고 출력만 막아 두었다.
   REGT_NO:
     alias: [등록번호, REGT_NO, regt_no]
     default: null
@@ -59,14 +68,17 @@ fields:
     transform: date_int
   GROUP_C:
     const: SSS
-  # DETAIL_DESC 와 **같은 원천**을 한 번 더 읽어 평문 사본을 만든다. 원본(DETAIL_DESC)은
-  # TB 정의상 그대로 보관해야 하므로 제자리 변환이 아니라 필드를 따로 둔다.
+  # DETAIL_DESC 와 같은 원본 필드를 한 번 더 읽어 평문 사본을 만든다(chunk 본문용). DETAIL_DESC 는
+  # 테이블 정의상 원본 그대로 보관해야 하므로, 그 값을 바꾸지 않고 필드를 따로 둔다.
   DETAIL_TEXT:
     alias: [상세내용, detail_desc, DETAIL_DESC, 세부내용]
     default: null
     transform: [to_text]
+# 이 필드가 빈 레코드는 건너뛴다
 require:
   fields: [GROUP_C, JONG_CODE, JONG_NM, ANALYSIS_DATE]
+# 검색용 chunk 본문을 만드는 규칙. fields 를 순서대로 `라벨: 값` 줄로 잇고(labels), split 이면
+# chunk_size 를 넘는 본문을 여러 chunk 로 나누며, repeat 의 필드는 나뉜 chunk 마다 앞에 다시 붙인다
 body:
   fields: [JONG_NM, DETAIL_TEXT]
   labels:

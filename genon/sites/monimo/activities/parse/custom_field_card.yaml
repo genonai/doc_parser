@@ -1,63 +1,56 @@
-# CustomFieldsEnricher 외부 config — 카드 상품 메타데이터(12필드) 추출
+# 문서 유형 card(카드 상품 페이지)의 custom_fields 설정 — LLM 으로 카드 상품 정보 12개 필드를 뽑는다.
+# custom_fields 는 doc_type 마다 문서에서 뽑을 필드와 그 규칙이다. 이 파일은 core 의 CustomFieldsEnricher 가 읽는다.
 #
-# 이 설정은 모니모 적재 스키마(TB_PRODUCT)와 필드명이 맞지 않는다.
-#    아래 12필드는 마케팅 관점 평면 필드라 PRODUCT_C(NOT NULL) · GROUP_C(NOT NULL) ·
-#    SUMMARY_TEXT(임베딩 입력) 가 없고, 연회비·혜택은 PRODUCT_ATTRS(JSON) 안으로 들어가야 한다.
-#    적재용으로는 custom_field_product_hpp.yaml(doc_type: product_hpp)을 쓸 것.
-#    이 파일은 기존 데모(doc_type: card — parse_chunk_test.sh / serving_gateway_test.sh)를
-#    깨지 않기 위해 그대로 둔다.
+# 적재용이 아니라 시연용 설정이다. 필드 이름이 모니모(고객사 사이트) 적재 테이블 TB_PRODUCT 와 맞지 않는다.
+#    아래 12개 필드는 마케팅용으로 나열한 필드라 TB_PRODUCT 의 필수 컬럼 PRODUCT_C·GROUP_C(NOT NULL)와
+#    SUMMARY_TEXT(임베딩할 텍스트)가 없고, 연회비·혜택은 PRODUCT_ATTRS(JSON 컬럼) 안에 들어가야 한다.
+#    적재용으로는 genon/sites/monimo 아래의 custom_field_product_hpp.yaml(doc_type: product_hpp)을 쓴다.
+#    이 파일은 doc_type: card 를 쓰는 시험 스크립트(tools/parse_chunk/parse_chunk_test.sh,
+#    tools/code_serving/serving_gateway_test.sh)가 깨지지 않도록 그대로 둔다.
 #
-# 사용 (parse_config.yaml):
+# 등록 방법 — 같은 폴더의 config.yaml 의 enrichment 목록에 아래 항목을 둔다(지금 등록돼 있다):
 #   - custom_fields:
 #       enable: true
 #       doc_type: card
-#       extractor: llm
-#       config_file: custom_field_card.yaml   # resource_path 자동 = 이 yaml 디렉토리
+#       config_file: custom_field_card.yaml   # 상대 경로는 config.yaml 이 있는 폴더(이 폴더) 기준
+# extractor(필드를 만드는 방식)는 적지 않으면 아래 source.kind 로 정해진다(document → llm).
+# config.yaml 의 등록 항목에 같은 키를 null 이 아닌 값으로 적으면 이 파일의 값보다 우선한다.
 #
-# 이 파일 하나로 자족한다 — 프롬프트가 아래에 인라인되어 있어 별도 md 파일이 없다.
-#
-# 이 파일은 parse_config.yaml 과 동일 폴더(resource/)에 위치.
-# 인라인 블록에서 null 이 아닌 값을 지정하면 이 파일 값보다 우선한다.
-# ── LLM 연결 ────────────────────────────────────────────────────────────────
-# 접속 정보는 프로세서 설정 최상위 model_presets 에 모아 두고 여기서는 이름만 부른다.
-# 이 항목만 다른 모델을 쓰려면 url/api_key/model 을 직접 적는다(직접 적은 값이 이긴다).
-# ── LLM 생성 파라미터 ────────────────────────────────────────────────────────
-# _text(원문) 필드가 길 수 있어 max_tokens 를 넉넉히 잡는다.
-# ── 입력 페이지 범위 ─────────────────────────────────────────────────────────
-# 미지정(null) → CustomFieldsEnricher 가 document.export_to_text() 로 문서 전체를 읽는다.
-# (카드 페이지는 13개 섹션에 정보가 흩어져 있어 전체를 대상으로 함)
-# ── 파서 ─────────────────────────────────────────────────────────────────────
-# ── 프롬프트 ─────────────────────────────────────────────────────────────────
-# 이 파일 하나로 자족하도록 프롬프트를 인라인해 두었다(별도 md 파일 없음).
-# 프롬프트가 길어지거나 여러 doc_type 이 공유하게 되면 system_prompt_file /
-# user_prompt_file 로 다시 분리해도 된다 — 파일 지정이 인라인보다 우선한다.
-# ── 출력 필드 (프롬프트의 JSON 키와 일치해야 함) ──────────────────────────────
+# 프롬프트를 이 파일 안에 직접 적어 두어 별도 md 파일이 필요 없다.
+# 읽을 페이지(pages)를 정하지 않았으므로 문서 전체를 텍스트로 바꿔 LLM 에 보낸다
+# (카드 상품 페이지는 정보가 13개 섹션에 흩어져 있어 전체를 본다).
 
 schema: v2
 source:
   kind: document
-  # 원천이 .json 이고 **본문이 그 안의 값**으로 올 때 쓰는 전처리다. 본문(markdown/html
-  # 문자열)이 담긴 원천 key 이름을 적는다 — 경로가 아니라 이름만이고, 임의 깊이에서
+  # 원본이 .json 이고 본문이 그 안의 값으로 들어 있을 때 쓰는 전처리다. 본문(markdown/html
+  # 문자열)이 담긴 key 이름을 적는다 — 경로가 아니라 이름만 적으며, 어느 깊이에 있든
   # 문서 순서대로 모으므로 `pages[*].html` 같은 배열도 그대로 처리된다. 항목이 여러 개면
-  # 항목별 <h2> 섹션을 가진 단일 문서로 병합해 docling 을 1회 부른다.
-  # 이 블록이 없으면 .json 은 원문 그대로 docling 을 탄다(표·heading 구조가 남지 않는다).
+  # 항목마다 <h2> 섹션을 둔 문서 하나로 합쳐 docling 을 한 번만 부른다.
+  # 이 블록이 없으면 .json 원문을 그대로 docling 에 넘긴다(표·제목 구조가 남지 않는다).
   pre:
     json:
       body_from: [html, summary_md]
       format: auto             # auto(기본, 값 내용으로 판별) | html | markdown
       on_missing: skip         # skip(기본, 경고만) | error
 llm:
+# 뽑을 필드 목록. 프롬프트가 내는 JSON 키와 같아야 한다
 - out: [issuer_name, product_name_norm, annual_fee_amount, family_annual_fee_amount, overseas_payment_yn,
     transit_card_yn, joinable_yn, product_name, benefit_text, join_condition_text, family_annual_fee_text,
     annual_fee_text]
   parser:
     type: json
+  # 접속 정보는 config.yaml 의 model_presets 에 모아 두고 여기서는 프리셋 이름만 부른다.
+  # 이 항목만 다른 모델을 쓰려면 url/api_key/model 을 직접 적는다(직접 적은 값이 우선한다)
   endpoint:
     model_preset: default
+  # 원문을 그대로 옮기는 *_text 필드가 길 수 있어 max_tokens 를 넉넉히 잡는다
   params:
     max_tokens: 4000
     temperature: 0.0
     timeout: 300
+  # 프롬프트가 길어지거나 여러 doc_type 이 함께 쓰게 되면 system_prompt_file / user_prompt_file 로
+  # 파일을 나눠도 된다 — 파일로 지정한 쪽이 이 안에 적은 프롬프트보다 우선한다
   prompt:
     system: |
       너는 카드 상품 정보추출 전문가다. 주어진 카드 상품 페이지 문서에서 요청한 필드를 정확하게 추출한다.

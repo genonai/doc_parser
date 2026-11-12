@@ -1,4 +1,8 @@
-# 고객센터(생명) JSON 레코드(faq_list)
+# 문서 유형 cs_slf(삼성생명 고객센터 안내)의 custom_fields 설정 — JSON 의 faq_list 배열에서 원소 하나를 안내 한 건으로 읽는다.
+# custom_fields 는 doc_type 마다 원본에서 뽑을 필드와 그 규칙이다. 이 파일은 core 의 CustomFieldsEnricher 가 읽는다.
+# fields 아래 키는 만들어 낼 필드 이름이고, 대부분 적재 테이블(GADCCTBSLF001)의 컬럼 이름과 같다
+# (CUSTOM_TITLE 은 TITLE 컬럼에 들어간다. CS_CTGR_L1·L2·L3 은 대·중·소분류다).
+# BIZ_ID 는 항목 ID, GROUP_C 는 계열사 코드다(IFP 모니모·SLF 생명·SSF 화재·HPP 카드·SSS 증권).
 
 schema: v2
 source:
@@ -33,8 +37,11 @@ fields:
     alias: [게시일자]
     default: null
     transform: date_int
+# 이 필드가 빈 레코드는 건너뛴다
 require:
   fields: [GROUP_C]
+# 검색용 chunk 본문을 만드는 규칙. fields 를 순서대로 `라벨: 값` 줄로 잇고(labels), split 이면
+# chunk_size 를 넘는 본문을 여러 chunk 로 나누며, repeat 의 필드는 나뉜 chunk 마다 앞에 다시 붙인다
 body:
   fields: [CS_CTGR_L1, CUSTOM_TITLE, CONTENT]
   labels:
