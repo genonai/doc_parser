@@ -21,6 +21,7 @@ from genon.preprocessor.processing.enrichment import config_v2 as cv2
 from genon.preprocessor.processing.enrichment.tabular_custom_fields import (
     TabularCustomFieldsMapper,
     compile_meta_exclude,
+    meta_exclude_unused_note,
 )
 
 
@@ -76,24 +77,38 @@ def test_non_boolean_blocks_startup():
 
 
 @pytest.mark.unit
-def test_field_used_only_as_template_material_is_not_warned(caplog):
-    cfg = {
-        "column_map": {"BRAND": ["b"], "NAME": ["n"]},
-        "derive": {"DISPLAY": "{{BRAND}} {{NAME}}"},
-        "meta_include": {"BRAND": False},
-    }
-    with caplog.at_level("WARNING"):
-        assert compile_meta_exclude(cfg, label="t") == ["BRAND"]
-    assert "쓰이지 않습니다" not in caplog.text
+@pytest.mark.parametrize("cfg, noted", [
+    ({"column_map": {"BRAND": ["b"], "NAME": ["n"]},
+      "derive": {"DISPLAY": "{{BRAND}} {{NAME}}"},
+      "meta_include": {"BRAND": False}}, False),          # template 재료로 쓰인다
+    ({"column_map": {"A": ["a"]}, "meta_include": {"A": False}}, True),   # 어디에도 안 쓰인다
+])
+def test_field_used_nowhere_is_noted_but_still_starts(cfg, noted):
+    """죽은 설정은 드러내되 기동은 막지 않는다 — 원천 점검용으로 잠시 빼 두는 쓰임이 있다."""
+    excluded = compile_meta_exclude(cfg, label="t")
+    assert bool(meta_exclude_unused_note(cfg, excluded, label="t")) is noted
 
 
 @pytest.mark.unit
-def test_field_used_nowhere_warns_but_still_starts(caplog):
-    """죽은 설정은 드러내되 기동은 막지 않는다 — 원천 점검용으로 잠시 빼 두는 쓰임이 있다."""
-    cfg = {"column_map": {"A": ["a"]}, "meta_include": {"A": False}}
+def test_unused_field_note_is_logged_once_when_the_mapper_is_used(tmp_path, caplog):
+    """처리기는 모든 문서유형의 매퍼를 기동 때 한꺼번에 만든다. 만들 때 알리면 이번 요청과
+    무관한 문서유형의 안내까지 실행마다 나오므로, 그 매퍼가 문서를 처리할 때 한 번만 알린다."""
+    _write(tmp_path / "custom_field_unused_note.yaml", """
+        schema: v2
+        source: {kind: rows}
+        fields:
+          TITLE: {alias: [제목]}
+          CODE: {alias: [코드], meta: false}
+    """)
     with caplog.at_level("WARNING"):
-        assert compile_meta_exclude(cfg, label="t") == ["A"]
-    assert "쓰이지 않습니다" in caplog.text
+        mapper = TabularCustomFieldsMapper(
+            doc_type="unused_note", extractor="tabular_mapping",
+            config_file="custom_field_unused_note.yaml", resource_path=str(tmp_path),
+        )
+        assert "쓰이지 않습니다" not in caplog.text
+        mapper.to_parse_format(_ROW, "unused_note")
+        mapper.to_parse_format(_ROW, "unused_note")
+    assert caplog.text.count("쓰이지 않습니다") == 1
 
 
 # ── 제어키 왕복 ──────────────────────────────────────────────────────────────

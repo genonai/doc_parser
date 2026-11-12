@@ -58,6 +58,7 @@ from genon.preprocessor.processing.enrichment.tabular_custom_fields import (  # 
     compile_pack,
     compile_sheets,
     compile_transforms,
+    meta_exclude_unused_note,
     validate_custom_field_config,
 )
 
@@ -271,6 +272,13 @@ def check_startup_compile(label: str, cfg: dict, extractor: str) -> list[str]:
             check(cfg, label=label)
         except ValueError as exc:
             problems.append(f"[기동실패] {exc}")
+    # 기동은 이 안내를 그 설정으로 문서를 처리할 때만 남긴다(`warn_note_once`). 점검은 모든 설정을 본다.
+    try:
+        note = meta_exclude_unused_note(cfg, compile_meta_exclude(cfg, label=label), label=label)
+    except ValueError:
+        note = None                                   # 위에서 기동실패로 이미 알렸다
+    if note:
+        problems.append(f"[경고] {note}")
     return problems
 
 
