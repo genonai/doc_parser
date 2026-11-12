@@ -29,7 +29,7 @@ from genon.preprocessor.processing.enrichment import config_schema as cs
 from .base_enricher import BaseEnricher
 from . import file_source, html_select, plugin_loader
 from .field_transforms import store_metadata_in_document
-from .llm_response import post_chat_completion
+from .llm_response import llm_failure_reason, post_chat_completion
 from .prompt_files import read_prompt_file
 from .prompt_template import PromptTemplate
 from .table_description import TABLE_TEXT_DESCRIPTION_PROVENANCE, TableDescriptionExtractor
@@ -1213,7 +1213,8 @@ class CustomFieldsEnricher(BaseEnricher):
         failures: list[BaseException] = []
         for batch, outcome in zip(batches, outcomes):
             if isinstance(outcome, BaseException):
-                _log.warning(f"표 설명 배치 호출 실패({len(batch)}개 표): {outcome}")
+                # 전량 실패면 호출자가, 부분 실패면 아래 요약이 경고 한 줄을 남긴다 — 배치마다는 DEBUG.
+                _log.debug(f"표 설명 배치 호출 실패({len(batch)}개 표): {llm_failure_reason(outcome)}")
                 failures.append(outcome)
                 continue
             results.append((batch, outcome))
@@ -1224,7 +1225,7 @@ class CustomFieldsEnricher(BaseEnricher):
             return results, fatal or failures[0]
         _log.warning(
             f"표 설명 배치 {len(batches)}개 중 {len(failures)}개가 실패해 "
-            f"나머지 {len(results)}개의 설명으로 진행합니다: {failures[0]}"
+            f"나머지 {len(results)}개의 설명으로 진행합니다: {llm_failure_reason(failures[0])}"
         )
         return results, None
 
@@ -1276,7 +1277,7 @@ class CustomFieldsEnricher(BaseEnricher):
                 raise failure
         except Exception as exc:
             # 이미 추출한 custom fields 는 유지한다 — 표 설명만 없는 상태로 진행.
-            _log.warning("표 설명 배치 호출 실패: %s", exc)
+            _log.warning("표 설명 배치 호출 실패(custom fields 는 유지): %s", llm_failure_reason(exc))
         return parsed
 
     async def describe_table_targets(

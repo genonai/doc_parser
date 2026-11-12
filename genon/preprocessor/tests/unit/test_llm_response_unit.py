@@ -392,3 +392,19 @@ def test_is_retryable_requests_timeout_is_never_retried(exc):
     ConnectionError 검사보다 먼저 오지 않으면 시간 초과가 재시도 대상으로 샌다.
     """
     assert lr.is_retryable(exc) is False
+
+
+@pytest.mark.parametrize("url, expected", [
+    # 모델 프리셋 표준 파일의 자리표시값이 url 에 남은 경우 — 원인(자리표시값 이름)과 조치를 적는다
+    ("http://gw/rep/serving/<ENRICHMENT_SERVING_ID>/v1/chat/completions",
+     "LLM 호출 실패(HTTP 500) — 모델 프리셋 url 에 자리표시값 <ENRICHMENT_SERVING_ID> 이 남아 있습니다. "
+     "GENOS_MODEL_PRESETS_FILE 이 실값 파일을 가리키는지 확인하세요"),
+    ("http://gw/rep/serving/12/v1/chat/completions",
+     "LLM 호출 실패(HTTP 500) — 모델 서버 상태와 모델 프리셋의 url·api_key·model 을 확인하세요: "
+     "http://gw/rep/serving/12/v1/chat/completions"),
+])
+def test_llm_failure_reason_is_one_line_with_cause(url, expected):
+    """httpx 상태 오류 문구(둘째 줄 MDN 링크)를 원인·조치 한 줄로 바꾼다."""
+    with pytest.raises(httpx.HTTPStatusError) as caught:
+        httpx.Response(500, request=httpx.Request("POST", url)).raise_for_status()
+    assert lr.llm_failure_reason(caught.value) == expected

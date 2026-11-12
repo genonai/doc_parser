@@ -470,6 +470,7 @@ def test_single_run_cli_uses_worker_body_and_prints_result_last(tmp_path, monkey
     # 자식 프로세스 대신 같은 프로세스에서 본체(run)를 돌린다 — 가짜 프로세서를 쓰기 위해
     monkeypatch.setattr(cli, "_run_isolated",
                         lambda argv: {"ok": True, "data": cli.run(cli._parser().parse_args(argv))})
+    caplog.set_level(logging.INFO)
 
     code = cli.main(["run", "--activity", "parse", "--input", str(src), "--doc-type", "card",   # <file> 과 같다
                      "--params", '{"doc_type": "x", "keep": 1}', "-o", str(tmp_path / "out" / "p.json")])
@@ -481,6 +482,8 @@ def test_single_run_cli_uses_worker_body_and_prints_result_last(tmp_path, monkey
     assert fake.calls[0][1] == {"doc_type": "card", "keep": 1}            # --doc-type 이 우선
     assert fake.calls[0][0].endswith("/a.md")                              # 사용자가 준 파일명 그대로
     assert json.loads((tmp_path / "out" / "p.json").read_text()) == {"texts": [{"text": "제목"}, {"text": "본문"}]}
+    # 액티비티마다의 설정 경로 줄은 워커 기동용이다 — 단건은 시작 줄에 이번 slug 의 설정만 찍는다
+    assert not [r for r in caplog.records if r.levelno >= logging.INFO and ": 설정 " in r.getMessage()]
 
     code = cli.main(["run", "--activity", "nope", str(src)])
     failed = json.loads(capsys.readouterr().out.strip().splitlines()[-1].removeprefix("@@RESULT@@ "))

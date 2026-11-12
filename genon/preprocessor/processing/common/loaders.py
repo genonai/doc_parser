@@ -10,6 +10,8 @@
 
 from __future__ import annotations
 
+import contextlib
+import io
 import logging
 import math
 import os
@@ -18,10 +20,10 @@ import subprocess
 import sys
 import threading
 import uuid
+import warnings
 from glob import glob
 
 import pandas as pd
-import pydub
 import requests
 from langchain_community.document_loaders import DataFrameLoader, PyMuPDFLoader
 from langchain_core.documents import Document
@@ -34,13 +36,26 @@ try:
 except ImportError:  # 로더를 쓰지 않는 배포본도 있으므로 import 자체는 막지 않는다
     chardet = None
 
+_log = logging.getLogger(__name__)
+
+# 두 라이브러리는 import 때 실행과 무관한 안내를 찍는다. 처리기를 띄울 때마다(Studio 콘솔 단건은 실행마다) 로그
+# 앞부분을 덮으므로 감추고, 쓸 수 없는 기능은 DEBUG 한 줄로 남긴다. 실제로 그 기능을 부르면 그때 실패가 드러난다.
+with warnings.catch_warnings():
+    # pydub: ffmpeg 가 없으면 RuntimeWarning, 3.12+ 에서는 소스의 이스케이프 문자열 SyntaxWarning. 오디오 입력만 쓴다.
+    warnings.simplefilter("ignore", RuntimeWarning)
+    warnings.simplefilter("ignore", SyntaxWarning)
+    import pydub
+if not (shutil.which("ffmpeg") or shutil.which("avconv")):
+    _log.debug("ffmpeg 가 없어 오디오 입력(pydub)을 읽을 수 없습니다")
+
 try:
-    from weasyprint import HTML
-except (ImportError, OSError):
+    # weasyprint: 네이티브 라이브러리가 없으면 영문 설치 안내 여러 줄을 stdout 에 print 한 뒤 OSError 를 올린다.
+    with contextlib.redirect_stdout(io.StringIO()):
+        from weasyprint import HTML
+except (ImportError, OSError) as exc:
     # OSError: weasyprint 는 설치돼 있으나 네이티브 라이브러리(libgobject-2.0 등)가 없는 환경.
     HTML = None
-
-_log = logging.getLogger(__name__)
+    _log.debug(f"WeasyPrint 를 쓸 수 없어 텍스트 입력을 PDF 로 바꾸지 않고 본문 그대로 읽습니다: {type(exc).__name__}")
 
 # PDF 로 변환해 처리하는 입력 확장자. 로더가 출력 PDF 경로를 만들 때 쓴다.
 CONVERTIBLE_EXTENSIONS = ['.hwp', '.txt', '.json', '.md', '.ppt', '.pptx', '.docx']

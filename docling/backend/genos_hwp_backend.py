@@ -66,7 +66,9 @@ if SDK_DIR.exists():
     if SDK_PATH_STR not in os.environ.get("LD_LIBRARY_PATH", ""):
         os.environ["LD_LIBRARY_PATH"] = f"{SDK_PATH_STR}:{os.environ.get('LD_LIBRARY_PATH', '')}"
 else:
-    _log.warning(f"HWP SDK 경로를 찾을 수 없습니다: {SDK_PATH_STR}")
+    # 영향(무엇이 안 되나)과 조치를 경로보다 앞에 둔다 — 콘솔은 한 줄을 220자에서 자른다.
+    _log.warning("HWP SDK 폴더가 없어 HWP·HWPX 를 SDK 로 읽지 못합니다 — 기본 HWP 해석기로 대신 읽고(표 구조가 "
+                 f"덜 정확할 수 있음) .hml 은 실패합니다. SDK 가 다른 자리에 있으면 HWP_SDK_DIR 로 지정하세요: {SDK_PATH_STR}")
 # ------------------------------
 
 # dump_sdk_output=True 시 HWP SDK 중간 산출물이 저장되는 디렉터리

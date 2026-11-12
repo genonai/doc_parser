@@ -42,10 +42,11 @@ class Entry:
     problem: str | None = None   # 배포 설정 결함 — 있으면 호출마다 그 메시지로 실패한다(#522)
 
 
-def scan(activities_dir: Path | None = None) -> list[Entry]:
+def scan(activities_dir: Path | None = None, *, log_level: int = logging.INFO) -> list[Entry]:
     """activities 디렉터리의 액티비티 폴더 → Entry 목록(slug 순). config.yaml 이 없는 폴더는 ValueError.
 
-    slug 마다 실제로 쓰는 설정 경로와 출처(사이트 완성본 | 저장소)를 로그에 남긴다(#520). 사이트 배포
+    slug 마다 실제로 쓰는 설정 경로와 출처(사이트 완성본 | 저장소)를 `log_level` 로 남긴다(#520). 워커 기동은 INFO,
+    한 slug 만 도는 단건 CLI 는 DEBUG 로 준다 — CLI 는 그 slug 의 설정 경로를 시작 줄에 따로 찍는다. 사이트 배포
     (GENOS_RESOURCE_DIR)인데 그 옆에 activities/ 가 없으면 — 사이트 배포는 사이트 완성본만 읽으므로 —
     워커는 띄우되 **호출마다 그 사실을 오류로 돌려준다**(Entry.problem, #522).
     기동 로그의 경고는 보는 사람이 없고, 워커가 안 뜨면 호출자는 timeout 만 본다 — 오류는 호출한 쪽에 가야 한다.
@@ -69,8 +70,8 @@ def scan(activities_dir: Path | None = None) -> list[Entry]:
         elif slug_problem is None:
             path = _folders.config_path(slug, activities_dir)   # 저장소 폴더의 config.yaml 누락은 기동 오류(시험이 잡는다)
         # 결함 표시를 경로 앞에 둔다 — 경로가 길면 줄 끝이 콘솔(220자)에서 잘린다.
-        log.info("액티비티 %s%s: 설정 %s (%s)", slug, " [호출마다 오류 — 배포 설정 결함]" if slug_problem else "",
-                 path, "사이트 완성본" if site is not None else "저장소")
+        log.log(log_level, "액티비티 %s%s: 설정 %s (%s)", slug, " [호출마다 오류 — 배포 설정 결함]" if slug_problem else "",
+                path, "사이트 완성본" if site is not None else "저장소")
         entries.append(Entry(slug, stage_of(slug), str(path), slug_problem))
     return entries
 
