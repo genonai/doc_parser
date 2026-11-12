@@ -1,29 +1,31 @@
-# 관심소식 상세 HTML → TB_NEWS 목표필드 (모니모)
+# 문서 유형 monimo_news(모니모 관심소식)의 custom_fields 설정 — 관심소식 상세 HTML 에서 필드를 뽑는다.
+# custom_fields 는 doc_type 마다 원본에서 뽑을 필드와 그 규칙이다. 이 파일은 core 의 CustomFieldsEnricher 가 읽는다.
+# 적재 테이블은 GADINTBWCM001(관심소식 업무표, 테이블 이름 TB_NEWS_IFP)이다. 필드 이름과 컬럼 이름이 다른 것은 적재 쪽(pipeline)이 옮겨 담는다:
+#   CUSTOM_TITLE → TITLE, CATEGORY → KEYW_CTGR_NM, SUMMARY → SUMMARY_TXT, DETAIL → DETAIL_HTML, SOURCE → SRC_NM.
+# BIZ_ID 는 항목 ID, GROUP_C 는 계열사 코드다(IFP = 모니모).
 #
-# 원천: TD00008459_d_5199.html.json (카드 WCMS) — 문서 하나가 관심소식 한 건이다.
+# 원본 파일 하나(예: TD00008459_d_5199.html.json, 카드사 WCMS 에서 내보낸 파일)가 관심소식 한 건이다.
 #
 #   {"wcmsData": {"html": {"content": "<div class=\"newsletter-article-wrap\" ...>"},
 #                 "json": {}}}
 #
 # 값은 `content` 하나뿐이다. `source.pre.json.body_from` 이 그 HTML 을 본문으로 꺼내고,
-# 각 필드는 `select` 로 원문 HTML 에서 직접 뽑는다.
-#
-# custom_field_monimo_event.yaml 과 짝을 이루므로 한쪽을 고치면 다른 쪽도 함께 본다.
+# 각 필드는 `select`(CSS 선택자)로 그 HTML 에서 직접 뽑는다.
 
 schema: v2
 source:
   kind: html
   pre:
     json:
-      # wcmsData.html.content 를 이름(content)으로 잡는다.
+      # wcmsData.html.content 를 key 이름 content 로 찾는다(경로가 아니라 이름만 적는다).
       body_from: [content]
       format: auto
       on_missing: skip
 
-# 선택자는 요건표가 지목한 원천 마크업 그대로다. `newslertter-` 의 오타도 원천 그대로이므로 고치지 않는다.
+# 선택자는 수집 요건표가 지목한 원본 HTML 의 class 를 그대로 쓴다. `newslertter-` 는 원본 HTML 자체의 오타이므로 고치지 않는다.
 fields:
   BIZ_ID:
-    # 원천(content 하나뿐)에는 ID 가 없어 파일명 앞의 `TD…` 를 쓴다.
+    # 원본(content 하나뿐)에는 ID 가 없어 파일명 앞의 `TD…` 부분을 쓴다($file = 원본 파일명).
     # 예: TD00008415_d_5199.html.json → TD00008415
     alias: [$file]
     transform: {name: regex_extract, pattern: '^(TD\d+)'}
@@ -35,16 +37,17 @@ fields:
   CUSTOM_TITLE:
     select: .new-banner-headline
   CATEGORY:
-    # 이 값만 텍스트가 아니라 wrap div 의 속성에 있다.
+    # 이 값만 요소의 텍스트가 아니라 바깥 div 의 속성(newsletter-title)에 들어 있다.
     select: .newsletter-article-wrap
     attr: newsletter-title
   SUMMARY:
-    # 본문 문단도 같은 `newsletter-article-txt` class 를 쓰므로 요약 상자로 범위를 좁힌다.
+    # 본문 문단도 요약과 같은 `newsletter-article-txt` class 를 쓰므로, 요약 상자로 범위를 좁힌다.
     select: .article-summary-box
   DETAIL:
     select: .newslertter-article-content
   SOURCE:
     select: .newsletter-source
+# chunk 본문은 HTML 에서 만들고, once 의 필드는 첫 chunk 에만 `라벨: 값` 줄로 한 번 붙인다
 body:
   once: [CATEGORY, CUSTOM_TITLE]
   labels:

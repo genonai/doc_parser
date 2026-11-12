@@ -1,7 +1,11 @@
+# 문서 유형 research_report(증권 분석 리포트)의 custom_fields 설정 — 문서 전체를 LLM 에 보내 요약문(SUMMARY_TEXT)을 만든다.
+# custom_fields 는 doc_type 마다 원본에서 뽑을 필드와 그 규칙이다. 이 파일은 core 의 CustomFieldsEnricher 가 읽는다.
+# GROUP_C 는 계열사 코드다(SSS = 삼성증권).
+# 지금은 쓰지 않는 문서 유형이다. 작업 초반에 추가 예정이던 문서라 초안으로 남겨 두었고, 적재 테이블(DDL)도 없어 적재되지 않는다.
 schema: v2
 source:
   kind: document
-  # 원천 .json 안의 html/summary_md 값을 본문으로 꺼낸다.
+  # 원본이 .json 이면 그 안의 html·summary_md 값을 본문으로 꺼낸다(경로가 아니라 key 이름만 적는다).
   pre:
     json:
       body_from: [html, summary_md]
@@ -11,9 +15,11 @@ fields:
   GROUP_C:
     const: SSS
 llm:
+# 뽑을 필드 목록. 프롬프트가 내는 JSON 키와 같아야 한다
 - out: [SUMMARY_TEXT]
   parser:
     type: json
+  # LLM 접속 정보는 model_presets 에 모아 두고 여기서는 프리셋 이름만 부른다
   endpoint:
     model_preset: default
   params:
