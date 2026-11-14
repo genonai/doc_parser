@@ -15,7 +15,7 @@ log = logging.getLogger("genon.worker")
 
 
 def child(index: int) -> None:
-    # `%(doc_tag)s` = 처리 중인 문서(`[parse_x a.pdf] `, 없으면 빈 문자열) — runtime.DocTagFilter 가 채운다.
+    # `%(doc_tag)s` = 처리 중인 문서(`[PARSE a.pdf] `, 없으면 빈 문자열) — runtime.DocTagFilter 가 채운다.
     logging.basicConfig(level=logging.INFO,
                         format=f"%(asctime)s [worker-{index}] %(levelname)s %(doc_tag)s%(message)s")
     for handler in logging.getLogger().handlers:
@@ -39,4 +39,5 @@ async def _serve(cfg: settings.Settings) -> None:
     log.info("액티비티 %d개: %s", len(entries), ", ".join(f"{e.slug}({e.stage})" for e in entries))
     with concurrent.futures.ThreadPoolExecutor(max_workers=cfg.threads) as pool:
         await Worker(client, task_queue=cfg.task_queue, activities=registry.build(entries),
-                     activity_executor=pool, max_concurrent_activities=cfg.threads).run()
+                     activity_executor=pool, max_concurrent_activities=cfg.threads,
+                     interceptors=[runtime.DocTagInterceptor()]).run()
