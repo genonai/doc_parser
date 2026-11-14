@@ -1,11 +1,11 @@
-# 청킹용 전처리기 — 파서 결과를 받아 청크로 나눈다. 원본 문서를 다시 읽거나 분석하지 않는다.
+# 청킹용 전처리기 — 파서 결과를 받아 chunk 로 나눈다. 원본 문서를 다시 읽거나 분석하지 않는다.
 #
-#   파서 결과 -> _start_job -> edit_input -> 청크 분할 -> vector_meta 만들기 -> edit_output -> 결과 목록
-#   청크가 하나 만들어질 때마다 edit_chunk 를 부른다.
+#   파서 결과 -> _start_job -> edit_input -> chunk 분할 -> vector_meta 만들기 -> edit_output -> 결과 목록
+#   chunk 가 하나 만들어질 때마다 edit_chunk 를 부른다.
 #
 # 용어
 #   chunk        분할 결과 한 건. 입력 형식과 관계없이 같은 필드를 갖는다(아래 chunks_to_vector_metas 참조).
-#   vector_meta  VECTOR_META 클래스(기본 GenOSVectorMeta)의 인스턴스 한 건. 벡터 DB 의 한 행으로 적재된다.
+#   vector_meta  VECTOR_META 클래스(기본 GenOSVectorMeta)의 인스턴스 한 건. vector DB 의 한 행으로 적재된다.
 #   doc_type     요청이 주는 문서 유형 이름(예: "contract"). 유형별 설정과 훅 적용 여부를 가르는 데 쓴다.
 #   훅 메소드    사이트별 처리를 끼워 넣도록 비워 둔 메소드(edit_input·edit_chunk·edit_output 등).
 #
@@ -23,7 +23,7 @@ from genon.preprocessor.processing.core.errors import GenosServiceException  # n
 
 
 class GenOSVectorMeta(BaseModel):
-    """청크 한 건이 적재 DB 의 한 행이 된다. 아래에 선언하지 않은 키도 그대로 실린다(extra=allow)."""
+    """chunk 한 건이 적재 DB 의 한 행이 된다. 아래에 선언하지 않은 키도 그대로 실린다(extra=allow)."""
 
     class Config:
         extra = 'allow'
@@ -46,7 +46,7 @@ class GenOSVectorMeta(BaseModel):
     appendix: str = None  # 부록(appendix) 기능용 필드
     file_path: Optional[str] = None
     guardrail_categories: Optional[list] = None  # 민감정보 분류 라벨. 분류를 하지 않으면 None
-    # 표 관련 필드. 표 청크만 골라 검색하거나, 여러 청크로 나뉜 표를 원래 순서로 잇는 데 쓴다.
+    # 표 관련 필드. 표 chunk 만 골라 검색하거나, 여러 chunk 로 나뉜 표를 원래 순서로 잇는 데 쓴다.
     has_table: bool = False
     table_refs: Optional[str] = None
     table_split_index: Optional[int] = None
@@ -56,17 +56,17 @@ class GenOSVectorMeta(BaseModel):
 class GenosSmartChunker(sc.SmartChunkerBase):
     """청킹 로직 본체는 processing/chunking/smart_chunker.py 에 있다. 여기에는 고른 옵션만 둔다."""
 
-    PICTURE_ANNOTATION_TEXT = True          # 그림 설명(annotation)을 청크 본문에 넣는다
+    PICTURE_ANNOTATION_TEXT = True          # 그림 설명(annotation)을 chunk 본문에 넣는다
     TABLE_DESCRIPTION_MODE = "prefix_only"  # 표 설명은 검색용으로 표 앞에만 붙인다
 
     # 헤딩 경로에서 부모와 자식 사이 구분자. 실제 문서에서 heading 에 콤마가 든 경우가 있어
     # (409건 중 20건) 콤마로는 레벨을 구분할 수 없다. " > " 는 실제 문서에서 겹친 적이 없다.
     CHUNK_HEADER_SEP = " > "
     CHUNK_PATH_SEP = " | "        # 형제 경로 사이 구분자. 위와 달라야 부모-자식과 형제가 구분된다
-    # 한 청크에 경로가 여러 개일 때 보여 줄 최대 개수. 넘는 것은 "… 외 N개"로 줄인다
+    # 한 chunk 에 경로가 여러 개일 때 보여 줄 최대 개수. 넘는 것은 "… 외 N개"로 줄인다
     # (hwp 문서에서 경로 71개가 3,239자를 차지한 사례가 있다).
     CHUNK_PATH_MAX_LEAVES = 5
-    # 경로 앞에 붙는 라벨. 빈 문자열이면 경로만 붙는다. 청크 크기 계산과 실제로 붙이는 쪽이 같은 값을 쓴다.
+    # 경로 앞에 붙는 라벨. 빈 문자열이면 경로만 붙는다. chunk 크기 계산과 실제로 붙이는 쪽이 같은 값을 쓴다.
     CHUNK_HEADER_PREFIX = "HEADER: "
 
 
@@ -77,7 +77,7 @@ class DocumentProcessor(ChunkerCore):
     VECTOR_META = GenOSVectorMeta
     CHUNKER = GenosSmartChunker
 
-    # 나누지 않고 한 건을 그대로 청크 하나로 만드는 element category. 엑셀 행과 JSON 레코드가
+    # 나누지 않고 한 건을 그대로 chunk 하나로 만드는 element category. 엑셀 행과 JSON 레코드가
     # 여기에 해당한다. 자체 파서가 다른 category 이름을 쓰면 여기에 추가한다. 예: | {"my_row"}
     ROW_CATEGORIES = ChunkerCore.ROW_CATEGORIES
 
@@ -98,7 +98,7 @@ class DocumentProcessor(ChunkerCore):
             job.params    요청 파라미터      job.config    doc_type 별 설정으로 요청에 더한 값(2 참조)
             job.notes     단계끼리 값을 주고받는 dict
 
-        job.metadata 는 문서형 청크를 vector_meta 로 바꾸는 준비 단계에서만 만들어진다.
+        job.metadata 는 문서형 chunk 를 vector_meta 로 바꾸는 준비 단계에서만 만들어진다.
         행의 메타데이터는 chunk.metadata 에 있다. config_by_condition 이 불릴 때는 job.metadata 가 아직 없다.
 
         job.kind 와 edit_chunk 의 info["kind"] 는 값이 다르다.
@@ -106,7 +106,7 @@ class DocumentProcessor(ChunkerCore):
         """
         job = self._start_job(request, file_path, **kwargs)            # 입력 형식 판별, doc_type 별 설정 적용
         job.data = await self._call_edit_input(job)                    # edit_input() 호출
-        chunks = await self.split(job)                                 # 청크 분할
+        chunks = await self.split(job)                                 # chunk 분할
         vector_metas = await self.chunks_to_vector_metas(job, chunks)  # chunk 를 vector_meta 로 변환
         return await self._call_edit_output(job, vector_metas)         # edit_output() 호출
 
@@ -121,26 +121,26 @@ class DocumentProcessor(ChunkerCore):
         return self.split_records(job)
 
     async def chunks_to_vector_metas(self, job, chunks, converted_pdf_path=None):
-        """chunk 목록을 vector_meta 목록으로 바꾼다. chunk 하나가 벡터 DB 의 한 행이 된다.
+        """chunk 목록을 vector_meta 목록으로 바꾼다. chunk 하나가 vector DB 의 한 행이 된다.
 
         chunk 필드는 입력 형식과 관계없이 같고, 이름은 edit_chunk 의 info 와 같다.
             chunk.text      본문 원문(문서 접두어·헤딩 경로를 붙이기 전)
             chunk.kind      "docling" | "row"(엑셀 행, JSON 레코드) | "text"(그 밖)
             chunk.page      페이지 번호
-            chunk.headings  헤딩 경로(문서 청크)  chunk.metadata  레코드 메타데이터(행 청크)
-            chunk.source    원본 객체. bbox 와 표 조각 계산에 쓴다
+            chunk.headings  헤딩 경로(문서 chunk)  chunk.metadata  레코드 메타데이터(행 chunk)
+            chunk.source    원본 객체. bbox 와 표 분할 계산에 쓴다
 
         호출 순서를 바꾸지 않는다 — 마스킹이 정제보다 먼저여야 한다. 순서가 바뀌면 마스킹 전의
         개인정보(PII)가 글자 수 통계나 표 변환본에 남는다. start_chunk_loop / finish_chunk_loop 은
-        청크 순번·통계·미디어 업로드 기록을 맡는다. 반복문을 고치더라도 이 둘로 감싼 채 둔다.
-        빼면 n_chunk_of_doc 와 청크 순번이 어긋난다.
+        chunk 순번·통계·미디어 업로드 기록을 맡는다. 반복문을 고치더라도 이 둘로 감싼 채 둔다.
+        빼면 n_chunk_of_doc 와 chunk 순번이 어긋난다.
         """
         vector_metas = []
         for chunk in self.start_chunk_loop(job, chunks, converted_pdf_path):
             text = self.build_chunk_text(job, chunk)         # 문서 접두어 + 헤딩 경로 + 본문
             text, drop = await self._call_edit_chunk(job, chunk, text)  # edit_chunk() 호출
             if drop:
-                continue                                     # tb.DROP 을 돌려받은 청크는 뺀다
+                continue                                     # tb.DROP 을 돌려받은 chunk 는 뺀다
             self.collect_chunk_variants(job, chunk, text)    # 표를 다른 형식으로 바꾼 본문 수집(마스킹 전 본문 기준)
             text = self.mask_sensitive(job, text)            # 민감정보 라벨 달기, 마스킹
             text = self.clean_text(job, text)                # 설정의 text_cleanup 적용
@@ -152,10 +152,10 @@ class DocumentProcessor(ChunkerCore):
     # 설정 파일(같은 폴더의 config.yaml)은 모든 문서에 똑같이 적용된다. doc_type 마다 다르게
     # 하려면 아래 CONFIG_BY_DOC_TYPE 에 적는다. 키는 설정 파일 경로(점 표기)나 같은 뜻의 요청
     # 파라미터 이름(괄호 안)을 쓴다 — 어느 쪽을 써도 같게 동작한다.
-    #   chunking.chunk_size               청크 최대 크기  (= chunk_size)
-    #   chunking.recursive.chunk_overlap  청크끼리 겹치는 길이  (= chunk_overlap)
+    #   chunking.chunk_size               chunk 최대 크기  (= chunk_size)
+    #   chunking.recursive.chunk_overlap  chunk 끼리 겹치는 길이  (= chunk_overlap)
     #   chunking.chunk_mode               split_only(섹션 단위 유지) / resize_all(크기에 맞춰 다시 나눔)
-    #   chunking.short_chunk_size         본문이 이보다 짧은 청크를 이웃 청크에 합친다 (= short_chunk_size)
+    #   chunking.short_chunk_size         본문이 이보다 짧은 chunk 를 이웃 chunk 에 합친다 (= short_chunk_size)
     #
     # 서버가 뜰 때 한 번 읽고 고정되는 설정(토크나이저 경로, min_chunk_size 등)은 여기에 적어도
     # 건너뛰고 경고만 남긴다 — 그런 값은 설정 파일에서 바꾼다.
@@ -200,17 +200,17 @@ class DocumentProcessor(ChunkerCore):
         return data
 
     def edit_chunk(self, text, info, **kwargs):
-        """[훅 메소드 2] 청크를 만든 직후. 요청마다 한 번이 아니라 청크마다 불린다.
+        """[훅 메소드 2] chunk 를 만든 직후. 요청마다 한 번이 아니라 chunk 마다 불린다.
 
-        반환값은 셋 중 하나다. str 이면 청크 텍스트를 그 값으로 바꾸고, None 이면 그대로 둔다
-        (return 을 생략해도 청크는 남는다). tb.DROP 이면 그 청크를 빼고 순번을 다시 매긴다.
+        반환값은 셋 중 하나다. str 이면 chunk 텍스트를 그 값으로 바꾸고, None 이면 그대로 둔다
+        (return 을 생략해도 chunk 는 남는다). tb.DROP 이면 그 chunk 를 빼고 순번을 다시 매긴다.
 
         info 구조
             kind      "docling"(문서형), "row"(행, 레코드), "text"(그 밖)
             page      페이지 번호(1부터)    index  지금까지의 순번(참고용)
-            headings  헤딩 경로. 문서형 청크에만 있다
+            headings  헤딩 경로. 문서형 chunk 에만 있다
             metadata  문서 또는 레코드 메타데이터. 복사본이라 고쳐도 저장되지 않는다
-            fields    청크별 값을 넣는 dict. 넣은 값은 vector_meta 필드로 실린다.
+            fields    chunk 별 값을 넣는 dict. 넣은 값은 vector_meta 필드로 실린다.
                       본문(text)과 통계·순번 필드는 넣을 수 없다
 
             if "상담직원용" in text:
@@ -224,8 +224,8 @@ class DocumentProcessor(ChunkerCore):
     def edit_output(self, vector_metas, **kwargs):
         """[훅 메소드 3] 응답을 돌려주기 직전. vector_metas 는 VECTOR_META 인스턴스 목록이다.
 
-        청크를 나누거나 합치고, 필드 값을 한꺼번에 바꾸거나 지울 때 쓴다. 텍스트를 고치거나
-        청크를 빼기만 하면 edit_chunk 가 낫다 — 통계가 자동으로 맞춰진다.
+        chunk 를 나누거나 합치고, 필드 값을 한꺼번에 바꾸거나 지울 때 쓴다. 텍스트를 고치거나
+        chunk 를 빼기만 하면 edit_chunk 가 낫다 — 통계가 자동으로 맞춰진다.
 
             vector_metas = tb.split_chunk(vector_metas, when=lambda vm: len(vm.text) > 4000)
             vector_metas = tb.merge_small_chunks(vector_metas, min_chars=80)
@@ -241,14 +241,14 @@ class DocumentProcessor(ChunkerCore):
 
     # --- 4. 오버라이드 ---
     #
-    # 기본 동작 자체를 바꿀 때 쓴다. 청크 크기나 분할 방식만 바꾸려면 2 의 설정을 먼저 본다.
+    # 기본 동작 자체를 바꿀 때 쓴다. chunk 크기나 분할 방식만 바꾸려면 2 의 설정을 먼저 본다.
     #   지원     1 에 본문이 보이는 메소드(split, chunks_to_vector_metas, build_chunk_text,
     #            mask_sensitive, clean_text, chunk_to_vector_meta).
     #            새 릴리스에서도 이름과 인자를 유지한다
     #   비권장   그 밖의 core 메소드(split_document, split_records, collect_chunk_variants,
     #            refresh_stats 등). 오버라이드는 되지만 릴리스에 따라 바뀔 수 있다
     #
-    #   def build_chunk_text(self, job, chunk):          # 청크 텍스트 조립을 바꾼다
+    #   def build_chunk_text(self, job, chunk):          # chunk 텍스트 조립을 바꾼다
     #       metadata = job.metadata if chunk.kind == "docling" else chunk.metadata
     #       text = super().build_chunk_text(job, chunk)  # 기본 헤딩·접두어 조립은 그대로 쓴다
     #       title = metadata.get("title")
@@ -258,7 +258,7 @@ class DocumentProcessor(ChunkerCore):
 # --- 파일 단독 실행 ---
 #
 # cli() 는 서버를 띄우지 않고 이 파일 하나만 돌린다. 입력은 **파서가 만든 결과 JSON** 이고
-# (원본 문서가 아니다) 결과는 /chunker 응답과 같은 vector_meta 목록이다. 저장 위치, 청크
+# (원본 문서가 아니다) 결과는 /chunker 응답과 같은 vector_meta 목록이다. 저장 위치, chunk
 # 개수, 걸린 시간은 stderr 로 알린다. 파일 경로로 실행하면(python chunk.py) import 가
 # 실패한다 — 저장소 최상위에서 -m 으로 부른다.
 #

@@ -19,7 +19,7 @@ llm:
 - out: [SUMMARY_TEXT]
   parser:
     type: json
-  # LLM 접속 정보는 model_presets 에 모아 두고 여기서는 프리셋 이름만 부른다
+  # LLM 접속 정보는 model_presets 에 모아 두고 여기서는 preset 이름만 부른다
   endpoint:
     model_preset: default
   params:

@@ -1,6 +1,6 @@
 # 문서 유형 monimo_news(모니모 관심소식)의 custom_fields 설정 — 관심소식 상세 HTML 에서 필드를 뽑는다.
 # custom_fields 는 doc_type 마다 원본에서 뽑을 필드와 그 규칙이다. 이 파일은 core 의 CustomFieldsEnricher 가 읽는다.
-# 적재 테이블은 GADINTBWCM001(관심소식 업무표, 테이블 이름 TB_NEWS_IFP)이다. 필드 이름과 컬럼 이름이 다른 것은 적재 쪽(pipeline)이 옮겨 담는다:
+# 적재 테이블은 GADINTBWCM001(관심소식 테이블, 테이블 이름 TB_NEWS_IFP)이다. 필드 이름과 컬럼 이름이 다른 것은 적재 쪽(pipeline)이 옮겨 담는다:
 #   CUSTOM_TITLE → TITLE, CATEGORY → KEYW_CTGR_NM, SUMMARY → SUMMARY_TXT, DETAIL → DETAIL_HTML, SOURCE → SRC_NM.
 # BIZ_ID 는 항목 ID, GROUP_C 는 계열사 코드다(IFP = 모니모).
 #

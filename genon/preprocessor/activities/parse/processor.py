@@ -52,7 +52,7 @@ class DocumentProcessor(ParserCore):
             job.params     요청 파라미터           job.config    3 의 설정으로 덧씌운 값
             job.notes      단계끼리 값을 넘기는 dict   job.temp_dir("접두어")  임시 디렉터리(요청이 끝나면 지워진다)
 
-        job.source 는 언제나 파일 경로다. 확장자 별칭 사본(config.yaml 의 formats.extension_aliases)이나
+        job.source 는 언제나 파일 경로다. 확장자 별칭으로 만든 복사본(config.yaml 의 formats.extension_aliases)이나
         edit_input 이 만든 새 파일이면 원본과 다르고, 그때 원본 경로는 job.file_path 에 남는다.
         훅 메소드가 dict 나 str 로 받는 파일 내용은 훅의 data 인자로 오며, job.source 와는 별개다.
         """
@@ -72,10 +72,10 @@ class DocumentProcessor(ParserCore):
         return self.build_response(job, doc, clear_coordinates)  # {"document": ..., "metadata": ...}
 
     async def records_to_response(self, job, records):
-        """엑셀 행이나 JSON 레코드 목록을 응답 JSON 으로 바꾼다. 레코드 1건이 chunk(검색 단위 조각) 1개가 된다.
+        """엑셀 행이나 JSON 레코드 목록을 응답 JSON 으로 바꾼다. 레코드 1건이 chunk(검색 단위) 1개가 된다.
 
-            content   검색 대상 본문(임베딩할 텍스트)
-            metadata  벡터 DB 에 함께 저장하는 메타데이터 컬럼. 임베딩 텍스트에는 들어가지 않는다
+            content   검색 대상 본문(embedding 할 텍스트)
+            metadata  vector DB 에 함께 저장하는 메타데이터 컬럼. embedding 텍스트에는 들어가지 않는다
             category  ROW_CATEGORIES 에 있는 이름(tabular_row, custom_fields_row)이면 나누지 않고
                       1건 = chunk 1개, 그 밖이면 chunk_size 기준으로 나눈다
         id, page, coordinates 는 tb.make_elements() 가 채운다.

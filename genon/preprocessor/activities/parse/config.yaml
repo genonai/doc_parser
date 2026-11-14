@@ -9,12 +9,12 @@ defaults:
   # | fail=요청을 실패시킨다
   unknown_doc_type: fail
 
-# ── 모델 프리셋 ───────────────────────────────────────────────────────────────
-# 모델 프리셋은 모델·외부 서비스 접속 정보(LLM 서버 주소·키, OCR·layout·whisper·guardrail 주소)에 붙인 이름이다.
+# ── 모델 preset ───────────────────────────────────────────────────────────────
+# 모델 preset 은 모델·외부 서비스 접속 정보(LLM 서버 주소·키, OCR·layout·whisper·guardrail 주소)에 붙인 이름이다.
 # 접속 정보는 설정 폴더(resource/)의 model_presets.yaml 한 곳에 모아 두고, 쓰는 곳에서는
 # `model_preset: <이름>` 한 줄로 부른다. activity 폴더는 그 파일을 복사하지 않고 이름으로 참조한다 —
 # `model_presets_file` 을 적지 않으면 그 파일이 자동으로 기본값이 된다. 자세한 규칙은 그 파일 머리말에 있다.
-# 아래 블록의 값은 그 기본값 위에 프리셋 이름별·키별로 덮어쓴다. 쓰는 곳에 직접 적은 키는 프리셋보다 우선한다.
+# 아래 블록의 값은 그 기본값 위에 preset 이름별·키별로 덮어쓴다. 쓰는 곳에 직접 적은 키는 preset 보다 우선한다.
 # 배포 환경에서는 GenOS 코드서빙(코드를 올려 서버로 띄우는 기능) 리비전의 env GENOS_MODEL_PRESETS_FILE 이
 # 가리키는 파일이 실제 접속 값을 키별로 덮어쓴다.
 # 고객사이트용으로 빌드한 배포본에서는 이 파일 전체가 그 사이트의 activities/parse/config.yaml 로 바뀐다.
@@ -27,7 +27,7 @@ formats:
   # 비표준 확장자 별칭: "이 확장자는 어떤 포맷으로 볼 것인가" 를 한 줄로 지정한다.
   # 원본 파일이 표준 확장자를 쓰지 않을 때(예: 마크다운+HTML 이 섞인 크롤링 결과가 *.parsed 로 올 때)
   # 쓴다. 왼쪽이 실제 확장자, 오른쪽이 그렇게 취급할 표준 확장자다.
-  # 오른쪽 확장자 이름으로 사본을 만들어 파싱하므로, 그 뒤 처리는 그 포맷과 똑같다.
+  # 오른쪽 확장자 이름으로 복사본을 만들어 파싱하므로, 그 뒤 처리는 그 포맷과 똑같다.
   extension_aliases:
     # .parsed 파일을 마크다운(.md)으로 보고 파싱한다(마크다운+HTML 이 섞인 크롤링 결과)
     ".parsed": ".md"
@@ -54,7 +54,7 @@ formats:
     page_description:
       # PPT 각 페이지 이미지를 LLM(VLM)으로 설명해 본문에 넣을지. false(기본) | true. 켜면 느려지지만 그림·도표 내용이 검색된다
       enable: true
-      # 페이지 설명에 쓸 모델 프리셋 이름(model_presets.yaml 의 키)
+      # 페이지 설명에 쓸 모델 preset 이름(model_presets.yaml 의 키)
       model_preset: page
       # 동시에 설명을 요청할 페이지 수. 기본 16. 늘리면 빨라지지만 모델 서버 부하가 커진다
       concurrency: 16
@@ -106,7 +106,7 @@ ocr:
 
   # engine: "paddle" 일 때만 사용
   paddle:
-    # paddle OCR 서버의 모델 프리셋 이름(model_presets.yaml 의 키)
+    # paddle OCR 서버의 모델 preset 이름(model_presets.yaml 의 키)
     model_preset: ocr
     # 인식 신뢰도 하한(0~1). 기본 0.3. 현재 paddle 엔진은 이 값으로 걸러 내지 않는다(upstage 만 적용)
     text_score: 0.3
@@ -135,7 +135,7 @@ layout:
   # 페이지 구조(제목·본문·표·그림)를 찾는 모델. genos_layout(기본)=VLM 서버 | docling_layout=docling 내장 로컬 모델(서버 불필요)
   layout_model_type: "genos_layout"
   genos_layout:
-    # 레이아웃 VLM 서버의 모델 프리셋 이름(model_presets.yaml 의 키)
+    # 레이아웃 VLM 서버의 모델 preset 이름(model_presets.yaml 의 키)
     model_preset: layout
     # 한 번에 묶어 처리할 페이지 수이자 동시에 VLM 에 보내는 요청 수. 기본 32. 늘리면 빨라지지만 서버 부하가 커진다
     page_batch_size: 128
@@ -170,7 +170,7 @@ pdf_pipeline:
 # 각 항목은 {이름: {옵션}} 형식의 list 다.
 # 끄는 방법: ① 항목 삭제  ② 항목 주석 처리  ③ enable: false
 # 접속 정보는 맨 위 model_presets 에 모아 두고 여기서는 `model_preset:` 으로 부른다.
-# 특정 항목만 다른 모델을 쓰려면 그 항목에 url/api_key/model 을 직접 적으면 된다(프리셋보다 우선).
+# 특정 항목만 다른 모델을 쓰려면 그 항목에 url/api_key/model 을 직접 적으면 된다(preset 보다 우선).
 # 프롬프트 파일(*_file)은 이 설정 파일이 있는 폴더 기준 경로이며, 적은 파일이 없거나 비면 서버 시작이 실패한다.
 enrichment:
   # 목차 추출: 문서 본문을 LLM 에 보내 목차를 받고, 그 목차에 맞춰 문서의 제목(섹션) 구조를 다시 매긴다.
@@ -179,7 +179,7 @@ enrichment:
   - toc:
       # 목차 추출을 할지. true | false. 요청 파라미터 toc=0 으로 끌 수 있다(false 면 toc=1 로 켤 수 없다)
       enable: false
-      # 목차 추출에 쓸 LLM 모델 프리셋 이름(model_presets.yaml 의 키)
+      # 목차 추출에 쓸 LLM 모델 preset 이름(model_presets.yaml 의 키)
       model_preset: default
       # 생성 무작위성. 0(기본)=같은 입력에 거의 같은 결과
       temperature: 0.0
@@ -222,7 +222,7 @@ enrichment:
   - metadata:
       # 메타데이터 추출을 할지. true | false
       enable: false
-      # 메타데이터 추출에 쓸 LLM 모델 프리셋 이름(model_presets.yaml 의 키)
+      # 메타데이터 추출에 쓸 LLM 모델 preset 이름(model_presets.yaml 의 키)
       model_preset: default
       # LLM 응답 길이 상한(토큰). 기본 10000
       max_tokens: 10000
@@ -260,7 +260,7 @@ enrichment:
   - doc_summary:
       # 문서 요약을 만들지. true | false. 이 키를 빼면 true 로 본다. 요청 파라미터 doc_summary=1 로 요청마다 켤 수 있다
       enable: false
-      # 요약에 쓸 LLM 모델 프리셋 이름(model_presets.yaml 의 키)
+      # 요약에 쓸 LLM 모델 preset 이름(model_presets.yaml 의 키)
       model_preset: default
       # 요약 프롬프트 파일(이 폴더 기준). {{full_text}} 자리에 본문이 들어간다. 비우면 내장 프롬프트를 쓴다
       prompt_file: prompt_doc_summary.md
@@ -271,7 +271,7 @@ enrichment:
   - image_description:
       # 그림 설명을 만들지. true | false. 요청 파라미터 img_desc=1/0 으로 요청마다 바꿀 수 있다
       enable: false
-      # 그림 설명에 쓸 VLM 모델 프리셋 이름(model_presets.yaml 의 키)
+      # 그림 설명에 쓸 VLM 모델 preset 이름(model_presets.yaml 의 키)
       model_preset: image
       # 동시에 설명을 요청할 그림 수. 기본 4. 늘리면 빨라지지만 모델 서버 부하가 커진다
       concurrency: 16
@@ -296,7 +296,7 @@ enrichment:
   - table_description:
       # 이미지 기반 표 설명을 만들지. true | false. 이 키를 빼면 true 로 본다. 요청 파라미터 table_desc=1 로 요청마다 켤 수 있다
       enable: false
-      # 표 설명에 쓸 VLM 모델 프리셋 이름(model_presets.yaml 의 키)
+      # 표 설명에 쓸 VLM 모델 preset 이름(model_presets.yaml 의 키)
       model_preset: image
       # 동시에 설명을 요청할 표 수. 기본 4
       concurrency: 8
@@ -333,7 +333,7 @@ enrichment:
       # 텍스트 표(HTML·마크다운 표)의 검색용 설명을 만들어 표 앞에 붙일지. true | false.
       # 요청 파라미터 table_text_desc 로 요청마다 바꿀 수 있다
       enable: true
-      # 표 설명에 쓸 LLM 모델 프리셋 이름(model_presets.yaml 의 키)
+      # 표 설명에 쓸 LLM 모델 preset 이름(model_presets.yaml 의 키)
       model_preset: default
       model_context_tokens: 40000  # 모델이 받을 수 있는 최대 길이(토큰). 기본 128000. 모델이 바뀌면 이 값만 수정
       max_tokens: 4000        # 응답 길이 상한(토큰). 기본 4000. 한 번에 담는 표 개수도 이 값이 정한다. 서빙의 출력 상한 이하로 둔다
@@ -346,15 +346,15 @@ enrichment:
       after_items: 2           # 표 뒤에서 문맥으로 가져올 본문 항목 수. 기본 2
       max_context_chars: 1500  # 앞·뒤 문맥 각각의 최대 글자 수. 기본 1500
       rag:
-        retrieval_context_max_chars: 200 # 표 설명 본문의 최대 글자 수. 표가 여러 청크로 나뉘면 청크마다 반복된다. 기본 350
+        retrieval_context_max_chars: 200 # 표 설명 본문의 최대 글자 수. 표가 여러 chunk 로 나뉘면 chunk 마다 반복된다. 기본 350
         key_fact_limit: 2                # 표에서 뽑을 핵심 사실 최대 개수. 기본 3
         key_fact_max_chars: 120          # 핵심 사실 1개의 최대 글자 수. 기본 160
-        search_terms: 0                  # 검색어 개수. 0(기본)=만들지 않음 | N=최대 N개를 만들어 청크에 싣는다
+        search_terms: 0                  # 검색어 개수. 0(기본)=만들지 않음 | N=최대 N개를 만들어 chunk 에 싣는다
       # LLM 에 보내지 않을 표의 종류(skip). 아래 값은 코드 기본값과 같으므로 적지 않아도 동작이 같다.
       # 하나라도 맞는 표는 보내지 않는다. `skip: false` 는 다섯 개를 모두 끄고, 문서유형 YAML 의 skip 과는 키 단위로 합쳐진다.
       # skip:
       #   single_value_table: true       # 값이 한 칸뿐이거나 데이터 행이 없는 표
-      #   nested_table: true             # 다른 표의 칸 안에 든 표(설명을 붙일 청크가 없어 false 로 바꿔도 설명은 버려진다)
+      #   nested_table: true             # 다른 표의 칸 안에 든 표(설명을 붙일 chunk 가 없어 false 로 바꿔도 설명은 버려진다)
       #   duplicate_table: false         # 앞선 표 하나에 모든 행이 행 단위로 이미 실린 표
       #   self_describing_table: false   # 제목이 있고, 병합 셀이 없고, 데이터 5행 이하·2~3열이며, 값 칸이 문장이고, 금액·비율·기간이 없는 표
       #   long_text_table: 0             # 첫 행·첫 열을 뺀 값 칸 평균 문자 수가 이 값 이상인 표(0=끔)
@@ -368,7 +368,7 @@ enrichment:
       config_file: custom_field_card.yaml   # 이 문서유형의 필드 추출 규칙 파일(이 폴더 기준)
 
   # 고객사이트 전용 문서유형(예: 모니모)은 여기가 아니라 genon/sites/<site>/resource/ 에
-  # 둔다. 사이트 폴더는 그대로 배포하는 완성본이며 표준 사본은 build-script/sync-sites.sh 로 맞춘다(genon/sites/README.md 참조).
+  # 둔다. 사이트 폴더는 그대로 배포하는 완성본이며 표준 복사본은 build-script/sync-sites.sh 로 맞춘다(genon/sites/README.md 참조).
 
 output:
   # 파싱 결과 형식. json(기본)=요소 목록 | html·markdown=본문 문자열 하나
@@ -402,7 +402,7 @@ output:
 # 아래 model~timestamp_granularities 는 받아쓰기 서버에 그대로 보내는 값이다.
 # 현재 파싱 액티비티(activities/parse/processor.py)의 ROUTES 에는 음성 경로가 없어 이 설정이 쓰이지 않는다.
 whisper:
-  # 음성 받아쓰기(STT) 서버의 모델 프리셋 이름(model_presets.yaml 의 키)
+  # 음성 받아쓰기(STT) 서버의 모델 preset 이름(model_presets.yaml 의 키)
   model_preset: whisper
   # 받아쓰기 서버에서 쓸 모델 이름. 기본 "model"
   model: "model"
@@ -418,14 +418,14 @@ whisper:
   timestamp_granularities: "word"
   # 음성을 몇 초 단위로 잘라 보낼지. 기본 29. 줄이면 요청 수가 늘어난다
   chunk_sec: 29
-  # 잘린 조각끼리 겹칠 길이(ms). 기본 300. 경계에서 말이 끊기는 것을 줄인다
+  # 잘린 구간끼리 겹칠 길이(ms). 기본 300. 경계에서 말이 끊기는 것을 줄인다
   chunk_overlap_ms: 300
 
 guardrail:
   # 민감정보 분류 — parser 가 호출한다. 요청 파라미터 guardrail_call 이 1 이면 문서 전체를 한 번
   # 분류해 sensitive_infos 를 파싱 결과에 실어 청킹 단계로 넘긴다(chunk 라벨 붙이기·가리기는 청킹 단계가 한다).
 
-  # 민감정보 분류 서버의 모델 프리셋 이름(model_presets.yaml 의 키). 접속 정보가 비면 분류를 건너뛴다
+  # 민감정보 분류 서버의 모델 preset 이름(model_presets.yaml 의 키). 접속 정보가 비면 분류를 건너뛴다
   model_preset: guardrail
   # 분류 호출 제한 시간(초). 기본 60. 넘기면 민감정보 없이 계속한다. 큰 문서는 늘린다
   timeout: 60
