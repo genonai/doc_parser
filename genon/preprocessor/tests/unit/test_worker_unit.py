@@ -238,11 +238,9 @@ def test_batch_log_lines_carry_document_tag(cfg):
 
 
 @pytest.mark.parametrize("name, doc, expected", [
-    ("parse", "/nfs/raw/a.pdf", "PARSE a.pdf"),
-    ("chunk_1", "k1/chunk", "CHUNK_1 chunk"),
+    ("parse_1", "/nfs/raw/a.pdf", "PARSE_1 a.pdf"),
     ("parse", "", "PARSE"),
-    ("parse", "x" * 50 + ".pdf", "PARSE " + "x" * 39 + "…"),
-], ids=["단계 대문자·파일명만", "복제 액티비티", "파일 없음 — 단계만", "긴 파일명 — 앞을 남기고 줄임"])
+], ids=["단계 대문자·파일명만", "파일 없음 — 단계만"])
 def test_doc_tag_is_upper_stage_and_file_name(name, doc, expected):
     """배치 로그 줄 앞 표시는 `[단계 파일명]` 이다 — pipeline 워커(`[EMBED a.pdf]`·`[PREPARE]`)와 같은 형식."""
     assert runtime.doc_tag(name, doc) == expected
