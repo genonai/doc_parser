@@ -1,5 +1,5 @@
 # 문서 유형 card(카드 상품 페이지)의 custom_fields 설정 — LLM 으로 카드 상품 정보 12개 필드를 뽑는다.
-# custom_fields 는 doc_type 마다 문서에서 뽑을 필드와 그 규칙이다. 이 파일은 core 의 CustomFieldsEnricher 가 읽는다.
+# custom_fields 는 doc_type 마다 문서에서 뽑을 필드와 그 규칙이다. 이 파일은 `CustomFieldsEnricher` 가 읽는다.
 #
 # 적재용이 아니라 시연용 설정이다. 필드 이름이 모니모(고객사 사이트) 적재 테이블 TB_PRODUCT 와 맞지 않는다.
 #    아래 12개 필드는 마케팅용으로 나열한 필드라 TB_PRODUCT 의 필수 컬럼 PRODUCT_C·GROUP_C(NOT NULL)와

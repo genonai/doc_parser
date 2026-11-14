@@ -1,6 +1,6 @@
 # 문서 유형 stock_insight(삼성증권 AI 차트뷰 — 종목별 분석)의 custom_fields 설정 — 구분자로 나뉜 텍스트 파일을 읽어
 # 종목·뉴스일자마다 한 건으로 모은다.
-# custom_fields 는 doc_type 마다 원본에서 뽑을 필드와 그 규칙이다. 이 파일은 core 의 CustomFieldsEnricher 가 읽는다.
+# custom_fields 는 doc_type 마다 원본에서 뽑을 필드와 그 규칙이다. 이 파일은 `CustomFieldsEnricher` 가 읽는다.
 # fields 아래 키는 만들어 낼 필드 이름이고, 대부분 적재 테이블(GADACTBSSS001)의 컬럼 이름과 같다.
 # BIZ_ID 는 항목 ID(여기서는 종목코드_뉴스일자), GROUP_C 는 계열사 코드다(SSS = 삼성증권).
 #
