@@ -540,6 +540,25 @@ def test_single_run_cli_uses_codespace_dev_env_presets(tmp_path, monkeypatch, ca
     assert all("model_presets.yaml" not in n and "NFS_ROOT" not in n for n in notes)   # 값·다른 키는 싣지 않는다
 
 
+@pytest.mark.parametrize("tty, codespace, want", [
+    (False, "cs-19", "%(levelname)s %(message)s"),                      # 코드스페이스 파이프(Studio 콘솔)
+    (True, "cs-19", "%(asctime)s %(levelname)s %(name)s %(message)s"),
+    (False, " ", "%(asctime)s %(levelname)s %(name)s %(message)s"),     # 서빙본의 다른 파이프·리다이렉트
+    (True, None, "%(asctime)s %(levelname)s %(name)s %(message)s"),
+])
+def test_single_run_cli_log_format_drops_time_only_for_codespace_pipe(monkeypatch, tty, codespace, want):
+    """Studio 콘솔은 줄마다 제 시각을 붙이므로 코드스페이스 파이프에서만 `LEVEL 메시지` — 그 밖은 시각을 남긴다."""
+    import importlib
+    from types import SimpleNamespace
+
+    cli = importlib.import_module("genon.preprocessor.activities.__main__")
+    if codespace is None:
+        monkeypatch.delenv("CODESPACE_ID", raising=False)
+    else:
+        monkeypatch.setenv("CODESPACE_ID", codespace)
+    assert cli._log_format(SimpleNamespace(isatty=lambda: tty)) == want
+
+
 # ── activities diff(#496) — 사본이 복사된 뒤 원형이 바뀐 것 ───────────────────────────
 
 def _copied_repo(tmp_path):
