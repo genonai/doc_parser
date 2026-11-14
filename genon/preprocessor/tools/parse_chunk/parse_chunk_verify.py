@@ -970,25 +970,25 @@ EXTRA_CHECKS = {
 
 def check_no_json_parse_warning(output: str) -> list[str]:
     """`[보상콜] …`·`[1.자동차 사고부상] …` 처럼 `[` 로 시작하는 제목을 JSON 조각으로 오판하지 않는가(#437)."""
-    n = output.count("JSON 파싱 실패")
-    return [] if n == 0 else [f"JSON 파싱 실패 경고 {n}건(기대 0건)"]
+    n = output.count("JSON parsing 실패")
+    return [] if n == 0 else [f"JSON parsing 실패 경고 {n}건(기대 0건)"]
 
 
 def check_row_merge_warning_kept(output: str) -> list[str]:
     """병합 후에도 JSON 으로 복원되지 않는 홀로그램 조각은 계속 경고하는가(#437, `{` 조각 신호 보존)."""
-    n = sum(1 for line in output.splitlines() if "JSON 파싱 실패" in line and "row_merge" in line)
+    n = sum(1 for line in output.splitlines() if "[to_text]" in line and "merge_rows" in line)
     return [] if n else ["row_merge 조각 경고가 없습니다(기대 1건 이상)"]
 
 
 def check_table_edge_warning(output: str) -> list[str]:
     """헤더만으로 한도를 넘는 표(#550 사례6)의 의도된 초과가 분할기 경고 로그로 드러나는가."""
-    n = sum(1 for line in output.splitlines() if "[GenosSmartChunker]" in line and "분할 예산" in line)
+    n = sum(1 for line in output.splitlines() if "[GenosSmartChunker]" in line and "초과로 남음" in line)
     return [] if n else ["표 분할 예산 초과 경고가 없습니다(기대 1건 이상)"]
 
 
 def check_span_table_contained_duplicate(output: str) -> list[str]:
     """6쪽 하위 표 2개(앞 표의 병합 셀에 전사됨)를 표 설명 LLM 전송에서 뺐는가(#559)."""
-    want = "LLM 전송에서 제외합니다(duplicate_table 2, long_text_table 1)"
+    want = "LLM 전송에서 제외 (duplicate_table 2, long_text_table 1)"
     return [] if want in output else [f"중복 표 생략 로그가 없습니다(기대: {want})"]
 
 
