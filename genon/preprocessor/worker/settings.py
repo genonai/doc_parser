@@ -93,13 +93,13 @@ def load(env: dict | None = None) -> Settings:
     env = os.environ if env is None else env
     missing = [k for k in _REQUIRED if not (env.get(k) or "").strip()]
     if missing:
-        raise ValueError(f"워커 필수 env 가 없습니다: {', '.join(missing)}")
+        raise ValueError(f"worker 필수 env 없음: {', '.join(missing)}")
     processes = int(env.get("WORKER_PROCESSES") or 1)
     if processes < 1:
-        raise ValueError(f"WORKER_PROCESSES 는 1 이상이어야 합니다: {processes}")
+        raise ValueError(f"WORKER_PROCESSES 값 오류: 1 이상 지정 필요 (받은 값={processes})")
     threads = int(env.get("WORKER_THREADS") or 1)
     if threads < 1:
-        raise ValueError(f"WORKER_THREADS 는 1 이상이어야 합니다: {threads}")
+        raise ValueError(f"WORKER_THREADS 값 오류: 1 이상 지정 필요 (받은 값={threads})")
     return Settings(
         temporal_host=env["TEMPORAL_HOST"].strip(),
         temporal_port=int(env.get("TEMPORAL_PORT") or 7233),

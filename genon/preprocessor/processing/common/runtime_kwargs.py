@@ -131,8 +131,8 @@ def build_request_enrichers(processor, kwargs: dict) -> RequestEnrichers:
             ),
         )
         image = ImageDescriptionEnricher(image_options)
-        parts.append(f"그림 설명 {_onoff(image_options.enabled)}(img_desc={img_desc}, chart_desc={chart_desc}, "
-                     f"차트 판별 {image_options.chart_detection})")
+        parts.append(f"그림 설명={_onoff(image_options.enabled)} (img_desc={img_desc}, chart_desc={chart_desc}, "
+                     f"차트 판별={image_options.chart_detection})")
     table_options = table = None
     tbase = getattr(processor, "_base_table_description_options", None)
     if tbase is not None:
@@ -142,17 +142,17 @@ def build_request_enrichers(processor, kwargs: dict) -> RequestEnrichers:
             tbase, table_desc=table_desc, table_refine=table_refine
         )
         table = TableDescriptionEnricher(table_options)
-        parts.append(f"이미지 표 설명 {_onoff(table_options.enabled)}(table_desc={table_desc}, "
+        parts.append(f"표 이미지 설명={_onoff(table_options.enabled)} (table_desc={table_desc}, "
                      f"table_refine={table_refine})")
     doc_summary_options = summary = None
     dbase = getattr(processor, "_base_doc_summary_options", None)
     if dbase is not None:
         doc_summary_options = resolve_runtime_doc_summary_options(dbase, doc_summary=doc_summary)
         summary = DocSummaryEnricher(doc_summary_options)
-        parts.append(f"문서 요약 {_onoff(doc_summary_options.enabled)}(doc_summary={doc_summary})")
+        parts.append(f"문서 요약={_onoff(doc_summary_options.enabled)} (doc_summary={doc_summary})")
     if parts:
         # 세 기능을 한 줄로 — 요청마다 찍히므로 콘솔 꼬리를 덜 차지하게 한다.
-        _log.info(f"[runtime_feature] 이번 요청의 설명 기능: {', '.join(parts)}")
+        _log.info(f"[runtime_feature] 이 요청의 LLM 설명 생성: {', '.join(parts)}")
     return RequestEnrichers(image_options, image, table_options, table, doc_summary_options, summary)
 
 

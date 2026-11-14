@@ -31,7 +31,7 @@ def classify_document(
     if not text:
         return []
     if not url or workflow_id is None or not api_key:
-        _log.warning("[guardrail] url/workflow_id/api_key 미설정 — 분류 skip(fail-open)")
+        _log.warning("[guardrail] 분류 건너뜀: url/workflow_id/api_key 미설정 (fail-open)")
         return []
     try:
         endpoint = f"{url.rstrip('/')}/workflow/{workflow_id}/run/v2"
@@ -54,7 +54,7 @@ def classify_document(
                 infos = None
         return infos if isinstance(infos, list) else []
     except Exception as exc:
-        _log.warning(f"[guardrail] 분류 워크플로우 호출 실패 — skip(fail-open): {exc}")
+        _log.warning(f"[guardrail] 분류 workflow 호출 실패, 분류 건너뜀(fail-open): {exc}")
         return []
 
 

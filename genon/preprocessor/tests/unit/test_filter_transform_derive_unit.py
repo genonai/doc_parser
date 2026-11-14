@@ -379,7 +379,7 @@ def test_to_json_works_in_v2_notation(tmp_path):
     rows = _rows(tmp_path, body, [{"제목": "안내", "속성": "국내전용 18,000원"}])
     assert json.loads(rows[0]["PRODUCT_ATTRS"]) == {"fee_text": "국내전용 18,000원"}
 
-    with pytest.raises(ValueError, match="쓸 수 없습니다"):
+    with pytest.raises(ValueError, match="사용 불가"):
         _rows(tmp_path, body.replace("fields: [TITLE]", "fields: [TITLE, PRODUCT_ATTRS]"),
               [{"제목": "안내", "속성": "x"}])
 
@@ -462,7 +462,7 @@ def test_raw_in_v2_notation(tmp_path):
 
 def test_raw_on_a_field_without_alias_fails_at_startup(tmp_path):
     """값을 원천에서 찾지 않는 필드에 raw 를 걸면 아무 일도 일어나지 않는다 — 오설정이다."""
-    with pytest.raises(ValueError, match="원천에서 값을 찾는 필드가 아닙니다"):
+    with pytest.raises(ValueError, match="alias 를 선언한 필드에만 지정 가능"):
         _rows(tmp_path, """
             schema: v2
             source: {kind: records}
@@ -530,7 +530,7 @@ def test_json_path_gets_the_same_features(tmp_path):
          "body: {fields: [T]}\n", "등록되지 않은"),
         ("schema: v2\nsource: {kind: rows}\n"
          "fields: {T: {alias: [제목], transform: {name: regex_sub}}}\n"
-         "body: {fields: [T]}\n", "인자가 필요"),
+         "body: {fields: [T]}\n", "인자 지정 필요"),
         ('schema: v2\nsource: {kind: rows}\n'
          'fields: {T: {alias: [제목], transform: {name: regex_sub, pattern: "(["}}}\n'
          'body: {fields: [T]}\n', "정규식"),
@@ -539,11 +539,11 @@ def test_json_path_gets_the_same_features(tmp_path):
          "body: {fields: [T]}\n", "쓸 수 없는 인자"),
         ('schema: v2\nsource: {kind: rows}\n'
          'fields: {T: {alias: [제목]}, D: {template: "{{NOPE}}"}}\n'
-         'body: {fields: [T]}\n', "만드는 설정이 없"),
+         'body: {fields: [T]}\n', "만드는 설정 없"),
         ("schema: v2\nsource: {kind: rows}\n"
          "fields: {T: {alias: [제목]}}\n"
          "filter:\n  - {field: NOPE, in: [Y]}\n"
-         "body: {fields: [T]}\n", "만드는 설정이 없"),
+         "body: {fields: [T]}\n", "만드는 설정 없"),
         ("schema: v2\nsource: {kind: rows}\n"
          "fields: {T: {alias: [제목]}}\n"
          "filter:\n  - {field: T}\n"
@@ -554,29 +554,29 @@ def test_json_path_gets_the_same_features(tmp_path):
          "body: {fields: [T]}\n", "비어 있지 않은"),
         ("schema: v2\nsource: {kind: rows}\n"
          "fields: {T: {alias: [제목]}, J: {pack: [NOPE]}}\n"
-         "body: {fields: [T]}\n", "만드는 설정이 없"),
+         "body: {fields: [T]}\n", "만드는 설정 없"),
         ("schema: v2\nsource: {kind: rows}\n"
          "fields: {T: {alias: [제목]}, J: {pack: T}}\n"
          "body: {fields: [T]}\n", "목록이어야"),
         ("schema: v2\nsource: {kind: rows}\n"
          "fields: {T: {alias: [제목]}, J: {pack: []}}\n"
-         "body: {fields: [T]}\n", "묶을 필드가 없"),
+         "body: {fields: [T]}\n", "묶을 필드 없"),
         # pack 산출을 다시 묶으면 JSON 안에 JSON 문자열이 중첩되고 적용 순서가 yaml 키
         # 순서에 조용히 의존한다.
         ("schema: v2\nsource: {kind: rows}\n"
          "fields: {T: {alias: [제목]}, J: {pack: [T]}, K: {pack: [J]}}\n"
-         "body: {fields: [T]}\n", "만드는 설정이 없"),
+         "body: {fields: [T]}\n", "만드는 설정 없"),
         # 본문 관련 키는 pack 필드를 받지 않는다(문서형은 조용히 버리고 행 경로는 싣는다).
         ("schema: v2\nsource: {kind: rows}\n"
          "fields: {T: {alias: [제목]}, J: {pack: [T]}}\n"
-         "body: {fields: [T], split: true, repeat: [J]}\n", "쓸 수 없습니다"),
+         "body: {fields: [T], split: true, repeat: [J]}\n", "사용 불가"),
         # 선별(require/filter)은 묶기보다 먼저 돈다 — pack 산출로 고르면 늘 빈 값이다.
         ("schema: v2\nsource: {kind: rows}\n"
          "fields: {T: {alias: [제목]}, J: {pack: [T]}}\n"
-         "require: {fields: [J]}\nbody: {fields: [T]}\n", "쓸 수 없습니다"),
+         "require: {fields: [J]}\nbody: {fields: [T]}\n", "사용 불가"),
         ("schema: v2\nsource: {kind: rows}\n"
          "fields: {T: {alias: [제목]}, J: {pack: [T]}}\n"
-         "filter: [{field: J, in: [x]}]\nbody: {fields: [T]}\n", "쓸 수 없습니다"),
+         "filter: [{field: J, in: [x]}]\nbody: {fields: [T]}\n", "사용 불가"),
         # to_json 뒤에 다른 단계가 오면 산출이 더 이상 JSON 이 아니다(잘리거나 평문이 된다).
         ("schema: v2\nsource: {kind: rows}\n"
          "fields: {T: {alias: [제목], transform: [to_json, {name: truncate, length: 5}]}}\n"
@@ -599,19 +599,19 @@ def test_json_path_gets_the_same_features(tmp_path):
         # 변환은 필드를 제자리에서 덮으므로, 본문에도 쓰이는 필드에 걸면 본문에 JSON 이 실린다.
         ("schema: v2\nsource: {kind: rows}\n"
          "fields: {T: {alias: [제목], transform: [to_json]}}\n"
-         "body: {fields: [T]}\n", "쓸 수 없습니다"),
+         "body: {fields: [T]}\n", "사용 불가"),
         # pack 이 다시 묶으면 JSON 안에 JSON 문자열이 중첩된다.
         ("schema: v2\nsource: {kind: rows}\n"
          "fields: {T: {alias: [제목]}, U: {const: x, transform: [to_json]}, "
          "J: {pack: [U]}}\n"
-         "body: {fields: [T]}\n", "중첩"),
+         "body: {fields: [T]}\n", "to_json 이 걸려 있음"),
         ('schema: v2\nsource: {kind: rows}\n'
          'fields: {T: {alias: [제목], transform: [{name: to_json, on_scalar: 널}]}}\n'
          'body: {fields: [T]}\n', "wrap"),
         # 파일명과 원천 key 를 섞으면 어느 쪽이 우선인지 모호하다.
         ("schema: v2\nsource: {kind: rows}\n"
          "fields: {T: {alias: [제목]}, B: {alias: [$file, ID]}}\n"
-         "body: {fields: [T]}\n", "함께 쓸 수 없습니다"),
+         "body: {fields: [T]}\n", "함께 쓸 수 없음"),
         # 파일명 원천은 document/html/records 만 채운다. 다른 kind 에서 조용히 비지 않게 막는다.
         ("schema: v2\nsource: {kind: rows}\n"
          "fields: {T: {alias: [제목]}, B: {alias: [$file]}}\n"
@@ -658,7 +658,7 @@ def test_regex_extract_group_is_checked_on_shipped_config(pattern, group, ok):
     if ok:
         compile_transforms(internal["transforms"], label=path.name, cfg=internal)
     else:
-        with pytest.raises(ValueError, match="패턴에 없습니다"):
+        with pytest.raises(ValueError, match="패턴에 없음"):
             compile_transforms(internal["transforms"], label=path.name, cfg=internal)
 
 

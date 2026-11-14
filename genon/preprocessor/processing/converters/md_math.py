@@ -307,7 +307,7 @@ def guard_markdown(file_path: str):
             out_path.write_text(protected, encoding="utf-8")
         except OSError as exc:
             # 파생 파일을 만들지 못하면 보호 없이 원본으로 간다(기존 동작).
-            _log.warning(f"[md_math] 임시 파일 생성 실패 — 수식 보호를 건너뛴다: {exc}")
+            _log.warning(f"[md_math] 임시 파일 생성 실패, 수식 보호 건너뜀: {exc}")
             yield _Guard(file_path)
             return
         _log.info(f"[md_math] 수식 {len(vault.entries)}건 보호 ({Path(file_path).name})")

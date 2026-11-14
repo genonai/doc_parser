@@ -71,10 +71,13 @@ def config_path(slug: str, activities_dir: Path | None = None) -> Path:
     folder = config_dir(slug, activities_dir)
     site = site_activities_dir()
     if site is not None and not folder.is_dir():
-        raise ValueError(f"사이트 완성본({site})에 액티비티 {slug!r} 폴더가 없습니다: {folder} — 사이트 배포(GENOS_RESOURCE_DIR)는 "
-                         "사이트 완성본의 설정만 읽고 저장소 폴더로 떨어지지 않습니다. 사이트에 그 slug 를 두십시오"
-                         "(사이트 원형 복제: activities new, 표준 사본: build-script/sync-sites.sh)")
+        raise ValueError(f"activity {slug} 설정 폴더 없음: {folder}\n"
+                         "GENOS_RESOURCE_DIR 의 사이트 설정으로 실행 중이라 사이트 폴더만 찾음(저장소 기본 설정으로 대체하지 않음)\n"
+                         f"사이트에 {slug} 폴더 추가 필요\n"
+                         "  - 기본 activity 를 복제해 만들 때: python -m genon.preprocessor.activities new"
+                         f" --from <기본 activity> --slug {slug}\n"
+                         "  - 기본 activity(parse·chunk)일 때: build-script/sync-sites.sh 로 사이트 설정 갱신")
     path = folder / CONFIG_FILE
     if not path.is_file():
-        raise ValueError(f"액티비티 {slug!r} 의 설정이 없습니다: {path} — 액티비티 폴더에는 config.yaml 이 있어야 합니다")
+        raise ValueError(f"activity {slug} 설정 없음: {path} (activity 폴더에 config.yaml 필요)")
     return path

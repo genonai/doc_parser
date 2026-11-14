@@ -69,7 +69,7 @@ def compile_selectors(cfg: dict, *, label: str) -> dict[str, dict]:
     """
     raw = cfg.get("select_map") or {}
     if not isinstance(raw, dict):
-        raise ValueError(f"{label}: select_map 은 '목표필드: 선택자' 형태여야 합니다.")
+        raise ValueError(f"{label}: fields.<필드>.select 는 CSS 선택자 문자열 필요")
 
     import soupsieve
 
@@ -77,14 +77,14 @@ def compile_selectors(cfg: dict, *, label: str) -> dict[str, dict]:
     for target, spec in raw.items():
         where = f"{label}: fields.{target}"
         if not isinstance(spec, dict):
-            raise ValueError(f"{where}: 선택자 스펙이 object 여야 합니다.")
+            raise ValueError(f"{where}: 선택자 스펙은 object 필요")
         css = str(spec.get("css") or "").strip()
         if not css:
-            raise ValueError(f"{where}: select 값이 비어 있습니다.")
+            raise ValueError(f"{where}: select 값 비어 있음")
         try:
             soupsieve.compile(css)
         except Exception as exc:  # noqa: BLE001 - soupsieve 예외 종류가 버전마다 다르다
-            raise ValueError(f"{where}: 선택자를 해석할 수 없습니다({css!r}): {exc}") from exc
+            raise ValueError(f"{where}: 선택자 해석 실패({css!r}): {exc}") from exc
         attr = spec.get("attr")
         attr = str(attr).strip() if attr not in (None, "") else None
         compiled[str(target)] = {"css": css, "attr": attr}
@@ -128,8 +128,8 @@ def extract_fields(html: str, selectors: dict[str, dict]) -> dict[str, Any]:
             )
     if missed:
         _log.warning(
-            f"[html_select] 선택자에 걸리지 않아 값이 비었습니다: {', '.join(missed)} "
-            f"— 원천 마크업이 바뀌었거나 해당 요소가 주석 처리된 문서일 수 있습니다."
+            f"[html_select] 선택자에 걸리지 않아 값 비어 있음 ({', '.join(missed)}), "
+            f"원천 마크업 변경 또는 해당 요소의 주석 처리 여부 확인 필요"
         )
     return values
 

@@ -93,7 +93,7 @@ def test_check_doc_type_configured_by_policy(cfgs, doc_type, policy, outcome, ca
         return
     with caplog.at_level(logging.WARNING):
         pcfg.check_doc_type_configured(cfgs, doc_type, policy, RuntimeError)
-    assert ("custom_fields 등록이 없" in caplog.text) == (outcome == "warn")
+    assert ("custom_fields 등록 없음" in caplog.text) == (outcome == "warn")
 
 
 @pytest.mark.unit
@@ -417,14 +417,14 @@ def test_value_map_folds_aliases_and_keeps_unmapped_value(tmp_path, caplog):
         fields = {"GROUP_C": "삼성전자"}
         apply_value_map(fields, compiled)
     assert fields["GROUP_C"] == "삼성전자"
-    assert "value_map 미등록 값" in caplog.text
+    assert "values 미등록 값" in caplog.text
 
 
 @pytest.mark.unit
 def test_value_map_rejects_alias_claimed_by_two_canonicals():
     from genon.preprocessor.processing.enrichment.tabular_custom_fields import compile_value_map
 
-    with pytest.raises(ValueError, match="양쪽에 있습니다"):
+    with pytest.raises(ValueError, match="양쪽에 있음"):
         compile_value_map({"GROUP_C": {"SLF": ["생명"], "SSF": ["생명"]}})
 
 
@@ -526,7 +526,7 @@ def test_tabular_mapping_rejects_unknown_transform(tmp_path):
     }
     path = tmp_path / "bad.yaml"
     path.write_text(yaml.safe_dump(config, allow_unicode=True), encoding="utf-8")
-    with pytest.raises(ValueError, match="등록되지 않은 transforms 변환기"):
+    with pytest.raises(ValueError, match="등록되지 않은 transform 변환기"):
         TabularCustomFieldsMapper(
             doc_type="x", extractor="tabular_mapping",
             config_file=path.name, resource_path=str(tmp_path),
@@ -874,7 +874,7 @@ def test_render_field_text_warns_and_falls_back_on_broken_json(caplog):
         text = render_field_text('{"a": "\uac12<BR>\ub05d')
 
     assert text == "{\"a\": \"값\n끝"
-    assert "row_merge" in caplog.text
+    assert "merge_rows" in caplog.text
 
 
 @pytest.mark.unit
@@ -889,7 +889,7 @@ def test_render_field_text_plain_text_does_not_warn(caplog, value):
         text = render_field_text(value)
 
     assert text == value
-    assert "row_merge" not in caplog.text
+    assert "merge_rows" not in caplog.text
 
 
 @pytest.mark.unit
@@ -1122,7 +1122,7 @@ def test_unknown_chunk_prefix_field_rejected_at_startup(tmp_path):
           fields: [TITLE]
           repeat: [MISSING_TITLE]
     """)
-    with pytest.raises(ValueError, match="chunk_prefix_fields.*만드는 설정이 없습니다"):
+    with pytest.raises(ValueError, match="body.repeat.*만드는 설정 없음"):
         TabularCustomFieldsMapper(
             config_file="custom_field_probe.yaml", resource_path=str(tmp_path),
             doc_type="x", extractor="tabular_mapping",
@@ -1177,7 +1177,7 @@ def test_required_on_llm_generated_field_rejected_at_startup(tmp_path):
             in: [TITLE]
             endpoint: {url: "http://example/v1/chat/completions"}
     """)
-    with pytest.raises(ValueError, match="llm_fields 가 만드는 필드"):
+    with pytest.raises(ValueError, match="llm 이 만드는 필드"):
         TabularCustomFieldsMapper(
             config_file="custom_field_probe.yaml", resource_path=str(tmp_path),
             doc_type="x", extractor="tabular_mapping",

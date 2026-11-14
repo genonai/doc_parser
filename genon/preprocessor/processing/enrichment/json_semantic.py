@@ -321,7 +321,7 @@ def _parse_sections(sections_cfg: Any) -> tuple[dict[str, str], list[str]]:
     if sections_cfg is None:
         return {}, []
     if not isinstance(sections_cfg, dict):
-        raise ValueError("json_semantic custom_fields 의 sections 는 '키: 이름' object 여야 합니다.")
+        raise ValueError("json_semantic custom_fields 의 sections 형식 오류: '키: 이름' object 여야 함")
 
     names: dict[str, str] = {}
     excluded: list[str] = []
@@ -337,8 +337,8 @@ def _parse_sections(sections_cfg: Any) -> tuple[dict[str, str], list[str]]:
             names[key] = spec.strip() if spec and spec.strip() else key
             continue
         raise ValueError(
-            f"json_semantic custom_fields sections.{key} 는 표시 이름(문자열)이어야 합니다. "
-            f"제외는 ignore_keys 에 적습니다."
+            f"json_semantic custom_fields source.sections.{key} 형식 오류: 표시 이름(문자열)이어야 함\n"
+            f"제외할 키는 source.ignore_keys 에 지정 필요"
         )
     return names, excluded
 
@@ -382,6 +382,7 @@ class _WalkContext:
         "sections",
         "node_count",
         "collapsed",
+        "collapsed_paths",
         "truncated",
     )
 
@@ -415,6 +416,7 @@ class _WalkContext:
         self.sections: list[dict[str, Any]] = []
         self.node_count = 0
         self.collapsed = 0
+        self.collapsed_paths: list[str] = []
         self.truncated = False
 
 
@@ -442,6 +444,7 @@ def _emit(
     meaningful = bool(extra_body and extra_body.strip()) or bool(body_lines)
     if not meaningful:
         ctx.collapsed += 1
+        ctx.collapsed_paths.append(json_path)
         return
 
     body_parts = list(body_lines)
@@ -621,7 +624,7 @@ class SemanticJsonMapper(CustomFieldsMapperBase):
 
         shared_fields_cfg = cfg.get("shared_fields")
         if not isinstance(shared_fields_cfg, dict) or not shared_fields_cfg:
-            raise ValueError("json_semantic custom_fields 에는 shared_fields 가 필요합니다.")
+            raise ValueError("json_semantic custom_fields 에 `fields:` 지정 필요")
         self.shared_fields: dict[str, list[str]] = {
             str(target): self._aliases(str(target), sources)
             for target, sources in shared_fields_cfg.items()
@@ -711,7 +714,7 @@ class SemanticJsonMapper(CustomFieldsMapperBase):
     ) -> list[dict]:
         """payload → 섹션별 목표필드 목록(섹션 하나가 나중에 element 하나가 된다)."""
         if not isinstance(payload, dict):
-            _log.warning("[json_semantic] payload 최상위가 object 가 아니라 섹션을 만들 수 없습니다 — 0건.")
+            _log.warning("[json_semantic] payload 최상위가 object 가 아님: 섹션 0건")
             return []
 
         from genon.preprocessor.processing.converters.json_text import (
@@ -749,7 +752,7 @@ class SemanticJsonMapper(CustomFieldsMapperBase):
             msg = f"[json_semantic] 필수 공통 필드 누락: {sorted(missing)}"
             if self.missing_policy == "error":
                 raise CodedValueError(msg, "PARSE_D003")
-            _log.warning(f"{msg} — 섹션 0건으로 진행합니다.")
+            _log.warning(f"{msg} — 섹션 0건으로 진행")
             return []
 
         ctx = _WalkContext(
@@ -770,12 +773,16 @@ class SemanticJsonMapper(CustomFieldsMapperBase):
 
         if ctx.collapsed:
             # silent 축소 방지 — 몇 건이 식별자/빈 본문뿐이라 접혔는지 드러낸다(json_records 와 같은 방침).
-            _log.warning(f"[json_semantic] 식별자/빈 본문뿐인 섹션 {ctx.collapsed}건을 접었습니다.")
+            _log.warning(
+                f"[json_semantic] 섹션 {ctx.collapsed}개 chunk 에서 제외: 본문이 비었거나 식별자·제목만 있음 "
+                f"(제외한 섹션 위치={cp.head_items(ctx.collapsed_paths)})"
+            )
         if ctx.truncated:
             _log.warning(
-                f"[json_semantic] 노드 수({_MAX_NODES})/깊이({_MAX_DEPTH}) 상한을 초과해 "
-                f"트리 일부를 절단했습니다 — sections 설정으로 불필요한 서브트리를 제외하세요."
+                f"[json_semantic] JSON 일부 읽지 않음: 노드 상한={_MAX_NODES}·깊이 상한={_MAX_DEPTH} "
+                f"초과분은 섹션·chunk 에서 빠짐"
             )
+            _log.warning("[json_semantic] 검색에 필요 없는 key 를 custom_fields 의 source.ignore_keys 에 추가 필요")
 
         fields_list: list[dict] = []
         for section in ctx.sections:
@@ -911,7 +918,7 @@ class SemanticJsonMapper(CustomFieldsMapperBase):
 
         if empty:
             _log.warning(
-                f"[json_semantic] 본문이 빈 섹션 {empty}/{len(fields_list)}건을 제외했습니다."
+                f"[json_semantic] 본문이 빈 섹션 {empty}/{len(fields_list)}건 제외"
             )
 
         result: dict[str, Any] = {"elements": elements, "usage": {"pages": len(elements)}}
@@ -953,9 +960,8 @@ class SemanticJsonMapper(CustomFieldsMapperBase):
             # silent 축소 방지 — 예전에는 못 찾은 이름이 그냥 빠져서 raw_text 가 빈 채로
             # LLM 에 나갔고, 모델이 근거 없이 null 을 돌려주는 것으로만 드러났다.
             _log.warning(
-                f"[json_semantic] llm_fields.input_fields 의 '{name}' 을(를) 찾지 못했습니다 "
-                f"— 공통 필드도 PRODUCT_INFO 도 아니고, 이 이름을 경로에 가진 섹션도 없습니다. "
-                f"사용 가능한 이름: {sorted(set(merged) | self._section_input_names(fields_list))}"
+                f"[json_semantic] llm[].in 의 '{name}' 찾지 못함: 공통 필드·PRODUCT_INFO·섹션 경로 어디에도 없음 "
+                f"(사용 가능한 이름={sorted(set(merged) | self._section_input_names(fields_list))})"
             )
         return merged
 

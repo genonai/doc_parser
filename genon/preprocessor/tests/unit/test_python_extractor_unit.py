@@ -195,7 +195,7 @@ def test_to_json_applies_on_the_document_path(tmp_path: Path):
 
 def test_to_json_on_a_body_field_fails_at_startup(tmp_path: Path):
     """변환은 필드를 제자리에서 덮으므로, 본문에도 쓰이는 필드에 걸면 본문에 JSON 이 실린다."""
-    with pytest.raises(ValueError, match="쓸 수 없습니다"):
+    with pytest.raises(ValueError, match="사용 불가"):
         _enricher(tmp_path, fields={"CODE": {"transform": ["to_json"]}},
                   body={"repeat": ["CODE"]})
 
@@ -247,7 +247,7 @@ def test_v2_rejects_llm_and_python_together():
     bad = {"schema": "v2", "source": {"kind": "document"},
            "python": {"file": "a.py"},
            "llm": [{"endpoint": {"url": "http://x", "model": "m"}}]}
-    with pytest.raises(cv2.ConfigV2Error, match="함께 쓸 수 없습니다"):
+    with pytest.raises(cv2.ConfigV2Error, match="함께 쓸 수 없음"):
         cv2.load(bad, label="t")
 
 

@@ -184,7 +184,7 @@ def should_describe(options: PageDescriptionOptions) -> bool:
     if not options.enabled:
         return False
     if not options.url:
-        _log.warning("[page_description] enable=true 이지만 url 이 비어 있어 건너뜁니다.")
+        _log.warning("[page_description] 페이지 설명 건너뜀: enable=true 이나 url 비어 있음")
         return False
     return True
 

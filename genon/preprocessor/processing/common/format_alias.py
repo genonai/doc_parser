@@ -56,7 +56,7 @@ def parse_extension_aliases(formats_cfg: Any) -> dict[str, str]:
         return {}
     if not isinstance(raw, Mapping):
         _log.warning(
-            f"[format_alias] formats.{_CONFIG_KEY} 는 매핑이어야 합니다(무시): {type(raw).__name__}"
+            f"[format_alias] formats.{_CONFIG_KEY} 무시: 매핑이 아님 (type={type(raw).__name__})"
         )
         return {}
 
@@ -74,7 +74,11 @@ def parse_extension_aliases(formats_cfg: Any) -> dict[str, str]:
     for src, dst in aliases.items():
         if dst in aliases:
             _log.warning(
-                f"[format_alias] 별칭 연쇄는 따르지 않습니다: {src} -> {dst} (그 뒤 {aliases[dst]} 는 무시)"
+                f"[format_alias] formats.extension_aliases 별칭 연쇄 무시: {src} 파일은 {dst} 로 처리 "
+                f"({src} -> {dst} -> {aliases[dst]})"
+            )
+            _log.warning(
+                f'{aliases[dst]} 로 처리하려면 "{src}": "{aliases[dst]}" 로 지정 필요'
             )
     return aliases
 

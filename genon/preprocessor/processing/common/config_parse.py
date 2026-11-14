@@ -37,21 +37,21 @@ def as_dict(value: Any) -> dict:
 # 값을 읽지 못해 "지정하지 않은 것"으로 처리할 때 실제로 어떻게 동작하는지. 경고 문구에 덧붙인다.
 # 키마다 미지정 동작이 달라 공용 함수가 알 수 없으므로 자주 틀리는 청크 키만 적는다.
 _UNSET_BEHAVIOR = {
-    "chunking.chunk_size": "청크를 나누지 않습니다",
-    "chunk_size": "설정 파일의 chunking.chunk_size 를 씁니다",
-    "chunking.min_chunk_size": "하한 1024 를 씁니다",
-    "chunking.include_chunk_header": "HEADER 줄을 붙입니다",
-    "chunking.table_as_chunk": "표를 별도 청크로 냅니다",
+    "chunking.chunk_size": "chunk 를 나누지 않음",
+    "chunk_size": "설정 파일의 chunking.chunk_size 사용",
+    "chunking.min_chunk_size": "하한 1024 사용",
+    "chunking.include_chunk_header": "HEADER 줄을 붙임",
+    "chunking.table_as_chunk": "표를 별도 chunk 로 냄",
 }
 
 
 def _warn_unreadable(key: str, value: Any, kind: str) -> None:
     """설정·요청 값을 해석하지 못했다는 한 줄 경고 — 무엇이(키·값) · 어떻게 처리하나 · 어떻게 고치나."""
     behavior = _UNSET_BEHAVIOR.get(key)
-    effect = f" — {behavior}" if behavior else ""
+    effect = f" ({behavior})" if behavior else ""
     _log.warning(
-        f"{key} 값 {value!r} 는 {kind} 값이 아니라 지정하지 않은 것과 같게 처리합니다{effect}. "
-        f"{kind} 값으로 고치세요."
+        f"{key}={value!r}: {kind} 값이 아니라 미지정으로 처리함{effect}, "
+        f"{kind} 값으로 수정 필요"
     )
 
 
@@ -226,22 +226,24 @@ def warn_unresolved_placeholders(cfg: dict, config_path: str) -> None:
         names = list(dict.fromkeys(p.split(".", 1)[0] for p, _ in preset_hits))
         env_path = os.environ.get(MODEL_PRESETS_ENV, "").strip()
         if env_path:
-            action = f"{MODEL_PRESETS_ENV} 이 가리키는 파일에 실제 값을 적으세요"
-            source = f"파일 {env_path}"
+            action = f"{env_path} 에 실제 값 입력 필요"
         else:
-            action = f"{MODEL_PRESETS_ENV} 에 실제 값을 적은 프리셋 파일을 지정하세요"
-            source = f"{MODEL_PRESETS_ENV} 지정 안 됨 — 형식은 resource/model_presets.yaml"
+            action = (f"실제 값을 적은 preset 파일을 만들어 {MODEL_PRESETS_ENV} 로 지정 필요 "
+                      f"(형식: resource/model_presets.yaml)")
         keys = _head([f"{p}={ph}" for p, ph in preset_hits])
         _log.warning(
-            f"모델 프리셋 {len(names)}개({_head(names, sep='·')})의 접속 정보가 자리표시값(<…>)이라 해당 모델 "
-            f"호출은 실패하거나 건너뜁니다. {action}. 자리표시값: {keys} ({source}, 설정 {where})"
+            f"모델 preset {len(names)}개({_head(names, sep='·')}) 접속 정보가 비어 있음"
+            f"(<…> 자리표시값 그대로): 이 preset 을 쓰는 모델 호출은 실패하거나 건너뜀"
         )
+        _log.warning(f"채워야 할 값: {keys} (설정 {where})")
+        _log.warning(action)
     if other_hits:
         keys = _head([f"{p}={ph}" for p, ph in other_hits])
         _log.warning(
-            f"설정 키 {len(other_hits)}개가 자리표시값(<…>)이라 이 값을 쓰는 기능은 실패하거나 건너뜁니다. "
-            f"{where} 에서 실제 값으로 바꾸세요: {keys}"
+            f"설정 키 {len(other_hits)}개가 비어 있음(<…> 자리표시값 그대로), "
+            f"이 값을 쓰는 기능은 실패하거나 건너뜀"
         )
+        _log.warning(f"{where} 에서 실제 값으로 변경 필요 (대상 키 {keys})")
 
 
 # 메인 yaml 이 쓸 프리셋 파일을 지정하는 키와, 모델 접속 정보만 바꿔 끼우는 환경변수(로컬 실행·코드서빙 리비전).
@@ -291,7 +293,7 @@ def collect_model_presets(cfg: dict, config_path: str, *, strict: bool = True) -
     env_path = os.environ.get(MODEL_PRESETS_ENV, "").strip()
     if env_path:
         path = Path(env_path).expanduser().resolve()
-        _log.info(f"[model_preset] {MODEL_PRESETS_ENV} 의 모델 프리셋을 적용합니다: {path}")
+        _log.info(f"[model_preset] {MODEL_PRESETS_ENV} 의 모델 preset 적용: {path}")
         layers.append(_read_presets_file(path, strict=strict))
 
     merged: dict = {}
@@ -333,15 +335,15 @@ def load_config(config_path: str, *, strict: bool = True) -> dict:
     except Exception as exc:
         if strict:
             raise
-        _log.warning(f"[DocumentProcessor] Failed to load config '{config_path}': {exc}. Using defaults.")
+        _log.warning(f"Failed to load config '{config_path}', using defaults ({exc})")
         return {}
 
     if not isinstance(cfg, dict):
         if strict:
             raise ValueError(f"Invalid config format: expected mapping, got {type(cfg).__name__}")
         _log.warning(
-            f"[DocumentProcessor] Invalid config format in '{config_path}' "
-            f"(expected mapping, got {type(cfg).__name__}). Using defaults."
+            f"Invalid config format in '{config_path}' "
+            f"(expected mapping, got {type(cfg).__name__}), using defaults"
         )
         return {}
     presets = collect_model_presets(cfg, config_path, strict=strict)
@@ -486,10 +488,11 @@ def resolve_tokenizer(
     if str(chunking_cfg.get("tokenizer_type") or "").strip().lower() == "huggingface":
         given = "" if chunking_cfg.get("tokenizer_path") else "(미지정이라 기본값) "
         _log.warning(
-            f"chunking.tokenizer_path {given}{local} 가 없어 Hugging Face 모델 ID {resolved_id} 로 "
-            f"토크나이저를 받습니다. 외부망이 막혀 있으면 받지 못해 청킹이 실패하므로 "
-            f"tokenizer_path 에 토크나이저 폴더를 두세요."
+            f"chunking.tokenizer_path {given}{local} 없음: Hugging Face 모델 ID {resolved_id} 로 "
+            f"tokenizer 를 받음"
         )
+        _log.warning("외부망이 막혀 있으면 chunking 실패")
+        _log.warning("tokenizer_path 에 tokenizer 폴더 지정 필요")
     return resolved_id
 
 
@@ -498,8 +501,8 @@ def clamp_chunk_size(size: Optional[int], minimum: int) -> Optional[int]:
     0(=분할 안 함) 과 None 은 그대로 둔다."""
     if size is not None and 0 < size < minimum:
         _log.info(
-            f"chunk_size {size} 가 하한 chunking.min_chunk_size({minimum})보다 작아 {minimum} 으로 올립니다. "
-            f"더 작게 쓰려면 설정 파일의 chunking.min_chunk_size 를 낮추세요(0 이면 올리지 않음)."
+            f"chunk_size={size} 가 하한 chunking.min_chunk_size({minimum}) 미만: {minimum} 으로 올림, "
+            f"더 작게 쓰려면 설정 파일의 chunking.min_chunk_size 를 낮춰야 함 (0 이면 올리지 않음)"
         )
         return minimum
     return size
@@ -610,7 +613,7 @@ def resolve_ocr_mode(kwargs: dict, yaml_default: str) -> str:
     if mode in _OCR_MODES:
         return mode
     _log.warning(
-        f"[DocumentProcessor] 알 수 없는 ocr_mode '{raw}' — 설정값 '{yaml_default}' 를 씁니다")
+        f"ocr_mode='{raw}' 알 수 없음: 설정값 '{yaml_default}' 사용")
     return yaml_default
 
 
@@ -684,13 +687,13 @@ def parse_short_chunk_size(value: Any, key: str = SHORT_CHUNK_SIZE_KEY) -> Optio
     if value is None or value == "":
         return None
     if isinstance(value, (bool, float)):
-        raise ValueError(f"{key}: 0 이상의 정수여야 합니다(지금: {value!r}).")
+        raise ValueError(f"{key}={value!r}: 0 이상의 정수가 아님")
     try:
         number = int(str(value).strip())
     except ValueError:
-        raise ValueError(f"{key}: 0 이상의 정수여야 합니다(지금: {value!r}).") from None
+        raise ValueError(f"{key}={value!r}: 0 이상의 정수가 아님") from None
     if number < 0:
-        raise ValueError(f"{key}: 0 이상의 정수여야 합니다(지금: {value!r}).")
+        raise ValueError(f"{key}={value!r}: 0 이상의 정수가 아님")
     return number
 
 
@@ -700,11 +703,13 @@ def resolve_short_chunk_size(kwargs: dict, metadata: dict, yaml_default: int = 0
     요청·metadata 의 잘못된 값은 경고를 남기고 다음 순위로 넘어간다(요청 하나로 기동 설정을
     깨지 않는다). 청커 yaml 값은 기동 시 parse_short_chunk_size 로 이미 검사했다.
     """
-    for source in (kwargs, metadata):
+    for where, source in (("요청 파라미터", kwargs), ("문서유형 설정 body.merge_short", metadata)):
         try:
             value = parse_short_chunk_size((source or {}).get(SHORT_CHUNK_SIZE_KEY))
         except ValueError as exc:
-            _log.warning(f"[DocumentProcessor] {exc} 다음 순위 값을 씁니다.")
+            _log.warning(f"{where} 값 무시: {exc}")
+            _log.warning("다음 우선순위 값 사용 (요청 파라미터 → 문서유형 설정 body.merge_short → "
+                         "chunker 설정 chunking.short_chunk_size)")
             continue
         if value is not None:
             return value

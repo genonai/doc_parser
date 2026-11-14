@@ -252,7 +252,7 @@ def normalize_sheets(obj) -> dict[str, list[list[str]]]:
     if isinstance(obj, list):
         return {"table_1": _rows_to_grid(obj)}
     if not isinstance(obj, dict):
-        raise TypeError(f"edit_input(.xlsx) 반환형을 알 수 없습니다: {type(obj).__name__}")
+        raise TypeError(f"edit_input(.xlsx) 반환형 오류: 지원하지 않는 형={type(obj).__name__}")
     out: dict[str, list[list[str]]] = {}
     for name, value in obj.items():
         if _is_frame(value):
@@ -261,7 +261,7 @@ def normalize_sheets(obj) -> dict[str, list[list[str]]]:
             out[str(name)] = _rows_to_grid(value)
         else:
             raise TypeError(
-                f"edit_input(.xlsx) 시트 '{name}' 의 형을 알 수 없습니다: {type(value).__name__}")
+                f"edit_input(.xlsx) 시트 값 형 오류: sheet={name} 형={type(value).__name__}")
     return out
 
 
@@ -576,7 +576,7 @@ def build_tabular_vectors(
 
     n_chunk_of_doc = sum(len(t["data_rows"]) for t in tables)
     if n_chunk_of_doc == 0:
-        _log.warning(f"[xlsx] tabular 청크 없음: {file_path}")
+        _log.warning(f"[xlsx] tabular chunk 없음: {file_path}")
         return []
     n_page = max((t["sheet_index"] for t in tables), default=0)
 
@@ -658,7 +658,7 @@ def build_tabular_data_dict(
         # (이후 _header_index 는 정규화 후 충돌만 감지 → 원본 중복은 못 잡음). 여기서 명확히 거부한다.
         dup_headers = [h for h, cnt in Counter(headers).items() if h and cnt > 1]
         if dup_headers:
-            raise CodedValueError(f"중복되는 Excel 컬럼(헤더)이 있습니다: {dup_headers}", "PARSE_D004")
+            raise CodedValueError(f"Excel 컬럼(헤더) 중복: {dup_headers}", "PARSE_D004")
         data_rows = [dict(zip(headers, values, strict=False)) for values in t["data_rows"]]
         data.append({
             "sheet_name": t["sheet_name"],
@@ -751,7 +751,7 @@ def build_tabular_custom_fields_vectors(
     result = mapper.to_parse_format(data_dict, runtime_doc_type)
     elements = [el for el in (result.get("elements") or []) if isinstance(el, dict)]
     if not elements:
-        _log.warning(f"[xlsx] tabular custom_fields 청크 없음: {file_path}")
+        _log.warning(f"[xlsx] tabular custom_fields chunk 없음: {file_path}")
         return []
 
     # 표 격리(table_as_chunk)와 표기형태 필드는 청커 경로와 같은 규칙이어야 하지만, 그

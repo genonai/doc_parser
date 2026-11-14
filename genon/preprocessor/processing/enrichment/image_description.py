@@ -328,8 +328,8 @@ def resolve_runtime_image_options(
     detection = "auto" if chart_detection == 1 else "all"
     if chart_desc == 1 and detection == "auto" and not classification_available:
         _log.warning(
-            "[runtime_feature] chart_detection=auto 요청이나 그림 분류 미활성(config chart.enable=false) "
-            "→ detection=all 로 강등"
+            "[runtime_feature] chart_detection=auto 를 detection=all 로 대체함: "
+            "그림 분류 비활성 (chart.enable=false)"
         )
         detection = "all"
     return replace(

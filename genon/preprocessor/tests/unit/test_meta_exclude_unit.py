@@ -65,7 +65,7 @@ def test_every_extractor_accepts_meta_include(extractor):
 def test_unknown_field_blocks_startup():
     """값이 만들어지지 않는 이름은 오타다. 조용히 무시하면 빼려던 필드가 그대로 나온다."""
     cfg = {"column_map": {"A": ["a"]}, "meta_include": {"ZZZ": False}}
-    with pytest.raises(ValueError, match="ZZZ 를 만드는 설정이 없습니다"):
+    with pytest.raises(ValueError, match="ZZZ 를 만드는 설정 없음"):
         compile_meta_exclude(cfg, label="t")
 
 

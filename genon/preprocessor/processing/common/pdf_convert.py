@@ -66,9 +66,8 @@ def convert_to_pdf(
 
     if not available:
         _log.warning(
-            f"[convert_to_pdf] PDF 변환기({label})가 설치되어 있지 않습니다 "
-            f"(이슈 #286). '{os.path.basename(file_path)}' 변환을 건너뜁니다. PDF 로 변환된 "
-            "파일을 입력하거나, 변환기를 포함해 전처리기 이미지를 다시 빌드하세요 (genon/README.md 참고)."
+            f"[convert_to_pdf] '{os.path.basename(file_path)}' 변환 건너뜀: PDF 변환기({label}) 미설치, "
+            "PDF 파일로 입력하거나 변환기를 포함해 전처리기 이미지 재빌드 필요 (genon/README.md 참고)"
         )
         return None
 

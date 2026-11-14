@@ -82,8 +82,8 @@ class PromptTemplate:
             unknown = self.referenced - self.allowed_names
             if unknown:
                 raise ValueError(
-                    f"prompt template 에 정의되지 않은 변수 {sorted(unknown)} 가 있습니다. "
-                    f"(reserved + user-defined 허용 변수: {sorted(self.allowed_names)})"
+                    f"prompt template 에 정의되지 않은 변수 있음: {sorted(unknown)}\n"
+                    f"허용 변수(reserved + user-defined): {sorted(self.allowed_names)}"
                 )
 
     @property
@@ -118,7 +118,7 @@ class PromptTemplate:
                 if tok not in values:
                     if self._mode != "strict" and tok not in self.allowed_names:
                         _log.warning(
-                            f"[PromptTemplate] 미정의 변수 '{{{{{tok}}}}}' → 빈 문자열로 치환(lenient)."
+                            f"[PromptTemplate] 미정의 변수 '{{{{{tok}}}}}' → 빈 문자열로 치환(lenient)"
                         )
                     return ""
                 val = values.get(tok)
@@ -133,8 +133,8 @@ class PromptTemplate:
         out = pattern.sub(_repl, self._template)
         if used_single:
             _log.warning(
-                "[PromptTemplate] 단일 중괄호 placeholder(예: '{raw_text}')는 deprecated 입니다. "
-                "이중 중괄호 '{{raw_text}}' 사용을 권장합니다."
+                "[PromptTemplate] 단일 중괄호 placeholder(예: '{raw_text}') 는 deprecated 임: "
+                "이중 중괄호 '{{raw_text}}' 사용 권장"
             )
         return out
 

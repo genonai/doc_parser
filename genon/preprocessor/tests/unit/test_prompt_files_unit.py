@@ -48,7 +48,7 @@ class TestPromptFiles:
 
     def test_read_empty_raises(self, tmp_path):
         (tmp_path / "empty.md").write_text("  \n", encoding="utf-8")   # 적은 파일이 비면 기본값으로 떨어지지 않는다(#561)
-        with pytest.raises(ValueError, match="비어 있습니다"):
+        with pytest.raises(ValueError, match="비어 있음"):
             read_prompt_file("empty.md", tmp_path)
 
     def test_read_strips_content(self, tmp_path):

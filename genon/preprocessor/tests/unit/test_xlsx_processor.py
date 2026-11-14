@@ -175,7 +175,7 @@ def test_duplicate_headers_rejected_only_in_split_path(tmp_path):
     )
 
     assert len(xp.build_tabular_vectors(str(path))) == 2
-    with pytest.raises(ValueError, match="중복되는 Excel 컬럼") as exc:
+    with pytest.raises(ValueError, match="Excel 컬럼\(헤더\) 중복") as exc:
         xp.build_tabular_data_dict(str(path))
     assert exc.value.reason_code == "PARSE_D004"   # 정규화 후 중복과 같은 원천 오류다(#528)
 

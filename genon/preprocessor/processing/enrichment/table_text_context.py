@@ -438,7 +438,7 @@ def log_skipped_tables(total: int, reasons: list[str]) -> None:
     counts = {reason: reasons.count(reason) for reason in dict.fromkeys(reasons)}
     detail = ", ".join(f"{reason} {count}" for reason, count in counts.items())
     _log.info(
-        f"[table_text_description] 표 {total}개 중 {len(reasons)}개를 LLM 전송에서 제외합니다({detail})."
+        f"[table_text_description] 표 {total}개 중 {len(reasons)}개 LLM 전송에서 제외 ({detail})"
     )
 
 

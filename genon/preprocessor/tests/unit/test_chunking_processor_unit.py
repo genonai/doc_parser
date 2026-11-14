@@ -199,7 +199,7 @@ def test_chunker_parse_format_rows_mixed_with_text_warns_on_drop(caplog):
         )
 
     assert len(vectors) == 1
-    assert "다른 element 1개" in caplog.text
+    assert "행 아닌 element 1개 제외" in caplog.text
 
 
 def test_chunker_parse_format_text_multi_chunk():
@@ -361,7 +361,7 @@ def test_chunker_splittable_row_prefix_overflow_falls_back_with_warning(caplog):
         )
 
     assert vectors, "병리 케이스에서도 청크는 산출되어야 한다"
-    assert "조각마다 접두를 다시 붙이지 않고" in caplog.text
+    assert "레코드 접두 재부착 건너뜀" in caplog.text
     # 폴백 후에도 원문 내용은 어딘가에 남아 있어야 한다(정보 유실 방지).
     assert "본문 내용" in "\n".join(v.text for v in vectors)
 
@@ -606,7 +606,7 @@ def test_oversized_heading_falls_back_with_warning(caplog):
         vectors = _chunk(doc.model_dump(mode="json"), chunk_size=CS)
 
     assert vectors, "병리 케이스에서도 청크는 산출되어야 한다"
-    assert "HEADER 줄(섹션 경로)이" in caplog.text, "폴백 경고가 없다"
+    assert "HEADER 줄(섹션 경로) 길이" in caplog.text, "폴백 경고가 없다"
 
 
 # ----------------------------------------------------------------------
@@ -1229,7 +1229,7 @@ async def test_edit_chunk_dropping_every_chunk_warns(caplog):
         vectors = await _unvalidated(_P())(None, "", document={"elements": [_TEXT]})
 
     assert vectors == []
-    assert "edit_chunk 가 청크 1건을 모두 버려" in caplog.text
+    assert "edit_chunk 가 chunk 1건을 모두 제외함" in caplog.text
 
 
 def test_over_length_chunks_warn_once_per_document(caplog):
@@ -1243,5 +1243,5 @@ def test_over_length_chunks_warn_once_per_document(caplog):
     with caplog.at_level(logging.WARNING):
         ChunkerCore._warn_over_length(job, metas)
 
-    [record] = [r for r in caplog.records if "chunk_size(10자)" in r.getMessage()]
-    assert "5건" in record.getMessage() and "최대 30자" in record.getMessage()
+    [record] = [r for r in caplog.records if "상한=10자" in r.getMessage()]
+    assert "5건" in record.getMessage() and "최대=30자" in record.getMessage()

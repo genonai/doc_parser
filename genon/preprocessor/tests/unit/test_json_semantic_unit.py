@@ -390,7 +390,7 @@ def test_identifier_only_sections_collapse_with_warning(tmp_path, caplog):
 
     # title 은 forced_title(라벨)로 소비되고 남는 건 identifier(code) 뿐이라 둘 다 접힌다.
     assert not any(f["_title"] in ("혜택 A", "혜택 B") for f in fields_list)
-    assert "식별자/빈 본문뿐인 섹션 2건을 접었습니다" in caplog.text
+    assert "섹션 2개 chunk 에서 제외" in caplog.text
 
 
 # ── 규칙 회귀: 본문에 원문 JSON 키 이름이 나오지 않는다 ───────────────────────
@@ -623,7 +623,7 @@ def test_depth_limit_exceeded_warns(tmp_path, caplog):
     with caplog.at_level("WARNING"):
         mapper.build_fields(payload, "product_hpp")
 
-    assert "상한을 초과" in caplog.text
+    assert "JSON 일부 읽지 않음" in caplog.text
 
 
 def test_node_count_limit_exceeded_warns(tmp_path, caplog):
@@ -635,14 +635,14 @@ def test_node_count_limit_exceeded_warns(tmp_path, caplog):
     with caplog.at_level("WARNING"):
         mapper.build_fields(payload, "product_hpp")
 
-    assert "상한을 초과" in caplog.text
+    assert "JSON 일부 읽지 않음" in caplog.text
 
 
 # ── shared_fields 누락 시 기동 실패 ──────────────────────────────────────────
 
 def test_shared_fields_is_required(tmp_path):
     config = "schema: v2\nsource:\n  kind: sections\n  sections:\n    bubble: 혜택\n"
-    with pytest.raises(ValueError, match="shared_fields"):
+    with pytest.raises(ValueError, match="fields:` 지정 필요"):
         write_mapper(tmp_path, config)
 
 

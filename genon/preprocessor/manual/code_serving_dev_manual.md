@@ -1432,7 +1432,7 @@ python serving_gateway_test.py --mode e2e $AUTHARGS \
 | `output.format` | 문서 경로 입력의 응답에 `data.document`가 있는지 |
 | `chunk_size` · `chunk_mode` | `/chunker` 결과의 청크 개수와 길이 |
 | enrichment `enable` | 응답의 해당 항목 유무, 처리 시간 변화 |
-| 플레이스홀더 치환 | 로그의 `모델 프리셋 N개(…)의 접속 정보가 자리표시값(<…>)이라` 경고에 사용 중인 프리셋이 나오지 않는지 |
+| 플레이스홀더 치환 | 로그의 `모델 preset N개(…) 접속 정보가 비어 있음(<…> 자리표시값 그대로)` 경고에 사용 중인 프리셋이 나오지 않는지 |
 
 청크 수가 예상보다 적으면 응답 최상위 `chunk_validation`과 로그의 `[chunk_validation]`을 확인합니다.
 
@@ -1520,13 +1520,15 @@ git apply "$BACKUP_DIR/my_change.patch"           # 충돌하면 번들에서 �
 | `<PAGE_DESCRIPTION_SERVING_ID>` | PPT 페이지 설명용 **vision LLM 서빙 ID** |
 | `<OCR_ENDPOINT>` | OCR 서버 **주소**(호스트:포트). 서빙 ID가 아닙니다 |
 
-미치환 값이 남아 있으면 기동 시 한 줄 경고가 남습니다. 기동 자체는 됩니다.
+미치환 값이 남아 있으면 기동 시 경고가 남습니다. 기동 자체는 됩니다.
 
 ```text
-모델 프리셋 1개(whisper)의 접속 정보가 자리표시값(<…>)이라 해당 모델 호출은 실패하거나 건너뜁니다. GENOS_MODEL_PRESETS_FILE 이 가리키는 파일에 실제 값을 적으세요. 자리표시값: whisper.url=<WHISPER_ENDPOINT> (파일 <GENOS_MODEL_PRESETS_FILE 경로>, 설정 activities/parse/config.yaml)
+모델 preset 1개(whisper) 접속 정보가 비어 있음(<…> 자리표시값 그대로): 이 preset 을 쓰는 모델 호출은 실패하거나 건너뜀
+채워야 할 값: whisper.url=<WHISPER_ENDPOINT> (설정 activities/parse/config.yaml)
+<GENOS_MODEL_PRESETS_FILE 경로> 에 실제 값 입력 필요
 ```
 
-앞부분이 무엇이(프리셋 이름과 개수) · 영향 · 조치이고, 괄호 안이 어느 파일을 읽었는지입니다. 목록은 앞 3개와 나머지 개수만 적습니다. 프리셋 밖의 키(액티비티 설정 자체)에 자리표시값이 있으면 `설정 키 N개가 자리표시값(<…>)이라 … <설정 파일> 에서 실제 값으로 바꾸세요` 경고가 따로 남습니다.
+첫 줄은 무엇이(preset 이름과 개수)·영향, 둘째 줄은 채워야 할 값과 읽은 설정 파일, 셋째 줄은 조치입니다. 목록은 앞 3개와 나머지 개수만 적습니다. preset 밖의 키(액티비티 설정 자체)에 자리표시값이 있으면 `설정 키 N개가 비어 있음(<…> 자리표시값 그대로), 이 값을 쓰는 기능은 실패하거나 건너뜀` 경고가 따로 남습니다.
 
 ```bash
 # 실행 위치: 저장소 루트. 주석 줄은 제외 — 아무것도 안 나오면 통과 (템플릿의 자리표시자는 치환 대상이 아니므로 제외합니다)

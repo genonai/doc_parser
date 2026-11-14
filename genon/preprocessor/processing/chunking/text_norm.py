@@ -235,32 +235,32 @@ def rules_from_cfg(chunking_cfg: dict) -> tuple:
     if raw is None:
         return ()
     if not isinstance(raw, list):
-        raise ValueError("chunking.text_cleanup.rules 는 목록이어야 합니다(각 항목 앞에 '- ').")
+        raise ValueError("chunking.text_cleanup.rules 는 목록 필요(각 항목 앞에 '- ')")
 
     compiled: list = []
     for index, item in enumerate(raw, start=1):
         where = f"chunking.text_cleanup.rules[{index}]"
         if not isinstance(item, dict):
-            raise ValueError(f"{where} 는 `{{line: …}}` 같은 object 여야 합니다.")
+            raise ValueError(f"{where} 는 `{{line: …}}` 같은 object 필요")
         actions = [k for k in item if k in RULE_ACTIONS]
         unknown = sorted(k for k in item if k not in RULE_ACTIONS and k != "replace")
         if unknown:
             raise ValueError(
-                f"{where}: 쓸 수 없는 키 {unknown}. 쓸 수 있는 것: {list(RULE_ACTIONS)} (+ find 의 replace)"
+                f"{where}: 미지원 키 {unknown} (쓸 수 있는 키: {list(RULE_ACTIONS)}, find 에는 replace 추가 가능)"
             )
         if len(actions) != 1:
             raise ValueError(
-                f"{where}: 액션 키를 정확히 하나 적어야 합니다 — {list(RULE_ACTIONS)} 중 하나 "
-                f"(지금: {actions or '없음'})"
+                f"{where}: 액션 키는 {list(RULE_ACTIONS)} 중 정확히 하나 필요 "
+                f"(받은 값: {actions or '없음'})"
             )
         action = actions[0]
         if "replace" in item and action != "find":
-            raise ValueError(f"{where}: replace 는 find 와 함께만 쓸 수 있습니다.")
+            raise ValueError(f"{where}: replace 는 find 와 함께만 사용 가능")
         pattern = item[action]
         try:
             regex = re.compile(str(pattern))
         except re.error as exc:
-            raise ValueError(f"{where}: 정규식이 잘못됐습니다: {exc}") from exc
+            raise ValueError(f"{where}: 정규식 오류: {exc}") from exc
         compiled.append((action, regex, str(item.get("replace") or "")))
     return tuple(compiled)
 

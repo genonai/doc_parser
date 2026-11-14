@@ -317,7 +317,7 @@ def make_elements(items, category: str = "paragraph") -> list:
             item = {"content": item}
         elif not isinstance(item, dict):
             raise TypeError(
-                f"make_elements 의 원소는 str 이거나 dict 여야 합니다: {type(item).__name__}")
+                f"make_elements 의 원소는 str 이거나 dict 여야 함: {type(item).__name__}")
         page = item.get("page", 1)
         try:
             page = int(page)

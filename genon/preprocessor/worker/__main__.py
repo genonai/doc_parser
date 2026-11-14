@@ -63,7 +63,7 @@ def main() -> int:
     if not os.environ.get("OMP_NUM_THREADS"):
         os.environ["OMP_NUM_THREADS"] = str(
             settings.omp_threads(settings.read_cpu_max(), cfg.processes, os.cpu_count()))
-    log.info("task_queue=%s processes=%d threads=%d OMP_NUM_THREADS=%s NFS_ROOT=%s ARTIFACT_ROOT=%s 액티비티=%s",
+    log.info("task_queue=%s processes=%d threads=%d OMP_NUM_THREADS=%s NFS_ROOT=%s ARTIFACT_ROOT=%s activity=%s",
              cfg.task_queue, cfg.processes, cfg.threads, os.environ["OMP_NUM_THREADS"],
              cfg.nfs_root, cfg.artifact_root, ", ".join(e.slug for e in entries) or "<없음>")
     ctx = mp.get_context("spawn")
@@ -90,12 +90,12 @@ def main() -> int:
             now = time.monotonic()
             restarts = [t for t in restarts if now - t < _RESTART_WINDOW_SEC] + [now]
             if len(restarts) > _RESTART_LIMIT:
-                log.error("자식이 %d초 안에 %d번 넘게 죽었다 — 전체를 끝낸다(supervisord 가 다시 띄운다).",
+                log.error("worker 전체 종료: 자식 프로세스가 %d초 안에 %d번 넘게 종료됨 (supervisord 가 재시작)",
                           _RESTART_WINDOW_SEC, _RESTART_LIMIT)
                 code = 1
                 stop.set()
                 break
-            log.warning("자식 프로세스 종료 — %s(exitcode=%s). 다시 띄운다.", p.name, p.exitcode)
+            log.warning("자식 프로세스 종료: %s(exitcode=%s), 재시작", p.name, p.exitcode)
             children[i] = spawn(i)
         _Health.children = children
         time.sleep(1)

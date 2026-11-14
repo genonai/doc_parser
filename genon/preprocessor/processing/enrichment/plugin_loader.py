@@ -22,7 +22,7 @@ def load_callable(base_dir: Path, file: str, callable_name: str, *, label: str) 
     오류 메시지에 `label` 을 실어 어느 설정이 잘못됐는지 바로 보이게 한다.
     """
     if not file:
-        raise ValueError(f"{label}: 파이썬을 쓰려면 file 값이 필요합니다.")
+        raise ValueError(f"{label}: 파이썬을 쓰려면 file 값 지정 필요")
 
     base = Path(base_dir).resolve()
     path = (base / file).resolve()
@@ -30,10 +30,10 @@ def load_callable(base_dir: Path, file: str, callable_name: str, *, label: str) 
         path.relative_to(base)
     except ValueError as exc:
         raise ValueError(
-            f"{label}: 파일 경로가 허용 범위를 벗어났습니다: {path} (기준: {base})"
+            f"{label}: 파일 경로가 허용 범위를 벗어남: {path} (기준: {base})"
         ) from exc
     if not path.exists():
-        raise FileNotFoundError(f"{label}: 파일이 없습니다: {path}")
+        raise FileNotFoundError(f"{label}: 파일 없음: {path}")
 
     module_name = f"genos_plugin_{abs(hash(str(path)))}"
     spec = importlib.util.spec_from_file_location(module_name, path)
@@ -45,6 +45,6 @@ def load_callable(base_dir: Path, file: str, callable_name: str, *, label: str) 
     fn = getattr(module, callable_name, None)
     if not callable(fn):
         raise TypeError(
-            f"{label}: 호출 가능한 {callable_name!r} 을 {path.name} 에서 찾지 못했습니다."
+            f"{label}: {path.name} 에서 호출 가능한 {callable_name!r} 찾지 못함"
         )
     return fn

@@ -364,9 +364,9 @@ class DoclingRuntimeBase:
         xlsx_mode = str(xlsx_cfg.get("processing_mode", default_mode)).strip().lower()
         if xlsx_mode not in {"docling", "tabular"}:
             _log.warning(
-                f"[DocumentProcessor] formats.xlsx.processing_mode '{xlsx_mode}' 를 알 수 없어 "
-                f"{default_mode} 로 처리합니다. {self._config_label or '이 액티비티의 config.yaml'} 의 "
-                f"formats.xlsx.processing_mode 를 docling·tabular 중 하나로 고치세요."
+                f"formats.xlsx.processing_mode='{xlsx_mode}' 알 수 없음: {default_mode} 로 처리, "
+                f"{self._config_label or '이 activity 의 config.yaml'} 에서 "
+                f"docling·tabular 중 하나로 수정 필요"
             )
             xlsx_mode = default_mode
         self._xlsx_cfg = {
@@ -384,9 +384,9 @@ class DoclingRuntimeBase:
         md_mode = str(md_cfg.get("processing_mode", "docling")).strip().lower()
         if md_mode not in {"docling", "text"}:
             _log.warning(
-                f"[DocumentProcessor] formats.md.processing_mode '{md_mode}' 를 알 수 없어 docling 으로 "
-                f"처리합니다. {self._config_label or '이 액티비티의 config.yaml'} 의 "
-                f"formats.md.processing_mode 를 docling·text 중 하나로 고치세요."
+                f"formats.md.processing_mode='{md_mode}' 알 수 없음: docling 으로 처리, "
+                f"{self._config_label or '이 activity 의 config.yaml'} 에서 "
+                f"docling·text 중 하나로 수정 필요"
             )
             md_mode = "docling"
         self._md_cfg = {"processing_mode": md_mode}
@@ -394,7 +394,7 @@ class DoclingRuntimeBase:
         # 비표준 확장자 별칭. 예) {".parsed": ".md"} — *.parsed 를 마크다운으로 보고 라우팅한다.
         self._ext_aliases = fa.parse_extension_aliases(formats_cfg)
         if self._ext_aliases:
-            _log.info(f"[DocumentProcessor] 확장자 별칭: {self._ext_aliases}")
+            _log.info(f"확장자 별칭: {self._ext_aliases}")
 
     # ------------------------------------------------------------------
     # docling 배관

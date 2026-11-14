@@ -188,9 +188,8 @@ def warn_unsupported_custom_fields(configs: list[dict] | None, processor: str) -
             continue
         if extractor not in supported:
             _log.warning(
-                f"[{processor}] custom_fields 설정(doc_type={doc_type})의 extractor="
-                f"{extractor} 는 이 프로세서가 읽지 않습니다 — 등록돼 있어도 아무 필드도 "
-                f"채워지지 않습니다. 이 문서유형은 parser 경로로 보내세요."
+                f"[{processor}] doc_type={doc_type} custom_fields 미적용: 이 processor 는 "
+                f"extractor={extractor} 를 지원하지 않음, 이 문서유형은 parser 경로로 처리 필요"
             )
             continue
         if processor in PROCESSOR_READS_SOURCE_PRE:
@@ -202,10 +201,9 @@ def warn_unsupported_custom_fields(configs: list[dict] | None, processor: str) -
                 continue
             if block_cfg:
                 _log.warning(
-                    f"[{processor}] custom_fields 설정(doc_type={doc_type})의 "
-                    f"`source.pre.{block}` 는 이 프로세서가 소비하지 않습니다 — 원천을 PDF 로 "
-                    f"바꿔 읽으므로 이 전처리가 걸릴 자리가 없습니다. 이 문서유형은 parser "
-                    f"경로로 보내세요."
+                    f"[{processor}] doc_type={doc_type} custom_fields 의 `source.pre.{block}` 미적용: "
+                    f"이 processor 는 원천을 PDF 로 변환해 읽어 이 전처리를 실행하지 않음, "
+                    f"이 문서유형은 parser 경로로 처리 필요"
                 )
 
 
@@ -226,7 +224,7 @@ def resolve_custom_fields_config_path(
     try:
         resolved.relative_to(base)
     except ValueError as exc:
-        raise ValueError(f"custom_fields config_file 경로가 설정 폴더를 벗어났습니다: {resolved} (base: {base})") from exc
+        raise ValueError(f"custom_fields config_file 경로가 설정 폴더를 벗어남: {resolved} (설정 폴더={base})") from exc
     return resolved
 
 
@@ -246,8 +244,8 @@ def load_custom_fields_config(
     loaded = cp.read_yaml_file(path) or {}
     if not isinstance(loaded, dict):
         raise ValueError(
-            f"custom_fields config는 mapping이어야 합니다: {path} "
-            f"({type(loaded).__name__})"
+            f"custom_fields 설정 파일이 mapping 이 아님: {path} "
+            f"(받은 형식={type(loaded).__name__})"
         )
     return loaded
 
@@ -275,21 +273,21 @@ class LlmFieldSpec:
 
     def __init__(self, cfg: dict):
         if not isinstance(cfg, dict):
-            raise ValueError("llm_fields 항목은 object 여야 합니다.")
+            raise ValueError("llm[] 항목이 object 가 아님")
 
         self.output_fields = [str(f).strip() for f in (cfg.get("output_fields") or []) if str(f).strip()]
         if not self.output_fields:
-            raise ValueError("llm_fields 항목의 output_fields 가 비어 있습니다.")
+            raise ValueError("llm[] 항목의 out 비어 있음")
 
         self.input_fields = [str(f).strip() for f in (cfg.get("input_fields") or []) if str(f).strip()]
         if not self.input_fields:
-            raise ValueError(f"llm_fields{self.output_fields} 의 input_fields 가 비어 있습니다.")
+            raise ValueError(f"llm[] 항목(out={self.output_fields}) 의 in 비어 있음")
 
         # 설정을 통째로 빠뜨린 경우를 기동 시에 잡는다. 값이 placeholder 라 실제 호출이 실패하는 건
         # 런타임 경고로 흡수하지만(enricher.is_configured), 연결 정보가 아예 없는 건 오설정이다.
         if not (str(cfg.get("config_file") or "").strip() or str(cfg.get("url") or "").strip()):
             raise ValueError(
-                f"llm_fields{self.output_fields} 에는 config_file 또는 url 중 하나가 필요합니다."
+                f"llm[] 항목(out={self.output_fields}) 에 config_file 또는 endpoint.url 지정 필요"
             )
 
         try:
@@ -662,18 +660,18 @@ class CustomFieldsEnricher(BaseEnricher):
         parser_file = parser_cfg.get("file")
         parser_callable = parser_cfg.get("callable", "parse")
         if not parser_file:
-            raise ValueError("custom_fields parser.type=python 인 경우 parser.file 값이 필요합니다.")
+            raise ValueError("custom_fields parser.type=python 에 parser.file 지정 필요")
 
         parser_path = (self._parser_base_dir / parser_file).resolve()
         try:
             parser_path.relative_to(self._parser_base_dir)
         except ValueError as exc:
             raise ValueError(
-                f"parser 경로가 허용 범위를 벗어났습니다: {parser_path} (base: {self._parser_base_dir})"
+                f"parser 경로가 허용 범위를 벗어남: {parser_path} (허용 범위={self._parser_base_dir})"
             ) from exc
 
         if not parser_path.exists():
-            raise FileNotFoundError(f"parser 파일이 없습니다: {parser_path}")
+            raise FileNotFoundError(f"parser 파일 없음: {parser_path}")
 
         module_name = f"custom_fields_parser_{abs(hash(str(parser_path)))}"
         spec = importlib.util.spec_from_file_location(module_name, parser_path)
@@ -684,7 +682,7 @@ class CustomFieldsEnricher(BaseEnricher):
 
         fn = getattr(module, parser_callable, None)
         if not callable(fn):
-            raise TypeError(f"parser callable을 찾을 수 없거나 호출 불가: {parser_callable}")
+            raise TypeError(f"parser callable 이 없거나 호출 불가: {parser_callable}")
         return fn
 
     def _extract_text_for_json(self, text: str) -> str:
@@ -831,7 +829,7 @@ class CustomFieldsEnricher(BaseEnricher):
             parsed = await parsed
         if not isinstance(parsed, dict):
             raise TypeError(
-                f"extractor: python 의 결과는 dict 이어야 합니다: {type(parsed).__name__}"
+                f"extractor=python 결과가 dict 가 아님: 받은 형식={type(parsed).__name__}"
             )
         return parsed
 
@@ -849,7 +847,7 @@ class CustomFieldsEnricher(BaseEnricher):
         except TypeError:
             parsed = self._parser_callable(llm_output)
         if not isinstance(parsed, dict):
-            raise TypeError("custom_fields parser 결과는 dict 이어야 합니다.")
+            raise TypeError("custom_fields parser 결과가 dict 가 아님")
         return parsed
 
     def _normalize_output_fields(
@@ -878,7 +876,7 @@ class CustomFieldsEnricher(BaseEnricher):
             )
             if overridden:
                 _log.warning(
-                    "custom_fields 구조화 원천값이 LLM 결과를 덮어씁니다: %s", overridden
+                    "[custom_fields] 문서 front matter 의 metadata 값과 LLM 추출값이 달라 front matter 값을 씀: 필드=%s", overridden
                 )
             normalized = {**normalized, **structured_fields}
         # 상수는 LLM 응답보다 우선한다 — 고정값이라고 선언한 이상 모델이 뭘 내놓든 그 값이다.
@@ -966,7 +964,7 @@ class CustomFieldsEnricher(BaseEnricher):
             wanted = bool(runtime)
         if wanted and not self._table_description_options.prompt_template:
             _log.warning(
-                "표 설명을 요청했지만 table_text_description.prompt_template_file 설정이 없어 건너뜁니다."
+                "표 설명 건너뜀: table_text_description.prompt_template_file 미설정"
             )
             return False
         return wanted
@@ -1034,7 +1032,7 @@ class CustomFieldsEnricher(BaseEnricher):
     ) -> None:
         values = parsed.pop("_table_descriptions", None)
         if not isinstance(values, list):
-            _log.warning("custom_fields 표 설명 응답에 _table_descriptions 배열이 없습니다.")
+            _log.warning("custom_fields 표 설명 응답에 _table_descriptions 배열 없음")
             return
         by_id = {
             str(value.get("table_id") or ""): value
@@ -1045,7 +1043,7 @@ class CustomFieldsEnricher(BaseEnricher):
         for target in targets:
             value = by_id.get(target.table_id)
             if not value:
-                _log.warning("custom_fields 표 설명 누락: %s", target.table_id)
+                _log.warning("custom_fields 표 설명 누락: table_id=%s", target.table_id)
                 continue
             context = re.sub(r"\s+", " ", str(value.get("retrieval_context") or "")).strip()
             context = context[:options.retrieval_context_max_chars]
@@ -1054,7 +1052,7 @@ class CustomFieldsEnricher(BaseEnricher):
             )
             terms = self._clean_string_list(value.get("search_terms"), options.search_terms_limit)
             if not context:
-                _log.warning("custom_fields 표 retrieval_context 누락: %s", target.table_id)
+                _log.warning("custom_fields 표 retrieval_context 누락: table_id=%s", target.table_id)
                 continue
             description = context
             if facts:
@@ -1110,8 +1108,8 @@ class CustomFieldsEnricher(BaseEnricher):
         limit = self._max_tables_per_call()
         if limit and len(targets) > limit:
             _log.info(
-                f"표 {len(targets)}개가 응답 상한(max_tokens={self._max_tokens}, "
-                f"1회 최대 {limit}개)을 넘어 배치로 나눕니다."
+                f"표 {len(targets)}개가 응답 상한 초과: 배치로 나눠 호출 "
+                f"(max_tokens={self._max_tokens}, 1회 최대 {limit}개)"
             )
             return targets, False
         if self._prompt_fits(raw_text, document, self._table_prompt(targets)):
@@ -1121,7 +1119,7 @@ class CustomFieldsEnricher(BaseEnricher):
             document, options, max_context_chars=max(1, options.max_context_chars // 4)
         )
         if shrunk and self._prompt_fits(raw_text, document, self._table_prompt(shrunk)):
-            _log.info("표 설명 프롬프트가 예산을 넘어 주변 문맥을 축소했습니다.")
+            _log.info("표 설명 prompt 가 모델 입력 상한(model_context_tokens) 초과: 주변 문맥 축소함")
             return shrunk, True
 
         if any(target.input_format == "html" for target in (shrunk or targets)):
@@ -1130,7 +1128,7 @@ class CustomFieldsEnricher(BaseEnricher):
                 max_context_chars=max(1, options.max_context_chars // 4),
             )
             if downgraded and self._prompt_fits(raw_text, document, self._table_prompt(downgraded)):
-                _log.info("표 설명 프롬프트가 예산을 넘어 표 본문을 markdown 으로 낮췄습니다.")
+                _log.info("표 설명 prompt 가 모델 입력 상한(model_context_tokens) 초과: 표 본문을 markdown 으로 낮춤")
                 return downgraded, True
             return downgraded or shrunk or targets, False
         return shrunk or targets, False
@@ -1148,7 +1146,7 @@ class CustomFieldsEnricher(BaseEnricher):
         batch: list[TableTextTarget] = []
         for target in targets:
             if not self._prompt_fits("", document, self._table_prompt([target])):
-                _log.warning("표 하나가 프롬프트 예산을 넘어 설명을 생략합니다: %s", target.table_id)
+                _log.warning("표 설명 생략: 표 하나만으로 모델 입력 상한(model_context_tokens) 초과 (table_id=%s)", target.table_id)
                 continue
             candidate = batch + [target]
             # 입력(프롬프트)과 출력(max_tokens) 중 먼저 걸리는 쪽에서 배치를 끊는다.
@@ -1182,8 +1180,8 @@ class CustomFieldsEnricher(BaseEnricher):
         recovered = _recover_table_descriptions(output)
         if recovered:
             _log.warning(
-                f"표 설명 응답이 온전하지 않아 완결된 {len(recovered)}건만 복구했습니다"
-                f"(요청 {len(targets)}건). max_tokens 를 올리거나 표당 산출량을 줄이세요."
+                f"표 설명 응답 잘림: 완결된 항목만 복구함 (복구={len(recovered)}건, 요청={len(targets)}건), "
+                f"max_tokens 상향 또는 표당 산출량 축소 필요"
             )
             parsed["_table_descriptions"] = recovered
         return parsed
@@ -1229,8 +1227,8 @@ class CustomFieldsEnricher(BaseEnricher):
         if fatal is not None or not results:
             return results, fatal or failures[0]
         _log.warning(
-            f"표 설명 배치 {len(batches)}개 중 {len(failures)}개가 실패해 "
-            f"나머지 {len(results)}개의 설명으로 진행합니다: {llm_failure_reason(failures[0])}"
+            f"표 설명 배치 일부 실패: 실패={len(failures)}/{len(batches)}개, "
+            f"성공한 {len(results)}개 배치의 설명으로 진행 ({llm_failure_reason(failures[0])})"
         )
         return results, None
 
@@ -1253,7 +1251,7 @@ class CustomFieldsEnricher(BaseEnricher):
             fitted, fits = targets, False
 
         if fits:
-            _log.info(f"[table_text_description] 표 {len(fitted)}개를 custom_fields 호출 1회에 함께 설명합니다.")
+            _log.info(f"[table_text_description] 표 {len(fitted)}개를 custom_fields 호출 1회에 함께 설명")
             parsed = await self._describe_call(raw_text, document, fitted, **kwargs)
             try:
                 self._attach_table_descriptions(parsed, fitted)
@@ -1264,17 +1262,21 @@ class CustomFieldsEnricher(BaseEnricher):
 
         if policy == "error":
             raise CodedValueError(
-                "custom_fields + 표 설명 프롬프트가 model_context_tokens를 초과했습니다.", "PARSE_P001")
+                "custom_fields 와 표 설명을 한 번에 요청하는 prompt 가 모델 입력 상한(model_context_tokens) 초과로 처리 중단\n"
+                "overflow_policy=error 설정이라 중단함. 표를 나눠 요청하려면 table_text_description.overflow_policy 를 batch, "
+                "표 설명을 생략하려면 skip 으로 지정 필요", "PARSE_P001")
         output = await self._call_llm(raw_text, document)
         parsed = self._parse_with_custom_parser(output, document, **kwargs)
         if policy == "skip":
-            _log.warning("표 설명 프롬프트가 한도를 초과해 표 설명을 건너뜁니다.")
+            _log.warning("표 설명 생략: custom_fields 와 표 설명을 함께 담은 prompt 가 모델 입력 상한(model_context_tokens) 초과")
+            _log.warning("overflow_policy=skip 설정이라 custom_fields 값만 추출함")
+            _log.warning("표를 나눠 설명하려면 table_text_description.overflow_policy 를 batch 로 지정 필요")
             return parsed
 
         # batch 정책: custom fields는 한 번만 호출하고 표는 들어가는 만큼 묶어 추가 호출한다.
         try:
             batches = self._plan_batches(document, fitted)
-            _log.info(f"[table_text_description] 표 {len(fitted)}개를 {len(batches)}개 배치로 호출합니다.")
+            _log.info(f"[table_text_description] 표 {len(fitted)}개를 {len(batches)}개 배치로 호출")
             done, failure = await self._call_table_batches(document, batches, **kwargs)
             for table_batch, table_parsed in done:
                 self._attach_table_descriptions(table_parsed, table_batch)
@@ -1305,12 +1307,12 @@ class CustomFieldsEnricher(BaseEnricher):
         if not targets:
             return results
         batches = self._plan_batches(document, targets)
-        _log.info(f"[table_text_description] 표 {len(targets)}개를 {len(batches)}개 배치로 호출합니다.")
+        _log.info(f"[table_text_description] 표 {len(targets)}개를 {len(batches)}개 배치로 호출")
         done, failure = await self._call_table_batches(document, batches, **kwargs)
         for batch, parsed in done:
             values = parsed.get("_table_descriptions")
             if not isinstance(values, list):
-                _log.warning(f"표 설명 응답에 _table_descriptions 배열이 없습니다({len(batch)}개 표).")
+                _log.warning(f"표 설명 응답에 _table_descriptions 배열 없음 (표 {len(batch)}개)")
                 continue
             for value in values:
                 table_id = str(value.get("table_id") or "") if isinstance(value, dict) else ""
@@ -1336,7 +1338,7 @@ class CustomFieldsEnricher(BaseEnricher):
             return
         fitted, fits = self._fit_targets("", document, targets)
         if fits:
-            _log.info(f"[table_text_description] 표 {len(fitted)}개를 1회 호출로 설명합니다.")
+            _log.info(f"[table_text_description] 표 {len(fitted)}개를 1회 호출로 설명")
             parsed = await self._describe_call("", document, fitted, **kwargs)
             self._attach_table_descriptions(parsed, fitted)
             return
@@ -1344,12 +1346,16 @@ class CustomFieldsEnricher(BaseEnricher):
         policy = self._table_description_options.overflow_policy
         if policy == "error":
             raise CodedValueError(
-                "표 설명 프롬프트가 model_context_tokens 를 초과했습니다.", "PARSE_P001")
+                f"표 {len(fitted)}개를 한 번에 설명하는 prompt 가 모델 입력 상한(model_context_tokens) 초과로 처리 중단\n"
+                "overflow_policy=error 설정이라 중단함. 표를 나눠 요청하려면 table_text_description.overflow_policy 를 batch, "
+                "표 설명을 생략하려면 skip 으로 지정 필요", "PARSE_P001")
         if policy == "skip":
-            _log.warning("표 설명 프롬프트가 한도를 초과해 표 설명을 건너뜁니다.")
+            _log.warning(f"표 설명 생략: 표 {len(fitted)}개를 한 번에 설명하는 prompt 가 모델 입력 상한(model_context_tokens) 초과")
+            _log.warning("overflow_policy=skip 설정이라 표 설명 없이 진행함")
+            _log.warning("표를 나눠 설명하려면 table_text_description.overflow_policy 를 batch 로 지정 필요")
             return
         batches = self._plan_batches(document, fitted)
-        _log.info(f"[table_text_description] 표 {len(fitted)}개를 {len(batches)}개 배치로 호출합니다.")
+        _log.info(f"[table_text_description] 표 {len(fitted)}개를 {len(batches)}개 배치로 호출")
         done, failure = await self._call_table_batches(document, batches, **kwargs)
         for table_batch, parsed in done:
             self._attach_table_descriptions(parsed, table_batch)
@@ -1409,7 +1415,7 @@ class CustomFieldsEnricher(BaseEnricher):
         # 하지 않는다. 이 가드가 없으면 url 이 빈 설정에서도 output_fields 가 전부 null 로
         # 저장돼 모든 청크에 빈 property 가 생긴다.
         if not (self.is_configured or structured_fields or self._constants or self._defaults):
-            _log.warning("custom_fields enricher 비활성: url/model 설정이 비어있습니다.")
+            _log.warning("custom_fields enricher 비활성: url/model 미설정")
             return document
 
         if prompt_prefix:
@@ -1430,8 +1436,8 @@ class CustomFieldsEnricher(BaseEnricher):
                 # HTML 이 아닌 원천이 이 문서유형으로 들어온 경우다. 값은 못 만들지만
                 # defaults/constants 는 아래에서 그대로 채워진다.
                 _log.warning(
-                    "custom_fields 추출 건너뜀(extractor: html_select): 원문 HTML 이 없습니다 "
-                    "— 이 문서유형은 HTML 원천(또는 json 의 HTML 값)에만 적용됩니다."
+                    "custom_fields 추출 건너뜀(extractor: html_select): 원문 HTML 없음 "
+                    "(이 문서유형은 HTML 원천 또는 json 의 HTML 값에만 적용됨)"
                 )
         elif self._extractor == "python":
             try:
@@ -1457,7 +1463,7 @@ class CustomFieldsEnricher(BaseEnricher):
         else:
             # LLM 연결과 무관한 constants/front matter 는 계속 산출해야 한다.
             _log.warning(
-                "custom_fields LLM 비활성: url/model 설정이 비어있어 LLM 필드는 null 로 둡니다."
+                "custom_fields LLM 비활성: url/model 미설정, LLM 필드는 null 로 둠"
             )
 
         normalized = self._normalize_output_fields(parsed, structured_fields)

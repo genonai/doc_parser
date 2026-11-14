@@ -58,6 +58,6 @@ def warn_unmatched(fields: dict, targets: Iterable[str], filename: Any, label: s
     empty = [t for t in targets if fields.get(t) in (None, "")]
     if empty:
         _log.warning(
-            f"[custom_fields] {label}: 파일명에서 {empty} 를 만들지 못했습니다"
-            f"(filename={filename}). 파일명 규칙과 transform 패턴을 확인하세요."
+            f"[custom_fields] {label}: 파일명에서 {empty} 를 만들지 못함 "
+            f"(filename={filename}), 파일명 규칙과 transform 패턴 확인 필요"
         )

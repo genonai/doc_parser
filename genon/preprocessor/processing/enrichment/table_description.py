@@ -313,7 +313,7 @@ def refined_html_to_format(refined_html: str, table_format: str, compact_tables:
         md = _refined_html_to_markdown(refined_html, compact_tables)
         return md or refined_html
     except Exception as exc:
-        _log.warning("[table_description] refined html→markdown 변환 실패, HTML 유지: %s", exc)
+        _log.warning("[table_description] refined html→markdown 변환 실패: HTML 유지함 (%s)", exc)
         return refined_html
 
 
@@ -364,7 +364,7 @@ def is_valid_refined_html(refined_html: str) -> bool:
     try:
         return _parse_refined_table_data(refined_html) is not None
     except Exception as exc:
-        _log.warning("[table_description] refined html 검증 실패, 원본 사용: %s", exc)
+        _log.warning("[table_description] refined html 검증 실패: 원본 표 사용함 (%s)", exc)
         return False
 
 
@@ -688,7 +688,7 @@ class TableDescriptionEnricher:
         match = _REFINE_SPLIT_RE.search(output_text)
         if not match:
             if TABLE_HTML_MARKER in output_text or TABLE_SUMMARY_MARKER in output_text:
-                _log.warning("[TableDescriptionEnricher] refine 응답 마커 불완전 → 폐기(원본 표 사용)")
+                _log.warning("[TableDescriptionEnricher] refine 응답 폐기: marker 불완전, 원본 표 사용")
                 return "", ""
             return output_text.strip(), ""
         refined_html = (match.group("html") or "").strip()

@@ -107,7 +107,7 @@ def promote_markdown_marker_headings(text: str) -> tuple[str, int]:
         lines[index] = f"{'#' * levels[marker]} {lines[index].strip()}"
 
     _log.info(
-        "[md_marker_headings] %s (승격 %d건)",
+        "[md_marker_headings] ◈·▣ 같은 도형 기호로 쓴 소제목을 markdown 제목(#)으로 바꿈: 기호별 제목 단계=%s, 바꾼 줄 %d개",
         {marker: levels[marker] for _i, marker, _t in candidates},
         len(candidates),
     )

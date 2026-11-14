@@ -94,18 +94,18 @@ class MetadataEnricher(BaseEnricher):
         parser_file = parser_cfg.get("file")
         parser_callable = parser_cfg.get("callable", "parse")
         if not parser_file:
-            raise ValueError("metadata parser.type=python 인 경우 parser.file 값이 필요합니다.")
+            raise ValueError("metadata parser.type=python: parser.file 지정 필요")
 
         parser_path = (self._parser_base_dir / parser_file).resolve()
         try:
             parser_path.relative_to(self._parser_base_dir)
         except ValueError as exc:
             raise ValueError(
-                f"parser 경로가 허용 범위를 벗어났습니다: {parser_path}"
+                f"parser 경로 거부: 허용 범위 밖 ({parser_path})"
             ) from exc
 
         if not parser_path.exists():
-            raise FileNotFoundError(f"parser 파일이 없습니다: {parser_path}")
+            raise FileNotFoundError(f"parser 파일 없음: {parser_path}")
 
         module_name = f"metadata_parser_{abs(hash(str(parser_path)))}"
         spec = importlib.util.spec_from_file_location(module_name, parser_path)
@@ -116,7 +116,7 @@ class MetadataEnricher(BaseEnricher):
 
         fn = getattr(module, parser_callable, None)
         if not callable(fn):
-            raise TypeError(f"parser callable을 찾을 수 없거나 호출 불가: {parser_callable}")
+            raise TypeError(f"parser callable 없음 또는 호출 불가: {parser_callable}")
         return fn
 
     def _default_parse(self, llm_output: str, **kwargs) -> dict:
@@ -174,7 +174,7 @@ class MetadataEnricher(BaseEnricher):
         except TypeError:
             parsed = self._parser_callable(llm_output)
         if not isinstance(parsed, dict):
-            raise TypeError("metadata parser 결과는 dict 이어야 합니다.")
+            raise TypeError("metadata parser 결과 형식 오류: dict 반환 필요")
         return parsed
 
     # ── 텍스트 추출 ───────────────────────────────────────────────────────────
@@ -262,7 +262,7 @@ class MetadataEnricher(BaseEnricher):
         try:
             from docling_core.types.doc.document import GraphData, GraphCell, GraphCellLabel
         except ImportError:
-            _log.warning("GraphData/GraphCell import 실패 — 문서 저장 생략")
+            _log.warning("[metadata] 추출한 metadata 를 문서에 저장하지 못함: docling_core 에 GraphData·GraphCell 없음")
             return
 
         graph_cells = []
@@ -295,7 +295,7 @@ class MetadataEnricher(BaseEnricher):
 
     async def enrich(self, document: DoclingDocument, **kwargs) -> DoclingDocument:
         if not self._url or not self._model:
-            _log.warning("metadata enricher 비활성: url/model 설정이 비어있습니다.")
+            _log.warning("metadata enricher 비활성: url/model 설정 비어 있음")
             return document
 
         empty_result = {field: None for field in self._output_fields}
@@ -325,7 +325,7 @@ class MetadataEnricher(BaseEnricher):
             _log.warning(f"metadata 추출 실패: {e}")
             normalized = empty_result
 
-        _log.info(f"추출된 메타데이터: {json.dumps(normalized, ensure_ascii=False)}")
+        _log.info(f"추출된 metadata: {json.dumps(normalized, ensure_ascii=False)}")
 
         # docling 내장과 동일한 저장 방식
         self._store_in_document(document, normalized)

@@ -99,7 +99,7 @@ def processor(entry: Entry):
         base = ParserCore if entry.stage == "parse" else ChunkerCore
         if not issubclass(cls, base):
             raise TypeError(f"activities/{entry.slug}/processor.py 의 DocumentProcessor 는 {base.__name__} 를 "
-                            "상속해야 합니다")
+                            "상속해야 함")
         proc = cls(config_path=entry.config_path)
         _PROCESSORS[entry.slug] = proc
     return proc

@@ -71,7 +71,7 @@ def build_ocr_options(ocr_cfg: dict, paddle_endpoint: str):
     ocr_cfg = ocr_cfg if isinstance(ocr_cfg, dict) else {}
     ocr_engine = str(ocr_cfg.get("engine", "paddle")).lower().strip()
     if ocr_engine not in {"paddle", "upstage"}:
-        _log.warning(f"[DocumentProcessor] Unknown ocr.engine '{ocr_engine}', fallback to 'paddle'")
+        _log.warning(f"Unknown ocr.engine '{ocr_engine}', fallback to 'paddle'")
         ocr_engine = "paddle"
 
     if ocr_engine == "upstage":
@@ -86,14 +86,14 @@ def build_ocr_options(ocr_cfg: dict, paddle_endpoint: str):
             if upstage_timeout <= 0:
                 raise ValueError
         except (TypeError, ValueError):
-            _log.warning(f"[DocumentProcessor] Invalid ocr.upstage.timeout '{raw_timeout}', fallback to 60")
+            _log.warning(f"Invalid ocr.upstage.timeout '{raw_timeout}', fallback to 60")
             upstage_timeout = 60
 
         raw_text_score = upstage_cfg.get("text_score", 0.5)
         try:
             upstage_text_score = float(raw_text_score)
         except (TypeError, ValueError):
-            _log.warning(f"[DocumentProcessor] Invalid ocr.upstage.text_score '{raw_text_score}', fallback to 0.5")
+            _log.warning(f"Invalid ocr.upstage.text_score '{raw_text_score}', fallback to 0.5")
             upstage_text_score = 0.5
 
         return UpstageOcrOptions(
@@ -116,14 +116,14 @@ def build_ocr_options(ocr_cfg: dict, paddle_endpoint: str):
         paddle_lang = raw_lang
     else:
         if raw_lang not in (None, [], ["korean"]):
-            _log.warning(f"[DocumentProcessor] Invalid ocr.paddle.lang '{raw_lang}', fallback to ['korean']")
+            _log.warning(f"Invalid ocr.paddle.lang '{raw_lang}', fallback to ['korean']")
         paddle_lang = ["korean"]
 
     raw_text_score = paddle_cfg.get("text_score", 0.3)
     try:
         paddle_text_score = float(raw_text_score)
     except (TypeError, ValueError):
-        _log.warning(f"[DocumentProcessor] Invalid ocr.paddle.text_score '{raw_text_score}', fallback to 0.3")
+        _log.warning(f"Invalid ocr.paddle.text_score '{raw_text_score}', fallback to 0.3")
         paddle_text_score = 0.3
 
     return PaddleOcrOptions(
@@ -475,11 +475,10 @@ def ocr_all_table_cells(
                     _log.debug(f"표 셀 OCR 실패(표 {table_idx}, 셀 {cell_idx}): {cell_err}")
                     continue
     except Exception as e:
-        _log.warning(f"표 셀 OCR 을 중간에 멈췄습니다. 남은 표는 원래 글자를 그대로 둡니다: {e}")
+        _log.warning(f"표 셀 OCR 중단, 남은 표는 원래 글자 유지: {e}")
     if failed:
-        _log.warning(
-            f"표 셀 OCR {failed}/{tried}칸이 실패해 그 칸은 원래 글자를 그대로 둡니다. "
-            f"ocr.paddle.ocr_endpoint 의 OCR 서버가 응답하는지 확인하세요. 첫 오류: {first_err}")
+        _log.warning(f"표 셀 OCR {failed}/{tried}칸 실패: 해당 칸은 원래 글자 유지 (오류 예: {first_err})")
+        _log.warning("ocr.paddle.ocr_endpoint 의 OCR 서버 응답 확인 필요")
 
     return document
 

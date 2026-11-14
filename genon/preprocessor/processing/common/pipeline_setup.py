@@ -82,16 +82,19 @@ def resolve_ocr_runtime(cfg: dict, ocr_cfg: dict, config_label: str | None = Non
     where = config_label or "이 액티비티의 config.yaml"
     mode = str(ocr_cfg.get("ocr_mode", cfg.get("ocr_mode", "disable"))).lower().strip()
     if mode not in {"auto", "force", "disable"}:
-        _log.warning(f"[DocumentProcessor] ocr.ocr_mode '{mode}' 를 알 수 없어 disable(OCR 안 함)로 처리합니다. "
-                     f"{where} 의 ocr.ocr_mode 를 auto·force·disable 중 하나로 고치세요.")
+        _log.warning(f"ocr.ocr_mode 미지원 값 (ocr_mode={mode}): disable(OCR 안 함)로 처리, "
+                     f"{where} 의 ocr.ocr_mode 를 auto·force·disable 중 하나로 지정 필요")
         mode = "disable"
 
     engine = str(ocr_cfg.get("engine", "paddle")).lower().strip()
     if not endpoint and mode != "disable" and engine != "upstage":
         _log.warning(
-            f"[DocumentProcessor] ocr.ocr_mode 가 {mode} 인데 OCR 서버 주소(ocr.paddle 의 ocr_endpoint)가 "
-            f"비어 있어 스캔 페이지 OCR 과 표 칸 재OCR 이 동작하지 않습니다. model_presets.yaml 의 "
-            f"ocr 프리셋(ocr.paddle.model_preset 이 가리키는 이름)에 ocr_endpoint 를 적으세요(설정 {where})."
+            f"스캔 페이지 OCR·표 칸 재OCR 동작 안 함: ocr_endpoint 비어 있음 "
+            f"(ocr_mode={mode}, 설정 {where})"
+        )
+        _log.warning(
+            "model_presets.yaml 의 ocr preset(ocr.paddle.model_preset 이 가리키는 이름)에 "
+            "ocr_endpoint 지정 필요"
         )
 
     # 테이블 셀 재OCR HTTP timeout (ocr_all_table_cells). 잘못된 값은 60 으로 폴백.
@@ -133,7 +136,7 @@ def resolve_pdf_basics(pdf_cfg: dict) -> PdfBasics:
     device_str = str(pdf_cfg.get("device", "auto")).lower().strip()
     device = ACCELERATOR_DEVICE_MAP.get(device_str)
     if device is None:
-        _log.warning(f"[DocumentProcessor] Unknown pdf_pipeline.device '{device_str}', fallback to 'auto'")
+        _log.warning(f"Unknown pdf_pipeline.device '{device_str}', fallback to 'auto'")
         device = AcceleratorDevice.AUTO
 
     num_threads = parse_optional_int(pdf_cfg.get("num_threads"), "pdf_pipeline.num_threads")
@@ -148,7 +151,7 @@ def resolve_pdf_basics(pdf_cfg: dict) -> PdfBasics:
     table_structure_mode = TABLE_FORMER_MODE_MAP.get(table_mode_str)
     if table_structure_mode is None:
         _log.warning(
-            f"[DocumentProcessor] Unknown pdf_pipeline.table_structure_mode "
+            f"Unknown pdf_pipeline.table_structure_mode "
             f"'{table_mode_str}', fallback to 'accurate'"
         )
         table_structure_mode = TableFormerMode.ACCURATE
@@ -207,7 +210,7 @@ def resolve_layout_settings(cfg: dict, layout_cfg: dict) -> LayoutSettings:
     else:
         if model_type_str != LayoutModelType.GENOS_LAYOUT.value:
             _log.warning(
-                f"[DocumentProcessor] Unknown layout_model_type '{model_type_str}', "
+                f"Unknown layout_model_type '{model_type_str}', "
                 f"fallback to '{LayoutModelType.GENOS_LAYOUT.value}'"
             )
         model_type = LayoutModelType.GENOS_LAYOUT
@@ -216,8 +219,7 @@ def resolve_layout_settings(cfg: dict, layout_cfg: dict) -> LayoutSettings:
     api_key = genos_cfg.get("api_key") or cfg.get("layout_api_key", "")
     if model_type == LayoutModelType.GENOS_LAYOUT and not endpoint:
         _log.warning(
-            "[DocumentProcessor] layout.genos_layout.endpoint 가 비어 있습니다. "
-            "사이트 배포 시 yaml 에 반드시 지정하세요."
+            "layout.genos_layout.endpoint 비어 있음: 사이트 배포 시 yaml 에 지정 필요"
         )
 
     def _int(key: str, default: int, *, allow_zero: bool = False) -> int:
