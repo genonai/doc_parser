@@ -39,4 +39,5 @@ async def _serve(cfg: settings.Settings) -> None:
     log.info("액티비티 %d개: %s", len(entries), ", ".join(f"{e.slug}({e.stage})" for e in entries))
     with concurrent.futures.ThreadPoolExecutor(max_workers=cfg.threads) as pool:
         await Worker(client, task_queue=cfg.task_queue, activities=registry.build(entries),
-                     activity_executor=pool, max_concurrent_activities=cfg.threads).run()
+                     activity_executor=pool, max_concurrent_activities=cfg.threads,
+                     interceptors=[runtime.DocTagInterceptor()]).run()

@@ -37,6 +37,7 @@ from pathlib import Path
 
 from fastapi.encoders import jsonable_encoder
 from temporalio import activity
+from temporalio.worker import ActivityInboundInterceptor, ExecuteActivityInput, Interceptor
 from temporalio.exceptions import ApplicationError, CancelledError
 
 from genon.preprocessor.processing.common import profiling as prof
@@ -53,7 +54,8 @@ log = logging.getLogger("genon.worker")
 #: 이고 복제한 액티비티(parse_1 …)도 단계만 쓴다 — slug 는 Studio 화면 이름이 아니고, 한 워크플로우 안에서 단계마다
 #: 액티비티는 하나라 단계만으로 출처가 정해진다. pipeline 워커(`EMBED`·`LOAD`·`PREPARE`)와 같은 형식이다.
 #: 한 워커 로그에 parse·chunk 프로세스의 자식 여럿 × 스레드 여럿이 섞이므로 이것이 없으면 줄이 어느
-#: 문서 것인지 알 수 없다. 처리 스레드로는 _call 이 문맥을 복사해 넘긴다. 처리기가 다시 띄우는 스레드
+#: 문서 것인지 알 수 없다. 액티비티 태스크에는 DocTagInterceptor 가, 실행 스레드에는 execute 가 두고, 처리
+#: 스레드로는 _call 이 문맥을 복사해 넘긴다. 처리기가 다시 띄우는 스레드
 #: (docling 내부 등)의 줄에는 붙지 않는다.
 DOC_TAG: contextvars.ContextVar[str] = contextvars.ContextVar("genon_worker_doc", default="")
 _TAG_NAME_LIMIT = 40
@@ -78,6 +80,33 @@ def doc_tag(stage: str, doc: str) -> str:
     if len(base) > _TAG_NAME_LIMIT:
         base = base[:_TAG_NAME_LIMIT - 1] + "…"
     return f"{stage} {base}"
+
+
+def _doc(arg) -> str:
+    """태그·실패 메시지에 쓰는 문서 — 원본 이름, 없으면 출력 참조."""
+    if not isinstance(arg, dict):
+        return ""
+    return arg.get("source_name") or arg.get("output_ref", "")
+
+
+class DocTagInterceptor(Interceptor):
+    """워커 인터셉터 — 액티비티 태스크의 문맥에 문서 태그를 둔다.
+
+    SDK 는 동기 액티비티를 이 태스크 문맥의 복사본으로 실행 스레드에서 돌리므로, `execute` 가 거기서 두는
+    태그는 태스크로 돌아오지 않는다. SDK 가 태스크에서 남기는 실패 로그("Completing activity as failed" +
+    traceback)와 프로세서 준비 실패 줄에는 이것이 붙인다. 단계는 slug 의 첫 단어(parse_1 → PARSE)다.
+    되돌리지 않는다 — SDK 는 액티비티마다 태스크를 따로 만들고 실패 로그를 이 호출이 끝난 뒤 같은 태스크에서
+    남긴다. 값은 그 태스크의 문맥과 함께 사라지므로 다른 액티비티 줄에 섞이지 않는다."""
+
+    def intercept_activity(self, next: ActivityInboundInterceptor) -> ActivityInboundInterceptor:
+        return _DocTagInbound(next)
+
+
+class _DocTagInbound(ActivityInboundInterceptor):
+    async def execute_activity(self, input: ExecuteActivityInput):
+        stage = activity.info().activity_type.split("_", 1)[0]
+        DOC_TAG.set(doc_tag(stage, _doc(input.args[0] if input.args else None)))
+        return await self.next.execute_activity(input)
 
 #: 처리 스레드를 남긴 채 돌아갈 때의 종료 코드 — 부모가 이 자식을 새로 띄운다.
 EXIT_RESTART = 75
@@ -265,7 +294,7 @@ def execute(proc, stage: str, arg: dict) -> dict:
     cfg = _cfg()
     started = time.monotonic()
     name = activity.info().activity_type
-    doc = arg.get("source_name") or arg.get("output_ref", "")
+    doc = _doc(arg)
     where = f"액티비티 {name} · 파일 {Path(doc).name if doc else '-'}"
     request = mock_request()
     tag_token = DOC_TAG.set(doc_tag(stage, doc))
