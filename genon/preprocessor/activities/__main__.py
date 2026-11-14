@@ -16,7 +16,7 @@
 실제 처리는 **자식 프로세스**에서 돈다. 프로세서·docling 이 stdout 에 찍는 출력은 stderr 로 가고,
 마감 초과로 처리 스레드가 남아도(워커는 그 프로세스를 끝낸다) 부모가 결과 한 줄과 종료 코드를 정한다.
 
-출력 계약(Studio 디스패처가 읽는다): stderr = 진행 로그(파이프면 `LEVEL 메시지`, 터미널이면 시각·로거 이름까지) · stdout **마지막 줄**
+출력 계약(Studio 디스패처가 읽는다): stderr = 진행 로그(코드스페이스에서 파이프면 `LEVEL 메시지`, 그 밖은 시각·로거 이름까지) · stdout **마지막 줄**
 `@@RESULT@@ {"ok", "stage", "activity", "duration_ms", "data" | "error"}` · 실패는 exit 1.
 
 `new`·`remove` (#472, Studio 의 "+ 새 액티비티 · 복제"·삭제): 액티비티 하나 = 폴더 하나라 생성·복제는 **폴더 복사 한 번**,
@@ -412,16 +412,19 @@ def _log_failure(result: dict) -> None:
     log.error("단건 실행 실패(%s): %s", error.get("reason_code") or error.get("type"), error.get("message"))
 
 
-def _log_format() -> str:
-    """stderr 로그 줄 형식. 터미널에서는 시각·로거 이름까지 찍는다. 파이프(Studio 콘솔)로 나갈 때는 `LEVEL 메시지` 만 찍는다.
+def _log_format(stream=None) -> str:
+    """stderr 로그 줄 형식. 코드스페이스(`CODESPACE_ID` 가 있다)에서 파이프로 나갈 때만 `LEVEL 메시지` 를 찍는다.
+    그 밖(터미널, 코드스페이스가 아닌 곳의 파이프·리다이렉트)에서는 시각·로거 이름까지 찍는다.
 
-    Studio 콘솔은 받은 줄마다 제 시각을 붙이고 한 줄을 220자에서 자른다. 날짜(23자)와 로거 이름(~50자)이
-    그 1/3 을 차지해 메시지가 잘렸고, 시각은 두 번 찍혔다(#638). 자식 프로세스는 부모의 stderr 를
-    그대로 물려받으므로 두 쪽이 같은 형식을 고른다. 배치 워커 형식(문서 태그, worker/runner.py)과는 별개다.
+    Studio 콘솔은 코드스페이스에서 이 CLI 를 파이프로 부르고, 받은 줄마다 제 시각을 붙이고 한 줄을 220자에서 자른다.
+    날짜(23자)와 로거 이름(~50자)이 그 1/3 을 차지해 메시지가 잘렸고, 시각은 두 번 찍혔다(#638). 서빙본은 코드서빙
+    파드 등 다른 곳에서도 파이프로 쓰이므로, 그곳에서는 시각을 남긴다. 코드스페이스 안의 다른 파이프 사용처에서도
+    시각이 빠지는 한계가 있다. 자식 프로세스는 부모의 환경과 stderr 를 그대로 물려받으므로 두 쪽이 같은 형식을
+    고른다. 배치 워커 형식(문서 태그, worker/runner.py)과는 별개다. `stream` 기본은 `sys.stderr`.
     """
-    if sys.stderr.isatty():
-        return "%(asctime)s %(levelname)s %(name)s %(message)s"
-    return "%(levelname)s %(message)s"
+    if os.environ.get("CODESPACE_ID", "").strip() and not (stream or sys.stderr).isatty():
+        return "%(levelname)s %(message)s"
+    return "%(asctime)s %(levelname)s %(name)s %(message)s"
 
 
 def main(argv=None) -> int:
