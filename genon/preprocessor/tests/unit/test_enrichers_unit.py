@@ -327,6 +327,21 @@ class TestEnrichDisabledNoop:
         assert result is doc
 
 
+@pytest.mark.unit
+@pytest.mark.parametrize("llm_kwargs,warned", [
+    ({}, False),                                         # LLM 을 적지 않은 문서유형(product_slf 등)
+    ({"user_prompt": "문서: {{raw_text}}"}, True),         # LLM 을 적었으나 url/model 이 빈 경우
+])
+def test_llm_disabled_warning_only_when_llm_declared(caplog, llm_kwargs, warned):
+    """#675: 상수·front matter 만 쓰는 문서유형에서 "LLM 비활성" 경고가 나오지 않는다."""
+    enr = CustomFieldsEnricher(constants={"GROUP_C": "SLF"}, **llm_kwargs)
+    doc = DoclingDocument(name="d")
+    doc.add_text(label=DocItemLabel.TEXT, text="본문")
+    with caplog.at_level("WARNING"):
+        asyncio.run(enr.enrich(doc))
+    assert ("custom_fields LLM 비활성" in caplog.text) is warned
+
+
 # ── parser 경로 traversal 가드 ─────────────────────────────────────────────────
 
 @pytest.mark.unit
