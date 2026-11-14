@@ -1,17 +1,23 @@
-# 상품설명서(카드) JSON 섹션
+# 문서 유형 product_hpp(삼성카드 상품 안내)의 custom_fields 설정 — 카드 한 장을 설명하는 JSON 을 섹션별로 나눠 읽는다.
+# custom_fields 는 doc_type 마다 원본에서 뽑을 필드와 그 규칙이다. 이 파일은 core 의 CustomFieldsEnricher 가 읽는다.
+# fields 아래 키는 만들어 낼 필드 이름이고, 대부분 적재 테이블(GADPRTBWCM001)의 컬럼 이름과 같다.
+# BIZ_ID 는 항목 ID, GROUP_C 는 계열사 코드다(HPP = 삼성카드).
+# 섹션 하나가 검색용 chunk 하나가 되고, fields 의 값은 문서 맨 위(루트) 객체에서만 찾아 모든 섹션에 함께 싣는다.
 
 schema: v2
 source:
   kind: sections
+  # JSON key 별로 사람이 읽는 섹션 이름을 붙인다. 여기 적지 않은 key 도 검색 대상에 들어간다
   sections:
     ksp: 주요 혜택
     benefit: 주요 혜택
     bubble: 혜택 상세
     htmlList: 상품 문서
+  # 검색에서 뺄 JSON key(glob 패턴 가능). 빼는 방법은 이것 하나다
   ignore_keys:
-    # mpo 는 이 카드가 아니라 다른 카드(추천 상품)다 — 그대로 두면 다른 카드 혜택이 이 카드 혜택으로 검색되어 오답이 된다.
+    # mpo 는 이 카드가 아니라 다른 카드(추천 상품)다. 그대로 두면 다른 카드의 혜택이 이 카드 혜택으로 검색되어 오답이 된다.
     - mpo
-    # 사람이 검색할 일이 없는 값(이미지 경로·화면 색상·정렬 순서 등).
+    # 사람이 검색할 일이 없는 값(이미지 경로·화면 색상·정렬 순서 등)
     - '*Img*'
     - '*Lottie*'
     - fontColor
@@ -35,17 +41,20 @@ fields:
   SALE_STATUS:
     alias: [saleStatus, sale_status]
     default: SALE
+  # 아래 llm 이 뽑은 FEE 를 JSON 으로 묶어 넣는다(PRODUCT_ATTRS 는 JSON 컬럼)
   PRODUCT_ATTRS:
     pack: [FEE]
   GROUP_C:
     const: HPP
-  # 원천에 기간 정보가 없으므로 0 으로 고정한다(0 은 날짜 없음을 뜻한다).
+  # 원본에 판매 기간 정보가 없어 0 으로 고정한다(0 은 날짜 없음을 뜻한다).
   VALID_FROM:
     const: 0
   VALID_TO:
     const: 0
 require:
   fields: [PRODUCT_NM]
+# chunk 앞에 붙일 값. 섹션 본문은 JSON 구조에서 자동으로 만들고, fields 의 필드는 모든 chunk 앞에,
+# once 의 필드는 첫 chunk 에만 `라벨: 값` 줄로 붙인다
 body:
   fields: [PRODUCT_C, PRODUCT_NM]
   once: [FEE]
@@ -53,14 +62,15 @@ body:
     PRODUCT_C: 상품코드
     PRODUCT_NM: 상품명
     FEE: 연회비
-# ── 연회비 추출 (feeUrl 섹션만 입력) ─────────────────────────────────────────
-# 연회비는 `htmlList.feeUrl` 안의 표에만 있고 규칙으로 뽑을 수 없다.
-# PRODUCT_INFO(문서 전체)를 넣으면 혜택·이용안내의 다른 금액이 섞여 추출이 흔들리므로 feeUrl 만 넣는다.
+# 연회비(FEE)는 LLM 으로 뽑는다. 연회비는 `htmlList.feeUrl` 안의 표에만 있고 규칙으로는 뽑을 수 없다.
+# 입력(in)은 feeUrl 섹션 하나로 좁힌다. 문서 전체(PRODUCT_INFO)를 넣으면 혜택·이용 안내의 다른 금액이 섞여
+# 결과가 흔들린다. LLM 은 문서(파일) 하나에 한 번만 부르고, 결과를 모든 섹션에 똑같이 싣는다.
 llm:
 - out: [FEE]
   in: [feeUrl]
   parser:
     type: json
+  # LLM 접속 정보는 model_presets 에 모아 두고 여기서는 프리셋 이름만 부른다
   endpoint:
     model_preset: default
   params:

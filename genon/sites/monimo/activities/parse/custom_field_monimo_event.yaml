@@ -1,4 +1,8 @@
-# 이벤트 JSON 레코드
+# 문서 유형 monimo_event(이벤트)의 custom_fields 설정 — JSON 의 eventList 배열에서 원소 하나를 이벤트 한 건으로 읽는다.
+# custom_fields 는 doc_type 마다 원본에서 뽑을 필드와 그 규칙이다. 이 파일은 core 의 CustomFieldsEnricher 가 읽는다.
+# fields 아래 키는 만들어 낼 필드 이름이고, 대부분 적재 테이블(GADEVTBWCM001)의 컬럼 이름과 같다
+# (CUSTOM_TITLE 은 TITLE 컬럼에 들어간다. DETAIL_TEXT 는 테이블에 컬럼이 없고 chunk 본문을 만드는 데 쓴다).
+# BIZ_ID 는 원본이 준 항목 ID, GROUP_C 는 계열사 코드다(IFP 모니모·SLF 생명·SSF 화재·HPP 카드·SSS 증권).
 #
 # 입력 예시:
 #   {"eventList": [{"cmpCntsId": "CM26061182", "mnmFncoCd": "모니모", "evtTodayMainCopy": "…",
@@ -43,8 +47,11 @@ fields:
   DETAIL_TEXT:
     alias: [cmp_desc, htmlText, 상세내용]
     transform: to_text
+# 이 필드가 빈 레코드는 건너뛴다
 require:
   fields: [CUSTOM_TITLE]
+# 검색용 chunk 본문을 만드는 규칙. fields 를 순서대로 `라벨: 값` 줄로 잇고(labels), split 이면
+# chunk_size 를 넘는 본문을 여러 chunk 로 나누며, repeat 의 필드는 나뉜 chunk 마다 앞에 다시 붙인다
 body:
   fields: [CUSTOM_TITLE, DETAIL_TEXT]
   labels:
