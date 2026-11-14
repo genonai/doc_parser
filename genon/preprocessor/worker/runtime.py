@@ -49,8 +49,9 @@ from .settings import Settings
 
 log = logging.getLogger("genon.worker")
 
-#: 지금 처리 중인 문서 — 배치 워커 로그 줄 앞에 `[단계 파일명] ` 으로 붙는다(DocTagFilter). 단계는 액티비티 이름을
-#: 대문자로 쓴 것이다(`PARSE`·`PARSE_1`·`CHUNK`) — pipeline 워커(`EMBED`·`LOAD`·`PREPARE`)와 같은 형식이다.
+#: 지금 처리 중인 문서 — 배치 워커 로그 줄 앞에 `[단계 파일명] ` 으로 붙는다(DocTagFilter). 단계는 `PARSE`·`CHUNK`
+#: 이고 복제한 액티비티(parse_1 …)도 단계만 쓴다 — slug 는 Studio 화면 이름이 아니고, 한 워크플로우 안에서 단계마다
+#: 액티비티는 하나라 단계만으로 출처가 정해진다. pipeline 워커(`EMBED`·`LOAD`·`PREPARE`)와 같은 형식이다.
 #: 한 워커 로그에 parse·chunk 프로세스의 자식 여럿 × 스레드 여럿이 섞이므로 이것이 없으면 줄이 어느
 #: 문서 것인지 알 수 없다. 처리 스레드로는 _call 이 문맥을 복사해 넘긴다. 처리기가 다시 띄우는 스레드
 #: (docling 내부 등)의 줄에는 붙지 않는다.
@@ -59,7 +60,7 @@ _TAG_NAME_LIMIT = 40
 
 
 class DocTagFilter(logging.Filter):
-    """핸들러 필터 — 모든 레코드에 `doc_tag`(`[PARSE_X a.pdf] ` 또는 빈 문자열)를 채운다. 형식 문자열이
+    """핸들러 필터 — 모든 레코드에 `doc_tag`(`[PARSE a.pdf] ` 또는 빈 문자열)를 채운다. 형식 문자열이
     `%(doc_tag)s` 를 쓰므로 핸들러에 단다(로거에 달면 그 로거의 레코드에만 붙는다)."""
 
     def filter(self, record: logging.LogRecord) -> bool:
@@ -68,9 +69,9 @@ class DocTagFilter(logging.Filter):
         return True
 
 
-def doc_tag(name: str, doc: str) -> str:
-    """`단계 파일명` — 단계는 액티비티 이름의 대문자, 파일이 없으면 단계만. 파일명이 길면 앞을 남기고 줄인다."""
-    stage = name.upper()
+def doc_tag(stage: str, doc: str) -> str:
+    """`단계 파일명` — 단계(parse·chunk)는 대문자, 파일이 없으면 단계만. 파일명이 길면 앞을 남기고 줄인다."""
+    stage = stage.upper()
     if not doc:
         return stage
     base = Path(doc).name
@@ -267,7 +268,7 @@ def execute(proc, stage: str, arg: dict) -> dict:
     doc = arg.get("source_name") or arg.get("output_ref", "")
     where = f"액티비티 {name} · 파일 {Path(doc).name if doc else '-'}"
     request = mock_request()
-    tag_token = DOC_TAG.set(doc_tag(name, doc))
+    tag_token = DOC_TAG.set(doc_tag(stage, doc))
     try:
         stages: list = []
         params = dict(arg.get("params") or {})

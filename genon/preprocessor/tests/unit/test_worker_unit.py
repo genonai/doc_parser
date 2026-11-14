@@ -232,18 +232,18 @@ def test_batch_log_lines_carry_document_tag(cfg):
     finally:
         root.removeHandler(lines)
         root.setLevel(old_level)
-    assert "[PARSE_Q1 a.pdf] 표 3개를 읽었습니다" in lines.lines             # 처리 스레드의 줄
-    assert any(ln.startswith("[PARSE_Q1 a.pdf] 처리 완료: 파싱 ") for ln in lines.lines)
+    assert "[PARSE a.pdf] 표 3개를 읽었습니다" in lines.lines                # 처리 스레드의 줄 — 복제본도 단계만
+    assert any(ln.startswith("[PARSE a.pdf] 처리 완료: 파싱 ") for ln in lines.lines)
     assert lines.lines[-1] == "다음 작업을 기다립니다"
 
 
-@pytest.mark.parametrize("name, doc, expected", [
-    ("parse_1", "/nfs/raw/a.pdf", "PARSE_1 a.pdf"),
-    ("parse", "", "PARSE"),
+@pytest.mark.parametrize("stage, doc, expected", [
+    ("parse", "/nfs/raw/a.pdf", "PARSE a.pdf"),
+    ("chunk", "", "CHUNK"),
 ], ids=["단계 대문자·파일명만", "파일 없음 — 단계만"])
-def test_doc_tag_is_upper_stage_and_file_name(name, doc, expected):
+def test_doc_tag_is_upper_stage_and_file_name(stage, doc, expected):
     """배치 로그 줄 앞 표시는 `[단계 파일명]` 이다 — pipeline 워커(`[EMBED a.pdf]`·`[PREPARE]`)와 같은 형식."""
-    assert runtime.doc_tag(name, doc) == expected
+    assert runtime.doc_tag(stage, doc) == expected
 
 
 @pytest.mark.parametrize("exc, expected", [
