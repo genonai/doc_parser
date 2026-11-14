@@ -387,6 +387,11 @@ enrichment:
       enable: true                       # 이 문서유형 설정을 쓸지. true(미지정 시) | false
       doc_type: monimo_news              # 요청의 doc_type 이 이 값과 같을 때 적용한다(대소문자 무시)
       config_file: custom_field_monimo_news.yaml   # 이 문서유형의 필드 추출 규칙 파일(이 폴더 기준)
+  # 뮤직 AI 플레이리스트 문구
+  - custom_fields:
+      enable: true                       # 이 문서유형 설정을 쓸지. true(미지정 시) | false
+      doc_type: music_ai                 # 요청의 doc_type 이 이 값과 같을 때 적용한다(대소문자 무시)
+      config_file: custom_field_music_ai.yaml      # 이 문서유형의 필드 추출 규칙 파일(이 폴더 기준)
   # 상품설명서 생명/화재
   - custom_fields:
       enable: true                       # 이 문서유형 설정을 쓸지. true(미지정 시) | false

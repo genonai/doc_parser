@@ -14,7 +14,7 @@ owned:
   # 모니모 운영 모델 접속 정보(현장 값으로 채운다)
   - resource/model_presets.yaml
   # 기본 전처리기 서비스용 간이 파서 설정(모니모 문서유형 등록 포함) — 그 서비스는 resource/ 완성본만 받으므로
-  # 문서유형 설정 14종의 사본도 여기 둔다. activities/parse/ 의 것과 같아야 한다(test_sites_sync_unit 이 대조)
+  # 문서유형 설정 15종의 사본도 여기 둔다. activities/parse/ 의 것과 같아야 한다(test_sites_sync_unit 이 대조)
   - resource/parse_config_simple.yaml
   - resource/custom_field_menu.yaml
   - resource/custom_field_term.yaml
@@ -30,9 +30,10 @@ owned:
   - resource/custom_field_cs_sss.yaml
   - resource/custom_field_stock_insight.yaml
   - resource/custom_field_research_report.yaml
+  - resource/custom_field_music_ai.yaml
   # 모니모 문서유형 등록 블록이 들어간 파서 설정
   - activities/parse/config.yaml
-  # 모니모 문서유형 설정 14종
+  # 모니모 문서유형 설정 15종
   - activities/parse/custom_field_menu.yaml
   - activities/parse/custom_field_term.yaml
   - activities/parse/custom_field_faq.yaml
@@ -47,3 +48,4 @@ owned:
   - activities/parse/custom_field_cs_sss.yaml
   - activities/parse/custom_field_stock_insight.yaml
   - activities/parse/custom_field_research_report.yaml
+  - activities/parse/custom_field_music_ai.yaml
