@@ -248,8 +248,8 @@ def test_doc_tag_is_upper_stage_and_file_name(stage, doc, expected):
 
 @pytest.mark.parametrize("exc, expected", [
     (GenosServiceException("1", "doc_type=x 에 맞는 등록이 없습니다.\n  설정을 고치세요.", error_type="permanent"),
-     "doc_type=x 에 맞는 등록이 없습니다. 설정을 고치세요. (액티비티 parse_q1 · 파일 a.pdf)"),
-    (KeyError("title"), "KeyError: 'title' (액티비티 parse_q1 · 파일 a.pdf)"),
+     "doc_type=x 에 맞는 등록이 없습니다. / 설정을 고치세요. (activity parse_q1 · 파일 a.pdf)"),
+    (KeyError("title"), "KeyError: 'title' (activity parse_q1 · 파일 a.pdf)"),
 ], ids=["처리기 예외 — 클래스 이름 없음·한 줄", "그 밖의 예외 — 이름이 뜻을 보탠다"])
 def test_failure_message_puts_reason_first(cfg, exc, expected):
     """실패 메시지는 사유가 맨 앞이고 한 줄이다 — Studio 콘솔(220자)과 GenOS 적재 상태(error_message)가 앞부분만
@@ -504,12 +504,21 @@ def test_single_run_cli_uses_worker_body_and_prints_result_last(tmp_path, monkey
     code = cli.main(["run", "--activity", "parse", str(src)])                 # 본체 실패 — 워커와 같은 details
     coded = json.loads(capsys.readouterr().out.strip().splitlines()[-1].removeprefix("@@RESULT@@ "))
     # message 에 type 접두("permanent: ")가 붙지 않는다 — type 은 따로 싣는다
-    assert code == 1 and coded["error"].pop("message") == "필수 열 부재 (액티비티 parse · 파일 a.md)"
+    assert code == 1 and coded["error"].pop("message") == "필수 열 부재 (activity parse · 파일 a.md)"
     # Studio 콘솔은 실패 때 stderr 꼬리 6줄만 보인다 — 사유가 stderr 마지막 줄에 있어야 한다
     failed_lines = [r.getMessage() for r in caplog.records if r.name == "genon.activities" and r.levelname == "ERROR"]
-    assert failed_lines[-1] == "단건 실행 실패(PARSE_D001): 필수 열 부재 (액티비티 parse · 파일 a.md)"
+    assert failed_lines[-1] == "단건 실행 실패(PARSE_D001): 필수 열 부재 (activity parse · 파일 a.md)"
     assert coded["error"] == {"type": "permanent", "non_retryable": True, "reason_code": "PARSE_D001",
                               "error_category": "data", "error_kind": "permanent"}
+
+    # 여러 줄 예외 — 결과 줄은 " / " 로 이은 한 줄, 콘솔은 줄마다(줄당 220자 절단을 피한다)
+    fake.exc = GenosServiceException("1", "필수 열 부재\n원천 확인 필요", error_type="permanent", reason_code="PARSE_D001")
+    caplog.clear()
+    code = cli.main(["run", "--activity", "parse", str(src)])
+    multi = json.loads(capsys.readouterr().out.strip().splitlines()[-1].removeprefix("@@RESULT@@ "))
+    assert code == 1 and multi["error"]["message"] == "필수 열 부재 / 원천 확인 필요 (activity parse · 파일 a.md)"
+    assert [r.getMessage() for r in caplog.records if r.name == "genon.activities" and r.levelname == "ERROR"] == [
+        "단건 실행 실패(PARSE_D001): 필수 열 부재", "원천 확인 필요 (activity parse · 파일 a.md)"]
 
     code = cli.main(["run", "--activity", "parse"])                          # 인자 오류도 결과 한 줄
     usage = json.loads(capsys.readouterr().out.strip().splitlines()[-1].removeprefix("@@RESULT@@ "))

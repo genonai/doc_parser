@@ -226,12 +226,13 @@ def _emit(payload: dict) -> None:
 def _failure(activity: str | None, started: float, exc: BaseException) -> dict:
     from temporalio.exceptions import ApplicationError
 
+    from genon.preprocessor.worker.errors import one_line
     from genon.preprocessor.worker.registry import stage_of
 
     # ApplicationError 의 str() 은 앞에 "permanent: " 처럼 type 을 붙인다 — type 은 따로 싣으므로 message 만.
     message = exc.message if isinstance(exc, ApplicationError) else str(exc)
     error = {"type": getattr(exc, "type", None) or type(exc).__name__,
-             "message": " ".join(message.split()) or type(exc).__name__,
+             "message": one_line(message) or type(exc).__name__,
              "non_retryable": bool(getattr(exc, "non_retryable", False))}
     # 워커 본체가 만든 ApplicationError 면 details[0] 의 사유 코드(#589)를 선택 키로 더한다 — 배포된
     # 워커가 Temporal 오류에 싣는 값과 같다. 인자 오류처럼 본체 밖의 실패에는 없다.
@@ -412,9 +413,12 @@ def _run_isolated(argv: list[str]) -> dict:
 
 def _log_failure(result: dict) -> None:
     """실패 사유를 stderr 마지막 줄로 — Studio 콘솔은 실패 때 stderr 꼬리 6줄만 보여 주는데, 사유는
-    stdout 의 결과 줄에만 있었다. 사유 코드(있으면)를 앞에 둔다."""
+    stdout 의 결과 줄에만 있었다. 사유 코드(있으면)를 앞에 둔다. 여러 줄 예외는 결과 줄에서 `LINE_SEP` 로
+    이어져 있으므로 다시 나눠 줄마다 찍는다(Studio 콘솔은 줄당 220자에서 자른다)."""
+    from genon.preprocessor.worker.errors import LINE_SEP
+
     error = result.get("error") or {}
-    first, *rest = str(error.get("message") or "").splitlines() or [""]
+    first, *rest = str(error.get("message") or "").split(LINE_SEP)
     log.error("단건 실행 실패(%s): %s", error.get("reason_code") or error.get("type"), first)
     for line in rest:
         log.error("%s", line)

@@ -284,8 +284,8 @@ def _load_parsed(artifact_root: str, ref: str):
     except UnicodeDecodeError:
         reason = "UTF-8 텍스트가 아님"
     raise GenosServiceException(
-        1, f"청커 입력을 parse 결과 JSON 으로 읽지 못했습니다({reason}). 단건 실행이면 parse 액티비티 결과 "
-           f"JSON 을 넣었는지(원본 문서가 아닌지), 배치면 parse 산출물이 온전한지 확인하세요.",
+        1, f"chunker 입력을 parse 결과 JSON 으로 읽지 못함({reason})\n"
+           "단건 실행이면 원본 문서가 아닌 parse activity 결과 JSON 을 넣었는지, 배치면 parse 결과 파일이 온전한지 확인 필요",
         error_type="permanent", reason_code="CHUNK_P004")
 
 
@@ -295,7 +295,7 @@ def execute(proc, stage: str, arg: dict) -> dict:
     started = time.monotonic()
     name = activity.info().activity_type
     doc = _doc(arg)
-    where = f"액티비티 {name} · 파일 {Path(doc).name if doc else '-'}"
+    where = f"activity {name} · 파일 {Path(doc).name if doc else '-'}"
     request = mock_request()
     tag_token = DOC_TAG.set(doc_tag(stage, doc))
     try:

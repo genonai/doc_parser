@@ -152,14 +152,14 @@ def toc_off_reason(raw_enrichment: Any) -> tuple[str, str]:
     """
     if isinstance(raw_enrichment, dict):                       # 형식 A: enrichment: {do_toc: …}
         return (f"enrichment.do_toc: {str(raw_enrichment.get('do_toc', True)).lower()}",
-                "enrichment.do_toc: true 와 toc 접속 정보를 지정하세요")
+                "enrichment.do_toc: true 와 toc 접속 정보 지정 필요")
     for item in raw_enrichment or []:                          # 형식 B: enrichment: [{toc: {…}}, …]
         for name, opts in _as_dict(item).items():
             if str(name).lower() in _ENRICHMENT_LIST_NAMES["toc"]:
                 enabled = _as_dict(opts).get("enable", True)
                 return (f"toc.enable: {str(enabled).lower()}",
-                        "toc.enable: true 로 바꾸고 toc.model_preset 을 지정하세요")
-    return ("toc 항목 없음", "enrichment 에 toc 항목(enable: true, model_preset)을 넣으세요")
+                        "toc.enable: true 로 바꾸고 toc.model_preset 지정 필요")
+    return ("toc 항목 없음", "enrichment 에 toc 항목(enable: true, model_preset) 추가 필요")
 
 
 # enricher 이름 alias 매핑

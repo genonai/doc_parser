@@ -81,8 +81,8 @@ def _load_hf_tokenizer(source):
         detail = next((line.strip() for line in str(exc).splitlines() if line.strip()), type(exc).__name__)
         raise GenosServiceException(
             1,
-            f"chunking.tokenizer_type 이 huggingface 인데 토크나이저 {source} 를 불러오지 못했습니다: "
-            f"{detail[:150].rstrip('.')}. chunking.tokenizer_path 에 토크나이저 폴더를 두거나 tokenizer_type 을 char 로 바꾸세요.",
+            f"huggingface tokenizer 로드 실패: {source} ({detail[:150].rstrip('.')})\n"
+            "chunking.tokenizer_path 에 tokenizer 폴더 지정 또는 tokenizer_type=char 로 변경 필요",
             error_type="permanent",
         ) from exc
 

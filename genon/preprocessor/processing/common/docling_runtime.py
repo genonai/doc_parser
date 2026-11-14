@@ -88,7 +88,7 @@ class DoclingRuntimeBase:
     # 안내 문구에 적을, 실제로 읽은 설정 파일(#627). 모르면 None — 문구가 "이 액티비티의 config.yaml" 로 쓴다.
     _config_label: str | None = None
     # 설정에서 목차 추출이 꺼진 상태·켜는 방법(요청 toc=1 을 무시할 때 안내). __init__ 이 채운다.
-    _toc_off: tuple[str, str] = ("toc 항목 없음", "enrichment 에 toc 항목(enable: true, model_preset)을 넣으세요")
+    _toc_off: tuple[str, str] = ("toc 항목 없음", "enrichment 에 toc 항목(enable: true, model_preset) 추가 필요")
 
     def __init__(self, config: dict | None = None, config_path: str | None = None):
         cfg = _as_dict(config)

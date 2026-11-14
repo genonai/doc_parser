@@ -659,8 +659,8 @@ class ChunkerCore:
             raise cq.all_rejected_error(validation)
         if not vector_metas and not notes["dropped"]:
             raise GenosServiceException(
-                1, "청크를 하나도 만들지 못했습니다: 분할 결과가 0건입니다. processor.py 에서 edit_input 이나 "
-                   "split 을 고쳤다면 반환값이 비지 않았는지 확인하세요.",
+                1, "chunk 0건: 분할 결과 없음\n"
+                   "processor.py 의 edit_input·split 을 고쳤다면 반환값이 비지 않았는지 확인 필요",
                 error_type="permanent", reason_code="CHUNK_D001")
         if not vector_metas:
             # 실패로 바꾸지는 않는다 — 청크를 거르는 것은 edit_chunk 의 정당한 동작이다(#364).
@@ -831,7 +831,7 @@ class ChunkerCore:
                 cause = "parse 의 문서 유형 설정에서 그 필드의 값 형식을 확인하세요. "
             raise GenosServiceException(
                 "1",
-                f"행 메타데이터를 청크 필드로 옮기지 못했습니다(행 #{notes['chunk_idx']}). "
+                f"행 메타데이터를 chunk 필드로 옮기지 못함(행 #{notes['chunk_idx']}): "
                 f"{cause}{_validation_summary(exc)}",
                 stage="custom_fields", error_type="permanent", reason_code="CHUNK_P001",
             ) from exc
@@ -1310,12 +1310,12 @@ class ChunkerCore:
             except OSError as exc:
                 code, kind = os_error_reason(exc, "CHUNK")
                 raise GenosServiceException(
-                    1, f"chunker 입력 파일 로드 실패({file_path}): {exc}",
+                    1, f"chunker 입력 파일 로드 실패: {file_path} ({exc})",
                     error_type=kind, reason_code=code) from exc
             except Exception as exc:
                 # JSON 문법 손상 등 파서 산출물 자체의 문제다.
                 raise GenosServiceException(
-                    1, f"chunker 입력 파일 로드 실패({file_path}): {exc}",
+                    1, f"chunker 입력 파일 로드 실패: {file_path} ({exc})",
                     error_type="permanent", reason_code="CHUNK_P004") from exc
         if not raw_payload:
             if file_path and not file_path.lower().endswith(".json"):
@@ -1600,7 +1600,7 @@ class ChunkerCore:
                 cause = (f"{_validation_summary(exc)}. parse 와 chunk 를 같은 전처리기 버전으로 실행했는지 "
                          f"확인하고, 같다면 parse 를 다시 실행하세요.")
             raise GenosServiceException(
-                1, f"parse 결과의 docling 문서를 복원하지 못했습니다: {cause}", error_type="permanent",
+                1, f"parse 결과의 docling 문서 복원 실패: {cause}", error_type="permanent",
                 reason_code="CHUNK_P004") from exc
 
         has_text_items = False
@@ -1647,8 +1647,8 @@ class ChunkerCore:
         if emptied and not elements:
             # 훅이 목록을 비운 경우를 원천이 빈 경우와 가른다(#364).
             raise GenosServiceException(
-                1, f"청크를 하나도 만들지 못했습니다: processor.py 의 edit_input 이 elements {emptied}개를 모두 "
-                   f"걸러 빈 목록을 돌려줬습니다. 의도가 아니면 edit_input 의 반환값을 확인하세요.",
+                1, f"chunk 0건: processor.py 의 edit_input 이 elements {emptied}개를 모두 걸러 빈 목록 반환\n"
+                   "의도가 아니면 edit_input 반환값 확인 필요",
                 error_type="permanent", reason_code="CHUNK_D001")
 
         # 파서와 청커가 별개 요청이라 표 출력 설정은 프로세서 속성에만 있다. docling 경로
@@ -1692,8 +1692,9 @@ class ChunkerCore:
         rows = [el for el in elements if el.get("category") in self.ROW_CATEGORIES]
         if not rows:
             raise GenosServiceException(
-                1, f"청크를 하나도 만들지 못했습니다: elements {len(elements)}개 중 행(category "
-                   f"{cp.head_items(sorted(self.ROW_CATEGORIES))})이 없습니다. processor.py 의 ROW_CATEGORIES 를 확인하세요.",
+                1, f"chunk 0건: elements {len(elements)}개 중 행(category "
+                   f"{cp.head_items(sorted(self.ROW_CATEGORIES))}) 없음\n"
+                   "processor.py 의 ROW_CATEGORIES 확인 필요",
                 error_type="permanent", reason_code="CHUNK_D001")
         # 행 element 가 하나라도 있으면 이 경로로 오므로, 섞여 온 비-행 element 는 버려진다.
         # tabular_row 는 외부 파서도 만들 수 있는 일반 이름이라 조용한 축소를 로그로 드러낸다.
@@ -1777,8 +1778,8 @@ class ChunkerCore:
             chunks = [c for c in chunks if c.page_content]
         if not chunks:
             raise GenosServiceException(
-                1, f"청크를 하나도 만들지 못했습니다: chunking.text_cleanup 이 청크 {split_count}건을 모두 지웠습니다. "
-                   f"text_cleanup.rules 가 본문까지 지우지 않는지 확인하세요.",
+                1, f"chunk 0건: chunking.text_cleanup 이 chunk {split_count}건을 모두 지움\n"
+                   "text_cleanup.rules 가 본문까지 지우지 않는지 확인 필요",
                 error_type="permanent", reason_code="CHUNK_D001")
 
         return [jb.Chunk(

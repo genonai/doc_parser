@@ -1049,7 +1049,7 @@ async def test_validation_fails_document(values, code, reason_code):
     ("", {}, "입력이 비어 있습니다", "CHUNK_P002"),
     ("/nonexistent/parsed.json", {}, "로드 실패", "CHUNK_S003"),   # 없는 경로는 파일 오류다
     ("", {"document": {"foo": 1}}, "parse 결과로 읽을 수 없습니다", "CHUNK_P003"),
-    ("", {"document": {"schema_name": "DoclingDocument", "texts": "broken"}}, "복원하지 못했습니다", "CHUNK_P004"),
+    ("", {"document": {"schema_name": "DoclingDocument", "texts": "broken"}}, "복원 실패", "CHUNK_P004"),
 ])
 async def test_input_errors_are_permanent(file_path, kwargs, message, reason_code):
     """청커 입력 오류는 다시 시도해도 같으므로 permanent 이며 사유 코드가 실린다(#528).
@@ -1206,7 +1206,7 @@ _TEXT = {"category": "paragraph", "content": "본문 문단", "page": 1}
     (lambda cf: cf.DocumentProcessor(), [], {}, "elements 가 0개"),
     (lambda cf: cf.DocumentProcessor(), [{**_TEXT, "content": " "}] * 2, {}, "content 가 모두 비어"),
     (_emptying_edit_input, [_TEXT, _TEXT], {}, "edit_input 이 elements 2개를 모두 걸러"),
-    (_chunk_rule_drops_all, [_TEXT], {"text_cleanup": "safe"}, "text_cleanup 이 청크 1건을 모두 지웠습니다"),
+    (_chunk_rule_drops_all, [_TEXT], {"text_cleanup": "safe"}, "text_cleanup 이 chunk 1건을 모두 지움"),
 ], ids=["source-empty", "content-blank", "edit-input-emptied", "text-cleanup-removed"])
 async def test_zero_chunks_names_the_cause(make, elements, params, cause):
     cf = pytest.importorskip("facade.chunking_processor")
