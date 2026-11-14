@@ -71,7 +71,7 @@ formats:
     # HTML 을 파싱 전에 펼쳐 정리할지. auto(기본)=iframe·접힌 메뉴 등 docling 이 놓치는 구조가 보일 때만
     # | always=항상(본문 영역만 남기고 script/style 제거) | off=그대로 파싱
     flatten: auto
-  # 마크다운(.md): docling(기본)이면 docling 의 마크다운 파서로 읽어 제목·표 구조를 살리고
+  # 마크다운(.md): docling(기본)이면 docling 의 마크다운 parser 로 읽어 제목·표 구조를 살리고
   # enrichment(custom_fields 추출 등)까지 적용한다. 상품설명서(md) 같은 doc_type 이 custom_fields 를 쓰려면
   # docling 문서 객체(DoclingDocument)가 필요하다 — text 모드(langchain TextLoader)에는 enrichment 단계가 없다.
   md:
@@ -135,7 +135,7 @@ layout:
   # 페이지 구조(제목·본문·표·그림)를 찾는 모델. genos_layout(기본)=VLM 서버 | docling_layout=docling 내장 로컬 모델(서버 불필요)
   layout_model_type: "genos_layout"
   genos_layout:
-    # 레이아웃 VLM 서버의 모델 preset 이름(model_presets.yaml 의 키)
+    # layout VLM 서버의 모델 preset 이름(model_presets.yaml 의 키)
     model_preset: layout
     # 한 번에 묶어 처리할 페이지 수이자 동시에 VLM 에 보내는 요청 수. 기본 32. 늘리면 빨라지지만 서버 부하가 커진다
     page_batch_size: 128
@@ -321,7 +321,7 @@ enrichment:
   # 아래 model_preset(또는 url/model)으로 연결이 정해지면 custom_fields 의 LLM 사용 여부와 상관없이
   # 표 설명을 이 연결로 직접 만든다(권장). 그래야 custom_fields 가 LLM 을 쓰지 않는 문서유형(tabular/json 매핑)이나
   # 매칭 설정이 없는 문서에도 표 설명이 붙는다.
-  # 연결이 없으면 매칭된 문서형 custom_fields YAML 의 연결을 빌려 쓴다(그 경우 위 문서들은 제외).
+  # 연결이 없으면 매칭된 document 형식 custom_fields YAML 의 연결을 빌려 쓴다(그 경우 위 문서들은 제외).
   # 실패하면 경고만 남기고 표 설명 없이 계속한다.
   #
   # 한 번의 호출에 표를 몇 개 담을지는 입력(model_context_tokens)과 출력(max_tokens) 중
@@ -378,16 +378,16 @@ output:
   # 청킹 단계가 그 결과로 chunk 마다 라벨을 붙이거나 가린다(아래 guardrail 섹션 참고).
 
   # ── 표를 글로 쓰는 형식 ────────────────────────────────────────────────────
-  # 아래 두 키는 파서가 표를 직접 문자열로 낼 때 쓰인다.
+  # 아래 두 키는 parse 단계가 표를 직접 문자열로 낼 때 쓰인다.
   #   1) format 이 json/html/markdown 일 때의 파싱 출력
-  #   2) custom_fields 레코드형 문서의 표. `to_text` 변환 결과(예: monimo_event 의
+  #   2) custom_fields 레코드 단위 문서의 표. `to_text` 변환 결과(예: monimo_event 의
   #      DETAIL_HTML → DETAIL_TEXT)와, chunk 본문의 JSON·HTML 을 자동으로 평문으로 바꾼 결과가 모두 이 값을 따른다.
-  #      레코드형 문서는 파서가 chunk 본문을 완성해 넘기고 청킹 단계는 표를 다시 그리지 않으므로,
+  #      레코드 단위 문서는 parse 단계가 chunk 본문을 완성해 넘기고 청킹 단계는 표를 다시 그리지 않으므로,
   #      format: docling 이어도 이 값이 최종 chunk 의 표 모양이 된다.
   # format: docling 으로 청킹 단계(/chunker)에 넘기는 일반 문서(PDF·DOCX·HTML 등)의 표 모양은
   # activities/chunk/config.yaml 의 output 이 정한다. 최종 chunk 의 표 모양을 통일하려면
   # 두 설정의 table_format 을 같은 값으로 맞춘다(precheck_custom_fields.sh 가 다르면 경고한다).
-  # 레코드형 문서의 표 모양이 바뀌면 hash 로 만든 식별자(예: cs_ssf 의 BIZ_ID — 업무 데이터 한 건의 ID)도 바뀐다.
+  # 레코드 단위 문서의 표 모양이 바뀌면 hash 로 만든 식별자(예: cs_ssf 의 BIZ_ID — 업무 데이터 한 건의 ID)도 바뀐다.
   # markdown 은 병합 셀을 표현하지 못해 헤더 계층이 사라진다.
 
   # 표를 글로 낼 때의 형식(문서유형 레코드의 표 등). html(기본) | markdown
@@ -400,7 +400,7 @@ output:
 # whisper(음성 받아쓰기) 설정. 음성(.wav/.mp3/.m4a)을 처리할 때만 필요하다(선택).
 # 음성은 chunk_sec 초 단위로 잘라 동시에 받아쓰기를 요청하고, 결과를 이어 붙인다.
 # 아래 model~timestamp_granularities 는 받아쓰기 서버에 그대로 보내는 값이다.
-# 현재 파싱 액티비티(activities/parse/processor.py)의 ROUTES 에는 음성 경로가 없어 이 설정이 쓰이지 않는다.
+# 현재 파싱 activity(activities/parse/processor.py)의 ROUTES 에는 음성 경로가 없어 이 설정이 쓰이지 않는다.
 whisper:
   # 음성 받아쓰기(STT) 서버의 모델 preset 이름(model_presets.yaml 의 키)
   model_preset: whisper

@@ -1,5 +1,5 @@
 # 문서 유형 term(금융용어사전)의 custom_fields 설정 — Excel 의 한 행을 용어 하나로 읽는다.
-# custom_fields 는 doc_type 마다 원본에서 뽑을 필드와 그 규칙이다. 이 파일은 core 의 CustomFieldsEnricher 가 읽는다.
+# custom_fields 는 doc_type 마다 원본에서 뽑을 필드와 그 규칙이다. 이 파일은 `CustomFieldsEnricher` 가 읽는다.
 # fields 아래 키는 만들어 낼 필드 이름이고, 대부분 적재 테이블(GADFGTBFDP001)의 컬럼 이름과 같다.
 # BIZ_ID 는 원본이 준 항목 ID, GROUP_C 는 계열사 코드다(IFP 모니모·SLF 생명·SSF 화재·HPP 카드·SSS 증권).
 #

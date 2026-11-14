@@ -1,7 +1,7 @@
 # 청킹 전용 전처리기(/chunker) 설정 — GenOS Temporal 파이프라인의 chunk activity 가 읽는다.
 #
 # 이 activity(activities/chunk/processor.py)는 파싱 결과(docling 문서 JSON)를 받아 chunk 로 나누기만 한다.
-# 파일 읽기·OCR·레이아웃 분석·enrichment(그림 설명 등 덧붙이기)는 앞 단계인 parse activity 에서
+# 파일 읽기·OCR·layout 분석·enrichment(그림 설명 등 덧붙이기)는 앞 단계인 parse activity 에서
 # 끝났으므로 여기서는 하지 않는다. 그래서 ocr/layout/pdf_pipeline/enrichment 섹션은 두지 않고,
 # 없는 값은 코드 기본값을 쓴다.
 #
@@ -97,16 +97,16 @@ chunking:
   # 경계이고, `[` `]` 는 파이프라인이 붙인 `[표 검색 설명]` 라벨이다 — 지우면 표와
   # 라벨이 함께 깨진다. 실제 문서로 비교해 보려면 examples/text_cleanup/ 을 돌려 본다.
 
-  # chunk 크기를 무엇으로 셀지. char(기본)=글자 수 | huggingface=embedding 모델 토크나이저의 토큰 수
+  # chunk 크기를 무엇으로 셀지. char(기본)=글자 수 | huggingface=embedding 모델 tokenizer 의 토큰 수
   # (아래 tokenizer_path/tokenizer_id 사용). 바꾸면 chunk_size 의 단위가 바뀐다
   tokenizer_type: "char"
-  # huggingface 모드에서 쓸 토크나이저 폴더 경로(인터넷이 막힌 환경용). 이 경로가 없으면 tokenizer_id 로 받는다. char 모드면 쓰지 않는다
+  # huggingface 모드에서 쓸 tokenizer 폴더 경로(인터넷이 막힌 환경용). 이 경로가 없으면 tokenizer_id 로 받는다. char 모드면 쓰지 않는다
   tokenizer_path: "/models/doc_parser_models/sentence-transformers-all-MiniLM-L6-v2"
   # huggingface 모드에서 tokenizer_path 가 없을 때 쓸 Hugging Face 모델 ID. char 모드면 쓰지 않는다
   tokenizer_id: "sentence-transformers/all-MiniLM-L6-v2"
 
   # parse-format(docling 이 아닌 입력)을 글자 단위로 나누는 splitter 설정.
-  # 파서가 docling 문서를 만들지 않는 입력은 parse-format({"elements":[...]})으로 들어오고, 그중 일반 텍스트는
+  # parse 단계가 docling 문서를 만들지 않는 입력은 parse-format({"elements":[...]})으로 들어오고, 그중 일반 텍스트는
   # RecursiveCharacterTextSplitter 로 나눈다. 크기는 위 chunk_size 를 쓴다.
   # audio([AUDIO])·csv/xlsx([DA])처럼 vector 하나로 적재하는 입력과 레코드(행) chunk 에는 적용하지 않는다.
   # 우선순위: 요청 파라미터(chunk_overlap/recursive_chunk_overlap) > 아래 값 > 코드 기본값(100).
@@ -136,10 +136,10 @@ table_image:
   # 파싱 단계가 저장한 표 이미지를 chunk 결과의 media_files 에 type='table_image' 로 싣고 함께 올릴지. false(기본) | true
   enable: false
 
-# 표를 텍스트로 바꾸는 방식. 파서와 청커는 따로 호출되므로 파서 설정이 넘어오지 않는다 —
+# 표를 텍스트로 바꾸는 방식. parse 단계와 chunk 단계는 따로 호출되므로 parse 단계 설정이 넘어오지 않는다 —
 # /chunker 로 들어오는 일반 문서(PDF·DOCX·HTML 등)의 표 모양은 여기서 정한다.
-# custom_fields 레코드형 문서는 파서가 chunk 본문을 다 만들어 넘기므로, 그 표 모양은
-# 파서 설정(activities/parse/config.yaml)의 output.table_format 이 정한다(여기서 다시 그리지 않는다).
+# custom_fields 레코드 단위 문서는 parse 단계가 chunk 본문을 다 만들어 넘기므로, 그 표 모양은
+# parse 단계 설정(activities/parse/config.yaml)의 output.table_format 이 정한다(여기서 다시 그리지 않는다).
 # 최종 chunk 의 표 모양을 맞추려면 두 설정의 table_format 을 같은 값으로 둔다
 # (precheck_custom_fields.sh 가 같은 폴더의 두 값이 다르면 경고한다).
 # markdown 은 병합 셀을 표현하지 못해 헤더의 상하 관계가 사라진다.
@@ -158,8 +158,8 @@ output:
   table_text_formats: []
 
 guardrail:
-  # 민감정보 분류 — 분류 workflow 는 파서가 부르고, 청커는 직접 부르지 않는다.
-  # 청커는 파서가 넘긴 sensitive_infos(찾아 낸 민감정보 목록)를 chunk 에 적용하며, 여기서는 가릴지만 정한다.
+  # 민감정보 분류 — 분류 workflow 는 parse 단계가 부르고, chunk 단계는 직접 부르지 않는다.
+  # chunk 단계는 parse 단계가 넘긴 sensitive_infos(찾아 낸 민감정보 목록)를 chunk 에 적용하며, 여기서는 가릴지만 정한다.
 
   # 파싱 단계가 찾은 민감정보를 chunk 본문에서 가림 문자열로 바꿀지. false(기본) | true.
   # 분류 라벨(guardrail_categories)은 이 값과 관계없이 붙는다
