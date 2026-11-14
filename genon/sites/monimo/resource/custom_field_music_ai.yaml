@@ -1,0 +1,33 @@
+# 모니모 뮤직 AI 플레이리스트 문구 JSON 레코드
+#
+# 입력 예시 (BOM 이 붙은 UTF-8 이어도 된다):
+#   {"wcmsData": {"html": {}, "json": {"playList": [
+#     {"text": "깊은 밤, 조명과 함께\n듣기 좋은 음악", "landingType": "EVENT"}]}}}
+#
+# playList 항목 하나가 청크 하나다. records_at 은 점 경로가 아니라 키 이름이며
+# 임의 깊이에서 찾는다(wcmsData.json 아래의 playList 를 찾는다).
+
+schema: v2
+source:
+  kind: records
+  records_at: playList
+  on_missing: error
+fields:
+  BIZ_ID:
+    # 원천에 ID 가 없어 문구를 해시로 코드화한다.
+    template: "{{TXT}}"
+    transform: {name: hash, prefix: MUSIC_AI_, length: 16}
+  GROUP_C:
+    const: IFP
+  TXT:
+    alias: [text]
+    transform: to_text
+  LAND_TYPE:
+    alias: [landingType]
+    default: null
+require:
+  fields: [TXT]
+# 본문 필드가 하나뿐이라 레이블을 붙이지 않는다.
+body:
+  fields: [TXT]
+  split: true

@@ -200,7 +200,7 @@ chunk_request = {"file_path": original_path,
 | 문서유형(`doc_type`) | 입력 형태 | 나올 수 있는 코드 |
 |---|---|---|
 | menu, term | 엑셀 행 | `PARSE_D001` 필수 열 부재(시트를 지정하지 않아 모든 시트를 읽으므로 필수 열이 없는 시트가 하나라도 있으면 발생), `PARSE_D004` 열 이름 중복. 설정에 `source.sheets` 를 적으면 `PARSE_D013` 지정 시트 없음도 나옵니다 |
-| faq, cs_slf, monimo_event | JSON 레코드(배열 위치 지정) | `PARSE_D010` JSON 문법 손상, `PARSE_D002` 지정한 레코드 배열 부재 |
+| faq, cs_slf, monimo_event, music_ai | JSON 레코드(배열 위치 지정) | `PARSE_D010` JSON 문법 손상, `PARSE_D002` 지정한 레코드 배열 부재 |
 | cs_hpp, cs_sss | JSON 레코드(배열 위치 자동 선택) | `PARSE_D010`, `PARSE_D002`, `PARSE_P005` 레코드 배열 후보를 구별할 수 없음 |
 | cs_ssf, stock_insight | 구분자로 나뉜 레코드 | `PARSE_D011` 비어 있지 않은 원천에서 지정 구분자로 레코드를 얻지 못함 |
 | product_hpp | 중첩 JSON 섹션 | `PARSE_D010`, `PARSE_D003` 필수 공통 필드 공백 |
