@@ -106,16 +106,16 @@ def _handle_stage_error(exc: Exception, stage: str) -> None:
         # 원인 원문은 길 수 있어 맨 끝에 둔다 — 콘솔(220자)·GenOS(약 500자)에서 앞의 안내가 먼저 보인다.
         raise GenosServiceException(
             "1",
-            f"enrichment 의 {stage} 단계가 실패해 파싱을 멈췄습니다(요청 error_policy=strict). "
-            f"요청에서 error_policy 를 빼면 이 단계만 건너뛰고 계속합니다. 원인: {exc}",
+            f"enrichment {stage} 단계 실패로 파싱 중단(error_policy=strict): {exc}\n"
+            "요청에서 error_policy 를 빼면 이 단계만 건너뛰고 계속함",
             stage=stage, error_type=error_type,
             reason_code=reason_of(exc) or _llm_reason(exc, error_type),
         ) from exc
     effect = _STAGE_EFFECT.get(stage, stage)
     action = ("" if stage == "doc_type_stamp" else
-              f"이 액티비티 config.yaml 의 enrichment 에서 {stage} 항목(model_preset 접속 정보 등)을 확인하세요. ")
-    _log.warning(f"[parser] enrichment 의 {stage} 단계를 건너뜁니다 — 결과에 {effect} 없이 계속합니다. "
-                 f"{action}원인({error_type}): {exc}")
+              f" 이 activity config.yaml 의 enrichment 에서 {stage} 항목(model_preset 접속 정보 등) 확인 필요")
+    _log.warning(f"enrichment {stage} 단계 건너뜀, 결과에 {effect} 없음 "
+                 f"(원인 {error_type}: {exc}){action}")
 
 
 #: enrichment 단계가 실패하면 결과에서 빠지는 것(lenient 경고 문구).
@@ -380,14 +380,14 @@ class IntelligentDocumentProcessor(DoclingRuntimeBase):
         want_toc = bool(_as_int_flag(kwargs.get("toc"), 1 if cur_toc else 0))
         if want_toc != cur_toc:
             if want_toc and not str(getattr(options, "toc_api_base_url", "") or ""):
-                where = self._config_label or "이 액티비티의 config.yaml"
+                where = self._config_label or "이 activity 의 config.yaml"
                 state, fix = self._toc_off
                 _log.warning(
-                    f"[parser] 요청 toc=1 을 무시하고 목차 추출 없이 파싱합니다 — {where} 에서 목차 추출이 "
-                    f"꺼져 있습니다({state}). 쓰려면 그 파일에서 {fix}.")
+                    f"요청 toc=1 무시, 목차 추출 없이 파싱함: {where} 에서 목차 추출 꺼짐({state})")
+                _log.warning(f"사용하려면 그 파일에서 {fix}")
             else:
                 options = _copy_enrichment_options(options, do_toc_enrichment=want_toc)
-                _log.info(f"[parser] 요청 toc={int(want_toc)} 에 따라 목차 추출을 {'켭니다' if want_toc else '끕니다'}.")
+                _log.info(f"목차 추출 요청 값 적용: toc={int(want_toc)}")
         try:
             document = enrich_document(document, options, **kwargs)
             return document
@@ -476,10 +476,10 @@ class GenericDocumentLoader:
             # 모르는 확장자라도 내용이 텍스트면 TextLoader 로 읽는다. Unstructured 는 무거운
             # 선택 의존이라 오프라인 배포본에는 없을 수 있는데, 그때 ImportError 로 죽는 대신
             # 최소한 본문은 살린다. 구조(헤딩/표)까지 살리려면 아래 안내대로 별칭을 지정한다.
+            _log.warning(f"확장자 '{ext}' 알 수 없음: 제목·표 구조 없는 텍스트로 읽음")
             _log.warning(
-                f"[parser] 확장자 '{ext}' 를 몰라 제목·표 구조 없는 텍스트로 읽습니다. 표준 포맷으로 "
-                "처리하려면 이 액티비티 config.yaml 의 formats.extension_aliases 에 "
-                f"'{ext}' 별칭을 지정하세요(예: \"{ext}\": \".md\")."
+                "표준 포맷으로 처리하려면 이 activity config.yaml 의 formats.extension_aliases 에 "
+                f"'{ext}' 별칭 지정 필요 (예: \"{ext}\": \".md\")"
             )
             return TextLoader(file_path)
         else:
@@ -493,9 +493,9 @@ class GenericDocumentLoader:
             # 알 수 있게 바꿔 던진다(텍스트 파일은 위에서 TextLoader 로 빠지므로 여기 안 온다).
             raise GenosServiceException(
                 "1",
-                f"{os.path.basename(file_path)} 의 형식은 unstructured 패키지가 있어야 처리되는데 이 "
-                f"전처리기 이미지에 없습니다. 표준 포맷으로 변환해 올리거나 이 액티비티 config.yaml 의 "
-                f"formats.extension_aliases 로 처리할 포맷을 지정하세요. 원인: {exc}",
+                f"{os.path.basename(file_path)} 처리 실패: unstructured 패키지 없음 ({exc})\n"
+                "표준 포맷으로 변환해 올리거나 이 activity config.yaml 의 "
+                "formats.extension_aliases 로 포맷 지정 필요",
                 error_type="permanent", reason_code="PARSE_S002",
             ) from exc
         ext = os.path.splitext(file_path)[-1].lower()
@@ -678,8 +678,8 @@ class ParserCore:
                 whisper_cfg.get("chunk_sec", attach_cfg.get("whisper_chunk_sec", 29))
             )
         except (TypeError, ValueError):
-            _log.warning("[parser] whisper.chunk_sec 값이 정수가 아니라 기본값 29초로 자릅니다. "
-                         f"{self._config_label} 의 whisper.chunk_sec 를 정수로 고치세요.")
+            _log.warning("whisper.chunk_sec 값이 정수 아님: 기본값 29초로 자름, "
+                         f"{self._config_label} 의 whisper.chunk_sec 를 정수로 수정 필요")
             self._whisper_chunk_sec = 29
 
         try:
@@ -687,8 +687,8 @@ class ParserCore:
                 whisper_cfg.get("chunk_overlap_ms", attach_cfg.get("whisper_chunk_overlap_ms", 300))
             )
         except (TypeError, ValueError):
-            _log.warning("[parser] whisper.chunk_overlap_ms 값이 정수가 아니라 기본값 300ms 로 겹칩니다. "
-                         f"{self._config_label} 의 whisper.chunk_overlap_ms 를 정수로 고치세요.")
+            _log.warning("whisper.chunk_overlap_ms 값이 정수 아님: 기본값 300ms 로 겹침, "
+                         f"{self._config_label} 의 whisper.chunk_overlap_ms 를 정수로 수정 필요")
             self._whisper_chunk_overlap_ms = 300
 
         output_cfg = _as_dict(cfg.get("output"))
@@ -757,8 +757,8 @@ class ParserCore:
     def _normalize_output_format(value: Any) -> str:
         fmt = str(value).strip().lower()
         if fmt not in {"json", "html", "markdown", "docling"}:
-            _log.warning(f"[parser] output.format '{value}' 를 알 수 없어 json 으로 출력합니다. "
-                         "이 액티비티 config.yaml 의 output.format 을 json·html·markdown·docling 중 하나로 고치세요.")
+            _log.warning(f"output.format='{value}' 알 수 없음: json 으로 출력함, "
+                         "이 activity config.yaml 의 output.format 을 json·html·markdown·docling 중 하나로 지정 필요")
             return "json"
         return fmt
 
@@ -772,8 +772,8 @@ class ParserCore:
         mode = str(value).strip().lower()
         if mode not in {"auto", "always", "off"}:
             _log.warning(
-                f"[parser] formats.html.flatten '{value}' 를 알 수 없어 auto 로 처리합니다. "
-                "이 액티비티 config.yaml 의 formats.html.flatten 을 auto·always·off 중 하나로 고치세요."
+                f"formats.html.flatten='{value}' 알 수 없음: auto 로 처리함, "
+                "이 activity config.yaml 의 formats.html.flatten 을 auto·always·off 중 하나로 지정 필요"
             )
             return "auto"
         return mode
@@ -838,7 +838,7 @@ class ParserCore:
         try:
             html = read_text_with_fallback(file_path)
         except Exception as exc:  # noqa: BLE001 - 인코딩·권한 등 어떤 실패든 보조 입력 부재로 본다
-            _log.warning(f"[parser] html_select 원문 읽기 실패({exc}) — 해당 필드는 비웁니다.")
+            _log.warning(f"html_select 원문 읽기 실패, 해당 필드 비움: {exc}")
             return
         html_select.stash_source_html(kwargs.get("_enrichment_context"), html)
 
@@ -865,9 +865,10 @@ class ParserCore:
         if ocr_mode != "disable" and yaml_ocr_mode == "disable" and not self._intel.ocr_endpoint:
             # 설정이 OCR 을 켠 경우는 기동 때 경고했다(pipeline_setup). 요청·CONFIG_BY_DOC_TYPE 이 켠 경우만 여기서.
             _log.warning(
-                f"[parser] 요청의 ocr_mode={ocr_mode} 로 OCR 을 켰지만 OCR 서버 주소(ocr.paddle 의 ocr_endpoint)가 "
-                f"비어 있어 스캔 페이지 OCR 과 표 칸 재OCR 이 동작하지 않습니다. model_presets.yaml 의 ocr 프리셋에 "
-                f"ocr_endpoint 를 적으세요(설정 {self._config_label or '이 액티비티의 config.yaml'}).")
+                f"OCR 서버 주소 비어 있음: 요청 ocr_mode={ocr_mode} 이지만 스캔 페이지 OCR·표 칸 재OCR 동작 안 함")
+            _log.warning(
+                f"model_presets.yaml 의 ocr preset 에 ocr_endpoint(ocr.paddle) 지정 필요 "
+                f"(설정 {self._config_label or '이 activity 의 config.yaml'})")
 
         if ocr_mode == "force":
             with prof.stage("convert_ocr"):
@@ -883,7 +884,7 @@ class ParserCore:
                 reason = dops.reocr_reason(
                     verdict, self._intel.check_glyphs(document), self._intel.check_empty_text(document))
                 # 운영에서 비율을 세는 `verdict=… reason=…` 토큰은 줄 끝에 둔다.
-                _log.info(f"[parser] {_REOCR_SENTENCE.get(reason, '') or _REOCR_KEEP[verdict.value]} "
+                _log.info(f"{_REOCR_SENTENCE.get(reason, '') or _REOCR_KEEP[verdict.value]} "
                           f"({os.path.basename(file_path)}, ocr_mode=auto) "
                           f"verdict={verdict.value} reason={reason}")
                 if reason != "none":
@@ -893,10 +894,10 @@ class ParserCore:
         if (ocr_mode == "disable" and file_path.lower().endswith(".pdf")
                 and document.num_pages() > 0 and dops.has_no_text(document)):
             _log.warning(
-                f"[parser] PDF 본문에서 글자를 하나도 읽지 못했습니다({document.num_pages()}쪽). ocr_mode 가 "
-                f"disable 이라 스캔 PDF 는 빈 결과로 나갑니다. 스캔본이면 "
-                f"{self._config_label or '이 액티비티의 config.yaml'} 의 ocr.ocr_mode 를 auto 로 바꾸거나 "
-                f"요청 파라미터 ocr_mode=auto 로 다시 보내세요.")
+                f"PDF 본문 글자 0자 ({document.num_pages()}쪽): ocr_mode=disable 이라 스캔 PDF 면 "
+                f"빈 결과로 나감, 스캔본이면 "
+                f"{self._config_label or '이 activity 의 config.yaml'} 의 ocr.ocr_mode 를 auto 로 바꾸거나 "
+                f"요청 ocr_mode=auto 로 재요청 필요")
 
         if ocr_mode != "disable" and self._intel.ocr_endpoint:
             document = self._intel.ocr_all_table_cells(document, file_path)
@@ -951,18 +952,18 @@ class ParserCore:
             return self._hwp.load_documents(file_path, **kwargs)
         except Exception as sdk_err:
             if ext not in (".hwp", ".hwpx"):
-                _log.warning(f"[parser] {first}로 {name} 을 읽지 못했습니다. {ext} 는 다른 읽기 방법이 없어 "
-                             f"실패합니다. 원인: {sdk_err}")
+                _log.warning(f"{name}: {first}로 읽기 실패, {ext} 는 다른 읽기 방법이 없어 처리 실패 "
+                             f"— 원인: {sdk_err}")
                 raise
-            _log.warning(f"[parser] {first}로 {name} 을 읽지 못해 SDK 없는 기본 HWP 해석기로 다시 읽습니다. "
-                         f"원인: {sdk_err}")
+            _log.warning(f"{name}: {first}로 읽기 실패, SDK 없는 기본 HWP 해석기로 다시 읽음 "
+                         f"— 원인: {sdk_err}")
             try:
                 return self._hwp.load_documents(
                     file_path, **dict(kwargs, use_hwp_sdk=False)
                 )
             except Exception as backend_err:
-                _log.warning(f"[parser] 기본 HWP 해석기로도 {name} 을 읽지 못해 LibreOffice 로 PDF 변환 뒤 "
-                             f"다시 읽습니다. 원인: {backend_err}")
+                _log.warning(f"{name}: 기본 HWP 해석기로도 읽기 실패, LibreOffice PDF 변환 뒤 다시 읽음 "
+                             f"— 원인: {backend_err}")
                 # 모든 백엔드 실패 시 LibreOffice → PDF → intelligent 경로
                 converted = convert_to_pdf(file_path, kwargs.get("_pdf_policy"))
                 if converted:
@@ -972,15 +973,13 @@ class ParserCore:
                 if not _is_libreoffice_available():
                     raise GenosServiceException(
                         1,
-                        f"이 전처리기 이미지에는 PDF 변환기(LibreOffice)가 설치되어 "
-                        f"있지 않아 '{os.path.basename(file_path)}' 처리에 실패했습니다. "
-                        f"PDF 로 변환한 파일을 입력하거나, 변환기를 포함해 전처리기 이미지를 다시 "
-                        f"빌드하세요 (genon/README.md 참고).",
+                        f"{os.path.basename(file_path)} 처리 실패: PDF 변환기(LibreOffice) 없음\n"
+                        "PDF 로 변환해 입력하거나 변환기를 포함해 전처리기 이미지 재빌드 필요 (genon/README.md)",
                         error_type="permanent", reason_code="PARSE_S002",
                     ) from sdk_err
-                _log.warning(f"[parser] {name} 을 {first}·기본 HWP 해석기·LibreOffice PDF 변환 모두로 읽지 "
-                             f"못했습니다. 파일이 손상됐거나 암호가 걸렸는지 확인하고, 한글에서 PDF 로 저장해 "
-                             f"올려 보세요. 첫 원인: {sdk_err}")
+                _log.warning(f"{name}: {first}·기본 HWP 해석기·LibreOffice PDF 변환 모두 읽기 실패 "
+                             f"({first} 오류={sdk_err})")
+                _log.warning("파일 손상·암호 설정 여부 확인, 또는 한글에서 PDF 로 저장해 업로드 필요")
                 raise sdk_err
 
     def _parse_docx(self, file_path: str, **kwargs) -> DoclingDocument:
@@ -1050,7 +1049,7 @@ class ParserCore:
                 # 파일 오류는 원천 형식 오류가 아니다. 성격을 errno 로 나눈다(#528).
                 code, kind = os_error_reason(exc, "PARSE")
                 raise GenosServiceException(
-                    "1", f"Markdown 입력을 읽을 수 없습니다: {Path(file_path).name} ({exc})",
+                    "1", f"Markdown 입력 읽기 실패: {Path(file_path).name} ({exc})",
                     stage="custom_fields", error_type=kind, reason_code=code,
                 ) from exc
             except ValueError as exc:
@@ -1074,7 +1073,7 @@ class ParserCore:
                 try:
                     source = Path(file_path).read_text(encoding="utf-8-sig")
                 except (OSError, UnicodeError) as exc:
-                    _log.warning(f"[DocumentProcessor] markdown.sections 입력 읽기 실패: {exc}")
+                    _log.warning(f"source.pre.markdown.sections 입력 읽기 실패: {exc}")
                     return file_path, context
             try:
                 selected, removed = sections_spec.apply(source)
@@ -1085,8 +1084,8 @@ class ParserCore:
                 ) from exc
             if removed:
                 _log.info(
-                    f"[DocumentProcessor] markdown.sections: 헤딩 {removed}개 기준으로 섹션을 "
-                    f"제외 ({Path(file_path).name})"
+                    f"{Path(file_path).name}: source.pre.markdown.sections 설정으로 섹션 제외 "
+                    f"(지운 heading={removed}개)"
                 )
                 text = selected
 
@@ -1097,13 +1096,13 @@ class ParserCore:
                     source = Path(file_path).read_text(encoding="utf-8-sig")
                 except (OSError, UnicodeError) as exc:
                     # 읽을 수 없으면 전처리를 건너뛰고 원본 경로로 파싱한다(기존 동작).
-                    _log.warning(f"[DocumentProcessor] markdown.text_fence 입력 읽기 실패: {exc}")
+                    _log.warning(f"source.pre.markdown.text_fence 입력 읽기 실패: {exc}")
                     return file_path, context
             fenced, converted = fence_spec.apply(source)
             if converted:
                 _log.info(
-                    f"[DocumentProcessor] markdown.text_fence: {converted}개 펜스 블록을 "
-                    f"단락으로 복원 ({Path(file_path).name})"
+                    f"{Path(file_path).name}: source.pre.markdown.text_fence 설정으로 "
+                    f"code fence 블록 {converted}개를 단락으로 복원"
                 )
                 text = fenced
 
@@ -1119,14 +1118,14 @@ class ParserCore:
                     source = Path(file_path).read_text(encoding="utf-8-sig")
                 except (OSError, UnicodeError) as exc:
                     _log.warning(
-                        f"[DocumentProcessor] markdown.marker_headings 입력 읽기 실패: {exc}"
+                        f"source.pre.marker_headings 입력 읽기 실패: {exc}"
                     )
                     return file_path, context
             promoted, count = promote_markdown_marker_headings(source)
             if count:
                 _log.info(
-                    f"[DocumentProcessor] markdown.marker_headings: {count}개 마커 줄을 "
-                    f"heading 으로 승격 ({Path(file_path).name})"
+                    f"{Path(file_path).name}: 도형 기호 소제목 {count}줄을 markdown 제목(#)으로 바꿈 "
+                    f"(설정 source.pre.marker_headings)"
                 )
                 text = promoted
 
@@ -1163,7 +1162,7 @@ class ParserCore:
         try:
             raw = Path(file_path).read_text(encoding="utf-8", errors="replace")
         except OSError as exc:
-            _log.warning(f"[parser] html flatten 사전검사 실패(원본으로 진행): {exc}")
+            _log.warning(f"html flatten 사전검사 실패(원본으로 진행): {exc}")
             return file_path
 
         reasons = html_flatten.precheck_html(raw, detect_marker_headings=marker_headings)
@@ -1177,14 +1176,14 @@ class ParserCore:
             )
         except Exception as exc:
             # 전처리 실패가 파싱 자체를 막지 않도록 원본으로 폴백한다.
-            _log.warning(f"[parser] html flatten 실패(원본으로 진행): {exc}")
+            _log.warning(f"html flatten 실패(원본으로 진행): {exc}")
             return file_path
 
         out_path = os.path.join(work_dir, f"{stem}.html")
         with open(out_path, "w", encoding="utf-8") as fp:
             fp.write(flattened)
         _log.info(
-            f"[parser] html flatten 적용(mode={self._html_flatten_mode}, "
+            f"html flatten 적용(mode={self._html_flatten_mode}, "
             f"사유={reasons or 'always'}): {len(raw):,} → {len(flattened):,} bytes"
         )
         return out_path
@@ -1209,9 +1208,9 @@ class ParserCore:
             return
         if html_flatten.looks_thin(raw_size, text_len):
             _log.warning(
-                f"[parser] HTML 추출 텍스트가 비정상적으로 적습니다 "
-                f"({raw_size:,} bytes → {text_len:,}자). 본문이 스크립트/동적 렌더링에만 "
-                f"있을 수 있습니다: {os.path.basename(file_path)}"
+                f"{os.path.basename(file_path)}: HTML 추출 텍스트 적음 "
+                f"({raw_size:,} bytes → {text_len:,}자), 본문이 스크립트·동적 렌더링 안에만 "
+                f"있는지 확인 필요"
             )
 
     async def _load_json_payload(self, file_path: str, doc_type: Any = None, /, **kwargs) -> Any:
@@ -1233,7 +1232,7 @@ class ParserCore:
         except OSError as exc:
             code, kind = os_error_reason(exc, "PARSE")
             raise GenosServiceException(
-                "1", f"JSON 파일을 읽을 수 없습니다: {os.path.basename(file_path)} ({exc})",
+                "1", f"JSON 파일 읽기 실패: {os.path.basename(file_path)} ({exc})",
                 error_type=kind, reason_code=code,
             ) from exc
         try:
@@ -1249,7 +1248,7 @@ class ParserCore:
                 ".json", {**kwargs, "doc_type": doc_type}, text)
             if not changed:
                 raise GenosServiceException(
-                    "1", f"JSON 파일을 읽을 수 없습니다: {os.path.basename(file_path)} ({exc})",
+                    "1", f"JSON 파일 읽기 실패: {os.path.basename(file_path)} ({exc})",
                     error_type="permanent", reason_code="PARSE_D010",
                 ) from exc
             return payload
@@ -1278,7 +1277,7 @@ class ParserCore:
                 )
             except (ValueError, FileNotFoundError, TypeError) as exc:
                 raise GenosServiceException(
-                    "1", f"llm_fields 설정 오류({spec.label}): {exc}", stage="custom_fields",
+                    "1", f"llm 설정 오류({spec.label}): {exc}", stage="custom_fields",
                     error_type="permanent", reason_code="PARSE_P004",
                 ) from exc
             self._llm_field_enrichers[spec] = enricher
@@ -1308,7 +1307,7 @@ class ParserCore:
             if not enricher.is_configured:
                 _log.warning(
                     f"[llm_fields] 비활성({spec.label}): url/model 설정이 "
-                    f"비어있어 {spec.output_fields} 를 null 로 둡니다."
+                    f"비어 {spec.output_fields} 를 null 로 둠"
                 )
                 for fields in fields_list:
                     for name in spec.output_fields:
@@ -1343,12 +1342,16 @@ class ParserCore:
                 kept.append(fields)
             if failed:
                 # silent 축소 방지 — 몇 건이 실패했고 어떻게 처리했는지 요약으로 드러낸다.
-                effect = ("그 레코드를 결과에서 뺐습니다" if spec.on_error == "skip_record"
-                          else f"그 레코드의 {_head(spec.output_fields)} 를 null 로 뒀습니다")
+                effect = ("실패한 레코드는 결과에서 뺌 (on_error=skip_record)" if spec.on_error == "skip_record"
+                          else f"실패한 레코드의 {_head(spec.output_fields)} 는 null 로 둠 "
+                               f"(on_error={spec.on_error})")
                 _log.warning(
-                    f"[llm_fields] custom_fields 의 llm_fields({spec.label}) LLM 필드 추출이 "
-                    f"{failed}/{len(fields_list)}건 실패해 {effect}(on_error={spec.on_error}). "
-                    f"그 항목의 모델 접속 정보(url·model)와 모델 서버 상태를 확인하세요. 첫 오류: {first_error}"
+                    f"[llm_fields] {spec.label}: LLM 필드 추출 {failed}/{len(fields_list)}건 실패, {effect}"
+                )
+                _log.warning(f"오류 예(처음 실패한 레코드): {first_error}")
+                _log.warning(
+                    f"custom_fields 의 llm({spec.label}) 가 쓰는 모델의 url·model 설정과 "
+                    f"모델 서버 상태 확인 필요"
                 )
             fields_list = kept
         return repack_records(mapper, fields_list)
@@ -1367,7 +1370,7 @@ class ParserCore:
             if not enricher.is_configured:
                 _log.warning(
                     f"[llm_fields] 비활성({spec.label}): url/model 설정이 "
-                    f"비어있어 {spec.output_fields} 를 null 로 둡니다."
+                    f"비어 {spec.output_fields} 를 null 로 둠"
                 )
                 for fields in fields_list:
                     for name in spec.output_fields:
@@ -1381,9 +1384,12 @@ class ParserCore:
                 )
             except Exception as exc:
                 _log.warning(
-                    f"[llm_fields] custom_fields 의 llm_fields({spec.label}) 문서 단위 LLM 필드 추출이 실패해 "
-                    f"{_head(spec.output_fields)} 를 null 로 둡니다. 그 항목의 모델 접속 정보(url·model)와 "
-                    f"모델 서버 상태를 확인하세요. 원인: {exc}")
+                    f"[llm_fields] {spec.label}: 문서 단위 LLM 필드 추출 실패, "
+                    f"{_head(spec.output_fields)} 는 null 로 둠")
+                _log.warning(f"오류: {exc}")
+                _log.warning(
+                    f"custom_fields 의 llm({spec.label}) 가 쓰는 모델의 url·model 설정과 "
+                    f"모델 서버 상태 확인 필요")
                 result = {name: None for name in spec.output_fields}
             for fields in fields_list:
                 fields.update(result)
@@ -1409,15 +1415,15 @@ class ParserCore:
         except OSError as exc:
             code, kind = os_error_reason(exc, "PARSE")
             raise GenosServiceException(
-                "1", f"원천을 읽을 수 없습니다: {os.path.basename(file_path)} ({exc})",
+                "1", f"원천 읽기 실패: {os.path.basename(file_path)} ({exc})",
                 error_type=kind, reason_code=code,
             ) from exc
         # 확장자 무관으로 입구가 넓어졌으므로(_route_delimited_records), doc_type 을 잘못
         # 짚은 원천(예: 진짜 마크다운)이 조용히 0건으로 끝나지 않게 막는다.
         if not records and os.path.getsize(file_path) > 0:
             raise GenosServiceException(
-                "1", f"구분자 {spec.separator!r} 로 나뉜 레코드가 없습니다: "
-                f"{os.path.basename(file_path)}. doc_type({doc_type}) 이 이 원천에 맞는지 확인하세요.",
+                "1", f"{os.path.basename(file_path)} 레코드 0건: 구분자 {spec.separator!r} 로 나뉜 레코드 없음\n"
+                f"doc_type({doc_type}) 이 이 원천에 맞는지 확인 필요",
                 error_type="permanent", reason_code="PARSE_D011",
             )
         return records
@@ -1454,8 +1460,8 @@ class ParserCore:
 
             fields_list = await self._apply_llm_fields(mapper, fields_list)
             _log.info(
-                f"[parser] json 레코드 {len(fields_list)}건 → element "
-                f"(records={getattr(mapper, 'records_key', None)})"
+                f"json 레코드 {len(fields_list)}건 → element "
+                f"(source.records_at={getattr(mapper, 'records_key', None)})"
             )
             # json 매퍼의 to_parse_format 은 이미 만들어진 fields 목록을 받는다
             # (tabular 는 같은 이름이 원시 data_dict 를 받아 이름이 어긋나 있다).
@@ -1487,7 +1493,7 @@ class ParserCore:
         except OSError as exc:
             code, kind = os_error_reason(exc, "PARSE")
             raise GenosServiceException(
-                "1", f"원천을 읽을 수 없습니다: {os.path.basename(file_path)} ({exc})",
+                "1", f"원천 읽기 실패: {os.path.basename(file_path)} ({exc})",
                 error_type=kind, reason_code=code,
             ) from exc
         except ValueError as exc:
@@ -1512,7 +1518,7 @@ class ParserCore:
                     reason_code=reason_of(exc)) from exc
             claimed_pages.update(claimed_row_pages(fields_list))
             fields_list = await self._apply_llm_fields(mapper, fields_list)
-            _log.info(f"[parser] tabular_mapping 행 {len(fields_list)}건 → element")
+            _log.info(f"tabular_mapping 행 {len(fields_list)}건 → element")
             results.append(mapper.to_parse_format_from_fields(
                 fields_list, runtime_doc_type,
                 table_format=getattr(self, "_table_format", "html"),
@@ -1528,9 +1534,12 @@ class ParserCore:
             ]
             if unclaimed:
                 _log.warning(
-                    f"[parser] 표 {len(unclaimed)}개({_head(unclaimed)})를 tabular_mapping 설정 "
-                    f"{len(mappers)}개 중 어느 것도 맡지 않아 그 표는 청크가 되지 않습니다(doc_type={runtime_doc_type}). "
-                    f"각 custom_fields 설정의 require.fields 와 alias 가 그 표의 머리글과 맞는지 확인하세요."
+                    f"시트 {len(unclaimed)}개({_head(unclaimed)})가 결과에서 빠짐: tabular_mapping 설정 "
+                    f"{len(mappers)}개 중 이 시트의 머리글과 일치하는 설정 없음 (doc_type={runtime_doc_type})"
+                )
+                _log.warning(
+                    "이 시트도 처리하려면 해당 custom_fields 설정의 require.fields·alias 가 "
+                    "시트 머리글(컬럼 이름)과 맞는지 확인 필요"
                 )
         return merge_parse_formats(results)
 
@@ -1595,8 +1604,8 @@ class ParserCore:
                          else _get_pdf_path(file_path))
             pdf_path = candidate if os.path.exists(candidate) else None
         if not pdf_path:
-            _log.warning(f"[parser] {os.path.basename(file_path)} 을 PDF 로 변환하지 못해 제목·표 구조와 페이지 "
-                         f"설명 없이 글자만 뽑습니다. LibreOffice(soffice)가 설치돼 있고 실행되는지 확인하세요.")
+            _log.warning(f"{os.path.basename(file_path)}: PDF 변환 실패, 제목·표 구조·페이지 설명 없이 "
+                         f"텍스트만 추출함, LibreOffice(soffice) 설치·실행 여부 확인 필요")
             return None
 
         with prof.stage("convert"):
@@ -1623,14 +1632,14 @@ class ParserCore:
             document.add_text(label=DocItemLabel.TEXT, text=text, prov=prov)
         pages = document.num_pages()
         if not self._page_desc_options.enabled:
-            _log.info(f"[parser] PPT {pages}쪽을 읽었습니다(페이지 설명 꺼짐: formats.ppt.page_description.enable).")
+            _log.info(f"PPT {pages}쪽 읽음 (페이지 설명 꺼짐: formats.ppt.page_description.enable)")
         elif pages and not described:
             _log.warning(
-                f"[parser] PPT 페이지 설명을 켰지만 {pages}쪽 중 한 쪽도 설명을 받지 못해 페이지 설명 없이 "
-                f"계속합니다. formats.ppt.page_description.model_preset 이 가리키는 모델 프리셋의 url 과 "
-                f"모델 서버 상태를 확인하세요(설정 {self._config_label or '이 액티비티의 config.yaml'}).")
+                f"PPT 페이지 설명 0/{pages}쪽: 페이지 설명 없이 계속함, "
+                f"formats.ppt.page_description.model_preset 이 가리키는 모델 preset 의 url·모델 서버 상태 "
+                f"확인 필요 (설정 {self._config_label or '이 activity 의 config.yaml'})")
         else:
-            _log.info(f"[parser] PPT {pages}쪽 중 {described}쪽에 페이지 설명을 붙였습니다.")
+            _log.info(f"PPT {pages}쪽 중 {described}쪽에 페이지 설명 붙임")
         return document
 
     async def _describe_record_tables(self, result: dict, **kwargs) -> dict:
@@ -1781,10 +1790,12 @@ class ParserCore:
                                                 ("api_key", self._gr_cfg.api_key))
                        if value in (None, "")]
             _log.warning(
-                f"[parser] 요청 guardrail_call=1 이지만 guardrail 접속 정보({'·'.join(missing)})가 비어 있어 "
-                f"민감정보 분류를 건너뜁니다. 결과에 sensitive_infos 가 없어 청크 마스킹도 되지 않습니다. "
-                f"model_presets.yaml 의 guardrail 프리셋(guardrail.model_preset 이 가리키는 이름)을 채우세요"
-                f"(설정 {self._config_label or '이 액티비티의 config.yaml'}).")
+                f"민감정보 분류 건너뜀: 요청 guardrail_call=1 이지만 "
+                f"guardrail 접속 정보({'·'.join(missing)}) 비어 있음")
+            _log.warning(
+                f"결과에 sensitive_infos 가 없어 chunk 마스킹도 안 됨. model_presets.yaml 의 guardrail "
+                f"preset(guardrail.model_preset 이 가리키는 이름) 지정 필요 "
+                f"(설정 {self._config_label or '이 activity 의 config.yaml'})")
         return resp
 
     @classmethod
@@ -2074,8 +2085,8 @@ class ParserCore:
             return await self.document_to_response(job, await self.parse_json_text(job))
 
         _log.info(
-            "[parser] custom_fields json 매칭 설정 없음 — 원문을 그대로 docling 으로 처리: "
-            f"{os.path.basename(job.source)}"
+            f"{os.path.basename(job.source)}: custom_fields json 매칭 설정 없음, "
+            "원문 그대로 docling 으로 처리"
         )
         return None
 
@@ -2156,10 +2167,10 @@ class ParserCore:
             # 후보 인코딩(utf-8-sig/utf-8/cp949)이 전부 실패한 원천. 레거시 TextLoader 는
             # chardet 감지와 errors="replace" 까지 있어 더 넓으므로 그쪽으로 넘긴다.
             _log.warning(
-                f"[parser] {os.path.basename(file_path)} 을 utf-8·cp949 로 읽지 못해 인코딩을 "
-                f"추정해 읽습니다. 깨진 글자는 대체 문자로 바뀌고 custom_fields·문서 요약·표 설명이 적용되지 "
-                f"않습니다. 원본을 UTF-8 로 저장해 올리면 정상 경로로 처리됩니다."
+                f"{os.path.basename(file_path)}: utf-8·cp949 로 읽기 실패, 인코딩 추정으로 읽음"
             )
+            _log.warning("깨진 글자는 대체 문자로 바뀌고 custom_fields·문서 요약·표 설명 적용 안 됨")
+            _log.warning("원본을 UTF-8 로 저장해 재업로드 필요")
             return None
         stem = Path(file_path).stem
         with tempfile.TemporaryDirectory(prefix="parser_text_") as work_dir:
@@ -2204,8 +2215,8 @@ class ParserCore:
                 source = ("config_by_condition()" if key in by_condition
                           else f'CONFIG_BY_DOC_TYPE["{job.doc_type}"]')
                 _log.warning(
-                    f"[parser] 설정 덮어쓰기 키 {key} 를 건너뜁니다 — 기동 때 정해져 요청마다 바꿀 수 없는 "
-                    f"설정입니다. processor.py 의 {source} 에서 빼고 config.yaml 에서 바꾸세요.")
+                    f"설정 덮어쓰기 키 {key} 건너뜀: 기동 시 정해져 요청마다 바꿀 수 없는 설정임, "
+                    f"processor.py 의 {source} 에서 빼고 config.yaml 에서 변경 필요")
                 continue
             if param in job.params:   # 요청이 보낸 값이 우선
                 continue
@@ -2214,7 +2225,7 @@ class ParserCore:
         job.config = applied
         if applied:
             _log.info(
-                f"[parser] doc_type={job.doc_type or '-'} 설정 덮어쓰기 {len(applied)}개를 적용합니다"
+                f"doc_type={job.doc_type or '-'} 설정 덮어쓰기 {len(applied)}개 적용 "
                 f"(CONFIG_BY_DOC_TYPE·config_by_condition): {_head([f'{k}={v}' for k, v in applied.items()])}")
 
     def _start_job(self, request, file_path: str, **kwargs) -> "jb.ParseJob":
@@ -2231,8 +2242,8 @@ class ParserCore:
         doc_type = self.resolve_doc_type(**kwargs)
         alias = f"{raw_ext} → {ext}(확장자 별칭)" if ext != raw_ext else ext
         _log.info(
-            f"[parser] 파싱 시작: {os.path.basename(file_path)} (확장자 {alias or '없음'}, "
-            f"doc_type={doc_type or '-'}, 설정 {self._config_label or '-'})")
+            f"parsing 시작: {os.path.basename(file_path)} (확장자={alias or '없음'}, "
+            f"doc_type={doc_type or '-'}, 설정={self._config_label or '-'})")
 
         job = jb.ParseJob(request=request, file_path=file_path, ext=ext,
                           doc_type=doc_type, params=kwargs)
@@ -2278,9 +2289,9 @@ class ParserCore:
             # 진입부에서 컷한다. 확장자와 무관하게 실제 헤더로 판정.
             bad_reason = _detect_unsupported_file(file_path)
             if bad_reason:
-                _log.warning(f"[parser] 비정상 파일 감지({bad_reason}) — 처리 중단: {file_path}")
+                _log.warning(f"{file_path}: 비정상 파일({bad_reason}), 처리 중단")
                 raise GenosServiceException(
-                    "1", f"{bad_reason} 입니다. 정상 문서로 다시 업로드하세요: {os.path.basename(file_path)}",
+                    "1", f"{os.path.basename(file_path)} 처리 불가: {bad_reason}\n정상 문서로 다시 업로드 필요",
                     error_type="permanent", reason_code="PARSE_D009",
                 )
 
@@ -2294,7 +2305,7 @@ class ParserCore:
                 except OSError as exc:
                     code, kind = os_error_reason(exc, "PARSE")
                     raise GenosServiceException(
-                        "1", f"확장자 별칭 사본 생성 실패: {exc}",
+                        "1", f"확장자 별칭 파일 복사 실패: {exc}",
                         error_type=kind, reason_code=code,
                     ) from exc
         except BaseException:
@@ -2376,7 +2387,7 @@ class ParserCore:
             if result is not None:
                 return self._normalize_response(result)
         # ROUTES 의 마지막이 캐치올이라 여기 도달하지 않는다.
-        raise GenosServiceException("1", f"처리할 수 없는 형식입니다: {job.ext}")
+        raise GenosServiceException("1", f"처리할 수 없는 형식: {job.ext}")
 
     async def run(self, request: Request, file_path: str, **kwargs) -> dict:
         """옛 facade 입구. 새 흐름(_start_job → _call_edit_input → _call_route)과 같은 일을 한다.

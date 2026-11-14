@@ -96,12 +96,12 @@ def compile_value_map(spec: Any, *, label: str = "value_map") -> dict[str, dict[
     if not spec:
         return {}
     if not isinstance(spec, dict):
-        raise ValueError(f"{label} 은 object 여야 합니다.")
+        raise ValueError(f"{label} 은 object 여야 함")
 
     compiled: dict[str, dict[str, Any]] = {}
     for target, entries in spec.items():
         if not isinstance(entries, dict):
-            raise ValueError(f"{label}.{target} 은 '표준값: [별칭…]' 형태의 object 여야 합니다.")
+            raise ValueError(f"{label}.{target} 은 '표준값: [별칭…]' 형태의 object 여야 함")
         lookup: dict[str, Any] = {}
         for canonical, aliases in entries.items():
             values = aliases if isinstance(aliases, (list, tuple)) else [aliases]
@@ -112,7 +112,7 @@ def compile_value_map(spec: Any, *, label: str = "value_map") -> dict[str, dict[
                 if key in lookup and lookup[key] != canonical:
                     raise ValueError(
                         f"{label}.{target} 별칭 '{alias}' 이 "
-                        f"'{lookup[key]}' 와 '{canonical}' 양쪽에 있습니다."
+                        f"'{lookup[key]}' 와 '{canonical}' 양쪽에 있음"
                     )
                 lookup[key] = canonical
         compiled[str(target)] = lookup
@@ -133,7 +133,7 @@ def apply_value_map(fields: dict, compiled: dict[str, dict[str, Any]], *, contex
         mapped = lookup.get(normalize_column_name(value))
         if mapped is None:
             _log.warning(
-                f"[custom_fields] value_map 미등록 값{context}: {target}='{value}' "
+                f"[custom_fields] fields.<필드>.values 미등록 값{context}: {target}='{value}' "
                 f"(등록된 표준값: {sorted(set(lookup.values()))})"
             )
             continue
@@ -170,15 +170,13 @@ def validate_target_field_names(targets: Any, *, label: str) -> None:
             invalid.append(text)
     if reserved:
         raise ValueError(
-            f"{label}: 목표필드명이 벡터 예약 필드와 겹칩니다: {sorted(reserved)}. "
-            f"이 이름을 쓰면 값이 조용히 덮어써지거나 청킹에서 요청 전체가 실패합니다 — "
-            f"다른 이름으로 바꾸세요(적재 DB 컬럼명은 보통 대문자라 겹치지 않습니다)."
+            f"{label}: 목표필드명이 vector 예약 필드와 겹침: {sorted(reserved)}"
         )
     if invalid:
         raise ValueError(
-            f"{label}: 목표필드명이 property 이름 규칙(/[_A-Za-z][_0-9A-Za-z]*/)에 맞지 않습니다: "
-            f"{sorted(invalid)}. 한글·공백·기호는 적재 시 실패하므로 영문/숫자/밑줄만 쓰세요 "
-            f"(원천 컬럼명은 별칭 목록에 그대로 두면 됩니다)."
+            f"{label}: 목표필드명이 property 이름 규칙(/[_A-Za-z][_0-9A-Za-z]*/)에 맞지 않음: "
+            f"{sorted(invalid)}\n"
+            f"영문·숫자·밑줄 이름 지정 필요 (원천 컬럼명은 별칭 목록에 그대로 둠)"
         )
 
 
@@ -213,12 +211,12 @@ def validate_config_shape(cfg: dict, *, label: str) -> None:
                  if cfg.get(k) is not None and not isinstance(cfg.get(k), dict)]
     if wrong_list:
         raise ValueError(
-            f"{label}: {sorted(wrong_list)} 는 목록이어야 합니다. YAML 에서 각 항목 앞에 '- ' 를 "
-            f"붙이세요 — 문자열로 쓰면 글자 단위로 쪼개져 전 행이 걸러집니다(청크 0건)."
+            f"{label}: {sorted(wrong_list)} 는 목록이어야 함\n"
+            f"YAML 에서 각 항목 앞에 '- ' 지정 필요"
         )
     if wrong_map:
         raise ValueError(
-            f"{label}: {sorted(wrong_map)} 는 '키: 값' 형태의 object 여야 합니다."
+            f"{label}: {sorted(wrong_map)} 는 '키: 값' 형태의 object 여야 함"
         )
 
 
@@ -237,8 +235,8 @@ def validate_required_not_llm_generated(cfg: dict, *, label: str) -> None:
     clash = sorted({str(f) for f in (cfg.get("required") or [])} & llm_outputs)
     if clash:
         raise ValueError(
-            f"{label}: required 에 llm_fields 가 만드는 필드가 있습니다: {clash}. "
-            f"필수값 검사가 LLM 호출보다 먼저 돌아 전 행이 걸러집니다 — required 에서 빼세요."
+            f"{label}: require.fields 에 llm 이 만드는 필드 있음: {clash}\n"
+            f"require.fields 에서 제외 필요"
         )
 
 
@@ -258,8 +256,7 @@ def warn_unproducible_text_fields(cfg: dict, *, label: str) -> None:
     ]
     if unproducible:
         _log.warning(
-            f"[custom_fields] {label}: text_fields 의 {unproducible} 를 만드는 설정이 없습니다 — "
-            f"청크 본문에서 조용히 빠집니다(llm_fields 를 주석 처리하고 남겨 둔 경우가 흔합니다)."
+            f"[custom_fields] {label}: body.fields 의 {unproducible} 를 만드는 설정 없음 (chunk 본문에서 빠짐)"
         )
 
 
@@ -275,8 +272,8 @@ def validate_chunk_prefix_fields(cfg: dict, *, label: str) -> None:
     )
     if unknown:
         raise ValueError(
-            f"{label}: chunk_prefix_fields(설정에 적는 이름은 `body.repeat`) 의 {unknown} 를 "
-            f"만드는 설정이 없습니다. 그 필드를 `fields:` 에 선언하거나 `llm[].out` 에 넣으세요."
+            f"{label}: body.repeat 의 {unknown} 를 만드는 설정 없음\n"
+            f"그 필드를 `fields:` 에 선언하거나 `llm[].out` 에 추가 필요"
         )
 
 
@@ -292,8 +289,8 @@ def warn_unknown_field_labels(cfg: dict, *, label: str) -> None:
     unknown = sorted(set(labels) - collect_target_field_names(cfg))
     if unknown:
         _log.warning(
-            f"[custom_fields] {label}: field_labels 의 {unknown} 를 만드는 설정이 없습니다 — "
-            f"이름이 틀렸다면 그 필드는 항목명 없이 값만 실립니다."
+            f"[custom_fields] {label}: body.labels 의 {unknown} 를 만드는 설정 없음, "
+            f"필드명 오기 확인 필요 (항목명 없이 값만 실림)"
         )
 
 
@@ -401,7 +398,7 @@ def compile_sheets(cfg: dict, *, label: str) -> list[str] | None:
     # 시트 이름은 앞뒤 공백까지 이름이므로 원문 그대로 비교한다.
     if (not isinstance(spec, list) or not spec
             or not all(isinstance(name, str) and name.strip() for name in spec)):
-        raise ValueError(f"{label}: source.sheets 에는 비어 있지 않은 시트 이름(문자열)을 하나 이상 적어야 합니다.")
+        raise ValueError(f"{label}: source.sheets 에 비어 있지 않은 시트 이름(문자열)을 하나 이상 지정 필요")
     return list(spec)
 
 
@@ -411,14 +408,14 @@ def compile_row_merge(cfg: dict, *, label: str) -> dict | None:
     if not spec:
         return None
     if not isinstance(spec, dict):
-        raise ValueError(f"{label}: row_merge 는 '키: 값' 형태의 object 여야 합니다.")
+        raise ValueError(f"{label}: source.merge_rows 는 '키: 값' 형태의 object 여야 함")
 
     def as_list(key: str) -> list[str]:
         value = spec.get(key)
         if value is None:
             return []
         if not isinstance(value, list):
-            raise ValueError(f"{label}: row_merge.{key} 는 목록이어야 합니다(각 항목 앞에 '- ').")
+            raise ValueError(f"{label}: source.merge_rows.{key} 는 목록이어야 함(각 항목 앞에 '- ')")
         return [str(f).strip() for f in value if str(f).strip()]
 
     group_by = as_list("group_by")
@@ -426,17 +423,16 @@ def compile_row_merge(cfg: dict, *, label: str) -> dict | None:
     order_by = str(spec.get("order_by") or "").strip() or None
     part_by = str(spec.get("part_by") or "").strip() or None
     if not group_by:
-        raise ValueError(f"{label}: row_merge 에는 group_by 가 필요합니다(묶음 경계를 정하는 필드).")
+        raise ValueError(f"{label}: source.merge_rows 에 group_by(묶음 경계를 정하는 필드) 지정 필요")
     if not concat:
-        raise ValueError(f"{label}: row_merge 에는 concat 이 필요합니다(이어붙일 필드).")
+        raise ValueError(f"{label}: source.merge_rows 에 concat(이어붙일 필드) 지정 필요")
 
     known = collect_target_field_names(cfg)
     unknown = sorted({*group_by, *concat, *(f for f in (order_by, part_by) if f)} - known)
     if unknown:
         raise ValueError(
-            f"{label}: row_merge 의 {unknown} 를 만드는 설정이 없습니다. "
-            f"column_map/constants/defaults 중 하나에 선언된 목표필드명을 쓰세요 "
-            f"(원천 컬럼명이 아니라 매핑 후 이름입니다)."
+            f"{label}: source.merge_rows 의 {unknown} 를 만드는 설정 없음\n"
+            f"`fields:` 에 선언된 목표필드명(매핑 후 이름) 지정 필요"
         )
     return {
         "group_by": group_by,
@@ -578,7 +574,7 @@ def compile_transforms(spec: Any, *, label: str, cfg: Any = None) -> dict[str, l
     if not spec:
         return {}
     if not isinstance(spec, dict):
-        raise ValueError(f"{label}: transforms 는 '키: 값' 형태의 object 여야 합니다.")
+        raise ValueError(f"{label}: `fields:` 는 '키: 값' 형태의 object 여야 함")
 
     compiled: dict[str, list] = {}
     json_targets: set[str] = set()
@@ -594,8 +590,8 @@ def compile_transforms(spec: Any, *, label: str, cfg: Any = None) -> dict[str, l
                 name = str(step.get("name") or "")
             else:
                 raise ValueError(
-                    f"{label}: transforms.{target} 의 각 단계는 이름(문자열)이거나 "
-                    f"`{{name: …, 인자: …}}` object 여야 합니다."
+                    f"{label}: fields.{target}.transform 의 각 단계는 이름(문자열)이거나 "
+                    f"`{{name: …, 인자: …}}` object 여야 함"
                 )
             names.append(name)
             chain.append(_compile_transform_step(name, kwargs, target=str(target), label=label))
@@ -604,8 +600,8 @@ def compile_transforms(spec: Any, *, label: str, cfg: Any = None) -> dict[str, l
         # 마지막 단계만 보면 `[to_json, text, to_json]` 이 통과하므로 마지막을 뺀 전체를 본다.
         if "to_json" in names[:-1]:
             raise ValueError(
-                f"{label}: transforms.{target} 의 to_json 은 체인 **맨 뒤**여야 합니다 "
-                f"(현재: {names}) — 뒤에 다른 변환이 오면 JSON 이 깨집니다."
+                f"{label}: fields.{target}.transform 의 to_json 은 체인 맨 뒤여야 함 "
+                f"(받은 체인={names})"
             )
         if "to_json" in names:
             json_targets.add(str(target))
@@ -622,9 +618,8 @@ def _validate_to_json_targets(cfg: dict, json_targets: set[str], *, label: str) 
         used = sorted(json_targets & {str(f) for f in (cfg.get(body_key) or [])})
         if used:
             raise ValueError(
-                f"{label}: {body_key} 에 to_json 을 건 필드 {used} 를 쓸 수 없습니다 — "
-                f"JSON 덩어리는 청크 본문에 실을 모양이 아닙니다. 본문에 실을 값은 변환 전 "
-                f"필드를 쓰거나, 평문 사본을 별도 필드로 만드세요."
+                f"{label}: {body_key} 에 to_json 을 건 필드 {used} 사용 불가\n"
+                f"본문에는 변환 전 필드나 별도 평문 필드 지정 필요"
             )
 
     for target, sources in (cfg.get("pack") or {}).items():
@@ -633,8 +628,8 @@ def _validate_to_json_targets(cfg: dict, json_targets: set[str], *, label: str) 
         used = sorted(json_targets & {str(name) for name in sources})
         if used:
             raise ValueError(
-                f"{label}: pack.{target} 가 묶는 {used} 에 to_json 이 걸려 있습니다 — "
-                f"JSON 안에 JSON 문자열이 중첩됩니다. 둘 중 하나만 쓰세요."
+                f"{label}: fields.{target}.pack 가 묶는 {used} 에 to_json 이 걸려 있음\n"
+                f"pack·to_json 중 하나만 사용 필요"
             )
 
 
@@ -660,13 +655,13 @@ def _compile_transform_step(name: str, kwargs: dict, *, target: str, label: str)
             unknown = sorted(set(kwargs) - allowed)
             if unknown:
                 raise ValueError(
-                    f"{label}: transforms.{target} 의 '{name}' 에 쓸 수 없는 인자입니다: {unknown} "
+                    f"{label}: fields.{target}.transform 의 '{name}' 에 쓸 수 없는 인자: {unknown} "
                     f"(쓸 수 있는 인자: {sorted(allowed)})"
                 )
         return (VALUE_TRANSFORMS[name], dict(kwargs), False)
     if name not in PARAM_TRANSFORMS:
         raise ValueError(
-            f"{label}: 등록되지 않은 transforms 변환기: {name!r} "
+            f"{label}: 등록되지 않은 transform 변환기: {name!r} "
             f"(사용 가능: {list(ALL_TRANSFORM_NAMES)})"
         )
 
@@ -679,25 +674,26 @@ def _compile_transform_step(name: str, kwargs: dict, *, target: str, label: str)
     unknown = sorted(set(kwargs) - allowed)
     if unknown:
         raise ValueError(
-            f"{label}: transforms.{target} 의 '{name}' 에 쓸 수 없는 인자입니다: {unknown} "
+            f"{label}: fields.{target}.transform 의 '{name}' 에 쓸 수 없는 인자: {unknown} "
             f"(쓸 수 있는 인자: {sorted(allowed)})"
         )
     missing = [k for k in PARAM_TRANSFORM_REQUIRED[name] if k not in kwargs]
     if missing:
-        raise ValueError(f"{label}: transforms.{target} 의 '{name}' 에 {missing} 인자가 필요합니다.")
+        raise ValueError(f"{label}: fields.{target}.transform 의 '{name}' 에 {missing} 인자 지정 필요")
     if "pattern" in kwargs:
         # 검사한 값과 실행하는 값이 같아야 한다. 문자열로 바꿔 넘기면 `pattern: null` 이
         # "None" 정규식이 되는 식으로 의도하지 않은 값까지 받아들이므로 문자열만 허용한다.
         if not isinstance(kwargs["pattern"], str):
             raise ValueError(
-                f"{label}: transforms.{target} 의 '{name}' pattern 은 문자열이어야 합니다: "
-                f"{kwargs['pattern']!r} — 숫자처럼 읽히는 패턴은 따옴표로 감쌉니다."
+                f"{label}: fields.{target}.transform 의 '{name}' pattern 은 문자열이어야 함: "
+                f"{kwargs['pattern']!r}\n"
+                f"숫자처럼 읽히는 패턴은 따옴표로 감싸기 필요"
             )
         try:
             compiled = re.compile(str(kwargs["pattern"]))
         except re.error as exc:
             raise ValueError(
-                f"{label}: transforms.{target} 의 정규식이 잘못됐습니다: {exc}"
+                f"{label}: fields.{target}.transform 의 정규식 오류: {exc}"
             ) from exc
         if name == "regex_extract":
             # 없는 그룹은 실행 시 IndexError 가 삼켜져 값이 항상 None 이 되므로 기동 시에 막는다.
@@ -710,16 +706,16 @@ def _compile_transform_step(name: str, kwargs: dict, *, target: str, label: str)
                          and 0 <= group <= compiled.groups)
             if not valid:
                 raise ValueError(
-                    f"{label}: transforms.{target} 의 '{name}' group {group!r} 이 패턴에 "
-                    f"없습니다 (캡처 그룹 {compiled.groups}개, 이름 {sorted(compiled.groupindex)})."
+                    f"{label}: fields.{target}.transform 의 '{name}' group {group!r} 이 패턴에 "
+                    f"없음 (캡처 그룹 {compiled.groups}개, 이름 {sorted(compiled.groupindex)})"
                 )
     if name == "to_json" and "on_scalar" in kwargs:
         # yaml 의 `on_scalar: null` 은 널 값으로 파싱돼 여기 None 으로 온다. 기본값으로
         # 조용히 돌아가지 않게 이름으로만 받는다.
         if kwargs["on_scalar"] not in TO_JSON_ON_SCALAR:
             raise ValueError(
-                f"{label}: transforms.{target} 의 to_json on_scalar 는 "
-                f"{list(TO_JSON_ON_SCALAR)} 중 하나여야 합니다: {kwargs['on_scalar']!r}"
+                f"{label}: fields.{target}.transform 의 to_json on_scalar 는 "
+                f"{list(TO_JSON_ON_SCALAR)} 중 하나여야 함 (받은 값={kwargs['on_scalar']!r})"
             )
     return (PARAM_TRANSFORMS[name], dict(kwargs), name in RENDERER_TRANSFORMS)
 
@@ -756,19 +752,19 @@ def compile_derive(cfg: dict, *, label: str) -> dict[str, str]:
     if not spec:
         return {}
     if not isinstance(spec, dict):
-        raise ValueError(f"{label}: derive 는 '키: 값' 형태의 object 여야 합니다.")
+        raise ValueError(f"{label}: `fields:` 는 '키: 값' 형태의 object 여야 함")
 
     known = collect_target_field_names(cfg)
     compiled: dict[str, str] = {}
     for target, template in spec.items():
         if not isinstance(template, str):
             raise ValueError(
-                f"{label}: derive.{target} 는 `\"{{{{필드}}}} {{{{필드}}}}\"` 형태의 문자열이어야 합니다."
+                f"{label}: fields.{target}.template 는 `\"{{{{필드}}}} {{{{필드}}}}\"` 형태의 문자열이어야 함"
             )
         unknown = sorted({v for v in _DERIVE_VAR_RE.findall(template)} - known - set(spec))
         if unknown:
             raise ValueError(
-                f"{label}: derive.{target} 가 참조하는 {unknown} 를 만드는 설정이 없습니다."
+                f"{label}: fields.{target}.template 가 참조하는 {unknown} 를 만드는 설정 없음"
             )
         compiled[str(target)] = template
     return compiled
@@ -838,25 +834,28 @@ def compile_pack(cfg: dict, *, label: str) -> dict[str, list[str]]:
         return {}
     if not isinstance(spec, dict):
         raise ValueError(
-            f"{label}: pack 은 '목표필드: [원천필드…]' 형태의 object 여야 합니다."
+            f"{label}: pack 은 '목표필드: [원천필드…]' 형태의 object 여야 함"
         )
 
     packed = {str(target) for target in spec}
+
+    def pack_sources(targets: list[str]) -> list[str]:
+        """오류 안내용: 지목된 pack 필드가 묶는 원천 필드 목록."""
+        return [str(name) for target, sources in spec.items()
+                if str(target) in targets and isinstance(sources, (list, tuple)) for name in sources]
+
     for body_key in _PACK_FORBIDDEN_BODY_KEYS:
         used = sorted(packed & {str(f) for f in (cfg.get(body_key) or [])})
         if used:
             raise ValueError(
-                f"{label}: {body_key} 에 pack 필드 {used} 를 쓸 수 없습니다 — "
-                f"JSON 덩어리는 청크 본문에 실을 모양이 아니고, 실리는지도 경로마다 다릅니다. "
-                f"본문에 실을 값은 묶기 전 필드를 그대로 쓰세요."
+                f"{label}: {body_key} 에 pack 필드 {used} 사용 불가\n"
+                f"본문에는 pack 으로 묶기 전 필드({pack_sources(used)}) 지정 필요"
             )
     selecting = _pack_selection_conflicts(cfg, packed)
     if selecting:
         raise ValueError(
-            f"{label}: kind: rows/records 의 require.fields/filter 에 pack 필드 "
-            f"{selecting} 를 쓸 수 없습니다 — "
-            f"묶기는 파이프라인 맨 뒤(선별·llm 산출 뒤)에 돌아 그 시점에는 값이 없습니다. "
-            f"선별에는 묶기 전 필드를 그대로 쓰세요."
+            f"{label}: require.fields·filter 에 pack 필드 {selecting} 사용 불가\n"
+            f"선별 조건에는 pack 으로 묶기 전 필드({pack_sources(selecting)}) 지정 필요"
         )
 
     # pack 으로 만든 필드는 다시 묶을 수 없다 — 허용하면 JSON 안에 JSON 문자열이
@@ -867,16 +866,16 @@ def compile_pack(cfg: dict, *, label: str) -> dict[str, list[str]]:
         target = str(target)
         if not isinstance(sources, (list, tuple)):
             raise ValueError(
-                f"{label}: pack.{target} 는 묶을 필드명 목록이어야 합니다(예: `[FIELD_A, FIELD_B]`)."
+                f"{label}: pack.{target} 는 묶을 필드명 목록이어야 함"
             )
         names = [str(name) for name in sources]
         if not names:
-            raise ValueError(f"{label}: pack.{target} 에 묶을 필드가 없습니다.")
+            raise ValueError(f"{label}: pack.{target} 에 묶을 필드 없음")
         unknown = sorted(set(names) - known)
         if unknown:
             raise ValueError(
-                f"{label}: pack.{target} 가 참조하는 {unknown} 를 만드는 설정이 없습니다 "
-                f"(pack 으로 만든 필드는 다시 묶을 수 없습니다)."
+                f"{label}: pack.{target} 가 참조하는 {unknown} 를 만드는 설정 없음 "
+                f"(pack 으로 만든 필드는 다시 묶을 수 없음)"
             )
         compiled[target] = names
     return compiled
@@ -930,7 +929,7 @@ def compile_meta_exclude(cfg: dict, *, label: str) -> list[str]:
         return []
     if not isinstance(spec, dict):
         raise ValueError(
-            f"{label}: meta_include 는 '필드명: true/false' 형태의 object 여야 합니다."
+            f"{label}: `fields:` 는 '키: 값' 형태의 object 여야 함"
         )
 
     known = collect_target_field_names(cfg)
@@ -939,11 +938,11 @@ def compile_meta_exclude(cfg: dict, *, label: str) -> list[str]:
         target = str(name)
         if not isinstance(include, bool):
             raise ValueError(
-                f"{label}: fields.{target}.meta 는 true 또는 false 여야 합니다: {include!r}"
+                f"{label}: fields.{target}.meta 는 true 또는 false 여야 함: {include!r}"
             )
         if target not in known:
             raise ValueError(
-                f"{label}: fields.{target}.meta 를 적었지만 {target} 를 만드는 설정이 없습니다."
+                f"{label}: fields.{target}.meta 를 적었지만 {target} 를 만드는 설정 없음"
             )
         if not include:
             excluded.append(target)
@@ -1023,9 +1022,9 @@ def _sequence_int(value: Any, *, where: str, default: int, minimum: int) -> int:
     if value is None:
         return default
     if isinstance(value, bool) or not isinstance(value, int):
-        raise ValueError(f"{where} 는 정수여야 합니다: {value!r}")
+        raise ValueError(f"{where} 는 정수여야 함: {value!r}")
     if value < minimum:
-        raise ValueError(f"{where} 는 {minimum} 이상이어야 합니다: {value}")
+        raise ValueError(f"{where} 는 {minimum} 이상이어야 함 (받은 값={value})")
     return value
 
 
@@ -1036,7 +1035,7 @@ def compile_sequence(cfg: dict, *, label: str) -> dict[str, dict]:
         return {}
     if not isinstance(spec, dict):
         raise ValueError(
-            f"{label}: sequence 는 '목표필드: {{prefix, width, start}}' 형태의 object 여야 합니다."
+            f"{label}: fields.<필드>.seq 는 '{{prefix, width, start}}' 형태의 object 여야 함"
         )
 
     # 다른 블록이 이미 만드는 필드에 순번을 매기면 그 값이 말없이 사라진다. 순번은 파이프라인
@@ -1050,21 +1049,21 @@ def compile_sequence(cfg: dict, *, label: str) -> dict[str, dict]:
         where = f"{label}: sequence.{target}"
         if target in produced:
             raise ValueError(
-                f"{where} 는 다른 설정이 이미 만드는 필드입니다 — 순번이 그 값을 덮어씁니다. "
-                f"순번 필드에 다른 이름을 쓰세요."
+                f"{where} 는 다른 설정이 이미 만드는 필드임\n"
+                f"순번 필드에 다른 이름 지정 필요"
             )
         if options is None:
             options = {}
         if not isinstance(options, dict):
             raise ValueError(
-                f"{where} 는 '키: 값' 형태의 object 여야 합니다"
-                f'(예: `{{prefix: "FAQ-", width: 4}}`).'
+                f"{where} 는 '키: 값' 형태의 object 여야 함 "
+                f"(쓸 수 있는 키={sorted(_SEQUENCE_OPTION_KEYS)})"
             )
         unknown = sorted(set(map(str, options)) - _SEQUENCE_OPTION_KEYS)
         if unknown:
             raise ValueError(
-                f"{where}: 모르는 옵션 {unknown}. "
-                f"쓸 수 있는 옵션: {sorted(_SEQUENCE_OPTION_KEYS)}."
+                f"{where}: 알 수 없는 옵션 {unknown} "
+                f"(쓸 수 있는 옵션: {sorted(_SEQUENCE_OPTION_KEYS)})"
             )
         compiled[target] = {
             "prefix": "" if options.get("prefix") is None else str(options["prefix"]),
@@ -1116,27 +1115,27 @@ def compile_filter(cfg: dict, *, label: str) -> list[tuple[str, str, set]]:
     if not spec:
         return []
     if not isinstance(spec, list):
-        raise ValueError(f"{label}: filter 는 목록이어야 합니다(각 항목 앞에 '- ').")
+        raise ValueError(f"{label}: filter 는 목록이어야 함(각 항목 앞에 '- ')")
 
     known = collect_target_field_names(cfg)
     compiled: list[tuple[str, str, set]] = []
     for index, item in enumerate(spec):
         where = f"{label}: filter[{index}]"
         if not isinstance(item, dict):
-            raise ValueError(f"{where} 는 `{{field: …, in: […]}}` 형태의 object 여야 합니다.")
+            raise ValueError(f"{where} 는 `{{field: …, in: […]}}` 형태의 object 여야 함")
         field = str(item.get("field") or "").strip()
         if not field:
-            raise ValueError(f"{where} 에 field 가 필요합니다.")
+            raise ValueError(f"{where} 에 field 지정 필요")
         if field not in known:
-            raise ValueError(f"{where}: {field!r} 를 만드는 설정이 없습니다.")
+            raise ValueError(f"{where}: {field!r} 를 만드는 설정 없음")
         ops = [op for op in _FILTER_OPS if op in item]
         if len(ops) != 1:
             raise ValueError(
-                f"{where} 에는 {list(_FILTER_OPS)} 중 정확히 하나가 필요합니다: {sorted(item)}"
+                f"{where} 에 {list(_FILTER_OPS)} 중 정확히 하나 지정 필요 (받은 키={sorted(item)})"
             )
         values = item[ops[0]]
         if not isinstance(values, list) or not values:
-            raise ValueError(f"{where}.{ops[0]} 는 비어 있지 않은 목록이어야 합니다.")
+            raise ValueError(f"{where}.{ops[0]} 는 비어 있지 않은 목록이어야 함")
         # 비교 규칙은 value_map 과 같다 — 대소문자·공백·구분자 차이를 무시한다.
         compiled.append((field, ops[0], {normalize_column_name(v) for v in values}))
     return compiled
@@ -1369,7 +1368,7 @@ class CustomFieldsMapperBase:
         cls, config_file: str, resource_path: str | None, presets: dict | None = None
     ) -> dict:
         if not config_file:
-            raise ValueError(f"{cls._CF_EXTRACTOR} custom_fields 에는 config_file 이 필요합니다.")
+            raise ValueError(f"{cls._CF_EXTRACTOR} custom_fields 에 config_file 지정 필요")
         path = Path(config_file)
         if not path.is_absolute() and resource_path:
             path = Path(resource_path) / path
@@ -1379,7 +1378,7 @@ class CustomFieldsMapperBase:
         loaded = cp.read_yaml_file(path) or {}
         if not isinstance(loaded, dict):
             raise ValueError(
-                f"{cls._CF_LABEL} custom_fields config 는 object 여야 합니다: {path}"
+                f"{cls._CF_LABEL} custom_fields config 는 object 여야 함: {path}"
             )
         # 설정 표기를 내부 형태로 번역해 넘긴다 — 아래 코드는 표기를 신경 쓰지 않는다.
         normalized, _ = cv2.load(
@@ -1505,13 +1504,13 @@ class TabularCustomFieldsMapper(CustomFieldsMapperBase):
                 normalized[key] = header
         if collisions:
             detail = ", ".join(f"{key}={values}" for key, values in collisions.items())
-            raise CodedValueError(f"정규화 후 중복되는 Excel 컬럼이 있습니다: {detail}", "PARSE_D004")
+            raise CodedValueError(f"정규화 후 중복되는 Excel 컬럼 있음: {detail}", "PARSE_D004")
         return normalized
 
     def _resolve_columns(self, row: dict) -> dict[str, str | None]:
         column_map = self.config.get("column_map") or {}
         if not isinstance(column_map, dict):
-            raise ValueError("tabular custom_fields column_map은 object여야 합니다.")
+            raise ValueError("tabular custom_fields `fields:` 는 object 여야 함")
         normalized = self._header_index(row)
         resolved: dict[str, str | None] = {}
         for target, source_spec in column_map.items():
@@ -1594,7 +1593,7 @@ class TabularCustomFieldsMapper(CustomFieldsMapperBase):
             absent = [name for name in self.sheets if name not in workbook]
             if absent:
                 raise CodedValueError(
-                    f"지정한 시트가 없습니다(source.sheets): {absent}; available={workbook}", "PARSE_D013")
+                    f"지정한 시트 없음(source.sheets): {absent}; available={workbook}", "PARSE_D013")
         for sheet_idx, sheet in enumerate(sheets):
             page = sheet_idx + 1
             sheet_name = names[sheet_idx]
@@ -1617,8 +1616,8 @@ class TabularCustomFieldsMapper(CustomFieldsMapperBase):
                     # doc_type 에 매퍼가 여럿일 때는 "내가 맡을 표가 아니다"라는 뜻이다.
                     # 다른 매퍼가 맡으며, 아무도 안 맡으면 호출측이 경고한다.
                     _log.info(
-                        f"[tabular_custom_fields] 이 매퍼가 맡지 않는 표(sheet={sheet_name}): "
-                        f"필수 컬럼 {sorted(missing_columns)} 없음; available={available}"
+                        f"[tabular_custom_fields] sheet={sheet_name}: 필수 컬럼 {sorted(missing_columns)} 없음, "
+                        f"이 mapper 대상 아님 (available={available})"
                     )
                     continue
                 raise CodedValueError(
@@ -1646,8 +1645,8 @@ class TabularCustomFieldsMapper(CustomFieldsMapperBase):
             unique = drop_duplicate_records(records)
             if len(unique) != len(records):
                 _log.info(
-                    f"[tabular_custom_fields] 완전 중복 행 {len(records) - len(unique)}건 제거 "
-                    f"(sheet={sheet_name})"
+                    f"[tabular_custom_fields] sheet={sheet_name}: "
+                    f"완전 중복 행 {len(records) - len(unique)}건 제거"
                 )
             records = unique
 
@@ -1692,8 +1691,8 @@ class TabularCustomFieldsMapper(CustomFieldsMapperBase):
                 if missing_values:
                     skipped += 1
                     _log.warning(
-                        f"[tabular_custom_fields] 필수값 누락 행 skip(sheet={sheet_name}, "
-                        f"row={record_idx}): {sorted(missing_values)}"
+                        f"[tabular_custom_fields] sheet={sheet_name}, row={record_idx}: "
+                        f"필수값 누락 행 건너뜀 (누락 필드={sorted(missing_values)})"
                     )
                     continue
 
@@ -1807,10 +1806,10 @@ def warn_tabular_llm_fields_unsupported(mappers: list, processor: str) -> None:
             continue
         outputs = sorted({name for spec in specs for name in spec.output_fields})
         _log.warning(
-            f"[{processor}] tabular custom_fields 의 llm_fields 는 이 프로세서에서 실행되지 "
-            f"않습니다(doc_type={list(mapper.doc_types)}): {outputs} 는 채워지지 않습니다. "
-            f"요약본문 등 LLM 생성 필드가 필요하면 parser 경로를 사용하세요."
+            f"[{processor}] tabular custom_fields 의 llm 실행 안 됨: "
+            f"doc_type={list(mapper.doc_types)}, 채워지지 않는 필드={outputs}"
         )
+        _log.warning(f"[{processor}] LLM 생성 필드가 필요하면 parser 경로 사용 필요")
 
 
 def build_tabular_custom_fields_mappers(configs: list[dict]) -> list[TabularCustomFieldsMapper]:

@@ -102,7 +102,7 @@ def test_invalid_config_fails_at_startup(cfg):
 @pytest.mark.parametrize("rest", ["<!--\n주석\n-->\n", "```text\n```\n"])
 def test_only_markup_left_counts_as_no_body(rest):
     """여러 줄 주석이나 빈 펜스만 남아도 본문이 없는 것으로 본다."""
-    with pytest.raises(ValueError, match="남은 본문이 없습니다"):
+    with pytest.raises(ValueError, match="남은 본문 없음"):
         MarkdownSectionsSpec.from_config(PRODUCT_CFG).apply(f"# 상품\n\n## 원문 전사\n\n{rest}")
 
 
@@ -117,5 +117,5 @@ def test_nothing_left_stops_parsing_with_service_error(tmp_path: Path):
     sections = MarkdownSectionsSpec.from_config(PRODUCT_CFG)
 
     # ParserCore._prepare_markdown 은 사설 정적 메소드지만, 공개 경로는 facade 기동뿐이다.
-    with pytest.raises(GenosServiceException, match="남은 본문이 없습니다"):
+    with pytest.raises(GenosServiceException, match="남은 본문 없음"):
         ParserCore._prepare_markdown(str(src), str(tmp_path), None, None, sections_spec=sections)

@@ -431,10 +431,9 @@ def render_field_text(
     if detected == "broken_json":
         raw = str(value).strip()
         _log.warning(
-            f"[to_text] JSON 파싱 실패 — 원문을 평문화만 합니다"
-            f"(len={len(raw)}, head={raw[:80]!r}). 여러 행으로 쪼개진 값이라면 "
-            f"row_merge 의 group_by/order_by 를 확인하세요."
+            f"[to_text] JSON parsing 실패: 원문 평문화만 함 (len={len(raw)}, head={raw[:80]!r})"
         )
+        _log.warning("[to_text] 여러 행으로 나뉜 값이면 source.merge_rows 의 group_by/order_by 확인 필요")
         return strip_inline_html(raw) or None
 
     if detected == "json":
@@ -619,7 +618,7 @@ def transform_to_json(value: Any, *, on_scalar: str = "wrap", key: str = "value"
         return None
     if kind == "broken_json":
         _log.warning(
-            "to_json: JSON 으로 파싱되지 않아 null 로 둡니다 (앞 40자: %s)", str(value)[:40]
+            "to_json: JSON parsing 실패, null 로 저장: head=%s", str(value)[:40]
         )
         return None
     if kind == "json":
@@ -681,11 +680,11 @@ def register_transform(name: str, fn: Callable[[Any], Any]) -> None:
     """
     key = str(name).strip()
     if not key:
-        raise ValueError("변환기 이름이 비어 있습니다.")
+        raise ValueError("변환기 이름 비어 있음")
     if key in PARAM_TRANSFORMS:
-        raise ValueError(f"이미 있는 인자형 변환기와 이름이 겹칩니다: {key}")
+        raise ValueError(f"register_transform 등록 불가: '{key}' 는 yaml 에서 인자를 받는 기본 변환기 이름과 같음")
     if not callable(fn):
-        raise TypeError(f"변환기는 호출 가능해야 합니다: {key}")
+        raise TypeError(f"변환기 등록 불가: 호출 가능한 객체 필요, name={key}")
     VALUE_TRANSFORMS[key] = fn
     # 오류 메시지의 "사용 가능" 목록이 등록분까지 반영되게 다시 만든다.
     global ALL_TRANSFORM_NAMES
@@ -816,7 +815,7 @@ def _deserialize_stored_metadata_value(text: str) -> Any:
         try:
             return json.loads(candidate)
         except Exception:
-            _log.warning("typed metadata JSON 복원 실패 — 문자열로 유지")
+            _log.warning("typed metadata JSON 복원 실패: 문자열로 유지")
             return candidate
     return normalize_metadata_value(text)
 
@@ -861,7 +860,7 @@ def store_metadata_in_document(
     try:
         from docling_core.types.doc.document import GraphData, GraphCell, GraphCellLabel
     except ImportError:
-        _log.warning("GraphData/GraphCell import 실패 — 문서 메타데이터 저장 생략")
+        _log.warning("GraphData/GraphCell import 실패: 문서 metadata 저장 건너뜀")
         return
 
     graph_cells = []

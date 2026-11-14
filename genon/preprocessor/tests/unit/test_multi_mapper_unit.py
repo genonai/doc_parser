@@ -229,7 +229,7 @@ def test_ambiguous_json_mappers_are_rejected(tmp_path, monkeypatch):
         [_Mapper("faqList"), _Mapper(None)],        # 하나는 무엇을 맡는지 모른다
     ):
         processor._json_records_mappers = mappers
-        with pytest.raises(Exception, match="records 키가 겹칩니다"):
+        with pytest.raises(Exception, match="source.records_at 겹침"):
             processor._json_records_mappers_for("mixed")
 
 

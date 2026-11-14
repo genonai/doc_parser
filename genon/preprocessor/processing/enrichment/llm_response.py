@@ -79,7 +79,7 @@ def chat_completion_message(data: Any) -> Any:
             if isinstance(first, dict) and first.get("message") is not None:
                 return first["message"]
     raise LLMResponseError(
-        f"LLM 응답이 chat completion 형식이 아닙니다: {_body_snippet(data)}",
+        f"LLM 응답 형식 오류: chat completion 형식 아님 ({_body_snippet(data)})",
         status_code=_envelope_status(data),
     )
 
@@ -108,7 +108,7 @@ async def post_chat_completion(
             delay = _retry_delay(exc)
             if not _deadline_allows(delay):
                 raise
-            _log.warning(f"[llm] 일시적 실패로 {delay:.1f}초 후 한 번 더 호출합니다: {llm_failure_reason(exc)}")
+            _log.warning(f"[llm] 일시적 실패: {delay:.1f}초 후 1회 재호출 ({llm_failure_reason(exc)})")
             await asyncio.sleep(delay)
 
 
@@ -160,8 +160,8 @@ def retry_sync(send: Callable[[], Any], *, retries: int = 1) -> Any:
             if not _deadline_allows(delay):
                 raise
             _log.warning(
-                f"[llm] 일시적 실패로 {delay:.1f}초 후 다시 호출합니다"
-                f"({attempt}/{limit}): {llm_failure_reason(exc)}"
+                f"[llm] 일시적 실패: {delay:.1f}초 후 재호출 {attempt}/{limit} "
+                f"({llm_failure_reason(exc)})"
             )
             time.sleep(delay)
 

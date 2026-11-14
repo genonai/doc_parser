@@ -175,7 +175,7 @@ def test_name_clash_with_another_block_fails_at_startup(tmp_path):
 
 
 def test_unknown_option_fails_at_startup(tmp_path):
-    with pytest.raises(ValueError, match="모르는 옵션"):
+    with pytest.raises(ValueError, match="알 수 없는 옵션"):
         _mapper(tmp_path, """
             schema: v2
             source: {kind: rows}
@@ -187,7 +187,7 @@ def test_unknown_option_fails_at_startup(tmp_path):
 
 def test_non_integer_width_fails_at_startup(tmp_path):
     """문자열을 조용히 받으면 zfill 이 요청마다 터진다(기동은 성공한 채로)."""
-    with pytest.raises(ValueError, match="정수여야 합니다"):
+    with pytest.raises(ValueError, match="정수여야 함"):
         _mapper(tmp_path, """
             schema: v2
             source: {kind: rows}

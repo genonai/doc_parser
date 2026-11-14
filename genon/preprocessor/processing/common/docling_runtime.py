@@ -88,7 +88,7 @@ class DoclingRuntimeBase:
     # 안내 문구에 적을, 실제로 읽은 설정 파일(#627). 모르면 None — 문구가 "이 액티비티의 config.yaml" 로 쓴다.
     _config_label: str | None = None
     # 설정에서 목차 추출이 꺼진 상태·켜는 방법(요청 toc=1 을 무시할 때 안내). __init__ 이 채운다.
-    _toc_off: tuple[str, str] = ("toc 항목 없음", "enrichment 에 toc 항목(enable: true, model_preset)을 넣으세요")
+    _toc_off: tuple[str, str] = ("toc 항목 없음", "enrichment 에 toc 항목(enable: true, model_preset) 추가 필요")
 
     def __init__(self, config: dict | None = None, config_path: str | None = None):
         cfg = _as_dict(config)
@@ -364,9 +364,9 @@ class DoclingRuntimeBase:
         xlsx_mode = str(xlsx_cfg.get("processing_mode", default_mode)).strip().lower()
         if xlsx_mode not in {"docling", "tabular"}:
             _log.warning(
-                f"[DocumentProcessor] formats.xlsx.processing_mode '{xlsx_mode}' 를 알 수 없어 "
-                f"{default_mode} 로 처리합니다. {self._config_label or '이 액티비티의 config.yaml'} 의 "
-                f"formats.xlsx.processing_mode 를 docling·tabular 중 하나로 고치세요."
+                f"formats.xlsx.processing_mode='{xlsx_mode}' 알 수 없음: {default_mode} 로 처리, "
+                f"{self._config_label or '이 activity 의 config.yaml'} 에서 "
+                f"docling·tabular 중 하나로 수정 필요"
             )
             xlsx_mode = default_mode
         self._xlsx_cfg = {
@@ -384,9 +384,9 @@ class DoclingRuntimeBase:
         md_mode = str(md_cfg.get("processing_mode", "docling")).strip().lower()
         if md_mode not in {"docling", "text"}:
             _log.warning(
-                f"[DocumentProcessor] formats.md.processing_mode '{md_mode}' 를 알 수 없어 docling 으로 "
-                f"처리합니다. {self._config_label or '이 액티비티의 config.yaml'} 의 "
-                f"formats.md.processing_mode 를 docling·text 중 하나로 고치세요."
+                f"formats.md.processing_mode='{md_mode}' 알 수 없음: docling 으로 처리, "
+                f"{self._config_label or '이 activity 의 config.yaml'} 에서 "
+                f"docling·text 중 하나로 수정 필요"
             )
             md_mode = "docling"
         self._md_cfg = {"processing_mode": md_mode}
@@ -394,7 +394,7 @@ class DoclingRuntimeBase:
         # 비표준 확장자 별칭. 예) {".parsed": ".md"} — *.parsed 를 마크다운으로 보고 라우팅한다.
         self._ext_aliases = fa.parse_extension_aliases(formats_cfg)
         if self._ext_aliases:
-            _log.info(f"[DocumentProcessor] 확장자 별칭: {self._ext_aliases}")
+            _log.info(f"확장자 별칭: {self._ext_aliases}")
 
     # ------------------------------------------------------------------
     # docling 배관

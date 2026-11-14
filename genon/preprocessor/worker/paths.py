@@ -18,17 +18,17 @@ from pathlib import Path
 def _inside(root: str, rel: str, label: str) -> Path:
     rel = str(rel or "").strip()
     if not rel or os.path.isabs(rel):
-        raise ValueError(f"{label} 는 루트 기준 상대경로여야 합니다: {rel!r}")
+        raise ValueError(f"{label} 값 오류: 루트 기준 상대경로 필요, 받은 값={rel!r}")
     base = Path(root).resolve()
     target = (base / rel).resolve()
     if base != target and base not in target.parents:
-        raise ValueError(f"{label} 가 루트 밖을 가리킵니다: {rel!r}")
+        raise ValueError(f"{label} 값 오류: 루트 밖을 가리킴, 받은 값={rel!r}")
     return target
 
 
 def read_path(nfs_root: str, artifact_root: str, read_ref) -> Path:
     if not isinstance(read_ref, dict) or read_ref.get("root") not in ("nfs", "artifact"):
-        raise ValueError(f'read_ref 는 {{"root": "nfs"|"artifact", "path": …}} 여야 합니다: {read_ref!r}')
+        raise ValueError(f"read_ref 형식 오류: root(nfs·artifact)와 path 를 담은 객체 필요, read_ref={read_ref!r}")
     root = nfs_root if read_ref["root"] == "nfs" else artifact_root
     return _inside(root, read_ref.get("path"), "read_ref.path")
 

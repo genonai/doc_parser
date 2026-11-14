@@ -81,20 +81,20 @@ class HeadingPattern:
     @classmethod
     def parse(cls, raw: Any, label: str) -> HeadingPattern:
         if not isinstance(raw, str) or not raw.strip():
-            raise ValueError(f"{label} 는 비어 있지 않은 문자열이어야 합니다: {raw!r}")
+            raise ValueError(f"{label} 는 비어 있지 않은 문자열 필요: {raw!r}")
         text = raw.strip()
         level = None
         if text.startswith("#"):
             m = _PATTERN_LEVEL_RE.match(text)
             if not m:
                 raise ValueError(
-                    f"{label} '{raw}': '#' 레벨 표기는 1~6개이고 뒤에 공백이 있어야 합니다"
-                    f"(예: '## 문서 개요'). 제목의 '#' 글자는 '[#]' 로 적습니다."
+                    f"{label} '{raw}': '#' 레벨 표기는 1~6개, 뒤에 공백 필요(예: '## 문서 개요')\n"
+                    f"제목의 '#' 글자는 '[#]' 로 표기 필요"
                 )
             level, text = len(m.group("hashes")), m.group("title")
         glob = _norm(text)
         if not glob.strip("*?"):
-            raise ValueError(f"{label} '{raw}': 와일드카드만으로 된 패턴은 쓸 수 없습니다.")
+            raise ValueError(f"{label} '{raw}': 와일드카드만으로 된 패턴 사용 불가")
         return cls(level=level, glob=glob, source=raw)
 
     def matches(self, level: int, title_norm: str) -> bool:
@@ -205,12 +205,12 @@ class MarkdownSectionsSpec:
     @classmethod
     def from_config(cls, cfg: Any, doc_types: tuple[str, ...] = ()) -> MarkdownSectionsSpec:
         if not isinstance(cfg, dict):
-            raise ValueError("custom_fields.markdown.sections는 object 여야 합니다.")
+            raise ValueError("source.pre.markdown.sections 는 object 필요")
         unknown = sorted(str(k) for k in cfg if k not in _ALLOWED_KEYS)
         if unknown:
             raise ValueError(
-                f"markdown.sections 에 쓸 수 없는 키가 있습니다: {unknown}. "
-                f"쓸 수 있는 키: {sorted(_ALLOWED_KEYS)}"
+                f"source.pre.markdown.sections 미지원 키: {unknown} "
+                f"(쓸 수 있는 키: {sorted(_ALLOWED_KEYS)})"
             )
         after = cfg.get("after_heading")
         after_pat = None if after is None else HeadingPattern.parse(after, "markdown.sections.after_heading")
@@ -218,7 +218,7 @@ class MarkdownSectionsSpec:
         if raw_exclude is None:
             raw_exclude = []
         if not isinstance(raw_exclude, list):
-            raise ValueError("markdown.sections.exclude 는 문자열 목록이어야 합니다(각 항목 앞에 '- ').")
+            raise ValueError("source.pre.markdown.sections.exclude 는 문자열 목록 필요(각 항목 앞에 '- ')")
         exclude = tuple(HeadingPattern.parse(v, "markdown.sections.exclude") for v in raw_exclude)
         return cls(doc_types=doc_types, after_heading=after_pat, exclude=exclude)
 
@@ -290,8 +290,8 @@ def transform(
         return text, 0
     if not _has_body(lines):
         raise CodedValueError(
-            "markdown.sections 적용 후 남은 본문이 없습니다. after_heading/exclude 설정이 "
-            "문서 구조와 맞는지 확인하세요.",
+            "source.pre.markdown.sections 적용 후 남은 본문 없음\n"
+            "after_heading·exclude 설정이 문서 구조와 맞는지 확인 필요",
             "PARSE_D012",
         )
     out = "".join(lines)

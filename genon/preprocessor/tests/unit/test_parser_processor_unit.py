@@ -498,7 +498,7 @@ def test_guardrail_call_without_connection_warns_and_skips(dp, caplog):
         resp = dp._build_docling_response(DoclingDocument(name="t"), guardrail_call=1)
     hits = [r.getMessage() for r in caplog.records if "guardrail_call=1" in r.getMessage()]
     assert ("sensitive_infos" in resp, len(hits)) == (False, 1)
-    assert "접속 정보(workflow_id·api_key)가 비어" in hits[0]
+    assert "접속 정보(workflow_id·api_key) 비어 있음" in hits[0]
 
 
 # ─── _normalize_output_format / _normalize_table_format ─────────────────────
@@ -796,7 +796,7 @@ class TestBuildOcrOptions:
         from processing.common.pipeline_setup import resolve_ocr_runtime
         with caplog.at_level("WARNING"):
             resolve_ocr_runtime({}, ocr_cfg, config_label="activities/parse/config.yaml")
-        hits = [r.getMessage() for r in caplog.records if "ocr_endpoint" in r.getMessage()]
+        hits = [r.getMessage() for r in caplog.records if "ocr_endpoint 비어 있음" in r.getMessage()]
         assert (len(hits) == 1) is warned
 
     # ── yaml 의 잘못된 값으로 startup 이 깨지지 않는지 (#178 CodeRabbit) ─────
@@ -924,7 +924,7 @@ class _FailingStubEnricher:
 
 
 def test_apply_llm_fields_record_failures_log_one_summary_warning(dp, caplog):
-    """레코드별 실패는 DEBUG 로 내리고 WARNING 은 요약 한 줄(실패 수·조치·첫 오류)만 남긴다(#664).
+    """레코드별 실패는 DEBUG 로 내리고 WARNING 은 요약(실패 수·첫 오류·조치 각 한 줄)만 남긴다(#664).
     레코드마다 WARNING 을 내면 Studio 콘솔 꼬리가 같은 줄로 덮여 다른 경고가 보이지 않는다."""
     mapper = _StubDocumentScopeMapper(llm_field_specs=[_make_llm_field_spec()])
     mapper.pack = None
@@ -935,8 +935,8 @@ def test_apply_llm_fields_record_failures_log_one_summary_warning(dp, caplog):
 
     warnings = [r.getMessage() for r in caplog.records if r.levelname == "WARNING"]
     debug_failures = [r for r in caplog.records if r.levelname == "DEBUG" and "LLM 필드 추출 실패" in r.getMessage()]
-    assert (len(warnings), len(debug_failures)) == (1, 3)
-    assert "3/5건 실패" in warnings[0] and warnings[0].endswith("첫 오류: HTTP 503 from llm")
+    assert (len(warnings), len(debug_failures)) == (3, 3)
+    assert "3/5건 실패" in warnings[0] and warnings[1].endswith("HTTP 503 from llm")
     assert [fields["SALE_STATUS"] for fields in result] == [None, None, None, "판매중", "판매중"]
 
 

@@ -66,6 +66,15 @@ def reason_details(exc: BaseException, kind: str) -> dict:
     return {"reason_code": code, "error_category": category_of(code), "error_kind": kind}
 
 
+LINE_SEP = " / "
+
+
+def one_line(message: str) -> str:
+    """여러 줄 메시지를 한 줄로 — 줄마다 공백을 정리하고 줄 경계는 `LINE_SEP` 로 남긴다(pipeline 로그와 같은 표기).
+    단건 CLI 는 이 구분자로 다시 나눠 콘솔에 줄마다 찍는다."""
+    return LINE_SEP.join(" ".join(line.split()) for line in str(message).splitlines() if line.strip())
+
+
 def to_application_error(exc: BaseException, where: str = "") -> ApplicationError:
     """메시지는 한 줄이고 **사유가 맨 앞**이다. 어디서 났는지(where — 액티비티·파일)는 뒤 괄호에 둔다.
 
@@ -76,7 +85,7 @@ def to_application_error(exc: BaseException, where: str = "") -> ApplicationErro
     뜻을 보태므로 남긴다.
     """
     msg = getattr(exc, "error_msg", None) or str(exc) or type(exc).__name__
-    msg = " ".join(str(msg).split())             # 여러 줄 원문(YAML·pydantic 오류 등)도 한 줄로
+    msg = one_line(msg)                          # 여러 줄 원문(YAML·pydantic 오류 등)도 한 줄로
     if not isinstance(exc, GenosServiceException):
         msg = f"{type(exc).__name__}: {msg}"
     if where:

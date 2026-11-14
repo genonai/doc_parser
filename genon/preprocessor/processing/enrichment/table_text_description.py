@@ -309,7 +309,7 @@ class TableTextDescriptionEnricher:
             return False
         if not self._prompt_available(doc_type):
             _log.warning(
-                "표 설명을 요청했지만 table_text_description.prompt_template_file 설정이 없어 건너뜁니다."
+                "표 설명 건너뜀: table_text_description.prompt_template_file 미설정"
             )
             return False
         return True
@@ -442,7 +442,7 @@ def skip_table_stage(exc: Exception, stage: str) -> None:
     error_policy 를 그대로 타서 strict 면 실패한다. 조용히 넘기면 안 되는 종류이고,
     배포 전에는 tools/config_precheck 가 같은 것을 미리 잡는다.
     """
-    _log.warning(f"[{stage}] 표 설명을 건너뛰고 문서 처리를 계속합니다: {llm_failure_reason(exc)}")
+    _log.warning(f"[{stage}] 표 설명 건너뜀, 문서 처리는 계속함: {llm_failure_reason(exc)}")
 
 
 async def apply_table_description_stage(

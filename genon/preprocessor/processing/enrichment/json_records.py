@@ -128,7 +128,7 @@ def compile_raw_fields(cfg: dict, known_targets: Any, *, label: str) -> set[str]
     if not spec:
         return set()
     if not isinstance(spec, dict):
-        raise ValueError(f"{label}: raw_fields 는 '필드명: true' 형태의 object 여야 합니다.")
+        raise ValueError(f"{label}: `fields:` 는 '키: 값' 형태의 object 여야 함")
 
     known = {str(name) for name in known_targets}
     raw: set[str] = set()
@@ -136,14 +136,13 @@ def compile_raw_fields(cfg: dict, known_targets: Any, *, label: str) -> set[str]
         target = str(target)
         if not isinstance(enabled, bool):
             raise ValueError(
-                f"{label}: raw.{target} 는 true 또는 false 여야 합니다: {enabled!r}"
+                f"{label}: fields.{target}.raw 는 true 또는 false 여야 함 (받은 값={enabled!r})"
             )
         if not enabled:
             continue
         if target not in known:
             raise ValueError(
-                f"{label}: raw.{target} 는 원천에서 값을 찾는 필드가 아닙니다 "
-                f"(alias 를 선언한 필드에만 쓸 수 있습니다)."
+                f"{label}: raw.{target} 사용 불가: alias 를 선언한 필드에만 지정 가능"
             )
         raw.add(target)
     return raw
@@ -472,8 +471,8 @@ def normalize_table_format(value: Any) -> str:
     fmt = str(value or "").strip().lower()
     if fmt not in VALID_TABLE_FORMATS:
         _log.warning(
-            f"[json_records] 지원하지 않는 table_format '{value}' — "
-            f"'{DEFAULT_TABLE_FORMAT}' 으로 진행합니다(사용 가능: {list(VALID_TABLE_FORMATS)})."
+            f"[json_records] table_format={value} 미지원: {DEFAULT_TABLE_FORMAT} 로 대체함 "
+            f"(사용 가능: {list(VALID_TABLE_FORMATS)})"
         )
         return DEFAULT_TABLE_FORMAT
     return fmt
@@ -559,7 +558,7 @@ def html_to_text(
     except Exception as exc:
         # 전처리 실패가 파싱 자체를 막지 않게 한다(parser 의 html flatten 폴백과 같은 방침).
         # 표 구조는 잃지만 텍스트는 남는다.
-        _log.warning(f"[json_records] docling HTML 파싱 실패(평문 추출로 폴백): {exc}")
+        _log.warning(f"[json_records] docling HTML parsing 실패, 평문 추출로 대체함: {exc}")
         lines = (line.strip() for line in node.get_text("\n").splitlines())
         return "\n".join(line for line in lines if line)
 
@@ -608,7 +607,7 @@ class JsonRecordsMapper(CustomFieldsMapperBase):
 
         key_map = cfg.get("key_map") or {}
         if not isinstance(key_map, dict):
-            raise ValueError("json_mapping custom_fields 의 key_map 은 object 여야 합니다.")
+            raise ValueError("json_mapping custom_fields 의 `fields:` 는 object 여야 함")
         # 목표필드명 자체를 자동 별칭으로 포함(tabular column_map 과 동일 규칙).
         self.key_map: dict[str, list[str]] = {
             str(target): self._aliases(str(target), sources)
@@ -620,19 +619,19 @@ class JsonRecordsMapper(CustomFieldsMapperBase):
 
         collect_key_map = cfg.get("collect_key_map") or {}
         if not isinstance(collect_key_map, dict):
-            raise ValueError("json_mapping custom_fields의 collect_key_map은 object여야 합니다.")
+            raise ValueError("json_mapping custom_fields 의 `fields:` 는 object 여야 함")
         # 원천에서 값을 가져오는 방법은 alias(key_map) 와 collect(collect_key_map) 둘이다.
         # 둘 다 비면 원천을 한 번도 읽지 않는 설정이므로 거부한다 — 예전에는 key_map 만 보고
         # 거부해서, 필드가 전부 collect 인 정상 설정이 "key_map 이 필요합니다" 로 막혔다.
         if not key_map and not collect_key_map:
             raise ValueError(
-                "json_mapping custom_fields 에는 원천 key 를 읽는 필드가 하나는 필요합니다"
-                "(fields 의 alias 또는 collect)."
+                "json_mapping custom_fields 에 원천 key 를 읽는 필드 없음: "
+                "fields 의 alias 또는 collect 지정 필요"
             )
         overlap = sorted(set(self.key_map) & set(collect_key_map))
         if overlap:
             raise ValueError(
-                f"key_map과 collect_key_map에 같은 목표필드가 있습니다: {overlap}"
+                f"alias 와 collect 를 함께 지정한 필드 있음: {overlap}"
             )
         self.collect_key_map: dict[str, list[str]] = {
             str(target): self._aliases(str(target), sources)
@@ -663,7 +662,7 @@ class JsonRecordsMapper(CustomFieldsMapperBase):
 
         self.text_fields = [str(f).strip() for f in (cfg.get("text_fields") or []) if str(f).strip()]
         if not self.text_fields:
-            raise ValueError("json_mapping custom_fields 에는 text_fields(청크 본문 구성)가 필요합니다.")
+            raise ValueError("json_mapping custom_fields 에 body.fields(chunk 본문 구성) 지정 필요")
 
         self.split = bool(cfg.get("split", False))
         self.chunk_prefix_fields = compile_chunk_prefix_fields(cfg, split=self.split)
@@ -687,7 +686,7 @@ class JsonRecordsMapper(CustomFieldsMapperBase):
             msg = f"records 키 '{self.records_key}' 를 JSON 에서 찾지 못했습니다."
             if self.missing_policy == "error":
                 raise CodedValueError(msg, "PARSE_D002")
-            _log.warning(f"[json_records] {msg} — 레코드 0건으로 진행합니다.")
+            _log.warning(f"[json_records] 레코드 0건으로 진행함: {msg}")
             return []
         return records
 
@@ -703,7 +702,7 @@ class JsonRecordsMapper(CustomFieldsMapperBase):
             return [payload]
         if len(candidates) == 1:
             _, key, records = candidates[0]
-            _log.info(f"[json_records] records_at 생략 — '{key}' 배열을 레코드로 사용합니다.")
+            _log.info(f"[json_records] records_at 생략: '{key}' 배열을 레코드로 사용함")
             return records
 
         alias_specs = [
@@ -727,13 +726,13 @@ class JsonRecordsMapper(CustomFieldsMapperBase):
         if best[0] == 0 or ranked[1][:2] == best[:2]:
             keys = [key for _, key, _ in candidates]
             raise CodedValueError(
-                f"레코드 배열 후보 {keys} 를 fields 의 alias 로 구별할 수 없습니다. "
-                f"source.records_at 에 배열 키를 지정하세요.",
+                f"레코드 배열 선택 불가: 후보 {keys} 를 fields 의 alias 로 구별할 수 없음\n"
+                f"source.records_at 에 배열 키 지정 필요",
                 "PARSE_P005",
             )
         _log.info(
-            f"[json_records] records_at 생략 — 후보 {[k for _, k, _ in candidates]} 중 "
-            f"'{best[2]}' 배열을 레코드로 사용합니다(alias 일치 {best[0]}개)."
+            f"[json_records] records_at 생략: 후보 {[k for _, k, _ in candidates]} 중 "
+            f"'{best[2]}' 배열을 레코드로 사용함 (alias 일치 {best[0]}개)"
         )
         return best[3]
 
@@ -853,7 +852,7 @@ class JsonRecordsMapper(CustomFieldsMapperBase):
             if missing:
                 skipped += 1
                 _log.warning(
-                    f"[json_records] 필수값 누락 레코드 skip(index={index}): {sorted(missing)}"
+                    f"[json_records] 필수값 누락 레코드 건너뜀: index={index} 누락 필드={sorted(missing)}"
                 )
                 continue
             if doc_type:
@@ -935,8 +934,8 @@ class JsonRecordsMapper(CustomFieldsMapperBase):
         if empty:
             # silent 축소 방지 — 몇 건이 본문 없이 빠졌는지 드러낸다.
             _log.warning(
-                f"[json_records] 본문이 빈 레코드 {empty}/{len(fields_list)}건을 제외했습니다 "
-                f"(text_fields={self.text_fields})"
+                f"[json_records] 본문이 빈 레코드 제외: {empty}/{len(fields_list)}건 "
+                f"(body.fields={self.text_fields})"
             )
 
         result: dict[str, Any] = {"elements": elements, "usage": {"pages": len(elements)}}

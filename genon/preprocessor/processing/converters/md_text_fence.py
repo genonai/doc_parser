@@ -109,7 +109,7 @@ class MarkdownTextFenceSpec:
         if cfg is True:
             cfg = {}
         if not isinstance(cfg, dict):
-            raise ValueError("custom_fields.markdown.text_fence는 object 또는 true여야 합니다.")
+            raise ValueError("source.pre.markdown.text_fence 는 object 또는 true 여야 함")
 
         raw_langs = cfg.get("langs")
         if raw_langs is None:
@@ -118,19 +118,19 @@ class MarkdownTextFenceSpec:
             if isinstance(raw_langs, str):
                 raw_langs = [raw_langs]
             if not isinstance(raw_langs, (list, tuple)):
-                raise ValueError("text_fence.langs는 문자열 목록이어야 합니다.")
+                raise ValueError("text_fence.langs 는 문자열 목록이어야 함")
             # 빈 문자열은 "언어 표기 없는 펜스" 를 뜻하므로 지우지 않는다.
             langs = tuple(str(v).strip().lower() for v in raw_langs)
             if not langs:
-                raise ValueError("text_fence.langs가 비어 있습니다.")
+                raise ValueError("text_fence.langs 비어 있음")
 
         raw_ratio = cfg.get("min_hangul_ratio")
         try:
             ratio = DEFAULT_MIN_HANGUL_RATIO if raw_ratio is None else float(raw_ratio)
         except (TypeError, ValueError) as exc:
-            raise ValueError("text_fence.min_hangul_ratio는 숫자여야 합니다.") from exc
+            raise ValueError("text_fence.min_hangul_ratio 는 숫자여야 함") from exc
         if not 0.0 <= ratio <= 1.0:
-            raise ValueError("text_fence.min_hangul_ratio는 0 이상 1 이하여야 합니다.")
+            raise ValueError("text_fence.min_hangul_ratio 는 0 이상 1 이하여야 함")
 
         return cls(doc_types=doc_types, langs=langs, min_hangul_ratio=ratio)
 

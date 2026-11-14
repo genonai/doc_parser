@@ -92,7 +92,7 @@ async def call_chunk_hook(fn: Callable, text: str, info: dict,
         return text, False
     if not isinstance(out, str):
         raise TypeError(
-            f"edit_chunk 는 문자열이나 None, tb.DROP 을 돌려줘야 합니다: {type(out).__name__}")
+            f"edit_chunk 반환형 오류: 문자열·None·tb.DROP 중 하나 필요, 받은 형={type(out).__name__}")
     if not out.strip():
         return None, True
     return out, False

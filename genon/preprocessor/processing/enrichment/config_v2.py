@@ -175,7 +175,7 @@ def _require_dict(value: Any, label: str, what: str) -> dict:
     if value is None:
         return {}
     if not isinstance(value, dict):
-        raise ConfigV2Error(f"{label}: {what} 는 '키: 값' 형태의 object 여야 합니다.")
+        raise ConfigV2Error(f"{label}: {what} 는 '키: 값' 형태의 object 여야 함")
     return value
 
 
@@ -183,7 +183,7 @@ def _require_list(value: Any, label: str, what: str) -> list:
     if value is None:
         return []
     if not isinstance(value, list):
-        raise ConfigV2Error(f"{label}: {what} 는 목록이어야 합니다(각 항목 앞에 '- ').")
+        raise ConfigV2Error(f"{label}: {what} 는 목록이어야 함 (각 항목 앞에 '- ')")
     return value
 
 
@@ -195,7 +195,7 @@ def _check_unknown(keys, allowed, label: str, what: str) -> None:
         # 처럼 한 글자 틀린 키가 "쓸 수 있는 키 목록"만 던지고 끝난다.
         detail = ", ".join(f"`{key}`{_suggest(key, allowed)}" for key in unknown)
         raise ConfigV2Error(
-            f"{label}: {what} 에 쓸 수 없는 키가 있습니다: {detail}. "
+            f"{label}: {what} 에 쓸 수 없는 키 있음: {detail}\n"
             f"쓸 수 있는 키: {sorted(allowed)}"
         )
 
@@ -219,7 +219,7 @@ def normalize(cfg: dict, *, label: str = "custom_fields") -> tuple[dict, str]:
     kind = str(source.get("kind") or "").strip().lower()
     if kind not in KIND_TO_EXTRACTOR:
         raise ConfigV2Error(
-            f"{label}: source.kind 는 {sorted(KIND_TO_EXTRACTOR)} 중 하나여야 합니다: {kind!r}"
+            f"{label}: source.kind 는 {sorted(KIND_TO_EXTRACTOR)} 중 하나여야 함 (받은 값={kind!r})"
         )
     extractor = KIND_TO_EXTRACTOR[kind]
     # 문서형만 값을 만드는 주체가 둘이다(LLM / 고객 파이썬 함수). kind 로는 갈리지 않으므로
@@ -239,7 +239,7 @@ def normalize(cfg: dict, *, label: str = "custom_fields") -> tuple[dict, str]:
 
     if cfg.get("filter") is not None:
         if kind not in ("rows", "records"):
-            raise ConfigV2Error(f"{label}: filter 는 kind: rows/records 전용입니다.")
+            raise ConfigV2Error(f"{label}: filter 는 kind: rows/records 전용임")
         out["filter"] = cfg["filter"]
     # 표 설명 오버라이드는 kind 와 무관하다 — 표는 문서형이든 레코드 본문이든 생긴다.
     if cfg.get("table_text_description") is not None:
@@ -250,14 +250,14 @@ def normalize(cfg: dict, *, label: str = "custom_fields") -> tuple[dict, str]:
 def _normalize_source(source: dict, kind: str, out: dict, label: str) -> None:
     if source.get("table_at") is not None:
         raise ConfigV2Error(
-            f"{label}: source.table_at 는 아직 구현되지 않았습니다(표 N개 중 선택)."
+            f"{label}: source.table_at(표 N개 중 선택) 미구현"
         )
     for v2_key, (v1_key, kinds) in _SOURCE_TO_V1.items():
         if source.get(v2_key) is None:
             continue
         if kind not in kinds:
             raise ConfigV2Error(
-                f"{label}: source.{v2_key} 는 kind: {'/'.join(kinds)} 전용입니다."
+                f"{label}: source.{v2_key} 는 kind: {'/'.join(kinds)} 전용임"
             )
         out[v1_key] = source[v2_key]
     pre = _require_dict(source.get("pre"), label, "source.pre")
@@ -303,8 +303,8 @@ def _normalize_pre_json(block: Any, label: str) -> Any:
         # 소비 지점(`JsonTextSpec`)도 같은 검사를 하지만 그쪽 메시지는 내부 이름
         # (`json.text_fields`)으로 나온다. 새 표기로 적은 설정은 새 이름으로 알린다.
         raise ConfigV2Error(
-            f"{label}: source.pre.json.body_from 가 비어 있습니다"
-            f"(본문 텍스트가 담긴 원천 key 이름 목록)."
+            f"{label}: source.pre.json.body_from 이 비어 있음 "
+            f"(본문 텍스트가 담긴 원천 key 이름 목록 지정 필요)"
         )
     out: dict[str, Any] = {}
     for v2_key, v1_key in _PRE_JSON_TO_V1.items():
@@ -324,8 +324,8 @@ def _normalize_fields(fields: Any, kind: str, out: dict, label: str) -> None:
         where = f"{label}: fields.{target}"
         if not isinstance(spec, dict):
             raise ConfigV2Error(
-                f"{where} 는 object 여야 합니다(예: `{target}: {{alias: [원천명]}}`). "
-                f"값을 빠뜨리면 조용히 무시되므로 단축 표기를 받지 않습니다."
+                f"{where} 는 object 여야 함, 단축 표기 미지원 "
+                f"(예: `{target}: {{alias: [원천명]}}`)"
             )
         _check_unknown(spec, FIELD_SPEC_KEYS, where, "필드 스펙")
         aliases = spec.get("alias")
@@ -335,36 +335,36 @@ def _normalize_fields(fields: Any, kind: str, out: dict, label: str) -> None:
             # 않는 extractor 는 config_schema 의 지원 키 검사가 거부한다.
             if aliases != [FILE_ALIAS]:
                 raise ConfigV2Error(
-                    f"{where}: alias 의 {FILE_ALIAS} 는 다른 원천명과 함께 쓸 수 없습니다: {aliases}"
+                    f"{where}: alias 의 {FILE_ALIAS} 는 다른 원천명과 함께 쓸 수 없음: {aliases}"
                 )
             out.setdefault(FILE_FIELDS_KEY, []).append(target)
         elif "alias" in spec:
             if alias_block is None:  # _ALIAS_BLOCK 에 없는 kind (지금은 없다)
-                raise ConfigV2Error(f"{where}: kind: {kind} 에는 alias 를 쓸 수 없습니다.")
+                raise ConfigV2Error(f"{where}: kind: {kind} 에는 alias 를 쓸 수 없음")
             out.setdefault(alias_block, {})[target] = _require_list(
                 spec["alias"], where, "alias"
             )
         if "select" in spec:
             if kind != "html":
-                raise ConfigV2Error(f"{where}: select 는 kind: html 전용입니다.")
+                raise ConfigV2Error(f"{where}: select 는 kind: html 전용임")
             css = spec["select"]
             if not isinstance(css, str) or not css.strip():
                 raise ConfigV2Error(
-                    f"{where}: select 는 CSS 선택자 문자열이어야 합니다(예: `.new-banner-headline`)."
+                    f"{where}: select 는 CSS 선택자 문자열이어야 함 (예: `.new-banner-headline`)"
                 )
             attr = spec.get("attr")
             if attr is not None and (not isinstance(attr, str) or not attr.strip()):
-                raise ConfigV2Error(f"{where}: attr 은 속성 이름 문자열이어야 합니다.")
+                raise ConfigV2Error(f"{where}: attr 은 속성 이름 문자열이어야 함")
             out.setdefault("select_map", {})[target] = {
                 "css": css.strip(), "attr": attr.strip() if attr else None,
             }
         elif "attr" in spec:
             # `attr` 만 적은 설정은 원천을 지목하지 않은 것이라 값이 만들어지지 않는다.
             # 조용히 무시하면 "설정에 적었는데 비어 있다"가 된다.
-            raise ConfigV2Error(f"{where}: attr 은 select 와 함께 써야 합니다.")
+            raise ConfigV2Error(f"{where}: attr 은 select 와 함께 써야 함")
         if "collect" in spec:
             if kind != "records":
-                raise ConfigV2Error(f"{where}: collect 는 kind: records 전용입니다.")
+                raise ConfigV2Error(f"{where}: collect 는 kind: records 전용임")
             out.setdefault("collect_key_map", {})[target] = _require_list(
                 spec["collect"], where, "collect"
             )
@@ -420,11 +420,11 @@ def _normalize_llm(llm: Any, kind: str, out: dict, label: str) -> None:
         return
     for index, item in enumerate(items):
         if not isinstance(item, dict):
-            raise ConfigV2Error(f"{label}: llm[{index}] 는 object 여야 합니다.")
+            raise ConfigV2Error(f"{label}: llm[{index}] 는 object 여야 함")
         if "scope" in item:
             raise ConfigV2Error(
-                f"{label}: llm[{index}].scope 는 쓰지 않습니다 — 호출 단위는 source.kind 가 "
-                f"정합니다(document=문서 1회 / rows·records=건별 1회 / sections=문서 1회)."
+                f"{label}: llm[{index}].scope 사용 불가: 호출 단위는 source.kind 로 정해짐 "
+                f"(document=문서 1회 / rows·records=건별 1회 / sections=문서 1회)"
             )
         flat = _flatten_llm_item(item, f"{label}: llm[{index}]")
         if kind == "document":
@@ -449,14 +449,14 @@ def _normalize_python(python: Any, kind: str, out: dict, label: str) -> None:
         return
     block = _require_dict(python, label, "python")
     if kind != "document":
-        raise ConfigV2Error(f"{label}: python 은 kind: document 전용입니다.")
+        raise ConfigV2Error(f"{label}: python 은 kind: document 전용임")
     if out.get("url") or out.get("model"):
         raise ConfigV2Error(
-            f"{label}: llm 과 python 은 함께 쓸 수 없습니다 — 값을 만드는 주체는 하나입니다."
+            f"{label}: llm 과 python 은 함께 쓸 수 없음, 하나만 지정 필요"
         )
     _check_unknown(block, PYTHON_KEYS, label, "python")
     if not block.get("file"):
-        raise ConfigV2Error(f"{label}: python.file 이 필요합니다.")
+        raise ConfigV2Error(f"{label}: python.file 지정 필요")
     out["file"] = block["file"]
     if block.get("callable"):
         out["callable"] = block["callable"]
@@ -487,7 +487,7 @@ def _flatten_llm_item(item: dict, where: str) -> dict:
                     if pkey == "mode":
                         flat["template"] = {"mode": pvalue}
                         continue
-                    raise ConfigV2Error(f"{where}: prompt.{pkey} 는 쓸 수 없는 키입니다.")
+                    raise ConfigV2Error(f"{where}: prompt.{pkey} 는 쓸 수 없는 키임")
                 flat[mapped] = pvalue
         else:
             flat[key] = value
@@ -531,8 +531,8 @@ def load(
         return {}, None
     if not is_v2(loaded):
         raise ConfigV2Error(
-            f"{label}: 최상위에 `schema: v2` 가 없습니다. v1 표기는 더 이상 지원하지 "
-            f"않습니다(필드 규칙은 `fields.<목표>` 한 자리에 모읍니다)."
+            f"{label}: 최상위에 `schema: v2` 없음 "
+            f"(v1 표기 미지원, 필드 규칙은 `fields.<목표>` 에 지정 필요)"
         )
     out, extractor = normalize(loaded, label=label)
     if presets is not None:

@@ -130,7 +130,7 @@ def configure(cfg: Settings) -> None:
 
 def _cfg() -> Settings:
     if _CFG is None:
-        raise RuntimeError("worker.runtime.configure() 가 먼저 불려야 합니다")
+        raise RuntimeError("worker 설정 없음: worker.runtime.configure() 선행 호출 필요")
     return _CFG
 
 
@@ -139,7 +139,7 @@ def _restart_process(reason: str) -> None:
     if _POISONED:
         return
     _POISONED = True
-    log.error("처리 스레드를 멈출 수 없어 이 워커 프로세스를 다시 띄운다 — %s", reason)
+    log.error("worker 프로세스 재기동 예정: 처리 스레드 중지 불가 (%s)", reason)
     threading.Thread(target=_exit_when_idle, name="restart", daemon=True).start()
 
 
@@ -150,14 +150,14 @@ def _exit_when_idle() -> None:
             idle = not _ACTIVE and time.monotonic() - _LAST_DONE >= _EXIT_DELAY_SEC
         if idle:
             break
-    log.error("돌던 작업이 모두 끝났다 — 워커 프로세스를 끝낸다(부모가 다시 띄운다)")
+    log.error("worker 프로세스 종료: 진행 중 작업 모두 완료, 부모 프로세스가 재기동함")
     os._exit(EXIT_RESTART)
 
 
 def guard() -> None:
     """재기동을 기다리는 프로세스가 받은 작업은 처리하지 않고 재시도로 돌려보낸다."""
     if _POISONED:
-        raise ApplicationError("워커 프로세스 재기동 중 — 재시도한다", type="worker_restarting",
+        raise ApplicationError("worker 프로세스 재시작 대기 중: 작업 받지 않음, Temporal 이 재시도함", type="worker_restarting",
                                non_retryable=False)
 
 
@@ -222,7 +222,7 @@ def _call(proc, request, file_path: str, params: dict, heartbeat_interval: float
             if done:
                 return future.result()
             if deadline and time.monotonic() - started >= deadline:
-                raise TimeoutError(f"request_deadline {deadline:.0f}초를 넘었습니다")
+                raise TimeoutError(f"처리 시간 초과: request_deadline={deadline:.0f}초")
             activity.heartbeat()
     except BaseException as exc:
         # 처리 스레드가 아직 돌고 있으면(또는 submit 직후라 알 수 없으면) 이 프로세스를 다시 띄운다.
@@ -242,7 +242,7 @@ def _parsed_payload(result):
         if isinstance(payload.get("elements"), list):
             return payload
     keys = sorted(payload)[:10] if isinstance(payload, dict) else type(payload).__name__
-    raise ValueError(f"파서 결과에 document/elements 가 없습니다 — 받은 키: {keys}")
+    raise ValueError(f"parser 결과 형식 오류: document/elements 없음 (받은 키={keys})")
 
 
 def _kb(n: int) -> str:
@@ -284,8 +284,8 @@ def _load_parsed(artifact_root: str, ref: str):
     except UnicodeDecodeError:
         reason = "UTF-8 텍스트가 아님"
     raise GenosServiceException(
-        1, f"청커 입력을 parse 결과 JSON 으로 읽지 못했습니다({reason}). 단건 실행이면 parse 액티비티 결과 "
-           f"JSON 을 넣었는지(원본 문서가 아닌지), 배치면 parse 산출물이 온전한지 확인하세요.",
+        1, f"chunker 입력을 parse 결과 JSON 으로 읽지 못함({reason})\n"
+           "단건 실행이면 원본 문서가 아닌 parse activity 결과 JSON 을 넣었는지, 배치면 parse 결과 파일이 온전한지 확인 필요",
         error_type="permanent", reason_code="CHUNK_P004")
 
 
@@ -295,7 +295,7 @@ def execute(proc, stage: str, arg: dict) -> dict:
     started = time.monotonic()
     name = activity.info().activity_type
     doc = _doc(arg)
-    where = f"액티비티 {name} · 파일 {Path(doc).name if doc else '-'}"
+    where = f"activity {name} · 파일 {Path(doc).name if doc else '-'}"
     request = mock_request()
     tag_token = DOC_TAG.set(doc_tag(stage, doc))
     try:

@@ -74,10 +74,10 @@ def test_site_folder_overrides_activity_config(tmp_path, monkeypatch, caplog):
     chunk, parse = entries
     assert (chunk.config_path, parse.config_path) == (str(site / "activities" / "chunk" / "config.yaml"),
                                                       str(site / "activities" / "parse" / "config.yaml"))
-    assert parse.problem is None and "저장소 폴더로 떨어지지 않습니다" in chunk.problem
+    assert parse.problem is None and "저장소 기본 설정으로 대체하지 않음" in chunk.problem
     with pytest.raises(ApplicationError) as info:                                # 저장소 chunk 설정으로 돌지 않는다
         ActivityEnvironment().run(registry.build([chunk])[0], {})
-    assert info.value.non_retryable and "'chunk' 폴더가 없습니다" in str(info.value)
+    assert info.value.non_retryable and "activity chunk 설정 폴더 없음" in str(info.value)
     lines = [r.getMessage() for r in caplog.records]
     assert any("액티비티 parse:" in ln and "사이트 완성본" in ln and "오류" not in ln for ln in lines)
     assert any(ln.startswith("액티비티 chunk [호출마다 오류") for ln in lines)   # 결함 표시는 경로 앞(220자에서 잘리지 않게)
@@ -248,8 +248,8 @@ def test_doc_tag_is_upper_stage_and_file_name(stage, doc, expected):
 
 @pytest.mark.parametrize("exc, expected", [
     (GenosServiceException("1", "doc_type=x 에 맞는 등록이 없습니다.\n  설정을 고치세요.", error_type="permanent"),
-     "doc_type=x 에 맞는 등록이 없습니다. 설정을 고치세요. (액티비티 parse_q1 · 파일 a.pdf)"),
-    (KeyError("title"), "KeyError: 'title' (액티비티 parse_q1 · 파일 a.pdf)"),
+     "doc_type=x 에 맞는 등록이 없습니다. / 설정을 고치세요. (activity parse_q1 · 파일 a.pdf)"),
+    (KeyError("title"), "KeyError: 'title' (activity parse_q1 · 파일 a.pdf)"),
 ], ids=["처리기 예외 — 클래스 이름 없음·한 줄", "그 밖의 예외 — 이름이 뜻을 보탠다"])
 def test_failure_message_puts_reason_first(cfg, exc, expected):
     """실패 메시지는 사유가 맨 앞이고 한 줄이다 — Studio 콘솔(220자)과 GenOS 적재 상태(error_message)가 앞부분만
@@ -504,12 +504,21 @@ def test_single_run_cli_uses_worker_body_and_prints_result_last(tmp_path, monkey
     code = cli.main(["run", "--activity", "parse", str(src)])                 # 본체 실패 — 워커와 같은 details
     coded = json.loads(capsys.readouterr().out.strip().splitlines()[-1].removeprefix("@@RESULT@@ "))
     # message 에 type 접두("permanent: ")가 붙지 않는다 — type 은 따로 싣는다
-    assert code == 1 and coded["error"].pop("message") == "필수 열 부재 (액티비티 parse · 파일 a.md)"
+    assert code == 1 and coded["error"].pop("message") == "필수 열 부재 (activity parse · 파일 a.md)"
     # Studio 콘솔은 실패 때 stderr 꼬리 6줄만 보인다 — 사유가 stderr 마지막 줄에 있어야 한다
     failed_lines = [r.getMessage() for r in caplog.records if r.name == "genon.activities" and r.levelname == "ERROR"]
-    assert failed_lines[-1] == "단건 실행 실패(PARSE_D001): 필수 열 부재 (액티비티 parse · 파일 a.md)"
+    assert failed_lines[-1] == "단건 실행 실패(PARSE_D001): 필수 열 부재 (activity parse · 파일 a.md)"
     assert coded["error"] == {"type": "permanent", "non_retryable": True, "reason_code": "PARSE_D001",
                               "error_category": "data", "error_kind": "permanent"}
+
+    # 여러 줄 예외 — 결과 줄은 " / " 로 이은 한 줄, 콘솔은 줄마다(줄당 220자 절단을 피한다)
+    fake.exc = GenosServiceException("1", "필수 열 부재\n원천 확인 필요", error_type="permanent", reason_code="PARSE_D001")
+    caplog.clear()
+    code = cli.main(["run", "--activity", "parse", str(src)])
+    multi = json.loads(capsys.readouterr().out.strip().splitlines()[-1].removeprefix("@@RESULT@@ "))
+    assert code == 1 and multi["error"]["message"] == "필수 열 부재 / 원천 확인 필요 (activity parse · 파일 a.md)"
+    assert [r.getMessage() for r in caplog.records if r.name == "genon.activities" and r.levelname == "ERROR"] == [
+        "단건 실행 실패(PARSE_D001): 필수 열 부재", "원천 확인 필요 (activity parse · 파일 a.md)"]
 
     code = cli.main(["run", "--activity", "parse"])                          # 인자 오류도 결과 한 줄
     usage = json.loads(capsys.readouterr().out.strip().splitlines()[-1].removeprefix("@@RESULT@@ "))
@@ -655,8 +664,8 @@ def test_new_copies_repo_origin_folder(tmp_path, monkeypatch):
 
 
 @pytest.mark.parametrize("origin, slug, title, needle", [
-    ("parse", "parse", None, "원형 이름"), ("parse", "Parse_1", None, "규칙"), ("parse", "chunk_1", None, "단계가 다릅니다"),
-    ("nope", "parse_1", None, "원본 'nope'"), ("parse", "parse_1", "두\n줄", "한 줄"),
+    ("parse", "parse", None, "기본 activity 이름"), ("parse", "Parse_1", None, "형식 오류"), ("parse", "chunk_1", None, "생성 불가"),
+    ("nope", "parse_1", None, "원본 activity 없음: 'nope'"), ("parse", "parse_1", "두\n줄", "한 줄"),
 ])
 def test_new_rejects_bad_requests(tmp_path, monkeypatch, origin, slug, title, needle):
     from genon.preprocessor.activities.__main__ import new_activity
@@ -675,12 +684,12 @@ def test_remove_deletes_copy_but_not_prototype_or_site_overridden(tmp_path, monk
     removed = remove_activity("chunk_1", activities_dir=acts)
     assert sorted(Path(f).name for f in removed) == ["__init__.py", "config.yaml", "processor.py", "prompt_x.md"]
     assert not (acts / "chunk_1").exists()
-    for slug, needle in (("parse", "원형"), ("chunk_1", "없습니다")):
+    for slug, needle in (("parse", "기본 activity"), ("chunk_1", "activity 없음")):
         with pytest.raises(ValueError, match=needle):
             remove_activity(slug, activities_dir=acts)
     new_activity("parse", "parse_s", activities_dir=acts)
     (tmp_path / "site" / "activities" / "parse_s").mkdir()                       # 사이트가 덮어쓰는 slug
-    with pytest.raises(ValueError, match="사이트 완성본"):
+    with pytest.raises(ValueError, match="사이트 설정 폴더"):
         remove_activity("parse_s", activities_dir=acts)
     assert (acts / "parse_s").exists()
 

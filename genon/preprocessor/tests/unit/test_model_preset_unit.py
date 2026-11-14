@@ -353,18 +353,21 @@ def test_child_yaml_undefined_preset_fails_startup(tmp_path):
 
 # ── 자리표시값 경고(#631) ──────────────────────────────────────────────────────
 # Studio 콘솔은 stderr 꼬리를 줄당 220자로 자른다. 로그 머리(시각·레벨·로거 이름)가 80자 남짓이므로
-# 무엇이·영향·조치는 메시지 앞 130자 안에 있어야 한다.
+# 무엇이·영향은 첫 줄 앞 130자 안에 있어야 한다. 값 목록과 조치는 다음 호출로 나눈다.
 _CONSOLE_MESSAGE_BUDGET = 130
 
 
-def _placeholder_warnings(caplog) -> list[str]:
-    return [r.getMessage() for r in caplog.records if "자리표시값" in r.getMessage()]
+def _placeholder_warnings(caplog, count: int) -> list[str]:
+    """자리표시값 경고의 첫 줄부터 count 개 레코드(나눠 찍은 줄)를 돌려준다."""
+    messages = [r.getMessage() for r in caplog.records]
+    [head] = [i for i, m in enumerate(messages) if "자리표시값" in m]
+    return messages[head:head + count]
 
 
 @pytest.mark.unit
 @pytest.mark.parametrize("env", [False, True], ids=["환경변수 없음", "환경변수 있음"])
 def test_placeholder_warning_names_presets_effect_and_fix_in_one_line(tmp_path, monkeypatch, caplog, env):
-    """프리셋 자리표시값은 한 줄 앞부분에 프리셋 이름·영향·조치를 적고, 긴 목록은 개수와 앞 몇 개로 줄인다."""
+    """프리셋 자리표시값은 첫 줄에 프리셋 이름·영향, 다음 줄들에 값 목록·조치를 적고, 긴 목록은 개수와 앞 몇 개로 줄인다."""
     monkeypatch.delenv(cp.MODEL_PRESETS_ENV, raising=False)
     if env:
         presets = tmp_path / "dev_presets.yaml"
@@ -380,15 +383,14 @@ model_presets:
 toc:
   model_preset: default
 """))
-    [message] = _placeholder_warnings(caplog)
-    assert "\n" not in message
-    assert message.startswith("모델 프리셋 4개(default·image·page 외 1개)의 접속 정보가 자리표시값(<…>)이라")
-    fix = (f"{cp.MODEL_PRESETS_ENV} 이 가리키는 파일에 실제 값을 적으세요" if env
-           else f"{cp.MODEL_PRESETS_ENV} 에 실제 값을 적은 프리셋 파일을 지정하세요")
-    assert "실패하거나 건너뜁니다" in message
-    assert message.index(fix) + len(fix) <= _CONSOLE_MESSAGE_BUDGET
-    assert "page.url=<PAGE_DESCRIPTION_SERVING_ID> 외 1개" in message and "<OCR_ENDPOINT>" not in message
-    assert (f"파일 {presets}" in message) if env else (f"{cp.MODEL_PRESETS_ENV} 지정 안 됨" in message)
+    first, values, fix = _placeholder_warnings(caplog, 3)
+    assert not any("\n" in m for m in (first, values, fix))
+    assert first.startswith("모델 preset 4개(default·image·page 외 1개) 접속 정보가 비어 있음")
+    assert "실패하거나 건너뜀" in first and len(first) <= _CONSOLE_MESSAGE_BUDGET
+    assert "page.url=<PAGE_DESCRIPTION_SERVING_ID> 외 1개" in values and "<OCR_ENDPOINT>" not in values
+    assert fix == (f"{presets} 에 실제 값 입력 필요" if env
+                   else f"실제 값을 적은 preset 파일을 만들어 {cp.MODEL_PRESETS_ENV} 로 지정 필요 "
+                        f"(형식: resource/model_presets.yaml)")
 
 
 @pytest.mark.unit
@@ -398,6 +400,7 @@ def test_placeholder_outside_presets_points_at_the_config_file(tmp_path, monkeyp
     path = _write(tmp_path, 'whisper:\n  url: "<WHISPER_ENDPOINT>"\n')
     with caplog.at_level("WARNING"):
         cp.load_config(path)
-    [message] = _placeholder_warnings(caplog)
-    assert message == (f"설정 키 1개가 자리표시값(<…>)이라 이 값을 쓰는 기능은 실패하거나 건너뜁니다. "
-                       f"{path} 에서 실제 값으로 바꾸세요: whisper.url=<WHISPER_ENDPOINT>")
+    assert _placeholder_warnings(caplog, 2) == [
+        "설정 키 1개가 비어 있음(<…> 자리표시값 그대로), 이 값을 쓰는 기능은 실패하거나 건너뜀",
+        f"{path} 에서 실제 값으로 변경 필요 (대상 키 whisper.url=<WHISPER_ENDPOINT>)",
+    ]

@@ -38,7 +38,7 @@ def resolve_prompt_path(file_ref: str, base_dir: Path) -> Path:
         resolved.relative_to(base)
     except ValueError as exc:
         raise ValueError(
-            f"prompt 파일 경로가 허용 범위를 벗어났습니다: {resolved} (base: {base})"
+            f"prompt 파일 경로가 허용 범위를 벗어남: {resolved} (base={base})"
         ) from exc
     return resolved
 
@@ -61,8 +61,8 @@ def read_prompt_file(file_ref: str, base_dir: Path) -> str:
     """
     path = resolve_prompt_path(file_ref, base_dir)
     if not path.exists():
-        raise FileNotFoundError(f"prompt 파일이 없습니다: {path}")
+        raise FileNotFoundError(f"prompt 파일 없음: {path}")
     text = path.read_text(encoding="utf-8").strip()
     if not text:
-        raise ValueError(f"prompt 파일이 비어 있습니다: {path}")
+        raise ValueError(f"prompt 파일이 비어 있음: {path}")
     return text

@@ -67,7 +67,7 @@ def collect_generation_params(cfg: Optional[Mapping], *, label: str = "") -> dic
         # 임의 키 통로가 최종이다. 값 검사를 하지 않는 것이 이 통로의 목적이다.
         out.update(dict(extra))
     elif extra is not None:
-        _log.warning(f"{where}params 는 매핑이어야 합니다(받은 것: {type(extra).__name__}). 무시합니다.")
+        _log.warning(f"{where}params 설정 무시: key: value 매핑이 아님 (받은 형={type(extra).__name__})")
     return out
 
 
@@ -84,7 +84,7 @@ def resolve_headers(
     if isinstance(raw, Mapping):
         headers.update({str(k): str(v) for k, v in raw.items()})
     elif raw is not None:
-        _log.warning(f"headers 는 매핑이어야 합니다(받은 것: {type(raw).__name__}). 무시합니다.")
+        _log.warning(f"모델 요청 headers 설정 무시: key: value 매핑이 아님 (받은 형={type(raw).__name__})")
     headers.setdefault("Content-Type", "application/json")
     if api_key and "Authorization" not in headers:
         headers["Authorization"] = f"Bearer {api_key}"

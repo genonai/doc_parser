@@ -103,18 +103,20 @@ def new_activity(origin: str, slug: str, title: str | None = None, activities_di
 
     root = activities_dir or _folders.ACTIVITIES_DIR
     if not SLUG_RE.fullmatch(slug):
-        raise ValueError(f"slug 규칙에 맞지 않습니다: {slug!r} — ^(parse|chunk)(_[a-z0-9_]+)?$")
+        raise ValueError(f"activity 이름 형식 오류: {slug!r}\n"
+                         "<단계>_<이름> 형식 필요 (단계=parse·chunk, 이름=소문자·숫자·_)")
     if slug in _folders.STAGES:
-        raise ValueError(f"{slug!r} 는 원형 이름입니다 — 사본 이름은 parse_…·chunk_… 로")
+        raise ValueError(f"기본 activity 이름은 새 activity 이름으로 쓸 수 없음: {slug!r}\n"
+                         f"{slug}_<이름> 형식 필요 (이름=소문자·숫자·_)")
     if origin not in _folders.slugs(root):
-        raise ValueError(f"원본 {origin!r} 가 없습니다 — 있는 것: {', '.join(_folders.slugs(root)) or '<없음>'}")
+        raise ValueError(f"원본 activity 없음: {origin!r} (있는 것: {', '.join(_folders.slugs(root)) or '<없음>'})")
     if _folders.stage_of(slug) != _folders.stage_of(origin):
-        raise ValueError(f"단계가 다릅니다 — {slug!r} 는 {_folders.stage_of(slug)}, 원본 {origin!r} 는 {_folders.stage_of(origin)}")
+        raise ValueError(f"새 activity {slug!r} 생성 불가: 복제 원본 {origin!r} 과 단계(parse·chunk)가 다름")
     if title is not None and ("\n" in title or "\r" in title):
-        raise ValueError("--title 은 한 줄이어야 합니다(processor.py 첫 줄 주석)")
+        raise ValueError("--title 은 한 줄만 허용(processor.py 첫 줄 주석)")
     dest = root / slug
     if dest.exists():
-        raise ValueError(f"이미 있습니다: {dest}")
+        raise ValueError(f"대상 폴더 이미 있음: {dest}")
     source_cfg = source_code = root / origin                  # 저장소 원본 — 사이트 설정은 배포처 동기화가 덮는다(#561)
     code = {_folders.PROCESSOR_FILE, "__init__.py", "__main__.py"}       # 폴더 최상위의 액티비티 코드 — 저장소에서
     made: list[Path] = []
@@ -148,12 +150,14 @@ def remove_activity(slug: str, activities_dir: Path | None = None) -> list[str]:
 
     root = activities_dir or _folders.ACTIVITIES_DIR
     if slug in _folders.STAGES:
-        raise ValueError(f"{slug!r} 는 원형입니다 — 지우지 않습니다")
+        raise ValueError(f"기본 activity 는 삭제할 수 없음: {slug!r}\n"
+                         "삭제는 activities new 로 복제한 activity 만 가능")
     if slug not in _folders.slugs(root):
-        raise ValueError(f"액티비티 {slug!r} 가 없습니다 — 있는 것: {', '.join(_folders.slugs(root)) or '<없음>'}")
+        raise ValueError(f"activity 없음: {slug!r} (있는 것: {', '.join(_folders.slugs(root)) or '<없음>'})")
     site = _folders.site_activities_dir()
     if site is not None and (site / slug).is_dir():
-        raise ValueError(f"{slug!r} 는 사이트 완성본({site / slug})이 덮어쓰는 액티비티입니다 — 사이트 쪽에서 정리하세요")
+        raise ValueError(f"activity {slug!r} 삭제 불가: 사이트 설정 폴더({site / slug})에 같은 이름의 activity 가 있음\n"
+                         "사이트 설정 폴더에서 먼저 삭제 필요")
     target = root / slug
     files = [p for p in sorted(target.rglob("*")) if p.is_file() and "__pycache__" not in p.parts]
     listed = _repo_relative(root, files)
@@ -173,12 +177,13 @@ def diff_origin(slug: str, origin: str | None = None, activities_dir: Path | Non
 
     root = activities_dir or _folders.ACTIVITIES_DIR
     if slug not in _folders.slugs(root):
-        raise ValueError(f"액티비티 {slug!r} 가 없습니다 — 있는 것: {', '.join(_folders.slugs(root)) or '<없음>'}")
+        raise ValueError(f"activity 없음: {slug!r} (있는 것: {', '.join(_folders.slugs(root)) or '<없음>'})")
     origin = origin or _folders.stage_of(slug)
     if origin == slug:
-        raise ValueError(f"{slug!r} 는 원형입니다 — 사본 slug 를 주거나 --from 으로 원형을 지정하세요")
+        raise ValueError(f"{slug!r} 는 기본 activity 라 비교할 대상이 없음\n"
+                         "복제한 activity 이름을 지정하거나, --from 으로 비교할 기본 activity 지정 필요")
     if origin not in _folders.slugs(root):
-        raise ValueError(f"원형 {origin!r} 폴더가 없습니다")
+        raise ValueError(f"비교할 기본 activity 폴더 없음: {origin!r}")
     repo = Path(_git(root, "rev-parse", "--show-toplevel").strip())
     rel = lambda p: p.resolve().relative_to(repo).as_posix()  # noqa: E731
     # pathspec 은 저장소 루트 기준이라 git 도 루트에서 돌린다(-C root 면 activities/ 기준으로 해석된다)
@@ -221,12 +226,13 @@ def _emit(payload: dict) -> None:
 def _failure(activity: str | None, started: float, exc: BaseException) -> dict:
     from temporalio.exceptions import ApplicationError
 
+    from genon.preprocessor.worker.errors import one_line
     from genon.preprocessor.worker.registry import stage_of
 
     # ApplicationError 의 str() 은 앞에 "permanent: " 처럼 type 을 붙인다 — type 은 따로 싣으므로 message 만.
     message = exc.message if isinstance(exc, ApplicationError) else str(exc)
     error = {"type": getattr(exc, "type", None) or type(exc).__name__,
-             "message": " ".join(message.split()) or type(exc).__name__,
+             "message": one_line(message) or type(exc).__name__,
              "non_retryable": bool(getattr(exc, "non_retryable", False))}
     # 워커 본체가 만든 ApplicationError 면 details[0] 의 사유 코드(#589)를 선택 키로 더한다 — 배포된
     # 워커가 Temporal 오류에 싣는 값과 같다. 인자 오류처럼 본체 밖의 실패에는 없다.
@@ -239,7 +245,7 @@ def _failure(activity: str | None, started: float, exc: BaseException) -> dict:
 
 def _input_path(args) -> str:
     if bool(args.file) == bool(args.input):
-        raise _UsageError("입력 파일은 <file> 또는 --input 중 하나로 줍니다")
+        raise _UsageError("입력 파일 지정 필요: <file> 또는 --input 중 하나")
     return args.input or args.file
 
 
@@ -247,7 +253,7 @@ def _output_path(args, slug: str) -> Path:
     given = Path(_input_path(args)).name
     output = Path(args.output or f"{given}.{slug}.json").expanduser().absolute()
     if output.is_dir():
-        raise _UsageError(f"-o 는 파일 경로여야 합니다(디렉터리): {output}")
+        raise _UsageError(f"-o 에 파일 경로 지정 필요(디렉터리 받음): {output}")
     return output
 
 
@@ -273,17 +279,17 @@ def run(args) -> dict:
     entries = {e.slug: e for e in registry.scan(log_level=logging.DEBUG)}   # 이번 slug 의 설정은 시작 줄에
     entry = entries.get(args.activity)
     if entry is None:
-        raise ValueError(f"액티비티 {args.activity!r} 가 없습니다 — 있는 것: {', '.join(sorted(entries)) or '<없음>'}")
+        raise ValueError(f"activity 없음: {args.activity!r} (있는 것: {', '.join(sorted(entries)) or '<없음>'})")
     params = json.loads(args.params or "{}")
     if not isinstance(params, dict):
-        raise ValueError("--params 는 JSON 객체여야 합니다")
+        raise ValueError("--params 는 JSON 객체만 허용")
     if args.doc_type:
         params["doc_type"] = args.doc_type
     given = Path(_input_path(args)).expanduser()
     if not given.is_file():
-        raise FileNotFoundError(f"입력 파일이 없습니다: {_input_path(args)}")
+        raise FileNotFoundError(f"입력 파일 없음: {_input_path(args)}")
     output = _output_path(args, entry.slug)
-    log.info("단건 실행 시작: 액티비티 %s · 입력 %s · doc_type %s · 설정 %s · %s",
+    log.info("단건 실행 시작: activity=%s · 입력=%s · doc_type=%s · 설정=%s · %s",
              entry.slug, given.name, params.get("doc_type") or "없음", _config_source(entry), _presets_source())
 
     work = Path(tempfile.mkdtemp(prefix="activity-run-"))
@@ -400,16 +406,22 @@ def _run_isolated(argv: list[str]) -> dict:
     try:
         return json.loads(Path(result_file).read_text(encoding="utf-8"))
     except (OSError, ValueError):
-        raise RuntimeError(f"단건 실행 프로세스가 결과 없이 끝났습니다(exit={code})") from None
+        raise RuntimeError(f"단건 실행 프로세스가 결과 없이 종료됨(exit={code})") from None
     finally:
         Path(result_file).unlink(missing_ok=True)
 
 
 def _log_failure(result: dict) -> None:
     """실패 사유를 stderr 마지막 줄로 — Studio 콘솔은 실패 때 stderr 꼬리 6줄만 보여 주는데, 사유는
-    stdout 의 결과 줄에만 있었다. 사유 코드(있으면)를 앞에 둔다."""
+    stdout 의 결과 줄에만 있었다. 사유 코드(있으면)를 앞에 둔다. 여러 줄 예외는 결과 줄에서 `LINE_SEP` 로
+    이어져 있으므로 다시 나눠 줄마다 찍는다(Studio 콘솔은 줄당 220자에서 자른다)."""
+    from genon.preprocessor.worker.errors import LINE_SEP
+
     error = result.get("error") or {}
-    log.error("단건 실행 실패(%s): %s", error.get("reason_code") or error.get("type"), error.get("message"))
+    first, *rest = str(error.get("message") or "").split(LINE_SEP)
+    log.error("단건 실행 실패(%s): %s", error.get("reason_code") or error.get("type"), first)
+    for line in rest:
+        log.error("%s", line)
 
 
 def _log_format(stream=None) -> str:

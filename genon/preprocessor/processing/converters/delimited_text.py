@@ -27,6 +27,7 @@ docling 타입에 의존하지 않는다(텍스트 처리만 한다).
 from __future__ import annotations
 
 import logging
+import os
 from dataclasses import dataclass
 from typing import Any, Iterator, Mapping, Sequence
 
@@ -57,24 +58,24 @@ def parse_spec(cfg: Any) -> DelimitedSpec | None:
     if cfg is None:
         return None
     if not isinstance(cfg, Mapping):
-        raise ValueError(f"{_CONFIG_KEY} 는 매핑이어야 합니다: {type(cfg).__name__}")
+        raise ValueError(f"{_CONFIG_KEY} 형식 오류: 매핑 필요, 받은 형={type(cfg).__name__}")
 
     separator = str(cfg.get("separator") or "")
     if not separator:
-        raise ValueError(f"{_CONFIG_KEY}.separator 가 비어 있습니다.")
+        raise ValueError(f"{_CONFIG_KEY}.separator 비어 있음")
 
     raw_columns = cfg.get("columns")
     if not isinstance(raw_columns, Sequence) or isinstance(raw_columns, str):
-        raise ValueError(f"{_CONFIG_KEY}.columns 는 이름 목록이어야 합니다.")
+        raise ValueError(f"{_CONFIG_KEY}.columns 형식 오류: 이름 목록 필요")
     columns = tuple(str(name).strip() for name in raw_columns)
     if not columns or any(not name for name in columns):
-        raise ValueError(f"{_CONFIG_KEY}.columns 에 빈 이름이 있습니다.")
+        raise ValueError(f"{_CONFIG_KEY}.columns 에 빈 이름 있음")
     if len(set(columns)) != len(columns):
-        raise ValueError(f"{_CONFIG_KEY}.columns 에 중복된 이름이 있습니다: {columns}")
+        raise ValueError(f"{_CONFIG_KEY}.columns 에 중복 이름 있음: {columns}")
 
     quote = str(cfg.get("quote") or '"')
     if len(quote) != 1:
-        raise ValueError(f"{_CONFIG_KEY}.quote 는 1글자여야 합니다: {quote!r}")
+        raise ValueError(f"{_CONFIG_KEY}.quote 값 오류: 1글자 필요, quote={quote!r}")
 
     encoding = cfg.get("encoding")
     return DelimitedSpec(
@@ -101,7 +102,7 @@ def _open_text(path: str, encoding: str | None):
             continue
     # 후보가 모두 실패하면 마지막 후보로 손실을 감수하고 연다 — 본문 일부가 깨져도
     # 적재가 통째로 멈추는 것보다 낫고, 어느 인코딩도 못 읽는다는 사실은 로그로 남는다.
-    _log.warning(f"[delimited] 인코딩 판정 실패({last}) — {candidates[-1]} 로 손실 허용해 읽습니다.")
+    _log.warning(f"[delimited] 인코딩 판정 실패, {candidates[-1]} 로 읽고 깨진 문자는 대체 문자로 처리: {last}")
     return open(path, "r", encoding=candidates[-1], errors="replace", newline="")
 
 
@@ -149,8 +150,8 @@ def iter_records(path: str, spec: DelimitedSpec) -> Iterator[dict[str, str]]:
                     # 구분자가 모자란 줄. 앞 레코드가 닫힌 뒤라 이어 붙일 곳이 없다.
                     if line.strip():
                         _log.warning(
-                            f"[delimited] 필드가 모자란 줄을 건너뜁니다"
-                            f"({len(parts)}/{len(spec.columns)}): {line[:80]!r}"
+                            f"[delimited] 필드가 모자란 줄 건너뜀: "
+                            f"필드={len(parts)}/{len(spec.columns)} 줄={line[:80]!r}"
                         )
                     continue
                 head, body = parts[:-1], parts[-1]
@@ -175,12 +176,13 @@ def iter_records(path: str, spec: DelimitedSpec) -> Iterator[dict[str, str]]:
     if head is not None:
         # 인용이 끝내 닫히지 않은 채 파일이 끝났다. 모은 만큼은 레코드로 낸다 —
         # 버리면 마지막 건이 조용히 사라진다.
-        _log.warning("[delimited] 마지막 레코드의 인용이 닫히지 않았습니다(모은 내용으로 처리).")
+        _log.warning(f"[delimited] {os.path.basename(path)}: 마지막 레코드의 따옴표({quote})가 닫히지 않은 채 파일이 끝남")
+        _log.warning(f"파일 끝까지 {len(chunks)}줄을 마지막 레코드의 {spec.columns[-1]} 값으로 넣음")
         yield _to_record([*head, "\n".join(chunks)], spec)
 
 
 def read_records(path: str, spec: DelimitedSpec) -> list[dict[str, str]]:
     """레코드 목록. `kind: records` 매핑이 그대로 받는 형태다."""
     records = list(iter_records(path, spec))
-    _log.info(f"[delimited] 레코드 {len(records)}건 (구분자 {spec.separator!r})")
+    _log.info(f"[delimited] 레코드 읽음: {len(records)}건 separator={spec.separator!r}")
     return records

@@ -80,7 +80,7 @@ class JsonTextSpec:
             raw_fields = [raw_fields]
         self.text_fields: list[str] = [str(k).strip() for k in raw_fields if str(k).strip()]
         if not self.text_fields:
-            raise ValueError("json.text_fields 가 비어 있습니다(텍스트가 담긴 key 이름 목록).")
+            raise ValueError("source.pre.json.body_from 비어 있음: 텍스트가 담긴 key 이름 목록 지정 필요")
 
         fmt = str(cfg.get("format") or "auto").strip().lower()
         if fmt not in VALID_FORMATS:
@@ -158,7 +158,7 @@ def _markdown_to_html(value: str) -> str:
     try:
         import markdown  # genon/preprocessor/pyproject.toml 에 선언됨
     except ImportError:  # pragma: no cover - 의존성 누락 환경 방어
-        _log.warning("[json_text] markdown 패키지 없음 — 평문 <pre> 로 대체합니다.")
+        _log.warning("[json_text] markdown 패키지 없음: 평문 <pre> 로 대체함")
         soup = BeautifulSoup("<pre></pre>", "html.parser")
         soup.pre.string = value
         return str(soup)
@@ -175,7 +175,7 @@ def _section_node(value: str, fmt: str, label: str):
     # html: 항목 안에 srcdoc/이중인코딩이 있으면 먼저 펼친다.
     reasons = precheck_html(value)
     if reasons:
-        _log.info(f"[json_text] '{label}' flatten 적용 — 사유: {', '.join(reasons)}")
+        _log.info(f"[json_text] '{label}' flatten 적용: 사유={', '.join(reasons)}")
         value = flatten_html(value, label, reasons)
     return extract_content(value)
 
@@ -205,7 +205,7 @@ def json_payload_to_html(payload: Any, spec: JsonTextSpec, title: str) -> str:
         )
         if spec.missing_policy == "error":
             raise CodedValueError(msg, "PARSE_D008")
-        _log.warning(f"[json_text] {msg} — 빈 문서로 진행합니다.")
+        _log.warning(f"[json_text] 빈 문서로 진행: {msg}")
     else:
         _log.info(
             f"[json_text] 텍스트 항목 {len(items)}개 수집 "

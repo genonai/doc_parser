@@ -65,10 +65,9 @@ def build_json_text_specs(custom_fields_cfgs: Iterable[dict] | None) -> list:
             # 오류가 아니라 조용히 무시되고 본문이 캐치올로 빠져 표·heading 구조가
             # 소실된다 — 제일 나쁜 실패 모드라 여기서 명시적으로 막는다.
             raise ValueError(
-                f"custom_fields[doc_type={config.get('doc_type')}] 의 등록 블록 `json:` 은 "
-                f"설정 파일로 옮겼습니다 — `{config.get('config_file')}` 의 "
-                f"`source.pre.json` 에 적으세요(안쪽 키 이름도 바뀌었습니다: "
-                f"text_fields → body_from, missing_policy → on_missing)."
+                f"custom_fields[doc_type={config.get('doc_type')}] 설정 거부: 등록 블록 `json:` 은 지원하지 않음\n"
+                f"`{config.get('config_file')}` 의 `source.pre.json` 으로 이동 필요 "
+                f"(키 이름 변경: text_fields → body_from, missing_policy → on_missing)"
             )
         json_cfg = as_dict(resolve_format_cfg(config, "json"))
         if not json_cfg:
@@ -82,7 +81,7 @@ def single_match(matching: list, runtime_doc_type: Any, label: str,
     """doc_type 매칭 결과가 1개 이하인지 확인하고 반환한다(중복 설정은 즉시 실패)."""
     if len(matching) > 1:
         raise exc_factory(
-            f"동일 doc_type에 {label} custom_fields 설정이 여러 개입니다: {runtime_doc_type}"
+            f"custom_fields {label} 설정 중복: doc_type={runtime_doc_type} 에 설정 여러 개"
         )
     return matching[0] if matching else None
 
@@ -112,9 +111,9 @@ def json_records_mappers_for(mappers: Iterable, runtime_doc_type: Any,
         normalized = {normalize_column_name(k) for k in keys if k is not None}
         if len(normalized) != len(keys) or None in keys:
             raise exc_factory(
-                f"동일 doc_type 에 json_mapping 설정이 여러 개인데 records 키가 겹칩니다"
-                f"({runtime_doc_type}, records={keys}). 배열마다 다른 records 키를 주거나"
-                f" 설정 하나를 지우세요."
+                f"json_mapping 설정 충돌: doc_type={runtime_doc_type} 의 설정 여러 개에서 source.records_at 겹침 "
+                f"(source.records_at={keys})\n"
+                f"배열마다 다른 source.records_at 지정 또는 설정 하나 삭제 필요"
             )
     return matching
 
@@ -132,8 +131,7 @@ def resolve_unknown_doc_type_policy(value: Any) -> str:
     policy = str(value or "").strip().lower() or "warn"
     if policy not in UNKNOWN_DOC_TYPE_POLICIES:
         raise ValueError(
-            f"defaults.unknown_doc_type 은 {' | '.join(UNKNOWN_DOC_TYPE_POLICIES)} 중 하나여야 "
-            f"합니다: {value!r}"
+            f"defaults.unknown_doc_type 값 오류: {value!r} (허용 값: {' | '.join(UNKNOWN_DOC_TYPE_POLICIES)})"
         )
     return policy
 
@@ -166,9 +164,9 @@ def check_doc_type_configured(custom_fields_cfgs: Iterable[dict] | None, runtime
     register = f"{where} 의 enrichment 에 custom_fields(doc_type: {key})를 등록"
     if policy == "fail":
         raise exc_factory(
-            f"doc_type={key} 에 맞는 custom_fields 등록이 없습니다. defaults.unknown_doc_type 이 fail 이라 "
-            f"파싱을 멈춥니다. {register}하거나, 필드 추출 없이 일반 문서로 파싱하려면 그 파일의 "
-            f"defaults.unknown_doc_type 을 warn 으로 바꾸세요."
+            f"doc_type={key} parsing 중단: custom_fields 등록 없음 (defaults.unknown_doc_type=fail)\n"
+            f"{register}하거나, 필드 추출 없이 파싱하려면 같은 파일의 "
+            f"defaults.unknown_doc_type 을 warn 으로 바꿔야 함"
         )
-    _log.warning(f"[parser] doc_type={key} 에 맞는 custom_fields 등록이 없어 필드 추출 없이 일반 문서로 "
-                 f"파싱합니다. 필드 추출이 필요하면 {register}하세요.")
+    _log.warning(f"doc_type={key} 필드 추출 건너뜀: custom_fields 등록 없음, 일반 문서로 파싱함, "
+                 f"필드 추출이 필요하면 {register}해야 함")

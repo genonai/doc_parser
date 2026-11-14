@@ -120,12 +120,12 @@ def chunk_fields(value) -> dict:
     if not value:
         return {}
     if not isinstance(value, dict):
-        raise TypeError(f'edit_chunk 의 info["fields"] 는 dict 여야 합니다: {type(value).__name__}')
+        raise TypeError(f'edit_chunk 의 info["fields"] 는 dict 여야 함 (type={type(value).__name__})')
     reserved = sorted(set(STAT_FIELDS) & set(value))
     if reserved:
         raise ValueError(
-            f'edit_chunk 의 info["fields"] 로 바꿀 수 없는 필드입니다: {reserved}. '
-            "본문은 반환값으로 바꾸고, 통계와 순번은 core 가 계산합니다.")
+            f'edit_chunk 의 info["fields"] 로 바꿀 수 없는 필드: {reserved}\n'
+            "본문(text)은 edit_chunk 의 반환값으로 바꾸고, 글자 수·페이지·순번 필드는 훅 실행 뒤 자동으로 다시 계산됨")
     return dict(value)
 
 

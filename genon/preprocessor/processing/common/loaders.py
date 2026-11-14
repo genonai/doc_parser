@@ -67,7 +67,7 @@ def install_packages(packages):
         try:
             __import__(package)
         except ImportError:
-            _log.warning(f"{package} 패키지가 없습니다. 설치를 시도합니다.")
+            _log.warning(f"{package} 패키지 없음: 설치 시도함")
             subprocess.run([sys.executable, "-m", "pip", "install", package], check=True)
 
 
@@ -84,7 +84,7 @@ def load_image_documents(loader, file_path: str) -> list[Document]:
     except TypeError as exc:
         if "__str__ returned non-string" not in str(exc):
             raise
-        _log.warning(f"[load_image_documents] 이미지 로더 우회 경로로 적재합니다: {file_path} ({exc})")
+        _log.warning(f"[load_image_documents] {file_path}: 이미지 로더 우회 경로로 적재함 ({exc})")
 
     from unstructured.partition.image import partition_image
 

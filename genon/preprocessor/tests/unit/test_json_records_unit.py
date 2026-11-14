@@ -194,7 +194,7 @@ def test_unknown_transform_is_rejected_at_startup(tmp_path):
         "EVENT_FROM:\n    alias: [이벤트 시작일]\n    transform: date_int_flex",
         "EVENT_FROM:\n    alias: [이벤트 시작일]\n    transform: 없는변환기",
     )
-    with pytest.raises(ValueError, match="등록되지 않은 transforms"):
+    with pytest.raises(ValueError, match="등록되지 않은 transform 변환기"):
         write_mapper(tmp_path, config)
 
 
@@ -322,7 +322,7 @@ def test_html_to_text_invalid_table_format_falls_back_to_html(caplog):
     with caplog.at_level("WARNING"):
         text = html_to_text(_TABLE_HTML, table_format="csv")
     assert "<table" in text
-    assert "지원하지 않는 table_format" in caplog.text
+    assert "table_format=csv 미지원" in caplog.text
 
 
 def test_html_to_text_compact_tables_only_affects_markdown():
@@ -512,7 +512,7 @@ def test_records_without_text_are_excluded(tmp_path, caplog):
     # id/page 는 제외 후 기준으로 0/1 부터 다시 매겨진다
     assert result["elements"][0]["id"] == 0
     assert result["elements"][0]["page"] == 1
-    assert "본문이 빈 레코드 1/2건" in caplog.text
+    assert "본문이 빈 레코드 제외: 1/2건" in caplog.text
 
 
 # ── doc_type 매칭 / 설정 검증 ────────────────────────────────────────────────
@@ -552,7 +552,7 @@ def test_collect_only_config_is_accepted(tmp_path):
 
 
 def test_text_fields_is_required(tmp_path):
-    with pytest.raises(ValueError, match="text_fields"):
+    with pytest.raises(ValueError, match="body.fields"):
         write_mapper(
             tmp_path,
             "schema: v2\nsource:\n  kind: records\n  records_at: eventList\n"
@@ -639,7 +639,7 @@ def test_llm_field_requires_config_file_or_url(tmp_path):
           - out: [CONTENT_HASH]
             in: [TITLE]
     """)
-    with pytest.raises(ValueError, match="config_file 또는 url"):
+    with pytest.raises(ValueError, match="config_file 또는 endpoint.url"):
         write_mapper(tmp_path, config)
 
 

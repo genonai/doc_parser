@@ -105,7 +105,7 @@ def _normalize_value(
     date_int transform 도 `2026-01-12` 표기를 그대로 받는다.
     """
     if _depth > 32:
-        raise CodedValueError("Markdown front matter 중첩 깊이가 32를 초과했습니다.", "PARSE_D007")
+        raise CodedValueError("Markdown front matter 중첩 깊이 32 초과", "PARSE_D007")
     if isinstance(value, (date, datetime)):
         return value.isoformat()
     if value is None or isinstance(value, (str, int, float, bool)):
@@ -115,7 +115,7 @@ def _normalize_value(
         memo = _memo if _memo is not None else {}
         value_id = id(value)
         if value_id in active:
-            raise CodedValueError("Markdown front matter에 순환 YAML alias가 있습니다.", "PARSE_D006")
+            raise CodedValueError("Markdown front matter 에 순환 YAML alias 있음", "PARSE_D006")
         if value_id in memo:
             return memo[value_id]
         active.add(value_id)
@@ -164,8 +164,8 @@ def _policy(value: Any, name: str, default: str) -> str:
     policy = str(value or default).strip().lower()
     if policy not in _POLICIES:
         raise ValueError(
-            f"custom_fields.markdown.front_matter.{name}는 "
-            f"{sorted(_POLICIES)} 중 하나여야 합니다: {value!r}"
+            f"source.pre.markdown.front_matter.{name} 는 "
+            f"{sorted(_POLICIES)} 중 하나여야 함 (받은 값={value!r})"
         )
     return policy
 
@@ -191,7 +191,7 @@ def _legacy_metadata_field_map(value: Any) -> dict[str, list[str]]:
         for item in value:
             key = str(item or "").strip()
             if not key:
-                raise ValueError("front_matter.metadata_fields에 빈 필드명이 있습니다.")
+                raise ValueError("front_matter.metadata_fields 에 빈 필드명 있음")
             result[key] = [key]
         return result
     if isinstance(value, dict):
@@ -201,15 +201,15 @@ def _legacy_metadata_field_map(value: Any) -> dict[str, list[str]]:
             targets = target if isinstance(target, list) else [target]
             names = [str(t or "").strip() for t in targets]
             if not source_name or not names or not all(names):
-                raise ValueError("front_matter.metadata_fields의 source/target은 비어 있을 수 없습니다.")
+                raise ValueError("front_matter.metadata_fields 의 source·target 은 비어 있을 수 없음")
             for name in names:
                 if name in result:
                     raise ValueError(
-                        f"front_matter.metadata_fields 대상 필드가 중복됩니다: {name}"
+                        f"front_matter.metadata_fields 대상 필드 중복: {name}"
                     )
                 result[name] = [source_name]
         return result
-    raise ValueError("front_matter.metadata_fields는 list 또는 mapping이어야 합니다.")
+    raise ValueError("front_matter.metadata_fields 는 list 또는 mapping 이어야 함")
 
 
 def _alias_field_map(value: Any) -> dict[str, list[str]]:
@@ -220,13 +220,13 @@ def _alias_field_map(value: Any) -> dict[str, list[str]]:
     if value is None:
         return {}
     if not isinstance(value, dict):
-        raise ValueError("front matter 별칭(fields.<목표>.alias)은 mapping이어야 합니다.")
+        raise ValueError("front matter 별칭(fields.<목표>.alias)은 mapping 이어야 함")
     result: dict[str, list[str]] = {}
     for target, sources in value.items():
         target_name = str(target or "").strip()
         names = [str(s or "").strip() for s in (sources if isinstance(sources, list) else [sources])]
         if not target_name or not names or not all(names):
-            raise ValueError("front matter 별칭의 목표/원천키는 비어 있을 수 없습니다.")
+            raise ValueError("front matter 별칭의 목표·원천 키는 비어 있을 수 없음")
         result[target_name] = names
     return result
 
@@ -235,12 +235,12 @@ def _field_list(value: Any, name: str) -> tuple[str, ...]:
     if value is None:
         return ()
     if not isinstance(value, list):
-        raise ValueError(f"front_matter.{name}는 list여야 합니다.")
+        raise ValueError(f"front_matter.{name} 는 list 여야 함")
     fields = []
     for item in value:
         field = str(item or "").strip()
         if not field:
-            raise ValueError(f"front_matter.{name}에 빈 필드명이 있습니다.")
+            raise ValueError(f"front_matter.{name} 에 빈 필드명 있음")
         if field not in fields:
             fields.append(field)
     return tuple(fields)
@@ -298,7 +298,7 @@ class MarkdownFrontMatterSpec:
         if fm_cfg is True:
             fm_cfg = {}
         if not isinstance(fm_cfg, dict):
-            raise ValueError("custom_fields.markdown.front_matter는 object여야 합니다.")
+            raise ValueError("source.pre.markdown.front_matter 는 object 여야 함")
 
         # 새 표기는 `fields.<목표>.alias`(내부 `front_matter_map`) 하나다. 옛 표기
         # `front_matter.metadata_fields` 도 계속 받아 같은 모양으로 합친다 — 두 자리에 같은
@@ -310,7 +310,7 @@ class MarkdownFrontMatterSpec:
         invalid_targets = sorted(set(field_aliases) & _RESERVED_TARGETS)
         if invalid_targets:
             raise ValueError(
-                "front_matter metadata 대상이 청크 예약 필드와 충돌합니다: "
+                "front_matter metadata 대상이 chunk 예약 필드와 충돌함: "
                 f"{invalid_targets}"
             )
 
@@ -318,9 +318,9 @@ class MarkdownFrontMatterSpec:
         try:
             max_bytes = int(fm_cfg.get("max_bytes") or _DEFAULT_MAX_BYTES)
         except (TypeError, ValueError) as exc:
-            raise ValueError("front_matter.max_bytes는 정수여야 합니다.") from exc
+            raise ValueError("front_matter.max_bytes 는 정수여야 함") from exc
         if max_bytes < 1:
-            raise ValueError("front_matter.max_bytes는 1 이상이어야 합니다.")
+            raise ValueError("front_matter.max_bytes 는 1 이상이어야 함")
 
         return cls(
             doc_types=normalize_doc_types(config.get("doc_type")),
@@ -427,7 +427,7 @@ class MarkdownFrontMatterSpec:
             selected[target] = _flatten_scalar_list(fields[found])
         if missing_selected:
             _log.warning(
-                "Markdown front matter 별칭 원천키 누락(%s): %s",
+                "Markdown front matter 별칭 원천 키 누락: file=%s 목표 필드=%s",
                 path.name,
                 sorted(missing_selected),
             )
@@ -531,7 +531,7 @@ def resolve_format_cfg(config: dict, block: str) -> dict | None:
         and inline_block not in (None, False)
         and custom_fields_extractor(config) not in DOCUMENT_CUSTOM_FIELD_EXTRACTORS
     ):
-        raise ValueError(f"custom_fields.{block}은 문서 단위 extractor에서만 지원합니다.")
+        raise ValueError(f"source.pre.{block} 은 문서 단위 extractor 에서만 지원함")
 
     if custom_fields_extractor(config) not in DOCUMENT_CUSTOM_FIELD_EXTRACTORS:
         return None
@@ -543,7 +543,7 @@ def resolve_format_cfg(config: dict, block: str) -> dict | None:
     if inline_present and inline_block in (None, False):
         return None
     if inline_present and not isinstance(inline_block, dict):
-        raise ValueError(f"custom_fields.{block}은 object 또는 false여야 합니다.")
+        raise ValueError(f"custom_fields.{block} 은 object 또는 false 여야 함")
 
     return _merge_config(child_block, inline_block or {})
 

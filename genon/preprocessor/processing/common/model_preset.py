@@ -123,8 +123,8 @@ def expand_block(
     for key, value in presets[name].items():
         if key in BLOCKED_KEYS:
             _log.warning(
-                f"[model_preset] `{PRESETS_KEY}.{name}.{key}` 는 프리셋에 둘 수 없는 "
-                f"배선 키라 무시합니다. 이 값은 쓰는 블록에 직접 적으세요."
+                f"[model_preset] `{PRESETS_KEY}.{name}.{key}` 무시 (preset 에 둘 수 없는 키), "
+                f"이 preset 을 참조하는 설정 블록에 직접 지정 필요"
             )
             continue
         if allowed_keys is not None and key not in allowed_keys:
@@ -178,7 +178,7 @@ def _fail(message: str, *, strict: bool, fallback):
     """설정 오기입 처리. strict 면 기동을 막고, 아니면 경고만 남기고 원본으로 간다."""
     if strict:
         raise ModelPresetError(message)
-    _log.warning(f"[model_preset] {message} 해당 블록은 그대로 둡니다.")
+    _log.warning(f"[model_preset] preset 적용 없이 블록 유지: {message}")
     return fallback
 
 

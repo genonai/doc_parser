@@ -400,8 +400,8 @@ class TokenAwareHybridChunker(BaseChunker):
                     )
                     for index in result.oversized_piece_indexes:
                         _log.warning(
-                            "[TokenAwareHybridChunker] 표의 단일 행이 분할 예산(%d)을 초과해 "
-                            "행 구조를 보존한 채 유지합니다: table=%s size=%d",
+                            "[TokenAwareHybridChunker] 표 행 하나가 chunk_size(%d) 초과: "
+                            "행을 나누지 않고 그대로 둠 (table=%s size=%d)",
                             available_length, getattr(table_item, "self_ref", ""),
                             self._count_text_tokens(result.pieces[index]),
                         )

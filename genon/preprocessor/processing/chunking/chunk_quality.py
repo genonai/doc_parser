@@ -95,19 +95,19 @@ def _parse_value(key: str, value: Any, where: str) -> Any:
     path = f"{where}.{key}"
     if key == "action":
         if value not in ACTIONS:
-            raise ValueError(f"{path}: {list(ACTIONS)} 중 하나여야 합니다(지금: {value!r}).")
+            raise ValueError(f"{path}: {list(ACTIONS)} 중 하나 지정 필요 (받은 값={value!r})")
         return value
     if key in _BOOL_KEYS:
         if not isinstance(value, bool):
-            raise ValueError(f"{path}: true/false 여야 합니다(지금: {value!r}).")
+            raise ValueError(f"{path}: true/false 지정 필요 (받은 값={value!r})")
         return value
     if key in _COUNT_KEYS:
         minimum = 2 if key == "repeat_min_count" else 0
         if isinstance(value, bool) or not isinstance(value, int) or value < minimum:
-            raise ValueError(f"{path}: {minimum} 이상의 정수여야 합니다(지금: {value!r}).")
+            raise ValueError(f"{path}: {minimum} 이상의 정수 지정 필요 (받은 값={value!r})")
         return value
     if isinstance(value, bool) or not isinstance(value, (int, float)) or not 0 <= value <= 1:
-        raise ValueError(f"{path}: 0~1 사이의 비율이어야 합니다(지금: {value!r}).")
+        raise ValueError(f"{path}: 0~1 사이 비율 지정 필요 (받은 값={value!r})")
     return float(value)
 
 
@@ -115,7 +115,7 @@ def _parse_values(raw: dict, allowed: tuple, where: str) -> dict:
     unknown = sorted(str(k) for k in raw if k not in allowed)
     if unknown:
         raise ValueError(
-            f"{where}.{unknown[0]}: 쓸 수 없는 키입니다. 쓸 수 있는 것: {list(allowed)}")
+            f"{where}.{unknown[0]}: 지원하지 않는 키임 (허용 키: {list(allowed)})")
     return {key: _parse_value(key, value, where) for key, value in raw.items()}
 
 
@@ -134,21 +134,21 @@ def config_from_cfg(chunking_cfg: dict) -> Optional[Config]:
     if raw is None:
         return None
     if not isinstance(raw, dict):
-        raise ValueError(f"{where}: object 여야 합니다(예: {{enable: true, action: report}}).")
+        raise ValueError(f"{where}: object 지정 필요 (예: {{enable: true, action: report}})")
     enable = raw.get("enable", False)
     if not isinstance(enable, bool):
-        raise ValueError(f"{where}.enable: true/false 여야 합니다(지금: {enable!r}).")
+        raise ValueError(f"{where}.enable: true/false 지정 필요 (받은 값={enable!r})")
     values = _parse_values(
         {k: v for k, v in raw.items() if k not in ("enable", "by_doc_type")},
         _VALUE_KEYS + ("enable", "by_doc_type"), where)
     by_doc_type_raw = raw.get("by_doc_type") or {}
     if not isinstance(by_doc_type_raw, dict):
-        raise ValueError(f"{where}.by_doc_type: doc_type 별 object 여야 합니다.")
+        raise ValueError(f"{where}.by_doc_type: doc_type 별 object 지정 필요")
     by_doc_type: dict = {}
     for doc_type, overrides in by_doc_type_raw.items():
         path = f"{where}.by_doc_type.{doc_type}"
         if not isinstance(overrides, dict):
-            raise ValueError(f"{path}: object 여야 합니다(예: {{min_chars: 0}}).")
+            raise ValueError(f"{path}: object 지정 필요 (예: {{min_chars: 0}})")
         by_doc_type[_normalize_doc_type(doc_type)] = _parse_values(overrides, _VALUE_KEYS, path)
     if not enable:
         return None
@@ -567,8 +567,8 @@ class Session:
             if not self.cfg.drops:
                 # report 모드는 청크를 빼지 않으므로 판정 실패가 적재 결과를 바꾸지 않는다.
                 # 관측용 기능이 적재를 막지 않도록 기록만 하고 통과시킨다.
-                _log.error("[chunk_validation] report file=%s index=%s 판정 오류로 이 청크를 "
-                           "건너뜁니다: %s", self.file_name, index, exc, exc_info=True)
+                _log.error("[chunk_validation] report file=%s index=%s chunk 판정 건너뜀: "
+                           "판정 오류 (%s)", self.file_name, index, exc, exc_info=True)
                 return None
             # drop 모드는 검증하지 않은 결과를 돌려주지 않는다.
             raise _error(CHUNK_VALIDATION_ERROR,
@@ -666,8 +666,8 @@ class Session:
             if verdict is not None and self.cfg.drops:
                 if position == 0 and origin is not None and origin.prefix:
                     _log.warning(
-                        "[chunk_validation] file=%s 최종 검사에서 첫 청크를 제외했습니다. "
-                        "첫 청크 전용 접두는 다시 붙이지 않습니다.", self.file_name)
+                        "[chunk_validation] file=%s 최종 검사에서 첫 chunk 제외: "
+                        "첫 chunk 전용 접두는 다시 붙이지 않음", self.file_name)
                 continue
             kept.append(item)
 
@@ -731,14 +731,17 @@ class Session:
         rate = len(self.records) / self.n_input if self.n_input else 0.0
         _log.info(
             "[chunk_validation] %s file=%s 입력=%d 판정=%d 제외=%d 생존=%d 사유별=%s "
-            "판정률=%.1f%% 청크가_모두_걸린_페이지=%s",
+            "판정률=%.1f%% 전체_chunk_판정_페이지=%s",
             self.cfg.action, self.file_name, self.n_input, len(self.records), self.rejected,
             len(list(survivors)), self.reason_counts(), rate * 100, empty_pages or "-")
         if self.missing_fields:
-            _log.warning("[chunk_validation] file=%s 청킹 중 빠지거나 덮어써진 메타 필드=%s",
+            _log.warning("[chunk_validation] file=%s parser 가 만든 메타 필드가 최종 chunk 에서 "
+                         "빠지거나 값이 바뀜: 필드별 chunk 수=%s",
                          self.file_name, dict(self.missing_fields))
+            _log.warning("processor.py 의 edit_chunk·edit_output 훅이 그 필드를 지우거나 "
+                         "덮어쓰는지 확인 필요")
         if self.over_length:
-            _log.warning("[chunk_validation] file=%s 글자 수 상한(%d) 초과 청크=%d건 최대=%d자",
+            _log.warning("[chunk_validation] file=%s 글자 수 상한(%d) 초과 chunk=%d건 최대=%d자",
                          self.file_name, self.cfg.max_chars, len(self.over_length),
                          max(item["n_char"] for item in self.over_length))
 

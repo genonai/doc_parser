@@ -44,8 +44,8 @@ def validation_policy() -> str:
     raw = str(os.environ.get(VALIDATION_POLICY_ENV) or "error").strip().lower()
     if raw not in _VALID_POLICIES:
         _log.warning(
-            f"[custom_fields] {VALIDATION_POLICY_ENV}='{raw}' 는 알 수 없는 값입니다 "
-            f"(사용 가능: {list(_VALID_POLICIES)}). error 로 진행합니다."
+            f"[custom_fields] {VALIDATION_POLICY_ENV}={raw} 미지원 값, error 로 처리 "
+            f"(허용: {list(_VALID_POLICIES)})"
         )
         return "error"
     return raw
@@ -156,8 +156,8 @@ def validate_known_keys(cfg: dict, *, label: str, extractor: str | None) -> None
     message = format_diagnosis(label, diagnosis)
     if validation_policy() == "warn":
         _log.warning(
-            f"[custom_fields] {message} "
-            f"(이 설정은 무시되고 그대로 진행합니다. {VALIDATION_POLICY_ENV}=error 면 기동을 막습니다.)"
+            f"[custom_fields] {message}, 해당 설정 무시하고 기동함 "
+            f"({VALIDATION_POLICY_ENV}=error 이면 기동 중단)"
         )
         return
     raise ValueError(message)

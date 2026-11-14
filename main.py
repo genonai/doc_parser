@@ -296,7 +296,7 @@ async def parse_upload(
     try:
         params_dict = json.loads(params) if params else {}
         if not isinstance(params_dict, dict):
-            raise ValueError('params 는 JSON 객체여야 합니다.')
+            raise ValueError('params 가 JSON 객체가 아님')
     except (ValueError, TypeError) as e:
         return _error_response('parser_upload', file.filename or '', e, error_code=ERROR_CODE_INPUT,
                                reason_code='COMMON_P002')

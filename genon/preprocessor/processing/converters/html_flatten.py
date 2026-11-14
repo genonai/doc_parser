@@ -539,7 +539,8 @@ def promote_marker_headings(node: Tag) -> int:
     # 독립 배정되는 실제 결과와 어긋날 수 있어(섹션이 여러 개인 경우) 승격과 같은
     # 자리에서 찍는다.
     mapping = ", ".join(f"{marker}→h{level}" for marker, level in levels.items())
-    _log.info("[html_flatten] marker_headings: %s (승격 %d건)", mapping, len(candidates))
+    _log.info("[html_flatten] ◈·▣ 같은 도형 기호로 쓴 소제목을 HTML 제목 태그로 바꿈: "
+              "기호별 제목 단계=%s, 바꾼 줄 %d개", mapping, len(candidates))
     return len(candidates)
 
 

@@ -431,7 +431,7 @@ def expand_elements(elements) -> list:
 
     if split_rows:
         _log.info(
-            "[table_blocks] 표를 담은 행 %d건을 표 단위로 분리했습니다: %d → %d 청크",
+            "[table_blocks] 표를 담은 행 %d건을 표 단위로 분리: chunk %d → %d",
             split_rows, len(elements), len(expanded))
     return expanded
 

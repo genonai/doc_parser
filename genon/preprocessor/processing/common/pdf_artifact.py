@@ -89,7 +89,7 @@ class PdfArtifactPolicy:
             self.produced.append(produced)
         elif produced and preexisting:
             _log.info(
-                f"[pdf_artifact] 기존 PDF 를 덮어썼습니다 — 정리 대상에서 제외합니다: {produced}"
+                f"[pdf_artifact] 변환 전부터 있던 PDF 를 덮어씀, 정리 대상에서 제외: {produced}"
             )
         return produced
 
@@ -146,5 +146,5 @@ def convert_into(
             try:
                 os.remove(staged)
             except OSError as exc:
-                _log.warning(f"[pdf_artifact] 입력 사본 정리 실패: {staged} ({exc})")
+                _log.warning(f"[pdf_artifact] 입력 파일의 임시 복사본 삭제 실패: {staged} ({exc})")
     return produced

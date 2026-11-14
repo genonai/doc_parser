@@ -418,8 +418,8 @@ class ChunkerCore:
         self._chunk_mode = str(chunking_cfg.get("chunk_mode", "split_only")).strip().lower()
         if self._chunk_mode not in {"split_only", "resize_all"}:
             _log.warning(
-                f"chunking.chunk_mode {self._chunk_mode!r} 는 지원하지 않는 값이라 split_only 로 처리합니다. "
-                f"split_only 또는 resize_all 로 고치세요.")
+                f"chunking.chunk_mode={self._chunk_mode!r} 미지원: split_only 로 처리함 "
+                f"(허용 값: split_only, resize_all)")
             self._chunk_mode = "split_only"
 
         # 본문이 이보다 짧은 청크를 다음 청크로 병합(chunking.short_chunk_size, 기본 0=끔).
@@ -516,8 +516,8 @@ class ChunkerCore:
         chunk_mode = str(kwargs.get('chunk_mode') or self._chunk_mode).strip().lower()
         if chunk_mode not in {"split_only", "resize_all"}:
             _log.warning(
-                f"요청 파라미터(또는 processor.py 의 doc_type 별 설정) chunk_mode {kwargs.get('chunk_mode')!r} 는 "
-                f"지원하지 않는 값이라 split_only 로 처리합니다. split_only 또는 resize_all 을 쓰세요.")
+                f"chunk_mode={kwargs.get('chunk_mode')!r} 미지원, split_only 로 처리함 "
+                f"(허용 값: split_only·resize_all, 값 출처: 요청 파라미터 또는 processor.py 의 doc_type 별 설정)")
             chunk_mode = "split_only"
         doc_metadata = dpx.merge_context_metadata(extract_metadata_from_document(documents), kwargs)
         short_chunk_size = cp.resolve_short_chunk_size(
@@ -550,7 +550,7 @@ class ChunkerCore:
         # 출력에서만 정규화하면 청크 경계가 노이즈 문자를 센 채로 잡힌다.
         _cleanup = tn.prepare_document(documents, kwargs, self)
         _log.info(
-            f"청크 설정: {_size_setting(chunk_size, self)} · chunk_mode={chunk_mode} · "
+            f"chunk 설정: {_size_setting(chunk_size, self)} · chunk_mode={chunk_mode} · "
             f"include_chunk_header={_flag(include_header)} · table_as_chunk={_flag(table_as_chunk)} · "
             f"short_chunk_size={short_chunk_size} · text_cleanup={'safe' if _cleanup else 'off'}")
         chunks: List[DocChunk] = list(chunker.chunk(dl_doc=documents, **kwargs))
@@ -659,17 +659,18 @@ class ChunkerCore:
             raise cq.all_rejected_error(validation)
         if not vector_metas and not notes["dropped"]:
             raise GenosServiceException(
-                1, "청크를 하나도 만들지 못했습니다: 분할 결과가 0건입니다. processor.py 에서 edit_input 이나 "
-                   "split 을 고쳤다면 반환값이 비지 않았는지 확인하세요.",
+                1, "chunk 0건: 분할 결과 없음\n"
+                   "processor.py 의 edit_input·split 을 고쳤다면 반환값이 비지 않았는지 확인 필요",
                 error_type="permanent", reason_code="CHUNK_D001")
         if not vector_metas:
             # 실패로 바꾸지는 않는다 — 청크를 거르는 것은 edit_chunk 의 정당한 동작이다(#364).
             _log.warning(
-                f"edit_chunk 가 청크 {notes['dropped']}건을 모두 버려 이 문서의 결과가 0건입니다. "
-                f"의도가 아니면 processor.py 의 edit_chunk 가 tb.DROP 을 돌려주는 조건을 확인하세요.")
+                f"chunk 결과 0건: edit_chunk 가 chunk {notes['dropped']}건을 모두 제외함, "
+                f"의도가 아니면 processor.py 의 edit_chunk 에서 tb.DROP 반환 조건 확인 필요")
         elif notes["dropped"]:
             _log.info(
-                f"edit_chunk 가 청크 {notes['dropped']}건을 버렸습니다(남은 청크 {len(vector_metas)}건, 순번을 다시 매깁니다).")
+                f"processor.py 의 edit_chunk 가 tb.DROP 을 돌려준 chunk {notes['dropped']}건을 결과에서 뺌: "
+                f"남은 chunk {len(vector_metas)}건, 순번·개수 필드는 남은 chunk 기준으로 다시 매김")
         if notes["dropped"] or rejected:
             # n_chunk_of_doc / page 개수는 루프 전에 계산해 둔 값이라 다시 맞춰야 한다.
             vm.refresh_stats(vector_metas)
@@ -830,7 +831,7 @@ class ChunkerCore:
                 cause = "parse 의 문서 유형 설정에서 그 필드의 값 형식을 확인하세요. "
             raise GenosServiceException(
                 "1",
-                f"행 메타데이터를 청크 필드로 옮기지 못했습니다(행 #{notes['chunk_idx']}). "
+                f"행 메타데이터를 chunk 필드로 옮기지 못함(행 #{notes['chunk_idx']}): "
                 f"{cause}{_validation_summary(exc)}",
                 stage="custom_fields", error_type="permanent", reason_code="CHUNK_P001",
             ) from exc
@@ -1221,9 +1222,9 @@ class ChunkerCore:
                     if budget <= 0:
                         # 접두 하나가 chunk_size 이상인 병리 케이스 — 본문 기준으로 폴백(경고).
                         _log.warning(
-                            f"레코드 접두(chunk_prefix, {len(prefix)}자)가 chunk_size({chunk_size}) 이상이라 "
-                            f"조각마다 접두를 다시 붙이지 않고 통째로 나눕니다. 둘째 조각부터 어느 레코드인지 "
-                            f"접두가 빠집니다. chunk_size 를 늘리거나 parse 설정의 chunk_prefix_fields 를 줄이세요.")
+                            f"레코드 접두 재부착 건너뜀: chunk_prefix={len(prefix)}자가 chunk_size={chunk_size} 이상임, "
+                            f"둘째 chunk 부터 레코드 접두 빠짐, "
+                            f"chunk_size 증가 또는 parse 설정의 body.repeat 축소 필요")
                         budget = chunk_size
                         prefix = ""
                         body = content
@@ -1257,8 +1258,8 @@ class ChunkerCore:
 
         if split_records:
             _log.info(
-                f"[chunker] splittable 레코드 {split_records}건을 chunk_size({chunk_size}) 기준으로 "
-                f"분할했습니다: {len(rows)} → {len(expanded)} 청크"
+                f"splittable 레코드 분할: {split_records}건, chunk_size={chunk_size}, "
+                f"chunk {len(rows)} → {len(expanded)}"
             )
         return expanded
 
@@ -1309,12 +1310,12 @@ class ChunkerCore:
             except OSError as exc:
                 code, kind = os_error_reason(exc, "CHUNK")
                 raise GenosServiceException(
-                    1, f"chunker 입력 파일 로드 실패({file_path}): {exc}",
+                    1, f"chunker 입력 파일 로드 실패: {file_path} ({exc})",
                     error_type=kind, reason_code=code) from exc
             except Exception as exc:
                 # JSON 문법 손상 등 파서 산출물 자체의 문제다.
                 raise GenosServiceException(
-                    1, f"chunker 입력 파일 로드 실패({file_path}): {exc}",
+                    1, f"chunker 입력 파일 로드 실패: {file_path} ({exc})",
                     error_type="permanent", reason_code="CHUNK_P004") from exc
         if not raw_payload:
             if file_path and not file_path.lower().endswith(".json"):
@@ -1331,7 +1332,7 @@ class ChunkerCore:
         else:
             kind, data = _classify_payload(raw_payload)
         source = f" · 파일 {Path(file_path).name}" if file_path else ""
-        _log.info(f"청커 입력: {_input_shape(kind, data, self.ROW_CATEGORIES)}{source}")
+        _log.info(f"chunker 입력: {_input_shape(kind, data, self.ROW_CATEGORIES)}{source}")
         # 민감정보 분류(#315): chunking 은 워크플로우를 호출하지 않는다. parser 가 분류해
         #   파스 출력에 실어 보낸 sensitive_infos 를 청크에 적용만 한다(병합).
         return ChunkInput(kind, data, dict(
@@ -1456,9 +1457,8 @@ class ChunkerCore:
                 where = "config_by_condition" if key in by_condition else "CONFIG_BY_DOC_TYPE"
                 config_file = cp.display_config_path(
                     Path(getattr(self, "_config_dir", ".")) / "config.yaml") or "config.yaml"
-                _log.warning(
-                    f"{key} 는 doc_type 별로 바꿀 수 없는 키라 건너뜁니다(processor.py 의 {where}). "
-                    f"오타가 아니면 {config_file} 에서 바꾸세요.")
+                _log.warning(f"{key} 건너뜀: doc_type 별로 바꿀 수 없는 키임 (processor.py 의 {where})")
+                _log.warning(f"오타가 아니면 {config_file} 에서 변경 필요")
                 continue
             if param in job.params:   # 요청이 보낸 값이 우선
                 continue
@@ -1552,9 +1552,9 @@ class ChunkerCore:
         if over:
             # 문서당 한 줄로 모은다 — 청크마다 찍으면 큰 문서에서 콘솔 꼬리를 다 덮는다.
             _log.warning(
-                f"최종 청크 {len(over)}건이 chunk_size({limit}자)를 넘습니다(최대 {max(n for _, n in over)}자, "
-                f"순번 {cp.head_items([index for index, _ in over])}). 결과는 그대로 냅니다. 나눈 뒤 붙는 "
-                f"HEADER 줄·문서 접두나 edit_chunk·edit_output 이 늘렸는지 확인하세요.")
+                f"chunk_size 초과 chunk {len(over)}건: 상한={limit}자, 최대={max(n for _, n in over)}자, "
+                f"순번 {cp.head_items([index for index, _ in over])} (결과는 그대로 출력함)")
+            _log.warning("분할 뒤 붙는 HEADER 줄·문서 접두, edit_chunk·edit_output 의 길이 증가 확인 필요")
 
     def _finish_chunk_job(self, job) -> None:
         """요청 스코프 자원을 정리한다. 두 번 불러도 안전하다."""
@@ -1600,7 +1600,7 @@ class ChunkerCore:
                 cause = (f"{_validation_summary(exc)}. parse 와 chunk 를 같은 전처리기 버전으로 실행했는지 "
                          f"확인하고, 같다면 parse 를 다시 실행하세요.")
             raise GenosServiceException(
-                1, f"parse 결과의 docling 문서를 복원하지 못했습니다: {cause}", error_type="permanent",
+                1, f"parse 결과의 docling 문서 복원 실패: {cause}", error_type="permanent",
                 reason_code="CHUNK_P004") from exc
 
         has_text_items = False
@@ -1647,8 +1647,8 @@ class ChunkerCore:
         if emptied and not elements:
             # 훅이 목록을 비운 경우를 원천이 빈 경우와 가른다(#364).
             raise GenosServiceException(
-                1, f"청크를 하나도 만들지 못했습니다: processor.py 의 edit_input 이 elements {emptied}개를 모두 "
-                   f"걸러 빈 목록을 돌려줬습니다. 의도가 아니면 edit_input 의 반환값을 확인하세요.",
+                1, f"chunk 0건: processor.py 의 edit_input 이 elements {emptied}개를 모두 걸러 빈 목록 반환\n"
+                   "의도가 아니면 edit_input 반환값 확인 필요",
                 error_type="permanent", reason_code="CHUNK_D001")
 
         # 파서와 청커가 별개 요청이라 표 출력 설정은 프로세서 속성에만 있다. docling 경로
@@ -1671,7 +1671,7 @@ class ChunkerCore:
         for el in elements:
             content = str((el or {}).get("content", "") or "")
             if content.startswith("[AUDIO]"):
-                _log.info("음성 전사 결과([AUDIO])라 나누지 않고 청크 1개로 냅니다.")
+                _log.info("분할 건너뜀: 음성 전사 결과([AUDIO])라 chunk 1개로 출력")
                 return [jb.Chunk(text=content, kind="marker")]
 
         # 2) legacy tabular([DA]) 가드 — 이전 csv/xlsx parse payload 호환용.
@@ -1681,7 +1681,7 @@ class ChunkerCore:
         ]
         if non_empty and all((el or {}).get("category") == "table" for el in non_empty):
             joined = "\n".join(str(el.get("content", "")) for el in non_empty)
-            _log.info(f"elements 가 모두 표(category table, {len(non_empty)}개)라 나누지 않고 합쳐 청크 1개로 냅니다.")
+            _log.info(f"chunk 1개로 합침: elements 가 모두 표임 (category=table, {len(non_empty)}개)")
             return [jb.Chunk(text="[DA] " + joined, kind="marker")]
 
         # 3) 공통 텍스트 경로
@@ -1692,8 +1692,9 @@ class ChunkerCore:
         rows = [el for el in elements if el.get("category") in self.ROW_CATEGORIES]
         if not rows:
             raise GenosServiceException(
-                1, f"청크를 하나도 만들지 못했습니다: elements {len(elements)}개 중 행(category "
-                   f"{cp.head_items(sorted(self.ROW_CATEGORIES))})이 없습니다. processor.py 의 ROW_CATEGORIES 를 확인하세요.",
+                1, f"chunk 0건: elements {len(elements)}개 중 행(category "
+                   f"{cp.head_items(sorted(self.ROW_CATEGORIES))}) 없음\n"
+                   "processor.py 의 ROW_CATEGORIES 확인 필요",
                 error_type="permanent", reason_code="CHUNK_D001")
         # 행 element 가 하나라도 있으면 이 경로로 오므로, 섞여 온 비-행 element 는 버려진다.
         # tabular_row 는 외부 파서도 만들 수 있는 일반 이름이라 조용한 축소를 로그로 드러낸다.
@@ -1701,12 +1702,12 @@ class ChunkerCore:
         if dropped:
             categories = list(dict.fromkeys(str(el.get("category")) for el in dropped))
             _log.warning(
-                f"행이 있는 입력이라 행마다 청크 1개로 만들고, 섞여 온 다른 element {len(dropped)}개"
-                f"(category {cp.head_items(categories)})는 버립니다(행 {len(rows)}개 · 전체 {len(elements)}개). "
-                f"그 element 도 청크로 내려면 processor.py 의 ROW_CATEGORIES 에 그 category 를 넣으세요."
+                f"행 아닌 element {len(dropped)}개 제외: 행 단위 chunking "
+                f"(category {cp.head_items(categories)}, 행 {len(rows)}개 · 전체 {len(elements)}개), "
+                f"chunk 에 포함하려면 processor.py 의 ROW_CATEGORIES 에 해당 category 추가 필요"
             )
 
-        setting = f"청크 설정: 행마다 청크 1개 · table_as_chunk={_flag(self._isolate_tables_enabled(**kwargs))}"
+        setting = f"chunk 설정: 행마다 chunk 1개 · table_as_chunk={_flag(self._isolate_tables_enabled(**kwargs))}"
         size = self._resolve_recursive_split_params(**kwargs)[0]
         if size < _NO_SPLIT_CHARS and any(el.get("splittable") for el in rows):
             setting += f" · splittable 행만 chunk_size={size}자 기준으로 나눔"
@@ -1763,7 +1764,7 @@ class ChunkerCore:
                 1, message, error_type="permanent", reason_code="CHUNK_D001")
 
         size_text = _size_setting(0 if chunk_size >= _NO_SPLIT_CHARS else chunk_size, None)
-        _log.info(f"청크 설정: elements 를 글자 수로 나눔 · {size_text} · chunk_overlap={chunk_overlap} · "
+        _log.info(f"chunk 설정: elements 를 글자 수로 나눔 · {size_text} · chunk_overlap={chunk_overlap} · "
                   f"table_as_chunk={_flag(_isolate_tables)} · text_cleanup={'safe' if cleanup else 'off'}")
         splitter = RecursiveCharacterTextSplitter(
             chunk_size=chunk_size, chunk_overlap=chunk_overlap,
@@ -1777,8 +1778,8 @@ class ChunkerCore:
             chunks = [c for c in chunks if c.page_content]
         if not chunks:
             raise GenosServiceException(
-                1, f"청크를 하나도 만들지 못했습니다: chunking.text_cleanup 이 청크 {split_count}건을 모두 지웠습니다. "
-                   f"text_cleanup.rules 가 본문까지 지우지 않는지 확인하세요.",
+                1, f"chunk 0건: chunking.text_cleanup 이 chunk {split_count}건을 모두 지움\n"
+                   "text_cleanup.rules 가 본문까지 지우지 않는지 확인 필요",
                 error_type="permanent", reason_code="CHUNK_D001")
 
         return [jb.Chunk(

@@ -55,7 +55,7 @@ def download_resource_files(bucket_name: str, resource_id: int, path: str):
     minio_config = MinioConfig()
     if not minio_config.is_configured():
         logger.warning(
-            f"MINIO_* 환경변수 미설정 — 리소스 다운로드를 건너뜁니다. "
+            f"MINIO_* 환경변수 미설정: 리소스 다운로드 건너뜀 "
             f"(resource_id={resource_id})"
         )
         return

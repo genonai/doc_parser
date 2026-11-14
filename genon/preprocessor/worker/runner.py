@@ -32,11 +32,11 @@ async def _serve(cfg: settings.Settings) -> None:
     runtime.configure(cfg)
     entries = registry.scan()
     if not entries:
-        raise RuntimeError(f"등록할 액티비티가 없습니다 — {settings.ACTIVITIES_DIR} 에 parse·chunk·parse_…·chunk_… 폴더(processor.py)가 없다")
+        raise RuntimeError(f"등록할 activity 없음: {settings.ACTIVITIES_DIR} 에 parse·chunk·parse_…·chunk_… 폴더(processor.py) 없음")
     log.info("Temporal 접속: address=%s namespace=%s task_queue=%s threads=%d",
              cfg.temporal_address, cfg.temporal_namespace, cfg.task_queue, cfg.threads)
     client = await Client.connect(cfg.temporal_address, namespace=cfg.temporal_namespace)
-    log.info("액티비티 %d개: %s", len(entries), ", ".join(f"{e.slug}({e.stage})" for e in entries))
+    log.info("activity %d개: %s", len(entries), ", ".join(f"{e.slug}({e.stage})" for e in entries))
     with concurrent.futures.ThreadPoolExecutor(max_workers=cfg.threads) as pool:
         await Worker(client, task_queue=cfg.task_queue, activities=registry.build(entries),
                      activity_executor=pool, max_concurrent_activities=cfg.threads,

@@ -81,8 +81,8 @@ def _load_hf_tokenizer(source):
         detail = next((line.strip() for line in str(exc).splitlines() if line.strip()), type(exc).__name__)
         raise GenosServiceException(
             1,
-            f"chunking.tokenizer_type 이 huggingface 인데 토크나이저 {source} 를 불러오지 못했습니다: "
-            f"{detail[:150].rstrip('.')}. chunking.tokenizer_path 에 토크나이저 폴더를 두거나 tokenizer_type 을 char 로 바꾸세요.",
+            f"huggingface tokenizer 로드 실패: {source} ({detail[:150].rstrip('.')})\n"
+            "chunking.tokenizer_path 에 tokenizer 폴더 지정 또는 tokenizer_type=char 로 변경 필요",
             error_type="permanent",
         ) from exc
 
@@ -317,8 +317,8 @@ class SmartChunkerBase(BaseChunker):
         # 청크가 0개가 되어 하위에서 "청크를 하나도 만들지 못했습니다" 로 실패하므로 되살린다.
         if not all_items and dropped_filename_titles:
             _log.warning(
-                "[GenosSmartChunker] 파일명 TITLE 외 본문 아이템이 없어 파일명 TITLE "
-                f"{len(dropped_filename_titles)}개를 본문으로 되살립니다."
+                "[GenosSmartChunker] 파일명 TITLE 외 본문 아이템 없음: 파일명 TITLE "
+                f"{len(dropped_filename_titles)}개를 본문으로 복원함"
             )
             for title_item in dropped_filename_titles:
                 all_items.append(title_item)
@@ -809,8 +809,8 @@ class SmartChunkerBase(BaseChunker):
                 getattr(table_item, "self_ref", ""), len(result.pieces))
         for index in result.oversized_piece_indexes:
             _log.warning(
-                "[GenosSmartChunker] 표 헤더와 접두 등 고정 비용만으로 분할 예산(%d)을 "
-                "넘어 셀을 나눠도 줄지 않으므로 행 구조를 보존한 채 유지합니다: table=%s size=%d",
+                "[GenosSmartChunker] 표 chunk 가 chunk_size(%d) 초과로 남음: "
+                "헤더·접두만으로 상한을 넘어 더 나눌 수 없음 (table=%s size=%d)",
                 limit, getattr(table_item, "self_ref", ""),
                 self._count_tokens(result.pieces[index]),
             )
@@ -900,9 +900,9 @@ class SmartChunkerBase(BaseChunker):
         """HEADER 줄 하나가 chunk_size 이상이라 그 몫을 빼지 않고 본문만으로 나눌 때의 경고."""
         unit = "토큰" if self.tokenizer_type == "huggingface" else "자"
         _log.warning(
-            f"HEADER 줄(섹션 경로)이 {header_tokens}{unit}로 chunk_size({self.max_tokens}) 이상이라 "
-            f"그 길이를 빼지 않고 본문만으로 나눕니다. 이 섹션의 청크는 chunk_size 를 넘습니다. "
-            f"제목이 본문만큼 길면 parse 결과의 섹션 제목을 확인하거나 chunking.include_chunk_header 를 끄세요."
+            f"HEADER 줄(섹션 경로) 길이 {header_tokens}{unit} 가 chunk_size({self.max_tokens}) 이상: "
+            "본문만으로 나눠 이 섹션의 chunk 는 chunk_size 를 넘음, "
+            "섹션 제목 확인 또는 chunking.include_chunk_header 끄기 필요"
         )
 
     def _header_line_for(self, h_short: list[dict]) -> str:
