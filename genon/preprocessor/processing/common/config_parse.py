@@ -282,8 +282,8 @@ def collect_model_presets(cfg: dict, config_path: str, *, strict: bool = True) -
         refs = raw_refs
     else:
         return _preset_fail(
-            f"{config_path}: `{MODEL_PRESETS_FILE_KEY}` 는 파일 경로 문자열 또는 그 목록이어야 합니다 "
-            f"(받은 것: {raw_refs!r}).",
+            f"{config_path}: `{MODEL_PRESETS_FILE_KEY}` 가 파일 경로 문자열이나 그 목록이 아님 "
+            f"(받은 값: {raw_refs!r})",
             strict=strict,
             fallback=model_preset.get_presets(cfg, label=config_path, strict=strict),
         )

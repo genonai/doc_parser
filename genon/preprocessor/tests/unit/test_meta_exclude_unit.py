@@ -105,10 +105,10 @@ def test_unused_field_note_is_logged_once_when_the_mapper_is_used(tmp_path, capl
             doc_type="unused_note", extractor="tabular_mapping",
             config_file="custom_field_unused_note.yaml", resource_path=str(tmp_path),
         )
-        assert "쓰이지 않습니다" not in caplog.text
+        assert "어디에도 안 쓰임" not in caplog.text
         mapper.to_parse_format(_ROW, "unused_note")
         mapper.to_parse_format(_ROW, "unused_note")
-    assert caplog.text.count("쓰이지 않습니다") == 1
+    assert caplog.text.count("어디에도 안 쓰임") == 1
 
 
 # ── 제어키 왕복 ──────────────────────────────────────────────────────────────

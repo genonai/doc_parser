@@ -200,8 +200,7 @@ def json_payload_to_html(payload: Any, spec: JsonTextSpec, title: str) -> str:
     items = collect_text_fields(payload, spec.text_fields)
     if not items:
         msg = (
-            f"json.text_fields {spec.text_fields} 에 해당하는 텍스트를 JSON 에서 "
-            f"찾지 못했습니다."
+            f"json.text_fields {spec.text_fields} 에 해당하는 텍스트가 JSON 에 없음"
         )
         if spec.missing_policy == "error":
             raise CodedValueError(msg, "PARSE_D008")

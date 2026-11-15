@@ -234,9 +234,9 @@ def _diagnose_skip_value(key: str, value) -> list[str]:
     if key in (TABLE_TEXT_LONG_TEXT_KEY, "long_cells"):
         if value is False or _is_nonneg_int(value):
             return []
-        return [f"`skip.{key}` 는 0 이상의 정수여야 합니다(받은 값: {value!r}). 이 값은 무시됩니다"]
+        return [f"`skip.{key}` 값 무시: 0 이상의 정수 필요(받은 값: {value!r})"]
     if not isinstance(value, bool):
-        return [f"`skip.{key}` 는 true 또는 false 여야 합니다(받은 값: {value!r}). 이 값은 무시됩니다"]
+        return [f"`skip.{key}` 값 무시: true 또는 false 필요(받은 값: {value!r})"]
     return []
 
 
@@ -249,24 +249,24 @@ def diagnose_table_text_description(block) -> list[str]:
     if not isinstance(block, dict):
         return []
     problems = [
-        f"모르는 키 `{key}` 는 무시됩니다{_suggest(str(key), TABLE_TEXT_DESCRIPTION_KEYS)}"
+        f"모르는 키 `{key}` 무시{_suggest(str(key), TABLE_TEXT_DESCRIPTION_KEYS)}"
         for key in block if str(key) not in TABLE_TEXT_DESCRIPTION_KEYS
     ]
     rag = block.get("rag")
     if isinstance(rag, dict):
         problems += [
-            f"모르는 키 `rag.{key}` 는 무시됩니다{_suggest(str(key), TABLE_TEXT_RAG_KEYS)}"
+            f"모르는 키 `rag.{key}` 무시{_suggest(str(key), TABLE_TEXT_RAG_KEYS)}"
             for key in rag if str(key) not in TABLE_TEXT_RAG_KEYS
         ]
         if "search_terms" in rag:
             value = rag["search_terms"]
             if isinstance(value, bool) or not isinstance(value, int) or value < 0:
-                problems.append(f"`rag.search_terms` 는 0 이상의 정수여야 합니다(받은 값: {value!r}). 이 값은 무시됩니다")
+                problems.append(f"`rag.search_terms` 값 무시: 0 이상의 정수 필요(받은 값: {value!r})")
             old = sorted(k for k in ("search_terms_limit", "include_search_terms") if k in rag)
             if old:
-                problems.append(f"`rag.search_terms` 와 옛 키 {old} 를 함께 적었습니다. `rag.search_terms` 가 우선합니다")
+                problems.append(f"`rag.search_terms` 와 옛 키 {old} 를 함께 적음, `rag.search_terms` 우선")
     elif rag is not None:
-        problems.append("`rag` 는 '키: 값' 형태여야 합니다. 이 값은 무시됩니다")
+        problems.append("`rag` 값 무시: '키: 값' 형태 필요")
     skip = block.get("skip")
     if isinstance(skip, dict):
         for key, value in skip.items():
@@ -274,17 +274,17 @@ def diagnose_table_text_description(block) -> list[str]:
             if key in TABLE_TEXT_SKIP_OLD_KEYS:
                 news = TABLE_TEXT_SKIP_OLD_KEYS[key]
                 names = ", ".join(f"`skip.{new}`" for new in news)
-                problems.append(f"`skip.{key}` 는 옛 이름입니다. {names} 를 쓰십시오")
+                problems.append(f"`skip.{key}` 는 옛 이름: {names} 사용 필요")
                 if any(new in skip for new in news):
-                    problems.append(f"`skip.{key}` 와 새 키 {names} 를 함께 적었습니다. 새 키가 우선합니다")
+                    problems.append(f"`skip.{key}` 와 새 키 {names} 를 함께 적음, 새 키 우선")
             elif key not in TABLE_TEXT_SKIP_KEYS:
                 problems.append(
-                    f"모르는 키 `skip.{key}` 는 무시됩니다{_suggest(key, frozenset(TABLE_TEXT_SKIP_KEYS))}"
+                    f"모르는 키 `skip.{key}` 무시{_suggest(key, frozenset(TABLE_TEXT_SKIP_KEYS))}"
                 )
                 continue
             problems += _diagnose_skip_value(key, value)
     elif skip is not None and skip is not False:
-        problems.append(f"`skip` 은 false 또는 조건별 '키: 값' 형태여야 합니다(받은 값: {skip!r}). 이 값은 무시됩니다")
+        problems.append(f"`skip` 값 무시: false 또는 조건별 '키: 값' 형태 필요(받은 값: {skip!r})")
     return problems
 
 
@@ -294,7 +294,7 @@ def warn_table_text_description(block, *, label: str) -> None:
     쓰지 않는 블록의 오타로 서비스가 뜨지 않는 일을 피하려고 첫 릴리스는 경고만 남긴다.
     """
     for problem in diagnose_table_text_description(block):
-        _log.warning(f"[table_text_description] {label}: {problem}.")
+        _log.warning(f"[table_text_description] {label}: {problem}")
 
 
 def format_diagnosis(label: str, diagnosis: dict) -> str:
@@ -309,7 +309,7 @@ def format_diagnosis(label: str, diagnosis: dict) -> str:
                            for k, owners in diagnosis["misplaced"].items())
         lines.append(f"이 extractor 가 읽지 않는 키: {detail}")
     return (
-        f"{label}: extractor '{diagnosis['extractor']}' 설정에 쓸 수 없는 키가 있습니다. "
+        f"{label}: extractor '{diagnosis['extractor']}' 설정에 쓸 수 없는 키 있음: "
         + " / ".join(lines)
-        + f". 지원 키: {diagnosis['supported']}"
+        + f" (지원 키: {diagnosis['supported']})"
     )

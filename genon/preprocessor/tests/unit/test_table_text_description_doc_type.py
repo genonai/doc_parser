@@ -184,7 +184,7 @@ def test_old_skip_keys_are_expanded_to_new_keys(layers, expected):
     ({"skip": {"duplicate_tabel": True}}, ["`skip.duplicate_tabel`", "duplicate_table"]),
     ({"rag": {"search_terms": -1}}, ["0 이상의 정수"]),
     ({"rag": {"search_terms": 3, "include_search_terms": False}}, ["옛 키"]),
-    ({"skip": "off"}, ["`skip` 은 false"]),
+    ({"skip": "off"}, ["`skip` 값 무시", "false 또는"]),
 ])
 def test_block_key_diagnosis(block, expected):
     """오기입은 문장 하나로 보고된다(가까운 이름 제안 포함). 정상 블록은 빈 목록이다."""
@@ -203,7 +203,7 @@ def test_block_key_diagnosis(block, expected):
     ({"long_text_table": {"min_avg_chars": 100}}, 1, ["`skip.long_text_table`", "0 이상의 정수"]),
     ({"long_cells": 100}, 1, ["`skip.long_cells`", "옛 이름", "long_text_table"]),
     ({"long_cells": True}, 2, ["옛 이름", "0 이상의 정수"]),
-    ({"layout": False, "nested_table": True}, 2, ["옛 이름", "함께 적었습니다", "새 키가 우선"]),
+    ({"layout": False, "nested_table": True}, 2, ["옛 이름", "함께 적음", "새 키 우선"]),
 ])
 def test_skip_value_diagnosis(skip, count, tokens):
     """값 형식 위반, 옛 키, 옛 키와 새 키의 동시 사용은 각각 문장으로 보고된다."""

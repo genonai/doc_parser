@@ -448,7 +448,7 @@ def test_defaults_and_constants_apply(tmp_path):
 
 def test_missing_records_key_raises(tmp_path):
     mapper = write_mapper(tmp_path)
-    with pytest.raises(ValueError, match="찾지 못했습니다"):
+    with pytest.raises(ValueError, match="JSON 에 없음"):
         mapper.build_fields({"other": []}, "monimo_event")
 
 
