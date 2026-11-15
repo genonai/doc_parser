@@ -4,6 +4,9 @@
     python -m genon.preprocessor.activities new --from <원형 slug> --slug <새 slug> [--title <별명>]
     python -m genon.preprocessor.activities remove --slug <slug>
     python -m genon.preprocessor.activities diff <slug> [--from <원형>]
+    python -m genon.preprocessor.activities doc-types list [--activity parse]
+    python -m genon.preprocessor.activities doc-types validate --name <doc_type> [--activity parse]
+    python -m genon.preprocessor.activities doc-types add --name <doc_type> --from <있는 doc_type> --activity <사본 slug> [--title <설명>]
 
     parse  <file> = 원본 문서        → 파싱 결과 JSON(-o, 기본 ./<파일명>.<slug>.json)
     chunk  <file> = 파싱 결과 JSON   → 청크 배열 JSON
@@ -31,6 +34,12 @@ config.yaml 이 처음 들어온 커밋)을 찾아, 그때의 원형 폴더와 �
 찍는다(사본에 가져올 변경을 사람이 고른다 — 자동 동기화는 하지 않는다). 원형은 --from, 없으면 단계 원형(parse·chunk).
 복사 커밋이 없으면(미커밋 사본) 그렇다고 알린다. 마지막 줄은 같은 결과 계약 — data = {slug, origin, copied_at,
 changed, added, removed, unchanged}.
+
+`doc-types` (#712, Studio 의 doc_type 추가): parse 액티비티 폴더의 등록 블록(`config.yaml` 의 `- custom_fields:`)과
+규칙 파일(`custom_field_<doc_type>.yaml`)을 읽고(`list`·`validate`), 사본 폴더에 더한다(`add`). 본체는
+`_doc_types.py`. `add` 는 **파일만 다룬다** — `data.files` = [config.yaml, 규칙 파일](저장소 루트 기준). 거부 사유는
+`error.detail.reason` 에 싣는다(`DocTypeError`). `validate` 는 검사 결과가 실패여도 `ok: true` · `data.valid: false`.
+결과 줄의 `stage` 는 null 이다(pipeline 의 같은 이름 명령과 맞춘다).
 """
 from __future__ import annotations
 
@@ -81,6 +90,18 @@ def _parser() -> argparse.ArgumentParser:
     diff = sub.add_parser("diff", help="사본 slug 가 복사된 뒤 원형이 바뀐 것을 보여 준다")
     diff.add_argument("slug", help="사본 slug(= activities/<slug>/ 폴더 이름)")
     diff.add_argument("--from", dest="origin", help="원형 slug(기본: 단계 원형 parse·chunk)")
+    doc_types = sub.add_parser("doc-types", help="parse 액티비티의 doc_type 등록을 보고·검사하고·추가한다")
+    action = doc_types.add_subparsers(dest="action", required=True, parser_class=_Parser)
+    listing = action.add_parser("list", help="등록된 doc_type 과 규칙 파일")
+    listing.add_argument("--activity", default="parse", help="parse 액티비티 slug(기본 parse)")
+    validate = action.add_parser("validate", help="doc_type 하나의 등록 상태를 단계별로 검사한다")
+    validate.add_argument("--name", required=True, help="검사할 doc_type")
+    validate.add_argument("--activity", default="parse", help="parse 액티비티 slug(기본 parse)")
+    add = action.add_parser("add", help="있는 doc_type 의 규칙 파일을 복사해 새 doc_type 을 등록한다")
+    add.add_argument("--name", required=True, help="새 doc_type(소문자·숫자·_)")
+    add.add_argument("--from", dest="origin", required=True, help="규칙 파일을 복사할, 이미 등록된 doc_type")
+    add.add_argument("--activity", required=True, help="사본 parse 액티비티 slug(parse_xxx). 원형 parse 는 거부")
+    add.add_argument("--title", help="복사한 규칙 파일 첫 줄 주석에 넣을 설명(한 줄)")
     return p
 
 
@@ -218,6 +239,20 @@ def diff_origin(slug: str, origin: str | None = None, activities_dir: Path | Non
     return summary, "".join(body)
 
 
+def doc_types_command(args) -> dict:
+    """`doc-types list | validate | add` → 결과 줄의 data. 거부는 `DocTypeError`(사유 = `detail.reason`)."""
+    from genon.preprocessor.activities import _doc_types, _folders
+
+    if args.action == "list":
+        return _doc_types.list_doc_types(args.activity)
+    if args.action == "validate":
+        return _doc_types.validate_doc_type(args.name, args.activity)
+    if args.title is not None and ("\n" in args.title or "\r" in args.title):
+        raise _UsageError("--title 은 한 줄만 허용(규칙 파일 첫 줄 주석)")
+    data, files = _doc_types.add_doc_type(args.name, args.origin, args.activity, args.title)
+    return {**data, "files": _repo_relative(_folders.ACTIVITIES_DIR, files)}
+
+
 def _emit(payload: dict) -> None:
     sys.stdout.flush()
     print(f"{RESULT_PREFIX} {json.dumps(payload, ensure_ascii=False, default=str)}", flush=True)
@@ -226,6 +261,7 @@ def _emit(payload: dict) -> None:
 def _failure(activity: str | None, started: float, exc: BaseException) -> dict:
     from temporalio.exceptions import ApplicationError
 
+    from genon.preprocessor.activities._doc_types import DocTypeError
     from genon.preprocessor.worker.errors import one_line
     from genon.preprocessor.worker.registry import stage_of
 
@@ -239,6 +275,8 @@ def _failure(activity: str | None, started: float, exc: BaseException) -> dict:
     details = getattr(exc, "details", None) or ()
     if details and isinstance(details[0], dict):
         error.update({k: details[0].get(k) for k in ("reason_code", "error_category", "error_kind")})
+    if isinstance(exc, DocTypeError):                # doc-types 명령의 거부 사유(detail.reason) — 문서 처리 사유 코드와 별개
+        error["detail"] = exc.detail
     return {"ok": False, "stage": stage_of(activity or ""), "activity": activity,
             "duration_ms": int((time.monotonic() - started) * 1000), "error": error}
 
@@ -459,6 +497,11 @@ def main(argv=None) -> int:
             _emit({"ok": True, "stage": None, "activity": activity, "command": "diff",
                    "duration_ms": int((time.monotonic() - started) * 1000), "data": summary})
             return 0
+        if args.command == "doc-types":
+            activity = args.activity
+            _emit({"ok": True, "stage": None, "activity": activity, "command": "doc-types",
+                   "duration_ms": int((time.monotonic() - started) * 1000), "data": doc_types_command(args)})
+            return 0
         if args.command in ("new", "remove"):
             from genon.preprocessor.activities import _folders
 
@@ -476,6 +519,8 @@ def main(argv=None) -> int:
         return int(exc.code or 0)
     except (Exception, KeyboardInterrupt) as exc:  # noqa: BLE001 — 인자 오류·자식 이상 종료·취소도 결과 한 줄로
         failed = {**_failure(activity, started, exc), **({"command": command} if command else {})}
+        if command == "doc-types":
+            failed["stage"] = None
         _log_failure(failed)
         _emit(failed)
         return 1

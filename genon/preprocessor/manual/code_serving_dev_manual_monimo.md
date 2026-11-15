@@ -18,7 +18,7 @@
 - [0. 개요](#0-개요) — 제공 항목 · 작업 흐름 · 작업 범위 · 실행 구조
 - [1. 새 문서 유형 추가하기](#1-새-문서-유형-추가하기) — `custom_field_*.yaml` 6단계 · 입력/기대 결과 예제
 - [2. 코드 수정](#2-코드-수정) — 액티비티 처리기 2개의 훅 메소드와 확장 지점
-- [3. 개발 환경](#3-개발-환경) — 코드스페이스 사용법 · 단건 실행 · 워커 확인 · 워커 환경 변수 · 액티비티 사본
+- [3. 개발 환경](#3-개발-환경) — 코드스페이스 사용법 · 단건 실행 · 워커 확인 · 워커 환경 변수 · 액티비티 사본 · doc_type 등록
 - [4. 배포](#4-배포) — Bitbucket 브랜치 → PR → CI/CD → 반영 확인 · 릴리스 갱신 · 롤백
 - [5. 구성 YAML 옵션](#5-구성-yaml-옵션) — 주요 구성 옵션
 - [6. 주요 동작 방식](#6-주요-동작-방식) — 파싱 결과 2종 · 청킹 · 출력 스키마
@@ -1333,6 +1333,35 @@ python -m genon.preprocessor.activities remove --slug parse_notice
 - 모델 접속은 프리셋 이름으로 참조하므로 사본에 복사되지 않습니다([3.5](#35-모델-서빙-연결-설정)).
 - 커밋·push 후 4장 절차로 배포하면 워커가 그 폴더를 slug 이름의 액티비티로 등록합니다. 기동 로그에서 새 slug의 설정 경로를 확인합니다([3.4](#34-배포된-워커-확인)).
 - 적재 흐름에서 어느 slug를 부를지는 pipeline 워커의 조합이 정합니다. 조합 변경은 담당자에게 요청합니다.
+
+### 3.8 사본 액티비티에 doc_type 등록하기
+
+사본 parse 액티비티에 새 doc_type을 등록합니다. 이미 등록된 doc_type의 규칙 파일을 복사하고 `config.yaml`에
+등록 블록을 하나 더합니다. 전처리 Studio가 같은 명령을 부릅니다.
+
+```bash
+# 등록된 doc_type과 규칙 파일 보기(--activity 기본값은 parse)
+python -m genon.preprocessor.activities doc-types list --activity parse_notice
+
+# 추가: cs_hpp의 규칙 파일을 custom_field_notice.yaml로 복사하고 등록 블록을 더합니다
+python -m genon.preprocessor.activities doc-types add --name notice --from cs_hpp --activity parse_notice --title "공지사항"
+
+# 등록 상태 검사
+python -m genon.preprocessor.activities doc-types validate --name notice --activity parse_notice
+```
+
+| 명령 | 동작 |
+|---|---|
+| `doc-types list [--activity <slug>]` | `config.yaml`의 등록 블록을 읽어 doc_type · 규칙 파일 이름 · `enable` · 설명을 보여 줍니다. 설명은 규칙 파일 첫 줄의 주석입니다 |
+| `doc-types validate --name <doc_type> [--activity <slug>]` | 등록 블록이 1개인지(`registered`), `enable: true`이고 규칙 파일 이름이 `custom_field_<doc_type>.yaml`인지(`block`), 규칙 파일이 있고 워커 기동 때와 같은 검사를 통과하는지(`config_file`)를 단계별로 알립니다. 검사 결과가 실패여도 명령은 성공하고(`ok: true`) `data.valid`가 `false`입니다 |
+| `doc-types add --name <doc_type> --from <등록된 doc_type> --activity <사본 slug> [--title <설명>]` | `--from`의 규칙 파일을 `custom_field_<doc_type>.yaml`로 복사하고, `config.yaml`의 마지막 등록 블록 뒤에 블록 하나를 더합니다. 기존 줄과 주석은 그대로 둡니다. `--title`을 주면 복사한 파일의 첫 줄 주석을 `# 문서 유형 <doc_type>(<설명>)의 custom_fields 설정`으로 바꿉니다 |
+
+- `add`는 사본(`parse_<이름>`)만 받습니다. 원형 `parse`의 `config.yaml`은 새 버전을 merge할 때 함께 바뀌는 파일이라 거부합니다. 사본이 없으면 [3.7](#37-액티비티-사본-만들기와-지우기)의 `new`로 먼저 만듭니다.
+- 이름은 소문자 · 숫자 · `_`만 씁니다. 이름 비교는 대소문자를 구분하지 않습니다.
+- 복사한 규칙 파일은 `--from` doc_type과 같은 필드를 뽑습니다. 새 문서에 맞게 고칩니다([1장](#1-새-문서-유형-추가하기)).
+- `add`가 거부하면 어떤 파일도 바뀌지 않고, 사유는 결과 줄의 `error.detail.reason`에 있습니다: `activity_not_found` · `not_parse_activity` · `base_activity_not_allowed` · `invalid_name` · `already_registered` · `source_not_found` · `config_file_missing` · `config_file_exists` · `config_invalid`. 이미 등록된 이름(`already_registered`)이면 메시지 첫 줄과 `error.detail.steps`가 그 등록의 검사 결과를 알립니다.
+- `data.files`는 바뀐 두 파일(`config.yaml`, 규칙 파일)이므로 그대로 `git add`에 씁니다. 명령은 커밋하지 않습니다.
+- 배포된 워커는 재기동한 뒤 새 등록을 읽습니다. 단건 `run`은 바로 반영됩니다.
 
 ---
 
