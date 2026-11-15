@@ -66,7 +66,7 @@ def resolve_ocr_runtime(cfg: dict, ocr_cfg: dict, config_label: str | None = Non
     셋 다 없으면 빈 문자열이다. 예전에는 사내 주소가 코드 기본값으로 박혀 있었다 — 사이트
     배포본에 그대로 나가므로 yaml 지정을 정상 경로로 되돌렸다. 비어 있다는 경고는 설정이 OCR 을
     켰을 때(ocr_mode auto/force, engine paddle)만 낸다 — 기본값 disable 에서는 쓰이지 않는 주소다.
-    config_label 은 경고에 적을 설정 파일(모르면 "이 액티비티의 config.yaml").
+    config_label 은 경고에 적을 설정 파일(모르면 "이 activity 의 config.yaml").
     """
     cfg = as_dict(cfg)
     ocr_cfg = as_dict(ocr_cfg)
@@ -79,7 +79,7 @@ def resolve_ocr_runtime(cfg: dict, ocr_cfg: dict, config_label: str | None = Non
 
     # OCR 수행 모드. "disable"(default, #482)=OCR 안 함 / "auto"=휴리스틱 판정 뒤 필요 시 재OCR /
     # "force"=무조건 전체 OCR. 판정이 필요한 문서는 요청 파라미터·CONFIG_BY_DOC_TYPE 의 ocr_mode 로 켠다.
-    where = config_label or "이 액티비티의 config.yaml"
+    where = config_label or "이 activity 의 config.yaml"
     mode = str(ocr_cfg.get("ocr_mode", cfg.get("ocr_mode", "disable"))).lower().strip()
     if mode not in {"auto", "force", "disable"}:
         _log.warning(f"ocr.ocr_mode 미지원 값 (ocr_mode={mode}): disable(OCR 안 함)로 처리, "

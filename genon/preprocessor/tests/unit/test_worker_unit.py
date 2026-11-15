@@ -79,8 +79,8 @@ def test_site_folder_overrides_activity_config(tmp_path, monkeypatch, caplog):
         ActivityEnvironment().run(registry.build([chunk])[0], {})
     assert info.value.non_retryable and info.value.message.startswith("activity chunk 설정 폴더 없음")
     lines = [r.getMessage() for r in caplog.records]
-    assert any("액티비티 parse:" in ln and "사이트 완성본" in ln and "오류" not in ln for ln in lines)
-    assert any(ln.startswith("액티비티 chunk [호출마다 오류") for ln in lines)   # 결함 표시는 경로 앞(220자에서 잘리지 않게)
+    assert any(ln.startswith("activity parse 설정:") and "(사이트 설정)" in ln for ln in lines)
+    assert any(ln.startswith("activity chunk 호출마다 실패") for ln in lines)   # 결함 표시는 경로 앞(220자에서 잘리지 않게)
 
 
 @pytest.mark.parametrize("cpu_max, processes, node_cpus, expected", [
@@ -623,7 +623,7 @@ def test_diff_reports_uncommitted_copy(tmp_path):
     acts = _copied_repo(tmp_path)
     shutil.copytree(acts / "parse", acts / "parse_u")                      # 아직 커밋하지 않은 사본
     summary, body = diff_origin("parse_u", activities_dir=acts)
-    assert summary["copied_at"] is None and "미커밋" in summary["note"] and body == ""
+    assert summary["copied_at"] is None and "커밋 전" in summary["note"] and body == ""
 
 
 # ── activities new / remove(#472) — 생성·복제 = 폴더 복사, 삭제 = 폴더 삭제 ─────────────────────
