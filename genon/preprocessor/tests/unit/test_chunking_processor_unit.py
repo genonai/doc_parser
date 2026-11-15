@@ -1046,9 +1046,9 @@ async def test_validation_fails_document(values, code, reason_code):
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("file_path,kwargs,message,reason_code", [
-    ("", {}, "입력이 비어 있습니다", "CHUNK_P002"),
+    ("", {}, "chunker 입력 없음", "CHUNK_P002"),
     ("/nonexistent/parsed.json", {}, "로드 실패", "CHUNK_S003"),   # 없는 경로는 파일 오류다
-    ("", {"document": {"foo": 1}}, "parse 결과로 읽을 수 없습니다", "CHUNK_P003"),
+    ("", {"document": {"foo": 1}}, "chunker 입력 형식 오류: document·elements 키 없음", "CHUNK_P003"),
     ("", {"document": {"schema_name": "DoclingDocument", "texts": "broken"}}, "복원 실패", "CHUNK_P004"),
 ])
 async def test_input_errors_are_permanent(file_path, kwargs, message, reason_code):
@@ -1203,7 +1203,7 @@ _TEXT = {"category": "paragraph", "content": "본문 문단", "page": 1}
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("make,elements,params,cause", [
-    (lambda cf: cf.DocumentProcessor(), [], {}, "elements 가 0개"),
+    (lambda cf: cf.DocumentProcessor(), [], {}, "elements 0개"),
     (lambda cf: cf.DocumentProcessor(), [{**_TEXT, "content": " "}] * 2, {}, "content 가 모두 비어"),
     (_emptying_edit_input, [_TEXT, _TEXT], {}, "edit_input 이 elements 2개를 모두 걸러"),
     (_chunk_rule_drops_all, [_TEXT], {"text_cleanup": "safe"}, "text_cleanup 이 chunk 1건을 모두 지움"),

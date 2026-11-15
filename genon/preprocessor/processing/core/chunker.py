@@ -273,22 +273,22 @@ def _classify_payload(obj) -> Tuple[str, Any]:
 
 # 청크 결과(vector_meta)에만 있는 필드. 청크 결과를 다시 청커에 넣은 경우를 알아보는 데 쓴다.
 _CHUNK_RESULT_KEYS = frozenset({"i_chunk_on_doc", "n_chunk_of_doc"})
-_INPUT_HINT = "parse 액티비티 결과 JSON(document 또는 elements 키가 있는 객체)을 넣으세요."
+_INPUT_HINT = "parse activity 결과 JSON(document 또는 elements 키가 있는 객체) 지정 필요"
 
 
 def _unrecognized_input_message(obj) -> str:
-    """parse 결과가 아닌 입력의 한 줄 안내 — 무엇을 받았나 · 무엇을 넣어야 하나."""
+    """parse 결과가 아닌 입력의 안내 — 첫 줄은 무엇을 받았나, 둘째 줄은 무엇을 넣어야 하나."""
     first = obj[0] if isinstance(obj, list) and obj else obj
     if isinstance(first, dict) and _CHUNK_RESULT_KEYS & set(first):
-        return ("청커 입력이 청크 결과(chunk 액티비티 출력)라 다시 청킹할 수 없습니다. "
-                "parse 액티비티 결과 JSON 을 넣으세요.")
+        return ("chunker 입력 형식 오류: chunk 결과(chunk activity 출력)를 받음\n"
+                "parse activity 결과 JSON 지정 필요")
     if isinstance(obj, dict):
         keys = cp.head_items(list(obj))
-        return (f"청커 입력에 document·elements 키가 없어 parse 결과로 읽을 수 없습니다"
-                f"(받은 최상위 키 {len(obj)}개: {keys or '없음'}). {_INPUT_HINT}")
+        return (f"chunker 입력 형식 오류: document·elements 키 없음(받은 최상위 키 {len(obj)}개: {keys or '없음'})\n"
+                f"{_INPUT_HINT}")
     if isinstance(obj, list):
-        return f"청커 입력이 JSON 배열(항목 {len(obj)}개)이라 parse 결과로 읽을 수 없습니다. {_INPUT_HINT}"
-    return f"청커 입력이 {type(obj).__name__} 값이라 parse 결과로 읽을 수 없습니다. {_INPUT_HINT}"
+        return f"chunker 입력 형식 오류: JSON 배열(항목 {len(obj)}개)을 받음\n{_INPUT_HINT}"
+    return f"chunker 입력 형식 오류: {type(obj).__name__} 값을 받음\n{_INPUT_HINT}"
 
 
 def _validation_summary(exc: BaseException) -> str:
@@ -825,14 +825,14 @@ class ChunkerCore:
             collided = sorted(
                 (set(record_meta) | set(notes["chunk_fields"])) & set(self.VECTOR_META.model_fields))
             if collided:
-                cause = (f"필드 이름 {cp.head_items(collided)} 가 청크 예약 필드와 겹칩니다. "
-                         f"parse 의 문서 유형 설정에서 그 필드 이름을 바꾸세요. ")
+                cause = f"필드 이름 {cp.head_items(collided)} 이 chunk 예약 필드와 겹침 ({_validation_summary(exc)})"
+                action = "parse 의 문서 유형 설정에서 그 필드 이름 변경 필요"
             else:
-                cause = "parse 의 문서 유형 설정에서 그 필드의 값 형식을 확인하세요. "
+                cause = _validation_summary(exc)
+                action = "parse 의 문서 유형 설정에서 그 필드의 값 형식 확인 필요"
             raise GenosServiceException(
                 "1",
-                f"행 메타데이터를 chunk 필드로 옮기지 못함(행 #{notes['chunk_idx']}): "
-                f"{cause}{_validation_summary(exc)}",
+                f"행 메타데이터를 chunk 필드로 옮기지 못함(행 #{notes['chunk_idx']}): {cause}\n{action}",
                 stage="custom_fields", error_type="permanent", reason_code="CHUNK_P001",
             ) from exc
 
@@ -1319,11 +1319,11 @@ class ChunkerCore:
                     error_type="permanent", reason_code="CHUNK_P004") from exc
         if not raw_payload:
             if file_path and not file_path.lower().endswith(".json"):
-                message = (f"청커 입력 파일 {Path(file_path).name} 이 .json 이 아닙니다. "
-                           f"parse 액티비티 결과 JSON 파일을 넣으세요.")
+                message = (f"chunker 입력 형식 오류: {Path(file_path).name} 이 .json 파일이 아님\n"
+                           f"parse activity 결과 JSON 파일 지정 필요")
             else:
-                message = ("청커 입력이 비어 있습니다. parse 액티비티 결과 JSON 을 요청의 document 값이나 "
-                           ".json 파일 경로로 넣으세요.")
+                message = ("chunker 입력 없음\n"
+                           "parse activity 결과 JSON 을 요청의 document 값이나 .json 파일 경로로 지정 필요")
             raise GenosServiceException(
                 1, message, error_type="permanent", reason_code="CHUNK_P002")
 
@@ -1595,10 +1595,10 @@ class ChunkerCore:
                 document: DoclingDocument = DoclingDocument.model_validate(job.data)
         except Exception as exc:
             if job.data is None and job.notes.get("emptied_by_edit_input"):
-                cause = "processor.py 의 edit_input 이 None 을 돌려줬습니다. edit_input 의 반환값을 확인하세요."
+                cause = "processor.py 의 edit_input 이 None 반환\nedit_input 반환값 확인 필요"
             else:
-                cause = (f"{_validation_summary(exc)}. parse 와 chunk 를 같은 전처리기 버전으로 실행했는지 "
-                         f"확인하고, 같다면 parse 를 다시 실행하세요.")
+                cause = (f"{_validation_summary(exc)}\n"
+                         f"parse 와 chunk 의 전처리기 버전이 같은지 확인 필요(같으면 parse 다시 실행)")
             raise GenosServiceException(
                 1, f"parse 결과의 docling 문서 복원 실패: {cause}", error_type="permanent",
                 reason_code="CHUNK_P004") from exc
@@ -1625,11 +1625,11 @@ class ChunkerCore:
         if len(doc_chunks) < 1:
             cleaned = job.notes["split"].cleaned_away
             if cleaned:
-                message = (f"청크를 하나도 만들지 못했습니다: chunking.text_cleanup 이 청크 {cleaned}건을 모두 "
-                           f"지웠습니다. text_cleanup.rules 가 본문까지 지우지 않는지 확인하세요.")
+                message = (f"chunk 0건: chunking.text_cleanup 이 chunk {cleaned}건을 모두 지움\n"
+                           f"text_cleanup.rules 가 본문까지 지우지 않는지 확인 필요")
             else:
-                message = ("청크를 하나도 만들지 못했습니다: docling 문서를 나눈 결과가 0건입니다. "
-                           "parse 액티비티 결과 JSON 에 본문(texts·tables)이 있는지 확인하세요.")
+                message = ("chunk 0건: docling 문서 분할 결과 없음\n"
+                           "parse activity 결과 JSON 에 본문(texts·tables)이 있는지 확인 필요")
             raise GenosServiceException(
                 1, message, error_type="permanent", reason_code="CHUNK_D001")
         job.document = document
@@ -1757,12 +1757,12 @@ class ChunkerCore:
         cleanup = tn.enabled_for(kwargs, self)
         if not docs:
             if not elements:
-                message = ("청크를 하나도 만들지 못했습니다: parse 결과의 elements 가 0개입니다. "
-                           "원본 문서에 본문이 있는지, parse 설정이 레코드를 모두 거르지 않았는지 확인하세요.")
+                message = ("chunk 0건: parse 결과의 elements 0개\n"
+                           "원본 문서에 본문이 있는지, parse 설정이 레코드를 모두 거르지 않았는지 확인 필요")
             else:
                 after = "(chunking.text_cleanup 적용 후)" if cleanup else ""
-                message = (f"청크를 하나도 만들지 못했습니다: elements {len(elements)}개의 content 가 모두 "
-                           f"비어 있습니다{after}. 원본 문서에 본문이 있는지 parse 결과를 확인하세요.")
+                message = (f"chunk 0건: elements {len(elements)}개의 content 가 모두 비어 있음{after}\n"
+                           f"원본 문서 본문과 parse 결과 확인 필요")
             raise GenosServiceException(
                 1, message, error_type="permanent", reason_code="CHUNK_D001")
 
