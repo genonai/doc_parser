@@ -154,7 +154,8 @@ _YAML_PROBLEM_MAX = 80
 
 
 def yaml_syntax_message(path: Any, exc: yaml.YAMLError) -> str:
-    """YAML 문법 오류의 한 줄 안내 — 무엇이(파일·행·열) · 왜(PyYAML 설명) · 어떻게(조치) 순서.
+    """YAML 문법 오류의 한 줄 사유 — 무엇이(파일·행·열) · 왜(PyYAML 설명) · 어떻게(조치) 순서.
+    preset 파일 오류는 경고(logger)로도 나가므로 한 줄을 지킨다.
 
     Studio 콘솔은 줄당 220자, GenOS error_message 는 약 500자에서 자르므로 파일·행을 앞에 둔다.
     PyYAML 원문은 여러 줄이고 위치가 끝에 붙어 잘리기 쉽다. 행·열은 PyYAML 의 0 기준 값에 1 을 더한다.
@@ -168,7 +169,7 @@ def yaml_syntax_message(path: Any, exc: yaml.YAMLError) -> str:
     problem = " ".join(problem.split())
     if len(problem) > _YAML_PROBLEM_MAX:
         problem = problem[: _YAML_PROBLEM_MAX - 1] + "…"
-    return f"{shown}{where}의 YAML 문법이 틀렸습니다({problem}). 괄호·들여쓰기·따옴표를 고치세요."
+    return f"{shown}{where} YAML 문법 오류: {problem} (괄호·들여쓰기·따옴표 확인 필요)"
 
 
 def read_yaml_file(path: Any) -> Any:
@@ -319,7 +320,7 @@ def _read_presets_file(path: Path, *, strict: bool) -> dict:
         return _preset_fail(str(exc), strict=strict, fallback={})
     except Exception as exc:
         return _preset_fail(
-            f"모델 프리셋 파일을 읽지 못했습니다: {path} ({exc})", strict=strict, fallback={}
+            f"model preset 파일 읽기 실패: {path} ({exc})", strict=strict, fallback={}
         )
     return model_preset.get_presets(loaded, label=str(path), strict=strict)
 

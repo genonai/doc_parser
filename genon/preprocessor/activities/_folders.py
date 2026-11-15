@@ -66,17 +66,21 @@ def config_dir(slug: str, activities_dir: Path | None = None) -> Path:
     return (activities_dir or ACTIVITIES_DIR) / slug
 
 
+class SiteConfigError(ValueError):
+    """사이트 배포의 설정 폴더 누락. 같은 배포면 늘 실패하므로 워커는 재시도하지 않는다(ValueError → permanent)."""
+
+
 def config_path(slug: str, activities_dir: Path | None = None) -> Path:
     """slug 의 config.yaml 경로. 없으면 ValueError — 어느 폴더를 봤는지 적는다."""
     folder = config_dir(slug, activities_dir)
     site = site_activities_dir()
     if site is not None and not folder.is_dir():
-        raise ValueError(f"activity {slug} 설정 폴더 없음: {folder}\n"
-                         "GENOS_RESOURCE_DIR 의 사이트 설정으로 실행 중이라 사이트 폴더만 찾음(저장소 기본 설정으로 대체하지 않음)\n"
-                         f"사이트에 {slug} 폴더 추가 필요\n"
-                         "  - 기본 activity 를 복제해 만들 때: python -m genon.preprocessor.activities new"
-                         f" --from <기본 activity> --slug {slug}\n"
-                         "  - 기본 activity(parse·chunk)일 때: build-script/sync-sites.sh 로 사이트 설정 갱신")
+        raise SiteConfigError(f"activity {slug} 설정 폴더 없음: {folder}\n"
+                                "GENOS_RESOURCE_DIR 의 사이트 설정으로 실행 중이라 사이트 폴더만 찾음(저장소 기본 설정으로 대체하지 않음)\n"
+                                f"사이트에 {slug} 폴더 추가 필요\n"
+                                "  - 기본 activity 를 복제해 만들 때: python -m genon.preprocessor.activities new"
+                                f" --from <기본 activity> --slug {slug}\n"
+                                "  - 기본 activity(parse·chunk)일 때: build-script/sync-sites.sh 로 사이트 설정 갱신")
     path = folder / CONFIG_FILE
     if not path.is_file():
         raise ValueError(f"activity {slug} 설정 없음: {path} (activity 폴더에 config.yaml 필요)")

@@ -65,7 +65,7 @@ def test_site_folder_overrides_activity_config(tmp_path, monkeypatch, caplog):
     assert not any(r.levelno == logging.WARNING for r in caplog.records)         # 경고는 보는 사람이 없다 — 호출 오류로
     with pytest.raises(ApplicationError) as info:                                # 호출한 쪽이 결함을 그대로 본다
         ActivityEnvironment().run(registry.build(entries)[0], {})
-    assert str(site / "activities") in str(info.value) and "activities/ 가 없습니다" in str(info.value)
+    assert info.value.message.startswith(f"activity 설정 폴더 없음: {site / 'activities'}")   # 클래스 이름 접두 없음
     caplog.clear()
     (site / "activities" / "parse").mkdir(parents=True)
     (site / "activities" / "parse" / "config.yaml").write_text("")
@@ -77,7 +77,7 @@ def test_site_folder_overrides_activity_config(tmp_path, monkeypatch, caplog):
     assert parse.problem is None and "저장소 기본 설정으로 대체하지 않음" in chunk.problem
     with pytest.raises(ApplicationError) as info:                                # 저장소 chunk 설정으로 돌지 않는다
         ActivityEnvironment().run(registry.build([chunk])[0], {})
-    assert info.value.non_retryable and "activity chunk 설정 폴더 없음" in str(info.value)
+    assert info.value.non_retryable and info.value.message.startswith("activity chunk 설정 폴더 없음")
     lines = [r.getMessage() for r in caplog.records]
     assert any("액티비티 parse:" in ln and "사이트 완성본" in ln and "오류" not in ln for ln in lines)
     assert any(ln.startswith("액티비티 chunk [호출마다 오류") for ln in lines)   # 결함 표시는 경로 앞(220자에서 잘리지 않게)
@@ -461,8 +461,8 @@ def test_config_yaml_syntax_error_is_permanent_one_line(tmp_path, monkeypatch):
     assert (err.type, err.non_retryable) == ("permanent", True)
     assert "\n" not in message
     head = message[:130]                                            # 핵심은 앞 130자 안(#632)
-    assert "activities/parse_t/config.yaml 4행 6열의 YAML 문법이 틀렸습니다" in head
-    assert "). 괄호·들여쓰기·따옴표를 고치세요." in message          # 접두·접미(액티비티·파일)는 to_application_error 몫
+    assert head.startswith("activities/parse_t/config.yaml 4행 6열 YAML 문법 오류: ")   # 클래스 이름 접두 없음
+    assert message.endswith("(괄호·들여쓰기·따옴표 확인 필요) (activity parse_t · processor 준비)")   # 위치는 to_application_error 몫
 
 
 def test_single_run_cli_uses_worker_body_and_prints_result_last(tmp_path, monkeypatch, capsys, caplog):
