@@ -221,23 +221,24 @@ _LLM_FEATURE = {"toc_extraction": "toc", "metadata_extraction": "metadata"}
 
 
 def _llm_failure_message(exc: LLMApiError, precheck: bool, config_label: str | None) -> str:
-    """enrichment LLM 호출 실패의 한 줄 안내 — 어느 항목 · 왜 · 어디를 고치나, 공급자 원문은 맨 끝.
+    """enrichment LLM 호출 실패 사유 — 첫 줄은 어느 항목이 왜 멈췄나, 둘째 줄은 고칠 설정, 셋째 줄은 공급자 원문.
 
     원문(JSON)은 적재 상태 화면에서 그대로 보여야 하므로 자르지 않고 끝에 붙인다. 콘솔(줄당 220자)과
     GenOS(약 500자)에서는 앞의 안내가 먼저 보인다.
     """
     feature = _LLM_FEATURE.get(exc.category or "", "")
-    item = f"enrichment 의 {feature}" if feature else "enrichment"
-    key = f"{feature}." if feature else "해당 항목의 "
-    where = f"{config_label or '이 액티비티의 config.yaml'} 의 enrichment 에서"
+    item = f"enrichment {feature}" if feature else "enrichment"
+    setting = f"{config_label or 'activity 의 config.yaml'} 의 " + (f"enrichment.{feature}." if feature
+                                                                   else "enrichment 항목별 ")
     if precheck:
-        split = " 문서가 길면 toc.split.enabled: true 로 나눠 보내세요." if feature == "toc" else ""
-        return (f"{item} 입력이 모델 허용 길이를 넘어 LLM 을 부르지 않고 파싱을 멈췄습니다. {where} "
-                f"{key}precheck.model_context_tokens 가 모델의 실제 최대 길이인지 확인하세요.{split} "
+        split = " (문서가 길면 toc.split.enabled: true 로 나눠 보내기)" if feature == "toc" else ""
+        return (f"{item} 입력이 모델 허용 길이를 넘어 parse 중단(LLM 호출 안 함)\n"
+                f"{setting}precheck.model_context_tokens 가 모델의 실제 최대 길이인지 확인 필요{split}\n"
                 f"원문: {exc.raw_error_message}")
     status = f"HTTP {exc.status_code}" if exc.status_code else "응답 없음"
-    return (f"{item} LLM 호출이 실패해 파싱을 멈췄습니다({status}). {where} {key}model_preset 이 "
-            f"가리키는 모델 프리셋의 url·api_key·model 과 모델 서버 상태를 확인하세요. 원문: {exc.raw_error_message}")
+    return (f"{item} LLM 호출 실패로 parse 중단({status})\n"
+            f"{setting}model_preset 이 가리키는 preset 의 url·api_key·model 과 모델 서버 상태 확인 필요\n"
+            f"원문: {exc.raw_error_message}")
 
 
 def _head(items, limit: int = 3, sep: str = ", ") -> str:
