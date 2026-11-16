@@ -350,7 +350,7 @@ def _normalize_fields(fields: Any, kind: str, out: dict, label: str) -> None:
             css = spec["select"]
             if not isinstance(css, str) or not css.strip():
                 raise ConfigV2Error(
-                    f"{where}: select 는 CSS 선택자 문자열이어야 함 (예: `.new-banner-headline`)"
+                    f"{where}: select 는 CSS selector 문자열 필요 (예: `.new-banner-headline`)"
                 )
             attr = spec.get("attr")
             if attr is not None and (not isinstance(attr, str) or not attr.strip()):
