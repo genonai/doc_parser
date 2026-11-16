@@ -286,7 +286,8 @@ Studio 콘솔·Job 화면·실패 사유로 사람이 읽는 문장(`logger.info
 
 ```
 DOC_ID=3804 적재 중단: (GROUP_C=SSF, BIZ_ID=P001) 이 이미 DOC_ID=3803 에 있음 (product_ssf GCSMSTBFAV001)
-그대로 적재하면 DOC_ID=3803 의 행이 이 문서 값으로 바뀜
+GCSMSTBFAV001 은 (GROUP_C, BIZ_ID) 하나에 한 행만 두므로 DOC_ID=3803 의 행을 이 문서 값으로 덮어쓰지 않도록 중단함
+같은 항목이면 두 파일을 한 문서로 합쳐 반입, 다른 항목이면 원천 파일의 BIZ_ID 값 수정 필요
 ```
 
 여러 줄이 허용되는 예 — 결과를 오해하기 쉽고(저장소에는 폴더가 있음) 조치를 짐작하기 어려운 경우:
