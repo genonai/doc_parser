@@ -271,6 +271,8 @@ def _target_exists(root):
     ("tour_blog", "music_ai", "chunk", None, "not_parse_activity"),
     ("tour_blog", "music_ai", "parse", None, "base_activity_not_allowed"),
     ("Tour-Blog", "music_ai", "parse_tour", None, "invalid_name"),
+    ("1tour", "music_ai", "parse_tour", None, "invalid_name"),     # 소문자로 시작해야 한다
+    ("_x", "music_ai", "parse_tour", None, "invalid_name"),
     ("tour_blog", "faq", "parse_tour", None, "source_not_found"),
     ("tour_blog", "music_ai", "parse_tour", _no_source_rule, "config_file_missing"),
     ("tour_blog", "music_ai", "parse_tour", _target_exists, "config_file_exists"),

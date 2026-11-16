@@ -1357,7 +1357,7 @@ python -m genon.preprocessor.activities doc-types validate --name notice --activ
 | `doc-types add --name <doc_type> --from <등록된 doc_type> --activity <사본 slug> [--title <설명>]` | `--from`의 규칙 파일을 `custom_field_<doc_type>.yaml`로 복사하고, `config.yaml`의 마지막 등록 블록 뒤에 블록 하나를 더합니다. 기존 줄과 주석은 그대로 둡니다. `--title`을 주면 복사한 파일의 첫 줄 주석을 `# 문서 유형 <doc_type>(<설명>)의 custom_fields 설정`으로 바꿉니다 |
 
 - `add`는 사본(`parse_<이름>`)만 받습니다. 원형 `parse`의 `config.yaml`은 새 버전을 merge할 때 함께 바뀌는 파일이라 거부합니다. 사본이 없으면 [3.7](#37-액티비티-사본-만들기와-지우기)의 `new`로 먼저 만듭니다.
-- 이름은 소문자 · 숫자 · `_`만 씁니다. 이름 비교는 대소문자를 구분하지 않습니다.
+- `add --name`의 이름은 소문자로 시작하고 소문자 · 숫자 · `_`만 씁니다. 이름 비교는 대소문자를 구분하지 않습니다.
 - 복사한 규칙 파일은 `--from` doc_type과 같은 필드를 뽑습니다. 새 문서에 맞게 고칩니다([1장](#1-새-문서-유형-추가하기)).
 - `add`가 거부하면 어떤 파일도 바뀌지 않고, 사유는 결과 줄의 `error.detail.reason`에 있습니다: `activity_not_found` · `not_parse_activity` · `base_activity_not_allowed` · `invalid_name` · `already_registered` · `source_not_found` · `config_file_missing` · `config_file_exists` · `config_invalid`. 이미 등록된 이름(`already_registered`)이면 메시지 첫 줄과 `error.detail.steps`가 그 등록의 검사 결과를 알립니다.
 - `doc-types` 명령의 인자 오류(필수 인자 누락, 없는 동작 이름, 여러 줄 `--title`)는 결과 줄에 `"command": "doc-types"`와 `error.detail.reason` = `usage_error`를 싣습니다(`error.type`은 `_UsageError`).

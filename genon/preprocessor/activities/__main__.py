@@ -98,7 +98,7 @@ def _parser() -> argparse.ArgumentParser:
     validate.add_argument("--name", required=True, help="검사할 doc_type")
     validate.add_argument("--activity", default="parse", help="parse 액티비티 slug(기본 parse)")
     add = action.add_parser("add", help="있는 doc_type 의 규칙 파일을 복사해 새 doc_type 을 등록한다")
-    add.add_argument("--name", required=True, help="새 doc_type(소문자·숫자·_)")
+    add.add_argument("--name", required=True, help="새 doc_type(소문자로 시작, 소문자·숫자·_)")
     add.add_argument("--from", dest="origin", required=True, help="규칙 파일을 복사할, 이미 등록된 doc_type")
     add.add_argument("--activity", required=True, help="사본 parse 액티비티 slug(parse_xxx). 원형 parse 는 거부")
     add.add_argument("--title", help="복사한 규칙 파일 첫 줄 주석에 넣을 설명(한 줄)")

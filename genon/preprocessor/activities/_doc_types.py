@@ -29,7 +29,7 @@ from genon.preprocessor.activities import _folders
 
 PARSE_STAGE = "parse"
 BLOCK_KEY = "custom_fields"
-NAME_RE = re.compile(r"^[a-z0-9_]+$")
+NAME_RE = re.compile(r"^[a-z][a-z0-9_]*$")          # add --name 에만 적용한다. pipeline 의 doc_type 이름 규칙과 같다
 # 등록 블록의 첫 줄(`  - custom_fields:`) — 목록 항목의 들여쓰기를 여기서 읽는다.
 _BLOCK_HEAD_RE = re.compile(r"^(?P<indent>[ ]*)-[ ]+custom_fields[ ]*:[ ]*(#.*)?$")
 # `add` 가 새 블록에 직접 적는 키. `--from` 블록의 그 밖의 키는 함께 복사한다.
@@ -322,7 +322,7 @@ def add_doc_type(name: str, origin: str, activity: str, title: str | None = None
 
     act = _load(activity, activities_dir, allow_base=False)
     if not NAME_RE.fullmatch(name):
-        raise DocTypeError("invalid_name", f"doc_type 이름 형식 오류: {name!r} (소문자·숫자·_ 만 허용)")
+        raise DocTypeError("invalid_name", f"doc_type 이름 형식 오류: {name!r} (소문자로 시작, 소문자·숫자·_ 만 허용)")
     registered = [b for b in act.blocks if name in _doc_types_of(b)]
     if registered:
         steps = _validate(act, name)
