@@ -518,9 +518,13 @@ def main(argv=None) -> int:
     except SystemExit as exc:                        # --help
         return int(exc.code or 0)
     except (Exception, KeyboardInterrupt) as exc:  # noqa: BLE001 — 인자 오류·자식 이상 종료·취소도 결과 한 줄로
+        if argv[:1] == ["doc-types"]:                # argparse 가 command 를 정하기 전에 실패한 인자 오류도 같은 계약으로
+            command = "doc-types"
         failed = {**_failure(activity, started, exc), **({"command": command} if command else {})}
         if command == "doc-types":
             failed["stage"] = None
+            if isinstance(exc, _UsageError):         # 인자 오류의 사유 — 다른 명령의 인자 오류에는 싣지 않는다
+                failed["error"]["detail"] = {"reason": "usage_error"}
         _log_failure(failed)
         _emit(failed)
         return 1

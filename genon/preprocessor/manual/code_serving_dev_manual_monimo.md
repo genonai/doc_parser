@@ -1360,6 +1360,7 @@ python -m genon.preprocessor.activities doc-types validate --name notice --activ
 - 이름은 소문자 · 숫자 · `_`만 씁니다. 이름 비교는 대소문자를 구분하지 않습니다.
 - 복사한 규칙 파일은 `--from` doc_type과 같은 필드를 뽑습니다. 새 문서에 맞게 고칩니다([1장](#1-새-문서-유형-추가하기)).
 - `add`가 거부하면 어떤 파일도 바뀌지 않고, 사유는 결과 줄의 `error.detail.reason`에 있습니다: `activity_not_found` · `not_parse_activity` · `base_activity_not_allowed` · `invalid_name` · `already_registered` · `source_not_found` · `config_file_missing` · `config_file_exists` · `config_invalid`. 이미 등록된 이름(`already_registered`)이면 메시지 첫 줄과 `error.detail.steps`가 그 등록의 검사 결과를 알립니다.
+- `doc-types` 명령의 인자 오류(필수 인자 누락, 없는 동작 이름, 여러 줄 `--title`)는 결과 줄에 `"command": "doc-types"`와 `error.detail.reason` = `usage_error`를 싣습니다(`error.type`은 `_UsageError`).
 - `data.files`는 바뀐 두 파일(`config.yaml`, 규칙 파일)이므로 그대로 `git add`에 씁니다. 명령은 커밋하지 않습니다.
 - 배포된 워커는 재기동한 뒤 새 등록을 읽습니다. 단건 `run`은 바로 반영됩니다.
 

@@ -317,7 +317,7 @@ def _run_cli(capsys, *argv) -> tuple[int, dict]:
 
 
 def test_cli_result_line_carries_reason_in_error_detail(acts, monkeypatch, capsys):
-    """결과 줄 계약: 거부는 exit 1 · `error.detail.reason`, 검사 실패는 exit 0 · `data.valid: false`, 인자 오류는 detail 없음."""
+    """결과 줄 계약: 거부는 exit 1 · `error.detail.reason`, 검사 실패는 exit 0 · `data.valid: false`."""
     monkeypatch.setattr(_folders, "ACTIVITIES_DIR", acts)
     before = _snapshot(acts)
 
@@ -335,10 +335,28 @@ def test_cli_result_line_carries_reason_in_error_detail(acts, monkeypatch, capsy
     code, result = _run_cli(capsys, "add", "--name", "tour_blog", "--from", "music_ai", "--activity", "parse_tour",
                             "--title", "두\n줄")
     assert (code, result["error"]["type"]) == (1, "_UsageError")
-    assert "detail" not in result["error"]
     assert _snapshot(acts) == before
 
     code, result = _run_cli(capsys, "add", "--name", "tour_blog", "--from", "music_ai", "--activity", "parse_tour")
     assert (code, result["stage"], result["activity"]) == (0, None, "parse_tour")
     assert result["data"]["doc_type"] == "tour_blog"
     assert [Path(f).name for f in result["data"]["files"]] == ["config.yaml", "custom_field_tour_blog.yaml"]
+
+
+@pytest.mark.parametrize("argv", [
+    ("add", "--name", "tour_blog", "--from", "music_ai"),                                    # 필수 인자 누락(argparse)
+    ("rename", "--name", "tour_blog"),                                                       # 모르는 action(argparse)
+    ("add", "--name", "tour_blog", "--from", "music_ai", "--activity", "parse_tour", "--title", "두\n줄"),
+])
+def test_cli_usage_error_carries_command_and_reason(acts, monkeypatch, capsys, argv):
+    """인자 오류도 결과 줄에 `command` 와 `error.detail.reason = usage_error` 를 싣는다. 다른 명령은 그대로다."""
+    monkeypatch.setattr(_folders, "ACTIVITIES_DIR", acts)
+    code, result = _run_cli(capsys, *argv)
+    assert (code, result["ok"], result["stage"], result["command"]) == (1, False, None, "doc-types")
+    assert {k: result["error"][k] for k in ("type", "non_retryable", "detail")} == {
+        "type": "_UsageError", "non_retryable": False, "detail": {"reason": "usage_error"}}
+
+    cli = importlib.import_module("genon.preprocessor.activities.__main__")
+    assert cli.main(["remove"]) == 1                                                         # 다른 명령의 인자 오류
+    other = json.loads(capsys.readouterr().out.strip().splitlines()[-1][len(cli.RESULT_PREFIX):])
+    assert "detail" not in other["error"] and "command" not in other
