@@ -109,7 +109,7 @@ def test_missing_element_keeps_the_key():
 # ── 선택자 컴파일(기동 시 검증) ──────────────────────────────────────────────
 
 def test_compile_rejects_unparsable_selector():
-    with pytest.raises(ValueError, match="선택자 해석 실패"):
+    with pytest.raises(ValueError, match="CSS selector 해석 실패"):
         html_select.compile_selectors(
             {"select_map": {"X": {"css": "div[", "attr": None}}}, label="t"
         )

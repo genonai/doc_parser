@@ -110,7 +110,7 @@ def test_precheck_passes_on_shipped_resource():
          "pack 필드"),
         (lambda c: c["fields"].update({"title": {"alias": ["제목"]}}), "예약 필드"),
         (lambda c: (c.update({"source": {"kind": "html"}, "fields": {"Q": {"select": "p >>"}}}),
-                    c.pop("body")), "선택자 해석 실패"),
+                    c.pop("body")), "CSS selector 해석 실패"),
     ],
 )
 def test_precheck_detects_blocking_problems(tmp_path, mutate, expect):

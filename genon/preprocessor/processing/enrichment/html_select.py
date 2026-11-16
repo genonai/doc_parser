@@ -69,7 +69,7 @@ def compile_selectors(cfg: dict, *, label: str) -> dict[str, dict]:
     """
     raw = cfg.get("select_map") or {}
     if not isinstance(raw, dict):
-        raise ValueError(f"{label}: fields.<필드>.select 는 CSS 선택자 문자열 필요")
+        raise ValueError(f"{label}: fields.<필드>.select 는 CSS selector 문자열 필요")
 
     import soupsieve
 
@@ -77,14 +77,14 @@ def compile_selectors(cfg: dict, *, label: str) -> dict[str, dict]:
     for target, spec in raw.items():
         where = f"{label}: fields.{target}"
         if not isinstance(spec, dict):
-            raise ValueError(f"{where}: 선택자 스펙은 object 필요")
+            raise ValueError(f"{where}: select 값은 object 필요")
         css = str(spec.get("css") or "").strip()
         if not css:
             raise ValueError(f"{where}: select 값 비어 있음")
         try:
             soupsieve.compile(css)
         except Exception as exc:  # noqa: BLE001 - soupsieve 예외 종류가 버전마다 다르다
-            raise ValueError(f"{where}: 선택자 해석 실패({css!r}): {exc}") from exc
+            raise ValueError(f"{where}: CSS selector 해석 실패({css!r}): {exc}") from exc
         attr = spec.get("attr")
         attr = str(attr).strip() if attr not in (None, "") else None
         compiled[str(target)] = {"css": css, "attr": attr}
@@ -110,12 +110,12 @@ def extract_fields(html: str, selectors: dict[str, dict]) -> dict[str, Any]:
     html_renderer = structural_html_renderer()
     soup = BeautifulSoup(html or "", "html.parser")
     values: dict[str, Any] = {}
-    missed: list[str] = []
+    missed: list[tuple[str, str]] = []
     for target, spec in selectors.items():
         element = soup.select_one(spec["css"])
         if element is None:
             values[target] = None
-            missed.append(f"{target}({spec['css']})")
+            missed.append((target, spec["css"]))
             continue
         if spec["attr"]:
             raw = element.get(spec["attr"])
@@ -127,10 +127,13 @@ def extract_fields(html: str, selectors: dict[str, dict]) -> dict[str, Any]:
                 html_renderer=html_renderer if element.find("table") else None,
             )
     if missed:
-        _log.warning(
-            f"[html_select] 선택자에 걸리지 않아 값 비어 있음 ({', '.join(missed)}), "
-            f"원천 마크업 변경 또는 해당 요소의 주석 처리 여부 확인 필요"
-        )
+        if len(missed) == 1:
+            target, css = missed[0]
+            _log.warning(f"[html_select] {target} 값 없음: CSS selector {css} 와 맞는 요소가 HTML 에 없음")
+        else:
+            listed = ", ".join(f"{target}(CSS selector {css})" for target, css in missed)
+            _log.warning(f"[html_select] 필드 {len(missed)}개 값 없음: {listed}")
+        _log.warning("[html_select] HTML 구조가 바뀌었거나 그 요소가 <!-- --> 주석 안에 있는지 확인 필요")
     return values
 
 
