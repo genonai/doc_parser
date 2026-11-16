@@ -258,7 +258,7 @@ def _summarize(stage: str, payload, size: int, limit: int) -> tuple[int, str, st
     if stage == "chunk":
         count = len(payload)
         first = payload[0].get("text", payload[0]) if count and isinstance(payload[0], dict) else ""
-        return count, f"청크 {count}건 · {_kb(size)}", _clip(first, limit)
+        return count, f"chunk {count}건 · {_kb(size)}", _clip(first, limit)
     if isinstance(payload.get("elements"), list):
         count = len(payload["elements"])
     else:

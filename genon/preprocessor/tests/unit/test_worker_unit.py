@@ -175,7 +175,7 @@ def test_parse_then_chunk_exchange_refs_on_artifact_root(cfg):
         == [{"text": "카드 개요", "i_chunk_on_doc": 0}]
     assert (parsed["ref"], parsed["count"], chunked["ref"], chunked["count"]) == ("k1/parse", 1, "k1/chunk", 1)
     assert parsed["preview"] == "카드 개요" and parsed["summary"].startswith("파싱 ")
-    assert chunked["summary"].startswith("청크 1건") and "chunk_validation" not in chunked
+    assert chunked["summary"].startswith("chunk 1건") and "chunk_validation" not in chunked
 
 
 def test_chunk_result_carries_validation_summary_from_request_state(cfg):

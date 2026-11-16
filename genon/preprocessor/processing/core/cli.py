@@ -55,7 +55,7 @@ def _summary(payload) -> str:
     정상 처리된 문서를 실패로 오해하게 된다.
     """
     if isinstance(payload, list):
-        return f"청크 {len(payload)}건"
+        return f"chunk {len(payload)}건"
     if not isinstance(payload, dict):
         return "산출 1건"
     elements = payload.get("elements") or []
