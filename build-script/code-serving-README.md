@@ -123,6 +123,10 @@ genon/preprocessor/activities/<slug>/
   python -m genon.preprocessor.activities diff parse_x
   # 사본 삭제(원형 parse·chunk 는 지우지 않습니다)
   python -m genon.preprocessor.activities remove --slug parse_x
+  # 사본에 doc_type 등록 — 등록된 doc_type 의 규칙 파일을 복사하고 config.yaml 에 등록 블록을 더합니다(원형 parse 는 거부)
+  python -m genon.preprocessor.activities doc-types add --name <doc_type> --from <등록된 doc_type> --activity parse_x [--title "<설명>"]
+  python -m genon.preprocessor.activities doc-types list --activity parse_x
+  python -m genon.preprocessor.activities doc-types validate --name <doc_type> --activity parse_x
 
   git add genon/preprocessor/activities/parse_x && git commit -m "<메시지>" && git push
   ```
