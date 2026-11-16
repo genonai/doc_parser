@@ -683,7 +683,7 @@ class JsonRecordsMapper(CustomFieldsMapperBase):
             return self._auto_records(payload)
         records = collect_records(payload, self.records_key)
         if records is None:
-            msg = f"records 키 '{self.records_key}' 를 JSON 에서 찾지 못했습니다."
+            msg = f"records 키 '{self.records_key}' 가 JSON 에 없음"
             if self.missing_policy == "error":
                 raise CodedValueError(msg, "PARSE_D002")
             _log.warning(f"[json_records] 레코드 0건으로 진행함: {msg}")

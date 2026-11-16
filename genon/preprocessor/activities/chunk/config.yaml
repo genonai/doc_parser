@@ -32,9 +32,9 @@ chunking:
   chunk_mode: split_only
   # 짧은 chunk 를 합치는 방법: 짧은 chunk 가 연달아 나오면 먼저 서로 묶고, 묶은 결과가 기준을 넘으면
   # 따로 한 chunk 로 둔다. 그래도 짧으면 chunk_size 안에서 다음 chunk(안 되면 앞 chunk)에 붙인다. 둘 다
-  # 꽉 찼으면 이웃 chunk 본문을 줄 경계에서 나눠 옮긴다. 그마저 나눌 수 없을 때만(표 등) chunk_size 를
-  # 넘겨 붙인다. 표 chunk 는 짧은 chunk 로 보지 않는다. 합친 결과가 이상 chunk 검증(아래 validation)에서
-  # 버려지면 합치지 않는다. 값을 잘못 적으면 서버가 뜰 때 실패한다.
+  # 꽉 찼으면 이웃 chunk 본문을 줄 경계에서 나눠 옮긴다. 그마저 나눌 수 없으면(표 등) 짧은 chunk 로
+  # 남긴다(chunk_size 를 넘겨 붙이지 않는다). 표 chunk 는 짧은 chunk 로 보지 않는다. 합친 결과가
+  # 이상 chunk 검증(아래 validation)에서 버려지면 합치지 않는다. 값을 잘못 적으면 서버가 뜰 때 실패한다.
   # 문서 유형별 값은 custom_fields yaml(문서 유형별 필드 정의 파일)의 body.merge_short 에 적는다.
   # 우선순위: 요청 파라미터 short_chunk_size > body.merge_short > 아래 값.
 

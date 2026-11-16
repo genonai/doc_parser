@@ -99,9 +99,9 @@ def test_check_doc_type_configured_by_policy(cfgs, doc_type, policy, outcome, ca
 @pytest.mark.unit
 @pytest.mark.parametrize("policy", ["fail", "warn"])
 def test_unknown_doc_type_message_names_the_config_file(policy, caplog):
-    """안내는 실제로 읽은 설정 파일을 가리킨다 — 모르면 원형 경로가 아니라 "이 액티비티의 config.yaml"(#627)."""
+    """안내는 실제로 읽은 설정 파일을 가리킨다 — 모르면 원형 경로가 아니라 "이 activity 의 config.yaml"(#627)."""
     for config_path, expected in [("activities/parse_q1/config.yaml", "activities/parse_q1/config.yaml"),
-                                  (None, "이 액티비티의 config.yaml")]:
+                                  (None, "이 activity 의 config.yaml")]:
         caplog.clear()
         with caplog.at_level(logging.WARNING):
             try:

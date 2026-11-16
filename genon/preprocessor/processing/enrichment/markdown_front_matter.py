@@ -354,13 +354,13 @@ class MarkdownFrontMatterSpec:
                 raise   # 파일 오류는 호출부가 성격(permanent/transient)을 나눈다(#528)
             return self._handle(
                 self.on_invalid,
-                f"Markdown front matter 입력을 읽을 수 없습니다: {path.name} ({exc})",
+                f"Markdown front matter 입력 읽기 실패: {path.name} ({exc})",
                 exc,
             )
         except UnicodeError as exc:
             return self._handle(
                 self.on_invalid,
-                f"Markdown front matter 입력을 읽을 수 없습니다: {path.name} ({exc})",
+                f"Markdown front matter 입력 읽기 실패: {path.name} ({exc})",
                 exc,
             )
 
@@ -368,7 +368,7 @@ class MarkdownFrontMatterSpec:
         if not lines or lines[0].strip() != "---":
             return self._handle(
                 self.on_missing,
-                f"Markdown front matter가 없습니다: {path.name}",
+                f"Markdown front matter 없음: {path.name}",
             )
 
         closing = next(
@@ -378,14 +378,14 @@ class MarkdownFrontMatterSpec:
         if closing is None:
             return self._handle(
                 self.on_invalid,
-                f"Markdown front matter 종료 구분자가 없습니다: {path.name}",
+                f"Markdown front matter 종료 구분자 없음: {path.name}",
             )
 
         yaml_text = "".join(lines[1:closing])
         if len(yaml_text.encode("utf-8")) > self.max_bytes:
             return self._handle(
                 self.on_invalid,
-                f"Markdown front matter가 max_bytes={self.max_bytes}를 초과했습니다: {path.name}",
+                f"Markdown front matter 가 max_bytes={self.max_bytes} 초과: {path.name}",
             )
 
         try:
@@ -399,7 +399,7 @@ class MarkdownFrontMatterSpec:
         if not isinstance(parsed, dict):
             return self._handle(
                 self.on_invalid,
-                f"Markdown front matter 최상위 값은 mapping이어야 합니다: {path.name}",
+                f"Markdown front matter 최상위 값이 mapping 이 아님: {path.name}",
             )
 
         try:

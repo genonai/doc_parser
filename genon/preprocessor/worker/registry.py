@@ -55,9 +55,9 @@ def scan(activities_dir: Path | None = None, *, log_level: int = logging.INFO) -
     site = _folders.site_activities_dir()
     problem = None
     if site is not None and not site.is_dir():
-        problem = (f"사이트 설정(GENOS_RESOURCE_DIR={_folders.resource_dir()}) 옆에 activities/ 가 없습니다: {site} — "
-                   "사이트 완성본은 resource/ 와 activities/<slug>/ 두 자리이고, 사이트 배포는 저장소 폴더로 떨어지지 않으므로 "
-                   "실행하지 않습니다. 사이트의 activities/ 를 그 자리에 두십시오")
+        problem = (f"activity 설정 폴더 없음: {site}\n"
+                   "GENOS_RESOURCE_DIR 의 사이트 설정으로 실행 중이라 사이트 폴더만 찾음(저장소 기본 설정으로 대체하지 않음)\n"
+                   f"GENOS_RESOURCE_DIR={_folders.resource_dir()} 옆에 activities/ 폴더 추가 필요")
     entries = []
     for slug in _folders.slugs(activities_dir):
         path = _folders.config_dir(slug, activities_dir) / _folders.CONFIG_FILE
@@ -70,8 +70,8 @@ def scan(activities_dir: Path | None = None, *, log_level: int = logging.INFO) -
         elif slug_problem is None:
             path = _folders.config_path(slug, activities_dir)   # 저장소 폴더의 config.yaml 누락은 기동 오류(시험이 잡는다)
         # 결함 표시를 경로 앞에 둔다 — 경로가 길면 줄 끝이 콘솔(220자)에서 잘린다.
-        log.log(log_level, "액티비티 %s%s: 설정 %s (%s)", slug, " [호출마다 오류 — 배포 설정 결함]" if slug_problem else "",
-                path, "사이트 완성본" if site is not None else "저장소")
+        log.log(log_level, "activity %s %s: %s (%s)", slug, "호출마다 실패(사이트 설정 없음)" if slug_problem else "설정",
+                path, "사이트 설정" if site is not None else "저장소 기본 설정")
         entries.append(Entry(slug, stage_of(slug), str(path), slug_problem))
     return entries
 
@@ -84,7 +84,7 @@ _CREATE_LOCK = threading.Lock()
 def processor(entry: Entry):
     """slug 의 DocumentProcessor 인스턴스 — 프로세스당 1개(첫 호출에 생성). 배포 설정 결함은 호출마다 오류."""
     if entry.problem:
-        raise ValueError(entry.problem)          # 입력·설정 오류 → permanent(non_retryable) 로 호출자에게
+        raise _folders.SiteConfigError(entry.problem)   # 설정 오류 → permanent(non_retryable) 로 호출자에게
     proc = _PROCESSORS.get(entry.slug)
     if proc is not None:
         return proc
@@ -116,7 +116,7 @@ def build(entries: list[Entry]) -> list:
                 except CancelledError:
                     raise
                 except Exception as exc:  # noqa: BLE001 — 성격 판정은 to_application_error 한 곳에서
-                    raise to_application_error(exc, f"{entry.slug} 프로세서 준비") from exc
+                    raise to_application_error(exc, f"activity {entry.slug} · processor 준비") from exc
                 return proc.run_activity(arg)
         return run
     return [make(e) for e in entries]

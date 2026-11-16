@@ -113,7 +113,7 @@ def _handle_stage_error(exc: Exception, stage: str) -> None:
         ) from exc
     effect = _STAGE_EFFECT.get(stage, stage)
     action = ("" if stage == "doc_type_stamp" else
-              f" 이 activity config.yaml 의 enrichment 에서 {stage} 항목(model_preset 접속 정보 등) 확인 필요")
+              f" 이 activity 의 config.yaml 의 enrichment 에서 {stage} 항목(model_preset 접속 정보 등) 확인 필요")
     _log.warning(f"enrichment {stage} 단계 건너뜀, 결과에 {effect} 없음 "
                  f"(원인 {error_type}: {exc}){action}")
 
@@ -203,16 +203,16 @@ def _llm_reason(exc: Exception, error_type: str):
     return None                   # 진입점이 미분류 코드를 싣는다
 
 
-#: 재OCR 판정 줄의 앞 문장(사유별). 사유가 none 이면 판정값으로 고른다(_REOCR_KEEP).
+#: 재OCR 판정 줄의 결과·사유(사유별). 사유가 none 이면 판정값으로 고른다(_REOCR_KEEP).
 _REOCR_SENTENCE = {
-    "llm_yes": "판정 모델이 OCR 이 필요하다고 답해 OCR 로 다시 변환합니다",
-    "glyph": "깨진 글자(GLYPH)가 많아 OCR 로 다시 변환합니다",
-    "empty_text": "글자가 빈 페이지가 있어 OCR 로 다시 변환합니다",
+    "llm_yes": "OCR 재변환: 판정 모델이 OCR 필요로 답함",
+    "glyph": "OCR 재변환: 깨진 글자(GLYPH) 많음",
+    "empty_text": "OCR 재변환: 글자 없는 페이지 있음",
 }
 _REOCR_KEEP = {
-    "ok": "판정 모델이 글자가 정상이라고 답해 OCR 재변환 없이 진행합니다",
-    "unknown": "판정 모델 답을 받지 못했고 깨진 글자·빈 페이지도 없어 OCR 재변환 없이 진행합니다",
-    "needs_ocr": "OCR 재변환 없이 진행합니다",
+    "ok": "OCR 재변환 안 함: 판정 모델이 글자 정상으로 답함",
+    "unknown": "OCR 재변환 안 함: 판정 모델 응답 없음, 깨진 글자·빈 페이지 없음",
+    "needs_ocr": "OCR 재변환 안 함",
 }
 
 
@@ -221,23 +221,24 @@ _LLM_FEATURE = {"toc_extraction": "toc", "metadata_extraction": "metadata"}
 
 
 def _llm_failure_message(exc: LLMApiError, precheck: bool, config_label: str | None) -> str:
-    """enrichment LLM 호출 실패의 한 줄 안내 — 어느 항목 · 왜 · 어디를 고치나, 공급자 원문은 맨 끝.
+    """enrichment LLM 호출 실패 사유 — 첫 줄은 어느 항목이 왜 멈췄나, 둘째 줄은 고칠 설정, 셋째 줄은 공급자 원문.
 
     원문(JSON)은 적재 상태 화면에서 그대로 보여야 하므로 자르지 않고 끝에 붙인다. 콘솔(줄당 220자)과
     GenOS(약 500자)에서는 앞의 안내가 먼저 보인다.
     """
     feature = _LLM_FEATURE.get(exc.category or "", "")
-    item = f"enrichment 의 {feature}" if feature else "enrichment"
-    key = f"{feature}." if feature else "해당 항목의 "
-    where = f"{config_label or '이 액티비티의 config.yaml'} 의 enrichment 에서"
+    item = f"enrichment {feature}" if feature else "enrichment"
+    setting = f"{config_label or '이 activity 의 config.yaml'} 의 " + (f"enrichment.{feature}." if feature
+                                                                   else "enrichment 항목별 ")
     if precheck:
-        split = " 문서가 길면 toc.split.enabled: true 로 나눠 보내세요." if feature == "toc" else ""
-        return (f"{item} 입력이 모델 허용 길이를 넘어 LLM 을 부르지 않고 파싱을 멈췄습니다. {where} "
-                f"{key}precheck.model_context_tokens 가 모델의 실제 최대 길이인지 확인하세요.{split} "
+        split = " (문서가 길면 toc.split.enabled: true 로 나눠 보내기)" if feature == "toc" else ""
+        return (f"{item} 입력이 모델 허용 길이를 넘어 parse 중단(LLM 호출 안 함)\n"
+                f"{setting}precheck.model_context_tokens 가 모델의 실제 최대 길이인지 확인 필요{split}\n"
                 f"원문: {exc.raw_error_message}")
     status = f"HTTP {exc.status_code}" if exc.status_code else "응답 없음"
-    return (f"{item} LLM 호출이 실패해 파싱을 멈췄습니다({status}). {where} {key}model_preset 이 "
-            f"가리키는 모델 프리셋의 url·api_key·model 과 모델 서버 상태를 확인하세요. 원문: {exc.raw_error_message}")
+    return (f"{item} LLM 호출 실패로 parse 중단({status})\n"
+            f"{setting}model_preset 이 가리키는 preset 의 url·api_key·model 과 모델 서버 상태 확인 필요\n"
+            f"원문: {exc.raw_error_message}")
 
 
 def _head(items, limit: int = 3, sep: str = ", ") -> str:
@@ -478,7 +479,7 @@ class GenericDocumentLoader:
             # 최소한 본문은 살린다. 구조(헤딩/표)까지 살리려면 아래 안내대로 별칭을 지정한다.
             _log.warning(f"확장자 '{ext}' 알 수 없음: 제목·표 구조 없는 텍스트로 읽음")
             _log.warning(
-                "표준 포맷으로 처리하려면 이 activity config.yaml 의 formats.extension_aliases 에 "
+                "표준 포맷으로 처리하려면 이 activity 의 config.yaml 의 formats.extension_aliases 에 "
                 f"'{ext}' 별칭 지정 필요 (예: \"{ext}\": \".md\")"
             )
             return TextLoader(file_path)
@@ -494,7 +495,7 @@ class GenericDocumentLoader:
             raise GenosServiceException(
                 "1",
                 f"{os.path.basename(file_path)} 처리 실패: unstructured 패키지 없음 ({exc})\n"
-                "표준 포맷으로 변환해 올리거나 이 activity config.yaml 의 "
+                "표준 포맷으로 변환해 올리거나 이 activity 의 config.yaml 의 "
                 "formats.extension_aliases 로 포맷 지정 필요",
                 error_type="permanent", reason_code="PARSE_S002",
             ) from exc
@@ -758,7 +759,7 @@ class ParserCore:
         fmt = str(value).strip().lower()
         if fmt not in {"json", "html", "markdown", "docling"}:
             _log.warning(f"output.format='{value}' 알 수 없음: json 으로 출력함, "
-                         "이 activity config.yaml 의 output.format 을 json·html·markdown·docling 중 하나로 지정 필요")
+                         "이 activity 의 config.yaml 의 output.format 을 json·html·markdown·docling 중 하나로 지정 필요")
             return "json"
         return fmt
 
@@ -773,7 +774,7 @@ class ParserCore:
         if mode not in {"auto", "always", "off"}:
             _log.warning(
                 f"formats.html.flatten='{value}' 알 수 없음: auto 로 처리함, "
-                "이 activity config.yaml 의 formats.html.flatten 을 auto·always·off 중 하나로 지정 필요"
+                "이 activity 의 config.yaml 의 formats.html.flatten 을 auto·always·off 중 하나로 지정 필요"
             )
             return "auto"
         return mode
@@ -884,8 +885,8 @@ class ParserCore:
                 reason = dops.reocr_reason(
                     verdict, self._intel.check_glyphs(document), self._intel.check_empty_text(document))
                 # 운영에서 비율을 세는 `verdict=… reason=…` 토큰은 줄 끝에 둔다.
-                _log.info(f"{_REOCR_SENTENCE.get(reason, '') or _REOCR_KEEP[verdict.value]} "
-                          f"({os.path.basename(file_path)}, ocr_mode=auto) "
+                _log.info(f"{os.path.basename(file_path)} "
+                          f"{_REOCR_SENTENCE.get(reason, '') or _REOCR_KEEP[verdict.value]} (ocr_mode=auto) "
                           f"verdict={verdict.value} reason={reason}")
                 if reason != "none":
                     with prof.stage("convert_ocr"):

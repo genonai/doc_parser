@@ -469,7 +469,7 @@ async def apply_table_description_stage(
         options = standalone.options_for(standalone._doc_type(kwargs))
         if options.conflict_policy == "error" and kwargs.get("table_desc"):
             handle_error(
-                ValueError("텍스트 표 설명과 이미지 표 설명이 동시에 활성화되었습니다."),
+                ValueError("텍스트 표 설명과 이미지 표 설명이 함께 켜져 있음"),
                 "table_description",
             )
             return document
@@ -492,7 +492,7 @@ async def apply_table_description_stage(
             and kwargs.get("table_desc")
         ):
             handle_error(
-                ValueError("텍스트 표 설명과 이미지 표 설명이 동시에 활성화되었습니다."),
+                ValueError("텍스트 표 설명과 이미지 표 설명이 함께 켜져 있음"),
                 "table_description",
             )
         return document

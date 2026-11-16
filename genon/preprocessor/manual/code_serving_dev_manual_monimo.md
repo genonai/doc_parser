@@ -1177,11 +1177,11 @@ python -m genon.preprocessor.activities.chunk --config genon/preprocessor/activi
 프로세스입니다. 워커 프로세스도 같은 slug 설정 줄을 다시 남깁니다.
 
 ```text
-<시각> [worker] INFO 액티비티 chunk: 설정 …/genon/preprocessor/activities/chunk/config.yaml (저장소)
-<시각> [worker] INFO 액티비티 parse: 설정 …/genon/preprocessor/activities/parse/config.yaml (저장소)
-<시각> [worker] INFO task_queue=<전처리기 워커 큐> processes=1 NFS_ROOT=… ARTIFACT_ROOT=… 액티비티=chunk, parse
+<시각> [worker] INFO activity chunk 설정: …/genon/preprocessor/activities/chunk/config.yaml (저장소 기본 설정)
+<시각> [worker] INFO activity parse 설정: …/genon/preprocessor/activities/parse/config.yaml (저장소 기본 설정)
+<시각> [worker] INFO task_queue=<전처리기 워커 큐> processes=1 threads=1 OMP_NUM_THREADS=… NFS_ROOT=… ARTIFACT_ROOT=… activity=chunk, parse
 <시각> [worker-0] INFO Temporal 접속: address=…:7233 namespace=… task_queue=<전처리기 워커 큐> threads=1
-<시각> [worker-0] INFO 액티비티 2개: chunk(chunk), parse(parse)
+<시각> [worker-0] INFO activity 2개: chunk(chunk), parse(parse)
 ```
 
 | 기동 로그에서 볼 것 | 판단 |

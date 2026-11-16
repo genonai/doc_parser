@@ -211,7 +211,7 @@ def diff_origin(slug: str, origin: str | None = None, activities_dir: Path | Non
     first = _git(repo, "log", "--diff-filter=A", "--format=%H %cI", "--reverse", "--", rel(root / slug / "config.yaml"))
     summary = {"slug": slug, "origin": origin, "copied_at": None, "changed": [], "added": [], "removed": [], "unchanged": 0}
     if not first.strip():
-        summary["note"] = "복사 커밋이 없습니다(미커밋 사본) — 커밋한 뒤 다시 보세요"
+        summary["note"] = "복사 커밋 없음(커밋 전 activity) — 커밋 뒤 다시 확인 필요"
         return summary, ""
     commit, date = first.splitlines()[0].split(" ", 1)
     summary["copied_at"] = {"commit": commit[:12], "date": date}
@@ -394,7 +394,7 @@ def _apply_codespace_presets() -> str | None:
     if not value:
         return None
     os.environ[MODEL_PRESETS_ENV] = value
-    return f"개발 워커와 같은 모델 접속값을 씁니다 — 코드스페이스 개발 env {path} 에서 {MODEL_PRESETS_ENV} 값을 읽었습니다(값은 출력하지 않음)"
+    return f"개발 워커와 같은 모델 접속값 사용: 코드스페이스 개발 env {path} 의 {MODEL_PRESETS_ENV} (값은 출력 안 함)"
 
 
 def _env_file_value(path: Path, key: str) -> str | None:

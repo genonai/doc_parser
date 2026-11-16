@@ -185,7 +185,7 @@ def test_presets_file_yaml_syntax_error_names_file_and_line_in_one_line(tmp_path
     with pytest.raises(model_preset.ModelPresetError) as info:
         cp.load_config(_write(tmp_path, "model_presets_file: model_presets.yaml\n"))
     message = str(info.value)
-    assert "\n" not in message and "model_presets.yaml 3행 1열의 YAML 문법이 틀렸습니다" in message
+    assert "\n" not in message and "model_presets.yaml 3행 1열 YAML 문법 오류: " in message
 
 
 # ── 하위 호환 ─────────────────────────────────────────────────────────────────

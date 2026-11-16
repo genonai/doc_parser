@@ -23,6 +23,9 @@ import errno
 import yaml
 from temporalio.exceptions import ApplicationError
 
+from genon.preprocessor.activities._folders import SiteConfigError
+from genon.preprocessor.processing.common.config_parse import ConfigSyntaxError
+from genon.preprocessor.processing.common.model_preset import ModelPresetError
 from genon.preprocessor.processing.common.reason_codes import category_of, reason_of
 from genon.preprocessor.processing.core.errors import GenosServiceException
 
@@ -69,6 +72,10 @@ def reason_details(exc: BaseException, kind: str) -> dict:
 LINE_SEP = " / "
 
 
+#: 메시지만으로 사유가 드러나 클래스 이름을 붙이지 않는 예외.
+_NAMELESS = (GenosServiceException, ConfigSyntaxError, ModelPresetError, SiteConfigError)
+
+
 def one_line(message: str) -> str:
     """여러 줄 메시지를 한 줄로 — 줄마다 공백을 정리하고 줄 경계는 `LINE_SEP` 로 남긴다(pipeline 로그와 같은 표기).
     단건 CLI 는 이 구분자로 다시 나눠 콘솔에 줄마다 찍는다."""
@@ -81,12 +88,12 @@ def to_application_error(exc: BaseException, where: str = "") -> ApplicationErro
     이 메시지는 Studio 콘솔(줄당 220자)과 GenOS 적재 상태(`document_upsert.error_message`, pipeline 이
     `[사유코드/범주] ` 를 앞에 붙인다)에 그대로 나가고 둘 다 앞부분만 보인다. 예전 형식
     `parse /nfs/…/a.pdf: GenosServiceException: …` 은 경로·클래스 이름이 사유를 밀어냈다.
-    처리기가 만든 GenosServiceException 은 클래스 이름을 빼고, 그 밖의 예외(KeyError 등)는 이름이
-    뜻을 보태므로 남긴다.
+    처리기가 만든 GenosServiceException 과 설정 오류(YAML 문법·model preset·사이트 설정 폴더)는 메시지가
+    사유를 다 담으므로 클래스 이름을 빼고, 그 밖의 예외(KeyError 등)는 이름이 뜻을 보태므로 남긴다.
     """
     msg = getattr(exc, "error_msg", None) or str(exc) or type(exc).__name__
     msg = one_line(msg)                          # 여러 줄 원문(YAML·pydantic 오류 등)도 한 줄로
-    if not isinstance(exc, GenosServiceException):
+    if not isinstance(exc, _NAMELESS):
         msg = f"{type(exc).__name__}: {msg}"
     if where:
         msg = f"{msg} ({where})"

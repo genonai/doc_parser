@@ -961,8 +961,7 @@ def meta_exclude_unused_note(cfg: dict, excluded: list[str], *, label: str) -> s
     if not unused:
         return None
     return (
-        f"{label}: {unused} 는 meta: false 인데 본문·선별·파생 어디에도 "
-        f"쓰이지 않습니다 — 값을 만들기만 하고 버립니다. 선언을 지워도 됩니다."
+        f"{label}: {unused} 는 meta: false 인데 본문·선별·파생 어디에도 안 쓰임 — 선언 삭제 가능"
     )
 
 

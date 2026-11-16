@@ -59,8 +59,8 @@ def get_presets(cfg: Any, *, label: str = "", strict: bool = True) -> dict:
         return {}
     if not isinstance(raw, dict):
         return _fail(
-            f"{label}: `{PRESETS_KEY}` 는 {{이름: 설정}} 매핑이어야 합니다 "
-            f"(받은 것: {type(raw).__name__}).",
+            f"{label}: `{PRESETS_KEY}` 가 {{이름: 설정}} 매핑이 아님 "
+            f"(받은 값: {type(raw).__name__})",
             strict=strict,
             fallback={},
         )
@@ -68,8 +68,8 @@ def get_presets(cfg: Any, *, label: str = "", strict: bool = True) -> dict:
     for name, value in raw.items():
         if not isinstance(value, dict):
             return _fail(
-                f"{label}: `{PRESETS_KEY}.{name}` 은 매핑이어야 합니다 "
-                f"(받은 것: {type(value).__name__}).",
+                f"{label}: `{PRESETS_KEY}.{name}` 이 매핑이 아님 "
+                f"(받은 값: {type(value).__name__})",
                 strict=strict,
                 fallback={},
             )
@@ -106,15 +106,15 @@ def expand_block(
 
     if not isinstance(name, str) or not name.strip():
         return _fail(
-            f"{where}: 프리셋 이름은 비어 있지 않은 문자열이어야 합니다 (받은 것: {name!r}).",
+            f"{where}: preset 이름이 비어 있음 (받은 값: {name!r})",
             strict=strict,
             fallback=merged,
         )
     name = name.strip()
     if name not in presets:
-        known = ", ".join(sorted(presets)) or "(정의된 프리셋 없음)"
+        known = ", ".join(sorted(presets)) or "(정의된 preset 없음)"
         return _fail(
-            f"{where}: `{name}` 프리셋이 `{PRESETS_KEY}` 에 없습니다. 정의된 이름: {known}",
+            f"{where}: preset `{name}` 이 `{PRESETS_KEY}` 에 없음 (정의된 이름: {known})",
             strict=strict,
             fallback=merged,
         )

@@ -185,9 +185,9 @@ def llm_failure_reason(exc: BaseException) -> str:
         url = unquote(str(exc.request.url))
         placeholder = _PLACEHOLDER.search(url)
         if placeholder:
-            return (f"{status} — 모델 프리셋 url 에 자리표시값 {placeholder.group(0)} 이 남아 있습니다. "
-                    "GENOS_MODEL_PRESETS_FILE 이 실값 파일을 가리키는지 확인하세요")
-        return f"{status} — 모델 서버 상태와 모델 프리셋의 url·api_key·model 을 확인하세요: {url}"
+            return (f"{status}: preset url 에 자리표시값 {placeholder.group(0)} 남아 있음 — "
+                    "GENOS_MODEL_PRESETS_FILE 이 실제 값 파일을 가리키는지 확인 필요")
+        return f"{status}: {url} — 모델 서버 상태와 preset 의 url·api_key·model 확인 필요"
     return " ".join(str(exc).split()) or type(exc).__name__
 
 

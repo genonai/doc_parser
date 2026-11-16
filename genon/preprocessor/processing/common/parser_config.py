@@ -147,7 +147,7 @@ def check_doc_type_configured(custom_fields_cfgs: Iterable[dict] | None, runtime
     판정하지 않는다 — specs_for_doc_type 과 같은 규칙이다.
 
     config_path 는 안내에 적을 설정 파일 — 실제로 읽은 파일이어야 한다. 사본(`activities/parse_x/`)이나
-    사이트 덮어쓰기에서 원형 경로를 가리키면 엉뚱한 파일을 고치게 된다(#627). 모르면 "이 액티비티의 config.yaml".
+    사이트 덮어쓰기에서 원형 경로를 가리키면 엉뚱한 파일을 고치게 된다(#627). 모르면 "이 activity 의 config.yaml".
     """
     key = normalize_doc_type(runtime_doc_type)
     if not key:
@@ -160,7 +160,7 @@ def check_doc_type_configured(custom_fields_cfgs: Iterable[dict] | None, runtime
         registered.update(doc_types)
     if key in registered:
         return
-    where = config_path or "이 액티비티의 config.yaml"
+    where = config_path or "이 activity 의 config.yaml"
     register = f"{where} 의 enrichment 에 custom_fields(doc_type: {key})를 등록"
     if policy == "fail":
         raise exc_factory(

@@ -447,7 +447,7 @@ def test_enrichment_provider_error_is_rethrown_as_genos_exception(intel):
 
     # 공급자 원문은 적재 상태 화면에서 그대로 보여야 하므로 자르지 않고 맨 끝에 둔다(#664).
     # 앞의 안내에는 고칠 키가 들어간다 — 콘솔(220자)·GenOS(약 500자)에서 원문보다 먼저 보인다.
-    guide, _, tail = exc_info.value.error_msg.partition(" 원문: ")
+    guide, _, tail = exc_info.value.error_msg.partition("\n원문: ")
     assert (tail, "precheck.model_context_tokens" in guide) == (raw_error, True)
     # 원인 예외 없이 상태 400 이면 docling 의 길이 사전 검사다(#528).
     assert (exc_info.value.stage, exc_info.value.error_type, exc_info.value.reason_code) == (
@@ -467,8 +467,8 @@ def test_enrichment_http_failure_names_feature_status_and_preset(intel):
             intel.enrichment(MagicMock())
 
     msg = exc_info.value.error_msg
-    assert msg.startswith("enrichment 의 toc LLM 호출이 실패해 파싱을 멈췄습니다(HTTP 401).")
-    assert ("toc.model_preset" in msg, msg.endswith(f" 원문: {raw_error}")) == (True, True)
+    assert msg.startswith("enrichment toc LLM 호출 실패로 parse 중단(HTTP 401)\n")
+    assert ("enrichment.toc.model_preset" in msg, msg.endswith(f"\n원문: {raw_error}")) == (True, True)
     assert exc_info.value.reason_code == "PARSE_S001"
 
 

@@ -572,7 +572,7 @@ class Session:
                 return None
             # drop 모드는 검증하지 않은 결과를 돌려주지 않는다.
             raise _error(CHUNK_VALIDATION_ERROR,
-                         f"청크 판정 중 오류가 났습니다({self.file_name} #{index}): {exc}") from exc
+                         f"chunk 판정 중 오류: {self.file_name} #{index} ({exc})") from exc
         if verdict is None:
             return None
         self.records.append({"stage": stage, "index": index, "page": page,
@@ -595,8 +595,8 @@ class Session:
         if self.cfg.drops:
             if self.cfg.fail_on_any:
                 raise _error(CHUNK_REJECTED,
-                             f"불량 청크가 있어 문서를 실패 처리합니다({self.file_name} "
-                             f"#{index}, {verdict.reason}: {verdict.describe()}).")
+                             f"불량 chunk 있어 문서 실패 처리: {self.file_name} "
+                             f"#{index} ({verdict.reason}: {verdict.describe()})")
             self.rejected += 1
         return verdict
 
@@ -749,8 +749,8 @@ class Session:
 def all_rejected_error(session: Session) -> ChunkValidationError:
     return _error(
         CHUNK_ALL_REJECTED,
-        f"모든 청크가 검증 기준에 걸려 제외됐습니다({session.file_name}, "
-        f"입력 {session.n_input}건, 사유별 {session.reason_counts()}).")
+        f"모든 chunk 가 검증 기준에 걸려 제외됨: {session.file_name} "
+        f"(입력 {session.n_input}건, 사유별 {session.reason_counts()})")
 
 
 def start(owner, job, marker_vectors=(), display=None) -> Optional[Session]:
