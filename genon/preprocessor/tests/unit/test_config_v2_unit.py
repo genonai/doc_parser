@@ -451,7 +451,6 @@ def test_registered_block_json_is_refused(tmp_path):
 # 직접 읽는다. 문서형 본문 키(`source.pre.json`)를 쓰지 않으므로 검사 대상이 아니다.
 @pytest.mark.parametrize("resource_dir, name, doc_types", [
     ("resource", "custom_field_card.yaml", ("card",)),
-    (SITE_MONIMO, "custom_field_research_report.yaml", ("research_report",)),
 ])
 def test_shipped_configs_keep_json_body_keys(resource_dir, name, doc_types):
     """등록 블록에서 옮겨 온 본문 키가 출고 설정에 그대로 남아 있어야 한다.

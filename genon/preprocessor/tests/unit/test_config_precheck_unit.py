@@ -86,9 +86,9 @@ def test_precheck_passes_on_shipped_resource():
     precheck = _load_precheck()
 
     # 인자 없음(표준 resource/ + 표준 파서 액티비티 폴더)과 사이트 루트(resource/ + activities/parse*/) — 점검기가 실제로
-    # 도는 루트 그대로. 모니모 파서 폴더는 15블록 이상이어야 한다(경로가 틀리면 조용히 적어지는 것을 막는다)
+    # 도는 루트 그대로. 모니모 파서 폴더는 14블록 이상이어야 한다(경로가 틀리면 조용히 적어지는 것을 막는다)
     roots = [*precheck.roots_of(None), *precheck.roots_of(_PREPROC.parent / "sites" / "monimo")]
-    assert len(precheck.registered_blocks(_PREPROC.parent / "sites" / "monimo" / "activities" / "parse")) >= 15
+    assert len(precheck.registered_blocks(_PREPROC.parent / "sites" / "monimo" / "activities" / "parse")) >= 14
     assert {str(r.relative_to(_PREPROC.parent)): precheck.check_root(r) for r in roots} == {
         str(r.relative_to(_PREPROC.parent)): 0 for r in roots}
 

@@ -148,9 +148,6 @@ CASES = [
     # 2026-10-01 현장 캡처 재현. 생성 스크립트는 tools/parse_chunk/make_stock_insight_split_sample.py 다.
     ("stock_insight", MONIMO / "monimo_stock_insight_split_sample.txt",
      "떨어진 행·등록번호 2개 병합"),
-    # 개인 작업 디렉터리(gitignore)에 있는 실 원천. 없는 머신에서는 SKIP 된다.
-    ("card",          REPO_ROOT / "shkim_labs" / "20260803_monimo" / "01_card" / "card01.flat.html",
-                                                                      "llm(카드 12필드)"),
 ]
 
 
@@ -176,18 +173,6 @@ def check_front_matter(chunks: list) -> list[str]:
     if leaked:
         problems.append(f"front matter 가 청크 텍스트에 남음 {len(leaked)}/{len(chunks)}건")
     return problems
-
-
-def check_card_annual_fee(chunks: list) -> list[str]:
-    """front matter 타입 보존은 front matter 키에만 적용된다.
-
-    card 의 annual_fee_amount 는 예전대로 문자열 '18000' 이어야 한다
-    (이미 적재된 컬렉션의 property 타입 호환).
-    """
-    got = chunks[0].get("annual_fee_amount")
-    if got != "18000":
-        return [f"annual_fee_amount 문자열 '18000' 기대, 실제 {got!r}"]
-    return []
 
 
 # table_format: html 이면 파싱된 표가 청크 본문에 `<table>` 로 다시 렌더된다.
@@ -936,7 +921,6 @@ EXTRA_CHECKS = {
         check_sections_selected("주택화재보험", "원문 1쪽 - 주택화재보험 상품요약서"),
     ("product_ssf", "monimo_product_ssf_html_table_sample.md"): check_md_html_table,
     ("product_hpp", "monimo_product_hpp_sample.json"): check_annual_fee_once,
-    ("card", "card01.flat.html"): check_card_annual_fee,
     ("product_hpp", "monimo_product_hpp_wcms_sample.json"): check_product_hpp_table_format,
     ("cs_hpp", "monimo_cs_hpp_rich_table_sample.html"): check_cs_hpp_degenerate_table,
     ("cs_hpp", ".INC_235488_02_20260626103138.html.parsed"): check_cs_hpp_parsed_ext,

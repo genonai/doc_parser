@@ -174,10 +174,6 @@ enrichment:
       enable: true
       doc_type: stock_insight
       config_file: custom_field_stock_insight.yaml
-  - custom_fields:
-      enable: true
-      doc_type: research_report
-      config_file: custom_field_research_report.yaml
 
 output:
   format: "docling" # "json" (default), "html", "markdown", "docling"

@@ -1389,7 +1389,7 @@ def test_shipped_configs_match_declared_keys(resource_dir):
         cs.validate_known_keys(cfg, label=f"{resource_dir}/{path.name}", extractor=extractor)
         checked += 1
     # 표준 폴더(resource/·activities/parse/)는 card 한 건뿐이다(문서유형 설정 대부분은 사이트 폴더에 있다).
-    minimum = 15 if resource_dir == SITE_MONIMO else 1
+    minimum = 14 if resource_dir == SITE_MONIMO else 1
     assert checked >= minimum, f"검사된 출고 설정이 너무 적다: {checked}건"
 
 
