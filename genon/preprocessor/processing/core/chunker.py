@@ -555,6 +555,7 @@ class ChunkerCore:
         notes = job.notes
         notes["dropped"] = 0
         notes["upload_tasks"] = []
+        notes["scheduled_upload_paths"] = set()  # 이미 업로드를 건 미디어 경로(#723)
         notes["marker_vectors"] = [
             self._single_marker_vector(c.text, notes["cleanup"], **notes["variant_options"])
             for c in chunks if c.kind == "marker"
@@ -758,11 +759,19 @@ class ChunkerCore:
         notes = job.notes
         if upload_files:
             # 업로드는 기다리지 않고 걸어 두고, finish_chunk_loop 이 한꺼번에 기다린다.
-            file_list = self.get_media_files(
-                chunk.source.meta.doc_items, include_tables=self.table_image_enabled)
-            notes["upload_tasks"].append(asyncio.create_task(
-                upload_files(file_list, request=job.request)
-            ))
+            # 표가 여러 청크로 나뉘면 조각마다 같은 표 이미지를 가리킨다. upload_files 는 업로드 뒤
+            # 원본을 지우므로 같은 경로를 두 번 걸면 FileNotFoundError 로 요청 전체가 실패한다(#723).
+            scheduled = notes["scheduled_upload_paths"]
+            file_list = []
+            for f in self.get_media_files(
+                    chunk.source.meta.doc_items, include_tables=self.table_image_enabled):
+                if f['path'] not in scheduled:
+                    scheduled.add(f['path'])
+                    file_list.append(f)
+            if file_list:
+                notes["upload_tasks"].append(asyncio.create_task(
+                    upload_files(file_list, request=job.request)
+                ))
         # appendix 추출 !! appendix feature (2025-09-30, geonhee kim) !!
         chunk_global_metadata = notes["global_metadata"].copy()
         chunk_global_metadata['appendix'] = self.check_appendix_keywords(
