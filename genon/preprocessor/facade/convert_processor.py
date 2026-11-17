@@ -1152,7 +1152,11 @@ class DocumentProcessor(DoclingRuntimeBase):
             _log.warning(f"[convert] 텍스트 디코딩 실패({exc.encoding}) — 기존 경로로 폴백: "
                          f"{os.path.basename(file_path)}")
             return None
-        if Path(file_path).suffix.lower() == '.json' and _is_docling_json(text):
+        suffix = Path(file_path).suffix.lower()
+        if suffix == '.json' and _is_docling_json(text):
+            return None
+        # docling 이 읽는 USPTO 특허 txt(첫 줄 `PATN`)는 기존 경로에 둬 특허 구조를 살린다.
+        if suffix == '.txt' and text.lstrip('﻿').splitlines()[:1] == ['PATN']:
             return None
         with tempfile.TemporaryDirectory(prefix="convert_text_") as work_dir:
             html_path = os.path.join(work_dir, f"{Path(file_path).stem}.html")
