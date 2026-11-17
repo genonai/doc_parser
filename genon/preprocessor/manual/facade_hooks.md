@@ -11,8 +11,8 @@
 
 | 파일 | 줄수 | 고칠 자리 |
 |---|---:|---|
-| `activities/parse/processor.py` | 296 | `ROUTES` · `CONFIG_BY_DOC_TYPE` · `edit_input` · `edit_document` · `edit_output` |
-| `activities/chunk/processor.py` | 277 | `GenOSVectorMeta` · `GenosSmartChunker` · `ROW_CATEGORIES` · `CONFIG_BY_DOC_TYPE` · `edit_input` · `edit_chunk` · `edit_output` |
+| `activities/parse/processor.py` | 129 | `ROUTES` · `CONFIG_BY_DOC_TYPE` · `edit_input` · `edit_document` · `edit_output` |
+| `activities/chunk/processor.py` | 127 | `GenOSVectorMeta` · `GenosSmartChunker` · `ROW_CATEGORIES` · `CONFIG_BY_DOC_TYPE` · `edit_input` · `edit_chunk` · `edit_output` |
 
 처리 본체는 `processing/core/` 에 있고 **열어 볼 일이 없습니다.** 열어야 했다면 그건 훅 메소드가
 부족하다는 뜻이니 알려 주세요.
@@ -28,6 +28,49 @@
 
 `.json` · `.md` · `.html` · 엑셀은 파일 경로가 아니라 **로드된 데이터**를 훅 메소드에 넘겨야 해서
 `edit_input` 가 해당 라우트 안에서 불립니다. 순서상 위치는 같습니다.
+
+## job 객체 — 인자에 job 이 있는 메소드에서만 씁니다
+
+`config_by_condition(job)`, 파서의 `edit_document(job, doc)`, 직접 만든 `route_*(job)`, override 한
+core 메소드가 받습니다. `edit_input`·`edit_chunk`·`edit_output` 의 `**kwargs` 로는 오지 않습니다.
+파서와 청커의 job 은 서로 다른 객체입니다.
+
+| 파서 | 뜻 | 청커 | 뜻 |
+|---|---|---|---|
+| `job.ext` | 확장자(소문자) | `job.kind` | `"docling"`(document 형식) · `"parse"`(엑셀 행·JSON 레코드·텍스트) |
+| `job.doc_type` | 문서 유형(소문자) | `job.doc_type` | 요청 값 그대로(정규화하지 않음) |
+| `job.file_path` | 원본 파일 경로 | `job.data` | parse 단계 결과 |
+| `job.source` | 실제로 파싱할 파일 경로(확장자 별칭 사본, `edit_input` 이 만든 파일이면 원본과 다름) | `job.metadata` | document 형식 chunk 를 vector_meta 로 바꿀 때만 생김. `config_by_condition` 시점에는 없음 |
+| `job.params` · `job.config` · `job.notes` | 요청 파라미터 · doc_type 별로 덧씌운 값 · 단계 간 전달용 dict | 〃 | 〃 |
+| `job.temp_dir("접두어")` | 요청이 끝나면 지워지는 임시 디렉터리 | | |
+
+청커의 `job.kind` 와 `edit_chunk` 의 `info["kind"]` 는 값이 다릅니다 — `"docling"` → `"docling"`,
+`"parse"` → `"row"`(행·레코드) 또는 `"text"`(그 밖).
+
+## override 범위
+
+기능을 끄는 것이면 `CONFIG_BY_DOC_TYPE` 이 먼저입니다. `super()` 를 부르지 않으면 기본 구현은 실행되지 않습니다.
+
+| | 파서 | 청커 |
+|---|---|---|
+| 지원(릴리스가 바뀌어도 이름·인자 유지) | 처리기 파일에 본문이 보이는 메소드(`route_*` 등), `enrich`, `parse_document` | 처리기 파일에 본문이 보이는 메소드(`split`, `chunks_to_vector_metas`), `build_chunk_text`, `mask_sensitive`, `clean_text`, `chunk_to_vector_meta` |
+| 비권장(릴리스에서 바뀔 수 있음) | 그 밖의 `ParserCore` 메소드(`prepare_input`, `read_sheets`, `describe_tables` 등) | 그 밖의 `ChunkerCore` 메소드(`split_document`, `split_records`, `collect_chunk_variants` 등) |
+
+`_` 로 시작하는 메소드(`_call_*` 등)는 override 하지 않습니다. 설정 적용 순서를 맡습니다.
+처리기 파일의 두 자리는 순서를 바꾸지 않습니다.
+
+- 파서 `document_to_response` — `edit_document` 가 `enrich` 보다 앞에 있어야 LLM 을 부르기 전에 표를 설명 대상에서 뺄 수 있습니다.
+- 청커 `chunks_to_vector_metas` — 마스킹이 정제보다 먼저여야 마스킹 전 개인정보가 글자 수 통계나 표 변환본에 남지 않습니다. 반복문은 `start_chunk_loop`·`finish_chunk_loop` 로 감싼 채 둡니다. 빼면 `n_chunk_of_doc` 와 chunk 순번이 어긋납니다.
+
+```python
+    async def enrich(self, job, doc):              # 표 설명을 자체 기준으로 검사한다
+        doc = await super().enrich(job, doc)
+        for table in doc.tables:
+            caption = (table.captions or [""])[0]
+            if not all(k in caption for k in ("기준일", "연 %")):
+                table.captions = []
+        return doc
+```
 
 ## 모든 훅 메소드에 공통인 두 가지
 
