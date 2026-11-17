@@ -45,6 +45,20 @@ _is_encrypted_office = fp.is_encrypted_office
 _is_encrypted_pdf = fp.is_encrypted_pdf
 _is_protected_hwp = fp.is_protected_hwp
 _looks_like_text = fp.looks_like_text
+
+
+def _is_docling_json(text: str) -> bool:
+    """docling 직렬화 JSON 인지 최상위 `schema_name` 값으로 판별한다.
+
+    본문 문자열 검색은 일반 JSON 값에 "DoclingDocument" 가 들어 있으면 오판하고,
+    필드가 앞부분에 없으면 놓친다. 파싱이 안 되면 일반 텍스트로 본다.
+    """
+    try:
+        data = json.loads(text)
+    except ValueError:
+        return False
+    return isinstance(data, dict) and data.get("schema_name") == "DoclingDocument"
+
 _normalize_filename_title = hp.normalize_filename_title
 _parse_optional_bool = cp.parse_optional_bool
 _parse_optional_float = cp.parse_optional_float
@@ -1138,7 +1152,7 @@ class DocumentProcessor(DoclingRuntimeBase):
             _log.warning(f"[convert] 텍스트 디코딩 실패({exc.encoding}) — 기존 경로로 폴백: "
                          f"{os.path.basename(file_path)}")
             return None
-        if Path(file_path).suffix.lower() == '.json' and '"DoclingDocument"' in text[:2048]:
+        if Path(file_path).suffix.lower() == '.json' and _is_docling_json(text):
             return None
         with tempfile.TemporaryDirectory(prefix="convert_text_") as work_dir:
             html_path = os.path.join(work_dir, f"{Path(file_path).stem}.html")
