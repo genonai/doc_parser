@@ -64,9 +64,22 @@ requires_weasyprint = pytest.mark.skipif(
 
 @pytest.mark.unit
 @requires_weasyprint
-def test_long_single_line_txt_not_truncated(tmp_path: Path):
+def test_long_single_line_txt_not_truncated(tmp_path: Path, monkeypatch):
     """공백은 있지만 개행 없는 긴 한 줄의 끝 토큰이 누락되지 않아야 한다(white-space: pre-wrap)."""
     _get_pdf_path, TextLoader = _import_processor()
+    from genon.preprocessor.processing.common import loaders as ld
+
+    # 렌더가 실패하면 load() 가 원문으로 폴백해 토큰 검사가 그냥 통과한다. 파생 PDF 를
+    # 실제로 읽었는지와 그 위치를 기록해 PDF 왕복 경로를 탔음을 보증한다.
+    loaded_pdfs = []
+
+    class _RecordingPyMuPDFLoader(ld.PyMuPDFLoader):
+        def load(self):
+            docs = super().load()
+            loaded_pdfs.append(Path(self.file_path))
+            return docs
+
+    monkeypatch.setattr(ld, "PyMuPDFLoader", _RecordingPyMuPDFLoader)
 
     # A4 폭을 확실히 넘기는 긴 한 줄(개행 없음) + 문장 끝 고유 토큰.
     # 수정 전(white-space: pre)에는 끝 토큰이 페이지 밖으로 밀려 렌더/추출에서 누락됨.
@@ -77,8 +90,9 @@ def test_long_single_line_txt_not_truncated(tmp_path: Path):
 
     extracted = _extract_text(TextLoader(str(txt)))
 
+    # PDF 를 실제로 읽었고, 그 PDF 는 입력 디렉터리 밖(요청 임시 디렉터리)에 있었다.
+    assert len(loaded_pdfs) == 1 and loaded_pdfs[0].parent != tmp_path
     # 파생 PDF 는 요청 임시 디렉터리에만 만들고 지운다. 입력 디렉터리에 남으면 안 된다(#365).
-    assert not Path(_get_pdf_path(str(txt))).exists()
     assert [p.name for p in tmp_path.iterdir()] == ["long_line.txt"]
     assert "ENDSENTINEL333" in _norm(extracted), (
         "긴 한 줄의 끝 토큰이 추출 텍스트에서 누락됨 — white-space: pre-wrap 미적용 회귀"
