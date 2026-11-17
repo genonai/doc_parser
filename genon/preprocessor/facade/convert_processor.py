@@ -770,6 +770,7 @@ class DocumentProcessor(DoclingRuntimeBase):
         chunk_index_on_page = 0
         vectors = []
         upload_tasks = []
+        scheduled_upload_paths: set = set()  # 이미 업로드를 건 미디어 경로(#723)
         for chunk_idx, chunk in enumerate(chunks):
             chunk_page = chunk.meta.doc_items[0].prov[0].page_no if chunk.meta.doc_items[0].prov else 0
             # 청크 선두에 섹션 경로 부착 (HEADER: ). 여기가 유일한 부착 지점이며,
@@ -816,10 +817,17 @@ class DocumentProcessor(DoclingRuntimeBase):
 
             chunk_index_on_page += 1
             if upload_files:
-                file_list = self.get_media_files(chunk.meta.doc_items, include_tables=self.table_image_enabled)
-                upload_tasks.append(asyncio.create_task(
-                    upload_files(file_list, request=request)
-                ))
+                # 표가 여러 청크로 나뉘면 조각마다 같은 표 이미지를 가리킨다. upload_files 는 업로드 뒤
+                # 원본을 지우므로 같은 경로를 두 번 걸면 FileNotFoundError 로 요청 전체가 실패한다(#723).
+                file_list = []
+                for f in self.get_media_files(chunk.meta.doc_items, include_tables=self.table_image_enabled):
+                    if f['path'] not in scheduled_upload_paths:
+                        scheduled_upload_paths.add(f['path'])
+                        file_list.append(f)
+                if file_list:
+                    upload_tasks.append(asyncio.create_task(
+                        upload_files(file_list, request=request)
+                    ))
 
         if upload_tasks:
             await asyncio.gather(*upload_tasks)
