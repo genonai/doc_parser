@@ -77,8 +77,9 @@ def test_long_single_line_txt_not_truncated(tmp_path: Path):
 
     extracted = _extract_text(TextLoader(str(txt)))
 
-    # PDF 가 실제로 생성됐는지도 확인(경로가 폴백으로 새지 않았음을 보증)
-    assert Path(_get_pdf_path(str(txt))).exists()
+    # 파생 PDF 는 요청 임시 디렉터리에만 만들고 지운다. 입력 디렉터리에 남으면 안 된다(#365).
+    assert not Path(_get_pdf_path(str(txt))).exists()
+    assert [p.name for p in tmp_path.iterdir()] == ["long_line.txt"]
     assert "ENDSENTINEL333" in _norm(extracted), (
         "긴 한 줄의 끝 토큰이 추출 텍스트에서 누락됨 — white-space: pre-wrap 미적용 회귀"
     )
