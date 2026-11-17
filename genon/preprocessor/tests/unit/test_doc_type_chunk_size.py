@@ -89,7 +89,8 @@ def _parse_and_chunk(source: Path, doc_type: str, llm_stub: str | None = None, *
                      chunk_size: int = CHUNK_SIZE,
                      chunk_mode: str = CHUNK_MODE,
                      include_chunk_header: bool | None = None,
-                     extra_kwargs: dict | None = None) -> list[dict]:
+                     extra_kwargs: dict | None = None,
+                     config_dir: str = SITE_MONIMO) -> list[dict]:
     """파서→청커 왕복을 실제로 돌리고 청크 dict 목록을 돌려준다.
 
     ``include_chunk_header`` 를 주면 kwargs 로 넘겨 yaml 설정을 덮는다. HEADER 접두어를
@@ -102,7 +103,7 @@ def _parse_and_chunk(source: Path, doc_type: str, llm_stub: str | None = None, *
 
     async def _run():
         request = Request(scope={"type": "http"})
-        parser = pp.DocumentProcessor(str(PREPROCESSOR_DIR / SITE_MONIMO / "config.yaml"))  # 모니모 문서유형은 모니모 사이트 설정에 있다
+        parser = pp.DocumentProcessor(str(PREPROCESSOR_DIR / config_dir / "config.yaml"))  # 모니모 문서유형은 모니모 사이트 설정에 있다
         if llm_stub is not None:
             stubbed = 0
             for enricher in parser._intel.custom_fields_enrichers:
@@ -287,6 +288,7 @@ def test_chunk_prefix_fields_repeat_on_every_chunk_within_chunk_size():
     rows = _parse_and_chunk(
         source, "card", llm_stub=_CARD_LLM_STUB, include_chunk_header=True,
         extra_kwargs={"chunk_prefix_fields": _CARD_PREFIX_FIELD},
+        config_dir="activities/parse",  # card 는 표준 설정에만 등록되어 있다
     )
 
     assert len(rows) > 1

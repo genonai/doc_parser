@@ -1,20 +1,4 @@
-# 문서 유형 product_ssf(삼성화재 상품설명서)의 custom_fields 설정 — 상품요약서 Markdown 파일 하나를 상품 하나로 읽는다.
-# custom_fields 는 doc_type 마다 원본에서 뽑을 필드와 그 규칙이다. 이 파일은 `CustomFieldsEnricher` 가 읽는다.
-# fields 아래 키는 만들어 낼 필드 이름이고, 대부분 적재 테이블(GADPRTBSSF001)의 컬럼 이름과 같다.
-# BIZ_ID 는 항목 ID, GROUP_C 는 계열사 코드다(SSF = 삼성화재).
-# 본문은 docling 이 chunk 로 나누고, fields 의 alias 는 Markdown 맨 앞 front matter(`---` 로 감싼 YAML 머리말)의 key 다.
-#
-# 원본 Markdown 의 표준 구성(PDF 를 Markdown 으로 바꾼 변환기가 만든다):
-#   front matter(file / title / document_type / source_file / source_pages / author / created_at /
-#                conversion_note — 문서에 따라 product_code / sales_period / version 이 더 있다)
-#   → `# {상품명} 상품요약서`
-#   → `## 핵심 키워드`
-#   → `## 문서 개요`      (샘플에 따라 `## 목차` 로 오기도 한다)
-#   → `## 내용 색인`
-#   → `원문 전사` / `원문 N쪽 - {소제목}`   (원본 PDF 를 그대로 옮겨 적은 부분)
-#
-# chunk 본문에는 원문만 싣는다. `## 원문 전사` 가 있으면 그 앞을 지우고(상품명 H1 줄은 남긴다),
-# 없더라도 변환기가 붙인 안내 섹션과 원본 PDF 의 목차 페이지는 지운다(source.pre.markdown.sections).
+# product_ssf(삼성화재 상품설명서) custom_fields
 
 schema: v2
 source:
@@ -32,11 +16,9 @@ source:
         after_heading: '## 원문 전사'
         exclude: ['## 문서 개요', '## 핵심 키워드', '## 내용 색인', '## 원문*쪽-목차']
 fields:
-  # front matter 의 created_at 을 YYYYMMDD 정수로 바꿔 chunk 메타의 created_date 로 싣는다
   created_date:
     alias: [created_at]
     transform: date_int
-  # front matter 의 product_code 만 쓰고, 없으면 null 이다(아래 llm 블록은 주석 처리돼 LLM 이 뽑지 않는다).
   PRODUCT_C:
     alias: [product_code, product_codes]
     default: null
@@ -45,10 +27,7 @@ fields:
   SALE_STATUS:
     const: SALE
   BIZ_ID:
-    # 원본 파일명($file) 전체를 SHA-1 로 hash 해 `SSF_PROD_` 뒤에 16진수 16자리를 붙여 만든다.
-    # 같은 파일명이면 다시 적재해도 같은 값이 나오고, 파일명이 바뀌면 값도 바뀐다.
     alias: [$file]
-    # transform: {name: regex_extract, pattern: '^(.+?_\d{8})(?!\d)'}
     transform: {name: hash, prefix: SSF_PROD_, length: 16}
     default: null
   PRODUCT_NM:
@@ -56,24 +35,19 @@ fields:
     transform:
     - {name: regex_sub, pattern: '\s*상품요약서$', repl: ''}
   PRODUCT_ATTRS:
-    # 출시일 — 판매 시작일을 출시일로 보고 {"created_at": YYYYMMDD} 로 담는다
-    # alias: [created_at]
     alias: [sales_period, version]
     transform:
-    - {name: regex_sub, pattern: '\s+', repl: ' '}   # 여러 줄 값을 한 줄로 편다. 줄바꿈이 남으면 아래 패턴이 매칭에 실패한다
+    - {name: regex_sub, pattern: '\s+', repl: ' '}
     - {name: regex_extract, pattern: '^\s*([^~]*?)(?:\s*~\s*.*)?$'}
     - date_int
     - {name: to_json, key: "created_at"}
-  # VALID_FROM·VALID_TO: front matter 의 `sales_period`(없으면 `version`) 값 `2025-12-1 ~ 2026-3-15` 를
-  # 시작일과 종료일로 나눠 YYYYMMDD 정수로 만든다.
-  # 종료일 자리가 숫자 없는 글자("진행중", "현재" 등)면 끝나지 않은 기간으로 보고 99991231 로 둔다.
-  # `~` 가 없으면 값 전체를 시작일로 본다. `~` 가 없거나 그 뒤가 비어 있으면 종료일은 0(날짜 없음)이다.
   VALID_FROM:
     alias: [sales_period, version]
     transform:
-    - {name: regex_sub, pattern: '\s+', repl: ' '}   # 여러 줄 값을 한 줄로 편다. 줄바꿈이 남으면 아래 패턴이 매칭에 실패한다
+    - {name: regex_sub, pattern: '\s+', repl: ' '}
     - {name: regex_extract, pattern: '^\s*([^~]*?)(?:\s*~\s*.*)?$'}
     - date_int
+  # 종료일이 숫자 없는 글자(진행중 등)면 99991231, `~` 가 없으면 0(날짜 없음)으로 둔다
   VALID_TO:
     alias: [sales_period, version]
     transform:
@@ -81,67 +55,17 @@ fields:
     - {name: regex_extract, pattern: '~\s*(.*?)\s*$'}
     - {name: regex_sub, pattern: '^\D+$', repl: '99991231'}
     - date_int
-# once 의 필드는 첫 chunk 에만 `라벨: 값` 줄로 붙인다(여기서는 `출시일: …`)
 body:
   once: [created_date]
   labels:
     created_date: 출시일
-  # 본문이 200자 미만인 chunk 를 다음 chunk 에 합친다(chunk 맨 앞의 제목 경로 줄 `HEADER:` 는 길이에서 뺀다).
-  # 제목만 있거나 본문이 1~2줄인 chunk 는 대부분이 제목 경로라서, 제목 검색어로는 위에 뜨지만 답의 근거는 주지 못한다.
+  # 본문이 이 글자 수 미만인 chunk 를 다음 chunk 에 합친다
   merge_short: 200
-# 표 설명(table_text_description)은 문서 안의 표마다 LLM 이 검색용 설명을 만들어 표 앞에 붙이는 기능이다.
-# 이 문서 유형은 LLM 호출을 줄이려고 아래 표를 설명하지 않는다(생명·화재 상품설명서가 같은 설정이다).
-# - 앞선 표에 이미 행 단위로 실린 표(병합 셀 안에 옮겨 적힌 하위 표, 다른 쪽에 다시 실린 표).
-#   같은 내용이 앞 표의 chunk 와 그 설명으로 이미 검색된다.
-# - 값 칸의 평균 길이가 100자 이상인 긴 문장 표.
-# 설명 길이(검색 문맥 200자·핵심 사실 2개)는 공통 설정(config.yaml)에서 정한다.
-# skip 옵션은 아래 다섯 개뿐이고, 하나라도 해당하는 표는 LLM 에 보내지 않는다. `skip: false` 는 다섯 개를 모두
-# 끈다. 공통 설정과는 키 단위로 합쳐지며 이 파일의 값이 우선한다. 켠 것과 끈 것을 모두 적어 둔다.
+# skip 조건에 해당하는 표는 LLM 표 설명을 만들지 않는다
 table_text_description:
   skip:
-    single_value_table: true      # 값이 한 칸뿐이거나 데이터 행이 없는 표를 보내지 않는다(기본 true)
-    # 다른 표의 칸 안에 든 표를 보내지 않는다(기본 true). 이런 표는 바깥 표의 칸 내용으로만 chunk 에 실려
-    # 설명을 붙일 자리가 없다. false 로 바꿔도 만든 설명은 버려지고 LLM 호출만 늘어난다.
-    nested_table: true
-    duplicate_table: true         # 앞선 표 하나에 모든 행이 행 단위로 이미 실린 표를 보내지 않는다(기본 false)
-    # 제목이 있고, 병합 셀이 없고, 데이터 5행 이하·2~3열이며, 값 칸이 문장이고, 금액·비율·기간이 없는 표를 보내지 않는다(기본 false)
-    self_describing_table: false
-    long_text_table: 100          # 첫 행·첫 열을 뺀 값 칸 평균 문자 수가 이 값 이상인 표를 보내지 않는다(0=끔, 기본 0)
-# llm:
-# - out: [PRODUCT_NM, PRODUCT_ATTRS]
-#   parser:
-#     type: json
-#   endpoint:
-#     model_preset: default
-#   params:
-#     max_tokens: 4000
-#     temperature: 0.0
-#     timeout: 300
-#   prompt:
-#     system: |
-#       너는 보험 상품요약서 정보추출 전문가다. 주어진 상품요약서 문서에서 요청한 필드를 정확하게 추출한다.
-
-#       규칙:
-#       - 반드시 하나의 JSON 객체만 반환한다. 설명 문구·마크다운 코드펜스 없이 순수 JSON 만 출력한다.
-#       - 요청된 2개 키를 모두 포함한다. 문서에서 근거를 찾을 수 없는 값은 null 로 둔다.
-#       - 문서에 없는 정보를 지어내지 않는다(환각 금지). 금액·기간·비율·나이는 원문 숫자를 그대로 쓴다.
-
-#       필드별 형식:.
-#       - `PRODUCT_NM`: 상품명 문자열. 문서 제목(H1)의 상품명을 쓰되 "상품요약서" 같은 문서종류
-#         표기는 뺀다. 예: "# 삼성 s교통상해보험(2501)(무배당) 상품요약서" → "삼성 s교통상해보험(2501)(무배당)".
-#         반드시 채운다.
-#       - `PRODUCT_ATTRS`: 상품의 출시일. 본문에 created_at가 있는 날짜를 추출한다.
-
-#       출력 예시 형식(값은 예시):
-#       {"PRODUCT_NM": "삼성 s교통상해보험(2501)(무배당)", "PRODUCT_ATTRS": 20060305}
-#     user: |
-#       아래 보험 상품요약서에서 다음 2개 필드를 추출하라.
-
-#       - PRODUCT_NM (상품명) — 필수
-#       - PRODUCT_ATTRS (출시일) — 필수
-
-#       반드시 위 2개 키를 모두 가진 하나의 JSON 객체로만 반환하라.
-
-#       <document>
-#       {{raw_text}}
-#       </document>
+    single_value_table: true      # 값이 한 칸뿐이거나 데이터 행이 없는 표
+    nested_table: true            # 다른 표의 칸 안에 든 표
+    duplicate_table: true         # 앞선 표에 모든 행이 이미 실린 표
+    self_describing_table: false  # 제목이 있고 병합 셀이 없는 5행 이하·2~3열의 문장 표
+    long_text_table: 100          # 값 칸 평균 문자 수가 이 값 이상인 표(0=끔)
