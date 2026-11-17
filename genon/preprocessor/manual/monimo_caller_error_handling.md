@@ -206,7 +206,7 @@ chunk_request = {"file_path": original_path,
 | product_hpp | 중첩 JSON 섹션 | `PARSE_D010`, `PARSE_D003` 필수 공통 필드 공백 |
 | product_slf, product_ssf | 마크다운 | `PARSE_D012` 섹션 지정 후 본문 없음 |
 | monimo_news | 본문 추출용 JSON | `PARSE_D010`. JSON 문법은 정상이고 지정한 본문 키만 없으면 경고 후 진행합니다 |
-| 모든 문서유형 | — | `PARSE_D009` 빈 파일·손상·암호화 파일(파일 머리 검사로 판별되는 경우), `PARSE_P002` 등록되지 않은 doc_type |
+| 모든 문서유형 | — | `PARSE_D009` 빈 파일·지원하지 않는 형식·손상·암호화 파일, `PARSE_P002` 등록되지 않은 doc_type |
 
 - 등록되지 않은 `doc_type` 은 모니모 설정(`unknown_doc_type: fail`)에서 실패합니다. 오타를 먼저 확인합니다.
 - 목차·메타데이터 LLM 추출은 모니모 설정에서 꺼져 있지만, LLM 관련 사유 코드(`PARSE_P001`, `PARSE_S001`·`S101`·`S102`·`S201`)가

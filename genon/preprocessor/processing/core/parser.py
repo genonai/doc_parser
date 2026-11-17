@@ -432,6 +432,21 @@ def _file_looks_like_text(file_path: str) -> bool:
         return False
 
 
+def _unreadable_file_reason(exc: BaseException, ext: str) -> tuple[str, str] | None:
+    """로더 예외가 입력 파일 자체의 결함이면 (사유, 조치), 아니면 None.
+
+    매직헤더가 알려진 포맷이라 사전 판정(detect_unsupported_file)을 통과한 zip, 헤더만 PNG 인
+    손상 이미지가 여기까지 와서 unstructured·PIL 원문 예외로 실패한다. 같은 파일은 재시도해도
+    같으므로 permanent 로 바꾼다. unstructured 는 선택 의존이라 import 하지 않고 클래스 이름으로 본다.
+    """
+    names = {cls.__name__ for cls in type(exc).__mro__}
+    if "UnsupportedFileFormatError" in names:
+        return f"지원하지 않는 형식({ext or '확장자 없음'})", "지원 형식으로 변환해 다시 업로드 필요"
+    if "UnidentifiedImageError" in names and ext in (".jpg", ".jpeg", ".png"):
+        return "손상된 이미지 파일", "정상 문서로 다시 업로드 필요"
+    return None
+
+
 class GenericDocumentLoader:
 
     def __init__(self):
@@ -500,10 +515,20 @@ class GenericDocumentLoader:
                 error_type="permanent", reason_code="PARSE_S002",
             ) from exc
         ext = os.path.splitext(file_path)[-1].lower()
-        if ext in ['.jpg', '.jpeg', '.png']:
-            documents = ld.load_image_documents(loader, file_path)
-        else:
-            documents = loader.load()
+        try:
+            if ext in ['.jpg', '.jpeg', '.png']:
+                documents = ld.load_image_documents(loader, file_path)
+            else:
+                documents = loader.load()
+        except Exception as exc:
+            unreadable = _unreadable_file_reason(exc, ext)
+            if unreadable is None:
+                raise
+            reason, action = unreadable
+            raise GenosServiceException(
+                "1", f"{os.path.basename(file_path)} 처리 불가: {reason}\n{action}",
+                error_type="permanent", reason_code="PARSE_D009",
+            ) from exc
 
         if ext in ['.jpg', '.jpeg', '.png']:
             if not documents or not any((doc.page_content or "").strip() for doc in documents):
