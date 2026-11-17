@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 import os
 import logging
+import tempfile
 from pathlib import Path
 
 from collections import defaultdict
@@ -29,6 +30,7 @@ from genon.preprocessor.processing.common import docling_ops as dops
 from genon.preprocessor.processing.common.docling_runtime import DoclingRuntimeBase
 from genon.preprocessor.processing.common import runtime as rt
 from genon.preprocessor.processing.common import file_probe as fp
+from genon.preprocessor.processing.converters.plain_text import text_to_html
 from genon.preprocessor.processing.common import pdf_convert as pc
 from genon.preprocessor.processing.chunking import header_path as hp
 from genon.preprocessor.processing.chunking import table_blocks as tbk
@@ -43,6 +45,20 @@ _is_encrypted_office = fp.is_encrypted_office
 _is_encrypted_pdf = fp.is_encrypted_pdf
 _is_protected_hwp = fp.is_protected_hwp
 _looks_like_text = fp.looks_like_text
+
+
+def _is_docling_json(text: str) -> bool:
+    """docling 직렬화 JSON 인지 최상위 `schema_name` 값으로 판별한다.
+
+    본문 문자열 검색은 일반 JSON 값에 "DoclingDocument" 가 들어 있으면 오판하고,
+    필드가 앞부분에 없으면 놓친다. 파싱이 안 되면 일반 텍스트로 본다.
+    """
+    try:
+        data = json.loads(text)
+    except ValueError:
+        return False
+    return isinstance(data, dict) and data.get("schema_name") == "DoclingDocument"
+
 _normalize_filename_title = hp.normalize_filename_title
 _parse_optional_bool = cp.parse_optional_bool
 _parse_optional_float = cp.parse_optional_float
@@ -1119,11 +1135,46 @@ class DocumentProcessor(DoclingRuntimeBase):
             is_ppt=(ext == '.pptx'), **kwargs
         )
 
+    def _load_plain_text(self, file_path: str, **kwargs: dict) -> DoclingDocument | None:
+        """평문 `.txt` 와 일반 `.json` 을 `<pre>` HTML 로 감싸 docling 에 태운다. 해당 없으면 None.
+
+        docling 은 `.txt` 를 특허 XML(XML_USPTO), `.json` 을 docling 직렬화 JSON(JSON_DOCLING)
+        으로만 받아 평문은 포맷 판별·검증에서 실패한다(GenOS #25210). 지능형 파서(`parser.py`
+        `parse_text`)와 같은 방식으로 우회한다. 텍스트가 아니거나 디코딩에 실패하면 None 을
+        돌려 기존 경로에 맡기고, docling 직렬화 JSON 도 기존 경로(JSON_DOCLING)로 둔다.
+        """
+        with open(file_path, "rb") as fh:
+            if not _looks_like_text(fh.read(512)):
+                return None
+        try:
+            text = fp.read_text_with_fallback(file_path)
+        except UnicodeDecodeError as exc:
+            _log.warning(f"[convert] 텍스트 디코딩 실패({exc.encoding}) — 기존 경로로 폴백: "
+                         f"{os.path.basename(file_path)}")
+            return None
+        suffix = Path(file_path).suffix.lower()
+        if suffix == '.json' and _is_docling_json(text):
+            return None
+        # docling 이 읽는 USPTO 특허 txt(첫 줄 `PATN`)는 기존 경로에 둬 특허 구조를 살린다.
+        if suffix == '.txt' and text.lstrip('﻿').splitlines()[:1] == ['PATN']:
+            return None
+        with tempfile.TemporaryDirectory(prefix="convert_text_") as work_dir:
+            html_path = os.path.join(work_dir, f"{Path(file_path).stem}.html")
+            with open(html_path, "w", encoding="utf-8") as out:
+                out.write(text_to_html(text))
+            document = self.load_documents(html_path, **kwargs)
+        # `<pre>` 를 코드 블록으로 읽은 것을 되돌린다(enrichment 전에 해야 본문을 코드로 보지 않는다).
+        return dops.demote_code_items(document)
+
     def _load_document(self, file_path: str, **kwargs: dict) -> DoclingDocument:
         """docling 문서 로딩. pdf 는 ocr_mode 분기, 그 외 포맷은 기본 백엔드로 로딩한다.
         ocr_mode: "force"=무조건 전체 OCR / "auto"=휴리스틱 기반 재OCR / "disable"=OCR 안 함
         """
         ext = Path(file_path).suffix.lower()
+        if ext in ('.txt', '.json'):
+            document = self._load_plain_text(file_path, **kwargs)
+            if document is not None:
+                return document
         if ext != '.pdf':
             return self.load_documents(file_path, **kwargs)
 
