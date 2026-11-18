@@ -96,6 +96,11 @@ from docling_core.transforms.chunker import DocChunk
 from genon.preprocessor.processing.common.markdown_export import (
     export_markdown,
     markdown_params,
+    table_serializer_for,
+)
+from genon.preprocessor.processing.chunking.table_shape import (
+    analyze_grid,
+    resolve_table_format,
 )
 from docling_core.transforms.serializer.markdown import MarkdownDocSerializer
 from docling_core.types.doc import (
@@ -129,6 +134,16 @@ _DEFAULT_HYBRID_MAX_TOKENS = int(1e30)
 
 
 _resolve_compact_tables = hc.resolve_compact_tables
+
+
+def _resolve_table_format(source: dict) -> str:
+    """본문 속 표 표기(markdown | html | auto). 첨부용 기본은 markdown 이다.
+
+    공용 해석기는 table_format 이 없으면 레거시 export_to_html(기본 html)로 폴백하므로,
+    키가 없는 기존 현장 설정이 html 로 바뀌지 않게 markdown 을 기본으로 둔다.
+    """
+    return cp.resolve_table_format_setting(
+        {"table_format": source.get("table_format") or "markdown"}, default="markdown")
 
 
 def _resolve_default_attachment_config_path() -> str:
@@ -304,18 +319,22 @@ def _split_with_recursive_chunker(
     chunk_size=None,
     chunk_overlap=None,
     compact_tables: bool = True,
+    table_format: str = "markdown",
 ) -> List[dict]:
     """Markdown export + 문자수 기반 청킹(_char_split_text)으로 docling 문서를 분할.
 
     chunk_size 로 문자 분할 (0 이하이면 분할 안 함 = 전체 1청크).
     compact_tables=True 면 markdown 표의 컬럼 정렬 패딩을 제거한다(대형 표 축소).
+    table_format 은 본문 속 표 표기다. markdown(기본) | html | auto(병합 셀·계층 헤더 표만 html).
 
     Returns: list of dict {text, page_no, pages, doc_items}
     """
+    table_serializer = table_serializer_for(table_format)
     md_full = export_markdown(
         document,
         page_break_placeholder=_RECURSIVE_PAGE_BREAK,
         compact_tables=compact_tables,
+        table_serializer=table_serializer,
     )
     if not md_full:
         return []
@@ -330,17 +349,20 @@ def _split_with_recursive_chunker(
     table_spans: list[tuple[int, int, TableItem]] = []
     if cs > 0:
         search_cursor = 0
-        serializer = MarkdownDocSerializer(
-            doc=document,
-            params=markdown_params(compact_tables=compact_tables),
-        )
+        serializer_kwargs: dict = {
+            "doc": document,
+            "params": markdown_params(compact_tables=compact_tables),
+        }
+        if table_serializer is not None:
+            serializer_kwargs["table_serializer"] = table_serializer
+        serializer = MarkdownDocSerializer(**serializer_kwargs)
         for item, _ in document.iterate_items():
             if not isinstance(item, TableItem):
                 continue
             try:
                 table_md = serializer.serialize(item=item).text
             except Exception:
-                table_md = export_markdown(document, item=item)
+                table_md = export_markdown(document, item=item, table_serializer=table_serializer)
             if not table_md:
                 continue
             pos = md_full.find(table_md, search_cursor)
@@ -379,13 +401,18 @@ def _split_with_recursive_chunker(
             except Exception:
                 grid, num_cols = None, 0
             if grid and num_cols:
+                # 행 분할 조각도 본문 표와 같은 표기로 낸다. auto 는 표 serializer 와 같은 판정을 쓴다.
+                piece_format = table_format
+                if table_format == "auto":
+                    piece_format = resolve_table_format(
+                        "auto", analyze_grid(grid, num_cols, is_html_origin=True))
                 result = split_table_rows(
                     grid=grid,
                     num_cols=num_cols,
                     single_text=table_md,
                     limit=cs,
                     count_text=len,
-                    table_format="markdown",
+                    table_format=piece_format,
                     header_row_count=max(leading_header_row_count(grid), 1),
                 )
                 for index in result.oversized_piece_indexes:
@@ -515,6 +542,7 @@ class DocxProcessor:
                 chunk_size=recursive_chunk_size,
                 chunk_overlap=recursive_chunk_overlap,
                 compact_tables=_resolve_compact_tables(kwargs),
+                table_format=_resolve_table_format(kwargs),
             )
             for ch in chunks:
                 self.page_chunk_counts[ch["page_no"]] += 1
@@ -724,6 +752,7 @@ class HwpProcessor:
                 chunk_size=recursive_chunk_size,
                 chunk_overlap=recursive_chunk_overlap,
                 compact_tables=_resolve_compact_tables(kwargs),
+                table_format=_resolve_table_format(kwargs),
             )
             for ch in chunks:
                 page_chunk_counts[ch["page_no"]] += 1
@@ -940,6 +969,8 @@ class DocumentProcessor:
         )
         if compact_tables is None:
             compact_tables = True
+        # 본문 속 표 표기(markdown | html | auto). 기본 markdown.
+        table_format = _resolve_table_format(output_cfg)
 
         use_pdf_sdk = _parse_optional_bool(defaults_cfg.get("use_pdf_sdk"), "defaults.use_pdf_sdk")
 
@@ -1037,6 +1068,7 @@ class DocumentProcessor:
             "log_level": log_level,
             "chunker_type": chunker_type,
             "compact_tables": compact_tables,
+            "table_format": table_format,
             "use_pdf_sdk": True if use_pdf_sdk is None else use_pdf_sdk,
             "use_hwp_sdk": True if use_hwp_sdk is None else use_hwp_sdk,
             "dump_sdk_output": False if dump_sdk_output is None else dump_sdk_output,

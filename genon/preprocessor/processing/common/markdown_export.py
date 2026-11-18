@@ -72,6 +72,19 @@ def markdown_params(**overrides: Any):
     return MarkdownParams(**{**MD_NO_LINKS, **overrides})
 
 
+def table_serializer_for(table_format: str) -> Optional[Any]:
+    """표 표기(markdown | html | auto)에 맞는 json_records 표 serializer 가져오기 (코드 중복 막기 위해서)"""
+    if table_format == "html":
+        from genon.preprocessor.processing.enrichment.json_records import _get_html_table_serializer
+
+        return _get_html_table_serializer()
+    if table_format == "auto":
+        from genon.preprocessor.processing.enrichment.json_records import _get_auto_table_serializer
+
+        return _get_auto_table_serializer()
+    return None
+
+
 def export_markdown(
     doc: Any,
     *,
