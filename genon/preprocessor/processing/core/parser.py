@@ -291,8 +291,7 @@ install_packages = ld.install_packages
 
 class TextLoader(ld.TextLoaderBase):
     # parser 는 페이지 메타를 쓰지 않으므로 A4 렌더 왕복을 하지 않는다. 렌더 경로는
-    # 파생 PDF 를 입력 파일 옆에 남기고(요청이 끝나도 지워지지 않는다) 원문에 없던
-    # 줄바꿈을 끼워 넣는다. attachment 는 페이지 번호가 필요해 기본값(True)을 쓴다.
+    # 원문에 없던 줄바꿈을 끼워 넣는다. attachment 는 페이지 번호가 필요해 기본값(True)을 쓴다.
     RENDER_PDF = False
 
 

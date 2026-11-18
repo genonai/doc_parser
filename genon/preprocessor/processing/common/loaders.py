@@ -104,7 +104,7 @@ def load_image_documents(loader, file_path: str) -> list[Document]:
 class TextLoaderBase:
     # 텍스트를 A4 로 렌더한 PDF 를 거쳐 읽을지. True 면 페이지 단위 Document 가 나오고
     # (페이지 메타가 필요한 attachment 용), False 면 읽은 텍스트를 Document 하나로 돌린다.
-    # 렌더 경로는 파생 PDF 를 입력 파일 옆에 남기고, A4 폭에 맞춘 줄바꿈이 원문에 끼어든다.
+    # 렌더 경로는 파생 PDF 를 요청 임시 디렉터리에 만들고 처리 뒤 지운다. A4 폭에 맞춘 줄바꿈이 원문에 끼어든다.
     RENDER_PDF = True
 
     def __init__(self, file_path: str):
