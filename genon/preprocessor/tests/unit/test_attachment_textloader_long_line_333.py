@@ -92,6 +92,9 @@ def test_long_single_line_txt_not_truncated(tmp_path: Path, monkeypatch):
 
     # PDF 를 실제로 읽었고, 그 PDF 는 입력 디렉터리 밖(요청 임시 디렉터리)에 있었다.
     assert len(loaded_pdfs) == 1 and loaded_pdfs[0].parent != tmp_path
+    # 요청 임시 디렉터리와 그 안의 파생 PDF 는 처리 뒤 정리된다.
+    assert not loaded_pdfs[0].exists()
+    assert not loaded_pdfs[0].parent.exists()
     # 파생 PDF 는 요청 임시 디렉터리에만 만들고 지운다. 입력 디렉터리에 남으면 안 된다(#365).
     assert [p.name for p in tmp_path.iterdir()] == ["long_line.txt"]
     assert "ENDSENTINEL333" in _norm(extracted), (
