@@ -168,17 +168,24 @@ def test_pdf_generation_rules(sample_path: Path):
 
     # txt/json → TextLoader 가 weasyprint 로 PDF 를 만들어 읽는다. 그 파생 PDF 는 요청
     # 임시 디렉터리에만 만들고 지우므로 입력 디렉터리에는 남지 않아야 한다(#365).
+    # 같은 이름의 PDF 가 원래 있던 경우도 덮어쓰지 않았는지 수정 시각과 내용으로 비교한다.
     if ext in (".txt", ".json"):
         if not _has_weasyprint():
             pytest.skip("weasyprint 미설치로 PDF 생성 검증 스킵")
         pdf_path = Path(_get_pdf_path(str(sample_path)))
-        existed_before = pdf_path.exists()
+
+        def _snapshot():
+            if not pdf_path.exists():
+                return None
+            return pdf_path.stat().st_mtime_ns, pdf_path.read_bytes()
+
+        before = _snapshot()
         loader = TextLoader(str(sample_path))
         try:
             loader.load()
         except Exception:
             pytest.skip("TextLoader 실행 실패로 PDF 생성 검증 스킵")
-        assert pdf_path.exists() == existed_before
+        assert _snapshot() == before
         return
 
     # doc/ppt 계열 → LibreOffice 필요
