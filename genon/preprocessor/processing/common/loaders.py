@@ -27,7 +27,6 @@ from langchain_community.document_loaders import DataFrameLoader, PyMuPDFLoader
 from langchain_core.documents import Document
 
 from genon.preprocessor.processing.converters.plain_text import text_to_html
-from genon.preprocessor.processing.common.file_probe import get_pdf_path
 
 try:
     import chardet
@@ -41,9 +40,6 @@ except (ImportError, OSError):
     HTML = None
 
 _log = logging.getLogger(__name__)
-
-# PDF 로 변환해 처리하는 입력 확장자. 로더가 출력 PDF 경로를 만들 때 쓴다.
-CONVERTIBLE_EXTENSIONS = ['.hwp', '.txt', '.json', '.md', '.ppt', '.pptx', '.docx']
 
 
 def install_packages(packages):
@@ -108,7 +104,7 @@ def load_image_documents(loader, file_path: str) -> list[Document]:
 class TextLoaderBase:
     # 텍스트를 A4 로 렌더한 PDF 를 거쳐 읽을지. True 면 페이지 단위 Document 가 나오고
     # (페이지 메타가 필요한 attachment 용), False 면 읽은 텍스트를 Document 하나로 돌린다.
-    # 렌더 경로는 파생 PDF 를 입력 파일 옆에 남기고, A4 폭에 맞춘 줄바꿈이 원문에 끼어든다.
+    # 렌더 경로는 파생 PDF 를 요청 임시 디렉터리에 만들고 처리 뒤 지운다. A4 폭에 맞춘 줄바꿈이 원문에 끼어든다.
     RENDER_PDF = True
 
     def __init__(self, file_path: str):
@@ -145,18 +141,11 @@ class TextLoaderBase:
             html_path = os.path.join(self.output_dir, 'temp.html')
             with open(html_path, 'w', encoding='utf-8') as f:
                 f.write(html_doc)
-            # pdf_path = (self.file_path
-            #             .replace('.txt', '.pdf')
-            #             .replace('.json', '.pdf'))
-            pdf_path = get_pdf_path(self.file_path, CONVERTIBLE_EXTENSIONS)
-            if os.path.abspath(pdf_path) == os.path.abspath(self.file_path):
-                # get_pdf_path 는 변환 목록에 없는 확장자에 **입력 경로를 그대로** 돌려준다.
-                # 그 경로에 write_pdf 하면 원본이 PDF 로 덮어써져 복구가 불가능하다
-                # (실측: .xml 원천 파일이 %PDF-1.7 로 바뀜). 신규 확장자를 ROUTES 에
-                # 등록하기 전에 한 번 넣어 보는 것만으로 원천이 사라지는 경로였다.
-                # 이 파생 PDF 를 읽는 소비처는 바로 아래 PyMuPDFLoader 뿐이므로
-                # 요청 임시 디렉터리로 돌린다(finally 에서 정리된다).
-                pdf_path = os.path.join(self.output_dir, 'temp.pdf')
+            # 파생 PDF 는 항상 요청 임시 디렉터리에 만든다(finally 에서 정리된다).
+            # 입력 파일 옆에 만들면 원천 디렉터리에 PDF 가 남고(#365), 확장자가 변환 목록에
+            # 없으면 입력 경로와 같아져 원본을 덮어쓴다(#363). 이 PDF 를 읽는 소비처는
+            # 바로 아래 PyMuPDFLoader 뿐이다.
+            pdf_path = os.path.join(self.output_dir, 'temp.pdf')
             if HTML:
                 HTML(html_path).write_pdf(pdf_path)
                 loader = PyMuPDFLoader(pdf_path)

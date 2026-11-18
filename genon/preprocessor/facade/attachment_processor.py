@@ -1405,8 +1405,8 @@ class DocumentProcessor:
         elif ext != real_type and real_type in ['txt', 'json', 'md']:
             pdf_path = _get_pdf_path(file_path)
         # 원래 확장자 기반 로직
-        elif file_path.endswith('.md'):
-            pdf_path = self.convert_md_to_pdf(file_path)
+        # .md 는 여기서 PDF 로 변환하지 않는다. convert_md_to_pdf 는 입력 파일 옆에 PDF 를 쓰는데
+        # 그 PDF 를 읽는 곳이 없어 원천 디렉터리에 남기만 했다(#365).
         elif file_path.endswith(('.ppt', '.pptx')):
             pdf_path = _get_pdf_path(file_path)
         else:
