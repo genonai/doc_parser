@@ -72,8 +72,6 @@ chunking:
 output:
   # markdown 표 컬럼 정렬 패딩 제거(대형 표 축소). 기본 true
   compact_tables: true
-  # 본문 속 표 표기. "markdown"(기본) | "html" | "auto"(병합 셀·계층 헤더가 있는 표만 html)
-  table_format: "markdown"
 
 loaders:
   image:
