@@ -32,6 +32,8 @@ owned:
   - resource/custom_field_music_ai.yaml
   # 모니모 문서유형 등록 블록이 들어간 파서 설정
   - activities/parse/config.yaml
+  # 문서유형별 이상 chunk 보류 단위(validation.by_doc_type)가 들어간 청킹 설정. 표준을 고치면 여기도 맞춘다
+  - activities/chunk/config.yaml
   # 모니모 문서유형 설정 14종
   - activities/parse/custom_field_menu.yaml
   - activities/parse/custom_field_term.yaml

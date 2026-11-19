@@ -734,6 +734,10 @@ class Session:
             "판정률=%.1f%% 전체_chunk_판정_페이지=%s",
             self.cfg.action, self.file_name, self.n_input, len(self.records), self.rejected,
             len(list(survivors)), self.reason_counts(), rate * 100, empty_pages or "-")
+        if self.rejected:
+            # 문서 일부만 적재되므로 info 요약과 별도로 warning 을 남긴다.
+            _log.warning("[chunk_validation] file=%s chunk %d건 제외 후 적재 진행: 사유별=%s",
+                         self.file_name, self.rejected, self.reason_counts())
         if self.missing_fields:
             _log.warning("[chunk_validation] file=%s parser 가 만든 메타 필드가 최종 chunk 에서 "
                          "빠지거나 값이 바뀜: 필드별 chunk 수=%s",
