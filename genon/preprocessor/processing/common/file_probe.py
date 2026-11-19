@@ -41,6 +41,9 @@ KNOWN_MAGIC_PREFIXES = (
     b"<?xml",                                 # xml
 )
 
+# NASCA DRM 으로 암호화된 파일의 첫 바이트.
+NASCA_DRM_PREFIX = b"<## NASCA DRM FILE"
+
 # 텍스트로 봐줄 수 없는 제어 바이트(탭/개행/CR/FF 제외). 텍스트 파일엔 거의 없음.
 TEXT_ALLOWED_CTRL = {0x09, 0x0A, 0x0C, 0x0D}
 
@@ -163,6 +166,10 @@ def detect_unsupported_file(file_path: str) -> str | None:
         return None  # 읽기 실패는 여기서 판단 안 함(후속 단계에서 처리)
     if not head:
         return "빈 파일"
+    # NASCA DRM 파일은 평문 헤더로 시작해 아래 텍스트 판정을 통과할 수 있으므로
+    # 매직헤더 판정보다 먼저 본다.
+    if head.removeprefix(b"\xef\xbb\xbf").startswith(NASCA_DRM_PREFIX):
+        return "NASCA DRM 암호화 파일"
 
     pdf = head.startswith(b"%PDF-")
     is_ole2 = head.startswith(b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1")
