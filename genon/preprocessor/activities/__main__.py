@@ -7,6 +7,7 @@
     python -m genon.preprocessor.activities doc-types list [--activity parse]
     python -m genon.preprocessor.activities doc-types validate --name <doc_type> [--activity parse]
     python -m genon.preprocessor.activities doc-types add --name <doc_type> --from <있는 doc_type> --activity <사본 slug> [--title <설명>]
+    python -m genon.preprocessor.activities doc-types remove --name <doc_type> --activity <사본 slug>
 
     parse  <file> = 원본 문서        → 파싱 결과 JSON(-o, 기본 ./<파일명>.<slug>.json)
     chunk  <file> = 파싱 결과 JSON   → 청크 배열 JSON
@@ -36,7 +37,7 @@ config.yaml 이 처음 들어온 커밋)을 찾아, 그때의 원형 폴더와 �
 changed, added, removed, unchanged}.
 
 `doc-types` (#712, Studio 의 doc_type 추가): parse 액티비티 폴더의 등록 블록(`config.yaml` 의 `- custom_fields:`)과
-규칙 파일(`custom_field_<doc_type>.yaml`)을 읽고(`list`·`validate`), 사본 폴더에 더한다(`add`). 본체는
+규칙 파일(`custom_field_<doc_type>.yaml`)을 읽고(`list`·`validate`), 사본 폴더에 더하거나(`add`) 뺀다(`remove`, #739). 본체는
 `_doc_types.py`. `add` 는 **파일만 다룬다** — `data.files` = [config.yaml, 규칙 파일](저장소 루트 기준). 거부 사유는
 `error.detail.reason` 에 싣는다(`DocTypeError`). `validate` 는 검사 결과가 실패여도 `ok: true` · `data.valid: false`.
 결과 줄의 `stage` 는 null 이다(pipeline 의 같은 이름 명령과 맞춘다).
@@ -102,6 +103,9 @@ def _parser() -> argparse.ArgumentParser:
     add.add_argument("--from", dest="origin", required=True, help="규칙 파일을 복사할, 이미 등록된 doc_type")
     add.add_argument("--activity", required=True, help="사본 parse 액티비티 slug(parse_xxx). 원형 parse 는 거부")
     add.add_argument("--title", help="복사한 규칙 파일 첫 줄 주석에 넣을 설명(한 줄)")
+    dt_remove = action.add_parser("remove", help="사본 parse 액티비티에서 doc_type 등록 블록을 빼고, 다른 블록이 쓰지 않는 규칙 파일을 지운다")
+    dt_remove.add_argument("--name", required=True, help="뺄 doc_type")
+    dt_remove.add_argument("--activity", required=True, help="사본 parse 액티비티 slug(parse_xxx). 원형 parse 는 거부")
     return p
 
 
@@ -240,13 +244,16 @@ def diff_origin(slug: str, origin: str | None = None, activities_dir: Path | Non
 
 
 def doc_types_command(args) -> dict:
-    """`doc-types list | validate | add` → 결과 줄의 data. 거부는 `DocTypeError`(사유 = `detail.reason`)."""
+    """`doc-types list | validate | add | remove` → 결과 줄의 data. 거부는 `DocTypeError`(사유 = `detail.reason`)."""
     from genon.preprocessor.activities import _doc_types, _folders
 
     if args.action == "list":
         return _doc_types.list_doc_types(args.activity)
     if args.action == "validate":
         return _doc_types.validate_doc_type(args.name, args.activity)
+    if args.action == "remove":
+        data, files = _doc_types.remove_doc_type(args.name, args.activity)
+        return {**data, "files": _repo_relative(_folders.ACTIVITIES_DIR, files)}
     if args.title is not None and ("\n" in args.title or "\r" in args.title):
         raise _UsageError("--title 은 한 줄만 허용(규칙 파일 첫 줄 주석)")
     data, files = _doc_types.add_doc_type(args.name, args.origin, args.activity, args.title)

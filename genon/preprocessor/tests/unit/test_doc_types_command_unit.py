@@ -1,4 +1,4 @@
-"""`activities doc-types list | validate | add` (#712) — 임시 activities 폴더에서 등록 블록과 규칙 파일을 다룬다.
+"""`activities doc-types list | validate | add | remove` (#712, #739) — 임시 activities 폴더에서 등록 블록과 규칙 파일을 다룬다.
 
 전처리 Studio 가 코드스페이스에서 부르는 명령이다. 거부할 때 어떤 파일도 바뀌지 않는지, `add` 가 `config.yaml` 의
 기존 줄과 주석을 그대로 두는지, 결과 줄(`@@RESULT@@`)의 `error.detail.reason` 이 계약대로인지를 본다.
@@ -362,3 +362,95 @@ def test_cli_usage_error_carries_command_and_reason(acts, monkeypatch, capsys, a
     assert cli.main(["remove"]) == 1                                                         # 다른 명령의 인자 오류
     other = json.loads(capsys.readouterr().out.strip().splitlines()[-1][len(cli.RESULT_PREFIX):])
     assert "detail" not in other["error"] and "command" not in other
+
+
+# ── remove (#739) ────────────────────────────────────────────────────────────
+
+def test_remove_undoes_add_exactly(acts):
+    """add 한 doc_type 을 remove 하면 config.yaml·규칙 파일이 add 전과 같아진다."""
+    before = _snapshot(acts)
+    _doc_types.add_doc_type("tour_blog", "music_ai", "parse_tour", activities_dir=acts)
+
+    data, files = _doc_types.remove_doc_type("tour_blog", "parse_tour", activities_dir=acts)
+
+    folder = acts / "parse_tour"
+    assert data == {"doc_type": "tour_blog", "activity": "parse_tour"}
+    assert files == [folder / "config.yaml", folder / "custom_field_tour_blog.yaml"]
+    assert _snapshot(acts) == before
+
+
+def test_remove_keeps_other_lines_and_shared_rule_file(acts):
+    """복제 때 따라온 card 를 빼도 다른 줄·주석은 그대로다. 다른 블록이 같은 규칙 파일을 쓰면 파일은 남긴다."""
+    _edit_config(acts, "parse_tour", "config_file: custom_field_music_ai.yaml", "config_file: custom_field_card.yaml")
+    text = (acts / "parse_tour" / "config.yaml").read_text(encoding="utf-8")
+
+    data, files = _doc_types.remove_doc_type("card", "parse_tour", activities_dir=acts)
+
+    assert files == [acts / "parse_tour" / "config.yaml"]                                 # 규칙 파일은 music_ai 가 쓴다
+    assert (acts / "parse_tour" / "custom_field_card.yaml").is_file()
+    card_block = ("  - custom_fields:\n"
+                  "      enable: true                       # 이 문서유형 설정을 쓸지. true(기본) | false\n"
+                  "      doc_type: card                     # 요청의 doc_type 이 이 값과 같을 때 적용한다(대소문자 무시)\n"
+                  "      config_file: custom_field_card.yaml   # 이 문서유형의 필드 추출 규칙 파일(이 폴더 기준)\n")
+    assert card_block in text
+    assert (acts / "parse_tour" / "config.yaml").read_text(encoding="utf-8") == text.replace(card_block, "")
+    assert [d["doc_type"] for d in _doc_types.list_doc_types("parse_tour", acts)["doc_types"]] == ["music_ai"]
+
+
+@pytest.mark.parametrize("name, activity, break_it, reason", [
+    ("tour_blog", "parse_tour", None, "not_registered"),
+    ("card", "parse", None, "base_activity_not_allowed"),
+    ("card", "chunk", None, "not_parse_activity"),
+    ("card", "parse_nope", None, "activity_not_found"),
+    ("card", "parse_tour", ("doc_type: card ", "doc_type: [card, cash] "), "shared_block"),
+])
+def test_remove_rejects_with_reason_and_changes_no_file(acts, name, activity, break_it, reason):
+    if break_it:
+        _edit_config(acts, "parse_tour", *break_it)
+    before = _snapshot(acts)
+    with pytest.raises(DocTypeError) as exc:
+        _doc_types.remove_doc_type(name, activity, activities_dir=acts)
+    assert exc.value.detail["reason"] == reason
+    assert _snapshot(acts) == before
+
+
+def test_cli_remove_result_line(acts, monkeypatch, capsys):
+    monkeypatch.setattr(_folders, "ACTIVITIES_DIR", acts)
+    _doc_types.add_doc_type("tour_blog", "music_ai", "parse_tour", activities_dir=acts)
+    code, result = _run_cli(capsys, "remove", "--name", "tour_blog", "--activity", "parse_tour")
+    assert (code, result["ok"], result["command"], result["activity"]) == (0, True, "doc-types", "parse_tour")
+    assert [Path(f).name for f in result["data"]["files"]] == ["config.yaml", "custom_field_tour_blog.yaml"]
+    code, result = _run_cli(capsys, "remove", "--name", "tour_blog", "--activity", "parse_tour")
+    assert (code, result["error"]["detail"]) == (1, {"reason": "not_registered"})
+
+
+def test_remove_keeps_rule_file_shared_through_another_spelling(acts):
+    """다른 블록이 같은 규칙 파일을 다른 표기(`./`·확장자 생략)로 써도 공유로 보고 파일을 남긴다."""
+    _edit_config(acts, "parse_tour", "config_file: custom_field_music_ai.yaml", "config_file: ./custom_field_card")
+    data, files = _doc_types.remove_doc_type("card", "parse_tour", activities_dir=acts)
+    assert files == [acts / "parse_tour" / "config.yaml"]
+    assert (acts / "parse_tour" / "custom_field_card.yaml").is_file()
+
+
+def test_remove_last_block_keeps_enrichment_a_list(acts):
+    """enrichment 의 마지막 항목을 빼도 `enrichment: []` 로 남는다(null 이면 다른 enrichment 기본값이 달라진다)."""
+    path = acts / "parse_tour" / "config.yaml"
+    path.write_text("enrichment:\n  - custom_fields:\n      enable: true\n      doc_type: card\n"
+                    "      config_file: custom_field_card.yaml\noutput:\n  format: docling\n", encoding="utf-8")
+    _doc_types.remove_doc_type("card", "parse_tour", activities_dir=acts)
+    assert path.read_text(encoding="utf-8") == "enrichment: []\noutput:\n  format: docling\n"
+    assert yaml.safe_load(path.read_text(encoding="utf-8"))["enrichment"] == []
+
+
+def test_remove_restores_config_when_rule_file_cannot_be_deleted(acts, monkeypatch):
+    before = _snapshot(acts)
+
+    def refuse(self, *a, **k):
+        raise PermissionError("read-only")
+
+    monkeypatch.setattr(Path, "unlink", refuse)
+    with pytest.raises(PermissionError):
+        _doc_types.remove_doc_type("card", "parse_tour", activities_dir=acts)
+    monkeypatch.undo()
+    assert _snapshot(acts) == before
+
