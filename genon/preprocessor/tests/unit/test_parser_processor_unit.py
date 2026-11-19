@@ -747,6 +747,17 @@ def test_load_documents_unreadable_file_is_permanent(tmp_path, filename, content
     assert (ei.value.error_type, ei.value.reason_code) == ("permanent", "PARSE_D009")
 
 
+@pytest.mark.unit
+@pytest.mark.parametrize("bom", [b"", b"\xef\xbb\xbf"], ids=["plain", "utf8-bom"])
+def test_detect_unsupported_file_nasca_drm(tmp_path, bom):
+    """#733: 평문 헤더 뒤가 텍스트로 보여도 NASCA DRM 파일은 암호화 파일로 판정한다."""
+    from genon.preprocessor.processing.common.file_probe import detect_unsupported_file
+
+    f = tmp_path / "doc.docx"
+    f.write_bytes(bom + b"<## NASCA DRM FILE - VER1.00 ##>\r\nplain looking tail")
+    assert detect_unsupported_file(str(f)) == "NASCA DRM 암호화 파일"
+
+
 # ─── IntelligentDocumentProcessor._build_ocr_options (yaml → ocr_options) ────
 
 @pytest.mark.unit
