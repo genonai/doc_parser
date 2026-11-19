@@ -1,8 +1,8 @@
-"""doc_type 등록 명령 — `python -m genon.preprocessor.activities doc-types list | validate | add`.
+"""doc_type 등록 명령 — `python -m genon.preprocessor.activities doc-types list | validate | add | remove`.
 
 parse activity 폴더(`activities/<이름>/`)의 `config.yaml` 에 있는 등록 블록(`enrichment` 목록의
 `- custom_fields:` 항목)과 규칙 파일(`custom_field_<doc_type>.yaml`)을 읽고, `add` 는 그 폴더에 블록 하나와
-규칙 파일 하나를 더한다. 전처리 Studio 가 코드스페이스의 서빙본 체크아웃에서 부른다 — worker 는 이 모듈을 쓰지 않는다.
+규칙 파일 하나를 더한다. `remove` 는 그 반대 — 블록을 빼고, 다른 블록이 쓰지 않는 규칙 파일을 지운다. 전처리 Studio 가 코드스페이스의 서빙본 체크아웃에서 부른다 — worker 는 이 모듈을 쓰지 않는다.
 
 판정은 worker 가 쓰는 함수를 그대로 부른다. 이름 비교는 `normalize_doc_type(s)`, 규칙 파일 읽기는
 `load_custom_fields_config`, 규칙 파일 검사는 `tools/config_precheck/precheck_custom_fields.py` 의 `check_block`.
@@ -362,3 +362,108 @@ def add_doc_type(name: str, origin: str, activity: str, title: str | None = None
         target.unlink(missing_ok=True)
         raise
     return {"doc_type": name, "activity": act.name}, [act.config_path, target]
+
+
+def _block_span(lines: list[str], head: int) -> tuple[int, int]:
+    """등록 블록 하나가 차지하는 줄 범위 [head, last]. 블록의 끝 = 목록 항목보다 깊이 들여 쓴 마지막 내용 줄."""
+    indent = len(_BLOCK_HEAD_RE.match(lines[head].rstrip("\r\n")).group("indent"))  # type: ignore[union-attr]
+    last = head
+    for i in range(head + 1, len(lines)):
+        body = lines[i].strip()
+        if not body or body.startswith("#"):
+            continue
+        if len(lines[i]) - len(lines[i].lstrip(" ")) <= indent:
+            break
+        last = i
+    return head, last
+
+
+def _remove_block(act: _Activity, index: int) -> str:
+    """`config.yaml` 본문에서 index 번째 등록 블록의 줄만 뺀 본문. 그 밖의 줄은 한 글자도 바꾸지 않는다."""
+    text = _read_text(act.config_path)
+    lines = text.splitlines(keepends=True)
+    heads = [i for i, line in enumerate(lines) if _BLOCK_HEAD_RE.match(line.rstrip("\r\n"))]
+    cannot = DocTypeError("config_invalid",
+                          f"{act.label()} 에서 등록 블록 삭제 실패: 등록 블록의 범위를 찾지 못함\n"
+                          "등록 블록을 `  - custom_fields:` 아래에 키를 한 줄씩 적은 형식으로 수정 필요")
+    if len(heads) != len(act.blocks):
+        raise cannot
+    first, last = _block_span(lines, heads[index])
+    kept = lines[:first] + lines[last + 1:]
+    before_items = act.config.get("enrichment") or []
+    registered = [i for i, item in enumerate(before_items) if isinstance(item, dict) and isinstance(item.get(BLOCK_KEY), dict)]
+    at = registered[index]
+    expected = [*before_items[:at], *before_items[at + 1:]]
+    if not expected:                     # 마지막 항목을 빼면 `enrichment:` 가 null 이 되어 기본값이 달라진다 — 빈 목록으로 둔다
+        key = next((i for i, line in enumerate(kept) if re.match(r"^enrichment[ ]*:[ ]*(#.*)?$", line.rstrip("\r\n"))), None)
+        if key is None:
+            raise cannot
+        newline = "\r\n" if kept[key].endswith("\r\n") else "\n"
+        kept[key] = re.sub(r"^enrichment[ ]*:", "enrichment: []", kept[key].rstrip("\r\n"), count=1) + newline
+    new_text = "".join(kept)
+    # 뺀 결과를 다시 읽어 확인한다 — enrichment 에서 그 항목 하나만 빠지고 그 밖의 내용은 같아야 한다.
+    try:
+        after = yaml.safe_load(new_text)
+    except yaml.YAMLError:
+        raise cannot from None
+    if (not isinstance(after, dict) or list(after) != list(act.config)
+            or any(after[k] != act.config[k] for k in act.config if k != "enrichment")
+            or after.get("enrichment") != expected):
+        raise cannot
+    return new_text
+
+
+def remove_doc_type(name: str, activity: str, activities_dir: Path | None = None) -> tuple[dict, list[Path]]:
+    """복제한 parse activity 에서 doc_type 등록을 뺀다 → (`{doc_type, activity}`, 바뀐·지운 파일).
+
+    `add` 의 반대다. `config.yaml` 에서 그 doc_type 의 등록 블록을 빼고, 그 블록의 규칙 파일이 이 폴더 안에 있고
+    다른 블록이 쓰지 않으면 지운다. 적재된 문서가 있는지는 확인하지 않는다(pipeline `doc-type-mappings remove` 몫).
+    거부할 때는 `DocTypeError` 를 올리고 어떤 파일도 바꾸지 않는다.
+    """
+    from genon.preprocessor.processing.enrichment.custom_fields_enricher import resolve_custom_fields_config_path
+
+    act = _load(activity, activities_dir, allow_base=False)
+    want = _normalize(name)
+    hits = [i for i, b in enumerate(act.blocks) if want in _doc_types_of(b)]
+    if not hits:
+        known = sorted({d for b in act.blocks for d in _doc_types_of(b)})
+        raise DocTypeError("not_registered",
+                           f"doc_type={name} 삭제 불가: {act.label()} 에 등록 없음 (등록된 것: {', '.join(known) or '<없음>'})")
+    if len(hits) > 1:
+        raise DocTypeError("registered_twice",
+                           f"doc_type={name} 삭제 불가: {act.label()} 에 등록 블록이 {len(hits)}개\n"
+                           "config.yaml 에서 직접 정리 필요")
+    index = hits[0]
+    block = act.blocks[index]
+    if len(_doc_types_of(block)) > 1:
+        raise DocTypeError("shared_block",
+                           f"doc_type={name} 삭제 불가: 등록 블록 하나에 여러 doc_type 이 있음 "
+                           f"({', '.join(_doc_types_of(block))})\n"
+                           "config.yaml 에서 그 블록의 doc_type 목록 직접 수정 필요")
+    new_text = _remove_block(act, index)
+    files: list[Path] = [act.config_path]
+    rule = None
+    def resolved(config_file: str | None) -> Path | None:
+        if not config_file:
+            return None
+        try:
+            return resolve_custom_fields_config_path(config_file, str(act.folder)).resolve()
+        except (ValueError, OSError):
+            return None
+
+    path = resolved(_config_file_of(block))
+    # 다른 블록이 같은 파일을 쓰는지는 로더와 같은 함수로 푼 실제 경로로 본다(`./x.yaml`·확장자 생략도 같은 파일)
+    others = {resolved(_config_file_of(b)) for i, b in enumerate(act.blocks) if i != index}
+    if path is not None and path not in others and path.is_file() and path.parent == act.folder.resolve():
+        rule = path
+    old_text = _read_text(act.config_path)
+    _write_atomic(act.config_path, new_text)
+    if rule is not None:
+        try:
+            rule.unlink()
+        except BaseException:            # 규칙 파일을 지우지 못하면 등록 블록도 되돌린다 — 반쯤 지운 상태를 남기지 않는다
+            _write_atomic(act.config_path, old_text)
+            raise
+        files.append(rule)
+    return {"doc_type": want, "activity": act.name}, files
+
