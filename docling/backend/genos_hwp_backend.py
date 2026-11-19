@@ -296,7 +296,9 @@ class GenosHwpDocumentBackend(DeclarativeDocumentBackend):
                     text = f"{bullet[0]} {text}"
                     bullet[0] = ""
                 if text:
-                    doc.add_text(label=DocItemLabel.TEXT, text=text, parent=doc.body, prov=_prov(page_no, len(text)))
+                    # SDK 가 단락 속성(para)을 준 단락은 PARAGRAPH, 없으면 TEXT 로 넣는다.
+                    label = DocItemLabel.PARAGRAPH if para is not None else DocItemLabel.TEXT
+                    doc.add_text(label=label, text=text, parent=doc.body, prov=_prov(page_no, len(text)))
 
             for item in paragraph_items:
                 i_type = str(item.get("item", "")).lower()
