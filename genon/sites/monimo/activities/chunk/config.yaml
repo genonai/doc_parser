@@ -125,6 +125,18 @@ chunking:
     # 검증에 걸린 chunk 를 어떻게 할지. drop=적재에서 뺌(전부 빠지면 그 문서는 실패)
     # | report(기본)=chunk 는 그대로 두고 로그와 응답 요약에만 기록
     action: drop
+    # drop 일 때 걸린 chunk 가 하나라도 있으면 그 문서 전체를 실패로 처리할지. false(기본)=걸린 chunk 만 뺌
+    # | true=문서 전체 보류. chunk 만 빼도 로그에 warning 이 남는다.
+    # fail_on_any: false
+    # doc_type 별로 위 값을 덮어쓴다. 문서 하나를 여러 chunk 로 나누는 유형(상품설명서 등)은 일부만 빠지면
+    # 내용이 끊기므로 문서 단위로 보류하고, 레코드 하나가 chunk 하나인 유형은 걸린 chunk 만 뺀다.
+    # 모니모: 파일 하나가 BIZ_ID 하나이고 여러 chunk 로 나뉘는 유형은 문서 단위로 보류한다.
+    # 레코드 하나가 chunk 하나인 유형(menu·term·faq·cs_*·monimo_event·music_ai·stock_insight)은 걸린 chunk 만 뺀다.
+    by_doc_type:
+      product_slf: {fail_on_any: true}
+      product_ssf: {fail_on_any: true}
+      product_hpp: {fail_on_any: true}
+      monimo_news: {fail_on_any: true}
     # 출력 chunk 글자 수 상한. 넘은 chunk 는 버리지 않고 응답 chunk_validation.max_length 와 로그로 알린다.
     # 0(기본)이면 검사하지 않는다. embedding 모델 입력 한도(토큰)를 글자 수로 바꿔 계산해, 한도보다 조금 낮게 둔다.
     # 글자 수는 HEADER: 같은 앞부분까지 포함한 최종 본문 기준이다. by_doc_type 으로 문서 유형별로 다르게 둘 수 있다.

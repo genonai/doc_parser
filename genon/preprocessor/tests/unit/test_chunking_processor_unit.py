@@ -951,8 +951,8 @@ def _validating(proc, action="drop", **values):
 
 
 @pytest.mark.asyncio
-async def test_validation_drops_bad_chunks_and_renumbers():
-    """걸린 청크만 빠지고 순번·개수가 생존 청크 기준으로 맞는다.
+async def test_validation_drops_bad_chunks_and_renumbers(caplog):
+    """걸린 청크만 빠지고 순번·개수가 생존 청크 기준으로 맞는다. 뺀 건수는 warning 으로 남는다(#735).
 
     첫 청크가 초기 검사에서 빠지면 첫 청크 전용 접두는 살아남은 첫 청크가 받는다.
     text_cleanup=off 요청으로도 검증은 꺼지지 않는다.
@@ -967,8 +967,10 @@ async def test_validation_drops_bad_chunks_and_renumbers():
     # 마스킹 스위치는 yaml(guardrail.masking_enabled)에서만 오고 요청 경로가 없어 사설 속성으로 켠다.
     proc._gr_cfg = dataclasses.replace(proc._gr_cfg, masking_enabled=True)
 
-    vectors = await proc(request, "", document=result, text_cleanup="off")
+    with caplog.at_level(logging.WARNING):
+        vectors = await proc(request, "", document=result, text_cleanup="off")
 
+    assert "chunk 2건 제외 후 적재 진행" in caplog.text
     assert len(vectors) == 2 and not any("처리 중 오류" in v.text for v in vectors)
     assert [v.i_chunk_on_doc for v in vectors] == [0, 1]
     assert all(v.n_chunk_of_doc == 2 for v in vectors)

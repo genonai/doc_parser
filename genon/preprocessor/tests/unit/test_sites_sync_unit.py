@@ -75,7 +75,9 @@ def test_site_owned_copies_agree(site):
     by_name: dict[str, list[str]] = {}
     for n in owned:
         by_name.setdefault(Path(n).name, []).append(n)
+    # activities/<slug>/config.yaml 끼리는 액티비티마다 다른 설정이라 대조하지 않는다(resource/ 짝만 본다).
     differing = {name: paths for name, paths in by_name.items() if len(paths) > 1
+                 and any(p.startswith("resource/") for p in paths)
                  and len({(site_root / p).read_bytes() for p in paths if (site_root / p).exists()}) > 1}
     assert differing == {}, f"{site}: 같은 이름의 owned 사본이 서로 다르다: {differing}"
 
