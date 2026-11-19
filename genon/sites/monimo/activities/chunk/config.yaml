@@ -24,29 +24,15 @@ chunking:
   # chunk 하나의 최대 크기. 단위는 글자 수(tokenizer_type 이 huggingface 면 토큰 수). 0=나누지 않음.
   # 줄이면 chunk 가 짧아지고 개수가 늘어난다
   chunk_size: 1500
-  # chunk_size 의 최솟값(기본 1024). chunk_size 가 이보다 작으면 이 값으로 올린다. 0=올리지 않음.
-  # embedding 모델 입력이 짧아 더 작은 chunk 가 필요하면 낮춘다(docling 문서에만 적용)
-  min_chunk_size: 1024
   # chunk 를 만드는 방식. split_only(기본)=문서 구조(제N조 등 섹션) 단위를 유지하고 chunk_size 를 넘는 것만 나눔
   # | resize_all=작은 섹션은 합치고 큰 섹션은 나눠 모든 chunk 를 chunk_size 에 맞춤
-  chunk_mode: split_only
-  # 짧은 chunk 를 합치는 방법: 짧은 chunk 가 연달아 나오면 먼저 서로 묶고, 묶은 결과가 기준을 넘으면
-  # 따로 한 chunk 로 둔다. 그래도 짧으면 chunk_size 안에서 다음 chunk(안 되면 앞 chunk)에 붙인다. 둘 다
-  # 꽉 찼으면 이웃 chunk 본문을 줄 경계에서 나눠 옮긴다. 그마저 나눌 수 없으면(표 등) 짧은 chunk 로
-  # 남긴다(chunk_size 를 넘겨 붙이지 않는다). 표 chunk 는 짧은 chunk 로 보지 않는다. 합친 결과가
-  # 이상 chunk 검증(아래 validation)에서 버려지면 합치지 않는다. 값을 잘못 적으면 서버가 뜰 때 실패한다.
-  # 문서 유형별 값은 custom_fields yaml(문서 유형별 필드 정의 파일)의 body.merge_short 에 적는다.
-  # 우선순위: 요청 파라미터 short_chunk_size > body.merge_short > 아래 값.
-
-  # 본문(HEADER 줄 제외)이 이보다 짧은 chunk 를 이웃 chunk 에 합친다(chunk_size 와 같은 단위).
-  # 0(기본)=제목만 있는 chunk 만 합침. 바꾸면 chunk 경계가 바뀌므로 문서를 다시 적재해야 한다
-  short_chunk_size: 0
+  # chunk_mode: split_only
   # 표를 본문과 섞지 않고 따로 chunk 로 만들지. true(기본)=표만 담은 chunk(섹션 제목·캡션·표 설명 포함,
   # 큰 표는 행 단위로 나누고 나뉜 chunk 마다 헤더 행 반복) | false=표를 앞뒤 본문과 한 chunk 로
   table_as_chunk: false
   # chunk 맨 앞에 "HEADER: <섹션 경로>" 줄을 붙일지. true(기본) | false=본문만.
   # 끄면 검색 때 섹션 문맥이 사라지므로 신중히 바꾼다
-  include_chunk_header: true
+  # include_chunk_header: true
   # chunk 텍스트 정리(검색용). safe 로 켜면 검색 매칭을 방해하는 문자만 지운다. 같은 입력이면 늘 같은 결과다.
   #   - 자모가 분리된 한글(NFD) 복원, BOM·폭 없는 문자·제어 문자 제거
   #   - NBSP 등 특수 공백을 일반 공백으로, 줄바꿈을 LF 로 통일
@@ -97,23 +83,15 @@ chunking:
   # 경계이고, `[` `]` 는 파이프라인이 붙인 `[표 검색 설명]` 라벨이다 — 지우면 표와
   # 라벨이 함께 깨진다. 실제 문서로 비교해 보려면 examples/text_cleanup/ 을 돌려 본다.
 
-  # chunk 크기를 무엇으로 셀지. char(기본)=글자 수 | huggingface=embedding 모델 tokenizer 의 토큰 수
-  # (아래 tokenizer_path/tokenizer_id 사용). 바꾸면 chunk_size 의 단위가 바뀐다
-  tokenizer_type: "char"
-  # huggingface 모드에서 쓸 tokenizer 폴더 경로(인터넷이 막힌 환경용). 이 경로가 없으면 tokenizer_id 로 받는다. char 모드면 쓰지 않는다
-  tokenizer_path: "/models/doc_parser_models/sentence-transformers-all-MiniLM-L6-v2"
-  # huggingface 모드에서 tokenizer_path 가 없을 때 쓸 Hugging Face 모델 ID. char 모드면 쓰지 않는다
-  tokenizer_id: "sentence-transformers/all-MiniLM-L6-v2"
-
   # parse-format(docling 이 아닌 입력)을 글자 단위로 나누는 splitter 설정.
   # parse 단계가 docling 문서를 만들지 않는 입력은 parse-format({"elements":[...]})으로 들어오고, 그중 일반 텍스트는
   # RecursiveCharacterTextSplitter 로 나눈다. 크기는 위 chunk_size 를 쓴다.
   # audio([AUDIO])·csv/xlsx([DA])처럼 vector 하나로 적재하는 입력과 레코드(행) chunk 에는 적용하지 않는다.
   # 우선순위: 요청 파라미터(chunk_overlap/recursive_chunk_overlap) > 아래 값 > 코드 기본값(100).
-  recursive:
-    # 이웃 chunk 끼리 겹치는 글자 수(없거나 음수면 100). docling 이 아닌 일반 텍스트 입력을 나눌 때만 쓴다.
-    # 늘리면 경계의 문맥이 이어지지만 중복 본문이 늘어난다
-    chunk_overlap: 100
+  # recursive:
+  #   # 이웃 chunk 끼리 겹치는 글자 수(없거나 음수면 100). docling 이 아닌 일반 텍스트 입력을 나눌 때만 쓴다.
+  #   # 늘리면 경계의 문맥이 이어지지만 중복 본문이 늘어난다
+  #   chunk_overlap: 100
 
   # 이상 chunk 검증. 내용이 없거나, 너무 짧거나, 같은 말이 반복되거나, 문자가 깨진 chunk 를 찾는다.
   # 결과는 로그([chunk_validation])와 성공 응답의 chunk_validation 요약에 남는다. 키 목록과
@@ -142,12 +120,6 @@ chunking:
     # 글자 수는 HEADER: 같은 앞부분까지 포함한 최종 본문 기준이다. by_doc_type 으로 문서 유형별로 다르게 둘 수 있다.
     # max_chars: 7000
 
-# table_image
-# 청킹 단계는 표 이미지를 새로 만들지 않는다. 파싱 단계에서 표 이미지를 저장해 둔 문서에만 쓸모가 있다.
-table_image:
-  # 파싱 단계가 저장한 표 이미지를 chunk 결과의 media_files 에 type='table_image' 로 싣고 함께 올릴지. false(기본) | true
-  enable: false
-
 # 표를 텍스트로 바꾸는 방식. parse 단계와 chunk 단계는 따로 호출되므로 parse 단계 설정이 넘어오지 않는다 —
 # /chunker 로 들어오는 일반 문서(PDF·DOCX·HTML 등)의 표 모양은 여기서 정한다.
 # custom_fields 레코드 단위 문서는 parse 단계가 chunk 본문을 다 만들어 넘기므로, 그 표 모양은
@@ -159,20 +131,6 @@ output:
   # chunk 본문에 표를 넣는 형식. html(기본) | markdown | auto(병합 셀·여러 줄 헤더가 있는 표는 html,
   # 단순한 표는 markdown). 바꾸면 검색 본문의 표 모양이 바뀐다
   table_format: "markdown"
-  # markdown 표의 칸 맞춤 공백을 없애 chunk 크기를 줄일지. true(기본) | false. html 표에는 영향 없음
-  compact_tables: true
   # 병합 셀이 있는 표 뒤에 "컬럼=값 | 컬럼=값" 형태의 행 문장을 덧붙일지. false(기본) | true.
   # 켜면 값이 어느 헤더에 걸렸는지 문장으로 드러나 검색이 쉬워지지만 chunk 가 커진다. 단순한 표에는 적용 안 됨
   table_row_serialization: true
-
-  # 표만 다른 형식으로 바꾼 chunk 본문을 별도 필드로 더 실을지. [](기본)=싣지 않음
-  # | "html" → text_table_html, "markdown" → text_table_md. 켜면 본문이 형식 수만큼 늘어난다
-  table_text_formats: []
-
-guardrail:
-  # 민감정보 분류 — 분류 workflow 는 parse 단계가 부르고, chunk 단계는 직접 부르지 않는다.
-  # chunk 단계는 parse 단계가 넘긴 sensitive_infos(찾아 낸 민감정보 목록)를 chunk 에 적용하며, 여기서는 가릴지만 정한다.
-
-  # 파싱 단계가 찾은 민감정보를 chunk 본문에서 가림 문자열로 바꿀지. false(기본) | true.
-  # 분류 라벨(guardrail_categories)은 이 값과 관계없이 붙는다
-  masking_enabled: false

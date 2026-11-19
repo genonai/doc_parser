@@ -122,15 +122,13 @@ def test_shipped_enrichment_parses_without_error(repo_root, rel):
 def test_shipped_table_text_description_exposes_all_user_options(repo_root, rel):
     ec = _parse_enrichment(repo_root, rel)
     cfg = ec.table_text_description_cfg
-    # 코드 기본값과 같은 미세 조정 키(input_format 등)는 노출하지 않는다.
-    assert set(cfg) >= {
-        "enabled", "before_items", "after_items",
-        "max_context_chars", "model_context_tokens", "rag",
-    }
+    # 코드 기본값과 같은 미세 조정 키(input_format·before_items·after_items·max_context_chars 등)는
+    # 노출하지 않아도 된다. 사이트 간소 판 설정(sites/monimo)이 이 키들을 생략한다.
+    assert set(cfg) >= {"enabled", "model_context_tokens", "rag"}
     assert cs.diagnose_table_text_description(cfg) == []
     prompt_file = cfg["prompt_template_file"]
     assert (repo_root / rel).parent.joinpath(prompt_file).is_file()
-    assert set(cfg["rag"]) >= {"retrieval_context_max_chars", "key_fact_limit", "search_terms"}
+    assert set(cfg["rag"]) >= {"retrieval_context_max_chars", "key_fact_limit"}
     document_llm = [
         item for item in ec.custom_fields_cfgs
         if str(item.get("extractor") or "llm").lower() in {"llm", "document_llm"}
