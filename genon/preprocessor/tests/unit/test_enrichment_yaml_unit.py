@@ -520,6 +520,8 @@ def test_rule_file_doc_type_registers_without_config_block(tmp_path):
     from_block, from_file = ec.custom_fields_cfgs
     assert from_block["doc_type"] == "card" and from_block["resource_path"] == str(tmp_path)
     assert from_file == {**from_block, "doc_type": "tour", "config_file": "custom_field_tour.yaml"}
+    # enrichment 를 적지 않은 설정에서도 같은 등록을 읽는다 — `doc-types list` 와 기동이 같은 목록을 본다
+    assert [c["doc_type"] for c in EnrichmentConfig.from_raw(None, tmp_path).custom_fields_cfgs] == ["tour"]
 
 
 @pytest.mark.unit

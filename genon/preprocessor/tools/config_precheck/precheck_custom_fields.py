@@ -52,6 +52,7 @@ from genon.preprocessor.processing.common import model_preset as mp  # noqa: E40
 from genon.preprocessor.processing.enrichment import config_schema as cs  # noqa: E402
 from genon.preprocessor.processing.enrichment import config_v2 as cv2  # noqa: E402
 from genon.preprocessor.processing.enrichment import html_select  # noqa: E402
+from genon.preprocessor.processing.enrichment.enrichment_config import rule_file_blocks  # noqa: E402
 from genon.preprocessor.processing.enrichment.tabular_custom_fields import (  # noqa: E402
     compile_derive,
     compile_meta_exclude,
@@ -106,13 +107,14 @@ def load_yaml(path: Path) -> dict:
 def registered_blocks(root: Path) -> list[tuple[str, dict, dict]]:
     """(프로세서 config 이름, custom_fields 등록 블록, 그 config 의 모델 프리셋) 목록.
 
-    규칙 파일 최상위의 `doc_type:` 으로 한 등록도 같은 모양으로 싣는다(첫 항목은 그 규칙 파일 이름).
+    규칙 파일 최상위의 `doc_type:` 으로 한 등록도 같은 모양으로 싣는다. 기동할 때 그 폴더를 읽는 processor 설정마다
+    등록되고 프리셋도 설정마다 다르므로, 설정 파일마다 한 번씩 싣는다. 같은 doc_type 이 두 곳에 등록되어 기동이
+    실패하는 설정은 기동과 같은 함수(`rule_file_blocks`)가 알린다.
 
     프리셋을 함께 들고 다니는 이유는 자식 설정 검증 때문이다 — 자식 yaml 의
     `model_preset:` 은 기동 시 이 프리셋으로 펼쳐지므로, 점검도 같은 재료로 해야 한다.
     """
     blocks: list[tuple[str, dict, dict]] = []
-    folder_presets: dict | None = None
     for name in PROCESSOR_CONFIGS:
         path = root / name
         if not path.exists():
@@ -120,18 +122,14 @@ def registered_blocks(root: Path) -> list[tuple[str, dict, dict]]:
         cfg = load_yaml(path)
         # 형식 오류는 check_model_presets 가 보고한다. 여기서는 모을 수 있는 만큼만 모은다.
         presets = cp.collect_model_presets(cfg, str(path), strict=False)
-        folder_presets = presets if folder_presets is None else folder_presets
-        for item in (cfg.get("enrichment") or []):
-            block = (item or {}).get("custom_fields")
-            if isinstance(block, dict):
-                blocks.append((name, block, presets))
-    # 규칙 파일에 적은 doc_type 등록(#748). 설정 파일이 아니라 폴더에 속하므로 폴더마다 한 번만 더한다.
-    if folder_presets is not None:
+        own = [item.get("custom_fields") for item in (cfg.get("enrichment") or [])
+               if isinstance(item, dict) and isinstance(item.get("custom_fields"), dict)]
+        blocks.extend((name, block, presets) for block in own)
         try:
-            found = cv2.rule_file_registrations(root)
+            found = rule_file_blocks(root, [block.get("doc_type") for block in own], {})
         except ValueError as exc:
-            raise SystemExit(f"[치명] {exc}")
-        blocks.extend((block["config_file"], block, folder_presets) for block in found)
+            raise SystemExit(f"[치명] {name}: {exc}")
+        blocks.extend((name, {k: block[k] for k in ("doc_type", "config_file")}, presets) for block in found)
     return blocks
 
 
@@ -328,6 +326,7 @@ def check_model_presets(root: Path) -> list[str]:
 
     자식 custom_field yaml 의 참조는 **그 파일을 등록한 프로세서 config** 의 프리셋으로
     푼다. 자식 파일에는 프리셋 정의가 없고 등록 블록을 통해 전달받기 때문이다.
+    최상위 `doc_type:` 으로 스스로 등록한 규칙 파일은 그 폴더의 모든 프로세서 config 가 등록한 것으로 본다.
     """
     problems: list[str] = []
     for name in PROCESSOR_CONFIGS:
@@ -351,6 +350,13 @@ def check_model_presets(root: Path) -> list[str]:
             child_name = str(block.get("config_file") or "").strip()
             if child_name and (root / child_name).exists():
                 targets.append((f"{name} → {child_name}", load_yaml(root / child_name)))
+        try:
+            self_registered = cv2.rule_file_registrations(root)
+        except ValueError:                  # 형식 오류는 registered_blocks 가 먼저 알린다
+            self_registered = []
+        for block in self_registered:
+            child_name = block["config_file"]
+            targets.append((f"{name} → {child_name}", load_yaml(root / child_name)))
 
         used: set[str] = set()
         for where, node in targets:

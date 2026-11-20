@@ -221,11 +221,12 @@ def _merge_table_text_description_config(
     return merged_cfgs
 
 
-def _rule_file_blocks(config_dir: Path, block_doc_types: list, parent_cfg: dict) -> list[dict]:
+def rule_file_blocks(config_dir: Path, block_doc_types: list, parent_cfg: dict) -> list[dict]:
     """규칙 파일에 적은 doc_type 등록(#748)을 설정의 등록 블록과 같은 모양으로 만든다.
 
     같은 doc_type 이 등록 블록(꺼진 블록 포함)이나 다른 규칙 파일에도 있으면 어느 규칙을 쓸지 정할 수 없으므로
     기동을 막는다. 꺼진 블록까지 보는 이유는, 꺼 둔 doc_type 이 규칙 파일 때문에 다시 켜지는 일을 막기 위해서다.
+    설정 점검기(`tools/config_precheck`)도 이 함수로 같은 판정을 한다.
     """
     found = config_v2.rule_file_registrations(config_dir)
     if not found:
@@ -497,7 +498,7 @@ class EnrichmentConfig:
                         opts["model_presets"] = presets
                     custom_fields_cfgs.append(opts)
 
-        custom_fields_cfgs.extend(_rule_file_blocks(config_dir, block_doc_types, parent_cfg))
+        custom_fields_cfgs.extend(rule_file_blocks(config_dir, block_doc_types, parent_cfg))
 
         # toc 는 별도 built-in default 가 없다 (없으면 docling 레이어가 자체 기본값 사용).
         toc_system_prompt = _resolve_prompt(
@@ -668,6 +669,7 @@ class EnrichmentConfig:
                 _cf["resource_path"] = str(config_dir)
             if _presets and "model_presets" not in _cf:
                 _cf["model_presets"] = _presets
+        cf_list.extend(rule_file_blocks(config_dir, [c.get("doc_type") for c in cf_list], parent_cfg))
         table_text_desc_cfg = _as_dict(cfg.get("table_text_description"))
         if table_text_desc_cfg:
             table_text_desc_cfg = dict(table_text_desc_cfg)
