@@ -698,10 +698,18 @@ class HwpProcessor:
         """GenosHwp SDK 결과 문서에 본문 텍스트가 전혀 없는지 판단(레거시 폴백 트리거용).
 
         SDK 가 exit 0 으로 "성공"해도 본문을 한 글자도 못 뽑는 경우가 있다(일부 .hwp/.hwpx;
-        DRM/암호화 등). 텍스트 run 이 하나도 없으면 True. (convert_processor 와 형평성)
+        DRM/암호화 등). 텍스트 run 도, 글자가 든 표 셀도 하나도 없으면 True. (convert_processor 와 형평성)
+        표만 있는 문서는 SDK 결과를 그대로 쓴다(#605).
         """
         texts = getattr(document, "texts", None) or []
-        return not any((getattr(t, "text", "") or "").strip() for t in texts)
+        if any((getattr(t, "text", "") or "").strip() for t in texts):
+            return False
+        tables = getattr(document, "tables", None) or []
+        return not any(
+            (getattr(cell, "text", "") or "").strip()
+            for table in tables
+            for cell in (getattr(getattr(table, "data", None), "table_cells", None) or [])
+        )
 
     def split_documents(self, document: DoclingDocument, **kwargs: dict):
         """chunker_type에 따라 HybridChunker 또는 RecursiveCharacterTextSplitter로 분할.
