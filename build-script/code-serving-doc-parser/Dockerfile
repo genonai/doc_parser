@@ -366,6 +366,7 @@ ENV VIRTUAL_ENV=${APP_VENV} \
     XDG_RUNTIME_DIR=/tmp/xdg \
     TMPDIR=/app/tmp \
     JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64 \
+    JAVA_TOOL_OPTIONS="-XX:-UseBASE64Intrinsics" \
     HF_HOME=/app/.cache/huggingface \
     LANG=ko_KR.UTF-8 \
     LC_ALL=ko_KR.UTF-8 \
