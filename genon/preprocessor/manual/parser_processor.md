@@ -738,6 +738,7 @@ metadata:
 - **인라인 옵션:** `url`, `api_key`, `model`, `system_prompt_file`/`user_prompt_file`(또는 inline `system_prompt`/`user_prompt`), `output_fields`, `parser`, `pages`, `max_tokens`, `temperature`, `timeout`를 항목에 직접 지정합니다. `system_prompt`(파일·inline 모두) 미지정 시 built-in default system prompt 가 사용됩니다.
 - **외부 config:** `config_file: "이름.yaml"`로 분리할 수 있습니다. 상대 경로는 config 파일과 동일한 디렉터리(resource_path) 기준으로 해석됩니다. 외부 파일에도 `system_prompt_file`/`user_prompt_file`(또는 `system_prompt`/`user_prompt`, `prompt.system`/`prompt.user`)/`url`/`model`/`output_fields`/`parser`/`pages` 등을 둘 수 있으며, 항목에 직접 지정한 값이 외부 config보다 우선합니다. `*_file` 경로는 외부 config 파일이 위치한 디렉터리 기준으로 해석됩니다.
 - `parser.type`은 `json`(기본값) 또는 `python`(외부 파일 위임)을 지원합니다.
+- **규칙 파일에 적는 등록:** 규칙 파일 `custom_field_<doc_type>.yaml` 최상위에 `doc_type: <이름>` 을 적으면 그 파일이 스스로 등록됩니다. 프로세서 설정에 `- custom_fields:` 등록 블록을 더하지 않아도 됩니다(`doc-types add` 가 이 방식으로 등록합니다). 켜고 끄는 키는 없고, 파일이 설정 폴더에 있으면 등록입니다. 같은 doc_type 이 등록 블록(꺼진 블록 포함)이나 다른 규칙 파일에도 있으면 기동 오류입니다. 등록은 폴더 단위라, 프로세서 설정 여럿이 한 폴더를 함께 쓰는 `resource/` 에서는 그 폴더를 읽는 모든 프로세서에 등록됩니다.
 
 **입력 포맷별 전처리 블록** — LLM 호출 설정과 별개로, `config_file` 의 `source.pre` 아래에 입력 포맷 전처리를 선언합니다. 이 블록들은 enricher 생성자로 넘어가지 않고 파서가 소비합니다.
 

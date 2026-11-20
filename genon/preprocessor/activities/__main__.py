@@ -6,8 +6,8 @@
     python -m genon.preprocessor.activities diff <slug> [--from <원형>]
     python -m genon.preprocessor.activities doc-types list [--activity parse]
     python -m genon.preprocessor.activities doc-types validate --name <doc_type> [--activity parse]
-    python -m genon.preprocessor.activities doc-types add --name <doc_type> --from <있는 doc_type> --activity <사본 slug> [--title <설명>]
-    python -m genon.preprocessor.activities doc-types remove --name <doc_type> --activity <사본 slug>
+    python -m genon.preprocessor.activities doc-types add --name <doc_type> --from <있는 doc_type> --activity <parse slug> [--title <설명>]
+    python -m genon.preprocessor.activities doc-types remove --name <doc_type> --activity <parse slug>
 
     parse  <file> = 원본 문서        → 파싱 결과 JSON(-o, 기본 ./<파일명>.<slug>.json)
     chunk  <file> = 파싱 결과 JSON   → 청크 배열 JSON
@@ -36,9 +36,10 @@ config.yaml 이 처음 들어온 커밋)을 찾아, 그때의 원형 폴더와 �
 복사 커밋이 없으면(미커밋 사본) 그렇다고 알린다. 마지막 줄은 같은 결과 계약 — data = {slug, origin, copied_at,
 changed, added, removed, unchanged}.
 
-`doc-types` (#712, Studio 의 doc_type 추가): parse 액티비티 폴더의 등록 블록(`config.yaml` 의 `- custom_fields:`)과
-규칙 파일(`custom_field_<doc_type>.yaml`)을 읽고(`list`·`validate`), 사본 폴더에 더하거나(`add`) 뺀다(`remove`, #739). 본체는
-`_doc_types.py`. `add` 는 **파일만 다룬다** — `data.files` = [config.yaml, 규칙 파일](저장소 루트 기준). 거부 사유는
+`doc-types` (#712, Studio 의 doc_type 추가): parse 액티비티 폴더의 doc_type 등록을 읽고(`list`·`validate`) 더하거나(`add`)
+뺀다(`remove`, #739). 등록은 규칙 파일(`custom_field_<doc_type>.yaml`) 최상위의 `doc_type:` 과 `config.yaml` 의 등록 블록
+(`- custom_fields:`) 두 곳에 있다(#748). 본체는 `_doc_types.py`. `add` 는 규칙 파일 하나만 만든다 — `config.yaml` 을
+고치지 않으므로 원형 `parse` 에도 쓴다. `data.files` = [규칙 파일](저장소 루트 기준). 거부 사유는
 `error.detail.reason` 에 싣는다(`DocTypeError`). `validate` 는 검사 결과가 실패여도 `ok: true` · `data.valid: false`.
 결과 줄의 `stage` 는 null 이다(pipeline 의 같은 이름 명령과 맞춘다).
 """
@@ -101,11 +102,11 @@ def _parser() -> argparse.ArgumentParser:
     add = action.add_parser("add", help="있는 doc_type 의 규칙 파일을 복사해 새 doc_type 을 등록한다")
     add.add_argument("--name", required=True, help="새 doc_type(소문자로 시작, 소문자·숫자·_)")
     add.add_argument("--from", dest="origin", required=True, help="규칙 파일을 복사할, 이미 등록된 doc_type")
-    add.add_argument("--activity", required=True, help="사본 parse 액티비티 slug(parse_xxx). 원형 parse 는 거부")
+    add.add_argument("--activity", required=True, help="parse activity 이름(parse 또는 parse_xxx)")
     add.add_argument("--title", help="복사한 규칙 파일 첫 줄 주석에 넣을 설명(한 줄)")
-    dt_remove = action.add_parser("remove", help="사본 parse 액티비티에서 doc_type 등록 블록을 빼고, 다른 블록이 쓰지 않는 규칙 파일을 지운다")
+    dt_remove = action.add_parser("remove", help="parse activity 에서 doc_type 등록을 뺀다(규칙 파일로 등록했으면 그 파일을, config.yaml 에 등록했으면 그 블록을 지운다)")
     dt_remove.add_argument("--name", required=True, help="뺄 doc_type")
-    dt_remove.add_argument("--activity", required=True, help="사본 parse 액티비티 slug(parse_xxx). 원형 parse 는 거부")
+    dt_remove.add_argument("--activity", required=True, help="parse activity 이름. 기본 activity parse 의 config.yaml 에 등록된 doc_type 은 거부")
     return p
 
 

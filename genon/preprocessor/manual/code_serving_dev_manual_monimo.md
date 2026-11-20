@@ -266,6 +266,8 @@ enrichment:
       config_file: custom_field_notice.yaml     # 파일명만. 이 yaml과 같은 폴더 기준
 ```
 
+등록 블록 대신 규칙 파일 최상위에 `doc_type: <유형>` 한 줄을 적어 등록할 수도 있습니다(`doc-types add`가 이 방식으로 등록합니다). 이 방식에는 `enable`이 없고, 같은 유형을 두 곳에 함께 등록하면 기동이 실패합니다.
+
 쓰지 않을 유형은 `enable: false`로 끕니다. 제공 설정은 `defaults.unknown_doc_type: fail`이므로 끈 유형이나 등록되지
 않은 `doc_type`을 요청하면 `PARSE_P002`로 요청이 실패합니다(`doc_type`을 적지 않은 등록 블록이 있으면 이 검사를
 하지 않습니다). 유형을 끌 때는 호출부도 함께 정리하세요. `warn`으로 바꾸면 경고만 남기고 기본 경로로 처리합니다.
@@ -1334,16 +1336,16 @@ python -m genon.preprocessor.activities remove --slug parse_notice
 - 커밋·push 후 4장 절차로 배포하면 워커가 그 폴더를 slug 이름의 액티비티로 등록합니다. 기동 로그에서 새 slug의 설정 경로를 확인합니다([3.4](#34-배포된-워커-확인)).
 - 적재 흐름에서 어느 slug를 부를지는 pipeline 워커의 조합이 정합니다. 조합 변경은 담당자에게 요청합니다.
 
-### 3.8 사본 액티비티에 doc_type 등록하기
+### 3.8 액티비티에 doc_type 등록하기
 
-사본 parse 액티비티에 새 doc_type을 등록합니다. 이미 등록된 doc_type의 규칙 파일을 복사하고 `config.yaml`에
-등록 블록을 하나 더합니다. 전처리 Studio가 같은 명령을 부릅니다.
+parse 액티비티(원형 `parse`와 사본)에 새 doc_type을 등록합니다. 이미 등록된 doc_type의 규칙 파일을 복사하고 그 파일
+최상위에 `doc_type: <이름>`을 적습니다. 이 한 줄이 등록이고 `config.yaml`은 고치지 않습니다. 전처리 Studio가 같은 명령을 부릅니다.
 
 ```bash
 # 등록된 doc_type과 규칙 파일 보기(--activity 기본값은 parse)
 python -m genon.preprocessor.activities doc-types list --activity parse_notice
 
-# 추가: cs_hpp의 규칙 파일을 custom_field_notice.yaml로 복사하고 등록 블록을 더합니다
+# 추가: cs_hpp의 규칙 파일을 custom_field_notice.yaml로 복사하고 그 파일에 doc_type: notice를 적습니다
 python -m genon.preprocessor.activities doc-types add --name notice --from cs_hpp --activity parse_notice --title "공지사항"
 
 # 등록 상태 검사
@@ -1352,16 +1354,18 @@ python -m genon.preprocessor.activities doc-types validate --name notice --activ
 
 | 명령 | 동작 |
 |---|---|
-| `doc-types list [--activity <slug>]` | `config.yaml`의 등록 블록을 읽어 doc_type · 규칙 파일 이름 · `enable` · 설명을 보여 줍니다. 설명은 규칙 파일 첫 줄의 주석입니다 |
-| `doc-types validate --name <doc_type> [--activity <slug>]` | 등록 블록이 1개인지(`registered`), `enable: true`이고 규칙 파일 이름이 `custom_field_<doc_type>.yaml`인지(`block`), 규칙 파일이 있고 워커 기동 때와 같은 검사를 통과하는지(`config_file`)를 단계별로 알립니다. 검사 결과가 실패여도 명령은 성공하고(`ok: true`) `data.valid`가 `false`입니다 |
-| `doc-types add --name <doc_type> --from <등록된 doc_type> --activity <사본 slug> [--title <설명>]` | `--from`의 규칙 파일을 `custom_field_<doc_type>.yaml`로 복사하고, `config.yaml`의 마지막 등록 블록 뒤에 블록 하나를 더합니다. 기존 줄과 주석은 그대로 둡니다. `--title`을 주면 복사한 파일의 첫 줄 주석을 `# 문서 유형 <doc_type>(<설명>)의 custom_fields 설정`으로 바꿉니다 |
+| `doc-types list [--activity <slug>]` | `config.yaml`의 등록 블록과 규칙 파일의 `doc_type`을 읽어 doc_type · 규칙 파일 이름 · `enable` · 설명을 보여 줍니다. 설명은 규칙 파일 첫 줄의 주석입니다 |
+| `doc-types validate --name <doc_type> [--activity <slug>]` | 등록이 1개인지(`registered`), 등록 블록이면 `enable: true`이고 규칙 파일 이름이 `custom_field_<doc_type>.yaml`인지(`block` — 규칙 파일 등록은 늘 통과), 규칙 파일이 있고 워커 기동 때와 같은 검사를 통과하는지(`config_file`)를 단계별로 알립니다. 검사 결과가 실패여도 명령은 성공하고(`ok: true`) `data.valid`가 `false`입니다 |
+| `doc-types add --name <doc_type> --from <등록된 doc_type> --activity <slug> [--title <설명>]` | `--from`의 규칙 파일을 `custom_field_<doc_type>.yaml`로 복사하고, 그 파일의 `schema:` 줄 아래에 `doc_type: <doc_type>` 한 줄을 적습니다. `config.yaml`은 고치지 않습니다. `--title`을 주면 복사한 파일의 첫 줄 주석을 `# 문서 유형 <doc_type>(<설명>)의 custom_fields 설정`으로 바꿉니다 |
 
-- `add`는 사본(`parse_<이름>`)만 받습니다. 원형 `parse`의 `config.yaml`은 새 버전을 merge할 때 함께 바뀌는 파일이라 거부합니다. 사본이 없으면 [3.7](#37-액티비티-사본-만들기와-지우기)의 `new`로 먼저 만듭니다.
+- `add`는 원형 `parse`에도 쓸 수 있습니다. 원형의 `config.yaml`은 새 버전을 merge할 때 함께 바뀌는 파일이지만, `add`는 그 파일을 고치지 않고 새 규칙 파일만 만들기 때문입니다.
+- 규칙 파일로 등록한 doc_type에는 `enable`이 없습니다. 파일이 폴더에 있으면 등록이고, 적재를 막으려면 pipeline의 `doc-type-mappings disable`을 씁니다.
+- 같은 doc_type이 `config.yaml`의 등록 블록(꺼진 블록 포함)이나 다른 규칙 파일에도 있으면 워커 기동이 실패합니다.
 - `add --name`의 이름은 소문자로 시작하고 소문자 · 숫자 · `_`만 씁니다. 이름 비교는 대소문자를 구분하지 않습니다.
 - 복사한 규칙 파일은 `--from` doc_type과 같은 필드를 뽑습니다. 새 문서에 맞게 고칩니다([1장](#1-새-문서-유형-추가하기)).
-- `add`가 거부하면 어떤 파일도 바뀌지 않고, 사유는 결과 줄의 `error.detail.reason`에 있습니다: `activity_not_found` · `not_parse_activity` · `base_activity_not_allowed` · `invalid_name` · `already_registered` · `source_not_found` · `config_file_missing` · `config_file_exists` · `config_invalid`. 이미 등록된 이름(`already_registered`)이면 메시지 첫 줄과 `error.detail.steps`가 그 등록의 검사 결과를 알립니다.
+- `add`가 거부하면 어떤 파일도 바뀌지 않고, 사유는 결과 줄의 `error.detail.reason`에 있습니다: `activity_not_found` · `not_parse_activity` · `invalid_name` · `already_registered` · `source_not_found` · `config_file_missing` · `config_file_exists` · `config_invalid`. 이미 등록된 이름(`already_registered`)이면 메시지 첫 줄과 `error.detail.steps`가 그 등록의 검사 결과를 알립니다.
 - `doc-types` 명령의 인자 오류(필수 인자 누락, 없는 동작 이름, 여러 줄 `--title`)는 결과 줄에 `"command": "doc-types"`와 `error.detail.reason` = `usage_error`를 싣습니다(`error.type`은 `_UsageError`).
-- `data.files`는 바뀐 두 파일(`config.yaml`, 규칙 파일)이므로 그대로 `git add`에 씁니다. 명령은 커밋하지 않습니다.
+- `data.files`는 만든 규칙 파일 하나이므로 그대로 `git add`에 씁니다. 명령은 커밋하지 않습니다.
 - 배포된 워커는 재기동한 뒤 새 등록을 읽습니다. 단건 `run`은 바로 반영됩니다.
 
 ---

@@ -106,10 +106,13 @@ def load_yaml(path: Path) -> dict:
 def registered_blocks(root: Path) -> list[tuple[str, dict, dict]]:
     """(프로세서 config 이름, custom_fields 등록 블록, 그 config 의 모델 프리셋) 목록.
 
+    규칙 파일 최상위의 `doc_type:` 으로 한 등록도 같은 모양으로 싣는다(첫 항목은 그 규칙 파일 이름).
+
     프리셋을 함께 들고 다니는 이유는 자식 설정 검증 때문이다 — 자식 yaml 의
     `model_preset:` 은 기동 시 이 프리셋으로 펼쳐지므로, 점검도 같은 재료로 해야 한다.
     """
     blocks: list[tuple[str, dict, dict]] = []
+    folder_presets: dict | None = None
     for name in PROCESSOR_CONFIGS:
         path = root / name
         if not path.exists():
@@ -117,10 +120,18 @@ def registered_blocks(root: Path) -> list[tuple[str, dict, dict]]:
         cfg = load_yaml(path)
         # 형식 오류는 check_model_presets 가 보고한다. 여기서는 모을 수 있는 만큼만 모은다.
         presets = cp.collect_model_presets(cfg, str(path), strict=False)
+        folder_presets = presets if folder_presets is None else folder_presets
         for item in (cfg.get("enrichment") or []):
             block = (item or {}).get("custom_fields")
             if isinstance(block, dict):
                 blocks.append((name, block, presets))
+    # 규칙 파일에 적은 doc_type 등록(#748). 설정 파일이 아니라 폴더에 속하므로 폴더마다 한 번만 더한다.
+    if folder_presets is not None:
+        try:
+            found = cv2.rule_file_registrations(root)
+        except ValueError as exc:
+            raise SystemExit(f"[치명] {exc}")
+        blocks.extend((block["config_file"], block, folder_presets) for block in found)
     return blocks
 
 
@@ -505,7 +516,7 @@ def _check_root(root: Path) -> int:
             print("[치명] 프로세서 설정이 없습니다 — 경로가 맞는지 확인하세요.")
             return 2
         # custom_fields 는 선택 기능이다 — 등록이 없어도 프리셋·표 형식 검사는 그대로 한다
-        print("[정보] 등록된 custom_fields 블록이 없습니다.\n")
+        print("[정보] 등록된 custom_fields 가 없습니다.\n")
 
     problems: list[str] = []
     seen_files: set[str] = set()
@@ -516,7 +527,7 @@ def _check_root(root: Path) -> int:
     problems.extend(check_table_text_blocks(root))
     problems.extend(check_table_format_pairs(root))
 
-    # 등록되지 않은 custom_field yaml 은 배포되지만 쓰이지 않는다(정보성).
+    # 등록 블록도 없고 `doc_type:` 도 적지 않은 custom_field yaml 은 배포되지만 쓰이지 않는다(정보성).
     registered_files = {
         str(b.get("config_file")) for _source, b, _presets in blocks if b.get("config_file")
     }
@@ -549,7 +560,7 @@ def _check_root(root: Path) -> int:
         print(f"[정보] 어느 프로세서에도 등록되지 않은 설정 {len(orphans)}건: {orphans}\n")
 
     print("=" * 70)
-    print(f"등록 블록 {len(blocks)}건 검사 | 기동실패 {len(blocking)}건 | 본문변화 {len(body)}건")
+    print(f"등록 {len(blocks)}건 검사 | 기동실패 {len(blocking)}건 | 본문변화 {len(body)}건")
     if blocking:
         print()
         print("기동실패가 있으면 이 설정으로는 서비스가 뜨지 않습니다. 배포 전에 고치거나,")

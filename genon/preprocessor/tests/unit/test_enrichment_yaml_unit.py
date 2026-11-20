@@ -486,3 +486,53 @@ def test_toc_off_reason_reports_the_actual_setting(raw, state):
     from genon.preprocessor.processing.enrichment.enrichment_config import toc_off_reason
 
     assert toc_off_reason(raw)[0] == state
+
+
+# ── 규칙 파일에 적은 doc_type 등록 (#748) ─────────────────────────────────────
+
+_RULE_FILE = """\
+schema: v2
+{doc_type}source:
+  kind: records
+  records_at: items
+fields:
+  TXT:
+    alias: [text]
+"""
+
+
+def _rule(folder: Path, name: str, doc_type: str | None) -> None:
+    line = f"doc_type: {doc_type}\n" if doc_type else ""
+    (folder / f"custom_field_{name}.yaml").write_text(_RULE_FILE.format(doc_type=line), encoding="utf-8")
+
+
+@pytest.mark.unit
+def test_rule_file_doc_type_registers_without_config_block(tmp_path):
+    """규칙 파일 최상위의 `doc_type` 이 등록이다 — 설정에 등록 블록이 없어도 블록과 같은 모양으로 실린다.
+
+    `doc_type` 을 적지 않은 규칙 파일(card)은 등록 블록이 가리킬 때만 쓰인다.
+    """
+    _rule(tmp_path, "card", None)
+    _rule(tmp_path, "tour", "tour")
+    ec = EnrichmentConfig.from_raw(
+        [{"custom_fields": {"doc_type": "card", "config_file": "custom_field_card.yaml"}}],
+        tmp_path, parent_cfg={"model_presets": {"default": {"url": "http://llm", "model": "m"}}})
+    from_block, from_file = ec.custom_fields_cfgs
+    assert from_block["doc_type"] == "card" and from_block["resource_path"] == str(tmp_path)
+    assert from_file == {**from_block, "doc_type": "tour", "config_file": "custom_field_tour.yaml"}
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("blocks, other_file, where", [
+    ([{"custom_fields": {"enable": False, "doc_type": "Tour", "config_file": "custom_field_old.yaml"}}], None,
+     "custom_fields 등록 블록"),
+    ([], "tour", "규칙 파일 custom_field_a_copy.yaml"),
+], ids=["꺼진 등록 블록과 겹침", "규칙 파일 둘이 겹침"])
+def test_rule_file_doc_type_registered_twice_fails_startup(tmp_path, blocks, other_file, where):
+    """같은 doc_type 이 두 곳에 등록되면 어느 규칙이 쓰일지 정할 수 없으므로 기동을 막는다."""
+    _rule(tmp_path, "tour", "tour")
+    if other_file:
+        _rule(tmp_path, "a_copy", other_file)
+    with pytest.raises(ValueError, match="doc_type=tour 중복 등록") as err:
+        EnrichmentConfig.from_raw(blocks, tmp_path, parent_cfg={})
+    assert where in str(err.value)

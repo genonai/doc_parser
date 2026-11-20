@@ -36,6 +36,8 @@ json_semantic/custom_fields_enricher)는 이 내부 형태만 읽는다.
 from __future__ import annotations
 
 import difflib
+import re
+from pathlib import Path
 from typing import Any
 
 from ..common import config_parse, model_preset
@@ -56,8 +58,12 @@ KIND_TO_EXTRACTOR = {
     "html": "html_select",
 }
 
+# 규칙 파일이 스스로 등록하는 문서유형(#748). 값을 만드는 규칙이 아니라 "이 파일을 어느 doc_type 에 쓰는가"이므로
+# normalize 의 출력에는 싣지 않는다 — 읽는 곳은 `rule_file_registrations` 하나다.
+DOC_TYPE_KEY = "doc_type"
+
 TOP_LEVEL_KEYS = frozenset({
-    SCHEMA_KEY, "source", "fields", "require", "filter", "body", "llm", "python",
+    SCHEMA_KEY, DOC_TYPE_KEY, "source", "fields", "require", "filter", "body", "llm", "python",
     # 프로세서 공통 표 설명의 문서유형별 오버라이드. 값 매핑이 아니라 기능 스위치라
     # v1/v2 표기가 같다 — 개념을 하나 더 만들지 않는다.
     "table_text_description",
@@ -164,6 +170,39 @@ _FIELD_BLOCKS = set(_SPEC_TO_BLOCK.values()) | set(_ALIAS_BLOCK.values())
 
 class ConfigV2Error(ValueError):
     """v2 설정 오류. 메시지에 파일명과 문제 지점을 담는다."""
+
+
+RULE_FILE_GLOB = "custom_field_*.yaml"
+_DOC_TYPE_LINE = re.compile(rb"^doc_type[ ]*:", re.MULTILINE)
+
+
+def rule_file_registrations(config_dir: Any) -> list[dict]:
+    """설정 폴더의 규칙 파일 가운데 최상위에 `doc_type:` 을 적은 파일 → `[{doc_type, config_file}]`(파일 이름 순).
+
+    규칙 파일에 적은 `doc_type` 이 그 문서유형의 등록이다(#748). 처리기 설정의 `- custom_fields:` 등록 블록과 같은
+    모양으로 돌려주므로 호출부는 두 등록을 같은 코드로 다룬다. 켜고 끄는 키는 없다 — 파일이 있으면 등록이다.
+
+    등록은 폴더 단위다. 처리기 설정 여럿이 한 폴더를 함께 쓰는 곳(HTTP 서빙의 `resource/`)에서는 그 폴더를 읽는
+    모든 처리기에 등록된다.
+
+    `doc_type` 줄이 없는 규칙 파일은 등록 블록이 `config_file` 로 가리킬 때만 쓰이므로 여기서는 열지 않는다.
+    그래서 이 함수가 생기기 전의 설정 폴더에서는 결과가 항상 빈 목록이다.
+    """
+    folder = Path(config_dir)
+    if not folder.is_dir():
+        return []
+    found: list[dict] = []
+    for path in sorted(folder.glob(RULE_FILE_GLOB)):
+        if not _DOC_TYPE_LINE.search(path.read_bytes()):
+            continue
+        loaded = config_parse.read_yaml_file(path)
+        value = loaded.get(DOC_TYPE_KEY) if isinstance(loaded, dict) else None
+        names = value if isinstance(value, list) else [value]
+        if not names or not all(isinstance(name, str) and name.strip() for name in names):
+            raise ConfigV2Error(
+                f"{path.name}: 최상위 doc_type 값 오류: {value!r} (문서유형 이름 또는 이름 목록 지정 필요)")
+        found.append({DOC_TYPE_KEY: value, "config_file": path.name})
+    return found
 
 
 def is_v2(cfg: dict) -> bool:
