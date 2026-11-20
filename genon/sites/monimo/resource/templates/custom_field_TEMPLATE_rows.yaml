@@ -23,6 +23,8 @@
 #            doc_type: <유형>            # 요청 params 의 doc_type 과 같은 값
 #            config_file: custom_field_<유형>.yaml   # 파일명만. 이 등록 블록이 있는 프로세서
 #                                                    # 설정 yaml 과 같은 폴더 기준
+#     또는 등록 블록 대신 이 파일 최상위에 `doc_type: <유형>` 한 줄을 적는다(`doc-types add` 가 이 방식으로
+#     등록한다). 같은 유형을 두 곳에 함께 등록하면 기동이 실패한다.
 #     extractor 는 적지 않는다(`source.kind: rows` 에서 `tabular_mapping` 으로 정해진다).
 #  ④ 맨 아래 "확인 방법" 으로 실제 원천 파일의 결과를 확인한다.
 #
