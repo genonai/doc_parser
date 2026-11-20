@@ -157,8 +157,11 @@ def test_precheck_flags_chunk_body_change(tmp_path):
 
 # ── 모델 프리셋 ───────────────────────────────────────────────────────────────
 
-def _write_preset_site(tmp_path, preset_ref: str) -> None:
-    """프리셋을 정의한 프로세서 config 와 그것을 참조하는 자식 설정을 쓴다."""
+def _write_preset_site(tmp_path, preset_ref: str, registered_by: str = "block") -> None:
+    """프리셋을 정의한 프로세서 config 와 그것을 참조하는 자식 설정을 쓴다.
+
+    `registered_by` — block: 등록 블록, file: 규칙 파일 최상위의 doc_type(#748), both: 양쪽(중복 등록).
+    """
     (tmp_path / "parse_config.yaml").write_text(
         "model_presets:\n"
         "  기본:\n"
@@ -166,15 +169,16 @@ def _write_preset_site(tmp_path, preset_ref: str) -> None:
         "    api_key: ''\n"
         "    model: model\n"
         "    top_p: 0.9\n"          # llm extractor 가 읽지 않는 키
-        "enrichment:\n"
-        "  - custom_fields:\n"
-        "      enable: true\n"
-        "      doc_type: demo\n"
-        "      config_file: custom_field_demo.yaml\n",
+        + ("enrichment: []\n" if registered_by == "file" else
+           "enrichment:\n"
+           "  - custom_fields:\n"
+           "      enable: true\n"
+           "      doc_type: demo\n"
+           "      config_file: custom_field_demo.yaml\n"),
         encoding="utf-8",
     )
     (tmp_path / "custom_field_demo.yaml").write_text(
-        "schema: v2\nsource: {kind: document}\n"
+        "schema: v2\n" + ("" if registered_by == "block" else "doc_type: demo\n") + "source: {kind: document}\n"
         "llm:\n- out: [name]\n"
         f"  endpoint:\n    model_preset: {preset_ref}\n"
         "  prompt:\n    system: x\n    user: y\n",
@@ -199,10 +203,22 @@ def test_precheck_passes_when_preset_is_used_correctly(tmp_path):
     assert not [p for p in problems if p.startswith("[기동실패]")], problems
 
 
-def test_precheck_detects_undefined_preset(tmp_path):
-    """없는 프리셋 이름은 기동을 막으므로 배포 전에 잡아야 한다(자식 설정 참조 포함)."""
+def test_precheck_stops_on_doc_type_registered_in_block_and_rule_file(tmp_path):
+    """같은 doc_type 을 등록 블록과 규칙 파일 양쪽에 등록하면 기동이 실패한다 — 점검도 같은 판정으로 멈춘다."""
     precheck = _load_precheck()
-    _write_preset_site(tmp_path, "기븐")
+    _write_preset_site(tmp_path, "기본", registered_by="both")
+    with pytest.raises(SystemExit, match="doc_type=demo 중복 등록"):
+        precheck.registered_blocks(tmp_path)
+
+
+@pytest.mark.parametrize("registered_by", ["block", "file"])
+def test_precheck_detects_undefined_preset(tmp_path, registered_by):
+    """없는 프리셋 이름은 기동을 막으므로 배포 전에 잡아야 한다(자식 설정 참조 포함).
+
+    규칙 파일이 스스로 등록한 자식 설정도 같은 프로세서 config 의 프리셋으로 본다.
+    """
+    precheck = _load_precheck()
+    _write_preset_site(tmp_path, "기븐", registered_by)
     problems = precheck.check_model_presets(tmp_path)
     blocking = [p for p in problems if p.startswith("[기동실패]")]
     assert any("기븐" in p and "custom_field_demo.yaml" in p for p in blocking), problems

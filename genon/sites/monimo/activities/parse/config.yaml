@@ -141,6 +141,8 @@ enrichment:
   # ── 문서 유형별 custom_fields 추출 ─────────────────────────────────────────
   # custom_fields 는 doc_type 마다 문서에서 뽑을 필드와 매핑 규칙이다. 요청의 doc_type 과 같은 항목만 동작한다.
   # 배포할 때 enable 과 쓸 모델(서빙 ID)을 맞춘 뒤 사용한다.
+  # `doc-types add` 로 추가한 문서유형은 여기에 적히지 않는다. 그 문서유형은 규칙 파일(custom_field_<doc_type>.yaml)
+  # 최상위의 `doc_type:` 한 줄이 등록이다. 등록된 전체 목록은 `python -m genon.preprocessor.activities doc-types list` 로 본다.
   # ── 모니모 문서유형 14종 ─────────────────────────────────────────────────────
   # 모니모(고객사 사이트)에서 쓰는 문서유형이다. 요청의 doc_type 이 아래 값 중 하나면
   # 같은 폴더의 custom_field_<doc_type>.yaml 규칙으로 문서에서 필드를 뽑는다.

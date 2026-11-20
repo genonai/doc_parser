@@ -14,6 +14,8 @@
 #       enable: true
 #       doc_type: card
 #       config_file: custom_field_card.yaml   # 상대 경로는 config.yaml 이 있는 폴더(이 폴더) 기준
+#   이 블록 대신 이 파일 최상위에 `doc_type: card` 한 줄을 적어 등록할 수도 있다(`doc-types add` 가 만드는 규칙 파일이
+#   이 방식이다). 같은 doc_type 을 두 곳에 함께 등록하면 기동이 실패한다.
 # extractor(필드를 만드는 방식)는 적지 않으면 아래 source.kind 로 정해진다(document → llm).
 # config.yaml 의 등록 항목에 같은 키를 null 이 아닌 값으로 적으면 이 파일의 값보다 우선한다.
 #

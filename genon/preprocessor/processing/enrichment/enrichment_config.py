@@ -19,6 +19,7 @@ from genon.preprocessor.processing.common.model_params import (
     resolve_thinking,
 )
 
+from . import config_v2
 from .config_schema import warn_table_text_description
 from .prompt_files import read_prompt_file
 from .table_text_context import merge_table_text_description
@@ -220,6 +221,36 @@ def _merge_table_text_description_config(
     return merged_cfgs
 
 
+def rule_file_blocks(config_dir: Path, block_doc_types: list, parent_cfg: dict) -> list[dict]:
+    """규칙 파일에 적은 doc_type 등록(#748)을 설정의 등록 블록과 같은 모양으로 만든다.
+
+    같은 doc_type 이 등록 블록(꺼진 블록 포함)이나 다른 규칙 파일에도 있으면 어느 규칙을 쓸지 정할 수 없으므로
+    기동을 막는다. 꺼진 블록까지 보는 이유는, 꺼 둔 doc_type 이 규칙 파일 때문에 다시 켜지는 일을 막기 위해서다.
+    설정 점검기(`tools/config_precheck`)도 이 함수로 같은 판정을 한다.
+    """
+    found = config_v2.rule_file_registrations(config_dir)
+    if not found:
+        return []
+    from .custom_fields_enricher import normalize_doc_types
+
+    taken = {name: "processor 설정 파일의 custom_fields 등록 블록" for value in block_doc_types for name in normalize_doc_types(value)}
+    presets = parent_cfg.get("model_presets")
+    blocks: list[dict] = []
+    for entry in found:
+        config_file = entry["config_file"]
+        for name in normalize_doc_types(entry["doc_type"]):
+            if name in taken:
+                raise ValueError(
+                    f"doc_type={name} 중복 등록: 규칙 파일 {config_file} 과 {taken[name]} 양쪽에 있음\n"
+                    "한 곳만 남기도록 수정 필요")
+            taken[name] = f"규칙 파일 {config_file}"
+        opts = {**entry, "resource_path": str(config_dir)}
+        if presets:
+            opts["model_presets"] = presets
+        blocks.append(opts)
+    return blocks
+
+
 def build_table_text_description_overrides(
     custom_fields_cfgs: list[dict], config_dir: Path
 ) -> dict[str, dict]:
@@ -408,6 +439,7 @@ class EnrichmentConfig:
         table_desc_cfg: dict = {"enabled": False}
         table_text_desc_cfg: dict = {"enabled": False}
         custom_fields_cfgs: list = []
+        block_doc_types: list = []                 # 등록 블록의 doc_type(꺼진 블록 포함) — 규칙 파일 등록과의 중복 검사용
 
         for item in items:
             if not isinstance(item, dict):
@@ -457,6 +489,7 @@ class EnrichmentConfig:
                 opts["enabled"] = bool(enabled)
                 table_text_desc_cfg = opts
             elif category == "custom_fields":
+                block_doc_types.append(opts.get("doc_type"))
                 if enabled and opts:
                     if "resource_path" not in opts:
                         opts["resource_path"] = str(config_dir)
@@ -464,6 +497,8 @@ class EnrichmentConfig:
                     if presets and "model_presets" not in opts:
                         opts["model_presets"] = presets
                     custom_fields_cfgs.append(opts)
+
+        custom_fields_cfgs.extend(rule_file_blocks(config_dir, block_doc_types, parent_cfg))
 
         # toc 는 별도 built-in default 가 없다 (없으면 docling 레이어가 자체 기본값 사용).
         toc_system_prompt = _resolve_prompt(
@@ -634,6 +669,7 @@ class EnrichmentConfig:
                 _cf["resource_path"] = str(config_dir)
             if _presets and "model_presets" not in _cf:
                 _cf["model_presets"] = _presets
+        cf_list.extend(rule_file_blocks(config_dir, [c.get("doc_type") for c in cf_list], parent_cfg))
         table_text_desc_cfg = _as_dict(cfg.get("table_text_description"))
         if table_text_desc_cfg:
             table_text_desc_cfg = dict(table_text_desc_cfg)

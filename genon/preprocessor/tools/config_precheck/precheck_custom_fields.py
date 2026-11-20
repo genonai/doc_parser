@@ -52,6 +52,7 @@ from genon.preprocessor.processing.common import model_preset as mp  # noqa: E40
 from genon.preprocessor.processing.enrichment import config_schema as cs  # noqa: E402
 from genon.preprocessor.processing.enrichment import config_v2 as cv2  # noqa: E402
 from genon.preprocessor.processing.enrichment import html_select  # noqa: E402
+from genon.preprocessor.processing.enrichment.enrichment_config import rule_file_blocks  # noqa: E402
 from genon.preprocessor.processing.enrichment.tabular_custom_fields import (  # noqa: E402
     compile_derive,
     compile_meta_exclude,
@@ -106,6 +107,10 @@ def load_yaml(path: Path) -> dict:
 def registered_blocks(root: Path) -> list[tuple[str, dict, dict]]:
     """(프로세서 config 이름, custom_fields 등록 블록, 그 config 의 모델 프리셋) 목록.
 
+    규칙 파일 최상위의 `doc_type:` 으로 한 등록도 같은 모양으로 싣는다. 기동할 때 그 폴더를 읽는 processor 설정마다
+    등록되고 프리셋도 설정마다 다르므로, 설정 파일마다 한 번씩 싣는다. 같은 doc_type 이 두 곳에 등록되어 기동이
+    실패하는 설정은 기동과 같은 함수(`rule_file_blocks`)가 알린다.
+
     프리셋을 함께 들고 다니는 이유는 자식 설정 검증 때문이다 — 자식 yaml 의
     `model_preset:` 은 기동 시 이 프리셋으로 펼쳐지므로, 점검도 같은 재료로 해야 한다.
     """
@@ -117,10 +122,14 @@ def registered_blocks(root: Path) -> list[tuple[str, dict, dict]]:
         cfg = load_yaml(path)
         # 형식 오류는 check_model_presets 가 보고한다. 여기서는 모을 수 있는 만큼만 모은다.
         presets = cp.collect_model_presets(cfg, str(path), strict=False)
-        for item in (cfg.get("enrichment") or []):
-            block = (item or {}).get("custom_fields")
-            if isinstance(block, dict):
-                blocks.append((name, block, presets))
+        own = [item.get("custom_fields") for item in (cfg.get("enrichment") or [])
+               if isinstance(item, dict) and isinstance(item.get("custom_fields"), dict)]
+        blocks.extend((name, block, presets) for block in own)
+        try:
+            found = rule_file_blocks(root, [block.get("doc_type") for block in own], {})
+        except ValueError as exc:
+            raise SystemExit(f"[치명] {name}: {exc}")
+        blocks.extend((name, {k: block[k] for k in ("doc_type", "config_file")}, presets) for block in found)
     return blocks
 
 
@@ -317,6 +326,7 @@ def check_model_presets(root: Path) -> list[str]:
 
     자식 custom_field yaml 의 참조는 **그 파일을 등록한 프로세서 config** 의 프리셋으로
     푼다. 자식 파일에는 프리셋 정의가 없고 등록 블록을 통해 전달받기 때문이다.
+    최상위 `doc_type:` 으로 스스로 등록한 규칙 파일은 그 폴더의 모든 프로세서 config 가 등록한 것으로 본다.
     """
     problems: list[str] = []
     for name in PROCESSOR_CONFIGS:
@@ -340,6 +350,13 @@ def check_model_presets(root: Path) -> list[str]:
             child_name = str(block.get("config_file") or "").strip()
             if child_name and (root / child_name).exists():
                 targets.append((f"{name} → {child_name}", load_yaml(root / child_name)))
+        try:
+            self_registered = cv2.rule_file_registrations(root)
+        except ValueError:                  # 형식 오류는 registered_blocks 가 먼저 알린다
+            self_registered = []
+        for block in self_registered:
+            child_name = block["config_file"]
+            targets.append((f"{name} → {child_name}", load_yaml(root / child_name)))
 
         used: set[str] = set()
         for where, node in targets:
@@ -505,7 +522,7 @@ def _check_root(root: Path) -> int:
             print("[치명] 프로세서 설정이 없습니다 — 경로가 맞는지 확인하세요.")
             return 2
         # custom_fields 는 선택 기능이다 — 등록이 없어도 프리셋·표 형식 검사는 그대로 한다
-        print("[정보] 등록된 custom_fields 블록이 없습니다.\n")
+        print("[정보] 등록된 custom_fields 가 없습니다.\n")
 
     problems: list[str] = []
     seen_files: set[str] = set()
@@ -516,7 +533,7 @@ def _check_root(root: Path) -> int:
     problems.extend(check_table_text_blocks(root))
     problems.extend(check_table_format_pairs(root))
 
-    # 등록되지 않은 custom_field yaml 은 배포되지만 쓰이지 않는다(정보성).
+    # 등록 블록도 없고 `doc_type:` 도 적지 않은 custom_field yaml 은 배포되지만 쓰이지 않는다(정보성).
     registered_files = {
         str(b.get("config_file")) for _source, b, _presets in blocks if b.get("config_file")
     }
@@ -549,7 +566,7 @@ def _check_root(root: Path) -> int:
         print(f"[정보] 어느 프로세서에도 등록되지 않은 설정 {len(orphans)}건: {orphans}\n")
 
     print("=" * 70)
-    print(f"등록 블록 {len(blocks)}건 검사 | 기동실패 {len(blocking)}건 | 본문변화 {len(body)}건")
+    print(f"등록 {len(blocks)}건 검사 | 기동실패 {len(blocking)}건 | 본문변화 {len(body)}건")
     if blocking:
         print()
         print("기동실패가 있으면 이 설정으로는 서비스가 뜨지 않습니다. 배포 전에 고치거나,")

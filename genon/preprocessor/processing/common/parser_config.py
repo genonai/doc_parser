@@ -161,7 +161,8 @@ def check_doc_type_configured(custom_fields_cfgs: Iterable[dict] | None, runtime
     if key in registered:
         return
     where = config_path or "이 activity 의 config.yaml"
-    register = f"{where} 의 enrichment 에 custom_fields(doc_type: {key})를 등록"
+    register = (f"{where} 의 enrichment 에 custom_fields(doc_type: {key}) 블록을 두거나, "
+                f"같은 폴더의 규칙 파일 최상위에 doc_type: {key} 를 지정")
     if policy == "fail":
         raise exc_factory(
             f"doc_type={key} parsing 중단: custom_fields 등록 없음 (defaults.unknown_doc_type=fail)\n"
