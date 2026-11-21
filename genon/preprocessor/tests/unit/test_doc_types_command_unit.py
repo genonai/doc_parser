@@ -96,6 +96,9 @@ def _edit_config(root: Path, activity: str, old: str, new: str) -> None:
     path.write_text(text.replace(old, new), encoding="utf-8")
 
 
+BLOCK = {"registered_in": "config"}
+
+
 def test_list_reads_registered_blocks_and_their_variants(acts):
     """등록 블록마다 한 항목. doc_type 목록·doc_type 없음·config_file 없는 블록·꺼진 블록·없는 규칙 파일도 읽는다."""
     (acts / "parse" / "config.yaml").write_text("""\
@@ -120,15 +123,63 @@ enrichment:
     described = "모니모 뮤직 AI 플레이리스트 문구 JSON 레코드"
 
     assert _doc_types.list_doc_types("parse", acts) == {"activity": "parse", "unknown_doc_type": "warn", "doc_types": [
-        {"doc_type": "card", "config_file": "custom_field_card.yaml", "enable": True, "description": described},
-        {"doc_type": "card_new", "config_file": "custom_field_card.yaml", "enable": True, "description": described},
-        {"doc_type": "gone", "config_file": "custom_field_gone.yaml", "enable": False, "description": None},
-        {"doc_type": "inline", "config_file": None, "enable": True, "description": None},
-        {"doc_type": None, "config_file": "custom_field_music_ai.yaml", "enable": True, "description": None},
+        {"doc_type": "card", "config_file": "custom_field_card.yaml", "enable": True, "description": described,
+         **BLOCK, "removable": False, "copyable": True},
+        {"doc_type": "card_new", "config_file": "custom_field_card.yaml", "enable": True, "description": described,
+         **BLOCK, "removable": False, "copyable": True},
+        {"doc_type": "gone", "config_file": "custom_field_gone.yaml", "enable": False, "description": None,
+         **BLOCK, "removable": False, "copyable": False},
+        {"doc_type": "inline", "config_file": None, "enable": True, "description": None,
+         **BLOCK, "removable": False, "copyable": False},
+        {"doc_type": None, "config_file": "custom_field_music_ai.yaml", "enable": True, "description": None,
+         **BLOCK, "removable": False, "copyable": False},
     ]}
     # 복제한 activity 는 복제 시점의 등록을 그대로 가진다
     assert [d["doc_type"] for d in _doc_types.list_doc_types("parse_tour", acts)["doc_types"]] == ["card", "music_ai"]
 
+
+
+def _flags(root, activity):
+    return {d["doc_type"]: (d["registered_in"], d["removable"], d["copyable"])
+            for d in _doc_types.list_doc_types(activity, root)["doc_types"]}
+
+
+def test_list_flags_agree_with_remove_and_add(acts):
+    """`registered_in`·`removable`·`copyable` 은 `remove`·`add --from` 의 실제 결과와 같다(#756)."""
+    _doc_types.add_doc_type("tour_blog", "music_ai", "parse", activities_dir=acts)
+    _edit_config(acts, "parse_tour", "      doc_type: music_ai\n", "      doc_type: music_ai\n      extractor: json_mapping\n")
+    # 규칙 파일의 doc_type 을 여러 줄 목록으로 적으면 복사본에 doc_type 한 줄을 적을 수 없다 — add --from 이 config_invalid
+    (acts / "parse" / "custom_field_tour_list.yaml").write_text(
+        RULE.replace("schema: v2\n", "schema: v2\ndoc_type:\n  - tour_list\n"), encoding="utf-8")
+
+    assert _flags(acts, "parse") == {
+        "card": ("config", False, True),          # 기본 parse 의 등록 블록 — base_activity_not_allowed
+        "music_ai": ("config", False, True),
+        "tour_blog": ("rule_file", True, True),   # add 가 만든 규칙 파일 등록
+        "tour_list": ("rule_file", True, False),
+    }
+    assert _flags(acts, "parse_tour") == {
+        "card": ("config", True, True),           # 복제한 activity 의 등록 블록은 뺄 수 있다
+        "music_ai": ("config", True, False),      # 블록에 그 밖의 키 — add --from 이 config_invalid
+    }
+    # 판정이 명령 결과와 같은지 실제로 부른다(파일이 바뀌므로 맨 끝에서)
+    for activity in ("parse", "parse_tour"):
+        for doc_type, (_, removable, copyable) in _flags(acts, activity).items():
+            try:
+                _doc_types.add_doc_type("probe_copy", doc_type, activity, activities_dir=acts)
+                copied = True
+                _doc_types.remove_doc_type("probe_copy", activity, activities_dir=acts)
+            except DocTypeError:
+                copied = False
+            assert copied is copyable, (activity, doc_type)
+    for activity in ("parse", "parse_tour"):
+        for doc_type, (_, removable, _) in _flags(acts, activity).items():
+            try:
+                _doc_types.remove_doc_type(doc_type, activity, activities_dir=acts)
+                removed = True
+            except DocTypeError:
+                removed = False
+            assert removed is removable, (activity, doc_type)
 
 def _twice(root):
     _edit_config(root, "parse", "doc_type: card ", "doc_type: MUSIC_AI ")
@@ -204,7 +255,8 @@ def test_add_creates_rule_file_with_doc_type_and_leaves_config_untouched(acts):
     assert _doc_types.validate_doc_type("tour_blog", "parse", acts)["valid"] is True
     assert _doc_types.list_doc_types("parse", acts)["doc_types"][-1] == {
         "doc_type": "tour_blog", "config_file": "custom_field_tour_blog.yaml", "enable": True,
-        "description": "문서 유형 tour_blog(여행 블로그 글)의 custom_fields 설정"}
+        "description": "문서 유형 tour_blog(여행 블로그 글)의 custom_fields 설정",
+        "registered_in": "rule_file", "removable": True, "copyable": True}
 
     # 규칙 파일로 등록한 doc_type 을 --from 으로 쓰면 복사본의 doc_type 줄만 새 이름으로 바뀐다
     _doc_types.add_doc_type("tour_guide", "tour_blog", "parse", activities_dir=acts)

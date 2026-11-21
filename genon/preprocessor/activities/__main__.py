@@ -40,7 +40,8 @@ changed, added, removed, unchanged}.
 뺀다(`remove`, #739). 등록은 규칙 파일(`custom_field_<doc_type>.yaml`) 최상위의 `doc_type:` 과 `config.yaml` 의 등록 블록
 (`- custom_fields:`) 두 곳에 있다(#748). 본체는 `_doc_types.py`. `add` 는 규칙 파일 하나만 만든다 — `config.yaml` 을
 고치지 않으므로 원형 `parse` 에도 쓴다. `data.files` = [규칙 파일](저장소 루트 기준). 거부 사유는
-`error.detail.reason` 에 싣는다(`DocTypeError`). `validate` 는 검사 결과가 실패여도 `ok: true` · `data.valid: false`.
+`error.detail.reason` 에 싣는다(`DocTypeError`). `list` 항목의 `registered_in`·`removable`·`copyable` 은
+등록 위치와 `remove`·`add --from` 이 거부하지 않는지다(#756). `validate` 는 검사 결과가 실패여도 `ok: true` · `data.valid: false`.
 결과 줄의 `stage` 는 null 이다(pipeline 의 같은 이름 명령과 맞춘다).
 """
 from __future__ import annotations
