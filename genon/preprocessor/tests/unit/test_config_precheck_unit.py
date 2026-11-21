@@ -86,9 +86,10 @@ def test_precheck_passes_on_shipped_resource():
     precheck = _load_precheck()
 
     # 인자 없음(표준 resource/ + 표준 파서 액티비티 폴더)과 사이트 루트(resource/ + activities/parse*/) — 점검기가 실제로
-    # 도는 루트 그대로. 모니모 파서 폴더는 14블록 이상이어야 한다(경로가 틀리면 조용히 적어지는 것을 막는다)
+    # 도는 루트 그대로. 모니모 파서 폴더는 13블록 이상이어야 한다(경로가 틀리면 조용히 적어지는 것을 막는다).
+    # music_ai 는 등록 블록이 아니라 Studio 문서유형 추가로 만드는 규칙 파일이라 이 수에 들지 않는다
     roots = [*precheck.roots_of(None), *precheck.roots_of(_PREPROC.parent / "sites" / "monimo")]
-    assert len(precheck.registered_blocks(_PREPROC.parent / "sites" / "monimo" / "activities" / "parse")) >= 14
+    assert len(precheck.registered_blocks(_PREPROC.parent / "sites" / "monimo" / "activities" / "parse")) >= 13
     assert {str(r.relative_to(_PREPROC.parent)): precheck.check_root(r) for r in roots} == {
         str(r.relative_to(_PREPROC.parent)): 0 for r in roots}
 

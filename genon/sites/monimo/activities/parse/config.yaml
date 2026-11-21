@@ -143,9 +143,10 @@ enrichment:
   # 배포할 때 enable 과 쓸 모델(서빙 ID)을 맞춘 뒤 사용한다.
   # `doc-types add` 로 추가한 문서유형은 여기에 적히지 않는다. 그 문서유형은 규칙 파일(custom_field_<doc_type>.yaml)
   # 최상위의 `doc_type:` 한 줄이 등록이다. 등록된 전체 목록은 `python -m genon.preprocessor.activities doc-types list` 로 본다.
-  # ── 모니모 문서유형 14종 ─────────────────────────────────────────────────────
+  # ── 모니모 문서유형 13종 ─────────────────────────────────────────────────────
   # 모니모(고객사 사이트)에서 쓰는 문서유형이다. 요청의 doc_type 이 아래 값 중 하나면
   # 같은 폴더의 custom_field_<doc_type>.yaml 규칙으로 문서에서 필드를 뽑는다.
+  # music_ai 는 여기 두지 않는다. 전처리 Studio 의 문서유형 추가(doc-types add)로 규칙 파일을 만들어 등록한다.
   # 메뉴서비스
   - custom_fields:
       enable: true                       # 이 문서유형 설정을 쓸지. true(기본) | false
@@ -171,11 +172,6 @@ enrichment:
       enable: true                       # 이 문서유형 설정을 쓸지. true(기본) | false
       doc_type: monimo_news              # 요청의 doc_type 이 이 값과 같을 때 적용한다(대소문자 무시)
       config_file: custom_field_monimo_news.yaml   # 이 문서유형의 필드 추출 규칙 파일(이 폴더 기준)
-  # 뮤직 AI 플레이리스트 문구
-  - custom_fields:
-      enable: true                       # 이 문서유형 설정을 쓸지. true(기본) | false
-      doc_type: music_ai                 # 요청의 doc_type 이 이 값과 같을 때 적용한다(대소문자 무시)
-      config_file: custom_field_music_ai.yaml      # 이 문서유형의 필드 추출 규칙 파일(이 폴더 기준)
   # 상품설명서 — 생명
   - custom_fields:
       enable: true                       # 이 문서유형 설정을 쓸지. true(기본) | false
