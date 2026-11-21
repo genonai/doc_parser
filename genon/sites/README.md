@@ -27,7 +27,8 @@ genon/sites/
 
 - `owned:` 에 적힌 파일(사이트 루트 기준 경로)만 사이트가 직접 고친다. 모니모는 `resource/model_presets.yaml`,
   간이 파서 설정 `resource/parse_config_simple.yaml`(+ 그것이 부르는 `custom_field_*.yaml` 14종 사본),
-  파서 액티비티 설정 `activities/parse/config.yaml` 과 `activities/parse/custom_field_*.yaml` 14종을 소유한다.
+  파서 액티비티 설정 `activities/parse/config.yaml` 과 `activities/parse/custom_field_*.yaml` 13종을 소유한다
+  (music_ai 는 `resource/` 에만 있다 — 워커 쪽 `activities/parse/` 에는 전처리 Studio 의 문서유형 추가로 만든다).
   두 자리의 custom_field 사본은 같아야 한다(`test_sites_sync_unit.py` 가 대조).
 - 나머지 파일은 표준의 사본이다. **사본은 직접 고치지 않는다.** 표준을 고친 뒤 `sync-sites.sh` 로 맞춘다.
   사본이 표준과 다르면 `genon/preprocessor/tests/unit/test_sites_sync_unit.py` 가 실패한다.

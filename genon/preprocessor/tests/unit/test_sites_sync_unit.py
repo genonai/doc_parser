@@ -94,3 +94,12 @@ def test_activity_copies_match_resource(root):
         if f.is_file() and f.name not in CODE and (root / "resource" / f.name).is_file()
         and f.read_bytes() != (root / "resource" / f.name).read_bytes())
     assert differing == [], f"{root.name}: resource/ 사본과 다른 activities 사본: {differing}"
+
+
+@pytest.mark.unit
+def test_studio_demo_custom_field_matches_site_resource():
+    """Studio 문서유형 추가 시연에서 덮어쓰는 music_ai 완성본(sample_files/studio/)은 모니모 resource/ 사본에
+    `doc_type: music_ai` 한 줄만 더한 것이어야 한다 — 한쪽만 고치면 시연 결과가 운영 설정과 달라진다."""
+    demo = (PREPROCESSOR_DIR / "sample_files" / "studio" / "custom_field_music_ai.yaml").read_text(encoding="utf-8")
+    site = (SITES / "monimo" / "resource" / "custom_field_music_ai.yaml").read_text(encoding="utf-8")
+    assert demo == site.replace("schema: v2\n", "schema: v2\ndoc_type: music_ai\n", 1)
