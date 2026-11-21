@@ -148,11 +148,15 @@ def test_list_flags_agree_with_remove_and_add(acts):
     """`registered_in`·`removable`·`copyable` 은 `remove`·`add --from` 의 실제 결과와 같다(#756)."""
     _doc_types.add_doc_type("tour_blog", "music_ai", "parse", activities_dir=acts)
     _edit_config(acts, "parse_tour", "      doc_type: music_ai\n", "      doc_type: music_ai\n      extractor: json_mapping\n")
+    # 규칙 파일의 doc_type 을 여러 줄 목록으로 적으면 복사본에 doc_type 한 줄을 적을 수 없다 — add --from 이 config_invalid
+    (acts / "parse" / "custom_field_tour_list.yaml").write_text(
+        RULE.replace("schema: v2\n", "schema: v2\ndoc_type:\n  - tour_list\n"), encoding="utf-8")
 
     assert _flags(acts, "parse") == {
         "card": ("config", False, True),          # 기본 parse 의 등록 블록 — base_activity_not_allowed
         "music_ai": ("config", False, True),
         "tour_blog": ("rule_file", True, True),   # add 가 만든 규칙 파일 등록
+        "tour_list": ("rule_file", True, False),
     }
     assert _flags(acts, "parse_tour") == {
         "card": ("config", True, True),           # 복제한 activity 의 등록 블록은 뺄 수 있다

@@ -166,7 +166,7 @@ def list_doc_types(activity: str = PARSE_STAGE, activities_dir: Path | None = No
 
     `registered_in` 은 등록 위치다 — `rule_file`(규칙 파일의 `doc_type:` 줄) | `config`(`config.yaml` 의 등록 블록).
     `removable` 은 `remove --name <doc_type>` 이, `copyable` 은 `add --from <doc_type>` 이 거부하지 않는지다.
-    두 값은 그 명령의 거부 검사(`_removal`·`_copy_source`)를 그대로 불러 정하므로 명령 결과와 어긋나지 않는다.
+    두 값은 그 명령의 거부 검사(`_removal`·`_copy_check`)를 그대로 불러 정하므로 명령 결과와 어긋나지 않는다.
     `doc_type` 이 null 인 항목은 이름으로 부를 수 없어 둘 다 false 다.
     """
     from genon.preprocessor.processing.common.parser_config import resolve_unknown_doc_type_policy
@@ -185,7 +185,7 @@ def list_doc_types(activity: str = PARSE_STAGE, activities_dir: Path | None = No
                             "description": _description(act.folder, config_file),
                             "registered_in": "rule_file" if act.from_file(block) else "config",
                             "removable": doc_type is not None and _passes(_removal, act, doc_type),
-                            "copyable": doc_type is not None and _passes(_copy_source, act, doc_type)})
+                            "copyable": doc_type is not None and _passes(_copy_check, act, doc_type)})
     return {"activity": act.name, "unknown_doc_type": policy, "doc_types": entries}
 
 
@@ -338,7 +338,7 @@ def _titled(text: str, doc_type: str, title: str | None) -> str:
 
 
 def _copy_source(act: _Activity, origin: str) -> Path:
-    """`add --from <origin>` 이 복사할 규칙 파일. 복사할 수 없으면 `DocTypeError` — `list` 의 `copyable` 도 이것으로 정한다."""
+    """`add --from <origin>` 이 복사할 규칙 파일. 복사할 수 없으면 `DocTypeError`."""
     from genon.preprocessor.processing.enrichment.custom_fields_enricher import resolve_custom_fields_config_path
 
     sources = [b for b in act.registrations if _normalize(origin) in _doc_types_of(b)]
@@ -364,6 +364,12 @@ def _copy_source(act: _Activity, origin: str) -> Path:
                            f"enable·doc_type·config_file 외의 키가 있음 ({', '.join(extra)})\n"
                            "그 키가 없는 doc_type 을 --from 으로 지정 필요")
     return source_path
+
+
+def _copy_check(act: _Activity, origin: str) -> None:
+    """`list` 의 `copyable` — `add --from <origin>` 이 하는 거부 검사 전부(원본 찾기, 복사본에 doc_type 줄 적기)."""
+    source_path = _copy_source(act, origin)
+    _with_doc_type(_read_text(source_path), "copy_check", act.label(source_path.name))
 
 
 def add_doc_type(name: str, origin: str, activity: str, title: str | None = None,
