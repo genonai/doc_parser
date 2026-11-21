@@ -157,11 +157,17 @@ def _description(folder: Path, config_file: str | None) -> str | None:
 
 
 def list_doc_types(activity: str = PARSE_STAGE, activities_dir: Path | None = None) -> dict:
-    """모든 등록 → `{activity, unknown_doc_type, doc_types: [{doc_type, config_file, enable, description}]}`.
+    """모든 등록 → `{activity, unknown_doc_type, doc_types: [{doc_type, config_file, enable, description,
+    registered_in, removable, copyable}]}`.
 
     등록 블록이 먼저, 규칙 파일 등록이 그 뒤다. 규칙 파일 등록은 끄는 키가 없으므로 늘 `enable: true` 다.
     블록의 `doc_type` 이 목록이면 이름마다 한 항목, 없으면(모든 doc_type 대상) `doc_type: null` 한 항목이다.
     `config_file` 없이 설정을 블록에 직접 적었으면 `config_file`·`description` 이 null 이다.
+
+    `registered_in` 은 등록 위치다 — `rule_file`(규칙 파일의 `doc_type:` 줄) | `config`(`config.yaml` 의 등록 블록).
+    `removable` 은 `remove --name <doc_type>` 이, `copyable` 은 `add --from <doc_type>` 이 거부하지 않는지다.
+    두 값은 그 명령의 거부 검사(`_removal`·`_copy_source`)를 그대로 불러 정하므로 명령 결과와 어긋나지 않는다.
+    `doc_type` 이 null 인 항목은 이름으로 부를 수 없어 둘 다 false 다.
     """
     from genon.preprocessor.processing.common.parser_config import resolve_unknown_doc_type_policy
 
@@ -176,8 +182,20 @@ def list_doc_types(activity: str = PARSE_STAGE, activities_dir: Path | None = No
         config_file = _config_file_of(block)
         for doc_type in _doc_types_of(block) or (None,):
             entries.append({"doc_type": doc_type, "config_file": config_file, "enable": _enabled(block),
-                            "description": _description(act.folder, config_file)})
+                            "description": _description(act.folder, config_file),
+                            "registered_in": "rule_file" if act.from_file(block) else "config",
+                            "removable": doc_type is not None and _passes(_removal, act, doc_type),
+                            "copyable": doc_type is not None and _passes(_copy_source, act, doc_type)})
     return {"activity": act.name, "unknown_doc_type": policy, "doc_types": entries}
+
+
+def _passes(check, act: _Activity, doc_type: str) -> bool:
+    """거부 검사 `check(act, doc_type)` 가 `DocTypeError` 없이 끝나는지."""
+    try:
+        check(act, doc_type)
+    except DocTypeError:
+        return False
+    return True
 
 
 def _step(step: str, status: str, reason: str | None = None, message: str | None = None) -> dict:
@@ -319,29 +337,10 @@ def _titled(text: str, doc_type: str, title: str | None) -> str:
     return "".join(lines)
 
 
-def add_doc_type(name: str, origin: str, activity: str, title: str | None = None,
-                 activities_dir: Path | None = None) -> tuple[dict, list[Path]]:
-    """parse activity 에 doc_type 을 등록한다 → (`{doc_type, activity}`, 만든 파일 [규칙 파일]).
-
-    `origin` doc_type 의 규칙 파일을 `custom_field_<name>.yaml` 로 복사하고 그 파일 최상위에 `doc_type: <name>` 을
-    적는다. 이 한 줄이 등록이다 — `config.yaml` 은 고치지 않으므로 기본 activity `parse` 에도 쓸 수 있다.
-    거부할 때는 `DocTypeError` 를 올리고 어떤 파일도 만들지 않는다.
-    """
+def _copy_source(act: _Activity, origin: str) -> Path:
+    """`add --from <origin>` 이 복사할 규칙 파일. 복사할 수 없으면 `DocTypeError` — `list` 의 `copyable` 도 이것으로 정한다."""
     from genon.preprocessor.processing.enrichment.custom_fields_enricher import resolve_custom_fields_config_path
 
-    act = _load(activity, activities_dir)
-    if not NAME_RE.fullmatch(name):
-        raise DocTypeError("invalid_name", f"doc_type 이름 형식 오류: {name!r} (소문자로 시작, 소문자·숫자·_ 만 허용)")
-    registered = [b for b in act.registrations if name in _doc_types_of(b)]
-    if registered:
-        steps = _validate(act, name)
-        problem = next((s["message"] for s in steps if s["status"] == "fail"), None)
-        state = "등록 상태 정상" if problem is None else "등록 상태 확인 필요"
-        raise DocTypeError(
-            "already_registered",
-            f"doc_type={name} 이미 등록됨: config_file={_config_file_of(registered[0]) or '<없음>'}, {state}"
-            + (f"\n{problem}" if problem else ""),
-            steps=steps)
     sources = [b for b in act.registrations if _normalize(origin) in _doc_types_of(b)]
     if not sources:
         known = sorted({d for b in act.registrations for d in _doc_types_of(b)})
@@ -364,6 +363,31 @@ def add_doc_type(name: str, origin: str, activity: str, title: str | None = None
                            f"--from doc_type={origin} 복사 불가: {act.label()} 의 등록 블록에 "
                            f"enable·doc_type·config_file 외의 키가 있음 ({', '.join(extra)})\n"
                            "그 키가 없는 doc_type 을 --from 으로 지정 필요")
+    return source_path
+
+
+def add_doc_type(name: str, origin: str, activity: str, title: str | None = None,
+                 activities_dir: Path | None = None) -> tuple[dict, list[Path]]:
+    """parse activity 에 doc_type 을 등록한다 → (`{doc_type, activity}`, 만든 파일 [규칙 파일]).
+
+    `origin` doc_type 의 규칙 파일을 `custom_field_<name>.yaml` 로 복사하고 그 파일 최상위에 `doc_type: <name>` 을
+    적는다. 이 한 줄이 등록이다 — `config.yaml` 은 고치지 않으므로 기본 activity `parse` 에도 쓸 수 있다.
+    거부할 때는 `DocTypeError` 를 올리고 어떤 파일도 만들지 않는다.
+    """
+    act = _load(activity, activities_dir)
+    if not NAME_RE.fullmatch(name):
+        raise DocTypeError("invalid_name", f"doc_type 이름 형식 오류: {name!r} (소문자로 시작, 소문자·숫자·_ 만 허용)")
+    registered = [b for b in act.registrations if name in _doc_types_of(b)]
+    if registered:
+        steps = _validate(act, name)
+        problem = next((s["message"] for s in steps if s["status"] == "fail"), None)
+        state = "등록 상태 정상" if problem is None else "등록 상태 확인 필요"
+        raise DocTypeError(
+            "already_registered",
+            f"doc_type={name} 이미 등록됨: config_file={_config_file_of(registered[0]) or '<없음>'}, {state}"
+            + (f"\n{problem}" if problem else ""),
+            steps=steps)
+    source_path = _copy_source(act, origin)
     target = act.folder / rule_file_name(name)
     if target.exists():
         raise DocTypeError("config_file_exists",
@@ -424,18 +448,22 @@ def _remove_block(act: _Activity, index: int) -> str:
     return new_text
 
 
-def remove_doc_type(name: str, activity: str, activities_dir: Path | None = None) -> tuple[dict, list[Path]]:
-    """parse activity 에서 doc_type 등록을 뺀다 → (`{doc_type, activity}`, 바뀐·지운 파일).
+@dataclass(frozen=True)
+class _Removal:
+    """`remove` 가 지울 등록 하나와 그 규칙 파일."""
 
-    `add` 의 반대다. 규칙 파일로 등록한 doc_type 이면 그 파일을 지운다(`config.yaml` 은 그대로다).
-    등록 블록으로 등록한 doc_type 이면 `config.yaml` 에서 그 블록을 빼고, 그 블록의 규칙 파일이 이 폴더 안에 있고
-    다른 등록이 쓰지 않으면 지운다 — 기본 activity `parse` 의 등록 블록은 빼지 않는다(`config.yaml` 을 고치게 된다).
-    적재된 문서가 있는지는 확인하지 않는다(pipeline `doc-type-mappings remove` 몫).
-    거부할 때는 `DocTypeError` 를 올리고 어떤 파일도 바꾸지 않는다.
-    """
+    doc_type: str
+    block: dict
+    from_file: bool
+    path: Path | None                   # 등록의 규칙 파일(로더와 같은 함수로 푼 실제 경로)
+    others: set                         # 다른 등록이 쓰는 규칙 파일 경로
+    new_config: str | None = None       # 등록 블록이면 그 블록을 뺀 `config.yaml` 텍스트
+
+
+def _removal(act: _Activity, name: str) -> _Removal:
+    """`remove --name <name>` 의 거부 검사 — 파일을 바꾸지 않는다. `list` 의 `removable` 도 이것으로 정한다."""
     from genon.preprocessor.processing.enrichment.custom_fields_enricher import resolve_custom_fields_config_path
 
-    act = _load(activity, activities_dir)
     want = _normalize(name)
     hits = [b for b in act.registrations if want in _doc_types_of(b)]
     if not hits:
@@ -471,20 +499,37 @@ def remove_doc_type(name: str, activity: str, activities_dir: Path | None = None
             raise DocTypeError("shared_block",
                                f"doc_type={name} 삭제 불가: 규칙 파일 {_config_file_of(block)} 을 config.yaml 의 "
                                "다른 등록 블록도 사용함\nconfig.yaml 에서 그 블록을 먼저 정리 필요")
-        path.unlink()                                 # type: ignore[union-attr]  # 규칙 파일 등록은 늘 이 폴더의 파일이다
-        return {"doc_type": want, "activity": act.name}, [path]  # type: ignore[list-item]
+        return _Removal(want, block, True, path, others)
     if act.name == PARSE_STAGE:
         raise DocTypeError("base_activity_not_allowed",
                            f"doc_type={name} 삭제 불가: 기본 activity parse 의 config.yaml 에 등록된 doc_type 임\n"
                            "복제한 activity 에서 삭제하거나, 적재를 막으려면 pipeline 의 doc-type-mappings disable 사용")
     index = next(i for i, b in enumerate(act.blocks) if b is block)
-    new_text = _remove_block(act, index)
+    return _Removal(want, block, False, path, others, _remove_block(act, index))
+
+
+def remove_doc_type(name: str, activity: str, activities_dir: Path | None = None) -> tuple[dict, list[Path]]:
+    """parse activity 에서 doc_type 등록을 뺀다 → (`{doc_type, activity}`, 바뀐·지운 파일).
+
+    `add` 의 반대다. 규칙 파일로 등록한 doc_type 이면 그 파일을 지운다(`config.yaml` 은 그대로다).
+    등록 블록으로 등록한 doc_type 이면 `config.yaml` 에서 그 블록을 빼고, 그 블록의 규칙 파일이 이 폴더 안에 있고
+    다른 등록이 쓰지 않으면 지운다 — 기본 activity `parse` 의 등록 블록은 빼지 않는다(`config.yaml` 을 고치게 된다).
+    적재된 문서가 있는지는 확인하지 않는다(pipeline `doc-type-mappings remove` 몫).
+    거부할 때는 `DocTypeError` 를 올리고 어떤 파일도 바꾸지 않는다.
+    """
+    act = _load(activity, activities_dir)
+    plan = _removal(act, name)
+    want, path, others = plan.doc_type, plan.path, plan.others
+    if plan.from_file:
+        path.unlink()                                 # type: ignore[union-attr]  # 규칙 파일 등록은 늘 이 폴더의 파일이다
+        return {"doc_type": want, "activity": act.name}, [path]  # type: ignore[list-item]
+    new_text = plan.new_config
     files: list[Path] = [act.config_path]
     rule = None
     if path is not None and path not in others and path.is_file() and path.parent == act.folder.resolve():
         rule = path
     old_text = _read_text(act.config_path)
-    _write_atomic(act.config_path, new_text)
+    _write_atomic(act.config_path, new_text)  # type: ignore[arg-type]
     if rule is not None:
         try:
             rule.unlink()

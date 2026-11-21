@@ -1354,7 +1354,7 @@ python -m genon.preprocessor.activities doc-types validate --name notice --activ
 
 | 명령 | 동작 |
 |---|---|
-| `doc-types list [--activity <slug>]` | `config.yaml`의 등록 블록과 규칙 파일의 `doc_type`을 읽어 doc_type · 규칙 파일 이름 · `enable` · 설명을 보여 줍니다. 설명은 규칙 파일 첫 줄의 주석입니다 |
+| `doc-types list [--activity <slug>]` | `config.yaml`의 등록 블록과 규칙 파일의 `doc_type`을 읽어 doc_type · 규칙 파일 이름 · `enable` · 설명 · 등록 위치(`registered_in`: `rule_file` 규칙 파일 \| `config` 등록 블록) · `remove` 로 지울 수 있는지(`removable`) · `add --from` 원본으로 쓸 수 있는지(`copyable`)를 보여 줍니다. 설명은 규칙 파일 첫 줄의 주석입니다 |
 | `doc-types validate --name <doc_type> [--activity <slug>]` | 등록이 1개인지(`registered`), 등록 블록이면 `enable: true`이고 규칙 파일 이름이 `custom_field_<doc_type>.yaml`인지(`block` — 규칙 파일 등록은 늘 통과), 규칙 파일이 있고 워커 기동 때와 같은 검사를 통과하는지(`config_file`)를 단계별로 알립니다. 검사 결과가 실패여도 명령은 성공하고(`ok: true`) `data.valid`가 `false`입니다 |
 | `doc-types add --name <doc_type> --from <등록된 doc_type> --activity <slug> [--title <설명>]` | `--from`의 규칙 파일을 `custom_field_<doc_type>.yaml`로 복사하고, 그 파일의 `schema:` 줄 아래에 `doc_type: <doc_type>` 한 줄을 적습니다. `config.yaml`은 고치지 않습니다. `--title`을 주면 복사한 파일의 첫 줄 주석을 `# 문서 유형 <doc_type>(<설명>)의 custom_fields 설정`으로 바꿉니다 |
 
