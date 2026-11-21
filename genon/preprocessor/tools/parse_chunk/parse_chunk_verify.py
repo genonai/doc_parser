@@ -1144,6 +1144,22 @@ def chunker_config_path() -> Path:
     return site if site.exists() else PREPROCESSOR_DIR / "activities" / "chunk" / "config.yaml"
 
 
+# 설정의 확장자 별칭(formats.extension_aliases)이 있어야 뜻이 있는 샘플의 확장자. 사이트 설정에 그 별칭이 없으면
+# 그 사이트는 그 원천을 받지 않는다는 뜻이므로 검증하지 않고 SKIP 한다(#751). `.dtms` 는 여기 넣지 않는다 —
+# 별칭이 없어도 custom_fields 의 source.pre.delimited 가 읽는다.
+ALIAS_ONLY_SUFFIXES = {".parsed"}
+
+
+def configured_alias_suffixes() -> set[str]:
+    """파서 설정의 formats.extension_aliases 에 적힌 확장자(소문자, 점 포함)."""
+    cfg = yaml.safe_load(parser_config_path().read_text(encoding="utf-8")) or {}
+    formats = cfg.get("formats")
+    aliases = formats.get("extension_aliases") if isinstance(formats, dict) else None
+    if not isinstance(aliases, dict):
+        return set()
+    return {"." + str(key).lower().lstrip(".") for key in aliases}
+
+
 def load_custom_field_blocks() -> list[dict]:
     """파서 설정(activities/parse/config.yaml)의 enable 된 custom_fields 블록 목록."""
     cfg = yaml.safe_load(parser_config_path().read_text(encoding="utf-8"))
@@ -1333,6 +1349,7 @@ def main() -> int:
         ap.error("검사 대상이 0건입니다. CASES 에 doc_type 과 샘플 경로를 등록하세요.")
 
     blocks = load_custom_field_blocks()
+    alias_suffixes = configured_alias_suffixes()
     out_root = Path(args.out) if args.out else Path(tempfile.mkdtemp(prefix="parse_chunk_verify_"))
     out_root.mkdir(parents=True, exist_ok=True)
     rows, failed, skipped = [], 0, 0
@@ -1348,6 +1365,9 @@ def main() -> int:
         block = pick_block(blocks, doc_type, src.suffix)
         if block is None:
             rows.append((label, "SKIP", "설정에 doc_type 없음", "-", "-")); skipped += 1; continue
+        suffix = src.suffix.lower()
+        if suffix in ALIAS_ONLY_SUFFIXES and suffix not in alias_suffixes:
+            rows.append((label, "SKIP", f"설정에 {suffix} 확장자 별칭 없음", "-", "-")); skipped += 1; continue
 
         # 같은 샘플을 chunk_size 만 바꿔 다시 돌리므로 산출물이 덮이지 않게 폴더를 가른다.
         out_dir = out_root / (doc_type if chunk_size is None else f"{doc_type}_chunk{chunk_size}")
