@@ -172,9 +172,9 @@ def save_json(path: Path, data) -> None:
 
 def collect_files(input_path: Path) -> list[Path]:
     if input_path.is_file():
-        if input_path.suffix.lower() not in SUPPORTED_EXTENSIONS:
-            print(f"지원하지 않는 형식: {input_path.suffix} (지원: {', '.join(sorted(SUPPORTED_EXTENSIONS))})")
-            raise SystemExit(1)
+        # 파일 하나를 지정했으면 확장자로 막지 않는다. worker 도 확장자 목록으로 막지 않고 파서가 처리 방법을
+        # 정한다 — 별칭(formats.extension_aliases)이 없어도 custom_fields 의 source.pre 가 읽는 원천
+        # (예: .dtms)이 있어, 여기서 막으면 worker 가 처리하는 파일을 러너만 거부하게 된다(#751).
         return [input_path]
     if input_path.is_dir():
         files = sorted(

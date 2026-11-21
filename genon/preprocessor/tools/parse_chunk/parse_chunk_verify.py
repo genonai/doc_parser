@@ -1252,7 +1252,9 @@ def run_case(python: str, doc_type: str | None, src: Path, out_dir: Path,
     proc = subprocess.run(cmd, cwd=SCRIPT_DIR, capture_output=True, text=True)
     output = (proc.stdout or "") + (proc.stderr or "")
     if proc.returncode != 0:
-        tail = (proc.stderr or proc.stdout).strip().splitlines()[-3:]
+        # stdout·stderr 양쪽 끝을 함께 보인다. 러너는 거부 사유를 stdout 에 적는데 stderr 에 경고 한 줄만
+        # 있어도 그 줄이 사유 자리를 차지해 원인이 가려졌다(#751).
+        tail = [*(proc.stdout or "").strip().splitlines()[-2:], *(proc.stderr or "").strip().splitlines()[-2:]]
         return False, "실행 실패: " + " / ".join(tail), output
     return True, "", output
 
